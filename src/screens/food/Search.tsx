@@ -6,7 +6,6 @@ import { useT, useLang } from '../../lib/i18n';
 import type { Food, Quantity } from '../../lib/types';
 import { searchFoods } from '../../lib/foodText';
 import { entryFromSnapshot, snapshotOf, uid } from '../../lib/nutrition';
-import { fmtNum } from '../../lib/units';
 import { fmtNutrient, sourceLabel } from '../../lib/format';
 import { Icon } from '../../ui/Icon';
 import { Plate, Sheet, SheetHead, SOFT } from '../../ui/Sheet';
@@ -179,7 +178,6 @@ function FoodResult({ food, open, add }: { food: Food; open: () => void; add: ()
         </div>
       </button>
       <button className="icon-btn press" aria-label={`${t('Quick add')} ${food.name}`} onClick={add} style={{ flex: 'none' }}><Icon name="plus" /></button>
-      {void fmtNum}
     </motion.div>
   );
 }

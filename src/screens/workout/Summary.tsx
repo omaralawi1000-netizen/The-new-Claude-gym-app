@@ -86,7 +86,6 @@ export function Summary({ props }: { props: { sessionId: string } }) {
         <div className="field" style={{ marginTop: 20 }}><label htmlFor="s-note">{t('Session note')}</label><textarea id="s-note" className="input" defaultValue={ses.note ?? ''} placeholder={t('How did it feel?')} onBlur={(e) => s.mutateSession(ses.id, (x) => ({ ...x, note: e.target.value.trim() || undefined }))} /></div>
         {!ses.routineId && <button className="btn block press" style={{ marginTop: 14 }} onClick={saveRoutine}><Icon name="copy" size={18} /> {t('Save as routine')}</button>}
       </div>
-      {void NumInput}{void displayToKg}
     </Sheet>
   );
 }
@@ -128,7 +127,7 @@ export function SessionDetail({ props }: { props: { id: string } }) {
           <button className="btn sm press" onClick={repeat}><Icon name="repeat" size={16} /> {t('Repeat')}</button>
           <button className="btn sm danger press" onClick={delSession}><Icon name="trash" size={16} /> {t('Delete')}</button>
         </div>
-        {ses.records && ses.records.length > 0 && <div className="chip acc" style={{ marginBottom: 14 }}><Icon name="bolt" size={14} /> {ses.records.length} {t('records')}</div>}
+        {ses.records && ses.records.length > 0 && <div className="chip acc" style={{ marginBottom: 14 }}><Icon name="bolt" size={14} /> {ses.records.length} {ses.records.length === 1 ? t('record') : t('records')}</div>}
         {ses.exercises.map((e) => {
           const ex = exMap.get(e.exerciseId);
           let wi = 0;

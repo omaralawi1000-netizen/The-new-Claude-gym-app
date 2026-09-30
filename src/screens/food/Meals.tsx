@@ -11,7 +11,6 @@ import { Icon } from '../../ui/Icon';
 import { Empty, NumInput } from '../../ui/kit';
 import { Sheet, SheetHead } from '../../ui/Sheet';
 import { mealName } from '../../lib/derive';
-import { defaultQty } from './Detail';
 
 /** Saved meals: a named set of foods you log together. */
 export function SavedMeals({ props }: { props: { date: string; mealId: string } }) {
@@ -132,8 +131,8 @@ export function RecipeEditor({ props }: { props: { id?: string; date: string; me
       <div className="sheet-body">
         <div className="field"><label htmlFor="r-name">{t('Name')}</label><input id="r-name" className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('e.g. Overnight oats')} /></div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 14 }}>
-          <div className="field"><label>{t('Servings')}</label><NumInput value={servings} onChange={setServings} max={2} min={0.25} unit="×" /></div>
-          <div className="field"><label>{t('Prepared weight')}</label><NumInput value={weight} onChange={setWeight} max={0} unit="g" placeholder={c.weightIsSum && c.weightG ? String(Math.round(c.weightG)) : t('optional')} /></div>
+          <div className="field"><label>{t('Servings')}</label><NumInput value={servings} onChange={setServings} max={2} min={0.25} unit="×" label={t('Servings')} /></div>
+          <div className="field"><label>{t('Prepared weight')}</label><NumInput value={weight} onChange={setWeight} max={0} unit="g" placeholder={c.weightIsSum && c.weightG ? String(Math.round(c.weightG)) : t('optional')} label={t('Prepared weight')} /></div>
         </div>
         <div className="xs t3" style={{ marginTop: 6 }}>{t('Weigh the finished dish for accurate servings. Without it, the ingredient weights are added up.')}</div>
 
@@ -156,7 +155,7 @@ export function RecipeEditor({ props }: { props: { id?: string; date: string; me
                 <input className="input" style={{ paddingLeft: 42 }} placeholder={t('Add ingredient — search foods')} value={q} onChange={(e) => setQ(e.target.value)} aria-label={t('Add ingredient — search foods')} />
               </div>
               {hits.map((f) => (
-                <button key={f.id} className="li press" style={{ borderTop: '1px solid var(--line)', minHeight: 48 }} onClick={() => setPick({ food: f, qty: defaultQty(f) })}>
+                <button key={f.id} className="li press" style={{ borderTop: '1px solid var(--line)', minHeight: 48 }} onClick={() => setPick({ food: f, qty: { amount: 100, unit: f.basis } })}>
                   <div className="grow" style={{ textAlign: 'left' }}><div className="li-title small">{f.name}</div><div className="li-sub num">{fmtNutrient('kcal', f.per100.kcal, lang)} kcal / 100 {f.basis}</div></div><Icon name="plus" size={18} />
                 </button>
               ))}
@@ -165,7 +164,7 @@ export function RecipeEditor({ props }: { props: { id?: string; date: string; me
             <div>
               <div className="row-flex between"><div className="li-title small">{pick.food.name}</div><button className="icon-btn flat sm" aria-label={t('Cancel')} onClick={() => setPick(null)}><Icon name="close" size={16} /></button></div>
               <div className="row-flex" style={{ gap: 8, marginTop: 8 }}>
-                <div className="grow"><NumInput value={pick.qty.amount} max={2} onChange={(v) => setPick({ ...pick, qty: { ...pick.qty, amount: v ?? 0 } })} unit={pick.qty.unit === 'portion' ? '×' : pick.qty.unit} autoFocus onEnter={addIngredient} /></div>
+                <div className="grow"><NumInput value={pick.qty.amount} max={2} onChange={(v) => setPick({ ...pick, qty: { ...pick.qty, amount: v ?? 0 } })} unit={pick.qty.unit === 'portion' ? '×' : pick.qty.unit} autoFocus onEnter={addIngredient} label={t('Amount')} /></div>
                 <button className="btn primary press" onClick={addIngredient}>{t('Add')}</button>
               </div>
               <div className="chips" style={{ marginTop: 8 }}>

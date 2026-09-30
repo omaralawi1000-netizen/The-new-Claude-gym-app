@@ -1,6 +1,6 @@
 import type { Equipment, EquipmentAccess, Exercise, Goal, Experience, Routine, RoutineItem } from './types';
 import { uid } from './nutrition';
-import { equipmentSet } from '../screens/workout/subs';
+import { equipmentSet, usable } from '../screens/workout/subs';
 
 /** Starter plans are simple, conventional templates — a place to begin, not a prescription. Everything stays editable. */
 const SLOTS: Record<string, string[]> = {
@@ -27,7 +27,7 @@ function pick(slot: string, all: Exercise[], access: Set<Equipment>, used: Set<s
   const byId = new Map(all.map((e) => [e.id, e]));
   for (const id of ids) {
     const e = byId.get(id);
-    if (e && !used.has(id) && e.equipment.some((q) => access.has(q))) return e;
+    if (e && !used.has(id) && usable(e, access)) return e;
   }
   return undefined;
 }

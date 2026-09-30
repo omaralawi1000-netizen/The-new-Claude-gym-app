@@ -110,6 +110,8 @@ export interface Store extends AppData {
   restoreActivity: (a: ActivityLog) => void;
   setNote: (date: string, patch: { training?: string; nutrition?: string }) => void;
   // data
+  /** Apply a partial state update AND persist it (use instead of setState for anything that must survive a reload). */
+  patch: (p: Partial<AppData> | ((s: Store) => Partial<AppData>)) => void;
   replaceAll: (d: AppData) => void;
   resetAll: () => void;
 }
@@ -323,6 +325,7 @@ export const useStore = create<Store>((set, get) => {
     }),
 
     // ── data
+    patch: (p) => mutate((s) => (typeof p === 'function' ? p(s) : p) as Partial<Store>, true),
     replaceAll: (d) => { set({ ...d }); flushSave(); },
     resetAll: () => { const lang = get().settings.language; set({ ...defaultData(lang) }); flushSave(); },
   };

@@ -1,5 +1,9 @@
 import { AnimatePresence, motion, useDragControls, useReducedMotion } from 'motion/react';
-import { useEffect, useRef, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, type ReactNode } from 'react';
+
+/** Stack-position z-index for the current overlay: a later overlay is always above an earlier one. */
+export const OverlayZ = createContext<number | null>(null);
+export const useOverlayZ = (fallback: number) => useContext(OverlayZ) ?? fallback;
 import { Icon } from './Icon';
 
 export const SPRING = { type: 'spring', stiffness: 420, damping: 38, mass: 0.9 } as const;
@@ -7,7 +11,8 @@ export const SOFT = { type: 'spring', stiffness: 300, damping: 32, mass: 0.9 } a
 export const SNAP = { type: 'spring', stiffness: 600, damping: 42, mass: 0.7 } as const;
 
 /** Bottom sheet: drag the handle/header down (or flick) to dismiss; interruptible; keyboard-aware. */
-export function Sheet({ children, onClose, tall, label, foot, z = 60 }: { children: ReactNode; onClose: () => void; tall?: boolean; label: string; foot?: ReactNode; z?: number }) {
+export function Sheet({ children, onClose, tall, label, foot, z: zProp = 60, nested }: { children: ReactNode; onClose: () => void; tall?: boolean; label: string; foot?: ReactNode; z?: number; /** a sheet rendered inside another overlay's component (e.g. the workout's exercise menu) */ nested?: boolean }) {
+  const z = useOverlayZ(zProp) + (nested ? 5 : 0);
   const controls = useDragControls();
   const reduce = useReducedMotion();
   const ref = useRef<HTMLDivElement>(null);
@@ -59,7 +64,8 @@ export { AnimatePresence, motion };
  * full sheet, so the surface itself grows out of the row. Content is a separate layer that crossfades in,
  * so text is never stretched by the shape animation.
  */
-export function MorphSheet({ children, onClose, layoutId, label, tall = true, z = 70, foot }: { children: ReactNode; onClose: () => void; layoutId: string; label: string; tall?: boolean; z?: number; foot?: ReactNode }) {
+export function MorphSheet({ children, onClose, layoutId, label, tall = true, z: zProp = 70, foot }: { children: ReactNode; onClose: () => void; layoutId: string; label: string; tall?: boolean; z?: number; foot?: ReactNode }) {
+  const z = useOverlayZ(zProp);
   const controls = useDragControls();
   const reduce = useReducedMotion();
   useEffect(() => {

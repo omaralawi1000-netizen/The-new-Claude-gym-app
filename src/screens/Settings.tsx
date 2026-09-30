@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { useStore, flushSave, persistStatus } from '../state/store';
 import { useUI } from '../state/ui';
 import { useT, useLang } from '../lib/i18n';
-import { Sheet, SheetHead, SOFT } from '../ui/Sheet';
+import { Sheet, SheetHead } from '../ui/Sheet';
 import { Icon } from '../ui/Icon';
 import { NumInput, Seg, Toggle } from '../ui/kit';
 import { defaultData, normaliseData, DATA_VERSION } from '../state/defaults';
@@ -109,7 +109,7 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
           </motion.div>
         </AnimatePresence>
       </div>
-      {void lang}{void SOFT}
+      {void lang}
     </Sheet>
   );
 }
@@ -123,15 +123,15 @@ function Targets() {
   return (
     <div className="stack gap16">
       <div className="small t2">{t('All optional. Leave a field empty to track it without a target. Aven never changes these for you — including after exercise.')}</div>
-      <Field label={t('Calories')}><NumInput value={g.kcal} onChange={set('kcal')} unit="kcal" max={0} placeholder="—" /></Field>
+      <Field label={t('Calories')}><NumInput label={t('Calories')} value={g.kcal} onChange={set('kcal')} unit="kcal" max={0} placeholder="—" /></Field>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-        <Field label={t('Protein')}><NumInput value={g.protein} onChange={set('protein')} unit="g" max={0} placeholder="—" /></Field>
-        <Field label={t('Carbs')}><NumInput value={g.carbs} onChange={set('carbs')} unit="g" max={0} placeholder="—" /></Field>
-        <Field label={t('Fat')}><NumInput value={g.fat} onChange={set('fat')} unit="g" max={0} placeholder="—" /></Field>
+        <Field label={t('Protein')}><NumInput label={t('Protein')} value={g.protein} onChange={set('protein')} unit="g" max={0} placeholder="—" /></Field>
+        <Field label={t('Carbs')}><NumInput label={t('Carbs')} value={g.carbs} onChange={set('carbs')} unit="g" max={0} placeholder="—" /></Field>
+        <Field label={t('Fat')}><NumInput label={t('Fat')} value={g.fat} onChange={set('fat')} unit="g" max={0} placeholder="—" /></Field>
       </div>
       {kcalFromMacros !== null && g.kcal !== undefined && Math.abs(kcalFromMacros - g.kcal) > g.kcal * 0.08 && <div className="small" style={{ color: 'var(--warn)' }}>{t('Your macros add up to about {n} kcal, which differs from your calorie target.', { n: kcalFromMacros })}</div>}
-      <Field label={t('Fibre')}><NumInput value={g.fibre} onChange={set('fibre')} unit="g" max={0} placeholder="—" /></Field>
-      <Field label={t('Water')}><NumInput value={g.waterMl} onChange={(v) => v && set('waterMl')(v)} unit="ml" max={0} /></Field>
+      <Field label={t('Fibre')}><NumInput label={t('Fibre')} value={g.fibre} onChange={set('fibre')} unit="g" max={0} placeholder="—" /></Field>
+      <Field label={t('Water')}><NumInput label={t('Water')} value={g.waterMl} onChange={(v) => v && set('waterMl')(v)} unit="ml" max={0} /></Field>
       <button className="btn ghost press" onClick={() => s.updateSettings({ goals: { waterMl: g.waterMl } })}>{t('Clear nutrition targets')}</button>
     </div>
   );
@@ -154,7 +154,7 @@ function FoodSettings() {
               <input className="input" value={m.name || mealName(m, lang)} onChange={(e) => save(meals.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} aria-label={`${t('Meal')} ${i + 1}`} />
               <button className="icon-btn flat" aria-label={t('Remove')} disabled={meals.length <= 1} style={{ opacity: meals.length <= 1 ? 0.3 : 1 }} onClick={() => {
                 const target = meals.find((_, j) => j !== i)!;
-                useStore.setState((x) => ({ entries: x.entries.map((e) => (e.mealId === m.id ? { ...e, mealId: target.id } : e)) }));
+                useStore.getState().patch((x) => ({ entries: x.entries.map((e) => (e.mealId === m.id ? { ...e, mealId: target.id } : e)) }));
                 save(meals.filter((_, j) => j !== i));
                 toast(t('Entries moved to {meal}', { meal: target.name || mealName(target, lang) }));
               }}><Icon name="close" size={18} /></button>
@@ -238,7 +238,7 @@ function DataSection() {
     toast(t('Backup restored'), { tone: 'ok', actionLabel: t('Undo'), onAction: () => useStore.getState().replaceAll(prev), duration: 10000 });
   };
   const doDelete = async () => { useStore.getState().resetAll(); await clearPhotos().catch(() => {}); try { Object.keys(localStorage).filter((k) => k.startsWith('aven')).forEach((k) => localStorage.removeItem(k)); } catch { /* ignore */ } setConfirmDel(false); closeAll(); setTimeout(() => push('onboarding', {}), 80); };
-  const demo = () => { const d = buildDemo(s.settings); useStore.setState({ ...d } as any); flushSave(); toast(t('Demo data loaded'), { tone: 'ok' }); };
+  const demo = () => { const d = buildDemo(s.settings); useStore.getState().patch(d); toast(t('Demo data loaded'), { tone: 'ok' }); };
   const removeDemo = () => { const lang = s.settings.language; const settings = s.settings; useStore.getState().replaceAll({ ...defaultData(lang), settings }); toast(t('Demo data removed'), { tone: 'ok' }); };
 
   return (

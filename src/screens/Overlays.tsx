@@ -1,4 +1,5 @@
 import { AnimatePresence } from 'motion/react';
+import { OverlayZ } from '../ui/Sheet';
 import { useUI } from '../state/ui';
 import { ActiveWorkout } from './workout/Active';
 import { VoiceComposer } from './Voice';
@@ -22,9 +23,9 @@ export function Overlays() {
   const overlays = useUI((s) => s.overlays);
   return (
     <AnimatePresence>
-      {overlays.map((o) => {
+      {overlays.map((o, idx) => {
         const p = o.props ?? {};
-        switch (o.type) {
+        const el = (() => { switch (o.type) {
           case 'workout': return <ActiveWorkout key={o.id} props={p} />;
           case 'voice': return <VoiceComposer key={o.id} props={p} />;
           case 'settings': return <SettingsSheet key={o.id} props={p} />;
@@ -55,7 +56,8 @@ export function Overlays() {
           case 'photos': return <PhotosSheet key={o.id} />;
           case 'onboarding': return <Onboarding key={o.id} props={p} />;
           default: return null;
-        }
+        } })();
+        return <OverlayZ.Provider key={o.id} value={60 + idx * 10}>{el}</OverlayZ.Provider>;
       })}
     </AnimatePresence>
   );

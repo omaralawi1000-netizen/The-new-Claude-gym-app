@@ -1,20 +1,19 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { motion } from 'motion/react';
-import { useStore, exerciseMap, plannedFor, missedWorkouts, sessionOn, foodPool } from '../state/store';
+import { useStore, exerciseMap, plannedFor, missedWorkouts, foodPool } from '../state/store';
 import { useUI, buzz } from '../state/ui';
 import { useT, useLang } from '../lib/i18n';
 import { addDays, fmtDate, fmtDuration, fmtWeekdayShort, startOfWeek, weekdayOf, diffDays } from '../lib/dates';
-import { useDaySummary, useToday, useWaterOn, defaultMealId, mealName } from '../lib/derive';
+import { useDaySummary, useToday, useWaterOn, defaultMealId } from '../lib/derive';
 import { Icon } from '../ui/Icon';
 import { Ledger } from './food/Ledger';
 import { Sparkline } from '../ui/charts';
 import { Section } from '../ui/kit';
 import { SOFT } from '../ui/Sheet';
 import { elapsedMs, sessionSetCount, sessionVolume } from '../lib/workout';
-import { exName, MUSCLE_LABEL } from './workout/common';
+import { exName } from './workout/common';
 import { fmtNum, kgToDisplay } from '../lib/units';
-import { fmtNutrient } from '../lib/format';
-import { entryFromSnapshot, snapshotOf, uid, sumNutrients } from '../lib/nutrition';
+import { entryFromSnapshot, snapshotOf, uid } from '../lib/nutrition';
 import { defaultQty } from './food/Detail';
 import { useNow } from '../lib/hooks';
 import type { Routine } from '../lib/types';
@@ -47,6 +46,18 @@ export function TodayScreen() {
   const missed = useMemo(() => missedWorkouts(s, today), [s.schedule, s.routines, s.sessions, today]);
   const settings = s.settings;
   const first = s.entries.length === 0 && s.sessions.length === 0 && s.weights.length === 0;
+
+  // Training-day reminder. It can only fire while Aven is open (see Settings → Reminders): an in-app nudge, plus a system
+  // notification once per day if the user allowed them.
+  const [rh, rm] = settings.reminderTime.split(':').map(Number);
+  const nowD = new Date();
+  const dueNudge = settings.remindersEnabled && !!routine && !s.active && doneToday.length === 0 && nowD.getHours() * 60 + nowD.getMinutes() >= rh * 60 + rm;
+  useEffect(() => {
+    if (!dueNudge || typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+    const key = `aven.notified.${today}`;
+    try { if (sessionStorage.getItem(key)) return; sessionStorage.setItem(key, '1'); } catch { /* ignore */ }
+    try { new Notification(t('Time to train'), { body: routine?.name, icon: '/icon-192.png' }); } catch { /* ignore */ }
+  }, [dueNudge, today, routine?.name, t]);
 
   const start = (r?: Routine) => {
     buzz(14);
@@ -96,7 +107,12 @@ export function TodayScreen() {
   weights.slice(-2).forEach((x) => feed.push({ at: x.at, icon: 'scale', title: `${fmtNum(kgToDisplay(x.kg, settings.units.weight), lang, 1)} ${settings.units.weight}`, sub: `${t('Bodyweight')} · ${fmtDate(x.date, lang, { weekday: 'short', day: 'numeric', month: 'short' })}`, run: () => push('weight') }));
   feed.sort((a, b) => b.at - a.at);
 
-  const active = s.active;
+  // While the workout overlay is open, keep the hero looking like it did when it was tapped: otherwise it flips to its
+  // "in progress" layout (a different height) in the middle of the plate morph that grows out of it.
+  const workoutOpen = useUI((u) => u.overlays.some((o) => o.type === 'workout'));
+  const frozenActive = useRef(s.active);
+  if (!workoutOpen) frozenActive.current = s.active;
+  const active = frozenActive.current;
   const aDone = active ? sessionSetCount(active.exercises, true) : 0;
   const aTotal = active ? sessionSetCount(active.exercises, false) : 0;
   const hour = new Date().getHours();
@@ -183,6 +199,13 @@ export function TodayScreen() {
         </div>
       </motion.section>
 
+      {dueNudge && routine && (
+        <div className="plinth-2 small row-flex between" style={{ padding: '10px 14px' }} role="status">
+          <span><Icon name="bell" size={16} style={{ verticalAlign: '-3px', marginRight: 6 }} /><b>{t('Time to train')}</b> · {routine.name}</span>
+          <button className="chip sm acc press" onClick={() => start(routine)}>{t('Start')}</button>
+        </div>
+      )}
+
       {missed.length > 0 && !active && (
         <section className="plinth-2" style={{ padding: 14 }}>
           <div className="micro" style={{ marginBottom: 8 }}>{t('Missed')}</div>
@@ -211,7 +234,6 @@ export function TodayScreen() {
           <div className="small t2 num"><Icon name="drop" size={15} style={{ verticalAlign: '-3px', color: 'var(--c-water)' }} /> {fmtNum(water.ml, lang, 0)} / {fmtNum(settings.goals.waterMl, lang, 0)} ml</div>
           <button className="chip sm press" onClick={() => { buzz(8); const v = settings.waterQuick[1] ?? 250; const id = s.addWater(v, today); toast(`+${v} ml`, { tone: 'ok', actionLabel: t('Undo'), onAction: () => s.removeWater(id), duration: 3500 }); }}>+{settings.waterQuick[1] ?? 250} ml</button>
         </div>
-        {void fmtNutrient}{void sumNutrients}{void mealName}
       </Section>
 
       {/* ── week ── */}
@@ -273,7 +295,6 @@ export function TodayScreen() {
           </div>
         </Section>
       )}
-      {void MUSCLE_LABEL}{void sessionOn}
     </div>
   );
 }

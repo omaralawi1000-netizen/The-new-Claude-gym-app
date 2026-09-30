@@ -1,17 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion, useDragControls, useReducedMotion } from 'motion/react';
-import { useStore, exerciseMap, allExercises } from '../../state/store';
+import { useStore, exerciseMap } from '../../state/store';
 import { useUI, buzz } from '../../state/ui';
 import { useT, useLang } from '../../lib/i18n';
 import type { Exercise, SessionExercise, SetRecord } from '../../lib/types';
 import { Icon } from '../../ui/Icon';
 import { NumInput } from '../../ui/kit';
-import { Sheet, SheetHead, SOFT, SPRING, SNAP } from '../../ui/Sheet';
+import { Sheet, SheetHead, SOFT, SNAP, useOverlayZ } from '../../ui/Sheet';
 import { elapsedMs, lastPerformance, sessionSetCount, sessionVolume, suggestProgression, countable } from '../../lib/workout';
 import { fmtDuration } from '../../lib/dates';
 import { displayToKg, kgToDisplay, fmtNum, displayToM, mToDisplay } from '../../lib/units';
 import { useNow, restEndedCue } from '../../lib/hooks';
-import { addSet, deleteSet, moveExercise, patchExercise, patchSet, removeExercise, replaceExercise, startRest, adjustRest, skipRest, toggleSuperset } from './actions';
+import { addSet, deleteSet, moveExercise, patchExercise, patchSet, removeExercise, startRest, adjustRest, skipRest, toggleSuperset } from './actions';
 import { exName, fmtSet, MUSCLE_LABEL } from './common';
 
 /** The live workout. Its surface is the same shape that grew out of the Today/Train card or the tab-bar pill. */
@@ -33,6 +33,13 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' } }
   const [renaming, setRenaming] = useState(false);
   const body = useRef<HTMLDivElement>(null);
   const origin = props.origin ?? 'hero';
+  const z = useOverlayZ(60);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !(e.target as HTMLElement)?.closest?.('input,textarea')) pop(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [pop]);
 
   // rest timer end cue (once per rest)
   const restKey = a?.rest ? `${a.rest.endsAt}:${a.rest.total}` : '';
@@ -73,11 +80,11 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' } }
 
   return (
     <>
-      <motion.div className="scrim" style={{ zIndex: 59 }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }} />
+      <motion.div className="scrim" style={{ zIndex: z - 1 }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }} />
       <motion.div
         layoutId={`wk-${origin}`} transition={reduce ? { duration: 0.01 } : SOFT}
         role="dialog" aria-modal="true" aria-label={t('Active workout')}
-        style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'var(--bg)', borderRadius: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: 'var(--sh-f)' }}
+        style={{ position: 'fixed', inset: 0, zIndex: z, background: 'var(--bg)', borderRadius: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: 'var(--sh-f)' }}
         drag="y" dragControls={controls} dragListener={false} dragConstraints={{ top: 0, bottom: 0 }} dragElastic={{ top: 0, bottom: 0.7 }}
         onDragEnd={(_, i) => { if (i.offset.y > 120 || i.velocity.y > 700) pop(); }}
       >
@@ -148,7 +155,7 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' } }
       <AnimatePresence>
         {menuEx && <ExerciseMenu key="menu" se={menuEx} ex={exMap.get(menuEx.exerciseId)} onClose={() => setMenu(null)} />}
         {confirm && (
-          <Sheet key="confirm" onClose={() => setConfirm(null)} label={t('Confirm')} z={120}>
+          <Sheet key="confirm" onClose={() => setConfirm(null)} label={t('Confirm')} nested>
             <SheetHead title={confirm === 'finish' ? t('Finish workout?') : t('Discard workout?')} sub={confirm === 'finish' ? t('{n} sets aren’t checked off. They will not be saved.', { n: total - done }) : t('Nothing has been logged yet. You can undo this right after.')} onClose={() => setConfirm(null)} />
             <div className="sheet-body">
               <div className="stack gap8">
@@ -375,7 +382,7 @@ function ExerciseMenu({ se, ex, onClose }: { se: SessionExercise; ex?: Exercise;
     { icon: 'arrowDown', label: t('Move down'), disabled: idx >= count - 1, run: () => { moveExercise(se.id, 1); onClose(); } },
   ];
   return (
-    <Sheet onClose={onClose} label={t('Exercise options')} z={120}>
+    <Sheet onClose={onClose} label={t('Exercise options')} nested>
       <SheetHead title={ex ? exName(ex, lang) : t('Exercise')} onClose={onClose} />
       <div className="sheet-body">
         <div className="list">
@@ -393,7 +400,6 @@ function ExerciseMenu({ se, ex, onClose }: { se: SessionExercise; ex?: Exercise;
         </div>
         <button className="btn danger block press" style={{ marginTop: 22 }} onClick={() => { const r = removeExercise(se.id); onClose(); toast(t('Exercise removed'), { actionLabel: t('Undo'), onAction: r.restore }); }}><Icon name="trash" size={18} /> {t('Remove exercise')}</button>
       </div>
-      {void allExercises}{void replaceExercise}{void SPRING}
     </Sheet>
   );
 }

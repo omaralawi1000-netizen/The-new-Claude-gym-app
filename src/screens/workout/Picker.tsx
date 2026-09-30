@@ -12,7 +12,7 @@ import { Sheet, SheetHead, SOFT } from '../../ui/Sheet';
 import { EQUIP_LABEL, MOVE_LABEL, MUSCLE_LABEL, exName } from './common';
 import { addExercises, replaceExercise } from './actions';
 import { uid } from '../../lib/nutrition';
-import { equipmentSet, substitutesFor } from './subs';
+import { equipmentSet, substitutesFor, usable } from './subs';
 
 interface PickerProps { mode: 'add' | 'replace' | 'pick'; seId?: string; forExercise?: Exercise; onPick?: (ids: string[]) => void; single?: boolean }
 
@@ -38,7 +38,7 @@ export function ExercisePicker({ props }: { props: PickerProps }) {
     if (muscle) l = l.filter((e) => e.muscles.includes(muscle));
     if (equip) l = l.filter((e) => e.equipment.includes(equip));
     if (move) l = l.filter((e) => e.movement === move);
-    if (mine) l = l.filter((e) => e.equipment.some((x) => access.has(x)));
+    if (mine) l = l.filter((e) => usable(e, access));
     return l;
   }, [q, muscle, equip, move, mine, all, lang, access]);
 
@@ -58,7 +58,7 @@ export function ExercisePicker({ props }: { props: PickerProps }) {
   };
 
   return (
-    <Sheet onClose={pop} tall label={t('Exercises')} z={110} foot={!single ? <button className="btn primary block press" disabled={!sel.length} onClick={confirm}>{sel.length ? t('Add {n} exercises', { n: sel.length }) : t('Select exercises')}</button> : undefined}>
+    <Sheet onClose={pop} tall label={t('Exercises')} z={110} foot={!single ? <button className="btn primary block press" disabled={!sel.length} onClick={confirm}>{sel.length === 1 ? t('Add 1 exercise') : sel.length ? t('Add {n} exercises', { n: sel.length }) : t('Select exercises')}</button> : undefined}>
       <SheetHead title={props.mode === 'replace' ? t('Replace exercise') : t('Add exercises')} sub={props.mode === 'replace' && props.forExercise ? exName(props.forExercise, lang) : undefined} onClose={pop} />
       <div style={{ padding: '0 20px 10px' }}>
         <div style={{ position: 'relative' }}>
@@ -89,7 +89,7 @@ export function ExercisePicker({ props }: { props: PickerProps }) {
             <div className="list">{subs.map((e) => <Row key={e.id} e={e} lang={lang} t={t} sel={false} single={single} onClick={() => choose(e)} />)}</div>
           </div>
         )}
-        <div className="micro" style={{ margin: '6px 0' }}>{list.length} {t('exercises')}</div>
+        <div className="micro" style={{ margin: '6px 0' }}>{list.length} {list.length === 1 ? t('exercise') : t('exercises')}</div>
         <div className="list">{list.map((e) => <Row key={e.id} e={e} lang={lang} t={t} sel={sel.includes(e.id)} single={single} onClick={() => choose(e)} onInfo={() => push('exercise', { id: e.id })} />)}</div>
         {list.length === 0 && (
           <div className="empty"><div className="display display-sm">{t('No exercise found')}</div><div className="small" style={{ margin: '6px auto 14px', maxWidth: 260 }}>{t('Create it once and it stays in your library.')}</div>

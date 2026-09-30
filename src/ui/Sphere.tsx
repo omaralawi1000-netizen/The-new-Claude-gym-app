@@ -35,10 +35,10 @@ interface Params { rotSpeed: number; amp: number; glow: number; spread: number; 
 const TARGET: Record<string, Params> = {
   idle: { rotSpeed: 0.22, amp: 0.018, glow: 0.35, spread: 0, dim: 0, sweep: 0, ring: 0 },
   requesting: { rotSpeed: 0.12, amp: 0.03, glow: 0.45, spread: 0, dim: 0, sweep: 0, ring: 0 },
-  listening: { rotSpeed: 0.3, amp: 0.05, glow: 0.65, spread: 0, dim: 0, sweep: 0, ring: 0 },
-  processing: { rotSpeed: 1.5, amp: 0.012, glow: 0.8, spread: 0, dim: 0, sweep: 1, ring: 0 },
+  listening: { rotSpeed: 0.3, amp: 0.05, glow: 0.4, spread: 0, dim: 0, sweep: 0, ring: 0 },
+  processing: { rotSpeed: 1.5, amp: 0.012, glow: 0.35, spread: 0, dim: 0, sweep: 1, ring: 0 },
   review: { rotSpeed: 0.1, amp: 0.004, glow: 0.55, spread: 0, dim: 0, sweep: 0, ring: 1 },
-  confirmed: { rotSpeed: 0.35, amp: 0.008, glow: 0.95, spread: 0, dim: 0, sweep: 0, ring: 0 },
+  confirmed: { rotSpeed: 0.35, amp: 0.008, glow: 0.6, spread: 0, dim: 0, sweep: 0, ring: 0 },
   error: { rotSpeed: 0.04, amp: 0.0, glow: 0.12, spread: 0, dim: 1, sweep: 0, ring: 0 },
   unavailable: { rotSpeed: 0.04, amp: 0.0, glow: 0.12, spread: 0, dim: 1, sweep: 0, ring: 0 },
 };
@@ -75,7 +75,7 @@ export class SphereRenderer {
     const { ctx, canvas } = this;
     const W = canvas.width;
     const c = W / 2;
-    const R = c * 0.82;
+    const R = c * 0.68; // headroom: audio displacement can push points ~40% outside the resting radius
     ctx.clearRect(0, 0, W, W);
 
     const count = Math.round(Math.min(N, Math.max(260, css * 7)));
@@ -128,7 +128,7 @@ export class SphereRenderer {
         okMix = Math.max(w, confirmAge < 0.35 ? (0.35 - confirmAge) * 2 : 0);
         glow += w;
       }
-      const rr = 1 + d;
+      const rr = 1 + Math.max(-0.2, Math.min(0.42, d));
       x *= rr; y *= rr; z *= rr;
       // rotate around Y, then tilt around X
       const x1 = x * cr + z * sr, z1 = -x * sr + z * cr;
@@ -143,8 +143,8 @@ export class SphereRenderer {
       const spacing = Math.sqrt(12.566 / count) * R; // mean lattice spacing in device px
       const size = spacing * 0.21 * (0.4 + 1.0 * depth) * (1 + glow * 0.25);
       dots[n] = { x: px, y: py, r: size };
-      shade[n] = Math.min(1, sh + glow * 0.22 * depth);
-      tone[n] = okMix > 0.25 ? 2 : glow > 0.85 ? 1 : 0;
+      shade[n] = Math.min(1, sh + Math.max(0, glow - 0.35) * 0.3 * depth);
+      tone[n] = okMix > 0.25 ? 2 : glow > 1.25 ? 1 : 0;
       buckets[Math.max(0, Math.min(6, Math.floor(shade[n] * 7)))].push(n);
     }
 
@@ -163,7 +163,7 @@ export class SphereRenderer {
       ctx.fill();
     }
     // highlighted + confirm dots drawn last, brighter
-    ctx.fillStyle = `rgba(${Math.min(255, hi[0] + 20)},${Math.min(255, hi[1] + 50)},${Math.min(255, hi[2] + 50)},0.98)`;
+    ctx.fillStyle = `rgba(${Math.min(255, hi[0] + 10)},${Math.min(255, hi[1] + 30)},${Math.min(255, hi[2] + 30)},0.98)`;
     ctx.beginPath();
     for (let n = 0; n < count; n++) if (tone[n] === 1) { const d = dots[n]; ctx.moveTo(d.x + d.r * 1.15, d.y); ctx.arc(d.x, d.y, d.r * 1.15, 0, 6.2832); }
     ctx.fill();
@@ -198,6 +198,7 @@ export function SphereStage() {
     const el = root.current!, cv = canvas.current!;
     const renderer = new SphereRenderer(cv);
     const st = { x: 0, y: 0, s: 52, vx: 0, vy: 0, vs: 0, init: false };
+    const appEl = el.closest('.app') as HTMLElement | null;
     let raf = 0;
     let running = true;
     let last = performance.now();
@@ -230,8 +231,9 @@ export function SphereStage() {
       if (!best) { el.style.opacity = '0'; return; }
       const r = best.el.getBoundingClientRect();
       if (r.width < 2) { el.style.opacity = '0'; return; }
-      el.style.zIndex = best.priority >= 10 ? '125' : '41'; // above full-screen composers; below sheets when parked in the tab bar
-      const tx = r.left, ty = r.top, ts = Math.min(r.width, r.height);
+      el.style.zIndex = best.priority >= 10 ? '600' : '41'; // above full-screen composers; below sheets when parked in the tab bar
+      const base = appEl?.getBoundingClientRect(); // the stage lives inside .app, which may be offset on wide screens
+      const tx = r.left - (base?.left ?? 0), ty = r.top - (base?.top ?? 0), ts = Math.min(r.width, r.height);
       if (!st.init || reduced) { st.x = tx; st.y = ty; st.s = ts; st.vx = st.vy = st.vs = 0; st.init = true; }
       else {
         // critically-damped-ish spring (follows moving slots such as a sheet mid-slide)

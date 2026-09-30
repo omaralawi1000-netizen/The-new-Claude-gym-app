@@ -1,0 +1,25 @@
+import { chromium } from 'playwright';
+import assert from 'node:assert/strict';
+const b = await chromium.launch();
+const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'allow' });
+const p = await ctx.newPage();
+p.on('pageerror', (e) => console.log('[pageerror]', e.message));
+await p.goto('http://127.0.0.1:8788/'); await p.waitForTimeout(1500);
+await p.getByText('Skip all').click(); await p.waitForTimeout(600);
+const reg = await p.evaluate(async () => { const r = await navigator.serviceWorker.ready; return { scope: r.scope, state: r.active?.state }; });
+console.log('sw', reg);
+const manifest = await (await p.request.get('http://127.0.0.1:8788/manifest.webmanifest')).json();
+console.log('manifest', manifest.name, manifest.display, manifest.icons.length);
+// log a workout sets & food online first, then go offline & reload
+await p.reload(); await p.waitForTimeout(1000);
+await ctx.setOffline(true);
+await p.reload(); await p.waitForTimeout(1500);
+assert(await p.getByText('Good evening').or(p.getByText('Good afternoon')).or(p.getByText('Good morning')).or(p.getByText('Late night')).first().isVisible(), 'app loads offline');
+await p.locator('.tabbar').getByText('Food', { exact: true }).click(); await p.waitForTimeout(500);
+await p.getByRole('button', { name: 'Add food' }).first().click(); await p.waitForTimeout(500);
+await p.getByPlaceholder('Search foods and brands').fill('banana'); await p.waitForTimeout(1200);
+assert(await p.getByText('Banana', { exact: true }).first().isVisible(), 'bundled foods work offline');
+assert(await p.getByText(/offline/i).first().isVisible(), 'offline state is explained');
+await p.screenshot({ path: 'shots/pwa-offline.png' });
+console.log('offline OK');
+await b.close();

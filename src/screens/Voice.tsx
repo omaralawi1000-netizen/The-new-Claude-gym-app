@@ -13,7 +13,7 @@ import type { Exercise, Food, FoodEntry, Quantity, SetRecord } from '../lib/type
 import { SphereSlot } from '../ui/Sphere';
 import { Icon } from '../ui/Icon';
 import { NumInput, Seg } from '../ui/kit';
-import { SOFT } from '../ui/Sheet';
+import { SOFT, useOverlayZ } from '../ui/Sheet';
 import { fmtNutrient } from '../lib/format';
 import { fmtNum, displayToKg, kgToDisplay } from '../lib/units';
 import { mealName, defaultMealId } from '../lib/derive';
@@ -29,10 +29,10 @@ interface WRow extends ParsedWorkoutRow { ex?: Exercise; candidates: { ex: Exerc
 export function VoiceComposer({ props }: { props: { mode?: Mode; date?: string; mealId?: string } }) {
   const t = useT();
   const lang = useLang();
+  const z = useOverlayZ(65);
   const s = useStore();
   const pool = foodPool(s.foods, s.recipes);
   const exercises = allExercises(s.exercises);
-  const pop = useUI((u) => u.pop);
   const toast = useUI((u) => u.toast);
   const voice = useVoice();
   const phase = voice.phase;
@@ -58,6 +58,12 @@ export function VoiceComposer({ props }: { props: { mode?: Mode; date?: string; 
   }, []);
 
   useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') useUI.getState().pop(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  useEffect(() => {
     alive.current = true;
     const unsub = mic.subscribe(() => useVoice.getState().set({ micLive: mic.active }));
     return () => { alive.current = false; unsub(); teardown(); useVoice.getState().go('idle'); };
@@ -68,7 +74,6 @@ export function VoiceComposer({ props }: { props: { mode?: Mode; date?: string; 
     setErr(null); setFinal(''); setInterim(''); setRows([]); setWrows([]);
     if (!supported) { useVoice.getState().go('idle'); setTyping(true); return; }
     useVoice.getState().go('requesting');
-    let gotEnd = false;
     const h = startSpeech({
       lang: lang === 'da' ? 'da-DK' : 'en-GB',
       onStart: () => { if (alive.current) useVoice.getState().go('listening'); },
@@ -81,9 +86,8 @@ export function VoiceComposer({ props }: { props: { mode?: Mode; date?: string; 
         else if (e === 'audio') { setErr(t('No microphone was found or it is in use by another app.')); teardown(); useVoice.getState().go('error'); setTyping(true); }
         else if (e !== 'aborted') { setErr(t('Speech recognition stopped unexpectedly.')); }
       },
-      onEnd: () => { gotEnd = true; if (alive.current && useVoice.getState().phase === 'listening') finish(); },
+      onEnd: () => { if (alive.current && useVoice.getState().phase === 'listening') finish(); },
     });
-    void gotEnd;
     if (!h) { setErr(t('Speech recognition couldn’t start.')); useVoice.getState().go('error'); setTyping(true); return; }
     handle.current = h;
     // real input level for the sphere; failure here only means "no level", not "not listening"
@@ -127,8 +131,10 @@ export function VoiceComposer({ props }: { props: { mode?: Mode; date?: string; 
       setRows(res);
     } else {
       const parsed = parseWorkoutText(text);
+      const usage = new Map<string, number>(); // how often each exercise was logged: a gentle tie-breaker, never hides alternatives
+      for (const ses of useStore.getState().sessions) for (const e of ses.exercises) usage.set(e.exerciseId, (usage.get(e.exerciseId) ?? 0) + 1);
       const res: WRow[] = parsed.map((r) => {
-        const c = matchExercises(r.query, exercises, lang);
+        const c = matchExercises(r.query, exercises, lang, 5, (e) => Math.min(0.12, (usage.get(e.id) ?? 0) * 0.02));
         const top = c[0]?.score ?? 0;
         const tied = c.filter((x) => top - x.score < 0.06);
         const ok = c.length > 0 && top >= 0.7 && tied.length === 1;
@@ -194,10 +200,8 @@ export function VoiceComposer({ props }: { props: { mode?: Mode; date?: string; 
         const sets: SetRecord[] = r.sets.map((x) => ({ id: uid('s'), type: 'working', weightKg: x.weightKg, reps: x.reps, durationSec: x.durationSec, distanceM: x.distanceM, done: true, completedAt: Date.now() }));
         n += sets.length;
         // fill unfilled planned sets first, then append
-        const open = target.sets.filter((q) => !q.done);
         let i = 0;
         const out = target.sets.map((q) => (!q.done && i < sets.length ? { ...sets[i++], id: q.id, type: q.type === 'warmup' ? 'working' : q.type, target: q.target } as SetRecord : q));
-        void open;
         while (i < sets.length) out.push(sets[i++]);
         target.sets = out;
         return { ...a, exercises: exs };
@@ -218,7 +222,7 @@ export function VoiceComposer({ props }: { props: { mode?: Mode; date?: string; 
   const example = mode === 'food' ? t('“200 grams of skyr, one banana and 60 grams of oats”') : t('“Bench press 80 kilos for 8, 8 and 6”');
 
   return (
-    <motion.div className="voice" style={{ position: 'fixed', inset: 0, zIndex: 65, display: 'flex', flexDirection: 'column' }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.28 }} role="dialog" aria-modal="true" aria-label={t('Dictation')}>
+    <motion.div className="voice" style={{ position: 'fixed', inset: 0, zIndex: z, display: 'flex', flexDirection: 'column' }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.28 }} role="dialog" aria-modal="true" aria-label={t('Dictation')}>
       <div style={{ position: 'absolute', inset: 0, background: 'color-mix(in srgb, var(--bg) 78%, transparent)', WebkitBackdropFilter: 'blur(30px) saturate(1.4)', backdropFilter: 'blur(30px) saturate(1.4)' }} />
       <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', padding: `calc(var(--sat) + 12px) 18px 0` }}>
         <div className="row-flex between">
@@ -244,7 +248,7 @@ export function VoiceComposer({ props }: { props: { mode?: Mode; date?: string; 
           <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', marginTop: 14, textAlign: 'center' }} className="hide-scroll">
             {!typing && phase !== 'processing' && (
               <div className="display display-md" style={{ lineHeight: 1.12, padding: '0 6px' }}>
-                {final || interim ? <><span>{final}</span>{interim && <span style={{ color: 'var(--tx3)' }}> {interim}</span>}</> : <span style={{ color: 'var(--tx3)', fontSize: 20, fontStretch: '100%', fontWeight: 560 }}>{example}</span>}
+                {final || interim ? <><span>{final}</span>{interim && <span style={{ color: 'var(--tx3)' }}> {interim}</span>}</> : <span style={{ color: 'var(--tx3)', fontSize: 18, fontStretch: '100%', fontWeight: 560 }}><span className="micro" style={{ display: 'block', marginBottom: 6 }}>{t('Try saying')}</span>{example}</span>}
               </div>
             )}
             {phase === 'processing' && <div className="display display-md" style={{ color: 'var(--tx2)' }}>{textNow()}</div>}
@@ -287,7 +291,7 @@ export function VoiceComposer({ props }: { props: { mode?: Mode; date?: string; 
               <div className="chips" style={{ marginBottom: 10 }}>{s.settings.meals.map((m) => <button key={m.id} className={`chip sm press ${mealId === m.id ? 'on' : ''}`} onClick={() => setMealId(m.id)}>{mealName(m, lang)}</button>)}</div>
               <div className="row-flex" style={{ gap: 10 }}>
                 <button className="btn press" onClick={() => { confirmed.current = false; useVoice.getState().go('idle'); setTyped(textNow()); setTyping(true); }}><Icon name="edit" size={18} /> {t('Edit text')}</button>
-                <button className="btn primary press grow" disabled={!ready || phase === 'confirmed'} onClick={confirmFood}>{pending > 0 ? t('{n} to resolve', { n: pending }) : t('Log {n} items', { n: active.length })}</button>
+                <button className="btn primary press grow" disabled={!ready || phase === 'confirmed'} onClick={confirmFood}>{pending > 0 ? t('{n} to resolve', { n: pending }) : active.length === 1 ? t('Log 1 item') : t('Log {n} items', { n: active.length })}</button>
               </div>
             </div>
           </div>
@@ -308,7 +312,7 @@ export function VoiceComposer({ props }: { props: { mode?: Mode; date?: string; 
               {!s.active && <div className="xs t3" style={{ marginBottom: 8 }}>{t('No workout is running — confirming will start one.')}</div>}
               <div className="row-flex" style={{ gap: 10 }}>
                 <button className="btn press" onClick={() => { confirmed.current = false; useVoice.getState().go('idle'); setTyped(textNow()); setTyping(true); }}><Icon name="edit" size={18} /> {t('Edit text')}</button>
-                <button className="btn primary press grow" disabled={!wReady || phase === 'confirmed'} onClick={confirmWorkout}>{t('Log {n} exercises', { n: wActive.length })}</button>
+                <button className="btn primary press grow" disabled={!wReady || phase === 'confirmed'} onClick={confirmWorkout}>{wActive.length === 1 ? t('Log 1 exercise') : t('Log {n} exercises', { n: wActive.length })}</button>
               </div>
             </div>
           </div>

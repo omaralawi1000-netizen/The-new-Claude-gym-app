@@ -30,7 +30,6 @@ export function LineChart({ points, trend, height = 180, fmtY, target, targetLab
 }) {
   const [ref, w] = useWidth();
   const [hover, setHover] = useState<number | null>(null);
-  const t = useT();
   const padL = 40, padR = 12, padT = 14, padB = 24;
   const xs = points.map((p) => p.x), ys = [...points.map((p) => p.y), ...(trend?.map((p) => p.y) ?? []), ...(target !== undefined ? [target] : [])];
   const x0 = Math.min(...xs), x1 = Math.max(...xs);
@@ -72,7 +71,6 @@ export function LineChart({ points, trend, height = 180, fmtY, target, targetLab
         </div>
       )}
       {trend && <div className="row-flex xs t2" style={{ gap: 14, marginTop: 6 }}><span className="row-flex" style={{ gap: 6 }}><i style={{ width: 8, height: 8, borderRadius: 8, border: '1.5px solid var(--tx2)', display: 'inline-block' }} />{seriesLabel}</span><span className="row-flex" style={{ gap: 6 }}><i style={{ width: 14, height: 3, borderRadius: 2, background: 'var(--ac)', display: 'inline-block' }} />{trendLabel}</span></div>}
-      {void t}
     </div>
   );
 }

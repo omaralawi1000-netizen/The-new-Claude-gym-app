@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AnimatePresence, motion } from 'motion/react';
+import { motion } from 'motion/react';
 import { useStore, foodPool } from '../../state/store';
 import { useUI, buzz } from '../../state/ui';
 import { useT, useLang } from '../../lib/i18n';
-import type { Food, FoodEntry, FoodSnapshot, Quantity } from '../../lib/types';
+import type { Food, FoodSnapshot, Quantity } from '../../lib/types';
 import { allowedUnits, entryFromSnapshot, scale, snapshotOf, toBase, uid, NUTRIENT_KEYS } from '../../lib/nutrition';
 import { fmtNum } from '../../lib/units';
 import { fmtNutrient, NUTRIENT_LABEL, NUTRIENT_UNIT, sourceLabel } from '../../lib/format';
@@ -137,6 +137,7 @@ export function FoodDetail({ props }: { props: { food?: Food; foodId?: string; e
               </div>
             </div>
             <div className="small t2 num" style={{ textAlign: 'right' }}>
+              {base.ok && (base.base > 2500 || (n.kcal ?? 0) > 3000) && <div style={{ color: 'var(--bad)', fontWeight: 600 }}>{t('That’s a lot — check the amount')}</div>}
               {base.ok ? <>{fmtNum(base.base, lang, 1)} {food.basis}{base.estimated && <div style={{ color: 'var(--warn)' }}>~ {t('estimated portion')}</div>}</> : <span style={{ color: 'var(--bad)' }}>{t('Unit not available')}</span>}
             </div>
           </div>
@@ -222,7 +223,6 @@ export function FoodDetail({ props }: { props: { food?: Food; foodId?: string; e
           {editing && <button className="btn sm danger press" onClick={remove}><Icon name="trash" size={16} /> {t('Delete entry')}</button>}
         </div>
       </div>
-      {void AnimatePresence}
     </>
   );
 

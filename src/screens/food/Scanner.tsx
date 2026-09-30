@@ -18,7 +18,6 @@ export function Scanner({ props }: { props: { date: string; mealId: string } }) 
   const pool = foodPool(s.foods, s.recipes);
   const pop = useUI((u) => u.pop);
   const swap = useUI((u) => u.swap);
-  const push = useUI((u) => u.push);
   const video = useRef<HTMLVideoElement>(null);
   const [cam, setCam] = useState<Cam>('idle');
   const [code, setCode] = useState('');
@@ -97,7 +96,6 @@ export function Scanner({ props }: { props: { date: string; mealId: string } }) 
           </div>
         )}
         <div className="xs t3" style={{ marginTop: 14 }}>{t('Product data comes from Open Food Facts when the lookup server is reachable; your saved foods are checked first.')}</div>
-        {void push}
       </div>
     </Sheet>
   );

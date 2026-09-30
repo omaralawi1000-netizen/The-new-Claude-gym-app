@@ -50,7 +50,6 @@ export function NumInput({ value, onChange, unit, placeholder, className, max = 
   useEffect(() => {
     if (!focused.current) setTxt(value === undefined ? '' : fmtNum(value, lang, max));
   }, [value, lang, max]);
-  void step;
   return (
     <div className={`input-unit ${unit ? 'has-unit' : ''} ${className ?? ''}`}>
       <input

@@ -100,7 +100,7 @@ export function parseWorkoutText(text: string): ParsedWorkoutRow[] {
   return splitExerciseSegments(text).map((s, i) => parseWorkoutSegment(s, i)).filter(Boolean) as ParsedWorkoutRow[];
 }
 
-export function matchExercises(query: string, pool: Exercise[], lang: Lang, limit = 5): { ex: Exercise; score: number }[] {
+export function matchExercises(query: string, pool: Exercise[], lang: Lang, limit = 5, boost: (e: Exercise) => number = () => 0): { ex: Exercise; score: number }[] {
   const q = tokens(query);
   if (!q.length) return [];
   const out: { ex: Exercise; score: number }[] = [];
@@ -117,8 +117,7 @@ export function matchExercises(query: string, pool: Exercise[], lang: Lang, limi
         if (hit) best = Math.max(best, (hit / q.length) * 0.55);
       }
     }
-    if (best >= 0.3) out.push({ ex, score: best });
+    if (best >= 0.3) out.push({ ex, score: best + boost(ex) });
   }
-  void lang;
   return out.sort((a, b) => b.score - a.score || a.ex.name.length - b.ex.name.length).slice(0, limit);
 }

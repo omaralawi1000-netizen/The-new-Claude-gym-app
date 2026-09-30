@@ -30,6 +30,17 @@ interface UI {
   dismissToast: (id: string) => void;
 }
 
+/**
+ * Overlay navigation. The overlay array is the source of truth and is updated synchronously; browser history only mirrors it
+ * (so the hardware/Android back button closes the top overlay). `histDepth` is the number of history entries WE pushed and
+ * not yet unwound — tracking it locally means rapid double-closes can never walk back out of the app.
+ */
+let histDepth = 0;
+function unwindTo(len: number) {
+  const extra = histDepth - len;
+  if (extra > 0) { histDepth -= extra; try { history.go(-extra); } catch { /* ignore */ } }
+}
+
 export const useUI = create<UI>((set, get) => ({
   tab: 'today',
   foodDate: null,
@@ -41,39 +52,35 @@ export const useUI = create<UI>((set, get) => ({
   setTrainTab: (trainTab) => set({ trainTab }),
   push: (type, props) => {
     const id = uid('ov');
-    const depth = get().overlays.length + 1;
-    try { history.pushState({ aven: depth }, ''); } catch { /* ignore */ }
+    histDepth += 1;
+    try { history.pushState({ aven: histDepth }, ''); } catch { /* ignore */ }
     set((s) => ({ overlays: [...s.overlays, { id, type, props }] }));
     return id;
   },
   pop: () => {
-    const n = get().overlays.length;
-    if (!n) return;
-    // history.back() fires popstate → handler trims overlays. Fall back to direct state if history can't go back.
-    if (history.state?.aven) history.back();
-    else set((s) => ({ overlays: s.overlays.slice(0, -1) }));
+    const ov = get().overlays;
+    if (!ov.length) return;
+    set({ overlays: ov.slice(0, -1) });
+    unwindTo(ov.length - 1);
   },
   popTo: (type) => {
     const ov = get().overlays;
-    const idx = ov.map((o) => o.type).lastIndexOf(type);
-    const keep = idx + 1;
+    const keep = ov.map((o) => o.type).lastIndexOf(type) + 1;
     if (keep >= ov.length) return;
-    const back = ov.length - keep;
-    if (history.state?.aven && history.state.aven >= back) history.go(-back);
-    else set({ overlays: ov.slice(0, keep) });
+    set({ overlays: ov.slice(0, keep) });
+    unwindTo(keep);
   },
   replaceTop: (type, props) => set((s) => ({ overlays: [...s.overlays.slice(0, -1), { id: uid('ov'), type, props }] })),
   swap: (n, type, props) => {
     const ov = get().overlays;
-    set({ overlays: [...ov.slice(0, Math.max(0, ov.length - n)), { id: uid('ov'), type, props }] });
-    const extra = n - 1;
-    if (extra > 0 && history.state?.aven) history.go(-extra); // keep history depth == overlay depth
+    const keep = Math.max(0, ov.length - n);
+    set({ overlays: [...ov.slice(0, keep), { id: uid('ov'), type, props }] });
+    unwindTo(keep + 1);
   },
   closeAll: () => {
-    const n = get().overlays.length;
-    if (!n) return;
-    if (history.state?.aven && history.state.aven >= n) history.go(-n);
-    else set({ overlays: [] });
+    if (!get().overlays.length) return;
+    set({ overlays: [] });
+    unwindTo(0);
   },
   toast: (text, o = {}) => {
     const id = uid('t');
@@ -85,8 +92,10 @@ export const useUI = create<UI>((set, get) => ({
 }));
 
 if (typeof window !== 'undefined') {
+  // hardware / browser back: trim overlays to the history depth the browser landed on
   window.addEventListener('popstate', (e) => {
     const depth = (e.state && e.state.aven) || 0;
+    histDepth = depth;
     const ov = useUI.getState().overlays;
     if (ov.length > depth) useUI.setState({ overlays: ov.slice(0, depth) });
   });

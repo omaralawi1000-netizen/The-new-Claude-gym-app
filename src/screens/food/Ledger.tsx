@@ -7,7 +7,7 @@ import { Icon } from '../../ui/Icon';
 import { useStore } from '../../state/store';
 import { useT, useLang } from '../../lib/i18n';
 import { fmtNum } from '../../lib/units';
-import { fmtNutrient, fmtSum } from '../../lib/format';
+import { fmtSum } from '../../lib/format';
 import { useUI } from '../../state/ui';
 import { SOFT } from '../../ui/Sheet';
 
@@ -86,7 +86,6 @@ export function Ledger({ sum, compact }: { sum: Sum; compact?: boolean }) {
           </AnimatePresence>
         </>
       )}
-      {void fmtNutrient}
     </div>
   );
 }

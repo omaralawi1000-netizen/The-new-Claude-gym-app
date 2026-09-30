@@ -1,0 +1,16 @@
+import { launch, wait, skipOnboarding, loadDemo } from './lib.mjs';
+const { b, p, errors } = await launch({ theme: 'light' });
+await p.goto('http://127.0.0.1:5173/'); await wait(p, 900); await skipOnboarding(p); await loadDemo(p);
+await p.getByRole('button', { name: /Start workout/ }).click(); await wait(p, 1200);
+await p.getByRole('button', { name: 'Complete set' }).first().click(); await wait(p, 700);
+await p.screenshot({ path: 'shots/light-workout.png' });
+await p.getByRole('button', { name: 'Minimise workout' }).click(); await wait(p, 900);
+await p.locator('.tabbar').getByText('Food', { exact: true }).click(); await wait(p, 600);
+await p.getByRole('button', { name: 'Previous day' }).click(); await wait(p, 700);
+await p.screenshot({ path: 'shots/light-food-prev.png' });
+await p.getByRole('button', { name: /Add to Dinner/ }).click(); await wait(p, 600);
+await p.getByPlaceholder('Search foods and brands').fill('chicken'); await wait(p, 800);
+await p.getByText('Chicken breast, cooked', { exact: true }).first().click(); await wait(p, 1000);
+await p.screenshot({ path: 'shots/light-detail.png' });
+console.log('errors', errors.length);
+await b.close();

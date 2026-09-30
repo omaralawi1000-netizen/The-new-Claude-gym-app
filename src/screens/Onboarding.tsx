@@ -13,7 +13,7 @@ import { SEED_EXERCISES } from '../data/exercises';
 import { assignWeek, buildStarter } from '../lib/starter';
 import { buildDemo } from '../lib/demo';
 import { fmtWeekdayShort } from '../lib/dates';
-import { SOFT } from '../ui/Sheet';
+import { useOverlayZ } from '../ui/Sheet';
 
 const GOALS: { v: Goal; l: string; s: string }[] = [
   { v: 'strength', l: 'Get stronger', s: 'Heavier lifts, lower reps' },
@@ -31,6 +31,7 @@ export function Onboarding({ props }: { props: { rerun?: boolean; starterOnly?: 
   const closeAll = useUI((u) => u.closeAll);
   const toast = useUI((u) => u.toast);
   const st = s.settings;
+  const z = useOverlayZ(120);
   const [step, setStep] = useState(props.starterOnly ? 1 : 0);
   const [dir, setDir] = useState(1);
   const [name, setName] = useState(st.name);
@@ -52,17 +53,17 @@ export function Onboarding({ props }: { props: { rerun?: boolean; starterOnly?: 
 
   const finish = (opts: { demo?: boolean } = {}) => {
     const settings = { ...st, name: name.trim(), language: lang2, units: { ...st.units, weight: units, distance: units === 'lb' ? ('mi' as const) : ('km' as const), length: units === 'lb' ? ('in' as const) : ('cm' as const) }, goals: { ...st.goals, kcal, protein: prot }, profile: { goal, experience: exp, equipment: eq, days }, onboarded: true };
-    if (opts.demo) { const d = buildDemo(settings); useStore.setState({ ...d } as any); toast(t('Demo data loaded — remove it any time in Settings'), { tone: 'ok', duration: 4500 }); }
+    if (opts.demo) { const d = buildDemo(settings); useStore.getState().patch(d); toast(t('Demo data loaded — remove it any time in Settings'), { tone: 'ok', duration: 4500 }); }
     else {
-      useStore.setState({ settings });
+      useStore.getState().patch({ settings });
       if (plan && days.length) {
         const routines = buildStarter({ days: days.length, goal, experience: exp, access: eq }, SEED_EXERCISES).filter((r) => r.items.length);
-        if (routines.length) { useStore.setState((x) => ({ routines: [...x.routines, ...routines], schedule: { ...x.schedule, mode: 'weekly', weekly: assignWeek(days, routines) } })); toast(t('Starter plan created — edit it in Train'), { tone: 'ok' }); }
+        if (routines.length) { useStore.getState().patch((x) => ({ routines: [...x.routines, ...routines], schedule: { ...x.schedule, mode: 'weekly', weekly: assignWeek(days, routines) } })); toast(t('Starter plan created — edit it in Train'), { tone: 'ok' }); }
       }
     }
     closeAll();
   };
-  const skipAll = () => { useStore.setState({ settings: { ...st, onboarded: true } }); closeAll(); };
+  const skipAll = () => { useStore.getState().patch({ settings: { ...st, onboarded: true } }); closeAll(); };
 
   const screens = [
     // 0 welcome + goal
@@ -125,7 +126,7 @@ export function Onboarding({ props }: { props: { rerun?: boolean; starterOnly?: 
   }
   const isLast = step === last;
   return (
-    <motion.div style={{ position: 'fixed', inset: 0, zIndex: 120, background: 'var(--bg)', display: 'flex', flexDirection: 'column' }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} role="dialog" aria-modal="true" aria-label={tt('Setup')}>
+    <motion.div style={{ position: 'fixed', inset: 0, zIndex: z, background: 'var(--bg)', display: 'flex', flexDirection: 'column' }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} role="dialog" aria-modal="true" aria-label={tt('Setup')}>
       <div style={{ padding: 'calc(var(--sat) + 12px) 20px 0', display: 'flex', alignItems: 'center', gap: 12 }}>
         <div className="ticks grow" style={{ height: 14 }} aria-hidden>{Array.from({ length: last + 1 }, (_, i) => <i key={i} className={i <= step ? 'on' : ''} style={{ height: '100%' }} />)}</div>
         <button className="small t2 press" style={{ padding: 8 }} onClick={skipAll}>{tt('Skip all')}</button>
@@ -145,7 +146,6 @@ export function Onboarding({ props }: { props: { rerun?: boolean; starterOnly?: 
         {!isLast && <button className="btn ghost press" onClick={() => go(step + 1)}>{tt('Skip')}</button>}
         <button className="btn primary grow press" onClick={() => (isLast ? finish() : go(step + 1))}>{isLast ? tt('Start') : tt('Continue')}</button>
       </div>
-      {void SOFT}
     </motion.div>
   );
 }

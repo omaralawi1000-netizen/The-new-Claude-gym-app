@@ -126,17 +126,17 @@ export function CustomFood({ props }: { props: { from?: Food; name?: string; bar
         <div style={{ marginTop: 18 }}>
           <div className="lbl" style={{ marginBottom: 8 }}>{t('Nutrition values are…')}</div>
           <Seg value={per} onChange={setPer} options={[{ value: '100', label: `${t('per')} 100 ${basis}` }, { value: 'serving', label: t('per serving') }]} />
-          {per === 'serving' && <div className="field" style={{ marginTop: 10 }}><label>{t('Serving size')}</label><NumInput value={serving} onChange={setServing} unit={basis} max={1} placeholder="e.g. 30" /></div>}
+          {per === 'serving' && <div className="field" style={{ marginTop: 10 }}><label>{t('Serving size')}</label><NumInput value={serving} onChange={setServing} unit={basis} max={1} placeholder="e.g. 30" label={t('Serving size')} /></div>}
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 16 }}>
-          {fields.slice(0, 4).map((k) => <div key={k} className="field"><label>{t(NUTRIENT_LABEL[k])}{k === 'kcal' ? ' *' : ''}</label><NumInput value={n[k]} onChange={set(k)} unit={NUTRIENT_UNIT[k]} max={2} placeholder={k === 'kcal' ? t('required') : '—'} /></div>)}
+          {fields.slice(0, 4).map((k) => <div key={k} className="field"><label>{t(NUTRIENT_LABEL[k])}{k === 'kcal' ? ' *' : ''}</label><NumInput value={n[k]} onChange={set(k)} unit={NUTRIENT_UNIT[k]} max={2} placeholder={k === 'kcal' ? t('required') : '—'} label={t(NUTRIENT_LABEL[k])} /></div>)}
         </div>
         <button className="row-flex press small t2" style={{ marginTop: 14, gap: 6 }} onClick={() => setShowMore((v) => !v)}><Icon name={showMore ? 'chevU' : 'chevD'} size={16} />{t('More nutrients, portions and details')}</button>
         {showMore && (
           <div style={{ marginTop: 6 }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              {fields.slice(4).map((k) => <div key={k} className="field"><label>{t(NUTRIENT_LABEL[k])}</label><NumInput value={n[k]} onChange={set(k)} unit={NUTRIENT_UNIT[k]} max={2} placeholder="—" /></div>)}
+              {fields.slice(4).map((k) => <div key={k} className="field"><label>{t(NUTRIENT_LABEL[k])}</label><NumInput value={n[k]} onChange={set(k)} unit={NUTRIENT_UNIT[k]} max={2} placeholder="—" label={t(NUTRIENT_LABEL[k])} /></div>)}
             </div>
             <div className="field" style={{ marginTop: 14 }}>
               <label>{t('Prepared as')}</label>
@@ -144,7 +144,7 @@ export function CustomFood({ props }: { props: { from?: Food; name?: string; bar
             </div>
             <div className="field" style={{ marginTop: 14 }}>
               <label>{t('Density (g per ml) — only if you know it')}</label>
-              <NumInput value={density} onChange={setDensity} unit="g/ml" max={3} placeholder="—" />
+              <NumInput value={density} onChange={setDensity} unit="g/ml" max={3} placeholder="—" label={t('Density')} />
               <div className="xs t3">{t('Needed to convert between grams and millilitres. Leave blank if unsure.')}</div>
             </div>
             <div style={{ marginTop: 16 }}>

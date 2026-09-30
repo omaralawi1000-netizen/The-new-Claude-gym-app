@@ -1,9 +1,9 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useRef } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useStore } from '../state/store';
 import { useUI, buzz } from '../state/ui';
 import { useT, useLang } from '../lib/i18n';
-import { useDaySummary, useToday, useWaterOn, mealName, perMeal, defaultMealId } from '../lib/derive';
+import { useDaySummary, useToday, mealName, perMeal, defaultMealId } from '../lib/derive';
 import { addDays, fmtDate, relativeDay } from '../lib/dates';
 import { sumNutrients } from '../lib/nutrition';
 import { Icon } from '../ui/Icon';
@@ -12,7 +12,6 @@ import { EntryRow } from './food/EntryRow';
 import { fmtNutrient } from '../lib/format';
 import { fmtNum } from '../lib/units';
 import { Count } from '../ui/kit';
-import { SOFT } from '../ui/Sheet';
 import type { FoodEntry } from '../lib/types';
 import { WaterTile } from './food/Water';
 import { WeekStrip } from './food/WeekStrip';
@@ -113,7 +112,6 @@ export function FoodScreen() {
 
       <WaterTile date={date} />
       <WeekStrip date={date} onPick={(d) => setFoodDate(d === today ? null : d)} />
-      {void useWaterOn}
     </div>
   );
 }
