@@ -47,6 +47,10 @@ export function VoiceComposer({ props }: { props: { mode?: Mode; date?: string; 
   const [mealId, setMealId] = useState(props.mealId ?? defaultMealId(s.settings.meals));
   const date = props.date ?? useUI.getState().foodDate ?? undefined;
   const handle = useRef<SpeechHandle | null>(null);
+  // Callbacks from the speech engine outlive renders; they must always see the latest transcript and the latest finish().
+  const latest = useRef({ final: '', interim: '', typed: '', typing: false });
+  latest.current = { final, interim, typed, typing };
+  const finishRef = useRef<(t?: string) => void>(() => {});
   const confirmed = useRef(false);
   const alive = useRef(true);
   const supported = speechSupported();
@@ -86,7 +90,7 @@ export function VoiceComposer({ props }: { props: { mode?: Mode; date?: string; 
         else if (e === 'audio') { setErr(t('No microphone was found or it is in use by another app.')); teardown(); useVoice.getState().go('error'); setTyping(true); }
         else if (e !== 'aborted') { setErr(t('Speech recognition stopped unexpectedly.')); }
       },
-      onEnd: () => { if (alive.current && useVoice.getState().phase === 'listening') finish(); },
+      onEnd: () => { if (alive.current && useVoice.getState().phase === 'listening') finishRef.current(); },
     });
     if (!h) { setErr(t('Speech recognition couldn’t start.')); useVoice.getState().go('error'); setTyping(true); return; }
     handle.current = h;
@@ -98,7 +102,7 @@ export function VoiceComposer({ props }: { props: { mode?: Mode; date?: string; 
 
   useEffect(() => { if (supported) begin(); else setTyping(true); /* eslint-disable-next-line */ }, []);
 
-  const textNow = () => (typing ? typed : [final, interim].filter(Boolean).join(' ')).trim();
+  const textNow = () => { const l = latest.current; return (l.typing ? l.typed : [l.final, l.interim].filter(Boolean).join(' ')).trim(); };
 
   const finish = useCallback(async (overrideText?: string) => {
     const phaseNow = useVoice.getState().phase;
@@ -146,7 +150,8 @@ export function VoiceComposer({ props }: { props: { mode?: Mode; date?: string; 
     await new Promise((r) => setTimeout(r, wait));
     if (alive.current) useVoice.getState().go('review');
     // eslint-disable-next-line
-  }, [mode, typed, final, interim, typing, exercises, lang]);
+  }, [mode, exercises, lang]);
+  finishRef.current = finish;
 
   // ── review derivations (food) ──
   const foodOf = (r: FoodRow): Food | undefined => r.choiceId ? (r.candidates.find((c) => c.food.id === r.choiceId)?.food ?? pool.find((f) => f.id === r.choiceId)) : undefined;

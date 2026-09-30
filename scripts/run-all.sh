@@ -12,6 +12,7 @@ run food node scripts/journey-food.mjs
 run food2 node scripts/journey-food2.mjs
 run train node scripts/journey-train.mjs
 run misc node scripts/journey-misc.mjs
+run lookup node scripts/journey-lookup.mjs
 run robust node scripts/robust.mjs
 run interrupt node scripts/interrupt.mjs
 echo "passed=$pass failed=$fail"

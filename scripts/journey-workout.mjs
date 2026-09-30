@@ -28,12 +28,12 @@ await p.getByRole('button', { name: /^Set$|\+ Set/ }).first().click().catch(() =
 // 5. minimise → pill → resume
 await p.getByRole('button', { name: 'Minimise workout' }).click(); await wait(p, 900);
 await p.screenshot({ path: 'shots/wk-3-pill.png' });
-assert(await p.locator('button.glass[aria-label="Resume workout"]').isVisible(), 'pill visible');
-await p.locator('button.glass[aria-label="Resume workout"]').click(); await wait(p, 900);
+assert(await p.locator('button[aria-label="Resume workout"]').isVisible(), 'pill visible');
+await p.locator('button[aria-label="Resume workout"]').click(); await wait(p, 900);
 // 6. reload mid-workout → recover
 await p.reload(); await wait(p, 1200);
-assert(await p.locator('button.glass[aria-label="Resume workout"]').first().isVisible(), 'active workout recovered after reload');
-await p.locator('button.glass[aria-label="Resume workout"]').first().click(); await wait(p, 900);
+assert(await p.locator('button[aria-label="Resume workout"]').first().isVisible(), 'active workout recovered after reload');
+await p.locator('button[aria-label="Resume workout"]').first().click(); await wait(p, 900);
 const doneAfter = await p.getByRole('button', { name: 'Mark set not done' }).count();
 assert.equal(doneAfter, done, 'checked sets survive reload');
 const val = await p.getByLabel('Weight').nth(1).inputValue(); console.log('weight after reload', val);

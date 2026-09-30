@@ -52,7 +52,7 @@ function PlanTab() {
     if (s.active) { push('workout', { origin: 'pill' }); return; }
     buzz(12);
     s.startWorkout({ routine: r, plannedDate: plannedFor(s, today, today)?.routineId === r.id ? today : undefined });
-    push('workout', { origin: 'hero' });
+    push('workout', { origin: 'none' });
   };
   const dup = (r: Routine) => { const id = crypto.randomUUID(); s.upsertRoutine({ ...r, id, name: `${r.name} ${t('copy')}`, items: r.items.map((i) => ({ ...i, id: crypto.randomUUID() })), createdAt: Date.now(), updatedAt: Date.now() }); toast(t('Duplicated'), { tone: 'ok' }); };
   return (

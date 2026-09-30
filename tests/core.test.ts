@@ -13,7 +13,6 @@ const skyr = REFERENCE_BY_ID['ref:skyr-plain'];
 const milk = REFERENCE_BY_ID['ref:milk-15'];
 const banana = REFERENCE_BY_ID['ref:banana'];
 const oil = REFERENCE_BY_ID['ref:olive-oil'];
-const beer = REFERENCE_BY_ID['ref:beer'];
 
 describe('quantities', () => {
   it('grams on a g-basis food', () => {
@@ -64,13 +63,17 @@ describe('nutrients', () => {
     const q = quickEntry('Snack', { kcal: 300 }, '2026-01-01', 'm1');
     expect(q.nutrients).toEqual({ kcal: 300 });
   });
-  it('all reference foods have positive-or-zero numbers and sane energy', () => {
+  it('all reference foods have sane numbers and energy roughly matching macros (fibre counted at ~2 kcal/g; alcohol exempt)', () => {
     for (const f of REFERENCE_FOODS) {
-      expect(f.per100.kcal).toBeGreaterThanOrEqual(0);
-      const est = (f.per100.protein ?? 0) * 4 + (f.per100.carbs ?? 0) * 4 + (f.per100.fat ?? 0) * 9;
-      if (f.id !== 'ref:beer' && (f.per100.kcal ?? 0) > 20) expect(Math.abs(est - f.per100.kcal!) / f.per100.kcal!).toBeLessThan(0.3);
+      const n = f.per100;
+      expect(n.kcal).toBeGreaterThanOrEqual(0);
+      const fibre = n.fibre ?? 0;
+      const est = (n.protein ?? 0) * 4 + Math.max(0, (n.carbs ?? 0) - fibre) * 4 + fibre * 2 + (n.fat ?? 0) * 9;
+      const alcohol = f.id === 'ref:beer' || f.id === 'ref:red-wine';
+      if (!alcohol && n.kcal! > 20) expect(Math.abs(est - n.kcal!) / n.kcal!, f.id).toBeLessThan(0.3);
     }
-    void beer;
+    expect(new Set(REFERENCE_FOODS.map((f) => f.id)).size).toBe(REFERENCE_FOODS.length); // unique ids
+    expect(REFERENCE_FOODS.length).toBeGreaterThan(150);
   });
 });
 

@@ -3,6 +3,7 @@ import { useStore, foodPool } from '../../state/store';
 import { useUI } from '../../state/ui';
 import { useT } from '../../lib/i18n';
 import { lookupBarcode } from '../../lib/foodApi';
+import { createReader, extractCode } from '../../lib/barcode';
 import { Sheet, SheetHead } from '../../ui/Sheet';
 import { Icon } from '../../ui/Icon';
 
@@ -24,10 +25,10 @@ export function Scanner({ props }: { props: { date: string; mealId: string } }) 
   const [msg, setMsg] = useState<{ kind: 'info' | 'bad'; text: string; create?: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const last = useRef({ code: '', at: 0 });
-  const supported = typeof window !== 'undefined' && 'BarcodeDetector' in window;
+  const supported = typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia; // camera needed; the reader itself is bundled
 
   const handle = async (raw: string) => {
-    const c = raw.replace(/\D/g, '');
+    const c = extractCode(raw) ?? raw.replace(/\D/g, '');
     if (c.length < 6 || busy) return;
     if (last.current.code === c && Date.now() - last.current.at < 4000) return;
     last.current = { code: c, at: Date.now() };
@@ -53,10 +54,10 @@ export function Scanner({ props }: { props: { date: string; mealId: string } }) 
         const v = video.current!;
         v.srcObject = stream; await v.play();
         setCam('live');
-        const det = new (window as any).BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e'] });
+        const reader = await createReader();
         const loop = async () => {
           if (stopped) return;
-          try { const r = await det.detect(v); if (r[0]?.rawValue) await handle(r[0].rawValue); } catch { /* frame not ready */ }
+          try { const code = await reader.detect(v); if (code) await handle(code); } catch { /* frame not ready */ }
           timer = setTimeout(() => { raf = requestAnimationFrame(loop); }, 220);
         };
         loop();

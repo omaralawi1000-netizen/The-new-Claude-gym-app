@@ -6,7 +6,7 @@ import { useT, useLang } from '../../lib/i18n';
 import type { Exercise, SessionExercise, SetRecord } from '../../lib/types';
 import { Icon } from '../../ui/Icon';
 import { NumInput } from '../../ui/kit';
-import { Sheet, SheetHead, SOFT, SNAP, useOverlayZ } from '../../ui/Sheet';
+import { Sheet, SheetHead, SOFT, SPRING, SNAP, useOverlayZ } from '../../ui/Sheet';
 import { elapsedMs, lastPerformance, sessionSetCount, sessionVolume, suggestProgression, countable } from '../../lib/workout';
 import { fmtDuration } from '../../lib/dates';
 import { displayToKg, kgToDisplay, fmtNum, displayToM, mToDisplay } from '../../lib/units';
@@ -15,7 +15,7 @@ import { addSet, deleteSet, moveExercise, patchExercise, patchSet, removeExercis
 import { exName, fmtSet, MUSCLE_LABEL } from './common';
 
 /** The live workout. Its surface is the same shape that grew out of the Today/Train card or the tab-bar pill. */
-export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' } }) {
+export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | 'none' } }) {
   const t = useT();
   const lang = useLang();
   const s = useStore();
@@ -82,7 +82,9 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' } }
     <>
       <motion.div className="scrim" style={{ zIndex: z - 1 }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }} />
       <motion.div
-        layoutId={`wk-${origin}`} transition={reduce ? { duration: 0.01 } : SOFT}
+        // with a source card/pill the surface grows out of it (shared layout); otherwise it slides up like a sheet
+        {...(origin === 'none' ? { initial: { y: '100%' }, animate: { y: 0 }, exit: { y: '100%' } } : { layoutId: `wk-${origin}` })}
+        transition={reduce ? { duration: 0.01 } : origin === 'none' ? SPRING : SOFT}
         role="dialog" aria-modal="true" aria-label={t('Active workout')}
         style={{ position: 'fixed', inset: 0, zIndex: z, background: 'var(--bg)', borderRadius: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: 'var(--sh-f)' }}
         drag="y" dragControls={controls} dragListener={false} dragConstraints={{ top: 0, bottom: 0 }} dragElastic={{ top: 0, bottom: 0.7 }}

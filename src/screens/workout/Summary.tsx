@@ -117,7 +117,7 @@ export function SessionDetail({ props }: { props: { id: string } }) {
   const repeat = () => {
     if (s.active) { toast(t('Finish your current workout first'), { tone: 'bad' }); return; }
     const r = s.startWorkout({ fromSession: ses });
-    if (r) { useUI.getState().closeAll(); setTimeout(() => push('workout', { origin: 'pill' }), 50); }
+    if (r) { useUI.getState().closeAll(); setTimeout(() => push('workout', { origin: 'none' }), 50); }
   };
   return (
     <Sheet onClose={pop} tall label={ses.name} z={100}>

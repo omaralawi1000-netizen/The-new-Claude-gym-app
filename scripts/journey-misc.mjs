@@ -106,4 +106,4 @@ assert.equal((await p2.evaluate(() => JSON.parse(localStorage.getItem('aven.v1')
 await p2.locator('input[type=file]').first().setInputFiles({ name: 'x.json', mimeType: 'application/json', buffer: Buffer.from('{"nope":1}') }); await wait(p2, 500);
 assert(await p2.getByText(/isn’t a valid Aven backup/).isVisible(), 'invalid backup rejected gracefully');
 console.log('errors', errors.length);
-await ctx.close();
+await ctx.close(); process.exit(0);

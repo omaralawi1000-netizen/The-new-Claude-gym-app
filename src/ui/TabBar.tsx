@@ -31,20 +31,22 @@ function LivePill() {
   const done = active.exercises.reduce((n, e) => n + e.sets.filter((s) => s.done).length, 0);
   return (
     <motion.button
-      key="pill" layout className="glass press" layoutId="wk-pill-plate"
-      style={{ borderRadius: 999, height: 52, width: '100%', maxWidth: 440, display: 'flex', alignItems: 'center', gap: 12, padding: '0 8px 0 18px', marginBottom: 10, pointerEvents: workoutOpen ? 'none' : 'auto' }}
+      key="pill" layout className="press"
+      style={{ position: 'relative', borderRadius: 999, height: 52, width: '100%', maxWidth: 440, display: 'flex', alignItems: 'center', gap: 12, padding: '0 8px 0 18px', marginBottom: 10, pointerEvents: workoutOpen ? 'none' : 'auto' }}
       initial={{ opacity: 0, y: 20, scale: 0.94 }} animate={{ opacity: workoutOpen ? 0 : 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 14, scale: 0.96 }} transition={SOFT}
       onClick={() => { buzz(); push('workout', { origin: 'pill' }); }}
       aria-label={t('Resume workout')}
     >
-      <span className="pulse-dot" style={active.pausedAt ? { animation: 'none', background: 'var(--tx3)' } : undefined} />
-      <span className="grow" style={{ textAlign: 'left', minWidth: 0 }}>
+      {/* the pill's surface is a separate layer so the workout can grow out of it without stretching the text */}
+      <motion.span layoutId="wk-pill" className="glass" transition={SOFT} style={{ position: 'absolute', inset: 0, borderRadius: 999 }} />
+      <span className="pulse-dot" style={{ position: 'relative', ...(active.pausedAt ? { animation: 'none', background: 'var(--tx3)' } : {}) }} />
+      <span className="grow" style={{ textAlign: 'left', minWidth: 0, position: 'relative' }}>
         <span className="trunc" style={{ display: 'block', fontWeight: 650, fontSize: 14 }}>{active.name || t('Workout')}</span>
         <span className="small t2 num" style={{ display: 'block' }}>
           {active.pausedAt ? t('Paused') : rest > 0 ? `${t('Rest')} ${fmtDuration(rest)}` : `${done}/${total} ${t('sets')}`} · {fmtDuration(elapsedMs(active) / 1000)}
         </span>
       </span>
-      <span className="btn primary sm" style={{ minHeight: 38 }}>{t('Resume')}</span>
+      <span className="btn primary sm" style={{ minHeight: 38, position: 'relative' }}>{t('Resume')}</span>
     </motion.button>
   );
 }
