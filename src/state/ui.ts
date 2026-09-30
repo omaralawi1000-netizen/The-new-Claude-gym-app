@@ -1,0 +1,99 @@
+import { create } from 'zustand';
+import { uid } from '../lib/nutrition';
+
+export type Tab = 'today' | 'train' | 'food' | 'progress';
+export type OverlayType =
+  | 'workout' | 'voice' | 'settings' | 'foodSearch' | 'foodDetail' | 'quickAdd' | 'customFood' | 'recipe' | 'recipes' | 'savedMeals'
+  | 'scanner' | 'waterSheet' | 'exercise' | 'exercisePicker' | 'routine' | 'schedule' | 'sessionDetail' | 'summary' | 'weight'
+  | 'activity' | 'measure' | 'photos' | 'onboarding' | 'history' | 'dayNotes' | 'exerciseEditor' | 'rescheduleSheet' | 'mealCopy' | 'mealsEditor' | 'about' | 'foodPick' | 'datePicker' | 'entryMenu' | 'lookupInfo';
+
+export interface Overlay { id: string; type: OverlayType; props?: any }
+export interface Toast { id: string; text: string; tone?: 'ok' | 'bad' | 'info'; actionLabel?: string; onAction?: () => void; duration: number }
+
+interface UI {
+  tab: Tab;
+  foodDate: string | null; // null = follow today
+  trainTab: 'plan' | 'library' | 'history';
+  overlays: Overlay[];
+  toasts: Toast[];
+  setTab: (t: Tab) => void;
+  setFoodDate: (d: string | null) => void;
+  setTrainTab: (t: UI['trainTab']) => void;
+  push: (type: OverlayType, props?: any) => string;
+  pop: () => void;
+  popTo: (type: OverlayType) => void;
+  replaceTop: (type: OverlayType, props?: any) => void;
+  /** remove the top `n` overlays and show one new overlay in their place */
+  swap: (n: number, type: OverlayType, props?: any) => void;
+  closeAll: () => void;
+  toast: (text: string, o?: { tone?: Toast['tone']; actionLabel?: string; onAction?: () => void; duration?: number }) => string;
+  dismissToast: (id: string) => void;
+}
+
+export const useUI = create<UI>((set, get) => ({
+  tab: 'today',
+  foodDate: null,
+  trainTab: 'plan',
+  overlays: [],
+  toasts: [],
+  setTab: (tab) => set({ tab }),
+  setFoodDate: (foodDate) => set({ foodDate }),
+  setTrainTab: (trainTab) => set({ trainTab }),
+  push: (type, props) => {
+    const id = uid('ov');
+    const depth = get().overlays.length + 1;
+    try { history.pushState({ aven: depth }, ''); } catch { /* ignore */ }
+    set((s) => ({ overlays: [...s.overlays, { id, type, props }] }));
+    return id;
+  },
+  pop: () => {
+    const n = get().overlays.length;
+    if (!n) return;
+    // history.back() fires popstate → handler trims overlays. Fall back to direct state if history can't go back.
+    if (history.state?.aven) history.back();
+    else set((s) => ({ overlays: s.overlays.slice(0, -1) }));
+  },
+  popTo: (type) => {
+    const ov = get().overlays;
+    const idx = ov.map((o) => o.type).lastIndexOf(type);
+    const keep = idx + 1;
+    if (keep >= ov.length) return;
+    const back = ov.length - keep;
+    if (history.state?.aven && history.state.aven >= back) history.go(-back);
+    else set({ overlays: ov.slice(0, keep) });
+  },
+  replaceTop: (type, props) => set((s) => ({ overlays: [...s.overlays.slice(0, -1), { id: uid('ov'), type, props }] })),
+  swap: (n, type, props) => {
+    const ov = get().overlays;
+    set({ overlays: [...ov.slice(0, Math.max(0, ov.length - n)), { id: uid('ov'), type, props }] });
+    const extra = n - 1;
+    if (extra > 0 && history.state?.aven) history.go(-extra); // keep history depth == overlay depth
+  },
+  closeAll: () => {
+    const n = get().overlays.length;
+    if (!n) return;
+    if (history.state?.aven && history.state.aven >= n) history.go(-n);
+    else set({ overlays: [] });
+  },
+  toast: (text, o = {}) => {
+    const id = uid('t');
+    const t: Toast = { id, text, tone: o.tone, actionLabel: o.actionLabel, onAction: o.onAction, duration: o.duration ?? (o.actionLabel ? 6000 : 3200) };
+    set((s) => ({ toasts: [...s.toasts.slice(-2), t] }));
+    return id;
+  },
+  dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
+}));
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('popstate', (e) => {
+    const depth = (e.state && e.state.aven) || 0;
+    const ov = useUI.getState().overlays;
+    if (ov.length > depth) useUI.setState({ overlays: ov.slice(0, depth) });
+  });
+  // a reload must not strand us on a history entry that has no overlay behind it
+  try { if (history.state?.aven) history.replaceState(null, ''); } catch { /* ignore */ }
+}
+
+export function buzz(ms = 8) {
+  try { if ('vibrate' in navigator) navigator.vibrate(ms); } catch { /* ignore */ }
+}

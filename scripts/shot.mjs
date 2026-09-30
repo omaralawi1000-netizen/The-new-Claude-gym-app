@@ -1,0 +1,11 @@
+import { chromium } from 'playwright';
+const [,, name = 'x', url = 'http://127.0.0.1:5173/', theme = 'dark'] = process.argv;
+const b = await chromium.launch({ args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'] });
+const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, colorScheme: theme, isMobile: true, hasTouch: true });
+const p = await ctx.newPage();
+p.on('console', (m) => { if (['error', 'warning'].includes(m.type())) console.log('[console]', m.type(), m.text().slice(0, 300)); });
+p.on('pageerror', (e) => console.log('[pageerror]', e.message));
+await p.goto(url);
+await p.waitForTimeout(1500);
+await p.screenshot({ path: `shots/${name}.png` });
+await b.close();

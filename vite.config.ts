@@ -1,0 +1,33 @@
+import { defineConfig } from 'vitest/config';
+import react from '@vitejs/plugin-react';
+import { VitePWA } from 'vite-plugin-pwa';
+
+export default defineConfig({
+  plugins: [
+    react(),
+    VitePWA({
+      // 'prompt': a new build never replaces the running one on its own, so an
+      // active workout or unsaved entry is never interrupted by an update.
+      registerType: 'prompt',
+      injectRegister: false,
+      manifest: {
+        name: 'Aven',
+        short_name: 'Aven',
+        description: 'Training, food and progress in one place.',
+        theme_color: '#0c0c0e',
+        background_color: '#0c0c0e',
+        display: 'standalone',
+        orientation: 'portrait',
+        start_url: '/',
+        icons: [
+          { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+          { src: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+          { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+        ],
+      },
+      workbox: { globPatterns: ['**/*.{js,css,html,svg,png,woff2}'], navigateFallbackDenylist: [/^\/api\//] },
+    }),
+  ],
+  server: { proxy: { '/api': 'http://localhost:8787' } },
+  test: { include: ['tests/**/*.test.{ts,mjs}'] },
+});

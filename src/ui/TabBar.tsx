@@ -1,0 +1,87 @@
+import { AnimatePresence, LayoutGroup, motion } from 'motion/react';
+import { useUI, type Tab, buzz } from '../state/ui';
+import { useStore } from '../state/store';
+import { Icon } from './Icon';
+import { SphereSlot } from './Sphere';
+import { useT } from '../lib/i18n';
+import { SNAP, SOFT } from './Sheet';
+import { useEffect, useState } from 'react';
+import { elapsedMs } from '../lib/workout';
+import { fmtDuration } from '../lib/dates';
+import { useVoice } from '../state/voice';
+
+const TABS: { id: Tab; icon: any; label: string }[] = [
+  { id: 'today', icon: 'today', label: 'Today' },
+  { id: 'train', icon: 'train', label: 'Train' },
+  { id: 'food', icon: 'food', label: 'Food' },
+  { id: 'progress', icon: 'progress', label: 'Progress' },
+];
+
+function LivePill() {
+  const active = useStore((s) => s.active);
+  const push = useUI((s) => s.push);
+  const overlays = useUI((s) => s.overlays);
+  const t = useT();
+  const [, tick] = useState(0);
+  useEffect(() => { const i = setInterval(() => tick((n) => n + 1), 500); return () => clearInterval(i); }, []);
+  const workoutOpen = overlays.some((o) => o.type === 'workout');
+  if (!active) return null;
+  const rest = active.rest && !active.pausedAt ? Math.max(0, Math.ceil((active.rest.endsAt - Date.now()) / 1000)) : 0;
+  const total = active.exercises.reduce((n, e) => n + e.sets.length, 0);
+  const done = active.exercises.reduce((n, e) => n + e.sets.filter((s) => s.done).length, 0);
+  return (
+    <motion.button
+      key="pill" layout className="glass press" layoutId="wk-pill-plate"
+      style={{ borderRadius: 999, height: 52, width: '100%', maxWidth: 440, display: 'flex', alignItems: 'center', gap: 12, padding: '0 8px 0 18px', marginBottom: 10, pointerEvents: workoutOpen ? 'none' : 'auto' }}
+      initial={{ opacity: 0, y: 20, scale: 0.94 }} animate={{ opacity: workoutOpen ? 0 : 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 14, scale: 0.96 }} transition={SOFT}
+      onClick={() => { buzz(); push('workout', { origin: 'pill' }); }}
+      aria-label={t('Resume workout')}
+    >
+      <span className="pulse-dot" style={active.pausedAt ? { animation: 'none', background: 'var(--tx3)' } : undefined} />
+      <span className="grow" style={{ textAlign: 'left', minWidth: 0 }}>
+        <span className="trunc" style={{ display: 'block', fontWeight: 650, fontSize: 14 }}>{active.name || t('Workout')}</span>
+        <span className="small t2 num" style={{ display: 'block' }}>
+          {active.pausedAt ? t('Paused') : rest > 0 ? `${t('Rest')} ${fmtDuration(rest)}` : `${done}/${total} ${t('sets')}`} · {fmtDuration(elapsedMs(active) / 1000)}
+        </span>
+      </span>
+      <span className="btn primary sm" style={{ minHeight: 38 }}>{t('Resume')}</span>
+    </motion.button>
+  );
+}
+
+export function TabBar() {
+  const tab = useUI((s) => s.tab);
+  const setTab = useUI((s) => s.setTab);
+  const push = useUI((s) => s.push);
+  const overlays = useUI((s) => s.overlays);
+  const t = useT();
+  const hidden = overlays.length > 0 && overlays.some((o) => o.type === 'workout' || o.type === 'voice' || o.type === 'onboarding');
+  const phase = useVoice((s) => s.phase);
+  return (
+    <LayoutGroup>
+      <motion.div className="tabbar-wrap" style={{ flexDirection: 'column', alignItems: 'center' }} animate={{ y: hidden ? 120 : 0, opacity: hidden ? 0 : 1 }} transition={SOFT}>
+        <AnimatePresence>{<LivePill />}</AnimatePresence>
+        <nav className="tabbar glass" aria-label="Main">
+          {TABS.slice(0, 2).map((x) => <TabBtn key={x.id} {...x} on={tab === x.id} onClick={() => { buzz(4); setTab(x.id); }} label={t(x.label)} />)}
+          <div className="sphere-slot" style={{ position: 'relative' }}>
+            <SphereSlot id="tab" priority={0} style={{ position: 'absolute', inset: -6 }} />
+            <button className="press" aria-label={t('Dictate')} style={{ position: 'absolute', inset: -4, borderRadius: 999 }}
+              onClick={() => { buzz(10); if (!overlays.some((o) => o.type === 'voice')) push('voice', { mode: tab === 'train' ? 'workout' : 'food' }); }} />
+            {phase !== 'idle' && null}
+          </div>
+          {TABS.slice(2).map((x) => <TabBtn key={x.id} {...x} on={tab === x.id} onClick={() => { buzz(4); setTab(x.id); }} label={t(x.label)} />)}
+        </nav>
+      </motion.div>
+    </LayoutGroup>
+  );
+}
+
+function TabBtn({ icon, label, on, onClick }: { id: Tab; icon: any; label: string; on: boolean; onClick: () => void }) {
+  return (
+    <button className={`tab press ${on ? 'on' : ''}`} onClick={onClick} aria-current={on ? 'page' : undefined}>
+      {on && <motion.span layoutId="tab-pip" className="tab-pip" transition={SNAP} />}
+      <Icon name={icon} size={23} sw={on ? 2 : 1.7} />
+      <span>{label}</span>
+    </button>
+  );
+}
