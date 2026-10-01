@@ -117,6 +117,19 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
 .aurora-lite::after { content: ''; position: absolute; inset: 0; opacity: calc(var(--grain) * 0.7); background-image: var(--grain-url, none); background-size: var(--grain-size, auto); }
 @keyframes driftLite { to { transform: translate3d(3%, 2%, 0) scale(1.08) rotate(7deg); } }
 :root[data-motion='reduce'] .aurora-lite::before { animation: none; }
+/* Inside the live workout the colour field holds still and nothing frosts it. A frosted card re-blurs whatever is behind it on
+   every frame something moves (the drifting field, a scroll, a set tick) — with a dozen cards and buttons that was most of
+   the workout's lag on a phone. The field is already a soft blur, so a card over it looks the same without the filter;
+   the fills are a touch denser to keep the same glassy depth. The floating rest bar (.glass) keeps its real frost. */
+/* The same holds for the tab screens: their cards sit over the colour field only (nothing scrolls UNDER a card), and the
+   field is already soft, so frosting them looked identical (compared side by side, dark and light) but made the GPU re-blur
+   every card on every frame of the field's drift — 36 fps standing still on Train and Progress. Real frost stays where
+   something passes underneath: the tab bar, sheets, popups, toasts. */
+.screen .plinth, .screen .btn, .screen .icon-btn, .screen .chip, .screen .glass { -webkit-backdrop-filter: none; backdrop-filter: none; }
+.wk-window .aurora-lite::before { animation: none; }
+.wk-window .plinth, .wk-window .btn, .wk-window .icon-btn, .wk-window .chip, .wk-window .plinth-2 { -webkit-backdrop-filter: none; backdrop-filter: none; }
+.wk-window .plinth { background: color-mix(in srgb, var(--s1) 100%, var(--bg) 22%); }
+.wk-window .btn:not(.primary):not(.ghost), .wk-window .icon-btn { background: color-mix(in srgb, var(--s3) 100%, var(--bg) 18%); }
 @keyframes drift1 { to { transform: translate3d(18%, 14%, 0) scale(1.12) rotate(24deg); } }
 @keyframes drift2 { to { transform: translate3d(-22%, -10%, 0) scale(.92) rotate(-30deg); } }
 @keyframes drift3 { to { transform: translate3d(14%, -16%, 0) scale(1.1) rotate(18deg); } }

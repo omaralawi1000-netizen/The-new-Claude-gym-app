@@ -1,0 +1,328 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
+import { useStore, allExercises } from '../state/store';
+import { useUI, buzz } from '../state/ui';
+import { useVoice } from '../state/voice';
+import { useAi } from '../state/ai';
+import { useT, useLang } from '../lib/i18n';
+import { mic } from '../lib/mic';
+import { speechSupported, startSpeech, type SpeechError, type SpeechHandle } from '../lib/speech';
+import { getKey } from '../lib/keys';
+import { transcribe, buildPrompt, STT_MODEL, SttError } from '../lib/groq';
+import { aiErrorText, type Turn } from '../lib/gemini';
+import { decide, agentModels } from '../lib/agentTurn';
+import { runActions, type AgentResult } from '../lib/agent';
+import { dayKey } from '../lib/dates';
+import { uid } from '../lib/nutrition';
+import { SphereSlot } from '../ui/Sphere';
+import { useEngage } from '../ui/engage';
+import { Icon } from '../ui/Icon';
+import { SOFT, useOverlayZ } from '../ui/Sheet';
+import { ActionCard, Rich, Thinking, sttMessage } from '../ui/agentUi';
+
+/** One thing you said and what the assistant did about it. */
+interface Turn1 { id: string; said: string; reply: string; results: AgentResult[]; undone: string[]; confirmed: string[] }
+
+const recorderOk = () => typeof MediaRecorder !== 'undefined' && mic.supported;
+
+/**
+ * The orb's own screen: a big sphere that listens. Say anything — "log a banana", "bench 100 kilos for 8, 8 and 6",
+ * "drank half a litre", "how do I change the theme?" — and it does it, the same way the Coach does (same brain, same
+ * actions, same Undo). There are no separate food / workout modes. A quick log closes by itself and leaves an Undo toast.
+ */
+export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; date?: string; mealId?: string } }) {
+  const t = useT();
+  const lang = useLang();
+  const z = useOverlayZ(65);
+  const eng = useEngage(); const engage = useMemo(() => ({ e: eng }), [eng]);
+  const exercises = useStore((s) => s.exercises);
+  const pool = useMemo(() => allExercises(exercises), [exercises]);
+  const phase = useVoice((v) => v.phase);
+  const hasGroq = useAi((a) => a.hasGroq);
+  const hasGemini = useAi((a) => a.hasGemini);
+  const engine: 'groq' | 'browser' | 'typed' = hasGroq && recorderOk() ? 'groq' : speechSupported() ? 'browser' : 'typed';
+  const supported = engine !== 'typed';
+  const [typing, setTyping] = useState(!supported);
+  const [typed, setTyped] = useState('');
+  const [final, setFinal] = useState('');
+  const [interim, setInterim] = useState('');
+  const [stage, setStage] = useState<'hearing' | 'thinking'>('thinking');
+  const [heardText, setHeardText] = useState('');
+  const [err, setErr] = useState<string | null>(null);
+  const [canRetry, setCanRetry] = useState(false);
+  const [turns, setTurns] = useState<Turn1[]>([]);
+  const turnsRef = useRef<Turn1[]>([]); turnsRef.current = turns;
+  const blobRef = useRef<Blob | null>(null);
+  const handle = useRef<SpeechHandle | null>(null);
+  const ctl = useRef<AbortController | null>(null);
+  const alive = useRef(true);
+  const run = useRef(0); // a newer listen (or teardown) invalidates an older one still waiting on the permission prompt
+  const busy = useRef(false);
+  const latest = useRef({ final: '', interim: '' }); latest.current = { final, interim };
+  const finishRef = useRef<() => void>(() => {});
+  const go = (p: Parameters<ReturnType<typeof useVoice.getState>['go']>[0]) => useVoice.getState().go(p);
+
+  const teardown = useCallback(() => {
+    run.current++;
+    handle.current?.abort(); handle.current = null;
+    mic.release('voice');
+    useVoice.getState().set({ micLive: false });
+  }, []);
+
+  useEffect(() => {
+    alive.current = true;
+    const unsub = mic.subscribe(() => useVoice.getState().set({ micLive: mic.active }));
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !(e.target as HTMLElement)?.closest?.('textarea')) useUI.getState().pop(); };
+    window.addEventListener('keydown', onKey);
+    return () => { alive.current = false; unsub(); window.removeEventListener('keydown', onKey); ctl.current?.abort(); teardown(); go('idle'); };
+    // eslint-disable-next-line
+  }, [teardown]);
+
+  // ── listening ──
+  const listen = useCallback(async () => {
+    if (busy.current) return;
+    setErr(null); setFinal(''); setInterim(''); setCanRetry(false); blobRef.current = null;
+    if (!supported) { go('idle'); setTyping(true); return; }
+    setTyping(false);
+    go('requesting');
+    const my = ++run.current;
+    if (engine === 'groq') {
+      const r = await mic.acquire('voice');
+      if (!alive.current || my !== run.current) return;
+      if (!r.ok) {
+        setErr(r.reason === 'denied' ? t('Microphone permission was denied. You can allow it in your browser settings, or type instead.')
+          : r.reason === 'nodevice' ? t('No microphone was found.') : r.reason === 'busy' ? t('The microphone is in use by something else.') : t('The microphone couldn’t start.'));
+        go(r.reason === 'denied' ? 'unavailable' : 'error'); setTyping(true); return;
+      }
+      if (!mic.startRecording('voice')) { teardown(); setErr(t('This browser can’t record audio. Type instead.')); go('error'); setTyping(true); return; }
+      go('listening');
+      return;
+    }
+    const h = startSpeech({
+      lang: lang === 'da' ? 'da-DK' : 'en-GB',
+      onStart: () => { if (alive.current) go('listening'); },
+      onText: (f, i) => { setFinal(f); setInterim(i); },
+      onError: (e: SpeechError) => {
+        if (!alive.current) return;
+        if (e === 'denied') { teardown(); setErr(t('Microphone or speech permission was denied. You can allow it in your browser settings, or type instead.')); go('unavailable'); setTyping(true); }
+        else if (e === 'network') { teardown(); setErr(t('The browser’s speech service isn’t reachable (it needs a connection). Type instead — nothing was recorded.')); go('error'); setTyping(true); }
+        else if (e === 'audio') { teardown(); setErr(t('No microphone was found or it is in use by another app.')); go('error'); setTyping(true); }
+        else if (e !== 'aborted' && e !== 'no-speech') setErr(t('Speech recognition stopped unexpectedly.'));
+      },
+      onEnd: () => { if (alive.current && useVoice.getState().phase === 'listening') finishRef.current(); },
+    });
+    if (!h) { setErr(t('Speech recognition couldn’t start.')); go('error'); setTyping(true); return; }
+    handle.current = h;
+    await mic.acquire('voice'); // only for the sphere's level; failing here just means "no level"
+    // eslint-disable-next-line
+  }, [supported, engine, lang]);
+
+  // opened → listen straight away
+  useEffect(() => { if (supported) listen(); /* eslint-disable-next-line */ }, []);
+
+  // Groq: stop by itself once you have spoken and gone quiet (or after 40 s)
+  useEffect(() => {
+    if (phase !== 'listening' || engine !== 'groq') return;
+    let heard = 0, quiet = 0; const t0 = performance.now();
+    const id = setInterval(() => {
+      const lv = mic.level();
+      if (lv > 0.16) { heard += 80; quiet = 0; } else if (lv < 0.09) quiet += 80;
+      if ((heard >= 240 && quiet >= 1400) || performance.now() - t0 > 40000) { clearInterval(id); finishRef.current(); }
+    }, 80);
+    return () => clearInterval(id);
+  }, [phase, engine]);
+
+  /** Speech → text with Groq; a failure keeps the recording so a retry doesn't need you to speak again. */
+  async function hear(blob: Blob | null): Promise<string | null> {
+    if (!blob) { go('idle'); setErr(t('Didn’t catch anything. Tap the sphere to try again, or type it.')); return null; }
+    const st = useStore.getState(); const ai = useAi.getState();
+    const foods = [...new Set([...st.entries].sort((a, b) => b.at - a.at).map((e) => e.snap.name))].slice(0, 25);
+    const lifts = [...new Set(st.sessions.slice(-6).flatMap((x) => x.exercises.map((e) => pool.find((q) => q.id === e.exerciseId)?.name ?? '')))].filter(Boolean);
+    try {
+      const out = (await transcribe(blob, { key: getKey('groq'), model: STT_MODEL[ai.stt], language: ai.voiceLang === 'auto' ? 'auto' : ai.voiceLang, prompt: buildPrompt([...lifts, ...foods].slice(0, 40)) })).trim();
+      if (!alive.current) return null;
+      if (!out) { go('idle'); setErr(t('Didn’t catch anything. Tap the sphere to try again, or type it.')); return null; }
+      blobRef.current = null; setCanRetry(false);
+      return out;
+    } catch (e) {
+      if (!alive.current) return null;
+      const code = e instanceof SttError ? e.code : 'failed';
+      blobRef.current = blob;
+      setErr(sttMessage(code, t)); setCanRetry(code !== 'nokey' && code !== 'badkey'); go('error');
+      return null;
+    }
+  }
+
+  /** The conversation so far, for the model (what was done becomes a one-line note). */
+  const history = (): Turn[] => {
+    const out: Turn[] = [];
+    for (const x of turnsRef.current.slice(-6)) {
+      out.push({ role: 'user', parts: [{ text: x.said }] });
+      const done = x.results.length ? `(done: ${x.results.map((r) => r.title).join(' | ')})` : '';
+      const said = [x.reply, done].filter(Boolean).join('\n');
+      if (said) out.push({ role: 'model', parts: [{ text: said }] });
+    }
+    return out;
+  };
+
+  /** Understand what was said, do it, show it. */
+  const act = async (text: string) => {
+    busy.current = true;
+    setHeardText(text); setStage('thinking'); setErr(null); go('processing');
+    ctl.current = new AbortController();
+    const signal = ctl.current.signal;
+    const kill = setTimeout(() => ctl.current?.abort(), 30_000);
+    try {
+      const where = props.mode === 'workout' && useStore.getState().active ? 'The user is in their running workout: sets go into it.'
+        : props.mealId || props.date ? `The user came from the Food tab${props.date ? ` (day ${props.date})` : ''}${props.mealId ? `, meal ${props.mealId}` : ''}: foods go there unless they say otherwise.`
+        : 'The user tapped the orb on the main screen and spoke to it.';
+      const d = await decide(text, { lang, t, pool, history: history(), where, signal });
+      let reply = d.reply;
+      if (d.wantsUndo) {
+        const last = [...turnsRef.current].reverse().find((x) => x.results.some((r) => r.undo && !x.undone.includes(r.id) && !r.pending));
+        if (last) { const r = [...last.results].reverse().find((x) => x.undo && !last.undone.includes(x.id) && !x.pending)!; r.undo!(); setTurns((all) => all.map((x) => (x.id === last.id ? { ...x, undone: [...x.undone, r.id] } : x))); }
+        if (!d.actions.length && !reply) reply = t('Undone.');
+      }
+      const st = useStore.getState();
+      const today = dayKey(Date.now(), st.settings.dayStartHour);
+      const results = d.actions.length ? await runActions(d.actions, { t, lang, today, brain: useAi.getState().hasGemini ? { key: getKey('gemini'), models: agentModels(false), signal } : null, date: props.date, mealId: props.mealId }) : [];
+      if (!alive.current) return;
+      const said = [reply, d.note].filter(Boolean).join('\n\n');
+      setTurns((all) => [...all, { id: uid('v'), said: text, reply: said, results, undone: [], confirmed: [] }]);
+      if (results.some((r) => r.kind !== 'miss' && r.kind !== 'nav')) buzz([12, 40, 18] as any);
+      go('confirmed');
+      // a quick log and nothing to read: show it for a moment, then step aside with an Undo toast
+      const quick = results.length > 0 && results.every((r) => ['food', 'sets', 'water', 'weight', 'activity'].includes(r.kind) && !r.pending);
+      if (quick && !reply.trim()) {
+        setTimeout(() => {
+          if (!alive.current) return;
+          const undoable = results.filter((r) => r.undo);
+          useUI.getState().toast(results.map((r) => r.title).join(' · '), { tone: 'ok', actionLabel: undoable.length ? t('Undo') : undefined, onAction: () => undoable.forEach((r) => r.undo!()) });
+          useUI.getState().pop();
+        }, 1700);
+      } else setTimeout(() => { if (alive.current && useVoice.getState().phase === 'confirmed') go('idle'); }, 1200);
+      if (results.some((r) => r.kind === 'nav')) setTimeout(() => { if (alive.current) useUI.getState().pop(); }, 900);
+    } catch (e: any) {
+      if (!alive.current) return;
+      if (e?.code !== 'aborted') { setErr(aiErrorText(e, t)); go('error'); } else go('idle');
+    } finally { clearTimeout(kill); busy.current = false; }
+  };
+
+  const finish = async () => {
+    if (busy.current) return;
+    const p = useVoice.getState().phase;
+    if (p === 'processing') return;
+    if (typing) { const text = typed.trim(); if (!text) return; setTyped(''); act(text); return; }
+    if (engine === 'groq' && mic.recording) {
+      busy.current = true;
+      setStage('hearing'); go('processing');
+      const blob = await mic.stopRecording(); mic.release('voice');
+      busy.current = false;
+      const heard = await hear(blob);
+      if (heard) act(heard);
+      return;
+    }
+    const text = [latest.current.final, latest.current.interim].filter(Boolean).join(' ').trim();
+    handle.current?.stop(); handle.current = null; mic.release('voice');
+    if (!text) { go('idle'); setErr(t('Didn’t catch anything. Tap the sphere to try again, or type it.')); return; }
+    act(text);
+  };
+  finishRef.current = finish;
+
+  const retryHear = async () => {
+    const b = blobRef.current; if (!b) return;
+    setErr(null); setCanRetry(false); setStage('hearing'); go('processing');
+    const text = await hear(b);
+    if (text) act(text);
+  };
+
+  const listening = phase === 'listening' || phase === 'requesting';
+  const thinking = phase === 'processing';
+  const last = turns[turns.length - 1];
+  const showing = !!last && !listening && !thinking;
+  const label = ({
+    idle: showing ? t('Tap the sphere to say more') : t('Tap the sphere and speak'), requesting: t('Starting the microphone…'),
+    listening: engine === 'groq' ? t('Listening') : mic.active ? t('Listening') : t('Listening (no level meter)'),
+    processing: stage === 'hearing' ? t('Transcribing…') : t('Thinking…'), confirmed: t('Done'), error: t('Couldn’t do that'), unavailable: t('Microphone unavailable'),
+    review: t('Done'),
+  } as Record<string, string>)[phase] ?? '';
+  const tapSphere = () => { buzz(10); if (listening) finish(); else if (!thinking) listen(); };
+  const big = !showing && !thinking;
+
+  return (
+    <motion.div className="voice" style={{ position: 'fixed', inset: 0, zIndex: z, display: 'flex', flexDirection: 'column' }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.28 }} role="dialog" aria-modal="true" aria-label={t('Dictation')}>
+      <div style={{ position: 'absolute', inset: 0, background: 'color-mix(in srgb, var(--bg) 78%, transparent)', WebkitBackdropFilter: 'blur(30px) saturate(1.4)', backdropFilter: 'blur(30px) saturate(1.4)' }} />
+      <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', padding: 'calc(var(--sat) + 12px) 18px 0' }}>
+        <div className="row-flex between">
+          <button className="icon-btn press" aria-label={t('Close')} onClick={() => useUI.getState().pop()}><Icon name="close" /></button>
+          <button className="chip press" onClick={() => useUI.getState().swap(1, 'coach')}><Icon name="sparkle" size={15} /> {t('Coach')}</button>
+        </div>
+
+        {/* the sphere: big while it listens, it steps up and out of the way once there is something to read */}
+        <div style={{ display: 'grid', placeItems: 'center', marginTop: big ? 26 : 6, transition: 'margin .45s cubic-bezier(.22,1,.36,1)' }}>
+          <button aria-label={listening ? t('Stop and send') : t('Start listening')} onClick={tapSphere} disabled={thinking} className="voice-orb"
+            style={{ position: 'relative', borderRadius: 999, width: big ? 'min(62vw, 250px)' : 96, height: big ? 'min(62vw, 250px)' : 96, transition: 'width .45s cubic-bezier(.22,1,.36,1), height .45s cubic-bezier(.22,1,.36,1)' }}>
+            <SphereSlot id="voice" priority={10} engage={engage} style={{ position: 'absolute', inset: 0 }} />
+          </button>
+        </div>
+        <div style={{ textAlign: 'center', marginTop: big ? 14 : 8 }}>
+          <div className="micro" aria-live="polite" style={{ color: phase === 'listening' ? 'var(--ac-text)' : undefined }}>{label}</div>
+        </div>
+
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', marginTop: 14, paddingBottom: 12 }} className="hide-scroll">
+          {/* what you are saying / said */}
+          {!typing && !showing && !thinking && (
+            <div className="display display-md" style={{ lineHeight: 1.12, padding: '0 6px', textAlign: 'center' }}>
+              {final || interim ? <><span>{final}</span>{interim && <span style={{ color: 'var(--tx3)' }}> {interim}</span>}</>
+                : <span style={{ color: 'var(--tx3)', fontSize: 18, fontStretch: '100%', fontWeight: 560 }}>{listening && engine === 'groq' ? t('Speak naturally. I stop listening when you pause.') : t('“Log a banana” · “Bench 100 kg for 8, 8 and 6” · “How do I change the theme?”')}</span>}
+            </div>
+          )}
+          {thinking && (
+            <div style={{ textAlign: 'center' }}>
+              {heardText && stage === 'thinking' && <div className="display display-md" style={{ color: 'var(--tx2)', lineHeight: 1.12 }}>{heardText}</div>}
+              <div style={{ maxWidth: 260, margin: '18px auto 0' }}><Thinking /></div>
+            </div>
+          )}
+          {showing && (
+            <AnimatePresence mode="popLayout" initial={false}>
+              <motion.div key={last.id} initial={{ opacity: 0, y: 14, filter: 'blur(8px)' }} animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }} exit={{ opacity: 0, y: -10 }} transition={{ ...SOFT, filter: { duration: 0.45 } }} className="stack gap12">
+                <div className="small t2" style={{ textAlign: 'center', padding: '0 10px' }}>“{last.said}”</div>
+                {last.results.map((r) => (
+                  <ActionCard key={r.id} r={r} undone={last.undone.includes(r.id)} confirmed={last.confirmed.includes(r.id)}
+                    onUndo={() => { r.undo?.(); buzz(8); setTurns((all) => all.map((x) => (x.id === last.id ? { ...x, undone: [...x.undone, r.id] } : x))); }}
+                    onConfirm={() => { r.button?.run(); buzz(14); setTurns((all) => all.map((x) => (x.id === last.id ? { ...x, confirmed: [...x.confirmed, r.id] } : x))); }} />
+                ))}
+                {last.reply && <div className="small" style={{ lineHeight: 1.5 }} aria-live="polite"><Rich text={last.reply} /></div>}
+              </motion.div>
+            </AnimatePresence>
+          )}
+          {err && <div className="plinth-2 small" role="alert" style={{ padding: '12px 14px', marginTop: 16 }}>{err}{canRetry && <div style={{ marginTop: 10 }}><button className="btn sm press" onClick={retryHear}>{t('Retry transcription')}</button></div>}</div>}
+          {typing && !thinking && (
+            <div style={{ marginTop: 12 }}>
+              <textarea className="input" style={{ minHeight: 96 }} value={typed} onChange={(e) => setTyped(e.target.value)} autoFocus aria-label={t('Type what you ate or did')}
+                placeholder={t('“Log a banana” · “Bench 100 kg for 8, 8 and 6” · “How do I change the theme?”')}
+                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); finish(); } }} />
+              {!supported && <div className="xs t3" style={{ marginTop: 8 }}>{t('Speech recognition isn’t available in this browser. Type it, or use your keyboard’s microphone key.')} {t('Or add a Groq key in Settings → Voice & AI.')}</div>}
+            </div>
+          )}
+        </div>
+
+        <div style={{ padding: '10px 0 calc(var(--sab) + 18px)' }}>
+          <div className="row-flex" style={{ gap: 10 }}>
+            {supported && (
+              <button className="btn press grow" disabled={thinking} onClick={() => { if (typing) listen(); else { teardown(); go('idle'); setTyping(true); } }}>
+                {typing ? <><Icon name="mic" size={18} /> {t('Speak instead')}</> : <><Icon name="edit" size={18} /> {t('Type instead')}</>}
+              </button>
+            )}
+            <button className="btn primary press grow" disabled={thinking || (typing ? !typed.trim() : false)} onClick={() => (listening || typing ? finish() : listen())}>
+              {thinking ? t('Working…') : listening ? t('Done speaking') : typing ? t('Send') : showing ? <><Icon name="mic" size={18} /> {t('Say more')}</> : <><Icon name="mic" size={18} /> {t('Speak')}</>}
+            </button>
+          </div>
+          <div className="xs t3" style={{ textAlign: 'center', marginTop: 10 }}>
+            {engine === 'groq' ? (hasGemini ? t('Audio goes to Groq, text to Gemini. Aven stores nothing.') : t('Audio goes to Groq. Aven stores nothing.')) : supported ? t('Your browser transcribes this. Aven stores nothing.') : t('Nothing is recorded or sent anywhere.')}
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}

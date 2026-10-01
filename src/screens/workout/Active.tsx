@@ -15,6 +15,7 @@ import { addSet, deleteSet, moveExercise, patchExercise, patchSet, removeExercis
 import { exName, fmtSet, MUSCLE_LABEL } from './common';
 import { SphereSlot } from '../../ui/Sphere';
 import { useSwipeDown } from '../../ui/swipe';
+import { trackCover } from '../../ui/engage';
 
 // critically damped: it opens and closes in one smooth motion with no wobble at the end
 const WK_SPRING = { type: 'spring', stiffness: 320, damping: 34, mass: 0.9 } as const;
@@ -69,6 +70,7 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
   const dialogY = useTransform([slide, dragY], ([sl, d]: number[]) => (from ? 0 : (1 - sl) * H) + d);
   const eFinger = useTransform([eng, dragY], ([e, d]: number[]) => Math.min(1, Math.max(0, e - Math.max(0, d) / H)));
   const engage = useMemo(() => ({ e: eFinger, shift: dialogY }), [eFinger, dialogY]);
+  useEffect(() => trackCover('workout', eFinger), [eFinger]); // fully up, the page behind stops being drawn
   // what is inside the window fades up and settles as the window opens (and the reverse as it closes), tied to the
   // window's own progress, so it can never be early or late
   // The content is pinned to the window's top edge while it grows (its header sits in the card's own place, like the card's
@@ -327,7 +329,7 @@ const ExerciseBlock = memo(function ExerciseBlock({ se, idx, ex, linkedPrev, lin
   const showSugg = sugg && sugg.kind === 'add-weight' && pendingSets.length > 0 && pendingSets.every((x) => x.weightKg === undefined && x.target?.weightKg !== sugg.weightKg);
 
   return (
-    <motion.section layout="position" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96 }} transition={SOFT}
+    <motion.section layout="position" layoutDependency={`${idx}:${se.supersetGroup ?? ''}`} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96 }} transition={SOFT}
       style={{ position: 'relative', marginTop: linkedPrev ? 0 : 18, paddingLeft: se.supersetGroup ? 14 : 0 }}>
       {se.supersetGroup && <div aria-hidden style={{ position: 'absolute', left: 0, top: linkedPrev ? -4 : 6, bottom: linkedNext ? -14 : 6, width: 3, borderRadius: 3, background: 'var(--ac)', opacity: 0.85 }} />}
       {se.supersetGroup && !linkedPrev && <div className="micro accent" style={{ marginBottom: 4 }}>{t('Superset')}</div>}
@@ -451,7 +453,8 @@ const SetRow = memo(function SetRow({ se, set, ex, label, prev, restDefault }: {
   const fr = field(set.reps, ph.r, (v) => patchSet(se.id, set.id, { reps: v }), 0, t('Reps'), complete);
 
   return (
-    <motion.div layout="position" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} transition={SOFT} style={{ overflow: 'hidden' }}>
+    // layout is measured only when this row actually moves (a row above was added/removed), not on every tick or keystroke
+    <motion.div layout="position" layoutDependency={`${label}:${se.sets.length}`} initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} transition={SOFT} style={{ overflow: 'hidden' }}>
       <div style={{ display: 'grid', gridTemplateColumns: gridCols(ex, settings.effort), gap: 8, alignItems: 'center', padding: '5px 2px', opacity: set.done ? 0.72 : 1 }}>
         <button className="press" aria-label={t('Set options')} aria-expanded={open} onClick={() => setOpen((v) => !v)}
           style={{ height: 38, borderRadius: 10, fontWeight: 700, fontSize: 14, background: set.type === 'warmup' ? 'var(--ac-soft)' : 'var(--s2)', color: set.type === 'warmup' ? 'var(--ac-text)' : 'var(--tx2)', boxShadow: 'inset 0 0 0 1px var(--line)' }}>{label}</button>

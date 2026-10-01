@@ -1,4 +1,4 @@
-import { launch, wait, skipOnboarding } from './lib.mjs';
+import { launch, wait, skipOnboarding, sayTyped } from './lib.mjs';
 import assert from 'node:assert/strict';
 const record = process.argv.includes('--record');
 const { b, ctx, p, errors } = await launch({ record });
@@ -36,11 +36,11 @@ assert.equal(await ledgerKcal(), '0');
 await p.getByRole('button', { name: 'Undo' }).last().click(); await wait(p, 900);
 assert.equal(await ledgerKcal(), '189', 'undo restores exactly');
 await p.screenshot({ path: 'shots/fd-5-undo.png' });
-// 4. say it to the app (typed here): the Coach logs it straight away, with an Undo
+// 4. say it to the orb (typed here): it logs it straight away, with an Undo
 await p.getByRole('button', { name: 'Dictate' }).first().click(); await wait(p, 1200);
 await p.screenshot({ path: 'shots/fd-6-voice.png' });
-await p.getByLabel('Message the Coach').fill('200 grams of skyr, one banana and 60 grams of oats');
-await p.getByRole('button', { name: 'Send', exact: true }).click(); await wait(p, 2600);
+assert(await p.getByRole('dialog', { name: 'Dictation' }).isVisible(), 'the orb screen opens');
+await sayTyped(p, '200 grams of skyr, one banana and 60 grams of oats'); await wait(p, 2600);
 await p.screenshot({ path: 'shots/fd-9-logged.png' });
 // 189 + skyr 126 + banana 105 + oats 223 = 643 (the Coach picks the clear best match; the card says what it matched)
 const k = Number(await ledgerKcal()); console.log('ledger after saying it', k); assert(k >= 600 && k <= 700, 'logged all three');

@@ -31,7 +31,6 @@ export function TodayScreen() {
   const today = useToday();
   const { sum } = useDaySummary(today);
   const water = useWaterOn(today);
-  const now = useNow(1000, !!s.active);
   const plan = plannedFor(s, today, today);
   const routine = plan ? s.routines.find((r) => r.id === plan.routineId) : undefined;
   const doneToday = s.sessions.filter((x) => x.date === today);
@@ -140,7 +139,7 @@ export function TodayScreen() {
             <div className="row-flex between" style={{ gap: 14 }}>
               <div style={{ minWidth: 0 }}>
                 <div className="row-flex" style={{ gap: 8 }}><span className="pulse-dot" style={active.pausedAt ? { animation: 'none', background: 'var(--tx3)' } : undefined} /><span className="small t2">{active.pausedAt ? t('Paused') : active.name || t('Workout')}</span></div>
-                <div className="display num" style={{ fontSize: 54, marginTop: 8 }}>{fmtDuration(elapsedMs(active, now) / 1000)}</div>
+                <div className="display num" style={{ fontSize: 54, marginTop: 8 }}><HeroClock /></div>
                 <div className="small t2 num" style={{ marginTop: 2 }}>{aDone}<span className="t3"> / {aTotal}</span></div>
               </div>
               <button className="icon-btn acc press" style={{ width: 68, height: 68, flex: 'none' }} aria-label={t('Resume workout')} onClick={() => { buzz(12); push('workout', { origin: 'hero' }); }}><Icon name="play" size={26} /></button>
@@ -256,4 +255,12 @@ export function TodayScreen() {
       )}
     </div>
   );
+}
+
+/** The running workout's clock on the hero card. Only this line ticks — not the whole Today screen (which stays mounted,
+ * hidden, behind the live workout). */
+function HeroClock() {
+  const a = useStore((x) => x.active);
+  const now = useNow(1000, !!a);
+  return <>{a ? fmtDuration(elapsedMs(a, now) / 1000) : ''}</>;
 }

@@ -51,11 +51,8 @@ export const useUI = create<UI>((set, get) => ({
   setFoodDate: (foodDate) => set({ foodDate }),
   setTrainTab: (trainTab) => set({ trainTab }),
   push: (type, props) => {
-    // There is no separate "voice" screen any more: talking to the app IS the Coach. Anything that used to open the
-    // dictation composer opens the Coach already listening (food/day hints ride along so it knows where you were).
-    if (type === 'voice') { type = 'coach'; props = { ...props, listen: true }; }
     const top = get().overlays[get().overlays.length - 1];
-    if (type === 'coach' && top?.type === 'coach') return top.id;
+    if ((type === 'coach' || type === 'voice') && top?.type === type) return top.id;
     const id = uid('ov');
     histDepth += 1;
     try { history.pushState({ aven: histDepth }, ''); } catch { /* ignore */ }

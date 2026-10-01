@@ -17,6 +17,7 @@ import { ActivityLog, Reschedule, Schedule } from './workout/Schedule';
 import { MeasureSheet, PhotosSheet, WeightSheet } from './Body';
 import { Onboarding } from './Onboarding';
 import { Coach } from './Coach';
+import { VoiceComposer } from './Voice';
 import { PhotoFood } from './food/PhotoFood';
 
 /** Renders the overlay stack. Each overlay owns its presentation (sheet, morph, or full-screen). */
@@ -56,6 +57,7 @@ export function Overlays() {
           case 'photos': return <PhotosSheet key={o.id} />;
           case 'photoFood': return <PhotoFood key={o.id} props={p} />;
           case 'coach': return <Coach key={o.id} props={p} />;
+          case 'voice': return <VoiceComposer key={o.id} props={p} />;
           case 'onboarding': return <Onboarding key={o.id} props={p} />;
           default: return null;
         } })();

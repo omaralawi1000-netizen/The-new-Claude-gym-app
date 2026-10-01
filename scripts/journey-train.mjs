@@ -1,4 +1,4 @@
-import { launch, wait, skipOnboarding, loadDemo } from './lib.mjs';
+import { launch, wait, skipOnboarding, loadDemo, sayTyped } from './lib.mjs';
 import assert from 'node:assert/strict';
 const { b, ctx, p, errors } = await launch({ record: process.argv.includes('--record') });
 const state = () => p.evaluate(() => JSON.parse(localStorage.getItem('aven.v1')));
@@ -56,13 +56,12 @@ const t = async () => p.getByRole('dialog', { name: 'Active workout' }).locator(
 await p.getByRole('button', { name: 'Pause' }).click(); const t1 = await t(); await wait(p, 2200); const t2 = await t();
 assert.equal(t1, t2, 'clock frozen while paused'); await p.getByRole('button', { name: 'Resume', exact: true }).click(); await wait(p, 1500);
 assert.notEqual(await t(), t2, 'clock runs again');
-// C. say the sets to the Coach (typed here): logged into the running workout
+// C. say the sets to the orb (typed here): logged into the running workout
 await p.getByRole('button', { name: 'Dictate sets' }).click(); await wait(p, 1000);
-await p.getByLabel('Message the Coach').fill('squat 100 kilos for 5, 5 and 5 then plank 60 seconds');
-await p.getByRole('button', { name: 'Send', exact: true }).click(); await wait(p, 2200);
+await sayTyped(p, 'squat 100 kilos for 5, 5 and 5 then plank 60 seconds'); await wait(p, 2200);
 await p.screenshot({ path: 'shots/tr-6-wreview.png' });
-await wait(p, 2500); // the Coach steps aside by itself after a quick log
-assert.equal(await p.getByRole('dialog', { name: 'Coach' }).count(), 0);
+await wait(p, 2500); // the orb screen steps aside by itself after a quick log
+assert.equal(await p.getByRole('dialog', { name: 'Dictation' }).count(), 0);
 const act = (await state()).active;
 const squat = act.exercises.find((e) => e.exerciseId === 'back-squat');
 console.log('dictated sets', squat?.sets.map((x) => [x.weightKg, x.reps, x.done]));

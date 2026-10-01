@@ -334,7 +334,7 @@ export function SphereStage() {
     // The orb has no motion of its own any more. Its place is the lowest slot (the tab bar) blended towards every
     // higher slot by that slot's `engage` (how far its popup is open). The popup, the page behind it and the orb all
     // read the same number in the same frame, so they stay in step while a popup opens, is dragged or leaves.
-    let px = NaN, py = NaN, ps = NaN, sentV = 0, lastDraw = 0;
+    let px = NaN, py = NaN, ps = NaN, sentV = 0, lastDraw = 0, lastBucket = 0;
     const tick = (now: number) => {
       if (!running) return;
       refreshColors(now);
@@ -373,7 +373,13 @@ export function SphereStage() {
       if (top === 0 && still && useUI.getState().overlays.length > 0 && drawn) return;
       // Parked and idle (the orb resting in the tab bar): its motion is a slow turn, so ~30 fps looks identical and frees the
       // other half of the frames for the page. Anything moving, listening or thinking redraws every frame.
-      const calm = still && top === 0 && !reduced && (useVoice.getState().phase === 'idle') && drawn;
+      // Idle (not listening, thinking or just done) the orb's own motion is a slow turn: ~30 fps looks identical and gives
+      // the page the other half of the frames — on the tab bar, on Today and inside the live workout alike. Its POSITION
+      // (above) still follows every frame, so it never lags a scroll or a popup.
+      // A flight only scales the drawn canvas (transform above); the canvas itself must be redrawn only when its size bucket
+      // changes (a resize clears it).
+      const resized = bucket !== lastBucket; lastBucket = bucket;
+      const calm = !reduced && !resized && useVoice.getState().phase === 'idle' && drawn;
       if (calm && now - lastDraw < 30) return;
       lastDraw = now;
       renderer.resize(bucket, dpr);

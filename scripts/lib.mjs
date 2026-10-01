@@ -27,3 +27,11 @@ export async function loadDemo(p) {
   await p.getByText('Load demo data').click(); await p.waitForTimeout(400);
   await p.keyboard.press('Escape'); await p.waitForTimeout(500);
 }
+
+/** On the orb screen: switch to typing (if it is listening) and send a sentence. */
+export async function sayTyped(p, text) {
+  const box = p.getByLabel('Type what you ate or did');
+  if (!(await box.isVisible().catch(() => false))) { await p.getByRole('button', { name: 'Type instead' }).click(); await p.waitForTimeout(300); }
+  await box.fill(text);
+  await p.getByRole('dialog', { name: 'Dictation' }).getByRole('button', { name: 'Send', exact: true }).click();
+}

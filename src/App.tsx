@@ -14,7 +14,7 @@ import { useT } from './lib/i18n';
 import { registerSW } from './pwa';
 import { dayKey } from './lib/dates';
 import { defaultMealId } from './lib/derive';
-import { stageDepth } from './ui/engage';
+import { stageCover, stageDepth } from './ui/engage';
 import { setKeyboard } from './ui/keyboard';
 
 const ORDER = ['today', 'train', 'food', 'progress'] as const;
@@ -63,7 +63,12 @@ function useStageDepth(app: React.RefObject<HTMLDivElement | null>, stage: React
       a.style.background = '#000';
     };
     apply(stageDepth.get());
-    return stageDepth.on('change', apply);
+    const offDepth = stageDepth.on('change', apply);
+    // behind a full cover (the live workout) the page stops being drawn at all — see stageCover
+    const cover = (c: number) => { const st = stage.current; if (!st) return; const o = c >= 0.985 ? Math.max(0, (1 - c) / 0.015) : 1; st.style.opacity = o >= 1 ? '' : String(o); };
+    cover(stageCover.get());
+    const offCover = stageCover.on('change', cover);
+    return () => { offDepth(); offCover(); };
   }, [app, stage]);
 }
 

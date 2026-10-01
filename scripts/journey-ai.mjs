@@ -82,7 +82,7 @@ const idb = await p.evaluate(async () => { try { const dbs = await indexedDB.dat
 console.log('storage keys', Object.keys(leak), 'idb', idb);
 await p.keyboard.press('Escape'); await wait(p, 500); await p.keyboard.press('Escape'); await wait(p, 500);
 
-// ── say it to the orb: record → Groq → the Coach acts (no review screen) → AI estimate for the unknown → Undo ──
+// ── say it to the orb: record → Groq → it acts (no review screen) → AI estimate for the unknown → Undo ──
 await p.getByRole('button', { name: 'Dictate' }).first().click(); await wait(p, 1500);
 await p.screenshot({ path: 'shots/ai-3-recording.png' });
 await wait(p, 1800);
@@ -94,7 +94,7 @@ assert(await p.locator('.action-card').getByText(/Logged to/).first().isVisible(
 assert(await p.locator('.action-card').getByText('Homemade zzzxq').first().isVisible(), 'the unknown food became a labelled AI estimate');
 await p.screenshot({ path: 'shots/ai-4-logged.png' });
 await wait(p, 2600); // a spoken quick log slips away on its own, leaving an Undo toast
-assert.equal(await p.getByRole('dialog', { name: 'Coach' }).count(), 0, 'the Coach stepped aside after a quick log');
+assert.equal(await p.getByRole('dialog', { name: 'Dictation' }).count(), 0, 'the orb screen stepped aside after a quick log');
 await p.locator('.tabbar').getByRole('button', { name: 'Food', exact: true }).click(); await wait(p, 900);
 assert(await p.getByText('Homemade zzzxq (AI estimate)').first().isVisible(), 'estimate logged as a labelled quick entry');
 await p.screenshot({ path: 'shots/ai-6-logged.png' });

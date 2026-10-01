@@ -1013,5 +1013,9 @@ export const da: Record<string, string> = {
  "You’re offline, so nothing was sent. Type it instead.": "Du er offline, så intet blev sendt. Skriv det i stedet.",
  "best match for": "bedste match for",
  "typical portion": "typisk portion",
+ "Say more": "Sig mere",
+ "Speak naturally. I stop listening when you pause.": "Tal helt naturligt. Jeg stopper med at lytte, når du holder pause.",
+ "Tap the sphere to say more": "Tryk på kuglen for at sige mere",
+ "“Log a banana” · “Bench 100 kg for 8, 8 and 6” · “How do I change the theme?”": "“Log en banan” · “Bænkpres 100 kg 8, 8 og 6” · “Hvordan skifter jeg tema?”",
  "{n} sets done": "{n} sæt udført"
 };
