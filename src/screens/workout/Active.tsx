@@ -13,9 +13,10 @@ import { displayToKg, kgToDisplay, fmtNum, displayToM, mToDisplay } from '../../
 import { useNow, restEndedCue } from '../../lib/hooks';
 import { addSet, deleteSet, moveExercise, patchExercise, patchSet, removeExercise, startRest, adjustRest, skipRest, toggleSuperset } from './actions';
 import { exName, fmtSet, MUSCLE_LABEL } from './common';
-import { SphereSlot } from '../../ui/Sphere';
+import { SphereSlot, orbPress, orbTap } from '../../ui/Sphere';
 import { useSwipeDown } from '../../ui/swipe';
 import { trackCover } from '../../ui/engage';
+import { kb } from '../../ui/keyboard';
 import { BOUNCY, SURFACE_EXIT, WINDOW } from '../../ui/motion';
 
 // critically damped: it opens and closes in one smooth motion with no wobble at the end
@@ -100,6 +101,10 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
     animate(reveal, 0, { ...WK_SPRING, restDelta: 0.001, restSpeed: 0.02 }).then(() => safeToRemove?.());
     // eslint-disable-next-line
   }, [isPresent]);
+  // the keyboard slides over the page (it no longer resizes it): the list gets that much more room at its end, so the last
+  // set's fields can still be scrolled above the keys, and the rest timer rides on top of the keyboard
+  const bodyPad = useTransform(kb, (v) => `calc(var(--sab) + 150px + ${v}px)`);
+  const restBottom = useTransform(kb, (v) => `calc(var(--sab) + 16px + ${v}px)`);
   const exMap = useMemo(() => exerciseMap(exercises), [exercises]);
   const [menu, setMenu] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<null | 'finish' | 'discard'>(null);
@@ -111,9 +116,15 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
   // the surface is growing (that was the stutter/flicker on Start), and no single big hitch afterwards either.
   // The window opens first with just its header; the exercises then come in one after another once it has landed,
   // so no frame of the opening has to build the list.
-  const [shown, setShown] = useState(0);
-  const [ready, setReady] = useState(false);
+  // The first two exercises are there from the very first frame (they fill the window as it opens, so nothing below them
+  // ever shows first and then jumps); the rest follow one by one once the window has landed, and the buttons under the
+  // list only appear after the whole list, so they are never pushed down while you look at them.
   const total0 = a?.exercises.length ?? 0;
+  const [shown, setShown] = useState(() => Math.min(2, total0));
+  const [ready, setReady] = useState(false);
+  const listDoneAtOpen = useRef(total0 <= 2);
+  const [listDone, setListDone] = useState(listDoneAtOpen.current); // stays true once the list has been complete (adding an exercise later never hides the buttons)
+  useEffect(() => { if (!listDone && shown >= total0) setListDone(true); }, [shown, total0, listDone]);
   useEffect(() => {
     if (eng.get() >= 0.97) { setReady(true); return; }
     const off = eng.on('change', (v) => { if (v >= 0.97) { setReady(true); off(); } });
@@ -211,7 +222,7 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
           </div>
 
           {/* body */}
-          <div ref={body} style={{ flex: 1, overflowY: 'auto', padding: '4px 16px calc(var(--sab) + 150px)', overscrollBehavior: 'contain' }} className="hide-scroll">
+          <motion.div ref={body} style={{ flex: 1, overflowY: 'auto', padding: '4px 16px 0', paddingBottom: bodyPad, overscrollBehavior: 'contain' }} className="hide-scroll">
             {a.exercises.length === 0 && (
               <div className="empty"><div className="display display-sm">{t('Empty session')}</div><div style={{ height: 12 }} /></div>
             )}
@@ -222,19 +233,23 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
                   linkedNext={!!(idx < a.exercises.length - 1 && se.supersetGroup && a.exercises[idx + 1].supersetGroup === se.supersetGroup)} />
               ))}
             </AnimatePresence>
+            {listDone && (
+            <motion.div initial={listDoneAtOpen.current ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={SOFT}>
             <div className="row-flex" style={{ gap: 10, marginTop: 20 }}>
               <button className="btn block press" onClick={() => push('exercisePicker', { mode: 'add' })}><Icon name="plus" size={18} /> {t('Add exercise')}</button>
-              <button className="press" onClick={() => push('voice', { mode: 'workout' })} aria-label={t('Dictate sets')} style={{ position: 'relative', width: 52, height: 52, flex: 'none', borderRadius: 999 }}><SphereSlot id="workout" priority={5} engage={engage} style={{ position: 'absolute', inset: -4 }} /></button>
+              <button className="press" onPointerDown={() => orbPress(true)} onPointerUp={() => orbPress(false)} onPointerCancel={() => orbPress(false)} onPointerLeave={() => orbPress(false)} onClick={() => { orbTap(1); push('voice', { mode: 'workout' }); }} aria-label={t('Dictate sets')} style={{ position: 'relative', width: 52, height: 52, flex: 'none', borderRadius: 999 }}><SphereSlot id="workout" priority={5} engage={engage} style={{ position: 'absolute', inset: -4 }} /></button>
             </div>
             <button className="btn primary block press" style={{ marginTop: 12 }} onClick={finish}>{t('Finish workout')}</button>
             <button className="btn ghost danger block press" style={{ marginTop: 6 }} onClick={() => setConfirm('discard')}>{t('Discard workout')}</button>
-          </div>
+            </motion.div>
+            )}
+          </motion.div>
 
           {/* rest timer — floats above content, in the same frosted material as the tab bar */}
           <AnimatePresence>
             {a.rest && (
               <motion.div key="rest" className="glass" initial={{ y: 40, opacity: 0, scale: 0.96 }} animate={{ y: 0, opacity: 1, scale: 1 }} exit={{ y: 30, opacity: 0, scale: 0.97 }} transition={SOFT}
-                style={{ position: 'absolute', left: 16, right: 16, bottom: 'calc(var(--sab) + 16px)', borderRadius: 26, padding: '12px 14px 12px 16px', display: 'flex', alignItems: 'center', gap: 12, zIndex: 5 }}>
+                style={{ position: 'absolute', left: 16, right: 16, bottom: restBottom, borderRadius: 26, padding: '12px 14px 12px 16px', display: 'flex', alignItems: 'center', gap: 12, zIndex: 5 }}>
                 <RestCountdown />
                 <button className="btn sm press" onClick={() => adjustRest(-15)} aria-label={t('15 seconds less')}>−15</button>
                 <button className="btn sm press" onClick={() => adjustRest(15)} aria-label={t('15 seconds more')}>+15</button>

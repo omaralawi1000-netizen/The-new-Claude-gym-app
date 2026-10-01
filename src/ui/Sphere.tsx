@@ -60,6 +60,16 @@ const TARGET: Record<string, Params> = {
 type RGB = [number, number, number];
 export interface SphereColors { hi: RGB; lo: RGB; alt: RGB; ok: RGB; dark: boolean }
 
+/**
+ * Touching the orb. While a finger is on it the orb gathers in — it shrinks a little and its light pulls to the centre, as if
+ * drawing breath. On release it bursts: the dots fly outward in an uneven, liquid wave, the sphere spins up, a flash of light
+ * runs through it and two rings leave it; then it gathers back into a sphere — on its way up to wherever it is going.
+ */
+let pressTarget = 0;
+let tapPending = 0;
+export function orbPress(down: boolean) { pressTarget = down ? 1 : 0; }
+export function orbTap(strength = 1) { tapPending = Math.max(tapPending, strength); pressTarget = 0; }
+
 export class SphereRenderer {
   private ctx: CanvasRenderingContext2D;
   private rot = 0.6;
@@ -76,6 +86,12 @@ export class SphereRenderer {
   private kick = 0;                        // a soft "bloom" whenever the state changes (tap → listen → think → done)
   private kickV = 0;
   private lastPhase = '';
+  private press = 0;                       // finger down: gathering in
+  private burst = 0; private burstV = 0;   // release: a spring that throws the dots out and pulls them back
+  private spin = 0;                        // extra turn speed from a tap, decaying
+  private flash = 0;                       // light running through the dots after a tap
+  /** true while something of its own is moving (a press, a burst, ripples): then it is drawn every frame */
+  get busy() { return this.press > 0.01 || Math.abs(this.burst) > 0.004 || Math.abs(this.burstV) > 0.02 || this.spin > 0.02 || this.flash > 0.02 || this.rings.length > 0; }
   /** how loudly you are speaking right now, 0..1 (time-smoothed) — for things around the orb that should breathe with it */
   get voice() { return Math.min(1, this.body * 0.75 + this.env * 0.45); }
   constructor(private canvas: HTMLCanvasElement) { this.ctx = canvas.getContext('2d')!; }
@@ -96,7 +112,18 @@ export class SphereRenderer {
     if (v.phase !== this.lastPhase) { if (this.lastPhase && !reduced) this.kickV += v.phase === 'error' || v.phase === 'unavailable' ? -1.4 : 3.2; this.lastPhase = v.phase; }
     // the bloom is a damped spring, so it swells, overshoots a touch and settles
     this.kickV += (-90 * this.kick - 11 * this.kickV) * dt; this.kick += this.kickV * dt;
-    const speed = reduced ? 0 : this.cur.rotSpeed * (1 + Math.max(0, this.kick) * 2);
+    // touch: press gathers in (fast), a tap releases into a burst (an underdamped spring kicked outward) plus a spin-up
+    this.press += (pressTarget - this.press) * (1 - Math.exp(-dt * (pressTarget > this.press ? 18 : 10)));
+    if (tapPending > 0) {
+      if (!reduced) {
+        this.burstV += 5.2 * tapPending; this.spin += 7 * tapPending; this.flash = Math.min(1, this.flash + tapPending);
+        if (this.rings.length < 4) this.rings.push({ age: 0, amp: 1 }, { age: -0.16, amp: 0.7 });
+      }
+      tapPending = 0;
+    }
+    this.burstV += (-60 * this.burst - 8.5 * this.burstV) * dt; this.burst += this.burstV * dt;
+    this.spin *= Math.exp(-dt * 3.2); this.flash *= Math.exp(-dt * 3.6);
+    const speed = reduced ? 0 : this.cur.rotSpeed * (1 + Math.max(0, this.kick) * 2) + this.spin;
     this.rot += dt * speed;
 
     // real input — zero unless the microphone is genuinely live. Everything is smoothed here by TIME (not per call), with a
@@ -127,12 +154,12 @@ export class SphereRenderer {
     const W = canvas.width;
     const c = W / 2;
     const breath = reduced ? 1 : 1 + Math.sin(this.t * 1.15) * 0.012 * (1 - this.env);
-    const R = c * 0.66 * breath * (1 + this.kick * 0.035 + this.body * 0.06); // the body swells with the voice; headroom for the swells
+    const R = c * 0.66 * breath * (1 + this.kick * 0.035 + this.body * 0.06) * (1 - this.press * 0.12); // the body swells with the voice; headroom for the swells
     ctx.clearRect(0, 0, W, W);
 
     const { hi, lo, alt, ok, dark } = colors;
     // soft inner light: the sphere glows from within, brighter while you speak
-    const haloA = (this.cur.halo + this.body * 0.55 + this.env * 0.25 + Math.max(0, this.kick) * 0.25) * (1 - this.cur.dim * 0.8);
+    const haloA = (this.cur.halo + this.body * 0.55 + this.env * 0.25 + Math.max(0, this.kick) * 0.25 + this.press * 0.35 + this.flash * 0.6) * (1 - this.cur.dim * 0.8);
     if (haloA > 0.01) {
       const gr = ctx.createRadialGradient(c, c, R * 0.15, c, c, c * 0.98);
       gr.addColorStop(0, `rgba(${hi[0] | 0},${hi[1] | 0},${hi[2] | 0},${Math.min(0.55, haloA * (dark ? 0.55 : 0.4))})`);
@@ -179,6 +206,10 @@ export class SphereRenderer {
       }
       glow += this.env * 0.9 + Math.max(0, d) * 3;
       if (this.kick > 0.01) d += this.kick * 0.05 * (0.6 + 0.4 * Math.sin(y * 3 + T * 4));
+      // touch: pressed, the surface draws in with a small shiver; released, it bursts out unevenly (a liquid, not a balloon)
+      if (this.press > 0.01) d -= this.press * 0.07 * (0.55 + 0.45 * Math.sin(az * 3 + this.t * 9));
+      if (Math.abs(this.burst) > 0.003) d += this.burst * 0.7 * (0.55 + 0.45 * Math.sin(y * 4.2 + az * 2 + this.t * 6));
+      if (this.flash > 0.02) glow += this.flash * (0.6 + 1.8 * Math.max(0, Math.sin(y * 5 - this.t * 16))); // a band of light runs through it
       if (this.cur.sweep > 0.01) {
         const a = Math.cos(az - sweepPhase) * 0.5 + 0.5;
         const band = Math.exp(-Math.pow(y - Math.sin(T * 1.6) * 0.8, 2) / 0.05);
@@ -251,6 +282,7 @@ export class SphereRenderer {
     if (this.rings.length) {
       ctx.lineWidth = Math.max(1, W * 0.006);
       for (const r of this.rings) {
+        if (r.age < 0) continue; // a ring waiting for its turn
         const e = 1 - Math.pow(1 - r.age, 2);
         ctx.strokeStyle = `rgba(${hi[0] | 0},${hi[1] | 0},${hi[2] | 0},${(1 - r.age) * r.amp * (dark ? 0.5 : 0.4)})`;
         ctx.beginPath(); ctx.arc(c, c, R * (1.06 + e * 0.3), 0, 6.2832); ctx.stroke();
@@ -410,7 +442,7 @@ export function SphereStage() {
       // A flight only scales the drawn canvas (transform above); the canvas itself must be redrawn only when its size bucket
       // changes (a resize clears it).
       const resized = bucket !== lastBucket; lastBucket = bucket;
-      const calm = !reduced && !resized && useVoice.getState().phase === 'idle' && drawn;
+      const calm = !reduced && !resized && useVoice.getState().phase === 'idle' && drawn && !renderer.busy;
       if (calm && now - lastDraw < 30) return;
       lastDraw = now;
       renderer.resize(bucket, dpr);

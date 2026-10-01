@@ -55,14 +55,14 @@
   --tx: #f6f7fb; --tx2: rgba(236, 239, 250, 0.64); --tx3: rgba(236, 239, 250, 0.38);
   --line: rgba(255, 255, 255, 0.085); --line-2: rgba(255, 255, 255, 0.17);
   --hl: rgba(255, 255, 255, 0.2);
-  --glass: rgba(24, 26, 38, 0.46); --glass-2: rgba(30, 32, 46, 0.62); --sheet-fill: rgba(30, 32, 46, 0.74);
+  --glass: rgba(24, 26, 38, 0.46); --glass-2: rgba(30, 32, 46, 0.62);
   --glass-blur: blur(30px) saturate(1.7);
   --dot: rgba(255, 255, 255, 0.11);
   --sh-c: 0 1px 1px rgba(0,0,0,.35), 0 8px 24px -12px rgba(0,0,0,.5);
   --sh-a: 0 20px 44px -16px rgba(0,0,0,.65);
   --sh-f: 0 30px 80px -20px rgba(0,0,0,.8);
   --c-protein: #ff7a4a; --c-carbs: #5aa0ff; --c-fat: #d8b640; --c-water: #3fd3e6;
-  --scrim: rgba(2, 3, 8, 0.5);
+  --scrim: rgba(2, 3, 8, 0.62);
   --aurora-a: 0.55; --grain: 0.05;
 }
 :root[data-theme='light'] {
@@ -72,13 +72,13 @@
   --tx: #0f1220; --tx2: rgba(15, 18, 32, 0.62); --tx3: rgba(15, 18, 32, 0.4);
   --line: rgba(20, 28, 48, 0.09); --line-2: rgba(20, 28, 48, 0.17);
   --hl: rgba(255, 255, 255, 0.95);
-  --glass: rgba(255, 255, 255, 0.5); --glass-2: rgba(255, 255, 255, 0.72); --sheet-fill: rgba(250, 250, 253, 0.8);
+  --glass: rgba(255, 255, 255, 0.5); --glass-2: rgba(255, 255, 255, 0.72);
   --dot: rgba(20, 28, 48, 0.13);
   --sh-c: 0 1px 1px rgba(30,40,70,.06), 0 10px 26px -14px rgba(30,40,70,.28);
   --sh-a: 0 22px 44px -18px rgba(30,40,70,.3);
   --sh-f: 0 30px 70px -22px rgba(30,40,70,.42);
   --c-protein: #e4531c; --c-carbs: #2a7bd4; --c-fat: #a8860d; --c-water: #0e93a8;
-  --scrim: rgba(20, 26, 44, 0.3);
+  --scrim: rgba(16, 20, 34, 0.38);
   --ac-ink: #1a0d08;
   --aurora-a: 0.5; --grain: 0.035;
 }
@@ -149,6 +149,9 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
   padding: calc(var(--sat) + 16px) 20px calc(var(--bar-h) + var(--sab) + 44px); scrollbar-width: none; z-index: 1;
 }
 .screen::-webkit-scrollbar { display: none; }
+/* the resume-workout bar (56 px + gap) sits above the tab bar: the page's end and the toasts move up so nothing hides under it */
+.app[data-pill] .screen { padding-bottom: calc(var(--bar-h) + var(--sab) + 44px + 66px); }
+.app[data-pill] .toasts { bottom: calc(var(--bar-h) + var(--sab) + 22px + 66px); }
 /* content scrolls under the tab bar; a soft veil below the bar keeps scrolled text from peeking out of the bottom edge
    (a plain gradient, so the scroller itself stays a plain scroller) */
 .tabbar-wrap::before { content: ''; position: fixed; left: 0; right: 0; bottom: 0; height: calc(var(--sab) + 26px); z-index: -1; pointer-events: none; background: linear-gradient(to top, color-mix(in srgb, var(--bg) 88%, transparent), transparent); }
@@ -273,18 +276,17 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .bar > i { position: absolute; inset: 0 auto 0 0; border-radius: 99px; background: var(--ac); box-shadow: 0 0 14px var(--ac); transition: width 700ms var(--ease-out); }
 
 /* ── sheets: heavy frost; the page behind is dimmed AND blurred (the scrim fades in, blur with it) ─── */
-.scrim { position: fixed; inset: 0; z-index: 50; -webkit-backdrop-filter: blur(16px) saturate(1.2); backdrop-filter: blur(16px) saturate(1.2); }
+/* As on iOS: the page behind a popup only dims (darker than a plain veil, so the popup stands out); the popup itself is the
+   frosted glass. One blur per popup, sized to the popup, instead of a full-screen one. */
+.scrim { position: fixed; inset: 0; z-index: 50; }
 .scrim > i { position: absolute; inset: 0; background: var(--scrim); }
 /* the full-screen workout covers the page, so it only dims (no blur to compute while it opens) */
 .scrim.flat { background: var(--scrim); -webkit-backdrop-filter: none; backdrop-filter: none; }
 /* morphing detail sheets get the same frosted material as ordinary sheets */
-.morph-sheet { background: var(--sheet-fill); }
+.morph-sheet { background: var(--glass-2); -webkit-backdrop-filter: blur(40px) saturate(1.8); backdrop-filter: blur(40px) saturate(1.8); }
 .sheet {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; max-height: calc(100dvh - var(--sat) - 46px); display: flex; flex-direction: column;
-  /* Every sheet brings its own frosted scrim, so what is behind a sheet is already blurred and dimmed; a second, 48 px
-     blur on the sheet itself was the biggest single cost of opening one (Coach 41 → 33 ms a frame). A denser fill keeps
-     the same frosted look. */
-  background: var(--sheet-fill);
+  background: var(--glass-2); -webkit-backdrop-filter: blur(40px) saturate(1.8); backdrop-filter: blur(40px) saturate(1.8);
   border-radius: var(--r-xl) var(--r-xl) 0 0; box-shadow: inset 0 1px 0 var(--hl), inset 0 0 0 1px var(--line), var(--sh-f); will-change: transform;
 }
 .sheet.tall { height: calc(100dvh - var(--sat) - 46px); }

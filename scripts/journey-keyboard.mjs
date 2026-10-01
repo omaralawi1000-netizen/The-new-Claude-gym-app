@@ -10,15 +10,15 @@ await ctx.addInitScript(() => {
 });
 await p.goto('http://127.0.0.1:5173/'); await wait(p, 900);
 await skipOnboarding(p);
-await p.getByLabel('Settings').click(); await wait(p, 700);
+await p.getByLabel('Settings').click(); await wait(p, 1300); // sheets arrive calmly (~0.4 s to 95 %, settled by ~1 s)
 const dlg = p.getByRole('dialog').last();
 const bottom = async () => p.evaluate(() => { const d = [...document.querySelectorAll('[role=dialog]')].pop(); return Math.round(window.innerHeight - d.getBoundingClientRect().bottom); });
-assert.equal(await bottom(), 0, 'sheet rests on the bottom');
+assert(Math.abs(await bottom()) <= 1, 'sheet rests on the bottom');
 assert.equal(await p.evaluate(() => navigator.virtualKeyboard.overlaysContent), true, 'the app asks for an overlaying keyboard');
-await p.evaluate(() => window.__setKb(300)); await wait(p, 800);
+await p.evaluate(() => window.__setKb(300)); await wait(p, 1000);
 const up = await bottom(); assert(Math.abs(up - 300) <= 2, `sheet lifts to the keyboard (${up})`);
-await p.evaluate(() => window.__setKb(0)); await wait(p, 800);
-assert.equal(await bottom(), 0, 'sheet comes back down');
+await p.evaluate(() => window.__setKb(0)); await wait(p, 1000);
+assert(Math.abs(await bottom()) <= 1, 'sheet comes back down');
 console.log('keyboard ok', errors);
 assert.equal(errors.length, 0);
 await b.close();

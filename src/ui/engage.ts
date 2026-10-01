@@ -42,7 +42,7 @@ export function trackCover(id: string, e: MotionValue<number>) {
 
 // ── for overlays that are not sheets (voice composer, onboarding) ──
 
-export const ENGAGE_SPRING = { type: 'spring', stiffness: 230, damping: 28, mass: 0.9, restDelta: 0.002 } as const;
+export const ENGAGE_SPRING = { type: 'spring', stiffness: 140, damping: 23.5, mass: 1, restDelta: 0.002 } as const; // calm, like the sheets (ui/motion.ts SURFACE)
 
 /** Open progress for a full-screen overlay: eases 0 → 1 when it appears and back to 0 when it leaves (it stays mounted until then). */
 export function useEngage(): MotionValue<number> {

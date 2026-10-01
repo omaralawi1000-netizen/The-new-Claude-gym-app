@@ -30,9 +30,8 @@ export function zoomFrom(el: Element | null | undefined): ZoomFrom | undefined {
 }
 
 /**
- * Dims and blurs the page behind a popup. The blur radius never changes (changing it every frame makes the GPU
- * rebuild the filter and it can drop out for a frame); only its strength fades, and only once the popup is well on
- * its way out — a small swipe that springs back leaves the blur exactly as it was.
+ * Dims the page behind a popup (the popup itself is the frosted glass). It fades with the popup's progress, reaching full
+ * strength early, so a small swipe that springs back leaves it exactly as it was.
  */
 function Scrim({ e, z, onClick }: { e: MotionValue<number>; z: number; onClick: () => void }) {
   const strength = useTransform(e, (v) => clamp01(v / 0.6));
@@ -191,7 +190,7 @@ export function MorphSheet({ children, onClose, layoutId, label, tall = true, z:
   useEffect(() => trackDepth(id, e), [id, e]);
   useSwipeDown(wrap, y, onClose);
   useEffect(() => {
-    const c = animate(p, 1, reduce ? { duration: 0.01 } : SOFT);
+    const c = animate(p, 1, reduce ? { duration: 0.01 } : SURFACE);
     return () => c.stop();
     // eslint-disable-next-line
   }, []);
@@ -200,8 +199,8 @@ export function MorphSheet({ children, onClose, layoutId, label, tall = true, z:
   useEffect(() => {
     if (present || leaving.current) return;
     leaving.current = true;
-    p.set(e.get()); animate(y, 0, SOFT);
-    animate(p, 0, reduce ? { duration: 0.01 } : { ...SOFT, restDelta: 0.004 }).then(() => safeToRemove?.());
+    p.set(e.get()); animate(y, 0, SURFACE_EXIT);
+    animate(p, 0, reduce ? { duration: 0.01 } : { ...SURFACE_EXIT, restDelta: 0.004 }).then(() => safeToRemove?.());
     // eslint-disable-next-line
   }, [present]);
   useEffect(() => {
@@ -217,7 +216,7 @@ export function MorphSheet({ children, onClose, layoutId, label, tall = true, z:
           layoutId={layoutId} role="dialog" aria-modal="true" aria-label={label}
           className="morph-sheet"
           style={{ pointerEvents: 'auto', borderRadius: '34px 34px 0 0', boxShadow: 'inset 0 1px 0 var(--hl), inset 0 0 0 1px var(--line), var(--sh-f)', display: 'flex', flexDirection: 'column', minHeight: 0, flex: tall ? 1 : undefined, maxHeight: '100%', overflow: 'hidden' }}
-          transition={reduce ? { duration: 0.01 } : SOFT}
+          transition={reduce ? { duration: 0.01 } : SURFACE}
         >
           <motion.div
             style={{ display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 }}
@@ -235,5 +234,5 @@ export function MorphSheet({ children, onClose, layoutId, label, tall = true, z:
 
 /** The resting surface of a morph source (list row / card). Put it behind the row's content. */
 export function Plate({ layoutId, radius = 14, flat, style }: { layoutId: string; radius?: number; flat?: boolean; style?: React.CSSProperties }) {
-  return <motion.div layoutId={layoutId} transition={SOFT} style={{ position: 'absolute', inset: 0, background: flat ? 'var(--s1)' : 'var(--s2)', borderRadius: radius, boxShadow: flat ? 'none' : 'inset 0 1px 0 var(--hl), inset 0 0 0 1px var(--line)', ...style }} />;
+  return <motion.div layoutId={layoutId} transition={SURFACE} style={{ position: 'absolute', inset: 0, background: flat ? 'var(--s1)' : 'var(--s2)', borderRadius: radius, boxShadow: flat ? 'none' : 'inset 0 1px 0 var(--hl), inset 0 0 0 1px var(--line)', ...style }} />;
 }

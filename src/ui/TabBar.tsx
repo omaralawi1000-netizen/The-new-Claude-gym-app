@@ -2,8 +2,7 @@ import { AnimatePresence, LayoutGroup, motion } from 'motion/react';
 import { useUI, type Tab, buzz } from '../state/ui';
 import { useStore } from '../state/store';
 import { Icon } from './Icon';
-import { SphereSlot } from './Sphere';
-import { scrollActiveTabToTop } from './TabStage';
+import { SphereSlot, orbPress, orbTap } from './Sphere';
 import { useT } from '../lib/i18n';
 import { SOFT } from './Sheet';
 import { useEffect, useState } from 'react';
@@ -60,6 +59,11 @@ function LivePill() {
   );
 }
 
+/** Tapping the tab you are already on brings its screen back to the top (as on iOS). */
+function scrollActiveTabToTop() {
+  (document.querySelector('.stage .tab-pane .screen') as HTMLElement | null)?.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
 export function TabBar() {
   const tab = useUI((s) => s.tab);
   const setTab = useUI((s) => s.setTab);
@@ -76,7 +80,8 @@ export function TabBar() {
           <div className="sphere-slot" style={{ position: 'relative' }}>
             <SphereSlot id="tab" priority={0} style={{ position: 'absolute', inset: -6 }} />
             <button className="press" aria-label={t('Dictate')} style={{ position: 'absolute', inset: -4, borderRadius: 999 }}
-              onClick={() => { buzz(10); if (!useUI.getState().overlays.some((o) => o.type === 'voice')) push('voice', { mode: tab === 'train' ? 'workout' : 'food' }); }} />
+              onPointerDown={() => orbPress(true)} onPointerUp={() => orbPress(false)} onPointerCancel={() => orbPress(false)} onPointerLeave={() => orbPress(false)}
+              onClick={() => { buzz(10); orbTap(1); if (!useUI.getState().overlays.some((o) => o.type === 'voice')) push('voice', { mode: tab === 'train' ? 'workout' : 'food' }); }} />
           </div>
           {TABS.slice(2).map((x) => <TabBtn key={x.id} {...x} on={tab === x.id} onClick={() => { buzz(4); if (useUI.getState().tab === x.id) scrollActiveTabToTop(); else setTab(x.id); }} label={t(x.label)} />)}
         </nav>

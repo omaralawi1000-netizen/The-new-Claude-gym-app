@@ -14,7 +14,7 @@ import { decide, agentModels } from '../lib/agentTurn';
 import { runActions, type AgentResult } from '../lib/agent';
 import { dayKey } from '../lib/dates';
 import { uid } from '../lib/nutrition';
-import { SphereSlot } from '../ui/Sphere';
+import { SphereSlot, orbPress, orbTap } from '../ui/Sphere';
 import { useEngage } from '../ui/engage';
 import { Icon } from '../ui/Icon';
 import { SOFT, useOverlayZ } from '../ui/Sheet';
@@ -219,7 +219,9 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   const finish = async () => {
     if (busy.current) return;
     const p = useVoice.getState().phase;
-    if (p === 'processing') return;
+    // still starting the microphone (Samsung Browser can take a second): a tap here is not "stop" — stopping a start that
+    // hasn't finished used to end in "Didn't catch anything" followed by a false "microphone in use"
+    if (p === 'processing' || (p === 'requesting' && !typing)) return;
     if (typing) { const text = typed.trim(); if (!text) return; setTyped(''); act(text); return; }
     if (engine === 'groq' && mic.recording) {
       busy.current = true;
@@ -231,6 +233,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
       return;
     }
     const text = [latest.current.final, latest.current.interim].filter(Boolean).join(' ').trim();
+    run.current++; // anything still starting belongs to this attempt and is now abandoned, quietly
     handle.current?.stop(); handle.current = null; mic.release('voice');
     if (!text) { go('idle'); setErr(t('Didn’t catch anything. Tap the sphere to try again, or type it.')); return; }
     act(text);
@@ -254,7 +257,9 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
     processing: stage === 'hearing' ? t('Transcribing…') : t('Thinking…'), confirmed: t('Done'), error: t('Couldn’t do that'), unavailable: t('Microphone unavailable'),
     review: t('Done'),
   } as Record<string, string>)[phase] ?? '';
-  const tapSphere = () => { buzz(10); if (listening) finish(); else if (!thinking) listen(); };
+  // tapping while the microphone is still starting cancels that start cleanly (teardown also invalidates the pending start, so
+  // it can never come back later as a false "microphone in use")
+  const tapSphere = () => { if (phase === 'requesting') { teardown(); go('idle'); return; } buzz(10); orbTap(0.6); if (listening) finish(); else if (!thinking) listen(); };
   const big = !showing && !thinking;
 
   return (
@@ -268,7 +273,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
 
         {/* the sphere: big while it listens, it steps up and out of the way once there is something to read */}
         <div style={{ display: 'grid', placeItems: 'center', marginTop: big ? 26 : 6, transition: 'margin .45s cubic-bezier(.22,1,.36,1)' }}>
-          <button aria-label={listening ? t('Stop and send') : t('Start listening')} onClick={tapSphere} disabled={thinking} className="voice-orb"
+          <button aria-label={listening ? t('Stop and send') : t('Start listening')} onClick={tapSphere} disabled={thinking} className="voice-orb" onPointerDown={() => orbPress(true)} onPointerUp={() => orbPress(false)} onPointerCancel={() => orbPress(false)} onPointerLeave={() => orbPress(false)}
             style={{ position: 'relative', borderRadius: 999, width: big ? 'min(62vw, 250px)' : 96, height: big ? 'min(62vw, 250px)' : 96, transition: 'width .45s cubic-bezier(.22,1,.36,1), height .45s cubic-bezier(.22,1,.36,1)' }}>
             <SphereSlot id="voice" priority={10} engage={engage} style={{ position: 'absolute', inset: 0 }} />
           </button>
@@ -322,7 +327,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
                 {typing ? <><Icon name="mic" size={18} /> {t('Speak instead')}</> : <><Icon name="edit" size={18} /> {t('Type instead')}</>}
               </button>
             )}
-            <button className="btn primary press grow" disabled={thinking || (typing ? !typed.trim() : false)} onClick={() => (listening || typing ? finish() : listen())}>
+            <button className="btn primary press grow" disabled={thinking || phase === 'requesting' || (typing ? !typed.trim() : false)} onClick={() => (listening || typing ? finish() : listen())}>
               {thinking ? t('Working…') : listening ? t('Done speaking') : typing ? t('Send') : showing ? <><Icon name="mic" size={18} /> {t('Say more')}</> : <><Icon name="mic" size={18} /> {t('Speak')}</>}
             </button>
           </div>

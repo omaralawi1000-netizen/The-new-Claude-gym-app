@@ -12,10 +12,12 @@
  *   keyboard follows the on-screen keyboard's own curve
  */
 export const TAP = { type: 'spring', stiffness: 600, damping: 42, mass: 0.7 } as const;
-export const SMOOTH = { type: 'spring', stiffness: 300, damping: 32, mass: 0.9 } as const;
-export const SURFACE = { type: 'spring', stiffness: 420, damping: 38, mass: 0.9 } as const;
-export const SURFACE_EXIT = { type: 'spring', stiffness: 260, damping: 34, mass: 0.9, restDelta: 0.002 } as const;
-export const WINDOW = { type: 'spring', stiffness: 320, damping: 34, mass: 0.9 } as const;
+export const SMOOTH = { type: 'spring', stiffness: 210, damping: 28, mass: 1 } as const; // ~330 ms to settle: calm, not slow
+// Surfaces move calmly: a sheet takes about half a second to arrive and settles without a bounce (critically damped);
+// leaving is a touch quicker than arriving, as on iOS.
+export const SURFACE = { type: 'spring', stiffness: 130, damping: 22.5, mass: 1, restDelta: 0.001 } as const;
+export const SURFACE_EXIT = { type: 'spring', stiffness: 170, damping: 26, mass: 1, restDelta: 0.002 } as const;
+export const WINDOW = { type: 'spring', stiffness: 120, damping: 22, mass: 1 } as const;
 export const BOUNCY = { type: 'spring', stiffness: 340, damping: 20, mass: 0.8 } as const;
 export const GENTLE = { type: 'spring', stiffness: 60, damping: 18 } as const;
 export const KEYBOARD = { type: 'spring', stiffness: 460, damping: 40, mass: 0.9, restDelta: 0.5 } as const;

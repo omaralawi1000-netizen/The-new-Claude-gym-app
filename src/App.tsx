@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef } from 'react';
-import { LayoutGroup, MotionConfig } from 'motion/react';
+import { AnimatePresence, LayoutGroup, MotionConfig, motion } from 'motion/react';
 import { useStore } from './state/store';
 import { useUI } from './state/ui';
 import { TabBar } from './ui/TabBar';
@@ -16,7 +16,6 @@ import { dayKey } from './lib/dates';
 import { defaultMealId } from './lib/derive';
 import { stageCover, stageDepth } from './ui/engage';
 import { setKeyboard } from './ui/keyboard';
-import { TabStage } from './ui/TabStage';
 import { FpsMeter } from './ui/FpsMeter';
 
 /** Where the last tap landed — the theme switch spreads out from there. */
@@ -138,6 +137,7 @@ function useKeyboard() {
 }
 
 const SCREENS = { today: TodayScreen, train: TrainScreen, food: FoodScreen, progress: ProgressScreen };
+const ORDER = ['today', 'train', 'food', 'progress'] as const;
 
 export function App() {
   useTheme();
@@ -147,6 +147,14 @@ export function App() {
   useStageDepth(appRef, stageRef);
   const t = useT();
   const tab = useUI((s) => s.tab);
+  // the page switch of the first version: the new screen slides in 36 px and fades up, the old one slides out the other way,
+  // fading and softly blurring (rebuilt per visit — two attempts to keep screens alive both changed how this felt)
+  const prev = useRef(tab);
+  const dir = ORDER.indexOf(tab) - ORDER.indexOf(prev.current);
+  useEffect(() => { prev.current = tab; }, [tab]);
+  const Screen = SCREENS[tab];
+  // a running workout shows a resume bar above the tab bar on every tab but Today: the page makes room for it
+  const pill = useStore((s) => !!s.active) && tab !== 'today';
   const onboarded = useStore((s) => s.settings.onboarded);
   const push = useUI((s) => s.push);
   const asked = useRef(false);
@@ -172,10 +180,14 @@ export function App() {
   return (
     <MotionConfig reducedMotion="user">
       <LayoutGroup>
-        <div className="app" data-hue={tab} ref={appRef}>
+        <div className="app" data-hue={tab} data-pill={pill || undefined} ref={appRef}>
           <div className="stage" ref={stageRef}>
           <div className="aurora" aria-hidden><i /><i /><i /></div>
-          <TabStage tab={tab} screens={SCREENS} />
+          <AnimatePresence mode="popLayout" initial={false}>
+            <motion.div key={tab} className="tab-pane" data-active style={{ position: 'absolute', inset: 0 }} initial={{ opacity: 0, x: dir * 36 }} animate={{ opacity: 1, x: 0, filter: 'blur(0px)', transitionEnd: { filter: 'none' } }} exit={{ opacity: 0, x: -dir * 36, filter: 'blur(10px)' }} transition={{ duration: 0.38, ease: [0.22, 1, 0.36, 1] }}>
+              <Screen />
+            </motion.div>
+          </AnimatePresence>
           <TabBar />
           </div>
           <Overlays />
