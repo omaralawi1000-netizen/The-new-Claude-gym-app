@@ -316,7 +316,8 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
         <div className="row-flex" style={{ gap: 8 }}>
           {/* the orb is the Coach's microphone: it flies in from the tab bar, listens to you, thinks while it answers */}
           <button className="press" aria-label={recording ? t('Stop and send') : t('Speak')} disabled={busy || hearing} onClick={() => (ai.hasGroq && mic.supported ? toggleRec() : push('settings', { section: 'ai' }))}
-            style={{ position: 'relative', width: 50, height: 50, flex: 'none', borderRadius: 999, boxShadow: recording ? '0 0 0 2px var(--ac), 0 0 24px -4px var(--ac)' : 'none', transition: 'box-shadow .3s' }}>
+            style={{ position: 'relative', width: 50, height: 50, flex: 'none', borderRadius: 999 }}>
+            <i className={`voice-ring ${recording ? 'on' : ''}`} />
             <SphereSlot id="coach" priority={5} style={{ position: 'absolute', inset: -4 }} />
           </button>
           <input ref={inputRef} className="input grow" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}

@@ -359,3 +359,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 @keyframes lineIn { from { opacity: 0; transform: translateX(-10px); filter: blur(4px); } }
 .action-card.undone { opacity: 0.5; }
 .action-card.undone .action-line span { text-decoration: line-through; }
+
+/* the Coach's mic: the ring around the orb swells with your voice (--voice is written by the sphere stage) */
+.voice-ring { position: absolute; inset: -2px; border-radius: 999px; pointer-events: none; border: 2px solid var(--ac); opacity: 0; box-shadow: 0 0 22px -4px var(--ac); transition: opacity .3s var(--ease-io, ease); }
+.voice-ring.on { opacity: calc(0.4 + var(--voice, 0) * 0.6); transform: scale(calc(1 + var(--voice, 0) * 0.16)); transition: none; }

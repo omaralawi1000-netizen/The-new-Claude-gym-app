@@ -67,9 +67,16 @@ export class SphereRenderer {
   private last = 0;
   private env = 0;                         // smoothed voice level (fast attack, slow release)
   private bandEnv = new Float32Array(3);   // smoothed low / mid / high energy
+  private lat = new Float32Array(16);       // smoothed per-band energy, laid out over the sphere's latitudes like an equaliser
+  private body = 0;                         // slower "presence" of the voice: drives the inner light and the swell of the whole body
+  private prevV = 0;
+  private onsetAt = -1;
+  private rings: { age: number; amp: number }[] = []; // ripples that leave the sphere on every syllable
   private kick = 0;                        // a soft "bloom" whenever the state changes (tap → listen → think → done)
   private kickV = 0;
   private lastPhase = '';
+  /** how loudly you are speaking right now, 0..1 (time-smoothed) — for things around the orb that should breathe with it */
+  get voice() { return Math.min(1, this.body * 0.75 + this.env * 0.45); }
   constructor(private canvas: HTMLCanvasElement) { this.ctx = canvas.getContext('2d')!; }
 
   resize(css: number, dpr: number) {
@@ -91,28 +98,40 @@ export class SphereRenderer {
     const speed = reduced ? 0 : this.cur.rotSpeed * (1 + Math.max(0, this.kick) * 2);
     this.rot += dt * speed;
 
-    // real input — zero unless the microphone is genuinely live
+    // real input — zero unless the microphone is genuinely live. Everything is smoothed here by TIME (not per call), with a
+    // very fast attack so a syllable lands on the very frame it starts, and a slower release so it fades like a bell.
     const live = v.phase === 'listening' && mic.active;
-    const level = live ? mic.level() : 0;
+    const raw = live ? mic.voice() : 0;
     const bands = live ? mic.bands() : null;
-    const att = (cur: number, to: number) => cur + (to - cur) * (1 - Math.exp(-dt * (to > cur ? 22 : 5)));
-    this.env = att(this.env, level);
+    const att = (cur: number, to: number, up = 38, down = 7) => cur + (to - cur) * (1 - Math.exp(-dt * (to > cur ? up : down)));
+    this.env = att(this.env, raw);
+    this.body = att(this.body, raw, 9, 2.4);
+    // a sudden rise in energy = a new syllable: bump the whole body and send a ripple out
+    if (live && !reduced && raw - this.prevV > 0.1 && raw > 0.18 && this.t - this.onsetAt > 0.11) {
+      this.onsetAt = this.t;
+      this.kickV += 1.1 + raw * 2.2;
+      if (this.rings.length < 4) this.rings.push({ age: 0, amp: Math.min(1, 0.45 + raw) });
+    }
+    this.prevV = raw;
+    for (const r of this.rings) r.age += dt * 1.15;
+    this.rings = this.rings.filter((r) => r.age < 1);
     if (bands) {
       const avg = (a: number, b: number) => { let x = 0; for (let i = a; i < b; i++) x += bands[i]; return x / (b - a); };
       this.bandEnv[0] = att(this.bandEnv[0], avg(0, 4)); this.bandEnv[1] = att(this.bandEnv[1], avg(4, 10)); this.bandEnv[2] = att(this.bandEnv[2], avg(10, 16));
-    } else for (let i = 0; i < 3; i++) this.bandEnv[i] = att(this.bandEnv[i], 0);
+      for (let i = 0; i < 16; i++) this.lat[i] = att(this.lat[i], bands[i], 30, 6);
+    } else { for (let i = 0; i < 3; i++) this.bandEnv[i] = att(this.bandEnv[i], 0); for (let i = 0; i < 16; i++) this.lat[i] = att(this.lat[i], 0); }
     const [eLo, eMid, eHi] = this.bandEnv;
 
     const { ctx, canvas } = this;
     const W = canvas.width;
     const c = W / 2;
     const breath = reduced ? 1 : 1 + Math.sin(this.t * 1.15) * 0.012 * (1 - this.env);
-    const R = c * 0.66 * breath * (1 + this.kick * 0.035); // headroom for the voice swells
+    const R = c * 0.66 * breath * (1 + this.kick * 0.035 + this.body * 0.06); // the body swells with the voice; headroom for the swells
     ctx.clearRect(0, 0, W, W);
 
     const { hi, lo, alt, ok, dark } = colors;
     // soft inner light: the sphere glows from within, brighter while you speak
-    const haloA = (this.cur.halo + this.env * 0.5 + Math.max(0, this.kick) * 0.25) * (1 - this.cur.dim * 0.8);
+    const haloA = (this.cur.halo + this.body * 0.55 + this.env * 0.25 + Math.max(0, this.kick) * 0.25) * (1 - this.cur.dim * 0.8);
     if (haloA > 0.01) {
       const gr = ctx.createRadialGradient(c, c, R * 0.15, c, c, c * 0.98);
       gr.addColorStop(0, `rgba(${hi[0] | 0},${hi[1] | 0},${hi[2] | 0},${Math.min(0.55, haloA * (dark ? 0.55 : 0.4))})`);
@@ -149,6 +168,13 @@ export class SphereRenderer {
       for (let w = 0; w < 5; w++) {
         const ww = WAVES[w];
         d += amps[w] * Math.sin((x * ww.x + y * ww.y + z * ww.z) * ww.f + T * ww.s + w * 1.7);
+      }
+      if (live) {
+        // equaliser over the latitudes: low voice at the poles' bellies, highs towards the top; it turns with the sphere
+        const fb = (1 - y) * 7.5, b0 = Math.min(14, Math.floor(fb)), fr = fb - b0;
+        const e = this.lat[b0] * (1 - fr) + this.lat[b0 + 1] * fr;
+        d += e * 0.085 * (0.65 + 0.35 * Math.cos(az * 2 - this.rot * 1.5 + T * 1.2));
+        glow += e * 0.9;
       }
       glow += this.env * 0.9 + Math.max(0, d) * 3;
       if (this.kick > 0.01) d += this.kick * 0.05 * (0.6 + 0.4 * Math.sin(y * 3 + T * 4));
@@ -220,6 +246,15 @@ export class SphereRenderer {
     for (let n = 0; n < count; n++) if (tone[n] === 2) { const d = dots[n]; ctx.moveTo(d.x + d.r * 1.2, d.y); ctx.arc(d.x, d.y, d.r * 1.2, 0, 6.2832); }
     ctx.fill();
     ctx.globalCompositeOperation = 'source-over';
+    // syllable ripples: thin rings that leave the sphere and fade
+    if (this.rings.length) {
+      ctx.lineWidth = Math.max(1, W * 0.006);
+      for (const r of this.rings) {
+        const e = 1 - Math.pow(1 - r.age, 2);
+        ctx.strokeStyle = `rgba(${hi[0] | 0},${hi[1] | 0},${hi[2] | 0},${(1 - r.age) * r.amp * (dark ? 0.5 : 0.4)})`;
+        ctx.beginPath(); ctx.arc(c, c, R * (1.06 + e * 0.3), 0, 6.2832); ctx.stroke();
+      }
+    }
   }
 }
 
@@ -299,7 +334,7 @@ export function SphereStage() {
     // The orb has no motion of its own any more. Its place is the lowest slot (the tab bar) blended towards every
     // higher slot by that slot's `engage` (how far its popup is open). The popup, the page behind it and the orb all
     // read the same number in the same frame, so they stay in step while a popup opens, is dragged or leaves.
-    let px = NaN, py = NaN, ps = NaN;
+    let px = NaN, py = NaN, ps = NaN, sentV = 0;
     const tick = (now: number) => {
       if (!running) return;
       refreshColors(now);
@@ -309,7 +344,7 @@ export function SphereStage() {
       list.sort((a, b) => a.priority - b.priority);
       const base = appEl?.getBoundingClientRect(); // the stage lives inside .app, which may be offset on wide screens
       const ox = base?.left ?? 0, oy = base?.top ?? 0;
-      let X = 0, Y = 0, S = 0, have = false, top = 0;
+      let X = 0, Y = 0, S = 0, have = false, top = 0, topSlot: Slot | null = null;
       for (const sl of list) {
         const e = sl.engage ? Math.min(1, Math.max(0, sl.engage.e.get())) : 1;
         if (have && e <= 0.001) continue;
@@ -319,7 +354,7 @@ export function SphereStage() {
         const x = r.left - ox, y = r.top - oy - (sl.engage?.shift?.get() ?? 0), z = Math.min(r.width, r.height);
         if (!have) { X = x; Y = y; S = z; have = true; continue; }
         X += (x - X) * e; Y += (y - Y) * e; S += (z - S) * e;
-        if (e > 0.02) top = Math.max(top, sl.priority);
+        if (e > 0.02) { top = Math.max(top, sl.priority); topSlot = sl; }
       }
       if (!have) { el.style.opacity = '0'; return; }
       el.style.zIndex = top > 0 ? '600' : '41'; // above full-screen composers; below sheets when it sits in the tab bar
@@ -339,6 +374,12 @@ export function SphereStage() {
       renderer.resize(bucket, dpr);
       renderer.frame(now, bucket, reduced, colors);
       drawn = true;
+      // the slot's button listens too: its ring swells with your voice (one CSS variable, written only when it moves)
+      const vv = renderer.voice;
+      if (topSlot && top > 0 && (Math.abs(vv - sentV) > 0.015 || (vv < 0.004) !== (sentV < 0.004))) {
+        (topSlot.el.parentElement ?? topSlot.el).style.setProperty('--voice', vv < 0.004 ? '0' : vv.toFixed(3));
+        sentV = vv;
+      }
     };
     // run inside motion's frame loop, right after it has written this frame's styles: the orb reads the popup's
     // position and progress from the very frame they were rendered in (a separate rAF would be a frame behind)

@@ -76,6 +76,7 @@ class MicManager {
     this.ctx = null;
     this.freq = null; this.time = null;
     this.smooth = 0;
+    this.floor = 0.006;
     this.bandsOut.fill(0);
     this.owner = null;
     this.emit();
@@ -118,6 +119,25 @@ class MicManager {
     const target = Math.min(1, rms * 5.2);
     this.smooth += (target - this.smooth) * (target > this.smooth ? 0.5 : 0.14);
     return this.smooth;
+  }
+
+  private floor = 0.006; // slow estimate of the room's noise floor (RMS), so hiss never moves the sphere
+  /**
+   * Un-smoothed, noise-gated voice energy 0..1 for visuals that do their own (time-based) smoothing. level() above
+   * stays untouched because the auto-stop in the Coach is tuned against it.
+   */
+  voice(): number {
+    if (!this.analyser || !this.time) return 0;
+    this.analyser.getByteTimeDomainData(this.time);
+    let sum = 0;
+    for (let i = 0; i < this.time.length; i++) { const v = (this.time[i] - 128) / 128; sum += v * v; }
+    const rms = Math.sqrt(sum / this.time.length);
+    // the floor follows the quiet parts quickly downward and creeps upward only very slowly (speech must not become "floor")
+    this.floor += (rms - this.floor) * (rms < this.floor ? 0.2 : 0.0015);
+    this.floor = Math.min(0.03, Math.max(0.002, this.floor));
+    const gated = Math.max(0, rms - this.floor * 1.6);
+    const v = Math.min(1, Math.pow(gated * 7, 0.8)); // gentle curve: quiet speech still shows, loud speech doesn't pin at 1
+    return v;
   }
 
   /** 16 log-ish frequency bands 0..1 of the live input. */
