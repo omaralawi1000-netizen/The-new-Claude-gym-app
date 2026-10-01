@@ -36,12 +36,13 @@
   }
 }
 
-/* the light of each area (the colour field and the accent follow the active tab, with a slow cross-fade) */
-.app { --ac: #ff7a59; --h1: #7c5cff; --h2: #ff7a59; --h3: #29d3c0; }
-/* The cross-fade runs only where it is seen during a tab change: the colour field and the tab bar (the sphere fades
-   its own colours). Each page carries its own hue, so the leaving page keeps its colours while it fades out.
-   (Transitioning these on .app restyled every element of the app on every frame for 1.1 s.) */
-.aurora, .tabbar-wrap { transition: --ac 1.1s var(--ease-io), --h1 1.1s var(--ease-io), --h2 1.1s var(--ease-io), --h3 1.1s var(--ease-io); }
+/* the light of each area (the colour field and the accent follow the active tab) */
+.app, [data-hue='today'] { --ac: #ff7a59; --h1: #7c5cff; --h2: #ff7a59; --h3: #29d3c0; }
+/* Each tab's screen carries its own colour field (App.tsx TabPane), so the field never cross-fades: a new screen arrives
+   with its light already in it. Nothing transitions the area colours themselves any more — transitioning a colour
+   variable restyles everything under it on every frame (it was ~45 ms of style work per tab switch); the tab icons ease
+   their own colour instead. */
+.tab-pane { background: var(--bg); }
 [data-hue='train'] { --ac: #ff5f45; --h1: #ff5a36; --h2: #c4206e; --h3: #ffa03d; }
 [data-hue='food'] { --ac: #c6f24a; --h1: #2fe0b4; --h2: #1c8a63; --h3: #c6f24a; }
 [data-hue='progress'] { --ac: #78b0ff; --h1: #3d7bff; --h2: #7a4bff; --h3: #22d3ee; }
@@ -108,7 +109,7 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
   -webkit-mask-image: linear-gradient(to bottom, transparent 0, transparent calc(var(--sat) + 2px), #000 calc(var(--sat) + 130px)); mask-image: linear-gradient(to bottom, transparent 0, transparent calc(var(--sat) + 2px), #000 calc(var(--sat) + 130px)); }
 /* inside a full-screen overlay: sits under its content but over its background */
 .aurora.in { z-index: -1; }
-.aurora i { position: absolute; border-radius: 50%; opacity: var(--aurora-a); will-change: transform; }
+.aurora i { position: absolute; border-radius: 50%; opacity: var(--aurora-a); will-change: transform; animation-delay: var(--drift-t, 0s) !important; }
 .aurora i:nth-child(1) { width: 120%; aspect-ratio: 1; left: -35%; top: -30%; background: radial-gradient(closest-side, var(--h1), transparent); animation: drift1 38s ease-in-out infinite alternate; }
 .aurora i:nth-child(2) { width: 105%; aspect-ratio: 1; right: -40%; top: 18%; background: radial-gradient(closest-side, var(--h2), transparent); animation: drift2 46s ease-in-out infinite alternate; }
 .aurora i:nth-child(3) { width: 130%; aspect-ratio: 1; left: -20%; bottom: -55%; background: radial-gradient(closest-side, var(--h3), transparent); animation: drift3 54s ease-in-out infinite alternate; opacity: calc(var(--aurora-a) * .8); }
@@ -454,8 +455,5 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* a veil inside its own overlay (the orb screen) rather than a page-level one */
 .scrim.veil-abs { position: absolute; }
 
-/* the ring of light that rides the edge of a new screen spreading out of its tab (ui/pageMotion.ts) */
-.reveal-ring { position: absolute; z-index: 3; border-radius: 50%; pointer-events: none; will-change: transform, opacity;
-  box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--ac) 55%, #fff 20%), inset 0 0 38px 6px color-mix(in srgb, var(--ac) 30%, transparent), 0 0 34px 4px color-mix(in srgb, var(--ac) 22%, transparent); }
 /* a section inside a screen (Train's Plan / Library / History) keeps the screen's rhythm between its blocks */
 .subpage > * + * { margin-top: 22px; }

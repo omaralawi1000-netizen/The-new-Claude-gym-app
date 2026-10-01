@@ -25,7 +25,7 @@ export const SURFACE_EXIT = { ...apple(0.38), restDelta: 0.002 }; // leaving is 
 export const WINDOW = SURFACE;
 export const BOUNCY = apple(0.5, 0.3);            // Apple .bouncy: a record, a gain, a sent message
 export const GENTLE = { type: 'spring', stiffness: 60, damping: 18 } as const;
-export const KEYBOARD = { type: 'spring', stiffness: 460, damping: 40, mass: 0.9, restDelta: 0.5 } as const;
+export const KEYBOARD = { type: 'spring', stiffness: 760, damping: 54, mass: 1, restDelta: 0.5 } as const; // ~0.25 s: keeps up with Android's keyboard instead of trailing it
 
 // ── high refresh rate: the same springs, run by the browser ────────────────────────────────────────────────────────
 // Script-driven animation (requestAnimationFrame) is capped at 60 frames a second by some Android browsers even on a 120 Hz

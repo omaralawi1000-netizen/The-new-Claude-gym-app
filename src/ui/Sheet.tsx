@@ -2,7 +2,7 @@ import { AnimatePresence, animate, motion, useMotionValue, usePresence, useReduc
 import { createContext, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { EngageContext, Mirror, mirrorProgress, mirrorStage, trackDepth } from './engage';
 import { Veil, mirrorVeil } from './Veil';
-import { availableHeight, kb } from './keyboard';
+import { availableHeight, dropKeyboard, expectKeyboard, kb } from './keyboard';
 
 /** Stack-position z-index for the current overlay: a later overlay is always above an earlier one. */
 export const OverlayZ = createContext<number | null>(null);
@@ -71,7 +71,8 @@ export function Sheet({ children, onClose, tall, label, foot, z: zProp = 60, nes
   // zoomed: the surface fades in its first and out its last few percent, so it hands over to the real card underneath
   // instead of sitting on it as an empty grey box while the spring settles (its own opacity: the frost stays on)
   const surface = useTransform(p, (v) => (zoom ? clamp01(v / 0.14) : 1));
-  const transform = useTransform([shift, bs], ([sh, b]: number[]) => `translate3d(0, ${sh}px, 0) scale(${1 - 0.06 * b})`);
+  // the keyboard lifts the sheet as part of its transform (not its `bottom`), so riding the keyboard never re-lays it out
+  const transform = useTransform([shift, bs, kb], ([sh, b, k]: number[]) => `translate3d(0, ${sh - k}px, 0) scale(${1 - 0.06 * b})`);
   const e = useTransform([p, y], ([pp, yy]: number[]) => clamp01(pp - Math.max(0, yy) / dist.current));
   const engage = useMemo(() => ({ e, shift }), [e, shift]);
   const room = useTransform(kb, availableHeight); // what the keyboard leaves free: the sheet lifts and fits as it opens
@@ -86,13 +87,14 @@ export function Sheet({ children, onClose, tall, label, foot, z: zProp = 60, nes
     const m = mirror.current!; m.cancel();
     if (reduce) return;
     const b = bs.get();
-    if (!zoom) m.add(mirrorProgress(ref.current, p0, p1, sp, vel, (pp) => ({ transform: `translate3d(0, ${(1 - pp) * dist.current}px, 0) scale(${1 - 0.06 * b})` })));
+    const k = kb.get();
+    if (!zoom) m.add(mirrorProgress(ref.current, p0, p1, sp, vel, (pp) => ({ transform: `translate3d(0, ${(1 - pp) * dist.current - k}px, 0) scale(${1 - 0.06 * b})` })));
     m.add(...mirrorVeil(scrimRef.current, p0, p1, sp, vel), mirrorStage(id, p0, p1, sp, vel));
   };
   useEffect(() => {
     const stop = () => mirror.current!.cancel();
-    const a = y.on('change', stop), b = bs.on('change', stop);
-    return () => { a(); b(); stop(); };
+    const a = y.on('change', stop), b = bs.on('change', stop), c = kb.on('change', stop); // the keyboard moving hands it back to the script too
+    return () => { a(); b(); c(); stop(); };
     // eslint-disable-next-line
   }, []);
   // measure the real height once it is laid out (the travel distance only has to be "off screen", so a short sheet
@@ -107,6 +109,9 @@ export function Sheet({ children, onClose, tall, label, foot, z: zProp = 60, nes
   }, []);
   useEffect(() => {
     const c = animate(p, 1, reduce ? { duration: 0.01 } : SPRING);
+    // a field focused as it opens: rise straight to where it will sit above the keyboard, together with the keyboard
+    const f = document.activeElement;
+    if (!reduce && f && ref.current?.contains(f) && /^(INPUT|TEXTAREA)$/.test(f.tagName)) expectKeyboard(SPRING);
     runMirror(0, 1, SPRING, 0);
     return () => c.stop();
     // eslint-disable-next-line
@@ -118,6 +123,7 @@ export function Sheet({ children, onClose, tall, label, foot, z: zProp = 60, nes
   useEffect(() => {
     if (present || leaving.current) return;
     leaving.current = true;
+    if (ref.current?.contains(document.activeElement)) dropKeyboard(EXIT_SPRING); // the keyboard goes down with it, not after it
     const vy = swipeV.current || y.getVelocity();
     if (zoom) { // shrink back into the card (whatever the finger left behind springs back with it)
       p.set(e.get()); animate(y, 0, SURFACE);
@@ -142,7 +148,7 @@ export function Sheet({ children, onClose, tall, label, foot, z: zProp = 60, nes
       <motion.div
         ref={ref}
         className={`sheet ${tall ? 'tall' : ''}`}
-        style={{ zIndex: z, bottom: kb, transformOrigin: '50% 0%', transform, maxHeight: room, clipPath: clip, opacity: surface, ...(tall ? { height: room } : {}) }}
+        style={{ zIndex: z, transformOrigin: '50% 0%', transform, maxHeight: room, clipPath: clip, opacity: surface, ...(tall ? { height: room } : {}) }}
         role="dialog" aria-modal="true" aria-label={label}
       >
         {zoom ? (
@@ -199,6 +205,7 @@ export function MorphSheet({ children, onClose, layoutId, label, tall = true, z:
   const e = useTransform([p, y], ([pp, yy]: number[]) => clamp01(pp - Math.max(0, yy) / (typeof window !== 'undefined' ? window.innerHeight : 900)));
   const engage = useMemo(() => ({ e, shift: y }), [e, y]);
   const room = useTransform(kb, availableHeight);
+  const lifted = useTransform([y, kb], ([yy, k]: number[]) => yy - k);
   useEffect(() => trackDepth(id, e), [id, e]);
   useSwipeDown(wrap, y, onClose);
   useEffect(() => {
@@ -223,7 +230,7 @@ export function MorphSheet({ children, onClose, layoutId, label, tall = true, z:
   return (
     <EngageContext.Provider value={engage}>
       <Veil e={e} z={z - 1} onClick={onClose} />
-      <motion.div ref={wrap} style={{ y, position: 'fixed', left: 0, right: 0, bottom: kb, zIndex: z, pointerEvents: 'none', height: tall ? room : undefined, maxHeight: room, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+      <motion.div ref={wrap} style={{ y: lifted, position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: z, pointerEvents: 'none', height: tall ? room : undefined, maxHeight: room, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
         <motion.div
           layoutId={layoutId} role="dialog" aria-modal="true" aria-label={label}
           className="morph-sheet"

@@ -89,16 +89,21 @@ function useTheme() {
  * opening, under the finger while it is dragged, and as it leaves.
  */
 /**
- * One tab's screen. A new one spills out of the tab you tapped (revealPage, ui/pageMotion.ts); the one you leave sinks back a
- * little and fades out underneath it. The very first screen of the session just appears.
+ * One tab's screen, with its own colour field (its area's light) under it, so a screen is a solid surface: a new one
+ * spreads out of the tab you tapped OVER the old one (revealPage, ui/pageMotion.ts) — no see-through overlap, no gap
+ * of black between them, and no full-screen cross-fade of the field's colours to repaint every frame. The one you leave
+ * dims a little underneath and is gone once it is covered. The very first screen of the session just appears.
  */
 let firstPane = true;
-function TabPane({ children }: { children: React.ReactNode }) {
+function TabPane({ hue, children }: { hue: string; children: React.ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
+  // every field drifts on the same clock, so the new one lines up with the old one and only its colours change
+  const drift = useRef(`-${Math.round(performance.now())}ms`);
   useLayoutEffect(() => { if (firstPane) { firstPane = false; return; } revealPage(ref.current); }, []);
   return (
-    <motion.div ref={ref} className="tab-pane" data-active style={{ position: 'absolute', inset: 0 }}
-      exit={{ opacity: [1, 0], transform: ['scale(1)', 'scale(0.965)'], transition: { opacity: { duration: 0.22, ease: [0.4, 0, 1, 1] }, transform: { duration: 0.42, ease: [0.3, 0, 0.2, 1] } } }}>
+    <motion.div ref={ref} className="tab-pane" data-active data-hue={hue} style={{ position: 'absolute', inset: 0 }}
+      exit={{ opacity: [1, 0.55], transition: { duration: 0.62, ease: [0.2, 0.7, 0.3, 1] } }}>
+      <div className="aurora" aria-hidden style={{ ['--drift-t' as string]: drift.current }}><i /><i /><i /></div>
       {children}
     </motion.div>
   );
@@ -194,9 +199,8 @@ export function App() {
       <LayoutGroup>
         <div className="app" data-hue={tab} data-pill={pill || undefined} ref={appRef}>
           <div className="stage" ref={stageRef}>
-          <div className="aurora" aria-hidden><i /><i /><i /></div>
           <AnimatePresence mode="popLayout" initial={false}>
-            <TabPane key={tab}><Screen /></TabPane>
+            <TabPane key={tab} hue={tab}><Screen /></TabPane>
           </AnimatePresence>
           <TabBar />
           </div>

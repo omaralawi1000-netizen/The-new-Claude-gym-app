@@ -22,13 +22,25 @@ import { BOUNCY, SURFACE_EXIT, apple } from '../../ui/motion';
 
 // critically damped: it opens and closes in one smooth motion with no wobble at the end
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
+/** An element's box with the transforms of it and its ancestors taken off for a moment (measured, then put straight back). */
+function restRect(el: Element): DOMRect {
+  const undo: [HTMLElement, string][] = [];
+  for (let n = el as HTMLElement | null; n && n !== document.body; n = n.parentElement) {
+    const t = n.style.transform;
+    if (t && t !== 'none') { undo.push([n, t]); n.style.transform = 'none'; }
+  }
+  const r = el.getBoundingClientRect();
+  for (const [n, t] of undo) n.style.transform = t;
+  return r;
+}
 /** Opening: Apple's spring with a touch of bounce, as the Music player lands. */
 const OPEN = { ...apple(0.52, 0.08), restDelta: 0.001 };
 /** progress ranges over which the panel's solid colour and the content fade in */
 const SOLID = [0.3, 0.92];
 const SHOW = [0.18, 0.7];
-/** the frost fades in its first few percent, so at the very end of a close it hands over to the bar or card underneath */
-const FROST = [0, 0.07];
+/** the frost fades over the last stretch of a close, so the window melts into the real bar or card underneath instead of
+ * sitting on it as an empty frosted box while the spring settles */
+const FROST = [0, 0.3];
 
 /** The live workout: a full-height card that rises over the page (which steps back behind it), like Apple Music's player. */
 export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | 'none' } }) {
@@ -60,7 +72,10 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
   const W = typeof window !== 'undefined' ? window.innerWidth : 400;
   // where it grows from / shrinks back into: the resume bar, else Today's workout card, else the bottom edge
   const originOf = () => {
-    const pick = (sel: string) => { const el = document.querySelector(sel); const r = el?.getBoundingClientRect(); return r && r.width > 40 && r.height > 20 && r.top > 0 && r.top < H ? r : null; };
+    // where the bar or card RESTS, not where it is drawn this instant: at close the page behind is still stepped back
+    // (scaled), the tab bar with the resume bar is still slid off screen, and the bar itself is shrunk away — all of that
+    // springs back while the window shrinks, so it has to land where they will be
+    const pick = (sel: string) => { const el = document.querySelector(sel); const r = el ? restRect(el) : null; return r && r.width > 40 && r.height > 20 && r.top > 0 && r.top < H ? r : null; };
     const r = (props.origin === 'hero' ? pick('[data-wk="hero"]') : null) ?? pick('[data-wk="pill"]') ?? pick('[data-wk="hero"]');
     return r ? { top: r.top, bottom: Math.min(H, r.bottom), sx: Math.min(1, r.width / W) } : { top: H, bottom: H, sx: 1 };
   };

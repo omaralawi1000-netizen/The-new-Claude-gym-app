@@ -147,6 +147,14 @@ Run in headless Chromium (Playwright, 390×844 @2×, dark + light), scripts in `
 - **Snap your plate** (Gemini key): photo → per-item estimates (name, grams, kcal, macros) → choose items and portion (×0.5–×2) → logged as quick entries labelled "AI estimate" with the assumptions. Image is downscaled to 1024 px before sending. Wiring tested with a stubbed Gemini; real recognition quality is unverified.
 - **Home-screen shortcuts** (Android long-press on the installed icon): Log food, Dictate, Snap your plate, Log wrestling.
 
+## Seamless pass
+
+- **Each tab's screen carries its own colour field** (`TabPane` in `App.tsx`), so a screen is a solid surface. The new one spreads out of the tab you tapped *over* the old one — no see-through overlap, no moment of black between them — quicker and quieter than before (no ring, smaller movement). The old one dims a little underneath and is gone once covered.
+- **Fewer dropped frames when switching**: the colour field no longer cross-fades its colours (that repainted the whole screen every frame for 1.1 s), and nothing transitions the area colour variables any more — transitioning a colour variable restyled everything under it on every frame (~45 ms of style work per switch, measured). Main-thread work across 8 tab switches went from ~2.8 s to ~1.2 s in the test browser.
+- **Keyboard**: popups ride the keyboard with a transform (not their `bottom`, which re-laid them out every frame), on a quicker spring that keeps up with Android's keyboard. The app remembers your keyboard's height: a popup that opens with a field focused rises straight to where it will sit above the keyboard, together with it. Closing drops the keyboard at once, so it goes down with the popup instead of after it.
+- **Live workout** lands exactly on the resume bar or Today card: their resting position is measured with the page-behind's step-back, the tab bar's slide and the bar's own shrink taken off. The frost melts away over the last stretch of the close, handing over to the real bar or card.
+- Not fixable from the app: Samsung's keyboard shows its own black panel for a moment before its keys appear.
+
 ## Reveal pass
 
 - **Tab switching** (`ui/pageMotion.ts`): the new screen spills out of the tab you tapped like a drop of the dock's glass — a circle growing from that tab to the far corners, the screen inside settling from 94 %, and a ring of light riding the edge — while the screen you leave sinks back and fades underneath. Clip-path, transform and opacity only, browser-run.
