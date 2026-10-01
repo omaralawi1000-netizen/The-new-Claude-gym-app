@@ -361,9 +361,12 @@ export function VoiceComposer({ props }: { props: { mode?: Mode; date?: string; 
   const example = mode === 'food' ? t('“200 grams of skyr, one banana and 60 grams of oats”') : t('“Bench press 80 kilos for 8, 8 and 6”');
 
   return (
-    <motion.div className="voice" style={{ position: 'fixed', inset: 0, zIndex: z, display: 'flex', flexDirection: 'column' }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.28 }} role="dialog" aria-modal="true" aria-label={t('Dictation')}>
-      <div style={{ position: 'absolute', inset: 0, background: 'color-mix(in srgb, var(--bg) 78%, transparent)', WebkitBackdropFilter: 'blur(30px) saturate(1.4)', backdropFilter: 'blur(30px) saturate(1.4)' }} />
-      <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', padding: `calc(var(--sat) + 12px) 18px 0` }}>
+    <motion.div className="voice" style={{ position: 'fixed', inset: 0, zIndex: z, display: 'flex', flexDirection: 'column' }} role="dialog" aria-modal="true" aria-label={t('Dictation')}>
+      {/* the frosted backdrop arrives first; the controls follow, so the screen behind never shows through the text */}
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.2, delay: 0.06 } }} transition={{ duration: 0.22 }}
+        style={{ position: 'absolute', inset: 0, background: 'color-mix(in srgb, var(--bg) 88%, transparent)', WebkitBackdropFilter: 'blur(30px) saturate(1.4)', backdropFilter: 'blur(30px) saturate(1.4)' }} />
+      <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10, transition: { duration: 0.12 } }} transition={{ duration: 0.3, delay: 0.08, ease: [0.22, 1, 0.36, 1] }}
+        style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', padding: `calc(var(--sat) + 12px) 18px 0` }}>
         <div className="row-flex between">
           <button className="icon-btn press" aria-label={t('Close')} onClick={() => useUI.getState().pop()}><Icon name="close" /></button>
           <div style={{ width: 210 }}><Seg value={mode} onChange={(m) => { if (phase === 'processing' || inReview) return; setMode(m); }} options={[{ value: 'food', label: t('Food') }, { value: 'workout', label: t('Workout') }]} /></div>
@@ -458,7 +461,7 @@ export function VoiceComposer({ props }: { props: { mode?: Mode; date?: string; 
             </div>
           </div>
         )}
-      </div>
+      </motion.div>
     </motion.div>
   );
 }

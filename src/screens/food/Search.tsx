@@ -174,10 +174,10 @@ function FoodResult({ food, open, add }: { food: Food; open: () => void; add: ()
         <Plate layoutId={`fp-${food.id}`} radius={14} style={{ opacity: 0 }} />
         <div className="grow" style={{ position: 'relative', minWidth: 0 }}>
           <div className="li-title trunc">{food.name}{favs.includes(food.id) && <Icon name="star" size={13} style={{ fill: 'var(--ac-text)', color: 'var(--ac-text)', marginLeft: 6, verticalAlign: '-1px' }} />}</div>
-          <div className="li-sub trunc num">{food.brand ? `${food.brand} · ` : ''}{food.per100.kcal === undefined ? t('no calorie data') : `${fmtNutrient('kcal', food.per100.kcal, lang)} kcal`} / 100 {food.basis}{' · '}<span className="t3">{sourceLabel(food.source, t)}</span></div>
+          <div className="li-sub trunc num">{food.brand ? `${food.brand} · ` : ''}{food.per100.kcal === undefined ? t('no calorie data') : `${fmtNutrient('kcal', food.per100.kcal, lang)} kcal`} / 100 {food.basis}{food.source !== 'reference' && <span className="t3"> · {food.source === 'off' ? 'OFF' : food.source === 'usda' ? 'USDA' : sourceLabel(food.source, t)}</span>}</div>
         </div>
       </button>
-      <button className="icon-btn press" aria-label={`${t('Quick add')} ${food.name}`} onClick={add} style={{ flex: 'none' }}><Icon name="plus" /></button>
+      <button className="icon-btn sm press" aria-label={`${t('Quick add')} ${food.name}`} onClick={add} style={{ flex: 'none', width: 38, height: 38 }}><Icon name="plus" size={19} /></button>
     </motion.div>
   );
 }
