@@ -1,8 +1,8 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useSyncExternalStore } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useStore, flushSave, persistStatus } from '../state/store';
 import { useUI } from '../state/ui';
-import { SMOOTH } from '../ui/motion';
+import { SMOOTH, highRefresh, onHighRefresh, setHighRefresh } from '../ui/motion';
 import { useT, useLang } from '../lib/i18n';
 import { Sheet, SheetHead } from '../ui/Sheet';
 import { Icon } from '../ui/Icon';
@@ -50,6 +50,16 @@ function FpsField() {
   return (
     <Field label={t('Frame rate readout')} hint={t('Shows the refresh rate your phone and browser really give the app, in the top-left corner. 120 Hz with 0 late is the best case; a steady 60 Hz means the browser or phone caps it.')}>
       <Toggle on={on} onChange={setFpsMeter} label={t('Frame rate readout')} />
+    </Field>
+  );
+}
+
+function HrrField() {
+  const t = useT();
+  const on = useSyncExternalStore(onHighRefresh, highRefresh, () => true);
+  return (
+    <Field label={t('High refresh rate')} hint={t('Popups, the live workout and the page behind them are drawn by the browser itself, at your screen’s full rate (up to 120 Hz), instead of by the app at up to 60. Turn off if anything looks wrong.')}>
+      <Toggle on={on} onChange={setHighRefresh} label={t('High refresh rate')} />
     </Field>
   );
 }
@@ -126,6 +136,7 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
               <div className="stack gap16">
                 <Field label={t('Theme')}><Seg value={st.theme} onChange={(v) => set({ theme: v })} options={[{ value: 'system', label: t('System') }, { value: 'light', label: t('Light') }, { value: 'dark', label: t('Dark') }]} /></Field>
                 <Field label={t('Motion')}><Seg value={st.motion} onChange={(v) => set({ motion: v })} options={[{ value: 'system', label: t('System') }, { value: 'full', label: t('Full') }, { value: 'reduce', label: t('Reduced') }]} /></Field>
+                <HrrField />
                 <FpsField />
               </div>
             )}

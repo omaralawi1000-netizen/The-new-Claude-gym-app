@@ -15,7 +15,7 @@ import { addSet, deleteSet, moveExercise, patchExercise, patchSet, removeExercis
 import { exName, fmtSet, MUSCLE_LABEL } from './common';
 import { SphereSlot, orbPress, orbTap } from '../../ui/Sphere';
 import { useSwipeDown } from '../../ui/swipe';
-import { trackDepth } from '../../ui/engage';
+import { Mirror, mirrorProgress, mirrorStage, scrimFrame, trackCover, trackDepth } from '../../ui/engage';
 import { kb } from '../../ui/keyboard';
 import { BOUNCY, SURFACE, SURFACE_EXIT } from '../../ui/motion';
 
@@ -51,9 +51,24 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
   const dim = useTransform(eFinger, (v) => clamp01(v / 0.6));
   const depthId = useId();
   useEffect(() => trackDepth(depthId, eFinger), [depthId, eFinger]); // the page behind recedes with the card, frame for frame
+  useEffect(() => trackCover(depthId, eFinger), [depthId, eFinger]); // and stops being drawn while the card covers it
+  // high refresh rate: card, dim and page behind also run by the browser on the identical spring (see mirrorSpring)
+  const scrimRef = useRef<HTMLDivElement>(null);
+  const mirror = useRef<Mirror | null>(null); if (!mirror.current) mirror.current = new Mirror();
+  const runMirror = (p0: number, p1: number, sp: typeof SURFACE, vel: number) => {
+    const m = mirror.current!; m.cancel();
+    if (reduce) return;
+    m.add(
+      mirrorProgress(dialogRef.current, p0, p1, sp, vel, (pp) => ({ transform: `translateY(${(1 - pp) * H}px)` })),
+      mirrorProgress(scrimRef.current, p0, p1, sp, vel, scrimFrame, [0.6]),
+      mirrorStage(depthId, p0, p1, sp, vel),
+    );
+  };
+  useEffect(() => { const off = dragY.on('change', () => mirror.current!.cancel()); return () => { off(); mirror.current!.cancel(); }; }, [dragY]);
   const [isPresent, safeToRemove] = usePresence();
   useEffect(() => {
     const c = animate(p, 1, reduce ? { duration: 0.01 } : SURFACE);
+    runMirror(0, 1, SURFACE, 0);
     return () => c.stop();
     // eslint-disable-next-line
   }, []);
@@ -64,6 +79,7 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
     // the finger's offset becomes progress, then it carries on at the finger's speed
     const v = swipeV.current || dragY.getVelocity();
     p.set(eFinger.get()); dragY.set(0);
+    runMirror(p.get(), 0, SURFACE_EXIT, -v / H);
     animate(p, 0, reduce ? { duration: 0.01 } : { ...SURFACE_EXIT, velocity: -v / H }).then(() => safeToRemove?.());
     // eslint-disable-next-line
   }, [isPresent]);
@@ -107,7 +123,7 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const ov = useUI.getState().overlays;
-      if (ov[ov.length - 1]?.type !== 'workout') return; // a sheet above the workout handles its own Escape
+      if (ov[ov.length - 1]?.type !== 'workout' || document.querySelector('.sheet')) return; // a sheet above the workout (or one of its own menus) handles its own Escape
       if (e.key === 'Escape' && !(e.target as HTMLElement)?.closest?.('input,textarea')) pop();
     };
     window.addEventListener('keydown', onKey);
@@ -151,7 +167,7 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
 
   return (
     <>
-      <motion.div className="scrim" style={{ zIndex: z - 1, opacity: dim }} onClick={pop}><i /></motion.div>
+      <motion.div ref={scrimRef} className="scrim" style={{ zIndex: z - 1, opacity: dim }} onClick={pop}><i /></motion.div>
       <motion.div
         role="dialog" aria-modal="true" aria-label={t('Active workout')}
         ref={dialogRef} data-hue="train" className="wk-card" style={{ zIndex: z, y: dialogY }}
@@ -160,7 +176,7 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
           <div aria-hidden style={{ position: 'absolute', inset: 0, background: 'var(--bg)' }}>
             <div className="aurora-lite" />
           </div>
-          <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+          <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, paddingTop: 'var(--sat)' }}>
           <div className="sheet-grab" style={{ position: 'relative', zIndex: 3 }} />
           {/* header */}
           <div style={{ padding: '0 16px 12px', touchAction: 'none', background: 'linear-gradient(var(--bg) 70%, transparent)', position: 'relative', zIndex: 2 }}>

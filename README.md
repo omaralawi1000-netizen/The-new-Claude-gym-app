@@ -147,7 +147,16 @@ Run in headless Chromium (Playwright, 390×844 @2×, dark + light), scripts in `
 - **Snap your plate** (Gemini key): photo → per-item estimates (name, grams, kcal, macros) → choose items and portion (×0.5–×2) → logged as quick entries labelled "AI estimate" with the assumptions. Image is downscaled to 1024 px before sending. Wiring tested with a stubbed Gemini; real recognition quality is unverified.
 - **Home-screen shortcuts** (Android long-press on the installed icon): Log food, Dictate, Snap your plate, Log wrestling.
 
-## Feel (latest pass)
+## High refresh rate pass
+
+- **High refresh rate** (Settings → Appearance, on by default): Samsung Internet and some Chrome builds run script animation at 60 fps even on a 120 Hz screen, but animations the browser runs itself (transform/opacity) are drawn at the full rate. Every popup spring is now also handed to the browser as a Web Animation on the exact same curve (`springCurve` in `ui/motion.ts` simulates the spring into a CSS `linear()` easing): the sheet, its dim and the page stepping back behind it, the live workout card, and the tab page slide. The script spring still runs underneath (it drives the orb), and a finger or a second popup hands control straight back to it. Turn it off if anything looks wrong.
+- **Tab bar**: iOS-style — equal tabs, icon over name, and one drop of glass that glides to the tab you pick (Apple spring, 0.55 s, compositor-run), stretching a little along its path and settling back into a capsule. Tapping again mid-flight carries on from where it is.
+- **No more "clear bar that suddenly frosts"**: the tab bar hides by sliding only, and the resume bar fades its own layers. Fading a parent of a frosted surface switches the blur off until the fade ends — that was the flicker.
+- **Orb under popups**: in a popup the orb now sits just above that popup, so a menu opened over the live workout covers it.
+- **Live workout is full screen** (no sliver of the page above it, which read as a blur band at the top); the page behind is no longer drawn while it is up.
+- Springs a hair quicker: popups 0.45 s in / 0.38 s out, content 0.36 s.
+
+## Feel (earlier pass)
 
 - **Sheets behave like iOS**: the page behind steps back (scales to 92 %, rounds its corners, dims over black); swipe down from anywhere — when the list under your finger is at the top — and the sheet follows 1:1, then either closes carrying your swipe speed and easing out, or springs back. Stacked sheets step back too. The workout screen minimises the same way.
 - **Workout open/close**: the background surface grows out of the Today card / pill as a shared-layout transform (GPU only); the content fades in on top and the exercise list mounts a few rows at a time after the animation.

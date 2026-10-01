@@ -1,6 +1,6 @@
 import { AnimatePresence, animate, motion, useMotionValue, usePresence, useReducedMotion, useTransform, type MotionValue } from 'motion/react';
 import { createContext, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { EngageContext, trackDepth } from './engage';
+import { EngageContext, Mirror, mirrorProgress, mirrorStage, scrimFrame, trackDepth } from './engage';
 import { availableHeight, kb } from './keyboard';
 
 /** Stack-position z-index for the current overlay: a later overlay is always above an earlier one. */
@@ -33,10 +33,10 @@ export function zoomFrom(el: Element | null | undefined): ZoomFrom | undefined {
  * Dims the page behind a popup (the popup itself is the frosted glass). It fades with the popup's progress, reaching full
  * strength early, so a small swipe that springs back leaves it exactly as it was.
  */
-function Scrim({ e, z, onClick }: { e: MotionValue<number>; z: number; onClick: () => void }) {
+function Scrim({ e, z, onClick, elRef }: { e: MotionValue<number>; z: number; onClick: () => void; elRef?: React.Ref<HTMLDivElement> }) {
   const strength = useTransform(e, (v) => clamp01(v / 0.6));
   return (
-    <motion.div className="scrim" style={{ zIndex: z, opacity: strength }} onClick={onClick}>
+    <motion.div ref={elRef} className="scrim" style={{ zIndex: z, opacity: strength }} onClick={onClick}>
       <i />
     </motion.div>
   );
@@ -86,6 +86,23 @@ export function Sheet({ children, onClose, tall, label, foot, z: zProp = 60, nes
   useEffect(() => trackDepth(id, e), [id, e]);
   const swipeV = useRef(0); // px/s the finger had when it let go
   useSwipeDown(ref, y, (v) => { swipeV.current = v ?? 0; onClose(); }, { enabled: !behind });
+  // High refresh rate: the same spring, also handed to the browser for the sheet, its dim and the page behind, so they are
+  // drawn at the screen's full rate (see mirrorSpring). A finger or a sheet stacking on top hands control straight back.
+  const scrimRef = useRef<HTMLDivElement>(null);
+  const mirror = useRef<Mirror | null>(null); if (!mirror.current) mirror.current = new Mirror();
+  const runMirror = (p0: number, p1: number, sp: typeof SURFACE, vel: number) => {
+    const m = mirror.current!; m.cancel();
+    if (reduce) return;
+    const b = bs.get();
+    if (!zoom) m.add(mirrorProgress(ref.current, p0, p1, sp, vel, (pp) => ({ transform: `translate3d(0, ${(1 - pp) * dist.current}px, 0) scale(${1 - 0.06 * b})` })));
+    m.add(mirrorProgress(scrimRef.current, p0, p1, sp, vel, scrimFrame, [0.6]), mirrorStage(id, p0, p1, sp, vel));
+  };
+  useEffect(() => {
+    const stop = () => mirror.current!.cancel();
+    const a = y.on('change', stop), b = bs.on('change', stop);
+    return () => { a(); b(); stop(); };
+    // eslint-disable-next-line
+  }, []);
   // measure the real height once it is laid out (the travel distance only has to be "off screen", so a short sheet
   // does not fly further than it needs to), and keep it right if the content grows
   useLayoutEffect(() => {
@@ -98,6 +115,7 @@ export function Sheet({ children, onClose, tall, label, foot, z: zProp = 60, nes
   }, []);
   useEffect(() => {
     const c = animate(p, 1, reduce ? { duration: 0.01 } : SPRING);
+    runMirror(0, 1, SPRING, 0);
     return () => c.stop();
     // eslint-disable-next-line
   }, []);
@@ -111,10 +129,12 @@ export function Sheet({ children, onClose, tall, label, foot, z: zProp = 60, nes
     const vy = swipeV.current || y.getVelocity();
     if (zoom) { // shrink back into the card (whatever the finger left behind springs back with it)
       p.set(e.get()); animate(y, 0, SURFACE);
+      if (Math.abs(y.get()) < 0.5) runMirror(p.get(), 0, SURFACE, 0); // a finger offset springing back would cancel it at once
       animate(p, 0, reduce ? { duration: 0.01 } : { ...SURFACE, restDelta: 0.002 }).then(() => safeToRemove?.());
       return;
     }
     p.set(e.get()); y.set(0);
+    runMirror(p.get(), 0, EXIT_SPRING, -vy / dist.current);
     const c = animate(p, 0, reduce ? { duration: 0.01 } : { ...EXIT_SPRING, velocity: -vy / dist.current });
     c.then(() => safeToRemove?.());
     // eslint-disable-next-line
@@ -126,7 +146,7 @@ export function Sheet({ children, onClose, tall, label, foot, z: zProp = 60, nes
   }, [onClose]);
   return (
     <EngageContext.Provider value={engage}>
-      <Scrim e={e} z={z - 1} onClick={onClose} />
+      <Scrim e={e} z={z - 1} onClick={onClose} elRef={scrimRef} />
       <motion.div
         ref={ref}
         className={`sheet ${tall ? 'tall' : ''}`}

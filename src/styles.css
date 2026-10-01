@@ -300,17 +300,20 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* ── floating tab bar: icons only; the active tab opens up and shows its name ─── */
 .tabbar-wrap { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; padding: 0 16px calc(var(--sab) + 14px); display: flex; justify-content: center; pointer-events: none; }
 .tabbar.glass { background: color-mix(in srgb, var(--glass) 100%, transparent); -webkit-backdrop-filter: blur(36px) saturate(2); backdrop-filter: blur(36px) saturate(2); }
-.tabbar { pointer-events: auto; width: 100%; max-width: 420px; height: 66px; border-radius: 999px; display: flex; align-items: center; padding: 0 7px; gap: 2px; }
-/* icons only; the active tab opens up (width springs open) and shows its name — the oval glides over to it */
-.tab { flex: 0 0 52px; height: 52px; display: flex; align-items: center; justify-content: center; gap: 0; color: var(--tx3); font-size: 13px; font-weight: 600; position: relative; border-radius: 999px;
-  transition: flex-basis 620ms var(--ease-spring), color 300ms; overflow: hidden; }
-.tab.on { color: var(--tx); flex-basis: 108px; gap: 7px; }
-.tab > span.lab { max-width: 0; opacity: 0; transform: translateX(-6px); white-space: nowrap; transition: max-width 620ms var(--ease-spring), opacity 300ms, transform 620ms var(--ease-spring); position: relative; }
-.tab.on > span.lab { max-width: 70px; opacity: 1; transform: none; }
-.tab svg { position: relative; flex: none; transition: transform 520ms var(--ease-spring), color 300ms; }
-.tab.on svg { color: var(--ac-text); }
-.tab-pip { position: absolute; inset: 0; border-radius: 999px; background: var(--s3); box-shadow: inset 0 1px 0 var(--hl), inset 0 0 0 1px var(--line), 0 6px 20px -8px var(--ac); }
-.sphere-slot { width: 64px; flex: none; height: 52px; }
+.tabbar { pointer-events: auto; position: relative; width: 100%; max-width: 420px; height: 66px; border-radius: 999px; display: flex; align-items: center; padding: 0 6px; gap: 2px; }
+/* iOS-style: every tab the same width, icon over its name; one drop of glass (the lens) glides to the active tab */
+.tab { flex: 1 1 0; min-width: 0; height: 54px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: var(--tx3); font-size: 10.5px; font-weight: 600; letter-spacing: .01em; position: relative; z-index: 1; border-radius: 999px;
+  transition: color 420ms var(--ease-smooth); }
+.tab.on { color: var(--ac-text); }
+.tab > span.lab { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1; }
+.tab svg { position: relative; flex: none; transition: transform 520ms var(--ease-spring); }
+.tab.on svg { transform: scale(1.06); }
+.tab-lens { position: absolute; left: 0; top: 6px; height: 54px; width: 0; pointer-events: none; z-index: 0; will-change: transform; }
+.tab-lens > i { position: absolute; inset: 0; border-radius: 999px; transform-origin: 50% 50%;
+  background: linear-gradient(180deg, rgba(255,255,255,.13), rgba(255,255,255,.02) 55%, rgba(255,255,255,.05)), color-mix(in srgb, var(--s3) 82%, transparent);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.26), inset 0 -1px 1px rgba(255,255,255,.07), inset 0 0 0 1px var(--line), 0 8px 22px -10px var(--ac); }
+:root[data-theme="light"] .tab-lens > i { background: linear-gradient(180deg, rgba(255,255,255,.9), rgba(255,255,255,.55)); box-shadow: inset 0 1px 0 #fff, inset 0 0 0 1px rgba(16,20,34,.07), 0 6px 18px -8px rgba(16,20,34,.25); }
+.sphere-slot { width: 60px; flex: none; height: 52px; }
 
 /* ── toasts ──────────────────────────────────────────────── */
 .toasts { position: fixed; left: 0; right: 0; z-index: 700; bottom: calc(var(--bar-h) + var(--sab) + 22px); display: flex; justify-content: center; pointer-events: none; padding: 0 14px; }
@@ -412,4 +415,4 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 @keyframes flyHit { 30% { transform: scale(1.07); filter: brightness(1.25); } }
 
 /* the live workout card: full height below a sliver of the receded page, rounded top like an iOS sheet */
-.wk-card { position: fixed; left: 0; right: 0; bottom: 0; top: calc(var(--sat) + 10px); display: flex; flex-direction: column; border-radius: var(--r-xl) var(--r-xl) 0 0; overflow: hidden; box-shadow: inset 0 1px 0 var(--hl), 0 -12px 40px -12px rgba(0,0,0,.5); will-change: transform; }
+.wk-card { position: fixed; left: 0; right: 0; bottom: 0; top: 0; display: flex; flex-direction: column; border-radius: var(--r-xl) var(--r-xl) 0 0; overflow: hidden; box-shadow: inset 0 1px 0 var(--hl), 0 -12px 40px -12px rgba(0,0,0,.5); will-change: transform; }

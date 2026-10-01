@@ -1,5 +1,5 @@
-import { useEffect, useLayoutEffect, useRef } from 'react';
-import { AnimatePresence, LayoutGroup, MotionConfig, motion } from 'motion/react';
+import { useEffect, useLayoutEffect, useRef, useSyncExternalStore } from 'react';
+import { AnimatePresence, LayoutGroup, MotionConfig, motion, type HTMLMotionProps } from 'motion/react';
 import { useStore } from './state/store';
 import { useUI } from './state/ui';
 import { TabBar } from './ui/TabBar';
@@ -14,9 +14,10 @@ import { useT } from './lib/i18n';
 import { registerSW } from './pwa';
 import { dayKey } from './lib/dates';
 import { defaultMealId } from './lib/derive';
-import { stageCover, stageDepth } from './ui/engage';
+import { stageCover, stageDepth, stageTransform } from './ui/engage';
 import { setKeyboard } from './ui/keyboard';
 import { FpsMeter } from './ui/FpsMeter';
+import { highRefresh, onHighRefresh } from './ui/motion';
 
 /** Where the last tap landed — the theme switch spreads out from there. */
 const lastTap = { x: typeof window !== 'undefined' ? window.innerWidth / 2 : 0, y: 0 };
@@ -87,6 +88,22 @@ function useTheme() {
  * the popups' own progress (stageDepth, see engage.ts) in the same animation frame, so it follows the popup exactly:
  * opening, under the finger while it is dragged, and as it leaves.
  */
+/**
+ * The page switch: the new screen slides in 36 px and fades up, the old one slides out the other way, fading and softly
+ * blurring. With high refresh rate on, the slide is written as a whole `transform` so the browser runs it on its compositor
+ * at the screen's full rate (motion only hands opacity, filter and whole transforms to the browser; `x` is script-driven).
+ */
+function pageSwitch(dir: number, hrr: boolean): Pick<HTMLMotionProps<'div'>, 'initial' | 'animate' | 'exit' | 'transition'> {
+  const transition = { duration: 0.38, ease: [0.22, 1, 0.36, 1] as const };
+  if (!hrr) return { initial: { opacity: 0, x: dir * 36 }, animate: { opacity: 1, x: 0, filter: 'blur(0px)', transitionEnd: { filter: 'none' } }, exit: { opacity: 0, x: -dir * 36, filter: 'blur(10px)' }, transition };
+  return {
+    initial: { opacity: 0, transform: `translateX(${dir * 36}px)` },
+    animate: { opacity: 1, transform: 'translateX(0px)', filter: 'blur(0px)', transitionEnd: { filter: 'none', transform: 'none' } },
+    exit: { opacity: 0, transform: `translateX(${-dir * 36}px)`, filter: 'blur(10px)' },
+    transition,
+  };
+}
+
 function useStageDepth(app: React.RefObject<HTMLDivElement | null>, stage: React.RefObject<HTMLDivElement | null>) {
   useEffect(() => {
     const apply = (v: number) => {
@@ -95,7 +112,7 @@ function useStageDepth(app: React.RefObject<HTMLDivElement | null>, stage: React
       const still = root.motion === 'reduce' || (root.motion !== 'full' && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
       if (v < 0.0005 || still) { st.style.transform = ''; st.style.borderRadius = ''; st.style.willChange = ''; st.style.overflow = ''; a.style.background = ''; return; }
       st.style.willChange = 'transform'; st.style.overflow = 'hidden'; // layer hints only while a popup is up, so the idle app is built exactly like the original
-      st.style.transform = `translateY(calc((var(--sat) + 10px) * ${v})) scale(${1 - 0.08 * v})`;
+      st.style.transform = stageTransform(v); // the same function the browser-run (high refresh) version uses
       st.style.borderRadius = `${28 * v}px`;
       a.style.background = '#000';
     };
@@ -153,6 +170,7 @@ export function App() {
   const dir = ORDER.indexOf(tab) - ORDER.indexOf(prev.current);
   useEffect(() => { prev.current = tab; }, [tab]);
   const Screen = SCREENS[tab];
+  const hrr = useSyncExternalStore(onHighRefresh, highRefresh, () => true);
   // a running workout shows a resume bar above the tab bar on every tab but Today: the page makes room for it
   const pill = useStore((s) => !!s.active) && tab !== 'today';
   const onboarded = useStore((s) => s.settings.onboarded);
@@ -184,7 +202,7 @@ export function App() {
           <div className="stage" ref={stageRef}>
           <div className="aurora" aria-hidden><i /><i /><i /></div>
           <AnimatePresence mode="popLayout" initial={false}>
-            <motion.div key={tab} className="tab-pane" data-active style={{ position: 'absolute', inset: 0 }} initial={{ opacity: 0, x: dir * 36 }} animate={{ opacity: 1, x: 0, filter: 'blur(0px)', transitionEnd: { filter: 'none' } }} exit={{ opacity: 0, x: -dir * 36, filter: 'blur(10px)' }} transition={{ duration: 0.38, ease: [0.22, 1, 0.36, 1] }}>
+            <motion.div key={tab} className="tab-pane" data-active style={{ position: 'absolute', inset: 0 }} {...pageSwitch(dir, hrr)}>
               <Screen />
             </motion.div>
           </AnimatePresence>

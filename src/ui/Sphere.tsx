@@ -374,6 +374,19 @@ export function SphereStage() {
     let px = NaN, py = NaN, ps = NaN, sentV = 0, lastDraw = 0, lastBucket = 0;
     let base = { left: 0, top: 0 };
     const rects = new WeakMap<HTMLElement, DOMRect>();
+    const owners = new WeakMap<HTMLElement, number>();
+    /** z-index of the fixed surface (popup) a slot lives in, found once per slot. */
+    const ownerZ = (slot: HTMLElement) => {
+      let z = owners.get(slot);
+      if (z !== undefined) return z;
+      z = 599;
+      for (let n = slot.parentElement; n && n !== appEl; n = n.parentElement) {
+        const cs = getComputedStyle(n);
+        if (cs.position === 'fixed') { const v = parseInt(cs.zIndex, 10); if (Number.isFinite(v)) z = v; break; }
+      }
+      owners.set(slot, z);
+      return z;
+    };
     const shifts = new WeakMap<HTMLElement, number>();
     // what can move a slot: scrolling anywhere, resizing, the keyboard, any React update (DOM or style/class change), a
     // finger on the screen. Each opens a short window in which boxes are re-measured every frame.
@@ -418,7 +431,10 @@ export function SphereStage() {
         if (e > 0.02) { top = Math.max(top, sl.priority); topSlot = sl; }
       }
       if (!have) { el.style.opacity = '0'; return; }
-      el.style.zIndex = top > 0 ? '600' : '41'; // above full-screen composers; below sheets when it sits in the tab bar
+      // In the tab bar it sits under every popup; in a popup it sits just above that popup — and so under anything
+      // opened over it (an exercise menu over the live workout), never floating on top of everything.
+      const zi = top > 0 && topSlot ? String(ownerZ(topSlot.el) + 1) : '41';
+      if (el.style.zIndex !== zi) el.style.zIndex = zi;
       const size = Math.max(8, S);
       // The canvas is drawn at a size bucket and scaled down with a transform. Resizing a canvas (and the element) on
       // every frame of a flight reallocated its buffer and re-laid it out each frame — a stutter source.
