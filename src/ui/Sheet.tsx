@@ -1,6 +1,7 @@
-import { AnimatePresence, animate, motion, useMotionValue, usePresence, useReducedMotion, useTransform, type MotionValue } from 'motion/react';
+import { AnimatePresence, animate, motion, useMotionValue, usePresence, useReducedMotion, useTransform } from 'motion/react';
 import { createContext, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { EngageContext, Mirror, mirrorProgress, mirrorStage, scrimFrame, trackDepth } from './engage';
+import { EngageContext, Mirror, mirrorProgress, mirrorStage, trackDepth } from './engage';
+import { Veil, mirrorVeil } from './Veil';
 import { availableHeight, kb } from './keyboard';
 
 /** Stack-position z-index for the current overlay: a later overlay is always above an earlier one. */
@@ -29,18 +30,6 @@ export function zoomFrom(el: Element | null | undefined): ZoomFrom | undefined {
   return { left: r.left, top: r.top, right: r.right, bottom: r.bottom, radius: parseFloat(getComputedStyle(card).borderTopLeftRadius) || 16 };
 }
 
-/**
- * Dims the page behind a popup (the popup itself is the frosted glass). It fades with the popup's progress, reaching full
- * strength early, so a small swipe that springs back leaves it exactly as it was.
- */
-function Scrim({ e, z, onClick, elRef }: { e: MotionValue<number>; z: number; onClick: () => void; elRef?: React.Ref<HTMLDivElement> }) {
-  const strength = useTransform(e, (v) => clamp01(v / 0.6));
-  return (
-    <motion.div ref={elRef} className="scrim" style={{ zIndex: z, opacity: strength }} onClick={onClick}>
-      <i />
-    </motion.div>
-  );
-}
 const EXIT_SPRING = SURFACE_EXIT;
 
 /**
@@ -79,6 +68,9 @@ export function Sheet({ children, onClose, tall, label, foot, z: zProp = 60, nes
   };
   const clip = useTransform(p, clipFor);
   const inner = useTransform(p, (v) => (zoom ? clamp01((v - 0.15) / 0.45) : 1));
+  // zoomed: the surface fades in its first and out its last few percent, so it hands over to the real card underneath
+  // instead of sitting on it as an empty grey box while the spring settles (its own opacity: the frost stays on)
+  const surface = useTransform(p, (v) => (zoom ? clamp01(v / 0.14) : 1));
   const transform = useTransform([shift, bs], ([sh, b]: number[]) => `translate3d(0, ${sh}px, 0) scale(${1 - 0.06 * b})`);
   const e = useTransform([p, y], ([pp, yy]: number[]) => clamp01(pp - Math.max(0, yy) / dist.current));
   const engage = useMemo(() => ({ e, shift }), [e, shift]);
@@ -95,7 +87,7 @@ export function Sheet({ children, onClose, tall, label, foot, z: zProp = 60, nes
     if (reduce) return;
     const b = bs.get();
     if (!zoom) m.add(mirrorProgress(ref.current, p0, p1, sp, vel, (pp) => ({ transform: `translate3d(0, ${(1 - pp) * dist.current}px, 0) scale(${1 - 0.06 * b})` })));
-    m.add(mirrorProgress(scrimRef.current, p0, p1, sp, vel, scrimFrame, [0.6]), mirrorStage(id, p0, p1, sp, vel));
+    m.add(...mirrorVeil(scrimRef.current, p0, p1, sp, vel), mirrorStage(id, p0, p1, sp, vel));
   };
   useEffect(() => {
     const stop = () => mirror.current!.cancel();
@@ -146,11 +138,11 @@ export function Sheet({ children, onClose, tall, label, foot, z: zProp = 60, nes
   }, [onClose]);
   return (
     <EngageContext.Provider value={engage}>
-      <Scrim e={e} z={z - 1} onClick={onClose} elRef={scrimRef} />
+      <Veil e={e} z={z - 1} onClick={onClose} elRef={scrimRef} />
       <motion.div
         ref={ref}
         className={`sheet ${tall ? 'tall' : ''}`}
-        style={{ zIndex: z, bottom: kb, transformOrigin: '50% 0%', transform, maxHeight: room, clipPath: clip, ...(tall ? { height: room } : {}) }}
+        style={{ zIndex: z, bottom: kb, transformOrigin: '50% 0%', transform, maxHeight: room, clipPath: clip, opacity: surface, ...(tall ? { height: room } : {}) }}
         role="dialog" aria-modal="true" aria-label={label}
       >
         {zoom ? (
@@ -230,7 +222,7 @@ export function MorphSheet({ children, onClose, layoutId, label, tall = true, z:
   }, [onClose]);
   return (
     <EngageContext.Provider value={engage}>
-      <Scrim e={e} z={z - 1} onClick={onClose} />
+      <Veil e={e} z={z - 1} onClick={onClose} />
       <motion.div ref={wrap} style={{ y, position: 'fixed', left: 0, right: 0, bottom: kb, zIndex: z, pointerEvents: 'none', height: tall ? room : undefined, maxHeight: room, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
         <motion.div
           layoutId={layoutId} role="dialog" aria-modal="true" aria-label={label}

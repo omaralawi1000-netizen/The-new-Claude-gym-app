@@ -15,12 +15,18 @@ import { addSet, deleteSet, moveExercise, patchExercise, patchSet, removeExercis
 import { exName, fmtSet, MUSCLE_LABEL } from './common';
 import { SphereSlot, orbPress, orbTap } from '../../ui/Sphere';
 import { useSwipeDown } from '../../ui/swipe';
-import { Mirror, mirrorProgress, mirrorStage, scrimFrame, trackCover, trackDepth } from '../../ui/engage';
+import { Mirror, mirrorProgress, mirrorStage, trackCover, trackDepth } from '../../ui/engage';
+import { DIM_VEIL, Veil, mirrorVeil } from '../../ui/Veil';
 import { kb } from '../../ui/keyboard';
-import { BOUNCY, SURFACE, SURFACE_EXIT } from '../../ui/motion';
+import { BOUNCY, SURFACE_EXIT, apple } from '../../ui/motion';
 
 // critically damped: it opens and closes in one smooth motion with no wobble at the end
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
+/** Opening: Apple's spring with a touch of bounce, as the Music player lands. */
+const OPEN = { ...apple(0.52, 0.08), restDelta: 0.001 };
+/** progress ranges over which the panel's solid colour and the content fade in */
+const SOLID = [0.3, 0.92];
+const SHOW = [0.18, 0.7];
 
 /** The live workout: a full-height card that rises over the page (which steps back behind it), like Apple Music's player. */
 export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | 'none' } }) {
@@ -39,39 +45,62 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
   const dragY = useMotionValue(0);
   const swipeV = useRef(0);
   useSwipeDown(dialogRef, dragY, (v) => { swipeV.current = v ?? 0; useUI.getState().pop(); }, { threshold: 130 });
-  // Presented like Apple Music's player: a full-height card rises from the bottom while the page behind steps back
-  // (smaller, rounded, dimmed) and stays visible as a sliver above it. One number (`p`, finger included in `eFinger`)
-  // drives the card, the page behind, the dim and the orb; drag down from anywhere to put it away. Only transforms
-  // move, so it is the cheapest possible animation and identical at 60 or 120 Hz.
+  // Presented like Apple Music's player: a frosted panel grows out of what you tapped — the resume bar above the tab bar or
+  // the workout card on Today — rising and widening to fill the screen, its frost turning into the window's own solid
+  // colour as it lands, while the content fades in and the page behind steps back and dims. Closing (a tap on the chevron
+  // or a drag down from anywhere) shrinks it back into the bar or card. One number (`p`, finger included in `eFinger`)
+  // drives all of it, and only transforms and opacity move.
   const H = typeof window !== 'undefined' ? window.innerHeight : 900;
+  const W = typeof window !== 'undefined' ? window.innerWidth : 400;
+  // where it grows from / shrinks back into: the resume bar, else Today's workout card, else the bottom edge
+  const originOf = () => {
+    const pick = (sel: string) => { const el = document.querySelector(sel); const r = el?.getBoundingClientRect(); return r && r.width > 40 && r.top > 0 && r.top < H ? r : null; };
+    const r = (props.origin === 'hero' ? pick('[data-wk="hero"]') : null) ?? pick('[data-wk="pill"]') ?? pick('[data-wk="hero"]');
+    return r ? { top: r.top, sx: Math.min(1, r.width / W) } : { top: H, sx: 1 };
+  };
+  const origin = useRef(originOf());
   const p = useMotionValue(0);
-  const dialogY = useTransform([p, dragY], ([pp, d]: number[]) => (1 - pp) * H + Math.max(0, d) + Math.min(0, d) * 0.15);
+  const dialogY = useTransform([p, dragY], ([pp, d]: number[]) => (1 - pp) * origin.current.top + Math.max(0, d) + Math.min(0, d) * 0.15);
+  const panelSx = useTransform(p, (pp) => origin.current.sx + (1 - origin.current.sx) * pp);
+  const solid = useTransform(p, (pp) => clamp01((pp - SOLID[0]) / (SOLID[1] - SOLID[0])));
+  const contentO = useTransform(p, (pp) => clamp01((pp - SHOW[0]) / (SHOW[1] - SHOW[0])));
   const eFinger = useTransform([p, dragY], ([pp, d]: number[]) => Math.min(1, Math.max(0, pp - Math.max(0, d) / H)));
   const engage = useMemo(() => ({ e: eFinger, shift: dialogY }), [eFinger, dialogY]);
-  const dim = useTransform(eFinger, (v) => clamp01(v / 0.6));
-  // square corners once it fills the screen (round ones showed the black behind them at the top), rounding back in over
-  // the first few percent of a drag or close
-  const radius = useTransform(eFinger, (v) => `${(38 * clamp01((1 - v) * 14)).toFixed(1)}px ${(38 * clamp01((1 - v) * 14)).toFixed(1)}px 0 0`);
   const depthId = useId();
   useEffect(() => trackDepth(depthId, eFinger), [depthId, eFinger]); // the page behind recedes with the card, frame for frame
   useEffect(() => trackCover(depthId, eFinger), [depthId, eFinger]); // and stops being drawn while the card covers it
-  // high refresh rate: card, dim and page behind also run by the browser on the identical spring (see mirrorSpring)
+  const panelRef = useRef<HTMLDivElement>(null), solidRef = useRef<HTMLDivElement>(null), contentRef = useRef<HTMLDivElement>(null);
+  // the content's fade is written straight to the element; the frost under the panel is switched off while it rests full
+  // screen (the solid colour covers it then, and a full-screen blur would be recomputed on every scroll for nothing)
+  useEffect(() => {
+    const show = (v: number) => { if (contentRef.current) contentRef.current.style.opacity = v >= 1 ? '' : String(v); };
+    const rest = (v: number) => dialogRef.current?.classList.toggle('rest', v >= 0.999);
+    show(contentO.get()); rest(eFinger.get());
+    const a = contentO.on('change', show), b = eFinger.on('change', rest);
+    return () => { a(); b(); };
+  }, [contentO, eFinger]);
+  // high refresh rate: card, panel, colour, content, dim and page behind also run by the browser on the identical spring
   const scrimRef = useRef<HTMLDivElement>(null);
   const mirror = useRef<Mirror | null>(null); if (!mirror.current) mirror.current = new Mirror();
-  const runMirror = (p0: number, p1: number, sp: typeof SURFACE, vel: number) => {
+  const runMirror = (p0: number, p1: number, sp: { stiffness: number; damping: number; mass?: number }, vel: number) => {
     const m = mirror.current!; m.cancel();
     if (reduce) return;
+    const o = origin.current;
+    const ramp = (r: number[]) => (pp: number) => ({ opacity: clamp01((pp - r[0]) / (r[1] - r[0])) });
     m.add(
-      mirrorProgress(dialogRef.current, p0, p1, sp, vel, (pp) => ({ transform: `translateY(${(1 - pp) * H}px)` })),
-      mirrorProgress(scrimRef.current, p0, p1, sp, vel, scrimFrame, [0.6]),
+      mirrorProgress(dialogRef.current, p0, p1, sp, vel, (pp) => ({ transform: `translateY(${(1 - pp) * o.top}px)` })),
+      mirrorProgress(panelRef.current, p0, p1, sp, vel, (pp) => ({ transform: `scaleX(${o.sx + (1 - o.sx) * pp})` })),
+      mirrorProgress(solidRef.current, p0, p1, sp, vel, ramp(SOLID), SOLID),
+      mirrorProgress(contentRef.current, p0, p1, sp, vel, ramp(SHOW), SHOW),
+      ...mirrorVeil(scrimRef.current, p0, p1, sp, vel, DIM_VEIL),
       mirrorStage(depthId, p0, p1, sp, vel),
     );
   };
   useEffect(() => { const off = dragY.on('change', () => mirror.current!.cancel()); return () => { off(); mirror.current!.cancel(); }; }, [dragY]);
   const [isPresent, safeToRemove] = usePresence();
   useEffect(() => {
-    const c = animate(p, 1, reduce ? { duration: 0.01 } : SURFACE);
-    runMirror(0, 1, SURFACE, 0);
+    const c = animate(p, 1, reduce ? { duration: 0.01 } : OPEN);
+    runMirror(0, 1, OPEN, 0);
     return () => c.stop();
     // eslint-disable-next-line
   }, []);
@@ -79,11 +108,14 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
   useEffect(() => {
     if (isPresent || closing.current) return;
     closing.current = true;
-    // the finger's offset becomes progress, then it carries on at the finger's speed
+    // the finger's offset becomes progress, then it carries on at the finger's speed — back into the bar or card it came from
     const v = swipeV.current || dragY.getVelocity();
-    p.set(eFinger.get()); dragY.set(0);
-    runMirror(p.get(), 0, SURFACE_EXIT, -v / H);
-    animate(p, 0, reduce ? { duration: 0.01 } : { ...SURFACE_EXIT, velocity: -v / H }).then(() => safeToRemove?.());
+    const e0 = eFinger.get();
+    origin.current = originOf();
+    p.set(e0); dragY.set(0);
+    const vel = -v / Math.max(120, origin.current.top);
+    runMirror(e0, 0, SURFACE_EXIT, vel);
+    animate(p, 0, reduce ? { duration: 0.01 } : { ...SURFACE_EXIT, velocity: vel }).then(() => safeToRemove?.());
     // eslint-disable-next-line
   }, [isPresent]);
   // the keyboard slides over the page (it no longer resizes it): the list gets that much more room at its end, so the last
@@ -170,15 +202,17 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
 
   return (
     <>
-      <motion.div ref={scrimRef} className="scrim" style={{ zIndex: z - 1, opacity: dim }} onClick={pop}><i /></motion.div>
+      <Veil e={eFinger} z={z - 1} onClick={pop} layers={DIM_VEIL} elRef={scrimRef} />
       <motion.div
         role="dialog" aria-modal="true" aria-label={t('Active workout')}
-        ref={dialogRef} data-hue="train" className="wk-card" style={{ zIndex: z, y: dialogY, borderRadius: radius }}
+        ref={dialogRef} data-hue="train" className="wk-card" style={{ zIndex: z, y: dialogY }}
       >
-        <div className="wk-window" style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column' }}>
-          <div aria-hidden style={{ position: 'absolute', inset: 0, background: 'var(--bg)' }}>
-            <div className="aurora-lite" />
-          </div>
+        {/* the surface: frosted glass while it grows, the window's own colour once it has landed */}
+        <motion.div ref={panelRef} className="wk-panel" aria-hidden style={{ scaleX: panelSx }}>
+          <i className="wk-frost" />
+          <motion.div ref={solidRef} className="wk-solid" style={{ opacity: solid }}><div className="aurora-lite" /></motion.div>
+        </motion.div>
+        <div ref={contentRef} className="wk-window" style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column' }}>
           <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, paddingTop: 'var(--sat)' }}>
           <div className="sheet-grab" style={{ position: 'relative', zIndex: 3 }} />
           {/* header */}

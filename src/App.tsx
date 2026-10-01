@@ -89,25 +89,24 @@ function useTheme() {
  * opening, under the finger while it is dragged, and as it leaves.
  */
 /**
- * The page switch. The new screen glides in from the side it comes from — a short 28 px slide on Apple's smooth spring,
- * growing from 98.5 % and fading up — while the old one steps back the other way and fades out quickly underneath it; its
- * blocks then rise in one after another (styles.css). No blur: blurring a whole screen made every switch pass through a
- * smudged, darker frame. With high refresh rate on, the slide is a whole `transform`, which the browser runs on its
- * compositor at the screen's full rate (`x`/`scale` are script-driven).
+ * The page switch: a calm crossfade. The screen you leave fades out quickly where it is; the new one fades up over it,
+ * rising the last 10 px into place on Apple's smooth spring. No sideways slide, no scaling, no blur and no card-by-card
+ * stagger — those read as busy ("weird") on a phone. With high refresh rate on, the rise is a whole `transform`, which the
+ * browser runs on its compositor at the screen's full rate (`y` is script-driven).
  */
 const PAGE_IN = apple(0.5);
-function pageSwitch(dir: number, hrr: boolean): Pick<HTMLMotionProps<'div'>, 'initial' | 'animate' | 'exit' | 'transition'> {
-  const fadeIn = { duration: 0.3, ease: [0.25, 0.1, 0.25, 1] as const };
-  const out = { duration: 0.2, ease: [0.4, 0, 1, 1] as const };
+function pageSwitch(hrr: boolean): Pick<HTMLMotionProps<'div'>, 'initial' | 'animate' | 'exit'> {
+  const fadeIn = { duration: 0.32, ease: [0.25, 0.1, 0.25, 1] as const };
+  const out = { duration: 0.16, ease: [0.4, 0, 1, 1] as const };
   if (!hrr) return {
-    initial: { opacity: 0, x: dir * 28, scale: 0.985 },
-    animate: { opacity: 1, x: 0, scale: 1, transition: { x: PAGE_IN, scale: PAGE_IN, opacity: fadeIn } },
-    exit: { opacity: 0, x: -dir * 18, scale: 0.985, transition: out },
+    initial: { opacity: 0, y: 10 },
+    animate: { opacity: 1, y: 0, transition: { y: PAGE_IN, opacity: fadeIn } },
+    exit: { opacity: 0, transition: out },
   };
   return {
-    initial: { opacity: 0, transform: `translateX(${dir * 28}px) scale(0.985)` },
-    animate: { opacity: 1, transform: 'translateX(0px) scale(1)', transitionEnd: { transform: 'none' }, transition: { transform: PAGE_IN, opacity: fadeIn } },
-    exit: { opacity: 0, transform: `translateX(${-dir * 18}px) scale(0.985)`, transition: out },
+    initial: { opacity: 0, transform: 'translateY(10px)' },
+    animate: { opacity: 1, transform: 'translateY(0px)', transitionEnd: { transform: 'none' }, transition: { transform: PAGE_IN, opacity: fadeIn } },
+    exit: { opacity: 0, transition: out },
   };
 }
 
@@ -161,7 +160,6 @@ function useKeyboard() {
 }
 
 const SCREENS = { today: TodayScreen, train: TrainScreen, food: FoodScreen, progress: ProgressScreen };
-const ORDER = ['today', 'train', 'food', 'progress'] as const;
 
 export function App() {
   useTheme();
@@ -171,11 +169,7 @@ export function App() {
   useStageDepth(appRef, stageRef);
   const t = useT();
   const tab = useUI((s) => s.tab);
-  // the page switch of the first version: the new screen slides in 36 px and fades up, the old one slides out the other way,
-  // fading and softly blurring (rebuilt per visit — two attempts to keep screens alive both changed how this felt)
-  const prev = useRef(tab);
-  const dir = ORDER.indexOf(tab) - ORDER.indexOf(prev.current);
-  useEffect(() => { prev.current = tab; }, [tab]);
+  // the page switch (pageSwitch above) — screens are rebuilt per visit (two attempts to keep them alive both changed how it felt)
   const Screen = SCREENS[tab];
   const hrr = useSyncExternalStore(onHighRefresh, highRefresh, () => true);
   // a running workout shows a resume bar above the tab bar on every tab but Today: the page makes room for it
@@ -209,7 +203,7 @@ export function App() {
           <div className="stage" ref={stageRef}>
           <div className="aurora" aria-hidden><i /><i /><i /></div>
           <AnimatePresence mode="popLayout" initial={false}>
-            <motion.div key={tab} className="tab-pane" data-active style={{ position: 'absolute', inset: 0 }} {...pageSwitch(dir, hrr)}>
+            <motion.div key={tab} className="tab-pane" data-active style={{ position: 'absolute', inset: 0 }} {...pageSwitch(hrr)}>
               <Screen />
             </motion.div>
           </AnimatePresence>

@@ -147,6 +147,14 @@ Run in headless Chromium (Playwright, 390×844 @2×, dark + light), scripts in `
 - **Snap your plate** (Gemini key): photo → per-item estimates (name, grams, kcal, macros) → choose items and portion (×0.5–×2) → logged as quick entries labelled "AI estimate" with the assumptions. Image is downscaled to 1024 px before sending. Wiring tested with a stubbed Gemini; real recognition quality is unverified.
 - **Home-screen shortcuts** (Android long-press on the installed icon): Log food, Dictate, Snap your plate, Log wrestling.
 
+## Apple Music pass
+
+- **Behind every popup** (`ui/Veil.tsx`): the dim and a soft blur follow the popup's own progress frame for frame — they deepen as it rises and fade as you pull it down (before, the dim reached full strength at 60 % and felt early). The blur grows gradually: two blur layers of fixed strength fade in one after the other, each with its own opacity.
+- **Orb screen**: its frost now builds up the same way (a light blur, then a deep one). The snap came from fading the whole screen: browsers switch a frosted layer's blur off while a parent of it is fading, then switch it on at the end.
+- **Live workout opens like Apple Music's player**: a frosted panel grows out of the resume bar (or the workout card on Today) — rising and widening to fill the screen, its frost turning into the window's solid colour as it lands, with a touch of bounce — and shrinks back into it when you close it or drag it down. Rounded corners on every edge. Transform and opacity only, browser-run with high refresh rate on.
+- **Tab switching** is a calm crossfade: the old screen fades out quickly, the new one fades up rising the last 10 px. No sideways slide, scaling or card-by-card stagger.
+- Pop-ups that grow out of a card hand over to the real card at the end instead of leaving an empty grey box on it.
+
 ## Dock and orb pass
 
 - **The dock moves like the first version, on the compositor**: the tab you pick opens up and shows its name, the other icons and the orb make room, and a drop of glass flows over to it, stretching on the way (front edge on a quicker spring, back edge on a calmer one) and gathering back into a capsule. The layout changes at once and every piece is slid from where it was drawn (FLIP) as browser animations of `transform`/`opacity` only (`ui/lens.ts`, `useDock` in `ui/TabBar.tsx`), so it runs at the screen's full refresh rate. The orb glides with the dock the same way (`orbGlide`).

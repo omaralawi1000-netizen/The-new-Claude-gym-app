@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence, motion, useTransform } from 'motion/react';
 import { useStore, allExercises } from '../state/store';
 import { useUI, buzz } from '../state/ui';
 import { useVoice } from '../state/voice';
@@ -16,6 +16,7 @@ import { dayKey } from '../lib/dates';
 import { uid } from '../lib/nutrition';
 import { SphereSlot, orbPress, orbTap } from '../ui/Sphere';
 import { useEngage } from '../ui/engage';
+import { Veil, VOICE_VEIL } from '../ui/Veil';
 import { Icon } from '../ui/Icon';
 import { SOFT, useOverlayZ } from '../ui/Sheet';
 import { ActionCard, Rich, Thinking, sttMessage } from '../ui/agentUi';
@@ -36,6 +37,8 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   const lang = useLang();
   const z = useOverlayZ(65);
   const eng = useEngage(); const engage = useMemo(() => ({ e: eng }), [eng]);
+  // the content comes up a beat after the frost has started, and leaves a beat before it
+  const contentO = useTransform(eng, (v) => Math.min(1, Math.max(0, (v - 0.12) / 0.6)));
   const exercises = useStore((s) => s.exercises);
   const pool = useMemo(() => allExercises(exercises), [exercises]);
   const phase = useVoice((v) => v.phase);
@@ -263,9 +266,11 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   const big = !showing && !thinking;
 
   return (
-    <motion.div className="voice" style={{ position: 'fixed', inset: 0, zIndex: z, display: 'flex', flexDirection: 'column' }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.28 }} role="dialog" aria-modal="true" aria-label={t('Dictation')}>
-      <div style={{ position: 'absolute', inset: 0, background: 'color-mix(in srgb, var(--bg) 78%, transparent)', WebkitBackdropFilter: 'blur(30px) saturate(1.4)', backdropFilter: 'blur(30px) saturate(1.4)' }} />
-      <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', padding: 'calc(var(--sat) + 12px) 18px 0' }}>
+    <div className="voice" style={{ position: 'fixed', inset: 0, zIndex: z, display: 'flex', flexDirection: 'column' }} role="dialog" aria-modal="true" aria-label={t('Dictation')}>
+      {/* The frost behind builds up gradually with the screen's progress (two blur layers fading in one after the other).
+          Nothing above it fades as a whole: a fading parent switched the blur off until the fade ended, then it snapped on. */}
+      <Veil e={eng} z={0} layers={VOICE_VEIL} className="veil-abs" />
+      <motion.div style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', padding: 'calc(var(--sat) + 12px) 18px 0', opacity: contentO }}>
         <div className="row-flex between">
           <button className="icon-btn press" aria-label={t('Close')} onClick={() => useUI.getState().pop()}><Icon name="close" /></button>
           <button className="chip press" onClick={() => useUI.getState().swap(1, 'coach')}><Icon name="sparkle" size={15} /> {t('Coach')}</button>
@@ -335,7 +340,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
             {engine === 'groq' ? (hasGemini ? t('Audio goes to Groq, text to Gemini. Aven stores nothing.') : t('Audio goes to Groq. Aven stores nothing.')) : supported ? t('Your browser transcribes this. Aven stores nothing.') : t('Nothing is recorded or sent anywhere.')}
           </div>
         </div>
-      </div>
-    </motion.div>
+      </motion.div>
+    </div>
   );
 }

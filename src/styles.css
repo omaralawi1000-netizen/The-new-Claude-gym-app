@@ -62,7 +62,7 @@
   --sh-a: 0 20px 44px -16px rgba(0,0,0,.65);
   --sh-f: 0 30px 80px -20px rgba(0,0,0,.8);
   --c-protein: #ff7a4a; --c-carbs: #5aa0ff; --c-fat: #d8b640; --c-water: #3fd3e6;
-  --scrim: rgba(2, 3, 8, 0.62);
+  --scrim: rgba(2, 3, 8, 0.5);
   --aurora-a: 0.55; --grain: 0.05;
 }
 :root[data-theme='light'] {
@@ -78,7 +78,7 @@
   --sh-a: 0 22px 44px -18px rgba(30,40,70,.3);
   --sh-f: 0 30px 70px -22px rgba(30,40,70,.42);
   --c-protein: #e4531c; --c-carbs: #2a7bd4; --c-fat: #a8860d; --c-water: #0e93a8;
-  --scrim: rgba(16, 20, 34, 0.38);
+  --scrim: rgba(16, 20, 34, 0.3);
   --ac-ink: #1a0d08;
   --aurora-a: 0.5; --grain: 0.035;
 }
@@ -136,7 +136,7 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
    every card on every frame of the field's drift — 36 fps standing still on Train and Progress. Real frost stays where
    something passes underneath: the tab bar, sheets, popups, toasts. */
 .screen .plinth, .screen .btn, .screen .icon-btn, .screen .chip, .screen .glass { -webkit-backdrop-filter: none; backdrop-filter: none; }
-.wk-window .aurora-lite::before { animation: none; }
+.wk-window .aurora-lite::before, .wk-solid .aurora-lite::before { animation: none; }
 .wk-window .plinth, .wk-window .btn, .wk-window .icon-btn, .wk-window .chip, .wk-window .plinth-2 { -webkit-backdrop-filter: none; backdrop-filter: none; }
 .wk-window .plinth { background: color-mix(in srgb, var(--s1) 100%, var(--bg) 22%); }
 .wk-window .btn:not(.primary):not(.ghost), .wk-window .icon-btn { background: color-mix(in srgb, var(--s3) 100%, var(--bg) 18%); }
@@ -157,7 +157,7 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
 .tabbar-wrap::before { content: ''; position: fixed; left: 0; right: 0; bottom: 0; height: calc(var(--sab) + 26px); z-index: -1; pointer-events: none; background: linear-gradient(to top, color-mix(in srgb, var(--bg) 88%, transparent), transparent); }
 .screen > * + * { margin-top: 22px; }
 /* every screen's blocks rise in, blurred → sharp, one after another */
-.screen > * { animation: rise-move 700ms var(--ease-out) backwards; animation-delay: calc(40ms + var(--i, 0) * 50ms); }
+/* (screens no longer rise in block by block on every tab switch: the page itself fades up as one — App.tsx) */
 .screen > :nth-child(1) { --i: 0; } .screen > :nth-child(2) { --i: 1; } .screen > :nth-child(3) { --i: 2; } .screen > :nth-child(4) { --i: 3; }
 .screen > :nth-child(5) { --i: 4; } .screen > :nth-child(6) { --i: 5; } .screen > :nth-child(7) { --i: 6; } .screen > :nth-child(n+8) { --i: 7; }
 /* Movement and blur are separate animations on purpose. The movement must NOT stay applied after it finishes (fill
@@ -276,13 +276,18 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .bar { height: 5px; border-radius: 99px; background: var(--s3); overflow: hidden; position: relative; }
 .bar > i { position: absolute; inset: 0 auto 0 0; border-radius: 99px; background: var(--ac); box-shadow: 0 0 14px var(--ac); transition: width 700ms var(--ease-out); }
 
-/* ── sheets: heavy frost; the page behind is dimmed AND blurred (the scrim fades in, blur with it) ─── */
-/* As on iOS: the page behind a popup only dims (darker than a plain veil, so the popup stands out); the popup itself is the
-   frosted glass. One blur per popup, sized to the popup, instead of a full-screen one. */
+/* ── behind popups: a dim and a soft blur that follow the popup's progress (ui/Veil.tsx) ─── */
+/* The blur builds up from two layers of fixed strength fading in one after the other (a light one, then a stronger one
+   over it), so it grows gradually instead of switching on. Each layer fades with its own opacity: a fading parent would
+   turn the blur off until the fade ends. */
 .scrim { position: fixed; inset: 0; z-index: 50; }
-.scrim > i { position: absolute; inset: 0; background: var(--scrim); }
-/* the full-screen workout covers the page, so it only dims (no blur to compute while it opens) */
-.scrim.flat { background: var(--scrim); -webkit-backdrop-filter: none; backdrop-filter: none; }
+.scrim > i { position: absolute; inset: 0; opacity: 0; will-change: opacity; pointer-events: none; }
+.veil-dim { background: var(--scrim); }
+.veil-blur-a { -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
+.veil-blur-b { -webkit-backdrop-filter: blur(9px) saturate(1.15); backdrop-filter: blur(9px) saturate(1.15); }
+.veil-blur-v1 { -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.veil-blur-v2 { -webkit-backdrop-filter: blur(26px) saturate(1.4); backdrop-filter: blur(26px) saturate(1.4); }
+.veil-tint { background: color-mix(in srgb, var(--bg) 74%, transparent); }
 /* morphing detail sheets get the same frosted material as ordinary sheets */
 .morph-sheet { background: var(--glass-2); -webkit-backdrop-filter: blur(40px) saturate(1.8); backdrop-filter: blur(40px) saturate(1.8); }
 .sheet {
@@ -422,7 +427,15 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 @keyframes flyHit { 30% { transform: scale(1.07); filter: brightness(1.25); } }
 
 /* the live workout card: full height below a sliver of the receded page, rounded top like an iOS sheet */
-.wk-card { position: fixed; left: 0; right: 0; bottom: 0; top: 0; display: flex; flex-direction: column; border-radius: var(--r-xl) var(--r-xl) 0 0; overflow: hidden; box-shadow: inset 0 1px 0 var(--hl), 0 -12px 40px -12px rgba(0,0,0,.5); will-change: transform; }
+.wk-card { position: fixed; inset: 0; display: flex; flex-direction: column; will-change: transform; }
+/* the live workout's surface (Apple Music's player): rounded on every corner like the screen, frosted while it grows,
+   its own solid colour once it has landed (Active.tsx) */
+.wk-panel { position: absolute; inset: 0; border-radius: var(--r-xl); overflow: hidden; transform-origin: 50% 0; will-change: transform;
+  box-shadow: 0 -10px 40px -14px rgba(0,0,0,.55); }
+.wk-panel::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; box-shadow: inset 0 1px 0 var(--hl), inset 0 0 0 1px var(--line); }
+.wk-frost { position: absolute; inset: 0; background: var(--glass-2); -webkit-backdrop-filter: blur(34px) saturate(1.7); backdrop-filter: blur(34px) saturate(1.7); }
+.wk-card.rest .wk-frost { display: none; }
+.wk-solid { position: absolute; inset: 0; background: var(--bg); will-change: opacity; }
 
 /* Settings pages: once a page has glided in, its rows and fields settle in one after another (transform + opacity only) */
 .settings-page > *, .settings-page > .stack > *, .settings-page .list > * { animation: rise-soft 520ms var(--ease-out) backwards; animation-delay: calc(60ms + var(--j, 0) * 32ms); }
@@ -435,3 +448,5 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .settings-page > .list, .settings-page > .stack { animation: none; }
 @keyframes rise-soft { from { opacity: 0; transform: translate3d(0, 10px, 0); } to { opacity: 1; transform: none; } }
 :root[data-motion='reduce'] .settings-page * { animation: none !important; }
+/* a veil inside its own overlay (the orb screen) rather than a page-level one */
+.scrim.veil-abs { position: absolute; }
