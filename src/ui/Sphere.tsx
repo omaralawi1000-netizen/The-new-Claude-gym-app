@@ -334,7 +334,7 @@ export function SphereStage() {
     // The orb has no motion of its own any more. Its place is the lowest slot (the tab bar) blended towards every
     // higher slot by that slot's `engage` (how far its popup is open). The popup, the page behind it and the orb all
     // read the same number in the same frame, so they stay in step while a popup opens, is dragged or leaves.
-    let px = NaN, py = NaN, ps = NaN, sentV = 0;
+    let px = NaN, py = NaN, ps = NaN, sentV = 0, lastDraw = 0;
     const tick = (now: number) => {
       if (!running) return;
       refreshColors(now);
@@ -371,6 +371,11 @@ export function SphereStage() {
       const still = Math.abs(X - px) < 0.05 && Math.abs(Y - py) < 0.05 && Math.abs(S - ps) < 0.05;
       px = X; py = Y; ps = S;
       if (top === 0 && still && useUI.getState().overlays.length > 0 && drawn) return;
+      // Parked and idle (the orb resting in the tab bar): its motion is a slow turn, so ~30 fps looks identical and frees the
+      // other half of the frames for the page. Anything moving, listening or thinking redraws every frame.
+      const calm = still && top === 0 && !reduced && (useVoice.getState().phase === 'idle') && drawn;
+      if (calm && now - lastDraw < 30) return;
+      lastDraw = now;
       renderer.resize(bucket, dpr);
       renderer.frame(now, bucket, reduced, colors);
       drawn = true;

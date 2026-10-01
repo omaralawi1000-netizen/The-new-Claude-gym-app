@@ -71,8 +71,10 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
   const engage = useMemo(() => ({ e: eFinger, shift: dialogY }), [eFinger, dialogY]);
   // what is inside the window fades up and settles as the window opens (and the reverse as it closes), tied to the
   // window's own progress, so it can never be early or late
-  const contentOpacity = useTransform(eFinger, (v) => (from ? clamp01((v - 0.22) / 0.45) : 1));
-  const contentY = useTransform(eFinger, (v) => (from ? 16 * (1 - clamp01((v - 0.22) / 0.7)) : 0));
+  // The content is pinned to the window's top edge while it grows (its header sits in the card's own place, like the card's
+  // title bar) instead of showing a slice of the finished layout through a small window.
+  const contentOpacity = useTransform(eFinger, (v) => (from ? clamp01((v - 0.12) / 0.4) : 1));
+  const contentY = useTransform(eFinger, (v) => (from ? (target.current?.top ?? 0) * (1 - clamp01(v)) : 0));
   const [isPresent, safeToRemove] = usePresence();
   useEffect(() => {
     const c = animate(from ? reveal : slide, 1, from || !reduce ? WK_SPRING : { duration: 0.01 });

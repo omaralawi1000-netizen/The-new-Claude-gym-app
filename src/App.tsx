@@ -67,14 +67,27 @@ function useStageDepth(app: React.RefObject<HTMLDivElement | null>, stage: React
   }, [app, stage]);
 }
 
-/** Keep sheets above the on-screen keyboard (iOS overlays it; Android resizes the viewport). */
+/**
+ * Keep sheets above the on-screen keyboard. The keyboard OVERLAYS the page (the page is never resized, so there is no
+ * black strip while the system draws it) and we move the sheets ourselves, springing along with it (`kb`).
+ * Chrome on Android reports the keyboard through navigator.virtualKeyboard; iOS overlays it and shrinks the visual
+ * viewport instead, so that is the fallback.
+ */
 function useKeyboard() {
   useEffect(() => {
+    const reduced = () => document.documentElement.dataset.motion === 'reduce';
+    const vk = (navigator as any).virtualKeyboard as { overlaysContent: boolean; boundingRect: DOMRect; addEventListener: Window['addEventListener']; removeEventListener: Window['removeEventListener'] } | undefined;
+    if (vk) {
+      try { vk.overlaysContent = true; } catch { /* ignore */ }
+      const upd = () => { const h = vk.boundingRect?.height ?? 0; setKeyboard(h > 80 ? h : 0, reduced()); };
+      vk.addEventListener('geometrychange', upd); upd();
+      return () => { vk.removeEventListener('geometrychange', upd); try { vk.overlaysContent = false; } catch { /* ignore */ } };
+    }
     const vv = window.visualViewport;
     if (!vv) return;
     const upd = () => {
       const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
-      setKeyboard(kb > 80 ? kb : 0, document.documentElement.dataset.motion === 'reduce');
+      setKeyboard(kb > 80 ? kb : 0, reduced());
     };
     vv.addEventListener('resize', upd); vv.addEventListener('scroll', upd); upd();
     return () => { vv.removeEventListener('resize', upd); vv.removeEventListener('scroll', upd); };

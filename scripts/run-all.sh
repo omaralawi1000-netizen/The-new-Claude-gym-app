@@ -15,6 +15,7 @@ run misc node scripts/journey-misc.mjs
 run lookup node scripts/journey-lookup.mjs
 run ai node scripts/journey-ai.mjs
 run new node scripts/journey-new.mjs
+run keyboard node scripts/journey-keyboard.mjs
 run robust node scripts/robust.mjs
 run interrupt node scripts/interrupt.mjs
 echo "passed=$pass failed=$fail"
