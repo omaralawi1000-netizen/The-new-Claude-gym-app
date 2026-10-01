@@ -11,9 +11,11 @@ import { useVoice } from '../state/voice';
 import { mic } from '../lib/mic';
 import { getKey } from '../lib/keys';
 import { transcribe, buildPrompt, STT_MODEL, SttError } from '../lib/groq';
-import { FALLBACK_MODELS, aiErrorText, aiRoutine, streamChat, withFallback, type Turn } from '../lib/gemini';
+import { AiError, FALLBACK_MODELS, aiAgent, aiErrorText, aiRoutine, type Turn } from '../lib/gemini';
 import { speak, stopSpeaking, onSpeaking, FALLBACK_TTS } from '../lib/tts';
-import { buildCoachContext, COACH_SYSTEM, exerciseNames, mapRoutineItems, profileLine } from '../lib/coachContext';
+import { AGENT_SYSTEM, APP_GUIDE, buildAgentContext, exerciseNames, mapRoutineItems, profileLine } from '../lib/coachContext';
+import { localActions, runActions, validateAgent, type AgentAction, type AgentResult } from '../lib/agent';
+import { mealName } from '../lib/derive';
 import type { RoutineDraft } from '../lib/aiValidate';
 import { uid } from '../lib/nutrition';
 import { dayKey } from '../lib/dates';
@@ -22,6 +24,7 @@ import type { Routine } from '../lib/types';
 type Msg =
   | { id: string; role: 'user' | 'model'; text: string; streaming?: boolean }
   | { id: string; role: 'error'; text: string }
+  | { id: string; role: 'action'; results: AgentResult[]; undone: string[]; confirmed: string[] }
   | { id: string; role: 'routine'; draft: RoutineDraft; items: Routine['items']; skipped: string[]; saved?: string };
 
 /**
@@ -57,7 +60,50 @@ function Thinking() {
   return <div className="thinking" aria-label="…">{[92, 78, 52].map((w, i) => <i key={i} style={{ width: `${w}%`, animationDelay: `${i * 160}ms, ${i * 70}ms` }} />)}</div>;
 }
 
-export function Coach() {
+
+
+/** Why speech-to-text failed, in words (never a stack trace). */
+function sttMessage(code: string, t: (k: string) => string): string {
+  return ({
+    nokey: t('Add your Groq key in Settings → Voice & AI.'), offline: t('You’re offline, so nothing was sent. Type it instead.'),
+    network: t('Couldn’t reach Groq. Try again, or type it.'), timeout: t('Groq took too long. Try again, or type it.'),
+    badkey: t('Groq rejected the key. Check it in Settings → Voice & AI.'), busy: t('Groq is rate-limiting right now. Wait a moment, then try again.'),
+  } as Record<string, string>)[code] ?? t('Groq couldn’t transcribe that. Try again, or type it.');
+}
+
+/** What the Coach just did, as a card: what was logged, one tap to undo — or the question it is waiting on. */
+function ActionCard({ r, undone, confirmed, onUndo, onConfirm }: { r: AgentResult; undone: boolean; confirmed: boolean; onUndo: () => void; onConfirm: () => void }) {
+  const t = useT();
+  const miss = r.kind === 'miss';
+  return (
+    <div className={`plinth action-card ${undone ? 'undone' : ''} ${miss ? 'miss' : ''}`} style={{ padding: '12px 14px 12px 12px' }}>
+      <div className="row-flex" style={{ gap: 10, alignItems: 'flex-start' }}>
+        <span className="action-ic" aria-hidden><Icon name={miss ? 'info' : r.pending && !confirmed ? 'info' : 'check'} size={16} sw={2.4} /></span>
+        <div className="grow">
+          <div className="small" style={{ fontWeight: 650 }}>{undone ? t('Undone') : confirmed ? t('Done') : r.title}</div>
+          {r.lines.length > 0 && (
+            <div style={{ marginTop: 6 }}>
+              {r.lines.map((l, i) => (
+                <div key={i} className="action-line row-flex between" style={{ gap: 10, padding: '5px 0', borderTop: i ? '1px solid var(--line)' : 'none', animationDelay: `${120 + i * 70}ms` }}>
+                  <span className="small trunc" style={{ color: l.warn ? 'var(--warn)' : 'var(--tx)' }}>{l.text}</span>
+                  {l.sub && <span className="xs t2 num" style={{ textAlign: 'right', flex: 'none', maxWidth: '62%' }}>{l.sub}</span>}
+                </div>
+              ))}
+            </div>
+          )}
+          {!undone && !confirmed && (r.button || r.undo) && (
+            <div className="row-flex" style={{ gap: 8, marginTop: 10 }}>
+              {r.button && <button className={`btn sm press ${r.pending ? 'primary' : ''}`} onClick={r.pending ? onConfirm : r.button.run}>{r.button.label}</button>}
+              {r.undo && !r.pending && <button className="btn sm ghost press" onClick={onUndo}><Icon name="undo" size={15} /> {t('Undo')}</button>}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function Coach({ props }: { props: { listen?: boolean; date?: string; mealId?: string } }) {
   const t = useT();
   const lang = useLang();
   const pop = useUI((u) => u.pop);
@@ -89,7 +135,89 @@ export function Coach() {
   const say = (m: Msg) => setMsgs((x) => [...x, m]);
   const orb = (p: 'idle' | 'listening' | 'processing' | 'confirmed' | 'error') => useVoice.getState().go(p);
   useEffect(() => () => { if (useVoice.getState().phase !== 'idle') useVoice.getState().go('idle'); }, []);
-  const patchLast = (f: (m: Msg) => Msg) => setMsgs((x) => x.map((m, i) => (i === x.length - 1 ? f(m) : m)));
+
+  const inputRef = useRef<HTMLInputElement>(null);
+  const autoClose = useRef(!!props.listen); // a command spoken from the orb slips away once it has been done
+  const recRef = useRef<() => void>(() => {});
+
+  /** The conversation so far as the model sees it (cards become a one-line note of what was done). */
+  const turnsFor = (text: string): Turn[] => {
+    const out: Turn[] = [];
+    const push = (role: 'user' | 'model', t: string) => { if (!t.trim()) return; const last = out[out.length - 1]; if (last && last.role === role) last.parts[0].text += `\n${t}`; else out.push({ role, parts: [{ text: t }] }); };
+    for (const m of msgsRef.current) {
+      if (m.role === 'user' || m.role === 'model') push(m.role, m.text);
+      else if (m.role === 'action') push('model', `(done: ${m.results.map((r) => `${r.title}${r.lines.length ? ` — ${r.lines.map((l) => `${l.text}${l.sub ? ` ${l.sub}` : ''}`).join(', ')}` : ''}`).join(' | ')})`);
+    }
+    push('user', text);
+    const tail = out.slice(-14);
+    return tail[0]?.role === 'model' ? tail.slice(1) : tail;
+  };
+
+  const undoLast = () => {
+    for (let i = msgsRef.current.length - 1; i >= 0; i--) {
+      const m = msgsRef.current[i];
+      if (m.role !== 'action') continue;
+      const r = [...m.results].reverse().find((x) => x.undo && !m.undone.includes(x.id) && !x.pending);
+      if (r) { r.undo!(); setMsgs((x) => x.map((y) => (y.id === m.id && y.role === 'action' ? { ...y, undone: [...y.undone, r.id] } : y))); return; }
+    }
+  };
+
+  /** One turn: the model (or, without Gemini, the local reader) says what to do; we do it; the cards show it. */
+  const agentTurn = async (text: string, signal: AbortSignal) => {
+    const st = useStore.getState();
+    const g = useAi.getState();
+    const today = dayKey(Date.now(), st.settings.dayStartHour);
+    const names = new Map(pool.map((e) => [e.id, e.name]));
+    const mealLabel = (id: string) => { const m = st.settings.meals.find((x) => x.id === id); return m ? mealName(m, lang) : id; };
+    const placeholder = uid('m');
+    say({ id: placeholder, role: 'model', text: '', streaming: true });
+    let reply = '', note = '';
+    let actions: AgentAction[] = [];
+    if (g.hasGemini) {
+      try {
+        const where = props.mealId || props.date ? `The user opened this from the Food tab${props.date ? ` (day ${props.date})` : ''}${props.mealId ? `, meal ${props.mealId}` : ''}: foods go there unless they say otherwise.` : 'The user opened this from the main screen.';
+        const system = `${AGENT_SYSTEM(lang)}\n\nGUIDE:\n${APP_GUIDE}\n\nWHERE THE USER IS: ${where}\n\nEXERCISE CATALOG (use these exact names): ${exerciseNames(pool).join(', ')}\n\nDATA (computed on this device just now):\n${buildAgentContext(st, today, (id) => names.get(id) ?? id, mealLabel)}`;
+        const raw = await aiAgent(system, turnsFor(text), { key: getKey('gemini'), models: models(true), signal });
+        const v = validateAgent(raw);
+        if (!v) throw new AiError('invalid');
+        reply = v.reply; actions = v.actions;
+      } catch (e: any) {
+        if (e?.code === 'aborted') throw e;
+        const local = localActions(text);
+        if (!local) throw e;
+        actions = local; note = t('Gemini wasn’t available, so I used the built-in reader.');
+      }
+    } else {
+      const local = localActions(text);
+      if (local) actions = local;
+      else reply = t('To chat or ask about the app I need a Gemini key (Settings → Voice & AI). I can still log what you tell me, like “200 g skyr” or “bench 80 for 8”.');
+    }
+    if (actions.some((a) => a.type === 'undo_last')) { undoLast(); actions = actions.filter((a) => a.type !== 'undo_last'); if (!actions.length && !reply) reply = t('Undone.'); }
+    const results = actions.length ? await runActions(actions, { t, lang, today, brain: g.hasGemini ? { key: getKey('gemini'), models: models(false), signal } : null, date: props.date, mealId: props.mealId }) : [];
+    if (!alive.current) return;
+    const said = [reply, note].filter(Boolean).join('\n\n');
+    setMsgs((x) => {
+      const base = x.filter((m) => m.id !== placeholder);
+      const add: Msg[] = [];
+      if (results.length) add.push({ id: uid('m'), role: 'action', results, undone: [], confirmed: [] });
+      if (said) add.push({ id: uid('m'), role: 'model', text: said });
+      return [...base, ...add];
+    });
+    if (results.some((r) => r.kind !== 'miss' && r.kind !== 'nav')) buzz([12, 40, 18] as any);
+    if (reply && useAi.getState().speak) speakOut(reply);
+    orb('confirmed'); setTimeout(() => { if (useVoice.getState().phase === 'confirmed') orb('idle'); }, 1200);
+    // said out loud from the orb and nothing to read: show the result for a moment, then step aside with an Undo toast
+    const quick = results.length > 0 && results.every((r) => ['food', 'sets', 'water', 'weight', 'activity'].includes(r.kind) && !r.pending);
+    if (autoClose.current && quick && !reply.trim()) {
+      autoClose.current = false;
+      setTimeout(() => {
+        if (!alive.current) return;
+        const undoable = results.filter((r) => r.undo);
+        useUI.getState().toast(results.map((r) => r.title).join(' · '), { tone: 'ok', actionLabel: undoable.length ? t('Undo') : undefined, onAction: () => undoable.forEach((r) => r.undo!()) });
+        pop();
+      }, 1700);
+    } else autoClose.current = false;
+  };
 
   const send = async (raw?: string) => {
     const text = (raw ?? input).trim();
@@ -107,18 +235,7 @@ export function Coach() {
         if (items.length < 2) throw Object.assign(new Error('few'), { few: true });
         say({ id: uid('m'), role: 'routine', draft, items, skipped });
       } else {
-        const st = useStore.getState();
-        const names = new Map(pool.map((e) => [e.id, e.name]));
-        const system = `${COACH_SYSTEM(lang)}\n\nDATA (computed on this device just now):\n${buildCoachContext(st, dayKey(Date.now(), st.settings.dayStartHour), (id) => names.get(id) ?? id)}`;
-        const history: Turn[] = [...msgsRef.current, { id: '', role: 'user' as const, text }]
-          .filter((m): m is Extract<Msg, { role: 'user' | 'model' }> => m.role === 'user' || m.role === 'model').slice(-12)
-          .map((m) => ({ role: m.role, parts: [{ text: m.text }] }));
-        say({ id: uid('m'), role: 'model', text: '', streaming: true });
-        const full = await withFallback(models(true), (model) => streamChat({ key, model, system, contents: history, signal, onText: (tx) => alive.current && patchLast((m) => (m.role === 'model' ? { ...m, text: tx } : m)) }));
-        if (!alive.current) return;
-        patchLast((m) => (m.role === 'model' ? { ...m, text: full, streaming: false } : m));
-        if (useAi.getState().speak) speakOut(full);
-        orb('confirmed'); setTimeout(() => { if (useVoice.getState().phase === 'confirmed') orb('idle'); }, 1200);
+        await agentTurn(text, signal);
       }
     } catch (e: any) {
       if (!alive.current) return;
@@ -148,7 +265,7 @@ export function Coach() {
         const out = (await transcribe(blob, { key: getKey('groq'), model: STT_MODEL[st.stt], language: st.voiceLang === 'auto' ? 'auto' : st.voiceLang, prompt: buildPrompt([]) })).trim();
         if (!alive.current) return;
         if (out) send(out); else say({ id: uid('m'), role: 'error', text: t('Didn’t catch anything. Try again.') });
-      } catch (e) { if (alive.current) say({ id: uid('m'), role: 'error', text: e instanceof SttError && e.code === 'badkey' ? t('Groq rejected the key. Check it in Settings → Voice & AI.') : e instanceof SttError && e.code === 'offline' ? t('You’re offline.') : t('Couldn’t transcribe that. Try again, or type it.') }); }
+      } catch (e) { if (alive.current) say({ id: uid('m'), role: 'error', text: sttMessage(e instanceof SttError ? e.code : 'failed', t) }); }
       finally { if (alive.current) setHearing(false); }
       return;
     }
@@ -157,6 +274,26 @@ export function Coach() {
     if (!r.ok || !mic.startRecording('coach')) { mic.release('coach'); say({ id: uid('m'), role: 'error', text: r.ok ? t('This browser can’t record audio.') : t('The microphone isn’t available. Check the permission, or type.') }); return; }
     setRecording(true); orb('listening');
   };
+
+  recRef.current = toggleRec;
+  // opened from the orb: start listening straight away (or, without speech-to-text, open the keyboard)
+  useEffect(() => {
+    if (!props.listen) return;
+    const id = setTimeout(() => { if (!alive.current) return; if (useAi.getState().hasGroq && mic.supported) recRef.current(); else inputRef.current?.focus(); }, 420);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line
+  }, []);
+  // stop by itself once you have spoken and gone quiet
+  useEffect(() => {
+    if (!recording) return;
+    let heard = 0, quiet = 0; const t0 = performance.now();
+    const id = setInterval(() => {
+      const lv = mic.level();
+      if (lv > 0.16) { heard += 80; quiet = 0; } else if (lv < 0.09) quiet += 80;
+      if ((heard >= 240 && quiet >= 1400) || performance.now() - t0 > 40000) { clearInterval(id); recRef.current(); }
+    }, 80);
+    return () => clearInterval(id);
+  }, [recording]);
 
   const saveRoutine = (id: string) => {
     const m = msgs.find((x) => x.id === id);
@@ -170,11 +307,11 @@ export function Coach() {
   };
 
   const noKey = !ai.hasGemini;
-  const chips = [t('How is my week going?'), t('Am I eating enough protein?'), t('What should I train next?'), t('Is my weight moving the right way?')];
+  const chips = [t('Log a banana'), t('Bench press 80 kg for 8, 8, 6'), t('How is my week going?'), t('How do I change the theme?')];
   const nameOf = (id: string) => pool.find((e) => e.id === id)?.name ?? id;
 
   return (
-    <Sheet onClose={pop} tall label={t('Coach')} z={100} foot={noKey ? undefined : (
+    <Sheet onClose={pop} tall label={t('Coach')} z={100} foot={(
       <div>
         <div className="row-flex" style={{ gap: 8 }}>
           {/* the orb is the Coach's microphone: it flies in from the tab bar, listens to you, thinks while it answers */}
@@ -182,7 +319,7 @@ export function Coach() {
             style={{ position: 'relative', width: 50, height: 50, flex: 'none', borderRadius: 999, boxShadow: recording ? '0 0 0 2px var(--ac), 0 0 24px -4px var(--ac)' : 'none', transition: 'box-shadow .3s' }}>
             <SphereSlot id="coach" priority={5} style={{ position: 'absolute', inset: -4 }} />
           </button>
-          <input className="input grow" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
+          <input ref={inputRef} className="input grow" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
             placeholder={recording ? t('Listening… tap the mic to send') : hearing ? t('Transcribing…') : routineMode ? t('Describe the routine you want') : t('Ask the Coach')} aria-label={t('Message the Coach')} disabled={recording || hearing} />
           {busy ? <button className="btn press" onClick={() => ctl.current?.abort()}>{t('Stop')}</button> : <button className="btn primary press" disabled={!input.trim()} onClick={() => send()}>{routineMode ? t('Build') : t('Send')}</button>}
         </div>
@@ -194,17 +331,11 @@ export function Coach() {
     )}>
       <SheetHead title={t('Coach')} onClose={pop} right={msgs.length ? <button className="small t2 press" onClick={() => { ctl.current?.abort(); stopSpeaking(); setMsgs([]); }}>{t('Clear')}</button> : undefined} />
       <div className="sheet-body">
-        {noKey ? (
-          <div className="stack gap12" style={{ textAlign: 'center', padding: '24px 6px' }}>
-            <div className="display display-sm">{t('The Coach needs a Gemini key')}</div>
-            <div className="small t2">{t('Add a free Gemini key and the Coach can answer from your own training, food and weight records. Everything else in Aven works without it.')}</div>
-            <button className="btn primary press" onClick={() => push('settings', { section: 'ai' })}><Icon name="sparkle" size={18} /> {t('Add a key')}</button>
-          </div>
-        ) : (
           <>
             {msgs.length === 0 && (
               <div className="stack gap12">
-                <div className="small t2"><Words k="intro" text={t('Ask anything about your training, food or weight. I only see a short summary computed on your device — I can advise, but I never change your data.')} /></div>
+                <div className="small t2"><Words k="intro" text={t('Tell me what you ate or lifted, ask about your training or the app, or ask me to do something. I log it for you — and every change has an Undo.')} /></div>
+                {noKey && <div className="small" style={{ color: 'var(--warn)' }}>{t('Without a Gemini key I can still log simple things, but not chat. Add one in Settings → Voice & AI.')} <button className="chip sm acc press" style={{ marginLeft: 6 }} onClick={() => push('settings', { section: 'ai' })}>{t('Add a key')}</button></div>}
                 <div className="chips" style={{ margin: 0, padding: 0, flexWrap: 'wrap' }}>{chips.map((c) => <button key={c} className="chip press" onClick={() => send(c)}>{c}</button>)}</div>
               </div>
             )}
@@ -217,6 +348,15 @@ export function Coach() {
                   style={{ transformOrigin: m.role === 'user' ? '100% 100%' : '0% 0%', alignSelf: m.role === 'user' ? 'flex-end' : 'stretch', maxWidth: m.role === 'user' ? '86%' : '100%' }}>
                   {m.role === 'user' && <div className="plinth-2 sent" style={{ padding: '10px 14px', borderRadius: 18 }}>{m.text}</div>}
                   {m.role === 'model' && <div className="small" style={{ lineHeight: 1.5 }} aria-live="polite">{m.text ? <Rich text={m.text} /> : <Thinking />}{m.streaming && m.text && <span className="caret" aria-hidden />}</div>}
+                  {m.role === 'action' && (
+                    <div className="stack gap8">
+                      {m.results.map((r) => (
+                        <ActionCard key={r.id} r={r} undone={m.undone.includes(r.id)} confirmed={m.confirmed.includes(r.id)}
+                          onUndo={() => { r.undo?.(); buzz(8); setMsgs((x) => x.map((y) => (y.id === m.id && y.role === 'action' ? { ...y, undone: [...y.undone, r.id] } : y))); }}
+                          onConfirm={() => { r.button?.run(); buzz(14); setMsgs((x) => x.map((y) => (y.id === m.id && y.role === 'action' ? { ...y, confirmed: [...y.confirmed, r.id] } : y))); }} />
+                      ))}
+                    </div>
+                  )}
                   {m.role === 'error' && <div className="plinth-2 small" role="alert" style={{ padding: '10px 14px', color: 'var(--bad)' }}>{m.text}</div>}
                   {m.role === 'routine' && (
                     <div className="plinth" style={{ padding: 14 }}>
@@ -238,7 +378,6 @@ export function Coach() {
             <div className="xs t3" style={{ marginTop: 18 }}>{t('The Coach is an AI and can be wrong. It isn’t medical advice. Your messages and a summary of your records are sent to Google Gemini.')}</div>
             <div ref={endRef} />
           </>
-        )}
       </div>
     </Sheet>
   );

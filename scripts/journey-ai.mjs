@@ -4,7 +4,7 @@ import { launch, wait, skipOnboarding } from './lib.mjs';
 import assert from 'node:assert/strict';
 const { b, p, errors } = await launch({});
 const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' };
-const calls = { groq: 0, groqModels: 0, gen: [], stream: 0, tts: 0 };
+const calls = { groq: 0, groqModels: 0, gen: [], stream: 0, tts: 0, agent: 0, lastSystem: '' };
 let groqMode = 'ok'; // ok | 401 | down
 let groqText = 'to hundrede gram skyr, en banan og zzzxq';
 await p.route('https://api.groq.com/**', async (r) => {
@@ -32,6 +32,20 @@ await p.route('https://generativelanguage.googleapis.com/**', async (r) => {
     const sse = (t) => `data: ${JSON.stringify({ candidates: [{ content: { parts: [{ text: t }] } }] })}\n\n`;
     return r.fulfill({ status: 200, headers: { ...cors, 'content-type': 'text/event-stream' }, body: sse('You trained **3 times** this week. ') + sse('Keep going:\n- add 2.5 kg to bench\n- eat more protein') });
   }
+  const schemaProps = body.generationConfig?.responseSchema?.properties || {};
+  if (schemaProps.actions) { // the Coach agent: answer by what the last user turn says
+    calls.agent++;
+    const last = [...(body.contents || [])].reverse().find((c) => c.role === 'user')?.parts?.[0]?.text ?? '';
+    calls.lastSystem = body.systemInstruction?.parts?.[0]?.text ?? '';
+    const out = (o) => r.fulfill(cand(o));
+    if (/zzzxq/i.test(last)) return out({ reply: '', actions: [{ type: 'log_food', foods: [{ name: 'skyr', amount: 200, unit: 'g' }, { name: 'banana', amount: 1, unit: 'piece' }, { name: 'zzzxq', amount: 1, unit: 'piece' }] }] });
+    if (/bench/i.test(last)) return out({ reply: 'Nice, steady work.', actions: [{ type: 'log_sets', exercises: [{ exercise: 'Barbell Bench Press', sets: [{ kg: 100, reps: 8 }, { kg: 100, reps: 8 }, { kg: 100, reps: 6 }] }] }] });
+    if (/light mode/i.test(last)) return out({ reply: '', actions: [{ type: 'set_setting', key: 'theme', value: 'light' }] });
+    if (/how do i change the theme/i.test(last)) return out({ reply: 'Settings → Appearance → Theme. Or say the word and I will switch it.', actions: [] });
+    if (/undo that/i.test(last)) return out({ reply: '', actions: [{ type: 'undo_last' }] });
+    if (/open progress/i.test(last)) return out({ reply: '', actions: [{ type: 'navigate', screen: 'progress' }] });
+    return out({ reply: 'You trained **3 times** this week.\nKeep going:\n- add 2.5 kg to bench', actions: [] });
+  }
   calls.gen.push(prompt.slice(0, 40));
   if (prompt.includes('Transcript:')) return r.fulfill(cand({ items: [{ name: 'skyr', amount: 200, unit: 'g' }, { name: 'banan', amount: 1, unit: 'piece' }, { name: 'zzzxq', amount: 1, unit: 'piece' }] }));
   if (prompt.startsWith('Food:')) return r.fulfill(cand({ name: 'Homemade zzzxq', grams: 300, kcal: 480, protein: 24, carbs: 50, fat: 20, assumptions: 'one medium portion, mixed ingredients' }));
@@ -42,9 +56,15 @@ await p.route('https://generativelanguage.googleapis.com/**', async (r) => {
 await p.goto('http://127.0.0.1:5173/'); await wait(p, 900); await skipOnboarding(p);
 
 // ── no keys: honest, still works ──
-await p.getByLabel('Coach').click(); await wait(p, 600);
-assert(await p.getByText('The Coach needs a Gemini key').isVisible(), 'coach explains it needs a key');
+await p.getByLabel('Coach').click(); await wait(p, 700);
+assert(await p.getByText(/Without a Gemini key I can still log simple things/).isVisible(), 'coach says what works without a key');
 await p.screenshot({ path: 'shots/ai-1-coach-nokey.png' });
+// simple logging still works through the built-in reader (no Gemini, no Groq)
+await p.getByLabel('Message the Coach').fill('200 g skyr'); await p.getByRole('button', { name: 'Send', exact: true }).click(); await wait(p, 1800);
+assert(await p.getByText(/Logged to/).first().isVisible(), 'logged without any key');
+await p.getByRole('button', { name: 'Undo' }).last().click(); await wait(p, 600);
+assert(await p.getByText('Undone', { exact: true }).isVisible(), 'undo from the card');
+await p.getByRole('button', { name: 'Clear' }).click(); await wait(p, 500);
 await p.getByRole('button', { name: 'Add a key' }).click(); await wait(p, 700);
 assert(await p.getByText('Groq key — hears you (Whisper)').isVisible(), 'coach → Settings → Voice & AI');
 
@@ -62,56 +82,69 @@ const idb = await p.evaluate(async () => { try { const dbs = await indexedDB.dat
 console.log('storage keys', Object.keys(leak), 'idb', idb);
 await p.keyboard.press('Escape'); await wait(p, 500); await p.keyboard.press('Escape'); await wait(p, 500);
 
-// ── dictation: record → Groq → Gemini → review → AI estimate → log ──
+// ── say it to the orb: record → Groq → the Coach acts (no review screen) → AI estimate for the unknown → Undo ──
 await p.getByRole('button', { name: 'Dictate' }).first().click(); await wait(p, 1500);
-assert(await p.getByText('Recording', { exact: true }).isVisible(), 'recording state (real fake-mic stream)');
 await p.screenshot({ path: 'shots/ai-3-recording.png' });
 await wait(p, 1800);
-await p.getByRole('button', { name: 'Done speaking' }).click(); await wait(p, 2500);
-if (calls.groq !== 1) console.log('DEBUG', await p.locator('.voice').innerText());
+await p.getByRole('button', { name: 'Stop and send' }).click(); await p.locator('.action-card').first().waitFor({ timeout: 12000 }); await wait(p, 500);
 assert.equal(calls.groq, 1, 'one transcription request');
-assert(await p.getByText(/Heard by Groq · understood by Gemini/i).isVisible(), 'review says who did what');
-assert(await p.getByText('“to hundrede gram skyr, en banan og zzzxq”').isVisible(), 'transcript shown');
-assert(await p.getByText('Which “skyr”?').isVisible(), 'ambiguous skyr still needs a human choice');
-await p.screenshot({ path: 'shots/ai-4-review.png' });
-const btn = p.getByRole('button', { name: 'Estimate with Gemini' });
-assert(await btn.isVisible(), 'unmatched row offers an estimate');
-await btn.click(); await wait(p, 1200);
-assert(await p.getByText('~ Homemade zzzxq').isVisible(), 'estimate shown with ~');
-assert(await p.getByText(/Not exact/).isVisible());
-// resolve skyr by tapping the first candidate
-await p.getByText('Which “skyr”?').locator('xpath=following-sibling::div').locator('button').first().click(); await wait(p, 500);
-await p.screenshot({ path: 'shots/ai-5-estimate.png' });
-const log = p.getByRole('button', { name: /Log 3 items/ });
-assert(await log.isEnabled(), 'ready once ambiguity is resolved by the user'); await log.click(); await wait(p, 1500);
-await p.locator('.tabbar').getByRole('button', { name: 'Food', exact: true }).click(); await wait(p, 700);
-assert(await p.getByText('Homemade zzzxq (AI estimate)').first().isVisible(), 'estimate logged as labelled quick entry');
+assert(calls.agent >= 1, 'the Coach was asked once');
+assert(/GUIDE:/.test(calls.lastSystem) && /DATA \(computed on this device/.test(calls.lastSystem), 'the Coach is given the app guide and the live data');
+assert(await p.locator('.action-card').getByText(/Logged to/).first().isVisible(), 'logged straight away, no review step');
+assert(await p.locator('.action-card').getByText('Homemade zzzxq').first().isVisible(), 'the unknown food became a labelled AI estimate');
+await p.screenshot({ path: 'shots/ai-4-logged.png' });
+await wait(p, 2600); // a spoken quick log slips away on its own, leaving an Undo toast
+assert.equal(await p.getByRole('dialog', { name: 'Coach' }).count(), 0, 'the Coach stepped aside after a quick log');
+await p.locator('.tabbar').getByRole('button', { name: 'Food', exact: true }).click(); await wait(p, 900);
+assert(await p.getByText('Homemade zzzxq (AI estimate)').first().isVisible(), 'estimate logged as a labelled quick entry');
 await p.screenshot({ path: 'shots/ai-6-logged.png' });
 
-// ── failure: Groq 401, then offline-ish; recording kept for retry; Gemini down → built-in parser ──
+// ── failures: Groq 401 / down are explained in the chat; Gemini down → the built-in reader still logs ──
 groqMode = '401';
-await p.getByRole('button', { name: 'Dictate' }).first().click(); await wait(p, 1500); await wait(p, 1500);
-await p.getByRole('button', { name: 'Done speaking' }).click(); await wait(p, 1500);
-assert(await p.getByText(/Groq rejected the key/).isVisible(), '401 explained'); 
+await p.locator('.tabbar').getByRole('button', { name: 'Today', exact: true }).click(); await wait(p, 600);
+await p.getByRole('button', { name: 'Dictate' }).first().click(); await wait(p, 1800);
+await p.getByRole('button', { name: 'Stop and send' }).click(); await wait(p, 1500);
+assert(await p.getByText(/Groq rejected the key/).isVisible(), '401 explained');
 await p.screenshot({ path: 'shots/ai-7-groq-401.png' });
-await p.keyboard.press('Escape'); await wait(p, 600);
+await p.keyboard.press('Escape'); await wait(p, 700);
 groqMode = 'down';
-await p.getByRole('button', { name: 'Dictate' }).first().click(); await wait(p, 3000);
-await p.getByRole('button', { name: 'Done speaking' }).click(); await wait(p, 2500);
-assert(await p.getByText(/Couldn’t reach Groq/).isVisible(), 'network failure explained');
-groqMode = 'ok'; groqText = '150 gram ris'; geminiDown = true;
-await p.getByRole('button', { name: 'Retry transcription' }).click(); await p.getByText(/Heard by Groq/).waitFor({ timeout: 25000 }).catch(async () => { console.log('DEBUG', await p.locator('.voice').innerText()); await p.screenshot({ path: 'shots/dbg.png' }); throw new Error('no review'); }); await wait(p, 400);
-assert(await p.getByText(/Heard by Groq · understood on this device/i).isVisible(), 'retried from the SAME recording; Gemini down → built-in parser, said so');
-assert(await p.getByText(/Gemini is busy|Gemini failed/).isVisible(), 'reason shown');
+await p.getByRole('button', { name: 'Dictate' }).first().click(); await wait(p, 1800);
+await p.getByRole('button', { name: 'Stop and send' }).click(); await wait(p, 2500);
+assert(await p.getByText(/Couldn’t reach Groq|offline/).first().isVisible(), 'network failure explained');
+await p.keyboard.press('Escape'); await wait(p, 1100);
+geminiDown = true;
+await p.getByLabel('Coach').click(); await wait(p, 700);
+await p.getByLabel('Message the Coach').fill('150 gram ris'); await p.getByRole('button', { name: 'Send', exact: true }).click(); await wait(p, 2200);
+assert(await p.getByText(/Gemini wasn’t available, so I used the built-in reader/).isVisible(), 'Gemini down → built-in reader, said so');
+assert(await p.getByText(/Logged to/).first().isVisible());
 await p.screenshot({ path: 'shots/ai-8-fallback.png' });
-await p.keyboard.press('Escape'); await wait(p, 600); geminiDown = false;
+await p.keyboard.press('Escape'); await wait(p, 1100); geminiDown = false;
+groqMode = 'ok';
+
+// ── the Coach acts: sets, settings, navigation, undo, and answers about the app ──
+await p.getByLabel('Coach').click(); await wait(p, 700);
+await p.getByLabel('Message the Coach').fill('bench press 100 kilos for 8, 8 and 6'); await p.getByRole('button', { name: 'Send', exact: true }).click(); await wait(p, 2000);
+assert(await p.getByText('Logged 3 sets').isVisible(), 'sets logged from a sentence');
+const st1 = await p.evaluate(() => JSON.parse(localStorage.getItem('aven.v1') || '{}').active);
+assert(st1 && st1.exercises.length === 1, 'a workout was started for them');
+await p.getByLabel('Message the Coach').fill('undo that'); await p.getByRole('button', { name: 'Send', exact: true }).click(); await wait(p, 1800);
+assert(await p.getByText('Undone', { exact: true }).first().isVisible(), 'undo by voice/text');
+await p.getByLabel('Message the Coach').fill('switch to light mode'); await p.getByRole('button', { name: 'Send', exact: true }).click(); await wait(p, 1800);
+assert.equal(await p.evaluate(() => document.documentElement.dataset.theme), 'light', 'theme changed by asking');
+await p.getByRole('button', { name: 'Undo' }).last().click(); await wait(p, 700);
+assert.equal(await p.evaluate(() => document.documentElement.dataset.theme), 'dark', 'and undone');
+await p.getByLabel('Message the Coach').fill('how do I change the theme?'); await p.getByRole('button', { name: 'Send', exact: true }).click(); await wait(p, 2000);
+assert(await p.getByText(/Settings → Appearance/).isVisible(), 'app question answered from the guide');
+await p.screenshot({ path: 'shots/ai-9-coach.png' });
+await p.getByLabel('Message the Coach').fill('open progress'); await p.getByRole('button', { name: 'Send', exact: true }).click(); await wait(p, 2600);
+assert(await p.locator('.tabbar').getByRole('button', { name: 'Progress', exact: true }).getAttribute('aria-current') === 'page', 'navigated by asking');
+await p.getByLabel('Coach').click().catch(() => {}); await wait(p, 700);
 
 // ── coach: streaming grounded answer, then routine preview → explicit create ──
 await p.locator('.tabbar').getByRole('button', { name: 'Today', exact: true }).click(); await wait(p, 500);
 await p.getByLabel('Coach').click(); await wait(p, 600);
-await p.getByRole('button', { name: 'How is my week going?' }).click(); await wait(p, 1800);
-assert(await p.getByText('3 times').isVisible(), 'streamed answer rendered'); assert(calls.stream === 1);
-assert(/DATA \(computed on this device/.test(calls.lastSystem) === false || true);
+await p.getByRole('button', { name: 'How is my week going?' }).click(); await wait(p, 2000);
+assert(await p.getByText('3 times').isVisible(), 'answer rendered');
 await p.screenshot({ path: 'shots/ai-9-coach.png' });
 await p.getByRole('button', { name: 'Build a routine' }).click();
 await p.getByLabel('Message the Coach').fill('a push day with 4 exercises'); await p.getByRole('button', { name: 'Build', exact: true }).click(); await wait(p, 1500);
@@ -128,6 +161,6 @@ assert(await p.getByText('Push day').first().isVisible(), 'routine exists in the
 
 // ── Danish ──
 await p.getByLabel('Settings').click().catch(() => {});
-console.log('calls', JSON.stringify({ groq: calls.groq, gen: calls.gen.length, stream: calls.stream }));
+console.log('calls', JSON.stringify({ groq: calls.groq, gen: calls.gen.length, agent: calls.agent }));
 console.log('errors', errors.filter((e) => !/Failed to load resource|ERR_FAILED/.test(e)).length);
 await b.close(); process.exit(0);

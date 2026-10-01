@@ -2,7 +2,6 @@ import { AnimatePresence } from 'motion/react';
 import { OverlayZ } from '../ui/Sheet';
 import { useUI } from '../state/ui';
 import { ActiveWorkout } from './workout/Active';
-import { VoiceComposer } from './Voice';
 import { SettingsSheet } from './Settings';
 import { FoodSearch } from './food/Search';
 import { FoodDetail } from './food/Detail';
@@ -29,7 +28,6 @@ export function Overlays() {
         const p = o.props ?? {};
         const el = (() => { switch (o.type) {
           case 'workout': return <ActiveWorkout key={o.id} props={p} />;
-          case 'voice': return <VoiceComposer key={o.id} props={p} />;
           case 'settings': return <SettingsSheet key={o.id} props={p} />;
           case 'foodSearch': return <FoodSearch key={o.id} props={p} />;
           case 'foodDetail': return <FoodDetail key={o.id} props={p} />;
@@ -57,7 +55,7 @@ export function Overlays() {
           case 'measure': return <MeasureSheet key={o.id} />;
           case 'photos': return <PhotosSheet key={o.id} />;
           case 'photoFood': return <PhotoFood key={o.id} props={p} />;
-          case 'coach': return <Coach key={o.id} />;
+          case 'coach': return <Coach key={o.id} props={p} />;
           case 'onboarding': return <Onboarding key={o.id} props={p} />;
           default: return null;
         } })();

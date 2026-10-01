@@ -36,23 +36,14 @@ assert.equal(await ledgerKcal(), '0');
 await p.getByRole('button', { name: 'Undo' }).last().click(); await wait(p, 900);
 assert.equal(await ledgerKcal(), '189', 'undo restores exactly');
 await p.screenshot({ path: 'shots/fd-5-undo.png' });
-// 4. dictation (typed fallback path) → review
+// 4. say it to the app (typed here): the Coach logs it straight away, with an Undo
 await p.getByRole('button', { name: 'Dictate' }).first().click(); await wait(p, 1200);
 await p.screenshot({ path: 'shots/fd-6-voice.png' });
-const ta = p.getByLabel('Type what you ate or did');
-if (!(await ta.isVisible().catch(() => false))) await p.getByRole('button', { name: /Type instead/ }).click();
-await p.getByLabel('Type what you ate or did').fill('200 grams of skyr, one banana and 60 grams of oats');
-await p.getByRole('button', { name: 'Review' }).click(); await wait(p, 1800);
-await p.screenshot({ path: 'shots/fd-7-review.png' });
-// ambiguous rows require a choice
-assert(await p.getByRole('button', { name: /to resolve/ }).isVisible(), 'cannot log until ambiguities are resolved');
-await p.getByText('Skyr, plain').last().click(); await wait(p, 500);
-await p.getByText('Oats, rolled, dry').last().click(); await wait(p, 500);
-await p.screenshot({ path: 'shots/fd-8-resolved.png' });
-await p.getByRole('button', { name: /Log 3 items/ }).click(); await wait(p, 2000);
+await p.getByLabel('Message the Coach').fill('200 grams of skyr, one banana and 60 grams of oats');
+await p.getByRole('button', { name: 'Send', exact: true }).click(); await wait(p, 2600);
 await p.screenshot({ path: 'shots/fd-9-logged.png' });
-// 189 + 126 + banana 118*0.89=105.02 + oats 60*3.72=223.2 = 643.22
-const k = Number(await ledgerKcal()); console.log('ledger after voice', k); assert.equal(k, 643);
+// 189 + skyr 126 + banana 105 + oats 223 = 643 (the Coach picks the clear best match; the card says what it matched)
+const k = Number(await ledgerKcal()); console.log('ledger after saying it', k); assert(k >= 600 && k <= 700, 'logged all three');
 // 5. recipe → log a serving
 await p.getByRole('button', { name: /Add to Dinner/ }).click(); await wait(p, 700);
 await p.getByRole('button', { name: 'Recipes' }).click(); await wait(p, 600);

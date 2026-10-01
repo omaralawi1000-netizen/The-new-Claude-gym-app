@@ -231,6 +231,54 @@ export async function aiRoutine(request: string, brain: Brain, ctx: { exercises:
   return r;
 }
 
+const noThinking = new Set<string>();
+export interface Turn { role: 'user' | 'model'; parts: { text: string }[] }
+
+// ── the Coach as an agent: one answer = a short reply plus the actions to carry out ──
+const ACTION_TYPES = ['log_food', 'log_water', 'log_weight', 'log_sets', 'log_activity', 'start_workout', 'finish_workout', 'navigate', 'set_setting', 'undo_last'];
+const AGENT_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    reply: { type: 'STRING', description: 'what to say to the user: short, natural, in their language. Never claim something was done unless you put it in actions.' },
+    actions: { type: 'ARRAY', items: { type: 'OBJECT', properties: {
+      type: { type: 'STRING', enum: ACTION_TYPES },
+      foods: { type: 'ARRAY', nullable: true, items: { type: 'OBJECT', properties: {
+        name: { type: 'STRING' }, brand: { type: 'STRING', nullable: true },
+        amount: { type: 'NUMBER', nullable: true, description: 'quantity exactly as said; null if none was said' },
+        unit: { type: 'STRING', nullable: true, enum: FOOD_UNITS },
+        state: { type: 'STRING', nullable: true, enum: ['raw', 'cooked', 'dry'] },
+      }, required: ['name'] } },
+      meal: { type: 'STRING', nullable: true, description: 'meal name if the user said one (breakfast, lunch, dinner, snacks…)' },
+      day: { type: 'STRING', nullable: true, enum: ['today', 'yesterday'] },
+      ml: { type: 'NUMBER', nullable: true }, kg: { type: 'NUMBER', nullable: true },
+      exercises: { type: 'ARRAY', nullable: true, items: { type: 'OBJECT', properties: {
+        exercise: { type: 'STRING' },
+        sets: { type: 'ARRAY', items: { type: 'OBJECT', properties: { kg: { type: 'NUMBER', nullable: true }, reps: { type: 'INTEGER', nullable: true }, durationSec: { type: 'INTEGER', nullable: true }, distanceKm: { type: 'NUMBER', nullable: true } } } },
+      }, required: ['exercise', 'sets'] } },
+      kind: { type: 'STRING', nullable: true }, minutes: { type: 'NUMBER', nullable: true }, rounds: { type: 'INTEGER', nullable: true }, intensity: { type: 'INTEGER', nullable: true }, note: { type: 'STRING', nullable: true },
+      routine: { type: 'STRING', nullable: true }, screen: { type: 'STRING', nullable: true }, section: { type: 'STRING', nullable: true },
+      key: { type: 'STRING', nullable: true }, value: { type: 'STRING', nullable: true },
+    }, required: ['type'] } },
+  },
+  required: ['reply', 'actions'],
+};
+
+/** One agent turn: the conversation so far in, { reply, actions } out (unvalidated — see agent.ts). */
+export async function aiAgent(system: string, contents: Turn[], brain: Brain): Promise<unknown> {
+  const run = async (model: string, think: boolean): Promise<unknown> => {
+    const { res, done } = await post(`models/${encodeURIComponent(model)}:generateContent`, brain.key, {
+      systemInstruction: { parts: [{ text: system }] }, contents,
+      generationConfig: { temperature: 0.3, responseMimeType: 'application/json', responseSchema: AGENT_SCHEMA, maxOutputTokens: 3072, ...(think ? { thinkingConfig: { thinkingBudget: 512 } } : {}) },
+    }, { timeout: 30000, signal: brain.signal });
+    try { const data = await res.json(); try { return JSON.parse(textOf(data)); } catch { throw new AiError('invalid'); } } finally { done(); }
+  };
+  return withFallback(brain.models, async (m) => {
+    const think = !noThinking.has(m);
+    try { return await run(m, think); }
+    catch (e) { if (think && e instanceof AiError && e.code === 'badrequest') { noThinking.add(m); return run(m, false); } throw e; }
+  });
+}
+
 // ── streaming chat (the Coach) ──────────────────────────────
 export function parseSSE(buffer: string): { events: any[]; rest: string } {
   const events: any[] = [];
@@ -243,8 +291,6 @@ export function parseSSE(buffer: string): { events: any[]; rest: string } {
   }
   return { events, rest };
 }
-const noThinking = new Set<string>();
-export interface Turn { role: 'user' | 'model'; parts: { text: string }[] }
 
 /** Stream an answer; onText(fullSoFar) per chunk. A stream that goes quiet after some text counts as the answer. */
 export async function streamChat({ key, model, system, contents, onText, signal, firstByteTimeout = 20000, firstChunkTimeout = 60000, idleTimeout = 25000 }: {

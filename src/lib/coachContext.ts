@@ -99,3 +99,56 @@ export function mapRoutineItems(draft: RoutineDraft, pool: Exercise[], mkId: () 
   }
   return { items, skipped };
 }
+
+// ── the Coach as an assistant: the app guide, the live state, and the rules ──────────────
+
+/** What Aven is and where everything lives — so "how do I …?" gets a real answer. Keep in step with the UI. */
+export const APP_GUIDE = `
+ABOUT AVEN: a private training + food + progress app. Everything is stored only on this phone (no account). Keys for voice/AI are typed into Settings and stay on the phone.
+SCREENS (tab bar at the bottom: Today · Train · [orb] · Food · Progress). The orb in the middle opens this Coach (talk or type). Top right of Today: a sparkle button opens the Coach, a sun button opens Settings.
+TODAY: the calorie dial (rings = calories, protein, carbs, fat; tap "More" for fibre/sugar/sat fat/sodium), quick buttons (+ add food, mic = talk to the Coach, scan barcode, photo of a plate, water), recent foods to re-add with one tap, today's workout card (start/resume), the week strip, weight with a small chart.
+TRAIN: three tabs — Plan (weekly schedule, routines; edit/duplicate/schedule a routine; "Log cardio or recovery" and wrestling), Library (all exercises, search, add your own), History (past sessions; tap one for details, PRs).
+WORKOUT SCREEN (opens from the Today card or the pill above the tab bar): exercises with sets (weight, reps, tick to finish a set), rest timer after each set, pause, finish, add exercise, swipe down to minimise (the workout keeps running).
+FOOD: day view with date arrows and a calendar, the same dial, meals (Breakfast, Lunch, Dinner, Snacks — editable), "+" on a meal adds food (search, quick add of calories, scan, photo, saved meals, recipes), tap an entry to edit amount/meal or delete, meal/day options (copy meal/day, day notes). Water has its own button.
+PROGRESS: ranges (4 weeks, 12 weeks, 6 months, all); charts for training consistency, weekly volume, bodyweight (log with + Log), nutrition averages, records (PRs), measurements and progress photos.
+SETTINGS (sun button on Today): Targets (calorie/macro/water goals) · Training (default rest, RPE/RIR, plate step) · Food & water (meals, water quick-add sizes, online lookup on/off) · Units & locale (kg/lb, km/mi, cm/in, language English/Dansk, week start) · Appearance (theme System/Light/Dark, motion) · Voice & AI (Groq key for speech, Gemini key for the Coach, voices) · Reminders · Data & backup (export/import a backup file, demo data, reset) · Privacy · About.
+HOW TO: change theme → Settings → Appearance (or ask me to switch it). Change units → Settings → Units & locale. Set calorie goal → Settings → Targets. Back up → Settings → Data & backup → export. Add to home screen → browser menu → "Add to Home screen"; the app then works offline. Update the app → tap Update in the banner when it appears.
+WHAT I (the Coach) CAN DO: log food, water, weight, sets and activities from what you say; start a workout (optionally from a routine); finish it when you confirm; open any screen or settings page; change common settings (theme, language, units, goals, rest time, sound, haptics…). Every change I make shows up as a card with Undo. I never delete your data; deleting is done by you in the app.
+`.trim();
+
+export const AGENT_SYSTEM = (lang: 'en' | 'da') =>
+  'You are the assistant inside Aven, a personal gym and food-logging app: its coach AND its hands. You can see the user\'s data (the DATA block) and know how the whole app works (the GUIDE). ' +
+  'The user talks or types short natural commands. Decide what they want:\n' +
+  '1. They TELL you what they ate, drank, weighed, lifted or did ("log a banana", "two eggs and rye bread for breakfast", "bench 100 for 8, 8, 6", "30 minutes of wrestling, hard") → put it in actions. Do not ask for permission and do not repeat the list in your reply (the app shows what was logged). ' +
+  'Copy quantities exactly as said; NEVER invent an amount you were not given (amount null is fine: the app uses a typical portion). "a banana" = amount 1, unit piece. Weights are kilograms (convert pounds). One log_food action can hold several foods. Use meal only if they named one. If they say yesterday, day = yesterday.\n' +
+  '2. They ask you to DO something in the app ("open progress", "switch to light mode", "set my protein target to 160", "start Pull day", "finish my workout") → the matching action (navigate, set_setting, start_workout, finish_workout). If you are not sure which routine/exercise they mean, ask in the reply instead of guessing.\n' +
+  '3. They ask a QUESTION (how the app works, where a setting is, about their training, food, weight, progress) → answer in the reply from the GUIDE and DATA, no actions. When a setting is asked about ("how do I change the theme?"), explain where it is AND offer to do it ("or say the word and I\'ll switch it").\n' +
+  'Rules: a reply is 1–6 short lines, plain text, warm and direct, "- " bullets only for lists, no tables or headings. Ground every claim in DATA; if the data is missing or thin, say so. Numbers marked ESTIMATE stay labelled. ' +
+  'Never say something was logged or changed unless you put the matching action in actions (and never claim you deleted anything: you cannot delete). You may give actions AND a short comment ("Nice — that\'s a new best.") but keep it brief. ' +
+  'No medical advice or diagnosis; for pain, injury, illness, pregnancy, medication, disordered eating or a very aggressive diet, say it is outside what you can judge and suggest a doctor or qualified professional. ' +
+  `Reply in ${lang === 'da' ? 'Danish' : 'English'} unless the user writes in the other language. Metric units unless their settings say otherwise.`;
+
+/** The live state for the assistant: today's log, the running workout, settings, routines — plus the usual summary. */
+export function buildAgentContext(d: AppData, today: string, exName: (id: string) => string, mealLabel: (id: string) => string): string {
+  const L: string[] = [buildCoachContext(d, today, exName)];
+  const u = d.settings.units;
+  L.push(`Settings: theme ${d.settings.theme}, language ${d.settings.language}, weight ${u.weight}, distance ${u.distance}, motion ${d.settings.motion}, sound ${d.settings.sound ? 'on' : 'off'}, haptics ${d.settings.haptics ? 'on' : 'off'}, default rest ${d.settings.restDefaultSec}s, effort scale ${d.settings.effort}, week starts ${d.settings.weekStart === 1 ? 'Monday' : 'Sunday'}, online food lookup ${d.settings.foodLookup ? 'on' : 'off'}.`);
+  L.push(`Meals: ${d.settings.meals.map((m) => `${m.id} (${mealLabel(m.id)})`).join(', ')}.`);
+  const todays = d.entries.filter((e) => e.date === today);
+  if (todays.length) {
+    const by = new Map<string, string[]>();
+    for (const e of todays) { const k = mealLabel(e.mealId); (by.get(k) ?? by.set(k, []).get(k)!).push(`${e.snap.name}${e.nutrients.kcal !== undefined ? ` ${r0(e.nutrients.kcal)} kcal` : ''}`); }
+    L.push(`Logged today by meal: ${[...by].map(([m, xs]) => `${m}: ${xs.slice(0, 8).join(', ')}`).join(' | ')}.`);
+  }
+  const water = d.water.filter((w) => w.date === today).reduce((n, w) => n + w.ml, 0);
+  L.push(`Water today: ${water} ml (target ${d.settings.goals.waterMl} ml).`);
+  if (d.active) {
+    const a = d.active;
+    L.push(`RUNNING WORKOUT "${a.name || 'Workout'}"${a.pausedAt ? ' (paused)' : ''}: ${a.exercises.map((e) => { const done = e.sets.filter((s) => s.done); return `${exName(e.exerciseId)} ${done.length}/${e.sets.length} sets done${done.length ? ` (last ${done[done.length - 1].reps ?? '?'}${done[done.length - 1].weightKg ? ` @${r1(done[done.length - 1].weightKg!)}kg` : ''})` : ''}`; }).join('; ')}.`);
+  } else L.push('No workout is running.');
+  for (const r of d.routines.slice(0, 12)) L.push(`Routine "${r.name}": ${r.items.map((i) => `${exName(i.exerciseId)} ${i.workingSets}×${i.repMin}-${i.repMax}`).join(', ')}.`);
+  const recent = d.activities.slice(-5).reverse().map((a) => `${a.date} ${a.kind} ${Math.round(a.durationSec / 60)} min`);
+  if (recent.length) L.push(`Recent activities: ${recent.join('; ')}.`);
+  L.push(`Counts: ${d.favourites.length} favourite foods, ${d.savedMeals.length} saved meals, ${d.recipes.length} recipes, ${d.sessions.length} sessions.`);
+  return L.join('\n').slice(0, 9000);
+}

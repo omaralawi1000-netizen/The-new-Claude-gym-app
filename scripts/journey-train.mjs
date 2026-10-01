@@ -56,16 +56,13 @@ const t = async () => p.getByRole('dialog', { name: 'Active workout' }).locator(
 await p.getByRole('button', { name: 'Pause' }).click(); const t1 = await t(); await wait(p, 2200); const t2 = await t();
 assert.equal(t1, t2, 'clock frozen while paused'); await p.getByRole('button', { name: 'Resume', exact: true }).click(); await wait(p, 1500);
 assert.notEqual(await t(), t2, 'clock runs again');
-// C. dictate sets (typed fallback)
+// C. say the sets to the Coach (typed here): logged into the running workout
 await p.getByRole('button', { name: 'Dictate sets' }).click(); await wait(p, 1000);
-if (!(await p.getByLabel('Type what you ate or did').isVisible().catch(() => false))) await p.getByRole('button', { name: /Type instead/ }).click();
-await p.getByLabel('Type what you ate or did').fill('squat 100 kilos for 5, 5 and 5 then plank 60 seconds');
-await p.getByRole('button', { name: 'Review' }).click(); await wait(p, 1600);
+await p.getByLabel('Message the Coach').fill('squat 100 kilos for 5, 5 and 5 then plank 60 seconds');
+await p.getByRole('button', { name: 'Send', exact: true }).click(); await wait(p, 2200);
 await p.screenshot({ path: 'shots/tr-6-wreview.png' });
-const squatBtn = p.getByText('Back Squat').first();
-if (await squatBtn.isVisible().catch(() => false)) await squatBtn.click();
-await wait(p, 400);
-await p.getByRole('button', { name: /Log \d+ exercises/ }).click(); await wait(p, 1800);
+await wait(p, 2500); // the Coach steps aside by itself after a quick log
+assert.equal(await p.getByRole('dialog', { name: 'Coach' }).count(), 0);
 const act = (await state()).active;
 const squat = act.exercises.find((e) => e.exerciseId === 'back-squat');
 console.log('dictated sets', squat?.sets.map((x) => [x.weightKg, x.reps, x.done]));
