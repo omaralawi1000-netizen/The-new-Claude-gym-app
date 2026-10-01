@@ -17,7 +17,7 @@ import { defaultMealId } from './lib/derive';
 import { stageCover, stageDepth, stageTransform } from './ui/engage';
 import { setKeyboard } from './ui/keyboard';
 import { FpsMeter } from './ui/FpsMeter';
-import { highRefresh, onHighRefresh } from './ui/motion';
+import { apple, highRefresh, onHighRefresh } from './ui/motion';
 
 /** Where the last tap landed — the theme switch spreads out from there. */
 const lastTap = { x: typeof window !== 'undefined' ? window.innerWidth / 2 : 0, y: 0 };
@@ -89,18 +89,25 @@ function useTheme() {
  * opening, under the finger while it is dragged, and as it leaves.
  */
 /**
- * The page switch: the new screen slides in 36 px and fades up, the old one slides out the other way, fading and softly
- * blurring. With high refresh rate on, the slide is written as a whole `transform` so the browser runs it on its compositor
- * at the screen's full rate (motion only hands opacity, filter and whole transforms to the browser; `x` is script-driven).
+ * The page switch. The new screen glides in from the side it comes from — a short 28 px slide on Apple's smooth spring,
+ * growing from 98.5 % and fading up — while the old one steps back the other way and fades out quickly underneath it; its
+ * blocks then rise in one after another (styles.css). No blur: blurring a whole screen made every switch pass through a
+ * smudged, darker frame. With high refresh rate on, the slide is a whole `transform`, which the browser runs on its
+ * compositor at the screen's full rate (`x`/`scale` are script-driven).
  */
+const PAGE_IN = apple(0.5);
 function pageSwitch(dir: number, hrr: boolean): Pick<HTMLMotionProps<'div'>, 'initial' | 'animate' | 'exit' | 'transition'> {
-  const transition = { duration: 0.38, ease: [0.22, 1, 0.36, 1] as const };
-  if (!hrr) return { initial: { opacity: 0, x: dir * 36 }, animate: { opacity: 1, x: 0, filter: 'blur(0px)', transitionEnd: { filter: 'none' } }, exit: { opacity: 0, x: -dir * 36, filter: 'blur(10px)' }, transition };
+  const fadeIn = { duration: 0.3, ease: [0.25, 0.1, 0.25, 1] as const };
+  const out = { duration: 0.2, ease: [0.4, 0, 1, 1] as const };
+  if (!hrr) return {
+    initial: { opacity: 0, x: dir * 28, scale: 0.985 },
+    animate: { opacity: 1, x: 0, scale: 1, transition: { x: PAGE_IN, scale: PAGE_IN, opacity: fadeIn } },
+    exit: { opacity: 0, x: -dir * 18, scale: 0.985, transition: out },
+  };
   return {
-    initial: { opacity: 0, transform: `translateX(${dir * 36}px)` },
-    animate: { opacity: 1, transform: 'translateX(0px)', filter: 'blur(0px)', transitionEnd: { filter: 'none', transform: 'none' } },
-    exit: { opacity: 0, transform: `translateX(${-dir * 36}px)`, filter: 'blur(10px)' },
-    transition,
+    initial: { opacity: 0, transform: `translateX(${dir * 28}px) scale(0.985)` },
+    animate: { opacity: 1, transform: 'translateX(0px) scale(1)', transitionEnd: { transform: 'none' }, transition: { transform: PAGE_IN, opacity: fadeIn } },
+    exit: { opacity: 0, transform: `translateX(${-dir * 18}px) scale(0.985)`, transition: out },
   };
 }
 

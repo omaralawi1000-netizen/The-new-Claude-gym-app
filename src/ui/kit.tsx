@@ -1,18 +1,42 @@
-import { animate, motion, useMotionValue, useReducedMotion } from 'motion/react';
-import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { animate, useMotionValue, useReducedMotion } from 'motion/react';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { Lens } from './lens';
+import { apple } from './motion';
 import { Icon, type IconName } from './Icon';
 import { parseNum, fmtNum } from '../lib/units';
 import { useLang } from '../lib/i18n';
-import { SNAP } from './Sheet';
 
-// ── segmented control (thumb glides between options) ─────────
+// ── segmented control: a drop of glass flows between options (ui/lens.ts) ─────────
+const SEG_LEAD = apple(0.36, 0.1);
+const SEG_TRAIL = apple(0.52);
 export function Seg<T extends string | number>({ value, onChange, options, style }: { value: T; onChange: (v: T) => void; options: { value: T; label: ReactNode }[]; style?: CSSProperties }) {
-  const id = useId();
+  const ref = useRef<HTMLDivElement>(null);
+  const lens = useRef<Lens | null>(null);
+  const reduce = useReducedMotion();
+  const idx = options.findIndex((o) => o.value === value);
+  const place = (glide: boolean) => {
+    const el = ref.current; if (!el) return;
+    const holder = el.querySelector('.seg-lens') as HTMLElement;
+    if (!lens.current) lens.current = new Lens(holder, () => holder.offsetHeight / 2);
+    const b = el.querySelectorAll(':scope > button')[idx] as HTMLElement | undefined;
+    holder.style.opacity = b ? '' : '0';
+    if (!b || b.offsetWidth === 0) return;
+    const box = { l: b.offsetLeft, r: b.offsetLeft + b.offsetWidth };
+    if (glide && !reduce) lens.current.glide(box, SEG_LEAD, SEG_TRAIL); else lens.current.place(box);
+  };
+  const placed = useRef(false);
+  useLayoutEffect(() => { place(placed.current); placed.current = true; }, [idx]); // eslint-disable-line
+  useEffect(() => {
+    const el = ref.current; if (!el) return;
+    const ro = new ResizeObserver(() => { if (!lens.current?.moving) place(false); });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []); // eslint-disable-line
   return (
-    <div className="seg" role="tablist" style={style}>
+    <div className="seg" role="tablist" style={style} ref={ref}>
+      <span className="lens seg-lens" aria-hidden><i className="lens-l" /><i className="lens-r" /><i className="lens-m" /></span>
       {options.map((o) => (
         <button key={String(o.value)} role="tab" aria-selected={o.value === value} className={o.value === value ? 'on' : ''} onClick={() => onChange(o.value)}>
-          {o.value === value && <motion.span layoutId={`seg-${id}`} className="thumb" style={{ inset: 3 }} transition={SNAP} />}
           <span style={{ position: 'relative' }}>{o.label}</span>
         </button>
       ))}
@@ -130,8 +154,9 @@ export function Section({ title, right, children }: { title: ReactNode; right?: 
 export function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: string }) {
   return (
     <button role="switch" aria-checked={on} aria-label={label} onClick={() => onChange(!on)}
-      style={{ width: 52, height: 32, borderRadius: 99, position: 'relative', background: on ? 'var(--ac)' : 'var(--s4)', transition: 'background 200ms', boxShadow: 'inset 0 1px 2px rgba(0,0,0,.3)', flex: 'none' }}>
-      <motion.span layout transition={SNAP} style={{ position: 'absolute', top: 3, left: on ? 23 : 3, width: 26, height: 26, borderRadius: 99, background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,.4)' }} />
+      className="toggle press" style={{ width: 52, height: 32, borderRadius: 99, position: 'relative', background: on ? 'var(--ac)' : 'var(--s4)', transition: 'background 260ms var(--ease-smooth)', boxShadow: 'inset 0 1px 2px rgba(0,0,0,.3)', flex: 'none' }}>
+      {/* the knob springs across on the compositor (a CSS transition on transform, Apple's spring curve) */}
+      <span className="toggle-knob" style={{ transform: on ? 'translate3d(20px, 0, 0)' : 'translate3d(0, 0, 0)' }} />
     </button>
   );
 }

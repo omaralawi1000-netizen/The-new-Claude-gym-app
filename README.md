@@ -147,6 +147,14 @@ Run in headless Chromium (Playwright, 390×844 @2×, dark + light), scripts in `
 - **Snap your plate** (Gemini key): photo → per-item estimates (name, grams, kcal, macros) → choose items and portion (×0.5–×2) → logged as quick entries labelled "AI estimate" with the assumptions. Image is downscaled to 1024 px before sending. Wiring tested with a stubbed Gemini; real recognition quality is unverified.
 - **Home-screen shortcuts** (Android long-press on the installed icon): Log food, Dictate, Snap your plate, Log wrestling.
 
+## Dock and orb pass
+
+- **The dock moves like the first version, on the compositor**: the tab you pick opens up and shows its name, the other icons and the orb make room, and a drop of glass flows over to it, stretching on the way (front edge on a quicker spring, back edge on a calmer one) and gathering back into a capsule. The layout changes at once and every piece is slid from where it was drawn (FLIP) as browser animations of `transform`/`opacity` only (`ui/lens.ts`, `useDock` in `ui/TabBar.tsx`), so it runs at the screen's full refresh rate. The orb glides with the dock the same way (`orbGlide`).
+- **The orb draws on its own thread** (with High refresh rate on): the drawing moved into a worker with an OffscreenCanvas (`ui/sphere.worker.ts`, renderer in `ui/sphereRender.ts`), which has its own frame clock instead of the page's script frames. The idle spin is now drawn every frame (it was ~30 fps). If the browser can't do it, it falls back to drawing on the page. The frame-rate readout's second line shows the orb's real drawing rate and where it is drawn.
+- **Page switches**: no full-screen blur any more (it made every switch pass through a smudged, darker frame). The new screen glides 28 px in from its side on Apple's spring while the old one steps back and fades quickly; its blocks rise in one after another.
+- **Settings**: pages push like iOS (glide in, rows settle in one by one, no blur); segmented controls use the same liquid drop as the dock; switches spring across on the compositor.
+- **Live workout header** sits straight on the window's colour (the solid band under the grabber is gone), and the window's corners go square once it fills the screen.
+
 ## High refresh rate pass
 
 - **High refresh rate** (Settings → Appearance, on by default): Samsung Internet and some Chrome builds run script animation at 60 fps even on a 120 Hz screen, but animations the browser runs itself (transform/opacity) are drawn at the full rate. Every popup spring is now also handed to the browser as a Web Animation on the exact same curve (`springCurve` in `ui/motion.ts` simulates the spring into a CSS `linear()` easing): the sheet, its dim and the page stepping back behind it, the live workout card, and the tab page slide. The script spring still runs underneath (it drives the orb), and a finger or a second popup hands control straight back to it. Turn it off if anything looks wrong.

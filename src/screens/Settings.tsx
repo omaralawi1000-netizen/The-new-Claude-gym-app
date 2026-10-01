@@ -2,7 +2,7 @@ import { useRef, useState, useSyncExternalStore } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useStore, flushSave, persistStatus } from '../state/store';
 import { useUI } from '../state/ui';
-import { SMOOTH, highRefresh, onHighRefresh, setHighRefresh } from '../ui/motion';
+import { apple, highRefresh, onHighRefresh, setHighRefresh } from '../ui/motion';
 import { useT, useLang } from '../lib/i18n';
 import { Sheet, SheetHead } from '../ui/Sheet';
 import { Icon } from '../ui/Icon';
@@ -21,15 +21,19 @@ import { VoiceAiSettings } from './VoiceAi';
 import { setFpsMeter, useFpsMeterOn } from '../ui/FpsMeter';
 
 const EASE = [0.22, 1, 0.36, 1] as const;
+// Moving between Settings pages works like iOS: the next page glides in from the side on Apple's spring while the one you
+// leave steps the other way and fades; its rows then settle in one after another (styles.css, .settings-page). No blur.
+// Whole transforms, so the browser runs them on its compositor.
+const PUSH = apple(0.46);
 const PAGE = {
-  enter: (d: number) => ({ x: d * 56, opacity: 0, filter: 'blur(10px)' }),
-  center: { x: 0, opacity: 1, filter: 'blur(0px)', transitionEnd: { filter: 'none' }, transition: { x: SMOOTH, opacity: { duration: 0.28, ease: EASE }, filter: { duration: 0.36, ease: EASE } } },
-  exit: (d: number) => ({ x: d * -40, opacity: 0, filter: 'blur(8px)', transition: { duration: 0.24, ease: [0.4, 0, 1, 1] as const } }),
+  enter: (d: number) => ({ opacity: 0, transform: `translateX(${d * 44}px)` }),
+  center: { opacity: 1, transform: 'translateX(0px)', transitionEnd: { transform: 'none' }, transition: { transform: PUSH, opacity: { duration: 0.26, ease: EASE } } },
+  exit: (d: number) => ({ opacity: 0, transform: `translateX(${d * -30}px)`, transition: { duration: 0.2, ease: [0.4, 0, 1, 1] as const } }),
 };
 const TITLE = {
-  enter: (d: number) => ({ x: d * 24, opacity: 0, filter: 'blur(6px)' }),
-  center: { x: 0, opacity: 1, filter: 'blur(0px)', transitionEnd: { filter: 'none' }, transition: { duration: 0.34, ease: EASE } },
-  exit: (d: number) => ({ x: d * -18, opacity: 0, filter: 'blur(4px)', transition: { duration: 0.2 } }),
+  enter: (d: number) => ({ opacity: 0, transform: `translateX(${d * 22}px)` }),
+  center: { opacity: 1, transform: 'translateX(0px)', transitionEnd: { transform: 'none' }, transition: { transform: PUSH, opacity: { duration: 0.24, ease: EASE } } },
+  exit: (d: number) => ({ opacity: 0, transform: `translateX(${d * -16}px)`, transition: { duration: 0.16 } }),
 };
 
 type Section = null | 'targets' | 'training' | 'food' | 'units' | 'look' | 'reminders' | 'data' | 'privacy' | 'ai' | 'about';
@@ -92,7 +96,7 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
       <div className="sheet-body" style={{ position: 'relative', overflowX: 'hidden' }}>
         {/* both pages move at once (no blank gap): the new one slides in sharpening from blur, the old one drifts out */}
         <AnimatePresence mode="popLayout" initial={false} custom={dir}>
-          <motion.div key={sec ?? 'root'} className="no-rise" custom={dir} variants={PAGE} initial="enter" animate="center" exit="exit" style={{ width: '100%' }}>
+          <motion.div key={sec ?? 'root'} className="no-rise settings-page" custom={dir} variants={PAGE} initial="enter" animate="center" exit="exit" style={{ width: '100%' }}>
             {!sec && (
               <>
                 <div className="field"><label htmlFor="s-name">{t('Your name')}</label><input id="s-name" className="input" value={st.name} onChange={(e) => set({ name: e.target.value })} placeholder={t('Optional')} /></div>

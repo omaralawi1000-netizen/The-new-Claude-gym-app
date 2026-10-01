@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { cancelFrame, frame } from 'motion/react';
 import { useEngageContext, type Engage } from './engage';
 import { mic } from '../lib/mic';
@@ -6,6 +6,7 @@ import { useVoice } from '../state/voice';
 import { useStore } from '../state/store';
 import { useUI } from '../state/ui';
 import { kb } from './keyboard';
+import { highRefresh, onHighRefresh, springCurve } from './motion';
 
 /**
  * The Aven sphere: ~900 points on a Fibonacci lattice, lit from upper-left so it reads as a volume.
@@ -14,51 +15,9 @@ import { kb } from './keyboard';
  * voice composer's hero and the review header, and it moves exactly in step with the popup that carries it.
  */
 
-const N = 1100;
-type V3 = Float32Array;
-
-function lattice(): { pts: V3; order: Uint16Array } {
-  const pts = new Float32Array(N * 3);
-  const g = Math.PI * (3 - Math.sqrt(5));
-  for (let i = 0; i < N; i++) {
-    const y = 1 - (2 * (i + 0.5)) / N;
-    const r = Math.sqrt(1 - y * y);
-    const th = g * i;
-    pts[i * 3] = Math.cos(th) * r; pts[i * 3 + 1] = y; pts[i * 3 + 2] = Math.sin(th) * r;
-  }
-  // deterministic shuffle → any prefix is an even sample (so smaller sizes draw fewer, evenly spread dots)
-  const order = new Uint16Array(N);
-  for (let i = 0; i < N; i++) order[i] = i;
-  let seed = 7;
-  const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
-  for (let i = N - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); const t = order[i]; order[i] = order[j]; order[j] = t; }
-  return { pts, order };
-}
-const LAT = lattice();
-
-/**
- * The surface moves as one liquid: five smooth travelling waves over the sphere (not per-dot jitter). Low frequencies
- * take the bass, the finer waves take the highs, so a voice makes slow swells with a fine shimmer on top.
- */
-const WAVES = [
-  { d: [0.8, 0.5, 0.33], f: 2.1, s: 0.9 }, { d: [-0.6, 0.7, 0.38], f: 2.6, s: 1.25 }, { d: [0.1, -0.9, 0.42], f: 3.2, s: 1.1 },
-  { d: [-0.5, -0.3, 0.81], f: 4.4, s: 2.3 }, { d: [0.95, -0.2, -0.24], f: 5.8, s: 3.1 },
-].map((w) => { const l = Math.hypot(w.d[0], w.d[1], w.d[2]); return { x: w.d[0] / l, y: w.d[1] / l, z: w.d[2] / l, f: w.f, s: w.s }; });
-
-interface Params { rotSpeed: number; liquid: number; glow: number; dim: number; sweep: number; ring: number; halo: number }
-const TARGET: Record<string, Params> = {
-  idle: { rotSpeed: 0.2, liquid: 0.022, glow: 0.35, dim: 0, sweep: 0, ring: 0, halo: 0.16 },
-  requesting: { rotSpeed: 0.16, liquid: 0.03, glow: 0.45, dim: 0, sweep: 0, ring: 0, halo: 0.24 },
-  listening: { rotSpeed: 0.28, liquid: 0.03, glow: 0.42, dim: 0, sweep: 0, ring: 0, halo: 0.3 },
-  processing: { rotSpeed: 1.6, liquid: 0.016, glow: 0.4, dim: 0, sweep: 1, ring: 0, halo: 0.34 },
-  review: { rotSpeed: 0.1, liquid: 0.008, glow: 0.55, dim: 0, sweep: 0, ring: 1, halo: 0.2 },
-  confirmed: { rotSpeed: 0.4, liquid: 0.01, glow: 0.6, dim: 0, sweep: 0, ring: 0, halo: 0.42 },
-  error: { rotSpeed: 0.05, liquid: 0.004, glow: 0.12, dim: 1, sweep: 0, ring: 0, halo: 0 },
-  unavailable: { rotSpeed: 0.05, liquid: 0.004, glow: 0.12, dim: 1, sweep: 0, ring: 0, halo: 0 },
-};
+import { SphereRenderer, type OrbInputs, type SphereColors } from './sphereRender';
 
 type RGB = [number, number, number];
-export interface SphereColors { hi: RGB; lo: RGB; alt: RGB; ok: RGB; dark: boolean }
 
 /**
  * Touching the orb. While a finger is on it the orb gathers in — it shrinks a little and its light pulls to the centre, as if
@@ -70,225 +29,17 @@ let tapPending = 0;
 export function orbPress(down: boolean) { pressTarget = down ? 1 : 0; }
 export function orbTap(strength = 1) { tapPending = Math.max(tapPending, strength); pressTarget = 0; }
 
-export class SphereRenderer {
-  private ctx: CanvasRenderingContext2D;
-  private rot = 0.6;
-  private cur: Params = { ...TARGET.idle };
-  private t = 0;
-  private last = 0;
-  private env = 0;                         // smoothed voice level (fast attack, slow release)
-  private bandEnv = new Float32Array(3);   // smoothed low / mid / high energy
-  private lat = new Float32Array(16);       // smoothed per-band energy, laid out over the sphere's latitudes like an equaliser
-  private body = 0;                         // slower "presence" of the voice: drives the inner light and the swell of the whole body
-  private prevV = 0;
-  private onsetAt = -1;
-  private rings: { age: number; amp: number }[] = []; // ripples that leave the sphere on every syllable
-  private kick = 0;                        // a soft "bloom" whenever the state changes (tap → listen → think → done)
-  private kickV = 0;
-  private lastPhase = '';
-  private press = 0;                       // finger down: gathering in
-  private burst = 0; private burstV = 0;   // release: a spring that throws the dots out and pulls them back
-  private spin = 0;                        // extra turn speed from a tap, decaying
-  private flash = 0;                       // light running through the dots after a tap
-  /** true while something of its own is moving (a press, a burst, ripples): then it is drawn every frame */
-  get busy() { return this.press > 0.01 || Math.abs(this.burst) > 0.004 || Math.abs(this.burstV) > 0.02 || this.spin > 0.02 || this.flash > 0.02 || this.rings.length > 0; }
-  /** how loudly you are speaking right now, 0..1 (time-smoothed) — for things around the orb that should breathe with it */
-  get voice() { return Math.min(1, this.body * 0.75 + this.env * 0.45); }
-  constructor(private canvas: HTMLCanvasElement) { this.ctx = canvas.getContext('2d')!; }
+/** What the orb's drawing loop is doing, for the frame-rate readout. */
+export const orbStats = { fps: 0, offThread: false };
+let workerBroken = false;
+const transferred = new WeakSet<HTMLCanvasElement>();
 
-  resize(css: number, dpr: number) {
-    const px = Math.max(2, Math.round(css * dpr));
-    if (this.canvas.width !== px) { this.canvas.width = px; this.canvas.height = px; }
-  }
-
-  frame(now: number, css: number, reduced: boolean, colors: SphereColors) {
-    const dt = Math.min(0.1, this.last ? (now - this.last) / 1000 : 0.016);
-    this.last = now;
-    this.t += dt;
-    const v = useVoice.getState();
-    const tgt = TARGET[v.phase] ?? TARGET.idle;
-    const k = 1 - Math.exp(-dt * 4.5);
-    (Object.keys(tgt) as (keyof Params)[]).forEach((key) => { this.cur[key] += (tgt[key] - this.cur[key]) * k; });
-    if (v.phase !== this.lastPhase) { if (this.lastPhase && !reduced) this.kickV += v.phase === 'error' || v.phase === 'unavailable' ? -1.4 : 3.2; this.lastPhase = v.phase; }
-    // the bloom is a damped spring, so it swells, overshoots a touch and settles
-    this.kickV += (-90 * this.kick - 11 * this.kickV) * dt; this.kick += this.kickV * dt;
-    // touch: press gathers in (fast), a tap releases into a burst (an underdamped spring kicked outward) plus a spin-up
-    this.press += (pressTarget - this.press) * (1 - Math.exp(-dt * (pressTarget > this.press ? 18 : 10)));
-    if (tapPending > 0) {
-      if (!reduced) {
-        this.burstV += 5.2 * tapPending; this.spin += 7 * tapPending; this.flash = Math.min(1, this.flash + tapPending);
-        if (this.rings.length < 4) this.rings.push({ age: 0, amp: 1 }, { age: -0.16, amp: 0.7 });
-      }
-      tapPending = 0;
-    }
-    this.burstV += (-60 * this.burst - 8.5 * this.burstV) * dt; this.burst += this.burstV * dt;
-    this.spin *= Math.exp(-dt * 3.2); this.flash *= Math.exp(-dt * 3.6);
-    const speed = reduced ? 0 : this.cur.rotSpeed * (1 + Math.max(0, this.kick) * 2) + this.spin;
-    this.rot += dt * speed;
-
-    // real input — zero unless the microphone is genuinely live. Everything is smoothed here by TIME (not per call), with a
-    // very fast attack so a syllable lands on the very frame it starts, and a slower release so it fades like a bell.
-    const live = v.phase === 'listening' && mic.active;
-    const raw = live ? mic.voice() : 0;
-    const bands = live ? mic.bands() : null;
-    const att = (cur: number, to: number, up = 38, down = 7) => cur + (to - cur) * (1 - Math.exp(-dt * (to > cur ? up : down)));
-    this.env = att(this.env, raw);
-    this.body = att(this.body, raw, 9, 2.4);
-    // a sudden rise in energy = a new syllable: bump the whole body and send a ripple out
-    if (live && !reduced && raw - this.prevV > 0.1 && raw > 0.18 && this.t - this.onsetAt > 0.11) {
-      this.onsetAt = this.t;
-      this.kickV += 1.1 + raw * 2.2;
-      if (this.rings.length < 4) this.rings.push({ age: 0, amp: Math.min(1, 0.45 + raw) });
-    }
-    this.prevV = raw;
-    for (const r of this.rings) r.age += dt * 1.15;
-    this.rings = this.rings.filter((r) => r.age < 1);
-    if (bands) {
-      const avg = (a: number, b: number) => { let x = 0; for (let i = a; i < b; i++) x += bands[i]; return x / (b - a); };
-      this.bandEnv[0] = att(this.bandEnv[0], avg(0, 4)); this.bandEnv[1] = att(this.bandEnv[1], avg(4, 10)); this.bandEnv[2] = att(this.bandEnv[2], avg(10, 16));
-      for (let i = 0; i < 16; i++) this.lat[i] = att(this.lat[i], bands[i], 30, 6);
-    } else { for (let i = 0; i < 3; i++) this.bandEnv[i] = att(this.bandEnv[i], 0); for (let i = 0; i < 16; i++) this.lat[i] = att(this.lat[i], 0); }
-    const [eLo, eMid, eHi] = this.bandEnv;
-
-    const { ctx, canvas } = this;
-    const W = canvas.width;
-    const c = W / 2;
-    const breath = reduced ? 1 : 1 + Math.sin(this.t * 1.15) * 0.012 * (1 - this.env);
-    const R = c * 0.66 * breath * (1 + this.kick * 0.035 + this.body * 0.06) * (1 - this.press * 0.12); // the body swells with the voice; headroom for the swells
-    ctx.clearRect(0, 0, W, W);
-
-    const { hi, lo, alt, ok, dark } = colors;
-    // soft inner light: the sphere glows from within, brighter while you speak
-    const haloA = (this.cur.halo + this.body * 0.55 + this.env * 0.25 + Math.max(0, this.kick) * 0.25 + this.press * 0.35 + this.flash * 0.6) * (1 - this.cur.dim * 0.8);
-    if (haloA > 0.01) {
-      const gr = ctx.createRadialGradient(c, c, R * 0.15, c, c, c * 0.98);
-      gr.addColorStop(0, `rgba(${hi[0] | 0},${hi[1] | 0},${hi[2] | 0},${Math.min(0.55, haloA * (dark ? 0.55 : 0.4))})`);
-      gr.addColorStop(0.55, `rgba(${alt[0] | 0},${alt[1] | 0},${alt[2] | 0},${Math.min(0.3, haloA * (dark ? 0.22 : 0.16))})`);
-      gr.addColorStop(1, `rgba(${alt[0] | 0},${alt[1] | 0},${alt[2] | 0},0)`);
-      ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(c, c, c * 0.98, 0, 6.2832); ctx.fill();
-    }
-
-    const count = Math.round(Math.min(N, Math.max(280, css * 6.5)));
-    const tilt = 0.42 + Math.sin(this.t * 0.37) * (reduced ? 0 : 0.06);
-    const cr = Math.cos(this.rot), sr = Math.sin(this.rot), ct = Math.cos(tilt), st = Math.sin(tilt);
-    const confirmAge = v.phase === 'confirmed' ? (performance.now() - v.since) / 1000 : 9;
-    const sweepPhase = this.t * 2.4;
-    const T = reduced ? 0 : this.t;
-    const amps = [
-      this.cur.liquid + eLo * 0.22 + this.env * 0.05, this.cur.liquid * 0.9 + eLo * 0.16,
-      this.cur.liquid * 0.7 + eMid * 0.12, this.cur.liquid * 0.5 + eMid * 0.08 + eHi * 0.04, this.cur.liquid * 0.35 + eHi * 0.07,
-    ];
-    if (!live && v.phase === 'listening') { amps[0] += 0.015; amps[1] += 0.012; } // no level available: honest gentle motion, no fake voice
-
-    // buckets: 7 light levels × 3 hue mixes (accent ↔ the area's second colour, drifting round the sphere)
-    const NB = 7, NH = 3;
-    const buckets: number[][] = Array.from({ length: NB * NH }, () => []);
-    const dots: { x: number; y: number; r: number }[] = new Array(count);
-    const tone = new Uint8Array(count); // 0 = base colour, 1 = highlight, 2 = ok
-
-    for (let n = 0; n < count; n++) {
-      const i = LAT.order[n];
-      let x = LAT.pts[i * 3], y = LAT.pts[i * 3 + 1], z = LAT.pts[i * 3 + 2];
-      const az = Math.atan2(z, x);
-
-      let d = 0;
-      let glow = this.cur.glow;
-      for (let w = 0; w < 5; w++) {
-        const ww = WAVES[w];
-        d += amps[w] * Math.sin((x * ww.x + y * ww.y + z * ww.z) * ww.f + T * ww.s + w * 1.7);
-      }
-      if (live) {
-        // equaliser over the latitudes: low voice at the poles' bellies, highs towards the top; it turns with the sphere
-        const fb = (1 - y) * 7.5, b0 = Math.min(14, Math.floor(fb)), fr = fb - b0;
-        const e = this.lat[b0] * (1 - fr) + this.lat[b0 + 1] * fr;
-        d += e * 0.085 * (0.65 + 0.35 * Math.cos(az * 2 - this.rot * 1.5 + T * 1.2));
-        glow += e * 0.9;
-      }
-      glow += this.env * 0.9 + Math.max(0, d) * 3;
-      if (this.kick > 0.01) d += this.kick * 0.05 * (0.6 + 0.4 * Math.sin(y * 3 + T * 4));
-      // touch: pressed, the surface draws in with a small shiver; released, it bursts out unevenly (a liquid, not a balloon)
-      if (this.press > 0.01) d -= this.press * 0.07 * (0.55 + 0.45 * Math.sin(az * 3 + this.t * 9));
-      if (Math.abs(this.burst) > 0.003) d += this.burst * 0.7 * (0.55 + 0.45 * Math.sin(y * 4.2 + az * 2 + this.t * 6));
-      if (this.flash > 0.02) glow += this.flash * (0.6 + 1.8 * Math.max(0, Math.sin(y * 5 - this.t * 16))); // a band of light runs through it
-      if (this.cur.sweep > 0.01) {
-        const a = Math.cos(az - sweepPhase) * 0.5 + 0.5;
-        const band = Math.exp(-Math.pow(y - Math.sin(T * 1.6) * 0.8, 2) / 0.05);
-        d -= 0.05 * this.cur.sweep * (1 - a) - 0.05 * band * this.cur.sweep;
-        glow += (band * 0.9 + a * 0.15) * this.cur.sweep;
-      }
-      if (this.cur.ring > 0.01) {
-        const eq = Math.exp(-(y * y) / 0.004);
-        glow += eq * 0.9 * this.cur.ring;
-        d += eq * 0.03 * this.cur.ring;
-      }
-      let okMix = 0;
-      if (confirmAge < 1.6) {
-        const front = confirmAge * 2.6 - 0.3;
-        const dist = (1 - y);
-        const w = Math.exp(-Math.pow(dist - front, 2) / 0.05);
-        d += w * 0.22;
-        okMix = Math.max(w, confirmAge < 0.35 ? (0.35 - confirmAge) * 2 : 0);
-        glow += w;
-      }
-      const rr = 1 + Math.max(-0.2, Math.min(0.45, d));
-      x *= rr; y *= rr; z *= rr;
-      const x1 = x * cr + z * sr, z1 = -x * sr + z * cr;
-      const y2 = y * ct - z1 * st, z2 = y * st + z1 * ct;
-      const persp = 1 / (1 - z2 * 0.24);
-      const px = c + x1 * R * persp, py = c + y2 * R * persp;
-      const depth = Math.max(0, Math.min(1, (z2 + 1.1) / 2.2)); // 0 back … 1 front
-      const nx = x1 / rr, ny = y2 / rr, nz = z2 / rr;
-      const lam = Math.max(0, nx * -0.42 + ny * -0.52 + nz * 0.74);
-      const rim = Math.pow(1 - Math.abs(nz), 3) * 0.35 * depth; // a thin bright rim reads as glass
-      const sh = Math.min(1, 0.16 + 0.84 * Math.pow(depth, 1.25) * (0.42 + 0.58 * lam) + rim + Math.max(0, glow - 0.4) * 0.25 * depth);
-      const spacing = Math.sqrt(12.566 / count) * R;
-      const size = spacing * 0.2 * (0.35 + 1.05 * depth) * (1 + Math.min(1.2, glow) * 0.22);
-      dots[n] = { x: px, y: py, r: size };
-      tone[n] = okMix > 0.25 ? 2 : glow > 1.3 ? 1 : 0;
-      const hueMix = 0.5 + 0.5 * Math.sin(az * 1 + y * 1.6 - T * 0.6); // the second colour drifts around the surface
-      const hb = Math.min(NH - 1, Math.floor(hueMix * NH));
-      buckets[Math.min(NB - 1, Math.floor(sh * NB)) * NH + hb].push(n);
-    }
-
-    const dimK = this.cur.dim;
-    // dark mode: additive light, so overlapping highlights bloom like light rather than paint
-    ctx.globalCompositeOperation = dark ? 'lighter' : 'source-over';
-    for (let b = 0; b < NB; b++) {
-      for (let h = 0; h < NH; h++) {
-        const list = buckets[b * NH + h];
-        if (!list.length) continue;
-        const a = (0.14 + (b / (NB - 1)) * 0.86) * (dark ? 0.82 : 1);
-        const m = b / (NB - 1);
-        const hm = (h / (NH - 1)) * 0.55;
-        const top: RGB = [hi[0] + (alt[0] - hi[0]) * hm, hi[1] + (alt[1] - hi[1]) * hm, hi[2] + (alt[2] - hi[2]) * hm];
-        let r = lo[0] + (top[0] - lo[0]) * m, g = lo[1] + (top[1] - lo[1]) * m, bl = lo[2] + (top[2] - lo[2]) * m;
-        if (dimK > 0.01) { const grey = dark ? 120 : 140; r += (grey - r) * dimK; g += (grey - g) * dimK; bl += (grey - bl) * dimK; }
-        ctx.fillStyle = `rgba(${r | 0},${g | 0},${bl | 0},${a * (1 - dimK * 0.5)})`;
-        ctx.beginPath();
-        for (const n of list) { if (tone[n] !== 0) continue; const d = dots[n]; ctx.moveTo(d.x + d.r, d.y); ctx.arc(d.x, d.y, d.r, 0, 6.2832); }
-        ctx.fill();
-      }
-    }
-    ctx.fillStyle = `rgba(${Math.min(255, hi[0] + 30)},${Math.min(255, hi[1] + 50)},${Math.min(255, hi[2] + 50)},0.95)`;
-    ctx.beginPath();
-    for (let n = 0; n < count; n++) if (tone[n] === 1) { const d = dots[n]; ctx.moveTo(d.x + d.r * 1.15, d.y); ctx.arc(d.x, d.y, d.r * 1.15, 0, 6.2832); }
-    ctx.fill();
-    ctx.fillStyle = `rgba(${ok[0]},${ok[1]},${ok[2]},0.98)`;
-    ctx.beginPath();
-    for (let n = 0; n < count; n++) if (tone[n] === 2) { const d = dots[n]; ctx.moveTo(d.x + d.r * 1.2, d.y); ctx.arc(d.x, d.y, d.r * 1.2, 0, 6.2832); }
-    ctx.fill();
-    ctx.globalCompositeOperation = 'source-over';
-    // syllable ripples: thin rings that leave the sphere and fade
-    if (this.rings.length) {
-      ctx.lineWidth = Math.max(1, W * 0.006);
-      for (const r of this.rings) {
-        if (r.age < 0) continue; // a ring waiting for its turn
-        const e = 1 - Math.pow(1 - r.age, 2);
-        ctx.strokeStyle = `rgba(${hi[0] | 0},${hi[1] | 0},${hi[2] | 0},${(1 - r.age) * r.amp * (dark ? 0.5 : 0.4)})`;
-        ctx.beginPath(); ctx.arc(c, c, R * (1.06 + e * 0.3), 0, 6.2832); ctx.stroke();
-      }
-    }
-  }
+/** The app's state the renderer needs this frame (read once per app frame; the tap is handed over once). */
+function orbInputs(): OrbInputs {
+  const v = useVoice.getState();
+  const live = v.phase === 'listening' && mic.active;
+  const tap = tapPending; tapPending = 0;
+  return { phase: v.phase, phaseAge: (performance.now() - v.since) / 1000, live, raw: live ? mic.voice() : 0, bands: live ? mic.bands() : null, press: pressTarget, tap };
 }
 
 // ── stage ───────────────────────────────────────────────────
@@ -298,6 +49,13 @@ const slots = new Map<string, Slot>();
 /** Until when slot positions must be re-measured every frame (see the stage's tick). */
 let layoutDirtyUntil = 0;
 export const markOrbLayoutDirty = (ms = 900) => { layoutDirtyUntil = Math.max(layoutDirtyUntil, performance.now() + ms); };
+/**
+ * The tab bar's orb glides with the dock: when the dock re-arranges, the next frame slides the orb from where it is drawn
+ * to its new place on the dock's spring as a browser animation (compositor-drawn, full refresh rate), instead of jumping
+ * or following at the script's frame rate.
+ */
+let glideReq: { easing: string; duration: number } | null = null;
+export function orbGlide(sp: { stiffness: number; damping: number; mass?: number }) { glideReq = springCurve(sp); markOrbLayoutDirty(); }
 export function registerSlot(id: string, el: HTMLElement, priority: number, engage?: Engage) {
   slots.set(id, { el, priority, engage });
   markOrbLayoutDirty();
@@ -327,10 +85,38 @@ export function SphereStage() {
   const root = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const motionPref = useStore((s) => s.settings.motion);
+  const hrr = useSyncExternalStore(onHighRefresh, highRefresh, () => true);
+  const [gen, setGen] = useState(0); // a fresh canvas when the drawing moves between the worker and the page
 
   useEffect(() => {
     const el = root.current!, cv = canvas.current!;
-    const renderer = new SphereRenderer(cv);
+    // High refresh rate: the orb is drawn in a worker, on its own frame clock. Some browsers (Samsung Internet) run the
+    // page's script animation at 60 fps on a 120 Hz screen; a worker drawing into an OffscreenCanvas is not tied to the
+    // page's frames. Position and size still come from here (the page's layout), the drawing itself from there.
+    let renderer: SphereRenderer | null = null;
+    let worker: Worker | null = null;
+    let workerVoice = 0, workerRunning = false;
+    orbStats.fps = 0; orbStats.offThread = false;
+    // a canvas handed to a worker can't be drawn on again; an effect re-run (StrictMode, a setting) needs a fresh one
+    if (transferred.has(cv)) { setGen((g) => g + 1); return; }
+    if (hrr && !workerBroken && typeof Worker !== 'undefined' && typeof OffscreenCanvas !== 'undefined' && 'transferControlToOffscreen' in cv) {
+      try {
+        const off = cv.transferControlToOffscreen();
+        transferred.add(cv);
+        worker = new Worker(new URL('./sphere.worker.ts', import.meta.url), { type: 'module' });
+        worker.onmessage = (e: MessageEvent) => {
+          const d = e.data;
+          if (typeof d.voice === 'number') workerVoice = d.voice;
+          if (typeof d.fps === 'number') orbStats.fps = d.fps;
+          if (d.unsupported) { workerBroken = true; setGen((g) => g + 1); }
+        };
+        worker.onerror = () => { workerBroken = true; setGen((g) => g + 1); };
+        worker.postMessage({ canvas: off }, [off]);
+        orbStats.offThread = true;
+      } catch { workerBroken = true; worker?.terminate(); worker = null; setGen((g) => g + 1); return; }
+    } else renderer = new SphereRenderer(cv);
+    const pause = () => { if (worker && workerRunning) { worker.postMessage({ state: { run: false } }); workerRunning = false; } };
+    let mainFrames = 0, mainT0 = 0;
     const appEl = el.closest('.app') as HTMLElement | null;
     let running = true;
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -371,7 +157,8 @@ export function SphereStage() {
     // The orb has no motion of its own any more. Its place is the lowest slot (the tab bar) blended towards every
     // higher slot by that slot's `engage` (how far its popup is open). The popup, the page behind it and the orb all
     // read the same number in the same frame, so they stay in step while a popup opens, is dragged or leaves.
-    let px = NaN, py = NaN, ps = NaN, sentV = 0, lastDraw = 0, lastBucket = 0;
+    let px = NaN, py = NaN, ps = NaN, sentV = 0;
+    let glide: Animation | null = null;
     let base = { left: 0, top: 0 };
     const rects = new WeakMap<HTMLElement, DOMRect>();
     const owners = new WeakMap<HTMLElement, number>();
@@ -430,7 +217,7 @@ export function SphereStage() {
         X += (x - X) * e; Y += (y - Y) * e; S += (z - S) * e;
         if (e > 0.02) { top = Math.max(top, sl.priority); topSlot = sl; }
       }
-      if (!have) { el.style.opacity = '0'; return; }
+      if (!have) { el.style.opacity = '0'; pause(); return; }
       // In the tab bar it sits under every popup; in a popup it sits just above that popup — and so under anything
       // opened over it (an exercise menu over the live workout), never floating on top of everything.
       const zi = top > 0 && topSlot ? String(ownerZ(topSlot.el) + 1) : '41';
@@ -441,7 +228,22 @@ export function SphereStage() {
       const bucket = Math.ceil(size / 24) * 24;
       el.style.opacity = '1';
       if (el.style.width !== `${bucket}px`) el.style.width = el.style.height = `${bucket}px`;
-      el.style.transform = `translate3d(${X}px, ${Y}px, 0) scale(${size / bucket})`;
+      const tf = `translate3d(${X}px, ${Y}px, 0) scale(${size / bucket})`;
+      if (glideReq || glide) {
+        if (top > 0) { glide?.cancel(); glide = null; glideReq = null; } // a popup took it: its flight is script-driven
+        else if (glideReq) {
+          const g = glideReq; glideReq = null;
+          // from where it is drawn right now (a glide in flight included)
+          let from = Number.isFinite(px) ? `translate3d(${px}px, ${py}px, 0) scale(${size / bucket})` : '';
+          if (glide && glide.playState === 'running') from = getComputedStyle(el).transform;
+          glide?.cancel(); glide = null;
+          if (from && Math.abs(X - px) + Math.abs(Y - py) > 0.5 && el.style.transform) {
+            glide = el.animate([{ transform: from }, { transform: tf }], { duration: g.duration, easing: g.easing });
+            glide.onfinish = () => { glide = null; };
+          }
+        }
+      }
+      el.style.transform = tf;
       // A big orb is soft light, not fine detail: at 2× it looks the same as at 3×, with less than half the pixels to fill and
       // hand to the screen every frame (that hand-over was most of the orb screen's cost). Small orbs keep full sharpness.
       const dpr = Math.min(bucket > 120 ? 2 : 3, window.devicePixelRatio || 1);
@@ -449,23 +251,25 @@ export function SphereStage() {
       // frosted layers above stop re-blurring it every frame.
       const still = Math.abs(X - px) < 0.05 && Math.abs(Y - py) < 0.05 && Math.abs(S - ps) < 0.05;
       px = X; py = Y; ps = S;
-      if (top === 0 && still && useUI.getState().overlays.length > 0 && drawn) return;
-      // Parked and idle (the orb resting in the tab bar): its motion is a slow turn, so ~30 fps looks identical and frees the
-      // other half of the frames for the page. Anything moving, listening or thinking redraws every frame.
-      // Idle (not listening, thinking or just done) the orb's own motion is a slow turn: ~30 fps looks identical and gives
-      // the page the other half of the frames — on the tab bar, on Today and inside the live workout alike. Its POSITION
-      // (above) still follows every frame, so it never lags a scroll or a popup.
-      // A flight only scales the drawn canvas (transform above); the canvas itself must be redrawn only when its size bucket
-      // changes (a resize clears it).
-      const resized = bucket !== lastBucket; lastBucket = bucket;
-      const calm = !reduced && !resized && useVoice.getState().phase === 'idle' && drawn && !renderer.busy;
-      if (calm && now - lastDraw < 30) return;
-      lastDraw = now;
-      renderer.resize(bucket, dpr);
-      renderer.frame(now, bucket, reduced, colors);
+      if (top === 0 && still && useUI.getState().overlays.length > 0 && drawn) { pause(); return; }
+      // Drawn every frame — the slow turn included (it used to be drawn at ~30 fps when idle, which read as a stutter).
+      // A flight only scales the drawn canvas (transform above); the canvas is redrawn at a new size only when its size
+      // bucket changes.
+      const inp = orbInputs();
+      let vv: number;
+      if (worker) {
+        worker.postMessage({ state: { bucket, dpr, reduced, colors, inp, run: true } });
+        workerRunning = true;
+        vv = workerVoice;
+      } else {
+        renderer!.resize(bucket, dpr);
+        renderer!.frame(now, bucket, reduced, colors, inp);
+        vv = renderer!.voice;
+        mainFrames++; if (!mainT0) mainT0 = now;
+        if (now - mainT0 >= 1000) { orbStats.fps = Math.round((mainFrames * 1000) / (now - mainT0)); mainFrames = 0; mainT0 = now; }
+      }
       drawn = true;
       // the slot's button listens too: its ring swells with your voice (one CSS variable, written only when it moves)
-      const vv = renderer.voice;
       if (topSlot && top > 0 && (Math.abs(vv - sentV) > 0.015 || (vv < 0.004) !== (sentV < 0.004))) {
         (topSlot.el.parentElement ?? topSlot.el).style.setProperty('--voice', vv < 0.004 ? '0' : vv.toFixed(3));
         sentV = vv;
@@ -476,16 +280,16 @@ export function SphereStage() {
     const loop = (d: { timestamp: number }) => tick(d.timestamp);
     frame.postRender(loop, true);
     const onVis = () => {
-      if (document.hidden) { running = false; cancelFrame(loop); }
+      if (document.hidden) { running = false; cancelFrame(loop); pause(); }
       else if (!running) { running = true; frame.postRender(loop, true); }
     };
     document.addEventListener('visibilitychange', onVis);
-    return () => { running = false; cancelFrame(loop); document.removeEventListener('visibilitychange', onVis); mo.disconnect(); lmo.disconnect(); window.removeEventListener('scroll', dirty, { capture: true }); window.removeEventListener('resize', dirty); window.visualViewport?.removeEventListener('resize', dirty); window.removeEventListener('pointermove', dirty); window.removeEventListener('pointerdown', dirty); offUi(); offKb(); document.fonts?.removeEventListener?.('loadingdone', dirty); window.removeEventListener('load', dirty, true); pAc.remove(); pAc2.remove(); pH1.remove(); };
-  }, [motionPref]);
+    return () => { running = false; cancelFrame(loop); worker?.terminate(); document.removeEventListener('visibilitychange', onVis); mo.disconnect(); lmo.disconnect(); window.removeEventListener('scroll', dirty, { capture: true }); window.removeEventListener('resize', dirty); window.visualViewport?.removeEventListener('resize', dirty); window.removeEventListener('pointermove', dirty); window.removeEventListener('pointerdown', dirty); offUi(); offKb(); document.fonts?.removeEventListener?.('loadingdone', dirty); window.removeEventListener('load', dirty, true); pAc.remove(); pAc2.remove(); pH1.remove(); };
+  }, [motionPref, hrr, gen]);
 
   return (
     <div ref={root} className="sphere-stage" aria-hidden="true" style={{ position: 'fixed', left: 0, top: 0, zIndex: 75, pointerEvents: 'none', opacity: 0, willChange: 'transform', transformOrigin: '0 0', contain: 'strict' }}>
-      <canvas ref={canvas} style={{ width: '100%', height: '100%', display: 'block' }} />
+      <canvas key={`${gen}-${hrr}`} ref={canvas} style={{ width: '100%', height: '100%', display: 'block' }} />
     </div>
   );
 }

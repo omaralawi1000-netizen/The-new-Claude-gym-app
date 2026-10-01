@@ -49,6 +49,9 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
   const eFinger = useTransform([p, dragY], ([pp, d]: number[]) => Math.min(1, Math.max(0, pp - Math.max(0, d) / H)));
   const engage = useMemo(() => ({ e: eFinger, shift: dialogY }), [eFinger, dialogY]);
   const dim = useTransform(eFinger, (v) => clamp01(v / 0.6));
+  // square corners once it fills the screen (round ones showed the black behind them at the top), rounding back in over
+  // the first few percent of a drag or close
+  const radius = useTransform(eFinger, (v) => `${(38 * clamp01((1 - v) * 14)).toFixed(1)}px ${(38 * clamp01((1 - v) * 14)).toFixed(1)}px 0 0`);
   const depthId = useId();
   useEffect(() => trackDepth(depthId, eFinger), [depthId, eFinger]); // the page behind recedes with the card, frame for frame
   useEffect(() => trackCover(depthId, eFinger), [depthId, eFinger]); // and stops being drawn while the card covers it
@@ -170,7 +173,7 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
       <motion.div ref={scrimRef} className="scrim" style={{ zIndex: z - 1, opacity: dim }} onClick={pop}><i /></motion.div>
       <motion.div
         role="dialog" aria-modal="true" aria-label={t('Active workout')}
-        ref={dialogRef} data-hue="train" className="wk-card" style={{ zIndex: z, y: dialogY }}
+        ref={dialogRef} data-hue="train" className="wk-card" style={{ zIndex: z, y: dialogY, borderRadius: radius }}
       >
         <div className="wk-window" style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column' }}>
           <div aria-hidden style={{ position: 'absolute', inset: 0, background: 'var(--bg)' }}>
@@ -179,7 +182,9 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
           <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, paddingTop: 'var(--sat)' }}>
           <div className="sheet-grab" style={{ position: 'relative', zIndex: 3 }} />
           {/* header */}
-          <div style={{ padding: '0 16px 12px', touchAction: 'none', background: 'linear-gradient(var(--bg) 70%, transparent)', position: 'relative', zIndex: 2 }}>
+          {/* no backdrop of its own: the list scrolls in its own box below, so the header sits straight on the window's light
+              (a solid band here cut the colour field off in a hard line under the grabber) */}
+          <div style={{ padding: '0 16px 12px', touchAction: 'none', position: 'relative', zIndex: 2 }}>
             <div className="row-flex between">
               <button className="icon-btn press" aria-label={t('Minimise workout')} onClick={pop}><Icon name="chevD" /></button>
               <div className="grow" style={{ textAlign: 'center', minWidth: 0 }}>

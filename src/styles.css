@@ -157,13 +157,13 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
 .tabbar-wrap::before { content: ''; position: fixed; left: 0; right: 0; bottom: 0; height: calc(var(--sab) + 26px); z-index: -1; pointer-events: none; background: linear-gradient(to top, color-mix(in srgb, var(--bg) 88%, transparent), transparent); }
 .screen > * + * { margin-top: 22px; }
 /* every screen's blocks rise in, blurred → sharp, one after another */
-.screen > * { animation: rise-move 780ms var(--ease-out) backwards; animation-delay: calc(var(--i, 0) * 60ms); }
+.screen > * { animation: rise-move 700ms var(--ease-out) backwards; animation-delay: calc(40ms + var(--i, 0) * 50ms); }
 .screen > :nth-child(1) { --i: 0; } .screen > :nth-child(2) { --i: 1; } .screen > :nth-child(3) { --i: 2; } .screen > :nth-child(4) { --i: 3; }
 .screen > :nth-child(5) { --i: 4; } .screen > :nth-child(6) { --i: 5; } .screen > :nth-child(7) { --i: 6; } .screen > :nth-child(n+8) { --i: 7; }
 /* Movement and blur are separate animations on purpose. The movement must NOT stay applied after it finishes (fill
    "backwards"): a finished CSS animation that keeps `transform`/`opacity` overrides every later motion/spring animation on
    the same element — that was the cause of pages that froze, popped or stayed visible under a new title. */
-@keyframes rise-move { from { opacity: 0; transform: translate3d(0, 18px, 0) scale(.985); } to { opacity: 1; transform: none; } }
+@keyframes rise-move { from { opacity: 0; transform: translate3d(0, 14px, 0) scale(.988); } to { opacity: 1; transform: none; } }
 /* (No blur in the rise any more. A blur animated on whole blocks made the GPU filter every block every frame while a popup
    slid in — and with fill "both" an empty blur(0) filter then stayed on every block for good, each one its own filtered
    layer for as long as the page lived. The rise is movement + fade + a slight scale, which reads the same at speed.) */
@@ -241,8 +241,9 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
 .seg { display: flex; padding: 4px; border-radius: 999px; background: var(--bg-2); box-shadow: inset 0 1px 2px rgba(0,0,0,.2), inset 0 0 0 1px var(--line); position: relative; -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
 .seg button { flex: 1; height: 38px; border-radius: 999px; font-size: 14px; font-weight: 600; color: var(--tx2); position: relative; z-index: 1; transition: color 220ms; }
 .seg button.on { color: var(--tx); }
-.seg .thumb { position: absolute; top: 4px; bottom: 4px; border-radius: 999px; background: var(--s4); box-shadow: inset 0 1px 0 var(--hl), 0 4px 14px -4px rgba(0,0,0,.4); }
-:root[data-theme='light'] .seg .thumb { background: #fff; }
+.seg-lens { top: 4px; bottom: 4px; --lens-r: 19px; opacity: .95; --lens-fill: linear-gradient(180deg, #4a4d57, #3b3e48); }
+:root[data-theme='light'] .seg-lens { --lens-fill: #fff; }
+.toggle-knob { position: absolute; top: 3px; left: 3px; width: 26px; height: 26px; border-radius: 99px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.4), 0 3px 8px -2px rgba(0,0,0,.25); transition: transform 460ms var(--ease-spring); will-change: transform; }
 
 .field { display: flex; flex-direction: column; gap: 6px; }
 .field > label, .lbl { font-size: 12px; font-weight: 600; color: var(--tx3); letter-spacing: .05em; text-transform: uppercase; }
@@ -300,20 +301,26 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* ── floating tab bar: icons only; the active tab opens up and shows its name ─── */
 .tabbar-wrap { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; padding: 0 16px calc(var(--sab) + 14px); display: flex; justify-content: center; pointer-events: none; }
 .tabbar.glass { background: color-mix(in srgb, var(--glass) 100%, transparent); -webkit-backdrop-filter: blur(36px) saturate(2); backdrop-filter: blur(36px) saturate(2); }
-.tabbar { pointer-events: auto; position: relative; width: 100%; max-width: 420px; height: 66px; border-radius: 999px; display: flex; align-items: center; padding: 0 6px; gap: 2px; }
-/* iOS-style: every tab the same width, icon over its name; one drop of glass (the lens) glides to the active tab */
-.tab { flex: 1 1 0; min-width: 0; height: 54px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: var(--tx3); font-size: 10.5px; font-weight: 600; letter-spacing: .01em; position: relative; z-index: 1; border-radius: 999px;
-  transition: color 420ms var(--ease-smooth); }
-.tab.on { color: var(--ac-text); }
-.tab > span.lab { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1; }
-.tab svg { position: relative; flex: none; transition: transform 520ms var(--ease-spring); }
-.tab.on svg { transform: scale(1.06); }
-.tab-lens { position: absolute; left: 0; top: 6px; height: 54px; width: 0; pointer-events: none; z-index: 0; will-change: transform; }
-.tab-lens > i { position: absolute; inset: 0; border-radius: 999px; transform-origin: 50% 50%;
-  background: linear-gradient(180deg, rgba(255,255,255,.13), rgba(255,255,255,.02) 55%, rgba(255,255,255,.05)), color-mix(in srgb, var(--s3) 82%, transparent);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.26), inset 0 -1px 1px rgba(255,255,255,.07), inset 0 0 0 1px var(--line), 0 8px 22px -10px var(--ac); }
-:root[data-theme="light"] .tab-lens > i { background: linear-gradient(180deg, rgba(255,255,255,.9), rgba(255,255,255,.55)); box-shadow: inset 0 1px 0 #fff, inset 0 0 0 1px rgba(16,20,34,.07), 0 6px 18px -8px rgba(16,20,34,.25); }
-.sphere-slot { width: 60px; flex: none; height: 52px; }
+.tabbar { pointer-events: auto; position: relative; width: 100%; max-width: 420px; height: 66px; border-radius: 999px; display: flex; align-items: center; padding: 0 7px; gap: 2px; }
+/* The first version's dock: icons only, the active tab opens up and shows its name, everything else (the orb too) makes
+   room, and a drop of glass flows over to it. Layout changes at once; the motion is FLIP + browser animations (TabBar.tsx). */
+.tab { flex: 1 1 0; min-width: 0; height: 52px; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 0 6px; color: var(--tx3); font-size: 13px; font-weight: 600; position: relative; z-index: 1; border-radius: 999px;
+  transition: color 360ms var(--ease-smooth); }
+.tab.on { flex-grow: 2.7; color: var(--tx); }
+.tab > span.lab { position: absolute; left: 0; top: 50%; margin-top: -.6em; line-height: 1.2; white-space: nowrap; opacity: 0; pointer-events: none; }
+.tab.on > span.lab { position: relative; left: auto !important; top: auto; margin-top: 0; opacity: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.tab svg { position: relative; flex: none; transition: color 360ms var(--ease-smooth); }
+.tab.on svg { color: var(--ac-text); }
+/* the drop of glass: three opaque pieces (see ui/lens.ts) made translucent as one group */
+.lens { position: absolute; left: 0; pointer-events: none; z-index: 0; }
+.lens > i { position: absolute; top: 0; left: 0; height: 100%; will-change: transform; background: var(--lens-fill); }
+.lens > .lens-l, .lens > .lens-r { width: calc(var(--lens-r) * 2); border-radius: var(--lens-r); box-shadow: inset 0 1px 0 var(--lens-hl), inset 0 0 0 1px var(--lens-line); }
+.lens > .lens-m { width: 100px; transform-origin: 0 0; background: linear-gradient(to bottom, var(--lens-hl) 0 1px, transparent 1px calc(100% - 1px), var(--lens-line) calc(100% - 1px)), var(--lens-fill); }
+.tab-lens { top: 7px; height: 52px; --lens-r: 26px; opacity: .9; }
+/* opaque fills (the group's opacity makes them glass): overlapping translucent pieces would show darker seams */
+:root { --lens-fill: linear-gradient(180deg, #43454f, #32343d 55%, #2e3039); --lens-hl: rgba(255,255,255,.22); --lens-line: rgba(255,255,255,.07); }
+:root[data-theme='light'] { --lens-fill: linear-gradient(180deg, #ffffff, #f2f4f9); --lens-hl: #ffffff; --lens-line: rgba(16,20,34,.08); }
+.sphere-slot { width: 56px; flex: none; height: 52px; }
 
 /* ── toasts ──────────────────────────────────────────────── */
 .toasts { position: fixed; left: 0; right: 0; z-index: 700; bottom: calc(var(--bar-h) + var(--sab) + 22px); display: flex; justify-content: center; pointer-events: none; padding: 0 14px; }
@@ -416,3 +423,15 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 
 /* the live workout card: full height below a sliver of the receded page, rounded top like an iOS sheet */
 .wk-card { position: fixed; left: 0; right: 0; bottom: 0; top: 0; display: flex; flex-direction: column; border-radius: var(--r-xl) var(--r-xl) 0 0; overflow: hidden; box-shadow: inset 0 1px 0 var(--hl), 0 -12px 40px -12px rgba(0,0,0,.5); will-change: transform; }
+
+/* Settings pages: once a page has glided in, its rows and fields settle in one after another (transform + opacity only) */
+.settings-page > *, .settings-page > .stack > *, .settings-page .list > * { animation: rise-soft 520ms var(--ease-out) backwards; animation-delay: calc(60ms + var(--j, 0) * 32ms); }
+.settings-page :is(.list, .stack) > :nth-child(1), .settings-page > :nth-child(1) { --j: 0; }
+.settings-page :is(.list, .stack) > :nth-child(2), .settings-page > :nth-child(2) { --j: 1; }
+.settings-page :is(.list, .stack) > :nth-child(3), .settings-page > :nth-child(3) { --j: 2; }
+.settings-page :is(.list, .stack) > :nth-child(4) { --j: 3; } .settings-page :is(.list, .stack) > :nth-child(5) { --j: 4; }
+.settings-page :is(.list, .stack) > :nth-child(6) { --j: 5; } .settings-page :is(.list, .stack) > :nth-child(7) { --j: 6; }
+.settings-page :is(.list, .stack) > :nth-child(8) { --j: 7; } .settings-page :is(.list, .stack) > :nth-child(n+9) { --j: 8; }
+.settings-page > .list, .settings-page > .stack { animation: none; }
+@keyframes rise-soft { from { opacity: 0; transform: translate3d(0, 10px, 0); } to { opacity: 1; transform: none; } }
+:root[data-motion='reduce'] .settings-page * { animation: none !important; }
