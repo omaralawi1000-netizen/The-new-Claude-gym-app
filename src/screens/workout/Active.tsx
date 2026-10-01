@@ -16,7 +16,9 @@ import { exName, fmtSet, MUSCLE_LABEL } from './common';
 import { SphereSlot } from '../../ui/Sphere';
 import { useSwipeDown } from '../../ui/swipe';
 
-const WK_SPRING = { type: 'spring', stiffness: 260, damping: 30, mass: 0.9 } as const;
+// critically damped: it opens and closes in one smooth motion with no wobble at the end
+const WK_SPRING = { type: 'spring', stiffness: 320, damping: 34, mass: 0.9 } as const;
+const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 
 interface Edges { left: number; top: number; right: number; bottom: number }
 /** The on-screen rectangle of the card / pill the workout opens from (and closes back into). */
@@ -58,7 +60,7 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
     const k = 1 - Math.max(0, v), W = window.innerWidth, H = window.innerHeight;
     return `inset(${r.top * k}px ${(W - r.right) * k}px ${(H - r.bottom) * k}px ${r.left * k}px round ${30 * k}px)`;
   });
-  const bgOpacity = useTransform(reveal, (v) => Math.min(1, Math.max(0, v) * 14)); // blends in over the card in the first instants
+  const bgOpacity = useTransform(reveal, (v) => clamp01(v * 4)); // crossfades with the card it grows out of (same shape, so it reads as the card itself opening)
   // Without an origin card (or with reduced motion) the screen slides up like a sheet: `slide` is that progress.
   // Either way ONE number says how far open the screen is (`eng`, finger included), and the orb follows it.
   const H = typeof window !== 'undefined' ? window.innerHeight : 900;
@@ -67,6 +69,10 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
   const dialogY = useTransform([slide, dragY], ([sl, d]: number[]) => (from ? 0 : (1 - sl) * H) + d);
   const eFinger = useTransform([eng, dragY], ([e, d]: number[]) => Math.min(1, Math.max(0, e - Math.max(0, d) / H)));
   const engage = useMemo(() => ({ e: eFinger, shift: dialogY }), [eFinger, dialogY]);
+  // what is inside the window fades up and settles as the window opens (and the reverse as it closes), tied to the
+  // window's own progress, so it can never be early or late
+  const contentOpacity = useTransform(eFinger, (v) => (from ? clamp01((v - 0.22) / 0.45) : 1));
+  const contentY = useTransform(eFinger, (v) => (from ? 16 * (1 - clamp01((v - 0.22) / 0.7)) : 0));
   const [isPresent, safeToRemove] = usePresence();
   useEffect(() => {
     const c = animate(from ? reveal : slide, 1, from || !reduce ? WK_SPRING : { duration: 0.01 });
@@ -98,13 +104,23 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
   // where to open from is fixed at mount; where to close into is measured on every render (the card may have scrolled)
   // Render the first exercises at once and the rest a few at a time after the opening animation — no long task while
   // the surface is growing (that was the stutter/flicker on Start), and no single big hitch afterwards either.
-  const [shown, setShown] = useState(2);
+  // The window opens first with just its header; the exercises then come in one after another once it has landed,
+  // so no frame of the opening has to build the list.
+  const [shown, setShown] = useState(0);
+  const [ready, setReady] = useState(false);
   const total0 = a?.exercises.length ?? 0;
   useEffect(() => {
-    if (shown >= total0) return;
-    const id = setTimeout(() => setShown((n) => n + 1), shown === 2 ? 520 : 60);
+    if (eng.get() >= 0.97) { setReady(true); return; }
+    const off = eng.on('change', (v) => { if (v >= 0.97) { setReady(true); off(); } });
+    const fallback = setTimeout(() => setReady(true), 900);
+    return () => { off(); clearTimeout(fallback); };
+    // eslint-disable-next-line
+  }, []);
+  useEffect(() => {
+    if (!ready || shown >= total0) return;
+    const id = setTimeout(() => setShown((n) => n + 1), shown === 0 ? 0 : 70);
     return () => clearTimeout(id);
-  }, [shown, total0]);
+  }, [ready, shown, total0]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -153,7 +169,7 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
 
   return (
     <>
-      <motion.div className="scrim flat" style={{ zIndex: z - 1 }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }} />
+      <motion.div className="scrim flat" style={{ zIndex: z - 1, opacity: eFinger }} />
       <motion.div
         role="dialog" aria-modal="true" aria-label={t('Active workout')}
         ref={dialogRef} data-hue="train" style={{ position: 'fixed', inset: 0, zIndex: z, display: 'flex', flexDirection: 'column', y: dialogY }}
@@ -162,7 +178,7 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
           <motion.div aria-hidden style={{ position: 'absolute', inset: 0, background: 'var(--bg)', opacity: bgOpacity }}>
             <div className="aurora-lite" />
           </motion.div>
-          <motion.div style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0, transition: { delay: 0.14, duration: 0.3, ease: [0.22, 1, 0.36, 1] } }} exit={{ opacity: 0, transition: { duration: 0.12 } }}>
+          <motion.div style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, opacity: contentOpacity, y: contentY }}>
           {/* header */}
           <div style={{ padding: 'calc(var(--sat) + 10px) 16px 12px', touchAction: 'none', background: 'linear-gradient(var(--bg) 70%, transparent)', position: 'relative', zIndex: 2 }}>
             <div className="row-flex between">
@@ -195,7 +211,7 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
               <div className="empty"><div className="display display-sm">{t('Empty session')}</div><div style={{ height: 12 }} /></div>
             )}
             <AnimatePresence initial={false}>
-              {a.exercises.slice(0, Math.max(2, shown)).map((se, idx) => (
+              {a.exercises.slice(0, shown).map((se, idx) => (
                 <ExerciseBlock key={se.id} se={se} idx={idx} ex={exMap.get(se.exerciseId)} onMenu={setMenu}
                   linkedPrev={!!(idx > 0 && se.supersetGroup && a.exercises[idx - 1].supersetGroup === se.supersetGroup)}
                   linkedNext={!!(idx < a.exercises.length - 1 && se.supersetGroup && a.exercises[idx + 1].supersetGroup === se.supersetGroup)} />
