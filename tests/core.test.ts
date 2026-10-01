@@ -69,11 +69,11 @@ describe('nutrients', () => {
       expect(n.kcal).toBeGreaterThanOrEqual(0);
       const fibre = n.fibre ?? 0;
       const est = (n.protein ?? 0) * 4 + Math.max(0, (n.carbs ?? 0) - fibre) * 4 + fibre * 2 + (n.fat ?? 0) * 9;
-      const alcohol = f.id === 'ref:beer' || f.id === 'ref:red-wine';
+      const alcohol = /^ref:(beer|red-wine|white-wine|spirits|gin-tonic)/.test(f.id);
       if (!alcohol && n.kcal! > 20) expect(Math.abs(est - n.kcal!) / n.kcal!, f.id).toBeLessThan(0.3);
     }
     expect(new Set(REFERENCE_FOODS.map((f) => f.id)).size).toBe(REFERENCE_FOODS.length); // unique ids
-    expect(REFERENCE_FOODS.length).toBeGreaterThan(150);
+    expect(REFERENCE_FOODS.length).toBeGreaterThan(450);
   });
 });
 
@@ -212,5 +212,25 @@ describe('workout maths', () => {
   it('elapsed excludes paused time', () => {
     const s: WorkoutSession = { id: 'p', name: '', date: '', startedAt: 0, pausedMs: 10_000, pausedAt: 40_000, status: 'active', exercises: [] };
     expect(elapsedMs(s, 60_000)).toBe(30_000);
+  });
+});
+
+describe('Danish reference foods', () => {
+  const top = (q: string) => searchFoods(q, REFERENCE_FOODS, () => 0, 3)[0]?.food.id;
+  it('finds everyday Danish foods by their Danish names (æ/ø/å or folded)', () => {
+    expect(top('rundstykke')).toBe('ref:rundstykke');
+    expect(top('koldskål')).toBe('ref:koldskaal');
+    expect(top('koldskaal')).toBe('ref:koldskaal');
+    expect(top('frikadeller')).toBe('ref:meatballs');
+    expect(top('leverpostej')).toMatch(/^ref:(liver-pate|leverpostej)/);
+    expect(top('rødspætte')).toBe('ref:plaice');
+    expect(top('kærnemælk')).toBe('ref:buttermilk');
+    expect(top('flæskesteg')).toBe('ref:flaeskesteg');
+    expect(top('havarti')).toBe('ref:havarti');
+  });
+  it('keeps plain staples resolving to the same food as before', () => {
+    expect(top('skyr')).toMatch(/^ref:skyr/);
+    expect(top('banana')).toBe('ref:banana');
+    expect(top('milk')).toMatch(/^ref:milk/);
   });
 });

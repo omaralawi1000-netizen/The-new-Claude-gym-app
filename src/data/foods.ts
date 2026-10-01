@@ -1,4 +1,4 @@
-import type { BasisUnit, Food, FoodState, Nutrients } from '../lib/types';
+import type { Food } from '../lib/types';
 
 /**
  * Bundled REFERENCE foods — approximate, typical values per 100 g / 100 ml compiled
@@ -8,27 +8,8 @@ import type { BasisUnit, Food, FoodState, Nutrients } from '../lib/types';
  * Portion sizes marked "~" are typical, not verified.
  */
 
-type N = [kcal: number, p: number, c: number, f: number, fibre: number | null, sugar: number | null, sat: number | null, na: number | null];
-type P = [label: string, amount: number];
-interface Opt { state?: FoodState; group?: string; density?: number; aliases?: string[] }
-
-const nut = (n: N): Nutrients => {
-  const [kcal, protein, carbs, fat, fibre, sugar, satFat, sodium] = n;
-  const o: Nutrients = { kcal, protein, carbs, fat };
-  if (fibre !== null) o.fibre = fibre;
-  if (sugar !== null) o.sugar = sugar;
-  if (satFat !== null) o.satFat = satFat;
-  if (sodium !== null) o.sodium = sodium;
-  return o;
-};
-
-function F(id: string, name: string, nameDa: string, basis: BasisUnit, n: N, portions: P[] = [], opt: Opt = {}): Food {
-  return {
-    id: `ref:${id}`, name, nameDa, source: 'reference', sourceId: id, basis, per100: nut(n),
-    portions: portions.map(([label, amount], i) => ({ id: `p${i}`, label, amount, verified: false })),
-    density: opt.density, state: opt.state, variantGroup: opt.group, aliases: opt.aliases,
-  };
-}
+import { F } from './foodDef';
+import { REFERENCE_FOODS_DK } from './foods-dk';
 
 export const REFERENCE_FOODS: Food[] = [
   // dairy & eggs
@@ -226,6 +207,8 @@ export const REFERENCE_FOODS: Food[] = [
   F('sports-drink', 'Sports drink', 'Sportsdrik', 'ml', [26, 0, 6.4, 0, 0, 5.8, 0, 40], [['1 bottle 500 ml', 500]], { density: 1.03 }),
   F('red-wine', 'Red wine', 'Rødvin', 'ml', [85, 0.1, 2.6, 0, 0, 0.6, 0, 4], [['1 glass 125 ml', 125]], { density: 0.99, aliases: ['wine', 'vin'] }),
   F('tea', 'Tea, unsweetened', 'Te, usødet', 'ml', [1, 0, 0.2, 0, 0, 0, 0, 3], [['1 cup 200 ml', 200]], { density: 1 }),
+  // the wider Danish table lives in foods-dk.ts
+  ...REFERENCE_FOODS_DK,
 ];
 
 export const REFERENCE_BY_ID: Record<string, Food> = Object.fromEntries(REFERENCE_FOODS.map((f) => [f.id, f]));

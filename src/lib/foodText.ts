@@ -12,10 +12,12 @@ export function fold(s: string): string {
     .replace(/\s+/g, ' ')
     .trim();
 }
+/** search-only folding: dictation often writes å as "aa" (koldskaal), so both sides collapse "aa" → "a" */
+const sfold = (s: string) => fold(s).replace(/aa/g, 'a');
 const STOP = new Set(['the', 'a', 'an', 'some', 'of', 'af', 'en', 'et', 'med', 'with', 'my', 'min', 'mit']);
 const stem = (t: string) => (t.length > 3 && t.endsWith('s') && !t.endsWith('ss') ? t.slice(0, -1) : t);
 export function tokens(s: string): string[] {
-  return fold(s).split(' ').filter((t) => t && !STOP.has(t)).map(stem);
+  return sfold(s).split(' ').filter((t) => t && !STOP.has(t)).map(stem);
 }
 
 // ── Search ──────────────────────────────────────────────────
@@ -23,7 +25,7 @@ export function tokens(s: string): string[] {
 export interface Scored { food: Food; score: number }
 
 function fieldScore(field: string, qTokens: string[], qFold: string): number {
-  const f = fold(field);
+  const f = sfold(field);
   if (!f) return 0;
   if (f === qFold) return 1;
   const ft = tokens(field);
@@ -36,7 +38,7 @@ function fieldScore(field: string, qTokens: string[], qFold: string): number {
 
 export function scoreFood(food: Food, query: string): number {
   const qTokens = tokens(query);
-  const qFold = fold(query);
+  const qFold = sfold(query);
   if (!qTokens.length) return 0;
   let best = Math.max(fieldScore(food.name, qTokens, qFold), food.nameDa ? fieldScore(food.nameDa, qTokens, qFold) : 0);
   if (food.brand) {
