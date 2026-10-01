@@ -14,8 +14,11 @@ import type { AppData, Meal, Settings } from '../lib/types';
 import { uid } from '../lib/nutrition';
 import { mealName } from '../lib/derive';
 import { dayKey } from '../lib/dates';
+import { useAi } from '../state/ai';
+import { clearKeys } from '../lib/keys';
+import { VoiceAiSettings } from './VoiceAi';
 
-type Section = null | 'targets' | 'training' | 'food' | 'units' | 'look' | 'reminders' | 'data' | 'privacy' | 'about';
+type Section = null | 'targets' | 'training' | 'food' | 'units' | 'look' | 'reminders' | 'data' | 'privacy' | 'ai' | 'about';
 
 function Row({ icon, title, sub, onClick, value }: { icon: any; title: string; sub?: string; onClick: () => void; value?: string }) {
   return (
@@ -37,9 +40,10 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
   const pop = useUI((u) => u.pop);
   const push = useUI((u) => u.push);
   const [sec, setSec] = useState<Section>(props.section ?? null);
+  const ai = useAi();
   const set = s.updateSettings;
   const st = s.settings;
-  const titles: Record<string, string> = { targets: t('Targets'), training: t('Training'), food: t('Food & water'), units: t('Units & locale'), look: t('Appearance'), reminders: t('Reminders'), data: t('Data & backup'), privacy: t('Privacy'), about: t('About Aven') };
+  const titles: Record<string, string> = { targets: t('Targets'), training: t('Training'), food: t('Food & water'), units: t('Units & locale'), look: t('Appearance'), reminders: t('Reminders'), data: t('Data & backup'), privacy: t('Privacy'), ai: t('Voice & AI'), about: t('About Aven') };
   const goBack = () => (sec && !props.section ? setSec(null) : pop());
 
   return (
@@ -57,6 +61,7 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
                   <Row icon="food" title={t('Food & water')} sub={t('Meals, quick amounts, lookup')} onClick={() => setSec('food')} />
                   <Row icon="globe" title={t('Units & locale')} sub={`${st.units.weight} · ${st.units.distance} · ${st.language === 'da' ? 'Dansk' : 'English'}`} onClick={() => setSec('units')} />
                   <Row icon="moon" title={t('Appearance')} sub={`${t(st.theme === 'system' ? 'System' : st.theme === 'dark' ? 'Dark' : 'Light')} · ${t(st.motion === 'system' ? 'Motion: system' : st.motion === 'reduce' ? 'Reduced motion' : 'Full motion')}`} onClick={() => setSec('look')} />
+                  <Row icon="sparkle" title={t('Voice & AI')} sub={ai.hasGroq || ai.hasGemini ? [ai.hasGroq ? 'Groq' : '', ai.hasGemini ? 'Gemini' : ''].filter(Boolean).join(' + ') : t('Optional: Groq hears, Gemini understands')} onClick={() => setSec('ai')} />
                   <Row icon="bell" title={t('Reminders')} onClick={() => setSec('reminders')} />
                   <Row icon="download" title={t('Data & backup')} sub={t('Export, import, delete')} onClick={() => setSec('data')} />
                   <Row icon="shield" title={t('Privacy')} onClick={() => setSec('privacy')} />
@@ -96,11 +101,13 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
             )}
             {sec === 'reminders' && <Reminders />}
             {sec === 'data' && <DataSection />}
+            {sec === 'ai' && <VoiceAiSettings />}
             {sec === 'privacy' && (
               <div className="stack gap12 small">
                 <p style={{ margin: 0 }}><b>{t('Everything stays on this device.')}</b> {t('Aven has no account and no analytics. Your workouts, meals, weight and photos are stored in this browser’s local storage and IndexedDB.')}</p>
                 <p style={{ margin: 0 }}><b>{t('Food lookup')}</b>: {t('when on, the text you search is sent to Aven’s lookup server, which forwards it to Open Food Facts and USDA FoodData Central. Nothing else is sent. Turn it off in Food & water.')}</p>
-                <p style={{ margin: 0 }}><b>{t('Dictation')}</b>: {t('speech-to-text is performed by your browser (on Chrome this is a Google cloud service). Aven itself never records or stores audio; it only reads the microphone level to animate the sphere while you speak.')}</p>
+                <p style={{ margin: 0 }}><b>{t('Dictation')}</b>: {t('without a Groq key, speech-to-text is performed by your browser (on Chrome this is a Google cloud service). With a Groq key, your recording is sent to Groq instead. Either way Aven never stores audio; it only reads the microphone level to animate the sphere while you speak.')}</p>
+                <p style={{ margin: 0 }}><b>{t('Voice & AI')}</b>: {t('only if you add keys. Text you dictate or ask the Coach (plus a short summary of your targets and training for the Coach) goes to Google Gemini. API keys are stored only in this browser and are never part of exports or backups.')}</p>
                 <p style={{ margin: 0 }}><b>{t('Photos')}</b>: {t('saved only on this device, stripped of location data, and not included in exports unless you choose.')}</p>
                 <p style={{ margin: 0 }}>{t('Clearing browser data removes everything. Export a backup first (Data & backup).')}</p>
               </div>
@@ -237,7 +244,7 @@ function DataSection() {
     setPending(null);
     toast(t('Backup restored'), { tone: 'ok', actionLabel: t('Undo'), onAction: () => useStore.getState().replaceAll(prev), duration: 10000 });
   };
-  const doDelete = async () => { useStore.getState().resetAll(); await clearPhotos().catch(() => {}); try { Object.keys(localStorage).filter((k) => k.startsWith('aven')).forEach((k) => localStorage.removeItem(k)); } catch { /* ignore */ } setConfirmDel(false); closeAll(); setTimeout(() => push('onboarding', {}), 80); };
+  const doDelete = async () => { useStore.getState().resetAll(); await clearPhotos().catch(() => {}); try { Object.keys(localStorage).filter((k) => k.startsWith('aven')).forEach((k) => localStorage.removeItem(k)); } catch { /* ignore */ } clearKeys(); useAi.getState().patch({ stt: 'accurate', voiceLang: 'auto', speak: false, voice: 'Achird', brain: true, models: { fast: '', brain: '', fastAlt: '', brainAlt: '', tts: '' } }); setConfirmDel(false); closeAll(); setTimeout(() => push('onboarding', {}), 80); };
   const demo = () => { const d = buildDemo(s.settings); useStore.getState().patch(d); toast(t('Demo data loaded'), { tone: 'ok' }); };
   const removeDemo = () => { const lang = s.settings.language; const settings = s.settings; useStore.getState().replaceAll({ ...defaultData(lang), settings }); toast(t('Demo data removed'), { tone: 'ok' }); };
 

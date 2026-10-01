@@ -6,9 +6,14 @@ import { useVoice } from '../state/voice';
 import { useT, useLang } from '../lib/i18n';
 import { mic } from '../lib/mic';
 import { speechSupported, startSpeech, type SpeechError, type SpeechHandle } from '../lib/speech';
+import { useAi } from '../state/ai';
+import { getKey } from '../lib/keys';
+import { transcribe, buildPrompt, STT_MODEL, SttError } from '../lib/groq';
+import { aiFoodRows, aiWorkoutRows, aiEstimateFood, aiErrorText, FALLBACK_MODELS, type Brain } from '../lib/gemini';
+import type { FoodEstimate } from '../lib/aiValidate';
 import { parseFoodText, resolveRows, rowQuantity, searchFoods, fold, type ResolvedRow } from '../lib/foodText';
 import { matchExercises, parseWorkoutText, type ParsedSet, type ParsedWorkoutRow } from '../lib/workoutText';
-import { allowedUnits, entryFromSnapshot, scale, snapshotOf, toBase, uid } from '../lib/nutrition';
+import { allowedUnits, entryFromSnapshot, quickEntry, scale, snapshotOf, toBase, uid } from '../lib/nutrition';
 import type { Exercise, Food, FoodEntry, Quantity, SetRecord } from '../lib/types';
 import { SphereSlot } from '../ui/Sphere';
 import { Icon } from '../ui/Icon';
@@ -23,7 +28,17 @@ import { exName } from './workout/common';
 import { addExercises } from './workout/actions';
 
 type Mode = 'food' | 'workout';
-interface FoodRow extends ResolvedRow { qtyOverride?: Quantity; removed?: boolean; picked?: boolean }
+interface FoodRow extends ResolvedRow { qtyOverride?: Quantity; removed?: boolean; picked?: boolean; estimate?: FoodEstimate; estimating?: boolean; estimateErr?: string }
+
+/** How the words were heard and understood — shown on the review so the user knows who did what. */
+interface How { stt: 'groq' | 'browser' | 'typed'; parse: 'gemini' | 'local'; note?: string }
+
+const recorderOk = () => typeof MediaRecorder !== 'undefined' && mic.supported;
+
+function brainOf(signal?: AbortSignal): Brain {
+  const m = useAi.getState().models;
+  return { key: getKey('gemini'), models: [...new Set([m.fast || FALLBACK_MODELS.fast, m.fastAlt, m.brain || FALLBACK_MODELS.brain].filter(Boolean))], signal };
+}
 interface WRow extends ParsedWorkoutRow { ex?: Exercise; candidates: { ex: Exercise; score: number }[]; status: 'resolved' | 'ambiguous' | 'unmatched'; removed?: boolean }
 
 export function VoiceComposer({ props }: { props: { mode?: Mode; date?: string; mealId?: string } }) {
@@ -40,7 +55,14 @@ export function VoiceComposer({ props }: { props: { mode?: Mode; date?: string; 
   const [final, setFinal] = useState('');
   const [interim, setInterim] = useState('');
   const [typed, setTyped] = useState('');
-  const [typing, setTyping] = useState(!speechSupported());
+  const hasGroq = useAi((a) => a.hasGroq);
+  const engine: 'groq' | 'browser' | 'typed' = hasGroq && recorderOk() ? 'groq' : speechSupported() ? 'browser' : 'typed';
+  const [typing, setTyping] = useState(engine === 'typed');
+  const [stage, setStage] = useState<'hearing' | 'understanding'>('understanding');
+  const [how, setHow] = useState<How>({ stt: 'typed', parse: 'local' });
+  const blobRef = useRef<Blob | null>(null);
+  const sttFor = useRef<How['stt'] | null>(null); // set when text arrives from a retried Groq transcription
+  const [canRetry, setCanRetry] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [rows, setRows] = useState<FoodRow[]>([]);
   const [wrows, setWrows] = useState<WRow[]>([]);
@@ -53,9 +75,11 @@ export function VoiceComposer({ props }: { props: { mode?: Mode; date?: string; 
   const finishRef = useRef<(t?: string) => void>(() => {});
   const confirmed = useRef(false);
   const alive = useRef(true);
-  const supported = speechSupported();
+  const run = useRef(0); // a newer begin() (or teardown) invalidates any older one still waiting on the permission prompt
+  const supported = engine !== 'typed';
 
   const teardown = useCallback(() => {
+    run.current++;
     handle.current?.abort(); handle.current = null;
     mic.release('voice');
     useVoice.getState().set({ micLive: false });
@@ -75,9 +99,23 @@ export function VoiceComposer({ props }: { props: { mode?: Mode; date?: string; 
 
   // ── listening ──
   const begin = useCallback(async () => {
-    setErr(null); setFinal(''); setInterim(''); setRows([]); setWrows([]);
+    setErr(null); setFinal(''); setInterim(''); setRows([]); setWrows([]); setCanRetry(false); blobRef.current = null;
     if (!supported) { useVoice.getState().go('idle'); setTyping(true); return; }
     useVoice.getState().go('requesting');
+    const my = ++run.current;
+    if (engine === 'groq') {
+      // Record the same stream the sphere listens to; Groq transcribes it when you tap "Done speaking".
+      const r = await mic.acquire('voice');
+      if (!alive.current || my !== run.current) return;
+      if (!r.ok) {
+        const msg = r.reason === 'denied' ? t('Microphone permission was denied. You can allow it in your browser settings, or type instead.')
+          : r.reason === 'nodevice' ? t('No microphone was found.') : r.reason === 'busy' ? t('The microphone is in use by something else.') : t('The microphone couldn’t start.');
+        setErr(msg); useVoice.getState().go(r.reason === 'denied' ? 'unavailable' : 'error'); setTyping(true); return;
+      }
+      if (!mic.startRecording('voice')) { teardown(); setErr(t('This browser can’t record audio. Type instead.')); useVoice.getState().go('error'); setTyping(true); return; }
+      useVoice.getState().go('listening');
+      return;
+    }
     const h = startSpeech({
       lang: lang === 'da' ? 'da-DK' : 'en-GB',
       onStart: () => { if (alive.current) useVoice.getState().go('listening'); },
@@ -98,27 +136,59 @@ export function VoiceComposer({ props }: { props: { mode?: Mode; date?: string; 
     const r = await mic.acquire('voice');
     if (!r.ok && alive.current && r.reason === 'denied') { /* recognition reports its own denial */ }
     // eslint-disable-next-line
-  }, [supported, lang]);
+  }, [supported, lang, engine]);
 
   useEffect(() => { if (supported) begin(); else setTyping(true); /* eslint-disable-next-line */ }, []);
+
+  useEffect(() => {
+    if (phase !== 'listening' || engine !== 'groq') return;
+    const id = setTimeout(() => finishRef.current(), 120_000);
+    return () => clearTimeout(id);
+  }, [phase, engine]);
 
   const textNow = () => { const l = latest.current; return (l.typing ? l.typed : [l.final, l.interim].filter(Boolean).join(' ')).trim(); };
 
   const finish = useCallback(async (overrideText?: string) => {
     const phaseNow = useVoice.getState().phase;
     if (phaseNow === 'processing' || phaseNow === 'review') return;
-    const text = (overrideText ?? textNow()).trim();
-    handle.current?.stop();
-    mic.release('voice');
+    let text = (overrideText ?? '').trim();
+    let sttHow: How['stt'] = overrideText !== undefined ? (sttFor.current ?? 'typed') : 'typed';
+    sttFor.current = null;
+    if (overrideText === undefined && !latest.current.typing && mic.recording) {
+      // Groq path: stop the recording, then transcribe it
+      setErr(null); setStage('hearing'); useVoice.getState().go('processing');
+      const blob = await mic.stopRecording();
+      mic.release('voice');
+      blobRef.current = blob;
+      const heard = await hear(blob);
+      if (heard === null) return;
+      text = heard; sttHow = 'groq'; setFinal(heard); setInterim('');
+    } else {
+      if (overrideText === undefined) { text = textNow(); sttHow = latest.current.typing ? 'typed' : 'browser'; }
+      handle.current?.stop();
+      mic.release('voice');
+    }
     if (!text) { useVoice.getState().go('idle'); setErr(t('Didn’t catch anything. Tap the sphere to try again, or type it.')); return; }
-    setErr(null);
+    setErr(null); setStage('understanding');
     useVoice.getState().go('processing');
     const started = performance.now();
+    const ai = useAi.getState();
+    const useBrain = ai.hasGemini && ai.brain;
+    let parse: How['parse'] = 'local';
+    let note: string | undefined;
+    const ctl = new AbortController();
+    const kill = setTimeout(() => ctl.abort(), 20_000);
     if (mode === 'food') {
       const st = useStore.getState();
       const p = foodPool(st.foods, st.recipes);
       const fav = new Set(st.favourites);
-      let res: FoodRow[] = resolveRows(parseFoodText(text), p, st.choices, (f) => (fav.has(f.id) ? 0.05 : 0));
+      let parsed = null as ReturnType<typeof parseFoodText> | null;
+      if (useBrain) {
+        try { parsed = await aiFoodRows(text, brainOf(ctl.signal), { foodNames: hintFoods(), lang }); parse = 'gemini'; } catch (e) { note = aiErrorText(e, t); }
+      }
+      clearTimeout(kill);
+      if (!parsed) parsed = parseFoodText(text);
+      let res: FoodRow[] = resolveRows(parsed, p, st.choices, (f) => (fav.has(f.id) ? 0.05 : 0));
       // unmatched rows: one optional online attempt, bounded
       if (st.settings.foodLookup && res.some((r) => r.status === 'unmatched')) {
         const ctl = await Promise.race([
@@ -134,7 +204,12 @@ export function VoiceComposer({ props }: { props: { mode?: Mode; date?: string; 
       if (!alive.current) return;
       setRows(res);
     } else {
-      const parsed = parseWorkoutText(text);
+      let parsed = null as ParsedWorkoutRow[] | null;
+      if (useBrain) {
+        try { parsed = await aiWorkoutRows(text, brainOf(ctl.signal), { exercises: exercises.map((e) => e.name) }); parse = 'gemini'; } catch (e) { note = aiErrorText(e, t); }
+      }
+      clearTimeout(kill);
+      if (!parsed) parsed = parseWorkoutText(text);
       const usage = new Map<string, number>(); // how often each exercise was logged: a gentle tie-breaker, never hides alternatives
       for (const ses of useStore.getState().sessions) for (const e of ses.exercises) usage.set(e.exerciseId, (usage.get(e.exerciseId) ?? 0) + 1);
       const res: WRow[] = parsed.map((r) => {
@@ -146,12 +221,65 @@ export function VoiceComposer({ props }: { props: { mode?: Mode; date?: string; 
       });
       setWrows(res);
     }
+    setHow({ stt: sttHow, parse, note });
     const wait = Math.max(0, 650 - (performance.now() - started)); // short, honest minimum so the state change is legible
     await new Promise((r) => setTimeout(r, wait));
     if (alive.current) useVoice.getState().go('review');
     // eslint-disable-next-line
   }, [mode, exercises, lang]);
   finishRef.current = finish;
+
+  // ── Groq speech-to-text, with an honest failure that keeps the recording so a retry doesn't need re-speaking ──
+  async function hear(blob: Blob | null): Promise<string | null> {
+    if (!blob) { useVoice.getState().go('idle'); setErr(t('Didn’t catch anything. Tap the sphere to try again, or type it.')); return null; }
+    const ai = useAi.getState();
+    const st = useStore.getState();
+    const names = mode === 'food' ? hintFoods() : [...new Set(st.sessions.slice(-6).flatMap((x) => x.exercises.map((e) => exercises.find((q) => q.id === e.exerciseId)?.name ?? '')))].filter(Boolean);
+    try {
+      const out = (await transcribe(blob, { key: getKey('groq'), model: STT_MODEL[ai.stt], language: ai.voiceLang === 'auto' ? 'auto' : ai.voiceLang, prompt: buildPrompt(names) })).trim();
+      if (!alive.current) return null;
+      if (!out) { blobRef.current = null; useVoice.getState().go('idle'); setErr(t('Didn’t catch anything. Tap the sphere to try again, or type it.')); return null; }
+      blobRef.current = null; setCanRetry(false);
+      return out;
+    } catch (e) {
+      if (!alive.current) return null;
+      const code = e instanceof SttError ? e.code : 'failed';
+      const msg = ({
+        nokey: t('Add your Groq key in Settings → Voice & AI.'), offline: t('You’re offline, so nothing was sent. Your recording is still here — retry when you’re back online, or type it.'),
+        network: t('Couldn’t reach Groq. Your recording is still here — retry, or type it.'), timeout: t('Groq took too long. Your recording is still here — retry, or type it.'),
+        badkey: t('Groq rejected the key. Check it in Settings → Voice & AI.'), busy: t('Groq is rate-limiting right now. Wait a moment, then retry.'), failed: t('Groq couldn’t transcribe that. Retry, or type it.'),
+      } as Record<string, string>)[code];
+      setErr(msg); setCanRetry(code !== 'nokey' && code !== 'badkey'); useVoice.getState().go('error'); setTyping(true);
+      return null;
+    }
+  }
+  const retryHear = async () => {
+    const b = blobRef.current; if (!b) return;
+    setErr(null); setCanRetry(false); setStage('hearing'); useVoice.getState().go('processing');
+    const text = await hear(b);
+    if (text) { blobRef.current = null; sttFor.current = 'groq'; finishWith(text); }
+  };
+  const finishWith = (text: string) => { setFinal(text); setTyping(false); useVoice.getState().go('idle'); finishRef.current(text); };
+
+  /** Names the user logs often — they help both the speech model and the brain spell things the way the user does. */
+  function hintFoods(): string[] {
+    const st = useStore.getState();
+    const favs = st.favourites.map((id) => st.foods.find((f) => f.id === id)?.name).filter(Boolean) as string[];
+    const recent = [...st.entries].sort((a, b) => b.at - a.at).map((e) => e.snap.name);
+    return [...new Set([...favs, ...recent])].slice(0, 40);
+  }
+
+  const estimate = async (id: string) => {
+    const row = rows.find((r) => r.id === id); if (!row) return;
+    setRows((x) => x.map((y) => (y.id === id ? { ...y, estimating: true, estimateErr: undefined } : y)));
+    const ctl = new AbortController(); const kill = setTimeout(() => ctl.abort(), 15_000);
+    try {
+      const est = await aiEstimateFood(row.raw, brainOf(ctl.signal), lang);
+      setRows((x) => x.map((y) => (y.id === id ? { ...y, estimating: false, estimate: est } : y)));
+    } catch (e) {
+      setRows((x) => x.map((y) => (y.id === id ? { ...y, estimating: false, estimateErr: aiErrorText(e, t) } : y)));
+    } finally { clearTimeout(kill); }
+  };
 
   // ── review derivations (food) ──
   const foodOf = (r: FoodRow): Food | undefined => r.choiceId ? (r.candidates.find((c) => c.food.id === r.choiceId)?.food ?? pool.find((f) => f.id === r.choiceId)) : undefined;
@@ -163,8 +291,9 @@ export function VoiceComposer({ props }: { props: { mode?: Mode; date?: string; 
     return { food, qty: rq.qty, estimated: rq.estimated, problem: (rq as any).problem as string | undefined, base: b && b.ok ? b.base : undefined };
   };
   const active = rows.filter((r) => !r.removed);
-  const ready = active.length > 0 && active.every((r) => { const c = calc(r); return c && c.qty && c.base !== undefined && (r.status === 'resolved' || r.picked); });
-  const pending = active.filter((r) => { const c = calc(r); return !(c && c.qty && c.base !== undefined && (r.status === 'resolved' || r.picked)); }).length;
+  const rowOk = (r: FoodRow) => { if (r.estimate) return true; const c = calc(r); return !!(c && c.qty && c.base !== undefined && (r.status === 'resolved' || r.picked)); };
+  const ready = active.length > 0 && active.every(rowOk);
+  const pending = active.filter((r) => !rowOk(r)).length;
 
   const confirmFood = () => {
     if (confirmed.current || !ready) return;
@@ -172,6 +301,11 @@ export function VoiceComposer({ props }: { props: { mode?: Mode; date?: string; 
     const d = date ?? useUI.getState().foodDate ?? dayKey(Date.now(), useStore.getState().settings.dayStartHour);
     const entries: FoodEntry[] = [];
     for (const r of active) {
+      if (r.estimate) { // a Gemini estimate is logged as a quick entry, labelled as an estimate, with its stated assumptions
+        const q = quickEntry(`${r.estimate.name} (${t('AI estimate')})`, { kcal: r.estimate.kcal, protein: r.estimate.protein, carbs: r.estimate.carbs, fat: r.estimate.fat }, d, mealId);
+        entries.push({ ...q, estimated: true, note: r.estimate.assumptions || undefined });
+        continue;
+      }
       const c = calc(r)!;
       const e = entryFromSnapshot(snapshotOf(c.food), c.qty!, d, mealId, { id: uid('e') });
       if (e) entries.push(e);
@@ -220,7 +354,7 @@ export function VoiceComposer({ props }: { props: { mode?: Mode; date?: string; 
   const inReview = phase === 'review' || phase === 'confirmed';
   const listening = phase === 'listening' || phase === 'requesting';
   const label = ({
-    idle: t('Tap the sphere and speak'), requesting: t('Starting the microphone…'), listening: mic.active ? t('Listening') : t('Listening (no level meter)'), processing: t('Understanding…'),
+    idle: t('Tap the sphere and speak'), requesting: t('Starting the microphone…'), listening: engine === 'groq' ? t('Recording') : mic.active ? t('Listening') : t('Listening (no level meter)'), processing: stage === 'hearing' ? t('Transcribing…') : t('Understanding…'),
     review: t('Check and confirm'), confirmed: t('Done'), error: t('Couldn’t listen'), unavailable: t('Microphone unavailable'),
   } as Record<string, string>)[phase];
 
@@ -253,15 +387,15 @@ export function VoiceComposer({ props }: { props: { mode?: Mode; date?: string; 
           <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', marginTop: 14, textAlign: 'center' }} className="hide-scroll">
             {!typing && phase !== 'processing' && (
               <div className="display display-md" style={{ lineHeight: 1.12, padding: '0 6px' }}>
-                {final || interim ? <><span>{final}</span>{interim && <span style={{ color: 'var(--tx3)' }}> {interim}</span>}</> : <span style={{ color: 'var(--tx3)', fontSize: 18, fontStretch: '100%', fontWeight: 560 }}><span className="micro" style={{ display: 'block', marginBottom: 6 }}>{t('Try saying')}</span>{example}</span>}
+                {final || interim ? <><span>{final}</span>{interim && <span style={{ color: 'var(--tx3)' }}> {interim}</span>}</> : engine === 'groq' && listening ? <span style={{ color: 'var(--tx3)', fontSize: 18, fontStretch: '100%', fontWeight: 560 }}>{t('Speak naturally. Your words appear after you tap “Done speaking”.')}</span> : <span style={{ color: 'var(--tx3)', fontSize: 18, fontStretch: '100%', fontWeight: 560 }}><span className="micro" style={{ display: 'block', marginBottom: 6 }}>{t('Try saying')}</span>{example}</span>}
               </div>
             )}
             {phase === 'processing' && <div className="display display-md" style={{ color: 'var(--tx2)' }}>{textNow()}</div>}
-            {err && <div className="plinth-2 small" style={{ padding: '12px 14px', margin: '16px 0 0', textAlign: 'left' }}>{err}</div>}
+            {err && <div className="plinth-2 small" style={{ padding: '12px 14px', margin: '16px 0 0', textAlign: 'left' }}>{err}{canRetry && <div style={{ marginTop: 10 }}><button className="btn sm press" onClick={retryHear}>{t('Retry transcription')}</button></div>}</div>}
             {typing && phase !== 'processing' && (
               <div style={{ textAlign: 'left', marginTop: 8 }}>
                 <textarea className="input" style={{ minHeight: 110 }} value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={example} aria-label={t('Type what you ate or did')} autoFocus />
-                {!supported && <div className="xs t3" style={{ marginTop: 8 }}>{t('Speech recognition isn’t available in this browser. Type it, or use your keyboard’s microphone key.')}</div>}
+                {!supported && <div className="xs t3" style={{ marginTop: 8 }}>{t('Speech recognition isn’t available in this browser. Type it, or use your keyboard’s microphone key.')} {t('Or add a Groq key in Settings → Voice & AI.')}</div>}
               </div>
             )}
           </div>
@@ -273,19 +407,20 @@ export function VoiceComposer({ props }: { props: { mode?: Mode; date?: string; 
               {supported && <button className="btn press grow" onClick={() => { if (typing) { setTyping(false); begin(); } else { handle.current?.abort(); mic.release('voice'); useVoice.getState().go('idle'); setTyping(true); } }}>{typing ? <><Icon name="mic" size={18} /> {t('Speak instead')}</> : <><Icon name="edit" size={18} /> {t('Type instead')}</>}</button>}
               <button className="btn primary press grow" disabled={phase === 'processing' || (!textNow() && !listening)} onClick={() => finish()}>{phase === 'processing' ? t('Working…') : listening ? t('Done speaking') : t('Review')}</button>
             </div>
-            <div className="xs t3" style={{ textAlign: 'center', marginTop: 10 }}>{supported ? t('Speech-to-text is done by your browser’s speech service (often a cloud service). Audio is never stored by Aven.') : t('Nothing is recorded or sent anywhere.')}</div>
+            <div className="xs t3" style={{ textAlign: 'center', marginTop: 10 }}>{engine === 'groq' ? (useAi.getState().hasGemini && useAi.getState().brain ? t('Your recording is sent to Groq to be transcribed, and the text to Google Gemini to be understood. Aven doesn’t store the audio. Keys stay on this device.') : t('Your recording is sent to Groq to be transcribed. Aven doesn’t store the audio. Keys stay on this device.')) : supported ? t('Speech-to-text is done by your browser’s speech service (often a cloud service). Audio is never stored by Aven.') : t('Nothing is recorded or sent anywhere.')}</div>
           </div>
         )}
 
         {/* review */}
         {inReview && mode === 'food' && (
           <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-            <div className="small t2" style={{ textAlign: 'center', padding: '0 10px 10px' }}>“{textNow()}”</div>
+            <div className="small t2" style={{ textAlign: 'center', padding: '0 10px 4px' }}>“{textNow()}”</div>
+            <HowLine how={how} />
             <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 12 }} className="hide-scroll">
               {rows.length === 0 && <div className="empty"><div className="display display-sm">{t('Nothing to add')}</div><div className="small">{t('I couldn’t find any foods in that. Try “150 grams of rice and a banana”.')}</div></div>}
               <AnimatePresence initial={false}>
                 {rows.map((r) => !r.removed && (
-                  <FoodReviewRow key={r.id} row={r} food={foodOf(r)} info={calc(r)} pool={pool}
+                  <FoodReviewRow key={r.id} row={r} food={foodOf(r)} info={calc(r)} pool={pool} canEstimate={useAi.getState().hasGemini} onEstimate={() => estimate(r.id)}
                     onPick={(f) => setRows((x) => x.map((y) => (y.id === r.id ? { ...y, choiceId: f.id, picked: true, candidates: y.candidates.some((c) => c.food.id === f.id) ? y.candidates : [{ food: f, score: 1 }, ...y.candidates], qtyOverride: undefined } : y)))}
                     onQty={(q) => setRows((x) => x.map((y) => (y.id === r.id ? { ...y, qtyOverride: q } : y)))}
                     onRemove={() => setRows((x) => x.map((y) => (y.id === r.id ? { ...y, removed: true } : y)))} />
@@ -303,7 +438,8 @@ export function VoiceComposer({ props }: { props: { mode?: Mode; date?: string; 
         )}
         {inReview && mode === 'workout' && (
           <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-            <div className="small t2" style={{ textAlign: 'center', padding: '0 10px 10px' }}>“{textNow()}”</div>
+            <div className="small t2" style={{ textAlign: 'center', padding: '0 10px 4px' }}>“{textNow()}”</div>
+            <HowLine how={how} />
             <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 12 }} className="hide-scroll">
               {wrows.length === 0 && <div className="empty"><div className="display display-sm">{t('Nothing to add')}</div><div className="small">{t('Try “squat 100 kilos for 5, 5 and 5”.')}</div></div>}
               {wrows.map((r) => !r.removed && (
@@ -329,8 +465,15 @@ export function VoiceComposer({ props }: { props: { mode?: Mode; date?: string; 
 
 // ── rows ────────────────────────────────────────────────────
 
-function FoodReviewRow({ row, food, info, pool, onPick, onQty, onRemove }: {
-  row: FoodRow; food?: Food; info: ReturnType<typeof Object> | null; pool: Food[]; onPick: (f: Food) => void; onQty: (q: Quantity) => void; onRemove: () => void;
+function HowLine({ how }: { how: How }) {
+  const t = useT();
+  const parts = [how.stt === 'groq' ? t('Heard by Groq') : how.stt === 'browser' ? t('Heard by your browser') : '', how.parse === 'gemini' ? t('understood by Gemini') : t('understood on this device')].filter(Boolean);
+  const text = parts.join(' · ');
+  return <div className="xs t3" style={{ textAlign: 'center', padding: '0 10px 10px' }}>{text.charAt(0).toUpperCase() + text.slice(1)} — {t('check before logging')}{how.note ? ` · ${how.note} ${t('Used the built-in parser instead.')}` : ''}</div>;
+}
+
+function FoodReviewRow({ row, food, info, pool, canEstimate, onEstimate, onPick, onQty, onRemove }: {
+  row: FoodRow; canEstimate: boolean; onEstimate: () => void; food?: Food; info: ReturnType<typeof Object> | null; pool: Food[]; onPick: (f: Food) => void; onQty: (q: Quantity) => void; onRemove: () => void;
 }) {
   const t = useT();
   const lang = useLang();
@@ -339,8 +482,8 @@ function FoodReviewRow({ row, food, info, pool, onPick, onQty, onRemove }: {
   const c = info as { food: Food; qty: Quantity | null; estimated: boolean; problem?: string; base?: number } | null;
   const hits = useMemo(() => (q ? searchFoods(q, pool).slice(0, 5).map((x) => x.food) : []), [q, pool]);
   const n = c && c.base !== undefined ? scale(c.food.per100, c.base) : undefined;
-  const needsChoice = !food || (row.status === 'ambiguous' && !row.picked);
-  const badge = row.status === 'resolved' || row.picked
+  const needsChoice = !row.estimate && (!food || (row.status === 'ambiguous' && !row.picked));
+  const badge = row.estimate ? { text: t('AI estimate'), tone: 'var(--warn)', icon: 'info' } : row.status === 'resolved' || row.picked
     ? { text: row.remembered ? t('Remembered') : t('Matched'), tone: 'var(--ok)', icon: 'check' }
     : row.status === 'ambiguous' ? { text: t('Choose'), tone: 'var(--warn)', icon: 'info' } : { text: t('Not found'), tone: 'var(--bad)', icon: 'info' };
   return (
@@ -352,7 +495,18 @@ function FoodReviewRow({ row, food, info, pool, onPick, onQty, onRemove }: {
           <button className="icon-btn flat sm" aria-label={t('Remove')} onClick={onRemove}><Icon name="close" size={16} /></button>
         </div>
       </div>
-      {food && !needsChoice && (
+      {row.estimate && (
+        <div style={{ marginTop: 8 }}>
+          <div className="row-flex between" style={{ alignItems: 'flex-end' }}>
+            <div className="grow" style={{ minWidth: 0 }}><div className="li-title trunc">~ {row.estimate.name}</div><div className="xs t3">{t('Estimated by Gemini for the portion you described')}</div></div>
+            <div className="num" style={{ fontWeight: 700, fontSize: 18 }}>~{fmtNutrient('kcal', row.estimate.kcal, lang)}<span className="t3 small"> kcal</span></div>
+          </div>
+          <div className="xs t2 num" style={{ marginTop: 6 }}>{t('Protein')} {fmtNutrient('protein', row.estimate.protein, lang)} g · {t('Carbs')} {fmtNutrient('carbs', row.estimate.carbs, lang)} g · {t('Fat')} {fmtNutrient('fat', row.estimate.fat, lang)} g</div>
+          {row.estimate.assumptions && <div className="xs" style={{ color: 'var(--warn)', marginTop: 6 }}>~ {row.estimate.assumptions}</div>}
+          <div className="xs t3" style={{ marginTop: 4 }}>{t('Not exact. Logged as a quick entry labelled “AI estimate”.')}</div>
+        </div>
+      )}
+      {food && !needsChoice && !row.estimate && (
         <>
           <div className="row-flex between" style={{ marginTop: 8, alignItems: 'flex-end' }}>
             <div className="grow" style={{ minWidth: 0 }}><div className="li-title trunc">{food.name}</div>{food.brand && <div className="xs t3">{food.brand}</div>}</div>
@@ -387,7 +541,11 @@ function FoodReviewRow({ row, food, info, pool, onPick, onQty, onRemove }: {
               </button>
             ))}
           </div>
-          <button className="small t2 press" style={{ marginTop: 8 }} onClick={() => setSearching((v) => !v)}>{t('Search something else')}</button>
+          <div className="row-flex" style={{ gap: 14, marginTop: 8, flexWrap: 'wrap' }}>
+            <button className="small t2 press" onClick={() => setSearching((v) => !v)}>{t('Search something else')}</button>
+            {canEstimate && row.status === 'unmatched' && <button className="small press accent" disabled={row.estimating} onClick={onEstimate}>{row.estimating ? t('Estimating…') : t('Estimate with Gemini')}</button>}
+          </div>
+          {row.estimateErr && <div className="xs" style={{ color: 'var(--bad)', marginTop: 6 }}>{row.estimateErr}</div>}
         </div>
       )}
       {searching && (

@@ -124,7 +124,10 @@ export function TodayScreen() {
           <div className="micro">{fmtDate(today, lang, { weekday: 'long', day: 'numeric', month: 'long' })}</div>
           <h1 className="display display-lg" style={{ margin: '6px 0 0' }}>{greeting(hour, t)}{settings.name ? `,` : ''}<br />{settings.name || ''}</h1>
         </div>
-        <button className="icon-btn press" aria-label={t('Settings')} onClick={() => push('settings')}><Icon name="settings" /></button>
+        <div className="row-flex" style={{ gap: 6 }}>
+          <button className="icon-btn press" aria-label={t('Coach')} onClick={() => push('coach')}><Icon name="sparkle" /></button>
+          <button className="icon-btn press" aria-label={t('Settings')} onClick={() => push('settings')}><Icon name="settings" /></button>
+        </div>
       </header>
 
       {s.demo && (

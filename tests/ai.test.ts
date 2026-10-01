@@ -8,6 +8,9 @@ import { cleanSamples, speechSpan, toWav, highpass } from '../src/lib/audioprep'
 import { getKey, setKey, clearKeys, mask } from '../src/lib/keys';
 import { resolveRows, rowQuantity } from '../src/lib/foodText';
 import { REFERENCE_FOODS } from '../src/data/foods';
+import { buildCoachContext, mapRoutineItems } from '../src/lib/coachContext';
+import { defaultData } from '../src/state/defaults';
+import { allExercises } from '../src/state/store';
 
 beforeEach(() => { localStorage.clear(); vi.restoreAllMocks(); });
 
@@ -200,5 +203,27 @@ describe('audio clean-up for a loud gym', () => {
   it('writes a valid 16 kHz mono WAV header and a high-pass removes DC rumble', () => {
     const dv = new DataView(toWav(new Float32Array(160), 16000)); expect(String.fromCharCode(dv.getUint8(0), dv.getUint8(1), dv.getUint8(2), dv.getUint8(3))).toBe('RIFF'); expect(dv.getUint32(24, true)).toBe(16000); expect(dv.getUint16(22, true)).toBe(1);
     const hp = highpass(new Float32Array(4000).fill(0.5), 16000); expect(Math.abs(hp[3999])).toBeLessThan(0.01);
+  });
+});
+
+describe('coach grounding and routine mapping', () => {
+  it('context says what is missing and labels estimates; never zero-fills unlogged days', () => {
+    const d = defaultData();
+    const empty = buildCoachContext(d, '2026-06-10', (id) => id);
+    expect(empty).toContain('Targets: none set'); expect(empty).toContain('no earlier days logged'); expect(empty).toContain('Bodyweight: no weigh-ins'); expect(empty).toContain('Today so far: nothing logged');
+    d.weights = [{ id: 'a', date: '2026-05-01', kg: 80, at: 1 }, { id: 'b', date: '2026-06-09', kg: 78.4, at: 2 }];
+    const w = buildCoachContext(d, '2026-06-10', (id) => id);
+    expect(w).toContain('last measured 78.4 kg'); expect(w).toMatch(/ESTIMATE/);
+  });
+  it('routine items only come from the real library; unknown names are reported, not invented', () => {
+    const pool = allExercises([]);
+    let n = 0;
+    const r = mapRoutineItems({ name: 'Push', items: [
+      { exercise: 'Barbell Bench Press', sets: 4, repMin: 6, repMax: 8, restSec: 150 }, { exercise: 'Overhead Press', sets: 3, repMin: 8, repMax: 10, restSec: 120 },
+      { exercise: 'Unicorn Curl', sets: 3, repMin: 10, repMax: 12, restSec: 60 }, { exercise: 'Barbell Bench Press', sets: 2, repMin: 8, repMax: 8, restSec: 60 },
+    ] }, pool, () => `i${n++}`);
+    expect(r.items.map((i) => i.exerciseId)).toEqual(['bench-press', 'overhead-press']);
+    expect(r.skipped).toEqual(['Unicorn Curl']);
+    expect(r.items[0]).toMatchObject({ workingSets: 4, repMin: 6, repMax: 8, restSec: 150 });
   });
 });

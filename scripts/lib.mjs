@@ -2,6 +2,14 @@ import { chromium } from 'playwright';
 export async function launch({ theme = 'dark', record = false, reduced = false, size = { width: 390, height: 844 } } = {}) {
   const b = await chromium.launch({ args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'] });
   const ctx = await b.newContext({ viewport: size, deviceScaleFactor: 2, colorScheme: theme, reducedMotion: reduced ? 'reduce' : 'no-preference', isMobile: true, hasTouch: true, permissions: ['microphone'], ...(record ? { recordVideo: { dir: 'videos', size } } : {}) });
+  // Journeys must not depend on the weekday (the demo plan trains Mon/Wed/Fri): shift Date to the Wednesday evening these journeys were written on (Pull day); timers stay real.
+  const target = new Date(process.env.AVEN_TODAY || '2026-09-30T22:00:00+02:00').getTime();
+  await ctx.addInitScript(([t]) => {
+    const real = Date, off = t - real.now();
+    const Shifted = class extends real { constructor(...a) { if (a.length) super(...a); else super(real.now() + off); } static now() { return real.now() + off; } };
+    // eslint-disable-next-line no-global-assign
+    Date = Shifted;
+  }, [target]);
   const p = await ctx.newPage();
   const errors = [];
   p.on('console', (m) => { if (m.type() === 'error') { errors.push(m.text()); console.log('[console.error]', m.text().slice(0, 400)); } });
