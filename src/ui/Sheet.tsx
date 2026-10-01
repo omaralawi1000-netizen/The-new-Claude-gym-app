@@ -15,12 +15,16 @@ export const SNAP = { type: 'spring', stiffness: 600, damping: 42, mass: 0.7 } a
 
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 
-/** Dims the page behind a popup and ramps a blur up over it, both straight from the popup's progress (finger included). */
+/**
+ * Dims and blurs the page behind a popup. The blur radius never changes (changing it every frame makes the GPU
+ * rebuild the filter and it can drop out for a frame); only its strength fades, and only once the popup is well on
+ * its way out — a small swipe that springs back leaves the blur exactly as it was.
+ */
 function Scrim({ e, z, onClick }: { e: MotionValue<number>; z: number; onClick: () => void }) {
-  const filter = useTransform(e, (v) => `blur(${16 * v}px) saturate(${1 + 0.2 * v})`);
+  const strength = useTransform(e, (v) => clamp01(v / 0.6));
   return (
-    <motion.div className="scrim" style={{ zIndex: z, backdropFilter: filter, WebkitBackdropFilter: filter }} onClick={onClick}>
-      <motion.i style={{ opacity: e }} />
+    <motion.div className="scrim" style={{ zIndex: z, opacity: strength }} onClick={onClick}>
+      <i />
     </motion.div>
   );
 }

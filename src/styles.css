@@ -126,8 +126,9 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
   padding: calc(var(--sat) + 16px) 20px calc(var(--bar-h) + var(--sab) + 44px); scrollbar-width: none; z-index: 1;
 }
 .screen::-webkit-scrollbar { display: none; }
-/* content scrolls under the tab bar; fade it out before the screen's bottom edge so nothing peeks out below the bar */
-.screen { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - var(--sab) - 34px), transparent calc(100% - var(--sab) - 10px)); mask-image: linear-gradient(to bottom, #000 calc(100% - var(--sab) - 34px), transparent calc(100% - var(--sab) - 10px)); }
+/* content scrolls under the tab bar; a soft veil below the bar keeps scrolled text from peeking out of the bottom edge
+   (a plain gradient, so the scroller itself stays a plain scroller) */
+.tabbar-wrap::before { content: ''; position: fixed; left: 0; right: 0; bottom: 0; height: calc(var(--sab) + 26px); z-index: -1; pointer-events: none; background: linear-gradient(to top, color-mix(in srgb, var(--bg) 88%, transparent), transparent); }
 .screen > * + * { margin-top: 22px; }
 /* every screen's blocks rise in, blurred → sharp, one after another */
 .screen > * { animation: rise-move 780ms var(--ease-out) backwards, rise-blur 780ms var(--ease-out) both; animation-delay: calc(var(--i, 0) * 60ms); }
@@ -247,10 +248,10 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .bar > i { position: absolute; inset: 0 auto 0 0; border-radius: 99px; background: var(--ac); box-shadow: 0 0 14px var(--ac); transition: width 700ms var(--ease-out); }
 
 /* ── sheets: heavy frost; the page behind is dimmed AND blurred (the scrim fades in, blur with it) ─── */
-.scrim { position: fixed; inset: 0; z-index: 50; }
+.scrim { position: fixed; inset: 0; z-index: 50; -webkit-backdrop-filter: blur(16px) saturate(1.2); backdrop-filter: blur(16px) saturate(1.2); }
 .scrim > i { position: absolute; inset: 0; background: var(--scrim); }
 /* the full-screen workout covers the page, so it only dims (no blur to compute while it opens) */
-.scrim.flat { background: var(--scrim); }
+.scrim.flat { background: var(--scrim); -webkit-backdrop-filter: none; backdrop-filter: none; }
 /* morphing detail sheets get the same frosted material as ordinary sheets */
 .morph-sheet { background: var(--glass-2); -webkit-backdrop-filter: blur(40px) saturate(1.9); backdrop-filter: blur(40px) saturate(1.9); }
 .sheet {
@@ -324,7 +325,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 
 /* iOS-style: while a popup is up the page behind steps back. Its transform and corner radius are written by script
    (useStageDepth in App.tsx) from the popups' own progress, so it follows them frame for frame — no CSS transition. */
-.stage { position: absolute; inset: 0; overflow: hidden; background: var(--bg); transform-origin: 50% 0%; will-change: transform; }
+.stage { position: absolute; inset: 0; background: var(--bg); transform-origin: 50% 0%; }
 
 /* Coach replies: each word blurs in as it arrives (only new words mount, so nothing already read re-animates) */
 .w { display: inline-block; animation: wordIn 560ms var(--ease-out) backwards; }
