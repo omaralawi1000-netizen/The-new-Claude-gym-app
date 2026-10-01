@@ -136,6 +136,13 @@ Run in headless Chromium (Playwright, 390×844 @2×, dark + light), scripts in `
 - **The orb is the microphone everywhere**: tab bar, voice composer, the Coach input and the workout's dictate button; it flies between them and stays glued once landed.
 - **Coach**: replies blur in word by word as they stream (only new words animate), sent messages spring up from the input, a typing indicator shows while it thinks, and the orb listens/thinks/blooms with it.
 - **Performance**: nothing animates behind an open popup any more (colour field, orb in the tab bar, pulsing dots pause), so the frosted layers stop re-blurring every frame; popups no longer animate a full-screen backdrop blur. Measured in software-rendered Chromium: idle with a popup open ~24 → ~58 fps, workout start ~24 → ~40 fps.
+- **Smoothness pass** (same look, less work per frame):
+  - Tab screens stay alive between visits (React `<Activity>`), so switching tabs no longer rebuilds a whole screen; ring/chart draw-ins and the staggered rise still replay on every visit, and every visit still starts at the top.
+  - Page slides and sheet open/close/step-back animate `transform`/`opacity` through the native animation engine, so they run on the compositor and stay smooth while React works. The swipe-to-close momentum is unchanged.
+  - The tab colour cross-fade runs only on the colour field and the tab bar (it used to restyle every element of the app for 1.1 s); the orb fades its own colours instead of polling CSS.
+  - The live workout clock and rest timer re-render only their own text (not the whole workout four times a second); exercise and set rows are memoised.
+  - The tab bar no longer re-renders/re-measures when a popup opens or every half second during a workout; buttons no longer each hold a GPU layer (~60 → ~35 layers per screen); "pause behind popups" no longer restyles the whole app; date/number formatters are cached.
+  - On Android: keep Settings → Display → Motion smoothness on **Adaptive**. On iPhone, Safari caps web apps at 60 fps unless Settings → Apps → Safari → Advanced → Feature Flags → "Prefer Page Rendering Updates near 60fps" is off.
 
 ## Look and motion
 

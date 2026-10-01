@@ -28,8 +28,14 @@ const locale = (lang: Lang) => (lang === 'da' ? 'da-DK' : 'en-GB');
 /** Locale-aware number, trimmed to `max` decimals. */
 export function fmtNum(v: number, lang: Lang, max = 1, min = 0): string {
   if (!Number.isFinite(v)) return '–';
-  return new Intl.NumberFormat(locale(lang), { maximumFractionDigits: max, minimumFractionDigits: min, useGrouping: Math.abs(v) >= 1000 }).format(v);
+  const group = Math.abs(v) >= 1000;
+  // building an Intl formatter is slow; these are called for every number on screen, on every render
+  const key = `${lang}|${max}|${min}|${group}`;
+  let f = NUM_FMT.get(key);
+  if (!f) { f = new Intl.NumberFormat(locale(lang), { maximumFractionDigits: max, minimumFractionDigits: min, useGrouping: group }); NUM_FMT.set(key, f); }
+  return f.format(v);
 }
+const NUM_FMT = new Map<string, Intl.NumberFormat>();
 
 export function fmtWeight(kg: number, u: Settings['units']['weight'], lang: Lang): string {
   const v = kgToDisplay(kg, u);

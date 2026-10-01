@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { motion } from 'motion/react';
 import { useT } from '../lib/i18n';
 import { Icon } from './Icon';
+import { useVisit } from './visit';
 
 /** Hand-built SVG charts: thin marks, recessive grid, tap/drag inspection, table view on every card. */
 
@@ -10,8 +11,10 @@ function useWidth(): [React.RefObject<HTMLDivElement | null>, number] {
   const [w, setW] = useState(320);
   useEffect(() => {
     const el = ref.current; if (!el) return;
-    const ro = new ResizeObserver(() => setW(Math.max(200, el.clientWidth)));
-    ro.observe(el); setW(Math.max(200, el.clientWidth));
+    // the observer reports the size right after layout (also initially); reading clientWidth here would force a
+    // synchronous layout every time a tab is revealed
+    const ro = new ResizeObserver((es) => setW(Math.max(200, Math.round(es[0]?.contentRect.width ?? el.clientWidth))));
+    ro.observe(el);
     return () => ro.disconnect();
   }, []);
   return [ref, w];
@@ -29,6 +32,7 @@ export function LineChart({ points, trend, height = 180, fmtY, target, targetLab
   points: Pt[]; trend?: { x: number; y: number }[]; height?: number; fmtY: (v: number) => string; target?: number; targetLabel?: string; seriesLabel: string; trendLabel?: string; zeroBase?: boolean;
 }) {
   const [ref, w] = useWidth();
+  const visit = useVisit();
   const [hover, setHover] = useState<number | null>(null);
   const padL = 40, padR = 12, padT = 14, padB = 24;
   const xs = points.map((p) => p.x), ys = [...points.map((p) => p.y), ...(trend?.map((p) => p.y) ?? []), ...(target !== undefined ? [target] : [])];
@@ -48,7 +52,7 @@ export function LineChart({ points, trend, height = 180, fmtY, target, targetLab
   const hp = hover !== null ? points[hover] : null;
   return (
     <div ref={ref} style={{ position: 'relative' }}>
-      <svg width={w} height={height} style={{ display: 'block', touchAction: 'pan-y' }} onPointerMove={onMove} onPointerDown={onMove} onPointerLeave={() => setHover(null)} role="img" aria-label={seriesLabel}>
+      <svg key={visit} width={w} height={height} style={{ display: 'block', touchAction: 'pan-y' }} onPointerMove={onMove} onPointerDown={onMove} onPointerLeave={() => setHover(null)} role="img" aria-label={seriesLabel}>
         {ticks.map((v, i) => (
           <g key={i}>
             <line x1={padL} x2={w - padR} y1={Y(v)} y2={Y(v)} stroke="var(--line)" strokeWidth="1" />
@@ -86,6 +90,7 @@ function niceMax(m: number): number {
 
 export function BarChart({ bars, height = 150, fmt, target, targetLabel, label, color = 'var(--ac)' }: { bars: Bar[]; height?: number; fmt: (v: number) => string; target?: number; targetLabel?: string; label: string; color?: string }) {
   const [ref, w] = useWidth();
+  const visit = useVisit();
   const [sel, setSel] = useState<number | null>(null);
   const padL = 36, padR = 6, padT = 14, padB = 22;
   const max = niceMax(Math.max(...bars.map((b) => b.value), target ?? 0, 1));
@@ -96,7 +101,7 @@ export function BarChart({ bars, height = 150, fmt, target, targetLabel, label, 
   const every = Math.ceil(bars.length / Math.max(1, Math.floor((w - padL) / 44)));
   return (
     <div ref={ref} style={{ position: 'relative' }}>
-      <svg width={w} height={height} style={{ display: 'block' }} role="img" aria-label={label}>
+      <svg key={visit} width={w} height={height} style={{ display: 'block' }} role="img" aria-label={label}>
         {ticks.map((v, i) => (<g key={i}><line x1={padL} x2={w - padR} y1={Y(v)} y2={Y(v)} stroke="var(--line)" /><text x={padL - 6} y={Y(v) + 4} textAnchor="end" fontSize="11" fill="var(--tx3)" className="num">{fmt(v)}</text></g>))}
         {target !== undefined && <g><line x1={padL} x2={w - padR} y1={Y(target)} y2={Y(target)} stroke="var(--tx3)" strokeDasharray="4 4" /><text x={w - padR} y={Y(target) - 5} textAnchor="end" fontSize="11" fill="var(--tx2)">{targetLabel}</text></g>}
         {bars.map((b, i) => {

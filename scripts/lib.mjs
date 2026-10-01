@@ -11,6 +11,9 @@ export async function launch({ theme = 'dark', record = false, reduced = false, 
     Date = Shifted;
   }, [target]);
   const p = await ctx.newPage();
+  // Tab screens stay mounted while hidden (display: none), so "the first match" must mean the first visible one
+  const L = Object.getPrototypeOf(p.locator('body'));
+  if (!L.__visibleFirst) { const first = L.first; L.first = function () { return /type=file/.test(String(this)) ? first.call(this) : first.call(this.filter({ visible: true })); }; L.__visibleFirst = true; }
   const errors = [];
   p.on('console', (m) => { if (m.type() === 'error') { errors.push(m.text()); console.log('[console.error]', m.text().slice(0, 400)); } });
   p.on('pageerror', (e) => { errors.push(e.message); console.log('[pageerror]', e.message, (e.stack || '').split('\n').slice(0, 3).join(' | ')); });

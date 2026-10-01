@@ -22,9 +22,14 @@ export function Sheet({ children, onClose, tall, label, foot, z: zProp = 60, nes
   const reduce = useReducedMotion();
   const ref = useRef<HTMLDivElement>(null);
   const behindRef = useRef(behind); behindRef.current = behind;
+  // The sheet's own open/close/step-back motion animates `transform` through the native animation engine, so it runs
+  // on the compositor and stays smooth while the sheet's content renders. The finger drag lives on an outer layer
+  // (`y`); a swipe close keeps animating that layer, so the sheet carries the finger's speed and eases out.
   const y = useMotionValue(0);
-  useSwipeDown(ref, y, onClose, { enabled: !behind });
+  const swiped = useRef(false);
+  useSwipeDown(ref, y, () => { swiped.current = true; onClose(); }, { enabled: !behind });
   const H = typeof window !== 'undefined' ? window.innerHeight : 900;
+  const exitSpring = reduce ? { duration: 0.01 } : { type: 'spring', stiffness: 260, damping: 34, mass: 0.9, restDelta: 1 } as const;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !behindRef.current) onClose(); };
     window.addEventListener('keydown', onKey);
@@ -34,18 +39,23 @@ export function Sheet({ children, onClose, tall, label, foot, z: zProp = 60, nes
     <>
       <motion.div className="scrim" style={{ zIndex: z - 1 }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.32 } }} transition={{ duration: 0.36 }} onClick={onClose} />
       <motion.div
-        ref={ref}
-        className={`sheet ${tall ? 'tall' : ''}`}
-        style={{ zIndex: z, bottom: 'var(--kb, 0px)', transformOrigin: '50% 0%', y }}
-        role="dialog" aria-modal="true" aria-label={label}
-        initial={{ y: H }} animate={{ y: behind ? -6 : 0, scale: behind ? 0.94 : 1 }}
-        // a swipe hands its speed to this spring (motion values keep their velocity), so the sheet keeps going and eases out
-        exit={{ y: H, transition: reduce ? { duration: 0.01 } : { type: 'spring', stiffness: 260, damping: 34, mass: 0.9, restDelta: 1 } }}
-        transition={reduce ? { duration: 0.01 } : SPRING}
+        style={{ position: 'fixed', inset: 0, zIndex: z, pointerEvents: 'none', y }}
+        custom={swiped} variants={{ hide: (r: { current: boolean }) => (r.current ? { y: H, transition: exitSpring } : { y: 0 }) }} exit="hide"
       >
-        <div className="sheet-grab" />
-        {children}
-        {foot && <div className="sheet-foot">{foot}</div>}
+        <motion.div
+          ref={ref}
+          className={`sheet ${tall ? 'tall' : ''}`}
+          style={{ bottom: 'var(--kb, 0px)', transformOrigin: '50% 0%', pointerEvents: 'auto' }}
+          role="dialog" aria-modal="true" aria-label={label}
+          initial={{ transform: `translateY(${H}px) scale(1)` }}
+          animate={{ transform: behind ? 'translateY(-6px) scale(0.94)' : 'translateY(0px) scale(1)' }}
+          custom={swiped} variants={{ hide: (r: { current: boolean }) => (r.current ? { opacity: 1 } : { transform: `translateY(${H}px) scale(1)`, transition: exitSpring }) }} exit="hide"
+          transition={reduce ? { duration: 0.01 } : SPRING}
+        >
+          <div className="sheet-grab" />
+          {children}
+          {foot && <div className="sheet-foot">{foot}</div>}
+        </motion.div>
       </motion.div>
     </>
   );

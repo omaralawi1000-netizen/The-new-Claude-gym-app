@@ -1,5 +1,6 @@
 import { motion, useReducedMotion } from 'motion/react';
 import type { ReactNode } from 'react';
+import { useVisit } from './visit';
 
 export interface DialRing { value: number; color: string; label: string; over?: boolean }
 
@@ -9,10 +10,11 @@ export interface DialRing { value: number; color: string; label: string; over?: 
  */
 export function Dial({ rings, size = 280, stroke = 13, gap = 9, children, label }: { rings: DialRing[]; size?: number; stroke?: number; gap?: number; children?: ReactNode; label: string }) {
   const reduce = useReducedMotion();
+  const visit = useVisit();
   const c = size / 2;
   return (
     <div role="img" aria-label={label} style={{ position: 'relative', width: size, height: size, margin: '0 auto' }}>
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ position: 'absolute', inset: 0, overflow: 'visible' }} aria-hidden>
+      <svg key={visit} width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ position: 'absolute', inset: 0, overflow: 'visible' }} aria-hidden>
         <defs>
           {rings.map((r, i) => (
             <filter key={i} id={`dial-glow-${i}`} x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="5" /></filter>

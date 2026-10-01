@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion, useMotionValue, useReducedMotion } from 'motion/react';
 import { useStore, exerciseMap } from '../../state/store';
 import { useUI, buzz } from '../../state/ui';
@@ -22,8 +22,10 @@ const WK_SPRING = { type: 'spring', stiffness: 260, damping: 30, mass: 0.9 } as 
 export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | 'none' } }) {
   const t = useT();
   const lang = useLang();
-  const s = useStore();
-  const a = s.active;
+  // narrow selections: the screen re-renders when the session changes, not on every store write
+  const a = useStore((s) => s.active);
+  const exercises = useStore((s) => s.exercises);
+  const weightUnit = useStore((s) => s.settings.units.weight);
   const pop = useUI((u) => u.pop);
   const push = useUI((u) => u.push);
   const swap = useUI((u) => u.swap);
@@ -32,8 +34,7 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
   const dialogRef = useRef<HTMLDivElement>(null);
   const dragY = useMotionValue(0);
   useSwipeDown(dialogRef, dragY, () => useUI.getState().pop(), { threshold: 130 });
-  const exMap = exerciseMap(s.exercises);
-  const now = useNow(250, !!a);
+  const exMap = useMemo(() => exerciseMap(exercises), [exercises]);
   const [menu, setMenu] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<null | 'finish' | 'discard'>(null);
   const [renaming, setRenaming] = useState(false);
@@ -78,8 +79,6 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
   const total = sessionSetCount(a.exercises, false);
   const done = sessionSetCount(a.exercises, true);
   const paused = !!a.pausedAt;
-  const elapsed = elapsedMs(a, now) / 1000;
-  const restLeft = a.rest ? (paused ? a.rest.endsAt : a.rest.endsAt - now) / 1000 : 0;
 
   const finish = () => {
     if (done === 0) { setConfirm('discard'); return; }
@@ -129,8 +128,8 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
             </div>
             <div className="row-flex between" style={{ marginTop: 10, alignItems: 'flex-end' }}>
               <div>
-                <div className="display display-lg num" style={{ color: paused ? 'var(--tx3)' : 'var(--tx)' }}>{fmtDuration(elapsed)}</div>
-                <div className="small t2 num">{done}/{total} · {fmtNum(Math.round(kgToDisplay(sessionVolume(a.exercises), s.settings.units.weight)), lang, 0)} {s.settings.units.weight}</div>
+                <div className="display display-lg num" style={{ color: paused ? 'var(--tx3)' : 'var(--tx)' }}><Clock /></div>
+                <div className="small t2 num">{done}/{total} · {fmtNum(Math.round(kgToDisplay(sessionVolume(a.exercises), weightUnit)), lang, 0)} {weightUnit}</div>
               </div>
               <button className="btn sm press" onClick={() => { buzz(10); paused ? useStore.getState().resumeActive() : useStore.getState().pauseActive(); }} aria-label={paused ? t('Resume') : t('Pause')}>
                 <Icon name={paused ? 'play' : 'pause'} size={16} /> {paused ? t('Resume') : t('Pause')}
@@ -147,7 +146,9 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
             )}
             <AnimatePresence initial={false}>
               {a.exercises.slice(0, Math.max(2, shown)).map((se, idx) => (
-                <ExerciseBlock key={se.id} se={se} idx={idx} ex={exMap.get(se.exerciseId)} all={a.exercises} onMenu={() => setMenu(se.id)} />
+                <ExerciseBlock key={se.id} se={se} idx={idx} ex={exMap.get(se.exerciseId)} onMenu={setMenu}
+                  linkedPrev={!!(idx > 0 && se.supersetGroup && a.exercises[idx - 1].supersetGroup === se.supersetGroup)}
+                  linkedNext={!!(idx < a.exercises.length - 1 && se.supersetGroup && a.exercises[idx + 1].supersetGroup === se.supersetGroup)} />
               ))}
             </AnimatePresence>
             <div className="row-flex" style={{ gap: 10, marginTop: 20 }}>
@@ -163,11 +164,7 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
             {a.rest && (
               <motion.div key="rest" className="glass" initial={{ y: 40, opacity: 0, scale: 0.96 }} animate={{ y: 0, opacity: 1, scale: 1 }} exit={{ y: 30, opacity: 0, scale: 0.97 }} transition={SOFT}
                 style={{ position: 'absolute', left: 16, right: 16, bottom: 'calc(var(--sab) + 16px)', borderRadius: 26, padding: '12px 14px 12px 16px', display: 'flex', alignItems: 'center', gap: 12, zIndex: 5 }}>
-                <RestRing left={restLeft} total={a.rest.total} />
-                <div className="grow">
-                  <div className="micro">{restLeft <= 0 ? t('Rest over') : t('Rest')}</div>
-                  <div className="display display-md num" style={{ color: restLeft <= 0 ? 'var(--ok)' : 'var(--tx)' }}>{restLeft <= 0 ? t('Go') : fmtDuration(Math.ceil(restLeft))}</div>
-                </div>
+                <RestCountdown />
                 <button className="btn sm press" onClick={() => adjustRest(-15)} aria-label={t('15 seconds less')}>−15</button>
                 <button className="btn sm press" onClick={() => adjustRest(15)} aria-label={t('15 seconds more')}>+15</button>
                 <button className="btn sm primary press" onClick={() => skipRest()}>{t('Skip')}</button>
@@ -204,6 +201,31 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
   );
 }
 
+// The ticking parts live in their own small components, so the clock re-renders a line of text four times a
+// second instead of the whole workout screen.
+function Clock() {
+  const a = useStore((s) => s.active);
+  const now = useNow(250, !!a);
+  return <>{a ? fmtDuration(elapsedMs(a, now) / 1000) : ''}</>;
+}
+
+function RestCountdown() {
+  const t = useT();
+  const a = useStore((s) => s.active);
+  const now = useNow(250, !!a?.rest);
+  if (!a?.rest) return null;
+  const restLeft = (a.pausedAt ? a.rest.endsAt : a.rest.endsAt - now) / 1000;
+  return (
+    <>
+      <RestRing left={restLeft} total={a.rest.total} />
+      <div className="grow">
+        <div className="micro">{restLeft <= 0 ? t('Rest over') : t('Rest')}</div>
+        <div className="display display-md num" style={{ color: restLeft <= 0 ? 'var(--ok)' : 'var(--tx)' }}>{restLeft <= 0 ? t('Go') : fmtDuration(Math.ceil(restLeft))}</div>
+      </div>
+    </>
+  );
+}
+
 function RestRing({ left, total }: { left: number; total: number }) {
   const p = total > 0 ? Math.max(0, Math.min(1, left / total)) : 0;
   const r = 20, c = 2 * Math.PI * r;
@@ -217,7 +239,8 @@ function RestRing({ left, total }: { left: number; total: number }) {
 
 // ── exercise block ──────────────────────────────────────────
 
-function ExerciseBlock({ se, idx, ex, all, onMenu }: { se: SessionExercise; idx: number; ex?: Exercise; all: SessionExercise[]; onMenu: () => void }) {
+// memoised: ticking a set re-renders that exercise only
+const ExerciseBlock = memo(function ExerciseBlock({ se, idx, ex, linkedPrev, linkedNext, onMenu }: { se: SessionExercise; idx: number; ex?: Exercise; linkedPrev: boolean; linkedNext: boolean; onMenu: (id: string) => void }) {
   const t = useT();
   const lang = useLang();
   const settings = useStore((s) => s.settings);
@@ -226,8 +249,6 @@ function ExerciseBlock({ se, idx, ex, all, onMenu }: { se: SessionExercise; idx:
   const toast = useUI((u) => u.toast);
   const last = useMemo(() => lastPerformance(se.exerciseId, sessions), [se.exerciseId, sessions]);
   const lastWorking = last?.sets.filter(countable) ?? [];
-  const linkedPrev = idx > 0 && all[idx - 1].supersetGroup && all[idx - 1].supersetGroup === se.supersetGroup;
-  const linkedNext = idx < all.length - 1 && se.supersetGroup && all[idx + 1].supersetGroup === se.supersetGroup;
   const working = se.sets.filter((x) => x.type === 'working');
   const range = { min: working[0]?.target?.repMin ?? 6, max: working[0]?.target?.repMax ?? 10 };
   const sugg = ex && ex.logType === 'weightReps' ? suggestProgression(ex, last, range, settings.plateStep) : undefined;
@@ -247,7 +268,7 @@ function ExerciseBlock({ se, idx, ex, all, onMenu }: { se: SessionExercise; idx:
             <div className="display display-sm trunc">{ex ? exName(ex, lang) : t('Unknown exercise')}</div>
             <div className="xs t2" style={{ marginTop: 3 }}>{ex?.muscles.slice(0, 2).map((m) => t(MUSCLE_LABEL[m])).join(' · ')}</div>
           </button>
-          <button className="icon-btn flat" onClick={onMenu} aria-label={t('Exercise options')}><Icon name="more" /></button>
+          <button className="icon-btn flat" onClick={() => onMenu(se.id)} aria-label={t('Exercise options')}><Icon name="more" /></button>
         </div>
         {lastWorking.length > 0 && <div className="xs t3 num" style={{ marginTop: 6 }}>{t('Last')}: {lastWorking.slice(0, 5).map((p) => fmtSet(p, ex, u, lang, t)).join(' · ')}</div>}
         {se.note && <div className="small t2" style={{ marginTop: 8, padding: '8px 10px', background: 'var(--bg-2)', borderRadius: 10 }}>{se.note}</div>}
@@ -268,7 +289,7 @@ function ExerciseBlock({ se, idx, ex, all, onMenu }: { se: SessionExercise; idx:
         <AnimatePresence initial={false}>
           {se.sets.map((set) => {
             if (set.type === 'working') workIdx++;
-            return <SetRow key={set.id} se={se} set={set} ex={ex} label={set.type === 'warmup' ? 'W' : String(workIdx + 1)} prev={set.type === 'working' ? lastWorking[Math.min(workIdx, lastWorking.length - 1)] : undefined} restDefault={settings.restDefaultSec} all={all} idx={idx} />;
+            return <SetRow key={set.id} se={se} set={set} ex={ex} label={set.type === 'warmup' ? 'W' : String(workIdx + 1)} prev={set.type === 'working' ? lastWorking[Math.min(workIdx, lastWorking.length - 1)] : undefined} restDefault={settings.restDefaultSec} />;
           })}
         </AnimatePresence>
         <div className="row-flex" style={{ gap: 8, marginTop: 10 }}>
@@ -278,7 +299,7 @@ function ExerciseBlock({ se, idx, ex, all, onMenu }: { se: SessionExercise; idx:
       </div>
     </motion.section>
   );
-}
+});
 
 function gridCols(ex: Exercise | undefined, effort: string) {
   const extra = effort !== 'off' ? ' 52px' : '';
@@ -298,7 +319,7 @@ function headers(ex: Exercise | undefined, u: { weight: string; distance: string
 // ── set row ─────────────────────────────────────────────────
 
 
-function SetRow({ se, set, ex, label, prev, restDefault, all, idx }: { se: SessionExercise; set: SetRecord; ex?: Exercise; label: string; prev?: SetRecord; restDefault: number; all: SessionExercise[]; idx: number }) {
+const SetRow = memo(function SetRow({ se, set, ex, label, prev, restDefault }: { se: SessionExercise; set: SetRecord; ex?: Exercise; label: string; prev?: SetRecord; restDefault: number }) {
   const t = useT();
   const lang = useLang();
   const settings = useStore((s) => s.settings);
@@ -337,6 +358,8 @@ function SetRow({ se, set, ex, label, prev, restDefault, all, idx }: { se: Sessi
     patchSet(se.id, set.id, { ...eff, done: true, completedAt: Date.now() });
     if (set.type === 'working') {
       // supersets: rest only after the last exercise of the group has its turn
+      const all = st.active?.exercises ?? [];
+      const idx = all.findIndex((e) => e.id === se.id);
       const linkedNext = se.supersetGroup && all.slice(idx + 1).some((e) => e.supersetGroup === se.supersetGroup && e.sets.some((x) => !x.done));
       if (!linkedNext) startRest(se.restSec ?? restDefault, se.exerciseId);
       else skipRest();
@@ -397,7 +420,7 @@ function SetRow({ se, set, ex, label, prev, restDefault, all, idx }: { se: Sessi
       </AnimatePresence>
     </motion.div>
   );
-}
+});
 
 // ── exercise menu ───────────────────────────────────────────
 

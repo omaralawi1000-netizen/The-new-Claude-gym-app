@@ -229,6 +229,15 @@ export function registerSlot(id: string, el: HTMLElement, priority: number) {
   return () => { if (slots.get(id)?.el === el) slots.delete(id); };
 }
 
+/** cubic-bezier(0.65, 0, 0.35, 1) — the --ease-io curve the colour field cross-fades on */
+function easeInOut(x: number): number {
+  const X = (t: number) => 3 * (1 - t) * (1 - t) * t * 0.65 + 3 * (1 - t) * t * t * 0.35 + t * t * t;
+  const Y = (t: number) => 3 * (1 - t) * t * t + t * t * t; // y1 = 0, y2 = 1
+  let lo = 0, hi = 1;
+  for (let i = 0; i < 22; i++) { const m = (lo + hi) / 2; if (X(m) < x) lo = m; else hi = m; }
+  return Y((lo + hi) / 2);
+}
+
 function parseColor(css: string, fallback: [number, number, number]): [number, number, number] {
   const m = css.match(/#([0-9a-f]{6})/i);
   if (m) { const n = parseInt(m[1], 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
@@ -253,32 +262,46 @@ export function SphereStage() {
     let running = true;
     let last = performance.now();
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
-    let colorKey = '';
-    let frame = 0;
     let drawn = false;
     let parked = false;
     let parkedEl: HTMLElement | null = null;
-    // the accent now follows the active area and cross-fades, so read the live (resolved) colour through probes
+    // The accent follows the active area. Read the target colours once per change (through probes, which force a
+    // style pass) and cross-fade to them here, on the same 1.1 s curve as the colour field, instead of polling
+    // the live CSS value every few frames.
     const probe = (v: string) => { const d = document.createElement('i'); d.style.cssText = `position:absolute;width:0;height:0;pointer-events:none;color:var(${v})`; (appEl ?? document.body).appendChild(d); return d; };
     const pAc = probe('--ac'), pAc2 = probe('--ac-2'), pH1 = probe('--h1');
-    let colors: SphereColors = { hi: [255, 138, 77], lo: [150, 70, 40], alt: [124, 92, 255], ok: [95, 208, 138], dark: true };
-    const refreshColors = () => {
-      const theme = document.documentElement.dataset.theme;
-      if (frame++ % 6 !== 0 && colorKey === theme) return;
-      colorKey = theme ?? '';
-      const dark = theme !== 'light';
+    const readTarget = (): SphereColors => {
+      const dark = document.documentElement.dataset.theme !== 'light';
       const ac = parseColor(getComputedStyle(pAc).color, [255, 91, 36]);
       const ac2 = parseColor(getComputedStyle(pAc2).color, [255, 138, 77]);
       const alt = parseColor(getComputedStyle(pH1).color, [124, 92, 255]);
-      colors = dark
+      return dark
         ? { hi: ac2, lo: [ac[0] * 0.3, ac[1] * 0.3, ac[2] * 0.3], alt, ok: [110, 222, 150], dark }
         : { hi: ac, lo: [ac[0] * 0.55 + 70, ac[1] * 0.55 + 60, ac[2] * 0.55 + 60], alt, ok: [30, 160, 95], dark };
+    };
+    let colors = readTarget(), from = colors, to = colors, fadeStart = 0;
+    let colorKey = document.documentElement.dataset.theme ?? '';
+    const mo = new MutationObserver(() => {
+      const theme = document.documentElement.dataset.theme ?? '';
+      const next = readTarget();
+      if (theme !== colorKey) { colorKey = theme; colors = from = to = next; fadeStart = 0; return; } // theme: switch at once
+      from = colors; to = next; fadeStart = performance.now();
+    });
+    if (appEl) mo.observe(appEl, { attributes: true, attributeFilter: ['data-hue'] });
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    const refreshColors = (now: number) => {
+      if (!fadeStart) return;
+      const k = Math.min(1, Math.max(0, (now - fadeStart) / 1100));
+      const e = easeInOut(k);
+      const mix = (x: RGB, y: RGB): RGB => [x[0] + (y[0] - x[0]) * e, x[1] + (y[1] - x[1]) * e, x[2] + (y[2] - x[2]) * e];
+      colors = { hi: mix(from.hi, to.hi), lo: mix(from.lo, to.lo), alt: mix(from.alt, to.alt), ok: mix(from.ok, to.ok), dark: to.dark };
+      if (k >= 1) fadeStart = 0;
     };
 
     const tick = (now: number) => {
       if (!running) return;
       raf = requestAnimationFrame(tick);
-      refreshColors();
+      refreshColors(now);
       // real elapsed time (a dropped frame must not slow the flight down), integrated in small fixed steps below
       const dt = Math.min(0.25, Math.max(0, (now - last) / 1000));
       last = now;
@@ -337,7 +360,7 @@ export function SphereStage() {
       else if (!running) { running = true; last = performance.now(); raf = requestAnimationFrame(tick); }
     };
     document.addEventListener('visibilitychange', onVis);
-    return () => { running = false; cancelAnimationFrame(raf); document.removeEventListener('visibilitychange', onVis); pAc.remove(); pAc2.remove(); pH1.remove(); };
+    return () => { running = false; cancelAnimationFrame(raf); document.removeEventListener('visibilitychange', onVis); mo.disconnect(); pAc.remove(); pAc2.remove(); pH1.remove(); };
   }, [motionPref]);
 
   return (

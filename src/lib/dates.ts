@@ -42,16 +42,24 @@ export function rangeKeys(from: string, to: string): string[] {
 }
 
 const loc = (lang: Lang) => (lang === 'da' ? 'da-DK' : 'en-GB');
+// building an Intl formatter is slow and these run on every render, so keep one per language + options
+const DT_FMT = new Map<string, Intl.DateTimeFormat>();
+function dtf(lang: Lang, opts: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
+  const key = lang + JSON.stringify(opts);
+  let f = DT_FMT.get(key);
+  if (!f) { f = new Intl.DateTimeFormat(loc(lang), opts); DT_FMT.set(key, f); }
+  return f;
+}
 
 export function fmtDate(key: string, lang: Lang, opts: Intl.DateTimeFormatOptions = { weekday: 'short', day: 'numeric', month: 'short' }): string {
-  return new Intl.DateTimeFormat(loc(lang), opts).format(parseKey(key));
+  return dtf(lang, opts).format(parseKey(key));
 }
 export function fmtWeekdayShort(wd: number, lang: Lang, narrow = false): string {
   // 2023-01-01 was a Sunday
-  return new Intl.DateTimeFormat(loc(lang), { weekday: narrow ? 'narrow' : 'short' }).format(new Date(2023, 0, 1 + wd, 12));
+  return dtf(lang, { weekday: narrow ? 'narrow' : 'short' }).format(new Date(2023, 0, 1 + wd, 12));
 }
 export function fmtTime(ms: number, lang: Lang): string {
-  return new Intl.DateTimeFormat(loc(lang), { hour: '2-digit', minute: '2-digit' }).format(new Date(ms));
+  return dtf(lang, { hour: '2-digit', minute: '2-digit' }).format(new Date(ms));
 }
 export function fmtDuration(totalSec: number): string {
   const s = Math.max(0, Math.round(totalSec));
