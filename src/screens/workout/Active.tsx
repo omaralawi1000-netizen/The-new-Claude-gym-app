@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, animate, motion, useMotionValue, usePresence, useReducedMotion, useTransform } from 'motion/react';
 import { useStore, exerciseMap } from '../../state/store';
 import { useUI, buzz } from '../../state/ui';
@@ -15,25 +15,14 @@ import { addSet, deleteSet, moveExercise, patchExercise, patchSet, removeExercis
 import { exName, fmtSet, MUSCLE_LABEL } from './common';
 import { SphereSlot, orbPress, orbTap } from '../../ui/Sphere';
 import { useSwipeDown } from '../../ui/swipe';
-import { trackCover } from '../../ui/engage';
+import { trackDepth } from '../../ui/engage';
 import { kb } from '../../ui/keyboard';
-import { BOUNCY, SURFACE_EXIT, WINDOW } from '../../ui/motion';
+import { BOUNCY, SURFACE, SURFACE_EXIT } from '../../ui/motion';
 
 // critically damped: it opens and closes in one smooth motion with no wobble at the end
-const WK_SPRING = WINDOW;
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 
-interface Edges { left: number; top: number; right: number; bottom: number }
-/** The on-screen rectangle of the card / pill the workout opens from (and closes back into). */
-function measureOrigin(origin: string): Edges | null {
-  const el = document.querySelector(`[data-wk="${origin}"]`);
-  if (!el) return null;
-  const r = el.getBoundingClientRect();
-  if (r.width < 40 || r.height < 30 || r.bottom < 0 || r.top > window.innerHeight) return null; // hidden or scrolled away
-  return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
-}
-
-/** The live workout. It opens out of the Today card or the tab-bar pill and closes back into it. */
+/** The live workout: a full-height card that rises over the page (which steps back behind it), like Apple Music's player. */
 export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | 'none' } }) {
   const t = useT();
   const lang = useLang();
@@ -50,38 +39,21 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
   const dragY = useMotionValue(0);
   const swipeV = useRef(0);
   useSwipeDown(dialogRef, dragY, (v) => { swipeV.current = v ?? 0; useUI.getState().pop(); }, { threshold: 130 });
-  const origin = props.origin ?? 'hero';
-  // The screen is a WINDOW that opens out of the Today card / tab-bar pill and closes back into it. Only a clip
-  // rectangle animates: the background, colour field and content inside it never scale or repaint, and the surface is
-  // opaque the whole way, so the page behind never ghosts through. (`reveal` 0 = the card's shape, 1 = full screen.)
-  const [from] = useState(() => (origin === 'none' || reduce ? null : measureOrigin(origin)));
-  const target = useRef<Edges | null>(from);
-  const reveal = useMotionValue(from ? 0 : 1);
-  const clip = useTransform(reveal, (v) => {
-    const r = target.current;
-    if (!r || v >= 0.999) return 'none';
-    const k = 1 - Math.max(0, v), W = window.innerWidth, H = window.innerHeight;
-    return `inset(${r.top * k}px ${(W - r.right) * k}px ${(H - r.bottom) * k}px ${r.left * k}px round ${30 * k}px)`;
-  });
-  const bgOpacity = useTransform(reveal, (v) => clamp01(v * 4)); // crossfades with the card it grows out of (same shape, so it reads as the card itself opening)
-  // Without an origin card (or with reduced motion) the screen slides up like a sheet: `slide` is that progress.
-  // Either way ONE number says how far open the screen is (`eng`, finger included), and the orb follows it.
+  // Presented like Apple Music's player: a full-height card rises from the bottom while the page behind steps back
+  // (smaller, rounded, dimmed) and stays visible as a sliver above it. One number (`p`, finger included in `eFinger`)
+  // drives the card, the page behind, the dim and the orb; drag down from anywhere to put it away. Only transforms
+  // move, so it is the cheapest possible animation and identical at 60 or 120 Hz.
   const H = typeof window !== 'undefined' ? window.innerHeight : 900;
-  const slide = useMotionValue(0);
-  const eng = from ? reveal : slide;
-  const dialogY = useTransform([slide, dragY], ([sl, d]: number[]) => (from ? 0 : (1 - sl) * H) + d);
-  const eFinger = useTransform([eng, dragY], ([e, d]: number[]) => Math.min(1, Math.max(0, e - Math.max(0, d) / H)));
+  const p = useMotionValue(0);
+  const dialogY = useTransform([p, dragY], ([pp, d]: number[]) => (1 - pp) * H + Math.max(0, d) + Math.min(0, d) * 0.15);
+  const eFinger = useTransform([p, dragY], ([pp, d]: number[]) => Math.min(1, Math.max(0, pp - Math.max(0, d) / H)));
   const engage = useMemo(() => ({ e: eFinger, shift: dialogY }), [eFinger, dialogY]);
-  useEffect(() => trackCover('workout', eFinger), [eFinger]); // fully up, the page behind stops being drawn
-  // what is inside the window fades up and settles as the window opens (and the reverse as it closes), tied to the
-  // window's own progress, so it can never be early or late
-  // The content is pinned to the window's top edge while it grows (its header sits in the card's own place, like the card's
-  // title bar) instead of showing a slice of the finished layout through a small window.
-  const contentOpacity = useTransform(eFinger, (v) => (from ? clamp01((v - 0.12) / 0.4) : 1));
-  const contentY = useTransform(eFinger, (v) => (from ? (target.current?.top ?? 0) * (1 - clamp01(v)) : 0));
+  const dim = useTransform(eFinger, (v) => clamp01(v / 0.6));
+  const depthId = useId();
+  useEffect(() => trackDepth(depthId, eFinger), [depthId, eFinger]); // the page behind recedes with the card, frame for frame
   const [isPresent, safeToRemove] = usePresence();
   useEffect(() => {
-    const c = animate(from ? reveal : slide, 1, from || !reduce ? WK_SPRING : { duration: 0.01 });
+    const c = animate(p, 1, reduce ? { duration: 0.01 } : SURFACE);
     return () => c.stop();
     // eslint-disable-next-line
   }, []);
@@ -89,16 +61,10 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
   useEffect(() => {
     if (isPresent || closing.current) return;
     closing.current = true;
-    if (!from) { // sliding presentation: the finger's offset becomes progress, then it carries on at the finger's speed
-      const v = swipeV.current || dragY.getVelocity();
-      slide.set(slide.get() - Math.max(0, dragY.get()) / H); dragY.set(0);
-      animate(slide, 0, reduce ? { duration: 0.01 } : { ...SURFACE_EXIT, velocity: -v / H }).then(() => safeToRemove?.());
-      return;
-    }
-    const now = origin === 'hero' ? measureOrigin('hero') : null; // the card may have scrolled; the pill never moves
-    if (now) target.current = now;
-    animate(dragY, 0, WK_SPRING);
-    animate(reveal, 0, { ...WK_SPRING, restDelta: 0.001, restSpeed: 0.02 }).then(() => safeToRemove?.());
+    // the finger's offset becomes progress, then it carries on at the finger's speed
+    const v = swipeV.current || dragY.getVelocity();
+    p.set(eFinger.get()); dragY.set(0);
+    animate(p, 0, reduce ? { duration: 0.01 } : { ...SURFACE_EXIT, velocity: -v / H }).then(() => safeToRemove?.());
     // eslint-disable-next-line
   }, [isPresent]);
   // the keyboard slides over the page (it no longer resizes it): the list gets that much more room at its end, so the last
@@ -126,8 +92,8 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
   const [listDone, setListDone] = useState(listDoneAtOpen.current); // stays true once the list has been complete (adding an exercise later never hides the buttons)
   useEffect(() => { if (!listDone && shown >= total0) setListDone(true); }, [shown, total0, listDone]);
   useEffect(() => {
-    if (eng.get() >= 0.97) { setReady(true); return; }
-    const off = eng.on('change', (v) => { if (v >= 0.97) { setReady(true); off(); } });
+    if (p.get() >= 0.97) { setReady(true); return; }
+    const off = p.on('change', (v) => { if (v >= 0.97) { setReady(true); off(); } });
     const fallback = setTimeout(() => setReady(true), 900);
     return () => { off(); clearTimeout(fallback); };
     // eslint-disable-next-line
@@ -185,18 +151,19 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
 
   return (
     <>
-      <motion.div className="scrim flat" style={{ zIndex: z - 1, opacity: eFinger }} />
+      <motion.div className="scrim" style={{ zIndex: z - 1, opacity: dim }} onClick={pop}><i /></motion.div>
       <motion.div
         role="dialog" aria-modal="true" aria-label={t('Active workout')}
-        ref={dialogRef} data-hue="train" style={{ position: 'fixed', inset: 0, zIndex: z, display: 'flex', flexDirection: 'column', y: dialogY }}
+        ref={dialogRef} data-hue="train" className="wk-card" style={{ zIndex: z, y: dialogY }}
       >
-        <motion.div className="wk-window" style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', clipPath: clip }}>
-          <motion.div aria-hidden style={{ position: 'absolute', inset: 0, background: 'var(--bg)', opacity: bgOpacity }}>
+        <div className="wk-window" style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column' }}>
+          <div aria-hidden style={{ position: 'absolute', inset: 0, background: 'var(--bg)' }}>
             <div className="aurora-lite" />
-          </motion.div>
-          <motion.div style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, opacity: contentOpacity, y: contentY }}>
+          </div>
+          <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+          <div className="sheet-grab" style={{ position: 'relative', zIndex: 3 }} />
           {/* header */}
-          <div style={{ padding: 'calc(var(--sat) + 10px) 16px 12px', touchAction: 'none', background: 'linear-gradient(var(--bg) 70%, transparent)', position: 'relative', zIndex: 2 }}>
+          <div style={{ padding: '0 16px 12px', touchAction: 'none', background: 'linear-gradient(var(--bg) 70%, transparent)', position: 'relative', zIndex: 2 }}>
             <div className="row-flex between">
               <button className="icon-btn press" aria-label={t('Minimise workout')} onClick={pop}><Icon name="chevD" /></button>
               <div className="grow" style={{ textAlign: 'center', minWidth: 0 }}>
@@ -257,8 +224,8 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
               </motion.div>
             )}
           </AnimatePresence>
-          </motion.div>
-        </motion.div>
+          </div>
+        </div>
       </motion.div>
 
       <AnimatePresence>
