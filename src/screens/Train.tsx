@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { useStore, exerciseMap, allExercises, plannedFor, missedWorkouts } from '../state/store';
 import { useUI, buzz } from '../state/ui';
@@ -16,19 +16,33 @@ import { matchExercises } from '../lib/workoutText';
 import { MUSCLES } from '../data/exercises';
 import type { MuscleGroup, Routine } from '../lib/types';
 import { SOFT, zoomFrom } from '../ui/Sheet';
+import { slideSection } from '../ui/pageMotion';
+
+const SECTIONS = ['plan', 'library', 'history'];
+function Section({ dir, children }: { dir: number; children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => { slideSection(ref.current, dir); }, []); // eslint-disable-line
+  return <div ref={ref} className="subpage">{children}</div>;
+}
 
 export function TrainScreen() {
   const t = useT();
   const tab = useUI((u) => u.trainTab);
   const setTab = useUI((u) => u.setTrainTab);
+  // which way the section glides in: the side its tab sits on, relative to the one you left
+  const prev = useRef(tab);
+  const dir = Math.sign(SECTIONS.indexOf(tab) - SECTIONS.indexOf(prev.current));
+  useEffect(() => { prev.current = tab; }, [tab]);
   return (
     <div className="screen">
       <header>
         <Seg value={tab} onChange={setTab} options={[{ value: 'plan', label: t('Plan') }, { value: 'library', label: t('Library') }, { value: 'history', label: t('History') }]} />
       </header>
-      {tab === 'plan' && <PlanTab />}
-      {tab === 'library' && <LibraryTab />}
-      {tab === 'history' && <HistoryTab />}
+      <Section key={tab} dir={dir}>
+        {tab === 'plan' && <PlanTab />}
+        {tab === 'library' && <LibraryTab />}
+        {tab === 'history' && <HistoryTab />}
+      </Section>
     </div>
   );
 }

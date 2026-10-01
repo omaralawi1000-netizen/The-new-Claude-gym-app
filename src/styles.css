@@ -428,12 +428,15 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 
 /* the live workout card: full height below a sliver of the receded page, rounded top like an iOS sheet */
 .wk-card { position: fixed; inset: 0; display: flex; flex-direction: column; will-change: transform; }
-/* the live workout's surface (Apple Music's player): rounded on every corner like the screen, frosted while it grows,
-   its own solid colour once it has landed (Active.tsx) */
-.wk-panel { position: absolute; inset: 0; border-radius: var(--r-xl); overflow: hidden; transform-origin: 50% 0; will-change: transform;
+/* the live workout's window (Apple Music's player, Active.tsx): an outer box rounded on every corner that clips, and inside
+   it the window; the overlap of the two is what shows, from the exact rectangle of the bar or card it grew out of to the
+   whole screen */
+.wk-clip { position: absolute; inset: 0; overflow: hidden; border-radius: var(--wk-r); transform-origin: 50% 50%; will-change: transform;
   box-shadow: 0 -10px 40px -14px rgba(0,0,0,.55); }
-.wk-panel::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; box-shadow: inset 0 1px 0 var(--hl), inset 0 0 0 1px var(--line); }
-.wk-frost { position: absolute; inset: 0; background: var(--glass-2); -webkit-backdrop-filter: blur(34px) saturate(1.7); backdrop-filter: blur(34px) saturate(1.7); }
+.wk-sheet { position: absolute; inset: 0; overflow: hidden; border-radius: var(--wk-r) var(--wk-r) 0 0; will-change: transform; }
+.wk-sheet::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; box-shadow: inset 0 1px 0 var(--hl); z-index: 5; }
+:root { --wk-r: 34px; }
+.wk-frost { position: absolute; inset: 0; will-change: opacity; background: var(--glass-2); -webkit-backdrop-filter: blur(34px) saturate(1.7); backdrop-filter: blur(34px) saturate(1.7); }
 .wk-card.rest .wk-frost { display: none; }
 .wk-solid { position: absolute; inset: 0; background: var(--bg); will-change: opacity; }
 
@@ -450,3 +453,9 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 :root[data-motion='reduce'] .settings-page * { animation: none !important; }
 /* a veil inside its own overlay (the orb screen) rather than a page-level one */
 .scrim.veil-abs { position: absolute; }
+
+/* the ring of light that rides the edge of a new screen spreading out of its tab (ui/pageMotion.ts) */
+.reveal-ring { position: absolute; z-index: 3; border-radius: 50%; pointer-events: none; will-change: transform, opacity;
+  box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--ac) 55%, #fff 20%), inset 0 0 38px 6px color-mix(in srgb, var(--ac) 30%, transparent), 0 0 34px 4px color-mix(in srgb, var(--ac) 22%, transparent); }
+/* a section inside a screen (Train's Plan / Library / History) keeps the screen's rhythm between its blocks */
+.subpage > * + * { margin-top: 22px; }

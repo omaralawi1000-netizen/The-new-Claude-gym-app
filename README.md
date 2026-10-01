@@ -147,6 +147,12 @@ Run in headless Chromium (Playwright, 390×844 @2×, dark + light), scripts in `
 - **Snap your plate** (Gemini key): photo → per-item estimates (name, grams, kcal, macros) → choose items and portion (×0.5–×2) → logged as quick entries labelled "AI estimate" with the assumptions. Image is downscaled to 1024 px before sending. Wiring tested with a stubbed Gemini; real recognition quality is unverified.
 - **Home-screen shortcuts** (Android long-press on the installed icon): Log food, Dictate, Snap your plate, Log wrestling.
 
+## Reveal pass
+
+- **Tab switching** (`ui/pageMotion.ts`): the new screen spills out of the tab you tapped like a drop of the dock's glass — a circle growing from that tab to the far corners, the screen inside settling from 94 %, and a ring of light riding the edge — while the screen you leave sinks back and fades underneath. Clip-path, transform and opacity only, browser-run.
+- **Train's Plan / Library / History** glide in from the side their tab sits on.
+- **Live workout**: it now grows from and shrinks back into the *exact* rectangle of the resume bar or the Today card (it used to keep reaching to the bottom of the screen, which left an empty frosted slab over Today while closing). Built from two nested boxes — one placing the bottom edge, one the top edge — so it is transforms only, with all four corners round; the frost fades in its last few percent so it hands over to the bar or card underneath.
+
 ## Apple Music pass
 
 - **Behind every popup** (`ui/Veil.tsx`): the dim and a soft blur follow the popup's own progress frame for frame — they deepen as it rises and fade as you pull it down (before, the dim reached full strength at 60 % and felt early). The blur grows gradually: two blur layers of fixed strength fade in one after the other, each with its own opacity.

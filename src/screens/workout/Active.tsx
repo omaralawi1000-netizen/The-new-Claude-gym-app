@@ -27,6 +27,8 @@ const OPEN = { ...apple(0.52, 0.08), restDelta: 0.001 };
 /** progress ranges over which the panel's solid colour and the content fade in */
 const SOLID = [0.3, 0.92];
 const SHOW = [0.18, 0.7];
+/** the frost fades in its first few percent, so at the very end of a close it hands over to the bar or card underneath */
+const FROST = [0, 0.07];
 
 /** The live workout: a full-height card that rises over the page (which steps back behind it), like Apple Music's player. */
 export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | 'none' } }) {
@@ -45,33 +47,46 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
   const dragY = useMotionValue(0);
   const swipeV = useRef(0);
   useSwipeDown(dialogRef, dragY, (v) => { swipeV.current = v ?? 0; useUI.getState().pop(); }, { threshold: 130 });
-  // Presented like Apple Music's player: a frosted panel grows out of what you tapped — the resume bar above the tab bar or
-  // the workout card on Today — rising and widening to fill the screen, its frost turning into the window's own solid
-  // colour as it lands, while the content fades in and the page behind steps back and dims. Closing (a tap on the chevron
-  // or a drag down from anywhere) shrinks it back into the bar or card. One number (`p`, finger included in `eFinger`)
-  // drives all of it, and only transforms and opacity move.
+  // Presented like Apple Music's player: the window grows out of what you tapped — the resume bar above the tab bar or the
+  // workout card on Today — from that exact rectangle to the whole screen, frosted glass while it grows and the window's
+  // own colour once it lands, the content fading up inside it while the page behind steps back and dims. Closing (the
+  // chevron or a drag down from anywhere) shrinks it back into exactly that bar or card.
+  //
+  // The rectangle is made with transforms only (no clip animation, so the browser's compositor can run it): an outer box,
+  // rounded and clipping, slides so its BOTTOM edge sits where the window's bottom should be; inside it the window slides so
+  // its TOP edge sits where the window's top should be. What shows is the overlap — top to bottom, with all four corners
+  // round. Width is a gentle scaleX (its content counter-scaled so text is never squeezed).
   const H = typeof window !== 'undefined' ? window.innerHeight : 900;
   const W = typeof window !== 'undefined' ? window.innerWidth : 400;
   // where it grows from / shrinks back into: the resume bar, else Today's workout card, else the bottom edge
   const originOf = () => {
-    const pick = (sel: string) => { const el = document.querySelector(sel); const r = el?.getBoundingClientRect(); return r && r.width > 40 && r.top > 0 && r.top < H ? r : null; };
+    const pick = (sel: string) => { const el = document.querySelector(sel); const r = el?.getBoundingClientRect(); return r && r.width > 40 && r.height > 20 && r.top > 0 && r.top < H ? r : null; };
     const r = (props.origin === 'hero' ? pick('[data-wk="hero"]') : null) ?? pick('[data-wk="pill"]') ?? pick('[data-wk="hero"]');
-    return r ? { top: r.top, sx: Math.min(1, r.width / W) } : { top: H, sx: 1 };
+    return r ? { top: r.top, bottom: Math.min(H, r.bottom), sx: Math.min(1, r.width / W) } : { top: H, bottom: H, sx: 1 };
   };
   const origin = useRef(originOf());
   const p = useMotionValue(0);
-  const dialogY = useTransform([p, dragY], ([pp, d]: number[]) => (1 - pp) * origin.current.top + Math.max(0, d) + Math.min(0, d) * 0.15);
-  const panelSx = useTransform(p, (pp) => origin.current.sx + (1 - origin.current.sx) * pp);
+  const geo = (pp: number) => {
+    const o = origin.current;
+    const top = (1 - pp) * o.top, bottom = H + (1 - pp) * (o.bottom - H), sx = o.sx + (1 - o.sx) * pp;
+    return { top, bottom, sx, clip: `translateY(${(bottom - H).toFixed(2)}px) scaleX(${sx.toFixed(5)})`, sheet: `translateY(${(top - bottom + H).toFixed(2)}px)`, content: `scaleX(${(1 / sx).toFixed(5)})` };
+  };
+  const clipT = useTransform(p, (pp) => geo(pp).clip);
+  const sheetT = useTransform(p, (pp) => geo(pp).sheet);
+  const contentT = useTransform(p, (pp) => geo(pp).content);
+  const dragT = useTransform(dragY, (d) => Math.max(0, d) + Math.min(0, d) * 0.15);
+  const dialogY = useTransform([p, dragY], ([pp, d]: number[]) => geo(pp).top + Math.max(0, d) + Math.min(0, d) * 0.15); // how far the content is displaced (for the orb)
   const solid = useTransform(p, (pp) => clamp01((pp - SOLID[0]) / (SOLID[1] - SOLID[0])));
+  const frost = useTransform(p, (pp) => clamp01((pp - FROST[0]) / (FROST[1] - FROST[0])));
   const contentO = useTransform(p, (pp) => clamp01((pp - SHOW[0]) / (SHOW[1] - SHOW[0])));
   const eFinger = useTransform([p, dragY], ([pp, d]: number[]) => Math.min(1, Math.max(0, pp - Math.max(0, d) / H)));
   const engage = useMemo(() => ({ e: eFinger, shift: dialogY }), [eFinger, dialogY]);
   const depthId = useId();
-  useEffect(() => trackDepth(depthId, eFinger), [depthId, eFinger]); // the page behind recedes with the card, frame for frame
-  useEffect(() => trackCover(depthId, eFinger), [depthId, eFinger]); // and stops being drawn while the card covers it
-  const panelRef = useRef<HTMLDivElement>(null), solidRef = useRef<HTMLDivElement>(null), contentRef = useRef<HTMLDivElement>(null);
-  // the content's fade is written straight to the element; the frost under the panel is switched off while it rests full
-  // screen (the solid colour covers it then, and a full-screen blur would be recomputed on every scroll for nothing)
+  useEffect(() => trackDepth(depthId, eFinger), [depthId, eFinger]); // the page behind recedes with the window, frame for frame
+  useEffect(() => trackCover(depthId, eFinger), [depthId, eFinger]); // and stops being drawn while the window covers it
+  const clipRef = useRef<HTMLDivElement>(null), sheetRef = useRef<HTMLDivElement>(null), frostRef = useRef<HTMLElement>(null), solidRef = useRef<HTMLDivElement>(null), contentRef = useRef<HTMLDivElement>(null);
+  // the content's fade is written straight to the element; the frost is switched off while the window rests full screen
+  // (the solid colour covers it then, and a full-screen blur would be recomputed on every scroll for nothing)
   useEffect(() => {
     const show = (v: number) => { if (contentRef.current) contentRef.current.style.opacity = v >= 1 ? '' : String(v); };
     const rest = (v: number) => dialogRef.current?.classList.toggle('rest', v >= 0.999);
@@ -79,19 +94,19 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
     const a = contentO.on('change', show), b = eFinger.on('change', rest);
     return () => { a(); b(); };
   }, [contentO, eFinger]);
-  // high refresh rate: card, panel, colour, content, dim and page behind also run by the browser on the identical spring
+  // high refresh rate: every piece also run by the browser on the identical spring
   const scrimRef = useRef<HTMLDivElement>(null);
   const mirror = useRef<Mirror | null>(null); if (!mirror.current) mirror.current = new Mirror();
   const runMirror = (p0: number, p1: number, sp: { stiffness: number; damping: number; mass?: number }, vel: number) => {
     const m = mirror.current!; m.cancel();
     if (reduce) return;
-    const o = origin.current;
     const ramp = (r: number[]) => (pp: number) => ({ opacity: clamp01((pp - r[0]) / (r[1] - r[0])) });
     m.add(
-      mirrorProgress(dialogRef.current, p0, p1, sp, vel, (pp) => ({ transform: `translateY(${(1 - pp) * o.top}px)` })),
-      mirrorProgress(panelRef.current, p0, p1, sp, vel, (pp) => ({ transform: `scaleX(${o.sx + (1 - o.sx) * pp})` })),
+      mirrorProgress(clipRef.current, p0, p1, sp, vel, (pp) => ({ transform: geo(pp).clip })),
+      mirrorProgress(sheetRef.current, p0, p1, sp, vel, (pp) => ({ transform: geo(pp).sheet })),
+      mirrorProgress(contentRef.current, p0, p1, sp, vel, (pp) => ({ transform: geo(pp).content, opacity: clamp01((pp - SHOW[0]) / (SHOW[1] - SHOW[0])) }), SHOW),
       mirrorProgress(solidRef.current, p0, p1, sp, vel, ramp(SOLID), SOLID),
-      mirrorProgress(contentRef.current, p0, p1, sp, vel, ramp(SHOW), SHOW),
+      mirrorProgress(frostRef.current, p0, p1, sp, vel, ramp(FROST), FROST),
       ...mirrorVeil(scrimRef.current, p0, p1, sp, vel, DIM_VEIL),
       mirrorStage(depthId, p0, p1, sp, vel),
     );
@@ -113,7 +128,7 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
     const e0 = eFinger.get();
     origin.current = originOf();
     p.set(e0); dragY.set(0);
-    const vel = -v / Math.max(120, origin.current.top);
+    const vel = -v / Math.max(120, H - origin.current.bottom + origin.current.top);
     runMirror(e0, 0, SURFACE_EXIT, vel);
     animate(p, 0, reduce ? { duration: 0.01 } : { ...SURFACE_EXIT, velocity: vel }).then(() => safeToRemove?.());
     // eslint-disable-next-line
@@ -205,14 +220,14 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
       <Veil e={eFinger} z={z - 1} onClick={pop} layers={DIM_VEIL} elRef={scrimRef} />
       <motion.div
         role="dialog" aria-modal="true" aria-label={t('Active workout')}
-        ref={dialogRef} data-hue="train" className="wk-card" style={{ zIndex: z, y: dialogY }}
+        ref={dialogRef} data-hue="train" className="wk-card" style={{ zIndex: z, y: dragT }}
       >
-        {/* the surface: frosted glass while it grows, the window's own colour once it has landed */}
-        <motion.div ref={panelRef} className="wk-panel" aria-hidden style={{ scaleX: panelSx }}>
-          <i className="wk-frost" />
-          <motion.div ref={solidRef} className="wk-solid" style={{ opacity: solid }}><div className="aurora-lite" /></motion.div>
-        </motion.div>
-        <div ref={contentRef} className="wk-window" style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column' }}>
+        <motion.div ref={clipRef} className="wk-clip" style={{ transform: clipT }}>
+          <motion.div ref={sheetRef} className="wk-sheet" style={{ transform: sheetT }}>
+          {/* the surface: frosted glass while it grows, the window's own colour once it has landed */}
+          <motion.i ref={frostRef} className="wk-frost" aria-hidden style={{ opacity: frost }} />
+          <motion.div ref={solidRef} className="wk-solid" aria-hidden style={{ opacity: solid }}><div className="aurora-lite" /></motion.div>
+        <motion.div ref={contentRef} className="wk-window" style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', transform: contentT, transformOrigin: '50% 0' }}>
           <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, paddingTop: 'var(--sat)' }}>
           <div className="sheet-grab" style={{ position: 'relative', zIndex: 3 }} />
           {/* header */}
@@ -280,7 +295,9 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
             )}
           </AnimatePresence>
           </div>
-        </div>
+        </motion.div>
+          </motion.div>
+        </motion.div>
       </motion.div>
 
       <AnimatePresence>

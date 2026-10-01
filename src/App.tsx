@@ -1,5 +1,5 @@
-import { useEffect, useLayoutEffect, useRef, useSyncExternalStore } from 'react';
-import { AnimatePresence, LayoutGroup, MotionConfig, motion, type HTMLMotionProps } from 'motion/react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
+import { AnimatePresence, LayoutGroup, MotionConfig, motion } from 'motion/react';
 import { useStore } from './state/store';
 import { useUI } from './state/ui';
 import { TabBar } from './ui/TabBar';
@@ -17,7 +17,7 @@ import { defaultMealId } from './lib/derive';
 import { stageCover, stageDepth, stageTransform } from './ui/engage';
 import { setKeyboard } from './ui/keyboard';
 import { FpsMeter } from './ui/FpsMeter';
-import { apple, highRefresh, onHighRefresh } from './ui/motion';
+import { revealPage } from './ui/pageMotion';
 
 /** Where the last tap landed — the theme switch spreads out from there. */
 const lastTap = { x: typeof window !== 'undefined' ? window.innerWidth / 2 : 0, y: 0 };
@@ -89,25 +89,19 @@ function useTheme() {
  * opening, under the finger while it is dragged, and as it leaves.
  */
 /**
- * The page switch: a calm crossfade. The screen you leave fades out quickly where it is; the new one fades up over it,
- * rising the last 10 px into place on Apple's smooth spring. No sideways slide, no scaling, no blur and no card-by-card
- * stagger — those read as busy ("weird") on a phone. With high refresh rate on, the rise is a whole `transform`, which the
- * browser runs on its compositor at the screen's full rate (`y` is script-driven).
+ * One tab's screen. A new one spills out of the tab you tapped (revealPage, ui/pageMotion.ts); the one you leave sinks back a
+ * little and fades out underneath it. The very first screen of the session just appears.
  */
-const PAGE_IN = apple(0.5);
-function pageSwitch(hrr: boolean): Pick<HTMLMotionProps<'div'>, 'initial' | 'animate' | 'exit'> {
-  const fadeIn = { duration: 0.32, ease: [0.25, 0.1, 0.25, 1] as const };
-  const out = { duration: 0.16, ease: [0.4, 0, 1, 1] as const };
-  if (!hrr) return {
-    initial: { opacity: 0, y: 10 },
-    animate: { opacity: 1, y: 0, transition: { y: PAGE_IN, opacity: fadeIn } },
-    exit: { opacity: 0, transition: out },
-  };
-  return {
-    initial: { opacity: 0, transform: 'translateY(10px)' },
-    animate: { opacity: 1, transform: 'translateY(0px)', transitionEnd: { transform: 'none' }, transition: { transform: PAGE_IN, opacity: fadeIn } },
-    exit: { opacity: 0, transition: out },
-  };
+let firstPane = true;
+function TabPane({ children }: { children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => { if (firstPane) { firstPane = false; return; } revealPage(ref.current); }, []);
+  return (
+    <motion.div ref={ref} className="tab-pane" data-active style={{ position: 'absolute', inset: 0 }}
+      exit={{ opacity: [1, 0], transform: ['scale(1)', 'scale(0.965)'], transition: { opacity: { duration: 0.22, ease: [0.4, 0, 1, 1] }, transform: { duration: 0.42, ease: [0.3, 0, 0.2, 1] } } }}>
+      {children}
+    </motion.div>
+  );
 }
 
 function useStageDepth(app: React.RefObject<HTMLDivElement | null>, stage: React.RefObject<HTMLDivElement | null>) {
@@ -171,7 +165,6 @@ export function App() {
   const tab = useUI((s) => s.tab);
   // the page switch (pageSwitch above) — screens are rebuilt per visit (two attempts to keep them alive both changed how it felt)
   const Screen = SCREENS[tab];
-  const hrr = useSyncExternalStore(onHighRefresh, highRefresh, () => true);
   // a running workout shows a resume bar above the tab bar on every tab but Today: the page makes room for it
   const pill = useStore((s) => !!s.active) && tab !== 'today';
   const onboarded = useStore((s) => s.settings.onboarded);
@@ -203,9 +196,7 @@ export function App() {
           <div className="stage" ref={stageRef}>
           <div className="aurora" aria-hidden><i /><i /><i /></div>
           <AnimatePresence mode="popLayout" initial={false}>
-            <motion.div key={tab} className="tab-pane" data-active style={{ position: 'absolute', inset: 0 }} {...pageSwitch(hrr)}>
-              <Screen />
-            </motion.div>
+            <TabPane key={tab}><Screen /></TabPane>
           </AnimatePresence>
           <TabBar />
           </div>
