@@ -1,5 +1,5 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
-import { AnimatePresence, motion, useMotionValue, useReducedMotion } from 'motion/react';
+import { AnimatePresence, animate, motion, useMotionValue, usePresence, useReducedMotion, useTransform } from 'motion/react';
 import { useStore, exerciseMap } from '../../state/store';
 import { useUI, buzz } from '../../state/ui';
 import { useT, useLang } from '../../lib/i18n';
@@ -18,6 +18,16 @@ import { useSwipeDown } from '../../ui/swipe';
 
 const WK_SPRING = { type: 'spring', stiffness: 260, damping: 30, mass: 0.9 } as const;
 
+interface Edges { left: number; top: number; right: number; bottom: number }
+/** The on-screen rectangle of the card / pill the workout opens from (and closes back into). */
+function measureOrigin(origin: string): Edges | null {
+  const el = document.querySelector(`[data-wk="${origin}"]`);
+  if (!el) return null;
+  const r = el.getBoundingClientRect();
+  if (r.width < 40 || r.height < 30 || r.bottom < 0 || r.top > window.innerHeight) return null; // hidden or scrolled away
+  return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
+}
+
 /** The live workout. It opens out of the Today card or the tab-bar pill and closes back into it. */
 export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | 'none' } }) {
   const t = useT();
@@ -34,12 +44,43 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
   const dialogRef = useRef<HTMLDivElement>(null);
   const dragY = useMotionValue(0);
   useSwipeDown(dialogRef, dragY, () => useUI.getState().pop(), { threshold: 130 });
+  const origin = props.origin ?? 'hero';
+  // The screen is a WINDOW that opens out of the Today card / tab-bar pill and closes back into it. Only a clip
+  // rectangle animates: the background, colour field and content inside it never scale or repaint, and the surface is
+  // opaque the whole way, so the page behind never ghosts through. (`reveal` 0 = the card's shape, 1 = full screen.)
+  const [from] = useState(() => (origin === 'none' || reduce ? null : measureOrigin(origin)));
+  const target = useRef<Edges | null>(from);
+  const reveal = useMotionValue(from ? 0 : 1);
+  const clip = useTransform(reveal, (v) => {
+    const r = target.current;
+    if (!r || v >= 0.999) return 'none';
+    const k = 1 - Math.max(0, v), W = window.innerWidth, H = window.innerHeight;
+    return `inset(${r.top * k}px ${(W - r.right) * k}px ${(H - r.bottom) * k}px ${r.left * k}px round ${30 * k}px)`;
+  });
+  const bgOpacity = useTransform(reveal, (v) => Math.min(1, Math.max(0, v) * 14)); // blends in over the card in the first instants
+  const [isPresent, safeToRemove] = usePresence();
+  useEffect(() => {
+    if (!from) return;
+    const c = animate(reveal, 1, WK_SPRING);
+    return () => c.stop();
+    // eslint-disable-next-line
+  }, []);
+  const closing = useRef(false);
+  useEffect(() => {
+    if (isPresent || closing.current) return;
+    closing.current = true;
+    if (!from) { safeToRemove?.(); return; } // sliding presentation: the dialog's own exit does the work
+    const now = origin === 'hero' ? measureOrigin('hero') : null; // the card may have scrolled; the pill never moves
+    if (now) target.current = now;
+    animate(dragY, 0, WK_SPRING);
+    animate(reveal, 0, { ...WK_SPRING, restDelta: 0.001, restSpeed: 0.02 }).then(() => safeToRemove?.());
+    // eslint-disable-next-line
+  }, [isPresent]);
   const exMap = useMemo(() => exerciseMap(exercises), [exercises]);
   const [menu, setMenu] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<null | 'finish' | 'discard'>(null);
   const [renaming, setRenaming] = useState(false);
   const body = useRef<HTMLDivElement>(null);
-  const origin = props.origin ?? 'hero';
   const z = useOverlayZ(60);
   // where to open from is fixed at mount; where to close into is measured on every render (the card may have scrolled)
   // Render the first exercises at once and the rest a few at a time after the opening animation — no long task while
@@ -99,20 +140,17 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
 
   return (
     <>
-      <motion.div className="scrim" style={{ zIndex: z - 1 }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }} />
+      <motion.div className="scrim flat" style={{ zIndex: z - 1 }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }} />
       <motion.div
-        // The screen is two layers. The SURFACE (background + colour field) is a shared-layout element that grows out of the
-        // Today card or the tab-bar pill and shrinks back into it — a pure transform, so it stays on the GPU. The CONTENT
-        // never scales; it just fades in on top once the surface is mostly open. Without an origin the whole thing slides up.
-        {...(origin === 'none' || reduce ? { initial: { y: typeof window !== 'undefined' ? window.innerHeight : 900 }, animate: { y: 0 }, exit: { y: typeof window !== 'undefined' ? window.innerHeight : 900 }, transition: reduce ? { duration: 0.01 } : SPRING } : { exit: { opacity: 1, transition: { duration: 0.42 } } })}
+        {...(from ? {} : { initial: { y: window.innerHeight }, animate: { y: 0 }, exit: { y: window.innerHeight }, transition: reduce ? { duration: 0.01 } : SPRING })}
         role="dialog" aria-modal="true" aria-label={t('Active workout')}
         ref={dialogRef} data-hue="train" style={{ position: 'fixed', inset: 0, zIndex: z, display: 'flex', flexDirection: 'column', y: dragY }}
       >
-        <motion.div {...(origin === 'none' || reduce ? {} : { layoutId: `wk-${origin}` })} transition={WK_SPRING}
-          style={{ position: 'absolute', inset: 0, borderRadius: 0, background: 'var(--bg)', overflow: 'hidden', boxShadow: 'var(--sh-f)' }}>
-          <div className="aurora" aria-hidden><i /><i /><i /></div>
-        </motion.div>
-        <motion.div style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0, transition: { delay: 0.14, duration: 0.3, ease: [0.22, 1, 0.36, 1] } }} exit={{ opacity: 0, transition: { duration: 0.12 } }}>
+        <motion.div className="wk-window" style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', clipPath: clip }}>
+          <motion.div aria-hidden style={{ position: 'absolute', inset: 0, background: 'var(--bg)', opacity: bgOpacity }}>
+            <div className="aurora-lite" />
+          </motion.div>
+          <motion.div style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0, transition: { delay: 0.14, duration: 0.3, ease: [0.22, 1, 0.36, 1] } }} exit={{ opacity: 0, transition: { duration: 0.12 } }}>
           {/* header */}
           <div style={{ padding: 'calc(var(--sat) + 10px) 16px 12px', touchAction: 'none', background: 'linear-gradient(var(--bg) 70%, transparent)', position: 'relative', zIndex: 2 }}>
             <div className="row-flex between">
@@ -171,6 +209,7 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
               </motion.div>
             )}
           </AnimatePresence>
+          </motion.div>
         </motion.div>
       </motion.div>
 

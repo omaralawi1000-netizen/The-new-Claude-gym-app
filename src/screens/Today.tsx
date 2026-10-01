@@ -131,10 +131,10 @@ export function TodayScreen() {
 
       {/* ── workout ── */}
       <motion.section layout="position" style={{ position: 'relative' }}>
-        <motion.div layoutId="wk-hero" transition={{ type: 'spring', stiffness: 260, damping: 30, mass: 0.9 }} className="plinth"
+        <div data-wk="hero" className="plinth"
           style={{ position: 'absolute', inset: 0, borderRadius: 30, overflow: 'hidden' }}>
           <div style={{ position: 'absolute', right: -60, top: -60, width: 220, height: 220, borderRadius: '50%', background: 'radial-gradient(closest-side, var(--ac-soft), transparent)' }} />
-        </motion.div>
+        </div>
         <div style={{ position: 'relative', padding: '22px 22px 22px 24px' }}>
           {active ? (
             <div className="row-flex between" style={{ gap: 14 }}>

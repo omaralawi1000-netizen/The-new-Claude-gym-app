@@ -47,8 +47,8 @@ function LivePill() {
       onClick={() => { buzz(); push('workout', { origin: 'pill' }); }}
       aria-label={t('Resume workout')}
     >
-      {/* the pill's surface is a separate layer so the workout can grow out of it without stretching the text */}
-      <motion.span layoutId="wk-pill" className="glass" transition={{ type: 'spring', stiffness: 260, damping: 30, mass: 0.9 }} style={{ position: 'absolute', inset: 0, borderRadius: 28 }} />
+      {/* the pill's surface is a separate layer; the workout window opens from its rectangle (data-wk) */}
+      <span data-wk="pill" className="glass" style={{ position: 'absolute', inset: 0, borderRadius: 28 }} />
       <span className="pulse-dot" style={{ position: 'relative', ...(paused ? { animation: 'none', background: 'var(--tx3)' } : {}) }} />
       <span className="grow" style={{ textAlign: 'left', minWidth: 0, position: 'relative' }}>
         <span className="trunc" style={{ display: 'block', fontWeight: 650, fontSize: 14 }}>{name || t('Workout')}</span>

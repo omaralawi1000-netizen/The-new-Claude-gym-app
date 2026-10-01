@@ -144,6 +144,12 @@ Run in headless Chromium (Playwright, 390×844 @2×, dark + light), scripts in `
   - The tab bar no longer re-renders/re-measures when a popup opens or every half second during a workout; buttons no longer each hold a GPU layer (~60 → ~35 layers per screen); "pause behind popups" no longer restyles the whole app; date/number formatters are cached.
   - On Android: keep Settings → Display → Motion smoothness on **Adaptive**. On iPhone, Safari caps web apps at 60 fps unless Settings → Apps → Safari → Advanced → Feature Flags → "Prefer Page Rendering Updates near 60fps" is off.
 
+- **Fixes from phone recordings**:
+  - Popups blur the page behind them again (16 px, saturated, fading in with the dim); the full-screen workout only dims, since it covers the page anyway.
+  - The workout screen is now a *window*: only a clip rectangle animates out of the Today card / tab-bar pill (and back). It is opaque the whole way, so the page behind no longer ghosts through while it opens or closes, and nothing inside it scales or repaints per frame (no animated shadow, no stretched layers).
+  - Its colour field is a single layer (three gradients) instead of three big layers + a mask + a blend, so opening it no longer shows a half-drawn rectangle for a few frames. Film grain is a pre-baked noise tile instead of an SVG filter.
+  - Content fades out before the bottom edge of every screen, so nothing peeks out below the tab bar.
+
 ## Look and motion
 
 **Dusk glass.** A slow-drifting colour field (three lights plus fine grain) sits behind everything; every surface is frosted glass over it (blur + saturation, hairline specular rim). Each area has its own light and accent that cross-fade when you change tab: Today peach/violet, Train ember, Food lime, Progress ice. Numerals are thin and wide-set (Geist, weight 220), names are italic serif (Instrument Serif); the day is one instrument of concentric rings (calories + protein/carbs/fat) that draw themselves in with a spring. Text is cut to what carries information: icon-first actions, no section captions, no helper paragraphs (warnings that protect data accuracy stay).

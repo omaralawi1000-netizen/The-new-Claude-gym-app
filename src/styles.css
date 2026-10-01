@@ -102,7 +102,21 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
 .aurora i:nth-child(1) { width: 120%; aspect-ratio: 1; left: -35%; top: -30%; background: radial-gradient(closest-side, var(--h1), transparent); animation: drift1 38s ease-in-out infinite alternate; }
 .aurora i:nth-child(2) { width: 105%; aspect-ratio: 1; right: -40%; top: 18%; background: radial-gradient(closest-side, var(--h2), transparent); animation: drift2 46s ease-in-out infinite alternate; }
 .aurora i:nth-child(3) { width: 130%; aspect-ratio: 1; left: -20%; bottom: -55%; background: radial-gradient(closest-side, var(--h3), transparent); animation: drift3 54s ease-in-out infinite alternate; opacity: calc(var(--aurora-a) * .8); }
-.aurora::after { content: ''; position: absolute; inset: 0; opacity: var(--grain); mix-blend-mode: overlay; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>"); }
+.aurora::after { content: ''; position: absolute; inset: 0; opacity: var(--grain); mix-blend-mode: overlay; background-image: var(--grain-url, url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")); background-size: var(--grain-size, auto); }
+/* The workout window's colour field: ONE layer (three gradients) instead of three big layers + blend + mask, so it
+   costs a single cheap raster when the window opens; it still drifts slowly. Same lights as .aurora, same positions. */
+.aurora-lite { position: absolute; inset: 0; overflow: hidden; pointer-events: none; container-type: size; }
+.aurora-lite::before {
+  content: ''; position: absolute; inset: -12%; opacity: var(--aurora-a); will-change: transform;
+  background:
+    radial-gradient(circle 60cqw at 29.8% 8%, var(--h1), transparent),
+    radial-gradient(circle 52.5cqw at 80.2% 43.5%, var(--h2), transparent),
+    radial-gradient(circle 65cqw at 46% 110%, color-mix(in srgb, var(--h3) 80%, transparent), transparent);
+  animation: driftLite 46s ease-in-out infinite alternate;
+}
+.aurora-lite::after { content: ''; position: absolute; inset: 0; opacity: calc(var(--grain) * 0.7); background-image: var(--grain-url, none); background-size: var(--grain-size, auto); }
+@keyframes driftLite { to { transform: translate3d(3%, 2%, 0) scale(1.08) rotate(7deg); } }
+:root[data-motion='reduce'] .aurora-lite::before { animation: none; }
 @keyframes drift1 { to { transform: translate3d(18%, 14%, 0) scale(1.12) rotate(24deg); } }
 @keyframes drift2 { to { transform: translate3d(-22%, -10%, 0) scale(.92) rotate(-30deg); } }
 @keyframes drift3 { to { transform: translate3d(14%, -16%, 0) scale(1.1) rotate(18deg); } }
@@ -112,6 +126,8 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
   padding: calc(var(--sat) + 16px) 20px calc(var(--bar-h) + var(--sab) + 44px); scrollbar-width: none; z-index: 1;
 }
 .screen::-webkit-scrollbar { display: none; }
+/* content scrolls under the tab bar; fade it out before the screen's bottom edge so nothing peeks out below the bar */
+.screen { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - var(--sab) - 34px), transparent calc(100% - var(--sab) - 10px)); mask-image: linear-gradient(to bottom, #000 calc(100% - var(--sab) - 34px), transparent calc(100% - var(--sab) - 10px)); }
 .screen > * + * { margin-top: 22px; }
 /* every screen's blocks rise in, blurred → sharp, one after another */
 .screen > * { animation: rise-move 780ms var(--ease-out) backwards, rise-blur 780ms var(--ease-out) both; animation-delay: calc(var(--i, 0) * 60ms); }
@@ -230,8 +246,10 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .bar { height: 5px; border-radius: 99px; background: var(--s3); overflow: hidden; position: relative; }
 .bar > i { position: absolute; inset: 0 auto 0 0; border-radius: 99px; background: var(--ac); box-shadow: 0 0 14px var(--ac); transition: width 700ms var(--ease-out); }
 
-/* ── sheets: heavy frost; the scrim's blur ramps up as it opens ─── */
-.scrim { position: fixed; inset: 0; background: var(--scrim); z-index: 50; }
+/* ── sheets: heavy frost; the page behind is dimmed AND blurred (the scrim fades in, blur with it) ─── */
+.scrim { position: fixed; inset: 0; background: var(--scrim); z-index: 50; -webkit-backdrop-filter: blur(16px) saturate(1.2); backdrop-filter: blur(16px) saturate(1.2); }
+/* the full-screen workout covers the page, so it only dims (no blur to compute while it opens) */
+.scrim.flat { -webkit-backdrop-filter: none; backdrop-filter: none; }
 /* morphing detail sheets get the same frosted material as ordinary sheets */
 .morph-sheet { background: var(--glass-2); -webkit-backdrop-filter: blur(40px) saturate(1.9); backdrop-filter: blur(40px) saturate(1.9); }
 .sheet {
