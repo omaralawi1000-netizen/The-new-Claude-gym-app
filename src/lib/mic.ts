@@ -34,7 +34,7 @@ class MicManager {
     this.owner = owner;
     const my = ++this.token;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: false, noiseSuppression: true, autoGainControl: true } });
       // released (or superseded) while the permission prompt was open → drop the stream immediately
       if (this.owner !== owner || my !== this.token) { stream.getTracks().forEach((t) => t.stop()); return { ok: false, reason: 'busy' }; }
       this.stream = stream;
@@ -66,6 +66,8 @@ class MicManager {
   release(owner?: string) {
     if (owner && this.owner !== owner) return;
     this.token++;
+    try { if (this.recorder && this.recorder.state !== 'inactive') this.recorder.stop(); } catch { /* ignore */ }
+    this.recorder = null; this.chunks = [];
     this.stream?.getTracks().forEach((t) => { try { t.stop(); } catch { /* ignore */ } });
     this.stream = null;
     try { this.analyser?.disconnect(); } catch { /* ignore */ }
@@ -77,6 +79,33 @@ class MicManager {
     this.bandsOut.fill(0);
     this.owner = null;
     this.emit();
+  }
+
+  // ── recording (for speech-to-text): the SAME stream the sphere listens to, so there is still exactly one mic owner ──
+  private recorder: MediaRecorder | null = null;
+  private chunks: Blob[] = [];
+  get recording() { return this.recorder?.state === 'recording'; }
+  startRecording(owner: string): boolean {
+    if (this.owner !== owner || !this.stream || typeof MediaRecorder === 'undefined') return false;
+    const mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus'].find((m) => MediaRecorder.isTypeSupported?.(m)) ?? '';
+    try {
+      this.chunks = [];
+      this.recorder = new MediaRecorder(this.stream, mime ? { mimeType: mime, audioBitsPerSecond: 32000 } : undefined);
+      this.recorder.ondataavailable = (e) => { if (e.data?.size) this.chunks.push(e.data); };
+      this.recorder.start(250);
+      return true;
+    } catch { this.recorder = null; return false; }
+  }
+  /** Stop recording and return what was captured (the mic itself stays owned until release()). */
+  stopRecording(): Promise<Blob | null> {
+    const r = this.recorder;
+    if (!r) return Promise.resolve(null);
+    this.recorder = null;
+    return new Promise((resolve) => {
+      const done = () => resolve(this.chunks.length ? new Blob(this.chunks, { type: r.mimeType || 'audio/webm' }) : null);
+      r.onstop = done;
+      try { if (r.state !== 'inactive') r.stop(); else done(); } catch { done(); }
+    });
   }
 
   /** Smoothed RMS 0..1 of the live input (0 if not running). */
