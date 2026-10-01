@@ -57,6 +57,9 @@ export function ProgressScreen() {
     }).filter((r) => r.ex).sort((a, b) => b.n - a.n).slice(0, 8);
   }, [s.sessions, exMap]);
 
+  // wrestling: minutes on the mat per week, on the same week buckets as training
+  const mat = useMemo(() => wk.map((b) => { const end = addDays(b.start, 6); const l = s.activities.filter((x) => x.kind === 'wrestling' && x.date >= b.start && x.date <= end); return { start: b.start, min: Math.round(l.reduce((n, x) => n + x.durationSec, 0) / 60), n: l.length }; }), [wk, s.activities]);
+  const hasMat = s.activities.some((x) => x.kind === 'wrestling');
   const recs = s.sessions.flatMap((x) => (x.records ?? []).map((r) => ({ ...r, at: x.endedAt ?? 0 }))).sort((a, b) => b.at - a.at).slice(0, 5);
   const empty = s.sessions.length === 0 && s.weights.length === 0 && s.entries.length === 0;
   const lastWeight = weights[weights.length - 1];
@@ -77,6 +80,14 @@ export function ProgressScreen() {
         <BarChart label={t('Sessions per week')} bars={wk.map((b, i) => ({ label: fmtDate(b.start, lang, { day: 'numeric', month: 'numeric' }), value: b.sessions, sub: `${t('Week of')} ${fmtDate(b.start, lang, { day: 'numeric', month: 'short' })}`, emphasis: i === wk.length - 1 }))} fmt={(v) => fmtNum(Math.round(v * 10) / 10, lang, 0)} target={target} targetLabel={`${t('target')} ${target}`} />
         {streak > 0 && <div className="small t2" style={{ marginTop: 8 }}>{t('{n}-week streak of hitting your target', { n: streak })}</div>}
       </ChartCard>
+
+      {hasMat && (
+        <ChartCard title={<>{t('Wrestling')} <Badge kind="measured" /></>} sub={<>{mat[mat.length - 1]?.min ?? 0}<span className="t3 small"> min {t('this week')}</span></>}
+          right={<button className="chip sm acc press" onClick={() => push('activity', { kind: 'wrestling' })}><Icon name="plus" size={14} /> {t('Log')}</button>}
+          table={{ head: [t('Week of'), t('Sessions'), 'min'], rows: mat.map((b) => [fmtDate(b.start, lang, { day: 'numeric', month: 'short' }), b.n, b.min]) }}>
+          <BarChart label={t('Mat time per week')} bars={mat.map((b, i) => ({ label: fmtDate(b.start, lang, { day: 'numeric', month: 'numeric' }), value: b.min, sub: `${b.n} × · ${t('Week of')} ${fmtDate(b.start, lang, { day: 'numeric', month: 'short' })}`, emphasis: i === mat.length - 1 }))} fmt={(v) => `${Math.round(v)}`} />
+        </ChartCard>
+      )}
 
       {/* volume */}
       {s.sessions.length > 0 && (

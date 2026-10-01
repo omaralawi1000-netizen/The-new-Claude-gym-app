@@ -85,7 +85,8 @@ export function TodayScreen() {
     const d = addDays(weekStart, i);
     const p = plannedFor(s, d, today);
     const done = s.sessions.some((x) => x.date === d);
-    return { d, p, done };
+    const wr = s.activities.some((x) => x.date === d && x.kind === 'wrestling');
+    return { d, p, done, wr };
   });
   const weights = s.weights.slice().sort((a, b) => a.date.localeCompare(b.date));
   const recentW = weights.slice(-14).map((w) => w.kg);
@@ -120,6 +121,7 @@ export function TodayScreen() {
           <button className="icon-btn press" aria-label={t('Log food')} onClick={() => push('foodSearch', { date: today, mealId })}><Icon name="plus" /></button>
           <button className="icon-btn press" aria-label={t('Dictate')} onClick={() => push('voice', { mode: 'food', date: today, mealId })}><Icon name="mic" /></button>
           <button className="icon-btn press" aria-label={t('Scan')} onClick={() => push('scanner', { date: today, mealId })}><Icon name="barcode" /></button>
+          <button className="icon-btn press" aria-label={t('Photo')} onClick={() => push('photoFood', { date: today, mealId })}><Icon name="camera" /></button>
           <button className="icon-btn press" aria-label={`+${settings.waterQuick[1] ?? 250} ml`} onClick={addWater} style={{ width: 'auto', padding: '0 16px', gap: 6, display: 'inline-flex', alignItems: 'center' }}>
             <Icon name="drop" size={18} style={{ color: 'var(--c-water)' }} /><span className="num small" style={{ fontWeight: 600 }}>{fmtNum(water.ml, lang, 0)}</span>
           </button>
@@ -182,6 +184,7 @@ export function TodayScreen() {
               </div>
               <div className="chips" style={{ marginTop: 14 }}>
                 {s.routines.slice(0, 5).map((r) => <button key={r.id} className="chip press" onClick={() => start(r)}>{r.name}</button>)}
+                <button className="chip acc press" onClick={() => push('activity', { kind: 'wrestling' })}><Icon name="wrestle" size={15} /> {t('Wrestling')}</button>
               </div>
             </div>
           )}
@@ -218,8 +221,8 @@ export function TodayScreen() {
           return (
             <button key={w.d} className="press" onClick={() => setTab('train')} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }} aria-label={`${fmtDate(w.d, lang)}${r ? `: ${r.name}` : ''}${w.done ? `, ${t('done')}` : ''}`}>
               <span className="micro" style={{ color: isToday ? 'var(--ac-text)' : undefined }}>{fmtWeekdayShort(weekdayOf(w.d), lang, true)}</span>
-              <span style={{ width: 36, height: 36, borderRadius: '50%', display: 'grid', placeItems: 'center', background: w.done ? 'var(--ac)' : 'var(--s2)', color: w.done ? 'var(--ac-ink)' : 'var(--tx2)', boxShadow: w.done ? '0 0 18px -2px var(--ac)' : isToday ? 'inset 0 0 0 1.5px var(--ac), 0 0 18px -6px var(--ac)' : 'inset 0 0 0 1px var(--line)', fontSize: 12, fontWeight: 700 }}>
-                {w.done ? <Icon name="check" size={17} sw={2.6} /> : r ? r.name.slice(0, 1).toUpperCase() : ''}
+              <span style={{ width: 36, height: 36, borderRadius: '50%', display: 'grid', placeItems: 'center', background: w.done ? 'var(--ac)' : w.wr ? 'var(--ac-soft)' : 'var(--s2)', color: w.done ? 'var(--ac-ink)' : w.wr ? 'var(--ac-text)' : 'var(--tx2)', boxShadow: w.done ? '0 0 18px -2px var(--ac)' : isToday ? 'inset 0 0 0 1.5px var(--ac), 0 0 18px -6px var(--ac)' : 'inset 0 0 0 1px var(--line)', fontSize: 12, fontWeight: 700 }}>
+                {w.done ? <Icon name="check" size={17} sw={2.6} /> : w.wr ? <Icon name="wrestle" size={17} /> : r ? r.name.slice(0, 1).toUpperCase() : ''}
               </span>
               <i style={{ width: 4, height: 4, borderRadius: 4, background: r && past && !w.done ? 'var(--bad)' : 'transparent' }} />
             </button>

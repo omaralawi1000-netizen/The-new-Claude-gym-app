@@ -1,5 +1,6 @@
 import type { Exercise, PersonalRecord, RecordKind, SetRecord, SessionExercise, WorkoutSession, Routine } from './types';
 import { uid } from './nutrition';
+import { fmtNum, kgToDisplay } from './units';
 
 export const epley = (w: number, reps: number) => (reps <= 1 ? w : w * (1 + reps / 30));
 export const setVolume = (s: SetRecord) => (s.weightKg ?? 0) * (s.reps ?? 0);
@@ -140,4 +141,17 @@ export function setsFromItem(item: Routine['items'][number], lastSets?: SetRecor
     sets.push({ id: uid('s'), type: 'working', done: false, target: { repMin: item.repMin, repMax: item.repMax, weightKg: lw[Math.min(i, lw.length - 1)]?.weightKg } });
   }
   return sets;
+}
+
+/** Did this set beat the same set last session? Returns what was gained ("+2.5 kg", "+1 rep", "+10 s"), or null. */
+export function beatLastTime(lt: string, now: { weightKg?: number; reps?: number; durationSec?: number; distanceM?: number }, prev: SetRecord | undefined, unit: 'kg' | 'lb', lang: 'en' | 'da', t: (k: string) => string): string | null {
+  if (!prev) return null;
+  if (lt === 'duration') return (now.durationSec ?? 0) > (prev.durationSec ?? Infinity) ? `+${(now.durationSec ?? 0) - (prev.durationSec ?? 0)} s` : null;
+  if (lt === 'distance') return (now.distanceM ?? 0) > (prev.distanceM ?? Infinity) ? `+${Math.round((now.distanceM ?? 0) - (prev.distanceM ?? 0))} m` : null;
+  const w = now.weightKg ?? 0, r = now.reps ?? 0, pw = prev.weightKg ?? 0, pr = prev.reps ?? 0;
+  if (!r || !pr) return null;
+  if (lt === 'assisted') return w < pw && r >= pr ? `−${fmtNum(kgToDisplay(pw - w, unit), lang, 1)} ${unit}` : w <= pw && r > pr ? `+${r - pr} ${t(r - pr === 1 ? 'rep' : 'reps')}` : null;
+  if (w > pw + 1e-6 && r >= pr) return `+${fmtNum(kgToDisplay(w - pw, unit), lang, 1)} ${unit}`;
+  if (Math.abs(w - pw) < 1e-6 && r > pr) return `+${r - pr} ${t(r - pr === 1 ? 'rep' : 'reps')}`;
+  return null;
 }

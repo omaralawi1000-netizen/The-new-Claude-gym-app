@@ -121,6 +121,13 @@ Run in headless Chromium (Playwright, 390×844 @2×, dark + light), scripts in `
 - **Not built (on purpose, stated in-app):** cloud sync / accounts; photo-based food estimation; automatic AI changes to your data (the Coach advises; routines and estimates only appear after you confirm; progression suggestions remain transparent rules); background reminders when the app is closed (web apps need a push server — reminders fire only while Aven runs; in-app nudge otherwise); animated exercise demonstrations (there is an authored muscle diagram and step-by-step text instead).
 - Exercise calories are **never** added to food targets.
 
+## Newer features
+
+- **Wrestling**: its own activity type — mat time (quick 30/45/60/90/120 min), rounds and intensity (Easy/Hard/Max), a note. Shown on Train (this week's mat minutes), as a wrestler mark on the week strips, in History, as a weekly mat-time chart in Progress, and in the Coach's summary as training load. Never added to calorie targets.
+- **Beat last time**: completing a working set that beats the same set last session (more weight for the same reps, or more reps at the same weight; duration/distance likewise) gives a gold burst on the check and the gain floating up ("+2.5 kg", "+1 rep"). New records get a gold medallion on the summary.
+- **Snap your plate** (Gemini key): photo → per-item estimates (name, grams, kcal, macros) → choose items and portion (×0.5–×2) → logged as quick entries labelled "AI estimate" with the assumptions. Image is downscaled to 1024 px before sending. Wiring tested with a stubbed Gemini; real recognition quality is unverified.
+- **Home-screen shortcuts** (Android long-press on the installed icon): Log food, Dictate, Snap your plate, Log wrestling.
+
 ## Look and motion
 
 **Dusk glass.** A slow-drifting colour field (three lights plus fine grain) sits behind everything; every surface is frosted glass over it (blur + saturation, hairline specular rim). Each area has its own light and accent that cross-fade when you change tab: Today peach/violet, Train ember, Food lime, Progress ice. Numerals are thin and wide-set (Geist, weight 220), names are italic serif (Instrument Serif); the day is one instrument of concentric rings (calories + protein/carbs/fat) that draw themselves in with a spring. Text is cut to what carries information: icon-first actions, no section captions, no helper paragraphs (warnings that protect data accuracy stay).

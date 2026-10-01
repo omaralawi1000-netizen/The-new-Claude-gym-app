@@ -12,6 +12,8 @@ import { FoodScreen } from './screens/Food';
 import { ProgressScreen } from './screens/Progress';
 import { useT } from './lib/i18n';
 import { registerSW } from './pwa';
+import { dayKey } from './lib/dates';
+import { defaultMealId } from './lib/derive';
 
 const ORDER = ['today', 'train', 'food', 'progress'] as const;
 
@@ -71,6 +73,21 @@ export function App() {
     if (!onboarded && !asked.current) { asked.current = true; push('onboarding', {}); }
   }, [onboarded, push]);
   useEffect(() => { registerSW(); }, []);
+  // home-screen shortcuts (manifest "shortcuts"): ./?do=food | voice | photo | wrestling
+  useEffect(() => {
+    const doIt = new URLSearchParams(location.search).get('do');
+    if (!doIt || !useStore.getState().settings.onboarded) return;
+    try { history.replaceState(history.state, '', location.pathname); } catch { /* ignore */ }
+    const st = useStore.getState();
+    const today = dayKey(Date.now(), st.settings.dayStartHour);
+    const mealId = defaultMealId(st.settings.meals);
+    setTimeout(() => {
+      if (doIt === 'food') push('foodSearch', { date: today, mealId });
+      else if (doIt === 'voice') push('voice', { mode: 'food', date: today, mealId });
+      else if (doIt === 'photo') push('photoFood', { date: today, mealId });
+      else if (doIt === 'wrestling') push('activity', { kind: 'wrestling' });
+    }, 350);
+  }, [push]);
   const screen = tab === 'today' ? <TodayScreen /> : tab === 'train' ? <TrainScreen /> : tab === 'food' ? <FoodScreen /> : <ProgressScreen />;
   return (
     <MotionConfig reducedMotion="user">

@@ -106,10 +106,10 @@ export async function withFallback<T>(models: string[], fn: (m: string) => Promi
 }
 
 // ── structured JSON calls ───────────────────────────────────
-async function generateJson(key: string, model: string, { system, prompt, schema, temperature = 0, maxOutputTokens = 1024, timeout = 9000, signal }: { system: string; prompt: string; schema: unknown; temperature?: number; maxOutputTokens?: number; timeout?: number; signal?: AbortSignal }): Promise<any> {
+async function generateJson(key: string, model: string, { system, prompt, schema, temperature = 0, maxOutputTokens = 1024, timeout = 9000, signal, image }: { system: string; prompt: string; schema: unknown; temperature?: number; maxOutputTokens?: number; timeout?: number; signal?: AbortSignal; image?: { mime: string; data: string } }): Promise<any> {
   const { res, done } = await post(`models/${encodeURIComponent(model)}:generateContent`, key, {
     systemInstruction: { parts: [{ text: system }] },
-    contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    contents: [{ role: 'user', parts: image ? [{ inline_data: { mime_type: image.mime, data: image.data } }, { text: prompt }] : [{ text: prompt }] }],
     generationConfig: { temperature, responseMimeType: 'application/json', responseSchema: schema, maxOutputTokens },
   }, { timeout, signal });
   try {
@@ -187,6 +187,30 @@ export async function aiEstimateFood(description: string, brain: Brain, lang: st
   const est = validateEstimate(raw);
   if (!est) throw new AiError('invalid');
   return est;
+}
+
+const PHOTO_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    items: { type: 'ARRAY', items: { type: 'OBJECT', properties: {
+      name: { type: 'STRING' }, grams: { type: 'NUMBER', nullable: true, description: 'estimated weight of this item on the plate in grams' },
+      kcal: { type: 'NUMBER' }, protein: { type: 'NUMBER' }, carbs: { type: 'NUMBER' }, fat: { type: 'NUMBER' },
+    }, required: ['name', 'kcal', 'protein', 'carbs', 'fat'] } },
+    assumptions: { type: 'STRING', description: 'one short sentence: portion sizes / hidden ingredients you assumed' },
+    notFood: { type: 'BOOLEAN', description: 'true if the photo does not show food or drink' },
+  },
+  required: ['items', 'assumptions'],
+};
+/** A photo of a meal → one estimate per visible item. Always shown as ESTIMATES for review — never exact. */
+export async function aiEstimatePhoto(image: { mime: string; data: string }, brain: Brain, lang: string, hint = ''): Promise<{ items: FoodEstimate[]; assumptions: string }> {
+  const system = 'You estimate the nutrition of a meal from a photo for a food log. List each distinct food or drink you can see (max 8) with an estimated weight and its nutrition for that amount. ' +
+    'Judge portion size from the plate, cutlery and hands. Include likely cooking oil or sauce only if visible. Be realistic, not optimistic. ' +
+    `Name items and write the assumptions in ${lang === 'da' ? 'Danish' : 'English'}. If it is not food, return no items and notFood true.`;
+  const raw = await withFallback(brain.models, (m) => generateJson(brain.key, m, { system, prompt: hint ? `The user says: "${hint}"` : 'Estimate this meal.', schema: PHOTO_SCHEMA, temperature: 0.2, maxOutputTokens: 1536, timeout: 25000, signal: brain.signal, image }));
+  const assumptions = typeof raw?.assumptions === 'string' ? raw.assumptions.slice(0, 240) : '';
+  const items = (Array.isArray(raw?.items) ? raw.items : []).slice(0, 8).map((x: any) => validateEstimate({ ...x, assumptions })).filter(Boolean) as FoodEstimate[];
+  if (!items.length) throw new AiError(raw?.notFood ? 'invalid' : 'empty');
+  return { items, assumptions };
 }
 
 const ROUTINE_SCHEMA = {

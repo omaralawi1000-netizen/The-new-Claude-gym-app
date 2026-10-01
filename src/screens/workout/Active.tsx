@@ -7,7 +7,7 @@ import type { Exercise, SessionExercise, SetRecord } from '../../lib/types';
 import { Icon } from '../../ui/Icon';
 import { NumInput } from '../../ui/kit';
 import { Sheet, SheetHead, SOFT, SPRING, SNAP, useOverlayZ } from '../../ui/Sheet';
-import { elapsedMs, lastPerformance, sessionSetCount, sessionVolume, suggestProgression, countable } from '../../lib/workout';
+import { beatLastTime, elapsedMs, lastPerformance, sessionSetCount, sessionVolume, suggestProgression, countable } from '../../lib/workout';
 import { fmtDuration } from '../../lib/dates';
 import { displayToKg, kgToDisplay, fmtNum, displayToM, mToDisplay } from '../../lib/units';
 import { useNow, restEndedCue } from '../../lib/hooks';
@@ -310,6 +310,7 @@ function headers(ex: Exercise | undefined, u: { weight: string; distance: string
 
 // ── set row ─────────────────────────────────────────────────
 
+
 function SetRow({ se, set, ex, label, prev, restDefault, all, idx }: { se: SessionExercise; set: SetRecord; ex?: Exercise; label: string; prev?: SetRecord; restDefault: number; all: SessionExercise[]; idx: number }) {
   const t = useT();
   const lang = useLang();
@@ -318,6 +319,9 @@ function SetRow({ se, set, ex, label, prev, restDefault, all, idx }: { se: Sessi
   const [open, setOpen] = useState(false);
   const [shake, setShake] = useState(0);
   const [burst, setBurst] = useState(0); // a ring that expands from the check each time a set is completed
+  const [beat, setBeat] = useState<{ n: number; label: string } | null>(null); // you beat last time: gold burst + what you gained
+  const [showGain, setShowGain] = useState(false);
+  useEffect(() => { if (!beat) return; setShowGain(true); const id = setTimeout(() => setShowGain(false), 1500); return () => clearTimeout(id); }, [beat]);
   const lt = ex?.logType ?? 'weightReps';
   const u = settings.units;
   const wDisp = (kg?: number) => (kg === undefined ? undefined : Math.round(kgToDisplay(kg, u.weight) * 100) / 100);
@@ -340,7 +344,9 @@ function SetRow({ se, set, ex, label, prev, restDefault, all, idx }: { se: Sessi
     if (!valid) { setShake((n) => n + 1); buzz(30); toast(t('Enter reps first'), { tone: 'bad', duration: 1800 }); return; }
     const st = useStore.getState();
     if (st.active?.pausedAt) st.resumeActive();
-    buzz(14);
+    const gain = set.type === 'working' ? beatLastTime(lt, eff, prev, u.weight, lang, t) : null;
+    buzz(gain ? [12, 50, 22] as any : 14);
+    if (gain) setBeat((b) => ({ n: (b?.n ?? 0) + 1, label: gain }));
     patchSet(se.id, set.id, { ...eff, done: true, completedAt: Date.now() });
     if (set.type === 'working') {
       // supersets: rest only after the last exercise of the group has its turn
@@ -385,6 +391,9 @@ function SetRow({ se, set, ex, label, prev, restDefault, all, idx }: { se: Sessi
           style={{ position: 'relative', height: 44, borderRadius: 14, display: 'grid', placeItems: 'center', background: set.done ? 'var(--ac)' : 'var(--s3)', color: set.done ? 'var(--ac-ink)' : 'var(--tx3)', boxShadow: set.done ? '0 6px 16px -6px color-mix(in srgb, var(--ac) 70%, transparent), inset 0 1px 0 rgba(255,255,255,.4)' : 'inset 0 1px 0 var(--hl), inset 0 0 0 1px var(--line)', transition: 'background 180ms, color 180ms' }}>
           <motion.span key={String(set.done)} initial={{ scale: set.done ? 0.4 : 1 }} animate={{ scale: 1 }} transition={SNAP} style={{ display: 'grid' }}><Icon name="check" size={22} sw={2.6} /></motion.span>
           {burst > 0 && set.done && <motion.i key={burst} aria-hidden initial={{ scale: 0.9, opacity: 0.85 }} animate={{ scale: 2.4, opacity: 0 }} transition={{ duration: 0.75, ease: [0.22, 1, 0.36, 1] }} style={{ position: 'absolute', inset: 0, borderRadius: 14, boxShadow: '0 0 0 2px var(--ac), 0 0 24px var(--ac)', pointerEvents: 'none' }} />}
+          {beat && set.done && <motion.i key={`g${beat.n}`} aria-hidden initial={{ scale: 0.9, opacity: 1 }} animate={{ scale: 3.2, opacity: 0 }} transition={{ duration: 1, ease: [0.22, 1, 0.36, 1] }} style={{ position: 'absolute', inset: 0, borderRadius: 14, boxShadow: '0 0 0 2px var(--gold), 0 0 30px var(--gold)', pointerEvents: 'none' }} />}
+          <AnimatePresence>{showGain && beat && set.done && <motion.span key={`l${beat.n}`} className="num" initial={{ opacity: 0, y: 6, scale: 0.8 }} animate={{ opacity: 1, y: -30, scale: 1 }} exit={{ opacity: 0, y: -42, transition: { duration: 0.3 } }} transition={{ type: 'spring', stiffness: 260, damping: 18 }}
+            style={{ position: 'absolute', left: '50%', top: 0, x: '-50%', whiteSpace: 'nowrap', fontSize: 12, fontWeight: 700, color: 'var(--gold)', textShadow: '0 0 12px color-mix(in srgb, var(--gold) 60%, transparent)', pointerEvents: 'none' }}>{beat.label}</motion.span>}</AnimatePresence>
         </motion.button>
       </div>
       <AnimatePresence initial={false}>

@@ -50,7 +50,20 @@ export function Summary({ props }: { props: { sessionId: string } }) {
           <Stat label={t('Exercises')} value={ses.exercises.length} />
         </div>
 
-        {recs.length > 0 && <div className="micro" style={{ margin: '24px 0 8px' }}>{t('Personal records')}</div>}
+        {recs.length > 0 && (
+          // the record moment: a gold medallion with rays that open once, then the records slide in under it
+          <div style={{ position: 'relative', display: 'grid', placeItems: 'center', margin: '26px 0 14px', height: 120 }} aria-label={t('{n} new records', { n: recs.length })}>
+            {Array.from({ length: 12 }, (_, i) => (
+              <motion.i key={i} aria-hidden initial={{ scaleY: 0, opacity: 0 }} animate={{ scaleY: [0, 1, 0.6], opacity: [0, 1, 0.35] }} transition={{ duration: 1.2, delay: 0.25 + i * 0.025, ease: [0.22, 1, 0.36, 1] }}
+                style={{ position: 'absolute', width: 2, height: 58, borderRadius: 2, background: 'linear-gradient(var(--gold), transparent)', top: 2, left: 'calc(50% - 1px)', transformOrigin: '50% 58px', rotate: i * 30 }} />
+            ))}
+            <motion.div initial={{ scale: 0.4, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring', stiffness: 320, damping: 14, delay: 0.15 }}
+              style={{ width: 84, height: 84, borderRadius: '50%', display: 'grid', placeItems: 'center', background: 'radial-gradient(circle at 35% 30%, #fff3c4, var(--gold) 55%, #b98a1d)', color: '#3a2a05', boxShadow: '0 0 0 6px color-mix(in srgb, var(--gold) 18%, transparent), 0 18px 50px -10px var(--gold)' }}>
+              <span className="display num" style={{ fontSize: 40, color: '#3a2a05', fontWeight: 400 }}>{recs.length}</span>
+            </motion.div>
+          </div>
+        )}
+        {recs.length > 0 && <div className="micro" style={{ margin: '0 0 8px', textAlign: 'center', color: 'var(--gold)' }}>{recs.length === 1 ? t('New personal record') : t('New personal records')}</div>}
         {recs.length === 0 ? null : (
           <div className="stack gap8">
             {recs.map((r, i) => {
@@ -58,7 +71,7 @@ export function Summary({ props }: { props: { sessionId: string } }) {
               const fv = (v: number) => r.kind === 'reps' ? String(v) : r.kind === 'duration' ? `${v}s` : r.kind === 'distance' ? `${fmtNum(v / 1000, lang, 2)} km` : `${fmtNum(kgToDisplay(v, u.weight), lang, r.kind === 'e1rm' ? 1 : 2)} ${u.weight}`;
               return (
                 <motion.div key={i} initial={{ opacity: 0, x: -14 }} animate={{ opacity: 1, x: 0 }} transition={{ ...SOFT, delay: 0.15 + i * 0.07 }} className="plinth" style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <span style={{ width: 34, height: 34, borderRadius: 12, background: 'var(--ac)', color: 'var(--ac-ink)', display: 'grid', placeItems: 'center' }}><Icon name="bolt" size={18} /></span>
+                  <span style={{ width: 34, height: 34, borderRadius: 12, background: 'var(--gold)', color: '#3a2a05', display: 'grid', placeItems: 'center' }}><Icon name="bolt" size={18} /></span>
                   <div className="grow"><div className="li-title small">{ex ? exName(ex, lang) : ''}</div><div className="xs t2">{t(REC_LABEL[r.kind])}{r.kind === 'e1rm' ? ` · ${t('estimate')}` : ''}</div></div>
                   <div style={{ textAlign: 'right' }} className="num"><div style={{ fontWeight: 700 }}>{fv(r.value)}</div><div className="xs t3">{t('was')} {fv(r.previous!)}</div></div>
                 </motion.div>

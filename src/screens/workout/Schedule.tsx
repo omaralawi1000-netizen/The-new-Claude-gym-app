@@ -9,6 +9,7 @@ import { addDays, fmtDate, fmtWeekdayShort, relativeDay } from '../../lib/dates'
 import { useToday } from '../../lib/derive';
 import type { ActivityKind } from '../../lib/types';
 import { displayToM } from '../../lib/units';
+import { ACTIVITY_KINDS as KINDS, ACTIVITY_LABEL as KIND_LABEL, INTENSITY_LABEL } from '../../lib/activity';
 
 export function Schedule({ props }: { props: { focusDate?: string; routineId?: string } }) {
   const t = useT();
@@ -112,41 +113,56 @@ export function Reschedule({ props }: { props: { date: string; routineId: string
   );
 }
 
-const KINDS: ActivityKind[] = ['run', 'walk', 'cycle', 'swim', 'row', 'hike', 'mobility', 'warmup', 'recovery', 'other'];
-const KIND_LABEL: Record<ActivityKind, string> = { run: 'Run', walk: 'Walk', cycle: 'Cycle', swim: 'Swim', row: 'Row', hike: 'Hike', mobility: 'Mobility', warmup: 'Warm-up', recovery: 'Recovery', other: 'Other' };
 
 export function ActivityLog({ props }: { props: { kind?: ActivityKind } }) {
   const t = useT();
+  const lang = useLang();
   const s = useStore();
   const pop = useUI((u) => u.pop);
   const toast = useUI((u) => u.toast);
   const today = useToday();
-  const [kind, setKind] = useState<ActivityKind>(props.kind ?? 'run');
-  const [min, setMin] = useState<number | undefined>(30);
+  const [kind, setKindRaw] = useState<ActivityKind>(props.kind ?? 'run');
+  const [min, setMin] = useState<number | undefined>(props.kind === 'wrestling' ? 60 : 30);
   const [dist, setDist] = useState<number | undefined>(undefined);
+  const [rounds, setRounds] = useState<number | undefined>(undefined);
+  const [intensity, setIntensity] = useState<1 | 2 | 3>(2);
   const [note, setNote] = useState('');
   const [date, setDate] = useState(today);
+  const setKind = (k: ActivityKind) => { if (k === 'wrestling' && kind !== 'wrestling' && min === 30) setMin(60); setKindRaw(k); };
+  const wrestling = kind === 'wrestling';
   const cardio = ['run', 'walk', 'cycle', 'swim', 'row', 'hike'].includes(kind);
   const u = s.settings.units.distance;
   const save = () => {
     if (!min || min <= 0) return;
-    const a = s.addActivity({ date, kind, durationSec: Math.round(min * 60), distanceM: cardio && dist ? displayToM(dist, u) : undefined, note: note.trim() || undefined });
+    const a = s.addActivity({ date, kind, durationSec: Math.round(min * 60), distanceM: cardio && dist ? displayToM(dist, u) : undefined, rounds: wrestling && rounds ? Math.round(rounds) : undefined, intensity: wrestling ? intensity : undefined, note: note.trim() || undefined });
     buzz(12);
     pop();
-    toast(t('Activity logged'), { tone: 'ok', actionLabel: t('Undo'), onAction: () => s.removeActivity(a.id) });
+    toast(wrestling ? t('Wrestling logged') : t('Activity logged'), { tone: 'ok', actionLabel: t('Undo'), onAction: () => s.removeActivity(a.id) });
   };
   return (
-    <Sheet onClose={pop} label={t('Log activity')} z={100} foot={<button className="btn primary block press" disabled={!min} onClick={save}>{t('Save activity')}</button>}>
-      <SheetHead title={t('Log activity')} onClose={pop} />
+    <Sheet onClose={pop} label={wrestling ? t('Wrestling') : t('Log activity')} z={100} foot={<button className="btn primary block press" disabled={!min} onClick={save}>{wrestling ? t('Save session') : t('Save activity')}</button>}>
+      <SheetHead title={wrestling ? t('Wrestling') : t('Log activity')} onClose={pop} />
       <div className="sheet-body">
-        <div className="chips" style={{ flexWrap: 'wrap', margin: 0, padding: 0 }}>{KINDS.map((k) => <button key={k} className={`chip press ${kind === k ? 'on' : ''}`} onClick={() => setKind(k)}>{t(KIND_LABEL[k])}</button>)}</div>
-        <div style={{ display: 'grid', gridTemplateColumns: cardio ? '1fr 1fr' : '1fr', gap: 12, marginTop: 18 }}>
-          <div className="field"><label>{t('Duration')}</label><NumInput value={min} onChange={setMin} unit="min" max={0} autoFocus /></div>
-          {cardio && <div className="field"><label>{t('Distance')}</label><NumInput value={dist} onChange={setDist} unit={u} max={2} placeholder={t('optional')} /></div>}
-        </div>
-        <div className="field" style={{ marginTop: 14 }}><label>{t('Note')}</label><input className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder={t('Optional')} /></div>
+        <div className="chips" style={{ flexWrap: 'wrap', margin: 0, padding: 0 }}>{KINDS.map((k) => <button key={k} className={`chip press ${kind === k ? 'on' : ''}`} onClick={() => setKind(k)}>{k === 'wrestling' && <Icon name="wrestle" size={15} />}{t(KIND_LABEL[k])}</button>)}</div>
+        {wrestling ? (
+          <>
+            <div className="field" style={{ marginTop: 20 }}><label>{t('Mat time')}</label>
+              <div className="chips" style={{ margin: '0 0 8px', padding: 0 }}>{[30, 45, 60, 90, 120].map((m) => <button key={m} className={`chip sm press ${min === m ? 'on' : ''}`} onClick={() => setMin(m)}>{m} min</button>)}</div>
+              <NumInput value={min} onChange={setMin} unit="min" max={0} label={t('Mat time')} /></div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 12, marginTop: 14 }}>
+              <div className="field"><label>{t('Rounds')}</label><NumInput value={rounds} onChange={setRounds} unit="" max={0} placeholder={t('optional')} label={t('Rounds')} /></div>
+              <div className="field"><label>{t('Intensity')}</label><Seg value={intensity} onChange={setIntensity} options={([1, 2, 3] as const).map((v) => ({ value: v, label: t(INTENSITY_LABEL[v]) }))} /></div>
+            </div>
+          </>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: cardio ? '1fr 1fr' : '1fr', gap: 12, marginTop: 18 }}>
+            <div className="field"><label>{t('Duration')}</label><NumInput value={min} onChange={setMin} unit="min" max={0} autoFocus /></div>
+            {cardio && <div className="field"><label>{t('Distance')}</label><NumInput value={dist} onChange={setDist} unit={u} max={2} placeholder={t('optional')} /></div>}
+          </div>
+        )}
+        <div className="field" style={{ marginTop: 14 }}><label>{t('Note')}</label><input className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder={wrestling ? t('What you drilled, who you rolled with…') : t('Optional')} /></div>
         <div className="chips" style={{ marginTop: 14 }}>
-          {[0, -1, -2].map((n) => { const d = addDays(today, n); return <button key={n} className={`chip sm press ${date === d ? 'on' : ''}`} onClick={() => setDate(d)}>{relativeDay(d, today, 'en') ? t(relativeDay(d, today, 'en')!) : fmtDate(d, 'en')}</button>; })}
+          {[0, -1, -2].map((n) => { const d = addDays(today, n); return <button key={n} className={`chip sm press ${date === d ? 'on' : ''}`} onClick={() => setDate(d)}>{relativeDay(d, today, lang) ?? fmtDate(d, lang, { weekday: 'short' })}</button>; })}
         </div>
       </div>
     </Sheet>

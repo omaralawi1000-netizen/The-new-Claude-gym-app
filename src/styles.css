@@ -15,7 +15,7 @@
   --f-ui: 'Geist Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
 
   --ac-ink: #0b0710;
-  --ok: #6fe3a0; --bad: #ff6b72; --warn: #f2c35a;
+  --ok: #6fe3a0; --bad: #ff6b72; --warn: #f2c35a; --gold: #f7c95c;
 
   --r-xs: 10px; --r-sm: 14px; --r-md: 22px; --r-lg: 30px; --r-xl: 38px;
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);

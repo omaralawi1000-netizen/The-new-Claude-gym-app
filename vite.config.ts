@@ -22,6 +22,13 @@ export default defineConfig({
         orientation: 'portrait',
         start_url: './',
         scope: './',
+        // long-press the app icon (Android) for these
+        shortcuts: [
+          { name: 'Log food', short_name: 'Food', url: './?do=food', icons: [{ src: 'icon-192.png', sizes: '192x192' }] },
+          { name: 'Dictate', short_name: 'Dictate', url: './?do=voice', icons: [{ src: 'icon-192.png', sizes: '192x192' }] },
+          { name: 'Snap your plate', short_name: 'Photo', url: './?do=photo', icons: [{ src: 'icon-192.png', sizes: '192x192' }] },
+          { name: 'Log wrestling', short_name: 'Wrestling', url: './?do=wrestling', icons: [{ src: 'icon-192.png', sizes: '192x192' }] },
+        ],
         icons: [
           { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: 'icon-512.png', sizes: '512x512', type: 'image/png' },

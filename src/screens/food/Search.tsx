@@ -91,6 +91,7 @@ export function FoodSearch({ props }: { props: { date: string; mealId: string } 
   const actions: { icon: any; label: string; run: () => void }[] = [
     { icon: 'bolt', label: t('Quick add'), run: () => push('quickAdd', { date: props.date, mealId: props.mealId }) },
     { icon: 'barcode', label: t('Scan'), run: () => push('scanner', { date: props.date, mealId: props.mealId }) },
+    { icon: 'camera', label: t('Photo'), run: () => push('photoFood', { date: props.date, mealId: props.mealId }) },
     { icon: 'mic', label: t('Dictate'), run: () => push('voice', { mode: 'food', date: props.date, mealId: props.mealId }) },
     { icon: 'edit', label: t('New food'), run: () => push('customFood', { afterSave: 'openDetail', date: props.date, mealId: props.mealId }) },
     { icon: 'recipe', label: t('Recipes'), run: () => push('recipes', { date: props.date, mealId: props.mealId }) },

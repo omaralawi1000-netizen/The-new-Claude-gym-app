@@ -242,13 +242,16 @@ export type MeasureKind = 'waist' | 'chest' | 'hips' | 'arm' | 'thigh' | 'neck';
 export interface Measurement { id: string; date: string; kind: MeasureKind; cm: number }
 export interface ProgressPhoto { id: string; date: string; note?: string }
 
-export type ActivityKind = 'run' | 'walk' | 'cycle' | 'swim' | 'row' | 'hike' | 'mobility' | 'warmup' | 'recovery' | 'other';
+export type ActivityKind = 'wrestling' | 'run' | 'walk' | 'cycle' | 'swim' | 'row' | 'hike' | 'mobility' | 'warmup' | 'recovery' | 'other';
 export interface ActivityLog {
   id: string;
   date: string;
   kind: ActivityKind;
   durationSec: number;
   distanceM?: number;
+  /** wrestling: rounds/goes on the mat, and how hard it felt (1 easy · 2 hard · 3 max) */
+  rounds?: number;
+  intensity?: 1 | 2 | 3;
   note?: string;
   at: number;
 }

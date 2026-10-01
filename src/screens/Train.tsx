@@ -11,6 +11,7 @@ import { elapsedMs, sessionVolume } from '../lib/workout';
 import { fmtNum, kgToDisplay } from '../lib/units';
 import { exName, MUSCLE_LABEL } from './workout/common';
 import { estMinutes } from './Today';
+import { ACTIVITY_LABEL, activityIcon, activityLine } from '../lib/activity';
 import { matchExercises } from '../lib/workoutText';
 import { MUSCLES } from '../data/exercises';
 import type { MuscleGroup, Routine } from '../lib/types';
@@ -44,7 +45,7 @@ function PlanTab() {
   const missed = useMemo(() => missedWorkouts(s, today), [s.schedule, s.routines, s.sessions, today]);
   const days = Array.from({ length: 7 }, (_, i) => {
     const d = addDays(weekStart, i);
-    return { d, p: plannedFor(s, d, today), done: s.sessions.some((x) => x.date === d) };
+    return { d, p: plannedFor(s, d, today), done: s.sessions.some((x) => x.date === d), wr: s.activities.some((x) => x.date === d && x.kind === 'wrestling') };
   });
   const start = (r: Routine) => {
     if (s.active) { push('workout', { origin: 'pill' }); return; }
@@ -52,19 +53,20 @@ function PlanTab() {
     s.startWorkout({ routine: r, plannedDate: plannedFor(s, today, today)?.routineId === r.id ? today : undefined });
     push('workout', { origin: 'none' });
   };
+  const matWeek = Math.round(s.activities.filter((x) => x.kind === 'wrestling' && x.date >= weekStart && x.date <= addDays(weekStart, 6)).reduce((n, x) => n + x.durationSec, 0) / 60);
   const dup = (r: Routine) => { const id = crypto.randomUUID(); s.upsertRoutine({ ...r, id, name: `${r.name} ${t('copy')}`, items: r.items.map((i) => ({ ...i, id: crypto.randomUUID() })), createdAt: Date.now(), updatedAt: Date.now() }); toast(t('Duplicated'), { tone: 'ok' }); };
   return (
     <>
       <section>
         <div className="plinth" style={{ padding: 10, display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
-          {days.map(({ d, p, done }) => {
+          {days.map(({ d, p, done, wr }) => {
             const r = p ? s.routines.find((x) => x.id === p.routineId) : undefined;
             const isToday = d === today;
             return (
               <button key={d} className="press" onClick={() => push('schedule', { focusDate: d })} aria-label={`${fmtDate(d, lang)}${r ? `: ${r.name}` : ''}`} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '8px 0', borderRadius: 14, background: isToday ? 'var(--ac-soft)' : 'transparent' }}>
                 <span className="micro" style={{ color: isToday ? 'var(--ac-text)' : undefined }}>{fmtWeekdayShort(weekdayOf(d), lang, true)}</span>
                 <span className="num" style={{ fontWeight: 650, fontSize: 15 }}>{Number(d.slice(8))}</span>
-                <span style={{ width: 26, height: 26, borderRadius: 9, display: 'grid', placeItems: 'center', background: done ? 'var(--ac)' : r ? 'var(--s3)' : 'transparent', color: done ? 'var(--ac-ink)' : 'var(--tx2)', fontSize: 11, fontWeight: 700, boxShadow: !done && !r ? 'inset 0 0 0 1px var(--line)' : undefined }}>{done ? <Icon name="check" size={14} sw={3} /> : r ? r.name.slice(0, 1).toUpperCase() : ''}</span>
+                <span style={{ width: 26, height: 26, borderRadius: 9, display: 'grid', placeItems: 'center', background: done ? 'var(--ac)' : wr ? 'var(--ac-soft)' : r ? 'var(--s3)' : 'transparent', color: done ? 'var(--ac-ink)' : wr ? 'var(--ac-text)' : 'var(--tx2)', fontSize: 11, fontWeight: 700, boxShadow: !done && !r && !wr ? 'inset 0 0 0 1px var(--line)' : undefined }}>{done ? <Icon name="check" size={14} sw={3} /> : wr ? <Icon name="wrestle" size={15} /> : r ? r.name.slice(0, 1).toUpperCase() : ''}</span>
               </button>
             );
           })}
@@ -115,8 +117,17 @@ function PlanTab() {
           </div>
         )}
       </section>
-      <section className="row-flex" style={{ justifyContent: 'center' }}>
-        <button className="btn press" onClick={() => push('activity', {})}><Icon name="run" size={18} /> {t('Log cardio or recovery')}</button>
+      <section style={{ display: 'grid', gridTemplateColumns: '1.25fr 1fr', gap: 10 }}>
+        <button className="plinth press" style={{ padding: 16, textAlign: 'left', borderRadius: 'var(--r-lg)', overflow: 'hidden' }} onClick={() => push('activity', { kind: 'wrestling' })} aria-label={t('Log wrestling')}>
+          <span style={{ width: 40, height: 40, borderRadius: 14, display: 'grid', placeItems: 'center', background: 'var(--ac-soft)', color: 'var(--ac-text)', boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--ac) 30%, transparent)' }}><Icon name="wrestle" size={22} /></span>
+          <div className="display" style={{ fontSize: 30, fontStyle: 'italic', marginTop: 12, lineHeight: 1 }}>{t('Wrestling')}</div>
+          <div className="small t2 num" style={{ marginTop: 4 }}>{matWeek > 0 ? `${matWeek} min ${t('this week')}` : t('Log a session')}</div>
+        </button>
+        <button className="plinth press" style={{ padding: 16, textAlign: 'left', borderRadius: 'var(--r-lg)' }} onClick={() => push('activity', {})} aria-label={t('Log cardio or recovery')}>
+          <span style={{ width: 40, height: 40, borderRadius: 14, display: 'grid', placeItems: 'center', background: 'var(--s2)', boxShadow: 'inset 0 0 0 1px var(--line)' }}><Icon name="run" size={20} /></span>
+          <div className="display" style={{ fontSize: 30, fontStyle: 'italic', marginTop: 12, lineHeight: 1 }}>{t('Cardio')}</div>
+          <div className="small t2" style={{ marginTop: 4 }}>{t('& recovery')}</div>
+        </button>
       </section>
     </>
   );
@@ -172,14 +183,15 @@ function HistoryTab() {
       </button>) })),
     ...s.activities.map((x) => ({ at: x.at, date: x.date, node: (
       <div key={x.id} className="li">
-        <span style={{ width: 40, height: 40, borderRadius: 13, background: 'var(--s2)', display: 'grid', placeItems: 'center', flex: 'none', boxShadow: 'inset 0 0 0 1px var(--line)' }}><Icon name="run" size={19} /></span>
-        <div className="grow"><div className="li-title">{t(({ run: 'Run', walk: 'Walk', cycle: 'Cycle', swim: 'Swim', row: 'Row', hike: 'Hike', mobility: 'Mobility', warmup: 'Warm-up', recovery: 'Recovery', other: 'Activity' } as any)[x.kind])}</div><div className="li-sub num">{fmtDate(x.date, lang, { weekday: 'short', day: 'numeric', month: 'short' })} · {Math.round(x.durationSec / 60)} min{x.distanceM ? ` · ${fmtNum(u.distance === 'mi' ? x.distanceM / 1609.344 : x.distanceM / 1000, lang, 2)} ${u.distance}` : ''}{x.note ? ` · ${x.note}` : ''}</div></div>
+        <span style={{ width: 40, height: 40, borderRadius: 13, background: x.kind === 'wrestling' ? 'var(--ac-soft)' : 'var(--s2)', color: x.kind === 'wrestling' ? 'var(--ac-text)' : undefined, display: 'grid', placeItems: 'center', flex: 'none', boxShadow: 'inset 0 0 0 1px var(--line)' }}><Icon name={activityIcon(x.kind)} size={19} /></span>
+        <div className="grow" style={{ minWidth: 0 }}><div className="li-title">{t(ACTIVITY_LABEL[x.kind] === 'Other' ? 'Activity' : ACTIVITY_LABEL[x.kind])}</div><div className="li-sub num trunc">{fmtDate(x.date, lang, { weekday: 'short', day: 'numeric', month: 'short' })} · {activityLine(x, t, lang, u.distance)}{x.note ? ` · ${x.note}` : ''}</div></div>
         <button className="icon-btn flat sm" aria-label={t('Delete')} onClick={() => { const a = s.removeActivity(x.id); if (a) useUI.getState().toast(t('Deleted'), { actionLabel: t('Undo'), onAction: () => s.restoreActivity(a) }); }}><Icon name="trash" size={16} /></button>
       </div>) })),
   ].sort((a, b) => b.at - a.at);
   return (
     <>
       <div className="row-flex" style={{ gap: 8 }}>
+        <button className="btn sm press" onClick={() => push('activity', { kind: 'wrestling' })}><Icon name="wrestle" size={17} /> {t('Wrestling')}</button>
         <button className="btn sm press" onClick={() => push('activity', {})}><Icon name="plus" size={16} /> {t('Log cardio / recovery')}</button>
       </div>
       {rows.length === 0 ? <Empty icon="clock" title={t('No history yet')} /> : (

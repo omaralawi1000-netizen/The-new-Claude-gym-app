@@ -227,3 +227,27 @@ describe('coach grounding and routine mapping', () => {
     expect(r.items[0]).toMatchObject({ workingSets: 4, repMin: 6, repMax: 8, restSec: 150 });
   });
 });
+
+describe('new: photo estimates, wrestling, beat-last-time', () => {
+  it('photo → per-item estimates; contradictory items dropped; not-food is an error', async () => {
+    const { aiEstimatePhoto } = await import('../src/lib/gemini');
+    const reply = (obj: unknown) => new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify(obj) }] } }] }), { status: 200 });
+    const f = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(reply({ items: [{ name: 'Rice', grams: 180, kcal: 234, protein: 5, carbs: 51, fat: 1 }, { name: 'Chicken', grams: 150, kcal: 248, protein: 46, carbs: 0, fat: 5.4 }, { name: 'Bogus', kcal: 900, protein: 1, carbs: 1, fat: 1 }], assumptions: 'one plate' }));
+    const r = await aiEstimatePhoto({ mime: 'image/jpeg', data: 'AAAA' }, { key: 'k', models: ['m'] }, 'en');
+    expect(r.items.map((x) => x.name)).toEqual(['Rice', 'Chicken']);
+    const body = JSON.parse((f.mock.calls[0][1] as RequestInit).body as string);
+    expect(body.contents[0].parts[0].inline_data).toEqual({ mime_type: 'image/jpeg', data: 'AAAA' });
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(reply({ items: [], assumptions: '', notFood: true }));
+    await expect(aiEstimatePhoto({ mime: 'image/jpeg', data: 'AAAA' }, { key: 'k', models: ['m'] }, 'en')).rejects.toMatchObject({ code: 'invalid' });
+  });
+  it('wrestling line and beat-last-time', async () => {
+    const { activityLine } = await import('../src/lib/activity');
+    expect(activityLine({ id: 'a', date: '2026-10-01', kind: 'wrestling', durationSec: 3600, rounds: 6, intensity: 2, at: 1 }, (k) => k, 'en', 'km')).toBe('60 min · 6 rounds · Hard');
+    const { beatLastTime } = await import('../src/lib/workout');
+    const prev = { id: 's', type: 'working', weightKg: 80, reps: 8, done: true } as any;
+    expect(beatLastTime('weightReps', { weightKg: 82.5, reps: 8 }, prev, 'kg', 'en', (k) => k)).toBe('+2.5 kg');
+    expect(beatLastTime('weightReps', { weightKg: 80, reps: 9 }, prev, 'kg', 'en', (k) => k)).toBe('+1 rep');
+    expect(beatLastTime('weightReps', { weightKg: 85, reps: 6 }, prev, 'kg', 'en', (k) => k)).toBeNull(); // heavier but fewer reps: not a clear beat
+    expect(beatLastTime('weightReps', { weightKg: 80, reps: 8 }, undefined, 'kg', 'en', (k) => k)).toBeNull();
+  });
+});
