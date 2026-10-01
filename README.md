@@ -46,6 +46,10 @@ Search (bundled ~180 foods + saved + online), barcode / QR scanning (native `Bar
 
 **Nutrition model** (`src/lib/nutrition.ts`): nutrients are stored per 100 g/ml; unknown ≠ zero (shown "—", and sums show "≥" when an entry lacked the value); ml↔g only with a known density (otherwise the unit is hidden, never assumed); portions are flagged *verified* or *typical*; every logged entry keeps a frozen snapshot, so editing a food or recipe **never rewrites history**; totals are summed unrounded and rounded once for display; log ids are idempotent so double-taps can't double-log.
 
+## Put it on your phone
+
+The build is static and path-independent, so any static host works. Easiest: **GitHub Pages** — repo *Settings → Pages → Source: GitHub Actions*, then every push to `main` (or the working branch) publishes to `https://<user>.github.io/<repo>/` via `.github/workflows/pages.yml` (it type-checks and runs the unit tests first). Vercel/Netlify: import the repo, build `npm run build`, output `dist`. Open the URL on the phone → iOS Safari *Share → Add to Home Screen*, Android Chrome *Install app*. HTTPS (which all of these give you) is required for the microphone and installing.
+
 ## Food data sources — what was verified
 
 | | Open Food Facts | USDA FoodData Central |

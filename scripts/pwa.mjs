@@ -14,7 +14,7 @@ console.log('manifest', manifest.name, manifest.display, manifest.icons.length);
 await p.reload(); await p.waitForTimeout(1000);
 await ctx.setOffline(true);
 await p.reload(); await p.waitForTimeout(1500);
-assert(await p.getByText('Good evening').or(p.getByText('Good afternoon')).or(p.getByText('Good morning')).or(p.getByText('Late night')).first().isVisible(), 'app loads offline');
+assert(await p.locator('[data-testid="ledger-kcal"]').first().isVisible(), 'app loads offline');
 await p.locator('.tabbar').getByRole('button', { name: 'Food', exact: true }).click(); await p.waitForTimeout(500);
 await p.getByRole('button', { name: 'Add food' }).first().click(); await p.waitForTimeout(500);
 await p.getByPlaceholder('Search foods and brands').fill('banana'); await p.waitForTimeout(1200);

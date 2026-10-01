@@ -49,7 +49,7 @@ export function TodayScreen() {
     if (!dueNudge || typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
     const key = `aven.notified.${today}`;
     try { if (sessionStorage.getItem(key)) return; sessionStorage.setItem(key, '1'); } catch { /* ignore */ }
-    try { new Notification(t('Time to train'), { body: routine?.name, icon: '/icon-192.png' }); } catch { /* ignore */ }
+    try { new Notification(t('Time to train'), { body: routine?.name, icon: `${import.meta.env.BASE_URL}icon-192.png` }); } catch { /* ignore */ }
   }, [dueNudge, today, routine?.name, t]);
 
   const start = (r?: Routine) => {

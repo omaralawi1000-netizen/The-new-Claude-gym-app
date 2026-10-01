@@ -8,7 +8,7 @@ import { useStore, flushSave } from './state/store';
  */
 export function registerSW() {
   if (!('serviceWorker' in navigator) || import.meta.env.DEV) return;
-  navigator.serviceWorker.register('/sw.js').then((reg) => {
+  navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).then((reg) => {
     const announce = () => { (window as any).__avenApplyUpdate = () => { flushSave(); reg.waiting?.postMessage({ type: 'SKIP_WAITING' }); }; useUI.setState({ updateReady: true } as any); };
     if (reg.waiting && navigator.serviceWorker.controller) announce();
     reg.addEventListener('updatefound', () => {
