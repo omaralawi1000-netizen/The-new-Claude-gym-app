@@ -93,13 +93,15 @@ export function App() {
     <MotionConfig reducedMotion="user">
       <LayoutGroup>
         <div className="app" data-hue={tab}>
+          <div className="stage">
           <div className="aurora" aria-hidden><i /><i /><i /></div>
           <AnimatePresence mode="popLayout" initial={false}>
-            <motion.div key={tab} style={{ position: 'absolute', inset: 0 }} initial={{ x: dir * 30 }} animate={{ x: 0, opacity: 1, filter: 'blur(0px)' }} exit={{ opacity: 0, x: -dir * 30, filter: 'blur(10px)', transition: { duration: 0.26, ease: [0.4, 0, 1, 1] } }} transition={{ type: 'spring', stiffness: 260, damping: 32, mass: 0.9 }}>
+            <motion.div key={tab} style={{ position: 'absolute', inset: 0 }} initial={{ opacity: 0, x: dir * 36 }} animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }} exit={{ opacity: 0, x: -dir * 36, filter: 'blur(10px)' }} transition={{ duration: 0.38, ease: [0.22, 1, 0.36, 1] }}>
               {screen}
             </motion.div>
           </AnimatePresence>
           <TabBar />
+          </div>
           <Overlays />
           <Toaster />
           <SphereStage />

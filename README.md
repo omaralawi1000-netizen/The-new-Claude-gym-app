@@ -128,6 +128,15 @@ Run in headless Chromium (Playwright, 390×844 @2×, dark + light), scripts in `
 - **Snap your plate** (Gemini key): photo → per-item estimates (name, grams, kcal, macros) → choose items and portion (×0.5–×2) → logged as quick entries labelled "AI estimate" with the assumptions. Image is downscaled to 1024 px before sending. Wiring tested with a stubbed Gemini; real recognition quality is unverified.
 - **Home-screen shortcuts** (Android long-press on the installed icon): Log food, Dictate, Snap your plate, Log wrestling.
 
+## Feel (latest pass)
+
+- **Sheets behave like iOS**: the page behind steps back (scales to 92 %, rounds its corners, dims over black); swipe down from anywhere — when the list under your finger is at the top — and the sheet follows 1:1, then either closes carrying your swipe speed and easing out, or springs back. Stacked sheets step back too. The workout screen minimises the same way.
+- **Workout open/close**: the background surface grows out of the Today card / pill as a shared-layout transform (GPU only); the content fades in on top and the exercise list mounts a few rows at a time after the animation.
+- **Tab bar**: icons and the orb move with shared-layout springs, the oval glides with a slightly softer spring, labels blur in.
+- **The orb is the microphone everywhere**: tab bar, voice composer, the Coach input and the workout's dictate button; it flies between them and stays glued once landed.
+- **Coach**: replies blur in word by word as they stream (only new words animate), sent messages spring up from the input, a typing indicator shows while it thinks, and the orb listens/thinks/blooms with it.
+- **Performance**: nothing animates behind an open popup any more (colour field, orb in the tab bar, pulsing dots pause), so the frosted layers stop re-blurring every frame; popups no longer animate a full-screen backdrop blur. Measured in software-rendered Chromium: idle with a popup open ~24 → ~58 fps, workout start ~24 → ~40 fps.
+
 ## Look and motion
 
 **Dusk glass.** A slow-drifting colour field (three lights plus fine grain) sits behind everything; every surface is frosted glass over it (blur + saturation, hairline specular rim). Each area has its own light and accent that cross-fade when you change tab: Today peach/violet, Train ember, Food lime, Progress ice. Numerals are thin and wide-set (Geist, weight 220), names are italic serif (Instrument Serif); the day is one instrument of concentric rings (calories + protein/carbs/fat) that draw themselves in with a spring. Text is cut to what carries information: icon-first actions, no section captions, no helper paragraphs (warnings that protect data accuracy stay).

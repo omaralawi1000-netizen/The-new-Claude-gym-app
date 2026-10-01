@@ -40,7 +40,7 @@ function LivePill() {
       aria-label={t('Resume workout')}
     >
       {/* the pill's surface is a separate layer so the workout can grow out of it without stretching the text */}
-      <span data-wk-origin="pill" className="glass" style={{ position: 'absolute', inset: 0, borderRadius: 999 }} />
+      <motion.span layoutId="wk-pill" className="glass" transition={{ type: 'spring', stiffness: 260, damping: 30, mass: 0.9 }} style={{ position: 'absolute', inset: 0, borderRadius: 28 }} />
       <span className="pulse-dot" style={{ position: 'relative', ...(active.pausedAt ? { animation: 'none', background: 'var(--tx3)' } : {}) }} />
       <span className="grow" style={{ textAlign: 'left', minWidth: 0, position: 'relative' }}>
         <span className="trunc" style={{ display: 'block', fontWeight: 650, fontSize: 14 }}>{active.name || t('Workout')}</span>
@@ -67,12 +67,12 @@ export function TabBar() {
         <AnimatePresence>{<LivePill />}</AnimatePresence>
         <nav className="tabbar glass" aria-label="Main">
           {TABS.slice(0, 2).map((x) => <TabBtn key={x.id} {...x} on={tab === x.id} onClick={() => { buzz(4); setTab(x.id); }} label={t(x.label)} />)}
-          <div className="sphere-slot" style={{ position: 'relative' }}>
+          <motion.div layout="position" transition={LAYOUT} className="sphere-slot" style={{ position: 'relative' }}>
             <SphereSlot id="tab" priority={0} style={{ position: 'absolute', inset: -6 }} />
             <button className="press" aria-label={t('Dictate')} style={{ position: 'absolute', inset: -4, borderRadius: 999 }}
               onClick={() => { buzz(10); if (!overlays.some((o) => o.type === 'voice')) push('voice', { mode: tab === 'train' ? 'workout' : 'food' }); }} />
             {phase !== 'idle' && null}
-          </div>
+          </motion.div>
           {TABS.slice(2).map((x) => <TabBtn key={x.id} {...x} on={tab === x.id} onClick={() => { buzz(4); setTab(x.id); }} label={t(x.label)} />)}
         </nav>
       </motion.div>
@@ -80,12 +80,20 @@ export function TabBar() {
   );
 }
 
+const LAYOUT = { type: 'spring', stiffness: 460, damping: 34, mass: 0.8 } as const;
+// the oval: a touch softer than the icons, so it visibly stretches toward the new tab and settles with a small give
+const OVAL = { type: 'spring', stiffness: 360, damping: 26, mass: 0.85 } as const;
+
 function TabBtn({ icon, label, on, onClick }: { id: Tab; icon: any; label: string; on: boolean; onClick: () => void }) {
   return (
-    <button className={`tab press ${on ? 'on' : ''}`} onClick={onClick} aria-current={on ? 'page' : undefined} aria-label={label}>
-      {on && <motion.span layoutId="tab-pip" className="tab-pip" transition={{ type: 'spring', stiffness: 380, damping: 30, mass: 0.8 }} />}
-      <Icon name={icon} size={22} sw={on ? 2 : 1.6} />
-      <span className="lab">{label}</span>
-    </button>
+    <motion.button layout="position" transition={LAYOUT} className={`tab press ${on ? 'on' : ''}`} onClick={onClick} aria-current={on ? 'page' : undefined} aria-label={label}>
+      {on && <motion.span layoutId="tab-pip" className="tab-pip" transition={OVAL} style={{ borderRadius: 26 }} />}
+      <motion.span layout="position" transition={LAYOUT} style={{ display: 'grid', position: 'relative' }}><Icon name={icon} size={22} sw={on ? 2 : 1.6} /></motion.span>
+      <AnimatePresence initial={false} mode="popLayout">
+        {on && (
+          <motion.span key="lab" className="lab" initial={{ opacity: 0, x: -6, filter: 'blur(4px)' }} animate={{ opacity: 1, x: 0, filter: 'blur(0px)', transition: { delay: 0.06, duration: 0.32, ease: [0.22, 1, 0.36, 1] } }} exit={{ opacity: 0, filter: 'blur(4px)', transition: { duration: 0.12 } }}>{label}</motion.span>
+        )}
+      </AnimatePresence>
+    </motion.button>
   );
 }

@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { mic } from '../lib/mic';
 import { useVoice } from '../state/voice';
 import { useStore } from '../state/store';
+import { useUI } from '../state/ui';
 
 /**
  * The Aven sphere: ~900 points on a Fibonacci lattice, lit from upper-left so it reads as a volume.
@@ -254,6 +255,9 @@ export function SphereStage() {
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
     let colorKey = '';
     let frame = 0;
+    let drawn = false;
+    let parked = false;
+    let parkedEl: HTMLElement | null = null;
     // the accent now follows the active area and cross-fades, so read the live (resolved) colour through probes
     const probe = (v: string) => { const d = document.createElement('i'); d.style.cssText = `position:absolute;width:0;height:0;pointer-events:none;color:var(${v})`; (appEl ?? document.body).appendChild(d); return d; };
     const pAc = probe('--ac'), pAc2 = probe('--ac-2'), pH1 = probe('--h1');
@@ -285,11 +289,15 @@ export function SphereStage() {
       if (!best) { el.style.opacity = '0'; return; }
       const r = best.el.getBoundingClientRect();
       if (r.width < 2) { el.style.opacity = '0'; return; }
-      el.style.zIndex = best.priority >= 10 ? '600' : '41'; // above full-screen composers; below sheets when parked in the tab bar
+      el.style.zIndex = best.priority > 0 ? '600' : '41'; // above full-screen composers; below sheets when parked in the tab bar
       const base = appEl?.getBoundingClientRect(); // the stage lives inside .app, which may be offset on wide screens
       const tx = r.left - (base?.left ?? 0), ty = r.top - (base?.top ?? 0), ts = Math.min(r.width, r.height);
       // parked in the tab bar and only sliding sideways (the active tab widened): follow exactly, or the lagging sphere overlaps the tab labels
-      const parkedSlide = best.priority === 0 && Math.abs(ts - st.s) < 3 && Math.abs(ty - st.y) < 3;
+      // once settled in the tab bar it stays glued to it (the bar slides, scales back behind sheets, hides for the composer)
+      // once it has landed in a slot it stays glued to that slot (sheets slide and swipe, the tab bar scales back);
+      // only a change of slot starts a new flight
+      if (best.el !== parkedEl) parked = false;
+      const parkedSlide = parked;
       if (!st.init || reduced || parkedSlide) { st.x = tx; st.y = ty; st.s = ts; st.vx = st.vy = st.vs = 0; st.init = true; }
       else {
         // critically-damped-ish spring (follows moving slots such as a sheet mid-slide)
@@ -305,7 +313,7 @@ export function SphereStage() {
           }
         }
         // settled: snap exactly, so it never rests a fraction of a pixel off (visible as a faint shimmer)
-        if (Math.abs(st.x - tx) < 0.15 && Math.abs(st.y - ty) < 0.15 && Math.abs(st.s - ts) < 0.15 && Math.abs(st.vx) + Math.abs(st.vy) + Math.abs(st.vs) < 2) { st.x = tx; st.y = ty; st.s = ts; st.vx = st.vy = st.vs = 0; }
+        if (Math.abs(st.x - tx) < 0.15 && Math.abs(st.y - ty) < 0.15 && Math.abs(st.s - ts) < 0.15 && Math.abs(st.vx) + Math.abs(st.vy) + Math.abs(st.vs) < 2) { st.x = tx; st.y = ty; st.s = ts; st.vx = st.vy = st.vs = 0; parked = true; parkedEl = best.el; }
       }
       const size = Math.max(8, st.s);
       // The canvas is drawn at a size bucket and scaled down with a transform. Resizing a canvas (and the element) on
@@ -315,8 +323,13 @@ export function SphereStage() {
       if (el.style.width !== `${bucket}px`) el.style.width = el.style.height = `${bucket}px`;
       el.style.transform = `translate3d(${st.x}px, ${st.y}px, 0) scale(${size / bucket})`;
       const dpr = Math.min(3, window.devicePixelRatio || 1);
+      // Parked in the tab bar under an open sheet/overlay: keep the last frame instead of redrawing. Nothing visible
+      // changes, but the frosted layers above no longer re-blur a moving sphere on every frame.
+      const covered = best.priority === 0 && useUI.getState().overlays.length > 0 && Math.abs(st.vx) + Math.abs(st.vy) + Math.abs(st.vs) < 1;
+      if (covered && drawn) return;
       renderer.resize(bucket, dpr);
       renderer.frame(now, bucket, reduced, colors);
+      drawn = true;
     };
     raf = requestAnimationFrame(tick);
     const onVis = () => {

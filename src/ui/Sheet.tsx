@@ -1,4 +1,4 @@
-import { AnimatePresence, motion, useDragControls, useReducedMotion } from 'motion/react';
+import { AnimatePresence, motion, useMotionValue, useReducedMotion } from 'motion/react';
 import { createContext, useContext, useEffect, useRef, type ReactNode } from 'react';
 
 /** Stack-position z-index for the current overlay: a later overlay is always above an earlier one. */
@@ -6,22 +6,25 @@ export const OverlayZ = createContext<number | null>(null);
 export const useOverlayZ = (fallback: number) => useContext(OverlayZ) ?? fallback;
 import { Icon } from './Icon';
 import { useUI } from '../state/ui';
+import { useSwipeDown } from './swipe';
 
 export const SPRING = { type: 'spring', stiffness: 420, damping: 38, mass: 0.9 } as const;
 export const SOFT = { type: 'spring', stiffness: 300, damping: 32, mass: 0.9 } as const;
 export const SNAP = { type: 'spring', stiffness: 600, damping: 42, mass: 0.7 } as const;
 
-/** Bottom sheet: drag the handle/header down (or flick) to dismiss; interruptible; keyboard-aware. */
+/** Bottom sheet: swipe down from anywhere (when its list is at the top) or flick to dismiss; interruptible; keyboard-aware. */
 export function Sheet({ children, onClose, tall, label, foot, z: zProp = 60, nested }: { children: ReactNode; onClose: () => void; tall?: boolean; label: string; foot?: ReactNode; z?: number; /** a sheet rendered inside another overlay's component (e.g. the workout's exercise menu) */ nested?: boolean }) {
   const z = useOverlayZ(zProp) + (nested ? 5 : 0);
   const ctxZ = useContext(OverlayZ);
   const count = useUI((u) => u.overlays.length);
   // a sheet with another overlay above it steps back, like a stacked card (and only the top one answers Escape)
   const behind = !nested && ctxZ !== null && (ctxZ - 60) / 10 < count - 1;
-  const controls = useDragControls();
   const reduce = useReducedMotion();
   const ref = useRef<HTMLDivElement>(null);
   const behindRef = useRef(behind); behindRef.current = behind;
+  const y = useMotionValue(0);
+  useSwipeDown(ref, y, onClose, { enabled: !behind });
+  const H = typeof window !== 'undefined' ? window.innerHeight : 900;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !behindRef.current) onClose(); };
     window.addEventListener('keydown', onKey);
@@ -29,19 +32,18 @@ export function Sheet({ children, onClose, tall, label, foot, z: zProp = 60, nes
   }, [onClose]);
   return (
     <>
-      <motion.div className="scrim" style={{ zIndex: z - 1 }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} onClick={onClose} />
+      <motion.div className="scrim" style={{ zIndex: z - 1 }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.32 } }} transition={{ duration: 0.36 }} onClick={onClose} />
       <motion.div
         ref={ref}
         className={`sheet ${tall ? 'tall' : ''}`}
-        style={{ zIndex: z, bottom: 'var(--kb, 0px)', transformOrigin: '50% 0%' }}
+        style={{ zIndex: z, bottom: 'var(--kb, 0px)', transformOrigin: '50% 0%', y }}
         role="dialog" aria-modal="true" aria-label={label}
-        initial={{ y: '100%' }} animate={{ y: behind ? -6 : 0, scale: behind ? 0.94 : 1 }} exit={{ y: '100%' }}
+        initial={{ y: H }} animate={{ y: behind ? -6 : 0, scale: behind ? 0.94 : 1 }}
+        // a swipe hands its speed to this spring (motion values keep their velocity), so the sheet keeps going and eases out
+        exit={{ y: H, transition: reduce ? { duration: 0.01 } : { type: 'spring', stiffness: 260, damping: 34, mass: 0.9, restDelta: 1 } }}
         transition={reduce ? { duration: 0.01 } : SPRING}
-        drag="y" dragControls={controls} dragListener={false}
-        dragConstraints={{ top: 0, bottom: 0 }} dragElastic={{ top: 0.03, bottom: 0.7 }}
-        onDragEnd={(_, info) => { if (info.offset.y > 110 || info.velocity.y > 650) onClose(); }}
       >
-        <div className="sheet-grab" onPointerDown={(e) => controls.start(e)} />
+        <div className="sheet-grab" />
         {children}
         {foot && <div className="sheet-foot">{foot}</div>}
       </motion.div>
@@ -79,8 +81,10 @@ export { AnimatePresence, motion };
  */
 export function MorphSheet({ children, onClose, layoutId, label, tall = true, z: zProp = 70, foot }: { children: ReactNode; onClose: () => void; layoutId: string; label: string; tall?: boolean; z?: number; foot?: ReactNode }) {
   const z = useOverlayZ(zProp);
-  const controls = useDragControls();
   const reduce = useReducedMotion();
+  const wrap = useRef<HTMLDivElement>(null);
+  const y = useMotionValue(0);
+  useSwipeDown(wrap, y, onClose);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
@@ -89,24 +93,23 @@ export function MorphSheet({ children, onClose, layoutId, label, tall = true, z:
   return (
     <>
       <motion.div className="scrim" style={{ zIndex: z - 1 }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.22 }} onClick={onClose} />
-      <div style={{ position: 'fixed', left: 0, right: 0, bottom: 'var(--kb, 0px)', zIndex: z, pointerEvents: 'none', height: tall ? 'calc(100dvh - var(--sat) - 10px)' : undefined, maxHeight: 'calc(100dvh - var(--sat) - 10px)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+      <motion.div ref={wrap} style={{ y, position: 'fixed', left: 0, right: 0, bottom: 'var(--kb, 0px)', zIndex: z, pointerEvents: 'none', height: tall ? 'calc(100dvh - var(--sat) - 46px)' : undefined, maxHeight: 'calc(100dvh - var(--sat) - 46px)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
         <motion.div
           layoutId={layoutId} role="dialog" aria-modal="true" aria-label={label}
-          style={{ pointerEvents: 'auto', background: 'var(--s1)', borderRadius: '34px 34px 0 0', boxShadow: 'inset 0 1px 0 var(--hl), var(--sh-f)', display: 'flex', flexDirection: 'column', minHeight: 0, flex: tall ? 1 : undefined, maxHeight: '100%', overflow: 'hidden' }}
+          className="morph-sheet"
+          style={{ pointerEvents: 'auto', borderRadius: '34px 34px 0 0', boxShadow: 'inset 0 1px 0 var(--hl), inset 0 0 0 1px var(--line), var(--sh-f)', display: 'flex', flexDirection: 'column', minHeight: 0, flex: tall ? 1 : undefined, maxHeight: '100%', overflow: 'hidden' }}
           transition={reduce ? { duration: 0.01 } : SOFT}
-          drag="y" dragControls={controls} dragListener={false} dragConstraints={{ top: 0, bottom: 0 }} dragElastic={{ top: 0.03, bottom: 0.7 }}
-          onDragEnd={(_, info) => { if (info.offset.y > 110 || info.velocity.y > 650) onClose(); }}
         >
           <motion.div
             style={{ display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 }}
             initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { delay: 0.1, duration: 0.22 } }} exit={{ opacity: 0, transition: { duration: 0.08 } }}
           >
-            <div className="sheet-grab" onPointerDown={(e) => controls.start(e)} />
+            <div className="sheet-grab" />
             {children}
             {foot && <div className="sheet-foot">{foot}</div>}
           </motion.div>
         </motion.div>
-      </div>
+      </motion.div>
     </>
   );
 }

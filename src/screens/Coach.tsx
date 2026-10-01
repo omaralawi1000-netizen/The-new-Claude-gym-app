@@ -6,6 +6,8 @@ import { useAi } from '../state/ai';
 import { useT, useLang } from '../lib/i18n';
 import { Sheet, SheetHead, SOFT } from '../ui/Sheet';
 import { Icon } from '../ui/Icon';
+import { SphereSlot } from '../ui/Sphere';
+import { useVoice } from '../state/voice';
 import { mic } from '../lib/mic';
 import { getKey } from '../lib/keys';
 import { transcribe, buildPrompt, STT_MODEL, SttError } from '../lib/groq';
@@ -22,15 +24,32 @@ type Msg =
   | { id: string; role: 'error'; text: string }
   | { id: string; role: 'routine'; draft: RoutineDraft; items: Routine['items']; skipped: string[]; saved?: string };
 
-/** Minimal, safe rendering of the model's text: paragraphs, "- " bullets, **bold**. No HTML is ever injected. */
+/**
+ * Minimal, safe rendering of the model's text: paragraphs, "- " bullets, **bold**. No HTML is ever injected.
+ * Every word is its own span keyed by position, so while a reply streams in only the NEW words mount — and each one
+ * blurs in (CSS .w). Words already on screen never re-animate.
+ */
+function Words({ text, k }: { text: string; k: string }) {
+  const parts = text.split(/(\s+)/);
+  return <>{parts.map((w, i) => (/^\s+$/.test(w) ? w : w ? <span key={`${k}-${i}`} className="w">{w}</span> : null))}</>;
+}
 function Rich({ text }: { text: string }) {
   const lines = text.split('\n');
-  const bold = (s: string) => s.split(/(\*\*[^*]+\*\*)/g).map((p, i) => (p.startsWith('**') && p.endsWith('**') ? <b key={i}>{p.slice(2, -2)}</b> : <span key={i}>{p}</span>));
+  const bold = (s: string, k: string) => s.split(/(\*\*[^*]+\*\*)/g).map((p, i) => (p.startsWith('**') && p.endsWith('**') ? <b key={i}><Words text={p.slice(2, -2)} k={`${k}b${i}`} /></b> : <Words key={i} text={p} k={`${k}t${i}`} />));
   return <>{lines.map((l, i) => {
     const m = l.match(/^\s*(?:[-*•]|\d+\.)\s+(.*)$/);
-    if (m) return <div key={i} style={{ display: 'flex', gap: 8, marginTop: 4 }}><span aria-hidden style={{ color: 'var(--tx3)' }}>•</span><span>{bold(m[1])}</span></div>;
-    return l.trim() ? <div key={i} style={{ marginTop: i ? 8 : 0 }}>{bold(l)}</div> : null;
+    if (m) return <div key={i} style={{ display: 'flex', gap: 8, marginTop: 4 }}><span aria-hidden className="w" style={{ color: 'var(--tx3)' }}>•</span><span>{bold(m[1], `l${i}`)}</span></div>;
+    return l.trim() ? <div key={i} style={{ marginTop: i ? 8 : 0 }}>{bold(l, `l${i}`)}</div> : null;
   })}</>;
+}
+
+/** Three soft dots while the Coach is thinking. */
+function Typing() {
+  return (
+    <span aria-label="…" style={{ display: 'inline-flex', gap: 5, padding: '10px 2px' }}>
+      {[0, 1, 2].map((i) => <motion.i key={i} animate={{ y: [0, -5, 0], opacity: [0.35, 1, 0.35] }} transition={{ duration: 0.9, repeat: Infinity, delay: i * 0.14, ease: 'easeInOut' }} style={{ width: 7, height: 7, borderRadius: 7, background: 'var(--ac-text)', display: 'block' }} />)}
+    </span>
+  );
 }
 
 export function Coach() {
@@ -63,12 +82,14 @@ export function Coach() {
   }, []);
 
   const say = (m: Msg) => setMsgs((x) => [...x, m]);
+  const orb = (p: 'idle' | 'listening' | 'processing' | 'confirmed' | 'error') => useVoice.getState().go(p);
+  useEffect(() => () => { if (useVoice.getState().phase !== 'idle') useVoice.getState().go('idle'); }, []);
   const patchLast = (f: (m: Msg) => Msg) => setMsgs((x) => x.map((m, i) => (i === x.length - 1 ? f(m) : m)));
 
   const send = async (raw?: string) => {
     const text = (raw ?? input).trim();
     if (!text || busy) return;
-    setInput(''); setBusy(true); stopSpeaking();
+    setInput(''); setBusy(true); stopSpeaking(); orb('processing');
     const key = getKey('gemini');
     const wasRoutine = routineMode; setRoutineMode(false);
     say({ id: uid('m'), role: 'user', text });
@@ -92,6 +113,7 @@ export function Coach() {
         if (!alive.current) return;
         patchLast((m) => (m.role === 'model' ? { ...m, text: full, streaming: false } : m));
         if (useAi.getState().speak) speakOut(full);
+        orb('confirmed'); setTimeout(() => { if (useVoice.getState().phase === 'confirmed') orb('idle'); }, 1200);
       }
     } catch (e: any) {
       if (!alive.current) return;
@@ -101,7 +123,7 @@ export function Coach() {
         const base = last && last.role === 'model' && last.streaming ? (last.text.trim() ? x.map((m, i) => (i === x.length - 1 ? { ...m, streaming: false } as Msg : m)) : x.slice(0, -1)) : x;
         return stopped ? base : [...base, { id: uid('m'), role: 'error', text: e?.few ? t('That didn’t produce a usable routine from the exercises you have. Try describing it differently.') : aiErrorText(e, t) }];
       });
-    } finally { if (alive.current) setBusy(false); }
+    } finally { if (alive.current) setBusy(false); if (['processing', 'listening'].includes(useVoice.getState().phase)) orb('idle'); }
   };
 
   const speakOut = async (text: string) => {
@@ -113,7 +135,7 @@ export function Coach() {
   const toggleRec = async () => {
     if (busy || hearing) return;
     if (recording) {
-      setRecording(false); setHearing(true);
+      setRecording(false); setHearing(true); orb('processing');
       const blob = await mic.stopRecording(); mic.release('coach');
       try {
         if (!blob) throw new SttError('failed');
@@ -128,7 +150,7 @@ export function Coach() {
     stopSpeaking();
     const r = await mic.acquire('coach');
     if (!r.ok || !mic.startRecording('coach')) { mic.release('coach'); say({ id: uid('m'), role: 'error', text: r.ok ? t('This browser can’t record audio.') : t('The microphone isn’t available. Check the permission, or type.') }); return; }
-    setRecording(true);
+    setRecording(true); orb('listening');
   };
 
   const saveRoutine = (id: string) => {
@@ -150,7 +172,11 @@ export function Coach() {
     <Sheet onClose={pop} tall label={t('Coach')} z={100} foot={noKey ? undefined : (
       <div>
         <div className="row-flex" style={{ gap: 8 }}>
-          {ai.hasGroq && mic.supported && <button className={`icon-btn ${recording ? 'rec' : ''} press`} aria-label={recording ? t('Stop and send') : t('Speak')} disabled={busy || hearing} onClick={toggleRec} style={recording ? { background: 'var(--ac)', color: 'var(--on-ac, #fff)' } : undefined}><Icon name="mic" /></button>}
+          {/* the orb is the Coach's microphone: it flies in from the tab bar, listens to you, thinks while it answers */}
+          <button className="press" aria-label={recording ? t('Stop and send') : t('Speak')} disabled={busy || hearing} onClick={() => (ai.hasGroq && mic.supported ? toggleRec() : push('settings', { section: 'ai' }))}
+            style={{ position: 'relative', width: 50, height: 50, flex: 'none', borderRadius: 999, boxShadow: recording ? '0 0 0 2px var(--ac), 0 0 24px -4px var(--ac)' : 'none', transition: 'box-shadow .3s' }}>
+            <SphereSlot id="coach" priority={5} style={{ position: 'absolute', inset: -4 }} />
+          </button>
           <input className="input grow" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
             placeholder={recording ? t('Listening… tap the mic to send') : hearing ? t('Transcribing…') : routineMode ? t('Describe the routine you want') : t('Ask the Coach')} aria-label={t('Message the Coach')} disabled={recording || hearing} />
           {busy ? <button className="btn press" onClick={() => ctl.current?.abort()}>{t('Stop')}</button> : <button className="btn primary press" disabled={!input.trim()} onClick={() => send()}>{routineMode ? t('Build') : t('Send')}</button>}
@@ -173,15 +199,19 @@ export function Coach() {
           <>
             {msgs.length === 0 && (
               <div className="stack gap12">
-                <div className="small t2">{t('Ask anything about your training, food or weight. I only see a short summary computed on your device — I can advise, but I never change your data.')}</div>
+                <div className="small t2"><Words k="intro" text={t('Ask anything about your training, food or weight. I only see a short summary computed on your device — I can advise, but I never change your data.')} /></div>
                 <div className="chips" style={{ margin: 0, padding: 0, flexWrap: 'wrap' }}>{chips.map((c) => <button key={c} className="chip press" onClick={() => send(c)}>{c}</button>)}</div>
               </div>
             )}
             <div className="stack gap12" style={{ marginTop: msgs.length ? 0 : 16 }}>
               {msgs.map((m) => (
-                <motion.div key={m.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={SOFT} style={{ alignSelf: m.role === 'user' ? 'flex-end' : 'stretch', maxWidth: m.role === 'user' ? '86%' : '100%' }}>
+                <motion.div key={m.id} layout="position"
+                  // sent messages spring up out of the input; replies settle in softly
+                  initial={m.role === 'user' ? { opacity: 0, y: 40, scale: 0.86 } : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0, scale: 1 }}
+                  transition={m.role === 'user' ? { type: 'spring', stiffness: 420, damping: 28, mass: 0.8 } : SOFT}
+                  style={{ transformOrigin: m.role === 'user' ? '100% 100%' : '0% 0%', alignSelf: m.role === 'user' ? 'flex-end' : 'stretch', maxWidth: m.role === 'user' ? '86%' : '100%' }}>
                   {m.role === 'user' && <div className="plinth-2" style={{ padding: '10px 14px', borderRadius: 18 }}>{m.text}</div>}
-                  {m.role === 'model' && <div className="small" style={{ lineHeight: 1.5 }} aria-live="polite">{m.text ? <Rich text={m.text} /> : <span className="t3">{t('Thinking…')}</span>}{m.streaming && m.text && <span className="t3"> ▍</span>}</div>}
+                  {m.role === 'model' && <div className="small" style={{ lineHeight: 1.5 }} aria-live="polite">{m.text ? <Rich text={m.text} /> : <Typing />}{m.streaming && m.text && <span className="t3"> ▍</span>}</div>}
                   {m.role === 'error' && <div className="plinth-2 small" role="alert" style={{ padding: '10px 14px', color: 'var(--bad)' }}>{m.text}</div>}
                   {m.role === 'routine' && (
                     <div className="plinth" style={{ padding: 14 }}>
