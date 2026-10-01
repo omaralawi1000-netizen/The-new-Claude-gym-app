@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useStore } from '../state/store';
 import { useUI, buzz } from '../state/ui';
@@ -6,6 +6,7 @@ import { useT, useLang } from '../lib/i18n';
 import { Icon } from '../ui/Icon';
 import { NumInput, Seg, Toggle } from '../ui/kit';
 import { SphereSlot } from '../ui/Sphere';
+import { useEngage } from '../ui/engage';
 import { useVoice } from '../state/voice';
 import { useEffect } from 'react';
 import type { EquipmentAccess, Experience, Goal } from '../lib/types';
@@ -25,6 +26,7 @@ const GOALS: { v: Goal; l: string; s: string }[] = [
 
 /** Six short steps, every one skippable. Nothing here is permanent — all of it is editable in Settings. */
 export function Onboarding({ props }: { props: { rerun?: boolean; starterOnly?: boolean } }) {
+  const eng = useEngage(); const engage = useMemo(() => ({ e: eng }), [eng]);
   const t = useT();
   const lang = useLang();
   const s = useStore();
@@ -128,7 +130,7 @@ export function Onboarding({ props }: { props: { rerun?: boolean; starterOnly?: 
         <button className="small t2 press" style={{ padding: 8 }} onClick={skipAll}>{tt('Skip all')}</button>
       </div>
       <div style={{ display: 'grid', placeItems: 'center', height: step === 0 ? 150 : 70, transition: 'height .4s cubic-bezier(.22,1,.36,1)', marginTop: 6 }}>
-        <SphereSlot id="onb" priority={10} style={{ width: step === 0 ? 140 : 56, height: step === 0 ? 140 : 56, transition: 'width .4s cubic-bezier(.22,1,.36,1), height .4s cubic-bezier(.22,1,.36,1)' }} />
+        <SphereSlot id="onb" priority={10} engage={engage} style={{ width: step === 0 ? 140 : 56, height: step === 0 ? 140 : 56, transition: 'width .4s cubic-bezier(.22,1,.36,1), height .4s cubic-bezier(.22,1,.36,1)' }} />
       </div>
       <div style={{ flex: 1, overflowY: 'auto', padding: '8px 22px 20px', position: 'relative' }} className="hide-scroll">
         <AnimatePresence mode="wait" initial={false} custom={dir}>

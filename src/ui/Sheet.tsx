@@ -1,5 +1,6 @@
-import { AnimatePresence, motion, useMotionValue, useReducedMotion } from 'motion/react';
-import { createContext, useContext, useEffect, useRef, type ReactNode } from 'react';
+import { AnimatePresence, animate, motion, useMotionValue, usePresence, useReducedMotion, useTransform } from 'motion/react';
+import { createContext, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, type ReactNode } from 'react';
+import { EngageContext, trackDepth } from './engage';
 
 /** Stack-position z-index for the current overlay: a later overlay is always above an earlier one. */
 export const OverlayZ = createContext<number | null>(null);
@@ -12,7 +13,16 @@ export const SPRING = { type: 'spring', stiffness: 420, damping: 38, mass: 0.9 }
 export const SOFT = { type: 'spring', stiffness: 300, damping: 32, mass: 0.9 } as const;
 export const SNAP = { type: 'spring', stiffness: 600, damping: 42, mass: 0.7 } as const;
 
-/** Bottom sheet: swipe down from anywhere (when its list is at the top) or flick to dismiss; interruptible; keyboard-aware. */
+const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
+const EXIT_SPRING = { type: 'spring', stiffness: 260, damping: 34, mass: 0.9, restDelta: 0.002 } as const;
+
+/**
+ * Bottom sheet: swipe down from anywhere (when its list is at the top) or flick to dismiss; interruptible; keyboard-aware.
+ *
+ * Everything that has to move with it is driven by ONE progress number (`e`, see engage.ts): the sheet's own position,
+ * the page behind it stepping back (scale + corners), the dim/blur over that page and the orb. Opening, a finger drag,
+ * a flick and the exit are all just that number changing, so nothing can drift out of step.
+ */
 export function Sheet({ children, onClose, tall, label, foot, z: zProp = 60, nested }: { children: ReactNode; onClose: () => void; tall?: boolean; label: string; foot?: ReactNode; z?: number; /** a sheet rendered inside another overlay's component (e.g. the workout's exercise menu) */ nested?: boolean }) {
   const z = useOverlayZ(zProp) + (nested ? 5 : 0);
   const ctxZ = useContext(OverlayZ);
@@ -20,44 +30,66 @@ export function Sheet({ children, onClose, tall, label, foot, z: zProp = 60, nes
   // a sheet with another overlay above it steps back, like a stacked card (and only the top one answers Escape)
   const behind = !nested && ctxZ !== null && (ctxZ - 60) / 10 < count - 1;
   const reduce = useReducedMotion();
+  const id = useId();
   const ref = useRef<HTMLDivElement>(null);
   const behindRef = useRef(behind); behindRef.current = behind;
-  // The sheet's own open/close/step-back motion animates `transform` through the native animation engine, so it runs
-  // on the compositor and stays smooth while the sheet's content renders. The finger drag lives on an outer layer
-  // (`y`); a swipe close keeps animating that layer, so the sheet carries the finger's speed and eases out.
-  const y = useMotionValue(0);
-  const swiped = useRef(false);
-  useSwipeDown(ref, y, () => { swiped.current = true; onClose(); }, { enabled: !behind });
-  const H = typeof window !== 'undefined' ? window.innerHeight : 900;
-  const exitSpring = reduce ? { duration: 0.01 } : { type: 'spring', stiffness: 260, damping: 34, mass: 0.9, restDelta: 1 } as const;
+  const dist = useRef((typeof window !== 'undefined' ? window.innerHeight : 900) + 40); // how far it travels to be fully off screen
+  const p = useMotionValue(0);   // opening progress (a spring)
+  const y = useMotionValue(0);   // the finger
+  const bs = useMotionValue(0);  // stepped back behind another sheet
+  const shift = useTransform([p, y, bs], ([pp, yy, b]: number[]) => (1 - pp) * dist.current + yy - 6 * b);
+  const transform = useTransform([shift, bs], ([sh, b]: number[]) => `translate3d(0, ${sh}px, 0) scale(${1 - 0.06 * b})`);
+  const e = useTransform([p, y], ([pp, yy]: number[]) => clamp01(pp - Math.max(0, yy) / dist.current));
+  const engage = useMemo(() => ({ e, shift }), [e, shift]);
+  useEffect(() => trackDepth(id, e), [id, e]);
+  const swipeV = useRef(0); // px/s the finger had when it let go
+  useSwipeDown(ref, y, (v) => { swipeV.current = v ?? 0; onClose(); }, { enabled: !behind });
+  // measure the real height once it is laid out (the travel distance only has to be "off screen", so a short sheet
+  // does not fly further than it needs to), and keep it right if the content grows
+  useLayoutEffect(() => {
+    const el = ref.current; if (!el) return;
+    const measure = () => { dist.current = el.offsetHeight + 40; };
+    measure();
+    const ro = new ResizeObserver(measure); ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !behindRef.current) onClose(); };
+    const c = animate(p, 1, reduce ? { duration: 0.01 } : SPRING);
+    return () => c.stop();
+    // eslint-disable-next-line
+  }, []);
+  useEffect(() => { const c = animate(bs, behind ? 1 : 0, reduce ? { duration: 0.01 } : SPRING); return () => c.stop(); }, [behind]); // eslint-disable-line
+  // leaving: whatever the finger left behind becomes progress, and the exit spring carries on at the finger's speed
+  const [present, safeToRemove] = usePresence();
+  const leaving = useRef(false);
+  useEffect(() => {
+    if (present || leaving.current) return;
+    leaving.current = true;
+    const vy = swipeV.current || y.getVelocity();
+    p.set(e.get()); y.set(0);
+    const c = animate(p, 0, reduce ? { duration: 0.01 } : { ...EXIT_SPRING, velocity: -vy / dist.current });
+    c.then(() => safeToRemove?.());
+    // eslint-disable-next-line
+  }, [present]);
+  useEffect(() => {
+    const onKey = (ev: KeyboardEvent) => { if (ev.key === 'Escape' && !behindRef.current) onClose(); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
   return (
-    <>
-      <motion.div className="scrim" style={{ zIndex: z - 1 }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.32 } }} transition={{ duration: 0.36 }} onClick={onClose} />
+    <EngageContext.Provider value={engage}>
+      <motion.div className="scrim" style={{ zIndex: z - 1, opacity: e }} onClick={onClose} />
       <motion.div
-        style={{ position: 'fixed', inset: 0, zIndex: z, pointerEvents: 'none', y }}
-        custom={swiped} variants={{ hide: (r: { current: boolean }) => (r.current ? { y: H, transition: exitSpring } : { y: 0 }) }} exit="hide"
+        ref={ref}
+        className={`sheet ${tall ? 'tall' : ''}`}
+        style={{ zIndex: z, bottom: 'var(--kb, 0px)', transformOrigin: '50% 0%', transform }}
+        role="dialog" aria-modal="true" aria-label={label}
       >
-        <motion.div
-          ref={ref}
-          className={`sheet ${tall ? 'tall' : ''}`}
-          style={{ bottom: 'var(--kb, 0px)', transformOrigin: '50% 0%', pointerEvents: 'auto' }}
-          role="dialog" aria-modal="true" aria-label={label}
-          initial={{ transform: `translateY(${H}px) scale(1)` }}
-          animate={{ transform: behind ? 'translateY(-6px) scale(0.94)' : 'translateY(0px) scale(1)' }}
-          custom={swiped} variants={{ hide: (r: { current: boolean }) => (r.current ? { opacity: 1 } : { transform: `translateY(${H}px) scale(1)`, transition: exitSpring }) }} exit="hide"
-          transition={reduce ? { duration: 0.01 } : SPRING}
-        >
-          <div className="sheet-grab" />
-          {children}
-          {foot && <div className="sheet-foot">{foot}</div>}
-        </motion.div>
+        <div className="sheet-grab" />
+        {children}
+        {foot && <div className="sheet-foot">{foot}</div>}
       </motion.div>
-    </>
+    </EngageContext.Provider>
   );
 }
 
@@ -92,17 +124,36 @@ export { AnimatePresence, motion };
 export function MorphSheet({ children, onClose, layoutId, label, tall = true, z: zProp = 70, foot }: { children: ReactNode; onClose: () => void; layoutId: string; label: string; tall?: boolean; z?: number; foot?: ReactNode }) {
   const z = useOverlayZ(zProp);
   const reduce = useReducedMotion();
+  const id = useId();
   const wrap = useRef<HTMLDivElement>(null);
   const y = useMotionValue(0);
+  const p = useMotionValue(0); // the surface itself grows out of its row (shared layout); this follows it for the page behind and the dim
+  const e = useTransform([p, y], ([pp, yy]: number[]) => clamp01(pp - Math.max(0, yy) / (typeof window !== 'undefined' ? window.innerHeight : 900)));
+  const engage = useMemo(() => ({ e, shift: y }), [e, y]);
+  useEffect(() => trackDepth(id, e), [id, e]);
   useSwipeDown(wrap, y, onClose);
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const c = animate(p, 1, reduce ? { duration: 0.01 } : SOFT);
+    return () => c.stop();
+    // eslint-disable-next-line
+  }, []);
+  const [present, safeToRemove] = usePresence();
+  const leaving = useRef(false);
+  useEffect(() => {
+    if (present || leaving.current) return;
+    leaving.current = true;
+    p.set(e.get()); animate(y, 0, SOFT);
+    animate(p, 0, reduce ? { duration: 0.01 } : { ...SOFT, restDelta: 0.004 }).then(() => safeToRemove?.());
+    // eslint-disable-next-line
+  }, [present]);
+  useEffect(() => {
+    const onKey = (ev: KeyboardEvent) => { if (ev.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
   return (
-    <>
-      <motion.div className="scrim" style={{ zIndex: z - 1 }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.22 }} onClick={onClose} />
+    <EngageContext.Provider value={engage}>
+      <motion.div className="scrim" style={{ zIndex: z - 1, opacity: e }} onClick={onClose} />
       <motion.div ref={wrap} style={{ y, position: 'fixed', left: 0, right: 0, bottom: 'var(--kb, 0px)', zIndex: z, pointerEvents: 'none', height: tall ? 'calc(100dvh - var(--sat) - 46px)' : undefined, maxHeight: 'calc(100dvh - var(--sat) - 46px)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
         <motion.div
           layoutId={layoutId} role="dialog" aria-modal="true" aria-label={label}
@@ -120,7 +171,7 @@ export function MorphSheet({ children, onClose, layoutId, label, tall = true, z:
           </motion.div>
         </motion.div>
       </motion.div>
-    </>
+    </EngageContext.Provider>
   );
 }
 

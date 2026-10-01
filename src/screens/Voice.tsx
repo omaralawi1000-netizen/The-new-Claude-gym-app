@@ -16,6 +16,7 @@ import { matchExercises, parseWorkoutText, type ParsedSet, type ParsedWorkoutRow
 import { allowedUnits, entryFromSnapshot, quickEntry, scale, snapshotOf, toBase, uid } from '../lib/nutrition';
 import type { Exercise, Food, FoodEntry, Quantity, SetRecord } from '../lib/types';
 import { SphereSlot } from '../ui/Sphere';
+import { useEngage } from '../ui/engage';
 import { Icon } from '../ui/Icon';
 import { NumInput, Seg } from '../ui/kit';
 import { SOFT, useOverlayZ } from '../ui/Sheet';
@@ -45,6 +46,7 @@ export function VoiceComposer({ props }: { props: { mode?: Mode; date?: string; 
   const t = useT();
   const lang = useLang();
   const z = useOverlayZ(65);
+  const eng = useEngage(); const engage = useMemo(() => ({ e: eng }), [eng]);
   const s = useStore();
   const pool = foodPool(s.foods, s.recipes);
   const exercises = allExercises(s.exercises);
@@ -371,7 +373,7 @@ export function VoiceComposer({ props }: { props: { mode?: Mode; date?: string; 
 
         {/* sphere */}
         <motion.div layout style={{ display: 'grid', placeItems: 'center', marginTop: inReview ? 6 : 26 }} transition={SOFT}>
-          <SphereSlot id="voice" priority={10} style={{ width: inReview ? 76 : 'min(62vw, 250px)', height: inReview ? 76 : 'min(62vw, 250px)', transition: 'width .45s cubic-bezier(.22,1,.36,1), height .45s cubic-bezier(.22,1,.36,1)' }} />
+          <SphereSlot id="voice" priority={10} engage={engage} style={{ width: inReview ? 76 : 'min(62vw, 250px)', height: inReview ? 76 : 'min(62vw, 250px)', transition: 'width .45s cubic-bezier(.22,1,.36,1), height .45s cubic-bezier(.22,1,.36,1)' }} />
         </motion.div>
         {!inReview && (
           <button aria-label={listening ? t('Stop and review') : t('Start listening')} onClick={() => { buzz(10); if (listening) finish(); else if (phase === 'idle' || phase === 'error' || phase === 'unavailable') begin(); }}

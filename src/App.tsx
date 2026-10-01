@@ -15,6 +15,7 @@ import { registerSW } from './pwa';
 import { dayKey } from './lib/dates';
 import { defaultMealId } from './lib/derive';
 import { VisitContext } from './ui/visit';
+import { stageDepth } from './ui/engage';
 
 const ORDER = ['today', 'train', 'food', 'progress'] as const;
 const SCREENS: Record<Tab, () => React.ReactNode> = { today: TodayScreen, train: TrainScreen, food: FoodScreen, progress: ProgressScreen };
@@ -101,6 +102,27 @@ function useTheme() {
   useEffect(() => { document.documentElement.lang = lang; }, [lang]);
 }
 
+/**
+ * iOS-style: while a popup is up the page behind steps back (smaller, rounded corners, over black). It is driven by
+ * the popups' own progress (stageDepth, see engage.ts) in the same animation frame, so it follows the popup exactly:
+ * opening, under the finger while it is dragged, and as it leaves.
+ */
+function useStageDepth(app: React.RefObject<HTMLDivElement | null>, stage: React.RefObject<HTMLDivElement | null>) {
+  useEffect(() => {
+    const apply = (v: number) => {
+      const a = app.current, st = stage.current; if (!a || !st) return;
+      const root = document.documentElement.dataset;
+      const still = root.motion === 'reduce' || (root.motion !== 'full' && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+      if (v < 0.0005 || still) { st.style.transform = ''; st.style.borderRadius = ''; a.style.background = ''; return; }
+      st.style.transform = `translateY(calc((var(--sat) + 10px) * ${v})) scale(${1 - 0.08 * v})`;
+      st.style.borderRadius = `${28 * v}px`;
+      a.style.background = '#000';
+    };
+    apply(stageDepth.get());
+    return stageDepth.on('change', apply);
+  }, [app, stage]);
+}
+
 /** Keep sheets above the on-screen keyboard (iOS overlays it; Android resizes the viewport). */
 function useKeyboard() {
   useEffect(() => {
@@ -118,6 +140,8 @@ function useKeyboard() {
 export function App() {
   useTheme();
   useKeyboard();
+  const appRef = useRef<HTMLDivElement>(null), stageRef = useRef<HTMLDivElement>(null);
+  useStageDepth(appRef, stageRef);
   const t = useT();
   const tab = useUI((s) => s.tab);
   const onboarded = useStore((s) => s.settings.onboarded);
@@ -148,8 +172,8 @@ export function App() {
   return (
     <MotionConfig reducedMotion="user">
       <LayoutGroup>
-        <div className="app" data-hue={tab}>
-          <div className="stage">
+        <div className="app" data-hue={tab} ref={appRef}>
+          <div className="stage" ref={stageRef}>
           <div className="aurora" aria-hidden><i /><i /><i /></div>
           <TabPages tab={tab} dir={dir} />
           <TabBar />

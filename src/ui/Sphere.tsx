@@ -1,4 +1,6 @@
 import { useEffect, useRef } from 'react';
+import { cancelFrame, frame } from 'motion/react';
+import { useEngageContext, type Engage } from './engage';
 import { mic } from '../lib/mic';
 import { useVoice } from '../state/voice';
 import { useStore } from '../state/store';
@@ -6,8 +8,9 @@ import { useUI } from '../state/ui';
 
 /**
  * The Aven sphere: ~900 points on a Fibonacci lattice, lit from upper-left so it reads as a volume.
- * One canvas, one draw loop. The stage element flies between registered "slots" with a spring, so the
- * same sphere is the tab-bar button, the voice composer's hero and the review header.
+ * One canvas, one draw loop. The stage element sits in the lowest registered "slot" (the tab bar) blended towards
+ * every popup slot by that popup's progress, so the same sphere is the tab-bar button, the Coach's microphone, the
+ * voice composer's hero and the review header, and it moves exactly in step with the popup that carries it.
  */
 
 const N = 1100;
@@ -222,10 +225,10 @@ export class SphereRenderer {
 
 // ── stage ───────────────────────────────────────────────────
 
-interface Slot { el: HTMLElement; priority: number }
+interface Slot { el: HTMLElement; priority: number; engage?: Engage }
 const slots = new Map<string, Slot>();
-export function registerSlot(id: string, el: HTMLElement, priority: number) {
-  slots.set(id, { el, priority });
+export function registerSlot(id: string, el: HTMLElement, priority: number, engage?: Engage) {
+  slots.set(id, { el, priority, engage });
   return () => { if (slots.get(id)?.el === el) slots.delete(id); };
 }
 
@@ -256,15 +259,10 @@ export function SphereStage() {
   useEffect(() => {
     const el = root.current!, cv = canvas.current!;
     const renderer = new SphereRenderer(cv);
-    const st = { x: 0, y: 0, s: 52, vx: 0, vy: 0, vs: 0, init: false };
     const appEl = el.closest('.app') as HTMLElement | null;
-    let raf = 0;
     let running = true;
-    let last = performance.now();
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
     let drawn = false;
-    let parked = false;
-    let parkedEl: HTMLElement | null = null;
     // The accent follows the active area. Read the target colours once per change (through probes, which force a
     // style pass) and cross-fade to them here, on the same 1.1 s curve as the colour field, instead of polling
     // the live CSS value every few frames.
@@ -298,69 +296,60 @@ export function SphereStage() {
       if (k >= 1) fadeStart = 0;
     };
 
+    // The orb has no motion of its own any more. Its place is the lowest slot (the tab bar) blended towards every
+    // higher slot by that slot's `engage` (how far its popup is open). The popup, the page behind it and the orb all
+    // read the same number in the same frame, so they stay in step while a popup opens, is dragged or leaves.
+    let px = NaN, py = NaN, ps = NaN;
     const tick = (now: number) => {
       if (!running) return;
-      raf = requestAnimationFrame(tick);
       refreshColors(now);
-      // real elapsed time (a dropped frame must not slow the flight down), integrated in small fixed steps below
-      const dt = Math.min(0.25, Math.max(0, (now - last) / 1000));
-      last = now;
       const reduced = document.documentElement.dataset.motion === 'reduce' || (document.documentElement.dataset.motion !== 'full' && mq.matches);
-      // pick the highest-priority connected slot
-      let best: Slot | null = null;
-      for (const s of slots.values()) if (s.el.isConnected && (!best || s.priority > best.priority)) best = s;
-      if (!best) { el.style.opacity = '0'; return; }
-      const r = best.el.getBoundingClientRect();
-      if (r.width < 2) { el.style.opacity = '0'; return; }
-      el.style.zIndex = best.priority > 0 ? '600' : '41'; // above full-screen composers; below sheets when parked in the tab bar
+      const list: Slot[] = [];
+      for (const s of slots.values()) if (s.el.isConnected) list.push(s);
+      list.sort((a, b) => a.priority - b.priority);
       const base = appEl?.getBoundingClientRect(); // the stage lives inside .app, which may be offset on wide screens
-      const tx = r.left - (base?.left ?? 0), ty = r.top - (base?.top ?? 0), ts = Math.min(r.width, r.height);
-      // parked in the tab bar and only sliding sideways (the active tab widened): follow exactly, or the lagging sphere overlaps the tab labels
-      // once settled in the tab bar it stays glued to it (the bar slides, scales back behind sheets, hides for the composer)
-      // once it has landed in a slot it stays glued to that slot (sheets slide and swipe, the tab bar scales back);
-      // only a change of slot starts a new flight
-      if (best.el !== parkedEl) parked = false;
-      const parkedSlide = parked;
-      if (!st.init || reduced || parkedSlide) { st.x = tx; st.y = ty; st.s = ts; st.vx = st.vy = st.vs = 0; st.init = true; }
-      else {
-        // critically-damped-ish spring (follows moving slots such as a sheet mid-slide)
-        const k = 230, c = 2 * Math.sqrt(k) * 0.94;
-        const steps = Math.max(1, Math.ceil(dt / (1 / 240)));
-        const h = dt / steps;
-        for (let i = 0; i < steps; i++) {
-          for (const key of ['x', 'y', 's'] as const) {
-            const target = key === 'x' ? tx : key === 'y' ? ty : ts;
-            const vk = (`v${key}`) as 'vx' | 'vy' | 'vs';
-            st[vk] += (-k * (st[key] - target) - c * st[vk]) * h;
-            st[key] += st[vk] * h;
-          }
-        }
-        // settled: snap exactly, so it never rests a fraction of a pixel off (visible as a faint shimmer)
-        if (Math.abs(st.x - tx) < 0.15 && Math.abs(st.y - ty) < 0.15 && Math.abs(st.s - ts) < 0.15 && Math.abs(st.vx) + Math.abs(st.vy) + Math.abs(st.vs) < 2) { st.x = tx; st.y = ty; st.s = ts; st.vx = st.vy = st.vs = 0; parked = true; parkedEl = best.el; }
+      const ox = base?.left ?? 0, oy = base?.top ?? 0;
+      let X = 0, Y = 0, S = 0, have = false, top = 0;
+      for (const sl of list) {
+        const e = sl.engage ? Math.min(1, Math.max(0, sl.engage.e.get())) : 1;
+        if (have && e <= 0.001) continue;
+        const r = sl.el.getBoundingClientRect();
+        if (r.width < 2) continue;
+        // where the slot comes to rest: its box minus however far the popup is currently displaced
+        const x = r.left - ox, y = r.top - oy - (sl.engage?.shift?.get() ?? 0), z = Math.min(r.width, r.height);
+        if (!have) { X = x; Y = y; S = z; have = true; continue; }
+        X += (x - X) * e; Y += (y - Y) * e; S += (z - S) * e;
+        if (e > 0.02) top = Math.max(top, sl.priority);
       }
-      const size = Math.max(8, st.s);
+      if (!have) { el.style.opacity = '0'; return; }
+      el.style.zIndex = top > 0 ? '600' : '41'; // above full-screen composers; below sheets when it sits in the tab bar
+      const size = Math.max(8, S);
       // The canvas is drawn at a size bucket and scaled down with a transform. Resizing a canvas (and the element) on
       // every frame of a flight reallocated its buffer and re-laid it out each frame — a stutter source.
       const bucket = Math.ceil(size / 24) * 24;
       el.style.opacity = '1';
       if (el.style.width !== `${bucket}px`) el.style.width = el.style.height = `${bucket}px`;
-      el.style.transform = `translate3d(${st.x}px, ${st.y}px, 0) scale(${size / bucket})`;
+      el.style.transform = `translate3d(${X}px, ${Y}px, 0) scale(${size / bucket})`;
       const dpr = Math.min(3, window.devicePixelRatio || 1);
-      // Parked in the tab bar under an open sheet/overlay: keep the last frame instead of redrawing. Nothing visible
-      // changes, but the frosted layers above no longer re-blur a moving sphere on every frame.
-      const covered = best.priority === 0 && useUI.getState().overlays.length > 0 && Math.abs(st.vx) + Math.abs(st.vy) + Math.abs(st.vs) < 1;
-      if (covered && drawn) return;
+      // Sitting still in the tab bar under an open sheet/overlay: keep the last frame instead of redrawing, so the
+      // frosted layers above stop re-blurring it every frame.
+      const still = Math.abs(X - px) < 0.05 && Math.abs(Y - py) < 0.05 && Math.abs(S - ps) < 0.05;
+      px = X; py = Y; ps = S;
+      if (top === 0 && still && useUI.getState().overlays.length > 0 && drawn) return;
       renderer.resize(bucket, dpr);
       renderer.frame(now, bucket, reduced, colors);
       drawn = true;
     };
-    raf = requestAnimationFrame(tick);
+    // run inside motion's frame loop, right after it has written this frame's styles: the orb reads the popup's
+    // position and progress from the very frame they were rendered in (a separate rAF would be a frame behind)
+    const loop = (d: { timestamp: number }) => tick(d.timestamp);
+    frame.postRender(loop, true);
     const onVis = () => {
-      if (document.hidden) { running = false; cancelAnimationFrame(raf); }
-      else if (!running) { running = true; last = performance.now(); raf = requestAnimationFrame(tick); }
+      if (document.hidden) { running = false; cancelFrame(loop); }
+      else if (!running) { running = true; frame.postRender(loop, true); }
     };
     document.addEventListener('visibilitychange', onVis);
-    return () => { running = false; cancelAnimationFrame(raf); document.removeEventListener('visibilitychange', onVis); mo.disconnect(); pAc.remove(); pAc2.remove(); pH1.remove(); };
+    return () => { running = false; cancelFrame(loop); document.removeEventListener('visibilitychange', onVis); mo.disconnect(); pAc.remove(); pAc2.remove(); pH1.remove(); };
   }, [motionPref]);
 
   return (
@@ -370,9 +359,11 @@ export function SphereStage() {
   );
 }
 
-/** Put this where the sphere should appear. The stage flies to the highest-priority slot. */
-export function SphereSlot({ id, priority = 0, className, style }: { id: string; priority?: number; className?: string; style?: React.CSSProperties }) {
+/** Put this where the sphere should appear. Inside a popup it follows that popup's progress; elsewhere pass `engage`. */
+export function SphereSlot({ id, priority = 0, className, style, engage }: { id: string; priority?: number; className?: string; style?: React.CSSProperties; engage?: Engage }) {
   const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => registerSlot(id, ref.current!, priority), [id, priority]);
+  const ctx = useEngageContext();
+  const eng = engage ?? ctx ?? undefined;
+  useEffect(() => registerSlot(id, ref.current!, priority, eng), [id, priority, eng]);
   return <div ref={ref} className={className} style={style} />;
 }

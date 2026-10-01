@@ -6,7 +6,7 @@ import { useT, useLang } from '../../lib/i18n';
 import type { Exercise, SessionExercise, SetRecord } from '../../lib/types';
 import { Icon } from '../../ui/Icon';
 import { NumInput } from '../../ui/kit';
-import { Sheet, SheetHead, SOFT, SPRING, SNAP, useOverlayZ } from '../../ui/Sheet';
+import { Sheet, SheetHead, SOFT, SNAP, useOverlayZ } from '../../ui/Sheet';
 import { beatLastTime, elapsedMs, lastPerformance, sessionSetCount, sessionVolume, suggestProgression, countable } from '../../lib/workout';
 import { fmtDuration } from '../../lib/dates';
 import { displayToKg, kgToDisplay, fmtNum, displayToM, mToDisplay } from '../../lib/units';
@@ -43,7 +43,8 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
   const reduce = useReducedMotion();
   const dialogRef = useRef<HTMLDivElement>(null);
   const dragY = useMotionValue(0);
-  useSwipeDown(dialogRef, dragY, () => useUI.getState().pop(), { threshold: 130 });
+  const swipeV = useRef(0);
+  useSwipeDown(dialogRef, dragY, (v) => { swipeV.current = v ?? 0; useUI.getState().pop(); }, { threshold: 130 });
   const origin = props.origin ?? 'hero';
   // The screen is a WINDOW that opens out of the Today card / tab-bar pill and closes back into it. Only a clip
   // rectangle animates: the background, colour field and content inside it never scale or repaint, and the surface is
@@ -58,10 +59,17 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
     return `inset(${r.top * k}px ${(W - r.right) * k}px ${(H - r.bottom) * k}px ${r.left * k}px round ${30 * k}px)`;
   });
   const bgOpacity = useTransform(reveal, (v) => Math.min(1, Math.max(0, v) * 14)); // blends in over the card in the first instants
+  // Without an origin card (or with reduced motion) the screen slides up like a sheet: `slide` is that progress.
+  // Either way ONE number says how far open the screen is (`eng`, finger included), and the orb follows it.
+  const H = typeof window !== 'undefined' ? window.innerHeight : 900;
+  const slide = useMotionValue(0);
+  const eng = from ? reveal : slide;
+  const dialogY = useTransform([slide, dragY], ([sl, d]: number[]) => (from ? 0 : (1 - sl) * H) + d);
+  const eFinger = useTransform([eng, dragY], ([e, d]: number[]) => Math.min(1, Math.max(0, e - Math.max(0, d) / H)));
+  const engage = useMemo(() => ({ e: eFinger, shift: dialogY }), [eFinger, dialogY]);
   const [isPresent, safeToRemove] = usePresence();
   useEffect(() => {
-    if (!from) return;
-    const c = animate(reveal, 1, WK_SPRING);
+    const c = animate(from ? reveal : slide, 1, from || !reduce ? WK_SPRING : { duration: 0.01 });
     return () => c.stop();
     // eslint-disable-next-line
   }, []);
@@ -69,7 +77,12 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
   useEffect(() => {
     if (isPresent || closing.current) return;
     closing.current = true;
-    if (!from) { safeToRemove?.(); return; } // sliding presentation: the dialog's own exit does the work
+    if (!from) { // sliding presentation: the finger's offset becomes progress, then it carries on at the finger's speed
+      const v = swipeV.current || dragY.getVelocity();
+      slide.set(slide.get() - Math.max(0, dragY.get()) / H); dragY.set(0);
+      animate(slide, 0, reduce ? { duration: 0.01 } : { type: 'spring', stiffness: 260, damping: 34, mass: 0.9, restDelta: 0.002, velocity: -v / H }).then(() => safeToRemove?.());
+      return;
+    }
     const now = origin === 'hero' ? measureOrigin('hero') : null; // the card may have scrolled; the pill never moves
     if (now) target.current = now;
     animate(dragY, 0, WK_SPRING);
@@ -142,9 +155,8 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
     <>
       <motion.div className="scrim flat" style={{ zIndex: z - 1 }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }} />
       <motion.div
-        {...(from ? {} : { initial: { y: window.innerHeight }, animate: { y: 0 }, exit: { y: window.innerHeight }, transition: reduce ? { duration: 0.01 } : SPRING })}
         role="dialog" aria-modal="true" aria-label={t('Active workout')}
-        ref={dialogRef} data-hue="train" style={{ position: 'fixed', inset: 0, zIndex: z, display: 'flex', flexDirection: 'column', y: dragY }}
+        ref={dialogRef} data-hue="train" style={{ position: 'fixed', inset: 0, zIndex: z, display: 'flex', flexDirection: 'column', y: dialogY }}
       >
         <motion.div className="wk-window" style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', clipPath: clip }}>
           <motion.div aria-hidden style={{ position: 'absolute', inset: 0, background: 'var(--bg)', opacity: bgOpacity }}>
@@ -191,7 +203,7 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
             </AnimatePresence>
             <div className="row-flex" style={{ gap: 10, marginTop: 20 }}>
               <button className="btn block press" onClick={() => push('exercisePicker', { mode: 'add' })}><Icon name="plus" size={18} /> {t('Add exercise')}</button>
-              <button className="press" onClick={() => push('voice', { mode: 'workout' })} aria-label={t('Dictate sets')} style={{ position: 'relative', width: 52, height: 52, flex: 'none', borderRadius: 999 }}><SphereSlot id="workout" priority={5} style={{ position: 'absolute', inset: -4 }} /></button>
+              <button className="press" onClick={() => push('voice', { mode: 'workout' })} aria-label={t('Dictate sets')} style={{ position: 'relative', width: 52, height: 52, flex: 'none', borderRadius: 999 }}><SphereSlot id="workout" priority={5} engage={engage} style={{ position: 'absolute', inset: -4 }} /></button>
             </div>
             <button className="btn primary block press" style={{ marginTop: 12 }} onClick={finish}>{t('Finish workout')}</button>
             <button className="btn ghost danger block press" style={{ marginTop: 6 }} onClick={() => setConfirm('discard')}>{t('Discard workout')}</button>

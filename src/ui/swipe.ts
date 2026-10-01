@@ -8,7 +8,7 @@ import { animate, type MotionValue } from 'motion/react';
  * - The surface follows the finger 1:1; pulling up resists. On release it either closes — the spring inherits the
  *   finger's speed, so it keeps going and eases to a stop — or springs back.
  */
-export function useSwipeDown(ref: React.RefObject<HTMLElement | null>, y: MotionValue<number>, onClose: () => void, opts: { enabled?: boolean; threshold?: number } = {}) {
+export function useSwipeDown(ref: React.RefObject<HTMLElement | null>, y: MotionValue<number>, onClose: (velocityPxPerSec?: number) => void, opts: { enabled?: boolean; threshold?: number } = {}) {
   const close = useRef(onClose); close.current = onClose;
   const enabled = opts.enabled ?? true;
   const threshold = opts.threshold ?? 110;
@@ -48,7 +48,7 @@ export function useSwipeDown(ref: React.RefObject<HTMLElement | null>, y: Motion
       dragging = false;
       const a = samples[0], b = samples[samples.length - 1];
       const v = b && a && b.t > a.t ? (b.y - a.y) / (b.t - a.t) : 0; // px per ms
-      if (y.get() > threshold || v > 0.55) close.current();
+      if (y.get() > threshold || v > 0.55) close.current(Math.max(0, v) * 1000);
       else animate(y, 0, { type: 'spring', stiffness: 420, damping: 38 });
     };
     const ts = (e: TouchEvent) => { if (e.touches.length === 1) begin(e.touches[0].clientX, e.touches[0].clientY, e.target); };

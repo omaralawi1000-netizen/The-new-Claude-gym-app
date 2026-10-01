@@ -318,11 +318,9 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    restyle every element of the app each time a popup opened or closed — a long frame right as it starts moving.) */
 .app:has(.sheet, .voice, [role='dialog']) .pulse-dot { animation-play-state: paused !important; }
 
-/* iOS-style: when a sheet is up, the page behind steps back — smaller, rounded, dimmed by the scrim */
-.stage { position: absolute; inset: 0; overflow: hidden; background: var(--bg); transform-origin: 50% 0%; transition: transform 560ms cubic-bezier(0.32, 0.72, 0, 1), border-radius 560ms cubic-bezier(0.32, 0.72, 0, 1); will-change: transform; }
-.app:has(.sheet, .morph-sheet) { background: #000; }
-.app:has(.sheet, .morph-sheet) .stage { transform: translateY(calc(var(--sat) + 10px)) scale(0.92); border-radius: 28px; }
-:root[data-motion='reduce'] .app:has(.sheet, .morph-sheet) .stage { transform: none; border-radius: 0; }
+/* iOS-style: while a popup is up the page behind steps back. Its transform and corner radius are written by script
+   (useStageDepth in App.tsx) from the popups' own progress, so it follows them frame for frame — no CSS transition. */
+.stage { position: absolute; inset: 0; overflow: hidden; background: var(--bg); transform-origin: 50% 0%; will-change: transform; }
 
 /* Coach replies: each word blurs in as it arrives (only new words mount, so nothing already read re-animates) */
 .w { display: inline-block; animation: wordIn 560ms var(--ease-out) backwards; }
