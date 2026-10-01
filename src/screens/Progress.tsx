@@ -66,18 +66,16 @@ export function ProgressScreen() {
   return (
     <div className="screen">
       <header>
-        <div className="micro">{t('Progress')}</div>
-        <h1 className="display display-lg" style={{ margin: '6px 0 14px' }}>{t('How it’s going')}</h1>
         <RangeSeg value={range} onChange={setRange} options={[{ value: '4w', label: t('4 weeks') }, { value: '12w', label: t('12 weeks') }, { value: '6m', label: t('6 months') }, { value: 'all', label: t('All') }]} />
       </header>
 
-      {empty && <Empty icon="progress" title={t('Nothing to chart yet')} body={t('Log a workout, a meal or your weight and this page fills in. Charts only show what you have actually recorded.')} action={<button className="btn primary press" onClick={() => push('weight')}>{t('Log your weight')}</button>} />}
+      {empty && <Empty icon="progress" title={t('Nothing to chart yet')} action={<button className="btn primary press" onClick={() => push('weight')}>{t('Log your weight')}</button>} />}
 
       {/* consistency */}
       <ChartCard title={<>{t('Training consistency')} <Badge kind="calculated" /></>} sub={<><span className="num">{wk[wk.length - 1]?.sessions ?? 0}</span><span className="t3 small" style={{ fontFamily: 'var(--f-ui)', fontStretch: '100%', fontWeight: 600 }}> / {target} {t('this week')}</span></>}
         table={{ head: [t('Week of'), t('Sessions'), t('Sets'), `${t('Volume')} (${u.weight})`], rows: wk.map((b) => [fmtDate(b.start, lang, { day: 'numeric', month: 'short' }), b.sessions, b.sets, fmtNum(Math.round(kgToDisplay(b.volume, u.weight)), lang, 0)]) }}>
         <BarChart label={t('Sessions per week')} bars={wk.map((b, i) => ({ label: fmtDate(b.start, lang, { day: 'numeric', month: 'numeric' }), value: b.sessions, sub: `${t('Week of')} ${fmtDate(b.start, lang, { day: 'numeric', month: 'short' })}`, emphasis: i === wk.length - 1 }))} fmt={(v) => fmtNum(Math.round(v * 10) / 10, lang, 0)} target={target} targetLabel={`${t('target')} ${target}`} />
-        <div className="small t2" style={{ marginTop: 8 }}>{streak > 0 ? t('{n}-week streak of hitting your target', { n: streak }) : t('Hit {n} sessions in a week to start a streak.', { n: target })}</div>
+        {streak > 0 && <div className="small t2" style={{ marginTop: 8 }}>{t('{n}-week streak of hitting your target', { n: streak })}</div>}
       </ChartCard>
 
       {/* volume */}
@@ -85,7 +83,6 @@ export function ProgressScreen() {
         <ChartCard title={<>{t('Weekly volume')} <Badge kind="calculated" /></>} sub={<>{fmtNum(Math.round(kgToDisplay(wk[wk.length - 1]?.volume ?? 0, u.weight)), lang, 0)}<span className="t3 small" style={{ fontFamily: 'var(--f-ui)', fontStretch: '100%', fontWeight: 600 }}> {u.weight}</span></>}
           table={{ head: [t('Week of'), `${t('Volume')} (${u.weight})`], rows: wk.map((b) => [fmtDate(b.start, lang, { day: 'numeric', month: 'short' }), fmtNum(Math.round(kgToDisplay(b.volume, u.weight)), lang, 0)]) }}>
           <BarChart label={t('Weekly volume')} bars={wk.map((b, i) => ({ label: fmtDate(b.start, lang, { day: 'numeric', month: 'numeric' }), value: kgToDisplay(b.volume, u.weight), sub: `${t('Week of')} ${fmtDate(b.start, lang, { day: 'numeric', month: 'short' })}`, emphasis: i === wk.length - 1 }))} fmt={(v) => (v >= 1000 ? `${fmtNum(v / 1000, lang, 1)}k` : fmtNum(Math.round(v), lang, 0))} />
-          <div className="xs t3" style={{ marginTop: 8 }}>{t('Volume = weight × reps of completed working sets. Bodyweight and timed exercises count as zero here.')}</div>
         </ChartCard>
       )}
 
@@ -101,7 +98,7 @@ export function ProgressScreen() {
               <span>{rate !== null ? <>{rate >= 0 ? '+' : '−'}{fmtNum(Math.abs(kgToDisplay(rate, u.weight)), lang, 2)} {u.weight}/{t('wk')} <Badge kind="estimate" /></> : t('Trend rate needs 7+ days of data')}</span>
             </div>
           </>
-        ) : <div className="small t2" style={{ padding: '8px 4px 4px' }}>{weights.length === 1 ? t('One weigh-in so far. A second one starts the trend line.') : t('Log your weight to see a trend. Weigh-ins are noisy — the trend line smooths them.')}</div>}
+        ) : <div className="small t3" style={{ padding: '8px 4px 4px' }}>{weights.length === 1 ? '1 ·' : ''} {t('Log your weight')}</div>}
         <div className="row-flex" style={{ gap: 8, marginTop: 12 }}>
           <button className="btn sm press" onClick={() => push('measure')}><Icon name="body" size={16} /> {t('Measurements')}</button>
           <button className="btn sm press" onClick={() => push('photos')}><Icon name="camera" size={16} /> {t('Photos')}</button>
@@ -116,7 +113,6 @@ export function ProgressScreen() {
           <span>{loggedN.length}/{nDays} {t('days logged')}</span>
           <span>{avgP !== null ? `${t('Protein')} ${fmtNum(Math.round(avgP), lang, 0)} g` : ''}{s.settings.goals.protein && avgP !== null ? ` · ${Math.round((avgP / s.settings.goals.protein) * 100)}% ${t('of target')}` : ''}</span>
         </div>
-        <div className="xs t3" style={{ marginTop: 6 }}>{t('Days with nothing logged are faded and left out of averages — they are not zero-calorie days.')}</div>
       </ChartCard>
 
       {/* records + per-exercise */}
@@ -130,7 +126,6 @@ export function ProgressScreen() {
                 <div className="num" style={{ fontWeight: 700 }}>{r.kind === 'reps' ? r.value : r.kind === 'duration' ? `${r.value}s` : r.kind === 'distance' ? `${fmtNum(r.value / 1000, lang, 2)} km` : `${fmtNum(kgToDisplay(r.value, u.weight), lang, r.kind === 'e1rm' ? 1 : 2)} ${u.weight}`}</div>
               </button>); })}
           </div>
-          <div className="xs t3" style={{ marginTop: 6 }}>{t('A record beats your previous best for that exact measure. First-time exercises set a baseline, not a record. Tap an exercise to see the definitions.')}</div>
         </Section>
       )}
       {exRows.length > 0 && (

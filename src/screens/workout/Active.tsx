@@ -86,10 +86,11 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
         {...(origin === 'none' ? { initial: { y: '100%' }, animate: { y: 0 }, exit: { y: '100%' } } : { layoutId: `wk-${origin}` })}
         transition={reduce ? { duration: 0.01 } : origin === 'none' ? SPRING : SOFT}
         role="dialog" aria-modal="true" aria-label={t('Active workout')}
-        style={{ position: 'fixed', inset: 0, zIndex: z, background: 'var(--bg)', borderRadius: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: 'var(--sh-f)' }}
+        data-hue="train" style={{ position: 'fixed', inset: 0, zIndex: z, background: 'var(--bg)', borderRadius: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: 'var(--sh-f)' }}
         drag="y" dragControls={controls} dragListener={false} dragConstraints={{ top: 0, bottom: 0 }} dragElastic={{ top: 0, bottom: 0.7 }}
         onDragEnd={(_, i) => { if (i.offset.y > 120 || i.velocity.y > 700) pop(); }}
       >
+        <div className="aurora in" aria-hidden><i /><i /><i /></div>
         <motion.div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }} initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { delay: 0.12, duration: 0.22 } }} exit={{ opacity: 0, transition: { duration: 0.08 } }}>
           {/* header */}
           <div onPointerDown={(e) => { if ((e.target as HTMLElement).closest('button,input')) return; controls.start(e); }} style={{ padding: 'calc(var(--sat) + 10px) 16px 12px', touchAction: 'none', background: 'linear-gradient(var(--bg) 70%, transparent)', position: 'relative', zIndex: 2 }}>
@@ -107,20 +108,20 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
             <div className="row-flex between" style={{ marginTop: 10, alignItems: 'flex-end' }}>
               <div>
                 <div className="display display-lg num" style={{ color: paused ? 'var(--tx3)' : 'var(--tx)' }}>{fmtDuration(elapsed)}</div>
-                <div className="small t2 num">{done}/{total} {t('sets')} · {fmtNum(Math.round(kgToDisplay(sessionVolume(a.exercises), s.settings.units.weight)), lang, 0)} {s.settings.units.weight} {t('volume')}</div>
+                <div className="small t2 num">{done}/{total} · {fmtNum(Math.round(kgToDisplay(sessionVolume(a.exercises), s.settings.units.weight)), lang, 0)} {s.settings.units.weight}</div>
               </div>
               <button className="btn sm press" onClick={() => { buzz(10); paused ? useStore.getState().resumeActive() : useStore.getState().pauseActive(); }} aria-label={paused ? t('Resume') : t('Pause')}>
                 <Icon name={paused ? 'play' : 'pause'} size={16} /> {paused ? t('Resume') : t('Pause')}
               </button>
             </div>
             <div style={{ height: 3, borderRadius: 3, background: 'var(--s3)', marginTop: 12, overflow: 'hidden' }}><motion.div animate={{ width: `${total ? (done / total) * 100 : 0}%` }} transition={SOFT} style={{ height: '100%', background: 'var(--ac)' }} /></div>
-            {paused && <div className="small" style={{ marginTop: 8, color: 'var(--warn)' }}>{t('Paused — the clock is stopped. Logging a set resumes it.')}</div>}
+            {paused && <div className="small" style={{ marginTop: 8, color: 'var(--warn)' }}>{t('Paused')}</div>}
           </div>
 
           {/* body */}
           <div ref={body} style={{ flex: 1, overflowY: 'auto', padding: '4px 16px calc(var(--sab) + 150px)', overscrollBehavior: 'contain' }} className="hide-scroll">
             {a.exercises.length === 0 && (
-              <div className="empty"><div className="display display-sm">{t('Empty session')}</div><div className="small" style={{ maxWidth: 280, margin: '6px auto 16px' }}>{t('Add exercises, or dictate what you did.')}</div></div>
+              <div className="empty"><div className="display display-sm">{t('Empty session')}</div><div style={{ height: 12 }} /></div>
             )}
             <AnimatePresence initial={false}>
               {a.exercises.map((se, idx) => (
@@ -281,6 +282,7 @@ function SetRow({ se, set, ex, label, prev, restDefault, all, idx }: { se: Sessi
   const toast = useUI((u) => u.toast);
   const [open, setOpen] = useState(false);
   const [shake, setShake] = useState(0);
+  const [burst, setBurst] = useState(0); // a ring that expands from the check each time a set is completed
   const lt = ex?.logType ?? 'weightReps';
   const u = settings.units;
   const wDisp = (kg?: number) => (kg === undefined ? undefined : Math.round(kgToDisplay(kg, u.weight) * 100) / 100);
@@ -343,10 +345,11 @@ function SetRow({ se, set, ex, label, prev, restDefault, all, idx }: { se: Sessi
         </>}
         {(lt === 'weightReps' || lt === 'bodyweightReps' || lt === 'assisted') && <>{fw}{fr}</>}
         {settings.effort !== 'off' && <div onFocusCapture={focusScroll as any}><NumInput compact value={settings.effort === 'rpe' ? set.rpe : set.rir} max={1} placeholder="—" onChange={(v) => patchSet(se.id, set.id, settings.effort === 'rpe' ? { rpe: v } : { rir: v })} label={settings.effort.toUpperCase()} /></div>}
-        <motion.button key={shake} className="press" aria-label={set.done ? t('Mark set not done') : t('Complete set')} aria-pressed={set.done} onClick={complete}
+        <motion.button key={shake} className="press" aria-label={set.done ? t('Mark set not done') : t('Complete set')} aria-pressed={set.done} onClick={() => { if (!set.done) setBurst((n) => n + 1); complete(); }}
           animate={shake ? { x: [0, -5, 5, -3, 3, 0] } : undefined} transition={{ duration: 0.3 }}
-          style={{ height: 44, borderRadius: 14, display: 'grid', placeItems: 'center', background: set.done ? 'var(--ac)' : 'var(--s3)', color: set.done ? 'var(--ac-ink)' : 'var(--tx3)', boxShadow: set.done ? '0 6px 16px -6px color-mix(in srgb, var(--ac) 70%, transparent), inset 0 1px 0 rgba(255,255,255,.4)' : 'inset 0 1px 0 var(--hl), inset 0 0 0 1px var(--line)', transition: 'background 180ms, color 180ms' }}>
+          style={{ position: 'relative', height: 44, borderRadius: 14, display: 'grid', placeItems: 'center', background: set.done ? 'var(--ac)' : 'var(--s3)', color: set.done ? 'var(--ac-ink)' : 'var(--tx3)', boxShadow: set.done ? '0 6px 16px -6px color-mix(in srgb, var(--ac) 70%, transparent), inset 0 1px 0 rgba(255,255,255,.4)' : 'inset 0 1px 0 var(--hl), inset 0 0 0 1px var(--line)', transition: 'background 180ms, color 180ms' }}>
           <motion.span key={String(set.done)} initial={{ scale: set.done ? 0.4 : 1 }} animate={{ scale: 1 }} transition={SNAP} style={{ display: 'grid' }}><Icon name="check" size={22} sw={2.6} /></motion.span>
+          {burst > 0 && set.done && <motion.i key={burst} aria-hidden initial={{ scale: 0.9, opacity: 0.85 }} animate={{ scale: 2.4, opacity: 0 }} transition={{ duration: 0.75, ease: [0.22, 1, 0.36, 1] }} style={{ position: 'absolute', inset: 0, borderRadius: 14, boxShadow: '0 0 0 2px var(--ac), 0 0 24px var(--ac)', pointerEvents: 'none' }} />}
         </motion.button>
       </div>
       <AnimatePresence initial={false}>

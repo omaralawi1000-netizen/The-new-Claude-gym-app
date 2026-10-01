@@ -84,7 +84,7 @@ await p.getByText('Which “skyr”?').locator('xpath=following-sibling::div').l
 await p.screenshot({ path: 'shots/ai-5-estimate.png' });
 const log = p.getByRole('button', { name: /Log 3 items/ });
 assert(await log.isEnabled(), 'ready once ambiguity is resolved by the user'); await log.click(); await wait(p, 1500);
-await p.locator('.tabbar').getByText('Food', { exact: true }).click(); await wait(p, 700);
+await p.locator('.tabbar').getByRole('button', { name: 'Food', exact: true }).click(); await wait(p, 700);
 assert(await p.getByText('Homemade zzzxq (AI estimate)').first().isVisible(), 'estimate logged as labelled quick entry');
 await p.screenshot({ path: 'shots/ai-6-logged.png' });
 
@@ -107,7 +107,7 @@ await p.screenshot({ path: 'shots/ai-8-fallback.png' });
 await p.keyboard.press('Escape'); await wait(p, 600); geminiDown = false;
 
 // ── coach: streaming grounded answer, then routine preview → explicit create ──
-await p.locator('.tabbar').getByText('Today', { exact: true }).click(); await wait(p, 500);
+await p.locator('.tabbar').getByRole('button', { name: 'Today', exact: true }).click(); await wait(p, 500);
 await p.getByLabel('Coach').click(); await wait(p, 600);
 await p.getByRole('button', { name: 'How is my week going?' }).click(); await wait(p, 1800);
 assert(await p.getByText('3 times').isVisible(), 'streamed answer rendered'); assert(calls.stream === 1);
@@ -123,7 +123,7 @@ await p.getByRole('button', { name: 'Create routine' }).click(); await wait(p, 6
 assert(await p.getByText('Created', { exact: true }).isVisible());
 console.log('routines before', before);
 await p.keyboard.press('Escape'); await wait(p, 600);
-await p.locator('.tabbar').getByText('Train', { exact: true }).click(); await wait(p, 700);
+await p.locator('.tabbar').getByRole('button', { name: 'Train', exact: true }).click(); await wait(p, 700);
 assert(await p.getByText('Push day').first().isVisible(), 'routine exists in the plan after explicit confirm');
 
 // ── Danish ──

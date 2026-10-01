@@ -4,7 +4,7 @@ import { useStore } from '../state/store';
 import { Icon } from './Icon';
 import { SphereSlot } from './Sphere';
 import { useT } from '../lib/i18n';
-import { SNAP, SOFT } from './Sheet';
+import { SOFT } from './Sheet';
 import { useEffect, useState } from 'react';
 import { elapsedMs } from '../lib/workout';
 import { fmtDuration } from '../lib/dates';
@@ -32,7 +32,7 @@ function LivePill() {
   return (
     <motion.button
       key="pill" layout className="press"
-      style={{ position: 'relative', borderRadius: 999, height: 52, width: '100%', maxWidth: 440, display: 'flex', alignItems: 'center', gap: 12, padding: '0 8px 0 18px', marginBottom: 10, pointerEvents: workoutOpen ? 'none' : 'auto' }}
+      style={{ position: 'relative', borderRadius: 999, height: 56, width: '100%', maxWidth: 420, display: 'flex', alignItems: 'center', gap: 12, padding: '0 8px 0 18px', marginBottom: 10, pointerEvents: workoutOpen ? 'none' : 'auto' }}
       initial={{ opacity: 0, y: 20, scale: 0.94 }} animate={{ opacity: workoutOpen ? 0 : 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 14, scale: 0.96 }} transition={SOFT}
       onClick={() => { buzz(); push('workout', { origin: 'pill' }); }}
       aria-label={t('Resume workout')}
@@ -43,10 +43,10 @@ function LivePill() {
       <span className="grow" style={{ textAlign: 'left', minWidth: 0, position: 'relative' }}>
         <span className="trunc" style={{ display: 'block', fontWeight: 650, fontSize: 14 }}>{active.name || t('Workout')}</span>
         <span className="small t2 num" style={{ display: 'block' }}>
-          {active.pausedAt ? t('Paused') : rest > 0 ? `${t('Rest')} ${fmtDuration(rest)}` : `${done}/${total} ${t('sets')}`} · {fmtDuration(elapsedMs(active) / 1000)}
+          {active.pausedAt ? t('Paused') : rest > 0 ? `${t('Rest')} ${fmtDuration(rest)}` : `${done}/${total}`} · {fmtDuration(elapsedMs(active) / 1000)}
         </span>
       </span>
-      <span className="btn primary sm" style={{ minHeight: 38, position: 'relative' }}>{t('Resume')}</span>
+      <span className="icon-btn acc" style={{ width: 40, height: 40, position: 'relative' }}><Icon name="play" size={18} /></span>
     </motion.button>
   );
 }
@@ -80,10 +80,10 @@ export function TabBar() {
 
 function TabBtn({ icon, label, on, onClick }: { id: Tab; icon: any; label: string; on: boolean; onClick: () => void }) {
   return (
-    <button className={`tab press ${on ? 'on' : ''}`} onClick={onClick} aria-current={on ? 'page' : undefined}>
-      {on && <motion.span layoutId="tab-pip" className="tab-pip" transition={SNAP} />}
-      <Icon name={icon} size={23} sw={on ? 2 : 1.7} />
-      <span>{label}</span>
+    <button className={`tab press ${on ? 'on' : ''}`} onClick={onClick} aria-current={on ? 'page' : undefined} aria-label={label}>
+      {on && <motion.span layoutId="tab-pip" className="tab-pip" transition={{ type: 'spring', stiffness: 380, damping: 30, mass: 0.8 }} />}
+      <Icon name={icon} size={22} sw={on ? 2 : 1.6} />
+      <span className="lab">{label}</span>
     </button>
   );
 }

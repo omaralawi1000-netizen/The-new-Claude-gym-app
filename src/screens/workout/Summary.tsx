@@ -49,10 +49,9 @@ export function Summary({ props }: { props: { sessionId: string } }) {
           <Stat label={t('Sets')} value={sessionSetCount(ses.exercises)} />
           <Stat label={t('Exercises')} value={ses.exercises.length} />
         </div>
-        <div className="xs t3" style={{ marginTop: 8 }}>{t('Volume = weight × reps of completed working sets. Warm-ups and unchecked sets are not counted.')}</div>
 
         <div className="micro" style={{ margin: '24px 0 8px' }}>{t('Personal records')}</div>
-        {recs.length === 0 ? <div className="small t2">{t('No new records this time. First-time exercises set a baseline — records need something to beat.')}</div> : (
+        {recs.length === 0 ? null : (
           <div className="stack gap8">
             {recs.map((r, i) => {
               const ex = exMap.get(r.exerciseId);

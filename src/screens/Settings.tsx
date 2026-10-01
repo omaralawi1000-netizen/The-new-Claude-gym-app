@@ -58,12 +58,12 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
                 <div className="list" style={{ marginTop: 14 }}>
                   <Row icon="bolt" title={t('Targets')} sub={st.goals.kcal ? `${st.goals.kcal} kcal${st.goals.protein ? ` · ${st.goals.protein} g ${t('protein')}` : ''}` : t('Calories, macros, water — optional')} onClick={() => setSec('targets')} />
                   <Row icon="dumbbell" title={t('Training')} sub={`${t('Rest')} ${st.restDefaultSec}s · ${st.effort === 'off' ? t('no RPE/RIR') : st.effort.toUpperCase()}`} onClick={() => setSec('training')} />
-                  <Row icon="food" title={t('Food & water')} sub={t('Meals, quick amounts, lookup')} onClick={() => setSec('food')} />
+                  <Row icon="food" title={t('Food & water')} onClick={() => setSec('food')} />
                   <Row icon="globe" title={t('Units & locale')} sub={`${st.units.weight} · ${st.units.distance} · ${st.language === 'da' ? 'Dansk' : 'English'}`} onClick={() => setSec('units')} />
                   <Row icon="moon" title={t('Appearance')} sub={`${t(st.theme === 'system' ? 'System' : st.theme === 'dark' ? 'Dark' : 'Light')} · ${t(st.motion === 'system' ? 'Motion: system' : st.motion === 'reduce' ? 'Reduced motion' : 'Full motion')}`} onClick={() => setSec('look')} />
-                  <Row icon="sparkle" title={t('Voice & AI')} sub={ai.hasGroq || ai.hasGemini ? [ai.hasGroq ? 'Groq' : '', ai.hasGemini ? 'Gemini' : ''].filter(Boolean).join(' + ') : t('Optional: Groq hears, Gemini understands')} onClick={() => setSec('ai')} />
+                  <Row icon="sparkle" title={t('Voice & AI')} sub={ai.hasGroq || ai.hasGemini ? [ai.hasGroq ? 'Groq' : '', ai.hasGemini ? 'Gemini' : ''].filter(Boolean).join(' + ') : undefined} onClick={() => setSec('ai')} />
                   <Row icon="bell" title={t('Reminders')} onClick={() => setSec('reminders')} />
-                  <Row icon="download" title={t('Data & backup')} sub={t('Export, import, delete')} onClick={() => setSec('data')} />
+                  <Row icon="download" title={t('Data & backup')} onClick={() => setSec('data')} />
                   <Row icon="shield" title={t('Privacy')} onClick={() => setSec('privacy')} />
                   <Row icon="info" title={t('About Aven')} onClick={() => setSec('about')} />
                 </div>
@@ -74,11 +74,10 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
             {sec === 'training' && (
               <div className="stack gap16">
                 <Field label={t('Default rest between sets')}><div className="chips" style={{ margin: 0, padding: 0, flexWrap: 'wrap' }}>{[45, 60, 90, 120, 150, 180].map((v) => <button key={v} className={`chip press ${st.restDefaultSec === v ? 'on' : ''}`} onClick={() => set({ restDefaultSec: v })}>{v}s</button>)}</div></Field>
-                <Field label={t('Effort tracking')} hint={t('RPE = how hard (1–10). RIR = reps left in the tank. Adds a column to each set.')}><Seg value={st.effort} onChange={(v) => set({ effort: v })} options={[{ value: 'off', label: t('Off') }, { value: 'rpe', label: 'RPE' }, { value: 'rir', label: 'RIR' }]} /></Field>
+                <Field label={t('Effort tracking')}><Seg value={st.effort} onChange={(v) => set({ effort: v })} options={[{ value: 'off', label: t('Off') }, { value: 'rpe', label: 'RPE' }, { value: 'rir', label: 'RIR' }]} /></Field>
                 <Field label={t('Smallest weight jump')} hint={t('Used for progression suggestions.')}><div className="chips" style={{ margin: 0, padding: 0 }}>{[1, 1.25, 2.5, 5].map((v) => <button key={v} className={`chip press ${st.plateStep === v ? 'on' : ''}`} onClick={() => set({ plateStep: v })}>{v} kg</button>)}</div></Field>
                 <div className="row-flex between"><span>{t('Rest-timer sound')}</span><Toggle on={st.sound} onChange={(v) => set({ sound: v })} label={t('Rest-timer sound')} /></div>
                 <div className="row-flex between"><span>{t('Haptic feedback')}</span><Toggle on={st.haptics} onChange={(v) => set({ haptics: v })} label={t('Haptic feedback')} /></div>
-                <div className="xs t3">{t('Haptics work on devices and browsers that support vibration (mostly Android).')}</div>
               </div>
             )}
             {sec === 'food' && <FoodSettings />}
@@ -90,13 +89,12 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
                 <Field label={t('Body measurements')}><Seg value={st.units.length} onChange={(v) => set({ units: { ...st.units, length: v } })} options={[{ value: 'cm', label: 'cm' }, { value: 'in', label: 'in' }]} /></Field>
                 <Field label={t('Week starts on')}><Seg value={st.weekStart} onChange={(v) => set({ weekStart: v })} options={[{ value: 1, label: t('Monday') }, { value: 0, label: t('Sunday') }]} /></Field>
                 <Field label={t('New day starts at')} hint={t('Late-night meals before this hour count toward the previous day.')}><div className="chips" style={{ margin: 0, padding: 0, flexWrap: 'wrap' }}>{[0, 2, 3, 4, 5].map((h) => <button key={h} className={`chip press ${st.dayStartHour === h ? 'on' : ''}`} onClick={() => set({ dayStartHour: h })}>{String(h).padStart(2, '0')}:00</button>)}</div></Field>
-                <div className="xs t3">{t('Numbers and dates follow your language. Decimal commas and points both work when typing. Values are stored in metric and converted for display.')}</div>
               </div>
             )}
             {sec === 'look' && (
               <div className="stack gap16">
                 <Field label={t('Theme')}><Seg value={st.theme} onChange={(v) => set({ theme: v })} options={[{ value: 'system', label: t('System') }, { value: 'light', label: t('Light') }, { value: 'dark', label: t('Dark') }]} /></Field>
-                <Field label={t('Motion')} hint={t('Reduced motion removes springs, slides and the sphere’s movement. Everything stays usable.')}><Seg value={st.motion} onChange={(v) => set({ motion: v })} options={[{ value: 'system', label: t('System') }, { value: 'full', label: t('Full') }, { value: 'reduce', label: t('Reduced') }]} /></Field>
+                <Field label={t('Motion')}><Seg value={st.motion} onChange={(v) => set({ motion: v })} options={[{ value: 'system', label: t('System') }, { value: 'full', label: t('Full') }, { value: 'reduce', label: t('Reduced') }]} /></Field>
               </div>
             )}
             {sec === 'reminders' && <Reminders />}
@@ -129,7 +127,6 @@ function Targets() {
   const kcalFromMacros = g.protein !== undefined && g.carbs !== undefined && g.fat !== undefined ? Math.round(g.protein * 4 + g.carbs * 4 + g.fat * 9) : null;
   return (
     <div className="stack gap16">
-      <div className="small t2">{t('All optional. Leave a field empty to track it without a target. Aven never changes these for you — including after exercise.')}</div>
       <Field label={t('Calories')}><NumInput label={t('Calories')} value={g.kcal} onChange={set('kcal')} unit="kcal" max={0} placeholder="—" /></Field>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
         <Field label={t('Protein')}><NumInput label={t('Protein')} value={g.protein} onChange={set('protein')} unit="g" max={0} placeholder="—" /></Field>
@@ -154,7 +151,7 @@ function FoodSettings() {
   const save = (m: Meal[]) => { setMeals(m); s.setMeals(m); };
   return (
     <div className="stack gap16">
-      <Field label={t('Meals')} hint={t('Rename, add or remove meals. Removing a meal keeps its entries, which move to the first meal.')}>
+      <Field label={t('Meals')}>
         <div className="stack gap8">
           {meals.map((m, i) => (
             <div key={m.id} className="row-flex" style={{ gap: 8 }}>
@@ -174,7 +171,7 @@ function FoodSettings() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>{st.waterQuick.map((v, i) => <NumInput key={i} value={v} max={0} unit="ml" onChange={(n) => n && n > 0 && s.updateSettings({ waterQuick: st.waterQuick.map((x, j) => (j === i ? n : x)) })} />)}</div>
       </Field>
       <div className="row-flex between" style={{ alignItems: 'flex-start', gap: 14 }}>
-        <div><div style={{ fontWeight: 600 }}>{t('Online food lookup')}</div><div className="xs t3" style={{ marginTop: 2, maxWidth: 260 }}>{t('Search Open Food Facts and USDA through Aven’s server. Off = bundled and personal foods only.')}</div></div>
+        <div><div style={{ fontWeight: 600 }}>{t('Online food lookup')}</div></div>
         <Toggle on={st.foodLookup} onChange={(v) => s.updateSettings({ foodLookup: v })} label={t('Online food lookup')} />
       </div>
     </div>
@@ -272,9 +269,8 @@ function DataSection() {
       </div>
       <div className="plinth" style={{ padding: 16 }}>
         <div className="li-title">{t('Demo data')}</div>
-        <div className="li-sub" style={{ marginTop: 2 }}>{t('Made-up workouts, meals and weigh-ins so you can explore every screen. Clearly labelled, removable.')}</div>
         {s.demo ? <button className="btn block press" style={{ marginTop: 14 }} onClick={removeDemo}>{t('Remove demo data')}</button>
-          : has ? <div className="xs t3" style={{ marginTop: 10 }}>{t('Only available on an empty app, so it can’t mix with your real records.')}</div>
+          : has ? null
           : <button className="btn block press" style={{ marginTop: 14 }} onClick={demo}>{t('Load demo data')}</button>}
       </div>
       <div className="plinth" style={{ padding: 16 }}>
@@ -294,7 +290,7 @@ function About() {
     <div className="stack gap12 small">
       <div className="plinth dots" style={{ padding: 18 }}><div className="display display-lg">Aven</div><div className="t2" style={{ marginTop: 4 }}>{t('Training, food and progress in one place.')} · v0.1</div></div>
       <div><b>{t('Food data')}</b><div className="t2" style={{ marginTop: 4 }}>{t('Bundled foods are approximate reference values. Online results come from Open Food Facts (© contributors, ODbL — open database licence) and USDA FoodData Central (public domain, CC0).')}</div></div>
-      <div><b>{t('What’s simulated or not built')}</b><div className="t2" style={{ marginTop: 4 }}>{t('No cloud sync or accounts. No photo-based food estimation. No AI coaching — progression suggestions are simple rules based on your own last session. Background reminders need a push server.')}</div></div>
+      <div><b>{t('What’s simulated or not built')}</b><div className="t2" style={{ marginTop: 4 }}>{t('No cloud sync or accounts. No photo-based food estimation. The Coach only advises and never changes your data. Background reminders need a push server.')}</div></div>
     </div>
   );
 }

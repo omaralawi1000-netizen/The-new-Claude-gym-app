@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import type { Sum } from '../../lib/nutrition';
 import { pct } from '../../lib/nutrition';
-import { Count, Ticks } from '../../ui/kit';
+import { Count } from '../../ui/kit';
+import { Dial } from '../../ui/Dial';
 import { Icon } from '../../ui/Icon';
 import { useStore } from '../../state/store';
 import { useT, useLang } from '../../lib/i18n';
@@ -22,40 +23,34 @@ export function Ledger({ sum, compact }: { sum: Sum; compact?: boolean }) {
   const goal = goals.kcal;
   const remaining = goal ? goal - kcal : undefined;
   const over = remaining !== undefined && remaining < 0;
-  const kcalSum = fmtSum('kcal', sum, lang);
   const macros = [
     { k: 'protein' as const, label: t('Protein'), c: 'var(--c-protein)' },
     { k: 'carbs' as const, label: t('Carbs'), c: 'var(--c-carbs)' },
     { k: 'fat' as const, label: t('Fat'), c: 'var(--c-fat)' },
   ];
+  const totalMacro = Math.max(1, (goals.protein ?? 0) + (goals.carbs ?? 0) + (goals.fat ?? 0) || 300);
+  const ring = (k: 'protein' | 'carbs' | 'fat') => { const g = goals[k]; const v = sum.totals[k] ?? 0; return g ? pct(v, g) : Math.min(1, v / totalMacro); };
   return (
-    <div className="plinth dots" style={{ padding: compact ? '18px 18px 16px' : '20px 18px 18px', borderRadius: 'var(--r-lg)', overflow: 'hidden' }}>
-      <div className="row-flex between" style={{ alignItems: 'flex-end' }}>
-        <div>
-          <div className="micro">{goal ? (over ? t('Over target') : t('Remaining')) : t('Eaten today')}</div>
-          <div className="display display-xl" style={{ marginTop: 6, color: over ? 'var(--bad)' : 'var(--tx)' }}>
-            {goal ? <Count value={Math.abs(remaining!)} format={(n) => fmtNum(Math.round(n), lang, 0)} /> : <Count value={kcal} format={(n) => fmtNum(Math.round(n), lang, 0)} />}
-            <span className="display-sm t3" style={{ marginLeft: 6, fontStretch: '100%', fontWeight: 600 }}>kcal</span>
+    <div style={{ padding: compact ? '2px 0 0' : '6px 0 0' }}>
+      <div style={{ margin: '0 auto', width: 'fit-content', borderRadius: '50%' }} onClick={!compact && !goal ? () => push('settings', { section: 'targets' }) : undefined}>
+        <Dial size={compact ? 252 : 268} stroke={10} gap={6} label={`${fmtNum(Math.round(kcal), lang, 0)} kcal`}
+          rings={[{ value: goal ? pct(kcal, goal) : kcal > 0 ? 1 : 0, color: 'var(--ac)', label: 'kcal', over }, { value: ring('protein'), color: 'var(--c-protein)', label: t('Protein') }, { value: ring('carbs'), color: 'var(--c-carbs)', label: t('Carbs') }, { value: ring('fat'), color: 'var(--c-fat)', label: t('Fat') }]}>
+          <div>
+            <div className="display num" data-testid="ledger-kcal" style={{ fontSize: 42, lineHeight: 0.95, color: over ? 'var(--bad)' : 'var(--tx)' }}>
+              <Count value={goal ? Math.abs(remaining!) : kcal} format={(n) => fmtNum(Math.round(n), lang, 0)} />
+            </div>
+            <div className="micro" style={{ marginTop: 6 }}>{goal ? (over ? t('Over') : t('kcal left')) : t('kcal')}</div>
           </div>
-        </div>
-        <div style={{ textAlign: 'right' }} className="small t2 num">
-          {goal ? (<><div>{t('Eaten')} <b style={{ color: 'var(--tx)' }}>{kcalSum.text}</b></div><div>{t('Goal')} {fmtNum(goal, lang, 0)}</div></>) : (
-            <button className="chip acc press" onClick={() => push('settings', { section: 'targets' })}>{t('Set targets')}</button>
-          )}
-        </div>
+        </Dial>
       </div>
-      {goal ? <div style={{ marginTop: 16 }}><Ticks value={pct(kcal, goal)} over={over} /></div> : null}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginTop: 18 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginTop: 14 }}>
         {macros.map((m) => {
           const s = fmtSum(m.k, sum, lang);
           const g = goals[m.k];
-          const v = sum.totals[m.k] ?? 0;
           return (
-            <div key={m.k}>
-              <div className="micro" style={{ color: 'var(--tx3)', marginBottom: 4 }}>{m.label}</div>
-              <div className="num" style={{ fontSize: 20, fontWeight: 650, letterSpacing: '-0.01em' }}>{s.text}<span className="t3 small"> g</span></div>
-              <div className="bar" style={{ marginTop: 8, height: 4 }}><motion.i style={{ background: m.c }} initial={false} animate={{ width: `${g ? pct(v, g) * 100 : Math.min(100, (v / Math.max(1, (goals.protein ?? 0) + (goals.carbs ?? 0) + (goals.fat ?? 0) || 300)) * 100)}%` }} transition={SOFT} /></div>
-              {g ? <div className="xs t3 num" style={{ marginTop: 4 }}>{t('of')} {fmtNum(g, lang, 0)} g</div> : <div className="xs t3" style={{ marginTop: 4 }}>{s.partial ? t('some items lack data') : ' '}</div>}
+            <div key={m.k} style={{ textAlign: 'center' }} aria-label={`${m.label} ${s.text} g`}>
+              <div className="num" style={{ fontSize: 22, fontWeight: 300, letterSpacing: '-0.03em' }}>{s.text}<span className="t3 xs">{g ? ` / ${fmtNum(g, lang, 0)}` : ' g'}</span></div>
+              <div className="row-flex" style={{ gap: 6, justifyContent: 'center', marginTop: 4 }}><i style={{ width: 7, height: 7, borderRadius: 7, background: m.c, boxShadow: `0 0 10px ${m.c}` }} /><span className="micro">{m.label.slice(0, 1)}</span></div>
             </div>
           );
         })}
@@ -63,7 +58,7 @@ export function Ledger({ sum, compact }: { sum: Sum; compact?: boolean }) {
       {!compact && (
         <>
           <button className="row-flex press small t2" style={{ marginTop: 14, gap: 6 }} onClick={() => setMore((v) => !v)} aria-expanded={more}>
-            <Icon name={more ? 'chevU' : 'chevD'} size={16} /> {t('More nutrients')}
+            <Icon name={more ? 'chevU' : 'chevD'} size={16} /> {t('More')}
           </button>
           <AnimatePresence initial={false}>
             {more && (
@@ -80,7 +75,6 @@ export function Ledger({ sum, compact }: { sum: Sum; compact?: boolean }) {
                     );
                   })}
                 </div>
-                <div className="xs t3" style={{ paddingTop: 10 }}>{t('"—" means no data, not zero. "≥" means some entries had no value for it.')}</div>
               </motion.div>
             )}
           </AnimatePresence>

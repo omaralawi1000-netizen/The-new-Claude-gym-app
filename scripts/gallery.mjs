@@ -25,7 +25,7 @@ async function run(theme) {
     await p.getByRole('button', { name: 'Done', exact: true }).click(); await wait(p, 900);
   } else { await p.getByRole('button', { name: 'Minimise workout' }).click(); await wait(p, 900); }
   // food
-  await p.locator('.tabbar').getByText('Food', { exact: true }).click(); await wait(p, 600);
+  await p.locator('.tabbar').getByRole('button', { name: 'Food', exact: true }).click(); await wait(p, 600);
   await p.getByRole('button', { name: 'Previous day' }).click(); await wait(p, 900);
   await p.screenshot({ path: out(`06-food-diary${sfx}`) });
   await p.getByRole('button', { name: /Add to Dinner/ }).click(); await wait(p, 600);
@@ -50,16 +50,16 @@ async function run(theme) {
     await p.screenshot({ path: out('11-voice-resolved') });
     await p.keyboard.press('Escape'); await wait(p, 700);
     // train + exercise
-    await p.locator('.tabbar').getByText('Train', { exact: true }).click(); await wait(p, 700);
+    await p.locator('.tabbar').getByRole('button', { name: 'Train', exact: true }).click(); await wait(p, 700);
     await p.screenshot({ path: out('12-train-plan') });
     await p.getByRole('tab', { name: 'Library' }).click(); await wait(p, 500);
     await p.getByText('Barbell Bench Press').first().click(); await wait(p, 1000);
     await p.screenshot({ path: out('13-exercise') });
     await p.keyboard.press('Escape'); await wait(p, 600);
-    await p.locator('.tabbar').getByText('Progress', { exact: true }).click(); await wait(p, 1200);
+    await p.locator('.tabbar').getByRole('button', { name: 'Progress', exact: true }).click(); await wait(p, 1200);
     await p.evaluate(() => document.querySelector('.screen').scrollTo(0, 820)); await wait(p, 900);
     await p.screenshot({ path: out('14-progress') });
-    await p.getByLabel('Settings').click().catch(async () => { await p.locator('.tabbar').getByText('Today', { exact: true }).click(); await wait(p, 500); await p.getByLabel('Settings').click(); });
+    await p.getByLabel('Settings').click().catch(async () => { await p.locator('.tabbar').getByRole('button', { name: 'Today', exact: true }).click(); await wait(p, 500); await p.getByLabel('Settings').click(); });
     await wait(p, 800); await p.screenshot({ path: out('15-settings') });
   }
   console.log(theme, 'errors', errors.length, errors.slice(0, 2));
@@ -73,7 +73,7 @@ await run('dark'); await run('light');
   await p.goto('http://127.0.0.1:5173/'); await wait(p, 1200);
   await p.getByLabel('Indstillinger').click(); await wait(p, 600); await p.getByText('Data og backup').click(); await wait(p, 400); await p.getByText('Indlæs demodata').click(); await wait(p, 400); await p.keyboard.press('Escape'); await wait(p, 4200);
   await p.screenshot({ path: out('16-today-da') });
-  await p.locator('.tabbar').getByText('Mad', { exact: true }).click(); await wait(p, 600); await p.getByRole('button', { name: 'Forrige dag' }).click(); await wait(p, 900);
+  await p.locator('.tabbar').getByRole('button', { name: 'Mad', exact: true }).click(); await wait(p, 600); await p.getByRole('button', { name: 'Forrige dag' }).click(); await wait(p, 900);
   await p.screenshot({ path: out('17-food-da') });
   await b.close();
 }

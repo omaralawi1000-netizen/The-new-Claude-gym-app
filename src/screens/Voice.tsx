@@ -387,7 +387,7 @@ export function VoiceComposer({ props }: { props: { mode?: Mode; date?: string; 
           <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', marginTop: 14, textAlign: 'center' }} className="hide-scroll">
             {!typing && phase !== 'processing' && (
               <div className="display display-md" style={{ lineHeight: 1.12, padding: '0 6px' }}>
-                {final || interim ? <><span>{final}</span>{interim && <span style={{ color: 'var(--tx3)' }}> {interim}</span>}</> : engine === 'groq' && listening ? <span style={{ color: 'var(--tx3)', fontSize: 18, fontStretch: '100%', fontWeight: 560 }}>{t('Speak naturally. Your words appear after you tap “Done speaking”.')}</span> : <span style={{ color: 'var(--tx3)', fontSize: 18, fontStretch: '100%', fontWeight: 560 }}><span className="micro" style={{ display: 'block', marginBottom: 6 }}>{t('Try saying')}</span>{example}</span>}
+                {final || interim ? <><span>{final}</span>{interim && <span style={{ color: 'var(--tx3)' }}> {interim}</span>}</> : engine === 'groq' && listening ? <span style={{ color: 'var(--tx3)', fontSize: 18, fontStretch: '100%', fontWeight: 560 }}>{t('Speak naturally. Your words appear after you tap “Done speaking”.')}</span> : <span style={{ color: 'var(--tx3)', fontSize: 18, fontStretch: '100%', fontWeight: 560 }}>{example}</span>}
               </div>
             )}
             {phase === 'processing' && <div className="display display-md" style={{ color: 'var(--tx2)' }}>{textNow()}</div>}
@@ -407,7 +407,7 @@ export function VoiceComposer({ props }: { props: { mode?: Mode; date?: string; 
               {supported && <button className="btn press grow" onClick={() => { if (typing) { setTyping(false); begin(); } else { handle.current?.abort(); mic.release('voice'); useVoice.getState().go('idle'); setTyping(true); } }}>{typing ? <><Icon name="mic" size={18} /> {t('Speak instead')}</> : <><Icon name="edit" size={18} /> {t('Type instead')}</>}</button>}
               <button className="btn primary press grow" disabled={phase === 'processing' || (!textNow() && !listening)} onClick={() => finish()}>{phase === 'processing' ? t('Working…') : listening ? t('Done speaking') : t('Review')}</button>
             </div>
-            <div className="xs t3" style={{ textAlign: 'center', marginTop: 10 }}>{engine === 'groq' ? (useAi.getState().hasGemini && useAi.getState().brain ? t('Your recording is sent to Groq to be transcribed, and the text to Google Gemini to be understood. Aven doesn’t store the audio. Keys stay on this device.') : t('Your recording is sent to Groq to be transcribed. Aven doesn’t store the audio. Keys stay on this device.')) : supported ? t('Speech-to-text is done by your browser’s speech service (often a cloud service). Audio is never stored by Aven.') : t('Nothing is recorded or sent anywhere.')}</div>
+            <div className="xs t3" style={{ textAlign: 'center', marginTop: 10 }}>{engine === 'groq' ? (useAi.getState().hasGemini && useAi.getState().brain ? t('Audio goes to Groq, text to Gemini. Aven stores nothing.') : t('Audio goes to Groq. Aven stores nothing.')) : supported ? t('Your browser transcribes this. Aven stores nothing.') : t('Nothing is recorded or sent anywhere.')}</div>
           </div>
         )}
 

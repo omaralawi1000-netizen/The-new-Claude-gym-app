@@ -69,7 +69,6 @@ export function Onboarding({ props }: { props: { rerun?: boolean; starterOnly?: 
     // 0 welcome + goal
     <div key="0">
       <div className="display display-xl">{tt('Let’s set up Aven.')}</div>
-      <div className="t2" style={{ marginTop: 10, fontSize: 16 }}>{tt('Six quick questions. Skip any of them — you can change everything later.')}</div>
       <div className="field" style={{ marginTop: 22 }}><label htmlFor="ob-name">{tt('What should I call you?')}</label><input id="ob-name" className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder={tt('Optional')} /></div>
       <div className="lbl" style={{ margin: '22px 0 10px' }}>{tt('What’s your main goal?')}</div>
       <div className="stack gap8">{GOALS.map((g) => <button key={g.v} className="plinth press" style={{ padding: '13px 14px', display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left', outline: goal === g.v ? '2px solid var(--ac)' : undefined }} onClick={() => setGoal(g.v)}><div className="grow"><div className="li-title">{tt(g.l)}</div><div className="li-sub">{tt(g.s)}</div></div>{goal === g.v && <Icon name="check" size={20} style={{ color: 'var(--ac-text)' }} />}</button>)}</div>
@@ -85,7 +84,6 @@ export function Onboarding({ props }: { props: { rerun?: boolean; starterOnly?: 
     // 2 schedule
     <div key="2">
       <div className="display display-lg">{tt('Which days can you train?')}</div>
-      <div className="t2" style={{ marginTop: 8 }}>{tt('Pick the days you usually train. Flexible rotations are available later.')}</div>
       <div className="row-flex" style={{ gap: 6, marginTop: 22, justifyContent: 'space-between' }}>
         {[1, 2, 3, 4, 5, 6, 0].map((wd) => { const on = days.includes(wd); return <button key={wd} className="press" aria-pressed={on} onClick={() => setDays(on ? days.filter((x) => x !== wd) : [...days, wd])} style={{ flex: 1, height: 64, borderRadius: 16, background: on ? 'var(--ac)' : 'var(--s2)', color: on ? 'var(--ac-ink)' : 'var(--tx2)', fontWeight: 700, boxShadow: on ? '0 8px 18px -8px color-mix(in srgb, var(--ac) 70%, transparent)' : 'inset 0 0 0 1px var(--line)', transition: 'background .2s, color .2s' }}>{fmtWeekdayShort(wd, lang2, true)}</button>; })}
       </div>
@@ -98,17 +96,14 @@ export function Onboarding({ props }: { props: { rerun?: boolean; starterOnly?: 
       <Seg value={units} onChange={setUnits} options={[{ value: 'kg', label: 'kg (metric)' }, { value: 'lb', label: 'lb' }]} />
       <div className="lbl" style={{ margin: '20px 0 8px' }}>{tt('Language')}</div>
       <Seg value={lang2} onChange={(v) => { setLang2(v); useStore.getState().updateSettings({ language: v }); }} options={[{ value: 'en', label: 'English' }, { value: 'da', label: 'Dansk' }]} />
-      <div className="xs t3" style={{ marginTop: 14 }}>{tt('Dates and numbers follow your language. Distance and measurements follow your weight unit; change them individually in Settings.')}</div>
     </div>,
     // 4 nutrition
     <div key="4">
       <div className="display display-lg">{tt('Nutrition targets')}</div>
-      <div className="t2" style={{ marginTop: 8 }}>{tt('Optional. Skip to simply track what you eat; set targets whenever you like.')}</div>
       <div className="stack gap16" style={{ marginTop: 22 }}>
         <div className="field"><label>{tt('Calories per day')}</label><NumInput value={kcal} onChange={setKcal} unit="kcal" max={0} placeholder="—" /></div>
         <div className="field"><label>{tt('Protein per day')}</label><NumInput value={prot} onChange={setProt} unit="g" max={0} placeholder="—" /></div>
       </div>
-      <div className="xs t3" style={{ marginTop: 14 }}>{tt('Aven doesn’t prescribe targets. If you’re unsure, a dietitian or coach can help you choose.')}</div>
     </div>,
     // 5 finish
     <div key="5">
@@ -116,7 +111,6 @@ export function Onboarding({ props }: { props: { rerun?: boolean; starterOnly?: 
       <div className="plinth" style={{ padding: 16, marginTop: 20 }}>
         <div className="row-flex between"><div><div className="li-title">{tt('Create a starter plan')}</div><div className="li-sub" style={{ maxWidth: 240 }}>{days.length ? `${days.length} ${tt('days a week')} · ${tt('editable')}` : tt('Pick training days first')}</div></div><Toggle on={plan && days.length > 0} onChange={setPlan} label={tt('Create a starter plan')} /></div>
       </div>
-      <div className="xs t3" style={{ marginTop: 10 }}>{tt('A simple, conventional template matched to your goal, experience and equipment — a place to start, not a prescription.')}</div>
       {!props.starterOnly && <button className="btn block press" style={{ marginTop: 22 }} onClick={() => finish({ demo: true })}><Icon name="sparkle" size={18} /> {tt('Explore with demo data instead')}</button>}
     </div>,
   ];
@@ -126,7 +120,9 @@ export function Onboarding({ props }: { props: { rerun?: boolean; starterOnly?: 
   }
   const isLast = step === last;
   return (
-    <motion.div style={{ position: 'fixed', inset: 0, zIndex: z, background: 'var(--bg)', display: 'flex', flexDirection: 'column' }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} role="dialog" aria-modal="true" aria-label={tt('Setup')}>
+    <motion.div data-hue="today" style={{ position: 'fixed', inset: 0, zIndex: z, background: 'var(--bg)', display: 'flex', flexDirection: 'column' }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} role="dialog" aria-modal="true" aria-label={tt('Setup')}>
+      <div className="aurora in" aria-hidden><i /><i /><i /></div>
+      <div className="aurora in" aria-hidden><i /><i /><i /></div>
       <div style={{ padding: 'calc(var(--sat) + 12px) 20px 0', display: 'flex', alignItems: 'center', gap: 12 }}>
         <div className="ticks grow" style={{ height: 14 }} aria-hidden>{Array.from({ length: last + 1 }, (_, i) => <i key={i} className={i <= step ? 'on' : ''} style={{ height: '100%' }} />)}</div>
         <button className="small t2 press" style={{ padding: 8 }} onClick={skipAll}>{tt('Skip all')}</button>

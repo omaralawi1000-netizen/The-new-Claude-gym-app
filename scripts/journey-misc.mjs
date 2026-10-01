@@ -23,7 +23,7 @@ assert(eqOK, 'home-dumbbell plan avoids barbell/machine exercises');
 await p.screenshot({ path: 'shots/ms-3-today.png' });
 assert(await p.getByText('Omar').first().isVisible());
 // ── recipe: create, log a serving, edit recipe → old entry unchanged ──
-await p.locator('.tabbar').getByText('Food', { exact: true }).click(); await wait(p, 600);
+await p.locator('.tabbar').getByRole('button', { name: 'Food', exact: true }).click(); await wait(p, 600);
 await p.getByRole('button', { name: 'Add food' }).first().click().catch(() => {});
 await p.getByRole('button', { name: /Add to (Breakfast|Lunch|Dinner|Snacks)/ }).first().click().catch(() => {}); await wait(p, 500);
 await p.getByRole('button', { name: 'Recipes' }).click(); await wait(p, 600);
@@ -50,7 +50,7 @@ await p.getByRole('button', { name: /^Add to .* · 232 kcal/ }).click(); await w
 s = await state(); const e = s.entries.find((x) => x.snap.name === 'Overnight oats');
 console.log('serving kcal', e?.nutrients.kcal); assert(Math.abs(e.nutrients.kcal - 232) < 0.5, 'per-serving kcal = 232');
 // edit recipe: change oats to 50 g; the logged entry must not change
-await p.locator('.tabbar').getByText('Food', { exact: true }).click(); await wait(p, 300);
+await p.locator('.tabbar').getByRole('button', { name: 'Food', exact: true }).click(); await wait(p, 300);
 await p.getByRole('button', { name: /Add to (Breakfast|Lunch|Dinner|Snacks)/ }).first().click(); await wait(p, 500);
 await p.getByRole('button', { name: 'Recipes' }).click(); await wait(p, 500);
 await p.getByRole('button', { name: 'Edit', exact: true }).first().click(); await wait(p, 600);
@@ -66,7 +66,7 @@ assert.equal((await state()).water.length, w0 + 1);
 await p.getByRole('button', { name: 'Undo' }).last().click(); await wait(p, 500);
 assert.equal((await state()).water.length, w0, 'water undo');
 // ── units: lb ──
-await p.locator('.tabbar').getByText('Today', { exact: true }).click(); await wait(p, 500);
+await p.locator('.tabbar').getByRole('button', { name: 'Today', exact: true }).click(); await wait(p, 500);
 await p.getByLabel('Settings').click(); await wait(p, 600);
 await p.getByText('Units & locale').click(); await wait(p, 500);
 await p.getByRole('dialog', { name: 'Settings' }).getByRole('tab', { name: 'lb' }).click(); await wait(p, 400);
@@ -75,7 +75,7 @@ await p.getByLabel('Settings').click().catch(() => {});
 // log a weight 80 kg-equivalent: type 176.4 lb → 80.01 kg
 await p.keyboard.press('Escape'); await wait(p, 400);
 await p.evaluate(() => {});
-await p.locator('.tabbar').getByText('Progress', { exact: true }).click(); await wait(p, 600);
+await p.locator('.tabbar').getByRole('button', { name: 'Progress', exact: true }).click(); await wait(p, 600);
 await p.getByRole('button', { name: 'Log' }).first().click(); await wait(p, 600);
 await p.getByRole('textbox', { name: 'Weight' }).fill('176,4'); await p.getByRole('button', { name: 'Save', exact: true }).click(); await wait(p, 700);
 s = await state(); const wlog = s.weights.at(-1); console.log('176.4 lb →', wlog.kg, 'kg');
@@ -83,8 +83,8 @@ assert(Math.abs(wlog.kg - 80.01) < 0.05, 'lb → kg conversion');
 await p.screenshot({ path: 'shots/ms-6-progress.png' });
 await p.keyboard.press('Escape'); await wait(p, 500);
 // ── export → fresh context → import ──
-await p.getByLabel('Settings').or(p.locator('.tabbar').getByText('Today', { exact: true })).first().click().catch(() => {});
-await p.locator('.tabbar').getByText('Today', { exact: true }).click(); await wait(p, 500);
+await p.getByLabel('Settings').or(p.locator('.tabbar').getByRole('button', { name: 'Today', exact: true })).first().click().catch(() => {});
+await p.locator('.tabbar').getByRole('button', { name: 'Today', exact: true }).click(); await wait(p, 500);
 await p.getByLabel('Settings').click(); await wait(p, 600);
 await p.getByText('Data & backup').click(); await wait(p, 500);
 const [dl] = await Promise.all([p.waitForEvent('download'), p.getByRole('button', { name: 'Download backup' }).click()]);

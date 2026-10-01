@@ -145,7 +145,6 @@ export function CustomFood({ props }: { props: { from?: Food; name?: string; bar
             <div className="field" style={{ marginTop: 14 }}>
               <label>{t('Density (g per ml) — only if you know it')}</label>
               <NumInput value={density} onChange={setDensity} unit="g/ml" max={3} placeholder="—" label={t('Density')} />
-              <div className="xs t3">{t('Needed to convert between grams and millilitres. Leave blank if unsure.')}</div>
             </div>
             <div style={{ marginTop: 16 }}>
               <div className="lbl" style={{ marginBottom: 8 }}>{t('Portions')}</div>

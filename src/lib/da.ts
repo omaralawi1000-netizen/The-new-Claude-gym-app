@@ -358,7 +358,7 @@ export const da: Record<string, string> = {
  "Next day": "Næste dag",
  "Next month": "Næste måned",
  "Nice work": "Flot arbejde",
- "No cloud sync or accounts. No photo-based food estimation. No AI coaching — progression suggestions are simple rules based on your own last session. Background reminders need a push server.": "Ingen skysynkronisering eller konti. Ingen fotobaseret madestimering. Ingen AI-coaching — progressionsforslag er simple regler baseret på din egen seneste træning. Baggrundspåmindelser kræver en push-server.",
+ "No cloud sync or accounts. No photo-based food estimation. The Coach only advises and never changes your data. Background reminders need a push server.": "Ingen skysynkronisering eller konti. Ingen fotobaseret madestimering. Coachen rådgiver kun og ændrer aldrig dine data. Baggrundspåmindelser kræver en push-server.",
  "No entries for this day": "Ingen poster for denne dag",
  "No exercise found": "Ingen øvelse fundet",
  "No exercise matched “{q}”": "Ingen øvelse matchede “{q}”",
@@ -924,5 +924,14 @@ export const da: Record<string, string> = {
  "understood on this device": "forstået på denne enhed",
  "without a Groq key, speech-to-text is performed by your browser (on Chrome this is a Google cloud service). With a Groq key, your recording is sent to Groq instead. Either way Aven never stores audio; it only reads the microphone level to animate the sphere while you speak.": "uden Groq-nøgle klarer din browser talegenkendelsen (i Chrome er det en Google-skytjeneste). Med en Groq-nøgle sendes din optagelse til Groq i stedet. Uanset hvad gemmer Aven aldrig lyd; den læser kun mikrofonniveauet for at animere kuglen, mens du taler.",
  "your recording goes to Groq; the text of what you said (and, in the Coach, a short summary of your targets and recent training) goes to Google Gemini. Free-tier terms apply to both — free Gemini traffic may be used by Google to improve its products, so don’t put anything in there you wouldn’t want that. Aven stores no audio. The keys live only in this browser on this device: they are not in backups or exports, and “Delete everything” removes them.": "din optagelse går til Groq; teksten af det, du sagde (og i Coachen et kort resumé af dine mål og seneste træning), går til Google Gemini. Vilkårene for gratis brug gælder for begge — gratis Gemini-trafik kan bruges af Google til at forbedre deres produkter, så skriv ikke noget dér, du ikke vil have brugt sådan. Aven gemmer ingen lyd. Nøglerne findes kun i denne browser på denne enhed: de er ikke med i backup eller eksport, og “Slet alt” fjerner dem.",
- "Optional. Without keys, Aven still works: your browser’s speech service and the built-in parser do the job. With keys, Groq hears you much more accurately (including Danish) and Gemini understands messy sentences, estimates unknown foods and powers the Coach.": "Valgfrit. Uden nøgler virker Aven stadig: browserens talegenkendelse og den indbyggede tolker klarer det. Med nøgler hører Groq dig langt mere præcist (også på dansk), og Gemini forstår rodede sætninger, estimerer ukendt mad og driver Coachen."
+ "Optional. Without keys, Aven still works: your browser’s speech service and the built-in parser do the job. With keys, Groq hears you much more accurately (including Danish) and Gemini understands messy sentences, estimates unknown foods and powers the Coach.": "Valgfrit. Uden nøgler virker Aven stadig: browserens talegenkendelse og den indbyggede tolker klarer det. Med nøgler hører Groq dig langt mere præcist (også på dansk), og Gemini forstår rodede sætninger, estimerer ukendt mad og driver Coachen.",
+ "First session": "Første pas",
+ "Log weight": "Log vægt",
+ "Over": "Over",
+ "kcal": "kcal",
+ "kcal left": "kcal tilbage",
+ "Audio goes to Groq, text to Gemini. Aven stores nothing.": "Lyd går til Groq, tekst til Gemini. Aven gemmer intet.",
+ "Audio goes to Groq. Aven stores nothing.": "Lyd går til Groq. Aven gemmer intet.",
+ "Your browser transcribes this. Aven stores nothing.": "Din browser skriver det ud. Aven gemmer intet.",
+ "Continue workout": "Fortsæt træning"
 };

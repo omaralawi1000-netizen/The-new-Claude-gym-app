@@ -23,8 +23,6 @@ export function TrainScreen() {
   return (
     <div className="screen">
       <header>
-        <div className="micro">{t('Train')}</div>
-        <h1 className="display display-lg" style={{ margin: '6px 0 14px' }}>{tab === 'plan' ? t('Your plan') : tab === 'library' ? t('Exercises') : t('History')}</h1>
         <Seg value={tab} onChange={setTab} options={[{ value: 'plan', label: t('Plan') }, { value: 'library', label: t('Library') }, { value: 'history', label: t('History') }]} />
       </header>
       {tab === 'plan' && <PlanTab />}
@@ -58,10 +56,6 @@ function PlanTab() {
   return (
     <>
       <section>
-        <div className="row-flex between" style={{ marginBottom: 12 }}>
-          <div className="micro">{t('This week')} · {s.schedule.mode === 'weekly' ? t('weekly split') : t('rotation')}</div>
-          <button className="small accent press" onClick={() => push('schedule')}>{t('Schedule')} →</button>
-        </div>
         <div className="plinth" style={{ padding: 10, display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
           {days.map(({ d, p, done }) => {
             const r = p ? s.routines.find((x) => x.id === p.routineId) : undefined;
@@ -79,8 +73,6 @@ function PlanTab() {
 
       {missed.length > 0 && (
         <section className="plinth-2" style={{ padding: 14 }}>
-          <div className="micro" style={{ marginBottom: 6 }}>{t('Missed workouts')}</div>
-          <div className="xs t3" style={{ marginBottom: 8 }}>{t('Move them or skip — your history is never changed.')}</div>
           {missed.map((m) => { const r = s.routines.find((x) => x.id === m.routineId); return (
             <div key={m.date} className="row-flex between" style={{ padding: '6px 0' }}>
               <div className="small"><b>{r?.name}</b> · <span className="t2">{fmtDate(m.date, lang, { weekday: 'long', day: 'numeric', month: 'short' })}</span></div>
@@ -90,12 +82,12 @@ function PlanTab() {
       )}
 
       <section>
-        <div className="row-flex between" style={{ marginBottom: 12 }}>
-          <div className="micro">{t('Routines')}</div>
-          <button className="chip sm acc press" onClick={() => push('routine', {})}><Icon name="plus" size={14} /> {t('New')}</button>
+        <div className="row-flex" style={{ gap: 10, justifyContent: 'flex-end', marginBottom: 14 }}>
+          <button className="icon-btn press" aria-label={t('Schedule')} onClick={() => push('schedule')}><Icon name="calendar" /></button>
+          <button className="icon-btn press" aria-label={t('New')} onClick={() => push('routine', {})}><Icon name="plus" /></button>
         </div>
         {s.routines.length === 0 ? (
-          <Empty icon="dumbbell" title={t('No routines yet')} body={t('A routine is a list of exercises with planned sets and rep ranges. Build one, or set up a starter plan.')} action={<div className="row-flex" style={{ gap: 8, justifyContent: 'center' }}><button className="btn primary press" onClick={() => push('routine', {})}>{t('Build a routine')}</button><button className="btn press" onClick={() => push('onboarding', { starterOnly: true })}>{t('Starter plan')}</button></div>} />
+          <Empty icon="dumbbell" title={t('No routines yet')} action={<div className="row-flex" style={{ gap: 8, justifyContent: 'center' }}><button className="btn primary press" onClick={() => push('routine', {})}>{t('Build a routine')}</button><button className="btn press" onClick={() => push('onboarding', { starterOnly: true })}>{t('Starter plan')}</button></div>} />
         ) : (
           <div className="stack gap12">
             {s.routines.map((r) => {
@@ -105,15 +97,17 @@ function PlanTab() {
                 <div key={r.id} className="plinth" style={{ padding: 16, borderRadius: 'var(--r-lg)' }}>
                   <div className="row-flex between" style={{ alignItems: 'flex-start' }}>
                     <button className="grow press" style={{ textAlign: 'left' }} onClick={() => push('routine', { id: r.id })}>
-                      <div className="display display-md">{r.name}</div>
-                      <div className="small t2 num" style={{ marginTop: 4 }}>{r.items.length} {t('exercises')} · ~{estMinutes(r)} min{last ? ` · ${t('last')} ${fmtDate(last.date, lang, { day: 'numeric', month: 'short' })}` : ''}</div>
+                      <div className="display" style={{ fontSize: 44, fontStyle: 'italic', lineHeight: 0.95 }}>{r.name}</div>
+                      <div className="small t2 num" style={{ marginTop: 6 }}>{r.items.length} · ~{estMinutes(r)} min{last ? ` · ${fmtDate(last.date, lang, { day: 'numeric', month: 'short' })}` : ''}</div>
                     </button>
                     <button className="icon-btn flat" aria-label={t('Duplicate')} onClick={() => dup(r)}><Icon name="copy" size={19} /></button>
                   </div>
-                  <div className="chips" style={{ margin: '10px 0 0', padding: 0, flexWrap: 'wrap' }}>{muscles.slice(0, 5).map((m) => <span key={m} className="chip sm">{t(MUSCLE_LABEL[m])}</span>)}</div>
-                  <div className="row-flex" style={{ gap: 8, marginTop: 14 }}>
-                    <button className="btn primary grow press" onClick={() => start(r)}><Icon name="play" size={17} /> {s.active ? t('Resume current') : t('Start')}</button>
-                    <button className="btn grow press" onClick={() => push('schedule', { routineId: r.id })}><Icon name="calendar" size={17} /> {t('Schedule')}</button>
+                  <div className="row-flex between" style={{ marginTop: 14 }}>
+                    <div className="chips" style={{ margin: 0, padding: 0, gap: 6 }}>{muscles.slice(0, 3).map((m) => <span key={m} className="chip sm">{t(MUSCLE_LABEL[m])}</span>)}</div>
+                    <div className="row-flex" style={{ gap: 8, flex: 'none' }}>
+                      <button className="icon-btn press" aria-label={t('Schedule')} onClick={() => push('schedule', { routineId: r.id })}><Icon name="calendar" /></button>
+                      <button className="icon-btn acc press" style={{ width: 54, height: 54 }} aria-label={s.active ? t('Resume current') : t('Start')} onClick={() => start(r)}><Icon name="play" size={22} /></button>
+                    </div>
                   </div>
                 </div>
               );
@@ -121,11 +115,8 @@ function PlanTab() {
           </div>
         )}
       </section>
-      <section>
-        <div className="micro" style={{ marginBottom: 10 }}>{t('Also')}</div>
-        <div className="stack gap8">
-          <button className="plinth press" style={{ padding: 14, display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left' }} onClick={() => push('activity', {})}><Icon name="run" /><div className="grow"><div className="li-title">{t('Log cardio or recovery')}</div><div className="li-sub">{t('Runs, walks, mobility, warm-ups — with duration and distance')}</div></div><Icon name="chevR" size={16} /></button>
-        </div>
+      <section className="row-flex" style={{ justifyContent: 'center' }}>
+        <button className="btn press" onClick={() => push('activity', {})}><Icon name="run" size={18} /> {t('Log cardio or recovery')}</button>
       </section>
     </>
   );
@@ -191,7 +182,7 @@ function HistoryTab() {
       <div className="row-flex" style={{ gap: 8 }}>
         <button className="btn sm press" onClick={() => push('activity', {})}><Icon name="plus" size={16} /> {t('Log cardio / recovery')}</button>
       </div>
-      {rows.length === 0 ? <Empty icon="clock" title={t('No history yet')} body={t('Finished workouts and activities land here, and stay editable.')} /> : (
+      {rows.length === 0 ? <Empty icon="clock" title={t('No history yet')} /> : (
         <motion.div layout transition={SOFT} className="list">{rows.map((r) => r.node)}</motion.div>
       )}
     </>

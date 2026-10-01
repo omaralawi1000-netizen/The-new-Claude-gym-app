@@ -62,14 +62,13 @@ export function FoodScreen() {
             <button className="icon-btn press" aria-label={t('Day options')} onClick={() => push('entryMenu', { kind: 'day', date })}><Icon name="more" /></button>
           </div>
         </div>
-        <div style={{ marginTop: 14 }}>
-          <div className="micro">{rel ?? fmtDate(date, lang, { weekday: 'long' })}</div>
+        <div style={{ marginTop: 16 }}>
           <AnimatePresence mode="popLayout" initial={false}>
-            <motion.h1 key={date} className="display display-lg" style={{ margin: '4px 0 0' }} initial={{ opacity: 0, y: 8, filter: 'blur(4px)' }} animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }} exit={{ opacity: 0, y: -8, filter: 'blur(4px)' }} transition={{ duration: 0.2 }}>
-              {fmtDate(date, lang, { day: 'numeric', month: 'long' })}
+            <motion.h1 key={date} className="display display-lg" style={{ margin: 0, fontStyle: 'italic' }} initial={{ opacity: 0, y: 14, filter: 'blur(10px)' }} animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }} exit={{ opacity: 0, y: -14, filter: 'blur(10px)' }} transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1] }}>
+              {rel ?? fmtDate(date, lang, { day: 'numeric', month: 'long' })}
             </motion.h1>
           </AnimatePresence>
-          {isFuture && <div className="small t2" style={{ marginTop: 4 }}>{t('Planning ahead — entries save to this day.')}</div>}
+          <div className="small t3" style={{ marginTop: 2 }}>{fmtDate(date, lang, { weekday: 'long', day: 'numeric', month: 'long' })}{isFuture ? ' ↗' : ''}</div>
         </div>
       </header>
 
@@ -77,8 +76,7 @@ export function FoodScreen() {
 
       {list.length === 0 && (
         <div className="plinth" style={{ padding: '22px 18px', textAlign: 'center' }}>
-          <div className="display display-sm">{date === today ? t('Nothing logged yet') : t('No entries for this day')}</div>
-          <div className="small t2" style={{ margin: '6px auto 16px', maxWidth: 280 }}>{t('Search, scan, dictate or copy a meal. Logging a repeat takes two taps.')}</div>
+          <div className="display display-sm" style={{ marginBottom: 14, fontStyle: 'italic' }}>{date === today ? t('Nothing logged yet') : t('No entries for this day')}</div>
           <div className="row-flex" style={{ justifyContent: 'center', gap: 8 }}>
             <button className="btn primary press" onClick={() => add(mealId)}><Icon name="plus" size={18} /> {t('Add food')}</button>
             <button className="btn press" onClick={() => push('voice', { mode: 'food', date, mealId })}><Icon name="mic" size={18} /> {t('Dictate')}</button>
@@ -93,8 +91,8 @@ export function FoodScreen() {
           <section key={m.id} aria-label={mealName(m, lang)}>
             <div className="row-flex between" style={{ marginBottom: 2 }}>
               <div>
-                <div className="display display-sm">{mealName(m, lang)}</div>
-                <div className="small t2 num">{items.length ? <><Count value={ms.totals.kcal ?? 0} format={(n) => fmtNum(Math.round(n), lang, 0)} /> kcal · P {fmtNutrient('protein', ms.totals.protein, lang)} g</> : t('Empty')}</div>
+                <div className="display display-sm" style={{ fontStyle: 'italic', fontSize: 28 }}>{mealName(m, lang)}</div>
+                <div className="small t2 num">{items.length ? <><Count value={ms.totals.kcal ?? 0} format={(n) => fmtNum(Math.round(n), lang, 0)} /> kcal · P {fmtNutrient('protein', ms.totals.protein, lang)} g</> : '—'}</div>
               </div>
               <div className="row-flex" style={{ gap: 4 }}>
                 {items.length > 0 && <button className="icon-btn flat press" aria-label={t('Meal options')} onClick={() => push('entryMenu', { kind: 'meal', date, mealId: m.id })}><Icon name="more" /></button>}

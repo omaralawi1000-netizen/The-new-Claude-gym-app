@@ -117,15 +117,17 @@ Run in headless Chromium (Playwright, 390×844 @2×, dark + light), scripts in `
 - **Not built (on purpose, stated in-app):** cloud sync / accounts; photo-based food estimation; automatic AI changes to your data (the Coach advises; routines and estimates only appear after you confirm; progression suggestions remain transparent rules); background reminders when the app is closed (web apps need a push server — reminders fire only while Aven runs; in-app nudge otherwise); animated exercise demonstrations (there is an authored muscle diagram and step-by-step text instead).
 - Exercise calories are **never** added to food targets.
 
-## Motion system
+## Look and motion
 
-Three connected signatures share one grammar (springs: `SPRING` 420/38 for sheets, `SOFT` 300/32 for content, `SNAP` for small controls; press = scale .965 in 140 ms; every entrance is interruptible and closes with the same spring):
+**Dusk glass.** A slow-drifting colour field (three lights plus fine grain) sits behind everything; every surface is frosted glass over it (blur + saturation, hairline specular rim). Each area has its own light and accent that cross-fade when you change tab: Today peach/violet, Train ember, Food lime, Progress ice. Numerals are thin and wide-set (Geist, weight 220), names are italic serif (Instrument Serif); the day is one instrument of concentric rings (calories + protein/carbs/fat) that draw themselves in with a spring. Text is cut to what carries information: icon-first actions, no section captions, no helper paragraphs (warnings that protect data accuracy stay).
 
-1. **Workout surface → active workout → origin** — the Today hero (or tab-bar pill) plate is a shared `layoutId`; the content is a separate layer that cross-fades, so text is never stretched. Drag down to minimise; it returns to the pill.
-2. **Sphere → composer → review** — a single `SphereStage` flies between slots with its own spring (follows a moving sheet), shrinking into the review header; states: idle, listening (real audio), processing (sweep), review (equator ring), confirmed (ripple), error/unavailable (dimmed).
-3. **Reviewed values → destination** — confirmed rows settle into their meal with a brief highlight while the ledger counts all totals together; set rows settle into the workout; every save offers **Undo**.
+Motion grammar: springs everywhere (press = 520 ms overshoot release, 80 ms down); every screen's blocks rise in staggered, blurred → sharp; tab content slides with a blur out; the tab bar is a glass pill whose active tab opens up to show its name (shared-layout highlight); sheets arrive over a scrim whose blur ramps from 0 to 16 px, then their content rises in; a completed set sends a ring out from its check. Reduced motion (OS or Settings) stops the drifting light, the rise-in and the springs.
 
-Reduced motion: follows the OS, overridable in Settings; springs/slides/sphere rotation are removed, nothing essential depends on them.
+Three connected signatures share that grammar (springs: `SPRING` 420/38 for sheets, `SOFT` 300/32 for content):
+
+1. **Workout surface → active workout → origin** — the Today card (or tab-bar pill) is a shared `layoutId`; the content is a separate layer that cross-fades, so text is never stretched. Drag down to minimise; it returns to the pill.
+2. **Sphere → composer → review** — a single `SphereStage` flies between slots with its own spring (follows a moving sheet), shrinking into the review header; its colour follows the active area's accent. States: idle, listening (real audio), processing (sweep), review (equator ring), confirmed (ripple), error/unavailable (dimmed).
+3. **Reviewed values → destination** — confirmed rows settle into their meal with a brief highlight while the ring and totals count together; set rows settle into the workout; every save offers **Undo**.
 
 ## Project layout
 

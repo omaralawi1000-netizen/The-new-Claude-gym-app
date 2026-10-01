@@ -57,7 +57,7 @@ export function LineChart({ points, trend, height = 180, fmtY, target, targetLab
         ))}
         {target !== undefined && <g><line x1={padL} x2={w - padR} y1={Y(target)} y2={Y(target)} stroke="var(--tx3)" strokeWidth="1" strokeDasharray="4 4" /><text x={w - padR} y={Y(target) - 5} textAnchor="end" fontSize="11" fill="var(--tx2)">{targetLabel}</text></g>}
         {trend && trend.length > 1 && <motion.path d={path(trend)} fill="none" stroke="var(--ac)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }} />}
-        {!trend && points.length > 1 && <motion.path d={path(points)} fill="none" stroke="var(--ac)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }} />}
+        {!trend && points.length > 1 && <motion.path d={path(points)} fill="none" stroke="var(--ac)" strokeWidth="2" strokeLinecap="round" style={{ filter: 'drop-shadow(0 0 6px var(--ac))' }} strokeLinejoin="round" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }} />}
         {points.map((p, i) => (
           <circle key={i} cx={X(p.x)} cy={Y(p.y)} r={hover === i ? 5.5 : 4} fill={trend ? 'var(--bg)' : 'var(--ac)'} stroke={trend ? 'var(--tx2)' : 'var(--s1)'} strokeWidth={trend ? 1.5 : 2} />
         ))}
@@ -128,8 +128,8 @@ export function Sparkline({ values, w = 96, h = 32 }: { values: number[]; w?: nu
   const Y = (v: number) => 3 + (1 - (max === min ? 0.5 : (v - min) / (max - min))) * (h - 6);
   return (
     <svg width={w} height={h} aria-hidden>
-      <path d={values.map((v, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)} ${Y(v).toFixed(1)}`).join('')} fill="none" stroke="var(--ac)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx={X(values.length - 1)} cy={Y(values[values.length - 1])} r="3.2" fill="var(--ac)" stroke="var(--s1)" strokeWidth="1.5" />
+      <path d={values.map((v, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)} ${Y(v).toFixed(1)}`).join('')} fill="none" stroke="var(--ac)" strokeWidth="2" strokeLinecap="round" style={{ filter: 'drop-shadow(0 0 6px var(--ac))' }} strokeLinejoin="round" />
+      <circle cx={X(values.length - 1)} cy={Y(values[values.length - 1])} r="3.2" fill="var(--ac)" stroke="var(--bg)" strokeWidth="1.5" />
     </svg>
   );
 }
@@ -142,13 +142,13 @@ export function ChartCard({ title, sub, right, children, table }: { title: React
   return (
     <div className="plinth" style={{ padding: '16px 14px 14px', borderRadius: 'var(--r-lg)' }}>
       <div className="row-flex between" style={{ padding: '0 4px', marginBottom: 10, alignItems: 'flex-start' }}>
-        <div><div className="micro">{title}</div>{sub && <div className="display display-md" style={{ marginTop: 4 }}>{sub}</div>}</div>
+        <div><div className="micro">{title}</div>{sub && <div className="display display-md num" style={{ marginTop: 4 }}>{sub}</div>}</div>
         <div className="row-flex" style={{ gap: 4 }}>{right}{table && <button className="icon-btn flat sm" aria-label={showTable ? t('Show chart') : t('Show as table')} aria-pressed={showTable} onClick={() => setShowTable((v) => !v)}><Icon name={showTable ? 'progress' : 'list'} size={18} /></button>}</div>
       </div>
       {showTable && table ? (
         <div style={{ maxHeight: 220, overflowY: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }} className="num">
-            <thead><tr>{table.head.map((h) => <th key={h} style={{ textAlign: 'left', padding: '6px 4px', color: 'var(--tx3)', fontWeight: 600, position: 'sticky', top: 0, background: 'var(--s1)' }}>{h}</th>)}</tr></thead>
+            <thead><tr>{table.head.map((h) => <th key={h} style={{ textAlign: 'left', padding: '6px 4px', color: 'var(--tx3)', fontWeight: 600, position: 'sticky', top: 0, background: 'var(--bg)' }}>{h}</th>)}</tr></thead>
             <tbody>{rows.map((r, i) => <tr key={i} style={{ borderTop: '1px solid var(--line)' }}>{r.map((c, j) => <td key={j} style={{ padding: '7px 4px' }}>{c}</td>)}</tr>)}</tbody>
           </table>
         </div>

@@ -4,8 +4,8 @@ const record = process.argv.includes('--record');
 const { b, ctx, p, errors } = await launch({ record });
 await p.goto('http://127.0.0.1:5173/'); await wait(p, 1000);
 await skipOnboarding(p);
-await p.locator('.tabbar').getByText('Food', { exact: true }).click(); await wait(p, 700);
-const ledgerKcal = async () => (await p.locator('.plinth.dots .display-xl').first().innerText()).replace(/[^\d]/g, '');
+await p.locator('.tabbar').getByRole('button', { name: 'Food', exact: true }).click(); await wait(p, 700);
+const ledgerKcal = async () => (await p.locator('[data-testid="ledger-kcal"]').first().innerText()).replace(/[^\d]/g, '');
 // empty state
 assert(await p.getByText('Nothing logged yet').isVisible());
 await p.screenshot({ path: 'shots/fd-0-empty.png' });

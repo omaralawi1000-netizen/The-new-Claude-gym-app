@@ -50,7 +50,6 @@ export function Schedule({ props }: { props: { focusDate?: string; routineId?: s
         {routines.length === 0 && <div className="small t2" style={{ marginTop: 16 }}>{t('Create a routine first, then schedule it here.')}</div>}
         {sch.mode === 'weekly' ? (
           <div style={{ marginTop: 16 }}>
-            <div className="xs t3" style={{ marginBottom: 8 }}>{t('Pick a routine for each training day. Missed days can be moved without touching your history.')}</div>
             {order.map((wd) => (
               <div key={wd} style={{ padding: '10px 0', borderTop: '1px solid var(--line)' }}>
                 <div className="row-flex" style={{ gap: 10 }}>
@@ -65,7 +64,6 @@ export function Schedule({ props }: { props: { focusDate?: string; routineId?: s
           </div>
         ) : (
           <div style={{ marginTop: 16 }}>
-            <div className="xs t3" style={{ marginBottom: 10 }}>{t('No fixed days. Aven lines up the next routine in the order below and moves on when you finish it.')}</div>
             {sch.rotation.order.map((id, i) => { const r = routines.find((x) => x.id === id); if (!r) return null; return (
               <div key={id + i} className="row-flex" style={{ gap: 10, padding: '10px 0', borderTop: '1px solid var(--line)' }}>
                 <span className="display display-sm accent num" style={{ width: 22 }}>{i + 1}</span><div className="grow li-title">{r.name}{sch.rotation.pointer % Math.max(1, sch.rotation.order.length) === i && <span className="chip sm acc" style={{ marginLeft: 8, height: 20 }}>{t('next')}</span>}</div>
@@ -150,7 +148,6 @@ export function ActivityLog({ props }: { props: { kind?: ActivityKind } }) {
         <div className="chips" style={{ marginTop: 14 }}>
           {[0, -1, -2].map((n) => { const d = addDays(today, n); return <button key={n} className={`chip sm press ${date === d ? 'on' : ''}`} onClick={() => setDate(d)}>{relativeDay(d, today, 'en') ? t(relativeDay(d, today, 'en')!) : fmtDate(d, 'en')}</button>; })}
         </div>
-        <div className="xs t3" style={{ marginTop: 14 }}>{t('Activity is logged for your records. It is never added to your calorie targets.')}</div>
       </div>
     </Sheet>
   );

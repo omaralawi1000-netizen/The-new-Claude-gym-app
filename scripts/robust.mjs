@@ -58,7 +58,7 @@ const base = 'http://127.0.0.1:5173/';
   const errs = []; p.on('pageerror', (e) => errs.push(e.message));
   await p.goto(base); await wait(p, 800);
   await p.getByText('Skip all').click(); await wait(p, 500);
-  await p.locator('.tabbar').getByText('Food', { exact: true }).click(); await wait(p, 600);
+  await p.locator('.tabbar').getByRole('button', { name: 'Food', exact: true }).click(); await wait(p, 600);
   await p.getByRole('button', { name: 'Add food' }).first().click(); await wait(p, 500);
   await p.getByPlaceholder('Search foods and brands').fill('banana'); await wait(p, 600);
   await p.getByText('Banana', { exact: true }).first().click(); await wait(p, 900);

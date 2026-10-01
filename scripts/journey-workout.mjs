@@ -45,7 +45,7 @@ await p.getByRole('button', { name: /Finish and save/ }).click(); await wait(p, 
 await p.screenshot({ path: 'shots/wk-5-summary.png' });
 await p.getByRole('button', { name: 'Done', exact: true }).click(); await wait(p, 900);
 // 8. history shows it and values are saved
-await p.locator('.tabbar').getByText('Train', { exact: true }).click(); await wait(p, 600);
+await p.locator('.tabbar').getByRole('button', { name: 'Train', exact: true }).click(); await wait(p, 600);
 await p.getByRole('tab', { name: 'History' }).click(); await wait(p, 600);
 await p.screenshot({ path: 'shots/wk-6-history.png' });
 await p.getByText('Pull').first().click(); await wait(p, 800);

@@ -134,7 +134,6 @@ export function RecipeEditor({ props }: { props: { id?: string; date: string; me
           <div className="field"><label>{t('Servings')}</label><NumInput value={servings} onChange={setServings} max={2} min={0.25} unit="×" label={t('Servings')} /></div>
           <div className="field"><label>{t('Prepared weight')}</label><NumInput value={weight} onChange={setWeight} max={0} unit="g" placeholder={c.weightIsSum && c.weightG ? String(Math.round(c.weightG)) : t('optional')} label={t('Prepared weight')} /></div>
         </div>
-        <div className="xs t3" style={{ marginTop: 6 }}>{t('Weigh the finished dish for accurate servings. Without it, the ingredient weights are added up.')}</div>
 
         <div className="lbl" style={{ margin: '20px 0 6px' }}>{t('Ingredients')}</div>
         {ings.length === 0 && <div className="small t2" style={{ padding: '6px 0 10px' }}>{t('Add your first ingredient below.')}</div>}

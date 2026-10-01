@@ -5,7 +5,7 @@ await p.getByRole('button', { name: /Start workout/ }).click(); await wait(p, 12
 await p.getByRole('button', { name: 'Complete set' }).first().click(); await wait(p, 700);
 await p.screenshot({ path: 'shots/light-workout.png' });
 await p.getByRole('button', { name: 'Minimise workout' }).click(); await wait(p, 900);
-await p.locator('.tabbar').getByText('Food', { exact: true }).click(); await wait(p, 600);
+await p.locator('.tabbar').getByRole('button', { name: 'Food', exact: true }).click(); await wait(p, 600);
 await p.getByRole('button', { name: 'Previous day' }).click(); await wait(p, 700);
 await p.screenshot({ path: 'shots/light-food-prev.png' });
 await p.getByRole('button', { name: /Add to Dinner/ }).click(); await wait(p, 600);

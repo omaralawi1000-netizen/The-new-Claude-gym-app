@@ -90,7 +90,6 @@ export function RoutineEditor({ props }: { props: { id?: string } }) {
         </AnimatePresence>
         <button className="btn block press" onClick={() => push('exercisePicker', { mode: 'pick', onPick: (ids: string[]) => setItems((x) => [...x, ...ids.map((id) => newItem(id, exMap.get(id)?.logType))]) })}><Icon name="plus" size={18} /> {t('Add exercises')}</button>
         <div className="field" style={{ marginTop: 18 }}><label htmlFor="rt-note">{t('Notes')}</label><textarea id="rt-note" className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder={t('Optional')} /></div>
-        <div className="xs t3" style={{ marginTop: 10 }}>{t('Planned sets and rep ranges are targets. What you actually do is saved separately in each workout.')}</div>
         {existing && <button className="btn sm danger press" style={{ marginTop: 18 }} onClick={del}><Icon name="trash" size={16} /> {t('Delete routine')}</button>}
       </div>
     </Sheet>

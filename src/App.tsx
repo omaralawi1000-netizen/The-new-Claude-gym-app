@@ -25,7 +25,7 @@ function useTheme() {
     const apply = () => {
       const dark = theme === 'dark' || (theme === 'system' && mq.matches);
       root.dataset.theme = dark ? 'dark' : 'light';
-      document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#0a0a0c' : '#e4e8eb');
+      document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#05060b' : '#e9ecf4');
       try { localStorage.setItem('aven.theme', theme); } catch { /* ignore */ }
     };
     apply();
@@ -75,9 +75,10 @@ export function App() {
   return (
     <MotionConfig reducedMotion="user">
       <LayoutGroup>
-        <div className="app">
+        <div className="app" data-hue={tab}>
+          <div className="aurora" aria-hidden><i /><i /><i /></div>
           <AnimatePresence mode="popLayout" initial={false}>
-            <motion.div key={tab} style={{ position: 'absolute', inset: 0 }} initial={{ opacity: 0, x: dir * 18 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -dir * 18 }} transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}>
+            <motion.div key={tab} style={{ position: 'absolute', inset: 0 }} initial={{ opacity: 0, x: dir * 36 }} animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }} exit={{ opacity: 0, x: -dir * 36, filter: 'blur(10px)' }} transition={{ duration: 0.38, ease: [0.22, 1, 0.36, 1] }}>
               {screen}
             </motion.div>
           </AnimatePresence>

@@ -186,6 +186,10 @@ export function registerSlot(id: string, el: HTMLElement, priority: number) {
 function parseColor(css: string, fallback: [number, number, number]): [number, number, number] {
   const m = css.match(/#([0-9a-f]{6})/i);
   if (m) { const n = parseInt(m[1], 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+  const rgb = css.match(/rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)/);
+  if (rgb) return [Number(rgb[1]), Number(rgb[2]), Number(rgb[3])];
+  const srgb = css.match(/color\(srgb\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)/); // modern engines serialise colour-mix() like this
+  if (srgb) return [Number(srgb[1]) * 255, Number(srgb[2]) * 255, Number(srgb[3]) * 255];
   return fallback;
 }
 
@@ -203,18 +207,21 @@ export function SphereStage() {
     let running = true;
     let last = performance.now();
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const cs = getComputedStyle(document.documentElement);
     let colorKey = '';
+    let frame = 0;
+    // the accent now follows the active area and cross-fades, so read the live (resolved) colour through probes
+    const probe = (v: string) => { const d = document.createElement('i'); d.style.cssText = `position:absolute;width:0;height:0;pointer-events:none;color:var(${v})`; (appEl ?? document.body).appendChild(d); return d; };
+    const pAc = probe('--ac'), pAc2 = probe('--ac-2');
     let colors = { hi: [255, 138, 77] as [number, number, number], lo: [150, 70, 40] as [number, number, number], ok: [95, 208, 138] as [number, number, number], dark: true };
     const refreshColors = () => {
       const theme = document.documentElement.dataset.theme;
-      if (colorKey === theme) return;
+      if (frame++ % 6 !== 0 && colorKey === theme) return;
       colorKey = theme ?? '';
       const dark = theme !== 'light';
-      const ac = parseColor(cs.getPropertyValue('--ac'), [255, 91, 36]);
-      const ac2 = parseColor(cs.getPropertyValue('--ac-2'), [255, 138, 77]);
+      const ac = parseColor(getComputedStyle(pAc).color, [255, 91, 36]);
+      const ac2 = parseColor(getComputedStyle(pAc2).color, [255, 138, 77]);
       colors = dark
-        ? { hi: ac2, lo: [120, 62, 40], ok: [110, 222, 150], dark }
+        ? { hi: ac2, lo: [ac[0] * 0.42, ac[1] * 0.42, ac[2] * 0.42] as [number, number, number], ok: [110, 222, 150], dark }
         : { hi: ac, lo: [150, 110, 95], ok: [30, 160, 95], dark };
     };
 
@@ -259,7 +266,7 @@ export function SphereStage() {
       else if (!running) { running = true; last = performance.now(); raf = requestAnimationFrame(tick); }
     };
     document.addEventListener('visibilitychange', onVis);
-    return () => { running = false; cancelAnimationFrame(raf); document.removeEventListener('visibilitychange', onVis); };
+    return () => { running = false; cancelAnimationFrame(raf); document.removeEventListener('visibilitychange', onVis); pAc.remove(); pAc2.remove(); };
   }, [motionPref]);
 
   return (

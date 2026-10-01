@@ -38,7 +38,6 @@ export function ExerciseDetail({ props }: { props: { id: string } }) {
       <SheetHead title={exName(ex, lang)} sub={ex.muscles.map((m) => t(MUSCLE_LABEL[m])).join(' · ')} onClose={pop} right={ex.custom ? <button className="icon-btn flat" aria-label={t('Edit')} onClick={() => push('exerciseEditor', { id: ex.id })}><Icon name="edit" /></button> : undefined} />
       <div className="sheet-body">
         <div className="plinth dots" style={{ padding: 14, borderRadius: 'var(--r-lg)', display: 'grid', placeItems: 'center' }}><MuscleMap muscles={ex.muscles} size={130} /></div>
-        <div className="xs t3" style={{ marginTop: 6, textAlign: 'center' }}>{t('Diagram: front and back. Orange = main muscle, tint = helpers. No video demonstration is included.')}</div>
         <div className="chips" style={{ margin: '14px 0 0', padding: 0, flexWrap: 'wrap' }}>
           {ex.equipment.map((q) => <span key={q} className="chip sm">{t(EQUIP_LABEL[q])}</span>)}<span className="chip sm">{t(MOVE_LABEL[ex.movement])}</span>
         </div>

@@ -158,7 +158,6 @@ export function FoodDetail({ props }: { props: { food?: Food; foodId?: string; e
             <div className="lbl" style={{ marginBottom: 8 }}>{t('Prepared as')}</div>
             <Seg value={food.id} onChange={(id) => { const v = variants.find((x) => x.id === id)!; setFood(v); setQty((q) => (q.unit === 'portion' ? defaultQty(v) : q)); }}
               options={variants.map((v) => ({ value: v.id, label: t(v.state === 'raw' ? 'Raw' : v.state === 'cooked' ? 'Cooked' : v.state === 'dry' ? 'Dry' : 'Other') }))} />
-            <div className="xs t3" style={{ marginTop: 6 }}>{t('Raw and cooked weights are not interchangeable — cooking changes water content.')}</div>
           </div>
         )}
 
@@ -208,7 +207,6 @@ export function FoodDetail({ props }: { props: { food?: Food; foodId?: string; e
             ))}
           </div>
           <div className="xs t3" style={{ marginTop: 8 }}>{t('"—" means the source has no value — it is not counted as zero.')}</div>
-          {food.source === 'reference' && <div className="xs t3" style={{ marginTop: 4 }}>{t('Bundled reference values are typical averages. Correct them by making your own copy.')}</div>}
         </div>
 
         {editing && (

@@ -96,7 +96,6 @@ export function Scanner({ props }: { props: { date: string; mealId: string } }) 
             {msg.create && <div style={{ marginTop: 10 }}><button className="btn sm primary press" onClick={() => swap(1, 'customFood', { barcode: msg.create, afterSave: 'openDetail', date: props.date, mealId: props.mealId })}><Icon name="plus" size={16} /> {t('Add this product')}</button></div>}
           </div>
         )}
-        <div className="xs t3" style={{ marginTop: 14 }}>{t('Product data comes from Open Food Facts when the lookup server is reachable; your saved foods are checked first.')}</div>
       </div>
     </Sheet>
   );

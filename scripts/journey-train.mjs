@@ -6,7 +6,7 @@ await p.goto('http://127.0.0.1:5173/'); await wait(p, 1000);
 await skipOnboarding(p); await loadDemo(p);
 const nSessions = (await state()).sessions.length;
 // A. delete the latest session → it becomes a "missed" planned workout
-await p.locator('.tabbar').getByText('Train', { exact: true }).click(); await wait(p, 600);
+await p.locator('.tabbar').getByRole('button', { name: 'Train', exact: true }).click(); await wait(p, 600);
 await p.getByRole('tab', { name: 'History' }).click(); await wait(p, 500);
 await p.locator('.list .li').first().click(); await wait(p, 800);
 await p.getByRole('dialog').getByRole('button', { name: 'Delete', exact: true }).first().click(); await wait(p, 700);
@@ -17,7 +17,7 @@ await p.locator('.list .li').first().click(); await wait(p, 800);
 await p.getByRole('dialog').getByRole('button', { name: 'Delete', exact: true }).first().click(); await wait(p, 900);
 await p.getByRole('tab', { name: 'Plan' }).click(); await wait(p, 600);
 await p.screenshot({ path: 'shots/tr-1-missed.png' });
-assert(await p.getByText('Missed workouts').isVisible(), 'missed workout banner appears');
+assert(await p.getByRole('button', { name: 'Reschedule' }).first().isVisible(), 'missed workout banner appears');
 const before = (await state()).sessions.length;
 await p.getByRole('button', { name: 'Reschedule' }).first().click(); await wait(p, 700);
 await p.screenshot({ path: 'shots/tr-2-reschedule.png' });
@@ -25,7 +25,7 @@ await p.getByRole('button', { name: 'Do it today' }).click(); await wait(p, 800)
 const s2 = await state();
 assert.equal(s2.sessions.length, before, 'history untouched by reschedule');
 assert(s2.schedule.overrides.some((o) => o.originDate) && s2.schedule.cleared.length > 0, 'override + cleared recorded');
-await p.locator('.tabbar').getByText('Today', { exact: true }).click(); await wait(p, 700);
+await p.locator('.tabbar').getByRole('button', { name: 'Today', exact: true }).click(); await wait(p, 700);
 assert(await p.getByText('Rescheduled').first().isVisible(), 'today shows rescheduled workout');
 // B. active workout: add by search, superset, reorder, replace, pause/resume
 await p.getByRole('button', { name: /Start (workout|again)/ }).click(); await wait(p, 1100);

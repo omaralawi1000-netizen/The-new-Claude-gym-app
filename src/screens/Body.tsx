@@ -40,7 +40,6 @@ export function WeightSheet() {
         <div className="chips" style={{ marginTop: 12 }}>
           {[0, -1, -2, -3].map((n) => { const d = addDays(today, n); return <button key={n} className={`chip sm press ${date === d ? 'on' : ''}`} onClick={() => setDate(d)}>{relativeDay(d, today, 'en') ? t(relativeDay(d, today, 'en')!) : fmtDate(d, lang, { weekday: 'short', day: 'numeric' })}</button>; })}
         </div>
-        <div className="xs t3" style={{ marginTop: 10 }}>{t('Weigh at a consistent time — single readings are noisy; Aven charts a smoothed trend.')}</div>
         {list.length > 0 && <div className="list" style={{ marginTop: 18 }}>{list.map((w) => (
           <div key={w.id} className="li" style={{ minHeight: 48 }}>
             <div className="grow num"><b>{fmtNum(kgToDisplay(w.kg, u), lang, 1)}</b> {u}</div><div className="small t2">{fmtDate(w.date, lang, { weekday: 'short', day: 'numeric', month: 'short' })}</div>

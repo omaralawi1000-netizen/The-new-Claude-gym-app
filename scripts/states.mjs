@@ -3,7 +3,7 @@
 import { launch, wait, skipOnboarding } from './lib.mjs';
 const { b, p } = await launch({});
 await p.goto('http://127.0.0.1:5173/'); await wait(p, 900); await skipOnboarding(p);
-await p.locator('.tabbar').getByText('Food', { exact: true }).click(); await wait(p, 500);
+await p.locator('.tabbar').getByRole('button', { name: 'Food', exact: true }).click(); await wait(p, 500);
 await p.getByRole('button', { name: 'Dictate' }).first().click(); await wait(p, 1200);
 const set = (phase) => p.evaluate(async (ph) => { const { useVoice } = await import('/src/state/voice.ts'); useVoice.getState().go(ph); }, phase);
 const acquire = () => p.evaluate(async () => { const { mic } = await import('/src/lib/mic.ts'); const r = await mic.acquire('voice'); return [r, mic.active]; });

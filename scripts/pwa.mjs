@@ -15,7 +15,7 @@ await p.reload(); await p.waitForTimeout(1000);
 await ctx.setOffline(true);
 await p.reload(); await p.waitForTimeout(1500);
 assert(await p.getByText('Good evening').or(p.getByText('Good afternoon')).or(p.getByText('Good morning')).or(p.getByText('Late night')).first().isVisible(), 'app loads offline');
-await p.locator('.tabbar').getByText('Food', { exact: true }).click(); await p.waitForTimeout(500);
+await p.locator('.tabbar').getByRole('button', { name: 'Food', exact: true }).click(); await p.waitForTimeout(500);
 await p.getByRole('button', { name: 'Add food' }).first().click(); await p.waitForTimeout(500);
 await p.getByPlaceholder('Search foods and brands').fill('banana'); await p.waitForTimeout(1200);
 assert(await p.getByText('Banana', { exact: true }).first().isVisible(), 'bundled foods work offline');

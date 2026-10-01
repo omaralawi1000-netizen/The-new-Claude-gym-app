@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 const { b, ctx, p, errors } = await launch({ record: process.argv.includes('--record') });
 await p.goto('http://127.0.0.1:5173/'); await wait(p, 1000);
 await skipOnboarding(p);
-await p.locator('.tabbar').getByText('Food', { exact: true }).click(); await wait(p, 700);
-const kcal = async () => Number((await p.locator('.plinth.dots .display-xl').first().innerText()).replace(/[^\d]/g, ''));
+await p.locator('.tabbar').getByRole('button', { name: 'Food', exact: true }).click(); await wait(p, 700);
+const kcal = async () => Number((await p.locator('[data-testid="ledger-kcal"]').first().innerText()).replace(/[^\d]/g, ''));
 const primary = () => p.locator('.sheet-foot .btn.primary');
 // online results
 await p.getByRole('button', { name: 'Add food' }).first().click(); await wait(p, 600);
