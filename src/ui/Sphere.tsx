@@ -5,6 +5,7 @@ import { mic } from '../lib/mic';
 import { useVoice } from '../state/voice';
 import { useStore } from '../state/store';
 import { useUI } from '../state/ui';
+import { kb } from './keyboard';
 
 /**
  * The Aven sphere: ~900 points on a Fibonacci lattice, lit from upper-left so it reads as a volume.
@@ -262,9 +263,13 @@ export class SphereRenderer {
 
 interface Slot { el: HTMLElement; priority: number; engage?: Engage }
 const slots = new Map<string, Slot>();
+/** Until when slot positions must be re-measured every frame (see the stage's tick). */
+let layoutDirtyUntil = 0;
+export const markOrbLayoutDirty = (ms = 900) => { layoutDirtyUntil = Math.max(layoutDirtyUntil, performance.now() + ms); };
 export function registerSlot(id: string, el: HTMLElement, priority: number, engage?: Engage) {
   slots.set(id, { el, priority, engage });
-  return () => { if (slots.get(id)?.el === el) slots.delete(id); };
+  markOrbLayoutDirty();
+  return () => { if (slots.get(id)?.el === el) slots.delete(id); markOrbLayoutDirty(); };
 }
 
 /** cubic-bezier(0.65, 0, 0.35, 1) — the --ease-io curve the colour field cross-fades on */
@@ -335,6 +340,23 @@ export function SphereStage() {
     // higher slot by that slot's `engage` (how far its popup is open). The popup, the page behind it and the orb all
     // read the same number in the same frame, so they stay in step while a popup opens, is dragged or leaves.
     let px = NaN, py = NaN, ps = NaN, sentV = 0, lastDraw = 0, lastBucket = 0;
+    let base = { left: 0, top: 0 };
+    const rects = new WeakMap<HTMLElement, DOMRect>();
+    const shifts = new WeakMap<HTMLElement, number>();
+    // what can move a slot: scrolling anywhere, resizing, the keyboard, any React update (DOM or style/class change), a
+    // finger on the screen. Each opens a short window in which boxes are re-measured every frame.
+    const dirty = () => markOrbLayoutDirty();
+    const lmo = new MutationObserver(dirty);
+    if (appEl) lmo.observe(appEl, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class', 'data-active', 'hidden'] });
+    window.addEventListener('scroll', dirty, { capture: true, passive: true });
+    window.addEventListener('resize', dirty);
+    window.visualViewport?.addEventListener('resize', dirty);
+    window.addEventListener('pointermove', dirty, { passive: true });
+    window.addEventListener('pointerdown', dirty, { passive: true });
+    const offUi = useUI.subscribe((a, b) => { if (a.tab !== b.tab || a.overlays !== b.overlays) dirty(); });
+    const offKb = kb.on('change', dirty);
+    document.fonts?.addEventListener?.('loadingdone', dirty); // a web font arriving re-flows text
+    window.addEventListener('load', dirty, true);              // an image arriving can too
     const tick = (now: number) => {
       if (!running) return;
       refreshColors(now);
@@ -342,13 +364,20 @@ export function SphereStage() {
       const list: Slot[] = [];
       for (const s of slots.values()) if (s.el.isConnected) list.push(s);
       list.sort((a, b) => a.priority - b.priority);
-      const base = appEl?.getBoundingClientRect(); // the stage lives inside .app, which may be offset on wide screens
-      const ox = base?.left ?? 0, oy = base?.top ?? 0;
+      // Where the slots are. Reading a box forces the browser to finish style and layout right here, and doing that every
+      // frame also drags every running CSS animation (the colour field, a page's rise-in) back onto the main thread. So
+      // boxes are measured only while something can have moved them — a scroll, a resize, the keyboard, a React update,
+      // a tab or popup change, a finger, or a popup's own progress — and reused from the cache otherwise.
+      const measure = now < layoutDirtyUntil;
+      if (measure) { const b = appEl?.getBoundingClientRect(); base = { left: b?.left ?? 0, top: b?.top ?? 0 }; }
+      const ox = base.left, oy = base.top;
       let X = 0, Y = 0, S = 0, have = false, top = 0, topSlot: Slot | null = null;
       for (const sl of list) {
         const e = sl.engage ? Math.min(1, Math.max(0, sl.engage.e.get())) : 1;
         if (have && e <= 0.001) continue;
-        const r = sl.el.getBoundingClientRect();
+        let r = rects.get(sl.el);
+        const sh = sl.engage?.shift?.get() ?? 0;
+        if (measure || !r || (e > 0.001 && e < 0.999) || sh !== shifts.get(sl.el)) { r = sl.el.getBoundingClientRect(); rects.set(sl.el, r); shifts.set(sl.el, sh); }
         if (r.width < 2) continue;
         // where the slot comes to rest: its box minus however far the popup is currently displaced
         const x = r.left - ox, y = r.top - oy - (sl.engage?.shift?.get() ?? 0), z = Math.min(r.width, r.height);
@@ -365,7 +394,9 @@ export function SphereStage() {
       el.style.opacity = '1';
       if (el.style.width !== `${bucket}px`) el.style.width = el.style.height = `${bucket}px`;
       el.style.transform = `translate3d(${X}px, ${Y}px, 0) scale(${size / bucket})`;
-      const dpr = Math.min(3, window.devicePixelRatio || 1);
+      // A big orb is soft light, not fine detail: at 2× it looks the same as at 3×, with less than half the pixels to fill and
+      // hand to the screen every frame (that hand-over was most of the orb screen's cost). Small orbs keep full sharpness.
+      const dpr = Math.min(bucket > 120 ? 2 : 3, window.devicePixelRatio || 1);
       // Sitting still in the tab bar under an open sheet/overlay: keep the last frame instead of redrawing, so the
       // frosted layers above stop re-blurring it every frame.
       const still = Math.abs(X - px) < 0.05 && Math.abs(Y - py) < 0.05 && Math.abs(S - ps) < 0.05;
@@ -401,7 +432,7 @@ export function SphereStage() {
       else if (!running) { running = true; frame.postRender(loop, true); }
     };
     document.addEventListener('visibilitychange', onVis);
-    return () => { running = false; cancelFrame(loop); document.removeEventListener('visibilitychange', onVis); mo.disconnect(); pAc.remove(); pAc2.remove(); pH1.remove(); };
+    return () => { running = false; cancelFrame(loop); document.removeEventListener('visibilitychange', onVis); mo.disconnect(); lmo.disconnect(); window.removeEventListener('scroll', dirty, { capture: true }); window.removeEventListener('resize', dirty); window.visualViewport?.removeEventListener('resize', dirty); window.removeEventListener('pointermove', dirty); window.removeEventListener('pointerdown', dirty); offUi(); offKb(); document.fonts?.removeEventListener?.('loadingdone', dirty); window.removeEventListener('load', dirty, true); pAc.remove(); pAc2.remove(); pH1.remove(); };
   }, [motionPref]);
 
   return (

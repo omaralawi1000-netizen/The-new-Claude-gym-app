@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useStore, flushSave, persistStatus } from '../state/store';
 import { useUI } from '../state/ui';
+import { SMOOTH } from '../ui/motion';
 import { useT, useLang } from '../lib/i18n';
 import { Sheet, SheetHead } from '../ui/Sheet';
 import { Icon } from '../ui/Icon';
@@ -21,12 +22,12 @@ import { VoiceAiSettings } from './VoiceAi';
 const EASE = [0.22, 1, 0.36, 1] as const;
 const PAGE = {
   enter: (d: number) => ({ x: d * 56, opacity: 0, filter: 'blur(10px)' }),
-  center: { x: 0, opacity: 1, filter: 'blur(0px)', transition: { x: { type: 'spring' as const, stiffness: 340, damping: 34, mass: 0.9 }, opacity: { duration: 0.28, ease: EASE }, filter: { duration: 0.36, ease: EASE } } },
+  center: { x: 0, opacity: 1, filter: 'blur(0px)', transitionEnd: { filter: 'none' }, transition: { x: SMOOTH, opacity: { duration: 0.28, ease: EASE }, filter: { duration: 0.36, ease: EASE } } },
   exit: (d: number) => ({ x: d * -40, opacity: 0, filter: 'blur(8px)', transition: { duration: 0.24, ease: [0.4, 0, 1, 1] as const } }),
 };
 const TITLE = {
   enter: (d: number) => ({ x: d * 24, opacity: 0, filter: 'blur(6px)' }),
-  center: { x: 0, opacity: 1, filter: 'blur(0px)', transition: { duration: 0.34, ease: EASE } },
+  center: { x: 0, opacity: 1, filter: 'blur(0px)', transitionEnd: { filter: 'none' }, transition: { duration: 0.34, ease: EASE } },
   exit: (d: number) => ({ x: d * -18, opacity: 0, filter: 'blur(4px)', transition: { duration: 0.2 } }),
 };
 

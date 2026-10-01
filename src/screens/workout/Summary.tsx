@@ -5,7 +5,7 @@ import { useUI, buzz } from '../../state/ui';
 import { useT, useLang } from '../../lib/i18n';
 import { Icon } from '../../ui/Icon';
 import { Count, NumInput } from '../../ui/kit';
-import { Sheet, SheetHead, SOFT } from '../../ui/Sheet';
+import { Sheet, SheetHead, SOFT, zoomFrom } from '../../ui/Sheet';
 import { elapsedMs, sessionSetCount, sessionVolume, countable } from '../../lib/workout';
 import { fmtDate, fmtDuration } from '../../lib/dates';
 import { displayToKg, fmtNum, kgToDisplay } from '../../lib/units';
@@ -145,7 +145,7 @@ export function SessionDetail({ props }: { props: { id: string } }) {
           let wi = 0;
           return (
             <div key={e.id} className="plinth" style={{ padding: 14, marginBottom: 12, borderRadius: 'var(--r-lg)' }}>
-              <button className="display display-sm press" style={{ textAlign: 'left' }} onClick={() => ex && push('exercise', { id: ex.id })}>{ex ? exName(ex, lang) : ''}</button>
+              <button className="display display-sm press" style={{ textAlign: 'left' }} onClick={(ev) => ex && push('exercise', { id: ex.id, from: zoomFrom(ev.currentTarget) })}>{ex ? exName(ex, lang) : ''}</button>
               {e.note && <div className="small t2" style={{ marginTop: 6 }}>{e.note}</div>}
               <div style={{ marginTop: 8 }}>
                 {e.sets.map((x) => {

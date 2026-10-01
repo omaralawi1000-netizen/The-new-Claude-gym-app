@@ -1,4 +1,5 @@
 import { animate, motionValue, type MotionValue } from 'motion/react';
+import { KEYBOARD } from './motion';
 
 /**
  * The on-screen keyboard, as a smooth number. The browser reports the keyboard in a step or two (and the area it
@@ -13,7 +14,7 @@ let anim: { stop: () => void } | null = null;
 export function setKeyboard(px: number, reduced = false) {
   anim?.stop();
   if (px === 0 && typeof window !== 'undefined') base = Math.max(base, window.innerHeight);
-  anim = animate(kb, px, reduced ? { duration: 0.01 } : { type: 'spring', stiffness: 460, damping: 40, mass: 0.9, restDelta: 0.5 });
+  anim = animate(kb, px, reduced ? { duration: 0.01 } : KEYBOARD);
 }
 
 /** CSS length for "the space a tall sheet may use": everything below the status bar gap, above the keyboard. */

@@ -6,7 +6,7 @@ import { useT, useLang } from '../../lib/i18n';
 import type { Exercise, SessionExercise, SetRecord } from '../../lib/types';
 import { Icon } from '../../ui/Icon';
 import { NumInput } from '../../ui/kit';
-import { Sheet, SheetHead, SOFT, SNAP, useOverlayZ } from '../../ui/Sheet';
+import { Sheet, SheetHead, SOFT, SNAP, useOverlayZ, zoomFrom } from '../../ui/Sheet';
 import { beatLastTime, elapsedMs, lastPerformance, sessionSetCount, sessionVolume, suggestProgression, countable } from '../../lib/workout';
 import { fmtDuration } from '../../lib/dates';
 import { displayToKg, kgToDisplay, fmtNum, displayToM, mToDisplay } from '../../lib/units';
@@ -16,9 +16,10 @@ import { exName, fmtSet, MUSCLE_LABEL } from './common';
 import { SphereSlot } from '../../ui/Sphere';
 import { useSwipeDown } from '../../ui/swipe';
 import { trackCover } from '../../ui/engage';
+import { BOUNCY, SURFACE_EXIT, WINDOW } from '../../ui/motion';
 
 // critically damped: it opens and closes in one smooth motion with no wobble at the end
-const WK_SPRING = { type: 'spring', stiffness: 320, damping: 34, mass: 0.9 } as const;
+const WK_SPRING = WINDOW;
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 
 interface Edges { left: number; top: number; right: number; bottom: number }
@@ -90,7 +91,7 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
     if (!from) { // sliding presentation: the finger's offset becomes progress, then it carries on at the finger's speed
       const v = swipeV.current || dragY.getVelocity();
       slide.set(slide.get() - Math.max(0, dragY.get()) / H); dragY.set(0);
-      animate(slide, 0, reduce ? { duration: 0.01 } : { type: 'spring', stiffness: 260, damping: 34, mass: 0.9, restDelta: 0.002, velocity: -v / H }).then(() => safeToRemove?.());
+      animate(slide, 0, reduce ? { duration: 0.01 } : { ...SURFACE_EXIT, velocity: -v / H }).then(() => safeToRemove?.());
       return;
     }
     const now = origin === 'hero' ? measureOrigin('hero') : null; // the card may have scrolled; the pill never moves
@@ -335,7 +336,7 @@ const ExerciseBlock = memo(function ExerciseBlock({ se, idx, ex, linkedPrev, lin
       {se.supersetGroup && !linkedPrev && <div className="micro accent" style={{ marginBottom: 4 }}>{t('Superset')}</div>}
       <div className="plinth" style={{ padding: '14px 12px 12px', borderRadius: 'var(--r-lg)' }}>
         <div className="row-flex between" style={{ alignItems: 'flex-start', gap: 8 }}>
-          <button className="grow press" style={{ textAlign: 'left', minWidth: 0 }} onClick={() => ex && push('exercise', { id: ex.id })}>
+          <button className="grow press" style={{ textAlign: 'left', minWidth: 0 }} onClick={(ev) => ex && push('exercise', { id: ex.id, from: zoomFrom(ev.currentTarget) })}>
             <div className="display display-sm trunc">{ex ? exName(ex, lang) : t('Unknown exercise')}</div>
             <div className="xs t2" style={{ marginTop: 3 }}>{ex?.muscles.slice(0, 2).map((m) => t(MUSCLE_LABEL[m])).join(' · ')}</div>
           </button>
@@ -474,7 +475,7 @@ const SetRow = memo(function SetRow({ se, set, ex, label, prev, restDefault }: {
           <motion.span key={String(set.done)} initial={{ scale: set.done ? 0.4 : 1 }} animate={{ scale: 1 }} transition={SNAP} style={{ display: 'grid' }}><Icon name="check" size={22} sw={2.6} /></motion.span>
           {burst > 0 && set.done && <motion.i key={burst} aria-hidden initial={{ scale: 0.9, opacity: 0.85 }} animate={{ scale: 2.4, opacity: 0 }} transition={{ duration: 0.75, ease: [0.22, 1, 0.36, 1] }} style={{ position: 'absolute', inset: 0, borderRadius: 14, boxShadow: '0 0 0 2px var(--ac), 0 0 24px var(--ac)', pointerEvents: 'none' }} />}
           {beat && set.done && <motion.i key={`g${beat.n}`} aria-hidden initial={{ scale: 0.9, opacity: 1 }} animate={{ scale: 3.2, opacity: 0 }} transition={{ duration: 1, ease: [0.22, 1, 0.36, 1] }} style={{ position: 'absolute', inset: 0, borderRadius: 14, boxShadow: '0 0 0 2px var(--gold), 0 0 30px var(--gold)', pointerEvents: 'none' }} />}
-          <AnimatePresence>{showGain && beat && set.done && <motion.span key={`l${beat.n}`} className="num" initial={{ opacity: 0, y: 6, scale: 0.8 }} animate={{ opacity: 1, y: -30, scale: 1 }} exit={{ opacity: 0, y: -42, transition: { duration: 0.3 } }} transition={{ type: 'spring', stiffness: 260, damping: 18 }}
+          <AnimatePresence>{showGain && beat && set.done && <motion.span key={`l${beat.n}`} className="num" initial={{ opacity: 0, y: 6, scale: 0.8 }} animate={{ opacity: 1, y: -30, scale: 1 }} exit={{ opacity: 0, y: -42, transition: { duration: 0.3 } }} transition={BOUNCY}
             style={{ position: 'absolute', left: '50%', top: 0, x: '-50%', whiteSpace: 'nowrap', fontSize: 12, fontWeight: 700, color: 'var(--gold)', textShadow: '0 0 12px color-mix(in srgb, var(--gold) 60%, transparent)', pointerEvents: 'none' }}>{beat.label}</motion.span>}</AnimatePresence>
         </motion.button>
       </div>

@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef } from 'react';
-import { AnimatePresence, LayoutGroup, MotionConfig, motion } from 'motion/react';
+import { LayoutGroup, MotionConfig } from 'motion/react';
 import { useStore } from './state/store';
 import { useUI } from './state/ui';
 import { TabBar } from './ui/TabBar';
@@ -16,8 +16,30 @@ import { dayKey } from './lib/dates';
 import { defaultMealId } from './lib/derive';
 import { stageCover, stageDepth } from './ui/engage';
 import { setKeyboard } from './ui/keyboard';
+import { TabStage } from './ui/TabStage';
 
-const ORDER = ['today', 'train', 'food', 'progress'] as const;
+/** Where the last tap landed — the theme switch spreads out from there. */
+const lastTap = { x: typeof window !== 'undefined' ? window.innerWidth / 2 : 0, y: 0 };
+if (typeof window !== 'undefined') window.addEventListener('pointerdown', (e) => { lastTap.x = e.clientX; lastTap.y = e.clientY; }, { capture: true, passive: true });
+
+/**
+ * Keep the screen on while a workout is running (and not paused): the phone no longer locks between sets. The browser
+ * drops the lock whenever the app is hidden, so it is taken again when you come back.
+ */
+function useWakeLock() {
+  const on = useStore((s) => !!s.active && !s.active.pausedAt);
+  useEffect(() => {
+    const wl = (navigator as any).wakeLock as { request: (t: 'screen') => Promise<{ release: () => Promise<void> }> } | undefined;
+    if (!on || !wl) return;
+    let lock: { release: () => Promise<void> } | null = null;
+    let alive = true;
+    const take = () => { if (document.visibilityState === 'visible') wl.request('screen').then((l) => { if (alive) lock = l; else l.release().catch(() => {}); }).catch(() => {}); };
+    take();
+    document.addEventListener('visibilitychange', take);
+    return () => { alive = false; document.removeEventListener('visibilitychange', take); lock?.release().catch(() => {}); };
+  }, [on]);
+}
+
 function useTheme() {
   const theme = useStore((s) => s.settings.theme);
   const motionPref = useStore((s) => s.settings.motion);
@@ -27,9 +49,24 @@ function useTheme() {
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
     const apply = () => {
       const dark = theme === 'dark' || (theme === 'system' && mq.matches);
-      root.dataset.theme = dark ? 'dark' : 'light';
-      document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#05060b' : '#e9ecf4');
+      const next = dark ? 'dark' : 'light';
+      const set = () => {
+        root.dataset.theme = next;
+        document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#05060b' : '#e9ecf4');
+      };
       try { localStorage.setItem('aven.theme', theme); } catch { /* ignore */ }
+      // switching while the app is open: the new theme spreads out as a circle from where you tapped (View Transitions);
+      // on first paint, with reduced motion, or where unsupported it simply switches
+      const prev = root.dataset.theme;
+      const still = root.dataset.motion === 'reduce' || (root.dataset.motion !== 'full' && matchMedia('(prefers-reduced-motion: reduce)').matches);
+      const vt = (document as any).startViewTransition as undefined | ((cb: () => void) => { ready: Promise<void> });
+      if (!prev || prev === next || still || !vt) { set(); return; }
+      const { x, y } = lastTap;
+      const r = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
+      try {
+        const t = vt.call(document, set);
+        t.ready.then(() => root.animate({ clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${r}px at ${x}px ${y}px)`] }, { duration: 620, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', pseudoElement: '::view-transition-new(root)' })).catch(() => {});
+      } catch { set(); }
     };
     apply();
     mq.addEventListener('change', apply);
@@ -99,18 +136,18 @@ function useKeyboard() {
   }, []);
 }
 
+const SCREENS = { today: TodayScreen, train: TrainScreen, food: FoodScreen, progress: ProgressScreen };
+
 export function App() {
   useTheme();
   useKeyboard();
+  useWakeLock();
   const appRef = useRef<HTMLDivElement>(null), stageRef = useRef<HTMLDivElement>(null);
   useStageDepth(appRef, stageRef);
   const t = useT();
   const tab = useUI((s) => s.tab);
   const onboarded = useStore((s) => s.settings.onboarded);
   const push = useUI((s) => s.push);
-  const prev = useRef(tab);
-  const dir = ORDER.indexOf(tab) - ORDER.indexOf(prev.current);
-  useEffect(() => { prev.current = tab; }, [tab]);
   const asked = useRef(false);
   useEffect(() => {
     if (!onboarded && !asked.current) { asked.current = true; push('onboarding', {}); }
@@ -131,18 +168,13 @@ export function App() {
       else if (doIt === 'wrestling') push('activity', { kind: 'wrestling' });
     }, 350);
   }, [push]);
-  const screen = tab === 'today' ? <TodayScreen /> : tab === 'train' ? <TrainScreen /> : tab === 'food' ? <FoodScreen /> : <ProgressScreen />;
   return (
     <MotionConfig reducedMotion="user">
       <LayoutGroup>
         <div className="app" data-hue={tab} ref={appRef}>
           <div className="stage" ref={stageRef}>
           <div className="aurora" aria-hidden><i /><i /><i /></div>
-          <AnimatePresence mode="popLayout" initial={false}>
-            <motion.div key={tab} style={{ position: 'absolute', inset: 0 }} initial={{ opacity: 0, x: dir * 36 }} animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }} exit={{ opacity: 0, x: -dir * 36, filter: 'blur(10px)' }} transition={{ duration: 0.38, ease: [0.22, 1, 0.36, 1] }}>
-              {screen}
-            </motion.div>
-          </AnimatePresence>
+          <TabStage tab={tab} screens={SCREENS} />
           <TabBar />
           </div>
           <Overlays />

@@ -1,6 +1,7 @@
 import { motion, useReducedMotion } from 'motion/react';
 import type { ReactNode } from 'react';
 import { useVisit } from './visit';
+import { GENTLE } from './motion';
 
 export interface DialRing { value: number; color: string; label: string; over?: boolean }
 
@@ -13,7 +14,7 @@ export function Dial({ rings, size = 280, stroke = 13, gap = 9, children, label 
   const visit = useVisit();
   const c = size / 2;
   return (
-    <div role="img" aria-label={label} style={{ position: 'relative', width: size, height: size, margin: '0 auto' }}>
+    <div role="img" aria-label={label} data-fly="kcal" style={{ position: 'relative', width: size, height: size, margin: '0 auto' }}>
       <svg key={visit} width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ position: 'absolute', inset: 0, overflow: 'visible' }} aria-hidden>
         <defs>
           {rings.map((r, i) => (
@@ -29,8 +30,8 @@ export function Dial({ rings, size = 280, stroke = 13, gap = 9, children, label 
           return (
             <g key={i}>
               <circle {...p} stroke="var(--s2)" strokeWidth={stroke} />
-              <motion.circle {...p} stroke={col} strokeWidth={stroke + 6} filter={`url(#dial-glow-${i})`} opacity={v > 0 ? 0.55 : 0} initial={{ pathLength: reduce ? v : 0 }} animate={{ pathLength: v }} transition={{ type: 'spring', stiffness: 60, damping: 18, delay: reduce ? 0 : 0.15 + i * 0.12 }} />
-              <motion.circle {...p} stroke={col} strokeWidth={stroke} opacity={v > 0 ? 1 : 0} initial={{ pathLength: reduce ? v : 0 }} animate={{ pathLength: Math.max(v, v > 0 ? 0.012 : 0) }} transition={{ type: 'spring', stiffness: 60, damping: 18, delay: reduce ? 0 : 0.15 + i * 0.12 }} />
+              <motion.circle {...p} stroke={col} strokeWidth={stroke + 6} filter={`url(#dial-glow-${i})`} opacity={v > 0 ? 0.55 : 0} initial={{ pathLength: reduce ? v : 0 }} animate={{ pathLength: v }} transition={{ ...GENTLE, delay: reduce ? 0 : 0.15 + i * 0.12 }} />
+              <motion.circle {...p} stroke={col} strokeWidth={stroke} opacity={v > 0 ? 1 : 0} initial={{ pathLength: reduce ? v : 0 }} animate={{ pathLength: Math.max(v, v > 0 ? 0.012 : 0) }} transition={{ ...GENTLE, delay: reduce ? 0 : 0.15 + i * 0.12 }} />
             </g>
           );
         })}

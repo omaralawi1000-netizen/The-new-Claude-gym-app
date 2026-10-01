@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useStore, exerciseMap, allExercises } from '../../state/store';
 import { useUI } from '../../state/ui';
 import { useT, useLang } from '../../lib/i18n';
-import { Sheet, SheetHead } from '../../ui/Sheet';
+import { Sheet, SheetHead, type ZoomFrom } from '../../ui/Sheet';
 import { Icon } from '../../ui/Icon';
 import { MuscleMap } from './MuscleMap';
 import { EQUIP_LABEL, MOVE_LABEL, MUSCLE_LABEL, exName, exSteps, fmtSet } from './common';
@@ -13,7 +13,7 @@ import { LineChart } from '../../ui/charts';
 import { equipmentSet, substitutesFor } from './subs';
 import { addExercises } from './actions';
 
-export function ExerciseDetail({ props }: { props: { id: string } }) {
+export function ExerciseDetail({ props }: { props: { id: string; from?: ZoomFrom } }) {
   const t = useT();
   const lang = useLang();
   const s = useStore();
@@ -33,7 +33,7 @@ export function ExerciseDetail({ props }: { props: { id: string } }) {
   const subs = substitutesFor(ex, allExercises(s.exercises), equipmentSet(s.settings.profile.equipment)).slice(0, 4);
   const wt = `${u.weight}`;
   return (
-    <Sheet onClose={pop} tall label={exName(ex, lang)} z={115}
+    <Sheet onClose={pop} tall from={props.from} label={exName(ex, lang)} z={115}
       foot={s.active ? <button className="btn primary block press" onClick={() => { addExercises([ex.id]); toast(t('Added to workout'), { tone: 'ok' }); pop(); }}><Icon name="plus" size={18} /> {t('Add to current workout')}</button> : undefined}>
       <SheetHead title={exName(ex, lang)} sub={ex.muscles.map((m) => t(MUSCLE_LABEL[m])).join(' · ')} onClose={pop} right={ex.custom ? <button className="icon-btn flat" aria-label={t('Edit')} onClick={() => push('exerciseEditor', { id: ex.id })}><Icon name="edit" /></button> : undefined} />
       <div className="sheet-body">

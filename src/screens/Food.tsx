@@ -64,7 +64,7 @@ export function FoodScreen() {
         </div>
         <div style={{ marginTop: 16 }}>
           <AnimatePresence mode="popLayout" initial={false}>
-            <motion.h1 key={date} className="display display-lg" style={{ margin: 0, fontStyle: 'italic' }} initial={{ opacity: 0, y: 14, filter: 'blur(10px)' }} animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }} exit={{ opacity: 0, y: -14, filter: 'blur(10px)' }} transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1] }}>
+            <motion.h1 key={date} className="display display-lg" style={{ margin: 0, fontStyle: 'italic' }} initial={{ opacity: 0, y: 14, filter: 'blur(10px)' }} animate={{ opacity: 1, y: 0, filter: 'blur(0px)', transitionEnd: { filter: 'none' } }} exit={{ opacity: 0, y: -14, filter: 'blur(10px)' }} transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1] }}>
               {rel ?? fmtDate(date, lang, { day: 'numeric', month: 'long' })}
             </motion.h1>
           </AnimatePresence>

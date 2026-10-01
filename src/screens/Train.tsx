@@ -15,7 +15,7 @@ import { ACTIVITY_LABEL, activityIcon, activityLine } from '../lib/activity';
 import { matchExercises } from '../lib/workoutText';
 import { MUSCLES } from '../data/exercises';
 import type { MuscleGroup, Routine } from '../lib/types';
-import { SOFT } from '../ui/Sheet';
+import { SOFT, zoomFrom } from '../ui/Sheet';
 
 export function TrainScreen() {
   const t = useT();
@@ -98,7 +98,7 @@ function PlanTab() {
               return (
                 <div key={r.id} className="plinth" style={{ padding: 16, borderRadius: 'var(--r-lg)' }}>
                   <div className="row-flex between" style={{ alignItems: 'flex-start' }}>
-                    <button className="grow press" style={{ textAlign: 'left' }} onClick={() => push('routine', { id: r.id })}>
+                    <button className="grow press" style={{ textAlign: 'left' }} onClick={(ev) => push('routine', { id: r.id, from: zoomFrom(ev.currentTarget) })}>
                       <div className="display" style={{ fontSize: 44, fontStyle: 'italic', lineHeight: 0.95 }}>{r.name}</div>
                       <div className="small t2 num" style={{ marginTop: 6 }}>{r.items.length} · ~{estMinutes(r)} min{last ? ` · ${fmtDate(last.date, lang, { day: 'numeric', month: 'short' })}` : ''}</div>
                     </button>
@@ -157,7 +157,7 @@ function LibraryTab() {
       </div>
       <div className="list">
         {list.map((e) => (
-          <button key={e.id} className="li press" onClick={() => push('exercise', { id: e.id })}>
+          <button key={e.id} className="li press" onClick={(ev) => push('exercise', { id: e.id, from: zoomFrom(ev.currentTarget) })}>
             <div className="grow" style={{ textAlign: 'left', minWidth: 0 }}><div className="li-title trunc">{exName(e, lang)}{e.custom && <span className="chip sm acc" style={{ marginLeft: 8, height: 20 }}>{t('Custom')}</span>}</div><div className="li-sub trunc">{e.muscles.slice(0, 2).map((x) => t(MUSCLE_LABEL[x])).join(' · ')}</div></div><Icon name="chevR" size={16} style={{ color: 'var(--tx3)' }} />
           </button>
         ))}

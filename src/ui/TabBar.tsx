@@ -3,6 +3,7 @@ import { useUI, type Tab, buzz } from '../state/ui';
 import { useStore } from '../state/store';
 import { Icon } from './Icon';
 import { SphereSlot } from './Sphere';
+import { scrollActiveTabToTop } from './TabStage';
 import { useT } from '../lib/i18n';
 import { SOFT } from './Sheet';
 import { useEffect, useState } from 'react';
@@ -71,13 +72,13 @@ export function TabBar() {
       <motion.div className="tabbar-wrap" style={{ flexDirection: 'column', alignItems: 'center' }} animate={{ y: hidden ? 120 : 0, opacity: hidden ? 0 : 1 }} transition={SOFT}>
         <AnimatePresence>{<LivePill />}</AnimatePresence>
         <nav className="tabbar glass" aria-label="Main">
-          {TABS.slice(0, 2).map((x) => <TabBtn key={x.id} {...x} on={tab === x.id} onClick={() => { buzz(4); setTab(x.id); }} label={t(x.label)} />)}
+          {TABS.slice(0, 2).map((x) => <TabBtn key={x.id} {...x} on={tab === x.id} onClick={() => { buzz(4); if (useUI.getState().tab === x.id) scrollActiveTabToTop(); else setTab(x.id); }} label={t(x.label)} />)}
           <div className="sphere-slot" style={{ position: 'relative' }}>
             <SphereSlot id="tab" priority={0} style={{ position: 'absolute', inset: -6 }} />
             <button className="press" aria-label={t('Dictate')} style={{ position: 'absolute', inset: -4, borderRadius: 999 }}
               onClick={() => { buzz(10); if (!useUI.getState().overlays.some((o) => o.type === 'voice')) push('voice', { mode: tab === 'train' ? 'workout' : 'food' }); }} />
           </div>
-          {TABS.slice(2).map((x) => <TabBtn key={x.id} {...x} on={tab === x.id} onClick={() => { buzz(4); setTab(x.id); }} label={t(x.label)} />)}
+          {TABS.slice(2).map((x) => <TabBtn key={x.id} {...x} on={tab === x.id} onClick={() => { buzz(4); if (useUI.getState().tab === x.id) scrollActiveTabToTop(); else setTab(x.id); }} label={t(x.label)} />)}
         </nav>
       </motion.div>
     </LayoutGroup>

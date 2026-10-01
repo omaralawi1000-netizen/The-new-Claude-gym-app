@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { motion } from 'motion/react';
 import { useT } from '../lib/i18n';
 import { Icon } from './Icon';
 import { useVisit } from './visit';
@@ -60,8 +59,9 @@ export function LineChart({ points, trend, height = 180, fmtY, target, targetLab
           </g>
         ))}
         {target !== undefined && <g><line x1={padL} x2={w - padR} y1={Y(target)} y2={Y(target)} stroke="var(--tx3)" strokeWidth="1" strokeDasharray="4 4" /><text x={w - padR} y={Y(target) - 5} textAnchor="end" fontSize="11" fill="var(--tx2)">{targetLabel}</text></g>}
-        {trend && trend.length > 1 && <motion.path d={path(trend)} fill="none" stroke="var(--ac)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }} />}
-        {!trend && points.length > 1 && <motion.path d={path(points)} fill="none" stroke="var(--ac)" strokeWidth="2" strokeLinecap="round" style={{ filter: 'drop-shadow(0 0 6px var(--ac))' }} strokeLinejoin="round" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }} />}
+        {/* lines draw themselves in with a CSS animation (pathLength=1 + dash offset): no per-frame script, replays on each visit */}
+        {trend && trend.length > 1 && <path className="line-in" pathLength={1} d={path(trend)} fill="none" stroke="var(--ac)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />}
+        {!trend && points.length > 1 && <path className="line-in" pathLength={1} d={path(points)} fill="none" stroke="var(--ac)" strokeWidth="2" strokeLinecap="round" style={{ filter: 'drop-shadow(0 0 6px var(--ac))' }} strokeLinejoin="round" />}
         {points.map((p, i) => (
           <circle key={i} cx={X(p.x)} cy={Y(p.y)} r={hover === i ? 5.5 : 4} fill={trend ? 'var(--bg)' : 'var(--ac)'} stroke={trend ? 'var(--tx2)' : 'var(--s1)'} strokeWidth={trend ? 1.5 : 2} />
         ))}
@@ -110,8 +110,9 @@ export function BarChart({ bars, height = 150, fmt, target, targetLabel, label, 
           return (
             <g key={i} onPointerEnter={() => setSel(i)} onPointerDown={() => setSel(i === sel ? null : i)} onPointerLeave={() => setSel(null)} style={{ cursor: 'pointer' }}>
               <rect x={cx - slot / 2} y={0} width={slot} height={height - padB} fill="transparent" />
-              <motion.rect x={cx - bw / 2} width={bw} rx={4} fill={color} opacity={b.dim ? 0.3 : sel === i || b.emphasis ? 1 : 0.78}
-                initial={{ y: height - padB, height: 0 }} animate={{ y: height - padB - h, height: h }} transition={{ duration: 0.5, delay: i * 0.015, ease: [0.22, 1, 0.36, 1] }} />
+              {/* bars grow up from the axis with a CSS scale (one cheap repaint a frame instead of script rewriting every bar's
+                  geometry); a bar whose value changes is a new element, so it grows in again */}
+              <rect key={b.value} className="bar-in" x={cx - bw / 2} y={height - padB - h} height={h} width={bw} rx={4} fill={color} opacity={b.dim ? 0.3 : sel === i || b.emphasis ? 1 : 0.78} style={{ animationDelay: `${i * 15}ms` }} />
               {i % every === 0 && <text x={cx} y={height - 6} textAnchor="middle" fontSize="11" fill={b.emphasis ? 'var(--tx)' : 'var(--tx3)'}>{b.label}</text>}
             </g>
           );

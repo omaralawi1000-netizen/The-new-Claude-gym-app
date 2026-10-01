@@ -15,6 +15,7 @@ import { FALLBACK_MODELS, aiErrorText, aiRoutine, type Turn } from '../lib/gemin
 import { speak, stopSpeaking, onSpeaking, FALLBACK_TTS } from '../lib/tts';
 import { exerciseNames, mapRoutineItems, profileLine } from '../lib/coachContext';
 import { decide, agentModels } from '../lib/agentTurn';
+import { BOUNCY } from '../ui/motion';
 import { ActionCard, Rich, Thinking, Words, sttMessage } from '../ui/agentUi';
 import { runActions, type AgentResult } from '../lib/agent';
 import type { RoutineDraft } from '../lib/aiValidate';
@@ -250,8 +251,8 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
               {msgs.map((m) => (
                 <motion.div key={m.id} layout="position"
                   // sent messages spring up out of the input; replies settle in softly
-                  initial={m.role === 'user' ? { opacity: 0, y: 96, scale: 0.78, filter: 'blur(6px)' } : { opacity: 0, y: 14, filter: 'blur(8px)' }} animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
-                  transition={m.role === 'user' ? { type: 'spring', stiffness: 360, damping: 24, mass: 0.8, filter: { duration: 0.35 } } : { ...SOFT, filter: { duration: 0.5 } }}
+                  initial={m.role === 'user' ? { opacity: 0, y: 96, scale: 0.78, filter: 'blur(6px)' } : { opacity: 0, y: 14, filter: 'blur(8px)' }} animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)', transitionEnd: { filter: 'none' } }}
+                  transition={m.role === 'user' ? { ...BOUNCY, filter: { duration: 0.35 } } : { ...SOFT, filter: { duration: 0.5 } }}
                   style={{ transformOrigin: m.role === 'user' ? '100% 100%' : '0% 0%', alignSelf: m.role === 'user' ? 'flex-end' : 'stretch', maxWidth: m.role === 'user' ? '86%' : '100%' }}>
                   {m.role === 'user' && <div className="plinth-2 sent" style={{ padding: '10px 14px', borderRadius: 18 }}>{m.text}</div>}
                   {m.role === 'model' && <div className="small" style={{ lineHeight: 1.5 }} aria-live="polite">{m.text ? <Rich text={m.text} /> : <Thinking />}{m.streaming && m.text && <span className="caret" aria-hidden />}</div>}

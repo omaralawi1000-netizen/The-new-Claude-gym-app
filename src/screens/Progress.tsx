@@ -6,6 +6,7 @@ import { useToday } from '../lib/derive';
 import { addDays, fmtDate } from '../lib/dates';
 import { BarChart, ChartCard, LineChart, RangeSeg, Sparkline } from '../ui/charts';
 import { Icon } from '../ui/Icon';
+import { zoomFrom } from '../ui/Sheet';
 import { Empty, Section } from '../ui/kit';
 import { average, nutritionByDay, trendRate, weekStreak, weeklyTraining, weightTrend } from '../lib/stats';
 import { fmtNum, kgToDisplay } from '../lib/units';
@@ -131,7 +132,7 @@ export function ProgressScreen() {
         <Section title={t('Recent records')}>
           <div className="list">
             {recs.map((r, i) => { const ex = exMap.get(r.exerciseId); return (
-              <button key={i} className="li press" onClick={() => push('exercise', { id: r.exerciseId })}>
+              <button key={i} className="li press" onClick={(ev) => push('exercise', { id: r.exerciseId, from: zoomFrom(ev.currentTarget) })}>
                 <span style={{ width: 34, height: 34, borderRadius: 12, background: 'var(--ac)', color: 'var(--ac-ink)', display: 'grid', placeItems: 'center', flex: 'none' }}><Icon name="bolt" size={17} /></span>
                 <div className="grow" style={{ textAlign: 'left' }}><div className="li-title small">{ex ? exName(ex, lang) : ''}</div><div className="li-sub">{t(({ weight: 'Heaviest set', e1rm: 'Estimated 1RM', volume: 'Best set volume', reps: 'Most reps', duration: 'Longest hold', distance: 'Longest distance' } as any)[r.kind])} · {fmtDate(r.date, lang, { day: 'numeric', month: 'short' })}</div></div>
                 <div className="num" style={{ fontWeight: 700 }}>{r.kind === 'reps' ? r.value : r.kind === 'duration' ? `${r.value}s` : r.kind === 'distance' ? `${fmtNum(r.value / 1000, lang, 2)} km` : `${fmtNum(kgToDisplay(r.value, u.weight), lang, r.kind === 'e1rm' ? 1 : 2)} ${u.weight}`}</div>
@@ -143,7 +144,7 @@ export function ProgressScreen() {
         <Section title={<>{t('Exercise trends')} <Badge kind="estimate" /></>}>
           <div className="list">
             {exRows.map((r) => (
-              <button key={r.id} className="li press" onClick={() => push('exercise', { id: r.id })}>
+              <button key={r.id} className="li press" onClick={(ev) => push('exercise', { id: r.id, from: zoomFrom(ev.currentTarget) })}>
                 <div className="grow" style={{ textAlign: 'left', minWidth: 0 }}><div className="li-title small trunc">{exName(r.ex, lang)}</div><div className="li-sub num">{r.n} {t('sessions')} · {r.best.e1rm > 0 ? `${t('est. 1RM')} ${fmtNum(kgToDisplay(r.best.e1rm, u.weight), lang, 0)} ${u.weight}` : r.best.reps > 0 ? `${r.best.reps} ${t('reps best')}` : ''}</div></div>
                 <Sparkline values={r.series} w={84} h={28} />
               </button>

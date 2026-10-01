@@ -19,6 +19,7 @@ import { useEngage } from '../ui/engage';
 import { Icon } from '../ui/Icon';
 import { SOFT, useOverlayZ } from '../ui/Sheet';
 import { ActionCard, Rich, Thinking, sttMessage } from '../ui/agentUi';
+import { flyLogged } from '../ui/fly';
 
 /** One thing you said and what the assistant did about it. */
 interface Turn1 { id: string; said: string; reply: string; results: AgentResult[]; undone: string[]; confirmed: string[] }
@@ -198,7 +199,14 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
           if (!alive.current) return;
           const undoable = results.filter((r) => r.undo);
           useUI.getState().toast(results.map((r) => r.title).join(' · '), { tone: 'ok', actionLabel: undoable.length ? t('Undo') : undefined, onAction: () => undoable.forEach((r) => r.undo!()) });
+          // what was logged flies from the orb to where it landed (unless you are inside the workout, where it already shows)
+          const orb = document.querySelector('.voice-orb')?.getBoundingClientRect();
+          const inWorkout = useUI.getState().overlays.some((o) => o.type === 'workout');
           useUI.getState().pop();
+          if (orb && !inWorkout) {
+            const kind = results.some((r) => r.kind === 'sets') ? 'train' : results.some((r) => ['food', 'water'].includes(r.kind)) ? 'food' : null;
+            if (kind) setTimeout(() => flyLogged(kind, { x: orb.left + orb.width / 2, y: orb.top + orb.height / 2 }), 140);
+          }
         }, 1700);
       } else setTimeout(() => { if (alive.current && useVoice.getState().phase === 'confirmed') go('idle'); }, 1200);
       if (results.some((r) => r.kind === 'nav')) setTimeout(() => { if (alive.current) useUI.getState().pop(); }, 900);
@@ -285,7 +293,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
           )}
           {showing && (
             <AnimatePresence mode="popLayout" initial={false}>
-              <motion.div key={last.id} initial={{ opacity: 0, y: 14, filter: 'blur(8px)' }} animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }} exit={{ opacity: 0, y: -10 }} transition={{ ...SOFT, filter: { duration: 0.45 } }} className="stack gap12">
+              <motion.div key={last.id} initial={{ opacity: 0, y: 14, filter: 'blur(8px)' }} animate={{ opacity: 1, y: 0, filter: 'blur(0px)', transitionEnd: { filter: 'none' } }} exit={{ opacity: 0, y: -10 }} transition={{ ...SOFT, filter: { duration: 0.45 } }} className="stack gap12">
                 <div className="small t2" style={{ textAlign: 'center', padding: '0 10px' }}>“{last.said}”</div>
                 {last.results.map((r) => (
                   <ActionCard key={r.id} r={r} undone={last.undone.includes(r.id)} confirmed={last.confirmed.includes(r.id)}
