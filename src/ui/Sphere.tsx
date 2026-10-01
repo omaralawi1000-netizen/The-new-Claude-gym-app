@@ -229,7 +229,8 @@ export function SphereStage() {
       if (!running) return;
       raf = requestAnimationFrame(tick);
       refreshColors();
-      const dt = Math.min(0.05, (now - last) / 1000);
+      // real elapsed time (a dropped frame must not slow the flight down), integrated in small fixed steps below
+      const dt = Math.min(0.25, Math.max(0, (now - last) / 1000));
       last = now;
       const reduced = document.documentElement.dataset.motion === 'reduce' || (document.documentElement.dataset.motion !== 'full' && mq.matches);
       // pick the highest-priority connected slot
@@ -241,24 +242,35 @@ export function SphereStage() {
       el.style.zIndex = best.priority >= 10 ? '600' : '41'; // above full-screen composers; below sheets when parked in the tab bar
       const base = appEl?.getBoundingClientRect(); // the stage lives inside .app, which may be offset on wide screens
       const tx = r.left - (base?.left ?? 0), ty = r.top - (base?.top ?? 0), ts = Math.min(r.width, r.height);
-      if (!st.init || reduced) { st.x = tx; st.y = ty; st.s = ts; st.vx = st.vy = st.vs = 0; st.init = true; }
+      // parked in the tab bar and only sliding sideways (the active tab widened): follow exactly, or the lagging sphere overlaps the tab labels
+      const parkedSlide = best.priority === 0 && Math.abs(ts - st.s) < 3 && Math.abs(ty - st.y) < 3;
+      if (!st.init || reduced || parkedSlide) { st.x = tx; st.y = ty; st.s = ts; st.vx = st.vy = st.vs = 0; st.init = true; }
       else {
         // critically-damped-ish spring (follows moving slots such as a sheet mid-slide)
-        const k = 210, c = 2 * Math.sqrt(k) * 0.92;
-        for (const key of ['x', 'y', 's'] as const) {
-          const target = key === 'x' ? tx : key === 'y' ? ty : ts;
-          const vk = (`v${key}`) as 'vx' | 'vy' | 'vs';
-          st[vk] += (-k * (st[key] - target) - c * st[vk]) * dt;
-          st[key] += st[vk] * dt;
+        const k = 230, c = 2 * Math.sqrt(k) * 0.94;
+        const steps = Math.max(1, Math.ceil(dt / (1 / 240)));
+        const h = dt / steps;
+        for (let i = 0; i < steps; i++) {
+          for (const key of ['x', 'y', 's'] as const) {
+            const target = key === 'x' ? tx : key === 'y' ? ty : ts;
+            const vk = (`v${key}`) as 'vx' | 'vy' | 'vs';
+            st[vk] += (-k * (st[key] - target) - c * st[vk]) * h;
+            st[key] += st[vk] * h;
+          }
         }
+        // settled: snap exactly, so it never rests a fraction of a pixel off (visible as a faint shimmer)
+        if (Math.abs(st.x - tx) < 0.15 && Math.abs(st.y - ty) < 0.15 && Math.abs(st.s - ts) < 0.15 && Math.abs(st.vx) + Math.abs(st.vy) + Math.abs(st.vs) < 2) { st.x = tx; st.y = ty; st.s = ts; st.vx = st.vy = st.vs = 0; }
       }
       const size = Math.max(8, st.s);
+      // The canvas is drawn at a size bucket and scaled down with a transform. Resizing a canvas (and the element) on
+      // every frame of a flight reallocated its buffer and re-laid it out each frame — a stutter source.
+      const bucket = Math.ceil(size / 24) * 24;
       el.style.opacity = '1';
-      el.style.width = el.style.height = `${size}px`;
-      el.style.transform = `translate3d(${st.x}px, ${st.y}px, 0)`;
-      const dpr = Math.min(2, window.devicePixelRatio || 1);
-      renderer.resize(size, dpr);
-      renderer.frame(now, size, reduced, colors);
+      if (el.style.width !== `${bucket}px`) el.style.width = el.style.height = `${bucket}px`;
+      el.style.transform = `translate3d(${st.x}px, ${st.y}px, 0) scale(${size / bucket})`;
+      const dpr = Math.min(3, window.devicePixelRatio || 1);
+      renderer.resize(bucket, dpr);
+      renderer.frame(now, bucket, reduced, colors);
     };
     raf = requestAnimationFrame(tick);
     const onVis = () => {
@@ -270,7 +282,7 @@ export function SphereStage() {
   }, [motionPref]);
 
   return (
-    <div ref={root} className="sphere-stage" aria-hidden="true" style={{ position: 'fixed', left: 0, top: 0, zIndex: 75, pointerEvents: 'none', opacity: 0, willChange: 'transform,width,height' }}>
+    <div ref={root} className="sphere-stage" aria-hidden="true" style={{ position: 'fixed', left: 0, top: 0, zIndex: 75, pointerEvents: 'none', opacity: 0, willChange: 'transform', transformOrigin: '0 0', contain: 'strict' }}>
       <canvas ref={canvas} style={{ width: '100%', height: '100%', display: 'block' }} />
     </div>
   );

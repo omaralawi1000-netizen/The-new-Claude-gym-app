@@ -18,6 +18,18 @@ import { useAi } from '../state/ai';
 import { clearKeys } from '../lib/keys';
 import { VoiceAiSettings } from './VoiceAi';
 
+const EASE = [0.22, 1, 0.36, 1] as const;
+const PAGE = {
+  enter: (d: number) => ({ x: d * 56, opacity: 0, filter: 'blur(10px)' }),
+  center: { x: 0, opacity: 1, filter: 'blur(0px)', transition: { x: { type: 'spring' as const, stiffness: 340, damping: 34, mass: 0.9 }, opacity: { duration: 0.28, ease: EASE }, filter: { duration: 0.36, ease: EASE } } },
+  exit: (d: number) => ({ x: d * -40, opacity: 0, filter: 'blur(8px)', transition: { duration: 0.24, ease: [0.4, 0, 1, 1] as const } }),
+};
+const TITLE = {
+  enter: (d: number) => ({ x: d * 24, opacity: 0, filter: 'blur(6px)' }),
+  center: { x: 0, opacity: 1, filter: 'blur(0px)', transition: { duration: 0.34, ease: EASE } },
+  exit: (d: number) => ({ x: d * -18, opacity: 0, filter: 'blur(4px)', transition: { duration: 0.2 } }),
+};
+
 type Section = null | 'targets' | 'training' | 'food' | 'units' | 'look' | 'reminders' | 'data' | 'privacy' | 'ai' | 'about';
 
 function Row({ icon, title, sub, onClick, value }: { icon: any; title: string; sub?: string; onClick: () => void; value?: string }) {
@@ -39,7 +51,9 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
   const s = useStore();
   const pop = useUI((u) => u.pop);
   const push = useUI((u) => u.push);
-  const [sec, setSec] = useState<Section>(props.section ?? null);
+  const [sec, setSecRaw] = useState<Section>(props.section ?? null);
+  const [dir, setDir] = useState(1); // 1 = going deeper, -1 = going back: decides which way pages slide
+  const setSec = (x: Section) => { setDir(x ? 1 : -1); setSecRaw(x); };
   const ai = useAi();
   const set = s.updateSettings;
   const st = s.settings;
@@ -48,10 +62,14 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
 
   return (
     <Sheet onClose={pop} tall label={t('Settings')} z={100}>
-      <SheetHead title={sec ? titles[sec] : t('Settings')} onClose={sec ? goBack : pop} back={!!sec && !props.section} right={sec && props.section ? <button className="icon-btn flat" onClick={pop} aria-label={t('Close')}><Icon name="close" /></button> : undefined} />
-      <div className="sheet-body">
-        <AnimatePresence mode="wait" initial={false}>
-          <motion.div key={sec ?? 'root'} initial={{ opacity: 0, x: sec ? 24 : -24 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: sec ? -24 : 24 }} transition={{ duration: 0.18 }}>
+      <SheetHead title={
+        <AnimatePresence mode="popLayout" initial={false} custom={dir}>
+          <motion.span key={sec ?? 'root'} custom={dir} variants={TITLE} initial="enter" animate="center" exit="exit" style={{ display: 'inline-block' }}>{sec ? titles[sec] : t('Settings')}</motion.span>
+        </AnimatePresence>} onClose={sec ? goBack : pop} back={!!sec && !props.section} right={sec && props.section ? <button className="icon-btn flat" onClick={pop} aria-label={t('Close')}><Icon name="close" /></button> : undefined} />
+      <div className="sheet-body" style={{ position: 'relative', overflowX: 'hidden' }}>
+        {/* both pages move at once (no blank gap): the new one slides in sharpening from blur, the old one drifts out */}
+        <AnimatePresence mode="popLayout" initial={false} custom={dir}>
+          <motion.div key={sec ?? 'root'} className="no-rise" custom={dir} variants={PAGE} initial="enter" animate="center" exit="exit" style={{ width: '100%' }}>
             {!sec && (
               <>
                 <div className="field"><label htmlFor="s-name">{t('Your name')}</label><input id="s-name" className="input" value={st.name} onChange={(e) => set({ name: e.target.value })} placeholder={t('Optional')} /></div>

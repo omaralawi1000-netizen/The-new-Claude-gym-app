@@ -94,17 +94,19 @@ function PlanTab() {
               const muscles = [...new Set(r.items.map((i) => exMap.get(i.exerciseId)?.muscles[0]).filter(Boolean))] as MuscleGroup[];
               const last = [...s.sessions].reverse().find((x) => x.routineId === r.id);
               return (
-                <div key={r.id} className="plinth" style={{ padding: '18px 16px 16px 20px', borderRadius: 'var(--r-lg)', display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <button className="grow press" style={{ textAlign: 'left', minWidth: 0 }} onClick={() => push('routine', { id: r.id })} aria-label={`${t('Edit routine')}: ${r.name}`}>
-                    <div className="display trunc" style={{ fontSize: 42, fontStyle: 'italic', lineHeight: 1.02, paddingRight: 4 }}>{r.name}</div>
-                    <div className="small t2 num trunc" style={{ marginTop: 4 }}>{r.items.length} · ~{estMinutes(r)} min{last ? ` · ${fmtDate(last.date, lang, { day: 'numeric', month: 'short' })}` : ''}</div>
-                    <div className="xs t3 trunc" style={{ marginTop: 6 }}>{muscles.slice(0, 4).map((m) => t(MUSCLE_LABEL[m])).join(' · ')}</div>
-                  </button>
-                  <div className="stack" style={{ gap: 6, alignItems: 'center', flex: 'none' }}>
-                    <button className="icon-btn acc press" style={{ width: 58, height: 58 }} aria-label={s.active ? t('Resume current') : t('Start')} onClick={() => start(r)}><Icon name="play" size={22} /></button>
-                    <div className="row-flex" style={{ gap: 0 }}>
-                      <button className="icon-btn flat sm press" aria-label={t('Schedule')} onClick={() => push('schedule', { routineId: r.id })}><Icon name="calendar" size={17} /></button>
-                      <button className="icon-btn flat sm press" aria-label={t('Duplicate')} onClick={() => dup(r)}><Icon name="copy" size={17} /></button>
+                <div key={r.id} className="plinth" style={{ padding: 16, borderRadius: 'var(--r-lg)' }}>
+                  <div className="row-flex between" style={{ alignItems: 'flex-start' }}>
+                    <button className="grow press" style={{ textAlign: 'left' }} onClick={() => push('routine', { id: r.id })}>
+                      <div className="display" style={{ fontSize: 44, fontStyle: 'italic', lineHeight: 0.95 }}>{r.name}</div>
+                      <div className="small t2 num" style={{ marginTop: 6 }}>{r.items.length} · ~{estMinutes(r)} min{last ? ` · ${fmtDate(last.date, lang, { day: 'numeric', month: 'short' })}` : ''}</div>
+                    </button>
+                    <button className="icon-btn flat" aria-label={t('Duplicate')} onClick={() => dup(r)}><Icon name="copy" size={19} /></button>
+                  </div>
+                  <div className="row-flex between" style={{ marginTop: 14 }}>
+                    <div className="chips" style={{ margin: 0, padding: 0, gap: 6, flexWrap: 'wrap', overflow: 'visible', minWidth: 0, flex: 1 }}>{muscles.slice(0, 3).map((m) => <span key={m} className="chip sm">{t(MUSCLE_LABEL[m])}</span>)}</div>
+                    <div className="row-flex" style={{ gap: 8, flex: 'none' }}>
+                      <button className="icon-btn press" aria-label={t('Schedule')} onClick={() => push('schedule', { routineId: r.id })}><Icon name="calendar" /></button>
+                      <button className="icon-btn acc press" style={{ width: 54, height: 54 }} aria-label={s.active ? t('Resume current') : t('Start')} onClick={() => start(r)}><Icon name="play" size={22} /></button>
                     </div>
                   </div>
                 </div>

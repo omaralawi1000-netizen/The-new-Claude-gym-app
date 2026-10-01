@@ -132,7 +132,7 @@ export function Onboarding({ props }: { props: { rerun?: boolean; starterOnly?: 
       </div>
       <div style={{ flex: 1, overflowY: 'auto', padding: '8px 22px 20px', position: 'relative' }} className="hide-scroll">
         <AnimatePresence mode="wait" initial={false} custom={dir}>
-          <motion.div key={step} custom={dir} initial={{ opacity: 0, x: dir * 36 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -dir * 36 }} transition={{ duration: 0.22 }}>
+          <motion.div key={step} custom={dir} initial={{ opacity: 0, x: dir * 36, filter: 'blur(6px)' }} animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }} exit={{ opacity: 0, x: -dir * 36, filter: 'blur(6px)' }} transition={{ duration: 0.22 }}>
             {screens[step]}
           </motion.div>
         </AnimatePresence>

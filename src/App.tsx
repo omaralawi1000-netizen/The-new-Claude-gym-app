@@ -78,7 +78,7 @@ export function App() {
         <div className="app" data-hue={tab}>
           <div className="aurora" aria-hidden><i /><i /><i /></div>
           <AnimatePresence mode="popLayout" initial={false}>
-            <motion.div key={tab} style={{ position: 'absolute', inset: 0 }} initial={{ opacity: 0, x: dir * 28 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -dir * 20, transition: { duration: 0.14 } }} transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}>
+            <motion.div key={tab} style={{ position: 'absolute', inset: 0 }} initial={{ x: dir * 30 }} animate={{ x: 0, opacity: 1, filter: 'blur(0px)' }} exit={{ opacity: 0, x: -dir * 30, filter: 'blur(10px)', transition: { duration: 0.26, ease: [0.4, 0, 1, 1] } }} transition={{ type: 'spring', stiffness: 260, damping: 32, mass: 0.9 }}>
               {screen}
             </motion.div>
           </AnimatePresence>

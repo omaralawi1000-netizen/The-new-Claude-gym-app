@@ -45,7 +45,7 @@ export function QuickAdd({ props }: { props: { date: string; mealId: string; ent
   const del = () => { if (!existing) return; const e = existing; s.removeEntry(e.id); pop(); toast(t('{name} removed', { name: e.snap.name }), { actionLabel: t('Undo'), onAction: () => s.restoreEntries([e]) }); };
   return (
     <Sheet onClose={pop} label={t('Quick add')} foot={<button className="btn primary block press" disabled={!ok} onClick={save}>{existing ? t('Save changes') : t('Add')}</button>}>
-      <SheetHead title={t('Quick add')} onClose={pop} />
+      <SheetHead title={t('Quick add')} sub={t('Log calories and macros without picking a food.')} onClose={pop} />
       <div className="sheet-body">
         <div className="field"><label htmlFor="q-label">{t('Label')}</label><input id="q-label" className="input" value={label} onChange={(e) => setLabel(e.target.value)} placeholder={t('e.g. Restaurant pasta')} /></div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 14 }}>

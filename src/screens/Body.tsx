@@ -66,7 +66,7 @@ export function MeasureSheet() {
   const save = () => { if (!v || v <= 0) return; s.addMeasurement({ date: today, kind, cm: displayToCm(v, u) }); buzz(10); setV(undefined); toast(t('Saved'), { tone: 'ok' }); };
   return (
     <Sheet onClose={pop} label={t('Measurements')} z={100} foot={<button className="btn primary block press" disabled={!v} onClick={save}>{t('Save')}</button>}>
-      <SheetHead title={t('Measurements')} onClose={pop} />
+      <SheetHead title={t('Measurements')} sub={t('Optional. Stored on this device.')} onClose={pop} />
       <div className="sheet-body">
         <div className="chips" style={{ marginBottom: 14 }}>{KINDS.map((x) => <button key={x.k} className={`chip press ${kind === x.k ? 'on' : ''}`} onClick={() => setKind(x.k)}>{t(x.l)}</button>)}</div>
         <NumInput big value={v} onChange={setV} unit={u} max={1} placeholder={hist[0] ? fmtNum(cmToDisplay(hist[0].cm, u), lang, 1) : '—'} onEnter={save} label={t('Measurement')} />

@@ -5,6 +5,7 @@ import { createContext, useContext, useEffect, useRef, type ReactNode } from 're
 export const OverlayZ = createContext<number | null>(null);
 export const useOverlayZ = (fallback: number) => useContext(OverlayZ) ?? fallback;
 import { Icon } from './Icon';
+import { useUI } from '../state/ui';
 
 export const SPRING = { type: 'spring', stiffness: 420, damping: 38, mass: 0.9 } as const;
 export const SOFT = { type: 'spring', stiffness: 300, damping: 32, mass: 0.9 } as const;
@@ -13,11 +14,16 @@ export const SNAP = { type: 'spring', stiffness: 600, damping: 42, mass: 0.7 } a
 /** Bottom sheet: drag the handle/header down (or flick) to dismiss; interruptible; keyboard-aware. */
 export function Sheet({ children, onClose, tall, label, foot, z: zProp = 60, nested }: { children: ReactNode; onClose: () => void; tall?: boolean; label: string; foot?: ReactNode; z?: number; /** a sheet rendered inside another overlay's component (e.g. the workout's exercise menu) */ nested?: boolean }) {
   const z = useOverlayZ(zProp) + (nested ? 5 : 0);
+  const ctxZ = useContext(OverlayZ);
+  const count = useUI((u) => u.overlays.length);
+  // a sheet with another overlay above it steps back, like a stacked card (and only the top one answers Escape)
+  const behind = !nested && ctxZ !== null && (ctxZ - 60) / 10 < count - 1;
   const controls = useDragControls();
   const reduce = useReducedMotion();
   const ref = useRef<HTMLDivElement>(null);
+  const behindRef = useRef(behind); behindRef.current = behind;
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !behindRef.current) onClose(); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
@@ -27,9 +33,9 @@ export function Sheet({ children, onClose, tall, label, foot, z: zProp = 60, nes
       <motion.div
         ref={ref}
         className={`sheet ${tall ? 'tall' : ''}`}
-        style={{ zIndex: z, bottom: 'var(--kb, 0px)' }}
+        style={{ zIndex: z, bottom: 'var(--kb, 0px)', transformOrigin: '50% 0%' }}
         role="dialog" aria-modal="true" aria-label={label}
-        initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+        initial={{ y: '100%' }} animate={{ y: behind ? -6 : 0, scale: behind ? 0.94 : 1 }} exit={{ y: '100%' }}
         transition={reduce ? { duration: 0.01 } : SPRING}
         drag="y" dragControls={controls} dragListener={false}
         dragConstraints={{ top: 0, bottom: 0 }} dragElastic={{ top: 0.03, bottom: 0.7 }}
@@ -46,7 +52,14 @@ export function Sheet({ children, onClose, tall, label, foot, z: zProp = 60, nes
 export function SheetHead({ title, sub, onClose, right, back }: { title: ReactNode; sub?: ReactNode; onClose?: () => void; right?: ReactNode; back?: boolean }) {
   return (
     <div className="sheet-head">
-      {back && onClose && <button className="icon-btn flat" onClick={onClose} aria-label="Back"><Icon name="chevL" /></button>}
+      <AnimatePresence initial={false}>
+        {back && onClose && (
+          <motion.button key="back" className="icon-btn flat" onClick={onClose} aria-label="Back" style={{ overflow: 'hidden', flex: 'none' }}
+            initial={{ opacity: 0, width: 0, marginRight: -10 }} animate={{ opacity: 1, width: 40, marginRight: 0 }} exit={{ opacity: 0, width: 0, marginRight: -10 }} transition={{ type: 'spring', stiffness: 420, damping: 36 }}>
+            <Icon name="chevL" />
+          </motion.button>
+        )}
+      </AnimatePresence>
       <div className="grow">
         <div className="display display-sm trunc">{title}</div>
         {sub && <div className="small t2 trunc" style={{ marginTop: 2 }}>{sub}</div>}

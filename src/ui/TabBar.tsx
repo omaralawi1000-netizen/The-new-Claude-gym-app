@@ -81,8 +81,9 @@ export function TabBar() {
 function TabBtn({ icon, label, on, onClick }: { id: Tab; icon: any; label: string; on: boolean; onClick: () => void }) {
   return (
     <button className={`tab press ${on ? 'on' : ''}`} onClick={onClick} aria-current={on ? 'page' : undefined} aria-label={label}>
-      {on && <motion.span layoutId="tab-pip" className="tab-pip" transition={{ type: 'spring', stiffness: 520, damping: 36, mass: 0.7 }} />}
-      <Icon name={icon} size={23} sw={on ? 2.1 : 1.6} />
+      {on && <motion.span layoutId="tab-pip" className="tab-pip" transition={{ type: 'spring', stiffness: 380, damping: 30, mass: 0.8 }} />}
+      <Icon name={icon} size={22} sw={on ? 2 : 1.6} />
+      <span className="lab">{label}</span>
     </button>
   );
 }
