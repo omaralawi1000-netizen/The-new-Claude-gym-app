@@ -17,6 +17,7 @@ import { defaultMealId } from './lib/derive';
 import { stageCover, stageDepth } from './ui/engage';
 import { setKeyboard } from './ui/keyboard';
 import { TabStage } from './ui/TabStage';
+import { FpsMeter } from './ui/FpsMeter';
 
 /** Where the last tap landed — the theme switch spreads out from there. */
 const lastTap = { x: typeof window !== 'undefined' ? window.innerWidth / 2 : 0, y: 0 };
@@ -180,6 +181,7 @@ export function App() {
           <Overlays />
           <Toaster />
           <SphereStage />
+          <FpsMeter />
           <UpdateBanner />
         </div>
       </LayoutGroup>

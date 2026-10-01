@@ -1017,5 +1017,7 @@ export const da: Record<string, string> = {
  "Speak naturally. I stop listening when you pause.": "Tal helt naturligt. Jeg stopper med at lytte, når du holder pause.",
  "Tap the sphere to say more": "Tryk på kuglen for at sige mere",
  "“Log a banana” · “Bench 100 kg for 8, 8 and 6” · “How do I change the theme?”": "“Log en banan” · “Bænkpres 100 kg 8, 8 og 6” · “Hvordan skifter jeg tema?”",
+ "Frame rate readout": "Billedhastighed",
+ "Shows the refresh rate your phone and browser really give the app, in the top-left corner. 120 Hz with 0 late is the best case; a steady 60 Hz means the browser or phone caps it.": "Viser den opdateringshastighed, din telefon og browser faktisk giver appen, i øverste venstre hjørne. 120 Hz med 0 forsinkede er bedst; et stabilt 60 Hz betyder, at browseren eller telefonen begrænser den.",
  "{n} sets done": "{n} sæt udført"
 };

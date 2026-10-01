@@ -18,6 +18,7 @@ import { dayKey } from '../lib/dates';
 import { useAi } from '../state/ai';
 import { clearKeys } from '../lib/keys';
 import { VoiceAiSettings } from './VoiceAi';
+import { setFpsMeter, useFpsMeterOn } from '../ui/FpsMeter';
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 const PAGE = {
@@ -42,6 +43,17 @@ function Row({ icon, title, sub, onClick, value }: { icon: any; title: string; s
     </button>
   );
 }
+/** Diagnostic: shows the refresh rate your phone + browser really deliver (see ui/FpsMeter.tsx). */
+function FpsField() {
+  const t = useT();
+  const on = useFpsMeterOn();
+  return (
+    <Field label={t('Frame rate readout')} hint={t('Shows the refresh rate your phone and browser really give the app, in the top-left corner. 120 Hz with 0 late is the best case; a steady 60 Hz means the browser or phone caps it.')}>
+      <Toggle on={on} onChange={setFpsMeter} label={t('Frame rate readout')} />
+    </Field>
+  );
+}
+
 function Field({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
   return <div className="field"><label>{label}</label>{children}{hint && <div className="xs t3">{hint}</div>}</div>;
 }
@@ -114,6 +126,7 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
               <div className="stack gap16">
                 <Field label={t('Theme')}><Seg value={st.theme} onChange={(v) => set({ theme: v })} options={[{ value: 'system', label: t('System') }, { value: 'light', label: t('Light') }, { value: 'dark', label: t('Dark') }]} /></Field>
                 <Field label={t('Motion')}><Seg value={st.motion} onChange={(v) => set({ motion: v })} options={[{ value: 'system', label: t('System') }, { value: 'full', label: t('Full') }, { value: 'reduce', label: t('Reduced') }]} /></Field>
+                <FpsField />
               </div>
             )}
             {sec === 'reminders' && <Reminders />}
