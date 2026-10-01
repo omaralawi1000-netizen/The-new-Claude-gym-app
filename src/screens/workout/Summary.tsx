@@ -50,7 +50,7 @@ export function Summary({ props }: { props: { sessionId: string } }) {
           <Stat label={t('Exercises')} value={ses.exercises.length} />
         </div>
 
-        <div className="micro" style={{ margin: '24px 0 8px' }}>{t('Personal records')}</div>
+        {recs.length > 0 && <div className="micro" style={{ margin: '24px 0 8px' }}>{t('Personal records')}</div>}
         {recs.length === 0 ? null : (
           <div className="stack gap8">
             {recs.map((r, i) => {

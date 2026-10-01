@@ -130,7 +130,7 @@ Motion grammar: springs everywhere (press = 520 ms overshoot release, 80 ms down
 Three connected signatures share that grammar (springs: `SPRING` 420/38 for sheets, `SOFT` 300/32 for content):
 
 1. **Workout surface → active workout → origin** — the Today card (or tab-bar pill) is a shared `layoutId`; the content is a separate layer that cross-fades, so text is never stretched. Drag down to minimise; it returns to the pill.
-2. **Sphere → composer → review** — a single `SphereStage` flies between slots with its own spring (follows a moving sheet), shrinking into the review header; its colour follows the active area's accent. States: idle, listening (real audio), processing (sweep), review (equator ring), confirmed (ripple), error/unavailable (dimmed).
+2. **Sphere → composer → review** — a single `SphereStage` flies between slots with its own spring (real-time, sub-stepped physics, so a dropped frame never slows it), shrinking into the review header. The surface moves as one liquid — five smooth travelling waves, bass driving the slow swells and highs the fine shimmer — with a soft inner light, a two-tone colour from the current area, and a small spring 'bloom' on every state change; its colour follows the active area's accent. States: idle, listening (real audio), processing (sweep), review (equator ring), confirmed (ripple), error/unavailable (dimmed).
 3. **Reviewed values → destination** — confirmed rows settle into their meal with a brief highlight while the ring and totals count together; set rows settle into the workout; every save offers **Undo**.
 
 ## Project layout

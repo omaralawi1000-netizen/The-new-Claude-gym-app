@@ -8,7 +8,6 @@ import { useDaySummary, useToday, useWaterOn, defaultMealId } from '../lib/deriv
 import { Icon } from '../ui/Icon';
 import { Ledger } from './food/Ledger';
 import { Sparkline } from '../ui/charts';
-import { SOFT } from '../ui/Sheet';
 import { elapsedMs, sessionSetCount, sessionVolume } from '../lib/workout';
 import { fmtNum, kgToDisplay } from '../lib/units';
 import { entryFromSnapshot, snapshotOf, uid } from '../lib/nutrition';
@@ -130,10 +129,10 @@ export function TodayScreen() {
 
       {/* ── workout ── */}
       <motion.section layout="position" style={{ position: 'relative' }}>
-        <motion.div layoutId="wk-hero" transition={SOFT} className="plinth"
+        <div data-wk-origin="hero" className="plinth"
           style={{ position: 'absolute', inset: 0, borderRadius: 'var(--r-lg)', overflow: 'hidden' }}>
           <div style={{ position: 'absolute', right: -60, top: -60, width: 220, height: 220, borderRadius: '50%', background: 'radial-gradient(closest-side, var(--ac-soft), transparent)' }} />
-        </motion.div>
+        </div>
         <div style={{ position: 'relative', padding: '22px 22px 22px 24px' }}>
           {active ? (
             <div className="row-flex between" style={{ gap: 14 }}>
@@ -142,7 +141,7 @@ export function TodayScreen() {
                 <div className="display num" style={{ fontSize: 54, marginTop: 8 }}>{fmtDuration(elapsedMs(active, now) / 1000)}</div>
                 <div className="small t2 num" style={{ marginTop: 2 }}>{aDone}<span className="t3"> / {aTotal}</span></div>
               </div>
-              <button className="icon-btn acc press" style={{ width: 68, height: 68, flex: 'none' }} aria-label={t('Continue workout')} onClick={() => { buzz(12); push('workout', { origin: 'hero' }); }}><Icon name="play" size={26} /></button>
+              <button className="icon-btn acc press" style={{ width: 68, height: 68, flex: 'none' }} aria-label={t('Resume workout')} onClick={() => { buzz(12); push('workout', { origin: 'hero' }); }}><Icon name="play" size={26} /></button>
             </div>
           ) : routine ? (
             <div className="row-flex between" style={{ gap: 14 }}>

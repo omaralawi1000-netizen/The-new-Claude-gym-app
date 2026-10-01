@@ -25,7 +25,9 @@ function LivePill() {
   const [, tick] = useState(0);
   useEffect(() => { const i = setInterval(() => tick((n) => n + 1), 500); return () => clearInterval(i); }, []);
   const workoutOpen = overlays.some((o) => o.type === 'workout');
-  if (!active) return null;
+  const tab = useUI((u) => u.tab);
+  // Today already shows the running workout in its big card, so the pill only appears on the other tabs
+  if (!active || tab === 'today') return null;
   const rest = active.rest && !active.pausedAt ? Math.max(0, Math.ceil((active.rest.endsAt - Date.now()) / 1000)) : 0;
   const total = active.exercises.reduce((n, e) => n + e.sets.length, 0);
   const done = active.exercises.reduce((n, e) => n + e.sets.filter((s) => s.done).length, 0);
@@ -38,7 +40,7 @@ function LivePill() {
       aria-label={t('Resume workout')}
     >
       {/* the pill's surface is a separate layer so the workout can grow out of it without stretching the text */}
-      <motion.span layoutId="wk-pill" className="glass" transition={SOFT} style={{ position: 'absolute', inset: 0, borderRadius: 999 }} />
+      <span data-wk-origin="pill" className="glass" style={{ position: 'absolute', inset: 0, borderRadius: 999 }} />
       <span className="pulse-dot" style={{ position: 'relative', ...(active.pausedAt ? { animation: 'none', background: 'var(--tx3)' } : {}) }} />
       <span className="grow" style={{ textAlign: 'left', minWidth: 0, position: 'relative' }}>
         <span className="trunc" style={{ display: 'block', fontWeight: 650, fontSize: 14 }}>{active.name || t('Workout')}</span>

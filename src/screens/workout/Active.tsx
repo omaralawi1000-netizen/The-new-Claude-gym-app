@@ -14,7 +14,24 @@ import { useNow, restEndedCue } from '../../lib/hooks';
 import { addSet, deleteSet, moveExercise, patchExercise, patchSet, removeExercise, startRest, adjustRest, skipRest, toggleSuperset } from './actions';
 import { exName, fmtSet, MUSCLE_LABEL } from './common';
 
-/** The live workout. Its surface is the same shape that grew out of the Today/Train card or the tab-bar pill. */
+const IOS = [0.32, 0.72, 0, 1] as const;
+const FULL = 'inset(0px 0px 0px 0px round 0px)';
+function originEl(o: 'hero' | 'pill'): HTMLElement | null { return document.querySelector(`[data-wk-origin="${o}"]`); }
+function isOnScreen(o: 'hero' | 'pill'): boolean {
+  const el = originEl(o); if (!el) return false;
+  const r = el.getBoundingClientRect(); return r.height > 20 && r.bottom > 40 && r.top < window.innerHeight - 120;
+}
+/** The origin element's rectangle, as a clip-path inset relative to the app frame, with its own corner radius. */
+function clipFrom(o: 'hero' | 'pill'): string | null {
+  const el = originEl(o); const app = document.querySelector('.app');
+  if (!el || !app) return null;
+  const r = el.getBoundingClientRect(), a = app.getBoundingClientRect();
+  if (r.width < 4 || r.height < 4) return null;
+  const rad = o === 'pill' ? r.height / 2 : 30;
+  return `inset(${r.top - a.top}px ${a.right - r.right}px ${a.bottom - r.bottom}px ${r.left - a.left}px round ${rad}px)`;
+}
+
+/** The live workout. It opens out of the Today card or the tab-bar pill and closes back into it. */
 export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | 'none' } }) {
   const t = useT();
   const lang = useLang();
@@ -34,9 +51,18 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
   const body = useRef<HTMLDivElement>(null);
   const origin = props.origin ?? 'hero';
   const z = useOverlayZ(60);
+  // where to open from is fixed at mount; where to close into is measured on every render (the card may have scrolled)
+  const [openFrom] = useState(() => (origin === 'none' ? null : clipFrom(origin)));
+  // Render the first exercises at once and the rest right after the opening animation, so the open never waits on a long list.
+  const [allRows, setAllRows] = useState(false);
+  useEffect(() => { const id = setTimeout(() => setAllRows(true), 560); return () => clearTimeout(id); }, []);
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !(e.target as HTMLElement)?.closest?.('input,textarea')) pop(); };
+    const onKey = (e: KeyboardEvent) => {
+      const ov = useUI.getState().overlays;
+      if (ov[ov.length - 1]?.type !== 'workout') return; // a sheet above the workout handles its own Escape
+      if (e.key === 'Escape' && !(e.target as HTMLElement)?.closest?.('input,textarea')) pop();
+    };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [pop]);
@@ -82,16 +108,25 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
     <>
       <motion.div className="scrim" style={{ zIndex: z - 1 }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }} />
       <motion.div
-        // with a source card/pill the surface grows out of it (shared layout); otherwise it slides up like a sheet
-        {...(origin === 'none' ? { initial: { y: '100%' }, animate: { y: 0 }, exit: { y: '100%' } } : { layoutId: `wk-${origin}` })}
-        transition={reduce ? { duration: 0.01 } : origin === 'none' ? SPRING : SOFT}
+        // With a source card/pill the screen opens out of it like an App Store card: a clip that grows from the card's exact
+        // rectangle and corner radius (content stays crisp — nothing is stretched), and closes back into wherever the
+        // workout now lives (the Today card if it is on screen, otherwise the tab-bar pill). Without one it slides up.
+        {...(origin === 'none' || !openFrom || reduce
+          ? { initial: { y: '100%' }, animate: { y: 0 }, exit: { y: '100%' }, transition: reduce ? { duration: 0.01 } : SPRING }
+          : {
+            initial: { clipPath: openFrom, opacity: 0 },
+            animate: { clipPath: FULL, opacity: 1, transition: { clipPath: { duration: 0.52, ease: IOS }, opacity: { duration: 0.12 } } },
+            exit: 'close',
+            // measured when the close starts (after the Today card has re-rendered), so it lands exactly on the card
+            variants: { close: () => ({ clipPath: clipFrom(isOnScreen('hero') ? 'hero' : 'pill') ?? openFrom, opacity: 0, transition: { clipPath: { duration: 0.46, ease: IOS }, opacity: { duration: 0.16, delay: 0.32 } } }) },
+          })}
         role="dialog" aria-modal="true" aria-label={t('Active workout')}
         data-hue="train" style={{ position: 'fixed', inset: 0, zIndex: z, background: 'var(--bg)', borderRadius: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: 'var(--sh-f)' }}
         drag="y" dragControls={controls} dragListener={false} dragConstraints={{ top: 0, bottom: 0 }} dragElastic={{ top: 0, bottom: 0.7 }}
         onDragEnd={(_, i) => { if (i.offset.y > 120 || i.velocity.y > 700) pop(); }}
       >
         <div className="aurora in" aria-hidden><i /><i /><i /></div>
-        <motion.div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }} initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { delay: 0.12, duration: 0.22 } }} exit={{ opacity: 0, transition: { duration: 0.08 } }}>
+        <motion.div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, transformOrigin: '50% 30%' }} initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1, transition: { delay: 0.06, duration: 0.34, ease: IOS } }} exit={{ opacity: 0, scale: 0.97, transition: { duration: 0.22 } }}>
           {/* header */}
           <div onPointerDown={(e) => { if ((e.target as HTMLElement).closest('button,input')) return; controls.start(e); }} style={{ padding: 'calc(var(--sat) + 10px) 16px 12px', touchAction: 'none', background: 'linear-gradient(var(--bg) 70%, transparent)', position: 'relative', zIndex: 2 }}>
             <div className="row-flex between">
@@ -124,7 +159,7 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
               <div className="empty"><div className="display display-sm">{t('Empty session')}</div><div style={{ height: 12 }} /></div>
             )}
             <AnimatePresence initial={false}>
-              {a.exercises.map((se, idx) => (
+              {(allRows ? a.exercises : a.exercises.slice(0, 2)).map((se, idx) => (
                 <ExerciseBlock key={se.id} se={se} idx={idx} ex={exMap.get(se.exerciseId)} all={a.exercises} onMenu={() => setMenu(se.id)} />
               ))}
             </AnimatePresence>
