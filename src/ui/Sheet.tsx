@@ -1,4 +1,4 @@
-import { AnimatePresence, animate, motion, useMotionValue, usePresence, useReducedMotion, useTransform } from 'motion/react';
+import { AnimatePresence, animate, motion, useMotionValue, usePresence, useReducedMotion, useTransform, type MotionValue } from 'motion/react';
 import { createContext, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, type ReactNode } from 'react';
 import { EngageContext, trackDepth } from './engage';
 
@@ -14,6 +14,16 @@ export const SOFT = { type: 'spring', stiffness: 300, damping: 32, mass: 0.9 } a
 export const SNAP = { type: 'spring', stiffness: 600, damping: 42, mass: 0.7 } as const;
 
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
+
+/** Dims the page behind a popup and ramps a blur up over it, both straight from the popup's progress (finger included). */
+function Scrim({ e, z, onClick }: { e: MotionValue<number>; z: number; onClick: () => void }) {
+  const filter = useTransform(e, (v) => `blur(${16 * v}px) saturate(${1 + 0.2 * v})`);
+  return (
+    <motion.div className="scrim" style={{ zIndex: z, backdropFilter: filter, WebkitBackdropFilter: filter }} onClick={onClick}>
+      <motion.i style={{ opacity: e }} />
+    </motion.div>
+  );
+}
 const EXIT_SPRING = { type: 'spring', stiffness: 260, damping: 34, mass: 0.9, restDelta: 0.002 } as const;
 
 /**
@@ -78,7 +88,7 @@ export function Sheet({ children, onClose, tall, label, foot, z: zProp = 60, nes
   }, [onClose]);
   return (
     <EngageContext.Provider value={engage}>
-      <motion.div className="scrim" style={{ zIndex: z - 1, opacity: e }} onClick={onClose} />
+      <Scrim e={e} z={z - 1} onClick={onClose} />
       <motion.div
         ref={ref}
         className={`sheet ${tall ? 'tall' : ''}`}
@@ -153,7 +163,7 @@ export function MorphSheet({ children, onClose, layoutId, label, tall = true, z:
   }, [onClose]);
   return (
     <EngageContext.Provider value={engage}>
-      <motion.div className="scrim" style={{ zIndex: z - 1, opacity: e }} onClick={onClose} />
+      <Scrim e={e} z={z - 1} onClick={onClose} />
       <motion.div ref={wrap} style={{ y, position: 'fixed', left: 0, right: 0, bottom: 'var(--kb, 0px)', zIndex: z, pointerEvents: 'none', height: tall ? 'calc(100dvh - var(--sat) - 46px)' : undefined, maxHeight: 'calc(100dvh - var(--sat) - 46px)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
         <motion.div
           layoutId={layoutId} role="dialog" aria-modal="true" aria-label={label}

@@ -150,6 +150,7 @@ Run in headless Chromium (Playwright, 390×844 @2×, dark + light), scripts in `
   - Its colour field is a single layer (three gradients) instead of three big layers + a mask + a blend, so opening it no longer shows a half-drawn rectangle for a few frames. Film grain is a pre-baked noise tile instead of an SVG filter.
   - Content fades out before the bottom edge of every screen, so nothing peeks out below the tab bar.
 - **Everything moves as one** (sync pass): each popup has a single progress number (`engage.ts`) that already includes your finger. The popup's own position, the page behind it (scale and corners), the dim/blur over that page and the orb all read that same number in the same animation frame — so while you drag a sheet the page grows back under your finger, a flick carries the page, dim and orb out at the same speed, and opening is the same thing in reverse. The orb has no spring of its own any more: it sits in the tab bar blended towards the popup's slot by that progress (so it rides in with the popup and returns with it, and never lags or goes off-screen).
+- **First-version dock and popup frost, restored**: the tab bar is the original again (the active tab's width springs open, its name slides in, the oval glides over with a small give — CSS-driven, no per-frame React work), and the page behind a popup is blurred with a radius that ramps from 0 to 16 px together with the dim — straight from the popup's progress, so it also eases off under your finger as you drag. Sheets use the original 48 px frost.
 
 ## Look and motion
 
