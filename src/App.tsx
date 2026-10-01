@@ -15,6 +15,7 @@ import { registerSW } from './pwa';
 import { dayKey } from './lib/dates';
 import { defaultMealId } from './lib/derive';
 import { stageDepth } from './ui/engage';
+import { setKeyboard } from './ui/keyboard';
 
 const ORDER = ['today', 'train', 'food', 'progress'] as const;
 function useTheme() {
@@ -73,7 +74,7 @@ function useKeyboard() {
     if (!vv) return;
     const upd = () => {
       const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
-      document.documentElement.style.setProperty('--kb', kb > 80 ? `${kb}px` : '0px');
+      setKeyboard(kb > 80 ? kb : 0, document.documentElement.dataset.motion === 'reduce');
     };
     vv.addEventListener('resize', upd); vv.addEventListener('scroll', upd); upd();
     return () => { vv.removeEventListener('resize', upd); vv.removeEventListener('scroll', upd); };

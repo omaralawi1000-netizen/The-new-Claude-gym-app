@@ -327,6 +327,24 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    (useStageDepth in App.tsx) from the popups' own progress, so it follows them frame for frame — no CSS transition. */
 .stage { position: absolute; inset: 0; background: var(--bg); transform-origin: 50% 0%; }
 
-/* Coach replies: each word blurs in as it arrives (only new words mount, so nothing already read re-animates) */
-.w { display: inline-block; animation: wordIn 560ms var(--ease-out) backwards; }
-@keyframes wordIn { from { opacity: 0; filter: blur(8px); transform: translateY(4px); } }
+/* Coach replies: each new word inks in — blurred and lifted, glowing in the accent, then settling into the text colour.
+   Only new words mount, so nothing already read re-animates; words that arrive together cascade. */
+.w { display: inline-block; animation: wordIn 760ms var(--ease-out) backwards; }
+@keyframes wordIn {
+  0% { opacity: 0; filter: blur(10px); transform: translateY(6px) scale(0.96); color: var(--ac-text); text-shadow: 0 0 18px color-mix(in srgb, var(--ac) 70%, transparent); }
+  45% { opacity: 1; filter: blur(0); transform: none; color: var(--ac-text); text-shadow: 0 0 14px color-mix(in srgb, var(--ac) 50%, transparent); }
+  100% { text-shadow: 0 0 0 transparent; }
+}
+/* the writing cursor at the end of a streaming reply */
+.caret { display: inline-block; width: 2px; height: 1.05em; margin-left: 3px; vertical-align: -0.18em; border-radius: 2px; background: var(--ac-text); box-shadow: 0 0 10px var(--ac); animation: caret 1s ease-in-out infinite; }
+@keyframes caret { 0%, 100% { opacity: 0.15; } 50% { opacity: 1; } }
+/* thinking: lines of light sweeping across */
+.thinking { padding: 4px 0 2px; }
+.thinking i { display: block; height: 11px; margin: 10px 0; border-radius: 6px; background: linear-gradient(100deg, var(--s2) 30%, color-mix(in srgb, var(--ac) 38%, var(--s3)) 50%, var(--s2) 70%); background-size: 260% 100%; animation: sheen 1.6s linear infinite, thinkIn 0.5s var(--ease-out) backwards; }
+@keyframes sheen { from { background-position: 130% 0; } to { background-position: -130% 0; } }
+@keyframes thinkIn { from { opacity: 0; transform: translateX(-10px); filter: blur(4px); } }
+/* a sent message: a line of light passes over it once and its rim glows, then both fade */
+.sent { position: relative; overflow: hidden; animation: sentGlow 1.4s var(--ease-out) both; }
+.sent::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(105deg, transparent 32%, rgba(255, 255, 255, 0.26) 50%, transparent 68%); transform: translateX(-130%); animation: shine 900ms 240ms var(--ease-out) forwards; }
+@keyframes shine { to { transform: translateX(130%); } }
+@keyframes sentGlow { 0% { box-shadow: inset 0 1px 0 var(--hl), inset 0 0 0 1px color-mix(in srgb, var(--ac) 70%, transparent), 0 0 22px -4px color-mix(in srgb, var(--ac) 60%, transparent); } 100% { box-shadow: inset 0 1px 0 color-mix(in srgb, var(--hl) 60%, transparent), inset 0 0 0 1px var(--line), 0 0 0 0 transparent; } }

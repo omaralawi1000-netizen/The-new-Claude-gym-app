@@ -1,6 +1,7 @@
 import { AnimatePresence, animate, motion, useMotionValue, usePresence, useReducedMotion, useTransform, type MotionValue } from 'motion/react';
 import { createContext, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, type ReactNode } from 'react';
 import { EngageContext, trackDepth } from './engage';
+import { availableHeight, kb } from './keyboard';
 
 /** Stack-position z-index for the current overlay: a later overlay is always above an earlier one. */
 export const OverlayZ = createContext<number | null>(null);
@@ -55,6 +56,7 @@ export function Sheet({ children, onClose, tall, label, foot, z: zProp = 60, nes
   const transform = useTransform([shift, bs], ([sh, b]: number[]) => `translate3d(0, ${sh}px, 0) scale(${1 - 0.06 * b})`);
   const e = useTransform([p, y], ([pp, yy]: number[]) => clamp01(pp - Math.max(0, yy) / dist.current));
   const engage = useMemo(() => ({ e, shift }), [e, shift]);
+  const room = useTransform(kb, availableHeight); // what the keyboard leaves free: the sheet lifts and fits as it opens
   useEffect(() => trackDepth(id, e), [id, e]);
   const swipeV = useRef(0); // px/s the finger had when it let go
   useSwipeDown(ref, y, (v) => { swipeV.current = v ?? 0; onClose(); }, { enabled: !behind });
@@ -96,7 +98,7 @@ export function Sheet({ children, onClose, tall, label, foot, z: zProp = 60, nes
       <motion.div
         ref={ref}
         className={`sheet ${tall ? 'tall' : ''}`}
-        style={{ zIndex: z, bottom: 'var(--kb, 0px)', transformOrigin: '50% 0%', transform }}
+        style={{ zIndex: z, bottom: kb, transformOrigin: '50% 0%', transform, maxHeight: room, ...(tall ? { height: room } : {}) }}
         role="dialog" aria-modal="true" aria-label={label}
       >
         <div className="sheet-grab" />
@@ -144,6 +146,7 @@ export function MorphSheet({ children, onClose, layoutId, label, tall = true, z:
   const p = useMotionValue(0); // the surface itself grows out of its row (shared layout); this follows it for the page behind and the dim
   const e = useTransform([p, y], ([pp, yy]: number[]) => clamp01(pp - Math.max(0, yy) / (typeof window !== 'undefined' ? window.innerHeight : 900)));
   const engage = useMemo(() => ({ e, shift: y }), [e, y]);
+  const room = useTransform(kb, availableHeight);
   useEffect(() => trackDepth(id, e), [id, e]);
   useSwipeDown(wrap, y, onClose);
   useEffect(() => {
@@ -168,7 +171,7 @@ export function MorphSheet({ children, onClose, layoutId, label, tall = true, z:
   return (
     <EngageContext.Provider value={engage}>
       <Scrim e={e} z={z - 1} onClick={onClose} />
-      <motion.div ref={wrap} style={{ y, position: 'fixed', left: 0, right: 0, bottom: 'var(--kb, 0px)', zIndex: z, pointerEvents: 'none', height: tall ? 'calc(100dvh - var(--sat) - 46px)' : undefined, maxHeight: 'calc(100dvh - var(--sat) - 46px)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+      <motion.div ref={wrap} style={{ y, position: 'fixed', left: 0, right: 0, bottom: kb, zIndex: z, pointerEvents: 'none', height: tall ? room : undefined, maxHeight: room, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
         <motion.div
           layoutId={layoutId} role="dialog" aria-modal="true" aria-label={label}
           className="morph-sheet"

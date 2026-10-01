@@ -31,7 +31,16 @@ type Msg =
  */
 function Words({ text, k }: { text: string; k: string }) {
   const parts = text.split(/(\s+)/);
-  return <>{parts.map((w, i) => (/^\s+$/.test(w) ? w : w ? <span key={`${k}-${i}`} className="w">{w}</span> : null))}</>;
+  // words that arrive together cascade one after another; a word keeps the delay it was born with
+  const born = useRef<Record<number, number>>({});
+  const seen = useRef(0);
+  const first = seen.current;
+  useEffect(() => { seen.current = parts.length; });
+  return <>{parts.map((w, i) => {
+    if (/^\s+$/.test(w) || !w) return w || null;
+    if (born.current[i] === undefined) born.current[i] = Math.min(520, Math.max(0, (i - first) / 2) * 34);
+    return <span key={`${k}-${i}`} className="w" style={{ animationDelay: `${born.current[i]}ms` }}>{w}</span>;
+  })}</>;
 }
 function Rich({ text }: { text: string }) {
   const lines = text.split('\n');
@@ -43,13 +52,9 @@ function Rich({ text }: { text: string }) {
   })}</>;
 }
 
-/** Three soft dots while the Coach is thinking. */
-function Typing() {
-  return (
-    <span aria-label="…" style={{ display: 'inline-flex', gap: 5, padding: '10px 2px' }}>
-      {[0, 1, 2].map((i) => <motion.i key={i} animate={{ y: [0, -5, 0], opacity: [0.35, 1, 0.35] }} transition={{ duration: 0.9, repeat: Infinity, delay: i * 0.14, ease: 'easeInOut' }} style={{ width: 7, height: 7, borderRadius: 7, background: 'var(--ac-text)', display: 'block' }} />)}
-    </span>
-  );
+/** While the Coach thinks: three lines of light sweep across, then the real words ink in where they were. */
+function Thinking() {
+  return <div className="thinking" aria-label="…">{[92, 78, 52].map((w, i) => <i key={i} style={{ width: `${w}%`, animationDelay: `${i * 160}ms, ${i * 70}ms` }} />)}</div>;
 }
 
 export function Coach() {
@@ -207,11 +212,11 @@ export function Coach() {
               {msgs.map((m) => (
                 <motion.div key={m.id} layout="position"
                   // sent messages spring up out of the input; replies settle in softly
-                  initial={m.role === 'user' ? { opacity: 0, y: 40, scale: 0.86 } : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0, scale: 1 }}
-                  transition={m.role === 'user' ? { type: 'spring', stiffness: 420, damping: 28, mass: 0.8 } : SOFT}
+                  initial={m.role === 'user' ? { opacity: 0, y: 96, scale: 0.78, filter: 'blur(6px)' } : { opacity: 0, y: 14, filter: 'blur(8px)' }} animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
+                  transition={m.role === 'user' ? { type: 'spring', stiffness: 360, damping: 24, mass: 0.8, filter: { duration: 0.35 } } : { ...SOFT, filter: { duration: 0.5 } }}
                   style={{ transformOrigin: m.role === 'user' ? '100% 100%' : '0% 0%', alignSelf: m.role === 'user' ? 'flex-end' : 'stretch', maxWidth: m.role === 'user' ? '86%' : '100%' }}>
-                  {m.role === 'user' && <div className="plinth-2" style={{ padding: '10px 14px', borderRadius: 18 }}>{m.text}</div>}
-                  {m.role === 'model' && <div className="small" style={{ lineHeight: 1.5 }} aria-live="polite">{m.text ? <Rich text={m.text} /> : <Typing />}{m.streaming && m.text && <span className="t3"> ▍</span>}</div>}
+                  {m.role === 'user' && <div className="plinth-2 sent" style={{ padding: '10px 14px', borderRadius: 18 }}>{m.text}</div>}
+                  {m.role === 'model' && <div className="small" style={{ lineHeight: 1.5 }} aria-live="polite">{m.text ? <Rich text={m.text} /> : <Thinking />}{m.streaming && m.text && <span className="caret" aria-hidden />}</div>}
                   {m.role === 'error' && <div className="plinth-2 small" role="alert" style={{ padding: '10px 14px', color: 'var(--bad)' }}>{m.text}</div>}
                   {m.role === 'routine' && (
                     <div className="plinth" style={{ padding: 14 }}>
