@@ -1,4 +1,4 @@
-import { memo, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, animate, motion, useMotionValue, usePresence, useReducedMotion, useTransform } from 'motion/react';
 import { useStore, exerciseMap } from '../../state/store';
 import { useUI, buzz } from '../../state/ui';
@@ -22,16 +22,25 @@ import { BOUNCY, SURFACE_EXIT, apple } from '../../ui/motion';
 
 // critically damped: it opens and closes in one smooth motion with no wobble at the end
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
-/** An element's box with the transforms of it and its ancestors taken off for a moment (measured, then put straight back). */
-function restRect(el: Element): DOMRect {
-  const undo: [HTMLElement, string][] = [];
-  for (let n = el as HTMLElement | null; n && n !== document.body; n = n.parentElement) {
-    const t = n.style.transform;
-    if (t && t !== 'none') { undo.push([n, t]); n.style.transform = 'none'; }
-  }
+/**
+ * Where an element RESTS: its box with the transforms of it and its ancestors (a stepped-back page, a slid-away tab bar, a
+ * shrunk resume bar) undone mathematically — no styles touched, so no extra layout pass while the close is starting.
+ */
+function restRect(el: Element): { left: number; top: number; right: number; bottom: number; width: number; height: number } {
   const r = el.getBoundingClientRect();
-  for (const [n, t] of undo) n.style.transform = t;
-  return r;
+  let pts: [number, number][] = [[r.left, r.top], [r.right, r.bottom]];
+  const chain: HTMLElement[] = [];
+  for (let n = el as HTMLElement | null; n && n !== document.body; n = n.parentElement) { const t = getComputedStyle(n).transform; if (t && t !== 'none') chain.push(n); }
+  for (const n of chain.reverse()) { // outermost first
+    const cs = getComputedStyle(n);
+    const inv = new DOMMatrix(cs.transform).inverse();
+    const [ox, oy] = cs.transformOrigin.split(' ').map(parseFloat);
+    let x = 0, y = 0; for (let e: HTMLElement | null = n; e; e = e.offsetParent as HTMLElement | null) { x += e.offsetLeft; y += e.offsetTop; }
+    const O = [x + ox, y + oy];
+    pts = pts.map(([px, py]) => { const q = inv.transformPoint(new DOMPoint(px - O[0], py - O[1])); return [q.x + O[0], q.y + O[1]] as [number, number]; });
+  }
+  const [[left, top], [right, bottom]] = pts;
+  return { left, top, right, bottom, width: right - left, height: bottom - top };
 }
 /** Opening: Apple's spring with a touch of bounce, as the Music player lands. */
 const OPEN = { ...apple(0.52, 0.08), restDelta: 0.001 };
@@ -58,7 +67,7 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
   const dialogRef = useRef<HTMLDivElement>(null);
   const dragY = useMotionValue(0);
   const swipeV = useRef(0);
-  useSwipeDown(dialogRef, dragY, (v) => { swipeV.current = v ?? 0; useUI.getState().pop(); }, { threshold: 130 });
+  useSwipeDown(dialogRef, dragY, (v) => { swipeV.current = v ?? 0; close(swipeV.current || dragY.getVelocity()); }, { threshold: 130 });
   // Presented like Apple Music's player: the window grows out of what you tapped — the resume bar above the tab bar or the
   // workout card on Today — from that exact rectangle to the whole screen, frosted glass while it grows and the window's
   // own colour once it lands, the content fading up inside it while the page behind steps back and dims. Closing (the
@@ -128,24 +137,37 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
   };
   useEffect(() => { const off = dragY.on('change', () => mirror.current!.cancel()); return () => { off(); mirror.current!.cancel(); }; }, [dragY]);
   const [isPresent, safeToRemove] = usePresence();
-  useEffect(() => {
+  // started before the first paint, so the browser-run half is already going when the rest of the window's setup work runs
+  useLayoutEffect(() => {
     const c = animate(p, 1, reduce ? { duration: 0.01 } : OPEN);
     runMirror(0, 1, OPEN, 0);
     return () => c.stop();
     // eslint-disable-next-line
   }, []);
-  const closing = useRef(false);
-  useEffect(() => {
-    if (isPresent || closing.current) return;
-    closing.current = true;
+  // Closing starts the very moment you let go: the window's own animation is set going first (on the compositor), and only
+  // after the next frame has been drawn is the app told the workout is closed — re-rendering the page behind, the tab bar
+  // and the resume bar takes a phone a good while, and before, nothing moved until it was done (the pause after a tap).
+  const closing = useRef<Promise<void> | null>(null);
+  const startClose = (v = 0): Promise<void> => {
+    if (closing.current) return closing.current;
     // the finger's offset becomes progress, then it carries on at the finger's speed — back into the bar or card it came from
-    const v = swipeV.current || dragY.getVelocity();
     const e0 = eFinger.get();
     origin.current = originOf();
     p.set(e0); dragY.set(0);
     const vel = -v / Math.max(120, H - origin.current.bottom + origin.current.top);
     runMirror(e0, 0, SURFACE_EXIT, vel);
-    animate(p, 0, reduce ? { duration: 0.01 } : { ...SURFACE_EXIT, velocity: vel }).then(() => safeToRemove?.());
+    const c = animate(p, 0, reduce ? { duration: 0.01 } : { ...SURFACE_EXIT, velocity: vel });
+    closing.current = new Promise<void>((done) => { c.then(() => done()); });
+    return closing.current;
+  };
+  const close = (v = 0) => {
+    if (closing.current) return;
+    startClose(v);
+    requestAnimationFrame(() => setTimeout(() => { if (useUI.getState().overlays.some((o) => o.type === 'workout')) useUI.getState().pop(); }, 0));
+  };
+  useEffect(() => {
+    if (isPresent) return;
+    (closing.current ?? startClose(swipeV.current || dragY.getVelocity())).then(() => safeToRemove?.());
     // eslint-disable-next-line
   }, [isPresent]);
   // the keyboard slides over the page (it no longer resizes it): the list gets that much more room at its end, so the last
@@ -189,7 +211,7 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
     const onKey = (e: KeyboardEvent) => {
       const ov = useUI.getState().overlays;
       if (ov[ov.length - 1]?.type !== 'workout' || document.querySelector('.sheet')) return; // a sheet above the workout (or one of its own menus) handles its own Escape
-      if (e.key === 'Escape' && !(e.target as HTMLElement)?.closest?.('input,textarea')) pop();
+      if (e.key === 'Escape' && !(e.target as HTMLElement)?.closest?.('input,textarea')) close();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -232,7 +254,7 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
 
   return (
     <>
-      <Veil e={eFinger} z={z - 1} onClick={pop} layers={DIM_VEIL} elRef={scrimRef} />
+      <Veil e={eFinger} z={z - 1} onClick={() => close()} layers={DIM_VEIL} elRef={scrimRef} />
       <motion.div
         role="dialog" aria-modal="true" aria-label={t('Active workout')}
         ref={dialogRef} data-hue="train" className="wk-card" style={{ zIndex: z, y: dragT }}
@@ -250,7 +272,7 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
               (a solid band here cut the colour field off in a hard line under the grabber) */}
           <div style={{ padding: '0 16px 12px', touchAction: 'none', position: 'relative', zIndex: 2 }}>
             <div className="row-flex between">
-              <button className="icon-btn press" aria-label={t('Minimise workout')} onClick={pop}><Icon name="chevD" /></button>
+              <button className="icon-btn press" aria-label={t('Minimise workout')} onClick={() => close()}><Icon name="chevD" /></button>
               <div className="grow" style={{ textAlign: 'center', minWidth: 0 }}>
                 {renaming ? (
                   <input className="input" autoFocus style={{ minHeight: 40, textAlign: 'center' }} defaultValue={a.name} onBlur={(e) => { useStore.getState().mutateActive((x) => ({ ...x, name: e.target.value.trim() })); setRenaming(false); }} onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} aria-label={t('Workout name')} />

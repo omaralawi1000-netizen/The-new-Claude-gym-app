@@ -17,7 +17,7 @@ import { defaultMealId } from './lib/derive';
 import { stageCover, stageDepth, stageTransform } from './ui/engage';
 import { setKeyboard } from './ui/keyboard';
 import { FpsMeter } from './ui/FpsMeter';
-import { revealPage } from './ui/pageMotion';
+import { apple } from './ui/motion';
 
 /** Where the last tap landed — the theme switch spreads out from there. */
 const lastTap = { x: typeof window !== 'undefined' ? window.innerWidth / 2 : 0, y: 0 };
@@ -89,21 +89,34 @@ function useTheme() {
  * opening, under the finger while it is dragged, and as it leaves.
  */
 /**
- * One tab's screen, with its own colour field (its area's light) under it, so a screen is a solid surface: a new one
- * spreads out of the tab you tapped OVER the old one (revealPage, ui/pageMotion.ts) — no see-through overlap, no gap
- * of black between them, and no full-screen cross-fade of the field's colours to repaint every frame. The one you leave
- * dims a little underneath and is gone once it is covered. The very first screen of the session just appears.
+ * Switching tabs. Two things happen together:
+ *  - the glow changes: the area's colour field cross-fades into the next area's colours (Field) — as two layers fading
+ *    over each other, so the browser just blends them instead of repainting the field on every frame;
+ *  - the screens swap with depth: the one you leave fades out quickly and sinks back a little, the new one fades in and
+ *    settles from a touch larger. Opacity and transform only, run by the browser.
  */
-let firstPane = true;
-function TabPane({ hue, children }: { hue: string; children: React.ReactNode }) {
-  const ref = useRef<HTMLDivElement>(null);
+const GLOW = 0.8; // seconds the colours take to change over
+let fieldSeq = 0;
+function Field({ hue }: { hue: string }) {
   // every field drifts on the same clock, so the new one lines up with the old one and only its colours change
   const drift = useRef(`-${Math.round(performance.now())}ms`);
-  useLayoutEffect(() => { if (firstPane) { firstPane = false; return; } revealPage(ref.current); }, []);
+  const z = useRef(++fieldSeq);
   return (
-    <motion.div ref={ref} className="tab-pane" data-active data-hue={hue} style={{ position: 'absolute', inset: 0 }}
-      exit={{ opacity: [1, 0.55], transition: { duration: 0.62, ease: [0.2, 0.7, 0.3, 1] } }}>
-      <div className="aurora" aria-hidden style={{ ['--drift-t' as string]: drift.current }}><i /><i /><i /></div>
+    <motion.div className="aurora" data-hue={hue} aria-hidden style={{ zIndex: z.current, ['--drift-t' as string]: drift.current }}
+      initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { duration: GLOW, ease: [0.4, 0, 0.2, 1] } }}
+      exit={{ opacity: 0.999, transition: { duration: GLOW } }}>
+      <i /><i /><i />
+    </motion.div>
+  );
+}
+
+const PAGE_IN = apple(0.48);
+function TabPane({ hue, children }: { hue: string; children: React.ReactNode }) {
+  return (
+    <motion.div className="tab-pane" data-active data-hue={hue} style={{ position: 'absolute', inset: 0, transformOrigin: '50% 62%' }}
+      initial={{ opacity: 0, transform: 'scale(1.035)' }}
+      animate={{ opacity: 1, transform: 'scale(1)', transitionEnd: { transform: 'none' }, transition: { transform: PAGE_IN, opacity: { duration: 0.3, delay: 0.04, ease: [0.2, 0.7, 0.3, 1] } } }}
+      exit={{ opacity: [1, 0], transform: ['scale(1)', 'scale(0.97)'], transition: { opacity: { duration: 0.18, ease: [0.4, 0, 1, 1] }, transform: { duration: 0.3, ease: [0.3, 0, 0.2, 1] } } }}>
       {children}
     </motion.div>
   );
@@ -199,6 +212,7 @@ export function App() {
       <LayoutGroup>
         <div className="app" data-hue={tab} data-pill={pill || undefined} ref={appRef}>
           <div className="stage" ref={stageRef}>
+          <div className="fields"><AnimatePresence initial={false}><Field key={tab} hue={tab} /></AnimatePresence></div>
           <AnimatePresence mode="popLayout" initial={false}>
             <TabPane key={tab} hue={tab}><Screen /></TabPane>
           </AnimatePresence>

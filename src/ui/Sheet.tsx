@@ -2,7 +2,10 @@ import { AnimatePresence, animate, motion, useMotionValue, usePresence, useReduc
 import { createContext, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { EngageContext, Mirror, mirrorProgress, mirrorStage, trackDepth } from './engage';
 import { Veil, mirrorVeil } from './Veil';
-import { availableHeight, dropKeyboard, expectKeyboard, kb } from './keyboard';
+import { availableHeight, dropKeyboard, kb } from './keyboard';
+
+/** How long after a popup starts opening its text field gets the keyboard: it has landed by then. */
+const KEYBOARD_AFTER = 450;
 
 /** Stack-position z-index for the current overlay: a later overlay is always above an earlier one. */
 export const OverlayZ = createContext<number | null>(null);
@@ -107,13 +110,27 @@ export function Sheet({ children, onClose, tall, label, foot, z: zProp = 60, nes
     const ro = new ResizeObserver(measure); ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  useEffect(() => {
+  const typeField = useRef<HTMLElement | null>(null); // the field that should get the keyboard once the sheet has landed
+  // started before the first paint, so the browser-run half is already going while the sheet's content finishes setting up
+  useLayoutEffect(() => {
     const c = animate(p, 1, reduce ? { duration: 0.01 } : SPRING);
-    // a field focused as it opens: rise straight to where it will sit above the keyboard, together with the keyboard
-    const f = document.activeElement;
-    if (!reduce && f && ref.current?.contains(f) && /^(INPUT|TEXTAREA)$/.test(f.tagName)) expectKeyboard(SPRING);
+    // A field that wants the keyboard: the popup arrives first, and the keyboard follows once it has landed (the field is
+    // focused a moment later — still within the tap's user activation, so the browser brings the keyboard up).
+    const active = document.activeElement as HTMLElement | null;
+    if (!typeField.current && active && ref.current?.contains(active) && /^(INPUT|TEXTAREA)$/.test(active.tagName)) typeField.current = active;
+    const f = typeField.current;
+    let later: ReturnType<typeof setTimeout> | undefined;
+    if (f && document.activeElement !== f && !f.isConnected) typeField.current = null;
+    else if (f) {
+      f.blur();
+      later = setTimeout(() => {
+        if (!f.isConnected || leaving.current) return;
+        f.focus({ preventScroll: true });
+        try { (navigator as unknown as { virtualKeyboard?: { show?: () => void } }).virtualKeyboard?.show?.(); } catch { /* ignore */ }
+      }, reduce ? 0 : KEYBOARD_AFTER);
+    }
     runMirror(0, 1, SPRING, 0);
-    return () => c.stop();
+    return () => { c.stop(); clearTimeout(later); };
     // eslint-disable-next-line
   }, []);
   useEffect(() => { const c = animate(bs, behind ? 1 : 0, reduce ? { duration: 0.01 } : SPRING); return () => c.stop(); }, [behind]); // eslint-disable-line

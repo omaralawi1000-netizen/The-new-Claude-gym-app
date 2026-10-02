@@ -38,11 +38,10 @@
 
 /* the light of each area (the colour field and the accent follow the active tab) */
 .app, [data-hue='today'] { --ac: #ff7a59; --h1: #7c5cff; --h2: #ff7a59; --h3: #29d3c0; }
-/* Each tab's screen carries its own colour field (App.tsx TabPane), so the field never cross-fades: a new screen arrives
-   with its light already in it. Nothing transitions the area colours themselves any more — transitioning a colour
-   variable restyles everything under it on every frame (it was ~45 ms of style work per tab switch); the tab icons ease
-   their own colour instead. */
-.tab-pane { background: var(--bg); }
+/* The colour field changes areas by cross-fading two field layers (App.tsx Field), never by transitioning the colour
+   variables: transitioning a colour variable restyles everything under it on every frame (it was ~45 ms of style work
+   per tab switch, measured). The tab icons ease their own colour. */
+.fields { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
 [data-hue='train'] { --ac: #ff5f45; --h1: #ff5a36; --h2: #c4206e; --h3: #ffa03d; }
 [data-hue='food'] { --ac: #c6f24a; --h1: #2fe0b4; --h2: #1c8a63; --h3: #c6f24a; }
 [data-hue='progress'] { --ac: #78b0ff; --h1: #3d7bff; --h2: #7a4bff; --h3: #22d3ee; }

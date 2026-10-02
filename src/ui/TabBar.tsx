@@ -46,7 +46,7 @@ function LivePill() {
   if (!hasActive || tab === 'today') return null;
   return (
     <motion.button
-      key="pill" layout className="press"
+      key="pill" className="press"
       style={{ position: 'relative', borderRadius: 999, height: 56, width: '100%', maxWidth: 420, display: 'flex', alignItems: 'center', gap: 12, padding: '0 8px 0 18px', marginBottom: 10, pointerEvents: workoutOpen ? 'none' : 'auto' }}
       initial="hide" animate={workoutOpen ? 'hide' : 'show'} exit="hide" variants={PILL} transition={SOFT}
       onClick={() => { buzz(); push('workout', { origin: 'pill' }); }}

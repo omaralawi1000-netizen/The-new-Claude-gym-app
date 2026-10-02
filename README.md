@@ -147,11 +147,17 @@ Run in headless Chromium (Playwright, 390×844 @2×, dark + light), scripts in `
 - **Snap your plate** (Gemini key): photo → per-item estimates (name, grams, kcal, macros) → choose items and portion (×0.5–×2) → logged as quick entries labelled "AI estimate" with the assumptions. Image is downscaled to 1024 px before sending. Wiring tested with a stubbed Gemini; real recognition quality is unverified.
 - **Home-screen shortcuts** (Android long-press on the installed icon): Log food, Dictate, Snap your plate, Log wrestling.
 
+## Glow pass
+
+- **Tab switching, one type**: the glow changes — the colour field cross-fades into the next area's colours in 0.8 s, as two layers fading over each other (the browser blends them; nothing is repainted per frame) — while the screens swap with depth: the old one fades out quickly and sinks back a little, the new one fades in and settles from a touch larger. Opacity and transform only.
+- **No pause before the workout moves**: closing used to wait for the app to re-render the page behind, the tab bar and the resume bar before anything moved (a visible beat after the tap on a phone). Now the close animation starts on the very frame you let go, and the app is told the workout closed only after that frame. Opening (and every popup) starts its browser-run animation before the first paint, so setup work can no longer freeze it. Two layout animations that re-measured the page on every re-render (resume bar, Today's workout card) are gone, and the resting position of the bar/card is computed without forcing layout.
+- **Keyboard after the popup**: a popup with a text field arrives first; about half a second after the tap (once it has landed) the field is focused and the keyboard comes up, the popup riding up with it. Closing drops the keyboard together with the popup.
+
 ## Seamless pass
 
-- **Each tab's screen carries its own colour field** (`TabPane` in `App.tsx`), so a screen is a solid surface. The new one spreads out of the tab you tapped *over* the old one — no see-through overlap, no moment of black between them — quicker and quieter than before (no ring, smaller movement). The old one dims a little underneath and is gone once covered.
+- (Superseded by the glow pass) each tab's screen carried its own colour field and spread out of the tapped tab.
 - **Fewer dropped frames when switching**: the colour field no longer cross-fades its colours (that repainted the whole screen every frame for 1.1 s), and nothing transitions the area colour variables any more — transitioning a colour variable restyled everything under it on every frame (~45 ms of style work per switch, measured). Main-thread work across 8 tab switches went from ~2.8 s to ~1.2 s in the test browser.
-- **Keyboard**: popups ride the keyboard with a transform (not their `bottom`, which re-laid them out every frame), on a quicker spring that keeps up with Android's keyboard. The app remembers your keyboard's height: a popup that opens with a field focused rises straight to where it will sit above the keyboard, together with it. Closing drops the keyboard at once, so it goes down with the popup instead of after it.
+- **Keyboard**: popups ride the keyboard with a transform (not their `bottom`, which re-laid them out every frame), on a quicker spring that keeps up with Android's keyboard. Closing drops the keyboard at once, so it goes down with the popup instead of after it.
 - **Live workout** lands exactly on the resume bar or Today card: their resting position is measured with the page-behind's step-back, the tab bar's slide and the bar's own shrink taken off. The frost melts away over the last stretch of the close, handing over to the real bar or card.
 - Not fixable from the app: Samsung's keyboard shows its own black panel for a moment before its keys appear.
 

@@ -130,7 +130,7 @@ export function TodayScreen() {
       </section>
 
       {/* ── workout ── */}
-      <motion.section layout="position" style={{ position: 'relative' }}>
+      <motion.section style={{ position: 'relative' }}>
         <div data-wk="hero" className="plinth"
           style={{ position: 'absolute', inset: 0, borderRadius: 30, overflow: 'hidden' }}>
           <div style={{ position: 'absolute', right: -60, top: -60, width: 220, height: 220, borderRadius: '50%', background: 'radial-gradient(closest-side, var(--ac-soft), transparent)' }} />
