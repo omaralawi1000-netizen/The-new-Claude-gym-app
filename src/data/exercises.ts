@@ -1,6 +1,7 @@
 import type { Equipment, Exercise, LogType, MuscleGroup, Movement } from '../lib/types';
+import { MORE } from './exercises-more';
 
-type Row = [id: string, en: string, da: string, muscles: MuscleGroup[], equip: Equipment[], mv: Movement, lt: LogType, steps: string[]];
+export type Row = [id: string, en: string, da: string, muscles: MuscleGroup[], equip: Equipment[], mv: Movement, lt: LogType, steps: string[], aka?: string[]];
 
 const R: Row[] = [
   // ── chest
@@ -132,10 +133,10 @@ const R: Row[] = [
   ['wrestling-drill', 'Wrestling Drilling', 'Bryde-drilling', ['cardio', 'core', 'quads'], ['bodyweight'], 'cardio', 'duration', ['Drill one technique at a time with a partner.', 'Focus on clean positions before speed.']],
 ];
 
-export const SEED_EXERCISES: Exercise[] = R.map(([id, en, da, muscles, equipment, movement, logType, instructions]) => ({
-  id, name: en, nameDa: da, muscles, equipment, movement, logType, instructions,
+export const SEED_EXERCISES: Exercise[] = [...R, ...MORE].map(([id, en, da, muscles, equipment, movement, logType, instructions, aka]) => ({
+  id, name: en, nameDa: da, muscles, equipment, movement, logType, instructions, ...(aka ? { aka } : {}),
 }));
 
 export const MUSCLES: MuscleGroup[] = ['chest', 'back', 'shoulders', 'biceps', 'triceps', 'forearms', 'quads', 'hamstrings', 'glutes', 'calves', 'core', 'cardio'];
-export const EQUIPMENT: Equipment[] = ['barbell', 'dumbbell', 'machine', 'cable', 'bodyweight', 'kettlebell', 'band', 'bench', 'other'];
+export const EQUIPMENT: Equipment[] = ['barbell', 'dumbbell', 'machine', 'smith', 'cable', 'bodyweight', 'kettlebell', 'band', 'bench', 'other'];
 export const MOVEMENTS: Movement[] = ['push', 'pull', 'squat', 'hinge', 'lunge', 'carry', 'core', 'cardio', 'isolation'];

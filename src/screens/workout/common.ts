@@ -11,7 +11,7 @@ export const MUSCLE_LABEL: Record<MuscleGroup, string> = {
   hamstrings: 'Hamstrings', glutes: 'Glutes', calves: 'Calves', core: 'Core', cardio: 'Cardio',
 };
 export const EQUIP_LABEL: Record<Equipment, string> = {
-  barbell: 'Barbell', dumbbell: 'Dumbbell', machine: 'Machine', cable: 'Cable', bodyweight: 'Bodyweight', kettlebell: 'Kettlebell', band: 'Band', bench: 'Bench', other: 'Other',
+  barbell: 'Barbell', dumbbell: 'Dumbbell', machine: 'Machine', smith: 'Smith machine', cable: 'Cable', bodyweight: 'Bodyweight', kettlebell: 'Kettlebell', band: 'Band', bench: 'Bench', other: 'Other',
 };
 export const MOVE_LABEL: Record<Movement, string> = { push: 'Push', pull: 'Pull', squat: 'Squat', hinge: 'Hinge', lunge: 'Lunge', carry: 'Carry', core: 'Core', cardio: 'Cardio', isolation: 'Isolation' };
 

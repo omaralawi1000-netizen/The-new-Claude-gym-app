@@ -16,18 +16,17 @@ export interface VeilLayer { cls: string; from: number; to: number }
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 const ramp = (l: VeilLayer, p: number) => clamp01((p - l.from) / (l.to - l.from));
 
-/** Behind sheets: a light blur and a dim that deepens with the sheet. */
+/** Behind sheets: one soft blur and a dim that deepen with the sheet. (One blurred layer, not two: every full-screen blur
+ * is redrawn each frame of the slide, and on a phone the second one cost more refresh rate than it added.) */
 export const SHEET_VEIL: VeilLayer[] = [
-  { cls: 'veil-blur-a', from: 0, to: 0.55 },
-  { cls: 'veil-blur-b', from: 0.3, to: 1 },
+  { cls: 'veil-blur-b', from: 0.1, to: 1 },
   { cls: 'veil-dim', from: 0, to: 1 },
 ];
 /** Behind a full-screen surface that is frosted itself (the live workout): only the dim. */
 export const DIM_VEIL: VeilLayer[] = [{ cls: 'veil-dim', from: 0, to: 1 }];
 /** Behind the orb screen: a deep frost that builds up gradually. */
 export const VOICE_VEIL: VeilLayer[] = [
-  { cls: 'veil-blur-v1', from: 0, to: 0.45 },
-  { cls: 'veil-blur-v2', from: 0.25, to: 1 },
+  { cls: 'veil-blur-v2', from: 0.08, to: 1 },
   { cls: 'veil-tint', from: 0, to: 1 },
 ];
 

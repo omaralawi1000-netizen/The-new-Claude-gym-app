@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect } from 'react';
+import { createContext, useContext, useEffect, useLayoutEffect, useRef } from 'react';
 import { animate, motionValue, useMotionValue, usePresence, useReducedMotion, type MotionValue } from 'motion/react';
 import { mirrorSpring } from './motion';
 
@@ -46,17 +46,22 @@ export function trackCover(id: string, e: MotionValue<number>) {
 export const ENGAGE_SPRING = { type: 'spring', stiffness: (2 * Math.PI / 0.45) ** 2, damping: (4 * Math.PI) / 0.45, mass: 1, restDelta: 0.002 } as const; // Apple's default spring (0.5 s, no bounce), as the sheets
 
 /** Open progress for a full-screen overlay: eases 0 → 1 when it appears and back to 0 when it leaves (it stays mounted until then). */
-export function useEngage(): MotionValue<number> {
+export function useEngage(mirror?: (p0: number, p1: number, sp: typeof ENGAGE_SPRING) => (Animation | null)[]): MotionValue<number> {
   const e = useMotionValue(0);
   const reduce = useReducedMotion();
   const [present, safeToRemove] = usePresence();
-  useEffect(() => {
+  const m = useRef<Mirror | null>(null); if (!m.current) m.current = new Mirror();
+  // started before the first paint, and (optionally) handed to the browser too, so it is drawn at the screen's full rate
+  useLayoutEffect(() => {
     const c = animate(e, 1, reduce ? { duration: 0.01 } : ENGAGE_SPRING);
-    return () => c.stop();
+    if (mirror && !reduce) m.current!.add(...mirror(0, 1, ENGAGE_SPRING));
+    return () => { c.stop(); m.current!.cancel(); };
     // eslint-disable-next-line
   }, []);
   useEffect(() => {
     if (present) return;
+    m.current!.cancel();
+    if (mirror && !reduce) m.current!.add(...mirror(e.get(), 0, ENGAGE_SPRING));
     animate(e, 0, reduce ? { duration: 0.01 } : { ...ENGAGE_SPRING, restDelta: 0.004 }).then(() => safeToRemove?.());
     // eslint-disable-next-line
   }, [present]);

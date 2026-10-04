@@ -105,7 +105,7 @@ export function matchExercises(query: string, pool: Exercise[], lang: Lang, limi
   if (!q.length) return [];
   const out: { ex: Exercise; score: number }[] = [];
   for (const ex of pool) {
-    const names = [ex.name, ex.nameDa ?? ''];
+    const names = [ex.name, ex.nameDa ?? '', ...(ex.aka ?? [])];
     let best = 0;
     for (const n of names) {
       if (!n) continue;

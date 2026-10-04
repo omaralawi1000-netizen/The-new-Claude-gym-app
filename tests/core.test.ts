@@ -69,7 +69,7 @@ describe('nutrients', () => {
       expect(n.kcal).toBeGreaterThanOrEqual(0);
       const fibre = n.fibre ?? 0;
       const est = (n.protein ?? 0) * 4 + Math.max(0, (n.carbs ?? 0) - fibre) * 4 + fibre * 2 + (n.fat ?? 0) * 9;
-      const alcohol = /^ref:(beer|red-wine|white-wine|spirits|gin-tonic)/.test(f.id);
+      const alcohol = /^ref:(beer|red-wine|white-wine|spirits|gin-tonic|cider|rose-wine|sparkling-wine|glogg)/.test(f.id);
       if (!alcohol && n.kcal! > 20) expect(Math.abs(est - n.kcal!) / n.kcal!, f.id).toBeLessThan(0.3);
     }
     expect(new Set(REFERENCE_FOODS.map((f) => f.id)).size).toBe(REFERENCE_FOODS.length); // unique ids

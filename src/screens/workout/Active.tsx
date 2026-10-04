@@ -6,7 +6,7 @@ import { useT, useLang } from '../../lib/i18n';
 import type { Exercise, SessionExercise, SetRecord } from '../../lib/types';
 import { Icon } from '../../ui/Icon';
 import { NumInput } from '../../ui/kit';
-import { Sheet, SheetHead, SOFT, SNAP, useOverlayZ, zoomFrom } from '../../ui/Sheet';
+import { Sheet, SheetHead, SOFT, SNAP, useOverlayZ } from '../../ui/Sheet';
 import { beatLastTime, elapsedMs, lastPerformance, sessionSetCount, sessionVolume, suggestProgression, countable } from '../../lib/workout';
 import { fmtDuration } from '../../lib/dates';
 import { displayToKg, kgToDisplay, fmtNum, displayToM, mToDisplay } from '../../lib/units';
@@ -352,7 +352,7 @@ const ExerciseBlock = memo(function ExerciseBlock({ se, idx, ex, linkedPrev, lin
       {se.supersetGroup && !linkedPrev && <div className="micro accent" style={{ marginBottom: 4 }}>{t('Superset')}</div>}
       <div className="plinth" style={{ padding: '14px 12px 12px', borderRadius: 'var(--r-lg)' }}>
         <div className="row-flex between" style={{ alignItems: 'flex-start', gap: 8 }}>
-          <button className="grow press" style={{ textAlign: 'left', minWidth: 0 }} onClick={(ev) => ex && push('exercise', { id: ex.id, from: zoomFrom(ev.currentTarget) })}>
+          <button className="grow press" style={{ textAlign: 'left', minWidth: 0 }} onClick={() => ex && push('exercise', { id: ex.id })}>
             <div className="display display-sm trunc">{ex ? exName(ex, lang) : t('Unknown exercise')}</div>
             <div className="xs t2" style={{ marginTop: 3 }}>{ex?.muscles.slice(0, 2).map((m) => t(MUSCLE_LABEL[m])).join(' · ')}</div>
           </button>

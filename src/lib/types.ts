@@ -129,7 +129,7 @@ export interface WaterEntry {
 export type MuscleGroup =
   | 'chest' | 'back' | 'shoulders' | 'biceps' | 'triceps' | 'forearms'
   | 'quads' | 'hamstrings' | 'glutes' | 'calves' | 'core' | 'cardio';
-export type Equipment = 'barbell' | 'dumbbell' | 'machine' | 'cable' | 'bodyweight' | 'kettlebell' | 'band' | 'bench' | 'other';
+export type Equipment = 'barbell' | 'dumbbell' | 'machine' | 'smith' | 'cable' | 'bodyweight' | 'kettlebell' | 'band' | 'bench' | 'other';
 export type Movement = 'push' | 'pull' | 'squat' | 'hinge' | 'lunge' | 'carry' | 'core' | 'cardio' | 'isolation';
 export type LogType = 'weightReps' | 'bodyweightReps' | 'assisted' | 'duration' | 'distance';
 
@@ -143,6 +143,8 @@ export interface Exercise {
   logType: LogType;
   instructions: string[];
   instructionsDa?: string[];
+  /** other names people search for ("Smith incline bench") */
+  aka?: string[];
   custom?: boolean;
   archived?: boolean;
 }

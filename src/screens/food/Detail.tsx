@@ -9,7 +9,7 @@ import { fmtNum } from '../../lib/units';
 import { fmtNutrient, NUTRIENT_LABEL, NUTRIENT_UNIT, sourceLabel } from '../../lib/format';
 import { Icon } from '../../ui/Icon';
 import { Count, NumInput, Seg } from '../../ui/kit';
-import { MorphSheet, Sheet, SOFT } from '../../ui/Sheet';
+import { Sheet, SOFT } from '../../ui/Sheet';
 import { mealName } from '../../lib/derive';
 import { fmtDate, relativeDay } from '../../lib/dates';
 import { useToday } from '../../lib/derive';
@@ -34,8 +34,8 @@ function defaultQty(food: Food, last?: Quantity): Quantity {
 }
 export { defaultQty };
 
-/** Food detail + portion controls. Opens as a morph from its source row; edits an existing entry when `entryId` is set. */
-export function FoodDetail({ props }: { props: { food?: Food; foodId?: string; entryId?: string; date: string; mealId: string; morph?: string; afterSave?: 'close' | 'closeAll' } }) {
+/** Food detail + portion controls (a sheet); edits an existing entry when `entryId` is set. */
+export function FoodDetail({ props }: { props: { food?: Food; foodId?: string; entryId?: string; date: string; mealId: string; afterSave?: 'close' | 'closeAll' } }) {
   const t = useT();
   const lang = useLang();
   const s = useStore();
@@ -231,7 +231,5 @@ export function FoodDetail({ props }: { props: { food?: Food; foodId?: string; e
     </button>
   );
 
-  return props.morph
-    ? <MorphSheet layoutId={props.morph} onClose={pop} label={food.name} foot={foot}>{body}</MorphSheet>
-    : <Sheet onClose={pop} tall label={food.name} foot={foot}>{body}</Sheet>;
+  return <Sheet onClose={pop} tall label={food.name} foot={foot}>{body}</Sheet>;
 }

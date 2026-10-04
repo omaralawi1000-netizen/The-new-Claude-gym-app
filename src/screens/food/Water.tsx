@@ -26,18 +26,18 @@ export function WaterTile({ date }: { date: string }) {
     toast(`+${fmtNum(v, lang, 0)} ml`, { tone: 'ok', actionLabel: t('Undo'), onAction: () => removeWater(id), duration: 3500 });
   };
   return (
-    <div className="plinth" style={{ padding: 18, overflow: 'hidden' }}>
-      <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', borderRadius: 'inherit', overflow: 'hidden' }}>
-        <motion.div initial={false} animate={{ height: `${p * 100}%` }} transition={SOFT} style={{ position: 'absolute', left: 0, right: 0, bottom: 0, background: 'linear-gradient(180deg, color-mix(in srgb, var(--c-water) 20%, transparent), color-mix(in srgb, var(--c-water) 8%, transparent))', borderTop: p > 0 && p < 1 ? '1px solid color-mix(in srgb, var(--c-water) 50%, transparent)' : undefined }} />
-      </div>
-      <div className="row-flex between" style={{ position: 'relative' }}>
+    <div className="plinth water">
+      <div className="row-flex between">
         <div>
-          <div className="micro">{t('Water')}</div>
-          <div className="display display-md" style={{ marginTop: 4 }}><Count value={ml} format={(n) => fmtNum(Math.round(n), lang, 0)} /><span className="t3 small" style={{ fontFamily: 'var(--f-ui)', fontStretch: '100%', fontWeight: 600 }}> / {fmtNum(goal, lang, 0)} ml</span></div>
+          <div className="micro row-flex" style={{ gap: 6 }}><Icon name="drop" size={14} /> {t('Water')}</div>
+          <div className="display display-md num" style={{ marginTop: 6 }}><Count value={ml} format={(n) => fmtNum(Math.round(n), lang, 0)} /><span className="t3 small"> / {fmtNum(goal, lang, 0)} ml</span></div>
         </div>
         <button className="icon-btn flat" aria-label={t('Edit quick amounts')} onClick={() => push('waterSheet', { date })}><Icon name="more" /></button>
       </div>
-      <div className="row-flex" style={{ gap: 8, marginTop: 14, position: 'relative' }}>
+      <div className="water-bar" role="progressbar" aria-valuemin={0} aria-valuemax={goal} aria-valuenow={ml}>
+        <motion.i initial={false} animate={{ x: `${(Math.min(1, p) - 1) * 100}%` }} transition={SOFT} />
+      </div>
+      <div className="row-flex" style={{ gap: 8, marginTop: 16 }}>
         {quick.map((v) => (
           <button key={v} className="btn sm press grow" onClick={() => add(v)} aria-label={`${t('Add')} ${v} ml`}><Icon name="drop" size={16} /> {fmtNum(v, lang, 0)}</button>
         ))}

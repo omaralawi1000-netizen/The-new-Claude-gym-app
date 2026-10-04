@@ -10,6 +10,7 @@ import type { Food } from '../lib/types';
 
 import { F } from './foodDef';
 import { REFERENCE_FOODS_DK } from './foods-dk';
+import { REFERENCE_FOODS_DK2 } from './foods-dk2';
 
 export const REFERENCE_FOODS: Food[] = [
   // dairy & eggs
@@ -209,6 +210,7 @@ export const REFERENCE_FOODS: Food[] = [
   F('tea', 'Tea, unsweetened', 'Te, usødet', 'ml', [1, 0, 0.2, 0, 0, 0, 0, 3], [['1 cup 200 ml', 200]], { density: 1 }),
   // the wider Danish table lives in foods-dk.ts
   ...REFERENCE_FOODS_DK,
+  ...REFERENCE_FOODS_DK2,
 ];
 
 export const REFERENCE_BY_ID: Record<string, Food> = Object.fromEntries(REFERENCE_FOODS.map((f) => [f.id, f]));

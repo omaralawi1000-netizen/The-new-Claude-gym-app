@@ -769,6 +769,7 @@ export const da: Record<string, string> = {
  "Cardio": "Cardio",
  "Bench": "Bænk",
  "Machine": "Maskine",
+ "Smith machine": "Smithmaskine",
  "Cable": "Kabel",
  "Band": "Elastik",
  "Other": "Andet",

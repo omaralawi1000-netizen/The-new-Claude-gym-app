@@ -5,7 +5,7 @@ import { useUI, buzz } from '../../state/ui';
 import { useT, useLang } from '../../lib/i18n';
 import type { Routine, RoutineItem } from '../../lib/types';
 import { uid } from '../../lib/nutrition';
-import { Sheet, SheetHead, SOFT, type ZoomFrom } from '../../ui/Sheet';
+import { Sheet, SheetHead, SOFT } from '../../ui/Sheet';
 import { Icon } from '../../ui/Icon';
 import { Stepper } from '../../ui/kit';
 import { exName, MUSCLE_LABEL } from './common';
@@ -16,7 +16,7 @@ export function newItem(exerciseId: string, logType?: string): RoutineItem {
   return { id: uid('ri'), exerciseId, warmupSets: 0, workingSets: timed ? 1 : 3, repMin: 8, repMax: 12, restSec: 90 };
 }
 
-export function RoutineEditor({ props }: { props: { id?: string; from?: ZoomFrom } }) {
+export function RoutineEditor({ props }: { props: { id?: string } }) {
   const t = useT();
   const lang = useLang();
   const s = useStore();
@@ -43,7 +43,7 @@ export function RoutineEditor({ props }: { props: { id?: string; from?: ZoomFrom
   };
   const del = () => { if (!existing) return; const r = s.deleteRoutine(existing.id); pop(); if (r) toast(t('Routine deleted'), { actionLabel: t('Undo'), onAction: () => s.restoreRoutine(r) }); };
   return (
-    <Sheet onClose={pop} tall from={props.from} label={t('Routine')} z={100} foot={<button className="btn primary block press" disabled={!valid} onClick={save}>{t('Save routine')}</button>}>
+    <Sheet onClose={pop} tall label={t('Routine')} z={100} foot={<button className="btn primary block press" disabled={!valid} onClick={save}>{t('Save routine')}</button>}>
       <SheetHead title={existing ? t('Edit routine') : t('New routine')} onClose={pop} />
       <div className="sheet-body">
         <div className="field"><label htmlFor="rt-name">{t('Name')}</label><input id="rt-name" className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('e.g. Push day')} autoFocus={!existing} /></div>

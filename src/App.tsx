@@ -89,10 +89,11 @@ function useTheme() {
  */
 /**
  * Switching tabs. Two things happen together:
- *  - the glow changes: the area's colour field cross-fades into the next area's colours (Field) — as two layers fading
- *    over each other, so the browser just blends them instead of repainting the field on every frame;
- *  - the screens swap with depth: the one you leave fades out quickly and sinks back a little, the new one fades in and
- *    settles from a touch larger. Opacity and transform only, run by the browser.
+ *  - the glow changes: the area's colour field cross-fades into the next area's colours (Field) — the new layer fades in
+ *    while the old one fades out (a little later, so the light never dips), and the browser just blends them instead of
+ *    repainting the field on every frame. Both layers are partly see-through, so the old one must fade out too: left at
+ *    full strength underneath, it tinted the new colours until it was removed, and then they snapped;
+ *  - the screens swap (TabPane, below).
  */
 const GLOW = 0.8; // seconds the colours take to change over
 let fieldSeq = 0;
@@ -103,7 +104,7 @@ function Field({ hue }: { hue: string }) {
   return (
     <motion.div className="aurora" data-hue={hue} aria-hidden style={{ zIndex: z.current, ['--drift-t' as string]: drift.current }}
       initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { duration: GLOW, ease: [0.4, 0, 0.2, 1] } }}
-      exit={{ opacity: 0.999, transition: { duration: GLOW } }}>
+      exit={{ opacity: 0, transition: { duration: GLOW, ease: [0.55, 0, 0.75, 1] } }}>
       <i /><i /><i />
     </motion.div>
   );

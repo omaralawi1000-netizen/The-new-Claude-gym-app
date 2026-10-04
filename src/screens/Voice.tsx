@@ -15,8 +15,8 @@ import { runActions, type AgentResult } from '../lib/agent';
 import { dayKey } from '../lib/dates';
 import { uid } from '../lib/nutrition';
 import { SphereSlot, orbPress, orbTap } from '../ui/Sphere';
-import { useEngage } from '../ui/engage';
-import { Veil, VOICE_VEIL } from '../ui/Veil';
+import { mirrorProgress, useEngage } from '../ui/engage';
+import { Veil, VOICE_VEIL, mirrorVeil } from '../ui/Veil';
 import { Icon } from '../ui/Icon';
 import { SOFT, useOverlayZ } from '../ui/Sheet';
 import { ActionCard, Rich, Thinking, sttMessage } from '../ui/agentUi';
@@ -36,9 +36,14 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   const t = useT();
   const lang = useLang();
   const z = useOverlayZ(65);
-  const eng = useEngage(); const engage = useMemo(() => ({ e: eng }), [eng]);
   // the content comes up a beat after the frost has started, and leaves a beat before it
-  const contentO = useTransform(eng, (v) => Math.min(1, Math.max(0, (v - 0.12) / 0.6)));
+  const contentAt = (v: number) => Math.min(1, Math.max(0, (v - 0.12) / 0.6));
+  const veilRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  // high refresh rate: the frost and the content's fade also run as browser animations (see mirrorSpring)
+  const eng = useEngage((p0, p1, sp) => [...mirrorVeil(veilRef.current, p0, p1, sp, 0, VOICE_VEIL), mirrorProgress(contentRef.current, p0, p1, sp, 0, (p) => ({ opacity: contentAt(p) }), [0.12, 0.72])]);
+  const engage = useMemo(() => ({ e: eng }), [eng]);
+  const contentO = useTransform(eng, contentAt);
   const exercises = useStore((s) => s.exercises);
   const pool = useMemo(() => allExercises(exercises), [exercises]);
   const phase = useVoice((v) => v.phase);
@@ -267,10 +272,10 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
 
   return (
     <div className="voice" style={{ position: 'fixed', inset: 0, zIndex: z, display: 'flex', flexDirection: 'column' }} role="dialog" aria-modal="true" aria-label={t('Dictation')}>
-      {/* The frost behind builds up gradually with the screen's progress (two blur layers fading in one after the other).
+      {/* The frost behind builds up gradually with the screen's progress (one blur layer and a tint, fading in with it).
           Nothing above it fades as a whole: a fading parent switched the blur off until the fade ended, then it snapped on. */}
-      <Veil e={eng} z={0} layers={VOICE_VEIL} className="veil-abs" />
-      <motion.div style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', padding: 'calc(var(--sat) + 12px) 18px 0', opacity: contentO }}>
+      <Veil e={eng} z={0} layers={VOICE_VEIL} className="veil-abs" elRef={veilRef} />
+      <motion.div ref={contentRef} style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', padding: 'calc(var(--sat) + 12px) 18px 0', opacity: contentO }}>
         <div className="row-flex between">
           <button className="icon-btn press" aria-label={t('Close')} onClick={() => useUI.getState().pop()}><Icon name="close" /></button>
           <button className="chip press" onClick={() => useUI.getState().swap(1, 'coach')}><Icon name="sparkle" size={15} /> {t('Coach')}</button>

@@ -88,24 +88,37 @@ export function FoodScreen() {
 
       {settings.meals.map((m) => {
         const items = perMeal(list, m.id);
-        const ms = sumNutrients(items.map((e) => e.nutrients));
+        const ms = sumNutrients(items.map((e) => e.nutrients)).totals;
+        // the meal's calories split by macro, as one thin bar
+        const pk = (ms.protein ?? 0) * 4, ck = (ms.carbs ?? 0) * 4, fk = (ms.fat ?? 0) * 9, tk = Math.max(1, pk + ck + fk);
         return (
-          <section key={m.id} aria-label={mealName(m, lang)}>
-            <div className="row-flex between" style={{ marginBottom: 2 }}>
-              <div>
-                <div className="display display-sm" style={{ fontStyle: 'italic', fontSize: 28 }}>{mealName(m, lang)}</div>
-                <div className="small t2 num">{items.length ? <><Count value={ms.totals.kcal ?? 0} format={(n) => fmtNum(Math.round(n), lang, 0)} /> kcal · P {fmtNutrient('protein', ms.totals.protein, lang)} g</> : '—'}</div>
+          <section key={m.id} className={`plinth meal ${items.length ? '' : 'bare'}`} aria-label={mealName(m, lang)}>
+            <div className="meal-head">
+              <div className="grow" style={{ minWidth: 0 }}>
+                <div className="meal-name display">{mealName(m, lang)}</div>
+                <div className="meal-meta num">
+                  {items.length
+                    ? <><b><Count value={ms.kcal ?? 0} format={(n) => fmtNum(Math.round(n), lang, 0)} /></b> kcal<span className="dot" />P {fmtNutrient('protein', ms.protein, lang)} g</>
+                    : <span className="t3">{t('nothing logged')}</span>}
+                </div>
               </div>
-              <div className="row-flex" style={{ gap: 4 }}>
-                {items.length > 0 && <button className="icon-btn flat press" aria-label={t('Meal options')} onClick={() => push('entryMenu', { kind: 'meal', date, mealId: m.id })}><Icon name="more" /></button>}
-                <button className="icon-btn press" aria-label={`${t('Add to')} ${mealName(m, lang)}`} onClick={() => { buzz(6); add(m.id); }}><Icon name="plus" /></button>
-              </div>
+              {items.length > 0 && <button className="icon-btn flat sm press" aria-label={t('Meal options')} onClick={() => push('entryMenu', { kind: 'meal', date, mealId: m.id })}><Icon name="more" size={20} /></button>}
+              <button className="meal-add press" aria-label={`${t('Add to')} ${mealName(m, lang)}`} onClick={() => { buzz(6); add(m.id); }}><Icon name="plus" size={20} /></button>
             </div>
-            <div>
-              <AnimatePresence initial={false}>
-                {items.map((e) => <EntryRow key={e.id} e={e} fresh={fresh.current.has(e.id)} onOpen={() => push('foodDetail', { entryId: e.id, date: e.date, mealId: e.mealId, morph: `entry-${e.id}` })} onDelete={() => del(e)} />)}
-              </AnimatePresence>
-            </div>
+            {items.length > 0 && (
+              <>
+                <div className="meal-bar" aria-hidden>
+                  <i style={{ flexGrow: pk / tk, background: 'var(--c-protein)' }} />
+                  <i style={{ flexGrow: ck / tk, background: 'var(--c-carbs)' }} />
+                  <i style={{ flexGrow: fk / tk, background: 'var(--c-fat)' }} />
+                </div>
+                <div className="meal-list">
+                  <AnimatePresence initial={false}>
+                    {items.map((e) => <EntryRow key={e.id} e={e} fresh={fresh.current.has(e.id)} onOpen={() => push('foodDetail', { entryId: e.id, date: e.date, mealId: e.mealId })} onDelete={() => del(e)} />)}
+                  </AnimatePresence>
+                </div>
+              </>
+            )}
           </section>
         );
       })}

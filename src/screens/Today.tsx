@@ -6,7 +6,6 @@ import { useT, useLang } from '../lib/i18n';
 import { addDays, fmtDate, fmtDuration, fmtWeekdayShort, startOfWeek, weekdayOf } from '../lib/dates';
 import { useDaySummary, useToday, useWaterOn, defaultMealId } from '../lib/derive';
 import { Icon } from '../ui/Icon';
-import { zoomFrom } from '../ui/Sheet';
 import { Ledger } from './food/Ledger';
 import { Sparkline } from '../ui/charts';
 import { elapsedMs, sessionSetCount, sessionVolume } from '../lib/workout';
@@ -153,7 +152,7 @@ export function TodayScreen() {
               </div>
               <div className="stack" style={{ gap: 10, alignItems: 'center', flex: 'none' }}>
                 <button className="icon-btn acc press" style={{ width: 68, height: 68 }} aria-label={doneToday.length ? t('Start again') : t('Start workout')} onClick={() => start(routine)}><Icon name="play" size={26} /></button>
-                <button className="icon-btn flat sm press" aria-label={t('Edit routine')} onClick={(ev) => push('routine', { id: routine.id, from: zoomFrom(ev.currentTarget) })}><Icon name="edit" size={17} /></button>
+                <button className="icon-btn flat sm press" aria-label={t('Edit routine')} onClick={() => push('routine', { id: routine.id })}><Icon name="edit" size={17} /></button>
               </div>
             </div>
           ) : last ? (

@@ -2,7 +2,7 @@ import type { Equipment, EquipmentAccess, Exercise } from '../../lib/types';
 
 export function equipmentSet(a: EquipmentAccess): Set<Equipment> {
   switch (a) {
-    case 'fullGym': return new Set<Equipment>(['barbell', 'dumbbell', 'machine', 'cable', 'bodyweight', 'kettlebell', 'band', 'bench', 'other']);
+    case 'fullGym': return new Set<Equipment>(['barbell', 'dumbbell', 'machine', 'smith', 'cable', 'bodyweight', 'kettlebell', 'band', 'bench', 'other']);
     case 'barbellHome': return new Set<Equipment>(['barbell', 'dumbbell', 'bodyweight', 'bench', 'band', 'other']);
     case 'homeDumbbells': return new Set<Equipment>(['dumbbell', 'bodyweight', 'kettlebell', 'band', 'bench', 'other']);
     case 'bodyweight': return new Set<Equipment>(['bodyweight', 'band', 'other']);
