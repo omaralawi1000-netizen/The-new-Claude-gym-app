@@ -43,7 +43,6 @@ export function Schedule({ props }: { props: { focusDate?: string; routineId?: s
               <button className={`chip press ${fdPlanned === null ? 'on' : ''}`} onClick={() => setOne(null)}>{t('Rest')}</button>
               {routines.map((r) => <button key={r.id} className={`chip press ${fdPlanned === r.id ? 'on' : ''}`} onClick={() => setOne(r.id)}>{r.name}</button>)}
             </div>
-            <div className="xs t3" style={{ marginTop: 8 }}>{t('One-off change. Your repeating plan stays the same.')}</div>
           </div>
         )}
         <div className="lbl" style={{ marginBottom: 8 }}>{t('Repeating plan')}</div>
@@ -107,7 +106,6 @@ export function Reschedule({ props }: { props: { date: string; routineId: string
           <button className="btn block press" onClick={() => push('datePicker', { value: today, title: t('Move to…'), marks: 'train', onPick: (d: string) => move(d) })}><Icon name="calendar" size={18} /> {t('Pick a day')}</button>
           <button className="btn ghost block press" onClick={() => { const before = JSON.parse(JSON.stringify(s.schedule)); s.skipPlanned(props.date); pop(); toast(t('Skipped'), { actionLabel: t('Undo'), onAction: () => s.setSchedule(before) }); }}>{t('Skip it')}</button>
         </div>
-        <div className="xs t3" style={{ marginTop: 14 }}>{t('Your workout history is never changed by moving or skipping.')}</div>
       </div>
     </Sheet>
   );

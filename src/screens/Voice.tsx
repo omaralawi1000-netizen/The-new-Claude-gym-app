@@ -49,7 +49,6 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   const pool = useMemo(() => allExercises(exercises), [exercises]);
   const phase = useVoice((v) => v.phase);
   const hasGroq = useAi((a) => a.hasGroq);
-  const hasGemini = useAi((a) => a.hasGemini);
   const engine: 'groq' | 'browser' | 'typed' = hasGroq && recorderOk() ? 'groq' : speechSupported() ? 'browser' : 'typed';
   const supported = engine !== 'typed';
   const [typing, setTyping] = useState(!supported);
@@ -345,11 +344,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
             <button className="btn primary press grow" disabled={thinking || phase === 'requesting' || (typing ? !typed.trim() : false)} onClick={() => (listening || typing ? finish() : listen())}>
               {thinking ? t('Working…') : listening ? t('Done speaking') : typing ? t('Send') : showing ? <><Icon name="mic" size={18} /> {t('Say more')}</> : <><Icon name="mic" size={18} /> {t('Speak')}</>}
             </button>
-          </div>
-          <div className="xs t3" style={{ textAlign: 'center', marginTop: 10 }}>
-            {engine === 'groq' ? (hasGemini ? t('Audio goes to Groq, text to Gemini. Aven stores nothing.') : t('Audio goes to Groq. Aven stores nothing.')) : supported ? t('Your browser transcribes this. Aven stores nothing.') : t('Nothing is recorded or sent anywhere.')}
-          </div>
-        </div>
+          </div>        </div>
       </motion.div>
     </motion.div>
   );

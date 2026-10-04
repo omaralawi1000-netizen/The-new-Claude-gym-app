@@ -87,7 +87,6 @@ export function ExercisePicker({ props }: { props: PickerProps }) {
         {subs.length > 0 && !q && (
           <div style={{ marginBottom: 14 }}>
             <div className="micro" style={{ margin: '6px 0' }}>{t('Suggested substitutes')}</div>
-            <div className="xs t3" style={{ marginBottom: 6 }}>{t('Same main muscle and movement; equipment you have comes first.')}</div>
             <div className="list">{subs.map((e) => <Row key={e.id} e={e} lang={lang} t={t} sel={false} single={single} onClick={() => choose(e)} />)}</div>
           </div>
         )}

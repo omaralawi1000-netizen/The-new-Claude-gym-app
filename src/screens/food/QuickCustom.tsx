@@ -54,7 +54,6 @@ export function QuickAdd({ props }: { props: { date: string; mealId: string; ent
           ))}
         </div>
         {mm !== null && mm > 0.25 && <div className="small" style={{ color: 'var(--warn)', marginTop: 12 }}>{t('Calories and macros differ by more than 25% (4/4/9 kcal per g). Double-check — alcohol and fibre can explain some of it.')}</div>}
-        <div className="xs t3" style={{ marginTop: 12 }}>{t('Blank fields are stored as unknown, not zero.')}</div>
         <div style={{ marginTop: 18 }}>
           <div className="lbl" style={{ marginBottom: 8 }}>{t('Meal')}</div>
           <div className="chips">{s.settings.meals.map((m) => <button key={m.id} className={`chip press ${mealId === m.id ? 'on' : ''}`} onClick={() => setMealId(m.id)}>{mealName(m, lang)}</button>)}</div>
@@ -161,7 +160,6 @@ export function CustomFood({ props }: { props: { from?: Food; name?: string; bar
           </div>
         )}
         {mm !== null && mm > 0.25 && <div className="small" style={{ color: 'var(--warn)', marginTop: 14 }}>{t('Calories and macros differ by more than 25%. Check the label — alcohol and fibre can explain some of it.')}</div>}
-        <div className="xs t3" style={{ marginTop: 14 }}>{t('Changing a food never rewrites entries you already logged.')}</div>
       </div>
     </Sheet>
   );

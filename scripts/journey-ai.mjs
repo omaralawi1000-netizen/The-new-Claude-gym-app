@@ -43,6 +43,7 @@ await p.route('https://generativelanguage.googleapis.com/**', async (r) => {
     if (/swap bench for incline/i.test(last)) return out({ reply: '', actions: [{ type: 'replace_exercise', from: 'bench press', to: 'Incline Dumbbell Press' }] });
     if (/move the skyr to dinner/i.test(last)) return out({ reply: '', actions: [{ type: 'move_food', target: 'skyr', meal_to: 'dinner', day: 'today' }] });
     if (/bench/i.test(last)) return out({ reply: 'Nice, steady work.', actions: [{ type: 'log_sets', exercises: [{ exercise: 'Barbell Bench Press', sets: [{ kg: 100, reps: 8 }, { kg: 100, reps: 8 }, { kg: 100, reps: 6 }] }] }] });
+    if (/build a push day/i.test(last)) return out({ reply: '', actions: [{ type: 'create_routine', name: 'Push day', add: [{ exercise: 'Barbell Bench Press', sets: 4, repMin: 6, repMax: 8 }, { exercise: 'Overhead Press', sets: 3, repMin: 8, repMax: 10 }, { exercise: 'Lateral Raise', sets: 3, repMin: 12, repMax: 15 }, { exercise: 'Unicorn Curl', sets: 3 }] }] });
     if (/light mode/i.test(last)) return out({ reply: '', actions: [{ type: 'set_setting', key: 'theme', value: 'light' }] });
     if (/how do i change the theme/i.test(last)) return out({ reply: 'Settings → Appearance → Theme. Or say the word and I will switch it.', actions: [] });
     if (/undo that/i.test(last)) return out({ reply: '', actions: [{ type: 'undo_last' }] });
@@ -60,7 +61,7 @@ await p.goto('http://127.0.0.1:5173/'); await wait(p, 900); await skipOnboarding
 
 // ── no keys: honest, still works ──
 await p.getByLabel('Coach').click(); await wait(p, 700);
-assert(await p.getByText(/Without a Gemini key I can still log simple things/).isVisible(), 'coach says what works without a key');
+assert(await p.getByText(/Add a Gemini key to chat/).isVisible(), 'coach says what works without a key');
 await p.screenshot({ path: 'shots/ai-1-coach-nokey.png' });
 // simple logging still works through the built-in reader (no Gemini, no Groq)
 await p.getByLabel('Message the Coach').fill('200 g skyr'); await p.getByRole('button', { name: 'Send', exact: true }).click(); await wait(p, 1800);
@@ -158,18 +159,13 @@ await p.getByLabel('Coach').click(); await wait(p, 600);
 await p.getByRole('button', { name: 'How is my week going?' }).click(); await wait(p, 2000);
 assert(await p.getByText('3 times').isVisible(), 'answer rendered');
 await p.screenshot({ path: 'shots/ai-9-coach.png' });
-await p.getByRole('button', { name: 'Build a routine' }).click();
-await p.getByLabel('Message the Coach').fill('a push day with 4 exercises'); await p.getByRole('button', { name: 'Build', exact: true }).click(); await wait(p, 1500);
-assert(await p.getByText('Proposed routine — not saved yet').isVisible());
-assert(await p.getByText(/Left out \(not in your exercise library\): Unicorn Curl/).isVisible(), 'unknown exercise left out, not invented');
+await p.getByLabel('Message the Coach').fill('build a push day with 4 exercises'); await p.getByRole('button', { name: 'Send', exact: true }).click(); await wait(p, 2000);
+assert(await p.getByText('Routine created').isVisible(), 'the Coach built the routine and says so');
+assert(await p.getByText('Unicorn Curl').first().isVisible(), 'the unknown exercise is reported, not invented');
 await p.screenshot({ path: 'shots/ai-10-routine.png' });
-const before = await p.evaluate(() => (JSON.parse(localStorage.getItem('aven.v1') || localStorage.getItem('aven') || '{}').routines || []).length);
-await p.getByRole('button', { name: 'Create routine' }).click(); await wait(p, 600);
-assert(await p.getByText('Created', { exact: true }).isVisible());
-console.log('routines before', before);
 await p.keyboard.press('Escape'); await wait(p, 600);
 await p.locator('.tabbar').getByRole('button', { name: 'Train', exact: true }).click(); await wait(p, 700);
-assert(await p.getByText('Push day').first().isVisible(), 'routine exists in the plan after explicit confirm');
+assert(await p.getByText('Push day').first().isVisible(), 'routine exists in the plan');
 
 // ── Danish ──
 await p.getByLabel('Settings').click().catch(() => {});

@@ -82,7 +82,6 @@ export function ExerciseDetail({ props }: { props: { id: string } }) {
         {subs.length > 0 && (
           <>
             <div className="micro" style={{ margin: '22px 0 6px' }}>{t('Substitutions')}</div>
-            <div className="xs t3" style={{ marginBottom: 4 }}>{t('Same main muscle and movement; equipment you have comes first.')}</div>
             <div className="list">{subs.map((e) => <button key={e.id} className="li press" onClick={() => push('exercise', { id: e.id })}><div className="grow" style={{ textAlign: 'left' }}><div className="li-title small">{exName(e, lang)}</div><div className="li-sub">{e.equipment.map((q) => t(EQUIP_LABEL[q])).join(', ')}</div></div><Icon name="chevR" size={16} /></button>)}</div>
           </>
         )}

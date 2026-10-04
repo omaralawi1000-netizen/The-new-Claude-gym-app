@@ -167,7 +167,6 @@ export function SessionDetail({ props }: { props: { id: string } }) {
           );
         })}
         <div className="field" style={{ marginTop: 10 }}><label htmlFor="sd-note">{t('Session note')}</label><textarea id="sd-note" className="input" defaultValue={ses.note ?? ''} onBlur={(e) => s.mutateSession(ses.id, (x) => ({ ...x, note: e.target.value.trim() || undefined }))} /></div>
-        <div className="xs t3" style={{ marginTop: 10 }}>{t('Edits change this record only. Personal-record flags are not recalculated.')}</div>
       </div>
     </Sheet>
   );

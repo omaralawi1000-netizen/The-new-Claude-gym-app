@@ -10,7 +10,7 @@ await p.route('https://search.openfoodfacts.org/**', (r) => { searchCalls++; r.f
 await p.route('https://world.openfoodfacts.org/api/v2/product/**', (r) => { const code = r.request().url().match(/product\/(\d+)/)[1]; code === '5701000000017' ? r.fulfill({ status: 200, headers: cors, body: JSON.stringify({ status: 1, product: OFF(code, 'Skyr Naturel', 'TestMejeri', { 'energy-kcal_100g': 63, proteins_100g: 11, carbohydrates_100g: 4, fat_100g: 0.2 }) }) }) : r.fulfill({ status: 404, headers: cors, body: JSON.stringify({ status: 0 }) }); });
 await p.goto('http://127.0.0.1:5173/'); await wait(p, 900); await skipOnboarding(p);
 await p.locator('.tabbar').getByRole('button', { name: 'Food', exact: true }).click(); await wait(p, 500);
-await p.getByRole('button', { name: 'Add food' }).first().click(); await wait(p, 500);
+await p.getByRole('button', { name: /^Add to / }).first().click(); await wait(p, 500);
 await p.getByPlaceholder('Search foods and brands').fill('skyr'); await wait(p, 2000);
 assert(await p.getByText('TestMejeri').first().isVisible(), 'direct Open Food Facts results shown without an Aven server');
 assert(searchCalls >= 1);

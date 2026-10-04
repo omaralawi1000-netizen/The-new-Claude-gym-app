@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { useStore } from '../state/store';
 import { useUI, buzz } from '../state/ui';
 import { useT, useLang } from '../lib/i18n';
-import { useDaySummary, useToday, mealName, perMeal, defaultMealId } from '../lib/derive';
+import { useDaySummary, useToday, mealName, perMeal } from '../lib/derive';
 import { addDays, fmtDate, relativeDay } from '../lib/dates';
 import { sumNutrients } from '../lib/nutrition';
 import { Icon } from '../ui/Icon';
@@ -47,7 +47,6 @@ export function FoodScreen() {
     toast(t('{name} removed', { name: e.snap.name }), { actionLabel: t('Undo'), onAction: () => restoreEntries([e]) });
   };
   const add = (mealId: string) => push('foodSearch', { date, mealId });
-  const mealId = defaultMealId(settings.meals);
 
   return (
     <div className="screen">
@@ -77,16 +76,18 @@ export function FoodScreen() {
       <Ledger sum={sum} />
 
       {list.length === 0 && (
-        <div className="plinth" style={{ padding: '22px 18px', textAlign: 'center' }}>
-          <div className="display display-sm" style={{ marginBottom: 14, fontStyle: 'italic' }}>{date === today ? t('Nothing logged yet') : t('No entries for this day')}</div>
-          <div className="row-flex" style={{ justifyContent: 'center', gap: 8 }}>
-            <button className="btn primary press" onClick={() => add(mealId)}><Icon name="plus" size={18} /> {t('Add food')}</button>
-            <button className="btn press" onClick={() => push('voice', { mode: 'food', date, mealId })}><Icon name="mic" size={18} /> {t('Dictate')}</button>
-          </div>
-        </div>
+        // an empty day is one calm card: the meals as rows, each with its own +
+        <section className="plinth meals-empty" aria-label={date === today ? t('Nothing logged yet') : t('No entries for this day')}>
+          {settings.meals.map((m) => (
+            <button key={m.id} className="meal-row press" aria-label={`${t('Add to')} ${mealName(m, lang)}`} onClick={() => { buzz(6); add(m.id); }}>
+              <span className="meal-name display">{mealName(m, lang)}</span>
+              <span className="meal-add" aria-hidden><Icon name="plus" size={20} /></span>
+            </button>
+          ))}
+        </section>
       )}
 
-      {settings.meals.map((m) => {
+      {list.length > 0 && settings.meals.map((m) => {
         const items = perMeal(list, m.id);
         const ms = sumNutrients(items.map((e) => e.nutrients)).totals;
         // the meal's calories split by macro, as one thin bar

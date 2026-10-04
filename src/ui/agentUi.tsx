@@ -22,20 +22,21 @@ export function useSuggestions(max = 6): string[] {
     const today = dayKey(Date.now(), dayStart);
     const mine = entries.filter((e) => e.date === today && !e.quick).sort((a, b) => b.at - a.at);
     const short = (n: string) => n.split(',')[0].trim();
-    const out: string[] = [];
     const e = mine[0];
+    const food: string[] = [], train: string[] = [], ask: string[] = [t('How is my week going?')];
     if (e) {
       const other = meals.find((m) => m.id !== e.mealId && m.id !== 'snacks') ?? meals.find((m) => m.id !== e.mealId);
-      if (other) out.push(t('Move {food} to {meal}', { food: short(e.snap.name), meal: mealName(other, lang) }));
+      if (other) food.push(t('Move {food} to {meal}', { food: short(e.snap.name), meal: mealName(other, lang) }));
       const e2 = mine[1];
-      if (e2) out.push(t('Replace {food} with a banana', { food: short(e2.snap.name) }));
-      else out.push(t('Remove {food}', { food: short(e.snap.name) }));
-    } else out.push(t('Log a banana'));
-    if (active) out.push(t('Add face pulls to my workout'), t('Make my last set 2.5 kg heavier'));
-    else out.push(t('Bench press 80 kg for 8, 8, 6'));
-    if (routines[0]) out.push(t('Put {routine} on Friday', { routine: routines[0].name }), t('What should I change in {routine}?', { routine: routines[0].name }));
-    else out.push(t('Build me a push, pull, legs routine'));
-    out.push(t('How is my week going?'), t('Save today’s lunch as a meal'), t('How do I change the theme?'));
+      food.push(e2 ? t('Replace {food} with a banana', { food: short(e2.snap.name) }) : t('Remove {food}', { food: short(e.snap.name) }));
+    } else food.push(t('Log a banana'));
+    if (active) train.push(t('Add face pulls to my workout'), t('Make my last set 2.5 kg heavier'));
+    else train.push(t('Bench press 80 kg for 8, 8, 6'));
+    if (routines[0]) { train.push(t('Put {routine} on Friday', { routine: routines[0].name })); ask.push(t('What should I change in {routine}?', { routine: routines[0].name })); }
+    else train.push(t('Build me a push, pull, legs routine'));
+    food.push(t('Save today’s lunch as a meal')); ask.push(t('How do I change the theme?'));
+    // one of each kind first, so three chips show three different things
+    const out = [food[0], train[0], ask[0], food[1], train[1], ask[1], food[2], train[2]].filter(Boolean) as string[];
     return [...new Set(out)].slice(0, max);
   }, [entries, meals, routines, active, dayStart, lang, t, max]);
 }

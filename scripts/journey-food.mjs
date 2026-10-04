@@ -7,10 +7,10 @@ await skipOnboarding(p);
 await p.locator('.tabbar').getByRole('button', { name: 'Food', exact: true }).click(); await wait(p, 700);
 const ledgerKcal = async () => (await p.locator('[data-testid="ledger-kcal"]').first().innerText()).replace(/[^\d]/g, '');
 // empty state
-assert(await p.getByText('Nothing logged yet').isVisible());
+assert(await p.getByLabel('Nothing logged yet').isVisible());
 await p.screenshot({ path: 'shots/fd-0-empty.png' });
 // 1. search + detail + portion
-await p.getByRole('button', { name: 'Add food' }).first().click(); await wait(p, 700);
+await p.getByRole('button', { name: /^Add to / }).first().click(); await wait(p, 700);
 await p.getByPlaceholder('Search foods and brands').fill('skyr'); await wait(p, 900);
 await p.screenshot({ path: 'shots/fd-1-search.png' });
 await p.getByText('Skyr, plain', { exact: true }).first().click(); await wait(p, 1000);

@@ -140,6 +140,14 @@ Run in headless Chromium (Playwright, 390×844 @2×, dark + light), scripts in `
 - **Not built (on purpose, stated in-app):** cloud sync / accounts; photo-based food estimation; automatic AI changes to your data (the Coach advises; routines and estimates only appear after you confirm; progression suggestions remain transparent rules); background reminders when the app is closed (web apps need a push server — reminders fire only while Aven runs; in-app nudge otherwise); animated exercise demonstrations (there is an authored muscle diagram and step-by-step text instead).
 - Exercise calories are **never** added to food targets.
 
+## Declutter pass
+
+- **One way to talk**: the duplicate buttons are gone — the mic on Today, "Dictate" on Food, "Say what you ate" for new users and "Build a routine" in the Coach. The orb does voice; the sparkle on Today opens the Coach; routines are built by just asking (the assistant creates them with Undo).
+- **Empty Food day** is one calm card: the four meals as rows, each with its +. A day with food keeps the meal cards.
+- **Progress**: no more "calculated / measured / estimate" badges (the weight-trend rate gets a "~" instead), the time ranges are one segmented control, and a fresh install shows one "Nothing to chart yet" instead of five empty charts.
+- **Coach**: one short line instead of a paragraph, three suggestion chips (one food, one training, one question — made from your own data), Send is an arrow inside the text field that appears when there is something to send (it becomes Stop while it works), and the "AI can be wrong" note shows once, on the first open.
+- **Words removed** because they were obvious or repeated: "Saved automatically", the privacy line under the orb screen, several notes in food details ("— means no value…", "ml hidden because no density"), custom-food forms, schedule changes, workout summary, the exercise picker, the photo estimate, and the longer helper lines in Settings and Voice & AI (the full explanation still lives in Settings → Privacy).
+
 ## One pane of glass
 
 - **Pop-ups**: the pop-up is the only frosted glass. The page behind no longer blurs — it steps back (smaller, lower) and dims, staying sharp, so it reads as a card pushed behind the pop-up instead of a smudge, as on iOS. One blur per frame instead of two while a pop-up slides.

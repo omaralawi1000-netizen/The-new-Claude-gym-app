@@ -52,7 +52,7 @@ function FpsField() {
   const t = useT();
   const on = useFpsMeterOn();
   return (
-    <Field label={t('Frame rate readout')} hint={t('Shows the refresh rate your phone and browser really give the app, in the top-left corner. 120 Hz with 0 late is the best case; a steady 60 Hz means the browser or phone caps it.')}>
+    <Field label={t('Frame rate readout')} hint={t('Shows your real refresh rate, top-left.')}>
       <Toggle on={on} onChange={setFpsMeter} label={t('Frame rate readout')} />
     </Field>
   );
@@ -62,7 +62,7 @@ function HrrField() {
   const t = useT();
   const on = useSyncExternalStore(onHighRefresh, highRefresh, () => true);
   return (
-    <Field label={t('High refresh rate')} hint={t('Popups, the live workout and the page behind them are drawn by the browser itself, at your screen’s full rate (up to 120 Hz), instead of by the app at up to 60. Turn off if anything looks wrong.')}>
+    <Field label={t('High refresh rate')} hint={t('Draws motion at your screen’s full rate (up to 120 Hz).')}>
       <Toggle on={on} onChange={setHighRefresh} label={t('High refresh rate')} />
     </Field>
   );
@@ -120,7 +120,7 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
               <div className="stack gap16">
                 <Field label={t('Default rest between sets')}><div className="chips" style={{ margin: 0, padding: 0, flexWrap: 'wrap' }}>{[45, 60, 90, 120, 150, 180].map((v) => <button key={v} className={`chip press ${st.restDefaultSec === v ? 'on' : ''}`} onClick={() => set({ restDefaultSec: v })}>{v}s</button>)}</div></Field>
                 <Field label={t('Effort tracking')}><Seg value={st.effort} onChange={(v) => set({ effort: v })} options={[{ value: 'off', label: t('Off') }, { value: 'rpe', label: 'RPE' }, { value: 'rir', label: 'RIR' }]} /></Field>
-                <Field label={t('Smallest weight jump')} hint={t('Used for progression suggestions.')}><div className="chips" style={{ margin: 0, padding: 0 }}>{[1, 1.25, 2.5, 5].map((v) => <button key={v} className={`chip press ${st.plateStep === v ? 'on' : ''}`} onClick={() => set({ plateStep: v })}>{v} kg</button>)}</div></Field>
+                <Field label={t('Smallest weight jump')}><div className="chips" style={{ margin: 0, padding: 0 }}>{[1, 1.25, 2.5, 5].map((v) => <button key={v} className={`chip press ${st.plateStep === v ? 'on' : ''}`} onClick={() => set({ plateStep: v })}>{v} kg</button>)}</div></Field>
                 <div className="row-flex between"><span>{t('Rest-timer sound')}</span><Toggle on={st.sound} onChange={(v) => set({ sound: v })} label={t('Rest-timer sound')} /></div>
                 <div className="row-flex between"><span>{t('Haptic feedback')}</span><Toggle on={st.haptics} onChange={(v) => set({ haptics: v })} label={t('Haptic feedback')} /></div>
               </div>

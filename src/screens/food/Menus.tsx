@@ -189,7 +189,6 @@ export function DayNotes({ props }: { props: { date: string } }) {
       <div className="sheet-body">
         <div className="field"><label htmlFor="n-train">{t('Training')}</label><textarea id="n-train" className="input" value={note?.training ?? ''} onChange={(e) => s.setNote(props.date, { training: e.target.value })} placeholder={t('Sleep, energy, niggles…')} /></div>
         <div className="field" style={{ marginTop: 14 }}><label htmlFor="n-nut">{t('Nutrition')}</label><textarea id="n-nut" className="input" value={note?.nutrition ?? ''} onChange={(e) => s.setNote(props.date, { nutrition: e.target.value })} placeholder={t('Hunger, cravings, eating out…')} /></div>
-        <div className="xs t3" style={{ marginTop: 10 }}>{t('Saved automatically.')}</div>
       </div>
     </Sheet>
   );

@@ -521,7 +521,7 @@ const SetRow = memo(function SetRow({ se, set, ex, label, prev, restDefault }: {
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={SOFT} style={{ overflow: 'hidden' }}>
             <div className="row-flex" style={{ gap: 8, padding: '4px 2px 8px' }}>
               <button className="chip sm press" onClick={() => patchSet(se.id, set.id, { type: set.type === 'warmup' ? 'working' : 'warmup' })}>{set.type === 'warmup' ? t('Make working set') : t('Make warm-up')}</button>
-              {settings.effort === 'off' && <span className="xs t3">{t('Effort (RPE/RIR) can be turned on in Settings.')}</span>}
+              
               <span className="grow" />
               <button className="chip sm press" style={{ color: 'var(--bad)' }} onClick={remove}><Icon name="trash" size={14} /> {t('Delete')}</button>
             </div>

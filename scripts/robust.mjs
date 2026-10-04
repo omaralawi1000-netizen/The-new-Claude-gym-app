@@ -59,7 +59,7 @@ const base = 'http://127.0.0.1:5173/';
   await p.goto(base); await wait(p, 800);
   await p.getByText('Skip all').click(); await wait(p, 500);
   await p.locator('.tabbar').getByRole('button', { name: 'Food', exact: true }).click(); await wait(p, 600);
-  await p.getByRole('button', { name: 'Add food' }).first().click(); await wait(p, 500);
+  await p.getByRole('button', { name: /^Add to / }).first().click(); await wait(p, 500);
   await p.getByPlaceholder('Search foods and brands').fill('banana'); await wait(p, 600);
   await p.getByText('Banana', { exact: true }).first().click(); await wait(p, 900);
   const save = p.locator('.sheet-foot .btn.primary');

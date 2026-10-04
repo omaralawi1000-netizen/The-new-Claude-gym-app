@@ -179,7 +179,6 @@ export function FoodDetail({ props }: { props: { food?: Food; foodId?: string; e
               </button>
             ))}
           </div>
-          {units.length === 1 && <div className="xs t3" style={{ marginTop: 8 }}>{food.basis === 'g' ? t('Millilitres are hidden: this food has no known density, so ml ≠ g can’t be assumed.') : t('Grams are hidden: this food has no known density.')}</div>}
         </div>
 
         {/* meal + date */}
@@ -206,7 +205,6 @@ export function FoodDetail({ props }: { props: { food?: Food; foodId?: string; e
               </div>
             ))}
           </div>
-          <div className="xs t3" style={{ marginTop: 8 }}>{t('"—" means the source has no value — it is not counted as zero.')}</div>
         </div>
 
         {editing && (

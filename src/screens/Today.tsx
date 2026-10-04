@@ -36,7 +36,6 @@ export function TodayScreen() {
   const doneToday = s.sessions.filter((x) => x.date === today);
   const missed = useMemo(() => missedWorkouts(s, today), [s.schedule, s.routines, s.sessions, today]);
   const settings = s.settings;
-  const first = s.entries.length === 0 && s.sessions.length === 0 && s.weights.length === 0;
 
   // Training-day reminder. It can only fire while Aven is open (see Settings → Reminders): an in-app nudge, plus a system
   // notification once per day if the user allowed them.
@@ -118,7 +117,6 @@ export function TodayScreen() {
         <button className="press" style={{ display: 'block', width: '100%' }} onClick={() => setTab('food')} aria-label={t('Open log')}><Ledger sum={sum} compact /></button>
         <div className="row-flex" style={{ gap: 10, justifyContent: 'center', marginTop: 20 }}>
           <button className="icon-btn press" aria-label={t('Log food')} onClick={() => push('foodSearch', { date: today, mealId })}><Icon name="plus" /></button>
-          <button className="icon-btn press" aria-label={t('Dictate')} onClick={() => push('voice', { mode: 'food', date: today, mealId })}><Icon name="mic" /></button>
           <button className="icon-btn press" aria-label={t('Scan')} onClick={() => push('scanner', { date: today, mealId })}><Icon name="barcode" /></button>
           <button className="icon-btn press" aria-label={t('Photo')} onClick={() => push('photoFood', { date: today, mealId })}><Icon name="camera" /></button>
           <button className="icon-btn press" aria-label={`+${settings.waterQuick[1] ?? 250} ml`} onClick={addWater} style={{ width: 'auto', padding: '0 16px', gap: 6, display: 'inline-flex', alignItems: 'center' }}>
@@ -248,11 +246,6 @@ export function TodayScreen() {
         </div>
       )}
 
-      {first && (
-        <div className="row-flex" style={{ justifyContent: 'center' }}>
-          <button className="btn press" onClick={() => push('voice', { mode: 'food', date: today, mealId })}><Icon name="mic" size={18} /> {t('Say what you ate')}</button>
-        </div>
-      )}
     </div>
   );
 }

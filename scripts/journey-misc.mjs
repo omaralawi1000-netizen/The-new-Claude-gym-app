@@ -24,7 +24,7 @@ await p.screenshot({ path: 'shots/ms-3-today.png' });
 assert(await p.getByText('Omar').first().isVisible());
 // ── recipe: create, log a serving, edit recipe → old entry unchanged ──
 await p.locator('.tabbar').getByRole('button', { name: 'Food', exact: true }).click(); await wait(p, 600);
-await p.getByRole('button', { name: 'Add food' }).first().click().catch(() => {});
+await p.getByRole('button', { name: /^Add to / }).first().click().catch(() => {});
 await p.getByRole('button', { name: /Add to (Breakfast|Lunch|Dinner|Snacks)/ }).first().click().catch(() => {}); await wait(p, 500);
 await p.getByRole('button', { name: 'Recipes' }).click(); await wait(p, 600);
 await p.getByRole('button', { name: 'New recipe' }).click(); await wait(p, 700);

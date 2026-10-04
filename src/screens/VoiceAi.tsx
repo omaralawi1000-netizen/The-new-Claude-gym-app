@@ -64,13 +64,11 @@ export function VoiceAiSettings() {
       <div className="plinth" style={{ padding: 16 }}>
         <div className="stack gap16">
           <div className="field"><label>{t('Transcription')}</label>
-            <Seg value={ai.stt} onChange={(v) => ai.patch({ stt: v })} options={[{ value: 'accurate', label: t('Accurate') }, { value: 'fast', label: t('Fast') }]} />
-            <div className="xs t3">{t('Accurate = Whisper large-v3. Fast = large-v3-turbo (quicker, slightly less careful).')}</div></div>
+            <Seg value={ai.stt} onChange={(v) => ai.patch({ stt: v })} options={[{ value: 'accurate', label: t('Accurate') }, { value: 'fast', label: t('Fast') }]} /></div>
           <div className="field"><label>{t('Language you speak')}</label>
-            <Seg value={ai.voiceLang} onChange={(v) => ai.patch({ voiceLang: v })} options={[{ value: 'auto', label: t('Auto') }, { value: 'da', label: 'Dansk' }, { value: 'en', label: 'English' }]} />
-            <div className="xs t3">{t('Auto works for mixed Danish/English, but fixing the language is more reliable.')}</div></div>
-          <div className="row-flex between"><div><div>{t('Let Gemini understand dictation')}</div><div className="xs t3">{t('If off, or if Gemini fails, the built-in parser is used.')}</div></div><Toggle on={ai.brain} onChange={(v) => ai.patch({ brain: v })} label={t('Let Gemini understand dictation')} /></div>
-          <div className="row-flex between"><div><div>{t('Speak Coach answers')}</div><div className="xs t3">{t('Uses Gemini’s voice. Off by default; text always shows.')}</div></div><Toggle on={ai.speak} onChange={(v) => ai.patch({ speak: v })} label={t('Speak Coach answers')} /></div>
+            <Seg value={ai.voiceLang} onChange={(v) => ai.patch({ voiceLang: v })} options={[{ value: 'auto', label: t('Auto') }, { value: 'da', label: 'Dansk' }, { value: 'en', label: 'English' }]} /></div>
+          <div className="row-flex between"><div><div>{t('Let Gemini understand dictation')}</div></div><Toggle on={ai.brain} onChange={(v) => ai.patch({ brain: v })} label={t('Let Gemini understand dictation')} /></div>
+          <div className="row-flex between"><div><div>{t('Speak Coach answers')}</div></div><Toggle on={ai.speak} onChange={(v) => ai.patch({ speak: v })} label={t('Speak Coach answers')} /></div>
           {ai.speak && <div className="field"><label>{t('Voice')}</label><div className="chips" style={{ margin: 0, padding: 0, flexWrap: 'wrap' }}>{VOICES.map((v) => <button key={v} className={`chip sm press ${ai.voice === v ? 'on' : ''}`} onClick={() => ai.patch({ voice: v })}>{v}</button>)}</div></div>}
         </div>
       </div>

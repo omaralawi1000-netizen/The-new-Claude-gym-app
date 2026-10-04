@@ -16,7 +16,7 @@ await ctx.setOffline(true);
 await p.reload(); await p.waitForTimeout(1500);
 assert(await p.locator('[data-testid="ledger-kcal"]').first().isVisible(), 'app loads offline');
 await p.locator('.tabbar').getByRole('button', { name: 'Food', exact: true }).click(); await p.waitForTimeout(500);
-await p.getByRole('button', { name: 'Add food' }).first().click(); await p.waitForTimeout(500);
+await p.getByRole('button', { name: /^Add to / }).first().click(); await p.waitForTimeout(500);
 await p.getByPlaceholder('Search foods and brands').fill('banana'); await p.waitForTimeout(1200);
 assert(await p.getByText('Banana', { exact: true }).first().isVisible(), 'bundled foods work offline');
 assert(await p.getByText(/offline/i).first().isVisible(), 'offline state is explained');

@@ -7,7 +7,7 @@ await p.locator('.tabbar').getByRole('button', { name: 'Food', exact: true }).cl
 const kcal = async () => Number((await p.locator('[data-testid="ledger-kcal"]').first().innerText()).replace(/[^\d]/g, ''));
 const primary = () => p.locator('.sheet-foot .btn.primary');
 // online results
-await p.getByRole('button', { name: 'Add food' }).first().click(); await wait(p, 600);
+await p.getByRole('button', { name: /^Add to / }).first().click(); await wait(p, 600);
 await p.getByPlaceholder('Search foods and brands').fill('skyr'); await wait(p, 1800);
 await p.screenshot({ path: 'shots/fd2-1-online.png' });
 assert(await p.getByText('DemoDairy').first().isVisible(), 'online result listed');

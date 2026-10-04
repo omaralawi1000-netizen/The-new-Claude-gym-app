@@ -141,7 +141,6 @@ export function PhotoFood({ props }: { props: { date: string; mealId: string } }
                     ))}
                   </div>
                   {assume && <div className="xs" style={{ color: 'var(--warn)', marginTop: 10 }}>~ {assume}</div>}
-                  <div className="xs t3" style={{ marginTop: 4 }}>{t('Estimated by Gemini from the photo — not exact. Logged as “AI estimate”.')}</div>
                 </motion.div>
               )}
             </AnimatePresence>
