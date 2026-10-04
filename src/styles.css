@@ -163,17 +163,17 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
    always under it). Top: a band under the status bar that frosts in once the page has scrolled beneath it. Both are a
    blur masked into a gradient (a "progressive" blur) plus a light tint. */
 .tabbar-wrap::before {
-  content: ''; position: fixed; left: 0; right: 0; bottom: 0; height: calc(var(--sab) + 150px); z-index: -1; pointer-events: none;
-  background: linear-gradient(to top, color-mix(in srgb, var(--bg) 70%, transparent) 40%, transparent);
-  -webkit-backdrop-filter: blur(26px) saturate(1.5); backdrop-filter: blur(26px) saturate(1.5);
-  -webkit-mask-image: linear-gradient(to top, #000 62%, transparent); mask-image: linear-gradient(to top, #000 62%, transparent);
+  content: ''; position: fixed; left: 0; right: 0; bottom: 0; height: calc(var(--sab) + 116px); z-index: -1; pointer-events: none;
+  background: linear-gradient(to top, color-mix(in srgb, var(--bg) 62%, transparent) 30%, transparent);
+  -webkit-backdrop-filter: blur(14px) saturate(1.4); backdrop-filter: blur(14px) saturate(1.4);
+  -webkit-mask-image: linear-gradient(to top, #000 52%, transparent); mask-image: linear-gradient(to top, #000 52%, transparent);
 }
-.app[data-pill] .tabbar-wrap::before { height: calc(var(--sab) + 216px); }
+.app[data-pill] .tabbar-wrap::before { height: calc(var(--sab) + 182px); }
 .edge-top {
-  position: fixed; left: 0; right: 0; top: 0; height: calc(var(--sat) + 78px); z-index: 30; pointer-events: none; opacity: 0;
-  background: linear-gradient(to bottom, color-mix(in srgb, var(--bg) 78%, transparent) 40%, transparent);
-  -webkit-backdrop-filter: blur(26px) saturate(1.5); backdrop-filter: blur(26px) saturate(1.5);
-  -webkit-mask-image: linear-gradient(to bottom, #000 62%, transparent); mask-image: linear-gradient(to bottom, #000 62%, transparent);
+  position: fixed; left: 0; right: 0; top: 0; height: calc(var(--sat) + 34px); z-index: 30; pointer-events: none; opacity: 0;
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--bg) 72%, transparent) 35%, transparent);
+  -webkit-backdrop-filter: blur(14px) saturate(1.4); backdrop-filter: blur(14px) saturate(1.4);
+  -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent); mask-image: linear-gradient(to bottom, #000 55%, transparent);
   transition: opacity 260ms var(--ease-out);
 }
 .app[data-scrolled] .edge-top { opacity: 1; }
@@ -342,7 +342,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 
 /* ── floating tab bar: icons only; the active tab opens up and shows its name ─── */
 .tabbar-wrap { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; padding: 0 16px calc(var(--sab) + 14px); display: flex; justify-content: center; pointer-events: none; }
-.tabbar.glass { background: color-mix(in srgb, var(--glass) 100%, var(--bg) 14%); -webkit-backdrop-filter: blur(40px) saturate(2); backdrop-filter: blur(40px) saturate(2); }
+.tabbar.glass { background: color-mix(in srgb, var(--glass) 100%, transparent); -webkit-backdrop-filter: blur(36px) saturate(2); backdrop-filter: blur(36px) saturate(2); }
 .tabbar { pointer-events: auto; position: relative; width: 100%; max-width: 420px; height: 66px; border-radius: 999px; display: flex; align-items: center; padding: 0 7px; gap: 2px; }
 /* The first version's dock: icons only, the active tab opens up and shows its name, everything else (the orb too) makes
    room, and a drop of glass flows over to it. Layout changes at once; the motion is FLIP + browser animations (TabBar.tsx). */
