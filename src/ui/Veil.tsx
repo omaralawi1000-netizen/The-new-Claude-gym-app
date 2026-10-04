@@ -16,10 +16,9 @@ export interface VeilLayer { cls: string; from: number; to: number }
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 const ramp = (l: VeilLayer, p: number) => clamp01((p - l.from) / (l.to - l.from));
 
-/** Behind sheets: one soft blur and a dim that deepen with the sheet. (One blurred layer, not two: every full-screen blur
- * is redrawn each frame of the slide, and on a phone the second one cost more refresh rate than it added.) */
+/** Behind sheets: only a dim. The sheet is the one pane of glass; the page behind stays sharp and steps back (scale +
+ * dim), so it reads as a card pushed back rather than a smudge — and only one blur is drawn per frame of the slide. */
 export const SHEET_VEIL: VeilLayer[] = [
-  { cls: 'veil-blur-b', from: 0.1, to: 1 },
   { cls: 'veil-dim', from: 0, to: 1 },
 ];
 /** Behind a full-screen surface that is frosted itself (the live workout): only the dim. */

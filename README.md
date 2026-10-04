@@ -140,6 +140,12 @@ Run in headless Chromium (Playwright, 390×844 @2×, dark + light), scripts in `
 - **Not built (on purpose, stated in-app):** cloud sync / accounts; photo-based food estimation; automatic AI changes to your data (the Coach advises; routines and estimates only appear after you confirm; progression suggestions remain transparent rules); background reminders when the app is closed (web apps need a push server — reminders fire only while Aven runs; in-app nudge otherwise); animated exercise demonstrations (there is an authored muscle diagram and step-by-step text instead).
 - Exercise calories are **never** added to food targets.
 
+## One pane of glass
+
+- **Pop-ups**: the pop-up is the only frosted glass. The page behind no longer blurs — it steps back (smaller, lower) and dims, staying sharp, so it reads as a card pushed behind the pop-up instead of a smudge, as on iOS. One blur per frame instead of two while a pop-up slides.
+- **Glass by height**: short pop-ups (menus, small forms) are thinner, more colourful glass; full-height ones (Settings, Coach, food details) keep the denser frost so long text reads easily.
+- **Scroll edges**: content that scrolls under the dock now goes under a frosted band that fades out upwards (a "progressive" blur), so the dock reads cleanly and nothing sharp peeks out below it. The same band frosts in under the status bar once a page has scrolled beneath it, and fades away at the top of the page. Both switch their blur off while a pop-up covers them.
+
 ## Typing in sight
 
 - **You can always see what you type**: when a field gets focus the nearest scrolling box slides (smoothly, once the keyboard has landed) until the field sits in the room above the keyboard — before, a form taller than that room (Wrestling, New routine, Edit food…) left the field behind the Save bar or the keyboard. Works in every sheet.

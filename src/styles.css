@@ -158,9 +158,27 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
 /* the resume-workout bar (56 px + gap) sits above the tab bar: the page's end and the toasts move up so nothing hides under it */
 .app[data-pill] .screen { padding-bottom: calc(var(--bar-h) + var(--sab) + 44px + 66px); }
 .app[data-pill] .toasts { bottom: calc(var(--bar-h) + var(--sab) + 22px + 66px); }
-/* content scrolls under the tab bar; a soft veil below the bar keeps scrolled text from peeking out of the bottom edge
-   (a plain gradient, so the scroller itself stays a plain scroller) */
-.tabbar-wrap::before { content: ''; position: fixed; left: 0; right: 0; bottom: 0; height: calc(var(--sab) + 26px); z-index: -1; pointer-events: none; background: linear-gradient(to top, color-mix(in srgb, var(--bg) 88%, transparent), transparent); }
+/* Scroll edges, as on iOS: wherever the page passes under a bar, it goes under frosted glass that fades out softly — so the
+   bar's text reads cleanly and nothing sharp shows through. Bottom: a band behind the dock, always there (the page is
+   always under it). Top: a band under the status bar that frosts in once the page has scrolled beneath it. Both are a
+   blur masked into a gradient (a "progressive" blur) plus a light tint. */
+.tabbar-wrap::before {
+  content: ''; position: fixed; left: 0; right: 0; bottom: 0; height: calc(var(--sab) + 116px); z-index: -1; pointer-events: none;
+  background: linear-gradient(to top, color-mix(in srgb, var(--bg) 62%, transparent) 30%, transparent);
+  -webkit-backdrop-filter: blur(14px) saturate(1.4); backdrop-filter: blur(14px) saturate(1.4);
+  -webkit-mask-image: linear-gradient(to top, #000 52%, transparent); mask-image: linear-gradient(to top, #000 52%, transparent);
+}
+.app[data-pill] .tabbar-wrap::before { height: calc(var(--sab) + 182px); }
+.edge-top {
+  position: fixed; left: 0; right: 0; top: 0; height: calc(var(--sat) + 34px); z-index: 30; pointer-events: none; opacity: 0;
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--bg) 72%, transparent) 35%, transparent);
+  -webkit-backdrop-filter: blur(14px) saturate(1.4); backdrop-filter: blur(14px) saturate(1.4);
+  -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent); mask-image: linear-gradient(to bottom, #000 55%, transparent);
+  transition: opacity 260ms var(--ease-out);
+}
+.app[data-scrolled] .edge-top { opacity: 1; }
+/* under a pop-up the bands sit beneath its dim: no point re-blurring them while the page steps back */
+.app[data-calm] .edge-top, .app[data-calm] .tabbar-wrap::before { -webkit-backdrop-filter: none; backdrop-filter: none; }
 .screen > * + * { margin-top: 22px; }
 /* every screen's blocks rise in, blurred → sharp, one after another */
 /* every screen's blocks rise in, one after another (a screen, or the part of one that is swapped: .subpage) */
@@ -301,6 +319,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
   background: var(--glass-2); -webkit-backdrop-filter: blur(40px) saturate(1.8); backdrop-filter: blur(40px) saturate(1.8);
   border-radius: var(--r-xl) var(--r-xl) 0 0; box-shadow: inset 0 1px 0 var(--hl), inset 0 0 0 1px var(--line), var(--sh-f); will-change: transform;
 }
+.sheet[data-size='short'] { background: color-mix(in srgb, var(--glass-2) 76%, transparent); -webkit-backdrop-filter: blur(40px) saturate(2.1); backdrop-filter: blur(40px) saturate(2.1); }
 .sheet.tall { height: calc(100dvh - var(--sat) - 46px); }
 /* A sheet with another sheet stacked on top: the top one's dim and blur cover it, so it drops its own frost and its own
    veil's blur. Each kept a full-screen blur alive; three stacked sheets ran the phone out of GPU memory (black tiles). */

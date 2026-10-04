@@ -73,7 +73,8 @@ export function Sheet({ children, onClose, tall, label, foot, z: zProp = 60, nes
   // does not fly further than it needs to), and keep it right if the content grows
   useLayoutEffect(() => {
     const el = ref.current; if (!el) return;
-    const measure = () => { dist.current = el.offsetHeight + 40; };
+    // short sheets are thinner glass (more of the colour comes through), full-height ones denser for long reading
+    const measure = () => { const h = el.offsetHeight; dist.current = h + 40; const short = h < window.innerHeight * 0.62; if ((el.dataset.size === 'short') !== short) el.dataset.size = short ? 'short' : 'full'; };
     measure();
     const ro = new ResizeObserver(measure); ro.observe(el);
     return () => ro.disconnect();
