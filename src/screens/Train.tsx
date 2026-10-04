@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { useStore, exerciseMap, allExercises, plannedFor, missedWorkouts } from '../state/store';
 import { useUI, buzz } from '../state/ui';
@@ -16,15 +16,9 @@ import { matchExercises } from '../lib/workoutText';
 import { MUSCLES } from '../data/exercises';
 import type { MuscleGroup, Routine } from '../lib/types';
 import { SOFT, zoomFrom } from '../ui/Sheet';
-import { slideSection } from '../ui/pageMotion';
+import { Subpage } from '../ui/Subpage';
 
 const SECTIONS = ['plan', 'library', 'history'];
-function Section({ dir, children }: { dir: number; children: React.ReactNode }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => { slideSection(ref.current, dir); }, []); // eslint-disable-line
-  return <div ref={ref} className="subpage">{children}</div>;
-}
-
 export function TrainScreen() {
   const t = useT();
   const tab = useUI((u) => u.trainTab);
@@ -38,11 +32,11 @@ export function TrainScreen() {
       <header>
         <Seg value={tab} onChange={setTab} options={[{ value: 'plan', label: t('Plan') }, { value: 'library', label: t('Library') }, { value: 'history', label: t('History') }]} />
       </header>
-      <Section key={tab} dir={dir}>
+      <Subpage key={tab} dir={dir}>
         {tab === 'plan' && <PlanTab />}
         {tab === 'library' && <LibraryTab />}
         {tab === 'history' && <HistoryTab />}
-      </Section>
+      </Subpage>
     </div>
   );
 }

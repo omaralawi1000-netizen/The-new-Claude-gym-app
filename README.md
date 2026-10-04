@@ -147,11 +147,17 @@ Run in headless Chromium (Playwright, 390×844 @2×, dark + light), scripts in `
 - **Snap your plate** (Gemini key): photo → per-item estimates (name, grams, kcal, macros) → choose items and portion (×0.5–×2) → logged as quick entries labelled "AI estimate" with the assumptions. Image is downscaled to 1024 px before sending. Wiring tested with a stubbed Gemini; real recognition quality is unverified.
 - **Home-screen shortcuts** (Android long-press on the installed icon): Log food, Dictate, Snap your plate, Log wrestling.
 
+## Simple pass
+
+- **The live workout is just a sheet, like Apple Music's player**: a full-height window with rounded top corners rises from the resume bar (or the Today card) while the page behind steps back and dims. It starts as a see-through slab and firms up as it rises, its content fading in a beat later; closing runs it backwards and it melts into the bar. Nothing on it is blurred, clipped or stretched any more (the frosted layer was what showed as a grey box over Today while closing).
+- **Keyboard on tap**: popups open without the keyboard; tap a field and the keyboard comes up with the popup rising exactly to it (tall popups shrink to fit above it). No auto-focus and no timers.
+- **Screens swap like the first version, refined**: the new screen glides in 40 px from the side it sits on (by tab order) on Apple's spring, fading in ahead of the movement, while the old one drifts the other way, fading and softening; the colour glow still cross-fades underneath. Train's Plan / Library / History and Food's days glide in from their side too (`ui/Subpage.tsx`).
+
 ## Glow pass
 
 - **Tab switching, one type**: the glow changes — the colour field cross-fades into the next area's colours in 0.8 s, as two layers fading over each other (the browser blends them; nothing is repainted per frame) — while the screens swap with depth: the old one fades out quickly and sinks back a little, the new one fades in and settles from a touch larger. Opacity and transform only.
 - **No pause before the workout moves**: closing used to wait for the app to re-render the page behind, the tab bar and the resume bar before anything moved (a visible beat after the tap on a phone). Now the close animation starts on the very frame you let go, and the app is told the workout closed only after that frame. Opening (and every popup) starts its browser-run animation before the first paint, so setup work can no longer freeze it. Two layout animations that re-measured the page on every re-render (resume bar, Today's workout card) are gone, and the resting position of the bar/card is computed without forcing layout.
-- **Keyboard after the popup**: a popup with a text field arrives first; about half a second after the tap (once it has landed) the field is focused and the keyboard comes up, the popup riding up with it. Closing drops the keyboard together with the popup.
+- (Superseded by the simple pass) the keyboard now comes up when you tap a field.
 
 ## Seamless pass
 

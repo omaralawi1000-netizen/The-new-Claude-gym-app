@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useStore } from '../state/store';
 import { useUI, buzz } from '../state/ui';
@@ -7,6 +7,7 @@ import { useDaySummary, useToday, mealName, perMeal, defaultMealId } from '../li
 import { addDays, fmtDate, relativeDay } from '../lib/dates';
 import { sumNutrients } from '../lib/nutrition';
 import { Icon } from '../ui/Icon';
+import { Subpage } from '../ui/Subpage';
 import { Ledger } from './food/Ledger';
 import { EntryRow } from './food/EntryRow';
 import { fmtNutrient } from '../lib/format';
@@ -38,6 +39,10 @@ export function FoodScreen() {
     list.forEach((e) => { if (!seen.current.has(e.id)) { fresh.current.add(e.id); seen.current.add(e.id); setTimeout(() => fresh.current.delete(e.id), 1600); } });
   }, [list]);
 
+  // the day glides in from the side it lies on (later days from the right)
+  const prevDate = useRef(date);
+  const dir = date > prevDate.current ? 1 : date < prevDate.current ? -1 : 0;
+  useEffect(() => { prevDate.current = date; }, [date]);
   const rel = relativeDay(date, today, lang);
   const isFuture = date > today;
 
@@ -72,6 +77,7 @@ export function FoodScreen() {
         </div>
       </header>
 
+      <Subpage key={date} dir={dir}>
       <Ledger sum={sum} />
 
       {list.length === 0 && (
@@ -110,6 +116,7 @@ export function FoodScreen() {
 
       <WaterTile date={date} />
       <WeekStrip date={date} onPick={(d) => setFoodDate(d === today ? null : d)} />
+      </Subpage>
     </div>
   );
 }
