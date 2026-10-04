@@ -157,13 +157,17 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
 .tabbar-wrap::before { content: ''; position: fixed; left: 0; right: 0; bottom: 0; height: calc(var(--sab) + 26px); z-index: -1; pointer-events: none; background: linear-gradient(to top, color-mix(in srgb, var(--bg) 88%, transparent), transparent); }
 .screen > * + * { margin-top: 22px; }
 /* every screen's blocks rise in, blurred → sharp, one after another */
-/* (screens no longer rise in block by block on every tab switch: the page itself fades up as one — App.tsx) */
+/* every screen's blocks rise in, one after another (a screen, or the part of one that is swapped: .subpage) */
+.screen > *, .subpage > * { animation: rise-move 780ms var(--ease-out) backwards; animation-delay: calc(var(--i, 0) * 60ms); }
+.screen > .subpage { animation: none; }
 .screen > :nth-child(1) { --i: 0; } .screen > :nth-child(2) { --i: 1; } .screen > :nth-child(3) { --i: 2; } .screen > :nth-child(4) { --i: 3; }
+.subpage > :nth-child(1) { --i: 0; } .subpage > :nth-child(2) { --i: 1; } .subpage > :nth-child(3) { --i: 2; } .subpage > :nth-child(4) { --i: 3; }
+.subpage > :nth-child(5) { --i: 4; } .subpage > :nth-child(6) { --i: 5; } .subpage > :nth-child(7) { --i: 6; } .subpage > :nth-child(n+8) { --i: 7; }
 .screen > :nth-child(5) { --i: 4; } .screen > :nth-child(6) { --i: 5; } .screen > :nth-child(7) { --i: 6; } .screen > :nth-child(n+8) { --i: 7; }
 /* Movement and blur are separate animations on purpose. The movement must NOT stay applied after it finishes (fill
    "backwards"): a finished CSS animation that keeps `transform`/`opacity` overrides every later motion/spring animation on
    the same element — that was the cause of pages that froze, popped or stayed visible under a new title. */
-@keyframes rise-move { from { opacity: 0; transform: translate3d(0, 14px, 0) scale(.988); } to { opacity: 1; transform: none; } }
+@keyframes rise-move { from { opacity: 0; transform: translate3d(0, 18px, 0) scale(.985); } to { opacity: 1; transform: none; } }
 /* (No blur in the rise any more. A blur animated on whole blocks made the GPU filter every block every frame while a popup
    slid in — and with fill "both" an empty blur(0) filter then stayed on every block for good, each one its own filtered
    layer for as long as the page lived. The rise is movement + fade + a slight scale, which reads the same at speed.) */

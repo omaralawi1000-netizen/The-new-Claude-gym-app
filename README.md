@@ -147,9 +147,14 @@ Run in headless Chromium (Playwright, 390×844 @2×, dark + light), scripts in `
 - **Snap your plate** (Gemini key): photo → per-item estimates (name, grams, kcal, macros) → choose items and portion (×0.5–×2) → logged as quick entries labelled "AI estimate" with the assumptions. Image is downscaled to 1024 px before sending. Wiring tested with a stubbed Gemini; real recognition quality is unverified.
 - **Home-screen shortcuts** (Android long-press on the installed icon): Log food, Dictate, Snap your plate, Log wrestling.
 
+## Back to basics pass
+
+- **Screens swap exactly as in the first version**: the new one slides in 36 px from the side it sits on and fades up, the old one slides out the other way, fading and softly blurring (0.38 s). Then the cards rise in one after another (18 px, 60 ms apart). The same rise runs when Train's Plan / Library / History or a Food day is swapped (`.subpage`). The colour glow still cross-fades underneath. (An earlier crossfade-only and a slide-only version were rejected.)
+- **The live workout is an iOS sheet**: the whole window rises from the bottom edge of the screen to the top on the same spring as every other sheet, the page behind steps back and dims, and it sinks back down on close or drag. Only a transform moves — no fades, frost, clip or stretch.
+
 ## Simple pass
 
-- **The live workout is just a sheet, like Apple Music's player**: a full-height window with rounded top corners rises from the resume bar (or the Today card) while the page behind steps back and dims. It starts as a see-through slab and firms up as it rises, its content fading in a beat later; closing runs it backwards and it melts into the bar. Nothing on it is blurred, clipped or stretched any more (the frosted layer was what showed as a grey box over Today while closing).
+- (Superseded by the back-to-basics pass) the workout rose from the resume bar (or the Today card) while the page behind steps back and dims. It starts as a see-through slab and firms up as it rises, its content fading in a beat later; closing runs it backwards and it melts into the bar. Nothing on it is blurred, clipped or stretched any more (the frosted layer was what showed as a grey box over Today while closing).
 - **Keyboard on tap**: popups open without the keyboard; tap a field and the keyboard comes up with the popup rising exactly to it (tall popups shrink to fit above it). No auto-focus and no timers.
 - **Screens swap like the first version, refined**: the new screen glides in 40 px from the side it sits on (by tab order) on Apple's spring, fading in ahead of the movement, while the old one drifts the other way, fading and softening; the colour glow still cross-fades underneath. Train's Plan / Library / History and Food's days glide in from their side too (`ui/Subpage.tsx`).
 

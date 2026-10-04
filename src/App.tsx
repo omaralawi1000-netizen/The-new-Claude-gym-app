@@ -17,7 +17,6 @@ import { defaultMealId } from './lib/derive';
 import { stageCover, stageDepth, stageTransform } from './ui/engage';
 import { setKeyboard } from './ui/keyboard';
 import { FpsMeter } from './ui/FpsMeter';
-import { apple } from './ui/motion';
 
 /** Where the last tap landed — the theme switch spreads out from there. */
 const lastTap = { x: typeof window !== 'undefined' ? window.innerWidth / 2 : 0, y: 0 };
@@ -111,18 +110,17 @@ function Field({ hue }: { hue: string }) {
 }
 
 /**
- * The screens swap the way the very first version did, refined: the new one glides in from the side it sits on while the
- * old one drifts the other way, fading and softening as it goes. A short slide (40 px) on Apple's smooth spring, with the
- * fade ahead of the movement so the new screen is readable almost at once; the old screen leaves quicker than the new one
- * arrives. Opacity, transform and one light blur on the leaving screen only — all run by the browser, nothing laid out.
- * Which side comes from the order of the tabs (Today · Train · Food · Progress).
+ * The screens swap as in the first version: the new one slides in 36 px from the side it sits on and fades up, the old one
+ * slides out the other way, fading and softly blurring (0.38 s, ease-out). Its cards then rise in one after another (see
+ * `.screen > *` in styles.css). Which side comes from the order of the tabs (Today · Train · Food · Progress); the slide is a
+ * whole `transform`, so the browser runs it on its compositor at the screen's full rate.
  */
-const PAGE_IN = apple(0.46);
+const EASE = [0.22, 1, 0.36, 1] as const;
 const ORDER = ['today', 'train', 'food', 'progress'];
 const PAGE = {
-  enter: (d: number) => ({ opacity: 0, transform: `translateX(${d * 40}px)` }),
-  center: { opacity: 1, transform: 'translateX(0px)', transitionEnd: { transform: 'none' }, transition: { transform: PAGE_IN, opacity: { duration: 0.28, ease: [0.2, 0.7, 0.3, 1] as const } } },
-  exit: (d: number) => ({ opacity: 0, transform: `translateX(${-d * 28}px)`, filter: 'blur(6px)', transition: { duration: 0.24, ease: [0.4, 0, 1, 1] as const } }),
+  enter: (d: number) => ({ opacity: 0, transform: `translateX(${d * 36}px)` }),
+  center: { opacity: 1, transform: 'translateX(0px)', filter: 'blur(0px)', transitionEnd: { transform: 'none', filter: 'none' }, transition: { duration: 0.38, ease: EASE } },
+  exit: (d: number) => ({ opacity: 0, transform: `translateX(${-d * 36}px)`, filter: 'blur(10px)', transition: { duration: 0.38, ease: EASE } }),
 };
 // `custom` is the direction; AnimatePresence hands the leaving screen the NEW direction too (it was removed with the old one)
 function TabPane({ hue, dir, children }: { hue: string; dir: number; children: React.ReactNode }) {
