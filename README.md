@@ -140,6 +140,13 @@ Run in headless Chromium (Playwright, 390×844 @2×, dark + light), scripts in `
 - **Not built (on purpose, stated in-app):** cloud sync / accounts; photo-based food estimation; automatic AI changes to your data (the Coach advises; routines and estimates only appear after you confirm; progression suggestions remain transparent rules); background reminders when the app is closed (web apps need a push server — reminders fire only while Aven runs; in-app nudge otherwise); animated exercise demonstrations (there is an authored muscle diagram and step-by-step text instead).
 - Exercise calories are **never** added to food targets.
 
+## Typing in sight, lighter sheets
+
+- **You can always see what you type**: when a field gets focus the nearest scrolling box slides (smoothly, once the keyboard has landed) until the field sits in the room above the keyboard — before, a form taller than that room (Wrestling, New routine, Edit food…) left the field behind the Save bar or the keyboard. Works in every sheet.
+- **The orb screen's "Type instead"** had no keyboard handling at all: the box and the Send button were under the keyboard. The screen now rides above the keyboard, the orb steps up and shrinks while you type, and the box scrolls into view.
+- **Sheets slide as a plain tinted pane and the frost fades in once they have landed** (and out as soon as a finger or the exit moves them): a moving backdrop blur the size of the sheet was the most expensive thing on screen during every slide. At rest it looks exactly as before; the hairline and highlight now sit above the frost so the blur never softens them. Stacked sheets drop it entirely.
+- Honest limit: this is aimed at the pop-up lag you see on the S26; the headless test browser cannot show phone GPU load, so it is verified for look and behaviour, not for frame rate.
+
 ## The orb knows the whole app
 
 The orb and the Coach can now do by voice or text what you can do by hand — each change a card with Undo, and every value checked by the app before it is applied (the model only proposes):

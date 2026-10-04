@@ -16,6 +16,7 @@ import { dayKey } from '../lib/dates';
 import { uid } from '../lib/nutrition';
 import { SphereSlot, orbPress, orbTap } from '../ui/Sphere';
 import { mirrorProgress, useEngage } from '../ui/engage';
+import { kb, watchFocus } from '../ui/keyboard';
 import { Veil, VOICE_VEIL, mirrorVeil } from '../ui/Veil';
 import { Icon } from '../ui/Icon';
 import { SOFT, useOverlayZ } from '../ui/Sheet';
@@ -268,10 +269,14 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   // tapping while the microphone is still starting cancels that start cleanly (teardown also invalidates the pending start, so
   // it can never come back later as a false "microphone in use")
   const tapSphere = () => { if (phase === 'requesting') { teardown(); go('idle'); return; } buzz(10); orbTap(0.6); if (listening) finish(); else if (!thinking) listen(); };
-  const big = !showing && !thinking;
+  const big = !showing && !thinking && !typing; // typing: the orb steps up and the box gets the room
+  // the keyboard overlays the page: the whole screen rides above it, so the box you type in and the Send button stay in sight
+  const rootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => (rootRef.current ? watchFocus(rootRef.current, (el) => el.closest<HTMLElement>('.hide-scroll')) : undefined), []);
+  const kbPad = useTransform(kb, (v) => (v > 1 ? v + 6 : 0));
 
   return (
-    <div className="voice" style={{ position: 'fixed', inset: 0, zIndex: z, display: 'flex', flexDirection: 'column' }} role="dialog" aria-modal="true" aria-label={t('Dictation')}>
+    <motion.div ref={rootRef} className="voice" style={{ position: 'fixed', inset: 0, zIndex: z, display: 'flex', flexDirection: 'column', paddingBottom: kbPad }} role="dialog" aria-modal="true" aria-label={t('Dictation')}>
       {/* The frost behind builds up gradually with the screen's progress (one blur layer and a tint, fading in with it).
           Nothing above it fades as a whole: a fading parent switched the blur off until the fade ended, then it snapped on. */}
       <Veil e={eng} z={0} layers={VOICE_VEIL} className="veil-abs" elRef={veilRef} />
@@ -346,6 +351,6 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
           </div>
         </div>
       </motion.div>
-    </div>
+    </motion.div>
   );
 }

@@ -2,7 +2,7 @@ import { AnimatePresence, animate, motion, useMotionValue, usePresence, useReduc
 import { createContext, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { EngageContext, Mirror, mirrorProgress, mirrorStage, trackDepth } from './engage';
 import { Veil, mirrorVeil } from './Veil';
-import { availableHeight, dropKeyboard, kb } from './keyboard';
+import { availableHeight, dropKeyboard, kb, watchFocus } from './keyboard';
 
 /** Stack-position z-index for the current overlay: a later overlay is always above an earlier one. */
 export const OverlayZ = createContext<number | null>(null);
@@ -47,6 +47,10 @@ export function Sheet({ children, onClose, tall, label, foot, z: zProp = 60, nes
   const transform = useTransform([shift, bs, kb], ([sh, b, k]: number[]) => `translate3d(0, ${sh - k}px, 0) scale(${1 - 0.06 * b})`);
   const e = useTransform([p, y], ([pp, yy]: number[]) => clamp01(pp - Math.max(0, yy) / dist.current));
   const engage = useMemo(() => ({ e, shift }), [e, shift]);
+  // The sheet's frost (a backdrop blur) is the most expensive thing on screen while it moves — its backdrop changes every
+  // frame. So it slides as a plain tinted pane (over a page that is already dimmed and blurred by the veil) and the frost
+  // fades in once it has landed, and out as soon as a finger or the exit moves it.
+  const frostO = useTransform(e, (v) => clamp01((v - 0.94) / 0.06));
   const room = useTransform(kb, availableHeight); // what the keyboard leaves free: the sheet lifts and fits as it opens
   useEffect(() => trackDepth(id, e), [id, e]);
   const swipeV = useRef(0); // px/s the finger had when it let go
@@ -89,6 +93,7 @@ export function Sheet({ children, onClose, tall, label, foot, z: zProp = 60, nes
     return () => cancelAnimationFrame(a);
     // eslint-disable-next-line
   }, []);
+  useEffect(() => (ref.current ? watchFocus(ref.current, (el) => el.closest<HTMLElement>('.sheet-body')) : undefined), []);
   // contents that arrive late must not bring the keyboard with them either (see the open effect below)
   useLayoutEffect(() => {
     if (!ready) return;
@@ -135,6 +140,7 @@ export function Sheet({ children, onClose, tall, label, foot, z: zProp = 60, nes
         style={{ zIndex: z, transformOrigin: '50% 0%', transform, maxHeight: room, ...(tall ? { height: room } : {}) }}
         role="dialog" aria-modal="true" aria-label={label}
       >
+        <motion.div className="sheet-frost" style={{ opacity: frostO }} aria-hidden />
         <div className="sheet-grab" />
         {ready && children}
         {ready && foot && <div className="sheet-foot">{foot}</div>}

@@ -34,3 +34,32 @@ export function dropKeyboard(sp: Spring) {
 
 /** CSS length for "the space a tall sheet may use": everything below the status bar gap, above the keyboard. */
 export const availableHeight = (kbPx: number) => `calc(${base}px - var(--sat) - 46px - ${kbPx}px)`;
+
+/**
+ * Keep the field you tapped in sight: once the keyboard has stopped moving (or at once when it is already up), the nearest
+ * scrolling box slides — smoothly — until the field sits in the upper part of the room the keyboard leaves. Without this a
+ * form taller than that room hid the very field being typed in behind the Save bar or the keyboard.
+ */
+export function watchFocus(root: HTMLElement, scroller: (el: HTMLElement) => HTMLElement | null): () => void {
+  let pending: HTMLElement | null = null;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const reveal = () => {
+    const el = pending; if (!el || !el.isConnected || document.activeElement !== el) return;
+    const sc = scroller(el); if (!sc) return;
+    const sr = sc.getBoundingClientRect(), er = el.getBoundingClientRect();
+    const margin = 16;
+    if (er.top >= sr.top + margin && er.bottom <= sr.bottom - margin) return; // already in sight
+    const d = er.top + er.height / 2 - (sr.top + sr.height * 0.4);
+    if (Math.abs(d) > 1) sc.scrollBy({ top: d, behavior: 'smooth' });
+  };
+  const later = (ms: number) => { clearTimeout(timer); timer = setTimeout(reveal, ms); };
+  const onFocus = (e: FocusEvent) => {
+    const el = e.target as HTMLElement | null;
+    if (!el || !/^(INPUT|TEXTAREA)$/.test(el.tagName)) return;
+    pending = el;
+    later(kb.get() > 1 ? 50 : 460); // the keyboard is coming: wait for it to land (kb moving re-arms this)
+  };
+  const off = kb.on('change', () => { if (pending && document.activeElement === pending) later(150); });
+  root.addEventListener('focusin', onFocus);
+  return () => { clearTimeout(timer); off(); root.removeEventListener('focusin', onFocus); };
+}
