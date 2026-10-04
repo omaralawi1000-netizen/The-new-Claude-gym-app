@@ -144,7 +144,7 @@ Run in headless Chromium (Playwright, 390×844 @2×, dark + light), scripts in `
 
 - **Pop-ups**: the pop-up is the only frosted glass. The page behind no longer blurs — it steps back (smaller, lower) and dims, staying sharp, so it reads as a card pushed behind the pop-up instead of a smudge, as on iOS. One blur per frame instead of two while a pop-up slides.
 - **Glass by height**: short pop-ups (menus, small forms) are thinner, more colourful glass; full-height ones (Settings, Coach, food details) keep the denser frost so long text reads easily.
-- **Scroll edges**: content that scrolls under the dock now goes under a frosted band that fades out upwards (a "progressive" blur), so the dock reads cleanly and nothing sharp peeks out below it. The same band frosts in under the status bar once a page has scrolled beneath it, and fades away at the top of the page. Both switch their blur off while a pop-up covers them.
+- **Scroll edge**: content that scrolls under the dock goes under a frosted band that fades out upwards (a "progressive" blur), so the dock reads cleanly. It switches its blur off while a pop-up covers it. There is deliberately no blur band under the status bar.
 
 ## Typing in sight
 

@@ -160,8 +160,7 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
 .app[data-pill] .toasts { bottom: calc(var(--bar-h) + var(--sab) + 22px + 66px); }
 /* Scroll edges, as on iOS: wherever the page passes under a bar, it goes under frosted glass that fades out softly — so the
    bar's text reads cleanly and nothing sharp shows through. Bottom: a band behind the dock, always there (the page is
-   always under it). Top: a band under the status bar that frosts in once the page has scrolled beneath it. Both are a
-   blur masked into a gradient (a "progressive" blur) plus a light tint. */
+   always under it): a blur masked into a gradient (a "progressive" blur) plus a light tint. */
 .tabbar-wrap::before {
   content: ''; position: fixed; left: 0; right: 0; bottom: 0; height: calc(var(--sab) + 116px); z-index: -1; pointer-events: none;
   background: linear-gradient(to top, color-mix(in srgb, var(--bg) 62%, transparent) 30%, transparent);
@@ -169,16 +168,7 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
   -webkit-mask-image: linear-gradient(to top, #000 52%, transparent); mask-image: linear-gradient(to top, #000 52%, transparent);
 }
 .app[data-pill] .tabbar-wrap::before { height: calc(var(--sab) + 182px); }
-.edge-top {
-  position: fixed; left: 0; right: 0; top: 0; height: calc(var(--sat) + 34px); z-index: 30; pointer-events: none; opacity: 0;
-  background: linear-gradient(to bottom, color-mix(in srgb, var(--bg) 72%, transparent) 35%, transparent);
-  -webkit-backdrop-filter: blur(14px) saturate(1.4); backdrop-filter: blur(14px) saturate(1.4);
-  -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent); mask-image: linear-gradient(to bottom, #000 55%, transparent);
-  transition: opacity 260ms var(--ease-out);
-}
-.app[data-scrolled] .edge-top { opacity: 1; }
-/* under a pop-up the bands sit beneath its dim: no point re-blurring them while the page steps back */
-.app[data-calm] .edge-top, .app[data-calm] .tabbar-wrap::before { -webkit-backdrop-filter: none; backdrop-filter: none; }
+.app[data-calm] .tabbar-wrap::before { -webkit-backdrop-filter: none; backdrop-filter: none; }
 .screen > * + * { margin-top: 22px; }
 /* every screen's blocks rise in, blurred → sharp, one after another */
 /* every screen's blocks rise in, one after another (a screen, or the part of one that is swapped: .subpage) */

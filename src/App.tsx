@@ -200,22 +200,6 @@ function useCalm(): boolean {
   return calm || open;
 }
 
-/** Marks the app as scrolled while the visible page is scrolled away from its top (the top edge then frosts). */
-function useScrollEdge(app: React.RefObject<HTMLDivElement | null>, tab: string) {
-  useEffect(() => {
-    const el = app.current; if (!el) return;
-    let on = false;
-    const set = (v: boolean) => { if (v !== on) { on = v; if (v) el.dataset.scrolled = ''; else delete el.dataset.scrolled; } };
-    const visible = () => [...el.querySelectorAll<HTMLElement>('.stage .screen')].find((s) => s.offsetParent !== null);
-    const onScroll = (e: Event) => { const t = e.target as HTMLElement; if (t?.classList?.contains('screen') && t === visible()) set(t.scrollTop > 6); };
-    document.addEventListener('scroll', onScroll, { capture: true, passive: true });
-    const check = () => { const s = visible(); set(!!s && s.scrollTop > 6); };
-    check();
-    const id = setTimeout(check, 450); // after a tab switch, once the old page has slid away
-    return () => { clearTimeout(id); document.removeEventListener('scroll', onScroll, { capture: true } as never); };
-  }, [app, tab]);
-}
-
 export function App() {
   useTheme();
   useKeyboard();
@@ -236,7 +220,6 @@ export function App() {
   const pill = useStore((s) => !!s.active) && tab !== 'today';
   const onboarded = useStore((s) => s.settings.onboarded);
   const calm = useCalm();
-  useScrollEdge(appRef, tab);
   const push = useUI((s) => s.push);
   const asked = useRef(false);
   useEffect(() => {
@@ -267,8 +250,6 @@ export function App() {
           <AnimatePresence mode="popLayout" initial={false} custom={dir}>
             <TabPane key={tab} hue={tab} dir={dir}><Screen /></TabPane>
           </AnimatePresence>
-          {/* scroll edges: a frosted band under the status bar (only once the page has scrolled under it) */}
-          <div className="edge-top" aria-hidden />
           <TabBar />
           </div>
           <Overlays />
