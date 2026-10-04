@@ -389,6 +389,8 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 
 /* Coach replies: each new word inks in — blurred and lifted, glowing in the accent, then settling into the text colour.
    Only new words mount, so nothing already read re-animates; words that arrive together cascade. */
+.hint-rot { display: inline-block; animation: hintIn 900ms var(--ease-out) both; }
+@keyframes hintIn { from { opacity: 0; transform: translate3d(0, 6px, 0); } to { opacity: 1; transform: none; } }
 .w { display: inline-block; animation: wordIn 760ms var(--ease-out) backwards; }
 @keyframes wordIn {
   0% { opacity: 0; transform: translateY(6px) scale(0.96); color: var(--ac-text); text-shadow: 0 0 18px color-mix(in srgb, var(--ac) 70%, transparent); }

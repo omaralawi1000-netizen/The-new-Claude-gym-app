@@ -16,7 +16,7 @@ import { speak, stopSpeaking, onSpeaking, FALLBACK_TTS } from '../lib/tts';
 import { exerciseNames, mapRoutineItems, profileLine } from '../lib/coachContext';
 import { decide, agentModels } from '../lib/agentTurn';
 import { BOUNCY } from '../ui/motion';
-import { ActionCard, Rich, Thinking, sttMessage } from '../ui/agentUi';
+import { ActionCard, Rich, Thinking, sttMessage, useSuggestions } from '../ui/agentUi';
 import { runActions, type AgentResult } from '../lib/agent';
 import type { RoutineDraft } from '../lib/aiValidate';
 import { uid } from '../lib/nutrition';
@@ -214,7 +214,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   };
 
   const noKey = !ai.hasGemini;
-  const chips = [t('Log a banana'), t('Bench press 80 kg for 8, 8, 6'), t('How is my week going?'), t('How do I change the theme?')];
+  const chips = useSuggestions(6);
   const nameOf = (id: string) => pool.find((e) => e.id === id)?.name ?? id;
 
   return (

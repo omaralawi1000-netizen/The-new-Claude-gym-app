@@ -39,6 +39,9 @@ await p.route('https://generativelanguage.googleapis.com/**', async (r) => {
     calls.lastSystem = body.systemInstruction?.parts?.[0]?.text ?? '';
     const out = (o) => r.fulfill(cand(o));
     if (/zzzxq/i.test(last)) return out({ reply: '', actions: [{ type: 'log_food', foods: [{ name: 'skyr', amount: 200, unit: 'g' }, { name: 'banana', amount: 1, unit: 'piece' }, { name: 'zzzxq', amount: 1, unit: 'piece' }] }] });
+    if (/make that last bench set/i.test(last)) return out({ reply: '', actions: [{ type: 'edit_set', exercise: 'bench press', kg: 90 }] });
+    if (/swap bench for incline/i.test(last)) return out({ reply: '', actions: [{ type: 'replace_exercise', from: 'bench press', to: 'Incline Dumbbell Press' }] });
+    if (/move the skyr to dinner/i.test(last)) return out({ reply: '', actions: [{ type: 'move_food', target: 'skyr', meal_to: 'dinner', day: 'today' }] });
     if (/bench/i.test(last)) return out({ reply: 'Nice, steady work.', actions: [{ type: 'log_sets', exercises: [{ exercise: 'Barbell Bench Press', sets: [{ kg: 100, reps: 8 }, { kg: 100, reps: 8 }, { kg: 100, reps: 6 }] }] }] });
     if (/light mode/i.test(last)) return out({ reply: '', actions: [{ type: 'set_setting', key: 'theme', value: 'light' }] });
     if (/how do i change the theme/i.test(last)) return out({ reply: 'Settings → Appearance → Theme. Or say the word and I will switch it.', actions: [] });
@@ -127,6 +130,15 @@ await p.getByLabel('Message the Coach').fill('bench press 100 kilos for 8, 8 and
 assert(await p.getByText('Logged 3 sets').isVisible(), 'sets logged from a sentence');
 const st1 = await p.evaluate(() => JSON.parse(localStorage.getItem('aven.v1') || '{}').active);
 assert(st1 && st1.exercises.length === 1, 'a workout was started for them');
+await p.getByLabel('Message the Coach').fill('make that last bench set 90'); await p.getByRole('button', { name: 'Send', exact: true }).click(); await wait(p, 1800);
+assert(await p.getByText('Set corrected').isVisible(), 'a set was corrected by voice');
+const st1b = await p.evaluate(() => JSON.parse(localStorage.getItem('aven.v1') || '{}').active);
+assert.equal(st1b.exercises[0].sets.filter((q) => q.done).pop().weightKg, 90, 'the last set is now 90 kg');
+await p.getByLabel('Message the Coach').fill('swap bench for incline'); await p.getByRole('button', { name: 'Send', exact: true }).click(); await wait(p, 1800);
+assert(await p.getByText('Exercise swapped').isVisible(), 'an exercise was swapped in the running workout');
+await p.getByLabel('Message the Coach').fill('move the skyr to dinner'); await p.getByRole('button', { name: 'Send', exact: true }).click(); await wait(p, 1800);
+assert(await p.getByText(/Moved to Dinner/).isVisible(), 'a logged food was moved to another meal');
+await p.screenshot({ path: 'shots/ai-9-edits.png' });
 await p.getByLabel('Message the Coach').fill('undo that'); await p.getByRole('button', { name: 'Send', exact: true }).click(); await wait(p, 1800);
 assert(await p.getByText('Undone', { exact: true }).first().isVisible(), 'undo by voice/text');
 await p.getByLabel('Message the Coach').fill('switch to light mode'); await p.getByRole('button', { name: 'Send', exact: true }).click(); await wait(p, 1800);

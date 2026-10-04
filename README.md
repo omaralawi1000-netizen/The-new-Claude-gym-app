@@ -140,6 +140,17 @@ Run in headless Chromium (Playwright, 390×844 @2×, dark + light), scripts in `
 - **Not built (on purpose, stated in-app):** cloud sync / accounts; photo-based food estimation; automatic AI changes to your data (the Coach advises; routines and estimates only appear after you confirm; progression suggestions remain transparent rules); background reminders when the app is closed (web apps need a push server — reminders fire only while Aven runs; in-app nudge otherwise); animated exercise demonstrations (there is an authored muscle diagram and step-by-step text instead).
 - Exercise calories are **never** added to food targets.
 
+## The orb knows the whole app
+
+The orb and the Coach can now do by voice or text what you can do by hand — each change a card with Undo, and every value checked by the app before it is applied (the model only proposes):
+- **Food**: move a food or a whole meal to another meal or day ("move the chicken from dinner to lunch"), copy a meal/day, **replace** one food with another (same meal, same day, same amount unless you say otherwise), correct amount / meal / calories per 100 g, remove a food, a meal or a whole day, create your own food (and log it in the same breath), favourite a food, save a meal, water, weight, day notes. Any day ("yesterday", or a date).
+- **Training**: correct or delete a set — in the running workout or a finished one ("make the last bench set 85"), add / remove / swap exercises in the running workout, build a routine from scratch, edit one (rename, add, remove, change sets and reps, swap an exercise), delete one, put a routine on a weekday or make it a rest day, delete a past workout or activity, discard the running workout (one tap to confirm), finish it (one tap).
+- **Talk about it**: it can see today's and the last six days' food (with amounts and label values), the running workout with numbered sets, the last six workouts in full, your best sets on the most-trained lifts, routines, the weekly plan, saved meals and your own foods, recent weigh-ins — so "how did Tuesday go?", "is my bench going up?", "what should I change in Push day?" are answered from your numbers. It can answer and change something in the same turn.
+- Up to twelve actions per turn ("remove the cola, add a banana to lunch and make bench 85").
+- The examples under the orb and in the Coach are made from your own data ("Move Oats to Lunch", "Put Pull day on Friday"), and the orb screen cycles through them.
+- Result cards got an icon per kind, and long lines wrap instead of being cut off.
+- Not done without a tap: finishing or discarding a workout. Not possible by voice: deleting all data, changing keys, backups.
+
 ## Recordings pass (4 Oct, evening)
 
 Fixes for what the phone recordings showed:

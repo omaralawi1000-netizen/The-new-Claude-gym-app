@@ -19,7 +19,7 @@ import { mirrorProgress, useEngage } from '../ui/engage';
 import { Veil, VOICE_VEIL, mirrorVeil } from '../ui/Veil';
 import { Icon } from '../ui/Icon';
 import { SOFT, useOverlayZ } from '../ui/Sheet';
-import { ActionCard, Rich, Thinking, sttMessage } from '../ui/agentUi';
+import { ActionCard, RotatingHint, Rich, Thinking, sttMessage } from '../ui/agentUi';
 import { flyLogged } from '../ui/fly';
 
 /** One thing you said and what the assistant did about it. */
@@ -297,7 +297,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
           {!typing && !showing && !thinking && (
             <div className="display display-md" style={{ lineHeight: 1.12, padding: '0 6px', textAlign: 'center' }}>
               {final || interim ? <><span>{final}</span>{interim && <span style={{ color: 'var(--tx3)' }}> {interim}</span>}</>
-                : <span style={{ color: 'var(--tx3)', fontSize: 18, fontStretch: '100%', fontWeight: 560 }}>{listening && engine === 'groq' ? t('Speak naturally. I stop listening when you pause.') : t('“Log a banana” · “Bench 100 kg for 8, 8 and 6” · “How do I change the theme?”')}</span>}
+                : <span style={{ color: 'var(--tx3)', fontSize: 18, fontStretch: '100%', fontWeight: 560 }}>{listening && engine === 'groq' ? t('Speak naturally. I stop listening when you pause.') : <RotatingHint />}</span>}
             </div>
           )}
           {thinking && (

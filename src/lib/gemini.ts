@@ -235,7 +235,8 @@ const noThinking = new Set<string>();
 export interface Turn { role: 'user' | 'model'; parts: { text: string }[] }
 
 // ── the Coach as an agent: one answer = a short reply plus the actions to carry out ──
-const ACTION_TYPES = ['log_food', 'log_water', 'log_weight', 'log_sets', 'log_activity', 'start_workout', 'finish_workout', 'navigate', 'set_setting', 'edit_food', 'delete_food', 'undo_last'];
+const ACTION_TYPES = ['log_food', 'log_water', 'log_weight', 'log_sets', 'log_activity', 'start_workout', 'finish_workout', 'navigate', 'set_setting', 'edit_food', 'delete_food', 'move_food', 'copy_food', 'replace_food', 'create_food', 'favourite_food', 'save_meal', 'edit_set', 'add_exercise', 'remove_exercise', 'replace_exercise', 'create_routine', 'edit_routine', 'delete_routine', 'delete_workout', 'discard_workout', 'set_schedule', 'delete_activity', 'delete_weight', 'add_note', 'undo_last'];
+const BIT = { type: 'ARRAY', nullable: true, items: { type: 'OBJECT', properties: { exercise: { type: 'STRING' }, sets: { type: 'INTEGER', nullable: true }, repMin: { type: 'INTEGER', nullable: true }, repMax: { type: 'INTEGER', nullable: true }, restSec: { type: 'INTEGER', nullable: true } }, required: ['exercise'] } };
 const NUTRI = (d: string) => ({ type: 'OBJECT', nullable: true, description: d, properties: { kcal: { type: 'NUMBER', nullable: true }, protein: { type: 'NUMBER', nullable: true }, carbs: { type: 'NUMBER', nullable: true }, fat: { type: 'NUMBER', nullable: true } } });
 const AGENT_SCHEMA = {
   type: 'OBJECT',
@@ -250,7 +251,10 @@ const AGENT_SCHEMA = {
         state: { type: 'STRING', nullable: true, enum: ['raw', 'cooked', 'dry'] },
       }, required: ['name'] } },
       meal: { type: 'STRING', nullable: true, description: 'meal name if the user said one (breakfast, lunch, dinner, snacks…)' },
-      day: { type: 'STRING', nullable: true, enum: ['today', 'yesterday'] },
+      day: { type: 'STRING', nullable: true, description: 'today, yesterday, or a date YYYY-MM-DD (work it out from "Today" in DATA)' },
+      day_to: { type: 'STRING', nullable: true, description: 'move_food/copy_food: destination day (today, yesterday or YYYY-MM-DD)' },
+      meal_from: { type: 'STRING', nullable: true, description: 'the meal the item is in now (breakfast, lunch, dinner, snacks…)' },
+      meal_to: { type: 'STRING', nullable: true, description: 'move_food/copy_food: destination meal' },
       ml: { type: 'NUMBER', nullable: true }, kg: { type: 'NUMBER', nullable: true },
       exercises: { type: 'ARRAY', nullable: true, items: { type: 'OBJECT', properties: {
         exercise: { type: 'STRING' },
@@ -259,6 +263,14 @@ const AGENT_SCHEMA = {
       kind: { type: 'STRING', nullable: true }, minutes: { type: 'NUMBER', nullable: true }, rounds: { type: 'INTEGER', nullable: true }, intensity: { type: 'INTEGER', nullable: true }, note: { type: 'STRING', nullable: true },
       routine: { type: 'STRING', nullable: true }, screen: { type: 'STRING', nullable: true }, section: { type: 'STRING', nullable: true },
       key: { type: 'STRING', nullable: true }, value: { type: 'STRING', nullable: true },
+      with: { type: 'OBJECT', nullable: true, description: 'replace_food: the food to put in its place', properties: { name: { type: 'STRING' }, brand: { type: 'STRING', nullable: true }, amount: { type: 'NUMBER', nullable: true }, unit: { type: 'STRING', nullable: true, enum: FOOD_UNITS }, state: { type: 'STRING', nullable: true, enum: ['raw', 'cooked', 'dry'] } }, required: ['name'] },
+      name: { type: 'STRING', nullable: true, description: 'create_food / favourite_food / save_meal: the name' },
+      basis: { type: 'STRING', nullable: true, enum: ['g', 'ml'] }, on: { type: 'BOOLEAN', nullable: true },
+      exercise: { type: 'STRING', nullable: true }, workout: { type: 'STRING', nullable: true, description: 'edit_set/delete_workout: current, last, a date YYYY-MM-DD, or a workout name' },
+      set_number: { type: 'INTEGER', nullable: true, description: '1-based set number as listed in DATA' }, reps: { type: 'INTEGER', nullable: true }, delete_set: { type: 'BOOLEAN', nullable: true, description: 'edit_set: true to delete that set' }, remove: { type: 'ARRAY', nullable: true, items: { type: 'STRING' }, description: 'edit_routine: exercise names to take out of the routine' },
+      from: { type: 'STRING', nullable: true }, to: { type: 'STRING', nullable: true },
+      add: BIT, change: BIT, rename: { type: 'STRING', nullable: true },
+      weekday: { type: 'INTEGER', nullable: true, description: '0 = Sunday … 6 = Saturday' }, text: { type: 'STRING', nullable: true },
       target: { type: 'STRING', nullable: true, description: 'edit_food / delete_food: the logged item\'s name exactly as in DATA' },
       amount: { type: 'NUMBER', nullable: true, description: 'edit_food: the corrected amount' }, unit: { type: 'STRING', nullable: true, description: 'edit_food: unit of amount (g, ml, kg, l, piece)' },
       per100: NUTRI('edit_food: corrected label values per 100 g/ml (only the ones the user gave)'),

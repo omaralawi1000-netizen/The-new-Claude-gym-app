@@ -17,9 +17,10 @@ describe('validateAgent: nothing the model says is trusted', () => {
     const v = validateAgent({ reply: 'ok', actions: [
       { type: 'delete_everything' }, { type: 'log_weight', kg: 9999 }, { type: 'log_water', ml: 250 }, { type: 'log_weight', kg: 82.46 },
       { type: 'set_setting', key: 'apiKey', value: 'x' }, { type: 'set_setting', key: 'theme', value: 'light' },
-      { type: 'log_water', ml: 100 }, // a seventh action: more than six per turn is cut off
+      ...Array.from({ length: 14 }, () => ({ type: 'log_water', ml: 100 })), // more than twelve per turn is cut off
     ] })!;
-    expect(v.actions.map((a) => a.type)).toEqual(['log_water', 'log_weight', 'set_setting']);
+    expect(v.actions).toHaveLength(9); // only the first twelve are read, three of those are rejected
+    expect(v.actions.slice(0, 3).map((a) => a.type)).toEqual(['log_water', 'log_weight', 'set_setting']);
     expect((v.actions[1] as any).kg).toBe(82.5);
     const f = validateAgent({ reply: 'x', actions: [{ type: 'log_food', foods: Array.from({ length: 30 }, (_, i) => ({ name: `f${i}`, amount: i === 0 ? -5 : 100, unit: 'g' })) }] })!.actions[0] as any;
     expect(f.foods).toHaveLength(14);
@@ -131,5 +132,88 @@ describe('corrections: the assistant can fix or remove a logged food', () => {
     const [r] = await runActions([{ type: 'delete_food', target: 'pizza' }], ctx());
     expect(r.kind).toBe('miss');
     expect(validateAgent({ reply: 'x', actions: [{ type: 'edit_food', target: 'skyr' }] })!.actions).toEqual([]);
+  });
+});
+
+describe('the whole app by voice: move, replace, copy, routines, sets, plan', () => {
+  const run = (actions: any[]) => runActions(validateAgent({ reply: 'x', actions })!.actions, ctx());
+  const names = () => useStore.getState().entries.map((e) => `${e.snap.name}@${e.mealId}`);
+  it('moves one food between meals and a whole meal between days, with Undo', async () => {
+    await runActions([{ type: 'log_food', foods: [{ name: 'chicken breast', amount: 200, unit: 'g' }, { name: 'rice', amount: 150, unit: 'g' }], meal: 'dinner', day: null }], ctx());
+    expect(names().every((n) => n.endsWith('@dinner'))).toBe(true);
+    const [m] = await run([{ type: 'move_food', target: 'chicken', meal_from: 'dinner', meal_to: 'lunch' }]);
+    expect(names().filter((n) => n.endsWith('@lunch'))).toHaveLength(1);
+    expect(m.title).toContain('Lunch');
+    m.undo!();
+    expect(names().every((n) => n.endsWith('@dinner'))).toBe(true);
+    const [w] = await run([{ type: 'move_food', meal_from: 'dinner', day_to: 'yesterday' }]);
+    expect(useStore.getState().entries.every((e) => e.date === '2026-09-30')).toBe(true);
+    w.undo!();
+    expect(useStore.getState().entries.every((e) => e.date === '2026-10-01')).toBe(true);
+  });
+  it('copies, replaces (same amount) and clears a meal', async () => {
+    await runActions([{ type: 'log_food', foods: [{ name: 'rice', amount: 150, unit: 'g' }], meal: 'dinner', day: null }], ctx());
+    await run([{ type: 'copy_food', meal_from: 'dinner', meal_to: 'lunch' }]);
+    expect(useStore.getState().entries).toHaveLength(2);
+    const [r] = await run([{ type: 'replace_food', target: 'rice', meal_from: 'lunch', with: { name: 'potato' } }]);
+    expect(r.title).toBe('Replaced');
+    const lunch = useStore.getState().entries.filter((e) => e.mealId === 'lunch');
+    expect(lunch).toHaveLength(1);
+    expect(lunch[0].snap.name.toLowerCase()).toContain('potato');
+    expect(Math.round(lunch[0].base)).toBe(150);
+    r.undo!();
+    expect(useStore.getState().entries.filter((e) => e.mealId === 'lunch')[0].snap.name.toLowerCase()).toContain('rice');
+    const [c] = await run([{ type: 'delete_food', meal: 'lunch' }]);
+    expect(useStore.getState().entries.filter((e) => e.mealId === 'lunch')).toHaveLength(0);
+    c.undo!();
+    expect(useStore.getState().entries.filter((e) => e.mealId === 'lunch')).toHaveLength(1);
+  });
+  it('builds, edits and deletes a routine, and puts it on a weekday', async () => {
+    const [c] = await run([{ type: 'create_routine', name: 'Test push', add: [{ exercise: 'Barbell Bench Press', sets: 4, repMin: 6, repMax: 8 }, { exercise: 'Overhead Press', sets: 3, repMin: 8, repMax: 10 }, { exercise: 'Unicorn Curl', sets: 3 }] }]);
+    const r = useStore.getState().routines.find((x) => x.name === 'Test push')!;
+    expect(r.items).toHaveLength(2);
+    expect(c.lines.some((l) => l.warn)).toBe(true); // the unknown exercise is reported, not invented
+    await run([{ type: 'edit_routine', routine: 'test push', add: [{ exercise: 'Dip', sets: 3, repMin: 8, repMax: 12 }], remove: ['overhead press'], change: [{ exercise: 'bench press', sets: 5 }] }]);
+    const r2 = useStore.getState().routines.find((x) => x.id === r.id)!;
+    expect(r2.items).toHaveLength(2);
+    expect(r2.items.find((i) => i.workingSets === 5)).toBeTruthy();
+    const [s] = await run([{ type: 'set_schedule', weekday: 3, routine: 'Test push' }]);
+    expect(useStore.getState().schedule.weekly[3]).toBe(r.id);
+    s.undo!();
+    expect(useStore.getState().schedule.weekly[3] ?? null).not.toBe(r.id);
+    const [d] = await run([{ type: 'delete_routine', routine: 'Test push' }]);
+    expect(useStore.getState().routines.find((x) => x.id === r.id)).toBeUndefined();
+    d.undo!();
+    expect(useStore.getState().routines.find((x) => x.id === r.id)).toBeTruthy();
+  });
+  it('edits a set in the running workout, adds and swaps exercises, with Undo', async () => {
+    await runActions([{ type: 'log_sets', exercises: [{ exercise: 'bench press', sets: [{ kg: 80, reps: 8 }, { kg: 80, reps: 8 }] }] }], ctx());
+    const sets = () => useStore.getState().active!.exercises[0].sets.filter((q) => q.done);
+    const [e] = await run([{ type: 'edit_set', exercise: 'bench', set_number: 2, kg: 85, reps: 6 }]);
+    expect(sets()[1].weightKg).toBe(85); expect(sets()[1].reps).toBe(6);
+    e.undo!(); expect(sets()[1].weightKg).toBe(80);
+    const [a] = await run([{ type: 'add_exercise', exercises: ['Lat Pulldown'] }]);
+    expect(useStore.getState().active!.exercises).toHaveLength(2);
+    const [sw] = await run([{ type: 'replace_exercise', from: 'lat pulldown', to: 'Pull-up' }]);
+    expect(sw.title).toBe('Exercise swapped');
+    sw.undo!(); a.undo!();
+    expect(useStore.getState().active!.exercises).toHaveLength(1);
+    const [rm] = await run([{ type: 'edit_set', exercise: 'bench', set_number: 1, delete_set: true }]);
+    expect(sets()).toHaveLength(1);
+    rm.undo!(); expect(sets()).toHaveLength(2);
+  });
+  it('creates a food of its own and logs it in one go', async () => {
+    const [r] = await run([{ type: 'create_food', name: 'Mums protein bar', basis: 'g', per100: { kcal: 380, protein: 30, carbs: 35, fat: 12 }, amount: 50, unit: 'g', meal: 'snacks' }]);
+    expect(r.title).toBe('Saved and logged');
+    expect(useStore.getState().foods.some((f) => f.name === 'Mums protein bar')).toBe(true);
+    expect(Math.round(useStore.getState().entries[0].nutrients.kcal ?? 0)).toBe(190);
+    r.undo!();
+    expect(useStore.getState().entries).toHaveLength(0);
+    expect(useStore.getState().foods.some((f) => f.name === 'Mums protein bar')).toBe(false);
+  });
+  it('rejects nonsense and says so when it cannot find the thing', async () => {
+    expect(validateAgent({ reply: 'x', actions: [{ type: 'move_food', target: 'x' }, { type: 'edit_set', exercise: 'bench' }, { type: 'set_schedule', weekday: 9 }, { type: 'create_routine', name: 'x', add: [] }] })!.actions).toEqual([]);
+    const [m] = await run([{ type: 'move_food', target: 'pizza', meal_to: 'lunch' }]);
+    expect(m.kind).toBe('miss');
   });
 });
