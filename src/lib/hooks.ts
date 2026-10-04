@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../state/store';
 
 export function useNow(ms = 500, enabled = true): number {
@@ -28,4 +28,21 @@ export function restEndedCue() {
     o.start(t0); o.stop(t0 + 0.45);
     o.onended = () => ctx.close().catch(() => {});
   } catch { /* ignore */ }
+}
+
+/**
+ * Long lists in a popup: the first rows are drawn at once, the rest follow in small batches while the popup's opening
+ * slide runs (and stop being a problem for the main thread, which a 200-row list mounted in one go was). A new list
+ * (a search, a filter) starts again from the first rows.
+ */
+export function useProgressive<T>(items: T[], first = 14, step = 30): T[] {
+  const [n, setN] = useState(first);
+  const last = useRef(items);
+  if (last.current !== items) { last.current = items; if (n !== first) setN(first); }
+  useEffect(() => {
+    if (n >= items.length) return;
+    const id = setTimeout(() => setN((v) => v + step), n === first ? 380 : 90); // the first batch waits for the slide
+    return () => clearTimeout(id);
+  }, [n, items, first, step]);
+  return n >= items.length ? items : items.slice(0, n);
 }

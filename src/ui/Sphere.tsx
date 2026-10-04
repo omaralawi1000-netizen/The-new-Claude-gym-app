@@ -178,14 +178,22 @@ export function SphereStage() {
     // what can move a slot: scrolling anywhere, resizing, the keyboard, any React update (DOM or style/class change), a
     // finger on the screen. Each opens a short window in which boxes are re-measured every frame.
     const dirty = () => markOrbLayoutDirty();
-    const lmo = new MutationObserver(dirty);
+    // A popup's own motion (its transform, the dim and blur fading, the page stepping back) rewrites a style attribute every
+    // frame. None of that can move a slot — the popup's displacement is read separately (`shift`) — but each one used to
+    // open the "re-measure every frame" window, so every frame of every popup forced a full style + layout pass.
+    const MOVING = '.sheet, .scrim, .scrim > i, .stage, .wk-card, .wk-sheet, .fields, .aurora';
+    const lmo = new MutationObserver((recs) => {
+      for (const r of recs) if (r.type !== 'attributes' || !(r.target as Element).matches?.(MOVING)) { dirty(); return; }
+    });
     if (appEl) lmo.observe(appEl, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class', 'data-active', 'hidden'] });
     window.addEventListener('scroll', dirty, { capture: true, passive: true });
     window.addEventListener('resize', dirty);
     window.visualViewport?.addEventListener('resize', dirty);
     window.addEventListener('pointermove', dirty, { passive: true });
     window.addEventListener('pointerdown', dirty, { passive: true });
-    const offUi = useUI.subscribe((a, b) => { if (a.tab !== b.tab || a.overlays !== b.overlays) dirty(); });
+    // a tab change re-lays the dock out over a spring; a popup arriving or leaving moves no slot outside itself (its own slot
+    // is measured every frame while it travels), so that only needs the one measurement
+    const offUi = useUI.subscribe((a, b) => { if (a.tab !== b.tab) dirty(); else if (a.overlays !== b.overlays) markOrbLayoutDirty(60); });
     const offKb = kb.on('change', dirty);
     document.fonts?.addEventListener?.('loadingdone', dirty); // a web font arriving re-flows text
     window.addEventListener('load', dirty, true);              // an image arriving can too

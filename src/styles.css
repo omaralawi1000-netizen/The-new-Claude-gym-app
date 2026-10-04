@@ -106,6 +106,12 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
 /* the colour field: three slow lights + fine grain (grain also kills gradient banding) */
 .aurora { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; contain: strict;
   -webkit-mask-image: linear-gradient(to bottom, transparent 0, transparent calc(var(--sat) + 2px), #000 calc(var(--sat) + 130px)); mask-image: linear-gradient(to bottom, transparent 0, transparent calc(var(--sat) + 2px), #000 calc(var(--sat) + 130px)); }
+/* paused while a pop-up is up (see useCalm in App.tsx) */
+.app[data-calm] .aurora i { animation-play-state: paused; }
+/* The page behind a pop-up recedes (scales) every frame, which makes every frosted card on it re-blur every frame — a dozen
+   full-screen-sized blurs on top of the pop-up's own. Over a soft colour field the frost is all but invisible (measured: the
+   two look the same), and the pop-up's dim and blur cover it anyway, so it is switched off while a pop-up is up. The dock keeps its. */
+.app[data-calm] .screen, .app[data-calm] .screen * { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
 /* inside a full-screen overlay: sits under its content but over its background */
 .aurora.in { z-index: -1; }
 .aurora i { position: absolute; border-radius: 50%; opacity: var(--aurora-a); will-change: transform; animation-delay: var(--drift-t, 0s) !important; }

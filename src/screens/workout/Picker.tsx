@@ -6,6 +6,7 @@ import { useT, useLang } from '../../lib/i18n';
 import type { Equipment, Exercise, LogType, MuscleGroup, Movement } from '../../lib/types';
 import { MUSCLES, EQUIPMENT, MOVEMENTS } from '../../data/exercises';
 import { matchExercises } from '../../lib/workoutText';
+import { useProgressive } from '../../lib/hooks';
 import { Icon } from '../../ui/Icon';
 import { Seg } from '../../ui/kit';
 import { Sheet, SheetHead, SOFT } from '../../ui/Sheet';
@@ -42,6 +43,7 @@ export function ExercisePicker({ props }: { props: PickerProps }) {
     return l;
   }, [q, muscle, equip, move, mine, all, lang, access]);
 
+  const shown = useProgressive(list);
   const subs = props.mode === 'replace' && props.forExercise ? substitutesFor(props.forExercise, all, access).slice(0, 4) : [];
 
   const choose = (e: Exercise) => {
@@ -90,7 +92,7 @@ export function ExercisePicker({ props }: { props: PickerProps }) {
           </div>
         )}
         <div className="micro" style={{ margin: '6px 0' }}>{list.length} {list.length === 1 ? t('exercise') : t('exercises')}</div>
-        <div className="list">{list.map((e) => <Row key={e.id} e={e} lang={lang} t={t} sel={sel.includes(e.id)} single={single} onClick={() => choose(e)} onInfo={() => push('exercise', { id: e.id })} />)}</div>
+        <div className="list">{shown.map((e) => <Row key={e.id} e={e} lang={lang} t={t} sel={sel.includes(e.id)} single={single} onClick={() => choose(e)} onInfo={() => push('exercise', { id: e.id })} />)}</div>
         {list.length === 0 && (
           <div className="empty"><div className="display display-sm">{t('No exercise found')}</div><div className="small" style={{ margin: '6px auto 14px', maxWidth: 260 }}>{t('Create it once and it stays in your library.')}</div>
             <button className="btn primary press" onClick={() => push('exerciseEditor', { name: q, onSaved: (id: string) => choose(useStore.getState().exercises.find((x) => x.id === id)!) })}><Icon name="plus" size={18} /> {t('Create exercise')}</button></div>

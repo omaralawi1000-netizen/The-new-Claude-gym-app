@@ -13,6 +13,7 @@ import { exName, MUSCLE_LABEL } from './workout/common';
 import { estMinutes } from './Today';
 import { ACTIVITY_LABEL, activityIcon, activityLine } from '../lib/activity';
 import { matchExercises } from '../lib/workoutText';
+import { useProgressive } from '../lib/hooks';
 import { MUSCLES } from '../data/exercises';
 import type { MuscleGroup, Routine } from '../lib/types';
 import { SOFT } from '../ui/Sheet';
@@ -149,6 +150,7 @@ function LibraryTab() {
     if (m) l = l.filter((e) => e.muscles.includes(m));
     return l;
   }, [q, m, all, lang]);
+  const shown = useProgressive(list);
   return (
     <>
       <div>
@@ -159,7 +161,7 @@ function LibraryTab() {
         <div className="chips" style={{ marginTop: 12 }}>{MUSCLES.map((x) => <button key={x} className={`chip sm press ${m === x ? 'on' : ''}`} onClick={() => setM(m === x ? null : x)}>{t(MUSCLE_LABEL[x])}</button>)}</div>
       </div>
       <div className="list">
-        {list.map((e) => (
+        {shown.map((e) => (
           <button key={e.id} className="li press" onClick={() => push('exercise', { id: e.id })}>
             <div className="grow" style={{ textAlign: 'left', minWidth: 0 }}><div className="li-title trunc">{exName(e, lang)}{e.custom && <span className="chip sm acc" style={{ marginLeft: 8, height: 20 }}>{t('Custom')}</span>}</div><div className="li-sub trunc">{e.muscles.slice(0, 2).map((x) => t(MUSCLE_LABEL[x])).join(' · ')}</div></div><Icon name="chevR" size={16} style={{ color: 'var(--tx3)' }} />
           </button>

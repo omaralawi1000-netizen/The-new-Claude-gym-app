@@ -105,7 +105,7 @@ export function FoodSearch({ props }: { props: { date: string; mealId: string } 
       <div style={{ padding: '0 20px 10px' }}>
         <div style={{ position: 'relative' }}>
           <Icon name="search" size={18} style={{ position: 'absolute', left: 14, top: 15, color: 'var(--tx3)' }} />
-          <input ref={inputRef} className="input" style={{ paddingLeft: 42, paddingRight: 42 }} placeholder={t('Search foods and brands')} value={q} onChange={(e) => setQ(e.target.value)} autoFocus enterKeyHint="search" aria-label={t('Search foods and brands')} />
+          <input ref={inputRef} className="input" style={{ paddingLeft: 42, paddingRight: 42 }} placeholder={t('Search foods and brands')} value={q} onChange={(e) => setQ(e.target.value)} enterKeyHint="search" aria-label={t('Search foods and brands')} />
           {q && <button className="icon-btn flat sm" style={{ position: 'absolute', right: 6, top: 7 }} aria-label={t('Clear')} onClick={() => { setQ(''); inputRef.current?.focus(); }}><Icon name="close" size={16} /></button>}
         </div>
         <div className="chips" style={{ marginTop: 12 }}>

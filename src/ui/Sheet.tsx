@@ -1,5 +1,5 @@
 import { AnimatePresence, animate, motion, useMotionValue, usePresence, useReducedMotion, useTransform } from 'motion/react';
-import { createContext, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { EngageContext, Mirror, mirrorProgress, mirrorStage, trackDepth } from './engage';
 import { Veil, mirrorVeil } from './Veil';
 import { availableHeight, dropKeyboard, kb } from './keyboard';
@@ -78,6 +78,17 @@ export function Sheet({ children, onClose, tall, label, foot, z: zProp = 60, nes
     const ro = new ResizeObserver(measure); ro.observe(el);
     return () => ro.disconnect();
   }, []);
+  // A full-height sheet's contents (a long list, a form) are put in the page two frames after the slide has started, not
+  // before it: building them used to hold up the very first frame, which read as the popup hesitating before it moved. By then
+  // the sheet is still almost entirely off screen, and the contents fade up a beat later anyway. Its height does not depend on
+  // them (it is full height), so nothing jumps.
+  const [ready, setReady] = useState(!tall || !!reduce);
+  useLayoutEffect(() => {
+    if (ready) return;
+    let a = requestAnimationFrame(() => { a = requestAnimationFrame(() => setReady(true)); });
+    return () => cancelAnimationFrame(a);
+    // eslint-disable-next-line
+  }, []);
   // started before the first paint, so the browser-run half is already going while the sheet's content finishes setting up
   useLayoutEffect(() => {
     const c = animate(p, 1, reduce ? { duration: 0.01 } : SPRING);
@@ -119,8 +130,8 @@ export function Sheet({ children, onClose, tall, label, foot, z: zProp = 60, nes
         role="dialog" aria-modal="true" aria-label={label}
       >
         <div className="sheet-grab" />
-        {children}
-        {foot && <div className="sheet-foot">{foot}</div>}
+        {ready && children}
+        {ready && foot && <div className="sheet-foot">{foot}</div>}
       </motion.div>
     </EngageContext.Provider>
   );
