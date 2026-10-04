@@ -24,16 +24,16 @@ const EASE = [0.22, 1, 0.36, 1] as const;
 // Moving between Settings pages works like iOS: the page you leave steps aside and fades out quickly, then the next one glides
 // in from the side on Apple's spring. The new one starts a beat later, so the two never show as a double image (the titles
 // used to overlap into things like "Settings & locale"). Whole transforms, so the browser runs them on its compositor.
-const PUSH = apple(0.5);
+const PUSH = apple(0.55); // same glide as pages inside any sheet (ui/Sheet.tsx)
 const OUT = { duration: 0.14, ease: [0.4, 0, 1, 1] as const };
 const PAGE = {
   enter: (d: number) => ({ opacity: 0, transform: `translateX(${d * 44}px)` }),
-  center: { opacity: 1, transform: 'translateX(0px)', transitionEnd: { transform: 'none' }, transition: { transform: { ...PUSH, delay: 0.07 }, opacity: { duration: 0.24, ease: EASE, delay: 0.07 } } },
+  center: { opacity: 1, transform: 'translateX(0px)', transitionEnd: { transform: 'none' }, transition: { transform: { ...PUSH, delay: 0.1 }, opacity: { duration: 0.2, ease: EASE, delay: 0.1 } } },
   exit: (d: number) => ({ opacity: 0, transform: `translateX(${d * -28}px)`, transition: OUT }),
 };
 const TITLE = {
   enter: (d: number) => ({ opacity: 0, transform: `translateX(${d * 22}px)` }),
-  center: { opacity: 1, transform: 'translateX(0px)', transitionEnd: { transform: 'none' }, transition: { transform: { ...PUSH, delay: 0.08 }, opacity: { duration: 0.22, ease: EASE, delay: 0.08 } } },
+  center: { opacity: 1, transform: 'translateX(0px)', transitionEnd: { transform: 'none' }, transition: { transform: { ...PUSH, delay: 0.1 }, opacity: { duration: 0.22, ease: EASE, delay: 0.1 } } },
   exit: (d: number) => ({ opacity: 0, transform: `translateX(${d * -14}px)`, transition: { duration: 0.11, ease: [0.4, 0, 1, 1] as const } }),
 };
 

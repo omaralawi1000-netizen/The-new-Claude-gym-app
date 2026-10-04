@@ -470,7 +470,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-solid { position: absolute; inset: 0; background: var(--bg); }
 
 /* Settings pages: once a page has glided in, its rows and fields settle in one after another (transform + opacity only) */
-.settings-page > *, .settings-page > .stack > *, .settings-page .list > * { animation: rise-soft 520ms var(--ease-out) backwards; animation-delay: calc(60ms + var(--j, 0) * 32ms); }
+.settings-page > *, .settings-page > .stack > *, .settings-page .list > * { animation: rise-soft 520ms var(--ease-out) backwards; animation-delay: calc(110ms + var(--j, 0) * 32ms); }
 .settings-page :is(.list, .stack) > :nth-child(1), .settings-page > :nth-child(1) { --j: 0; }
 .settings-page :is(.list, .stack) > :nth-child(2), .settings-page > :nth-child(2) { --j: 1; }
 .settings-page :is(.list, .stack) > :nth-child(3), .settings-page > :nth-child(3) { --j: 2; }
@@ -480,6 +480,24 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .settings-page > .list, .settings-page > .stack { animation: none; }
 @keyframes rise-soft { from { opacity: 0; transform: translate3d(0, 10px, 0); } to { opacity: 1; transform: none; } }
 :root[data-motion='reduce'] .settings-page * { animation: none !important; }
+/* In-sheet pages (Sheet.tsx): like Settings — once the page starts gliding in, its title, then each card, field and list row
+   settle in one after another. Only the first ten of each level animate (the rest start off screen), delays are capped, and
+   Settings' own pages keep their own choreography. */
+.page-rise :is(.sheet-body, .sheet-body > .list, .sheet-body > .stack) > :nth-child(1) { --k: 1; }
+.page-rise :is(.sheet-body, .sheet-body > .list, .sheet-body > .stack) > :nth-child(2) { --k: 2; }
+.page-rise :is(.sheet-body, .sheet-body > .list, .sheet-body > .stack) > :nth-child(3) { --k: 3; }
+.page-rise :is(.sheet-body, .sheet-body > .list, .sheet-body > .stack) > :nth-child(4) { --k: 4; }
+.page-rise :is(.sheet-body, .sheet-body > .list, .sheet-body > .stack) > :nth-child(5) { --k: 5; }
+.page-rise :is(.sheet-body, .sheet-body > .list, .sheet-body > .stack) > :nth-child(6) { --k: 6; }
+.page-rise :is(.sheet-body, .sheet-body > .list, .sheet-body > .stack) > :nth-child(7) { --k: 7; }
+.page-rise :is(.sheet-body, .sheet-body > .list, .sheet-body > .stack) > :nth-child(n+8) { --k: 8; }
+.page-rise > .sheet-body > * { --base: var(--k); }
+.page-rise > .sheet-head { animation: page-title 520ms var(--ease-out) backwards; animation-delay: 100ms; }
+.page-rise > .sheet-body > :not(.list, .stack, .settings-page):nth-child(-n+10) { animation: rise-soft 560ms var(--ease-out) backwards; animation-delay: calc(110ms + min(var(--k), 8) * 34ms); }
+.page-rise > .sheet-body > :is(.list, .stack):nth-child(-n+10) > :nth-child(-n+10) { animation: rise-soft 560ms var(--ease-out) backwards; animation-delay: calc(110ms + min(var(--base) + var(--k) - 1, 9) * 34ms); }
+.page-rise > .sheet-foot { animation: rise-soft 560ms var(--ease-out) backwards; animation-delay: 210ms; }
+@keyframes page-title { from { opacity: 0; transform: translate3d(var(--title-dx, 14px), 0, 0); } to { opacity: 1; transform: none; } }
+:root[data-motion='reduce'] .page-rise * { animation: none !important; }
 /* a veil inside its own overlay (the orb screen) rather than a page-level one */
 .scrim.veil-abs { position: absolute; }
 

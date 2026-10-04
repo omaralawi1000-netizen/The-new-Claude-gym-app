@@ -22,16 +22,28 @@ function group(ov: { id: string; page?: boolean }[], i: number) {
   let hi = i; while (ov[hi + 1]?.page) hi++;
   return { lo, hi };
 }
-// moving between pages: the one you leave steps aside and fades quickly, the next one glides in a beat later, so the two never
-// sit on top of each other as a double image (what the Settings titles did). Browser-run, so it is drawn at the full refresh rate.
-const PAGE_IN = springCurve(apple(0.5));
+// Moving between pages, choreographed like Settings: the page you leave steps aside and fades quickly (it is gone before the
+// next one shows, so there is never a double image); the next glides in on Apple's spring, and its blocks — title, then each
+// card, field and row in turn — settle into place one after another (.page-rise in styles.css). Back plays it the other way.
+// All of it is browser-run (Web Animations + CSS animations on transform/opacity), so it is drawn at the full refresh rate.
+const PAGE_IN = springCurve(apple(0.55));
 const PAGE_EASE_OUT = 'cubic-bezier(0.4, 0, 1, 1)';
+const PAGE_DELAY = 100; // the outgoing page is ~80% faded by then
 function pageOut(el: HTMLElement, dx: number) {
-  return el.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: `translate3d(${dx}px, 0, 0)` }], { duration: 150, easing: PAGE_EASE_OUT, fill: 'forwards' });
+  return el.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: `translate3d(${dx}px, 0, 0)` }], { duration: 140, easing: PAGE_EASE_OUT, fill: 'forwards' });
+}
+const riseTimers = new WeakMap<HTMLElement, ReturnType<typeof setTimeout>>();
+function rise(el: HTMLElement) {
+  clearTimeout(riseTimers.get(el));
+  el.classList.remove('page-rise'); void el.offsetWidth; // restart the blocks' animations
+  el.classList.add('page-rise');
+  riseTimers.set(el, setTimeout(() => el.classList.remove('page-rise'), 1200));
 }
 function pageIn(el: HTMLElement, dx: number) {
-  const a = el.animate([{ transform: `translate3d(${dx}px, 0, 0)` }, { transform: 'none' }], { duration: PAGE_IN.duration, easing: PAGE_IN.easing, delay: 70, fill: 'backwards' });
-  const b = el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 240, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', delay: 70, fill: 'backwards' });
+  el.style.setProperty('--title-dx', `${Math.sign(dx) * 14}px`); // the title drifts in from the side the page comes from
+  rise(el);
+  const a = el.animate([{ transform: `translate3d(${dx}px, 0, 0)` }, { transform: 'none' }], { duration: PAGE_IN.duration, easing: PAGE_IN.easing, delay: PAGE_DELAY, fill: 'backwards' });
+  const b = el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', delay: PAGE_DELAY, fill: 'backwards' });
   return [a, b];
 }
 /** Steps the content of a sheet (or page) aside while a page covers it, and back when that page goes. */
@@ -45,13 +57,13 @@ function useCovered(ref: React.RefObject<HTMLElement | null>, covered: boolean, 
     el.inert = covered;
     if (covered) {
       if (reduce) { el.style.visibility = 'hidden'; return; }
-      const a = pageOut(el, -28);
+      const a = pageOut(el, -32);
       a.onfinish = () => { el.style.visibility = 'hidden'; };
       anims.current = [a];
     } else {
       el.style.visibility = '';
       if (reduce) return;
-      anims.current = pageIn(el, -28);
+      anims.current = pageIn(el, -32);
     }
   }, [covered]); // eslint-disable-line
 }
@@ -252,7 +264,7 @@ function PageSheet({ children, onClose, tall, label, foot, id }: SheetProps & { 
     const f = document.activeElement as HTMLElement | null;
     if (f && /^(INPUT|TEXTAREA)$/.test(f.tagName)) f.blur(); // a page arrives without the keyboard, like a sheet does
     if (reduce) return;
-    const a = pageIn(el, 44);
+    const a = pageIn(el, 48);
     return () => a.forEach((x) => x.cancel());
     // eslint-disable-next-line
   }, []);
@@ -273,7 +285,7 @@ function PageSheet({ children, onClose, tall, label, foot, id }: SheetProps & { 
     if (!el || reduce) { safeToRemove?.(); return; }
     el.getAnimations().forEach((a) => a.cancel());
     el.inert = true;
-    const a = el.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translate3d(44px, 0, 0)' }], { duration: 170, easing: PAGE_EASE_OUT, fill: 'forwards' });
+    const a = pageOut(el, 40);
     a.onfinish = () => safeToRemove?.();
     // eslint-disable-next-line
   }, [present]);
