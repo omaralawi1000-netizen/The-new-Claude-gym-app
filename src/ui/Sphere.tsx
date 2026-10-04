@@ -219,10 +219,14 @@ export function SphereStage() {
         const sh = sl.engage?.shift?.get() ?? 0;
         if (measure || !r || (e > 0.001 && e < 0.999) || sh !== shifts.get(sl.el)) { r = sl.el.getBoundingClientRect(); rects.set(sl.el, r); shifts.set(sl.el, sh); }
         if (r.width < 2) continue;
-        // where the slot comes to rest: its box minus however far the popup is currently displaced
-        const x = r.left - ox, y = r.top - oy - (sl.engage?.shift?.get() ?? 0), z = Math.min(r.width, r.height);
+        // where the slot is drawn right now — its popup's slide included — so the orb is carried by the popup (it used to
+        // head for where the slot would come to rest, and sat there over an empty sheet while the sheet caught up)
+        const x = r.left - ox, y = r.top - oy, z = Math.min(r.width, r.height);
         if (!have) { X = x; Y = y; S = z; have = true; continue; }
-        X += (x - X) * e; Y += (y - Y) * e; S += (z - S) * e;
+        // a sliding popup's slot comes up from below the screen: the orb waits where it is until the slot reaches it, then
+        // rides up with it (rather than diving off the bottom edge to meet it)
+        const yT = sl.engage?.shift ? Math.min(y, Math.max(Y, y - sl.engage.shift.get())) : y; // never below its own resting place
+        X += (x - X) * e; Y += (yT - Y) * e; S += (z - S) * e;
         if (e > 0.02) { top = Math.max(top, sl.priority); topSlot = sl; }
       }
       if (!have) { el.style.opacity = '0'; pause(); return; }

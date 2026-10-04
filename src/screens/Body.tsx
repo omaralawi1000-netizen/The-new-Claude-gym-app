@@ -36,7 +36,7 @@ export function WeightSheet() {
     <Sheet onClose={pop} label={t('Bodyweight')} z={100} foot={<button className="btn primary block press" disabled={!v} onClick={save}>{t('Save')}</button>}>
       <SheetHead title={t('Bodyweight')} sub={last ? `${t('Last')}: ${fmtNum(kgToDisplay(last.kg, u), lang, 1)} ${u} · ${fmtDate(last.date, lang, { day: 'numeric', month: 'short' })}` : undefined} onClose={pop} />
       <div className="sheet-body">
-        <NumInput big value={v} onChange={setV} unit={u} max={1} placeholder={last ? fmtNum(kgToDisplay(last.kg, u), lang, 1) : '—'} autoFocus onEnter={save} label={t('Weight')} />
+        <NumInput big value={v} onChange={setV} unit={u} max={1} placeholder={last ? fmtNum(kgToDisplay(last.kg, u), lang, 1) : '—'} onEnter={save} label={t('Weight')} />
         <div className="chips" style={{ marginTop: 12 }}>
           {[0, -1, -2, -3].map((n) => { const d = addDays(today, n); return <button key={n} className={`chip sm press ${date === d ? 'on' : ''}`} onClick={() => setDate(d)}>{relativeDay(d, today, 'en') ? t(relativeDay(d, today, 'en')!) : fmtDate(d, lang, { weekday: 'short', day: 'numeric' })}</button>; })}
         </div>

@@ -89,6 +89,12 @@ export function Sheet({ children, onClose, tall, label, foot, z: zProp = 60, nes
     return () => cancelAnimationFrame(a);
     // eslint-disable-next-line
   }, []);
+  // contents that arrive late must not bring the keyboard with them either (see the open effect below)
+  useLayoutEffect(() => {
+    if (!ready) return;
+    const f = document.activeElement as HTMLElement | null;
+    if (f && ref.current?.contains(f) && /^(INPUT|TEXTAREA)$/.test(f.tagName)) f.blur();
+  }, [ready]);
   // started before the first paint, so the browser-run half is already going while the sheet's content finishes setting up
   useLayoutEffect(() => {
     const c = animate(p, 1, reduce ? { duration: 0.01 } : SPRING);
@@ -122,10 +128,10 @@ export function Sheet({ children, onClose, tall, label, foot, z: zProp = 60, nes
   }, [onClose]);
   return (
     <EngageContext.Provider value={engage}>
-      <Veil e={e} z={z - 1} onClick={onClose} elRef={scrimRef} />
+      <Veil e={e} z={z - 1} onClick={onClose} elRef={scrimRef} className={behind ? 'veil-behind' : ''} />
       <motion.div
         ref={ref}
-        className={`sheet ${tall ? 'tall' : ''}`}
+        className={`sheet ${tall ? 'tall' : ''} ${behind ? 'behind' : ''}`}
         style={{ zIndex: z, transformOrigin: '50% 0%', transform, maxHeight: room, ...(tall ? { height: room } : {}) }}
         role="dialog" aria-modal="true" aria-label={label}
       >

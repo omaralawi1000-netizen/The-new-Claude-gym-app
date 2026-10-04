@@ -302,6 +302,10 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
   border-radius: var(--r-xl) var(--r-xl) 0 0; box-shadow: inset 0 1px 0 var(--hl), inset 0 0 0 1px var(--line), var(--sh-f); will-change: transform;
 }
 .sheet.tall { height: calc(100dvh - var(--sat) - 46px); }
+/* A sheet with another sheet stacked on top: the top one's dim and blur cover it, so it drops its own frost and its own
+   veil's blur. Each kept a full-screen blur alive; three stacked sheets ran the phone out of GPU memory (black tiles). */
+.sheet.behind { -webkit-backdrop-filter: none; backdrop-filter: none; }
+.scrim.veil-behind > .veil-blur-b { display: none; }
 .sheet-grab { flex: none; height: 26px; display: grid; place-items: center; touch-action: none; cursor: grab; }
 .sheet-grab::after { content: ''; width: 40px; height: 5px; border-radius: 3px; background: var(--line-2); }
 .sheet-body { overflow-y: auto; flex: 1; padding: 0 22px calc(var(--sab) + 28px); overscroll-behavior: contain; scrollbar-width: none; }
@@ -369,10 +373,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* small text sitting inside a thin numeral keeps normal spacing and weight */
 .display.num .small, .display.num .t3, .display.num .xs { letter-spacing: 0; font-weight: 450; font-family: var(--f-ui); }
 
-/* sheet content rises in after the sheet itself */
-.sheet-body > :not(.no-rise) { animation: rise-move 620ms var(--ease-out) backwards; animation-delay: calc(120ms + var(--i, 0) * 45ms); }
-.sheet-body > :nth-child(1) { --i: 0; } .sheet-body > :nth-child(2) { --i: 1; } .sheet-body > :nth-child(3) { --i: 2; } .sheet-body > :nth-child(4) { --i: 3; }
-.sheet-body > :nth-child(5) { --i: 4; } .sheet-body > :nth-child(6) { --i: 5; } .sheet-body > :nth-child(n+7) { --i: 6; }
+/* A sheet's content arrives WITH the sheet, as on iOS: no rows fading up after it (that read as the popup still loading). */
 
 /* While a sheet or full-screen overlay is up, the app's colour field stops drifting. Nothing visible changes (it moves a few
    pixels a minute), but the frosted layers above it no longer have to re-blur a moving background every frame — that was

@@ -144,7 +144,7 @@ export function ExerciseEditor({ props }: { props: { name?: string; id?: string;
     <Sheet onClose={pop} tall label={t('Custom exercise')} z={130} foot={<button className="btn primary block press" disabled={!valid} onClick={save}>{t('Save exercise')}</button>}>
       <SheetHead title={ex ? t('Edit exercise') : t('New exercise')} onClose={pop} />
       <div className="sheet-body">
-        <div className="field"><label htmlFor="ex-name">{t('Name')}</label><input id="ex-name" className="input" value={name} onChange={(e) => setName(e.target.value)} autoFocus /></div>
+        <div className="field"><label htmlFor="ex-name">{t('Name')}</label><input id="ex-name" className="input" value={name} onChange={(e) => setName(e.target.value)} /></div>
         <div className="lbl" style={{ margin: '18px 0 8px' }}>{t('Muscles (first tapped = primary)')}</div>
         <div className="chips" style={{ flexWrap: 'wrap', margin: 0, padding: 0 }}>{MUSCLES.map((m) => <button key={m} className={`chip sm press ${muscles[0] === m ? 'on' : muscles.includes(m) ? 'acc' : ''}`} onClick={() => setMuscles(toggle(muscles, m))}>{t(MUSCLE_LABEL[m])}</button>)}</div>
         <div className="lbl" style={{ margin: '18px 0 8px' }}>{t('Equipment')}</div>

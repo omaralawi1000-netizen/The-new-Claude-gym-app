@@ -156,7 +156,7 @@ export function ActivityLog({ props }: { props: { kind?: ActivityKind } }) {
           </>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: cardio ? '1fr 1fr' : '1fr', gap: 12, marginTop: 18 }}>
-            <div className="field"><label>{t('Duration')}</label><NumInput value={min} onChange={setMin} unit="min" max={0} autoFocus /></div>
+            <div className="field"><label>{t('Duration')}</label><NumInput value={min} onChange={setMin} unit="min" max={0} /></div>
             {cardio && <div className="field"><label>{t('Distance')}</label><NumInput value={dist} onChange={setDist} unit={u} max={2} placeholder={t('optional')} /></div>}
           </div>
         )}

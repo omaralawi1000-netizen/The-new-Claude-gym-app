@@ -16,7 +16,7 @@ import { speak, stopSpeaking, onSpeaking, FALLBACK_TTS } from '../lib/tts';
 import { exerciseNames, mapRoutineItems, profileLine } from '../lib/coachContext';
 import { decide, agentModels } from '../lib/agentTurn';
 import { BOUNCY } from '../ui/motion';
-import { ActionCard, Rich, Thinking, Words, sttMessage } from '../ui/agentUi';
+import { ActionCard, Rich, Thinking, sttMessage } from '../ui/agentUi';
 import { runActions, type AgentResult } from '../lib/agent';
 import type { RoutineDraft } from '../lib/aiValidate';
 import { uid } from '../lib/nutrition';
@@ -242,7 +242,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
           <>
             {msgs.length === 0 && (
               <div className="stack gap12">
-                <div className="small t2"><Words k="intro" text={t('Tell me what you ate or lifted, ask about your training or the app, or ask me to do something. I log it for you — and every change has an Undo.')} /></div>
+                <div className="small t2">{t('Tell me what you ate or lifted, ask about your training or the app, or ask me to do something. I log it for you — and every change has an Undo.')}</div>
                 {noKey && <div className="small" style={{ color: 'var(--warn)' }}>{t('Without a Gemini key I can still log simple things, but not chat. Add one in Settings → Voice & AI.')} <button className="chip sm acc press" style={{ marginLeft: 6 }} onClick={() => push('settings', { section: 'ai' })}>{t('Add a key')}</button></div>}
                 <div className="chips" style={{ margin: 0, padding: 0, flexWrap: 'wrap' }}>{chips.map((c) => <button key={c} className="chip press" onClick={() => send(c)}>{c}</button>)}</div>
               </div>

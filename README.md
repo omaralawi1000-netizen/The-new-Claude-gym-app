@@ -140,6 +140,18 @@ Run in headless Chromium (Playwright, 390×844 @2×, dark + light), scripts in `
 - **Not built (on purpose, stated in-app):** cloud sync / accounts; photo-based food estimation; automatic AI changes to your data (the Coach advises; routines and estimates only appear after you confirm; progression suggestions remain transparent rules); background reminders when the app is closed (web apps need a push server — reminders fire only while Aven runs; in-app nudge otherwise); animated exercise demonstrations (there is an authored muscle diagram and step-by-step text instead).
 - Exercise calories are **never** added to food targets.
 
+## Recordings pass (4 Oct, evening)
+
+Fixes for what the phone recordings showed:
+- **Workout + keyboard**: while you type a weight or reps, the rest timer leaves the bottom (it sat on top of the sets being edited once the keyboard was up) and keeps counting in the header ("· Rest 1:23"). It comes back when the keyboard goes.
+- **Number fields** no longer select their text on tap — on Android that popped the Cut / Copy / Translate bar over the form. The caret goes after the number and the first digit you type replaces it; a second tap edits where you tapped.
+- **Pop-ups never open with the keyboard**: the routine editor, Edit food, weight, activity duration and new-exercise forms had their own auto-focus, which came back once sheet contents started arriving a frame late. Removed, and sheets drop any focus their contents bring.
+- **Sheet content arrives with the sheet**: the rows no longer fade up one by one after it (that read as the pop-up still loading). The Coach's intro text no longer types itself out every time it opens.
+- **Stacked sheets** (exercise → substitute → substitute…): a sheet with another on top drops its own frost and its dim's blur. Each kept a full-screen blur alive and three stacked ran the phone out of GPU memory — the black tiles in the recording.
+- **The orb rides with its sheet**: in the Coach it used to fly to where its slot would end up and wait there over an empty sheet; now it waits in the dock until the composer comes up to it and rides up with it.
+- **The Coach / orb can correct the log**: "that skyr is 75 kcal per 100 g", "it was 200 g, not 100", "move the eggs to breakfast", "remove the cola" now change or remove that logged food (and, for a food of your own, its label), each as a card with Undo. It sees today's and yesterday's items with their amounts and label values to know which one you mean.
+- Not fixable from the page: on Samsung Internet the screen goes black below the content for a moment while the keyboard slides in (the browser resizes the window before the keyboard is drawn).
+
 ## Polish pass (food, library, pop-ups)
 
 - **Food screen**: each meal is its own glass card — name, kcal and protein, a thin bar showing the meal's protein / carbs / fat split, and a round **+** to add. Foods are clean rows inside the card (amount, macro dots, kcal). The rows are see-through now (the "black boxes" were an opaque row background); swipe left reveals a red delete strip clipped to exactly the uncovered space. Empty meals are a compact card that says "nothing logged". Water is a card with a progress bar instead of a fill that cut through the label; the week strip is one card with taller bars and the day labels underneath.

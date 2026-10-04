@@ -102,3 +102,34 @@ describe('runActions: acts on the real store, and every action can be undone', (
     expect(useStore.getState().active).not.toBeNull(); // nothing happened yet
   });
 });
+
+describe('corrections: the assistant can fix or remove a logged food', () => {
+  const log = async (text: string) => runActions(localActions(text)!, ctx());
+  it('fixes the label value of a logged food, with Undo', async () => {
+    await log('200 g skyr');
+    const e0 = useStore.getState().entries[0];
+    const v = validateAgent({ reply: '', actions: [{ type: 'edit_food', target: e0.snap.name, per100: { kcal: 75 } }] })!;
+    const [r] = await runActions(v.actions, ctx());
+    expect(r.title).toBe('Corrected');
+    expect(useStore.getState().entries[0].nutrients.kcal).toBe(150); // 200 g × 75 kcal/100 g
+    r.undo!();
+    expect(useStore.getState().entries[0].nutrients.kcal).toBe(e0.nutrients.kcal);
+  });
+  it('changes the amount and removes an entry, both undoable', async () => {
+    await log('200 g skyr');
+    const name = useStore.getState().entries[0].snap.name;
+    const [r] = await runActions(validateAgent({ reply: '', actions: [{ type: 'edit_food', target: 'skyr', amount: 300, unit: 'g' }] })!.actions, ctx());
+    expect(useStore.getState().entries[0].qty.amount).toBe(300);
+    r.undo!();
+    const [d] = await runActions(validateAgent({ reply: '', actions: [{ type: 'delete_food', target: name }] })!.actions, ctx());
+    expect(d.title).toBe('Removed');
+    expect(useStore.getState().entries).toHaveLength(0);
+    d.undo!();
+    expect(useStore.getState().entries).toHaveLength(1);
+  });
+  it('says so when the item is not in the log, and ignores empty edits', async () => {
+    const [r] = await runActions([{ type: 'delete_food', target: 'pizza' }], ctx());
+    expect(r.kind).toBe('miss');
+    expect(validateAgent({ reply: 'x', actions: [{ type: 'edit_food', target: 'skyr' }] })!.actions).toEqual([]);
+  });
+});

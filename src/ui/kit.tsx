@@ -71,6 +71,9 @@ export function NumInput({ value, onChange, unit, placeholder, className, max = 
   const lang = useLang();
   const [txt, setTxt] = useState<string>(value === undefined ? '' : fmtNum(value, lang, max));
   const focused = useRef(false);
+  // Tapping a number puts the caret after it and the first digit you type replaces it. (Selecting it all on focus did the
+  // same job, but on Android every selection pops the Cut / Copy / Translate bar right over the form.)
+  const fresh = useRef(false);
   useEffect(() => {
     if (!focused.current) setTxt(value === undefined ? '' : fmtNum(value, lang, max));
   }, [value, lang, max]);
@@ -79,11 +82,18 @@ export function NumInput({ value, onChange, unit, placeholder, className, max = 
       <input
         className={`input ${big ? 'lg' : ''} ${compact ? 'compact' : ''}`} inputMode="decimal" enterKeyHint="done" autoComplete="off" placeholder={placeholder} aria-label={label ?? unit}
         value={txt} autoFocus={autoFocus}
-        onFocus={(e) => { focused.current = true; e.currentTarget.select(); }}
-        onBlur={() => { focused.current = false; setTxt(value === undefined ? '' : fmtNum(value, lang, max)); }}
+        onFocus={(e) => {
+          focused.current = true; fresh.current = true;
+          const el = e.currentTarget; requestAnimationFrame(() => { try { el.setSelectionRange(el.value.length, el.value.length); } catch { /* ignore */ } });
+        }}
+        onPointerDown={() => { if (focused.current) fresh.current = false; }} // a second tap means "edit where I tapped"
+        onBlur={() => { focused.current = false; fresh.current = false; setTxt(value === undefined ? '' : fmtNum(value, lang, max)); }}
         onKeyDown={(e) => { if (e.key === 'Enter') { (e.target as HTMLInputElement).blur(); onEnter?.(); } }}
         onChange={(e) => {
-          const s = e.target.value.replace(/[^0-9.,]/g, '');
+          let raw = e.target.value;
+          // first keystroke after focusing: typed at the end of the old number → the typed part replaces it
+          if (fresh.current) { fresh.current = false; if (raw.length > txt.length && raw.startsWith(txt)) raw = raw.slice(txt.length); }
+          const s = raw.replace(/[^0-9.,]/g, '');
           setTxt(s);
           const n = parseNum(s);
           onChange(n !== undefined && (min === undefined || n >= min) ? n : s === '' ? undefined : value);

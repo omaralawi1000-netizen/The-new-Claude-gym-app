@@ -46,7 +46,7 @@ export function RoutineEditor({ props }: { props: { id?: string } }) {
     <Sheet onClose={pop} tall label={t('Routine')} z={100} foot={<button className="btn primary block press" disabled={!valid} onClick={save}>{t('Save routine')}</button>}>
       <SheetHead title={existing ? t('Edit routine') : t('New routine')} onClose={pop} />
       <div className="sheet-body">
-        <div className="field"><label htmlFor="rt-name">{t('Name')}</label><input id="rt-name" className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('e.g. Push day')} autoFocus={!existing} /></div>
+        <div className="field"><label htmlFor="rt-name">{t('Name')}</label><input id="rt-name" className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('e.g. Push day')} /></div>
         <div className="lbl" style={{ margin: '20px 0 8px' }}>{t('Exercises')}</div>
         {items.length === 0 && <div className="small t2" style={{ padding: '4px 0 12px' }}>{t('Add the exercises for this session.')}</div>}
         <AnimatePresence initial={false}>

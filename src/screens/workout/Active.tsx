@@ -107,6 +107,17 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
   const [menu, setMenu] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<null | 'finish' | 'discard'>(null);
   const [renaming, setRenaming] = useState(false);
+  // typing a weight or reps: the keyboard takes the bottom half, so the rest timer steps out of the way (it sat right on top
+  // of the sets you were editing) and keeps counting in the header instead
+  const [typing, setTyping] = useState(false);
+  useEffect(() => {
+    const el = dialogRef.current; if (!el) return;
+    const isField = (n: EventTarget | null) => n instanceof HTMLElement && /^(INPUT|TEXTAREA)$/.test(n.tagName);
+    const on = (e: FocusEvent) => { if (isField(e.target)) setTyping(true); };
+    const off = (e: FocusEvent) => { if (isField(e.target) && !isField(e.relatedTarget)) setTyping(false); };
+    el.addEventListener('focusin', on); el.addEventListener('focusout', off);
+    return () => { el.removeEventListener('focusin', on); el.removeEventListener('focusout', off); };
+  }, []);
   const body = useRef<HTMLDivElement>(null);
   const z = useOverlayZ(60);
   // where to open from is fixed at mount; where to close into is measured on every render (the card may have scrolled)
@@ -211,7 +222,7 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
             <div className="row-flex between" style={{ marginTop: 10, alignItems: 'flex-end' }}>
               <div>
                 <div className="display display-lg num" style={{ color: paused ? 'var(--tx3)' : 'var(--tx)' }}><Clock /></div>
-                <div className="small t2 num">{done}/{total} · {fmtNum(Math.round(kgToDisplay(sessionVolume(a.exercises), weightUnit)), lang, 0)} {weightUnit}</div>
+                <div className="small t2 num">{done}/{total} · {fmtNum(Math.round(kgToDisplay(sessionVolume(a.exercises), weightUnit)), lang, 0)} {weightUnit}{typing && a.rest && <RestInline />}</div>
               </div>
               <button className="btn sm press" onClick={() => { buzz(10); paused ? useStore.getState().resumeActive() : useStore.getState().pauseActive(); }} aria-label={paused ? t('Resume') : t('Pause')}>
                 <Icon name={paused ? 'play' : 'pause'} size={16} /> {paused ? t('Resume') : t('Pause')}
@@ -247,7 +258,7 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
 
           {/* rest timer — floats above content, in the same frosted material as the tab bar */}
           <AnimatePresence>
-            {a.rest && (
+            {a.rest && !typing && (
               <motion.div key="rest" className="glass" initial={{ y: 40, opacity: 0, scale: 0.96 }} animate={{ y: 0, opacity: 1, scale: 1 }} exit={{ y: 30, opacity: 0, scale: 0.97 }} transition={SOFT}
                 style={{ position: 'absolute', left: 16, right: 16, bottom: restBottom, borderRadius: 26, padding: '12px 14px 12px 16px', display: 'flex', alignItems: 'center', gap: 12, zIndex: 5 }}>
                 <RestCountdown />
@@ -295,6 +306,16 @@ function Clock() {
   const a = useStore((s) => s.active);
   const now = useNow(250, !!a);
   return <>{a ? fmtDuration(elapsedMs(a, now) / 1000) : ''}</>;
+}
+
+/** The rest timer as a few words in the header, while the keyboard is up. */
+function RestInline() {
+  const t = useT();
+  const a = useStore((s) => s.active);
+  const now = useNow(250, !!a?.rest);
+  if (!a?.rest) return null;
+  const left = (a.pausedAt ? a.rest.endsAt : a.rest.endsAt - now) / 1000;
+  return <span style={{ color: left <= 0 ? 'var(--ok)' : 'var(--ac-text)', fontWeight: 650 }}> · {left <= 0 ? t('Rest over') : `${t('Rest')} ${fmtDuration(Math.ceil(left))}`}</span>;
 }
 
 function RestCountdown() {

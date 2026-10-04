@@ -50,7 +50,7 @@ export function QuickAdd({ props }: { props: { date: string; mealId: string; ent
         <div className="field"><label htmlFor="q-label">{t('Label')}</label><input id="q-label" className="input" value={label} onChange={(e) => setLabel(e.target.value)} placeholder={t('e.g. Restaurant pasta')} /></div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 14 }}>
           {(['kcal', 'protein', 'carbs', 'fat'] as const).map((k) => (
-            <div key={k} className="field"><label>{t(NUTRIENT_LABEL[k])}</label><NumInput value={n[k]} onChange={set(k)} unit={NUTRIENT_UNIT[k]} max={1} placeholder="—" label={t(NUTRIENT_LABEL[k])} autoFocus={k === 'kcal'} /></div>
+            <div key={k} className="field"><label>{t(NUTRIENT_LABEL[k])}</label><NumInput value={n[k]} onChange={set(k)} unit={NUTRIENT_UNIT[k]} max={1} placeholder="—" label={t(NUTRIENT_LABEL[k])} /></div>
           ))}
         </div>
         {mm !== null && mm > 0.25 && <div className="small" style={{ color: 'var(--warn)', marginTop: 12 }}>{t('Calories and macros differ by more than 25% (4/4/9 kcal per g). Double-check — alcohol and fibre can explain some of it.')}</div>}
@@ -115,7 +115,7 @@ export function CustomFood({ props }: { props: { from?: Food; name?: string; bar
     <Sheet onClose={pop} tall label={t('Personal food')} z={80} foot={<button className="btn primary block press" disabled={!valid} onClick={save}>{editingOwn ? t('Save food') : src ? t('Save my copy') : t('Create food')}</button>}>
       <SheetHead title={editingOwn ? t('Edit food') : src ? t('Your copy of this food') : t('New food')} sub={src && !editingOwn ? t('The original stays untouched; yours is used from now on.') : undefined} onClose={pop} />
       <div className="sheet-body">
-        <div className="field"><label htmlFor="cf-name">{t('Name')}</label><input id="cf-name" className="input" value={name} onChange={(e) => setName(e.target.value)} autoFocus /></div>
+        <div className="field"><label htmlFor="cf-name">{t('Name')}</label><input id="cf-name" className="input" value={name} onChange={(e) => setName(e.target.value)} /></div>
         <div className="field" style={{ marginTop: 12 }}><label htmlFor="cf-brand">{t('Brand (optional)')}</label><input id="cf-brand" className="input" value={brand} onChange={(e) => setBrand(e.target.value)} /></div>
 
         <div style={{ marginTop: 18 }}>

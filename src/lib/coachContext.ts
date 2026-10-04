@@ -113,7 +113,7 @@ FOOD: day view with date arrows and a calendar, the same dial, meals (Breakfast,
 PROGRESS: ranges (4 weeks, 12 weeks, 6 months, all); charts for training consistency, weekly volume, bodyweight (log with + Log), nutrition averages, records (PRs), measurements and progress photos.
 SETTINGS (sun button on Today): Targets (calorie/macro/water goals) · Training (default rest, RPE/RIR, plate step) · Food & water (meals, water quick-add sizes, online lookup on/off) · Units & locale (kg/lb, km/mi, cm/in, language English/Dansk, week start) · Appearance (theme System/Light/Dark, motion) · Voice & AI (Groq key for speech, Gemini key for the Coach, voices) · Reminders · Data & backup (export/import a backup file, demo data, reset) · Privacy · About.
 HOW TO: change theme → Settings → Appearance (or ask me to switch it). Change units → Settings → Units & locale. Set calorie goal → Settings → Targets. Back up → Settings → Data & backup → export. Add to home screen → browser menu → "Add to Home screen"; the app then works offline. Update the app → tap Update in the banner when it appears.
-WHAT I (the Coach) CAN DO: log food, water, weight, sets and activities from what you say; start a workout (optionally from a routine); finish it when you confirm; open any screen or settings page; change common settings (theme, language, units, goals, rest time, sound, haptics…). Every change I make shows up as a card with Undo. I never delete your data; deleting is done by you in the app.
+WHAT I (the Coach) CAN DO: log food, water, weight, sets and activities from what you say; correct a logged food (amount, meal, or its calories/macros — e.g. "that skyr is 75 kcal per 100 g") or remove one; start a workout (optionally from a routine); finish it when you confirm; open any screen or settings page; change common settings (theme, language, units, goals, rest time, sound, haptics…). Every change I make shows up as a card with Undo. Anything bigger than removing one logged food (a whole day, a workout, settings data) is done by you in the app.
 `.trim();
 
 export const AGENT_SYSTEM = (lang: 'en' | 'da') =>
@@ -122,9 +122,10 @@ export const AGENT_SYSTEM = (lang: 'en' | 'da') =>
   '1. They TELL you what they ate, drank, weighed, lifted or did ("log a banana", "two eggs and rye bread for breakfast", "bench 100 for 8, 8, 6", "30 minutes of wrestling, hard") → put it in actions. Do not ask for permission and do not repeat the list in your reply (the app shows what was logged). ' +
   'Copy quantities exactly as said; NEVER invent an amount you were not given (amount null is fine: the app uses a typical portion). "a banana" = amount 1, unit piece. Weights are kilograms (convert pounds). One log_food action can hold several foods. Use meal only if they named one. If they say yesterday, day = yesterday.\n' +
   '2. They ask you to DO something in the app ("open progress", "switch to light mode", "set my protein target to 160", "start Pull day", "finish my workout") → the matching action (navigate, set_setting, start_workout, finish_workout). If you are not sure which routine/exercise they mean, ask in the reply instead of guessing.\n' +
-  '3. They ask a QUESTION (how the app works, where a setting is, about their training, food, weight, progress) → answer in the reply from the GUIDE and DATA, no actions. When a setting is asked about ("how do I change the theme?"), explain where it is AND offer to do it ("or say the word and I\'ll switch it").\n' +
+  '3. They CORRECT something already logged ("that\'s not the right skyr, it has 75 kcal per 100 g", "it was 200 g, not 100", "move the eggs to breakfast", "remove the cola") → edit_food (with per100 for label values, amount+unit for quantity, meal to move it; totals only for a quick entry with no label) or delete_food. target = the item\'s name exactly as in DATA; day = yesterday if they mean yesterday. Never say you cannot edit: you can.\n' +
+  '3b. They ask a QUESTION (how the app works, where a setting is, about their training, food, weight, progress) → answer in the reply from the GUIDE and DATA, no actions. When a setting is asked about ("how do I change the theme?"), explain where it is AND offer to do it ("or say the word and I\'ll switch it").\n' +
   'Rules: a reply is 1–6 short lines, plain text, warm and direct, "- " bullets only for lists, no tables or headings. Ground every claim in DATA; if the data is missing or thin, say so. Numbers marked ESTIMATE stay labelled. ' +
-  'Never say something was logged or changed unless you put the matching action in actions (and never claim you deleted anything: you cannot delete). You may give actions AND a short comment ("Nice — that\'s a new best.") but keep it brief. ' +
+  'Never say something was logged, changed or removed unless you put the matching action in actions. You may give actions AND a short comment ("Nice — that\'s a new best.") but keep it brief. ' +
   'No medical advice or diagnosis; for pain, injury, illness, pregnancy, medication, disordered eating or a very aggressive diet, say it is outside what you can judge and suggest a doctor or qualified professional. ' +
   `Reply in ${lang === 'da' ? 'Danish' : 'English'} unless the user writes in the other language. Metric units unless their settings say otherwise.`;
 
@@ -134,11 +135,18 @@ export function buildAgentContext(d: AppData, today: string, exName: (id: string
   const u = d.settings.units;
   L.push(`Settings: theme ${d.settings.theme}, language ${d.settings.language}, weight ${u.weight}, distance ${u.distance}, motion ${d.settings.motion}, sound ${d.settings.sound ? 'on' : 'off'}, haptics ${d.settings.haptics ? 'on' : 'off'}, default rest ${d.settings.restDefaultSec}s, effort scale ${d.settings.effort}, week starts ${d.settings.weekStart === 1 ? 'Monday' : 'Sunday'}, online food lookup ${d.settings.foodLookup ? 'on' : 'off'}.`);
   L.push(`Meals: ${d.settings.meals.map((m) => `${m.id} (${mealLabel(m.id)})`).join(', ')}.`);
-  const todays = d.entries.filter((e) => e.date === today);
-  if (todays.length) {
+  // each item with its amount, total and label value, so a correction ("it has 75 kcal per 100 g") can name it and be checked
+  const item = (e: AppData['entries'][number]) => {
+    const amt = e.quick ? 'quick entry' : e.qty.unit === 'portion' ? `${r1(e.qty.amount)} portion (${r0(e.base)} ${e.snap.basis})` : `${r0(e.qty.amount)} ${e.qty.unit}`;
+    const lab = !e.quick && e.snap.per100.kcal !== undefined ? `, ${r0(e.snap.per100.kcal)} kcal/100 ${e.snap.basis}` : '';
+    return `"${e.snap.name}" ${amt}${e.nutrients.kcal !== undefined ? ` = ${r0(e.nutrients.kcal)} kcal` : ''}${lab}`;
+  };
+  for (const [label, day] of [['today', today], ['yesterday', addDays(today, -1)]] as const) {
+    const list = d.entries.filter((e) => e.date === day);
+    if (!list.length) continue;
     const by = new Map<string, string[]>();
-    for (const e of todays) { const k = mealLabel(e.mealId); (by.get(k) ?? by.set(k, []).get(k)!).push(`${e.snap.name}${e.nutrients.kcal !== undefined ? ` ${r0(e.nutrients.kcal)} kcal` : ''}`); }
-    L.push(`Logged today by meal: ${[...by].map(([m, xs]) => `${m}: ${xs.slice(0, 8).join(', ')}`).join(' | ')}.`);
+    for (const e of list) { const k = mealLabel(e.mealId); (by.get(k) ?? by.set(k, []).get(k)!).push(item(e)); }
+    L.push(`Logged ${label} by meal: ${[...by].map(([m, xs]) => `${m}: ${xs.slice(0, 10).join('; ')}`).join(' | ')}.`);
   }
   const water = d.water.filter((w) => w.date === today).reduce((n, w) => n + w.ml, 0);
   L.push(`Water today: ${water} ml (target ${d.settings.goals.waterMl} ml).`);

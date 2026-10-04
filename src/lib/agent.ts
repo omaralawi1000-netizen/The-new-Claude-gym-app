@@ -5,7 +5,8 @@
  * Principles:
  *  - The model only ever proposes; THIS file decides what is allowed and does it. Every field is validated and clamped.
  *  - Everything it does on its own is reversible and comes back as a card with Undo. Things that cannot simply be
- *    undone (finishing a workout) wait for one tap. Deleting data is not something it can do at all.
+ *    undone (finishing a workout) wait for one tap. It can correct or remove a logged food (with Undo), nothing more
+ *    destructive than that.
  *  - Logging uses the same food/exercise matching as the rest of the app, and says plainly what it matched.
  *  - Without a Gemini key (or when Gemini is down) simple commands still work through the local parsers.
  */
@@ -37,7 +38,19 @@ export type AgentAction =
   | { type: 'finish_workout' }
   | { type: 'navigate'; screen: 'today' | 'train' | 'food' | 'progress' | 'settings' | 'coach'; section?: string | null }
   | { type: 'set_setting'; key: SettingKey; value: string }
+  | { type: 'edit_food'; target: string; day?: 'today' | 'yesterday' | null; amount?: number | null; unit?: string | null; meal?: string | null; per100?: NutriFix | null; totals?: NutriFix | null }
+  | { type: 'delete_food'; target: string; day?: 'today' | 'yesterday' | null }
   | { type: 'undo_last' };
+
+/** Corrected nutrition values: per 100 g/ml (a food's label) or the entry's own totals (a quick entry). */
+export type NutriFix = Partial<Record<'kcal' | 'protein' | 'carbs' | 'fat', number>>;
+const nutriFix = (v: any, per100: boolean): NutriFix | null => {
+  if (!v || typeof v !== 'object') return null;
+  const lim = per100 ? { kcal: 900, protein: 100, carbs: 100, fat: 100 } : { kcal: 6000, protein: 500, carbs: 1000, fat: 500 };
+  const o: NutriFix = {};
+  for (const k of ['kcal', 'protein', 'carbs', 'fat'] as const) { const n = num(v[k], 0, lim[k]); if (n !== undefined) o[k] = Math.round(n * 10) / 10; }
+  return Object.keys(o).length ? o : null;
+};
 
 export const SETTING_KEYS = ['theme', 'language', 'weightUnit', 'distanceUnit', 'motion', 'sound', 'haptics', 'restSeconds', 'kcalGoal', 'proteinGoal', 'carbsGoal', 'fatGoal', 'waterGoal', 'weekStart', 'foodLookup', 'effort'] as const;
 export type SettingKey = (typeof SETTING_KEYS)[number];
@@ -84,6 +97,13 @@ export function validateAgent(raw: any): { reply: string; actions: AgentAction[]
       case 'start_workout': out.push({ type: 'start_workout', routine: str(a.routine, 60) ?? null }); break;
       case 'finish_workout': out.push({ type: 'finish_workout' }); break;
       case 'undo_last': out.push({ type: 'undo_last' }); break;
+      case 'edit_food': {
+        const target = str(a.target, 60); if (!target) break;
+        const e: AgentAction = { type: 'edit_food', target, day: a.day === 'yesterday' ? 'yesterday' : null, amount: num(a.amount, 0.01, 20000) ?? null, unit: str(a.unit, 12) ?? null, meal: str(a.meal, 30) ?? null, per100: nutriFix(a.per100, true), totals: nutriFix(a.totals, false) };
+        if (e.amount || e.meal || e.per100 || e.totals) out.push(e);
+        break;
+      }
+      case 'delete_food': { const target = str(a.target, 60); if (target) out.push({ type: 'delete_food', target, day: a.day === 'yesterday' ? 'yesterday' : null }); break; }
       case 'navigate': {
         const screen = ['today', 'train', 'food', 'progress', 'settings', 'coach'].includes(a.screen) ? a.screen : null; if (!screen) break;
         out.push({ type: 'navigate', screen, section: SETTINGS_SECTIONS.includes(a.section) ? a.section : null });
@@ -217,6 +237,71 @@ async function doLogFood(a: Extract<AgentAction, { type: 'log_food' }>, ctx: Age
     lines: [...lines, ...(added.length > 1 ? [{ text: t('Total'), sub: `${Math.round(total)} kcal` }] : [])],
     undo: () => added.forEach((e) => useStore.getState().removeEntry(e.id)),
   };
+}
+
+/** The logged food a correction is about: the same name on that day (the most recent one when it was logged twice). */
+function findEntry(target: string, date: string): FoodEntry | undefined {
+  const q = fold(target);
+  const qt = q.split(/\s+/).filter((w) => w.length > 1);
+  const day = useStore.getState().entries.filter((e) => e.date === date);
+  let best: FoodEntry | undefined; let bestScore = 0;
+  for (const e of day) {
+    const n = fold(e.snap.name);
+    const score = n === q ? 3 : n.includes(q) || q.includes(n) ? 2 : qt.length ? qt.filter((w) => n.includes(w)).length / qt.length : 0;
+    if (score > bestScore || (score === bestScore && best && e.at > best.at)) { best = e; bestScore = score; }
+  }
+  return bestScore >= 0.5 ? best : undefined;
+}
+
+const kcalStr = (e: FoodEntry) => (kcalOf(e) !== undefined ? `${kcalOf(e)} kcal` : '— kcal');
+
+function doEditFood(a: Extract<AgentAction, { type: 'edit_food' }>, ctx: AgentCtx): AgentResult {
+  const { t, lang } = ctx;
+  const st = useStore.getState();
+  const date = a.day === 'yesterday' ? addDays(ctx.today, -1) : ctx.today;
+  const prev = findEntry(a.target, date);
+  if (!prev) return { id: uid('r'), kind: 'miss', title: t('Couldn’t find that in the log'), lines: [{ text: a.target, warn: true }] };
+  let next: FoodEntry = prev;
+  const changed: string[] = [];
+  // new label values: recompute the entry from the corrected food (a quick entry has no label, its totals are set instead)
+  if (a.per100 && !prev.quick) {
+    const snap = { ...prev.snap, per100: { ...prev.snap.per100, ...a.per100 } };
+    const r = entryFromSnapshot(snap, prev.qty, prev.date, prev.mealId, { id: prev.id, at: prev.at, note: prev.note });
+    if (r) { next = { ...r, estimated: prev.estimated }; changed.push(`${a.per100.kcal !== undefined ? `${a.per100.kcal} kcal` : t('values')} / 100 ${prev.snap.basis}`); }
+  }
+  if (a.totals) { next = { ...next, nutrients: { ...next.nutrients, ...a.totals } }; changed.push(t('totals')); }
+  if (a.amount) {
+    const u = (a.unit || '').toLowerCase();
+    const qty: Quantity | null =
+      u === 'kg' ? { amount: a.amount * 1000, unit: 'g' } :
+      u === 'g' || u === 'ml' ? { amount: a.amount, unit: u } :
+      u === 'l' || u === 'dl' || u === 'cl' ? { amount: a.amount * VOLUME_ML[u], unit: 'ml' } :
+      (u === 'piece' || u === 'portion' || u === 'serving') && next.snap.portions[0] ? { amount: a.amount, unit: 'portion', portionId: next.snap.portions[0].id } :
+      !u ? { ...next.qty, amount: a.amount } : null;
+    const r = qty && !next.quick ? entryFromSnapshot(next.snap, qty, next.date, next.mealId, { id: next.id, at: next.at, note: next.note }) : null;
+    if (r) { next = { ...r, estimated: false }; changed.push(qty!.unit === 'portion' ? `${fmtNum(qty!.amount, lang, 1)} ×` : `${fmtNum(qty!.amount, lang, 0)} ${qty!.unit}`); }
+  }
+  const mealId = resolveMeal(a.meal, st.settings.meals, lang);
+  if (mealId && mealId !== next.mealId) { next = { ...next, mealId }; const m = st.settings.meals.find((x) => x.id === mealId); changed.push(m ? mealName(m, lang) : mealId); }
+  if (next === prev) return { id: uid('r'), kind: 'miss', title: t('Couldn’t change that'), lines: [{ text: prev.snap.name, warn: true }] };
+  st.updateEntry(prev.id, next);
+  // a food of your own with a wrong label: fix the food too, so the next time you log it is right
+  const own = a.per100 && prev.snap.foodId ? st.foods.find((f) => f.id === prev.snap.foodId && f.source === 'custom') : undefined;
+  if (own) st.saveFood({ ...own, per100: { ...own.per100, ...a.per100 } });
+  return {
+    id: uid('r'), kind: 'food', title: t('Corrected'),
+    lines: [{ text: prev.snap.name, sub: `${kcalStr(prev)} → ${kcalStr(next)} · ${changed.join(' · ')}` }],
+    undo: () => { const s = useStore.getState(); s.updateEntry(prev.id, prev); if (own) s.saveFood(own); },
+  };
+}
+
+function doDeleteFood(a: Extract<AgentAction, { type: 'delete_food' }>, ctx: AgentCtx): AgentResult {
+  const { t } = ctx;
+  const date = a.day === 'yesterday' ? addDays(ctx.today, -1) : ctx.today;
+  const e = findEntry(a.target, date);
+  if (!e) return { id: uid('r'), kind: 'miss', title: t('Couldn’t find that in the log'), lines: [{ text: a.target, warn: true }] };
+  useStore.getState().removeEntry(e.id);
+  return { id: uid('r'), kind: 'food', title: t('Removed'), lines: [{ text: e.snap.name, sub: kcalStr(e) }], undo: () => useStore.getState().restoreEntries([e]) };
 }
 
 function doLogSets(a: Extract<AgentAction, { type: 'log_sets' }>, ctx: AgentCtx): AgentResult {
@@ -396,6 +481,8 @@ export async function runActions(actions: AgentAction[], ctx: AgentCtx): Promise
         case 'finish_workout': out.push(doFinishWorkout(ctx)); break;
         case 'navigate': out.push(doNavigate(a, ctx)); break;
         case 'set_setting': out.push(doSetting(a, ctx)); break;
+        case 'edit_food': out.push(doEditFood(a, ctx)); break;
+        case 'delete_food': out.push(doDeleteFood(a, ctx)); break;
         case 'undo_last': break; // handled by the Coach (it knows its own cards)
       }
     } catch {
