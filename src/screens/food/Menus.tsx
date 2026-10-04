@@ -72,18 +72,18 @@ export function EntryMenu({ props }: { props: { kind: 'day' | 'meal'; date: stri
   const lang = useLang();
   const s = useStore();
   const pop = useUI((u) => u.pop);
-  const push = useUI((u) => u.push);
+  const swap = useUI((u) => u.swap);
   const toast = useUI((u) => u.toast);
   const meal = props.mealId ? s.settings.meals.find((m) => m.id === props.mealId) : undefined;
   const entries = s.entries.filter((e) => e.date === props.date && (!props.mealId || e.mealId === props.mealId));
   const items: { icon: any; label: string; sub?: string; run: () => void; danger?: boolean }[] = [];
-  items.push({ icon: 'copy', label: props.kind === 'meal' ? t('Copy meal to…') : t('Copy day to…'), run: () => push('mealCopy', { from: { date: props.date, mealId: props.mealId } }) });
+  items.push({ icon: 'copy', label: props.kind === 'meal' ? t('Copy meal to…') : t('Copy day to…'), run: () => swap(1, 'mealCopy', { from: { date: props.date, mealId: props.mealId } }) }); // a menu hands over to what you picked rather than staying underneath it
   if (props.kind === 'meal') items.push({ icon: 'star', label: t('Save as meal'), sub: t('Reuse these foods in one tap'), run: () => {
     const name = `${meal ? mealName(meal, lang) : t('Meal')} · ${fmtDate(props.date, lang, { day: 'numeric', month: 'short' })}`;
     s.saveMeal({ id: uid('sm'), name, items: entries.filter((e) => !e.quick).map((e) => ({ snap: e.snap, qty: e.qty })), createdAt: Date.now() });
     pop(); toast(t('Saved “{name}”', { name }), { tone: 'ok' });
   } });
-  if (props.kind === 'day') items.push({ icon: 'note', label: t('Notes'), run: () => push('dayNotes', { date: props.date }) });
+  if (props.kind === 'day') items.push({ icon: 'note', label: t('Notes'), run: () => swap(1, 'dayNotes', { date: props.date }) });
   items.push({ icon: 'trash', label: props.kind === 'meal' ? t('Clear meal') : t('Clear day'), danger: true, run: () => {
     const removed = entries; removed.forEach((e) => s.removeEntry(e.id)); pop();
     toast(t('{n} entries cleared', { n: removed.length }), { actionLabel: t('Undo'), onAction: () => s.restoreEntries(removed) });

@@ -1,17 +1,65 @@
-import { AnimatePresence, animate, motion, useMotionValue, usePresence, useReducedMotion, useTransform } from 'motion/react';
+import { AnimatePresence, animate, motion, useMotionValue, usePresence, useReducedMotion, useTransform, type MotionValue } from 'motion/react';
+import { createPortal } from 'react-dom';
 import { createContext, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { EngageContext, Mirror, mirrorProgress, mirrorStage, trackDepth } from './engage';
+import { EngageContext, Mirror, mirrorProgress, mirrorStage, trackDepth, type Engage } from './engage';
 import { Veil, mirrorVeil } from './Veil';
 import { availableHeight, dropKeyboard, kb, watchFocus } from './keyboard';
 
 /** Stack-position z-index for the current overlay: a later overlay is always above an earlier one. */
 export const OverlayZ = createContext<number | null>(null);
 export const useOverlayZ = (fallback: number) => useContext(OverlayZ) ?? fallback;
+/** Which overlay this is (set by Overlays.tsx): its id, and whether it opens as a page inside the sheet below it. */
+export const OverlayMeta = createContext<{ id: string; page: boolean } | null>(null);
+/** True inside an overlay shown as a page of the sheet below it: its close button becomes a Back arrow. */
+export const useIsPage = () => !!useContext(OverlayMeta)?.page;
+
+/** A sheet that pages can open inside: where they go, and what they share with it (the drag, the progress, the exit). */
+interface Host { el: HTMLDivElement; y: MotionValue<number>; swipeV: { current: number }; engage: Engage; gone: Set<() => void> }
+const hosts = new Map<string, Host>();
+/** Overlays that sit together on one sheet: this one, the pages directly above it, and the sheet they open in. */
+function group(ov: { id: string; page?: boolean }[], i: number) {
+  let lo = i; while (lo > 0 && ov[lo].page) lo--;
+  let hi = i; while (ov[hi + 1]?.page) hi++;
+  return { lo, hi };
+}
+// moving between pages: the one you leave steps aside and fades quickly, the next one glides in a beat later, so the two never
+// sit on top of each other as a double image (what the Settings titles did). Browser-run, so it is drawn at the full refresh rate.
+const PAGE_IN = springCurve(apple(0.5));
+const PAGE_EASE_OUT = 'cubic-bezier(0.4, 0, 1, 1)';
+function pageOut(el: HTMLElement, dx: number) {
+  return el.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: `translate3d(${dx}px, 0, 0)` }], { duration: 150, easing: PAGE_EASE_OUT, fill: 'forwards' });
+}
+function pageIn(el: HTMLElement, dx: number) {
+  const a = el.animate([{ transform: `translate3d(${dx}px, 0, 0)` }, { transform: 'none' }], { duration: PAGE_IN.duration, easing: PAGE_IN.easing, delay: 70, fill: 'backwards' });
+  const b = el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 240, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', delay: 70, fill: 'backwards' });
+  return [a, b];
+}
+/** Steps the content of a sheet (or page) aside while a page covers it, and back when that page goes. */
+function useCovered(ref: React.RefObject<HTMLElement | null>, covered: boolean, reduce: boolean | null) {
+  const first = useRef(true);
+  const anims = useRef<Animation[]>([]);
+  useLayoutEffect(() => {
+    const el = ref.current; if (!el) return;
+    if (first.current) { first.current = false; if (!covered) return; }
+    anims.current.forEach((a) => a.cancel()); anims.current = [];
+    el.inert = covered;
+    if (covered) {
+      if (reduce) { el.style.visibility = 'hidden'; return; }
+      const a = pageOut(el, -28);
+      a.onfinish = () => { el.style.visibility = 'hidden'; };
+      anims.current = [a];
+    } else {
+      el.style.visibility = '';
+      if (reduce) return;
+      anims.current = pageIn(el, -28);
+    }
+  }, [covered]); // eslint-disable-line
+}
 import { Icon } from './Icon';
 import { useUI } from '../state/ui';
 import { useSwipeDown } from './swipe';
 
-import { SMOOTH, SURFACE, SURFACE_EXIT, TAP } from './motion';
+import { SMOOTH, SURFACE, SURFACE_EXIT, TAP, apple, springCurve } from './motion';
 // older names for the motion language (ui/motion.ts)
 export const SPRING = SURFACE;
 export const SOFT = SMOOTH;
@@ -28,16 +76,29 @@ const EXIT_SPRING = SURFACE_EXIT;
  * the page behind it stepping back (scale + corners), the dim/blur over that page and the orb. Opening, a finger drag,
  * a flick and the exit are all just that number changing, so nothing can drift out of step.
  */
-export function Sheet({ children, onClose, tall, label, foot, z: zProp = 60, nested }: { children: ReactNode; onClose: () => void; tall?: boolean; label: string; foot?: ReactNode; z?: number; /** a sheet rendered inside another overlay's component (e.g. the workout's exercise menu) */ nested?: boolean }) {
+type SheetProps = { children: ReactNode; onClose: () => void; tall?: boolean; label: string; foot?: ReactNode; z?: number; /** a sheet rendered inside another overlay's component (e.g. the workout's exercise menu) */ nested?: boolean };
+
+export function Sheet(props: SheetProps) {
+  const meta = useContext(OverlayMeta);
+  return !props.nested && meta?.page ? <PageSheet {...props} id={meta.id} /> : <HostSheet {...props} />;
+}
+
+function HostSheet({ children, onClose, tall, label, foot, z: zProp = 60, nested }: SheetProps) {
   const z = useOverlayZ(zProp) + (nested ? 5 : 0);
-  const ctxZ = useContext(OverlayZ);
-  const count = useUI((u) => u.overlays.length);
-  // a sheet with another overlay above it steps back, like a stacked card (and only the top one answers Escape)
-  const behind = !nested && ctxZ !== null && (ctxZ - 60) / 10 < count - 1;
+  const meta = useContext(OverlayMeta);
+  const ov = useUI((u) => u.overlays);
+  const i = nested || !meta ? -1 : ov.findIndex((o) => o.id === meta.id);
+  // a sheet with another sheet above it steps back, like a stacked card (and only the top one answers Escape). Pages opened
+  // inside it don't count: they are this same sheet. While it leaves, it keeps how it looked.
+  const g = i >= 0 ? group(ov, i) : null;
+  const frozen = useRef({ behind: false, covered: false, hi: i });
+  if (g) frozen.current = { behind: g.hi < ov.length - 1, covered: !!ov[i + 1]?.page, hi: g.hi };
+  const { behind, covered } = frozen.current;
+  const paneRef = useRef<HTMLDivElement>(null);
   const reduce = useReducedMotion();
   const id = useId();
   const ref = useRef<HTMLDivElement>(null);
-  const behindRef = useRef(behind); behindRef.current = behind;
+  const behindRef = useRef(behind); behindRef.current = behind || covered;
   const dist = useRef((typeof window !== 'undefined' ? window.innerHeight : 900) + 40); // how far it travels to be fully off screen
   const p = useMotionValue(0);   // opening progress (a spring)
   const y = useMotionValue(0);   // the finger
@@ -50,7 +111,20 @@ export function Sheet({ children, onClose, tall, label, foot, z: zProp = 60, nes
   const room = useTransform(kb, availableHeight); // what the keyboard leaves free: the sheet lifts and fits as it opens
   useEffect(() => trackDepth(id, e), [id, e]);
   const swipeV = useRef(0); // px/s the finger had when it let go
-  useSwipeDown(ref, y, (v) => { swipeV.current = v ?? 0; onClose(); }, { enabled: !behind });
+  // a swipe on a page inside it closes the whole sheet, pages and all
+  useSwipeDown(ref, y, (v) => {
+    swipeV.current = v ?? 0;
+    const cur = useUI.getState().overlays, at = meta ? cur.findIndex((o) => o.id === meta.id) : -1;
+    if (at >= 0 && cur[at + 1]?.page) useUI.getState().popN(group(cur, at).hi - at + 1); else onClose();
+  }, { enabled: !behind });
+  const gone = useRef(new Set<() => void>());
+  useLayoutEffect(() => {
+    if (nested || !meta || !ref.current) return;
+    hosts.set(meta.id, { el: ref.current, y, swipeV, engage, gone: gone.current });
+    return () => { hosts.delete(meta.id); };
+    // eslint-disable-next-line
+  }, []);
+  useCovered(paneRef, covered, reduce);
   // High refresh rate: the same spring, also handed to the browser for the sheet, its dim and the page behind, so they are
   // drawn at the screen's full rate (see mirrorSpring). A finger or a sheet stacking on top hands control straight back.
   const scrimRef = useRef<HTMLDivElement>(null);
@@ -120,7 +194,7 @@ export function Sheet({ children, onClose, tall, label, foot, z: zProp = 60, nes
     p.set(e.get()); y.set(0);
     runMirror(p.get(), 0, EXIT_SPRING, -vy / dist.current);
     const c = animate(p, 0, reduce ? { duration: 0.01 } : { ...EXIT_SPRING, velocity: -vy / dist.current });
-    c.then(() => safeToRemove?.());
+    c.then(() => { gone.current.forEach((f) => f()); safeToRemove?.(); });
     // eslint-disable-next-line
   }, [present]);
   useEffect(() => {
@@ -138,14 +212,97 @@ export function Sheet({ children, onClose, tall, label, foot, z: zProp = 60, nes
         role="dialog" aria-modal="true" aria-label={label}
       >
         <div className="sheet-grab" />
-        {ready && children}
-        {ready && foot && <div className="sheet-foot">{foot}</div>}
+        <div className="sheet-pane" ref={paneRef}>
+          {ready && children}
+          {ready && foot && <div className="sheet-foot">{foot}</div>}
+        </div>
       </motion.div>
     </EngageContext.Provider>
   );
 }
 
-export function SheetHead({ title, sub, onClose, right, back }: { title: ReactNode; sub?: ReactNode; onClose?: () => void; right?: ReactNode; back?: boolean }) {
+/**
+ * A full-height pop-up opened from another full-height one (see PAGE_TYPES in state/ui.ts): the next page of the SAME sheet.
+ * It is drawn inside that sheet — no second pane of glass, no second dim, the page behind does not step back again — and
+ * glides in from the side while the sheet's current page steps aside. Back (or the hardware back) reverses it; swiping down
+ * closes the whole sheet. It rides the sheet's drag, keyboard lift and exit because it lives inside it.
+ */
+function PageSheet({ children, onClose, tall, label, foot, id }: SheetProps & { id: string }) {
+  const reduce = useReducedMotion();
+  const ov = useUI((u) => u.overlays);
+  const i = ov.findIndex((o) => o.id === id);
+  const [hostId] = useState(() => { const cur = useUI.getState().overlays; const at = cur.findIndex((o) => o.id === id); return at >= 0 ? cur[group(cur, at).lo].id : ''; });
+  const host = hosts.get(hostId);
+  const frozen = useRef(false);
+  if (i >= 0) frozen.current = !!ov[i + 1]?.page;
+  const covered = frozen.current;
+  const isTop = i >= 0 && i === ov.length - 1;
+  const topRef = useRef(isTop); topRef.current = isTop;
+  const ref = useRef<HTMLDivElement>(null);
+  const [ready, setReady] = useState(!tall || !!reduce);
+  useLayoutEffect(() => {
+    if (ready) return;
+    let a = requestAnimationFrame(() => { a = requestAnimationFrame(() => setReady(true)); });
+    return () => cancelAnimationFrame(a);
+    // eslint-disable-next-line
+  }, []);
+  // in: as the sheet's own page steps aside (useCovered on the sheet below), this one glides in from the right
+  useLayoutEffect(() => {
+    const el = ref.current; if (!el) return;
+    const f = document.activeElement as HTMLElement | null;
+    if (f && /^(INPUT|TEXTAREA)$/.test(f.tagName)) f.blur(); // a page arrives without the keyboard, like a sheet does
+    if (reduce) return;
+    const a = pageIn(el, 44);
+    return () => a.forEach((x) => x.cancel());
+    // eslint-disable-next-line
+  }, []);
+  useLayoutEffect(() => {
+    if (!ready) return;
+    const f = document.activeElement as HTMLElement | null;
+    if (f && ref.current?.contains(f) && /^(INPUT|TEXTAREA)$/.test(f.tagName)) f.blur();
+  }, [ready]);
+  useCovered(ref, covered, reduce);
+  // out: Back slides it away to the right; when the whole sheet is going, it simply goes down with it
+  const [present, safeToRemove] = usePresence();
+  useEffect(() => {
+    if (present) return;
+    const el = ref.current;
+    if (el?.contains(document.activeElement)) dropKeyboard(EXIT_SPRING);
+    const hostStays = useUI.getState().overlays.some((o) => o.id === hostId);
+    if (!hostStays && host) { host.gone.add(() => safeToRemove?.()); const tm = setTimeout(() => safeToRemove?.(), 1500); return () => clearTimeout(tm); }
+    if (!el || reduce) { safeToRemove?.(); return; }
+    el.getAnimations().forEach((a) => a.cancel());
+    el.inert = true;
+    const a = el.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translate3d(44px, 0, 0)' }], { duration: 170, easing: PAGE_EASE_OUT, fill: 'forwards' });
+    a.onfinish = () => safeToRemove?.();
+    // eslint-disable-next-line
+  }, [present]);
+  useEffect(() => {
+    const onKey = (ev: KeyboardEvent) => { if (ev.key === 'Escape' && topRef.current) onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  if (!host) return null;
+  return createPortal(
+    <EngageContext.Provider value={host.engage}>
+      <div ref={ref} className="sheet-page" role="dialog" aria-modal="true" aria-label={label}>
+        {ready && children}
+        {ready && foot && <div className="sheet-foot">{foot}</div>}
+      </div>
+    </EngageContext.Provider>,
+    host.el,
+  );
+}
+
+/** The close button of a custom sheet header: a Back arrow when the sheet is a page inside another one. */
+export function CloseButton({ onClick, label = 'Close' }: { onClick: () => void; label?: string }) {
+  const page = useIsPage();
+  return <button className="icon-btn flat" onClick={onClick} aria-label={page ? 'Back' : label}><Icon name={page ? 'chevL' : 'close'} /></button>;
+}
+
+export function SheetHead({ title, sub, onClose, right, back: backProp }: { title: ReactNode; sub?: ReactNode; onClose?: () => void; right?: ReactNode; back?: boolean }) {
+  const page = useIsPage();
+  const back = backProp || page; // a page inside another sheet goes Back to it rather than closing
   return (
     <div className="sheet-head">
       <AnimatePresence initial={false}>

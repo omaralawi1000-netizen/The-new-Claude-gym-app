@@ -1,5 +1,5 @@
 import { AnimatePresence } from 'motion/react';
-import { OverlayZ } from '../ui/Sheet';
+import { OverlayMeta, OverlayZ } from '../ui/Sheet';
 import { useUI } from '../state/ui';
 import { ActiveWorkout } from './workout/Active';
 import { SettingsSheet } from './Settings';
@@ -19,6 +19,10 @@ import { Onboarding } from './Onboarding';
 import { Coach } from './Coach';
 import { VoiceComposer } from './Voice';
 import { PhotoFood } from './food/PhotoFood';
+
+// one stable object per overlay, so its consumers don't re-render on every change to the stack
+const metas = new Map<string, { id: string; page: boolean }>();
+const meta = (id: string, page: boolean) => { let m = metas.get(id); if (!m) { m = { id, page }; metas.set(id, m); if (metas.size > 200) metas.delete(metas.keys().next().value!); } return m; };
 
 /** Renders the overlay stack. Each overlay owns its presentation (sheet, morph, or full-screen). */
 export function Overlays() {
@@ -61,7 +65,7 @@ export function Overlays() {
           case 'onboarding': return <Onboarding key={o.id} props={p} />;
           default: return null;
         } })();
-        return <OverlayZ.Provider key={o.id} value={60 + idx * 10}>{el}</OverlayZ.Provider>;
+        return <OverlayZ.Provider key={o.id} value={60 + idx * 10}><OverlayMeta.Provider value={meta(o.id, !!o.page)}>{el}</OverlayMeta.Provider></OverlayZ.Provider>;
       })}
     </AnimatePresence>
   );

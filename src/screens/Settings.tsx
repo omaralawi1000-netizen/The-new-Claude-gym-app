@@ -4,7 +4,7 @@ import { useStore, flushSave, persistStatus } from '../state/store';
 import { useUI } from '../state/ui';
 import { apple, highRefresh, onHighRefresh, setHighRefresh } from '../ui/motion';
 import { useT, useLang } from '../lib/i18n';
-import { Sheet, SheetHead } from '../ui/Sheet';
+import { Sheet, SheetHead, useIsPage } from '../ui/Sheet';
 import { Icon } from '../ui/Icon';
 import { NumInput, Seg, Toggle } from '../ui/kit';
 import { defaultData, normaliseData, DATA_VERSION } from '../state/defaults';
@@ -21,19 +21,20 @@ import { VoiceAiSettings } from './VoiceAi';
 import { setFpsMeter, useFpsMeterOn } from '../ui/FpsMeter';
 
 const EASE = [0.22, 1, 0.36, 1] as const;
-// Moving between Settings pages works like iOS: the next page glides in from the side on Apple's spring while the one you
-// leave steps the other way and fades; its rows then settle in one after another (styles.css, .settings-page). No blur.
-// Whole transforms, so the browser runs them on its compositor.
-const PUSH = apple(0.46);
+// Moving between Settings pages works like iOS: the page you leave steps aside and fades out quickly, then the next one glides
+// in from the side on Apple's spring. The new one starts a beat later, so the two never show as a double image (the titles
+// used to overlap into things like "Settings & locale"). Whole transforms, so the browser runs them on its compositor.
+const PUSH = apple(0.5);
+const OUT = { duration: 0.14, ease: [0.4, 0, 1, 1] as const };
 const PAGE = {
   enter: (d: number) => ({ opacity: 0, transform: `translateX(${d * 44}px)` }),
-  center: { opacity: 1, transform: 'translateX(0px)', transitionEnd: { transform: 'none' }, transition: { transform: PUSH, opacity: { duration: 0.26, ease: EASE } } },
-  exit: (d: number) => ({ opacity: 0, transform: `translateX(${d * -30}px)`, transition: { duration: 0.2, ease: [0.4, 0, 1, 1] as const } }),
+  center: { opacity: 1, transform: 'translateX(0px)', transitionEnd: { transform: 'none' }, transition: { transform: { ...PUSH, delay: 0.07 }, opacity: { duration: 0.24, ease: EASE, delay: 0.07 } } },
+  exit: (d: number) => ({ opacity: 0, transform: `translateX(${d * -28}px)`, transition: OUT }),
 };
 const TITLE = {
   enter: (d: number) => ({ opacity: 0, transform: `translateX(${d * 22}px)` }),
-  center: { opacity: 1, transform: 'translateX(0px)', transitionEnd: { transform: 'none' }, transition: { transform: PUSH, opacity: { duration: 0.24, ease: EASE } } },
-  exit: (d: number) => ({ opacity: 0, transform: `translateX(${d * -16}px)`, transition: { duration: 0.16 } }),
+  center: { opacity: 1, transform: 'translateX(0px)', transitionEnd: { transform: 'none' }, transition: { transform: { ...PUSH, delay: 0.08 }, opacity: { duration: 0.22, ease: EASE, delay: 0.08 } } },
+  exit: (d: number) => ({ opacity: 0, transform: `translateX(${d * -14}px)`, transition: { duration: 0.11, ease: [0.4, 0, 1, 1] as const } }),
 };
 
 type Section = null | 'targets' | 'training' | 'food' | 'units' | 'look' | 'reminders' | 'data' | 'privacy' | 'ai' | 'about';
@@ -86,13 +87,14 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
   const st = s.settings;
   const titles: Record<string, string> = { targets: t('Targets'), training: t('Training'), food: t('Food & water'), units: t('Units & locale'), look: t('Appearance'), reminders: t('Reminders'), data: t('Data & backup'), privacy: t('Privacy'), ai: t('Voice & AI'), about: t('About Aven') };
   const goBack = () => (sec && !props.section ? setSec(null) : pop());
+  const asPage = useIsPage(); // opened inside another sheet (e.g. from the Coach): its Back arrow is the way out
 
   return (
     <Sheet onClose={pop} tall label={t('Settings')} z={100}>
       <SheetHead title={
         <AnimatePresence mode="popLayout" initial={false} custom={dir}>
           <motion.span key={sec ?? 'root'} custom={dir} variants={TITLE} initial="enter" animate="center" exit="exit" style={{ display: 'inline-block' }}>{sec ? titles[sec] : t('Settings')}</motion.span>
-        </AnimatePresence>} onClose={sec ? goBack : pop} back={!!sec && !props.section} right={sec && props.section ? <button className="icon-btn flat" onClick={pop} aria-label={t('Close')}><Icon name="close" /></button> : undefined} />
+        </AnimatePresence>} onClose={sec ? goBack : pop} back={!!sec && !props.section} right={sec && props.section && !asPage ? <button className="icon-btn flat" onClick={pop} aria-label={t('Close')}><Icon name="close" /></button> : undefined} />
       <div className="sheet-body" style={{ position: 'relative', overflowX: 'hidden' }}>
         {/* both pages move at once (no blank gap): the new one slides in sharpening from blur, the old one drifts out */}
         <AnimatePresence mode="popLayout" initial={false} custom={dir}>

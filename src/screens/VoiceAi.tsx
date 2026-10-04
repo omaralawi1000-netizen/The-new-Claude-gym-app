@@ -57,7 +57,7 @@ export function VoiceAiSettings() {
 
   return (
     <div className="stack gap16">
-      <div className="small t2">{t('Optional. Without keys, Aven still works: your browser’s speech service and the built-in parser do the job. With keys, Groq hears you much more accurately (including Danish) and Gemini understands messy sentences, estimates unknown foods and powers the Coach.')}</div>
+      <div className="small t2">{t('Optional, and free. Aven works without them; with them it hears you better (Danish too) and the Coach can talk and act.')}</div>
       <KeyField name="groq" label={t('Groq key — hears you (Whisper)')} hint={t('Free at console.groq.com. Used only to turn your recording into text.')} onTest={testGroq} test={g} />
       <KeyField name="gemini" label={t('Gemini key — understands you')} hint={t('Free at aistudio.google.com. Used to read your sentences, estimate foods, build routines and talk in the Coach.')} onTest={testGemini} test={m} />
 

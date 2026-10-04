@@ -9,7 +9,7 @@ import { fmtNum } from '../../lib/units';
 import { fmtNutrient, NUTRIENT_LABEL, NUTRIENT_UNIT, sourceLabel } from '../../lib/format';
 import { Icon } from '../../ui/Icon';
 import { Count, NumInput, Seg } from '../../ui/kit';
-import { Sheet, SOFT } from '../../ui/Sheet';
+import { CloseButton, Sheet, useIsPage, SOFT } from '../../ui/Sheet';
 import { mealName } from '../../lib/derive';
 import { fmtDate, relativeDay } from '../../lib/dates';
 import { useToday } from '../../lib/derive';
@@ -42,6 +42,7 @@ export function FoodDetail({ props }: { props: { food?: Food; foodId?: string; e
   const pool = foodPool(s.foods, s.recipes);
   const pop = useUI((u) => u.pop);
   const closeAll = useUI((u) => u.closeAll);
+  const asPage = useIsPage(); // opened from the search: Back on the left, like any page
   const push = useUI((u) => u.push);
   const toast = useUI((u) => u.toast);
   const today = useToday();
@@ -114,6 +115,7 @@ export function FoodDetail({ props }: { props: { food?: Food; foodId?: string; e
   const body = (
     <>
       <div className="sheet-head" style={{ alignItems: 'flex-start' }}>
+        {asPage && <CloseButton onClick={pop} />}
         <div className="grow">
           <div className="micro">{editing ? t('Edit entry') : t('Food')}</div>
           <div className="display display-md" style={{ marginTop: 4, lineHeight: 1 }}>{food.name}</div>
@@ -122,7 +124,7 @@ export function FoodDetail({ props }: { props: { food?: Food; foodId?: string; e
         <button className="icon-btn press" aria-label={fav ? t('Remove favourite') : t('Favourite')} onClick={() => { buzz(6); if (!s.foods.some((f) => f.id === food.id) && food.source !== 'reference' && food.source !== 'recipe') s.saveFood(food); s.toggleFavourite(food.id); }} style={{ color: fav ? 'var(--ac-text)' : undefined }}>
           <Icon name="star" style={{ fill: fav ? 'currentColor' : 'none' }} />
         </button>
-        <button className="icon-btn flat" onClick={pop} aria-label={t('Close')}><Icon name="close" /></button>
+        {!asPage && <CloseButton onClick={pop} label={t('Close')} />}
       </div>
 
       <div className="sheet-body">

@@ -314,6 +314,13 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* A sheet with another sheet stacked on top: the top one's dim and blur cover it, so it drops its own frost and its own
    veil's blur. Each kept a full-screen blur alive; three stacked sheets ran the phone out of GPU memory (black tiles). */
 .sheet.behind { -webkit-backdrop-filter: none; backdrop-filter: none; }
+/* …but it must not turn see-through: without its frost the page showed through it and it looked like it was dissolving.
+   It becomes the same glass laid over the plain background instead — solid, and under the dim it reads as a card set back. */
+.sheet.behind, .sheet.behind[data-size='short'] { background: linear-gradient(var(--glass-2), var(--glass-2)), var(--bg); }
+/* A sheet's content sits in a pane, so it can step aside when a page opens inside the same sheet (Sheet.tsx, PageSheet). The
+   page is laid exactly over it, below the grab handle, on the sheet's own glass. */
+.sheet-pane { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.sheet-page { position: absolute; left: 0; right: 0; top: 26px; bottom: 0; display: flex; flex-direction: column; min-height: 0; }
 .scrim.veil-behind > .veil-blur-b { display: none; }
 .sheet-grab { flex: none; height: 26px; display: grid; place-items: center; touch-action: none; cursor: grab; }
 .sheet-grab::after { content: ''; width: 40px; height: 5px; border-radius: 3px; background: var(--line-2); }

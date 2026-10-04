@@ -140,6 +140,16 @@ Run in headless Chromium (Playwright, 390×844 @2×, dark + light), scripts in `
 - **Not built (on purpose, stated in-app):** cloud sync / accounts; photo-based food estimation; automatic AI changes to your data (the Coach advises; routines and estimates only appear after you confirm; progression suggestions remain transparent rules); background reminders when the app is closed (web apps need a push server — reminders fire only while Aven runs; in-app nudge otherwise); animated exercise demonstrations (there is an authored muscle diagram and step-by-step text instead).
 - Exercise calories are **never** added to food targets.
 
+## Pop-up pass: pages instead of piles
+
+- **A pop-up only stacks on a pop-up when it's its own thing.** A full-height sheet opened from another one (a food from the search, a substitute from an exercise, the exercise list from a routine, a recipe from the recipe list, Settings from the Coach) now opens as the **next page inside the same sheet**: it glides in from the right while the current page steps aside, and Back (the arrow, or the phone's back) reverses it. One pane of glass, one dim, the page behind doesn't step back again — so going five exercises deep through substitutions costs the same as one. Swiping down closes the whole sheet, pages and all.
+- **Still stacked, on purpose:** the barcode scanner and photo over the food search, day pickers, confirms, and anything over the live workout.
+- **Menus hand over:** "Copy meal to…" and "Notes" in a meal's ⋯ menu replace the menu instead of opening on top of it.
+- **No more dissolving:** a sheet with another sheet stacked over it drops its frost (to save the phone's GPU) but now becomes solid glass, instead of turning see-through so the page showed through it.
+- **Settings pages** no longer show two titles at once ("Settings & locale"): the page you leave fades out quickly and the next glides in a beat later.
+- Small fixes: "1 set" (not "1 sets") in routines; shorter Voice & AI intro.
+- How: `state/ui.ts` marks an overlay as a `page` when both it and the sheet below it are full-height task sheets (`PAGE_HOSTS` / `PAGE_TYPES`); `ui/Sheet.tsx` renders such an overlay inside the sheet below it (`PageSheet`, a portal), and that sheet's own content sits in a `.sheet-pane` that steps aside. All page motion is browser-run (Web Animations), so it draws at 120 Hz.
+
 ## Declutter pass
 
 - **One way to talk**: the duplicate buttons are gone — the mic on Today, "Dictate" on Food, "Say what you ate" for new users and "Build a routine" in the Coach. The orb does voice; the sparkle on Today opens the Coach; routines are built by just asking (the assistant creates them with Undo).

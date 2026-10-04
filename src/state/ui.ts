@@ -7,7 +7,18 @@ export type OverlayType =
   | 'scanner' | 'waterSheet' | 'exercise' | 'exercisePicker' | 'routine' | 'schedule' | 'sessionDetail' | 'summary' | 'weight'
   | 'activity' | 'measure' | 'photos' | 'onboarding' | 'history' | 'dayNotes' | 'exerciseEditor' | 'rescheduleSheet' | 'mealCopy' | 'mealsEditor' | 'about' | 'foodPick' | 'datePicker' | 'entryMenu' | 'lookupInfo' | 'coach' | 'photoFood';
 
-export interface Overlay { id: string; type: OverlayType; props?: any }
+/** `page`: shown as the next page INSIDE the sheet below it (see Sheet.tsx) instead of as a second sheet stacked on top. */
+export interface Overlay { id: string; type: OverlayType; props?: any; page?: boolean }
+
+/**
+ * Pop-up on pop-up only where it means something. A full-height sheet opened from another full-height sheet — a food from the
+ * search, a substitute from an exercise, the exercise list from a routine — is the next step of the same task, so it opens as a
+ * page inside that sheet: it slides in from the side and Back slides it out, on the one pane of glass. Tools that are their
+ * own thing (the scanner, the camera, a day picker, a confirm) still rise as a sheet of their own on top.
+ */
+const PAGE_HOSTS = new Set<OverlayType>(['foodSearch', 'foodDetail', 'customFood', 'recipes', 'recipe', 'savedMeals', 'exercise', 'exercisePicker', 'exerciseEditor', 'sessionDetail', 'routine', 'summary', 'settings', 'coach']);
+const PAGE_TYPES = new Set<OverlayType>(['foodDetail', 'customFood', 'recipes', 'recipe', 'savedMeals', 'exercise', 'exercisePicker', 'exerciseEditor', 'sessionDetail', 'settings']);
+const asPage = (below: Overlay | undefined, type: OverlayType) => !!below && PAGE_HOSTS.has(below.type) && PAGE_TYPES.has(type);
 export interface Toast { id: string; text: string; tone?: 'ok' | 'bad' | 'info'; actionLabel?: string; onAction?: () => void; duration: number }
 
 interface UI {
@@ -21,6 +32,8 @@ interface UI {
   setTrainTab: (t: UI['trainTab']) => void;
   push: (type: OverlayType, props?: any) => string;
   pop: () => void;
+  /** close the top `n` overlays at once */
+  popN: (n: number) => void;
   popTo: (type: OverlayType) => void;
   replaceTop: (type: OverlayType, props?: any) => void;
   /** remove the top `n` overlays and show one new overlay in their place */
@@ -56,7 +69,7 @@ export const useUI = create<UI>((set, get) => ({
     const id = uid('ov');
     histDepth += 1;
     try { history.pushState({ aven: histDepth }, ''); } catch { /* ignore */ }
-    set((s) => ({ overlays: [...s.overlays, { id, type, props }] }));
+    set((s) => ({ overlays: [...s.overlays, { id, type, props, page: asPage(top, type) }] }));
     return id;
   },
   pop: () => {
@@ -65,6 +78,13 @@ export const useUI = create<UI>((set, get) => ({
     set({ overlays: ov.slice(0, -1) });
     unwindTo(ov.length - 1);
   },
+  popN: (n) => {
+    const ov = get().overlays;
+    const keep = Math.max(0, ov.length - n);
+    if (keep >= ov.length) return;
+    set({ overlays: ov.slice(0, keep) });
+    unwindTo(keep);
+  },
   popTo: (type) => {
     const ov = get().overlays;
     const keep = ov.map((o) => o.type).lastIndexOf(type) + 1;
@@ -72,11 +92,11 @@ export const useUI = create<UI>((set, get) => ({
     set({ overlays: ov.slice(0, keep) });
     unwindTo(keep);
   },
-  replaceTop: (type, props) => set((s) => ({ overlays: [...s.overlays.slice(0, -1), { id: uid('ov'), type, props }] })),
+  replaceTop: (type, props) => set((s) => ({ overlays: [...s.overlays.slice(0, -1), { id: uid('ov'), type, props, page: asPage(s.overlays[s.overlays.length - 2], type) }] })),
   swap: (n, type, props) => {
     const ov = get().overlays;
     const keep = Math.max(0, ov.length - n);
-    set({ overlays: [...ov.slice(0, keep), { id: uid('ov'), type, props }] });
+    set({ overlays: [...ov.slice(0, keep), { id: uid('ov'), type, props, page: asPage(ov[keep - 1], type) }] });
     unwindTo(keep + 1);
   },
   closeAll: () => {

@@ -181,7 +181,7 @@ export function SphereStage() {
     // A popup's own motion (its transform, the dim and blur fading, the page stepping back) rewrites a style attribute every
     // frame. None of that can move a slot — the popup's displacement is read separately (`shift`) — but each one used to
     // open the "re-measure every frame" window, so every frame of every popup forced a full style + layout pass.
-    const MOVING = '.sheet, .scrim, .scrim > i, .stage, .wk-card, .wk-sheet, .fields, .aurora';
+    const MOVING = '.sheet, .sheet-pane, .sheet-page, .scrim, .scrim > i, .stage, .wk-card, .wk-sheet, .fields, .aurora';
     const lmo = new MutationObserver((recs) => {
       for (const r of recs) if (r.type !== 'attributes' || !(r.target as Element).matches?.(MOVING)) { dirty(); return; }
     });

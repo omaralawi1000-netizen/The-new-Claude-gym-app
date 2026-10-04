@@ -60,7 +60,7 @@ export function RoutineEditor({ props }: { props: { id?: string } }) {
                 <div className="row-flex" style={{ gap: 8 }}>
                   <button className="grow press" style={{ textAlign: 'left', minWidth: 0 }} onClick={() => setOpen(isOpen ? null : i.id)} aria-expanded={isOpen}>
                     <div className="li-title trunc">{ex ? exName(ex, lang) : '?'}</div>
-                    <div className="li-sub num">{timed ? `${i.workingSets} ${t('sets')}` : `${i.warmupSets ? `${i.warmupSets} W + ` : ''}${i.workingSets} × ${i.repMin}–${i.repMax}`} · {t('rest')} {fmtDuration(i.restSec)}{i.supersetGroup ? ` · ${t('superset')}` : ''}</div>
+                    <div className="li-sub num">{timed ? `${i.workingSets} ${i.workingSets === 1 ? t('set') : t('sets')}` : `${i.warmupSets ? `${i.warmupSets} W + ` : ''}${i.workingSets} × ${i.repMin}–${i.repMax}`} · {t('rest')} {fmtDuration(i.restSec)}{i.supersetGroup ? ` · ${t('superset')}` : ''}</div>
                   </button>
                   <button className="icon-btn flat sm" aria-label={t('Move up')} disabled={idx === 0} onClick={() => move(i.id, -1)} style={{ opacity: idx === 0 ? 0.3 : 1 }}><Icon name="arrowUp" size={17} /></button>
                   <button className="icon-btn flat sm" aria-label={t('Move down')} disabled={idx === items.length - 1} onClick={() => move(i.id, 1)} style={{ opacity: idx === items.length - 1 ? 0.3 : 1 }}><Icon name="arrowDown" size={17} /></button>
