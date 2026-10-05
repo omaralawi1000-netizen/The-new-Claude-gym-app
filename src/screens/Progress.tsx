@@ -54,7 +54,20 @@ export function ProgressScreen() {
   // wrestling: minutes on the mat per week, on the same week buckets as training
   const mat = useMemo(() => wk.map((b) => { const end = addDays(b.start, 6); const l = s.activities.filter((x) => x.kind === 'wrestling' && x.date >= b.start && x.date <= end); return { start: b.start, min: Math.round(l.reduce((n, x) => n + x.durationSec, 0) / 60), n: l.length }; }), [wk, s.activities]);
   const hasMat = s.activities.some((x) => x.kind === 'wrestling');
-  const recs = s.sessions.flatMap((x) => (x.records ?? []).map((r) => ({ ...r, at: x.endedAt ?? 0 }))).sort((a, b) => b.at - a.at).slice(0, 5);
+  // one row per exercise: its latest session's records, shown by the one that means most (a heavier set beats an estimate,
+  // which beats volume); the others in that session become a small "+n". It used to list Back Squat three times in a row.
+  const RANK = ['weight', 'e1rm', 'reps', 'duration', 'distance', 'volume'];
+  const recs = (() => {
+    const all = s.sessions.flatMap((x) => (x.records ?? []).map((r) => ({ ...r, at: x.endedAt ?? 0 }))).sort((a, b) => b.at - a.at);
+    const out: (typeof all[number] & { more: number })[] = [];
+    for (const r of all) {
+      if (out.some((o) => o.exerciseId === r.exerciseId)) continue;
+      const same = all.filter((o) => o.exerciseId === r.exerciseId && o.at === r.at).sort((a, b) => RANK.indexOf(a.kind) - RANK.indexOf(b.kind));
+      out.push({ ...same[0], more: same.length - 1 });
+      if (out.length >= 5) break;
+    }
+    return out;
+  })();
   const empty = s.sessions.length === 0 && s.weights.length === 0 && s.entries.length === 0;
   const lastWeight = weights[weights.length - 1];
   const firstW = weights[0];
@@ -128,6 +141,7 @@ export function ProgressScreen() {
               <button key={i} className="li press" onClick={() => push('exercise', { id: r.exerciseId })}>
                 <span style={{ width: 34, height: 34, borderRadius: 12, background: 'var(--ac)', color: 'var(--ac-ink)', display: 'grid', placeItems: 'center', flex: 'none' }}><Icon name="bolt" size={17} /></span>
                 <div className="grow" style={{ textAlign: 'left' }}><div className="li-title small">{ex ? exName(ex, lang) : ''}</div><div className="li-sub">{t(({ weight: 'Heaviest set', e1rm: 'Estimated 1RM', volume: 'Best set volume', reps: 'Most reps', duration: 'Longest hold', distance: 'Longest distance' } as any)[r.kind])} · {fmtDate(r.date, lang, { day: 'numeric', month: 'short' })}</div></div>
+                {r.more > 0 && <span className="chip sm num" style={{ flex: 'none' }}>+{r.more}</span>}
                 <div className="num" style={{ fontWeight: 700 }}>{r.kind === 'reps' ? r.value : r.kind === 'duration' ? `${r.value}s` : r.kind === 'distance' ? `${fmtNum(r.value / 1000, lang, 2)} km` : `${fmtNum(kgToDisplay(r.value, u.weight), lang, r.kind === 'e1rm' ? 1 : 2)} ${u.weight}`}</div>
               </button>); })}
           </div>

@@ -327,10 +327,13 @@ export class SphereRenderer {
       const depth = Math.max(0, Math.min(1, (z2 + 1.1) / 2.2)); // 0 back … 1 front
       const lam = Math.max(0, x1 * -0.42 + y2 * -0.52 + z2 * 0.74);
       const rim = Math.pow(1 - Math.abs(z2), 3) * 0.35 * depth; // a thin bright rim reads as glass
+      // light stays where you can see it: effects light the near side fully and the far side only a little, so the sphere
+      // keeps its depth while you speak (it used to blow out to an even white, front and back alike)
+      glow = this.cur.glow + (glow - this.cur.glow) * (0.3 + 0.7 * depth);
       const sh = Math.min(1, 0.16 + 0.84 * Math.pow(depth, 1.25) * (0.42 + 0.58 * lam) + rim + Math.max(0, glow - 0.4) * 0.25 * depth);
             const size = spacing * 0.24 * (0.35 + 1.05 * depth) * (1 + Math.min(1, glow) * 0.16);
       dots[n] = { x: px, y: py, r: size };
-      tone[n] = okMix > 0.25 ? 2 : glow > 1.3 ? 1 : 0;
+      tone[n] = okMix > 0.25 ? 2 : glow * (0.4 + 0.6 * depth) > 1.25 ? 1 : 0; // highlights are sparkles on the near side, not a wash
       const hueMix = 0.5 + 0.5 * Math.sin(az * 1 + y * 1.6 - T * 0.6); // the second colour drifts around the surface
       const hb = Math.min(NH - 1, Math.floor(hueMix * NH));
       buckets[Math.min(NB - 1, Math.floor(sh * NB)) * NH + hb].push(n);

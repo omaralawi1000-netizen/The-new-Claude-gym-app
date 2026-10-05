@@ -140,6 +140,12 @@ Run in headless Chromium (Playwright, 390×844 @2×, dark + light), scripts in `
 - **Not built (on purpose, stated in-app):** cloud sync / accounts; photo-based food estimation; automatic AI changes to your data (the Coach advises; routines and estimates only appear after you confirm; progression suggestions remain transparent rules); background reminders when the app is closed (web apps need a push server — reminders fire only while Aven runs; in-app nudge otherwise); animated exercise demonstrations (there is an authored muscle diagram and step-by-step text instead).
 - Exercise calories are **never** added to food targets.
 
+## Polish: orb depth, records, routine cards
+
+- **Orb keeps its depth while you speak**: voice light lights the near side fully and the far side only a little, and bright highlights are sparkles on the near side. It used to blow out to an even white, front and back alike.
+- **Recent records** (Progress): one row per exercise, showing its most meaningful record from the latest session (heaviest set, then estimated 1RM, reps, hold, distance, volume last), with "+n" for the others. It used to list Back Squat three times in a row.
+- **Routine cards** (Train): muscle chips stay on one line — two chips and "+n" — instead of wrapping under the buttons.
+
 ## One orb, everywhere; its beads move with your voice
 
 - **One look at every size** (`ui/sphereRender.ts`): the orb is always the same 400 evenly spaced beads — in the dock, the Coach's mic, the workout and the orb screen — only scaled. It used to be a sparse, patchy sample of a 1100-dot lattice when small and a dense, glaring one when big, so it looked like different objects.

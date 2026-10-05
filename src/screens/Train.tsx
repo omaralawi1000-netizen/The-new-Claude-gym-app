@@ -109,7 +109,7 @@ function PlanTab() {
                     <button className="icon-btn flat" aria-label={t('Duplicate')} onClick={() => dup(r)}><Icon name="copy" size={19} /></button>
                   </div>
                   <div className="row-flex between" style={{ marginTop: 14 }}>
-                    <div className="chips" style={{ margin: 0, padding: 0, gap: 6, flexWrap: 'wrap', overflow: 'visible', minWidth: 0, flex: 1 }}>{muscles.slice(0, 3).map((m) => <span key={m} className="chip sm">{t(MUSCLE_LABEL[m])}</span>)}</div>
+                    <div className="chips" style={{ margin: 0, padding: 0, gap: 6, flexWrap: 'nowrap', overflow: 'hidden', minWidth: 0, flex: 1 }}>{muscles.slice(0, 2).map((m) => <span key={m} className="chip sm" style={{ flex: 'none' }}>{t(MUSCLE_LABEL[m])}</span>)}{muscles.length > 2 && <span className="chip sm num" style={{ flex: 'none' }}>+{muscles.length - 2}</span>}</div>
                     <div className="row-flex" style={{ gap: 8, flex: 'none' }}>
                       <button className="icon-btn press" aria-label={t('Schedule')} onClick={() => push('schedule', { routineId: r.id })}><Icon name="calendar" /></button>
                       <button className="icon-btn acc press" style={{ width: 54, height: 54 }} aria-label={s.active ? t('Resume current') : t('Start')} onClick={() => start(r)}><Icon name="play" size={22} /></button>
