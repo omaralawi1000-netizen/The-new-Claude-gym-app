@@ -64,6 +64,9 @@
 :root[data-palette='forest'] [data-hue='train'] { --ac: #d4f25a; --h1: #2fa05a; --h2: #6a8f1c; --h3: #ffd04d; }
 :root[data-palette='forest'] [data-hue='food'] { --ac: #8af25a; --h1: #2fe08a; --h2: #1c8a63; --h3: #c6f24a; }
 :root[data-palette='forest'] [data-hue='progress'] { --ac: #5ae0a8; --h1: #2f9d8a; --h2: #4b9b5a; --h3: #b6f25a; }
+/* contents that arrive a beat after a tall sheet starts moving fade in instead of appearing */
+.sheet-pane.late > * { animation: fadein 220ms var(--ease-out) backwards; }
+:root[data-motion='reduce'] .sheet-pane.late > * { animation: none; }
 /* the little swatches in Settings → Appearance */
 .pal { display: flex; gap: 10px; overflow-x: auto; margin: 0 -22px; padding: 4px 22px 6px; scrollbar-width: none; scroll-snap-type: x proximity; scroll-padding: 0 22px; }
 .pal::-webkit-scrollbar { display: none; }
@@ -153,7 +156,7 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
 .aurora i:nth-child(1) { width: 120%; aspect-ratio: 1; left: -35%; top: -30%; background: radial-gradient(closest-side, var(--h1), transparent); animation: drift1 38s ease-in-out infinite alternate; }
 .aurora i:nth-child(2) { width: 105%; aspect-ratio: 1; right: -40%; top: 18%; background: radial-gradient(closest-side, var(--h2), transparent); animation: drift2 46s ease-in-out infinite alternate; }
 .aurora i:nth-child(3) { width: 130%; aspect-ratio: 1; left: -20%; bottom: -55%; background: radial-gradient(closest-side, var(--h3), transparent); animation: drift3 54s ease-in-out infinite alternate; opacity: calc(var(--aurora-a) * .8); }
-.aurora::after { content: ''; position: absolute; inset: 0; opacity: calc(var(--grain) * 0.55); /* plain blend: an 'overlay' blend forces another full-screen pass */ background-image: var(--grain-url, url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")); background-size: var(--grain-size, auto); }
+.aurora::after { content: ''; position: absolute; inset: 0; opacity: calc(var(--grain) * 1.25); mix-blend-mode: overlay; /* the grain is what dithers the soft colour gradients; without it they band */ background-image: var(--grain-url, url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")); background-size: var(--grain-size, auto); }
 /* The workout window's colour field: ONE layer (three gradients) instead of three big layers + blend + mask, so it
    costs a single cheap raster when the window opens; it still drifts slowly. Same lights as .aurora, same positions. */
 .aurora-lite { position: absolute; inset: 0; overflow: hidden; pointer-events: none; container-type: size; }

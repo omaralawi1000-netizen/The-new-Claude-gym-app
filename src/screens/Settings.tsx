@@ -121,7 +121,7 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
   const goBack = () => (sec && !props.section ? setSec(null) : pop());
 
   return (
-    <Sheet onClose={pop} tall label={t('Settings')} z={100}>
+    <Sheet onClose={pop} tall instant label={t('Settings')} z={100}>
       <SheetHead title={
         <AnimatePresence mode="popLayout" initial={false} custom={dir}>
           <motion.span key={sec ?? 'root'} custom={dir} variants={TITLE} initial="enter" animate="center" exit="exit" style={{ display: 'inline-block' }}>{sec ? titles[sec] : t('Settings')}</motion.span>

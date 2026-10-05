@@ -88,14 +88,14 @@ const EXIT_SPRING = SURFACE_EXIT;
  * the page behind it stepping back (scale + corners), the dim/blur over that page and the orb. Opening, a finger drag,
  * a flick and the exit are all just that number changing, so nothing can drift out of step.
  */
-type SheetProps = { children: ReactNode; onClose: () => void; tall?: boolean; label: string; foot?: ReactNode; z?: number; /** a sheet rendered inside another overlay's component (e.g. the workout's exercise menu) */ nested?: boolean };
+type SheetProps = { children: ReactNode; onClose: () => void; tall?: boolean; /** light contents (Settings): present from the first frame instead of arriving a beat later */ instant?: boolean; label: string; foot?: ReactNode; z?: number; /** a sheet rendered inside another overlay's component (e.g. the workout's exercise menu) */ nested?: boolean };
 
 export function Sheet(props: SheetProps) {
   const meta = useContext(OverlayMeta);
   return !props.nested && meta?.page ? <PageSheet {...props} id={meta.id} /> : <HostSheet {...props} />;
 }
 
-function HostSheet({ children, onClose, tall, label, foot, z: zProp = 60, nested }: SheetProps) {
+function HostSheet({ children, onClose, tall, instant, label, foot, z: zProp = 60, nested }: SheetProps) {
   const z = useOverlayZ(zProp) + (nested ? 5 : 0);
   const meta = useContext(OverlayMeta);
   const ov = useUI((u) => u.overlays);
@@ -169,7 +169,7 @@ function HostSheet({ children, onClose, tall, label, foot, z: zProp = 60, nested
   // before it: building them used to hold up the very first frame, which read as the popup hesitating before it moved. By then
   // the sheet is still almost entirely off screen, and the contents fade up a beat later anyway. Its height does not depend on
   // them (it is full height), so nothing jumps.
-  const [ready, setReady] = useState(!tall || !!reduce);
+  const [ready, setReady] = useState(!tall || !!instant || !!reduce);
   useLayoutEffect(() => {
     if (ready) return;
     let a = requestAnimationFrame(() => { a = requestAnimationFrame(() => setReady(true)); });
@@ -224,7 +224,7 @@ function HostSheet({ children, onClose, tall, label, foot, z: zProp = 60, nested
         role="dialog" aria-modal="true" aria-label={label}
       >
         <div className="sheet-grab" />
-        <div className="sheet-pane" ref={paneRef}>
+        <div className={`sheet-pane ${tall && !instant ? 'late' : ''}`} ref={paneRef}>
           {ready && children}
           {ready && foot && <div className="sheet-foot">{foot}</div>}
         </div>
