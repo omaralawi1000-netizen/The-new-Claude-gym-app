@@ -89,10 +89,10 @@ export function FoodSearch({ props }: { props: { date: string; mealId: string } 
   const open = (food: Food) => push('foodDetail', { food: pool.some((f) => f.id === food.id) ? undefined : food, foodId: pool.some((f) => f.id === food.id) ? food.id : undefined, date: props.date, mealId: props.mealId });
 
   const actions: { icon: any; label: string; run: () => void }[] = [
-    { icon: 'bolt', label: t('Quick add'), run: () => push('quickAdd', { date: props.date, mealId: props.mealId }) },
+    // what you'd reach for first, then your own library; talking is the orb's job (it's always in the dock)
     { icon: 'barcode', label: t('Scan'), run: () => push('scanner', { date: props.date, mealId: props.mealId }) },
     { icon: 'camera', label: t('Photo'), run: () => push('photoFood', { date: props.date, mealId: props.mealId }) },
-    { icon: 'mic', label: t('Dictate'), run: () => push('voice', { mode: 'food', date: props.date, mealId: props.mealId }) },
+    { icon: 'bolt', label: t('Quick add'), run: () => push('quickAdd', { date: props.date, mealId: props.mealId }) },
     { icon: 'edit', label: t('New food'), run: () => push('customFood', { afterSave: 'openDetail', date: props.date, mealId: props.mealId }) },
     { icon: 'recipe', label: t('Recipes'), run: () => push('recipes', { date: props.date, mealId: props.mealId }) },
     { icon: 'copy', label: t('Saved meals'), run: () => push('savedMeals', { date: props.date, mealId: props.mealId }) },
@@ -108,8 +108,8 @@ export function FoodSearch({ props }: { props: { date: string; mealId: string } 
           <input ref={inputRef} className="input" style={{ paddingLeft: 42, paddingRight: 42 }} placeholder={t('Search foods and brands')} value={q} onChange={(e) => setQ(e.target.value)} enterKeyHint="search" aria-label={t('Search foods and brands')} />
           {q && <button className="icon-btn flat sm" style={{ position: 'absolute', right: 6, top: 7 }} aria-label={t('Clear')} onClick={() => { setQ(''); inputRef.current?.focus(); }}><Icon name="close" size={16} /></button>}
         </div>
-        <div className="chips" style={{ marginTop: 12 }}>
-          {actions.map((a) => <button key={a.label} className="chip press" onClick={a.run}><Icon name={a.icon} size={16} /> {a.label}</button>)}
+        <div className="tools">
+          {actions.map((a) => <button key={a.label} className="tool press" onClick={a.run}><Icon name={a.icon} size={19} /><span>{a.label}</span></button>)}
         </div>
       </div>
       <div className="sheet-body" style={{ paddingTop: 4 }}>

@@ -140,6 +140,12 @@ Run in headless Chromium (Playwright, 390×844 @2×, dark + light), scripts in `
 - **Not built (on purpose, stated in-app):** cloud sync / accounts; photo-based food estimation; automatic AI changes to your data (the Coach advises; routines and estimates only appear after you confirm; progression suggestions remain transparent rules); background reminders when the app is closed (web apps need a push server — reminders fire only while Aven runs; in-app nudge otherwise); animated exercise demonstrations (there is an authored muscle diagram and step-by-step text instead).
 - Exercise calories are **never** added to food targets.
 
+## Tidier food search, an orb that doesn't trail, no jump at page switches
+
+- **Food search**: the seven sideways-scrolling chips are one 3 × 2 grid with nothing off-screen — Scan, Photo, Quick add, then New food, Recipes, Saved meals. "Dictate" is gone from here (the orb in the dock does it).
+- **The orb in a sliding pop-up** (the live workout, the Coach) no longer flies across the screen to its place: it trailed the sheet at 60 fps while the sheet moved at 120, and crossed the Finish button on the way. It fades out where it is and fades back in already in its place, riding up with the sheet.
+- **Page switches** start 50 ms after the tap. Building the new screen takes a frame or two on a phone; animations that began during that work were already part-way through when the first frame showed, so both pages jumped (the occasional flicker at the top).
+
 ## Lag pass: Settings, pop-ups, page switches
 
 Measured on a production build at 4× CPU throttle (software GPU, so read the numbers as relative): Settings opening 26.5 → ~21 ms a frame, a Settings page push 26.7 → ~20–23, tab switches ~22 → ~18 with slow frames (>25 ms) down from 15 of ~80 to 2 of ~95.

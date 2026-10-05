@@ -210,7 +210,7 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
 .screen > * + * { margin-top: 22px; }
 /* every screen's blocks rise in, blurred → sharp, one after another */
 /* every screen's blocks rise in, one after another (a screen, or the part of one that is swapped: .subpage) */
-.screen > *, .subpage > * { animation: rise-move 780ms var(--ease-out) backwards; animation-delay: calc(var(--i, 0) * 60ms); }
+.screen > *, .subpage > * { animation: rise-move 780ms var(--ease-out) backwards; animation-delay: calc(50ms + var(--i, 0) * 60ms); }
 .screen > .subpage { animation: none; }
 .screen > :nth-child(1) { --i: 0; } .screen > :nth-child(2) { --i: 1; } .screen > :nth-child(3) { --i: 2; } .screen > :nth-child(4) { --i: 3; }
 .subpage > :nth-child(1) { --i: 0; } .subpage > :nth-child(2) { --i: 1; } .subpage > :nth-child(3) { --i: 2; } .subpage > :nth-child(4) { --i: 3; }
@@ -607,3 +607,10 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .tip-ic { flex: none; width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center; background: var(--ac-soft); color: var(--ac-text); }
 .tip-l { display: block; font-weight: 600; line-height: 1.25; }
 .tip-p { display: block; margin-top: 2px; font-size: 13px; color: var(--tx3); line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Food search: the six ways in, as one tidy grid (nothing scrolls sideways or hides off the edge) */
+.tools { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
+.tool { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; height: 62px; border-radius: 18px;
+  background: var(--s1); box-shadow: inset 0 1px 0 color-mix(in srgb, var(--hl) 50%, transparent), inset 0 0 0 1px var(--line); color: var(--tx); }
+.tool svg { color: var(--ac-text); }
+.tool span { font-size: 12.5px; font-weight: 600; letter-spacing: .01em; white-space: nowrap; }

@@ -211,7 +211,7 @@ export function SphereStage() {
       const measure = now < layoutDirtyUntil;
       if (measure) { const b = appEl?.getBoundingClientRect(); base = { left: b?.left ?? 0, top: b?.top ?? 0 }; }
       const ox = base.left, oy = base.top;
-      let X = 0, Y = 0, S = 0, have = false, top = 0, topSlot: Slot | null = null;
+      let X = 0, Y = 0, S = 0, have = false, top = 0, topSlot: Slot | null = null, fade = 1;
       for (const sl of list) {
         const e = sl.engage ? Math.min(1, Math.max(0, sl.engage.e.get())) : 1;
         if (have && e <= 0.001) continue;
@@ -225,8 +225,15 @@ export function SphereStage() {
         if (!have) { X = x; Y = y; S = z; have = true; continue; }
         // a sliding popup's slot comes up from below the screen: the orb waits where it is until the slot reaches it, then
         // rides up with it (rather than diving off the bottom edge to meet it)
-        const yT = sl.engage?.shift ? Math.min(y, Math.max(Y, y - sl.engage.shift.get())) : y; // never below its own resting place
-        X += (x - X) * e; Y += (yT - Y) * e; S += (z - S) * e;
+        if (sl.engage?.shift) {
+          // A sliding popup (a sheet, the live workout): the orb doesn't fly across the screen to it — it trailed behind the
+          // sheet and crossed its buttons. It fades out where it is, and fades back in already sitting in its place in the
+          // popup, carried by it.
+          if (e >= 0.5) { X = x; Y = y; S = z; }
+          fade = Math.min(fade, e < 0.5 ? Math.max(0, 1 - e / 0.3) : Math.min(1, Math.max(0, (e - 0.62) / 0.3)));
+        } else {
+          X += (x - X) * e; Y += (y - Y) * e; S += (z - S) * e;
+        }
         if (e > 0.02) { top = Math.max(top, sl.priority); topSlot = sl; }
       }
       if (!have) { el.style.opacity = '0'; pause(); return; }
@@ -238,7 +245,8 @@ export function SphereStage() {
       // The canvas is drawn at a size bucket and scaled down with a transform. Resizing a canvas (and the element) on
       // every frame of a flight reallocated its buffer and re-laid it out each frame — a stutter source.
       const bucket = Math.ceil(size / 24) * 24;
-      el.style.opacity = '1';
+      const op = fade >= 0.999 ? '1' : fade.toFixed(3);
+      if (el.style.opacity !== op) el.style.opacity = op;
       if (el.style.width !== `${bucket}px`) el.style.width = el.style.height = `${bucket}px`;
       const tf = `translate3d(${X}px, ${Y}px, 0) scale(${size / bucket})`;
       if (glideReq || glide) {

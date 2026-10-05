@@ -105,8 +105,8 @@ function Field({ hue }: { hue: string }) {
   const z = useRef(++fieldSeq);
   return (
     <motion.div className="aurora" data-hue={hue} aria-hidden style={{ zIndex: z.current, ['--drift-t' as string]: drift.current }}
-      initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { duration: GLOW, ease: [0.4, 0, 0.2, 1] } }}
-      exit={{ opacity: 0, transition: { duration: GLOW, ease: [0.55, 0, 0.75, 1] } }}>
+      initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { duration: GLOW, ease: [0.4, 0, 0.2, 1], delay: 0.05 } }}
+      exit={{ opacity: 0, transition: { duration: GLOW, ease: [0.55, 0, 0.75, 1], delay: 0.05 } }}>
       <i /><i /><i />
     </motion.div>
   );
@@ -122,9 +122,11 @@ const EASE = [0.22, 1, 0.36, 1] as const;
 const ORDER = ['today', 'train', 'food', 'progress'];
 const PAGE = {
   enter: (d: number) => ({ opacity: 0, transform: `translateX(${d * 36}px)` }),
-  center: { opacity: 1, transform: 'translateX(0px)', transitionEnd: { transform: 'none' }, transition: { duration: 0.38, ease: EASE } },
+  // Both start 50 ms after the tap: building the new screen takes a frame or two on a phone, and an animation that started
+  // during that work showed up already part-way through — the old and new pages jumped (the flicker at the top).
+  center: { opacity: 1, transform: 'translateX(0px)', transitionEnd: { transform: 'none' }, transition: { duration: 0.38, ease: EASE, delay: 0.05 } },
   // no blur on the way out: filtering a whole screen every frame of a page switch cost more than anything else in it
-  exit: (d: number) => ({ opacity: 0, transform: `translateX(${-d * 36}px)`, transition: { duration: 0.34, ease: EASE } }),
+  exit: (d: number) => ({ opacity: 0, transform: `translateX(${-d * 36}px)`, transition: { duration: 0.34, ease: EASE, delay: 0.05 } }),
 };
 // `custom` is the direction; AnimatePresence hands the leaving screen the NEW direction too (it was removed with the old one)
 function TabPane({ hue, dir, children }: { hue: string; dir: number; children: React.ReactNode }) {
