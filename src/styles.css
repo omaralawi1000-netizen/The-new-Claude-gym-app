@@ -174,12 +174,6 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
 /* every screen's blocks rise in, one after another (a screen, or the part of one that is swapped: .subpage) */
 .screen > *, .subpage > * { animation: rise-move 780ms var(--ease-out) backwards; animation-delay: calc(var(--i, 0) * 60ms); }
 .screen > .subpage { animation: none; }
-/* …but only the first time: a page you have already seen arrives whole (its slide is the motion), and a part you flip back to
-   glides in as one piece instead of replaying the cascade. */
-.tab-pane[data-seen] .screen > :not(.subpage), .subpage.seen > * { animation: none; }
-.subpage.seen { animation: sub-in 320ms var(--ease-out) backwards; }
-@keyframes sub-in { from { opacity: 0; transform: translate3d(0, 8px, 0); } to { opacity: 1; transform: none; } }
-:root[data-motion='reduce'] .subpage.seen { animation: none; }
 .screen > :nth-child(1) { --i: 0; } .screen > :nth-child(2) { --i: 1; } .screen > :nth-child(3) { --i: 2; } .screen > :nth-child(4) { --i: 3; }
 .subpage > :nth-child(1) { --i: 0; } .subpage > :nth-child(2) { --i: 1; } .subpage > :nth-child(3) { --i: 2; } .subpage > :nth-child(4) { --i: 3; }
 .subpage > :nth-child(5) { --i: 4; } .subpage > :nth-child(6) { --i: 5; } .subpage > :nth-child(7) { --i: 6; } .subpage > :nth-child(n+8) { --i: 7; }
@@ -486,8 +480,6 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .settings-page > .list, .settings-page > .stack { animation: none; }
 @keyframes rise-soft { from { opacity: 0; transform: translate3d(0, 10px, 0); } to { opacity: 1; transform: none; } }
 :root[data-motion='reduce'] .settings-page * { animation: none !important; }
-/* a Settings page you have opened before arrives whole; only its first opening settles row by row */
-.settings-page.seen, .settings-page.seen * { animation: none !important; }
 /* In-sheet pages (Sheet.tsx): like Settings — once the page starts gliding in, its title, then each card, field and list row
    settle in one after another. Only the first ten of each level animate (the rest start off screen), delays are capped, and
    Settings' own pages keep their own choreography. */

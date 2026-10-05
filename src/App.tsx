@@ -118,23 +118,15 @@ function Field({ hue }: { hue: string }) {
  */
 const EASE = [0.22, 1, 0.36, 1] as const;
 const ORDER = ['today', 'train', 'food', 'progress'];
-// Leaving: quick and slightly ahead of the arrival, so the two overlap into a crossfade (no dip where the screen goes empty and
-// muddy); a light blur only, because a heavy one on a whole page smears it into grey. Arriving: a little later, glides in on a
-// longer ease with a touch of scale for depth, and is never blurred.
 const PAGE = {
-  enter: (d: number) => ({ opacity: 0, transform: `translateX(${d * 32}px) scale(0.988)` }),
-  center: { opacity: 1, transform: 'translateX(0px) scale(1)', transitionEnd: { transform: 'none' }, transition: { transform: { duration: 0.52, ease: EASE, delay: 0.05 }, opacity: { duration: 0.3, ease: EASE, delay: 0.05 } } },
-  exit: (d: number) => ({ opacity: 0, transform: `translateX(${-d * 26}px) scale(0.99)`, filter: 'blur(3px)', transition: { duration: 0.24, ease: [0.32, 0, 0.67, 0] as const } }),
+  enter: (d: number) => ({ opacity: 0, transform: `translateX(${d * 36}px)` }),
+  center: { opacity: 1, transform: 'translateX(0px)', filter: 'blur(0px)', transitionEnd: { transform: 'none', filter: 'none' }, transition: { duration: 0.38, ease: EASE } },
+  exit: (d: number) => ({ opacity: 0, transform: `translateX(${-d * 36}px)`, filter: 'blur(10px)', transition: { duration: 0.38, ease: EASE } }),
 };
 // `custom` is the direction; AnimatePresence hands the leaving screen the NEW direction too (it was removed with the old one)
-// A tab's blocks rise in one after another the first time it is shown in a session; coming back they are simply there
-// (the slide is the motion). `.tab-pane[data-seen]` in styles.css.
-const seenTabs = new Set<string>();
 function TabPane({ hue, dir, children }: { hue: string; dir: number; children: React.ReactNode }) {
-  const [seen] = useState(() => seenTabs.has(hue));
-  useEffect(() => { seenTabs.add(hue); }, [hue]); // recorded after mounting, so a development double-render doesn't count as a visit
   return (
-    <motion.div className="tab-pane" data-active data-seen={seen || undefined} data-hue={hue} custom={dir} variants={PAGE} initial="enter" animate="center" exit="exit" style={{ position: 'absolute', inset: 0 }}>
+    <motion.div className="tab-pane" data-active data-hue={hue} custom={dir} variants={PAGE} initial="enter" animate="center" exit="exit" style={{ position: 'absolute', inset: 0 }}>
       {children}
     </motion.div>
   );

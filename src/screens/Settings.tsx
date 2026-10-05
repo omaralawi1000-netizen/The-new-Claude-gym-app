@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useRef, useState, useSyncExternalStore } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useStore, flushSave, persistStatus } from '../state/store';
 import { useUI } from '../state/ui';
@@ -36,9 +36,6 @@ const TITLE = {
   center: { opacity: 1, transform: 'translateX(0px)', transitionEnd: { transform: 'none' }, transition: { transform: { ...PUSH, delay: 0.1 }, opacity: { duration: 0.22, ease: EASE, delay: 0.1 } } },
   exit: (d: number) => ({ opacity: 0, transform: `translateX(${d * -14}px)`, transition: { duration: 0.11, ease: [0.4, 0, 1, 1] as const } }),
 };
-
-// Settings pages settle row by row only the first time they are opened (see `.settings-page.seen` in styles.css)
-const seenPages = new Set<string>();
 
 type Section = null | 'targets' | 'training' | 'food' | 'units' | 'look' | 'reminders' | 'data' | 'privacy' | 'ai' | 'about';
 
@@ -85,10 +82,6 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
   const [sec, setSecRaw] = useState<Section>(props.section ?? null);
   const [dir, setDir] = useState(1); // 1 = going deeper, -1 = going back: decides which way pages slide
   const setSec = (x: Section) => { setDir(x ? 1 : -1); setSecRaw(x); };
-  const firstOf = useRef<Record<string, boolean>>({});
-  const pageKey = sec ?? 'root';
-  if (!(pageKey in firstOf.current)) firstOf.current[pageKey] = !seenPages.has(pageKey);
-  useEffect(() => { seenPages.add(pageKey); }, [pageKey]);
   const ai = useAi();
   const set = s.updateSettings;
   const st = s.settings;
@@ -105,7 +98,7 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
       <div className="sheet-body" style={{ position: 'relative', overflowX: 'hidden' }}>
         {/* both pages move at once (no blank gap): the new one slides in sharpening from blur, the old one drifts out */}
         <AnimatePresence mode="popLayout" initial={false} custom={dir}>
-          <motion.div key={sec ?? 'root'} className={`no-rise settings-page ${firstOf.current[pageKey] ? '' : 'seen'}`} custom={dir} variants={PAGE} initial="enter" animate="center" exit="exit" style={{ width: '100%' }}>
+          <motion.div key={sec ?? 'root'} className="no-rise settings-page" custom={dir} variants={PAGE} initial="enter" animate="center" exit="exit" style={{ width: '100%' }}>
             {!sec && (
               <>
                 <div className="field"><label htmlFor="s-name">{t('Your name')}</label><input id="s-name" className="input" value={st.name} onChange={(e) => set({ name: e.target.value })} placeholder={t('Optional')} /></div>

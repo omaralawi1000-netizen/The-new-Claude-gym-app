@@ -72,7 +72,7 @@ export function FoodScreen() {
         </div>
       </header>
 
-      <Subpage key={date} id="food">
+      <Subpage key={date}>
       <Ledger sum={sum} />
 
       {list.length === 0 && (
