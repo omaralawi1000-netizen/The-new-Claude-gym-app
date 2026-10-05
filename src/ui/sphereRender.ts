@@ -27,6 +27,7 @@ function lattice(): { pts: V3; order: Uint16Array } {
   return { pts, order };
 }
 const LAT = lattice();
+const ALL = (() => { const a = new Uint16Array(N); for (let i = 0; i < N; i++) a[i] = i; return a; })();
 
 /**
  * The light moves, the sphere never does: five smooth travelling waves of LIGHT over the surface (not per-dot jitter). Its
@@ -45,7 +46,9 @@ const CA = (() => { const v = [0.32, 0.9, 0.29]; const l = Math.hypot(v[0], v[1]
 const CU = (() => { const v = [CA[1], -CA[0], 0]; const l = Math.hypot(v[0], v[1], v[2]); return v.map((x) => x / l); })(); // A × z
 const CV = [CA[1] * CU[2] - CA[2] * CU[1], CA[2] * CU[0] - CA[0] * CU[2], CA[0] * CU[1] - CA[1] * CU[0]];
 const TAU = Math.PI * 2;
-const easeIO = (x: number) => { const t = Math.min(1, Math.max(0, x)); return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; };
+const easeIO = (x: number) => { const t = Math.min(1, Math.max(0, x)); return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; };
+/** where the arrival spiral's front is, `s` seconds in (−0.15 below the bottom pole … 1 the top, which it reaches at ~0.61 s) */
+const ignFront = (s: number) => easeIO(s / 0.8) * 1.3 - 0.15;
 
 interface Params { rotSpeed: number; shimmer: number; glow: number; dim: number; sweep: number; ring: number; halo: number }
 const TARGET: Record<string, Params> = {
@@ -99,7 +102,7 @@ export class SphereRenderer {
   private body = 0;                         // slower "presence" of the voice: drives the inner light
   private prevV = 0;
   private onsetAt = -1;
-  private rings: { age: number; amp: number }[] = []; // two thin rings leave the sphere on a tap
+  private rings: { age: number; amp: number; ok?: boolean }[] = []; // two rings of light leave the sphere on a tap (green when something was done)
   private kick = 0;                        // a soft bloom of light whenever the state changes (tap → listen → think → done)
   private kickV = 0;
   private lastPhase = '';
@@ -110,6 +113,7 @@ export class SphereRenderer {
   private flash = 0;                       // light running through the dots after a tap or a syllable
   private ripples: { ox: number; oy: number; oz: number; age: number; amp: number }[] = []; // a syllable: a ring of light crossing it towards you
   private ign = -1;                        // seconds into the arrival spiral (-1: none)
+  private ignTop = false;                  // its front has reached the top (the whole orb lit up)
   /** a syllable was heard (its strength): the page turns it into a haptic tick */
   onOnset: ((s: number) => void) | null = null;
   /** how loudly you are speaking right now, 0..1 (time-smoothed) — for things around the orb that should breathe with it */
@@ -137,7 +141,12 @@ export class SphereRenderer {
     }
     this.calm = Math.max(0, this.calm - dt);
     const soft = this.calm > 0 ? 0.25 : 1;
-    if (v.phase !== this.lastPhase) { if (this.lastPhase && !reduced) this.kickV += (v.phase === 'error' || v.phase === 'unavailable' ? -1.4 : 3.2) * soft; this.lastPhase = v.phase; }
+    if (v.phase !== this.lastPhase) {
+      if (this.lastPhase && !reduced) this.kickV += (v.phase === 'error' || v.phase === 'unavailable' ? -1.4 : 3.2) * soft;
+      // done: a pulse of the success colour leaves it, as the wave of green climbs through it
+      if (v.phase === 'confirmed' && !reduced && this.rings.length < 4) this.rings.push({ age: 0, amp: 0.9, ok: true }, { age: -0.18, amp: 0.6, ok: true });
+      this.lastPhase = v.phase;
+    }
     // the bloom is a damped spring, so the light swells, overshoots a touch and settles
     this.kickV += (-90 * this.kick - 11 * this.kickV) * dt; this.kick += this.kickV * dt;
     // touch: a press sinks the whole sphere in by a few percent (it stays a sphere) and gathers its light; letting go springs
@@ -149,13 +158,14 @@ export class SphereRenderer {
       this.scV += (-420 * (this.sc - scTo) - 34 * this.scV) * h; this.sc += this.scV * h;
     }
     if (inp.ignite && inp.ignite > 0) {
-      if (!reduced) { this.ign = 0; this.spin += 2.2; }
+      if (!reduced) { this.ign = 0; this.ignTop = false; this.spin += 2.2; }
       inp.ignite = 0;
     }
     if (this.ign >= 0) {
-      const was = this.ign; this.ign += dt;
-      if (was < 0.9 && this.ign >= 0.9 && !reduced) { this.flash = Math.min(1, this.flash + 0.7); this.kickV += 2.4; } // the spiral reaches the top: the whole sphere lights up once
-      if (this.ign > 1.6) this.ign = -1;
+      this.ign += dt;
+      // the moment the spiral reaches the top, the whole sphere lights up once (in time with the haptic heartbeat's last thump)
+      if (!this.ignTop && ignFront(this.ign) >= 1) { this.ignTop = true; this.flash = Math.min(1, this.flash + 0.7); this.kickV += 2.4; }
+      if (this.ign > 1.3) this.ign = -1;
     }
     if (inp.tap > 0) {
       if (!reduced) {
@@ -208,7 +218,8 @@ export class SphereRenderer {
 
     const { hi, lo, alt, ok, dark } = colors;
     // soft inner light: the sphere glows from within, brighter while you speak
-    const haloA = (this.cur.halo + this.body * 0.55 + this.env * 0.25 + Math.max(0, this.kick) * 0.25 + this.press * 0.35 + this.flash * 0.6) * (1 - this.cur.dim * 0.8);
+    const breathe = reduced ? 1 : 1 + 0.16 * Math.sin(this.t * 1.05); // the inner light breathes slowly at rest
+    const haloA = breathe * (this.cur.halo + this.body * 0.55 + this.env * 0.25 + Math.max(0, this.kick) * 0.25 + this.press * 0.35 + this.flash * 0.6) * (1 - this.cur.dim * 0.8);
     if (haloA > 0.01) {
       const gr = ctx.createRadialGradient(c, c, R * 0.15, c, c, c * 0.98);
       gr.addColorStop(0, `rgba(${hi[0] | 0},${hi[1] | 0},${hi[2] | 0},${Math.min(0.55, haloA * (dark ? 0.55 : 0.4))})`);
@@ -230,8 +241,8 @@ export class SphereRenderer {
     if (!live && v.phase === 'listening') { amps[0] += 0.015; amps[1] += 0.012; } // no level available: honest gentle light, no fake voice
     const spacing = Math.sqrt(12.566 / nf) * R;
     // arrival spiral: a front of light climbing from the bottom pole to the top, three arms winding round as it goes
-    const ignF = this.ign >= 0 ? easeIO(this.ign / 0.95) * 1.3 - 0.15 : -9;
-    const ignK = this.ign < 0 ? 0 : this.ign < 1 ? 1 : Math.max(0, 1 - (this.ign - 1) / 0.6);
+    const ignF = this.ign >= 0 ? ignFront(this.ign) : -9;
+    const ignK = this.ign < 0 ? 0 : this.ign < 0.75 ? 1 : Math.max(0, 1 - (this.ign - 0.75) / 0.5);
     const rip = this.ripples.map((r) => ({ ...r, front: r.age * 2.7, k: r.amp * Math.pow(1 - r.age / 1.3, 2) }));
     const cometHead = T * 3.1;
     const sway = reduced ? 0 : this.body;
@@ -286,6 +297,8 @@ export class SphereRenderer {
         glow += e * 0.45;
       }
       glow += this.env * 0.4 + Math.max(0, lw) * 2; // the beads' motion now carries most of the voice; the light only follows it
+      // every bead twinkles gently on its own slow beat, so even at rest the orb is alive (light only)
+      if (!reduced) glow += 0.1 * Math.sin(T * (0.55 + (i % 7) * 0.11) + i * 2.399);
       if (this.kick > 0.01) glow += this.kick * 0.3 * (0.6 + 0.4 * Math.sin(y * 3 + T * 4));
       if (this.press > 0.01) glow += this.press * 0.25 * (1 - Math.abs(y));
       if (this.flash > 0.02) glow += this.flash * (0.6 + 1.8 * Math.max(0, Math.sin(y * 5 - this.t * 16))); // a band of light runs through it
@@ -331,9 +344,9 @@ export class SphereRenderer {
       // keeps its depth while you speak (it used to blow out to an even white, front and back alike)
       glow = this.cur.glow + (glow - this.cur.glow) * (0.3 + 0.7 * depth);
       const sh = Math.min(1, 0.16 + 0.84 * Math.pow(depth, 1.25) * (0.42 + 0.58 * lam) + rim + Math.max(0, glow - 0.4) * 0.25 * depth);
-            const size = spacing * 0.24 * (0.35 + 1.05 * depth) * (1 + Math.min(1, glow) * 0.16);
+      const size = spacing * 0.24 * (0.35 + 1.05 * depth) * (1 + Math.min(1, glow) * 0.16);
       dots[n] = { x: px, y: py, r: size };
-      tone[n] = okMix > 0.25 ? 2 : glow * (0.4 + 0.6 * depth) > 1.25 ? 1 : 0; // highlights are sparkles on the near side, not a wash
+      tone[n] = okMix > 0.25 && depth > 0.42 ? 2 : glow * (0.4 + 0.6 * depth) > 1.25 ? 1 : 0; // highlights are sparkles on the near side, not a wash
       const hueMix = 0.5 + 0.5 * Math.sin(az * 1 + y * 1.6 - T * 0.6); // the second colour drifts around the surface
       const hb = Math.min(NH - 1, Math.floor(hueMix * NH));
       buckets[Math.min(NB - 1, Math.floor(sh * NB)) * NH + hb].push(n);
@@ -342,39 +355,72 @@ export class SphereRenderer {
     const dimK = this.cur.dim;
     // dark mode: additive light, so overlapping highlights bloom like light rather than paint
     ctx.globalCompositeOperation = dark ? 'lighter' : 'source-over';
-    for (let b = 0; b < NB; b++) {
-      for (let h = 0; h < NH; h++) {
-        const list = buckets[b * NH + h];
-        if (!list.length) continue;
-        const a = (0.14 + (b / (NB - 1)) * 0.86) * (dark ? 0.82 : 1);
-        const m = b / (NB - 1);
-        const hm = (h / (NH - 1)) * 0.55;
-        const top: RGB = [hi[0] + (alt[0] - hi[0]) * hm, hi[1] + (alt[1] - hi[1]) * hm, hi[2] + (alt[2] - hi[2]) * hm];
-        let r = lo[0] + (top[0] - lo[0]) * m, g = lo[1] + (top[1] - lo[1]) * m, bl = lo[2] + (top[2] - lo[2]) * m;
-        if (dimK > 0.01) { const grey = dark ? 120 : 140; r += (grey - r) * dimK; g += (grey - g) * dimK; bl += (grey - bl) * dimK; }
-        ctx.fillStyle = `rgba(${r | 0},${g | 0},${bl | 0},${a * (1 - dimK * 0.5)})`;
-        ctx.beginPath();
-        for (const n of list) { if (tone[n] !== 0) continue; const d = dots[n]; if (d.r < 0.05) continue; ctx.moveTo(d.x + d.r, d.y); ctx.arc(d.x, d.y, d.r, 0, 6.2832); }
-        ctx.fill();
-      }
-    }
-    ctx.fillStyle = `rgba(${Math.min(255, hi[0] + 30)},${Math.min(255, hi[1] + 50)},${Math.min(255, hi[2] + 50)},0.95)`;
-    ctx.beginPath();
-    for (let n = 0; n < count; n++) if (tone[n] === 1) { const d = dots[n]; if (d.r < 0.05) continue; ctx.moveTo(d.x + d.r * 1.15, d.y); ctx.arc(d.x, d.y, d.r * 1.15, 0, 6.2832); }
-    ctx.fill();
-    ctx.fillStyle = `rgba(${ok[0]},${ok[1]},${ok[2]},0.98)`;
-    ctx.beginPath();
-    for (let n = 0; n < count; n++) if (tone[n] === 2) { const d = dots[n]; if (d.r < 0.05) continue; ctx.moveTo(d.x + d.r * 1.2, d.y); ctx.arc(d.x, d.y, d.r * 1.2, 0, 6.2832); }
-    ctx.fill();
+    const fade = 1 - dimK * 0.5;
+    const tint = (b: number, h: number): RGB => {
+      const m = b / (NB - 1);
+      const hm = (h / (NH - 1)) * 0.55;
+      const top: RGB = [hi[0] + (alt[0] - hi[0]) * hm, hi[1] + (alt[1] - hi[1]) * hm, hi[2] + (alt[2] - hi[2]) * hm];
+      let r = lo[0] + (top[0] - lo[0]) * m, g = lo[1] + (top[1] - lo[1]) * m, bl = lo[2] + (top[2] - lo[2]) * m;
+      if (dimK > 0.01) { const grey = dark ? 120 : 140; r += (grey - r) * dimK; g += (grey - g) * dimK; bl += (grey - bl) * dimK; }
+      return [r, g, bl];
+    };
+    const alphaOf = (b: number) => (0.14 + (b / (NB - 1)) * 0.86) * (dark ? 0.8 : 1) * fade;
+    const rgba = (c3: RGB, a: number) => `rgba(${c3[0] | 0},${c3[1] | 0},${c3[2] | 0},${a.toFixed(3)})`;
+    const whiten = (c3: RGB, k: number): RGB => [c3[0] + (255 - c3[0]) * k, c3[1] + (255 - c3[1]) * k, c3[2] + (255 - c3[2]) * k];
+    /** one pass over a set of beads: every bead in it as a disc of `scale` × its size */
+    const pass = (list: ArrayLike<number>, want: number, scale: number, style: string) => {
+      ctx.fillStyle = style; ctx.beginPath();
+      for (let q = 0; q < list.length; q++) { const n = list[q]; if (tone[n] !== want) continue; const d = dots[n]; const rr = d.r * scale; if (rr < 0.05) continue; ctx.moveTo(d.x + rr, d.y); ctx.arc(d.x, d.y, rr, 0, TAU); }
+      ctx.fill();
+    };
+    // Beads of light, not flat dots. Each lit bead on the near side glows softly into the space around it (a wide, faint
+    // disc under it), its core is crisp, and the brightest ones have a white-hot heart. The far side stays small and quiet,
+    // so the sphere reads as deep glass with light inside it.
+    const glowK = 0.1;
+    if (dark) for (let b = 4; b < NB; b++) for (let h = 0; h < NH; h++) { const list = buckets[b * NH + h]; if (list.length) pass(list, 0, 2.0, rgba(tint(b, h), alphaOf(b) * glowK)); }
+    for (let b = 0; b < NB; b++) for (let h = 0; h < NH; h++) { const list = buckets[b * NH + h]; if (list.length) pass(list, 0, 0.96, rgba(tint(b, h), alphaOf(b))); }
+    if (dark) for (let h = 0; h < NH; h++) { const list = buckets[(NB - 1) * NH + h]; if (list.length) pass(list, 0, 0.36, rgba(whiten(tint(NB - 1, h), 0.6), alphaOf(NB - 1) * 0.36)); }
+    // highlights (a flash, a comet, the arrival spiral): sparkles with a halo and a white heart
+    const hiC: RGB = [Math.min(255, hi[0] + 30), Math.min(255, hi[1] + 50), Math.min(255, hi[2] + 50)];
+    if (dark) pass(ALL, 1, 2.6, rgba(hiC, 0.16));
+    pass(ALL, 1, 1.05, rgba(hiC, 0.95));
+    if (dark) pass(ALL, 1, 0.5, rgba(whiten(hiC, 0.8), 0.7));
+    // done: the success colour
+    if (dark) pass(ALL, 2, 2.6, rgba(ok, 0.16));
+    pass(ALL, 2, 1.1, rgba(ok, 0.98));
+    // The glass it is made of: a fine bright edge exactly on its outline (where glass catches the light) and a soft reflection
+    // at the top left, where the light comes from. Both are light only and sit still while the beads turn inside.
+    const Rs = R * 1.03; // the outline, perspective included
+    const edge = whiten([hi[0] + (alt[0] - hi[0]) * 0.4, hi[1] + (alt[1] - hi[1]) * 0.4, hi[2] + (alt[2] - hi[2]) * 0.4], 0.35);
+    const ek = (dark ? 1 : 0.7) * fade;
+    const rim = ctx.createRadialGradient(c, c, Rs * 0.8, c, c, Rs * 1.07);
+    rim.addColorStop(0, rgba(edge, 0));
+    rim.addColorStop(0.5, rgba(edge, 0.035 * ek));
+    rim.addColorStop(0.74, rgba(edge, 0.13 * ek));
+    rim.addColorStop(0.83, rgba(edge, 0.05 * ek));
+    rim.addColorStop(1, rgba(edge, 0));
+    ctx.fillStyle = rim; ctx.beginPath(); ctx.arc(c, c, Rs * 1.07, 0, TAU); ctx.fill();
+    const sx = c - R * 0.34, sy = c - R * 0.4;
+    const gloss = ctx.createRadialGradient(sx, sy, 0, sx, sy, R * 0.66);
+    gloss.addColorStop(0, `rgba(255,255,255,${(dark ? 0.085 : 0.1) * fade})`);
+    gloss.addColorStop(0.45, `rgba(255,255,255,${(dark ? 0.03 : 0.035) * fade})`);
+    gloss.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.save(); ctx.beginPath(); ctx.arc(c, c, Rs, 0, TAU); ctx.clip();
+    ctx.fillStyle = gloss; ctx.fillRect(c - Rs, c - Rs, Rs * 2, Rs * 2);
+    ctx.restore();
     ctx.globalCompositeOperation = 'source-over';
-    // a tap: two thin rings leave the sphere and fade
+    // a tap: two rings of light leave the sphere and fade (a soft glow under a fine line)
     if (this.rings.length) {
-      ctx.lineWidth = Math.max(1, W * 0.006);
       for (const r of this.rings) {
         if (r.age < 0) continue; // a ring waiting for its turn
         const e = 1 - Math.pow(1 - r.age, 2);
-        ctx.strokeStyle = `rgba(${hi[0] | 0},${hi[1] | 0},${hi[2] | 0},${(1 - r.age) * r.amp * (dark ? 0.5 : 0.4)})`;
-        ctx.beginPath(); ctx.arc(c, c, R * (1.06 + e * 0.3), 0, 6.2832); ctx.stroke();
+        const a = (1 - r.age) * r.amp * (dark ? 0.5 : 0.4);
+        const rad = R * (1.06 + e * 0.3);
+        const rc: RGB = r.ok ? ok : hi;
+        ctx.strokeStyle = rgba(rc, a * 0.22); ctx.lineWidth = Math.max(2, W * 0.022);
+        ctx.beginPath(); ctx.arc(c, c, rad, 0, TAU); ctx.stroke();
+        ctx.strokeStyle = rgba(whiten(rc, 0.3), a); ctx.lineWidth = Math.max(1, W * 0.005);
+        ctx.beginPath(); ctx.arc(c, c, rad, 0, TAU); ctx.stroke();
       }
     }
   }

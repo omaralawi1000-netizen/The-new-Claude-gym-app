@@ -140,6 +140,15 @@ Run in headless Chromium (Playwright, 390×844 @2×, dark + light), scripts in `
 - **Not built (on purpose, stated in-app):** cloud sync / accounts; photo-based food estimation; automatic AI changes to your data (the Coach advises; routines and estimates only appear after you confirm; progression suggestions remain transparent rules); background reminders when the app is closed (web apps need a push server — reminders fire only while Aven runs; in-app nudge otherwise); animated exercise demonstrations (there is an authored muscle diagram and step-by-step text instead).
 - Exercise calories are **never** added to food targets.
 
+## The orb, final look
+
+- **Beads of light, not flat dots** (`ui/sphereRender.ts`, dark mode): every lit bead on the near side glows softly into the space around it, its core is crisp, and the brightest — where the light comes from, top left — have a white-hot heart. The far side stays small and quiet, so the orb reads as deep glass with light inside.
+- **A glass shell**: a fine bright edge exactly on its outline and a soft reflection at the top left. Light only; it never changes the shape.
+- **Alive at rest**: every bead twinkles gently on its own slow beat and the inner light breathes.
+- **Done**: the green wave climbs only the near side (no stray green dots behind it) and two green rings leave the orb. Tap rings are now a soft glow under a fine line.
+- **Arrival**: the spiral climbs at an even pace and the whole orb lights up the moment it reaches the top, together with the heartbeat's last thump; the spiral and the landing tick start as the orb visibly settles (they used to wait for the spring's invisible last 4 %).
+- Same cost to draw as before (measured ~1.1 ms per frame for the big orb). Light mode skips the bead glow, which would only haze it.
+
 ## Polish: orb depth, records, routine cards
 
 - **Orb keeps its depth while you speak**: voice light lights the near side fully and the far side only a little, and bright highlights are sparkles on the near side. It used to blow out to an even white, front and back alike.

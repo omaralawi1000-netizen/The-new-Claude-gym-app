@@ -28,7 +28,7 @@ let tapPending = 0;
 let whooshPending = 0;
 let ignitePending = 0;
 /** Arriving on the orb screen: a heartbeat that quickens as the spiral of light climbs, ending in a soft thump. */
-const IGNITE_BUZZ = [4, 170, 5, 140, 6, 115, 7, 95, 9, 75, 11, 58, 14, 42, 30];
+const IGNITE_BUZZ = [4, 135, 5, 112, 6, 92, 7, 76, 9, 60, 11, 46, 14, 34, 30]; // the thump lands at ~0.61 s, as the spiral tops out
 let lastOnsetBuzz = 0;
 /** A syllable lit a ring of light on the orb: a tiny tick with it (never more than one every 160 ms). */
 function onsetBuzz(s: number) {
@@ -392,7 +392,9 @@ export function SphereStage() {
       // Handed from one pop-up to another, it starts a new flight: a lift, then a landing (not a "drop" first).
       if (topSlot !== hapticSlot) { if (hapticSlot && topSlot) { wasLifted = false; wasLanded = false; } hapticSlot = topSlot; }
       if (topSlot && !reduced) {
-        const lifted = flight > 0.04, landed = flight > 0.995;
+        // "landed" as you see it settle (the last 4 % of a spring is too slow to see — waiting for 99.5 % put the landing tick
+        // and the orb screen's spiral a beat after the orb had visibly arrived)
+        const lifted = flight > 0.04, landed = flight > 0.96;
         if (lifted !== wasLifted || landed !== wasLanded) {
           // landing on the orb screen sets it alight (the renderer's arrival spiral), with a quickening heartbeat; anywhere
           // else it lands with one firm tick
