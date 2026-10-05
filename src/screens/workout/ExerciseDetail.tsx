@@ -4,14 +4,16 @@ import { useUI } from '../../state/ui';
 import { useT, useLang } from '../../lib/i18n';
 import { Sheet, SheetHead } from '../../ui/Sheet';
 import { Icon } from '../../ui/Icon';
+import { Stepper } from '../../ui/kit';
 import { MuscleMap } from './MuscleMap';
 import { EQUIP_LABEL, MOVE_LABEL, MUSCLE_LABEL, exName, exSteps, fmtSet } from './common';
-import { bestsFor, countable, epley } from '../../lib/workout';
+import { bestsFor, countable, epley, incrementFor } from '../../lib/workout';
 import { fmtDate } from '../../lib/dates';
-import { fmtNum, kgToDisplay } from '../../lib/units';
+import { displayToKg, fmtNum, kgToDisplay } from '../../lib/units';
 import { LineChart } from '../../ui/charts';
 import { equipmentSet, substitutesFor } from './subs';
 import { addExercises } from './actions';
+import type { Exercise } from '../../lib/types';
 
 export function ExerciseDetail({ props }: { props: { id: string } }) {
   const t = useT();
@@ -41,6 +43,7 @@ export function ExerciseDetail({ props }: { props: { id: string } }) {
         <div className="chips" style={{ margin: '14px 0 0', padding: 0, flexWrap: 'wrap' }}>
           {ex.equipment.map((q) => <span key={q} className="chip sm">{t(EQUIP_LABEL[q])}</span>)}<span className="chip sm">{t(MOVE_LABEL[ex.movement])}</span>
         </div>
+        {ex.logType === 'weightReps' && <WeightJump ex={ex} />}
 
         <div className="micro" style={{ margin: '22px 0 8px' }}>{t('How to')}</div>
         {exSteps(ex, lang).length === 0 ? <div className="small t2">{t('No instructions yet.')}</div> : (
@@ -87,6 +90,24 @@ export function ExerciseDetail({ props }: { props: { id: string } }) {
         )}
       </div>
     </Sheet>
+  );
+}
+
+/** How much weight progression adds for this exercise (saved per exercise; matching the default clears it). */
+function WeightJump({ ex }: { ex: Exercise }) {
+  const t = useT();
+  const s = useStore();
+  const u = s.settings.units.weight;
+  const def = incrementFor(ex, {}, s.settings.plateStep);
+  const kg = incrementFor(ex, s.increments, s.settings.plateStep);
+  const step = 0.5;
+  const shown = Math.round(kgToDisplay(kg, u) / step) * step;
+  return (
+    <div className="row-flex between" style={{ marginTop: 16, gap: 12 }}>
+      <div style={{ minWidth: 0 }}><div style={{ fontWeight: 600 }}>{t('Weight jump')}</div><div className="xs t3" style={{ marginTop: 2 }}>{t('Added when set 1 reaches the top of the rep range')}</div></div>
+      <Stepper value={shown} step={step} min={step} max={u === 'lb' ? 50 : 25} unit={u}
+        onChange={(v) => { const next = displayToKg(v, u); s.setIncrement(ex.id, Math.abs(next - def) < 0.01 ? undefined : next); }} />
+    </div>
   );
 }
 

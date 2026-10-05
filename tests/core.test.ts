@@ -5,7 +5,7 @@ import { parseFoodText, resolveRows, rowQuantity, searchFoods } from '../src/lib
 import { parseWorkoutText } from '../src/lib/workoutText';
 import { dayKey, addDays, startOfWeek, diffDays } from '../src/lib/dates';
 import { parseNum, kgToDisplay, displayToKg } from '../src/lib/units';
-import { detectRecords, epley, suggestProgression, elapsedMs } from '../src/lib/workout';
+import { detectRecords, epley, suggestProgression, elapsedMs, fillPlan, incrementFor } from '../src/lib/workout';
 import { SEED_EXERCISES } from '../src/data/exercises';
 import type { WorkoutSession } from '../src/lib/types';
 
@@ -203,11 +203,44 @@ describe('workout maths', () => {
     expect(recs.map((r) => r.kind).sort()).toEqual(['e1rm', 'volume', 'weight'].filter((k) => k !== 'volume').sort());
     const w = recs.find((r) => r.kind === 'weight')!; expect(w.previous).toBe(80); expect(w.value).toBe(85);
   });
-  it('progression: all sets at top → add load', () => {
-    const last = sess('a', 1, 80, 10).exercises[0];
-    last.sets = [1, 2, 3].map((i) => ({ id: 'q' + i, type: 'working' as const, weightKg: 80, reps: 10, done: true }));
-    const s = suggestProgression(ex('bench-press')!, last, { min: 6, max: 10 }, 2.5);
-    expect(s.kind).toBe('add-weight'); expect(s.weightKg).toBe(82.5);
+  // progression for sets taken to failure: each set against the same set last time
+  const perf = (sets: [number, number][], planned?: number) => ({ id: 'e' + Math.random(), exerciseId: 'bench-press', plannedSets: planned,
+    sets: sets.map(([w, r], i) => ({ id: 's' + i, type: 'working' as const, weightKg: w, reps: r, done: true })) });
+  const bench = ex('bench-press')!;
+  const R = { min: 6, max: 10 };
+  it('progression: set 1 at the top of the range → increment on every set, reps back to the bottom', () => {
+    const s = suggestProgression(bench, [perf([[80, 10], [80, 8], [77.5, 7]])], R, 2.5);
+    expect(s.kind).toBe('add-weight');
+    expect(s.sets).toEqual([{ weightKg: 82.5, reps: 6 }, { weightKg: 82.5, reps: 6 }, { weightKg: 80, reps: 6 }]);
+  });
+  it('progression: otherwise same weight per set, one more rep each, capped at the top', () => {
+    const s = suggestProgression(bench, [perf([[80, 9], [80, 10], [80, 6]])], R, 2.5);
+    expect(s.kind).toBe('add-reps');
+    expect(s.sets).toEqual([{ weightKg: 80, reps: 10 }, { weightKg: 80, reps: 10 }, { weightKg: 80, reps: 7 }]);
+    // a fourth set today uses last session's final set
+    expect(fillPlan([0, 1, 2, 3].map((i) => ({ id: 'n' + i, type: 'working' as const, done: false })), s.sets).map((x) => [x.weightKg, x.reps])).toEqual([[80, 10], [80, 10], [80, 7], [80, 7]]);
+  });
+  it('progression: skips sessions with fewer than half the planned sets', () => {
+    const cut = perf([[80, 10]], 4); // 1 of 4 done
+    const full = perf([[80, 8], [80, 7], [80, 6]], 3);
+    const s = suggestProgression(bench, [cut, full], R, 2.5);
+    expect(s.kind).toBe('add-reps'); expect(s.sets?.[0]).toEqual({ weightKg: 80, reps: 9 });
+  });
+  it('progression: set 1 below the range holds the weight; no gain in 3 sessions at one weight is stalled', () => {
+    expect(suggestProgression(bench, [perf([[85, 5], [85, 4]])], R, 2.5).kind).toBe('hold');
+    const hist = [perf([[80, 8]]), perf([[80, 8]]), perf([[80, 7]]), perf([[80, 8]])]; // newest first
+    const s = suggestProgression(bench, hist, R, 2.5);
+    expect(s.kind).toBe('stalled'); expect(s.sets?.[0]).toEqual({ weightKg: 80, reps: 9 });
+    expect(suggestProgression(bench, [perf([[80, 9]]), ...hist.slice(1)], R, 2.5).kind).toBe('add-reps'); // improved: not stalled
+  });
+  it('progression: increments are per exercise (dumbbells 2 kg), no double step for legs', () => {
+    expect(incrementFor(ex('back-squat')!)).toBe(2.5);
+    expect(incrementFor({ id: 'db', equipment: ['dumbbell', 'bench'] })).toBe(2);
+    expect(incrementFor(bench, { 'bench-press': 1.25 })).toBe(1.25);
+  });
+  it('progression: filling never overwrites a set you already changed', () => {
+    const sets = [{ id: 'a', type: 'working' as const, done: false, weightKg: 70 }, { id: 'b', type: 'working' as const, done: false }];
+    expect(fillPlan(sets, [{ weightKg: 80, reps: 8 }]).map((x) => [x.weightKg, x.reps])).toEqual([[70, undefined], [80, 8]]);
   });
   it('elapsed excludes paused time', () => {
     const s: WorkoutSession = { id: 'p', name: '', date: '', startedAt: 0, pausedMs: 10_000, pausedAt: 40_000, status: 'active', exercises: [] };

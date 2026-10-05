@@ -47,7 +47,7 @@ export function defaultData(lang: Lang = 'en'): AppData {
     settings: defaultSettings(lang),
     foods: [], favourites: [], savedMeals: [], recipes: [], entries: [], water: [],
     exercises: [], routines: [], schedule: defaultSchedule(), sessions: [], active: null,
-    weights: [], measurements: [], photos: [], activities: [], notes: [], choices: {},
+    weights: [], measurements: [], photos: [], activities: [], notes: [], choices: {}, increments: {},
     demo: false,
   };
 }
@@ -66,6 +66,7 @@ export function normaliseData(raw: any, lang: Lang = 'en'): AppData {
     sessions: arr('sessions'), active: raw.active && typeof raw.active === 'object' ? raw.active : null,
     weights: arr('weights'), measurements: arr('measurements'), photos: arr('photos'), activities: arr('activities'), notes: arr('notes'),
     choices: raw.choices && typeof raw.choices === 'object' && !Array.isArray(raw.choices) ? raw.choices : {},
+    increments: raw.increments && typeof raw.increments === 'object' && !Array.isArray(raw.increments) ? raw.increments : {},
     demo: !!raw.demo,
   };
 }

@@ -173,6 +173,8 @@ export interface SessionExercise {
   supersetGroup?: string;
   restSec?: number;
   sets: SetRecord[];
+  /** working sets that were planned when the workout was finished (done or not) — progression skips days cut short */
+  plannedSets?: number;
 }
 
 export interface WorkoutSession {
@@ -314,5 +316,7 @@ export interface AppData {
   notes: DailyNote[];
   /** remembered dictation choices: folded query → food id */
   choices: Record<string, string>;
+  /** your own progression step per exercise (kg), when it differs from the default */
+  increments: Record<string, number>;
   demo: boolean;
 }

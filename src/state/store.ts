@@ -6,7 +6,7 @@ import type {
 import { SEED_EXERCISES } from '../data/exercises';
 import { REFERENCE_FOODS } from '../data/foods';
 import { dayKey, addDays, weekdayOf } from '../lib/dates';
-import { detectRecords, lastPerformance, setsFromItem } from '../lib/workout';
+import { detectRecords, lastPerformance, planSets, setsFromItem } from '../lib/workout';
 import { entryFromSnapshot, recipeToFood, requantify, snapshotOf, uid } from '../lib/nutrition';
 import { DATA_VERSION, defaultData, detectLang, normaliseData } from './defaults';
 
@@ -33,8 +33,8 @@ let saveTimer: ReturnType<typeof setTimeout> | null = null;
 export const persistStatus = { error: null as string | null, listeners: new Set<() => void>() };
 
 function pickData(s: Store): AppData {
-  const { settings, foods, favourites, savedMeals, recipes, entries, water, exercises, routines, schedule, sessions, active, weights, measurements, photos, activities, notes, demo, choices } = s;
-  return { v: DATA_VERSION, settings, foods, favourites, savedMeals, recipes, entries, water, exercises, routines, schedule, sessions, active, weights, measurements, photos, activities, notes, demo, choices };
+  const { settings, foods, favourites, savedMeals, recipes, entries, water, exercises, routines, schedule, sessions, active, weights, measurements, photos, activities, notes, demo, choices, increments } = s;
+  return { v: DATA_VERSION, settings, foods, favourites, savedMeals, recipes, entries, water, exercises, routines, schedule, sessions, active, weights, measurements, photos, activities, notes, demo, choices, increments };
 }
 
 export function flushSave() {
@@ -97,6 +97,8 @@ export interface Store extends AppData {
   rescheduleMissed: (originDate: string, routineId: string, newDate: string) => void;
   skipPlanned: (date: string) => void;
   upsertExercise: (e: Exercise) => void;
+  /** an exercise's own progression step in kg (undefined = back to the default) */
+  setIncrement: (exerciseId: string, kg: number | undefined) => void;
   // body & activity
   addWeight: (kg: number, date: string) => WeightLog;
   removeWeight: (id: string) => void;
@@ -200,13 +202,17 @@ export const useStore = create<Store>((set, get) => {
           if (ex && (ex.logType === 'duration' || ex.logType === 'distance')) {
             sets = sets.filter((x) => x.type === 'working').map((x) => ({ ...x, target: { ...x.target } }));
           }
+          sets = planSets(ex, sets, s.sessions, s.increments, s.settings.plateStep);
           return { id: uid('se'), exerciseId: it.exerciseId, restSec: it.restSec, supersetGroup: it.supersetGroup, note: it.note, sets };
         });
       } else if (fromSession) {
-        exercises = fromSession.exercises.map((e) => ({
-          id: uid('se'), exerciseId: e.exerciseId, restSec: e.restSec, supersetGroup: e.supersetGroup, note: e.note,
-          sets: e.sets.map((x) => ({ id: uid('s'), type: x.type, done: false, target: { repMin: x.reps, repMax: x.reps, weightKg: x.weightKg } })),
-        }));
+        // the same exercises and sets again, aiming at the routine's rep range (or 8–12) with this session's progression in them
+        const routineOf = fromSession.routineId ? s.routines.find((r) => r.id === fromSession.routineId) : undefined;
+        exercises = fromSession.exercises.map((e) => {
+          const item = routineOf?.items.find((i) => i.exerciseId === e.exerciseId);
+          const sets: SetRecord[] = e.sets.map((x) => ({ id: uid('s'), type: x.type, done: false, target: { repMin: item?.repMin ?? 8, repMax: item?.repMax ?? 12, weightKg: x.weightKg } }));
+          return { id: uid('se'), exerciseId: e.exerciseId, restSec: e.restSec, supersetGroup: e.supersetGroup, note: e.note, sets: planSets(exMap.get(e.exerciseId), sets, s.sessions, s.increments, s.settings.plateStep) };
+        });
       }
       const session: WorkoutSession = {
         id: uid('ws'), name: name ?? routine?.name ?? fromSession?.name ?? '', routineId: routine?.id ?? fromSession?.routineId, plannedDate,
@@ -240,7 +246,7 @@ export const useStore = create<Store>((set, get) => {
       const pausedMs = a.pausedMs + (a.pausedAt ? now - a.pausedAt : 0);
       // drop sets that were never completed and exercises left empty
       const exercises = a.exercises
-        .map((e) => ({ ...e, sets: e.sets.filter((x) => x.done) }))
+        .map((e) => ({ ...e, plannedSets: e.sets.filter((x) => x.type === 'working').length, sets: e.sets.filter((x) => x.done) }))
         .filter((e) => e.sets.length > 0);
       const done: WorkoutSession = {
         ...a, exercises, status: 'done', endedAt: now, pausedMs, pausedAt: undefined, rest: null, note: note ?? a.note,
@@ -293,6 +299,7 @@ export const useStore = create<Store>((set, get) => {
       return { schedule: { ...s.schedule, cleared, overrides } };
     }),
     skipPlanned: (date) => mutate((s) => ({ schedule: { ...s.schedule, cleared: s.schedule.cleared.includes(date) ? s.schedule.cleared : [...s.schedule.cleared, date], overrides: s.schedule.overrides.filter((o) => o.date !== date) } })),
+    setIncrement: (id, kg) => mutate((s) => { const next = { ...s.increments }; if (kg && kg > 0) next[id] = kg; else delete next[id]; return { increments: next }; }),
     upsertExercise: (e) => mutate((s) => ({ exercises: s.exercises.some((x) => x.id === e.id) ? s.exercises.map((x) => (x.id === e.id ? e : x)) : [...s.exercises, e] })),
 
     // ── body & activity

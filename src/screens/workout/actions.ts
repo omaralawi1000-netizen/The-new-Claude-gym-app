@@ -1,7 +1,7 @@
 import { useStore, exerciseMap } from '../../state/store';
 import { uid } from '../../lib/nutrition';
 import type { SessionExercise, SetRecord, WorkoutSession, Routine, Exercise } from '../../lib/types';
-import { lastPerformance, countable } from '../../lib/workout';
+import { lastPerformance, countable, planSets } from '../../lib/workout';
 
 /** Active-workout mutations. All persist immediately (the store flushes the active session synchronously). */
 
@@ -21,7 +21,7 @@ export function addExercises(ids: string[], at?: number) {
       const last = lastPerformance(id, st.sessions);
       let sets = newSetsFor(ex, last?.sets);
       if (ex && (ex.logType === 'duration' || ex.logType === 'distance')) sets = sets.slice(0, 1);
-      return { id: uid('se'), exerciseId: id, sets };
+      return { id: uid('se'), exerciseId: id, sets: planSets(ex, sets, st.sessions, st.increments, st.settings.plateStep) };
     });
     const list = [...a.exercises];
     list.splice(at ?? list.length, 0, ...add);
@@ -38,10 +38,11 @@ export function replaceExercise(seId: string, exerciseId: string) {
     exercises: a.exercises.map((e) => {
       if (e.id !== seId) return e;
       const last = lastPerformance(exerciseId, st.sessions);
-      // keep completed sets (they were really done); swap the still-open ones to the new movement
+      // keep completed sets (they were really done); swap the still-open ones to the new movement, with its own plan in them
       const done = e.sets.filter((s) => s.done);
-      const open = e.sets.filter((s) => !s.done).map((s) => ({ ...s, target: { ...s.target, weightKg: last?.sets.find(countable)?.weightKg } }));
-      return { ...e, exerciseId, sets: [...done.map((s) => s), ...open].length ? [...done, ...open] : newSetsFor(ex, last?.sets) };
+      const open = e.sets.filter((s) => !s.done).map((s) => ({ ...s, weightKg: undefined, reps: undefined, target: { ...s.target, weightKg: last?.sets.find(countable)?.weightKg } }));
+      const sets = done.length + open.length ? [...done, ...open] : newSetsFor(ex, last?.sets);
+      return { ...e, exerciseId, sets: planSets(ex, sets, st.sessions, st.increments, st.settings.plateStep) };
     }),
   }));
 }
@@ -75,7 +76,9 @@ export function patchSet(seId: string, setId: string, patch: Partial<SetRecord>)
 }
 
 export function addSet(seId: string, type: 'warmup' | 'working' = 'working') {
-  useStore.getState().mutateActive((a) => ({
+  const st = useStore.getState();
+  const map = exerciseMap(st.exercises);
+  st.mutateActive((a) => ({
     ...a,
     exercises: a.exercises.map((e) => {
       if (e.id !== seId) return e;
@@ -86,7 +89,9 @@ export function addSet(seId: string, type: 'warmup' | 'working' = 'working') {
         const l = [...e.sets]; l.splice(firstWork < 0 ? 0 : firstWork, 0, s);
         return { ...e, sets: l };
       }
-      return { ...e, sets: [...e.sets, s] };
+      // an extra working set gets the plan too (beyond last session's sets: last session's final set + 1 rep)
+      const planned = planSets(map.get(e.exerciseId), [...e.sets, s], st.sessions, st.increments, st.settings.plateStep);
+      return { ...e, sets: [...e.sets, planned[planned.length - 1]] };
     }),
   }));
 }

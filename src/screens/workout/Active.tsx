@@ -7,7 +7,7 @@ import type { Exercise, SessionExercise, SetRecord } from '../../lib/types';
 import { Icon } from '../../ui/Icon';
 import { NumInput } from '../../ui/kit';
 import { Sheet, SheetHead, SOFT, SNAP, useOverlayZ } from '../../ui/Sheet';
-import { beatLastTime, elapsedMs, lastPerformance, sessionSetCount, sessionVolume, suggestProgression, countable } from '../../lib/workout';
+import { beatLastTime, elapsedMs, historyOf, incrementFor, lastPerformance, repRange, sessionSetCount, sessionVolume, suggestProgression, countable } from '../../lib/workout';
 import { fmtDuration } from '../../lib/dates';
 import { displayToKg, kgToDisplay, fmtNum, displayToM, mToDisplay } from '../../lib/units';
 import { useNow, restEndedCue } from '../../lib/hooks';
@@ -358,16 +358,18 @@ const ExerciseBlock = memo(function ExerciseBlock({ se, idx, ex, linkedPrev, lin
   const settings = useStore((s) => s.settings);
   const sessions = useStore((s) => s.sessions);
   const push = useUI((u) => u.push);
-  const toast = useUI((u) => u.toast);
   const last = useMemo(() => lastPerformance(se.exerciseId, sessions), [se.exerciseId, sessions]);
   const lastWorking = last?.sets.filter(countable) ?? [];
-  const working = se.sets.filter((x) => x.type === 'working');
-  const range = { min: working[0]?.target?.repMin ?? 6, max: working[0]?.target?.repMax ?? 10 };
-  const sugg = ex && ex.logType === 'weightReps' ? suggestProgression(ex, last, range, settings.plateStep) : undefined;
-  const pendingSets = se.sets.filter((x) => !x.done);
+  const increments = useStore((s) => s.increments);
+  const sugg = useMemo(() => (ex && ex.logType === 'weightReps' ? suggestProgression(ex, historyOf(se.exerciseId, sessions), repRange(se.sets), incrementFor(ex, increments, settings.plateStep)) : undefined),
+    [ex, se.exerciseId, sessions, se.sets, increments, settings.plateStep]); // eslint-disable-line react-hooks/exhaustive-deps
   const u = settings.units;
   let workIdx = -1;
-  const showSugg = sugg && sugg.kind === 'add-weight' && pendingSets.length > 0 && pendingSets.every((x) => x.weightKg === undefined && x.target?.weightKg !== sugg.weightKg);
+  const kgTxt = (kg: number) => `${fmtNum(kgToDisplay(kg, u.weight), lang, 2)} ${u.weight}`;
+  const reason = sugg && (sugg.kind === 'add-weight' ? t(sugg.reasonKey, { inc: kgTxt(Number(sugg.reasonVars.inc)), max: sugg.reasonVars.max })
+    : sugg.kind === 'stalled' ? t(sugg.reasonKey, { w: kgTxt(Number(sugg.reasonVars.w)) })
+    : t(sugg.reasonKey, sugg.reasonVars));
+  const REASON_ICON = { 'add-weight': 'arrowUp', 'add-reps': 'plus', hold: 'repeat', stalled: 'info', first: 'sparkle' } as const;
 
   return (
     <motion.section layout="position" layoutDependency={`${idx}:${se.supersetGroup ?? ''}`} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96 }} transition={SOFT}
@@ -384,12 +386,10 @@ const ExerciseBlock = memo(function ExerciseBlock({ se, idx, ex, linkedPrev, lin
         </div>
         {lastWorking.length > 0 && <div className="xs t3 num" style={{ marginTop: 6 }}>{t('Last')}: {lastWorking.slice(0, 5).map((p) => fmtSet(p, ex, u, lang, t)).join(' · ')}</div>}
         {se.note && <div className="small t2" style={{ marginTop: 8, padding: '8px 10px', background: 'var(--bg-2)', borderRadius: 10 }}>{se.note}</div>}
-        {showSugg && (
-          <button className="chip acc press" style={{ marginTop: 10, height: 'auto', padding: '8px 12px', textAlign: 'left', whiteSpace: 'normal', lineHeight: 1.3 }}
-            onClick={() => { buzz(8); pendingSets.forEach((x) => patchSet(se.id, x.id, { target: { ...x.target, weightKg: sugg!.weightKg } })); toast(t('Targets set to {w} {u}', { w: fmtNum(kgToDisplay(sugg!.weightKg!, u.weight), lang, 2), u: u.weight })); }}>
-            <Icon name="sparkle" size={15} />
-            <span>{t('Try {w} {u} — all sets reached {reps} reps last time. Tap to set.', { w: fmtNum(kgToDisplay(sugg!.weightKg!, u.weight), lang, 2), u: u.weight, reps: sugg!.reasonVars.reps })}</span>
-          </button>
+        {sugg && reason && (
+          <div className="xs row-flex" style={{ marginTop: 6, gap: 6, alignItems: 'flex-start', color: sugg.kind === 'add-weight' ? 'var(--ac-text)' : sugg.kind === 'stalled' ? 'var(--warn)' : 'var(--tx2)' }}>
+            <Icon name={REASON_ICON[sugg.kind]} size={13} style={{ flex: 'none', marginTop: 1 }} /><span>{reason}</span>
+          </div>
         )}
 
         <div className="set-head" style={{ display: 'grid', gridTemplateColumns: gridCols(ex, settings.effort), gap: 8, marginTop: 12, padding: '0 2px' }}>

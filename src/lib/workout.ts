@@ -108,28 +108,108 @@ export function lastPerformance(exerciseId: string, sessions: WorkoutSession[], 
   return undefined;
 }
 
-export interface Suggestion { kind: 'add-weight' | 'add-reps' | 'hold' | 'deload' | 'first'; weightKg?: number; reasonKey: string; reasonVars: Record<string, string | number> }
+export interface SetPlan { weightKg?: number; reps: number }
+export interface Suggestion {
+  kind: 'add-weight' | 'add-reps' | 'hold' | 'stalled' | 'first';
+  /** set 1's planned weight */
+  weightKg?: number;
+  /** one target per working set; a set beyond the list uses the last one (weight × reps exercises only) */
+  sets?: SetPlan[];
+  reasonKey: string;
+  reasonVars: Record<string, string | number>;
+}
+
+/** How much one step of progression adds: the exercise's own setting, else 2 kg for dumbbells, else the default step. */
+export function incrementFor(ex: Pick<Exercise, 'id' | 'equipment'>, overrides: Record<string, number> = {}, step = 2.5): number {
+  const own = overrides[ex.id];
+  if (own && own > 0) return own;
+  return ex.equipment.includes('dumbbell') ? 2 : step;
+}
+
+/** Every past performance of an exercise in finished sessions, newest first. */
+export function historyOf(exerciseId: string, sessions: WorkoutSession[], beforeId?: string): SessionExercise[] {
+  const out: SessionExercise[] = [];
+  for (let i = sessions.length - 1; i >= 0; i--) {
+    const s = sessions[i];
+    if (s.id === beforeId) continue;
+    for (const e of s.exercises) if (e.exerciseId === exerciseId && e.sets.some(countable)) out.push(e);
+  }
+  return out;
+}
+
+/** A session counts for progression only if at least half its planned working sets were done (a cut-short day says little). */
+const fullEnough = (e: SessionExercise) => {
+  const done = e.sets.filter(countable).length;
+  return done * 2 >= (e.plannedSets ?? done);
+};
+const same = (a?: number, b?: number) => Math.abs((a ?? 0) - (b ?? 0)) < 1e-6;
 
 /**
- * Double progression from the user's own last session.
- * Assumptions are stated in the UI: all working sets at top of range → add load; otherwise add reps.
+ * Progression for sets taken to (near) failure, where later sets naturally have fewer reps. Each working set is compared
+ * with the same set last session (extra sets today use last session's final set):
+ * - set 1 reached the top of the rep range last time → every set gets the exercise's increment, reps back to the bottom;
+ * - otherwise → same weight per set, last time's reps + 1 (never above the top of the range).
+ * Sessions where fewer than half the planned sets were done are skipped. If set 1 hasn't improved in 3 sessions at the same
+ * weight, the reason says it has stalled (the targets still ask for one more rep). Other log types: beat your best reps.
  */
 export function suggestProgression(
-  ex: Exercise, last: SessionExercise | undefined, range: { min: number; max: number }, step: number,
+  ex: Exercise, history: SessionExercise[], range: { min: number; max: number }, increment: number,
 ): Suggestion {
-  const work = last?.sets.filter(countable) ?? [];
-  if (!last || work.length === 0) return { kind: 'first', reasonKey: 'sugg.first', reasonVars: {} };
+  const past = history.filter(fullEnough);
+  const work = past[0]?.sets.filter(countable) ?? [];
+  if (work.length === 0) return { kind: 'first', reasonKey: 'First time — pick a weight you can do {min}–{max} reps with', reasonVars: { min: range.min, max: range.max } };
   if (ex.logType !== 'weightReps') {
-    const best = Math.max(...work.map((s) => s.reps ?? 0));
+    const best = Math.max(...work.map((x) => x.reps ?? 0));
     return { kind: 'add-reps', reasonKey: 'sugg.addReps', reasonVars: { reps: best + 1 } };
   }
-  const top = work[0].weightKg ?? 0;
-  const allTop = work.every((s) => (s.reps ?? 0) >= range.max && (s.weightKg ?? 0) >= top);
-  const anyLow = work.filter((s) => (s.reps ?? 0) < range.min).length >= Math.ceil(work.length / 2);
-  const inc = ex.muscles[0] === 'quads' || ex.muscles[0] === 'hamstrings' || ex.muscles[0] === 'glutes' ? step * 2 : step;
-  if (allTop) return { kind: 'add-weight', weightKg: top + inc, reasonKey: 'sugg.addWeight', reasonVars: { reps: range.max, inc } };
-  if (anyLow) return { kind: 'hold', weightKg: top, reasonKey: 'sugg.hold', reasonVars: { reps: range.min } };
-  return { kind: 'add-reps', weightKg: top, reasonKey: 'sugg.addRepsSame', reasonVars: { max: range.max } };
+  const first = work[0];
+  const r1 = first.reps ?? 0;
+  if (r1 >= range.max) {
+    const sets = work.map((x) => ({ weightKg: x.weightKg !== undefined ? Math.round((x.weightKg + increment) * 1000) / 1000 : undefined, reps: range.min }));
+    return { kind: 'add-weight', weightKg: sets[0].weightKg, sets, reasonKey: '+{inc} on every set — set 1 hit {max} reps last time', reasonVars: { inc: increment, max: range.max } };
+  }
+  const sets = work.map((x) => ({ weightKg: x.weightKg, reps: Math.min(range.max, Math.max(1, (x.reps ?? range.min - 1) + 1)) }));
+  // stalled: the last three sessions at this weight never beat set 1 of the session before them
+  const run: number[] = [];
+  for (const e of past) {
+    const s1 = e.sets.find(countable);
+    if (!s1 || !same(s1.weightKg, first.weightKg)) break;
+    run.push(s1.reps ?? 0);
+  }
+  if (run.length >= 4 && Math.max(run[0], run[1], run[2]) <= run[3]) {
+    return { kind: 'stalled', weightKg: first.weightKg, sets, reasonKey: 'Stalled — set 1 hasn’t improved in 3 sessions at {w}', reasonVars: { w: first.weightKg ?? 0 } };
+  }
+  if (r1 < range.min) return { kind: 'hold', weightKg: first.weightKg, sets, reasonKey: 'Hold the weight — build set 1 back up to {min} reps', reasonVars: { min: range.min } };
+  return { kind: 'add-reps', weightKg: first.weightKg, sets, reasonKey: 'Same weight — one more rep per set', reasonVars: {} };
+}
+
+/**
+ * Puts a plan into the still-open working sets as real values (tapping done logs them unchanged). Only sets you haven't
+ * touched are filled: a set with a weight or reps already in it is left alone.
+ */
+export function fillPlan(sets: SetRecord[], plan: SetPlan[] | undefined): SetRecord[] {
+  if (!plan || plan.length === 0) return sets;
+  let i = -1; // working-set number (done ones count, so set 3 always gets set 3's target)
+  return sets.map((x) => {
+    if (x.type !== 'working') return x;
+    i++;
+    if (x.done || x.weightKg !== undefined || x.reps !== undefined) return x;
+    const p = plan[Math.min(i, plan.length - 1)];
+    return { ...x, weightKg: p.weightKg, reps: p.reps, target: { ...x.target, weightKg: p.weightKg } };
+  });
+}
+
+/** The rep range an exercise's sets are aiming for (from its routine, else 8–12). */
+export function repRange(sets: SetRecord[]): { min: number; max: number } {
+  const w = sets.find((x) => x.type === 'working');
+  return { min: w?.target?.repMin ?? 8, max: w?.target?.repMax ?? 12 };
+}
+
+/** A new workout's sets for one exercise, with this session's progression filled in (weight × reps exercises only). */
+export function planSets(ex: Exercise | undefined, sets: SetRecord[], sessions: WorkoutSession[], increments: Record<string, number>, step: number): SetRecord[] {
+  if (!ex || ex.logType !== 'weightReps') return sets;
+  const sug = suggestProgression(ex, historyOf(ex.id, sessions), repRange(sets), incrementFor(ex, increments, step));
+  return fillPlan(sets, sug.sets);
 }
 
 /** Build the sets for a session exercise from a routine item. */
