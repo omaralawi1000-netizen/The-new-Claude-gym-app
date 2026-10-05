@@ -27,6 +27,7 @@ const P: Record<string, ReactNode> = {
   undo: <><path d="M8.5 7L4.5 11l4 4" /><path d="M5 11h9.5a4.5 4.5 0 0 1 0 9H11" /></>,
   more: <><circle cx="5.5" cy="12" r="1.3" fill="currentColor" /><circle cx="12" cy="12" r="1.3" fill="currentColor" /><circle cx="18.5" cy="12" r="1.3" fill="currentColor" /></>,
   pause: <><rect x="6.5" y="5" width="3.6" height="14" rx="1.2" /><rect x="13.9" y="5" width="3.6" height="14" rx="1.2" /></>,
+  stop: <rect x="6.5" y="6.5" width="11" height="11" rx="2.4" />,
   play: <path d="M8 5.2v13.6a.6.6 0 0 0 .9.5l10.8-6.8a.6.6 0 0 0 0-1L8.9 4.7a.6.6 0 0 0-.9.5z" />,
   link: <><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1" /><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" /></>,
   note: <><path d="M5.5 4h10L19 7.5V20H5.5z" /><path d="M8.5 11h7M8.5 14.5h7" /></>,

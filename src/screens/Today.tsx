@@ -100,6 +100,14 @@ export function TodayScreen() {
   const addWater = () => { buzz(8); const v = settings.waterQuick[1] ?? 250; const id = s.addWater(v, today); toast(`+${v} ml`, { tone: 'ok', actionLabel: t('Undo'), onAction: () => s.removeWater(id), duration: 3500 }); };
   const mealId = defaultMealId(settings.meals);
   const last = doneToday[doneToday.length - 1];
+  // once today's planned workout is done, the card says so (and what got better) instead of offering to start it again
+  const plannedDone = !!routine && doneToday.some((x) => x.routineId === routine.id || x.plannedDate === today);
+  const gains = useMemo(() => {
+    if (!last) return null;
+    const prev = s.sessions.filter((x) => x.id !== last.id && x.date <= last.date && (last.routineId ? x.routineId === last.routineId : x.name === last.name)).sort((a, b) => b.date.localeCompare(a.date) || b.startedAt - a.startedAt)[0];
+    const v = sessionVolume(last.exercises), pv = prev ? sessionVolume(prev.exercises) : 0;
+    return { prs: last.records?.length ?? 0, pct: pv > 0 ? Math.round(((v - pv) / pv) * 100) : null };
+  }, [last, s.sessions]);
 
   return (
     <div className="screen">
@@ -143,7 +151,7 @@ export function TodayScreen() {
               </div>
               <button className="icon-btn acc press" style={{ width: 68, height: 68, flex: 'none' }} aria-label={t('Resume workout')} onClick={() => { buzz(12); push('workout', { origin: 'hero' }); }}><Icon name="play" size={26} /></button>
             </div>
-          ) : routine ? (
+          ) : routine && !(plannedDone && last) ? (
             <div className="row-flex between" style={{ gap: 14 }}>
               <div style={{ minWidth: 0 }}>
                 <div className="display" style={{ fontSize: 56, fontStyle: 'italic', lineHeight: 0.95 }}>{routine.name}</div>
@@ -160,6 +168,13 @@ export function TodayScreen() {
                 <div className="row-flex" style={{ gap: 6, color: 'var(--ok)' }}><Icon name="check" size={16} sw={2.6} /><span className="small">{t('Done for today')}</span></div>
                 <div className="display" style={{ fontSize: 46, fontStyle: 'italic', marginTop: 6 }}>{last.name}</div>
                 <div className="small t2 num" style={{ marginTop: 8 }}>{fmtDuration(elapsedMs(last) / 1000)} · {fmtNum(Math.round(kgToDisplay(sessionVolume(last.exercises), settings.units.weight)), lang, 0)} {settings.units.weight}</div>
+                {gains && (gains.prs > 0 || (gains.pct !== null && gains.pct !== 0)) && (
+                  // what got better than last time
+                  <div className="row-flex num" style={{ gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+                    {gains.prs > 0 && <span className="chip sm" style={{ color: 'var(--gold)', borderColor: 'color-mix(in srgb, var(--gold) 40%, transparent)' }}><Icon name="bolt" size={13} /> {gains.prs} {gains.prs === 1 ? t('record') : t('records')}</span>}
+                    {gains.pct !== null && gains.pct !== 0 && <span className="chip sm" style={{ color: gains.pct > 0 ? 'var(--ok)' : 'var(--tx2)' }}>{t('{n} % volume vs last time', { n: `${gains.pct > 0 ? '+' : '−'}${Math.abs(gains.pct)}` })}</span>}
+                  </div>
+                )}
               </div>
               <div className="stack" style={{ gap: 10, flex: 'none' }}>
                 <button className="icon-btn press" aria-label={t('View')} onClick={() => push('sessionDetail', { id: last.id })}><Icon name="list" /></button>
@@ -219,8 +234,9 @@ export function TodayScreen() {
           return (
             <button key={w.d} className="press" onClick={() => setTab('train')} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }} aria-label={`${fmtDate(w.d, lang)}${r ? `: ${r.name}` : ''}${w.done ? `, ${t('done')}` : ''}`}>
               <span className="micro" style={{ color: isToday ? 'var(--ac-text)' : undefined }}>{fmtWeekdayShort(weekdayOf(w.d), lang, true)}</span>
-              <span style={{ width: 36, height: 36, borderRadius: '50%', display: 'grid', placeItems: 'center', background: w.done ? 'var(--ac)' : w.wr ? 'var(--ac-soft)' : 'var(--s2)', color: w.done ? 'var(--ac-ink)' : w.wr ? 'var(--ac-text)' : 'var(--tx2)', boxShadow: w.done ? '0 0 18px -2px var(--ac)' : isToday ? 'inset 0 0 0 1.5px var(--ac), 0 0 18px -6px var(--ac)' : 'inset 0 0 0 1px var(--line)', fontSize: 12, fontWeight: 700 }}>
-                {w.done ? <Icon name="check" size={17} sw={2.6} /> : w.wr ? <Icon name="wrestle" size={17} /> : r ? r.name.slice(0, 1).toUpperCase() : ''}
+              <span style={{ width: 36, height: 36, borderRadius: '50%', display: 'grid', placeItems: 'center', background: w.done ? 'var(--ac)' : w.wr ? 'var(--ac-soft)' : r || isToday ? 'var(--s2)' : 'transparent', color: w.done ? 'var(--ac-ink)' : w.wr ? 'var(--ac-text)' : 'var(--tx2)', boxShadow: w.done ? '0 0 18px -2px var(--ac)' : isToday ? 'inset 0 0 0 1.5px var(--ac), 0 0 18px -6px var(--ac)' : r ? 'inset 0 0 0 1px var(--line)' : undefined, fontSize: 12, fontWeight: 700 }}>
+                {/* a rest day is just a quiet dot: circles only where something is planned or done */}
+                {w.done ? <Icon name="check" size={17} sw={2.6} /> : w.wr ? <Icon name="wrestle" size={17} /> : r ? r.name.slice(0, 1).toUpperCase() : <i aria-hidden style={{ width: 4, height: 4, borderRadius: 4, background: 'var(--tx3)', opacity: 0.6 }} />}
               </span>
               <i style={{ width: 4, height: 4, borderRadius: 4, background: r && past && !w.done ? 'var(--bad)' : 'transparent' }} />
             </button>

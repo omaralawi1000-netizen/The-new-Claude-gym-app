@@ -47,6 +47,7 @@ export function Schedule({ props }: { props: { focusDate?: string; routineId?: s
         )}
         <div className="lbl" style={{ marginBottom: 8 }}>{t('Repeating plan')}</div>
         <Seg value={sch.mode} onChange={(m) => s.setSchedule({ mode: m })} options={[{ value: 'weekly', label: t('Fixed weekdays') }, { value: 'rotation', label: t('Flexible rotation') }]} />
+        <div className="xs t2" style={{ marginTop: 8 }}>{sch.mode === 'weekly' ? t('Each routine on the same weekdays every week.') : t('Routines in order: the next one is whatever follows your last workout, on any day.')}</div>
         {routines.length === 0 && <div className="small t2" style={{ marginTop: 16 }}>{t('Create a routine first, then schedule it here.')}</div>}
         {sch.mode === 'weekly' ? (
           <div style={{ marginTop: 16 }}>

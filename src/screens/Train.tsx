@@ -70,7 +70,7 @@ function PlanTab() {
               <button key={d} className="press" onClick={() => push('schedule', { focusDate: d })} aria-label={`${fmtDate(d, lang)}${r ? `: ${r.name}` : ''}`} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '8px 0', borderRadius: 14, background: isToday ? 'var(--ac-soft)' : 'transparent' }}>
                 <span className="micro" style={{ color: isToday ? 'var(--ac-text)' : undefined }}>{fmtWeekdayShort(weekdayOf(d), lang, true)}</span>
                 <span className="num" style={{ fontWeight: 650, fontSize: 15 }}>{Number(d.slice(8))}</span>
-                <span style={{ width: 26, height: 26, borderRadius: 9, display: 'grid', placeItems: 'center', background: done ? 'var(--ac)' : wr ? 'var(--ac-soft)' : r ? 'var(--s3)' : 'transparent', color: done ? 'var(--ac-ink)' : wr ? 'var(--ac-text)' : 'var(--tx2)', fontSize: 11, fontWeight: 700, boxShadow: !done && !r && !wr ? 'inset 0 0 0 1px var(--line)' : undefined }}>{done ? <Icon name="check" size={14} sw={3} /> : wr ? <Icon name="wrestle" size={15} /> : r ? r.name.slice(0, 1).toUpperCase() : ''}</span>
+                <span style={{ width: 26, height: 26, borderRadius: 9, display: 'grid', placeItems: 'center', background: done ? 'var(--ac)' : wr ? 'var(--ac-soft)' : r ? 'var(--s3)' : 'transparent', color: done ? 'var(--ac-ink)' : wr ? 'var(--ac-text)' : 'var(--tx2)', fontSize: 11, fontWeight: 700, }}>{done ? <Icon name="check" size={14} sw={3} /> : wr ? <Icon name="wrestle" size={15} /> : r ? r.name.slice(0, 1).toUpperCase() : <i aria-hidden style={{ width: 4, height: 4, borderRadius: 4, background: 'var(--tx3)', opacity: 0.6 }} />}</span>
               </button>
             );
           })}
@@ -89,8 +89,8 @@ function PlanTab() {
 
       <section>
         <div className="row-flex" style={{ gap: 10, justifyContent: 'flex-end', marginBottom: 14 }}>
-          <button className="icon-btn press" aria-label={t('Schedule')} onClick={() => push('schedule')}><Icon name="calendar" /></button>
-          <button className="icon-btn press" aria-label={t('New')} onClick={() => push('routine', {})}><Icon name="plus" /></button>
+          <button className="chip press" onClick={() => push('schedule')}><Icon name="calendar" size={16} /> {t('Schedule')}</button>
+          <button className="chip press" onClick={() => push('routine', {})}><Icon name="plus" size={16} /> {t('New routine')}</button>
         </div>
         {s.routines.length === 0 ? (
           <Empty icon="dumbbell" title={t('No routines yet')} action={<div className="row-flex" style={{ gap: 8, justifyContent: 'center' }}><button className="btn primary press" onClick={() => push('routine', {})}>{t('Build a routine')}</button><button className="btn press" onClick={() => push('onboarding', { starterOnly: true })}>{t('Starter plan')}</button></div>} />

@@ -1,6 +1,6 @@
 import { useStore, exerciseMap } from '../../state/store';
 import { uid } from '../../lib/nutrition';
-import type { SessionExercise, SetRecord, WorkoutSession, Routine, Exercise } from '../../lib/types';
+import type { SessionExercise, SetRecord, WorkoutSession, Routine, RoutineItem, Exercise } from '../../lib/types';
 import { lastPerformance, countable, planSets } from '../../lib/workout';
 
 /** Active-workout mutations. All persist immediately (the store flushes the active session synchronously). */
@@ -138,3 +138,39 @@ export function skipRest() {
 
 export function sessionFromRoutineName(r: Routine) { return r.name; }
 export type { WorkoutSession };
+
+/**
+ * A finished workout as routine exercises: the same exercises in the same order, as many sets as you did, and a rep range
+ * from what you actually did (8, 8, 6 → 6–8; never narrower than two reps). Warm-ups, rest and supersets carry over.
+ */
+export function routineItemsFrom(ses: WorkoutSession, restDefault: number): RoutineItem[] {
+  return ses.exercises.map((e) => {
+    const w = e.sets.filter(countable);
+    const reps = w.map((x) => x.reps ?? 0).filter((n) => n > 0);
+    const lo = reps.length ? Math.min(...reps) : 8, hi = reps.length ? Math.max(...reps) : 12;
+    const durs = w.map((x) => x.durationSec ?? 0).filter((n) => n > 0), dists = w.map((x) => x.distanceM ?? 0).filter((n) => n > 0);
+    return {
+      id: uid('ri'), exerciseId: e.exerciseId, warmupSets: e.sets.filter((x) => x.type === 'warmup').length, workingSets: Math.max(1, w.length),
+      repMin: Math.max(1, lo), repMax: Math.max(hi, lo + 2), restSec: e.restSec ?? restDefault, supersetGroup: e.supersetGroup,
+      ...(durs.length ? { targetDurationSec: Math.max(...durs) } : {}), ...(dists.length ? { targetDistanceM: Math.max(...dists) } : {}),
+    };
+  });
+}
+
+/** Save a workout as a new routine, or as the new version of an existing one (`into`). Returns the routine id and an undo. */
+export function saveWorkoutAsRoutine(ses: WorkoutSession, o: { name: string; into?: string }): { id: string; undo: () => void } {
+  const st = useStore.getState();
+  const items = routineItemsFrom(ses, st.settings.restDefaultSec);
+  const prev = o.into ? st.routines.find((r) => r.id === o.into) : undefined;
+  if (prev) {
+    st.upsertRoutine({ ...prev, items });
+    return { id: prev.id, undo: () => useStore.getState().upsertRoutine(prev) };
+  }
+  const id = uid('rt');
+  // a second "Push" becomes "Push 2", so the plan never shows two routines you can't tell apart
+  const taken = new Set(st.routines.map((r) => r.name.trim().toLowerCase()));
+  let name = o.name, n = 2;
+  while (taken.has(name.trim().toLowerCase())) name = `${o.name} ${n++}`;
+  st.upsertRoutine({ id, name, createdAt: Date.now(), updatedAt: Date.now(), items });
+  return { id, undo: () => { useStore.getState().deleteRoutine(id); } };
+}

@@ -217,3 +217,26 @@ export function energyMismatch(n: Nutrients): number | null {
   const base = Math.max(est, n.kcal, 1);
   return Math.abs(est - n.kcal) / base;
 }
+
+/** Macro targets in grams. */
+export interface Macros { protein: number; carbs: number; fat: number }
+/** Calories from macros (4 / 4 / 9 kcal per gram). */
+export function kcalOf(m: Macros): number { return Math.round(m.protein * 4 + m.carbs * 4 + m.fat * 9); }
+/**
+ * Macros scaled to a new calorie target, keeping their shares: each one moves in proportion, whole grams, and any
+ * rounding left over goes to carbs so the total lands within a few kcal of the target.
+ */
+export function scaleMacros(m: Macros, kcal: number): Macros {
+  const from = kcalOf(m);
+  if (!(kcal > 0) || !(from > 0)) return m;
+  const f = kcal / from;
+  const protein = Math.max(0, Math.round(m.protein * f)), fat = Math.max(0, Math.round(m.fat * f));
+  const carbs = Math.max(0, Math.round((kcal - protein * 4 - fat * 9) / 4));
+  return { protein, carbs, fat };
+}
+/** A sensible start from a calorie target: protein 2 g per kg (or 30 % of kcal without a weight), fat 25 %, carbs the rest. */
+export function suggestMacros(kcal: number, weightKg?: number): Macros {
+  const protein = Math.round(weightKg && weightKg > 0 ? Math.min(weightKg * 2, (kcal * 0.4) / 4) : (kcal * 0.3) / 4);
+  const fat = Math.round((kcal * 0.25) / 9);
+  return { protein, fat, carbs: Math.max(0, Math.round((kcal - protein * 4 - fat * 9) / 4)) };
+}

@@ -17,6 +17,9 @@ for (const reduced of [false, true]) {
   await wait(p, 1200);
   console.log(`[reduced=${reduced}] dialogs after hammering:`, await dialogs());
   assert((await dialogs()) <= 1, 'never more than one workout dialog');
+  // a forced tap during the hammering can land on an exercise name as the workout slides in and open its sheet — a real
+  // tap there would do the same; close it so the next step starts from the workout, not from that sheet
+  for (let k = 0; k < 3 && await p.locator('.sheet[role="dialog"]:not([aria-label="Active workout"])').count(); k++) { await p.keyboard.press('Escape'); await wait(p, 600); }
   // 2. interrupted drag-to-minimise: drag halfway down, then back up, then release → must stay open
   if (await dialogs() === 0) { await p.locator('button[aria-label="Resume workout"]').click(); await wait(p, 900); }
   const hdr = await p.getByRole('dialog', { name: 'Active workout' }).locator('.display-lg').first().boundingBox();

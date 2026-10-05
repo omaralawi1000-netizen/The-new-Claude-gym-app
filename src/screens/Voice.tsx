@@ -20,7 +20,8 @@ import { kb, watchFocus } from '../ui/keyboard';
 import { Veil, VOICE_VEIL, mirrorVeil } from '../ui/Veil';
 import { Icon } from '../ui/Icon';
 import { useOverlayZ } from '../ui/Sheet';
-import { ActionCard, RotatingHint, Rich, Words, sttMessage } from '../ui/agentUi';
+import { ActionCard, RotatingHint, Rich, Words, SpeakButton, readAloud, prefetchAloud, tidy, sttMessage } from '../ui/agentUi';
+import { stopSpeaking } from '../lib/tts';
 import { flyLogged } from '../ui/fly';
 
 /** One thing you said and what the assistant did about it. `done` once the answer is complete (until then it streams in). */
@@ -28,8 +29,6 @@ interface Turn1 { id: string; said: string; reply: string; results: AgentResult[
 
 /** How a sent message and the answer's cards settle: calm, a hint of spring, no wobble (iMessage). */
 const SEND = { type: 'spring', stiffness: 320, damping: 30, mass: 1 } as const;
-/** While an answer is still arriving, a "**" that hasn't been closed yet is held back instead of showing as two stars. */
-const tidy = (s: string) => { const n = s.match(/\*\*/g)?.length ?? 0; if (n % 2 === 0) return s; const i = s.lastIndexOf('**'); return s.slice(0, i) + s.slice(i + 2); };
 
 const recorderOk = () => typeof MediaRecorder !== 'undefined' && mic.supported;
 /** Leaving for the Coach, the frost holds until the screen's progress is down to this (the Coach's sheet is mostly up by then). */
@@ -104,13 +103,14 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
     const unsub = mic.subscribe(() => useVoice.getState().set({ micLive: mic.active }));
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !(e.target as HTMLElement)?.closest?.('textarea')) useUI.getState().pop(); };
     window.addEventListener('keydown', onKey);
-    return () => { alive.current = false; unsub(); window.removeEventListener('keydown', onKey); ctl.current?.abort(); teardown(); go('idle'); };
+    return () => { alive.current = false; unsub(); window.removeEventListener('keydown', onKey); ctl.current?.abort(); stopSpeaking(); teardown(); go('idle'); };
     // eslint-disable-next-line
   }, [teardown]);
 
   // ── listening ──
   const listen = useCallback(async () => {
     if (busy.current) return;
+    stopSpeaking();
     setErr(null); setFinal(''); setInterim(''); setCanRetry(false); blobRef.current = null; pinned.current = true;
     if (!supported) { go('idle'); setTyping(true); return; }
     setTyping(false);
@@ -207,7 +207,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
         : props.mealId || props.date ? `The user came from the Food tab${props.date ? ` (day ${props.date})` : ''}${props.mealId ? `, meal ${props.mealId}` : ''}: foods go there unless they say otherwise.`
         : 'The user tapped the orb on the main screen and spoke to it.';
       // the orb screen is spoken to, often mid-workout: one or two short sentences, not an article (the Coach chat keeps longer answers)
-      const brief = ' They are speaking to the orb screen, probably mid-workout: answer in 1–2 short sentences (about 35 words), plain text, no bullet lists or headings — this overrides the usual reply length. If the question really needs more (a plan, a breakdown), give the one-line answer and say they can open the Coach for detail.';
+      const brief = ' They are speaking to the orb screen, probably mid-workout: answer in 1–2 short sentences (about 35 words), plain text, no bullet lists or headings — this overrides the usual reply length. If the question really needs more (a plan, a breakdown), give just the short answer: a “Continue in Coach” button sits under it, so never tell them to open the Coach.';
       // the answer streams in word by word as the model writes it (Gemini), under what you said
       const d = await decide(text, { lang, t, pool, history: history(), where: where + brief, signal, onReply: (r) => { if (alive.current) patch(id, { reply: r }); } });
       let reply = d.reply;
@@ -222,8 +222,10 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
       if (!alive.current) return;
       const said = [reply, d.note].filter(Boolean).join('\n\n');
       patch(id, { reply: said, results, done: true });
-      if (results.some((r) => r.kind !== 'miss' && r.kind !== 'nav')) buzz([12, 40, 18] as any);
-      go('confirmed');
+      // green "Done" only when something was actually logged or changed; a plain answer just settles
+      const acted = d.wantsUndo || results.some((r) => r.kind !== 'miss' && r.kind !== 'nav');
+      if (acted) { buzz([12, 40, 18] as any); go('confirmed'); } else go('idle');
+      if (said.trim()) { if (useAi.getState().speak) readAloud(id, said, t); else prefetchAloud(said); }
       // a quick log and nothing to read: show it for a moment, then step aside with an Undo toast
       const quick = results.length > 0 && results.every((r) => ['food', 'sets', 'water', 'weight', 'activity'].includes(r.kind) && !r.pending);
       if (quick && !reply.trim()) {
@@ -345,7 +347,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
               // what you are saying, as you say it: each new word settles in; when you stop, it rises away into the conversation
               <motion.div key="live" className="display voice-live" exit={{ opacity: 0, y: -10, filter: 'blur(5px)', transition: { duration: 0.22, ease: [0.4, 0, 1, 1] } }}>
                 {final || interim ? <Words text={[final, interim].filter(Boolean).join(' ')} k="live" />
-                  : <span className="voice-hint">{listening && engine === 'groq' ? t('Speak naturally. I stop listening when you pause.') : <RotatingHint />}</span>}
+                  : !listening && <span className="voice-hint"><RotatingHint /></span>}
               </motion.div>
             )}
             {showing && (
@@ -357,7 +359,16 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
                     <motion.span key={last.said} layout="position" style={{ display: 'inline-block' }} initial={{ opacity: 0.35 }} animate={{ opacity: 1 }} transition={{ duration: 0.28 }}>{last.said}</motion.span>
                   </motion.div>
                 )}
-                {last.reply && <div className="reply calm" aria-live="polite"><Rich text={last.done ? last.reply : tidy(last.reply)} /></div>}
+                {last.reply && <div className="reply calm" aria-live="polite"><Rich text={last.done ? last.reply : tidy(last.reply)} id={last.id} /></div>}
+                {last.done && last.reply.trim() && (
+                  // read it aloud (each word lights up as it is said), or take the question on in the Coach
+                  <motion.div className="reply-foot" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ ...SEND, delay: 0.12 }}>
+                    <SpeakButton id={last.id} text={last.reply} />
+                    <button className="cont-chip press" onClick={() => { buzz(6); stopSpeaking(); toCoach.current = true; useUI.getState().swap(1, 'coach', { seed: turnsRef.current.filter((x) => x.done && (x.said || x.reply)).slice(-4).map((x) => ({ said: x.said, reply: x.reply })) }); }}>
+                      {t('Continue in Coach')} <Icon name="chevR" size={14} sw={2.2} />
+                    </button>
+                  </motion.div>
+                )}
                 {last.done && last.results.length > 0 && (
                   <div className="stack gap12">
                     {last.results.map((r, i) => (

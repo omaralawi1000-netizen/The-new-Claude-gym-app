@@ -68,6 +68,8 @@ export function ProgressScreen() {
     }
     return out;
   })();
+  // a best-volume record reads as the set itself (100 kg × 8), not as 800 kg — which looks like a lift nobody did
+  const setOf = (r: { date: string; setId: string }) => s.sessions.filter((x) => x.date === r.date).flatMap((x) => x.exercises.flatMap((e) => e.sets)).find((q) => q.id === r.setId && q.reps);
   const empty = s.sessions.length === 0 && s.weights.length === 0 && s.entries.length === 0;
   const lastWeight = weights[weights.length - 1];
   const firstW = weights[0];
@@ -142,7 +144,7 @@ export function ProgressScreen() {
                 <span style={{ width: 34, height: 34, borderRadius: 12, background: 'var(--ac)', color: 'var(--ac-ink)', display: 'grid', placeItems: 'center', flex: 'none' }}><Icon name="bolt" size={17} /></span>
                 <div className="grow" style={{ textAlign: 'left' }}><div className="li-title small">{ex ? exName(ex, lang) : ''}</div><div className="li-sub">{t(({ weight: 'Heaviest set', e1rm: 'Estimated 1RM', volume: 'Best set volume', reps: 'Most reps', duration: 'Longest hold', distance: 'Longest distance' } as any)[r.kind])} · {fmtDate(r.date, lang, { day: 'numeric', month: 'short' })}</div></div>
                 {r.more > 0 && <span className="chip sm num" style={{ flex: 'none' }}>+{r.more}</span>}
-                <div className="num" style={{ fontWeight: 700 }}>{r.kind === 'reps' ? r.value : r.kind === 'duration' ? `${r.value}s` : r.kind === 'distance' ? `${fmtNum(r.value / 1000, lang, 2)} km` : `${fmtNum(kgToDisplay(r.value, u.weight), lang, r.kind === 'e1rm' ? 1 : 2)} ${u.weight}`}</div>
+                <div className="num" style={{ fontWeight: 700 }}>{r.kind === 'volume' && setOf(r) ? `${fmtNum(kgToDisplay(setOf(r)!.weightKg ?? 0, u.weight), lang, 2)} ${u.weight} × ${setOf(r)!.reps}` : r.kind === 'reps' ? r.value : r.kind === 'duration' ? `${r.value}s` : r.kind === 'distance' ? `${fmtNum(r.value / 1000, lang, 2)} km` : `${fmtNum(kgToDisplay(r.value, u.weight), lang, r.kind === 'e1rm' ? 1 : 2)} ${u.weight}`}</div>
               </button>); })}
           </div>
         </Section>

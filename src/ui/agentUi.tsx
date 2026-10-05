@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useLang, useT } from '../lib/i18n';
 import { Icon, type IconName } from './Icon';
 import { useStore } from '../state/store';
@@ -7,6 +7,11 @@ import { sumNutrients } from '../lib/nutrition';
 import { plannedFor, missedWorkouts } from '../state/store';
 import { mealName } from '../lib/derive';
 import type { AgentResult } from '../lib/agent';
+import { useUI, buzz } from '../state/ui';
+import { useAi } from '../state/ai';
+import { getKey } from '../lib/keys';
+import { aiErrorText } from '../lib/gemini';
+import { play, prefetch, stopSpeaking, speechState, subscribeSpeech, richLines, wordsOf, FALLBACK_TTS, type TtsOpts } from '../lib/tts';
 
 /**
  * Things worth saying to the assistant right now, made from what is actually in the app: the foods logged today, the
@@ -127,37 +132,75 @@ const KIND_ICON: Record<string, IconName> = { food: 'recipe', sets: 'dumbbell', 
 /**
  * Minimal, safe rendering of the model's text: paragraphs, "- " bullets, **bold**. No HTML is ever injected.
  * Every word is its own span keyed by position, so while a reply streams in only the NEW words mount — and each one
- * blurs in (CSS .w). Words already on screen never re-animate.
+ * blurs in (CSS .w). Words already on screen never re-animate. While the reply is read aloud (`id` matches what is
+ * playing), the word being said lights up, the ones already said settle back and the ones to come wait a shade lighter.
  */
-export function Words({ text, k }: { text: string; k: string }) {
+export function Words({ text, k, base = 0, on = -1 }: { text: string; k: string; base?: number; on?: number }) {
   const parts = text.split(/(\s+)/);
   // words that arrive together cascade one after another; a word keeps the delay it was born with
   const born = useRef<Record<number, number>>({});
   const seen = useRef(0);
   const first = seen.current;
   useEffect(() => { seen.current = parts.length; });
+  let n = base;
   return <>{parts.map((w, i) => {
     if (/^\s+$/.test(w) || !w) return w || null;
     if (born.current[i] === undefined) born.current[i] = Math.min(520, Math.max(0, (i - first) / 2) * 34);
-    return <span key={`${k}-${i}`} className="w" style={{ animationDelay: `${born.current[i]}ms` }}>{w}</span>;
+    const idx = n++;
+    const cls = on < 0 ? 'w' : idx === on ? 'w w-on' : idx < on ? 'w w-past' : 'w w-next';
+    return <span key={`${k}-${i}`} className={cls} style={{ animationDelay: `${born.current[i]}ms` }}>{w}</span>;
   })}</>;
 }
-export function Rich({ text }: { text: string }) {
-  const lines = text.split('\n');
-  const bold = (s: string, k: string) => s.split(/(\*\*[^*]+\*\*)/g).map((p, i) => (p.startsWith('**') && p.endsWith('**') ? <b key={i}><Words text={p.slice(2, -2)} k={`${k}b${i}`} /></b> : <Words key={i} text={p} k={`${k}t${i}`} />));
-  return <>{lines.map((l, i) => {
-    const m = l.match(/^\s*(?:[-*•]|\d+\.)\s+(.*)$/);
-    if (m) return <div key={i} style={{ display: 'flex', gap: 8, marginTop: 4 }}><span aria-hidden className="w" style={{ color: 'var(--tx3)' }}>•</span><span>{bold(m[1], `l${i}`)}</span></div>;
-    return l.trim() ? <div key={i} style={{ marginTop: i ? 8 : 0 }}>{bold(l, `l${i}`)}</div> : null;
+/** The index of the word being read aloud in reply `id` (-1 when that reply is not playing). Only that reply re-renders. */
+export function useSpokenWord(id?: string) {
+  return useSyncExternalStore(subscribeSpeech, () => (id && speechState().id === id ? Math.max(0, speechState().word) : -1));
+}
+export function Rich({ text, id }: { text: string; id?: string }) {
+  const on = useSpokenWord(id);
+  let n = 0;
+  const run = (segs: ReturnType<typeof richLines>[number]['segs'], k: string) => segs.map((p, i) => {
+    const base = n; n += wordsOf(p.text).length;
+    return p.bold ? <b key={i}><Words text={p.text} k={`${k}b${i}`} base={base} on={on} /></b> : <Words key={i} text={p.text} k={`${k}t${i}`} base={base} on={on} />;
+  });
+  return <>{richLines(text).map((l, i) => {
+    if (l.bullet) return <div key={i} style={{ display: 'flex', gap: 8, marginTop: 4 }}><span aria-hidden className="w" style={{ color: 'var(--tx3)' }}>•</span><span>{run(l.segs, `l${i}`)}</span></div>;
+    return l.segs.some((x) => x.text.trim()) ? <div key={i} style={{ marginTop: i ? 8 : 0 }}>{run(l.segs, `l${i}`)}</div> : null;
   })}</>;
 }
 
-/** While the Coach thinks: three lines of light sweep across, then the real words ink in where they were. */
-export function Thinking() {
-  return <div className="thinking" aria-label="…">{[92, 78, 52].map((w, i) => <i key={i} style={{ width: `${w}%`, animationDelay: `${i * 160}ms, ${i * 70}ms` }} />)}</div>;
+/** While an answer is still arriving, a "**" that hasn't been closed yet is held back instead of showing as two stars. */
+export const tidy = (s: string) => { const n = s.match(/\*\*/g)?.length ?? 0; if (n % 2 === 0) return s; const i = s.lastIndexOf('**'); return s.slice(0, i) + s.slice(i + 2); };
+
+/** Gemini voice settings for reading a reply aloud (the key stays on the phone; it is only read here, at the moment of use). */
+export function ttsOpts(): TtsOpts {
+  const m = useAi.getState();
+  return { key: getKey('gemini'), models: [m.models.tts || FALLBACK_TTS], voice: m.voice };
+}
+/** Read reply `id` aloud; a failure becomes a short toast, never a crash. */
+export function readAloud(id: string, text: string, t: (k: string) => string) {
+  play(id, text, ttsOpts()).catch((e) => useUI.getState().toast(`${t('Couldn’t read that aloud.')} ${aiErrorText(e, t)}`, { tone: 'bad' }));
+}
+/** Fetch a finished reply's audio in the background, so the play button starts at once. */
+export function prefetchAloud(text: string) { if (useAi.getState().hasGemini) prefetch(text, ttsOpts()); }
+
+/** Play / stop for one reply, like Claude's: a soft ring breathes while the voice is on its way. */
+export function SpeakButton({ id, text }: { id: string; text: string }) {
+  const t = useT();
+  const has = useAi((a) => a.hasGemini);
+  const st = useSyncExternalStore(subscribeSpeech, () => (speechState().id !== id ? 'idle' : speechState().loading ? 'loading' : 'playing'));
+  if (!has || wordsOf(text).length < 4) return null; // "Undone." needs no play button
+  return (
+    <button className={`speak-btn press ${st}`} aria-label={st === 'idle' ? t('Read aloud') : t('Stop reading')} aria-pressed={st !== 'idle'}
+      onClick={() => { buzz(6); if (st === 'idle') readAloud(id, text, t); else stopSpeaking(); }}>
+      <Icon name={st === 'idle' ? 'play' : 'stop'} size={13} sw={st === 'idle' ? 2 : 0} style={st === 'idle' ? { fill: 'currentColor', marginLeft: 1 } : { fill: 'currentColor' }} />
+    </button>
+  );
 }
 
-
+/** While the Coach thinks: three soft dots, like someone typing. */
+export function TypingDots() {
+  return <div className="typing" aria-label="…"><i /><i /><i /></div>;
+}
 
 /** Why speech-to-text failed, in words (never a stack trace). */
 export function sttMessage(code: string, t: (k: string) => string): string {

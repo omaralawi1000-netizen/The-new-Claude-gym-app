@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { toBase, scale, sumNutrients, calcRecipe, recipeToFood, entryFromSnapshot, requantify, snapshotOf, quickEntry, allowedUnits } from '../src/lib/nutrition';
+import { toBase, scale, sumNutrients, calcRecipe, recipeToFood, entryFromSnapshot, requantify, snapshotOf, quickEntry, allowedUnits, kcalOf, scaleMacros, suggestMacros } from '../src/lib/nutrition';
 import { REFERENCE_BY_ID, REFERENCE_FOODS } from '../src/data/foods';
 import { parseFoodText, resolveRows, rowQuantity, searchFoods } from '../src/lib/foodText';
 import { parseWorkoutText } from '../src/lib/workoutText';
@@ -265,5 +265,34 @@ describe('Danish reference foods', () => {
     expect(top('skyr')).toMatch(/^ref:skyr/);
     expect(top('banana')).toBe('ref:banana');
     expect(top('milk')).toMatch(/^ref:milk/);
+  });
+});
+
+describe('linked macro targets', () => {
+  it('calories come from the macros (4/4/9)', () => {
+    expect(kcalOf({ protein: 180, carbs: 250, fat: 70 })).toBe(180 * 4 + 250 * 4 + 70 * 9);
+  });
+  it('a new calorie target scales every macro and adds up', () => {
+    const m = { protein: 180, carbs: 250, fat: 70 };
+    for (const k of [1600, 2500, 3000, 3333]) {
+      const s = scaleMacros(m, k);
+      expect(Math.abs(kcalOf(s) - k)).toBeLessThanOrEqual(4);
+      expect(s.protein / s.fat).toBeCloseTo(180 / 70, 1);
+    }
+    expect(scaleMacros(m, 0)).toEqual(m);
+    expect(scaleMacros({ protein: 0, carbs: 0, fat: 0 }, 2000)).toEqual({ protein: 0, carbs: 0, fat: 0 });
+  });
+  it('scaling up and back down returns about where it started', () => {
+    const m = { protein: 160, carbs: 300, fat: 80 };
+    const back = scaleMacros(scaleMacros(m, kcalOf(m) * 1.4), kcalOf(m));
+    expect(Math.abs(back.protein - m.protein)).toBeLessThanOrEqual(1);
+    expect(Math.abs(back.fat - m.fat)).toBeLessThanOrEqual(1);
+  });
+  it('suggests protein by body weight, fat 25 %, carbs the rest', () => {
+    const s = suggestMacros(2600, 80);
+    expect(s.protein).toBe(160);
+    expect(s.fat).toBe(72);
+    expect(Math.abs(kcalOf(s) - 2600)).toBeLessThanOrEqual(4);
+    expect(suggestMacros(2000).protein).toBe(150);
   });
 });

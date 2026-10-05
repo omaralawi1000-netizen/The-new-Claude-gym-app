@@ -18,6 +18,18 @@ await p.route('https://api.groq.com/**', async (r) => {
   if (groqMode === 'down') return r.abort('failed');
   return r.fulfill({ status: 200, headers: { ...cors, 'content-type': 'application/json' }, body: JSON.stringify({ text: groqText, language: 'danish', segments: [{ text: groqText, no_speech_prob: 0.01, avg_logprob: -0.2, compression_ratio: 1.1 }] }) });
 });
+/** A stand-in for Gemini's voice: a short tone per word, a longer quiet after a full stop (16-bit mono WAV, base64). */
+function fakeVoice(text) {
+  const rate = 24000, out = [];
+  const add = (sec, on) => { const n = Math.round(sec * rate); for (let i = 0; i < n; i++) out.push(on ? Math.round(Math.sin(i / 6) * 9000) : 0); };
+  add(0.12, false);
+  for (const w of text.split(/\s+/).filter(Boolean)) { add(0.06 * Math.max(2, w.length), true); add(/[.!?]$/.test(w) ? 0.3 : 0.05, false); }
+  const data = Buffer.alloc(out.length * 2); out.forEach((v, i) => data.writeInt16LE(v, i * 2));
+  const h = Buffer.alloc(44);
+  h.write('RIFF', 0); h.writeUInt32LE(36 + data.length, 4); h.write('WAVE', 8); h.write('fmt ', 12); h.writeUInt32LE(16, 16); h.writeUInt16LE(1, 20); h.writeUInt16LE(1, 22);
+  h.writeUInt32LE(rate, 24); h.writeUInt32LE(rate * 2, 28); h.writeUInt16LE(2, 32); h.writeUInt16LE(16, 34); h.write('data', 36); h.writeUInt32LE(data.length, 40);
+  return Buffer.concat([h, data]).toString('base64');
+}
 const json = (o) => ({ status: 200, headers: { ...cors, 'content-type': 'application/json' }, body: JSON.stringify(o) });
 const cand = (o) => json({ candidates: [{ content: { parts: [{ text: JSON.stringify(o) }] } }] });
 let geminiDown = false;
@@ -28,6 +40,7 @@ await p.route('https://generativelanguage.googleapis.com/**', async (r) => {
   if (geminiDown) return r.fulfill({ status: 503, headers: cors, body: '{}' });
   const body = JSON.parse(req.postData() || '{}');
   const prompt = body.contents?.[0]?.parts?.[0]?.text ?? '';
+  if (body.generationConfig?.responseModalities?.includes('AUDIO')) { calls.tts++; return r.fulfill(json({ candidates: [{ content: { parts: [{ inlineData: { mimeType: 'audio/wav', data: fakeVoice(prompt) } }] } }] })); }
   const sse = (t) => `data: ${JSON.stringify({ candidates: [{ content: { parts: [{ text: t }] } }] })}\n\n`;
   const schemaProps = body.generationConfig?.responseSchema?.properties || {};
   if (url.includes('streamGenerateContent') && !schemaProps.actions) {
@@ -104,6 +117,7 @@ assert.equal(calls.groq, 1, 'one transcription request');
 assert.equal(calls.groqLive, 0, 'no live-word previews while speaking');
 assert(calls.agentStream >= 1, 'the orb screen streamed the answer');
 assert(/1–2 short sentences/.test(calls.lastSystem), 'the orb screen asks for a short spoken answer');
+assert(!/open the Coach for detail/.test(calls.lastSystem), 'answers no longer tell you to open the Coach (there is a button)');
 assert(calls.agent >= 1, 'the Coach was asked once');
 assert(/GUIDE:/.test(calls.lastSystem) && /DATA \(computed on this device/.test(calls.lastSystem), 'the Coach is given the app guide and the live data');
 assert(await p.locator('.action-card').getByText(/Logged to/).first().isVisible(), 'logged straight away, no review step');
@@ -160,6 +174,17 @@ await p.getByRole('button', { name: 'Undo' }).last().click(); await wait(p, 700)
 assert.equal(await p.evaluate(() => document.documentElement.dataset.theme), 'dark', 'and undone');
 await p.getByLabel('Message the Coach').fill('how do I change the theme?'); await p.getByRole('button', { name: 'Send', exact: true }).click(); await wait(p, 2000);
 assert(await p.getByText(/Settings → Appearance/).isVisible(), 'app question answered from the guide');
+// read aloud: the answer's audio was fetched in the background; play starts it and the spoken word lights up and moves on
+assert(calls.tts >= 1, 'the answer was prefetched for the play button');
+const ttsBefore = calls.tts;
+await p.getByRole('button', { name: 'Read aloud' }).last().click();
+await p.locator('.w-on').first().waitFor({ timeout: 4000 });
+assert.equal(calls.tts, ttsBefore, 'play used the prefetched audio (no new request)');
+const lit1 = await p.locator('.w-on').first().textContent(); await p.screenshot({ path: 'shots/ai-9-reading.png' }); await wait(p, 900);
+const lit2 = await p.locator('.w-on').first().textContent().catch(() => null);
+assert(lit2 !== lit1, `the lit word moves along (${lit1} → ${lit2})`);
+await p.getByRole('button', { name: 'Stop reading' }).click(); await wait(p, 200);
+assert.equal(await p.locator('.w-on, .w-next').count(), 0, 'stop clears the highlight');
 await p.screenshot({ path: 'shots/ai-9-coach.png' });
 await p.getByLabel('Message the Coach').fill('open progress'); await p.getByRole('button', { name: 'Send', exact: true }).click(); await wait(p, 2600);
 assert(await p.locator('.tabbar').getByRole('button', { name: 'Progress', exact: true }).getAttribute('aria-current') === 'page', 'navigated by asking');
@@ -178,6 +203,21 @@ await p.screenshot({ path: 'shots/ai-10-routine.png' });
 await p.keyboard.press('Escape'); await wait(p, 600);
 await p.locator('.tabbar').getByRole('button', { name: 'Train', exact: true }).click(); await wait(p, 700);
 assert(await p.getByText('Push day').first().isVisible(), 'routine exists in the plan');
+
+// ── orb screen: a question is answered (no green "Done"), and "Continue in Coach" carries the exchange over ──
+groqText = 'how do I change the theme';
+await p.locator('.tabbar').getByRole('button', { name: 'Today', exact: true }).click(); await wait(p, 600);
+await p.getByRole('button', { name: 'Dictate' }).first().click(); await wait(p, 1800);
+await p.getByRole('button', { name: 'Stop and send' }).click();
+await p.getByRole('button', { name: 'Continue in Coach' }).waitFor({ timeout: 8000 }); await wait(p, 300);
+assert.notEqual(await p.evaluate(() => document.querySelector('.voice .micro')?.textContent), 'Done', 'a plain answer does not turn the orb green');
+assert(await p.locator('.voice').getByRole('button', { name: 'Read aloud' }).isVisible(), 'the orb answer has a play button');
+await p.screenshot({ path: 'shots/ai-11-orb-answer.png' });
+await p.getByRole('button', { name: 'Continue in Coach' }).click(); await wait(p, 1400);
+assert(await p.locator('.sheet').getByText('how do I change the theme').isVisible(), 'the Coach opens with what you said');
+assert(await p.locator('.sheet').getByText(/Settings → Appearance/).isVisible(), 'and the answer');
+await p.screenshot({ path: 'shots/ai-12-continued.png' });
+await p.keyboard.press('Escape'); await wait(p, 700);
 
 // ── Danish ──
 await p.getByLabel('Settings').click().catch(() => {});

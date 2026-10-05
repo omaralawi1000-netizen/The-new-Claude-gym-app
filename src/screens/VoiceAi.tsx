@@ -68,7 +68,7 @@ export function VoiceAiSettings() {
           <div className="field"><label>{t('Language you speak')}</label>
             <Seg value={ai.voiceLang} onChange={(v) => ai.patch({ voiceLang: v })} options={[{ value: 'auto', label: t('Auto') }, { value: 'da', label: 'Dansk' }, { value: 'en', label: 'English' }]} /></div>
           <div className="row-flex between"><div><div>{t('Let Gemini understand dictation')}</div></div><Toggle on={ai.brain} onChange={(v) => ai.patch({ brain: v })} label={t('Let Gemini understand dictation')} /></div>
-          <div className="row-flex between"><div><div>{t('Speak Coach answers')}</div></div><Toggle on={ai.speak} onChange={(v) => ai.patch({ speak: v })} label={t('Speak Coach answers')} /></div>
+          <div className="row-flex between"><div><div>{t('Read answers aloud automatically')}</div></div><Toggle on={ai.speak} onChange={(v) => ai.patch({ speak: v })} label={t('Read answers aloud automatically')} /></div>
           {ai.speak && <div className="field"><label>{t('Voice')}</label><div className="chips" style={{ margin: 0, padding: 0, flexWrap: 'wrap' }}>{VOICES.map((v) => <button key={v} className={`chip sm press ${ai.voice === v ? 'on' : ''}`} onClick={() => ai.patch({ voice: v })}>{v}</button>)}</div></div>}
         </div>
       </div>

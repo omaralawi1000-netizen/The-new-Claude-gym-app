@@ -4,7 +4,7 @@ import { useStore, allExercises } from '../state/store';
 import { useUI, buzz } from '../state/ui';
 import { useAi } from '../state/ai';
 import { useT, useLang } from '../lib/i18n';
-import { Sheet, SheetHead, SOFT } from '../ui/Sheet';
+import { Sheet, SheetHead } from '../ui/Sheet';
 import { Icon } from '../ui/Icon';
 import { SphereSlot } from '../ui/Sphere';
 import { useVoice } from '../state/voice';
@@ -12,20 +12,22 @@ import { mic } from '../lib/mic';
 import { getKey } from '../lib/keys';
 import { transcribe, buildPrompt, STT_MODEL, SttError } from '../lib/groq';
 import { aiErrorText, type Turn } from '../lib/gemini';
-import { speak, stopSpeaking, onSpeaking, FALLBACK_TTS } from '../lib/tts';
+import { stopSpeaking } from '../lib/tts';
 import { decide, agentModels } from '../lib/agentTurn';
-import { BOUNCY } from '../ui/motion';
-import { ActionCard, Rich, Thinking, sttMessage, useCoachTips } from '../ui/agentUi';
+import { ActionCard, Rich, TypingDots, SpeakButton, readAloud, prefetchAloud, tidy, sttMessage, useCoachTips } from '../ui/agentUi';
 import { runActions, type AgentResult } from '../lib/agent';
 import { uid } from '../lib/nutrition';
 import { dayKey } from '../lib/dates';
 
 type Msg =
-  | { id: string; role: 'user' | 'model'; text: string; streaming?: boolean }
+  | { id: string; role: 'user' | 'model'; text: string; streaming?: boolean; seeded?: boolean }
   | { id: string; role: 'error'; text: string }
   | { id: string; role: 'action'; results: AgentResult[]; undone: string[]; confirmed: string[] }
 
-export function Coach({ props }: { props: { listen?: boolean; date?: string; mealId?: string } }) {
+/** How a sent message and an answer settle: calm, a hint of spring, no wobble — the same as the orb screen. */
+const SEND = { type: 'spring', stiffness: 320, damping: 30, mass: 1 } as const;
+
+export function Coach({ props }: { props: { listen?: boolean; date?: string; mealId?: string; /** the orb screen's conversation, carried over by "Continue in Coach" */ seed?: { said: string; reply: string }[] } }) {
   const t = useT();
   const lang = useLang();
   const pop = useUI((u) => u.pop);
@@ -33,18 +35,20 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   const ai = useAi();
   const s = useStore();
   const pool = useMemo(() => allExercises(s.exercises), [s.exercises]);
-  const [msgs, setMsgs] = useState<Msg[]>([]);
+  const [msgs, setMsgs] = useState<Msg[]>(() => (props.seed ?? []).flatMap((x) => [
+    ...(x.said ? [{ id: uid('m'), role: 'user' as const, text: x.said, seeded: true }] : []),
+    ...(x.reply ? [{ id: uid('m'), role: 'model' as const, text: x.reply, seeded: true }] : []),
+  ]));
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [recording, setRecording] = useState(false);
   const [hearing, setHearing] = useState(false);
-  const [speaking, setSpeaking] = useState(false);
   const ctl = useRef<AbortController | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const alive = useRef(true);
   const msgsRef = useRef<Msg[]>([]); msgsRef.current = msgs;
 
-  useEffect(() => { alive.current = true; const off = onSpeaking(setSpeaking); return () => { alive.current = false; off(); stopSpeaking(); ctl.current?.abort(); mic.release('coach'); }; }, []);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; stopSpeaking(); ctl.current?.abort(); mic.release('coach'); }; }, []);
   useEffect(() => { endRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' }); }, [msgs]);
 
 
@@ -87,22 +91,21 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     say({ id: placeholder, role: 'model', text: '', streaming: true });
     const where = props.mealId || props.date ? `The user opened this from the Food tab${props.date ? ` (day ${props.date})` : ''}${props.mealId ? `, meal ${props.mealId}` : ''}: foods go there unless they say otherwise.` : 'The user opened this from the main screen.';
     const history = turnsFor(''); // the conversation so far (an empty text adds no turn)
-    const d = await decide(text, { lang, t, pool, history, where, signal });
+    // the answer streams in as Gemini writes it, into the same message that then stays (nothing re-mounts or re-animates)
+    const d = await decide(text, { lang, t, pool, history, where, signal, onReply: (r) => { if (alive.current) setMsgs((x) => x.map((m) => (m.id === placeholder && m.role === 'model' ? { ...m, text: r } : m))); } });
     let { reply } = d; const { note, actions } = d;
     if (d.wantsUndo) { undoLast(); if (!actions.length && !reply) reply = t('Undone.'); }
     const results = actions.length ? await runActions(actions, { t, lang, today, brain: g.hasGemini ? { key: getKey('gemini'), models: agentModels(false), signal } : null, date: props.date, mealId: props.mealId }) : [];
     if (!alive.current) return;
     const said = [reply, note].filter(Boolean).join('\n\n');
     setMsgs((x) => {
-      const base = x.filter((m) => m.id !== placeholder);
-      const add: Msg[] = [];
-      if (results.length) add.push({ id: uid('m'), role: 'action', results, undone: [], confirmed: [] });
-      if (said) add.push({ id: uid('m'), role: 'model', text: said });
-      return [...base, ...add];
+      const base = said ? x.map((m) => (m.id === placeholder ? { ...m, text: said, streaming: false } as Msg : m)) : x.filter((m) => m.id !== placeholder);
+      return results.length ? [...base, { id: uid('m'), role: 'action', results, undone: [], confirmed: [] }] : base;
     });
-    if (results.some((r) => r.kind !== 'miss' && r.kind !== 'nav')) buzz([12, 40, 18] as any);
-    if (reply && useAi.getState().speak) speakOut(reply);
-    orb('confirmed'); setTimeout(() => { if (useVoice.getState().phase === 'confirmed') orb('idle'); }, 1200);
+    // green "Done" only when something was actually logged or changed
+    const acted = d.wantsUndo || results.some((r) => r.kind !== 'miss' && r.kind !== 'nav');
+    if (acted) { buzz([12, 40, 18] as any); orb('confirmed'); setTimeout(() => { if (useVoice.getState().phase === 'confirmed') orb('idle'); }, 1200); } else orb('idle');
+    if (said.trim()) { if (useAi.getState().speak) readAloud(placeholder, said, t); else prefetchAloud(said); }
     // said out loud from the orb and nothing to read: show the result for a moment, then step aside with an Undo toast
     const quick = results.length > 0 && results.every((r) => ['food', 'sets', 'water', 'weight', 'activity'].includes(r.kind) && !r.pending);
     if (autoClose.current && quick && !reply.trim()) {
@@ -134,11 +137,6 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
         return stopped ? base : [...base, { id: uid('m'), role: 'error', text: aiErrorText(e, t) }];
       });
     } finally { if (alive.current) setBusy(false); if (['processing', 'listening'].includes(useVoice.getState().phase)) orb('idle'); }
-  };
-
-  const speakOut = async (text: string) => {
-    try { const m = useAi.getState(); await speak(text, { key: getKey('gemini'), models: [m.models.tts || FALLBACK_TTS], voice: m.voice }); }
-    catch (e) { if (alive.current) say({ id: uid('m'), role: 'error', text: `${t('Couldn’t speak that.')} ${aiErrorText(e, t)}` }); }
   };
 
   // ── voice input through Groq (same single-owner mic as dictation) ──
@@ -208,7 +206,6 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
             </button>
           </div>
         </div>
-        {speaking && <div className="row-flex" style={{ marginTop: 8, justifyContent: 'center' }}><button className="small t2 press" onClick={stopSpeaking}>{t('Stop speaking')}</button></div>}
       </div>
     )}>
       <SheetHead title={t('Coach')} onClose={pop} right={msgs.length ? <button className="small t2 press" onClick={() => { ctl.current?.abort(); stopSpeaking(); setMsgs([]); }}>{t('Clear')}</button> : undefined} />
@@ -216,7 +213,6 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
           <>
             {msgs.length === 0 && (
               <div className="stack gap12">
-                <div className="small t2">{t('Log, change or ask anything.')}</div>
                 {noKey && <div className="small" style={{ color: 'var(--warn)' }}>{t('Add a Gemini key to chat.')} <button className="chip sm acc press" style={{ marginLeft: 6 }} onClick={() => push('settings', { section: 'ai' })}>{t('Add a key')}</button></div>}
                 <div className="tips">{tips.map((c, i) => (
                   <button key={c.prompt} className="tip press" style={{ ['--i' as string]: i }} onClick={() => send(c.prompt)}>
@@ -227,15 +223,20 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
                 ))}</div>
               </div>
             )}
-            <div className="stack gap12" style={{ marginTop: msgs.length ? 0 : 16 }}>
+            <div className="stack" style={{ gap: 16, marginTop: msgs.length ? 0 : 16 }}>
               {msgs.map((m) => (
                 <motion.div key={m.id} layout="position"
-                  // sent messages spring up out of the input; replies settle in softly
-                  initial={m.role === 'user' ? { opacity: 0, y: 96, scale: 0.78, filter: 'blur(6px)' } : { opacity: 0, y: 14, filter: 'blur(8px)' }} animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)', transitionEnd: { filter: 'none' } }}
-                  transition={m.role === 'user' ? { ...BOUNCY, filter: { duration: 0.35 } } : { ...SOFT, filter: { duration: 0.5 } }}
-                  style={{ transformOrigin: m.role === 'user' ? '100% 100%' : '0% 0%', alignSelf: m.role === 'user' ? 'flex-end' : 'stretch', maxWidth: m.role === 'user' ? '86%' : '100%' }}>
-                  {m.role === 'user' && <div className="plinth-2 sent" style={{ padding: '10px 14px', borderRadius: 18 }}>{m.text}</div>}
-                  {m.role === 'model' && <div className="small" style={{ lineHeight: 1.5 }} aria-live="polite">{m.text ? <Rich text={m.text} /> : <Thinking />}{m.streaming && m.text && <span className="caret" aria-hidden />}</div>}
+                  // what you send rises out of the input into a small bubble on the right; answers write themselves in calmly
+                  initial={m.role === 'user' && !m.seeded ? { opacity: 0, y: 56, scale: 0.9, filter: 'blur(4px)' } : m.role === 'user' ? false : { opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)', transitionEnd: { filter: 'none' } }}
+                  transition={{ ...SEND, filter: { duration: 0.3 } }}
+                  style={{ transformOrigin: m.role === 'user' ? '100% 100%' : '0% 0%', alignSelf: m.role === 'user' ? 'flex-end' : 'stretch', maxWidth: m.role === 'user' ? '84%' : '100%', display: m.role === 'user' ? 'flex' : undefined }}>
+                  {m.role === 'user' && <div className="said" style={{ maxWidth: '100%' }}>{m.text}</div>}
+                  {m.role === 'model' && (m.text ? (
+                    <div>
+                      <div className="reply calm coach-reply" aria-live="polite"><Rich text={m.streaming ? tidy(m.text) : m.text} id={m.id} />{m.streaming && <span className="caret" aria-hidden />}</div>
+                      {!m.streaming && <div className="reply-foot"><SpeakButton id={m.id} text={m.text} /></div>}
+                    </div>
+                  ) : <TypingDots />)}
                   {m.role === 'action' && (
                     <div className="stack gap8">
                       {m.results.map((r) => (
@@ -249,7 +250,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
                 </motion.div>
               ))}
             </div>
-            {!noteSeen && <div className="xs t3" style={{ marginTop: 18 }}>{t('The Coach is an AI and can be wrong. It isn’t medical advice. Your messages and a summary of your records are sent to Google Gemini.')}</div>}
+            {!noteSeen && msgs.length === 0 && <div className="xs t3" style={{ marginTop: 18 }}>{t('AI can be wrong, and isn’t medical advice. Messages go to Google Gemini.')}</div>}
             <div ref={endRef} />
           </>
       </div>

@@ -1121,5 +1121,17 @@ export const da: Record<string, string> = {
  "Shows the refresh rate your phone and browser really give the app, in the top-left corner. 120 Hz with 0 late is the best case; a steady 60 Hz means the browser or phone caps it.": "Viser den opdateringshastighed, din telefon og browser faktisk giver appen, i øverste venstre hjørne. 120 Hz med 0 forsinkede er bedst; et stabilt 60 Hz betyder, at browseren eller telefonen begrænser den.",
  "{n} sets done": "{n} sæt udført",
  "High refresh rate": "Høj opdateringshastighed",
- "Popups, the live workout and the page behind them are drawn by the browser itself, at your screen’s full rate (up to 120 Hz), instead of by the app at up to 60. Turn off if anything looks wrong.": "Pop-ups, den aktive træning og siden bag dem tegnes af browseren selv i skærmens fulde hastighed (op til 120 Hz) i stedet for af appen med op til 60. Slå fra, hvis noget ser forkert ud."
+ "Popups, the live workout and the page behind them are drawn by the browser itself, at your screen’s full rate (up to 120 Hz), instead of by the app at up to 60. Turn off if anything looks wrong.": "Pop-ups, den aktive træning og siden bag dem tegnes af browseren selv i skærmens fulde hastighed (op til 120 Hz) i stedet for af appen med op til 60. Slå fra, hvis noget ser forkert ud.",
+ "AI can be wrong, and isn’t medical advice. Messages go to Google Gemini.": "AI kan tage fejl og er ikke lægelig rådgivning. Beskeder sendes til Google Gemini.",
+ "Continue in Coach": "Fortsæt i Coach",
+ "Couldn’t read that aloud.": "Kunne ikke læse det højt.",
+ "Read aloud": "Læs højt",
+ "Read answers aloud automatically": "Læs svar højt automatisk",
+ "Stop reading": "Stop oplæsning",
+ "Suggest macros": "Foreslå makroer",
+ "Save as new": "Gem som ny",
+ "Update {routine}": "Opdatér {routine}",
+ "{n} % volume vs last time": "{n} % volumen ift. sidst",
+ "Each routine on the same weekdays every week.": "Hvert program på de samme ugedage hver uge.",
+ "Routines in order: the next one is whatever follows your last workout, on any day.": "Programmerne i rækkefølge: det næste er det, der følger efter din sidste træning, uanset dag."
 };

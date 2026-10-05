@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { motion } from 'motion/react';
+import { useMemo, useState } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import { useStore, exerciseMap } from '../../state/store';
 import { useUI, buzz } from '../../state/ui';
 import { useT, useLang } from '../../lib/i18n';
@@ -11,7 +11,7 @@ import { fmtDate, fmtDuration } from '../../lib/dates';
 import { displayToKg, fmtNum, kgToDisplay } from '../../lib/units';
 import type { RecordKind, WorkoutSession } from '../../lib/types';
 import { exName, fmtSet } from './common';
-import { uid } from '../../lib/nutrition';
+import { saveWorkoutAsRoutine } from './actions';
 
 const REC_LABEL: Record<RecordKind, string> = { weight: 'Heaviest set', e1rm: 'Estimated 1RM', volume: 'Best set volume', reps: 'Most reps', duration: 'Longest hold', distance: 'Longest distance' };
 
@@ -35,9 +35,8 @@ export function Summary({ props }: { props: { sessionId: string } }) {
   const rows = useMemo(() => (ses ? ses.exercises.map((e) => ({ e, ex: exMap.get(e.exerciseId) })) : []), [ses, exMap]);
   if (!ses) return null;
   const saveRoutine = () => {
-    const id = uid('rt');
-    s.upsertRoutine({ id, name: ses.name || t('Workout'), createdAt: Date.now(), updatedAt: Date.now(), items: ses.exercises.map((e) => { const w = e.sets.filter(countable); return { id: uid('ri'), exerciseId: e.exerciseId, warmupSets: e.sets.filter((x) => x.type === 'warmup').length, workingSets: Math.max(1, w.length), repMin: Math.max(1, Math.min(...w.map((x) => x.reps ?? 8), 8)), repMax: Math.max(...w.map((x) => x.reps ?? 10), 10), restSec: e.restSec ?? s.settings.restDefaultSec, supersetGroup: e.supersetGroup }; }) });
-    toast(t('Saved as routine'), { tone: 'ok' });
+    const r = saveWorkoutAsRoutine(ses, { name: ses.name || t('Workout') });
+    buzz(10); toast(t('Saved as routine'), { tone: 'ok', actionLabel: t('Undo'), onAction: r.undo });
   };
   return (
     <Sheet onClose={closeAll} tall label={t('Workout summary')} z={60} foot={<div className="row-flex" style={{ gap: 10 }}><button className="btn grow press" onClick={() => push('sessionDetail', { id: ses.id })}>{t('Details')}</button><button className="btn primary grow press" onClick={() => { buzz(8); closeAll(); }}>{t('Done')}</button></div>}>
@@ -68,12 +67,13 @@ export function Summary({ props }: { props: { sessionId: string } }) {
           <div className="stack gap8">
             {recs.map((r, i) => {
               const ex = exMap.get(r.exerciseId);
-              const fv = (v: number) => r.kind === 'reps' ? String(v) : r.kind === 'duration' ? `${v}s` : r.kind === 'distance' ? `${fmtNum(v / 1000, lang, 2)} km` : `${fmtNum(kgToDisplay(v, u.weight), lang, r.kind === 'e1rm' ? 1 : 2)} ${u.weight}`;
+              const vset = r.kind === 'volume' ? ses.exercises.flatMap((e) => e.sets).find((q) => q.id === r.setId && q.reps) : undefined;
+              const fv = (v: number) => vset && v === r.value ? `${fmtNum(kgToDisplay(vset.weightKg ?? 0, u.weight), lang, 2)} ${u.weight} × ${vset.reps}` : r.kind === 'reps' ? String(v) : r.kind === 'duration' ? `${v}s` : r.kind === 'distance' ? `${fmtNum(v / 1000, lang, 2)} km` : `${fmtNum(kgToDisplay(v, u.weight), lang, r.kind === 'e1rm' ? 1 : 2)} ${u.weight}`;
               return (
                 <motion.div key={i} initial={{ opacity: 0, x: -14 }} animate={{ opacity: 1, x: 0 }} transition={{ ...SOFT, delay: 0.15 + i * 0.07 }} className="plinth" style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
                   <span style={{ width: 34, height: 34, borderRadius: 12, background: 'var(--gold)', color: '#3a2a05', display: 'grid', placeItems: 'center' }}><Icon name="bolt" size={18} /></span>
                   <div className="grow"><div className="li-title small">{ex ? exName(ex, lang) : ''}</div><div className="xs t2">{t(REC_LABEL[r.kind])}{r.kind === 'e1rm' ? ` · ${t('estimate')}` : ''}</div></div>
-                  <div style={{ textAlign: 'right' }} className="num"><div style={{ fontWeight: 700 }}>{fv(r.value)}</div><div className="xs t3">{t('was')} {fv(r.previous!)}</div></div>
+                  <div style={{ textAlign: 'right' }} className="num"><div style={{ fontWeight: 700 }}>{fv(r.value)}</div><div className="xs t3">{vset ? `${fmtNum(kgToDisplay(r.value, u.weight), lang, 0)} ${u.weight} · ${t('was')} ${fmtNum(kgToDisplay(r.previous!, u.weight), lang, 0)}` : `${t('was')} ${fv(r.previous!)}`}</div></div>
                 </motion.div>
               );
             })}
@@ -113,6 +113,7 @@ export function SessionDetail({ props }: { props: { id: string } }) {
   const ses = s.sessions.find((x) => x.id === props.id);
   const exMap = exerciseMap(s.exercises);
   const u = s.settings.units;
+  const [choosing, setChoosing] = useState(false);
   if (!ses) return null;
   const patch = (seId: string, setId: string, p: Partial<WorkoutSession['exercises'][number]['sets'][number]>) =>
     s.mutateSession(ses.id, (x) => ({ ...x, exercises: x.exercises.map((e) => (e.id === seId ? { ...e, sets: e.sets.map((q) => (q.id === setId ? { ...q, ...p } : q)) } : e)) }));
@@ -126,6 +127,15 @@ export function SessionDetail({ props }: { props: { id: string } }) {
     pop();
     if (x) toast(t('Workout deleted'), { actionLabel: t('Undo'), onAction: () => s.restoreSession(x) });
   };
+  // save what you did as a routine for your plan: a new one, or (when it came from a routine) that routine's new version
+  const source = ses.routineId ? s.routines.find((r) => r.id === ses.routineId) : undefined;
+  const saveAs = (into?: string) => {
+    setChoosing(false);
+    const r = saveWorkoutAsRoutine(ses, { name: ses.name || t('Workout'), into });
+    buzz(10);
+    toast(into ? t('Routine updated') : t('Saved as routine'), { tone: 'ok', actionLabel: t('Undo'), onAction: r.undo });
+    push('routine', { id: r.id });
+  };
   const repeat = () => {
     if (s.active) { toast(t('Finish your current workout first'), { tone: 'bad' }); return; }
     const r = s.startWorkout({ fromSession: ses });
@@ -135,10 +145,22 @@ export function SessionDetail({ props }: { props: { id: string } }) {
     <Sheet onClose={pop} tall label={ses.name} z={100}>
       <SheetHead title={ses.name || t('Workout')} sub={`${fmtDate(ses.date, lang, { weekday: 'long', day: 'numeric', month: 'long' })} · ${fmtDuration(elapsedMs(ses) / 1000)}`} onClose={pop} />
       <div className="sheet-body">
-        <div className="row-flex" style={{ gap: 8, marginBottom: 16 }}>
+        <div className="row-flex" style={{ gap: 8, marginBottom: choosing ? 10 : 16 }}>
           <button className="btn sm press" onClick={repeat}><Icon name="repeat" size={16} /> {t('Repeat')}</button>
-          <button className="btn sm danger press" onClick={delSession}><Icon name="trash" size={16} /> {t('Delete')}</button>
+          <button className={`btn sm press ${choosing ? 'primary' : ''}`} aria-expanded={source ? choosing : undefined} onClick={() => (source ? setChoosing((v) => !v) : saveAs())}><Icon name="list" size={16} /> {t('Save as routine')}</button>
+          <span className="grow" />
+          <button className="icon-btn flat sm press" aria-label={t('Delete')} onClick={delSession} style={{ color: 'var(--bad)' }}><Icon name="trash" size={18} /></button>
         </div>
+        <AnimatePresence initial={false}>
+          {choosing && source && (
+            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} transition={SOFT} style={{ overflow: 'hidden' }}>
+              <div className="row-flex" style={{ gap: 8, paddingBottom: 16, flexWrap: 'wrap' }}>
+                <button className="chip press" onClick={() => saveAs(source.id)}>{t('Update {routine}', { routine: source.name })}</button>
+                <button className="chip press" onClick={() => saveAs()}>{t('Save as new')}</button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
         {ses.records && ses.records.length > 0 && <div className="chip acc" style={{ marginBottom: 14 }}><Icon name="bolt" size={14} /> {ses.records.length} {ses.records.length === 1 ? t('record') : t('records')}</div>}
         {ses.exercises.map((e) => {
           const ex = exMap.get(e.exerciseId);

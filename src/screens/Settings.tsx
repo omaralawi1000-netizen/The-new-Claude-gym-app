@@ -12,7 +12,7 @@ import { buildDemo } from '../lib/demo';
 import { userHasData } from '../lib/stats';
 import { clearPhotos, loadPhoto, savePhoto } from '../lib/photos';
 import type { AppData, Meal, Settings } from '../lib/types';
-import { uid } from '../lib/nutrition';
+import { uid, kcalOf, scaleMacros, suggestMacros } from '../lib/nutrition';
 import { mealName } from '../lib/derive';
 import { dayKey } from '../lib/dates';
 import { useAi } from '../state/ai';
@@ -212,24 +212,63 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
   );
 }
 
+/**
+ * Nutrition targets, with the macros leading: change protein, carbs or fat and the calories follow (4 / 4 / 9); change the
+ * calories and all three move with it, keeping their shares. So the numbers always add up.
+ */
 function Targets() {
   const t = useT();
   const s = useStore();
   const g = s.settings.goals;
   const set = (k: keyof typeof g) => (v: number | undefined) => s.updateSettings({ goals: { ...g, [k]: v } });
-  const kcalFromMacros = g.protein !== undefined && g.carbs !== undefined && g.fat !== undefined ? Math.round(g.protein * 4 + g.carbs * 4 + g.fat * 9) : null;
+  const full = g.protein !== undefined && g.carbs !== undefined && g.fat !== undefined;
+  // while the calories are typed digit by digit, the macros scale from where they were when typing began (scaling from
+  // "2", then "25", then "250" would round the shares away)
+  const anchor = useRef<{ protein: number; carbs: number; fat: number } | null>(null);
+  const setKcal = (v: number | undefined) => {
+    if (!full || v === undefined || v < 400) { s.updateSettings({ goals: { ...g, kcal: v } }); return; }
+    anchor.current ??= { protein: g.protein!, carbs: g.carbs!, fat: g.fat! };
+    s.updateSettings({ goals: { ...g, kcal: v, ...scaleMacros(anchor.current, v) } });
+  };
+  const setMacro = (k: 'protein' | 'carbs' | 'fat') => (v: number | undefined) => {
+    anchor.current = null;
+    const next = { ...g, [k]: v };
+    const all = next.protein !== undefined && next.carbs !== undefined && next.fat !== undefined;
+    s.updateSettings({ goals: all ? { ...next, kcal: kcalOf({ protein: next.protein!, carbs: next.carbs!, fat: next.fat! }) } : next });
+  };
+  const weight = s.weights.slice().sort((a, b) => b.date.localeCompare(a.date))[0]?.kg;
+  const suggest = () => {
+    anchor.current = null; buzz(8);
+    const m = suggestMacros(g.kcal!, weight);
+    if (g.protein) { m.protein = g.protein; m.carbs = Math.max(0, Math.round((g.kcal! - m.protein * 4 - m.fat * 9) / 4)); } // a protein target you set stays
+    s.updateSettings({ goals: { ...g, ...m } });
+  };
+  const total = full ? kcalOf({ protein: g.protein!, carbs: g.carbs!, fat: g.fat! }) : 0;
+  const share = (k: 'protein' | 'carbs' | 'fat') => (total ? ((g[k] ?? 0) * (k === 'fat' ? 9 : 4)) / total : 0);
   return (
     <div className="stack gap16">
-      <Field label={t('Calories')}><NumInput label={t('Calories')} value={g.kcal} onChange={set('kcal')} unit="kcal" max={0} placeholder="—" /></Field>
+      <Field label={t('Calories')}><NumInput label={t('Calories')} value={g.kcal} onChange={setKcal} unit="kcal" max={0} placeholder="—" /></Field>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-        <Field label={t('Protein')}><NumInput label={t('Protein')} value={g.protein} onChange={set('protein')} unit="g" max={0} placeholder="—" /></Field>
-        <Field label={t('Carbs')}><NumInput label={t('Carbs')} value={g.carbs} onChange={set('carbs')} unit="g" max={0} placeholder="—" /></Field>
-        <Field label={t('Fat')}><NumInput label={t('Fat')} value={g.fat} onChange={set('fat')} unit="g" max={0} placeholder="—" /></Field>
+        <Field label={t('Protein')}><NumInput label={t('Protein')} value={g.protein} onChange={setMacro('protein')} unit="g" max={0} placeholder="—" /></Field>
+        <Field label={t('Carbs')}><NumInput label={t('Carbs')} value={g.carbs} onChange={setMacro('carbs')} unit="g" max={0} placeholder="—" /></Field>
+        <Field label={t('Fat')}><NumInput label={t('Fat')} value={g.fat} onChange={setMacro('fat')} unit="g" max={0} placeholder="—" /></Field>
       </div>
-      {kcalFromMacros !== null && g.kcal !== undefined && Math.abs(kcalFromMacros - g.kcal) > g.kcal * 0.08 && <div className="small" style={{ color: 'var(--warn)' }}>{t('Your macros add up to about {n} kcal, which differs from your calorie target.', { n: kcalFromMacros })}</div>}
+      {total > 0 ? (
+        // where the calories come from, live
+        <div>
+          <div className="macro-bar" aria-hidden>
+            {(['protein', 'carbs', 'fat'] as const).map((k) => <i key={k} style={{ flexGrow: Math.max(0.0001, share(k)), background: `var(--c-${k})` }} />)}
+          </div>
+          <div className="row-flex xs t2 num" style={{ gap: 14, marginTop: 8 }}>
+            {(['protein', 'carbs', 'fat'] as const).map((k) => <span key={k}>{({ protein: t('Protein'), carbs: t('Carbs'), fat: t('Fat') })[k]} {Math.round(share(k) * 100)} %</span>)}
+          </div>
+        </div>
+      ) : g.kcal ? (
+        <button className="btn sm press" style={{ alignSelf: 'flex-start' }} onClick={suggest}><Icon name="sparkle" size={15} /> {t('Suggest macros')}</button>
+      ) : null}
       <Field label={t('Fibre')}><NumInput label={t('Fibre')} value={g.fibre} onChange={set('fibre')} unit="g" max={0} placeholder="—" /></Field>
       <Field label={t('Water')}><NumInput label={t('Water')} value={g.waterMl} onChange={(v) => v && set('waterMl')(v)} unit="ml" max={0} /></Field>
-      <button className="btn ghost press" onClick={() => s.updateSettings({ goals: { waterMl: g.waterMl } })}>{t('Clear nutrition targets')}</button>
+      <button className="btn ghost press" onClick={() => { anchor.current = null; s.updateSettings({ goals: { waterMl: g.waterMl } }); }}>{t('Clear nutrition targets')}</button>
     </div>
   );
 }

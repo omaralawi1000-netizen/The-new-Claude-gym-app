@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { cleanTranscript, buildPrompt, isEcho, isJunk, transcribe, SttError, STT_MODEL } from '../src/lib/groq';
 import { pickTextModels, limitError, parseSSE, partialReply, withFallback, AiError, nextQuotaReset, isExhausted, markExhausted, aiFoodRows, aiWorkoutRows, aiEstimateFood } from '../src/lib/gemini';
 import { validateFoodItems, validateWorkoutItems, validateEstimate, validateRoutine } from '../src/lib/aiValidate';
-import { pcmBytes, audioFrom, toSamples } from '../src/lib/tts';
+import { pcmBytes, audioFrom, toSamples, speechWords, wordTimes, chunkRanges, speechSpan as voiceSpan } from '../src/lib/tts';
 import { cleanSamples, speechSpan, toWav, highpass } from '../src/lib/audioprep';
 import { getKey, setKey, clearKeys, mask } from '../src/lib/keys';
 import { resolveRows, rowQuantity } from '../src/lib/foodText';
@@ -274,5 +274,43 @@ describe('new: photo estimates, wrestling, beat-last-time', () => {
     expect(beatLastTime('weightReps', { weightKg: 80, reps: 9 }, prev, 'kg', 'en', (k) => k)).toBe('+1 rep');
     expect(beatLastTime('weightReps', { weightKg: 85, reps: 6 }, prev, 'kg', 'en', (k) => k)).toBeNull(); // heavier but fewer reps: not a clear beat
     expect(beatLastTime('weightReps', { weightKg: 80, reps: 8 }, undefined, 'kg', 'en', (k) => k)).toBeNull();
+  });
+});
+
+describe('read aloud', () => {
+  it('speaks the same words the screen shows (bullets, bold and headings stripped)', () => {
+    const text = '## Plan\n- **Bench** 3×8, then\n- rows.\n\nDone **now**!';
+    expect(speechWords(text)).toEqual(['Plan', 'Bench', '3×8,', 'then', 'rows.', 'Done', 'now', '!']); // "**now**!" is two spans on screen, so two words here too
+  });
+  it('word times rise steadily inside the voice and re-sync at pauses', () => {
+    const words = 'Eat more protein today. Aim for about forty grams at dinner, then rest.'.split(' ');
+    const t = wordTimes(words, 0.1, 4.1);
+    expect(t[0]).toBeCloseTo(0.1);
+    for (let i = 1; i < t.length; i++) expect(t[i]).toBeGreaterThan(t[i - 1]);
+    expect(t[t.length - 1]).toBeLessThan(4.1);
+    // a quiet stretch near the full stop: the next sentence starts where the voice comes back
+    const g = wordTimes(words, 0.1, 4.1, [[1.2, 1.5]]);
+    expect(g[4]).toBeCloseTo(1.5);
+    expect(g[3]).toBeLessThan(1.2);
+    // a pause nowhere near a phrase end is ignored
+    const far = wordTimes(['one', 'two', 'three', 'four.', 'five', 'six'], 0, 3, [[0.05, 0.1]]);
+    expect(far[1]).toBeGreaterThan(0.1);
+  });
+  it('splits a long reply into a short first piece, then bigger ones, covering every word once', () => {
+    const words = ('Yes. ' + 'This is a longer sentence with quite a few words in it, to read. '.repeat(8)).trim().split(/\s+/);
+    const r = chunkRanges(words);
+    expect(r[0][0]).toBe(0);
+    expect(r[0][1] - r[0][0]).toBeLessThanOrEqual(24);
+    for (let i = 1; i < r.length; i++) expect(r[i][0]).toBe(r[i - 1][1]);
+    expect(r[r.length - 1][1]).toBe(words.length);
+    expect(r.every(([a, b]) => b - a <= 45)).toBe(true);
+    expect(chunkRanges([])).toEqual([]);
+  });
+  it('finds where the voice is in a clip', () => {
+    const rate = 1000, x = new Float32Array(2000);
+    for (let i = 200; i < 800; i++) x[i] = 0.3; for (let i = 1100; i < 1700; i++) x[i] = 0.3;
+    const s = voiceSpan(x, rate);
+    expect(s.start).toBeCloseTo(0.2, 1); expect(s.end).toBeCloseTo(1.7, 1);
+    expect(s.gaps.length).toBe(1); expect(s.gaps[0][0]).toBeCloseTo(0.8, 1); expect(s.gaps[0][1]).toBeCloseTo(1.1, 1);
   });
 });
