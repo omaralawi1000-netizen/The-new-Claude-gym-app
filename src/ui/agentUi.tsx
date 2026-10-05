@@ -2,7 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLang, useT } from '../lib/i18n';
 import { Icon, type IconName } from './Icon';
 import { useStore } from '../state/store';
-import { dayKey } from '../lib/dates';
+import { dayKey, diffDays } from '../lib/dates';
+import { sumNutrients } from '../lib/nutrition';
+import { plannedFor, missedWorkouts } from '../state/store';
 import { mealName } from '../lib/derive';
 import type { AgentResult } from '../lib/agent';
 
@@ -39,6 +41,74 @@ export function useSuggestions(max = 6): string[] {
     const out = [food[0], train[0], ask[0], food[1], train[1], ask[1], food[2], train[2]].filter(Boolean) as string[];
     return [...new Set(out)].slice(0, max);
   }, [entries, meals, routines, active, dayStart, lang, t, max]);
+}
+
+
+export interface Tip { icon: IconName; label: string; prompt: string }
+
+/**
+ * What the assistant can see right now, as things worth tapping: protein you are short of, a workout you missed, a meal not yet
+ * logged, a weigh-in that is overdue, a food you usually eat. Each one is a short observation (`label`) that sends a real message
+ * (`prompt`). Built from the app's own data and the time of day; the most useful first, a general question to fill up.
+ */
+export function useCoachTips(max = 3): Tip[] {
+  const t = useT();
+  const lang = useLang();
+  const s = useStore();
+  return useMemo(() => {
+    const now = new Date();
+    const hour = now.getHours();
+    const today = dayKey(Date.now(), s.settings.dayStartHour);
+    const short = (n: string) => n.split(',')[0].trim();
+    const mine = s.entries.filter((e) => e.date === today && !e.quick).sort((a, b) => b.at - a.at);
+    const tot = sumNutrients(s.entries.filter((e) => e.date === today).map((e) => e.nutrients)).totals;
+    const g = s.settings.goals;
+    const tips: Tip[] = [];
+    const add = (x: Tip) => tips.push(x);
+    const active = !!s.active;
+
+    // training
+    const plan = plannedFor(s, today, today);
+    const routine = plan ? s.routines.find((r) => r.id === plan.routineId) : undefined;
+    const trainedToday = s.sessions.some((x) => x.date === today);
+    const missed = missedWorkouts(s, today)[0];
+    const missedR = missed ? s.routines.find((r) => r.id === missed.routineId) : undefined;
+    const lastSession = s.sessions.slice().sort((a, b) => b.date.localeCompare(a.date))[0];
+    const since = lastSession ? diffDays(today, lastSession.date) : null;
+    if (active) add({ icon: 'dumbbell', label: t('Workout running'), prompt: t('Make my last set 2.5 kg heavier') });
+    else if (routine && !trainedToday) add({ icon: 'dumbbell', label: t('{routine} is planned today', { routine: routine.name }), prompt: t('Start my {routine} workout', { routine: routine.name }) });
+    if (missedR && !active) add({ icon: 'repeat', label: t('You missed {routine}', { routine: missedR.name }), prompt: t('Move my missed {routine} to tomorrow', { routine: missedR.name }) });
+    else if (!active && !trainedToday && since !== null && since >= 3) add({ icon: 'flame', label: t('{n} days since you trained', { n: since }), prompt: t('It has been {n} days since I trained. What should I do today?', { n: since }) });
+
+    // food
+    if (mine.length === 0 && hour >= 10) {
+      const meal = s.entries.filter((e) => !e.quick && e.snap.foodId).sort((a, b) => b.at - a.at)[0];
+      add(meal
+        ? { icon: 'food', label: t('Nothing logged yet today'), prompt: t('Log {food} again', { food: short(meal.snap.name) }) }
+        : { icon: 'food', label: t('Nothing logged yet today'), prompt: t('Log a banana') });
+    }
+    if (g.protein && mine.length > 0 && hour >= 14) {
+      const left = Math.round(g.protein - (tot.protein ?? 0));
+      if (left >= 20) add({ icon: 'bolt', label: t('{n} g short on protein', { n: left }), prompt: t('I am {n} g short on protein today. What should I eat?', { n: left }) });
+    }
+    if (g.kcal && mine.length > 0 && hour >= 17) {
+      const left = Math.round(g.kcal - (tot.kcal ?? 0));
+      if (left > 300) add({ icon: 'food', label: t('{n} kcal left today', { n: left }), prompt: t('I have {n} kcal left today. What should I eat?', { n: left }) });
+      else if (left < -150) add({ icon: 'info', label: t('{n} kcal over today', { n: -left }), prompt: t('I am {n} kcal over today. Should I change anything tomorrow?', { n: -left }) });
+    }
+    if (s.settings.widgets.water && hour >= 11 && !s.water.some((w) => w.date === today)) add({ icon: 'drop', label: t('No water logged today'), prompt: t('Log 500 ml water') });
+
+    // body
+    const lastW = s.weights.slice().sort((a, b) => b.date.localeCompare(a.date))[0];
+    if (s.settings.widgets.weight && lastW && diffDays(today, lastW.date) >= 7) add({ icon: 'scale', label: t('{n} days since you weighed in', { n: diffDays(today, lastW.date) }), prompt: t('Log my weight') });
+
+    // always something to ask
+    add({ icon: 'sparkle', label: t('How is my week going?'), prompt: t('How is my week going?') });
+    if (s.entries.length === 0 && s.sessions.length === 0) { add({ icon: 'food', label: t('Log a banana'), prompt: t('Log a banana') }); add({ icon: 'dumbbell', label: t('Bench press 80 kg for 8, 8, 6'), prompt: t('Bench press 80 kg for 8, 8, 6') }); }
+    const seen = new Set<string>();
+    return tips.filter((x) => (seen.has(x.prompt) ? false : (seen.add(x.prompt), true))).slice(0, max);
+    // eslint-disable-next-line
+  }, [s.entries, s.sessions, s.routines, s.schedule, s.weights, s.water, s.active, s.settings, lang, t, max]);
 }
 
 /** One example at a time, softly replacing each other — the orb screen's "what can I say". */

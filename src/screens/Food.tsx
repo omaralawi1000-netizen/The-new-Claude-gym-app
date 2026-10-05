@@ -124,7 +124,7 @@ export function FoodScreen() {
         );
       })}
 
-      <WaterTile date={date} />
+      {settings.widgets.water && <WaterTile date={date} />}
       <WeekStrip date={date} onPick={(d) => setFoodDate(d === today ? null : d)} />
       </Subpage>
     </div>

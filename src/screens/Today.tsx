@@ -7,7 +7,8 @@ import { addDays, fmtDate, fmtDuration, fmtWeekdayShort, startOfWeek, weekdayOf 
 import { useDaySummary, useToday, useWaterOn, defaultMealId } from '../lib/derive';
 import { Icon } from '../ui/Icon';
 import { Ledger } from './food/Ledger';
-import { Sparkline } from '../ui/charts';
+import { weightTrend, trendRate } from '../lib/stats';
+import { Count } from '../ui/kit';
 import { elapsedMs, sessionSetCount, sessionVolume } from '../lib/workout';
 import { fmtNum, kgToDisplay } from '../lib/units';
 import { entryFromSnapshot, snapshotOf, uid } from '../lib/nutrition';
@@ -36,6 +37,7 @@ export function TodayScreen() {
   const doneToday = s.sessions.filter((x) => x.date === today);
   const missed = useMemo(() => missedWorkouts(s, today), [s.schedule, s.routines, s.sessions, today]);
   const settings = s.settings;
+  const wd = settings.widgets;
 
   // Training-day reminder. It can only fire while Aven is open (see Settings → Reminders): an in-app nudge, plus a system
   // notification once per day if the user allowed them.
@@ -86,9 +88,6 @@ export function TodayScreen() {
     const wr = s.activities.some((x) => x.date === d && x.kind === 'wrestling');
     return { d, p, done, wr };
   });
-  const weights = s.weights.slice().sort((a, b) => a.date.localeCompare(b.date));
-  const recentW = weights.slice(-14).map((w) => w.kg);
-  const lastW = weights[weights.length - 1];
 
   // While the workout overlay is open, keep the hero looking like it did when it was tapped: otherwise it flips to its
   // "in progress" layout (a different height) in the middle of the plate morph that grows out of it.
@@ -115,15 +114,17 @@ export function TodayScreen() {
       {/* ── the day, as one instrument ── */}
       <section aria-label={t('Nutrition')}>
         <button className="press" style={{ display: 'block', width: '100%' }} onClick={() => setTab('food')} aria-label={t('Open log')}><Ledger sum={sum} compact /></button>
-        <div className="row-flex" style={{ gap: 10, justifyContent: 'center', marginTop: 20 }}>
+        {(wd.quick || wd.water) && <div className="row-flex" style={{ gap: 10, justifyContent: 'center', marginTop: 20 }}>
+          {wd.quick && <>
           <button className="icon-btn press" aria-label={t('Log food')} onClick={() => push('foodSearch', { date: today, mealId })}><Icon name="plus" /></button>
           <button className="icon-btn press" aria-label={t('Scan')} onClick={() => push('scanner', { date: today, mealId })}><Icon name="barcode" /></button>
           <button className="icon-btn press" aria-label={t('Photo')} onClick={() => push('photoFood', { date: today, mealId })}><Icon name="camera" /></button>
-          <button className="icon-btn press" aria-label={`+${settings.waterQuick[1] ?? 250} ml`} onClick={addWater} style={{ width: 'auto', padding: '0 16px', gap: 6, display: 'inline-flex', alignItems: 'center' }}>
+          </>}
+          {wd.water && <button className="icon-btn press" aria-label={`+${settings.waterQuick[1] ?? 250} ml`} onClick={addWater} style={{ width: 'auto', padding: '0 16px', gap: 6, display: 'inline-flex', alignItems: 'center' }}>
             <Icon name="drop" size={18} style={{ color: 'var(--c-water)' }} /><span className="num small" style={{ fontWeight: 600 }}>{fmtNum(water.ml, lang, 0)}</span>
-          </button>
-        </div>
-        {recents.length > 0 && <div className="chips" style={{ marginTop: 14, justifyContent: 'safe center' }}>{recents.map((r) => <button key={r.id} className="chip press" onClick={() => quickLog(r.id, r.qty)} aria-label={`${t('Add')} ${r.name}`}>+ {r.name.split(',')[0]}</button>)}</div>}
+          </button>}
+        </div>}
+        {wd.recents && recents.length > 0 && <div className="chips" style={{ marginTop: 14, justifyContent: 'safe center' }}>{recents.map((r) => <button key={r.id} className="chip press" onClick={() => quickLog(r.id, r.qty)} aria-label={`${t('Add')} ${r.name}`}>+ {r.name.split(',')[0]}</button>)}</div>}
       </section>
 
       {/* ── workout ── */}
@@ -210,7 +211,7 @@ export function TodayScreen() {
       )}
 
       {/* ── week ── */}
-      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
+      {wd.week && <section style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
         {week.map((w) => {
           const isToday = w.d === today;
           const past = w.d < today;
@@ -225,20 +226,14 @@ export function TodayScreen() {
             </button>
           );
         })}
-      </section>
+      </section>}
 
-      {/* ── body ── */}
-      {lastW && (
-        <section className="row-flex between">
-          <button className="press" style={{ textAlign: 'left' }} onClick={() => setTab('progress')}> 
-            <span className="display num" style={{ fontSize: 44 }}>{fmtNum(kgToDisplay(lastW.kg, settings.units.weight), lang, 1)}</span><span className="t3 small"> {settings.units.weight}</span>
-          </button>
-          <div className="row-flex" style={{ gap: 12 }}>
-            <Sparkline values={recentW.map((x) => kgToDisplay(x, settings.units.weight))} w={96} h={36} />
-            <button className="icon-btn press" aria-label={t('Log weight')} onClick={() => push('weight')}><Icon name="plus" /></button>
-          </div>
-        </section>
-      )}
+      {/* ── weight trend ── */}
+      {wd.weight && <WeightTrend />}
+
+      <div className="row-flex" style={{ justifyContent: 'center' }}>
+        <button className="chip sm press" onClick={() => push('settings', { section: 'today' })}><Icon name="settings" size={14} /> {t('Customize Today')}</button>
+      </div>
 
       {s.demo && (
         <div className="row-flex" style={{ justifyContent: 'center' }}>
@@ -256,4 +251,66 @@ function HeroClock() {
   const a = useStore((x) => x.active);
   const now = useNow(1000, !!a);
   return <>{a ? fmtDuration(elapsedMs(a, now) / 1000) : ''}</>;
+}
+
+/**
+ * Weight trend: today's weight, how it has moved, and the line drawing itself in. Sits in one card; before the first weigh-in it
+ * is a single quiet prompt. The trend is the smoothed line (an estimate), the change is plain first-to-last of the last 30 days.
+ */
+function WeightTrend() {
+  const t = useT();
+  const lang = useLang();
+  const weights = useStore((x) => x.weights);
+  const u = useStore((x) => x.settings.units.weight);
+  const push = useUI((x) => x.push);
+  const setTab = useUI((x) => x.setTab);
+  const sorted = useMemo(() => weights.slice().sort((a, b) => a.date.localeCompare(b.date)), [weights]);
+  const last = sorted[sorted.length - 1];
+  const pts = useMemo(() => sorted.slice(-30).map((w) => kgToDisplay(w.kg, u)), [sorted, u]);
+  const rate = useMemo(() => trendRate(weightTrend(sorted)), [sorted]);
+  if (!last) {
+    return (
+      <section className="plinth row-flex between" style={{ padding: '16px 14px 16px 20px', borderRadius: 'var(--r-lg)' }}>
+        <div><div className="micro">{t('Weight')}</div><div className="small t2" style={{ marginTop: 4 }}>{t('Log your weight to see the trend.')}</div></div>
+        <button className="icon-btn press" aria-label={t('Log weight')} onClick={() => push('weight')}><Icon name="plus" /></button>
+      </section>
+    );
+  }
+  const change = pts.length >= 2 ? pts[pts.length - 1] - pts[0] : null;
+  const rateD = rate === null ? null : kgToDisplay(rate, u);
+  const sign = (v: number) => (v > 0.04 ? '+' : v < -0.04 ? '−' : '');
+  return (
+    <section className="plinth wt" style={{ padding: '16px 16px 14px 20px', borderRadius: 'var(--r-lg)' }}>
+      <div className="row-flex between" style={{ alignItems: 'flex-start' }}>
+        <button className="press" style={{ textAlign: 'left' }} onClick={() => setTab('progress')} aria-label={t('Open progress')}>
+          <div className="micro">{t('Weight')}</div>
+          <div style={{ marginTop: 4 }}><span className="display num" style={{ fontSize: 44 }}><Count value={kgToDisplay(last.kg, u)} format={(v) => fmtNum(v, lang, 1)} /></span><span className="t3 small"> {u}</span></div>
+        </button>
+        <button className="icon-btn press" aria-label={t('Log weight')} onClick={() => push('weight')}><Icon name="plus" /></button>
+      </div>
+      {pts.length >= 2 && <TrendLine values={pts} />}
+      <div className="small t2 num" style={{ marginTop: 6 }}>
+        {change !== null && <span>{sign(change)}{fmtNum(Math.abs(change), lang, 1)} {u} <span className="t3">· {t('last {n} weigh-ins', { n: pts.length })}</span></span>}
+        {rateD !== null && <span className="t3">{change !== null ? ' · ' : ''}{sign(rateD)}{fmtNum(Math.abs(rateD), lang, 1)} {u}/{t('wk')}</span>}
+      </div>
+    </section>
+  );
+}
+
+/** The weight line: soft area under it, the line drawing itself in once, and a glowing dot at today's value. */
+function TrendLine({ values }: { values: number[] }) {
+  const w = 320, h = 70, pad = 6;
+  const min = Math.min(...values), max = Math.max(...values), span = max - min || 1;
+  const X = (i: number) => pad + (i / (values.length - 1)) * (w - pad * 2);
+  const Y = (v: number) => pad + (1 - (v - min) / span) * (h - pad * 2);
+  const d = values.map((v, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)} ${Y(v).toFixed(1)}`).join('');
+  const lx = X(values.length - 1), ly = Y(values[values.length - 1]);
+  return (
+    <svg className="trend" viewBox={`0 0 ${w} ${h}`} width="100%" height={h} preserveAspectRatio="none" aria-hidden style={{ display: 'block', marginTop: 8, overflow: 'visible' }}>
+      <defs><linearGradient id="wt-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="var(--ac)" stopOpacity=".28" /><stop offset="1" stopColor="var(--ac)" stopOpacity="0" /></linearGradient></defs>
+      <path className="trend-area" d={`${d}L${lx} ${h}L${X(0)} ${h}Z`} fill="url(#wt-fill)" />
+      <path className="trend-line" d={d} pathLength={1} fill="none" stroke="var(--ac)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" style={{ filter: 'drop-shadow(0 0 6px var(--ac))' }} />
+      <circle className="trend-dot" cx={lx} cy={ly} r="4" fill="var(--ac)" stroke="var(--bg)" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
 }

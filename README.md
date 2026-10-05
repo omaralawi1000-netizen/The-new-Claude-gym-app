@@ -140,6 +140,13 @@ Run in headless Chromium (Playwright, 390×844 @2×, dark + light), scripts in `
 - **Not built (on purpose, stated in-app):** cloud sync / accounts; photo-based food estimation; automatic AI changes to your data (the Coach advises; routines and estimates only appear after you confirm; progression suggestions remain transparent rules); background reminders when the app is closed (web apps need a push server — reminders fire only while Aven runs; in-app nudge otherwise); animated exercise demonstrations (there is an authored muscle diagram and step-by-step text instead).
 - Exercise calories are **never** added to food targets.
 
+## Colours, a customisable Today, a Coach that notices
+
+- **Five colour palettes** (Settings → Appearance → Colours): Ember (the original), Aurora (teal and violet), Mono (greys with one white accent), Sunset (pink and orange), Forest (greens and lime). Each re-lights all four areas; the glow cross-fades as before. Stored as `settings.palette`, applied as `data-palette` on the page (`styles.css`).
+- **Settings → Today** switches parts of Today off: quick-add buttons, water, recent foods, the week, the weight trend. Switching water off also removes the water card on the Food screen. Also reachable from "Customize Today" at the bottom of Today. Stored as `settings.widgets`; old backups get everything on.
+- **Weight trend card** on Today: today's weight counting up, the last 30 weigh-ins drawn as a line (it draws itself in once, the dot arrives last), change over those weigh-ins and the smoothed weekly rate. Before the first weigh-in it is one quiet prompt.
+- **The Coach's three suggestions are things it sees**, not generic examples: a planned workout, a missed one, days since you trained, nothing logged yet (offers your most recent food again), protein or kcal left late in the day, no water (only if water tracking is on), an overdue weigh-in. Each is a short observation and sends a real message when tapped. Built from your own data in `useCoachTips` (`ui/agentUi.tsx`).
+
 ## Pop-up pass: pages instead of piles
 
 - **A pop-up only stacks on a pop-up when it's its own thing.** A full-height sheet opened from another one (a food from the search, a substitute from an exercise, the exercise list from a routine, a recipe from the recipe list, Settings from the Coach) now opens as the **next page inside the same sheet**: it glides in from the right while the current page steps aside, and Back (the arrow, or the phone's back) reverses it. One pane of glass, one dim, the page behind doesn't step back again — so going five exercises deep through substitutions costs the same as one. Swiping down closes the whole sheet, pages and all.

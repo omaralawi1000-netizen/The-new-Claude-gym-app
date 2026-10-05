@@ -32,6 +32,8 @@ export function defaultSettings(lang: Lang = 'en'): Settings {
     profile: { goal: 'general', experience: 'some', equipment: 'fullGym', days: [1, 3, 5] },
     plateStep: 2.5,
     foodLookup: true,
+    palette: 'ember',
+    widgets: { water: true, quick: true, recents: true, week: true, weight: true },
   };
 }
 
@@ -57,7 +59,7 @@ export function normaliseData(raw: any, lang: Lang = 'en'): AppData {
   const arr = (k: keyof AppData) => (Array.isArray(raw[k]) ? raw[k] : (d as any)[k]);
   return {
     ...d,
-    settings: { ...d.settings, ...(raw.settings ?? {}), units: { ...d.settings.units, ...(raw.settings?.units ?? {}) }, goals: { ...d.settings.goals, ...(raw.settings?.goals ?? {}) }, profile: { ...d.settings.profile, ...(raw.settings?.profile ?? {}) }, meals: Array.isArray(raw.settings?.meals) && raw.settings.meals.length ? raw.settings.meals : d.settings.meals },
+    settings: { ...d.settings, ...(raw.settings ?? {}), units: { ...d.settings.units, ...(raw.settings?.units ?? {}) }, goals: { ...d.settings.goals, ...(raw.settings?.goals ?? {}) }, profile: { ...d.settings.profile, ...(raw.settings?.profile ?? {}) }, widgets: { ...d.settings.widgets, ...(raw.settings?.widgets ?? {}) }, meals: Array.isArray(raw.settings?.meals) && raw.settings.meals.length ? raw.settings.meals : d.settings.meals },
     foods: arr('foods'), favourites: arr('favourites'), savedMeals: arr('savedMeals'), recipes: arr('recipes'), entries: arr('entries'), water: arr('water'),
     exercises: arr('exercises'), routines: arr('routines'),
     schedule: { ...d.schedule, ...(raw.schedule ?? {}), weekly: { ...d.schedule.weekly, ...(raw.schedule?.weekly ?? {}) }, rotation: { ...d.schedule.rotation, ...(raw.schedule?.rotation ?? {}) }, overrides: raw.schedule?.overrides ?? [], cleared: raw.schedule?.cleared ?? [] },

@@ -15,7 +15,7 @@ import { aiErrorText, type Turn } from '../lib/gemini';
 import { speak, stopSpeaking, onSpeaking, FALLBACK_TTS } from '../lib/tts';
 import { decide, agentModels } from '../lib/agentTurn';
 import { BOUNCY } from '../ui/motion';
-import { ActionCard, Rich, Thinking, sttMessage, useSuggestions } from '../ui/agentUi';
+import { ActionCard, Rich, Thinking, sttMessage, useCoachTips } from '../ui/agentUi';
 import { runActions, type AgentResult } from '../lib/agent';
 import { uid } from '../lib/nutrition';
 import { dayKey } from '../lib/dates';
@@ -184,7 +184,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   }, [recording]);
 
   const noKey = !ai.hasGemini;
-  const chips = useSuggestions(3);
+  const tips = useCoachTips(3);
   // the "AI can be wrong" note: said once, on the first open (it also lives in Settings → Privacy)
   const [noteSeen] = useState(() => { try { return localStorage.getItem('aven.coachNote') === '1'; } catch { return true; } });
   useEffect(() => { if (msgs.length) try { localStorage.setItem('aven.coachNote', '1'); } catch { /* ignore */ } }, [msgs.length]);
@@ -218,7 +218,13 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
               <div className="stack gap12">
                 <div className="small t2">{t('Log, change or ask anything.')}</div>
                 {noKey && <div className="small" style={{ color: 'var(--warn)' }}>{t('Add a Gemini key to chat.')} <button className="chip sm acc press" style={{ marginLeft: 6 }} onClick={() => push('settings', { section: 'ai' })}>{t('Add a key')}</button></div>}
-                <div className="chips" style={{ margin: 0, padding: 0, flexWrap: 'wrap' }}>{chips.map((c) => <button key={c} className="chip press" onClick={() => send(c)}>{c}</button>)}</div>
+                <div className="tips">{tips.map((c, i) => (
+                  <button key={c.prompt} className="tip press" style={{ ['--i' as string]: i }} onClick={() => send(c.prompt)}>
+                    <span className="tip-ic"><Icon name={c.icon} size={18} /></span>
+                    <span className="grow" style={{ textAlign: 'left', minWidth: 0 }}><span className="tip-l">{c.label}</span>{c.prompt !== c.label && <span className="tip-p">{c.prompt}</span>}</span>
+                    <Icon name="chevR" size={16} style={{ color: 'var(--tx3)', flex: 'none' }} />
+                  </button>
+                ))}</div>
               </div>
             )}
             <div className="stack gap12" style={{ marginTop: msgs.length ? 0 : 16 }}>

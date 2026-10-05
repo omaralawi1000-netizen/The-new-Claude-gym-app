@@ -1,10 +1,10 @@
 import { useRef, useState, useSyncExternalStore } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useStore, flushSave, persistStatus } from '../state/store';
-import { useUI } from '../state/ui';
+import { useUI, buzz } from '../state/ui';
 import { apple, highRefresh, onHighRefresh, setHighRefresh } from '../ui/motion';
 import { useT, useLang } from '../lib/i18n';
-import { Sheet, SheetHead, useIsPage } from '../ui/Sheet';
+import { Sheet, SheetHead } from '../ui/Sheet';
 import { Icon } from '../ui/Icon';
 import { NumInput, Seg, Toggle } from '../ui/kit';
 import { defaultData, normaliseData, DATA_VERSION } from '../state/defaults';
@@ -37,7 +37,7 @@ const TITLE = {
   exit: (d: number) => ({ opacity: 0, transform: `translateX(${d * -14}px)`, transition: { duration: 0.11, ease: [0.4, 0, 1, 1] as const } }),
 };
 
-type Section = null | 'targets' | 'training' | 'food' | 'units' | 'look' | 'reminders' | 'data' | 'privacy' | 'ai' | 'about';
+type Section = null | 'today' | 'targets' | 'training' | 'food' | 'units' | 'look' | 'reminders' | 'data' | 'privacy' | 'ai' | 'about';
 
 function Row({ icon, title, sub, onClick, value }: { icon: any; title: string; sub?: string; onClick: () => void; value?: string }) {
   return (
@@ -56,6 +56,38 @@ function FpsField() {
     <Field label={t('Frame rate readout')} hint={t('Shows your real refresh rate, top-left.')}>
       <Toggle on={on} onChange={setFpsMeter} label={t('Frame rate readout')} />
     </Field>
+  );
+}
+
+const PALETTES: { id: Settings['palette']; name: string; c: [string, string, string] }[] = [
+  { id: 'ember', name: 'Ember', c: ['#ff7a59', '#7c5cff', '#ff7a59'] },
+  { id: 'aurora', name: 'Aurora', c: ['#3de0c8', '#6a5cff', '#c25cff'] },
+  { id: 'mono', name: 'Mono', c: ['#e9eaf0', '#9094a8', '#5b6070'] },
+  { id: 'sunset', name: 'Sunset', c: ['#ff6b9d', '#ff4f7b', '#ff9a4d'] },
+  { id: 'forest', name: 'Forest', c: ['#b6f25a', '#1f9d6a', '#2fd0a0'] },
+];
+
+/** Settings → Today: what the Today screen shows. Anything switched off is gone, not hidden behind a button. */
+function TodaySettings() {
+  const t = useT();
+  const w = useStore((x) => x.settings.widgets);
+  const set = useStore((x) => x.updateSettings);
+  const rows: { k: keyof Settings['widgets']; label: string; hint?: string }[] = [
+    { k: 'quick', label: t('Quick add buttons'), hint: t('Add, scan and photo under the ring.') },
+    { k: 'water', label: t('Water'), hint: t('The water button here and the water card on the Food screen.') },
+    { k: 'recents', label: t('Recent foods'), hint: t('One-tap chips for what you eat often.') },
+    { k: 'week', label: t('Week'), hint: t('Your training week as seven dots.') },
+    { k: 'weight', label: t('Weight trend'), hint: t('Your weight and its trend line.') },
+  ];
+  return (
+    <div className="stack gap16">
+      {rows.map((r) => (
+        <div key={r.k} className="row-flex between" style={{ gap: 14 }}>
+          <div style={{ minWidth: 0 }}><div>{r.label}</div>{r.hint && <div className="xs t3">{r.hint}</div>}</div>
+          <Toggle on={w[r.k]} onChange={(v) => set({ widgets: { ...w, [r.k]: v } })} label={r.label} />
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -85,16 +117,15 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
   const ai = useAi();
   const set = s.updateSettings;
   const st = s.settings;
-  const titles: Record<string, string> = { targets: t('Targets'), training: t('Training'), food: t('Food & water'), units: t('Units & locale'), look: t('Appearance'), reminders: t('Reminders'), data: t('Data & backup'), privacy: t('Privacy'), ai: t('Voice & AI'), about: t('About Aven') };
+  const titles: Record<string, string> = { targets: t('Targets'), training: t('Training'), food: t('Food & water'), units: t('Units & locale'), look: t('Appearance'), today: t('Today'), reminders: t('Reminders'), data: t('Data & backup'), privacy: t('Privacy'), ai: t('Voice & AI'), about: t('About Aven') };
   const goBack = () => (sec && !props.section ? setSec(null) : pop());
-  const asPage = useIsPage(); // opened inside another sheet (e.g. from the Coach): its Back arrow is the way out
 
   return (
     <Sheet onClose={pop} tall label={t('Settings')} z={100}>
       <SheetHead title={
         <AnimatePresence mode="popLayout" initial={false} custom={dir}>
           <motion.span key={sec ?? 'root'} custom={dir} variants={TITLE} initial="enter" animate="center" exit="exit" style={{ display: 'inline-block' }}>{sec ? titles[sec] : t('Settings')}</motion.span>
-        </AnimatePresence>} onClose={sec ? goBack : pop} back={!!sec && !props.section} right={sec && props.section && !asPage ? <button className="icon-btn flat" onClick={pop} aria-label={t('Close')}><Icon name="close" /></button> : undefined} />
+        </AnimatePresence>} onClose={sec ? goBack : pop} back={!!sec && !props.section} />
       <div className="sheet-body" style={{ position: 'relative', overflowX: 'hidden' }}>
         {/* both pages move at once (no blank gap): the new one slides in sharpening from blur, the old one drifts out */}
         <AnimatePresence mode="popLayout" initial={false} custom={dir}>
@@ -108,6 +139,7 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
                   <Row icon="food" title={t('Food & water')} onClick={() => setSec('food')} />
                   <Row icon="globe" title={t('Units & locale')} sub={`${st.units.weight} · ${st.units.distance} · ${st.language === 'da' ? 'Dansk' : 'English'}`} onClick={() => setSec('units')} />
                   <Row icon="moon" title={t('Appearance')} sub={`${t(st.theme === 'system' ? 'System' : st.theme === 'dark' ? 'Dark' : 'Light')} · ${t(st.motion === 'system' ? 'Motion: system' : st.motion === 'reduce' ? 'Reduced motion' : 'Full motion')}`} onClick={() => setSec('look')} />
+                  <Row icon="today" title={t('Today')} sub={t('Choose what Today shows')} onClick={() => setSec('today')} />
                   <Row icon="sparkle" title={t('Voice & AI')} sub={ai.hasGroq || ai.hasGemini ? [ai.hasGroq ? 'Groq' : '', ai.hasGemini ? 'Gemini' : ''].filter(Boolean).join(' + ') : undefined} onClick={() => setSec('ai')} />
                   <Row icon="bell" title={t('Reminders')} onClick={() => setSec('reminders')} />
                   <Row icon="download" title={t('Data & backup')} onClick={() => setSec('data')} />
@@ -138,8 +170,19 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
                 <Field label={t('New day starts at')} hint={t('Late-night meals before this hour count toward the previous day.')}><div className="chips" style={{ margin: 0, padding: 0, flexWrap: 'wrap' }}>{[0, 2, 3, 4, 5].map((h) => <button key={h} className={`chip press ${st.dayStartHour === h ? 'on' : ''}`} onClick={() => set({ dayStartHour: h })}>{String(h).padStart(2, '0')}:00</button>)}</div></Field>
               </div>
             )}
+            {sec === 'today' && <TodaySettings />}
             {sec === 'look' && (
               <div className="stack gap16">
+                <Field label={t('Colours')}>
+                  <div className="pal" role="radiogroup" aria-label={t('Colours')}>
+                    {PALETTES.map((p) => (
+                      <button key={p.id} role="radio" aria-checked={st.palette === p.id} className={`pal-card press ${st.palette === p.id ? 'on' : ''}`} onClick={() => { buzz(6); set({ palette: p.id }); }}>
+                        <div className="pal-sw" style={{ ['--p0' as string]: p.c[0], ['--p1' as string]: p.c[1], ['--p2' as string]: p.c[2] }}><i /><i /><b /></div>
+                        <div className="small" style={{ marginTop: 8, fontWeight: 600 }}>{t(p.name)}</div>
+                      </button>
+                    ))}
+                  </div>
+                </Field>
                 <Field label={t('Theme')}><Seg value={st.theme} onChange={(v) => set({ theme: v })} options={[{ value: 'system', label: t('System') }, { value: 'light', label: t('Light') }, { value: 'dark', label: t('Dark') }]} /></Field>
                 <Field label={t('Motion')}><Seg value={st.motion} onChange={(v) => set({ motion: v })} options={[{ value: 'system', label: t('System') }, { value: 'full', label: t('Full') }, { value: 'reduce', label: t('Reduced') }]} /></Field>
                 <HrrField />

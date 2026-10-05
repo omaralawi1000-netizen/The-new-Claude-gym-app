@@ -268,6 +268,10 @@ export interface Settings {
   name: string;
   language: Lang;
   theme: 'system' | 'light' | 'dark';
+  /** the colours of the app (glow + accent), see styles.css `data-palette` */
+  palette: 'ember' | 'aurora' | 'mono' | 'sunset' | 'forest';
+  /** what Today shows; anything switched off is simply gone (and so is the water on the Food screen if `water` is off) */
+  widgets: { water: boolean; quick: boolean; recents: boolean; week: boolean; weight: boolean };
   motion: 'system' | 'reduce' | 'full';
   units: { weight: 'kg' | 'lb'; distance: 'km' | 'mi'; length: 'cm' | 'in' };
   weekStart: 0 | 1;

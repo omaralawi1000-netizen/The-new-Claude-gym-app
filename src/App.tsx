@@ -79,6 +79,8 @@ function useTheme() {
     apply(); mq.addEventListener('change', apply);
     return () => mq.removeEventListener('change', apply);
   }, [motionPref]);
+  const palette = useStore((x) => x.settings.palette);
+  useLayoutEffect(() => { document.documentElement.dataset.palette = palette; }, [palette]);
   useEffect(() => { document.documentElement.lang = lang; }, [lang]);
 }
 
