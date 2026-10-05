@@ -1,7 +1,7 @@
 import { AnimatePresence, animate, motion, useMotionValue, usePresence, useReducedMotion, useTransform, type MotionValue } from 'motion/react';
 import { createPortal } from 'react-dom';
 import { createContext, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { EngageContext, Mirror, mirrorProgress, mirrorStage, trackDepth, type Engage } from './engage';
+import { EngageContext, Mirror, OverlayMeta, mirrorProgress, mirrorStage, trackDepth, type Engage } from './engage';
 import { Veil, mirrorVeil } from './Veil';
 import { availableHeight, dropKeyboard, kb, watchFocus } from './keyboard';
 
@@ -9,7 +9,7 @@ import { availableHeight, dropKeyboard, kb, watchFocus } from './keyboard';
 export const OverlayZ = createContext<number | null>(null);
 export const useOverlayZ = (fallback: number) => useContext(OverlayZ) ?? fallback;
 /** Which overlay this is (set by Overlays.tsx): its id, and whether it opens as a page inside the sheet below it. */
-export const OverlayMeta = createContext<{ id: string; page: boolean } | null>(null);
+export { OverlayMeta };
 /** True inside an overlay shown as a page of the sheet below it: its close button becomes a Back arrow. */
 export const useIsPage = () => !!useContext(OverlayMeta)?.page;
 

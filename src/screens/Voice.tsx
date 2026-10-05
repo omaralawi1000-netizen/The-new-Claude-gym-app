@@ -27,6 +27,9 @@ import { flyLogged } from '../ui/fly';
 interface Turn1 { id: string; said: string; reply: string; results: AgentResult[]; undone: string[]; confirmed: string[] }
 
 const recorderOk = () => typeof MediaRecorder !== 'undefined' && mic.supported;
+/** Leaving for the Coach, the frost holds until the screen's progress is down to this (the Coach's sheet is mostly up by then). */
+const HOLD = 0.25;
+const VOICE_VEIL_HOLD = VOICE_VEIL.map((l) => ({ ...l, from: l.from * HOLD, to: l.to * HOLD }));
 
 /**
  * The orb's own screen: a big sphere that listens. Say anything — "log a banana", "bench 100 kilos for 8, 8 and 6",
@@ -41,8 +44,12 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   const contentAt = (v: number) => Math.min(1, Math.max(0, (v - 0.12) / 0.6));
   const veilRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  // handing over to the Coach: the frost stays while the Coach's sheet rises over it, and only clears once the sheet covers
+  // the screen — it used to clear first, and the page behind flashed through between the two
+  const toCoach = useRef(false);
   // high refresh rate: the frost and the content's fade also run as browser animations (see mirrorSpring)
-  const eng = useEngage((p0, p1, sp) => [...mirrorVeil(veilRef.current, p0, p1, sp, 0, VOICE_VEIL), mirrorProgress(contentRef.current, p0, p1, sp, 0, (p) => ({ opacity: contentAt(p) }), [0.12, 0.72]), mirrorOrb(contentRef.current?.closest('.voice') ?? contentRef.current, p0, p1, sp, 0)]);
+  const eng = useEngage((p0, p1, sp) => [...mirrorVeil(veilRef.current, p0, p1, sp, 0, toCoach.current ? VOICE_VEIL_HOLD : VOICE_VEIL), mirrorProgress(contentRef.current, p0, p1, sp, 0, (p) => ({ opacity: contentAt(p) }), [0.12, 0.72]), mirrorOrb(contentRef.current?.closest('.voice') ?? contentRef.current, p0, p1, sp, 0)]);
+  const veilE = useTransform(eng, (v) => (toCoach.current ? Math.min(1, v / HOLD) : v));
   const engage = useMemo(() => ({ e: eng }), [eng]);
   const contentO = useTransform(eng, contentAt);
   const exercises = useStore((s) => s.exercises);
@@ -278,11 +285,11 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
     <motion.div ref={rootRef} className="voice" style={{ position: 'fixed', inset: 0, zIndex: z, display: 'flex', flexDirection: 'column', paddingBottom: kbPad }} role="dialog" aria-modal="true" aria-label={t('Dictation')}>
       {/* The frost behind builds up gradually with the screen's progress (one blur layer and a tint, fading in with it).
           Nothing above it fades as a whole: a fading parent switched the blur off until the fade ended, then it snapped on. */}
-      <Veil e={eng} z={0} layers={VOICE_VEIL} className="veil-abs" elRef={veilRef} />
+      <Veil e={veilE} z={0} layers={VOICE_VEIL} className="veil-abs" elRef={veilRef} />
       <motion.div ref={contentRef} style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', padding: 'calc(var(--sat) + 12px) 18px 0', opacity: contentO }}>
         <div className="row-flex between">
           <button className="icon-btn press" aria-label={t('Close')} onClick={() => useUI.getState().pop()}><Icon name="close" /></button>
-          <button className="chip press" onClick={() => useUI.getState().swap(1, 'coach')}><Icon name="sparkle" size={15} /> {t('Coach')}</button>
+          <button className="chip press" onClick={() => { toCoach.current = true; useUI.getState().swap(1, 'coach'); }}><Icon name="sparkle" size={15} /> {t('Coach')}</button>
         </div>
 
         {/* the sphere: big while it listens, it steps up and out of the way once there is something to read */}

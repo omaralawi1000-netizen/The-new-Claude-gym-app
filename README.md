@@ -140,6 +140,14 @@ Run in headless Chromium (Playwright, 390×844 @2×, dark + light), scripts in `
 - **Not built (on purpose, stated in-app):** cloud sync / accounts; photo-based food estimation; automatic AI changes to your data (the Coach advises; routines and estimates only appear after you confirm; progression suggestions remain transparent rules); background reminders when the app is closed (web apps need a push server — reminders fire only while Aven runs; in-app nudge otherwise); animated exercise demonstrations (there is an authored muscle diagram and step-by-step text instead).
 - Exercise calories are **never** added to food targets.
 
+## Seamless pass: the orb never changes shape
+
+- **Rigid sphere** (`ui/sphereRender.ts`): the orb's outline is always a perfect sphere. Your voice, a tap, thinking and "done" now show as light running over the dots (travelling light waves, an equaliser of light by latitude, a flash band, a bloom) — no more lumpy, liquid blob while it listens, no breathing, no swelling, no burst. A press sinks the whole sphere in by ~5 % and springs back; a tap adds a flash, a spin and two thin rings.
+- **No texture pop**: the number of dots follows the size the orb is *seen* at, not the canvas bucket it is drawn in, and dots fade in or out gradually. Before, the orb switched from a dense to a sparse dot pattern ~0.3 s after landing in the dock.
+- **No mid-flight swell**: flights only move and resize the orb.
+- **Orb screen → Coach**: the orb goes straight from the big orb to the Coach's mic on the Coach sheet's own spring. It used to fly home to the dock with the closing orb screen, wait there, then jump to the mic. A pop-up that hands the orb over no longer pulls it back on its way out (`handoff` in `ui/Sphere.tsx`, slots know their pop-up through `OverlayMeta`).
+- **No flash between them**: the orb screen's frost holds until the Coach sheet is mostly up, so the Today page no longer flashes through in between.
+
 ## The orb rides its button; soft top edge
 
 - **Orb into the live workout**: it waits in the dock, is lifted out as the window's slot reaches it, then rides with the slot exactly — opening, closing and under your finger (drag the window halfway and it stays on its button instead of drifting off towards the dock). It moves across and grows within the first stretch above the dock; the hand-over is a soft minimum, so its speed never jumps. Same path in the browser-run version (`carry()` in `ui/Sphere.tsx`). The Coach's mic (level with the dock) still glides across.

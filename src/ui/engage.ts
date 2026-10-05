@@ -12,6 +12,9 @@ import { mirrorSpring } from './motion';
 export interface Engage { e: MotionValue<number>; shift?: MotionValue<number> }
 export const EngageContext = createContext<Engage | null>(null);
 export const useEngageContext = () => useContext(EngageContext);
+/** Which overlay this is (set by Overlays.tsx): its id, and whether it opens as a page inside the sheet below it. Lives here
+ * (not in Sheet.tsx) so the orb can tell which pop-up a slot belongs to without importing the sheet. */
+export const OverlayMeta = createContext<{ id: string; page: boolean } | null>(null);
 
 // ── the page behind popups ─────────────────────────────────────
 

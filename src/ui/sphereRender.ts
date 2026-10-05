@@ -26,24 +26,26 @@ function lattice(): { pts: V3; order: Uint16Array } {
 const LAT = lattice();
 
 /**
- * The surface moves as one liquid: five smooth travelling waves over the sphere (not per-dot jitter). Low frequencies
- * take the bass, the finer waves take the highs, so a voice makes slow swells with a fine shimmer on top.
+ * The light moves, the sphere never does: five smooth travelling waves of LIGHT over the surface (not per-dot jitter). Its
+ * outline is always a perfect sphere — a voice, a tap or a change of state shows as light running over it, never as a change
+ * of shape. Low frequencies take the bass, the finer waves the highs, so a voice makes slow swells of light with a fine
+ * shimmer on top.
  */
 const WAVES = [
   { d: [0.8, 0.5, 0.33], f: 2.1, s: 0.9 }, { d: [-0.6, 0.7, 0.38], f: 2.6, s: 1.25 }, { d: [0.1, -0.9, 0.42], f: 3.2, s: 1.1 },
   { d: [-0.5, -0.3, 0.81], f: 4.4, s: 2.3 }, { d: [0.95, -0.2, -0.24], f: 5.8, s: 3.1 },
 ].map((w) => { const l = Math.hypot(w.d[0], w.d[1], w.d[2]); return { x: w.d[0] / l, y: w.d[1] / l, z: w.d[2] / l, f: w.f, s: w.s }; });
 
-interface Params { rotSpeed: number; liquid: number; glow: number; dim: number; sweep: number; ring: number; halo: number }
+interface Params { rotSpeed: number; shimmer: number; glow: number; dim: number; sweep: number; ring: number; halo: number }
 const TARGET: Record<string, Params> = {
-  idle: { rotSpeed: 0.2, liquid: 0.022, glow: 0.35, dim: 0, sweep: 0, ring: 0, halo: 0.16 },
-  requesting: { rotSpeed: 0.16, liquid: 0.03, glow: 0.45, dim: 0, sweep: 0, ring: 0, halo: 0.24 },
-  listening: { rotSpeed: 0.28, liquid: 0.03, glow: 0.42, dim: 0, sweep: 0, ring: 0, halo: 0.3 },
-  processing: { rotSpeed: 1.6, liquid: 0.016, glow: 0.4, dim: 0, sweep: 1, ring: 0, halo: 0.34 },
-  review: { rotSpeed: 0.1, liquid: 0.008, glow: 0.55, dim: 0, sweep: 0, ring: 1, halo: 0.2 },
-  confirmed: { rotSpeed: 0.4, liquid: 0.01, glow: 0.6, dim: 0, sweep: 0, ring: 0, halo: 0.42 },
-  error: { rotSpeed: 0.05, liquid: 0.004, glow: 0.12, dim: 1, sweep: 0, ring: 0, halo: 0 },
-  unavailable: { rotSpeed: 0.05, liquid: 0.004, glow: 0.12, dim: 1, sweep: 0, ring: 0, halo: 0 },
+  idle: { rotSpeed: 0.2, shimmer: 0.022, glow: 0.35, dim: 0, sweep: 0, ring: 0, halo: 0.16 },
+  requesting: { rotSpeed: 0.16, shimmer: 0.03, glow: 0.45, dim: 0, sweep: 0, ring: 0, halo: 0.24 },
+  listening: { rotSpeed: 0.28, shimmer: 0.03, glow: 0.42, dim: 0, sweep: 0, ring: 0, halo: 0.3 },
+  processing: { rotSpeed: 1.6, shimmer: 0.016, glow: 0.4, dim: 0, sweep: 1, ring: 0, halo: 0.34 },
+  review: { rotSpeed: 0.1, shimmer: 0.008, glow: 0.55, dim: 0, sweep: 0, ring: 1, halo: 0.2 },
+  confirmed: { rotSpeed: 0.4, shimmer: 0.01, glow: 0.6, dim: 0, sweep: 0, ring: 0, halo: 0.42 },
+  error: { rotSpeed: 0.05, shimmer: 0.004, glow: 0.12, dim: 1, sweep: 0, ring: 0, halo: 0 },
+  unavailable: { rotSpeed: 0.05, shimmer: 0.004, glow: 0.12, dim: 1, sweep: 0, ring: 0, halo: 0 },
 };
 
 type RGB = [number, number, number];
@@ -63,8 +65,11 @@ export interface OrbInputs {
   /** finger on the orb (0/1) and a tap to release (strength); the renderer consumes the tap */
   press: number;
   tap: number;
-  /** a flight between places started (strength): the dots turn a little faster and the surface stays calm while it travels */
+  /** a flight between places started (strength): the dots turn a little faster and the light stays calm while it travels */
   whoosh?: number;
+  /** how big the orb is on screen right now (css px). The canvas is drawn at a fixed size bucket and scaled, so the number of
+   * dots follows what you see, not the bucket: no sudden change of texture when the bucket changes after a flight. */
+  vis?: number;
 }
 
 type Ctx2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
@@ -78,20 +83,18 @@ export class SphereRenderer {
   private env = 0;                         // smoothed voice level (fast attack, slow release)
   private bandEnv = new Float32Array(3);   // smoothed low / mid / high energy
   private lat = new Float32Array(16);       // smoothed per-band energy, laid out over the sphere's latitudes like an equaliser
-  private body = 0;                         // slower "presence" of the voice: drives the inner light and the swell of the whole body
+  private body = 0;                         // slower "presence" of the voice: drives the inner light
   private prevV = 0;
   private onsetAt = -1;
-  private rings: { age: number; amp: number }[] = []; // ripples that leave the sphere on every syllable
-  private kick = 0;                        // a soft "bloom" whenever the state changes (tap → listen → think → done)
+  private rings: { age: number; amp: number }[] = []; // two thin rings leave the sphere on a tap
+  private kick = 0;                        // a soft bloom of light whenever the state changes (tap → listen → think → done)
   private kickV = 0;
   private lastPhase = '';
-  private press = 0;                       // finger down: gathering in
-  private burst = 0; private burstV = 0;   // release: a spring that throws the dots out and pulls them back
-  private spin = 0;                        // extra turn speed from a tap, decaying
-  private calm = 0;                        // seconds left of a flight's calm start (bursts and blooms damped)
-  private flash = 0;                       // light running through the dots after a tap
-  /** true while something of its own is moving (a press, a burst, ripples): then it is drawn every frame */
-  get busy() { return this.press > 0.01 || Math.abs(this.burst) > 0.004 || Math.abs(this.burstV) > 0.02 || this.spin > 0.02 || this.flash > 0.02 || this.rings.length > 0; }
+  private press = 0;                       // finger down (smoothed): the inner light gathers
+  private sc = 1; private scV = 0;         // the whole sphere's scale: pressed it sinks in a touch, released it springs back
+  private spin = 0;                        // extra turn speed from a tap or a flight, decaying
+  private calm = 0;                        // seconds left of a flight's calm start (flashes and blooms damped)
+  private flash = 0;                       // light running through the dots after a tap or a syllable
   /** how loudly you are speaking right now, 0..1 (time-smoothed) — for things around the orb that should breathe with it */
   get voice() { return Math.min(1, this.body * 0.75 + this.env * 0.45); }
   constructor(private canvas: HTMLCanvasElement | OffscreenCanvas) { this.ctx = canvas.getContext('2d') as Ctx2D; }
@@ -109,27 +112,32 @@ export class SphereRenderer {
     const tgt = TARGET[v.phase] ?? TARGET.idle;
     const k = 1 - Math.exp(-dt * 4.5);
     (Object.keys(tgt) as (keyof Params)[]).forEach((key) => { this.cur[key] += (tgt[key] - this.cur[key]) * k; });
-    // a flight is starting: for a moment the surface stays calm — the travel itself is the motion; a burst, a ripple and the
-    // listening bloom all going off mid-air made it look lumpy
+    // a flight is starting: the dots turn a little faster (it rolls as it travels) and for a moment the light stays calm —
+    // the travel itself is the motion
     if (inp.whoosh && inp.whoosh > 0) {
-      if (!reduced) { this.spin += 1.8 * inp.whoosh; this.calm = 0.75; }
+      if (!reduced) { this.spin += 1.2 * inp.whoosh; this.calm = 0.75; }
       inp.whoosh = 0;
     }
     this.calm = Math.max(0, this.calm - dt);
     const soft = this.calm > 0 ? 0.25 : 1;
     if (v.phase !== this.lastPhase) { if (this.lastPhase && !reduced) this.kickV += (v.phase === 'error' || v.phase === 'unavailable' ? -1.4 : 3.2) * soft; this.lastPhase = v.phase; }
-    // the bloom is a damped spring, so it swells, overshoots a touch and settles
+    // the bloom is a damped spring, so the light swells, overshoots a touch and settles
     this.kickV += (-90 * this.kick - 11 * this.kickV) * dt; this.kick += this.kickV * dt;
-    // touch: press gathers in (fast), a tap releases into a burst (an underdamped spring kicked outward) plus a spin-up
+    // touch: a press sinks the whole sphere in by a few percent (it stays a sphere) and gathers its light; letting go springs
+    // it back, and a tap sends a flash of light through it, a quick spin and two rings
     this.press += (inp.press - this.press) * (1 - Math.exp(-dt * (inp.press > this.press ? 18 : 10)));
+    const scTo = reduced ? 1 : 1 - 0.055 * inp.press;
+    for (let rem = dt; rem > 1e-6; rem -= 1 / 240) {
+      const h = Math.min(rem, 1 / 240); // small steps: stable at any frame time
+      this.scV += (-420 * (this.sc - scTo) - 34 * this.scV) * h; this.sc += this.scV * h;
+    }
     if (inp.tap > 0) {
       if (!reduced) {
-        this.burstV += 5.2 * inp.tap * soft; this.spin += 7 * inp.tap * soft; this.flash = Math.min(1, this.flash + inp.tap * soft);
+        this.spin += 6 * inp.tap * soft; this.flash = Math.min(1, this.flash + inp.tap * soft);
         if (soft === 1 && this.rings.length < 4) this.rings.push({ age: 0, amp: 1 }, { age: -0.16, amp: 0.7 });
       }
       inp.tap = 0;
     }
-    this.burstV += (-60 * this.burst - 8.5 * this.burstV) * dt; this.burst += this.burstV * dt;
     this.spin *= Math.exp(-dt * 3.2); this.flash *= Math.exp(-dt * 3.6);
     const speed = reduced ? 0 : this.cur.rotSpeed * (1 + Math.max(0, this.kick) * 2) + this.spin;
     this.rot += dt * speed;
@@ -142,11 +150,11 @@ export class SphereRenderer {
     const att = (cur: number, to: number, up = 38, down = 7) => cur + (to - cur) * (1 - Math.exp(-dt * (to > cur ? up : down)));
     this.env = att(this.env, raw);
     this.body = att(this.body, raw, 9, 2.4);
-    // a sudden rise in energy = a new syllable: bump the whole body and send a ripple out
+    // a sudden rise in energy = a new syllable: a bloom and a flash of light run through it
     if (live && !reduced && raw - this.prevV > 0.1 && raw > 0.18 && this.t - this.onsetAt > 0.11) {
       this.onsetAt = this.t;
       this.kickV += 1.1 + raw * 2.2;
-      if (this.rings.length < 4) this.rings.push({ age: 0, amp: Math.min(1, 0.45 + raw) });
+      this.flash = Math.min(1, this.flash + 0.2 + raw * 0.3);
     }
     this.prevV = raw;
     for (const r of this.rings) r.age += dt * 1.15;
@@ -161,8 +169,8 @@ export class SphereRenderer {
     const { ctx, canvas } = this;
     const W = canvas.width;
     const c = W / 2;
-    const breath = reduced ? 1 : 1 + Math.sin(this.t * 1.15) * 0.012 * (1 - this.env);
-    const R = c * 0.66 * breath * (1 + this.kick * 0.035 + this.body * 0.06) * (1 - this.press * 0.12); // the body swells with the voice; headroom for the swells
+    // one radius, always: no breathing, no swelling with the voice, no bulges — only a press scales the whole sphere evenly
+    const R = c * 0.66 * this.sc;
     ctx.clearRect(0, 0, W, W);
 
     const { hi, lo, alt, ok, dark } = colors;
@@ -176,17 +184,23 @@ export class SphereRenderer {
       ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(c, c, c * 0.98, 0, 6.2832); ctx.fill();
     }
 
-    const count = Math.round(Math.min(N, Math.max(280, css * 6.5)));
+    // how many dots: from the size it is SEEN at (so a flight grows or thins them gradually, and a canvas bucket change after
+    // landing changes nothing you can see). Dots at the edge of the count shrink away rather than pop.
+    const vis = Math.max(8, inp.vis ?? css);
+    const nf = Math.min(N, Math.max(280, vis * 6.5));
+    const count = Math.min(N, Math.ceil(nf));
+    const FADE = 36;
     const tilt = 0.42 + Math.sin(this.t * 0.37) * (reduced ? 0 : 0.06);
     const cr = Math.cos(this.rot), sr = Math.sin(this.rot), ct = Math.cos(tilt), st = Math.sin(tilt);
     const confirmAge = v.phase === 'confirmed' ? inp.phaseAge : 9;
     const sweepPhase = this.t * 2.4;
     const T = reduced ? 0 : this.t;
     const amps = [
-      this.cur.liquid + eLo * 0.22 + this.env * 0.05, this.cur.liquid * 0.9 + eLo * 0.16,
-      this.cur.liquid * 0.7 + eMid * 0.12, this.cur.liquid * 0.5 + eMid * 0.08 + eHi * 0.04, this.cur.liquid * 0.35 + eHi * 0.07,
+      this.cur.shimmer + eLo * 0.22 + this.env * 0.05, this.cur.shimmer * 0.9 + eLo * 0.16,
+      this.cur.shimmer * 0.7 + eMid * 0.12, this.cur.shimmer * 0.5 + eMid * 0.08 + eHi * 0.04, this.cur.shimmer * 0.35 + eHi * 0.07,
     ];
-    if (!live && v.phase === 'listening') { amps[0] += 0.015; amps[1] += 0.012; } // no level available: honest gentle motion, no fake voice
+    if (!live && v.phase === 'listening') { amps[0] += 0.015; amps[1] += 0.012; } // no level available: honest gentle light, no fake voice
+    const spacing = Math.sqrt(12.566 / nf) * R;
 
     // buckets: 7 light levels × 3 hue mixes (accent ↔ the area's second colour, drifting round the sphere)
     const NB = 7, NH = 3;
@@ -196,61 +210,50 @@ export class SphereRenderer {
 
     for (let n = 0; n < count; n++) {
       const i = LAT.order[n];
-      let x = LAT.pts[i * 3], y = LAT.pts[i * 3 + 1], z = LAT.pts[i * 3 + 2];
+      const x = LAT.pts[i * 3], y = LAT.pts[i * 3 + 1], z = LAT.pts[i * 3 + 2];
       const az = Math.atan2(z, x);
 
-      let d = 0;
+      // light, not displacement: every effect below brightens or dims a dot; none moves it off the sphere
+      let lw = 0;
       let glow = this.cur.glow;
       for (let w = 0; w < 5; w++) {
         const ww = WAVES[w];
-        d += amps[w] * Math.sin((x * ww.x + y * ww.y + z * ww.z) * ww.f + T * ww.s + w * 1.7);
+        lw += amps[w] * Math.sin((x * ww.x + y * ww.y + z * ww.z) * ww.f + T * ww.s + w * 1.7);
       }
       if (live) {
-        // equaliser over the latitudes: low voice at the poles' bellies, highs towards the top; it turns with the sphere
+        // equaliser over the latitudes: low voice at the bottom, highs towards the top; it turns with the sphere
         const fb = (1 - y) * 7.5, b0 = Math.min(14, Math.floor(fb)), fr = fb - b0;
         const e = this.lat[b0] * (1 - fr) + this.lat[b0 + 1] * fr;
-        d += e * 0.085 * (0.65 + 0.35 * Math.cos(az * 2 - this.rot * 1.5 + T * 1.2));
+        lw += e * 0.085 * (0.65 + 0.35 * Math.cos(az * 2 - this.rot * 1.5 + T * 1.2));
         glow += e * 0.9;
       }
-      glow += this.env * 0.9 + Math.max(0, d) * 3;
-      if (this.kick > 0.01) d += this.kick * 0.05 * (0.6 + 0.4 * Math.sin(y * 3 + T * 4));
-      // touch: pressed, the surface draws in with a small shiver; released, it bursts out unevenly (a liquid, not a balloon)
-      if (this.press > 0.01) d -= this.press * 0.07 * (0.55 + 0.45 * Math.sin(az * 3 + this.t * 9));
-      if (Math.abs(this.burst) > 0.003) d += this.burst * 0.7 * (0.55 + 0.45 * Math.sin(y * 4.2 + az * 2 + this.t * 6));
+      glow += this.env * 0.9 + Math.max(0, lw) * 3;
+      if (this.kick > 0.01) glow += this.kick * 0.3 * (0.6 + 0.4 * Math.sin(y * 3 + T * 4));
+      if (this.press > 0.01) glow += this.press * 0.25 * (1 - Math.abs(y));
       if (this.flash > 0.02) glow += this.flash * (0.6 + 1.8 * Math.max(0, Math.sin(y * 5 - this.t * 16))); // a band of light runs through it
       if (this.cur.sweep > 0.01) {
         const a = Math.cos(az - sweepPhase) * 0.5 + 0.5;
         const band = Math.exp(-Math.pow(y - Math.sin(T * 1.6) * 0.8, 2) / 0.05);
-        d -= 0.05 * this.cur.sweep * (1 - a) - 0.05 * band * this.cur.sweep;
         glow += (band * 0.9 + a * 0.15) * this.cur.sweep;
       }
-      if (this.cur.ring > 0.01) {
-        const eq = Math.exp(-(y * y) / 0.004);
-        glow += eq * 0.9 * this.cur.ring;
-        d += eq * 0.03 * this.cur.ring;
-      }
+      if (this.cur.ring > 0.01) glow += Math.exp(-(y * y) / 0.004) * 0.9 * this.cur.ring;
       let okMix = 0;
       if (confirmAge < 1.6) {
         const front = confirmAge * 2.6 - 0.3;
-        const dist = (1 - y);
-        const w = Math.exp(-Math.pow(dist - front, 2) / 0.05);
-        d += w * 0.22;
+        const w = Math.exp(-Math.pow((1 - y) - front, 2) / 0.05);
         okMix = Math.max(w, confirmAge < 0.35 ? (0.35 - confirmAge) * 2 : 0);
-        glow += w;
+        glow += w * 1.6;
       }
-      const rr = 1 + Math.max(-0.2, Math.min(0.45, d));
-      x *= rr; y *= rr; z *= rr;
       const x1 = x * cr + z * sr, z1 = -x * sr + z * cr;
       const y2 = y * ct - z1 * st, z2 = y * st + z1 * ct;
       const persp = 1 / (1 - z2 * 0.24);
       const px = c + x1 * R * persp, py = c + y2 * R * persp;
       const depth = Math.max(0, Math.min(1, (z2 + 1.1) / 2.2)); // 0 back … 1 front
-      const nx = x1 / rr, ny = y2 / rr, nz = z2 / rr;
-      const lam = Math.max(0, nx * -0.42 + ny * -0.52 + nz * 0.74);
-      const rim = Math.pow(1 - Math.abs(nz), 3) * 0.35 * depth; // a thin bright rim reads as glass
+      const lam = Math.max(0, x1 * -0.42 + y2 * -0.52 + z2 * 0.74);
+      const rim = Math.pow(1 - Math.abs(z2), 3) * 0.35 * depth; // a thin bright rim reads as glass
       const sh = Math.min(1, 0.16 + 0.84 * Math.pow(depth, 1.25) * (0.42 + 0.58 * lam) + rim + Math.max(0, glow - 0.4) * 0.25 * depth);
-      const spacing = Math.sqrt(12.566 / count) * R;
-      const size = spacing * 0.2 * (0.35 + 1.05 * depth) * (1 + Math.min(1.2, glow) * 0.22);
+      const fade = nf >= N || n < nf - FADE ? 1 : Math.max(0, (nf - n) / FADE);
+      const size = spacing * 0.2 * (0.35 + 1.05 * depth) * (1 + Math.min(1.2, glow) * 0.22) * fade;
       dots[n] = { x: px, y: py, r: size };
       tone[n] = okMix > 0.25 ? 2 : glow > 1.3 ? 1 : 0;
       const hueMix = 0.5 + 0.5 * Math.sin(az * 1 + y * 1.6 - T * 0.6); // the second colour drifts around the surface
@@ -273,20 +276,20 @@ export class SphereRenderer {
         if (dimK > 0.01) { const grey = dark ? 120 : 140; r += (grey - r) * dimK; g += (grey - g) * dimK; bl += (grey - bl) * dimK; }
         ctx.fillStyle = `rgba(${r | 0},${g | 0},${bl | 0},${a * (1 - dimK * 0.5)})`;
         ctx.beginPath();
-        for (const n of list) { if (tone[n] !== 0) continue; const d = dots[n]; ctx.moveTo(d.x + d.r, d.y); ctx.arc(d.x, d.y, d.r, 0, 6.2832); }
+        for (const n of list) { if (tone[n] !== 0) continue; const d = dots[n]; if (d.r < 0.05) continue; ctx.moveTo(d.x + d.r, d.y); ctx.arc(d.x, d.y, d.r, 0, 6.2832); }
         ctx.fill();
       }
     }
     ctx.fillStyle = `rgba(${Math.min(255, hi[0] + 30)},${Math.min(255, hi[1] + 50)},${Math.min(255, hi[2] + 50)},0.95)`;
     ctx.beginPath();
-    for (let n = 0; n < count; n++) if (tone[n] === 1) { const d = dots[n]; ctx.moveTo(d.x + d.r * 1.15, d.y); ctx.arc(d.x, d.y, d.r * 1.15, 0, 6.2832); }
+    for (let n = 0; n < count; n++) if (tone[n] === 1) { const d = dots[n]; if (d.r < 0.05) continue; ctx.moveTo(d.x + d.r * 1.15, d.y); ctx.arc(d.x, d.y, d.r * 1.15, 0, 6.2832); }
     ctx.fill();
     ctx.fillStyle = `rgba(${ok[0]},${ok[1]},${ok[2]},0.98)`;
     ctx.beginPath();
-    for (let n = 0; n < count; n++) if (tone[n] === 2) { const d = dots[n]; ctx.moveTo(d.x + d.r * 1.2, d.y); ctx.arc(d.x, d.y, d.r * 1.2, 0, 6.2832); }
+    for (let n = 0; n < count; n++) if (tone[n] === 2) { const d = dots[n]; if (d.r < 0.05) continue; ctx.moveTo(d.x + d.r * 1.2, d.y); ctx.arc(d.x, d.y, d.r * 1.2, 0, 6.2832); }
     ctx.fill();
     ctx.globalCompositeOperation = 'source-over';
-    // syllable ripples: thin rings that leave the sphere and fade
+    // a tap: two thin rings leave the sphere and fade
     if (this.rings.length) {
       ctx.lineWidth = Math.max(1, W * 0.006);
       for (const r of this.rings) {

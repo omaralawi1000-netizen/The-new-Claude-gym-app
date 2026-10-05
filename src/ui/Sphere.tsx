@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useContext, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { cancelFrame, frame } from 'motion/react';
-import { mirrorProgress, useEngageContext, type Engage } from './engage';
+import { OverlayMeta, mirrorProgress, useEngageContext, type Engage } from './engage';
 import { mic } from '../lib/mic';
 import { useVoice } from '../state/voice';
 import { useStore } from '../state/store';
@@ -20,9 +20,8 @@ import { SphereRenderer, type OrbInputs, type SphereColors } from './sphereRende
 type RGB = [number, number, number];
 
 /**
- * Touching the orb. While a finger is on it the orb gathers in — it shrinks a little and its light pulls to the centre, as if
- * drawing breath. On release it bursts: the dots fly outward in an uneven, liquid wave, the sphere spins up, a flash of light
- * runs through it and two rings leave it; then it gathers back into a sphere — on its way up to wherever it is going.
+ * Touching the orb. While a finger is on it the whole sphere sinks in a touch and its light gathers; on release it springs
+ * back, a flash of light runs through it, it spins up and two thin rings leave it. It never changes shape: only light moves.
  */
 let pressTarget = 0;
 let tapPending = 0;
@@ -46,7 +45,8 @@ function orbInputs(): OrbInputs {
 
 // ── stage ───────────────────────────────────────────────────
 
-interface Slot { el: HTMLElement; priority: number; engage?: Engage }
+/** `ov`: the pop-up the slot lives in (none for the tab bar). A slot whose pop-up has been closed is on its way out. */
+interface Slot { el: HTMLElement; priority: number; engage?: Engage; ov?: string }
 const slots = new Map<string, Slot>();
 /** Until when slot positions must be re-measured every frame (see the stage's tick). */
 let layoutDirtyUntil = 0;
@@ -62,7 +62,6 @@ let orbEl: HTMLElement | null = null;
 let dockRest: { X: number; Y: number; S: number } | null = null;
 const orbLock = { bucket: 0 };
 let orbAnim: Animation | null = null;
-const SWELL = 0.07;
 const PICK = 30; // px: how softly the dock hands the orb over to a rising slot (a soft minimum, so its speed never jumps)
 const smooth01 = (x: number) => { const t = Math.min(1, Math.max(0, x)); return t * t * (3 - 2 * t); };
 const softmin = (a: number, b: number, k: number) => { const m = Math.min(a, b); return m - k * Math.log(Math.exp(-(a - m) / k) + Math.exp(-(b - m) / k)); };
@@ -82,6 +81,34 @@ function carry(O: { X: number; Y: number; S: number }, x: number, y: number, z: 
   return { X: O.X + (x - O.X) * t, Y: softmin(y, O.Y, PICK), S: O.S + (z - O.S) * t, t };
 }
 let lastOverlayChange = 0;
+/** Where the stage last put the orb (its box's top-left within the app, and its size). */
+let orbNow = { X: NaN, Y: NaN, S: NaN };
+
+/** The ids of the pop-ups that are open (not on their way out), cached per change of the stack. */
+let idsFor: unknown = null, idsSet = new Set<string>();
+function openIds() {
+  const ov = useUI.getState().overlays;
+  if (ov !== idsFor) { idsFor = ov; idsSet = new Set(ov.map((o) => o.id)); }
+  return idsSet;
+}
+const isLeaving = (s: Slot) => !!s.ov && !openIds().has(s.ov);
+
+/**
+ * Handing the orb over. One pop-up leaving as another arrives with a slot of its own (the orb screen's Coach button): the orb
+ * goes straight from where it is to the new slot, on the new pop-up's own progress, instead of first flying home to the dock
+ * with the pop-up that is leaving and then jumping across. `from` is where it was when the new one arrived; `back` is set if
+ * the new one is closed again before it got there (then the orb returns from wherever it is).
+ */
+let handoff: { el: HTMLElement; from: { X: number; Y: number; S: number }; back?: { k: number; P: { X: number; Y: number; S: number } } } | null = null;
+/** slots that have handed the orb over: on their way out they no longer pull it back */
+const gaveUp = new WeakSet<HTMLElement>();
+function claim(el: HTMLElement) {
+  if (handoff?.el === el || !Number.isFinite(orbNow.X)) return;
+  for (const s of slots.values()) {
+    if (s.el === el || !s.el.isConnected || !isLeaving(s) || gaveUp.has(s.el)) continue;
+    if ((s.engage ? s.engage.e.get() : 1) > 0.02) { handoff = { el, from: { ...orbNow } }; return; }
+  }
+}
 
 /**
  * High refresh rate for the orb: its flight between the dock and a popup handed to the browser on the popup's own spring,
@@ -90,14 +117,25 @@ let lastOverlayChange = 0;
  * at progress p (0 for a popup that doesn't slide).
  */
 export function mirrorOrb(container: Element | null, p0: number, p1: number, sp: { stiffness: number; damping: number; mass?: number }, vel: number, shiftAt: (p: number) => number = () => 0): Animation | null {
-  const el = orbEl, O = dockRest;
+  const el = orbEl;
+  const slotEl = container?.querySelector<HTMLElement>('[data-orb-slot]');
+  if (!el || !slotEl || !slotEl.isConnected) return null;
+  if (handoff && handoff.el !== slotEl && p1 < p0) return null; // it has handed the orb over: leaving takes nothing with it
+  if (handoff?.el === slotEl && p1 < p0) { orbAnim?.cancel(); orbAnim = null; return null; } // closed before it arrived: the script brings it back
+  if (p1 > p0) claim(slotEl);
+  const mine = handoff?.el === slotEl;
+  const O = mine ? handoff!.from : dockRest;
+  if (!O || O.S < (mine ? 4 : 30)) return null;
   // a new popup takes the orb over: an earlier flight still running (the orb screen leaving while the Coach opens) would
   // otherwise hold it where that flight was going
   orbAnim?.cancel(); orbAnim = null;
-  const slotEl = container?.querySelector<HTMLElement>('[data-orb-slot]');
-  if (!el || !O || O.S < 30 || !slotEl || !slotEl.isConnected) return null;
-  // only the simple case: between the dock and this one popup (anything stacked is left to the script version)
-  for (const s of slots.values()) if (s.el !== slotEl && s.priority > 0 && s.el.isConnected && s.engage && s.engage.e.get() > 0.02) return null;
+  // only the simple cases: between the dock — or the pop-up handing it over — and this one popup (anything stacked is left
+  // to the script version)
+  for (const s of slots.values()) {
+    if (s.el === slotEl || s.priority <= 0 || !s.el.isConnected || !s.engage) continue;
+    if (isLeaving(s) && (mine || gaveUp.has(s.el))) continue;
+    if (s.engage.e.get() > 0.02) return null;
+  }
   const app = el.closest('.app') ?? el.parentElement;
   const b = app?.getBoundingClientRect() ?? { left: 0, top: 0 };
   const r = slotEl.getBoundingClientRect();
@@ -105,15 +143,12 @@ export function mirrorOrb(container: Element | null, p0: number, p1: number, sp:
   if (z < 2) return null;
   const R = { X: r.left - b.left, Y: r.top - b.top - shiftAt(p0), S: z };
   const slides = Math.abs(shiftAt(0) - shiftAt(1)) > 1;
-  const swell = R.S > 120 ? 0 : SWELL; // a big orb (the orb screen) just grows into place
-  const bucket = Math.ceil(Math.max(O.S, R.S, 8) * (1 + SWELL) / 24) * 24;
+  const bucket = Math.ceil(Math.max(O.S, R.S, 8) / 24) * 24;
   whooshPending = Math.max(whooshPending, 1);
   const at = (p: number): Keyframe => {
     const e = Math.min(1, Math.max(0, p));
     const c = carry(O, R.X, R.Y + shiftAt(p), R.S, R.Y, e, slides);
-    // on the way it lifts towards you a little (swells mid-flight and settles as it lands), like something picked up and put down
-    const S = Math.max(8, c.S * (1 + swell * Math.sin(Math.PI * c.t)));
-    return { transform: `translate3d(${c.X.toFixed(2)}px, ${c.Y.toFixed(2)}px, 0) scale(${(S / bucket).toFixed(4)})` };
+    return { transform: `translate3d(${c.X.toFixed(2)}px, ${c.Y.toFixed(2)}px, 0) scale(${(Math.max(8, c.S) / bucket).toFixed(4)})` };
   };
   orbLock.bucket = bucket;
   if (el.style.width !== `${bucket}px`) el.style.width = el.style.height = `${bucket}px`;
@@ -127,8 +162,9 @@ export function mirrorOrb(container: Element | null, p0: number, p1: number, sp:
   return a;
 }
 
-export function registerSlot(id: string, el: HTMLElement, priority: number, engage?: Engage) {
-  slots.set(id, { el, priority, engage });
+export function registerSlot(id: string, el: HTMLElement, priority: number, engage?: Engage, ov?: string) {
+  slots.set(id, { el, priority, engage, ov });
+  if (ov && !isLeaving({ el, priority, ov })) claim(el);
   markOrbLayoutDirty();
   return () => { if (slots.get(id)?.el === el) slots.delete(id); markOrbLayoutDirty(); };
 }
@@ -231,7 +267,7 @@ export function SphereStage() {
     let px = NaN, py = NaN, ps = NaN, sentV = 0;
     let glide: Animation | null = null;
     let base = { left: 0, top: 0 };
-    let wasLifted = false, wasLanded = false;
+    let wasLifted = false, wasLanded = false, hapticSlot: Slot | null = null;
     let restProbe = { X: -1, Y: -1, S: -1, since: 0 };
     orbEl = el;
     const rects = new WeakMap<HTMLElement, DOMRect>();
@@ -287,17 +323,39 @@ export function SphereStage() {
       if (measure) { const b = appEl?.getBoundingClientRect(); base = { left: b?.left ?? 0, top: b?.top ?? 0 }; }
       const ox = base.left, oy = base.top;
       let X = 0, Y = 0, S = 0, have = false, top = 0, topSlot: Slot | null = null, flight = 1;
+      if (handoff && !handoff.el.isConnected) handoff = null;
       for (const sl of list) {
+        const leaving = isLeaving(sl);
+        const mine = handoff?.el === sl.el;
+        // a pop-up that has handed the orb over to the one arriving no longer pulls it back on its way out
+        if (leaving && !mine && (handoff || gaveUp.has(sl.el))) { gaveUp.add(sl.el); continue; }
         const e = sl.engage ? Math.min(1, Math.max(0, sl.engage.e.get())) : 1;
-        if (have && e <= 0.001) continue;
+        if (have && e <= 0.001 && !mine) continue;
         let r = rects.get(sl.el);
         const sh = sl.engage?.shift?.get() ?? 0;
         if (measure || !r || (e > 0.001 && e < 0.999) || sh !== shifts.get(sl.el)) { r = sl.el.getBoundingClientRect(); rects.set(sl.el, r); shifts.set(sl.el, sh); }
-        if (r.width < 2) continue;
+        if (r.width < 2) { if (mine && have && !handoff!.back) { X = handoff!.from.X; Y = handoff!.from.Y; S = handoff!.from.S; topSlot = sl; top = Math.max(top, sl.priority); } continue; }
         // where the slot is drawn right now — its popup's slide included — so the orb is carried by the popup (it used to
         // head for where the slot would come to rest, and sat there over an empty sheet while the sheet caught up)
         const x = r.left - ox, y = r.top - oy, z = Math.min(r.width, r.height);
         if (!have) { X = x; Y = y; S = z; have = true; continue; }
+        if (mine) {
+          const h = handoff!;
+          if (leaving && !h.back) h.back = { k: Math.max(0.001, e), P: { ...orbNow } };
+          if (h.back) {
+            // closed again before it arrived: straight back from where it was to wherever the orb belongs now
+            const f = Math.min(1, e / h.back.k);
+            X += (h.back.P.X - X) * f; Y += (h.back.P.Y - Y) * f; S += (h.back.P.S - S) * f; flight = f;
+            if (e <= 0.001) handoff = null;
+          } else {
+            // from where it was handed over, straight to this slot, on this pop-up's progress (as mirrorOrb plays it)
+            const c = sl.engage?.shift ? carry(h.from, x, y, z, y - sl.engage.shift.get(), e) : carry(h.from, x, y, z, y, e, false);
+            X = c.X; Y = c.Y; S = c.S; flight = c.t;
+            if (e >= 0.999) handoff = null; // arrived: from here on an ordinary slot
+          }
+          top = Math.max(top, sl.priority); topSlot = sl;
+          continue;
+        }
         // a sliding popup's slot comes up from below the screen: the orb waits where it is until the slot reaches it, then
         // rides up with it (rather than diving off the bottom edge to meet it)
         // A sliding popup's slot (a sheet, the live workout): the orb heads for where the slot comes to REST, on the very
@@ -312,12 +370,15 @@ export function SphereStage() {
         if (e > 0.02) { top = Math.max(top, sl.priority); topSlot = sl; }
       }
       if (!have) { el.style.opacity = '0'; pause(); return; }
+      orbNow = { X, Y, S };
       // In the tab bar it sits under every popup; in a popup it sits just above that popup — and so under anything
       // opened over it (an exercise menu over the live workout), never floating on top of everything.
       const zi = top > 0 && topSlot ? String(ownerZ(topSlot.el) + 1) : '41';
       if (el.style.zIndex !== zi) el.style.zIndex = zi;
-      const size = Math.max(8, S) * (topSlot && flight < 0.999 && S <= 120 ? 1 + SWELL * Math.sin(Math.PI * flight) : 1);
-      // haptics: a light tick as the orb is lifted out of the dock, a firmer one as it settles into its place (and back)
+      const size = Math.max(8, S);
+      // haptics: a light tick as the orb is lifted out of the dock, a firmer one as it settles into its place (and back).
+      // Handed from one pop-up to another, it starts a new flight: a lift, then a landing (not a "drop" first).
+      if (topSlot !== hapticSlot) { if (hapticSlot && topSlot) { wasLifted = false; wasLanded = false; } hapticSlot = topSlot; }
       if (topSlot && !reduced) {
         const lifted = flight > 0.04, landed = flight > 0.995;
         if (lifted !== wasLifted || landed !== wasLanded) {
@@ -366,6 +427,7 @@ export function SphereStage() {
       // A flight only scales the drawn canvas (transform above); the canvas is redrawn at a new size only when its size
       // bucket changes.
       const inp = orbInputs();
+      inp.vis = size;
       let vv: number;
       if (worker) {
         worker.postMessage({ state: { bucket, dpr, reduced, colors, inp, run: true } });
@@ -408,7 +470,8 @@ export function SphereStage() {
 export function SphereSlot({ id, priority = 0, className, style, engage }: { id: string; priority?: number; className?: string; style?: React.CSSProperties; engage?: Engage }) {
   const ref = useRef<HTMLDivElement>(null);
   const ctx = useEngageContext();
+  const ov = useContext(OverlayMeta)?.id;
   const eng = engage ?? ctx ?? undefined;
-  useEffect(() => registerSlot(id, ref.current!, priority, eng), [id, priority, eng]);
+  useEffect(() => registerSlot(id, ref.current!, priority, eng, ov), [id, priority, eng, ov]);
   return <div ref={ref} className={className} style={style} data-orb-slot={id} />;
 }
