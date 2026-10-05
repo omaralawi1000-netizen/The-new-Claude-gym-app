@@ -51,12 +51,18 @@ export function cleanTranscript(data: Verbose | null, prompt = ''): { text: stri
   return { text, lang: ({ danish: 'da', english: 'en' } as Record<string, string>)[lang] ?? (lang.length === 2 ? lang : lang ? 'other' : '') };
 }
 
+/** How sure Whisper was of a transcript: the mean log-probability of its segments (higher is clearer; −9 when unknown). */
+export function confidence(data: Verbose | null): number {
+  const lp = (Array.isArray(data?.segments) ? data!.segments : []).map((g) => g.avg_logprob).filter((v): v is number => typeof v === 'number');
+  return lp.length ? lp.reduce((a, b) => a + b, 0) / lp.length : -9;
+}
+
 export class SttError extends Error {
   constructor(public code: 'nokey' | 'offline' | 'network' | 'timeout' | 'badkey' | 'busy' | 'failed', public status = 0) { super(code); }
 }
 interface Opts { key: string; model: string; language: 'auto' | 'da' | 'en'; prompt: string }
 
-async function once(blob: Blob, o: Opts): Promise<{ text: string; lang: string }> {
+async function once(blob: Blob, o: Opts): Promise<{ text: string; lang: string; conf: number }> {
   const fd = new FormData();
   const ext = /mp4/.test(blob.type) ? 'm4a' : /ogg/.test(blob.type) ? 'ogg' : /wav/.test(blob.type) ? 'wav' : 'webm';
   fd.append('file', blob, `speech.${ext}`);
@@ -74,16 +80,28 @@ async function once(blob: Blob, o: Opts): Promise<{ text: string; lang: string }
   if (res.status === 401 || res.status === 403) throw new SttError('badkey', res.status);
   if (res.status === 429) throw new SttError('busy', res.status);
   if (!res.ok) throw new SttError('failed', res.status);
-  const out = cleanTranscript(await res.json().catch(() => null), o.prompt);
+  const data = await res.json().catch(() => null);
+  const out = cleanTranscript(data, o.prompt);
   if (!out) throw new SttError('failed', res.status);
-  return out;
+  return { ...out, conf: confidence(data) };
 }
 
-// Left on Auto, Whisper sometimes takes Danish for Norwegian/Swedish: anything that is neither Danish nor English is heard again as Danish.
+/**
+ * Left on Auto, Whisper sometimes hears a language that is neither Danish nor English — Danish taken for Norwegian, accented
+ * English for Dutch. That used to be heard again as Danish only, which turned misheard English into Danish nonsense. Now it is
+ * heard again as both, side by side, and the clearer of the two (Whisper's own confidence) is kept.
+ */
 async function heard(blob: Blob, o: Opts): Promise<string> {
   const r = await once(blob, o);
-  if (r.text && r.lang && r.lang !== 'da' && r.lang !== 'en' && o.language !== 'en') return (await once(blob, { ...o, language: 'da' })).text;
-  return r.text;
+  if (!r.text || !r.lang || r.lang === 'da' || r.lang === 'en' || o.language !== 'auto') return r.text;
+  const both = await Promise.allSettled([once(blob, { ...o, language: 'da' }), once(blob, { ...o, language: 'en' })]);
+  const got = both.flatMap((x) => (x.status === 'fulfilled' && x.value.text ? [x.value] : []));
+  if (!got.length) {
+    const failed = both.find((x): x is PromiseRejectedResult => x.status === 'rejected');
+    if (failed) throw failed.reason;
+    return r.text;
+  }
+  return got.sort((a, b) => b.conf - a.conf)[0].text;
 }
 
 export async function transcribe(blob: Blob, o: Opts): Promise<string> {
@@ -96,18 +114,6 @@ export async function transcribe(blob: Blob, o: Opts): Promise<string> {
     if (!['timeout', 'network'].includes(e.code) && !(e.code === 'failed' && e.status >= 500)) throw e;
     return heard(prep.blob, o);
   }
-}
-
-/**
- * A quick look at what has been said so far (live words while you speak): the recording up to now, one try, no second pass
- * and no retry — it is replaced by the full transcript the moment you stop.
- */
-export async function transcribeQuick(blob: Blob, o: Opts): Promise<string> {
-  if (!o.key) throw new SttError('nokey');
-  if (navigator.onLine === false) throw new SttError('offline');
-  const prep = await prepareAudio(blob);
-  if (prep.silent) return '';
-  return (await once(prep.blob, o)).text;
 }
 
 export async function testGroqKey(key: string): Promise<'ok' | 'bad' | 'offline' | string> {

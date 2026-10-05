@@ -11,7 +11,8 @@ await p.route('https://api.groq.com/**', async (r) => {
   const req = r.request();
   if (req.method() === 'OPTIONS') return r.fulfill({ status: 204, headers: cors });
   if (req.url().endsWith('/models')) { calls.groqModels++; return r.fulfill({ status: 200, headers: { ...cors, 'content-type': 'application/json' }, body: '{"data":[]}' }); }
-  // live words while you speak are quick looks with the fast model; the transcript when you stop uses the chosen (accurate) one
+  // the transcript when you stop uses the chosen (accurate) model; a fast-model request while speaking would be a live-word
+  // preview — those were removed (late and often misheard), so there must be none
   if ((req.postDataBuffer() ?? Buffer.alloc(0)).includes('whisper-large-v3-turbo')) calls.groqLive++; else calls.groq++;
   if (groqMode === '401') return r.fulfill({ status: 401, headers: cors, body: '{}' });
   if (groqMode === 'down') return r.abort('failed');
@@ -99,9 +100,10 @@ await p.getByRole('button', { name: 'Dictate' }).first().click(); await wait(p, 
 await p.screenshot({ path: 'shots/ai-3-recording.png' });
 await wait(p, 1800);
 await p.getByRole('button', { name: 'Stop and send' }).click(); await p.locator('.action-card').first().waitFor({ timeout: 12000 }); await wait(p, 500);
-assert.equal(calls.groq, 1, 'one full transcription request (live words are separate quick looks)');
+assert.equal(calls.groq, 1, 'one transcription request');
+assert.equal(calls.groqLive, 0, 'no live-word previews while speaking');
 assert(calls.agentStream >= 1, 'the orb screen streamed the answer');
-console.log('live-word requests while speaking:', calls.groqLive);
+assert(/1–2 short sentences/.test(calls.lastSystem), 'the orb screen asks for a short spoken answer');
 assert(calls.agent >= 1, 'the Coach was asked once');
 assert(/GUIDE:/.test(calls.lastSystem) && /DATA \(computed on this device/.test(calls.lastSystem), 'the Coach is given the app guide and the live data');
 assert(await p.locator('.action-card').getByText(/Logged to/).first().isVisible(), 'logged straight away, no review step');

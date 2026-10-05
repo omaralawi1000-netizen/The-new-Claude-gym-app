@@ -97,12 +97,6 @@ class MicManager {
       return true;
     } catch { this.recorder = null; return false; }
   }
-  /** What has been recorded so far, as one file — the recording carries on (live words while you speak). */
-  snapshot(): Blob | null {
-    const r = this.recorder;
-    if (!r || r.state !== 'recording' || !this.chunks.length) return null;
-    return new Blob(this.chunks, { type: r.mimeType || 'audio/webm' });
-  }
   /** Stop recording and return what was captured (the mic itself stays owned until release()). */
   stopRecording(): Promise<Blob | null> {
     const r = this.recorder;

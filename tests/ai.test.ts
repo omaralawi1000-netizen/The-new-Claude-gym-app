@@ -65,10 +65,25 @@ describe('groq request', () => {
     f.mockRejectedValueOnce(new TypeError('net')).mockResolvedValueOnce(ok('hej'));
     expect(await transcribe(new Blob(['x']), o)).toBe('hej'); expect(f).toHaveBeenCalledTimes(2);
   });
-  it('hears Norwegian-looking Danish again as Danish', async () => {
-    const f = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(ok('jeg vet ikke', 'norwegian')).mockResolvedValueOnce(ok('jeg ved ikke', 'danish'));
+  // a transcript with a given confidence (Whisper's mean avg_logprob: closer to 0 = clearer)
+  const sure = (text: string, language: string, avg_logprob: number) => new Response(JSON.stringify({ text, language, segments: [{ text, no_speech_prob: 0, avg_logprob, compression_ratio: 1 }] }), { status: 200 });
+  it('hears Norwegian-looking Danish again as Danish and as English, and keeps the clearer one', async () => {
+    const f = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(ok('jeg vet ikke', 'norwegian'))
+      .mockResolvedValueOnce(sure('jeg ved ikke', 'danish', -0.15)).mockResolvedValueOnce(sure('yay wet icky', 'english', -1.3));
     expect(await transcribe(new Blob(['x']), { key: 'k', model: 'm', language: 'auto', prompt: '' })).toBe('jeg ved ikke');
     expect((f.mock.calls[1][1] as any).body.get('language')).toBe('da');
+    expect((f.mock.calls[2][1] as any).body.get('language')).toBe('en');
+  });
+  it('accented English taken for Dutch comes back as English (it used to be forced into Danish)', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(ok('how much proteïne', 'dutch'))
+      .mockResolvedValueOnce(sure('hå mutch protin', 'danish', -1.1)).mockResolvedValueOnce(sure('how much protein', 'english', -0.12));
+    expect(await transcribe(new Blob(['x']), { key: 'k', model: 'm', language: 'auto', prompt: '' })).toBe('how much protein');
+  });
+  it('a language chosen in Settings is never second-guessed', async () => {
+    const f = vi.spyOn(globalThis, 'fetch'); f.mockClear();
+    f.mockResolvedValueOnce(ok('how much protein', 'english'));
+    expect(await transcribe(new Blob(['x']), { key: 'k', model: 'm', language: 'en', prompt: '' })).toBe('how much protein');
+    expect(f).toHaveBeenCalledTimes(1);
   });
   it('no key → nokey, no network call', async () => {
     const f = vi.spyOn(globalThis, 'fetch');

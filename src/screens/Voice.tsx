@@ -8,7 +8,7 @@ import { useT, useLang } from '../lib/i18n';
 import { mic } from '../lib/mic';
 import { speechSupported, startSpeech, type SpeechError, type SpeechHandle } from '../lib/speech';
 import { getKey } from '../lib/keys';
-import { transcribe, transcribeQuick, buildPrompt, STT_MODEL, SttError } from '../lib/groq';
+import { transcribe, buildPrompt, STT_MODEL, SttError } from '../lib/groq';
 import { aiErrorText, type Turn } from '../lib/gemini';
 import { decide, agentModels } from '../lib/agentTurn';
 import { runActions, type AgentResult } from '../lib/agent';
@@ -26,18 +26,6 @@ import { flyLogged } from '../ui/fly';
 /** One thing you said and what the assistant did about it. `done` once the answer is complete (until then it streams in). */
 interface Turn1 { id: string; said: string; reply: string; results: AgentResult[]; undone: string[]; confirmed: string[]; done: boolean }
 
-/**
- * Live words cost Groq requests, so they are rationed: at most 12 a minute (the free tier allows 20, and the full transcript
- * when you stop must always get through), none for a minute after Groq says "slow down".
- */
-const liveLog: number[] = [];
-let livePausedUntil = 0;
-function liveAllowed(now = Date.now()): boolean {
-  while (liveLog.length && now - liveLog[0] > 60000) liveLog.shift();
-  if (now < livePausedUntil || liveLog.length >= 12) return false;
-  liveLog.push(now);
-  return true;
-}
 /** How a sent message and the answer's cards settle: calm, a hint of spring, no wobble (iMessage). */
 const SEND = { type: 'spring', stiffness: 320, damping: 30, mass: 1 } as const;
 /** While an answer is still arriving, a "**" that hasn't been closed yet is held back instead of showing as two stars. */
@@ -91,7 +79,6 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   const busy = useRef(false);
   const latest = useRef({ final: '', interim: '' }); latest.current = { final, interim };
   const finishRef = useRef<() => void>(() => {});
-  const liveGen = useRef(0); // a newer listen (or stopping) makes live words still on their way stale
   // the conversation's last exchange is written in place as it happens: sent the moment you stop, then its answer streams in
   const openTurn = (said: string) => { const id = uid('v'); setTurns((all) => [...all, { id, said, reply: '', results: [], undone: [], confirmed: [], done: false }]); return id; };
   const patch = (id: string, p: Partial<Turn1>) => setTurns((all) => all.map((x) => (x.id === id ? { ...x, ...p } : x)));
@@ -124,7 +111,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   // ── listening ──
   const listen = useCallback(async () => {
     if (busy.current) return;
-    setErr(null); setFinal(''); setInterim(''); setCanRetry(false); blobRef.current = null; liveGen.current++; pinned.current = true;
+    setErr(null); setFinal(''); setInterim(''); setCanRetry(false); blobRef.current = null; pinned.current = true;
     if (!supported) { go('idle'); setTyping(true); return; }
     setTyping(false);
     go('requesting');
@@ -163,54 +150,33 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   // opened → listen straight away
   useEffect(() => { if (supported) listen(); /* eslint-disable-next-line */ }, []);
 
-  // Groq: stop by itself once you have spoken and gone quiet for 0.9 s (or after 40 s). And while you speak, show your words:
-  // what has been recorded so far is transcribed every ~1.2 s (Whisper turbo, rationed — see liveAllowed) and written under the
-  // orb as you talk. When you stop, the whole recording is transcribed once more and replaces them.
+  // Groq: stop by itself once you have spoken and gone quiet for 0.9 s (or after 40 s). While you speak the orb answers your
+  // voice; your words appear, sent, the moment you stop. (Live words while speaking were tried — quick Groq looks every ~1.2 s —
+  // and dropped: they arrived late and a one-second clip was often misheard, which read as broken.)
   useEffect(() => {
     if (phase !== 'listening' || engine !== 'groq') return;
-    let heard = 0, quiet = 0, inFlight = false, lastAt = 0, lastSize = 0, off = false; const t0 = performance.now();
-    const gen = liveGen.current;
-    const live = async () => {
-      const blob = mic.snapshot();
-      if (!blob || blob.size - lastSize < 4000 || !liveAllowed()) return;
-      inFlight = true; lastAt = performance.now(); lastSize = blob.size;
-      try {
-        const ai = useAi.getState();
-        const text = (await transcribeQuick(blob, { key: getKey('groq'), model: STT_MODEL.fast, language: ai.voiceLang === 'auto' ? 'auto' : ai.voiceLang, prompt: sttPrompt() })).trim();
-        if (!off && alive.current && gen === liveGen.current && text && useVoice.getState().phase === 'listening') setInterim(text);
-      } catch (e) {
-        if (e instanceof SttError && e.code === 'busy') livePausedUntil = Date.now() + 60000;
-        else if (e instanceof SttError && (e.code === 'badkey' || e.code === 'nokey')) off = true;
-      } finally { inFlight = false; }
-    };
+    let heard = 0, quiet = 0; const t0 = performance.now();
     const id = setInterval(() => {
       const lv = mic.level();
       if (lv > 0.16) { heard += 80; quiet = 0; } else if (lv < 0.09) quiet += 80;
-      if ((heard >= 240 && quiet >= 900) || performance.now() - t0 > 40000) { clearInterval(id); finishRef.current(); return; }
-      // a fresh look every ~1.2 s while you speak; past six seconds every ~1.8 s (a long sentence still updates, more calmly)
-      if (!off && !inFlight && heard >= 240 && performance.now() - lastAt > (performance.now() - t0 < 6000 ? 1150 : 1800)) live();
+      if ((heard >= 240 && quiet >= 900) || performance.now() - t0 > 40000) { clearInterval(id); finishRef.current(); }
     }, 80);
-    return () => { off = true; clearInterval(id); };
-    // eslint-disable-next-line
+    return () => clearInterval(id);
   }, [phase, engine]);
 
-  /**
-   * Speech → text with Groq; a failure keeps the recording so a retry doesn't need you to speak again. `early` is what the live
-   * words already showed: if the full transcript can't be had (or comes back empty), they are used rather than losing what you said.
-   */
-  async function hear(blob: Blob | null, early = ''): Promise<string | null> {
-    if (!blob) { if (early) return early; go('idle'); setErr(t('Didn’t catch anything. Tap the sphere to try again, or type it.')); return null; }
+  /** Speech → text with Groq; a failure keeps the recording so a retry doesn't need you to speak again. */
+  async function hear(blob: Blob | null): Promise<string | null> {
+    if (!blob) { go('idle'); setErr(t('Didn’t catch anything. Tap the sphere to try again, or type it.')); return null; }
     const ai = useAi.getState();
     try {
       const out = (await transcribe(blob, { key: getKey('groq'), model: STT_MODEL[ai.stt], language: ai.voiceLang === 'auto' ? 'auto' : ai.voiceLang, prompt: sttPrompt() })).trim();
       if (!alive.current) return null;
-      if (!out) { if (early) return early; go('idle'); setErr(t('Didn’t catch anything. Tap the sphere to try again, or type it.')); return null; }
+      if (!out) { go('idle'); setErr(t('Didn’t catch anything. Tap the sphere to try again, or type it.')); return null; }
       blobRef.current = null; setCanRetry(false);
       return out;
     } catch (e) {
       if (!alive.current) return null;
       const code = e instanceof SttError ? e.code : 'failed';
-      if (early && code !== 'nokey' && code !== 'badkey') return early;
       blobRef.current = blob;
       setErr(sttMessage(code, t)); setCanRetry(code !== 'nokey' && code !== 'badkey'); go('error');
       return null;
@@ -240,8 +206,10 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
       const where = props.mode === 'workout' && useStore.getState().active ? 'The user is in their running workout: sets go into it.'
         : props.mealId || props.date ? `The user came from the Food tab${props.date ? ` (day ${props.date})` : ''}${props.mealId ? `, meal ${props.mealId}` : ''}: foods go there unless they say otherwise.`
         : 'The user tapped the orb on the main screen and spoke to it.';
+      // the orb screen is spoken to, often mid-workout: one or two short sentences, not an article (the Coach chat keeps longer answers)
+      const brief = ' They are speaking to the orb screen, probably mid-workout: answer in 1–2 short sentences (about 35 words), plain text, no bullet lists or headings — this overrides the usual reply length. If the question really needs more (a plan, a breakdown), give the one-line answer and say they can open the Coach for detail.';
       // the answer streams in word by word as the model writes it (Gemini), under what you said
-      const d = await decide(text, { lang, t, pool, history: history(), where, signal, onReply: (r) => { if (alive.current) patch(id, { reply: r }); } });
+      const d = await decide(text, { lang, t, pool, history: history(), where: where + brief, signal, onReply: (r) => { if (alive.current) patch(id, { reply: r }); } });
       let reply = d.reply;
       if (d.wantsUndo) {
         const last = [...turnsRef.current].reverse().find((x) => x.results.some((r) => r.undo && !x.undone.includes(r.id) && !r.pending));
@@ -290,17 +258,14 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
     if (typing) { const text = typed.trim(); if (!text) return; setTyped(''); act(text, openTurn(text)); return; }
     if (engine === 'groq' && mic.recording) {
       busy.current = true;
-      liveGen.current++;
-      // what was heard live is sent at once (it rises into the conversation); the full transcript replaces it when it is in
-      const early = latest.current.interim.trim();
-      const id = openTurn(early);
-      setInterim(''); setFinal('');
+      // the exchange opens at once (the orb steps up, thinking); what you said rises in as a sent bubble when it is transcribed
+      const id = openTurn('');
       go('processing');
       const blob = await mic.stopRecording(); mic.release('voice');
       busy.current = false;
-      const heard = await hear(blob, early);
+      const heard = await hear(blob);
       if (!alive.current) return;
-      if (heard) { if (heard !== early) patch(id, { said: heard }); act(heard, id); } else drop(id);
+      if (heard) { patch(id, { said: heard }); act(heard, id); } else drop(id);
       return;
     }
     const text = [latest.current.final, latest.current.interim].filter(Boolean).join(' ').trim();
@@ -325,7 +290,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   const last = turns[turns.length - 1];
   const showing = !!last && !listening;
   const label = ({
-    idle: showing ? t('Tap the sphere to say more') : t('Tap the sphere and speak'), requesting: t('Starting the microphone…'),
+    idle: showing ? '' : t('Tap the sphere and speak'), requesting: t('Starting the microphone…'), // with an answer up, the Say more button says it
     listening: engine === 'groq' ? t('Listening') : mic.active ? t('Listening') : t('Listening (no level meter)'),
     processing: t('Thinking…'), confirmed: t('Done'), error: t('Couldn’t do that'), unavailable: t('Microphone unavailable'),
     review: t('Done'),
