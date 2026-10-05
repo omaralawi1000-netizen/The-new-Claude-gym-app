@@ -241,6 +241,8 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
 .stack { display: flex; flex-direction: column; }
 .gap4 { gap: 4px; } .gap8 { gap: 8px; } .gap12 { gap: 12px; } .gap16 { gap: 16px; } .gap24 { gap: 24px; }
 .trunc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* a sheet's subtitle: up to two lines (one line cut confirmations off mid-sentence: "You can undo this…") */
+.clamp2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .rule { height: 1px; background: var(--line); border: 0; margin: 0; }
 
 /* ── materials: everything is frosted glass over the colour field ─── */
@@ -506,7 +508,10 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    turns green with one soft glow and stays green until the next set is ticked. It slides away while you type. */
 .wk-bar-wrap { position: absolute; left: 0; right: 0; bottom: calc(var(--sab) + 14px); padding: 0 16px; display: flex; flex-direction: column; align-items: center; z-index: 5; pointer-events: none; transition: transform 340ms var(--ease-out); }
 .wk-bar-wrap.away { transform: translateY(calc(100% + var(--sab) + 40px)); }
-.wk-bar { pointer-events: auto; position: relative; width: 100%; max-width: 420px; height: 66px; border-radius: 999px; display: flex; align-items: center; gap: 8px; padding: 0 7px 0 22px; overflow: hidden; }
+.wk-bar { pointer-events: auto; position: relative; width: 100%; max-width: 420px; height: 66px; border-radius: 999px; display: flex; align-items: center; gap: 8px; padding: 0 7px 0 22px; }
+/* the fill is clipped by its own layer, not by the bar: an overflow clip on the frosted bar with the orb's button inside it
+   made Chrome skip the frost under the orb — a dark square around it on the phone */
+.wk-bar-clip { position: absolute; inset: 0; border-radius: inherit; overflow: hidden; pointer-events: none; }
 /* the tab bar's frost, a little denser: it sits over rows of numbers, which must not read through it */
 .wk-bar.glass, .wk-bar-panel.glass { background: var(--glass-2); -webkit-backdrop-filter: blur(36px) saturate(2); backdrop-filter: blur(36px) saturate(2); }
 .wk-bar-fill { position: absolute; inset: 0; border-radius: inherit; transform-origin: 0 50%; pointer-events: none; background: linear-gradient(90deg, color-mix(in srgb, var(--ac) 22%, transparent), color-mix(in srgb, var(--ac) 42%, transparent)); transition: transform 260ms linear, background 400ms ease; }
@@ -520,6 +525,20 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-bar.rest .wk-bar-big { font-size: 20px; }
 .wk-bar-orb { position: relative; width: 52px; height: 52px; flex: none; border-radius: 999px; }
 .wk-bar-panel { pointer-events: auto; display: flex; gap: 8px; padding: 8px; margin-bottom: 10px; border-radius: 999px; }
+/* the one Finish: once every set is ticked it glows softly; tapping the bar's "all done" nudges it */
+.wk-finish.ready { animation: finishGlow 2.4s ease-in-out infinite; }
+@keyframes finishGlow { 0%, 100% { box-shadow: 0 6px 18px -8px color-mix(in srgb, var(--ac) 70%, transparent); } 50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--ac) 22%, transparent), 0 8px 28px -6px var(--ac); } }
+.wk-finish.nudge { animation: finishNudge 700ms var(--ease-spring) 1, finishGlow 2.4s ease-in-out 700ms infinite; }
+@keyframes finishNudge { 0% { transform: scale(1); } 35% { transform: scale(1.12); } 100% { transform: scale(1); } }
+/* end-of-workout sheet: three calm tiles, a line, then the choice — each settling in after the one before */
+.wk-end-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.wk-end-stats > div { display: flex; flex-direction: column; gap: 4px; padding: 12px 12px 11px; border-radius: 16px; background: var(--s2); box-shadow: inset 0 0 0 1px var(--line); animation: endIn 520ms var(--ease-out) backwards; }
+.wk-end-stats > div:nth-child(2) { animation-delay: 50ms; } .wk-end-stats > div:nth-child(3) { animation-delay: 100ms; }
+.wk-end-stats b { font-size: 20px; font-weight: 650; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wk-end-note { margin: 14px 2px 16px; animation: endIn 520ms 140ms var(--ease-out) backwards; }
+.wk-end-btn { animation: endIn 560ms calc(180ms + var(--i, 0) * 60ms) var(--ease-out) backwards; }
+@keyframes endIn { from { opacity: 0; transform: translateY(10px); } }
+@media (prefers-reduced-motion: reduce) { .wk-finish.ready, .wk-finish.nudge, .wk-end-stats > div, .wk-end-note, .wk-end-btn { animation: none; } }
 /* the bar's "next set": the row it scrolled to glows once */
 .wk-flash { animation: wkFlash 1.4s var(--ease-out) 1; border-radius: 12px; }
 @keyframes wkFlash { 0%, 30% { background: color-mix(in srgb, var(--ac) 22%, transparent); } 100% { background: transparent; } }

@@ -1155,5 +1155,9 @@ export const da: Record<string, string> = {
  "Start recording": "Start optagelse",
  "Copy report": "Kopiér rapport",
  "Report copied": "Rapport kopieret",
- "Couldn’t copy": "Kunne ikke kopiere"
+ "Couldn’t copy": "Kunne ikke kopiere",
+ "No sets yet": "Ingen sæt endnu",
+ "Tell the orb what you did": "Fortæl kuglen, hvad du lavede",
+ "{n} sets aren’t ticked. Only the ticked ones are saved.": "{n} sæt er ikke krydset af. Kun de afkrydsede gemmes.",
+ "Finish and save 1 set": "Afslut og gem 1 sæt"
 };

@@ -330,7 +330,7 @@ export function SheetHead({ title, sub, onClose, right, back: backProp }: { titl
       </AnimatePresence>
       <div className="grow">
         <div className="display display-sm trunc">{title}</div>
-        {sub && <div className="small t2 trunc" style={{ marginTop: 2 }}>{sub}</div>}
+        {sub && <div className="small t2 clamp2" style={{ marginTop: 2 }}>{sub}</div>}
       </div>
       {right}
       {!back && onClose && <button className="icon-btn flat" onClick={onClose} aria-label="Close"><Icon name="close" /></button>}

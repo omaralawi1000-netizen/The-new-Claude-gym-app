@@ -105,6 +105,8 @@ export function ActiveWorkout({ props, open = true }: { props: { origin?: 'hero'
   const exMap = useMemo(() => exerciseMap(exercises), [exercises]);
   const [menu, setMenu] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<null | 'finish' | 'discard'>(null);
+  const finishBtn = useRef<HTMLButtonElement>(null);
+  const pointToFinish = () => { const b = finishBtn.current; if (!b) return; b.classList.remove('nudge'); void b.offsetWidth; b.classList.add('nudge'); };
   const [renaming, setRenaming] = useState(false);
   // Opening is started before the first paint, so the browser-run half is already going when the rest of the window's setup
   // work runs. Closing — the chevron, a swipe, Back, or another screen taking its place — slides it down; then it is hidden
@@ -245,12 +247,13 @@ export function ActiveWorkout({ props, open = true }: { props: { origin?: 'hero'
                   <button className="display display-sm trunc press" style={{ maxWidth: '100%' }} onClick={() => setRenaming(true)}>{a.name || t('Workout')}</button>
                 )}
               </div>
-              <button className="btn primary sm press" onClick={finish}>{t('Finish')}</button>
+              {/* the one Finish: it glows once every set is ticked (the bar says so and points here) */}
+              <button ref={finishBtn} className={`btn primary sm press wk-finish${total > 0 && done === total ? ' ready' : ''}`} onClick={finish}>{t('Finish')}</button>
             </div>
             <div className="row-flex between" style={{ marginTop: 10, alignItems: 'flex-end' }}>
               <div>
                 <div className="display display-lg num" style={{ color: paused ? 'var(--tx3)' : 'var(--tx)' }}><Clock /></div>
-                <div className="small t2 num">{done}/{total} · {fmtNum(Math.round(kgToDisplay(sessionVolume(a.exercises), weightUnit)), lang, 0)} {weightUnit}{typing && a.rest && <RestInline />}</div>
+                <div className="small t2 num">{total ? <>{done}/{total} · {fmtNum(Math.round(kgToDisplay(sessionVolume(a.exercises), weightUnit)), lang, 0)} {weightUnit}</> : t('No sets yet')}{typing && a.rest && <RestInline />}</div>
               </div>
               <button className="btn sm press" onClick={() => { buzz(10); paused ? useStore.getState().resumeActive() : useStore.getState().pauseActive(); }} aria-label={paused ? t('Resume') : t('Pause')}>
                 <Icon name={paused ? 'play' : 'pause'} size={16} /> {paused ? t('Resume') : t('Pause')}
@@ -279,14 +282,13 @@ export function ActiveWorkout({ props, open = true }: { props: { origin?: 'hero'
             {listDone && (
             <motion.div initial={listDoneAtOpen.current ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={SOFT}>
             <button className="btn block press" style={{ marginTop: 20 }} onClick={() => push('exercisePicker', { mode: 'add' })}><Icon name="plus" size={18} /> {t('Add exercise')}</button>
-            <button className="btn primary block press" style={{ marginTop: 12 }} onClick={finish}>{t('Finish workout')}</button>
-            <button className="btn ghost danger block press" style={{ marginTop: 6 }} onClick={() => setConfirm('discard')}>{t('Discard workout')}</button>
+            <button className="btn ghost danger block press" style={{ marginTop: 10 }} onClick={() => setConfirm('discard')}>{t('Discard workout')}</button>
             </motion.div>
             )}
           </motion.div>
 
           {/* the workout's own dock, where the tab bar sits: what's next, the rest timer, and the orb */}
-          <WorkoutBar engage={engage} exMap={exMap} away={typing} onFinish={finish} onJump={jumpTo} />
+          <WorkoutBar engage={engage} exMap={exMap} away={typing || !!confirm || !!menu} onDone={pointToFinish} onJump={jumpTo} />
           </div>
         </div>
           </motion.div>
@@ -296,21 +298,23 @@ export function ActiveWorkout({ props, open = true }: { props: { origin?: 'hero'
       <AnimatePresence>
         {menuEx && <ExerciseMenu key="menu" se={menuEx} ex={exMap.get(menuEx.exerciseId)} onClose={() => setMenu(null)} />}
         {confirm && (
-          <Sheet key="confirm" onClose={() => setConfirm(null)} label={t('Confirm')} nested>
-            <SheetHead title={confirm === 'finish' ? t('Finish workout?') : t('Discard workout?')} sub={confirm === 'finish' ? t('{n} sets aren’t checked off. They will not be saved.', { n: total - done }) : t('Nothing has been logged yet. You can undo this right after.')} onClose={() => setConfirm(null)} />
+          <Sheet key="confirm" onClose={() => setConfirm(null)} label={confirm === 'finish' ? t('Finish workout?') : t('Discard workout?')} nested>
+            <SheetHead title={confirm === 'finish' ? t('Finish workout?') : t('Discard workout?')} onClose={() => setConfirm(null)} />
             <div className="sheet-body">
+              {/* the session at a glance, then one clear choice */}
+              <div className="wk-end-stats">
+                <div><span className="micro">{t('Time')}</span><b className="num">{fmtDuration(elapsedMs(a) / 1000)}</b></div>
+                <div><span className="micro">{t('Sets')}</span><b className="num">{done}<span className="t3">/{total}</span></b></div>
+                <div><span className="micro">{t('Volume')}</span><b className="num">{fmtNum(Math.round(kgToDisplay(sessionVolume(a.exercises), weightUnit)), lang, 0)}<span className="t3"> {weightUnit}</span></b></div>
+              </div>
+              <p className="small t2 wk-end-note">{confirm === 'finish' ? t('{n} sets aren’t ticked. Only the ticked ones are saved.', { n: total - done }) : t('Nothing has been logged yet. You can undo this right after.')}</p>
               <div className="stack gap8">
                 {confirm === 'finish' ? (
-                  <>
-                    <button className="btn primary block press" onClick={() => { setConfirm(null); doFinish(); }}>{t('Finish and save {n} sets', { n: done })}</button>
-                    <button className="btn block press" onClick={() => setConfirm(null)}>{t('Keep training')}</button>
-                  </>
+                  <button className="btn primary block press wk-end-btn" style={{ ['--i' as string]: 0 }} onClick={() => { buzz(14); setConfirm(null); doFinish(); }}>{done === 1 ? t('Finish and save 1 set') : t('Finish and save {n} sets', { n: done })}</button>
                 ) : (
-                  <>
-                    <button className="btn block danger press" onClick={() => { setConfirm(null); doDiscard(); }}>{t('Discard workout')}</button>
-                    <button className="btn block press" onClick={() => setConfirm(null)}>{t('Keep training')}</button>
-                  </>
+                  <button className="btn block danger press wk-end-btn" style={{ ['--i' as string]: 0 }} onClick={() => { buzz(14); setConfirm(null); doDiscard(); }}>{t('Discard workout')}</button>
                 )}
+                <button className="btn block ghost press wk-end-btn" style={{ ['--i' as string]: 1 }} onClick={() => { buzz(6); setConfirm(null); }}>{t('Keep training')}</button>
               </div>
             </div>
           </Sheet>
@@ -347,7 +351,7 @@ function RestInline() {
  * stays so until that set is ticked. The orb sits at its right end: tap it to say your sets. It is there from the first
  * frame, so the orb glides into it with the window instead of jumping to a button at the end of the list.
  */
-function WorkoutBar({ engage, exMap, away, onFinish, onJump }: { engage: Engage; exMap: Map<string, Exercise>; away: boolean; onFinish: () => void; onJump: (setId: string) => void }) {
+function WorkoutBar({ engage, exMap, away, onDone, onJump }: { engage: Engage; exMap: Map<string, Exercise>; away: boolean; onDone: () => void; onJump: (setId: string) => void }) {
   const t = useT();
   const lang = useLang();
   const push = useUI((u) => u.push);
@@ -371,21 +375,26 @@ function WorkoutBar({ engage, exMap, away, onFinish, onJump }: { engage: Engage;
   const reps = nx ? (nx.set.reps ?? nx.set.target?.repMax) : undefined;
   const target = [kg !== undefined ? `${fmtNum(kgToDisplay(kg, unit), lang, 2)} ${unit}` : '', reps ? `× ${reps}` : ''].filter(Boolean).join(' ');
   const setWord = nx ? (nx.label === 'W' ? t('Warm-up') : `${t('Set')} ${nx.label}`) : '';
-  const state: 'next' | 'rest' | 'go' | 'done' = rest ? (over ? 'go' : 'rest') : nx ? 'next' : 'done';
+  const empty = !a.exercises.some((e) => e.sets.length > 0);
+  // every set ticked: done, even while a rest is still counting (there's nothing left to rest for)
+  const state: 'next' | 'rest' | 'go' | 'done' | 'empty' = empty ? 'empty' : !nx ? 'done' : rest ? (over ? 'go' : 'rest') : 'next';
   const tap = () => {
     buzz(6);
     if (state === 'rest') setPanel((v) => !v);
-    else if (state === 'done') onFinish();
+    else if (state === 'done') onDone();
+    else if (state === 'empty') { orbTap(1); push('voice', { mode: 'workout' }); }
     else if (nx) onJump(nx.set.id);
   };
   const top = state === 'next' ? `${t('Next')} · ${setWord}${target ? ` · ${target}` : ''}`
     : state === 'rest' ? (nx ? `${t('Rest')} · ${t('Next')}: ${name}` : t('Rest'))
     : state === 'go' ? `${t('Rest over')}${nx ? ` · ${setWord}` : ''}`
+    : state === 'empty' ? `“${t('Bench press 80 kg for 8, 8, 6')}”`
     : t('All sets done');
   const big = state === 'next' ? name
     : state === 'rest' ? (a.pausedAt ? `${fmtDuration(Math.ceil(left))} · ${t('Paused')}` : fmtDuration(Math.ceil(left)))
     : state === 'go' ? (nx ? `${t('Go')} · ${name}` : t('Go'))
-    : t('Finish workout');
+    : state === 'empty' ? t('Tell the orb what you did')
+    : `${sessionSetCount(a.exercises, true)} ${t('sets')} · ${fmtNum(Math.round(kgToDisplay(sessionVolume(a.exercises), unit)), lang, 0)} ${unit}`;
   return (
     <div className={`wk-bar-wrap${away ? ' away' : ''}`}>
       <AnimatePresence>
@@ -399,7 +408,7 @@ function WorkoutBar({ engage, exMap, away, onFinish, onJump }: { engage: Engage;
       </AnimatePresence>
       {/* never re-keyed: the orb's slot lives in here, and remounting it made the orb leave and land again (a tick, a hop) */}
       <div className={`wk-bar glass ${state}`}>
-        <i className="wk-bar-fill" aria-hidden style={{ transform: `scaleX(${state === 'go' ? 1 : state === 'rest' ? frac : 0})` }} />
+        <span className="wk-bar-clip" aria-hidden><i className="wk-bar-fill" style={{ transform: `scaleX(${state === 'go' ? 1 : state === 'rest' ? frac : 0})` }} /></span>
         <button className="wk-bar-main press" onClick={tap} aria-expanded={state === 'rest' ? panel : undefined}
           aria-label={state === 'rest' ? `${t('Rest')} ${fmtDuration(Math.ceil(left))}` : `${top}. ${big}`}>
           <span className="wk-bar-top">{top}</span>
@@ -543,7 +552,9 @@ const SetRow = memo(function SetRow({ se, set, ex, label, prev, restDefault }: {
       const all = st.active?.exercises ?? [];
       const idx = all.findIndex((e) => e.id === se.id);
       const linkedNext = se.supersetGroup && all.slice(idx + 1).some((e) => e.supersetGroup === se.supersetGroup && e.sets.some((x) => !x.done));
-      if (!linkedNext) { startRest(se.restSec ?? restDefault, se.exerciseId); offerRestAlerts(useUI.getState().toast); }
+      const lastOne = !(st.active?.exercises ?? []).some((e) => e.sets.some((x) => !x.done && x.id !== set.id));
+      if (lastOne) skipRest(); // the workout is done: no rest, no alarm
+      else if (!linkedNext) { startRest(se.restSec ?? restDefault, se.exerciseId); offerRestAlerts(useUI.getState().toast); }
       else skipRest();
     }
   };
