@@ -4,7 +4,7 @@ import { mirrorProgress, useEngageContext, type Engage } from './engage';
 import { mic } from '../lib/mic';
 import { useVoice } from '../state/voice';
 import { useStore } from '../state/store';
-import { useUI } from '../state/ui';
+import { useUI, buzz } from '../state/ui';
 import { kb } from './keyboard';
 import { highRefresh, onHighRefresh, springCurve } from './motion';
 
@@ -62,6 +62,23 @@ let orbEl: HTMLElement | null = null;
 let dockRest: { X: number; Y: number; S: number } | null = null;
 const orbLock = { bucket: 0 };
 const SWELL = 0.12;
+const PICK = 30; // px: how softly the dock hands the orb over to a rising slot (a soft minimum, so its speed never jumps)
+const smooth01 = (x: number) => { const t = Math.min(1, Math.max(0, x)); return t * t * (3 - 2 * t); };
+const softmin = (a: number, b: number, k: number) => { const m = Math.min(a, b); return m - k * Math.log(Math.exp(-(a - m) / k) + Math.exp(-(b - m) / k)); };
+/**
+ * Where the orb is when a popup's slot is at (x, y) and comes to rest at restY, starting from O (the dock).
+ * The slot rises past the dock (the live workout): the orb waits in the dock, is lifted out as the slot reaches it, then rides
+ * with the slot exactly — while opening, while closing, under your finger — moving across and growing as it goes, so it is
+ * never anywhere but on its button or in the dock. A slot resting about level with the dock (the Coach's mic) just glides
+ * across on the popup's progress. `t` = how far it has travelled (0 dock … 1 slot).
+ */
+function carry(O: { X: number; Y: number; S: number }, x: number, y: number, z: number, restY: number, e: number) {
+  const D = O.Y - restY;
+  if (D <= 60) return { X: O.X + (x - O.X) * e, Y: O.Y + (restY - O.Y) * e, S: O.S + (z - O.S) * e, t: e };
+  // across and up to size within the first stretch above the dock, so for most of the way it already sits on its button
+  const t = smooth01((O.Y - y) / Math.min(D, 170));
+  return { X: O.X + (x - O.X) * t, Y: softmin(y, O.Y, PICK), S: O.S + (z - O.S) * t, t };
+}
 let lastOverlayChange = 0;
 
 /**
@@ -86,13 +103,14 @@ export function mirrorOrb(container: Element | null, p0: number, p1: number, sp:
   whooshPending = Math.max(whooshPending, 1);
   const at = (p: number): Keyframe => {
     const e = Math.min(1, Math.max(0, p));
+    const c = carry(O, R.X, R.Y + shiftAt(p), R.S, R.Y, e);
     // on the way it lifts towards you a little (swells mid-flight and settles as it lands), like something picked up and put down
-    const X = O.X + (R.X - O.X) * e, Y = O.Y + (R.Y - O.Y) * e, S = Math.max(8, (O.S + (R.S - O.S) * e) * (1 + SWELL * Math.sin(Math.PI * e)));
-    return { transform: `translate3d(${X.toFixed(2)}px, ${Y.toFixed(2)}px, 0) scale(${(S / bucket).toFixed(4)})` };
+    const S = Math.max(8, c.S * (1 + SWELL * Math.sin(Math.PI * c.t)));
+    return { transform: `translate3d(${c.X.toFixed(2)}px, ${c.Y.toFixed(2)}px, 0) scale(${(S / bucket).toFixed(4)})` };
   };
   orbLock.bucket = bucket;
   if (el.style.width !== `${bucket}px`) el.style.width = el.style.height = `${bucket}px`;
-  const a = mirrorProgress(el, p0, p1, sp, vel, at, [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]);
+  const a = mirrorProgress(el, p0, p1, sp, vel, at, Array.from({ length: 23 }, (_, i) => (i + 1) / 24));
   if (!a) { orbLock.bucket = 0; return null; }
   const done = () => { if (orbLock.bucket === bucket) orbLock.bucket = 0; };
   a.onfinish = done; a.oncancel = done;
@@ -203,6 +221,7 @@ export function SphereStage() {
     let px = NaN, py = NaN, ps = NaN, sentV = 0;
     let glide: Animation | null = null;
     let base = { left: 0, top: 0 };
+    let wasLifted = false, wasLanded = false;
     orbEl = el;
     const rects = new WeakMap<HTMLElement, DOMRect>();
     const owners = new WeakMap<HTMLElement, number>();
@@ -256,7 +275,7 @@ export function SphereStage() {
       const measure = now < layoutDirtyUntil;
       if (measure) { const b = appEl?.getBoundingClientRect(); base = { left: b?.left ?? 0, top: b?.top ?? 0 }; }
       const ox = base.left, oy = base.top;
-      let X = 0, Y = 0, S = 0, have = false, top = 0, topSlot: Slot | null = null;
+      let X = 0, Y = 0, S = 0, have = false, top = 0, topSlot: Slot | null = null, flight = 1;
       for (const sl of list) {
         const e = sl.engage ? Math.min(1, Math.max(0, sl.engage.e.get())) : 1;
         if (have && e <= 0.001) continue;
@@ -273,8 +292,12 @@ export function SphereStage() {
         // A sliding popup's slot (a sheet, the live workout): the orb heads for where the slot comes to REST, on the very
         // same progress as the popup. Both start together and land together, so the orb never trails the sheet or crosses its
         // buttons on the way; while the popup is opening it is simply a shared element flying to its place.
-        const yR = sl.engage?.shift ? y - sl.engage.shift.get() : y;
-        X += (x - X) * e; Y += (yR - Y) * e; S += (z - S) * e;
+        if (sl.engage?.shift) {
+          const c = carry({ X, Y, S }, x, y, z, y - sl.engage.shift.get(), e);
+          X = c.X; Y = c.Y; S = c.S; flight = c.t;
+        } else {
+          X += (x - X) * e; Y += (y - Y) * e; S += (z - S) * e; flight = e;
+        }
         if (e > 0.02) { top = Math.max(top, sl.priority); topSlot = sl; }
       }
       if (!have) { el.style.opacity = '0'; pause(); return; }
@@ -282,8 +305,17 @@ export function SphereStage() {
       // opened over it (an exercise menu over the live workout), never floating on top of everything.
       const zi = top > 0 && topSlot ? String(ownerZ(topSlot.el) + 1) : '41';
       if (el.style.zIndex !== zi) el.style.zIndex = zi;
-      const eTop = topSlot?.engage ? Math.min(1, Math.max(0, topSlot.engage.e.get())) : 1;
-      const size = Math.max(8, S) * (topSlot && eTop < 0.999 ? 1 + SWELL * Math.sin(Math.PI * eTop) : 1);
+      const size = Math.max(8, S) * (topSlot && flight < 0.999 ? 1 + SWELL * Math.sin(Math.PI * flight) : 1);
+      // haptics: a light tick as the orb is lifted out of the dock, a firmer one as it settles into its place (and back)
+      if (topSlot && !reduced) {
+        const lifted = flight > 0.04, landed = flight > 0.995;
+        if (lifted !== wasLifted || landed !== wasLanded) {
+          if (useStore.getState().settings.haptics && running) {
+            if (landed && !wasLanded) buzz(12); else if (lifted && !wasLifted) buzz(6); else if (!lifted && wasLifted) buzz(8);
+          }
+          wasLifted = lifted; wasLanded = landed;
+        }
+      } else { wasLifted = false; wasLanded = false; }
       // The canvas is drawn at a size bucket and scaled down with a transform. Resizing a canvas (and the element) on
       // every frame of a flight reallocated its buffer and re-laid it out each frame — a stutter source.
       const bucket = orbLock.bucket || Math.ceil(size / 24) * 24;

@@ -195,6 +195,14 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
   padding: calc(var(--sat) + 16px) 20px calc(var(--bar-h) + var(--sab) + 44px); scrollbar-width: none; z-index: 1;
 }
 .screen::-webkit-scrollbar { display: none; }
+/* Scrolled content no longer meets the status bar in a hard cut: it dissolves into the top of the page over a short distance —
+   a fade only (no blur), and only once the page has actually moved (scroll-driven), so nothing is faded at rest. */
+@property --sc-fade { syntax: '<length>'; inherits: false; initial-value: 0px; }
+@keyframes sc-fade { to { --sc-fade: 44px; } }
+@supports (animation-timeline: scroll()) {
+  .screen { -webkit-mask-image: linear-gradient(to bottom, transparent var(--sat), #000 calc(var(--sat) + var(--sc-fade))); mask-image: linear-gradient(to bottom, transparent var(--sat), #000 calc(var(--sat) + var(--sc-fade)));
+    animation: sc-fade linear both; animation-timeline: scroll(self); animation-range: 0 48px; }
+}
 /* the resume-workout bar (56 px + gap) sits above the tab bar: the page's end and the toasts move up so nothing hides under it */
 .app[data-pill] .screen { padding-bottom: calc(var(--bar-h) + var(--sab) + 44px + 66px); }
 .app[data-pill] .toasts { bottom: calc(var(--bar-h) + var(--sab) + 22px + 66px); }

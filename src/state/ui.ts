@@ -126,5 +126,6 @@ if (typeof window !== 'undefined') {
 }
 
 export function buzz(ms = 8) {
-  try { if ('vibrate' in navigator) navigator.vibrate(ms); } catch { /* ignore */ }
+  // only after the first tap (browsers refuse — and log an error — before any interaction)
+  try { if ('vibrate' in navigator && ((navigator as any).userActivation?.hasBeenActive ?? true)) navigator.vibrate(ms); } catch { /* ignore */ }
 }
