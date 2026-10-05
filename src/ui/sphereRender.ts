@@ -3,7 +3,10 @@
  * code with no app imports, so the same renderer runs on the page or in a worker (sphere.worker.ts), where it is not tied
  * to the page's script frame rate.
  */
-const N = 1100;
+// One pattern everywhere: the same 400 evenly spaced beads whether the orb is a 44 px button in the dock or the 250 px orb
+// screen — only the scale changes, so it is recognisably the same object wherever it goes (it used to be a sparse, patchy
+// sample of a 1100-dot lattice when small and a dense one when big).
+const N = 400;
 type V3 = Float32Array;
 
 function lattice(): { pts: V3; order: Uint16Array } {
@@ -214,12 +217,7 @@ export class SphereRenderer {
       ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(c, c, c * 0.98, 0, 6.2832); ctx.fill();
     }
 
-    // how many dots: from the size it is SEEN at (so a flight grows or thins them gradually, and a canvas bucket change after
-    // landing changes nothing you can see). Dots at the edge of the count shrink away rather than pop.
-    const vis = Math.max(8, inp.vis ?? css);
-    const nf = Math.min(N, Math.max(280, vis * 6.5));
-    const count = Math.min(N, Math.ceil(nf));
-    const FADE = 36;
+    const nf = N, count = N;
     const tilt = 0.42 + Math.sin(this.t * 0.37) * (reduced ? 0 : 0.06);
     const cr = Math.cos(this.rot), sr = Math.sin(this.rot), ct = Math.cos(tilt), st = Math.sin(tilt);
     const confirmAge = v.phase === 'confirmed' ? inp.phaseAge : 9;
@@ -236,6 +234,7 @@ export class SphereRenderer {
     const ignK = this.ign < 0 ? 0 : this.ign < 1 ? 1 : Math.max(0, 1 - (this.ign - 1) / 0.6);
     const rip = this.ripples.map((r) => ({ ...r, front: r.age * 2.7, k: r.amp * Math.pow(1 - r.age / 1.3, 2) }));
     const cometHead = T * 3.1;
+    const sway = reduced ? 0 : this.body;
 
     // buckets: 7 light levels × 3 hue mixes (accent ↔ the area's second colour, drifting round the sphere)
     const NB = 7, NH = 3;
@@ -248,8 +247,29 @@ export class SphereRenderer {
       const x = LAT.pts[i * 3], y = LAT.pts[i * 3 + 1], z = LAT.pts[i * 3 + 2];
       const az = Math.atan2(z, x);
       // where it is on screen (view space: z towards you)
-      const x1 = x * cr + z * sr, z1 = -x * sr + z * cr;
-      const y2 = y * ct - z1 * st, z2 = y * st + z1 * ct;
+      let x1 = x * cr + z * sr; const z1 = -x * sr + z * cr;
+      let y2 = y * ct - z1 * st, z2 = y * st + z1 * ct;
+      if (sway > 0.002 || rip.length) {
+        // your voice moves the beads ALONG the surface (they never leave it, so the outline stays a perfect sphere): each row
+        // sways sideways with its own band of your voice like an equaliser, and every syllable's ring pushes the beads it passes
+        const fb = Math.min(14.99, Math.max(0, (1 - y2) * 7.5)), b0 = Math.floor(fb), fr = fb - b0;
+        const eb = this.lat[b0] * (1 - fr) + this.lat[Math.min(15, b0 + 1)] * fr;
+        const phi = (eb * 0.42 + sway * 0.1) * Math.sin(T * 5.2 + y2 * 4.5) + this.env * 0.06 * Math.sin(T * 3.1 + y2 * 9);
+        if (phi !== 0) { const cp = Math.cos(phi), sp = Math.sin(phi); const nx = x1 * cp + z2 * sp; z2 = -x1 * sp + z2 * cp; x1 = nx; }
+        for (const r of rip) {
+          if (r.k < 0.01) continue;
+          const cd = Math.max(-1, Math.min(1, x1 * r.ox + y2 * r.oy + z2 * r.oz));
+          const dd = Math.acos(cd) - r.front;
+          if (dd < -0.7 || dd > 0.7) continue;
+          // away from where the ring started, along the surface
+          let tx = cd * x1 - r.ox, ty = cd * y2 - r.oy, tz = cd * z2 - r.oz;
+          const tl = Math.hypot(tx, ty, tz); if (tl < 1e-4) continue;
+          const push = r.k * 0.2 * Math.exp(-(dd * dd) / 0.05) / tl;
+          tx *= push; ty *= push; tz *= push;
+          x1 += tx; y2 += ty; z2 += tz;
+          const l = Math.hypot(x1, y2, z2); x1 /= l; y2 /= l; z2 /= l;
+        }
+      }
 
       // light, not displacement: every effect below brightens or dims a dot; none moves it off the sphere
       let lw = 0;
@@ -263,9 +283,9 @@ export class SphereRenderer {
         const fb = (1 - y) * 7.5, b0 = Math.min(14, Math.floor(fb)), fr = fb - b0;
         const e = this.lat[b0] * (1 - fr) + this.lat[b0 + 1] * fr;
         lw += e * 0.085 * (0.65 + 0.35 * Math.cos(az * 2 - this.rot * 1.5 + T * 1.2));
-        glow += e * 0.9;
+        glow += e * 0.45;
       }
-      glow += this.env * 0.9 + Math.max(0, lw) * 3;
+      glow += this.env * 0.4 + Math.max(0, lw) * 2; // the beads' motion now carries most of the voice; the light only follows it
       if (this.kick > 0.01) glow += this.kick * 0.3 * (0.6 + 0.4 * Math.sin(y * 3 + T * 4));
       if (this.press > 0.01) glow += this.press * 0.25 * (1 - Math.abs(y));
       if (this.flash > 0.02) glow += this.flash * (0.6 + 1.8 * Math.max(0, Math.sin(y * 5 - this.t * 16))); // a band of light runs through it
@@ -286,7 +306,7 @@ export class SphereRenderer {
         // a syllable's ring of light: the distance round the sphere from where it started, against how far it has run
         if (r.k < 0.01) continue;
         const dd = Math.acos(Math.max(-1, Math.min(1, x1 * r.ox + y2 * r.oy + z2 * r.oz))) - r.front;
-        if (dd > -0.6 && dd < 0.6) glow += r.k * 1.5 * Math.exp(-(dd * dd) / 0.03);
+        if (dd > -0.6 && dd < 0.6) glow += r.k * 0.8 * Math.exp(-(dd * dd) / 0.03);
       }
       if (ignK > 0) {
         const u = (1 - y) / 2; // 0 bottom pole (on screen) … 1 top
@@ -308,8 +328,7 @@ export class SphereRenderer {
       const lam = Math.max(0, x1 * -0.42 + y2 * -0.52 + z2 * 0.74);
       const rim = Math.pow(1 - Math.abs(z2), 3) * 0.35 * depth; // a thin bright rim reads as glass
       const sh = Math.min(1, 0.16 + 0.84 * Math.pow(depth, 1.25) * (0.42 + 0.58 * lam) + rim + Math.max(0, glow - 0.4) * 0.25 * depth);
-      const fade = nf >= N || n < nf - FADE ? 1 : Math.max(0, (nf - n) / FADE);
-      const size = spacing * 0.2 * (0.35 + 1.05 * depth) * (1 + Math.min(1.2, glow) * 0.22) * fade;
+            const size = spacing * 0.24 * (0.35 + 1.05 * depth) * (1 + Math.min(1, glow) * 0.16);
       dots[n] = { x: px, y: py, r: size };
       tone[n] = okMix > 0.25 ? 2 : glow > 1.3 ? 1 : 0;
       const hueMix = 0.5 + 0.5 * Math.sin(az * 1 + y * 1.6 - T * 0.6); // the second colour drifts around the surface

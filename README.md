@@ -140,6 +140,11 @@ Run in headless Chromium (Playwright, 390×844 @2×, dark + light), scripts in `
 - **Not built (on purpose, stated in-app):** cloud sync / accounts; photo-based food estimation; automatic AI changes to your data (the Coach advises; routines and estimates only appear after you confirm; progression suggestions remain transparent rules); background reminders when the app is closed (web apps need a push server — reminders fire only while Aven runs; in-app nudge otherwise); animated exercise demonstrations (there is an authored muscle diagram and step-by-step text instead).
 - Exercise calories are **never** added to food targets.
 
+## One orb, everywhere; its beads move with your voice
+
+- **One look at every size** (`ui/sphereRender.ts`): the orb is always the same 400 evenly spaced beads — in the dock, the Coach's mic, the workout and the orb screen — only scaled. It used to be a sparse, patchy sample of a 1100-dot lattice when small and a dense, glaring one when big, so it looked like different objects.
+- **The beads move when you speak**, along the surface (the outline stays a perfect sphere): each row of beads sways sideways with its own band of your voice, like an equaliser wrapped round a ball, and every syllable's ring of light pushes the beads it passes through, so a wave of motion crosses the orb towards you. The light now only follows the motion (it used to wash the orb out to white).
+
 ## The orb's moments (light and haptics, never a change of shape)
 
 - **Pull it up**: flick the dock's orb upwards (or tap it). As it lands on the orb screen, three spiral arms of light wind up the sphere from the bottom to the top, and when they reach the top the whole sphere lights up once. The phone plays a heartbeat that quickens as the spiral climbs and ends in a soft thump (`IGNITE_BUZZ` in `ui/Sphere.tsx`).
