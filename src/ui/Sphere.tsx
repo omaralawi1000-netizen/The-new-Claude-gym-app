@@ -62,7 +62,7 @@ let orbEl: HTMLElement | null = null;
 let dockRest: { X: number; Y: number; S: number } | null = null;
 const orbLock = { bucket: 0 };
 let orbAnim: Animation | null = null;
-const SWELL = 0.12;
+const SWELL = 0.07;
 const PICK = 30; // px: how softly the dock hands the orb over to a rising slot (a soft minimum, so its speed never jumps)
 const smooth01 = (x: number) => { const t = Math.min(1, Math.max(0, x)); return t * t * (3 - 2 * t); };
 const softmin = (a: number, b: number, k: number) => { const m = Math.min(a, b); return m - k * Math.log(Math.exp(-(a - m) / k) + Math.exp(-(b - m) / k)); };
@@ -95,7 +95,7 @@ export function mirrorOrb(container: Element | null, p0: number, p1: number, sp:
   // otherwise hold it where that flight was going
   orbAnim?.cancel(); orbAnim = null;
   const slotEl = container?.querySelector<HTMLElement>('[data-orb-slot]');
-  if (!el || !O || !slotEl || !slotEl.isConnected) return null;
+  if (!el || !O || O.S < 30 || !slotEl || !slotEl.isConnected) return null;
   // only the simple case: between the dock and this one popup (anything stacked is left to the script version)
   for (const s of slots.values()) if (s.el !== slotEl && s.priority > 0 && s.el.isConnected && s.engage && s.engage.e.get() > 0.02) return null;
   const app = el.closest('.app') ?? el.parentElement;
@@ -105,20 +105,23 @@ export function mirrorOrb(container: Element | null, p0: number, p1: number, sp:
   if (z < 2) return null;
   const R = { X: r.left - b.left, Y: r.top - b.top - shiftAt(p0), S: z };
   const slides = Math.abs(shiftAt(0) - shiftAt(1)) > 1;
+  const swell = R.S > 120 ? 0 : SWELL; // a big orb (the orb screen) just grows into place
   const bucket = Math.ceil(Math.max(O.S, R.S, 8) * (1 + SWELL) / 24) * 24;
   whooshPending = Math.max(whooshPending, 1);
   const at = (p: number): Keyframe => {
     const e = Math.min(1, Math.max(0, p));
     const c = carry(O, R.X, R.Y + shiftAt(p), R.S, R.Y, e, slides);
     // on the way it lifts towards you a little (swells mid-flight and settles as it lands), like something picked up and put down
-    const S = Math.max(8, c.S * (1 + SWELL * Math.sin(Math.PI * c.t)));
+    const S = Math.max(8, c.S * (1 + swell * Math.sin(Math.PI * c.t)));
     return { transform: `translate3d(${c.X.toFixed(2)}px, ${c.Y.toFixed(2)}px, 0) scale(${(S / bucket).toFixed(4)})` };
   };
   orbLock.bucket = bucket;
   if (el.style.width !== `${bucket}px`) el.style.width = el.style.height = `${bucket}px`;
   const a = mirrorProgress(el, p0, p1, sp, vel, at, Array.from({ length: 23 }, (_, i) => (i + 1) / 24));
   if (!a) { orbLock.bucket = 0; return null; }
-  const done = () => { if (orbLock.bucket === bucket) orbLock.bucket = 0; if (orbAnim === a) orbAnim = null; };
+  // finish/cancel events arrive later, asynchronously: only the flight that still owns the orb may release its size lock
+  // (an earlier flight's late "cancelled" used to unlock the new one mid-air — the orb drawn at a quarter of its size)
+  const done = () => { if (orbAnim === a) { orbAnim = null; orbLock.bucket = 0; } };
   a.onfinish = done; a.oncancel = done;
   orbAnim = a;
   return a;
@@ -229,6 +232,7 @@ export function SphereStage() {
     let glide: Animation | null = null;
     let base = { left: 0, top: 0 };
     let wasLifted = false, wasLanded = false;
+    let restProbe = { X: -1, Y: -1, S: -1, since: 0 };
     orbEl = el;
     const rects = new WeakMap<HTMLElement, DOMRect>();
     const owners = new WeakMap<HTMLElement, number>();
@@ -312,7 +316,7 @@ export function SphereStage() {
       // opened over it (an exercise menu over the live workout), never floating on top of everything.
       const zi = top > 0 && topSlot ? String(ownerZ(topSlot.el) + 1) : '41';
       if (el.style.zIndex !== zi) el.style.zIndex = zi;
-      const size = Math.max(8, S) * (topSlot && flight < 0.999 ? 1 + SWELL * Math.sin(Math.PI * flight) : 1);
+      const size = Math.max(8, S) * (topSlot && flight < 0.999 && S <= 120 ? 1 + SWELL * Math.sin(Math.PI * flight) : 1);
       // haptics: a light tick as the orb is lifted out of the dock, a firmer one as it settles into its place (and back)
       if (topSlot && !reduced) {
         const lifted = flight > 0.04, landed = flight > 0.995;
@@ -345,7 +349,11 @@ export function SphereStage() {
       }
       el.style.transform = tf;
       // where the orb rests in the dock, for flights that are handed to the browser (mirrorOrb)
-      if (top === 0 && !glide && useUI.getState().overlays.length === 0 && now - lastOverlayChange > 1100) dockRest = { X, Y, S };
+      // only a dock that has held still (not mid-slide, mid tab change or mid-press) and is its normal size
+      if (top === 0 && !glide && useUI.getState().overlays.length === 0 && now - lastOverlayChange > 1100 && S > 30) {
+        if (Math.abs(X - restProbe.X) < 0.5 && Math.abs(Y - restProbe.Y) < 0.5 && Math.abs(S - restProbe.S) < 0.5) { if (now - restProbe.since > 250) dockRest = { X, Y, S }; }
+        else restProbe = { X, Y, S, since: now };
+      }
       // A big orb is soft light, not fine detail: at 2× it looks the same as at 3×, with less than half the pixels to fill and
       // hand to the screen every frame (that hand-over was most of the orb screen's cost). Small orbs keep full sharpness.
       const dpr = Math.min(bucket > 120 ? 2 : 3, window.devicePixelRatio || 1);

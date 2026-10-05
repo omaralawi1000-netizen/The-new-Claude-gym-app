@@ -63,7 +63,7 @@ export interface OrbInputs {
   /** finger on the orb (0/1) and a tap to release (strength); the renderer consumes the tap */
   press: number;
   tap: number;
-  /** a flight between places started (strength): the dots spin up and the surface ripples gently — no flash, no rings */
+  /** a flight between places started (strength): the dots turn a little faster and the surface stays calm while it travels */
   whoosh?: number;
 }
 
@@ -88,6 +88,7 @@ export class SphereRenderer {
   private press = 0;                       // finger down: gathering in
   private burst = 0; private burstV = 0;   // release: a spring that throws the dots out and pulls them back
   private spin = 0;                        // extra turn speed from a tap, decaying
+  private calm = 0;                        // seconds left of a flight's calm start (bursts and blooms damped)
   private flash = 0;                       // light running through the dots after a tap
   /** true while something of its own is moving (a press, a burst, ripples): then it is drawn every frame */
   get busy() { return this.press > 0.01 || Math.abs(this.burst) > 0.004 || Math.abs(this.burstV) > 0.02 || this.spin > 0.02 || this.flash > 0.02 || this.rings.length > 0; }
@@ -108,21 +109,25 @@ export class SphereRenderer {
     const tgt = TARGET[v.phase] ?? TARGET.idle;
     const k = 1 - Math.exp(-dt * 4.5);
     (Object.keys(tgt) as (keyof Params)[]).forEach((key) => { this.cur[key] += (tgt[key] - this.cur[key]) * k; });
-    if (v.phase !== this.lastPhase) { if (this.lastPhase && !reduced) this.kickV += v.phase === 'error' || v.phase === 'unavailable' ? -1.4 : 3.2; this.lastPhase = v.phase; }
+    // a flight is starting: for a moment the surface stays calm — the travel itself is the motion; a burst, a ripple and the
+    // listening bloom all going off mid-air made it look lumpy
+    if (inp.whoosh && inp.whoosh > 0) {
+      if (!reduced) { this.spin += 1.8 * inp.whoosh; this.calm = 0.75; }
+      inp.whoosh = 0;
+    }
+    this.calm = Math.max(0, this.calm - dt);
+    const soft = this.calm > 0 ? 0.25 : 1;
+    if (v.phase !== this.lastPhase) { if (this.lastPhase && !reduced) this.kickV += (v.phase === 'error' || v.phase === 'unavailable' ? -1.4 : 3.2) * soft; this.lastPhase = v.phase; }
     // the bloom is a damped spring, so it swells, overshoots a touch and settles
     this.kickV += (-90 * this.kick - 11 * this.kickV) * dt; this.kick += this.kickV * dt;
     // touch: press gathers in (fast), a tap releases into a burst (an underdamped spring kicked outward) plus a spin-up
     this.press += (inp.press - this.press) * (1 - Math.exp(-dt * (inp.press > this.press ? 18 : 10)));
     if (inp.tap > 0) {
       if (!reduced) {
-        this.burstV += 5.2 * inp.tap; this.spin += 7 * inp.tap; this.flash = Math.min(1, this.flash + inp.tap);
-        if (this.rings.length < 4) this.rings.push({ age: 0, amp: 1 }, { age: -0.16, amp: 0.7 });
+        this.burstV += 5.2 * inp.tap * soft; this.spin += 7 * inp.tap * soft; this.flash = Math.min(1, this.flash + inp.tap * soft);
+        if (soft === 1 && this.rings.length < 4) this.rings.push({ age: 0, amp: 1 }, { age: -0.16, amp: 0.7 });
       }
       inp.tap = 0;
-    }
-    if (inp.whoosh && inp.whoosh > 0) {
-      if (!reduced) { this.spin += 3.4 * inp.whoosh; this.burstV += 1.5 * inp.whoosh; }
-      inp.whoosh = 0;
     }
     this.burstV += (-60 * this.burst - 8.5 * this.burstV) * dt; this.burst += this.burstV * dt;
     this.spin *= Math.exp(-dt * 3.2); this.flash *= Math.exp(-dt * 3.6);
