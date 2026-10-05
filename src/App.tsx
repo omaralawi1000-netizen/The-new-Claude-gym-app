@@ -122,8 +122,9 @@ const EASE = [0.22, 1, 0.36, 1] as const;
 const ORDER = ['today', 'train', 'food', 'progress'];
 const PAGE = {
   enter: (d: number) => ({ opacity: 0, transform: `translateX(${d * 36}px)` }),
-  center: { opacity: 1, transform: 'translateX(0px)', filter: 'blur(0px)', transitionEnd: { transform: 'none', filter: 'none' }, transition: { duration: 0.38, ease: EASE } },
-  exit: (d: number) => ({ opacity: 0, transform: `translateX(${-d * 36}px)`, filter: 'blur(10px)', transition: { duration: 0.38, ease: EASE } }),
+  center: { opacity: 1, transform: 'translateX(0px)', transitionEnd: { transform: 'none' }, transition: { duration: 0.38, ease: EASE } },
+  // no blur on the way out: filtering a whole screen every frame of a page switch cost more than anything else in it
+  exit: (d: number) => ({ opacity: 0, transform: `translateX(${-d * 36}px)`, transition: { duration: 0.34, ease: EASE } }),
 };
 // `custom` is the direction; AnimatePresence hands the leaving screen the NEW direction too (it was removed with the old one)
 function TabPane({ hue, dir, children }: { hue: string; dir: number; children: React.ReactNode }) {

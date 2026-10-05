@@ -134,8 +134,13 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
   .app { left: 50%; right: auto; width: 440px; transform: translateX(-50%); box-shadow: 0 0 0 1px var(--line), 0 40px 120px -20px rgba(0,0,0,.6); }
 }
 /* the colour field: three slow lights + fine grain (grain also kills gradient banding) */
-.aurora { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; contain: strict;
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0, transparent calc(var(--sat) + 2px), #000 calc(var(--sat) + 130px)); mask-image: linear-gradient(to bottom, transparent 0, transparent calc(var(--sat) + 2px), #000 calc(var(--sat) + 130px)); }
+.aurora { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; contain: strict; }
+/* The glow fades out towards the top of the screen. That used to be a mask on every colour field; a mask makes the browser draw
+   each field into its own offscreen surface and blend it back, every frame a pop-up or page moves. One plain gradient of the page
+   colour over all fields looks the same and costs nothing (measured: pop-up and page-switch frames drop by about a tenth). */
+.fields::after { content: ''; position: absolute; left: 0; right: 0; top: 0; height: calc(var(--sat) + 130px); z-index: 2147483000;
+  background: linear-gradient(to bottom, var(--bg) calc(var(--sat) + 2px), transparent); }
+.aurora.in { -webkit-mask-image: linear-gradient(to bottom, transparent 0, transparent calc(var(--sat) + 2px), #000 calc(var(--sat) + 130px)); mask-image: linear-gradient(to bottom, transparent 0, transparent calc(var(--sat) + 2px), #000 calc(var(--sat) + 130px)); }
 /* paused while a pop-up is up (see useCalm in App.tsx) */
 .app[data-calm] .aurora i { animation-play-state: paused; }
 /* The page behind a pop-up recedes (scales) every frame, which makes every frosted card on it re-blur every frame — a dozen
@@ -148,7 +153,7 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
 .aurora i:nth-child(1) { width: 120%; aspect-ratio: 1; left: -35%; top: -30%; background: radial-gradient(closest-side, var(--h1), transparent); animation: drift1 38s ease-in-out infinite alternate; }
 .aurora i:nth-child(2) { width: 105%; aspect-ratio: 1; right: -40%; top: 18%; background: radial-gradient(closest-side, var(--h2), transparent); animation: drift2 46s ease-in-out infinite alternate; }
 .aurora i:nth-child(3) { width: 130%; aspect-ratio: 1; left: -20%; bottom: -55%; background: radial-gradient(closest-side, var(--h3), transparent); animation: drift3 54s ease-in-out infinite alternate; opacity: calc(var(--aurora-a) * .8); }
-.aurora::after { content: ''; position: absolute; inset: 0; opacity: var(--grain); mix-blend-mode: overlay; background-image: var(--grain-url, url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")); background-size: var(--grain-size, auto); }
+.aurora::after { content: ''; position: absolute; inset: 0; opacity: calc(var(--grain) * 0.55); /* plain blend: an 'overlay' blend forces another full-screen pass */ background-image: var(--grain-url, url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")); background-size: var(--grain-size, auto); }
 /* The workout window's colour field: ONE layer (three gradients) instead of three big layers + blend + mask, so it
    costs a single cheap raster when the window opens; it still drifts slowly. Same lights as .aurora, same positions. */
 .aurora-lite { position: absolute; inset: 0; overflow: hidden; pointer-events: none; container-type: size; }
@@ -344,6 +349,9 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* A sheet with another sheet stacked on top: the top one's dim and blur cover it, so it drops its own frost and its own
    veil's blur. Each kept a full-screen blur alive; three stacked sheets ran the phone out of GPU memory (black tiles). */
 .sheet.behind { -webkit-backdrop-filter: none; backdrop-filter: none; }
+/* Inside a sheet everything sits on glass that is already blurred: a second blur on each button, switch and chip only repeats
+   it (the same pixels) but makes the browser run one more full pass per element for every frame the sheet moves or scrolls. */
+.sheet :is(.btn, .icon-btn, .seg, .chip, .plinth, .plinth-2, .input, .field input), .sheet-page :is(.btn, .icon-btn, .seg, .chip) { -webkit-backdrop-filter: none; backdrop-filter: none; }
 /* …but it must not turn see-through: without its frost the page showed through it and it looked like it was dissolving.
    It becomes the same glass laid over the plain background instead — solid, and under the dim it reads as a card set back. */
 .sheet.behind, .sheet.behind[data-size='short'] { background: linear-gradient(var(--glass-2), var(--glass-2)), var(--bg); }

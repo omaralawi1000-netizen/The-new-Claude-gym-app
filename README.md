@@ -140,6 +140,13 @@ Run in headless Chromium (Playwright, 390×844 @2×, dark + light), scripts in `
 - **Not built (on purpose, stated in-app):** cloud sync / accounts; photo-based food estimation; automatic AI changes to your data (the Coach advises; routines and estimates only appear after you confirm; progression suggestions remain transparent rules); background reminders when the app is closed (web apps need a push server — reminders fire only while Aven runs; in-app nudge otherwise); animated exercise demonstrations (there is an authored muscle diagram and step-by-step text instead).
 - Exercise calories are **never** added to food targets.
 
+## Lag pass: Settings, pop-ups, page switches
+
+Measured on a production build at 4× CPU throttle (software GPU, so read the numbers as relative): Settings opening 26.5 → ~21 ms a frame, a Settings page push 26.7 → ~20–23, tab switches ~22 → ~18 with slow frames (>25 ms) down from 15 of ~80 to 2 of ~95.
+- **Page switch:** the leaving screen is no longer blurred (a 10 px filter on a whole screen every frame was the single biggest cost); it slides and fades out as before.
+- **Colour field:** the fade towards the top was a mask on every field and the grain an `overlay` blend — both make the browser draw each field into its own offscreen surface every frame anything moves. The fade is now one gradient of the page colour over all fields, the grain a plain blend (same look).
+- **Inside sheets** buttons, chips, switches and cards no longer blur again what is already blurred glass.
+
 ## Colours, a customisable Today, a Coach that notices
 
 - **Five colour palettes** (Settings → Appearance → Colours): Ember (the original), Aurora (teal and violet), Mono (greys with one white accent), Sunset (pink and orange), Forest (greens and lime). Each re-lights all four areas; the glow cross-fades as before. Stored as `settings.palette`, applied as `data-palette` on the page (`styles.css`).
