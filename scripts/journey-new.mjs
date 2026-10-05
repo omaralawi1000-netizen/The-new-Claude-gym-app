@@ -10,7 +10,8 @@ await p.route('https://generativelanguage.googleapis.com/**', async (r) => {
   sawImage = !!body.contents?.[0]?.parts?.[0]?.inline_data;
   r.fulfill({ status: 200, headers: cors, body: JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify({ items: [{ name: 'Rice', grams: 180, kcal: 234, protein: 5, carbs: 51, fat: 1 }, { name: 'Chicken breast', grams: 150, kcal: 248, protein: 46, carbs: 0, fat: 5.4 }], assumptions: 'one dinner plate' }) }] } }] }) });
 });
-const state = () => p.evaluate(() => JSON.parse(localStorage.getItem('aven.v1')));
+// the app keeps the running workout under its own key until the next full save (see store.ts): read it the way the app does
+const state = () => p.evaluate(() => (() => { const d = JSON.parse(localStorage.getItem('aven.v1') || 'null'); const a = localStorage.getItem('aven.v1.active'); if (d && a) d.active = JSON.parse(a).active; return d; })());
 await p.goto('http://127.0.0.1:5173/'); await wait(p, 900); await skipOnboarding(p); await loadDemo(p); await wait(p, 1500);
 
 // ── wrestling ──

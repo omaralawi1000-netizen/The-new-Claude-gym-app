@@ -1,3 +1,4 @@
+import { useAi } from '../state/ai';
 /**
  * Single microphone owner.
  * - Only one owner can hold the mic at a time; acquiring while held by another owner is refused ("busy").
@@ -34,7 +35,11 @@ class MicManager {
     this.owner = owner;
     const my = ++this.token;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: false, noiseSuppression: true, autoGainControl: true } });
+      const base = { channelCount: 1, echoCancellation: false, noiseSuppression: true, autoGainControl: true };
+      const phone = useAi.getState().mic === 'phone' ? await phoneMic() : null;
+      let stream: MediaStream;
+      try { stream = await navigator.mediaDevices.getUserMedia({ audio: phone ? { ...base, deviceId: { exact: phone } } : base }); }
+      catch (e: any) { if (!phone || e?.name === 'NotAllowedError') throw e; stream = await navigator.mediaDevices.getUserMedia({ audio: base }); }
       // released (or superseded) while the permission prompt was open → drop the stream immediately
       if (this.owner !== owner || my !== this.token) { stream.getTracks().forEach((t) => t.stop()); return { ok: false, reason: 'busy' }; }
       this.stream = stream;
@@ -156,6 +161,23 @@ class MicManager {
     return this.bandsOut;
   }
 }
+
+/**
+ * The phone's own microphone, when earbuds are connected too. Recording from a Bluetooth headset switches it into call mode
+ * (music drops to call quality or pauses, often with a beep) and it hears worse than the phone. Picking the built-in input by
+ * its id avoids that on Android. Labels are only readable once the mic permission has been given, so the very first
+ * recording uses the default. Unconfirmed on every phone: Settings → Voice & AI → Microphone can switch it off.
+ */
+async function phoneMic(): Promise<string | null> {
+  try {
+    const ins = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'audioinput' && d.label);
+    if (!ins.some((d) => BT.test(d.label))) return null; // no earbuds: the default is the phone
+    const own = ins.find((d) => !BT.test(d.label) && d.deviceId !== 'default' && d.deviceId !== 'communications' && /speaker|built|bottom|phone|internal|mic/i.test(d.label))
+      ?? ins.find((d) => !BT.test(d.label) && d.deviceId !== 'default' && d.deviceId !== 'communications');
+    return own?.deviceId ?? null;
+  } catch { return null; }
+}
+const BT = /bluetooth|headset|hands-?free|buds|airpods|\bbt\b|sco/i;
 
 export const mic = new MicManager();
 

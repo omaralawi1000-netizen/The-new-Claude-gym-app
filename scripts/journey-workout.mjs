@@ -16,7 +16,8 @@ const complete = p.getByRole('button', { name: 'Complete set' });
 const n0 = await complete.count();
 console.log('sets visible', n0);
 await complete.first().click(); await wait(p, 600);
-assert(await p.getByText('Rest', { exact: true }).first().isVisible(), 'rest timer shows');
+assert(await p.locator('.wk-bar.rest').isVisible(), 'rest timer shows in the workout bar');
+assert(/^Rest · Next:/.test(await p.locator('.wk-bar-top').innerText()), 'the bar says it is rest, and what comes next');
 await p.screenshot({ path: 'shots/wk-2-rest.png' });
 // 3. type values into the second set and press Enter to complete
 const w = p.getByLabel('Weight').nth(1); const r = p.getByLabel('Reps').nth(1);

@@ -285,6 +285,8 @@ export interface Settings {
   effort: 'off' | 'rpe' | 'rir';
   sound: boolean;
   haptics: boolean;
+  /** a notification when a rest ends while Aven isn't on screen (needs the browser's permission); default on */
+  restNotify?: boolean;
   remindersEnabled: boolean;
   reminderTime: string;
   onboarded: boolean;

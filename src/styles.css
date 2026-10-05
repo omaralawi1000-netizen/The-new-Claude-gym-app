@@ -499,6 +499,46 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 @keyframes shine { to { transform: translateX(130%); } }
 @keyframes sentGlow { 0% { box-shadow: inset 0 1px 0 var(--hl), inset 0 0 0 1px color-mix(in srgb, var(--ac) 70%, transparent), 0 0 22px -4px color-mix(in srgb, var(--ac) 60%, transparent); } 100% { box-shadow: inset 0 1px 0 color-mix(in srgb, var(--hl) 60%, transparent), inset 0 0 0 1px var(--line), 0 0 0 0 transparent; } }
 
+.wk-progress { height: 3px; border-radius: 3px; background: var(--s3); margin-top: 12px; overflow: hidden; }
+.wk-progress i { display: block; height: 100%; background: var(--ac); transform-origin: 0 50%; transition: transform 520ms var(--ease-out); }
+/* The workout bar: the workout's own dock, exactly where the tab bar sits. While resting, its fill grows with the rest
+   (a transform, re-aimed four times a second with a matching linear transition, so it moves continuously); at the end it
+   turns green with one soft glow and stays green until the next set is ticked. It slides away while you type. */
+.wk-bar-wrap { position: absolute; left: 0; right: 0; bottom: calc(var(--sab) + 14px); padding: 0 16px; display: flex; flex-direction: column; align-items: center; z-index: 5; pointer-events: none; transition: transform 340ms var(--ease-out); }
+.wk-bar-wrap.away { transform: translateY(calc(100% + var(--sab) + 40px)); }
+.wk-bar { pointer-events: auto; position: relative; width: 100%; max-width: 420px; height: 66px; border-radius: 999px; display: flex; align-items: center; gap: 8px; padding: 0 7px 0 22px; overflow: hidden; }
+/* the tab bar's frost, a little denser: it sits over rows of numbers, which must not read through it */
+.wk-bar.glass, .wk-bar-panel.glass { background: var(--glass-2); -webkit-backdrop-filter: blur(36px) saturate(2); backdrop-filter: blur(36px) saturate(2); }
+.wk-bar-fill { position: absolute; inset: 0; border-radius: inherit; transform-origin: 0 50%; pointer-events: none; background: linear-gradient(90deg, color-mix(in srgb, var(--ac) 22%, transparent), color-mix(in srgb, var(--ac) 42%, transparent)); transition: transform 260ms linear, background 400ms ease; }
+.wk-bar.go .wk-bar-fill { background: linear-gradient(90deg, color-mix(in srgb, var(--ok) 26%, transparent), color-mix(in srgb, var(--ok) 44%, transparent)); transition: background 400ms ease; }
+.wk-bar.go { animation: goGlow 1.8s var(--ease-out) 1; }
+@keyframes goGlow { 0% { box-shadow: inset 0 1px 0 var(--hl), inset 0 0 0 1.5px var(--ok), 0 0 0 0 color-mix(in srgb, var(--ok) 60%, transparent); } 35% { box-shadow: inset 0 1px 0 var(--hl), inset 0 0 0 1.5px var(--ok), 0 0 34px 6px color-mix(in srgb, var(--ok) 45%, transparent); } 100% { box-shadow: inset 0 1px 0 var(--hl), inset 0 0 0 1px color-mix(in srgb, var(--ok) 60%, var(--line)), 0 0 0 0 transparent; } }
+.wk-bar.go .wk-bar-big { color: var(--ok); }
+.wk-bar-main { position: relative; flex: 1; min-width: 0; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; text-align: left; gap: 1px; }
+.wk-bar-top { max-width: 100%; font-size: 12px; font-weight: 600; color: var(--tx2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wk-bar-big { max-width: 100%; font-size: 17px; font-weight: 680; letter-spacing: -0.01em; color: var(--tx); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wk-bar.rest .wk-bar-big { font-size: 20px; }
+.wk-bar-orb { position: relative; width: 52px; height: 52px; flex: none; border-radius: 999px; }
+.wk-bar-panel { pointer-events: auto; display: flex; gap: 8px; padding: 8px; margin-bottom: 10px; border-radius: 999px; }
+/* the bar's "next set": the row it scrolled to glows once */
+.wk-flash { animation: wkFlash 1.4s var(--ease-out) 1; border-radius: 12px; }
+@keyframes wkFlash { 0%, 30% { background: color-mix(in srgb, var(--ac) 22%, transparent); } 100% { background: transparent; } }
+@media (prefers-reduced-motion: reduce) { .wk-bar.go, .wk-flash { animation: none; } .wk-bar-fill { transition: none; } }
+/* the live workout: an exercise that arrives after the window has landed fades up into place (compositor only) */
+.wk-block.in { animation: blockIn 520ms var(--ease-out) backwards; }
+@keyframes blockIn { from { opacity: 0; transform: translateY(16px); } }
+@media (prefers-reduced-motion: reduce) { .wk-block.in { animation: none; } }
+/* the routine editor's exercise settings: two to a row, label above, compact steppers — they fit a phone in any language */
+.rt-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 12px; padding-top: 14px; }
+.rt-cell { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; }
+.rt-cell .micro { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stepper.compact .icon-btn.sm { width: 38px; height: 38px; }
+.stepper .icon-btn:disabled { opacity: 0.35; }
+/* Collapse (ui/kit.tsx): a grid row sliding between 0fr and 1fr — laid out by the browser, nothing measured by script */
+.collapse { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows var(--collapse-ms, 320ms) var(--ease-out), opacity calc(var(--collapse-ms, 320ms) * 0.75) ease; }
+.collapse.on { grid-template-rows: 1fr; opacity: 1; }
+.collapse-in { min-height: 0; overflow: hidden; }
+.collapse.settled > .collapse-in { overflow: visible; }
 /* Coach action cards: what it just did, popping in with a check and the lines sliding in one by one */
 .action-card { animation: cardIn 560ms var(--ease-spring) backwards; transition: opacity 400ms; }
 @keyframes cardIn { from { opacity: 0; transform: translateY(14px) scale(0.96); } }
@@ -533,6 +573,9 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 
 /* the live workout card: full height below a sliver of the receded page, rounded top like an iOS sheet */
 .wk-card { position: fixed; inset: 0; display: flex; flex-direction: column; will-change: transform; }
+/* the live workout while minimised: kept (so it reopens at once), moved far below the screen — off-screen it isn't drawn
+   and can't be tapped. A translate restyles one element; `visibility: hidden` restyled all ~800 inside it on every Resume. */
+.wk-off { translate: 0 calc(200vh + 400px); }
 /* the live workout's window (Apple Music's player is a sheet, Active.tsx): full height, rounded top corners, its own solid colour
    with the area's light in it. It rises from the resume bar and firms up as it goes; nothing on it is blurred or clipped. */
 .wk-sheet { position: absolute; inset: 0; overflow: hidden; border-radius: var(--wk-r) var(--wk-r) 0 0; will-change: transform, opacity;
@@ -609,6 +652,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .entry-sub { margin-top: 3px; font-size: 12.5px; color: var(--tx2); }
 .macro-bar { display: flex; gap: 3px; height: 8px; border-radius: 8px; overflow: hidden; }
 .macro-bar i { display: block; flex-basis: 0; min-width: 4px; border-radius: 3px; transition: flex-grow 420ms var(--ease-out); }
+.partial-dot { display: inline-block; width: 5px; height: 5px; border-radius: 5px; background: var(--tx3); margin: 0 1px 0 3px; vertical-align: 0.6em; }
 .entry-macros { margin-left: 6px; color: var(--tx3); }
 .entry-macros i { display: inline-block; width: 5px; height: 5px; border-radius: 5px; margin: 0 4px 1px 7px; vertical-align: middle; }
 .entry-kcal { flex: none; display: flex; flex-direction: column; align-items: flex-end; font-weight: 650; font-size: 16px; line-height: 1.15; }

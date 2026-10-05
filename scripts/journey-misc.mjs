@@ -2,7 +2,8 @@ import { launch, wait } from './lib.mjs';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 const { b, ctx, p, errors } = await launch({ record: process.argv.includes('--record') });
-const state = () => p.evaluate(() => JSON.parse(localStorage.getItem('aven.v1')));
+// the app keeps the running workout under its own key until the next full save (see store.ts): read it the way the app does
+const state = () => p.evaluate(() => (() => { const d = JSON.parse(localStorage.getItem('aven.v1') || 'null'); const a = localStorage.getItem('aven.v1.active'); if (d && a) d.active = JSON.parse(a).active; return d; })());
 await p.goto('http://127.0.0.1:5173/'); await wait(p, 1000);
 // ── onboarding: goal, experience, schedule, units, targets, starter plan ──
 await p.getByLabel('What should I call you?').fill('Omar');

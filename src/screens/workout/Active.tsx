@@ -1,27 +1,36 @@
-import { memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { AnimatePresence, animate, motion, useMotionValue, usePresence, useReducedMotion, useTransform } from 'motion/react';
+import { createContext, memo, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { AnimatePresence, animate, motion, useMotionValue, useReducedMotion, useTransform } from 'motion/react';
 import { useStore, exerciseMap } from '../../state/store';
 import { useUI, buzz } from '../../state/ui';
 import { useT, useLang } from '../../lib/i18n';
 import type { Exercise, SessionExercise, SetRecord } from '../../lib/types';
 import { Icon } from '../../ui/Icon';
-import { NumInput } from '../../ui/kit';
+import { Collapse, NumInput } from '../../ui/kit';
+import { flip } from '../../ui/flip';
 import { Sheet, SheetHead, SOFT, SNAP, useOverlayZ } from '../../ui/Sheet';
 import { beatLastTime, elapsedMs, historyOf, incrementFor, lastPerformance, repRange, sessionSetCount, sessionVolume, suggestProgression, countable } from '../../lib/workout';
 import { fmtDuration } from '../../lib/dates';
 import { displayToKg, kgToDisplay, fmtNum, displayToM, mToDisplay } from '../../lib/units';
-import { useNow, restEndedCue } from '../../lib/hooks';
+import { useNow } from '../../lib/hooks';
+import { nextSetOf, offerRestAlerts, unlockRestAudio } from './rest';
 import { addSet, deleteSet, moveExercise, patchExercise, patchSet, removeExercise, startRest, adjustRest, skipRest, toggleSuperset } from './actions';
 import { exName, fmtSet, MUSCLE_LABEL } from './common';
 import { SphereSlot, mirrorOrb, orbPress, orbTap } from '../../ui/Sphere';
 import { useSwipeDown } from '../../ui/swipe';
-import { Mirror, mirrorProgress, mirrorStage, trackCover, trackDepth } from '../../ui/engage';
+import { Mirror, mirrorProgress, mirrorStage, trackCover, trackDepth, type Engage } from '../../ui/engage';
 import { DIM_VEIL, Veil, mirrorVeil } from '../../ui/Veil';
 import { kb } from '../../ui/keyboard';
+import { viewportH } from '../../ui/viewport';
 import { BOUNCY, SURFACE, SURFACE_EXIT } from '../../ui/motion';
 
-/** The live workout: a full-height card that rises over the page (which steps back behind it), like Apple Music's player. */
-export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | 'none' } }) {
+/** False while the workout is minimised (kept alive but hidden): its clocks stop ticking. */
+const WkLive = createContext(true);
+
+/**
+ * The live workout: a full-height card that rises over the page (which steps back behind it), like Apple Music's player.
+ * Kept alive between openings (WorkoutHost): `open` false slides it away and then hides it.
+ */
+export function ActiveWorkout({ props, open = true }: { props: { origin?: 'hero' | 'pill' | 'none' }; open?: boolean }) {
   const t = useT();
   const lang = useLang();
   // narrow selections: the screen re-renders when the session changes, not on every store write
@@ -41,7 +50,7 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
   // steps back and dims, and sinks back down when you close it or drag it away from anywhere. One number (`p`, the finger
   // included in `eFinger`) drives the window, the page behind, the dim and the orb. Only a transform moves: nothing is
   // blurred, clipped, faded or laid out on the way.
-  const H = typeof window !== 'undefined' ? window.innerHeight : 900;
+  const H = viewportH;
   const p = useMotionValue(0);
   // it travels a little past the bottom edge: a spring's last few percent take a while, and the window's top edge (and its
   // shadow) used to hang just under the tab bar for that long after closing
@@ -69,14 +78,6 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
     );
   };
   useEffect(() => { const off = dragY.on('change', () => mirror.current!.cancel()); return () => { off(); mirror.current!.cancel(); }; }, [dragY]);
-  const [isPresent, safeToRemove] = usePresence();
-  // started before the first paint, so the browser-run half is already going when the rest of the window's setup work runs
-  useLayoutEffect(() => {
-    const c = animate(p, 1, reduce ? { duration: 0.01 } : SURFACE);
-    runMirror(0, 1, SURFACE, 0);
-    return () => c.stop();
-    // eslint-disable-next-line
-  }, []);
   // Closing starts the very moment you let go: the window's own animation is set going first (on the compositor), and only
   // after the next frame has been drawn is the app told the workout is closed — re-rendering the page behind, the tab bar
   // and the resume bar takes a phone a good while, and before, nothing moved until it was done (the pause after a tap).
@@ -97,19 +98,36 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
     startClose(v);
     requestAnimationFrame(() => setTimeout(() => { if (useUI.getState().overlays.some((o) => o.type === 'workout')) useUI.getState().pop(); }, 0));
   };
-  useEffect(() => {
-    if (isPresent) return;
-    (closing.current ?? startClose(swipeV.current || dragY.getVelocity())).then(() => safeToRemove?.());
-    // eslint-disable-next-line
-  }, [isPresent]);
+
   // the keyboard slides over the page (it no longer resizes it): the list gets that much more room at its end, so the last
   // set's fields can still be scrolled above the keys, and the rest timer rides on top of the keyboard
   const bodyPad = useTransform(kb, (v) => `calc(var(--sab) + 150px + ${v}px)`);
-  const restBottom = useTransform(kb, (v) => `calc(var(--sab) + 16px + ${v}px)`);
   const exMap = useMemo(() => exerciseMap(exercises), [exercises]);
   const [menu, setMenu] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<null | 'finish' | 'discard'>(null);
   const [renaming, setRenaming] = useState(false);
+  // Opening is started before the first paint, so the browser-run half is already going when the rest of the window's setup
+  // work runs. Closing — the chevron, a swipe, Back, or another screen taking its place — slides it down; then it is hidden
+  // (kept, so the next opening is only the slide).
+  const [hidden, setHidden] = useState(!open);
+  const openRef = useRef(open); openRef.current = open;
+  useLayoutEffect(() => {
+    if (open) {
+      closing.current = null;
+      // un-park it now, before the orb's flight measures where its slot will be (React would only do it after this effect)
+      dialogRef.current?.classList.remove('wk-off'); scrimRef.current?.classList.remove('wk-off');
+      setHidden(false);
+      const from = p.get();
+      const c = animate(p, 1, reduce ? { duration: 0.01 } : SURFACE);
+      runMirror(from, 1, SURFACE, 0);
+      return () => c.stop();
+    }
+    setMenu(null); setConfirm(null); setRenaming(false);
+    const el = document.activeElement as HTMLElement | null;
+    if (el && dialogRef.current?.contains(el)) el.blur();
+    (closing.current ?? startClose(swipeV.current || dragY.getVelocity())).then(() => { if (!openRef.current) setHidden(true); });
+    // eslint-disable-next-line
+  }, [open]);
   // typing a weight or reps: the keyboard takes the bottom half, so the rest timer steps out of the way (it sat right on top
   // of the sets you were editing) and keeps counting in the header instead
   const [typing, setTyping] = useState(false);
@@ -132,9 +150,20 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
   // ever shows first and then jumps); the rest follow one by one once the window has landed, and the buttons under the
   // list only appear after the whole list, so they are never pushed down while you look at them.
   const total0 = a?.exercises.length ?? 0;
-  const [shown, setShown] = useState(() => Math.min(2, total0));
+  // The tap draws only the window and its header (one light frame, so the slide starts at once); the first two exercises
+  // follow on the next two frames, while the window is still mostly below the screen edge — the slide itself runs on the
+  // compositor, so this work never shows as a stutter. Building them in the tap was most of the pause after it.
+  const [shown, setShown] = useState(0);
+  const lead = Math.min(2, total0);
+  useEffect(() => {
+    if (shown >= lead) return;
+    const id = requestAnimationFrame(() => setShown((n) => Math.max(n, Math.min(lead, n + 1))));
+    return () => cancelAnimationFrame(id);
+  }, [shown, lead]);
   const [ready, setReady] = useState(false);
   const listDoneAtOpen = useRef(total0 <= 2);
+  // the exercises drawn in the very first frame ride up with the window; any that arrive after it fade in
+  const firstIds = useRef(new Set((a?.exercises ?? []).slice(0, 2).map((e) => e.id)));
   const [listDone, setListDone] = useState(listDoneAtOpen.current); // stays true once the list has been complete (adding an exercise later never hides the buttons)
   useEffect(() => { if (!listDone && shown >= total0) setListDone(true); }, [shown, total0, listDone]);
   useEffect(() => {
@@ -145,10 +174,10 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
     // eslint-disable-next-line
   }, []);
   useEffect(() => {
-    if (!ready || shown >= total0) return;
-    const id = setTimeout(() => setShown((n) => n + 1), shown === 0 ? 0 : 70);
+    if (!ready || shown < lead || shown >= total0) return;
+    const id = setTimeout(() => setShown((n) => n + 1), 70);
     return () => clearTimeout(id);
-  }, [ready, shown, total0]);
+  }, [ready, shown, total0, lead]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -159,18 +188,6 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [pop]);
-
-  // rest timer end cue (once per rest)
-  const restKey = a?.rest ? `${a.rest.endsAt}:${a.rest.total}` : '';
-  const cued = useRef('');
-  useEffect(() => {
-    if (!a?.rest || a.pausedAt) return;
-    const ms = a.rest.endsAt - Date.now();
-    const id = setTimeout(() => { if (cued.current !== restKey) { cued.current = restKey; restEndedCue(); } }, Math.max(0, ms));
-    const clear = setTimeout(() => { if (useStore.getState().active?.rest?.endsAt === a.rest!.endsAt) skipRest(); }, Math.max(0, ms) + 6000);
-    return () => { clearTimeout(id); clearTimeout(clear); };
-    // eslint-disable-next-line
-  }, [restKey, a?.pausedAt]);
 
   if (!a) return null; // finish/discard own the navigation
 
@@ -187,6 +204,13 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
     const r = useStore.getState().finishActive();
     if (r) { buzz([20, 40, 20] as any); swap(1, 'summary', { sessionId: r.id }); }
   };
+  // the bar's "next set": scroll it into the middle and let it glow for a moment
+  const jumpTo = (setId: string) => {
+    const row = body.current?.querySelector<HTMLElement>(`[data-set="${setId}"]`);
+    if (!row) return;
+    row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    row.classList.remove('wk-flash'); void row.offsetWidth; row.classList.add('wk-flash');
+  };
   const doDiscard = () => {
     const d = useStore.getState().discardActive();
     pop();
@@ -197,11 +221,12 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
 
   return (
     <>
-      <Veil e={eFinger} z={z - 1} onClick={() => close()} layers={DIM_VEIL} elRef={scrimRef} />
+      <Veil e={eFinger} z={z - 1} onClick={() => close()} layers={DIM_VEIL} elRef={scrimRef} className={hidden ? 'wk-off' : ''} />
       <motion.div
-        role="dialog" aria-modal="true" aria-label={t('Active workout')}
-        ref={dialogRef} data-hue="train" className="wk-card" style={{ zIndex: z, y: dragT }}
+        role={hidden ? undefined : 'dialog'} aria-modal={hidden ? undefined : 'true'} aria-label={t('Active workout')} aria-hidden={hidden || undefined}
+        ref={dialogRef} data-hue="train" className={`wk-card${hidden ? ' wk-off' : ''}`} style={{ zIndex: z, y: dragT }}
       >
+        <WkLive.Provider value={!hidden}>
         <motion.div ref={sheetRef} className="wk-sheet" style={{ transform: sheetT }}>
           <div className="wk-solid" aria-hidden><div className="aurora-lite" /></div>
         <div className="wk-window" style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column' }}>
@@ -231,49 +256,41 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
                 <Icon name={paused ? 'play' : 'pause'} size={16} /> {paused ? t('Resume') : t('Pause')}
               </button>
             </div>
-            <div style={{ height: 3, borderRadius: 3, background: 'var(--s3)', marginTop: 12, overflow: 'hidden' }}><motion.div animate={{ width: `${total ? (done / total) * 100 : 0}%` }} transition={SOFT} style={{ height: '100%', background: 'var(--ac)' }} /></div>
+            {/* grows by scaling (the compositor's job); it animated its width, which made every set ticked lay the page out again */}
+            <div className="wk-progress"><i style={{ transform: `scaleX(${total ? done / total : 0})` }} /></div>
             {paused && <div className="small" style={{ marginTop: 8, color: 'var(--warn)' }}>{t('Paused')}</div>}
           </div>
 
           {/* body */}
-          <motion.div ref={body} style={{ flex: 1, overflowY: 'auto', padding: '4px 16px 0', paddingBottom: bodyPad, overscrollBehavior: 'contain' }} className="hide-scroll">
+          <motion.div ref={body} style={{ flex: 1, overflowY: 'auto', padding: '4px 16px 0', paddingBottom: bodyPad, overscrollBehavior: 'contain' }} className="hide-scroll wk-list">
             {a.exercises.length === 0 && (
               <div className="empty"><div className="display display-sm">{t('Empty session')}</div><div style={{ height: 12 }} /></div>
             )}
+            {/* plain blocks: an exercise added later fades in, a removed one folds away (Collapse) — nothing re-measures the page */}
             <AnimatePresence initial={false}>
               {a.exercises.slice(0, shown).map((se, idx) => (
-                <ExerciseBlock key={se.id} se={se} idx={idx} ex={exMap.get(se.exerciseId)} onMenu={setMenu}
-                  linkedPrev={!!(idx > 0 && se.supersetGroup && a.exercises[idx - 1].supersetGroup === se.supersetGroup)}
-                  linkedNext={!!(idx < a.exercises.length - 1 && se.supersetGroup && a.exercises[idx + 1].supersetGroup === se.supersetGroup)} />
+                <Collapse key={se.id}>
+                  <ExerciseBlock se={se} ex={exMap.get(se.exerciseId)} onMenu={setMenu} appear={!firstIds.current.has(se.id)}
+                    linkedPrev={!!(idx > 0 && se.supersetGroup && a.exercises[idx - 1].supersetGroup === se.supersetGroup)}
+                    linkedNext={!!(idx < a.exercises.length - 1 && se.supersetGroup && a.exercises[idx + 1].supersetGroup === se.supersetGroup)} />
+                </Collapse>
               ))}
             </AnimatePresence>
             {listDone && (
             <motion.div initial={listDoneAtOpen.current ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={SOFT}>
-            <div className="row-flex" style={{ gap: 10, marginTop: 20 }}>
-              <button className="btn block press" onClick={() => push('exercisePicker', { mode: 'add' })}><Icon name="plus" size={18} /> {t('Add exercise')}</button>
-              <button className="press" onPointerDown={() => orbPress(true)} onPointerUp={() => orbPress(false)} onPointerCancel={() => orbPress(false)} onPointerLeave={() => orbPress(false)} onClick={() => { orbTap(1); push('voice', { mode: 'workout' }); }} aria-label={t('Dictate sets')} style={{ position: 'relative', width: 52, height: 52, flex: 'none', borderRadius: 999 }}><SphereSlot id="workout" priority={5} engage={engage} style={{ position: 'absolute', inset: -4 }} /></button>
-            </div>
+            <button className="btn block press" style={{ marginTop: 20 }} onClick={() => push('exercisePicker', { mode: 'add' })}><Icon name="plus" size={18} /> {t('Add exercise')}</button>
             <button className="btn primary block press" style={{ marginTop: 12 }} onClick={finish}>{t('Finish workout')}</button>
             <button className="btn ghost danger block press" style={{ marginTop: 6 }} onClick={() => setConfirm('discard')}>{t('Discard workout')}</button>
             </motion.div>
             )}
           </motion.div>
 
-          {/* rest timer — floats above content, in the same frosted material as the tab bar */}
-          <AnimatePresence>
-            {a.rest && !typing && (
-              <motion.div key="rest" className="glass" initial={{ y: 40, opacity: 0, scale: 0.96 }} animate={{ y: 0, opacity: 1, scale: 1 }} exit={{ y: 30, opacity: 0, scale: 0.97 }} transition={SOFT}
-                style={{ position: 'absolute', left: 16, right: 16, bottom: restBottom, borderRadius: 26, padding: '12px 14px 12px 16px', display: 'flex', alignItems: 'center', gap: 12, zIndex: 5 }}>
-                <RestCountdown />
-                <button className="btn sm press" onClick={() => adjustRest(-15)} aria-label={t('15 seconds less')}>−15</button>
-                <button className="btn sm press" onClick={() => adjustRest(15)} aria-label={t('15 seconds more')}>+15</button>
-                <button className="btn sm primary press" onClick={() => skipRest()}>{t('Skip')}</button>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          {/* the workout's own dock, where the tab bar sits: what's next, the rest timer, and the orb */}
+          <WorkoutBar engage={engage} exMap={exMap} away={typing} onFinish={finish} onJump={jumpTo} />
           </div>
         </div>
           </motion.div>
+        </WkLive.Provider>
         </motion.div>
 
       <AnimatePresence>
@@ -307,7 +324,8 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
 // second instead of the whole workout screen.
 function Clock() {
   const a = useStore((s) => s.active);
-  const now = useNow(250, !!a);
+  const live = useContext(WkLive);
+  const now = useNow(250, !!a && live);
   return <>{a ? fmtDuration(elapsedMs(a, now) / 1000) : ''}</>;
 }
 
@@ -315,44 +333,91 @@ function Clock() {
 function RestInline() {
   const t = useT();
   const a = useStore((s) => s.active);
-  const now = useNow(250, !!a?.rest);
+  const live = useContext(WkLive);
+  const now = useNow(250, !!a?.rest && live);
   if (!a?.rest) return null;
   const left = (a.pausedAt ? a.rest.endsAt : a.rest.endsAt - now) / 1000;
   return <span style={{ color: left <= 0 ? 'var(--ok)' : 'var(--ac-text)', fontWeight: 650 }}> · {left <= 0 ? t('Rest over') : `${t('Rest')} ${fmtDuration(Math.ceil(left))}`}</span>;
 }
 
-function RestCountdown() {
+/**
+ * The workout's own dock, in the tab bar's place and material. On the left, what's next ("Next · Set 3 · 80 kg × 8" over
+ * the exercise): tap it and the list scrolls to that set. While you rest the whole bar fills with the accent as the rest
+ * passes, under the time; tap it then for −15 / +15 / Skip. When the rest is over it turns green — "Go · Bench Press" — and
+ * stays so until that set is ticked. The orb sits at its right end: tap it to say your sets. It is there from the first
+ * frame, so the orb glides into it with the window instead of jumping to a button at the end of the list.
+ */
+function WorkoutBar({ engage, exMap, away, onFinish, onJump }: { engage: Engage; exMap: Map<string, Exercise>; away: boolean; onFinish: () => void; onJump: (setId: string) => void }) {
   const t = useT();
+  const lang = useLang();
+  const push = useUI((u) => u.push);
   const a = useStore((s) => s.active);
-  const now = useNow(250, !!a?.rest);
-  if (!a?.rest) return null;
-  const restLeft = (a.pausedAt ? a.rest.endsAt : a.rest.endsAt - now) / 1000;
+  const unit = useStore((s) => s.settings.units.weight);
+  const live = useContext(WkLive);
+  const now = useNow(250, !!a?.rest && !a?.pausedAt && live);
+  const [panel, setPanel] = useState(false);
+  useEffect(() => { if (!panel) return; const id = setTimeout(() => setPanel(false), 4000); return () => clearTimeout(id); }, [panel, a?.rest?.endsAt, a?.rest?.total]);
+  const resting = !!a?.rest;
+  useEffect(() => { if (!resting) setPanel(false); }, [resting]);
+  if (!a) return null;
+  const nx = nextSetOf(a);
+  const ex = nx ? exMap.get(nx.se.exerciseId) : undefined;
+  const name = ex ? exName(ex, lang) : '';
+  const rest = a.rest;
+  const left = rest ? (a.pausedAt ? rest.endsAt : rest.endsAt - now) / 1000 : 0;
+  const over = !!rest && left <= 0;
+  const frac = rest && rest.total > 0 ? Math.min(1, Math.max(0, 1 - left / rest.total)) : 0;
+  const kg = nx ? (nx.set.weightKg ?? nx.set.target?.weightKg) : undefined;
+  const reps = nx ? (nx.set.reps ?? nx.set.target?.repMax) : undefined;
+  const target = [kg !== undefined ? `${fmtNum(kgToDisplay(kg, unit), lang, 2)} ${unit}` : '', reps ? `× ${reps}` : ''].filter(Boolean).join(' ');
+  const setWord = nx ? (nx.label === 'W' ? t('Warm-up') : `${t('Set')} ${nx.label}`) : '';
+  const state: 'next' | 'rest' | 'go' | 'done' = rest ? (over ? 'go' : 'rest') : nx ? 'next' : 'done';
+  const tap = () => {
+    buzz(6);
+    if (state === 'rest') setPanel((v) => !v);
+    else if (state === 'done') onFinish();
+    else if (nx) onJump(nx.set.id);
+  };
+  const top = state === 'next' ? `${t('Next')} · ${setWord}${target ? ` · ${target}` : ''}`
+    : state === 'rest' ? (nx ? `${t('Rest')} · ${t('Next')}: ${name}` : t('Rest'))
+    : state === 'go' ? `${t('Rest over')}${nx ? ` · ${setWord}` : ''}`
+    : t('All sets done');
+  const big = state === 'next' ? name
+    : state === 'rest' ? (a.pausedAt ? `${fmtDuration(Math.ceil(left))} · ${t('Paused')}` : fmtDuration(Math.ceil(left)))
+    : state === 'go' ? (nx ? `${t('Go')} · ${name}` : t('Go'))
+    : t('Finish workout');
   return (
-    <>
-      <RestRing left={restLeft} total={a.rest.total} />
-      <div className="grow">
-        <div className="micro">{restLeft <= 0 ? t('Rest over') : t('Rest')}</div>
-        <div className="display display-md num" style={{ color: restLeft <= 0 ? 'var(--ok)' : 'var(--tx)' }}>{restLeft <= 0 ? t('Go') : fmtDuration(Math.ceil(restLeft))}</div>
+    <div className={`wk-bar-wrap${away ? ' away' : ''}`}>
+      <AnimatePresence>
+        {panel && rest && (
+          <motion.div key="panel" className="wk-bar-panel glass" initial={{ opacity: 0, y: 10, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 8, scale: 0.97 }} transition={SOFT}>
+            <button className="btn sm press" onClick={() => { buzz(6); adjustRest(-15); }} aria-label={t('15 seconds less')}>−15</button>
+            <button className="btn sm press" onClick={() => { buzz(6); adjustRest(15); }} aria-label={t('15 seconds more')}>+15</button>
+            <button className="btn sm primary press" onClick={() => { buzz(8); skipRest(); setPanel(false); }}>{t('Skip')}</button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      {/* never re-keyed: the orb's slot lives in here, and remounting it made the orb leave and land again (a tick, a hop) */}
+      <div className={`wk-bar glass ${state}`}>
+        <i className="wk-bar-fill" aria-hidden style={{ transform: `scaleX(${state === 'go' ? 1 : state === 'rest' ? frac : 0})` }} />
+        <button className="wk-bar-main press" onClick={tap} aria-expanded={state === 'rest' ? panel : undefined}
+          aria-label={state === 'rest' ? `${t('Rest')} ${fmtDuration(Math.ceil(left))}` : `${top}. ${big}`}>
+          <span className="wk-bar-top">{top}</span>
+          <span className="wk-bar-big num">{big}</span>
+        </button>
+        <button className="wk-bar-orb press" aria-label={t('Dictate sets')} onPointerDown={() => orbPress(true)} onPointerUp={() => orbPress(false)} onPointerCancel={() => orbPress(false)} onPointerLeave={() => orbPress(false)}
+          onClick={() => { orbTap(1); push('voice', { mode: 'workout' }); }}>
+          <SphereSlot id="workout" priority={5} engage={engage} style={{ position: 'absolute', inset: -4 }} />
+        </button>
       </div>
-    </>
-  );
-}
-
-function RestRing({ left, total }: { left: number; total: number }) {
-  const p = total > 0 ? Math.max(0, Math.min(1, left / total)) : 0;
-  const r = 20, c = 2 * Math.PI * r;
-  return (
-    <svg width="52" height="52" viewBox="0 0 52 52" aria-hidden>
-      <circle cx="26" cy="26" r={r} fill="none" stroke="var(--s4)" strokeWidth="4" />
-      <circle cx="26" cy="26" r={r} fill="none" stroke={left <= 0 ? 'var(--ok)' : 'var(--ac)'} strokeWidth="4" strokeLinecap="round" strokeDasharray={c} strokeDashoffset={c * (1 - p)} transform="rotate(-90 26 26)" style={{ transition: 'stroke-dashoffset 300ms linear' }} />
-    </svg>
+    </div>
   );
 }
 
 // ── exercise block ──────────────────────────────────────────
 
 // memoised: ticking a set re-renders that exercise only
-const ExerciseBlock = memo(function ExerciseBlock({ se, idx, ex, linkedPrev, linkedNext, onMenu }: { se: SessionExercise; idx: number; ex?: Exercise; linkedPrev: boolean; linkedNext: boolean; onMenu: (id: string) => void }) {
+const ExerciseBlock = memo(function ExerciseBlock({ se, ex, linkedPrev, linkedNext, onMenu, appear }: { se: SessionExercise; ex?: Exercise; linkedPrev: boolean; linkedNext: boolean; onMenu: (id: string) => void; appear?: boolean }) {
   const t = useT();
   const lang = useLang();
   const settings = useStore((s) => s.settings);
@@ -365,6 +430,9 @@ const ExerciseBlock = memo(function ExerciseBlock({ se, idx, ex, linkedPrev, lin
     [ex, se.exerciseId, sessions, se.sets, increments, settings.plateStep]); // eslint-disable-line react-hooks/exhaustive-deps
   const u = settings.units;
   let workIdx = -1;
+  // sets that were there when this block was drawn don't grow in; one added later does
+  const known = useRef(new Set(se.sets.map((x) => x.id)));
+  useEffect(() => { for (const x of se.sets) known.current.add(x.id); });
   const kgTxt = (kg: number) => `${fmtNum(kgToDisplay(kg, u.weight), lang, 2)} ${u.weight}`;
   const reason = sugg && (sugg.kind === 'add-weight' ? t(sugg.reasonKey, { inc: kgTxt(Number(sugg.reasonVars.inc)), max: sugg.reasonVars.max })
     : sugg.kind === 'stalled' ? t(sugg.reasonKey, { w: kgTxt(Number(sugg.reasonVars.w)) })
@@ -372,8 +440,7 @@ const ExerciseBlock = memo(function ExerciseBlock({ se, idx, ex, linkedPrev, lin
   const REASON_ICON = { 'add-weight': 'arrowUp', 'add-reps': 'plus', hold: 'repeat', stalled: 'info', first: 'sparkle' } as const;
 
   return (
-    <motion.section layout="position" layoutDependency={`${idx}:${se.supersetGroup ?? ''}`} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96 }} transition={SOFT}
-      style={{ position: 'relative', marginTop: linkedPrev ? 0 : 18, paddingLeft: se.supersetGroup ? 14 : 0 }}>
+    <section data-flip={se.id} className={`wk-block${appear ? ' in' : ''}`} style={{ position: 'relative', marginTop: linkedPrev ? 0 : 18, paddingLeft: se.supersetGroup ? 14 : 0 }}>
       {se.supersetGroup && <div aria-hidden style={{ position: 'absolute', left: 0, top: linkedPrev ? -4 : 6, bottom: linkedNext ? -14 : 6, width: 3, borderRadius: 3, background: 'var(--ac)', opacity: 0.85 }} />}
       {se.supersetGroup && !linkedPrev && <div className="micro accent" style={{ marginBottom: 4 }}>{t('Superset')}</div>}
       <div className="plinth" style={{ padding: '14px 12px 12px', borderRadius: 'var(--r-lg)' }}>
@@ -401,7 +468,7 @@ const ExerciseBlock = memo(function ExerciseBlock({ se, idx, ex, linkedPrev, lin
         <AnimatePresence initial={false}>
           {se.sets.map((set) => {
             if (set.type === 'working') workIdx++;
-            return <SetRow key={set.id} se={se} set={set} ex={ex} label={set.type === 'warmup' ? 'W' : String(workIdx + 1)} prev={set.type === 'working' ? lastWorking[Math.min(workIdx, lastWorking.length - 1)] : undefined} restDefault={settings.restDefaultSec} />;
+            return <Collapse key={set.id} appear={!known.current.has(set.id)}><SetRow se={se} set={set} ex={ex} label={set.type === 'warmup' ? 'W' : String(workIdx + 1)} prev={set.type === 'working' ? lastWorking[Math.min(workIdx, lastWorking.length - 1)] : undefined} restDefault={settings.restDefaultSec} /></Collapse>;
           })}
         </AnimatePresence>
         <div className="row-flex" style={{ gap: 8, marginTop: 10 }}>
@@ -409,15 +476,16 @@ const ExerciseBlock = memo(function ExerciseBlock({ se, idx, ex, linkedPrev, lin
           <button className="btn sm ghost press" onClick={() => addSet(se.id, 'warmup')}>{t('+ Warm-up')}</button>
         </div>
       </div>
-    </motion.section>
+    </section>
   );
 });
 
 function gridCols(ex: Exercise | undefined, effort: string) {
+  // minmax(0, 1fr): an input never pushes the row wider than the card (plain 1fr let its content decide)
   const extra = effort !== 'off' ? ' 52px' : '';
   const lt = ex?.logType ?? 'weightReps';
-  if (lt === 'duration') return `34px 62px 1fr${extra} 46px`;
-  return `34px 62px 1fr 1fr${extra} 46px`;
+  if (lt === 'duration') return `34px 62px minmax(0, 1fr)${extra} 46px`;
+  return `34px 62px minmax(0, 1fr) minmax(0, 1fr)${extra} 46px`;
 }
 function headers(ex: Exercise | undefined, u: { weight: string; distance: string }, t: (k: string) => string): string[] {
   const lt = ex?.logType ?? 'weightReps';
@@ -464,6 +532,8 @@ const SetRow = memo(function SetRow({ se, set, ex, label, prev, restDefault }: {
     if (!valid) { setShake((n) => n + 1); buzz(30); toast(t('Enter reps first'), { tone: 'bad', duration: 1800 }); return; }
     const st = useStore.getState();
     if (st.active?.pausedAt) st.resumeActive();
+    unlockRestAudio(); // a tap: the rest-over tones are allowed to play later
+    if (st.active?.rest && st.active.rest.endsAt <= Date.now()) skipRest(); // "Go" has done its job
     const gain = set.type === 'working' ? beatLastTime(lt, eff, prev, u.weight, lang, t) : null;
     buzz(gain ? [12, 50, 22] as any : 14);
     if (gain) setBeat((b) => ({ n: (b?.n ?? 0) + 1, label: gain }));
@@ -473,7 +543,7 @@ const SetRow = memo(function SetRow({ se, set, ex, label, prev, restDefault }: {
       const all = st.active?.exercises ?? [];
       const idx = all.findIndex((e) => e.id === se.id);
       const linkedNext = se.supersetGroup && all.slice(idx + 1).some((e) => e.supersetGroup === se.supersetGroup && e.sets.some((x) => !x.done));
-      if (!linkedNext) startRest(se.restSec ?? restDefault, se.exerciseId);
+      if (!linkedNext) { startRest(se.restSec ?? restDefault, se.exerciseId); offerRestAlerts(useUI.getState().toast); }
       else skipRest();
     }
   };
@@ -494,12 +564,12 @@ const SetRow = memo(function SetRow({ se, set, ex, label, prev, restDefault }: {
   const fr = field(set.reps, ph.r, (v) => patchSet(se.id, set.id, { reps: v }), 0, t('Reps'), complete);
 
   return (
-    // layout is measured only when this row actually moves (a row above was added/removed), not on every tick or keystroke
-    <motion.div layout="position" layoutDependency={`${label}:${se.sets.length}`} initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} transition={SOFT} style={{ overflow: 'hidden' }}>
+    // a plain row: it grows in and folds away inside its Collapse (no Motion layout — that re-measured the whole page)
+    <div data-set={set.id}>
       <div style={{ display: 'grid', gridTemplateColumns: gridCols(ex, settings.effort), gap: 8, alignItems: 'center', padding: '5px 2px', opacity: set.done ? 0.72 : 1 }}>
         <button className="press" aria-label={t('Set options')} aria-expanded={open} onClick={() => setOpen((v) => !v)}
           style={{ height: 38, borderRadius: 10, fontWeight: 700, fontSize: 14, background: set.type === 'warmup' ? 'var(--ac-soft)' : 'var(--s2)', color: set.type === 'warmup' ? 'var(--ac-text)' : 'var(--tx2)', boxShadow: 'inset 0 0 0 1px var(--line)' }}>{label}</button>
-        <button className="xs t3 num press" style={{ textAlign: 'left', lineHeight: 1.15 }} disabled={!prev} onClick={() => prev && patchSet(se.id, set.id, { weightKg: prev.weightKg, reps: prev.reps, durationSec: prev.durationSec, distanceM: prev.distanceM })} aria-label={prev ? `${t('Use previous')}: ${fmtSet(prev, ex, u, lang, t)}` : undefined}>
+        <button className="xs t3 num press" style={{ textAlign: 'left', lineHeight: 1.15, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} disabled={!prev} onClick={() => prev && patchSet(se.id, set.id, { weightKg: prev.weightKg, reps: prev.reps, durationSec: prev.durationSec, distanceM: prev.distanceM })} aria-label={prev ? `${t('Use previous')}: ${fmtSet(prev, ex, u, lang, t)}` : undefined}>
           {prev ? fmtSet(prev, ex, u, lang, t).replace(/ (kg|lb)/, '') : '—'}
         </button>
         {lt === 'duration' && field(set.durationSec, prev?.durationSec ?? 45, (v) => patchSet(se.id, set.id, { durationSec: v }), 0, t('Seconds'), complete)}
@@ -521,17 +591,17 @@ const SetRow = memo(function SetRow({ se, set, ex, label, prev, restDefault }: {
       </div>
       <AnimatePresence initial={false}>
         {open && (
-          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={SOFT} style={{ overflow: 'hidden' }}>
+          <Collapse key="opts" appear ms={260}>
             <div className="row-flex" style={{ gap: 8, padding: '4px 2px 8px' }}>
               <button className="chip sm press" onClick={() => patchSet(se.id, set.id, { type: set.type === 'warmup' ? 'working' : 'warmup' })}>{set.type === 'warmup' ? t('Make working set') : t('Make warm-up')}</button>
               
               <span className="grow" />
               <button className="chip sm press" style={{ color: 'var(--bad)' }} onClick={remove}><Icon name="trash" size={14} /> {t('Delete')}</button>
             </div>
-          </motion.div>
+          </Collapse>
         )}
       </AnimatePresence>
-    </motion.div>
+    </div>
   );
 });
 
@@ -550,8 +620,8 @@ function ExerciseMenu({ se, ex, onClose }: { se: SessionExercise; ex?: Exercise;
   const items = [
     { icon: 'swap', label: t('Replace exercise'), run: () => { onClose(); push('exercisePicker', { mode: 'replace', seId: se.id, forExercise: ex }); } },
     { icon: 'link', label: se.supersetGroup && s.active!.exercises[idx + 1]?.supersetGroup === se.supersetGroup ? t('Unlink superset') : t('Superset with next'), disabled: idx >= count - 1, run: () => { toggleSuperset(se.id); onClose(); } },
-    { icon: 'arrowUp', label: t('Move up'), disabled: idx === 0, run: () => { moveExercise(se.id, -1); onClose(); } },
-    { icon: 'arrowDown', label: t('Move down'), disabled: idx >= count - 1, run: () => { moveExercise(se.id, 1); onClose(); } },
+    { icon: 'arrowUp', label: t('Move up'), disabled: idx === 0, run: () => { flip(document.querySelector('.wk-list'), () => moveExercise(se.id, -1)); onClose(); } },
+    { icon: 'arrowDown', label: t('Move down'), disabled: idx >= count - 1, run: () => { flip(document.querySelector('.wk-list'), () => moveExercise(se.id, 1)); onClose(); } },
   ];
   return (
     <Sheet onClose={onClose} label={t('Exercise options')} nested>

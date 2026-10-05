@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { motion } from 'motion/react';
-import { useStore, exerciseMap, allExercises, plannedFor, missedWorkouts } from '../state/store';
+import { exerciseMap, allExercises, plannedFor, missedWorkouts } from '../state/store';
 import { useUI, buzz } from '../state/ui';
 import { useT, useLang } from '../lib/i18n';
 import { addDays, fmtDate, fmtDuration, fmtWeekdayShort, startOfWeek, weekdayOf } from '../lib/dates';
@@ -13,7 +13,7 @@ import { exName, MUSCLE_LABEL } from './workout/common';
 import { estMinutes } from './Today';
 import { ACTIVITY_LABEL, activityIcon, activityLine } from '../lib/activity';
 import { matchExercises } from '../lib/workoutText';
-import { useProgressive } from '../lib/hooks';
+import { useProgressive, useScreenStore } from '../lib/hooks';
 import { MUSCLES } from '../data/exercises';
 import type { MuscleGroup, Routine } from '../lib/types';
 import { SOFT } from '../ui/Sheet';
@@ -40,7 +40,7 @@ export function TrainScreen() {
 function PlanTab() {
   const t = useT();
   const lang = useLang();
-  const s = useStore();
+  const s = useScreenStore(); // paused while the live workout covers the page
   const push = useUI((u) => u.push);
   const toast = useUI((u) => u.toast);
   const today = useToday();
@@ -140,7 +140,7 @@ function PlanTab() {
 function LibraryTab() {
   const t = useT();
   const lang = useLang();
-  const s = useStore();
+  const s = useScreenStore(); // paused while the live workout covers the page
   const push = useUI((u) => u.push);
   const all = allExercises(s.exercises);
   const [q, setQ] = useState('');
@@ -176,7 +176,7 @@ function LibraryTab() {
 function HistoryTab() {
   const t = useT();
   const lang = useLang();
-  const s = useStore();
+  const s = useScreenStore(); // paused while the live workout covers the page
   const push = useUI((u) => u.push);
   const u = s.settings.units;
   type Row = { at: number; date: string; node: React.ReactNode };

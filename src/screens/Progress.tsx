@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { useStore, exerciseMap } from '../state/store';
+import { exerciseMap } from '../state/store';
+import { useScreenStore } from '../lib/hooks';
 import { useUI } from '../state/ui';
 import { useT, useLang } from '../lib/i18n';
 import { useToday } from '../lib/derive';
@@ -18,7 +19,7 @@ const DAYS: Record<Range, number> = { '4w': 28, '12w': 84, '6m': 182, all: 3650 
 export function ProgressScreen() {
   const t = useT();
   const lang = useLang();
-  const s = useStore();
+  const s = useScreenStore(); // paused while the live workout covers the page
   const push = useUI((u) => u.push);
   const today = useToday();
   const [range, setRange] = useState<Range>('12w');

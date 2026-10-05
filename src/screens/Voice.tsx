@@ -139,7 +139,8 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
         else if (e === 'audio') { teardown(); setErr(t('No microphone was found or it is in use by another app.')); go('error'); setTyping(true); }
         else if (e !== 'aborted' && e !== 'no-speech') setErr(t('Speech recognition stopped unexpectedly.'));
       },
-      onEnd: () => { if (alive.current && useVoice.getState().phase === 'listening') finishRef.current(); },
+      // ended without us finishing it (no speech, an error): the level meter's mic goes too, so earbuds leave call mode
+      onEnd: () => { if (!alive.current) return; if (useVoice.getState().phase === 'listening') finishRef.current(); else if (!busy.current) mic.release('voice'); },
     });
     if (!h) { setErr(t('Speech recognition couldn’t start.')); go('error'); setTyping(true); return; }
     handle.current = h;

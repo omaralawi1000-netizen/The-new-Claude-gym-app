@@ -11,13 +11,20 @@ import { entryFromSnapshot, recipeToFood, requantify, snapshotOf, uid } from '..
 import { DATA_VERSION, defaultData, detectLang, normaliseData } from './defaults';
 
 const KEY = 'aven.v1';
+/** The running workout on its own: written at once on every change (a few KB), while the whole app's data is written a moment
+ *  later when the phone is idle. Removed on every full save, so when it exists it is always the newest copy. */
+const ACTIVE_KEY = 'aven.v1.active';
 
 // ── persistence ─────────────────────────────────────────────
 
 export function loadPersisted(): AppData {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return normaliseData(JSON.parse(raw), detectLang());
+    if (raw) {
+      const data = JSON.parse(raw);
+      try { const act = localStorage.getItem(ACTIVE_KEY); if (act) { const a = JSON.parse(act); if (a && 'active' in a) data.active = a.active; } } catch { /* the full copy's workout stands */ }
+      return normaliseData(data, detectLang());
+    }
   } catch (e) {
     console.warn('Aven: could not read saved data', e);
     try {
@@ -39,8 +46,10 @@ function pickData(s: Store): AppData {
 
 export function flushSave() {
   if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+  if (idleId !== null) { cancelIdle(idleId); idleId = null; }
   try {
     localStorage.setItem(KEY, JSON.stringify(pickData(useStore.getState())));
+    localStorage.removeItem(ACTIVE_KEY); // the full copy now holds the newest workout
     if (persistStatus.error) { persistStatus.error = null; persistStatus.listeners.forEach((l) => l()); }
   } catch (e: any) {
     persistStatus.error = e?.name === 'QuotaExceededError' ? 'quota' : 'write';
@@ -48,8 +57,23 @@ export function flushSave() {
   }
 }
 
-function scheduleSave(immediate: boolean) {
-  if (immediate) return flushSave();
+const idle = (fn: () => void): number => (typeof requestIdleCallback === 'function' ? requestIdleCallback(fn, { timeout: 1200 }) : (setTimeout(fn, 0) as unknown as number));
+const cancelIdle = (id: number) => { if (typeof cancelIdleCallback === 'function') cancelIdleCallback(id); else clearTimeout(id); };
+let idleId: number | null = null;
+
+/**
+ * `true`: written now (finishing a workout, an import). `'active'`: only the running workout is written now — a set ticked
+ * or a number typed used to rewrite all of the app's data on the spot, a pause that grew with every week of history — and
+ * the rest follows when the phone is idle. Otherwise a quarter of a second later.
+ */
+function scheduleSave(mode: boolean | 'active') {
+  if (mode === true) return flushSave();
+  if (mode === 'active') {
+    try { localStorage.setItem(ACTIVE_KEY, JSON.stringify({ active: useStore.getState().active })); } catch { return flushSave(); }
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => { saveTimer = null; if (idleId === null) idleId = idle(() => { idleId = null; flushSave(); }); }, 600);
+    return;
+  }
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = setTimeout(flushSave, 250);
 }
@@ -123,7 +147,7 @@ const dayOf = (s: Settings, t = Date.now()) => dayKey(t, s.dayStartHour);
 const initial = loadPersisted();
 
 export const useStore = create<Store>((set, get) => {
-  const mutate = (fn: (s: Store) => Partial<Store>, immediate = false) => {
+  const mutate = (fn: (s: Store) => Partial<Store>, immediate: boolean | 'active' = false) => {
     set((s) => fn(s));
     scheduleSave(immediate);
   };
@@ -224,7 +248,7 @@ export const useStore = create<Store>((set, get) => {
     mutateActive: (fn) => {
       const a = get().active;
       if (!a) return;
-      mutate(() => ({ active: fn(a) }), true);
+      mutate(() => ({ active: fn(a) }), 'active');
     },
     pauseActive: () => {
       const a = get().active;

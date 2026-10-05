@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useReducer, useRef } from 'react';
 import { motion } from 'motion/react';
 import { useStore, plannedFor, missedWorkouts, foodPool } from '../state/store';
 import { useUI, buzz } from '../state/ui';
@@ -13,7 +13,7 @@ import { elapsedMs, sessionSetCount, sessionVolume } from '../lib/workout';
 import { fmtNum, kgToDisplay } from '../lib/units';
 import { entryFromSnapshot, snapshotOf, uid } from '../lib/nutrition';
 import { defaultQty } from './food/Detail';
-import { useNow } from '../lib/hooks';
+import { useCovered, useNow, useScreenStore } from '../lib/hooks';
 import type { Routine } from '../lib/types';
 
 export function estMinutes(r: Routine): number {
@@ -25,7 +25,7 @@ export function estMinutes(r: Routine): number {
 export function TodayScreen() {
   const t = useT();
   const lang = useLang();
-  const s = useStore();
+  const s = useScreenStore(); // paused while the live workout covers the page
   const push = useUI((u) => u.push);
   const setTab = useUI((u) => u.setTab);
   const toast = useUI((u) => u.toast);
@@ -91,7 +91,12 @@ export function TodayScreen() {
 
   // While the workout overlay is open, keep the hero looking like it did when it was tapped: otherwise it flips to its
   // "in progress" layout (a different height) in the middle of the plate morph that grows out of it.
-  const workoutOpen = useUI((u) => u.overlays.some((o) => o.type === 'workout'));
+  // (read, not subscribed: opening the workout used to re-render all of Today behind it; it only needs to redraw once the
+  // workout has gone — see the subscription below)
+  const isWorkout = (o: { type: string }) => o.type === 'workout';
+  const workoutOpen = useUI.getState().overlays.some(isWorkout);
+  const [, redraw] = useReducer((n: number) => n + 1, 0);
+  useEffect(() => useUI.subscribe((u, prev) => { if (prev.overlays.some(isWorkout) && !u.overlays.some(isWorkout)) redraw(); }), []);
   const frozenActive = useRef(s.active);
   if (!workoutOpen) frozenActive.current = s.active;
   const active = frozenActive.current;
@@ -265,7 +270,8 @@ export function TodayScreen() {
  * hidden, behind the live workout). */
 function HeroClock() {
   const a = useStore((x) => x.active);
-  const now = useNow(1000, !!a);
+  const covered = useCovered(); // behind the open workout nobody sees it tick
+  const now = useNow(1000, !!a && !covered);
   return <>{a ? fmtDuration(elapsedMs(a, now) / 1000) : ''}</>;
 }
 

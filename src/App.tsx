@@ -1,11 +1,12 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { AnimatePresence, LayoutGroup, MotionConfig, motion } from 'motion/react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { AnimatePresence, MotionConfig, motion } from 'motion/react';
 import { useStore } from './state/store';
 import { useUI } from './state/ui';
 import { TabBar } from './ui/TabBar';
 import { Toaster } from './ui/Toaster';
 import { SphereStage } from './ui/Sphere';
 import { Overlays } from './screens/Overlays';
+import { useRestCue } from './screens/workout/rest';
 import { TodayScreen } from './screens/Today';
 import { TrainScreen } from './screens/Train';
 import { FoodScreen } from './screens/Food';
@@ -219,15 +220,18 @@ function useCalm(): boolean {
   const open = useUI((u) => u.overlays.length > 0);
   const [calm, setCalm] = useState(open);
   useEffect(() => {
-    if (open) { setCalm(true); return; }
+    // switched on two frames after the pop-up has started moving: it restyles every element of the page behind (its
+    // frosted cards stop blurring), and doing that inside the tap delayed the pop-up's first frame
+    if (open) { let id = requestAnimationFrame(() => { id = requestAnimationFrame(() => setCalm(true)); }); return () => cancelAnimationFrame(id); }
     const id = setTimeout(() => setCalm(false), 900); // resume after the closing slide
     return () => clearTimeout(id);
   }, [open]);
-  return calm || open;
+  return calm;
 }
 
 export function App() {
   useTheme();
+  useRestCue(); // the end of a rest, wherever you are in the app
   useKeyboard();
   useWakeLock();
   const appRef = useRef<HTMLDivElement>(null), stageRef = useRef<HTMLDivElement>(null);
@@ -243,6 +247,9 @@ export function App() {
   const dir = lastDir.current;
   useEffect(() => { prev.current = tab; }, [tab]);
   const Screen = SCREENS[tab];
+  // one element per tab: the app re-renders whenever a pop-up opens or closes (the colour field's pause, the resume bar),
+  // and that used to re-render the whole page behind the pop-up too — Today, every time the workout was opened
+  const screen = useMemo(() => <Screen />, [Screen]);
   // a running workout shows a resume bar above the tab bar on every tab but Today: the page makes room for it
   const pill = useStore((s) => !!s.active) && tab !== 'today';
   const onboarded = useStore((s) => s.settings.onboarded);
@@ -270,22 +277,20 @@ export function App() {
   }, [push]);
   return (
     <MotionConfig reducedMotion="user">
-      <LayoutGroup>
-        <div className="app" data-hue={tab} data-pill={pill || undefined} data-calm={calm || undefined} ref={appRef}>
-          <div className="stage" ref={stageRef}>
-          <div className="fields"><AnimatePresence initial={false}><Field key={tab} hue={tab} /></AnimatePresence></div>
-          <AnimatePresence mode="popLayout" initial={false} custom={dir}>
-            <TabPane key={tab} hue={tab} dir={dir}><Screen /></TabPane>
-          </AnimatePresence>
-          <TabBar />
-          </div>
-          <Overlays />
-          <Toaster />
-          <SphereStage />
-          <FpsMeter />
-          <UpdateBanner />
+      <div className="app" data-hue={tab} data-pill={pill || undefined} data-calm={calm || undefined} ref={appRef}>
+        <div className="stage" ref={stageRef}>
+        <div className="fields"><AnimatePresence initial={false}><Field key={tab} hue={tab} /></AnimatePresence></div>
+        <AnimatePresence mode="popLayout" initial={false} custom={dir}>
+          <TabPane key={tab} hue={tab} dir={dir}>{screen}</TabPane>
+        </AnimatePresence>
+        <TabBar />
         </div>
-      </LayoutGroup>
+        <Overlays />
+        <Toaster />
+        <SphereStage />
+        <FpsMeter />
+        <UpdateBanner />
+      </div>
       <span className="sr" aria-live="polite">{t('Aven')}</span>
     </MotionConfig>
   );

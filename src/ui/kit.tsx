@@ -1,4 +1,4 @@
-import { animate, useMotionValue, useReducedMotion } from 'motion/react';
+import { animate, useMotionValue, usePresence, useReducedMotion } from 'motion/react';
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { Lens } from './lens';
 import { apple } from './motion';
@@ -105,7 +105,8 @@ export function NumInput({ value, onChange, unit, placeholder, className, max = 
 }
 
 // ── stepper with hold-to-repeat ─────────────────────────────
-export function Stepper({ value, onChange, step = 1, min = 0, max = 9999, unit, fmt }: { value: number; onChange: (n: number) => void; step?: number; min?: number; max?: number; unit?: string; fmt?: (n: number) => string }) {
+/** `compact`: smaller buttons and a value box sized to its content, so two fit side by side on a phone. */
+export function Stepper({ value, onChange, step = 1, min = 0, max = 9999, unit, fmt, compact, label }: { value: number; onChange: (n: number) => void; step?: number; min?: number; max?: number; unit?: string; fmt?: (n: number) => string; compact?: boolean; label?: string }) {
   const lang = useLang();
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const val = useRef(value);
@@ -119,11 +120,51 @@ export function Stepper({ value, onChange, step = 1, min = 0, max = 9999, unit, 
   };
   const stop = () => clearTimeout(timer.current);
   useEffect(() => stop, []);
+  const btn = `icon-btn press${compact ? ' sm' : ''}`;
   return (
-    <div className="row-flex" style={{ gap: 6 }}>
-      <button className="icon-btn press" aria-label="Decrease" onPointerDown={() => start(-1)} onPointerUp={stop} onPointerLeave={stop} onPointerCancel={stop}><Icon name="minus" /></button>
-      <div className="num" style={{ minWidth: 64, textAlign: 'center', fontWeight: 650, fontSize: 18 }}>{fmt ? fmt(value) : fmtNum(value, lang, 2)}{unit && <span className="t3 small"> {unit}</span>}</div>
-      <button className="icon-btn press" aria-label="Increase" onPointerDown={() => start(1)} onPointerUp={stop} onPointerLeave={stop} onPointerCancel={stop}><Icon name="plus" /></button>
+    <div className={`row-flex stepper${compact ? ' compact' : ''}`} style={{ gap: compact ? 4 : 6 }} role="group" aria-label={label}>
+      <button className={btn} aria-label="Decrease" disabled={value <= min} onPointerDown={() => start(-1)} onPointerUp={stop} onPointerLeave={stop} onPointerCancel={stop}><Icon name="minus" size={compact ? 18 : 22} /></button>
+      <div className="num" style={{ minWidth: compact ? 40 : 64, textAlign: 'center', fontWeight: 650, fontSize: compact ? 17 : 18, whiteSpace: 'nowrap' }}>{fmt ? fmt(value) : fmtNum(value, lang, 2)}{unit && <span className="t3 small"> {unit}</span>}</div>
+      <button className={btn} aria-label="Increase" disabled={value >= max} onPointerDown={() => start(1)} onPointerUp={stop} onPointerLeave={stop} onPointerCancel={stop}><Icon name="plus" size={compact ? 18 : 22} /></button>
+    </div>
+  );
+}
+
+// ── collapse / reveal ───────────────────────────────────────
+/**
+ * Opens and closes its content by sliding a grid row between 0fr and 1fr: the browser lays it out as it goes, and no script
+ * measures heights on every frame. (Motion's height: 'auto' and `layout` animations measured the whole page each time
+ * anything changed — most of the pause when a workout opened.) `appear`: grows in when mounted. Inside AnimatePresence it
+ * also folds away before it is removed. Once open, its content may overflow (a set's glow and "+2.5 kg" rise above it).
+ */
+export function Collapse({ open = true, appear = false, children, className, style, ms = 320 }: { open?: boolean; appear?: boolean; children: ReactNode; className?: string; style?: CSSProperties; ms?: number }) {
+  const [isPresent, safeToRemove] = usePresence();
+  const reduce = useReducedMotion();
+  const [grown, setGrown] = useState(!appear || !!reduce);
+  const [settled, setSettled] = useState(!appear);
+  const ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (grown) return;
+    const id = requestAnimationFrame(() => requestAnimationFrame(() => setGrown(true))); // one laid-out frame at 0fr first
+    return () => cancelAnimationFrame(id);
+    // eslint-disable-next-line
+  }, []);
+  const on = grown && open && isPresent;
+  const first = useRef(true);
+  useEffect(() => {
+    // mounted already open: nothing is moving, so no re-render and no timer per row (a workout mounts dozens of these)
+    if (first.current) { first.current = false; if (!appear) return; }
+    const el = ref.current; if (!el) return;
+    setSettled(false);
+    const done = (e?: TransitionEvent) => { if (e && e.target !== el) return; setSettled(on); if (!isPresent) safeToRemove?.(); };
+    el.addEventListener('transitionend', done);
+    const t = setTimeout(() => done(), (reduce ? 0 : ms) + 60);
+    return () => { el.removeEventListener('transitionend', done); clearTimeout(t); };
+    // eslint-disable-next-line
+  }, [on]);
+  return (
+    <div ref={ref} className={`collapse${on ? ' on' : ''}${on && settled ? ' settled' : ''}${className ? ` ${className}` : ''}`} style={{ ['--collapse-ms' as string]: `${reduce ? 0 : ms}ms`, ...style }}>
+      <div className="collapse-in">{children}</div>
     </div>
   );
 }

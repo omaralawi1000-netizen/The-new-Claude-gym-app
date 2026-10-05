@@ -18,4 +18,6 @@ run new node scripts/journey-new.mjs
 run keyboard node scripts/journey-keyboard.mjs
 run robust node scripts/robust.mjs
 run interrupt node scripts/interrupt.mjs
+run rest node scripts/journey-rest.mjs
+run align node scripts/align.mjs
 echo "passed=$pass failed=$fail"

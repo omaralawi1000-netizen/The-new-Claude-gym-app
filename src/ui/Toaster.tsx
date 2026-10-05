@@ -19,7 +19,7 @@ function ToastItem({ toast, index, total }: { toast: Toast; index: number; total
   const depth = index; // 0 = newest, front
   return (
     <motion.div
-      className="toast glass" role="status" layout
+      className="toast glass" role="status"
       initial={{ opacity: 0, y: 24, scale: 0.94 }}
       animate={{ opacity: depth > 2 ? 0 : 1 - depth * 0.25, y: -depth * 11, scale: 1 - depth * 0.05 }}
       exit={{ opacity: 0, y: 14, scale: 0.96, transition: { duration: 0.16 } }}

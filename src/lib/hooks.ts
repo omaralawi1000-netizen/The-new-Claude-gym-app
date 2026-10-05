@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
-import { useStore } from '../state/store';
+import { useEffect, useReducer, useRef, useState, useSyncExternalStore } from 'react';
+import { useStore, type Store } from '../state/store';
+import { stageCover } from '../ui/engage';
 
 export function useNow(ms = 500, enabled = true): number {
   const [now, setNow] = useState(() => Date.now());
@@ -10,6 +11,37 @@ export function useNow(ms = 500, enabled = true): number {
     return () => clearInterval(id);
   }, [ms, enabled]);
   return now;
+}
+
+/** True while a full-screen surface (the live workout) covers the page completely: nothing on it can be seen. */
+export function useCovered(): boolean {
+  return useSyncExternalStore((cb) => stageCover.on('change', cb), () => stageCover.get() >= 0.98);
+}
+
+/**
+ * The whole store, for a tab screen. While the live workout covers the page, changes don't re-render it: every set ticked
+ * used to re-render Today (or Train…) behind the workout, a hitch on each tick. It catches up once nothing has changed for
+ * two seconds and the phone is idle (you are resting), so it is current long before the workout is swiped away — and at
+ * once if it is uncovered first.
+ */
+export function useScreenStore(): Store {
+  const [, bump] = useReducer((n: number) => n + 1, 0);
+  const ref = useRef<Store | null>(null);
+  if (!ref.current) ref.current = useStore.getState();
+  useEffect(() => {
+    let stale = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const catchUp = () => { timer = null; if (!stale) return; stale = false; ref.current = useStore.getState(); bump(); };
+    const later = () => { if (timer) clearTimeout(timer); timer = setTimeout(() => { timer = null; if (typeof requestIdleCallback === 'function') requestIdleCallback(catchUp, { timeout: 1500 }); else catchUp(); }, 2000); };
+    const unsub = useStore.subscribe((st) => {
+      if (stageCover.get() < 0.98) { stale = false; ref.current = st; bump(); return; }
+      stale = true; later();
+    });
+    const off = stageCover.on('change', (v) => { if (v < 0.98 && stale) catchUp(); });
+    if (useStore.getState() !== ref.current) { ref.current = useStore.getState(); bump(); } // changed before we subscribed
+    return () => { unsub(); off(); if (timer) clearTimeout(timer); };
+  }, []);
+  return ref.current;
 }
 
 /** Short chime + vibration when a rest timer ends. Respects the sound / haptics settings. */

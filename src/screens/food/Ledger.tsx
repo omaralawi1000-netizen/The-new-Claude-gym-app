@@ -47,9 +47,12 @@ export function Ledger({ sum, compact }: { sum: Sum; compact?: boolean }) {
         {macros.map((m) => {
           const s = fmtSum(m.k, sum, lang);
           const g = goals[m.k];
+          // some foods have no value for this macro: the number is a floor. A small dot says so (explained under More)
+          // instead of a "≥" in front of every big number
+          const text = s.partial ? s.text.replace(/^≥\s*/, '') : s.text;
           return (
-            <div key={m.k} style={{ textAlign: 'center' }} aria-label={`${m.label} ${s.text} g`}>
-              <div className="num" style={{ fontSize: 22, fontWeight: 300, letterSpacing: '-0.03em' }}>{s.text}<span className="t3 xs">{g ? ` / ${fmtNum(g, lang, 0)}` : ' g'}</span></div>
+            <div key={m.k} style={{ textAlign: 'center' }} aria-label={`${m.label} ${s.partial ? `${t('at least')} ` : ''}${text} g`}>
+              <div className="num" style={{ fontSize: 22, fontWeight: 300, letterSpacing: '-0.03em' }}>{text}{s.partial && <i className="partial-dot" aria-hidden />}<span className="t3 xs">{g ? ` / ${fmtNum(g, lang, 0)}` : ' g'}</span></div>
               <div className="row-flex" style={{ gap: 6, justifyContent: 'center', marginTop: 4 }}><i style={{ width: 7, height: 7, borderRadius: 7, background: m.c, boxShadow: `0 0 10px ${m.c}` }} /><span className="micro">{m.label.slice(0, 1)}</span></div>
             </div>
           );
@@ -63,6 +66,7 @@ export function Ledger({ sum, compact }: { sum: Sum; compact?: boolean }) {
           <AnimatePresence initial={false}>
             {more && (
               <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={SOFT} style={{ overflow: 'hidden' }}>
+                {macros.some((m) => fmtSum(m.k, sum, lang).partial) && <div className="xs t2" style={{ paddingTop: 12 }}><i className="partial-dot" aria-hidden style={{ verticalAlign: 'middle', margin: '0 6px 0 0' }} />{t('Some foods have no value for this, so the real total is a little higher.')}</div>}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px 18px', paddingTop: 12 }}>
                   {(['fibre', 'sugar', 'satFat', 'sodium'] as const).map((k) => {
                     const s = fmtSum(k, sum, lang, true);

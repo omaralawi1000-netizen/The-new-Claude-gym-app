@@ -140,6 +140,40 @@ Run in headless Chromium (Playwright, 390×844 @2×, dark + light), scripts in `
 - **Not built (on purpose, stated in-app):** cloud sync / accounts; photo-based food estimation; automatic AI changes to your data (the Coach advises; routines and estimates only appear after you confirm; progression suggestions remain transparent rules); background reminders when the app is closed (web apps need a push server — reminders fire only while Aven runs; in-app nudge otherwise); animated exercise demonstrations (there is an authored muscle diagram and step-by-step text instead).
 - Exercise calories are **never** added to food targets.
 
+## Smoothness pass: the workout opens at once, a workout bar, a rest end you can't miss
+
+Measured first (production build, CPU slowed 4×, demo data), then fixed:
+- **Opening the workout**: the tap took 189 ms before anything moved. About half was the animation library re-measuring the whole page, because every exercise and set row carried a `layout` animation. Those are gone: rows grow and fold with a CSS grid-row transition (`Collapse` in `ui/kit.tsx`), and reordering uses a one-off FLIP (`ui/flip.ts`). The tap now draws only the window and its header; the first exercises arrive on the next frames while the slide (on the compositor) is already moving. Reading `window.innerHeight` during render forced a style pass each time, so the height is cached (`ui/viewport.ts`), which also helps every sheet. **Worst opening frame: 191–230 → ~100 ms.**
+- **Resume**: the workout stays mounted after the first opening (`WorkoutHost` in `screens/Overlays.tsx`). Minimising slides it away and parks it off-screen with a `translate`, which restyles one element instead of ~800. **Resume: ~150 → 65–72 ms.**
+- **Ticking a set**: the page behind the workout (Today, Train…) re-rendered on every tick. Tab screens now pause while the workout covers them and catch up when you're resting (`useScreenStore`). The app no longer re-renders the current screen whenever a pop-up opens. Each tick used to rewrite all of the app's data; the running workout is now saved on its own at once, with the full save following when the phone is idle (`aven.v1.active`, `state/store.ts`). The progress bar scales instead of animating its width.
+- **The orb**: it used to sit in the dock while the workout rose, then jump ~1,200 px in one frame to a button at the end of the list. It now lives in the **workout bar** from the first frame and glides there with the window. Sampled every frame: no jumps on open, minimise, resume or scroll.
+
+**The workout bar** (`WorkoutBar` in `screens/workout/Active.tsx`) is the workout's own dock, where the tab bar sits, with the orb at its right end. It shows:
+- **Next**: what's next ("Next · Set 2 · 55 kg × 8 / Lat Pulldown"); tap it to scroll to that set.
+- **Resting**: the bar fills as the time passes; tap it for −15 / +15 / Skip.
+- **Rest over**: it turns green ("Go · Lat Pulldown") and stays green until you tick the set.
+
+The floating rest card that covered your sets is gone.
+
+**The end of a rest** (`screens/workout/rest.ts`, mounted in App, so it also works while the workout is minimised):
+- three ticks in the last three seconds, then a firm buzz and three short tones (one shared audio output, unlocked by your taps)
+- the resume pill says "Rest over · Go"
+- when Aven isn't on screen, a notification says what's next
+- permission is asked once, gently, the first time a rest starts; toggle in Settings → Training
+
+**Alignment**:
+- **Routine editor**: settings are a two-column grid of compact steppers (Working sets · Warm-up / Min reps · Max reps / Rest as 3:00). The rep range no longer runs off the card, and opening an exercise no longer stalls or blanks the list.
+- **Set rows**: columns can't grow past the card.
+- **Macro totals**: the "≥" in front of totals is now a small dot, explained under More.
+- **`scripts/align.mjs`**: visits the tabs and main sheets at 360 and 390 px, in English and Danish, and fails on clipped text or anything spilling out of its card or off the screen. A planted overflow is caught.
+
+**Earbuds**:
+- **Settings → Voice & AI → Microphone**: "Phone" is the default and records with the phone's own mic when earbuds are connected (`mic.ts`). Recording from the earbuds switches them into call mode and hears worse.
+- This is unconfirmed on a real phone.
+- **Galaxy Buds**: their own "Voice detect" setting also lowers music when you talk; turn it off in Galaxy Wearable.
+
+**Stutter recorder** (Settings → About): five minutes of long frames with the screen and the last tap, then **Copy report** to paste back. It records only timings and names. Headless tests can't feel your phone; this lets the next fix aim at what you actually felt.
+
 ## Read aloud, a matching Coach, linked macros, workouts → routines
 
 - **Play on every answer** (orb screen and Coach), like Claude's: tap ▸ and the Gemini voice reads it; each word lights up in the accent as it is said, the ones said settle back, the ones to come wait a shade lighter; ■ stops. It starts fast because a finished answer's audio is fetched in the background (`prefetch`, cached by text), and a long answer is split into a short first sentence plus bigger pieces fetched together and queued back to back on the audio clock (`lib/tts.ts`). The lit word follows the real audio: the clip's quiet stretches are found and each phrase is pinned to the pause nearest its full stop or comma, so the timing re-syncs instead of drifting (`wordTimes`, `speechSpan`). The screen and the reader share one tokeniser (`richLines`), so word N on screen is word N in the audio. "Read answers aloud automatically" (Settings → Voice & AI) now covers both screens. Tiny replies ("Undone.") get no button.

@@ -1,4 +1,4 @@
-import { useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useStore, flushSave, persistStatus } from '../state/store';
 import { useUI, buzz } from '../state/ui';
@@ -14,11 +14,12 @@ import { clearPhotos, loadPhoto, savePhoto } from '../lib/photos';
 import type { AppData, Meal, Settings } from '../lib/types';
 import { uid, kcalOf, scaleMacros, suggestMacros } from '../lib/nutrition';
 import { mealName } from '../lib/derive';
-import { dayKey } from '../lib/dates';
+import { dayKey, fmtDuration } from '../lib/dates';
 import { useAi } from '../state/ai';
 import { clearKeys } from '../lib/keys';
 import { VoiceAiSettings } from './VoiceAi';
 import { setFpsMeter, useFpsMeterOn } from '../ui/FpsMeter';
+import { startStutter, stopStutter, stutterReport, stutterState, subscribeStutter } from '../lib/stutter';
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 // Moving between Settings pages works like iOS: the page you leave steps aside and fades out quickly, then the next one glides
@@ -157,6 +158,7 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
                 <Field label={t('Effort tracking')}><Seg value={st.effort} onChange={(v) => set({ effort: v })} options={[{ value: 'off', label: t('Off') }, { value: 'rpe', label: 'RPE' }, { value: 'rir', label: 'RIR' }]} /></Field>
                 <Field label={t('Smallest weight jump')}><div className="chips" style={{ margin: 0, padding: 0 }}>{[1, 1.25, 2.5, 5].map((v) => <button key={v} className={`chip press ${st.plateStep === v ? 'on' : ''}`} onClick={() => set({ plateStep: v })}>{v} kg</button>)}</div></Field>
                 <div className="row-flex between"><span>{t('Rest-timer sound')}</span><Toggle on={st.sound} onChange={(v) => set({ sound: v })} label={t('Rest-timer sound')} /></div>
+                <RestAlertRow />
                 <div className="row-flex between"><span>{t('Haptic feedback')}</span><Toggle on={st.haptics} onChange={(v) => set({ haptics: v })} label={t('Haptic feedback')} /></div>
               </div>
             )}
@@ -209,6 +211,26 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
       </div>
       {void lang}
     </Sheet>
+  );
+}
+
+/** The rest-over alert while Aven isn't on screen: a notification, so it needs the browser's permission (asked here, once). */
+function RestAlertRow() {
+  const t = useT();
+  const s = useStore();
+  const supported = typeof Notification !== 'undefined';
+  const [perm, setPerm] = useState(() => (supported ? Notification.permission : 'denied'));
+  const on = s.settings.restNotify !== false && perm === 'granted';
+  const toggle = async (v: boolean) => {
+    if (v && supported && Notification.permission === 'default') { const r = await Notification.requestPermission().catch(() => 'default' as NotificationPermission); setPerm(r); }
+    s.updateSettings({ restNotify: v });
+  };
+  if (!supported) return null;
+  return (
+    <div className="row-flex between" style={{ alignItems: 'flex-start', gap: 14 }}>
+      <div><div>{t('Alert when rest is over')}</div><div className="xs t2" style={{ marginTop: 2 }}>{perm === 'denied' ? t('Notifications are blocked for Aven in your browser settings.') : t('Even with the phone in your pocket.')}</div></div>
+      <Toggle on={on} onChange={toggle} label={t('Alert when rest is over')} />
+    </div>
   );
 }
 
@@ -416,10 +438,33 @@ function DataSection() {
   );
 }
 
+/** Settings → About: record five minutes of stutters on this phone, then copy the report to paste back (lib/stutter.ts). */
+function StutterRecorder() {
+  const t = useT();
+  // a stable snapshot (on + count); the time left is read on each render, which the 1 s tick below drives
+  const st = useSyncExternalStore(subscribeStutter, () => { const x = stutterState(); return `${x.on ? 1 : 0}:${x.count}`; });
+  const [onS, countS] = st.split(':');
+  const on = onS === '1', count = Number(countS), left = stutterState().left;
+  const [, tick] = useState(0);
+  useEffect(() => { if (!on) return; const id = setInterval(() => tick((n) => n + 1), 1000); return () => clearInterval(id); }, [on]);
+  const copy = async () => { try { await navigator.clipboard.writeText(stutterReport()); useUI.getState().toast(t('Report copied'), { tone: 'ok' }); } catch { useUI.getState().toast(t('Couldn’t copy'), { tone: 'bad' }); } };
+  return (
+    <div className="plinth-2" style={{ padding: 14 }}>
+      <b>{t('Record stutters')}</b>
+      <div className="t2" style={{ marginTop: 4 }}>{on ? t('Recording — use the app as normal. {m} left, {n} caught.', { m: fmtDuration(Math.ceil(left / 1000)), n: count }) : t('Notes every frame your phone had to wait for, for five minutes, so the next fix is aimed at what you felt. Only timings and screen names.')}</div>
+      <div className="row-flex" style={{ gap: 8, marginTop: 10 }}>
+        <button className={`btn sm press ${on ? '' : 'primary'}`} onClick={() => (on ? stopStutter() : startStutter())}>{on ? t('Stop') : t('Start recording')}</button>
+        {count > 0 && <button className="btn sm press" onClick={copy}><Icon name="copy" size={15} /> {t('Copy report')}</button>}
+      </div>
+    </div>
+  );
+}
+
 function About() {
   const t = useT();
   return (
     <div className="stack gap12 small">
+      <StutterRecorder />
       <div className="plinth dots" style={{ padding: 18 }}><div className="display display-lg">Aven</div><div className="t2" style={{ marginTop: 4 }}>{t('Training, food and progress in one place.')} · v0.1</div></div>
       <div><b>{t('Food data')}</b><div className="t2" style={{ marginTop: 4 }}>{t('Bundled foods are approximate reference values. Online results come from Open Food Facts (© contributors, ODbL — open database licence) and USDA FoodData Central (public domain, CC0).')}</div></div>
       <div><b>{t('What’s simulated or not built')}</b><div className="t2" style={{ marginTop: 4 }}>{t('No cloud sync or accounts. No photo-based food estimation. The Coach only advises and never changes your data. Background reminders need a push server.')}</div></div>

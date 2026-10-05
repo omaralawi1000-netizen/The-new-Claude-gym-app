@@ -1,6 +1,8 @@
+import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence } from 'motion/react';
 import { OverlayMeta, OverlayZ } from '../ui/Sheet';
-import { useUI } from '../state/ui';
+import { useUI, type Overlay } from '../state/ui';
+import { useStore } from '../state/store';
 import { ActiveWorkout } from './workout/Active';
 import { SettingsSheet } from './Settings';
 import { FoodSearch } from './food/Search';
@@ -24,15 +26,35 @@ import { PhotoFood } from './food/PhotoFood';
 const metas = new Map<string, { id: string; page: boolean }>();
 const meta = (id: string, page: boolean) => { let m = metas.get(id); if (!m) { m = { id, page }; metas.set(id, m); if (metas.size > 200) metas.delete(metas.keys().next().value!); } return m; };
 
+/**
+ * The live workout stays mounted once it has been opened, until it is finished or discarded: minimising only slides it away
+ * (and hides it), so opening it again is just the slide — the whole list used to be rebuilt on every Resume, a pause after
+ * the tap each time. While it is open it sits in the stack at the workout overlay's place.
+ */
+function WorkoutHost() {
+  const overlays = useUI((s) => s.overlays);
+  const activeId = useStore((s) => s.active?.id ?? null);
+  const idx = overlays.findIndex((o) => o.type === 'workout');
+  const last = useRef<{ o: Overlay; z: number } | null>(null);
+  if (idx >= 0) last.current = { o: overlays[idx], z: 60 + idx * 10 };
+  const [kept, setKept] = useState<string | null>(null);
+  useEffect(() => { if (idx >= 0 && activeId) setKept(activeId); }, [idx, activeId]);
+  if (!activeId || !last.current || (idx < 0 && kept !== activeId)) return null;
+  const { o, z } = last.current;
+  return <OverlayZ.Provider value={z}><OverlayMeta.Provider value={meta(o.id, false)}><ActiveWorkout key={activeId} props={o.props ?? {}} open={idx >= 0} /></OverlayMeta.Provider></OverlayZ.Provider>;
+}
+
 /** Renders the overlay stack. Each overlay owns its presentation (sheet, morph, or full-screen). */
 export function Overlays() {
   const overlays = useUI((s) => s.overlays);
   return (
+    <>
+    <WorkoutHost />
     <AnimatePresence>
       {overlays.map((o, idx) => {
         const p = o.props ?? {};
         const el = (() => { switch (o.type) {
-          case 'workout': return <ActiveWorkout key={o.id} props={p} />;
+          case 'workout': return null; // drawn by WorkoutHost, which keeps it alive between openings
           case 'settings': return <SettingsSheet key={o.id} props={p} />;
           case 'foodSearch': return <FoodSearch key={o.id} props={p} />;
           case 'foodDetail': return <FoodDetail key={o.id} props={p} />;
@@ -68,5 +90,6 @@ export function Overlays() {
         return <OverlayZ.Provider key={o.id} value={60 + idx * 10}><OverlayMeta.Provider value={meta(o.id, !!o.page)}>{el}</OverlayMeta.Provider></OverlayZ.Provider>;
       })}
     </AnimatePresence>
+    </>
   );
 }

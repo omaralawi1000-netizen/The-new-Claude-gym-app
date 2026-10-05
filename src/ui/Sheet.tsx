@@ -2,6 +2,7 @@ import { AnimatePresence, animate, motion, useMotionValue, usePresence, useReduc
 import { createPortal } from 'react-dom';
 import { createContext, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { EngageContext, Mirror, OverlayMeta, mirrorProgress, mirrorStage, trackDepth, type Engage } from './engage';
+import { viewportH } from './viewport';
 import { Veil, mirrorVeil } from './Veil';
 import { availableHeight, dropKeyboard, kb, watchFocus } from './keyboard';
 
@@ -113,7 +114,7 @@ function HostSheet({ children, onClose, tall, instant, label, foot, z: zProp = 6
   const id = useId();
   const ref = useRef<HTMLDivElement>(null);
   const behindRef = useRef(behind); behindRef.current = behind || covered;
-  const dist = useRef((typeof window !== 'undefined' ? window.innerHeight : 900) + 40); // how far it travels to be fully off screen
+  const dist = useRef(viewportH + 40); // how far it travels to be fully off screen
   const p = useMotionValue(0);   // opening progress (a spring)
   const y = useMotionValue(0);   // the finger
   const bs = useMotionValue(0);  // stepped back behind another sheet

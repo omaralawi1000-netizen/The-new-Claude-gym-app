@@ -1,6 +1,7 @@
 import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from 'motion/react';
 import { useUI, type Tab, buzz } from '../state/ui';
 import { useStore } from '../state/store';
+import { useCovered } from '../lib/hooks';
 import { Icon } from './Icon';
 import { SphereSlot, orbGlide, orbPress, orbTap } from './Sphere';
 import { useT } from '../lib/i18n';
@@ -23,11 +24,14 @@ function PillStatus() {
   const active = useStore((s) => s.active);
   const t = useT();
   const [, tick] = useState(0);
-  useEffect(() => { const i = setInterval(() => tick((n) => n + 1), 500); return () => clearInterval(i); }, []);
+  const covered = useCovered(); // under the open workout it isn't seen: no ticking
+  useEffect(() => { if (covered) return; const i = setInterval(() => tick((n) => n + 1), 500); return () => clearInterval(i); }, [covered]);
   if (!active) return null;
   const rest = active.rest && !active.pausedAt ? Math.max(0, Math.ceil((active.rest.endsAt - Date.now()) / 1000)) : 0;
   const total = active.exercises.reduce((n, e) => n + e.sets.length, 0);
   const done = active.exercises.reduce((n, e) => n + e.sets.filter((s) => s.done).length, 0);
+  // rest over while you're elsewhere in the app: the pill says so, in green, until the next set is ticked
+  if (active.rest && !active.pausedAt && rest === 0) return <><span style={{ color: 'var(--ok)', fontWeight: 700 }}>{t('Rest over')} · {t('Go')}</span> · {fmtDuration(elapsedMs(active) / 1000)}</>;
   return <>{active.pausedAt ? t('Paused') : rest > 0 ? `${t('Rest')} ${fmtDuration(rest)}` : `${done}/${total}`} · {fmtDuration(elapsedMs(active) / 1000)}</>;
 }
 
