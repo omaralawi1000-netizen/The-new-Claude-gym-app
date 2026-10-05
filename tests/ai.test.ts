@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { cleanTranscript, buildPrompt, isEcho, isJunk, transcribe, SttError, STT_MODEL } from '../src/lib/groq';
-import { pickTextModels, limitError, parseSSE, withFallback, AiError, nextQuotaReset, isExhausted, markExhausted, aiFoodRows, aiWorkoutRows, aiEstimateFood } from '../src/lib/gemini';
+import { pickTextModels, limitError, parseSSE, partialReply, withFallback, AiError, nextQuotaReset, isExhausted, markExhausted, aiFoodRows, aiWorkoutRows, aiEstimateFood } from '../src/lib/gemini';
 import { validateFoodItems, validateWorkoutItems, validateEstimate, validateRoutine } from '../src/lib/aiValidate';
 import { pcmBytes, audioFrom, toSamples } from '../src/lib/tts';
 import { cleanSamples, speechSpan, toWav, highpass } from '../src/lib/audioprep';
@@ -104,6 +104,16 @@ describe('gemini plumbing', () => {
   it('parses SSE frames and keeps the unfinished tail', () => {
     const { events, rest } = parseSSE('data: {"a":1}\n\ndata: {"b":2}\n\ndata: {"c"');
     expect(events).toEqual([{ a: 1 }, { b: 2 }]); expect(rest).toBe('data: {"c"');
+  });
+  it('reads the reply out of an agent answer that is still arriving', () => {
+    expect(partialReply('')).toBe('');
+    expect(partialReply('{"rep')).toBe('');
+    expect(partialReply('{"reply": "You trained 3 tim')).toBe('You trained 3 tim');
+    expect(partialReply('{"reply":"Line\\nTwo \\"q\\" \\u00e6 \\\\ end')).toBe('Line\nTwo "q" æ \\ end');
+    expect(partialReply('{"reply":"abc\\')).toBe('abc'); // an escape cut in half waits for the rest
+    expect(partialReply('{"reply":"abc\\u00')).toBe('abc');
+    expect(partialReply('{"reply":"Done.","actions":[{"type":"log_food"}]}')).toBe('Done.');
+    expect(partialReply('{"reply":"","actions":[]}')).toBe('');
   });
 });
 

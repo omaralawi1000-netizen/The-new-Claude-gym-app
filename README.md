@@ -140,6 +140,13 @@ Run in headless Chromium (Playwright, 390×844 @2×, dark + light), scripts in `
 - **Not built (on purpose, stated in-app):** cloud sync / accounts; photo-based food estimation; automatic AI changes to your data (the Coach advises; routines and estimates only appear after you confirm; progression suggestions remain transparent rules); background reminders when the app is closed (web apps need a push server — reminders fire only while Aven runs; in-app nudge otherwise); animated exercise demonstrations (there is an authored muscle diagram and step-by-step text instead).
 - Exercise calories are **never** added to food targets.
 
+## Talking to the orb: live words, quicker stop, streamed answers
+
+- **Your words appear as you speak** (`screens/Voice.tsx`): while it records, what has been recorded so far is sent to Groq every ~1.2 s (every ~1.8 s past six seconds) with the fast Whisper model, and the words settle in under the orb. When you stop, the whole recording is transcribed once more with your chosen model and replaces them. Rationed to 12 quick looks a minute and paused for a minute if Groq says "slow down", so the transcript when you stop always fits in the free tier (20 a minute). If that final transcript fails, the live words are used instead of losing what you said. (The phone's own speech recognition can't run next to the recording on Android — two apps can't share the mic, and Chrome beeps each time it starts — so live words come from Groq.)
+- **It stops 0.9 s after your last word** (it waited 1.4 s; the Coach's mic too).
+- **One calm thinking moment**: no "Transcribing…" step and no grey placeholder bars — the orb thinks, and the answer starts appearing as soon as Gemini writes its first words (the agent's answer is streamed with the reply first — `aiAgentStream`, `partialReply` in `lib/gemini.ts`; a request the API won't stream falls back to the plain call).
+- **Sent like a message**: when you stop, your words rise into a small, quiet bubble on the right (a calm spring with a hint of bounce, iMessage-style); when the full transcript replaces the live words the bubble grows to fit smoothly. The answer is the large, easy-to-read text below it, each new word settling in with a soft blur lifting; the action cards follow on the same spring. Long answers keep their newest words in view unless you scroll up.
+
 ## The orb, final look
 
 - **Beads of light, not flat dots** (`ui/sphereRender.ts`, dark mode): every lit bead on the near side glows softly into the space around it, its core is crisp, and the brightest — where the light comes from, top left — have a white-hot heart. The far side stays small and quiet, so the orb reads as deep glass with light inside.

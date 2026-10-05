@@ -171,14 +171,14 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     return () => clearTimeout(id);
     // eslint-disable-next-line
   }, []);
-  // stop by itself once you have spoken and gone quiet
+  // stop by itself once you have spoken and gone quiet for 0.9 s (it used to wait 1.4 s — a dead moment after your last word)
   useEffect(() => {
     if (!recording) return;
     let heard = 0, quiet = 0; const t0 = performance.now();
     const id = setInterval(() => {
       const lv = mic.level();
       if (lv > 0.16) { heard += 80; quiet = 0; } else if (lv < 0.09) quiet += 80;
-      if ((heard >= 240 && quiet >= 1400) || performance.now() - t0 > 40000) { clearInterval(id); recRef.current(); }
+      if ((heard >= 240 && quiet >= 900) || performance.now() - t0 > 40000) { clearInterval(id); recRef.current(); }
     }, 80);
     return () => clearInterval(id);
   }, [recording]);

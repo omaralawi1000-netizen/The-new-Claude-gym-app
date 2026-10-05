@@ -296,6 +296,80 @@ export async function aiAgent(system: string, contents: Turn[], brain: Brain): P
   });
 }
 
+/** The agent's schema with the reply FIRST, so when it is streamed the words to show arrive before the actions. */
+const AGENT_SCHEMA_STREAM = { ...AGENT_SCHEMA, propertyOrdering: ['reply', 'actions'] };
+
+/**
+ * The "reply" text of a JSON answer that is still arriving, decoded so far. `{"reply": "You trained 3 tim` → "You trained 3 tim".
+ * An escape cut in half waits for the next chunk rather than showing a stray backslash.
+ */
+export function partialReply(src: string): string {
+  const m = /"reply"\s*:\s*"/.exec(src);
+  if (!m) return '';
+  let out = '';
+  for (let i = m.index + m[0].length; i < src.length; i++) {
+    const ch = src[i];
+    if (ch === '"') break;
+    if (ch !== '\\') { out += ch; continue; }
+    const nx = src[i + 1];
+    if (nx === undefined) break;
+    if (nx === 'u') { const hex = src.slice(i + 2, i + 6); if (!/^[0-9a-fA-F]{4}$/.test(hex)) break; out += String.fromCharCode(parseInt(hex, 16)); i += 5; continue; }
+    out += ({ n: '\n', t: ' ', r: '', b: '', f: '' } as Record<string, string>)[nx] ?? nx;
+    i++;
+  }
+  return out;
+}
+
+/**
+ * One agent turn, streamed: the same answer as aiAgent, but the reply is handed to `onReply` word by word while the model is
+ * still writing it (the orb screen shows it as it comes), then the whole answer is parsed and returned for validation.
+ */
+export async function aiAgentStream(system: string, contents: Turn[], brain: Brain, onReply: (text: string) => void): Promise<unknown> {
+  const run = async (model: string, think: boolean): Promise<unknown> => {
+    const { res, done } = await post(`models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`, brain.key, {
+      systemInstruction: { parts: [{ text: system }] }, contents,
+      generationConfig: { temperature: 0.3, responseMimeType: 'application/json', responseSchema: AGENT_SCHEMA_STREAM, maxOutputTokens: 3072, ...(think ? { thinkingConfig: { thinkingBudget: 512 } } : {}) },
+    }, { timeout: 30000, signal: brain.signal });
+    done();
+    let shown = '';
+    const full = await readStream(res, brain.signal, (all) => { const r = partialReply(all); if (r !== shown) { shown = r; onReply(r); } }, { firstChunkTimeout: 30000, idleTimeout: 20000 });
+    try { return JSON.parse(full); } catch { throw new AiError('invalid'); }
+  };
+  return withFallback(brain.models, async (m) => {
+    const think = !noThinking.has(m);
+    try { return await run(m, think); }
+    catch (e) { if (think && e instanceof AiError && e.code === 'badrequest') { noThinking.add(m); return run(m, false); } throw e; }
+  });
+}
+
+/** Read a server-sent-events answer to the end; onText(fullSoFar) per piece. A stream that goes quiet after some text ends there. */
+async function readStream(res: Response, signal: AbortSignal | undefined, onText: ((t: string) => void) | undefined, { firstChunkTimeout, idleTimeout }: { firstChunkTimeout: number; idleTimeout: number }): Promise<string> {
+  const reader = res.body!.getReader();
+  const dec = new TextDecoder();
+  let buf = '', full = '';
+  const read = () => new Promise<ReadableStreamReadResult<Uint8Array>>((resolve, reject) => {
+    let timer: ReturnType<typeof setTimeout>;
+    const off = () => { clearTimeout(timer); signal?.removeEventListener('abort', onAbort); };
+    const onAbort = () => { off(); reader.cancel().catch(() => {}); reject(new AiError('aborted')); };
+    if (signal?.aborted) return onAbort();
+    timer = setTimeout(() => { off(); reader.cancel().catch(() => {}); reject(new AiError('timeout')); }, full ? idleTimeout : firstChunkTimeout);
+    signal?.addEventListener('abort', onAbort, { once: true });
+    reader.read().then((r) => { off(); resolve(r); }, () => { off(); reject(new AiError(signal?.aborted ? 'aborted' : 'network')); });
+  });
+  for (;;) {
+    let r;
+    try { r = await read(); } catch (e: any) { if (e.code === 'timeout' && full.trim()) break; throw e; }
+    if (r.done) break;
+    buf += dec.decode(r.value, { stream: true });
+    const { events, rest } = parseSSE(buf);
+    buf = rest;
+    for (const ev of events) { const piece = textOf(ev); if (piece) { full += piece; onText?.(full); } }
+  }
+  for (const ev of parseSSE(buf + '\n\n').events) { const piece = textOf(ev); if (piece) { full += piece; onText?.(full); } }
+  if (!full.trim()) throw new AiError('empty');
+  return full.trim();
+}
+
 // ── streaming chat (the Coach) ──────────────────────────────
 export function parseSSE(buffer: string): { events: any[]; rest: string } {
   const events: any[] = [];
@@ -326,30 +400,7 @@ export async function streamChat({ key, model, system, contents, onText, signal,
   }
   const { res, done } = posted;
   done();
-  const reader = res.body!.getReader();
-  const dec = new TextDecoder();
-  let buf = '', full = '';
-  const read = () => new Promise<ReadableStreamReadResult<Uint8Array>>((resolve, reject) => {
-    let timer: ReturnType<typeof setTimeout>;
-    const off = () => { clearTimeout(timer); signal?.removeEventListener('abort', onAbort); };
-    const onAbort = () => { off(); reader.cancel().catch(() => {}); reject(new AiError('aborted')); };
-    if (signal?.aborted) return onAbort();
-    timer = setTimeout(() => { off(); reader.cancel().catch(() => {}); reject(new AiError('timeout')); }, full ? idleTimeout : firstChunkTimeout);
-    signal?.addEventListener('abort', onAbort, { once: true });
-    reader.read().then((r) => { off(); resolve(r); }, () => { off(); reject(new AiError(signal?.aborted ? 'aborted' : 'network')); });
-  });
-  for (;;) {
-    let r;
-    try { r = await read(); } catch (e: any) { if (e.code === 'timeout' && full.trim()) break; throw e; }
-    if (r.done) break;
-    buf += dec.decode(r.value, { stream: true });
-    const { events, rest } = parseSSE(buf);
-    buf = rest;
-    for (const ev of events) { const piece = textOf(ev); if (piece) { full += piece; onText?.(full); } }
-  }
-  for (const ev of parseSSE(buf + '\n\n').events) { const piece = textOf(ev); if (piece) { full += piece; onText?.(full); } }
-  if (!full.trim()) throw new AiError('empty');
-  return full.trim();
+  return readStream(res, signal, onText, { firstChunkTimeout, idleTimeout });
 }
 
 /** Human-readable reason, for the UI (never a stack trace). */

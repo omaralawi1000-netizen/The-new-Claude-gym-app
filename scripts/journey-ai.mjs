@@ -4,14 +4,15 @@ import { launch, wait, skipOnboarding } from './lib.mjs';
 import assert from 'node:assert/strict';
 const { b, p, errors } = await launch({});
 const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' };
-const calls = { groq: 0, groqModels: 0, gen: [], stream: 0, tts: 0, agent: 0, lastSystem: '' };
+const calls = { groq: 0, groqLive: 0, groqModels: 0, gen: [], stream: 0, tts: 0, agent: 0, agentStream: 0, lastSystem: '' };
 let groqMode = 'ok'; // ok | 401 | down
 let groqText = 'to hundrede gram skyr, en banan og zzzxq';
 await p.route('https://api.groq.com/**', async (r) => {
   const req = r.request();
   if (req.method() === 'OPTIONS') return r.fulfill({ status: 204, headers: cors });
   if (req.url().endsWith('/models')) { calls.groqModels++; return r.fulfill({ status: 200, headers: { ...cors, 'content-type': 'application/json' }, body: '{"data":[]}' }); }
-  calls.groq++;
+  // live words while you speak are quick looks with the fast model; the transcript when you stop uses the chosen (accurate) one
+  if ((req.postDataBuffer() ?? Buffer.alloc(0)).includes('whisper-large-v3-turbo')) calls.groqLive++; else calls.groq++;
   if (groqMode === '401') return r.fulfill({ status: 401, headers: cors, body: '{}' });
   if (groqMode === 'down') return r.abort('failed');
   return r.fulfill({ status: 200, headers: { ...cors, 'content-type': 'application/json' }, body: JSON.stringify({ text: groqText, language: 'danish', segments: [{ text: groqText, no_speech_prob: 0.01, avg_logprob: -0.2, compression_ratio: 1.1 }] }) });
@@ -26,18 +27,25 @@ await p.route('https://generativelanguage.googleapis.com/**', async (r) => {
   if (geminiDown) return r.fulfill({ status: 503, headers: cors, body: '{}' });
   const body = JSON.parse(req.postData() || '{}');
   const prompt = body.contents?.[0]?.parts?.[0]?.text ?? '';
-  if (url.includes('streamGenerateContent')) {
+  const sse = (t) => `data: ${JSON.stringify({ candidates: [{ content: { parts: [{ text: t }] } }] })}\n\n`;
+  const schemaProps = body.generationConfig?.responseSchema?.properties || {};
+  if (url.includes('streamGenerateContent') && !schemaProps.actions) {
     calls.stream++;
     calls.lastSystem = body.systemInstruction?.parts?.[0]?.text ?? '';
-    const sse = (t) => `data: ${JSON.stringify({ candidates: [{ content: { parts: [{ text: t }] } }] })}\n\n`;
     return r.fulfill({ status: 200, headers: { ...cors, 'content-type': 'text/event-stream' }, body: sse('You trained **3 times** this week. ') + sse('Keep going:\n- add 2.5 kg to bench\n- eat more protein') });
   }
-  const schemaProps = body.generationConfig?.responseSchema?.properties || {};
-  if (schemaProps.actions) { // the Coach agent: answer by what the last user turn says
+  if (schemaProps.actions) { // the agent (Coach and orb screen): answer by what the last user turn says
     calls.agent++;
     const last = [...(body.contents || [])].reverse().find((c) => c.role === 'user')?.parts?.[0]?.text ?? '';
     calls.lastSystem = body.systemInstruction?.parts?.[0]?.text ?? '';
-    const out = (o) => r.fulfill(cand(o));
+    // the orb screen streams the agent's answer: the same JSON, cut into three pieces mid-string (reply first)
+    const streamed = url.includes('streamGenerateContent');
+    const out = (o) => {
+      if (!streamed) return r.fulfill(cand(o));
+      calls.agentStream++;
+      const txt = JSON.stringify(o); const a = Math.floor(txt.length / 3), b2 = Math.floor((txt.length * 2) / 3);
+      return r.fulfill({ status: 200, headers: { ...cors, 'content-type': 'text/event-stream' }, body: sse(txt.slice(0, a)) + sse(txt.slice(a, b2)) + sse(txt.slice(b2)) });
+    };
     if (/zzzxq/i.test(last)) return out({ reply: '', actions: [{ type: 'log_food', foods: [{ name: 'skyr', amount: 200, unit: 'g' }, { name: 'banana', amount: 1, unit: 'piece' }, { name: 'zzzxq', amount: 1, unit: 'piece' }] }] });
     if (/make that last bench set/i.test(last)) return out({ reply: '', actions: [{ type: 'edit_set', exercise: 'bench press', kg: 90 }] });
     if (/swap bench for incline/i.test(last)) return out({ reply: '', actions: [{ type: 'replace_exercise', from: 'bench press', to: 'Incline Dumbbell Press' }] });
@@ -91,7 +99,9 @@ await p.getByRole('button', { name: 'Dictate' }).first().click(); await wait(p, 
 await p.screenshot({ path: 'shots/ai-3-recording.png' });
 await wait(p, 1800);
 await p.getByRole('button', { name: 'Stop and send' }).click(); await p.locator('.action-card').first().waitFor({ timeout: 12000 }); await wait(p, 500);
-assert.equal(calls.groq, 1, 'one transcription request');
+assert.equal(calls.groq, 1, 'one full transcription request (live words are separate quick looks)');
+assert(calls.agentStream >= 1, 'the orb screen streamed the answer');
+console.log('live-word requests while speaking:', calls.groqLive);
 assert(calls.agent >= 1, 'the Coach was asked once');
 assert(/GUIDE:/.test(calls.lastSystem) && /DATA \(computed on this device/.test(calls.lastSystem), 'the Coach is given the app guide and the live data');
 assert(await p.locator('.action-card').getByText(/Logged to/).first().isVisible(), 'logged straight away, no review step');

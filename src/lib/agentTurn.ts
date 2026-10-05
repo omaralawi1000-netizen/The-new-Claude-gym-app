@@ -1,7 +1,7 @@
 import { useAi } from '../state/ai';
 import { useStore } from '../state/store';
 import { getKey } from './keys';
-import { AiError, FALLBACK_MODELS, aiAgent, type Turn } from './gemini';
+import { AiError, FALLBACK_MODELS, aiAgent, aiAgentStream, type Turn } from './gemini';
 import { AGENT_SYSTEM, APP_GUIDE, buildAgentContext, exerciseNames } from './coachContext';
 import { localActions, validateAgent, type AgentAction } from './agent';
 import { mealName } from './derive';
@@ -21,7 +21,7 @@ export interface Decision { reply: string; note: string; actions: AgentAction[];
  * summary of the live data); otherwise — or if Gemini fails — the built-in reader for simple logging. It only DECIDES:
  * the caller runs the actions (runActions) and shows them with Undo. Shared by the Coach chat and the orb screen.
  */
-export async function decide(text: string, o: { lang: Lang; t: (k: string, v?: Record<string, string | number>) => string; pool: Exercise[]; history: Turn[]; where: string; signal: AbortSignal }): Promise<Decision> {
+export async function decide(text: string, o: { lang: Lang; t: (k: string, v?: Record<string, string | number>) => string; pool: Exercise[]; history: Turn[]; where: string; signal: AbortSignal; /** the reply so far, while the model is still writing it (the orb screen streams it in) */ onReply?: (partial: string) => void }): Promise<Decision> {
   const st = useStore.getState();
   const g = useAi.getState();
   const { t, lang } = o;
@@ -33,7 +33,12 @@ export async function decide(text: string, o: { lang: Lang; t: (k: string, v?: R
       const names = new Map(o.pool.map((e) => [e.id, e.name]));
       const mealLabel = (id: string) => { const m = st.settings.meals.find((x) => x.id === id); return m ? mealName(m, lang) : id; };
       const system = `${AGENT_SYSTEM(lang)}\n\nGUIDE:\n${APP_GUIDE}\n\nWHERE THE USER IS: ${o.where}\n\nEXERCISE CATALOG (use these exact names): ${exerciseNames(o.pool).join(', ')}\n\nDATA (computed on this device just now):\n${buildAgentContext(st, today, (id) => names.get(id) ?? id, mealLabel)}`;
-      const raw = await aiAgent(system, [...o.history, { role: 'user', parts: [{ text }] }], { key: getKey('gemini'), models: agentModels(true), signal: o.signal });
+      const conv: Turn[] = [...o.history, { role: 'user', parts: [{ text }] }];
+      const brain = { key: getKey('gemini'), models: agentModels(true), signal: o.signal };
+      // streamed when someone is watching the words arrive; a request the API refuses to stream is asked again the plain way
+      const raw = o.onReply
+        ? await aiAgentStream(system, conv, brain, o.onReply).catch((e) => { if (e?.code === 'badrequest') return aiAgent(system, conv, brain); throw e; })
+        : await aiAgent(system, conv, brain);
       const v = validateAgent(raw);
       if (!v) throw new AiError('invalid');
       reply = v.reply; actions = v.actions;

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion, useTransform } from 'motion/react';
 import { useStore, allExercises } from '../state/store';
 import { useUI, buzz } from '../state/ui';
@@ -8,7 +8,7 @@ import { useT, useLang } from '../lib/i18n';
 import { mic } from '../lib/mic';
 import { speechSupported, startSpeech, type SpeechError, type SpeechHandle } from '../lib/speech';
 import { getKey } from '../lib/keys';
-import { transcribe, buildPrompt, STT_MODEL, SttError } from '../lib/groq';
+import { transcribe, transcribeQuick, buildPrompt, STT_MODEL, SttError } from '../lib/groq';
 import { aiErrorText, type Turn } from '../lib/gemini';
 import { decide, agentModels } from '../lib/agentTurn';
 import { runActions, type AgentResult } from '../lib/agent';
@@ -19,12 +19,29 @@ import { mirrorProgress, useEngage } from '../ui/engage';
 import { kb, watchFocus } from '../ui/keyboard';
 import { Veil, VOICE_VEIL, mirrorVeil } from '../ui/Veil';
 import { Icon } from '../ui/Icon';
-import { SOFT, useOverlayZ } from '../ui/Sheet';
-import { ActionCard, RotatingHint, Rich, Thinking, sttMessage } from '../ui/agentUi';
+import { useOverlayZ } from '../ui/Sheet';
+import { ActionCard, RotatingHint, Rich, Words, sttMessage } from '../ui/agentUi';
 import { flyLogged } from '../ui/fly';
 
-/** One thing you said and what the assistant did about it. */
-interface Turn1 { id: string; said: string; reply: string; results: AgentResult[]; undone: string[]; confirmed: string[] }
+/** One thing you said and what the assistant did about it. `done` once the answer is complete (until then it streams in). */
+interface Turn1 { id: string; said: string; reply: string; results: AgentResult[]; undone: string[]; confirmed: string[]; done: boolean }
+
+/**
+ * Live words cost Groq requests, so they are rationed: at most 12 a minute (the free tier allows 20, and the full transcript
+ * when you stop must always get through), none for a minute after Groq says "slow down".
+ */
+const liveLog: number[] = [];
+let livePausedUntil = 0;
+function liveAllowed(now = Date.now()): boolean {
+  while (liveLog.length && now - liveLog[0] > 60000) liveLog.shift();
+  if (now < livePausedUntil || liveLog.length >= 12) return false;
+  liveLog.push(now);
+  return true;
+}
+/** How a sent message and the answer's cards settle: calm, a hint of spring, no wobble (iMessage). */
+const SEND = { type: 'spring', stiffness: 320, damping: 30, mass: 1 } as const;
+/** While an answer is still arriving, a "**" that hasn't been closed yet is held back instead of showing as two stars. */
+const tidy = (s: string) => { const n = s.match(/\*\*/g)?.length ?? 0; if (n % 2 === 0) return s; const i = s.lastIndexOf('**'); return s.slice(0, i) + s.slice(i + 2); };
 
 const recorderOk = () => typeof MediaRecorder !== 'undefined' && mic.supported;
 /** Leaving for the Coach, the frost holds until the screen's progress is down to this (the Coach's sheet is mostly up by then). */
@@ -62,8 +79,6 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   const [typed, setTyped] = useState('');
   const [final, setFinal] = useState('');
   const [interim, setInterim] = useState('');
-  const [stage, setStage] = useState<'hearing' | 'thinking'>('thinking');
-  const [heardText, setHeardText] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const [canRetry, setCanRetry] = useState(false);
   const [turns, setTurns] = useState<Turn1[]>([]);
@@ -76,6 +91,18 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   const busy = useRef(false);
   const latest = useRef({ final: '', interim: '' }); latest.current = { final, interim };
   const finishRef = useRef<() => void>(() => {});
+  const liveGen = useRef(0); // a newer listen (or stopping) makes live words still on their way stale
+  // the conversation's last exchange is written in place as it happens: sent the moment you stop, then its answer streams in
+  const openTurn = (said: string) => { const id = uid('v'); setTurns((all) => [...all, { id, said, reply: '', results: [], undone: [], confirmed: [], done: false }]); return id; };
+  const patch = (id: string, p: Partial<Turn1>) => setTurns((all) => all.map((x) => (x.id === id ? { ...x, ...p } : x)));
+  const drop = (id: string) => setTurns((all) => all.filter((x) => x.id !== id));
+  /** Names Whisper should expect (your lifts and recent foods): it hears them right more often. */
+  const sttPrompt = () => {
+    const st = useStore.getState();
+    const foods = [...new Set([...st.entries].sort((a, b) => b.at - a.at).map((e) => e.snap.name))].slice(0, 25);
+    const lifts = [...new Set(st.sessions.slice(-6).flatMap((x) => x.exercises.map((e) => pool.find((q) => q.id === e.exerciseId)?.name ?? '')))].filter(Boolean);
+    return buildPrompt([...lifts, ...foods].slice(0, 40));
+  };
   const go = (p: Parameters<ReturnType<typeof useVoice.getState>['go']>[0]) => useVoice.getState().go(p);
 
   const teardown = useCallback(() => {
@@ -97,7 +124,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   // ── listening ──
   const listen = useCallback(async () => {
     if (busy.current) return;
-    setErr(null); setFinal(''); setInterim(''); setCanRetry(false); blobRef.current = null;
+    setErr(null); setFinal(''); setInterim(''); setCanRetry(false); blobRef.current = null; liveGen.current++; pinned.current = true;
     if (!supported) { go('idle'); setTyping(true); return; }
     setTyping(false);
     go('requesting');
@@ -136,33 +163,54 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   // opened → listen straight away
   useEffect(() => { if (supported) listen(); /* eslint-disable-next-line */ }, []);
 
-  // Groq: stop by itself once you have spoken and gone quiet (or after 40 s)
+  // Groq: stop by itself once you have spoken and gone quiet for 0.9 s (or after 40 s). And while you speak, show your words:
+  // what has been recorded so far is transcribed every ~1.2 s (Whisper turbo, rationed — see liveAllowed) and written under the
+  // orb as you talk. When you stop, the whole recording is transcribed once more and replaces them.
   useEffect(() => {
     if (phase !== 'listening' || engine !== 'groq') return;
-    let heard = 0, quiet = 0; const t0 = performance.now();
+    let heard = 0, quiet = 0, inFlight = false, lastAt = 0, lastSize = 0, off = false; const t0 = performance.now();
+    const gen = liveGen.current;
+    const live = async () => {
+      const blob = mic.snapshot();
+      if (!blob || blob.size - lastSize < 4000 || !liveAllowed()) return;
+      inFlight = true; lastAt = performance.now(); lastSize = blob.size;
+      try {
+        const ai = useAi.getState();
+        const text = (await transcribeQuick(blob, { key: getKey('groq'), model: STT_MODEL.fast, language: ai.voiceLang === 'auto' ? 'auto' : ai.voiceLang, prompt: sttPrompt() })).trim();
+        if (!off && alive.current && gen === liveGen.current && text && useVoice.getState().phase === 'listening') setInterim(text);
+      } catch (e) {
+        if (e instanceof SttError && e.code === 'busy') livePausedUntil = Date.now() + 60000;
+        else if (e instanceof SttError && (e.code === 'badkey' || e.code === 'nokey')) off = true;
+      } finally { inFlight = false; }
+    };
     const id = setInterval(() => {
       const lv = mic.level();
       if (lv > 0.16) { heard += 80; quiet = 0; } else if (lv < 0.09) quiet += 80;
-      if ((heard >= 240 && quiet >= 1400) || performance.now() - t0 > 40000) { clearInterval(id); finishRef.current(); }
+      if ((heard >= 240 && quiet >= 900) || performance.now() - t0 > 40000) { clearInterval(id); finishRef.current(); return; }
+      // a fresh look every ~1.2 s while you speak; past six seconds every ~1.8 s (a long sentence still updates, more calmly)
+      if (!off && !inFlight && heard >= 240 && performance.now() - lastAt > (performance.now() - t0 < 6000 ? 1150 : 1800)) live();
     }, 80);
-    return () => clearInterval(id);
+    return () => { off = true; clearInterval(id); };
+    // eslint-disable-next-line
   }, [phase, engine]);
 
-  /** Speech → text with Groq; a failure keeps the recording so a retry doesn't need you to speak again. */
-  async function hear(blob: Blob | null): Promise<string | null> {
-    if (!blob) { go('idle'); setErr(t('Didn’t catch anything. Tap the sphere to try again, or type it.')); return null; }
-    const st = useStore.getState(); const ai = useAi.getState();
-    const foods = [...new Set([...st.entries].sort((a, b) => b.at - a.at).map((e) => e.snap.name))].slice(0, 25);
-    const lifts = [...new Set(st.sessions.slice(-6).flatMap((x) => x.exercises.map((e) => pool.find((q) => q.id === e.exerciseId)?.name ?? '')))].filter(Boolean);
+  /**
+   * Speech → text with Groq; a failure keeps the recording so a retry doesn't need you to speak again. `early` is what the live
+   * words already showed: if the full transcript can't be had (or comes back empty), they are used rather than losing what you said.
+   */
+  async function hear(blob: Blob | null, early = ''): Promise<string | null> {
+    if (!blob) { if (early) return early; go('idle'); setErr(t('Didn’t catch anything. Tap the sphere to try again, or type it.')); return null; }
+    const ai = useAi.getState();
     try {
-      const out = (await transcribe(blob, { key: getKey('groq'), model: STT_MODEL[ai.stt], language: ai.voiceLang === 'auto' ? 'auto' : ai.voiceLang, prompt: buildPrompt([...lifts, ...foods].slice(0, 40)) })).trim();
+      const out = (await transcribe(blob, { key: getKey('groq'), model: STT_MODEL[ai.stt], language: ai.voiceLang === 'auto' ? 'auto' : ai.voiceLang, prompt: sttPrompt() })).trim();
       if (!alive.current) return null;
-      if (!out) { go('idle'); setErr(t('Didn’t catch anything. Tap the sphere to try again, or type it.')); return null; }
+      if (!out) { if (early) return early; go('idle'); setErr(t('Didn’t catch anything. Tap the sphere to try again, or type it.')); return null; }
       blobRef.current = null; setCanRetry(false);
       return out;
     } catch (e) {
       if (!alive.current) return null;
       const code = e instanceof SttError ? e.code : 'failed';
+      if (early && code !== 'nokey' && code !== 'badkey') return early;
       blobRef.current = blob;
       setErr(sttMessage(code, t)); setCanRetry(code !== 'nokey' && code !== 'badkey'); go('error');
       return null;
@@ -172,7 +220,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   /** The conversation so far, for the model (what was done becomes a one-line note). */
   const history = (): Turn[] => {
     const out: Turn[] = [];
-    for (const x of turnsRef.current.slice(-6)) {
+    for (const x of turnsRef.current.filter((y) => y.done).slice(-6)) {
       out.push({ role: 'user', parts: [{ text: x.said }] });
       const done = x.results.length ? `(done: ${x.results.map((r) => r.title).join(' | ')})` : '';
       const said = [x.reply, done].filter(Boolean).join('\n');
@@ -182,9 +230,9 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   };
 
   /** Understand what was said, do it, show it. */
-  const act = async (text: string) => {
+  const act = async (text: string, id: string) => {
     busy.current = true;
-    setHeardText(text); setStage('thinking'); setErr(null); go('processing');
+    setErr(null); go('processing');
     ctl.current = new AbortController();
     const signal = ctl.current.signal;
     const kill = setTimeout(() => ctl.current?.abort(), 30_000);
@@ -192,7 +240,8 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
       const where = props.mode === 'workout' && useStore.getState().active ? 'The user is in their running workout: sets go into it.'
         : props.mealId || props.date ? `The user came from the Food tab${props.date ? ` (day ${props.date})` : ''}${props.mealId ? `, meal ${props.mealId}` : ''}: foods go there unless they say otherwise.`
         : 'The user tapped the orb on the main screen and spoke to it.';
-      const d = await decide(text, { lang, t, pool, history: history(), where, signal });
+      // the answer streams in word by word as the model writes it (Gemini), under what you said
+      const d = await decide(text, { lang, t, pool, history: history(), where, signal, onReply: (r) => { if (alive.current) patch(id, { reply: r }); } });
       let reply = d.reply;
       if (d.wantsUndo) {
         const last = [...turnsRef.current].reverse().find((x) => x.results.some((r) => r.undo && !x.undone.includes(r.id) && !r.pending));
@@ -204,7 +253,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
       const results = d.actions.length ? await runActions(d.actions, { t, lang, today, brain: useAi.getState().hasGemini ? { key: getKey('gemini'), models: agentModels(false), signal } : null, date: props.date, mealId: props.mealId }) : [];
       if (!alive.current) return;
       const said = [reply, d.note].filter(Boolean).join('\n\n');
-      setTurns((all) => [...all, { id: uid('v'), said: text, reply: said, results, undone: [], confirmed: [] }]);
+      patch(id, { reply: said, results, done: true });
       if (results.some((r) => r.kind !== 'miss' && r.kind !== 'nav')) buzz([12, 40, 18] as any);
       go('confirmed');
       // a quick log and nothing to read: show it for a moment, then step aside with an Undo toast
@@ -227,6 +276,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
       if (results.some((r) => r.kind === 'nav')) setTimeout(() => { if (alive.current) useUI.getState().pop(); }, 900);
     } catch (e: any) {
       if (!alive.current) return;
+      patch(id, { done: true });
       if (e?.code !== 'aborted') { setErr(aiErrorText(e, t)); go('error'); } else go('idle');
     } finally { clearTimeout(kill); busy.current = false; }
   };
@@ -237,39 +287,47 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
     // still starting the microphone (Samsung Browser can take a second): a tap here is not "stop" — stopping a start that
     // hasn't finished used to end in "Didn't catch anything" followed by a false "microphone in use"
     if (p === 'processing' || (p === 'requesting' && !typing)) return;
-    if (typing) { const text = typed.trim(); if (!text) return; setTyped(''); act(text); return; }
+    if (typing) { const text = typed.trim(); if (!text) return; setTyped(''); act(text, openTurn(text)); return; }
     if (engine === 'groq' && mic.recording) {
       busy.current = true;
-      setStage('hearing'); go('processing');
+      liveGen.current++;
+      // what was heard live is sent at once (it rises into the conversation); the full transcript replaces it when it is in
+      const early = latest.current.interim.trim();
+      const id = openTurn(early);
+      setInterim(''); setFinal('');
+      go('processing');
       const blob = await mic.stopRecording(); mic.release('voice');
       busy.current = false;
-      const heard = await hear(blob);
-      if (heard) act(heard);
+      const heard = await hear(blob, early);
+      if (!alive.current) return;
+      if (heard) { if (heard !== early) patch(id, { said: heard }); act(heard, id); } else drop(id);
       return;
     }
     const text = [latest.current.final, latest.current.interim].filter(Boolean).join(' ').trim();
     run.current++; // anything still starting belongs to this attempt and is now abandoned, quietly
     handle.current?.stop(); handle.current = null; mic.release('voice');
     if (!text) { go('idle'); setErr(t('Didn’t catch anything. Tap the sphere to try again, or type it.')); return; }
-    act(text);
+    setInterim(''); setFinal('');
+    act(text, openTurn(text));
   };
   finishRef.current = finish;
 
   const retryHear = async () => {
     const b = blobRef.current; if (!b) return;
-    setErr(null); setCanRetry(false); setStage('hearing'); go('processing');
+    setErr(null); setCanRetry(false); go('processing');
+    const id = openTurn('');
     const text = await hear(b);
-    if (text) act(text);
+    if (text) { patch(id, { said: text }); act(text, id); } else drop(id);
   };
 
   const listening = phase === 'listening' || phase === 'requesting';
   const thinking = phase === 'processing';
   const last = turns[turns.length - 1];
-  const showing = !!last && !listening && !thinking;
+  const showing = !!last && !listening;
   const label = ({
     idle: showing ? t('Tap the sphere to say more') : t('Tap the sphere and speak'), requesting: t('Starting the microphone…'),
     listening: engine === 'groq' ? t('Listening') : mic.active ? t('Listening') : t('Listening (no level meter)'),
-    processing: stage === 'hearing' ? t('Transcribing…') : t('Thinking…'), confirmed: t('Done'), error: t('Couldn’t do that'), unavailable: t('Microphone unavailable'),
+    processing: t('Thinking…'), confirmed: t('Done'), error: t('Couldn’t do that'), unavailable: t('Microphone unavailable'),
     review: t('Done'),
   } as Record<string, string>)[phase] ?? '';
   // tapping while the microphone is still starting cancels that start cleanly (teardown also invalidates the pending start, so
@@ -280,6 +338,19 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   const rootRef = useRef<HTMLDivElement>(null);
   useEffect(() => (rootRef.current ? watchFocus(rootRef.current, (el) => el.closest<HTMLElement>('.hide-scroll')) : undefined), []);
   const kbPad = useTransform(kb, (v) => (v > 1 ? v + 6 : 0));
+  // a long answer keeps its newest words in view while it streams in — unless you have scrolled up to read
+  const talkRef = useRef<HTMLDivElement>(null);
+  const pinned = useRef(true);
+  useEffect(() => {
+    const el = talkRef.current; if (!el) return;
+    const on = () => { pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 64; };
+    el.addEventListener('scroll', on, { passive: true });
+    return () => el.removeEventListener('scroll', on);
+  }, []);
+  useLayoutEffect(() => {
+    const el = talkRef.current;
+    if (el && pinned.current && last && el.scrollHeight > el.clientHeight) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+  }, [last?.reply, last?.done, last?.results.length]); // eslint-disable-line
 
   return (
     <motion.div ref={rootRef} className="voice" style={{ position: 'fixed', inset: 0, zIndex: z, display: 'flex', flexDirection: 'column', paddingBottom: kbPad }} role="dialog" aria-modal="true" aria-label={t('Dictation')}>
@@ -303,33 +374,39 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
           <div className="micro" aria-live="polite" style={{ color: phase === 'listening' ? 'var(--ac-text)' : undefined }}>{label}</div>
         </div>
 
-        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', marginTop: 14, paddingBottom: 12 }} className="hide-scroll">
-          {/* what you are saying / said */}
-          {!typing && !showing && !thinking && (
-            <div className="display display-md" style={{ lineHeight: 1.12, padding: '0 6px', textAlign: 'center' }}>
-              {final || interim ? <><span>{final}</span>{interim && <span style={{ color: 'var(--tx3)' }}> {interim}</span>}</>
-                : <span style={{ color: 'var(--tx3)', fontSize: 18, fontStretch: '100%', fontWeight: 560 }}>{listening && engine === 'groq' ? t('Speak naturally. I stop listening when you pause.') : <RotatingHint />}</span>}
-            </div>
-          )}
-          {thinking && (
-            <div style={{ textAlign: 'center' }}>
-              {heardText && stage === 'thinking' && <div className="display display-md" style={{ color: 'var(--tx2)', lineHeight: 1.12 }}>{heardText}</div>}
-              <div style={{ maxWidth: 260, margin: '18px auto 0' }}><Thinking /></div>
-            </div>
-          )}
-          {showing && (
-            <AnimatePresence mode="popLayout" initial={false}>
-              <motion.div key={last.id} initial={{ opacity: 0, y: 14, filter: 'blur(8px)' }} animate={{ opacity: 1, y: 0, filter: 'blur(0px)', transitionEnd: { filter: 'none' } }} exit={{ opacity: 0, y: -10 }} transition={{ ...SOFT, filter: { duration: 0.45 } }} className="stack gap12">
-                <div className="small t2" style={{ textAlign: 'center', padding: '0 10px' }}>“{last.said}”</div>
-                {last.results.map((r) => (
-                  <ActionCard key={r.id} r={r} undone={last.undone.includes(r.id)} confirmed={last.confirmed.includes(r.id)}
-                    onUndo={() => { r.undo?.(); buzz(8); setTurns((all) => all.map((x) => (x.id === last.id ? { ...x, undone: [...x.undone, r.id] } : x))); }}
-                    onConfirm={() => { r.button?.run(); buzz(14); setTurns((all) => all.map((x) => (x.id === last.id ? { ...x, confirmed: [...x.confirmed, r.id] } : x))); }} />
-                ))}
-                {last.reply && <div className="small" style={{ lineHeight: 1.5 }} aria-live="polite"><Rich text={last.reply} /></div>}
+        <div ref={talkRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto', marginTop: 14, paddingBottom: 12 }} className="hide-scroll">
+          <AnimatePresence initial={false} mode="popLayout">
+            {!typing && !showing && (
+              // what you are saying, as you say it: each new word settles in; when you stop, it rises away into the conversation
+              <motion.div key="live" className="display voice-live" exit={{ opacity: 0, y: -10, filter: 'blur(5px)', transition: { duration: 0.22, ease: [0.4, 0, 1, 1] } }}>
+                {final || interim ? <Words text={[final, interim].filter(Boolean).join(' ')} k="live" />
+                  : <span className="voice-hint">{listening && engine === 'groq' ? t('Speak naturally. I stop listening when you pause.') : <RotatingHint />}</span>}
               </motion.div>
-            </AnimatePresence>
-          )}
+            )}
+            {showing && (
+              <motion.div key={last.id} className="exchange" exit={{ opacity: 0, y: -12, filter: 'blur(6px)', transition: { duration: 0.24, ease: [0.4, 0, 1, 1] } }}>
+                {last.said && (
+                  // what you said, sent: it rises into place like a sent message, small and quiet — the answer is what you read
+                  // (when the full transcript replaces the live words, the bubble grows to fit smoothly and the text settles in)
+                  <motion.div className="said" layout initial={{ opacity: 0, y: 36, scale: 0.9, filter: 'blur(4px)' }} animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)', transitionEnd: { filter: 'none' } }} transition={{ ...SEND, filter: { duration: 0.3 } }}>
+                    <motion.span key={last.said} layout="position" style={{ display: 'inline-block' }} initial={{ opacity: 0.35 }} animate={{ opacity: 1 }} transition={{ duration: 0.28 }}>{last.said}</motion.span>
+                  </motion.div>
+                )}
+                {last.reply && <div className="reply calm" aria-live="polite"><Rich text={last.done ? last.reply : tidy(last.reply)} /></div>}
+                {last.done && last.results.length > 0 && (
+                  <div className="stack gap12">
+                    {last.results.map((r, i) => (
+                      <motion.div key={r.id} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ ...SEND, delay: 0.06 + i * 0.07 }}>
+                        <ActionCard r={r} undone={last.undone.includes(r.id)} confirmed={last.confirmed.includes(r.id)}
+                          onUndo={() => { r.undo?.(); buzz(8); setTurns((all) => all.map((x) => (x.id === last.id ? { ...x, undone: [...x.undone, r.id] } : x))); }}
+                          onConfirm={() => { r.button?.run(); buzz(14); setTurns((all) => all.map((x) => (x.id === last.id ? { ...x, confirmed: [...x.confirmed, r.id] } : x))); }} />
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
           {err && <div className="plinth-2 small" role="alert" style={{ padding: '12px 14px', marginTop: 16 }}>{err}{canRetry && <div style={{ marginTop: 10 }}><button className="btn sm press" onClick={retryHear}>{t('Retry transcription')}</button></div>}</div>}
           {typing && !thinking && (
             <div style={{ marginTop: 12 }}>

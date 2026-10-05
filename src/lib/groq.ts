@@ -98,6 +98,18 @@ export async function transcribe(blob: Blob, o: Opts): Promise<string> {
   }
 }
 
+/**
+ * A quick look at what has been said so far (live words while you speak): the recording up to now, one try, no second pass
+ * and no retry — it is replaced by the full transcript the moment you stop.
+ */
+export async function transcribeQuick(blob: Blob, o: Opts): Promise<string> {
+  if (!o.key) throw new SttError('nokey');
+  if (navigator.onLine === false) throw new SttError('offline');
+  const prep = await prepareAudio(blob);
+  if (prep.silent) return '';
+  return (await once(prep.blob, o)).text;
+}
+
 export async function testGroqKey(key: string): Promise<'ok' | 'bad' | 'offline' | string> {
   try {
     const res = await fetch(GROQ_MODELS_URL, { headers: { Authorization: `Bearer ${key}` } });
