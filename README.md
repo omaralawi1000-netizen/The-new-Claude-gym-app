@@ -140,6 +140,13 @@ Run in headless Chromium (Playwright, 390×844 @2×, dark + light), scripts in `
 - **Not built (on purpose, stated in-app):** cloud sync / accounts; photo-based food estimation; automatic AI changes to your data (the Coach advises; routines and estimates only appear after you confirm; progression suggestions remain transparent rules); background reminders when the app is closed (web apps need a push server — reminders fire only while Aven runs; in-app nudge otherwise); animated exercise demonstrations (there is an authored muscle diagram and step-by-step text instead).
 - Exercise calories are **never** added to food targets.
 
+## Status bar in the app's colour, a livelier orb flight, Settings motion back
+
+- **Status bar**: a web app can't make it see-through (it is one flat theme-colour), so it now takes the colour of the top of the page: a deep tint of the current area's light (`--bar`, 15 % of the area's first light into the background in dark, 9 % in light). The page fades from that same colour into its glow, so the bar reads as the top of the app instead of a black strip. It blends with the glow when you switch tabs and darkens with the dim when a pop-up opens; the page steps back onto that colour, so there's no seam under the bar (`ui/statusBar.ts`).
+- **Orb flight**: it lifts towards you on the way (swells up to 12 % mid-flight and settles as it lands) and its dots spin up with a soft ripple as it sets off. Fixed: closing the orb screen, it could land a little above the dock (where the dock had been mid-slide) and then jump; the dock is now re-measured until it has settled after any pop-up.
+- **Settings**: moving between pages has the original choreography again (each row settles in turn). Opening Settings gets just a hint — the rows drift up a few pixels and settle as the sheet lands.
+- Fixed: the `rise-soft` animation (Coach suggestions, in-sheet pages) had gone missing in the last pass.
+
 ## The orb flies with its pop-up; cleaner bar and Settings
 
 - **Orb**: no more fading. Going into a pop-up that has an orb (the Coach, the live workout, the orb screen) it flies from the dock to its place on the pop-up's own spring — they start together and land together — and back the same way. The flight is handed to the browser like the sheet itself (`mirrorOrb` in `ui/Sphere.tsx`), so it is drawn at the full refresh rate in step with the sheet; a finger on the sheet hands it back to the script version. It heads for where its slot comes to rest (it used to chase the moving slot and lag behind it, across the Finish button).

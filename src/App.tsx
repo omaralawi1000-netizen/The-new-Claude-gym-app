@@ -15,6 +15,7 @@ import { registerSW } from './pwa';
 import { dayKey } from './lib/dates';
 import { defaultMealId } from './lib/derive';
 import { stageCover, stageDepth, stageTransform } from './ui/engage';
+import { readRGB, setBarDepth, setBarTint } from './ui/statusBar';
 import { setKeyboard } from './ui/keyboard';
 import { FpsMeter } from './ui/FpsMeter';
 
@@ -52,7 +53,6 @@ function useTheme() {
       const next = dark ? 'dark' : 'light';
       const set = () => {
         root.dataset.theme = next;
-        document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#05060b' : '#e9ecf4');
       };
       try { localStorage.setItem('aven.theme', theme); } catch { /* ignore */ }
       // switching while the app is open: the new theme spreads out as a circle from where you tapped (View Transitions);
@@ -137,9 +137,30 @@ function TabPane({ hue, dir, children }: { hue: string; dir: number; children: R
   );
 }
 
+/** The status bar takes the colour of the top of the page: a deep tint of the current area's light (ui/statusBar.ts). */
+function useBarTint(app: React.RefObject<HTMLDivElement | null>, tab: string) {
+  const palette = useStore((x) => x.settings.palette);
+  const theme = useStore((x) => x.settings.theme);
+  const first = useRef(true);
+  useEffect(() => {
+    const el = app.current; if (!el) return;
+    const probe = document.createElement('i');
+    probe.style.cssText = 'position:absolute;width:0;height:0;pointer-events:none;color:color-mix(in srgb, var(--h1) var(--bar-mix), var(--bg))';
+    el.appendChild(probe);
+    const read = (ms: number) => { const c = readRGB(getComputedStyle(probe).color); if (c) setBarTint(c, ms); };
+    // after this frame's styles (the new area's colours) are in place
+    const id = requestAnimationFrame(() => { read(first.current ? 0 : 800); first.current = false; });
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const onMq = () => requestAnimationFrame(() => read(0));
+    mq.addEventListener('change', onMq);
+    return () => { cancelAnimationFrame(id); mq.removeEventListener('change', onMq); probe.remove(); };
+  }, [app, tab, palette, theme]);
+}
+
 function useStageDepth(app: React.RefObject<HTMLDivElement | null>, stage: React.RefObject<HTMLDivElement | null>) {
   useEffect(() => {
     const apply = (v: number) => {
+      setBarDepth(v);
       const a = app.current, st = stage.current; if (!a || !st) return;
       const root = document.documentElement.dataset;
       const still = root.motion === 'reduce' || (root.motion !== 'full' && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -147,7 +168,7 @@ function useStageDepth(app: React.RefObject<HTMLDivElement | null>, stage: React
       st.style.willChange = 'transform'; st.style.overflow = 'hidden'; // layer hints only while a popup is up, so the idle app is built exactly like the original
       st.style.transform = stageTransform(v); // the same function the browser-run (high refresh) version uses
       st.style.borderRadius = `${28 * v}px`;
-      a.style.background = '#000';
+      a.style.background = 'var(--bar, #000)'; // the page steps back onto the colour of the status bar: no seam under it
     };
     apply(stageDepth.get());
     const offDepth = stageDepth.on('change', apply);
@@ -213,6 +234,7 @@ export function App() {
   useStageDepth(appRef, stageRef);
   const t = useT();
   const tab = useUI((s) => s.tab);
+  useBarTint(appRef, tab);
   // the page switch (pageSwitch above) — screens are rebuilt per visit (two attempts to keep them alive both changed how it felt)
   const prev = useRef(tab);
   const lastDir = useRef(1); // the side of the last switch, kept while anything re-renders mid-slide

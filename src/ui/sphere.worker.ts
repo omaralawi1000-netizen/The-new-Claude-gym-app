@@ -12,7 +12,7 @@ declare const self: DedicatedWorkerGlobalScope;
 interface State { bucket: number; dpr: number; reduced: boolean; colors: SphereColors; inp: OrbInputs; run: boolean }
 let r: SphereRenderer | null = null;
 let st: Partial<State> = {};
-let tap = 0, frames = 0, t0 = 0, sentVoice = -1, scheduled = false;
+let tap = 0, whoosh = 0, frames = 0, t0 = 0, sentVoice = -1, scheduled = false;
 
 if (typeof self.requestAnimationFrame !== 'function') self.postMessage({ unsupported: true });
 
@@ -22,6 +22,7 @@ self.onmessage = (e: MessageEvent) => {
   if (d.state) {
     st = { ...st, ...d.state };
     if (d.state.inp?.tap) tap = Math.max(tap, d.state.inp.tap);
+    if (d.state.inp?.whoosh) whoosh = Math.max(whoosh, d.state.inp.whoosh);
     if (st.run && !scheduled) schedule();
   }
 };
@@ -32,8 +33,8 @@ function loop(now: number) {
   scheduled = false;
   if (!r || !st.run || !st.bucket || !st.colors || !st.inp) { frames = 0; t0 = 0; return; }
   r.resize(st.bucket, st.dpr ?? 2);
-  r.frame(now, st.bucket, !!st.reduced, st.colors, { ...st.inp, tap });
-  tap = 0;
+  r.frame(now, st.bucket, !!st.reduced, st.colors, { ...st.inp, tap, whoosh });
+  tap = 0; whoosh = 0;
   frames++;
   if (!t0) t0 = now;
   if (now - t0 >= 1000) { self.postMessage({ fps: Math.round((frames * 1000) / (now - t0)) }); frames = 0; t0 = now; }

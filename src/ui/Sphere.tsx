@@ -26,6 +26,7 @@ type RGB = [number, number, number];
  */
 let pressTarget = 0;
 let tapPending = 0;
+let whooshPending = 0;
 export function orbPress(down: boolean) { pressTarget = down ? 1 : 0; }
 export function orbTap(strength = 1) { tapPending = Math.max(tapPending, strength); pressTarget = 0; }
 
@@ -39,7 +40,8 @@ function orbInputs(): OrbInputs {
   const v = useVoice.getState();
   const live = v.phase === 'listening' && mic.active;
   const tap = tapPending; tapPending = 0;
-  return { phase: v.phase, phaseAge: (performance.now() - v.since) / 1000, live, raw: live ? mic.voice() : 0, bands: live ? mic.bands() : null, press: pressTarget, tap };
+  const whoosh = whooshPending; whooshPending = 0;
+  return { phase: v.phase, phaseAge: (performance.now() - v.since) / 1000, live, raw: live ? mic.voice() : 0, bands: live ? mic.bands() : null, press: pressTarget, tap, whoosh };
 }
 
 // ── stage ───────────────────────────────────────────────────
@@ -59,6 +61,8 @@ export function orbGlide(sp: { stiffness: number; damping: number; mass?: number
 let orbEl: HTMLElement | null = null;
 let dockRest: { X: number; Y: number; S: number } | null = null;
 const orbLock = { bucket: 0 };
+const SWELL = 0.12;
+let lastOverlayChange = 0;
 
 /**
  * High refresh rate for the orb: its flight between the dock and a popup handed to the browser on the popup's own spring,
@@ -78,15 +82,17 @@ export function mirrorOrb(container: Element | null, p0: number, p1: number, sp:
   const z = Math.min(r.width, r.height);
   if (z < 2) return null;
   const R = { X: r.left - b.left, Y: r.top - b.top - shiftAt(p0), S: z };
-  const bucket = Math.ceil(Math.max(O.S, R.S, 8) / 24) * 24;
+  const bucket = Math.ceil(Math.max(O.S, R.S, 8) * (1 + SWELL) / 24) * 24;
+  whooshPending = Math.max(whooshPending, 1);
   const at = (p: number): Keyframe => {
     const e = Math.min(1, Math.max(0, p));
-    const X = O.X + (R.X - O.X) * e, Y = O.Y + (R.Y - O.Y) * e, S = Math.max(8, O.S + (R.S - O.S) * e);
+    // on the way it lifts towards you a little (swells mid-flight and settles as it lands), like something picked up and put down
+    const X = O.X + (R.X - O.X) * e, Y = O.Y + (R.Y - O.Y) * e, S = Math.max(8, (O.S + (R.S - O.S) * e) * (1 + SWELL * Math.sin(Math.PI * e)));
     return { transform: `translate3d(${X.toFixed(2)}px, ${Y.toFixed(2)}px, 0) scale(${(S / bucket).toFixed(4)})` };
   };
   orbLock.bucket = bucket;
   if (el.style.width !== `${bucket}px`) el.style.width = el.style.height = `${bucket}px`;
-  const a = mirrorProgress(el, p0, p1, sp, vel, at);
+  const a = mirrorProgress(el, p0, p1, sp, vel, at, [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]);
   if (!a) { orbLock.bucket = 0; return null; }
   const done = () => { if (orbLock.bucket === bucket) orbLock.bucket = 0; };
   a.onfinish = done; a.oncancel = done;
@@ -231,7 +237,8 @@ export function SphereStage() {
     window.addEventListener('pointerdown', dirty, { passive: true });
     // a tab change re-lays the dock out over a spring; a popup arriving or leaving moves no slot outside itself (its own slot
     // is measured every frame while it travels), so that only needs the one measurement
-    const offUi = useUI.subscribe((a, b) => { if (a.tab !== b.tab) dirty(); else if (a.overlays !== b.overlays) markOrbLayoutDirty(60); });
+    // a pop-up arriving or leaving can slide the whole dock (the workout, the orb screen): keep measuring until it has settled
+    const offUi = useUI.subscribe((a, b) => { if (a.tab !== b.tab) dirty(); else if (a.overlays !== b.overlays) { lastOverlayChange = performance.now(); markOrbLayoutDirty(1100); } });
     const offKb = kb.on('change', dirty);
     document.fonts?.addEventListener?.('loadingdone', dirty); // a web font arriving re-flows text
     window.addEventListener('load', dirty, true);              // an image arriving can too
@@ -275,7 +282,8 @@ export function SphereStage() {
       // opened over it (an exercise menu over the live workout), never floating on top of everything.
       const zi = top > 0 && topSlot ? String(ownerZ(topSlot.el) + 1) : '41';
       if (el.style.zIndex !== zi) el.style.zIndex = zi;
-      const size = Math.max(8, S);
+      const eTop = topSlot?.engage ? Math.min(1, Math.max(0, topSlot.engage.e.get())) : 1;
+      const size = Math.max(8, S) * (topSlot && eTop < 0.999 ? 1 + SWELL * Math.sin(Math.PI * eTop) : 1);
       // The canvas is drawn at a size bucket and scaled down with a transform. Resizing a canvas (and the element) on
       // every frame of a flight reallocated its buffer and re-laid it out each frame — a stutter source.
       const bucket = orbLock.bucket || Math.ceil(size / 24) * 24;
@@ -298,7 +306,7 @@ export function SphereStage() {
       }
       el.style.transform = tf;
       // where the orb rests in the dock, for flights that are handed to the browser (mirrorOrb)
-      if (top === 0 && !glide && useUI.getState().overlays.length === 0) dockRest = { X, Y, S };
+      if (top === 0 && !glide && useUI.getState().overlays.length === 0 && now - lastOverlayChange > 1100) dockRest = { X, Y, S };
       // A big orb is soft light, not fine detail: at 2× it looks the same as at 3×, with less than half the pixels to fill and
       // hand to the screen every frame (that hand-over was most of the orb screen's cost). Small orbs keep full sharpness.
       const dpr = Math.min(bucket > 120 ? 2 : 3, window.devicePixelRatio || 1);

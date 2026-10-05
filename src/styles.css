@@ -97,6 +97,7 @@
   --c-protein: #ff7a4a; --c-carbs: #5aa0ff; --c-fat: #d8b640; --c-water: #3fd3e6;
   --scrim: rgba(2, 3, 8, 0.5);
   --aurora-a: 0.55; --grain: 0.05;
+  --bar-mix: 15%;
 }
 :root[data-theme='light'] {
   color-scheme: light;
@@ -114,6 +115,7 @@
   --scrim: rgba(16, 20, 34, 0.3);
   --ac-ink: #1a0d08;
   --aurora-a: 0.5; --grain: 0.035;
+  --bar-mix: 9%;
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -142,7 +144,7 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
    each field into its own offscreen surface and blend it back, every frame a pop-up or page moves. One plain gradient of the page
    colour over all fields looks the same and costs nothing (measured: pop-up and page-switch frames drop by about a tenth). */
 .fields::after { content: ''; position: absolute; left: 0; right: 0; top: 0; height: calc(var(--sat) + 130px); z-index: 2147483000;
-  background: linear-gradient(to bottom, var(--bg) calc(var(--sat) + 2px), transparent); }
+  background: linear-gradient(to bottom, var(--bar, var(--bg)) calc(var(--sat) + 2px), transparent); }
 .aurora.in { -webkit-mask-image: linear-gradient(to bottom, transparent 0, transparent calc(var(--sat) + 2px), #000 calc(var(--sat) + 130px)); mask-image: linear-gradient(to bottom, transparent 0, transparent calc(var(--sat) + 2px), #000 calc(var(--sat) + 130px)); }
 /* paused while a pop-up is up (see useCalm in App.tsx) */
 .app[data-calm] .aurora i { animation-play-state: paused; }
@@ -501,14 +503,21 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-solid { position: absolute; inset: 0; background: var(--bg); }
 
 /* Settings pages: once a page has glided in, its rows and fields settle in one after another (transform + opacity only) */
-/* Settings pages: once a page has glided in, its blocks settle in one after another — whole blocks only (a list is one block),
-   short and light. The page you open Settings on arrives with the sheet, with nothing settling (that read as a busy pop-up). */
-.settings-page > *, .settings-page > .stack > * { animation: rise-soft 380ms var(--ease-out) backwards; animation-delay: calc(90ms + var(--j, 0) * 26ms); }
-.settings-page > :nth-child(1), .settings-page > .stack > :nth-child(1) { --j: 0; } .settings-page > :nth-child(2), .settings-page > .stack > :nth-child(2) { --j: 1; }
-.settings-page > :nth-child(3), .settings-page > .stack > :nth-child(3) { --j: 2; } .settings-page > :nth-child(4), .settings-page > .stack > :nth-child(4) { --j: 3; }
-.settings-page > :nth-child(n+5), .settings-page > .stack > :nth-child(n+5) { --j: 4; }
-.settings-page > .stack { animation: none; }
-.settings-page.still, .settings-page.still * { animation: none !important; }
+/* Settings pages: once a page has glided in, its rows and fields settle in one after another (transform + opacity only). */
+.settings-page > *, .settings-page > .stack > *, .settings-page .list > * { animation: rise-soft 520ms var(--ease-out) backwards; animation-delay: calc(110ms + var(--j, 0) * 32ms); }
+.settings-page :is(.list, .stack) > :nth-child(1), .settings-page > :nth-child(1) { --j: 0; }
+.settings-page :is(.list, .stack) > :nth-child(2), .settings-page > :nth-child(2) { --j: 1; }
+.settings-page :is(.list, .stack) > :nth-child(3), .settings-page > :nth-child(3) { --j: 2; }
+.settings-page :is(.list, .stack) > :nth-child(4) { --j: 3; } .settings-page :is(.list, .stack) > :nth-child(5) { --j: 4; }
+.settings-page :is(.list, .stack) > :nth-child(6) { --j: 5; } .settings-page :is(.list, .stack) > :nth-child(7) { --j: 6; }
+.settings-page :is(.list, .stack) > :nth-child(8) { --j: 7; } .settings-page :is(.list, .stack) > :nth-child(n+9) { --j: 8; }
+.settings-page > .list, .settings-page > .stack { animation: none; }
+/* The page Settings opens on: just a hint — the rows drift up a few pixels and settle as the sheet lands, quick and light,
+   so the pop-up feels alive without a cascade arriving after it. */
+.settings-page.still > *, .settings-page.still > .stack > *, .settings-page.still .list > * { animation: rise-hint 420ms var(--ease-out) backwards; animation-delay: calc(60ms + min(var(--j, 0), 6) * 18ms); }
+.settings-page.still > .list, .settings-page.still > .stack { animation: none; }
+@keyframes rise-soft { from { opacity: 0; transform: translate3d(0, 10px, 0); } to { opacity: 1; transform: none; } }
+@keyframes rise-hint { from { opacity: .4; transform: translate3d(0, 7px, 0); } to { opacity: 1; transform: none; } }
 :root[data-motion='reduce'] .settings-page * { animation: none !important; }
 /* In-sheet pages (Sheet.tsx): like Settings — once the page starts gliding in, its title, then each card, field and list row
    settle in one after another. Only the first ten of each level animate (the rest start off screen), delays are capped, and

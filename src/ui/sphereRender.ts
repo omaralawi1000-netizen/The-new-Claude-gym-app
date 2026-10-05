@@ -63,6 +63,8 @@ export interface OrbInputs {
   /** finger on the orb (0/1) and a tap to release (strength); the renderer consumes the tap */
   press: number;
   tap: number;
+  /** a flight between places started (strength): the dots spin up and the surface ripples gently — no flash, no rings */
+  whoosh?: number;
 }
 
 type Ctx2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
@@ -117,6 +119,10 @@ export class SphereRenderer {
         if (this.rings.length < 4) this.rings.push({ age: 0, amp: 1 }, { age: -0.16, amp: 0.7 });
       }
       inp.tap = 0;
+    }
+    if (inp.whoosh && inp.whoosh > 0) {
+      if (!reduced) { this.spin += 3.4 * inp.whoosh; this.burstV += 1.5 * inp.whoosh; }
+      inp.whoosh = 0;
     }
     this.burstV += (-60 * this.burst - 8.5 * this.burstV) * dt; this.burst += this.burstV * dt;
     this.spin *= Math.exp(-dt * 3.2); this.flash *= Math.exp(-dt * 3.6);
