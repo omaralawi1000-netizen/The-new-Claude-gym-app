@@ -61,6 +61,7 @@ export function orbGlide(sp: { stiffness: number; damping: number; mass?: number
 let orbEl: HTMLElement | null = null;
 let dockRest: { X: number; Y: number; S: number } | null = null;
 const orbLock = { bucket: 0 };
+let orbAnim: Animation | null = null;
 const SWELL = 0.12;
 const PICK = 30; // px: how softly the dock hands the orb over to a rising slot (a soft minimum, so its speed never jumps)
 const smooth01 = (x: number) => { const t = Math.min(1, Math.max(0, x)); return t * t * (3 - 2 * t); };
@@ -72,9 +73,10 @@ const softmin = (a: number, b: number, k: number) => { const m = Math.min(a, b);
  * never anywhere but on its button or in the dock. A slot resting about level with the dock (the Coach's mic) just glides
  * across on the popup's progress. `t` = how far it has travelled (0 dock … 1 slot).
  */
-function carry(O: { X: number; Y: number; S: number }, x: number, y: number, z: number, restY: number, e: number) {
+function carry(O: { X: number; Y: number; S: number }, x: number, y: number, z: number, restY: number, e: number, slides = true) {
   const D = O.Y - restY;
-  if (D <= 60) return { X: O.X + (x - O.X) * e, Y: O.Y + (restY - O.Y) * e, S: O.S + (z - O.S) * e, t: e };
+  // a popup that doesn't slide (the orb screen), or a slot about level with the dock: a straight glide on the popup's progress
+  if (!slides || D <= 60) return { X: O.X + (x - O.X) * e, Y: O.Y + (restY - O.Y) * e, S: O.S + (z - O.S) * e, t: e };
   // across and up to size within the first stretch above the dock, so for most of the way it already sits on its button
   const t = smooth01((O.Y - y) / Math.min(D, 170));
   return { X: O.X + (x - O.X) * t, Y: softmin(y, O.Y, PICK), S: O.S + (z - O.S) * t, t };
@@ -89,6 +91,9 @@ let lastOverlayChange = 0;
  */
 export function mirrorOrb(container: Element | null, p0: number, p1: number, sp: { stiffness: number; damping: number; mass?: number }, vel: number, shiftAt: (p: number) => number = () => 0): Animation | null {
   const el = orbEl, O = dockRest;
+  // a new popup takes the orb over: an earlier flight still running (the orb screen leaving while the Coach opens) would
+  // otherwise hold it where that flight was going
+  orbAnim?.cancel(); orbAnim = null;
   const slotEl = container?.querySelector<HTMLElement>('[data-orb-slot]');
   if (!el || !O || !slotEl || !slotEl.isConnected) return null;
   // only the simple case: between the dock and this one popup (anything stacked is left to the script version)
@@ -99,11 +104,12 @@ export function mirrorOrb(container: Element | null, p0: number, p1: number, sp:
   const z = Math.min(r.width, r.height);
   if (z < 2) return null;
   const R = { X: r.left - b.left, Y: r.top - b.top - shiftAt(p0), S: z };
+  const slides = Math.abs(shiftAt(0) - shiftAt(1)) > 1;
   const bucket = Math.ceil(Math.max(O.S, R.S, 8) * (1 + SWELL) / 24) * 24;
   whooshPending = Math.max(whooshPending, 1);
   const at = (p: number): Keyframe => {
     const e = Math.min(1, Math.max(0, p));
-    const c = carry(O, R.X, R.Y + shiftAt(p), R.S, R.Y, e);
+    const c = carry(O, R.X, R.Y + shiftAt(p), R.S, R.Y, e, slides);
     // on the way it lifts towards you a little (swells mid-flight and settles as it lands), like something picked up and put down
     const S = Math.max(8, c.S * (1 + SWELL * Math.sin(Math.PI * c.t)));
     return { transform: `translate3d(${c.X.toFixed(2)}px, ${c.Y.toFixed(2)}px, 0) scale(${(S / bucket).toFixed(4)})` };
@@ -112,8 +118,9 @@ export function mirrorOrb(container: Element | null, p0: number, p1: number, sp:
   if (el.style.width !== `${bucket}px`) el.style.width = el.style.height = `${bucket}px`;
   const a = mirrorProgress(el, p0, p1, sp, vel, at, Array.from({ length: 23 }, (_, i) => (i + 1) / 24));
   if (!a) { orbLock.bucket = 0; return null; }
-  const done = () => { if (orbLock.bucket === bucket) orbLock.bucket = 0; };
+  const done = () => { if (orbLock.bucket === bucket) orbLock.bucket = 0; if (orbAnim === a) orbAnim = null; };
   a.onfinish = done; a.oncancel = done;
+  orbAnim = a;
   return a;
 }
 
