@@ -140,6 +140,12 @@ Run in headless Chromium (Playwright, 390×844 @2×, dark + light), scripts in `
 - **Not built (on purpose, stated in-app):** cloud sync / accounts; photo-based food estimation; automatic AI changes to your data (the Coach advises; routines and estimates only appear after you confirm; progression suggestions remain transparent rules); background reminders when the app is closed (web apps need a push server — reminders fire only while Aven runs; in-app nudge otherwise); animated exercise demonstrations (there is an authored muscle diagram and step-by-step text instead).
 - Exercise calories are **never** added to food targets.
 
+## Calmer transitions: cascade once, glide after
+
+- **Cascade the first time, glide after.** The cards rising in one after another now play the **first time you see a page in a session** — each tab, each Train section (Plan / Library / History), each Settings page, each kind of in-sheet page. Going back and forth afterwards, a page just slides in with everything already there; Back inside a sheet only glides. Flipping Food days or Train sections you've seen is one soft 8 px fade-up of the whole part. (Replaying the cascade on every tap read as slowness.) The memory lasts until the app is reloaded.
+- **Tab switch:** the old screen leaves quickly (0.24 s, light blur only) and the new one starts 50 ms later with a longer glide and a hint of depth (scale 0.988 → 1, no blur), so the two overlap as a crossfade instead of dipping to a dim, smeared frame in the middle (the old exit used a 10 px blur and the same duration as the arrival).
+- How: `data-seen` on `.tab-pane`, `Subpage id`, `.settings-page.seen`, a seen-set in `Sheet.tsx`; all recorded after mount so React's development double render can't count as a visit.
+
 ## Pop-up pass: pages instead of piles
 
 - **A pop-up only stacks on a pop-up when it's its own thing.** A full-height sheet opened from another one (a food from the search, a substitute from an exercise, the exercise list from a routine, a recipe from the recipe list, Settings from the Coach) now opens as the **next page inside the same sheet**: it glides in from the right while the current page steps aside, and Back (the arrow, or the phone's back) reverses it. One pane of glass, one dim, the page behind doesn't step back again — so going five exercises deep through substitutions costs the same as one. Swiping down closes the whole sheet, pages and all.

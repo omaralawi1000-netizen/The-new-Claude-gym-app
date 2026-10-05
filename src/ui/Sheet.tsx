@@ -9,7 +9,7 @@ import { availableHeight, dropKeyboard, kb, watchFocus } from './keyboard';
 export const OverlayZ = createContext<number | null>(null);
 export const useOverlayZ = (fallback: number) => useContext(OverlayZ) ?? fallback;
 /** Which overlay this is (set by Overlays.tsx): its id, and whether it opens as a page inside the sheet below it. */
-export const OverlayMeta = createContext<{ id: string; page: boolean } | null>(null);
+export const OverlayMeta = createContext<{ id: string; page: boolean; type: string } | null>(null);
 /** True inside an overlay shown as a page of the sheet below it: its close button becomes a Back arrow. */
 export const useIsPage = () => !!useContext(OverlayMeta)?.page;
 
@@ -32,6 +32,7 @@ const PAGE_DELAY = 100; // the outgoing page is ~80% faded by then
 function pageOut(el: HTMLElement, dx: number) {
   return el.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: `translate3d(${dx}px, 0, 0)` }], { duration: 140, easing: PAGE_EASE_OUT, fill: 'forwards' });
 }
+const seenKinds = new Set<string>();
 const riseTimers = new WeakMap<HTMLElement, ReturnType<typeof setTimeout>>();
 function rise(el: HTMLElement) {
   clearTimeout(riseTimers.get(el));
@@ -39,9 +40,10 @@ function rise(el: HTMLElement) {
   el.classList.add('page-rise');
   riseTimers.set(el, setTimeout(() => el.classList.remove('page-rise'), 1200));
 }
-function pageIn(el: HTMLElement, dx: number) {
+/** `settle`: also let its title and blocks settle in turn. Only for a page seen for the first time; one you go Back to is just there. */
+function pageIn(el: HTMLElement, dx: number, settle = true) {
   el.style.setProperty('--title-dx', `${Math.sign(dx) * 14}px`); // the title drifts in from the side the page comes from
-  rise(el);
+  if (settle) rise(el);
   const a = el.animate([{ transform: `translate3d(${dx}px, 0, 0)` }, { transform: 'none' }], { duration: PAGE_IN.duration, easing: PAGE_IN.easing, delay: PAGE_DELAY, fill: 'backwards' });
   const b = el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', delay: PAGE_DELAY, fill: 'backwards' });
   return [a, b];
@@ -63,7 +65,7 @@ function useCovered(ref: React.RefObject<HTMLElement | null>, covered: boolean, 
     } else {
       el.style.visibility = '';
       if (reduce) return;
-      anims.current = pageIn(el, -32);
+      anims.current = pageIn(el, -32, false); // Back to a page you have seen: it glides, it doesn't re-introduce itself
     }
   }, [covered]); // eslint-disable-line
 }
@@ -240,6 +242,7 @@ function HostSheet({ children, onClose, tall, label, foot, z: zProp = 60, nested
  * closes the whole sheet. It rides the sheet's drag, keyboard lift and exit because it lives inside it.
  */
 function PageSheet({ children, onClose, tall, label, foot, id }: SheetProps & { id: string }) {
+  const meta = useContext(OverlayMeta);
   const reduce = useReducedMotion();
   const ov = useUI((u) => u.overlays);
   const i = ov.findIndex((o) => o.id === id);
@@ -264,7 +267,10 @@ function PageSheet({ children, onClose, tall, label, foot, id }: SheetProps & { 
     const f = document.activeElement as HTMLElement | null;
     if (f && /^(INPUT|TEXTAREA)$/.test(f.tagName)) f.blur(); // a page arrives without the keyboard, like a sheet does
     if (reduce) return;
-    const a = pageIn(el, 48);
+    // a kind of page settles block by block the first time it is opened in a session; after that it glides in whole
+    const kind = meta?.type ?? id;
+    const first = !seenKinds.has(kind); setTimeout(() => seenKinds.add(kind), 0); // after any development double-run
+    const a = pageIn(el, 48, first);
     return () => a.forEach((x) => x.cancel());
     // eslint-disable-next-line
   }, []);
