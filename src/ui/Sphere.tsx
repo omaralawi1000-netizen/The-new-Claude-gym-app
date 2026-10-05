@@ -26,6 +26,16 @@ type RGB = [number, number, number];
 let pressTarget = 0;
 let tapPending = 0;
 let whooshPending = 0;
+let ignitePending = 0;
+/** Arriving on the orb screen: a heartbeat that quickens as the spiral of light climbs, ending in a soft thump. */
+const IGNITE_BUZZ = [4, 170, 5, 140, 6, 115, 7, 95, 9, 75, 11, 58, 14, 42, 30];
+let lastOnsetBuzz = 0;
+/** A syllable lit a ring of light on the orb: a tiny tick with it (never more than one every 160 ms). */
+function onsetBuzz(s: number) {
+  const now = performance.now();
+  if (now - lastOnsetBuzz < 160 || s < 0.25 || !useStore.getState().settings.haptics) return;
+  lastOnsetBuzz = now; buzz(Math.round(4 + s * 6));
+}
 export function orbPress(down: boolean) { pressTarget = down ? 1 : 0; }
 export function orbTap(strength = 1) { tapPending = Math.max(tapPending, strength); pressTarget = 0; }
 
@@ -40,13 +50,14 @@ function orbInputs(): OrbInputs {
   const live = v.phase === 'listening' && mic.active;
   const tap = tapPending; tapPending = 0;
   const whoosh = whooshPending; whooshPending = 0;
-  return { phase: v.phase, phaseAge: (performance.now() - v.since) / 1000, live, raw: live ? mic.voice() : 0, bands: live ? mic.bands() : null, press: pressTarget, tap, whoosh };
+  const ignite = ignitePending; ignitePending = 0;
+  return { phase: v.phase, phaseAge: (performance.now() - v.since) / 1000, live, raw: live ? mic.voice() : 0, bands: live ? mic.bands() : null, press: pressTarget, tap, whoosh, ignite };
 }
 
 // ── stage ───────────────────────────────────────────────────
 
 /** `ov`: the pop-up the slot lives in (none for the tab bar). A slot whose pop-up has been closed is on its way out. */
-interface Slot { el: HTMLElement; priority: number; engage?: Engage; ov?: string }
+interface Slot { id: string; el: HTMLElement; priority: number; engage?: Engage; ov?: string }
 const slots = new Map<string, Slot>();
 /** Until when slot positions must be re-measured every frame (see the stage's tick). */
 let layoutDirtyUntil = 0;
@@ -163,8 +174,8 @@ export function mirrorOrb(container: Element | null, p0: number, p1: number, sp:
 }
 
 export function registerSlot(id: string, el: HTMLElement, priority: number, engage?: Engage, ov?: string) {
-  slots.set(id, { el, priority, engage, ov });
-  if (ov && !isLeaving({ el, priority, ov })) claim(el);
+  slots.set(id, { id, el, priority, engage, ov });
+  if (ov && !isLeaving({ id, el, priority, ov })) claim(el);
   markOrbLayoutDirty();
   return () => { if (slots.get(id)?.el === el) slots.delete(id); markOrbLayoutDirty(); };
 }
@@ -215,13 +226,14 @@ export function SphereStage() {
           const d = e.data;
           if (typeof d.voice === 'number') workerVoice = d.voice;
           if (typeof d.fps === 'number') orbStats.fps = d.fps;
+          if (typeof d.onset === 'number') onsetBuzz(d.onset);
           if (d.unsupported) { workerBroken = true; setGen((g) => g + 1); }
         };
         worker.onerror = () => { workerBroken = true; setGen((g) => g + 1); };
         worker.postMessage({ canvas: off }, [off]);
         orbStats.offThread = true;
       } catch { workerBroken = true; worker?.terminate(); worker = null; setGen((g) => g + 1); return; }
-    } else renderer = new SphereRenderer(cv);
+    } else { renderer = new SphereRenderer(cv); renderer.onOnset = onsetBuzz; }
     const pause = () => { if (worker && workerRunning) { worker.postMessage({ state: { run: false } }); workerRunning = false; } };
     let mainFrames = 0, mainT0 = 0;
     const appEl = el.closest('.app') as HTMLElement | null;
@@ -382,8 +394,12 @@ export function SphereStage() {
       if (topSlot && !reduced) {
         const lifted = flight > 0.04, landed = flight > 0.995;
         if (lifted !== wasLifted || landed !== wasLanded) {
+          // landing on the orb screen sets it alight (the renderer's arrival spiral), with a quickening heartbeat; anywhere
+          // else it lands with one firm tick
+          const ignite = landed && !wasLanded && topSlot.id === 'voice';
+          if (ignite) ignitePending = 1;
           if (useStore.getState().settings.haptics && running) {
-            if (landed && !wasLanded) buzz(12); else if (lifted && !wasLifted) buzz(6); else if (!lifted && wasLifted) buzz(8);
+            if (landed && !wasLanded) buzz(ignite ? IGNITE_BUZZ : 12); else if (lifted && !wasLifted) buzz(6); else if (!lifted && wasLifted) buzz(8);
           }
           wasLifted = lifted; wasLanded = landed;
         }

@@ -125,7 +125,7 @@ if (typeof window !== 'undefined') {
   try { if (history.state?.aven) history.replaceState(null, ''); } catch { /* ignore */ }
 }
 
-export function buzz(ms = 8) {
+export function buzz(ms: number | number[] = 8) {
   // only after the first tap (browsers refuse — and log an error — before any interaction)
   try { if ('vibrate' in navigator && ((navigator as any).userActivation?.hasBeenActive ?? true)) navigator.vibrate(ms); } catch { /* ignore */ }
 }

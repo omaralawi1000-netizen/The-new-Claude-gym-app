@@ -36,6 +36,14 @@ const WAVES = [
   { d: [-0.5, -0.3, 0.81], f: 4.4, s: 2.3 }, { d: [0.95, -0.2, -0.24], f: 5.8, s: 3.1 },
 ].map((w) => { const l = Math.hypot(w.d[0], w.d[1], w.d[2]); return { x: w.d[0] / l, y: w.d[1] / l, z: w.d[2] / l, f: w.f, s: w.s }; });
 
+// The path two comets of light take round the sphere while it thinks: a tilted great circle (view space). A = its axis,
+// U and V span its plane.
+const CA = (() => { const v = [0.32, 0.9, 0.29]; const l = Math.hypot(v[0], v[1], v[2]); return v.map((x) => x / l); })();
+const CU = (() => { const v = [CA[1], -CA[0], 0]; const l = Math.hypot(v[0], v[1], v[2]); return v.map((x) => x / l); })(); // A × z
+const CV = [CA[1] * CU[2] - CA[2] * CU[1], CA[2] * CU[0] - CA[0] * CU[2], CA[0] * CU[1] - CA[1] * CU[0]];
+const TAU = Math.PI * 2;
+const easeIO = (x: number) => { const t = Math.min(1, Math.max(0, x)); return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; };
+
 interface Params { rotSpeed: number; shimmer: number; glow: number; dim: number; sweep: number; ring: number; halo: number }
 const TARGET: Record<string, Params> = {
   idle: { rotSpeed: 0.2, shimmer: 0.022, glow: 0.35, dim: 0, sweep: 0, ring: 0, halo: 0.16 },
@@ -70,6 +78,8 @@ export interface OrbInputs {
   /** how big the orb is on screen right now (css px). The canvas is drawn at a fixed size bucket and scaled, so the number of
    * dots follows what you see, not the bucket: no sudden change of texture when the bucket changes after a flight. */
   vis?: number;
+  /** it has just arrived on the orb screen: spirals of light wind up it from the bottom (strength) */
+  ignite?: number;
 }
 
 type Ctx2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
@@ -95,6 +105,10 @@ export class SphereRenderer {
   private spin = 0;                        // extra turn speed from a tap or a flight, decaying
   private calm = 0;                        // seconds left of a flight's calm start (flashes and blooms damped)
   private flash = 0;                       // light running through the dots after a tap or a syllable
+  private ripples: { ox: number; oy: number; oz: number; age: number; amp: number }[] = []; // a syllable: a ring of light crossing it towards you
+  private ign = -1;                        // seconds into the arrival spiral (-1: none)
+  /** a syllable was heard (its strength): the page turns it into a haptic tick */
+  onOnset: ((s: number) => void) | null = null;
   /** how loudly you are speaking right now, 0..1 (time-smoothed) — for things around the orb that should breathe with it */
   get voice() { return Math.min(1, this.body * 0.75 + this.env * 0.45); }
   constructor(private canvas: HTMLCanvasElement | OffscreenCanvas) { this.ctx = canvas.getContext('2d') as Ctx2D; }
@@ -131,6 +145,15 @@ export class SphereRenderer {
       const h = Math.min(rem, 1 / 240); // small steps: stable at any frame time
       this.scV += (-420 * (this.sc - scTo) - 34 * this.scV) * h; this.sc += this.scV * h;
     }
+    if (inp.ignite && inp.ignite > 0) {
+      if (!reduced) { this.ign = 0; this.spin += 2.2; }
+      inp.ignite = 0;
+    }
+    if (this.ign >= 0) {
+      const was = this.ign; this.ign += dt;
+      if (was < 0.9 && this.ign >= 0.9 && !reduced) { this.flash = Math.min(1, this.flash + 0.7); this.kickV += 2.4; } // the spiral reaches the top: the whole sphere lights up once
+      if (this.ign > 1.6) this.ign = -1;
+    }
     if (inp.tap > 0) {
       if (!reduced) {
         this.spin += 6 * inp.tap * soft; this.flash = Math.min(1, this.flash + inp.tap * soft);
@@ -153,10 +176,17 @@ export class SphereRenderer {
     // a sudden rise in energy = a new syllable: a bloom and a flash of light run through it
     if (live && !reduced && raw - this.prevV > 0.1 && raw > 0.18 && this.t - this.onsetAt > 0.11) {
       this.onsetAt = this.t;
-      this.kickV += 1.1 + raw * 2.2;
-      this.flash = Math.min(1, this.flash + 0.2 + raw * 0.3);
+      this.kickV += 0.8 + raw * 1.6;
+      // a ring of light starts on the side facing you (a little off centre, never twice in the same spot) and runs round it
+      const a = Math.random() * TAU, r = 0.15 + Math.random() * 0.3;
+      const ox = Math.cos(a) * r, oy = Math.sin(a) * r - 0.12;
+      if (this.ripples.length >= 6) this.ripples.shift();
+      this.ripples.push({ ox, oy, oz: Math.sqrt(Math.max(0, 1 - ox * ox - oy * oy)), age: 0, amp: Math.min(1, 0.45 + raw * 0.9) });
+      this.onOnset?.(raw);
     }
     this.prevV = raw;
+    for (const r of this.ripples) r.age += dt;
+    this.ripples = this.ripples.filter((r) => r.age < 1.3);
     for (const r of this.rings) r.age += dt * 1.15;
     this.rings = this.rings.filter((r) => r.age < 1);
     if (bands) {
@@ -201,6 +231,11 @@ export class SphereRenderer {
     ];
     if (!live && v.phase === 'listening') { amps[0] += 0.015; amps[1] += 0.012; } // no level available: honest gentle light, no fake voice
     const spacing = Math.sqrt(12.566 / nf) * R;
+    // arrival spiral: a front of light climbing from the bottom pole to the top, three arms winding round as it goes
+    const ignF = this.ign >= 0 ? easeIO(this.ign / 0.95) * 1.3 - 0.15 : -9;
+    const ignK = this.ign < 0 ? 0 : this.ign < 1 ? 1 : Math.max(0, 1 - (this.ign - 1) / 0.6);
+    const rip = this.ripples.map((r) => ({ ...r, front: r.age * 2.7, k: r.amp * Math.pow(1 - r.age / 1.3, 2) }));
+    const cometHead = T * 3.1;
 
     // buckets: 7 light levels × 3 hue mixes (accent ↔ the area's second colour, drifting round the sphere)
     const NB = 7, NH = 3;
@@ -212,6 +247,9 @@ export class SphereRenderer {
       const i = LAT.order[n];
       const x = LAT.pts[i * 3], y = LAT.pts[i * 3 + 1], z = LAT.pts[i * 3 + 2];
       const az = Math.atan2(z, x);
+      // where it is on screen (view space: z towards you)
+      const x1 = x * cr + z * sr, z1 = -x * sr + z * cr;
+      const y2 = y * ct - z1 * st, z2 = y * st + z1 * ct;
 
       // light, not displacement: every effect below brightens or dims a dot; none moves it off the sphere
       let lw = 0;
@@ -232,9 +270,29 @@ export class SphereRenderer {
       if (this.press > 0.01) glow += this.press * 0.25 * (1 - Math.abs(y));
       if (this.flash > 0.02) glow += this.flash * (0.6 + 1.8 * Math.max(0, Math.sin(y * 5 - this.t * 16))); // a band of light runs through it
       if (this.cur.sweep > 0.01) {
-        const a = Math.cos(az - sweepPhase) * 0.5 + 0.5;
-        const band = Math.exp(-Math.pow(y - Math.sin(T * 1.6) * 0.8, 2) / 0.05);
-        glow += (band * 0.9 + a * 0.15) * this.cur.sweep;
+        // thinking: two comets of light circle it on a tilted orbit, each trailing a fading tail
+        const h = x1 * CA[0] + y2 * CA[1] + z2 * CA[2];
+        const band = Math.exp(-(h * h) / 0.03);
+        if (band > 0.01) {
+          const phi = Math.atan2(x1 * CV[0] + y2 * CV[1] + z2 * CV[2], x1 * CU[0] + y2 * CU[1] + z2 * CU[2]);
+          for (let k2 = 0; k2 < 2; k2++) {
+            const d = (((cometHead + k2 * Math.PI - phi) % TAU) + TAU) % TAU;
+            glow += band * Math.exp(-d * 1.3) * 2.6 * this.cur.sweep;
+          }
+        }
+        glow += (Math.cos(az - sweepPhase) * 0.5 + 0.5) * 0.12 * this.cur.sweep;
+      }
+      for (const r of rip) {
+        // a syllable's ring of light: the distance round the sphere from where it started, against how far it has run
+        if (r.k < 0.01) continue;
+        const dd = Math.acos(Math.max(-1, Math.min(1, x1 * r.ox + y2 * r.oy + z2 * r.oz))) - r.front;
+        if (dd > -0.6 && dd < 0.6) glow += r.k * 1.5 * Math.exp(-(dd * dd) / 0.03);
+      }
+      if (ignK > 0) {
+        const u = (1 - y) / 2; // 0 bottom pole (on screen) … 1 top
+        const arms = 0.5 + 0.5 * Math.cos(az * 3 - u * 13 + this.ign * 4);
+        const du = u - ignF;
+        glow += ignK * (Math.exp(-(du * du) / 0.005) * (0.8 + 1.8 * arms) + (du < 0 ? Math.exp(du * 5) * 0.35 * arms : 0));
       }
       if (this.cur.ring > 0.01) glow += Math.exp(-(y * y) / 0.004) * 0.9 * this.cur.ring;
       let okMix = 0;
@@ -244,8 +302,6 @@ export class SphereRenderer {
         okMix = Math.max(w, confirmAge < 0.35 ? (0.35 - confirmAge) * 2 : 0);
         glow += w * 1.6;
       }
-      const x1 = x * cr + z * sr, z1 = -x * sr + z * cr;
-      const y2 = y * ct - z1 * st, z2 = y * st + z1 * ct;
       const persp = 1 / (1 - z2 * 0.24);
       const px = c + x1 * R * persp, py = c + y2 * R * persp;
       const depth = Math.max(0, Math.min(1, (z2 + 1.1) / 2.2)); // 0 back … 1 front

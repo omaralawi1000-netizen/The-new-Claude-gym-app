@@ -140,6 +140,13 @@ Run in headless Chromium (Playwright, 390×844 @2×, dark + light), scripts in `
 - **Not built (on purpose, stated in-app):** cloud sync / accounts; photo-based food estimation; automatic AI changes to your data (the Coach advises; routines and estimates only appear after you confirm; progression suggestions remain transparent rules); background reminders when the app is closed (web apps need a push server — reminders fire only while Aven runs; in-app nudge otherwise); animated exercise demonstrations (there is an authored muscle diagram and step-by-step text instead).
 - Exercise calories are **never** added to food targets.
 
+## The orb's moments (light and haptics, never a change of shape)
+
+- **Pull it up**: flick the dock's orb upwards (or tap it). As it lands on the orb screen, three spiral arms of light wind up the sphere from the bottom to the top, and when they reach the top the whole sphere lights up once. The phone plays a heartbeat that quickens as the spiral climbs and ends in a soft thump (`IGNITE_BUZZ` in `ui/Sphere.tsx`).
+- **Speaking**: every syllable sends a ring of light across the sphere towards you, starting a little off centre each time, with a tiny tick (at most one every 160 ms). The light-equaliser and inner glow still follow your voice.
+- **Thinking**: two comets of light circle the sphere on a tilted orbit, trailing fading tails.
+- Haptics follow Settings → Training → Haptic feedback; reduced motion turns the light effects off.
+
 ## Seamless pass: the orb never changes shape
 
 - **Rigid sphere** (`ui/sphereRender.ts`): the orb's outline is always a perfect sphere. Your voice, a tap, thinking and "done" now show as light running over the dots (travelling light waves, an equaliser of light by latitude, a flash band, a bloom) — no more lumpy, liquid blob while it listens, no breathing, no swelling, no burst. A press sinks the whole sphere in by ~5 % and springs back; a tap adds a flash, a spin and two thin rings.

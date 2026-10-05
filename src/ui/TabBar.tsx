@@ -91,6 +91,8 @@ export function TabBar() {
   const t = useT();
   const nav = useRef<HTMLElement>(null);
   useDock(nav, tab);
+  const pull = useRef<number | null>(null);
+  const openOrb = () => { if (useUI.getState().overlays.some((o) => o.type === 'voice')) return; buzz(10); orbTap(1); push('voice', { mode: tab === 'train' ? 'workout' : 'food' }); };
   const go = (id: Tab) => { buzz(4); if (useUI.getState().tab === id) scrollActiveTabToTop(); else setTab(id); };
   return (
     <LayoutGroup>
@@ -103,9 +105,12 @@ export function TabBar() {
           {TABS.slice(0, 2).map((x) => <TabBtn key={x.id} {...x} on={tab === x.id} onClick={() => go(x.id)} label={t(x.label)} />)}
           <div className="sphere-slot" style={{ position: 'relative' }}>
             <SphereSlot id="tab" priority={0} style={{ position: 'absolute', inset: -6 }} />
-            <button className="press" aria-label={t('Dictate')} style={{ position: 'absolute', inset: -4, borderRadius: 999 }}
-              onPointerDown={() => orbPress(true)} onPointerUp={() => orbPress(false)} onPointerCancel={() => orbPress(false)} onPointerLeave={() => orbPress(false)}
-              onClick={() => { buzz(10); orbTap(1); if (!useUI.getState().overlays.some((o) => o.type === 'voice')) push('voice', { mode: tab === 'train' ? 'workout' : 'food' }); }} />
+            <button className="press" aria-label={t('Dictate')} style={{ position: 'absolute', inset: -4, borderRadius: 999, touchAction: 'none' }}
+              onPointerDown={(e) => { orbPress(true); pull.current = e.clientY; try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* ignore */ } }}
+              // pulling it up out of the dock opens it too (a tap still does)
+              onPointerMove={(e) => { if (pull.current !== null && pull.current - e.clientY > 26) { pull.current = null; orbPress(false); openOrb(); } }}
+              onPointerUp={() => { orbPress(false); pull.current = null; }} onPointerCancel={() => { orbPress(false); pull.current = null; }} onPointerLeave={() => orbPress(false)}
+              onClick={openOrb} />
           </div>
           {TABS.slice(2).map((x) => <TabBtn key={x.id} {...x} on={tab === x.id} onClick={() => go(x.id)} label={t(x.label)} />)}
         </nav>
