@@ -14,7 +14,7 @@ import { decide, agentModels } from '../lib/agentTurn';
 import { runActions, type AgentResult } from '../lib/agent';
 import { dayKey } from '../lib/dates';
 import { uid } from '../lib/nutrition';
-import { SphereSlot, orbPress, orbTap } from '../ui/Sphere';
+import { SphereSlot, mirrorOrb, orbPress, orbTap } from '../ui/Sphere';
 import { mirrorProgress, useEngage } from '../ui/engage';
 import { kb, watchFocus } from '../ui/keyboard';
 import { Veil, VOICE_VEIL, mirrorVeil } from '../ui/Veil';
@@ -42,7 +42,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   const veilRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   // high refresh rate: the frost and the content's fade also run as browser animations (see mirrorSpring)
-  const eng = useEngage((p0, p1, sp) => [...mirrorVeil(veilRef.current, p0, p1, sp, 0, VOICE_VEIL), mirrorProgress(contentRef.current, p0, p1, sp, 0, (p) => ({ opacity: contentAt(p) }), [0.12, 0.72])]);
+  const eng = useEngage((p0, p1, sp) => [...mirrorVeil(veilRef.current, p0, p1, sp, 0, VOICE_VEIL), mirrorProgress(contentRef.current, p0, p1, sp, 0, (p) => ({ opacity: contentAt(p) }), [0.12, 0.72]), mirrorOrb(contentRef.current?.closest('.voice') ?? contentRef.current, p0, p1, sp, 0)]);
   const engage = useMemo(() => ({ e: eng }), [eng]);
   const contentO = useTransform(eng, contentAt);
   const exercises = useStore((s) => s.exercises);

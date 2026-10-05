@@ -196,17 +196,7 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
 /* the resume-workout bar (56 px + gap) sits above the tab bar: the page's end and the toasts move up so nothing hides under it */
 .app[data-pill] .screen { padding-bottom: calc(var(--bar-h) + var(--sab) + 44px + 66px); }
 .app[data-pill] .toasts { bottom: calc(var(--bar-h) + var(--sab) + 22px + 66px); }
-/* Scroll edges, as on iOS: wherever the page passes under a bar, it goes under frosted glass that fades out softly — so the
-   bar's text reads cleanly and nothing sharp shows through. Bottom: a band behind the dock, always there (the page is
-   always under it): a blur masked into a gradient (a "progressive" blur) plus a light tint. */
-.tabbar-wrap::before {
-  content: ''; position: fixed; left: 0; right: 0; bottom: 0; height: calc(var(--sab) + 116px); z-index: -1; pointer-events: none;
-  background: linear-gradient(to top, color-mix(in srgb, var(--bg) 62%, transparent) 30%, transparent);
-  -webkit-backdrop-filter: blur(14px) saturate(1.4); backdrop-filter: blur(14px) saturate(1.4);
-  -webkit-mask-image: linear-gradient(to top, #000 52%, transparent); mask-image: linear-gradient(to top, #000 52%, transparent);
-}
-.app[data-pill] .tabbar-wrap::before { height: calc(var(--sab) + 182px); }
-.app[data-calm] .tabbar-wrap::before { -webkit-backdrop-filter: none; backdrop-filter: none; }
+/* No frosted band under the dock: the dock's own glass is the only blur down there. */
 .screen > * + * { margin-top: 22px; }
 /* every screen's blocks rise in, blurred → sharp, one after another */
 /* every screen's blocks rise in, one after another (a screen, or the part of one that is swapped: .subpage) */
@@ -511,15 +501,14 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-solid { position: absolute; inset: 0; background: var(--bg); }
 
 /* Settings pages: once a page has glided in, its rows and fields settle in one after another (transform + opacity only) */
-.settings-page > *, .settings-page > .stack > *, .settings-page .list > * { animation: rise-soft 520ms var(--ease-out) backwards; animation-delay: calc(110ms + var(--j, 0) * 32ms); }
-.settings-page :is(.list, .stack) > :nth-child(1), .settings-page > :nth-child(1) { --j: 0; }
-.settings-page :is(.list, .stack) > :nth-child(2), .settings-page > :nth-child(2) { --j: 1; }
-.settings-page :is(.list, .stack) > :nth-child(3), .settings-page > :nth-child(3) { --j: 2; }
-.settings-page :is(.list, .stack) > :nth-child(4) { --j: 3; } .settings-page :is(.list, .stack) > :nth-child(5) { --j: 4; }
-.settings-page :is(.list, .stack) > :nth-child(6) { --j: 5; } .settings-page :is(.list, .stack) > :nth-child(7) { --j: 6; }
-.settings-page :is(.list, .stack) > :nth-child(8) { --j: 7; } .settings-page :is(.list, .stack) > :nth-child(n+9) { --j: 8; }
-.settings-page > .list, .settings-page > .stack { animation: none; }
-@keyframes rise-soft { from { opacity: 0; transform: translate3d(0, 10px, 0); } to { opacity: 1; transform: none; } }
+/* Settings pages: once a page has glided in, its blocks settle in one after another — whole blocks only (a list is one block),
+   short and light. The page you open Settings on arrives with the sheet, with nothing settling (that read as a busy pop-up). */
+.settings-page > *, .settings-page > .stack > * { animation: rise-soft 380ms var(--ease-out) backwards; animation-delay: calc(90ms + var(--j, 0) * 26ms); }
+.settings-page > :nth-child(1), .settings-page > .stack > :nth-child(1) { --j: 0; } .settings-page > :nth-child(2), .settings-page > .stack > :nth-child(2) { --j: 1; }
+.settings-page > :nth-child(3), .settings-page > .stack > :nth-child(3) { --j: 2; } .settings-page > :nth-child(4), .settings-page > .stack > :nth-child(4) { --j: 3; }
+.settings-page > :nth-child(n+5), .settings-page > .stack > :nth-child(n+5) { --j: 4; }
+.settings-page > .stack { animation: none; }
+.settings-page.still, .settings-page.still * { animation: none !important; }
 :root[data-motion='reduce'] .settings-page * { animation: none !important; }
 /* In-sheet pages (Sheet.tsx): like Settings — once the page starts gliding in, its title, then each card, field and list row
    settle in one after another. Only the first ten of each level animate (the rest start off screen), delays are capped, and

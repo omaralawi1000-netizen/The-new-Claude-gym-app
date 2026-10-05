@@ -190,7 +190,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   useEffect(() => { if (msgs.length) try { localStorage.setItem('aven.coachNote', '1'); } catch { /* ignore */ } }, [msgs.length]);
 
   return (
-    <Sheet onClose={pop} tall label={t('Coach')} z={100} foot={(
+    <Sheet onClose={pop} tall instant label={t('Coach')} z={100} foot={(
       <div>
         <div className="row-flex" style={{ gap: 8 }}>
           {/* the orb is the Coach's microphone: it flies in from the tab bar, listens to you, thinks while it answers */}

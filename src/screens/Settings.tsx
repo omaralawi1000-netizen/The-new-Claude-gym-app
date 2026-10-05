@@ -119,6 +119,7 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
   const st = s.settings;
   const titles: Record<string, string> = { targets: t('Targets'), training: t('Training'), food: t('Food & water'), units: t('Units & locale'), look: t('Appearance'), today: t('Today'), reminders: t('Reminders'), data: t('Data & backup'), privacy: t('Privacy'), ai: t('Voice & AI'), about: t('About Aven') };
   const goBack = () => (sec && !props.section ? setSec(null) : pop());
+  const moved = useRef(false); if (sec !== (props.section ?? null)) moved.current = true; // once you've moved between pages, pages settle in
 
   return (
     <Sheet onClose={pop} tall instant label={t('Settings')} z={100}>
@@ -129,7 +130,7 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
       <div className="sheet-body" style={{ position: 'relative', overflowX: 'hidden' }}>
         {/* both pages move at once (no blank gap): the new one slides in sharpening from blur, the old one drifts out */}
         <AnimatePresence mode="popLayout" initial={false} custom={dir}>
-          <motion.div key={sec ?? 'root'} className="no-rise settings-page" custom={dir} variants={PAGE} initial="enter" animate="center" exit="exit" style={{ width: '100%' }}>
+          <motion.div key={sec ?? 'root'} className={`no-rise settings-page ${moved.current ? '' : 'still'}`} custom={dir} variants={PAGE} initial="enter" animate="center" exit="exit" style={{ width: '100%' }}>
             {!sec && (
               <>
                 <div className="field"><label htmlFor="s-name">{t('Your name')}</label><input id="s-name" className="input" value={st.name} onChange={(e) => set({ name: e.target.value })} placeholder={t('Optional')} /></div>

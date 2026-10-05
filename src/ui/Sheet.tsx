@@ -48,11 +48,12 @@ function pageIn(el: HTMLElement, dx: number) {
 }
 /** Steps the content of a sheet (or page) aside while a page covers it, and back when that page goes. */
 function useCovered(ref: React.RefObject<HTMLElement | null>, covered: boolean, reduce: boolean | null) {
-  const first = useRef(true);
+  const prev = useRef(false); // never covered when it mounts; compared with the last value (not "first run") so an effect run twice changes nothing
   const anims = useRef<Animation[]>([]);
   useLayoutEffect(() => {
     const el = ref.current; if (!el) return;
-    if (first.current) { first.current = false; if (!covered) return; }
+    if (prev.current === covered) return;
+    prev.current = covered;
     anims.current.forEach((a) => a.cancel()); anims.current = [];
     el.inert = covered;
     if (covered) {
@@ -68,6 +69,7 @@ function useCovered(ref: React.RefObject<HTMLElement | null>, covered: boolean, 
   }, [covered]); // eslint-disable-line
 }
 import { Icon } from './Icon';
+import { mirrorOrb } from './Sphere';
 import { useUI } from '../state/ui';
 import { useSwipeDown } from './swipe';
 
@@ -147,7 +149,7 @@ function HostSheet({ children, onClose, tall, instant, label, foot, z: zProp = 6
     const b = bs.get();
     const k = kb.get();
     m.add(mirrorProgress(ref.current, p0, p1, sp, vel, (pp) => ({ transform: `translate3d(0, ${(1 - pp) * dist.current - k}px, 0) scale(${1 - 0.06 * b})` })));
-    m.add(...mirrorVeil(scrimRef.current, p0, p1, sp, vel), mirrorStage(id, p0, p1, sp, vel));
+    m.add(...mirrorVeil(scrimRef.current, p0, p1, sp, vel), mirrorStage(id, p0, p1, sp, vel), mirrorOrb(ref.current, p0, p1, sp, vel, (pp) => (1 - pp) * dist.current));
   };
   useEffect(() => {
     const stop = () => mirror.current!.cancel();

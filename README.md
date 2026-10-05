@@ -140,10 +140,17 @@ Run in headless Chromium (Playwright, 390×844 @2×, dark + light), scripts in `
 - **Not built (on purpose, stated in-app):** cloud sync / accounts; photo-based food estimation; automatic AI changes to your data (the Coach advises; routines and estimates only appear after you confirm; progression suggestions remain transparent rules); background reminders when the app is closed (web apps need a push server — reminders fire only while Aven runs; in-app nudge otherwise); animated exercise demonstrations (there is an authored muscle diagram and step-by-step text instead).
 - Exercise calories are **never** added to food targets.
 
+## The orb flies with its pop-up; cleaner bar and Settings
+
+- **Orb**: no more fading. Going into a pop-up that has an orb (the Coach, the live workout, the orb screen) it flies from the dock to its place on the pop-up's own spring — they start together and land together — and back the same way. The flight is handed to the browser like the sheet itself (`mirrorOrb` in `ui/Sphere.tsx`), so it is drawn at the full refresh rate in step with the sheet; a finger on the sheet hands it back to the script version. It heads for where its slot comes to rest (it used to chase the moving slot and lag behind it, across the Finish button).
+- **Closing the workout**: the window travels 64 px past the bottom edge, so its top edge and shadow no longer hang just under the tab bar while the spring settles.
+- **No frosted band under the tab bar** — the bar's own glass is the only blur down there.
+- **Settings**: opening it, the rows arrive with the sheet (nothing settles in); moving between pages, whole blocks settle in briefly (a list is one block).
+- Fix: a page inside a sheet could replay its "step aside" animation on mount when an effect ran twice.
+
 ## Tidier food search, an orb that doesn't trail, no jump at page switches
 
 - **Food search**: the seven sideways-scrolling chips are one 3 × 2 grid with nothing off-screen — Scan, Photo, Quick add, then New food, Recipes, Saved meals. "Dictate" is gone from here (the orb in the dock does it).
-- **The orb in a sliding pop-up** (the live workout, the Coach) no longer flies across the screen to its place: it trailed the sheet at 60 fps while the sheet moved at 120, and crossed the Finish button on the way. It fades out where it is and fades back in already in its place, riding up with the sheet.
 - **Page switches** start 50 ms after the tap. Building the new screen takes a frame or two on a phone; animations that began during that work were already part-way through when the first frame showed, so both pages jumped (the occasional flicker at the top).
 
 ## Lag pass: Settings, pop-ups, page switches

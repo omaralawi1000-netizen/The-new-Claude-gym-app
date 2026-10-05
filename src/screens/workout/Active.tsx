@@ -13,7 +13,7 @@ import { displayToKg, kgToDisplay, fmtNum, displayToM, mToDisplay } from '../../
 import { useNow, restEndedCue } from '../../lib/hooks';
 import { addSet, deleteSet, moveExercise, patchExercise, patchSet, removeExercise, startRest, adjustRest, skipRest, toggleSuperset } from './actions';
 import { exName, fmtSet, MUSCLE_LABEL } from './common';
-import { SphereSlot, orbPress, orbTap } from '../../ui/Sphere';
+import { SphereSlot, mirrorOrb, orbPress, orbTap } from '../../ui/Sphere';
 import { useSwipeDown } from '../../ui/swipe';
 import { Mirror, mirrorProgress, mirrorStage, trackCover, trackDepth } from '../../ui/engage';
 import { DIM_VEIL, Veil, mirrorVeil } from '../../ui/Veil';
@@ -43,7 +43,9 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
   // blurred, clipped, faded or laid out on the way.
   const H = typeof window !== 'undefined' ? window.innerHeight : 900;
   const p = useMotionValue(0);
-  const sheetTop = (pp: number) => (1 - pp) * H;
+  // it travels a little past the bottom edge: a spring's last few percent take a while, and the window's top edge (and its
+  // shadow) used to hang just under the tab bar for that long after closing
+  const sheetTop = (pp: number) => (1 - pp) * (H + 64);
   const sheetT = useTransform(p, (pp) => `translateY(${sheetTop(pp).toFixed(2)}px)`);
   const dragT = useTransform(dragY, (d) => Math.max(0, d) + Math.min(0, d) * 0.15);
   const dialogY = useTransform([p, dragY], ([pp, d]: number[]) => sheetTop(pp) + Math.max(0, d) + Math.min(0, d) * 0.15); // how far the content is displaced (for the orb)
@@ -63,6 +65,7 @@ export function ActiveWorkout({ props }: { props: { origin?: 'hero' | 'pill' | '
       mirrorProgress(sheetRef.current, p0, p1, sp, vel, (pp) => ({ transform: `translateY(${sheetTop(pp).toFixed(2)}px)` })),
       ...mirrorVeil(scrimRef.current, p0, p1, sp, vel, DIM_VEIL),
       mirrorStage(depthId, p0, p1, sp, vel),
+      mirrorOrb(sheetRef.current, p0, p1, sp, vel, sheetTop),
     );
   };
   useEffect(() => { const off = dragY.on('change', () => mirror.current!.cancel()); return () => { off(); mirror.current!.cancel(); }; }, [dragY]);

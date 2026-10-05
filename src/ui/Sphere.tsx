@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { cancelFrame, frame } from 'motion/react';
-import { useEngageContext, type Engage } from './engage';
+import { mirrorProgress, useEngageContext, type Engage } from './engage';
 import { mic } from '../lib/mic';
 import { useVoice } from '../state/voice';
 import { useStore } from '../state/store';
@@ -56,6 +56,43 @@ export const markOrbLayoutDirty = (ms = 900) => { layoutDirtyUntil = Math.max(la
  */
 let glideReq: { easing: string; duration: number } | null = null;
 export function orbGlide(sp: { stiffness: number; damping: number; mass?: number }) { glideReq = springCurve(sp); markOrbLayoutDirty(); }
+let orbEl: HTMLElement | null = null;
+let dockRest: { X: number; Y: number; S: number } | null = null;
+const orbLock = { bucket: 0 };
+
+/**
+ * High refresh rate for the orb: its flight between the dock and a popup handed to the browser on the popup's own spring,
+ * so it is drawn at the screen's full rate in exact step with the sheet (the script version runs underneath and takes over
+ * the moment anything interrupts it, e.g. a finger). `container` is the popup; `shiftAt(p)` how far its slot is displaced
+ * at progress p (0 for a popup that doesn't slide).
+ */
+export function mirrorOrb(container: Element | null, p0: number, p1: number, sp: { stiffness: number; damping: number; mass?: number }, vel: number, shiftAt: (p: number) => number = () => 0): Animation | null {
+  const el = orbEl, O = dockRest;
+  const slotEl = container?.querySelector<HTMLElement>('[data-orb-slot]');
+  if (!el || !O || !slotEl || !slotEl.isConnected) return null;
+  // only the simple case: between the dock and this one popup (anything stacked is left to the script version)
+  for (const s of slots.values()) if (s.el !== slotEl && s.priority > 0 && s.el.isConnected && s.engage && s.engage.e.get() > 0.02) return null;
+  const app = el.closest('.app') ?? el.parentElement;
+  const b = app?.getBoundingClientRect() ?? { left: 0, top: 0 };
+  const r = slotEl.getBoundingClientRect();
+  const z = Math.min(r.width, r.height);
+  if (z < 2) return null;
+  const R = { X: r.left - b.left, Y: r.top - b.top - shiftAt(p0), S: z };
+  const bucket = Math.ceil(Math.max(O.S, R.S, 8) / 24) * 24;
+  const at = (p: number): Keyframe => {
+    const e = Math.min(1, Math.max(0, p));
+    const X = O.X + (R.X - O.X) * e, Y = O.Y + (R.Y - O.Y) * e, S = Math.max(8, O.S + (R.S - O.S) * e);
+    return { transform: `translate3d(${X.toFixed(2)}px, ${Y.toFixed(2)}px, 0) scale(${(S / bucket).toFixed(4)})` };
+  };
+  orbLock.bucket = bucket;
+  if (el.style.width !== `${bucket}px`) el.style.width = el.style.height = `${bucket}px`;
+  const a = mirrorProgress(el, p0, p1, sp, vel, at);
+  if (!a) { orbLock.bucket = 0; return null; }
+  const done = () => { if (orbLock.bucket === bucket) orbLock.bucket = 0; };
+  a.onfinish = done; a.oncancel = done;
+  return a;
+}
+
 export function registerSlot(id: string, el: HTMLElement, priority: number, engage?: Engage) {
   slots.set(id, { el, priority, engage });
   markOrbLayoutDirty();
@@ -160,6 +197,7 @@ export function SphereStage() {
     let px = NaN, py = NaN, ps = NaN, sentV = 0;
     let glide: Animation | null = null;
     let base = { left: 0, top: 0 };
+    orbEl = el;
     const rects = new WeakMap<HTMLElement, DOMRect>();
     const owners = new WeakMap<HTMLElement, number>();
     /** z-index of the fixed surface (popup) a slot lives in, found once per slot. */
@@ -211,7 +249,7 @@ export function SphereStage() {
       const measure = now < layoutDirtyUntil;
       if (measure) { const b = appEl?.getBoundingClientRect(); base = { left: b?.left ?? 0, top: b?.top ?? 0 }; }
       const ox = base.left, oy = base.top;
-      let X = 0, Y = 0, S = 0, have = false, top = 0, topSlot: Slot | null = null, fade = 1;
+      let X = 0, Y = 0, S = 0, have = false, top = 0, topSlot: Slot | null = null;
       for (const sl of list) {
         const e = sl.engage ? Math.min(1, Math.max(0, sl.engage.e.get())) : 1;
         if (have && e <= 0.001) continue;
@@ -225,15 +263,11 @@ export function SphereStage() {
         if (!have) { X = x; Y = y; S = z; have = true; continue; }
         // a sliding popup's slot comes up from below the screen: the orb waits where it is until the slot reaches it, then
         // rides up with it (rather than diving off the bottom edge to meet it)
-        if (sl.engage?.shift) {
-          // A sliding popup (a sheet, the live workout): the orb doesn't fly across the screen to it — it trailed behind the
-          // sheet and crossed its buttons. It fades out where it is, and fades back in already sitting in its place in the
-          // popup, carried by it.
-          if (e >= 0.5) { X = x; Y = y; S = z; }
-          fade = Math.min(fade, e < 0.5 ? Math.max(0, 1 - e / 0.3) : Math.min(1, Math.max(0, (e - 0.62) / 0.3)));
-        } else {
-          X += (x - X) * e; Y += (y - Y) * e; S += (z - S) * e;
-        }
+        // A sliding popup's slot (a sheet, the live workout): the orb heads for where the slot comes to REST, on the very
+        // same progress as the popup. Both start together and land together, so the orb never trails the sheet or crosses its
+        // buttons on the way; while the popup is opening it is simply a shared element flying to its place.
+        const yR = sl.engage?.shift ? y - sl.engage.shift.get() : y;
+        X += (x - X) * e; Y += (yR - Y) * e; S += (z - S) * e;
         if (e > 0.02) { top = Math.max(top, sl.priority); topSlot = sl; }
       }
       if (!have) { el.style.opacity = '0'; pause(); return; }
@@ -244,9 +278,8 @@ export function SphereStage() {
       const size = Math.max(8, S);
       // The canvas is drawn at a size bucket and scaled down with a transform. Resizing a canvas (and the element) on
       // every frame of a flight reallocated its buffer and re-laid it out each frame — a stutter source.
-      const bucket = Math.ceil(size / 24) * 24;
-      const op = fade >= 0.999 ? '1' : fade.toFixed(3);
-      if (el.style.opacity !== op) el.style.opacity = op;
+      const bucket = orbLock.bucket || Math.ceil(size / 24) * 24;
+      if (el.style.opacity !== '1') el.style.opacity = '1';
       if (el.style.width !== `${bucket}px`) el.style.width = el.style.height = `${bucket}px`;
       const tf = `translate3d(${X}px, ${Y}px, 0) scale(${size / bucket})`;
       if (glideReq || glide) {
@@ -264,6 +297,8 @@ export function SphereStage() {
         }
       }
       el.style.transform = tf;
+      // where the orb rests in the dock, for flights that are handed to the browser (mirrorOrb)
+      if (top === 0 && !glide && useUI.getState().overlays.length === 0) dockRest = { X, Y, S };
       // A big orb is soft light, not fine detail: at 2× it looks the same as at 3×, with less than half the pixels to fill and
       // hand to the screen every frame (that hand-over was most of the orb screen's cost). Small orbs keep full sharpness.
       const dpr = Math.min(bucket > 120 ? 2 : 3, window.devicePixelRatio || 1);
@@ -320,5 +355,5 @@ export function SphereSlot({ id, priority = 0, className, style, engage }: { id:
   const ctx = useEngageContext();
   const eng = engage ?? ctx ?? undefined;
   useEffect(() => registerSlot(id, ref.current!, priority, eng), [id, priority, eng]);
-  return <div ref={ref} className={className} style={style} />;
+  return <div ref={ref} className={className} style={style} data-orb-slot={id} />;
 }
