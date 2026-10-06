@@ -120,17 +120,33 @@ export function Stepper({ value, onChange, step = 1, min = 0, max = 9999, unit, 
   };
   const stop = () => clearTimeout(timer.current);
   useEffect(() => stop, []);
-  const btn = `icon-btn press${compact ? ' sm' : ''}`;
+  // the number rolls the way it moved (up on +, down on −); nothing moves on the first draw
+  const prev = useRef(value);
+  const dir = value > prev.current ? 'up' : value < prev.current ? 'down' : '';
+  useEffect(() => { prev.current = value; }, [value]);
+  const shown = <span key={value} className={`step-val${dir ? ` roll-${dir}` : ''}`}>{fmt ? fmt(value) : fmtNum(value, lang, 2)}{unit && <span className="t3 small"> {unit}</span>}</span>;
+  const hold = (dir: 1 | -1) => ({ onPointerDown: () => start(dir), onPointerUp: stop, onPointerLeave: stop, onPointerCancel: stop });
+  if (compact) {
+    // one slim capsule: − value +. Light, and every one in a list lines up on the right
+    return (
+      <div className="stepper pill" role="group" aria-label={label}>
+        <button className="pill-btn" aria-label="Decrease" disabled={value <= min} {...hold(-1)}><Icon name="minus" size={16} sw={2.2} /></button>
+        <div className="num pill-val" aria-live="polite">{shown}</div>
+        <button className="pill-btn" aria-label="Increase" disabled={value >= max} {...hold(1)}><Icon name="plus" size={16} sw={2.2} /></button>
+      </div>
+    );
+  }
   return (
-    <div className={`row-flex stepper${compact ? ' compact' : ''}`} style={{ gap: compact ? 4 : 6 }} role="group" aria-label={label}>
-      <button className={btn} aria-label="Decrease" disabled={value <= min} onPointerDown={() => start(-1)} onPointerUp={stop} onPointerLeave={stop} onPointerCancel={stop}><Icon name="minus" size={compact ? 18 : 22} /></button>
-      <div className="num" style={{ minWidth: compact ? 40 : 64, textAlign: 'center', fontWeight: 650, fontSize: compact ? 17 : 18, whiteSpace: 'nowrap' }}>{fmt ? fmt(value) : fmtNum(value, lang, 2)}{unit && <span className="t3 small"> {unit}</span>}</div>
-      <button className={btn} aria-label="Increase" disabled={value >= max} onPointerDown={() => start(1)} onPointerUp={stop} onPointerLeave={stop} onPointerCancel={stop}><Icon name="plus" size={compact ? 18 : 22} /></button>
+    <div className="row-flex stepper" style={{ gap: 6 }} role="group" aria-label={label}>
+      <button className="icon-btn press" aria-label="Decrease" disabled={value <= min} {...hold(-1)}><Icon name="minus" size={22} /></button>
+      <div className="num step-box" style={{ minWidth: 64, textAlign: 'center', fontWeight: 650, fontSize: 18, whiteSpace: 'nowrap' }}>{shown}</div>
+      <button className="icon-btn press" aria-label="Increase" disabled={value >= max} {...hold(1)}><Icon name="plus" size={22} /></button>
     </div>
   );
 }
 
 // ── collapse / reveal ───────────────────────────────────────
+const STARTING_STYLE = typeof window !== 'undefined' && 'CSSStartingStyleRule' in window;
 /**
  * Opens and closes its content by sliding a grid row between 0fr and 1fr: the browser lays it out as it goes, and no script
  * measures heights on every frame. (Motion's height: 'auto' and `layout` animations measured the whole page each time
@@ -140,7 +156,9 @@ export function Stepper({ value, onChange, step = 1, min = 0, max = 9999, unit, 
 export function Collapse({ open = true, appear = false, children, className, style, ms = 320 }: { open?: boolean; appear?: boolean; children: ReactNode; className?: string; style?: CSSProperties; ms?: number }) {
   const [isPresent, safeToRemove] = usePresence();
   const reduce = useReducedMotion();
-  const [grown, setGrown] = useState(!appear || !!reduce);
+  // Where the browser has @starting-style the row grows from the very first frame (the CSS gives it its 0fr start); older
+  // browsers draw one frame closed and then open it, two frames later
+  const [grown, setGrown] = useState(!appear || !!reduce || STARTING_STYLE);
   const [settled, setSettled] = useState(!appear);
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
@@ -163,7 +181,7 @@ export function Collapse({ open = true, appear = false, children, className, sty
     // eslint-disable-next-line
   }, [on]);
   return (
-    <div ref={ref} className={`collapse${on ? ' on' : ''}${on && settled ? ' settled' : ''}${className ? ` ${className}` : ''}`} style={{ ['--collapse-ms' as string]: `${reduce ? 0 : ms}ms`, ...style }}>
+    <div ref={ref} className={`collapse${appear ? ' appear' : ''}${on ? ' on' : ''}${on && settled ? ' settled' : ''}${className ? ` ${className}` : ''}`} style={{ ['--collapse-ms' as string]: `${reduce ? 0 : ms}ms`, ...style }}>
       <div className="collapse-in">{children}</div>
     </div>
   );

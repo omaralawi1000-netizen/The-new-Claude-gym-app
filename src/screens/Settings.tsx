@@ -142,7 +142,7 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
                   <Row icon="globe" title={t('Units & locale')} sub={`${st.units.weight} · ${st.units.distance} · ${st.language === 'da' ? 'Dansk' : 'English'}`} onClick={() => setSec('units')} />
                   <Row icon="moon" title={t('Appearance')} sub={`${t(st.theme === 'system' ? 'System' : st.theme === 'dark' ? 'Dark' : 'Light')} · ${t(st.motion === 'system' ? 'Motion: system' : st.motion === 'reduce' ? 'Reduced motion' : 'Full motion')}`} onClick={() => setSec('look')} />
                   <Row icon="today" title={t('Today')} sub={t('Choose what Today shows')} onClick={() => setSec('today')} />
-                  <Row icon="sparkle" title={t('Voice & AI')} sub={ai.hasGroq || ai.hasGemini ? [ai.hasGroq ? 'Groq' : '', ai.hasGemini ? 'Gemini' : ''].filter(Boolean).join(' + ') : undefined} onClick={() => setSec('ai')} />
+                  <Row icon="sparkle" title={t('Voice & AI')} sub={ai.hasGroq || ai.hasGemini || ai.hasOpenai ? [ai.hasGroq ? 'Groq' : '', ai.hasOpenai && ai.solFirst ? 'GPT-6.1 Sol' : '', ai.hasGemini ? 'Gemini' : ''].filter(Boolean).join(' + ') : undefined} onClick={() => setSec('ai')} />
                   <Row icon="bell" title={t('Reminders')} onClick={() => setSec('reminders')} />
                   <Row icon="download" title={t('Data & backup')} onClick={() => setSec('data')} />
                   <Row icon="shield" title={t('Privacy')} onClick={() => setSec('privacy')} />
@@ -395,7 +395,7 @@ function DataSection() {
     setPending(null);
     toast(t('Backup restored'), { tone: 'ok', actionLabel: t('Undo'), onAction: () => useStore.getState().replaceAll(prev), duration: 10000 });
   };
-  const doDelete = async () => { useStore.getState().resetAll(); await clearPhotos().catch(() => {}); try { Object.keys(localStorage).filter((k) => k.startsWith('aven')).forEach((k) => localStorage.removeItem(k)); } catch { /* ignore */ } clearKeys(); useAi.getState().patch({ stt: 'accurate', voiceLang: 'auto', speak: false, voice: 'Achird', brain: true, models: { fast: '', brain: '', fastAlt: '', brainAlt: '', tts: '' } }); setConfirmDel(false); closeAll(); setTimeout(() => push('onboarding', {}), 80); };
+  const doDelete = async () => { useStore.getState().resetAll(); await clearPhotos().catch(() => {}); try { Object.keys(localStorage).filter((k) => k.startsWith('aven')).forEach((k) => localStorage.removeItem(k)); } catch { /* ignore */ } clearKeys(); useAi.getState().patch({ stt: 'accurate', voiceLang: 'auto', voice: 'Achird', brain: true, solFirst: true, effortOrb: 'medium', effortCoach: 'high', models: { fast: '', brain: '', fastAlt: '', brainAlt: '', tts: '' } }); setConfirmDel(false); closeAll(); setTimeout(() => push('onboarding', {}), 80); };
   const demo = () => { const d = buildDemo(s.settings); useStore.getState().patch(d); toast(t('Demo data loaded'), { tone: 'ok' }); };
   const removeDemo = () => { const lang = s.settings.language; const settings = s.settings; useStore.getState().replaceAll({ ...defaultData(lang), settings }); toast(t('Demo data removed'), { tone: 'ok' }); };
 

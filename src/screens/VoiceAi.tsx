@@ -6,13 +6,14 @@ import { useAi } from '../state/ai';
 import { getKey, setKey, mask } from '../lib/keys';
 import { testGroqKey } from '../lib/groq';
 import { listModels, pickTextModels } from '../lib/gemini';
+import { testOpenaiKey } from '../lib/openai';
 import { VOICES, FALLBACK_TTS } from '../lib/tts';
 
 type Test = { state: 'idle' | 'busy' | 'ok' | 'bad'; text?: string };
 
-function KeyField({ name, label, hint, onTest, test }: { name: 'groq' | 'gemini'; label: string; hint: string; onTest: (key: string) => void; test: Test }) {
+function KeyField({ name, label, hint, onTest, test }: { name: 'groq' | 'gemini' | 'openai'; label: string; hint: string; onTest: (key: string) => void; test: Test }) {
   const t = useT();
-  const has = useAi((a) => (name === 'groq' ? a.hasGroq : a.hasGemini));
+  const has = useAi((a) => (name === 'groq' ? a.hasGroq : name === 'openai' ? a.hasOpenai : a.hasGemini));
   const [val, setVal] = useState('');
   const [show, setShow] = useState(false);
   const save = () => { const v = val.trim(); if (!v) return; setKey(name, v); setVal(''); onTest(v); };
@@ -39,6 +40,12 @@ export function VoiceAiSettings() {
   const ai = useAi();
   const [g, setG] = useState<Test>({ state: 'idle' });
   const [m, setM] = useState<Test>({ state: 'idle' });
+  const [o, setO] = useState<Test>({ state: 'idle' });
+  const testOpenai = async (key: string) => {
+    setO({ state: 'busy' });
+    const r = await testOpenaiKey(key);
+    setO(r === 'ok' ? { state: 'ok', text: t('OpenAI key works. GPT-6.1 Sol now answers the orb and the Coach.') } : r === 'bad' ? { state: 'bad', text: t('OpenAI rejected this key.') } : r === 'nomodel' ? { state: 'bad', text: t('The key works, but GPT-6.1 Sol isn’t enabled on this OpenAI account.') } : r === 'offline' ? { state: 'bad', text: t('Couldn’t reach OpenAI. Check your connection — the key was saved anyway.') } : { state: 'bad', text: t('OpenAI answered with an unexpected error ({c}).', { c: r }) });
+  };
 
   const testGroq = async (key: string) => {
     setG({ state: 'busy' });
@@ -57,9 +64,25 @@ export function VoiceAiSettings() {
 
   return (
     <div className="stack gap16">
-      <div className="small t2">{t('Optional, and free. Aven works without them; with them it hears you better (Danish too) and the Coach can talk and act.')}</div>
+      <div className="small t2">{t('Optional. Aven works without them; with them it hears you better (Danish too) and the Coach can talk and act. Groq and Gemini are free; OpenAI is paid.')}</div>
       <KeyField name="groq" label={t('Groq key — hears you (Whisper)')} hint={t('Free at console.groq.com. Used only to turn your recording into text.')} onTest={testGroq} test={g} />
       <KeyField name="gemini" label={t('Gemini key — understands you')} hint={t('Free at aistudio.google.com. Used to read your sentences, estimate foods, build routines and talk in the Coach.')} onTest={testGemini} test={m} />
+      <KeyField name="openai" label={t('OpenAI key — GPT-6.1 Sol (paid)')} hint={t('From platform.openai.com. Billed per use (about 0.20 kr per orb command on Medium, 0.40–0.50 kr on High). Set a monthly spend limit there. Gemini stays the free fallback and reads answers aloud.')} onTest={testOpenai} test={o} />
+      {ai.hasOpenai && (
+        <div className="plinth" style={{ padding: 16 }}>
+          <div className="stack gap16">
+            <div className="field"><label>{t('Brain')}</label>
+              <Seg value={ai.solFirst ? 'sol' : 'gemini'} onChange={(v) => ai.patch({ solFirst: v === 'sol' })} options={[{ value: 'sol', label: 'GPT-6.1 Sol' }, { value: 'gemini', label: 'Gemini' }]} /></div>
+            {ai.solFirst && <>
+              <div className="field"><label>{t('Thinking — orb')}</label>
+                <Seg value={ai.effortOrb} onChange={(v) => ai.patch({ effortOrb: v })} options={[{ value: 'medium', label: t('Medium') }, { value: 'high', label: t('High') }]} /></div>
+              <div className="field"><label>{t('Thinking — Coach')}</label>
+                <Seg value={ai.effortCoach} onChange={(v) => ai.patch({ effortCoach: v })} options={[{ value: 'medium', label: t('Medium') }, { value: 'high', label: t('High') }]} />
+                <div className="xs t2" style={{ marginTop: 6 }}>{t('High thinks longer and costs about twice as much. Medium keeps the orb quick for logging.')}</div></div>
+            </>}
+          </div>
+        </div>
+      )}
 
       <div className="plinth" style={{ padding: 16 }}>
         <div className="stack gap16">
@@ -71,13 +94,14 @@ export function VoiceAiSettings() {
             <Seg value={ai.mic} onChange={(v) => ai.patch({ mic: v })} options={[{ value: 'phone', label: t('Phone') }, { value: 'any', label: t('Earbuds') }]} />
             <div className="xs t2" style={{ marginTop: 6 }}>{t('With earbuds in, the phone’s own mic hears you better and keeps your music playing.')}</div></div>
           <div className="row-flex between"><div><div>{t('Let Gemini understand dictation')}</div></div><Toggle on={ai.brain} onChange={(v) => ai.patch({ brain: v })} label={t('Let Gemini understand dictation')} /></div>
-          <div className="row-flex between"><div><div>{t('Read answers aloud automatically')}</div></div><Toggle on={ai.speak} onChange={(v) => ai.patch({ speak: v })} label={t('Read answers aloud automatically')} /></div>
-          {ai.speak && <div className="field"><label>{t('Voice')}</label><div className="chips" style={{ margin: 0, padding: 0, flexWrap: 'wrap' }}>{VOICES.map((v) => <button key={v} className={`chip sm press ${ai.voice === v ? 'on' : ''}`} onClick={() => ai.patch({ voice: v })}>{v}</button>)}</div></div>}
+          <div className="field"><label>{t('Voice for read-aloud')}</label><div className="chips" style={{ margin: 0, padding: 0, flexWrap: 'wrap' }}>{VOICES.map((v) => <button key={v} className={`chip sm press ${ai.voice === v ? 'on' : ''}`} onClick={() => ai.patch({ voice: v })}>{v}</button>)}</div>
+            <div className="xs t2" style={{ marginTop: 6 }}>{t('Answers are only read aloud when you tap ▶ next to them.')}</div></div>
         </div>
       </div>
 
       <div className="xs t3">
         <b>{t('What leaves your phone')}</b>: {t('your recording goes to Groq; the text of what you said (and, in the Coach, a short summary of your targets and recent training) goes to Google Gemini. Free-tier terms apply to both — free Gemini traffic may be used by Google to improve its products, so don’t put anything in there you wouldn’t want that. Aven stores no audio. The keys live only in this browser on this device: they are not in backups or exports, and “Delete everything” removes them.')}
+        {ai.hasOpenai && <> {t('With GPT-6.1 Sol on, that text (and plate photos) goes to OpenAI instead, sent with “don’t store”; OpenAI doesn’t train on API data.')}</>}
       </div>
     </div>
   );

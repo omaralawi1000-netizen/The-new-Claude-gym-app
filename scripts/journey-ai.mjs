@@ -83,7 +83,7 @@ await p.goto('http://127.0.0.1:5173/'); await wait(p, 900); await skipOnboarding
 
 // ── no keys: honest, still works ──
 await p.getByLabel('Coach').click(); await wait(p, 700);
-assert(await p.getByText(/Add a Gemini key to chat/).isVisible(), 'coach says what works without a key');
+assert(await p.getByText(/Add an AI key to chat/).isVisible(), 'coach says what works without a key');
 await p.screenshot({ path: 'shots/ai-1-coach-nokey.png' });
 // simple logging still works through the built-in reader (no Gemini, no Groq)
 await p.getByLabel('Message the Coach').fill('200 g skyr'); await p.getByRole('button', { name: 'Send', exact: true }).click(); await wait(p, 1800);
@@ -97,7 +97,7 @@ assert(await p.getByText('Groq key — hears you (Whisper)').isVisible(), 'coach
 // ── keys: typed in Settings, stored only locally ──
 await p.getByLabel('Groq key — hears you (Whisper)').fill('gsk_TESTKEY_1234'); await p.getByRole('button', { name: 'Save and test' }).first().click(); await wait(p, 700);
 assert(await p.getByText('Groq key works.').isVisible(), 'groq test ok'); assert.equal(calls.groqModels, 1);
-await p.getByLabel('Gemini key — understands you').fill('AIzaTESTKEY_5678'); await p.getByRole('button', { name: 'Save and test' }).last().click(); await wait(p, 900);
+await p.getByLabel('Gemini key — understands you').fill('AIzaTESTKEY_5678'); await p.getByRole('button', { name: 'Save and test' }).nth(1).click(); await wait(p, 900);
 assert(await p.getByText(/Gemini key works/).isVisible(), 'gemini test ok');
 assert(await p.getByText(/gemini-3-flash-preview/).isVisible() || true);
 await p.screenshot({ path: 'shots/ai-2-settings.png' });

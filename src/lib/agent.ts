@@ -18,7 +18,8 @@ import { fold, parseFoodText, resolveRows, rowQuantity, type ParsedFoodRow } fro
 import { matchExercises, parseWorkoutText } from './workoutText';
 import { entryFromSnapshot, quickEntry, snapshotOf, uid } from './nutrition';
 import { searchOnline } from './foodApi';
-import { aiEstimateFood, type Brain } from './gemini';
+import { type Brain } from './gemini';
+import { estimateFood } from './brain';
 import { ACTIVITY_KINDS, ACTIVITY_LABEL } from './activity';
 import { fmtNum, kgToDisplay } from './units';
 import type { ActivityKind, Exercise, Food, FoodEntry, Meal, Quantity, RoutineItem, SessionExercise, SetRecord, Settings } from './types';
@@ -208,7 +209,7 @@ export interface AgentCtx {
   t: (k: string, v?: Record<string, string | number>) => string;
   lang: 'en' | 'da';
   today: string;
-  /** Gemini, for estimating a food that is in no database (optional) */
+  /** the AI (GPT-6.1 Sol and/or Gemini), for estimating a food that is in no database (optional) */
   brain: Brain | null;
   /** where the user opened the Coach from (the Food tab's day / a meal's + button): the default for foods */
   date?: string; mealId?: string;
@@ -285,7 +286,7 @@ async function doLogFood(a: Extract<AgentAction, { type: 'log_food' }>, ctx: Age
     // still nothing (or no usable quantity): an AI estimate, clearly labelled — or an honest miss
     if (ctx.brain) {
       try {
-        const est = await aiEstimateFood(r.amount !== undefined ? `${r.amount} ${r.dim === 'count' ? (r.countWord ?? '') : r.dim} ${r.query}`.trim() : r.query, ctx.brain, lang);
+        const est = await estimateFood(r.amount !== undefined ? `${r.amount} ${r.dim === 'count' ? (r.countWord ?? '') : r.dim} ${r.query}`.trim() : r.query, ctx.brain, lang);
         const q = quickEntry(`${est.name} (${t('AI estimate')})`, { kcal: est.kcal, protein: est.protein, carbs: est.carbs, fat: est.fat }, date, mealId);
         entries.push({ ...q, estimated: true, note: est.assumptions || undefined });
         lines.push({ text: est.name, sub: `${Math.round(est.kcal)} kcal · ${t('AI estimate')}`, warn: true });
@@ -790,7 +791,7 @@ function doLogSets(a: Extract<AgentAction, { type: 'log_sets' }>, ctx: AgentCtx)
   const startedHere = !hadActive;
   const nSets = added.reduce((n, x) => n + x.filled.length + x.appended.length, 0);
   return {
-    id: uid('r'), kind: 'sets', title: t('Logged {n} sets', { n: nSets }), lines,
+    id: uid('r'), kind: 'sets', title: nSets === 1 ? t('Logged 1 set') : t('Logged {n} sets', { n: nSets }), lines,
     button: { label: t('Open workout'), run: () => useUI.getState().push('workout', { origin: 'none' }) },
     undo: () => {
       const s = useStore.getState();

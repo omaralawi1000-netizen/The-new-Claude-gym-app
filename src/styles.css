@@ -11,7 +11,7 @@
 @property --h3 { syntax: '<color>'; inherits: true; initial-value: #29d3c0; }
 
 :root {
-  --f-display: 'Instrument Serif', 'Iowan Old Style', Georgia, serif;
+  --f-display: 'Newsreader Variable', 'Iowan Old Style', Georgia, serif; /* sturdier than the old condensed serif; optical sizes make big words finer */
   --f-ui: 'Geist Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
 
   --ac-ink: #0b0710;
@@ -225,7 +225,8 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
    layer for as long as the page lived. The rise is movement + fade + a slight scale, which reads the same at speed.) */
 
 /* ── type ────────────────────────────────────────────────── */
-.display { font-family: var(--f-display); font-weight: 400; letter-spacing: -0.012em; line-height: 1; }
+.display { font-family: var(--f-display); font-weight: 440; letter-spacing: -0.022em; line-height: 1; font-optical-sizing: auto; }
+.display[style*='italic'], .display i, em.display { font-weight: 400; }
 .display-xl { font-size: 72px; } .display-lg { font-size: 46px; } .display-md { font-size: 32px; } .display-sm { font-size: 24px; line-height: 1.08; }
 /* numerals are thin, wide-set sans with fixed-width digits; names are italic serif */
 .display.num { font-family: var(--f-ui); font-weight: 220; letter-spacing: -0.045em; font-variant-numeric: tabular-nums; }
@@ -294,7 +295,12 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
 .chip.on { background: var(--tx); color: var(--bg); box-shadow: none; }
 .chip.acc { background: var(--ac-soft); color: var(--ac-text); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ac) 34%, transparent); }
 .chip.sm { height: 28px; padding: 0 11px; font-size: 12px; }
-.chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin: 0 -20px; padding: 0 20px; }
+.chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin: 0 -20px; padding: 0 20px; scroll-padding: 0 20px; scroll-snap-type: x proximity; overscroll-behavior-x: contain;
+}
+/* chips that scroll sideways fade at the edges instead of being sliced by the card or the screen (at rest the fade only
+   covers the empty margin, so nothing looks faded). Rows laid out without that margin (wrapped, inline) are left alone. */
+.chips:not([style*="padding: 0px"]) { -webkit-mask-image: linear-gradient(to right, transparent, #000 20px, #000 calc(100% - 20px), transparent); mask-image: linear-gradient(to right, transparent, #000 20px, #000 calc(100% - 20px), transparent); }
+.chips > * { scroll-snap-align: start; flex: none; }
 .chips::-webkit-scrollbar { display: none; }
 .seg { display: flex; padding: 4px; border-radius: 999px; background: var(--bg-2); box-shadow: inset 0 1px 2px rgba(0,0,0,.2), inset 0 0 0 1px var(--line); position: relative; -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
 .seg button { flex: 1; height: 38px; border-radius: 999px; font-size: 14px; font-weight: 600; color: var(--tx2); position: relative; z-index: 1; transition: color 220ms; }
@@ -372,13 +378,17 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* content that scrolls up under a sheet's title fades out softly instead of being cut by a hard edge. The fade only grows
    in once the list has moved (a scroll-driven animation), so the first row is never faded at rest. */
 @property --sb-fade { syntax: '<length>'; inherits: false; initial-value: 0px; }
-@keyframes sb-fade { to { --sb-fade: 26px; } }
+@property --sb-fade-b { syntax: '<length>'; inherits: false; initial-value: 0px; }
+@keyframes sb-fade { to { --sb-fade: 44px; } }
+/* the same at the bottom, above the Save button: content fades into it while there is more below, and the fade melts away
+   as you reach the end (so the last row is never faded at rest). A list that doesn't scroll gets neither. */
+@keyframes sb-fade-b { from { --sb-fade-b: 40px; } to { --sb-fade-b: 0px; } }
 @supports (animation-timeline: scroll()) {
-  .sheet-body { -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--sb-fade)); mask-image: linear-gradient(to bottom, transparent, #000 var(--sb-fade));
-    animation: sb-fade linear both; animation-timeline: scroll(self); animation-range: 0 30px; }
+  .sheet-body { -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--sb-fade), #000 calc(100% - var(--sb-fade-b)), transparent); mask-image: linear-gradient(to bottom, transparent, #000 var(--sb-fade), #000 calc(100% - var(--sb-fade-b)), transparent);
+    animation: sb-fade linear both, sb-fade-b linear both; animation-timeline: scroll(self), scroll(self); animation-range: 0 40px, calc(100% - 40px) 100%; }
 }
 .sheet-head { flex: none; display: flex; align-items: center; gap: 10px; padding: 2px 22px 12px; }
-.sheet-foot { flex: none; padding: 12px 22px calc(var(--sab) + 14px); border-top: 1px solid var(--line); background: transparent; }
+.sheet-foot { flex: none; padding: 10px 22px calc(var(--sab) + 14px); background: transparent; } /* no rule above it: the list fades out instead */
 
 /* ── floating tab bar: icons only; the active tab opens up and shows its name ─── */
 .tabbar-wrap { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; padding: 0 16px calc(var(--sab) + 14px); display: flex; justify-content: center; pointer-events: none; }
@@ -548,14 +558,56 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 @keyframes blockIn { from { opacity: 0; transform: translateY(16px); } }
 @media (prefers-reduced-motion: reduce) { .wk-block.in { animation: none; } }
 /* the routine editor's exercise settings: two to a row, label above, compact steppers — they fit a phone in any language */
-.rt-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 12px; padding-top: 14px; }
-.rt-cell { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; }
-.rt-cell .micro { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.stepper.compact .icon-btn.sm { width: 38px; height: 38px; }
+/* ── routine editor: one card per exercise. Closed: grip · name + plan · chevron. Open: a list of settings, each name on the
+   left and a slim stepper on the right, so every number lines up. Dragging by the grip lifts the card (ui/dragSort.ts). */
+.rt-card { padding: 0; margin-bottom: 10px; -webkit-backdrop-filter: none; backdrop-filter: none; transition: box-shadow 240ms var(--ease-out); }
+.rt-card.ss-next { margin-bottom: 4px; }
+.rt-card.ss::before { content: ''; position: absolute; left: 5px; top: 18px; bottom: 18px; width: 3px; border-radius: 3px; background: var(--ac); }
+.rt-head { display: flex; align-items: center; gap: 2px; padding: 4px 16px 4px 4px; min-height: 66px; }
+.rt-grip { flex: none; width: 38px; height: 48px; display: grid; place-items: center; color: var(--tx3); touch-action: none; cursor: grab; border-radius: 14px; transition: color 200ms; }
+.rt-grip:active, .rt-card.dragging .rt-grip { color: var(--tx); cursor: grabbing; }
+.rt-toggle { flex: 1; min-width: 0; text-align: left; display: flex; flex-direction: column; gap: 3px; padding: 10px 0; }
+.rt-sub { display: grid; min-width: 0; }
+.rt-sub > * { grid-area: 1 / 1; transition: opacity 240ms var(--ease-out), transform 420ms var(--ease-out); }
+.rt-mus { opacity: 0; transform: translateY(5px); }
+.rt-card.open .rt-sum { opacity: 0; transform: translateY(-5px); }
+.rt-card.open .rt-mus { opacity: 1; transform: none; }
+.rt-chev { flex: none; color: var(--tx3); transition: transform 520ms var(--ease-spring), color 240ms; }
+.rt-card.open .rt-chev { transform: rotate(180deg); color: var(--tx2); }
+.rt-rows { margin: 0 16px; border-top: 1px solid var(--line); }
+.rt-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 58px; border-bottom: 1px solid var(--line); }
+.rt-lbl { min-width: 0; font-size: 14.5px; font-weight: 500; color: var(--tx2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rt-range { display: flex; align-items: center; gap: 6px; flex: none; }
+.rt-actions { display: flex; align-items: center; gap: 2px; padding: 10px 8px 10px 16px; min-height: 56px; }
+.rt-actions .icon-btn:disabled { opacity: .28; }
+.rt-del { color: var(--bad) !important; }
+/* as a card opens its settings rise in one after another; closing just folds them away */
+.collapse.on .rt-row, .collapse.on .rt-actions { animation: rt-in 460ms var(--ease-out) backwards; }
+.rt-row:nth-child(2) { animation-delay: 35ms !important; } .rt-row:nth-child(3) { animation-delay: 70ms !important; } .rt-row:nth-child(4) { animation-delay: 105ms !important; }
+.collapse.on .rt-actions { animation-delay: 140ms; }
+@keyframes rt-in { from { opacity: 0; transform: translateY(10px); } }
+/* lifted while dragged: above the rest, a deeper shadow; the others step aside on their own transition */
+.rt-card.dragging { z-index: 5; background: linear-gradient(var(--s2), var(--s2)), var(--bg); box-shadow: inset 0 1px 0 var(--hl), inset 0 0 0 1px var(--line-2), 0 26px 50px -18px rgba(0,0,0,.65), 0 8px 18px -8px rgba(0,0,0,.4); }
+.rt-card.drag-sib { transition: transform 300ms var(--ease-out); }
+
+/* ── slim stepper: − value + in one capsule. The number rolls the way it moved. */
+.stepper.pill { flex: none; display: inline-flex; align-items: center; height: 38px; border-radius: 999px; background: var(--s2);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--hl) 50%, transparent), inset 0 0 0 1px var(--line); }
+.pill-btn { width: 40px; height: 38px; display: grid; place-items: center; border-radius: 999px; color: var(--tx); transition: background-color 160ms, transform 420ms var(--ease-spring), opacity 200ms; -webkit-tap-highlight-color: transparent; }
+.pill-btn:active:not(:disabled) { background: color-mix(in srgb, var(--tx) 12%, transparent); transform: scale(.88); transition-duration: 80ms; }
+.pill-btn:disabled { opacity: .28; }
+.pill-val { min-width: 36px; height: 38px; display: grid; place-items: center; overflow: hidden; font-size: 16px; font-weight: 650; white-space: nowrap; }
+.step-val { display: inline-block; }
+.step-val.roll-up { animation: roll-up 320ms var(--ease-out); }
+.step-val.roll-down { animation: roll-down 320ms var(--ease-out); }
+@keyframes roll-up { from { transform: translateY(60%); opacity: 0; } }
+@keyframes roll-down { from { transform: translateY(-60%); opacity: 0; } }
+@media (max-width: 380px) { .pill-btn { width: 34px; } .pill-val { min-width: 32px; } .rt-range { gap: 3px; } }
 .stepper .icon-btn:disabled { opacity: 0.35; }
 /* Collapse (ui/kit.tsx): a grid row sliding between 0fr and 1fr — laid out by the browser, nothing measured by script */
 .collapse { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows var(--collapse-ms, 320ms) var(--ease-out), opacity calc(var(--collapse-ms, 320ms) * 0.75) ease; }
 .collapse.on { grid-template-rows: 1fr; opacity: 1; }
+@starting-style { .collapse.appear.on { grid-template-rows: 0fr; opacity: 0; } }
 .collapse-in { min-height: 0; overflow: hidden; }
 .collapse.settled > .collapse-in { overflow: visible; }
 /* Coach action cards: what it just did, popping in with a check and the lines sliding in one by one */

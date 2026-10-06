@@ -10,7 +10,7 @@ import { speechSupported, startSpeech, type SpeechError, type SpeechHandle } fro
 import { getKey } from '../lib/keys';
 import { transcribe, buildPrompt, STT_MODEL, SttError } from '../lib/groq';
 import { aiErrorText, type Turn } from '../lib/gemini';
-import { decide, agentModels } from '../lib/agentTurn';
+import { decide, brainFor } from '../lib/agentTurn';
 import { runActions, type AgentResult } from '../lib/agent';
 import { dayKey } from '../lib/dates';
 import { uid } from '../lib/nutrition';
@@ -20,7 +20,7 @@ import { kb, watchFocus } from '../ui/keyboard';
 import { Veil, VOICE_VEIL, mirrorVeil } from '../ui/Veil';
 import { Icon } from '../ui/Icon';
 import { useOverlayZ } from '../ui/Sheet';
-import { ActionCard, RotatingHint, Rich, Words, SpeakButton, readAloud, prefetchAloud, tidy, sttMessage } from '../ui/agentUi';
+import { ActionCard, RotatingHint, Rich, Words, SpeakButton, prefetchAloud, tidy, sttMessage } from '../ui/agentUi';
 import { stopSpeaking } from '../lib/tts';
 import { flyLogged } from '../ui/fly';
 
@@ -210,7 +210,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
       // the orb screen is spoken to, often mid-workout: one or two short sentences, not an article (the Coach chat keeps longer answers)
       const brief = ' They are speaking to the orb screen, probably mid-workout: answer in 1–2 short sentences (about 35 words), plain text, no bullet lists or headings — this overrides the usual reply length. If the question really needs more (a plan, a breakdown), give just the short answer: a “Continue in Coach” button sits under it, so never tell them to open the Coach.';
       // the answer streams in word by word as the model writes it (Gemini), under what you said
-      const d = await decide(text, { lang, t, pool, history: history(), where: where + brief, signal, onReply: (r) => { if (alive.current) patch(id, { reply: r }); } });
+      const d = await decide(text, { lang, t, pool, history: history(), where: where + brief, signal, surface: 'orb', onReply: (r) => { if (alive.current) patch(id, { reply: r }); } });
       let reply = d.reply;
       if (d.wantsUndo) {
         const last = [...turnsRef.current].reverse().find((x) => x.results.some((r) => r.undo && !x.undone.includes(r.id) && !r.pending));
@@ -219,14 +219,14 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
       }
       const st = useStore.getState();
       const today = dayKey(Date.now(), st.settings.dayStartHour);
-      const results = d.actions.length ? await runActions(d.actions, { t, lang, today, brain: useAi.getState().hasGemini ? { key: getKey('gemini'), models: agentModels(false), signal } : null, date: props.date, mealId: props.mealId }) : [];
+      const results = d.actions.length ? await runActions(d.actions, { t, lang, today, brain: brainFor({ big: false, surface: 'orb', signal }), date: props.date, mealId: props.mealId }) : [];
       if (!alive.current) return;
       const said = [reply, d.note].filter(Boolean).join('\n\n');
       patch(id, { reply: said, results, done: true });
       // green "Done" only when something was actually logged or changed; a plain answer just settles
       const acted = d.wantsUndo || results.some((r) => r.kind !== 'miss' && r.kind !== 'nav');
       if (acted) { buzz([12, 40, 18] as any); go('confirmed'); } else go('idle');
-      if (said.trim()) { if (useAi.getState().speak) readAloud(id, said, t); else prefetchAloud(said); }
+      if (said.trim()) prefetchAloud(said); // read aloud only when you tap play
       // a quick log and nothing to read: show it for a moment, then step aside with an Undo toast
       const quick = results.length > 0 && results.every((r) => ['food', 'sets', 'water', 'weight', 'activity'].includes(r.kind) && !r.pending);
       if (quick && !reply.trim()) {

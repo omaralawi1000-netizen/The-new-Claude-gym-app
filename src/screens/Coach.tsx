@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { useStore, allExercises } from '../state/store';
 import { useUI, buzz } from '../state/ui';
-import { useAi } from '../state/ai';
+import { useAi, anyBrain, solOn } from '../state/ai';
 import { useT, useLang } from '../lib/i18n';
 import { Sheet, SheetHead } from '../ui/Sheet';
 import { Icon } from '../ui/Icon';
@@ -13,14 +13,14 @@ import { getKey } from '../lib/keys';
 import { transcribe, buildPrompt, STT_MODEL, SttError } from '../lib/groq';
 import { aiErrorText, type Turn } from '../lib/gemini';
 import { stopSpeaking } from '../lib/tts';
-import { decide, agentModels } from '../lib/agentTurn';
-import { ActionCard, Rich, TypingDots, SpeakButton, readAloud, prefetchAloud, tidy, sttMessage, useCoachTips } from '../ui/agentUi';
+import { decide, brainFor } from '../lib/agentTurn';
+import { ActionCard, Rich, TypingDots, SpeakButton, prefetchAloud, tidy, sttMessage, useCoachTips } from '../ui/agentUi';
 import { runActions, type AgentResult } from '../lib/agent';
 import { uid } from '../lib/nutrition';
 import { dayKey } from '../lib/dates';
 
 type Msg =
-  | { id: string; role: 'user' | 'model'; text: string; streaming?: boolean; seeded?: boolean }
+  | { id: string; role: 'user' | 'model'; text: string; streaming?: boolean; seeded?: boolean; /** a quiet line under the answer (which AI answered, and why) */ note?: string }
   | { id: string; role: 'error'; text: string }
   | { id: string; role: 'action'; results: AgentResult[]; undone: string[]; confirmed: string[] }
 
@@ -82,30 +82,30 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     }
   };
 
-  /** One turn: the model (or, without Gemini, the local reader) says what to do; we do it; the cards show it. */
+  /** One turn: the model (or, without an AI key, the local reader) says what to do; we do it; the cards show it. */
   const agentTurn = async (text: string, signal: AbortSignal) => {
     const st = useStore.getState();
-    const g = useAi.getState();
     const today = dayKey(Date.now(), st.settings.dayStartHour);
     const placeholder = uid('m');
     say({ id: placeholder, role: 'model', text: '', streaming: true });
     const where = props.mealId || props.date ? `The user opened this from the Food tab${props.date ? ` (day ${props.date})` : ''}${props.mealId ? `, meal ${props.mealId}` : ''}: foods go there unless they say otherwise.` : 'The user opened this from the main screen.';
     const history = turnsFor(''); // the conversation so far (an empty text adds no turn)
-    // the answer streams in as Gemini writes it, into the same message that then stays (nothing re-mounts or re-animates)
-    const d = await decide(text, { lang, t, pool, history, where, signal, onReply: (r) => { if (alive.current) setMsgs((x) => x.map((m) => (m.id === placeholder && m.role === 'model' ? { ...m, text: r } : m))); } });
+    // the answer streams in as the model writes it, into the same message that then stays (nothing re-mounts or re-animates)
+    const d = await decide(text, { lang, t, pool, history, where, signal, surface: 'coach', onReply: (r) => { if (alive.current) setMsgs((x) => x.map((m) => (m.id === placeholder && m.role === 'model' ? { ...m, text: r } : m))); } });
     let { reply } = d; const { note, actions } = d;
     if (d.wantsUndo) { undoLast(); if (!actions.length && !reply) reply = t('Undone.'); }
-    const results = actions.length ? await runActions(actions, { t, lang, today, brain: g.hasGemini ? { key: getKey('gemini'), models: agentModels(false), signal } : null, date: props.date, mealId: props.mealId }) : [];
+    const results = actions.length ? await runActions(actions, { t, lang, today, brain: brainFor({ big: false, surface: 'coach', signal }), date: props.date, mealId: props.mealId }) : [];
     if (!alive.current) return;
-    const said = [reply, note].filter(Boolean).join('\n\n');
+    // the answer is the message; a note about who answered sits under it, quieter (and is never read aloud)
+    const said = reply || note;
     setMsgs((x) => {
-      const base = said ? x.map((m) => (m.id === placeholder ? { ...m, text: said, streaming: false } as Msg : m)) : x.filter((m) => m.id !== placeholder);
+      const base = said ? x.map((m) => (m.id === placeholder ? { ...m, text: said, note: reply ? note || undefined : undefined, streaming: false } as Msg : m)) : x.filter((m) => m.id !== placeholder);
       return results.length ? [...base, { id: uid('m'), role: 'action', results, undone: [], confirmed: [] }] : base;
     });
     // green "Done" only when something was actually logged or changed
     const acted = d.wantsUndo || results.some((r) => r.kind !== 'miss' && r.kind !== 'nav');
     if (acted) { buzz([12, 40, 18] as any); orb('confirmed'); setTimeout(() => { if (useVoice.getState().phase === 'confirmed') orb('idle'); }, 1200); } else orb('idle');
-    if (said.trim()) { if (useAi.getState().speak) readAloud(placeholder, said, t); else prefetchAloud(said); }
+    if (said.trim()) prefetchAloud(said); // read aloud only when you tap play
     // said out loud from the orb and nothing to read: show the result for a moment, then step aside with an Undo toast
     const quick = results.length > 0 && results.every((r) => ['food', 'sets', 'water', 'weight', 'activity'].includes(r.kind) && !r.pending);
     if (autoClose.current && quick && !reply.trim()) {
@@ -181,7 +181,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     return () => clearInterval(id);
   }, [recording]);
 
-  const noKey = !ai.hasGemini;
+  const noKey = !anyBrain(ai);
   const tips = useCoachTips(3);
   // the "AI can be wrong" note: said once, on the first open (it also lives in Settings → Privacy)
   const [noteSeen] = useState(() => { try { return localStorage.getItem('aven.coachNote') === '1'; } catch { return true; } });
@@ -213,7 +213,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
           <>
             {msgs.length === 0 && (
               <div className="stack gap12">
-                {noKey && <div className="small" style={{ color: 'var(--warn)' }}>{t('Add a Gemini key to chat.')} <button className="chip sm acc press" style={{ marginLeft: 6 }} onClick={() => push('settings', { section: 'ai' })}>{t('Add a key')}</button></div>}
+                {noKey && <div className="small" style={{ color: 'var(--warn)' }}>{t('Add an AI key to chat.')} <button className="chip sm acc press" style={{ marginLeft: 6 }} onClick={() => push('settings', { section: 'ai' })}>{t('Add a key')}</button></div>}
                 <div className="tips">{tips.map((c, i) => (
                   <button key={c.prompt} className="tip press" style={{ ['--i' as string]: i }} onClick={() => send(c.prompt)}>
                     <span className="tip-ic"><Icon name={c.icon} size={18} /></span>
@@ -234,6 +234,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
                   {m.role === 'model' && (m.text ? (
                     <div>
                       <div className="reply calm coach-reply" aria-live="polite"><Rich text={m.streaming ? tidy(m.text) : m.text} id={m.id} />{m.streaming && <span className="caret" aria-hidden />}</div>
+                      {!m.streaming && m.note && <div className="xs t3" style={{ marginTop: 8 }}>{m.note}</div>}
                       {!m.streaming && <div className="reply-foot"><SpeakButton id={m.id} text={m.text} /></div>}
                     </div>
                   ) : <TypingDots />)}
@@ -250,7 +251,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
                 </motion.div>
               ))}
             </div>
-            {!noteSeen && msgs.length === 0 && <div className="xs t3" style={{ marginTop: 18 }}>{t('AI can be wrong, and isn’t medical advice. Messages go to Google Gemini.')}</div>}
+            {!noteSeen && msgs.length === 0 && <div className="xs t3" style={{ marginTop: 18 }}>{solOn(ai) ? t('AI can be wrong, and isn’t medical advice. Messages go to OpenAI (GPT-6.1 Sol).') : t('AI can be wrong, and isn’t medical advice. Messages go to Google Gemini.')}</div>}
             <div ref={endRef} />
           </>
       </div>

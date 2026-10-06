@@ -26,6 +26,8 @@ export function useSwipeDown(ref: React.RefObject<HTMLElement | null>, y: Motion
       const tag = (target as HTMLElement)?.tagName;
       if (tag === 'INPUT' && (target as HTMLInputElement).type === 'range') return false;
       startX = x; startY = yy; scroller = scrollerOf(target); decided = false; dragging = false; moved = false; samples = [{ t: performance.now(), y: 0 }];
+      // a handle with its own drag (a routine card's grip) never moves the sheet
+      if ((target as HTMLElement)?.closest?.('[data-no-swipe]')) { decided = true; return false; }
       return true;
     };
     const move = (x: number, yy: number, ev: Event) => {

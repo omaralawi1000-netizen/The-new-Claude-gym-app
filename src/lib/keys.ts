@@ -3,7 +3,7 @@
  * logs or the repo. They are typed into Settings → Voice & AI. (Same rule as Setline.)
  */
 const KEY = 'aven.keys';
-export type KeyName = 'groq' | 'gemini';
+export type KeyName = 'groq' | 'gemini' | 'openai';
 
 function read(): Record<string, string> {
   try { const v = JSON.parse(localStorage.getItem(KEY) || '{}'); return v && typeof v === 'object' ? v : {}; } catch { return {}; }

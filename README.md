@@ -3,7 +3,7 @@
 Training, food logging and progress in one mobile-first web app. **Aven is the working name.**
 A new product — unrelated to Setline (which was not touched).
 
-- Local-first: no account, no analytics, no paid services. Everything works offline once loaded.
+- Local-first: no account, no analytics, nothing paid is required (an optional OpenAI key for GPT-6.1 Sol is the one paid option). Everything works offline once loaded.
 - English and Danish (`src/lib/da.ts`), metric-first with lb/mi/in available, locale-aware dates, decimals and day boundary.
 - Installable PWA (manifest + service worker). Updates never replace a running workout (see *Updates*).
 
@@ -15,7 +15,7 @@ npm run dev          # app on :5173 (proxies /api → :8787)
 npm run server       # optional lookup server on :8787 (Open Food Facts + USDA)
 # or one process for everything:
 npm run build && npm start   # serves dist/ and /api on :8787
-npm test             # 45 unit/integration tests (nutrition maths, parsers, dates, records, navigation, lookup server)
+npm test             # 128 unit/integration tests (nutrition maths, parsers, dates, records, navigation, AI clients, lookup server)
 ./scripts/run-all.sh # typecheck + tests + build + all browser journeys (needs `npm run dev` and the mock server running)
 ```
 
@@ -139,6 +139,32 @@ Run in headless Chromium (Playwright, 390×844 @2×, dark + light), scripts in `
 - **Needs an integration you must supply:** a Groq key and a Gemini key (both free tiers, typed in Settings → Voice & AI; optional); `USDA_API_KEY` (free); a host for `server/` if you want online lookup in production.
 - **Not built (on purpose, stated in-app):** cloud sync / accounts; photo-based food estimation; automatic AI changes to your data (the Coach advises; routines and estimates only appear after you confirm; progression suggestions remain transparent rules); background reminders when the app is closed (web apps need a push server — reminders fire only while Aven runs; in-app nudge otherwise); animated exercise demonstrations (there is an authored muscle diagram and step-by-step text instead).
 - Exercise calories are **never** added to food targets.
+
+## Polish pass: routine editor, fades, a sturdier serif, GPT-6.1 Sol
+
+**Routine editor.** Each exercise is now one tidy card.
+- **Closed:** a grip, the name and the plan in one line, and a chevron.
+- **Open:** the plan line gives way to the muscles it trains, and the settings appear as a short list: the name on the left and a slim stepper capsule ("− 3 +") on the right. Every number lines up, and reps are one range ("− 8 + – − 12 +").
+- **Motion:** the rows rise in one after another. Numbers roll up or down the way they changed.
+- **Reorder by dragging the grip:** the card lifts (slightly bigger, deeper shadow) and the others slide aside with a soft tick. The list scrolls by itself near the edges, and on release every card glides into place (`src/ui/dragSort.ts`, transforms only). The sheet ignores that finger (`data-no-swipe`).
+- **Speed:** each card is memoised, so a tap on + redraws one card, not the whole editor.
+- `Collapse` now starts growing on the very first frame where the browser has `@starting-style`. Before, it waited two frames before opening, which is visible in a filmstrip.
+
+**Soft edges.** Sheets fade content out at the bottom (above the Save button) as well as the top, using scroll-driven masks, so nothing is cut by a hard line. The rule above the footer is gone. Sideways chip rows (Today's routines and recent foods) fade at their edges and snap.
+
+**Type.** Titles moved from Instrument Serif (condensed, thin at sheet sizes) to **Newsreader** (variable, with optical sizes, so big words get finer cuts). Geist stays for everything else.
+
+**Read-aloud only on ▶.** The "read answers aloud automatically" switch is gone. Answers are still prefetched, so ▶ starts at once, but nothing speaks unless you tap it.
+
+**GPT-6.1 Sol (optional, paid).**
+- **Key:** Settings → Voice & AI → OpenAI key. It is stored like the other keys: only in this browser, never in data, exports or backups.
+- **Where Sol answers:** with a key, Sol answers the orb, the Coach, food estimates and plate photos (`src/lib/openai.ts`, Responses API, strict JSON schema converted from the Gemini one, `store: false`).
+- **Thinking:** Medium for the orb and High for the Coach by default; both can be changed.
+- **Fallback:** if Sol can't answer (offline, out of credit, busy, bad answer), Gemini answers and a quiet line under the reply says why (`src/lib/brain.ts`). "Brain: Gemini" turns Sol off without removing the key.
+- **Caching:** the app's instructions now come before the live data, so repeated requests share a cached prefix, which OpenAI bills at a fraction of the price.
+- **Unchanged:** Gemini still reads answers aloud, and Groq still transcribes.
+- **Tests:** `tests/openai.test.ts` (schema, errors, streaming, fallback, and strict answers full of `null`s read exactly like missing fields) and `scripts/journey-sol.mjs`. Both run against stubbed servers, so the first real call happens on the phone.
+- **Cost guard:** set a monthly spend limit on platform.openai.com.
 
 ## Smoothness pass: the workout opens at once, a workout bar, a rest end you can't miss
 

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useStore } from '../../state/store';
 import { useUI, buzz } from '../../state/ui';
-import { useAi } from '../../state/ai';
+import { useAi, anyBrain, solOn } from '../../state/ai';
 import { useVoice } from '../../state/voice';
 import { useT, useLang } from '../../lib/i18n';
 import { Sheet, SheetHead, SOFT } from '../../ui/Sheet';
@@ -10,7 +10,8 @@ import { SphereSlot } from '../../ui/Sphere';
 import { Icon } from '../../ui/Icon';
 import { getKey } from '../../lib/keys';
 import { downscale } from '../../lib/photos';
-import { aiEstimatePhoto, aiErrorText, FALLBACK_MODELS } from '../../lib/gemini';
+import { aiErrorText, FALLBACK_MODELS } from '../../lib/gemini';
+import { estimatePhoto } from '../../lib/brain';
 import type { FoodEstimate } from '../../lib/aiValidate';
 import { quickEntry } from '../../lib/nutrition';
 import { mealName } from '../../lib/derive';
@@ -32,7 +33,7 @@ export function PhotoFood({ props }: { props: { date: string; mealId: string } }
   const pop = useUI((u) => u.pop);
   const push = useUI((u) => u.push);
   const toast = useUI((u) => u.toast);
-  const hasGemini = useAi((a) => a.hasGemini);
+  const hasAi = useAi((a) => anyBrain(a));
   const meals = useStore((s) => s.settings.meals);
   const [img, setImg] = useState<{ url: string; blob: Blob } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -51,9 +52,11 @@ export function PhotoFood({ props }: { props: { date: string; mealId: string } }
     setErr(null); setBusy(true); setItems([]);
     useVoice.getState().go('processing'); // the sphere thinks along
     ctl.current?.abort(); ctl.current = new AbortController();
-    const m = useAi.getState().models;
+    const a = useAi.getState(), m = a.models;
     try {
-      const r = await aiEstimatePhoto({ mime: 'image/jpeg', data: await toBase64(blob) }, { key: getKey('gemini'), models: [...new Set([m.fast || FALLBACK_MODELS.fast, m.brain || FALLBACK_MODELS.brain].filter(Boolean))], signal: ctl.current.signal }, lang, hint.trim());
+      // GPT-6.1 Sol (medium) when it is on, Gemini otherwise or if Sol can't answer
+      const brain = { key: a.hasGemini ? getKey('gemini') : '', models: [...new Set([m.fast || FALLBACK_MODELS.fast, m.brain || FALLBACK_MODELS.brain].filter(Boolean))], signal: ctl.current.signal, sol: solOn(a) ? { key: getKey('openai'), effort: a.effortOrb } : undefined };
+      const r = await estimatePhoto({ mime: 'image/jpeg', data: await toBase64(blob) }, brain, lang, hint.trim());
       setItems(r.items.map((x) => ({ ...x, on: true, k: 1 }))); setAssume(r.assumptions);
       buzz(10); useVoice.getState().go('review');
     } catch (e: any) {
@@ -91,9 +94,9 @@ export function PhotoFood({ props }: { props: { date: string; mealId: string } }
       <div className="sheet-body">
         <input ref={cam} type="file" accept="image/*" capture="environment" hidden onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ''; }} />
         <input ref={lib} type="file" accept="image/*" hidden onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ''; }} />
-        {!hasGemini ? (
+        {!hasAi ? (
           <div className="empty">
-            <div className="display display-sm" style={{ fontStyle: 'italic' }}>{t('Needs a Gemini key')}</div>
+            <div className="display display-sm" style={{ fontStyle: 'italic' }}>{t('Needs an AI key')}</div>
             <button className="btn primary press" style={{ marginTop: 14 }} onClick={() => push('settings', { section: 'ai' })}><Icon name="sparkle" size={18} /> {t('Add a key')}</button>
           </div>
         ) : (

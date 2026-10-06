@@ -30,7 +30,7 @@ export function pickTextModels(models: any[]) {
 
 // ── errors, limits, quota memory ────────────────────────────
 export class AiError extends Error {
-  constructor(public code: 'offline' | 'timeout' | 'network' | 'aborted' | 'badkey' | 'badrequest' | 'nomodel' | 'busy' | 'quota' | 'failed' | 'invalid' | 'empty' | 'nokey', public status = 0, public extra: { model?: string; retryMs?: number | null; resetAt?: number } = {}) { super(code); }
+  constructor(public code: 'offline' | 'timeout' | 'network' | 'aborted' | 'badkey' | 'badrequest' | 'nomodel' | 'busy' | 'quota' | 'failed' | 'invalid' | 'empty' | 'nokey', public status = 0, public extra: { model?: string; retryMs?: number | null; resetAt?: number; provider?: 'openai' } = {}) { super(code); }
 }
 export function limitError(status: number, body: string, modelId = ''): AiError {
   let j: any = null; try { j = JSON.parse(body); } catch { /* not json */ }
@@ -118,7 +118,8 @@ async function generateJson(key: string, model: string, { system, prompt, schema
   } finally { done(); }
 }
 
-export interface Brain { key: string; models: string[]; signal?: AbortSignal }
+/** Who to ask. `sol`: GPT-6.1 Sol goes first (lib/brain.ts), Gemini (`key`, may be empty) is the fallback. */
+export interface Brain { key: string; models: string[]; signal?: AbortSignal; sol?: { key: string; effort: 'medium' | 'high' } }
 
 const FOOD_UNITS = ['g', 'kg', 'ml', 'dl', 'cl', 'l', 'tsp', 'tbsp', 'cup', 'piece', 'slice', 'handful', 'glass', 'can', 'scoop', 'bowl', 'serving'];
 const FOOD_SCHEMA = {
@@ -170,7 +171,7 @@ export async function aiWorkoutRows(text: string, brain: Brain, ctx: { exercises
   return rows;
 }
 
-const ESTIMATE_SCHEMA = {
+export const ESTIMATE_SCHEMA = {
   type: 'OBJECT',
   properties: {
     name: { type: 'STRING' }, grams: { type: 'NUMBER', nullable: true, description: 'estimated total weight of the described portion in grams' },
@@ -179,17 +180,21 @@ const ESTIMATE_SCHEMA = {
   },
   required: ['name', 'kcal', 'protein', 'carbs', 'fat', 'assumptions'],
 };
+export const ESTIMATE_SYSTEM = (lang: string) => 'You estimate the nutrition of ONE described food or dish for a food log. Give typical values for the described portion; if the portion is vague assume a normal single serving. ' +
+  `State your assumptions in one short sentence in ${lang === 'da' ? 'Danish' : 'English'}. Numbers are for the whole described portion, not per 100 g.`;
+export const PHOTO_SYSTEM = (lang: string) => 'You estimate the nutrition of a meal from a photo for a food log. List each distinct food or drink you can see (max 8) with an estimated weight and its nutrition for that amount. ' +
+  'Judge portion size from the plate, cutlery and hands. Include likely cooking oil or sauce only if visible. Be realistic, not optimistic. ' +
+  `Name items and write the assumptions in ${lang === 'da' ? 'Danish' : 'English'}. If it is not food, return no items and notFood true.`;
 /** A rough estimate for a food that is in no database. Always shown as an ESTIMATE for review — never exact. */
 export async function aiEstimateFood(description: string, brain: Brain, lang: string): Promise<FoodEstimate> {
-  const system = 'You estimate the nutrition of ONE described food or dish for a food log. Give typical values for the described portion; if the portion is vague assume a normal single serving. ' +
-    `State your assumptions in one short sentence in ${lang === 'da' ? 'Danish' : 'English'}. Numbers are for the whole described portion, not per 100 g.`;
+  const system = ESTIMATE_SYSTEM(lang);
   const raw = await withFallback(brain.models, (m) => generateJson(brain.key, m, { system, prompt: `Food: "${description}"`, schema: ESTIMATE_SCHEMA, temperature: 0.2, signal: brain.signal, timeout: 12000 }));
   const est = validateEstimate(raw);
   if (!est) throw new AiError('invalid');
   return est;
 }
 
-const PHOTO_SCHEMA = {
+export const PHOTO_SCHEMA = {
   type: 'OBJECT',
   properties: {
     items: { type: 'ARRAY', items: { type: 'OBJECT', properties: {
@@ -203,15 +208,18 @@ const PHOTO_SCHEMA = {
 };
 /** A photo of a meal → one estimate per visible item. Always shown as ESTIMATES for review — never exact. */
 export async function aiEstimatePhoto(image: { mime: string; data: string }, brain: Brain, lang: string, hint = ''): Promise<{ items: FoodEstimate[]; assumptions: string }> {
-  const system = 'You estimate the nutrition of a meal from a photo for a food log. List each distinct food or drink you can see (max 8) with an estimated weight and its nutrition for that amount. ' +
-    'Judge portion size from the plate, cutlery and hands. Include likely cooking oil or sauce only if visible. Be realistic, not optimistic. ' +
-    `Name items and write the assumptions in ${lang === 'da' ? 'Danish' : 'English'}. If it is not food, return no items and notFood true.`;
-  const raw = await withFallback(brain.models, (m) => generateJson(brain.key, m, { system, prompt: hint ? `The user says: "${hint}"` : 'Estimate this meal.', schema: PHOTO_SCHEMA, temperature: 0.2, maxOutputTokens: 1536, timeout: 25000, signal: brain.signal, image }));
+  const system = PHOTO_SYSTEM(lang);
+  const raw = await withFallback(brain.models, (m) => generateJson(brain.key, m, { system, prompt: photoPrompt(hint), schema: PHOTO_SCHEMA, temperature: 0.2, maxOutputTokens: 1536, timeout: 25000, signal: brain.signal, image }));
+  return readPhoto(raw);
+}
+/** What the photo answer says, checked: up to 8 items that pass validation, or an error. Shared with the OpenAI path. */
+export function readPhoto(raw: any): { items: FoodEstimate[]; assumptions: string } {
   const assumptions = typeof raw?.assumptions === 'string' ? raw.assumptions.slice(0, 240) : '';
   const items = (Array.isArray(raw?.items) ? raw.items : []).slice(0, 8).map((x: any) => validateEstimate({ ...x, assumptions })).filter(Boolean) as FoodEstimate[];
   if (!items.length) throw new AiError(raw?.notFood ? 'invalid' : 'empty');
   return { items, assumptions };
 }
+export const photoPrompt = (hint: string) => (hint ? `The user says: "${hint}"` : 'Estimate this meal.');
 
 const ROUTINE_SCHEMA = {
   type: 'OBJECT',
@@ -238,7 +246,7 @@ export interface Turn { role: 'user' | 'model'; parts: { text: string }[] }
 const ACTION_TYPES = ['log_food', 'log_water', 'log_weight', 'log_sets', 'log_activity', 'start_workout', 'finish_workout', 'navigate', 'set_setting', 'edit_food', 'delete_food', 'move_food', 'copy_food', 'replace_food', 'create_food', 'favourite_food', 'save_meal', 'edit_set', 'add_exercise', 'remove_exercise', 'replace_exercise', 'create_routine', 'edit_routine', 'delete_routine', 'delete_workout', 'discard_workout', 'set_schedule', 'delete_activity', 'delete_weight', 'add_note', 'undo_last'];
 const BIT = { type: 'ARRAY', nullable: true, items: { type: 'OBJECT', properties: { exercise: { type: 'STRING' }, sets: { type: 'INTEGER', nullable: true }, repMin: { type: 'INTEGER', nullable: true }, repMax: { type: 'INTEGER', nullable: true }, restSec: { type: 'INTEGER', nullable: true } }, required: ['exercise'] } };
 const NUTRI = (d: string) => ({ type: 'OBJECT', nullable: true, description: d, properties: { kcal: { type: 'NUMBER', nullable: true }, protein: { type: 'NUMBER', nullable: true }, carbs: { type: 'NUMBER', nullable: true }, fat: { type: 'NUMBER', nullable: true } } });
-const AGENT_SCHEMA = {
+export const AGENT_SCHEMA = {
   type: 'OBJECT',
   properties: {
     reply: { type: 'STRING', description: 'what to say to the user: short, natural, in their language. Never claim something was done unless you put it in actions.' },
@@ -297,7 +305,7 @@ export async function aiAgent(system: string, contents: Turn[], brain: Brain): P
 }
 
 /** The agent's schema with the reply FIRST, so when it is streamed the words to show arrive before the actions. */
-const AGENT_SCHEMA_STREAM = { ...AGENT_SCHEMA, propertyOrdering: ['reply', 'actions'] };
+export const AGENT_SCHEMA_STREAM = { ...AGENT_SCHEMA, propertyOrdering: ['reply', 'actions'] };
 
 /**
  * The "reply" text of a JSON answer that is still arriving, decoded so far. `{"reply": "You trained 3 tim` → "You trained 3 tim".
@@ -406,6 +414,12 @@ export async function streamChat({ key, model, system, contents, onText, signal,
 /** Human-readable reason, for the UI (never a stack trace). */
 export function aiErrorText(e: unknown, t: (k: string) => string): string {
   const code = e instanceof AiError ? e.code : 'failed';
+  if (e instanceof AiError && e.extra.provider === 'openai') return ({
+    offline: t('You’re offline.'), timeout: t('GPT-6.1 Sol took too long. Try again.'), network: t('Couldn’t reach OpenAI. Check your connection.'),
+    badkey: t('OpenAI rejected the key. Check it in Settings → Voice & AI.'), badrequest: t('GPT-6.1 Sol couldn’t handle that request.'), nomodel: t('GPT-6.1 Sol isn’t enabled for this OpenAI key.'),
+    busy: t('OpenAI is busy right now. Try again in a moment.'), quota: t('Your OpenAI account is out of credit or over its limit.'),
+    invalid: t('GPT-6.1 Sol’s answer didn’t make sense, so it was ignored.'), empty: t('GPT-6.1 Sol sent an empty answer. Try again.'), aborted: t('Stopped.'),
+  } as Record<string, string>)[code] ?? t('GPT-6.1 Sol failed. Try again.');
   return ({
     offline: t('You’re offline.'), timeout: t('Gemini took too long. Try again.'), network: t('Couldn’t reach Gemini. Check your connection.'),
     badkey: t('Gemini rejected the key. Check it in Settings → Voice & AI.'), badrequest: t('Gemini couldn’t handle that request.'), nomodel: t('That Gemini model isn’t available for your key.'),
