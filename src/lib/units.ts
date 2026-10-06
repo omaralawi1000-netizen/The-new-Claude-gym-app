@@ -26,6 +26,8 @@ export function displayToCm(v: number, u: Settings['units']['length']): number {
 const locale = (lang: Lang) => (lang === 'da' ? 'da-DK' : 'en-GB');
 
 /** Locale-aware number, trimmed to `max` decimals. */
+/** A percentage the way each language writes it: "26%" in English, "26 %" in Danish. */
+export const fmtPct = (n: number | string, lang: Lang) => (lang === 'da' ? `${n} %` : `${n}%`);
 export function fmtNum(v: number, lang: Lang, max = 1, min = 0): string {
   if (!Number.isFinite(v)) return '–';
   const group = Math.abs(v) >= 1000;

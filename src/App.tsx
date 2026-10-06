@@ -7,6 +7,7 @@ import { Toaster } from './ui/Toaster';
 import { SphereStage } from './ui/Sphere';
 import { Overlays } from './screens/Overlays';
 import { useRestCue } from './screens/workout/rest';
+import { useKeepStorage } from './lib/persist';
 import { TodayScreen } from './screens/Today';
 import { TrainScreen } from './screens/Train';
 import { FoodScreen } from './screens/Food';
@@ -232,6 +233,7 @@ function useCalm(): boolean {
 export function App() {
   useTheme();
   useRestCue(); // the end of a rest, wherever you are in the app
+  useKeepStorage(); // asks the browser not to clear Aven's data on its own (lib/persist.ts)
   useKeyboard();
   useWakeLock();
   const appRef = useRef<HTMLDivElement>(null), stageRef = useRef<HTMLDivElement>(null);

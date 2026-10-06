@@ -7,7 +7,7 @@ import { Icon } from '../../ui/Icon';
 import { Count, NumInput } from '../../ui/kit';
 import { Sheet, SheetHead, SOFT } from '../../ui/Sheet';
 import { elapsedMs, sessionSetCount, sessionVolume, countable } from '../../lib/workout';
-import { fmtDate, fmtDuration } from '../../lib/dates';
+import { fmtDate, fmtDuration, fmtDurationLong } from '../../lib/dates';
 import { displayToKg, fmtNum, kgToDisplay } from '../../lib/units';
 import type { RecordKind, WorkoutSession } from '../../lib/types';
 import { exName, fmtSet } from './common';
@@ -143,7 +143,7 @@ export function SessionDetail({ props }: { props: { id: string } }) {
   };
   return (
     <Sheet onClose={pop} tall label={ses.name} z={100}>
-      <SheetHead title={ses.name || t('Workout')} sub={`${fmtDate(ses.date, lang, { weekday: 'long', day: 'numeric', month: 'long' })} · ${fmtDuration(elapsedMs(ses) / 1000)}`} onClose={pop} />
+      <SheetHead title={ses.name || t('Workout')} sub={`${fmtDate(ses.date, lang, { weekday: 'long', day: 'numeric', month: 'long' })} · ${fmtDurationLong(elapsedMs(ses) / 1000, lang)}`} onClose={pop} />
       <div className="sheet-body">
         <div className="row-flex" style={{ gap: 8, marginBottom: choosing ? 10 : 16 }}>
           <button className="btn sm press" onClick={repeat}><Icon name="repeat" size={16} /> {t('Repeat')}</button>

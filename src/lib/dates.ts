@@ -68,10 +68,15 @@ export function fmtDuration(totalSec: number): string {
   const sec = s % 60;
   return h > 0 ? `${h}:${pad(m)}:${pad(sec)}` : `${m}:${pad(sec)}`;
 }
-export function fmtDurationLong(totalSec: number): string {
-  const m = Math.round(totalSec / 60);
+/** How long something took, in words: "48 min", "1 h 5 min" ("1 t 5 min" in Danish). A clock ("48:00") read like a time
+ * of day in lists. Under a minute it says the seconds. */
+export function fmtDurationLong(totalSec: number, lang: Lang = 'en'): string {
+  const s = Math.max(0, Math.round(totalSec));
+  if (s < 60) return `${s} s`;
+  const m = Math.round(s / 60);
   if (m < 60) return `${m} min`;
-  return `${Math.floor(m / 60)} h ${m % 60 ? `${m % 60} min` : ''}`.trim();
+  const h = lang === 'da' ? 't' : 'h';
+  return `${Math.floor(m / 60)} ${h}${m % 60 ? ` ${m % 60} min` : ''}`;
 }
 export function relativeDay(key: string, today: string, lang: Lang): string | null {
   const d = diffDays(key, today);

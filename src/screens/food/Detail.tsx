@@ -177,7 +177,8 @@ export function FoodDetail({ props }: { props: { food?: Food; foodId?: string; e
             {units.map((u) => <button key={u} className={`chip press ${qty.unit === u ? 'on' : ''}`} onClick={() => setUnit(u)}>{u}</button>)}
             {food.portions.map((p) => (
               <button key={p.id} className={`chip press ${qty.unit === 'portion' && qty.portionId === p.id ? 'on' : ''}`} onClick={() => setUnit('portion', p.id)} title={p.verified ? t('Verified serving size') : t('Typical size, not verified')}>
-                {p.verified ? <Icon name="check" size={14} sw={2.4} /> : <span style={{ opacity: 0.7 }}>~</span>} {p.label}
+                {/* a typical size is marked "~" once: a label that already says "~150 g" doesn't get a second one */}
+                {p.verified ? <Icon name="check" size={14} sw={2.4} /> : !p.label.includes('~') && <span style={{ opacity: 0.7 }}>~</span>} {p.label}
               </button>
             ))}
           </div>

@@ -147,6 +147,42 @@ Run in headless Chromium (Playwright, 390×844 @2×, dark + light), scripts in `
 - **The exercise menu's rest time** is the same slim stepper as the routine editor: 15 s steps, 0:15–10:00. It replaces six chips that wrapped onto a second line.
 - **The header's set count rolls** up when you tick a set and down when you untick one, like the steppers.
 
+## Whole-app polish pass (screen-by-screen audit)
+
+Every tab, sheet, Settings page, the workout and its summary were screenshotted at the S26 Ultra's size (384×832), in dark and light (`scripts/audit-tour.mjs`). Fixed:
+
+- **Light mode:**
+  - Accent text now uses a deep version of the area's colour: `oklch(… 0.55 c h)`, with a `color-mix` fallback.
+  - Before, Food's lime was close to invisible on the pale glass: the "Today" pill, the meal + buttons and the active tab's icon.
+- **Disabled main buttons:**
+  - They show a faint wash of their colour with a quiet label, solid and calm: Add, Save, Select exercises, Save and test.
+  - Before, they were 40 % see-through copies of the real button, which looked muddy over the glass.
+- **Rest bar:** the fill now slides in from the left with a soft leading edge. Before, it started as a hard red sliver at the bar's edge.
+- **Settings:**
+  - Default rest is the same slim stepper as everywhere else: 15 s steps, shown as 1:30, with the row reading "Rest 1:30". Before, six chips wrapped onto a second line.
+  - "New day starts at" is one segmented row.
+  - The high-refresh and frame-rate switches sit in rows like every other switch.
+  - Targets reads "2,500 kcal".
+- **Numbers that read right:**
+  - Session lengths: "55 min" and "1 h 3 min" instead of "55:00" in History, the session page and Today's done card.
+  - Routines: "5 exercises · ~25 min" instead of "5 · ~25 min".
+  - English percentages: "26%" and "−90%" (Danish keeps "26 %").
+  - The weight trend reads "−0.3 kg/wk", the same as on Today.
+  - A plank's previous set reads "66s" over the SECONDS column, not "1:06".
+  - Extra records read "+2 more" instead of a bare "+2" badge.
+- **Small fixes:**
+  - "94.5 kg" no longer breaks onto two lines on an exercise's records.
+  - Long placeholders end in "…".
+  - An empty day's Copy and Clear are dimmed, and its options say "Nothing logged" or "1 entry".
+  - Typical serving sizes no longer show a double "~".
+- **Data safety:**
+  - The app now asks the browser to keep its storage once there is real data (`navigator.storage.persist()`, `lib/persist.ts`). Chrome answers silently and normally grants it to an installed app. Without it, a phone low on space may clear a site's data on its own, and everything here lives only on the phone.
+  - Data & backup shows when you last downloaded a backup. If the browser hasn't promised to keep the data, it says so.
+  - The empty "Demo data" card is gone once you have your own data.
+- **Test tooling:**
+  - `AVEN_GPU=1` makes the test browser draw backdrop blur the way a phone does.
+  - Its default software path leaves what is behind a sheet sharp, which looked like see-through text that phones never show.
+
 ## Glass and edges
 
 - **Pop-ups are more see-through.** Sheets use their own frost, `--sheet-glass`: 46 % in dark and 58 % in light, with a 44 px blur and more saturation. The page's colour glows through, but nothing behind is sharp enough to read.

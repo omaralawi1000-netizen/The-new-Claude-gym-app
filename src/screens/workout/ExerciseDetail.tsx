@@ -115,8 +115,9 @@ function RecRow({ label, def, value, est }: { label: string; def: string; value:
   const t = useT();
   return (
     <div style={{ padding: '12px 0', borderTop: '1px solid var(--line)' }} className="row-flex between">
-      <div style={{ minWidth: 0 }}><div style={{ fontWeight: 600 }}>{label}{est && <span className="chip sm" style={{ marginLeft: 8, height: 20 }}>{t('estimate')}</span>}</div><div className="xs t3" style={{ marginTop: 2, maxWidth: 210 }}>{def}</div></div>
-      <div className="display display-md num">{value}</div>
+      <div style={{ minWidth: 0, flex: 1 }}><div style={{ fontWeight: 600 }}>{label}{est && <span className="chip sm" style={{ marginLeft: 8, height: 20 }}>{t('estimate')}</span>}</div><div className="xs t3" style={{ marginTop: 2, maxWidth: 210 }}>{def}</div></div>
+      {/* the number and its unit stay on one line ("94.5 kg" broke as "94.5 / kg" beside a long definition) */}
+      <div className="display display-md num" style={{ flex: 'none', whiteSpace: 'nowrap', marginLeft: 12 }}>{value}</div>
     </div>
   );
 }

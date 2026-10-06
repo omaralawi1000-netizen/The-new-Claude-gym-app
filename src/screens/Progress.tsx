@@ -56,7 +56,7 @@ export function ProgressScreen() {
   const mat = useMemo(() => wk.map((b) => { const end = addDays(b.start, 6); const l = s.activities.filter((x) => x.kind === 'wrestling' && x.date >= b.start && x.date <= end); return { start: b.start, min: Math.round(l.reduce((n, x) => n + x.durationSec, 0) / 60), n: l.length }; }), [wk, s.activities]);
   const hasMat = s.activities.some((x) => x.kind === 'wrestling');
   // one row per exercise: its latest session's records, shown by the one that means most (a heavier set beats an estimate,
-  // which beats volume); the others in that session become a small "+n". It used to list Back Squat three times in a row.
+  // which beats volume); the others in that session become "+n more" in its subtitle. It used to list Back Squat three times.
   const RANK = ['weight', 'e1rm', 'reps', 'duration', 'distance', 'volume'];
   const recs = (() => {
     const all = s.sessions.flatMap((x) => (x.records ?? []).map((r) => ({ ...r, at: x.endedAt ?? 0 }))).sort((a, b) => b.at - a.at);
@@ -116,7 +116,7 @@ export function ProgressScreen() {
             <LineChart points={weights.map((w) => ({ x: new Date(w.date + 'T12:00:00').getTime(), y: kgToDisplay(w.kg, u.weight), label: wLabel(w.date) }))} trend={trend.map((p) => ({ x: new Date(p.date + 'T12:00:00').getTime(), y: kgToDisplay(p.kg, u.weight) }))} fmtY={(v) => fmtNum(v, lang, 1)} seriesLabel={t('Weigh-ins')} trendLabel={t('Trend (estimate)')} />
             <div className="row-flex between small t2 num" style={{ marginTop: 10 }}>
               <span>{firstW && lastWeight && firstW !== lastWeight ? <>{t('Change')} <b style={{ color: 'var(--tx)' }}>{(lastWeight.kg - firstW.kg >= 0 ? '+' : '−')}{fmtNum(Math.abs(kgToDisplay(lastWeight.kg, u.weight) - kgToDisplay(firstW.kg, u.weight)), lang, 1)} {u.weight}</b></> : null}</span>
-              <span>{rate !== null ? <>~{rate >= 0 ? '+' : '−'}{fmtNum(Math.abs(kgToDisplay(rate, u.weight)), lang, 2)} {u.weight}/{t('wk')}</> : t('Trend rate needs 7+ days of data')}</span>
+              <span>{rate !== null ? <>{rate >= 0 ? '+' : '−'}{fmtNum(Math.abs(kgToDisplay(rate, u.weight)), lang, 1)} {u.weight}/{t('wk')}</> : t('Trend rate needs 7+ days of data')}</span>
             </div>
           </>
         ) : <div className="small t3" style={{ padding: '8px 4px 4px' }}>{t('Log your weight')}</div>}
@@ -143,8 +143,7 @@ export function ProgressScreen() {
             {recs.map((r, i) => { const ex = exMap.get(r.exerciseId); return (
               <button key={i} className="li press" onClick={() => push('exercise', { id: r.exerciseId })}>
                 <span style={{ width: 34, height: 34, borderRadius: 12, background: 'var(--ac)', color: 'var(--ac-ink)', display: 'grid', placeItems: 'center', flex: 'none' }}><Icon name="bolt" size={17} /></span>
-                <div className="grow" style={{ textAlign: 'left' }}><div className="li-title small">{ex ? exName(ex, lang) : ''}</div><div className="li-sub">{t(({ weight: 'Heaviest set', e1rm: 'Estimated 1RM', volume: 'Best set volume', reps: 'Most reps', duration: 'Longest hold', distance: 'Longest distance' } as any)[r.kind])} · {fmtDate(r.date, lang, { day: 'numeric', month: 'short' })}</div></div>
-                {r.more > 0 && <span className="chip sm num" style={{ flex: 'none' }}>+{r.more}</span>}
+                <div className="grow" style={{ textAlign: 'left' }}><div className="li-title small">{ex ? exName(ex, lang) : ''}</div><div className="li-sub">{t(({ weight: 'Heaviest set', e1rm: 'Estimated 1RM', volume: 'Best set volume', reps: 'Most reps', duration: 'Longest hold', distance: 'Longest distance' } as any)[r.kind])} · {fmtDate(r.date, lang, { day: 'numeric', month: 'short' })}{r.more > 0 ? ` · ${t('+{n} more', { n: r.more })}` : ''}</div></div>
                 <div className="num" style={{ fontWeight: 700 }}>{r.kind === 'volume' && setOf(r) ? `${fmtNum(kgToDisplay(setOf(r)!.weightKg ?? 0, u.weight), lang, 2)} ${u.weight} × ${setOf(r)!.reps}` : r.kind === 'reps' ? r.value : r.kind === 'duration' ? `${r.value}s` : r.kind === 'distance' ? `${fmtNum(r.value / 1000, lang, 2)} km` : `${fmtNum(kgToDisplay(r.value, u.weight), lang, r.kind === 'e1rm' ? 1 : 2)} ${u.weight}`}</div>
               </button>); })}
           </div>

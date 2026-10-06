@@ -1,0 +1,58 @@
+// Audit tour: every tab (scrolled), the main sheets, Settings pages, the workout and its summary, at the Galaxy S26 Ultra's
+// CSS size (384×832). Usage: AVEN_GPU=1 node scripts/audit-tour.mjs dark shots/audit  (AVEN_GPU=1 draws the glass as a phone does).
+import { launch, wait, skipOnboarding, loadDemo } from './lib.mjs';
+import fs from 'node:fs';
+const theme = process.argv[2] || 'dark';
+const out = process.argv[3] || 'shots/audit'; fs.mkdirSync(out, { recursive: true });
+const { b, p, errors } = await launch({ theme, size: { width: 384, height: 832 } });
+let n = 0;
+const shot = async (name) => { n++; await p.screenshot({ path: `${out}/${String(n).padStart(2, '0')}-${name}.png` }); };
+const closeAll = async () => { for (let i = 0; i < 5; i++) { const open = await p.evaluate(() => !!document.querySelector('.sheet, .voice, .wk-card:not(.wk-off)')); if (!open) break; await p.keyboard.press('Escape'); await wait(p, 700); } };
+const step = async (name, fn, keep) => { try { await fn(); } catch (e) { console.log('STEP FAIL', name, String(e.message).split('\n')[0]); } if (!keep) await closeAll(); };
+const esc = async (k = 1) => { for (let i = 0; i < k; i++) { await p.keyboard.press('Escape'); await wait(p, 650); } };
+const tab = async (t) => { await p.locator('.tabbar').getByRole('button', { name: t, exact: true }).click(); await wait(p, 1000); };
+const scroll = async (y) => { await p.evaluate((y) => document.querySelector('.tab-pane[data-active] .screen')?.scrollTo(0, y), y); await wait(p, 500); };
+await p.goto('http://127.0.0.1:5173/'); await wait(p, 1400);
+await step('onboarding', () => shot('onboarding'));
+await skipOnboarding(p); await step('empty today', () => shot('today-empty'));
+await loadDemo(p); await wait(p, 4200);
+await step('today', async () => { await shot('today'); await scroll(700); await shot('today-2'); await scroll(1400); await shot('today-3'); await scroll(0); });
+await step('train', async () => { await tab('Train'); await shot('train-plan'); await scroll(700); await shot('train-plan-2'); await scroll(0);
+  await p.locator('.tab-pane[data-active] .seg button').nth(1).click(); await wait(p, 900); await shot('train-library');
+  await p.locator('.tab-pane[data-active] .seg button').nth(2).click(); await wait(p, 900); await shot('train-history');
+  await p.locator('.tab-pane[data-active] .seg button').nth(0).click(); await wait(p, 700); });
+await step('routine editor', async () => { await p.getByRole('button', { name: /^Push 5/ }).first().click(); await wait(p, 1300); await shot('routine'); await esc(); });
+await step('schedule', async () => { await p.getByRole('button', { name: 'Schedule', exact: true }).first().click(); await wait(p, 1200); await shot('schedule'); await esc(); });
+await step('wrestling', async () => { await p.getByRole('button', { name: 'Log wrestling' }).first().click(); await wait(p, 1200); await shot('wrestling'); await esc(); });
+await step('cardio', async () => { await p.getByRole('button', { name: 'Log cardio or recovery' }).first().click(); await wait(p, 1200); await shot('cardio'); await esc(); });
+await step('food', async () => { await tab('Food'); await shot('food'); await scroll(700); await shot('food-2'); await scroll(0); });
+await step('food search', async () => { await p.getByRole('button', { name: 'Add to Lunch' }).first().click(); await wait(p, 1300); await shot('food-search');
+  await p.getByLabel(/Search foods/i).first().fill('skyr'); await wait(p, 1800); await shot('food-search-skyr');
+  await p.locator('.sheet .li, .sheet [role=button]').filter({ hasText: /Skyr/ }).first().click(); await wait(p, 1300); await shot('food-detail'); await esc(2); });
+await step('quick add', async () => { await p.getByRole('button', { name: 'Add to Dinner' }).first().click(); await wait(p, 1200); await p.getByRole('button', { name: 'Quick add' }).first().click(); await wait(p, 1200); await shot('quick-add'); await esc(2); });
+await step('day options', async () => { await p.getByRole('button', { name: 'Day options' }).first().click(); await wait(p, 1000); await shot('day-options'); await esc(); });
+await step('progress', async () => { await tab('Progress'); await shot('progress'); await scroll(800); await shot('progress-2'); await scroll(1600); await shot('progress-3'); await scroll(0); });
+await step('measurements', async () => { await p.getByRole('button', { name: 'Measurements' }).first().click(); await wait(p, 1200); await shot('measurements'); await esc(); });
+await step('exercise', async () => { await p.getByRole('button', { name: /^Back Squat 5 sessions/ }).first().click(); await wait(p, 1300); await shot('exercise-detail'); await scroll(600); await esc(); });
+await step('weight', async () => { await p.getByRole('button', { name: 'Log', exact: true }).first().click(); await wait(p, 1200); await shot('weight'); await esc(); });
+await step('to today', () => tab('Today'));
+await step('settings', async () => { await p.getByLabel('Settings').click(); await wait(p, 1200); await shot('settings');
+  for (const s of ['Targets', 'Training', 'Food & water', 'Units & locale', 'Appearance', 'Today', 'Voice & AI', 'Coach memory', 'Reminders', 'Data & backup']) {
+    await step('settings ' + s, async () => { await p.locator('.sheet').getByText(s, { exact: true }).first().click(); await wait(p, 1100); await shot('settings-' + s.replace(/\W+/g, '').toLowerCase()); await p.getByRole('button', { name: 'Back' }).first().click().catch(() => esc()); await wait(p, 900); }, true);
+  }
+  await esc(); });
+await step('coach', async () => { await p.getByLabel('Coach').click(); await wait(p, 1400); await shot('coach'); await esc(); });
+await step('orb', async () => { await p.getByLabel('Dictate').first().click(); await wait(p, 1800); await shot('orb'); await esc(); await wait(p, 600); });
+await step('water', async () => { await p.getByRole('button', { name: '+250 ml' }).first().click(); await wait(p, 900); await shot('after-water'); });
+await step('workout', async () => { await p.getByRole('button', { name: /Start workout/ }).first().click(); await wait(p, 2800); await shot('workout');
+  await p.getByRole('button', { name: 'Complete set' }).first().click(); await wait(p, 1100); await shot('workout-rest');
+  await p.locator('.wk-list').evaluate((el) => el.scrollTo(0, 900)); await wait(p, 600); await shot('workout-mid');
+  await p.locator('.wk-list').evaluate((el) => el.scrollTo(0, 99999)); await wait(p, 600); await shot('workout-end');
+  await p.getByRole('button', { name: 'Minimise workout' }).click(); await wait(p, 1400); await shot('today-pill');
+  await p.getByLabel('Resume workout').click(); await wait(p, 1600);
+  await p.getByRole('button', { name: 'Finish', exact: true }).click(); await wait(p, 1000); await shot('finish-sheet');
+  await p.getByRole('button', { name: /Finish and save/ }).click(); await wait(p, 2400); await shot('summary');
+  await p.locator('.sheet').evaluate((el) => el.querySelector('.sheet-body')?.scrollTo(0, 800)).catch(() => {}); await wait(p, 500); await shot('summary-2');
+  await p.getByRole('button', { name: 'Done', exact: true }).click(); await wait(p, 1300); await shot('today-after'); });
+console.log('shots', n, 'errors', errors.length, errors.slice(0, 5));
+await b.close();

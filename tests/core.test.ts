@@ -3,8 +3,8 @@ import { toBase, scale, sumNutrients, calcRecipe, recipeToFood, entryFromSnapsho
 import { REFERENCE_BY_ID, REFERENCE_FOODS } from '../src/data/foods';
 import { parseFoodText, resolveRows, rowQuantity, searchFoods } from '../src/lib/foodText';
 import { parseWorkoutText } from '../src/lib/workoutText';
-import { dayKey, addDays, startOfWeek, diffDays } from '../src/lib/dates';
-import { parseNum, kgToDisplay, displayToKg } from '../src/lib/units';
+import { dayKey, addDays, startOfWeek, diffDays, fmtDurationLong } from '../src/lib/dates';
+import { parseNum, kgToDisplay, displayToKg, fmtPct } from '../src/lib/units';
 import { detectRecords, epley, suggestProgression, elapsedMs, fillPlan, incrementFor } from '../src/lib/workout';
 import { SEED_EXERCISES } from '../src/data/exercises';
 import type { WorkoutSession } from '../src/lib/types';
@@ -186,6 +186,18 @@ describe('dates & units', () => {
     expect(parseNum('1.000')).toBe(1000); expect(parseNum('abc')).toBeUndefined(); expect(parseNum('')).toBeUndefined();
   });
   it('kg/lb roundtrip', () => { expect(displayToKg(kgToDisplay(61.235, 'lb'), 'lb')).toBeCloseTo(61.235, 8); });
+  it('session lengths read as words, not a clock', () => {
+    expect(fmtDurationLong(17)).toBe('17 s');
+    expect(fmtDurationLong(55 * 60)).toBe('55 min');
+    expect(fmtDurationLong(63 * 60)).toBe('1 h 3 min');
+    expect(fmtDurationLong(60 * 60)).toBe('1 h');
+    expect(fmtDurationLong(63 * 60, 'da')).toBe('1 t 3 min');
+  });
+  it('percentages follow the language', () => {
+    expect(fmtPct(26, 'en')).toBe('26%');
+    expect(fmtPct('−90', 'en')).toBe('−90%');
+    expect(fmtPct(26, 'da')).toBe('26 %');
+  });
 });
 
 describe('workout maths', () => {

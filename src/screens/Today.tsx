@@ -3,14 +3,14 @@ import { motion } from 'motion/react';
 import { useStore, plannedFor, missedWorkouts, foodPool, exerciseMap } from '../state/store';
 import { useUI, buzz } from '../state/ui';
 import { useT, useLang } from '../lib/i18n';
-import { addDays, fmtDate, fmtDuration, fmtWeekdayShort, startOfWeek, weekdayOf } from '../lib/dates';
+import { addDays, fmtDate, fmtDuration, fmtDurationLong, fmtWeekdayShort, startOfWeek, weekdayOf } from '../lib/dates';
 import { useDaySummary, useToday, useWaterOn, defaultMealId } from '../lib/derive';
 import { Icon } from '../ui/Icon';
 import { Ledger } from './food/Ledger';
 import { weightTrend, trendRate, reviewWeekEnd, weekReview } from '../lib/stats';
 import { Count } from '../ui/kit';
 import { elapsedMs, sessionSetCount, sessionVolume } from '../lib/workout';
-import { fmtNum, kgToDisplay } from '../lib/units';
+import { fmtNum, fmtPct, kgToDisplay } from '../lib/units';
 import { entryFromSnapshot, snapshotOf, uid } from '../lib/nutrition';
 import { defaultQty } from './food/Detail';
 import { useCovered, useNow, useScreenStore } from '../lib/hooks';
@@ -161,7 +161,7 @@ export function TodayScreen() {
             <div className="row-flex between" style={{ gap: 14 }}>
               <div style={{ minWidth: 0 }}>
                 <div className="display" style={{ fontSize: 56, fontStyle: 'italic', lineHeight: 0.95 }}>{routine.name}</div>
-                <div className="small t2 num" style={{ marginTop: 8 }}>{routine.items.length} · ~{estMinutes(routine)} min{plan?.source === 'override' && plan.originDate ? ` · ${t('Rescheduled')}` : ''}</div>
+                <div className="small t2 num" style={{ marginTop: 8 }}>{t(routine.items.length === 1 ? '1 exercise' : '{n} exercises', { n: routine.items.length })} · ~{estMinutes(routine)} min{plan?.source === 'override' && plan.originDate ? ` · ${t('Rescheduled')}` : ''}</div>
               </div>
               <div className="stack" style={{ gap: 10, alignItems: 'center', flex: 'none' }}>
                 <button className="icon-btn acc press" style={{ width: 68, height: 68 }} aria-label={doneToday.length ? t('Start again') : t('Start workout')} onClick={() => start(routine)}><Icon name="play" size={26} /></button>
@@ -173,12 +173,12 @@ export function TodayScreen() {
               <div style={{ minWidth: 0 }}>
                 <div className="row-flex" style={{ gap: 6, color: 'var(--ok)' }}><Icon name="check" size={16} sw={2.6} /><span className="small">{t('Done for today')}</span></div>
                 <div className="display" style={{ fontSize: 46, fontStyle: 'italic', marginTop: 6 }}>{last.name}</div>
-                <div className="small t2 num" style={{ marginTop: 8 }}>{fmtDuration(elapsedMs(last) / 1000)} · {fmtNum(Math.round(kgToDisplay(sessionVolume(last.exercises), settings.units.weight)), lang, 0)} {settings.units.weight}</div>
+                <div className="small t2 num" style={{ marginTop: 8 }}>{fmtDurationLong(elapsedMs(last) / 1000, lang)} · {fmtNum(Math.round(kgToDisplay(sessionVolume(last.exercises), settings.units.weight)), lang, 0)} {settings.units.weight}</div>
                 {gains && (gains.prs > 0 || (gains.pct !== null && gains.pct !== 0)) && (
                   // what got better than last time
                   <div className="row-flex num" style={{ gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
                     {gains.prs > 0 && <span className="chip sm" style={{ color: 'var(--gold)', borderColor: 'color-mix(in srgb, var(--gold) 40%, transparent)' }}><Icon name="bolt" size={13} /> {gains.prs} {gains.prs === 1 ? t('record') : t('records')}</span>}
-                    {gains.pct !== null && gains.pct !== 0 && <span className="chip sm" style={{ color: gains.pct > 0 ? 'var(--ok)' : 'var(--tx2)' }}>{t('{n} % volume vs last time', { n: `${gains.pct > 0 ? '+' : '−'}${Math.abs(gains.pct)}` })}</span>}
+                    {gains.pct !== null && gains.pct !== 0 && <span className="chip sm" style={{ color: gains.pct > 0 ? 'var(--ok)' : 'var(--tx2)' }}>{t('{n} volume vs last time', { n: fmtPct(`${gains.pct > 0 ? '+' : '−'}${Math.abs(gains.pct)}`, lang) })}</span>}
                   </div>
                 )}
               </div>

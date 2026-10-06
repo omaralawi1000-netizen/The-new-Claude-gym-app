@@ -168,7 +168,7 @@ export function RecipeEditor({ props }: { props: { id?: string; date: string; me
               </div>
               <div className="chips" style={{ marginTop: 8 }}>
                 {allowedUnits(pick.food).map((u) => <button key={u} className={`chip sm press ${pick.qty.unit === u ? 'on' : ''}`} onClick={() => setPick({ ...pick, qty: { amount: 100, unit: u } })}>{u}</button>)}
-                {pick.food.portions.map((p) => <button key={p.id} className={`chip sm press ${pick.qty.unit === 'portion' && pick.qty.portionId === p.id ? 'on' : ''}`} onClick={() => setPick({ ...pick, qty: { amount: 1, unit: 'portion', portionId: p.id } })}>{p.verified ? '✓' : '~'} {p.label}</button>)}
+                {pick.food.portions.map((p) => <button key={p.id} className={`chip sm press ${pick.qty.unit === 'portion' && pick.qty.portionId === p.id ? 'on' : ''}`} onClick={() => setPick({ ...pick, qty: { amount: 1, unit: 'portion', portionId: p.id } })}>{p.verified ? '✓ ' : p.label.includes('~') ? '' : '~ '}{p.label}</button>)}
               </div>
             </div>
           )}

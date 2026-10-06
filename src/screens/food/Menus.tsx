@@ -90,7 +90,7 @@ export function EntryMenu({ props }: { props: { kind: 'day' | 'meal'; date: stri
   } });
   return (
     <Sheet onClose={pop} label={t('Options')} z={80}>
-      <SheetHead title={props.kind === 'meal' && meal ? mealName(meal, lang) : fmtDate(props.date, lang)} sub={`${entries.length} ${t('entries')}`} onClose={pop} />
+      <SheetHead title={props.kind === 'meal' && meal ? mealName(meal, lang) : fmtDate(props.date, lang)} sub={entries.length === 0 ? t('Nothing logged') : entries.length === 1 ? t('1 entry') : t('{n} entries', { n: entries.length })} onClose={pop} />
       <div className="sheet-body">
         <div className="list">
           {items.map((i) => (

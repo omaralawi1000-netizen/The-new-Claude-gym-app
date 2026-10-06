@@ -6,7 +6,9 @@ import { apple, highRefresh, onHighRefresh, setHighRefresh } from '../ui/motion'
 import { useT, useLang } from '../lib/i18n';
 import { Sheet, SheetHead } from '../ui/Sheet';
 import { Icon } from '../ui/Icon';
-import { NumInput, Seg, Toggle } from '../ui/kit';
+import { NumInput, Seg, Stepper, Toggle } from '../ui/kit';
+import { fmtNum, fmtPct } from '../lib/units';
+import { lastBackup, markBackup, useStorageKept } from '../lib/persist';
 import { defaultData, normaliseData, DATA_VERSION } from '../state/defaults';
 import { buildDemo } from '../lib/demo';
 import { userHasData } from '../lib/stats';
@@ -14,7 +16,7 @@ import { clearPhotos, loadPhoto, savePhoto } from '../lib/photos';
 import type { AppData, Meal, Settings } from '../lib/types';
 import { uid, kcalOf, scaleMacros, suggestMacros } from '../lib/nutrition';
 import { mealName } from '../lib/derive';
-import { dayKey, fmtDuration } from '../lib/dates';
+import { dayKey, fmtDate, fmtDuration } from '../lib/dates';
 import { useAi } from '../state/ai';
 import { clearKeys } from '../lib/keys';
 import { VoiceAiSettings } from './VoiceAi';
@@ -55,9 +57,7 @@ function FpsField() {
   const t = useT();
   const on = useFpsMeterOn();
   return (
-    <Field label={t('Frame rate readout')} hint={t('Shows your real refresh rate, top-left.')}>
-      <Toggle on={on} onChange={setFpsMeter} label={t('Frame rate readout')} />
-    </Field>
+    <ToggleRow label={t('Frame rate readout')} hint={t('Shows your real refresh rate, top-left.')} on={on} onChange={setFpsMeter} />
   );
 }
 
@@ -97,9 +97,17 @@ function HrrField() {
   const t = useT();
   const on = useSyncExternalStore(onHighRefresh, highRefresh, () => true);
   return (
-    <Field label={t('High refresh rate')} hint={t('Draws motion at your screen’s full rate (up to 120 Hz).')}>
-      <Toggle on={on} onChange={setHighRefresh} label={t('High refresh rate')} />
-    </Field>
+    <ToggleRow label={t('High refresh rate')} hint={t('Draws motion at your screen’s full rate (up to 120 Hz).')} on={on} onChange={setHighRefresh} />
+  );
+}
+
+/** A switch row: what it is (and a line about it) on the left, the switch on the right — the same everywhere in Settings. */
+function ToggleRow({ label, hint, on, onChange }: { label: string; hint?: string; on: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div className="row-flex between" style={{ gap: 14 }}>
+      <div style={{ minWidth: 0 }}><div>{label}</div>{hint && <div className="xs t3">{hint}</div>}</div>
+      <Toggle on={on} onChange={onChange} label={label} />
+    </div>
   );
 }
 
@@ -137,8 +145,8 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
               <>
                 <div className="field"><label htmlFor="s-name">{t('Your name')}</label><input id="s-name" className="input" value={st.name} onChange={(e) => set({ name: e.target.value })} placeholder={t('Optional')} /></div>
                 <div className="list" style={{ marginTop: 14 }}>
-                  <Row icon="bolt" title={t('Targets')} sub={st.goals.kcal ? `${st.goals.kcal} kcal${st.goals.protein ? ` · ${st.goals.protein} g ${t('protein')}` : ''}` : t('Calories, macros, water — optional')} onClick={() => setSec('targets')} />
-                  <Row icon="dumbbell" title={t('Training')} sub={`${t('Rest')} ${st.restDefaultSec}s · ${st.effort === 'off' ? t('no RPE/RIR') : st.effort.toUpperCase()}`} onClick={() => setSec('training')} />
+                  <Row icon="bolt" title={t('Targets')} sub={st.goals.kcal ? `${fmtNum(st.goals.kcal, lang, 0)} kcal${st.goals.protein ? ` · ${fmtNum(st.goals.protein, lang, 0)} g ${t('protein')}` : ''}` : t('Calories, macros, water — optional')} onClick={() => setSec('targets')} />
+                  <Row icon="dumbbell" title={t('Training')} sub={`${t('Rest')} ${fmtDuration(st.restDefaultSec)} · ${st.effort === 'off' ? t('no RPE/RIR') : st.effort.toUpperCase()}`} onClick={() => setSec('training')} />
                   <Row icon="food" title={t('Food & water')} onClick={() => setSec('food')} />
                   <Row icon="globe" title={t('Units & locale')} sub={`${st.units.weight} · ${st.units.distance} · ${st.language === 'da' ? 'Dansk' : 'English'}`} onClick={() => setSec('units')} />
                   <Row icon="moon" title={t('Appearance')} sub={`${t(st.theme === 'system' ? 'System' : st.theme === 'dark' ? 'Dark' : 'Light')} · ${t(st.motion === 'system' ? 'Motion: system' : st.motion === 'reduce' ? 'Reduced motion' : 'Full motion')}`} onClick={() => setSec('look')} />
@@ -156,12 +164,12 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
             {sec === 'targets' && <Targets />}
             {sec === 'training' && (
               <div className="stack gap16">
-                <Field label={t('Default rest between sets')}><div className="chips" style={{ margin: 0, padding: 0, flexWrap: 'wrap' }}>{[45, 60, 90, 120, 150, 180].map((v) => <button key={v} className={`chip press ${st.restDefaultSec === v ? 'on' : ''}`} onClick={() => set({ restDefaultSec: v })}>{v}s</button>)}</div></Field>
+                <Field label={t('Default rest between sets')}><div><Stepper compact label={t('Default rest between sets')} value={st.restDefaultSec} min={15} max={600} step={15} fmt={(v) => fmtDuration(v)} onChange={(v) => set({ restDefaultSec: v })} /></div></Field>
                 <Field label={t('Effort tracking')}><Seg value={st.effort} onChange={(v) => set({ effort: v })} options={[{ value: 'off', label: t('Off') }, { value: 'rpe', label: 'RPE' }, { value: 'rir', label: 'RIR' }]} /></Field>
                 <Field label={t('Smallest weight jump')}><div className="chips" style={{ margin: 0, padding: 0 }}>{[1, 1.25, 2.5, 5].map((v) => <button key={v} className={`chip press ${st.plateStep === v ? 'on' : ''}`} onClick={() => set({ plateStep: v })}>{v} kg</button>)}</div></Field>
-                <div className="row-flex between"><span>{t('Rest-timer sound')}</span><Toggle on={st.sound} onChange={(v) => set({ sound: v })} label={t('Rest-timer sound')} /></div>
+                <ToggleRow label={t('Rest-timer sound')} on={st.sound} onChange={(v) => set({ sound: v })} />
                 <RestAlertRow />
-                <div className="row-flex between"><span>{t('Haptic feedback')}</span><Toggle on={st.haptics} onChange={(v) => set({ haptics: v })} label={t('Haptic feedback')} /></div>
+                <ToggleRow label={t('Haptic feedback')} on={st.haptics} onChange={(v) => set({ haptics: v })} />
               </div>
             )}
             {sec === 'food' && <FoodSettings />}
@@ -172,7 +180,7 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
                 <Field label={t('Distance')}><Seg value={st.units.distance} onChange={(v) => set({ units: { ...st.units, distance: v } })} options={[{ value: 'km', label: 'km' }, { value: 'mi', label: 'mi' }]} /></Field>
                 <Field label={t('Body measurements')}><Seg value={st.units.length} onChange={(v) => set({ units: { ...st.units, length: v } })} options={[{ value: 'cm', label: 'cm' }, { value: 'in', label: 'in' }]} /></Field>
                 <Field label={t('Week starts on')}><Seg value={st.weekStart} onChange={(v) => set({ weekStart: v })} options={[{ value: 1, label: t('Monday') }, { value: 0, label: t('Sunday') }]} /></Field>
-                <Field label={t('New day starts at')} hint={t('Late-night meals before this hour count toward the previous day.')}><div className="chips" style={{ margin: 0, padding: 0, flexWrap: 'wrap' }}>{[0, 2, 3, 4, 5].map((h) => <button key={h} className={`chip press ${st.dayStartHour === h ? 'on' : ''}`} onClick={() => set({ dayStartHour: h })}>{String(h).padStart(2, '0')}:00</button>)}</div></Field>
+                <Field label={t('New day starts at')} hint={t('Late-night meals before this hour count toward the previous day.')}><Seg value={st.dayStartHour} onChange={(v) => set({ dayStartHour: v })} options={[0, 2, 3, 4, 5].map((h) => ({ value: h, label: `${String(h).padStart(2, '0')}:00` }))} /></Field>
               </div>
             )}
             {sec === 'today' && <TodaySettings />}
@@ -243,6 +251,7 @@ function RestAlertRow() {
  */
 function Targets() {
   const t = useT();
+  const lang = useLang();
   const s = useStore();
   const g = s.settings.goals;
   const set = (k: keyof typeof g) => (v: number | undefined) => s.updateSettings({ goals: { ...g, [k]: v } });
@@ -285,7 +294,7 @@ function Targets() {
             {(['protein', 'carbs', 'fat'] as const).map((k) => <i key={k} style={{ flexGrow: Math.max(0.0001, share(k)), background: `var(--c-${k})` }} />)}
           </div>
           <div className="row-flex xs t2 num" style={{ gap: 14, marginTop: 8 }}>
-            {(['protein', 'carbs', 'fat'] as const).map((k) => <span key={k}>{({ protein: t('Protein'), carbs: t('Carbs'), fat: t('Fat') })[k]} {Math.round(share(k) * 100)} %</span>)}
+            {(['protein', 'carbs', 'fat'] as const).map((k) => <span key={k}>{({ protein: t('Protein'), carbs: t('Carbs'), fat: t('Fat') })[k]} {fmtPct(Math.round(share(k) * 100), lang)}</span>)}
           </div>
         </div>
       ) : g.kcal ? (
@@ -368,6 +377,9 @@ function DataSection() {
   const [pending, setPending] = useState<{ data: AppData; photos?: Record<string, string> } | null>(null);
   const [confirmDel, setConfirmDel] = useState(false);
   const has = userHasData(s);
+  const lang = useLang();
+  const kept = useStorageKept();
+  const [backedUp, setBackedUp] = useState(lastBackup);
 
   const doExport = async () => {
     flushSave();
@@ -378,6 +390,7 @@ function DataSection() {
       for (const p of photos) { const b = await loadPhoto(p.id).catch(() => undefined); if (b) payload.photos[p.id] = await new Promise<string>((res) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.readAsDataURL(b); }); }
     }
     download(`aven-backup-${dayKey(Date.now(), s.settings.dayStartHour)}.json`, new Blob([JSON.stringify(payload)], { type: 'application/json' }));
+    markBackup(); setBackedUp(lastBackup());
     toast(t('Backup downloaded'), { tone: 'ok' });
   };
   const onFile = async (f?: File | null) => {
@@ -408,6 +421,9 @@ function DataSection() {
       <div className="plinth" style={{ padding: 16 }}>
         <div className="li-title">{t('Export backup')}</div>
         <div className="li-sub" style={{ marginTop: 2 }}>{t('One JSON file with everything: workouts, food, plans, settings.')}</div>
+        {/* when you last saved a copy, and whether the browser could clear the data on its own (lib/persist.ts) */}
+        {has && <div className="xs t3 num" style={{ marginTop: 8 }}>{backedUp ? t('Last backup: {date}', { date: fmtDate(dayKey(backedUp, s.settings.dayStartHour), lang, { day: 'numeric', month: 'short', year: 'numeric' }) }) : t('No backup yet')}</div>}
+        {has && kept === false && <div className="xs t2" style={{ marginTop: 6 }}>{t('This browser may clear Aven’s data if the phone runs low on space. A backup now and then keeps it safe.')}</div>}
         {s.photos.length > 0 && <label className="row-flex small" style={{ gap: 10, marginTop: 12 }}><Toggle on={withPhotos} onChange={setWithPhotos} label={t('Include photos')} /> {t('Include progress photos (larger file)')}</label>}
         <button className="btn primary block press" style={{ marginTop: 14 }} onClick={doExport}><Icon name="download" size={18} /> {t('Download backup')}</button>
       </div>
@@ -424,12 +440,12 @@ function DataSection() {
           </div>
         )}
       </div>
-      <div className="plinth" style={{ padding: 16 }}>
+      {/* only while there is something to do with it (it was an empty card titled "Demo data" once you had your own) */}
+      {(s.demo || !has) && <div className="plinth" style={{ padding: 16 }}>
         <div className="li-title">{t('Demo data')}</div>
         {s.demo ? <button className="btn block press" style={{ marginTop: 14 }} onClick={removeDemo}>{t('Remove demo data')}</button>
-          : has ? null
           : <button className="btn block press" style={{ marginTop: 14 }} onClick={demo}>{t('Load demo data')}</button>}
-      </div>
+      </div>}
       <div className="plinth" style={{ padding: 16 }}>
         <div className="li-title" style={{ color: 'var(--bad)' }}>{t('Delete everything')}</div>
         <div className="li-sub" style={{ marginTop: 2 }}>{t('Permanently erases all Aven data and photos from this device.')}</div>

@@ -414,7 +414,7 @@ function WorkoutBar({ engage, exMap, away, onDone, onJump }: { engage: Engage; e
     <div className={`wk-bar-wrap${away ? ' away' : ''}`}>
       {/* never re-keyed: the orb's slot lives in here, and remounting it made the orb leave and land again (a tick, a hop) */}
       <div className={`wk-bar glass ${state}`}>
-        <span className="wk-bar-clip" aria-hidden><i className="wk-bar-fill" style={{ transform: `scaleX(${state === 'go' ? 1 : state === 'rest' ? frac : 0})` }} /></span>
+        <span className="wk-bar-clip" aria-hidden><i className="wk-bar-fill" style={{ transform: `translateX(${((state === 'go' ? 1 : state === 'rest' ? frac : 0) - 1) * 100}%)` }} /></span>
         <button className="wk-bar-main press" onClick={tap} aria-expanded={state === 'rest' ? panel : undefined}
           aria-label={state === 'rest' ? `${t('Rest')} ${fmtDuration(Math.ceil(left))}` : `${top}. ${big}${state === 'next' && target ? `, ${target}` : ''}`}>
           <span className="wk-bar-top">{top}</span>
@@ -626,7 +626,8 @@ const SetRow = memo(function SetRow({ se, set, ex, label, prev, restDefault }: {
       <div className={`wk-set ${set.done ? 'done' : current ? 'current' : 'todo'}${set.type === 'warmup' ? ' warm' : ''}`} style={{ gridTemplateColumns: gridCols(ex, settings.effort) }}>
         <button className="press wk-set-n" aria-label={t('Set options')} aria-expanded={open} onClick={() => setOpen((v) => !v)}>{label}</button>
         <button className="num press wk-prev" disabled={!prev} onClick={() => prev && patchSet(se.id, set.id, { weightKg: prev.weightKg, reps: prev.reps, durationSec: prev.durationSec, distanceM: prev.distanceM })} aria-label={prev ? `${t('Use previous')}: ${fmtSet(prev, ex, u, lang, t)}` : undefined}>
-          {prev ? fmtSet(prev, ex, u, lang, t).replace(/ (kg|lb)/, '') : '—'}
+          {/* a hold reads in the column's own unit ("66s" over SECONDS, not "1:06" beside a 66), as the records write it */}
+          {prev ? (lt === 'duration' ? (prev.durationSec ? `${prev.durationSec}s` : '—') : fmtSet(prev, ex, u, lang, t).replace(/ (kg|lb)/, '')) : '—'}
         </button>
         {lt === 'duration' && field(set.durationSec, prev?.durationSec ?? 45, (v) => patchSet(se.id, set.id, { durationSec: v }), 0, t('Seconds'), complete)}
         {lt === 'distance' && <>

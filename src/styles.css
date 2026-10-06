@@ -79,6 +79,12 @@
 .pal-sw i:nth-child(2) { width: 80%; aspect-ratio: 1; right: -30%; top: 10%; background: radial-gradient(closest-side, var(--p2), transparent); }
 .pal-sw b { position: absolute; left: 10px; bottom: 9px; width: 16px; height: 16px; border-radius: 50%; background: var(--p0); box-shadow: 0 0 14px var(--p0); }
 :root, .app, [data-hue] { --ac-2: color-mix(in srgb, var(--ac) 70%, #fff); --ac-soft: color-mix(in srgb, var(--ac) 18%, transparent); --ac-text: color-mix(in srgb, var(--ac) 82%, #fff); }
+/* On a light page the accent as text has to be the deep version of itself: Food's lime (and Mono's near-white) lightened
+   further was close to invisible on the pale glass — the "Today" pill, the meal + buttons, the active tab's icon. */
+:root[data-theme='light'], :root[data-theme='light'] .app, :root[data-theme='light'] [data-hue] { --ac-text: color-mix(in srgb, var(--ac) 58%, #000); }
+@supports (color: oklch(from red l c h)) {
+  :root[data-theme='light'], :root[data-theme='light'] .app, :root[data-theme='light'] [data-hue] { --ac-text: oklch(from var(--ac) 0.55 c h); }
+}
 
 /* dark (default) */
 :root, :root[data-theme='dark'] {
@@ -286,7 +292,11 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
 .btn.danger { color: var(--bad); }
 .btn.sm { min-height: 40px; padding: 0 16px; font-size: 14px; }
 .btn.block { width: 100%; }
-.btn[disabled] { opacity: 0.4; pointer-events: none; }
+.btn[disabled] { pointer-events: none; color: var(--tx3); box-shadow: inset 0 0 0 1px var(--line); }
+/* the main action that isn't available yet: a faint wash of its colour with a quiet label — it reads as "this, once you've
+   filled it in", not as a muddy, see-through version of the real button */
+.btn.primary[disabled] { background: color-mix(in srgb, var(--ac) 14%, var(--s2)); color: color-mix(in srgb, var(--ac-text) 50%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ac) 24%, transparent); }
+.btn.danger[disabled] { color: color-mix(in srgb, var(--bad) 45%, transparent); }
 .icon-btn {
   width: 46px; height: 46px; border-radius: 999px; display: inline-grid; place-items: center; color: var(--tx); position: relative;
   background: var(--glass); -webkit-backdrop-filter: blur(22px) saturate(1.7); backdrop-filter: blur(22px) saturate(1.7);
@@ -319,7 +329,7 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
 .field { display: flex; flex-direction: column; gap: 6px; }
 .field > label, .lbl { font-size: 12px; font-weight: 600; color: var(--tx3); letter-spacing: .05em; text-transform: uppercase; }
 .input {
-  width: 100%; min-height: 50px; border-radius: var(--r-sm); padding: 0 16px; border: 0; outline: 0; color: var(--tx);
+  width: 100%; min-height: 50px; border-radius: var(--r-sm); padding: 0 16px; border: 0; outline: 0; color: var(--tx); text-overflow: ellipsis;
   background: var(--bg-2); box-shadow: inset 0 1px 2px rgba(0,0,0,.18), inset 0 0 0 1px var(--line); font-variant-numeric: tabular-nums;
   transition: box-shadow 260ms var(--ease-out), background-color 260ms;
 }
@@ -335,6 +345,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* list rows: hairlines, no cards */
 .list > .li { display: flex; align-items: center; gap: 14px; min-height: 60px; padding: 10px 0; border-top: 1px solid var(--line); text-align: left; width: 100%; }
 .list > .li:first-child { border-top: 0; }
+.list > .li:disabled { opacity: .38; } /* nothing to copy or clear on an empty day: the row says so instead of looking live */
 .li-title { font-weight: 600; font-size: 15.5px; }
 .li-sub { font-size: 13px; color: var(--tx2); }
 
@@ -532,8 +543,8 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-bar-clip { position: absolute; inset: 0; border-radius: inherit; overflow: hidden; pointer-events: none; }
 /* the tab bar's frost, a little denser: it sits over rows of numbers, which must not read through it */
 .wk-bar.glass { background: var(--glass-2); -webkit-backdrop-filter: blur(36px) saturate(2); backdrop-filter: blur(36px) saturate(2); }
-.wk-bar-fill { position: absolute; inset: 0; border-radius: inherit; transform-origin: 0 50%; pointer-events: none; background: linear-gradient(90deg, color-mix(in srgb, var(--ac) 22%, transparent), color-mix(in srgb, var(--ac) 42%, transparent)); transition: transform 260ms linear, background 400ms ease; }
-.wk-bar.go .wk-bar-fill { background: linear-gradient(90deg, color-mix(in srgb, var(--ok) 26%, transparent), color-mix(in srgb, var(--ok) 44%, transparent)); transition: background 400ms ease; }
+.wk-bar-fill { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(90deg, color-mix(in srgb, var(--ac) 22%, transparent), color-mix(in srgb, var(--ac) 42%, transparent) calc(100% - 30px), color-mix(in srgb, var(--ac) 8%, transparent)); transition: transform 260ms linear, background 400ms ease; }
+.wk-bar.go .wk-bar-fill { background: linear-gradient(90deg, color-mix(in srgb, var(--ok) 26%, transparent), color-mix(in srgb, var(--ok) 44%, transparent)); transition: transform 260ms linear, background 400ms ease; }
 .wk-bar.go { animation: goGlow 1.8s var(--ease-out) 1; }
 @keyframes goGlow { 0% { box-shadow: inset 0 1px 0 var(--hl), inset 0 0 0 1.5px var(--ok), 0 0 0 0 color-mix(in srgb, var(--ok) 60%, transparent); } 35% { box-shadow: inset 0 1px 0 var(--hl), inset 0 0 0 1.5px var(--ok), 0 0 34px 6px color-mix(in srgb, var(--ok) 45%, transparent); } 100% { box-shadow: inset 0 1px 0 var(--hl), inset 0 0 0 1px color-mix(in srgb, var(--ok) 60%, var(--line)), 0 0 0 0 transparent; } }
 .wk-bar.go .wk-bar-big { color: var(--ok); }
@@ -712,7 +723,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .meal-meta { display: flex; align-items: center; gap: 4px; margin-top: 4px; font-size: 13px; color: var(--tx2); white-space: nowrap; }
 .meal-meta b { font-weight: 650; color: var(--tx); }
 .meal-meta .dot { width: 3px; height: 3px; border-radius: 3px; background: var(--tx3); margin: 0 5px; }
-.meal-add { flex: none; width: 40px; height: 40px; border-radius: 999px; display: grid; place-items: center; color: color-mix(in srgb, var(--ac) 82%, #fff);
+.meal-add { flex: none; width: 40px; height: 40px; border-radius: 999px; display: grid; place-items: center; color: var(--ac-text);
   background: color-mix(in srgb, var(--ac) 16%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ac) 30%, transparent); }
 .coach-send { position: absolute; right: 7px; top: 50%; width: 36px; height: 36px; margin-top: -18px; border-radius: 999px; display: grid; place-items: center; color: var(--ac-ink);
   background: linear-gradient(180deg, color-mix(in srgb, var(--ac) 78%, #fff), var(--ac)); opacity: 0; transform: scale(.6); pointer-events: none;
