@@ -54,10 +54,10 @@ await p.keyboard.press('Escape'); await wait(p, 500); await p.keyboard.press('Es
 // ── the Coach: Sol on High, streamed ──
 await p.getByLabel('Coach').click(); await wait(p, 700);
 assert(await p.getByText(/Messages go to OpenAI/).isVisible(), 'the Coach says where messages go');
-await p.getByLabel('Message the Coach').fill('how is my week going?'); await p.getByRole('button', { name: 'Send', exact: true }).click(); await wait(p, 1800);
+await p.getByLabel('Message the Coach').fill('why am I stuck? plan my next week'); await p.getByRole('button', { name: 'Send', exact: true }).click(); await wait(p, 1800);
 assert(await p.getByText(/Sol here/).isVisible(), 'Sol answered in the Coach');
 let c = calls.responses.at(-1);
-assert.deepEqual([c.model, c.effort, c.stream, c.store, c.strict, c.auth], ['gpt-6.1-sol', 'high', true, false, true, 'Bearer sk-proj-TESTKEY_9999'], 'Coach asks Sol to think hard, streamed, not stored');
+assert.deepEqual([c.model, c.effort, c.stream, c.store, c.strict, c.auth], ['gpt-6.1-sol', 'high', true, false, true, 'Bearer sk-proj-TESTKEY_9999'], 'a planning question: Sol thinks as hard as the Coach setting allows, streamed, not stored');
 await p.getByLabel('Message the Coach').fill('bench 100 for 8'); await p.getByRole('button', { name: 'Send', exact: true }).click(); await wait(p, 2000);
 assert(await p.getByText('Logged 1 set').isVisible() || await p.getByText(/Logged/).first().isVisible(), 'Sol’s actions are carried out');
 await p.screenshot({ path: 'shots/sol-2-coach.png' });
@@ -78,7 +78,7 @@ if (await p.getByRole('button', { name: 'Type instead' }).isVisible().catch(() =
 await p.getByLabel('Type what you ate or did').fill('how is my week going?');
 await p.getByRole('dialog', { name: 'Dictation' }).getByRole('button', { name: 'Send', exact: true }).click(); await wait(p, 2200);
 c = calls.responses.at(-1);
-assert.equal(c.effort, 'medium', 'the orb asks for medium thinking');
+assert.equal(c.effort, 'low', 'a quick question answers fast (low effort), whatever the setting');
 assert(await p.getByText(/Sol here/).first().isVisible(), 'Sol answered on the orb screen');
 await p.screenshot({ path: 'shots/sol-4-orb.png' });
 
