@@ -140,6 +140,51 @@ Run in headless Chromium (Playwright, 390×844 @2×, dark + light), scripts in `
 - **Not built (on purpose, stated in-app):** cloud sync / accounts; photo-based food estimation; automatic AI changes to your data (the Coach advises; routines and estimates only appear after you confirm; progression suggestions remain transparent rules); background reminders when the app is closed (web apps need a push server — reminders fire only while Aven runs; in-app nudge otherwise); animated exercise demonstrations (there is an authored muscle diagram and step-by-step text instead).
 - Exercise calories are **never** added to food targets.
 
+## The Coach pins what it notices; pop-ups sized to what's in them
+
+**The Coach's pin** (top of Today). The Coach now notices things on its own and pins them at the top of Today. It shows as one quiet line; tap it and it opens into the list.
+
+Each item has:
+- a reason, in one line with the number behind it;
+- one thing to do about it (ask the Coach, reschedule, log, back up, switch a card on);
+- **Not now**, which brings it back tomorrow;
+- **✕**, which hides that same situation for good.
+
+What it checks on the phone (no AI, no key, instant, private):
+- a missed workout (offers to reschedule it);
+- a leg-heavy workout on, or the day before, a planned wrestling day;
+- a lift that has stalled;
+- a muscle getting under ~3 sets a week while most get 8 or more;
+- protein under 80% of target for several days;
+- weight dropping faster than ~1% a week;
+- nothing logged by 14:00 on a day you'd usually have logged;
+- a weigh-in that is overdue;
+- 8+ hard weeks without a lighter one;
+- no backup in two weeks (not shown for demo data);
+- a Today card switched off that you'd use.
+
+Today's planned workout isn't pinned: the workout card right below it already offers it.
+
+**With a Gemini key**, once a day (a few seconds after opening), the Coach also reads the same picture of your data it uses in chat and adds at most two observations of its own, each with a button that asks it to act. That's one request a day, on Gemini's free tier; never for demo data. Switch the pin off in Settings → Today.
+
+It shows while the app is open. A web app can't wake itself up to send notifications when it's closed without a paid push server.
+
+**Pop-up sizes** (`ui/Sheet.tsx`, `size` prop). Each pop-up now has one of four sizes, chosen by what's in it:
+
+| Size | Looks like | Used for |
+|---|---|---|
+| **Full** | Up to just under the status bar | Coach, Add food, Exercises, Scan barcode: conversation, search, camera |
+| **Large** | The stacked-card height | Settings, Schedule, routines, recipes, details, summaries |
+| **Medium** | As tall as its contents | Short forms (weight, measurements, copy, reschedule, notes) |
+| **Small** | Floats as a card with a gap all round, rounded on every corner | Pick a day, the food Options menu, Finish/Discard workout, Exercise options |
+
+A small pop-up leaves the page (and any pop-up below it) where it is, under a lighter dim.
+
+**Checks:**
+- `tests/nudges.test.ts`: the rules, plus Not now / ✕.
+- `scripts/journey-today.mjs`: the pin on demo data.
+- `scripts/journey-ai.mjs`: a mocked Gemini insight, asked once a day, whose button opens the Coach with its question.
+
 ## A fuller Today screen you can arrange
 
 Below the workout card, Today now has cards that each answer a question:

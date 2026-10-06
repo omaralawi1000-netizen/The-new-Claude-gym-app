@@ -276,6 +276,8 @@ export interface Settings {
   palette: 'ember' | 'aurora' | 'mono' | 'sunset' | 'forest';
   /** what Today shows; anything switched off is simply gone (and so is the water on the Food screen if `water` is off) */
   widgets: { water: boolean; quick: boolean; recents: boolean; week: boolean; weight: boolean; targets: boolean; muscles: boolean; records: boolean };
+  /** the Coach's pin on Today: things it noticed (lib/nudges.ts); on unless switched off */
+  coachPins?: boolean;
   /** the order of the cards below the workout on Today (screens/TodayCards.tsx); missing ones go at the end */
   todayOrder?: string[];
   motion: 'system' | 'reduce' | 'full';

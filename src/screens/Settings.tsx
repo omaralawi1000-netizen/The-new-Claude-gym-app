@@ -82,6 +82,7 @@ function TodaySettings() {
   const t = useT();
   const w = useStore((x) => x.settings.widgets);
   const saved = useStore((x) => x.settings.todayOrder);
+  const pins = useStore((x) => x.settings.coachPins !== false);
   const set = useStore((x) => x.updateSettings);
   const listRef = useRef<HTMLDivElement>(null);
   const order = cardOrder(saved);
@@ -100,6 +101,10 @@ function TodaySettings() {
   const move = (from: number, to: number) => { const l = [...order]; const [it] = l.splice(from, 1); l.splice(to, 0, it); set({ todayOrder: l }); };
   return (
     <div className="stack gap16">
+      <div className="row-flex between" style={{ gap: 14 }}>
+        <div style={{ minWidth: 0 }}><div>{t('The Coach’s pin')}</div><div className="xs t3">{t('Reminders and suggestions it notices, pinned at the top. With a Gemini key it also takes its own look once a day.')}</div></div>
+        <Toggle on={pins} onChange={(v) => set({ coachPins: v })} label={t('The Coach’s pin')} />
+      </div>
       <div className="row-flex between"><div className="lbl">{t('Cards')}</div><div className="xs t3">{t('Drag to reorder')}</div></div>
       <div ref={listRef} className="stack" style={{ gap: 8, marginTop: -6 }}>
         {order.map((k, i) => (

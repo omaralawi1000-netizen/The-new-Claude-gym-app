@@ -304,7 +304,7 @@ export function ActiveWorkout({ props, open = true }: { props: { origin?: 'hero'
       <AnimatePresence>
         {menuEx && <ExerciseMenu key="menu" se={menuEx} ex={exMap.get(menuEx.exerciseId)} onClose={() => setMenu(null)} />}
         {confirm && (
-          <Sheet key="confirm" onClose={() => setConfirm(null)} label={confirm === 'finish' ? t('Finish workout?') : t('Discard workout?')} nested>
+          <Sheet key="confirm" size="small" onClose={() => setConfirm(null)} label={confirm === 'finish' ? t('Finish workout?') : t('Discard workout?')} nested>
             <SheetHead title={confirm === 'finish' ? t('Finish workout?') : t('Discard workout?')} onClose={() => setConfirm(null)} />
             <div className="sheet-body">
               {/* the session at a glance, then one clear choice */}
@@ -681,7 +681,7 @@ function ExerciseMenu({ se, ex, onClose }: { se: SessionExercise; ex?: Exercise;
     { icon: 'arrowDown', label: t('Move down'), disabled: idx >= count - 1, run: () => { flip(document.querySelector('.wk-list'), () => moveExercise(se.id, 1)); onClose(); } },
   ];
   return (
-    <Sheet onClose={onClose} label={t('Exercise options')} nested>
+    <Sheet onClose={onClose} size="small" label={t('Exercise options')} nested>
       <SheetHead title={ex ? exName(ex, lang) : t('Exercise')} onClose={onClose} />
       <div className="sheet-body">
         <div className="list">

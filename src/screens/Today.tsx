@@ -17,6 +17,7 @@ import { useCovered, useNow, useScreenStore } from '../lib/hooks';
 import type { AppData, Routine } from '../lib/types';
 import { exName } from './workout/common';
 import { cardOrder, NextTargets, MusclesWeek, RecentRecords } from './TodayCards';
+import { CoachPin } from '../ui/CoachPin';
 
 export function estMinutes(r: Routine): number {
   const sets = r.items.reduce((n, i) => n + i.warmupSets + i.workingSets, 0);
@@ -139,6 +140,9 @@ export function TodayScreen() {
           <button className="icon-btn press" aria-label={t('Settings')} onClick={() => push('settings')}><Icon name="settings" /></button>
         </div>
       </header>
+
+      {/* what the Coach noticed: a reminder, a smart change, something in the app */}
+      <CoachPin d={s} />
 
       {/* ── the day, as one instrument ── */}
       <section aria-label={t('Nutrition')}>

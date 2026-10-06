@@ -32,7 +32,7 @@ export function DatePicker({ props }: { props: { value: string; onPick: (d: stri
   const go = (n: number) => { setDir(n); const d = parseKey(first); d.setMonth(d.getMonth() + n); setMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`); };
   const heads = Array.from({ length: 7 }, (_, i) => fmtWeekdayShort((s.settings.weekStart + i) % 7, lang, true));
   return (
-    <Sheet onClose={pop} label={props.title ?? t('Pick a day')} z={100}>
+    <Sheet onClose={pop} size="small" label={props.title ?? t('Pick a day')} z={100}>
       <SheetHead title={props.title ?? t('Pick a day')} onClose={pop} />
       <div className="sheet-body">
         <div className="row-flex between" style={{ marginBottom: 10 }}>
@@ -89,7 +89,7 @@ export function EntryMenu({ props }: { props: { kind: 'day' | 'meal'; date: stri
     toast(t('{n} entries cleared', { n: removed.length }), { actionLabel: t('Undo'), onAction: () => s.restoreEntries(removed) });
   } });
   return (
-    <Sheet onClose={pop} label={t('Options')} z={80}>
+    <Sheet onClose={pop} size="small" label={t('Options')} z={80}>
       <SheetHead title={props.kind === 'meal' && meal ? mealName(meal, lang) : fmtDate(props.date, lang)} sub={entries.length === 0 ? t('Nothing logged') : entries.length === 1 ? t('1 entry') : t('{n} entries', { n: entries.length })} onClose={pop} />
       <div className="sheet-body">
         <div className="list">

@@ -15,7 +15,7 @@ export { OverlayMeta };
 export const useIsPage = () => !!useContext(OverlayMeta)?.page;
 
 /** A sheet that pages can open inside: where they go, and what they share with it (the drag, the progress, the exit). */
-interface Host { el: HTMLDivElement; y: MotionValue<number>; swipeV: { current: number }; engage: Engage; gone: Set<() => void> }
+interface Host { el: HTMLDivElement; y: MotionValue<number>; swipeV: { current: number }; engage: Engage; gone: Set<() => void>; small?: boolean }
 const hosts = new Map<string, Host>();
 /** Overlays that sit together on one sheet: this one, the pages directly above it, and the sheet they open in. */
 function group(ov: { id: string; page?: boolean }[], i: number) {
@@ -91,14 +91,28 @@ const EXIT_SPRING = SURFACE_EXIT;
  * the page behind it stepping back (scale + corners), the dim/blur over that page and the orb. Opening, a finger drag,
  * a flick and the exit are all just that number changing, so nothing can drift out of step.
  */
-type SheetProps = { children: ReactNode; onClose: () => void; tall?: boolean; /** light contents (Settings): present from the first frame instead of arriving a beat later */ instant?: boolean; label: string; foot?: ReactNode; z?: number; /** a sheet rendered inside another overlay's component (e.g. the workout's exercise menu) */ nested?: boolean };
+/**
+ * How much of the screen a pop-up takes, chosen by what is in it:
+ *  - full:   up to just under the status bar — the Coach's conversation, searching (food, exercises), the camera
+ *  - large:  the stacked-card height (a strip of the page shows above it) — long reading and editing
+ *  - medium: as tall as its contents — a short form
+ *  - small:  a floating card with a gap all round, for a menu, a choice or a confirm; the page behind stays where it is
+ *            (only a lighter dim), because nothing about it changes
+ */
+export type SheetSize = 'full' | 'large' | 'medium' | 'small';
+/** the gap left above each size (below the status bar) */
+const TOP_GAP: Record<SheetSize, number> = { full: 10, large: 46, medium: 46, small: 58 };
+type SheetProps = { children: ReactNode; onClose: () => void; size?: SheetSize; /** older name for size="large" */ tall?: boolean; /** light contents (Settings): present from the first frame instead of arriving a beat later */ instant?: boolean; label: string; foot?: ReactNode; z?: number; /** a sheet rendered inside another overlay's component (e.g. the workout's exercise menu) */ nested?: boolean };
 
 export function Sheet(props: SheetProps) {
   const meta = useContext(OverlayMeta);
   return !props.nested && meta?.page ? <PageSheet {...props} id={meta.id} /> : <HostSheet {...props} />;
 }
 
-function HostSheet({ children, onClose, tall, instant, label, foot, z: zProp = 60, nested }: SheetProps) {
+function HostSheet({ children, onClose, size, tall: tallProp, instant, label, foot, z: zProp = 60, nested }: SheetProps) {
+  const sz: SheetSize = size ?? (tallProp ? 'large' : 'medium');
+  const tall = sz === 'full' || sz === 'large';
+  const small = sz === 'small';
   const z = useOverlayZ(zProp) + (nested ? 5 : 0);
   const meta = useContext(OverlayMeta);
   const ov = useUI((u) => u.overlays);
@@ -124,8 +138,9 @@ function HostSheet({ children, onClose, tall, instant, label, foot, z: zProp = 6
   const transform = useTransform([shift, bs, kb], ([sh, b, k]: number[]) => `translate3d(0, ${sh - k}px, 0) scale(${1 - 0.06 * b})`);
   const e = useTransform([p, y], ([pp, yy]: number[]) => clamp01(pp - Math.max(0, yy) / dist.current));
   const engage = useMemo(() => ({ e, shift }), [e, shift]);
-  const room = useTransform(kb, availableHeight); // what the keyboard leaves free: the sheet lifts and fits as it opens
-  useEffect(() => trackDepth(id, e), [id, e]);
+  const room = useTransform(kb, (k: number) => availableHeight(k, TOP_GAP[sz])); // what the keyboard leaves free: the sheet lifts and fits as it opens
+  // a small pop-up leaves the page where it is: it doesn't count towards the page stepping back
+  useEffect(() => (small ? undefined : trackDepth(id, e)), [id, e, small]);
   const swipeV = useRef(0); // px/s the finger had when it let go
   // a swipe on a page inside it closes the whole sheet, pages and all
   useSwipeDown(ref, y, (v) => {
@@ -136,7 +151,7 @@ function HostSheet({ children, onClose, tall, instant, label, foot, z: zProp = 6
   const gone = useRef(new Set<() => void>());
   useLayoutEffect(() => {
     if (nested || !meta || !ref.current) return;
-    hosts.set(meta.id, { el: ref.current, y, swipeV, engage, gone: gone.current });
+    hosts.set(meta.id, { el: ref.current, y, swipeV, engage, gone: gone.current, small });
     return () => { hosts.delete(meta.id); };
     // eslint-disable-next-line
   }, []);
@@ -151,7 +166,7 @@ function HostSheet({ children, onClose, tall, instant, label, foot, z: zProp = 6
     const b = bs.get();
     const k = kb.get();
     m.add(mirrorProgress(ref.current, p0, p1, sp, vel, (pp) => ({ transform: `translate3d(0, ${(1 - pp) * dist.current - k}px, 0) scale(${1 - 0.06 * b})` })));
-    m.add(...mirrorVeil(scrimRef.current, p0, p1, sp, vel), mirrorStage(id, p0, p1, sp, vel), mirrorOrb(ref.current, p0, p1, sp, vel, (pp) => (1 - pp) * dist.current));
+    m.add(...mirrorVeil(scrimRef.current, p0, p1, sp, vel), small ? null : mirrorStage(id, p0, p1, sp, vel), mirrorOrb(ref.current, p0, p1, sp, vel, (pp) => (1 - pp) * dist.current));
   };
   useEffect(() => {
     const stop = () => mirror.current!.cancel();
@@ -209,6 +224,7 @@ function HostSheet({ children, onClose, tall, instant, label, foot, z: zProp = 6
     const at = meta ? cur.findIndex((o) => o.id === meta.id) : -1;
     const upper = at >= 0 ? cur[group(cur, at).hi + 1] : undefined;
     const h = upper ? hosts.get(upper.id) : undefined;
+    if (h?.small) return; // a small pop-up on top: this one stays where it is, as the page does
     if (!h) { const c = animate(bs, 1, reduce ? { duration: 0.01 } : SPRING); return () => c.stop(); }
     bs.set(h.engage.e.get());
     const off = h.engage.e.on('change', (v) => bs.set(v));
@@ -240,10 +256,10 @@ function HostSheet({ children, onClose, tall, instant, label, foot, z: zProp = 6
   }, [onClose]);
   return (
     <EngageContext.Provider value={engage}>
-      <Veil e={e} z={z - 1} onClick={onClose} elRef={scrimRef} className={behind ? 'veil-behind' : ''} />
+      <Veil e={e} z={z - 1} onClick={onClose} elRef={scrimRef} className={`${behind ? 'veil-behind' : ''} ${small ? 'veil-light' : ''}`} />
       <motion.div
         ref={ref}
-        className={`sheet ${tall ? 'tall' : ''} ${behind ? 'behind' : ''} ${behind && deep ? 'deep' : ''}`}
+        className={`sheet sz-${sz} ${tall ? 'tall' : ''} ${behind ? 'behind' : ''} ${behind && deep ? 'deep' : ''}`}
         style={{ zIndex: z, transformOrigin: '50% 0%', transform, maxHeight: room, ...(tall ? { height: room } : {}) }}
         role="dialog" aria-modal="true" aria-label={label}
       >

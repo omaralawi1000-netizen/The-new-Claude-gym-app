@@ -99,7 +99,7 @@ export function FoodSearch({ props }: { props: { date: string; mealId: string } 
   ];
 
   return (
-    <Sheet onClose={pop} tall label={t('Add food')}>
+    <Sheet onClose={pop} size="full" label={t('Add food')}>
       <SheetHead title={t('Add to {meal}', { meal: meal ? mealName(meal, lang) : '' })} sub={added.length ? t('{n} added — tap + to add more', { n: added.length }) : undefined} onClose={pop}
         right={added.length > 0 ? <button className="btn sm primary press" onClick={pop}>{t('Done')} · {added.length}</button> : undefined} />
       <div style={{ padding: '0 20px 10px' }}>

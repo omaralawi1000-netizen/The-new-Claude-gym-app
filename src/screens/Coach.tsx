@@ -237,7 +237,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
               </div>
   );
   return (
-    <Sheet onClose={pop} tall instant label={t('Coach')} z={100} foot={(
+    <Sheet onClose={pop} size="full" instant label={t('Coach')} z={100} foot={(
       <div>
         {photo && (
           <div className="coach-photo">

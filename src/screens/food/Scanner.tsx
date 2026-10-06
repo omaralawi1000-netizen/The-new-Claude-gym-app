@@ -70,7 +70,7 @@ export function Scanner({ props }: { props: { date: string; mealId: string } }) 
   }, []);
 
   return (
-    <Sheet onClose={pop} tall label={t('Scan barcode')} z={80}>
+    <Sheet onClose={pop} size="full" label={t('Scan barcode')} z={80}>
       <SheetHead title={t('Scan barcode')} onClose={pop} />
       <div className="sheet-body">
         {supported && cam !== 'denied' && cam !== 'error' && (

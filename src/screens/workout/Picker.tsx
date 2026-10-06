@@ -60,7 +60,7 @@ export function ExercisePicker({ props }: { props: PickerProps }) {
   };
 
   return (
-    <Sheet onClose={pop} tall label={t('Exercises')} z={110} foot={!single ? <button className="btn primary block press" disabled={!sel.length} onClick={confirm}>{sel.length === 1 ? t('Add 1 exercise') : sel.length ? t('Add {n} exercises', { n: sel.length }) : t('Select exercises')}</button> : undefined}>
+    <Sheet onClose={pop} size="full" label={t('Exercises')} z={110} foot={!single ? <button className="btn primary block press" disabled={!sel.length} onClick={confirm}>{sel.length === 1 ? t('Add 1 exercise') : sel.length ? t('Add {n} exercises', { n: sel.length }) : t('Select exercises')}</button> : undefined}>
       <SheetHead title={props.mode === 'replace' ? t('Replace exercise') : t('Add exercises')} sub={props.mode === 'replace' && props.forExercise ? exName(props.forExercise, lang) : undefined} onClose={pop} />
       <div style={{ padding: '0 20px 10px' }}>
         <div style={{ position: 'relative' }}>

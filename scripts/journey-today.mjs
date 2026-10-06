@@ -17,6 +17,18 @@ const up = home().locator('.tc-card').first();
 assert(/kg × \d+/.test(await up.textContent()), 'Up next lists weight × reps to beat');
 assert(/of \d+ workouts/.test(await home().textContent()), 'the week line says how the week is going');
 assert(!/301 kg/.test(await home().textContent()), 'a set-volume record is shown as the set, not as a weight');
+// the Coach's pin: what it noticed, with "Not now" and ✕
+const pin = home().locator('.pin');
+assert.equal(await pin.count(), 1, 'the Coach pins what it noticed');
+await pin.locator('.pin-head').click(); await wait(p, 700);
+const items = await pin.locator('.pin-item .pin-t').allTextContents();
+console.log('pinned', items);
+assert(items.some((x) => /has stalled/.test(x)), 'a stalled lift is pinned');
+assert(!items.some((x) => /backup/i.test(x)), 'no backup nag for demo data');
+await pin.locator('.pin-item').first().getByRole('button', { name: 'Not now' }).click(); await wait(p, 600);
+assert.equal(await pin.locator('.pin-item').count(), items.length - 1, '"Not now" sets it aside');
+await p.screenshot({ path: 'shots/today-pin.png' });
+
 // Customize: move Up next down one, switch Muscles off
 await p.evaluate(() => { const s = [...document.querySelectorAll('.screen')].find((e) => e.offsetParent); s.scrollTop = 99999; }); await wait(p, 300);
 await p.getByRole('button', { name: 'Customize Today' }).click(); await wait(p, 1000);

@@ -82,6 +82,7 @@ await p.route('https://generativelanguage.googleapis.com/**', async (r) => {
     if (/open progress/i.test(last)) return out({ reply: '', actions: [{ type: 'navigate', screen: 'progress' }] });
     return out({ reply: 'You trained **3 times** this week.\nKeep going:\n- add 2.5 kg to bench', actions: [] });
   }
+  if (schemaProps.insights) { calls.insights = (calls.insights || 0) + 1; return r.fulfill(cand({ insights: [{ title: 'Bench up 5 kg in three weeks', body: 'Your bench went from 95 to 100 kg — keep the same plan.', kind: 'suggestion', ask: 'How should I keep my bench going up?' }] })); }
   calls.gen.push(prompt.slice(0, 40));
   if (prompt.includes('Transcript:')) return r.fulfill(cand({ items: [{ name: 'skyr', amount: 200, unit: 'g' }, { name: 'banan', amount: 1, unit: 'piece' }, { name: 'zzzxq', amount: 1, unit: 'piece' }] }));
   if (prompt.startsWith('Food:')) return r.fulfill(cand({ name: 'Homemade zzzxq', grams: 300, kcal: 480, protein: 24, carbs: 50, fat: 20, assumptions: 'one medium portion, mixed ingredients' }));
@@ -230,6 +231,17 @@ await p.getByRole('button', { name: 'Continue in Coach' }).click(); await wait(p
 assert(await p.locator('.sheet').getByText('how do I change the theme').isVisible(), 'the Coach opens with what you said');
 assert(await p.locator('.sheet').getByText(/Settings → Appearance/).isVisible(), 'and the answer');
 await p.screenshot({ path: 'shots/ai-12-continued.png' });
+await p.keyboard.press('Escape'); await wait(p, 700);
+
+// ── the Coach's own look, once a day: an insight pinned on Today (asked once, never again the same day) ──
+await p.locator('.tabbar').getByRole('button', { name: 'Today', exact: true }).click(); await wait(p, 600);
+await p.waitForFunction(() => !!document.querySelector('.pin'), null, { timeout: 9000 });
+await p.locator('.pin-head').first().click(); await wait(p, 700);
+await p.locator('.pin-item').filter({ hasText: 'Bench up 5 kg in three weeks' }).waitFor({ timeout: 9000 });
+assert.equal(calls.insights, 1, 'insights asked once a day');
+await p.screenshot({ path: 'shots/ai-13-pin-insight.png' });
+await p.locator('.pin-item').filter({ hasText: 'Bench up 5 kg in three weeks' }).getByRole('button', { name: 'Ask the Coach' }).click(); await wait(p, 1600);
+assert(await p.locator('.sheet').getByText('How should I keep my bench going up?').isVisible(), 'its button asks the Coach');
 await p.keyboard.press('Escape'); await wait(p, 700);
 
 // ── Danish ──

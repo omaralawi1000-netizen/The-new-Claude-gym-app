@@ -443,3 +443,28 @@ export function aiErrorText(e: unknown, t: (k: string) => string): string {
   } as Record<string, string>)[code] ?? t('Gemini failed. Try again.');
 }
 export { MAX_ITEMS };
+
+// ── the Coach noticing things (once a day, see ui/CoachPin.tsx) ──
+const INSIGHT_SCHEMA = {
+  type: 'OBJECT',
+  properties: { insights: { type: 'ARRAY', items: { type: 'OBJECT', properties: {
+    title: { type: 'STRING', description: 'at most 8 words, specific (names, numbers), no emoji' },
+    body: { type: 'STRING', description: 'one short sentence: why it matters, with the number that shows it' },
+    kind: { type: 'STRING', enum: ['reminder', 'suggestion', 'warning', 'app'] },
+    ask: { type: 'STRING', description: 'what the user would say to the Coach to act on it, first person, e.g. "Move my leg day to Thursday"' },
+  }, required: ['title', 'body', 'kind', 'ask'] } } },
+  required: ['insights'],
+};
+export const INSIGHT_SYSTEM = (lang: string) =>
+  'You are the coach inside a gym, food and wrestling tracker. Read the user\'s data below and find AT MOST 2 things worth telling them ' +
+  'today that they did not ask about: something they may have forgotten, a pattern that is holding them back, a smart change to their plan, ' +
+  'or a better way to use the app. Only say what the data clearly supports, with the number that shows it. Skip anything generic ' +
+  '("stay hydrated", "get enough sleep") and anything already obvious from the day\'s numbers. If nothing is worth saying, return an empty list. ' +
+  `Write in ${lang === 'da' ? 'Danish' : 'English'}, plain and friendly, no emoji.`;
+export interface Insight { title: string; body: string; kind: 'reminder' | 'suggestion' | 'warning' | 'app'; ask: string }
+export async function aiInsights(context: string, brain: Brain, lang: string): Promise<Insight[]> {
+  const raw = await withFallback(brain.models, (m) => generateJson(brain.key, m, { system: INSIGHT_SYSTEM(lang), prompt: context, schema: INSIGHT_SCHEMA, temperature: 0.3, signal: brain.signal, timeout: 20000, maxOutputTokens: 800 }));
+  const list = Array.isArray(raw?.insights) ? raw.insights : [];
+  return list.filter((x: any) => typeof x?.title === 'string' && typeof x?.body === 'string' && typeof x?.ask === 'string' && x.title.trim())
+    .slice(0, 2).map((x: any) => ({ title: x.title.trim().slice(0, 80), body: x.body.trim().slice(0, 220), kind: ['reminder', 'suggestion', 'warning', 'app'].includes(x.kind) ? x.kind : 'suggestion', ask: x.ask.trim().slice(0, 300) }));
+}

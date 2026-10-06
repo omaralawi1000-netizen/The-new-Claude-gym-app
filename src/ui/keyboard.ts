@@ -33,7 +33,7 @@ export function dropKeyboard(sp: Spring) {
 }
 
 /** CSS length for "the space a tall sheet may use": everything below the status bar gap, above the keyboard. */
-export const availableHeight = (kbPx: number) => `calc(${base}px - var(--sat) - 46px - ${kbPx}px)`;
+export const availableHeight = (kbPx: number, top = 46) => `calc(${base}px - var(--sat) - ${top}px - ${kbPx}px)`;
 
 /**
  * Keep the field you tapped in sight: once the keyboard has stopped moving (or at once when it is already up), the nearest

@@ -929,3 +929,38 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* Settings → Today: the cards as a reorderable list */
 .today-card-row { display: flex; align-items: center; gap: 6px; padding: 6px 14px 6px 2px; margin: 0; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ── pop-up sizes (ui/Sheet.tsx SheetSize) ─────────────────────────────────────────────────────────────────────────────
+   full: just under the status bar; large: the stacked-card height; medium: as tall as its contents; small: a floating card
+   with a gap all round (rounded on every corner), over a lighter dim, and the page behind stays put. */
+.sheet.sz-full.tall { height: calc(100dvh - var(--sat) - 10px); }
+.sheet.sz-small { left: 10px; right: 10px; bottom: calc(var(--sab) + 10px); border-radius: 30px;
+  box-shadow: inset 0 1px 0 var(--hl), inset 0 0 0 1px var(--line), 0 24px 60px -20px rgba(0, 0, 0, .55); }
+.sheet.sz-small .sheet-body { padding-bottom: 20px; }
+.sheet.sz-small .sheet-foot { padding-bottom: 14px; }
+.sheet.sz-small .sheet-grab { height: 20px; }
+.scrim.veil-light > .veil-dim { background: color-mix(in srgb, var(--scrim) 55%, transparent); }
+
+/* ── the Coach's pin on Today (ui/CoachPin.tsx): one quiet line that opens into what it noticed ── */
+.pin { border-radius: 22px; background: color-mix(in srgb, var(--ac) 9%, var(--s1, rgba(255,255,255,.04))); box-shadow: inset 0 1px 0 var(--hl), inset 0 0 0 1px color-mix(in srgb, var(--ac) 22%, var(--line)); overflow: hidden; transition: border-radius 300ms var(--ease-out); }
+.pin-head { display: flex; align-items: center; gap: 10px; width: 100%; padding: 11px 14px 11px 12px; text-align: left; }
+.pin-mark { flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; color: var(--ac-ink); background: var(--ac); box-shadow: 0 0 14px -3px var(--ac); animation: pinGlow 3.2s ease-in-out infinite; }
+@keyframes pinGlow { 50% { box-shadow: 0 0 22px -2px var(--ac); } }
+:root[data-motion='reduce'] .pin-mark { animation: none; }
+.pin-line { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 8px; }
+.pin-label { flex: none; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ac-text); }
+.pin-title { font-size: 14.5px; font-weight: 600; transition: opacity 220ms var(--ease-out), transform 300ms var(--ease-out); }
+.pin-title.gone { opacity: 0; transform: translateY(-4px); }
+.pin-count { flex: none; font-size: 12px; font-weight: 700; color: var(--tx2); padding: 2px 7px; border-radius: 999px; background: var(--s2); }
+.pin-chev { flex: none; color: var(--tx3); transition: transform 360ms var(--ease-out); }
+.pin.open .pin-chev { transform: rotate(180deg); }
+.pin-list { display: flex; flex-direction: column; padding: 0 8px 8px; }
+.pin-item { display: flex; gap: 10px; align-items: flex-start; padding: 12px 6px 12px 8px; border-top: 1px solid var(--line); }
+.pin-icon { flex: none; width: 30px; height: 30px; border-radius: 10px; display: grid; place-items: center; color: var(--ac-text); background: color-mix(in srgb, var(--ac) 14%, var(--s2)); }
+.pin-item.k-warning .pin-icon { color: var(--warn, #f5b04c); background: color-mix(in srgb, var(--warn, #f5b04c) 14%, var(--s2)); }
+.pin-item.k-app .pin-icon { color: var(--tx2); background: var(--s2); }
+.pin-text { flex: 1; min-width: 0; }
+.pin-t { font-size: 14.5px; font-weight: 650; line-height: 1.3; }
+.pin-b { font-size: 13px; line-height: 1.4; color: var(--tx2); margin-top: 3px; }
+.pin-acts { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.pin-x { flex: none; margin-top: -4px; color: var(--tx3); }
