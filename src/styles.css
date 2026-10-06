@@ -518,7 +518,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    turns green with one soft glow and stays green until the next set is ticked. It slides away while you type. */
 .wk-bar-wrap { position: absolute; left: 0; right: 0; bottom: calc(var(--sab) + 14px); padding: 0 16px; display: flex; flex-direction: column; align-items: center; z-index: 5; pointer-events: none; transition: transform 340ms var(--ease-out); }
 .wk-bar-wrap.away { transform: translateY(calc(100% + var(--sab) + 40px)); }
-.wk-bar { pointer-events: auto; position: relative; width: 100%; max-width: 420px; height: 66px; border-radius: 999px; display: flex; align-items: center; gap: 8px; padding: 0 7px 0 22px; }
+.wk-bar { pointer-events: auto; position: relative; width: 100%; max-width: 420px; height: 58px; border-radius: 999px; display: flex; align-items: center; gap: 8px; padding: 0 6px 0 20px; }
 /* the fill is clipped by its own layer, not by the bar: an overflow clip on the frosted bar with the orb's button inside it
    made Chrome skip the frost under the orb — a dark square around it on the phone */
 .wk-bar-clip { position: absolute; inset: 0; border-radius: inherit; overflow: hidden; pointer-events: none; }
@@ -533,7 +533,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-bar-top { max-width: 100%; font-size: 12px; font-weight: 600; color: var(--tx2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wk-bar-big { max-width: 100%; font-size: 17px; font-weight: 680; letter-spacing: -0.01em; color: var(--tx); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wk-bar.rest .wk-bar-big { font-size: 20px; }
-.wk-bar-orb { position: relative; width: 52px; height: 52px; flex: none; border-radius: 999px; }
+.wk-bar-orb { position: relative; width: 46px; height: 46px; flex: none; border-radius: 999px; }
 .wk-bar-panel { pointer-events: auto; display: flex; gap: 8px; padding: 8px; margin-bottom: 10px; border-radius: 999px; }
 /* the one Finish: once every set is ticked it glows softly; tapping the bar's "all done" nudges it */
 .wk-finish.ready { animation: finishGlow 2.4s ease-in-out infinite; }
@@ -787,3 +787,67 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .review-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 12px; margin-top: 14px; }
 .review-num { font-size: 24px; font-weight: 300; letter-spacing: -0.03em; line-height: 1.1; }
 .review-stall { display: flex; gap: 8px; align-items: flex-start; margin-top: 14px; padding: 9px 10px; border-radius: 12px; color: var(--tx); background: color-mix(in srgb, var(--warn) 12%, transparent); }
+
+/* ── live workout, compact header: name and the clock line beside the minimise button; pause and Finish on the right ── */
+.wk-head-wrap { position: relative; z-index: 2; padding: 0 16px 10px; }
+.wk-head { display: flex; align-items: center; gap: 6px; }
+.wk-min { width: 40px; height: 40px; margin-left: -6px; color: var(--tx); }
+.wk-head-mid { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.wk-title { align-self: flex-start; max-width: 100%; font-size: 22px; line-height: 1.1; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wk-meta { display: flex; align-items: baseline; gap: 8px; min-width: 0; font-size: 13px; color: var(--tx2); white-space: nowrap; overflow: hidden; }
+.wk-clock { font-size: 15px; font-weight: 650; color: var(--tx); letter-spacing: 0.01em; font-variant-numeric: tabular-nums; transition: color 300ms; }
+.wk-clock.paused { color: var(--tx3); }
+.wk-meta-rest { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.wk-paused { color: var(--warn); font-weight: 600; }
+.wk-pause { width: 40px; height: 40px; color: var(--tx); }
+.wk-finish { flex: none; }
+/* before anything is logged, Finish steps back: there is nothing to finish yet */
+.wk-finish.muted { background: var(--s2); color: var(--tx2); box-shadow: inset 0 0 0 1px var(--line); }
+.wk-finish { transition: background-color 360ms var(--ease-out), color 360ms var(--ease-out), box-shadow 360ms var(--ease-out); }
+.wk-head-wrap .wk-progress { margin-top: 10px; height: 3px; }
+.wk-empty { padding: 26px 4px 14px; }
+
+/* ── exercise card ── */
+.wk-ex-title { overflow-wrap: anywhere; text-wrap: balance; line-height: 1.12; }
+.wk-ex-done { display: inline-grid; place-items: center; width: 22px; height: 22px; margin-left: 8px; vertical-align: 3px; border-radius: 999px; background: var(--ac); color: var(--ac-ink); opacity: 0; transform: scale(.4); transition: opacity 240ms var(--ease-out), transform 520ms var(--ease-spring); }
+.wk-block.complete .wk-ex-done { opacity: 1; transform: none; }
+.wk-block .plinth { transition: box-shadow 500ms var(--ease-out); }
+.wk-block.complete .plinth { box-shadow: inset 0 1px 0 var(--hl), inset 0 0 0 1px color-mix(in srgb, var(--ac) 32%, transparent), var(--sh-c); }
+.wk-muscles { margin-top: 3px; font-size: 13px; font-weight: 500; color: var(--tx2); }
+.wk-reason { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 13px; font-weight: 550; color: var(--tx2); }
+.wk-reason svg { color: var(--tx3); }
+/* the column titles: readable at a glance under gym lights */
+.set-head { padding: 0 6px; }
+.set-head .micro { color: var(--tx2); font-size: 11.5px; font-weight: 650; }
+
+/* ── set rows: three states ──
+   not logged: values a shade dimmer, an empty outline where the check will go
+   current:    the one to do now, a quiet accent outline around the row
+   logged:     a filled check that draws itself, the row tinted */
+.wk-set { display: grid; gap: 8px; align-items: center; padding: 5px 6px; margin: 2px 0; border-radius: 14px; background: transparent; box-shadow: inset 0 0 0 1px transparent;
+  transition: background-color 420ms var(--ease-out), box-shadow 420ms var(--ease-out); }
+.wk-set.current { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ac) 55%, transparent); background: color-mix(in srgb, var(--ac) 5%, transparent); }
+.wk-set.done { background: color-mix(in srgb, var(--ac) 13%, transparent); }
+.wk-set .input { transition: color 300ms, background-color 420ms var(--ease-out), box-shadow 420ms var(--ease-out); }
+.wk-set.todo .input { color: var(--tx2); }
+.wk-set.done .input { background: transparent; box-shadow: none; }
+.wk-set-n { height: 38px; border-radius: 10px; font-weight: 700; font-size: 14px; background: var(--s2); color: var(--tx2); box-shadow: inset 0 0 0 1px var(--line); transition: color 300ms, background-color 300ms; }
+.wk-set.warm .wk-set-n { background: var(--ac-soft); color: var(--ac-text); }
+.wk-set.current .wk-set-n { color: var(--ac-text); }
+.wk-set.done .wk-set-n { background: transparent; box-shadow: none; color: var(--tx); }
+.wk-prev { min-width: 0; text-align: left; line-height: 1.15; font-size: 13px; font-weight: 500; color: var(--tx2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wk-prev:disabled { color: var(--tx3); }
+.wk-check { position: relative; height: 44px; border-radius: 14px; display: grid; place-items: center; background: transparent; color: var(--ac-ink);
+  box-shadow: inset 0 0 0 1.75px var(--line-2); transition: background-color 220ms var(--ease-out), box-shadow 220ms var(--ease-out); }
+.wk-set.current .wk-check { box-shadow: inset 0 0 0 1.75px color-mix(in srgb, var(--ac) 70%, transparent); }
+.wk-check.on { background: var(--ac); box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--ac) 75%, transparent), inset 0 1px 0 rgba(255,255,255,.45); }
+/* just ticked: the button gives a small spring and the check draws itself in */
+.wk-check.fresh { animation: chkPop 520ms var(--ease-spring); }
+.wk-check.fresh .wk-check-mark path { stroke-dasharray: 1; stroke-dashoffset: 1; animation: chkDraw 340ms 70ms cubic-bezier(0.65, 0, 0.35, 1) forwards; }
+@keyframes chkPop { 0% { transform: scale(.86); } 55% { transform: scale(1.06); } 100% { transform: none; } }
+@keyframes chkDraw { to { stroke-dashoffset: 0; } }
+/* the bar's "next set": name, then the target in a quieter tone */
+.wk-bar-big { display: flex; align-items: baseline; gap: 8px; }
+.wk-bar-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wk-bar-tgt { flex: none; font-size: 14px; font-weight: 600; color: var(--tx2); }
+@media (prefers-reduced-motion: reduce) { .wk-check.fresh, .wk-check.fresh .wk-check-mark path { animation: none; stroke-dashoffset: 0; } .wk-set, .wk-check, .wk-ex-done { transition: none; } }

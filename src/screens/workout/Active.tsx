@@ -7,7 +7,7 @@ import type { Exercise, SessionExercise, SetRecord } from '../../lib/types';
 import { Icon } from '../../ui/Icon';
 import { Collapse, NumInput } from '../../ui/kit';
 import { flip } from '../../ui/flip';
-import { Sheet, SheetHead, SOFT, SNAP, useOverlayZ } from '../../ui/Sheet';
+import { Sheet, SheetHead, SOFT, useOverlayZ } from '../../ui/Sheet';
 import { beatLastTime, elapsedMs, historyOf, incrementFor, lastPerformance, repRange, sessionSetCount, sessionVolume, suggestProgression, countable } from '../../lib/workout';
 import { fmtDuration } from '../../lib/dates';
 import { displayToKg, kgToDisplay, fmtNum, displayToM, mToDisplay } from '../../lib/units';
@@ -237,37 +237,40 @@ export function ActiveWorkout({ props, open = true }: { props: { origin?: 'hero'
           {/* header */}
           {/* no backdrop of its own: the list scrolls in its own box below, so the header sits straight on the window's light
               (a solid band here cut the colour field off in a hard line under the grabber) */}
-          <div style={{ padding: '0 16px 12px', touchAction: 'none', position: 'relative', zIndex: 2 }}>
-            <div className="row-flex between">
-              <button className="icon-btn press" aria-label={t('Minimise workout')} onClick={() => close()}><Icon name="chevD" /></button>
-              <div className="grow" style={{ textAlign: 'center', minWidth: 0 }}>
+          <div className="wk-head-wrap" style={{ touchAction: 'none' }}>
+            <div className="wk-head">
+              <button className="icon-btn flat press wk-min" aria-label={t('Minimise workout')} onClick={() => close()}><Icon name="chevD" /></button>
+              <div className="wk-head-mid">
                 {renaming ? (
-                  <input className="input" autoFocus style={{ minHeight: 40, textAlign: 'center' }} defaultValue={a.name} onBlur={(e) => { useStore.getState().mutateActive((x) => ({ ...x, name: e.target.value.trim() })); setRenaming(false); }} onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} aria-label={t('Workout name')} />
+                  <input className="input" autoFocus style={{ minHeight: 34, padding: '4px 10px' }} defaultValue={a.name} onBlur={(e) => { useStore.getState().mutateActive((x) => ({ ...x, name: e.target.value.trim() })); setRenaming(false); }} onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} aria-label={t('Workout name')} />
                 ) : (
-                  <button className="display display-sm trunc press" style={{ maxWidth: '100%' }} onClick={() => setRenaming(true)}>{a.name || t('Workout')}</button>
+                  <button className="wk-title display press" onClick={() => setRenaming(true)}>{a.name || t('Workout')}</button>
                 )}
+                {/* the clock and the tally on one line: time, sets, volume */}
+                <div className="wk-meta num">
+                  <span className={`wk-clock${paused ? ' paused' : ''}`}><Clock /></span>
+                  <span className="wk-meta-rest">{total ? <>{done}/{total} {t('sets')}{done > 0 && <> · {fmtNum(Math.round(kgToDisplay(sessionVolume(a.exercises), weightUnit)), lang, 0)} {weightUnit}</>}</> : t('No sets yet')}</span>
+                  {paused && <span className="wk-paused">{t('Paused')}</span>}
+                  {typing && a.rest && <RestInline />}
+                </div>
               </div>
-              {/* the one Finish: it glows once every set is ticked (the bar says so and points here) */}
-              <button ref={finishBtn} className={`btn primary sm press wk-finish${total > 0 && done === total ? ' ready' : ''}`} onClick={finish}>{t('Finish')}</button>
-            </div>
-            <div className="row-flex between" style={{ marginTop: 10, alignItems: 'flex-end' }}>
-              <div>
-                <div className="display display-lg num" style={{ color: paused ? 'var(--tx3)' : 'var(--tx)' }}><Clock /></div>
-                <div className="small t2 num">{total ? <>{done}/{total} · {fmtNum(Math.round(kgToDisplay(sessionVolume(a.exercises), weightUnit)), lang, 0)} {weightUnit}</> : t('No sets yet')}{typing && a.rest && <RestInline />}</div>
-              </div>
-              <button className="btn sm press" onClick={() => { buzz(10); paused ? useStore.getState().resumeActive() : useStore.getState().pauseActive(); }} aria-label={paused ? t('Resume') : t('Pause')}>
-                <Icon name={paused ? 'play' : 'pause'} size={16} /> {paused ? t('Resume') : t('Pause')}
+              <button className="icon-btn flat press wk-pause" onClick={() => { buzz(10); paused ? useStore.getState().resumeActive() : useStore.getState().pauseActive(); }} aria-label={paused ? t('Resume') : t('Pause')}>
+                <Icon name={paused ? 'play' : 'pause'} size={18} />
               </button>
+              {/* the one Finish: muted until a set is logged, then the accent; it glows once every set is ticked */}
+              <button ref={finishBtn} className={`btn sm press wk-finish ${done > 0 ? 'primary' : 'muted'}${total > 0 && done === total ? ' ready' : ''}`} onClick={finish}>{t('Finish')}</button>
             </div>
             {/* grows by scaling (the compositor's job); it animated its width, which made every set ticked lay the page out again */}
             <div className="wk-progress"><i style={{ transform: `scaleX(${total ? done / total : 0})` }} /></div>
-            {paused && <div className="small" style={{ marginTop: 8, color: 'var(--warn)' }}>{t('Paused')}</div>}
           </div>
 
           {/* body */}
           <motion.div ref={body} style={{ flex: 1, overflowY: 'auto', padding: '4px 16px 0', paddingBottom: bodyPad, overscrollBehavior: 'contain' }} className="hide-scroll wk-list">
             {a.exercises.length === 0 && (
-              <div className="empty"><div className="display display-sm">{t('Empty session')}</div><div style={{ height: 12 }} /></div>
+              <div className="wk-empty">
+                <div className="display display-sm" style={{ fontStyle: 'italic' }}>{t('Empty session')}</div>
+                <div className="small t2" style={{ marginTop: 6 }}>{t('Add your first exercise, or tell the orb what you did.')}</div>
+              </div>
             )}
             {/* plain blocks: an exercise added later fades in, a removed one folds away (Collapse) — nothing re-measures the page */}
             <AnimatePresence initial={false}>
@@ -281,7 +284,7 @@ export function ActiveWorkout({ props, open = true }: { props: { origin?: 'hero'
             </AnimatePresence>
             {listDone && (
             <motion.div initial={listDoneAtOpen.current ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={SOFT}>
-            <button className="btn block press" style={{ marginTop: 20 }} onClick={() => push('exercisePicker', { mode: 'add' })}><Icon name="plus" size={18} /> {t('Add exercise')}</button>
+            <button className={`btn block press${a.exercises.length === 0 ? ' primary' : ''}`} style={{ marginTop: a.exercises.length ? 20 : 4 }} onClick={() => push('exercisePicker', { mode: 'add' })}><Icon name="plus" size={18} /> {t('Add exercise')}</button>
             <button className="btn ghost danger block press" style={{ marginTop: 10 }} onClick={() => setConfirm('discard')}>{t('Discard workout')}</button>
             </motion.div>
             )}
@@ -385,7 +388,8 @@ function WorkoutBar({ engage, exMap, away, onDone, onJump }: { engage: Engage; e
     else if (state === 'empty') { orbTap(1); push('voice', { mode: 'workout' }); }
     else if (nx) onJump(nx.set.id);
   };
-  const top = state === 'next' ? `${t('Next')} · ${setWord}${target ? ` · ${target}` : ''}`
+  const ofN = nx ? nx.se.sets.filter((x) => x.type === 'working').length : 0;
+  const top = state === 'next' ? `${t('Next set')} · ${nx!.label === 'W' ? t('Warm-up') : t('{n} of {m}', { n: nx!.label, m: ofN })}`
     : state === 'rest' ? (nx ? `${t('Rest')} · ${t('Next')}: ${name}` : t('Rest'))
     : state === 'go' ? `${t('Rest over')}${nx ? ` · ${setWord}` : ''}`
     : state === 'empty' ? `“${t('Bench press 80 kg for 8, 8, 6')}”`
@@ -410,9 +414,9 @@ function WorkoutBar({ engage, exMap, away, onDone, onJump }: { engage: Engage; e
       <div className={`wk-bar glass ${state}`}>
         <span className="wk-bar-clip" aria-hidden><i className="wk-bar-fill" style={{ transform: `scaleX(${state === 'go' ? 1 : state === 'rest' ? frac : 0})` }} /></span>
         <button className="wk-bar-main press" onClick={tap} aria-expanded={state === 'rest' ? panel : undefined}
-          aria-label={state === 'rest' ? `${t('Rest')} ${fmtDuration(Math.ceil(left))}` : `${top}. ${big}`}>
+          aria-label={state === 'rest' ? `${t('Rest')} ${fmtDuration(Math.ceil(left))}` : `${top}. ${big}${state === 'next' && target ? `, ${target}` : ''}`}>
           <span className="wk-bar-top">{top}</span>
-          <span className="wk-bar-big num">{big}</span>
+          <span className="wk-bar-big num">{state === 'next' ? <><span className="wk-bar-name">{name}</span>{target && <span className="wk-bar-tgt">{target}</span>}</> : big}</span>
         </button>
         <button className="wk-bar-orb press" aria-label={t('Dictate sets')} onPointerDown={() => orbPress(true)} onPointerUp={() => orbPress(false)} onPointerCancel={() => orbPress(false)} onPointerLeave={() => orbPress(false)}
           onClick={() => { orbTap(1); push('voice', { mode: 'workout' }); }}>
@@ -443,27 +447,32 @@ const ExerciseBlock = memo(function ExerciseBlock({ se, ex, linkedPrev, linkedNe
   const known = useRef(new Set(se.sets.map((x) => x.id)));
   useEffect(() => { for (const x of se.sets) known.current.add(x.id); });
   const kgTxt = (kg: number) => `${fmtNum(kgToDisplay(kg, u.weight), lang, 2)} ${u.weight}`;
-  const reason = sugg && (sugg.kind === 'add-weight' ? t(sugg.reasonKey, { inc: kgTxt(Number(sugg.reasonVars.inc)), max: sugg.reasonVars.max })
-    : sugg.kind === 'stalled' ? t(sugg.reasonKey, { w: kgTxt(Number(sugg.reasonVars.w)) })
-    : t(sugg.reasonKey, sugg.reasonVars));
+  // one short line: what to do today and why, in a neutral tint (the numbers are already in the rows)
+  const rv = sugg?.reasonVars ?? {};
+  const reason = !sugg ? '' : sugg.kind === 'add-weight' ? t('+{inc} · set 1 hit {max}', { inc: kgTxt(Number(rv.inc)), max: rv.max ?? '' })
+    : sugg.kind === 'add-reps' ? (rv.reps !== undefined ? t('Aim for {reps} reps', { reps: rv.reps }) : t('Same weight · +1 rep'))
+    : sugg.kind === 'hold' ? t('Same weight · build set 1 to {min}', { min: rv.min ?? '' })
+    : sugg.kind === 'stalled' ? t('Stalled at {w} · 3 sessions', { w: kgTxt(Number(rv.w)) })
+    : t('First time · aim {min}–{max} reps', { min: rv.min ?? '', max: rv.max ?? '' });
   const REASON_ICON = { 'add-weight': 'arrowUp', 'add-reps': 'plus', hold: 'repeat', stalled: 'info', first: 'sparkle' } as const;
+  const complete = se.sets.length > 0 && se.sets.every((x) => x.done);
   // something you told the Coach about this exercise ("left shoulder hurts on overhead press"): shown beside it, with a swap.
   // A joined string, so ticking a set elsewhere doesn't redraw this block.
   const flagged = useStore((s) => s.memory.filter((m) => m.exerciseIds?.includes(se.exerciseId)).map((m) => m.text).join('\n'));
 
   return (
-    <section data-flip={se.id} className={`wk-block${appear ? ' in' : ''}`} style={{ position: 'relative', marginTop: linkedPrev ? 0 : 18, paddingLeft: se.supersetGroup ? 14 : 0 }}>
+    <section data-flip={se.id} className={`wk-block${appear ? ' in' : ''}${complete ? ' complete' : ''}`} style={{ position: 'relative', marginTop: linkedPrev ? 0 : 18, paddingLeft: se.supersetGroup ? 14 : 0 }}>
       {se.supersetGroup && <div aria-hidden style={{ position: 'absolute', left: 0, top: linkedPrev ? -4 : 6, bottom: linkedNext ? -14 : 6, width: 3, borderRadius: 3, background: 'var(--ac)', opacity: 0.85 }} />}
       {se.supersetGroup && !linkedPrev && <div className="micro accent" style={{ marginBottom: 4 }}>{t('Superset')}</div>}
       <div className="plinth" style={{ padding: '14px 12px 12px', borderRadius: 'var(--r-lg)' }}>
         <div className="row-flex between" style={{ alignItems: 'flex-start', gap: 8 }}>
           <button className="grow press" style={{ textAlign: 'left', minWidth: 0 }} onClick={() => ex && push('exercise', { id: ex.id })}>
-            <div className="display display-sm trunc">{ex ? exName(ex, lang) : t('Unknown exercise')}</div>
-            <div className="xs t2" style={{ marginTop: 3 }}>{ex?.muscles.slice(0, 2).map((m) => t(MUSCLE_LABEL[m])).join(' · ')}</div>
+            {/* a long name wraps (two lines at most look calm); it never pushes the card wider than the screen */}
+            <div className="display display-sm wk-ex-title">{ex ? exName(ex, lang) : t('Unknown exercise')}<span className="wk-ex-done" aria-hidden><Icon name="check" size={14} sw={3} /></span></div>
+            <div className="wk-muscles">{ex?.muscles.slice(0, 2).map((m) => t(MUSCLE_LABEL[m])).join(' · ')}</div>
           </button>
           <button className="icon-btn flat" onClick={() => onMenu(se.id)} aria-label={t('Exercise options')}><Icon name="more" /></button>
         </div>
-        {lastWorking.length > 0 && <div className="xs t3 num" style={{ marginTop: 6 }}>{t('Last')}: {lastWorking.slice(0, 5).map((p) => fmtSet(p, ex, u, lang, t)).join(' · ')}</div>}
         {se.note && <div className="small t2" style={{ marginTop: 8, padding: '8px 10px', background: 'var(--bg-2)', borderRadius: 10 }}>{se.note}</div>}
         {flagged && (
           <div className="wk-flag xs">
@@ -473,12 +482,10 @@ const ExerciseBlock = memo(function ExerciseBlock({ se, ex, linkedPrev, linkedNe
           </div>
         )}
         {sugg && reason && (
-          <div className="xs row-flex" style={{ marginTop: 6, gap: 6, alignItems: 'flex-start', color: sugg.kind === 'add-weight' ? 'var(--ac-text)' : sugg.kind === 'stalled' ? 'var(--warn)' : 'var(--tx2)' }}>
-            <Icon name={REASON_ICON[sugg.kind]} size={13} style={{ flex: 'none', marginTop: 1 }} /><span>{reason}</span>
-          </div>
+          <div className="wk-reason num"><Icon name={REASON_ICON[sugg.kind]} size={13} style={{ flex: 'none' }} /><span>{reason}</span></div>
         )}
 
-        <div className="set-head" style={{ display: 'grid', gridTemplateColumns: gridCols(ex, settings.effort), gap: 8, marginTop: 12, padding: '0 2px' }}>
+        <div className="set-head" style={{ display: 'grid', gridTemplateColumns: gridCols(ex, settings.effort), gap: 8, marginTop: 12 }}>
           <span className="micro">{t('Set')}</span><span className="micro">{t('Prev')}</span>
           {headers(ex, u, t).map((h) => <span key={h} className="micro" style={{ textAlign: 'center' }}>{h}</span>)}
           {settings.effort !== 'off' && <span className="micro" style={{ textAlign: 'center' }}>{settings.effort.toUpperCase()}</span>}
@@ -498,6 +505,19 @@ const ExerciseBlock = memo(function ExerciseBlock({ se, ex, linkedPrev, linkedNe
     </section>
   );
 });
+
+/** Bring a set row into view if it sits under the workout bar or just below the screen. Only ever scrolls down, and only a
+ *  short way: it follows you to the next set, it never yanks the list somewhere you didn't look. */
+function revealSet(id: string) {
+  const list = document.querySelector<HTMLElement>('.wk-list');
+  const row = list?.querySelector<HTMLElement>(`[data-set="${id}"]`);
+  if (!list || !row) return;
+  const r = row.getBoundingClientRect(), box = list.getBoundingClientRect();
+  const bar = document.querySelector('.wk-bar-wrap:not(.away) .wk-bar')?.getBoundingClientRect();
+  const bottom = Math.min(box.bottom, bar ? bar.top - 16 : box.bottom);
+  const dy = r.bottom - bottom;
+  if (dy > 0 && dy < box.height * 0.8) list.scrollBy({ top: dy + 20, behavior: 'smooth' });
+}
 
 function gridCols(ex: Exercise | undefined, effort: string) {
   // minmax(0, 1fr): an input never pushes the row wider than the card (plain 1fr let its content decide)
@@ -528,6 +548,8 @@ const SetRow = memo(function SetRow({ se, set, ex, label, prev, restDefault }: {
   const [burst, setBurst] = useState(0); // a ring that expands from the check each time a set is completed
   const [beat, setBeat] = useState<{ n: number; label: string } | null>(null); // you beat last time: gold burst + what you gained
   const [showGain, setShowGain] = useState(false);
+  // the set to do next gets a quiet accent outline (a boolean, so only the two rows that change redraw)
+  const current = useStore((s) => !set.done && nextSetOf(s.active)?.set.id === set.id);
   useEffect(() => { if (!beat) return; setShowGain(true); const id = setTimeout(() => setShowGain(false), 1500); return () => clearTimeout(id); }, [beat]);
   const lt = ex?.logType ?? 'weightReps';
   const u = settings.units;
@@ -557,6 +579,8 @@ const SetRow = memo(function SetRow({ se, set, ex, label, prev, restDefault }: {
     buzz(gain ? [12, 50, 22] as any : 14);
     if (gain) setBeat((b) => ({ n: (b?.n ?? 0) + 1, label: gain }));
     patchSet(se.id, set.id, { ...eff, done: true, completedAt: Date.now() });
+    // the next set comes into view if it is about to slip under the bar (never scrolls up, never jumps far)
+    requestAnimationFrame(() => { const nx = nextSetOf(useStore.getState().active); if (nx) revealSet(nx.set.id); });
     if (set.type === 'working') {
       // supersets: rest only after the last exercise of the group has its turn
       const all = st.active?.exercises ?? [];
@@ -587,10 +611,9 @@ const SetRow = memo(function SetRow({ se, set, ex, label, prev, restDefault }: {
   return (
     // a plain row: it grows in and folds away inside its Collapse (no Motion layout — that re-measured the whole page)
     <div data-set={set.id}>
-      <div style={{ display: 'grid', gridTemplateColumns: gridCols(ex, settings.effort), gap: 8, alignItems: 'center', padding: '5px 2px', opacity: set.done ? 0.72 : 1 }}>
-        <button className="press" aria-label={t('Set options')} aria-expanded={open} onClick={() => setOpen((v) => !v)}
-          style={{ height: 38, borderRadius: 10, fontWeight: 700, fontSize: 14, background: set.type === 'warmup' ? 'var(--ac-soft)' : 'var(--s2)', color: set.type === 'warmup' ? 'var(--ac-text)' : 'var(--tx2)', boxShadow: 'inset 0 0 0 1px var(--line)' }}>{label}</button>
-        <button className="xs t3 num press" style={{ textAlign: 'left', lineHeight: 1.15, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} disabled={!prev} onClick={() => prev && patchSet(se.id, set.id, { weightKg: prev.weightKg, reps: prev.reps, durationSec: prev.durationSec, distanceM: prev.distanceM })} aria-label={prev ? `${t('Use previous')}: ${fmtSet(prev, ex, u, lang, t)}` : undefined}>
+      <div className={`wk-set ${set.done ? 'done' : current ? 'current' : 'todo'}${set.type === 'warmup' ? ' warm' : ''}`} style={{ gridTemplateColumns: gridCols(ex, settings.effort) }}>
+        <button className="press wk-set-n" aria-label={t('Set options')} aria-expanded={open} onClick={() => setOpen((v) => !v)}>{label}</button>
+        <button className="num press wk-prev" disabled={!prev} onClick={() => prev && patchSet(se.id, set.id, { weightKg: prev.weightKg, reps: prev.reps, durationSec: prev.durationSec, distanceM: prev.distanceM })} aria-label={prev ? `${t('Use previous')}: ${fmtSet(prev, ex, u, lang, t)}` : undefined}>
           {prev ? fmtSet(prev, ex, u, lang, t).replace(/ (kg|lb)/, '') : '—'}
         </button>
         {lt === 'duration' && field(set.durationSec, prev?.durationSec ?? 45, (v) => patchSet(se.id, set.id, { durationSec: v }), 0, t('Seconds'), complete)}
@@ -600,11 +623,11 @@ const SetRow = memo(function SetRow({ se, set, ex, label, prev, restDefault }: {
         </>}
         {(lt === 'weightReps' || lt === 'bodyweightReps' || lt === 'assisted') && <>{fw}{fr}</>}
         {settings.effort !== 'off' && <div onFocusCapture={focusScroll as any}><NumInput compact value={settings.effort === 'rpe' ? set.rpe : set.rir} max={1} placeholder="—" onChange={(v) => patchSet(se.id, set.id, settings.effort === 'rpe' ? { rpe: v } : { rir: v })} label={settings.effort.toUpperCase()} /></div>}
-        <motion.button key={shake} className="press" aria-label={set.done ? t('Mark set not done') : t('Complete set')} aria-pressed={set.done} onClick={() => { if (!set.done) setBurst((n) => n + 1); complete(); }}
-          animate={shake ? { x: [0, -5, 5, -3, 3, 0] } : undefined} transition={{ duration: 0.3 }}
-          style={{ position: 'relative', height: 44, borderRadius: 14, display: 'grid', placeItems: 'center', background: set.done ? 'var(--ac)' : 'var(--s3)', color: set.done ? 'var(--ac-ink)' : 'var(--tx3)', boxShadow: set.done ? '0 6px 16px -6px color-mix(in srgb, var(--ac) 70%, transparent), inset 0 1px 0 rgba(255,255,255,.4)' : 'inset 0 1px 0 var(--hl), inset 0 0 0 1px var(--line)', transition: 'background 180ms, color 180ms' }}>
-          <motion.span key={String(set.done)} initial={{ scale: set.done ? 0.4 : 1 }} animate={{ scale: 1 }} transition={SNAP} style={{ display: 'grid' }}><Icon name="check" size={22} sw={2.6} /></motion.span>
-          {burst > 0 && set.done && <motion.i key={burst} aria-hidden initial={{ scale: 0.9, opacity: 0.85 }} animate={{ scale: 2.4, opacity: 0 }} transition={{ duration: 0.75, ease: [0.22, 1, 0.36, 1] }} style={{ position: 'absolute', inset: 0, borderRadius: 14, boxShadow: '0 0 0 2px var(--ac), 0 0 24px var(--ac)', pointerEvents: 'none' }} />}
+        {/* not logged: an empty outline (no check yet); logged: a filled check that draws itself in */}
+        <motion.button key={shake} className={`press wk-check${set.done ? ' on' : ''}${set.done && burst > 0 ? ' fresh' : ''}`} aria-label={set.done ? t('Mark set not done') : t('Complete set')} aria-pressed={set.done} onClick={() => { if (!set.done) setBurst((n) => n + 1); complete(); }}
+          animate={shake ? { x: [0, -5, 5, -3, 3, 0] } : undefined} transition={{ duration: 0.3 }}>
+          {set.done && <svg key={`m${burst}`} className="wk-check-mark" viewBox="0 0 24 24" width="22" height="22" aria-hidden><path d="M5 12.5l4.5 4.5L19 7.5" pathLength={1} fill="none" stroke="currentColor" strokeWidth={2.8} strokeLinecap="round" strokeLinejoin="round" /></svg>}
+          {burst > 0 && set.done && <motion.i key={burst} aria-hidden initial={{ scale: 0.9, opacity: 0.85 }} animate={{ scale: 2.2, opacity: 0 }} transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }} style={{ position: 'absolute', inset: 0, borderRadius: 14, boxShadow: '0 0 0 2px var(--ac), 0 0 24px var(--ac)', pointerEvents: 'none' }} />}
           {beat && set.done && <motion.i key={`g${beat.n}`} aria-hidden initial={{ scale: 0.9, opacity: 1 }} animate={{ scale: 3.2, opacity: 0 }} transition={{ duration: 1, ease: [0.22, 1, 0.36, 1] }} style={{ position: 'absolute', inset: 0, borderRadius: 14, boxShadow: '0 0 0 2px var(--gold), 0 0 30px var(--gold)', pointerEvents: 'none' }} />}
           <AnimatePresence>{showGain && beat && set.done && <motion.span key={`l${beat.n}`} className="num" initial={{ opacity: 0, y: 6, scale: 0.8 }} animate={{ opacity: 1, y: -30, scale: 1 }} exit={{ opacity: 0, y: -42, transition: { duration: 0.3 } }} transition={BOUNCY}
             style={{ position: 'absolute', left: '50%', top: 0, x: '-50%', whiteSpace: 'nowrap', fontSize: 12, fontWeight: 700, color: 'var(--gold)', textShadow: '0 0 12px color-mix(in srgb, var(--gold) 60%, transparent)', pointerEvents: 'none' }}>{beat.label}</motion.span>}</AnimatePresence>

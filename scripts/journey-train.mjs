@@ -53,7 +53,7 @@ assert(await p.getByText('Suggested substitutes').isVisible(), 'substitutes sugg
 await p.getByRole('dialog', { name: 'Exercises' }).getByText('Incline Dumbbell Press').first().click(); await wait(p, 900);
 assert((await names()).includes('Incline Dumbbell Press'), 'replaced');
 // pause / resume: clock stops
-const t = async () => p.getByRole('dialog', { name: 'Active workout' }).locator('.display-lg.num').first().innerText();
+const t = async () => p.getByRole('dialog', { name: 'Active workout' }).locator('.wk-clock').first().innerText();
 await p.getByRole('button', { name: 'Pause' }).click(); const t1 = await t(); await wait(p, 2200); const t2 = await t();
 assert.equal(t1, t2, 'clock frozen while paused'); await p.getByRole('button', { name: 'Resume', exact: true }).click(); await wait(p, 1500);
 assert.notEqual(await t(), t2, 'clock runs again');

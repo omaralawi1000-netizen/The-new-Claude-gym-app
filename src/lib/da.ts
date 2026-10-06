@@ -1253,4 +1253,13 @@ export const da: Record<string, string> = {
  "Gym": "Fitnesscenter",
  "piece": "stk.",
  "pieces": "stk.",
+ "+{inc} · set 1 hit {max}": "+{inc} · sæt 1 nåede {max}",
+ "Add your first exercise, or tell the orb what you did.": "Tilføj din første øvelse, eller fortæl orben hvad du lavede.",
+ "Aim for {reps} reps": "Gå efter {reps} reps",
+ "First time · aim {min}–{max} reps": "Første gang · gå efter {min}–{max} reps",
+ "Next set": "Næste sæt",
+ "Same weight · +1 rep": "Samme vægt · +1 rep",
+ "Same weight · build set 1 to {min}": "Samme vægt · byg sæt 1 op til {min}",
+ "Stalled at {w} · 3 sessions": "Står stille på {w} · 3 træninger",
+ "{n} of {m}": "{n} af {m}",
 };

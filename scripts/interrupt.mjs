@@ -22,7 +22,7 @@ for (const reduced of [false, true]) {
   for (let k = 0; k < 3 && await p.locator('.sheet[role="dialog"]:not([aria-label="Active workout"])').count(); k++) { await p.keyboard.press('Escape'); await wait(p, 600); }
   // 2. interrupted drag-to-minimise: drag halfway down, then back up, then release → must stay open
   if (await dialogs() === 0) { await p.locator('button[aria-label="Resume workout"]').click(); await wait(p, 900); }
-  const hdr = await p.getByRole('dialog', { name: 'Active workout' }).locator('.display-lg').first().boundingBox();
+  const hdr = await p.getByRole('dialog', { name: 'Active workout' }).locator('.wk-meta').first().boundingBox();
   await p.mouse.move(hdr.x + 40, hdr.y + 10); await p.mouse.down();
   await p.mouse.move(hdr.x + 40, hdr.y + 160, { steps: 8 }); await wait(p, 120);
   await p.mouse.move(hdr.x + 40, hdr.y + 10, { steps: 8 }); await p.mouse.up(); await wait(p, 900);

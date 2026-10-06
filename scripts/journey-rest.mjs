@@ -10,7 +10,7 @@ await p.getByRole('button', { name: /Start workout/ }).first().click(); await wa
 const bar = p.locator('.wk-bar');
 const text = async () => (await bar.innerText()).replace(/\n/g, ' | ');
 assert(await p.locator('.wk-bar.next').isVisible(), 'the bar shows what is next');
-assert(/^Next · Set 1 · .*kg × \d+ \| \S/.test(await text()), `next set with its target: ${await text()}`);
+assert(/^Next set · 1 of \d+ \|/.test(await text()) && /kg × \d+/.test(await text()), `next set with its target: ${await text()}`);
 assert(await p.locator('.wk-bar [data-orb-slot="workout"]').count() === 1, 'the orb lives in the bar');
 await p.getByRole('button', { name: 'Complete set' }).first().click(); await wait(p, 900);
 assert(await p.locator('.wk-bar.rest').isVisible(), 'resting');
