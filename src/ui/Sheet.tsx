@@ -106,9 +106,10 @@ function HostSheet({ children, onClose, tall, instant, label, foot, z: zProp = 6
   // a sheet with another sheet above it steps back, like a stacked card (and only the top one answers Escape). Pages opened
   // inside it don't count: they are this same sheet. While it leaves, it keeps how it looked.
   const g = i >= 0 ? group(ov, i) : null;
-  const frozen = useRef({ behind: false, covered: false, hi: i });
-  if (g) frozen.current = { behind: g.hi < ov.length - 1, covered: !!ov[i + 1]?.page, hi: g.hi };
-  const { behind, covered } = frozen.current;
+  const frozen = useRef({ behind: false, deep: false, covered: false, hi: i });
+  // deep: two or more sheets on top of it — only then does it give up its frost (see .sheet.behind.deep)
+  if (g) frozen.current = { behind: g.hi < ov.length - 1, deep: ov.slice(g.hi + 1).filter((o) => !o.page).length >= 2, covered: !!ov[i + 1]?.page, hi: g.hi };
+  const { behind, deep, covered } = frozen.current;
   const paneRef = useRef<HTMLDivElement>(null);
   const reduce = useReducedMotion();
   const id = useId();
@@ -242,7 +243,7 @@ function HostSheet({ children, onClose, tall, instant, label, foot, z: zProp = 6
       <Veil e={e} z={z - 1} onClick={onClose} elRef={scrimRef} className={behind ? 'veil-behind' : ''} />
       <motion.div
         ref={ref}
-        className={`sheet ${tall ? 'tall' : ''} ${behind ? 'behind' : ''}`}
+        className={`sheet ${tall ? 'tall' : ''} ${behind ? 'behind' : ''} ${behind && deep ? 'deep' : ''}`}
         style={{ zIndex: z, transformOrigin: '50% 0%', transform, maxHeight: room, ...(tall ? { height: room } : {}) }}
         role="dialog" aria-modal="true" aria-label={label}
       >

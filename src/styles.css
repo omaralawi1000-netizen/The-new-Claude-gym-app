@@ -376,19 +376,20 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 }
 .sheet[data-size='short'] { background: color-mix(in srgb, var(--sheet-glass) 86%, transparent); -webkit-backdrop-filter: blur(44px) saturate(2.1); backdrop-filter: blur(44px) saturate(2.1); }
 .sheet.tall { height: calc(100dvh - var(--sat) - 46px); }
-/* A sheet with another sheet stacked on top: the top one's dim and blur cover it, so it drops its own frost and its own
-   veil's blur. Each kept a full-screen blur alive; three stacked sheets ran the phone out of GPU memory (black tiles). */
-.sheet.behind { -webkit-backdrop-filter: none; backdrop-filter: none;
-  /* the glass turns solid over a moment, then the blur is dropped once nothing can be seen through it (an instant swap
-     flashed); coming back to the top, the blur is there at once and the solid fades away */
+/* A sheet with another sheet stacked on top keeps its frost: it stays the same glass, set back under the top one's dim (it
+   used to turn solid, and the blur only came back once the top sheet left). Only when two or more sheets are stacked on it
+   does it drop the blur: each sheet keeps a full-screen blur alive, and three at once ran the phone out of GPU memory
+   (black tiles). The glass turns solid over a moment, then the blur is dropped once nothing can be seen through it (an
+   instant swap flashed); coming back up, the blur is there at once and the solid fades away. */
+.sheet.behind.deep { -webkit-backdrop-filter: none; backdrop-filter: none;
   transition: background-color 260ms var(--ease-out), -webkit-backdrop-filter 0s linear 280ms, backdrop-filter 0s linear 280ms; transition-behavior: allow-discrete; }
 .sheet { transition: background-color 260ms var(--ease-out); }
 /* Inside a sheet everything sits on glass that is already blurred: a second blur on each button, switch and chip only repeats
    it (the same pixels) but makes the browser run one more full pass per element for every frame the sheet moves or scrolls. */
 .sheet :is(.btn, .icon-btn, .seg, .chip, .plinth, .plinth-2, .input, .field input), .sheet-page :is(.btn, .icon-btn, .seg, .chip) { -webkit-backdrop-filter: none; backdrop-filter: none; }
-/* …but it must not turn see-through: without its frost the page showed through it and it looked like it was dissolving.
-   It becomes the same glass laid over the plain background instead — solid, and under the dim it reads as a card set back. */
-.sheet.behind, .sheet.behind[data-size='short'] { background: var(--sheet-solid); }
+/* …and without its frost it must not turn see-through (it looked like it was dissolving): it becomes the same glass laid
+   over the plain background instead — solid, and under the dim it reads as a card set back. */
+.sheet.behind.deep, .sheet.behind.deep[data-size='short'] { background: var(--sheet-solid); }
 /* A sheet's content sits in a pane, so it can step aside when a page opens inside the same sheet (Sheet.tsx, PageSheet). The
    page is laid exactly over it, below the grab handle, on the sheet's own glass. */
 .sheet-pane { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
@@ -893,17 +894,18 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 
 .voice-top { position: absolute; left: 0; right: 0; top: 0; height: calc(var(--sat) + 96px); pointer-events: none; background: linear-gradient(to bottom, var(--bar-shown, transparent) calc(var(--sat) + 4px), color-mix(in srgb, var(--bar-shown, transparent) 55%, transparent) calc(var(--sat) + 40px), transparent); }
 
-/* What you said, landing (Voice.tsx SaidMorph): large words write in one after another, centred over the exchange; then they
-   shrink toward the top right and fade as the small sent bubble rises in under them. */
+/* What you said, landing (Voice.tsx SaidMorph): large words write in one after another, centred over the exchange; then the
+   message shrinks into its sent bubble as one block (script measures and moves each word; the bubble keeps the big text's
+   line breaks). The big words use the bubble's own
+   typeface, weight and tracking, so only their size changes on the way down. */
 .said-wrap { position: relative; display: flex; flex-direction: column; }
-.said-wrap .said { opacity: 0; transform: translateY(8px) scale(.94); transition: opacity 520ms var(--ease-out) 120ms, transform 700ms cubic-bezier(.2,.8,.2,1) 120ms; }
-.said-wrap.settled .said { opacity: 1; transform: none; }
-.said-big { position: absolute; left: 0; right: 0; top: 0; text-align: center; font-size: 26px; line-height: 1.22; padding: 0 6px; color: var(--tx); overflow-wrap: anywhere; pointer-events: none;
-  transform-origin: 100% 0; transition: opacity 460ms var(--ease-out), transform 720ms cubic-bezier(.2,.8,.2,1), filter 460ms var(--ease-out); }
-.said-big .sw { display: inline-block; white-space: pre; animation: saidWrite 560ms cubic-bezier(.2,.7,.2,1) backwards; animation-delay: calc(var(--i) * 70ms); }
+.said .sb, .said-big .sw { display: inline-block; }
+.said-wrap.write .said { opacity: 0; }
+.said-wrap.fly .said { transform-origin: 0 0; will-change: transform, opacity; }
+.said-wrap:not(.done) .said .sb { visibility: hidden; }
+.said-big { position: absolute; left: 0; right: 0; top: 0; text-align: center; font-size: 26px; line-height: 1.22; padding: 0 6px; color: var(--tx); overflow-wrap: anywhere; pointer-events: none; }
+.said, .said-big { font-family: var(--f-ui); font-weight: 520; letter-spacing: -0.005em; }
+.said-big .sw { transform-origin: 0 0; animation: saidWrite 600ms cubic-bezier(.2,.7,.2,1) backwards; animation-delay: calc(var(--i) * 70ms); }
+.said-wrap.fly .said-big .sw { will-change: transform; }
 @keyframes saidWrite { from { opacity: 0; filter: blur(6px); transform: translateY(.22em); } to { opacity: 1; filter: blur(0); transform: none; } }
-.said-wrap.settled .said-big { opacity: 0; transform: translate(6%, -10%) scale(.55); filter: blur(3px); }
-@media (prefers-reduced-motion: reduce) { .said-big { display: none; } .said-wrap .said { opacity: 1; transform: none; transition: none; } }
-:root[data-motion='reduce'] .said-big { display: none; }
-:root[data-motion='reduce'] .said-wrap .said { opacity: 1; transform: none; transition: none; }
 .calm .w { animation-duration: 760ms; }

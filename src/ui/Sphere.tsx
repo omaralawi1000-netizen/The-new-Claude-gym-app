@@ -3,6 +3,7 @@ import { cancelFrame, frame } from 'motion/react';
 import { OverlayMeta, mirrorProgress, useEngageContext, type Engage } from './engage';
 import { mic } from '../lib/mic';
 import { useVoice } from '../state/voice';
+import { speakingLevel } from '../lib/voiceOut';
 import { useStore } from '../state/store';
 import { useUI, buzz } from '../state/ui';
 import { kb } from './keyboard';
@@ -51,7 +52,7 @@ function orbInputs(): OrbInputs {
   const tap = tapPending; tapPending = 0;
   const whoosh = whooshPending; whooshPending = 0;
   const ignite = ignitePending; ignitePending = 0;
-  return { phase: v.phase, phaseAge: (performance.now() - v.since) / 1000, live, raw: live ? mic.voice() : 0, bands: live ? mic.bands() : null, press: pressTarget, tap, whoosh, ignite };
+  return { phase: v.phase, phaseAge: (performance.now() - v.since) / 1000, live, raw: live ? mic.voice() : 0, bands: live ? mic.bands() : null, press: pressTarget, tap, whoosh, ignite, voiceOut: speakingLevel() };
 }
 
 // ── stage ───────────────────────────────────────────────────

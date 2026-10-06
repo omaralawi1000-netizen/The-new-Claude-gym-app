@@ -86,6 +86,8 @@ export interface OrbInputs {
   vis?: number;
   /** it has just arrived on the orb screen: spirals of light wind up it from the bottom (strength) */
   ignite?: number;
+  /** a reply being read aloud: the voice's level 0..1 (tts.speakingLevel), so the orb glows with what it says */
+  voiceOut?: number;
 }
 
 type Ctx2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
@@ -181,13 +183,15 @@ export class SphereRenderer {
     // real input — zero unless the microphone is genuinely live. Everything is smoothed here by TIME (not per call), with a
     // very fast attack so a syllable lands on the very frame it starts, and a slower release so it fades like a bell.
     const live = v.phase === 'listening' && inp.live;
-    const raw = live ? inp.raw : 0;
+    // reading a reply aloud, the same light follows its own voice — a little softer than yours, and never a buzz
+    const out = !live && inp.voiceOut ? Math.min(1, inp.voiceOut) * 0.8 : 0;
+    const raw = live ? inp.raw : out;
     const bands = live ? inp.bands : null;
     const att = (cur: number, to: number, up = 38, down = 7) => cur + (to - cur) * (1 - Math.exp(-dt * (to > cur ? up : down)));
     this.env = att(this.env, raw);
     this.body = att(this.body, raw, 9, 2.4);
     // a sudden rise in energy = a new syllable: a bloom and a flash of light run through it
-    if (live && !reduced && raw - this.prevV > 0.1 && raw > 0.18 && this.t - this.onsetAt > 0.11) {
+    if ((live || out) && !reduced && raw - this.prevV > 0.1 && raw > 0.18 && this.t - this.onsetAt > 0.11) {
       this.onsetAt = this.t;
       this.kickV += 0.8 + raw * 1.6;
       // a ring of light starts on the side facing you (a little off centre, never twice in the same spot) and runs round it
@@ -195,7 +199,7 @@ export class SphereRenderer {
       const ox = Math.cos(a) * r, oy = Math.sin(a) * r - 0.12;
       if (this.ripples.length >= 6) this.ripples.shift();
       this.ripples.push({ ox, oy, oz: Math.sqrt(Math.max(0, 1 - ox * ox - oy * oy)), age: 0, amp: Math.min(1, 0.45 + raw * 0.9) });
-      this.onOnset?.(raw);
+      if (live) this.onOnset?.(raw);
     }
     this.prevV = raw;
     for (const r of this.ripples) r.age += dt;

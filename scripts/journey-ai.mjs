@@ -4,7 +4,7 @@ import { launch, wait, skipOnboarding } from './lib.mjs';
 import assert from 'node:assert/strict';
 const { b, p, errors } = await launch({});
 const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' };
-const calls = { groq: 0, groqLive: 0, groqModels: 0, gen: [], stream: 0, tts: 0, agent: 0, agentStream: 0, lastSystem: '' };
+const calls = { groq: 0, groqLive: 0, align: 0, groqModels: 0, gen: [], stream: 0, tts: 0, agent: 0, agentStream: 0, lastSystem: '' };
 let groqMode = 'ok'; // ok | 401 | down
 let groqText = 'to hundrede gram skyr, en banan og zzzxq';
 await p.route('https://api.groq.com/**', async (r) => {
@@ -13,7 +13,17 @@ await p.route('https://api.groq.com/**', async (r) => {
   if (req.url().endsWith('/models')) { calls.groqModels++; return r.fulfill({ status: 200, headers: { ...cors, 'content-type': 'application/json' }, body: '{"data":[]}' }); }
   // the transcript when you stop uses the chosen (accurate) model; a fast-model request while speaking would be a live-word
   // preview — those were removed (late and often misheard), so there must be none
-  if ((req.postDataBuffer() ?? Buffer.alloc(0)).includes('whisper-large-v3-turbo')) calls.groqLive++; else calls.groq++;
+  const buf = req.postDataBuffer() ?? Buffer.alloc(0);
+  // read aloud: Whisper is asked once per piece for each word's exact start (word timestamps, prompted with the words);
+  // answered from the stand-in voice's own timing (tts.ts trims its lead-in to 30 ms before the first tone)
+  if (buf.includes('timestamp_granularities')) {
+    calls.align++;
+    const words = (/name="prompt"\r\n\r\n([^\r]*)/.exec(buf.toString('utf8'))?.[1] ?? '').split(/\s+/).filter(Boolean);
+    let t = 0.03; const out = [];
+    for (const w of words) { const d = 0.06 * Math.max(2, w.length); out.push({ word: w.replace(/[^\p{L}\p{N}]/gu, ''), start: +t.toFixed(3), end: +(t + d).toFixed(3) }); t += d + (/[.!?]$/.test(w) ? 0.3 : 0.05); }
+    return r.fulfill({ status: 200, headers: { ...cors, 'content-type': 'application/json' }, body: JSON.stringify({ text: words.join(' '), words: out }) });
+  }
+  if (buf.includes('whisper-large-v3-turbo')) calls.groqLive++; else calls.groq++;
   if (groqMode === '401') return r.fulfill({ status: 401, headers: cors, body: '{}' });
   if (groqMode === 'down') return r.abort('failed');
   return r.fulfill({ status: 200, headers: { ...cors, 'content-type': 'application/json' }, body: JSON.stringify({ text: groqText, language: 'danish', segments: [{ text: groqText, no_speech_prob: 0.01, avg_logprob: -0.2, compression_ratio: 1.1 }] }) });
@@ -183,6 +193,7 @@ assert.equal(calls.tts, ttsBefore, 'play used the prefetched audio (no new reque
 const lit1 = await p.locator('.w-on').first().textContent(); await p.screenshot({ path: 'shots/ai-9-reading.png' }); await wait(p, 900);
 const lit2 = await p.locator('.w-on').first().textContent().catch(() => null);
 assert(lit2 !== lit1, `the lit word moves along (${lit1} → ${lit2})`);
+assert(calls.align >= 1, 'Whisper was asked for the exact word times');
 await p.getByRole('button', { name: 'Stop reading' }).click(); await wait(p, 200);
 assert.equal(await p.locator('.w-on, .w-next').count(), 0, 'stop clears the highlight');
 await p.screenshot({ path: 'shots/ai-9-coach.png' });

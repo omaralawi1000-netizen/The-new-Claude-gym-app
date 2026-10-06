@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { cleanTranscript, buildPrompt, isEcho, isJunk, transcribe, SttError, STT_MODEL } from '../src/lib/groq';
 import { pickTextModels, limitError, parseSSE, partialReply, withFallback, AiError, nextQuotaReset, isExhausted, markExhausted, aiFoodRows, aiWorkoutRows, aiEstimateFood } from '../src/lib/gemini';
 import { validateFoodItems, validateWorkoutItems, validateEstimate, validateRoutine } from '../src/lib/aiValidate';
-import { pcmBytes, audioFrom, toSamples, speechWords, wordTimes, chunkRanges, speechSpan as voiceSpan } from '../src/lib/tts';
+import { pcmBytes, audioFrom, toSamples, speechWords, wordTimes, chunkRanges, speechSpan as voiceSpan, weightOf, alignHeard } from '../src/lib/tts';
 import { cleanSamples, speechSpan, toWav, highpass } from '../src/lib/audioprep';
 import { getKey, setKey, clearKeys, mask } from '../src/lib/keys';
 import { resolveRows, rowQuantity } from '../src/lib/foodText';
@@ -295,6 +295,36 @@ describe('read aloud', () => {
     // a pause nowhere near a phrase end is ignored
     const far = wordTimes(['one', 'two', 'three', 'four.', 'five', 'six'], 0, 3, [[0.05, 0.1]]);
     expect(far[1]).toBeGreaterThan(0.1);
+  });
+  it('weighs words by how long they take to say, not how they are spelled', () => {
+    expect(weightOf('through')).toBeLessThan(weightOf('protein'));       // 1 syllable vs 2, though 7 letters each
+    expect(weightOf('67')).toBeGreaterThan(weightOf('at'));
+    expect(weightOf('!')).toBeLessThan(1);
+  });
+  it('pins word boundaries to the breaths in the audio, so the light does not drift', () => {
+    // 8 words, each said for a known time; a 120 ms breath after words 2 and 5 (no punctuation there)
+    const words = 'push the bar up hard and slowly lower'.split(' ');
+    const dur = [0.3, 0.15, 0.25, 0.2, 0.3, 0.2, 0.45, 0.4];
+    const rate = 8000, starts: number[] = [];
+    let t = 0.1; const breaths: [number, number][] = [];
+    dur.forEach((d, i) => { starts.push(t); t += d; if (i === 2 || i === 5) { breaths.push([t, t + 0.12]); t += 0.12; } });
+    const x = new Float32Array(Math.ceil((t + 0.2) * rate));
+    starts.forEach((s0, i) => { for (let k = Math.round(s0 * rate); k < Math.round((s0 + dur[i]) * rate); k++) x[k] = 0.2 * Math.sin(k * 0.7); });
+    const sp = voiceSpan(x, rate);
+    expect(sp.gaps.length).toBe(2);
+    const est = wordTimes(words, sp.start, sp.end, sp.gaps);
+    expect(est[3]).toBeCloseTo(starts[3], 1);
+    expect(est[6]).toBeCloseTo(starts[6], 1);
+    for (let i = 0; i < words.length; i++) expect(Math.abs(est[i] - starts[i])).toBeLessThan(0.13);
+  });
+  it('takes each word\'s exact start from Whisper, matching through skips and spelling', () => {
+    const words = ['Bench', '3×8,', 'then', 'rest', 'two', 'minutes.'];
+    const est = [0, 0.4, 0.9, 1.2, 1.5, 1.8];
+    const heard = [{ word: 'Bench', start: 0.05 }, { word: '3x8', start: 0.5 }, { word: 'then', start: 1.1 }, { word: 'rests', start: 1.35 }, { word: 'minutes', start: 1.9 }];
+    const out = alignHeard(words, heard, est)!;
+    expect(out[0]).toBeCloseTo(0.05); expect(out[2]).toBeCloseTo(1.1); expect(out[3]).toBeCloseTo(1.35); expect(out[5]).toBeCloseTo(1.9);
+    expect(out[4]).toBeGreaterThan(1.35); expect(out[4]).toBeLessThan(1.9);   // unmatched: between its neighbours
+    expect(alignHeard(words, [{ word: 'hello', start: 0 }], est)).toBeNull(); // too little matched: keep the estimate
   });
   it('splits a long reply into a short first piece, then bigger ones, covering every word once', () => {
     const words = ('Yes. ' + 'This is a longer sentence with quite a few words in it, to read. '.repeat(8)).trim().split(/\s+/);

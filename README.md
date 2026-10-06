@@ -140,6 +140,33 @@ Run in headless Chromium (Playwright, 390×844 @2×, dark + light), scripts in `
 - **Not built (on purpose, stated in-app):** cloud sync / accounts; photo-based food estimation; automatic AI changes to your data (the Coach advises; routines and estimates only appear after you confirm; progression suggestions remain transparent rules); background reminders when the app is closed (web apps need a push server — reminders fire only while Aven runs; in-app nudge otherwise); animated exercise demonstrations (there is an authored muscle diagram and step-by-step text instead).
 - Exercise calories are **never** added to food targets.
 
+## Stacked pop-ups, sent words, read-aloud sync (6 Oct recordings)
+
+- **A pop-up behind another keeps its frost.** It used to turn solid until the top one closed. Now it stays the same glass, set back under the top sheet's dim. Only when two or more sheets are stacked on it does it go solid. That limit is a GPU-memory guard: three full-screen blurs once gave the phone black tiles.
+- **What you said shrinks into its bubble.** On the orb screen your words still write in large. Then the whole message shrinks into the sent bubble as one block, like a sent iMessage, and the bubble's glass gathers round the words as they land.
+  - The bubble keeps the big text's line breaks, so nothing reflows or crosses mid-flight.
+  - Each word is measured against its twin in the bubble, flown there on Apple's smooth spring, and swapped for it only once it sits exactly on top.
+  - The motion is browser-run (the compositor), so it draws at the full refresh rate.
+  - The big text now uses the bubble's typeface, so only the size changes on the way down.
+- **Read aloud lights up the word being said.** Three changes:
+  - Words now get time by syllables, not letters.
+  - Every clear breath in the audio re-pins the timing, not just full stops.
+  - The light follows what is coming out of the speaker (the audio output timestamp) instead of what was handed to it. That handover is what lit words early, more so over Bluetooth.
+  - **With a Groq key,** Whisper listens to each piece once (word timestamps, prompted with the exact words) and its times replace the estimate. This applies even while the piece is already playing. It costs one small Whisper request per piece the first time you play it; replays reuse the result.
+  - Measured on a stand-in voice with known word times (`scripts/sync-check.mjs`):
+    - before: worst word 155 ms off
+    - estimate alone now: 74 ms
+    - with Whisper: about 40–55 ms
+
+    Real speech varies more than the stand-in, and the phone's own output delay can only be checked on the phone.
+- **The orb glows with its own voice.** While a reply is read aloud, its light (never its shape) follows the voice's level, the same way it follows yours when you speak. There is no haptic buzz for this.
+- **New checks:**
+  - `scripts/morph.mjs`:
+    - The stacked-sheet frost: two sheets keep their blur, three drop it.
+    - The bubble flight: every word lands within 1 px of its twin, with no frame jumps.
+  - `scripts/sync-check.mjs`: the read-aloud timing.
+  - Both are in `run-all.sh`.
+
 ## Workout screen: second polish pass
 
 - **Rest controls live in the bar.** Tapping the bar while resting slides −15 / +15 / Skip in beside the time, between it and the orb. They used to float as a pill above the bar, over the sets. They close after 4 s.

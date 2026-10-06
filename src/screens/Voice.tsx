@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion, useTransform } from 'motion/react';
 import { useStore, allExercises } from '../state/store';
 import { useUI, buzz } from '../state/ui';
@@ -24,6 +24,7 @@ import { useOverlayZ } from '../ui/Sheet';
 import { ActionCard, RotatingHint, Rich, Words, SpeakButton, prefetchAloud, tidy, sttMessage, cardsNote } from '../ui/agentUi';
 import { stopSpeaking } from '../lib/tts';
 import { flyLogged } from '../ui/fly';
+import { apple, springCurve } from '../ui/motion';
 
 /** One thing you said and what the assistant did about it. `done` once the answer is complete (until then it streams in). */
 interface Turn1 { id: string; said: string; reply: string; results: AgentResult[]; undone: string[]; confirmed: string[]; done: boolean }
@@ -42,27 +43,83 @@ const VOICE_VEIL_HOLD = VOICE_VEIL.map((l) => ({ ...l, from: l.from * HOLD, to: 
  * actions, same Undo). There are no separate food / workout modes. A quick log closes by itself and leaves an Undo toast.
  */
 /**
- * What you said, as it lands: it writes itself in large and centred, word by word, the way you said it — then gently
- * shrinks and drifts up to the right into a small sent bubble, and the answer begins under it.
+ * What you said, as it lands: it writes itself in large and centred, word by word, the way you said it — then the whole
+ * message shrinks down into a small sent bubble on the right, like a sent iMessage: the bubble takes the same line breaks
+ * as the big text, so it is one calm move of one block (nothing reflows or crosses), and the bubble's glass gathers round
+ * the words as they arrive, on Apple's smooth spring. A real move, not a crossfade: every big word is measured against its
+ * twin in the bubble, flown there, and swapped for it once it sits exactly on top. Browser-run (Web Animations on
+ * transform/opacity), so it is drawn at the screen's full rate.
  */
+const SAID_FLY = springCurve(apple(0.6));
 function SaidMorph({ text, onSettled }: { text: string; onSettled: () => void }) {
   const reduce = useReducedMotion();
   const words = useMemo(() => text.split(/\s+/).filter(Boolean), [text]);
-  const [settled, setSettled] = useState(!!reduce || words.length > 40);
+  const instant = !!reduce || document.documentElement.dataset.motion === 'reduce' || words.length > 40;
+  const [phase, setPhase] = useState<'write' | 'fly' | 'done'>(instant ? 'done' : 'write');
+  const [breaks, setBreaks] = useState<number[]>([]); // words that end a line of the big text
+  const wrap = useRef<HTMLDivElement>(null);
+  const settledRef = useRef(onSettled); settledRef.current = onSettled;
   useEffect(() => {
-    if (settled) { onSettled(); return; }
-    // every word has arrived, then a short beat to read it, then it settles
-    const ms = 70 * Math.min(words.length, 18) + 560 + 380;
-    const id = setTimeout(() => { setSettled(true); onSettled(); }, ms);
+    if (instant) { onSettled(); return; }
+    // every word has arrived, then a short beat to read it, then it flies
+    const id = setTimeout(() => {
+      const big = wrap.current ? [...wrap.current.querySelectorAll<HTMLElement>('.said-big .sw')] : [];
+      const br: number[] = [];
+      for (let i = 0; i < big.length - 1; i++) if (big[i + 1].offsetTop > big[i].offsetTop + 2) br.push(i);
+      setBreaks(br); setPhase('fly');
+    }, 70 * Math.min(words.length, 18) + 600 + 380);
     return () => clearTimeout(id);
     // eslint-disable-next-line
   }, []);
+  // the bubble is now laid out with the big text's line breaks: measure both, fly
+  useLayoutEffect(() => {
+    if (phase !== 'fly') return;
+    const root = wrap.current;
+    const bubble = root?.querySelector<HTMLElement>('.said');
+    const big = root ? [...root.querySelectorAll<HTMLElement>('.said-big .sw')] : [];
+    const small = root ? [...root.querySelectorAll<HTMLElement>('.said .sb')] : [];
+    if (!root || !bubble || !big.length || big.length !== small.length) { setPhase('done'); settledRef.current(); return; }
+    const anims: Animation[] = [];
+    let gone = false;
+    const from = getComputedStyle(big[0]).color, to = getComputedStyle(small[0]).color;
+    const k = parseFloat(getComputedStyle(small[0]).fontSize) / parseFloat(getComputedStyle(big[0]).fontSize);
+    const opts = { duration: SAID_FLY.duration, easing: SAID_FLY.easing, fill: 'forwards' as const };
+    big.forEach((el, i) => {
+      const b = el.getBoundingClientRect(), s = small[i].getBoundingClientRect();
+      // land each word on its twin: left edges together, line centres together (the two line heights differ)
+      const dx = s.left - b.left, dy = s.top + s.height / 2 - (b.top + (b.height * k) / 2);
+      // the move on its own (run by the compositor, in step with the bubble's); the colour separately (it can't be)
+      anims.push(el.animate([{ transform: 'none' }, { transform: `translate(${dx}px, ${dy}px) scale(${k})` }], opts));
+      anims.push(el.animate([{ color: from }, { color: to }], { duration: 420, easing: 'ease-out', fill: 'forwards' }));
+    });
+    // the bubble starts as a faint frame round the big words (its first word on the big first word) and shrinks with them
+    const B = bubble.getBoundingClientRect(), b0 = big[0].getBoundingClientRect(), s0 = small[0].getBoundingClientRect();
+    const u = 1 / k;
+    // (never past its own right edge: the conversation clips there, and the round corner showed cut flat for a moment)
+    const bx = Math.min(b0.left - B.left - (s0.left - B.left) * u, B.width * (1 - u));
+    const by = b0.top + b0.height / 2 - B.top - (s0.top + s0.height / 2 - B.top) * u;
+    anims.push(bubble.animate([
+      { transform: `translate(${bx}px, ${by}px) scale(${u})`, opacity: 0 },
+      { opacity: 0.2, offset: 0.25 },
+      { opacity: 1, offset: 0.7 },
+      { transform: 'none', opacity: 1 },
+    ], opts));
+    // one start time for all of them, so no part can run a frame ahead of another
+    const at = document.timeline.currentTime;
+    if (at !== null) anims.forEach((x) => { x.startTime = at; });
+    Promise.all(anims.map((x) => x.finished)).then(() => { if (!gone) setPhase('done'); }, () => {});
+    // the answer starts writing in below while the words are still settling
+    const answer = setTimeout(() => settledRef.current(), 380);
+    return () => { gone = true; clearTimeout(answer); anims.forEach((x) => x.cancel()); };
+  }, [phase]);
   return (
-    <div className={`said-wrap${settled ? ' settled' : ''}`}>
-      <div className="said">{text}</div>
-      <div className="said-big display" aria-hidden>
-        {words.map((w, i) => <span key={i} className="sw" style={{ ['--i' as string]: Math.min(i, 18) }}>{w} </span>)}
-      </div>
+    <div ref={wrap} className={`said-wrap ${phase}`}>
+      <div className="said">{words.map((w, i) => <Fragment key={i}><span className="sb">{w}</span>{i === words.length - 1 ? null : breaks.includes(i) ? <br /> : ' '}</Fragment>)}</div>
+      {phase !== 'done' && (
+        <div className="said-big" aria-hidden>
+          {words.map((w, i) => <Fragment key={i}><span className="sw" style={{ ['--i' as string]: Math.min(i, 18) }}>{w}</span>{i < words.length - 1 ? ' ' : ''}</Fragment>)}
+        </div>
+      )}
     </div>
   );
 }

@@ -23,4 +23,6 @@ run sol node scripts/journey-sol.mjs
 run coach node scripts/journey-coach.mjs
 run drive node scripts/journey-drive.mjs
 run align node scripts/align.mjs
+run sync node scripts/sync-check.mjs
+run morph node scripts/morph.mjs
 echo "passed=$pass failed=$fail"

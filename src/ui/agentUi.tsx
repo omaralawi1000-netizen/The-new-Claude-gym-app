@@ -174,7 +174,7 @@ export const tidy = (s: string) => { const n = s.match(/\*\*/g)?.length ?? 0; if
 /** Gemini voice settings for reading a reply aloud (the key stays on the phone; it is only read here, at the moment of use). */
 export function ttsOpts(): TtsOpts {
   const m = useAi.getState();
-  return { key: getKey('gemini'), models: [m.models.tts || FALLBACK_TTS], voice: m.voice };
+  return { key: getKey('gemini'), models: [m.models.tts || FALLBACK_TTS], voice: m.voice, groqKey: getKey('groq') || undefined };
 }
 /** Read reply `id` aloud; a failure becomes a short toast, never a crash. */
 export function readAloud(id: string, text: string, t: (k: string) => string) {
