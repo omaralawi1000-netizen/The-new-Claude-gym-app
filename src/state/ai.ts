@@ -12,9 +12,10 @@ export interface AiPrefs {
   solFirst: boolean;                 // with an OpenAI key: GPT-6.1 Sol answers the orb and the Coach (Gemini is the fallback)
   effortOrb: 'medium' | 'high';      // how hard Sol thinks for the orb (speed matters: medium)
   effortCoach: 'medium' | 'high';    // …and in the Coach (depth matters: high)
+  solLimitKr: number;                // Sol rests (Gemini answers) once this month's estimated spend reaches this; 0 = no limit
   models: { fast: string; brain: string; fastAlt: string; brainAlt: string; tts: string };
 }
-const DEFAULTS: AiPrefs = { stt: 'accurate', voiceLang: 'auto', mic: 'phone', voice: 'Achird', brain: true, solFirst: true, effortOrb: 'medium', effortCoach: 'high', models: { fast: '', brain: '', fastAlt: '', brainAlt: '', tts: '' } };
+const DEFAULTS: AiPrefs = { stt: 'accurate', voiceLang: 'auto', mic: 'phone', voice: 'Achird', brain: true, solFirst: true, effortOrb: 'medium', effortCoach: 'high', solLimitKr: 100, models: { fast: '', brain: '', fastAlt: '', brainAlt: '', tts: '' } };
 
 function load(): AiPrefs {
   try { const v = JSON.parse(localStorage.getItem(KEY) || '{}'); return { ...DEFAULTS, ...v, models: { ...DEFAULTS.models, ...(v.models ?? {}) } }; } catch { return DEFAULTS; }
@@ -27,8 +28,8 @@ export const useAi = create<S>((set, get) => ({
   hasOpenai: !!getKey('openai'),
   patch: (p) => {
     set(p as Partial<S>);
-    const { stt, voiceLang, mic, voice, brain, solFirst, effortOrb, effortCoach, models } = get();
-    try { localStorage.setItem(KEY, JSON.stringify({ stt, voiceLang, mic, voice, brain, solFirst, effortOrb, effortCoach, models })); } catch { /* ignore */ }
+    const { stt, voiceLang, mic, voice, brain, solFirst, effortOrb, effortCoach, solLimitKr, models } = get();
+    try { localStorage.setItem(KEY, JSON.stringify({ stt, voiceLang, mic, voice, brain, solFirst, effortOrb, effortCoach, solLimitKr, models })); } catch { /* ignore */ }
   },
 }));
 onKeysChange(() => useAi.setState({ hasGroq: !!getKey('groq'), hasGemini: !!getKey('gemini'), hasOpenai: !!getKey('openai') }));

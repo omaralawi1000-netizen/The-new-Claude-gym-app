@@ -1,10 +1,11 @@
 import { useAi, solOn } from '../state/ai';
 import { useStore } from '../state/store';
 import { getKey } from './keys';
-import { AiError, FALLBACK_MODELS, aiAgent, aiAgentStream, type Brain, type Turn } from './gemini';
+import { AiError, FALLBACK_MODELS, aiAgent, aiAgentStream, type Brain, type Photo, type Turn } from './gemini';
 import { solAgent } from './openai';
 import { solThenGemini } from './brain';
-import { AGENT_SYSTEM, APP_GUIDE, buildAgentContext, exerciseNames } from './coachContext';
+import { overLimit } from './spend';
+import { AGENT_SYSTEM, APP_GUIDE, buildAgentContext, exerciseNames, memoryBlock } from './coachContext';
 import { localActions, validateAgent, type AgentAction } from './agent';
 import { mealName } from './derive';
 import { dayKey } from './dates';
@@ -22,7 +23,8 @@ export function agentModels(brain: boolean): string[] {
  */
 export function brainFor(o: { big: boolean; surface: 'orb' | 'coach'; signal?: AbortSignal }): Brain | null {
   const g = useAi.getState();
-  const sol = solOn(g) ? { key: getKey('openai'), effort: o.surface === 'coach' ? g.effortCoach : g.effortOrb } : undefined;
+  // past this month's spending limit Sol rests and Gemini answers (decide() says so)
+  const sol = solOn(g) && !overLimit(g.solLimitKr) ? { key: getKey('openai'), effort: o.surface === 'coach' ? g.effortCoach : g.effortOrb } : undefined;
   if (!sol && !g.hasGemini) return null;
   return { key: g.hasGemini ? getKey('gemini') : '', models: agentModels(o.big), signal: o.signal, sol };
 }
@@ -34,26 +36,30 @@ export interface Decision { reply: string; note: string; actions: AgentAction[];
  * app guide and a summary of the live data; otherwise — or if the AI fails — the built-in reader for simple logging. It only DECIDES:
  * the caller runs the actions (runActions) and shows them with Undo. Shared by the Coach chat and the orb screen.
  */
-export async function decide(text: string, o: { lang: Lang; t: (k: string, v?: Record<string, string | number>) => string; pool: Exercise[]; history: Turn[]; where: string; signal: AbortSignal; /** the orb thinks fast (medium), the Coach deeper (high) */ surface: 'orb' | 'coach'; /** the reply so far, while the model is still writing it (the orb screen streams it in) */ onReply?: (partial: string) => void }): Promise<Decision> {
+export async function decide(text: string, o: { lang: Lang; t: (k: string, v?: Record<string, string | number>) => string; pool: Exercise[]; history: Turn[]; where: string; signal: AbortSignal; /** the orb thinks fast (medium), the Coach deeper (high) */ surface: 'orb' | 'coach'; /** the reply so far, while the model is still writing it (the orb screen streams it in) */ onReply?: (partial: string) => void; /** a photo sent with this message (the Coach's camera) */ photo?: Photo }): Promise<Decision> {
   const st = useStore.getState();
   const g = useAi.getState();
   const { t, lang } = o;
   let reply = '', note = '';
   let actions: AgentAction[] = [];
   const brain = brainFor({ big: true, surface: o.surface, signal: o.signal });
+  const capped = solOn(g) && overLimit(g.solLimitKr);
+  if (capped && brain) note = t('This month’s GPT-6.1 Sol limit is reached, so Gemini answered.');
+  if (capped && !brain) reply = t('This month’s GPT-6.1 Sol limit is reached. Raise it in Settings → Voice & AI, or add a free Gemini key.');
   if (brain) {
     try {
       const today = dayKey(Date.now(), st.settings.dayStartHour);
       const names = new Map(o.pool.map((e) => [e.id, e.name]));
+      const muscles = new Map(o.pool.map((e) => [e.id, e.muscles]));
       const mealLabel = (id: string) => { const m = st.settings.meals.find((x) => x.id === id); return m ? mealName(m, lang) : id; };
       // what never changes comes first and the live data last: repeated requests then share a cached beginning (cheaper with OpenAI)
-      const system = `${AGENT_SYSTEM(lang)}\n\nGUIDE:\n${APP_GUIDE}\n\nEXERCISE CATALOG (use these exact names): ${exerciseNames(o.pool).join(', ')}\n\nWHERE THE USER IS: ${o.where}\n\nDATA (computed on this device just now):\n${buildAgentContext(st, today, (id) => names.get(id) ?? id, mealLabel)}`;
+      const system = `${AGENT_SYSTEM(lang)}\n\nGUIDE:\n${APP_GUIDE}\n\nEXERCISE CATALOG (use these exact names): ${exerciseNames(o.pool).join(', ')}\n\n${memoryBlock(st, (id) => names.get(id) ?? id)}\n\nWHERE THE USER IS: ${o.where}\n\nDATA (computed on this device just now):\n${buildAgentContext(st, today, (id) => names.get(id) ?? id, mealLabel, (id) => muscles.get(id))}`;
       const conv: Turn[] = [...o.history, { role: 'user', parts: [{ text }] }];
       // streamed when someone is watching the words arrive; a request the API refuses to stream is asked again the plain way
       const gemini = () => (o.onReply
-        ? aiAgentStream(system, conv, brain, o.onReply).catch((e) => { if (e?.code === 'badrequest') return aiAgent(system, conv, brain); throw e; })
-        : aiAgent(system, conv, brain));
-      const { value: raw, fellBack } = await solThenGemini(brain, (sol) => solAgent(system, conv, { ...sol, signal: o.signal }, o.onReply), () => { o.onReply?.(''); return gemini(); });
+        ? aiAgentStream(system, conv, brain, o.onReply, o.photo).catch((e) => { if (e?.code === 'badrequest') return aiAgent(system, conv, brain, o.photo); throw e; })
+        : aiAgent(system, conv, brain, o.photo));
+      const { value: raw, fellBack } = await solThenGemini(brain, (sol) => solAgent(system, conv, { ...sol, signal: o.signal }, o.onReply, o.photo), () => { o.onReply?.(''); return gemini(); });
       if (fellBack) note = fellBack.code === 'quota' ? t('Your OpenAI account is out of credit, so Gemini answered.') : t('GPT-6.1 Sol wasn’t available, so Gemini answered.');
       const v = validateAgent(raw);
       if (!v) throw new AiError('invalid');
@@ -64,6 +70,11 @@ export async function decide(text: string, o: { lang: Lang; t: (k: string, v?: R
       if (!local) throw e;
       actions = local; note = t(solOn(g) ? 'The AI wasn’t available, so I used the built-in reader.' : 'Gemini wasn’t available, so I used the built-in reader.');
     }
+  } else if (capped) {
+    const local = o.photo ? null : localActions(text); // simple logging still works; the reply above says why there is no AI
+    if (local) { actions = local; reply = ''; note = t('This month’s GPT-6.1 Sol limit is reached, so I used the built-in reader.'); }
+  } else if (o.photo) {
+    reply = t('To look at photos I need an AI key (Settings → Voice & AI).');
   } else {
     const local = localActions(text);
     if (local) actions = local;

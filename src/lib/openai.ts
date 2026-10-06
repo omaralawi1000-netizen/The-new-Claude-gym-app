@@ -7,8 +7,9 @@
  * high for the Coach), `text.format` as a strict JSON schema. The app's instructions come first and the live data last, so
  * OpenAI's prompt cache can bill the repeated part at a twentieth of the price.
  */
-import { AiError, AGENT_SCHEMA, ESTIMATE_SCHEMA, ESTIMATE_SYSTEM, PHOTO_SCHEMA, PHOTO_SYSTEM, parseSSE, partialReply, photoPrompt, readPhoto, type Turn } from './gemini';
+import { AiError, AGENT_SCHEMA, ESTIMATE_SCHEMA, ESTIMATE_SYSTEM, PHOTO_SCHEMA, PHOTO_SYSTEM, parseSSE, partialReply, photoPrompt, readPhoto, type Photo, type Turn } from './gemini';
 import { validateEstimate, type FoodEstimate } from './aiValidate';
+import { recordUsage } from './spend';
 
 export const OPENAI_API = 'https://api.openai.com/v1';
 export const OPENAI_MODEL = 'gpt-6.1-sol';
@@ -78,7 +79,12 @@ export function outputText(data: any): string {
 }
 
 type Input = { role: 'user' | 'assistant'; content: string | { type: string; [k: string]: unknown }[] }[];
-const toInput = (turns: Turn[]): Input => turns.map((x) => ({ role: x.role === 'model' ? 'assistant' : 'user', content: x.parts.map((p) => p.text).join('') }));
+const toInput = (turns: Turn[], photo?: Photo): Input => turns.map((x, i) => {
+  const text = x.parts.map((p) => p.text).join('');
+  // a photo rides with the last message, in front of its words
+  if (photo && i === turns.length - 1 && x.role === 'user') return { role: 'user', content: [{ type: 'input_image', image_url: `data:${photo.mime};base64,${photo.data}` }, { type: 'input_text', text }] };
+  return { role: x.role === 'model' ? 'assistant' : 'user', content: text };
+});
 const body = (o: { system: string; input: Input; schema: object; name: string; effort: Effort; stream?: boolean; maxTokens: number; cacheKey: string }) => ({
   model: OPENAI_MODEL, instructions: o.system, input: o.input, stream: !!o.stream, store: false,
   reasoning: { effort: o.effort },
@@ -93,6 +99,7 @@ async function json(sol: Sol, o: { system: string; input: Input; schema: object;
   const { res, done } = await request(sol.key, body({ ...o, effort: sol.effort, maxTokens: o.maxTokens ?? (sol.effort === 'high' ? 24000 : 12000) }), { timeout: firstWait(sol.effort), signal: sol.signal });
   try {
     const data = await res.json();
+    recordUsage(data?.usage);
     if (data?.status === 'incomplete' && !outputText(data)) throw fail('empty');
     try { return JSON.parse(outputText(data)); } catch { throw fail('invalid'); }
   } finally { done(); }
@@ -109,8 +116,9 @@ async function stream(sol: Sol, o: { system: string; input: Input; schema: objec
   let buf = '', full = '', failed: AiError | null = null, idle: ReturnType<typeof setTimeout> | undefined;
   const handle = (ev: any) => {
     if (ev?.type === 'response.output_text.delta' && typeof ev.delta === 'string') { full += ev.delta; onText(full); }
+    else if (ev?.type === 'response.completed' || ev?.type === 'response.incomplete') recordUsage(ev.response?.usage);
     else if (ev?.type === 'response.failed' || ev?.type === 'error') failed = fail('failed');
-    else if (ev?.type === 'response.incomplete' && !full) failed = fail('empty');
+    if (ev?.type === 'response.incomplete' && !full) failed = fail('empty');
   };
   try {
     for (;;) {
@@ -132,8 +140,8 @@ async function stream(sol: Sol, o: { system: string; input: Input; schema: objec
 
 // ── what the app asks ───────────────────────────────────────
 /** One agent turn (the orb and the Coach): { reply, actions }, unvalidated — see agent.ts. Streams the reply when watched. */
-export async function solAgent(system: string, turns: Turn[], sol: Sol, onReply?: (text: string) => void): Promise<unknown> {
-  const o = { system, input: toInput(turns), schema: AGENT_SCHEMA, name: 'agent_turn', cacheKey: 'aven-agent' };
+export async function solAgent(system: string, turns: Turn[], sol: Sol, onReply?: (text: string) => void, photo?: Photo): Promise<unknown> {
+  const o = { system, input: toInput(turns, photo), schema: AGENT_SCHEMA, name: 'agent_turn', cacheKey: 'aven-agent' };
   if (!onReply) return json(sol, o);
   let shown = '';
   const full = await stream(sol, o, (all) => { const r = partialReply(all); if (r !== shown) { shown = r; onReply(r); } });

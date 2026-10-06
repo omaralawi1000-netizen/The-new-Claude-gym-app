@@ -243,21 +243,25 @@ const noThinking = new Set<string>();
 export interface Turn { role: 'user' | 'model'; parts: { text: string }[] }
 
 // ── the Coach as an agent: one answer = a short reply plus the actions to carry out ──
-const ACTION_TYPES = ['log_food', 'log_water', 'log_weight', 'log_sets', 'log_activity', 'start_workout', 'finish_workout', 'navigate', 'set_setting', 'edit_food', 'delete_food', 'move_food', 'copy_food', 'replace_food', 'create_food', 'favourite_food', 'save_meal', 'edit_set', 'add_exercise', 'remove_exercise', 'replace_exercise', 'create_routine', 'edit_routine', 'delete_routine', 'delete_workout', 'discard_workout', 'set_schedule', 'delete_activity', 'delete_weight', 'add_note', 'undo_last'];
+const ACTION_TYPES = ['log_food', 'log_water', 'log_weight', 'log_sets', 'log_activity', 'start_workout', 'finish_workout', 'navigate', 'set_setting', 'edit_food', 'delete_food', 'move_food', 'copy_food', 'replace_food', 'create_food', 'favourite_food', 'save_meal', 'edit_set', 'add_exercise', 'remove_exercise', 'replace_exercise', 'create_routine', 'edit_routine', 'delete_routine', 'delete_workout', 'discard_workout', 'set_schedule', 'delete_activity', 'delete_weight', 'add_note', 'remember', 'forget', 'show_exercise', 'suggest_food', 'undo_last'];
 const BIT = { type: 'ARRAY', nullable: true, items: { type: 'OBJECT', properties: { exercise: { type: 'STRING' }, sets: { type: 'INTEGER', nullable: true }, repMin: { type: 'INTEGER', nullable: true }, repMax: { type: 'INTEGER', nullable: true }, restSec: { type: 'INTEGER', nullable: true } }, required: ['exercise'] } };
 const NUTRI = (d: string) => ({ type: 'OBJECT', nullable: true, description: d, properties: { kcal: { type: 'NUMBER', nullable: true }, protein: { type: 'NUMBER', nullable: true }, carbs: { type: 'NUMBER', nullable: true }, fat: { type: 'NUMBER', nullable: true } } });
+const AGENT_FOOD = { type: 'OBJECT', properties: {
+  name: { type: 'STRING' }, brand: { type: 'STRING', nullable: true },
+  amount: { type: 'NUMBER', nullable: true, description: 'quantity exactly as said; null if none was said' },
+  unit: { type: 'STRING', nullable: true, enum: FOOD_UNITS },
+  state: { type: 'STRING', nullable: true, enum: ['raw', 'cooked', 'dry'] },
+}, required: ['name'] };
 export const AGENT_SCHEMA = {
   type: 'OBJECT',
   properties: {
     reply: { type: 'STRING', description: 'what to say to the user: short, natural, in their language. Never claim something was done unless you put it in actions.' },
     actions: { type: 'ARRAY', items: { type: 'OBJECT', properties: {
       type: { type: 'STRING', enum: ACTION_TYPES },
-      foods: { type: 'ARRAY', nullable: true, items: { type: 'OBJECT', properties: {
-        name: { type: 'STRING' }, brand: { type: 'STRING', nullable: true },
-        amount: { type: 'NUMBER', nullable: true, description: 'quantity exactly as said; null if none was said' },
-        unit: { type: 'STRING', nullable: true, enum: FOOD_UNITS },
-        state: { type: 'STRING', nullable: true, enum: ['raw', 'cooked', 'dry'] },
-      }, required: ['name'] } },
+      foods: { type: 'ARRAY', nullable: true, items: AGENT_FOOD },
+      options: { type: 'ARRAY', nullable: true, description: 'suggest_food: 2–3 things to eat, each with its foods (amounts filled in) and approximate totals', items: { type: 'OBJECT', properties: {
+        label: { type: 'STRING', description: 'a short name, e.g. "Skyr with banana"' }, foods: { type: 'ARRAY', items: AGENT_FOOD }, totals: NUTRI('approximate totals for this option'),
+      }, required: ['label', 'foods'] } },
       meal: { type: 'STRING', nullable: true, description: 'meal name if the user said one (breakfast, lunch, dinner, snacks…)' },
       day: { type: 'STRING', nullable: true, description: 'today, yesterday, or a date YYYY-MM-DD (work it out from "Today" in DATA)' },
       day_to: { type: 'STRING', nullable: true, description: 'move_food/copy_food: destination day (today, yesterday or YYYY-MM-DD)' },
@@ -268,17 +272,18 @@ export const AGENT_SCHEMA = {
         exercise: { type: 'STRING' },
         sets: { type: 'ARRAY', items: { type: 'OBJECT', properties: { kg: { type: 'NUMBER', nullable: true }, reps: { type: 'INTEGER', nullable: true }, durationSec: { type: 'INTEGER', nullable: true }, distanceKm: { type: 'NUMBER', nullable: true } } } },
       }, required: ['exercise', 'sets'] } },
-      kind: { type: 'STRING', nullable: true }, minutes: { type: 'NUMBER', nullable: true }, rounds: { type: 'INTEGER', nullable: true }, intensity: { type: 'INTEGER', nullable: true }, note: { type: 'STRING', nullable: true },
+      kind: { type: 'STRING', nullable: true, description: 'log_activity: the activity. remember: goal | preference | health | schedule | gear | food | other' }, minutes: { type: 'NUMBER', nullable: true }, rounds: { type: 'INTEGER', nullable: true }, intensity: { type: 'INTEGER', nullable: true }, note: { type: 'STRING', nullable: true },
       routine: { type: 'STRING', nullable: true }, screen: { type: 'STRING', nullable: true }, section: { type: 'STRING', nullable: true },
       key: { type: 'STRING', nullable: true }, value: { type: 'STRING', nullable: true },
       with: { type: 'OBJECT', nullable: true, description: 'replace_food: the food to put in its place', properties: { name: { type: 'STRING' }, brand: { type: 'STRING', nullable: true }, amount: { type: 'NUMBER', nullable: true }, unit: { type: 'STRING', nullable: true, enum: FOOD_UNITS }, state: { type: 'STRING', nullable: true, enum: ['raw', 'cooked', 'dry'] } }, required: ['name'] },
       name: { type: 'STRING', nullable: true, description: 'create_food / favourite_food / save_meal: the name' },
       basis: { type: 'STRING', nullable: true, enum: ['g', 'ml'] }, on: { type: 'BOOLEAN', nullable: true },
-      exercise: { type: 'STRING', nullable: true }, workout: { type: 'STRING', nullable: true, description: 'edit_set/delete_workout: current, last, a date YYYY-MM-DD, or a workout name' },
+      exercise: { type: 'STRING', nullable: true, description: 'edit_set: the exercise. remember: the catalog exercise it is about, if any. show_exercise: the catalog exercise to show' }, workout: { type: 'STRING', nullable: true, description: 'edit_set/delete_workout: current, last, a date YYYY-MM-DD, or a workout name' },
       set_number: { type: 'INTEGER', nullable: true, description: '1-based set number as listed in DATA' }, reps: { type: 'INTEGER', nullable: true }, delete_set: { type: 'BOOLEAN', nullable: true, description: 'edit_set: true to delete that set' }, remove: { type: 'ARRAY', nullable: true, items: { type: 'STRING' }, description: 'edit_routine: exercise names to take out of the routine' },
       from: { type: 'STRING', nullable: true }, to: { type: 'STRING', nullable: true },
       add: BIT, change: BIT, rename: { type: 'STRING', nullable: true },
-      weekday: { type: 'INTEGER', nullable: true, description: '0 = Sunday … 6 = Saturday' }, text: { type: 'STRING', nullable: true },
+      weekday: { type: 'INTEGER', nullable: true, description: '0 = Sunday … 6 = Saturday' }, text: { type: 'STRING', nullable: true, description: 'add_note: the note. remember: one short third-person line, e.g. "Doesn\'t do a separate leg day; wrestling covers legs."' },
+      memory: { type: 'STRING', nullable: true, description: 'forget: the number of the MEMORY line to drop, e.g. "3"' },
       target: { type: 'STRING', nullable: true, description: 'edit_food / delete_food: the logged item\'s name exactly as in DATA' },
       amount: { type: 'NUMBER', nullable: true, description: 'edit_food: the corrected amount' }, unit: { type: 'STRING', nullable: true, description: 'edit_food: unit of amount (g, ml, kg, l, piece)' },
       per100: NUTRI('edit_food: corrected label values per 100 g/ml (only the ones the user gave)'),
@@ -289,10 +294,17 @@ export const AGENT_SCHEMA = {
 };
 
 /** One agent turn: the conversation so far in, { reply, actions } out (unvalidated — see agent.ts). */
-export async function aiAgent(system: string, contents: Turn[], brain: Brain): Promise<unknown> {
+/** A photo sent with the last message: Gemini reads it as an inline image part in front of the words. */
+export interface Photo { mime: string; data: string }
+const withPhoto = (contents: Turn[], photo?: Photo): unknown[] => {
+  if (!photo || !contents.length) return contents;
+  const last = contents[contents.length - 1];
+  return [...contents.slice(0, -1), { role: last.role, parts: [{ inline_data: { mime_type: photo.mime, data: photo.data } }, ...last.parts] }];
+};
+export async function aiAgent(system: string, contents: Turn[], brain: Brain, photo?: Photo): Promise<unknown> {
   const run = async (model: string, think: boolean): Promise<unknown> => {
     const { res, done } = await post(`models/${encodeURIComponent(model)}:generateContent`, brain.key, {
-      systemInstruction: { parts: [{ text: system }] }, contents,
+      systemInstruction: { parts: [{ text: system }] }, contents: withPhoto(contents, photo),
       generationConfig: { temperature: 0.3, responseMimeType: 'application/json', responseSchema: AGENT_SCHEMA, maxOutputTokens: 3072, ...(think ? { thinkingConfig: { thinkingBudget: 512 } } : {}) },
     }, { timeout: 30000, signal: brain.signal });
     try { const data = await res.json(); try { return JSON.parse(textOf(data)); } catch { throw new AiError('invalid'); } } finally { done(); }
@@ -332,10 +344,10 @@ export function partialReply(src: string): string {
  * One agent turn, streamed: the same answer as aiAgent, but the reply is handed to `onReply` word by word while the model is
  * still writing it (the orb screen shows it as it comes), then the whole answer is parsed and returned for validation.
  */
-export async function aiAgentStream(system: string, contents: Turn[], brain: Brain, onReply: (text: string) => void): Promise<unknown> {
+export async function aiAgentStream(system: string, contents: Turn[], brain: Brain, onReply: (text: string) => void, photo?: Photo): Promise<unknown> {
   const run = async (model: string, think: boolean): Promise<unknown> => {
     const { res, done } = await post(`models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`, brain.key, {
-      systemInstruction: { parts: [{ text: system }] }, contents,
+      systemInstruction: { parts: [{ text: system }] }, contents: withPhoto(contents, photo),
       generationConfig: { temperature: 0.3, responseMimeType: 'application/json', responseSchema: AGENT_SCHEMA_STREAM, maxOutputTokens: 3072, ...(think ? { thinkingConfig: { thinkingBudget: 512 } } : {}) },
     }, { timeout: 30000, signal: brain.signal });
     done();

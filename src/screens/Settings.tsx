@@ -18,6 +18,7 @@ import { dayKey, fmtDuration } from '../lib/dates';
 import { useAi } from '../state/ai';
 import { clearKeys } from '../lib/keys';
 import { VoiceAiSettings } from './VoiceAi';
+import { CoachMemory } from './CoachMemory';
 import { setFpsMeter, useFpsMeterOn } from '../ui/FpsMeter';
 import { startStutter, stopStutter, stutterReport, stutterState, subscribeStutter } from '../lib/stutter';
 
@@ -38,7 +39,7 @@ const TITLE = {
   exit: (d: number) => ({ opacity: 0, transform: `translateX(${d * -14}px)`, transition: { duration: 0.11, ease: [0.4, 0, 1, 1] as const } }),
 };
 
-type Section = null | 'today' | 'targets' | 'training' | 'food' | 'units' | 'look' | 'reminders' | 'data' | 'privacy' | 'ai' | 'about';
+type Section = null | 'today' | 'targets' | 'training' | 'food' | 'units' | 'look' | 'reminders' | 'data' | 'privacy' | 'ai' | 'memory' | 'about';
 
 function Row({ icon, title, sub, onClick, value }: { icon: any; title: string; sub?: string; onClick: () => void; value?: string }) {
   return (
@@ -118,7 +119,7 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
   const ai = useAi();
   const set = s.updateSettings;
   const st = s.settings;
-  const titles: Record<string, string> = { targets: t('Targets'), training: t('Training'), food: t('Food & water'), units: t('Units & locale'), look: t('Appearance'), today: t('Today'), reminders: t('Reminders'), data: t('Data & backup'), privacy: t('Privacy'), ai: t('Voice & AI'), about: t('About Aven') };
+  const titles: Record<string, string> = { targets: t('Targets'), training: t('Training'), food: t('Food & water'), units: t('Units & locale'), look: t('Appearance'), today: t('Today'), reminders: t('Reminders'), data: t('Data & backup'), privacy: t('Privacy'), ai: t('Voice & AI'), memory: t('Coach memory'), about: t('About Aven') };
   const goBack = () => (sec && !props.section ? setSec(null) : pop());
   const moved = useRef(false); if (sec !== (props.section ?? null)) moved.current = true; // once you've moved between pages, pages settle in
 
@@ -143,6 +144,7 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
                   <Row icon="moon" title={t('Appearance')} sub={`${t(st.theme === 'system' ? 'System' : st.theme === 'dark' ? 'Dark' : 'Light')} · ${t(st.motion === 'system' ? 'Motion: system' : st.motion === 'reduce' ? 'Reduced motion' : 'Full motion')}`} onClick={() => setSec('look')} />
                   <Row icon="today" title={t('Today')} sub={t('Choose what Today shows')} onClick={() => setSec('today')} />
                   <Row icon="sparkle" title={t('Voice & AI')} sub={ai.hasGroq || ai.hasGemini || ai.hasOpenai ? [ai.hasGroq ? 'Groq' : '', ai.hasOpenai && ai.solFirst ? 'GPT-6.1 Sol' : '', ai.hasGemini ? 'Gemini' : ''].filter(Boolean).join(' + ') : undefined} onClick={() => setSec('ai')} />
+                  <Row icon="note" title={t('Coach memory')} sub={s.memory.length ? t('{n} things the Coach knows about you', { n: s.memory.length }) : t('What the Coach knows about you')} onClick={() => setSec('memory')} />
                   <Row icon="bell" title={t('Reminders')} onClick={() => setSec('reminders')} />
                   <Row icon="download" title={t('Data & backup')} onClick={() => setSec('data')} />
                   <Row icon="shield" title={t('Privacy')} onClick={() => setSec('privacy')} />
@@ -195,12 +197,13 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
             {sec === 'reminders' && <Reminders />}
             {sec === 'data' && <DataSection />}
             {sec === 'ai' && <VoiceAiSettings />}
+            {sec === 'memory' && <CoachMemory />}
             {sec === 'privacy' && (
               <div className="stack gap12 small">
                 <p style={{ margin: 0 }}><b>{t('Everything stays on this device.')}</b> {t('Aven has no account and no analytics. Your workouts, meals, weight and photos are stored in this browser’s local storage and IndexedDB.')}</p>
                 <p style={{ margin: 0 }}><b>{t('Food lookup')}</b>: {t('when on, the text you search is sent to Aven’s lookup server, which forwards it to Open Food Facts and USDA FoodData Central. Nothing else is sent. Turn it off in Food & water.')}</p>
                 <p style={{ margin: 0 }}><b>{t('Dictation')}</b>: {t('without a Groq key, speech-to-text is performed by your browser (on Chrome this is a Google cloud service). With a Groq key, your recording is sent to Groq instead. Either way Aven never stores audio; it only reads the microphone level to animate the sphere while you speak.')}</p>
-                <p style={{ margin: 0 }}><b>{t('Voice & AI')}</b>: {t('only if you add keys. Text you dictate or ask the Coach (plus a short summary of your targets and training for the Coach) goes to Google Gemini. API keys are stored only in this browser and are never part of exports or backups.')}</p>
+                <p style={{ margin: 0 }}><b>{t('Voice & AI')}</b>: {t('only if you add keys. Text you dictate or ask the Coach (plus a short summary of your targets and training, and the Coach memory) goes to Google Gemini, or to OpenAI when GPT-6.1 Sol is on. API keys are stored only in this browser and are never part of exports or backups.')}</p>
                 <p style={{ margin: 0 }}><b>{t('Photos')}</b>: {t('saved only on this device, stripped of location data, and not included in exports unless you choose.')}</p>
                 <p style={{ margin: 0 }}>{t('Clearing browser data removes everything. Export a backup first (Data & backup).')}</p>
               </div>

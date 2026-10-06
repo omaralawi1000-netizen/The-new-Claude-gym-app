@@ -9,9 +9,10 @@ import { Sheet, SheetHead, SOFT } from '../../ui/Sheet';
 import { SphereSlot } from '../../ui/Sphere';
 import { Icon } from '../../ui/Icon';
 import { getKey } from '../../lib/keys';
-import { downscale } from '../../lib/photos';
+import { blobToBase64, downscale } from '../../lib/photos';
 import { aiErrorText, FALLBACK_MODELS } from '../../lib/gemini';
 import { estimatePhoto } from '../../lib/brain';
+import { overLimit } from '../../lib/spend';
 import type { FoodEstimate } from '../../lib/aiValidate';
 import { quickEntry } from '../../lib/nutrition';
 import { mealName } from '../../lib/derive';
@@ -20,11 +21,6 @@ import { fmtNum } from '../../lib/units';
 interface Item extends FoodEstimate { on: boolean; k: number }
 const PORTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
-async function toBase64(b: Blob): Promise<string> {
-  const buf = new Uint8Array(await b.arrayBuffer());
-  let s = ''; for (let i = 0; i < buf.length; i += 0x8000) s += String.fromCharCode(...buf.subarray(i, i + 0x8000));
-  return btoa(s);
-}
 
 /** Snap your plate: a photo → Gemini's per-item estimate → you adjust portions → logged as clearly labelled AI estimates. */
 export function PhotoFood({ props }: { props: { date: string; mealId: string } }) {
@@ -55,8 +51,8 @@ export function PhotoFood({ props }: { props: { date: string; mealId: string } }
     const a = useAi.getState(), m = a.models;
     try {
       // GPT-6.1 Sol (medium) when it is on, Gemini otherwise or if Sol can't answer
-      const brain = { key: a.hasGemini ? getKey('gemini') : '', models: [...new Set([m.fast || FALLBACK_MODELS.fast, m.brain || FALLBACK_MODELS.brain].filter(Boolean))], signal: ctl.current.signal, sol: solOn(a) ? { key: getKey('openai'), effort: a.effortOrb } : undefined };
-      const r = await estimatePhoto({ mime: 'image/jpeg', data: await toBase64(blob) }, brain, lang, hint.trim());
+      const brain = { key: a.hasGemini ? getKey('gemini') : '', models: [...new Set([m.fast || FALLBACK_MODELS.fast, m.brain || FALLBACK_MODELS.brain].filter(Boolean))], signal: ctl.current.signal, sol: solOn(a) && !overLimit(a.solLimitKr) ? { key: getKey('openai'), effort: a.effortOrb } : undefined };
+      const r = await estimatePhoto({ mime: 'image/jpeg', data: await blobToBase64(blob) }, brain, lang, hint.trim());
       setItems(r.items.map((x) => ({ ...x, on: true, k: 1 }))); setAssume(r.assumptions);
       buzz(10); useVoice.getState().go('review');
     } catch (e: any) {

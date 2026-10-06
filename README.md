@@ -15,7 +15,7 @@ npm run dev          # app on :5173 (proxies /api → :8787)
 npm run server       # optional lookup server on :8787 (Open Food Facts + USDA)
 # or one process for everything:
 npm run build && npm start   # serves dist/ and /api on :8787
-npm test             # 128 unit/integration tests (nutrition maths, parsers, dates, records, navigation, AI clients, lookup server)
+npm test             # 144 unit/integration tests (nutrition maths, parsers, dates, records, navigation, AI clients, lookup server)
 ./scripts/run-all.sh # typecheck + tests + build + all browser journeys (needs `npm run dev` and the mock server running)
 ```
 
@@ -139,6 +139,43 @@ Run in headless Chromium (Playwright, 390×844 @2×, dark + light), scripts in `
 - **Needs an integration you must supply:** a Groq key and a Gemini key (both free tiers, typed in Settings → Voice & AI; optional); `USDA_API_KEY` (free); a host for `server/` if you want online lookup in production.
 - **Not built (on purpose, stated in-app):** cloud sync / accounts; photo-based food estimation; automatic AI changes to your data (the Coach advises; routines and estimates only appear after you confirm; progression suggestions remain transparent rules); background reminders when the app is closed (web apps need a push server — reminders fire only while Aven runs; in-app nudge otherwise); animated exercise demonstrations (there is an authored muscle diagram and step-by-step text instead).
 - Exercise calories are **never** added to food targets.
+
+## A Coach that remembers: memory, per-muscle training, a camera, a weekly review
+
+**Memory (`MemoryNote` in the app's data, so it's in backups).**
+- **What it saves:** lasting things you tell the Coach, such as "no separate leg day, wrestling covers legs", "left shoulder hurts on overhead press", or your goals, schedule and gym. Each one is saved with a `remember` action and shows up as a "Remembered" card with Undo.
+- **How it's used:** every request carries a numbered MEMORY block. The model can `forget` a note by its number or by its words. A rewording updates the old note instead of adding a twin. The limit is 40 notes.
+- **Rules it follows:**
+  - Never repeat advice the user has declined.
+  - Raise a deliberate choice at most once.
+  - Ask, don't assume: when advice depends on something the data can't show (such as no leg sessions), ask one question and remember the answer.
+- **Where you see it:** Settings → Coach memory lists every note, and you can reword (tap), add or remove (with Undo) any of them. A note tied to an exercise appears beside that exercise in the live workout, with a Swap button.
+- **The chat stays:** the conversation is kept on the phone (last 60 messages) until "New chat". Older messages are dated for the model, so "today" in an old message isn't read as today.
+
+**Per-muscle training (`setsPerMuscle`).**
+- **Weekly sets:** the Coach sees hard sets per muscle for the last 7 days and the 4-week average. The main muscle counts 1 set and the others ½.
+- **Wrestling:** described as hard lower-body, hip, grip and conditioning work, along with the days you usually wrestle. The Coach is told never to call your legs untrained when you wrestle, and to plan around wrestling days.
+- **Stalled lifts (`stalledLifts`):** a lift with no new estimated best in its last 3 sessions (over 10+ days) is listed for the Coach.
+
+**Camera in the Coach.**
+- **Sending:** pick a photo (camera or gallery), then ask about it or just send it. It goes to GPT-6.1 Sol as an `input_image` or to Gemini as `inline_data`.
+- **What it does with it:**
+  - a nutrition label becomes `create_food` with the exact per-100 g values
+  - a machine becomes `show_exercise`, a card with "How to do it" and "Add to workout"
+  - a program screenshot becomes `create_routine`
+- **Privacy:** photos are never stored. A reopened chat shows "Photo" in their place.
+
+**What to eat.** "What should I eat?" returns 2–3 `suggest_food` cards built from your most frequent foods of the last 30 days, each with approximate totals. One tap logs that option, with Undo.
+
+**Weekly review.** It shows on the last day of the week from midday and on the first day of the next. It covers workouts (plus wrestling), protein per day against your target, the weight trend (estimate), new records and one stalled lift. "Plan next week with the Coach" opens the Coach with that question. Everything is computed on the phone; nothing is sent until you tap.
+
+**Sol spending meter.**
+- **How it counts:** from the `usage` OpenAI returns with every answer, at list price ($2 / $0.10 cached / $10 per million tokens, about 6.5 kr per dollar). It's shown in Settings → Voice & AI as an estimate.
+- **Monthly limit:** default 100 kr. Once reached, Sol rests and Gemini answers until the month turns, and the reply says why.
+
+**Tests.**
+- `tests/coach.test.ts` covers memory, per-muscle counting, stalls, the weekly review, suggestions, the spend maths, and photos reaching both APIs.
+- `scripts/journey-coach.mjs` walks through it all in the browser with Gemini stubbed.
 
 ## Polish pass: routine editor, fades, a sturdier serif, GPT-6.1 Sol
 

@@ -1,6 +1,9 @@
-import type { AppData, Schedule, Settings, Lang } from '../lib/types';
+import type { AppData, MemoryKind, Schedule, Settings, Lang } from '../lib/types';
 
 export const DATA_VERSION = 1;
+/** The Coach remembers at most this many things: each one is sent with every question, so the list stays short and sharp. */
+export const MEMORY_MAX = 40;
+export const MEMORY_KINDS: MemoryKind[] = ['goal', 'preference', 'health', 'schedule', 'gear', 'food', 'other'];
 
 export function detectLang(): Lang {
   try { return navigator.language?.toLowerCase().startsWith('da') ? 'da' : 'en'; } catch { return 'en'; }
@@ -47,7 +50,7 @@ export function defaultData(lang: Lang = 'en'): AppData {
     settings: defaultSettings(lang),
     foods: [], favourites: [], savedMeals: [], recipes: [], entries: [], water: [],
     exercises: [], routines: [], schedule: defaultSchedule(), sessions: [], active: null,
-    weights: [], measurements: [], photos: [], activities: [], notes: [], choices: {}, increments: {},
+    weights: [], measurements: [], photos: [], activities: [], notes: [], choices: {}, increments: {}, memory: [],
     demo: false,
   };
 }
@@ -67,6 +70,9 @@ export function normaliseData(raw: any, lang: Lang = 'en'): AppData {
     weights: arr('weights'), measurements: arr('measurements'), photos: arr('photos'), activities: arr('activities'), notes: arr('notes'),
     choices: raw.choices && typeof raw.choices === 'object' && !Array.isArray(raw.choices) ? raw.choices : {},
     increments: raw.increments && typeof raw.increments === 'object' && !Array.isArray(raw.increments) ? raw.increments : {},
+    // a hand-edited or older backup: keep only notes that still make sense
+    memory: (Array.isArray(raw.memory) ? raw.memory : []).filter((m: any) => m && typeof m.text === 'string' && m.text.trim() && typeof m.id === 'string').slice(0, MEMORY_MAX)
+      .map((m: any) => ({ id: m.id, text: m.text.trim().slice(0, 240), kind: MEMORY_KINDS.includes(m.kind) ? m.kind : 'other', at: typeof m.at === 'number' ? m.at : 0, ...(Array.isArray(m.exerciseIds) && m.exerciseIds.length ? { exerciseIds: m.exerciseIds.filter((x: unknown) => typeof x === 'string').slice(0, 6) } : {}) })),
     demo: !!raw.demo,
   };
 }

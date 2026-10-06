@@ -34,3 +34,10 @@ export async function downscale(file: File, max = 1280): Promise<Blob> {
   c.getContext('2d')!.drawImage(bmp, 0, 0, c.width, c.height);
   return new Promise((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error('encode'))), 'image/jpeg', 0.82));
 }
+
+/** A picture's bytes as base64 (to send it to the AI). */
+export async function blobToBase64(b: Blob): Promise<string> {
+  const buf = new Uint8Array(await b.arrayBuffer());
+  let s = ''; for (let i = 0; i < buf.length; i += 0x8000) s += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+  return btoa(s);
+}

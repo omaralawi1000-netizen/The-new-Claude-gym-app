@@ -11,23 +11,39 @@ import { useVoice } from '../state/voice';
 import { mic } from '../lib/mic';
 import { getKey } from '../lib/keys';
 import { transcribe, buildPrompt, STT_MODEL, SttError } from '../lib/groq';
-import { aiErrorText, type Turn } from '../lib/gemini';
+import { aiErrorText, type Photo, type Turn } from '../lib/gemini';
 import { stopSpeaking } from '../lib/tts';
 import { decide, brainFor } from '../lib/agentTurn';
-import { ActionCard, Rich, TypingDots, SpeakButton, prefetchAloud, tidy, sttMessage, useCoachTips } from '../ui/agentUi';
+import { ActionCard, Rich, TypingDots, SpeakButton, prefetchAloud, tidy, sttMessage, useCoachTips, cardsNote } from '../ui/agentUi';
 import { runActions, type AgentResult } from '../lib/agent';
 import { uid } from '../lib/nutrition';
 import { dayKey } from '../lib/dates';
+import { blobToBase64, downscale } from '../lib/photos';
 
 type Msg =
-  | { id: string; role: 'user' | 'model'; text: string; streaming?: boolean; seeded?: boolean; /** a quiet line under the answer (which AI answered, and why) */ note?: string }
+  | { id: string; role: 'user' | 'model'; text: string; streaming?: boolean; seeded?: boolean; /** a quiet line under the answer (which AI answered, and why) */ note?: string; /** when it was said */ at?: number; /** a photo was sent with it (its picture stays only while the Coach is open) */ photo?: boolean; image?: string }
   | { id: string; role: 'error'; text: string }
   | { id: string; role: 'action'; results: AgentResult[]; undone: string[]; confirmed: string[] }
 
 /** How a sent message and an answer settle: calm, a hint of spring, no wobble — the same as the orb screen. */
 const SEND = { type: 'spring', stiffness: 320, damping: 30, mass: 1 } as const;
 
-export function Coach({ props }: { props: { listen?: boolean; date?: string; mealId?: string; /** the orb screen's conversation, carried over by "Continue in Coach" */ seed?: { said: string; reply: string }[] } }) {
+const THREAD = 'aven.coach';
+/** The Coach conversation as it was left (cards come back without their Undo: that only works right after the change). */
+function loadThread(): Msg[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(THREAD) || '[]');
+    return (Array.isArray(v) ? v : []).filter((m: any) => m && typeof m.id === 'string' && ['user', 'model', 'action', 'error'].includes(m.role))
+      .map((m: any) => (m.role === 'user' || m.role === 'model' ? { ...m, seeded: true, streaming: false }
+        // a card's buttons were functions: they don't survive the trip, so a restored card has none (no dead buttons)
+        : m.role === 'action' ? { ...m, results: (Array.isArray(m.results) ? m.results : []).map((r: any) => ({ ...r, button: undefined, more: undefined, undo: undefined })) } : m));
+  } catch { return []; }
+}
+function saveThread(list: Msg[]) {
+  try { localStorage.setItem(THREAD, JSON.stringify(list.slice(-60).map((m) => ('image' in m && m.image ? { ...m, image: undefined } : m)))); } catch { /* storage full: the chat just won't come back */ }
+}
+
+export function Coach({ props }: { props: { listen?: boolean; date?: string; mealId?: string; /** the orb screen's conversation, carried over by "Continue in Coach" */ seed?: { said: string; reply: string }[]; /** a question to ask as soon as it opens (the weekly review's button) */ ask?: string } }) {
   const t = useT();
   const lang = useLang();
   const pop = useUI((u) => u.pop);
@@ -35,11 +51,18 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   const ai = useAi();
   const s = useStore();
   const pool = useMemo(() => allExercises(s.exercises), [s.exercises]);
-  const [msgs, setMsgs] = useState<Msg[]>(() => (props.seed ?? []).flatMap((x) => [
-    ...(x.said ? [{ id: uid('m'), role: 'user' as const, text: x.said, seeded: true }] : []),
-    ...(x.reply ? [{ id: uid('m'), role: 'model' as const, text: x.reply, seeded: true }] : []),
-  ]));
+  // the conversation carries on where you left it (kept on this device); the orb screen's turns join the end of it
+  const [msgs, setMsgs] = useState<Msg[]>(() => [...loadThread(), ...(props.seed ?? []).flatMap((x) => [
+    ...(x.said ? [{ id: uid('m'), role: 'user' as const, text: x.said, seeded: true, at: Date.now() }] : []),
+    ...(x.reply ? [{ id: uid('m'), role: 'model' as const, text: x.reply, seeded: true, at: Date.now() }] : []),
+  ])]);
+  useEffect(() => { if (!msgs.some((m) => m.role === 'model' && m.streaming)) saveThread(msgs); }, [msgs]);
+  // back to an old conversation after a break: the suggestions come back under it until something is sent
+  const [resumed, setResumed] = useState(() => { const last = [...msgs].reverse().find((m) => 'at' in m && m.at) as { at?: number } | undefined; return msgs.length > 0 && !props.ask && !props.listen && (!last?.at || Date.now() - last.at > 30 * 60_000); });
   const [input, setInput] = useState('');
+  const [photo, setPhoto] = useState<{ url: string; blob: Blob } | null>(null);
+  const camRef = useRef<HTMLInputElement>(null);
+  const pickPhoto = async (f?: File) => { if (!f) return; try { const blob = await downscale(f, 1280); setPhoto({ url: URL.createObjectURL(blob), blob }); buzz(8); } catch { say({ id: uid('m'), role: 'error', text: t('Couldn’t read that image.') }); } };
   const [busy, setBusy] = useState(false);
   const [recording, setRecording] = useState(false);
   const [hearing, setHearing] = useState(false);
@@ -48,7 +71,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   const alive = useRef(true);
   const msgsRef = useRef<Msg[]>([]); msgsRef.current = msgs;
 
-  useEffect(() => { alive.current = true; return () => { alive.current = false; stopSpeaking(); ctl.current?.abort(); mic.release('coach'); }; }, []);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; stopSpeaking(); ctl.current?.abort(); mic.release('coach'); for (const m of msgsRef.current) if ('image' in m && m.image) URL.revokeObjectURL(m.image); }; }, []);
   useEffect(() => { endRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' }); }, [msgs]);
 
 
@@ -64,9 +87,12 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   const turnsFor = (text: string): Turn[] => {
     const out: Turn[] = [];
     const push = (role: 'user' | 'model', t: string) => { if (!t.trim()) return; const last = out[out.length - 1]; if (last && last.role === role) last.parts[0].text += `\n${t}`; else out.push({ role, parts: [{ text: t }] }); };
+    const today = dayKey(Date.now(), useStore.getState().settings.dayStartHour);
     for (const m of msgsRef.current) {
-      if (m.role === 'user' || m.role === 'model') push(m.role, m.text);
-      else if (m.role === 'action') push('model', `(done: ${m.results.map((r) => `${r.title}${r.lines.length ? ` — ${r.lines.map((l) => `${l.text}${l.sub ? ` ${l.sub}` : ''}`).join(', ')}` : ''}`).join(' | ')})`);
+      // something said on an earlier day is marked so, so "today" in an old message isn't taken for today
+      const old = m.role === 'user' && m.at && dayKey(m.at, useStore.getState().settings.dayStartHour) !== today ? `(said on ${dayKey(m.at, useStore.getState().settings.dayStartHour)}) ` : '';
+      if (m.role === 'user' || m.role === 'model') push(m.role, old + (m.role === 'user' && m.photo ? `[photo] ${m.text}` : m.text));
+      else if (m.role === 'action') push('model', cardsNote(m.results, m.confirmed, m.undone));
     }
     push('user', text);
     const tail = out.slice(-14);
@@ -83,7 +109,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   };
 
   /** One turn: the model (or, without an AI key, the local reader) says what to do; we do it; the cards show it. */
-  const agentTurn = async (text: string, signal: AbortSignal) => {
+  const agentTurn = async (text: string, signal: AbortSignal, photo?: Photo) => {
     const st = useStore.getState();
     const today = dayKey(Date.now(), st.settings.dayStartHour);
     const placeholder = uid('m');
@@ -91,7 +117,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     const where = props.mealId || props.date ? `The user opened this from the Food tab${props.date ? ` (day ${props.date})` : ''}${props.mealId ? `, meal ${props.mealId}` : ''}: foods go there unless they say otherwise.` : 'The user opened this from the main screen.';
     const history = turnsFor(''); // the conversation so far (an empty text adds no turn)
     // the answer streams in as the model writes it, into the same message that then stays (nothing re-mounts or re-animates)
-    const d = await decide(text, { lang, t, pool, history, where, signal, surface: 'coach', onReply: (r) => { if (alive.current) setMsgs((x) => x.map((m) => (m.id === placeholder && m.role === 'model' ? { ...m, text: r } : m))); } });
+    const d = await decide(photo ? `[photo] ${text}` : text, { lang, t, pool, history, where, signal, surface: 'coach', photo, onReply: (r) => { if (alive.current) setMsgs((x) => x.map((m) => (m.id === placeholder && m.role === 'model' ? { ...m, text: r } : m))); } });
     let { reply } = d; const { note, actions } = d;
     if (d.wantsUndo) { undoLast(); if (!actions.length && !reply) reply = t('Undone.'); }
     const results = actions.length ? await runActions(actions, { t, lang, today, brain: brainFor({ big: false, surface: 'coach', signal }), date: props.date, mealId: props.mealId }) : [];
@@ -121,13 +147,14 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
 
   const send = async (raw?: string) => {
     const text = (raw ?? input).trim();
-    if (!text || busy) return;
-    setInput(''); setBusy(true); stopSpeaking(); orb('processing');
-    say({ id: uid('m'), role: 'user', text });
+    const pic = raw === undefined ? photo : null; // a suggestion chip or dictation sends words only
+    if ((!text && !pic) || busy) return;
+    setInput(''); setPhoto(null); setResumed(false); setBusy(true); stopSpeaking(); orb('processing');
+    say({ id: uid('m'), role: 'user', text, at: Date.now(), ...(pic ? { photo: true, image: pic.url } : {}) });
     ctl.current = new AbortController();
     const signal = ctl.current.signal;
     try {
-      await agentTurn(text, signal);
+      await agentTurn(text || t('What is this?'), signal, pic ? { mime: 'image/jpeg', data: await blobToBase64(pic.blob) } : undefined);
     } catch (e: any) {
       if (!alive.current) return;
       const stopped = e?.code === 'aborted';
@@ -162,6 +189,15 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   };
 
   recRef.current = toggleRec;
+  // opened with a question (the weekly review): ask it once the sheet has risen
+  const sendRef = useRef<(raw?: string) => void>(() => {});
+  sendRef.current = send;
+  useEffect(() => {
+    if (!props.ask) return;
+    const id = setTimeout(() => { if (alive.current) sendRef.current(props.ask); }, 380);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line
+  }, []);
   // opened from the orb: start listening straight away (or, without speech-to-text, open the keyboard)
   useEffect(() => {
     if (!props.listen) return;
@@ -187,31 +223,8 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   const [noteSeen] = useState(() => { try { return localStorage.getItem('aven.coachNote') === '1'; } catch { return true; } });
   useEffect(() => { if (msgs.length) try { localStorage.setItem('aven.coachNote', '1'); } catch { /* ignore */ } }, [msgs.length]);
 
-  return (
-    <Sheet onClose={pop} tall instant label={t('Coach')} z={100} foot={(
-      <div>
-        <div className="row-flex" style={{ gap: 8 }}>
-          {/* the orb is the Coach's microphone: it flies in from the tab bar, listens to you, thinks while it answers */}
-          <button className="press" aria-label={recording ? t('Stop and send') : t('Speak')} disabled={busy || hearing} onClick={() => (ai.hasGroq && mic.supported ? toggleRec() : push('settings', { section: 'ai' }))}
-            style={{ position: 'relative', width: 50, height: 50, flex: 'none', borderRadius: 999 }}>
-            <i className={`voice-ring ${recording ? 'on' : ''}`} />
-            <SphereSlot id="coach" priority={5} style={{ position: 'absolute', inset: -4 }} />
-          </button>
-          <div className="grow" style={{ position: 'relative' }}>
-            <input ref={inputRef} className="input" style={{ paddingRight: 54 }} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
-              placeholder={recording ? t('Listening… tap the mic to send') : hearing ? t('Transcribing…') : t('Ask the Coach')} aria-label={t('Message the Coach')} disabled={recording || hearing} />
-            {/* Send is an arrow inside the field, there only when there is something to send (Stop while it works) */}
-            <button className={`coach-send press ${busy || input.trim() ? 'on' : ''}`} aria-label={busy ? t('Stop') : t('Send')} tabIndex={busy || input.trim() ? 0 : -1} onClick={() => (busy ? ctl.current?.abort() : send())}>
-              <Icon name={busy ? 'close' : 'arrowUp'} size={18} sw={2.6} />
-            </button>
-          </div>
-        </div>
-      </div>
-    )}>
-      <SheetHead title={t('Coach')} onClose={pop} right={msgs.length ? <button className="small t2 press" onClick={() => { ctl.current?.abort(); stopSpeaking(); setMsgs([]); }}>{t('Clear')}</button> : undefined} />
-      <div className="sheet-body">
-          <>
-            {msgs.length === 0 && (
+  // the suggestions: on an empty chat at the top; when you come back to an old chat, under it (until you send something)
+  const tipsBlock = (
               <div className="stack gap12">
                 {noKey && <div className="small" style={{ color: 'var(--warn)' }}>{t('Add an AI key to chat.')} <button className="chip sm acc press" style={{ marginLeft: 6 }} onClick={() => push('settings', { section: 'ai' })}>{t('Add a key')}</button></div>}
                 <div className="tips">{tips.map((c, i) => (
@@ -222,18 +235,58 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
                   </button>
                 ))}</div>
               </div>
-            )}
+  );
+  return (
+    <Sheet onClose={pop} tall instant label={t('Coach')} z={100} foot={(
+      <div>
+        {photo && (
+          <div className="coach-photo">
+            <img src={photo.url} alt="" />
+            <span className="xs t2 grow">{t('Ask about this photo, or just send it')}</span>
+            <button className="icon-btn flat sm press" aria-label={t('Remove photo')} onClick={() => { URL.revokeObjectURL(photo.url); setPhoto(null); }}><Icon name="close" size={16} /></button>
+          </div>
+        )}
+        <input ref={camRef} type="file" accept="image/*" hidden onChange={(e) => { pickPhoto(e.target.files?.[0]); e.target.value = ''; }} />
+        <div className="row-flex" style={{ gap: 8 }}>
+          {/* the orb is the Coach's microphone: it flies in from the tab bar, listens to you, thinks while it answers */}
+          <button className="press" aria-label={recording ? t('Stop and send') : t('Speak')} disabled={busy || hearing} onClick={() => (ai.hasGroq && mic.supported ? toggleRec() : push('settings', { section: 'ai' }))}
+            style={{ position: 'relative', width: 50, height: 50, flex: 'none', borderRadius: 999 }}>
+            <i className={`voice-ring ${recording ? 'on' : ''}`} />
+            <SphereSlot id="coach" priority={5} style={{ position: 'absolute', inset: -4 }} />
+          </button>
+          {/* the camera: a label, a machine, a program screenshot — anything to ask about */}
+          <button className="icon-btn flat press coach-cam" aria-label={t('Send a photo')} disabled={busy || recording || hearing} onClick={() => camRef.current?.click()}><Icon name="camera" size={21} /></button>
+          <div className="grow" style={{ position: 'relative' }}>
+            <input ref={inputRef} className="input" style={{ paddingRight: 54 }} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
+              placeholder={recording ? t('Listening… tap the mic to send') : hearing ? t('Transcribing…') : t('Ask the Coach')} aria-label={t('Message the Coach')} disabled={recording || hearing} />
+            {/* Send is an arrow inside the field, there only when there is something to send (Stop while it works) */}
+            <button className={`coach-send press ${busy || input.trim() || photo ? 'on' : ''}`} aria-label={busy ? t('Stop') : t('Send')} tabIndex={busy || input.trim() || photo ? 0 : -1} onClick={() => (busy ? ctl.current?.abort() : send())}>
+              <Icon name={busy ? 'close' : 'arrowUp'} size={18} sw={2.6} />
+            </button>
+          </div>
+        </div>
+      </div>
+    )}>
+      <SheetHead title={t('Coach')} onClose={pop} right={msgs.length ? <button className="small t2 press" onClick={() => { ctl.current?.abort(); stopSpeaking(); setMsgs([]); }}>{t('New chat')}</button> : undefined} />
+      <div className="sheet-body">
+          <>
+            {msgs.length === 0 && tipsBlock}
             <div className="stack" style={{ gap: 16, marginTop: msgs.length ? 0 : 16 }}>
               {msgs.map((m) => (
                 <motion.div key={m.id} layout="position"
                   // what you send rises out of the input into a small bubble on the right; answers write themselves in calmly
-                  initial={m.role === 'user' && !m.seeded ? { opacity: 0, y: 56, scale: 0.9, filter: 'blur(4px)' } : m.role === 'user' ? false : { opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)', transitionEnd: { filter: 'none' } }}
+                  initial={'seeded' in m && m.seeded ? false : m.role === 'user' ? { opacity: 0, y: 56, scale: 0.9, filter: 'blur(4px)' } : { opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)', transitionEnd: { filter: 'none' } }}
                   transition={{ ...SEND, filter: { duration: 0.3 } }}
                   style={{ transformOrigin: m.role === 'user' ? '100% 100%' : '0% 0%', alignSelf: m.role === 'user' ? 'flex-end' : 'stretch', maxWidth: m.role === 'user' ? '84%' : '100%', display: m.role === 'user' ? 'flex' : undefined }}>
-                  {m.role === 'user' && <div className="said" style={{ maxWidth: '100%' }}>{m.text}</div>}
+                  {m.role === 'user' && (
+                    <div className="stack" style={{ alignItems: 'flex-end', gap: 6, maxWidth: '100%' }}>
+                      {m.photo && (m.image ? <img className="said-photo" src={m.image} alt={t('Your photo')} /> : <div className="said xs t2"><Icon name="camera" size={13} style={{ verticalAlign: '-2px', marginRight: 4 }} />{t('Photo')}</div>)}
+                      {m.text && <div className="said" style={{ maxWidth: '100%' }}>{m.text}</div>}
+                    </div>
+                  )}
                   {m.role === 'model' && (m.text ? (
                     <div>
-                      <div className="reply calm coach-reply" aria-live="polite"><Rich text={m.streaming ? tidy(m.text) : m.text} id={m.id} />{m.streaming && <span className="caret" aria-hidden />}</div>
+                      <div className={`reply calm coach-reply${m.seeded ? ' still' : ''}`} aria-live="polite"><Rich text={m.streaming ? tidy(m.text) : m.text} id={m.id} />{m.streaming && <span className="caret" aria-hidden />}</div>
                       {!m.streaming && m.note && <div className="xs t3" style={{ marginTop: 8 }}>{m.note}</div>}
                       {!m.streaming && <div className="reply-foot"><SpeakButton id={m.id} text={m.text} /></div>}
                     </div>
@@ -251,6 +304,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
                 </motion.div>
               ))}
             </div>
+            {resumed && msgs.length > 0 && <div className="coach-resume"><div className="micro" style={{ margin: '22px 0 10px' }}>{t('Today')}</div>{tipsBlock}</div>}
             {!noteSeen && msgs.length === 0 && <div className="xs t3" style={{ marginTop: 18 }}>{solOn(ai) ? t('AI can be wrong, and isn’t medical advice. Messages go to OpenAI (GPT-6.1 Sol).') : t('AI can be wrong, and isn’t medical advice. Messages go to Google Gemini.')}</div>}
             <div ref={endRef} />
           </>

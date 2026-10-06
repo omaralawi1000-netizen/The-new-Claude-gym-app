@@ -90,7 +90,7 @@ await p.getByLabel('Message the Coach').fill('200 g skyr'); await p.getByRole('b
 assert(await p.getByText(/Logged to/).first().isVisible(), 'logged without any key');
 await p.getByRole('button', { name: 'Undo' }).last().click(); await wait(p, 600);
 assert(await p.getByText('Undone', { exact: true }).isVisible(), 'undo from the card');
-await p.getByRole('button', { name: 'Clear' }).click(); await wait(p, 500);
+await p.getByRole('button', { name: 'New chat' }).click(); await wait(p, 500);
 await p.getByRole('button', { name: 'Add a key' }).click(); await wait(p, 700);
 assert(await p.getByText('Groq key — hears you (Whisper)').isVisible(), 'coach → Settings → Voice & AI');
 
@@ -193,6 +193,8 @@ await p.getByLabel('Coach').click().catch(() => {}); await wait(p, 700);
 // ── coach: streaming grounded answer, then routine preview → explicit create ──
 await p.locator('.tabbar').getByRole('button', { name: 'Today', exact: true }).click(); await wait(p, 500);
 await p.getByLabel('Coach').click(); await wait(p, 600);
+// the earlier chat came back (it stays until New chat); start a fresh one for the suggestions
+await p.getByRole('button', { name: 'New chat' }).click(); await wait(p, 400);
 await p.getByRole('button', { name: 'How is my week going?' }).click(); await wait(p, 2000);
 assert(await p.getByText('3 times').isVisible(), 'answer rendered');
 await p.screenshot({ path: 'shots/ai-9-coach.png' });

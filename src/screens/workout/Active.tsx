@@ -447,6 +447,9 @@ const ExerciseBlock = memo(function ExerciseBlock({ se, ex, linkedPrev, linkedNe
     : sugg.kind === 'stalled' ? t(sugg.reasonKey, { w: kgTxt(Number(sugg.reasonVars.w)) })
     : t(sugg.reasonKey, sugg.reasonVars));
   const REASON_ICON = { 'add-weight': 'arrowUp', 'add-reps': 'plus', hold: 'repeat', stalled: 'info', first: 'sparkle' } as const;
+  // something you told the Coach about this exercise ("left shoulder hurts on overhead press"): shown beside it, with a swap.
+  // A joined string, so ticking a set elsewhere doesn't redraw this block.
+  const flagged = useStore((s) => s.memory.filter((m) => m.exerciseIds?.includes(se.exerciseId)).map((m) => m.text).join('\n'));
 
   return (
     <section data-flip={se.id} className={`wk-block${appear ? ' in' : ''}`} style={{ position: 'relative', marginTop: linkedPrev ? 0 : 18, paddingLeft: se.supersetGroup ? 14 : 0 }}>
@@ -462,6 +465,13 @@ const ExerciseBlock = memo(function ExerciseBlock({ se, ex, linkedPrev, linkedNe
         </div>
         {lastWorking.length > 0 && <div className="xs t3 num" style={{ marginTop: 6 }}>{t('Last')}: {lastWorking.slice(0, 5).map((p) => fmtSet(p, ex, u, lang, t)).join(' · ')}</div>}
         {se.note && <div className="small t2" style={{ marginTop: 8, padding: '8px 10px', background: 'var(--bg-2)', borderRadius: 10 }}>{se.note}</div>}
+        {flagged && (
+          <div className="wk-flag xs">
+            <Icon name="note" size={14} style={{ flex: 'none', marginTop: 1 }} />
+            <span className="grow">{flagged.split('\n').join(' · ')}</span>
+            <button className="chip sm press" onClick={() => push('exercisePicker', { mode: 'replace', seId: se.id, forExercise: ex })}>{t('Swap')}</button>
+          </div>
+        )}
         {sugg && reason && (
           <div className="xs row-flex" style={{ marginTop: 6, gap: 6, alignItems: 'flex-start', color: sugg.kind === 'add-weight' ? 'var(--ac-text)' : sugg.kind === 'stalled' ? 'var(--warn)' : 'var(--tx2)' }}>
             <Icon name={REASON_ICON[sugg.kind]} size={13} style={{ flex: 'none', marginTop: 1 }} /><span>{reason}</span>

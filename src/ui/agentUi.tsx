@@ -125,7 +125,7 @@ export function RotatingHint() {
   return <span key={text} className="hint-rot">“{text}”</span>;
 }
 
-const KIND_ICON: Record<string, IconName> = { food: 'recipe', sets: 'dumbbell', water: 'drop', weight: 'scale', activity: 'wrestle', workout: 'dumbbell', routine: 'list', nav: 'info', setting: 'settings', miss: 'info' };
+const KIND_ICON: Record<string, IconName> = { food: 'recipe', sets: 'dumbbell', water: 'drop', weight: 'scale', activity: 'wrestle', workout: 'dumbbell', routine: 'list', nav: 'info', setting: 'settings', memory: 'note', miss: 'info' };
 
 /** Pieces shared by the Coach chat and the orb screen: how the assistant's words and actions are shown. */
 
@@ -212,15 +212,29 @@ export function sttMessage(code: string, t: (k: string) => string): string {
 }
 
 /** What the Coach just did, as a card: what was logged, one tap to undo — or the question it is waiting on. */
+/**
+ * The cards of one turn as a line for the model's memory of the conversation: what was done, what was only offered (a
+ * suggestion not tapped yet — it must not read as eaten), and what was undone.
+ */
+export function cardsNote(results: AgentResult[], confirmed: string[], undone: string[], detail = true): string {
+  if (!results.length) return '';
+  return `(${results.map((r) => {
+    const state = undone.includes(r.id) ? 'undone' : r.pending && !confirmed.includes(r.id) ? 'offered, not taken' : 'done';
+    const what = detail && r.lines.length ? ` — ${r.lines.map((l) => `${l.text}${l.sub ? ` ${l.sub}` : ''}`).join(', ')}` : '';
+    return `${state}: ${r.title}${what}`;
+  }).join(' | ')})`;
+}
+
 export function ActionCard({ r, undone, confirmed, onUndo, onConfirm }: { r: AgentResult; undone: boolean; confirmed: boolean; onUndo: () => void; onConfirm: () => void }) {
   const t = useT();
   const miss = r.kind === 'miss';
   return (
     <div className={`plinth action-card ${undone ? 'undone' : ''} ${miss ? 'miss' : ''}`} style={{ padding: '12px 14px 12px 12px' }}>
       <div className="row-flex" style={{ gap: 10, alignItems: 'flex-start' }}>
-        <span className="action-ic" aria-hidden><Icon name={miss || (r.pending && !confirmed) ? 'info' : (KIND_ICON[r.kind] ?? 'check')} size={16} sw={2.2} /></span>
+        <span className="action-ic" aria-hidden><Icon name={miss || (r.pending && !confirmed && !r.offer) ? 'info' : (KIND_ICON[r.kind] ?? 'check')} size={16} sw={2.2} /></span>
         <div className="grow">
           <div className="small" style={{ fontWeight: 650 }}>{undone ? t('Undone') : confirmed ? t('Done') : r.title}</div>
+          {r.subtitle && !undone && <div className="xs t2 num" style={{ marginTop: 2 }}>{r.subtitle}</div>}
           {r.lines.length > 0 && (
             <div style={{ marginTop: 6 }}>
               {r.lines.map((l, i) => (
@@ -231,9 +245,10 @@ export function ActionCard({ r, undone, confirmed, onUndo, onConfirm }: { r: Age
               ))}
             </div>
           )}
-          {!undone && !confirmed && (r.button || r.undo) && (
-            <div className="row-flex" style={{ gap: 8, marginTop: 10 }}>
+          {!undone && !confirmed && (r.button || r.undo || r.more?.length) && (
+            <div className="row-flex" style={{ gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
               {r.button && <button className={`btn sm press ${r.pending ? 'primary' : ''}`} onClick={r.pending ? onConfirm : r.button.run}>{r.button.label}</button>}
+              {r.more?.map((b) => <button key={b.label} className="btn sm ghost press" onClick={() => { buzz(8); b.run(); }}>{b.label}</button>)}
               {r.undo && !r.pending && <button className="btn sm ghost press" onClick={onUndo}><Icon name="undo" size={15} /> {t('Undo')}</button>}
             </div>
           )}

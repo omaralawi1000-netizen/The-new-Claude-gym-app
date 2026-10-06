@@ -20,7 +20,7 @@ import { kb, watchFocus } from '../ui/keyboard';
 import { Veil, VOICE_VEIL, mirrorVeil } from '../ui/Veil';
 import { Icon } from '../ui/Icon';
 import { useOverlayZ } from '../ui/Sheet';
-import { ActionCard, RotatingHint, Rich, Words, SpeakButton, prefetchAloud, tidy, sttMessage } from '../ui/agentUi';
+import { ActionCard, RotatingHint, Rich, Words, SpeakButton, prefetchAloud, tidy, sttMessage, cardsNote } from '../ui/agentUi';
 import { stopSpeaking } from '../lib/tts';
 import { flyLogged } from '../ui/fly';
 
@@ -189,7 +189,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
     const out: Turn[] = [];
     for (const x of turnsRef.current.filter((y) => y.done).slice(-6)) {
       out.push({ role: 'user', parts: [{ text: x.said }] });
-      const done = x.results.length ? `(done: ${x.results.map((r) => r.title).join(' | ')})` : '';
+      const done = cardsNote(x.results, x.confirmed, x.undone, false);
       const said = [x.reply, done].filter(Boolean).join('\n');
       if (said) out.push({ role: 'model', parts: [{ text: said }] });
     }

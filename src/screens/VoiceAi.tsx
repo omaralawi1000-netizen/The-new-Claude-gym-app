@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useT } from '../lib/i18n';
+import { useState, useSyncExternalStore } from 'react';
+import { useT, useLang } from '../lib/i18n';
 import { Seg, Toggle } from '../ui/kit';
 import { Icon } from '../ui/Icon';
 import { useAi } from '../state/ai';
@@ -7,6 +7,8 @@ import { getKey, setKey, mask } from '../lib/keys';
 import { testGroqKey } from '../lib/groq';
 import { listModels, pickTextModels } from '../lib/gemini';
 import { testOpenaiKey } from '../lib/openai';
+import { spendSnapshot, subscribeSpend } from '../lib/spend';
+import { fmtNum } from '../lib/units';
 import { VOICES, FALLBACK_TTS } from '../lib/tts';
 
 type Test = { state: 'idle' | 'busy' | 'ok' | 'bad'; text?: string };
@@ -79,6 +81,7 @@ export function VoiceAiSettings() {
               <div className="field"><label>{t('Thinking — Coach')}</label>
                 <Seg value={ai.effortCoach} onChange={(v) => ai.patch({ effortCoach: v })} options={[{ value: 'medium', label: t('Medium') }, { value: 'high', label: t('High') }]} />
                 <div className="xs t2" style={{ marginTop: 6 }}>{t('High thinks longer and costs about twice as much. Medium keeps the orb quick for logging.')}</div></div>
+              <SolSpend />
             </>}
           </div>
         </div>
@@ -103,6 +106,30 @@ export function VoiceAiSettings() {
         <b>{t('What leaves your phone')}</b>: {t('your recording goes to Groq; the text of what you said (and, in the Coach, a short summary of your targets and recent training) goes to Google Gemini. Free-tier terms apply to both — free Gemini traffic may be used by Google to improve its products, so don’t put anything in there you wouldn’t want that. Aven stores no audio. The keys live only in this browser on this device: they are not in backups or exports, and “Delete everything” removes them.')}
         {ai.hasOpenai && <> {t('With GPT-6.1 Sol on, that text (and plate photos) goes to OpenAI instead, sent with “don’t store”; OpenAI doesn’t train on API data.')}</>}
       </div>
+    </div>
+  );
+}
+
+/** What Sol has cost this month (an estimate from OpenAI's token counts) and the monthly limit after which Gemini answers. */
+function SolSpend() {
+  const t = useT();
+  const lang = useLang();
+  const ai = useAi();
+  const [kr, calls] = useSyncExternalStore(subscribeSpend, spendSnapshot).split('|').map(Number);
+  const over = ai.solLimitKr > 0 && kr >= ai.solLimitKr;
+  return (
+    <div className="field">
+      <label>{t('Spending this month')}</label>
+      <div className="row-flex between" style={{ alignItems: 'baseline' }}>
+        <span className="num" style={{ fontSize: 22, fontWeight: 300, letterSpacing: '-0.02em' }}>≈ {fmtNum(kr, lang, kr < 10 ? 2 : 0)} kr</span>
+        <span className="xs t2">{t('{n} answers · estimate', { n: calls })}</span>
+      </div>
+      <div className="xs t2" style={{ margin: '10px 0 6px' }}>{t('Monthly limit — then Gemini answers until next month')}</div>
+      <div className="chips" style={{ margin: 0, padding: 0, flexWrap: 'wrap' }}>
+        {[0, 50, 100, 200, 500].map((v) => <button key={v} className={`chip sm press ${ai.solLimitKr === v ? 'on' : ''}`} onClick={() => ai.patch({ solLimitKr: v })}>{v ? `${v} kr` : t('No limit')}</button>)}
+      </div>
+      {over && <div className="xs" style={{ marginTop: 8, color: 'var(--warn)' }}>{t('Limit reached: Gemini is answering until next month.')}</div>}
+      <div className="xs t3" style={{ marginTop: 8 }}>{t('Counted on this phone from what OpenAI reports. Your real bill is on platform.openai.com — set a hard limit there too.')}</div>
     </div>
   );
 }

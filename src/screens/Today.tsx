@@ -1,20 +1,21 @@
-import { useEffect, useMemo, useReducer, useRef } from 'react';
+import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { motion } from 'motion/react';
-import { useStore, plannedFor, missedWorkouts, foodPool } from '../state/store';
+import { useStore, plannedFor, missedWorkouts, foodPool, exerciseMap } from '../state/store';
 import { useUI, buzz } from '../state/ui';
 import { useT, useLang } from '../lib/i18n';
 import { addDays, fmtDate, fmtDuration, fmtWeekdayShort, startOfWeek, weekdayOf } from '../lib/dates';
 import { useDaySummary, useToday, useWaterOn, defaultMealId } from '../lib/derive';
 import { Icon } from '../ui/Icon';
 import { Ledger } from './food/Ledger';
-import { weightTrend, trendRate } from '../lib/stats';
+import { weightTrend, trendRate, reviewWeekEnd, weekReview } from '../lib/stats';
 import { Count } from '../ui/kit';
 import { elapsedMs, sessionSetCount, sessionVolume } from '../lib/workout';
 import { fmtNum, kgToDisplay } from '../lib/units';
 import { entryFromSnapshot, snapshotOf, uid } from '../lib/nutrition';
 import { defaultQty } from './food/Detail';
 import { useCovered, useNow, useScreenStore } from '../lib/hooks';
-import type { Routine } from '../lib/types';
+import type { AppData, Routine } from '../lib/types';
+import { exName } from './workout/common';
 
 export function estMinutes(r: Routine): number {
   const sets = r.items.reduce((n, i) => n + i.warmupSets + i.workingSets, 0);
@@ -230,6 +231,8 @@ export function TodayScreen() {
         </section>
       )}
 
+      <WeekReviewCard d={s} today={today} />
+
       {/* ── week ── */}
       {wd.week && <section style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
         {week.map((w) => {
@@ -334,5 +337,49 @@ function TrendLine({ values }: { values: number[] }) {
       <path className="trend-line" d={d} pathLength={1} fill="none" stroke="var(--ac)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" style={{ filter: 'drop-shadow(0 0 6px var(--ac))' }} />
       <circle className="trend-dot" cx={lx} cy={ly} r="4" fill="var(--ac)" stroke="var(--bg)" strokeWidth="2" vectorEffect="non-scaling-stroke" />
     </svg>
+  );
+}
+
+/**
+ * The week in review: on the last day of the week (from midday) and the first day of the next, one card with the week's
+ * sessions, protein, weight trend and records, and a lift that has stopped improving. The Coach turns it into one change
+ * for next week. Computed on the phone; nothing is sent until you ask the Coach.
+ */
+function WeekReviewCard({ d, today }: { d: AppData; today: string }) {
+  const t = useT();
+  const lang = useLang();
+  const push = useUI((u) => u.push);
+  const end = reviewWeekEnd(today, new Date().getHours(), d.settings.weekStart);
+  const [hidden, setHidden] = useState(() => { try { return !!end && localStorage.getItem('aven.review') === end; } catch { return false; } });
+  const r = useMemo(() => (end ? weekReview(d, end) : null), [end, d.sessions, d.entries, d.weights, d.activities]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!end || hidden || !r || r.sessions + r.wrestling + r.loggedDays === 0) return null;
+  const u = d.settings.units.weight;
+  const goal = d.settings.goals.protein;
+  const stall = r.stalls[0];
+  const stallEx = stall ? exerciseMap(d.exercises).get(stall.exerciseId) : undefined;
+  const dismiss = () => { try { localStorage.setItem('aven.review', end); } catch { /* ignore */ } buzz(6); setHidden(true); };
+  const rate = r.weightRate !== null ? kgToDisplay(r.weightRate, u) : null;
+  return (
+    <section className="plinth review-card" aria-label={t('Your week')}>
+      <div className="row-flex between" style={{ alignItems: 'flex-start' }}>
+        <div>
+          <div className="micro">{t('Your week')}</div>
+          <div className="display display-sm" style={{ fontStyle: 'italic', marginTop: 4 }}>{fmtDate(r.from, lang, { day: 'numeric', month: 'short' })} – {fmtDate(r.to, lang, { day: 'numeric', month: 'short' })}</div>
+        </div>
+        <button className="icon-btn flat sm press" aria-label={t('Hide')} onClick={dismiss}><Icon name="close" size={16} /></button>
+      </div>
+      <div className="review-grid">
+        <div><div className="review-num num">{r.sessions}</div><div className="xs t2">{r.wrestling ? t('workouts + {n} wrestling', { n: r.wrestling }) : t('workouts')}{r.prevSessions !== r.sessions ? ` · ${r.sessions > r.prevSessions ? '↑' : '↓'} ${t('from {n}', { n: r.prevSessions })}` : ''}</div></div>
+        <div><div className="review-num num">{r.proteinAvg !== null ? `${Math.round(r.proteinAvg)} g` : '—'}</div><div className="xs t2">{goal ? t('protein a day · target {n} g', { n: goal }) : t('protein a day')}</div></div>
+        <div><div className="review-num num">{rate !== null ? `${rate > 0 ? '+' : rate < 0 ? '−' : ''}${fmtNum(Math.abs(rate), lang, 1)} ${u}` : '—'}</div><div className="xs t2">{t('weight per week (estimate)')}</div></div>
+        <div><div className="review-num num">{r.records}</div><div className="xs t2">{r.records === 1 ? t('new record') : t('new records')}</div></div>
+      </div>
+      {stall && stallEx && (
+        <div className="xs review-stall"><Icon name="info" size={14} style={{ flex: 'none', marginTop: 1 }} /><span>{t('{ex} has stalled: best {w} × {r} since {date}', { ex: exName(stallEx, lang), w: `${fmtNum(kgToDisplay(stall.best.kg, u), lang, 2)} ${u}`, r: stall.best.reps, date: fmtDate(stall.since, lang, { day: 'numeric', month: 'short' }) })}</span></div>
+      )}
+      <button className="btn sm primary press" style={{ marginTop: 14 }} onClick={() => { buzz(8); push('coach', { ask: t('Review my week and give me the one thing to change next week.') }); }}>
+        <Icon name="sparkle" size={15} /> {t('Plan next week with the Coach')}
+      </button>
+    </section>
   );
 }

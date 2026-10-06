@@ -297,6 +297,18 @@ export interface Settings {
 
 export interface DailyNote { date: string; training?: string; nutrition?: string }
 
+/** Something lasting the user told the Coach about themselves ("no separate leg day — wrestling covers legs"). The Coach
+ *  reads these before every answer; the user can see, change and remove them in Settings → Coach memory. */
+export type MemoryKind = 'goal' | 'preference' | 'health' | 'schedule' | 'gear' | 'food' | 'other';
+export interface MemoryNote {
+  id: string;
+  text: string;
+  kind: MemoryKind;
+  at: number;
+  /** the exercises it is about (a sore shoulder on overhead press): the workout shows it beside them */
+  exerciseIds?: string[];
+}
+
 export interface AppData {
   v: number;
   settings: Settings;
@@ -320,5 +332,7 @@ export interface AppData {
   choices: Record<string, string>;
   /** your own progression step per exercise (kg), when it differs from the default */
   increments: Record<string, number>;
+  /** what the Coach remembers about you */
+  memory: MemoryNote[];
   demo: boolean;
 }

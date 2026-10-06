@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type {
-  ActivityLog, AppData, Exercise, Food, FoodEntry, Measurement, Meal, PersonalRecord, Recipe, Routine, SavedMeal,
+  ActivityLog, AppData, Exercise, Food, FoodEntry, Measurement, Meal, MemoryNote, PersonalRecord, Recipe, Routine, SavedMeal,
   SessionExercise, SetRecord, Settings, WeightLog, WorkoutSession, Lang, Nutrients,
 } from '../lib/types';
 import { SEED_EXERCISES } from '../data/exercises';
@@ -40,8 +40,8 @@ let saveTimer: ReturnType<typeof setTimeout> | null = null;
 export const persistStatus = { error: null as string | null, listeners: new Set<() => void>() };
 
 function pickData(s: Store): AppData {
-  const { settings, foods, favourites, savedMeals, recipes, entries, water, exercises, routines, schedule, sessions, active, weights, measurements, photos, activities, notes, demo, choices, increments } = s;
-  return { v: DATA_VERSION, settings, foods, favourites, savedMeals, recipes, entries, water, exercises, routines, schedule, sessions, active, weights, measurements, photos, activities, notes, demo, choices, increments };
+  const { settings, foods, favourites, savedMeals, recipes, entries, water, exercises, routines, schedule, sessions, active, weights, measurements, photos, activities, notes, demo, choices, increments, memory } = s;
+  return { v: DATA_VERSION, settings, foods, favourites, savedMeals, recipes, entries, water, exercises, routines, schedule, sessions, active, weights, measurements, photos, activities, notes, demo, choices, increments, memory };
 }
 
 export function flushSave() {
@@ -135,6 +135,11 @@ export interface Store extends AppData {
   removeActivity: (id: string) => ActivityLog | undefined;
   restoreActivity: (a: ActivityLog) => void;
   setNote: (date: string, patch: { training?: string; nutrition?: string }) => void;
+  // what the Coach remembers
+  addMemory: (m: Omit<MemoryNote, 'id' | 'at'>) => MemoryNote;
+  updateMemory: (id: string, patch: Partial<Omit<MemoryNote, 'id'>>) => void;
+  removeMemory: (id: string) => MemoryNote | undefined;
+  restoreMemory: (m: MemoryNote) => void;
   // data
   /** Apply a partial state update AND persist it (use instead of setState for anything that must survive a reload). */
   patch: (p: Partial<AppData> | ((s: Store) => Partial<AppData>)) => void;
@@ -354,6 +359,20 @@ export const useStore = create<Store>((set, get) => {
       const next = { ...(cur ?? { date }), ...patch };
       return { notes: cur ? s.notes.map((n) => (n.date === date ? next : n)) : [...s.notes, next] };
     }),
+
+    // ── what the Coach remembers (kept with your data, so it is in backups; "Delete everything" clears it)
+    addMemory: (m) => {
+      const note: MemoryNote = { ...m, id: uid('m'), at: Date.now() };
+      mutate((s) => ({ memory: [...s.memory, note] }));
+      return note;
+    },
+    updateMemory: (id, patch) => mutate((s) => ({ memory: s.memory.map((m) => (m.id === id ? { ...m, ...patch } : m)) })),
+    removeMemory: (id) => {
+      const m = get().memory.find((x) => x.id === id);
+      if (m) mutate((s) => ({ memory: s.memory.filter((x) => x.id !== id) }));
+      return m;
+    },
+    restoreMemory: (m) => mutate((s) => ({ memory: s.memory.some((x) => x.id === m.id) ? s.memory : [...s.memory, m].sort((a, b) => a.at - b.at) })),
 
     // ── data
     patch: (p) => mutate((s) => (typeof p === 'function' ? p(s) : p) as Partial<Store>, true),
