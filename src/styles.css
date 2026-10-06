@@ -523,7 +523,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    made Chrome skip the frost under the orb — a dark square around it on the phone */
 .wk-bar-clip { position: absolute; inset: 0; border-radius: inherit; overflow: hidden; pointer-events: none; }
 /* the tab bar's frost, a little denser: it sits over rows of numbers, which must not read through it */
-.wk-bar.glass, .wk-bar-panel.glass { background: var(--glass-2); -webkit-backdrop-filter: blur(36px) saturate(2); backdrop-filter: blur(36px) saturate(2); }
+.wk-bar.glass { background: var(--glass-2); -webkit-backdrop-filter: blur(36px) saturate(2); backdrop-filter: blur(36px) saturate(2); }
 .wk-bar-fill { position: absolute; inset: 0; border-radius: inherit; transform-origin: 0 50%; pointer-events: none; background: linear-gradient(90deg, color-mix(in srgb, var(--ac) 22%, transparent), color-mix(in srgb, var(--ac) 42%, transparent)); transition: transform 260ms linear, background 400ms ease; }
 .wk-bar.go .wk-bar-fill { background: linear-gradient(90deg, color-mix(in srgb, var(--ok) 26%, transparent), color-mix(in srgb, var(--ok) 44%, transparent)); transition: background 400ms ease; }
 .wk-bar.go { animation: goGlow 1.8s var(--ease-out) 1; }
@@ -534,7 +534,6 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-bar-big { max-width: 100%; font-size: 17px; font-weight: 680; letter-spacing: -0.01em; color: var(--tx); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wk-bar.rest .wk-bar-big { font-size: 20px; }
 .wk-bar-orb { position: relative; width: 46px; height: 46px; flex: none; border-radius: 999px; }
-.wk-bar-panel { pointer-events: auto; display: flex; gap: 8px; padding: 8px; margin-bottom: 10px; border-radius: 999px; }
 /* the one Finish: once every set is ticked it glows softly; tapping the bar's "all done" nudges it */
 .wk-finish.ready { animation: finishGlow 2.4s ease-in-out infinite; }
 @keyframes finishGlow { 0%, 100% { box-shadow: 0 6px 18px -8px color-mix(in srgb, var(--ac) 70%, transparent); } 50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--ac) 22%, transparent), 0 8px 28px -6px var(--ac); } }
@@ -597,9 +596,9 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .pill-btn:active:not(:disabled) { background: color-mix(in srgb, var(--tx) 12%, transparent); transform: scale(.88); transition-duration: 80ms; }
 .pill-btn:disabled { opacity: .28; }
 .pill-val { min-width: 36px; height: 38px; display: grid; place-items: center; overflow: hidden; font-size: 16px; font-weight: 650; white-space: nowrap; }
-.step-val { display: inline-block; }
-.step-val.roll-up { animation: roll-up 320ms var(--ease-out); }
-.step-val.roll-down { animation: roll-down 320ms var(--ease-out); }
+.step-val, .wk-roll { display: inline-block; }
+.step-val.roll-up, .wk-roll.roll-up { animation: roll-up 320ms var(--ease-out); }
+.step-val.roll-down, .wk-roll.roll-down { animation: roll-down 320ms var(--ease-out); }
 @keyframes roll-up { from { transform: translateY(60%); opacity: 0; } }
 @keyframes roll-down { from { transform: translateY(-60%); opacity: 0; } }
 @media (max-width: 380px) { .pill-btn { width: 34px; } .pill-val { min-width: 32px; } .rt-range { gap: 3px; } }
@@ -851,3 +850,8 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-bar-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wk-bar-tgt { flex: none; font-size: 14px; font-weight: 600; color: var(--tx2); }
 @media (prefers-reduced-motion: reduce) { .wk-check.fresh, .wk-check.fresh .wk-check-mark path { animation: none; stroke-dashoffset: 0; } .wk-set, .wk-check, .wk-ex-done { transition: none; } }
+
+/* rest controls inside the bar, between the time and the orb */
+.wk-bar-ctl { position: absolute; right: 60px; top: 0; bottom: 0; display: flex; align-items: center; gap: 6px; }
+.wk-ctl { height: 38px; min-width: 50px; padding: 0 12px; border-radius: 999px; font-size: 15px; font-weight: 650; color: var(--tx); background: color-mix(in srgb, var(--tx) 9%, transparent); }
+.wk-ctl.skip { color: var(--ac-ink); background: linear-gradient(180deg, color-mix(in srgb, var(--ac) 78%, #fff), var(--ac)); box-shadow: inset 0 1px 0 rgba(255,255,255,.45); }

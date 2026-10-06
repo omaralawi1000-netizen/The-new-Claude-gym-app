@@ -140,6 +140,13 @@ Run in headless Chromium (Playwright, 390×844 @2×, dark + light), scripts in `
 - **Not built (on purpose, stated in-app):** cloud sync / accounts; photo-based food estimation; automatic AI changes to your data (the Coach advises; routines and estimates only appear after you confirm; progression suggestions remain transparent rules); background reminders when the app is closed (web apps need a push server — reminders fire only while Aven runs; in-app nudge otherwise); animated exercise demonstrations (there is an authored muscle diagram and step-by-step text instead).
 - Exercise calories are **never** added to food targets.
 
+## Workout screen: second polish pass
+
+- **Rest controls live in the bar.** Tapping the bar while resting slides −15 / +15 / Skip in beside the time, between it and the orb. They used to float as a pill above the bar, over the sets. They close after 4 s.
+- **The bar steps away under other screens.** It hides behind the exercise list or an exercise's page; before, it showed through their glass. It stays for the orb screen and the Coach, because the orb flies out of the bar's slot and back.
+- **The exercise menu's rest time** is the same slim stepper as the routine editor: 15 s steps, 0:15–10:00. It replaces six chips that wrapped onto a second line.
+- **The header's set count rolls** up when you tick a set and down when you untick one, like the steppers.
+
 ## A Coach that remembers: memory, per-muscle training, a camera, a weekly review
 
 **Memory (`MemoryNote` in the app's data, so it's in backups).**

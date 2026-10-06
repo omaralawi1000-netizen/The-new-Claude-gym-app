@@ -1,0 +1,21 @@
+// Every surface of the live workout, for review: rest panel, set options, exercise menu, finish sheet, summary, picker.
+import { launch, wait, skipOnboarding, loadDemo } from './lib.mjs';
+import fs from 'node:fs';
+const out = process.env.OUT || 'shots/workout-all'; fs.mkdirSync(out, { recursive: true });
+const { b, p, errors } = await launch({ size: { width: 412, height: 915 } });
+const shot = (n) => p.screenshot({ path: `${out}/${n}.png` });
+await p.goto('http://127.0.0.1:5173/'); await wait(p, 1200); await skipOnboarding(p); await loadDemo(p); await wait(p, 900);
+await p.getByRole('button', { name: /Start workout/ }).first().click(); await wait(p, 2600);
+const checks = p.locator('.wk-list [aria-label="Complete set"]');
+await checks.nth(0).evaluate((el) => el.click()); await wait(p, 1000);
+await p.locator('.wk-bar-main').click(); await wait(p, 600); await shot('a-rest-panel');
+await p.locator('.wk-set-n').nth(1).evaluate((el) => el.click()); await wait(p, 600); await shot('b-set-options');
+await p.locator('.wk-set-n').nth(1).evaluate((el) => el.click()); await wait(p, 400);
+await p.getByRole('button', { name: 'Exercise options' }).first().evaluate((el) => el.click()); await wait(p, 900); await shot('c-ex-menu');
+await p.keyboard.press('Escape'); await wait(p, 800);
+await p.getByRole('button', { name: 'Add exercise' }).evaluate((el) => el.click()); await wait(p, 1200); await shot('f-picker');
+await p.keyboard.press('Escape'); await wait(p, 900);
+await p.getByRole('button', { name: 'Finish', exact: true }).evaluate((el) => el.click()); await wait(p, 900); await shot('d-finish-sheet');
+await p.getByRole('button', { name: /Finish and save/ }).click(); await wait(p, 2200); await shot('e-summary');
+if (errors.length) console.log('errors', errors.slice(0, 3));
+await b.close();

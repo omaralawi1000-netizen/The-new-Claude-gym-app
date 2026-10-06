@@ -5,7 +5,7 @@ import { useUI, buzz } from '../../state/ui';
 import { useT, useLang } from '../../lib/i18n';
 import type { Exercise, SessionExercise, SetRecord } from '../../lib/types';
 import { Icon } from '../../ui/Icon';
-import { Collapse, NumInput } from '../../ui/kit';
+import { Collapse, NumInput, Stepper } from '../../ui/kit';
 import { flip } from '../../ui/flip';
 import { Sheet, SheetHead, SOFT, useOverlayZ } from '../../ui/Sheet';
 import { beatLastTime, elapsedMs, historyOf, incrementFor, lastPerformance, repRange, sessionSetCount, sessionVolume, suggestProgression, countable } from '../../lib/workout';
@@ -104,6 +104,9 @@ export function ActiveWorkout({ props, open = true }: { props: { origin?: 'hero'
   const bodyPad = useTransform(kb, (v) => `calc(var(--sab) + 150px + ${v}px)`);
   const exMap = useMemo(() => exerciseMap(exercises), [exercises]);
   const [menu, setMenu] = useState<string | null>(null);
+  // another screen on top of the workout (the exercise list, an exercise's page): the bar steps away, or it showed through
+  // the glass of that sheet. Not for the orb's screen or the Coach — the orb flies from the bar's slot and back into it.
+  const covered = useUI((u) => { const top = u.overlays[u.overlays.length - 1]; return !!top && top.type !== 'workout' && top.type !== 'voice' && top.type !== 'coach' && u.overlays.some((o) => o.type === 'workout'); });
   const [confirm, setConfirm] = useState<null | 'finish' | 'discard'>(null);
   const finishBtn = useRef<HTMLButtonElement>(null);
   const pointToFinish = () => { const b = finishBtn.current; if (!b) return; b.classList.remove('nudge'); void b.offsetWidth; b.classList.add('nudge'); };
@@ -249,7 +252,7 @@ export function ActiveWorkout({ props, open = true }: { props: { origin?: 'hero'
                 {/* the clock and the tally on one line: time, sets, volume */}
                 <div className="wk-meta num">
                   <span className={`wk-clock${paused ? ' paused' : ''}`}><Clock /></span>
-                  <span className="wk-meta-rest">{total ? <>{done}/{total} {t('sets')}{done > 0 && <> · {fmtNum(Math.round(kgToDisplay(sessionVolume(a.exercises), weightUnit)), lang, 0)} {weightUnit}</>}</> : t('No sets yet')}</span>
+                  <span className="wk-meta-rest">{total ? <><Roll v={done} />/{total} {t('sets')}{done > 0 && <> · {fmtNum(Math.round(kgToDisplay(sessionVolume(a.exercises), weightUnit)), lang, 0)} {weightUnit}</>}</> : t('No sets yet')}</span>
                   {paused && <span className="wk-paused">{t('Paused')}</span>}
                   {typing && a.rest && <RestInline />}
                 </div>
@@ -291,7 +294,7 @@ export function ActiveWorkout({ props, open = true }: { props: { origin?: 'hero'
           </motion.div>
 
           {/* the workout's own dock, where the tab bar sits: what's next, the rest timer, and the orb */}
-          <WorkoutBar engage={engage} exMap={exMap} away={typing || !!confirm || !!menu} onDone={pointToFinish} onJump={jumpTo} />
+          <WorkoutBar engage={engage} exMap={exMap} away={typing || !!confirm || !!menu || covered} onDone={pointToFinish} onJump={jumpTo} />
           </div>
         </div>
           </motion.div>
@@ -325,6 +328,14 @@ export function ActiveWorkout({ props, open = true }: { props: { origin?: 'hero'
       </AnimatePresence>
     </>
   );
+}
+
+/** A number that rolls up (or down) when it changes, like the steppers; still on the first draw. */
+function Roll({ v }: { v: number }) {
+  const prev = useRef(v);
+  const dir = v > prev.current ? 'up' : v < prev.current ? 'down' : '';
+  useEffect(() => { prev.current = v; }, [v]);
+  return <span key={v} className={`wk-roll${dir ? ` roll-${dir}` : ''}`}>{v}</span>;
 }
 
 // The ticking parts live in their own small components, so the clock re-renders a line of text four times a
@@ -390,26 +401,17 @@ function WorkoutBar({ engage, exMap, away, onDone, onJump }: { engage: Engage; e
   };
   const ofN = nx ? nx.se.sets.filter((x) => x.type === 'working').length : 0;
   const top = state === 'next' ? `${t('Next set')} · ${nx!.label === 'W' ? t('Warm-up') : t('{n} of {m}', { n: nx!.label, m: ofN })}`
-    : state === 'rest' ? (nx ? `${t('Rest')} · ${t('Next')}: ${name}` : t('Rest'))
+    : state === 'rest' ? (panel ? (a.pausedAt ? `${t('Rest')} · ${t('Paused')}` : t('Rest')) : nx ? `${t('Rest')} · ${t('Next')}: ${name}` : t('Rest'))
     : state === 'go' ? `${t('Rest over')}${nx ? ` · ${setWord}` : ''}`
     : state === 'empty' ? `“${t('Bench press 80 kg for 8, 8, 6')}”`
     : t('All sets done');
   const big = state === 'next' ? name
-    : state === 'rest' ? (a.pausedAt ? `${fmtDuration(Math.ceil(left))} · ${t('Paused')}` : fmtDuration(Math.ceil(left)))
+    : state === 'rest' ? (a.pausedAt && !panel ? `${fmtDuration(Math.ceil(left))} · ${t('Paused')}` : fmtDuration(Math.ceil(left)))
     : state === 'go' ? (nx ? `${t('Go')} · ${name}` : t('Go'))
     : state === 'empty' ? t('Tell the orb what you did')
     : `${sessionSetCount(a.exercises, true)} ${t('sets')} · ${fmtNum(Math.round(kgToDisplay(sessionVolume(a.exercises), unit)), lang, 0)} ${unit}`;
   return (
     <div className={`wk-bar-wrap${away ? ' away' : ''}`}>
-      <AnimatePresence>
-        {panel && rest && (
-          <motion.div key="panel" className="wk-bar-panel glass" initial={{ opacity: 0, y: 10, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 8, scale: 0.97 }} transition={SOFT}>
-            <button className="btn sm press" onClick={() => { buzz(6); adjustRest(-15); }} aria-label={t('15 seconds less')}>−15</button>
-            <button className="btn sm press" onClick={() => { buzz(6); adjustRest(15); }} aria-label={t('15 seconds more')}>+15</button>
-            <button className="btn sm primary press" onClick={() => { buzz(8); skipRest(); setPanel(false); }}>{t('Skip')}</button>
-          </motion.div>
-        )}
-      </AnimatePresence>
       {/* never re-keyed: the orb's slot lives in here, and remounting it made the orb leave and land again (a tick, a hop) */}
       <div className={`wk-bar glass ${state}`}>
         <span className="wk-bar-clip" aria-hidden><i className="wk-bar-fill" style={{ transform: `scaleX(${state === 'go' ? 1 : state === 'rest' ? frac : 0})` }} /></span>
@@ -422,6 +424,16 @@ function WorkoutBar({ engage, exMap, away, onDone, onJump }: { engage: Engage; e
           onClick={() => { orbTap(1); push('voice', { mode: 'workout' }); }}>
           <SphereSlot id="workout" priority={5} engage={engage} style={{ position: 'absolute', inset: -4 }} />
         </button>
+        {/* −15 / +15 / Skip slide in inside the bar itself, beside the time (a pill floating above it covered the sets) */}
+        <AnimatePresence>
+          {panel && state === 'rest' && (
+            <motion.div key="ctl" className="wk-bar-ctl" initial={{ opacity: 0, x: 14 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} transition={SOFT}>
+              <button className="wk-ctl press num" onClick={() => { buzz(6); adjustRest(-15); }} aria-label={t('15 seconds less')}>−15</button>
+              <button className="wk-ctl press num" onClick={() => { buzz(6); adjustRest(15); }} aria-label={t('15 seconds more')}>+15</button>
+              <button className="wk-ctl skip press" onClick={() => { buzz(8); skipRest(); setPanel(false); }}>{t('Skip')}</button>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
@@ -680,9 +692,8 @@ function ExerciseMenu({ se, ex, onClose }: { se: SessionExercise; ex?: Exercise;
         </div>
         <div style={{ marginTop: 18 }}>
           <div className="lbl" style={{ marginBottom: 8 }}>{t('Rest after a set')}</div>
-          <div className="row-flex" style={{ gap: 6, flexWrap: 'wrap' }}>
-            {[30, 60, 90, 120, 180, 240].map((v) => <button key={v} className={`chip press ${rest === v ? 'on' : ''}`} onClick={() => { setRest(v); patchExercise(se.id, { restSec: v }); }}>{fmtDuration(v)}</button>)}
-          </div>
+          {/* the routine editor's slim stepper: any rest in 15 s steps, and it never wraps onto a second line */}
+          <Stepper compact label={t('Rest after a set')} value={rest} min={15} max={600} step={15} fmt={(v) => fmtDuration(v)} onChange={(v) => { setRest(v); patchExercise(se.id, { restSec: v }); }} />
         </div>
         <button className="btn danger block press" style={{ marginTop: 22 }} onClick={() => { const r = removeExercise(se.id); onClose(); toast(t('Exercise removed'), { actionLabel: t('Undo'), onAction: r.restore }); }}><Icon name="trash" size={18} /> {t('Remove exercise')}</button>
       </div>
