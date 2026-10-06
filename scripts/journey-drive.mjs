@@ -85,5 +85,19 @@ assert.equal(n, first.data.sessions.length + 1, 'the new phone got everything ba
 await two.p.screenshot({ path: 'shots/drive-2-restored.png' });
 const real = [...errors, ...two.errors].filter((e) => !/Failed to load resource/.test(e));
 assert.deepEqual(real, [], 'no page errors');
+// ── phone 3: the Drive API is off in the Google project — the card says exactly that, with Google's reason ──
+const three = await launch({});
+await three.p.route('https://accounts.google.com/gsi/client', (r) => r.fulfill({ status: 200, contentType: 'text/javascript', body: GIS_STUB }));
+await three.p.route('https://www.googleapis.com/**', (r) => r.request().method() === 'OPTIONS' ? r.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*' } })
+  : r.fulfill({ status: 403, headers: { 'access-control-allow-origin': '*', 'content-type': 'application/json' }, body: JSON.stringify({ error: { code: 403, message: 'Google Drive API has not been used in project 123 before or it is disabled.', errors: [{ reason: 'accessNotConfigured' }] } }) }));
+await three.p.goto('http://127.0.0.1:5173/'); await wait(three.p, 900); await skipOnboarding(three.p);
+await openData(three.p);
+await three.p.getByLabel('Google client ID').fill(ID);
+await three.p.getByRole('button', { name: 'Connect Google Drive' }).click(); await wait(three.p, 1200);
+await three.p.getByRole('button', { name: 'Restore', exact: true }).click(); await wait(three.p, 1200);
+assert(await three.p.getByText(/Google Drive API is off/).isVisible(), 'a disabled Drive API is named');
+assert(await three.p.getByText('(403 accessNotConfigured)').isVisible(), "with Google's own reason");
+await three.p.screenshot({ path: 'shots/drive-3-api-off.png' });
+await three.b.close();
 console.log('DRIVE OK', { posts: drive.posts, patches: drive.patches });
 await two.b.close();

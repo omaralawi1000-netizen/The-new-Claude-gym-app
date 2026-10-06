@@ -17,6 +17,9 @@ const ERR: Record<string, string> = {
   signin: 'Google sign-in is needed. Tap Back up now.',
   offline: 'No connection. It will try again later.',
   forbidden: 'Google refused. Check that the Drive API is enabled for your client ID.',
+  apioff: 'The Google Drive API is off in your Google Cloud project. Turn it on: APIs & Services → Library → Google Drive API → Enable. Then wait a few minutes.',
+  scope: 'Drive access wasn’t ticked. Tap Disconnect, then Connect again and tick “See, edit, create and delete… Google Drive files”.',
+  busy: 'Google is busy. Try again in a minute.',
   nofile: 'No Aven backup found in your Drive yet.',
   gis: 'Couldn’t load Google sign-in. Check the connection.',
   drive: 'Google Drive didn’t answer. Try again.',
@@ -70,7 +73,7 @@ export function DriveCard({ onRestore }: { onRestore: (p: { data: AppData; photo
           <button className="btn ghost block sm press" style={{ marginTop: 6 }} onClick={() => { disconnectDrive(); toast(t('Drive disconnected. The backup stays in your Drive.')); }}>{t('Disconnect')}</button>
         </>
       )}
-      {err && <div className="xs" style={{ marginTop: 10, color: 'var(--bad)' }}>{err}</div>}
+      {err && <div className="xs" style={{ marginTop: 10, color: 'var(--bad)' }}>{err}{d.errorDetail && <span className="t3 num"> ({d.errorDetail})</span>}</div>}
     </div>
   );
 }

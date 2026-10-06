@@ -24,7 +24,7 @@ const API = 'https://www.googleapis.com';
 const SCOPE = 'https://www.googleapis.com/auth/drive.file';
 export const DRIVE_FILE = 'Aven backup.json';
 
-export interface DriveState { clientId?: string; fileId?: string; connected?: boolean; auto?: boolean; lastAt?: number; error?: string }
+export interface DriveState { clientId?: string; fileId?: string; connected?: boolean; auto?: boolean; lastAt?: number; error?: string; errorDetail?: string }
 
 // ── state (on the phone) ────────────────────────────────────
 let cache: DriveState | null = null;
@@ -83,6 +83,8 @@ async function getToken(interactive: boolean): Promise<string> {
         const p = pending; pending = null;
         if (!p) return;
         if (r?.error || !r?.access_token) { p.reject(new Error(r?.error === 'access_denied' ? 'denied' : 'signin')); return; }
+        // Google's consent screen lets you untick "See, edit, create… Drive files": then there is a pass but no Drive
+        if (g()?.hasGrantedAllScopes && !g().hasGrantedAllScopes(r, SCOPE)) { p.reject(new Error('scope')); return; }
         token = { value: r.access_token, exp: Date.now() + (Number(r.expires_in) || 3600) * 1000 };
         p.resolve(token.value);
       },
@@ -98,6 +100,21 @@ async function getToken(interactive: boolean): Promise<string> {
 }
 
 // ── Drive calls ─────────────────────────────────────────────
+/** Google's own reason for a refused call, as one of the card's messages ("Google Drive didn't answer" hid it). */
+export async function driveError(res: Response): Promise<Error> {
+  let reason = '', msg = '';
+  try { const j = await res.clone().json(); reason = j?.error?.errors?.[0]?.reason || j?.error?.details?.find?.((d: any) => d?.reason)?.reason || j?.error?.status || ''; msg = j?.error?.message || ''; } catch { /* not json */ }
+  const r = `${reason} ${msg}`;
+  const code = /accessNotConfigured|SERVICE_DISABLED|has not been used|is disabled/i.test(r) ? 'apioff'
+    : /insufficient|PERMISSION_DENIED|scope/i.test(r) && res.status === 403 ? 'scope'
+    : /rateLimit|userRateLimit|quota/i.test(r) ? 'busy'
+    : res.status === 401 ? 'signin'
+    : res.status === 403 ? 'forbidden'
+    : 'drive';
+  const e = new Error(code); (e as any).detail = `${res.status}${reason ? ` ${reason}` : ''}`;
+  return e;
+}
+
 async function call(path: string, init: RequestInit, interactive: boolean): Promise<Response> {
   const t = await getToken(interactive);
   const res = await fetch(`${API}${path}`, { ...init, headers: { ...(init.headers || {}), Authorization: `Bearer ${t}` } });
@@ -108,7 +125,7 @@ async function call(path: string, init: RequestInit, interactive: boolean): Prom
 async function findFile(interactive: boolean): Promise<{ id: string; modifiedTime?: string } | null> {
   const q = encodeURIComponent(`name='${DRIVE_FILE}' and trashed=false`);
   const res = await call(`/drive/v3/files?q=${q}&spaces=drive&orderBy=modifiedTime desc&fields=files(id,modifiedTime)&pageSize=1`, { method: 'GET' }, interactive);
-  if (!res.ok) throw new Error('drive');
+  if (!res.ok) throw await driveError(res);
   const j = await res.json();
   return j?.files?.[0] ?? null;
 }
@@ -120,7 +137,7 @@ export async function connectDrive(): Promise<void> {
     patch({ connected: true, auto: driveState().auto ?? true, error: undefined });
     // a new phone connects to restore: its empty app must not overwrite the backup that's waiting in Drive
     if (hasData()) await backupToDrive(true);
-  } catch (e: any) { patch({ error: e?.message || 'signin' }); throw e; }
+  } catch (e: any) { patch({ error: e?.message || 'signin', errorDetail: e?.detail }); throw e; }
 }
 
 let busy: Promise<void> | null = null;
@@ -144,11 +161,11 @@ export function backupToDrive(interactive: boolean): Promise<void> {
         const multipart = `--${b}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n--${b}\r\nContent-Type: application/json\r\n\r\n${body}\r\n--${b}--`;
         res = await call('/upload/drive/v3/files?uploadType=multipart&fields=id', { method: 'POST', headers: { 'Content-Type': `multipart/related; boundary=${b}` }, body: multipart }, interactive);
       }
-      if (!res || !res.ok) throw new Error(res?.status === 403 ? 'forbidden' : 'drive');
+      if (!res || !res.ok) throw res ? await driveError(res) : new Error('drive');
       const j = await res.json().catch(() => ({}));
-      patch({ fileId: j.id || id, lastAt: Date.now(), error: undefined, connected: true });
+      patch({ fileId: j.id || id, lastAt: Date.now(), error: undefined, errorDetail: undefined, connected: true });
     } catch (e: any) {
-      if (e?.message !== 'signin' || interactive) patch({ error: e?.message === 'Failed to fetch' ? 'offline' : e?.message || 'drive' });
+      if (e?.message !== 'signin' || interactive) patch({ error: e?.message === 'Failed to fetch' ? 'offline' : e?.message || 'drive', errorDetail: e?.detail });
       throw e;
     } finally { busy = null; }
   })();
@@ -157,10 +174,13 @@ export function backupToDrive(interactive: boolean): Promise<void> {
 
 /** Reads the backup from Drive (from a tap), ready for the same "Replace my data?" step as a file. */
 export async function restoreFromDrive(lang: string): Promise<{ data: AppData; photos?: Record<string, string>; at?: string }> {
+  try { return await readDrive(lang); } catch (e: any) { patch({ error: e?.message === 'Failed to fetch' ? 'offline' : e?.message || 'drive', errorDetail: e?.detail }); throw e; }
+}
+async function readDrive(lang: string): Promise<{ data: AppData; photos?: Record<string, string>; at?: string }> {
   const f = await findFile(true);
   if (!f) throw new Error('nofile');
   const res = await call(`/drive/v3/files/${f.id}?alt=media`, { method: 'GET' }, true);
-  if (!res.ok) throw new Error('drive');
+  if (!res.ok) throw await driveError(res);
   patch({ fileId: f.id, connected: true, error: undefined });
   return { ...parseBackup(await res.text(), lang), at: f.modifiedTime };
 }
