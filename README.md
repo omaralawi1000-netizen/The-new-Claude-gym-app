@@ -147,6 +147,45 @@ Run in headless Chromium (Playwright, 390×844 @2×, dark + light), scripts in `
 - **The exercise menu's rest time** is the same slim stepper as the routine editor: 15 s steps, 0:15–10:00. It replaces six chips that wrapped onto a second line.
 - **The header's set count rolls** up when you tick a set and down when you untick one, like the steppers.
 
+## Google Drive backup (optional, free)
+
+Settings → Data & backup → **Google Drive backup** keeps one file, `Aven backup.json`, in your own Google Drive.
+
+**When it backs up:**
+- After every workout, when you tap Done on the summary.
+- A little after your edits, while Google's one-hour pass is still valid.
+- With a one-tap reminder when the last backup is three or more days old.
+
+**Restore:** "Restore" (or "Restore from Drive" on a new phone) reads the file back through the same "Replace my data?" step as a file import.
+
+**How it works (`src/lib/drive.ts`):**
+- It uses Google's own sign-in in the browser (Google Identity Services, token flow) with the `drive.file` scope. Aven can only see and change the file it made, nothing else in your Drive.
+- There is no server. A web app gets an access pass for one hour at a time and no lasting one. That's why the automatic backup rides on a tap: Done after a workout, or the reminder. Google's window may flash for a moment.
+- The pass stays in memory only: never stored, logged or backed up.
+- Drive keeps earlier versions of the file for 30 days, under the file's "Manage versions".
+
+**Guards:**
+- An empty app never overwrites the Drive backup, so a new phone connects and then restores.
+- Demo data never goes to Drive.
+- "Delete everything" forgets Drive on the phone, but the file stays in Drive.
+
+**One-time setup (about 10 minutes, free):**
+1. Go to [console.cloud.google.com](https://console.cloud.google.com) and create a project (e.g. "Aven").
+2. Under **APIs & Services → Library**, find **Google Drive API** and click **Enable**.
+3. Open **Google Auth Platform** (the OAuth consent screen) and click **Get started**:
+   - App name: Aven.
+   - Audience: **External**.
+   - Fill in your email where asked.
+   - Then under **Audience → Test users**, add your own Gmail address.
+4. Under **Clients → Create client**, choose **Web application**:
+   - Under **Authorized JavaScript origins**, add your app's origin only, with no path: `https://<user>.github.io`.
+   - Click **Create** and copy the **Client ID** (it ends in `.apps.googleusercontent.com`).
+5. In Aven, go to Settings → Data & backup, paste the Client ID, and tap **Connect Google Drive**. Pick your Google account and allow access.
+
+The Client ID is not a secret: Google shows it to anyone who uses the sign-in. It is still typed into the app and kept on the phone, never in the repo. Test it headless with `node scripts/journey-drive.mjs` (Google is stubbed).
+
+Backups now also carry **every** data field, built from the data shape itself (`src/lib/backup.ts`). The old hand-written list had left out the Coach's memory and your per-exercise weight jumps.
+
 ## Whole-app polish pass (screen-by-screen audit)
 
 Every tab, sheet, Settings page, the workout and its summary were screenshotted at the S26 Ultra's size (384×832), in dark and light (`scripts/audit-tour.mjs`). Fixed:

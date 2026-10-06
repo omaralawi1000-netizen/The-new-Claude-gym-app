@@ -21,5 +21,6 @@ run interrupt node scripts/interrupt.mjs
 run rest node scripts/journey-rest.mjs
 run sol node scripts/journey-sol.mjs
 run coach node scripts/journey-coach.mjs
+run drive node scripts/journey-drive.mjs
 run align node scripts/align.mjs
 echo "passed=$pass failed=$fail"

@@ -8,6 +8,7 @@ import { SphereStage } from './ui/Sphere';
 import { Overlays } from './screens/Overlays';
 import { useRestCue } from './screens/workout/rest';
 import { useKeepStorage } from './lib/persist';
+import { useDriveAuto } from './screens/DriveBackup';
 import { TodayScreen } from './screens/Today';
 import { TrainScreen } from './screens/Train';
 import { FoodScreen } from './screens/Food';
@@ -234,6 +235,7 @@ export function App() {
   useTheme();
   useRestCue(); // the end of a rest, wherever you are in the app
   useKeepStorage(); // asks the browser not to clear Aven's data on its own (lib/persist.ts)
+  useDriveAuto(); // Google Drive backups while you use the app (lib/drive.ts)
   useKeyboard();
   useWakeLock();
   const appRef = useRef<HTMLDivElement>(null), stageRef = useRef<HTMLDivElement>(null);

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { useStore, flushSave, persistStatus } from '../state/store';
+import { useStore, persistStatus } from '../state/store';
 import { useUI, buzz } from '../state/ui';
 import { apple, highRefresh, onHighRefresh, setHighRefresh } from '../ui/motion';
 import { useT, useLang } from '../lib/i18n';
@@ -9,7 +9,10 @@ import { Icon } from '../ui/Icon';
 import { NumInput, Seg, Stepper, Toggle } from '../ui/kit';
 import { fmtNum, fmtPct } from '../lib/units';
 import { lastBackup, markBackup, useStorageKept } from '../lib/persist';
-import { defaultData, normaliseData, DATA_VERSION } from '../state/defaults';
+import { buildBackup, parseBackup, snapshotData } from '../lib/backup';
+import { DriveCard } from './DriveBackup';
+import { resetDrive } from '../lib/drive';
+import { defaultData } from '../state/defaults';
 import { buildDemo } from '../lib/demo';
 import { userHasData } from '../lib/stats';
 import { clearPhotos, loadPhoto, savePhoto } from '../lib/photos';
@@ -382,9 +385,8 @@ function DataSection() {
   const [backedUp, setBackedUp] = useState(lastBackup);
 
   const doExport = async () => {
-    flushSave();
-    const { settings, foods, favourites, savedMeals, recipes, entries, water, exercises, routines, schedule, sessions, active, weights, measurements, photos, activities, notes, demo, choices } = useStore.getState();
-    const payload: any = { app: 'aven', v: DATA_VERSION, exportedAt: new Date().toISOString(), data: { v: DATA_VERSION, settings, foods, favourites, savedMeals, recipes, entries, water, exercises, routines, schedule, sessions, active, weights, measurements, photos, activities, notes, demo, choices } };
+    const payload: any = buildBackup();
+    const photos = payload.data.photos as AppData['photos'];
     if (withPhotos && photos.length) {
       payload.photos = {};
       for (const p of photos) { const b = await loadPhoto(p.id).catch(() => undefined); if (b) payload.photos[p.id] = await new Promise<string>((res) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.readAsDataURL(b); }); }
@@ -396,22 +398,19 @@ function DataSection() {
   const onFile = async (f?: File | null) => {
     if (!f) return;
     try {
-      const j = JSON.parse(await f.text());
-      if (j.app !== 'aven' || !j.data) throw new Error('format');
-      if (typeof j.v !== 'number' || j.v > DATA_VERSION) throw new Error('newer');
-      setPending({ data: normaliseData(j.data, s.settings.language), photos: j.photos });
+      setPending(parseBackup(await f.text(), s.settings.language));
     } catch (e: any) { toast(e?.message === 'newer' ? t('That backup is from a newer version of Aven.') : t('That file isn’t a valid Aven backup.'), { tone: 'bad' }); }
   };
   const doImport = async () => {
     if (!pending) return;
     const before = useStore.getState();
-    const prev = { settings: before.settings, foods: before.foods, favourites: before.favourites, savedMeals: before.savedMeals, recipes: before.recipes, entries: before.entries, water: before.water, exercises: before.exercises, routines: before.routines, schedule: before.schedule, sessions: before.sessions, active: before.active, weights: before.weights, measurements: before.measurements, photos: before.photos, activities: before.activities, notes: before.notes, demo: before.demo, choices: before.choices, v: DATA_VERSION } as AppData;
+    const prev = snapshotData();
     before.replaceAll(pending.data);
     if (pending.photos) for (const [id, url] of Object.entries(pending.photos)) { try { await savePhoto(id, await (await fetch(url)).blob()); } catch { /* skip */ } }
     setPending(null);
     toast(t('Backup restored'), { tone: 'ok', actionLabel: t('Undo'), onAction: () => useStore.getState().replaceAll(prev), duration: 10000 });
   };
-  const doDelete = async () => { useStore.getState().resetAll(); await clearPhotos().catch(() => {}); try { Object.keys(localStorage).filter((k) => k.startsWith('aven')).forEach((k) => localStorage.removeItem(k)); } catch { /* ignore */ } clearKeys(); useAi.getState().patch({ stt: 'accurate', voiceLang: 'auto', voice: 'Achird', brain: true, solFirst: true, effortOrb: 'medium', effortCoach: 'high', models: { fast: '', brain: '', fastAlt: '', brainAlt: '', tts: '' } }); setConfirmDel(false); closeAll(); setTimeout(() => push('onboarding', {}), 80); };
+  const doDelete = async () => { resetDrive(); useStore.getState().resetAll(); await clearPhotos().catch(() => {}); try { Object.keys(localStorage).filter((k) => k.startsWith('aven')).forEach((k) => localStorage.removeItem(k)); } catch { /* ignore */ } clearKeys(); useAi.getState().patch({ stt: 'accurate', voiceLang: 'auto', voice: 'Achird', brain: true, solFirst: true, effortOrb: 'medium', effortCoach: 'high', models: { fast: '', brain: '', fastAlt: '', brainAlt: '', tts: '' } }); setConfirmDel(false); closeAll(); setTimeout(() => push('onboarding', {}), 80); };
   const demo = () => { const d = buildDemo(s.settings); useStore.getState().patch(d); toast(t('Demo data loaded'), { tone: 'ok' }); };
   const removeDemo = () => { const lang = s.settings.language; const settings = s.settings; useStore.getState().replaceAll({ ...defaultData(lang), settings }); toast(t('Demo data removed'), { tone: 'ok' }); };
 
@@ -427,6 +426,7 @@ function DataSection() {
         {s.photos.length > 0 && <label className="row-flex small" style={{ gap: 10, marginTop: 12 }}><Toggle on={withPhotos} onChange={setWithPhotos} label={t('Include photos')} /> {t('Include progress photos (larger file)')}</label>}
         <button className="btn primary block press" style={{ marginTop: 14 }} onClick={doExport}><Icon name="download" size={18} /> {t('Download backup')}</button>
       </div>
+      <DriveCard onRestore={(p) => { setPending(p); toast(t('Backup read from Drive. Check it below, then replace.'), { tone: 'ok' }); }} />
       <div className="plinth" style={{ padding: 16 }}>
         <div className="li-title">{t('Import backup')}</div>
         <div className="li-sub" style={{ marginTop: 2 }}>{t('Replaces everything on this device. You can undo right after.')}</div>

@@ -8,6 +8,7 @@ import { Count, NumInput } from '../../ui/kit';
 import { Sheet, SheetHead, SOFT } from '../../ui/Sheet';
 import { elapsedMs, sessionSetCount, sessionVolume, countable } from '../../lib/workout';
 import { fmtDate, fmtDuration, fmtDurationLong } from '../../lib/dates';
+import { backupAfterWorkout } from '../../lib/drive';
 import { displayToKg, fmtNum, kgToDisplay } from '../../lib/units';
 import type { RecordKind, WorkoutSession } from '../../lib/types';
 import { exName, fmtSet } from './common';
@@ -39,7 +40,7 @@ export function Summary({ props }: { props: { sessionId: string } }) {
     buzz(10); toast(t('Saved as routine'), { tone: 'ok', actionLabel: t('Undo'), onAction: r.undo });
   };
   return (
-    <Sheet onClose={closeAll} tall label={t('Workout summary')} z={60} foot={<div className="row-flex" style={{ gap: 10 }}><button className="btn grow press" onClick={() => push('sessionDetail', { id: ses.id })}>{t('Details')}</button><button className="btn primary grow press" onClick={() => { buzz(8); closeAll(); }}>{t('Done')}</button></div>}>
+    <Sheet onClose={closeAll} tall label={t('Workout summary')} z={60} foot={<div className="row-flex" style={{ gap: 10 }}><button className="btn grow press" onClick={() => push('sessionDetail', { id: ses.id })}>{t('Details')}</button><button className="btn primary grow press" onClick={() => { buzz(8); backupAfterWorkout(); closeAll(); }}>{t('Done')}</button></div>}>
       <SheetHead title={t('Nice work')} sub={`${ses.name || t('Workout')} · ${fmtDate(ses.date, lang)}`} onClose={closeAll} />
       <div className="sheet-body">
         <div className="plinth dots" style={{ padding: 18, borderRadius: 'var(--r-lg)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
