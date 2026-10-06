@@ -219,7 +219,6 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
 /* the resume-workout bar (56 px + gap) sits above the tab bar: the page's end and the toasts move up so nothing hides under it */
 .app[data-pill] .screen { padding-bottom: calc(var(--bar-h) + var(--sab) + 44px + 66px); }
 .app[data-pill] .toasts { bottom: calc(var(--bar-h) + var(--sab) + 22px + 66px); }
-/* No frosted band under the dock: the dock's own glass is the only blur down there. */
 .screen > * + * { margin-top: 22px; }
 /* every screen's blocks rise in, blurred → sharp, one after another */
 /* every screen's blocks rise in, one after another (a screen, or the part of one that is swapped: .subpage) */
@@ -964,3 +963,19 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .pin-b { font-size: 13px; line-height: 1.4; color: var(--tx2); margin-top: 3px; }
 .pin-acts { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
 .pin-x { flex: none; margin-top: -4px; color: var(--tx3); }
+
+/* ── under the dock: a progressive blur (ui/TabBar.tsx .dock-veil) ───────────────────────────────────────────────────
+   The dock's own glass only frosts what is right behind it; around and below it the page used to run on sharp. Now the page
+   dissolves into the bottom edge: three blurs of fixed strength (a strength can't be animated cheaply), each faded in further
+   down by its own mask, so the blur deepens smoothly instead of starting at a hard line — plus a soft tint of the background
+   at the very bottom, so nothing sharp shows in the gap under the bar. It slides away with the dock. */
+.dock-veil { position: absolute; left: 0; right: 0; bottom: 0; height: calc(100% + 30px); z-index: -1; pointer-events: none; }
+.dock-veil > i { position: absolute; inset: 0; }
+.dock-veil > .dv1 { -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 32%); mask-image: linear-gradient(to bottom, transparent, #000 32%); }
+.dock-veil > .dv2 { -webkit-backdrop-filter: blur(9px) saturate(1.15); backdrop-filter: blur(9px) saturate(1.15);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 18%, #000 58%); mask-image: linear-gradient(to bottom, transparent 18%, #000 58%); }
+.dock-veil > .dv3 { -webkit-backdrop-filter: blur(20px) saturate(1.3); backdrop-filter: blur(20px) saturate(1.3);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 45%, #000 85%); mask-image: linear-gradient(to bottom, transparent 45%, #000 85%); }
+.dock-veil > .dv-tint { background: linear-gradient(to bottom, transparent 20%, color-mix(in srgb, var(--bg) 38%, transparent) 70%, color-mix(in srgb, var(--bg) 62%, transparent)); }
+:root[data-theme='light'] .dock-veil > .dv-tint { background: linear-gradient(to bottom, transparent 20%, color-mix(in srgb, var(--bg) 45%, transparent) 70%, color-mix(in srgb, var(--bg) 70%, transparent)); }
