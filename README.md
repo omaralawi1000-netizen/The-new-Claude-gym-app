@@ -147,6 +147,15 @@ Run in headless Chromium (Playwright, 390×844 @2×, dark + light), scripts in `
 - **The exercise menu's rest time** is the same slim stepper as the routine editor: 15 s steps, 0:15–10:00. It replaces six chips that wrapped onto a second line.
 - **The header's set count rolls** up when you tick a set and down when you untick one, like the steppers.
 
+## Glass and edges
+
+- **Pop-ups are more see-through.** Sheets use their own frost, `--sheet-glass`: 46 % in dark and 58 % in light, with a 44 px blur and more saturation. The page's colour glows through, but nothing behind is sharp enough to read.
+- **Soft edges instead of hard cuts:**
+  - In the live workout, rows that scroll up under the header fade out over 36 px. Before, they were cut in a line under the progress bar.
+  - At the bottom, rows melt away behind the workout bar.
+  - The tab pages do the same behind the dock: a short mask fade, like a chat app's composer, so the page's own light shows through.
+- **The orb screen's status bar matches the screen.** The bar now darkens with the orb screen's frost. Before, it kept the area's purple over a near-black screen.
+
 ## A Coach that remembers: memory, per-muscle training, a camera, a weekly review
 
 **Memory (`MemoryNote` in the app's data, so it's in backups).**

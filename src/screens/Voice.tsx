@@ -18,6 +18,7 @@ import { SphereSlot, mirrorOrb, orbPress, orbTap } from '../ui/Sphere';
 import { mirrorProgress, useEngage } from '../ui/engage';
 import { kb, watchFocus } from '../ui/keyboard';
 import { Veil, VOICE_VEIL, mirrorVeil } from '../ui/Veil';
+import { setBarFrost } from '../ui/statusBar';
 import { Icon } from '../ui/Icon';
 import { useOverlayZ } from '../ui/Sheet';
 import { ActionCard, RotatingHint, Rich, Words, SpeakButton, prefetchAloud, tidy, sttMessage, cardsNote } from '../ui/agentUi';
@@ -54,6 +55,8 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   // high refresh rate: the frost and the content's fade also run as browser animations (see mirrorSpring)
   const eng = useEngage((p0, p1, sp) => [...mirrorVeil(veilRef.current, p0, p1, sp, 0, toCoach.current ? VOICE_VEIL_HOLD : VOICE_VEIL), mirrorProgress(contentRef.current, p0, p1, sp, 0, (p) => ({ opacity: contentAt(p) }), [0.12, 0.72]), mirrorOrb(contentRef.current?.closest('.voice') ?? contentRef.current, p0, p1, sp, 0)]);
   const veilE = useTransform(eng, (v) => (toCoach.current ? Math.min(1, v / HOLD) : v));
+  // the status bar follows the frost, frame for frame (and lets go when the screen is gone)
+  useEffect(() => { setBarFrost(veilE.get()); const off = veilE.on('change', setBarFrost); return () => { off(); setBarFrost(0); }; }, [veilE]);
   const engage = useMemo(() => ({ e: eng }), [eng]);
   const contentO = useTransform(eng, contentAt);
   const exercises = useStore((s) => s.exercises);

@@ -89,6 +89,7 @@
   --line: rgba(255, 255, 255, 0.085); --line-2: rgba(255, 255, 255, 0.17);
   --hl: rgba(255, 255, 255, 0.2);
   --glass: rgba(24, 26, 38, 0.46); --glass-2: rgba(30, 32, 46, 0.62);
+  --sheet-glass: rgba(26, 28, 42, 0.46);
   --glass-blur: blur(30px) saturate(1.7);
   --dot: rgba(255, 255, 255, 0.11);
   --sh-c: 0 1px 1px rgba(0,0,0,.35), 0 8px 24px -12px rgba(0,0,0,.5);
@@ -107,6 +108,7 @@
   --line: rgba(20, 28, 48, 0.09); --line-2: rgba(20, 28, 48, 0.17);
   --hl: rgba(255, 255, 255, 0.95);
   --glass: rgba(255, 255, 255, 0.5); --glass-2: rgba(255, 255, 255, 0.72);
+  --sheet-glass: rgba(255, 255, 255, 0.58);
   --dot: rgba(20, 28, 48, 0.13);
   --sh-c: 0 1px 1px rgba(30,40,70,.06), 0 10px 26px -14px rgba(30,40,70,.28);
   --sh-a: 0 22px 44px -18px rgba(30,40,70,.3);
@@ -199,9 +201,14 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
    a fade only (no blur), and only once the page has actually moved (scroll-driven), so nothing is faded at rest. */
 @property --sc-fade { syntax: '<length>'; inherits: false; initial-value: 0px; }
 @keyframes sc-fade { to { --sc-fade: 44px; } }
+/* …and at the bottom it melts into the page behind the dock (like a chat app's composer): a soft fade over the last stretch
+   instead of rows running hard into the glass. A mask, not a dark band, so the page's own light shows through. */
 @supports (animation-timeline: scroll()) {
-  .screen { -webkit-mask-image: linear-gradient(to bottom, transparent var(--sat), #000 calc(var(--sat) + var(--sc-fade))); mask-image: linear-gradient(to bottom, transparent var(--sat), #000 calc(var(--sat) + var(--sc-fade)));
+  .screen { -webkit-mask-image: linear-gradient(to bottom, transparent var(--sat), #000 calc(var(--sat) + var(--sc-fade)), #000 calc(100% - var(--sab) - 128px), rgba(0, 0, 0, 0.12) calc(100% - var(--sab) - 6px)); mask-image: linear-gradient(to bottom, transparent var(--sat), #000 calc(var(--sat) + var(--sc-fade)), #000 calc(100% - var(--sab) - 128px), rgba(0, 0, 0, 0.12) calc(100% - var(--sab) - 6px));
     animation: sc-fade linear both; animation-timeline: scroll(self); animation-range: 0 48px; }
+}
+@supports not (animation-timeline: scroll()) {
+  .screen { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - var(--sab) - 128px), rgba(0, 0, 0, 0.12) calc(100% - var(--sab) - 6px)); mask-image: linear-gradient(to bottom, #000 calc(100% - var(--sab) - 128px), rgba(0, 0, 0, 0.12) calc(100% - var(--sab) - 6px)); }
 }
 /* the resume-workout bar (56 px + gap) sits above the tab bar: the page's end and the toasts move up so nothing hides under it */
 .app[data-pill] .screen { padding-bottom: calc(var(--bar-h) + var(--sab) + 44px + 66px); }
@@ -352,10 +359,11 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .veil-tint { background: color-mix(in srgb, var(--bg) 74%, transparent); }
 .sheet {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; max-height: calc(100dvh - var(--sat) - 46px); display: flex; flex-direction: column;
-  background: var(--glass-2); -webkit-backdrop-filter: blur(40px) saturate(1.8); backdrop-filter: blur(40px) saturate(1.8);
+  /* see-through frost: the page's colour glows through, but a 44 px blur leaves nothing behind sharp enough to read */
+  background: var(--sheet-glass); -webkit-backdrop-filter: blur(44px) saturate(2); backdrop-filter: blur(44px) saturate(2);
   border-radius: var(--r-xl) var(--r-xl) 0 0; box-shadow: inset 0 1px 0 var(--hl), inset 0 0 0 1px var(--line), var(--sh-f); will-change: transform;
 }
-.sheet[data-size='short'] { background: color-mix(in srgb, var(--glass-2) 76%, transparent); -webkit-backdrop-filter: blur(40px) saturate(2.1); backdrop-filter: blur(40px) saturate(2.1); }
+.sheet[data-size='short'] { background: color-mix(in srgb, var(--sheet-glass) 86%, transparent); -webkit-backdrop-filter: blur(44px) saturate(2.1); backdrop-filter: blur(44px) saturate(2.1); }
 .sheet.tall { height: calc(100dvh - var(--sat) - 46px); }
 /* A sheet with another sheet stacked on top: the top one's dim and blur cover it, so it drops its own frost and its own
    veil's blur. Each kept a full-screen blur alive; three stacked sheets ran the phone out of GPU memory (black tiles). */
@@ -855,3 +863,10 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-bar-ctl { position: absolute; right: 60px; top: 0; bottom: 0; display: flex; align-items: center; gap: 6px; }
 .wk-ctl { height: 38px; min-width: 50px; padding: 0 12px; border-radius: 999px; font-size: 15px; font-weight: 650; color: var(--tx); background: color-mix(in srgb, var(--tx) 9%, transparent); }
 .wk-ctl.skip { color: var(--ac-ink); background: linear-gradient(180deg, color-mix(in srgb, var(--ac) 78%, #fff), var(--ac)); box-shadow: inset 0 1px 0 rgba(255,255,255,.45); }
+
+/* The live workout's list: rows scrolling up under the header fade out (they were cut off in a hard line under the progress
+   bar), and at the bottom they melt away behind the workout bar, as on the tab pages. */
+@property --wk-fade { syntax: '<length>'; inherits: false; initial-value: 0px; }
+@keyframes wk-fade { to { --wk-fade: 36px; } }
+.wk-list { -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--wk-fade), #000 calc(100% - var(--sab) - 122px), rgba(0, 0, 0, 0.12) calc(100% - var(--sab) - 8px)); mask-image: linear-gradient(to bottom, transparent, #000 var(--wk-fade), #000 calc(100% - var(--sab) - 122px), rgba(0, 0, 0, 0.12) calc(100% - var(--sab) - 8px)); }
+@supports (animation-timeline: scroll()) { .wk-list { animation: wk-fade linear both; animation-timeline: scroll(self); animation-range: 0 40px; } }

@@ -9,6 +9,7 @@ type RGB = [number, number, number];
 let cur: RGB = [5, 6, 11];
 let from: RGB = cur, to: RGB = cur, t0 = 0, dur = 0;
 let depth = 0;
+let frost = 0;
 let raf = 0;
 let sent = '';
 const hex = (c: RGB) => '#' + c.map((v) => Math.round(Math.min(255, Math.max(0, v))).toString(16).padStart(2, '0')).join('');
@@ -27,7 +28,11 @@ function frame(now: number) {
   const light = root.dataset.theme === 'light';
   const [sr, sg, sb, sa] = light ? [16, 20, 34, 0.3] : [2, 3, 8, 0.5];
   const a = sa * Math.min(1, Math.max(0, depth / 0.6));
-  const c = hex([cur[0] * (1 - a) + sr * a, cur[1] * (1 - a) + sg * a, cur[2] * (1 - a) + sb * a]);
+  let c3: RGB = [cur[0] * (1 - a) + sr * a, cur[1] * (1 - a) + sg * a, cur[2] * (1 - a) + sb * a];
+  // the orb screen's frost (VOICE_VEIL: the background colour at 74 % over the page) covers the top too, so the bar goes
+  // with it — it stayed the area's purple over a near-black screen, a band across the top
+  if (frost > 0) { const f = 0.74 * frost, bg: RGB = light ? [233, 236, 244] : [5, 6, 11]; c3 = c3.map((v, i) => v * (1 - f) + bg[i] * f) as RGB; }
+  const c = hex(c3);
   if (c !== sent) { sent = c; document.querySelector('meta[name="theme-color"]')?.setAttribute('content', c); }
 }
 const schedule = () => { if (!raf) raf = requestAnimationFrame(frame); };
@@ -48,3 +53,5 @@ export function readRGB(css: string): RGB | null {
   if (s) return [+s[1] * 255, +s[2] * 255, +s[3] * 255];
   return null;
 }
+/** How far the orb screen's frost is up (0..1). */
+export function setBarFrost(v: number) { if (Math.abs(v - frost) < 0.004 && v !== 0 && v !== 1) return; frost = v; schedule(); }
