@@ -1,4 +1,5 @@
-import type { AppData, MemoryKind, Schedule, Settings, Lang } from '../lib/types';
+import type { ActivityKind, AppData, MemoryKind, Schedule, Settings, Lang } from '../lib/types';
+import { ACTIVITY_KINDS } from '../lib/activity';
 
 export const DATA_VERSION = 1;
 /** The Coach remembers at most this many things: each one is sent with every question, so the list stays short and sharp. */
@@ -40,8 +41,15 @@ export function defaultSettings(lang: Lang = 'en'): Settings {
   };
 }
 
+/** planned activities per weekday: known kinds only, no duplicates */
+function cleanActivities(v: any): Record<number, ActivityKind[]> {
+  const out: Record<number, ActivityKind[]> = {};
+  if (!v || typeof v !== 'object') return out;
+  for (let wd = 0; wd < 7; wd++) { const xs = Array.isArray(v[wd]) ? [...new Set(v[wd].filter((k: any) => (ACTIVITY_KINDS as readonly string[]).includes(k)))] as ActivityKind[] : []; if (xs.length) out[wd] = xs; }
+  return out;
+}
 export function defaultSchedule(): Schedule {
-  return { mode: 'weekly', weekly: { 0: null, 1: null, 2: null, 3: null, 4: null, 5: null, 6: null }, rotation: { order: [], pointer: 0, perWeek: 3 }, overrides: [], cleared: [] };
+  return { mode: 'weekly', weekly: { 0: null, 1: null, 2: null, 3: null, 4: null, 5: null, 6: null }, rotation: { order: [], pointer: 0, perWeek: 3 }, overrides: [], cleared: [], activities: {} };
 }
 
 export function defaultData(lang: Lang = 'en'): AppData {
@@ -65,7 +73,7 @@ export function normaliseData(raw: any, lang: Lang = 'en'): AppData {
     settings: { ...d.settings, ...(raw.settings ?? {}), units: { ...d.settings.units, ...(raw.settings?.units ?? {}) }, goals: { ...d.settings.goals, ...(raw.settings?.goals ?? {}) }, profile: { ...d.settings.profile, ...(raw.settings?.profile ?? {}) }, widgets: { ...d.settings.widgets, ...(raw.settings?.widgets ?? {}) }, meals: Array.isArray(raw.settings?.meals) && raw.settings.meals.length ? raw.settings.meals : d.settings.meals },
     foods: arr('foods'), favourites: arr('favourites'), savedMeals: arr('savedMeals'), recipes: arr('recipes'), entries: arr('entries'), water: arr('water'),
     exercises: arr('exercises'), routines: arr('routines'),
-    schedule: { ...d.schedule, ...(raw.schedule ?? {}), weekly: { ...d.schedule.weekly, ...(raw.schedule?.weekly ?? {}) }, rotation: { ...d.schedule.rotation, ...(raw.schedule?.rotation ?? {}) }, overrides: raw.schedule?.overrides ?? [], cleared: raw.schedule?.cleared ?? [] },
+    schedule: { ...d.schedule, ...(raw.schedule ?? {}), weekly: { ...d.schedule.weekly, ...(raw.schedule?.weekly ?? {}) }, rotation: { ...d.schedule.rotation, ...(raw.schedule?.rotation ?? {}) }, overrides: raw.schedule?.overrides ?? [], cleared: raw.schedule?.cleared ?? [], activities: cleanActivities(raw.schedule?.activities) },
     sessions: arr('sessions'), active: raw.active && typeof raw.active === 'object' ? raw.active : null,
     weights: arr('weights'), measurements: arr('measurements'), photos: arr('photos'), activities: arr('activities'), notes: arr('notes'),
     choices: raw.choices && typeof raw.choices === 'object' && !Array.isArray(raw.choices) ? raw.choices : {},

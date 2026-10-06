@@ -237,6 +237,8 @@ export interface Schedule {
   overrides: { date: string; routineId: string; originDate?: string }[];
   /** dates on which the normal weekly plan is cleared (skipped or moved away) */
   cleared: string[];
+  /** activities planned on a weekday besides the gym (0 = Sunday … 6 = Saturday), e.g. wrestling on Tuesdays */
+  activities?: Record<number, ActivityKind[]>;
 }
 
 // ── Body & activity ─────────────────────────────────────────

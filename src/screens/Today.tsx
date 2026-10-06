@@ -87,7 +87,8 @@ export function TodayScreen() {
     const p = plannedFor(s, d, today);
     const done = s.sessions.some((x) => x.date === d);
     const wr = s.activities.some((x) => x.date === d && x.kind === 'wrestling');
-    return { d, p, done, wr };
+    const pw = !!s.schedule.activities?.[weekdayOf(d)]?.includes('wrestling'); // wrestling planned that weekday
+    return { d, p, done, wr, pw };
   });
 
   // While the workout overlay is open, keep the hero looking like it did when it was tapped: otherwise it flips to its
@@ -244,9 +245,10 @@ export function TodayScreen() {
               <span className="micro" style={{ color: isToday ? 'var(--ac-text)' : undefined }}>{fmtWeekdayShort(weekdayOf(w.d), lang, true)}</span>
               <span style={{ width: 36, height: 36, borderRadius: '50%', display: 'grid', placeItems: 'center', background: w.done ? 'var(--ac)' : w.wr ? 'var(--ac-soft)' : r || isToday ? 'var(--s2)' : 'transparent', color: w.done ? 'var(--ac-ink)' : w.wr ? 'var(--ac-text)' : 'var(--tx2)', boxShadow: w.done ? '0 0 18px -2px var(--ac)' : isToday ? 'inset 0 0 0 1.5px var(--ac), 0 0 18px -6px var(--ac)' : r ? 'inset 0 0 0 1px var(--line)' : undefined, fontSize: 12, fontWeight: 700 }}>
                 {/* a rest day is just a quiet dot: circles only where something is planned or done */}
-                {w.done ? <Icon name="check" size={17} sw={2.6} /> : w.wr ? <Icon name="wrestle" size={17} /> : r ? r.name.slice(0, 1).toUpperCase() : <i aria-hidden style={{ width: 4, height: 4, borderRadius: 4, background: 'var(--tx3)', opacity: 0.6 }} />}
+                {w.done ? <Icon name="check" size={17} sw={2.6} /> : w.wr ? <Icon name="wrestle" size={17} /> : r ? r.name.slice(0, 1).toUpperCase() : w.pw ? <Icon name="wrestle" size={16} style={{ opacity: 0.75 }} /> : <i aria-hidden style={{ width: 4, height: 4, borderRadius: 4, background: 'var(--tx3)', opacity: 0.6 }} />}
               </span>
-              <i style={{ width: 4, height: 4, borderRadius: 4, background: r && past && !w.done ? 'var(--bad)' : 'transparent' }} />
+              {/* under it: a missed workout (red), or wrestling planned beside the gym (accent) */}
+              <i style={{ width: 4, height: 4, borderRadius: 4, background: r && past && !w.done ? 'var(--bad)' : w.pw && !w.wr && r ? 'var(--ac)' : 'transparent' }} />
             </button>
           );
         })}

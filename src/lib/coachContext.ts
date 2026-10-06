@@ -62,6 +62,8 @@ export function buildCoachContext(d: AppData, today: string, exName: (id: string
   if (d.routines.length) L.push(`Routines: ${d.routines.map((r) => `${r.name} (${r.items.length} exercises)`).join(', ')}.`);
   const wkly = d.schedule.weekly; const planned = Object.entries(wkly).filter(([, id]) => id).map(([wd, id]) => `${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][Number(wd)]}: ${d.routines.find((r) => r.id === id)?.name ?? '?'}`);
   if (d.schedule.mode === 'weekly' && planned.length) L.push(`Weekly plan: ${planned.join(', ')}.`);
+  const acts = Object.entries(d.schedule.activities ?? {}).filter(([, xs]) => xs?.length).map(([wd, xs]) => `${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][Number(wd)]}: ${xs.join(' + ')}`);
+  if (acts.length) L.push(`Planned besides the gym: ${acts.join(', ')}.`);
   return L.join('\n').slice(0, 6500);
 }
 
@@ -141,7 +143,9 @@ export const AGENT_SYSTEM = (lang: 'en' | 'da') =>
   'The user talks or types short natural commands. Decide what they want:\n' +
   '1. They TELL you what they ate, drank, weighed, lifted or did ("log a banana", "two eggs and rye bread for breakfast", "bench 100 for 8, 8, 6", "30 minutes of wrestling, hard") → log_food / log_water / log_weight / log_sets / log_activity. Do not ask for permission and do not repeat the list in your reply (the app shows what was logged). ' +
   'Copy quantities exactly as said; NEVER invent an amount you were not given (amount null is fine: the app uses a typical portion). "a banana" = amount 1, unit piece. Weights are kilograms (convert pounds). One log_food action can hold several foods. Use meal only if they named one. day = yesterday / today / a date YYYY-MM-DD (work it out from Today and its weekday).\n' +
-  '2. They ask you to DO something in the app → the matching action: navigate, set_setting, start_workout, finish_workout, discard_workout, set_schedule ("Pull day on Wednesdays", "Friday is a rest day": weekday 0=Sunday…6=Saturday, routine null = rest). If you are not sure which routine/exercise they mean, ask in the reply instead of guessing.\n' +
+  '2. They ask you to DO something in the app → the matching action: navigate, set_setting, start_workout, finish_workout, discard_workout, set_schedule ("Pull day on Wednesdays", "Friday is a rest day": weekday 0=Sunday…6=Saturday, routine null = rest). ' +
+  'PLAN: "put wrestling on Tuesday" / "I wrestle Tuesdays and Thursdays" → plan_activity (kind wrestling, weekday, on true; one action per day; on false to take it off). "Move Push to Thursday" / "swap leg day to Friday" → move_workout (routine, weekday = the new day, from_weekday if they said it; once true when it is only this week — "this week", "tomorrow", "today" — otherwise false = the weekly plan). Swapping two days = two move_workout actions. If you are not sure which routine/exercise they mean, ask in the reply instead of guessing.\n' +
+  'DURING A WORKOUT (RUNNING WORKOUT in DATA): short set talk is about the CURRENT SET listed there. "Only 9 reps", "8", "67 kilos same reps", "done, 10 reps" → log_current_set (which current; only the numbers they said — an unsaid weight or reps stays as planned; it ticks the set and starts the rest). "The last one was actually 7", "make that 70 kg" right after a set → log_current_set with which last. Name another exercise or set number → edit_set instead. Keep the reply to a few words or empty.\n' +
   '3. They CHANGE what is already logged. Always put it in actions — never say you cannot, you can do all of these: ' +
   'edit_food (fix label values per100, amount+unit, or meal; totals only for a quick entry); delete_food (target = an item, or meal = a meal name / "all" to clear it); move_food and copy_food ("move the chicken from dinner to lunch": target chicken, meal_from dinner, meal_to lunch; with no target a whole meal moves; day_to for another day); replace_food ("replace the rice with potatoes": target rice, with potatoes — the amount is kept unless they say a new one); create_food (their own food: name, basis, per100; add amount to log it as well); favourite_food; save_meal. ' +
   'target = the item\'s name as in DATA; meal_from narrows it when the same food is in two meals; day when it is not today.\n' +
@@ -200,6 +204,10 @@ export function buildAgentContext(d: AppData, today: string, exName: (id: string
   if (d.active) {
     const a = d.active;
     L.push(`RUNNING WORKOUT "${a.name || 'Workout'}"${a.pausedAt ? ' (paused)' : ''} (✓ = finished set; set numbers are for edit_set): ${a.exercises.map((e) => `${exName(e.exerciseId)}: ${e.sets.map(setTxt).join(', ')}`).join(' | ')}.`);
+    // the set they are on: what "only 9 reps" means
+    const cur = a.exercises.map((e) => ({ e, i: e.sets.findIndex((q) => !q.done) })).find((x) => x.i >= 0);
+    if (cur) { const q = cur.e.sets[cur.i]; const kg = q.weightKg ?? q.target?.weightKg, reps = q.reps ?? q.target?.repMax; L.push(`CURRENT SET (the one they are on now): ${exName(cur.e.exerciseId)} set ${cur.i + 1}${q.type === 'warmup' ? ' (warm-up)' : ''}, planned ${kg ? `${r1(kg)} kg × ` : ''}${reps ?? '?'} reps.`); }
+    else L.push('CURRENT SET: none — every set is ticked.');
   } else L.push('No workout is running.');
   // the last finished workouts in full, so "make my last bench set 85" and "how did Tuesday go?" have something to read
   for (const ss of d.sessions.filter((x) => x.status === 'done').slice(-6).reverse()) {

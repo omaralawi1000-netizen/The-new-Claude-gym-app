@@ -95,7 +95,7 @@
   --line: rgba(255, 255, 255, 0.085); --line-2: rgba(255, 255, 255, 0.17);
   --hl: rgba(255, 255, 255, 0.2);
   --glass: rgba(24, 26, 38, 0.46); --glass-2: rgba(30, 32, 46, 0.62);
-  --sheet-glass: rgba(26, 28, 42, 0.46);
+  --sheet-glass: rgba(26, 28, 42, 0.46); --sheet-solid: #15161f;
   --glass-blur: blur(30px) saturate(1.7);
   --dot: rgba(255, 255, 255, 0.11);
   --sh-c: 0 1px 1px rgba(0,0,0,.35), 0 8px 24px -12px rgba(0,0,0,.5);
@@ -114,7 +114,7 @@
   --line: rgba(20, 28, 48, 0.09); --line-2: rgba(20, 28, 48, 0.17);
   --hl: rgba(255, 255, 255, 0.95);
   --glass: rgba(255, 255, 255, 0.5); --glass-2: rgba(255, 255, 255, 0.72);
-  --sheet-glass: rgba(255, 255, 255, 0.58);
+  --sheet-glass: rgba(255, 255, 255, 0.58); --sheet-solid: #f9fafc;
   --dot: rgba(20, 28, 48, 0.13);
   --sh-c: 0 1px 1px rgba(30,40,70,.06), 0 10px 26px -14px rgba(30,40,70,.28);
   --sh-a: 0 22px 44px -18px rgba(30,40,70,.3);
@@ -378,13 +378,17 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .sheet.tall { height: calc(100dvh - var(--sat) - 46px); }
 /* A sheet with another sheet stacked on top: the top one's dim and blur cover it, so it drops its own frost and its own
    veil's blur. Each kept a full-screen blur alive; three stacked sheets ran the phone out of GPU memory (black tiles). */
-.sheet.behind { -webkit-backdrop-filter: none; backdrop-filter: none; }
+.sheet.behind { -webkit-backdrop-filter: none; backdrop-filter: none;
+  /* the glass turns solid over a moment, then the blur is dropped once nothing can be seen through it (an instant swap
+     flashed); coming back to the top, the blur is there at once and the solid fades away */
+  transition: background-color 260ms var(--ease-out), -webkit-backdrop-filter 0s linear 280ms, backdrop-filter 0s linear 280ms; transition-behavior: allow-discrete; }
+.sheet { transition: background-color 260ms var(--ease-out); }
 /* Inside a sheet everything sits on glass that is already blurred: a second blur on each button, switch and chip only repeats
    it (the same pixels) but makes the browser run one more full pass per element for every frame the sheet moves or scrolls. */
 .sheet :is(.btn, .icon-btn, .seg, .chip, .plinth, .plinth-2, .input, .field input), .sheet-page :is(.btn, .icon-btn, .seg, .chip) { -webkit-backdrop-filter: none; backdrop-filter: none; }
 /* …but it must not turn see-through: without its frost the page showed through it and it looked like it was dissolving.
    It becomes the same glass laid over the plain background instead — solid, and under the dim it reads as a card set back. */
-.sheet.behind, .sheet.behind[data-size='short'] { background: linear-gradient(var(--glass-2), var(--glass-2)), var(--bg); }
+.sheet.behind, .sheet.behind[data-size='short'] { background: var(--sheet-solid); }
 /* A sheet's content sits in a pane, so it can step aside when a page opens inside the same sheet (Sheet.tsx, PageSheet). The
    page is laid exactly over it, below the grab handle, on the sheet's own glass. */
 .sheet-pane { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
@@ -586,10 +590,13 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .rt-grip:active, .rt-card.dragging .rt-grip { color: var(--tx); cursor: grabbing; }
 .rt-toggle { flex: 1; min-width: 0; text-align: left; display: flex; flex-direction: column; gap: 3px; padding: 10px 0; }
 .rt-sub { display: grid; min-width: 0; }
-.rt-sub > * { grid-area: 1 / 1; transition: opacity 240ms var(--ease-out), transform 420ms var(--ease-out); }
-.rt-mus { opacity: 0; transform: translateY(5px); }
-.rt-card.open .rt-sum { opacity: 0; transform: translateY(-5px); }
-.rt-card.open .rt-mus { opacity: 1; transform: none; }
+/* the line under the name swaps in turn — the old one leaves, then the new one arrives — so the two never sit on top of
+   each other half-faded (they did) */
+.rt-sub > * { grid-area: 1 / 1; transition: opacity 150ms var(--ease-out), transform 300ms var(--ease-out); }
+.rt-sum { transition-delay: 140ms; }
+.rt-mus { opacity: 0; transform: translateY(4px); transition-delay: 0ms; }
+.rt-card.open .rt-sum { opacity: 0; transform: translateY(-4px); transition-delay: 0ms; }
+.rt-card.open .rt-mus { opacity: 1; transform: none; transition-delay: 140ms; }
 .rt-chev { flex: none; color: var(--tx3); transition: transform 520ms var(--ease-spring), color 240ms; }
 .rt-card.open .rt-chev { transform: rotate(180deg); color: var(--tx2); }
 .rt-rows { margin: 0 16px; border-top: 1px solid var(--line); }
@@ -599,11 +606,8 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .rt-actions { display: flex; align-items: center; gap: 2px; padding: 10px 8px 10px 16px; min-height: 56px; }
 .rt-actions .icon-btn:disabled { opacity: .28; }
 .rt-del { color: var(--bad) !important; }
-/* as a card opens its settings rise in one after another; closing just folds them away */
-.collapse.on .rt-row, .collapse.on .rt-actions { animation: rt-in 460ms var(--ease-out) backwards; }
-.rt-row:nth-child(2) { animation-delay: 35ms !important; } .rt-row:nth-child(3) { animation-delay: 70ms !important; } .rt-row:nth-child(4) { animation-delay: 105ms !important; }
-.collapse.on .rt-actions { animation-delay: 140ms; }
-@keyframes rt-in { from { opacity: 0; transform: translateY(10px); } }
+/* a card's settings open by the fold alone (Collapse). The per-row rise that used to play on top added one moving layer
+   per row inside the sheet's faded scroll area, and on a phone the whole list could drop out for a frame while they ran. */
 /* lifted while dragged: above the rest, a deeper shadow; the others step aside on their own transition */
 .rt-card.dragging { z-index: 5; background: linear-gradient(var(--s2), var(--s2)), var(--bg); box-shadow: inset 0 1px 0 var(--hl), inset 0 0 0 1px var(--line-2), 0 26px 50px -18px rgba(0,0,0,.65), 0 8px 18px -8px rgba(0,0,0,.4); }
 .rt-card.drag-sib { transition: transform 300ms var(--ease-out); }
@@ -881,3 +885,25 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 @keyframes wk-fade { to { --wk-fade: 36px; } }
 .wk-list { -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--wk-fade), #000 calc(100% - var(--sab) - 122px), rgba(0, 0, 0, 0.12) calc(100% - var(--sab) - 8px)); mask-image: linear-gradient(to bottom, transparent, #000 var(--wk-fade), #000 calc(100% - var(--sab) - 122px), rgba(0, 0, 0, 0.12) calc(100% - var(--sab) - 8px)); }
 @supports (animation-timeline: scroll()) { .wk-list { animation: wk-fade linear both; animation-timeline: scroll(self); animation-range: 0 40px; } }
+
+/* Schedule → Wrestling days: seven round day toggles */
+.day-dots { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.day-dots button { aspect-ratio: 1; max-width: 46px; justify-self: center; width: 100%; border-radius: 999px; font-size: 14px; font-weight: 650; color: var(--tx2); background: var(--s2); box-shadow: inset 0 0 0 1px var(--line); transition: background-color .25s var(--ease-out), color .25s var(--ease-out), transform 520ms var(--ease-spring); }
+.day-dots button.on { color: var(--ac-ink); background: var(--ac); box-shadow: 0 6px 18px -8px color-mix(in srgb, var(--ac) 70%, transparent); }
+
+.voice-top { position: absolute; left: 0; right: 0; top: 0; height: calc(var(--sat) + 96px); pointer-events: none; background: linear-gradient(to bottom, var(--bar-shown, transparent) calc(var(--sat) + 4px), color-mix(in srgb, var(--bar-shown, transparent) 55%, transparent) calc(var(--sat) + 40px), transparent); }
+
+/* What you said, landing (Voice.tsx SaidMorph): large words write in one after another, centred over the exchange; then they
+   shrink toward the top right and fade as the small sent bubble rises in under them. */
+.said-wrap { position: relative; display: flex; flex-direction: column; }
+.said-wrap .said { opacity: 0; transform: translateY(8px) scale(.94); transition: opacity 520ms var(--ease-out) 120ms, transform 700ms cubic-bezier(.2,.8,.2,1) 120ms; }
+.said-wrap.settled .said { opacity: 1; transform: none; }
+.said-big { position: absolute; left: 0; right: 0; top: 0; text-align: center; font-size: 26px; line-height: 1.22; padding: 0 6px; color: var(--tx); overflow-wrap: anywhere; pointer-events: none;
+  transform-origin: 100% 0; transition: opacity 460ms var(--ease-out), transform 720ms cubic-bezier(.2,.8,.2,1), filter 460ms var(--ease-out); }
+.said-big .sw { display: inline-block; white-space: pre; animation: saidWrite 560ms cubic-bezier(.2,.7,.2,1) backwards; animation-delay: calc(var(--i) * 70ms); }
+@keyframes saidWrite { from { opacity: 0; filter: blur(6px); transform: translateY(.22em); } to { opacity: 1; filter: blur(0); transform: none; } }
+.said-wrap.settled .said-big { opacity: 0; transform: translate(6%, -10%) scale(.55); filter: blur(3px); }
+@media (prefers-reduced-motion: reduce) { .said-big { display: none; } .said-wrap .said { opacity: 1; transform: none; transition: none; } }
+:root[data-motion='reduce'] .said-big { display: none; }
+:root[data-motion='reduce'] .said-wrap .said { opacity: 1; transform: none; transition: none; }
+.calm .w { animation-duration: 760ms; }

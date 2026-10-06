@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { AnimatePresence, motion, useTransform } from 'motion/react';
+import { AnimatePresence, motion, useReducedMotion, useTransform } from 'motion/react';
 import { useStore, allExercises } from '../state/store';
 import { useUI, buzz } from '../state/ui';
 import { useVoice } from '../state/voice';
@@ -29,7 +29,7 @@ import { flyLogged } from '../ui/fly';
 interface Turn1 { id: string; said: string; reply: string; results: AgentResult[]; undone: string[]; confirmed: string[]; done: boolean }
 
 /** How a sent message and the answer's cards settle: calm, a hint of spring, no wobble (iMessage). */
-const SEND = { type: 'spring', stiffness: 320, damping: 30, mass: 1 } as const;
+const SEND = { type: 'spring', stiffness: 170, damping: 26, mass: 1 } as const; // calm: a soft rise, no hurry, no wobble
 
 const recorderOk = () => typeof MediaRecorder !== 'undefined' && mic.supported;
 /** Leaving for the Coach, the frost holds until the screen's progress is down to this (the Coach's sheet is mostly up by then). */
@@ -41,6 +41,32 @@ const VOICE_VEIL_HOLD = VOICE_VEIL.map((l) => ({ ...l, from: l.from * HOLD, to: 
  * "drank half a litre", "how do I change the theme?" — and it does it, the same way the Coach does (same brain, same
  * actions, same Undo). There are no separate food / workout modes. A quick log closes by itself and leaves an Undo toast.
  */
+/**
+ * What you said, as it lands: it writes itself in large and centred, word by word, the way you said it — then gently
+ * shrinks and drifts up to the right into a small sent bubble, and the answer begins under it.
+ */
+function SaidMorph({ text, onSettled }: { text: string; onSettled: () => void }) {
+  const reduce = useReducedMotion();
+  const words = useMemo(() => text.split(/\s+/).filter(Boolean), [text]);
+  const [settled, setSettled] = useState(!!reduce || words.length > 40);
+  useEffect(() => {
+    if (settled) { onSettled(); return; }
+    // every word has arrived, then a short beat to read it, then it settles
+    const ms = 70 * Math.min(words.length, 18) + 560 + 380;
+    const id = setTimeout(() => { setSettled(true); onSettled(); }, ms);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line
+  }, []);
+  return (
+    <div className={`said-wrap${settled ? ' settled' : ''}`}>
+      <div className="said">{text}</div>
+      <div className="said-big display" aria-hidden>
+        {words.map((w, i) => <span key={i} className="sw" style={{ ['--i' as string]: Math.min(i, 18) }}>{w} </span>)}
+      </div>
+    </div>
+  );
+}
+
 export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; date?: string; mealId?: string } }) {
   const t = useT();
   const lang = useLang();
@@ -67,6 +93,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   const supported = engine !== 'typed';
   const [typing, setTyping] = useState(!supported);
   const [typed, setTyped] = useState('');
+  const [settledId, setSettledId] = useState<string | null>(null); // the exchange whose words have settled into their bubble
   const [final, setFinal] = useState('');
   const [interim, setInterim] = useState('');
   const [err, setErr] = useState<string | null>(null);
@@ -328,6 +355,8 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
       {/* The frost behind builds up gradually with the screen's progress (one blur layer and a tint, fading in with it).
           Nothing above it fades as a whole: a fading parent switched the blur off until the fade ended, then it snapped on. */}
       <Veil e={veilE} z={0} layers={VOICE_VEIL} className="veil-abs" elRef={veilRef} />
+      {/* the top of the screen starts in exactly the status bar's colour and fades into the frost: no edge under the bar */}
+      <motion.div aria-hidden className="voice-top" style={{ opacity: veilE }} />
       <motion.div ref={contentRef} style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', padding: 'calc(var(--sat) + 12px) 18px 0', opacity: contentO }}>
         <div className="row-flex between">
           <button className="icon-btn press" aria-label={t('Close')} onClick={() => useUI.getState().pop()}><Icon name="close" /></button>
@@ -356,15 +385,10 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
             )}
             {showing && (
               <motion.div key={last.id} className="exchange" exit={{ opacity: 0, y: -12, filter: 'blur(6px)', transition: { duration: 0.24, ease: [0.4, 0, 1, 1] } }}>
-                {last.said && (
-                  // what you said, sent: it rises into place like a sent message, small and quiet — the answer is what you read
-                  // (when the full transcript replaces the live words, the bubble grows to fit smoothly and the text settles in)
-                  <motion.div className="said" layout initial={{ opacity: 0, y: 36, scale: 0.9, filter: 'blur(4px)' }} animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)', transitionEnd: { filter: 'none' } }} transition={{ ...SEND, filter: { duration: 0.3 } }}>
-                    <motion.span key={last.said} layout="position" style={{ display: 'inline-block' }} initial={{ opacity: 0.35 }} animate={{ opacity: 1 }} transition={{ duration: 0.28 }}>{last.said}</motion.span>
-                  </motion.div>
-                )}
-                {last.reply && <div className="reply calm" aria-live="polite"><Rich text={last.done ? last.reply : tidy(last.reply)} id={last.id} /></div>}
-                {last.done && last.reply.trim() && (
+                {last.said && <SaidMorph key={`${last.id}:${last.said}`} text={last.said} onSettled={() => setSettledId(last.id)} />}
+                {/* the answer waits until your words have settled into their bubble, then writes in below */}
+                {last.reply && (settledId === last.id || !last.said) && <div className="reply calm" aria-live="polite"><Rich text={last.done ? last.reply : tidy(last.reply)} id={last.id} /></div>}
+                {last.done && last.reply.trim() && (settledId === last.id || !last.said) && (
                   // read it aloud (each word lights up as it is said), or take the question on in the Coach
                   <motion.div className="reply-foot" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ ...SEND, delay: 0.12 }}>
                     <SpeakButton id={last.id} text={last.reply} />

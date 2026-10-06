@@ -130,3 +130,16 @@ describe('strict answers', () => { it('reads Sol-style nulls (every field presen
   }
 });
 });
+
+import { effortFor } from '../src/lib/agentTurn';
+describe('Sol thinks only as hard as the message needs', () => {
+  it('chat, logging and quick questions answer at low effort', () => {
+    for (const s of ['Yo, what\'s going on? How\'s my workouts been?', 'only 9 reps', 'log a banana', '67 kilos same reps', 'put wrestling on Tuesday']) expect(effortFor(s, 'medium')).toBe('low');
+  });
+  it('planning and analysis get the effort set in Settings, never more', () => {
+    expect(effortFor('Build me a push day for wrestling season', 'high')).toBe('high');
+    expect(effortFor('Why is my bench stuck?', 'medium')).toBe('medium');
+    expect(effortFor('hvorfor går min bænk ikke op?', 'high')).toBe('high');
+    expect(effortFor('what is this machine', 'medium', true)).toBe('medium'); // a photo needs care
+  });
+});

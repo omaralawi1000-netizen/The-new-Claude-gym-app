@@ -2,7 +2,7 @@ import { useAi, solOn } from '../state/ai';
 import { useStore } from '../state/store';
 import { getKey } from './keys';
 import { AiError, FALLBACK_MODELS, aiAgent, aiAgentStream, type Brain, type Photo, type Turn } from './gemini';
-import { solAgent } from './openai';
+import { solAgent, type Effort } from './openai';
 import { solThenGemini } from './brain';
 import { overLimit } from './spend';
 import { AGENT_SYSTEM, APP_GUIDE, buildAgentContext, exerciseNames, memoryBlock } from './coachContext';
@@ -29,6 +29,21 @@ export function brainFor(o: { big: boolean; surface: 'orb' | 'coach'; signal?: A
   return { key: g.hasGemini ? getKey('gemini') : '', models: agentModels(o.big), signal: o.signal, sol };
 }
 
+/**
+ * How hard Sol should think about THIS message. Small talk, logging and quick questions ("yo, how's my week?", "only 9
+ * reps", "log a banana") answer at low effort, in a second or two; planning, analysis and advice ("build me a push day",
+ * "why is my bench stuck?") get the effort set in Settings. It never thinks harder than that setting.
+ */
+const DEEP = /\b(plan|program|programme|routine|split|periodi[sz]|deload|plateau|stall|stuck|why|should i|analy[sz]|review|compare|improve|advice|recommend|build|design|diet|cut|bulk|injur|pain|hurt|weak ?point|progress(ion)?)\w*|\b(hvorfor|skal jeg|analys|forbedr|anbefal|kost|skade|ondt|byg|lav en|program|rutine|plan)\w*/i;
+export function effortFor(text: string, setting: Effort, photo = false): Effort {
+  const rank = { low: 0, medium: 1, high: 2 } as const;
+  const cap = (e: Effort): Effort => (rank[e] <= rank[setting] ? e : setting);
+  if (photo) return setting; // reading a label or a machine needs care
+  const words = text.trim().split(/\s+/).length;
+  if (DEEP.test(text)) return setting;
+  return words > 40 ? cap('medium') : 'low';
+}
+
 export interface Decision { reply: string; note: string; actions: AgentAction[]; wantsUndo: boolean }
 
 /**
@@ -42,7 +57,9 @@ export async function decide(text: string, o: { lang: Lang; t: (k: string, v?: R
   const { t, lang } = o;
   let reply = '', note = '';
   let actions: AgentAction[] = [];
-  const brain = brainFor({ big: true, surface: o.surface, signal: o.signal });
+  const brain0 = brainFor({ big: true, surface: o.surface, signal: o.signal });
+  // think only as hard as the message needs (see effortFor)
+  const brain = brain0?.sol ? { ...brain0, sol: { ...brain0.sol, effort: effortFor(text, brain0.sol.effort, !!o.photo) } } : brain0;
   const capped = solOn(g) && overLimit(g.solLimitKr);
   if (capped && brain) note = t('This month’s GPT-6.1 Sol limit is reached, so Gemini answered.');
   if (capped && !brain) reply = t('This month’s GPT-6.1 Sol limit is reached. Raise it in Settings → Voice & AI, or add a free Gemini key.');

@@ -217,3 +217,51 @@ describe('the whole app by voice: move, replace, copy, routines, sets, plan', ()
     expect(m.kind).toBe('miss');
   });
 });
+
+describe('plans and the set you are on', () => {
+  const routine = (name: string) => {
+    const id = `r-${name}`;
+    useStore.getState().upsertRoutine({ id, name, items: [{ id: `i-${name}`, exerciseId: 'bench-press', workingSets: 3, warmupSets: 0, repMin: 8, repMax: 10, restSec: 90 } as any], createdAt: 1, updatedAt: 1 } as any);
+    return id;
+  };
+  it('puts wrestling on a weekday, and takes it off again', async () => {
+    const [r] = await runActions(validateAgent({ reply: '', actions: [{ type: 'plan_activity', weekday: 2, kind: 'wrestling', on: true }] })!.actions, ctx());
+    expect(r.kind).toBe('routine');
+    expect(useStore.getState().schedule.activities?.[2]).toEqual(['wrestling']);
+    r.undo!();
+    expect(useStore.getState().schedule.activities?.[2]).toBeUndefined();
+  });
+  it('moves a workout in the weekly plan, or just this week', async () => {
+    const id = routine('Push');
+    useStore.getState().setSchedule({ weekly: { ...useStore.getState().schedule.weekly, 1: id } });
+    await runActions(validateAgent({ reply: '', actions: [{ type: 'move_workout', routine: 'Push', weekday: 4, once: false }] })!.actions, ctx());
+    expect(useStore.getState().schedule.weekly[1]).toBeNull();
+    expect(useStore.getState().schedule.weekly[4]).toBe(id);
+    // 2026-10-01 is a Thursday: "this week, Push on Saturday" — a one-off from Thursday to Saturday 3 Oct
+    await runActions(validateAgent({ reply: '', actions: [{ type: 'move_workout', routine: 'Push', weekday: 6, once: true }] })!.actions, ctx());
+    const s = useStore.getState().schedule;
+    expect(s.weekly[4]).toBe(id); // the weekly plan stays
+    expect(s.overrides).toContainEqual({ date: '2026-10-03', routineId: id, originDate: '2026-10-01' });
+    expect(s.cleared).toContain('2026-10-01');
+  });
+  it('"only 9 reps" fills and ticks the current set, keeping the planned weight', async () => {
+    const id = routine('Push');
+    useStore.getState().startWorkout({ routine: useStore.getState().routines.find((r) => r.id === id)! });
+    const ses = () => useStore.getState().active!;
+    const first = ses().exercises[0].sets[0];
+    const kg = first.weightKg ?? first.target?.weightKg;
+    const [r] = await runActions(validateAgent({ reply: '', actions: [{ type: 'log_current_set', reps: 9 }] })!.actions, ctx());
+    expect(r.kind).toBe('sets');
+    const done = ses().exercises[0].sets[0];
+    expect(done.done).toBe(true);
+    expect(done.reps).toBe(9);
+    expect(done.weightKg).toBe(kg);
+    expect(ses().rest).toBeTruthy(); // the rest started, as a tick would
+    // "the last one was actually 7"
+    await runActions(validateAgent({ reply: '', actions: [{ type: 'log_current_set', reps: 7, which: 'last' }] })!.actions, ctx());
+    expect(ses().exercises[0].sets[0].reps).toBe(7);
+    expect(ses().exercises[0].sets[1].done).toBe(false); // the next set is untouched
+    r.undo!();
+    expect(ses().exercises[0].sets[0].done).toBe(false);
+  });
+});

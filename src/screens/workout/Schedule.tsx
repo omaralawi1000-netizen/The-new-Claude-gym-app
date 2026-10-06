@@ -77,6 +77,16 @@ export function Schedule({ props }: { props: { focusDate?: string; routineId?: s
             <div className="row-flex between" style={{ marginTop: 18 }}><span className="small t2">{t('Target sessions per week')}</span><Stepper value={sch.rotation.perWeek} min={1} max={7} onChange={(v) => s.setSchedule({ rotation: { ...sch.rotation, perWeek: v } })} /></div>
           </div>
         )}
+        {/* wrestling beside the gym: the days show on the week strips, and the Coach plans around them */}
+        <div className="lbl" style={{ marginTop: 26, marginBottom: 8 }}>{t('Wrestling days')}</div>
+        <div className="day-dots" role="group" aria-label={t('Wrestling days')}>
+          {order.map((wd) => { const on = !!sch.activities?.[wd]?.includes('wrestling'); return (
+            <button key={wd} className={`press${on ? ' on' : ''}`} aria-pressed={on} aria-label={`${t('Wrestling')} ${fmtWeekdayShort(wd, lang)}`}
+              onClick={() => { buzz(6); const acts = { ...(sch.activities ?? {}) }; const xs = new Set<ActivityKind>(acts[wd] ?? []); if (on) xs.delete('wrestling'); else xs.add('wrestling'); if (xs.size) acts[wd] = [...xs]; else delete acts[wd]; s.setSchedule({ activities: acts }); }}>
+              {fmtWeekdayShort(wd, lang, true)}
+            </button>); })}
+        </div>
+        <div className="xs t2" style={{ marginTop: 8 }}>{t('Shown on your week, and the Coach keeps heavy legs away from the day before.')}</div>
       </div>
     </Sheet>
   );

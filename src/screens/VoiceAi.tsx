@@ -80,7 +80,7 @@ export function VoiceAiSettings() {
                 <Seg value={ai.effortOrb} onChange={(v) => ai.patch({ effortOrb: v })} options={[{ value: 'medium', label: t('Medium') }, { value: 'high', label: t('High') }]} /></div>
               <div className="field"><label>{t('Thinking — Coach')}</label>
                 <Seg value={ai.effortCoach} onChange={(v) => ai.patch({ effortCoach: v })} options={[{ value: 'medium', label: t('Medium') }, { value: 'high', label: t('High') }]} />
-                <div className="xs t2" style={{ marginTop: 6 }}>{t('High thinks longer and costs about twice as much. Medium keeps the orb quick for logging.')}</div></div>
+                <div className="xs t2" style={{ marginTop: 6 }}>{t('The most it may think, for planning and analysis. Chat, logging and quick questions always answer fast.')}</div></div>
               <SolSpend />
             </>}
           </div>

@@ -13,7 +13,7 @@ import { recordUsage } from './spend';
 
 export const OPENAI_API = 'https://api.openai.com/v1';
 export const OPENAI_MODEL = 'gpt-6.1-sol';
-export type Effort = 'medium' | 'high';
+export type Effort = 'low' | 'medium' | 'high';
 export interface Sol { key: string; effort: Effort; signal?: AbortSignal }
 
 // ── schema: Gemini's OpenAPI-style schema → a strict JSON schema ──
@@ -93,7 +93,7 @@ const body = (o: { system: string; input: Input; schema: object; name: string; e
   max_output_tokens: o.maxTokens, prompt_cache_key: o.cacheKey,
 });
 // how long it may think before the first word: high effort thinks longer
-const firstWait = (effort: Effort) => (effort === 'high' ? 120_000 : 60_000);
+const firstWait = (effort: Effort) => (effort === 'high' ? 120_000 : effort === 'medium' ? 60_000 : 30_000);
 
 async function json(sol: Sol, o: { system: string; input: Input; schema: object; name: string; maxTokens?: number; cacheKey: string }): Promise<any> {
   const { res, done } = await request(sol.key, body({ ...o, effort: sol.effort, maxTokens: o.maxTokens ?? (sol.effort === 'high' ? 24000 : 12000) }), { timeout: firstWait(sol.effort), signal: sol.signal });

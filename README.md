@@ -147,6 +147,27 @@ Run in headless Chromium (Playwright, 390×844 @2×, dark + light), scripts in `
 - **The exercise menu's rest time** is the same slim stepper as the routine editor: 15 s steps, 0:15–10:00. It replaces six chips that wrapped onto a second line.
 - **The header's set count rolls** up when you tick a set and down when you untick one, like the steppers.
 
+## Coach: plans, the set you're on, and thinking only when it helps
+
+- **Wrestling in the plan.** Settings live in Schedule → **Wrestling days**: seven day toggles, stored as `schedule.activities`.
+  - Planned wrestling shows on the Train and Today week strips. A wrestling icon marks a day with no gym; a small accent dot marks a gym day with wrestling too.
+  - The Coach sees the plan and keeps heavy legs away from the day before.
+- **New Coach actions** (orb or Coach):
+  - `plan_activity`: "put wrestling on Tuesday", "I wrestle Tuesdays and Thursdays".
+  - `move_workout`: "move Push to Thursday" changes the weekly plan; "this week only" or "tomorrow" makes a one-off move.
+  - All of them come back as cards with Undo.
+- **The set you're on.** During a workout the Coach is told the CURRENT SET.
+  - "Only 9 reps" or "67 kilos, same reps" fills and ticks that set (`log_current_set`), keeping anything you didn't say as planned, and starts the rest as a tap would.
+  - "The last one was actually 7" fixes the set you just finished.
+- **GPT-6.1 Sol thinks per message** (`effortFor` in `lib/agentTurn.ts`):
+  - Chat, logging and quick questions answer at low effort, in a second or two.
+  - Planning, analysis and advice get the effort set in Settings, never more.
+- **Polish:**
+  - A sheet that opens over another one: the one behind steps back on the top sheet's own progress, frame for frame. It follows your finger, and its glass fades to solid instead of swapping.
+  - The orb screen's top starts in the status bar's exact colour (`--bar-shown`), so there's no seam under the bar.
+  - What you say on the orb screen writes in large, word by word, then shrinks into its sent bubble before the answer writes in. Message springs are calmer.
+  - Routine editor: the line under an exercise swaps in turn instead of overlapping. The per-row rise is gone, after a phone recording showed the list dropping out for single frames.
+
 ## Google Drive backup (optional, free)
 
 Settings → Data & backup → **Google Drive backup** keeps one file, `Aven backup.json`, in your own Google Drive.

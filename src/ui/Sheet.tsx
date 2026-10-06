@@ -197,7 +197,27 @@ function HostSheet({ children, onClose, tall, instant, label, foot, z: zProp = 6
     return () => c.stop();
     // eslint-disable-next-line
   }, []);
-  useEffect(() => { const c = animate(bs, behind ? 1 : 0, reduce ? { duration: 0.01 } : SPRING); return () => c.stop(); }, [behind]); // eslint-disable-line
+  // Stepping back behind a sheet that opens on top is not an animation of its own: it follows THAT sheet's progress, frame
+  // for frame — as it rises, as your finger drags it down, as it leaves — so the two can never drift apart (it used to stay
+  // stepped back while you dragged the top one away, then snap forward once it had gone).
+  const follow = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    if (!behind) return;
+    follow.current?.();
+    const cur = useUI.getState().overlays;
+    const at = meta ? cur.findIndex((o) => o.id === meta.id) : -1;
+    const upper = at >= 0 ? cur[group(cur, at).hi + 1] : undefined;
+    const h = upper ? hosts.get(upper.id) : undefined;
+    if (!h) { const c = animate(bs, 1, reduce ? { duration: 0.01 } : SPRING); return () => c.stop(); }
+    bs.set(h.engage.e.get());
+    const off = h.engage.e.on('change', (v) => bs.set(v));
+    const done = () => { off(); follow.current = null; if (bs.get() > 0.01) animate(bs, 0, reduce ? { duration: 0.01 } : SPRING); };
+    h.gone.add(done);
+    follow.current = () => { off(); h.gone.delete(done); };
+    // kept while the top sheet LEAVES (it is no longer "above" by then, but still moving): released when it is gone
+    // eslint-disable-next-line
+  }, [behind]);
+  useEffect(() => () => follow.current?.(), []);
   // leaving: whatever the finger left behind becomes progress, and the exit spring carries on at the finger's speed
   const [present, safeToRemove] = usePresence();
   const leaving = useRef(false);

@@ -33,7 +33,7 @@ function frame(now: number) {
   // with it — it stayed the area's purple over a near-black screen, a band across the top
   if (frost > 0) { const f = 0.74 * frost, bg: RGB = light ? [233, 236, 244] : [5, 6, 11]; c3 = c3.map((v, i) => v * (1 - f) + bg[i] * f) as RGB; }
   const c = hex(c3);
-  if (c !== sent) { sent = c; document.querySelector('meta[name="theme-color"]')?.setAttribute('content', c); }
+  if (c !== sent) { sent = c; document.querySelector('meta[name="theme-color"]')?.setAttribute('content', c); root.style.setProperty('--bar-shown', c); }
 }
 const schedule = () => { if (!raf) raf = requestAnimationFrame(frame); };
 

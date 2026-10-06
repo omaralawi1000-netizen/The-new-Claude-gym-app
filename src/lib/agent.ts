@@ -24,7 +24,7 @@ import { ACTIVITY_KINDS, ACTIVITY_LABEL } from './activity';
 import { fmtNum, kgToDisplay } from './units';
 import type { ActivityKind, Exercise, Food, FoodEntry, Meal, MemoryKind, MemoryNote, Quantity, RoutineItem, SessionExercise, SetRecord, Settings } from './types';
 import { MEMORY_KINDS, MEMORY_MAX } from '../state/defaults';
-import { addExercises, replaceExercise } from '../screens/workout/actions';
+import { addExercises, replaceExercise, startRest } from '../screens/workout/actions';
 import { EQUIP_LABEL, MUSCLE_LABEL } from '../screens/workout/common';
 
 // ── what the model may ask for ──────────────────────────────
@@ -59,6 +59,9 @@ export type AgentAction =
   | { type: 'delete_workout'; workout?: string | null }
   | { type: 'discard_workout' }
   | { type: 'set_schedule'; weekday: number; routine: string | null }
+  | { type: 'move_workout'; routine?: string | null; from_weekday?: number | null; to_weekday: number; once: boolean }
+  | { type: 'plan_activity'; weekday: number; kind: ActivityKind; on: boolean }
+  | { type: 'log_current_set'; kg?: number | null; reps?: number | null; which: 'current' | 'last' }
   | { type: 'delete_activity'; kind?: string | null; day?: string | null }
   | { type: 'delete_weight'; day?: string | null }
   | { type: 'add_note'; text: string; kind: 'training' | 'nutrition'; day?: string | null }
@@ -186,6 +189,23 @@ export function validateAgent(raw: any): { reply: string; actions: AgentAction[]
       case 'delete_workout': out.push({ type: 'delete_workout', workout: str(a.workout, 30) ?? null }); break;
       case 'discard_workout': out.push({ type: 'discard_workout' }); break;
       case 'set_schedule': { const wd = num(a.weekday, 0, 6); if (wd !== undefined) out.push({ type: 'set_schedule', weekday: Math.round(wd), routine: str(a.routine, 60) ?? null }); break; }
+      case 'move_workout': {
+        const to = num(a.weekday, 0, 6); if (to === undefined) break;
+        const from = num(a.from_weekday, 0, 6);
+        out.push({ type: 'move_workout', routine: str(a.routine, 60) ?? null, from_weekday: from !== undefined ? Math.round(from) : null, to_weekday: Math.round(to), once: a.once === true });
+        break;
+      }
+      case 'plan_activity': {
+        const wd = num(a.weekday, 0, 6); if (wd === undefined) break;
+        const kind = ACTIVITY_KINDS.includes(a.kind) ? a.kind : 'wrestling';
+        out.push({ type: 'plan_activity', weekday: Math.round(wd), kind, on: a.on !== false });
+        break;
+      }
+      case 'log_current_set': {
+        const kg = num(a.kg, 0, 600), reps = num(a.reps, 0, 200);
+        out.push({ type: 'log_current_set', kg: kg ?? null, reps: reps !== undefined ? Math.round(reps) : null, which: a.which === 'last' ? 'last' : 'current' });
+        break;
+      }
       case 'delete_activity': out.push({ type: 'delete_activity', kind: str(a.kind, 20) ?? null, day: dayArg(a.day) }); break;
       case 'delete_weight': out.push({ type: 'delete_weight', day: dayArg(a.day) }); break;
       case 'add_note': { const text = str(a.text, 400); if (text) out.push({ type: 'add_note', text, kind: a.kind === 'nutrition' ? 'nutrition' : 'training', day: dayArg(a.day) }); break; }
@@ -733,6 +753,86 @@ function doDiscardWorkout(ctx: AgentCtx): AgentResult {
 }
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+/** Moves a planned workout to another weekday: from now on (the weekly plan), or just this once (this week). */
+function doMoveWorkout(a: Extract<AgentAction, { type: 'move_workout' }>, ctx: AgentCtx): AgentResult {
+  const { t } = ctx;
+  const st = useStore.getState();
+  const prev = st.schedule;
+  const weekly = prev.weekly;
+  // which routine: named, or the one planned on from_weekday
+  let r = a.routine ? findRoutine(a.routine) : null;
+  if (a.routine && !r) return { id: uid('r'), kind: 'miss', title: t('Couldn’t find that routine'), lines: [{ text: a.routine, sub: st.routines.map((x) => x.name).join(' · ').slice(0, 120), warn: true }] };
+  if (!r && a.from_weekday != null) r = st.routines.find((x) => x.id === weekly[a.from_weekday!]) ?? null;
+  if (!r) return { id: uid('r'), kind: 'miss', title: t('Which workout should move?'), lines: [] };
+  const from = a.from_weekday ?? (Object.entries(weekly).find(([, id]) => id === r!.id)?.[0] !== undefined ? Number(Object.entries(weekly).find(([, id]) => id === r!.id)![0]) : null);
+  if (a.once) {
+    // this week: the next date that falls on each weekday, counted from today
+    const today = ctx.today;
+    const dateOf = (wd: number) => { for (let k = 0; k < 7; k++) { const d = addDays(today, k); if (new Date(d + 'T12:00:00').getDay() === wd) return d; } return today; };
+    const to = dateOf(a.to_weekday);
+    const origin = from != null ? dateOf(from) : to;
+    st.rescheduleMissed(origin, r.id, to);
+    return { id: uid('r'), kind: 'routine', title: t('Moved for this week'), lines: [{ text: r.name, sub: `${from != null ? `${t(WEEKDAYS[from])} → ` : ''}${t(WEEKDAYS[a.to_weekday])}` }], undo: () => useStore.getState().setSchedule(prev) };
+  }
+  const next = { ...weekly };
+  if (from != null && next[from] === r.id) next[from] = null;
+  next[a.to_weekday] = r.id;
+  st.setSchedule({ mode: 'weekly', weekly: next });
+  return { id: uid('r'), kind: 'routine', title: t('Plan updated'), lines: [{ text: r.name, sub: `${from != null ? `${t(WEEKDAYS[from])} → ` : ''}${t(WEEKDAYS[a.to_weekday])}` }], undo: () => useStore.getState().setSchedule(prev) };
+}
+
+/** Wrestling (or another activity) on a weekday of the plan, beside the gym. */
+function doPlanActivity(a: Extract<AgentAction, { type: 'plan_activity' }>, ctx: AgentCtx): AgentResult {
+  const { t } = ctx;
+  const st = useStore.getState();
+  const prev = st.schedule;
+  const acts = { ...(prev.activities ?? {}) };
+  const list = new Set(acts[a.weekday] ?? []);
+  if (a.on) list.add(a.kind); else list.delete(a.kind);
+  if (list.size) acts[a.weekday] = [...list]; else delete acts[a.weekday];
+  st.setSchedule({ activities: acts });
+  return { id: uid('r'), kind: 'routine', title: a.on ? t('Added to your plan') : t('Taken off your plan'), lines: [{ text: t(ACTIVITY_LABEL[a.kind]), sub: t(WEEKDAYS[a.weekday]) }], undo: () => useStore.getState().setSchedule(prev) };
+}
+
+/** In a workout, "only 9 reps" / "67 kilos, same reps": the set you're on (ticked, with the rest started) — or the one
+ * you just finished ("the last one was 7"). Unsaid numbers stay as the set already shows them. */
+function doCurrentSet(a: Extract<AgentAction, { type: 'log_current_set' }>, ctx: AgentCtx): AgentResult {
+  const { t, lang } = ctx;
+  const st = useStore.getState();
+  const act = st.active;
+  if (!act) return { id: uid('r'), kind: 'miss', title: t('No workout is running'), lines: [] };
+  const w = st.settings.units.weight;
+  const show = (s: Pick<SetRecord, 'weightKg' | 'reps'>) => `${s.weightKg ? `${fmtNum(kgToDisplay(s.weightKg, w), lang, 2)} ${w} × ` : ''}${s.reps ?? '—'}`;
+  const before = act;
+  const exOf = (id: string) => allExercises(st.exercises).find((e) => e.id === id);
+  let hit: { se: SessionExercise; set: SetRecord; n: number } | null = null;
+  if (a.which === 'last') {
+    for (const se of act.exercises) se.sets.forEach((s, i) => { if (s.done && (!hit || (s.completedAt ?? 0) >= (hit.set.completedAt ?? 0))) hit = { se, set: s, n: i + 1 }; });
+    if (!hit) return { id: uid('r'), kind: 'miss', title: t('No finished set yet'), lines: [] };
+  } else {
+    for (const se of act.exercises) { const i = se.sets.findIndex((s) => !s.done); if (i >= 0) { hit = { se, set: se.sets[i], n: i + 1 }; break; } }
+    if (!hit) return { id: uid('r'), kind: 'miss', title: t('Every set is done'), lines: [] };
+  }
+  const h = hit as { se: SessionExercise; set: SetRecord; n: number };
+  const set = h.set;
+  const weightKg = a.kg ?? set.weightKg ?? set.target?.weightKg;
+  const reps = a.reps ?? set.reps ?? set.target?.repMax;
+  const next: SetRecord = { ...set, weightKg, reps, ...(a.which === 'current' ? { done: true, completedAt: Date.now() } : {}) };
+  st.mutateActive((x) => ({ ...x, exercises: x.exercises.map((b) => (b.id === h.se.id ? { ...b, sets: b.sets.map((q) => (q.id === set.id ? next : q)) } : b)) }));
+  // a working set just done starts the rest, as ticking it would (not after the last set of the workout)
+  const after = useStore.getState().active;
+  if (a.which === 'current' && set.type === 'working' && after?.exercises.some((e) => e.sets.some((x) => !x.done))) {
+    startRest(h.se.restSec ?? st.settings.restDefaultSec, h.se.exerciseId);
+  }
+  const ex = exOf(h.se.exerciseId);
+  const label = set.type === 'warmup' ? t('Warm-up') : `${t('Set')} ${h.se.sets.slice(0, h.n).filter((q) => q.type === 'working').length}`;
+  return {
+    id: uid('r'), kind: 'sets', title: a.which === 'last' ? t('Set corrected') : t('Set logged'),
+    lines: [{ text: ex ? exLabel(ex, lang) : '', sub: `${label} · ${a.which === 'last' ? `${show(set)} → ` : ''}${show(next)}` }],
+    undo: () => useStore.getState().mutateActive(() => before),
+  };
+}
+
 function doSchedule(a: Extract<AgentAction, { type: 'set_schedule' }>, ctx: AgentCtx): AgentResult {
   const { t } = ctx;
   const st = useStore.getState();
@@ -1055,6 +1155,9 @@ export async function runActions(actions: AgentAction[], ctxIn: AgentCtx): Promi
         case 'delete_workout': out.push(doDeleteWorkout(a, ctx)); break;
         case 'discard_workout': out.push(doDiscardWorkout(ctx)); break;
         case 'set_schedule': out.push(doSchedule(a, ctx)); break;
+        case 'move_workout': out.push(doMoveWorkout(a, ctx)); break;
+        case 'plan_activity': out.push(doPlanActivity(a, ctx)); break;
+        case 'log_current_set': out.push(doCurrentSet(a, ctx)); break;
         case 'delete_activity': out.push(doDeleteActivity(a, ctx)); break;
         case 'delete_weight': out.push(doDeleteWeight(a, ctx)); break;
         case 'add_note': out.push(doNote(a, ctx)); break;

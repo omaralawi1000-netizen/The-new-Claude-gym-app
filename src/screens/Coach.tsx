@@ -26,7 +26,7 @@ type Msg =
   | { id: string; role: 'action'; results: AgentResult[]; undone: string[]; confirmed: string[] }
 
 /** How a sent message and an answer settle: calm, a hint of spring, no wobble — the same as the orb screen. */
-const SEND = { type: 'spring', stiffness: 320, damping: 30, mass: 1 } as const;
+const SEND = { type: 'spring', stiffness: 170, damping: 26, mass: 1 } as const; // calm: a soft rise, no hurry, no wobble
 
 const THREAD = 'aven.coach';
 /** The Coach conversation as it was left (cards come back without their Undo: that only works right after the change). */

@@ -119,7 +119,7 @@ async function generateJson(key: string, model: string, { system, prompt, schema
 }
 
 /** Who to ask. `sol`: GPT-6.1 Sol goes first (lib/brain.ts), Gemini (`key`, may be empty) is the fallback. */
-export interface Brain { key: string; models: string[]; signal?: AbortSignal; sol?: { key: string; effort: 'medium' | 'high' } }
+export interface Brain { key: string; models: string[]; signal?: AbortSignal; sol?: { key: string; effort: 'low' | 'medium' | 'high' } }
 
 const FOOD_UNITS = ['g', 'kg', 'ml', 'dl', 'cl', 'l', 'tsp', 'tbsp', 'cup', 'piece', 'slice', 'handful', 'glass', 'can', 'scoop', 'bowl', 'serving'];
 const FOOD_SCHEMA = {
@@ -243,7 +243,7 @@ const noThinking = new Set<string>();
 export interface Turn { role: 'user' | 'model'; parts: { text: string }[] }
 
 // ── the Coach as an agent: one answer = a short reply plus the actions to carry out ──
-const ACTION_TYPES = ['log_food', 'log_water', 'log_weight', 'log_sets', 'log_activity', 'start_workout', 'finish_workout', 'navigate', 'set_setting', 'edit_food', 'delete_food', 'move_food', 'copy_food', 'replace_food', 'create_food', 'favourite_food', 'save_meal', 'edit_set', 'add_exercise', 'remove_exercise', 'replace_exercise', 'create_routine', 'edit_routine', 'delete_routine', 'delete_workout', 'discard_workout', 'set_schedule', 'delete_activity', 'delete_weight', 'add_note', 'remember', 'forget', 'show_exercise', 'suggest_food', 'undo_last'];
+const ACTION_TYPES = ['log_food', 'log_water', 'log_weight', 'log_sets', 'log_activity', 'start_workout', 'finish_workout', 'navigate', 'set_setting', 'edit_food', 'delete_food', 'move_food', 'copy_food', 'replace_food', 'create_food', 'favourite_food', 'save_meal', 'edit_set', 'add_exercise', 'remove_exercise', 'replace_exercise', 'create_routine', 'edit_routine', 'delete_routine', 'delete_workout', 'discard_workout', 'set_schedule', 'move_workout', 'plan_activity', 'log_current_set', 'delete_activity', 'delete_weight', 'add_note', 'remember', 'forget', 'show_exercise', 'suggest_food', 'undo_last'];
 const BIT = { type: 'ARRAY', nullable: true, items: { type: 'OBJECT', properties: { exercise: { type: 'STRING' }, sets: { type: 'INTEGER', nullable: true }, repMin: { type: 'INTEGER', nullable: true }, repMax: { type: 'INTEGER', nullable: true }, restSec: { type: 'INTEGER', nullable: true } }, required: ['exercise'] } };
 const NUTRI = (d: string) => ({ type: 'OBJECT', nullable: true, description: d, properties: { kcal: { type: 'NUMBER', nullable: true }, protein: { type: 'NUMBER', nullable: true }, carbs: { type: 'NUMBER', nullable: true }, fat: { type: 'NUMBER', nullable: true } } });
 const AGENT_FOOD = { type: 'OBJECT', properties: {
@@ -272,17 +272,20 @@ export const AGENT_SCHEMA = {
         exercise: { type: 'STRING' },
         sets: { type: 'ARRAY', items: { type: 'OBJECT', properties: { kg: { type: 'NUMBER', nullable: true }, reps: { type: 'INTEGER', nullable: true }, durationSec: { type: 'INTEGER', nullable: true }, distanceKm: { type: 'NUMBER', nullable: true } } } },
       }, required: ['exercise', 'sets'] } },
-      kind: { type: 'STRING', nullable: true, description: 'log_activity: the activity. remember: goal | preference | health | schedule | gear | food | other' }, minutes: { type: 'NUMBER', nullable: true }, rounds: { type: 'INTEGER', nullable: true }, intensity: { type: 'INTEGER', nullable: true }, note: { type: 'STRING', nullable: true },
+      kind: { type: 'STRING', nullable: true, description: 'log_activity / plan_activity: the activity (wrestling, run…). remember: goal | preference | health | schedule | gear | food | other' }, minutes: { type: 'NUMBER', nullable: true }, rounds: { type: 'INTEGER', nullable: true }, intensity: { type: 'INTEGER', nullable: true }, note: { type: 'STRING', nullable: true },
       routine: { type: 'STRING', nullable: true }, screen: { type: 'STRING', nullable: true }, section: { type: 'STRING', nullable: true },
       key: { type: 'STRING', nullable: true }, value: { type: 'STRING', nullable: true },
       with: { type: 'OBJECT', nullable: true, description: 'replace_food: the food to put in its place', properties: { name: { type: 'STRING' }, brand: { type: 'STRING', nullable: true }, amount: { type: 'NUMBER', nullable: true }, unit: { type: 'STRING', nullable: true, enum: FOOD_UNITS }, state: { type: 'STRING', nullable: true, enum: ['raw', 'cooked', 'dry'] } }, required: ['name'] },
       name: { type: 'STRING', nullable: true, description: 'create_food / favourite_food / save_meal: the name' },
-      basis: { type: 'STRING', nullable: true, enum: ['g', 'ml'] }, on: { type: 'BOOLEAN', nullable: true },
+      basis: { type: 'STRING', nullable: true, enum: ['g', 'ml'] }, on: { type: 'BOOLEAN', nullable: true, description: 'favourite_food: favourite or not. plan_activity: true = add to that day, false = take it off' },
       exercise: { type: 'STRING', nullable: true, description: 'edit_set: the exercise. remember: the catalog exercise it is about, if any. show_exercise: the catalog exercise to show' }, workout: { type: 'STRING', nullable: true, description: 'edit_set/delete_workout: current, last, a date YYYY-MM-DD, or a workout name' },
       set_number: { type: 'INTEGER', nullable: true, description: '1-based set number as listed in DATA' }, reps: { type: 'INTEGER', nullable: true }, delete_set: { type: 'BOOLEAN', nullable: true, description: 'edit_set: true to delete that set' }, remove: { type: 'ARRAY', nullable: true, items: { type: 'STRING' }, description: 'edit_routine: exercise names to take out of the routine' },
       from: { type: 'STRING', nullable: true }, to: { type: 'STRING', nullable: true },
       add: BIT, change: BIT, rename: { type: 'STRING', nullable: true },
-      weekday: { type: 'INTEGER', nullable: true, description: '0 = Sunday … 6 = Saturday' }, text: { type: 'STRING', nullable: true, description: 'add_note: the note. remember: one short third-person line, e.g. "Doesn\'t do a separate leg day; wrestling covers legs."' },
+      weekday: { type: 'INTEGER', nullable: true, description: '0 = Sunday … 6 = Saturday (set_schedule, plan_activity; move_workout: the day it moves TO)' },
+      from_weekday: { type: 'INTEGER', nullable: true, description: 'move_workout: the day it is planned on now, if said' },
+      once: { type: 'BOOLEAN', nullable: true, description: 'move_workout: true = only this week ("this week", "tomorrow"), false = the weekly plan from now on' },
+      which: { type: 'STRING', nullable: true, enum: ['current', 'last'], description: 'log_current_set: current = the set they are on now (it gets ticked), last = the set they just finished' }, text: { type: 'STRING', nullable: true, description: 'add_note: the note. remember: one short third-person line, e.g. "Doesn\'t do a separate leg day; wrestling covers legs."' },
       memory: { type: 'STRING', nullable: true, description: 'forget: the number of the MEMORY line to drop, e.g. "3"' },
       target: { type: 'STRING', nullable: true, description: 'edit_food / delete_food: the logged item\'s name exactly as in DATA' },
       amount: { type: 'NUMBER', nullable: true, description: 'edit_food: the corrected amount' }, unit: { type: 'STRING', nullable: true, description: 'edit_food: unit of amount (g, ml, kg, l, piece)' },
