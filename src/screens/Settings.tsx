@@ -24,6 +24,8 @@ import { useAi } from '../state/ai';
 import { clearKeys } from '../lib/keys';
 import { VoiceAiSettings } from './VoiceAi';
 import { CoachMemory } from './CoachMemory';
+import { cardOrder, type TodayCard } from './TodayCards';
+import { startDragSort } from '../ui/dragSort';
 import { setFpsMeter, useFpsMeterOn } from '../ui/FpsMeter';
 import { startStutter, stopStutter, stutterReport, stutterState, subscribeStutter } from '../lib/stutter';
 
@@ -72,21 +74,48 @@ const PALETTES: { id: Settings['palette']; name: string; c: [string, string, str
   { id: 'forest', name: 'Forest', c: ['#b6f25a', '#1f9d6a', '#2fd0a0'] },
 ];
 
-/** Settings → Today: what the Today screen shows. Anything switched off is gone, not hidden behind a button. */
+/**
+ * Settings → Today: what the Today screen shows. Under the ring: switches. The cards below the workout: a list you can
+ * reorder (drag the grip, as in the routine editor) and switch off. Anything switched off is gone, not hidden behind a button.
+ */
 function TodaySettings() {
   const t = useT();
   const w = useStore((x) => x.settings.widgets);
+  const saved = useStore((x) => x.settings.todayOrder);
   const set = useStore((x) => x.updateSettings);
-  const rows: { k: keyof Settings['widgets']; label: string; hint?: string }[] = [
+  const listRef = useRef<HTMLDivElement>(null);
+  const order = cardOrder(saved);
+  const ring: { k: keyof Settings['widgets']; label: string; hint?: string }[] = [
     { k: 'quick', label: t('Quick add buttons'), hint: t('Add, scan and photo under the ring.') },
     { k: 'water', label: t('Water'), hint: t('The water button here and the water card on the Food screen.') },
     { k: 'recents', label: t('Recent foods'), hint: t('One-tap chips for what you eat often.') },
-    { k: 'week', label: t('Week'), hint: t('Your training week as seven dots.') },
-    { k: 'weight', label: t('Weight trend'), hint: t('Your weight and its trend line.') },
   ];
+  const CARD: Record<TodayCard, { label: string; hint: string }> = {
+    targets: { label: t('Up next'), hint: t('Next workout and what to beat.') },
+    week: { label: t('Week'), hint: t('Week dots, streak and wrestling.') },
+    muscles: { label: t('Muscles this week'), hint: t('Hard sets per muscle this week.') },
+    records: { label: t('Recent records'), hint: t('Your newest personal bests.') },
+    weight: { label: t('Weight trend'), hint: t('Your weight and its trend line.') },
+  };
+  const move = (from: number, to: number) => { const l = [...order]; const [it] = l.splice(from, 1); l.splice(to, 0, it); set({ todayOrder: l }); };
   return (
     <div className="stack gap16">
-      {rows.map((r) => (
+      <div className="row-flex between"><div className="lbl">{t('Cards')}</div><div className="xs t3">{t('Drag to reorder')}</div></div>
+      <div ref={listRef} className="stack" style={{ gap: 8, marginTop: -6 }}>
+        {order.map((k, i) => (
+          <div key={k} data-flip={k} className="plinth rt-card today-card-row">
+            <button className="rt-grip" data-no-swipe aria-label={t('Drag to reorder')} onPointerDown={(e) => startDragSort(e, listRef.current, k, move)}><Icon name="grip" size={18} /></button>
+            <div style={{ minWidth: 0, flex: 1, opacity: w[k] ? 1 : 0.55, transition: 'opacity 200ms' }}><div>{CARD[k].label}</div><div className="xs t3">{CARD[k].hint}</div></div>
+            <div className="sr-only">
+              <button disabled={i === 0} onClick={() => move(i, i - 1)}>{t('Move up')}</button>
+              <button disabled={i === order.length - 1} onClick={() => move(i, i + 1)}>{t('Move down')}</button>
+            </div>
+            <Toggle on={w[k]} onChange={(v) => set({ widgets: { ...w, [k]: v } })} label={CARD[k].label} />
+          </div>
+        ))}
+      </div>
+      <div className="lbl" style={{ marginTop: 6 }}>{t('Under the ring')}</div>
+      {ring.map((r) => (
         <div key={r.k} className="row-flex between" style={{ gap: 14 }}>
           <div style={{ minWidth: 0 }}><div>{r.label}</div>{r.hint && <div className="xs t3">{r.hint}</div>}</div>
           <Toggle on={w[r.k]} onChange={(v) => set({ widgets: { ...w, [r.k]: v } })} label={r.label} />

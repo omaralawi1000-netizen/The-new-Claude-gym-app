@@ -7,7 +7,7 @@ import { addDays, fmtDate, fmtDuration, fmtDurationLong, fmtWeekdayShort, startO
 import { useDaySummary, useToday, useWaterOn, defaultMealId } from '../lib/derive';
 import { Icon } from '../ui/Icon';
 import { Ledger } from './food/Ledger';
-import { weightTrend, trendRate, reviewWeekEnd, weekReview } from '../lib/stats';
+import { weightTrend, trendRate, reviewWeekEnd, weekReview, weekStreak, weeklyTraining } from '../lib/stats';
 import { Count } from '../ui/kit';
 import { elapsedMs, sessionSetCount, sessionVolume } from '../lib/workout';
 import { fmtNum, fmtPct, kgToDisplay } from '../lib/units';
@@ -16,6 +16,7 @@ import { defaultQty } from './food/Detail';
 import { useCovered, useNow, useScreenStore } from '../lib/hooks';
 import type { AppData, Routine } from '../lib/types';
 import { exName } from './workout/common';
+import { cardOrder, NextTargets, MusclesWeek, RecentRecords } from './TodayCards';
 
 export function estMinutes(r: Routine): number {
   const sets = r.items.reduce((n, i) => n + i.warmupSets + i.workingSets, 0);
@@ -90,6 +91,19 @@ export function TodayScreen() {
     const pw = !!s.schedule.activities?.[weekdayOf(d)]?.includes('wrestling'); // wrestling planned that weekday
     return { d, p, done, wr, pw };
   });
+  // under the dots: how the week is going, the streak of weeks that hit the plan, and wrestling
+  const weekLine = useMemo(() => {
+    const target = s.schedule.mode === 'rotation' ? s.schedule.rotation.perWeek : Object.values(s.schedule.weekly).filter(Boolean).length;
+    const doneN = week.filter((w) => w.done).length;
+    const wrN = s.activities.filter((x) => x.kind === 'wrestling' && x.date >= weekStart && x.date <= addDays(weekStart, 6)).length;
+    const streak = target ? weekStreak(weeklyTraining(s.sessions, today, 26, settings.weekStart), target) : 0;
+    const parts = [
+      target ? t('{a} of {b} workouts', { a: doneN, b: target }) : doneN ? t(doneN === 1 ? '1 workout' : '{n} workouts', { n: doneN }) : '',
+      streak >= 2 ? t('{n}-week streak', { n: streak }) : '',
+      wrN ? t(wrN === 1 ? '1 wrestling session' : '{n} wrestling sessions', { n: wrN }) : '',
+    ].filter(Boolean);
+    return parts.join(' · ');
+  }, [s.sessions, s.activities, s.schedule, weekStart, today, settings.weekStart, t]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // While the workout overlay is open, keep the hero looking like it did when it was tapped: otherwise it flips to its
   // "in progress" layout (a different height) in the middle of the plate morph that grows out of it.
@@ -234,8 +248,16 @@ export function TodayScreen() {
 
       <WeekReviewCard d={s} today={today} />
 
-      {/* ── week ── */}
-      {wd.week && <section style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
+      {/* ── the cards below, in your order (Settings → Today) ── */}
+      {cardOrder(settings.todayOrder).map((k) => {
+        if (!wd[k]) return null;
+        if (k === 'targets') return <NextTargets key={k} d={s} today={today} />;
+        if (k === 'muscles') return <MusclesWeek key={k} d={s} today={today} />;
+        if (k === 'records') return <RecentRecords key={k} d={s} today={today} />;
+        if (k === 'weight') return <WeightTrend key={k} />;
+        return (
+          <div key={k} className="stack tc-week" style={{ gap: 12 }} aria-label={t('Week')}>
+            <section style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
         {week.map((w) => {
           const isToday = w.d === today;
           const past = w.d < today;
@@ -252,10 +274,11 @@ export function TodayScreen() {
             </button>
           );
         })}
-      </section>}
-
-      {/* ── weight trend ── */}
-      {wd.weight && <WeightTrend />}
+      </section>
+            {weekLine && <div className="xs t2 num" style={{ textAlign: 'center' }}>{weekLine}</div>}
+          </div>
+        );
+      })}
 
       <div className="row-flex" style={{ justifyContent: 'center' }}>
         <button className="chip sm press" onClick={() => push('settings', { section: 'today' })}><Icon name="settings" size={14} /> {t('Customize Today')}</button>

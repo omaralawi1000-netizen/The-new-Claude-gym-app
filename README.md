@@ -140,6 +140,21 @@ Run in headless Chromium (Playwright, 390×844 @2×, dark + light), scripts in `
 - **Not built (on purpose, stated in-app):** cloud sync / accounts; photo-based food estimation; automatic AI changes to your data (the Coach advises; routines and estimates only appear after you confirm; progression suggestions remain transparent rules); background reminders when the app is closed (web apps need a push server — reminders fire only while Aven runs; in-app nudge otherwise); animated exercise demonstrations (there is an authored muscle diagram and step-by-step text instead).
 - Exercise calories are **never** added to food targets.
 
+## A fuller Today screen you can arrange
+
+Below the workout card, Today now has cards that each answer a question:
+- **Up next.** Your next planned workout (today's until it's done), with the first four lifts and the weight × reps to aim for, plus what changed: "+2.5 kg" or "+1 rep". It is the same progression the workout fills in when it starts, so you know what to beat before you get there.
+- **Week.** The seven dots as before, plus one line: "2 of 3 workouts · 4-week streak · 1 wrestling session".
+- **Muscles this week.** Hard sets per muscle so far this week (main muscle 1, helper muscles ½; the same count the Coach uses), as a bar each against the usual "about 10 sets a week" guideline. A muscle that reaches 10 lights up. One quiet line names the muscles not trained yet.
+- **Recent records.** Your newest personal bests from the last 30 days, one per exercise, with how much better and when. A best-set-volume record shows as the set (21.5 kg × 14), not as a total that reads like a weight. Tap one to open that workout.
+- **Weight trend.** As before.
+
+**Customize Today** (the chip at the bottom, or Settings → Today) lists these cards in their order:
+- Drag a card's grip to move it, or switch it off; switched-off cards are simply gone.
+- The quick-add buttons, water and recent foods under the ring stay as switches.
+- The order is saved with your data, so it is in backups too.
+- Checked by `scripts/journey-today.mjs` (in `run-all.sh`): default order, contents, switching off, reordering, and the order surviving a reload.
+
 ## Stacked pop-ups, sent words, read-aloud sync (6 Oct recordings)
 
 - **A pop-up behind another keeps its frost.** It used to turn solid until the top one closed. Now it stays the same glass, set back under the top sheet's dim. Only when two or more sheets are stacked on it does it go solid. That limit is a GPU-memory guard: three full-screen blurs once gave the phone black tiles.

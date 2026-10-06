@@ -25,4 +25,5 @@ run drive node scripts/journey-drive.mjs
 run align node scripts/align.mjs
 run sync node scripts/sync-check.mjs
 run morph node scripts/morph.mjs
+run today node scripts/journey-today.mjs
 echo "passed=$pass failed=$fail"

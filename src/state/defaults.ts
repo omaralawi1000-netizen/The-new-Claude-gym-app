@@ -37,7 +37,7 @@ export function defaultSettings(lang: Lang = 'en'): Settings {
     plateStep: 2.5,
     foodLookup: true,
     palette: 'ember',
-    widgets: { water: true, quick: true, recents: true, week: true, weight: true },
+    widgets: { water: true, quick: true, recents: true, week: true, weight: true, targets: true, muscles: true, records: true },
   };
 }
 

@@ -275,7 +275,9 @@ export interface Settings {
   /** the colours of the app (glow + accent), see styles.css `data-palette` */
   palette: 'ember' | 'aurora' | 'mono' | 'sunset' | 'forest';
   /** what Today shows; anything switched off is simply gone (and so is the water on the Food screen if `water` is off) */
-  widgets: { water: boolean; quick: boolean; recents: boolean; week: boolean; weight: boolean };
+  widgets: { water: boolean; quick: boolean; recents: boolean; week: boolean; weight: boolean; targets: boolean; muscles: boolean; records: boolean };
+  /** the order of the cards below the workout on Today (screens/TodayCards.tsx); missing ones go at the end */
+  todayOrder?: string[];
   motion: 'system' | 'reduce' | 'full';
   units: { weight: 'kg' | 'lb'; distance: 'km' | 'mi'; length: 'cm' | 'in' };
   weekStart: 0 | 1;
