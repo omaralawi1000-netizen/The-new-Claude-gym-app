@@ -148,7 +148,7 @@ export function Words({ text, k, base = 0, on = -1 }: { text: string; k: string;
     if (born.current[i] === undefined) born.current[i] = Math.min(520, Math.max(0, (i - first) / 2) * 34);
     const idx = n++;
     const cls = on < 0 ? 'w' : idx === on ? 'w w-on' : idx < on ? 'w w-past' : 'w w-next';
-    return <span key={`${k}-${i}`} className={cls} style={{ animationDelay: `${born.current[i]}ms` }}>{w}</span>;
+    return <span key={`${k}-${i}`} className={cls} style={{ animationDelay: `min(${born.current[i]}ms, var(--word-stagger-cap, 520ms))` }}>{w}</span>;
   })}</>;
 }
 /** The index of the word being read aloud in reply `id` (-1 when that reply is not playing). Only that reply re-renders. */

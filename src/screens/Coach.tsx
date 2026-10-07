@@ -13,7 +13,7 @@ import { transcribe, buildPrompt, STT_MODEL, SttError } from '../lib/groq';
 import { aiErrorText, type Photo, type Turn } from '../lib/gemini';
 import { stopSpeaking } from '../lib/tts';
 import { decide, brainFor } from '../lib/agentTurn';
-import { ActionCard, Rich, TypingDots, SpeakButton, prefetchAloud, tidy, sttMessage, useCoachTips, cardsNote } from '../ui/agentUi';
+import { ActionCard, Rich, TypingDots, SpeakButton, prefetchAloud, sttMessage, useCoachTips, cardsNote } from '../ui/agentUi';
 import { runActions, type AgentResult } from '../lib/agent';
 import { uid } from '../lib/nutrition';
 import { dayKey } from '../lib/dates';
@@ -37,6 +37,12 @@ function loadThread(): Msg[] {
 }
 function saveThread(list: Msg[]) {
   try { localStorage.setItem(THREAD, JSON.stringify(list.slice(-60).map((m) => ('image' in m && m.image ? { ...m, image: undefined } : m)))); } catch { /* storage full: the chat just won't come back */ }
+}
+
+/** Let a word or bold phrase finish before it arrives, so streamed fragments never reshape text already shown. */
+function streamingText(text: string): string {
+  const complete = text.replace(/\S+$/, '');
+  return (complete.match(/\*\*/g)?.length ?? 0) % 2 ? complete.slice(0, complete.lastIndexOf('**')) : complete;
 }
 
 export function Coach({ props }: { props: { listen?: boolean; date?: string; mealId?: string; /** the orb screen's conversation, carried over by "Continue in Coach" */ seed?: { said: string; reply: string }[]; /** a question to ask as soon as it opens (the weekly review's button) */ ask?: string } }) {
@@ -303,7 +309,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
                   )}
                   {m.role === 'model' && (m.text ? (
                     <div>
-                      <div className={`reply calm coach-reply${m.seeded ? ' still' : ''}`} aria-live="polite"><Rich text={m.streaming ? tidy(m.text) : m.text} id={m.id} />{m.streaming && <span className="caret" aria-hidden />}</div>
+                      <div className={`reply calm coach-reply${m.seeded ? ' still' : ''}`} aria-live="polite"><Rich text={m.streaming ? streamingText(m.text) : m.text} id={m.id} />{m.streaming && <span className="caret" aria-hidden />}</div>
                       {!m.streaming && m.note && <div className="xs t3" style={{ marginTop: 8 }}>{m.note}</div>}
                       {!m.streaming && <div className="reply-foot"><SpeakButton id={m.id} text={m.text} /></div>}
                     </div>

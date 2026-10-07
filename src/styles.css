@@ -805,8 +805,9 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .coach-body { overflow-anchor: none; }
 .coach-sent { animation: coachSend 740ms var(--ease-smooth) backwards, fadein 240ms var(--ease-out) backwards; }
 @keyframes coachSend { from { transform: translate3d(4px, 20px, 0) scale(.985); } to { transform: none; } }
-.coach-reply:not(.still) .w { animation: coachWord 580ms var(--ease-out) backwards; }
-@keyframes coachWord { from { opacity: 0; filter: blur(3px); transform: translate3d(0, 2px, 0); } to { opacity: 1; filter: none; transform: none; } }
+.coach-reply { --word-stagger-cap: 160ms; }
+.coach-reply:not(.still) .w { animation: coachWord 420ms var(--ease-out) backwards; }
+@keyframes coachWord { from { opacity: 0; filter: blur(2px); transform: translate3d(0, 1px, 0); } to { opacity: 1; filter: none; transform: none; } }
 :root[data-motion='reduce'] :is(.coach-sent, .coach-reply .w) { animation: none; }
 .coach-body :is(.action-card, .action-ic, .action-line, .tip) { animation: none; }
 .coach-body .said { background: color-mix(in srgb, var(--ac) 9%, var(--s2)); border: 0;
