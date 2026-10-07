@@ -135,13 +135,18 @@ const KIND_ICON: Record<string, IconName> = { food: 'recipe', sets: 'dumbbell', 
  * blurs in (CSS .w). Words already on screen never re-animate. While the reply is read aloud (`id` matches what is
  * playing), the word being said lights up, the ones already said settle back and the ones to come wait a shade lighter.
  */
-export function Words({ text, k, base = 0, on = -1 }: { text: string; k: string; base?: number; on?: number }) {
+export function Words({ text, k, base = 0, on = -1, stagger }: { text: string; k: string; base?: number; on?: number; stagger?: number }) {
   const parts = text.split(/(\s+)/);
   // words that arrive together cascade one after another; a word keeps the delay it was born with
   const born = useRef<Record<number, number>>({});
   const seen = useRef(0);
   const first = seen.current;
   useEffect(() => { seen.current = parts.length; });
+  if (stagger !== undefined) {
+    const fresh = parts.map((w, i) => w && /\S/.test(w) && born.current[i] === undefined ? i : -1).filter((i) => i >= 0);
+    const step = Math.min(34, stagger / Math.max(1, fresh.length - 1));
+    fresh.forEach((i, j) => { born.current[i] = j * step; });
+  }
   let n = base;
   return <>{parts.map((w, i) => {
     if (/^\s+$/.test(w) || !w) return w || null;
@@ -155,12 +160,12 @@ export function Words({ text, k, base = 0, on = -1 }: { text: string; k: string;
 export function useSpokenWord(id?: string) {
   return useSyncExternalStore(subscribeSpeech, () => (id && speechState().id === id ? Math.max(0, speechState().word) : -1));
 }
-export function Rich({ text, id }: { text: string; id?: string }) {
+export function Rich({ text, id, stagger }: { text: string; id?: string; stagger?: number }) {
   const on = useSpokenWord(id);
   let n = 0;
   const run = (segs: ReturnType<typeof richLines>[number]['segs'], k: string) => segs.map((p, i) => {
     const base = n; n += wordsOf(p.text).length;
-    return p.bold ? <b key={i}><Words text={p.text} k={`${k}b${i}`} base={base} on={on} /></b> : <Words key={i} text={p.text} k={`${k}t${i}`} base={base} on={on} />;
+    return p.bold ? <b key={i}><Words text={p.text} k={`${k}b${i}`} base={base} on={on} stagger={stagger} /></b> : <Words key={i} text={p.text} k={`${k}t${i}`} base={base} on={on} stagger={stagger} />;
   });
   return <>{richLines(text).map((l, i) => {
     if (l.bullet) return <div key={i} style={{ display: 'flex', gap: 8, marginTop: 4 }}><span aria-hidden className="w" style={{ color: 'var(--tx3)' }}>•</span><span>{run(l.segs, `l${i}`)}</span></div>;

@@ -311,7 +311,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
                   )}
                   {m.role === 'model' && (m.text ? (
                     <div>
-                      <div className={`reply calm coach-reply${m.seeded ? ' still' : ''}`} aria-live="polite"><Rich text={m.streaming ? streamingText(m.text) : m.text} id={m.id} />{m.streaming && <span className="caret" aria-hidden />}</div>
+                      <div className={`reply calm coach-reply${m.seeded ? ' still' : ''}`} aria-live="polite"><Rich text={m.streaming ? streamingText(m.text) : m.text} id={m.id} stagger={160} />{m.streaming && <span className="caret" aria-hidden />}</div>
                       {!m.streaming && m.note && <div className="xs t3" style={{ marginTop: 8 }}>{m.note}</div>}
                       {!m.streaming && <div className="reply-foot"><SpeakButton id={m.id} text={m.text} /></div>}
                     </div>
