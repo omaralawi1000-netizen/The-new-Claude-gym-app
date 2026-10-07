@@ -803,6 +803,15 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-flag .chip { flex: none; margin-top: -2px; }
 /* the Coach's camera: the chosen photo waits above the field; once sent it sits in your bubble */
 .coach-body :is(.action-card, .action-ic, .action-line, .tip) { animation: none; }
+.coach-body .said { background: color-mix(in srgb, var(--ac) 9%, var(--s2)); border-color: color-mix(in srgb, var(--ac) 12%, var(--line)); }
+/* One quiet control surface, lifted by a soft shadow without adding another backdrop blur. */
+.coach-composer { display: flex; align-items: center; gap: 4px; padding: 4px; border-radius: 28px; background: var(--s1);
+  box-shadow: 0 8px 24px rgb(0 0 0 / .16), 0 2px 6px rgb(0 0 0 / .08); transition: box-shadow 200ms var(--ease-out); }
+.coach-composer:focus-within { box-shadow: 0 10px 28px rgb(0 0 0 / .2), 0 3px 8px rgb(0 0 0 / .1); }
+.coach-composer .input { height: 50px; padding-left: 8px; background: transparent; box-shadow: none; }
+.coach-composer .input::placeholder { color: var(--tx2); opacity: 1; }
+.coach-composer .coach-send { transform: scale(.9); transition: opacity 160ms var(--ease-out), transform 260ms var(--ease-smooth); }
+.coach-composer .coach-send.on { transform: none; }
 .coach-cam { flex: none; width: 44px; height: 50px; color: var(--tx2); }
 .coach-photo { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; padding: 6px 6px 6px 6px; border-radius: 16px; background: var(--s2); box-shadow: inset 0 0 0 1px var(--line); animation: rise-soft 420ms var(--ease-out) backwards; }
 .coach-photo img { width: 48px; height: 48px; border-radius: 11px; object-fit: cover; flex: none; }

@@ -253,7 +253,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
           </div>
         )}
         <input ref={camRef} type="file" accept="image/*" hidden onChange={(e) => { pickPhoto(e.target.files?.[0]); e.target.value = ''; }} />
-        <div className="row-flex" style={{ gap: 8 }}>
+        <div className="coach-composer">
           {/* the orb is the Coach's microphone: it flies in from the tab bar, listens to you, thinks while it answers */}
           <button className="press" aria-label={recording ? t('Stop and send') : t('Speak')} disabled={busy || hearing} onClick={() => (ai.hasGroq && mic.supported ? toggleRec() : push('settings', { section: 'ai' }))}
             style={{ position: 'relative', width: 50, height: 50, flex: 'none', borderRadius: 999 }}>
