@@ -802,6 +802,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-flag { display: flex; align-items: flex-start; gap: 8px; margin-top: 8px; padding: 8px 8px 8px 10px; border-radius: 12px; color: var(--tx); background: color-mix(in srgb, var(--warn) 12%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warn) 24%, transparent); }
 .wk-flag .chip { flex: none; margin-top: -2px; }
 /* the Coach's camera: the chosen photo waits above the field; once sent it sits in your bubble */
+.coach-body :is(.action-card, .action-ic, .action-line, .tip) { animation: none; }
 .coach-cam { flex: none; width: 44px; height: 50px; color: var(--tx2); }
 .coach-photo { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; padding: 6px 6px 6px 6px; border-radius: 16px; background: var(--s2); box-shadow: inset 0 0 0 1px var(--line); animation: rise-soft 420ms var(--ease-out) backwards; }
 .coach-photo img { width: 48px; height: 48px; border-radius: 11px; object-fit: cover; flex: none; }

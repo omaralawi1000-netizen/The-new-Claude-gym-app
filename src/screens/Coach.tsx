@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { motion } from 'motion/react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useStore, allExercises } from '../state/store';
 import { useUI, buzz } from '../state/ui';
 import { useAi, anyBrain, solOn } from '../state/ai';
@@ -24,9 +23,6 @@ type Msg =
   | { id: string; role: 'user' | 'model'; text: string; streaming?: boolean; seeded?: boolean; /** a quiet line under the answer (which AI answered, and why) */ note?: string; /** when it was said */ at?: number; /** a photo was sent with it (its picture stays only while the Coach is open) */ photo?: boolean; image?: string }
   | { id: string; role: 'error'; text: string }
   | { id: string; role: 'action'; results: AgentResult[]; undone: string[]; confirmed: string[] }
-
-/** How a sent message and an answer settle: calm, a hint of spring, no wobble — the same as the orb screen. */
-const SEND = { type: 'spring', stiffness: 170, damping: 26, mass: 1 } as const; // calm: a soft rise, no hurry, no wobble
 
 const THREAD = 'aven.coach';
 /** The Coach conversation as it was left (cards come back without their Undo: that only works right after the change). */
@@ -67,12 +63,21 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   const [recording, setRecording] = useState(false);
   const [hearing, setHearing] = useState(false);
   const ctl = useRef<AbortController | null>(null);
-  const endRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const following = useRef(true);
   const alive = useRef(true);
   const msgsRef = useRef<Msg[]>([]); msgsRef.current = msgs;
 
   useEffect(() => { alive.current = true; return () => { alive.current = false; stopSpeaking(); ctl.current?.abort(); mic.release('coach'); for (const m of msgsRef.current) if ('image' in m && m.image) URL.revokeObjectURL(m.image); }; }, []);
-  useEffect(() => { endRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' }); }, [msgs]);
+  // Place the saved conversation before the sheet's first paint; new words follow only while you are at the bottom.
+  useLayoutEffect(() => { const el = bodyRef.current; if (el && following.current) el.scrollTop = el.scrollHeight; }, [msgs, resumed]);
+  useLayoutEffect(() => {
+    const el = bodyRef.current; if (!el) return;
+    const ro = new ResizeObserver(() => { if (following.current) el.scrollTop = el.scrollHeight; });
+    ro.observe(el);
+    const thread = el.querySelector('.coach-thread'); if (thread) ro.observe(thread);
+    return () => ro.disconnect();
+  }, []);
 
 
   const say = (m: Msg) => setMsgs((x) => [...x, m]);
@@ -149,6 +154,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     const text = (raw ?? input).trim();
     const pic = raw === undefined ? photo : null; // a suggestion chip or dictation sends words only
     if ((!text && !pic) || busy) return;
+    following.current = true;
     setInput(''); setPhoto(null); setResumed(false); setBusy(true); stopSpeaking(); orb('processing');
     say({ id: uid('m'), role: 'user', text, at: Date.now(), ...(pic ? { photo: true, image: pic.url } : {}) });
     ctl.current = new AbortController();
@@ -268,15 +274,12 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       </div>
     )}>
       <SheetHead title={t('Coach')} onClose={pop} right={msgs.length ? <button className="small t2 press" onClick={() => { ctl.current?.abort(); stopSpeaking(); setMsgs([]); }}>{t('New chat')}</button> : undefined} />
-      <div className="sheet-body">
+      <div className="sheet-body coach-body" ref={bodyRef} onScroll={(e) => { const el = e.currentTarget; following.current = el.scrollHeight - el.clientHeight - el.scrollTop < 80; }}>
           <>
             {msgs.length === 0 && tipsBlock}
-            <div className="stack" style={{ gap: 16, marginTop: msgs.length ? 0 : 16 }}>
+            <div className="stack coach-thread" style={{ gap: 16, marginTop: msgs.length ? 0 : 16 }}>
               {msgs.map((m) => (
-                <motion.div key={m.id} layout="position"
-                  // what you send rises out of the input into a small bubble on the right; answers write themselves in calmly
-                  initial={'seeded' in m && m.seeded ? false : m.role === 'user' ? { opacity: 0, y: 56, scale: 0.9, filter: 'blur(4px)' } : { opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)', transitionEnd: { filter: 'none' } }}
-                  transition={{ ...SEND, filter: { duration: 0.3 } }}
+                <div key={m.id}
                   style={{ transformOrigin: m.role === 'user' ? '100% 100%' : '0% 0%', alignSelf: m.role === 'user' ? 'flex-end' : 'stretch', maxWidth: m.role === 'user' ? '84%' : '100%', display: m.role === 'user' ? 'flex' : undefined }}>
                   {m.role === 'user' && (
                     <div className="stack" style={{ alignItems: 'flex-end', gap: 6, maxWidth: '100%' }}>
@@ -286,7 +289,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
                   )}
                   {m.role === 'model' && (m.text ? (
                     <div>
-                      <div className={`reply calm coach-reply${m.seeded ? ' still' : ''}`} aria-live="polite"><Rich text={m.streaming ? tidy(m.text) : m.text} id={m.id} />{m.streaming && <span className="caret" aria-hidden />}</div>
+                      <div className="reply still coach-reply" aria-live="polite"><Rich text={m.streaming ? tidy(m.text) : m.text} id={m.id} />{m.streaming && <span className="caret" aria-hidden />}</div>
                       {!m.streaming && m.note && <div className="xs t3" style={{ marginTop: 8 }}>{m.note}</div>}
                       {!m.streaming && <div className="reply-foot"><SpeakButton id={m.id} text={m.text} /></div>}
                     </div>
@@ -301,12 +304,11 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
                     </div>
                   )}
                   {m.role === 'error' && <div className="plinth-2 small" role="alert" style={{ padding: '10px 14px', color: 'var(--bad)' }}>{m.text}</div>}
-                </motion.div>
+                </div>
               ))}
             </div>
             {resumed && msgs.length > 0 && <div className="coach-resume"><div className="micro" style={{ margin: '22px 0 10px' }}>{t('Today')}</div>{tipsBlock}</div>}
             {!noteSeen && msgs.length === 0 && <div className="xs t3" style={{ marginTop: 18 }}>{solOn(ai) ? t('AI can be wrong, and isn’t medical advice. Messages go to OpenAI (GPT-6.1 Sol).') : t('AI can be wrong, and isn’t medical advice. Messages go to Google Gemini.')}</div>}
-            <div ref={endRef} />
           </>
       </div>
     </Sheet>

@@ -55,8 +55,23 @@ await p.screenshot({ path: 'shots/coach-2-memory.png' });
 
 // ── the chat stays when the Coach is closed; after a break the suggestions come back under it ──
 await closeSheets();
-await p.evaluate(() => { const th = JSON.parse(localStorage.getItem('aven.coach')); for (const m of th) if (m.at) m.at -= 2 * 3600_000; localStorage.setItem('aven.coach', JSON.stringify(th)); });
+await p.evaluate(() => {
+  const th = JSON.parse(localStorage.getItem('aven.coach'));
+  for (const m of th) if (m.at) m.at -= 2 * 3600_000;
+  const older = Array.from({ length: 8 }, (_, i) => ({ id: `older-${i}`, role: 'model', at: Date.now() - 3 * 3600_000,
+    text: 'Keep the session steady. Rest between sets and add weight only when your final reps remain controlled. Your training plan stays saved for the next session.' }));
+  localStorage.setItem('aven.coach', JSON.stringify([...older, ...th]));
+  window.__coachOpening = [];
+  const start = performance.now();
+  const frame = () => {
+    const el = document.querySelector('.sheet[aria-label="Coach"]'), body = el?.querySelector('.sheet-body');
+    if (el && body && el.getBoundingClientRect().top < innerHeight - 120) window.__coachOpening.push(body.scrollHeight - body.clientHeight - body.scrollTop);
+    if (performance.now() - start < 1500) requestAnimationFrame(frame);
+  }; requestAnimationFrame(frame);
+});
 await p.getByLabel('Coach').click(); await wait(p, 900);
+const opening = await p.evaluate(() => window.__coachOpening);
+assert(opening.length > 0 && opening.every((gap) => gap <= 2), 'restored conversation is at the bottom before the Coach becomes visible');
 assert(await p.getByText('It looks balanced for you.').isVisible(), 'the conversation came back');
 assert(await p.locator('.coach-resume .tip').first().isVisible(), 'suggestions under an old chat');
 assert.equal(await p.getByRole('button', { name: 'See all' }).count(), 0, 'restored cards come back without dead buttons');
