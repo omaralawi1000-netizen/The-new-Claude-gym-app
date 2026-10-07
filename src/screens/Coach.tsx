@@ -271,7 +271,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
           </button>
           {/* the camera: a label, a machine, a program screenshot — anything to ask about */}
           <button className="icon-btn flat press coach-cam" aria-label={t('Send a photo')} disabled={busy || recording || hearing} onClick={() => camRef.current?.click()}><Icon name="camera" size={21} /></button>
-          <div className="grow" style={{ position: 'relative' }}>
+          <div className="grow coach-field">
             <input ref={inputRef} className="input" style={{ paddingRight: 54 }} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
               placeholder={recording ? t('Listening… tap the mic to send') : hearing ? t('Transcribing…') : t('Ask the Coach')} aria-label={t('Message the Coach')} disabled={recording || hearing} />
             {/* Send is an arrow inside the field, there only when there is something to send (Stop while it works) */}
