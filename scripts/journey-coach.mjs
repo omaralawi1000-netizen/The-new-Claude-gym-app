@@ -34,7 +34,24 @@ await p.route('https://generativelanguage.googleapis.com/**', async (r) => {
 await p.goto('http://127.0.0.1:5173/'); await wait(p, 900); await skipOnboarding(p); await loadDemo(p);
 await p.evaluate(() => localStorage.setItem('aven.keys', JSON.stringify({ gemini: 'AIzaTESTKEY' })));
 await p.reload(); await wait(p, 1400);
-const ask = async (text) => { await p.getByLabel('Message the Coach').fill(text); await p.getByRole('button', { name: 'Send', exact: true }).click(); await wait(p, 1500); };
+const ask = async (text, motion = false) => {
+  await p.getByLabel('Message the Coach').fill(text);
+  if (motion) await p.evaluate((text) => {
+    window.__coachSent = [];
+    const start = performance.now();
+    const frame = () => {
+      const row = [...document.querySelectorAll('.coach-thread > div')].find((el) => el.querySelector('.said')?.textContent === text);
+      if (row) { const style = getComputedStyle(row); window.__coachSent.push({ opacity: Number(style.opacity), transform: style.transform }); }
+      if (performance.now() - start < 1400) requestAnimationFrame(frame);
+    }; requestAnimationFrame(frame);
+  }, text);
+  await p.getByRole('button', { name: 'Send', exact: true }).click(); await wait(p, 1500);
+  if (motion) {
+    const frames = await p.evaluate(() => window.__coachSent);
+    assert(frames.some((f) => f.opacity < .95 && f.transform !== 'none'), 'sent message rises gently into its bubble');
+    assert(frames.at(-1)?.opacity >= .99 && frames.at(-1)?.transform === 'none', 'sent bubble settles to still, sharp text');
+  }
+};
 const closeSheets = async () => { for (let i = 0; i < 3; i++) { await p.keyboard.press('Escape'); await wait(p, 450); } };
 
 // ── the weekly review on a Sunday afternoon ──
@@ -46,7 +63,7 @@ assert(/Hard sets per muscle/.test(seen.at(-1).system), 'the Coach sees sets per
 assert(/FREQUENT FOODS/.test(seen.at(-1).system), 'the Coach sees the foods you actually eat');
 
 // ── memory: told once, followed after ──
-await ask('I don’t do leg day, wrestling covers my legs');
+await ask('I don’t do leg day, wrestling covers my legs', true);
 assert(await p.locator('.action-card').getByText('Remembered').isVisible(), 'a Remembered card');
 await ask('what do you think of my routine?');
 assert(/MEMORY \(what the user has told you before[^]*1\. \[preference\] Doesn’t do a separate leg day/.test(seen.at(-1).system), 'the memory is in the next request');

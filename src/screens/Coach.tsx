@@ -65,18 +65,27 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   const ctl = useRef<AbortController | null>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const following = useRef(true);
+  const scrolling = useRef(false);
+  const lastScroll = useRef(0);
   const alive = useRef(true);
   const msgsRef = useRef<Msg[]>([]); msgsRef.current = msgs;
 
   useEffect(() => { alive.current = true; return () => { alive.current = false; stopSpeaking(); ctl.current?.abort(); mic.release('coach'); for (const m of msgsRef.current) if ('image' in m && m.image) URL.revokeObjectURL(m.image); }; }, []);
-  // Place the saved conversation before the sheet's first paint; new words follow only while you are at the bottom.
-  useLayoutEffect(() => { const el = bodyRef.current; if (el && following.current) el.scrollTop = el.scrollHeight; }, [msgs, resumed]);
+  // Saved chat is placed before the first paint; new lines follow smoothly until you scroll up to read.
   useLayoutEffect(() => {
     const el = bodyRef.current; if (!el) return;
-    const ro = new ResizeObserver(() => { if (following.current) el.scrollTop = el.scrollHeight; });
+    el.scrollTop = el.scrollHeight; lastScroll.current = el.scrollTop;
+    const ro = new ResizeObserver(() => {
+      if (!following.current || el.scrollHeight - el.clientHeight - el.scrollTop <= 1) return;
+      const reduce = document.documentElement.dataset.motion === 'reduce' || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      scrolling.current = !reduce;
+      el.scrollTo({ top: el.scrollHeight, behavior: reduce ? 'instant' : 'smooth' });
+    });
     ro.observe(el);
     const thread = el.querySelector('.coach-thread'); if (thread) ro.observe(thread);
-    return () => ro.disconnect();
+    const settled = () => { if (el.scrollHeight - el.clientHeight - el.scrollTop < 80) { scrolling.current = false; following.current = true; } };
+    el.addEventListener('scrollend', settled);
+    return () => { ro.disconnect(); el.removeEventListener('scrollend', settled); };
   }, []);
 
 
@@ -274,12 +283,17 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       </div>
     )}>
       <SheetHead title={t('Coach')} onClose={pop} right={msgs.length ? <button className="small t2 press" onClick={() => { ctl.current?.abort(); stopSpeaking(); setMsgs([]); }}>{t('New chat')}</button> : undefined} />
-      <div className="sheet-body coach-body" ref={bodyRef} onScroll={(e) => { const el = e.currentTarget; following.current = el.scrollHeight - el.clientHeight - el.scrollTop < 80; }}>
+      <div className="sheet-body coach-body" ref={bodyRef} onScroll={(e) => {
+        const el = e.currentTarget;
+        if (el.scrollTop < lastScroll.current - 1) scrolling.current = false;
+        following.current = scrolling.current || el.scrollHeight - el.clientHeight - el.scrollTop < 80;
+        lastScroll.current = el.scrollTop;
+      }}>
           <>
             {msgs.length === 0 && tipsBlock}
             <div className="stack coach-thread" style={{ gap: 16, marginTop: msgs.length ? 0 : 16 }}>
               {msgs.map((m) => (
-                <div key={m.id}
+                <div key={m.id} className={m.role === 'user' && !m.seeded ? 'coach-sent' : undefined}
                   style={{ transformOrigin: m.role === 'user' ? '100% 100%' : '0% 0%', alignSelf: m.role === 'user' ? 'flex-end' : 'stretch', maxWidth: m.role === 'user' ? '84%' : '100%', display: m.role === 'user' ? 'flex' : undefined }}>
                   {m.role === 'user' && (
                     <div className="stack" style={{ alignItems: 'flex-end', gap: 6, maxWidth: '100%' }}>
@@ -289,7 +303,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
                   )}
                   {m.role === 'model' && (m.text ? (
                     <div>
-                      <div className="reply still coach-reply" aria-live="polite"><Rich text={m.streaming ? tidy(m.text) : m.text} id={m.id} />{m.streaming && <span className="caret" aria-hidden />}</div>
+                      <div className={`reply calm coach-reply${m.seeded ? ' still' : ''}`} aria-live="polite"><Rich text={m.streaming ? tidy(m.text) : m.text} id={m.id} />{m.streaming && <span className="caret" aria-hidden />}</div>
                       {!m.streaming && m.note && <div className="xs t3" style={{ marginTop: 8 }}>{m.note}</div>}
                       {!m.streaming && <div className="reply-foot"><SpeakButton id={m.id} text={m.text} /></div>}
                     </div>
