@@ -815,12 +815,15 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
   box-shadow: 0 6px 18px -5px rgb(0 0 0 / .24), 0 2px 6px -2px rgb(0 0 0 / .16); }
 :root[data-theme='light'] .coach-body .said { box-shadow: 0 6px 18px -5px rgb(30 40 70 / .14), 0 2px 6px -2px rgb(30 40 70 / .08); }
 /* The typing pill has its own surface; the orb and camera sit beside it. */
+.coach-foot { padding-bottom: 12px; }
 .coach-composer { display: flex; align-items: center; gap: 8px; }
-.coach-field { position: relative; min-width: 0; border-radius: 27px; background: var(--s1);
-  box-shadow: 0 10px 30px -8px rgb(0 0 0 / .28), 0 3px 10px -2px rgb(0 0 0 / .16); transition: box-shadow 200ms var(--ease-out); }
-.coach-field:focus-within { box-shadow: 0 12px 32px -7px rgb(0 0 0 / .36), 0 3px 10px -1px rgb(0 0 0 / .22); }
-:root[data-theme='light'] .coach-field { box-shadow: 0 10px 30px -8px rgb(30 40 70 / .18), 0 3px 10px -2px rgb(30 40 70 / .1); }
-:root[data-theme='light'] .coach-field:focus-within { box-shadow: 0 12px 32px -7px rgb(30 40 70 / .24), 0 3px 10px -1px rgb(30 40 70 / .14); }
+.coach-field { position: relative; min-width: 0; border-radius: 27px;
+  background: linear-gradient(180deg, var(--s1), transparent), color-mix(in srgb, var(--glass) 68%, var(--s1));
+  -webkit-backdrop-filter: blur(18px) saturate(1.25); backdrop-filter: blur(18px) saturate(1.25);
+  box-shadow: 0 8px 24px -8px rgb(0 0 0 / .26), 0 2px 6px -2px rgb(0 0 0 / .18); transition: box-shadow 200ms var(--ease-out); }
+.coach-field:focus-within { box-shadow: 0 10px 26px -8px rgb(0 0 0 / .32), 0 2px 6px -2px rgb(0 0 0 / .22); }
+:root[data-theme='light'] .coach-field { box-shadow: 0 8px 24px -8px rgb(30 40 70 / .16), 0 2px 6px -2px rgb(30 40 70 / .1); }
+:root[data-theme='light'] .coach-field:focus-within { box-shadow: 0 10px 26px -8px rgb(30 40 70 / .2), 0 2px 6px -2px rgb(30 40 70 / .14); }
 .coach-field .input { height: 54px; padding-left: 16px; background: transparent; box-shadow: none; outline: none; }
 .coach-composer .input::placeholder { color: var(--tx2); opacity: 1; }
 .coach-composer .coach-send { transform: scale(.9); transition: opacity 160ms var(--ease-out), transform 260ms var(--ease-smooth); }
