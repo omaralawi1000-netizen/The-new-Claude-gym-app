@@ -58,6 +58,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     ...(x.said ? [{ id: uid('m'), role: 'user' as const, text: x.said, seeded: true, at: Date.now() }] : []),
     ...(x.reply ? [{ id: uid('m'), role: 'model' as const, text: x.reply, seeded: true, at: Date.now() }] : []),
   ])]);
+  const [leaving, setLeaving] = useState<Msg[] | null>(null);
   useEffect(() => { if (!msgs.some((m) => m.role === 'model' && m.streaming)) saveThread(msgs); }, [msgs]);
   // back to an old conversation after a break: the suggestions come back under it until something is sent
   const [resumed, setResumed] = useState(() => { const last = [...msgs].reverse().find((m) => 'at' in m && m.at) as { at?: number } | undefined; return msgs.length > 0 && !props.ask && !props.listen && (!last?.at || Date.now() - last.at > 30 * 60_000); });
@@ -69,6 +70,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   const [recording, setRecording] = useState(false);
   const [hearing, setHearing] = useState(false);
   const ctl = useRef<AbortController | null>(null);
+  const clearing = useRef<Animation | null>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const following = useRef(true);
   const scrolling = useRef(false);
@@ -76,7 +78,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   const alive = useRef(true);
   const msgsRef = useRef<Msg[]>([]); msgsRef.current = msgs;
 
-  useEffect(() => { alive.current = true; return () => { alive.current = false; stopSpeaking(); ctl.current?.abort(); mic.release('coach'); for (const m of msgsRef.current) if ('image' in m && m.image) URL.revokeObjectURL(m.image); }; }, []);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; clearing.current?.cancel(); stopSpeaking(); ctl.current?.abort(); mic.release('coach'); for (const m of msgsRef.current) if ('image' in m && m.image) URL.revokeObjectURL(m.image); }; }, []);
   // Saved chat is placed before the first paint; new lines follow smoothly until you scroll up to read.
   useLayoutEffect(() => {
     const el = bodyRef.current; if (!el) return;
@@ -98,6 +100,27 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
 
 
   const say = (m: Msg) => setMsgs((x) => [...x, m]);
+  const finishClear = () => {
+    const animation = clearing.current; clearing.current = null;
+    if (animation) { animation.onfinish = null; animation.cancel(); }
+    const thread = bodyRef.current?.querySelector<HTMLElement>('.coach-thread'); if (thread) thread.style.pointerEvents = '';
+    setLeaving(null);
+  };
+  const clearChat = () => {
+    if (clearing.current) return;
+    const previous = msgsRef.current;
+    ctl.current?.abort(); stopSpeaking();
+    // Clear the conversation now; only its visible text waits for the brief exit.
+    msgsRef.current = []; setMsgs([]); saveThread([]); setResumed(false);
+    const thread = bodyRef.current?.querySelector<HTMLElement>('.coach-thread');
+    const reduce = document.documentElement.dataset.motion === 'reduce' || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!thread || reduce) return;
+    setLeaving(previous);
+    thread.style.pointerEvents = 'none';
+    const animation = thread.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translate3d(0, -4px, 0)' }], { duration: 160, easing: 'cubic-bezier(.4, 0, 1, 1)', fill: 'forwards' });
+    clearing.current = animation;
+    animation.onfinish = () => { if (alive.current) finishClear(); };
+  };
   const orb = (p: 'idle' | 'listening' | 'processing' | 'confirmed' | 'error') => useVoice.getState().go(p);
   useEffect(() => () => { if (useVoice.getState().phase !== 'idle') useVoice.getState().go('idle'); }, []);
 
@@ -171,6 +194,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     const text = (raw ?? input).trim();
     const pic = raw === undefined ? photo : null; // a suggestion chip or dictation sends words only
     if ((!text && !pic) || busy) return;
+    if (clearing.current) finishClear();
     following.current = true;
     setInput(''); setPhoto(null); setResumed(false); setBusy(true); stopSpeaking(); orb('processing');
     say({ id: uid('m'), role: 'user', text, at: Date.now(), ...(pic ? { photo: true, image: pic.url } : {}) });
@@ -247,6 +271,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   useEffect(() => { if (msgs.length) try { localStorage.setItem('aven.coachNote', '1'); } catch { /* ignore */ } }, [msgs.length]);
 
   // the suggestions: on an empty chat at the top; when you come back to an old chat, under it (until you send something)
+  const shown = leaving ?? msgs;
   const tipsBlock = (
               <div className="stack gap12">
                 {noKey && <div className="small" style={{ color: 'var(--warn)' }}>{t('Add an AI key to chat.')} <button className="chip sm acc press" style={{ marginLeft: 6 }} onClick={() => push('settings', { section: 'ai' })}>{t('Add a key')}</button></div>}
@@ -290,7 +315,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
         </div>
       </div>
     )}>
-      <SheetHead title={t('Coach')} onClose={pop} right={msgs.length ? <button className="small t2 press" onClick={() => { ctl.current?.abort(); stopSpeaking(); setMsgs([]); }}>{t('New chat')}</button> : undefined} />
+      <SheetHead title={t('Coach')} onClose={pop} right={shown.length ? <button className="small t2 press" onClick={clearChat}>{t('New chat')}</button> : undefined} />
       <div className="sheet-body coach-body" ref={bodyRef} onScroll={(e) => {
         const el = e.currentTarget;
         if (el.scrollTop < lastScroll.current - 1) scrolling.current = false;
@@ -298,9 +323,9 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
         lastScroll.current = el.scrollTop;
       }}>
           <>
-            {msgs.length === 0 && tipsBlock}
-            <div className="stack coach-thread" style={{ gap: 16, marginTop: msgs.length ? 0 : 16 }}>
-              {msgs.map((m) => (
+            {shown.length === 0 && tipsBlock}
+            <div className="stack coach-thread" style={{ gap: 16, marginTop: shown.length ? 0 : 16 }}>
+              {shown.map((m) => (
                 <div key={m.id} className={m.role === 'user' && !m.seeded ? 'coach-sent' : undefined}
                   style={{ transformOrigin: m.role === 'user' ? '100% 100%' : '0% 0%', alignSelf: m.role === 'user' ? 'flex-end' : 'stretch', maxWidth: m.role === 'user' ? '84%' : '100%', display: m.role === 'user' ? 'flex' : undefined }}>
                   {m.role === 'user' && (
@@ -329,8 +354,8 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
                 </div>
               ))}
             </div>
-            {resumed && msgs.length > 0 && <div className="coach-resume"><div className="micro" style={{ margin: '22px 0 10px' }}>{t('Today')}</div>{tipsBlock}</div>}
-            {!noteSeen && msgs.length === 0 && <div className="xs t3" style={{ marginTop: 18 }}>{solOn(ai) ? t('AI can be wrong, and isn’t medical advice. Messages go to OpenAI (GPT-6.1 Sol).') : t('AI can be wrong, and isn’t medical advice. Messages go to Google Gemini.')}</div>}
+            {resumed && shown.length > 0 && <div className="coach-resume"><div className="micro" style={{ margin: '22px 0 10px' }}>{t('Today')}</div>{tipsBlock}</div>}
+            {!noteSeen && shown.length === 0 && <div className="xs t3" style={{ marginTop: 18 }}>{solOn(ai) ? t('AI can be wrong, and isn’t medical advice. Messages go to OpenAI (GPT-6.1 Sol).') : t('AI can be wrong, and isn’t medical advice. Messages go to Google Gemini.')}</div>}
           </>
       </div>
     </Sheet>

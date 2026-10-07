@@ -154,6 +154,16 @@ if (await p.getByRole('button', { name: 'New chat' }).isVisible().catch(() => fa
   const fresh = await p.locator('.coach-body').evaluate((el) => ({ range: el.scrollHeight - el.clientHeight, mask: getComputedStyle(el).maskImage }));
   assert.equal(fresh.range, 0, 'the new conversation fits without scrolling');
   assert.equal(fresh.mask, 'none', 'clearing a long chat removes its stale scroll fade');
+  await ask('What should I focus on next?');
+  await p.getByLabel('Message the Coach').fill('A fresh question.');
+  await p.getByRole('button', { name: 'New chat' }).click();
+  await p.getByLabel('Message the Coach').press('Enter'); await wait(p, 1500);
+  const sentWhileClearing = await p.evaluate(() => JSON.parse(localStorage.getItem('aven.coach') || '[]'));
+  assert.deepEqual(sentWhileClearing.filter((m) => m.role === 'user').map((m) => m.text), ['A fresh question.'], 'sending during the exit starts a fresh chat and keeps the new message');
+  assert.equal(sentWhileClearing.filter((m) => m.role === 'model').at(-1)?.text, 'Okay.', 'the new answer survives the previous conversation’s exit');
+  await p.getByRole('button', { name: 'New chat' }).click();
+  await p.keyboard.press('Escape'); await wait(p, 500);
+  assert.equal(await p.evaluate(() => JSON.parse(localStorage.getItem('aven.coach') || '[]').length), 0, 'closing during the exit keeps the conversation cleared');
 }
 const real = errors.filter((e) => !/Failed to load resource/.test(e));
 assert.deepEqual(real, [], 'no page errors');
