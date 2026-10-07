@@ -803,6 +803,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-flag .chip { flex: none; margin-top: -2px; }
 /* the Coach's camera: the chosen photo waits above the field; once sent it sits in your bubble */
 .coach-body { overflow-anchor: none; }
+.coach-body:not([data-scrollable]) { -webkit-mask-image: none; mask-image: none; }
 .coach-sent { animation: coachSend 740ms var(--ease-smooth) backwards, fadein 240ms var(--ease-out) backwards; }
 @keyframes coachSend { from { transform: translate3d(4px, 20px, 0) scale(.985); } to { transform: none; } }
 .coach-reply { --word-stagger-cap: 160ms; }

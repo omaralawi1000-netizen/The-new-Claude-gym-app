@@ -89,6 +89,7 @@ await p.evaluate(() => {
 await p.getByLabel('Coach').click(); await wait(p, 900);
 const opening = await p.evaluate(() => window.__coachOpening);
 assert(opening.length > 0 && opening.every((gap) => gap <= 2), 'restored conversation is at the bottom before the Coach becomes visible');
+assert.notEqual(await p.locator('.coach-body').evaluate((el) => getComputedStyle(el).maskImage), 'none', 'a long chat keeps its soft scroll edges');
 assert(await p.getByText('It looks balanced for you.').isVisible(), 'the conversation came back');
 assert(await p.locator('.coach-resume .tip').first().isVisible(), 'suggestions under an old chat');
 assert.equal(await p.getByRole('button', { name: 'See all' }).count(), 0, 'restored cards come back without dead buttons');
@@ -150,6 +151,9 @@ await p.getByLabel('Coach').click().catch(() => {}); await wait(p, 800);
 if (await p.getByRole('button', { name: 'New chat' }).isVisible().catch(() => false)) {
   await p.getByRole('button', { name: 'New chat' }).click(); await wait(p, 400);
   assert.equal(await p.evaluate(() => JSON.parse(localStorage.getItem('aven.coach') || '[]').length), 0, 'New chat clears it');
+  const fresh = await p.locator('.coach-body').evaluate((el) => ({ range: el.scrollHeight - el.clientHeight, mask: getComputedStyle(el).maskImage }));
+  assert.equal(fresh.range, 0, 'the new conversation fits without scrolling');
+  assert.equal(fresh.mask, 'none', 'clearing a long chat removes its stale scroll fade');
 }
 const real = errors.filter((e) => !/Failed to load resource/.test(e));
 assert.deepEqual(real, [], 'no page errors');

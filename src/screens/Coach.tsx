@@ -81,7 +81,9 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   useLayoutEffect(() => {
     const el = bodyRef.current; if (!el) return;
     el.scrollTop = el.scrollHeight; lastScroll.current = el.scrollTop;
+    el.toggleAttribute('data-scrollable', el.scrollHeight > el.clientHeight + 1);
     const ro = new ResizeObserver(() => {
+      el.toggleAttribute('data-scrollable', el.scrollHeight > el.clientHeight + 1);
       if (!following.current || el.scrollHeight - el.clientHeight - el.scrollTop <= 1) return;
       const reduce = document.documentElement.dataset.motion === 'reduce' || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       scrolling.current = !reduce;
