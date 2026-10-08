@@ -60,9 +60,9 @@ function orbInputs(): OrbInputs {
 /** `ov`: the pop-up the slot lives in (none for the tab bar). A slot whose pop-up has been closed is on its way out. */
 interface Slot { id: string; el: HTMLElement; priority: number; engage?: Engage; ov?: string }
 const slots = new Map<string, Slot>();
-/** Until when slot positions must be re-measured every frame (see the stage's tick). */
-let layoutDirtyUntil = 0;
-export const markOrbLayoutDirty = (ms = 900) => { layoutDirtyUntil = Math.max(layoutDirtyUntil, performance.now() + ms); };
+/** Geometry changes invalidate anchors; animation transforms are applied separately. */
+let layoutRevision = 0;
+export const markOrbLayoutDirty = () => { layoutRevision++; };
 /**
  * The tab bar's orb glides with the dock: when the dock re-arranges, the next frame slides the orb from where it is drawn
  * to its new place on the dock's spring as a browser animation (compositor-drawn, full refresh rate), instead of jumping
@@ -284,6 +284,11 @@ export function SphereStage() {
     let restProbe = { X: -1, Y: -1, S: -1, since: 0 };
     orbEl = el;
     const rects = new WeakMap<HTMLElement, DOMRect>();
+    const parents = new WeakMap<HTMLElement, HTMLElement[]>();
+    const transforms = new Map<HTMLElement, { matrix: DOMMatrixReadOnly; css: DOMMatrixReadOnly; x: number; y: number; sx: number; sy: number; height: number; animations: { animation: Animation; sampled: boolean; frames: { offset: number; matrix: DOMMatrixReadOnly }[] }[] }>();
+    let measuredRevision = -1;
+    let sampledAnimations: Animation[] = [];
+    const sampledStates = new WeakMap<Animation, AnimationPlayState>();
     const owners = new WeakMap<HTMLElement, number>();
     /** z-index of the fixed surface (popup) a slot lives in, found once per slot. */
     const ownerZ = (slot: HTMLElement) => {
@@ -297,16 +302,16 @@ export function SphereStage() {
       owners.set(slot, z);
       return z;
     };
-    const shifts = new WeakMap<HTMLElement, number>();
-    // what can move a slot: scrolling anywhere, resizing, the keyboard, any React update (DOM or style/class change), a
-    // finger on the screen. Each opens a short window in which boxes are re-measured every frame.
+    // Scroll, resize, content and keyboard changes invalidate layout. Transform-only motion reuses the local anchors.
     const dirty = () => markOrbLayoutDirty();
     // A popup's own motion (its transform, the dim and blur fading, the page stepping back) rewrites a style attribute every
-    // frame. None of that can move a slot — the popup's displacement is read separately (`shift`) — but each one used to
-    // open the "re-measure every frame" window, so every frame of every popup forced a full style + layout pass.
-    const MOVING = '.sheet, .sheet-pane, .sheet-page, .scrim, .scrim > i, .stage, .wk-card, .wk-sheet, .fields, .aurora';
+    // frame. Its transform is applied below; decorative layers don't change layout.
+    const MOVING = '.sheet, .sheet-pane, .sheet-page, .scrim, .scrim > i, .stage, .wk-card, .wk-sheet, .fields, .aurora, .sphere-stage, .lens, .lens > i';
     const lmo = new MutationObserver((recs) => {
-      for (const r of recs) if (r.type !== 'attributes' || !(r.target as Element).matches?.(MOVING)) { dirty(); return; }
+      for (const r of recs) {
+        if (r.type === 'attributes' && r.target === appEl && r.attributeName === 'style') continue; // the stage's backdrop colour
+        if (r.type !== 'attributes' || !(r.target as Element).matches?.(MOVING)) { dirty(); return; }
+      }
     });
     if (appEl) lmo.observe(appEl, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class', 'data-active', 'hidden'] });
     window.addEventListener('scroll', dirty, { capture: true, passive: true });
@@ -314,26 +319,92 @@ export function SphereStage() {
     window.visualViewport?.addEventListener('resize', dirty);
     window.addEventListener('pointermove', dirty, { passive: true });
     window.addEventListener('pointerdown', dirty, { passive: true });
-    // a tab change re-lays the dock out over a spring; a popup arriving or leaving moves no slot outside itself (its own slot
-    // is measured every frame while it travels), so that only needs the one measurement
-    // a pop-up arriving or leaving can slide the whole dock (the workout, the orb screen): keep measuring until it has settled
-    const offUi = useUI.subscribe((a, b) => { if (a.tab !== b.tab) dirty(); else if (a.overlays !== b.overlays) { lastOverlayChange = performance.now(); markOrbLayoutDirty(1100); } });
+    const offUi = useUI.subscribe((a, b) => { if (a.tab !== b.tab) dirty(); else if (a.overlays !== b.overlays) { lastOverlayChange = performance.now(); dirty(); } });
     const offKb = kb.on('change', dirty);
     document.fonts?.addEventListener?.('loadingdone', dirty); // a web font arriving re-flows text
     window.addEventListener('load', dirty, true);              // an image arriving can too
+    const observed = new Set<HTMLElement>();
+    const ro = new ResizeObserver(dirty);
+    const observe = (n: HTMLElement) => { if (!observed.has(n)) { observed.add(n); ro.observe(n); } };
+    if (appEl) observe(appEl);
+    const matrixOf = (css: string, height: number) => new DOMMatrixReadOnly(!css || css === 'none' ? undefined :
+      css.replace(/translateY\(([-\d.]+)%\)/g, (_, p) => `translateY(${Number(p) * height / 100}px)`));
+    // Read changed geometry before Motion writes. Save the parent's transform at that measurement, then apply its delta
+    // in postRender. Native animation timing supplies that delta too, without asking layout for a moving box every frame.
+    const measure = () => {
+      if (!running) return;
+      const changed = measuredRevision !== layoutRevision || sampledAnimations.some(a => a.playState === 'running' || a.playState !== sampledStates.get(a));
+      if (changed) {
+        transforms.clear(); sampledAnimations = [];
+        for (const n of observed) if (!n.isConnected) { ro.unobserve(n); observed.delete(n); }
+        const b = appEl?.getBoundingClientRect(); base = { left: b?.left ?? 0, top: b?.top ?? 0 }; measuredRevision = layoutRevision;
+      }
+      for (const sl of slots.values()) {
+        if (!sl.el.isConnected) continue;
+        if (!changed && rects.has(sl.el)) continue;
+        rects.set(sl.el, sl.el.getBoundingClientRect()); observe(sl.el);
+        ownerZ(sl.el);
+        const chain: HTMLElement[] = [];
+        for (let n = sl.el.parentElement; n && n !== appEl; n = n.parentElement) {
+          observe(n);
+          const cs = getComputedStyle(n);
+          if (!n.matches(MOVING + ', .tabbar-wrap') && !n.style.transform && cs.transform === 'none') continue;
+          chain.push(n);
+          if (transforms.has(n)) continue;
+          const matrix = matrixOf(cs.transform, n.offsetHeight);
+          const r = n.getBoundingClientRect(), w = n.offsetWidth || 1, h = n.offsetHeight || 1;
+          const origin = cs.transformOrigin.split(' ').map(Number.parseFloat);
+          const animations = n.getAnimations().map(animation => {
+            const keys = (animation.effect as KeyframeEffect).getKeyframes().filter(k => k.transform !== undefined);
+            const sampled = animation instanceof CSSAnimation || animation instanceof CSSTransition || keys.some(k => k.easing !== 'linear');
+            if (sampled) sampledStates.set(animation, animation.playState);
+            return { animation, sampled, frames: sampled ? [] : keys.map(k => ({ offset: k.computedOffset!, matrix: matrixOf(String(k.transform), h) })), moving: keys.length > 1 };
+          }).filter(a => a.moving);
+          sampledAnimations.push(...animations.filter(a => a.sampled).map(a => a.animation));
+          transforms.set(n, { matrix, css: n.style.transform ? new DOMMatrixReadOnly() : matrix, x: r.left + r.width * origin[0] / w, y: r.top + r.height * origin[1] / h,
+            sx: r.width / (w * (matrix.a || 1)), sy: r.height / (h * (matrix.d || 1)), height: h,
+            animations });
+        }
+        parents.set(sl.el, chain);
+      }
+    };
+    const currentTransforms = new Map<HTMLElement, DOMMatrixReadOnly>();
+    const position = (slot: HTMLElement, r: DOMRect) => {
+      let x = r.left, y = r.top, w = r.width, h = r.height;
+      for (const n of parents.get(slot) ?? []) {
+        const t = transforms.get(n);
+        if (!t) continue;
+        let m = currentTransforms.get(n);
+        if (!m) {
+          m = n.style.transform ? matrixOf(n.style.transform, t.height) : t.css;
+          for (const a of t.animations) {
+            const p = a.animation.effect?.getComputedTiming().progress;
+            if (p == null || a.animation.playState === 'idle') continue;
+            if (a.sampled) { m = t.matrix; continue; }
+            const next = a.frames.findIndex(k => k.offset >= p);
+            const i = Math.max(0, Math.min(a.frames.length - 2, (next < 0 ? a.frames.length - 1 : next) - 1));
+            const from = a.frames[i], to = a.frames[i + 1], f = (p - from.offset) / (to.offset - from.offset);
+            m = new DOMMatrixReadOnly([from.matrix.a + (to.matrix.a - from.matrix.a) * f, 0, 0, from.matrix.d + (to.matrix.d - from.matrix.d) * f,
+              from.matrix.e + (to.matrix.e - from.matrix.e) * f, from.matrix.f + (to.matrix.f - from.matrix.f) * f]);
+          }
+          currentTransforms.set(n, m);
+        }
+        if (m.b || m.c || t.matrix.b || t.matrix.c || !t.matrix.a || !t.matrix.d) continue;
+        const sx = m.a / t.matrix.a, sy = m.d / t.matrix.d;
+        x = t.x + (x - t.x) * sx + (m.e - t.matrix.e) * t.sx;
+        y = t.y + (y - t.y) * sy + (m.f - t.matrix.f) * t.sy;
+        w *= sx; h *= sy;
+      }
+      return { x, y, z: Math.min(w, h) };
+    };
     const tick = (now: number) => {
       if (!running) return;
+      currentTransforms.clear();
       refreshColors(now);
       const reduced = document.documentElement.dataset.motion === 'reduce' || (document.documentElement.dataset.motion !== 'full' && mq.matches);
       const list: Slot[] = [];
       for (const s of slots.values()) if (s.el.isConnected) list.push(s);
       list.sort((a, b) => a.priority - b.priority);
-      // Where the slots are. Reading a box forces the browser to finish style and layout right here, and doing that every
-      // frame also drags every running CSS animation (the colour field, a page's rise-in) back onto the main thread. So
-      // boxes are measured only while something can have moved them — a scroll, a resize, the keyboard, a React update,
-      // a tab or popup change, a finger, or a popup's own progress — and reused from the cache otherwise.
-      const measure = now < layoutDirtyUntil;
-      if (measure) { const b = appEl?.getBoundingClientRect(); base = { left: b?.left ?? 0, top: b?.top ?? 0 }; }
       const ox = base.left, oy = base.top;
       let X = 0, Y = 0, S = 0, have = false, top = 0, topSlot: Slot | null = null, flight = 1;
       if (handoff && !handoff.el.isConnected) handoff = null;
@@ -344,13 +415,12 @@ export function SphereStage() {
         if (leaving && !mine && (handoff || gaveUp.has(sl.el))) { gaveUp.add(sl.el); continue; }
         const e = sl.engage ? Math.min(1, Math.max(0, sl.engage.e.get())) : 1;
         if (have && e <= 0.001 && !mine) continue;
-        let r = rects.get(sl.el);
-        const sh = sl.engage?.shift?.get() ?? 0;
-        if (measure || !r || (e > 0.001 && e < 0.999) || sh !== shifts.get(sl.el)) { r = sl.el.getBoundingClientRect(); rects.set(sl.el, r); shifts.set(sl.el, sh); }
+        const r = rects.get(sl.el);
+        if (!r) { dirty(); continue; }
         if (r.width < 2) { if (mine && have && !handoff!.back) { X = handoff!.from.X; Y = handoff!.from.Y; S = handoff!.from.S; topSlot = sl; top = Math.max(top, sl.priority); } continue; }
         // where the slot is drawn right now — its popup's slide included — so the orb is carried by the popup (it used to
         // head for where the slot would come to rest, and sat there over an empty sheet while the sheet caught up)
-        const x = r.left - ox, y = r.top - oy, z = Math.min(r.width, r.height);
+        const p = position(sl.el, r), x = p.x - ox, y = p.y - oy, z = p.z;
         if (!have) { X = x; Y = y; S = z; have = true; continue; }
         if (mine) {
           const h = handoff!;
@@ -466,16 +536,16 @@ export function SphereStage() {
         sentV = vv;
       }
     };
-    // run inside motion's frame loop, right after it has written this frame's styles: the orb reads the popup's
-    // position and progress from the very frame they were rendered in (a separate rAF would be a frame behind)
+    // Measure before animation writes; render with this frame's progress and transform changes afterwards.
     const loop = (d: { timestamp: number }) => tick(d.timestamp);
+    frame.read(measure, true);
     frame.postRender(loop, true);
     const onVis = () => {
-      if (document.hidden) { running = false; cancelFrame(loop); pause(); }
-      else if (!running) { running = true; frame.postRender(loop, true); }
+      if (document.hidden) { running = false; cancelFrame(measure); cancelFrame(loop); pause(); }
+      else if (!running) { running = true; dirty(); frame.read(measure, true); frame.postRender(loop, true); }
     };
     document.addEventListener('visibilitychange', onVis);
-    return () => { running = false; cancelFrame(loop); worker?.terminate(); document.removeEventListener('visibilitychange', onVis); mo.disconnect(); lmo.disconnect(); window.removeEventListener('scroll', dirty, { capture: true }); window.removeEventListener('resize', dirty); window.visualViewport?.removeEventListener('resize', dirty); window.removeEventListener('pointermove', dirty); window.removeEventListener('pointerdown', dirty); offUi(); offKb(); document.fonts?.removeEventListener?.('loadingdone', dirty); window.removeEventListener('load', dirty, true); pAc.remove(); pAc2.remove(); pH1.remove(); };
+    return () => { running = false; cancelFrame(measure); cancelFrame(loop); worker?.terminate(); document.removeEventListener('visibilitychange', onVis); mo.disconnect(); lmo.disconnect(); ro.disconnect(); window.removeEventListener('scroll', dirty, { capture: true }); window.removeEventListener('resize', dirty); window.visualViewport?.removeEventListener('resize', dirty); window.removeEventListener('pointermove', dirty); window.removeEventListener('pointerdown', dirty); offUi(); offKb(); document.fonts?.removeEventListener?.('loadingdone', dirty); window.removeEventListener('load', dirty, true); pAc.remove(); pAc2.remove(); pH1.remove(); };
   }, [motionPref, hrr, gen]);
 
   return (

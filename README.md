@@ -743,3 +743,16 @@ scripts/       Playwright journeys, icon generator, i18n checker
 - Persistence is `localStorage` (+ IndexedDB for photos) for simplicity; very heavy multi-year use may eventually want IndexedDB for the main data.
 - Bundle is ~225 kB gzip (one chunk); screens could be lazy-loaded.
 - Danish exercise/food names exist for the bundled data; custom and online items keep their own names.
+
+## Orb positioning and stutter
+
+The orb's position used to be measured after Motion wrote each frame's styles, including during long measurement windows
+opened by its own decorative style changes. Those reads forced pending style/layout work onto the page thread.
+`ui/Sphere.tsx` now measures changed anchors in Motion's read phase and applies ancestor transform changes afterwards.
+Native animation timing keeps it aligned with compositor-driven sheets; CSS animations with their own keyframe easing
+are sampled in the read phase. Scroll, content, size, keyboard and font/image changes still invalidate the anchors.
+The geometry, rendering and existing springs of the dotted sphere are unchanged.
+
+`scripts/orb-motion.mjs` checks idle geometry-read counts, frame-by-frame dock alignment, tab switches, keyboard movement
+and interrupted Coach flights with high-refresh mode both on and off. It is included in `scripts/run-all.sh`.
+Cloud timing comparisons can show reduced measurement work; actual 120 Hz output and touch feel need the phone.
