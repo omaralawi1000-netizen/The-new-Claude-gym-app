@@ -30,6 +30,17 @@ s = await blurOf(); assert(s[0].bf !== 'none' && !/deep/.test(s[0].cls), 'back t
 await p.keyboard.press('Escape'); await wait(p, 700); await p.keyboard.press('Escape'); await wait(p, 900);
 
 // ── 2. the said-text flight ──
+// Screenshot readback stalls the cloud renderer. Capture the visuals in a separate flight so it cannot interrupt the
+// frame-count / landing check; that check keeps the same thresholds and samples every frame of the next flight.
+const sentence = 'how much protein should I eat after training today';
+await p.getByRole('button', { name: 'Dictate' }).first().click(); await wait(p, 1200);
+await sayTyped(p, sentence);
+await wait(p, 600); await p.screenshot({ path: 'shots/morph-2-writing.png' });
+await p.waitForFunction(() => document.querySelector('.said-wrap')?.classList.contains('fly'), null, { timeout: 8000 });
+await wait(p, 250); await p.screenshot({ path: 'shots/morph-3-flying.png' });
+await p.waitForFunction(() => document.querySelector('.said-wrap')?.classList.contains('done'), null, { timeout: 8000 });
+await wait(p, 300); await p.screenshot({ path: 'shots/morph-4-bubble.png' });
+await p.getByRole('dialog', { name: 'Dictation' }).getByRole('button', { name: 'Close', exact: true }).click(); await wait(p, 900);
 await p.getByRole('button', { name: 'Dictate' }).first().click(); await wait(p, 1200);
 await p.evaluate(() => {
   window.__fly = [];
@@ -42,12 +53,10 @@ await p.evaluate(() => {
   };
   requestAnimationFrame(tick);
 });
-await sayTyped(p, 'how much protein should I eat after training today');
-await wait(p, 600); await p.screenshot({ path: 'shots/morph-2-writing.png' });
+await sayTyped(p, sentence);
 await p.waitForFunction(() => document.querySelector('.said-wrap')?.classList.contains('fly'), null, { timeout: 8000 });
-await wait(p, 250); await p.screenshot({ path: 'shots/morph-3-flying.png' });
 await p.waitForFunction(() => document.querySelector('.said-wrap')?.classList.contains('done'), null, { timeout: 8000 });
-await wait(p, 300); await p.screenshot({ path: 'shots/morph-4-bubble.png' });
+await wait(p, 300);
 const fly = await p.evaluate(() => window.__fly);
 const flying = fly.filter((f) => /fly/.test(f.phase) && f.big.length);
 assert(flying.length > (process.env.FILM ? 3 : 20), `the flight was drawn over many frames (${flying.length})`);

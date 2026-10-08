@@ -756,3 +756,6 @@ The geometry, rendering and existing springs of the dotted sphere are unchanged.
 `scripts/orb-motion.mjs` checks idle geometry-read counts, frame-by-frame dock alignment, tab switches, keyboard movement
 and interrupted Coach flights with high-refresh mode both on and off. It is included in `scripts/run-all.sh`.
 Cloud timing comparisons can show reduced measurement work; actual 120 Hz output and touch feel need the phone.
+
+The text-flight check (`scripts/morph.mjs`) captures screenshots in a separate flight before measuring motion.
+Screenshot readback can stall cloud rendering during the short flight; the frame-count, landing and jump limits remain unchanged.
