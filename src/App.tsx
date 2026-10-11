@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { AnimatePresence, MotionConfig, motion } from 'motion/react';
+import { AnimatePresence, MotionConfig, animate, motion, usePresence, usePresenceData } from 'motion/react';
 import { useStore } from './state/store';
 import { useUI } from './state/ui';
 import { TabBar } from './ui/TabBar';
@@ -18,7 +18,7 @@ import { registerSW } from './pwa';
 import { dayKey } from './lib/dates';
 import { defaultMealId } from './lib/derive';
 import { stageCover, stageDepth, stageTransform } from './ui/engage';
-import { readRGB, setBarDepth, setBarTint } from './ui/statusBar';
+import { barColor, readRGB, setBarDepth, setBarTint } from './ui/statusBar';
 import { setKeyboard } from './ui/keyboard';
 import { FpsMeter } from './ui/FpsMeter';
 
@@ -101,15 +101,68 @@ function useTheme() {
  *  - the screens swap (TabPane, below).
  */
 const GLOW = 0.8; // seconds the colours take to change over
+
+/**
+ * The switch starts from the new screen's first painted frame, not from the tap. Building a screen blocks the page for a
+ * moment (a long one on a phone: Train, Food); an animation that started at the tap had run its first stretch by the time
+ * anything was drawn, so the old screen was already mostly gone and the new one half in — the jump you saw as flicker.
+ * So: the tap changes the tab, the new screen is built hidden while the old one stays fully up, and only after it has been
+ * painted once (two animation frames) does everything start together — old screen out, new screen in, colour field,
+ * cards rising — from the same instant.
+ */
+const gate = { open: true, ready: Promise.resolve(), release: () => {} };
+function closeGate() {
+  if (!gate.open) return; // already waiting: the pending release covers this switch too
+  gate.open = false;
+  gate.ready = new Promise<void>((res) => { gate.release = () => { gate.open = true; res(); }; });
+}
+/** True once this switch is allowed to start (immediately when no switch is waiting). */
+function useGo(): boolean {
+  const [go, setGo] = useState(gate.open);
+  useEffect(() => {
+    if (go) return;
+    let alive = true;
+    gate.ready.then(() => { if (alive) setGo(true); });
+    return () => { alive = false; };
+  }, [go]);
+  return go;
+}
+
+/**
+ * Leaving, on the same start as the entering screen: when this element is removed it waits for the gate, then runs `leave`
+ * and lets AnimatePresence drop it once that has finished. If the tab comes back first (tapped again while this was still
+ * leaving), the leave is cancelled and `back` puts the element straight again — it is the same element, kept by its key.
+ */
+type Run = { stop: () => void; then: (f: () => void) => unknown };
+function useGatedLeave(ref: React.RefObject<HTMLElement | null>, leave: (el: HTMLElement) => Run, back: (el: HTMLElement) => void) {
+  const [present, safeToRemove] = usePresence();
+  const running = useRef<Run | null>(null);
+  useEffect(() => {
+    if (present) { if (running.current) { running.current.stop(); running.current = null; if (ref.current) back(ref.current); } return; } // came back, mid-leave or just after
+    let alive = true;
+    gate.ready.then(() => {
+      const el = ref.current;
+      if (!alive || !el) return; // it came back (or is gone) before the switch started
+      const run = leave(el); running.current = run;
+      run.then(() => { if (alive) safeToRemove?.(); }); // `running` stays set after it ends: if the tab comes back before the removal lands, it is restored (above)
+    });
+    return () => { alive = false; };
+    // eslint-disable-next-line
+  }, [present]);
+}
+
 let fieldSeq = 0;
 function Field({ hue }: { hue: string }) {
   // every field drifts on the same clock, so the new one lines up with the old one and only its colours change
   const drift = useRef(`-${Math.round(performance.now())}ms`);
   const z = useRef(++fieldSeq);
+  const go = useGo();
+  const ref = useRef<HTMLDivElement>(null);
+  // the old field fades out on the same start as the new one fades in (a little later, so the light never dips)
+  useGatedLeave(ref, (el) => animate(el, { opacity: 0 }, { duration: GLOW, ease: [0.55, 0, 0.75, 1], delay: 0.05 }), (el) => { animate(el, { opacity: 1 }, { duration: 0.3 }); });
   return (
-    <motion.div className="aurora" data-hue={hue} aria-hidden style={{ zIndex: z.current, ['--drift-t' as string]: drift.current }}
-      initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { duration: GLOW, ease: [0.4, 0, 0.2, 1], delay: 0.05 } }}
-      exit={{ opacity: 0, transition: { duration: GLOW, ease: [0.55, 0, 0.75, 1], delay: 0.05 } }}>
+    <motion.div ref={ref} className="aurora" data-hue={hue} aria-hidden style={{ zIndex: z.current, ['--drift-t' as string]: drift.current }}
+      initial={{ opacity: 0 }} animate={{ opacity: go ? 1 : 0, transition: { duration: GLOW, ease: [0.4, 0, 0.2, 1], delay: go ? 0.05 : 0 } }}>
       <i /><i /><i />
     </motion.div>
   );
@@ -117,24 +170,27 @@ function Field({ hue }: { hue: string }) {
 
 /**
  * The screens swap as in the first version: the new one slides in 36 px from the side it sits on and fades up, the old one
- * slides out the other way, fading and softly blurring (0.38 s, ease-out). Its cards then rise in one after another (see
- * `.screen > *` in styles.css). Which side comes from the order of the tabs (Today · Train · Food · Progress); the slide is a
- * whole `transform`, so the browser runs it on its compositor at the screen's full rate.
+ * slides out the other way and fades (0.38 s, ease-out). Its cards then rise in one after another (see `.screen > *` in
+ * styles.css; they wait for `data-go`). Which side comes from the order of the tabs (Today · Train · Food · Progress); the
+ * slide is a whole `transform`, so the browser runs it on its compositor at the screen's full rate.
  */
 const EASE = [0.22, 1, 0.36, 1] as const;
 const ORDER = ['today', 'train', 'food', 'progress'];
 const PAGE = {
   enter: (d: number) => ({ opacity: 0, transform: `translateX(${d * 36}px)` }),
-  // Both start 50 ms after the tap: building the new screen takes a frame or two on a phone, and an animation that started
-  // during that work showed up already part-way through — the old and new pages jumped (the flicker at the top).
-  center: { opacity: 1, transform: 'translateX(0px)', transitionEnd: { transform: 'none' }, transition: { duration: 0.38, ease: EASE, delay: 0.05 } },
-  // no blur on the way out: filtering a whole screen every frame of a page switch cost more than anything else in it
-  exit: (d: number) => ({ opacity: 0, transform: `translateX(${-d * 36}px)`, transition: { duration: 0.34, ease: EASE, delay: 0.05 } }),
+  center: { opacity: 1, transform: 'translateX(0px)', transitionEnd: { transform: 'none' }, transition: { duration: 0.38, ease: EASE } },
 };
-// `custom` is the direction; AnimatePresence hands the leaving screen the NEW direction too (it was removed with the old one)
 function TabPane({ hue, dir, children }: { hue: string; dir: number; children: React.ReactNode }) {
+  const go = useGo();
+  const ref = useRef<HTMLDivElement>(null);
+  const leaveDir = usePresenceData() as number | undefined; // the NEW direction: AnimatePresence hands it to the leaving screen
+  useGatedLeave(ref, (el) => {
+    // reduced motion keeps the fade and drops the slide, as MotionConfig does for the entering screen
+    const still = document.documentElement.dataset.motion === 'reduce';
+    return animate(el, still ? { opacity: 0 } : { opacity: 0, transform: `translateX(${-(leaveDir ?? dir) * 36}px)` }, { duration: 0.34, ease: EASE });
+  }, (el) => { animate(el, { opacity: 1, transform: 'translateX(0px)' }, { duration: 0.3, ease: EASE }).then(() => { el.style.transform = 'none'; }); });
   return (
-    <motion.div className="tab-pane" data-active data-hue={hue} custom={dir} variants={PAGE} initial="enter" animate="center" exit="exit" style={{ position: 'absolute', inset: 0 }}>
+    <motion.div ref={ref} className="tab-pane" data-active data-go={go || undefined} data-hue={hue} custom={dir} variants={PAGE} initial="enter" animate={go ? 'center' : 'enter'} style={{ position: 'absolute', inset: 0 }}>
       {children}
     </motion.div>
   );
@@ -151,12 +207,13 @@ function useBarTint(app: React.RefObject<HTMLDivElement | null>, tab: string) {
     probe.style.cssText = 'position:absolute;width:0;height:0;pointer-events:none;color:color-mix(in srgb, var(--h1) var(--bar-mix), var(--bg))';
     el.appendChild(probe);
     const read = (ms: number) => { const c = readRGB(getComputedStyle(probe).color); if (c) setBarTint(c, ms); };
-    // after this frame's styles (the new area's colours) are in place
-    const id = requestAnimationFrame(() => { read(first.current ? 0 : 800); first.current = false; });
+    // once the new screen has been painted (the page switch starts then too — see `gate`), when the new area's colours are in place
+    let id = 0, alive = true;
+    gate.ready.then(() => { if (alive) id = requestAnimationFrame(() => { read(first.current ? 0 : 800); first.current = false; }); });
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
     const onMq = () => requestAnimationFrame(() => read(0));
     mq.addEventListener('change', onMq);
-    return () => { cancelAnimationFrame(id); mq.removeEventListener('change', onMq); probe.remove(); };
+    return () => { alive = false; cancelAnimationFrame(id); mq.removeEventListener('change', onMq); probe.remove(); };
   }, [app, tab, palette, theme]);
 }
 
@@ -171,7 +228,7 @@ function useStageDepth(app: React.RefObject<HTMLDivElement | null>, stage: React
       st.style.willChange = 'transform'; st.style.overflow = 'hidden'; // layer hints only while a popup is up, so the idle app is built exactly like the original
       st.style.transform = stageTransform(v); // the same function the browser-run (high refresh) version uses
       st.style.borderRadius = `${28 * v}px`;
-      a.style.background = 'var(--bar, #000)'; // the page steps back onto the colour of the status bar: no seam under it
+      a.style.background = barColor(); // the page steps back onto the colour of the status bar: no seam under it (kept in step by statusBar.ts)
     };
     apply(stageDepth.get());
     const offDepth = stageDepth.on('change', apply);
@@ -250,6 +307,14 @@ export function App() {
   if (moved) lastDir.current = moved;
   const dir = lastDir.current;
   useEffect(() => { prev.current = tab; }, [tab]);
+  // a switch closes the gate while the new screen is built; two frames after it is on the glass the gate opens (see `gate`)
+  const gated = useRef(tab);
+  if (gated.current !== tab) { gated.current = tab; closeGate(); }
+  useLayoutEffect(() => {
+    if (gate.open) return;
+    let a = requestAnimationFrame(() => { a = requestAnimationFrame(() => gate.release()); });
+    return () => cancelAnimationFrame(a);
+  }, [tab]);
   const Screen = SCREENS[tab];
   // one element per tab: the app re-renders whenever a pop-up opens or closes (the colour field's pause, the resume bar),
   // and that used to re-render the whole page behind the pop-up too — Today, every time the workout was opened
@@ -283,8 +348,8 @@ export function App() {
     <MotionConfig reducedMotion="user">
       <div className="app" data-hue={tab} data-pill={pill || undefined} data-calm={calm || undefined} ref={appRef}>
         <div className="stage" ref={stageRef}>
-        <div className="fields"><AnimatePresence initial={false}><Field key={tab} hue={tab} /></AnimatePresence></div>
-        <AnimatePresence mode="popLayout" initial={false} custom={dir}>
+        <div className="fields"><AnimatePresence initial={false} mode="sync"><Field key={tab} hue={tab} /></AnimatePresence></div>
+        <AnimatePresence mode="sync" initial={false} custom={dir}>
           <TabPane key={tab} hue={tab} dir={dir}>{screen}</TabPane>
         </AnimatePresence>
         <TabBar />
