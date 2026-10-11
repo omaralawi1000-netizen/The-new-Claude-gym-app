@@ -3,6 +3,9 @@
 Omar's gym, food and wrestling app (React + TypeScript + Vite PWA). He uses it on a Galaxy S26 Ultra in Chrome and judges
 everything on the phone. He is not a programmer: explain results in plain, short language.
 
+## What's next
+- The to-do list is `docs/polish-plan.md`. When Omar says "do section N", do that section and tick it off there.
+
 ## Getting changes onto his phone
 - The live app deploys (GitHub Pages) from branch `ccr-d1172cc7-1e03wh` (also the default branch).
 - Omar's standing instruction: when your work is done and checked, open a pull request into `ccr-d1172cc7-1e03wh` and
