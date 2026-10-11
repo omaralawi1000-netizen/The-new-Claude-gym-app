@@ -7,7 +7,11 @@ When a section is done, change `[ ]` to `[x]` here in the same pull request.
   the switch now starts from the new screen's first painted frame (`gate` in `src/App.tsx`), the status-bar tint no longer
   re-styles the whole page every frame (`src/ui/statusBar.ts`), and the dock's closing label travels with its icon
   (`src/ui/TabBar.tsx`). Tools: `scripts/flicker-tabs.mjs`, `perf-tabs.mjs`, `rapid-tabs.mjs`, `film-tab.mjs`, `prof-tab.mjs`.
-  Omar still to confirm on his phone. Progress is the heaviest tab to open.
+  Round 2 (after Omar's video: worse the longer you switch): faded glow layers were never removed while switching continued
+  (AnimatePresence waits for all leaving layers), so they piled up and were all drawn every frame; now hidden the moment they
+  fade, older fades sped up, one shared grain; old screen fades out in 120 ms and the new screen's cards rise in, all started
+  from one callback (`useSwitchLayer` in `src/App.tsx`). Check: `scripts/leak-tabs.mjs` (glow layers stay ≤ 2, listeners flat).
+  Omar still to confirm on his phone.
 - [ ] **2. Workout screen**: lags and flickers when it opens; scrolls sideways a little (lock horizontal scroll completely);
   the rest-timer bar at the bottom sometimes shows two colours (a lighter block behind the orb, see-through over the cards);
   make the timer animation better.
