@@ -424,8 +424,8 @@ function WorkoutBar({ engage, exMap, away, onDone, onJump }: { engage: Engage; e
         <span className="wk-bar-clip" aria-hidden><RestFill state={state} endsAt={rest?.endsAt} total={rest?.total} paused={!!a.pausedAt} /></span>
         <button className="wk-bar-main press" onClick={tap} aria-expanded={state === 'rest' ? panel : undefined}
           aria-label={state === 'rest' ? `${t('Rest')} ${fmtDuration(Math.ceil(left))}` : `${top}. ${big}${state === 'next' && target ? `, ${target}` : ''}`}>
-          <span className="wk-bar-top">{top}</span>
-          <span className="wk-bar-big num">{state === 'next' ? <><span className="wk-bar-name">{name}</span>{target && <span className="wk-bar-tgt">{target}</span>}</>
+          <span key={`t${state}`} className="wk-bar-top">{top}</span>
+          <span key={`b${state}`} className="wk-bar-big num">{state === 'next' ? <><span className="wk-bar-name">{name}</span>{target && <span className="wk-bar-tgt">{target}</span>}</>
             : state === 'rest' ? <span key={Math.ceil(left)} className={!a.pausedAt && left <= 3 ? 'wk-tick' : undefined}>{big}</span> : big}</span>
         </button>
         <button className="wk-bar-orb press" aria-label={t('Dictate sets')} onPointerDown={() => orbPress(true)} onPointerUp={() => orbPress(false)} onPointerCancel={() => orbPress(false)} onPointerLeave={() => orbPress(false)}
