@@ -411,7 +411,19 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
     animation: sb-fade linear both, sb-fade-b linear both; animation-timeline: scroll(self), scroll(self); animation-range: 0 40px, calc(100% - 40px) 100%; }
 }
 .sheet-head { flex: none; display: flex; align-items: center; gap: 10px; padding: 2px 22px 12px; }
-.sheet-foot { flex: none; padding: 10px 22px calc(var(--sab) + 14px); background: transparent; } /* no rule above it: the list fades out instead */
+.sheet-foot { flex: none; position: relative; isolation: isolate; padding: 10px 22px calc(var(--sab) + 14px); background: transparent; }
+/* The bottom buttons (Add, Finish…) sit on no card: only a frost behind them. The list scrolls on under it and blurs more
+   the nearer it gets to the buttons (the frost layer reaches up over the end of the list and melts away at its top edge).
+   It is one small blur inside the sheet's own, and it never moves, so it costs nothing while scrolling. */
+.sheet-foot::before { content: ''; position: absolute; left: 0; right: 0; bottom: 0; top: -34px; z-index: -1; pointer-events: none;
+  background: color-mix(in srgb, var(--sheet-glass) 38%, transparent); -webkit-backdrop-filter: blur(14px) saturate(1.4); backdrop-filter: blur(14px) saturate(1.4);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 52%); mask-image: linear-gradient(to bottom, transparent, #000 52%); }
+.sheet-foot > * { position: relative; }
+/* with the frost there, the old fade above the buttons is not needed, and the last row rests just above the frost */
+.sheet-pane:has(> .sheet-foot) .sheet-body, .sheet-page:has(> .sheet-foot) .sheet-body { padding-bottom: 36px; }
+@supports (animation-timeline: scroll()) {
+  .sheet-pane:has(> .sheet-foot) .sheet-body, .sheet-page:has(> .sheet-foot) .sheet-body { -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--sb-fade)); mask-image: linear-gradient(to bottom, transparent, #000 var(--sb-fade)); }
+}
 
 /* ── floating tab bar: icons only; the active tab opens up and shows its name ─── */
 .tabbar-wrap { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; padding: 0 16px calc(var(--sab) + 14px); display: flex; justify-content: center; pointer-events: none; }
@@ -550,8 +562,9 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* Frosted glass, on purpose: a see-through tint with the blur behind it, so the set rows pass under the bar as soft shapes.
    It is one even tint (no lighter plate behind the orb: the fill lives in its own clip layer, never inside the blurred one).
    The blur is small on purpose: the rows are dark on dark, and a 34 px blur over a 58 px bar averaged them into one flat
-   colour, so the bar read as solid on the phone. 8 px keeps them as glowing shapes; numbers still can't be read through it. */
-.wk-bar.glass { background: color-mix(in srgb, var(--glass) 72%, transparent); -webkit-backdrop-filter: blur(8px) saturate(1.8); backdrop-filter: blur(8px) saturate(1.8); }
+   colour, so the bar read as solid on the phone. 8 px was then a touch too sharp; 14 px keeps the rows as soft glowing shapes
+   with a clearly frosted feel, and numbers still can't be read through it. */
+.wk-bar.glass { background: color-mix(in srgb, var(--glass) 72%, transparent); -webkit-backdrop-filter: blur(14px) saturate(1.8); backdrop-filter: blur(14px) saturate(1.8); }
 .wk-bar-fill { position: absolute; inset: 0; pointer-events: none; transform: translateX(-100%); will-change: transform; background: linear-gradient(90deg, color-mix(in srgb, var(--ac) 20%, transparent), color-mix(in srgb, var(--ac) 40%, transparent)); -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 44px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 44px), transparent); }
 .wk-bar-fill::before { content: ''; position: absolute; inset: 0; opacity: 0; transition: opacity 500ms var(--ease-out); background: linear-gradient(90deg, color-mix(in srgb, var(--ok) 26%, transparent), color-mix(in srgb, var(--ok) 44%, transparent)); }
 .wk-bar.go .wk-bar-fill { transform: none; -webkit-mask-image: none; mask-image: none; }

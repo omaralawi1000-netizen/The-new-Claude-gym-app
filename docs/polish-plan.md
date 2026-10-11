@@ -15,6 +15,7 @@ When a section is done, change `[ ]` to `[x]` here in the same pull request.
   make the timer animation better.
 - [ ] **3. Sheets and keyboard**: lag when the keyboard opens in sheets (Quick add etc.); bottom buttons (Add, Finish…) must
   not sit on a card: only a frosted blur behind them, content scrolling under it.
+  (12 Oct: frosted bottom buttons done in v0.1.3; keyboard lag still open.)
 - [ ] **4. Top fade** on every scrolling screen (workout screens first) so content fades out instead of being cut off.
 - [ ] **5. Exercise detail visual, part 1**: replace the abstract dot figure with a real picture of a person doing the
   exercise (animated start → end position) with the working muscles highlighted. Do one movement type first (rows / T-bar
