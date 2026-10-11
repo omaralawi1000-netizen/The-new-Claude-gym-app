@@ -766,3 +766,9 @@ Cloud timing comparisons can show reduced measurement work; actual 120 Hz output
 
 The text-flight check (`scripts/morph.mjs`) captures screenshots in a separate flight before measuring motion.
 Screenshot readback can stall cloud rendering during the short flight; the frame-count, landing and jump limits remain unchanged.
+
+## Rest bar back to frosted glass (11 Oct 2026, later)
+
+- Omar wanted see-through glass on the rest bar after all. It is a light tint with a 34 px blur behind it (`.wk-bar.glass`), one even colour: the fill lives in its own clip layer, so there is no lighter plate behind the orb. Set rows underneath melt into haze.
+- The fill's front edge is soft (a mask), not a hard line. The bar's two lines of text rise in softly (520 ms) when it changes from next → rest → go. Reduced motion: no rise.
+- Rule going forward: floating surfaces (bars, sheets, popups, toasts) are frosted glass; cards inside the live workout stay unblurred on purpose (cost on a phone).
