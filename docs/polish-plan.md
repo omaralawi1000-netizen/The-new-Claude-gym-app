@@ -10,7 +10,7 @@ When a section is done, change `[ ]` to `[x]` here in the same pull request.
   you keep switching (AnimatePresence removes leaving layers only once all are done); the status-bar tint rewrites `--bar`
   on <html> every frame (restyles the whole page); the dock's closing label starts on top of its icon. Tools:
   `scripts/leak-tabs.mjs`, `perf-tabs.mjs`, `film-tab.mjs`, `prof-tab.mjs`. Change one thing at a time and get his OK.
-- [ ] **2. Workout screen**: lags and flickers when it opens; scrolls sideways a little (lock horizontal scroll completely);
+- [x] **2. Workout screen**: lags and flickers when it opens; scrolls sideways a little (lock horizontal scroll completely);
   the rest-timer bar at the bottom sometimes shows two colours (a lighter block behind the orb, see-through over the cards);
   make the timer animation better.
 - [ ] **3. Sheets and keyboard**: lag when the keyboard opens in sheets (Quick add etc.); bottom buttons (Add, Finish…) must

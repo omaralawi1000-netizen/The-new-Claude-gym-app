@@ -436,6 +436,13 @@ The floating rest card that covered your sets is gone.
 
 **Stutter recorder** (Settings → About): five minutes of long frames with the screen and the last tap, then **Copy report** to paste back. It records only timings and names. Headless tests can't feel your phone; this lets the next fix aim at what you actually felt.
 
+## Workout screen polish (11 Oct 2026)
+
+- **Opening**: the orb re-measured the whole page on every exercise that appeared in the list, one forced layout after another while the window was sliding up. Changes inside the workout's list (and scrolling it) no longer count, since nothing in it can move the orb (`ui/Sphere.tsx`). Forced-layout time in the opening, measured with the CPU slowed 4×: ~320 ms → ~90 ms.
+- **No sideways movement**: the list now has `overflow-x: hidden`, `touch-action: pan-y`, and snaps back if anything scrolls it sideways (`scrollIntoView` can). The likely cause was the "set done" ring and gold burst, which scale past the right edge for a moment and made room to slide into.
+- **Rest bar is one colour**: it is a solid surface now (no frost), so the set rows no longer show through and there is no lighter patch behind the orb. Only the fill changes its colour.
+- **Rest timer animation** (`RestFill` in `screens/workout/Active.tsx`): the fill is one linear animation run by the browser (smooth at 120 Hz) instead of being re-aimed four times a second; it restarts only when the rest changes (±15, pause, resume). Skip slides it back. At the end it fades to green. In the last three seconds the time swells a touch on each second, in step with the ticks. Reduced motion: no swell.
+
 ## Read aloud, a matching Coach, linked macros, workouts → routines
 
 - **Play on every answer** (orb screen and Coach), like Claude's: tap ▸ and the Gemini voice reads it; each word lights up in the accent as it is said, the ones said settle back, the ones to come wait a shade lighter; ■ stops. It starts fast because a finished answer's audio is fetched in the background (`prefetch`, cached by text), and a long answer is split into a short first sentence plus bigger pieces fetched together and queued back to back on the audio clock (`lib/tts.ts`). The lit word follows the real audio: the clip's quiet stretches are found and each phrase is pinned to the pause nearest its full stop or comma, so the timing re-syncs instead of drifting (`wordTimes`, `speechSpan`). The screen and the reader share one tokeniser (`richLines`), so word N on screen is word N in the audio. "Read answers aloud automatically" (Settings → Voice & AI) now covers both screens. Tiny replies ("Undone.") get no button.
