@@ -74,7 +74,7 @@ function LivePill() {
 
 /** Tapping the tab you are already on brings its screen back to the top (as on iOS). */
 function scrollActiveTabToTop() {
-  (document.querySelector('.stage .tab-pane[data-active] .screen') as HTMLElement | null)?.scrollTo({ top: 0, behavior: 'smooth' });
+  (document.querySelector('.stage .tab-pane .screen') as HTMLElement | null)?.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 /**
@@ -170,14 +170,13 @@ function useDock(nav: React.RefObject<HTMLElement | null>, tab: Tab) {
       const dx = was === undefined ? 0 : was - at;
       if (Math.abs(dx) > 0.5) slideFrom(icon, dx, DOCK);
       if (btn.classList.contains('on')) {
-        // the name opens out of its icon: it travels with it (just tucked in beside it) and fades in a beat later
-        slideFrom(lab, dx - 6, DOCK);
+        // the name opens out of its icon: it travels with it and fades in a beat later
+        slideFrom(lab, dx - 22, DOCK);
         lab.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300, delay: 70, easing: 'cubic-bezier(.2,.7,.3,1)', fill: 'backwards' });
       } else if (wasShown(btn)) {
-        // the name that is closing fades where it was drawn, travelling with its icon. It always sits one icon-gap beside it, so
-        // its slide is the icon's own: measuring where it "was" instead used positions taken mid-slide, which started it on top
-        // of the icon and made it jump
-        slideFrom(lab, dx, DOCK);
+        // the name that is closing fades where it was drawn, travelling with its icon
+        const shown = drawn.get(lab), rest = now.get(lab)!;
+        slideFrom(lab, shown === undefined ? dx : shown - rest, DOCK);
         lab.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 170, easing: 'ease-out' });
       }
     });

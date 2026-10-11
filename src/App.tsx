@@ -1,5 +1,5 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { AnimatePresence, MotionConfig, usePresence } from 'motion/react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { AnimatePresence, MotionConfig, motion } from 'motion/react';
 import { useStore } from './state/store';
 import { useUI } from './state/ui';
 import { TabBar } from './ui/TabBar';
@@ -18,7 +18,7 @@ import { registerSW } from './pwa';
 import { dayKey } from './lib/dates';
 import { defaultMealId } from './lib/derive';
 import { stageCover, stageDepth, stageTransform } from './ui/engage';
-import { barColor, readRGB, setBarDepth, setBarTint } from './ui/statusBar';
+import { readRGB, setBarDepth, setBarTint } from './ui/statusBar';
 import { setKeyboard } from './ui/keyboard';
 import { FpsMeter } from './ui/FpsMeter';
 
@@ -93,135 +93,50 @@ function useTheme() {
  * opening, under the finger while it is dragged, and as it leaves.
  */
 /**
- * Switching tabs.
- *
- * Each screen is built on its first visit and then kept, hidden while another tab is up. Going back to a tab just shows it:
- * rebuilding a screen on every tap took a moment on the phone (the pause after the tap) and everything after it ran late.
- * (Kept screens were tried before and reverted because hiding a screen restarted its cards' rise-in; the cards no longer
- * rise one by one — each card animating on its own layer also caused single-frame dropouts on the phone — and a hidden
- * screen is hidden with visibility, which restarts nothing.)
- *
- * The switch starts once the new screen is on the glass (two frames after it is shown), never part-way: the old screen
- * fades out quickly while the new one fades in as one piece with a small slide from its tab's side, and the glow cross-fades
- * slowly into the new area's colours (Field). Opacity and transform only: drawn on the compositor at the screen's full rate.
+ * Switching tabs. Two things happen together:
+ *  - the glow changes: the area's colour field cross-fades into the next area's colours (Field) — the new layer fades in
+ *    while the old one fades out (a little later, so the light never dips), and the browser just blends them instead of
+ *    repainting the field on every frame. Both layers are partly see-through, so the old one must fade out too: left at
+ *    full strength underneath, it tinted the new colours until it was removed, and then they snapped;
+ *  - the screens swap (TabPane, below).
  */
-const gate = { open: true, ready: Promise.resolve(), release: () => {} };
-function closeGate() {
-  if (!gate.open) return; // already waiting: the pending release covers this switch too
-  gate.open = false;
-  gate.ready = new Promise<void>((res) => { gate.release = () => { gate.open = true; res(); }; });
-}
-const still = () => document.documentElement.dataset.motion === 'reduce';
-const GLOW_MS = 800;
-const EASE_OUT = 'cubic-bezier(0.22, 1, 0.36, 1)';
-
-/**
- * Enter and leave for one switch layer. `enter` runs when the gate opens (straight away if no switch is waiting); `leave`
- * runs when AnimatePresence removes the layer, also from the gate, and the layer is dropped when it has finished. If the tab
- * comes back first (tapped again mid-switch) the leave is cancelled, which puts the layer straight back.
- */
-function useSwitchLayer(ref: React.RefObject<HTMLElement | null>, enter: (el: HTMLElement, waited: boolean) => void, leave: (el: HTMLElement) => Animation) {
-  const waited = useRef(!gate.open); // decided by the render that built this layer
-  const [present, safeToRemove] = usePresence();
-  const leaving = useRef<Animation | null>(null);
-  useLayoutEffect(() => {
-    const el = ref.current; if (!el) return;
-    if (!waited.current) { enter(el, false); return; }
-    el.style.opacity = '0'; // hidden while it is built and painted the first time
-    let alive = true;
-    gate.ready.then(() => { if (alive) { el.style.opacity = ''; enter(el, true); } });
-    return () => { alive = false; };
-    // eslint-disable-next-line
-  }, []);
-  useEffect(() => {
-    if (present) { leaving.current?.cancel(); leaving.current = null; if (ref.current) ref.current.style.display = ''; return; }
-    let alive = true;
-    gate.ready.then(() => {
-      const el = ref.current;
-      if (!alive || !el) return;
-      const a = leave(el); leaving.current = a;
-      // Hidden the moment it has faded: AnimatePresence only removes leaving layers once ALL of them are done, so while you
-      // keep switching, faded layers (full-screen, still drifting) piled up and were all still drawn every frame.
-      a.finished.then(() => { if (alive) { el.style.display = 'none'; safeToRemove?.(); } }, () => { /* cancelled: it came back */ });
-    });
-    return () => { alive = false; };
-    // eslint-disable-next-line
-  }, [present]);
-}
-
+const GLOW = 0.8; // seconds the colours take to change over
 let fieldSeq = 0;
-/** Glow layers still fading out: when another switch starts they finish four times faster, so tapping quickly through the
- *  tabs leaves at most about two full-screen layers drawn at once. */
-const fading = new Set<Animation>();
-function fadeGlow(el: HTMLElement): Animation {
-  for (const o of fading) o.updatePlaybackRate(4);
-  // the old one goes a little later than the new one comes, so the light never dips
-  const a = el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: GLOW_MS, delay: 100, easing: 'cubic-bezier(0.55, 0, 0.75, 1)', fill: 'forwards' });
-  fading.add(a);
-  const done = () => fading.delete(a);
-  a.finished.then(done, done);
-  return a;
-}
 function Field({ hue }: { hue: string }) {
   // every field drifts on the same clock, so the new one lines up with the old one and only its colours change
   const drift = useRef(`-${Math.round(performance.now())}ms`);
   const z = useRef(++fieldSeq);
-  const ref = useRef<HTMLDivElement>(null);
-  useSwitchLayer(ref,
-    (el, waited) => { if (waited) el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: GLOW_MS, delay: 50, easing: 'cubic-bezier(0.4, 0, 0.2, 1)', fill: 'backwards' }); },
-    fadeGlow);
   return (
-    <div ref={ref} className="aurora" data-hue={hue} aria-hidden style={{ zIndex: z.current, ['--drift-t' as string]: drift.current }}>
+    <motion.div className="aurora" data-hue={hue} aria-hidden style={{ zIndex: z.current, ['--drift-t' as string]: drift.current }}
+      initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { duration: GLOW, ease: [0.4, 0, 0.2, 1], delay: 0.05 } }}
+      exit={{ opacity: 0, transition: { duration: GLOW, ease: [0.55, 0, 0.75, 1], delay: 0.05 } }}>
       <i /><i /><i />
-    </div>
+    </motion.div>
   );
 }
 
-const ORDER = ['today', 'train', 'food', 'progress'] as const;
-type TabId = (typeof ORDER)[number];
-const SCREEN_EL: Record<TabId, React.ReactNode> = { today: <TodayScreen />, train: <TrainScreen />, food: <FoodScreen />, progress: <ProgressScreen /> };
-const hidePane = (el: HTMLElement) => { el.style.visibility = 'hidden'; el.style.contentVisibility = 'hidden'; el.inert = true; el.removeAttribute('data-active'); };
-const showPane = (el: HTMLElement) => { el.style.visibility = ''; el.style.contentVisibility = ''; el.inert = false; el.setAttribute('data-active', ''); };
-
-/** The screens: built on first visit, kept after; the switch between them (see the note above). */
-function TabPanes({ tab, dir }: { tab: TabId; dir: number }) {
-  const visited = useRef(new Set<TabId>()); visited.current.add(tab);
-  const els = useRef<Partial<Record<TabId, HTMLDivElement | null>>>({});
-  const shown = useRef<TabId | null>(null);
-  const running = useRef<Animation[]>([]);
-  useLayoutEffect(() => {
-    const next = els.current[tab]; if (!next) return;
-    const prev = shown.current; shown.current = tab;
-    if (prev === null || prev === tab) { showPane(next); gate.release(); return; }
-    // a switch still running finishes at once
-    running.current.forEach((x) => x.cancel()); running.current = [];
-    for (const k of ORDER) { const el = els.current[k]; if (el && k !== tab && k !== prev) hidePane(el); }
-    const old = els.current[prev];
-    showPane(next); next.style.opacity = '0';
-    old?.removeAttribute('data-active');
-    let raf = requestAnimationFrame(() => { raf = requestAnimationFrame(() => {
-      next.style.opacity = '';
-      gate.release(); // the glow starts in this same frame
-      const calm = still();
-      const inA = next.animate([{ opacity: 0, transform: calm ? 'none' : `translateX(${dir * 20}px)` }, { opacity: 1, transform: 'none' }], { duration: 340, delay: 40, easing: EASE_OUT, fill: 'backwards' });
-      running.current.push(inA);
-      if (old) {
-        const outA = old.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: calm ? 'none' : `translateX(${-dir * 12}px)` }], { duration: 150, easing: 'cubic-bezier(0, 0, 0.2, 1)', fill: 'forwards' });
-        running.current.push(outA);
-        const done = () => { if (shown.current !== prev) { hidePane(old); outA.cancel(); } };
-        outA.finished.then(done, done);
-      }
-    }); });
-    return () => cancelAnimationFrame(raf);
-  }, [tab]); // eslint-disable-line
+/**
+ * The screens swap as in the first version: the new one slides in 36 px from the side it sits on and fades up, the old one
+ * slides out the other way, fading and softly blurring (0.38 s, ease-out). Its cards then rise in one after another (see
+ * `.screen > *` in styles.css). Which side comes from the order of the tabs (Today · Train · Food · Progress); the slide is a
+ * whole `transform`, so the browser runs it on its compositor at the screen's full rate.
+ */
+const EASE = [0.22, 1, 0.36, 1] as const;
+const ORDER = ['today', 'train', 'food', 'progress'];
+const PAGE = {
+  enter: (d: number) => ({ opacity: 0, transform: `translateX(${d * 36}px)` }),
+  // Both start 50 ms after the tap: building the new screen takes a frame or two on a phone, and an animation that started
+  // during that work showed up already part-way through — the old and new pages jumped (the flicker at the top).
+  center: { opacity: 1, transform: 'translateX(0px)', transitionEnd: { transform: 'none' }, transition: { duration: 0.38, ease: EASE, delay: 0.05 } },
+  // no blur on the way out: filtering a whole screen every frame of a page switch cost more than anything else in it
+  exit: (d: number) => ({ opacity: 0, transform: `translateX(${-d * 36}px)`, transition: { duration: 0.34, ease: EASE, delay: 0.05 } }),
+};
+// `custom` is the direction; AnimatePresence hands the leaving screen the NEW direction too (it was removed with the old one)
+function TabPane({ hue, dir, children }: { hue: string; dir: number; children: React.ReactNode }) {
   return (
-    <>
-      {ORDER.filter((k) => visited.current.has(k)).map((k) => (
-        <div key={k} ref={(el) => { els.current[k] = el; }} className="tab-pane" data-hue={k} style={{ position: 'absolute', inset: 0 }}>
-          {SCREEN_EL[k]}
-        </div>
-      ))}
-    </>
+    <motion.div className="tab-pane" data-active data-hue={hue} custom={dir} variants={PAGE} initial="enter" animate="center" exit="exit" style={{ position: 'absolute', inset: 0 }}>
+      {children}
+    </motion.div>
   );
 }
 
@@ -236,13 +151,12 @@ function useBarTint(app: React.RefObject<HTMLDivElement | null>, tab: string) {
     probe.style.cssText = 'position:absolute;width:0;height:0;pointer-events:none;color:color-mix(in srgb, var(--h1) var(--bar-mix), var(--bg))';
     el.appendChild(probe);
     const read = (ms: number) => { const c = readRGB(getComputedStyle(probe).color); if (c) setBarTint(c, ms); };
-    // once the new screen has been painted (the page switch starts then too — see `gate`), when the new area's colours are in place
-    let id = 0, alive = true;
-    gate.ready.then(() => { if (alive) id = requestAnimationFrame(() => { read(first.current ? 0 : GLOW_MS); first.current = false; }); });
+    // after this frame's styles (the new area's colours) are in place
+    const id = requestAnimationFrame(() => { read(first.current ? 0 : 800); first.current = false; });
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
     const onMq = () => requestAnimationFrame(() => read(0));
     mq.addEventListener('change', onMq);
-    return () => { alive = false; cancelAnimationFrame(id); mq.removeEventListener('change', onMq); probe.remove(); };
+    return () => { cancelAnimationFrame(id); mq.removeEventListener('change', onMq); probe.remove(); };
   }, [app, tab, palette, theme]);
 }
 
@@ -257,7 +171,7 @@ function useStageDepth(app: React.RefObject<HTMLDivElement | null>, stage: React
       st.style.willChange = 'transform'; st.style.overflow = 'hidden'; // layer hints only while a popup is up, so the idle app is built exactly like the original
       st.style.transform = stageTransform(v); // the same function the browser-run (high refresh) version uses
       st.style.borderRadius = `${28 * v}px`;
-      a.style.background = barColor(); // the page steps back onto the colour of the status bar: no seam under it (kept in step by statusBar.ts)
+      a.style.background = 'var(--bar, #000)'; // the page steps back onto the colour of the status bar: no seam under it
     };
     apply(stageDepth.get());
     const offDepth = stageDepth.on('change', apply);
@@ -296,6 +210,8 @@ function useKeyboard() {
   }, []);
 }
 
+const SCREENS = { today: TodayScreen, train: TrainScreen, food: FoodScreen, progress: ProgressScreen };
+
 /**
  * True while a pop-up is open (and for a moment after it has left). The drifting colour field sits under dozens of frosted
  * cards, so while it moves every one of them must be re-blurred every frame — and a pop-up adds two more full-screen
@@ -327,16 +243,17 @@ export function App() {
   const t = useT();
   const tab = useUI((s) => s.tab);
   useBarTint(appRef, tab);
-  // the page switch (see TabPanes above)
+  // the page switch (pageSwitch above) — screens are rebuilt per visit (two attempts to keep them alive both changed how it felt)
   const prev = useRef(tab);
   const lastDir = useRef(1); // the side of the last switch, kept while anything re-renders mid-slide
   const moved = Math.sign(ORDER.indexOf(tab) - ORDER.indexOf(prev.current));
   if (moved) lastDir.current = moved;
   const dir = lastDir.current;
   useEffect(() => { prev.current = tab; }, [tab]);
-  // a switch closes the gate while the new screen is built; two frames after it is on the glass the gate opens (see `gate`)
-  const gated = useRef(tab);
-  if (gated.current !== tab) { gated.current = tab; closeGate(); }
+  const Screen = SCREENS[tab];
+  // one element per tab: the app re-renders whenever a pop-up opens or closes (the colour field's pause, the resume bar),
+  // and that used to re-render the whole page behind the pop-up too — Today, every time the workout was opened
+  const screen = useMemo(() => <Screen />, [Screen]);
   // a running workout shows a resume bar above the tab bar on every tab but Today: the page makes room for it
   const pill = useStore((s) => !!s.active) && tab !== 'today';
   const onboarded = useStore((s) => s.settings.onboarded);
@@ -366,8 +283,10 @@ export function App() {
     <MotionConfig reducedMotion="user">
       <div className="app" data-hue={tab} data-pill={pill || undefined} data-calm={calm || undefined} ref={appRef}>
         <div className="stage" ref={stageRef}>
-        <div className="fields"><AnimatePresence initial={false} mode="sync"><Field key={tab} hue={tab} /></AnimatePresence></div>
-        <TabPanes tab={tab} dir={dir} />
+        <div className="fields"><AnimatePresence initial={false}><Field key={tab} hue={tab} /></AnimatePresence></div>
+        <AnimatePresence mode="popLayout" initial={false} custom={dir}>
+          <TabPane key={tab} hue={tab} dir={dir}>{screen}</TabPane>
+        </AnimatePresence>
         <TabBar />
         </div>
         <Overlays />
