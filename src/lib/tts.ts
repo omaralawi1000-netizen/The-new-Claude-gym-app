@@ -11,7 +11,16 @@ import { outMeter, setVoiceOut } from './voiceOut';
 
 const API = 'https://generativelanguage.googleapis.com/v1beta';
 const RATE = 24000;
-export const VOICES = ['Achird', 'Sulafat', 'Algieba', 'Despina', 'Callirrhoe', 'Puck', 'Aoede', 'Zephyr', 'Kore', 'Charon', 'Fenrir', 'Orus'];
+/** All 30 Gemini prebuilt voices with Google's own one-word style, calm and clear ones first (the Coach talks a lot). */
+export const VOICE_STYLE: Record<string, string> = {
+  Achird: 'Friendly', Sulafat: 'Warm', Algieba: 'Smooth', Despina: 'Smooth', Sadaltager: 'Knowledgeable', Iapetus: 'Clear', Erinome: 'Clear', Schedar: 'Even',
+  Vindemiatrix: 'Gentle', Gacrux: 'Mature', Achernar: 'Soft', Charon: 'Informative', Rasalgethi: 'Informative', Kore: 'Firm', Orus: 'Firm', Alnilam: 'Firm',
+  Callirrhoe: 'Easy-going', Umbriel: 'Easy-going', Zubenelgenubi: 'Casual', Aoede: 'Breezy', Puck: 'Upbeat', Laomedeia: 'Upbeat', Sadachbia: 'Lively', Zephyr: 'Bright',
+  Autonoe: 'Bright', Leda: 'Youthful', Pulcherrima: 'Forward', Fenrir: 'Excitable', Enceladus: 'Breathy', Algenib: 'Gravelly',
+};
+export const VOICES = Object.keys(VOICE_STYLE);
+/** Best-rated Gemini voice model (tops the Artificial Analysis speech arena); tried first, older ones are the fallback. */
+export const BEST_TTS = 'gemini-3.1-flash-tts-preview';
 export const FALLBACK_TTS = 'gemini-2.5-flash-preview-tts';
 
 /** Just the 16-bit mono samples out of raw PCM or a WAV container (any chunks before or after "data"). */

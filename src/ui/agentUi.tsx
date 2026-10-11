@@ -11,7 +11,7 @@ import { useUI, buzz } from '../state/ui';
 import { useAi } from '../state/ai';
 import { getKey } from '../lib/keys';
 import { aiErrorText } from '../lib/gemini';
-import { play, prefetch, stopSpeaking, speechState, subscribeSpeech, richLines, wordsOf, FALLBACK_TTS, type TtsOpts } from '../lib/tts';
+import { play, prefetch, stopSpeaking, speechState, subscribeSpeech, richLines, wordsOf, BEST_TTS, FALLBACK_TTS, type TtsOpts } from '../lib/tts';
 
 /**
  * Things worth saying to the assistant right now, made from what is actually in the app: the foods logged today, the
@@ -179,7 +179,7 @@ export const tidy = (s: string) => { const n = s.match(/\*\*/g)?.length ?? 0; if
 /** Gemini voice settings for reading a reply aloud (the key stays on the phone; it is only read here, at the moment of use). */
 export function ttsOpts(): TtsOpts {
   const m = useAi.getState();
-  return { key: getKey('gemini'), models: [m.models.tts || FALLBACK_TTS], voice: m.voice, groqKey: getKey('groq') || undefined };
+  return { key: getKey('gemini'), models: [BEST_TTS, m.models.tts || FALLBACK_TTS], voice: m.voice, groqKey: getKey('groq') || undefined };
 }
 /** Read reply `id` aloud; a failure becomes a short toast, never a crash. */
 export function readAloud(id: string, text: string, t: (k: string) => string) {

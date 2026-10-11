@@ -9,7 +9,8 @@ import { listModels, pickTextModels } from '../lib/gemini';
 import { testOpenaiKey } from '../lib/openai';
 import { spendSnapshot, subscribeSpend } from '../lib/spend';
 import { fmtNum } from '../lib/units';
-import { VOICES, FALLBACK_TTS } from '../lib/tts';
+import { VOICES, VOICE_STYLE, FALLBACK_TTS, play } from '../lib/tts';
+import { ttsOpts } from '../ui/agentUi';
 
 type Test = { state: 'idle' | 'busy' | 'ok' | 'bad'; text?: string };
 
@@ -43,6 +44,11 @@ export function VoiceAiSettings() {
   const [g, setG] = useState<Test>({ state: 'idle' });
   const [m, setM] = useState<Test>({ state: 'idle' });
   const [o, setO] = useState<Test>({ state: 'idle' });
+  /** Choose a voice and, with a Gemini key, say a short line in it so it can be judged by ear. */
+  const pick = (v: string) => {
+    ai.patch({ voice: v });
+    if (ai.hasGemini) play('voice-preview', 'Nice work today. Let’s get your next set done.', { ...ttsOpts(), voice: v, groqKey: undefined }).catch(() => {});
+  };
   const testOpenai = async (key: string) => {
     setO({ state: 'busy' });
     const r = await testOpenaiKey(key);
@@ -97,8 +103,8 @@ export function VoiceAiSettings() {
             <Seg value={ai.mic} onChange={(v) => ai.patch({ mic: v })} options={[{ value: 'phone', label: t('Phone') }, { value: 'any', label: t('Earbuds') }]} />
             <div className="xs t2" style={{ marginTop: 6 }}>{t('With earbuds in, the phone’s own mic hears you better and keeps your music playing.')}</div></div>
           <div className="row-flex between"><div><div>{t('Let Gemini understand dictation')}</div></div><Toggle on={ai.brain} onChange={(v) => ai.patch({ brain: v })} label={t('Let Gemini understand dictation')} /></div>
-          <div className="field"><label>{t('Voice for read-aloud')}</label><div className="chips" style={{ margin: 0, padding: 0, flexWrap: 'wrap' }}>{VOICES.map((v) => <button key={v} className={`chip sm press ${ai.voice === v ? 'on' : ''}`} onClick={() => ai.patch({ voice: v })}>{v}</button>)}</div>
-            <div className="xs t2" style={{ marginTop: 6 }}>{t('Answers are only read aloud when you tap ▶ next to them.')}</div></div>
+          <div className="field"><label>{t('Voice for read-aloud')}</label><div className="chips" style={{ margin: 0, padding: 0, flexWrap: 'wrap' }}>{VOICES.map((v) => <button key={v} className={`chip sm press ${ai.voice === v ? 'on' : ''}`} onClick={() => pick(v)}>{v}</button>)}</div>
+            <div className="xs t2" style={{ marginTop: 6 }}>{VOICE_STYLE[ai.voice] ? `${ai.voice} · ${VOICE_STYLE[ai.voice]}. ` : ''}{ai.hasGemini ? t('Tap a voice to hear it.') : ''} {t('Answers are only read aloud when you tap ▶ next to them.')}</div></div>
         </div>
       </div>
 
