@@ -772,3 +772,9 @@ Screenshot readback can stall cloud rendering during the short flight; the frame
 - Omar wanted see-through glass on the rest bar after all. It is a light tint with a 34 px blur behind it (`.wk-bar.glass`), one even colour: the fill lives in its own clip layer, so there is no lighter plate behind the orb. Set rows underneath melt into haze.
 - The fill's front edge is soft (a mask), not a hard line. The bar's two lines of text rise in softly (520 ms) when it changes from next → rest → go. Reduced motion: no rise.
 - Rule going forward: floating surfaces (bars, sheets, popups, toasts) are frosted glass; cards inside the live workout stay unblurred on purpose (cost on a phone).
+
+## Rest bar glass you can actually see (11 Oct 2026, evening)
+
+- Omar still saw a solid bar. Two causes: the set list faded to 12% before it reached the bar, so the frost had only the dark background behind it; and a 34 px blur on a 58 px bar averaged dark-on-dark rows into one flat colour. Now the list stays solid until below the bar, and the bar uses an 8 px blur with a lighter tint (`.wk-bar.glass`). Rows pass under it as soft shapes; a ticked (orange) set glows through. Numbers still can't be read through it.
+- Updates reach the phone: an update that is ready in the first 10 s after the app opens is put in straight away, even with a workout running (it is saved first and comes back). Before, the update banner was hidden during a workout, so a build shipped mid-workout could stay out. After that window the "Update" banner works as before (`src/pwa.ts`).
+- Settings → About shows the real version (from package.json), so Omar can see which build his phone runs.

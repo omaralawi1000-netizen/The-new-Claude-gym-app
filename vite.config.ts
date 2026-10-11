@@ -1,10 +1,13 @@
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+import pkg from './package.json';
 
 export default defineConfig({
   // relative base: the same build works at a domain root (Vercel/Netlify) and under a sub-path (GitHub Pages /repo/)
   base: './',
+  // the version shown in Settings → About, so you can see which build the phone is running
+  define: { __APP_VERSION__: JSON.stringify(pkg.version) },
   plugins: [
     react(),
     VitePWA({
