@@ -145,6 +145,14 @@ export function ActiveWorkout({ props, open = true }: { props: { origin?: 'hero'
     return () => { el.removeEventListener('focusin', on); el.removeEventListener('focusout', off); };
   }, []);
   const body = useRef<HTMLDivElement>(null);
+  // the list never moves sideways: CSS stops a finger, this stops scrollIntoView and friends (a "set done" ring scaling past
+  // the right edge used to make room to slide into)
+  useEffect(() => {
+    const el = body.current; if (!el) return;
+    const home = () => { if (el.scrollLeft) el.scrollLeft = 0; };
+    el.addEventListener('scroll', home, { passive: true });
+    return () => el.removeEventListener('scroll', home);
+  }, [!a]); // eslint-disable-line react-hooks/exhaustive-deps
   const z = useOverlayZ(60);
   // where to open from is fixed at mount; where to close into is measured on every render (the card may have scrolled)
   // Render the first exercises at once and the rest a few at a time after the opening animation — no long task while
@@ -384,7 +392,6 @@ function WorkoutBar({ engage, exMap, away, onDone, onJump }: { engage: Engage; e
   const rest = a.rest;
   const left = rest ? (a.pausedAt ? rest.endsAt : rest.endsAt - now) / 1000 : 0;
   const over = !!rest && left <= 0;
-  const frac = rest && rest.total > 0 ? Math.min(1, Math.max(0, 1 - left / rest.total)) : 0;
   const kg = nx ? (nx.set.weightKg ?? nx.set.target?.weightKg) : undefined;
   const reps = nx ? (nx.set.reps ?? nx.set.target?.repMax) : undefined;
   const target = [kg !== undefined ? `${fmtNum(kgToDisplay(kg, unit), lang, 2)} ${unit}` : '', reps ? `× ${reps}` : ''].filter(Boolean).join(' ');
@@ -414,11 +421,12 @@ function WorkoutBar({ engage, exMap, away, onDone, onJump }: { engage: Engage; e
     <div className={`wk-bar-wrap${away ? ' away' : ''}`}>
       {/* never re-keyed: the orb's slot lives in here, and remounting it made the orb leave and land again (a tick, a hop) */}
       <div className={`wk-bar glass ${state}`}>
-        <span className="wk-bar-clip" aria-hidden><i className="wk-bar-fill" style={{ transform: `translateX(${((state === 'go' ? 1 : state === 'rest' ? frac : 0) - 1) * 100}%)` }} /></span>
+        <span className="wk-bar-clip" aria-hidden><RestFill state={state} endsAt={rest?.endsAt} total={rest?.total} paused={!!a.pausedAt} /></span>
         <button className="wk-bar-main press" onClick={tap} aria-expanded={state === 'rest' ? panel : undefined}
           aria-label={state === 'rest' ? `${t('Rest')} ${fmtDuration(Math.ceil(left))}` : `${top}. ${big}${state === 'next' && target ? `, ${target}` : ''}`}>
           <span className="wk-bar-top">{top}</span>
-          <span className="wk-bar-big num">{state === 'next' ? <><span className="wk-bar-name">{name}</span>{target && <span className="wk-bar-tgt">{target}</span>}</> : big}</span>
+          <span className="wk-bar-big num">{state === 'next' ? <><span className="wk-bar-name">{name}</span>{target && <span className="wk-bar-tgt">{target}</span>}</>
+            : state === 'rest' ? <span key={Math.ceil(left)} className={!a.pausedAt && left <= 3 ? 'wk-tick' : undefined}>{big}</span> : big}</span>
         </button>
         <button className="wk-bar-orb press" aria-label={t('Dictate sets')} onPointerDown={() => orbPress(true)} onPointerUp={() => orbPress(false)} onPointerCancel={() => orbPress(false)} onPointerLeave={() => orbPress(false)}
           onClick={() => { orbTap(1); push('voice', { mode: 'workout' }); }}>
@@ -437,6 +445,37 @@ function WorkoutBar({ engage, exMap, away, onDone, onJump }: { engage: Engage; e
       </div>
     </div>
   );
+}
+
+/**
+ * The rest bar's fill. The browser grows it from where the rest stands to the end in one linear animation (compositor,
+ * full refresh rate), instead of the page re-aiming it four times a second. It restarts only when the rest itself changes
+ * (started, ±15, paused, resumed); when a rest is skipped it slides back instead of vanishing.
+ */
+function RestFill({ state, endsAt, total, paused }: { state: string; endsAt?: number; total?: number; paused: boolean }) {
+  const ref = useRef<HTMLElement>(null);
+  const anim = useRef<{ a: Animation; from: number } | null>(null);
+  useLayoutEffect(() => {
+    const el = ref.current; if (!el) return;
+    const prev = anim.current;
+    if (state === 'rest' && endsAt !== undefined && total) {
+      const leftMs = paused ? endsAt : endsAt - Date.now();
+      const from = Math.min(1, Math.max(0, 1 - leftMs / (total * 1000)));
+      const a = el.animate([{ transform: `translateX(${(from - 1) * 100}%)` }, { transform: 'translateX(0%)' }], { duration: Math.max(1, leftMs), easing: 'linear', fill: 'forwards' });
+      if (paused) a.pause();
+      anim.current = { a, from };
+      prev?.a.cancel();
+      return;
+    }
+    if (state === 'go') return; // it ended at full: the CSS keeps it there, green
+    anim.current = null;
+    if (!prev) return;
+    const pr = prev.a.effect?.getComputedTiming().progress ?? 1;
+    const now = prev.from + (1 - prev.from) * Math.min(1, pr);
+    prev.a.cancel();
+    if (now > 0.01) el.animate([{ transform: `translateX(${(now - 1) * 100}%)` }, { transform: 'translateX(-100%)' }], { duration: 300, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' });
+  }, [state, endsAt, total, paused]);
+  return <i ref={ref as React.RefObject<HTMLElement>} className="wk-bar-fill" />;
 }
 
 // ── exercise block ──────────────────────────────────────────
