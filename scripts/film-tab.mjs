@@ -7,8 +7,9 @@ await p.goto('http://127.0.0.1:5173/'); await wait(p, 900); await skipOnboarding
 if (from !== 'Today') { await p.getByRole('button', { name: from, exact: true }).first().click(); await wait(p, 1800); }
 await p.evaluate(() => {
   window.__frozen = 0;
-  new MutationObserver(() => { if (window.__frozen || !document.querySelector('.tab-pane[data-go]')) return; window.__frozen = 1; requestAnimationFrame(() => requestAnimationFrame(() => { document.getAnimations().forEach((a) => a.pause()); window.__frozen = 2; })); }).observe(document.querySelector('.stage'), { attributes: true, subtree: true, attributeFilter: ['data-go'] });
+  const poll = () => { if ([...document.querySelectorAll('.tab-pane')].some((e) => e.getAnimations().length)) { document.getAnimations().forEach((a) => a.pause()); window.__frozen = 2; } else requestAnimationFrame(poll); }; window.__startPoll = poll;
 });
+await p.evaluate(() => requestAnimationFrame(window.__startPoll));
 await p.getByRole('button', { name: to, exact: true }).first().click();
 await p.waitForFunction(() => window.__frozen === 2, null, { timeout: 8000 });
 const t0 = await p.evaluate(() => document.getAnimations().length);

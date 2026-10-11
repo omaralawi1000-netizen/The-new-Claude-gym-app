@@ -225,9 +225,9 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
 .screen > * + * { margin-top: 22px; }
 /* every screen's blocks rise in, blurred → sharp, one after another */
 /* every screen's blocks rise in, one after another (a screen, or the part of one that is swapped: .subpage) */
-.screen > *, .subpage > * { animation: rise-move 780ms var(--ease-out) backwards; animation-delay: calc(50ms + var(--i, 0) * 60ms); }
+/* (a tab screen's own cards don't rise one by one any more: the screen fades in as one piece — see TabPanes in App.tsx) */
+.subpage > * { animation: rise-move 780ms var(--ease-out) backwards; animation-delay: calc(50ms + var(--i, 0) * 60ms); }
 .screen > .subpage { animation: none; }
-.tab-pane:not([data-go]) .screen > * { animation-play-state: paused; } /* the cards wait for the page switch to start (App.tsx gate) */
 .screen > :nth-child(1) { --i: 0; } .screen > :nth-child(2) { --i: 1; } .screen > :nth-child(3) { --i: 2; } .screen > :nth-child(4) { --i: 3; }
 .subpage > :nth-child(1) { --i: 0; } .subpage > :nth-child(2) { --i: 1; } .subpage > :nth-child(3) { --i: 2; } .subpage > :nth-child(4) { --i: 3; }
 .subpage > :nth-child(5) { --i: 4; } .subpage > :nth-child(6) { --i: 5; } .subpage > :nth-child(7) { --i: 6; } .subpage > :nth-child(n+8) { --i: 7; }

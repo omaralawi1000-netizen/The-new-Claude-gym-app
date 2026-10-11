@@ -74,7 +74,7 @@ function LivePill() {
 
 /** Tapping the tab you are already on brings its screen back to the top (as on iOS). */
 function scrollActiveTabToTop() {
-  (document.querySelector('.stage .tab-pane .screen') as HTMLElement | null)?.scrollTo({ top: 0, behavior: 'smooth' });
+  (document.querySelector('.stage .tab-pane[data-active] .screen') as HTMLElement | null)?.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 /**
