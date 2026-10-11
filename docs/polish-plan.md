@@ -11,6 +11,9 @@ When a section is done, change `[ ]` to `[x]` here in the same pull request.
   (AnimatePresence waits for all leaving layers), so they piled up and were all drawn every frame; now hidden the moment they
   fade, older fades sped up, one shared grain; old screen fades out in 120 ms and the new screen's cards rise in, all started
   from one callback (`useSwitchLayer` in `src/App.tsx`). Check: `scripts/leak-tabs.mjs` (glow layers stay ≤ 2, listeners flat).
+  Round 3 (still flickering, ~30 fps on his recording, a pause after each tap): screens are now built once and kept
+  (hidden with visibility + content-visibility), the whole screen fades in as one piece (no per-card rise: per-card layers
+  caused single-frame dropouts on the phone), slow 0.8 s colour fade restored. `TabPanes` in `src/App.tsx`.
   Omar still to confirm on his phone.
 - [ ] **2. Workout screen**: lags and flickers when it opens; scrolls sideways a little (lock horizontal scroll completely);
   the rest-timer bar at the bottom sometimes shows two colours (a lighter block behind the orb, see-through over the cards);
