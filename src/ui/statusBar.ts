@@ -12,7 +12,6 @@ let depth = 0;
 let frost = 0;
 let raf = 0;
 let sent = '';
-let shownAt = '';
 const hex = (c: RGB) => '#' + c.map((v) => Math.round(Math.min(255, Math.max(0, v))).toString(16).padStart(2, '0')).join('');
 const ease = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
 
@@ -24,13 +23,7 @@ function frame(now: number) {
     if (k >= 1) dur = 0; else raf = requestAnimationFrame(frame);
   }
   const root = document.documentElement;
-  // `--bar` is read by two things only (the fade at the top of the colour field, and the page's backdrop while a pop-up is up).
-  // It used to be set on <html>, which made the browser re-style the WHOLE page on every frame of the 800 ms blend — measured,
-  // that was about half the style work of a tab switch and kept every frame of it slow. Now it goes only where it is used.
-  const bar = `rgb(${cur.map((v) => Math.round(v)).join(' ')})`;
-  (document.querySelector('.fields') as HTMLElement | null)?.style.setProperty('--bar', bar);
-  const app = document.querySelector('.app') as HTMLElement | null;
-  if (app?.style.background) app.style.background = bar;
+  root.style.setProperty('--bar', `rgb(${cur.map((v) => Math.round(v)).join(' ')})`);
   // the dim over the page (Veil: full strength from 60 % of a pop-up's progress) lies over the top of it too
   const light = root.dataset.theme === 'light';
   const [sr, sg, sb, sa] = light ? [16, 20, 34, 0.3] : [2, 3, 8, 0.5];
@@ -40,14 +33,9 @@ function frame(now: number) {
   // with it — it stayed the area's purple over a near-black screen, a band across the top
   if (frost > 0) { const f = 0.74 * frost, bg: RGB = light ? [233, 236, 244] : [5, 6, 11]; c3 = c3.map((v, i) => v * (1 - f) + bg[i] * f) as RGB; }
   const c = hex(c3);
-  if (c !== sent) { sent = c; document.querySelector('meta[name="theme-color"]')?.setAttribute('content', c); }
-  // `--bar-shown` is only for the orb screen's top band: written (on <html>) only while that screen exists
-  if (document.querySelector('.voice-top') && c !== shownAt) { shownAt = c; root.style.setProperty('--bar-shown', c); }
-  else if (!document.querySelector('.voice-top')) shownAt = '';
+  if (c !== sent) { sent = c; document.querySelector('meta[name="theme-color"]')?.setAttribute('content', c); root.style.setProperty('--bar-shown', c); }
 }
 const schedule = () => { if (!raf) raf = requestAnimationFrame(frame); };
-/** The bar's colour right now, as a CSS colour (for a surface that has to match it). */
-export const barColor = () => `rgb(${cur.map((v) => Math.round(v)).join(' ')})`;
 
 /** The tint the bar should take; `ms` = how long to blend into it (0 = at once). */
 export function setBarTint(c: RGB, ms = 800) {
