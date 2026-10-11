@@ -518,7 +518,7 @@ function About() {
   return (
     <div className="stack gap12 small">
       <StutterRecorder />
-      <div className="plinth dots" style={{ padding: 18 }}><div className="display display-lg">Aven</div><div className="t2" style={{ marginTop: 4 }}>{t('Training, food and progress in one place.')} · v0.1</div></div>
+      <div className="plinth dots" style={{ padding: 18 }}><div className="display display-lg">Aven</div><div className="t2" style={{ marginTop: 4 }}>{t('Training, food and progress in one place.')} · v{__APP_VERSION__}</div></div>
       <div><b>{t('Food data')}</b><div className="t2" style={{ marginTop: 4 }}>{t('Bundled foods are approximate reference values. Online results come from Open Food Facts (© contributors, ODbL — open database licence) and USDA FoodData Central (public domain, CC0).')}</div></div>
       <div><b>{t('What’s simulated or not built')}</b><div className="t2" style={{ marginTop: 4 }}>{t('No cloud sync or accounts. No photo-based food estimation. The Coach only advises and never changes your data. Background reminders need a push server.')}</div></div>
     </div>
