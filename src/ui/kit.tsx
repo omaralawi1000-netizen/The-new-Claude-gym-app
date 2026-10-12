@@ -215,7 +215,7 @@ export function Section({ title, right, children }: { title: ReactNode; right?: 
 export function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: string }) {
   return (
     <button role="switch" aria-checked={on} aria-label={label} onClick={() => { onChange(!on); buzz(6); }}
-      className="toggle press" style={{ width: 52, height: 32, borderRadius: 99, position: 'relative', background: on ? 'var(--ac)' : 'var(--s4)', transition: 'background 260ms var(--ease-smooth)', boxShadow: 'inset 0 1px 2px rgba(0,0,0,.3)', flex: 'none' }}>
+      className="toggle press" style={{ width: 52, height: 32, borderRadius: 99, position: 'relative', background: on ? 'var(--ac)' : 'var(--s4)', boxShadow: 'inset 0 1px 2px rgba(0,0,0,.3)', flex: 'none' }}>
       {/* the knob springs across on the compositor (a CSS transition on transform, Apple's spring curve) */}
       <span className="toggle-knob" style={{ transform: on ? 'translate3d(20px, 0, 0)' : 'translate3d(0, 0, 0)' }} />
     </button>

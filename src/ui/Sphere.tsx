@@ -30,13 +30,6 @@ let whooshPending = 0;
 let ignitePending = 0;
 /** Arriving on the orb screen: a heartbeat that quickens as the spiral of light climbs, ending in a soft thump. */
 const IGNITE_BUZZ = [4, 135, 5, 112, 6, 92, 7, 76, 9, 60, 11, 46, 14, 34, 30]; // the thump lands at ~0.61 s, as the spiral tops out
-let lastOnsetBuzz = 0;
-/** A syllable lit a ring of light on the orb: a tiny tick with it (never more than one every 160 ms). */
-function onsetBuzz(s: number) {
-  const now = performance.now();
-  if (now - lastOnsetBuzz < 160 || s < 0.25 || !useStore.getState().settings.haptics) return;
-  lastOnsetBuzz = now; buzz(Math.round(4 + s * 6));
-}
 export function orbPress(down: boolean) { pressTarget = down ? 1 : 0; }
 export function orbTap(strength = 1) { tapPending = Math.max(tapPending, strength); pressTarget = 0; }
 
@@ -227,14 +220,13 @@ export function SphereStage() {
           const d = e.data;
           if (typeof d.voice === 'number') workerVoice = d.voice;
           if (typeof d.fps === 'number') orbStats.fps = d.fps;
-          if (typeof d.onset === 'number') onsetBuzz(d.onset);
           if (d.unsupported) { workerBroken = true; setGen((g) => g + 1); }
         };
         worker.onerror = () => { workerBroken = true; setGen((g) => g + 1); };
         worker.postMessage({ canvas: off }, [off]);
         orbStats.offThread = true;
       } catch { workerBroken = true; worker?.terminate(); worker = null; setGen((g) => g + 1); return; }
-    } else { renderer = new SphereRenderer(cv); renderer.onOnset = onsetBuzz; }
+    } else { renderer = new SphereRenderer(cv); }
     const pause = () => { if (worker && workerRunning) { worker.postMessage({ state: { run: false } }); workerRunning = false; } };
     let mainFrames = 0, mainT0 = 0;
     const appEl = el.closest('.app') as HTMLElement | null;
@@ -463,8 +455,8 @@ export function SphereStage() {
       const zi = top > 0 && topSlot ? String(ownerZ(topSlot.el) + 1) : '41';
       if (el.style.zIndex !== zi) el.style.zIndex = zi;
       const size = Math.max(8, S);
-      // haptics: a light tick as the orb is lifted out of the dock, a firmer one as it settles into its place (and back).
-      // Handed from one pop-up to another, it starts a new flight: a lift, then a landing (not a "drop" first).
+      // haptics: only the arrival on the orb screen plays (its heartbeat). Flying with an ordinary pop-up (the workout, the
+      // Coach) is silent: a tick on every open and close was noise. Handed from one pop-up to another, it starts a new flight.
       if (topSlot !== hapticSlot) { if (hapticSlot && topSlot) { wasLifted = false; wasLanded = false; } hapticSlot = topSlot; }
       if (topSlot && !reduced) {
         // "landed" as you see it settle (the last 4 % of a spring is too slow to see — waiting for 99.5 % put the landing tick
@@ -476,7 +468,7 @@ export function SphereStage() {
           const ignite = landed && !wasLanded && topSlot.id === 'voice';
           if (ignite) ignitePending = 1;
           if (useStore.getState().settings.haptics && running) {
-            if (landed && !wasLanded) buzz(ignite ? IGNITE_BUZZ : 12); else if (lifted && !wasLifted) buzz(6); else if (!lifted && wasLifted) buzz(8);
+            if (ignite) buzz(IGNITE_BUZZ);
           }
           wasLifted = lifted; wasLanded = landed;
         }

@@ -196,7 +196,7 @@ export function SpeakButton({ id, text }: { id: string; text: string }) {
   if (!has || wordsOf(text).length < 4) return null; // "Undone." needs no play button
   return (
     <button className={`speak-btn press ${st}`} aria-label={st === 'idle' ? t('Read aloud') : t('Stop reading')} aria-pressed={st !== 'idle'}
-      onClick={() => { buzz(6); if (st === 'idle') readAloud(id, text, t); else stopSpeaking(); }}>
+      onClick={() => { if (st === 'idle') readAloud(id, text, t); else stopSpeaking(); }}>
       <Icon name={st === 'idle' ? 'play' : 'stop'} size={13} sw={st === 'idle' ? 2 : 0} style={st === 'idle' ? { fill: 'currentColor', marginLeft: 1 } : { fill: 'currentColor' }} />
     </button>
   );

@@ -851,3 +851,16 @@ alone on purpose (other threads were changing them).
 - Haptics: Settings → Haptic feedback now turns off every vibration (most taps ignored it). Switches tick when turned on and
   segmented controls tick when the choice changes. Vibrations for a ticked set (a double one when it beats last time), the rest timer's last seconds
   and its end were already there and stay as they were.
+
+## Polish pass: fewer vibrations, no press flash on scroll (12 Oct 2026, v0.1.13)
+
+- Vibrations only where something happens: a set ticked, a rest ending, food or a workout saved, a switch or a choice
+  changed, a drag-to-reorder, the orb screen's arrival heartbeat. Gone: plain navigation (tabs, the workout pill, Resume,
+  day arrows, opening a meal or a session, the Coach pin, "Keep training", ±15 s on the rest timer, the workout bar), the
+  ticks when the orb flies with the workout or the Coach, the second buzz when a logged item's light lands, and the tick on
+  every syllable while you talk to the orb (it buzzed several times a second).
+- Press (ui/press.ts): a resting finger now shows the press after 100 ms (Android's own tap timeout) instead of 55 ms, and a
+  drift of 6 px cancels it, so starting a scroll on a button no longer flashes it. A press that turns into a scroll eases
+  back in 240 ms without the spring's bounce. Quick taps still dip fully.
+- Switches and the onboarding weekday buttons pressed and snapped back (an inline transition replaced the press's spring);
+  they now spring back like every other control.

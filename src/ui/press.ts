@@ -5,9 +5,9 @@
 // wide card, so both read as the same gentle push). Only `data-pressed` and `--press` are written, on the control itself.
 
 const SEL = '.press:not(.tab)'; // the dock's tabs keep plain CSS :active (see styles.css)
-const WAIT = 55;     // ms before a resting finger shows the press (a scroll cancels it inside this window)
+const WAIT = 100;    // ms before a resting finger shows the press (Android's own tap timeout): a scroll cancels it first
 const HOLD = 120;    // ms a press stays down at least, so a quick tap still reads
-const SLOP = 10;     // px a finger may drift before it counts as a scroll, not a press
+const SLOP = 6;      // px a finger may drift before it counts as a scroll, not a press
 
 let el: HTMLElement | null = null;       // the control under the finger
 let held: HTMLElement | null = null;     // a control that was let go, still finishing its dip
@@ -21,6 +21,13 @@ function show(t: HTMLElement) {
   t.style.setProperty('--press', s.toFixed(3));
   t.setAttribute('data-pressed', '');
   shownAt = performance.now();
+}
+
+// a press that turned into a scroll eases back without the spring's bounce, so the list doesn't wobble as it moves
+function settle(t: HTMLElement) {
+  t.setAttribute('data-press-off', '');
+  t.removeAttribute('data-pressed');
+  setTimeout(() => t.removeAttribute('data-press-off'), 260);
 }
 
 function letGo() {
@@ -37,7 +44,7 @@ function end(tap: boolean) {
   const waiting = !!showT;
   if (showT) { clearTimeout(showT); showT = 0; }
   if (!t) return;
-  if (!tap) { if (!waiting) t.removeAttribute('data-pressed'); return; }
+  if (!tap) { if (!waiting) settle(t); return; }
   if (waiting) show(t);                  // a tap quicker than the wait: dip now, so it still reads
   held = t;
   const left = HOLD - (performance.now() - shownAt);
