@@ -805,3 +805,16 @@ alone on purpose (other threads were changing them).
 - Omar's reference was the Claude app: the page stays still, the keyboard slides over it, and only the Save button rides up on the keyboard. Sheets now work that way. A sheet never changes size for the keyboard any more: it rises only as far as it can without its top passing the status-bar gap (a full-height sheet doesn't rise at all), the rest goes under the keyboard, the bottom buttons ride on top of it (a transform), and the list gets the covered part as extra room once, before the keyboard moves (`--kb-room`, `onKeyboardGoal` in `ui/keyboard.ts`). Before, sheets shrank to fit on every keyboard frame (8–9 layouts per ride, a re-drawn 44 px glass each frame); now one layout per ride. `scripts/journey-keyboard.mjs` checks it.
 - Bottom buttons are just the button: no frost band, tint or fade behind them (v0.1.5's melt is gone). The list scrolls underneath and stays visible around them. The main action is solid colour; other buttons, and a main action that isn't available yet, are frosted glass pills with their own small blur.
 - For that blur to show the content under it, the sheet's own 44 px glass moved from the sheet element to a layer under its content (`.sheet::before`). A blur on the sheet element itself made the sheet a closed world for blurs inside it: they only saw its see-through content, so rows under a button stayed sharp. Same single blur, same cost; `scripts/morph.mjs` reads the glass from `::before` now.
+
+## Speed pass, step 1 (12 Oct 2026, v0.1.9)
+
+- Measured every everyday moment with `scripts/perf-app.mjs` (production build, CPU slowed 4×; prints late frames, worst
+  frame and main-thread time per moment). The tab screens were late on about a third of their frames even standing still.
+- Cause 1: the colour field's film grain was blended over the whole screen with `mix-blend-mode: overlay`, so the browser
+  re-blended a full-screen layer on every frame. The colour field is its own transparent group, so overlay looked the same
+  as a plain layer: screenshots of all four tabs, dark and light, differ by at most 2 of 255 levels. Now a plain layer.
+- Cause 2: the progressive blur under the dock was three stacked blurs, each re-blurring the one below. The faint 3 px top
+  layer is gone and the 9 px layer fades in from the top instead (screenshots: same look; max difference 15/255 on a few
+  pixels). The dock's own frost and the 20 px layer are unchanged.
+- Result at 4× slow-down, late frames: Today standing still 28 → 2, scrolling Today 56 → 2, Train 102 → 10, Food 66 → 5,
+  Progress 210 → 17, Today with a workout running 78 → 4. The live workout was already clean and stays clean.
