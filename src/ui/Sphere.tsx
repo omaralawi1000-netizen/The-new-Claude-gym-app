@@ -5,7 +5,7 @@ import { mic } from '../lib/mic';
 import { useVoice } from '../state/voice';
 import { speakingLevel } from '../lib/voiceOut';
 import { useStore } from '../state/store';
-import { useUI, buzz } from '../state/ui';
+import { useUI, haptic } from '../state/ui';
 import { kb } from './keyboard';
 import { highRefresh, onHighRefresh, springCurve } from './motion';
 
@@ -28,8 +28,6 @@ let pressTarget = 0;
 let tapPending = 0;
 let whooshPending = 0;
 let ignitePending = 0;
-/** Arriving on the orb screen: a heartbeat that quickens as the spiral of light climbs, ending in a soft thump. */
-const IGNITE_BUZZ = [4, 135, 5, 112, 6, 92, 7, 76, 9, 60, 11, 46, 14, 34, 30]; // the thump lands at ~0.61 s, as the spiral tops out
 export function orbPress(down: boolean) { pressTarget = down ? 1 : 0; }
 let beatPending = 0, beatAt = 0;
 /** A set was ticked: the orb answers with one soft heartbeat of light (it never changes shape). */
@@ -483,7 +481,7 @@ export function SphereStage() {
           const ignite = landed && !wasLanded && topSlot.id === 'voice';
           if (ignite) ignitePending = 1;
           if (useStore.getState().settings.haptics && running) {
-            if (ignite) buzz(IGNITE_BUZZ);
+            if (ignite) haptic('arrive');
           }
           wasLifted = lifted; wasLanded = landed;
         }

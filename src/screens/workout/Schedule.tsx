@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useStore } from '../../state/store';
-import { useUI, buzz } from '../../state/ui';
+import { useUI, haptic } from '../../state/ui';
 import { useT, useLang } from '../../lib/i18n';
 import { Sheet, SheetHead } from '../../ui/Sheet';
 import { Icon } from '../../ui/Icon';
@@ -21,7 +21,7 @@ export function Schedule({ props }: { props: { focusDate?: string; routineId?: s
   const sch = s.schedule;
   const routines = s.routines;
   const order = [...Array(7)].map((_, i) => (s.settings.weekStart + i) % 7);
-  const setDay = (wd: number, id: string | null) => { buzz(6); s.setSchedule({ weekly: { ...sch.weekly, [wd]: id } }); };
+  const setDay = (wd: number, id: string | null) => { haptic('select'); s.setSchedule({ weekly: { ...sch.weekly, [wd]: id } }); };
   const fd = props.focusDate;
   const fdPlanned = fd ? (sch.overrides.find((o) => o.date === fd)?.routineId ?? (sch.cleared.includes(fd) ? null : sch.mode === 'weekly' ? sch.weekly[new Date(fd + 'T12:00:00').getDay()] : undefined)) : undefined;
   const setOne = (id: string | null) => {
@@ -82,7 +82,7 @@ export function Schedule({ props }: { props: { focusDate?: string; routineId?: s
         <div className="day-dots" role="group" aria-label={t('Wrestling days')}>
           {order.map((wd) => { const on = !!sch.activities?.[wd]?.includes('wrestling'); return (
             <button key={wd} className={`press${on ? ' on' : ''}`} aria-pressed={on} aria-label={`${t('Wrestling')} ${fmtWeekdayShort(wd, lang)}`}
-              onClick={() => { buzz(6); const acts = { ...(sch.activities ?? {}) }; const xs = new Set<ActivityKind>(acts[wd] ?? []); if (on) xs.delete('wrestling'); else xs.add('wrestling'); if (xs.size) acts[wd] = [...xs]; else delete acts[wd]; s.setSchedule({ activities: acts }); }}>
+              onClick={() => { haptic('select'); const acts = { ...(sch.activities ?? {}) }; const xs = new Set<ActivityKind>(acts[wd] ?? []); if (on) xs.delete('wrestling'); else xs.add('wrestling'); if (xs.size) acts[wd] = [...xs]; else delete acts[wd]; s.setSchedule({ activities: acts }); }}>
               {fmtWeekdayShort(wd, lang, true)}
             </button>); })}
         </div>
@@ -144,7 +144,7 @@ export function ActivityLog({ props }: { props: { kind?: ActivityKind } }) {
   const save = () => {
     if (!min || min <= 0) return;
     const a = s.addActivity({ date, kind, durationSec: Math.round(min * 60), distanceM: cardio && dist ? displayToM(dist, u) : undefined, rounds: wrestling && rounds ? Math.round(rounds) : undefined, intensity: wrestling ? intensity : undefined, note: note.trim() || undefined });
-    buzz(12);
+    haptic('saved');
     pop();
     toast(wrestling ? t('Wrestling logged') : t('Activity logged'), { tone: 'ok', actionLabel: t('Undo'), onAction: () => s.removeActivity(a.id) });
   };

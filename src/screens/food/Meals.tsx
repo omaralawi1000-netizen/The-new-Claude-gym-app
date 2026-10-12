@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { useStore, foodPool } from '../../state/store';
-import { useUI, buzz } from '../../state/ui';
+import { useUI, haptic } from '../../state/ui';
 import { useT, useLang } from '../../lib/i18n';
 import type { FoodEntry, Recipe, RecipeIngredient, Food, Quantity } from '../../lib/types';
 import { allowedUnits, calcRecipe, entryFromSnapshot, recipeToFood, scale, snapshotOf, sumNutrients, toBase, uid } from '../../lib/nutrition';
@@ -25,7 +25,7 @@ export function SavedMeals({ props }: { props: { date: string; mealId: string } 
     const m = s.savedMeals.find((x) => x.id === id)!;
     const entries = m.items.map((it) => entryFromSnapshot(it.snap, it.qty, props.date, props.mealId)).filter(Boolean) as FoodEntry[];
     const added = s.logEntries(entries);
-    buzz(12);
+    haptic('saved');
     closeAll();
     toast(t('Added {name}', { name: m.name }), { tone: 'ok', actionLabel: t('Undo'), onAction: () => added.forEach((e) => s.removeEntry(e.id)) });
   };
@@ -113,7 +113,7 @@ export function RecipeEditor({ props }: { props: { id?: string; date: string; me
     const b = toBase(pick.food, pick.qty);
     if (!b.ok || pick.qty.amount <= 0) return;
     setIngs((x) => [...x, { id: uid('i'), snap: snapshotOf(pick.food), qty: pick.qty, base: b.base }]);
-    setPick(null); setQ(''); buzz(8);
+    setPick(null); setQ(''); haptic('light');
   };
   const save = () => {
     if (saved.current || !name.trim() || ings.length === 0) return;

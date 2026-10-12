@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { useStore, foodPool } from '../../state/store';
-import { useUI, buzz } from '../../state/ui';
+import { useUI, haptic } from '../../state/ui';
 import { useT, useLang } from '../../lib/i18n';
 import type { Food, FoodSnapshot, Quantity } from '../../lib/types';
 import { allowedUnits, entryFromSnapshot, scale, snapshotOf, toBase, uid, NUTRIENT_KEYS } from '../../lib/nutrition';
@@ -87,7 +87,7 @@ export function FoodDetail({ props }: { props: { food?: Food; foodId?: string; e
   const save = () => {
     if (saving.current || !base.ok || qty.amount <= 0) return;
     saving.current = true;
-    buzz(14);
+    haptic('saved');
     const snap = snapshotOf(food);
     const make = (date: string) => entryFromSnapshot(snap, qty, date, mealId, { id: entryId.current, note: note.trim() || undefined, at: entry?.at });
     const e = make(date);
@@ -121,7 +121,7 @@ export function FoodDetail({ props }: { props: { food?: Food; foodId?: string; e
           <div className="display display-md" style={{ marginTop: 4, lineHeight: 1 }}>{food.name}</div>
           <div className="small t2" style={{ marginTop: 6 }}>{food.brand ? `${food.brand} · ` : ''}{fmtNum(100, lang, 0)} {food.basis} · {sourceLabel(food.source, t)}{food.barcode ? ` · ${food.barcode}` : ''}</div>
         </div>
-        <button className="icon-btn press" aria-label={fav ? t('Remove favourite') : t('Favourite')} onClick={() => { buzz(6); if (!s.foods.some((f) => f.id === food.id) && food.source !== 'reference' && food.source !== 'recipe') s.saveFood(food); s.toggleFavourite(food.id); }} style={{ color: fav ? 'var(--ac-text)' : undefined }}>
+        <button className="icon-btn press" aria-label={fav ? t('Remove favourite') : t('Favourite')} onClick={() => { haptic('select'); if (!s.foods.some((f) => f.id === food.id) && food.source !== 'reference' && food.source !== 'recipe') s.saveFood(food); s.toggleFavourite(food.id); }} style={{ color: fav ? 'var(--ac-text)' : undefined }}>
           <Icon name="star" style={{ fill: fav ? 'currentColor' : 'none' }} />
         </button>
         {!asPage && <CloseButton onClick={pop} label={t('Close')} />}

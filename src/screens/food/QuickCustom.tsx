@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { useStore } from '../../state/store';
-import { useUI, buzz } from '../../state/ui';
+import { useUI, haptic } from '../../state/ui';
 import { useT, useLang } from '../../lib/i18n';
 import { energyMismatch, quickEntry, uid, NUTRIENT_KEYS } from '../../lib/nutrition';
 import type { Food, FoodState, Nutrients, Portion } from '../../lib/types';
@@ -29,7 +29,7 @@ export function QuickAdd({ props }: { props: { date: string; mealId: string; ent
   const save = () => {
     if (saved.current || !ok) return;
     saved.current = true;
-    buzz(12);
+    haptic('saved');
     const fresh = quickEntry(label.trim() || t('Quick entry'), n, existing?.date ?? props.date, mealId);
     if (existing) {
       const before = existing;
@@ -94,7 +94,7 @@ export function CustomFood({ props }: { props: { from?: Food; name?: string; bar
   const save = () => {
     if (!valid || saved.current) return;
     saved.current = true;
-    buzz(12);
+    haptic('saved');
     const ps = portions.filter((p) => p.label.trim() && p.amount > 0).map((p) => ({ ...p, verified: true }));
     if (per === 'serving' && serving) ps.unshift({ id: uid('p'), label: `1 serving (${serving} ${basis})`, amount: serving, verified: true });
     const food: Food = {

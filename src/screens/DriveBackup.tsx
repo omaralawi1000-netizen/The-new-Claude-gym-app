@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useStore } from '../state/store';
-import { useUI, buzz } from '../state/ui';
+import { useUI, haptic } from '../state/ui';
 import { useT, useLang } from '../lib/i18n';
 import { Icon } from '../ui/Icon';
 import { Toggle } from '../ui/kit';
@@ -38,7 +38,7 @@ export function DriveCard({ onRestore }: { onRestore: (p: { data: AppData; photo
   const err = d.error ? t(ERR[d.error] ?? ERR.drive) : null;
   const when = d.lastAt ? `${fmtDate(dayKey(d.lastAt, dayStart), lang, { day: 'numeric', month: 'short' })}, ${fmtTime(d.lastAt, lang)}` : null;
   const run = async (kind: 'connect' | 'backup' | 'restore', fn: () => Promise<unknown>) => {
-    setBusy(kind); buzz(8);
+    setBusy(kind); haptic('light');
     try { await fn(); } catch { /* shown below the card */ } finally { setBusy(null); }
   };
 

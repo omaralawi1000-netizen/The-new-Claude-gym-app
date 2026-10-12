@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useStore, foodPool } from '../../state/store';
-import { useUI, buzz } from '../../state/ui';
+import { useUI, haptic } from '../../state/ui';
 import { useT, useLang } from '../../lib/i18n';
 import type { Food, Quantity } from '../../lib/types';
 import { searchFoods } from '../../lib/foodText';
@@ -78,7 +78,7 @@ export function FoodSearch({ props }: { props: { date: string; mealId: string } 
     const qty = defaultQty(food, last);
     const e = entryFromSnapshot(snapshotOf(food), qty, props.date, props.mealId, { id: uid('e') });
     if (!e) return;
-    buzz(10);
+    haptic('saved');
     if (food.source === 'off' || food.source === 'usda') s.saveFood(food);
     const [ok] = s.logEntries([e]);
     if (!ok) return;

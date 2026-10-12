@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { HAPTICS } from '../../state/ui';
 import { useStore, exerciseMap } from '../../state/store';
 import { tNow } from '../../lib/i18n';
 import type { SessionExercise, SetRecord, WorkoutSession } from '../../lib/types';
@@ -106,13 +107,13 @@ export function useRestCue() {
     const left = endsAt - Date.now();
     if (left <= 0 || cued === key) return; // already over when this ran (a reload): no late alarm
     const timers: ReturnType<typeof setTimeout>[] = [];
-    for (const s of [3, 2, 1]) if (left - s * 1000 > 0) timers.push(setTimeout(() => { if (!document.hidden) vibrate(24); }, left - s * 1000));
+    for (const s of [3, 2, 1]) if (left - s * 1000 > 0) timers.push(setTimeout(() => { if (!document.hidden) vibrate(HAPTICS.countdown as number); }, left - s * 1000));
     timers.push(setTimeout(() => {
       if (cued === key) return;
       cued = key;
       const st = useStore.getState();
       if (document.hidden) notify(nextSetText(st.active));
-      else { if (st.settings.sound) tones(); vibrate([180, 90, 180, 90, 320]); }
+      else { if (st.settings.sound) tones(); vibrate([...HAPTICS.restOver]); }
     }, left));
     return () => timers.forEach(clearTimeout);
   }, [endsAt, total, paused]);

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useStore, exerciseMap } from '../../state/store';
-import { useUI, buzz } from '../../state/ui';
+import { useUI, haptic } from '../../state/ui';
 import { useT, useLang } from '../../lib/i18n';
 import { Icon } from '../../ui/Icon';
 import { Count, NumInput } from '../../ui/kit';
@@ -37,10 +37,10 @@ export function Summary({ props }: { props: { sessionId: string } }) {
   if (!ses) return null;
   const saveRoutine = () => {
     const r = saveWorkoutAsRoutine(ses, { name: ses.name || t('Workout') });
-    buzz(10); toast(t('Saved as routine'), { tone: 'ok', actionLabel: t('Undo'), onAction: r.undo });
+    haptic('saved'); toast(t('Saved as routine'), { tone: 'ok', actionLabel: t('Undo'), onAction: r.undo });
   };
   return (
-    <Sheet onClose={closeAll} tall label={t('Workout summary')} z={60} foot={<div className="row-flex" style={{ gap: 10 }}><button className="btn grow press" onClick={() => push('sessionDetail', { id: ses.id })}>{t('Details')}</button><button className="btn primary grow press" onClick={() => { buzz(8); backupAfterWorkout(); closeAll(); }}>{t('Done')}</button></div>}>
+    <Sheet onClose={closeAll} tall label={t('Workout summary')} z={60} foot={<div className="row-flex" style={{ gap: 10 }}><button className="btn grow press" onClick={() => push('sessionDetail', { id: ses.id })}>{t('Details')}</button><button className="btn primary grow press" onClick={() => { haptic('light'); backupAfterWorkout(); closeAll(); }}>{t('Done')}</button></div>}>
       <SheetHead title={t('Nice work')} sub={`${ses.name || t('Workout')} · ${fmtDate(ses.date, lang)}`} onClose={closeAll} />
       <div className="sheet-body">
         <div className="plinth dots" style={{ padding: 18, borderRadius: 'var(--r-lg)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
@@ -133,7 +133,7 @@ export function SessionDetail({ props }: { props: { id: string } }) {
   const saveAs = (into?: string) => {
     setChoosing(false);
     const r = saveWorkoutAsRoutine(ses, { name: ses.name || t('Workout'), into });
-    buzz(10);
+    haptic('saved');
     toast(into ? t('Routine updated') : t('Saved as routine'), { tone: 'ok', actionLabel: t('Undo'), onAction: r.undo });
     push('routine', { id: r.id });
   };

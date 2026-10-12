@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useReducer, useState } from 'react';
 import { AnimatePresence } from 'motion/react';
 import { useStore, exerciseMap } from '../state/store';
-import { useUI, buzz } from '../state/ui';
+import { useUI, haptic } from '../state/ui';
 import { useAi } from '../state/ai';
 import { useT, useLang } from '../lib/i18n';
 import { dayKey } from '../lib/dates';
@@ -90,7 +90,7 @@ export function CoachPin({ d }: { d: AppData }) {
   const today = dayKey(Date.now(), d.settings.dayStartHour);
   if (!list.length) return null;
   const top = list[0];
-  const act = (n: Nudge) => { if (!n.action) return; buzz(10); hide(n.id, false); runNudge(n.action.run, today); };
+  const act = (n: Nudge) => { if (!n.action) return; haptic('light'); hide(n.id, false); runNudge(n.action.run, today); };
   return (
     <section className={`pin${open ? ' open' : ''}`} aria-label={t('Pinned for you')}>
       <button className="pin-head press" onClick={() => setOpen((o) => !o)} aria-expanded={open}>

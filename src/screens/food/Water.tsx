@@ -1,6 +1,6 @@
 import { motion } from 'motion/react';
 import { useStore } from '../../state/store';
-import { useUI, buzz } from '../../state/ui';
+import { useUI, haptic } from '../../state/ui';
 import { useT, useLang } from '../../lib/i18n';
 import { useWaterOn } from '../../lib/derive';
 import { Icon } from '../../ui/Icon';
@@ -21,7 +21,7 @@ export function WaterTile({ date }: { date: string }) {
   const push = useUI((s) => s.push);
   const p = pct(ml, goal);
   const add = (v: number) => {
-    buzz(8);
+    haptic('saved');
     const id = addWater(v, date);
     toast(`+${fmtNum(v, lang, 0)} ml`, { tone: 'ok', actionLabel: t('Undo'), onAction: () => removeWater(id), duration: 3500 });
   };

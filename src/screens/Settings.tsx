@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useStore, persistStatus } from '../state/store';
-import { useUI, buzz } from '../state/ui';
+import { useUI, haptic } from '../state/ui';
 import { apple, highRefresh, onHighRefresh, setHighRefresh } from '../ui/motion';
 import { useT, useLang } from '../lib/i18n';
 import { Sheet, SheetHead } from '../ui/Sheet';
@@ -226,7 +226,7 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
                 <Field label={t('Colours')}>
                   <div className="pal" role="radiogroup" aria-label={t('Colours')}>
                     {PALETTES.map((p) => (
-                      <button key={p.id} role="radio" aria-checked={st.palette === p.id} className={`pal-card press ${st.palette === p.id ? 'on' : ''}`} onClick={() => { buzz(6); set({ palette: p.id }); }}>
+                      <button key={p.id} role="radio" aria-checked={st.palette === p.id} className={`pal-card press ${st.palette === p.id ? 'on' : ''}`} onClick={() => { haptic('select'); set({ palette: p.id }); }}>
                         <div className="pal-sw" style={{ ['--p0' as string]: p.c[0], ['--p1' as string]: p.c[1], ['--p2' as string]: p.c[2] }}><i /><i /><b /></div>
                         <div className="small" style={{ marginTop: 8, fontWeight: 600 }}>{t(p.name)}</div>
                       </button>
@@ -309,7 +309,7 @@ function Targets() {
   };
   const weight = s.weights.slice().sort((a, b) => b.date.localeCompare(a.date))[0]?.kg;
   const suggest = () => {
-    anchor.current = null; buzz(8);
+    anchor.current = null; haptic('light');
     const m = suggestMacros(g.kcal!, weight);
     if (g.protein) { m.protein = g.protein; m.carbs = Math.max(0, Math.round((g.kcal! - m.protein * 4 - m.fat * 9) / 4)); } // a protein target you set stays
     s.updateSettings({ goals: { ...g, ...m } });

@@ -963,3 +963,16 @@ Light only: the orb's outline never changes.
 - An empty session is one centred moment in the free space between the header and the bar: a soft accent mark (a dumbbell
   in a glow), "Empty session", the line about the orb, then Add exercise and Discard. It used to sit at the top over an
   empty half screen. Pure layout (flex, auto margins); nothing new animates.
+
+## Premium pass, step 6: haptics as one system (12 Oct 2026, v0.1.24)
+
+- One vocabulary (`HAPTICS` / `haptic(name)` in `state/ui.ts`) instead of numbers scattered through the app, so each feel
+  means the same thing everywhere: `select` (a choice changed), `light` (a small thing done), `saved` (something kept),
+  `set` / `gain` (a set ticked / one that beats last time), `confirm` (start or end a workout, confirm the Coach),
+  `success` (the orb or Coach did it), `listen` / `send` (the orb starts listening when you tap it / takes what you said,
+  by a tap or by falling quiet), `finish` / `record` (the workout saved / saved with a new personal record), `warn`,
+  the rest timer's `countdown` and `restOver`, and the orb's `arrive` heartbeat.
+- New: the orb's listen and send feels (tapping it to stop used to feel like tapping it to start), and the record feel
+  when a finished workout holds a new personal record. Small unifications: logging food is always `saved` (it was 10, 12,
+  14 or 16 ms depending on the screen), starting a workout is always `confirm`.
+- Still not felt, on purpose (v0.1.13): navigation, opening things, the orb flying, talking, ±15 s.
