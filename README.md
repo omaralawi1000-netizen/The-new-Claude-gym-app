@@ -989,3 +989,19 @@ Light only: the orb's outline never changes.
   bar to the ribs), curls (standing, dumbbell to the shoulder). `figureFor(ex)` picks one; every other exercise keeps the
   muscle map until the rest are drawn. Only the page you're looking at moves; the others hold still and cost nothing.
   Reduced motion: the figure stands in its start pose.
+
+## Premium pass, step 7b: the figures redrawn, and room to show them (12 Oct 2026, v0.1.27)
+
+- Omar asked whether the first figures were really good; filmed honestly, they weren't (small grey tube mannequins, dark on
+  dark, no hands or feet, only the arms moving). Redrawn in `Figure.tsx`: each limb is now a small static SVG, a soft
+  taper with a little muscle shape, plus hands, feet, neck and head. It is lit like a rounded form, bright down a limb's
+  middle and falling off to its edges, with a faint rim so it stands off the dark. Opaque, so overlaps never show darker.
+  The worked muscles glow (main one brightest, with a soft halo), and the others only hint at their shape.
+- Same engine and cost: each joint still turns on one compositor rotate animation, and the drawings never change. Arms
+  and legs now hang inside the torso, so the near leg sits in front of the body and the near arm in front of the leg.
+- The figure fits itself in its box from its own poses: it stands on the floor, the bench sits under a lying body, and a
+  soft shadow lands where it meets the ground. Row and curl now move the body a little too (the back lifts as it rows,
+  and the body leans back at the top of a curl).
+- Focus view: the stage grows into the room the card leaves, and the figure scales to fill it. It measures once things
+  settle and eases there on the slow curve, so adding a set never re-scales every frame. Pages now end just above the
+  bar, so the empty gap under the card is gone.

@@ -1134,44 +1134,53 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-pager { position: relative; flex: 1; min-height: 0; overflow: clip; touch-action: pan-y; }
 .wk-pager.paging { -webkit-user-select: none; user-select: none; }
 .wk-track { display: flex; height: 100%; will-change: transform; }
-.wk-page { flex: 0 0 100%; min-width: 0; height: 100%; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; touch-action: pan-y; padding: 0 16px;
+.wk-page { flex: 0 0 100%; min-width: 0; height: 100%; display: flex; flex-direction: column; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; touch-action: pan-y; padding: 0 16px;
   -webkit-mask-image: linear-gradient(to bottom, transparent, rgba(0,0,0,.1) calc(var(--ft) * .2), rgba(0,0,0,.36) calc(var(--ft) * .45), rgba(0,0,0,.74) calc(var(--ft) * .74), #000 var(--ft), #000 calc(100% - var(--sab) - 14px), rgba(0, 0, 0, 0.35) 100%); mask-image: linear-gradient(to bottom, transparent, rgba(0,0,0,.1) calc(var(--ft) * .2), rgba(0,0,0,.36) calc(var(--ft) * .45), rgba(0,0,0,.74) calc(var(--ft) * .74), #000 var(--ft), #000 calc(100% - var(--sab) - 14px), rgba(0, 0, 0, 0.35) 100%); }
 @supports (animation-timeline: scroll()) { .wk-page { animation: ft-in linear both; animation-timeline: scroll(self); animation-range: 0 40px; } }
 /* the movement's stage: a soft pool of the accent behind the figure */
-.wk-stage { height: clamp(150px, 20vh, 184px); display: grid; place-items: center; margin-top: 4px; border-radius: var(--r-lg);
+.wk-stage { flex: 1 0 auto; min-height: clamp(170px, 22vh, 204px); max-height: 46vh; display: grid; place-items: center; margin-top: 4px; border-radius: var(--r-lg); overflow: hidden;
   background: radial-gradient(closest-side, color-mix(in srgb, var(--ac) 11%, transparent), transparent); }
 .wk-page-ghost { margin-top: 18px; }
 .wk-page-ghost .plinth { padding: 14px 12px 140px; border-radius: var(--r-lg); }
 @media (prefers-reduced-motion: reduce) { .voice-glow, .wk-focus.shared.on .wk-dots, .wk-focus.shared.on .wk-stage, .wk-list.back > * { animation: none; } .wk-list, .wk-list.wk-away, .wk-focus, .wk-focus.on, .wk-dot-pill { transition: none; } }
 
-/* ── moving figures (screens/workout/Figure.tsx): rounded limbs nested at their joints; each joint turns on a browser-run
-   transform. Opaque fills (translucent limbs would show darker where they overlap), lit from the front; the muscles the
-   exercise works glow in the accent, the main one brightest. The far arm and leg sit behind, in shade. */
-.fg { position: relative; width: 240px; height: 170px; flex: none;
-  --fb: color-mix(in srgb, var(--tx) 34%, var(--bg)); --fb2: color-mix(in srgb, var(--tx) 20%, var(--bg)); --ff: color-mix(in srgb, var(--tx) 15%, var(--bg)); }
+/* ── moving figures (screens/workout/Figure.tsx): a sculpted body nested at its joints; each joint turns on a browser-run
+   transform, each limb drawn once as a small SVG. Lit like a rounded form (bright down a limb's middle, falling off to its
+   edges) with a faint rim so it stands off the dark; opaque, so overlaps never show darker. The muscles the exercise works
+   glow in the accent, the main one brightest; the far arm and leg sit behind, in shade. */
+.fg { position: relative; width: 300px; height: 200px; flex: none; transform: scale(var(--fs, 1));
+  --fg-lo: color-mix(in srgb, var(--tx) 24%, var(--bg)); --fg-mid: color-mix(in srgb, var(--tx) 42%, var(--bg)); --fg-hi: color-mix(in srgb, var(--tx) 62%, var(--bg));
+  --fg-flo: color-mix(in srgb, var(--tx) 13%, var(--bg)); --fg-fhi: color-mix(in srgb, var(--tx) 25%, var(--bg));
+  --fg-rim: color-mix(in srgb, var(--tx) 70%, transparent); }
+:root[data-theme='light'] .fg { --fg-lo: color-mix(in srgb, var(--tx) 30%, var(--bg)); --fg-mid: color-mix(in srgb, var(--tx) 16%, var(--bg)); --fg-hi: color-mix(in srgb, var(--tx) 6%, var(--bg));
+  --fg-flo: color-mix(in srgb, var(--tx) 22%, var(--bg)); --fg-fhi: color-mix(in srgb, var(--tx) 12%, var(--bg)); --fg-rim: color-mix(in srgb, var(--tx) 40%, transparent); }
+/* the stage grows into the room the card leaves; the figure follows it on the app's slow curve once it has settled */
+.fg.fit { transition: transform 700ms var(--ease-out); }
+.fg-world { position: absolute; left: 0; top: 0; width: 0; height: 0; transform-origin: 0 0; }
+.fg-defs { position: absolute; }
 .fg-hip, .fg-j, .fg-end, .fg-top, .fg-far { position: absolute; left: 0; top: 0; width: 0; height: 0; }
 .fg-j { transform-origin: 0 0; }
 .fg-end { top: var(--l); }
 .fg-top { top: calc(-1 * var(--l)); }
-.fg-far { transform: translate(-4px, -1px); }
-.fg-top.fg-far { top: calc(-1 * var(--l)); transform: translateX(-4px); }
-.fg-limb, .fg-part { position: absolute; border-radius: 999px; }
-.fg-limb, .fg-part { background: linear-gradient(90deg, var(--fb2), var(--fb) 70%); }
-.fg-limb { left: calc(var(--w) / -2); top: calc(var(--w) / -2); width: var(--w); height: calc(var(--l) + var(--w)); }
-.fg-torso > .fg-limb { top: calc(-1 * var(--l) - var(--w) / 2); }
-.fg-far .fg-limb, .fg-far .fg-part { background: var(--ff); }
-.fg-part.warm { background: linear-gradient(90deg, color-mix(in srgb, var(--ac) 42%, var(--bg)), color-mix(in srgb, var(--ac) 60%, var(--bg))); }
-.fg-part.hot { background: linear-gradient(90deg, color-mix(in srgb, var(--ac) 80%, #000), var(--ac));
-  box-shadow: 0 0 14px -2px color-mix(in srgb, var(--ac) 80%, transparent); }
-.fg-far .fg-part.warm, .fg-far .fg-part.hot { background: color-mix(in srgb, var(--ac) 34%, var(--bg)); box-shadow: none; }
-.fg-head { position: absolute; width: 20px; height: 20px; left: -9px; top: calc(-1 * var(--l) - 28px); border-radius: 999px;
-  background: radial-gradient(circle at 65% 35%, var(--fb), var(--fb2)); }
-/* the plate, seen edge-on to the bar: a glassy disc you can see the body through, a bright rim and hub */
-.fg-bar, .fg-db { position: absolute; border-radius: 999px; background: radial-gradient(circle, color-mix(in srgb, var(--tx) 70%, transparent) 0 2.5px, color-mix(in srgb, var(--tx) 9%, transparent) 3px);
-  box-shadow: inset 0 0 0 2.5px color-mix(in srgb, var(--tx) 46%, transparent); }
-.fg-bar { width: 32px; height: 32px; left: -16px; top: -16px; }
-.fg-db { width: 18px; height: 18px; left: -9px; top: -9px; }
-.fg-bench { position: absolute; height: 7px; border-radius: 4px; background: color-mix(in srgb, var(--tx) 14%, var(--bg)); }
-.fg-bench::before, .fg-bench::after { content: ''; position: absolute; top: 7px; width: 4px; height: 23px; border-radius: 2px; background: color-mix(in srgb, var(--tx) 10%, var(--bg)); }
-.fg-bench::before { left: 10px; } .fg-bench::after { right: 10px; }
-.fg-floor { position: absolute; left: 30px; right: 30px; height: 1px; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--tx) 16%, transparent), transparent); }
+.fg-far { transform: translate(-3px, -1px); }
+.fg-top.fg-far { top: calc(-1 * var(--l)); transform: translateX(-3px); }
+.fg-svg { position: absolute; left: 0; top: 0; overflow: visible; }
+.fg-skin { stroke: var(--fg-rim); stroke-width: .7; stroke-opacity: .35; }
+.fg-far .fg-skin { stroke: none; }
+.fg .s-lo { stop-color: var(--fg-lo); } .fg .s-mid { stop-color: var(--fg-mid); } .fg .s-hi { stop-color: var(--fg-hi); }
+.fg .s-flo { stop-color: var(--fg-flo); } .fg .s-fhi { stop-color: var(--fg-fhi); }
+.fg .s-hot0 { stop-color: color-mix(in srgb, var(--ac) 72%, #fff); } .fg .s-hot1 { stop-color: var(--ac); } .fg .s-hot2 { stop-color: color-mix(in srgb, var(--ac) 70%, #000); }
+.fg .s-warm0 { stop-color: color-mix(in srgb, var(--ac) 62%, var(--fg-hi)); } .fg .s-warm1 { stop-color: color-mix(in srgb, var(--ac) 38%, var(--fg-lo)); }
+.fg .s-hotf0 { stop-color: color-mix(in srgb, var(--ac) 55%, var(--bg)); } .fg .s-hotf1 { stop-color: color-mix(in srgb, var(--ac) 32%, var(--bg)); }
+.fg .s-warmf0 { stop-color: color-mix(in srgb, var(--ac) 30%, var(--fg-fhi)); } .fg .s-warmf1 { stop-color: color-mix(in srgb, var(--ac) 18%, var(--fg-flo)); }
+.fg .s-glow0 { stop-color: var(--ac); stop-opacity: .42; } .fg .s-glow1 { stop-color: var(--ac); stop-opacity: 0; }
+.fg .s-sh0 { stop-color: #000; stop-opacity: .45; } .fg .s-sh1 { stop-color: #000; stop-opacity: 0; }
+/* muscles that aren't worked only hint at their shape */
+.fg-m.rest { fill: var(--fg-hi); opacity: .1; }
+.fg-far .fg-m.rest { opacity: 0; }
+/* what the hands hold: a plate seen edge-on to the bar (glassy, the body shows through), or a dumbbell end-on */
+.fg-plate circle, .fg-plate rect { fill: color-mix(in srgb, var(--tx) 10%, transparent); stroke: color-mix(in srgb, var(--tx) 52%, transparent); stroke-width: 2.4; }
+.fg-plate .hub { fill: color-mix(in srgb, var(--tx) 78%, transparent); stroke: none; }
+.fg-bench .pad { fill: color-mix(in srgb, var(--tx) 20%, var(--bg)); }
+.fg-bench .leg { fill: color-mix(in srgb, var(--tx) 12%, var(--bg)); }
+.fg-floor { stroke: color-mix(in srgb, var(--tx) 14%, transparent); stroke-width: 1; }
