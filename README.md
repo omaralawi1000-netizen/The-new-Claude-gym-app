@@ -846,6 +846,21 @@ alone on purpose (other threads were changing them).
 - Workout clock: checked against minimise, a frozen (background) page and finishing; it is computed from timestamps
   everywhere (live clock, pill, Today card, summary, history) and stayed correct. No change.
 
+## Speed pass, step 3: standing still costs less (12 Oct 2026, v0.1.35)
+
+- Measured (`scripts/perf-redraws.mjs`): standing still on any tab, the screen was redrawn on every single frame, and on
+  Today the page was also re-rendered on the main thread every frame. Three causes:
+  - the colour field's three lights drift continuously, so every frame differed by a fraction of a pixel;
+  - the Coach pin's breathing glow and the live pulse dot animated `box-shadow`, which only the main thread can draw.
+- The drift is now the same slow ease-in-out, advanced in steps about 12 times a second (a step is under half a pixel).
+  The pin glow is two fixed glows cross-fading (opacity, eased, 20 steps a second, each under 6 %); the pulse ring is a
+  growing, fading disc. Screenshots at fixed times match the old ones.
+- Result (3 s standing still, 60 Hz test browser): Train / Progress / Food 180 → 36 redraws; Today 180 → ~70 redraws
+  and 180 → 0 main-thread re-renders. On the phone's 120 Hz screen that is about 36 redraws a second instead of 120.
+- The orb is left as it is: it is deliberately drawn every frame (its slow turn stuttered at 30 fps).
+- Left: the first frame of a tab switch or the workout opening is one long task (building the new screen); that needs
+  lazier screens, a bigger change.
+
 ## Feel pass, step 1: every button presses like a native one (12 Oct 2026, v0.1.12)
 
 - One press for the whole app (`ui/press.ts`), in place of CSS `:active`. `:active` missed quick taps (the finger was up

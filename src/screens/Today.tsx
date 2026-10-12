@@ -170,7 +170,7 @@ export function TodayScreen() {
           {active ? (
             <div className="row-flex between" style={{ gap: 14 }}>
               <div style={{ minWidth: 0 }}>
-                <div className="row-flex" style={{ gap: 8 }}><span className="pulse-dot" style={active.pausedAt ? { animation: 'none', background: 'var(--tx3)' } : undefined} /><span className="small t2">{active.pausedAt ? t('Paused') : active.name || t('Workout')}</span></div>
+                <div className="row-flex" style={{ gap: 8 }}><span className={active.pausedAt ? 'pulse-dot still' : 'pulse-dot'} /><span className="small t2">{active.pausedAt ? t('Paused') : active.name || t('Workout')}</span></div>
                 <div className="display num" style={{ fontSize: 54, marginTop: 8 }}><HeroClock /></div>
                 <div className="small t2 num" style={{ marginTop: 2 }}>{aDone}<span className="t3"> / {aTotal}</span></div>
               </div>
@@ -290,7 +290,7 @@ export function TodayScreen() {
 
       {s.demo && (
         <div className="row-flex" style={{ justifyContent: 'center' }}>
-          <button className="chip sm press" onClick={() => push('settings', { section: 'data' })} aria-label={t('Remove demo data')}><span className="pulse-dot" style={{ width: 6, height: 6 }} /> {t('Demo data')} · {t('Remove')}</button>
+          <button className="chip sm press" onClick={() => push('settings', { section: 'data' })} aria-label={t('Remove demo data')}><span className="pulse-dot sm" /> {t('Demo data')} · {t('Remove')}</button>
         </div>
       )}
 
