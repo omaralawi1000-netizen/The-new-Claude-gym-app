@@ -17,6 +17,8 @@ console.log('exercises', n, 'on', await sel());
 assert(n >= 2, 'a dot per exercise');
 assert.equal(await sel(), 0, 'opens on the exercise with the next set');
 assert(await p.locator('.wk-list').evaluate((e) => getComputedStyle(e).visibility === 'hidden'), 'the list has faded out');
+// the next set is on this page (already highlighted there): the bar says what comes after this exercise instead
+assert.match(await p.locator('.wk-bar-top').innerText(), /Up next/, 'the bar shows the exercise after this one');
 // swipe to the next page with a held mouse (pointer events, as a finger)
 const box = await p.locator('.wk-pager').boundingBox();
 const y = box.y + 120;
