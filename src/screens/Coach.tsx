@@ -18,6 +18,7 @@ import { runActions, type AgentResult } from '../lib/agent';
 import { uid } from '../lib/nutrition';
 import { dayKey } from '../lib/dates';
 import { blobToBase64, downscale } from '../lib/photos';
+import { apple, springCurve } from '../ui/motion';
 
 type Msg =
   | { id: string; role: 'user' | 'model'; text: string; streaming?: boolean; seeded?: boolean; /** a quiet line under the answer (which AI answered, and why) */ note?: string; /** when it was said */ at?: number; /** a photo was sent with it (its picture stays only while the Coach is open) */ photo?: boolean; image?: string }
@@ -97,6 +98,59 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     el.addEventListener('scrollend', settled);
     return () => { ro.disconnect(); el.removeEventListener('scrollend', settled); };
   }, []);
+  // A typed message lifts out of the field and glides up into its bubble, like a sent iMessage, while the conversation moves
+  // up to make room on the same spring. A copy of the bubble flies above everything (the list clips its own contents), from
+  // the typed text's place to the bubble's, and hands over to the real one where it lands; its glass gathers round the words
+  // on the way. Browser-run (Web Animations on transform/opacity only), so it is drawn at the screen's full rate.
+  const flyFrom = useRef(new Map<string, { x: number; y: number; fs: number }>());
+  const flew = useRef(new Set<string>()); // these arrive by flight, not by the bubble's own rise
+  const flown = (id: string) => flew.current.has(id);
+  useLayoutEffect(() => {
+    const el = bodyRef.current;
+    if (!el || !flyFrom.current.size) return;
+    for (const [id, from] of flyFrom.current) {
+      flyFrom.current.delete(id);
+      const bubble = el.querySelector<HTMLElement>(`[data-mid="${id}"] .said`);
+      const text = bubble?.firstChild;
+      const app = document.querySelector<HTMLElement>('.app');
+      if (!bubble || !text || text.nodeType !== Node.TEXT_NODE || !app) continue;
+      // the conversation goes to its end at once, then is played back up from where it was (one move, nothing jumps)
+      const before = el.scrollTop;
+      el.scrollTop = el.scrollHeight; lastScroll.current = el.scrollTop;
+      const lift = el.scrollTop - before;
+      const B = bubble.getBoundingClientRect();
+      const r = document.createRange(); r.setStart(text, 0); r.setEnd(text, 1);
+      const c = r.getBoundingClientRect();
+      const cs = getComputedStyle(bubble);
+      const k = from.fs / parseFloat(cs.fontSize);
+      const dx = from.x - (B.left + (c.left - B.left) * k), dy = from.y - (B.top + (c.top + c.height / 2 - B.top) * k);
+      const copy = document.createElement('div');
+      copy.className = 'said coach-fly';
+      copy.textContent = (text as Text).data;
+      copy.setAttribute('aria-hidden', 'true');
+      Object.assign(copy.style, { left: `${B.left}px`, top: `${B.top}px`, width: `${B.width}px` });
+      copy.style.setProperty('--fly-bg', cs.backgroundColor);
+      copy.style.setProperty('--fly-shadow', cs.boxShadow);
+      app.appendChild(copy);
+      bubble.style.visibility = 'hidden';
+      const fly = springCurve(apple(0.6));
+      const opts = { duration: fly.duration, easing: fly.easing, fill: 'forwards' as const };
+      const anims = [copy.animate([{ transform: `translate(${dx}px, ${dy}px) scale(${k})` }, { transform: 'none' }], opts)];
+      const thread = el.querySelector<HTMLElement>('.coach-thread');
+      if (thread && lift > 0.5) anims.push(thread.animate([{ transform: `translate3d(0, ${lift}px, 0)` }, { transform: 'none' }], { ...opts, fill: 'none' }));
+      const at = document.timeline.currentTime;
+      if (at !== null) anims.forEach((a) => { a.startTime = at; });
+      // anything that scrolls the conversation on the way (the answer arriving) moves the landing place with it
+      const top0 = el.scrollTop;
+      const follow = () => { copy.style.top = `${B.top - (el.scrollTop - top0)}px`; };
+      el.addEventListener('scroll', follow, { passive: true });
+      // the field's "Ask the Coach" comes back once the words have left it
+      const field = inputRef.current; field?.classList.add('sent-away');
+      const back = setTimeout(() => field?.classList.remove('sent-away'), 280);
+      const land = () => { el.removeEventListener('scroll', follow); clearTimeout(back); field?.classList.remove('sent-away'); bubble.style.visibility = ''; copy.remove(); };
+      anims[0].finished.then(land, land);
+    }
+  });
 
 
   const say = (m: Msg) => setMsgs((x) => [...x, m]);
@@ -190,14 +244,22 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     } else autoClose.current = false;
   };
 
-  const send = async (raw?: string) => {
+  const send = async (raw?: string, spoken = false) => {
     const text = (raw ?? input).trim();
     const pic = raw === undefined ? photo : null; // a suggestion chip or dictation sends words only
     if ((!text && !pic) || busy) return;
     if (clearing.current) finishClear();
     following.current = true;
+    const id = uid('m');
+    const field = inputRef.current;
+    const still = document.documentElement.dataset.motion === 'reduce' || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if ((raw === undefined || spoken) && text && !pic && field && !still) { // typed or said: it leaves from the field
+      const fr = field.getBoundingClientRect(), fs = getComputedStyle(field);
+      flew.current.add(id);
+      flyFrom.current.set(id, { x: fr.left + parseFloat(fs.borderLeftWidth) + parseFloat(fs.paddingLeft) - field.scrollLeft, y: fr.top + fr.height / 2, fs: parseFloat(fs.fontSize) });
+    }
     setInput(''); setPhoto(null); setResumed(false); setBusy(true); stopSpeaking(); orb('processing');
-    say({ id: uid('m'), role: 'user', text, at: Date.now(), ...(pic ? { photo: true, image: pic.url } : {}) });
+    say({ id, role: 'user', text, at: Date.now(), ...(pic ? { photo: true, image: pic.url } : {}) });
     ctl.current = new AbortController();
     const signal = ctl.current.signal;
     try {
@@ -224,7 +286,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
         const st = useAi.getState();
         const out = (await transcribe(blob, { key: getKey('groq'), model: STT_MODEL[st.stt], language: st.voiceLang === 'auto' ? 'auto' : st.voiceLang, prompt: buildPrompt([]) })).trim();
         if (!alive.current) return;
-        if (out) send(out); else say({ id: uid('m'), role: 'error', text: t('Didn’t catch anything. Try again.') });
+        if (out) send(out, true); else say({ id: uid('m'), role: 'error', text: t('Didn’t catch anything. Try again.') });
       } catch (e) { if (alive.current) say({ id: uid('m'), role: 'error', text: sttMessage(e instanceof SttError ? e.code : 'failed', t) }); }
       finally { if (alive.current) setHearing(false); }
       return;
@@ -326,7 +388,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
             {shown.length === 0 && tipsBlock}
             <div className="stack coach-thread" style={{ gap: 16, marginTop: shown.length ? 0 : 16 }}>
               {shown.map((m) => (
-                <div key={m.id} className={m.role === 'user' && !m.seeded ? 'coach-sent' : undefined}
+                <div key={m.id} data-mid={m.id} className={m.role === 'user' && !m.seeded && !flown(m.id) ? 'coach-sent' : undefined}
                   style={{ transformOrigin: m.role === 'user' ? '100% 100%' : '0% 0%', alignSelf: m.role === 'user' ? 'flex-end' : 'stretch', maxWidth: m.role === 'user' ? '84%' : '100%', display: m.role === 'user' ? 'flex' : undefined }}>
                   {m.role === 'user' && (
                     <div className="stack" style={{ alignItems: 'flex-end', gap: 6, maxWidth: '100%' }}>
@@ -336,7 +398,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
                   )}
                   {m.role === 'model' && (m.text ? (
                     <div>
-                      <div className={`reply calm coach-reply${m.seeded ? ' still' : ''}`} aria-live="polite"><Rich text={m.streaming ? streamingText(m.text) : m.text} id={m.id} stagger={160} />{m.streaming && <span className="caret" aria-hidden />}</div>
+                      <div className={`reply calm coach-reply${m.seeded ? ' still' : ''}`} aria-live="polite"><Rich text={m.streaming ? streamingText(m.text) : m.text} id={m.id} />{m.streaming && <span className="caret" aria-hidden />}</div>
                       {!m.streaming && m.note && <div className="xs t3" style={{ marginTop: 8 }}>{m.note}</div>}
                       {!m.streaming && <div className="reply-foot"><SpeakButton id={m.id} text={m.text} /></div>}
                     </div>

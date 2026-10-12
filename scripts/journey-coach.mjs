@@ -40,16 +40,18 @@ const ask = async (text, motion = false) => {
     window.__coachSent = [];
     const start = performance.now();
     const frame = () => {
-      const row = [...document.querySelectorAll('.coach-thread > div')].find((el) => el.querySelector('.said')?.textContent === text);
-      if (row) { const style = getComputedStyle(row); window.__coachSent.push({ opacity: Number(style.opacity), transform: style.transform }); }
+      // a typed message flies from the field into its bubble: a copy moves, the real bubble waits hidden until it lands
+      const fly = document.querySelector('.coach-fly');
+      const bubble = [...document.querySelectorAll('.coach-thread .said')].find((el) => el.textContent === text);
+      if (fly || bubble) window.__coachSent.push({ fly: fly ? getComputedStyle(fly).transform : null, shown: bubble ? getComputedStyle(bubble).visibility === 'visible' : false });
       if (performance.now() - start < 1400) requestAnimationFrame(frame);
     }; requestAnimationFrame(frame);
   }, text);
   await p.getByRole('button', { name: 'Send', exact: true }).click(); await wait(p, 1500);
   if (motion) {
     const frames = await p.evaluate(() => window.__coachSent);
-    assert(frames.some((f) => f.opacity < .95 && f.transform !== 'none'), 'sent message rises gently into its bubble');
-    assert(frames.at(-1)?.opacity >= .99 && frames.at(-1)?.transform === 'none', 'sent bubble settles to still, sharp text');
+    assert(frames.some((f) => f.fly && f.fly !== 'none' && !f.shown), 'sent message glides from the field while its bubble waits');
+    assert(frames.at(-1)?.fly === null && frames.at(-1)?.shown, 'the copy hands over to the real bubble and is gone');
   }
 };
 const closeSheets = async () => { for (let i = 0; i < 3; i++) { await p.keyboard.press('Escape'); await wait(p, 450); } };
