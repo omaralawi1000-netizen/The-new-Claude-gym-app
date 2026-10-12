@@ -414,18 +414,28 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
     animation: sb-fade linear both, sb-fade-b linear both; animation-timeline: scroll(self), scroll(self); animation-range: 0 40px, calc(100% - 40px) 100%; }
 }
 .sheet-head { flex: none; display: flex; align-items: center; gap: 10px; padding: 2px 22px 12px; }
-.sheet-foot { flex: none; position: relative; isolation: isolate; padding: 10px 22px calc(var(--sab) + 14px); background: transparent; }
-/* The bottom buttons (Add, Finish…) sit on no card: only a frost behind them. The list scrolls on under it and blurs more
-   the nearer it gets to the buttons (the frost layer reaches up over the end of the list and melts away at its top edge).
-   It is one small blur inside the sheet's own, and it never moves, so it costs nothing while scrolling. */
-.sheet-foot::before { content: ''; position: absolute; left: 0; right: 0; bottom: 0; top: -34px; z-index: -1; pointer-events: none;
-  background: color-mix(in srgb, var(--sheet-glass) 38%, transparent); -webkit-backdrop-filter: blur(14px) saturate(1.4); backdrop-filter: blur(14px) saturate(1.4);
-  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 52%); mask-image: linear-gradient(to bottom, transparent, #000 52%); }
-.sheet-foot > * { position: relative; }
-/* with the frost there, the old fade above the buttons is not needed, and the last row rests just above the frost */
-.sheet-pane:has(> .sheet-foot) .sheet-body, .sheet-page:has(> .sheet-foot) .sheet-body { padding-bottom: 36px; }
+/* The bottom buttons (Add, Finish…) float on their own: they are laid OVER the bottom of the content, not below it, so the
+   list scrolls on all the way down underneath them. (v0.1.3 put them below the list, which cut the list off in a straight
+   line above the button: it read as a separate panel.) Behind them there is no card, no tint and no edge: as the list
+   nears the buttons it melts into a soft blur and is gone by the top of the button (the button is glass too: rows left under it showed through), so the button floats on the clear
+   glass of the sheet.
+   Why a melt and not just a frost: a blur inside the sheet only sees the sheet's own content (the sheet's glass is a
+   blur too), and that content is see-through, so the sharp rows always showed through the blurred copy. Fading the rows
+   (a mask on the list) while the frost blurs what is left makes them dissolve softly instead. One small blur that never
+   moves, so scrolling stays cheap.
+   The foot's height arrives as --foot-h (SheetFoot in Sheet.tsx); the list keeps that much room at its end, plus a little,
+   so at rest its last row ends just above where the melt begins and nothing is faded until you scroll. */
+.sheet-pane { position: relative; }
+.sheet-foot { position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; isolation: isolate; padding: 10px 22px calc(var(--sab) + 14px); pointer-events: none; }
+.sheet-foot::before { content: ''; position: absolute; left: 0; right: 0; bottom: 0; top: -40px; z-index: -1; pointer-events: none;
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 50%); mask-image: linear-gradient(to bottom, transparent, #000 50%); }
+.sheet-foot > * { position: relative; pointer-events: auto; }
+.sheet-pane:has(> .sheet-foot) .sheet-body, .sheet-page:has(> .sheet-foot) .sheet-body { --foot: var(--foot-h, calc(var(--sab) + 76px)); padding-bottom: calc(var(--foot) + 30px); }
 @supports (animation-timeline: scroll()) {
-  .sheet-pane:has(> .sheet-foot) .sheet-body, .sheet-page:has(> .sheet-foot) .sheet-body { -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--sb-fade)); mask-image: linear-gradient(to bottom, transparent, #000 var(--sb-fade)); }
+  .sheet-pane:has(> .sheet-foot) .sheet-body, .sheet-page:has(> .sheet-foot) .sheet-body {
+    --melt: linear-gradient(to bottom, transparent, #000 var(--sb-fade), #000 calc(100% - var(--foot) - 34px), rgba(0, 0, 0, 0.6) calc(100% - var(--foot) - 16px), rgba(0, 0, 0, 0.2) calc(100% - var(--foot) + 2px), transparent calc(100% - var(--foot) + 16px));
+    -webkit-mask-image: var(--melt); mask-image: var(--melt); }
 }
 
 /* ── floating tab bar: icons only; the active tab opens up and shows its name ─── */
@@ -830,7 +840,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-flag .chip { flex: none; margin-top: -2px; }
 /* the Coach's camera: the chosen photo waits above the field; once sent it sits in your bubble */
 .coach-body { overflow-anchor: none; }
-.coach-body:not([data-scrollable]) { -webkit-mask-image: none; mask-image: none; }
+.sheet-pane .coach-body.sheet-body:not([data-scrollable]) { -webkit-mask-image: none; mask-image: none; } /* (outranks the melt under sheet buttons) */
 .coach-sent { animation: coachSend 620ms cubic-bezier(.2, .8, .2, 1) backwards; }
 @keyframes coachSend {
   from { opacity: 0; transform: translate3d(0, 28px, 0) scale(.975); }

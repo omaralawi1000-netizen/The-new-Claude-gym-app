@@ -13,9 +13,10 @@ When a section is done, change `[ ]` to `[x]` here in the same pull request.
 - [x] **2. Workout screen**: lags and flickers when it opens; scrolls sideways a little (lock horizontal scroll completely);
   the rest-timer bar at the bottom sometimes shows two colours (a lighter block behind the orb, see-through over the cards);
   make the timer animation better.
-- [ ] **3. Sheets and keyboard**: lag when the keyboard opens in sheets (Quick add etc.); bottom buttons (Add, Finish…) must
+- [x] **3. Sheets and keyboard**: lag when the keyboard opens in sheets (Quick add etc.); bottom buttons (Add, Finish…) must
   not sit on a card: only a frosted blur behind them, content scrolling under it.
-  (12 Oct: frosted bottom buttons done in v0.1.3; keyboard lag still open.)
+  (12 Oct: v0.1.3's frost still left a band, because the list ended above the button. v0.1.5: the buttons float over
+  the list, which melts into a soft blur under them; sheets behind the top one no longer ride the keyboard.)
 - [x] **4. Top fade** on every scrolling screen (workout screens first) so content fades out instead of being cut off.
   (12 Oct, v0.1.4: one shared eased fade `--ft` on tab pages, live workout, Orb talk list, onboarding. Sheets keep their own.)
 - [ ] **5. Exercise detail visual, part 1**: replace the abstract dot figure with a real picture of a person doing the
