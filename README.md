@@ -976,3 +976,16 @@ Light only: the orb's outline never changes.
   when a finished workout holds a new personal record. Small unifications: logging food is always `saved` (it was 10, 12,
   14 or 16 ms depending on the screen), starting a workout is always `confirm`.
 - Still not felt, on purpose (v0.1.13): navigation, opening things, the orb flying, talking, ±15 s.
+
+## Premium pass, step 7: moving figures, the first three (12 Oct 2026, v0.1.25)
+
+- Omar chose Aven's own figures (free, no paid library). `screens/workout/Figure.tsx`: a calm side-view figure built from
+  rounded limbs nested at their joints, so a pose is five angles (torso, upper arm, forearm, thigh, shin) and a rep is each
+  joint turning between two poses. Every limb turns with a browser-run rotate animation (compositor, 120 fps, nothing per
+  frame on the page). One rep is 2.8 s: the lift, a beat at the top, a slower way down.
+- The muscles are drawn on the limbs; the exercise's main muscle glows in the area's accent, the others it works softer.
+  The far arm and leg sit a little behind in shade, for depth without blur.
+- First three for Omar's OK: bench-type presses (lying, bar from chest to straight arms), barbell-type rows (hinged,
+  bar to the ribs), curls (standing, dumbbell to the shoulder). `figureFor(ex)` picks one; every other exercise keeps the
+  muscle map until the rest are drawn. Only the page you're looking at moves; the others hold still and cost nothing.
+  Reduced motion: the figure stands in its start pose.
