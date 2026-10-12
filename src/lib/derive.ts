@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../state/store';
 import { dayKey } from './dates';
 import { sumNutrients, type Sum } from './nutrition';
-import type { FoodEntry, Meal, Nutrients, WaterEntry } from './types';
+import type { FoodEntry, Meal, WaterEntry } from './types';
 import { makeT } from './i18n';
 
 /** "Today" according to the user's day boundary; re-evaluated every 30 s and on focus. */
@@ -59,6 +59,4 @@ export function perMeal(entries: FoodEntry[], mealId: string): FoodEntry[] {
   return entries.filter((e) => e.mealId === mealId);
 }
 
-export const hasGoals = (g: { kcal?: number; protein?: number; carbs?: number; fat?: number }) => !!(g.kcal || g.protein || g.carbs || g.fat);
 
-export function totalsLine(n: Nutrients): string { return `${Math.round(n.kcal ?? 0)} kcal`; }

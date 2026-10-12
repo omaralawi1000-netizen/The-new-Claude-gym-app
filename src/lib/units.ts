@@ -39,10 +39,6 @@ export function fmtNum(v: number, lang: Lang, max = 1, min = 0): string {
 }
 const NUM_FMT = new Map<string, Intl.NumberFormat>();
 
-export function fmtWeight(kg: number, u: Settings['units']['weight'], lang: Lang): string {
-  const v = kgToDisplay(kg, u);
-  return fmtNum(v, lang, u === 'lb' ? 1 : 2);
-}
 
 /**
  * Parse user-typed decimals: accepts "1,5", "1.5", " 82,25 ". Returns undefined for blanks / junk.
@@ -61,5 +57,3 @@ export function parseNum(input: string | number | undefined | null): number | un
   return Number.isFinite(n) ? n : undefined;
 }
 
-export const weightUnitLabel = (u: Settings['units']['weight']) => u;
-export const distanceUnitLabel = (u: Settings['units']['distance']) => u;

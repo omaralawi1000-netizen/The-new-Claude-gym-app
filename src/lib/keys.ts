@@ -17,7 +17,6 @@ export function setKey(name: KeyName, value: string) {
   listeners.forEach((l) => l());
 }
 export function clearKeys() { try { localStorage.removeItem(KEY); } catch { /* ignore */ } listeners.forEach((l) => l()); }
-export const hasKey = (name: KeyName) => !!getKey(name);
 export const mask = (v: string) => (v ? `••••${v.slice(-4)}` : '');
 
 const listeners = new Set<() => void>();

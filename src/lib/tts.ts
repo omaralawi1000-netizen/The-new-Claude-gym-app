@@ -371,7 +371,6 @@ function heardAt(ac: AudioContext): number {
 let nodes: AudioBufferSourceNode[] = [];
 let run = 0;
 const listeners = new Set<(speaking: boolean) => void>();
-export const onSpeaking = (fn: (s: boolean) => void) => { listeners.add(fn); return () => { listeners.delete(fn); }; };
 export function stopSpeaking() {
   run++;
   for (const n of nodes) { try { n.stop(); } catch { /* not started or already stopped */ } }

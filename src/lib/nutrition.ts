@@ -3,8 +3,6 @@ import type {
 } from './types';
 
 export const NUTRIENT_KEYS: NutrientKey[] = ['kcal', 'protein', 'carbs', 'fat', 'fibre', 'sugar', 'satFat', 'sodium'];
-export const CORE: NutrientKey[] = ['kcal', 'protein', 'carbs', 'fat'];
-export const OPTIONAL: NutrientKey[] = ['fibre', 'sugar', 'satFat', 'sodium'];
 
 let counter = 0;
 export function uid(prefix = 'id'): string {
