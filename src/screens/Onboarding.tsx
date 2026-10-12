@@ -132,7 +132,7 @@ export function Onboarding({ props }: { props: { rerun?: boolean; starterOnly?: 
       <div style={{ display: 'grid', placeItems: 'center', height: step === 0 ? 150 : 70, transition: 'height .4s cubic-bezier(.22,1,.36,1)', marginTop: 6 }}>
         <SphereSlot id="onb" priority={10} engage={engage} style={{ width: step === 0 ? 140 : 56, height: step === 0 ? 140 : 56, transition: 'width .4s cubic-bezier(.22,1,.36,1), height .4s cubic-bezier(.22,1,.36,1)' }} />
       </div>
-      <div style={{ flex: 1, overflowY: 'auto', padding: '8px 22px 20px', position: 'relative' }} className="hide-scroll">
+      <div style={{ flex: 1, overflowY: 'auto', padding: '8px 22px 20px', position: 'relative' }} className="hide-scroll fade-top">
         <AnimatePresence mode="wait" initial={false} custom={dir}>
           <motion.div key={step} custom={dir} initial={{ opacity: 0, x: dir * 36, filter: 'blur(6px)' }} animate={{ opacity: 1, x: 0, filter: 'blur(0px)', transitionEnd: { filter: 'none' } }} exit={{ opacity: 0, x: -dir * 36, filter: 'blur(6px)' }} transition={{ duration: 0.22 }}>
             {screens[step]}

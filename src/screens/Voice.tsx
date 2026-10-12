@@ -431,7 +431,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
           <div className="micro" aria-live="polite" style={{ color: phase === 'listening' ? 'var(--ac-text)' : undefined }}>{label}</div>
         </div>
 
-        <div ref={talkRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto', marginTop: 14, paddingBottom: 12 }} className="hide-scroll">
+        <div ref={talkRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto', marginTop: 14, paddingBottom: 12 }} className="hide-scroll fade-top">
           <AnimatePresence initial={false} mode="popLayout">
             {!typing && !showing && (
               // what you are saying, as you say it: each new word settles in; when you stop, it rises away into the conversation
