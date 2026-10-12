@@ -913,3 +913,13 @@ alone on purpose (other threads were changing them).
 - The speed at release uses every coalesced finger position of the last 100 ms, and is zero if the finger stopped 80 ms
   before lifting (a held drag never "flicks"). Vertical scrolls and taps are untouched (an 8 px, mostly-sideways start
   still decides it is a swipe).
+
+## Premium pass, step 1: a tidier focus view (12 Oct 2026, v0.1.19)
+
+- **The bar stops repeating the page.** In focus view, when the next set is on the exercise you're looking at, that row is
+  already highlighted there, so the bar now says **Up next** and names the exercise after this one (its superset partner
+  first, else the next one in the list that still has sets), with its planned weight × reps or its number of sets. A tap
+  glides to it. Looking at another exercise, or resting, the bar is as before (next set, rest, go).
+- Which page Focus shows lives in a tiny store of its own (`useFocusPage` in `screens/workout/Focus.tsx`): only the bar
+  listens, so turning a page re-renders nothing else.
+- **A smaller stage**: the figure area is at most 184 px tall (was 230), so the sets sit higher on the screen.

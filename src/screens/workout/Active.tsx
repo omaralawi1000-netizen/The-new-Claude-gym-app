@@ -22,7 +22,7 @@ import { DIM_VEIL, Veil, mirrorVeil } from '../../ui/Veil';
 import { kb } from '../../ui/keyboard';
 import { viewportH } from '../../ui/viewport';
 import { BOUNCY, SURFACE, SURFACE_EXIT } from '../../ui/motion';
-import { FocusView, type FocusApi } from './Focus';
+import { FocusView, upNextOf, useFocusPage, type FocusApi } from './Focus';
 
 /** False while the workout is minimised (kept alive but hidden): its clocks stop ticking. */
 const WkLive = createContext(true);
@@ -338,7 +338,7 @@ export function ActiveWorkout({ props, open = true }: { props: { origin?: 'hero'
           </div>
 
           {/* the workout's own dock, where the tab bar sits: what's next, the rest timer, and the orb */}
-          <WorkoutBar engage={engage} exMap={exMap} away={typing || !!confirm || !!menu || covered} onDone={pointToFinish} onJump={jumpTo} />
+          <WorkoutBar engage={engage} exMap={exMap} focus={view === 'focus'} away={typing || !!confirm || !!menu || covered} onDone={pointToFinish} onJump={jumpTo} />
           </div>
         </div>
           </motion.div>
@@ -409,7 +409,7 @@ function RestInline() {
  * stays so until that set is ticked. The orb sits at its right end: tap it to say your sets. It is there from the first
  * frame, so the orb glides into it with the window instead of jumping to a button at the end of the list.
  */
-function WorkoutBar({ engage, exMap, away, onDone, onJump }: { engage: Engage; exMap: Map<string, Exercise>; away: boolean; onDone: () => void; onJump: (setId: string) => void }) {
+function WorkoutBar({ engage, exMap, focus, away, onDone, onJump }: { engage: Engage; exMap: Map<string, Exercise>; focus: boolean; away: boolean; onDone: () => void; onJump: (setId: string) => void }) {
   const t = useT();
   const lang = useLang();
   const push = useUI((u) => u.push);
@@ -421,16 +421,24 @@ function WorkoutBar({ engage, exMap, away, onDone, onJump }: { engage: Engage; e
   useEffect(() => { if (!panel) return; const id = setTimeout(() => setPanel(false), 4000); return () => clearTimeout(id); }, [panel, a?.rest?.endsAt, a?.rest?.total]);
   const resting = !!a?.rest;
   useEffect(() => { if (!resting) setPanel(false); }, [resting]);
+  const page = useFocusPage();
   if (!a) return null;
   const nx = nextSetOf(a);
-  const ex = nx ? exMap.get(nx.se.exerciseId) : undefined;
+  // In Focus, when the next set is on the page you're looking at, that row is already highlighted there: the bar tells you
+  // what comes after this exercise instead, and a tap glides to it.
+  const after = focus && nx && !a.rest && page === nx.se.id ? upNextOf(a, nx.se.id) : null;
+  const shown = after ?? nx;
+  const ex = shown ? exMap.get(shown.se.exerciseId) : undefined;
   const name = ex ? exName(ex, lang) : '';
   const rest = a.rest;
   const left = rest ? (a.pausedAt ? rest.endsAt : rest.endsAt - now) / 1000 : 0;
   const over = !!rest && left <= 0;
-  const kg = nx ? (nx.set.weightKg ?? nx.set.target?.weightKg) : undefined;
-  const reps = nx ? (nx.set.reps ?? nx.set.target?.repMax) : undefined;
-  const target = [kg !== undefined ? `${fmtNum(kgToDisplay(kg, unit), lang, 2)} ${unit}` : '', reps ? `× ${reps}` : ''].filter(Boolean).join(' ');
+  const kg = shown ? (shown.set.weightKg ?? shown.set.target?.weightKg) : undefined;
+  const reps = shown ? (shown.set.reps ?? shown.set.target?.repMax) : undefined;
+  const target0 = [kg !== undefined ? `${fmtNum(kgToDisplay(kg, unit), lang, 2)} ${unit}` : '', reps ? `× ${reps}` : ''].filter(Boolean).join(' ');
+  // up next with nothing planned for its weight or reps: how many sets it holds
+  const leftN = after ? after.se.sets.filter((x) => !x.done).length : 0;
+  const target = target0 || (after ? `${leftN} ${t(leftN === 1 ? 'set' : 'sets')}` : '');
   const setWord = nx ? (nx.label === 'W' ? t('Warm-up') : `${t('Set')} ${nx.label}`) : '';
   const empty = !a.exercises.some((e) => e.sets.length > 0);
   // every set ticked: done, even while a rest is still counting (there's nothing left to rest for)
@@ -439,10 +447,10 @@ function WorkoutBar({ engage, exMap, away, onDone, onJump }: { engage: Engage; e
     if (state === 'rest') setPanel((v) => !v);
     else if (state === 'done') onDone();
     else if (state === 'empty') { orbTap(1); push('voice', { mode: 'workout' }); }
-    else if (nx) onJump(nx.set.id);
+    else if (shown) onJump(shown.set.id);
   };
   const ofN = nx ? nx.se.sets.filter((x) => x.type === 'working').length : 0;
-  const top = state === 'next' ? `${t('Next set')} · ${nx!.label === 'W' ? t('Warm-up') : t('{n} of {m}', { n: nx!.label, m: ofN })}`
+  const top = state === 'next' ? (after ? t('Up next') : `${t('Next set')} · ${nx!.label === 'W' ? t('Warm-up') : t('{n} of {m}', { n: nx!.label, m: ofN })}`)
     : state === 'rest' ? (panel ? (a.pausedAt ? `${t('Rest')} · ${t('Paused')}` : t('Rest')) : nx ? `${t('Rest')} · ${t('Next')}: ${name}` : t('Rest'))
     : state === 'go' ? `${t('Rest over')}${nx ? ` · ${setWord}` : ''}`
     : state === 'empty' ? `“${t('Bench press 80 kg for 8, 8, 6')}”`
@@ -459,8 +467,8 @@ function WorkoutBar({ engage, exMap, away, onDone, onJump }: { engage: Engage; e
         <span className="wk-bar-clip" aria-hidden><RestFill state={state} endsAt={rest?.endsAt} total={rest?.total} paused={!!a.pausedAt} /></span>
         <button className="wk-bar-main press" onClick={tap} aria-expanded={state === 'rest' ? panel : undefined}
           aria-label={state === 'rest' ? `${t('Rest')} ${fmtDuration(Math.ceil(left))}` : `${top}. ${big}${state === 'next' && target ? `, ${target}` : ''}`}>
-          <span key={`t${state}`} className="wk-bar-top">{top}</span>
-          <span key={`b${state}`} className="wk-bar-big num">{state === 'next' ? <><span className="wk-bar-name">{name}</span>{target && <span className="wk-bar-tgt">{target}</span>}</>
+          <span key={`t${state}${after ? after.se.id : ''}`} className="wk-bar-top">{top}</span>
+          <span key={`b${state}${after ? after.se.id : ''}`} className="wk-bar-big num">{state === 'next' ? <><span className="wk-bar-name">{name}</span>{target && <span className="wk-bar-tgt">{target}</span>}</>
             : state === 'rest' ? <span key={Math.ceil(left)} className={!a.pausedAt && left <= 3 ? 'wk-tick' : undefined}>{big}</span> : big}</span>
         </button>
         <button className="wk-bar-orb press" aria-label={t('Dictate sets')} onPointerDown={() => orbPress(true)} onPointerUp={() => orbPress(false)} onPointerCancel={() => orbPress(false)} onPointerLeave={() => orbPress(false)}

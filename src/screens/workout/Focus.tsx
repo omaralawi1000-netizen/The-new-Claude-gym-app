@@ -1,8 +1,8 @@
-import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { memo, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { motion, type MotionValue } from 'motion/react';
 import { useStore } from '../../state/store';
 import { useT, useLang } from '../../lib/i18n';
-import type { Exercise, SessionExercise, WorkoutSession } from '../../lib/types';
+import type { Exercise, SessionExercise, SetRecord, WorkoutSession } from '../../lib/types';
 import { usePager } from '../../ui/pager';
 import { MuscleMap } from './MuscleMap';
 import { exName } from './common';
@@ -26,6 +26,29 @@ function nextFocus(a: WorkoutSession | null | undefined, seId: string): string |
   return nextSetOf(a)?.se.id ?? null;
 }
 const doneIn = (a: WorkoutSession | null | undefined, seId: string) => a?.exercises.find((e) => e.id === seId)?.sets.filter((x) => x.done).length ?? 0;
+
+/**
+ * The exercise to do after the one on `seId`, for the bar while you look at it: its superset partner whose turn comes,
+ * else the next one in the list (round to the top) that still has sets to do. The bar shows this instead of repeating the
+ * row that is already highlighted on the page.
+ */
+export function upNextOf(a: WorkoutSession | null | undefined, seId: string): { se: SessionExercise; set: SetRecord } | null {
+  if (!a) return null;
+  const at = a.exercises.findIndex((e) => e.id === seId);
+  if (at < 0) return null;
+  const se = a.exercises[at];
+  const order = se.supersetGroup ? a.exercises.filter((e) => e.supersetGroup === se.supersetGroup && e.id !== seId) : [];
+  for (let k = 1; k < a.exercises.length; k++) order.push(a.exercises[(at + k) % a.exercises.length]);
+  for (const e of order) { const set = e.sets.find((x) => !x.done); if (e.id !== seId && set) return { se: e, set }; }
+  return null;
+}
+
+// Which exercise the Focus view shows, for the bar. A tiny store of its own: only the bar listens, so turning a page
+// re-renders nothing else.
+let shownId: string | null = null;
+const shownSubs = new Set<() => void>();
+const setShown = (id: string | null) => { if (id === shownId) return; shownId = id; shownSubs.forEach((f) => f()); };
+export const useFocusPage = () => useSyncExternalStore((f) => { shownSubs.add(f); return () => { shownSubs.delete(f); }; }, () => shownId);
 
 export type FocusApi = { jumpToSet: (setId: string) => void };
 
@@ -53,7 +76,7 @@ export const FocusView = memo(function FocusView({ exMap, onMenu, pad, apiRef }:
   // page is a long frame, and a long frame in the middle of a glide is a stutter.
   const grow = useRef<ReturnType<typeof setTimeout>>(undefined);
   const growTo = (i: number, ms: number) => { clearTimeout(grow.current); grow.current = setTimeout(() => setWin(new Set([i - 1, i, i + 1])), ms); };
-  useEffect(() => { growTo(index, 750); return () => clearTimeout(grow.current); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { growTo(index, 750); return () => { clearTimeout(grow.current); setShown(null); }; }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const flashSet = useRef<string | null>(null);
   const flash = (setId: string) => {
     const row = viewport.current?.querySelector<HTMLElement>(`.wk-page.cur [data-set="${setId}"]`);
@@ -65,7 +88,7 @@ export const FocusView = memo(function FocusView({ exMap, onMenu, pad, apiRef }:
     count: exs.length, gap: GAP, initial: index,
     onNear: pillTo,
     onSettle: (i) => {
-      setIndex(i); curId.current = exsRef.current[i]?.id;
+      setIndex(i); curId.current = exsRef.current[i]?.id; setShown(curId.current ?? null);
       growTo(i, 380);
       const f = flashSet.current; flashSet.current = null;
       if (f) requestAnimationFrame(() => flash(f));
@@ -82,7 +105,7 @@ export const FocusView = memo(function FocusView({ exMap, onMenu, pad, apiRef }:
     let i = exs.findIndex((e) => e.id === curId.current);
     if (i < 0) i = Math.min(index, exs.length - 1);
     if (i < 0) return;
-    curId.current = exs[i].id;
+    curId.current = exs[i].id; setShown(curId.current);
     if (i !== index) { setIndex(i); setWin(new Set([i - 1, i, i + 1])); }
     pager.current.place(i);
   }, [ids]); // eslint-disable-line react-hooks/exhaustive-deps
