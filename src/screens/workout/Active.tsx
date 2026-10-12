@@ -327,9 +327,12 @@ export function ActiveWorkout({ props, open = true }: { props: { origin?: 'hero'
 
           {/* body: the list, and Focus over it when chosen (the list stays, faded out, so switching back keeps your place) */}
           <div className="wk-views">
-          <motion.div ref={body} style={{ flex: 1, overflowY: 'auto', padding: '4px 16px 0', paddingBottom: bodyPad, overscrollBehavior: 'contain' }} className={`hide-scroll wk-list${view === 'focus' && a.exercises.length > 0 && (focusIn || shared !== 'in') ? ' wk-away' : ''}${shared === 'back' ? ' back' : ''}`}>
+          <motion.div ref={body} style={{ flex: 1, overflowY: 'auto', padding: '4px 16px 0', paddingBottom: bodyPad, overscrollBehavior: 'contain' }} className={`hide-scroll wk-list${a.exercises.length === 0 ? ' is-empty' : ''}${view === 'focus' && a.exercises.length > 0 && (focusIn || shared !== 'in') ? ' wk-away' : ''}${shared === 'back' ? ' back' : ''}`}>
             {a.exercises.length === 0 && (
+              // nothing yet: one calm, centred moment (a soft mark, the line, then the button) instead of a top-heavy
+              // block over an empty half screen
               <div className="wk-empty">
+                <div className="wk-empty-mark" aria-hidden><Icon name="dumbbell" size={40} /></div>
                 <div className="display display-sm" style={{ fontStyle: 'italic' }}>{t('Empty session')}</div>
                 <div className="small t2" style={{ marginTop: 6 }}>{t('Add your first exercise, or tell the orb what you did.')}</div>
               </div>
