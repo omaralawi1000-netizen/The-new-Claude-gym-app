@@ -1,5 +1,5 @@
 import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from 'motion/react';
-import { useUI, type Tab, buzz } from '../state/ui';
+import { useUI, type Tab } from '../state/ui';
 import { useStore } from '../state/store';
 import { useCovered } from '../lib/hooks';
 import { Icon } from './Icon';
@@ -53,7 +53,7 @@ function LivePill() {
       key="pill" className="press"
       style={{ position: 'relative', borderRadius: 999, height: 56, width: '100%', maxWidth: 420, display: 'flex', alignItems: 'center', gap: 12, padding: '0 8px 0 18px', marginBottom: 10, pointerEvents: workoutOpen ? 'none' : 'auto' }}
       initial="hide" animate={workoutOpen ? 'hide' : 'show'} exit="hide" variants={PILL} transition={SOFT}
-      onClick={() => { buzz(); push('workout', { origin: 'pill' }); }}
+      onClick={() => push('workout', { origin: 'pill' })}
       aria-label={t('Resume workout')}
     >
       {/* The pill's surface is a separate layer; the workout window opens from its rectangle (data-wk). It fades on its OWN
@@ -96,8 +96,8 @@ export function TabBar() {
   const nav = useRef<HTMLElement>(null);
   useDock(nav, tab);
   const pull = useRef<number | null>(null);
-  const openOrb = () => { if (useUI.getState().overlays.some((o) => o.type === 'voice')) return; buzz(10); orbTap(1); push('voice', { mode: tab === 'train' ? 'workout' : 'food' }); };
-  const go = (id: Tab) => { buzz(4); if (useUI.getState().tab === id) scrollActiveTabToTop(); else setTab(id); };
+  const openOrb = () => { if (useUI.getState().overlays.some((o) => o.type === 'voice')) return; orbTap(1); push('voice', { mode: tab === 'train' ? 'workout' : 'food' }); };
+  const go = (id: Tab) => { if (useUI.getState().tab === id) scrollActiveTabToTop(); else setTab(id); };
   return (
     <LayoutGroup>
       {/* hides by sliding only: fading it would switch its frosted blur off until the fade ends (a clear bar that then frosts) */}

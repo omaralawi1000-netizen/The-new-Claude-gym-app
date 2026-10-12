@@ -328,7 +328,7 @@ export function ActiveWorkout({ props, open = true }: { props: { origin?: 'hero'
                 ) : (
                   <button className="btn block danger press wk-end-btn" style={{ ['--i' as string]: 0 }} onClick={() => { buzz(14); setConfirm(null); doDiscard(); }}>{t('Discard workout')}</button>
                 )}
-                <button className="btn block ghost press wk-end-btn" style={{ ['--i' as string]: 1 }} onClick={() => { buzz(6); setConfirm(null); }}>{t('Keep training')}</button>
+                <button className="btn block ghost press wk-end-btn" style={{ ['--i' as string]: 1 }} onClick={() => setConfirm(null)}>{t('Keep training')}</button>
               </div>
             </div>
           </Sheet>
@@ -400,7 +400,6 @@ function WorkoutBar({ engage, exMap, away, onDone, onJump }: { engage: Engage; e
   // every set ticked: done, even while a rest is still counting (there's nothing left to rest for)
   const state: 'next' | 'rest' | 'go' | 'done' | 'empty' = empty ? 'empty' : !nx ? 'done' : rest ? (over ? 'go' : 'rest') : 'next';
   const tap = () => {
-    buzz(6);
     if (state === 'rest') setPanel((v) => !v);
     else if (state === 'done') onDone();
     else if (state === 'empty') { orbTap(1); push('voice', { mode: 'workout' }); }
@@ -436,8 +435,8 @@ function WorkoutBar({ engage, exMap, away, onDone, onJump }: { engage: Engage; e
         <AnimatePresence>
           {panel && state === 'rest' && (
             <motion.div key="ctl" className="wk-bar-ctl" initial={{ opacity: 0, x: 14 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} transition={SOFT}>
-              <button className="wk-ctl press num" onClick={() => { buzz(6); adjustRest(-15); }} aria-label={t('15 seconds less')}>−15</button>
-              <button className="wk-ctl press num" onClick={() => { buzz(6); adjustRest(15); }} aria-label={t('15 seconds more')}>+15</button>
+              <button className="wk-ctl press num" onClick={() => adjustRest(-15)} aria-label={t('15 seconds less')}>−15</button>
+              <button className="wk-ctl press num" onClick={() => adjustRest(15)} aria-label={t('15 seconds more')}>+15</button>
               <button className="wk-ctl skip press" onClick={() => { buzz(8); skipRest(); setPanel(false); }}>{t('Skip')}</button>
             </motion.div>
           )}

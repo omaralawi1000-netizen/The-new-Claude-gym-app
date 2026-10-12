@@ -174,7 +174,7 @@ export function TodayScreen() {
                 <div className="display num" style={{ fontSize: 54, marginTop: 8 }}><HeroClock /></div>
                 <div className="small t2 num" style={{ marginTop: 2 }}>{aDone}<span className="t3"> / {aTotal}</span></div>
               </div>
-              <button className="icon-btn acc press" style={{ width: 68, height: 68, flex: 'none' }} aria-label={t('Resume workout')} onClick={() => { buzz(12); push('workout', { origin: 'hero' }); }}><Icon name="play" size={26} /></button>
+              <button className="icon-btn acc press" style={{ width: 68, height: 68, flex: 'none' }} aria-label={t('Resume workout')} onClick={() => push('workout', { origin: 'hero' })}><Icon name="play" size={26} /></button>
             </div>
           ) : routine && !(plannedDone && last) ? (
             <div className="row-flex between" style={{ gap: 14 }}>
@@ -386,7 +386,7 @@ function WeekReviewCard({ d, today }: { d: AppData; today: string }) {
   const goal = d.settings.goals.protein;
   const stall = r.stalls[0];
   const stallEx = stall ? exerciseMap(d.exercises).get(stall.exerciseId) : undefined;
-  const dismiss = () => { try { localStorage.setItem('aven.review', end); } catch { /* ignore */ } buzz(6); setHidden(true); };
+  const dismiss = () => { try { localStorage.setItem('aven.review', end); } catch { /* ignore */ } setHidden(true); };
   const rate = r.weightRate !== null ? kgToDisplay(r.weightRate, u) : null;
   return (
     <section className="plinth review-card" aria-label={t('Your week')}>
@@ -406,7 +406,7 @@ function WeekReviewCard({ d, today }: { d: AppData; today: string }) {
       {stall && stallEx && (
         <div className="xs review-stall"><Icon name="info" size={14} style={{ flex: 'none', marginTop: 1 }} /><span>{t('{ex} has stalled: best {w} × {r} since {date}', { ex: exName(stallEx, lang), w: `${fmtNum(kgToDisplay(stall.best.kg, u), lang, 2)} ${u}`, r: stall.best.reps, date: fmtDate(stall.since, lang, { day: 'numeric', month: 'short' }) })}</span></div>
       )}
-      <button className="btn sm primary press" style={{ marginTop: 14 }} onClick={() => { buzz(8); push('coach', { ask: t('Review my week and give me the one thing to change next week.') }); }}>
+      <button className="btn sm primary press" style={{ marginTop: 14 }} onClick={() => { push('coach', { ask: t('Review my week and give me the one thing to change next week.') }); }}>
         <Icon name="sparkle" size={15} /> {t('Plan next week with the Coach')}
       </button>
     </section>

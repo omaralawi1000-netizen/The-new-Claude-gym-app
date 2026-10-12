@@ -18,7 +18,7 @@ if (typeof self.requestAnimationFrame !== 'function') self.postMessage({ unsuppo
 
 self.onmessage = (e: MessageEvent) => {
   const d = e.data;
-  if (d.canvas) { r = new SphereRenderer(d.canvas as OffscreenCanvas); r.onOnset = (s) => self.postMessage({ onset: s }); }
+  if (d.canvas) r = new SphereRenderer(d.canvas as OffscreenCanvas);
   if (d.state) {
     st = { ...st, ...d.state };
     if (d.state.inp?.tap) tap = Math.max(tap, d.state.inp.tap);

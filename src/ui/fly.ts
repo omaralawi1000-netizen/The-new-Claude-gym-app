@@ -1,5 +1,3 @@
-import { buzz } from '../state/ui';
-
 /**
  * Cause → effect: when something you said is logged and the orb steps aside, a small light flies from where you said it
  * into where it landed — the calorie ring on the screen you are looking at, or the Food / Train tab — and that target
@@ -30,6 +28,5 @@ export function flyLogged(kind: 'food' | 'train', from: { x: number; y: number }
     dot.remove();
     target.classList.remove('fly-hit'); void target.offsetWidth; target.classList.add('fly-hit');
     setTimeout(() => target.classList.remove('fly-hit'), 700);
-    buzz(10);
   };
 }

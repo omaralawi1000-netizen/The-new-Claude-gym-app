@@ -1,7 +1,7 @@
 import { useMemo, useRef } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useStore } from '../state/store';
-import { useUI, buzz } from '../state/ui';
+import { useUI } from '../state/ui';
 import { useT, useLang } from '../lib/i18n';
 import { useDaySummary, useToday, mealName, perMeal } from '../lib/derive';
 import { addDays, fmtDate, relativeDay } from '../lib/dates';
@@ -53,8 +53,8 @@ export function FoodScreen() {
       <header>
         <div className="row-flex between">
           <div className="row-flex" style={{ gap: 4 }}>
-            <button className="icon-btn press" aria-label={t('Previous day')} onClick={() => { buzz(4); setFoodDate(addDays(date, -1)); }}><Icon name="chevL" /></button>
-            <button className="icon-btn press" aria-label={t('Next day')} onClick={() => { buzz(4); setFoodDate(addDays(date, 1) === today ? null : addDays(date, 1)); }}><Icon name="chevR" /></button>
+            <button className="icon-btn press" aria-label={t('Previous day')} onClick={() => setFoodDate(addDays(date, -1))}><Icon name="chevL" /></button>
+            <button className="icon-btn press" aria-label={t('Next day')} onClick={() => setFoodDate(addDays(date, 1) === today ? null : addDays(date, 1))}><Icon name="chevR" /></button>
           </div>
           <div className="row-flex" style={{ gap: 8 }}>
             {date !== today && <button className="chip acc press" onClick={() => setFoodDate(null)}>{t('Today')}</button>}
@@ -79,7 +79,7 @@ export function FoodScreen() {
         // an empty day is one calm card: the meals as rows, each with its own +
         <section className="plinth meals-empty" aria-label={date === today ? t('Nothing logged yet') : t('No entries for this day')}>
           {settings.meals.map((m) => (
-            <button key={m.id} className="meal-row press" aria-label={`${t('Add to')} ${mealName(m, lang)}`} onClick={() => { buzz(6); add(m.id); }}>
+            <button key={m.id} className="meal-row press" aria-label={`${t('Add to')} ${mealName(m, lang)}`} onClick={() => add(m.id)}>
               <span className="meal-name display">{mealName(m, lang)}</span>
               <span className="meal-add" aria-hidden><Icon name="plus" size={20} /></span>
             </button>
@@ -104,7 +104,7 @@ export function FoodScreen() {
                 </div>
               </div>
               {items.length > 0 && <button className="icon-btn flat sm press" aria-label={t('Meal options')} onClick={() => push('entryMenu', { kind: 'meal', date, mealId: m.id })}><Icon name="more" size={20} /></button>}
-              <button className="meal-add press" aria-label={`${t('Add to')} ${mealName(m, lang)}`} onClick={() => { buzz(6); add(m.id); }}><Icon name="plus" size={20} /></button>
+              <button className="meal-add press" aria-label={`${t('Add to')} ${mealName(m, lang)}`} onClick={() => add(m.id)}><Icon name="plus" size={20} /></button>
             </div>
             {items.length > 0 && (
               <>

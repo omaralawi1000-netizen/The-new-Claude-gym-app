@@ -93,7 +93,7 @@ export function CoachPin({ d }: { d: AppData }) {
   const act = (n: Nudge) => { if (!n.action) return; buzz(10); hide(n.id, false); runNudge(n.action.run, today); };
   return (
     <section className={`pin${open ? ' open' : ''}`} aria-label={t('Pinned for you')}>
-      <button className="pin-head press" onClick={() => { buzz(6); setOpen((o) => !o); }} aria-expanded={open}>
+      <button className="pin-head press" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
         <span className="pin-mark"><Icon name="sparkle" size={14} /></span>
         <span className="pin-line">
           {open ? <span className="pin-label">{t('The Coach noticed')}</span> : <span className="pin-title trunc">{top.title}</span>}
@@ -115,10 +115,10 @@ export function CoachPin({ d }: { d: AppData }) {
                         {n.body && <div className="pin-b">{n.body}</div>}
                         <div className="pin-acts">
                           {n.action && <button className="chip sm acc press" onClick={() => act(n)}>{n.action.label}</button>}
-                          <button className="chip sm press" onClick={() => { buzz(6); hide(n.id, false); }}>{t('Not now')}</button>
+                          <button className="chip sm press" onClick={() => hide(n.id, false)}>{t('Not now')}</button>
                         </div>
                       </div>
-                      <button className="icon-btn flat sm press pin-x" aria-label={t('Dismiss')} onClick={() => { buzz(6); hide(n.id, true); }}><Icon name="close" size={15} /></button>
+                      <button className="icon-btn flat sm press pin-x" aria-label={t('Dismiss')} onClick={() => hide(n.id, true)}><Icon name="close" size={15} /></button>
                     </div>
                   </Collapse>
                 ))}

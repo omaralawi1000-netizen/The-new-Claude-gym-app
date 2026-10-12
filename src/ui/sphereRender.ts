@@ -116,8 +116,6 @@ export class SphereRenderer {
   private ripples: { ox: number; oy: number; oz: number; age: number; amp: number }[] = []; // a syllable: a ring of light crossing it towards you
   private ign = -1;                        // seconds into the arrival spiral (-1: none)
   private ignTop = false;                  // its front has reached the top (the whole orb lit up)
-  /** a syllable was heard (its strength): the page turns it into a haptic tick */
-  onOnset: ((s: number) => void) | null = null;
   /** how loudly you are speaking right now, 0..1 (time-smoothed) — for things around the orb that should breathe with it */
   get voice() { return Math.min(1, this.body * 0.75 + this.env * 0.45); }
   constructor(private canvas: HTMLCanvasElement | OffscreenCanvas) { this.ctx = canvas.getContext('2d') as Ctx2D; }
@@ -199,7 +197,6 @@ export class SphereRenderer {
       const ox = Math.cos(a) * r, oy = Math.sin(a) * r - 0.12;
       if (this.ripples.length >= 6) this.ripples.shift();
       this.ripples.push({ ox, oy, oz: Math.sqrt(Math.max(0, 1 - ox * ox - oy * oy)), age: 0, amp: Math.min(1, 0.45 + raw * 0.9) });
-      if (live) this.onOnset?.(raw);
     }
     this.prevV = raw;
     for (const r of this.ripples) r.age += dt;

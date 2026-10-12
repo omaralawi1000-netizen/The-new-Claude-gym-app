@@ -451,7 +451,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
                   // read it aloud (each word lights up as it is said), or take the question on in the Coach
                   <motion.div className="reply-foot" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ ...SEND, delay: 0.12 }}>
                     <SpeakButton id={last.id} text={last.reply} />
-                    <button className="cont-chip press" onClick={() => { buzz(6); stopSpeaking(); toCoach.current = true; useUI.getState().swap(1, 'coach', { seed: turnsRef.current.filter((x) => x.done && (x.said || x.reply)).slice(-4).map((x) => ({ said: x.said, reply: x.reply })) }); }}>
+                    <button className="cont-chip press" onClick={() => { stopSpeaking(); toCoach.current = true; useUI.getState().swap(1, 'coach', { seed: turnsRef.current.filter((x) => x.done && (x.said || x.reply)).slice(-4).map((x) => ({ said: x.said, reply: x.reply })) }); }}>
                       {t('Continue in Coach')} <Icon name="chevR" size={14} sw={2.2} />
                     </button>
                   </motion.div>

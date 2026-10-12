@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { exerciseMap, plannedFor } from '../state/store';
-import { useUI, buzz } from '../state/ui';
+import { useUI } from '../state/ui';
 import { useT, useLang } from '../lib/i18n';
 import { addDays, diffDays, fmtDate, startOfWeek } from '../lib/dates';
 import { MUSCLES, setsPerMuscle } from '../lib/stats';
@@ -165,7 +165,7 @@ export function RecentRecords({ d, today }: { d: AppData; today: string }) {
           const gain = r.previous !== undefined && r.kind !== 'volume' ? r.value - r.previous : null;
           const vs = r.kind === 'volume' ? setOf(r, sessionId) : undefined;
           return (
-            <button key={r.exerciseId} className="tc-row press" onClick={() => { buzz(6); push('sessionDetail', { id: sessionId }); }}>
+            <button key={r.exerciseId} className="tc-row press" onClick={() => push('sessionDetail', { id: sessionId })}>
               <span className="trunc">{ex ? exName(ex, lang) : '?'} <span className="t3 xs">· {ago(date)}</span></span>
               <span className="num tc-val">{gain !== null && gain > 0 && <span className="tc-up gold">+{val(r, Math.round(gain * 100) / 100)}</span>}{vs ? `${fmtNum(kgToDisplay(vs.weightKg ?? 0, u), lang, 2)} ${u} × ${vs.reps}` : val(r, r.value)}{r.kind === 'e1rm' && <span className="xs t3" style={{ fontWeight: 500 }}>1RM</span>}</span>
             </button>

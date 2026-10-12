@@ -284,6 +284,9 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
    `--press` is sized to the control so a wide card and a small icon sink by the same gentle amount. Down is quick and
    soft, the way back is the calm spring above. */
 .press[data-pressed] { transform: scale(var(--press, 0.95)); transition: transform 110ms var(--ease-out), background-color 200ms, opacity 200ms; }
+/* controls that also ease their colour keep the press's spring (an inline transition used to drop it: the press snapped) */
+.toggle.press:not([data-pressed], [data-press-off]) { transition: transform 520ms var(--ease-spring), background-color 260ms var(--ease-smooth); }
+.press[data-press-off] { transition: transform 240ms var(--ease-out), background-color 200ms, opacity 200ms; }
 /* the dock's tabs keep the plain CSS press: the dock measures them the moment a tab is picked (ui/TabBar.tsx), and a
    press still held then would shift where it slides the icons from */
 .tab.press:active { transform: scale(0.94); transition-duration: 80ms; }
