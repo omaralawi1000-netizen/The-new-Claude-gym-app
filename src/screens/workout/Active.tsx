@@ -23,6 +23,7 @@ import { kb } from '../../ui/keyboard';
 import { viewportH } from '../../ui/viewport';
 import { BOUNCY, SURFACE, SURFACE_EXIT } from '../../ui/motion';
 import { FocusView, upNextOf, useFocusPage, type FocusApi } from './Focus';
+import { morphBack, morphLand, morphStart, type Morph } from './morph';
 
 /** False while the workout is minimised (kept alive but hidden): its clocks stop ticking. */
 const WkLive = createContext(true);
@@ -118,8 +119,20 @@ export function ActiveWorkout({ props, open = true }: { props: { origin?: 'hero'
   const [focusBuilt, setFocusBuilt] = useState(view === 'focus');
   const [focusIn, setFocusIn] = useState(view === 'focus');
   const focusApi = useRef<FocusApi | null>(null);
+  // the card of the exercise you're on travels between the two views as one object (morph.ts); `shared` while it does
+  const morph = useRef<Morph | null>(null);
+  const focusEl = useRef<HTMLDivElement>(null);
+  const [shared, setShared] = useState<null | 'in' | 'back'>(null);
   const switchView = () => {
     const next = view === 'list' ? 'focus' : 'list';
+    if (next === 'focus') {
+      const a0 = useStore.getState().active;
+      morph.current = morphStart(body.current, nextSetOf(a0)?.se.id ?? a0?.exercises[0]?.id);
+      setShared(morph.current ? 'in' : null);
+    } else {
+      morph.current = null;
+      setShared(morphBack(body.current, focusEl.current) ? 'back' : null);
+    }
     setView(next);
     try { localStorage.setItem('aven.wkView', next); } catch { /* ignore */ }
   };
@@ -131,9 +144,16 @@ export function ActiveWorkout({ props, open = true }: { props: { origin?: 'hero'
       return () => cancelAnimationFrame(id);
     }
     setFocusIn(false);
-    const id = setTimeout(() => setFocusBuilt(false), 700);
+    const id = setTimeout(() => { setFocusBuilt(false); setShared(null); }, 700);
     return () => clearTimeout(id);
   }, [view]);
+  // Focus has been laid out and is being shown this frame: its card takes over from the list's, from exactly there
+  useLayoutEffect(() => {
+    if (!focusIn || !morph.current) return;
+    morphLand(focusEl.current, morph.current); morph.current = null;
+    const id = setTimeout(() => setShared(null), 900);
+    return () => clearTimeout(id);
+  }, [focusIn]);
   // Opening is started before the first paint, so the browser-run half is already going when the rest of the window's setup
   // work runs. Closing — the chevron, a swipe, Back, or another screen taking its place — slides it down; then it is hidden
   // (kept, so the next opening is only the slide).
@@ -306,7 +326,7 @@ export function ActiveWorkout({ props, open = true }: { props: { origin?: 'hero'
 
           {/* body: the list, and Focus over it when chosen (the list stays, faded out, so switching back keeps your place) */}
           <div className="wk-views">
-          <motion.div ref={body} style={{ flex: 1, overflowY: 'auto', padding: '4px 16px 0', paddingBottom: bodyPad, overscrollBehavior: 'contain' }} className={`hide-scroll wk-list${view === 'focus' && a.exercises.length > 0 ? ' wk-away' : ''}`}>
+          <motion.div ref={body} style={{ flex: 1, overflowY: 'auto', padding: '4px 16px 0', paddingBottom: bodyPad, overscrollBehavior: 'contain' }} className={`hide-scroll wk-list${view === 'focus' && a.exercises.length > 0 && (focusIn || shared !== 'in') ? ' wk-away' : ''}${shared === 'back' ? ' back' : ''}`}>
             {a.exercises.length === 0 && (
               <div className="wk-empty">
                 <div className="display display-sm" style={{ fontStyle: 'italic' }}>{t('Empty session')}</div>
@@ -331,7 +351,7 @@ export function ActiveWorkout({ props, open = true }: { props: { origin?: 'hero'
             )}
           </motion.div>
           {focusBuilt && a.exercises.length > 0 && (
-            <div className={`wk-focus${focusIn && view === 'focus' ? ' on' : ''}`}>
+            <div ref={focusEl} className={`wk-focus${focusIn && view === 'focus' ? ' on' : ''}${shared === 'in' ? ' shared' : ''}`}>
               <FocusView exMap={exMap} onMenu={setMenu} pad={bodyPad} apiRef={focusApi} />
             </div>
           )}
