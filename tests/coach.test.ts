@@ -4,12 +4,12 @@ import { validateAgent, runActions, type AgentCtx } from '../src/lib/agent';
 import { useStore } from '../src/state/store';
 import { defaultData, normaliseData, MEMORY_MAX } from '../src/state/defaults';
 import { makeT } from '../src/lib/i18n';
-import { memoryBlock, buildCoachContext } from '../src/lib/coachContext';
+import { memoryBlock, buildCoachContext, buildTodayContext, AGENT_SYSTEM } from '../src/lib/coachContext';
 import { setsPerMuscle, usualDays, stalledLifts, reviewWeekEnd, weekReview } from '../src/lib/stats';
 import { usageCost, recordUsage, spentKr, overLimit, USD_TO_DKK } from '../src/lib/spend';
 import { solAgent } from '../src/lib/openai';
 import { aiAgent } from '../src/lib/gemini';
-import type { WorkoutSession, MuscleGroup } from '../src/lib/types';
+import type { WorkoutSession, MuscleGroup, Exercise, AppData } from '../src/lib/types';
 
 const ctx = (): AgentCtx => ({ t: makeT('en') as any, lang: 'en', today: '2026-10-06', brain: null });
 beforeEach(() => {
@@ -157,5 +157,37 @@ describe('the conversation the model sees', () => {
     expect(cardsNote([r('Skyr', true), r('Eggs', true)], ['Eggs'], [])).toBe('(offered, not taken: Skyr | done: Eggs)');
     expect(cardsNote([r('Banana')], [], ['Banana'])).toBe('(undone: Banana)');
     expect(cardsNote([], [], [])).toBe('');
+  });
+});
+
+describe('how\'s today', () => {
+  const bench = { id: 'bench', name: 'Bench Press', logType: 'weightReps', equipment: ['barbell'], muscles: ['chest'] } as unknown as Exercise;
+  const day = (): AppData => {
+    const d = defaultData(); d.settings.name = 'Omar'; d.settings.goals = { ...d.settings.goals, kcal: 2800, protein: 160 };
+    d.routines = [{ id: 'push', name: 'Push', items: [{ id: 'i1', exerciseId: 'bench', warmupSets: 0, workingSets: 3, repMin: 6, repMax: 8, restSec: 120 }], createdAt: 0, updatedAt: 0 }];
+    d.schedule = { ...d.schedule, mode: 'weekly', weekly: { 2: 'push' }, activities: { 3: ['wrestling'] } };
+    d.sessions = [ses('2026-10-02', [{ id: 'bench', sets: [{ kg: 92.5, reps: 8 }, { kg: 92.5, reps: 7 }, { kg: 92.5, reps: 6 }] }])];
+    d.entries = [{ id: 'f1', date: '2026-10-06', mealId: 'breakfast', nutrients: { kcal: 1200, protein: 80 } } as unknown as AppData['entries'][number]];
+    return d;
+  };
+  const now = new Date('2026-10-06T15:40:00');
+  it('gives the planned workout with the same targets the app fills in, and what is left to eat', () => {
+    const txt = buildTodayContext(day(), '2026-10-06', now, (id) => (id === 'bench' ? bench : undefined), (id) => (id === 'bench' ? 'Bench Press' : id));
+    expect(txt).toMatch(/Tuesday 2026-10-06, 15:40 \(afternoon\)\. Their name: Omar\./);
+    expect(txt).toMatch(/Push is planned today and not started/);
+    expect(txt).toMatch(/Bench Press target 95kg×6 on set 1 \(add weight; last time 92\.5kg×8, 92\.5kg×7, 92\.5kg×6\)/);
+    expect(txt).toMatch(/1200 kcal of 2800 \(1600 left\), 80 g protein of 160 \(80 left\)/);
+    expect(txt).toMatch(/Wrestling: none today; planned tomorrow/);
+    expect(txt).toMatch(/Last gym workout: 4 days ago/);
+  });
+  it('says the workout is done once it is, and a rest day points at the next one', () => {
+    const d = day(); d.sessions.push(ses('2026-10-06', [{ id: 'bench', sets: [{ kg: 95, reps: 6 }] }]));
+    expect(buildTodayContext(d, '2026-10-06', now, () => bench, () => 'Bench Press')).toMatch(/already trained today: Workout \(1 working sets\)/);
+    const rest = buildTodayContext(day(), '2026-10-07', now, () => bench, () => 'Bench Press');
+    expect(rest).toMatch(/no gym workout planned today .*next planned: Push on Tuesday/);
+    expect(rest).toMatch(/Wrestling: planned today, not logged yet/);
+  });
+  it('tells the model how to answer it', () => {
+    expect(AGENT_SYSTEM('en')).toMatch(/how\'s today\?.*TODAY AT A GLANCE/);
   });
 });

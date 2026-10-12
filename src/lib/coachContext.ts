@@ -1,6 +1,8 @@
 import type { AppData, Exercise, MuscleGroup } from './types';
 import { addDays, diffDays } from './dates';
 import { nutritionByDay, trendRate, weekStreak, weeklyTraining, weightTrend, average, setsPerMuscle, usualDays, stalledLifts, MUSCLES } from './stats';
+import { historyOf, incrementFor, suggestProgression } from './workout';
+import { plannedFor, missedWorkouts } from '../state/store';
 
 /**
  * The compact, factual summary the Coach is given. Everything here is computed on the device from the user's own records;
@@ -68,6 +70,77 @@ export function buildCoachContext(d: AppData, today: string, exName: (id: string
 }
 
 
+
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+/**
+ * TODAY AT A GLANCE: what "How's today?" is answered from. The time of day, today's workout with the targets the app itself
+ * will fill in (the same progression as the Today card and the workout), what is left to eat, wrestling, and how the week
+ * is going. Short on purpose: the full history is in the rest of DATA.
+ */
+export function buildTodayContext(d: AppData, today: string, now: Date, exOf: (id: string) => Exercise | undefined, exName: (id: string) => string): string {
+  const L: string[] = ['TODAY AT A GLANCE (answer "how\'s today?" from this):'];
+  const h = now.getHours();
+  const part = h < 5 ? 'night' : h < 12 ? 'morning' : h < 17 ? 'afternoon' : h < 22 ? 'evening' : 'night';
+  L.push(`Now: ${WEEKDAYS[new Date(`${today}T12:00:00`).getDay()]} ${today}, ${String(h).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')} (${part}).${d.settings.name.trim() ? ` Their name: ${d.settings.name.trim()}.` : ''}`);
+
+  // training today: running, done, planned (with targets) or a rest day
+  const doneToday = d.sessions.filter((s) => s.status === 'done' && s.date === today);
+  const plan = plannedFor(d, today, today);
+  const routine = plan ? d.routines.find((r) => r.id === plan.routineId) : undefined;
+  if (d.active) {
+    const sets = d.active.exercises.flatMap((e) => e.sets.filter((q) => q.type === 'working'));
+    L.push(`Training: a workout is running now (${d.active.name || 'Workout'}), ${sets.filter((q) => q.done).length} of ${sets.length} working sets done.`);
+  } else if (doneToday.length) {
+    L.push(`Training: already trained today: ${doneToday.map((s) => `${s.name || 'Workout'} (${s.exercises.reduce((n, e) => n + e.sets.filter((q) => q.done && q.type === 'working').length, 0)} working sets${s.records?.length ? `, ${s.records.length} PR` : ''})`).join(', ')}.`);
+  } else if (routine) {
+    const targets = routine.items.slice(0, 6).map((item) => {
+      const ex = exOf(item.exerciseId);
+      if (!ex) return '';
+      const range = `${item.workingSets}×${item.repMin}-${item.repMax}`;
+      if (ex.logType !== 'weightReps') return `${exName(ex.id)} ${range}`;
+      const hist = historyOf(ex.id, d.sessions);
+      const sug = suggestProgression(ex, hist, { min: item.repMin, max: item.repMax }, incrementFor(ex, d.increments, d.settings.plateStep));
+      const s1 = sug.sets?.[0];
+      const last = hist[0]?.sets.filter((q) => q.done && q.type === 'working') ?? [];
+      const lastTxt = last.length ? `; last time ${last.map((q) => `${q.weightKg ? `${r1(q.weightKg)}kg×` : ''}${q.reps ?? '?'}`).join(', ')}` : '';
+      if (sug.kind === 'first' || !s1 || s1.weightKg === undefined) return `${exName(ex.id)} ${range} (first time: no target yet)`;
+      const why = sug.kind === 'add-weight' ? 'add weight' : sug.kind === 'add-reps' ? 'one more rep' : sug.kind === 'stalled' ? 'stalled at this weight' : 'hold the weight';
+      return `${exName(ex.id)} target ${r1(s1.weightKg)}kg×${s1.reps} on set 1 (${why}${lastTxt})`;
+    }).filter(Boolean);
+    L.push(`Training: ${routine.name} is planned today and not started${plan?.source === 'rotation' ? ' (next in their rotation)' : ''}. The app will fill in these targets: ${targets.join('; ') || 'no exercises in it'}${routine.items.length > 6 ? `; +${routine.items.length - 6} more` : ''}.`);
+  } else {
+    let next = '';
+    for (let i = 1; i < 8 && !next; i++) { const p = plannedFor(d, addDays(today, i), today); const r = p && d.routines.find((x) => x.id === p.routineId); if (r) next = `${r.name} ${i === 1 ? 'tomorrow' : `on ${WEEKDAYS[new Date(`${addDays(today, i)}T12:00:00`).getDay()]}`}`; }
+    L.push(`Training: no gym workout planned today (a rest day unless they want one)${next ? `; next planned: ${next}` : ''}.`);
+  }
+  const wd = new Date(`${today}T12:00:00`).getDay();
+  const wrestleToday = (d.schedule.activities?.[wd] ?? []).includes('wrestling');
+  const wrestledToday = d.activities.some((a) => a.kind === 'wrestling' && a.date === today);
+  const wrestleTomorrow = (d.schedule.activities?.[(wd + 1) % 7] ?? []).includes('wrestling');
+  if (wrestleToday || wrestledToday || wrestleTomorrow) L.push(`Wrestling: ${wrestledToday ? 'already logged today' : wrestleToday ? 'planned today, not logged yet' : 'none today'}${wrestleTomorrow ? '; planned tomorrow' : ''}.`);
+  const lastDone = d.sessions.filter((s) => s.status === 'done' && s.date <= today).reduce<string | null>((m, s) => (!m || s.date > m ? s.date : m), null);
+  if (lastDone && lastDone !== today) L.push(`Last gym workout: ${diffDays(today, lastDone)} days ago (${lastDone}).`);
+  const missed = missedWorkouts(d, today).map((m) => `${d.routines.find((r) => r.id === m.routineId)?.name ?? '?'} on ${m.date}`);
+  if (missed.length) L.push(`Missed this past week (planned, not done): ${missed.join(', ')}.`);
+
+  // food today against the targets
+  const eaten = d.entries.filter((e) => e.date === today);
+  const sum = (k: 'kcal' | 'protein') => eaten.reduce((n, e) => n + (e.nutrients[k] ?? 0), 0);
+  const g = d.settings.goals;
+  if (!eaten.length) L.push(`Food: nothing logged yet today${g.kcal ? ` (target ${g.kcal} kcal${g.protein ? `, ${g.protein} g protein` : ''})` : ''}. Unknown, not zero.`);
+  else {
+    const kc = r0(sum('kcal')); const pr = r0(sum('protein'));
+    const meals = [...new Set(eaten.map((e) => e.mealId))].length;
+    const part0 = eaten.some((e) => e.nutrients.kcal === undefined) ? ' Some items have unknown nutrition, so these are lower bounds.' : '';
+    L.push(`Food: ${kc} kcal${g.kcal ? ` of ${g.kcal} (${g.kcal - kc >= 0 ? `${g.kcal - kc} left` : `${kc - g.kcal} over`})` : ''}, ${pr} g protein${g.protein ? ` of ${g.protein} (${g.protein - pr >= 0 ? `${g.protein - pr} left` : 'reached'})` : ''}; ${eaten.length} items in ${meals} meal${meals === 1 ? '' : 's'}.${part0}`);
+  }
+  const water = d.water.filter((w) => w.date === today).reduce((n, w) => n + w.ml, 0);
+  if (d.settings.widgets.water) L.push(`Water: ${water} of ${g.waterMl} ml.`);
+  const lastW = d.weights.reduce<{ date: string; kg: number } | null>((m, w) => (!m || w.date > m.date ? w : m), null);
+  if (lastW) L.push(`Weigh-in: ${lastW.date === today ? `${r1(lastW.kg)} kg today` : `last ${diffDays(today, lastW.date)} days ago`}.`);
+  return L.join('\n');
+}
 
 export const exerciseNames = (list: Exercise[]) => list.filter((e) => !e.archived).map((e) => e.name);
 
@@ -142,6 +215,8 @@ export const AGENT_SYSTEM = (lang: 'en' | 'da') =>
   '7. They send a PHOTO (their message starts with [photo]) → work out what it shows. A nutrition label → create_food with the per-100 g/ml values exactly as printed, named from the package (add amount if they say they ate some). A gym machine, a piece of equipment or an exercise → say what it is, how to set it up and 2–3 form cues, and add show_exercise with the closest catalog exercise (say if it is only close). A training program or plan (screenshot, whiteboard) → create_routine with its exercises mapped to catalog names. Food on a plate → describe it, and log_food the items with estimated amounts only if they ask you to log it. If you can\'t tell, say what you see and ask. You can\'t judge someone\'s form from one photo — say so if asked.\n' +
   'When you recommend specific exercises, add show_exercise for each (up to 3) so they can open the how-to.\n' +
   '8. They ask what to EAT (to hit protein or calories, or for a meal idea) → suggest_food with 2–3 options built mainly from their FREQUENT FOODS (things they have at home), each with amounts and approximate totals that fit what is left today; the reply is one short line. Each option becomes a card they can log with one tap, so don\'t also log_food.\n' +
+  '9. They ask how TODAY looks ("how\'s today?", "what\'s the plan?", "what should I do today?", "hvordan ser dagen ud?") → answer from TODAY AT A GLANCE, no actions. Lead with what matters most right now for this time of day: the planned workout with its 2–3 main targets exactly as listed (weight × reps, and what they did last time), or that it is done, or a rest/wrestling day. Then food: what is left of calories and protein, with one concrete idea from FREQUENT FOODS if they are well short late in the day. Add one line about the week or weight only if it is notable. 3–5 short lines with real numbers, no generic advice, no list of everything. ' +
+  'They ask how they are DOING overall ("how am I doing?", "am I on track?") → the last 2–4 weeks: training consistency, the lift that improved most or one that stalled, the weight trend against their goal, protein against target on logged days; end with the one thing to change. Use their name at most once, and only as a greeting.\n' +
   'Judge training balance from the per-muscle set counts and wrestling, not from which exercise names appear. When you plan (routines, the weekly schedule, what to do today), plan around wrestling: no heavy lower-body or very draining session the day before a usual wrestling day. ' +
   'MEMORY lists what they told you before: follow it in every answer. Never repeat advice they have declined or nag about a choice they made on purpose; if it clearly works against their stated goal you may say so once, in one line, and then drop it. ' +
   'ASK, DON\'T ASSUME: when advice depends on something DATA cannot show — training or food they may not log, or a choice they may have made on purpose (no leg sessions, no cardio, few logged days) — and MEMORY doesn\'t answer it, ask one short question instead of prescribing; when they answer, remember it. ' +

@@ -72,6 +72,9 @@ export function useCoachTips(max = 3): Tip[] {
     const add = (x: Tip) => tips.push(x);
     const active = !!s.active;
 
+    // the one question that covers the whole day: the workout with its targets, what is left to eat
+    if (s.entries.length || s.sessions.length || s.routines.length) add({ icon: 'sparkle', label: t('How’s today?'), prompt: t('How’s today?') });
+
     // training
     const plan = plannedFor(s, today, today);
     const routine = plan ? s.routines.find((r) => r.id === plan.routineId) : undefined;
@@ -111,7 +114,10 @@ export function useCoachTips(max = 3): Tip[] {
     add({ icon: 'sparkle', label: t('How is my week going?'), prompt: t('How is my week going?') });
     if (s.entries.length === 0 && s.sessions.length === 0) { add({ icon: 'food', label: t('Log a banana'), prompt: t('Log a banana') }); add({ icon: 'dumbbell', label: t('Bench press 80 kg for 8, 8, 6'), prompt: t('Bench press 80 kg for 8, 8, 6') }); }
     const seen = new Set<string>();
-    return tips.filter((x) => (seen.has(x.prompt) ? false : (seen.add(x.prompt), true))).slice(0, max);
+    const all = tips.filter((x) => (seen.has(x.prompt) ? false : (seen.add(x.prompt), true)));
+    // the week question always keeps its place at the end; today's question and what was noticed fill the rest
+    const week = all.find((x) => x.prompt === t('How is my week going?'));
+    return week ? [...all.filter((x) => x !== week).slice(0, max - 1), week] : all.slice(0, max);
     // eslint-disable-next-line
   }, [s.entries, s.sessions, s.routines, s.schedule, s.weights, s.water, s.active, s.settings, lang, t, max]);
 }
