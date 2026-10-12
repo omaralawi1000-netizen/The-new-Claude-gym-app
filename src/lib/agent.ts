@@ -14,7 +14,7 @@ import { useStore, foodPool, allExercises } from '../state/store';
 import { useUI } from '../state/ui';
 import { addDays } from './dates';
 import { defaultMealId, mealName } from './derive';
-import { fold, parseFoodText, resolveRows, rowQuantity, type ParsedFoodRow } from './foodText';
+import { fold, parseFoodText, pickOnline, resolveRows, rowQuantity, type ParsedFoodRow } from './foodText';
 import { matchExercises, parseWorkoutText } from './workoutText';
 import { entryFromSnapshot, quickEntry, snapshotOf, uid } from './nutrition';
 import { searchOnline } from './foodApi';
@@ -315,7 +315,7 @@ async function doLogFood(a: Extract<AgentAction, { type: 'log_food' }>, ctx: Age
     if (!food && r.status === 'ambiguous' && r.candidates[0] && r.candidates[0].score >= 0.5) food = r.candidates[0].food;
     // nothing in the bundled/own foods: try the online databases (bounded), unless the user turned lookups off
     if (!food && st.settings.foodLookup) {
-      const hit = await Promise.race([searchOnline(r.query).then((x) => x.foods[0]), new Promise<undefined>((ok) => setTimeout(() => ok(undefined), 4000))]).catch(() => undefined);
+      const hit = await Promise.race([searchOnline(r.query).then((x) => pickOnline(r.query, x.foods)), new Promise<undefined>((ok) => setTimeout(() => ok(undefined), 4000))]).catch(() => undefined);
       if (hit) { food = hit; toSave.push(hit); }
     }
     if (food) {

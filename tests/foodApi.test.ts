@@ -40,3 +40,23 @@ describe('online food lookup', () => {
     expect(urls.some((u) => u.includes('langs=da'))).toBe(true);
   });
 });
+
+import { pickOnline } from '../src/lib/foodText';
+import type { Food } from '../src/lib/types';
+const mk = (name: string, kcal: number, extra: Partial<Food> & { p?: number; c?: number; f?: number } = {}): Food => ({ id: `off:${name}`, name, source: 'off', basis: 'g', per100: { kcal, protein: extra.p ?? 0, carbs: extra.c ?? 0, fat: extra.f ?? 0 }, portions: [], brand: extra.brand } as Food);
+
+describe('pickOnline (orb)', () => {
+  it('prefers the plain food over an odd brand, and skips absurd data', () => {
+    const list = [mk('Skyr vanilje bar', 400, { brand: 'Fitbar', p: 10, c: 50, f: 15 }), mk('Skyr', 9999), mk('Skyr naturel', 63, { p: 11, c: 4, f: 0.2, brand: 'Arla' })];
+    expect(pickOnline('200 g skyr'.replace('200 g ', ''), list)?.name).toBe('Skyr naturel');
+  });
+  it('takes the named brand when the user said it', () => {
+    const list = [mk('Skyr naturel', 63, { p: 11, c: 4, f: 0.2, brand: 'Arla' }), mk('Skyr naturel', 60, { p: 11, c: 4, f: 0.1, brand: 'Lidl' })];
+    expect(pickOnline('lidl skyr naturel', list)?.brand).toBe('Lidl');
+  });
+  it('returns nothing for a poor match so the AI estimate takes over', () => {
+    expect(pickOnline('rugbrød med leverpostej', [mk('Chocolate wafer', 520, { p: 6, c: 60, f: 28 })])).toBeUndefined();
+    expect(pickOnline('banana', [mk('Banana', 89, { p: 1, c: 22, f: 0.3 })])?.name).toBe('Banana');
+    expect(pickOnline('rice krispies', [mk('Rice Krispies', 380, { p: 6, c: 85, f: 1, brand: "Kellogg's" })])?.name).toBe('Rice Krispies');
+  });
+});

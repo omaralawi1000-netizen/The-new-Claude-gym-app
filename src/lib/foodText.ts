@@ -53,6 +53,35 @@ export function scoreFood(food: Food, query: string): number {
   return best;
 }
 
+/** Is this online product plausible? Calories present, sane, and roughly matching its own macros (catches typos in crowd-sourced data). */
+function sane(f: Food): boolean {
+  const { kcal, protein = 0, carbs = 0, fat = 0 } = f.per100;
+  if (kcal === undefined || !(kcal >= 0 && kcal <= 900)) return false;
+  if (protein + carbs + fat > 105) return false;
+  const fromMacros = protein * 4 + carbs * 4 + fat * 9;
+  return Math.abs(fromMacros - kcal) <= kcal * 0.5 + 60;
+}
+
+/**
+ * The best online result for a spoken food, or undefined when none is a real match (the caller then falls back to the
+ * labelled AI estimate). Closest name wins; a branded product only wins if the user named that brand; odd data is skipped.
+ */
+export function pickOnline(query: string, foods: Food[], minScore = 0.55): Food | undefined {
+  const qTokens = tokens(query);
+  let best: { food: Food; score: number } | undefined;
+  for (const f of foods) {
+    if (!sane(f)) continue;
+    let score = scoreFood(f, query);
+    if (f.brand) {
+      const brandTokens = tokens(f.brand);
+      const named = brandTokens.some((b) => qTokens.includes(b));
+      if (!named) score -= 0.08; // a generic food beats a brand nobody asked for
+    }
+    if (score >= minScore && (!best || score > best.score)) best = { food: f, score };
+  }
+  return best?.food;
+}
+
 export function searchFoods(query: string, pool: Food[], boost: (f: Food) => number = () => 0, limit = 40): Scored[] {
   const out: Scored[] = [];
   for (const f of pool) {
