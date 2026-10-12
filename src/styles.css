@@ -988,11 +988,18 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
   45% { opacity: 1; }
   to { opacity: 1; transform: none; }
 }
-.coach-reply { --word-stagger-cap: 160ms; }
+/* the Coach's answers write themselves in exactly like the orb screen's: word by word, each lifting out of a soft blur
+   (.calm .w above) */
 .coach-reply:not(.still) { animation: coachReply 240ms var(--ease-out) backwards; }
 @keyframes coachReply { from { opacity: .65; transform: translate3d(0, 3px, 0); } to { opacity: 1; transform: none; } }
-.coach-reply:not(.still) .w { animation: coachWord 480ms cubic-bezier(.2, .7, .2, 1) backwards; }
-@keyframes coachWord { from { opacity: 0; filter: blur(1.5px); transform: translate3d(0, 2px, 0); } to { opacity: 1; filter: none; transform: none; } }
+/* a sent message in flight (Coach.tsx): a copy of the bubble above everything; its glass gathers round the words */
+.coach-fly { position: fixed; z-index: 400; margin: 0; max-width: none; box-sizing: border-box; pointer-events: none;
+  transform-origin: 0 0; will-change: transform; background: none; border: 0; box-shadow: none; }
+.coach-fly::before { content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; background: var(--fly-bg); box-shadow: var(--fly-shadow);
+  animation: flyGlass 420ms 60ms var(--ease-out) backwards; }
+@keyframes flyGlass { from { opacity: 0; } }
+.coach-field .input::placeholder { transition: opacity 360ms var(--ease-out); }
+.coach-field .input.sent-away::placeholder { opacity: 0; transition: none; }
 :root[data-motion='reduce'] :is(.coach-sent, .coach-reply, .coach-reply .w) { animation: none; }
 .coach-body :is(.action-card, .action-ic, .action-line, .tip) { animation: none; }
 .coach-body .said { background: color-mix(in srgb, var(--ac) 9%, var(--s2)); border: 0;

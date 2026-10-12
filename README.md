@@ -1060,3 +1060,16 @@ Light only: the orb's outline never changes.
 - Omar didn't like v0.1.30's all-upright titles, so the title style is back exactly as in v0.1.29: slanted serif for
   routine names, meals, the Food date, Today's workout card, Wrestling/Cardio and the empty-workout title; upright
   elsewhere. Everything else from v0.1.30 stays (colours, food tool pills, focus icon).
+
+## Coach: messages glide, answers write themselves in (12 Oct 2026, v0.1.36)
+
+- **Sending is one move, like iMessage.** What you typed (or said into the Coach's mic) lifts out of the field and glides
+  up into its bubble, while the conversation moves up on the same spring to make room. The field's "Ask the Coach" comes
+  back once the words have left it. How: a copy of the bubble flies above everything (the list clips its own contents)
+  from the text's place in the field to the bubble's, its glass gathering round the words, and hands over to the real
+  bubble where it lands; the conversation is scrolled to its end at once and played back up from where it was. Web
+  Animations on transform/opacity only. Suggestion chips keep their small rise.
+- **Answers write themselves in like on the orb screen**: word by word, each lifting out of a soft blur (`.calm .w`), with
+  the orb screen's timing. The Coach had its own quicker, fainter version.
+- Opening the Coach was filmed frame by frame and is already one move (the sheet arrives with its conversation and its
+  field together), so it is unchanged.
