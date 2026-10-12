@@ -694,9 +694,14 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .pill-btn:active:not(:disabled) { background: color-mix(in srgb, var(--tx) 12%, transparent); transform: scale(.88); transition-duration: 80ms; }
 .pill-btn:disabled { opacity: .28; }
 .pill-val { min-width: 36px; height: 38px; display: grid; place-items: center; overflow: hidden; font-size: 16px; font-weight: 650; white-space: nowrap; }
-.step-val, .wk-roll { display: inline-block; }
-.step-val.roll-up, .wk-roll.roll-up { animation: roll-up 320ms var(--ease-out); }
-.step-val.roll-down, .wk-roll.roll-down { animation: roll-down 320ms var(--ease-out); }
+.step-val { display: inline-block; }
+.step-val.roll-up { animation: roll-up 320ms var(--ease-out); }
+.step-val.roll-down { animation: roll-down 320ms var(--ease-out); }
+/* a number that rolls to its new value, digit by digit (ui/Roll.tsx) */
+.roll { display: inline-block; white-space: pre; }
+.roll-c { position: relative; display: inline-block; }
+.roll-c > span { display: inline-block; }
+.roll-ghost { position: absolute; left: 0; top: 0; pointer-events: none; }
 @keyframes roll-up { from { transform: translateY(60%); opacity: 0; } }
 @keyframes roll-down { from { transform: translateY(-60%); opacity: 0; } }
 @media (max-width: 380px) { .pill-btn { width: 34px; } .pill-val { min-width: 32px; } .rt-range { gap: 3px; } }

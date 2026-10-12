@@ -1,4 +1,5 @@
-import { animate, useMotionValue, usePresence, useReducedMotion } from 'motion/react';
+import { Roll } from './Roll';
+import { usePresence, useReducedMotion } from 'motion/react';
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { Lens } from './lens';
 import { apple } from './motion';
@@ -46,23 +47,10 @@ export function Seg<T extends string | number>({ value, onChange, options, style
 }
 
 // ── animated number ─────────────────────────────────────────
+/** A number that rolls to its new value (ui/Roll.tsx). It used to count through every value in between, rewriting the
+ * text (and laying the line out again) on every frame. */
 export function Count({ value, format, className, style }: { value: number; format?: (n: number) => string; className?: string; style?: CSSProperties }) {
-  const ref = useRef<HTMLSpanElement>(null);
-  const mv = useMotionValue(value);
-  const reduce = useReducedMotion();
-  const fmt = format ?? ((n) => String(Math.round(n)));
-  useEffect(() => {
-    if (reduce) { mv.set(value); return; }
-    const c = animate(mv, value, { duration: 0.55, ease: [0.22, 1, 0.36, 1] });
-    return () => c.stop();
-  }, [value, reduce, mv]);
-  useEffect(() => {
-    const u = mv.on('change', (v) => { if (ref.current) ref.current.textContent = fmt(v); });
-    if (ref.current) ref.current.textContent = fmt(mv.get());
-    return u;
-    // eslint-disable-next-line
-  }, [mv, format]);
-  return <span ref={ref} className={`num ${className ?? ''}`} style={style}>{fmt(value)}</span>;
+  return <Roll text={(format ?? ((n) => String(Math.round(n))))(value)} className={className} style={style} />;
 }
 
 // ── numeric input, locale aware ─────────────────────────────

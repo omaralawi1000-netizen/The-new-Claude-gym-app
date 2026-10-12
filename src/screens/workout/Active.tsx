@@ -6,6 +6,7 @@ import { useT, useLang } from '../../lib/i18n';
 import type { Exercise, SessionExercise, SetRecord } from '../../lib/types';
 import { Icon } from '../../ui/Icon';
 import { Collapse, NumInput, Stepper } from '../../ui/kit';
+import { Roll } from '../../ui/Roll';
 import { flip } from '../../ui/flip';
 import { Sheet, SheetHead, SOFT, useOverlayZ } from '../../ui/Sheet';
 import { beatLastTime, elapsedMs, historyOf, incrementFor, lastPerformance, repRange, sessionSetCount, sessionVolume, suggestProgression, countable } from '../../lib/workout';
@@ -304,7 +305,7 @@ export function ActiveWorkout({ props, open = true }: { props: { origin?: 'hero'
                 {/* the clock and the tally on one line: time, sets, volume */}
                 <div className="wk-meta num">
                   <span className={`wk-clock${paused ? ' paused' : ''}`}><Clock /></span>
-                  <span className="wk-meta-rest">{total ? <><Roll v={done} />/{total} {t('sets')}{done > 0 && <> · {fmtNum(Math.round(kgToDisplay(sessionVolume(a.exercises), weightUnit)), lang, 0)} {weightUnit}</>}</> : t('No sets yet')}</span>
+                  <span className="wk-meta-rest">{total ? <><Roll text={String(done)} />/{total} {t('sets')}{done > 0 && <> · <Roll text={fmtNum(Math.round(kgToDisplay(sessionVolume(a.exercises), weightUnit)), lang, 0)} /> {weightUnit}</>}</> : t('No sets yet')}</span>
                   {paused && <span className="wk-paused">{t('Paused')}</span>}
                   {typing && a.rest && <RestInline />}
                 </div>
@@ -395,13 +396,6 @@ export function ActiveWorkout({ props, open = true }: { props: { origin?: 'hero'
 }
 
 /** A number that rolls up (or down) when it changes, like the steppers; still on the first draw. */
-function Roll({ v }: { v: number }) {
-  const prev = useRef(v);
-  const dir = v > prev.current ? 'up' : v < prev.current ? 'down' : '';
-  useEffect(() => { prev.current = v; }, [v]);
-  return <span key={v} className={`wk-roll${dir ? ` roll-${dir}` : ''}`}>{v}</span>;
-}
-
 // The ticking parts live in their own small components, so the clock re-renders a line of text four times a
 // second instead of the whole workout screen.
 function Clock() {
@@ -489,7 +483,10 @@ function WorkoutBar({ engage, exMap, focus, away, onDone, onJump }: { engage: En
           aria-label={state === 'rest' ? `${t('Rest')} ${fmtDuration(Math.ceil(left))}` : `${top}. ${big}${state === 'next' && target ? `, ${target}` : ''}`}>
           <span key={`t${state}${after ? after.se.id : ''}`} className="wk-bar-top">{top}</span>
           <span key={`b${state}${after ? after.se.id : ''}`} className="wk-bar-big num">{state === 'next' ? <><span className="wk-bar-name">{name}</span>{target && <span className="wk-bar-tgt">{target}</span>}</>
-            : state === 'rest' ? <span key={Math.ceil(left)} className={!a.pausedAt && left <= 3 ? 'wk-tick' : undefined}>{big}</span> : big}</span>
+            : state === 'rest' ? (!a.pausedAt && left <= 3
+              // the last three seconds swell on each tick; before that the seconds roll down
+              ? <span key={Math.ceil(left)} className="wk-tick">{big}</span> : <Roll key="r" text={big} />)
+            : state === 'done' ? <Roll text={big} /> : big}</span>
         </button>
         <button className="wk-bar-orb press" aria-label={t('Dictate sets')} onPointerDown={() => orbPress(true)} onPointerUp={() => orbPress(false)} onPointerCancel={() => orbPress(false)} onPointerLeave={() => orbPress(false)}
           onClick={() => { orbTap(1); push('voice', { mode: 'workout' }); }}>
