@@ -961,6 +961,7 @@ export const da: Record<string, string> = {
  "Heard by your browser": "Hørt af din browser",
  "Hide key": "Skjul nøgle",
  "How is my week going?": "Hvordan går min uge?",
+ "How’s today?": "Hvordan ser dagen ud?",
  "If off, or if Gemini fails, the built-in parser is used.": "Hvis slået fra, eller hvis Gemini fejler, bruges den indbyggede tolker.",
  "Is my weight moving the right way?": "Bevæger min vægt sig i den rigtige retning?",
  "Language you speak": "Sprog du taler",
