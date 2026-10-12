@@ -1154,6 +1154,30 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-page-ghost .plinth { padding: 14px 12px 140px; border-radius: var(--r-lg); }
 @media (prefers-reduced-motion: reduce) { .voice-glow, .wk-focus.shared.on .wk-dots, .wk-focus.shared.on .wk-stage, .wk-list.back > * { animation: none; } .wk-list, .wk-list.wk-away, .wk-focus, .wk-focus.on, .wk-dot-pill { transition: none; } }
 
+/* ── exercise page (screens/workout/ExerciseDetail.tsx): the movement on a soft pool of the accent, what it works, then
+   one card with what to do next and your numbers, then how to do it. Section titles carry a small icon. */
+.exd-stage { height: 216px; display: grid; place-items: center; border-radius: var(--r-lg); overflow: hidden; margin-top: 2px;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--ac) 12%, transparent), transparent); }
+.exd-stage.map { height: 190px; }
+.exd-works { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 6px; }
+.exd-head { display: flex; align-items: center; gap: 7px; margin: 26px 0 10px; }
+.exd-head svg { flex: none; opacity: .9; }
+.exd-plan { margin-top: 20px; padding: 16px 18px 16px; border-radius: var(--r-lg); }
+.exd-plan > .exd-head:first-child { margin-top: 0; margin-bottom: 8px; }
+.exd-target { display: flex; align-items: baseline; gap: 2px; }
+.exd-unit { font-family: var(--f-ui); font-size: 15px; font-weight: 500; letter-spacing: 0; color: var(--tx3); margin: 0 10px 0 5px; }
+.exd-x { font-size: 24px; color: var(--tx3); margin-right: 8px; }
+.exd-reason { margin-top: 6px; }
+.exd-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 10px; }
+.exd-stats.lined { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+.exd-stat { min-width: 0; }
+.exd-stat-v { font-size: 17px; font-weight: 600; margin: 3px 0 1px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.exd-steps { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 12px; }
+.exd-steps li { display: flex; gap: 12px; align-items: flex-start; line-height: 1.42; }
+.exd-n { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 650;
+  color: var(--ac-text); background: var(--ac-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ac) 30%, transparent); margin-top: -1px; }
+.exd-chart { padding: 14px 14px 6px; border-radius: var(--r-lg); }
+
 /* ── moving figures (screens/workout/Figure.tsx): a sculpted body nested at its joints; each joint turns on a browser-run
    transform, each limb drawn once as a small SVG. Lit like a rounded form (bright down a limb's middle, falling off to its
    edges) with a faint rim so it stands off the dark; opaque, so overlaps never show darker. The muscles the exercise works

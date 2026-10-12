@@ -1,5 +1,15 @@
 /** Danish strings. Keys are the English UI strings. Missing keys fall back to English (see scripts/i18n-keys.mjs --missing). */
 export const da: Record<string, string> = {
+ "Down {n} since {date}": "Ned {n} siden {date}",
+ "Est. 1RM": "Est. 1RM",
+ "Heaviest": "Tungeste",
+ "Last time": "Sidste gang",
+ "Next time": "Næste gang",
+ "Steady since {date}": "Stabil siden {date}",
+ "Swap for": "Skift til",
+ "Up {n} since {date}": "Op {n} siden {date}",
+ "Works": "Træner",
+ "{n} sets": "{n} sæt",
  "Try saying": "Prøv at sige",
  "Time to train": "Tid til at træne",
  "That’s a lot — check the amount": "Det er meget — tjek mængden",
