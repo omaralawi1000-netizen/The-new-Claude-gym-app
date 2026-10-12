@@ -26,7 +26,7 @@ When a section is done, change `[ ]` to `[x]` here in the same pull request.
 - [ ] **6. Exercise detail visual, part 2**: the other movement types (presses, curls, squats, pulldowns, …).
 
 - [ ] **7. Workout focus view** (12 Oct): one exercise per page, glides to the next when its sets are done.
-  - [x] Step 1 (v0.1.16): switch button, finger paging, dots, auto-advance, bar jumps to the page.
+  - [x] Step 1 (v0.1.17): switch button, finger paging, dots, auto-advance, bar jumps to the page.
   - [ ] Step 2: the card you're on grows into the page when you enter, and shrinks back when you leave.
   - [ ] Step 3: during rest, the stage shows a big calm countdown and the next set's numbers.
   - [ ] Steps 4 and 5: moving figures (this replaces items 5 and 6). Recommended: Aven's own line figure per movement type,

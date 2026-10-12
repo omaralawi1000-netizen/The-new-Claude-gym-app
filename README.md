@@ -884,7 +884,7 @@ alone on purpose (other threads were changing them).
 - Omar never asked for it: at the gym one tap with sweaty hands beats a swipe, which can also be mistaken for a scroll.
   Tapping the box is again the only way to tick a set. The sheet changes from v0.1.14 stay.
 
-## Focus view, step 1: one exercise per page (12 Oct 2026, v0.1.16)
+## Focus view, step 1: one exercise per page (12 Oct 2026, v0.1.17)
 
 - A new button in the workout header switches between the list and **Focus**: one exercise fills the screen (a stage for
   the movement on top, the muscle picture until the moving figures exist; then the exercise's own card, so the sets tick
