@@ -448,6 +448,7 @@ The floating rest card that covered your sets is gone.
 - **Same soft edge on every scrolling page.** Content that scrolls up now melts away under the top edge over about 54 px, eased (it starts slowly, so there is no visible line). Before, the tab pages, the live workout and sheets each had their own length (44, 36, 44 px, straight ramp) and the Orb's talk list and onboarding had none.
 - **How:** one registered property `--ft` and one scroll-driven animation `ft-in` (`styles.css`), used by `.screen`, `.wk-list` and the new `.fade-top` class (Orb talk list, onboarding). It is a mask on the scroller that the browser runs itself: no blur, nothing redrawn per frame, nothing faded at rest. Measured with 4x CPU throttling in a phone-size Chromium: scrolling a tab page costs the same frame times with and without the fade.
 - Sheets keep their own fade (same look, 44 px) so the sheet work in progress is not touched; they can move to `--ft` later.
+- **v0.1.6, tall sheets had no fade at all.** Add food and the other tall sheets fade their content in as they open (`.sheet-pane.late > *`); that `animation` shorthand replaced the list's scroll-driven fade. The list now runs both animations (`styles.css`, next to `.sheet-body`). Found by reading each scroller's fade value after scrolling it, not only whether it has a mask.
 
 ## Read aloud, a matching Coach, linked macros, workouts → routines
 
