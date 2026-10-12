@@ -1143,3 +1143,35 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-page-ghost { margin-top: 18px; }
 .wk-page-ghost .plinth { padding: 14px 12px 140px; border-radius: var(--r-lg); }
 @media (prefers-reduced-motion: reduce) { .voice-glow, .wk-focus.shared.on .wk-dots, .wk-focus.shared.on .wk-stage, .wk-list.back > * { animation: none; } .wk-list, .wk-list.wk-away, .wk-focus, .wk-focus.on, .wk-dot-pill { transition: none; } }
+
+/* ── moving figures (screens/workout/Figure.tsx): rounded limbs nested at their joints; each joint turns on a browser-run
+   transform. Opaque fills (translucent limbs would show darker where they overlap), lit from the front; the muscles the
+   exercise works glow in the accent, the main one brightest. The far arm and leg sit behind, in shade. */
+.fg { position: relative; width: 240px; height: 170px; flex: none;
+  --fb: color-mix(in srgb, var(--tx) 34%, var(--bg)); --fb2: color-mix(in srgb, var(--tx) 20%, var(--bg)); --ff: color-mix(in srgb, var(--tx) 15%, var(--bg)); }
+.fg-hip, .fg-j, .fg-end, .fg-top, .fg-far { position: absolute; left: 0; top: 0; width: 0; height: 0; }
+.fg-j { transform-origin: 0 0; }
+.fg-end { top: var(--l); }
+.fg-top { top: calc(-1 * var(--l)); }
+.fg-far { transform: translate(-4px, -1px); }
+.fg-top.fg-far { top: calc(-1 * var(--l)); transform: translateX(-4px); }
+.fg-limb, .fg-part { position: absolute; border-radius: 999px; }
+.fg-limb, .fg-part { background: linear-gradient(90deg, var(--fb2), var(--fb) 70%); }
+.fg-limb { left: calc(var(--w) / -2); top: calc(var(--w) / -2); width: var(--w); height: calc(var(--l) + var(--w)); }
+.fg-torso > .fg-limb { top: calc(-1 * var(--l) - var(--w) / 2); }
+.fg-far .fg-limb, .fg-far .fg-part { background: var(--ff); }
+.fg-part.warm { background: linear-gradient(90deg, color-mix(in srgb, var(--ac) 42%, var(--bg)), color-mix(in srgb, var(--ac) 60%, var(--bg))); }
+.fg-part.hot { background: linear-gradient(90deg, color-mix(in srgb, var(--ac) 80%, #000), var(--ac));
+  box-shadow: 0 0 14px -2px color-mix(in srgb, var(--ac) 80%, transparent); }
+.fg-far .fg-part.warm, .fg-far .fg-part.hot { background: color-mix(in srgb, var(--ac) 34%, var(--bg)); box-shadow: none; }
+.fg-head { position: absolute; width: 20px; height: 20px; left: -9px; top: calc(-1 * var(--l) - 28px); border-radius: 999px;
+  background: radial-gradient(circle at 65% 35%, var(--fb), var(--fb2)); }
+/* the plate, seen edge-on to the bar: a glassy disc you can see the body through, a bright rim and hub */
+.fg-bar, .fg-db { position: absolute; border-radius: 999px; background: radial-gradient(circle, color-mix(in srgb, var(--tx) 70%, transparent) 0 2.5px, color-mix(in srgb, var(--tx) 9%, transparent) 3px);
+  box-shadow: inset 0 0 0 2.5px color-mix(in srgb, var(--tx) 46%, transparent); }
+.fg-bar { width: 32px; height: 32px; left: -16px; top: -16px; }
+.fg-db { width: 18px; height: 18px; left: -9px; top: -9px; }
+.fg-bench { position: absolute; height: 7px; border-radius: 4px; background: color-mix(in srgb, var(--tx) 14%, var(--bg)); }
+.fg-bench::before, .fg-bench::after { content: ''; position: absolute; top: 7px; width: 4px; height: 23px; border-radius: 2px; background: color-mix(in srgb, var(--tx) 10%, var(--bg)); }
+.fg-bench::before { left: 10px; } .fg-bench::after { right: 10px; }
+.fg-floor { position: absolute; left: 30px; right: 30px; height: 1px; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--tx) 16%, transparent), transparent); }
