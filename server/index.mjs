@@ -47,8 +47,8 @@ async function getJson(url, headers = {}, ms = 6000) {
 
 async function searchOff(q) {
   if (!offSearchOk()) return { rate: true, foods: [] };
-  const fields = 'code,product_name,product_name_en,generic_name,brands,quantity,serving_size,serving_quantity,nutriments';
-  const r = await getJson(`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}&search_simple=1&action=process&json=1&page_size=12&fields=${fields}`);
+  const fields = 'code,product_name,product_name_da,product_name_en,generic_name,brands,quantity,serving_size,serving_quantity,nutriments';
+  const r = await getJson(`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}&search_simple=1&action=process&json=1&page_size=20&cc=dk&lc=da&fields=${fields}`);
   if (r.status === 429) return { rate: true, foods: [] };
   return { foods: (r.json?.products ?? []).map(fromOff).filter(Boolean) };
 }

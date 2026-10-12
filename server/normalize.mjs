@@ -12,7 +12,7 @@ const clean = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !=
 export function fromOff(p) {
   if (!p || !p.code) return null;
   const n = p.nutriments ?? {};
-  const name = (p.product_name_en || p.product_name || p.generic_name || '').trim();
+  const name = (p.product_name_da || p.product_name || p.product_name_en || p.generic_name || '').trim();
   if (!name) return null;
   const kcal = num(n['energy-kcal_100g']) ?? (num(n['energy_100g']) !== undefined ? num(n['energy_100g']) / 4.184 : undefined);
   const sodiumG = num(n['sodium_100g']) ?? (num(n['salt_100g']) !== undefined ? num(n['salt_100g']) / 2.5 : undefined);
