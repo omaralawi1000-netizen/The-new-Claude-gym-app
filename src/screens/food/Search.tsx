@@ -111,7 +111,7 @@ export function FoodSearch({ props }: { props: { date: string; mealId: string } 
           {q && <button className="icon-btn flat sm press" style={{ position: 'absolute', right: 6, top: 7 }} aria-label={t('Clear')} onClick={() => { setQ(''); inputRef.current?.focus(); }}><Icon name="close" size={16} /></button>}
         </div>
         <div className="tools">
-          {actions.map((a) => <button key={a.label} className="tool press" onClick={a.run}><Icon name={a.icon} size={19} /><span>{a.label}</span></button>)}
+          {actions.map((a) => <button key={a.label} className="tool press" onClick={a.run}><Icon name={a.icon} size={17} /><span>{a.label}</span></button>)}
         </div>
       </div>
       <div className="sheet-body" style={{ paddingTop: 4 }}>

@@ -107,7 +107,7 @@ function PlanTab() {
                 <div key={r.id} className="plinth" style={{ padding: 16, borderRadius: 'var(--r-lg)' }}>
                   <div className="row-flex between" style={{ alignItems: 'flex-start' }}>
                     <button className="grow press" style={{ textAlign: 'left' }} onClick={() => push('routine', { id: r.id })}>
-                      <div className="display" style={{ fontSize: 44, fontStyle: 'italic', lineHeight: 0.95 }}>{r.name}</div>
+                      <div className="display" style={{ fontSize: 44, lineHeight: 0.95 }}>{r.name}</div>
                       <div className="small t2 num" style={{ marginTop: 6 }}>{t(r.items.length === 1 ? '1 exercise' : '{n} exercises', { n: r.items.length })} · ~{estMinutes(r)} min{last ? ` · ${fmtDate(last.date, lang, { day: 'numeric', month: 'short' })}` : ''}</div>
                     </button>
                     <button className="icon-btn flat press" aria-label={t('Duplicate')} onClick={() => dup(r)}><Icon name="copy" size={19} /></button>
@@ -128,12 +128,12 @@ function PlanTab() {
       <section style={{ display: 'grid', gridTemplateColumns: '1.25fr 1fr', gap: 10 }}>
         <button className="plinth press" style={{ padding: 16, textAlign: 'left', borderRadius: 'var(--r-lg)', overflow: 'hidden' }} onClick={() => push('activity', { kind: 'wrestling' })} aria-label={t('Log wrestling')}>
           <span style={{ width: 40, height: 40, borderRadius: 14, display: 'grid', placeItems: 'center', background: 'var(--ac-soft)', color: 'var(--ac-text)', boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--ac) 30%, transparent)' }}><Icon name="wrestle" size={22} /></span>
-          <div className="display" style={{ fontSize: 30, fontStyle: 'italic', marginTop: 12, lineHeight: 1 }}>{t('Wrestling')}</div>
+          <div className="display" style={{ fontSize: 30, marginTop: 12, lineHeight: 1 }}>{t('Wrestling')}</div>
           <div className="small t2 num" style={{ marginTop: 4 }}>{matWeek > 0 ? `${matWeek} min ${t('this week')}` : t('Log a session')}</div>
         </button>
         <button className="plinth press" style={{ padding: 16, textAlign: 'left', borderRadius: 'var(--r-lg)' }} onClick={() => push('activity', {})} aria-label={t('Log cardio or recovery')}>
           <span style={{ width: 40, height: 40, borderRadius: 14, display: 'grid', placeItems: 'center', background: 'var(--s2)', boxShadow: 'inset 0 0 0 1px var(--line)' }}><Icon name="run" size={20} /></span>
-          <div className="display" style={{ fontSize: 30, fontStyle: 'italic', marginTop: 12, lineHeight: 1 }}>{t('Cardio')}</div>
+          <div className="display" style={{ fontSize: 30, marginTop: 12, lineHeight: 1 }}>{t('Cardio')}</div>
           <div className="small t2" style={{ marginTop: 4 }}>{t('& recovery')}</div>
         </button>
       </section>

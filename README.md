@@ -1016,3 +1016,14 @@ Light only: the orb's outline never changes.
   with "Go · exercise" in plain white. The minimised workout pill says it in the accent too.
 - The light stripe on the rest-over bar (Omar's recording): the colour layer that fades in now has its own compositor
   layer, so the fade no longer re-paints the fill in pieces (likely cause; check on the phone).
+
+## Look pass: one family, one title style, a slimmer food search (12 Oct 2026, v0.1.30)
+
+- **One colour family (Ember, the default).** Every tab is now a shade of the same warm family, so the app reads as one
+  thing: Today coral with plum and amber, Train ember and magenta, Food apricot (was lime and teal), Progress rose (was
+  blue). The other palettes (Aurora, Mono, Sunset, Forest) were already families of their own and are unchanged.
+- **One title style.** Names are upright serif everywhere: routines, meals, the Food date, Today's workout card. They
+  used to mix upright and slanted.
+- **Food search:** the six big tiles (Scan, Photo, Quick add, New food, Recipes, Saved meals) became one slim row of
+  pills that scrolls sideways, so your recent foods start higher.
+- **Focus view button:** a card with page dots under it. The old one looked like a phone on vibrate.
