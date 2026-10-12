@@ -1039,3 +1039,9 @@ Light only: the orb's outline never changes.
   layer, no blur, only the fade-in animates.
 - **The Coach knows how long you really trained.** It counted a finished workout's length from start to end, paused
   time included; it now uses the same time as every screen (`elapsedMs`).
+
+## Titles back to how they were (12 Oct 2026, v0.1.34)
+
+- Omar didn't like v0.1.30's all-upright titles, so the title style is back exactly as in v0.1.29: slanted serif for
+  routine names, meals, the Food date, Today's workout card, Wrestling/Cardio and the empty-workout title; upright
+  elsewhere. Everything else from v0.1.30 stays (colours, food tool pills, focus icon).

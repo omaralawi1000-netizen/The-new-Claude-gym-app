@@ -2,7 +2,7 @@
    AVEN — visual system "dusk glass"
    A living colour field (aurora) behind frosted glass. Each area of the app has its own light:
    Today = peach/violet, Train = ember, Food = lime, Progress = ice. Hairline specular edges,
-   thin large numerals, an upright serif for names. Motion = springs, blur-in, staggered rise.
+   thin large numerals, an italic serif for names. Motion = springs, blur-in, staggered rise.
    ══════════════════════════════════════════════════════════════ */
 
 @property --ac { syntax: '<color>'; inherits: true; initial-value: #ff7a59; }
@@ -247,7 +247,7 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
 .display { font-family: var(--f-display); font-weight: 440; letter-spacing: -0.022em; line-height: 1; font-optical-sizing: auto; }
 .display[style*='italic'], .display i, em.display { font-weight: 400; }
 .display-xl { font-size: 72px; } .display-lg { font-size: 46px; } .display-md { font-size: 32px; } .display-sm { font-size: 24px; line-height: 1.08; }
-/* numerals are thin, wide-set sans with fixed-width digits; names are upright serif */
+/* numerals are thin, wide-set sans with fixed-width digits; names are italic serif */
 .display.num { font-family: var(--f-ui); font-weight: 220; letter-spacing: -0.045em; font-variant-numeric: tabular-nums; }
 .display-lg.num { font-size: 50px; } .display-md.num { font-size: 34px; }
 .micro { font-size: 11px; font-weight: 550; letter-spacing: 0.1em; text-transform: uppercase; color: var(--tx3); }
@@ -811,7 +811,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .meal { padding: 16px 16px 6px 20px; }
 .meal.bare { padding-bottom: 16px; }
 .meal-head { display: flex; align-items: center; gap: 6px; }
-.meal-name { font-size: 26px; line-height: 1.05; }
+.meal-name { font-style: italic; font-size: 26px; line-height: 1.05; }
 .meal-meta { display: flex; align-items: center; gap: 4px; margin-top: 4px; font-size: 13px; color: var(--tx2); white-space: nowrap; }
 .meal-meta b { font-weight: 650; color: var(--tx); }
 .meal-meta .dot { width: 3px; height: 3px; border-radius: 3px; background: var(--tx3); margin: 0 5px; }

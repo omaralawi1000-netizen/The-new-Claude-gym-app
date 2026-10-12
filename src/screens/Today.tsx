@@ -179,7 +179,7 @@ export function TodayScreen() {
           ) : routine && !(plannedDone && last) ? (
             <div className="row-flex between" style={{ gap: 14 }}>
               <div style={{ minWidth: 0 }}>
-                <div className="display" style={{ fontSize: 56, lineHeight: 0.95 }}>{routine.name}</div>
+                <div className="display" style={{ fontSize: 56, fontStyle: 'italic', lineHeight: 0.95 }}>{routine.name}</div>
                 <div className="small t2 num" style={{ marginTop: 8 }}>{t(routine.items.length === 1 ? '1 exercise' : '{n} exercises', { n: routine.items.length })} · ~{estMinutes(routine)} min{plan?.source === 'override' && plan.originDate ? ` · ${t('Rescheduled')}` : ''}</div>
               </div>
               <div className="stack" style={{ gap: 10, alignItems: 'center', flex: 'none' }}>
@@ -191,7 +191,7 @@ export function TodayScreen() {
             <div className="row-flex between" style={{ gap: 14 }}>
               <div style={{ minWidth: 0 }}>
                 <div className="row-flex" style={{ gap: 6, color: 'var(--ok)' }}><Icon name="check" size={16} sw={2.6} /><span className="small">{t('Done for today')}</span></div>
-                <div className="display" style={{ fontSize: 46, marginTop: 6 }}>{last.name}</div>
+                <div className="display" style={{ fontSize: 46, fontStyle: 'italic', marginTop: 6 }}>{last.name}</div>
                 <div className="small t2 num" style={{ marginTop: 8 }}>{fmtDurationLong(elapsedMs(last) / 1000, lang)} · {fmtNum(Math.round(kgToDisplay(sessionVolume(last.exercises), settings.units.weight)), lang, 0)} {settings.units.weight}</div>
                 {gains && (gains.prs > 0 || (gains.pct !== null && gains.pct !== 0)) && (
                   // what got better than last time
@@ -208,7 +208,7 @@ export function TodayScreen() {
             </div>
           ) : s.routines.length === 0 ? (
             <div className="row-flex between" style={{ gap: 14 }}>
-              <div className="display" style={{ fontSize: 46 }}>{t('First session')}</div>
+              <div className="display" style={{ fontSize: 46, fontStyle: 'italic' }}>{t('First session')}</div>
               <div className="stack" style={{ gap: 10, alignItems: 'center', flex: 'none' }}>
                 <button className="icon-btn acc press" style={{ width: 68, height: 68 }} aria-label={t('Empty session')} onClick={() => start()}><Icon name="plus" size={26} /></button>
                 <button className="icon-btn flat sm press" aria-label={t('Build routine')} onClick={() => push('routine', {})}><Icon name="list" size={17} /></button>
@@ -217,7 +217,7 @@ export function TodayScreen() {
           ) : (
             <div>
               <div className="row-flex between">
-                <div className="display" style={{ fontSize: 46, opacity: .85 }}>{t('Rest day')}</div>
+                <div className="display" style={{ fontSize: 46, fontStyle: 'italic', opacity: .85 }}>{t('Rest day')}</div>
                 <button className="icon-btn press" aria-label={t('Empty session')} onClick={() => start()}><Icon name="plus" /></button>
               </div>
               <div className="chips" style={{ marginTop: 14 }}>
@@ -393,7 +393,7 @@ function WeekReviewCard({ d, today }: { d: AppData; today: string }) {
       <div className="row-flex between" style={{ alignItems: 'flex-start' }}>
         <div>
           <div className="micro">{t('Your week')}</div>
-          <div className="display display-sm" style={{ marginTop: 4 }}>{fmtDate(r.from, lang, { day: 'numeric', month: 'short' })} – {fmtDate(r.to, lang, { day: 'numeric', month: 'short' })}</div>
+          <div className="display display-sm" style={{ fontStyle: 'italic', marginTop: 4 }}>{fmtDate(r.from, lang, { day: 'numeric', month: 'short' })} – {fmtDate(r.to, lang, { day: 'numeric', month: 'short' })}</div>
         </div>
         <button className="icon-btn flat sm press" aria-label={t('Hide')} onClick={dismiss}><Icon name="close" size={16} /></button>
       </div>
