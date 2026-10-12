@@ -41,15 +41,17 @@ const SPECS: Record<Kind, Spec> = {
     b: { torso: 176, arm: 14, fore: 150, thigh: 2, shin: 0 } },
 };
 
-/** Which figure an exercise shows (null: none yet, the muscle picture stays). */
+/** Which figure an exercise shows (null: none yet, the muscle picture stays). Only exercises whose movement AND equipment
+ * the figure truly shows: a standing dumbbell curl, a flat barbell bench press, a bent-over barbell row. A preacher, cable
+ * or machine version showed the same standing dumbbell curl, which was simply wrong; those keep the muscle picture until
+ * they have figures of their own. */
+const SHOWS: Record<string, Kind> = {
+  'db-curl': 'curl', 'hammer-curl': 'curl',
+  'bench-press': 'press', 'close-grip-bench': 'press',
+  'barbell-row': 'row', 'pendlay-row': 'row',
+};
 export function figureFor(ex: Exercise | undefined): Kind | null {
-  if (!ex) return null;
-  const id = ex.id, n = ex.name.toLowerCase();
-  if (/leg|wrist|nordic/.test(id) || /leg curl|wrist/.test(n)) return null;
-  if (/curl/.test(id) || /\bcurl\b/.test(n)) return 'curl';
-  if (/^(barbell-row|pendlay-row|tbar-row|smith-row|one-arm-db-row)$/.test(id)) return 'row';
-  if (/(bench|chest-press|floor-press)/.test(id) && !/dip/.test(id)) return 'press';
-  return null;
+  return (ex && SHOWS[ex.id]) || null;
 }
 
 type Seg = 'torso' | 'arm' | 'fore' | 'thigh' | 'shin';

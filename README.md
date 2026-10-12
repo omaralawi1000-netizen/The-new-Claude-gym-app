@@ -1073,3 +1073,10 @@ Light only: the orb's outline never changes.
   the orb screen's timing. The Coach had its own quicker, fainter version.
 - Opening the Coach was filmed frame by frame and is already one move (the sheet arrives with its conversation and its
   field together), so it is unchanged.
+
+## Figures only where they are right (12 Oct 2026, v0.1.37)
+
+- A moving figure now shows only on exercises whose movement and equipment it truly matches: dumbbell and hammer curls,
+  the flat barbell and close-grip bench press, the barbell and Pendlay row. Before, every curl showed the standing
+  dumbbell curl (a preacher or rope curl too) and every press the flat barbell bench. Everything else shows the muscle
+  picture until it has a figure of its own (Omar chose to keep drawing Aven's own, for every exercise).
