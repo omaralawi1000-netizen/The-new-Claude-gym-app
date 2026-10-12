@@ -428,8 +428,8 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
         <div style={{ display: 'grid', placeItems: 'center', marginTop: big ? 26 : 6, transition: 'margin .45s cubic-bezier(.22,1,.36,1)' }}>
           <button aria-label={listening ? t('Stop and send') : t('Start listening')} onClick={tapSphere} disabled={thinking} className="voice-orb" onPointerDown={() => orbPress(true)} onPointerUp={() => orbPress(false)} onPointerCancel={() => orbPress(false)} onPointerLeave={() => orbPress(false)}
             style={{ position: 'relative', borderRadius: 999, width: big ? 'min(62vw, 250px)' : 96, height: big ? 'min(62vw, 250px)' : 96, transition: 'width .45s cubic-bezier(.22,1,.36,1), height .45s cubic-bezier(.22,1,.36,1)' }}>
-            {/* a still pool of light behind it, so it doesn't float alone on the frost (a gradient only: no blur, nothing animated
-                but its fade in) */}
+            {/* its light: a close halo and a soft pool just under it, as if it hovers over glass (gradients only: no blur,
+                nothing animated but its fade in) */}
             <span className="voice-glow" aria-hidden />
             <SphereSlot id="voice" priority={10} engage={engage} style={{ position: 'absolute', inset: 0 }} />
           </button>
