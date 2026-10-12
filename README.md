@@ -865,15 +865,14 @@ alone on purpose (other threads were changing them).
 - Switches and the onboarding weekday buttons pressed and snapped back (an inline transition replaced the press's spring);
   they now spring back like every other control.
 
-## Feel pass, step 2: swipe a set to tick it, sheets you can catch (12 Oct 2026, v0.1.14)
+## Feel pass, step 2: sheets you can catch (12 Oct 2026, v0.1.14; swipe-to-tick removed in v0.1.15)
 
-- **Swipe to tick** (`ui/swipeTick.ts`): drag a set row to the right. The row leans after your finger (a third of its
-  travel, softly limited to 28 px so it stays inside its card), and the check box fills with the area colour as you drag.
-  At 84 px it fills completely and the phone ticks once; let go there and the set is ticked exactly as a tap would (the
-  same check, burst, rest timer). Short of it, the row and the fill ease back on the calm spring, carrying your speed.
-  Grabbing the row while it eases back takes over from where it is. A vertical move is left to the list's scroll, and a
-  swipe never also counts as a tap on the field under the finger.
 - **Sheets**: pulling a sheet up now stretches like rubber (harder the further you pull, never past ~28 px) instead of a
   flat 18 %. Let go short of closing and it settles on the calm spring with your finger's speed. Catch it while it
   settles and it stops under your finger and follows from there (it used to fight the finger).
 - Only transform and opacity move; no layout per frame.
+
+## Swipe-to-tick removed (12 Oct 2026, v0.1.15)
+
+- Omar never asked for it: at the gym one tap with sweaty hands beats a swipe, which can also be mistaken for a scroll.
+  Tapping the box is again the only way to tick a set. The sheet changes from v0.1.14 stay.
