@@ -824,3 +824,15 @@ alone on purpose (other threads were changing them).
 - Every sheet's bottom button is now the same frosted glass pill on every screen (it was solid area colour in some places and glass in others). Ready or not is told by the label: bright or faint.
 - Keyboard: the sheet used to follow the keyboard 1:1 and stop dead when its top reached the gap while the keyboard kept going. Now the sheet and its buttons move on one straight line against the keyboard's height, set once per keyboard change from where they are (so letters → numbers never jumps).
 - Omar's recording showed the page peeking through between a sheet and the keyboard while they moved (the phone reports the keyboard once and animates it on its own, so the two are never in perfect step). The sheet's glass now reaches on below its bottom edge (`.sheet:not(.sz-small)::before`, off screen at rest), so that gap is glass.
+
+## Speed pass, step 2 (12 Oct 2026, v0.1.11)
+
+- Tab switches: the status bar's colour blend (0.8 s, `ui/statusBar.ts`) wrote `--bar` / `--bar-shown` on `<html>` every
+  frame. A variable on `<html>` is inherited by every element, so the whole app was restyled on each of those frames: 60 %
+  of the style work and most of the long frames of a switch. The tint is now written only on the elements that use it
+  (`data-bar`: the colour field, the orb screen's top band; the app shell only while a popup is up), and the two variables
+  are registered as non-inherited. Same colours (checked: status bar, the field's top fade, the popup backdrop, the orb
+  screen's top band).
+- Result at 4× slow-down: style work per tab switch ~600 → ~300 ms; closing the workout 570 → 280 ms.
+- Workout clock: checked against minimise, a frozen (background) page and finishing; it is computed from timestamps
+  everywhere (live clock, pill, Today card, summary, history) and stayed correct. No change.

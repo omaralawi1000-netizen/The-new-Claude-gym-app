@@ -15,6 +15,20 @@ let sent = '';
 const hex = (c: RGB) => '#' + c.map((v) => Math.round(Math.min(255, Math.max(0, v))).toString(16).padStart(2, '0')).join('');
 const ease = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
 
+/* The tint is written on the few elements that use it (marked data-bar: the app shell, the colour field, the orb screen's
+   top), never on <html>. A variable changed on <html> is inherited by every element, so the browser restyled the whole app
+   on each frame of the 0.8 s blend (measured: 60 % of the style work and most of the long frames in a tab switch). The two
+   variables are registered as non-inherited (styles.css), so changing them restyles only these elements. */
+let shown = '';
+function paint(bar: string) {
+  for (const el of document.querySelectorAll<HTMLElement>('[data-bar]')) {
+    if (el.style.getPropertyValue('--bar') !== bar) el.style.setProperty('--bar', bar);
+    if (shown && el.style.getPropertyValue('--bar-shown') !== shown) el.style.setProperty('--bar-shown', shown);
+  }
+}
+/** Gives a just-mounted data-bar element the current tint. */
+export function refreshBar() { paint(`rgb(${cur.map((v) => Math.round(v)).join(' ')})`); }
+
 function frame(now: number) {
   raf = 0;
   if (dur) {
@@ -23,7 +37,6 @@ function frame(now: number) {
     if (k >= 1) dur = 0; else raf = requestAnimationFrame(frame);
   }
   const root = document.documentElement;
-  root.style.setProperty('--bar', `rgb(${cur.map((v) => Math.round(v)).join(' ')})`);
   // the dim over the page (Veil: full strength from 60 % of a pop-up's progress) lies over the top of it too
   const light = root.dataset.theme === 'light';
   const [sr, sg, sb, sa] = light ? [16, 20, 34, 0.3] : [2, 3, 8, 0.5];
@@ -33,7 +46,9 @@ function frame(now: number) {
   // with it — it stayed the area's purple over a near-black screen, a band across the top
   if (frost > 0) { const f = 0.74 * frost, bg: RGB = light ? [233, 236, 244] : [5, 6, 11]; c3 = c3.map((v, i) => v * (1 - f) + bg[i] * f) as RGB; }
   const c = hex(c3);
-  if (c !== sent) { sent = c; document.querySelector('meta[name="theme-color"]')?.setAttribute('content', c); root.style.setProperty('--bar-shown', c); }
+  if (c !== sent) { sent = c; document.querySelector('meta[name="theme-color"]')?.setAttribute('content', c); }
+  shown = c;
+  paint(`rgb(${cur.map((v) => Math.round(v)).join(' ')})`);
 }
 const schedule = () => { if (!raf) raf = requestAnimationFrame(frame); };
 
