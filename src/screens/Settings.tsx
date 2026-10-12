@@ -359,7 +359,7 @@ function FoodSettings() {
           {meals.map((m, i) => (
             <div key={m.id} className="row-flex" style={{ gap: 8 }}>
               <input className="input" value={m.name || mealName(m, lang)} onChange={(e) => save(meals.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} aria-label={`${t('Meal')} ${i + 1}`} />
-              <button className="icon-btn flat" aria-label={t('Remove')} disabled={meals.length <= 1} style={{ opacity: meals.length <= 1 ? 0.3 : 1 }} onClick={() => {
+              <button className="icon-btn flat press" aria-label={t('Remove')} disabled={meals.length <= 1} style={{ opacity: meals.length <= 1 ? 0.3 : 1 }} onClick={() => {
                 const target = meals.find((_, j) => j !== i)!;
                 useStore.getState().patch((x) => ({ entries: x.entries.map((e) => (e.mealId === m.id ? { ...e, mealId: target.id } : e)) }));
                 save(meals.filter((_, j) => j !== i));

@@ -522,7 +522,7 @@ const ExerciseBlock = memo(function ExerciseBlock({ se, ex, linkedPrev, linkedNe
             <div className="display display-sm wk-ex-title">{ex ? exName(ex, lang) : t('Unknown exercise')}<span className="wk-ex-done" aria-hidden><Icon name="check" size={14} sw={3} /></span></div>
             <div className="wk-muscles">{ex?.muscles.slice(0, 2).map((m) => t(MUSCLE_LABEL[m])).join(' · ')}</div>
           </button>
-          <button className="icon-btn flat" onClick={() => onMenu(se.id)} aria-label={t('Exercise options')}><Icon name="more" /></button>
+          <button className="icon-btn flat press" onClick={() => onMenu(se.id)} aria-label={t('Exercise options')}><Icon name="more" /></button>
         </div>
         {se.note && <div className="small t2" style={{ marginTop: 8, padding: '8px 10px', background: 'var(--bg-2)', borderRadius: 10 }}>{se.note}</div>}
         {flagged && (

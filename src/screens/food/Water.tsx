@@ -32,7 +32,7 @@ export function WaterTile({ date }: { date: string }) {
           <div className="micro row-flex" style={{ gap: 6 }}><Icon name="drop" size={14} /> {t('Water')}</div>
           <div className="display display-md num" style={{ marginTop: 6 }}><Count value={ml} format={(n) => fmtNum(Math.round(n), lang, 0)} /><span className="t3 small"> / {fmtNum(goal, lang, 0)} ml</span></div>
         </div>
-        <button className="icon-btn flat" aria-label={t('Edit quick amounts')} onClick={() => push('waterSheet', { date })}><Icon name="more" /></button>
+        <button className="icon-btn flat press" aria-label={t('Edit quick amounts')} onClick={() => push('waterSheet', { date })}><Icon name="more" /></button>
       </div>
       <div className="water-bar" role="progressbar" aria-valuemin={0} aria-valuemax={goal} aria-valuenow={ml}>
         <motion.i initial={false} animate={{ x: `${(Math.min(1, p) - 1) * 100}%` }} transition={SOFT} />

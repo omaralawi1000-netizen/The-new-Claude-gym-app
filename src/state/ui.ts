@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { uid } from '../lib/nutrition';
+import { useStore } from './store';
 
 export type Tab = 'today' | 'train' | 'food' | 'progress';
 export type OverlayType =
@@ -126,6 +127,8 @@ if (typeof window !== 'undefined') {
 }
 
 export function buzz(ms: number | number[] = 8) {
-  // only after the first tap (browsers refuse — and log an error — before any interaction)
+  // Settings → Haptic feedback turns every buzz off; and only after the first tap (browsers refuse — and log an error —
+  // before any interaction)
+  if (!useStore.getState().settings.haptics) return;
   try { if ('vibrate' in navigator && ((navigator as any).userActivation?.hasBeenActive ?? true)) navigator.vibrate(ms); } catch { /* ignore */ }
 }

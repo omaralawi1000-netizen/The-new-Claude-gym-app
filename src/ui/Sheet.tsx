@@ -422,7 +422,7 @@ function SheetFoot({ children, rise }: { children: ReactNode; rise: MotionValue<
 /** The close button of a custom sheet header: a Back arrow when the sheet is a page inside another one. */
 export function CloseButton({ onClick, label = 'Close' }: { onClick: () => void; label?: string }) {
   const page = useIsPage();
-  return <button className="icon-btn flat" onClick={onClick} aria-label={page ? 'Back' : label}><Icon name={page ? 'chevL' : 'close'} /></button>;
+  return <button className="icon-btn flat press" onClick={onClick} aria-label={page ? 'Back' : label}><Icon name={page ? 'chevL' : 'close'} /></button>;
 }
 
 export function SheetHead({ title, sub, onClose, right, back: backProp }: { title: ReactNode; sub?: ReactNode; onClose?: () => void; right?: ReactNode; back?: boolean }) {
@@ -432,7 +432,7 @@ export function SheetHead({ title, sub, onClose, right, back: backProp }: { titl
     <div className="sheet-head">
       <AnimatePresence initial={false}>
         {back && onClose && (
-          <motion.button key="back" className="icon-btn flat" onClick={onClose} aria-label="Back" style={{ overflow: 'hidden', flex: 'none' }}
+          <motion.button key="back" className="icon-btn flat press" onClick={onClose} aria-label="Back" style={{ overflow: 'hidden', flex: 'none' }}
             initial={{ opacity: 0, width: 0, marginRight: -10 }} animate={{ opacity: 1, width: 40, marginRight: 0 }} exit={{ opacity: 0, width: 0, marginRight: -10 }} transition={SURFACE}>
             <Icon name="chevL" />
           </motion.button>
@@ -443,7 +443,7 @@ export function SheetHead({ title, sub, onClose, right, back: backProp }: { titl
         {sub && <div className="small t2 clamp2" style={{ marginTop: 2 }}>{sub}</div>}
       </div>
       {right}
-      {!back && onClose && <button className="icon-btn flat" onClick={onClose} aria-label="Close"><Icon name="close" /></button>}
+      {!back && onClose && <button className="icon-btn flat press" onClick={onClose} aria-label="Close"><Icon name="close" /></button>}
     </div>
   );
 }

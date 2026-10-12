@@ -33,7 +33,7 @@ function ToastItem({ toast, index, total }: { toast: Toast; index: number; total
       {toast.tone === 'bad' && <span style={{ color: 'var(--bad)', display: 'grid' }}><Icon name="info" size={18} /></span>}
       <span className="grow">{toast.text}</span>
       {toast.actionLabel && (
-        <button className="btn sm primary" style={{ minHeight: 32 }} onClick={() => { toast.onAction?.(); dismiss(toast.id); }}>
+        <button className="btn sm primary press" style={{ minHeight: 32 }} onClick={() => { toast.onAction?.(); dismiss(toast.id); }}>
           {toast.actionLabel}
         </button>
       )}

@@ -45,7 +45,7 @@ export function SavedMeals({ props }: { props: { date: string; mealId: string } 
                     <div className="li-sub trunc">{m.items.map((i) => i.snap.name).join(', ')}</div>
                     <div className="xs t3 num">{fmtNutrient('kcal', sum.totals.kcal, lang)} kcal · P {fmtNutrient('protein', sum.totals.protein, lang)} g</div>
                   </button>
-                  <button className="icon-btn flat" aria-label={t('Delete')} onClick={() => del(m.id)}><Icon name="trash" size={18} /></button>
+                  <button className="icon-btn flat press" aria-label={t('Delete')} onClick={() => del(m.id)}><Icon name="trash" size={18} /></button>
                   <button className="icon-btn press" aria-label={t('Log')} onClick={() => log(m.id)}><Icon name="plus" /></button>
                 </div>
               );
@@ -78,7 +78,7 @@ export function RecipeList({ props }: { props: { date: string; mealId: string } 
                     <div className="li-title">{r.name}</div>
                     <div className="li-sub num">{r.servings} {t('servings')} · {c.perServing.kcal !== undefined ? `${fmtNutrient('kcal', c.perServing.kcal, lang)} kcal / ${t('serving')}` : t('needs a prepared weight')}</div>
                   </button>
-                  <button className="icon-btn flat" aria-label={t('Edit')} onClick={() => push('recipe', { id: r.id, date: props.date, mealId: props.mealId })}><Icon name="edit" size={18} /></button>
+                  <button className="icon-btn flat press" aria-label={t('Edit')} onClick={() => push('recipe', { id: r.id, date: props.date, mealId: props.mealId })}><Icon name="edit" size={18} /></button>
                 </div>
               );
             })}
@@ -141,7 +141,7 @@ export function RecipeEditor({ props }: { props: { id?: string; date: string; me
           {ings.map((i) => (
             <div key={i.id} className="li" style={{ minHeight: 52 }}>
               <div className="grow"><div className="li-title small trunc">{i.snap.name}</div><div className="li-sub num">{fmtNum(i.qty.amount, lang, 1)} {i.qty.unit === 'portion' ? `× ${i.snap.portions.find((p) => p.id === i.qty.portionId)?.label ?? ''}` : i.qty.unit} · {fmtNutrient('kcal', scale(i.snap.per100, i.base).kcal, lang)} kcal</div></div>
-              <button className="icon-btn flat" aria-label={t('Remove')} onClick={() => setIngs((x) => x.filter((y) => y.id !== i.id))}><Icon name="close" size={18} /></button>
+              <button className="icon-btn flat press" aria-label={t('Remove')} onClick={() => setIngs((x) => x.filter((y) => y.id !== i.id))}><Icon name="close" size={18} /></button>
             </div>
           ))}
         </div>
@@ -161,7 +161,7 @@ export function RecipeEditor({ props }: { props: { id?: string; date: string; me
             </>
           ) : (
             <div>
-              <div className="row-flex between"><div className="li-title small">{pick.food.name}</div><button className="icon-btn flat sm" aria-label={t('Cancel')} onClick={() => setPick(null)}><Icon name="close" size={16} /></button></div>
+              <div className="row-flex between"><div className="li-title small">{pick.food.name}</div><button className="icon-btn flat sm press" aria-label={t('Cancel')} onClick={() => setPick(null)}><Icon name="close" size={16} /></button></div>
               <div className="row-flex" style={{ gap: 8, marginTop: 8 }}>
                 <div className="grow"><NumInput value={pick.qty.amount} max={2} onChange={(v) => setPick({ ...pick, qty: { ...pick.qty, amount: v ?? 0 } })} unit={pick.qty.unit === 'portion' ? '×' : pick.qty.unit} autoFocus onEnter={addIngredient} label={t('Amount')} /></div>
                 <button className="btn primary press" onClick={addIngredient}>{t('Add')}</button>

@@ -149,7 +149,7 @@ export function ChartCard({ title, sub, right, children, table }: { title: React
     <div className="plinth" style={{ padding: '16px 14px 14px', borderRadius: 'var(--r-lg)' }}>
       <div className="row-flex between" style={{ padding: '0 4px', marginBottom: 10, alignItems: 'flex-start' }}>
         <div><div className="micro">{title}</div>{sub && <div className="display display-md num" style={{ marginTop: 4 }}>{sub}</div>}</div>
-        <div className="row-flex" style={{ gap: 4 }}>{right}{table && <button className="icon-btn flat sm" aria-label={showTable ? t('Show chart') : t('Show as table')} aria-pressed={showTable} onClick={() => setShowTable((v) => !v)}><Icon name={showTable ? 'progress' : 'list'} size={18} /></button>}</div>
+        <div className="row-flex" style={{ gap: 4 }}>{right}{table && <button className="icon-btn flat sm press" aria-label={showTable ? t('Show chart') : t('Show as table')} aria-pressed={showTable} onClick={() => setShowTable((v) => !v)}><Icon name={showTable ? 'progress' : 'list'} size={18} /></button>}</div>
       </div>
       {showTable && table ? (
         <div style={{ maxHeight: 220, overflowY: 'auto' }}>
