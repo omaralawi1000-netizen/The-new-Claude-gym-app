@@ -1097,10 +1097,20 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    Only opacity and transform move; when a view has faded out it stops being drawn (visibility) but keeps its place. */
 .wk-views { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .wk-list { transition: opacity 380ms 90ms var(--ease-out), transform 620ms var(--ease-smooth), visibility 0s; }
-.wk-list.wk-away { opacity: 0; transform: scale(.97); visibility: hidden; pointer-events: none; transition: opacity 260ms var(--ease-out), transform 560ms var(--ease-smooth), visibility 0s 560ms; }
+.wk-list.wk-away { opacity: 0; transform: none; visibility: hidden; pointer-events: none; transition: opacity 260ms var(--ease-out), transform 560ms var(--ease-smooth), visibility 0s 560ms; }
 .wk-focus { position: absolute; inset: 0; display: flex; flex-direction: column; opacity: 0; transform: translateY(16px) scale(.985); visibility: hidden; pointer-events: none;
   transition: opacity 260ms var(--ease-out), transform 560ms var(--ease-smooth), visibility 0s 560ms; }
 .wk-focus.on { opacity: 1; transform: none; visibility: visible; pointer-events: auto; transition: opacity 380ms 90ms var(--ease-out), transform 620ms var(--ease-smooth), visibility 0s; }
+/* with the card travelling between the views (morph.ts): the card itself is never faded, so Focus shows at once and only
+   what is around the card fades — the dots and the stage rise in, the rest of the list fades in on the way back. (The list
+   only fades now, it no longer shrinks as it goes: a shrinking list bent the card's path.) */
+.wk-focus.shared { transform: none; }
+.wk-focus.shared.on { transition: opacity 0s, visibility 0s; }
+.wk-focus.shared.on .wk-dots, .wk-focus.shared.on .wk-stage { animation: wkRise 620ms 120ms var(--ease-out) backwards; }
+@keyframes wkRise { from { opacity: 0; transform: translateY(10px); } }
+.wk-list.back { transition: opacity 0s, visibility 0s; }
+.wk-list.back > * { animation: wkFade 460ms 100ms var(--ease-out) backwards; }
+@keyframes wkFade { from { opacity: 0; } }
 .wk-view { width: 40px; height: 40px; color: var(--tx); }
 /* the dots: one per exercise, done ones filled with the accent; a small pill glides to the one you're on */
 .wk-dots { position: relative; align-self: center; display: flex; height: 20px; margin: -4px 0 2px; }
@@ -1120,4 +1130,4 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
   background: radial-gradient(closest-side, color-mix(in srgb, var(--ac) 11%, transparent), transparent); }
 .wk-page-ghost { margin-top: 18px; }
 .wk-page-ghost .plinth { padding: 14px 12px 140px; border-radius: var(--r-lg); }
-@media (prefers-reduced-motion: reduce) { .voice-glow { animation: none; } .wk-list, .wk-list.wk-away, .wk-focus, .wk-focus.on, .wk-dot-pill { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .voice-glow, .wk-focus.shared.on .wk-dots, .wk-focus.shared.on .wk-stage, .wk-list.back > * { animation: none; } .wk-list, .wk-list.wk-away, .wk-focus, .wk-focus.on, .wk-dot-pill { transition: none; } }

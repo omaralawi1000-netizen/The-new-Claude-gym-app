@@ -937,3 +937,13 @@ Light only: the orb's outline never changes.
   ring of the success colour leave it, with no spin or flash (that's a tap's). It listens to the store (`orbBeat` in
   `ui/Sphere.tsx`), skips sets you dictated (they get the orb's own "done" light) and never replays a beat it missed while
   it wasn't drawn.
+
+## Premium pass, step 3: the card travels between list and focus (12 Oct 2026, v0.1.21)
+
+- Switching views, the exercise you're on is one object (iOS's shared element, `screens/workout/morph.ts`): it glides from
+  its place in the list to its place on the focus page while the rest of the list fades and the dots and stage rise in, and
+  back. Going back from another exercise, the list scrolls (unseen) so that card waits about where it was on the page.
+- Measured once at the tap and once when the other view is laid out; the glide is one browser-run transform on the sheets'
+  spring (`SURFACE`), so it costs nothing per frame. The card is never faded, so it never dips mid-switch.
+- The list no longer shrinks as it fades out (a shrinking list bent the card's path); it only fades.
+- Reduced motion, or a card that isn't on screen to start from: the plain crossfade, as before.

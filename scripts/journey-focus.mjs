@@ -57,6 +57,7 @@ assert.equal(await sel(), 1, 'the bar takes you to the exercise of the next set'
 // back to the list, which kept its place
 await dlg.getByRole('button', { name: 'List view' }).click(); await wait(p, 900);
 assert(await p.locator('.wk-list').evaluate((e) => getComputedStyle(e).visibility === 'visible'), 'the list is back');
+assert(await p.locator('.wk-list [data-flip]').evaluateAll((els) => els.every((e) => getComputedStyle(e).visibility === 'visible')), 'every card is shown again after the glide back');
 assert.equal(await p.locator('.wk-focus').count(), 0, 'Focus is let go once it has faded out');
 // remembered: minimise and reopen → still the list; switch to focus, reload → focus
 await dlg.getByRole('button', { name: 'Focus view' }).click(); await wait(p, 700);
