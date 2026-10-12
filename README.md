@@ -793,3 +793,9 @@ Screenshot readback can stall cloud rendering during the short flight; the frame
 - Focused fields scroll into view above the floating buttons, not behind them (`watchFocus`).
 - **Keyboard lag in sheets.** Only the top sheet rides the keyboard now. The sheet behind it (e.g. "Add to Dinner" with its long list under Quick add) used to be moved and re-fitted on every frame of the keyboard; it is covered and its top edge does not move either way, so it looks the same. Tall sheets also no longer change their glass mid-ride (squeezed above the keyboard they counted as "short"). Measured with a simulated keyboard (`scripts/perf-keyboard.mjs`): style work while the keyboard opens halved, and with GPU-style rendering the slowest frames dropped from ~270 to ~170 ms in the (very slow) software renderer. How it feels on the S26 is for Omar to judge.
 - `scripts/sheet-foot.mjs` takes the screenshots (Quick add with a 360 px keyboard, scrolled, a tall form, the Coach).
+
+## Clean-up (12 Oct 2026, v0.1.7)
+Removed code nothing used (20 helper functions and one unused AI schema), 13 throwaway debug/screenshot scripts, a stray
+screenshot, an unused font package and two unused CSS helpers. Rewrote `CLAUDE.md` as one short rule set (blur + 120 fps,
+slow motion, shipping steps) and added `npm run verify`. Sheets, keyboard, orb, rest timer and workout screen were left
+alone on purpose (other threads were changing them).

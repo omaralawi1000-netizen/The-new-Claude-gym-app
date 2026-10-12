@@ -201,7 +201,3 @@ export function rowQuantity(row: ParsedFoodRow, food: Food): RowQuantity {
   return { qty: { amount: row.amount, unit: 'portion', portionId: p.id }, estimated: !p.verified };
 }
 
-/** Units spoken as volume (tbsp/dl) for foods with no density are not guessed — the row asks for grams. */
-export function rowLabel(row: ParsedFoodRow): string {
-  return row.raw;
-}

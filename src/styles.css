@@ -255,7 +255,7 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
 .row-flex { display: flex; align-items: center; gap: 10px; }
 .between { justify-content: space-between; }
 .stack { display: flex; flex-direction: column; }
-.gap4 { gap: 4px; } .gap8 { gap: 8px; } .gap12 { gap: 12px; } .gap16 { gap: 16px; } .gap24 { gap: 24px; }
+.gap8 { gap: 8px; } .gap12 { gap: 12px; } .gap16 { gap: 16px; }
 .trunc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* a sheet's subtitle: up to two lines (one line cut confirmations off mid-sentence: "You can undo this…") */
 .clamp2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }

@@ -35,11 +35,6 @@ export function startOfWeek(key: string, weekStart: 0 | 1): string {
   return addDays(key, -back);
 }
 
-export function rangeKeys(from: string, to: string): string[] {
-  const out: string[] = [];
-  for (let k = from, i = 0; k <= to && i < 4000; k = addDays(k, 1), i++) out.push(k);
-  return out;
-}
 
 const loc = (lang: Lang) => (lang === 'da' ? 'da-DK' : 'en-GB');
 // building an Intl formatter is slow and these run on every render, so keep one per language + options

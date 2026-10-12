@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 
 export type VoicePhase = 'idle' | 'requesting' | 'listening' | 'processing' | 'review' | 'confirmed' | 'error' | 'unavailable';
-export type VoiceMode = 'food' | 'workout';
 
 interface Voice {
   phase: VoicePhase;

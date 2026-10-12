@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type {
   ActivityLog, AppData, Exercise, Food, FoodEntry, Measurement, Meal, MemoryNote, PersonalRecord, Recipe, Routine, SavedMeal,
-  SessionExercise, SetRecord, Settings, WeightLog, WorkoutSession, Lang, Nutrients,
+  SessionExercise, SetRecord, Settings, WeightLog, WorkoutSession, Nutrients,
 } from '../lib/types';
 import { SEED_EXERCISES } from '../data/exercises';
 import { REFERENCE_FOODS } from '../data/foods';
@@ -435,9 +435,6 @@ export function plannedFor(d: Pick<AppData, 'schedule' | 'routines' | 'sessions'
   return null;
 }
 
-export function sessionOn(d: Pick<AppData, 'sessions'>, date: string, routineId?: string): WorkoutSession | undefined {
-  return d.sessions.find((s) => (s.plannedDate === date || s.date === date) && (!routineId || s.routineId === routineId || s.plannedDate === date));
-}
 
 /** Weekly-plan workouts from the last `lookback` days that were neither done nor skipped/moved. */
 export function missedWorkouts(d: Pick<AppData, 'schedule' | 'routines' | 'sessions'>, today: string, lookback = 6): { date: string; routineId: string }[] {
@@ -453,9 +450,6 @@ export function missedWorkouts(d: Pick<AppData, 'schedule' | 'routines' | 'sessi
   return out;
 }
 
-export function setLangOnDocument(lang: Lang) {
-  document.documentElement.lang = lang;
-}
 
 export type { SetRecord, PersonalRecord, Nutrients };
 export { entryFromSnapshot, requantify, snapshotOf };
