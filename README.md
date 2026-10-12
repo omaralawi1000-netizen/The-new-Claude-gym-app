@@ -1027,3 +1027,13 @@ Light only: the orb's outline never changes.
 - **Food search:** the six big tiles (Scan, Photo, Quick add, New food, Recipes, Saved meals) became one slim row of
   pills that scrolls sideways, so your recent foods start higher.
 - **Focus view button:** a card with page dots under it. The old one looked like a phone on vibrate.
+
+## The orb's light, and the Coach's workout length (12 Oct 2026, v0.1.31)
+
+- **The orb gives off light instead of fog.** The glow behind the orb on its screen was a wide, faint pool of the accent;
+  on the dark background it read as brown haze over the top half. Now there is a close halo at the orb's edge and a soft
+  oval of light just under it, as if it hovers over glass (`.voice-glow`). Omar was shown three options (halo, pool
+  below, breathing ring) and leaned to the pool; the halo plus pool was chosen. Same cost: two gradients on one still
+  layer, no blur, only the fade-in animates.
+- **The Coach knows how long you really trained.** It counted a finished workout's length from start to end, paused
+  time included; it now uses the same time as every screen (`elapsedMs`).
