@@ -17,17 +17,15 @@ const lines = createInterface({ input: src.pipe(createGunzip()), crlfDelay: Infi
 
 const NUT = ['energy-kcal_100g', 'energy-kj_100g', 'energy_100g', 'proteins_100g', 'carbohydrates_100g', 'fat_100g', 'fiber_100g', 'sugars_100g', 'saturated-fat_100g', 'sodium_100g', 'salt_100g'];
 let col = null, seen = 0;
-const why = { dk: 0, noName: 0, noKcal: 0, badCols: 0, countriesEn: 0 };
+let dk = 0;
 const out = new Map();
 for await (const line of lines) {
   const c = line.split('\t');
   if (!col) { col = Object.fromEntries(c.map((h, i) => [h, i])); continue; }
   seen++;
   const tags = c[col.countries_tags] ?? '';
-  if (!tags.includes('en:denmark')) { if (/denmark|danmark/i.test(c[col.countries_en] ?? '') || /denmark|danmark/i.test(c[col.countries] ?? '')) why.countriesEn++; continue; }
-  why.dk++;
-  if (c.length !== Object.keys(col).length) why.badCols++;
-  if (!c[col.product_name] && !c[col.generic_name]) why.noName++;
+  if (!tags.includes('en:denmark')) continue;
+  dk++;
   const code = c[col.code];
   if (!code || out.has(code)) continue;
   const p = {
@@ -42,14 +40,13 @@ for await (const line of lines) {
     nm['energy-kcal_100g'] = g('proteins_100g') * 4 + g('carbohydrates_100g') * 4 + g('fat_100g') * 9;
   }
   const f = fromOff(p);
-  if (!f || f.per100.kcal === undefined || f.per100.kcal > 900) { why.noKcal++; continue; }
+  if (!f || f.per100.kcal === undefined || f.per100.kcal > 900) continue; // most Danish products in Open Food Facts have no nutrition data yet
   const n = f.per100, r = (v) => (v === undefined ? null : Math.round(v * 10) / 10);
   const sv = f.portions[0];
   // [code, name, brand, liquid, kcal, protein, carbs, fat, fibre, sugar, satFat, sodium mg, serving amount, serving label]
   out.set(code, [code, f.name.slice(0, 80), (f.brand ?? '').slice(0, 40), f.basis === 'ml' ? 1 : 0, r(n.kcal), r(n.protein), r(n.carbs), r(n.fat), r(n.fibre), r(n.sugar), r(n.satFat), n.sodium === undefined ? null : Math.round(n.sodium), sv ? r(sv.amount) : null, sv ? String(p.serving_size).trim().slice(0, 30) : null]);
-  why.kept = (why.kept ?? 0) + 1;
 }
 const rows = [...out.values()];
 mkdirSync(new URL('../src/data/off/', import.meta.url), { recursive: true });
 writeFileSync(new URL('../src/data/off/off-dk.json', import.meta.url), JSON.stringify({ v: 1, built: new Date().toISOString().slice(0, 10), source: 'Open Food Facts (ODbL)', rows }));
-console.log(`scanned ${seen} products, kept ${rows.length} sold in Denmark`, why, Object.keys(col).filter((k) => /name|countr|energy/.test(k)).join(' '));
+console.log(`scanned ${seen} products: ${dk} sold in Denmark, ${rows.length} of them with calories kept`);
