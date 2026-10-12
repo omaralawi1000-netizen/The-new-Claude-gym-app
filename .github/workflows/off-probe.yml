@@ -1,0 +1,14 @@
+name: Food lookup probe (temporary)
+on:
+  push:
+    branches: [claude/project-thread-1uibw1]
+    paths: ['probe/**', '.github/workflows/off-probe.yml']
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: node probe/raw.mjs
+      - run: npx -y tsx probe/pipeline.ts
