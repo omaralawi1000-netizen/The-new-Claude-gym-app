@@ -57,6 +57,8 @@ function PlanTab() {
     s.startWorkout({ routine: r, plannedDate: plannedFor(s, today, today)?.routineId === r.id ? today : undefined });
     push('workout', { origin: 'none' });
   };
+  // one bright play button: the workout you're in, or today's; the others stay glass with the colour only in the icon
+  const hero = s.active?.routineId ?? plannedFor(s, today, today)?.routineId;
   const matWeek = Math.round(s.activities.filter((x) => x.kind === 'wrestling' && x.date >= weekStart && x.date <= addDays(weekStart, 6)).reduce((n, x) => n + x.durationSec, 0) / 60);
   const dup = (r: Routine) => { const id = crypto.randomUUID(); s.upsertRoutine({ ...r, id, name: `${r.name} ${t('copy')}`, items: r.items.map((i) => ({ ...i, id: crypto.randomUUID() })), createdAt: Date.now(), updatedAt: Date.now() }); toast(t('Duplicated'), { tone: 'ok' }); };
   return (
@@ -114,7 +116,7 @@ function PlanTab() {
                     <div className="chips" style={{ margin: 0, padding: 0, gap: 6, flexWrap: 'nowrap', overflow: 'hidden', minWidth: 0, flex: 1 }}>{muscles.slice(0, 2).map((m) => <span key={m} className="chip sm" style={{ flex: 'none' }}>{t(MUSCLE_LABEL[m])}</span>)}{muscles.length > 2 && <span className="chip sm num" style={{ flex: 'none' }}>+{muscles.length - 2}</span>}</div>
                     <div className="row-flex" style={{ gap: 8, flex: 'none' }}>
                       <button className="icon-btn press" aria-label={t('Schedule')} onClick={() => push('schedule', { routineId: r.id })}><Icon name="calendar" /></button>
-                      <button className="icon-btn acc press" style={{ width: 54, height: 54 }} aria-label={s.active ? t('Resume current') : t('Start')} onClick={() => start(r)}><Icon name="play" size={22} /></button>
+                      <button className={`icon-btn ${r.id === hero ? 'acc' : 'acc-soft'} press`} style={{ width: 54, height: 54 }} aria-label={s.active ? t('Resume current') : t('Start')} onClick={() => start(r)}><Icon name="play" size={22} /></button>
                     </div>
                   </div>
                 </div>
