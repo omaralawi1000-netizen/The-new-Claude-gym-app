@@ -70,6 +70,14 @@ export function usePager(viewport: React.RefObject<HTMLElement | null>, track: R
     // ── the finger ──
     const band = (over: number) => (1 - 1 / ((over * 0.55) / W + 1)) * W; // iOS rubber band
     const rubber = (x: number) => { const hi = last() * stride(); return x < 0 ? -band(-x) : x > hi ? hi + band(x - hi) : x; };
+    // As on iOS: a quick flick turns the page however short it was, and a slow drag turns it once it is a quarter of the way
+    // over; anything less springs back. A flick against the drag wins (you changed your mind). Never more than one page.
+    const FLICK = 260;   // px per second
+    const turn = (delta: number, v: number): -1 | 0 | 1 => {
+      if (Math.abs(v) >= FLICK) return v > 0 ? 1 : -1;
+      if (Math.abs(delta) >= W * 0.25) return delta > 0 ? 1 : -1;
+      return 0;
+    };
     let id = -1, mode: '' | 'wait' | 'h' | 'v' = '', caught = false, sx = 0, sy = 0, sp0 = 0, si = 0, moved = false;
     let samples: { t: number; x: number }[] = [];
     const down = (e: PointerEvent) => {
@@ -94,19 +102,21 @@ export function usePager(viewport: React.RefObject<HTMLElement | null>, track: R
       moved = true;
       const x = rubber(sp0 - (e.clientX - sx));
       pos = x; apply(x); tellNear(x);
-      samples.push({ t: e.timeStamp, x }); while (samples.length > 2 && e.timeStamp - samples[0].t > 90) samples.shift();
+      // every finger position the browser saw since the last frame, not just the last one: the speed at release is truer
+      const evs = typeof e.getCoalescedEvents === 'function' ? e.getCoalescedEvents() : [];
+      for (const c of evs.length ? evs : [e]) samples.push({ t: c.timeStamp, x: rubber(sp0 - (c.clientX - sx)) });
+      while (samples.length > 2 && e.timeStamp - samples[0].t > 100) samples.shift();
     };
     const end = (e: PointerEvent, cancelled: boolean) => {
       if (e.pointerId !== id) return;
       const was = mode; mode = ''; id = -1;
       vp.classList.remove('paging');
       if (was === 'h') {
+        // the finger's speed over its last ~100 ms; a finger that stopped before lifting has no speed left
         const a = samples[0], b = samples[samples.length - 1];
-        const v = !cancelled && b.t > a.t ? ((b.x - a.x) / (b.t - a.t)) * 1000 : 0; // px per second, + = towards later pages
-        // where a flick of this speed would carry the page, at most one page from where the finger started
-        const projected = pos + v * 0.14;
-        const i = Math.min(si + 1, Math.max(si - 1, Math.round(projected / stride())));
-        settle(i, v, PAGE);
+        const still = e.timeStamp - b.t > 80;
+        const v = !cancelled && !still && b.t > a.t ? ((b.x - a.x) / (b.t - a.t)) * 1000 : 0; // px per second, + = towards later pages
+        settle(si + turn(pos - si * stride(), v), v, PAGE);
       } else if (caught) settle(Math.round(pos / stride()), 0, PAGE);
       caught = false;
     };

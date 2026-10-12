@@ -20,7 +20,8 @@ assert(await p.locator('.wk-list').evaluate((e) => getComputedStyle(e).visibilit
 // swipe to the next page with a held mouse (pointer events, as a finger)
 const box = await p.locator('.wk-pager').boundingBox();
 const y = box.y + 120;
-const swipe = async (dx) => { await p.mouse.move(box.x + box.width / 2, y); await p.mouse.down(); for (let i = 1; i <= 8; i++) { await p.mouse.move(box.x + box.width / 2 + (dx * i) / 8, y); await wait(p, 16); } await p.mouse.up(); await wait(p, 900); };
+// dx over `steps` moves `ms` apart; `hold` waits before lifting (a finger that stopped has no flick left)
+const swipe = async (dx, steps = 8, ms = 16, hold = 0) => { await p.mouse.move(box.x + box.width / 2, y); await p.mouse.down(); for (let i = 1; i <= steps; i++) { await p.mouse.move(box.x + box.width / 2 + (dx * i) / steps, y); await wait(p, ms); } if (hold) await wait(p, hold); await p.mouse.up(); await wait(p, 900); };
 await swipe(-220);
 assert.equal(await sel(), 1, 'a swipe left goes to the next exercise');
 await p.screenshot({ path: 'shots/focus-2-swiped.png' });
@@ -28,9 +29,13 @@ await swipe(240);
 assert.equal(await sel(), 0, 'a swipe right comes back');
 await swipe(260);
 assert.equal(await sel(), 0, 'the first page resists and stays');
-// a short drag springs back
-await swipe(-40);
-assert.equal(await sel(), 0, 'a small drag springs back');
+// a short slow drag springs back; a short quick flick turns the page; a slow drag past a quarter turns it too
+await swipe(-50, 12, 40, 200);
+assert.equal(await sel(), 0, 'a short slow drag springs back');
+await swipe(-60, 4, 16);
+assert.equal(await sel(), 1, 'a short flick turns the page');
+await swipe(box.width * 0.3, 15, 40, 200);
+assert.equal(await sel(), 0, 'a slow drag past a quarter turns the page');
 // tick every set of the first exercise: it glides on to the next one by itself
 const page = p.locator('.wk-page.cur');
 let guard = 0;

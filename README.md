@@ -904,3 +904,12 @@ alone on purpose (other threads were changing them).
 - Gotcha: a touch is held by the element it started on, so taking it over for the track fires `lostpointercapture` on that
   element; it bubbles, and only the track's own counts as the end of a swipe.
 - Plan and figure research: steps 2 to 5 in `docs/polish-plan.md`.
+
+## Focus view: a short flick turns the page (12 Oct 2026, v0.1.18)
+
+- Omar had to swipe almost the whole width. The release rule projected the page by the finger's speed × 0.14 s and rounded,
+  so a 70 px flick at 900 px/s still fell short of half a page. Now it works like iOS: a flick of 260 px/s or more turns
+  the page whatever its length; otherwise a drag past a quarter of the width turns it; less springs back. One page at most.
+- The speed at release uses every coalesced finger position of the last 100 ms, and is zero if the finger stopped 80 ms
+  before lifting (a held drag never "flicks"). Vertical scrolls and taps are untouched (an 8 px, mostly-sideways start
+  still decides it is a swipe).
