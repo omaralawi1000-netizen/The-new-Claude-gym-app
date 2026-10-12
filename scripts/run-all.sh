@@ -8,6 +8,7 @@ run typecheck npx tsc --noEmit
 run unit npx vitest run
 run build npm run build
 run workout node scripts/journey-workout.mjs
+run focus node scripts/journey-focus.mjs
 run food node scripts/journey-food.mjs
 run food2 node scripts/journey-food2.mjs
 run train node scripts/journey-train.mjs

@@ -25,5 +25,12 @@ When a section is done, change `[ ]` to `[x]` here in the same pull request.
   Row) and get Omar's OK on how it looks.
 - [ ] **6. Exercise detail visual, part 2**: the other movement types (presses, curls, squats, pulldowns, …).
 
+- [ ] **7. Workout focus view** (12 Oct): one exercise per page, glides to the next when its sets are done.
+  - [x] Step 1 (v0.1.17): switch button, finger paging, dots, auto-advance, bar jumps to the page.
+  - [ ] Step 2: the card you're on grows into the page when you enter, and shrinks back when you leave.
+  - [ ] Step 3: during rest, the stage shows a big calm countdown and the next set's numbers.
+  - [ ] Steps 4 and 5: moving figures (this replaces items 5 and 6). Recommended: Aven's own line figure per movement type,
+    working muscles glowing; free, tiny, 120 fps. Paid alternative: ExerciseDB GIF pack (~$300 once). Omar decides.
+
 Also known, not asked for yet: a food "Add to Breakfast" sheet showed up behind the Library tab after closing an exercise
 sheet (leftover sheet in the stack); the live workout timer (~18 min) disagrees with the saved duration (1 h 47 min).

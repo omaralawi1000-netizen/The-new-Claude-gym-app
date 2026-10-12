@@ -883,3 +883,24 @@ alone on purpose (other threads were changing them).
 
 - Omar never asked for it: at the gym one tap with sweaty hands beats a swipe, which can also be mistaken for a scroll.
   Tapping the box is again the only way to tick a set. The sheet changes from v0.1.14 stay.
+
+## Focus view, step 1: one exercise per page (12 Oct 2026, v0.1.17)
+
+- A new button in the workout header switches between the list and **Focus**: one exercise fills the screen (a stage for
+  the movement on top, the muscle picture until the moving figures exist; then the exercise's own card, so the sets tick
+  exactly as in the list). Dots under the header show the exercises, filled when done; tap one to go there. The choice
+  is remembered on the phone (`aven.wkView`).
+- Pages follow the finger 1:1 and resist past the first and last one (iOS rubber band). On release they settle on a spring
+  (`PAGE`, Apple's 0.5 s) that starts at the finger's speed, at most one page per swipe; a touch mid-glide catches the page.
+  The settle is a Web Animation on the track's transform (`springCurve` → `linear()`), so the compositor draws it at full
+  refresh rate (`ui/pager.ts`). Vertical scrolling inside a page stays the browser's own (`touch-action: pan-y`).
+- Ticking the last set of the exercise you're on waits 0.9 s, so the tick is seen, then glides to the next exercise with
+  sets left on a slower spring (`PAGE_AUTO`, 0.62 s). In a superset it glides to the partner whose turn it is. The bar's
+  "next set" glides to that exercise's page and flashes the row.
+- Cost kept low: only the page you're on and its neighbours are built (others are a light stand-in), and neighbours are
+  built only once nothing is moving; the dot pill moves without a re-render mid-swipe; no new blur; the list stays mounted
+  but stops being drawn once faded, so switching back keeps your place. Speed check (`perf-app.mjs`, 4× CPU): list moments
+  unchanged; scrolling a page has no late frames.
+- Gotcha: a touch is held by the element it started on, so taking it over for the track fires `lostpointercapture` on that
+  element; it bubbles, and only the track's own counts as the end of a swipe.
+- Plan and figure research: steps 2 to 5 in `docs/polish-plan.md`.

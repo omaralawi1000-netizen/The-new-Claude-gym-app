@@ -1084,3 +1084,33 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
   .fade-top { -webkit-mask-image: linear-gradient(to bottom, transparent, rgba(0,0,0,.1) calc(var(--ft) * .2), rgba(0,0,0,.36) calc(var(--ft) * .45), rgba(0,0,0,.74) calc(var(--ft) * .74), #000 var(--ft)); mask-image: linear-gradient(to bottom, transparent, rgba(0,0,0,.1) calc(var(--ft) * .2), rgba(0,0,0,.36) calc(var(--ft) * .45), rgba(0,0,0,.74) calc(var(--ft) * .74), #000 var(--ft));
     animation: ft-in linear both; animation-timeline: scroll(self); animation-range: 0 40px; }
 }
+
+/* ── Focus view (screens/workout/Focus.tsx): one exercise per page, the next one a swipe away ──
+   Switching views is a crossfade on the window's calm curve: the list sinks back and fades, Focus rises in a beat later.
+   Only opacity and transform move; when a view has faded out it stops being drawn (visibility) but keeps its place. */
+.wk-views { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.wk-list { transition: opacity 380ms 90ms var(--ease-out), transform 620ms var(--ease-smooth), visibility 0s; }
+.wk-list.wk-away { opacity: 0; transform: scale(.97); visibility: hidden; pointer-events: none; transition: opacity 260ms var(--ease-out), transform 560ms var(--ease-smooth), visibility 0s 560ms; }
+.wk-focus { position: absolute; inset: 0; display: flex; flex-direction: column; opacity: 0; transform: translateY(16px) scale(.985); visibility: hidden; pointer-events: none;
+  transition: opacity 260ms var(--ease-out), transform 560ms var(--ease-smooth), visibility 0s 560ms; }
+.wk-focus.on { opacity: 1; transform: none; visibility: visible; pointer-events: auto; transition: opacity 380ms 90ms var(--ease-out), transform 620ms var(--ease-smooth), visibility 0s; }
+.wk-view { width: 40px; height: 40px; color: var(--tx); }
+/* the dots: one per exercise, done ones filled with the accent; a small pill glides to the one you're on */
+.wk-dots { position: relative; align-self: center; display: flex; height: 20px; margin: -4px 0 2px; }
+.wk-dot { width: 16px; height: 20px; display: grid; place-items: center; }
+.wk-dot i { width: 6px; height: 6px; border-radius: 999px; background: var(--tx3); opacity: .6; transition: background-color 420ms var(--ease-out), opacity 420ms var(--ease-out); }
+.wk-dot.done i { background: var(--ac); opacity: .95; }
+.wk-dot-pill { position: absolute; left: 2px; top: 7px; width: 12px; height: 6px; border-radius: 999px; background: var(--tx); pointer-events: none; transition: transform 560ms var(--ease-smooth); }
+/* the pages: the track moves (ui/pager.ts), each page scrolls on its own */
+.wk-pager { position: relative; flex: 1; min-height: 0; overflow: clip; touch-action: pan-y; }
+.wk-pager.paging { -webkit-user-select: none; user-select: none; }
+.wk-track { display: flex; height: 100%; will-change: transform; }
+.wk-page { flex: 0 0 100%; min-width: 0; height: 100%; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; touch-action: pan-y; padding: 0 16px;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, rgba(0,0,0,.1) calc(var(--ft) * .2), rgba(0,0,0,.36) calc(var(--ft) * .45), rgba(0,0,0,.74) calc(var(--ft) * .74), #000 var(--ft), #000 calc(100% - var(--sab) - 14px), rgba(0, 0, 0, 0.35) 100%); mask-image: linear-gradient(to bottom, transparent, rgba(0,0,0,.1) calc(var(--ft) * .2), rgba(0,0,0,.36) calc(var(--ft) * .45), rgba(0,0,0,.74) calc(var(--ft) * .74), #000 var(--ft), #000 calc(100% - var(--sab) - 14px), rgba(0, 0, 0, 0.35) 100%); }
+@supports (animation-timeline: scroll()) { .wk-page { animation: ft-in linear both; animation-timeline: scroll(self); animation-range: 0 40px; } }
+/* the movement's stage: a soft pool of the accent behind the figure */
+.wk-stage { height: clamp(150px, 25vh, 230px); display: grid; place-items: center; margin-top: 4px; border-radius: var(--r-lg);
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--ac) 11%, transparent), transparent); }
+.wk-page-ghost { margin-top: 18px; }
+.wk-page-ghost .plinth { padding: 14px 12px 140px; border-radius: var(--r-lg); }
+@media (prefers-reduced-motion: reduce) { .wk-list, .wk-list.wk-away, .wk-focus, .wk-focus.on, .wk-dot-pill { transition: none; } }

@@ -22,6 +22,7 @@ import { DIM_VEIL, Veil, mirrorVeil } from '../../ui/Veil';
 import { kb } from '../../ui/keyboard';
 import { viewportH } from '../../ui/viewport';
 import { BOUNCY, SURFACE, SURFACE_EXIT } from '../../ui/motion';
+import { FocusView, type FocusApi } from './Focus';
 
 /** False while the workout is minimised (kept alive but hidden): its clocks stop ticking. */
 const WkLive = createContext(true);
@@ -111,6 +112,28 @@ export function ActiveWorkout({ props, open = true }: { props: { origin?: 'hero'
   const finishBtn = useRef<HTMLButtonElement>(null);
   const pointToFinish = () => { const b = finishBtn.current; if (!b) return; b.classList.remove('nudge'); void b.offsetWidth; b.classList.add('nudge'); };
   const [renaming, setRenaming] = useState(false);
+  // List or Focus (one exercise per page, Focus.tsx). Remembered on this phone. Focus is built when you go to it and kept
+  // until it has faded out, so leaving it is the same calm crossfade as arriving.
+  const [view, setView] = useState<'list' | 'focus'>(() => { try { return localStorage.getItem('aven.wkView') === 'focus' ? 'focus' : 'list'; } catch { return 'list'; } });
+  const [focusBuilt, setFocusBuilt] = useState(view === 'focus');
+  const [focusIn, setFocusIn] = useState(view === 'focus');
+  const focusApi = useRef<FocusApi | null>(null);
+  const switchView = () => {
+    const next = view === 'list' ? 'focus' : 'list';
+    setView(next);
+    try { localStorage.setItem('aven.wkView', next); } catch { /* ignore */ }
+  };
+  useEffect(() => {
+    if (view === 'focus') {
+      setFocusBuilt(true);
+      // one frame in its starting place first, so it rises in instead of appearing
+      const id = requestAnimationFrame(() => requestAnimationFrame(() => setFocusIn(true)));
+      return () => cancelAnimationFrame(id);
+    }
+    setFocusIn(false);
+    const id = setTimeout(() => setFocusBuilt(false), 700);
+    return () => clearTimeout(id);
+  }, [view]);
   // Opening is started before the first paint, so the browser-run half is already going when the rest of the window's setup
   // work runs. Closing — the chevron, a swipe, Back, or another screen taking its place — slides it down; then it is hidden
   // (kept, so the next opening is only the slide).
@@ -219,6 +242,7 @@ export function ActiveWorkout({ props, open = true }: { props: { origin?: 'hero'
   };
   // the bar's "next set": scroll it into the middle and let it glow for a moment
   const jumpTo = (setId: string) => {
+    if (view === 'focus' && focusApi.current) { focusApi.current.jumpToSet(setId); return; }
     const row = body.current?.querySelector<HTMLElement>(`[data-set="${setId}"]`);
     if (!row) return;
     row.scrollIntoView({ block: 'center', behavior: 'smooth' });
@@ -265,6 +289,11 @@ export function ActiveWorkout({ props, open = true }: { props: { origin?: 'hero'
                   {typing && a.rest && <RestInline />}
                 </div>
               </div>
+              {a.exercises.length > 0 && (
+                <button className="icon-btn flat press wk-view" onClick={switchView} aria-label={view === 'list' ? t('Focus view') : t('List view')} aria-pressed={view === 'focus'}>
+                  <Icon name={view === 'list' ? 'focus' : 'list'} size={20} />
+                </button>
+              )}
               <button className="icon-btn flat press wk-pause" onClick={() => { buzz(10); paused ? useStore.getState().resumeActive() : useStore.getState().pauseActive(); }} aria-label={paused ? t('Resume') : t('Pause')}>
                 <Icon name={paused ? 'play' : 'pause'} size={18} />
               </button>
@@ -275,8 +304,9 @@ export function ActiveWorkout({ props, open = true }: { props: { origin?: 'hero'
             <div className="wk-progress"><i style={{ transform: `scaleX(${total ? done / total : 0})` }} /></div>
           </div>
 
-          {/* body */}
-          <motion.div ref={body} style={{ flex: 1, overflowY: 'auto', padding: '4px 16px 0', paddingBottom: bodyPad, overscrollBehavior: 'contain' }} className="hide-scroll wk-list">
+          {/* body: the list, and Focus over it when chosen (the list stays, faded out, so switching back keeps your place) */}
+          <div className="wk-views">
+          <motion.div ref={body} style={{ flex: 1, overflowY: 'auto', padding: '4px 16px 0', paddingBottom: bodyPad, overscrollBehavior: 'contain' }} className={`hide-scroll wk-list${view === 'focus' && a.exercises.length > 0 ? ' wk-away' : ''}`}>
             {a.exercises.length === 0 && (
               <div className="wk-empty">
                 <div className="display display-sm" style={{ fontStyle: 'italic' }}>{t('Empty session')}</div>
@@ -300,6 +330,12 @@ export function ActiveWorkout({ props, open = true }: { props: { origin?: 'hero'
             </motion.div>
             )}
           </motion.div>
+          {focusBuilt && a.exercises.length > 0 && (
+            <div className={`wk-focus${focusIn && view === 'focus' ? ' on' : ''}`}>
+              <FocusView exMap={exMap} onMenu={setMenu} pad={bodyPad} apiRef={focusApi} />
+            </div>
+          )}
+          </div>
 
           {/* the workout's own dock, where the tab bar sits: what's next, the rest timer, and the orb */}
           <WorkoutBar engage={engage} exMap={exMap} away={typing || !!confirm || !!menu || covered} onDone={pointToFinish} onJump={jumpTo} />
@@ -480,7 +516,7 @@ function RestFill({ state, endsAt, total, paused }: { state: string; endsAt?: nu
 // ── exercise block ──────────────────────────────────────────
 
 // memoised: ticking a set re-renders that exercise only
-const ExerciseBlock = memo(function ExerciseBlock({ se, ex, linkedPrev, linkedNext, onMenu, appear }: { se: SessionExercise; ex?: Exercise; linkedPrev: boolean; linkedNext: boolean; onMenu: (id: string) => void; appear?: boolean }) {
+export const ExerciseBlock = memo(function ExerciseBlock({ se, ex, linkedPrev, linkedNext, onMenu, appear }: { se: SessionExercise; ex?: Exercise; linkedPrev: boolean; linkedNext: boolean; onMenu: (id: string) => void; appear?: boolean }) {
   const t = useT();
   const lang = useLang();
   const settings = useStore((s) => s.settings);
@@ -559,7 +595,8 @@ const ExerciseBlock = memo(function ExerciseBlock({ se, ex, linkedPrev, linkedNe
 /** Bring a set row into view if it sits under the workout bar or just below the screen. Only ever scrolls down, and only a
  *  short way: it follows you to the next set, it never yanks the list somewhere you didn't look. */
 function revealSet(id: string) {
-  const list = document.querySelector<HTMLElement>('.wk-list');
+  // the page you're on in Focus, else the list
+  const list = document.querySelector<HTMLElement>('.wk-focus.on .wk-page.cur') ?? document.querySelector<HTMLElement>('.wk-list');
   const row = list?.querySelector<HTMLElement>(`[data-set="${id}"]`);
   if (!list || !row) return;
   const r = row.getBoundingClientRect(), box = list.getBoundingClientRect();
