@@ -155,7 +155,12 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
   useEffect(() => { synced.current = !behind && kb.get() <= kbHere.get() + 0.5; }, [behind]); // eslint-disable-line
   const natural = useRef(0); // the sheet's height with no keyboard (measured below)
   const maxLift = () => Math.max(0, baseHeight() - satPx() - TOP_GAP[sz] - natural.current);
-  const liftOf = (k: number) => Math.min(k, maxLift());
+  // The sheet glides between where it is and where it ends up in step with the keyboard, on a straight line against the
+  // keyboard's height (it used to follow the keyboard 1:1 and stop dead when its top reached the gap, while the keyboard
+  // kept going: a visible jolt). The line is set once per keyboard change, starting from where the sheet is now, so a
+  // keyboard that changes height on the way (letters → numbers) never makes it jump.
+  const line = useRef({ a: 0, b: 1 });
+  const liftOf = (k: number) => (k < 0.5 ? 0 : Math.max(0, line.current.a + line.current.b * k));
   const transform = useTransform([shift, bs, kbHere], ([sh, b, k]: number[]) => `translate3d(0, ${sh - liftOf(k)}px, 0) scale(${1 - 0.06 * b})`);
   const rise = useTransform(kbHere, (k: number) => k - liftOf(k)); // how far the buttons ride above the sheet's own bottom
   // the room the keyboard will cover, made once per keyboard change; the sheet's height is held while it is there, so a
@@ -163,6 +168,9 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
   useEffect(() => {
     const el = ref.current; if (!el) return;
     const make = (goal: number) => {
+      const k0 = kbHere.get(), from = liftOf(k0), to = Math.min(goal, maxLift());
+      const b = Math.abs(goal - k0) > 1 ? (to - from) / (goal - k0) : 0;
+      line.current = { a: to - b * goal, b };
       const r = Math.max(0, Math.round(goal - maxLift()));
       if (r > 0) { if (!el.style.height || el.dataset.held) { el.style.height = `${natural.current || el.offsetHeight}px`; el.dataset.held = '1'; } el.style.setProperty('--kb-room', `${r}px`); return; }
       // going down: a list scrolled into the extra room glides back with the keyboard, then the room goes once it has landed

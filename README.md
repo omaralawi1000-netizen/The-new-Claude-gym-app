@@ -818,3 +818,9 @@ alone on purpose (other threads were changing them).
   pixels). The dock's own frost and the 20 px layer are unchanged.
 - Result at 4× slow-down, late frames: Today standing still 28 → 2, scrolling Today 56 → 2, Train 102 → 10, Food 66 → 5,
   Progress 210 → 17, Today with a workout running 78 → 4. The live workout was already clean and stays clean.
+
+## One glass pill, keyboard on one curve (12 Oct 2026, v0.1.10)
+
+- Every sheet's bottom button is now the same frosted glass pill on every screen (it was solid area colour in some places and glass in others). Ready or not is told by the label: bright or faint.
+- Keyboard: the sheet used to follow the keyboard 1:1 and stop dead when its top reached the gap while the keyboard kept going. Now the sheet and its buttons move on one straight line against the keyboard's height, set once per keyboard change from where they are (so letters → numbers never jumps).
+- Omar's recording showed the page peeking through between a sheet and the keyboard while they moved (the phone reports the keyboard once and animates it on its own, so the two are never in perfect step). The sheet's glass now reaches on below its bottom edge (`.sheet:not(.sz-small)::before`, off screen at rest), so that gap is glass.
