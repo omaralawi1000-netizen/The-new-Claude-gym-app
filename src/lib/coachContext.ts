@@ -1,7 +1,7 @@
 import type { AppData, Exercise, MuscleGroup } from './types';
 import { addDays, diffDays } from './dates';
 import { nutritionByDay, trendRate, weekStreak, weeklyTraining, weightTrend, average, setsPerMuscle, usualDays, stalledLifts, MUSCLES } from './stats';
-import { historyOf, incrementFor, suggestProgression } from './workout';
+import { elapsedMs, historyOf, incrementFor, suggestProgression } from './workout';
 import { plannedFor, missedWorkouts } from '../state/store';
 
 /**
@@ -273,7 +273,7 @@ export function buildAgentContext(d: AppData, today: string, exName: (id: string
   } else L.push('No workout is running.');
   // the last finished workouts in full, so "make my last bench set 85" and "how did Tuesday go?" have something to read
   for (const ss of d.sessions.filter((x) => x.status === 'done').slice(-6).reverse()) {
-    L.push(`Workout ${ss.date} "${ss.name || 'Workout'}" (${Math.round(((ss.endedAt ?? ss.startedAt) - ss.startedAt) / 60000)} min): ${ss.exercises.map((e) => `${exName(e.exerciseId)}: ${e.sets.filter((q) => q.done).map(setTxt).join(', ')}`).join(' | ')}.`);
+    L.push(`Workout ${ss.date} "${ss.name || 'Workout'}" (${Math.round(elapsedMs(ss) / 60000)} min): ${ss.exercises.map((e) => `${exName(e.exerciseId)}: ${e.sets.filter((q) => q.done).map(setTxt).join(', ')}`).join(' | ')}.`);
   }
   // personal bests for the lifts that come up most
   const freq = new Map<string, number>();
