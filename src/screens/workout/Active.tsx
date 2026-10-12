@@ -105,6 +105,8 @@ export function ActiveWorkout({ props, open = true }: { props: { origin?: 'hero'
   // the keyboard slides over the page (it no longer resizes it): the list gets that much more room at its end, so the last
   // set's fields can still be scrolled above the keys, and the rest timer rides on top of the keyboard
   const bodyPad = useTransform(kb, (v) => `calc(var(--sab) + 150px + ${v}px)`);
+  // focus pages end just above the bar (the list keeps extra room to scroll its last card up); the stage takes the rest
+  const focusPad = useTransform(kb, (v) => `calc(var(--sab) + 112px + ${v}px)`);
   const exMap = useMemo(() => exerciseMap(exercises), [exercises]);
   const [menu, setMenu] = useState<string | null>(null);
   // another screen on top of the workout (the exercise list, an exercise's page): the bar steps away, or it showed through
@@ -356,7 +358,7 @@ export function ActiveWorkout({ props, open = true }: { props: { origin?: 'hero'
           </motion.div>
           {focusBuilt && a.exercises.length > 0 && (
             <div ref={focusEl} className={`wk-focus${focusIn && view === 'focus' ? ' on' : ''}${shared === 'in' ? ' shared' : ''}`}>
-              <FocusView exMap={exMap} onMenu={setMenu} pad={bodyPad} apiRef={focusApi} />
+              <FocusView exMap={exMap} onMenu={setMenu} pad={focusPad} apiRef={focusApi} />
             </div>
           )}
           </div>
