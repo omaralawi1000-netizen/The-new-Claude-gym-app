@@ -372,26 +372,34 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .veil-tint { background: color-mix(in srgb, var(--bg) 74%, transparent); }
 .sheet {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; max-height: calc(100dvh - var(--sat) - 46px); display: flex; flex-direction: column;
+  border-radius: var(--r-xl) var(--r-xl) 0 0; will-change: transform;
+}
+/* The glass is a layer of its own UNDER the content (not the sheet itself). A blur on the sheet itself made the sheet a
+   closed world for any blur inside it: the floating buttons' glass could only see the sheet's own see-through content, so
+   rows under a button stayed sharp. With the glass as a layer, a button's blur sees the real picture and frosts it.
+   Same single 44 px blur as before, so it costs the same. */
+.sheet::before {
+  content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none;
   /* see-through frost: the page's colour glows through, but a 44 px blur leaves nothing behind sharp enough to read */
   background: var(--sheet-glass); -webkit-backdrop-filter: blur(44px) saturate(2); backdrop-filter: blur(44px) saturate(2);
-  border-radius: var(--r-xl) var(--r-xl) 0 0; box-shadow: inset 0 1px 0 var(--hl), inset 0 0 0 1px var(--line), var(--sh-f); will-change: transform;
+  box-shadow: inset 0 1px 0 var(--hl), inset 0 0 0 1px var(--line), var(--sh-f);
+  transition: background-color 260ms var(--ease-out);
 }
-.sheet[data-size='short'] { background: color-mix(in srgb, var(--sheet-glass) 86%, transparent); -webkit-backdrop-filter: blur(44px) saturate(2.1); backdrop-filter: blur(44px) saturate(2.1); }
+.sheet[data-size='short']::before { background: color-mix(in srgb, var(--sheet-glass) 86%, transparent); -webkit-backdrop-filter: blur(44px) saturate(2.1); backdrop-filter: blur(44px) saturate(2.1); }
 .sheet.tall { height: calc(100dvh - var(--sat) - 46px); }
 /* A sheet with another sheet stacked on top keeps its frost: it stays the same glass, set back under the top one's dim (it
    used to turn solid, and the blur only came back once the top sheet left). Only when two or more sheets are stacked on it
    does it drop the blur: each sheet keeps a full-screen blur alive, and three at once ran the phone out of GPU memory
    (black tiles). The glass turns solid over a moment, then the blur is dropped once nothing can be seen through it (an
    instant swap flashed); coming back up, the blur is there at once and the solid fades away. */
-.sheet.behind.deep { -webkit-backdrop-filter: none; backdrop-filter: none;
+.sheet.behind.deep::before { -webkit-backdrop-filter: none; backdrop-filter: none;
   transition: background-color 260ms var(--ease-out), -webkit-backdrop-filter 0s linear 280ms, backdrop-filter 0s linear 280ms; transition-behavior: allow-discrete; }
-.sheet { transition: background-color 260ms var(--ease-out); }
 /* Inside a sheet everything sits on glass that is already blurred: a second blur on each button, switch and chip only repeats
    it (the same pixels) but makes the browser run one more full pass per element for every frame the sheet moves or scrolls. */
 .sheet :is(.btn, .icon-btn, .seg, .chip, .plinth, .plinth-2, .input, .field input), .sheet-page :is(.btn, .icon-btn, .seg, .chip) { -webkit-backdrop-filter: none; backdrop-filter: none; }
 /* …and without its frost it must not turn see-through (it looked like it was dissolving): it becomes the same glass laid
    over the plain background instead — solid, and under the dim it reads as a card set back. */
-.sheet.behind.deep, .sheet.behind.deep[data-size='short'] { background: var(--sheet-solid); }
+.sheet.behind.deep::before, .sheet.behind.deep[data-size='short']::before { background: var(--sheet-solid); }
 /* A sheet's content sits in a pane, so it can step aside when a page opens inside the same sheet (Sheet.tsx, PageSheet). The
    page is laid exactly over it, below the grab handle, on the sheet's own glass. */
 .sheet-pane { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
@@ -399,7 +407,9 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .scrim.veil-behind > .veil-blur-b { display: none; }
 .sheet-grab { flex: none; height: 26px; display: grid; place-items: center; touch-action: none; cursor: grab; }
 .sheet-grab::after { content: ''; width: 40px; height: 5px; border-radius: 3px; background: var(--line-2); }
-.sheet-body { overflow-y: auto; flex: 1; padding: 0 22px calc(var(--sab) + 28px); overscroll-behavior: contain; scrollbar-width: none; }
+/* --kb-room: the part of the sheet the keyboard covers (set by Sheet.tsx while it is up), so the end of the list can still
+   be scrolled up above it */
+.sheet-body { overflow-y: auto; flex: 1; padding: 0 22px calc(var(--sab) + 28px + var(--kb-room, 0px)); overscroll-behavior: contain; scrollbar-width: none; }
 .sheet-body::-webkit-scrollbar { display: none; }
 /* content that scrolls up under a sheet's title fades out softly instead of being cut by a hard edge. The fade only grows
    in once the list has moved (a scroll-driven animation), so the first row is never faded at rest. */
@@ -420,29 +430,26 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
   .sheet-pane.late > .sheet-body { animation: fadein 220ms var(--ease-out) backwards, sb-fade linear both, sb-fade-b linear both; animation-timeline: auto, scroll(self), scroll(self); animation-range: normal, 0 40px, calc(100% - 40px) 100%; }
 }
 .sheet-head { flex: none; display: flex; align-items: center; gap: 10px; padding: 2px 22px 12px; }
-/* The bottom buttons (Add, Finish…) float on their own: they are laid OVER the bottom of the content, not below it, so the
-   list scrolls on all the way down underneath them. (v0.1.3 put them below the list, which cut the list off in a straight
-   line above the button: it read as a separate panel.) Behind them there is no card, no tint and no edge: as the list
-   nears the buttons it melts into a soft blur and is gone by the top of the button (the button is glass too: rows left under it showed through), so the button floats on the clear
-   glass of the sheet.
-   Why a melt and not just a frost: a blur inside the sheet only sees the sheet's own content (the sheet's glass is a
-   blur too), and that content is see-through, so the sharp rows always showed through the blurred copy. Fading the rows
-   (a mask on the list) while the frost blurs what is left makes them dissolve softly instead. One small blur that never
-   moves, so scrolling stays cheap.
-   The foot's height arrives as --foot-h (SheetFoot in Sheet.tsx); the list keeps that much room at its end, plus a little,
-   so at rest its last row ends just above where the melt begins and nothing is faded until you scroll. */
+/* The bottom buttons (Add, Finish…) float on their own: nothing but the button. They are laid over the end of the list (not
+   below it), so the list scrolls all the way down underneath and stays visible all round them; there is no panel, band,
+   tint or fade behind them. The button itself is the glass: the main action is solid colour, the others (and a main
+   action that isn't available yet) are frosted pills. With the keyboard up they ride on top of it (Sheet.tsx).
+   The foot's height arrives as --foot-h (SheetFoot in Sheet.tsx); the list keeps that much room at its end, so its last
+   row can rest just above the button. */
 .sheet-pane { position: relative; }
-.sheet-foot { position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; isolation: isolate; padding: 10px 22px calc(var(--sab) + 14px); pointer-events: none; }
-.sheet-foot::before { content: ''; position: absolute; left: 0; right: 0; bottom: 0; top: -40px; z-index: -1; pointer-events: none;
-  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
-  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 50%); mask-image: linear-gradient(to bottom, transparent, #000 50%); }
+.sheet-foot { position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; padding: 10px 22px calc(var(--sab) + 14px); pointer-events: none; will-change: transform; }
 .sheet-foot > * { position: relative; pointer-events: auto; }
-.sheet-pane:has(> .sheet-foot) .sheet-body, .sheet-page:has(> .sheet-foot) .sheet-body { --foot: var(--foot-h, calc(var(--sab) + 76px)); padding-bottom: calc(var(--foot) + 30px); }
+.sheet-pane:has(> .sheet-foot) .sheet-body, .sheet-page:has(> .sheet-foot) .sheet-body { padding-bottom: calc(var(--foot-h, calc(var(--sab) + 76px)) + 18px + var(--kb-room, 0px)); }
 @supports (animation-timeline: scroll()) {
-  .sheet-pane:has(> .sheet-foot) .sheet-body, .sheet-page:has(> .sheet-foot) .sheet-body {
-    --melt: linear-gradient(to bottom, transparent, #000 var(--sb-fade), #000 calc(100% - var(--foot) - 34px), rgba(0, 0, 0, 0.6) calc(100% - var(--foot) - 16px), rgba(0, 0, 0, 0.2) calc(100% - var(--foot) + 2px), transparent calc(100% - var(--foot) + 16px));
-    -webkit-mask-image: var(--melt); mask-image: var(--melt); }
+  .sheet-pane:has(> .sheet-foot) .sheet-body, .sheet-page:has(> .sheet-foot) .sheet-body { -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--sb-fade)); mask-image: linear-gradient(to bottom, transparent, #000 var(--sb-fade)); }
 }
+/* A glass pill: a blur of its own, only the size of the pill, so what passes under it turns into soft colour. */
+.sheet .sheet-foot .btn:not(.primary), .sheet .sheet-foot .btn.primary[disabled] {
+  -webkit-backdrop-filter: blur(22px) saturate(1.6); backdrop-filter: blur(22px) saturate(1.6);
+  box-shadow: inset 0 1px 0 var(--hl), inset 0 0 0 1px var(--line), 0 12px 30px -14px rgba(0, 0, 0, 0.55); }
+.sheet .sheet-foot .btn:not(.primary) { background: color-mix(in srgb, color-mix(in srgb, var(--tx) 8%, var(--sheet-solid)) 62%, transparent); }
+.sheet .sheet-foot .btn.primary[disabled] { background: color-mix(in srgb, color-mix(in srgb, var(--ac) 18%, var(--sheet-solid)) 64%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ac) 26%, transparent), 0 12px 30px -14px rgba(0, 0, 0, 0.55); }
 
 /* ── floating tab bar: icons only; the active tab opens up and shows its name ─── */
 .tabbar-wrap { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; padding: 0 16px calc(var(--sab) + 14px); display: flex; justify-content: center; pointer-events: none; }

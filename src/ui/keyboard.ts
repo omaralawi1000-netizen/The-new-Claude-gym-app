@@ -13,9 +13,15 @@ let anim: { stop: () => void } | null = null;
 let target = 0;
 
 type Spring = { stiffness: number; damping: number; mass?: number };
+const goals = new Set<(px: number) => void>();
+/** Where the keyboard is heading, told once per change (before it starts moving): sheets make their room for it up front. */
+export function onKeyboardGoal(fn: (px: number) => void): () => void { goals.add(fn); return () => { goals.delete(fn); }; }
+export const keyboardGoal = () => target;
 function go(px: number, sp: Spring | { duration: number }) {
   anim?.stop();
+  const was = target;
   target = px;
+  if (was !== px) goals.forEach((f) => f(px));
   anim = animate(kb, px, sp as never);
 }
 
@@ -48,8 +54,9 @@ export function watchFocus(root: HTMLElement, scroller: (el: HTMLElement) => HTM
     const sc = scroller(el); if (!sc) return;
     const sr = sc.getBoundingClientRect(), er = el.getBoundingClientRect();
     // a sheet's bottom buttons float over the end of the list: the room you can see ends where they begin
+    // …and the keyboard covers the rest (sheets no longer shrink for it: it slides over them)
     const foot = sc.closest('.sheet-pane, .sheet-page')?.querySelector(':scope > .sheet-foot');
-    const bottom = foot ? Math.min(sr.bottom, foot.getBoundingClientRect().top) : sr.bottom;
+    const bottom = Math.min(sr.bottom, foot ? foot.getBoundingClientRect().top : Infinity, base - kb.get());
     const margin = 16;
     if (er.top >= sr.top + margin && er.bottom <= bottom - margin) return; // already in sight
     const d = er.top + er.height / 2 - (sr.top + (bottom - sr.top) * 0.4);

@@ -1,10 +1,10 @@
 import { AnimatePresence, animate, motion, useMotionValue, usePresence, useReducedMotion, useTransform, type MotionValue } from 'motion/react';
 import { createPortal } from 'react-dom';
 import { createContext, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { EngageContext, Mirror, OverlayMeta, mirrorProgress, mirrorStage, trackDepth, type Engage } from './engage';
+import { EngageContext, Mirror, OverlayMeta, mirrorProgress, mirrorStage, satPx, trackDepth, type Engage } from './engage';
 import { viewportH } from './viewport';
 import { Veil, mirrorVeil } from './Veil';
-import { availableHeight, dropKeyboard, kb, watchFocus } from './keyboard';
+import { availableHeight, baseHeight, dropKeyboard, kb, onKeyboardGoal, watchFocus } from './keyboard';
 
 /** Stack-position z-index for the current overlay: a later overlay is always above an earlier one. */
 export const OverlayZ = createContext<number | null>(null);
@@ -15,7 +15,7 @@ export { OverlayMeta };
 export const useIsPage = () => !!useContext(OverlayMeta)?.page;
 
 /** A sheet that pages can open inside: where they go, and what they share with it (the drag, the progress, the exit). */
-interface Host { el: HTMLDivElement; y: MotionValue<number>; swipeV: { current: number }; engage: Engage; gone: Set<() => void>; small?: boolean }
+interface Host { el: HTMLDivElement; y: MotionValue<number>; swipeV: { current: number }; engage: Engage; gone: Set<() => void>; small?: boolean; rise: MotionValue<number> }
 const hosts = new Map<string, Host>();
 /** Overlays that sit together on one sheet: this one, the pages directly above it, and the sheet they open in. */
 function group(ov: { id: string; page?: boolean }[], i: number) {
@@ -134,12 +134,16 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
   const y = useMotionValue(0);   // the finger
   const bs = useMotionValue(0);  // stepped back behind another sheet
   const shift = useTransform([p, y, bs], ([pp, yy, b]: number[]) => (1 - pp) * dist.current + yy - 6 * b);
-  // the keyboard lifts the sheet as part of its transform (not its `bottom`), so riding the keyboard never re-lays it out
-  // Only the sheet on top rides the keyboard. One behind it stays where it is: it is dimmed and covered, and a full-height
-  // one keeps its top edge in the same place either way (it lifts by exactly what it shrinks), so it looks the same; but
-  // moving and re-fitting it (a long list under a 44 px blur) on every frame of the keyboard was half of the lag.
-  // Behind, it still comes DOWN with a keyboard that leaves (it may have been up when the top sheet opened). Back on top it
-  // joins the keyboard only once the two meet, so a keyboard dropping with the closing top sheet doesn't yank it up first.
+  // THE KEYBOARD, as in iOS and the Claude app: the keyboard slides over the sheet, and nothing is re-laid out while it moves.
+  //  - A sheet never changes size for it. It rises only as far as it can without its top passing the gap under the status
+  //    bar (a full-height sheet doesn't rise at all); the rest of it simply goes under the keyboard.
+  //  - Its bottom buttons ride on top of the keyboard (a transform of the foot).
+  //  - The list gets the covered part as extra room at its end, once, before the keyboard starts moving, so everything can
+  //    still be scrolled up above the buttons. (Sheets used to shrink to fit on every frame of the keyboard, which re-laid
+  //    out and re-drew the whole sheet and its 44 px glass each frame: that was the lag.)
+  // Only the sheet on top follows the keyboard. One behind it stays where it is (it is dimmed and covered); it still comes
+  // DOWN with a keyboard that leaves, and back on top it joins the keyboard only once the two meet, so a keyboard dropping
+  // with the closing top sheet doesn't yank it up first.
   const still = useRef(behind); still.current = behind;
   const kbHere = useMotionValue(behind ? 0 : kb.get());
   const synced = useRef(!behind);
@@ -149,10 +153,37 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
     if (!still.current && v <= kbHere.get() + 0.5) synced.current = true;
   }), []); // eslint-disable-line
   useEffect(() => { synced.current = !behind && kb.get() <= kbHere.get() + 0.5; }, [behind]); // eslint-disable-line
-  const transform = useTransform([shift, bs, kbHere], ([sh, b, k]: number[]) => `translate3d(0, ${sh - k}px, 0) scale(${1 - 0.06 * b})`);
+  const natural = useRef(0); // the sheet's height with no keyboard (measured below)
+  const maxLift = () => Math.max(0, baseHeight() - satPx() - TOP_GAP[sz] - natural.current);
+  const liftOf = (k: number) => Math.min(k, maxLift());
+  const transform = useTransform([shift, bs, kbHere], ([sh, b, k]: number[]) => `translate3d(0, ${sh - liftOf(k)}px, 0) scale(${1 - 0.06 * b})`);
+  const rise = useTransform(kbHere, (k: number) => k - liftOf(k)); // how far the buttons ride above the sheet's own bottom
+  // the room the keyboard will cover, made once per keyboard change; the sheet's height is held while it is there, so a
+  // sheet as tall as its contents doesn't grow with the extra room
+  useEffect(() => {
+    const el = ref.current; if (!el) return;
+    const make = (goal: number) => {
+      const r = Math.max(0, Math.round(goal - maxLift()));
+      if (r > 0) { if (!el.style.height || el.dataset.held) { el.style.height = `${natural.current || el.offsetHeight}px`; el.dataset.held = '1'; } el.style.setProperty('--kb-room', `${r}px`); return; }
+      // going down: a list scrolled into the extra room glides back with the keyboard, then the room goes once it has landed
+      el.querySelectorAll<HTMLElement>('.sheet-body').forEach((b) => {
+        const room = parseFloat(el.style.getPropertyValue('--kb-room')) || 0;
+        const max = b.scrollHeight - b.clientHeight - room;
+        if (room && b.scrollTop > max) b.scrollTo({ top: Math.max(0, max), behavior: 'smooth' });
+      });
+    };
+    const offGoal = onKeyboardGoal((g) => { if (!still.current) make(g); });
+    const offKb = kbHere.on('change', (k) => {
+      if (k > 0.5 || !el.style.getPropertyValue('--kb-room')) return;
+      el.style.removeProperty('--kb-room');
+      if (el.dataset.held) { el.style.height = ''; delete el.dataset.held; }
+    });
+    return () => { offGoal(); offKb(); };
+    // eslint-disable-next-line
+  }, []);
   const e = useTransform([p, y], ([pp, yy]: number[]) => clamp01(pp - Math.max(0, yy) / dist.current));
   const engage = useMemo(() => ({ e, shift }), [e, shift]);
-  const room = useTransform(kbHere, (k: number) => availableHeight(k, TOP_GAP[sz])); // what the keyboard leaves free: the sheet lifts and fits as it opens
+  const room = availableHeight(0, TOP_GAP[sz]); // the most it may take (it never shrinks for the keyboard: see above)
   // a small pop-up leaves the page where it is: it doesn't count towards the page stepping back
   useEffect(() => (small ? undefined : trackDepth(id, e)), [id, e, small]);
   const swipeV = useRef(0); // px/s the finger had when it let go
@@ -165,7 +196,7 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
   const gone = useRef(new Set<() => void>());
   useLayoutEffect(() => {
     if (nested || !meta || !ref.current) return;
-    hosts.set(meta.id, { el: ref.current, y, swipeV, engage, gone: gone.current, small });
+    hosts.set(meta.id, { el: ref.current, y, swipeV, engage, gone: gone.current, small, rise });
     return () => { hosts.delete(meta.id); };
     // eslint-disable-next-line
   }, []);
@@ -178,7 +209,7 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
     const m = mirror.current!; m.cancel();
     if (reduce) return;
     const b = bs.get();
-    const k = kbHere.get();
+    const k = liftOf(kbHere.get());
     m.add(mirrorProgress(ref.current, p0, p1, sp, vel, (pp) => ({ transform: `translate3d(0, ${(1 - pp) * dist.current - k}px, 0) scale(${1 - 0.06 * b})` })));
     m.add(...mirrorVeil(scrimRef.current, p0, p1, sp, vel), small ? null : mirrorStage(id, p0, p1, sp, vel), mirrorOrb(ref.current, p0, p1, sp, vel, (pp) => (1 - pp) * dist.current));
   };
@@ -194,7 +225,7 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
     const el = ref.current; if (!el) return;
     // short sheets are thinner glass (more of the colour comes through), full-height ones denser for long reading
     // (not while the keyboard is up: a tall sheet squeezed above it used to count as short and change its glass mid-ride)
-    const measure = () => { const h = el.offsetHeight; dist.current = h + 40; if (kb.get() > 1) return; const short = h < window.innerHeight * 0.62; if ((el.dataset.size === 'short') !== short) el.dataset.size = short ? 'short' : 'full'; };
+    const measure = () => { const h = el.offsetHeight; dist.current = h + 40; if (kb.get() > 1 || el.dataset.held) return; natural.current = h; const short = h < window.innerHeight * 0.62; if ((el.dataset.size === 'short') !== short) el.dataset.size = short ? 'short' : 'full'; };
     measure();
     const ro = new ResizeObserver(measure); ro.observe(el);
     return () => ro.disconnect();
@@ -281,7 +312,7 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
         <div className="sheet-grab" />
         <div className={`sheet-pane ${tall && !instant ? 'late' : ''}`} ref={paneRef}>
           {ready && children}
-          {ready && foot && <SheetFoot>{foot}</SheetFoot>}
+          {ready && foot && <SheetFoot rise={rise}>{foot}</SheetFoot>}
         </div>
       </motion.div>
     </EngageContext.Provider>
@@ -354,7 +385,7 @@ function PageSheet({ children, onClose, tall, label, foot, id }: SheetProps & { 
     <EngageContext.Provider value={host.engage}>
       <div ref={ref} className="sheet-page" role="dialog" aria-modal="true" aria-label={label}>
         {ready && children}
-        {ready && foot && <SheetFoot>{foot}</SheetFoot>}
+        {ready && foot && <SheetFoot rise={host.rise}>{foot}</SheetFoot>}
       </div>
     </EngageContext.Provider>,
     host.el,
@@ -366,7 +397,8 @@ function PageSheet({ children, onClose, tall, label, foot, id }: SheetProps & { 
  * the list scrolls on underneath them, behind a soft frost (.sheet-foot in styles.css). Their height is handed to the page
  * as --foot-h, which the scrolling list uses as its bottom room: at rest the last row ends just above the frost.
  */
-function SheetFoot({ children }: { children: ReactNode }) {
+function SheetFoot({ children, rise }: { children: ReactNode; rise: MotionValue<number> }) {
+  const lift = useTransform(rise, (r: number) => (r > 0.5 ? `translate3d(0, ${-r}px, 0)` : 'none'));
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const el = ref.current, host = el?.parentElement; if (!el || !host) return;
@@ -376,7 +408,7 @@ function SheetFoot({ children }: { children: ReactNode }) {
     const ro = new ResizeObserver(set); ro.observe(el);
     return () => { ro.disconnect(); host.style.removeProperty('--foot-h'); };
   }, []);
-  return <div className="sheet-foot" ref={ref}>{children}</div>;
+  return <motion.div className="sheet-foot" ref={ref} style={{ transform: lift }}>{children}</motion.div>;
 }
 
 /** The close button of a custom sheet header: a Back arrow when the sheet is a page inside another one. */
