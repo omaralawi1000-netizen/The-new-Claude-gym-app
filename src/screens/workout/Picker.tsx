@@ -112,7 +112,7 @@ function Row({ e, lang, t, sel, single, onClick, onInfo }: { e: Exercise; lang: 
           <span className="li-sub trunc" style={{ display: 'block' }}>{e.muscles.slice(0, 2).map((m) => t(MUSCLE_LABEL[m])).join(' · ')} · {e.equipment.slice(0, 2).map((m) => t(EQUIP_LABEL[m])).join(', ')}</span>
         </span>
       </button>
-      {onInfo && <button className="icon-btn flat sm" aria-label={t('Exercise details')} onClick={onInfo}><Icon name="info" size={18} /></button>}
+      {onInfo && <button className="icon-btn flat sm press" aria-label={t('Exercise details')} onClick={onInfo}><Icon name="info" size={18} /></button>}
     </div>
   );
 }

@@ -151,7 +151,7 @@ export function CustomFood({ props }: { props: { from?: Food; name?: string; bar
                 <div key={p.id} className="row-flex" style={{ gap: 8, marginBottom: 8 }}>
                   <input className="input grow" placeholder={t('e.g. 1 slice')} value={p.label} onChange={(e) => setPortions((x) => x.map((y, j) => (j === i ? { ...y, label: e.target.value } : y)))} />
                   <div style={{ width: 110 }}><NumInput value={p.amount || undefined} onChange={(v) => setPortions((x) => x.map((y, j) => (j === i ? { ...y, amount: v ?? 0 } : y)))} unit={basis} max={1} /></div>
-                  <button className="icon-btn flat" aria-label={t('Remove')} onClick={() => setPortions((x) => x.filter((_, j) => j !== i))}><Icon name="close" size={18} /></button>
+                  <button className="icon-btn flat press" aria-label={t('Remove')} onClick={() => setPortions((x) => x.filter((_, j) => j !== i))}><Icon name="close" size={18} /></button>
                 </div>
               ))}
               <button className="btn sm press" onClick={() => setPortions((x) => [...x, { id: uid('p'), label: '', amount: 0, verified: true }])}><Icon name="plus" size={16} /> {t('Add portion')}</button>

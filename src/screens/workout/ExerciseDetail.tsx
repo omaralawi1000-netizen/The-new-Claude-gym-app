@@ -37,7 +37,7 @@ export function ExerciseDetail({ props }: { props: { id: string } }) {
   return (
     <Sheet onClose={pop} tall label={exName(ex, lang)} z={115}
       foot={s.active ? <button className="btn primary block press" onClick={() => { addExercises([ex.id]); toast(t('Added to workout'), { tone: 'ok' }); pop(); }}><Icon name="plus" size={18} /> {t('Add to current workout')}</button> : undefined}>
-      <SheetHead title={exName(ex, lang)} sub={ex.muscles.map((m) => t(MUSCLE_LABEL[m])).join(' · ')} onClose={pop} right={ex.custom ? <button className="icon-btn flat" aria-label={t('Edit')} onClick={() => push('exerciseEditor', { id: ex.id })}><Icon name="edit" /></button> : undefined} />
+      <SheetHead title={exName(ex, lang)} sub={ex.muscles.map((m) => t(MUSCLE_LABEL[m])).join(' · ')} onClose={pop} right={ex.custom ? <button className="icon-btn flat press" aria-label={t('Edit')} onClick={() => push('exerciseEditor', { id: ex.id })}><Icon name="edit" /></button> : undefined} />
       <div className="sheet-body">
         <div className="plinth dots" style={{ padding: 14, borderRadius: 'var(--r-lg)', display: 'grid', placeItems: 'center' }}><MuscleMap muscles={ex.muscles} size={130} /></div>
         <div className="chips" style={{ margin: '14px 0 0', padding: 0, flexWrap: 'wrap' }}>

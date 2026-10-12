@@ -108,7 +108,7 @@ function PlanTab() {
                       <div className="display" style={{ fontSize: 44, fontStyle: 'italic', lineHeight: 0.95 }}>{r.name}</div>
                       <div className="small t2 num" style={{ marginTop: 6 }}>{t(r.items.length === 1 ? '1 exercise' : '{n} exercises', { n: r.items.length })} · ~{estMinutes(r)} min{last ? ` · ${fmtDate(last.date, lang, { day: 'numeric', month: 'short' })}` : ''}</div>
                     </button>
-                    <button className="icon-btn flat" aria-label={t('Duplicate')} onClick={() => dup(r)}><Icon name="copy" size={19} /></button>
+                    <button className="icon-btn flat press" aria-label={t('Duplicate')} onClick={() => dup(r)}><Icon name="copy" size={19} /></button>
                   </div>
                   <div className="row-flex between" style={{ marginTop: 14 }}>
                     <div className="chips" style={{ margin: 0, padding: 0, gap: 6, flexWrap: 'nowrap', overflow: 'hidden', minWidth: 0, flex: 1 }}>{muscles.slice(0, 2).map((m) => <span key={m} className="chip sm" style={{ flex: 'none' }}>{t(MUSCLE_LABEL[m])}</span>)}{muscles.length > 2 && <span className="chip sm num" style={{ flex: 'none' }}>+{muscles.length - 2}</span>}</div>
@@ -192,7 +192,7 @@ function HistoryTab() {
       <div key={x.id} className="li">
         <span style={{ width: 40, height: 40, borderRadius: 13, background: x.kind === 'wrestling' ? 'var(--ac-soft)' : 'var(--s2)', color: x.kind === 'wrestling' ? 'var(--ac-text)' : undefined, display: 'grid', placeItems: 'center', flex: 'none', boxShadow: 'inset 0 0 0 1px var(--line)' }}><Icon name={activityIcon(x.kind)} size={19} /></span>
         <div className="grow" style={{ minWidth: 0 }}><div className="li-title">{t(ACTIVITY_LABEL[x.kind] === 'Other' ? 'Activity' : ACTIVITY_LABEL[x.kind])}</div><div className="li-sub num trunc">{fmtDate(x.date, lang, { weekday: 'short', day: 'numeric', month: 'short' })} · {activityLine(x, t, lang, u.distance)}{x.note ? ` · ${x.note}` : ''}</div></div>
-        <button className="icon-btn flat sm" aria-label={t('Delete')} onClick={() => { const a = s.removeActivity(x.id); if (a) useUI.getState().toast(t('Deleted'), { actionLabel: t('Undo'), onAction: () => s.restoreActivity(a) }); }}><Icon name="trash" size={16} /></button>
+        <button className="icon-btn flat sm press" aria-label={t('Delete')} onClick={() => { const a = s.removeActivity(x.id); if (a) useUI.getState().toast(t('Deleted'), { actionLabel: t('Undo'), onAction: () => s.restoreActivity(a) }); }}><Icon name="trash" size={16} /></button>
       </div>) })),
   ].sort((a, b) => b.at - a.at);
   return (

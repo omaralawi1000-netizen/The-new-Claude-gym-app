@@ -836,3 +836,18 @@ alone on purpose (other threads were changing them).
 - Result at 4× slow-down: style work per tab switch ~600 → ~300 ms; closing the workout 570 → 280 ms.
 - Workout clock: checked against minimise, a frozen (background) page and finishing; it is computed from timestamps
   everywhere (live clock, pill, Today card, summary, history) and stayed correct. No change.
+
+## Feel pass, step 1: every button presses like a native one (12 Oct 2026, v0.1.12)
+
+- One press for the whole app (`ui/press.ts`), in place of CSS `:active`. `:active` missed quick taps (the finger was up
+  before its 80 ms dip showed) and flashed on a finger that was starting a scroll. Now a resting finger shows the press
+  after 55 ms (a scroll cancels it inside that window, or as soon as the finger drifts 10 px), a quick tap still gets a
+  full dip held for at least 120 ms, and the way back is the calm spring every `.press` already had.
+- The depth is sized to the control: about 3 px of give on a wide button, ~6 % on a small icon, so both read as the same
+  gentle push. Only `data-pressed` and `--press` are written, on the control itself (no page-wide restyle).
+- The icon buttons that had no press (sheet close / back, delete and edit icons, the toast's Undo) now have it. The Finish
+  button, set numbers and set ticks spring back instead of snapping (their own transitions had dropped `transform`).
+  The dock's tabs keep the plain CSS press, because the dock measures them the moment a tab is picked.
+- Haptics: Settings → Haptic feedback now turns off every vibration (most taps ignored it). Switches tick when turned on and
+  segmented controls tick when the choice changes. Vibrations for a ticked set (a double one when it beats last time), the rest timer's last seconds
+  and its end were already there and stay as they were.

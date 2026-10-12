@@ -168,7 +168,7 @@ export function WaterSheet({ props }: { props: { date: string } }) {
             <div key={w.id} className="li" style={{ minHeight: 48 }}>
               <Icon name="drop" size={18} style={{ color: 'var(--c-water)' }} /><div className="grow num">{fmtNum(w.ml, lang, 0)} ml</div>
               <div className="small t3 num">{new Date(w.at).toLocaleTimeString(lang === 'da' ? 'da-DK' : 'en-GB', { hour: '2-digit', minute: '2-digit' })}</div>
-              <button className="icon-btn flat" aria-label={t('Delete')} onClick={() => { s.removeWater(w.id); useUI.getState().toast(t('Removed'), { actionLabel: t('Undo'), onAction: () => s.addWater(w.ml, w.date) }); }}><Icon name="trash" size={18} /></button>
+              <button className="icon-btn flat press" aria-label={t('Delete')} onClick={() => { s.removeWater(w.id); useUI.getState().toast(t('Removed'), { actionLabel: t('Undo'), onAction: () => s.addWater(w.ml, w.date) }); }}><Icon name="trash" size={18} /></button>
             </div>
           ))}</div>
         )}

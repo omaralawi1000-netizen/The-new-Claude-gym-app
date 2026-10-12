@@ -26,7 +26,7 @@ function KeyField({ name, label, hint, onTest, test }: { name: 'groq' | 'gemini'
       <div className="xs t3" style={{ margin: '4px 0 10px' }}>{hint}</div>
       <div className="row-flex" style={{ gap: 8 }}>
         <input className="input grow" type={show ? 'text' : 'password'} autoComplete="off" autoCapitalize="off" autoCorrect="off" spellCheck={false} aria-label={label} placeholder={has ? t('Paste a new key to replace it') : t('Paste your key')} value={val} onChange={(e) => setVal(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') save(); }} />
-        <button className="icon-btn flat" aria-label={show ? t('Hide key') : t('Show key')} onClick={() => setShow((v) => !v)}><Icon name="eye" style={{ opacity: show ? 1 : 0.5 }} /></button>
+        <button className="icon-btn flat press" aria-label={show ? t('Hide key') : t('Show key')} onClick={() => setShow((v) => !v)}><Icon name="eye" style={{ opacity: show ? 1 : 0.5 }} /></button>
       </div>
       <div className="row-flex" style={{ gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
         <button className="btn primary sm press" disabled={!val.trim()} onClick={save}>{t('Save and test')}</button>

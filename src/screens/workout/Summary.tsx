@@ -181,7 +181,7 @@ export function SessionDetail({ props }: { props: { id: string } }) {
                         <div style={{ flex: 1 }}><NumInput value={x.weightKg === undefined ? undefined : Math.round(kgToDisplay(x.weightKg, u.weight) * 100) / 100} max={2} unit={u.weight} onChange={(v) => patch(e.id, x.id, { weightKg: v === undefined ? undefined : displayToKg(v, u.weight) })} label={t('Weight')} /></div>
                         <div style={{ flex: 1 }}><NumInput value={x.reps} max={0} unit={t('reps')} onChange={(v) => patch(e.id, x.id, { reps: v })} label={t('Reps')} /></div>
                       </> : <div className="grow num small">{fmtSet(x, ex, u, lang, t)}</div>}
-                      <button className="icon-btn flat sm" aria-label={t('Delete set')} onClick={() => delSet(e.id, x.id)}><Icon name="trash" size={16} /></button>
+                      <button className="icon-btn flat sm press" aria-label={t('Delete set')} onClick={() => delSet(e.id, x.id)}><Icon name="trash" size={16} /></button>
                     </div>
                   );
                 })}

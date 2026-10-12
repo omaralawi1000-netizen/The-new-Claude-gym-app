@@ -43,7 +43,7 @@ export function WeightSheet() {
         {list.length > 0 && <div className="list" style={{ marginTop: 18 }}>{list.map((w) => (
           <div key={w.id} className="li" style={{ minHeight: 48 }}>
             <div className="grow num"><b>{fmtNum(kgToDisplay(w.kg, u), lang, 1)}</b> {u}</div><div className="small t2">{fmtDate(w.date, lang, { weekday: 'short', day: 'numeric', month: 'short' })}</div>
-            <button className="icon-btn flat sm" aria-label={t('Delete')} onClick={() => { s.removeWeight(w.id); toast(t('Removed'), { actionLabel: t('Undo'), onAction: () => s.restoreWeight(w) }); }}><Icon name="trash" size={16} /></button>
+            <button className="icon-btn flat sm press" aria-label={t('Delete')} onClick={() => { s.removeWeight(w.id); toast(t('Removed'), { actionLabel: t('Undo'), onAction: () => s.restoreWeight(w) }); }}><Icon name="trash" size={16} /></button>
           </div>))}</div>}
       </div>
     </Sheet>
@@ -73,7 +73,7 @@ export function MeasureSheet() {
         {hist.length > 0 && <div className="list" style={{ marginTop: 18 }}>{hist.slice(0, 10).map((m, i) => {
           const prev = hist[i + 1];
           const d = prev ? cmToDisplay(m.cm, u) - cmToDisplay(prev.cm, u) : null;
-          return <div key={m.id} className="li" style={{ minHeight: 48 }}><div className="grow num"><b>{fmtNum(cmToDisplay(m.cm, u), lang, 1)}</b> {u}{d !== null && <span className="t3 small"> ({d >= 0 ? '+' : '−'}{fmtNum(Math.abs(d), lang, 1)})</span>}</div><div className="small t2">{fmtDate(m.date, lang, { day: 'numeric', month: 'short' })}</div><button className="icon-btn flat sm" aria-label={t('Delete')} onClick={() => s.removeMeasurement(m.id)}><Icon name="trash" size={16} /></button></div>;
+          return <div key={m.id} className="li" style={{ minHeight: 48 }}><div className="grow num"><b>{fmtNum(cmToDisplay(m.cm, u), lang, 1)}</b> {u}{d !== null && <span className="t3 small"> ({d >= 0 ? '+' : '−'}{fmtNum(Math.abs(d), lang, 1)})</span>}</div><div className="small t2">{fmtDate(m.date, lang, { day: 'numeric', month: 'short' })}</div><button className="icon-btn flat sm press" aria-label={t('Delete')} onClick={() => s.removeMeasurement(m.id)}><Icon name="trash" size={16} /></button></div>;
         })}</div>}
       </div>
     </Sheet>
