@@ -443,6 +443,13 @@ The floating rest card that covered your sets is gone.
 - **Rest bar is one colour**: it is a solid surface now (no frost), so the set rows no longer show through and there is no lighter patch behind the orb. Only the fill changes its colour.
 - **Rest timer animation** (`RestFill` in `screens/workout/Active.tsx`): the fill is one linear animation run by the browser (smooth at 120 Hz) instead of being re-aimed four times a second; it restarts only when the rest changes (±15, pause, resume). Skip slides it back. At the end it fades to green. In the last three seconds the time swells a touch on each second, in step with the ticks. Reduced motion: no swell.
 
+## The Coach knows today (12 Oct 2026, v0.1.16)
+
+- **"How's today?" gets a real answer.** Every Coach and orb request now starts its DATA with TODAY AT A GLANCE (`buildTodayContext` in `lib/coachContext.ts`): the weekday and time of day, the user's name, today's workout (running, done, or planned with the targets the app itself will fill in, from `suggestProgression`, plus what was lifted last time), wrestling today or tomorrow, days since the last workout, missed workouts, calories and protein eaten against target with what is left, water and the last weigh-in. Rule 9 of `AGENT_SYSTEM` says how to answer "how's today?" (lead with what matters now, 3–5 lines, real numbers) and "how am I doing?" (the last 2–4 weeks, one thing to change).
+- **Same numbers everywhere.** The targets come from the same progression as the Today card and the workout, so the Coach never suggests a different weight than the app fills in.
+- **"How's today?" is the first Coach suggestion** once there is any data; "How is my week going?" always keeps the last place.
+- Tests: `tests/coach.test.ts` ("how's today").
+
 ## One top fade everywhere (12 Oct 2026, v0.1.4)
 
 - **Same soft edge on every scrolling page.** Content that scrolls up now melts away under the top edge over about 54 px, eased (it starts slowly, so there is no visible line). Before, the tab pages, the live workout and sheets each had their own length (44, 36, 44 px, straight ramp) and the Orb's talk list and onboarding had none.
