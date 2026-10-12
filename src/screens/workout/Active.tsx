@@ -17,6 +17,7 @@ import { addSet, deleteSet, moveExercise, patchExercise, patchSet, removeExercis
 import { exName, fmtSet, MUSCLE_LABEL } from './common';
 import { SphereSlot, mirrorOrb, orbPress, orbTap } from '../../ui/Sphere';
 import { useSwipeDown } from '../../ui/swipe';
+import { useSwipeTick } from '../../ui/swipeTick';
 import { Mirror, mirrorProgress, mirrorStage, trackCover, trackDepth, type Engage } from '../../ui/engage';
 import { DIM_VEIL, Veil, mirrorVeil } from '../../ui/Veil';
 import { kb } from '../../ui/keyboard';
@@ -598,6 +599,7 @@ const SetRow = memo(function SetRow({ se, set, ex, label, prev, restDefault }: {
   const [burst, setBurst] = useState(0); // a ring that expands from the check each time a set is completed
   const [beat, setBeat] = useState<{ n: number; label: string } | null>(null); // you beat last time: gold burst + what you gained
   const [showGain, setShowGain] = useState(false);
+  const rowRef = useRef<HTMLDivElement>(null), fillRef = useRef<HTMLElement>(null);
   // the set to do next gets a quiet accent outline (a boolean, so only the two rows that change redraw)
   const current = useStore((s) => !set.done && nextSetOf(s.active)?.set.id === set.id);
   useEffect(() => { if (!beat) return; setShowGain(true); const id = setTimeout(() => setShowGain(false), 1500); return () => clearTimeout(id); }, [beat]);
@@ -643,6 +645,9 @@ const SetRow = memo(function SetRow({ se, set, ex, label, prev, restDefault }: {
     }
   };
 
+  // swipe the row to the right to tick it (ui/swipeTick.ts): the check fills as you drag
+  useSwipeTick(rowRef, fillRef, !set.done, () => { setBurst((n) => n + 1); complete(); });
+
   const remove = () => {
     const r = deleteSet(se.id, set.id);
     toast(t('Set removed'), { actionLabel: t('Undo'), onAction: r.restore });
@@ -661,7 +666,7 @@ const SetRow = memo(function SetRow({ se, set, ex, label, prev, restDefault }: {
   return (
     // a plain row: it grows in and folds away inside its Collapse (no Motion layout — that re-measured the whole page)
     <div data-set={set.id}>
-      <div className={`wk-set ${set.done ? 'done' : current ? 'current' : 'todo'}${set.type === 'warmup' ? ' warm' : ''}`} style={{ gridTemplateColumns: gridCols(ex, settings.effort) }}>
+      <div ref={rowRef} className={`wk-set ${set.done ? 'done' : current ? 'current' : 'todo'}${set.type === 'warmup' ? ' warm' : ''}`} style={{ gridTemplateColumns: gridCols(ex, settings.effort) }}>
         <button className="press wk-set-n" aria-label={t('Set options')} aria-expanded={open} onClick={() => setOpen((v) => !v)}>{label}</button>
         <button className="num press wk-prev" disabled={!prev} onClick={() => prev && patchSet(se.id, set.id, { weightKg: prev.weightKg, reps: prev.reps, durationSec: prev.durationSec, distanceM: prev.distanceM })} aria-label={prev ? `${t('Use previous')}: ${fmtSet(prev, ex, u, lang, t)}` : undefined}>
           {/* a hold reads in the column's own unit ("66s" over SECONDS, not "1:06" beside a 66), as the records write it */}
@@ -677,6 +682,7 @@ const SetRow = memo(function SetRow({ se, set, ex, label, prev, restDefault }: {
         {/* not logged: an empty outline (no check yet); logged: a filled check that draws itself in */}
         <motion.button key={shake} className={`press wk-check${set.done ? ' on' : ''}${set.done && burst > 0 ? ' fresh' : ''}`} aria-label={set.done ? t('Mark set not done') : t('Complete set')} aria-pressed={set.done} onClick={() => { if (!set.done) setBurst((n) => n + 1); complete(); }}
           animate={shake ? { x: [0, -5, 5, -3, 3, 0] } : undefined} transition={{ duration: 0.3 }}>
+          {!set.done && <i ref={fillRef} className="wk-check-fill" aria-hidden />}
           {set.done && <svg key={`m${burst}`} className="wk-check-mark" viewBox="0 0 24 24" width="22" height="22" aria-hidden><path d="M5 12.5l4.5 4.5L19 7.5" pathLength={1} fill="none" stroke="currentColor" strokeWidth={2.8} strokeLinecap="round" strokeLinejoin="round" /></svg>}
           {burst > 0 && set.done && <motion.i key={burst} aria-hidden initial={{ scale: 0.9, opacity: 0.85 }} animate={{ scale: 2.2, opacity: 0 }} transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }} style={{ position: 'absolute', inset: 0, borderRadius: 14, boxShadow: '0 0 0 2px var(--ac), 0 0 24px var(--ac)', pointerEvents: 'none' }} />}
           {beat && set.done && <motion.i key={`g${beat.n}`} aria-hidden initial={{ scale: 0.9, opacity: 1 }} animate={{ scale: 3.2, opacity: 0 }} transition={{ duration: 1, ease: [0.22, 1, 0.36, 1] }} style={{ position: 'absolute', inset: 0, borderRadius: 14, boxShadow: '0 0 0 2px var(--gold), 0 0 30px var(--gold)', pointerEvents: 'none' }} />}
