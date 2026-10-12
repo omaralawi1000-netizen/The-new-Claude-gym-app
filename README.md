@@ -806,7 +806,20 @@ alone on purpose (other threads were changing them).
 - Bottom buttons are just the button: no frost band, tint or fade behind them (v0.1.5's melt is gone). The list scrolls underneath and stays visible around them. The main action is solid colour; other buttons, and a main action that isn't available yet, are frosted glass pills with their own small blur.
 - For that blur to show the content under it, the sheet's own 44 px glass moved from the sheet element to a layer under its content (`.sheet::before`). A blur on the sheet element itself made the sheet a closed world for blurs inside it: they only saw its see-through content, so rows under a button stayed sharp. Same single blur, same cost; `scripts/morph.mjs` reads the glass from `::before` now.
 
-## One glass pill, keyboard on one curve (12 Oct 2026, v0.1.9)
+## Speed pass, step 1 (12 Oct 2026, v0.1.9)
+
+- Measured every everyday moment with `scripts/perf-app.mjs` (production build, CPU slowed 4×; prints late frames, worst
+  frame and main-thread time per moment). The tab screens were late on about a third of their frames even standing still.
+- Cause 1: the colour field's film grain was blended over the whole screen with `mix-blend-mode: overlay`, so the browser
+  re-blended a full-screen layer on every frame. The colour field is its own transparent group, so overlay looked the same
+  as a plain layer: screenshots of all four tabs, dark and light, differ by at most 2 of 255 levels. Now a plain layer.
+- Cause 2: the progressive blur under the dock was three stacked blurs, each re-blurring the one below. The faint 3 px top
+  layer is gone and the 9 px layer fades in from the top instead (screenshots: same look; max difference 15/255 on a few
+  pixels). The dock's own frost and the 20 px layer are unchanged.
+- Result at 4× slow-down, late frames: Today standing still 28 → 2, scrolling Today 56 → 2, Train 102 → 10, Food 66 → 5,
+  Progress 210 → 17, Today with a workout running 78 → 4. The live workout was already clean and stays clean.
+
+## One glass pill, keyboard on one curve (12 Oct 2026, v0.1.10)
 
 - Every sheet's bottom button is now the same frosted glass pill on every screen (it was solid area colour in some places and glass in others). Ready or not is told by the label: bright or faint.
 - Keyboard: the sheet used to follow the keyboard 1:1 and stop dead when its top reached the gap while the keyboard kept going. Now the sheet and its buttons move on one straight line against the keyboard's height, set once per keyboard change from where they are (so letters → numbers never jumps).
