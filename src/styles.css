@@ -385,6 +385,10 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
   box-shadow: inset 0 1px 0 var(--hl), inset 0 0 0 1px var(--line), var(--sh-f);
   transition: background-color 260ms var(--ease-out);
 }
+/* The glass reaches on below the sheet's bottom edge (off screen at rest). With the keyboard up, the sheet and the keyboard
+   never quite move in lockstep (the phone reports the keyboard once and animates it on its own), and the page used to
+   peek through the gap between them; now that gap is the same glass. A floating card (small) keeps its own shape. */
+.sheet:not(.sz-small)::before { bottom: -60vh; }
 .sheet[data-size='short']::before { background: color-mix(in srgb, var(--sheet-glass) 86%, transparent); -webkit-backdrop-filter: blur(44px) saturate(2.1); backdrop-filter: blur(44px) saturate(2.1); }
 .sheet.tall { height: calc(100dvh - var(--sat) - 46px); }
 /* A sheet with another sheet stacked on top keeps its frost: it stays the same glass, set back under the top one's dim (it
@@ -443,13 +447,14 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 @supports (animation-timeline: scroll()) {
   .sheet-pane:has(> .sheet-foot) .sheet-body, .sheet-page:has(> .sheet-foot) .sheet-body { -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--sb-fade)); mask-image: linear-gradient(to bottom, transparent, #000 var(--sb-fade)); }
 }
-/* A glass pill: a blur of its own, only the size of the pill, so what passes under it turns into soft colour. */
-.sheet .sheet-foot .btn:not(.primary), .sheet .sheet-foot .btn.primary[disabled] {
+/* One glass pill for every bottom button, the same on every screen (Omar: the main action was solid colour in some places
+   and glass in others, and took each area's colour). A blur of its own, only the size of the pill, so what passes under
+   it turns into soft colour. Ready or not ready is told by the label alone: bright when it can be pressed, faint when not. */
+.sheet .sheet-foot .btn.btn {
+  background: color-mix(in srgb, color-mix(in srgb, var(--tx) 10%, var(--sheet-solid)) 58%, transparent); color: var(--tx);
   -webkit-backdrop-filter: blur(22px) saturate(1.6); backdrop-filter: blur(22px) saturate(1.6);
-  box-shadow: inset 0 1px 0 var(--hl), inset 0 0 0 1px var(--line), 0 12px 30px -14px rgba(0, 0, 0, 0.55); }
-.sheet .sheet-foot .btn:not(.primary) { background: color-mix(in srgb, color-mix(in srgb, var(--tx) 8%, var(--sheet-solid)) 62%, transparent); }
-.sheet .sheet-foot .btn.primary[disabled] { background: color-mix(in srgb, color-mix(in srgb, var(--ac) 18%, var(--sheet-solid)) 64%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ac) 26%, transparent), 0 12px 30px -14px rgba(0, 0, 0, 0.55); }
+  box-shadow: inset 0 1px 0 var(--hl), inset 0 0 0 1px var(--line-2), 0 12px 30px -14px rgba(0, 0, 0, 0.55); }
+.sheet .sheet-foot .btn.btn[disabled] { color: var(--tx3); }
 
 /* ── floating tab bar: icons only; the active tab opens up and shows its name ─── */
 .tabbar-wrap { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; padding: 0 16px calc(var(--sab) + 14px); display: flex; justify-content: center; pointer-events: none; }
