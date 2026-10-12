@@ -413,6 +413,12 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
   .sheet-body { -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--sb-fade), #000 calc(100% - var(--sb-fade-b)), transparent); mask-image: linear-gradient(to bottom, transparent, #000 var(--sb-fade), #000 calc(100% - var(--sb-fade-b)), transparent);
     animation: sb-fade linear both, sb-fade-b linear both; animation-timeline: scroll(self), scroll(self); animation-range: 0 40px, calc(100% - 40px) 100%; }
 }
+/* Tall sheets fade their content in as they open (`.sheet-pane.late > *`, line ~68). That shorthand also replaced the list's
+   scroll-driven fade, so Add food, Coach and the other tall sheets had no soft edge at all. The list keeps both: the opening
+   fade runs on time, the edges follow the scroll. */
+@supports (animation-timeline: scroll()) {
+  .sheet-pane.late > .sheet-body { animation: fadein 220ms var(--ease-out) backwards, sb-fade linear both, sb-fade-b linear both; animation-timeline: auto, scroll(self), scroll(self); animation-range: normal, 0 40px, calc(100% - 40px) 100%; }
+}
 .sheet-head { flex: none; display: flex; align-items: center; gap: 10px; padding: 2px 22px 12px; }
 /* The bottom buttons (Add, Finish…) float on their own: they are laid OVER the bottom of the content, not below it, so the
    list scrolls on all the way down underneath them. (v0.1.3 put them below the list, which cut the list off in a straight
