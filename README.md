@@ -990,7 +990,7 @@ Light only: the orb's outline never changes.
   muscle map until the rest are drawn. Only the page you're looking at moves; the others hold still and cost nothing.
   Reduced motion: the figure stands in its start pose.
 
-## Premium pass, step 7b: the figures redrawn, and room to show them (12 Oct 2026, v0.1.26)
+## Premium pass, step 7b: the figures redrawn, and room to show them (12 Oct 2026, v0.1.27)
 
 - Omar asked whether the first figures were really good; filmed honestly, they weren't (small grey tube mannequins, dark on
   dark, no hands or feet, only the arms moving). Redrawn in `Figure.tsx`: each limb is now a small static SVG, a soft
