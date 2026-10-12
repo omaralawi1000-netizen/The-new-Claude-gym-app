@@ -6,7 +6,7 @@ await p.route('**/api/food/**', (r) => r.fulfill({ status: 200, contentType: 'te
 const OFF = (code, name, brand, n) => ({ code, product_name: name, brands: brand, quantity: '450 g', serving_size: '150 g', serving_quantity: 150, nutriments: n });
 const cors = { 'access-control-allow-origin': '*', 'content-type': 'application/json' };
 let searchCalls = 0;
-await p.route('https://search.openfoodfacts.org/**', (r) => { searchCalls++; r.fulfill({ status: 200, headers: cors, body: JSON.stringify({ hits: [OFF('5701000000017', 'Skyr Naturel', 'TestMejeri', { 'energy-kcal_100g': 63, proteins_100g: 11, carbohydrates_100g: 4, fat_100g: 0.2 }), OFF('5701000000024', 'Skyr Vanille', 'TestMejeri', { 'energy-kcal_100g': 72, proteins_100g: 10, carbohydrates_100g: 7.5, fat_100g: 0.2 })] }) }); });
+await p.route('https://world.openfoodfacts.org/cgi/search.pl**', (r) => { searchCalls++; r.fulfill({ status: 200, headers: cors, body: JSON.stringify({ products: [OFF('5701000000017', 'Skyr Naturel', 'TestMejeri', { 'energy-kcal_100g': 63, proteins_100g: 11, carbohydrates_100g: 4, fat_100g: 0.2 }), OFF('5701000000024', 'Skyr Vanille', 'TestMejeri', { 'energy-kcal_100g': 72, proteins_100g: 10, carbohydrates_100g: 7.5, fat_100g: 0.2 })] }) }); });
 await p.route('https://world.openfoodfacts.org/api/v2/product/**', (r) => { const code = r.request().url().match(/product\/(\d+)/)[1]; code === '5701000000017' ? r.fulfill({ status: 200, headers: cors, body: JSON.stringify({ status: 1, product: OFF(code, 'Skyr Naturel', 'TestMejeri', { 'energy-kcal_100g': 63, proteins_100g: 11, carbohydrates_100g: 4, fat_100g: 0.2 }) }) }) : r.fulfill({ status: 404, headers: cors, body: JSON.stringify({ status: 0 }) }); });
 await p.goto('http://127.0.0.1:5173/'); await wait(p, 900); await skipOnboarding(p);
 await p.locator('.tabbar').getByRole('button', { name: 'Food', exact: true }).click(); await wait(p, 500);
@@ -14,6 +14,7 @@ await p.getByRole('button', { name: /^Add to / }).first().click(); await wait(p,
 await p.getByPlaceholder('Search foods and brands').fill('skyr'); await wait(p, 2000);
 assert(await p.getByText('TestMejeri').first().isVisible(), 'direct Open Food Facts results shown without an Aven server');
 assert(searchCalls >= 1);
+assert(await p.getByText('Cheasy').first().isVisible(), 'Danish products from the packed list shown too');
 await p.screenshot({ path: 'shots/lk-1-direct.png' });
 await p.getByRole('button', { name: 'Scan' }).first().click(); await wait(p, 700);
 await p.getByLabel('Barcode number').fill('5701000000017'); await p.getByRole('button', { name: 'Look up' }).click(); await wait(p, 1500);

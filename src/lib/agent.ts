@@ -17,7 +17,7 @@ import { defaultMealId, mealName } from './derive';
 import { fold, parseFoodText, pickOnline, resolveRows, rowQuantity, type ParsedFoodRow } from './foodText';
 import { matchExercises, parseWorkoutText } from './workoutText';
 import { entryFromSnapshot, quickEntry, snapshotOf, uid } from './nutrition';
-import { searchOnline } from './foodApi';
+import { searchDanish, searchOnline } from './foodApi';
 import { type Brain } from './gemini';
 import { estimateFood } from './brain';
 import { ACTIVITY_KINDS, ACTIVITY_LABEL } from './activity';
@@ -315,7 +315,10 @@ async function doLogFood(a: Extract<AgentAction, { type: 'log_food' }>, ctx: Age
     if (!food && r.status === 'ambiguous' && r.candidates[0] && r.candidates[0].score >= 0.5) food = r.candidates[0].food;
     // nothing in the bundled/own foods: try the online databases (bounded), unless the user turned lookups off
     if (!food && st.settings.foodLookup) {
-      const hit = await Promise.race([searchOnline(r.query).then((x) => pickOnline(r.query, x.foods)), new Promise<undefined>((ok) => setTimeout(() => ok(undefined), 4000))]).catch(() => undefined);
+      // Danish products first (on the phone, instant), then the live worldwide search
+      const timeout = (ms: number) => new Promise<undefined>((ok) => setTimeout(() => ok(undefined), ms));
+      const hit = await Promise.race([searchDanish(r.query).then((x) => pickOnline(r.query, x)), timeout(4000)]).catch(() => undefined)
+        ?? await Promise.race([searchOnline(r.query).then((x) => pickOnline(r.query, x.foods)), timeout(5000)]).catch(() => undefined);
       if (hit) { food = hit; toSave.push(hit); }
     }
     if (food) {
