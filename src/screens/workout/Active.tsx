@@ -321,7 +321,7 @@ export function ActiveWorkout({ props, open = true }: { props: { origin?: 'hero'
                 <Icon name={paused ? 'play' : 'pause'} size={18} />
               </button>
               {/* the one Finish: muted until a set is logged, then the accent; it glows once every set is ticked */}
-              <button ref={finishBtn} className={`btn sm press wk-finish ${done > 0 ? 'primary' : 'muted'}${total > 0 && done === total ? ' ready' : ''}`} onClick={finish}>{t('Finish')}</button>
+              <button ref={finishBtn} className={`btn sm press wk-finish ${total > 0 && done === total ? 'primary ready' : 'muted'}`} onClick={finish}>{t('Finish')}</button>
             </div>
             {/* grows by scaling (the compositor's job); it animated its width, which made every set ticked lay the page out again */}
             <div className="wk-progress"><i style={{ transform: `scaleX(${total ? done / total : 0})` }} /></div>
@@ -532,7 +532,7 @@ function RestFill({ state, endsAt, total, paused }: { state: string; endsAt?: nu
       prev?.a.cancel();
       return;
     }
-    if (state === 'go') return; // it ended at full: the CSS keeps it there, green
+    if (state === 'go') return; // it ended at full: the CSS keeps it there, glowing in the accent
     anim.current = null;
     if (!prev) return;
     const pr = prev.a.effect?.getComputedTiming().progress ?? 1;

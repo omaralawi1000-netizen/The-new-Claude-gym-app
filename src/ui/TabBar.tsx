@@ -31,7 +31,7 @@ function PillStatus() {
   const total = active.exercises.reduce((n, e) => n + e.sets.length, 0);
   const done = active.exercises.reduce((n, e) => n + e.sets.filter((s) => s.done).length, 0);
   // rest over while you're elsewhere in the app: the pill says so, in green, until the next set is ticked
-  if (active.rest && !active.pausedAt && rest === 0) return <><span style={{ color: 'var(--ok)', fontWeight: 700 }}>{t('Rest over')} · {t('Go')}</span> · {fmtDuration(elapsedMs(active) / 1000)}</>;
+  if (active.rest && !active.pausedAt && rest === 0) return <><span style={{ color: 'var(--ac-text)', fontWeight: 700 }}>{t('Rest over')} · {t('Go')}</span> · {fmtDuration(elapsedMs(active) / 1000)}</>;
   return <>{active.pausedAt ? t('Paused') : rest > 0 ? `${t('Rest')} ${fmtDuration(rest)}` : `${done}/${total}`} · {fmtDuration(elapsedMs(active) / 1000)}</>;
 }
 

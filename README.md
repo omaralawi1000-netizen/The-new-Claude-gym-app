@@ -1005,3 +1005,14 @@ Light only: the orb's outline never changes.
 - Focus view: the stage grows into the room the card leaves, and the figure scales to fill it. It measures once things
   settle and eases there on the slow curve, so adding a set never re-scales every frame. Pages now end just above the
   bar, so the empty gap under the card is gone.
+
+## Colour pass: one bright thing at a time (12 Oct 2026, v0.1.28)
+
+- The orange (each area's accent) is kept for the one thing to do now. Finish stays a quiet glass button until every set
+  is ticked, then lights up and glows (as before). On Train, only the routine you're in (or today's) has the bright play
+  button; the others are glass with the colour in the icon.
+- "Rest over" now glows in the area's own colour instead of green (green over the orange fill read as olive, and clashed
+  with every theme). The bar stays see-through frost: a soft accent tint, the ring pulse, and "Rest over" in the accent
+  with "Go · exercise" in plain white. The minimised workout pill says it in the accent too.
+- The light stripe on the rest-over bar (Omar's recording): the colour layer that fades in now has its own compositor
+  layer, so the fade no longer re-paints the fill in pieces (likely cause; check on the phone).

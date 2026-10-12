@@ -1,5 +1,5 @@
 // The workout bar and the end of a rest: "Next" with the set's target, the bar filling while you rest, −15/+15/Skip on a tap,
-// three ticks in the last three seconds, then the firm buzz and a green "Go" that stays until the next set is ticked — also
+// three ticks in the last three seconds, then the firm buzz and a "Go" in the accent that stays until the next set is ticked — also
 // while the workout is minimised (the pill says it). Vibration is recorded through a stub; sound can't be heard here.
 import { launch, wait, skipOnboarding, loadDemo } from './lib.mjs';
 import assert from 'node:assert/strict';
@@ -28,11 +28,11 @@ await wait(p, (await left()) + 1500);
 const vib = await p.evaluate(() => window.__vib);
 // exactly the cue: nothing else buzzes at that moment (the orb used to "land" again when the bar re-rendered)
 assert.deepEqual(vib, [24, 24, 24, [180, 90, 180, 90, 320]], `3-2-1 ticks, then the buzz, nothing else: ${JSON.stringify(vib)}`);
-assert(await p.locator('.wk-bar.go').isVisible(), 'rest over: the bar is green');
+assert(await p.locator('.wk-bar.go').isVisible(), 'rest over: the bar glows in the accent');
 assert(/^Rest over · Set 2 \| Go · /.test(await text()), `says what to do: ${await text()}`);
 await p.screenshot({ path: 'shots/rest-2-go.png' });
 await wait(p, 7000);
-assert(await p.locator('.wk-bar.go').isVisible(), 'and stays green (no auto-clear)');
+assert(await p.locator('.wk-bar.go').isVisible(), 'and stays lit (no auto-clear)');
 await p.getByRole('button', { name: 'Minimise workout' }).click(); await wait(p, 1200);
 await p.locator('.tabbar').getByRole('button', { name: 'Food', exact: true }).click(); await wait(p, 900);
 assert(/Rest over · Go/.test(await p.locator('button[aria-label="Resume workout"]').innerText()), 'the pill says it too');
