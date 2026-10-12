@@ -47,9 +47,12 @@ export function watchFocus(root: HTMLElement, scroller: (el: HTMLElement) => HTM
     const el = pending; if (!el || !el.isConnected || document.activeElement !== el) return;
     const sc = scroller(el); if (!sc) return;
     const sr = sc.getBoundingClientRect(), er = el.getBoundingClientRect();
+    // a sheet's bottom buttons float over the end of the list: the room you can see ends where they begin
+    const foot = sc.closest('.sheet-pane, .sheet-page')?.querySelector(':scope > .sheet-foot');
+    const bottom = foot ? Math.min(sr.bottom, foot.getBoundingClientRect().top) : sr.bottom;
     const margin = 16;
-    if (er.top >= sr.top + margin && er.bottom <= sr.bottom - margin) return; // already in sight
-    const d = er.top + er.height / 2 - (sr.top + sr.height * 0.4);
+    if (er.top >= sr.top + margin && er.bottom <= bottom - margin) return; // already in sight
+    const d = er.top + er.height / 2 - (sr.top + (bottom - sr.top) * 0.4);
     if (Math.abs(d) > 1) sc.scrollBy({ top: d, behavior: 'smooth' });
   };
   const later = (ms: number) => { clearTimeout(timer); timer = setTimeout(reveal, ms); };
