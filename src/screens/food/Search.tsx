@@ -66,9 +66,11 @@ export function FoodSearch({ props }: { props: { date: string; mealId: string } 
   useEffect(() => {
     if (!s.settings.foodLookup || dq.length < 2) { setOnline({ foods: [], status: 'idle' }); return; }
     let live = true;
+    const ctrl = new AbortController();
     setOnline((o) => ({ ...o, status: 'loading' }));
-    searchOnline(dq).then((r) => { if (live) setOnline({ foods: r.foods, status: r.status }); });
-    return () => { live = false; };
+    // wait for a typing pause before asking the internet, so half-typed words don't burn the lookup limit
+    const id = setTimeout(() => { searchOnline(dq, ctrl.signal).then((r) => { if (live) setOnline({ foods: r.foods, status: r.status }); }); }, 450);
+    return () => { live = false; clearTimeout(id); ctrl.abort(); };
   }, [dq, s.settings.foodLookup]);
 
   const onlineShown = online.foods.filter((f) => !results.some((r) => r.sourceId && r.sourceId === f.sourceId && r.source === f.source));
