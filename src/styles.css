@@ -940,6 +940,13 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-finish { transition: background-color 360ms var(--ease-out), color 360ms var(--ease-out), box-shadow 360ms var(--ease-out), transform 520ms var(--ease-spring); }
 .wk-head-wrap .wk-progress { margin-top: 10px; height: 3px; }
 .wk-empty { padding: 26px 4px 14px; }
+/* the empty session sits in the middle of the free space (a touch above it, as the bar takes the bottom), centred */
+.wk-list.is-empty { display: flex; flex-direction: column; }
+.wk-list.is-empty > .wk-empty { margin-top: auto; text-align: center; padding: 0 12px 22px; }
+.wk-list.is-empty > :last-child { margin-bottom: auto; }
+.wk-empty-mark { width: 72px; height: 72px; margin: 0 auto 18px; display: grid; place-items: center; border-radius: 999px; color: var(--ac-text);
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--ac) 22%, transparent), color-mix(in srgb, var(--ac) 8%, transparent) 70%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ac) 22%, transparent); }
 
 /* ── exercise card ── */
 .wk-ex-title { overflow-wrap: anywhere; text-wrap: balance; line-height: 1.12; }

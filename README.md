@@ -957,3 +957,9 @@ Light only: the orb's outline never changes.
   tick), the "all sets done" line, and every `Count` (calories, macros, water, weight, the summary's volume). `Count` used
   to count through every value in between, rewriting the text and laying the line out again on every frame.
 - The running workout clock doesn't roll (a clock that moves every second would never be still).
+
+## Premium pass, step 5: a calmer empty workout (12 Oct 2026, v0.1.23)
+
+- An empty session is one centred moment in the free space between the header and the bar: a soft accent mark (a dumbbell
+  in a glow), "Empty session", the line about the orb, then Add exercise and Discard. It used to sit at the top over an
+  empty half screen. Pure layout (flex, auto margins); nothing new animates.
