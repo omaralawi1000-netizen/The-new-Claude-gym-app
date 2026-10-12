@@ -31,6 +31,16 @@ let ignitePending = 0;
 /** Arriving on the orb screen: a heartbeat that quickens as the spiral of light climbs, ending in a soft thump. */
 const IGNITE_BUZZ = [4, 135, 5, 112, 6, 92, 7, 76, 9, 60, 11, 46, 14, 34, 30]; // the thump lands at ~0.61 s, as the spiral tops out
 export function orbPress(down: boolean) { pressTarget = down ? 1 : 0; }
+let beatPending = 0, beatAt = 0;
+/** A set was ticked: the orb answers with one soft heartbeat of light (it never changes shape). */
+export function orbBeat(strength = 1) { beatPending = Math.max(beatPending, strength); beatAt = performance.now(); }
+// Every way a set gets ticked (a tap, the orb, the Coach) goes through the store, so the orb listens there: one more set
+// done in the running workout is one heartbeat. Dictated sets already get the orb's own "done" light, so not twice.
+const doneSets = (a: { exercises: { sets: { done?: boolean }[] }[] } | null | undefined) => { let n = 0; for (const e of a?.exercises ?? []) for (const x of e.sets) if (x.done) n++; return n; };
+useStore.subscribe((st, prev) => {
+  if (st.active === prev.active || !st.active || !prev.active || st.active.id !== prev.active.id) return;
+  if (doneSets(st.active) > doneSets(prev.active) && useVoice.getState().phase === 'idle') orbBeat(1);
+});
 export function orbTap(strength = 1) { tapPending = Math.max(tapPending, strength); pressTarget = 0; }
 
 /** What the orb's drawing loop is doing, for the frame-rate readout. */
@@ -45,7 +55,12 @@ function orbInputs(): OrbInputs {
   const tap = tapPending; tapPending = 0;
   const whoosh = whooshPending; whooshPending = 0;
   const ignite = ignitePending; ignitePending = 0;
-  return { phase: v.phase, phaseAge: (performance.now() - v.since) / 1000, live, raw: live ? mic.voice() : 0, bands: live ? mic.bands() : null, press: pressTarget, tap, whoosh, ignite, voiceOut: speakingLevel() };
+  // (an orb that wasn't being drawn when the set was ticked doesn't replay it later, out of context)
+  const beat = performance.now() - beatAt < 400 ? beatPending : 0; beatPending = 0;
+  // resting between sets (counting, not paused, not yet over): the orb's light breathes with you
+  const a = useStore.getState().active;
+  const rest = a?.rest && !a.pausedAt && a.rest.endsAt > Date.now() ? 1 : 0;
+  return { phase: v.phase, phaseAge: (performance.now() - v.since) / 1000, live, raw: live ? mic.voice() : 0, bands: live ? mic.bands() : null, press: pressTarget, tap, whoosh, ignite, voiceOut: speakingLevel(), rest, beat };
 }
 
 // ── stage ───────────────────────────────────────────────────
