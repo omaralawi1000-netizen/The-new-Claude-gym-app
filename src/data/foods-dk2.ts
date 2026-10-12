@@ -116,4 +116,11 @@ export const REFERENCE_FOODS_DK2: Food[] = [
   F('mass-gainer', 'Mass gainer (powder)', 'Gainer', 'g', [380, 20, 70, 3, 2, 15, 1.5, 300], [['1 serving ~100 g', 100]], { aliases: ['gainer', 'weight gainer'] }),
   F('lentil-pasta', 'Lentil / chickpea pasta, dry', 'Linsepasta, tør', 'g', [345, 22, 50, 4, 9, 3, 0.6, 10], [['1 portion ~80 g', 80]], { state: 'dry', aliases: ['linsepasta', 'kikærtepasta', 'protein pasta'] }),
   F('protein-pancakes', 'Protein pancakes', 'Proteinpandekager', 'g', [200, 18, 20, 5, 2, 4, 1.5, 300], [['1 pancake ~50 g', 50]], { aliases: ['proteinpandekager', 'protein pancakes'] }),
+  // ── morgenmadsprodukter (brands)
+  F('rice-krispies', 'Rice Krispies (puffed rice cereal)', 'Rice Krispies', 'g', [380, 6, 85, 1, 1.5, 10, 0.3, 600], [['1 bowl ~30 g', 30]], { aliases: ['rice crispies', 'rice crisp', 'rice krispie', 'puffed rice', 'kelloggs rice krispies'] }),
+  F('coco-pops', 'Coco Pops (chocolate cereal)', 'Coco Pops', 'g', [385, 5, 85, 2.5, 2, 35, 1.3, 400], [['1 bowl ~30 g', 30]], { aliases: ['coco pops', 'choco pops', 'kelloggs coco pops'] }),
+  F('cheerios', 'Cheerios (oat cereal)', 'Cheerios', 'g', [375, 10, 71, 4, 9, 20, 0.8, 400], [['1 bowl ~30 g', 30]], { aliases: ['cheerio', 'nestle cheerios', 'honey cheerios'] }),
+  F('weetabix', 'Weetabix', 'Weetabix', 'g', [360, 12, 69, 2, 10, 4.5, 0.5, 270], [['1 biscuit ~19 g', 19]], { aliases: ['weetabix', 'weet-bix'] }),
+  F('havrefras', 'Havrefras (oat rings cereal)', 'Havrefras', 'g', [375, 8, 75, 4, 7, 15, 0.8, 300], [['1 bowl ~30 g', 30]], { aliases: ['havrefras', 'oat rings'] }),
+  F('red-berry-pudding', 'Red berry pudding with cream (rødgrød med fløde)', 'Rødgrød med fløde', 'g', [150, 1, 20, 7, 1, 17, 4.5, 15], [['1 bowl ~200 g', 200]], { aliases: ['rodgrod med flode', 'rodgrod', 'roedgroed'] }),
 ];
