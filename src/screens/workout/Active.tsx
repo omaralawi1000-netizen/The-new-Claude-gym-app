@@ -335,7 +335,7 @@ export function ActiveWorkout({ props, open = true }: { props: { origin?: 'hero'
               // block over an empty half screen
               <div className="wk-empty">
                 <div className="wk-empty-mark" aria-hidden><Icon name="dumbbell" size={40} /></div>
-                <div className="display display-sm" style={{ fontStyle: 'italic' }}>{t('Empty session')}</div>
+                <div className="display display-sm">{t('Empty session')}</div>
                 <div className="small t2" style={{ marginTop: 6 }}>{t('Add your first exercise, or tell the orb what you did.')}</div>
               </div>
             )}

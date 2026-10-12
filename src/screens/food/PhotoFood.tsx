@@ -92,7 +92,7 @@ export function PhotoFood({ props }: { props: { date: string; mealId: string } }
         <input ref={lib} type="file" accept="image/*" hidden onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ''; }} />
         {!hasAi ? (
           <div className="empty">
-            <div className="display display-sm" style={{ fontStyle: 'italic' }}>{t('Needs an AI key')}</div>
+            <div className="display display-sm">{t('Needs an AI key')}</div>
             <button className="btn primary press" style={{ marginTop: 14 }} onClick={() => push('settings', { section: 'ai' })}><Icon name="sparkle" size={18} /> {t('Add a key')}</button>
           </div>
         ) : (
