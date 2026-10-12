@@ -17,4 +17,4 @@ jobs:
           ls -la src/data/off/ && gzip -c src/data/off/off-dk.json | wc -c
           node -e "const d=require('./src/data/off/off-dk.json');for(const r of d.rows.filter(r=>/cheasy/i.test(r[2])&&/vanil/i.test(r[1])))console.log(JSON.stringify(r))"
           git config user.name "github-actions[bot]" && git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          echo no-commit
+          git add src/data/off/off-dk.json && git commit -m "Danish food list from Open Food Facts" && git push

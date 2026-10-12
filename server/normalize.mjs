@@ -12,9 +12,11 @@ const clean = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !=
 export function fromOff(p) {
   if (!p || !p.code) return null;
   const n = p.nutriments ?? {};
-  const name = (p.product_name_da || p.product_name || p.product_name_en || p.generic_name || '').trim();
+  const txt = (v) => (typeof v === 'string' ? v : '');
+  const name = (txt(p.product_name_da) || txt(p.product_name) || txt(p.product_name_en) || txt(p.generic_name)).trim();
   if (!name) return null;
-  const kcal = num(n['energy-kcal_100g']) ?? (num(n['energy_100g']) !== undefined ? num(n['energy_100g']) / 4.184 : undefined);
+  const kj = num(n['energy-kj_100g']) ?? num(n['energy_100g']);
+  const kcal = num(n['energy-kcal_100g']) ?? (kj !== undefined ? kj / 4.184 : undefined);
   const sodiumG = num(n['sodium_100g']) ?? (num(n['salt_100g']) !== undefined ? num(n['salt_100g']) / 2.5 : undefined);
   // liquids: OFF flags them via quantity in ml / nutrition per 100 ml
   const liquid = /\b(ml|cl|dl|l)\b/i.test(String(p.quantity ?? '')) && !/\bg\b|kg/i.test(String(p.quantity ?? ''));
@@ -29,7 +31,7 @@ export function fromOff(p) {
   const sq = num(p.serving_quantity);
   if (sq && sq > 0 && p.serving_size) portions.push({ id: 'serving', label: `1 serving (${String(p.serving_size).trim()})`, amount: sq, verified: true });
   return clean({
-    id: `off:${p.code}`, name, brand: (p.brands || '').split(',')[0].trim() || undefined, source: 'off', sourceId: String(p.code), barcode: String(p.code),
+    id: `off:${p.code}`, name, brand: (Array.isArray(p.brands) ? p.brands.join(',') : String(p.brands || '')).split(',')[0].trim() || undefined, source: 'off', sourceId: String(p.code), barcode: String(p.code),
     basis: liquid ? 'ml' : 'g', per100, portions,
     // density is NOT assumed for liquids; ml-basis foods simply only accept ml
   });

@@ -15,7 +15,7 @@ const src = process.argv[2]
   : Readable.fromWeb((await fetch(DUMP, { headers: { 'User-Agent': 'Aven/1.0 (personal gym app; github.com/omaralawi1000-netizen)' } })).body);
 const lines = createInterface({ input: src.pipe(createGunzip()), crlfDelay: Infinity });
 
-const NUT = ['energy-kcal_100g', 'energy_100g', 'proteins_100g', 'carbohydrates_100g', 'fat_100g', 'fiber_100g', 'sugars_100g', 'saturated-fat_100g', 'sodium_100g', 'salt_100g'];
+const NUT = ['energy-kcal_100g', 'energy-kj_100g', 'energy_100g', 'proteins_100g', 'carbohydrates_100g', 'fat_100g', 'fiber_100g', 'sugars_100g', 'saturated-fat_100g', 'sodium_100g', 'salt_100g'];
 let col = null, seen = 0;
 const why = { dk: 0, noName: 0, noKcal: 0, badCols: 0, countriesEn: 0 };
 const out = new Map();
@@ -35,12 +35,19 @@ for await (const line of lines) {
     quantity: c[col.quantity], serving_size: c[col.serving_size], serving_quantity: c[col.serving_quantity],
     nutriments: Object.fromEntries(NUT.map((k) => [k, c[col[k]]]).filter(([, v]) => v !== undefined && v !== '')),
   };
+  const nm = p.nutriments, g = (k) => (nm[k] === undefined ? undefined : Number(nm[k]));
+  // no energy on the label data but all three macros: work calories out from them (4/4/9 kcal per gram)
+  if (nm['energy-kcal_100g'] === undefined && nm['energy-kj_100g'] === undefined && nm['energy_100g'] === undefined
+    && [g('proteins_100g'), g('carbohydrates_100g'), g('fat_100g')].every((x) => Number.isFinite(x))) {
+    nm['energy-kcal_100g'] = g('proteins_100g') * 4 + g('carbohydrates_100g') * 4 + g('fat_100g') * 9;
+  }
   const f = fromOff(p);
   if (!f || f.per100.kcal === undefined || f.per100.kcal > 900) { why.noKcal++; continue; }
   const n = f.per100, r = (v) => (v === undefined ? null : Math.round(v * 10) / 10);
   const sv = f.portions[0];
   // [code, name, brand, liquid, kcal, protein, carbs, fat, fibre, sugar, satFat, sodium mg, serving amount, serving label]
   out.set(code, [code, f.name.slice(0, 80), (f.brand ?? '').slice(0, 40), f.basis === 'ml' ? 1 : 0, r(n.kcal), r(n.protein), r(n.carbs), r(n.fat), r(n.fibre), r(n.sugar), r(n.satFat), n.sodium === undefined ? null : Math.round(n.sodium), sv ? r(sv.amount) : null, sv ? String(p.serving_size).trim().slice(0, 30) : null]);
+  why.kept = (why.kept ?? 0) + 1;
 }
 const rows = [...out.values()];
 mkdirSync(new URL('../src/data/off/', import.meta.url), { recursive: true });
