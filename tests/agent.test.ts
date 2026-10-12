@@ -265,3 +265,34 @@ describe('plans and the set you are on', () => {
     expect(ses().exercises[0].sets[0].done).toBe(false);
   });
 });
+
+import dkList from '../src/data/off/off-dk.json';
+describe('orb food logging with the real Danish list (live search down)', () => {
+  it('logs Cheasy vanilla skyr, plain skyr, rye bread with liver pâté and an English food, all with calories', async () => {
+    const d = defaultData(); d.settings.foodLookup = true; d.settings.onboarded = true;
+    useStore.getState().replaceAll(d);
+    const origFetch = globalThis.fetch;
+    // the packed list answers; Open Food Facts' live search is "temporarily unavailable" (503), as it often is
+    globalThis.fetch = (async (u: string) => (String(u).includes('off-dk')
+      ? { status: 200, headers: { get: () => 'application/json' }, json: async () => dkList }
+      : { status: 503, headers: { get: () => 'text/html' }, json: async () => ({}) })) as any;
+    try {
+      const said = [
+        { name: 'vaniljeskyr', brand: 'Cheasy', amount: null, unit: null },          // "Cheasy vaniljeskyr 0% fedt"
+        { name: 'Cheesy vaniljeskyr 0% fedt', brand: null, amount: 150, unit: 'g' },   // as Whisper might write it
+        { name: 'skyr', brand: null, amount: 200, unit: 'g' },
+        { name: 'rugbrød med leverpostej', brand: null, amount: null, unit: null },
+        { name: 'greek yogurt', brand: null, amount: 150, unit: 'g' },
+      ];
+      const [r] = await runActions([{ type: 'log_food', foods: said as any }], ctx());
+      expect(r.kind).toBe('food');
+      const lines = r.lines.filter((l) => l.text !== 'Total');
+      expect(lines).toHaveLength(5);
+      for (const l of lines) { expect(l.warn).toBe(false); expect(l.sub).toMatch(/\d+ kcal/); }
+      expect(lines[0].text).toBe('Skyr Vanilje'); expect(lines[0].sub).toMatch(/200 g|serving/); // Cheasy's own serving
+      expect(lines[1].text).toBe('Skyr Vanilje'); expect(lines[1].sub).toMatch(/^150 g · 83 kcal/); // 55 kcal/100 g
+      const entries = useStore.getState().entries;
+      expect(entries.filter((e) => e.snap.brand === 'Cheasy')).toHaveLength(2);
+    } finally { globalThis.fetch = origFetch; }
+  });
+});

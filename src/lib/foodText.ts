@@ -36,6 +36,19 @@ function fieldScore(field: string, qTokens: string[], qFold: string): number {
   return (prefix / qTokens.length) * 0.6;
 }
 
+/** Same word, or one letter off in a longer word: speech-to-text writes "cheesy" for the brand Cheasy. */
+function near(a: string, b: string): boolean {
+  if (a === b) return true;
+  if (a.length < 5 || b.length < 5 || Math.abs(a.length - b.length) > 1) return false;
+  let i = 0, j = 0, edits = 0;
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) { i++; j++; continue; }
+    if (++edits > 1) return false;
+    if (a.length > b.length) i++; else if (b.length > a.length) j++; else { i++; j++; }
+  }
+  return edits + (a.length - i) + (b.length - j) <= 1;
+}
+
 export function scoreFood(food: Food, query: string): number {
   const qTokens = tokens(query);
   const qFold = sfold(query);
@@ -44,13 +57,29 @@ export function scoreFood(food: Food, query: string): number {
   if (food.brand) {
     // "arla skyr": brand tokens + name tokens together
     const all = tokens(`${food.brand} ${food.name}`);
-    if (qTokens.every((t) => all.includes(t))) best = Math.max(best, 0.88 - Math.min(0.25, (all.length - qTokens.length) * 0.03));
+    if (qTokens.every((t) => all.some((x) => near(x, t)))) best = Math.max(best, 0.88 - Math.min(0.25, (all.length - qTokens.length) * 0.03));
   }
   for (const a of food.aliases ?? []) {
     const s = fieldScore(a, qTokens, qFold);
     best = Math.max(best, s >= 1 ? 0.9 : s * 0.95);
   }
   return best;
+}
+
+// Danish packs say "Skyr vanilje" while people say "vaniljeskyr", and a fat percentage ("0% fedt") is written a dozen
+// ways on packs. So before searching product databases: split a flavour glued onto skyr/yoghurt, drop fat percentages
+// and filler words. ("rugbrød" etc. are left alone: those are one word on the pack too.)
+const FLAVOURS = 'vanilje|vanilla|jordbær|hindbær|blåbær|skovbær|solbær|kirsebær|brombær|citron|lime|mango|passionsfrugt|passion|pære|æble|banan|kokos|kakao|chokolade|karamel|hasselnød|lakrids|kaffe|fersken|abrikos|rabarber|havtorn|kanel|natur|naturel|græsk';
+const HEADS = 'skyr|yoghurt|yogurt|kvark|ymer|a38|ylette';
+const GLUED = new RegExp(`^(${FLAVOURS})(${HEADS})$`);
+const FILLER = new Set(['med', 'with', 'og', 'and', 'af', 'of', 'en', 'et', 'a', 'an', 'the', 'some', 'lidt', 'noget', 'min', 'mit', 'my']);
+export function searchQuery(q: string): string {
+  const words = q.toLowerCase()
+    .replace(/(\d),(\d)/g, '$1.$2')
+    .replace(/\b\d+(?:\.\d+)?\s*%\s*(?:fedt|fat|fett|fedtindhold)?/g, ' ') // 0% fedt, 0.2 % fat
+    .split(/[\s,]+/).filter((w) => w && !FILLER.has(w));
+  const out = words.flatMap((w) => { const m = w.match(GLUED); return m ? [m[1], m[2]] : [w]; });
+  return (out.join(' ') || q).trim();
 }
 
 /** Is this online product plausible? Calories present, sane, and roughly matching its own macros (catches typos in crowd-sourced data). */
@@ -66,7 +95,8 @@ function sane(f: Food): boolean {
  * The best online result for a spoken food, or undefined when none is a real match (the caller then falls back to the
  * labelled AI estimate). Closest name wins; a branded product only wins if the user named that brand; odd data is skipped.
  */
-export function pickOnline(query: string, foods: Food[], minScore = 0.55): Food | undefined {
+export function pickOnline(spoken: string, foods: Food[], minScore = 0.55): Food | undefined {
+  const query = searchQuery(spoken);
   const qTokens = tokens(query);
   let best: { food: Food; score: number } | undefined;
   for (const f of foods) {
@@ -74,7 +104,7 @@ export function pickOnline(query: string, foods: Food[], minScore = 0.55): Food 
     let score = scoreFood(f, query);
     if (f.brand) {
       const brandTokens = tokens(f.brand);
-      const named = brandTokens.some((b) => qTokens.includes(b));
+      const named = brandTokens.some((b) => qTokens.some((t) => near(b, t)));
       if (!named) score -= 0.08; // a generic food beats a brand nobody asked for
     }
     if (score >= minScore && (!best || score > best.score)) best = { food: f, score };

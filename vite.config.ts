@@ -38,7 +38,12 @@ export default defineConfig({
           { src: 'icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
-      workbox: { globPatterns: ['**/*.{js,css,html,svg,png,woff2,wasm}'], maximumFileSizeToCacheInBytes: 3 * 1024 * 1024, navigateFallbackDenylist: [/^\/api\//] },
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,svg,png,woff2,wasm}'], maximumFileSizeToCacheInBytes: 3 * 1024 * 1024, navigateFallbackDenylist: [/^\/api\//],
+        // the packed Danish food list: fetched the first time food is searched, then kept on the phone (works offline);
+        // its name changes when the list changes, so old copies are simply replaced
+        runtimeCaching: [{ urlPattern: /\/assets\/off-dk-[^/]*\.json$/, handler: 'CacheFirst', options: { cacheName: 'aven-food-dk', expiration: { maxEntries: 2 } } }],
+      },
     }),
   ],
   server: { proxy: { '/api': 'http://localhost:8787' } },

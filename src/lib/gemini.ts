@@ -229,7 +229,8 @@ const ACTION_TYPES = ['log_food', 'log_water', 'log_weight', 'log_sets', 'log_ac
 const BIT = { type: 'ARRAY', nullable: true, items: { type: 'OBJECT', properties: { exercise: { type: 'STRING' }, sets: { type: 'INTEGER', nullable: true }, repMin: { type: 'INTEGER', nullable: true }, repMax: { type: 'INTEGER', nullable: true }, restSec: { type: 'INTEGER', nullable: true } }, required: ['exercise'] } };
 const NUTRI = (d: string) => ({ type: 'OBJECT', nullable: true, description: d, properties: { kcal: { type: 'NUMBER', nullable: true }, protein: { type: 'NUMBER', nullable: true }, carbs: { type: 'NUMBER', nullable: true }, fat: { type: 'NUMBER', nullable: true } } });
 const AGENT_FOOD = { type: 'OBJECT', properties: {
-  name: { type: 'STRING' }, brand: { type: 'STRING', nullable: true },
+  name: { type: 'STRING', description: 'the food as said, in the language it was said (never translate), keeping flavour and variant words, e.g. "vaniljeskyr", "rugbrød", "greek yogurt"' },
+  brand: { type: 'STRING', nullable: true, description: 'the brand only if one was said, e.g. Cheasy, Arla, Lurpak, Kohberg' },
   amount: { type: 'NUMBER', nullable: true, description: 'quantity exactly as said; null if none was said' },
   unit: { type: 'STRING', nullable: true, enum: FOOD_UNITS },
   state: { type: 'STRING', nullable: true, enum: ['raw', 'cooked', 'dry'] },

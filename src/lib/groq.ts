@@ -14,9 +14,11 @@ const SAMPLE = 'Skyr 237 gram, en banan, 61 gram havregryn. 4 slices of rye brea
 const norm = (s: string) => String(s || '').toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9æøå]+/g, ' ').trim();
 const ECHO = [/\b237 gram\b/, /\b61 gram havregryn\b/, /\b37 5 kilo 11\b/, /\b142 5 kg for 3\b/, /\b4 slices of rye bread\b/];
 
+/** Danish food brands Whisper doesn't know on its own ("Cheasy" otherwise comes out as "cheesy"). */
+const BRANDS = ['Cheasy', 'Arla', 'Lurpak', 'Thise', 'Løgismose', 'Kohberg', 'Schulstad', 'Stryhns', 'Tulip', 'Lærkevang', 'Naturli', 'Oatly'];
 export function buildPrompt(names: string[] = []): string {
   const uniq = [...new Set(names.filter(Boolean))].slice(0, 24);
-  return (uniq.length ? uniq.join(', ') + '. ' : '') + SAMPLE;
+  return [...uniq, ...BRANDS.filter((b) => !uniq.includes(b))].join(', ') + '. ' + SAMPLE;
 }
 export function isEcho(text: string, prompt = ''): boolean {
   const t = norm(text);

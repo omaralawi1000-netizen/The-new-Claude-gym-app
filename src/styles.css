@@ -553,10 +553,14 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    no glow). (.voice-live is the browser-speech engine's live text, used only without a Groq key.) */
 .voice-live { font-size: 26px; line-height: 1.2; text-align: center; padding: 0 6px; overflow-wrap: anywhere; }
 .voice-live .w { animation: wordCalm 520ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards; }
-/* the orb screen: a still, soft pool of the area's light behind the orb, lit from a little above like the orb itself.
-   One gradient on its own layer; only its fade-in animates (opacity), once, as the orb lands. */
-.voice-glow { position: absolute; inset: -62%; border-radius: 999px; pointer-events: none; transform: translateZ(0);
-  background: radial-gradient(closest-side, color-mix(in srgb, var(--ac) 34%, transparent), color-mix(in srgb, var(--ac) 16%, transparent) 40%, color-mix(in srgb, var(--ac) 6%, transparent) 68%, transparent);
+/* the orb screen: the orb gives off light. A close halo at its edge (the orb fills ~70% of its button) and a soft oval of
+   light just under it, as if it hovers over glass; nothing hazes the rest of the screen (a wide pool of the accent read as
+   brown fog). Two gradients on one still layer; only its fade-in animates (opacity), once, as the orb lands. */
+.voice-glow { position: absolute; inset: 0; pointer-events: none; transform: translateZ(0);
+  --glow-hi: color-mix(in srgb, var(--ac) 75%, white);
+  background:
+    radial-gradient(34% 7.5% at 50% 91.5%, color-mix(in srgb, var(--glow-hi) 40%, transparent), color-mix(in srgb, var(--ac) 13%, transparent) 55%, transparent),
+    radial-gradient(closest-side, color-mix(in srgb, var(--glow-hi) 15%, transparent) 64%, color-mix(in srgb, var(--ac) 7%, transparent) 80%, color-mix(in srgb, var(--ac) 2%, transparent) 92%, transparent);
   animation: glowIn 1.4s 0.25s var(--ease-out) backwards; }
 @keyframes glowIn { from { opacity: 0; } }
 :root[data-theme='light'] .voice-glow { opacity: .7; }

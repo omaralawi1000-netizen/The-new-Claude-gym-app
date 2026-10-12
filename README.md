@@ -61,12 +61,14 @@ The build is static and path-independent, so any static host works. Easiest: **G
 
 ### How lookup works (no server required)
 
+0. **Danish products, packed** (v0.1.32): `scripts/build-dk-foods.mjs` streams Open Food Facts' full CSV dump and keeps every product sold in Denmark that has calories (~3,700 of ~19,000; the rest have no nutrition data) into `src/data/off/off-dk.json` (~350 KB, ~130 KB gzipped). The app downloads it the first time food is searched, keeps it in the service-worker cache (works offline) and searches it on the phone in a few ms. Re-run the script from a machine with internet to refresh it.
 1. **Aven server** (`/api/food/*`, optional): merges Open Food Facts + USDA, caches, keeps the USDA key private.
-2. **No server / static hosting**: the browser talks to **Open Food Facts directly** (search-a-licious, then `cgi/search.pl`; barcode via `api/v2/product`). The app detects a missing server (a static host answers `/api/*` with HTML) and stops asking for 10 minutes. A client-side budget keeps it under OFF's ~10 searches/min. USDA is server-only because it needs a key.
+2. **No server / static hosting**: the browser talks to **Open Food Facts directly** (`cgi/search.pl`, Denmark first, then the whole world; barcode via `api/v2/product`). The app detects a missing server (a static host answers `/api/*` with HTML) and stops asking for 10 minutes. A client-side budget keeps it under OFF's ~10 searches/min. USDA is server-only because it needs a key.
 3. **Offline / blocked**: ~180 bundled foods, everything you've saved or logged, custom foods, quick entry. The UI says which layer you are on.
 
 So a plain static deploy (e.g. any CDN) gets search + barcode through layer 2; running `npm start` with a `USDA_API_KEY` adds USDA and caching.
-**Caveat:** layer 2 depends on Open Food Facts allowing cross-origin browser requests. I could not confirm that from this sandbox (one source said their API has no CORS; I couldn't test), so if direct calls are blocked in your browser the server layer is the fix. Test first with a real barcode on your phone.
+**Tested live on 12 Oct 2026 (v0.1.32, from GitHub's servers, sending the live site as Origin):** `search.openfoodfacts.org` (search-a-licious) refuses other websites (no CORS header, preflight answers 400), so a browser on the live site can never read it, and its `brands` field is a list, which crashed the old normaliser anyway. `cgi/search.pl` does allow browsers (`Access-Control-Allow-Origin: *`) but often answers 503 "Page temporarily unavailable" (its 503 page has no CORS header, so the browser just sees a network error), and it only matches whole words: "vaniljeskyr" or "0% fedt" find nothing while the pack says "Skyr Vanilje". Hence layer 0 and the query clean-up in `searchQuery` (`src/lib/foodText.ts`): flavour split off skyr/yoghurt, fat percentages and filler words dropped, and brands matched one letter loosely (Whisper writes "cheesy" for Cheasy).
+**Older caveat:** layer 2 depends on Open Food Facts allowing cross-origin browser requests. I could not confirm that from this sandbox (one source said their API has no CORS; I couldn't test), so if direct calls are blocked in your browser the server layer is the fix. Test first with a real barcode on your phone.
 
 **Honest status:** this sandbox's network blocks both hosts (and their doc pages), so these facts come from web-search summaries, **not** from reading the official pages, and **no live call was made**. The normalisers (`server/normalize.mjs`) are tested against fixtures written from the documented response shapes, not live captures. First real-world check to do: run the server with a real `USDA_API_KEY` from a normal network and search "skyr", "banana", a known EAN. The client degrades gracefully (bundled foods, saved foods, manual entry) when the server is missing or offline.
 
@@ -1027,3 +1029,13 @@ Light only: the orb's outline never changes.
 - **Food search:** the six big tiles (Scan, Photo, Quick add, New food, Recipes, Saved meals) became one slim row of
   pills that scrolls sideways, so your recent foods start higher.
 - **Focus view button:** a card with page dots under it. The old one looked like a phone on vibrate.
+
+## The orb's light, and the Coach's workout length (12 Oct 2026, v0.1.31)
+
+- **The orb gives off light instead of fog.** The glow behind the orb on its screen was a wide, faint pool of the accent;
+  on the dark background it read as brown haze over the top half. Now there is a close halo at the orb's edge and a soft
+  oval of light just under it, as if it hovers over glass (`.voice-glow`). Omar was shown three options (halo, pool
+  below, breathing ring) and leaned to the pool; the halo plus pool was chosen. Same cost: two gradients on one still
+  layer, no blur, only the fade-in animates.
+- **The Coach knows how long you really trained.** It counted a finished workout's length from start to end, paused
+  time included; it now uses the same time as every screen (`elapsedMs`).
