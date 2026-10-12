@@ -88,6 +88,10 @@ export interface OrbInputs {
   ignite?: number;
   /** a reply being read aloud: the voice's level 0..1 (tts.speakingLevel), so the orb glows with what it says */
   voiceOut?: number;
+  /** a rest between sets is counting (0/1): the inner light breathes deeper and a little warmer, like a slow breath */
+  rest?: number;
+  /** a set was just ticked (strength): one soft heartbeat of light and a single ring of the success colour; consumed */
+  beat?: number;
 }
 
 type Ctx2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
@@ -114,6 +118,7 @@ export class SphereRenderer {
   private calm = 0;                        // seconds left of a flight's calm start (flashes and blooms damped)
   private flash = 0;                       // light running through the dots after a tap or a syllable
   private ripples: { ox: number; oy: number; oz: number; age: number; amp: number }[] = []; // a syllable: a ring of light crossing it towards you
+  private restK = 0;                       // how far into its resting breath it is (smoothed 0..1, so it eases in and out)
   private ign = -1;                        // seconds into the arrival spiral (-1: none)
   private ignTop = false;                  // its front has reached the top (the whole orb lit up)
   /** how loudly you are speaking right now, 0..1 (time-smoothed) — for things around the orb that should breathe with it */
@@ -167,6 +172,13 @@ export class SphereRenderer {
       if (!this.ignTop && ignFront(this.ign) >= 1) { this.ignTop = true; this.flash = Math.min(1, this.flash + 0.7); this.kickV += 2.4; }
       if (this.ign > 1.3) this.ign = -1;
     }
+    // a set ticked: one heartbeat — the light swells once and a single ring of the success colour leaves it. No spin and no
+    // flash through the dots (that is a tap's): this is a calm acknowledgement, not a reaction.
+    if (inp.beat && inp.beat > 0) {
+      if (!reduced) { this.kickV += 2.6 * inp.beat * soft; if (this.rings.length < 4) this.rings.push({ age: 0, amp: 0.75 * inp.beat, ok: true }); }
+      inp.beat = 0;
+    }
+    this.restK += ((inp.rest ? 1 : 0) - this.restK) * (1 - Math.exp(-dt * 0.9));
     if (inp.tap > 0) {
       if (!reduced) {
         this.spin += 6 * inp.tap * soft; this.flash = Math.min(1, this.flash + inp.tap * soft);
@@ -219,8 +231,10 @@ export class SphereRenderer {
 
     const { hi, lo, alt, ok, dark } = colors;
     // soft inner light: the sphere glows from within, brighter while you speak
-    const breathe = reduced ? 1 : 1 + 0.16 * Math.sin(this.t * 1.05); // the inner light breathes slowly at rest
-    const haloA = breathe * (this.cur.halo + this.body * 0.55 + this.env * 0.25 + Math.max(0, this.kick) * 0.25 + this.press * 0.35 + this.flash * 0.6) * (1 - this.cur.dim * 0.8);
+    // the inner light breathes slowly at rest; during a rest between sets the breath is deeper (same slow beat, ~6 s, so it
+    // never jumps) and the light sits a little higher, as if it were waiting with you
+    const breathe = reduced ? 1 : 1 + (0.16 + 0.3 * this.restK) * Math.sin(this.t * 1.05);
+    const haloA = breathe * (this.cur.halo + this.restK * 0.18 + this.body * 0.55 + this.env * 0.25 + Math.max(0, this.kick) * 0.25 + this.press * 0.35 + this.flash * 0.6) * (1 - this.cur.dim * 0.8);
     if (haloA > 0.01) {
       const gr = ctx.createRadialGradient(c, c, R * 0.15, c, c, c * 0.98);
       gr.addColorStop(0, `rgba(${hi[0] | 0},${hi[1] | 0},${hi[2] | 0},${Math.min(0.55, haloA * (dark ? 0.55 : 0.4))})`);

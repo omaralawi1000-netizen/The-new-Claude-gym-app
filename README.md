@@ -923,3 +923,17 @@ alone on purpose (other threads were changing them).
 - Which page Focus shows lives in a tiny store of its own (`useFocusPage` in `screens/workout/Focus.tsx`): only the bar
   listens, so turning a page re-renders nothing else.
 - **A smaller stage**: the figure area is at most 184 px tall (was 230), so the sets sit higher on the screen.
+
+## Premium pass, step 2: the orb comes alive (12 Oct 2026, v0.1.20)
+
+Light only: the orb's outline never changes.
+- **A still glow on its screen** (`.voice-glow`, `screens/Voice.tsx`): a soft pool of the area's accent behind the orb, so
+  it no longer floats alone on the frost. One radial gradient on its own layer, no blur; only its fade-in animates
+  (opacity, once, as the orb lands). It grows and shrinks with the orb's button.
+- **It breathes while you rest**: during a rest between sets its inner light breathes deeper and sits a little higher, on
+  the same slow ~6 s beat it always has (so it never jumps), easing in and out over about a second (`rest` in
+  `OrbInputs`, `ui/sphereRender.ts`).
+- **One heartbeat per set**: ticking a set (by tap, by the orb or by the Coach) makes the light swell once and a single
+  ring of the success colour leave it, with no spin or flash (that's a tap's). It listens to the store (`orbBeat` in
+  `ui/Sphere.tsx`), skips sets you dictated (they get the orb's own "done" light) and never replays a beat it missed while
+  it wasn't drawn.
