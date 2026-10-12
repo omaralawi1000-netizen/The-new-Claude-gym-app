@@ -18,13 +18,15 @@ import { SphereSlot, mirrorOrb, orbPress, orbTap } from '../ui/Sphere';
 import { mirrorProgress, useEngage } from '../ui/engage';
 import { kb, watchFocus } from '../ui/keyboard';
 import { Veil, VOICE_VEIL, mirrorVeil } from '../ui/Veil';
-import { setBarFrost } from '../ui/statusBar';
+import { refreshBar, setBarFrost } from '../ui/statusBar';
 import { Icon } from '../ui/Icon';
 import { useOverlayZ } from '../ui/Sheet';
 import { ActionCard, RotatingHint, Rich, Words, SpeakButton, prefetchAloud, tidy, sttMessage, cardsNote } from '../ui/agentUi';
 import { stopSpeaking } from '../lib/tts';
 import { flyLogged } from '../ui/fly';
 import { apple, springCurve } from '../ui/motion';
+
+const refreshBarOn = (el: HTMLElement | null) => { if (el) refreshBar(); }; // the top band takes the status bar's current tint
 
 /** One thing you said and what the assistant did about it. `done` once the answer is complete (until then it streams in). */
 interface Turn1 { id: string; said: string; reply: string; results: AgentResult[]; undone: string[]; confirmed: string[]; done: boolean }
@@ -413,7 +415,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
           Nothing above it fades as a whole: a fading parent switched the blur off until the fade ended, then it snapped on. */}
       <Veil e={veilE} z={0} layers={VOICE_VEIL} className="veil-abs" elRef={veilRef} />
       {/* the top of the screen starts in exactly the status bar's colour and fades into the frost: no edge under the bar */}
-      <motion.div aria-hidden className="voice-top" style={{ opacity: veilE }} />
+      <motion.div aria-hidden className="voice-top" data-bar ref={refreshBarOn} style={{ opacity: veilE }} />
       <motion.div ref={contentRef} style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', padding: 'calc(var(--sat) + 12px) 18px 0', opacity: contentO }}>
         <div className="row-flex between">
           <button className="icon-btn press" aria-label={t('Close')} onClick={() => useUI.getState().pop()}><Icon name="close" /></button>

@@ -151,7 +151,10 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
 /* The glow fades out towards the top of the screen. That used to be a mask on every colour field; a mask makes the browser draw
    each field into its own offscreen surface and blend it back, every frame a pop-up or page moves. One plain gradient of the page
    colour over all fields looks the same and costs nothing (measured: pop-up and page-switch frames drop by about a tenth). */
-.fields::after { content: ''; position: absolute; left: 0; right: 0; top: 0; height: calc(var(--sat) + 130px); z-index: 2147483000;
+/* the status-bar tint (ui/statusBar.ts): set only on the elements that use it, and not inherited, so a change restyles just them */
+@property --bar { syntax: '*'; inherits: false; }
+@property --bar-shown { syntax: '*'; inherits: false; }
+.fields::after { --bar: inherit; content: ''; position: absolute; left: 0; right: 0; top: 0; height: calc(var(--sat) + 130px); z-index: 2147483000;
   background: linear-gradient(to bottom, var(--bar, var(--bg)) calc(var(--sat) + 2px), transparent); }
 .aurora.in { -webkit-mask-image: linear-gradient(to bottom, transparent 0, transparent calc(var(--sat) + 2px), #000 calc(var(--sat) + 130px)); mask-image: linear-gradient(to bottom, transparent 0, transparent calc(var(--sat) + 2px), #000 calc(var(--sat) + 130px)); }
 /* paused while a pop-up is up (see useCalm in App.tsx) */

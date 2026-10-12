@@ -18,7 +18,7 @@ import { registerSW } from './pwa';
 import { dayKey } from './lib/dates';
 import { defaultMealId } from './lib/derive';
 import { stageCover, stageDepth, stageTransform } from './ui/engage';
-import { readRGB, setBarDepth, setBarTint } from './ui/statusBar';
+import { readRGB, refreshBar, setBarDepth, setBarTint } from './ui/statusBar';
 import { setKeyboard } from './ui/keyboard';
 import { FpsMeter } from './ui/FpsMeter';
 
@@ -167,11 +167,14 @@ function useStageDepth(app: React.RefObject<HTMLDivElement | null>, stage: React
       const a = app.current, st = stage.current; if (!a || !st) return;
       const root = document.documentElement.dataset;
       const still = root.motion === 'reduce' || (root.motion !== 'full' && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-      if (v < 0.0005 || still) { st.style.transform = ''; st.style.borderRadius = ''; st.style.willChange = ''; st.style.overflow = ''; a.style.background = ''; return; }
+      // the page steps back onto the colour of the status bar (no seam under it); the shell only carries that colour while a
+      // popup is up, because changing it on the shell restyles the whole app (it would, on every frame of a tab's colour blend)
+      if (v < 0.0005 || still) { st.style.transform = ''; st.style.borderRadius = ''; st.style.willChange = ''; st.style.overflow = ''; a.style.background = ''; if (a.hasAttribute('data-bar')) { a.removeAttribute('data-bar'); a.style.removeProperty('--bar'); } return; }
+      if (!a.hasAttribute('data-bar')) { a.setAttribute('data-bar', ''); refreshBar(); }
       st.style.willChange = 'transform'; st.style.overflow = 'hidden'; // layer hints only while a popup is up, so the idle app is built exactly like the original
       st.style.transform = stageTransform(v); // the same function the browser-run (high refresh) version uses
       st.style.borderRadius = `${28 * v}px`;
-      a.style.background = 'var(--bar, #000)'; // the page steps back onto the colour of the status bar: no seam under it
+      a.style.background = 'var(--bar, #000)';
     };
     apply(stageDepth.get());
     const offDepth = stageDepth.on('change', apply);
@@ -283,7 +286,7 @@ export function App() {
     <MotionConfig reducedMotion="user">
       <div className="app" data-hue={tab} data-pill={pill || undefined} data-calm={calm || undefined} ref={appRef}>
         <div className="stage" ref={stageRef}>
-        <div className="fields"><AnimatePresence initial={false}><Field key={tab} hue={tab} /></AnimatePresence></div>
+        <div className="fields" data-bar><AnimatePresence initial={false}><Field key={tab} hue={tab} /></AnimatePresence></div>
         <AnimatePresence mode="popLayout" initial={false} custom={dir}>
           <TabPane key={tab} hue={tab} dir={dir}>{screen}</TabPane>
         </AnimatePresence>

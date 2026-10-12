@@ -23,7 +23,7 @@ async function measure(name, act, ms = 1400) {
 const scroll = (y, dist = -1400) => cdp.send('Input.synthesizeScrollGesture', { x: 195, y, yDistance: dist, speed: 1600, gestureSourceType: 'touch', repeatCount: 1 });
 const tab = (n) => p.locator('.tabbar').getByRole('button', { name: n, exact: true }).click();
 
-await p.goto('http://127.0.0.1:5173/'); await wait(p, 1200); await skipOnboarding(p); await loadDemo(p); await wait(p, 2000);
+await p.goto(process.env.URL || 'http://127.0.0.1:5173/'); await wait(p, 1200); await skipOnboarding(p); await loadDemo(p); await wait(p, 2000);
 if (process.env.CSS) await p.addStyleTag({ content: process.env.CSS });
 await cdp.send('Performance.enable'); await cdp.send('Emulation.setCPUThrottlingRate', { rate });
 
