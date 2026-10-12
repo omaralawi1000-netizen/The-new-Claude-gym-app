@@ -198,6 +198,11 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
 @keyframes drift2 { to { transform: translate3d(-22%, -10%, 0) scale(.92) rotate(-30deg); } }
 @keyframes drift3 { to { transform: translate3d(14%, -16%, 0) scale(1.1) rotate(18deg); } }
 
+/* One top fade for every scrolling page (tab screens, the live workout, the orb's talk list, onboarding; sheets keep their own, same look): a mask that
+   grows from nothing to --ft (54 px) over the first 40 px of scrolling, eased so content melts away instead of being cut.
+   It is a scroll-driven animation (browser-run, no per-frame work) and at rest nothing is faded. */
+@property --ft { syntax: '<length>'; inherits: false; initial-value: 0px; }
+@keyframes ft-in { to { --ft: 54px; } }
 .screen {
   position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch;
   padding: calc(var(--sat) + 16px) 20px calc(var(--bar-h) + var(--sab) + 44px); scrollbar-width: none; z-index: 1;
@@ -205,13 +210,11 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
 .screen::-webkit-scrollbar { display: none; }
 /* Scrolled content no longer meets the status bar in a hard cut: it dissolves into the top of the page over a short distance —
    a fade only (no blur), and only once the page has actually moved (scroll-driven), so nothing is faded at rest. */
-@property --sc-fade { syntax: '<length>'; inherits: false; initial-value: 0px; }
-@keyframes sc-fade { to { --sc-fade: 44px; } }
 /* …and at the bottom the page keeps going behind the dock, so the dock's glass has something to frost (it used to fade out
    before it got there, and the dock read as a dark slab); only past the dock's middle does it thin out a little. */
 @supports (animation-timeline: scroll()) {
-  .screen { -webkit-mask-image: linear-gradient(to bottom, transparent var(--sat), #000 calc(var(--sat) + var(--sc-fade)), #000 calc(100% - var(--sab) - 56px), rgba(0, 0, 0, 0.6) 100%); mask-image: linear-gradient(to bottom, transparent var(--sat), #000 calc(var(--sat) + var(--sc-fade)), #000 calc(100% - var(--sab) - 56px), rgba(0, 0, 0, 0.6) 100%);
-    animation: sc-fade linear both; animation-timeline: scroll(self); animation-range: 0 48px; }
+  .screen { -webkit-mask-image: linear-gradient(to bottom, transparent var(--sat), rgba(0,0,0,.1) calc(var(--sat) + var(--ft) * .2), rgba(0,0,0,.36) calc(var(--sat) + var(--ft) * .45), rgba(0,0,0,.74) calc(var(--sat) + var(--ft) * .74), #000 calc(var(--sat) + var(--ft)), #000 calc(100% - var(--sab) - 56px), rgba(0, 0, 0, 0.6) 100%); mask-image: linear-gradient(to bottom, transparent var(--sat), rgba(0,0,0,.1) calc(var(--sat) + var(--ft) * .2), rgba(0,0,0,.36) calc(var(--sat) + var(--ft) * .45), rgba(0,0,0,.74) calc(var(--sat) + var(--ft) * .74), #000 calc(var(--sat) + var(--ft)), #000 calc(100% - var(--sab) - 56px), rgba(0, 0, 0, 0.6) 100%);
+    animation: ft-in linear both; animation-timeline: scroll(self); animation-range: 0 40px; }
 }
 @supports not (animation-timeline: scroll()) {
   .screen { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - var(--sab) - 56px), rgba(0, 0, 0, 0.6) 100%); mask-image: linear-gradient(to bottom, #000 calc(100% - var(--sab) - 56px), rgba(0, 0, 0, 0.6) 100%); }
@@ -950,12 +953,10 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* The live workout's list: rows scrolling up under the header fade out (they were cut off in a hard line under the progress
    bar). At the bottom they stay solid until below the workout bar, so the bar's frost has the rows to show (they used to
    fade to 12% first, and the frosted bar had nothing behind it but the dark background). */
-@property --wk-fade { syntax: '<length>'; inherits: false; initial-value: 0px; }
-@keyframes wk-fade { to { --wk-fade: 36px; } }
 .wk-card { touch-action: pan-y; }
 .wk-list { overflow-x: hidden; overscroll-behavior-x: none; touch-action: pan-y; }
-.wk-list { -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--wk-fade), #000 calc(100% - var(--sab) - 14px), rgba(0, 0, 0, 0.35) 100%); mask-image: linear-gradient(to bottom, transparent, #000 var(--wk-fade), #000 calc(100% - var(--sab) - 14px), rgba(0, 0, 0, 0.35) 100%); }
-@supports (animation-timeline: scroll()) { .wk-list { animation: wk-fade linear both; animation-timeline: scroll(self); animation-range: 0 40px; } }
+.wk-list { -webkit-mask-image: linear-gradient(to bottom, transparent, rgba(0,0,0,.1) calc(var(--ft) * .2), rgba(0,0,0,.36) calc(var(--ft) * .45), rgba(0,0,0,.74) calc(var(--ft) * .74), #000 var(--ft), #000 calc(100% - var(--sab) - 14px), rgba(0, 0, 0, 0.35) 100%); mask-image: linear-gradient(to bottom, transparent, rgba(0,0,0,.1) calc(var(--ft) * .2), rgba(0,0,0,.36) calc(var(--ft) * .45), rgba(0,0,0,.74) calc(var(--ft) * .74), #000 var(--ft), #000 calc(100% - var(--sab) - 14px), rgba(0, 0, 0, 0.35) 100%); }
+@supports (animation-timeline: scroll()) { .wk-list { animation: ft-in linear both; animation-timeline: scroll(self); animation-range: 0 40px; } }
 
 /* Schedule → Wrestling days: seven round day toggles */
 .day-dots { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
@@ -1048,3 +1049,9 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
   -webkit-mask-image: linear-gradient(to bottom, transparent 18%, #000 58%); mask-image: linear-gradient(to bottom, transparent 18%, #000 58%); }
 .dock-veil > .dv3 { -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
   -webkit-mask-image: linear-gradient(to bottom, transparent 45%, #000 85%); mask-image: linear-gradient(to bottom, transparent 45%, #000 85%); }
+
+/* Top fade for scrollers that are neither a page nor a sheet (the orb's talk list, onboarding). */
+@supports (animation-timeline: scroll()) {
+  .fade-top { -webkit-mask-image: linear-gradient(to bottom, transparent, rgba(0,0,0,.1) calc(var(--ft) * .2), rgba(0,0,0,.36) calc(var(--ft) * .45), rgba(0,0,0,.74) calc(var(--ft) * .74), #000 var(--ft)); mask-image: linear-gradient(to bottom, transparent, rgba(0,0,0,.1) calc(var(--ft) * .2), rgba(0,0,0,.36) calc(var(--ft) * .45), rgba(0,0,0,.74) calc(var(--ft) * .74), #000 var(--ft));
+    animation: ft-in linear both; animation-timeline: scroll(self); animation-range: 0 40px; }
+}

@@ -443,6 +443,12 @@ The floating rest card that covered your sets is gone.
 - **Rest bar is one colour**: it is a solid surface now (no frost), so the set rows no longer show through and there is no lighter patch behind the orb. Only the fill changes its colour.
 - **Rest timer animation** (`RestFill` in `screens/workout/Active.tsx`): the fill is one linear animation run by the browser (smooth at 120 Hz) instead of being re-aimed four times a second; it restarts only when the rest changes (±15, pause, resume). Skip slides it back. At the end it fades to green. In the last three seconds the time swells a touch on each second, in step with the ticks. Reduced motion: no swell.
 
+## One top fade everywhere (12 Oct 2026, v0.1.4)
+
+- **Same soft edge on every scrolling page.** Content that scrolls up now melts away under the top edge over about 54 px, eased (it starts slowly, so there is no visible line). Before, the tab pages, the live workout and sheets each had their own length (44, 36, 44 px, straight ramp) and the Orb's talk list and onboarding had none.
+- **How:** one registered property `--ft` and one scroll-driven animation `ft-in` (`styles.css`), used by `.screen`, `.wk-list` and the new `.fade-top` class (Orb talk list, onboarding). It is a mask on the scroller that the browser runs itself: no blur, nothing redrawn per frame, nothing faded at rest. Measured with 4x CPU throttling in a phone-size Chromium: scrolling a tab page costs the same frame times with and without the fade.
+- Sheets keep their own fade (same look, 44 px) so the sheet work in progress is not touched; they can move to `--ft` later.
+
 ## Read aloud, a matching Coach, linked macros, workouts → routines
 
 - **Play on every answer** (orb screen and Coach), like Claude's: tap ▸ and the Gemini voice reads it; each word lights up in the accent as it is said, the ones said settle back, the ones to come wait a shade lighter; ■ stops. It starts fast because a finished answer's audio is fetched in the background (`prefetch`, cached by text), and a long answer is split into a short first sentence plus bigger pieces fetched together and queued back to back on the audio clock (`lib/tts.ts`). The lit word follows the real audio: the clip's quiet stretches are found and each phrase is pinned to the pause nearest its full stop or comma, so the timing re-syncs instead of drifting (`wordTimes`, `speechSpan`). The screen and the reader share one tokeniser (`richLines`), so word N on screen is word N in the audio. "Read answers aloud automatically" (Settings → Voice & AI) now covers both screens. Tiny replies ("Undone.") get no button.
@@ -779,7 +785,7 @@ Screenshot readback can stall cloud rendering during the short flight; the frame
 - Updates reach the phone: an update that is ready in the first 10 s after the app opens is put in straight away, even with a workout running (it is saved first and comes back). Before, the update banner was hidden during a workout, so a build shipped mid-workout could stay out. After that window the "Update" banner works as before (`src/pwa.ts`).
 - Settings → About shows the real version (from package.json), so Omar can see which build his phone runs.
 
-## Floating sheet buttons and lighter keyboard (12 Oct 2026, v0.1.4)
+## Floating sheet buttons and lighter keyboard (12 Oct 2026, v0.1.5)
 
 - **Bottom buttons float.** v0.1.3 put a frost behind the Add/Save buttons, but the list still ended above them, so it was cut off in a straight line and the button area read as its own panel (Omar's Quick add screenshot). Now the buttons are laid over the end of the list (`SheetFoot` in `ui/Sheet.tsx` measures them into `--foot-h`); the list scrolls all the way down underneath and melts into a soft blur, gone by the top of the button. No tint, no card, no edge.
 - Why a melt (a mask on the list) and not only a frost: a blur inside a sheet only sees the sheet's own content, which is see-through glass, so the sharp rows always showed through the blurred copy. Fading the rows while the frost blurs what is left makes them dissolve instead. Rows must be gone before the button, because the button is glass too.
