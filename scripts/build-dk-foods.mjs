@@ -3,7 +3,7 @@
 // often answers "temporarily unavailable" and only finds exact words; the newer search blocks other websites (CORS).
 // A packed Danish list makes Danish products (Cheasy, Arla, Lurpak, Kohberg…) instant and reliable, also offline.
 // Data: Open Food Facts, ODbL. Run on a machine with internet: `node scripts/build-dk-foods.mjs [dump.csv.gz]`.
-import { createReadStream, writeFileSync } from 'node:fs';
+import { createReadStream, mkdirSync, writeFileSync } from 'node:fs';
 import { createGunzip } from 'node:zlib';
 import { createInterface } from 'node:readline';
 import { Readable } from 'node:stream';
@@ -39,5 +39,6 @@ for await (const line of lines) {
   out.set(code, [code, f.name.slice(0, 80), (f.brand ?? '').slice(0, 40), f.basis === 'ml' ? 1 : 0, r(n.kcal), r(n.protein), r(n.carbs), r(n.fat), r(n.fibre), r(n.sugar), r(n.satFat), n.sodium === undefined ? null : Math.round(n.sodium), sv ? r(sv.amount) : null, sv ? String(p.serving_size).trim().slice(0, 30) : null]);
 }
 const rows = [...out.values()];
+mkdirSync(new URL('../src/data/off/', import.meta.url), { recursive: true });
 writeFileSync(new URL('../src/data/off/off-dk.json', import.meta.url), JSON.stringify({ v: 1, built: new Date().toISOString().slice(0, 10), source: 'Open Food Facts (ODbL)', rows }));
 console.log(`scanned ${seen} products, kept ${rows.length} sold in Denmark`);
