@@ -947,3 +947,13 @@ Light only: the orb's outline never changes.
   spring (`SURFACE`), so it costs nothing per frame. The card is never faded, so it never dips mid-switch.
 - The list no longer shrinks as it fades out (a shrinking list bent the card's path); it only fades.
 - Reduced motion, or a card that isn't on screen to start from: the plain crossfade, as before.
+
+## Premium pass, step 4: numbers roll (12 Oct 2026, v0.1.22)
+
+- One `Roll` (`ui/Roll.tsx`), like iOS's numeric text: only the digits that changed move, the old one sliding out and the
+  new one in from the side it came from (up when the number grew, down when it shrank), on the calm `SMOOTH` spring.
+  Transform and opacity only, browser-run; digits line up from the right.
+- Where: the workout header's sets and volume, the rest countdown in the bar (its last three seconds still swell on each
+  tick), the "all sets done" line, and every `Count` (calories, macros, water, weight, the summary's volume). `Count` used
+  to count through every value in between, rewriting the text and laying the line out again on every frame.
+- The running workout clock doesn't roll (a clock that moves every second would never be still).
