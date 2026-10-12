@@ -5,7 +5,7 @@
  */
 import type { ParsedFoodRow } from './foodText';
 import type { ParsedWorkoutRow } from './workoutText';
-import { MAX_ITEMS, validateFoodItems, validateWorkoutItems, validateEstimate, validateRoutine, type FoodEstimate, type RoutineDraft } from './aiValidate';
+import { MAX_ITEMS, validateFoodItems, validateWorkoutItems, validateEstimate, type FoodEstimate } from './aiValidate';
 
 const API = 'https://generativelanguage.googleapis.com/v1beta';
 /** Google's rolling aliases always point at the newest Flash / Flash-Lite: a safe last resort. */
@@ -220,24 +220,6 @@ export function readPhoto(raw: any): { items: FoodEstimate[]; assumptions: strin
   return { items, assumptions };
 }
 export const photoPrompt = (hint: string) => (hint ? `The user says: "${hint}"` : 'Estimate this meal.');
-
-const ROUTINE_SCHEMA = {
-  type: 'OBJECT',
-  properties: { name: { type: 'STRING' }, note: { type: 'STRING', nullable: true }, items: { type: 'ARRAY', items: { type: 'OBJECT', properties: {
-    exercise: { type: 'STRING' }, sets: { type: 'INTEGER' }, repMin: { type: 'INTEGER' }, repMax: { type: 'INTEGER' }, restSec: { type: 'INTEGER', nullable: true },
-  }, required: ['exercise', 'sets', 'repMin', 'repMax'] } } },
-  required: ['name', 'items'],
-};
-export async function aiRoutine(request: string, brain: Brain, ctx: { exercises: string[]; profile: string; lang: string }): Promise<RoutineDraft> {
-  const system = 'You design ONE gym routine (a single session) from the user request, using ONLY exercises from the catalog (exact names). ' +
-    '4–8 exercises, compound lifts first, sensible sets (2–5) and rep ranges, rest in seconds. Respect their equipment and experience. ' +
-    `Write the name${ctx.lang === 'da' ? ' in Danish' : ''}. No medical advice.`;
-  const prompt = `User profile: ${ctx.profile}\nExercise catalog: ${ctx.exercises.join(', ')}\nRequest: "${request}"`;
-  const raw = await withFallback(brain.models, (m) => generateJson(brain.key, m, { system, prompt, schema: ROUTINE_SCHEMA, temperature: 0.4, maxOutputTokens: 2048, timeout: 20000, signal: brain.signal }));
-  const r = validateRoutine(raw);
-  if (!r) throw new AiError('invalid');
-  return r;
-}
 
 const noThinking = new Set<string>();
 export interface Turn { role: 'user' | 'model'; parts: { text: string }[] }

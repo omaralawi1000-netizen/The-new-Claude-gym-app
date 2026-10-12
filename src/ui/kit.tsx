@@ -187,15 +187,6 @@ export function Collapse({ open = true, appear = false, children, className, sty
   );
 }
 
-// ── ruler ticks ─────────────────────────────────────────────
-export function Ticks({ value, n = 40, over }: { value: number; n?: number; over?: boolean }) {
-  const on = Math.round(Math.max(0, Math.min(1, value)) * n);
-  return (
-    <div className={`ticks ${over ? 'over' : ''}`} aria-hidden="true">
-      {Array.from({ length: n }, (_, i) => <i key={i} className={i < on ? 'on' : ''} style={{ transitionDelay: `${Math.min(i, 40) * 7}ms` }} />)}
-    </div>
-  );
-}
 
 export function Empty({ title, body, icon, action }: { title: string; body?: string; icon?: IconName; action?: ReactNode }) {
   return (

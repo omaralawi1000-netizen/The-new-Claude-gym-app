@@ -1,4 +1,4 @@
-import type { FoodEntry, Lang, NutrientKey, Quantity, FoodSnapshot } from './types';
+import type { Lang, NutrientKey, Quantity, FoodSnapshot } from './types';
 import { fmtNum } from './units';
 import { roundNutrient, type Sum } from './nutrition';
 import type { TFn } from './i18n';
@@ -34,9 +34,6 @@ export function qtyLabel(e: { qty: Quantity; snap: FoodSnapshot; base: number },
   return `${fmtNum(q.amount, lang, 1)} ${q.unit}`;
 }
 
-export function entryTitle(e: FoodEntry): string {
-  return e.snap.name;
-}
 
 export function sourceLabel(src: string, t: TFn): string {
   return ({ reference: t('Reference (approximate)'), off: 'Open Food Facts', usda: 'USDA FoodData Central', custom: t('Your food'), recipe: t('Your recipe'), quick: t('Quick entry') } as Record<string, string>)[src] ?? src;

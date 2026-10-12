@@ -163,10 +163,3 @@ export function ChartCard({ title, sub, right, children, table }: { title: React
   );
 }
 
-export function RangeSeg<T extends string>({ value, onChange, options }: { value: T; onChange: (v: T) => void; options: { value: T; label: string }[] }) {
-  return (
-    <div className="row-flex" style={{ gap: 6 }}>
-      {options.map((o) => <button key={o.value} className={`chip sm press ${value === o.value ? 'on' : ''}`} onClick={() => onChange(o.value)}>{o.label}</button>)}
-    </div>
-  );
-}
