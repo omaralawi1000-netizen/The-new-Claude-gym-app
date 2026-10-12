@@ -61,7 +61,7 @@ function LivePill() {
           suddenly frosts" flicker. */}
       <motion.span data-wk="pill" className="glass" variants={FADE} transition={SOFT} style={{ position: 'absolute', inset: 0, borderRadius: 28 }} />
       <motion.span variants={FADE} transition={SOFT} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
-        <span className="pulse-dot" style={{ position: 'relative', ...(paused ? { animation: 'none', background: 'var(--tx3)' } : {}) }} />
+        <span className={paused ? 'pulse-dot still' : 'pulse-dot'} />
         <span className="grow" style={{ textAlign: 'left', minWidth: 0, position: 'relative' }}>
           <span className="trunc" style={{ display: 'block', fontWeight: 650, fontSize: 14 }}>{name || t('Workout')}</span>
           <span className="small t2 num" style={{ display: 'block' }}><PillStatus /></span>

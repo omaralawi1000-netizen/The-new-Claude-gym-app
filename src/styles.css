@@ -198,9 +198,90 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
 .wk-window .plinth, .wk-window .btn, .wk-window .icon-btn, .wk-window .chip, .wk-window .plinth-2 { -webkit-backdrop-filter: none; backdrop-filter: none; }
 .wk-window .plinth { background: color-mix(in srgb, var(--s1) 100%, var(--bg) 22%); }
 .wk-window .btn:not(.primary):not(.ghost), .wk-window .icon-btn { background: color-mix(in srgb, var(--s3) 100%, var(--bg) 18%); }
-@keyframes drift1 { to { transform: translate3d(18%, 14%, 0) scale(1.12) rotate(24deg); } }
-@keyframes drift2 { to { transform: translate3d(-22%, -10%, 0) scale(.92) rotate(-30deg); } }
-@keyframes drift3 { to { transform: translate3d(14%, -16%, 0) scale(1.1) rotate(18deg); } }
+/* The aurora drift is the same slow ease-in-out as before, but each blob moves in small steps about 12 times a second
+   instead of every frame. A step is under half a pixel, so it looks identical, and the phone redraws the screen about
+   36 times a second while idle instead of 120. (Generated: ease sampled at 24 keyframes, steps() inside each.) */
+@keyframes drift1 {
+  0% { transform: translate3d(0%, 0%, 0) scale(1) rotate(0deg); animation-timing-function: steps(19, jump-none); }
+  4.1667% { transform: translate3d(0.0602%, 0.0468%, 0) scale(1.0004) rotate(0.0802deg); animation-timing-function: steps(19, jump-none); }
+  8.3333% { transform: translate3d(0.2449%, 0.1905%, 0) scale(1.0016) rotate(0.3265deg); animation-timing-function: steps(19, jump-none); }
+  12.5% { transform: translate3d(0.5601%, 0.4356%, 0) scale(1.0037) rotate(0.7467deg); animation-timing-function: steps(19, jump-none); }
+  16.6667% { transform: translate3d(1.0104%, 0.7858%, 0) scale(1.0067) rotate(1.3471deg); animation-timing-function: steps(19, jump-none); }
+  20.8333% { transform: translate3d(1.5986%, 1.2434%, 0) scale(1.0107) rotate(2.1315deg); animation-timing-function: steps(19, jump-none); }
+  25% { transform: translate3d(2.3249%, 1.8083%, 0) scale(1.0155) rotate(3.0999deg); animation-timing-function: steps(19, jump-none); }
+  29.1667% { transform: translate3d(3.1855%, 2.4776%, 0) scale(1.0212) rotate(4.2474deg); animation-timing-function: steps(19, jump-none); }
+  33.3333% { transform: translate3d(4.1719%, 3.2448%, 0) scale(1.0278) rotate(5.5626deg); animation-timing-function: steps(19, jump-none); }
+  37.5% { transform: translate3d(5.2699%, 4.0988%, 0) scale(1.0351) rotate(7.0265deg); animation-timing-function: steps(19, jump-none); }
+  41.6667% { transform: translate3d(6.4589%, 5.0236%, 0) scale(1.0431) rotate(8.6118deg); animation-timing-function: steps(19, jump-none); }
+  45.8333% { transform: translate3d(7.7126%, 5.9987%, 0) scale(1.0514) rotate(10.2835deg); animation-timing-function: steps(19, jump-none); }
+  50% { transform: translate3d(9%, 7%, 0) scale(1.06) rotate(12deg); animation-timing-function: steps(19, jump-none); }
+  54.1667% { transform: translate3d(10.2874%, 8.0013%, 0) scale(1.0686) rotate(13.7165deg); animation-timing-function: steps(19, jump-none); }
+  58.3333% { transform: translate3d(11.5411%, 8.9764%, 0) scale(1.0769) rotate(15.3882deg); animation-timing-function: steps(19, jump-none); }
+  62.5% { transform: translate3d(12.7301%, 9.9012%, 0) scale(1.0849) rotate(16.9735deg); animation-timing-function: steps(19, jump-none); }
+  66.6667% { transform: translate3d(13.8281%, 10.7552%, 0) scale(1.0922) rotate(18.4374deg); animation-timing-function: steps(19, jump-none); }
+  70.8333% { transform: translate3d(14.8145%, 11.5224%, 0) scale(1.0988) rotate(19.7526deg); animation-timing-function: steps(19, jump-none); }
+  75% { transform: translate3d(15.6751%, 12.1917%, 0) scale(1.1045) rotate(20.9001deg); animation-timing-function: steps(19, jump-none); }
+  79.1667% { transform: translate3d(16.4014%, 12.7566%, 0) scale(1.1093) rotate(21.8685deg); animation-timing-function: steps(19, jump-none); }
+  83.3333% { transform: translate3d(16.9896%, 13.2142%, 0) scale(1.1133) rotate(22.6529deg); animation-timing-function: steps(19, jump-none); }
+  87.5% { transform: translate3d(17.4399%, 13.5644%, 0) scale(1.1163) rotate(23.2533deg); animation-timing-function: steps(19, jump-none); }
+  91.6667% { transform: translate3d(17.7551%, 13.8095%, 0) scale(1.1184) rotate(23.6735deg); animation-timing-function: steps(19, jump-none); }
+  95.8333% { transform: translate3d(17.9398%, 13.9532%, 0) scale(1.1196) rotate(23.9198deg); animation-timing-function: steps(19, jump-none); }
+  100% { transform: translate3d(18%, 14%, 0) scale(1.12) rotate(24deg); }
+}
+@keyframes drift2 {
+  0% { transform: translate3d(0%, 0%, 0) scale(1) rotate(0deg); animation-timing-function: steps(23, jump-none); }
+  4.1667% { transform: translate3d(-0.0735%, -0.0334%, 0) scale(0.9997) rotate(-0.1003deg); animation-timing-function: steps(23, jump-none); }
+  8.3333% { transform: translate3d(-0.2993%, -0.136%, 0) scale(0.9989) rotate(-0.4081deg); animation-timing-function: steps(23, jump-none); }
+  12.5% { transform: translate3d(-0.6845%, -0.3111%, 0) scale(0.9975) rotate(-0.9334deg); animation-timing-function: steps(23, jump-none); }
+  16.6667% { transform: translate3d(-1.2349%, -0.5613%, 0) scale(0.9955) rotate(-1.6839deg); animation-timing-function: steps(23, jump-none); }
+  20.8333% { transform: translate3d(-1.9539%, -0.8881%, 0) scale(0.9929) rotate(-2.6644deg); animation-timing-function: steps(23, jump-none); }
+  25% { transform: translate3d(-2.8416%, -1.2916%, 0) scale(0.9897) rotate(-3.8749deg); animation-timing-function: steps(23, jump-none); }
+  29.1667% { transform: translate3d(-3.8934%, -1.7697%, 0) scale(0.9858) rotate(-5.3092deg); animation-timing-function: steps(23, jump-none); }
+  33.3333% { transform: translate3d(-5.099%, -2.3177%, 0) scale(0.9815) rotate(-6.9532deg); animation-timing-function: steps(23, jump-none); }
+  37.5% { transform: translate3d(-6.441%, -2.9277%, 0) scale(0.9766) rotate(-8.7831deg); animation-timing-function: steps(23, jump-none); }
+  41.6667% { transform: translate3d(-7.8942%, -3.5883%, 0) scale(0.9713) rotate(-10.7648deg); animation-timing-function: steps(23, jump-none); }
+  45.8333% { transform: translate3d(-9.4265%, -4.2848%, 0) scale(0.9657) rotate(-12.8543deg); animation-timing-function: steps(23, jump-none); }
+  50% { transform: translate3d(-11%, -5%, 0) scale(0.96) rotate(-15deg); animation-timing-function: steps(23, jump-none); }
+  54.1667% { transform: translate3d(-12.5735%, -5.7152%, 0) scale(0.9543) rotate(-17.1457deg); animation-timing-function: steps(23, jump-none); }
+  58.3333% { transform: translate3d(-14.1058%, -6.4117%, 0) scale(0.9487) rotate(-19.2352deg); animation-timing-function: steps(23, jump-none); }
+  62.5% { transform: translate3d(-15.559%, -7.0723%, 0) scale(0.9434) rotate(-21.2169deg); animation-timing-function: steps(23, jump-none); }
+  66.6667% { transform: translate3d(-16.901%, -7.6823%, 0) scale(0.9385) rotate(-23.0468deg); animation-timing-function: steps(23, jump-none); }
+  70.8333% { transform: translate3d(-18.1066%, -8.2303%, 0) scale(0.9342) rotate(-24.6908deg); animation-timing-function: steps(23, jump-none); }
+  75% { transform: translate3d(-19.1584%, -8.7084%, 0) scale(0.9303) rotate(-26.1251deg); animation-timing-function: steps(23, jump-none); }
+  79.1667% { transform: translate3d(-20.0461%, -9.1119%, 0) scale(0.9271) rotate(-27.3356deg); animation-timing-function: steps(23, jump-none); }
+  83.3333% { transform: translate3d(-20.7651%, -9.4387%, 0) scale(0.9245) rotate(-28.3161deg); animation-timing-function: steps(23, jump-none); }
+  87.5% { transform: translate3d(-21.3155%, -9.6889%, 0) scale(0.9225) rotate(-29.0666deg); animation-timing-function: steps(23, jump-none); }
+  91.6667% { transform: translate3d(-21.7007%, -9.864%, 0) scale(0.9211) rotate(-29.5919deg); animation-timing-function: steps(23, jump-none); }
+  95.8333% { transform: translate3d(-21.9265%, -9.9666%, 0) scale(0.9203) rotate(-29.8997deg); animation-timing-function: steps(23, jump-none); }
+  100% { transform: translate3d(-22%, -10%, 0) scale(0.92) rotate(-30deg); }
+}
+@keyframes drift3 {
+  0% { transform: translate3d(0%, 0%, 0) scale(1) rotate(0deg); animation-timing-function: steps(27, jump-none); }
+  4.1667% { transform: translate3d(0.0468%, -0.0535%, 0) scale(1.0003) rotate(0.0602deg); animation-timing-function: steps(27, jump-none); }
+  8.3333% { transform: translate3d(0.1905%, -0.2177%, 0) scale(1.0014) rotate(0.2449deg); animation-timing-function: steps(27, jump-none); }
+  12.5% { transform: translate3d(0.4356%, -0.4978%, 0) scale(1.0031) rotate(0.5601deg); animation-timing-function: steps(27, jump-none); }
+  16.6667% { transform: translate3d(0.7858%, -0.8981%, 0) scale(1.0056) rotate(1.0104deg); animation-timing-function: steps(27, jump-none); }
+  20.8333% { transform: translate3d(1.2434%, -1.421%, 0) scale(1.0089) rotate(1.5986deg); animation-timing-function: steps(27, jump-none); }
+  25% { transform: translate3d(1.8083%, -2.0666%, 0) scale(1.0129) rotate(2.3249deg); animation-timing-function: steps(27, jump-none); }
+  29.1667% { transform: translate3d(2.4776%, -2.8316%, 0) scale(1.0177) rotate(3.1855deg); animation-timing-function: steps(27, jump-none); }
+  33.3333% { transform: translate3d(3.2448%, -3.7084%, 0) scale(1.0232) rotate(4.1719deg); animation-timing-function: steps(27, jump-none); }
+  37.5% { transform: translate3d(4.0988%, -4.6843%, 0) scale(1.0293) rotate(5.2699deg); animation-timing-function: steps(27, jump-none); }
+  41.6667% { transform: translate3d(5.0236%, -5.7412%, 0) scale(1.0359) rotate(6.4589deg); animation-timing-function: steps(27, jump-none); }
+  45.8333% { transform: translate3d(5.9987%, -6.8556%, 0) scale(1.0428) rotate(7.7126deg); animation-timing-function: steps(27, jump-none); }
+  50% { transform: translate3d(7%, -8%, 0) scale(1.05) rotate(9deg); animation-timing-function: steps(27, jump-none); }
+  54.1667% { transform: translate3d(8.0013%, -9.1444%, 0) scale(1.0572) rotate(10.2874deg); animation-timing-function: steps(27, jump-none); }
+  58.3333% { transform: translate3d(8.9764%, -10.2588%, 0) scale(1.0641) rotate(11.5411deg); animation-timing-function: steps(27, jump-none); }
+  62.5% { transform: translate3d(9.9012%, -11.3157%, 0) scale(1.0707) rotate(12.7301deg); animation-timing-function: steps(27, jump-none); }
+  66.6667% { transform: translate3d(10.7552%, -12.2916%, 0) scale(1.0768) rotate(13.8281deg); animation-timing-function: steps(27, jump-none); }
+  70.8333% { transform: translate3d(11.5224%, -13.1684%, 0) scale(1.0823) rotate(14.8145deg); animation-timing-function: steps(27, jump-none); }
+  75% { transform: translate3d(12.1917%, -13.9334%, 0) scale(1.0871) rotate(15.6751deg); animation-timing-function: steps(27, jump-none); }
+  79.1667% { transform: translate3d(12.7566%, -14.579%, 0) scale(1.0911) rotate(16.4014deg); animation-timing-function: steps(27, jump-none); }
+  83.3333% { transform: translate3d(13.2142%, -15.1019%, 0) scale(1.0944) rotate(16.9896deg); animation-timing-function: steps(27, jump-none); }
+  87.5% { transform: translate3d(13.5644%, -15.5022%, 0) scale(1.0969) rotate(17.4399deg); animation-timing-function: steps(27, jump-none); }
+  91.6667% { transform: translate3d(13.8095%, -15.7823%, 0) scale(1.0986) rotate(17.7551deg); animation-timing-function: steps(27, jump-none); }
+  95.8333% { transform: translate3d(13.9532%, -15.9465%, 0) scale(1.0997) rotate(17.9398deg); animation-timing-function: steps(27, jump-none); }
+  100% { transform: translate3d(14%, -16%, 0) scale(1.1) rotate(18deg); }
+}
 
 /* One top fade for every scrolling page (tab screens, the live workout, the orb's talk list, onboarding; sheets keep their own, same look): a mask that
    grows from nothing to --ft (54 px) over the first 40 px of scrolling, eased so content melts away instead of being cut.
@@ -503,8 +584,17 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* ── misc ────────────────────────────────────────────────── */
 .kbd-safe { padding-bottom: env(keyboard-inset-height, 0px); }
 .pill-live { display: inline-flex; align-items: center; gap: 8px; }
-.pulse-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ac); box-shadow: 0 0 0 0 color-mix(in srgb, var(--ac) 60%, transparent), 0 0 12px var(--ac); animation: pulse 1.8s infinite; }
-@keyframes pulse { 70% { box-shadow: 0 0 0 9px transparent, 0 0 12px var(--ac); } 100% { box-shadow: 0 0 0 0 transparent, 0 0 12px var(--ac); } }
+.pulse-dot { position: relative; width: 8px; height: 8px; border-radius: 50%; background: var(--ac); box-shadow: 0 0 12px var(--ac); }
+/* The ring that grows out of the dot. It used to be an animated box-shadow, which made the phone re-render the page on
+   the main thread every frame for as long as the dot was on screen; a fading, growing disc looks the same and runs
+   entirely on the graphics chip. The disc is 9px wider than the dot all round (the old shadow's spread). */
+.pulse-dot::before { content: ''; position: absolute; inset: -9px; border-radius: 50%; background: var(--ac); opacity: 0; transform: scale(.3077); animation: pulse 1.8s infinite; pointer-events: none; }
+.pulse-dot.sm { width: 6px; height: 6px; }
+.pulse-dot.sm::before { animation-name: pulseSm; }
+.pulse-dot.still { background: var(--tx3); }
+.pulse-dot.still::before { animation: none; }
+@keyframes pulse { 0% { opacity: .6; transform: scale(.3077); } 70% { opacity: 0; transform: scale(1); } 100% { opacity: 0; transform: scale(.3077); } }
+@keyframes pulseSm { 0% { opacity: .6; transform: scale(.25); } 70% { opacity: 0; transform: scale(1); } 100% { opacity: 0; transform: scale(.25); } }
 @keyframes settle { 0% { background-color: var(--ac-soft); } 100% { background-color: transparent; } }
 .settle { animation: settle 1400ms var(--ease-out) both; border-radius: var(--r-sm); }
 .empty { text-align: center; padding: 34px 20px; color: var(--tx2); }
@@ -517,7 +607,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 :root[data-motion='reduce'] *, :root[data-motion='reduce'] *::before, :root[data-motion='reduce'] *::after {
   animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important;
 }
-:root[data-motion='reduce'] .pulse-dot { animation: none; }
+:root[data-motion='reduce'] .pulse-dot::before { animation: none; }
 :root[data-motion='reduce'] .aurora i { animation: none; }
 :root[data-motion='reduce'] :is(.press[data-pressed], .tab.press:active) { transform: none; opacity: .7; }
 
@@ -532,7 +622,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .app:has(.sheet, .voice, [role='dialog']) .aurora i { animation-play-state: paused; }
 /* same for the looping pulse dots. (Targeted by class on purpose: a `.screen *` selector here made the browser
    restyle every element of the app each time a popup opened or closed — a long frame right as it starts moving.) */
-.app:has(.sheet, .voice, [role='dialog']) .pulse-dot { animation-play-state: paused !important; }
+.app:has(.sheet, .voice, [role='dialog']) .pulse-dot::before { animation-play-state: paused !important; }
 
 /* iOS-style: while a popup is up the page behind steps back. Its transform and corner radius are written by script
    (useStageDepth in App.tsx) from the popups' own progress, so it follows them frame for frame — no CSS transition. */
@@ -1073,9 +1163,17 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* ── the Coach's pin on Today (ui/CoachPin.tsx): one quiet line that opens into what it noticed ── */
 .pin { border-radius: 22px; background: color-mix(in srgb, var(--ac) 9%, var(--s1, rgba(255,255,255,.04))); box-shadow: inset 0 1px 0 var(--hl), inset 0 0 0 1px color-mix(in srgb, var(--ac) 22%, var(--line)); overflow: hidden; transition: border-radius 300ms var(--ease-out); }
 .pin-head { display: flex; align-items: center; gap: 10px; width: 100%; padding: 11px 14px 11px 12px; text-align: left; }
-.pin-mark { flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; color: var(--ac-ink); background: var(--ac); box-shadow: 0 0 14px -3px var(--ac); animation: pinGlow 3.2s ease-in-out infinite; }
-@keyframes pinGlow { 50% { box-shadow: 0 0 22px -2px var(--ac); } }
-:root[data-motion='reduce'] .pin-mark { animation: none; }
+.pin-mark { position: relative; flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; color: var(--ac-ink); background: var(--ac); }
+/* The breathing glow: two fixed glows cross-fading (opacity only, on the graphics chip) instead of an animated
+   box-shadow, which re-rendered the page on the main thread every frame. Same small glow → wide glow → small. */
+.pin-mark::before, .pin-mark::after { content: ''; position: absolute; inset: 0; border-radius: 50%; pointer-events: none; animation: pinGlow 3.2s ease-in-out infinite; }
+.pin-mark::before { box-shadow: 0 0 14px -3px var(--ac); animation-name: pinGlowA; }
+.pin-mark::after { box-shadow: 0 0 22px -2px var(--ac); opacity: 0; }
+/* Same ease-in-out, advanced in small steps 20 times a second (each under 6 % brighter or dimmer, too soft to see) so the
+   screen isn't redrawn on every frame just for this glow. */
+@keyframes pinGlowA { 0% { opacity: 1; animation-timing-function: steps(4, jump-none); } 6.25% { opacity: 0.9689; animation-timing-function: steps(4, jump-none); } 12.5% { opacity: 0.8708; animation-timing-function: steps(4, jump-none); } 18.75% { opacity: 0.7072; animation-timing-function: steps(4, jump-none); } 25% { opacity: 0.5; animation-timing-function: steps(4, jump-none); } 31.25% { opacity: 0.2928; animation-timing-function: steps(4, jump-none); } 37.5% { opacity: 0.1292; animation-timing-function: steps(4, jump-none); } 43.75% { opacity: 0.0311; animation-timing-function: steps(4, jump-none); } 50% { opacity: 0; animation-timing-function: steps(4, jump-none); } 56.25% { opacity: 0.0311; animation-timing-function: steps(4, jump-none); } 62.5% { opacity: 0.1292; animation-timing-function: steps(4, jump-none); } 68.75% { opacity: 0.2928; animation-timing-function: steps(4, jump-none); } 75% { opacity: 0.5; animation-timing-function: steps(4, jump-none); } 81.25% { opacity: 0.7072; animation-timing-function: steps(4, jump-none); } 87.5% { opacity: 0.8708; animation-timing-function: steps(4, jump-none); } 93.75% { opacity: 0.9689; animation-timing-function: steps(4, jump-none); } 100% { opacity: 1; } }
+@keyframes pinGlow { 0% { opacity: 0; animation-timing-function: steps(4, jump-none); } 6.25% { opacity: 0.0311; animation-timing-function: steps(4, jump-none); } 12.5% { opacity: 0.1292; animation-timing-function: steps(4, jump-none); } 18.75% { opacity: 0.2928; animation-timing-function: steps(4, jump-none); } 25% { opacity: 0.5; animation-timing-function: steps(4, jump-none); } 31.25% { opacity: 0.7072; animation-timing-function: steps(4, jump-none); } 37.5% { opacity: 0.8708; animation-timing-function: steps(4, jump-none); } 43.75% { opacity: 0.9689; animation-timing-function: steps(4, jump-none); } 50% { opacity: 1; animation-timing-function: steps(4, jump-none); } 56.25% { opacity: 0.9689; animation-timing-function: steps(4, jump-none); } 62.5% { opacity: 0.8708; animation-timing-function: steps(4, jump-none); } 68.75% { opacity: 0.7072; animation-timing-function: steps(4, jump-none); } 75% { opacity: 0.5; animation-timing-function: steps(4, jump-none); } 81.25% { opacity: 0.2928; animation-timing-function: steps(4, jump-none); } 87.5% { opacity: 0.1292; animation-timing-function: steps(4, jump-none); } 93.75% { opacity: 0.0311; animation-timing-function: steps(4, jump-none); } 100% { opacity: 0; } }
+:root[data-motion='reduce'] .pin-mark::before, :root[data-motion='reduce'] .pin-mark::after { animation: none; }
 .pin-line { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 8px; }
 .pin-label { flex: none; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ac-text); }
 .pin-title { font-size: 14.5px; font-weight: 600; transition: opacity 220ms var(--ease-out), transform 300ms var(--ease-out); }
