@@ -47,6 +47,15 @@ await measure('workout-scrollup', () => scroll(400, 1400), 1600);
 await measure('tick-set', () => p.getByRole('button', { name: 'Complete set' }).first().click(), 1600);
 await measure('rest-running', async () => {}, 2500);
 await measure('tick-set-2', () => p.getByRole('button', { name: 'Complete set' }).first().click(), 1600);
+// Focus view: arrive, swipe a page with the finger, scroll inside a page, tick, leave
+const fbox = async () => (await p.locator('.wk-pager').boundingBox().catch(() => null)) ?? { x: 0, y: 300, width: 390 };
+const swipe = async (dx) => { const bx = await fbox(); const x0 = bx.x + bx.width / 2, y = bx.y + 120; await p.mouse.move(x0, y); await p.mouse.down(); for (let i = 1; i <= 10; i++) { await p.mouse.move(x0 + (dx * i) / 10, y); await wait(p, 16); } await p.mouse.up(); };
+await measure('focus-enter', () => p.getByRole('button', { name: 'Focus view' }).click(), 1600);
+await measure('focus-swipe', () => swipe(-220), 1600);
+await measure('focus-swipe-back', () => swipe(220), 1600);
+await measure('focus-scroll', () => scroll(500, -500), 1600);
+await measure('focus-tick', () => p.locator('.wk-page.cur').getByRole('button', { name: 'Complete set' }).first().click(), 1600);
+await measure('focus-leave', () => p.getByRole('button', { name: 'List view' }).click(), 1600);
 await measure('workout-close', () => p.getByRole('button', { name: 'Minimise workout' }).click(), 1600);
 await measure('idle-pill', async () => {}, 2000);
 console.log(`CPU ${rate}×\n` + rows.join('\n'));

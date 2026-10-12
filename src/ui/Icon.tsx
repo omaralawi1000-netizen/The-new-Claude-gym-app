@@ -52,6 +52,7 @@ const P: Record<string, ReactNode> = {
   globe: <><circle cx="12" cy="12" r="8.5" /><path d="M3.5 12h17M12 3.5c2.5 2.5 3.5 5.5 3.5 8.5s-1 6-3.5 8.5c-2.5-2.5-3.5-5.5-3.5-8.5s1-6 3.5-8.5z" /></>,
   shield: <path d="M12 3.5l7 2.5v5.5c0 4.3-3 7.5-7 9-4-1.5-7-4.7-7-9V6z" />,
   bell: <><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 1.5h-15z" /><path d="M10 20.5a2 2 0 0 0 4 0" /></>,
+  focus: <><rect x="7" y="4" width="10" height="16" rx="2.6" /><path d="M3.8 7.5v9M20.2 7.5v9" /></>,
   list: <><path d="M9 6.5h11M9 12h11M9 17.5h11" /><circle cx="4.5" cy="6.5" r=".9" fill="currentColor" /><circle cx="4.5" cy="12" r=".9" fill="currentColor" /><circle cx="4.5" cy="17.5" r=".9" fill="currentColor" /></>,
   recipe: <><path d="M5 11.5h14v2a6 6 0 0 1-6 6h-2a6 6 0 0 1-6-6z" /><path d="M9 8.5c0-1.2 1-1.3 1-2.5M13 8.5c0-1.2 1-1.3 1-2.5" /></>,
   sparkle: <path d="M12 3.5l1.8 5.2 5.2 1.8-5.2 1.8L12 17.5l-1.8-5.2L5 10.5l5.2-1.8zM18.5 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z" />,

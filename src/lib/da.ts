@@ -247,6 +247,8 @@ export const da: Record<string, string> = {
  "Exercise removed": "Øvelse fjernet",
  "Exercise trends": "Øvelsestendenser",
  "Exercises": "Øvelser",
+ "Focus view": "Fokusvisning",
+ "List view": "Listevisning",
  "Experienced": "Erfaren",
  "Explore with demo data instead": "Udforsk med demodata i stedet",
  "Export backup": "Eksportér sikkerhedskopi",

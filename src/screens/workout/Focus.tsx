@@ -1,0 +1,148 @@
+import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { motion, type MotionValue } from 'motion/react';
+import { useStore } from '../../state/store';
+import { useT, useLang } from '../../lib/i18n';
+import type { Exercise, SessionExercise, WorkoutSession } from '../../lib/types';
+import { usePager } from '../../ui/pager';
+import { MuscleMap } from './MuscleMap';
+import { exName } from './common';
+import { nextSetOf } from './rest';
+import { ExerciseBlock } from './Active';
+
+const GAP = 16; // between pages, as in the iOS photo viewer: you see the edge of the next one only while you swipe
+
+/** Where to go after a set of `seId` is ticked: its superset partner's turn, else the first set not yet done. */
+function nextFocus(a: WorkoutSession | null | undefined, seId: string): string | null {
+  if (!a) return null;
+  const se = a.exercises.find((e) => e.id === seId);
+  if (se?.supersetGroup) {
+    const group = a.exercises.filter((e) => e.supersetGroup === se.supersetGroup);
+    const at = group.findIndex((e) => e.id === seId);
+    for (let k = 1; k <= group.length; k++) {
+      const g = group[(at + k) % group.length];
+      if (g.sets.some((x) => !x.done)) return g.id;
+    }
+  }
+  return nextSetOf(a)?.se.id ?? null;
+}
+const doneIn = (a: WorkoutSession | null | undefined, seId: string) => a?.exercises.find((e) => e.id === seId)?.sets.filter((x) => x.done).length ?? 0;
+
+export type FocusApi = { jumpToSet: (setId: string) => void };
+
+/**
+ * Focus view: one exercise fills the screen, the next one a swipe away. A stage for the movement on top (the muscle
+ * picture until the figures exist), then the exercise's own card, so the sets tick exactly as in the list. When its last
+ * set is ticked the view waits a moment, so the tick is seen, and glides on to the next exercise.
+ */
+export const FocusView = memo(function FocusView({ exMap, onMenu, pad, apiRef }: { exMap: Map<string, Exercise>; onMenu: (id: string) => void; pad: MotionValue<string>; apiRef: React.MutableRefObject<FocusApi | null> }) {
+  const t = useT();
+  const lang = useLang();
+  const exs = useStore((s) => s.active?.exercises) ?? [];
+  const exsRef = useRef(exs); exsRef.current = exs;
+  const viewport = useRef<HTMLDivElement>(null), track = useRef<HTMLDivElement>(null);
+  // open on the exercise you're on (the one with the next set to do)
+  const [index, setIndex] = useState(() => { const id = nextSetOf(useStore.getState().active)?.se.id; return Math.max(0, exs.findIndex((e) => e.id === id)); });
+  const pill = useRef<HTMLElement>(null);
+  // while the finger moves, only the pill moves (no re-render mid-swipe); the dots catch up when the page settles
+  const pillTo = (i: number) => { if (pill.current) pill.current.style.transform = `translateX(${i * 16}px)`; };
+  const curId = useRef<string | undefined>(exs[index]?.id);
+  // only the page you're on and its neighbours are built; the rest are a light stand-in until you get near them. At first
+  // only the page itself, so entering is one card's work; its neighbours follow once it has arrived.
+  const [win, setWin] = useState<Set<number>>(() => new Set([index]));
+  // Growing the window waits until nothing is moving (after the switch's crossfade, after a page has settled): building a
+  // page is a long frame, and a long frame in the middle of a glide is a stutter.
+  const grow = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const growTo = (i: number, ms: number) => { clearTimeout(grow.current); grow.current = setTimeout(() => setWin(new Set([i - 1, i, i + 1])), ms); };
+  useEffect(() => { growTo(index, 750); return () => clearTimeout(grow.current); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const flashSet = useRef<string | null>(null);
+  const flash = (setId: string) => {
+    const row = viewport.current?.querySelector<HTMLElement>(`.wk-page.cur [data-set="${setId}"]`);
+    if (!row) return;
+    row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    row.classList.remove('wk-flash'); void row.offsetWidth; row.classList.add('wk-flash');
+  };
+  const pager = usePager(viewport, track, {
+    count: exs.length, gap: GAP, initial: index,
+    onNear: pillTo,
+    onSettle: (i) => {
+      setIndex(i); curId.current = exsRef.current[i]?.id;
+      growTo(i, 380);
+      const f = flashSet.current; flashSet.current = null;
+      if (f) requestAnimationFrame(() => flash(f));
+    },
+  });
+  const go = (i: number, auto = false) => {
+    setWin((w) => (w.has(i) ? w : new Set([...w, i])));
+    pager.current.go(i, auto);
+  };
+
+  // an exercise added, removed or moved: stay on the one you were on
+  const ids = exs.map((e) => e.id).join(',');
+  useLayoutEffect(() => {
+    let i = exs.findIndex((e) => e.id === curId.current);
+    if (i < 0) i = Math.min(index, exs.length - 1);
+    if (i < 0) return;
+    curId.current = exs[i].id;
+    if (i !== index) { setIndex(i); setWin(new Set([i - 1, i, i + 1])); }
+    pager.current.place(i);
+  }, [ids]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // the last set of the exercise you're on is ticked (or a superset partner's turn has come): glide on, after a beat
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const off = useStore.subscribe((s, prev) => {
+      const cur = curId.current;
+      if (!cur || s.active === prev.active || doneIn(s.active, cur) <= doneIn(prev.active, cur)) return;
+      const to = nextFocus(s.active, cur);
+      const i = to && to !== cur ? exsRef.current.findIndex((e) => e.id === to) : -1;
+      clearTimeout(timer);
+      if (i < 0) return;
+      timer = setTimeout(() => { if (!pager.current.dragging() && curId.current === cur) go(i, true); }, 900);
+    });
+    return () => { off(); clearTimeout(timer); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  apiRef.current = {
+    jumpToSet: (setId) => {
+      const i = exsRef.current.findIndex((e) => e.sets.some((x) => x.id === setId));
+      if (i < 0) return;
+      if (i === index && !pager.current.dragging()) { flash(setId); return; }
+      flashSet.current = setId; go(i);
+    },
+  };
+
+  if (exs.length === 0) return null;
+  return (
+    <>
+      {/* one dot per exercise: the pill slides to the one you're on, filled dots are done */}
+      <div className="wk-dots" role="tablist" aria-label={t('Exercises')}>
+        {exs.map((se, i) => {
+          const ex = exMap.get(se.exerciseId);
+          const done = se.sets.length > 0 && se.sets.every((x) => x.done);
+          return <button key={se.id} role="tab" aria-selected={i === index} className={`wk-dot${done ? ' done' : ''}`} onClick={() => go(i)}
+            aria-label={`${ex ? exName(ex, lang) : t('Exercise')} · ${t('{n} of {m}', { n: i + 1, m: exs.length })}`}><i /></button>;
+        })}
+        <i ref={pill} className="wk-dot-pill" aria-hidden style={{ transform: `translateX(${index * 16}px)` }} />
+      </div>
+      <div ref={viewport} className="wk-pager">
+        <div ref={track} className="wk-track" style={{ gap: GAP }}>
+          {exs.map((se, i) => <Page key={se.id} se={se} ex={exMap.get(se.exerciseId)} full={win.has(i)} cur={i === index} onMenu={onMenu} pad={pad} />)}
+        </div>
+      </div>
+    </>
+  );
+});
+
+const Page = memo(function Page({ se, ex, full, cur, onMenu, pad }: { se: SessionExercise; ex?: Exercise; full: boolean; cur: boolean; onMenu: (id: string) => void; pad: MotionValue<string> }) {
+  const lang = useLang();
+  const t = useT();
+  return (
+    <motion.div className={`wk-page hide-scroll${cur ? ' cur' : ''}`} style={{ paddingBottom: pad }} aria-hidden={!cur || undefined} inert={!cur || undefined}>
+      {/* the movement's stage: the muscles it works, until the moving figures arrive */}
+      <div className="wk-stage" aria-hidden>{ex && <MuscleMap muscles={ex.muscles} size={104} />}</div>
+      {full
+        ? <ExerciseBlock se={se} ex={ex} onMenu={onMenu} linkedPrev={false} linkedNext={false} />
+        : <div className="wk-page-ghost"><div className="plinth"><div className="display display-sm wk-ex-title">{ex ? exName(ex, lang) : t('Unknown exercise')}</div></div></div>}
+    </motion.div>
+  );
+});
