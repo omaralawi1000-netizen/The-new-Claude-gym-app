@@ -2,7 +2,7 @@ import { memo, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { AnimatePresence } from 'motion/react';
 import { useStore, exerciseMap } from '../../state/store';
-import { useUI, buzz } from '../../state/ui';
+import { useUI, haptic } from '../../state/ui';
 import { useT, useLang } from '../../lib/i18n';
 import type { Exercise, Lang, Routine, RoutineItem } from '../../lib/types';
 import { uid } from '../../lib/nutrition';
@@ -45,13 +45,13 @@ export function RoutineEditor({ props }: { props: { id?: string } }) {
     move: (id, d) => flip(listRef.current, () => flushSync(() => setItems((x) => { const l = [...x]; const i = l.findIndex((y) => y.id === id); const j = i + d; if (j < 0 || j >= l.length) return x; [l[i], l[j]] = [l[j], l[i]]; return l; }))),
     drag: (e, id) => startDragSort(e, listRef.current, id, (from, to) => setItems((x) => { const l = [...x]; const [it] = l.splice(from, 1); l.splice(to, 0, it); return l; })),
     link: (id) => setItems((x) => { const l = x.map((i) => ({ ...i })); const i = l.findIndex((y) => y.id === id); if (i >= l.length - 1) return x; const a = l[i], b = l[i + 1]; if (a.supersetGroup && a.supersetGroup === b.supersetGroup) { b.supersetGroup = undefined; if (!l.some((y, k) => k !== i && y.supersetGroup === a.supersetGroup)) a.supersetGroup = undefined; } else { const g = a.supersetGroup ?? uid('ss'); a.supersetGroup = g; b.supersetGroup = g; } return l; }),
-    remove: (id) => { buzz(10); setOpen(null); setItems((x) => x.filter((y) => y.id !== id)); },
+    remove: (id) => { haptic('light'); setOpen(null); setItems((x) => x.filter((y) => y.id !== id)); },
   }), []);
   const save = () => {
     if (!valid) return;
     const r: Routine = { id: existing?.id ?? uid('rt'), name: name.trim(), items, note: note.trim() || undefined, createdAt: existing?.createdAt ?? Date.now(), updatedAt: Date.now() };
     useStore.getState().upsertRoutine(r);
-    buzz(12);
+    haptic('saved');
     toast(t('Routine saved'), { tone: 'ok' });
     pop();
   };

@@ -4,7 +4,7 @@ import { useLang, useT } from '../../lib/i18n';
 import { fmtNutrient, qtyLabel } from '../../lib/format';
 import { Icon } from '../../ui/Icon';
 import { SOFT } from '../../ui/Sheet';
-import { buzz } from '../../state/ui';
+import { haptic } from '../../state/ui';
 
 /**
  * A logged food inside its meal card: tap to edit, swipe left to delete (with undo).
@@ -32,7 +32,7 @@ export function EntryRow({ e, onOpen, onDelete, fresh }: { e: FoodEntry; onOpen:
         style={{ x }}
         drag="x" dragDirectionLock dragConstraints={{ left: 0, right: 0 }} dragElastic={{ left: 0.5, right: 0 }}
         onDragEnd={(_, info) => {
-          if (info.offset.x < -110 || info.velocity.x < -700) { buzz(12); animate(x, -480, { duration: 0.18 }).then(onDelete); }
+          if (info.offset.x < -110 || info.velocity.x < -700) { haptic('confirm'); animate(x, -480, { duration: 0.18 }).then(onDelete); }
           else animate(x, 0, SOFT);
         }}
         onClick={onOpen} aria-label={`${e.snap.name}, ${Math.round(n.kcal ?? 0)} kcal`}

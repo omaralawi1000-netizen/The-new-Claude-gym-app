@@ -7,7 +7,7 @@ import { sumNutrients } from '../lib/nutrition';
 import { plannedFor, missedWorkouts } from '../state/store';
 import { mealName } from '../lib/derive';
 import type { AgentResult } from '../lib/agent';
-import { useUI, buzz } from '../state/ui';
+import { useUI, haptic } from '../state/ui';
 import { useAi } from '../state/ai';
 import { getKey } from '../lib/keys';
 import { aiErrorText } from '../lib/gemini';
@@ -259,7 +259,7 @@ export function ActionCard({ r, undone, confirmed, onUndo, onConfirm }: { r: Age
           {!undone && !confirmed && (r.button || r.undo || r.more?.length) && (
             <div className="row-flex" style={{ gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
               {r.button && <button className={`btn sm press ${r.pending ? 'primary' : ''}`} onClick={r.pending ? onConfirm : r.button.run}>{r.button.label}</button>}
-              {r.more?.map((b) => <button key={b.label} className="btn sm ghost press" onClick={() => { buzz(8); b.run(); }}>{b.label}</button>)}
+              {r.more?.map((b) => <button key={b.label} className="btn sm ghost press" onClick={() => { haptic('light'); b.run(); }}>{b.label}</button>)}
               {r.undo && !r.pending && <button className="btn sm ghost press" onClick={onUndo}><Icon name="undo" size={15} /> {t('Undo')}</button>}
             </div>
           )}

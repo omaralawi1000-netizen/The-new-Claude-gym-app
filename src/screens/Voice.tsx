@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion, useTransform } from 'motion/react';
 import { useStore, allExercises } from '../state/store';
-import { useUI, buzz } from '../state/ui';
+import { useUI, haptic } from '../state/ui';
 import { useVoice } from '../state/voice';
 import { useAi } from '../state/ai';
 import { useT, useLang } from '../lib/i18n';
@@ -314,7 +314,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
       patch(id, { reply: said, results, done: true });
       // green "Done" only when something was actually logged or changed; a plain answer just settles
       const acted = d.wantsUndo || results.some((r) => r.kind !== 'miss' && r.kind !== 'nav');
-      if (acted) { buzz([12, 40, 18] as any); go('confirmed'); } else go('idle');
+      if (acted) { haptic('success'); go('confirmed'); } else go('idle');
       if (said.trim()) prefetchAloud(said); // read aloud only when you tap play
       // a quick log and nothing to read: show it for a moment, then step aside with an Undo toast
       const quick = results.length > 0 && results.every((r) => ['food', 'sets', 'water', 'weight', 'activity'].includes(r.kind) && !r.pending);
@@ -347,8 +347,9 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
     // still starting the microphone (Samsung Browser can take a second): a tap here is not "stop" — stopping a start that
     // hasn't finished used to end in "Didn't catch anything" followed by a false "microphone in use"
     if (p === 'processing' || (p === 'requesting' && !typing)) return;
-    if (typing) { const text = typed.trim(); if (!text) return; setTyped(''); act(text, openTurn(text)); return; }
+    if (typing) { const text = typed.trim(); if (!text) return; haptic('send'); setTyped(''); act(text, openTurn(text)); return; }
     if (engine === 'groq' && mic.recording) {
+      haptic('send'); // by a tap or by falling quiet: felt the same, "got it"
       busy.current = true;
       // the exchange opens at once (the orb steps up, thinking); what you said rises in as a sent bubble when it is transcribed
       const id = openTurn('');
@@ -364,6 +365,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
     run.current++; // anything still starting belongs to this attempt and is now abandoned, quietly
     handle.current?.stop(); handle.current = null; mic.release('voice');
     if (!text) { go('idle'); setErr(t('Didn’t catch anything. Tap the sphere to try again, or type it.')); return; }
+    haptic('send');
     setInterim(''); setFinal('');
     act(text, openTurn(text));
   };
@@ -389,7 +391,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   } as Record<string, string>)[phase] ?? '';
   // tapping while the microphone is still starting cancels that start cleanly (teardown also invalidates the pending start, so
   // it can never come back later as a false "microphone in use")
-  const tapSphere = () => { if (phase === 'requesting') { teardown(); go('idle'); return; } buzz(10); orbTap(0.6); if (listening) finish(); else if (!thinking) listen(); };
+  const tapSphere = () => { if (phase === 'requesting') { teardown(); go('idle'); return; } orbTap(0.6); if (listening) finish(); else if (!thinking) { haptic('listen'); listen(); } };
   const big = !showing && !thinking && !typing; // typing: the orb steps up and the box gets the room
   // the keyboard overlays the page: the whole screen rides above it, so the box you type in and the Send button stay in sight
   const rootRef = useRef<HTMLDivElement>(null);
@@ -464,8 +466,8 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
                     {last.results.map((r, i) => (
                       <motion.div key={r.id} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ ...SEND, delay: 0.06 + i * 0.07 }}>
                         <ActionCard r={r} undone={last.undone.includes(r.id)} confirmed={last.confirmed.includes(r.id)}
-                          onUndo={() => { r.undo?.(); buzz(8); setTurns((all) => all.map((x) => (x.id === last.id ? { ...x, undone: [...x.undone, r.id] } : x))); }}
-                          onConfirm={() => { r.button?.run(); buzz(14); setTurns((all) => all.map((x) => (x.id === last.id ? { ...x, confirmed: [...x.confirmed, r.id] } : x))); }} />
+                          onUndo={() => { r.undo?.(); haptic('light'); setTurns((all) => all.map((x) => (x.id === last.id ? { ...x, undone: [...x.undone, r.id] } : x))); }}
+                          onConfirm={() => { r.button?.run(); haptic('confirm'); setTurns((all) => all.map((x) => (x.id === last.id ? { ...x, confirmed: [...x.confirmed, r.id] } : x))); }} />
                       </motion.div>
                     ))}
                   </div>
@@ -491,7 +493,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
                 {typing ? <><Icon name="mic" size={18} /> {t('Speak instead')}</> : <><Icon name="edit" size={18} /> {t('Type instead')}</>}
               </button>
             )}
-            <button className="btn primary press grow" disabled={thinking || phase === 'requesting' || (typing ? !typed.trim() : false)} onClick={() => (listening || typing ? finish() : listen())}>
+            <button className="btn primary press grow" disabled={thinking || phase === 'requesting' || (typing ? !typed.trim() : false)} onClick={() => (listening || typing ? finish() : (haptic('listen'), listen()))}>
               {thinking ? t('Working…') : listening ? t('Done speaking') : typing ? t('Send') : showing ? <><Icon name="mic" size={18} /> {t('Say more')}</> : <><Icon name="mic" size={18} /> {t('Speak')}</>}
             </button>
           </div>        </div>

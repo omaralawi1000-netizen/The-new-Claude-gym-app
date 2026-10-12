@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useStore, allExercises } from '../state/store';
-import { useUI, buzz } from '../state/ui';
+import { useUI, haptic } from '../state/ui';
 import { useAi, anyBrain, solOn } from '../state/ai';
 import { useT, useLang } from '../lib/i18n';
 import { Sheet, SheetHead } from '../ui/Sheet';
@@ -65,7 +65,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   const [input, setInput] = useState('');
   const [photo, setPhoto] = useState<{ url: string; blob: Blob } | null>(null);
   const camRef = useRef<HTMLInputElement>(null);
-  const pickPhoto = async (f?: File) => { if (!f) return; try { const blob = await downscale(f, 1280); setPhoto({ url: URL.createObjectURL(blob), blob }); buzz(8); } catch { say({ id: uid('m'), role: 'error', text: t('Couldn’t read that image.') }); } };
+  const pickPhoto = async (f?: File) => { if (!f) return; try { const blob = await downscale(f, 1280); setPhoto({ url: URL.createObjectURL(blob), blob }); haptic('light'); } catch { say({ id: uid('m'), role: 'error', text: t('Couldn’t read that image.') }); } };
   const [busy, setBusy] = useState(false);
   const [recording, setRecording] = useState(false);
   const [hearing, setHearing] = useState(false);
@@ -175,7 +175,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     });
     // green "Done" only when something was actually logged or changed
     const acted = d.wantsUndo || results.some((r) => r.kind !== 'miss' && r.kind !== 'nav');
-    if (acted) { buzz([12, 40, 18] as any); orb('confirmed'); setTimeout(() => { if (useVoice.getState().phase === 'confirmed') orb('idle'); }, 1200); } else orb('idle');
+    if (acted) { haptic('success'); orb('confirmed'); setTimeout(() => { if (useVoice.getState().phase === 'confirmed') orb('idle'); }, 1200); } else orb('idle');
     if (said.trim()) prefetchAloud(said); // read aloud only when you tap play
     // said out loud from the orb and nothing to read: show the result for a moment, then step aside with an Undo toast
     const quick = results.length > 0 && results.every((r) => ['food', 'sets', 'water', 'weight', 'activity'].includes(r.kind) && !r.pending);
@@ -345,8 +345,8 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
                     <div className="stack gap8">
                       {m.results.map((r) => (
                         <ActionCard key={r.id} r={r} undone={m.undone.includes(r.id)} confirmed={m.confirmed.includes(r.id)}
-                          onUndo={() => { r.undo?.(); buzz(8); setMsgs((x) => x.map((y) => (y.id === m.id && y.role === 'action' ? { ...y, undone: [...y.undone, r.id] } : y))); }}
-                          onConfirm={() => { r.button?.run(); buzz(14); setMsgs((x) => x.map((y) => (y.id === m.id && y.role === 'action' ? { ...y, confirmed: [...y.confirmed, r.id] } : y))); }} />
+                          onUndo={() => { r.undo?.(); haptic('light'); setMsgs((x) => x.map((y) => (y.id === m.id && y.role === 'action' ? { ...y, undone: [...y.undone, r.id] } : y))); }}
+                          onConfirm={() => { r.button?.run(); haptic('confirm'); setMsgs((x) => x.map((y) => (y.id === m.id && y.role === 'action' ? { ...y, confirmed: [...y.confirmed, r.id] } : y))); }} />
                       ))}
                     </div>
                   )}

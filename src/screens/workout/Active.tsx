@@ -1,7 +1,7 @@
 import { createContext, memo, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, animate, motion, useMotionValue, useReducedMotion, useTransform } from 'motion/react';
 import { useStore, exerciseMap } from '../../state/store';
-import { useUI, buzz } from '../../state/ui';
+import { useUI, haptic } from '../../state/ui';
 import { useT, useLang } from '../../lib/i18n';
 import type { Exercise, SessionExercise, SetRecord } from '../../lib/types';
 import { Icon } from '../../ui/Icon';
@@ -259,7 +259,7 @@ export function ActiveWorkout({ props, open = true }: { props: { origin?: 'hero'
   };
   const doFinish = () => {
     const r = useStore.getState().finishActive();
-    if (r) { buzz([20, 40, 20] as any); swap(1, 'summary', { sessionId: r.id }); }
+    if (r) { haptic(r.records?.length ? 'record' : 'finish'); swap(1, 'summary', { sessionId: r.id }); }
   };
   // the bar's "next set": scroll it into the middle and let it glow for a moment
   const jumpTo = (setId: string) => {
@@ -315,7 +315,7 @@ export function ActiveWorkout({ props, open = true }: { props: { origin?: 'hero'
                   <Icon name={view === 'list' ? 'focus' : 'list'} size={20} />
                 </button>
               )}
-              <button className="icon-btn flat press wk-pause" onClick={() => { buzz(10); paused ? useStore.getState().resumeActive() : useStore.getState().pauseActive(); }} aria-label={paused ? t('Resume') : t('Pause')}>
+              <button className="icon-btn flat press wk-pause" onClick={() => { haptic('light'); paused ? useStore.getState().resumeActive() : useStore.getState().pauseActive(); }} aria-label={paused ? t('Resume') : t('Pause')}>
                 <Icon name={paused ? 'play' : 'pause'} size={18} />
               </button>
               {/* the one Finish: muted until a set is logged, then the accent; it glows once every set is ticked */}
@@ -384,9 +384,9 @@ export function ActiveWorkout({ props, open = true }: { props: { origin?: 'hero'
               <p className="small t2 wk-end-note">{confirm === 'finish' ? t('{n} sets aren’t ticked. Only the ticked ones are saved.', { n: total - done }) : t('Nothing has been logged yet. You can undo this right after.')}</p>
               <div className="stack gap8">
                 {confirm === 'finish' ? (
-                  <button className="btn primary block press wk-end-btn" style={{ ['--i' as string]: 0 }} onClick={() => { buzz(14); setConfirm(null); doFinish(); }}>{done === 1 ? t('Finish and save 1 set') : t('Finish and save {n} sets', { n: done })}</button>
+                  <button className="btn primary block press wk-end-btn" style={{ ['--i' as string]: 0 }} onClick={() => { haptic('confirm'); setConfirm(null); doFinish(); }}>{done === 1 ? t('Finish and save 1 set') : t('Finish and save {n} sets', { n: done })}</button>
                 ) : (
-                  <button className="btn block danger press wk-end-btn" style={{ ['--i' as string]: 0 }} onClick={() => { buzz(14); setConfirm(null); doDiscard(); }}>{t('Discard workout')}</button>
+                  <button className="btn block danger press wk-end-btn" style={{ ['--i' as string]: 0 }} onClick={() => { haptic('confirm'); setConfirm(null); doDiscard(); }}>{t('Discard workout')}</button>
                 )}
                 <button className="btn block ghost press wk-end-btn" style={{ ['--i' as string]: 1 }} onClick={() => setConfirm(null)}>{t('Keep training')}</button>
               </div>
@@ -501,7 +501,7 @@ function WorkoutBar({ engage, exMap, focus, away, onDone, onJump }: { engage: En
             <motion.div key="ctl" className="wk-bar-ctl" initial={{ opacity: 0, x: 14 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} transition={SOFT}>
               <button className="wk-ctl press num" onClick={() => adjustRest(-15)} aria-label={t('15 seconds less')}>−15</button>
               <button className="wk-ctl press num" onClick={() => adjustRest(15)} aria-label={t('15 seconds more')}>+15</button>
-              <button className="wk-ctl skip press" onClick={() => { buzz(8); skipRest(); setPanel(false); }}>{t('Skip')}</button>
+              <button className="wk-ctl skip press" onClick={() => { haptic('light'); skipRest(); setPanel(false); }}>{t('Skip')}</button>
             </motion.div>
           )}
         </AnimatePresence>
@@ -612,7 +612,7 @@ export const ExerciseBlock = memo(function ExerciseBlock({ se, ex, linkedPrev, l
           })}
         </AnimatePresence>
         <div className="row-flex" style={{ gap: 8, marginTop: 10 }}>
-          <button className="btn sm press grow" onClick={() => { buzz(6); addSet(se.id); }}><Icon name="plus" size={16} /> {t('Set')}</button>
+          <button className="btn sm press grow" onClick={() => { haptic('light'); addSet(se.id); }}><Icon name="plus" size={16} /> {t('Set')}</button>
           <button className="btn sm ghost press" onClick={() => addSet(se.id, 'warmup')}>{t('+ Warm-up')}</button>
         </div>
       </div>
@@ -685,13 +685,13 @@ const SetRow = memo(function SetRow({ se, set, ex, label, prev, restDefault }: {
 
   const complete = () => {
     if (set.done) { patchSet(se.id, set.id, { done: false, completedAt: undefined }); skipRest(); return; }
-    if (!valid) { setShake((n) => n + 1); buzz(30); toast(t('Enter reps first'), { tone: 'bad', duration: 1800 }); return; }
+    if (!valid) { setShake((n) => n + 1); haptic('warn'); toast(t('Enter reps first'), { tone: 'bad', duration: 1800 }); return; }
     const st = useStore.getState();
     if (st.active?.pausedAt) st.resumeActive();
     unlockRestAudio(); // a tap: the rest-over tones are allowed to play later
     if (st.active?.rest && st.active.rest.endsAt <= Date.now()) skipRest(); // "Go" has done its job
     const gain = set.type === 'working' ? beatLastTime(lt, eff, prev, u.weight, lang, t) : null;
-    buzz(gain ? [12, 50, 22] as any : 14);
+    haptic(gain ? 'gain' : 'set');
     if (gain) setBeat((b) => ({ n: (b?.n ?? 0) + 1, label: gain }));
     patchSet(se.id, set.id, { ...eff, done: true, completedAt: Date.now() });
     // the next set comes into view if it is about to slip under the bar (never scrolls up, never jumps far)

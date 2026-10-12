@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { useStore } from '../../state/store';
-import { useUI, buzz } from '../../state/ui';
+import { useUI, haptic } from '../../state/ui';
 import { useT, useLang } from '../../lib/i18n';
 import { addDays, fmtDate, fmtWeekdayShort, parseKey, relativeDay, startOfWeek } from '../../lib/dates';
 import { Icon } from '../../ui/Icon';
@@ -49,7 +49,7 @@ export function DatePicker({ props }: { props: { value: string; onPick: (d: stri
               const inMonth = d.slice(0, 7) === month;
               const sel = d === props.value;
               return (
-                <button key={d} className="press" aria-label={fmtDate(d, lang, { day: 'numeric', month: 'long' })} aria-pressed={sel} onClick={() => { buzz(6); props.onPick(d); pop(); }}
+                <button key={d} className="press" aria-label={fmtDate(d, lang, { day: 'numeric', month: 'long' })} aria-pressed={sel} onClick={() => { haptic('select'); props.onPick(d); pop(); }}
                   style={{ height: 46, borderRadius: 14, position: 'relative', display: 'grid', placeItems: 'center', fontWeight: sel || d === today ? 700 : 500, background: sel ? 'var(--ac)' : 'transparent', color: sel ? 'var(--ac-ink)' : inMonth ? 'var(--tx)' : 'var(--tx3)', boxShadow: d === today && !sel ? 'inset 0 0 0 1.5px var(--ac)' : undefined }}>
                   <span className="num">{Number(d.slice(8))}</span>
                   {marked.has(d) && <i style={{ position: 'absolute', bottom: 6, width: 4, height: 4, borderRadius: 4, background: sel ? 'var(--ac-ink)' : 'var(--ac)' }} />}
@@ -121,7 +121,7 @@ export function MealCopy({ props }: { props: { from: { date: string; mealId?: st
     if (done.current) return;
     done.current = true;
     const copies = s.copyEntries(props.from, { date: to, mealId });
-    buzz(12);
+    haptic('saved');
     closeAll();
     toast(t('Copied {n} entries to {day}', { n: copies.length, day: relativeDay(to, today, lang) ?? fmtDate(to, lang) }), { tone: 'ok', actionLabel: t('Undo'), onAction: () => copies.forEach((e) => s.removeEntry(e.id)) });
   };

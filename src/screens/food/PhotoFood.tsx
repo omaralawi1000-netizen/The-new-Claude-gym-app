@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useStore } from '../../state/store';
-import { useUI, buzz } from '../../state/ui';
+import { useUI, haptic } from '../../state/ui';
 import { useAi, anyBrain, solOn } from '../../state/ai';
 import { useVoice } from '../../state/voice';
 import { useT, useLang } from '../../lib/i18n';
@@ -54,7 +54,7 @@ export function PhotoFood({ props }: { props: { date: string; mealId: string } }
       const brain = { key: a.hasGemini ? getKey('gemini') : '', models: [...new Set([m.fast || FALLBACK_MODELS.fast, m.brain || FALLBACK_MODELS.brain].filter(Boolean))], signal: ctl.current.signal, sol: solOn(a) && !overLimit(a.solLimitKr) ? { key: getKey('openai'), effort: a.effortOrb } : undefined };
       const r = await estimatePhoto({ mime: 'image/jpeg', data: await blobToBase64(blob) }, brain, lang, hint.trim());
       setItems(r.items.map((x) => ({ ...x, on: true, k: 1 }))); setAssume(r.assumptions);
-      buzz(10); useVoice.getState().go('review');
+      haptic('light'); useVoice.getState().go('review');
     } catch (e: any) {
       setErr(e?.code === 'invalid' ? t('That doesn’t look like food. Try another photo.') : aiErrorText(e, t)); useVoice.getState().go('error');
     } finally { setBusy(false); setTimeout(() => { if (['review', 'error'].includes(useVoice.getState().phase)) useVoice.getState().go('idle'); }, 1400); }
@@ -78,7 +78,7 @@ export function PhotoFood({ props }: { props: { date: string; mealId: string } }
       return { ...q, estimated: true, note: [x.grams ? `~${Math.round(x.grams * x.k)} g` : '', assume].filter(Boolean).join(' · ') || undefined };
     });
     const added = useStore.getState().logEntries(entries);
-    buzz(16);
+    haptic('saved');
     useUI.getState().closeAll();
     toast(t('Added {n} items to {meal}', { n: added.length, meal: mealName(meal, lang) }), { tone: 'ok', actionLabel: t('Undo'), onAction: () => added.forEach((e) => useStore.getState().removeEntry(e.id)) });
   };

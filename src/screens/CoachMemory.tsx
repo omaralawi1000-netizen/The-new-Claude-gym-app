@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useStore, exerciseMap } from '../state/store';
 import { exName } from './workout/common';
-import { useUI, buzz } from '../state/ui';
+import { useUI, haptic } from '../state/ui';
 import { useT, useLang } from '../lib/i18n';
 import { MEMORY_MAX } from '../state/defaults';
 import type { MemoryKind, MemoryNote } from '../lib/types';
@@ -24,7 +24,7 @@ export function CoachMemory() {
     const text = draft.trim().slice(0, 240);
     if (!text || full) return;
     useStore.getState().addMemory({ text, kind: 'other' });
-    setDraft(''); buzz(8);
+    setDraft(''); haptic('saved');
   };
   return (
     <div className="stack gap16">
@@ -63,7 +63,7 @@ function MemoryRow({ m }: { m: MemoryNote }) {
   };
   const remove = () => {
     const gone = useStore.getState().removeMemory(m.id);
-    buzz(10);
+    haptic('light');
     if (gone) useUI.getState().toast(t('Removed from memory'), { actionLabel: t('Undo'), onAction: () => useStore.getState().restoreMemory(gone) });
   };
   return (

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { useStore, plannedFor, missedWorkouts, foodPool, exerciseMap } from '../state/store';
-import { useUI, buzz } from '../state/ui';
+import { useUI, haptic } from '../state/ui';
 import { useT, useLang } from '../lib/i18n';
 import { addDays, fmtDate, fmtDuration, fmtDurationLong, fmtWeekdayShort, startOfWeek, weekdayOf } from '../lib/dates';
 import { useDaySummary, useToday, useWaterOn, defaultMealId } from '../lib/derive';
@@ -55,7 +55,7 @@ export function TodayScreen() {
   }, [dueNudge, today, routine?.name, t]);
 
   const start = (r?: Routine) => {
-    buzz(14);
+    haptic('confirm');
     if (!s.active) s.startWorkout({ routine: r, plannedDate: r && plan?.routineId === r.id ? today : undefined });
     push('workout', { origin: 'hero' });
   };
@@ -77,7 +77,7 @@ export function TodayScreen() {
     const mealId = defaultMealId(settings.meals);
     const e = entryFromSnapshot(snapshotOf(food), defaultQty(food, qty), today, mealId, { id: uid('e') });
     if (!e) return;
-    buzz(10);
+    haptic('saved');
     const [added] = s.logEntries([e]);
     if (added) toast(t('Added {name}', { name: food.name }), { tone: 'ok', actionLabel: t('Undo'), onAction: () => s.removeEntry(added.id) });
   };
@@ -119,7 +119,7 @@ export function TodayScreen() {
   const active = frozenActive.current;
   const aDone = active ? sessionSetCount(active.exercises, true) : 0;
   const aTotal = active ? sessionSetCount(active.exercises, false) : 0;
-  const addWater = () => { buzz(8); const v = settings.waterQuick[1] ?? 250; const id = s.addWater(v, today); toast(`+${v} ml`, { tone: 'ok', actionLabel: t('Undo'), onAction: () => s.removeWater(id), duration: 3500 }); };
+  const addWater = () => { haptic('saved'); const v = settings.waterQuick[1] ?? 250; const id = s.addWater(v, today); toast(`+${v} ml`, { tone: 'ok', actionLabel: t('Undo'), onAction: () => s.removeWater(id), duration: 3500 }); };
   const mealId = defaultMealId(settings.meals);
   const last = doneToday[doneToday.length - 1];
   // once today's planned workout is done, the card says so (and what got better) instead of offering to start it again

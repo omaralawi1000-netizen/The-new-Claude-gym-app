@@ -1,5 +1,5 @@
 import { flushSync } from 'react-dom';
-import { buzz } from '../state/ui';
+import { haptic } from '../state/ui';
 
 /**
  * Drag a card by its grip to reorder a list, the way iOS does: the card lifts (a touch bigger, a deeper shadow) and follows
@@ -29,7 +29,7 @@ export function startDragSort(e: React.PointerEvent, root: HTMLElement | null, i
 
   card.classList.add('dragging');
   cards.forEach((c, i) => { if (i !== from) c.classList.add('drag-sib'); });
-  buzz(8);
+  haptic('light');
 
   const place = () => {
     const dy = lastY - startY + (scroller.scrollTop - startScroll);
@@ -39,7 +39,7 @@ export function startDragSort(e: React.PointerEvent, root: HTMLElement | null, i
     for (let i = from + 1; i < cards.length; i++) if (centre > mids[i]) next = i;
     for (let i = from - 1; i >= 0; i--) if (centre < mids[i]) next = i;
     if (next !== to) {
-      to = next; buzz(5);
+      to = next; haptic('step');
       cards.forEach((c, i) => {
         if (i === from) return;
         const off = i > from && i <= to ? -shift : i < from && i >= to ? shift : 0;
@@ -69,7 +69,7 @@ export function startDragSort(e: React.PointerEvent, root: HTMLElement | null, i
     // where each card is drawn now (lifted, or stepped aside)…
     const was = new Map(cards.map((c) => [c.dataset.flip!, c.getBoundingClientRect().top]));
     cards.forEach((c) => { c.style.transform = ''; c.classList.remove('drag-sib'); });
-    if (to !== from) { flushSync(() => move(from, to)); buzz(10); }
+    if (to !== from) { flushSync(() => move(from, to)); haptic('saved'); }
     // …and where it belongs now: each one glides the difference; the lifted one settles back to its size as it lands
     for (const c of root.querySelectorAll<HTMLElement>('[data-flip]')) {
       const before = was.get(c.dataset.flip!);

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import { exerciseMap, allExercises, plannedFor, missedWorkouts } from '../state/store';
-import { useUI, buzz } from '../state/ui';
+import { useUI, haptic } from '../state/ui';
 import { useT, useLang } from '../lib/i18n';
 import { addDays, fmtDate, fmtDurationLong, fmtWeekdayShort, startOfWeek, weekdayOf } from '../lib/dates';
 import { useToday } from '../lib/derive';
@@ -53,7 +53,7 @@ function PlanTab() {
   });
   const start = (r: Routine) => {
     if (s.active) { push('workout', { origin: 'pill' }); return; }
-    buzz(12);
+    haptic('confirm');
     s.startWorkout({ routine: r, plannedDate: plannedFor(s, today, today)?.routineId === r.id ? today : undefined });
     push('workout', { origin: 'none' });
   };

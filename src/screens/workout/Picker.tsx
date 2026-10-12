@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useStore, allExercises } from '../../state/store';
-import { useUI, buzz } from '../../state/ui';
+import { useUI, haptic } from '../../state/ui';
 import { useT, useLang } from '../../lib/i18n';
 import type { Equipment, Exercise, LogType, MuscleGroup, Movement } from '../../lib/types';
 import { MUSCLES, EQUIPMENT, MOVEMENTS } from '../../data/exercises';
@@ -47,7 +47,7 @@ export function ExercisePicker({ props }: { props: PickerProps }) {
   const subs = props.mode === 'replace' && props.forExercise ? substitutesFor(props.forExercise, all, access).slice(0, 4) : [];
 
   const choose = (e: Exercise) => {
-    buzz(8);
+    haptic('saved');
     if (single) {
       if (props.mode === 'replace' && props.seId) replaceExercise(props.seId, e.id);
       props.onPick?.([e.id]);

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../state/store';
-import { useUI, buzz } from '../state/ui';
+import { useUI, haptic } from '../state/ui';
 import { useT, useLang } from '../lib/i18n';
 import { Sheet, SheetHead } from '../ui/Sheet';
 import { Icon } from '../ui/Icon';
@@ -28,7 +28,7 @@ export function WeightSheet() {
     if (!v || v <= 0 || v > 500) return;
     const kg = displayToKg(v, u);
     const w = s.addWeight(kg, date);
-    buzz(12);
+    haptic('saved');
     setV(undefined);
     toast(t('Weight logged'), { tone: 'ok', actionLabel: t('Undo'), onAction: () => s.removeWeight(w.id) });
   };
@@ -63,7 +63,7 @@ export function MeasureSheet() {
   const [kind, setKind] = useState<MeasureKind>('waist');
   const [v, setV] = useState<number | undefined>();
   const hist = s.measurements.filter((m) => m.kind === kind).sort((a, b) => b.date.localeCompare(a.date));
-  const save = () => { if (!v || v <= 0) return; s.addMeasurement({ date: today, kind, cm: displayToCm(v, u) }); buzz(10); setV(undefined); toast(t('Saved'), { tone: 'ok' }); };
+  const save = () => { if (!v || v <= 0) return; s.addMeasurement({ date: today, kind, cm: displayToCm(v, u) }); haptic('saved'); setV(undefined); toast(t('Saved'), { tone: 'ok' }); };
   return (
     <Sheet onClose={pop} label={t('Measurements')} z={100} foot={<button className="btn primary block press" disabled={!v} onClick={save}>{t('Save')}</button>}>
       <SheetHead title={t('Measurements')} sub={t('Optional. Stored on this device.')} onClose={pop} />

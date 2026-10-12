@@ -22,3 +22,20 @@ describe('overlay navigation', () => {
     expect(useUI.getState().overlays.length).toBe(0);
   });
 });
+
+describe('haptics', () => {
+  it('plays the named pattern, and nothing when Settings turns haptics off', async () => {
+    const { haptic, HAPTICS } = await import('../src/state/ui');
+    const { useStore } = await import('../src/state/store');
+    const felt: unknown[] = [];
+    Object.defineProperty(navigator, 'vibrate', { value: (p: unknown) => { felt.push(p); return true; }, configurable: true });
+    useStore.setState((s) => ({ settings: { ...s.settings, haptics: true } }));
+    haptic('gain'); haptic('set');
+    expect(felt).toEqual([HAPTICS.gain, HAPTICS.set]);
+    useStore.setState((s) => ({ settings: { ...s.settings, haptics: false } }));
+    haptic('restOver');
+    expect(felt.length).toBe(2);
+    // every pattern is short pulses and pauses in whole milliseconds
+    for (const p of Object.values(HAPTICS)) for (const ms of [p].flat()) expect(Number.isInteger(ms) && ms > 0 && ms <= 400).toBe(true);
+  });
+});

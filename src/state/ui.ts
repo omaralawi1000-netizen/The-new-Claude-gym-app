@@ -126,6 +126,32 @@ if (typeof window !== 'undefined') {
   try { if (history.state?.aven) history.replaceState(null, ''); } catch { /* ignore */ }
 }
 
+/**
+ * The app's haptic vocabulary: a few distinct feels, each meaning the same thing wherever it is felt (call `haptic(name)`,
+ * never a bare number). Short and light for small things, a double for "it worked", longer only where you may not be
+ * looking (the rest timer). Not felt on purpose: navigation, opening things, the orb flying, scrolling, talking.
+ */
+export const HAPTICS = {
+  step: 5,                          // a dragged item passes another
+  select: 6,                        // a choice changed: a switch, a segment, a day, a favourite, a colour
+  light: 8,                         // a small thing done: add a set, undo, skip the rest, pause
+  saved: 12,                        // something kept: food logged, a weight, a routine, a plan
+  set: 14,                          // a set ticked
+  confirm: 14,                      // a weighty button: start or end a workout, confirm what the Coach suggests
+  gain: [12, 50, 22],               // a set ticked that beats last time
+  success: [12, 40, 18],            // the orb or the Coach did what you asked
+  listen: [6, 70, 10],              // the orb starts listening when you tap it: a soft "I'm here"
+  send: 10,                         // the orb stops listening and takes what you said
+  finish: [20, 40, 20],             // the workout is saved
+  record: [14, 70, 14, 70, 36],     // the workout is saved with a new personal record
+  warn: 30,                         // that can't be done yet (a set with no reps)
+  countdown: 24,                    // each of a rest's last three seconds
+  restOver: [180, 90, 180, 90, 320],// the rest is over (strong enough to feel through a pocket)
+  arrive: [4, 135, 5, 112, 6, 92, 7, 76, 9, 60, 11, 46, 14, 34, 30], // the orb lands on its screen: a quickening heartbeat
+} as const;
+export type Haptic = keyof typeof HAPTICS;
+export const haptic = (k: Haptic) => buzz(HAPTICS[k] as number | number[]);
+
 export function buzz(ms: number | number[] = 8) {
   // Settings → Haptic feedback turns every buzz off; and only after the first tap (browsers refuse — and log an error —
   // before any interaction)
