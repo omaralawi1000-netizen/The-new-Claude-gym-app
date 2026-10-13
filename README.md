@@ -1658,6 +1658,11 @@ preview (seven judged rounds, `/mnt/project-files/workout-fullpage/`) and said y
 - Smoothness at 4x CPU (`scripts/perf-open.mjs`): minimise and resume draw fewer late frames than the card did, start the same.
   Films: `scripts/film-fullpage.mjs` (steady camera, `scripts/film-steady.mjs`).
 
+Fix (v0.1.99): at the end of a minimise the window's 48 px lead band and its full-strength shadow came to rest over the
+tab bar for the spring's slow tail (a dark strip at the bottom of the screen). The window now travels the lead further
+down, and its shadow fades out over the last 12 % of the way, so nothing lingers over the tab bar.
+
+
 ## Coach: the messages stay put while the keyboard goes down after a send (13 Oct 2026, v0.1.98)
 Omar's recording: he sent "Ok", the message flew up smoothly, then as the keyboard went down the last messages vanished and
 popped back a moment later, which read as the whole list jumping.
