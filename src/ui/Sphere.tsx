@@ -48,7 +48,6 @@ export function orbTap(strength = 1) { tapPending = Math.max(tapPending, strengt
 let launchTint = false, tintGoAt = 0;
 export function orbLaunchTint() { launchTint = true; }
 export function orbTintGo() { tintGoAt = performance.now(); }
-export function orbIgnite() { ignitePending = 1; }
 let launchBright = 0;
 /** How much the orb is still drawn as the launch logo (1 … 0, see OrbInputs.bright). */
 export function orbBright(v: number) { launchBright = v; }
@@ -292,10 +291,12 @@ export function SphereStage() {
         : { hi: ac, lo: [ac[0] * 0.55 + 70, ac[1] * 0.55 + 60, ac[2] * 0.55 + 60], alt, ok: [30, 160, 95], dark };
     };
     let colors = readTarget(), from = colors, to = colors, fadeStart = 0;
+    // the launch's change of colour is a crossfade bead by bead (OrbInputs.colorsTo), not a blend: -1 = not crossfading
+    let launchFade = false, launchMix = -1;
     if (launchTint && !tintGoAt) {
       // the launch logo's colours (scripts/orb-svg.mjs): lit side to shadow side; held until the flight starts
       colors = from = { ...to, hi: [255, 178, 128], lo: [140, 52, 22], alt: [236, 116, 59] };
-      fadeStart = Infinity;
+      fadeStart = Infinity; launchFade = true;
     }
     let colorKey = document.documentElement.dataset.theme ?? '';
     const mo = new MutationObserver(() => {
@@ -310,6 +311,11 @@ export function SphereStage() {
     const refreshColors = (now: number) => {
       if (fadeStart === Infinity && tintGoAt) fadeStart = tintGoAt;
       if (!fadeStart) return;
+      if (launchFade && fadeStart !== Infinity) {
+        const k = Math.min(1, Math.max(0, (now - fadeStart) / 750));
+        if (k < 1) { colors = from; launchMix = easeInOut(k); return; }
+        colors = to; launchMix = -1; launchFade = false; fadeStart = 0; return;
+      }
       const k = Math.min(1, Math.max(0, (now - fadeStart) / 1100));
       const e = easeInOut(k);
       const mix = (x: RGB, y: RGB): RGB => [x[0] + (y[0] - x[0]) * e, x[1] + (y[1] - x[1]) * e, x[2] + (y[2] - x[2]) * e];
@@ -597,6 +603,7 @@ export function SphereStage() {
       // bucket changes.
       const inp = orbInputs();
       inp.vis = size;
+      if (launchMix >= 0) { inp.colorsTo = to; inp.colorMix = launchMix; }
       let vv: number;
       if (worker) {
         worker.postMessage({ state: { bucket, dpr, reduced, colors, inp, run: true } });
