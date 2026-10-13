@@ -1213,3 +1213,8 @@ wait for the last word, so nothing under the answer is pushed down while it writ
 No word on the orb screen animates a blur any more: your spoken words write in with opacity and a small rise
 (`saidWrite`), and the live text and the exchange leave with a fade and rise (their exit blur is gone). The unused red
 writing cursor's style is deleted.
+
+## No more animated blur on Onboarding and Food (13 Oct 2026, v0.1.54)
+
+The Onboarding step change and the Food page's date title animated a blur as they changed. Both now move with opacity and
+the same small slide only, on the same timing (0.22 s and 0.34 s), per the rule that blur never animates.
