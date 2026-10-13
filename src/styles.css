@@ -481,7 +481,7 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
   --mat-warm-glow: linear-gradient(180deg, color-mix(in srgb, var(--ac) 18%, transparent), color-mix(in srgb, var(--ac) 7%, transparent) 38%, color-mix(in srgb, var(--ac) 2%, transparent) 72%, transparent);
   --mat-glow: linear-gradient(180deg, rgba(66, 74, 92, 0.5), rgba(44, 50, 64, 0.48) 60%, rgba(40, 46, 58, 0.48)); /* cool slate: keeps the page's glow from tinting a quiet card */
   --mat-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.035) 30%, rgba(255, 255, 255, 0));
-  --mat-live-glow: linear-gradient(180deg, rgba(124, 136, 162, 0.62), rgba(90, 100, 122, 0.6) 55%, rgba(80, 90, 110, 0.6));
+  --mat-live-glow: linear-gradient(180deg, rgba(102, 112, 136, 0.88), rgba(78, 87, 106, 0.86) 55%, rgba(70, 78, 96, 0.86)); /* dense enough that every live card is the same blue-slate over any part of the field */
   --mat-live-rim: linear-gradient(180deg, color-mix(in srgb, var(--ac) 10%, rgba(255, 255, 255, 0.36)), rgba(255, 255, 255, 0.12) 30%, rgba(255, 255, 255, 0.05) 70%, rgba(255, 255, 255, 0.1));
   --mat-live-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.05) 32%, rgba(255, 255, 255, 0));
   --mat-live-lift: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 0 26px -6px rgba(190, 206, 240, 0.22), 0 2px 2px rgba(0, 0, 0, 0.5), 0 24px 46px -14px rgba(0, 0, 0, 0.95);
@@ -497,7 +497,7 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
   --mat-live-glow: linear-gradient(rgba(255, 255, 255, 0.97), rgba(255, 255, 255, 0.97));
   --mat-live-rim: #fff;
   --mat-live-sheen: linear-gradient(180deg, #fff, rgba(255, 255, 255, 0.5) 45%, rgba(255, 255, 255, 0.2));
-  --mat-live-lift: 0 14px 36px rgba(30, 25, 60, 0.16), 0 8px 24px rgba(30, 25, 60, 0.08);
+  --mat-live-lift: 0 0 0 0.5px rgba(30, 25, 60, 0.06), 0 18px 40px rgba(30, 25, 60, 0.2), 0 8px 24px rgba(30, 25, 60, 0.1);
   --mat-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.35) 50%, rgba(255, 255, 255, 0.15));
   --mat-warm-rim: linear-gradient(180deg, color-mix(in srgb, var(--ac) 38%, #fff), #fff 22%, rgba(255, 255, 255, 0.6) 40%, rgba(20, 28, 48, 0.08) 68%, rgba(20, 28, 48, 0.16));
   --mat-rim: linear-gradient(180deg, #fff, #fff 22%, rgba(255, 255, 255, 0.6) 40%, rgba(20, 28, 48, 0.08) 68%, rgba(20, 28, 48, 0.16));
