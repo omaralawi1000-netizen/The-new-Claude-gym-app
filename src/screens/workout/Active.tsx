@@ -436,7 +436,7 @@ function RestInline() {
   const now = useNow(250, !!a?.rest && live);
   if (!a?.rest) return null;
   const left = (a.pausedAt ? a.rest.endsAt : a.rest.endsAt - now) / 1000;
-  return <span style={{ color: left <= 0 ? 'var(--ok)' : 'var(--ac-text)', fontWeight: 650 }}> · {left <= 0 ? t('Rest over') : `${t('Rest')} ${fmtDuration(Math.ceil(left))}`}</span>;
+  return <span className="wk-rest-inline" style={{ color: left <= 0 ? 'var(--ok)' : 'var(--ac-text)', fontWeight: 650 }}> · {left <= 0 ? t('Rest over') : `${t('Rest')} ${fmtDuration(Math.ceil(left))}`}</span>;
 }
 
 /**

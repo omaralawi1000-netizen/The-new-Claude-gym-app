@@ -337,6 +337,8 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
 /* every screen's blocks rise in, one after another (a screen, or the part of one that is swapped: .subpage) */
 .screen > *, .subpage > * { animation: rise-move 780ms var(--ease-out) both; animation-delay: calc(50ms + var(--i, 0) * 60ms); }
 .screen > .subpage { animation: none; }
+/* a swapped part fading out is lifted out of the layout where it stood (Subpage.tsx): its top is measured to its border, so its margin must not push it down again */
+.subpage[data-motion-pop-id] { margin-top: 0 !important; }
 .screen > :nth-child(1) { --i: 0; } .screen > :nth-child(2) { --i: 1; } .screen > :nth-child(3) { --i: 2; } .screen > :nth-child(4) { --i: 3; }
 .subpage > :nth-child(1) { --i: 0; } .subpage > :nth-child(2) { --i: 1; } .subpage > :nth-child(3) { --i: 2; } .subpage > :nth-child(4) { --i: 3; }
 .subpage > :nth-child(5) { --i: 4; } .subpage > :nth-child(6) { --i: 5; } .subpage > :nth-child(7) { --i: 6; } .subpage > :nth-child(n+8) { --i: 7; }
@@ -630,6 +632,8 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .empty .display { color: var(--tx); margin-bottom: 6px; }
 .sheet-enter-fade { animation: fadein 200ms var(--ease-out) both; }
 @keyframes fadein { from { opacity: 0 } } /* no end keyframe: see rise-move */
+/* the rest countdown that joins the workout's header while you type fades in instead of popping */
+.wk-rest-inline { animation: fadein 320ms var(--ease-out) both; }
 .hide-scroll { scrollbar-width: none; } .hide-scroll::-webkit-scrollbar { display: none; }
 
 /* reduced motion: no drifting light, no rise-in, no springs */
@@ -655,7 +659,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 
 /* iOS-style: while a popup is up the page behind steps back. Its transform and corner radius are written by script
    (useStageDepth in App.tsx) from the popups' own progress, so it follows them frame for frame — no CSS transition. */
-.stage { position: absolute; inset: 0; background: var(--bg); transform-origin: 50% 0%; will-change: transform; overflow: hidden; } /* always its own clipped layer: see useStageDepth in App.tsx */
+.stage { position: absolute; inset: 0; background: var(--bg); transform-origin: 50% 0%; will-change: transform; overflow: clip; } /* always its own clipped layer: see useStageDepth in App.tsx. clip, not hidden: a hidden box can still be scrolled by script, and something scrolled it 24 px sideways while a sliding page overhung it, leaving Train and Food shifted left */
 /* the page's rounded corners while a pop-up has it stepped back: a quarter-circle cut-out in the shell's colour, scaled from 0
    (at rest) to 1 (fully back = 28 px corners) by useStageDepth — a transform, so nothing about the page's layer changes */
 .stage-corner { position: absolute; z-index: 2147483647; width: 28px; height: 28px; pointer-events: none; will-change: transform; transform: scale(0); }
