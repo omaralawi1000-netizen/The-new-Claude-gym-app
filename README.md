@@ -1546,8 +1546,10 @@ at the edges.
   recede (v0.1.76) and doesn't move again. Omar: "when the second pop-up is up, the first pop-up doesn't move backwards
   … that's more minimal". (Rounds 1 to 8 stacked them like iOS cards: the lower one shrank 7 % and peeked 10 px above;
   saved on branch backup/stacking-r7-before-no-stepback. Live before this, it shrank 6 % and rose 15 px.)
-- The top sheet's dim over the one below goes by how much of it is in view, so it is gone the moment it has left the
-  screen (it used to linger about 15 frames). A tall sheet opened over another takes the full height and covers it whole.
+- Every sheet's dim (over the page or over a sheet below) and the page's recede go by how much of the sheet is in view,
+  so on close they are gone the moment it has left the screen (they lingered 4 frames over the page, about 15 over a
+  sheet, while it finished its unseen last 40 px). A tall sheet opened over another takes the full height and covers it
+  whole. The scanner's "Starting camera…" fades out before its picture fades in.
 - Sheets move in whole screen pixels (`snapPx`; the browser-run version gets a keyframe per frame instead of an easing):
   one drawn between two screen pixels is a touch soft, so a glide that crept its last 0.1 px came into focus a few frames
   after it looked still. They come to rest within 0.05 px, a screen pixel at a time, not with a last little hop (sheets
