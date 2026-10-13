@@ -459,6 +459,48 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
 .seg button.on { color: var(--tx); }
 .seg-lens { top: 4px; bottom: 4px; --lens-r: 19px; opacity: .95; --lens-fill: linear-gradient(180deg, #4a4d57, #3b3e48); }
 :root[data-theme='light'] .seg-lens { --lens-fill: #fff; }
+/* ── Aven glass: the material of every neutral rounded surface (cards, pills, chips, round buttons) ───────────────
+   No longer a flat see-through grey. Three quiet things, all painted once (no extra blur, nothing animates, so it costs
+   nothing per frame):
+   - light from above: a soft sheen across the top half
+   - the area's own colour: a whisper of the orb's first hue glowing in from the top-left corner
+   - a hairline rim that catches the light along the top edge and fades away down the sides, with a faint catch-light
+     at the bottom, plus a soft shadow under it so it floats a little off the page
+   Real frost stays where something passes underneath (the sheet's bottom buttons, the dock, sheets, toasts). */
+:root[data-glass='v2'] {
+  --mat-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0) 58%);
+  --mat-hue: radial-gradient(140% 170% at 0% 0%, color-mix(in srgb, var(--h1) 13%, transparent), transparent 64%);
+  --mat-rim: linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.07) 42%, rgba(255, 255, 255, 0.025) 72%, rgba(255, 255, 255, 0.09));
+  --mat-depth: 0 1px 1px rgba(0, 0, 0, 0.3), 0 10px 22px -14px rgba(0, 0, 0, 0.65);
+}
+:root[data-glass='v2'][data-theme='light'] {
+  --mat-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0) 62%);
+  --mat-hue: radial-gradient(140% 170% at 0% 0%, color-mix(in srgb, var(--h1) 9%, transparent), transparent 64%);
+  --mat-rim: linear-gradient(180deg, #fff, rgba(255, 255, 255, 0.5) 30%, rgba(20, 28, 48, 0.05) 70%, rgba(20, 28, 48, 0.1));
+  --mat-depth: 0 1px 1px rgba(30, 40, 70, 0.07), 0 10px 22px -14px rgba(30, 40, 70, 0.32);
+}
+:root[data-glass='v2'] :is(.btn:not(.primary, .ghost), .chip:not(.on, .acc), .icon-btn:not(.flat, .acc, .speak-btn), .plinth) {
+  background-image: var(--mat-hue), var(--mat-sheen);
+}
+:root[data-glass='v2'] :is(.btn:not(.primary, .ghost), .chip:not(.on, .acc), .icon-btn:not(.flat, .acc, .speak-btn)) {
+  box-shadow: var(--mat-depth);
+}
+:root[data-glass='v2'] :is(.btn:not(.primary, .ghost), .chip:not(.on, .acc), .icon-btn:not(.flat, .acc, .speak-btn))::after,
+:root[data-glass='v2'] .plinth::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 1; padding: 1px;
+  background: var(--mat-rim);
+  -webkit-mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}
+:root[data-glass='v2'] .chip:not(.on, .acc) { position: relative; }
+:root[data-glass='v2'] .plinth { box-shadow: var(--sh-c); }
+/* the bottom button of a sheet floats over the list: its frost stays, it gets the same light, and a deeper shadow */
+:root[data-glass='v2'] .sheet .sheet-foot .btn.btn { background-image: var(--mat-hue), var(--mat-sheen); box-shadow: 0 1px 1px rgba(0, 0, 0, 0.25), 0 18px 34px -16px rgba(0, 0, 0, 0.7); }
+:root[data-glass='v2'][data-theme='light'] .sheet .sheet-foot .btn.btn { box-shadow: 0 1px 1px rgba(30, 40, 70, 0.08), 0 18px 34px -16px rgba(30, 40, 70, 0.38); }
+:root[data-glass='v2'] .sheet .sheet-foot .btn.btn::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; padding: 1px; background: var(--mat-rim);
+  -webkit-mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}
+:root[data-glass='v2'] .btn[disabled]::after { opacity: 0.6; }
 .toggle-knob { position: absolute; top: 3px; left: 3px; width: 26px; height: 26px; border-radius: 99px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.4), 0 3px 8px -2px rgba(0,0,0,.25); transition: transform 460ms var(--ease-spring); will-change: transform; }
 
 .field { display: flex; flex-direction: column; gap: 6px; }
