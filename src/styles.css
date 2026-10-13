@@ -1554,14 +1554,15 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* the dock reuses the Coach bar's soft edge, kept light: the frost starts 16 px above the dock and is full ~40% down it
    (one smooth ramp), only 6 px, with a neutral tint only below the dock's top (at most 35%), so whatever is still visible above the dock
    stays sharp and only what passes under it goes soft (Omar: "the tab bar and coach bar fade"). */
-.tabbar-wrap.edge-fade { position: fixed; --edge-top: 16px; --edge-ramp: 42px; --edge-blur: 6px; --edge-tint: rgb(30, 31, 38); }
+.tabbar-wrap.edge-fade { position: fixed; --edge-top: 16px; --edge-ramp: 42px; --edge-blur: 6px; --edge-tint: rgb(34, 34, 34); }
 .tabbar-wrap.edge-fade::before { background: linear-gradient(to bottom, transparent 16px, color-mix(in srgb, var(--edge-tint) 12%, transparent) 30px, color-mix(in srgb, var(--edge-tint) 35%, transparent) 56px); }
-:root[data-theme='light'] .tabbar-wrap.edge-fade { --edge-tint: #eef0f6; }
-/* the dock itself is a pill of frosted glass: its own small blur (only the pill's size), a light neutral fill, light from the top */
-.tabbar.glass { background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0) 60%), rgba(44, 46, 54, 0.34);
+:root[data-theme='light'] .tabbar-wrap.edge-fade { --edge-tint: #f2f2f2; }
+/* the dock itself is a pill of frosted glass: its own small blur (only the pill's size), a thin pure-grey fill (no colour cast,
+   so the field comes through the frost, as on iOS), light from the top */
+.tabbar.glass { background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0) 60%), rgba(46, 46, 46, 0.2);
   -webkit-backdrop-filter: blur(20px) saturate(1.4); backdrop-filter: blur(20px) saturate(1.4);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), inset 0 0 0 1px rgba(255, 255, 255, 0.06), 0 10px 26px -12px rgba(0, 0, 0, 0.6); }
-:root[data-theme='light'] .tabbar.glass { background: linear-gradient(180deg, #fff, rgba(255, 255, 255, 0.5) 60%), rgba(255, 255, 255, 0.34);
+:root[data-theme='light'] .tabbar.glass { background: linear-gradient(180deg, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.3) 60%), rgba(255, 255, 255, 0.2);
   box-shadow: inset 0 1px 0 #fff, inset 0 0 0 1px rgba(16, 20, 34, 0.06), 0 8px 24px -12px rgba(30, 40, 70, 0.25); }
 
 /* Top fade for scrollers that are neither a page nor a sheet (the orb's talk list, onboarding). */
