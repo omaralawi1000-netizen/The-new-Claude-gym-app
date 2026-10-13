@@ -1746,6 +1746,15 @@ glass look. But add depth."* He said yes to this look from a before/after pictur
   lift with coral letters (both modes); the play buttons' glow is tight in dark so it never bleeds onto a card.
 - Paint only: no blur, no new layers, nothing animated (layer check TOTAL 11, as before).
 
+## Clean look with depth undone: Aven glass is back (13 Oct 2026, v0.1.104)
+
+Omar on v0.1.102/103 (teal palette): flat grey cards and a muddy blur under the tab bar; "I want this design back", pointing
+at the glass round 5 "now" column (warm Ember field, glassy round buttons, frosted dock). PR #117 is reverted on its own:
+Ember's field is warm again, the cards are see-through again, the week-strip `week-today` class is gone, and the glass is
+switched off too (`data-glass` removed from index.html; the CSS stays dormant): his picture was the pre-glass app, and the
+glass tint resolved to Ember coral in other palettes (brown cards and a peach dock rim in teal). Everything shipped after it (v0.1.103's pop-up step-back and the camera fix) stays.
+Lesson: an opaque neutral card loses the glass Omar liked; "depth" has to come from the glass itself, not a solid block.
+
 ## Coach: answers fade in without blur, the list ends cleanly above the bar (13 Oct 2026, evening)
 Omar on the phone (v0.1.103): "the coach is a mess… the text spits out, it's still laggy… just do it without the blur,
 there was a version where you did it without the blur, it came out smooth". He asked for it, so the blur-in goes.
