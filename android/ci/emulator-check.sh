@@ -56,7 +56,7 @@ adb exec-out screencap -p > shots/5-chrome.png
 adb forward tcp:9222 localabstract:chrome_devtools_remote
 python3 android/ci/cdp.py set
 adb shell am start -n app.aven.android/com.google.androidbrowserhelper.trusted.LauncherActivity
-sleep 12
+sleep 4 # cdp.py waits for the page itself
 # the answer first: on this emulator a screenshot of the app has crashed it
 adb forward tcp:9222 localabstract:chrome_devtools_remote
 python3 android/ci/cdp.py get | tee shots/carry-over.txt
