@@ -1428,7 +1428,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    fade to 12% first, and the frosted bar had nothing behind it but the dark background). */
 .wk-card { touch-action: pan-y; }
 .wk-list { overflow-x: hidden; overscroll-behavior-x: none; touch-action: pan-y; }
-.wk-list { -webkit-mask-image: linear-gradient(to bottom, transparent, rgba(0,0,0,.1) calc(var(--ft) * .2), rgba(0,0,0,.36) calc(var(--ft) * .45), rgba(0,0,0,.74) calc(var(--ft) * .74), #000 var(--ft), #000 calc(100% - var(--sab) - 14px), rgba(0, 0, 0, 0.35) 100%); mask-image: linear-gradient(to bottom, transparent, rgba(0,0,0,.1) calc(var(--ft) * .2), rgba(0,0,0,.36) calc(var(--ft) * .45), rgba(0,0,0,.74) calc(var(--ft) * .74), #000 var(--ft), #000 calc(100% - var(--sab) - 14px), rgba(0, 0, 0, 0.35) 100%); }
+.wk-list { -webkit-mask-image: linear-gradient(to bottom, transparent, rgba(0,0,0,.1) calc(var(--ft) * .2), rgba(0,0,0,.36) calc(var(--ft) * .45), rgba(0,0,0,.74) calc(var(--ft) * .74), #000 var(--ft), #000 calc(100% - var(--sab) - 44px), rgba(0, 0, 0, 0.3) calc(100% - var(--sab) - 8px), transparent 100%); mask-image: linear-gradient(to bottom, transparent, rgba(0,0,0,.1) calc(var(--ft) * .2), rgba(0,0,0,.36) calc(var(--ft) * .45), rgba(0,0,0,.74) calc(var(--ft) * .74), #000 var(--ft), #000 calc(100% - var(--sab) - 44px), rgba(0, 0, 0, 0.3) calc(100% - var(--sab) - 8px), transparent 100%); }
 @supports (animation-timeline: scroll()) { .wk-list { animation: ft-in linear both; animation-timeline: scroll(self); animation-range: 0 40px; } }
 
 /* Schedule → Wrestling days: seven round day toggles */
@@ -1575,7 +1575,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-pager.paging { -webkit-user-select: none; user-select: none; }
 .wk-track { display: flex; height: 100%; will-change: transform; }
 .wk-page { flex: 0 0 100%; min-width: 0; height: 100%; display: flex; flex-direction: column; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; touch-action: pan-y; padding: 0 16px;
-  -webkit-mask-image: linear-gradient(to bottom, transparent, rgba(0,0,0,.1) calc(var(--ft) * .2), rgba(0,0,0,.36) calc(var(--ft) * .45), rgba(0,0,0,.74) calc(var(--ft) * .74), #000 var(--ft), #000 calc(100% - var(--sab) - 14px), rgba(0, 0, 0, 0.35) 100%); mask-image: linear-gradient(to bottom, transparent, rgba(0,0,0,.1) calc(var(--ft) * .2), rgba(0,0,0,.36) calc(var(--ft) * .45), rgba(0,0,0,.74) calc(var(--ft) * .74), #000 var(--ft), #000 calc(100% - var(--sab) - 14px), rgba(0, 0, 0, 0.35) 100%); }
+  -webkit-mask-image: linear-gradient(to bottom, transparent, rgba(0,0,0,.1) calc(var(--ft) * .2), rgba(0,0,0,.36) calc(var(--ft) * .45), rgba(0,0,0,.74) calc(var(--ft) * .74), #000 var(--ft), #000 calc(100% - var(--sab) - 44px), rgba(0, 0, 0, 0.3) calc(100% - var(--sab) - 8px), transparent 100%); mask-image: linear-gradient(to bottom, transparent, rgba(0,0,0,.1) calc(var(--ft) * .2), rgba(0,0,0,.36) calc(var(--ft) * .45), rgba(0,0,0,.74) calc(var(--ft) * .74), #000 var(--ft), #000 calc(100% - var(--sab) - 44px), rgba(0, 0, 0, 0.3) calc(100% - var(--sab) - 8px), transparent 100%); }
 @supports (animation-timeline: scroll()) { .wk-page { animation: ft-in linear both; animation-timeline: scroll(self); animation-range: 0 40px; } }
 /* the movement's stage: a soft pool of the accent behind the figure */
 .wk-stage { flex: 1 0 auto; min-height: clamp(170px, 22vh, 204px); max-height: 46vh; display: grid; place-items: center; margin-top: 4px; border-radius: var(--r-lg); overflow: hidden;

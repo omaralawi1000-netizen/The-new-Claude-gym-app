@@ -1662,6 +1662,10 @@ Fix (v0.1.99): at the end of a minimise the window's 48 px lead band and its ful
 tab bar for the spring's slow tail (a dark strip at the bottom of the screen). The window now travels the lead further
 down, and its shadow fades out over the last 12 % of the way, so nothing lingers over the tab bar.
 
+Fix (v0.1.100): the rows under the floating workout bar no longer run sharp into the bottom edge ("+ Set" showed
+below the bar). The list and focus pages stay solid down to the middle of the bar, so its frost still has rows to show,
+then dissolve to nothing at the screen edge.
+
 
 ## Coach: the messages stay put while the keyboard goes down after a send (13 Oct 2026, v0.1.98)
 Omar's recording: he sent "Ok", the message flew up smoothly, then as the keyboard went down the last messages vanished and
