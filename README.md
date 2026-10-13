@@ -1412,6 +1412,21 @@ flicker fingerprint). `--film a,b` films chosen actions, `--light` for the light
     moves there): ~11 % less tile memory with the window open. The bigger cause is outside it: the status-bar tint written
     on `.fields` every frame redraws the full-screen grain layer each frame (72-96 tiles per minimise, 16 when frozen),
     handed to the page-behind work.
+- v0.1.83, from an independent check of the v0.1.77 proof:
+  - Rest over: the bar's round end by the orb is the same colour as the rest. The moving fill fades out before the orb
+    (that fade read as a dark crescent beside it); in "Rest over" one even tint (`.wk-bar-clip::before`) takes over.
+  - A long exercise name ends in a clean "…" (`Fit`), never "Press, …".
+  - Minimising: the orb waits in the dock UNDER the window, so the window's edge uncovers it with the rest of the dock (it
+    used to appear all at once, on top, as the edge passed). The orb's tuck checks no longer read `window.innerHeight`
+    (a forced style pass on every frame of the slide; `viewportH` instead).
+  - The orb's glow behind it has a layer of its own for good: each fade made one and dropped it at the end (10 of the
+    workout audit's layer drops).
+  - Tap to motion: Chrome doesn't paint a page at opacity 0, so minimising had to paint the whole page behind before the
+    window's first frame. A finger on Minimise now draws it again, unseen (`warmStage`): at 4x CPU the first frame came
+    ~90 ms after the tap, now 50-70. Opening no longer re-renders the whole window a second time inside the tap (the
+    "shown" state is a yielding render): 95-150 ms → 75-130.
+  - Keyboard: proven at 120 fps (virtual time, 1/120 s steps, the keyboard drawn from the app's own curve, which matches
+    Android's 285 ms IME curve within 3 %): the tapped field moves every frame with the keyboard, start to end.
 
 ## Android app: the rest as a live countdown, new icon, calmer opening (13 Oct 2026, v0.1.72)
 Omar's phone showed the website's plain notice ("Back at 10:02", the site's address) instead of the app's countdown.
