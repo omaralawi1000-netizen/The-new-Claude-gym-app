@@ -6,14 +6,20 @@ import { createElement, use, type ComponentType } from 'react';
  * is tapped it is already in memory and opens exactly as if it had been part of the app all along (no wait, no blank
  * frame). Until then a tap waits for it under the nearest <Suspense>.
  */
+type Loading<T> = Promise<T> & { status?: 'fulfilled' | 'rejected'; value?: T; reason?: unknown };
 export function deferred<P extends object>(load: () => Promise<ComponentType<P>>): ComponentType<P> & { preload: () => Promise<unknown> } {
-  let C: ComponentType<P> | null = null;
-  let p: Promise<unknown> | null = null;
-  const preload = () => (p ??= load().then((c) => { C = c; }));
-  const D = (props: P) => {
-    if (!C) use(preload());
-    return createElement(C!, props);
+  let p: Loading<ComponentType<P>> | null = null;
+  const preload = () => {
+    if (!p) {
+      const q: Loading<ComponentType<P>> = load();
+      // marked the way React reads it, so once loaded use() hands the screen over at once (no suspended frame)
+      q.then((c) => { q.status = 'fulfilled'; q.value = c; }, (e) => { q.status = 'rejected'; q.reason = e; if (p === q) p = null; /* tried again next time */ });
+      p = q;
+    }
+    return p;
   };
+  // use() on every render (React requires it unconditionally)
+  const D = (props: P) => createElement(use(preload() as Promise<ComponentType<P>>), props);
   return Object.assign(D, { preload });
 }
 

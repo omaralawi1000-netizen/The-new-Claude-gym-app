@@ -1767,3 +1767,20 @@ of a sharp and a blurred copy (the muddy double edge on the card above the dock)
   through as on iOS), light from the top, a hairline and a soft shadow. Light mode: the same in white.
 Omar picked the thin neutral tint ("I want it neutral so the frosted glass can come through") and declined a deeper shadow.
 Measured: scroll frames within noise of before (fewer, smaller blur layers); tab icons 5.5:1 on the pill.
+
+## Launch morph: the launch screen's orb flies into the dock; a lighter start (13 Oct 2026, v0.1.106)
+
+Omar: "launch morph would be amazing… you have to work very hard on it to make it seamless". Before, Android's launch
+screen (the Ember orb of dots) cut to a blank page, then the app.
+- First paint: index.html draws the exact launch-screen orb before any script (`scripts/gen-launch-orb.mjs`, same SVG code
+  as the Android icon via `scripts/orb-svg.mjs`), so Chrome's hand-over from the splash is invisible.
+- Then (`src/ui/launch.ts`): the live orb fades in over the logo in its colours (0.2 s) while the logo fades (0.16 s), the
+  launch screen fades (0.25 s) and Today's blocks start their rise; 0.23 s in, the orb falls on a soft arc into the dock
+  (Apple smooth spring 0.8 s, browser-run, transform only), clear of the first card's play button. Its colours turn to the
+  palette bead by bead, each bead in one step: an RGB blend went through grey, a blend inside a bead read pale pink.
+- Judge rounds fixed: a second (splash) orb left behind during the flight, teal through grey, the app appearing late.
+- Reduced motion: the launch screen just fades, the orb already in the dock.
+- Lighter start: Coach, voice, Settings, photo food, the scanner and onboarding load on demand (`src/ui/lazy.ts`, preloaded
+  when idle after 2.5 s); Danish loads only when used. Start JS 1,221 → 897 KB; app drawn 329 → 306 ms (4× CPU 1,434 → 1,345).
+- Tools: `scripts/launch.mjs` (timings), `scripts/film-launch.mjs` (steady-camera launch films). Previews and notes in the
+  project folder `launch-morph/`.
