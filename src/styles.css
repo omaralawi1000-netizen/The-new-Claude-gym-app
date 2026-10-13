@@ -494,10 +494,10 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
 :root[data-glass='v2'][data-theme='light'] {
   --mat-warm-glow: linear-gradient(180deg, color-mix(in srgb, var(--ac) 13%, transparent), color-mix(in srgb, var(--ac) 4%, transparent) 40%, transparent 80%);
   --mat-glow: linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.4));
-  --mat-live-glow: linear-gradient(rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.92));
+  --mat-live-glow: linear-gradient(rgba(255, 255, 255, 0.97), rgba(255, 255, 255, 0.97));
   --mat-live-rim: #fff;
   --mat-live-sheen: linear-gradient(180deg, #fff, rgba(255, 255, 255, 0.5) 45%, rgba(255, 255, 255, 0.2));
-  --mat-live-lift: 0 14px 36px rgba(30, 25, 60, 0.16);
+  --mat-live-lift: 0 14px 36px rgba(30, 25, 60, 0.16), 0 8px 24px rgba(30, 25, 60, 0.08);
   --mat-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.35) 50%, rgba(255, 255, 255, 0.15));
   --mat-warm-rim: linear-gradient(180deg, color-mix(in srgb, var(--ac) 38%, #fff), #fff 22%, rgba(255, 255, 255, 0.6) 40%, rgba(20, 28, 48, 0.08) 68%, rgba(20, 28, 48, 0.16));
   --mat-rim: linear-gradient(180deg, #fff, #fff 22%, rgba(255, 255, 255, 0.6) 40%, rgba(20, 28, 48, 0.08) 68%, rgba(20, 28, 48, 0.16));
@@ -557,10 +557,12 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
 :root[data-glass='v2'] [data-wk='pill'] { background-image: var(--mat-live-glow), var(--mat-live-sheen); }
 /* dark cards sit over the strongest part of the colour field: a slightly denser slate there, so a quiet card never takes
    the field's magenta or brown */
-:root[data-glass='v2']:not([data-theme='light']) .plinth:not(.live) { background-image: linear-gradient(180deg, rgba(58, 64, 77, 0.8), rgba(42, 47, 57, 0.78) 60%, rgba(38, 43, 52, 0.78)), var(--mat-sheen); }
-/* light: quiet cards are see-through frost that recede (no grey edge); the live card is crisp white above them. (No
+:root[data-glass='v2']:not([data-theme='light']) .plinth:not(.live) { background-color: transparent; background-image: var(--mat-sheen), linear-gradient(rgba(44, 48, 57, 0.94), rgba(44, 48, 57, 0.94)); }
+/* every quiet card lands on one neutral hue, whatever part of the colour field is behind it (dark ~46,49,58, light
+   ~242,243,248): a near-opaque neutral layer under the sheen, so the field can't tint some cards mauve and others cool.
+   Light: quiet cards are flat off-white with no shadow or grey edge; the live card is pure white, lifted above them. (No
    backdrop saturation: screen cards have no backdrop filter at all, see .screen .plinth.) */
-:root[data-glass='v2'][data-theme='light'] .plinth:not(.live) { background-color: rgba(255, 255, 255, 0.32); background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0) 45%); box-shadow: 0 10px 26px -16px rgba(30, 25, 60, 0.14); }
+:root[data-glass='v2'][data-theme='light'] .plinth:not(.live) { background-color: transparent; background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0) 45%), linear-gradient(rgba(242, 243, 249, 0.93), rgba(242, 243, 249, 0.93)); box-shadow: none; }
 :root[data-glass='v2'][data-theme='light'] .plinth:not(.live)::after { background: linear-gradient(180deg, #fff, rgba(255, 255, 255, 0.5) 40%, rgba(255, 255, 255, 0.2)); }
 :root[data-glass='v2'][data-theme='light'] .plinth.live { background-color: transparent; }
 /* the play button's glow stays tight around it (a wide coral bloom read as an orange fill across the card) */
