@@ -1167,3 +1167,20 @@ opacity changes, in 80 tiny steps each way (~14 a second, each under half a perc
 (idle trace: DrawFrame 3 → ~25 per 3 s; nothing on the main thread); it sits in the top half, far from the frosted bar,
 so the bar never re-blurs; it holds still while the workout is paused, minimised, or covered by another screen. It lives
 inside the colour field, so Settings → Background glow Off removes it and Soft dims it; reduced motion stops it.
+
+## Coach answers flow in like iOS (13 Oct 2026, v0.1.49)
+
+Omar's recording (v0.1.43+) showed answers arriving in blurry clumps as the network delivered them, the list stepping
+and restarting its glide on every clump, the newest line dipping under the bar, a blinking red cursor, and the play button
+popping in at the end and shoving the list. Now:
+- Words are shown at a steady pace decoupled from the network (`useWordReveal` in ui/agentUi.tsx, pure parts in
+  lib/reveal.ts, tested in tests/reveal.test.ts): the pace follows what is waiting (backlog / 0.9 s, 6–70 words/s, eased),
+  so it keeps up with the stream without running dry between clumps; once everything has arrived it finishes at ≥24 words/s.
+  A bold phrase is bold from its first word and a "- " is a bullet from its first word, so nothing restyles mid-answer.
+- Each word fades up (opacity + 0.3em rise, the same 760 ms curve); the animated blur is gone (it was also the orb
+  screen's word animation, which gets the same change). No cursor.
+- The list follows on one continuous critically damped spring (`translate` on `.coach-thread`, ~0.5 s, starts from rest):
+  a new line adds to the motion instead of restarting it; a finger on the list mid-glide hands the rest to the scroll.
+  Filmed at 4x CPU throttle: list jolts > 4 px per frame 13 → 0; newest word never under the bar (was up to 7 px under).
+- The play button's row is held open from the first word, and the button (and the quiet note) fade in there.
+- `Words` is memoised, so only the growing piece re-renders per word.
