@@ -1316,3 +1316,23 @@ unchanged. Same everywhere text writes in (Coach and orb answers, spoken words, 
   "1 · 1 · 0" because the middle tick was 0.5; `BarChart` has a `whole` flag for count charts.
 - A change that rounds to nothing reads "0", not "−0 kg" or "+0 kg/wk" (`fmtSigned` in `lib/units.ts`, used by Progress,
   Today's week review and the measurements list).
+
+## Coach: the conversation stays above the typing bar (13 Oct 2026, v0.1.66)
+
+Omar's 08:37 recordings: whenever the keyboard came or went, the list jumped, the bar sat over the last lines, and after
+sending, the dots and the answer wrote themselves in *under* the bar.
+
+- **Cause**: the list's "follow the end" flag was cleared by any scroll, including the list's own. Sending from the keyboard
+  dropped it, the list moved down with it, that read as "you scrolled up", and the list stopped following.
+- **Now** (`Coach.tsx`): `pinned` changes only by your finger (touch or wheel, until its fling ends). Pinned, the list rests
+  at `endTop()`: its last line just above the bar, wherever the keyboard is (the sheet's `--kb-room` minus the part the
+  keyboard has covered so far). It rides the keyboard 1:1 both ways, and growth still glides on the same spring. The sheet's
+  own smooth scroll-back is skipped for this list (`data-kb-own` in `Sheet.tsx`), so two scrolls never fight.
+- **Sending from the keyboard**: the send button no longer takes the focus. The message flies up while the keyboard stays,
+  and the keyboard leaves just before it lands (the list rides down with it). Same end state as before, one thing at a time.
+  The keyboard's action key reads Send.
+- **Typing dots** come a beat after the message has risen (they used to appear under the bar while the list made room) and
+  grow out of their corner; when the first word comes they melt away over it instead of being swapped out.
+- The flying message's glass gathers sooner (no bare text mid-flight). Recording shows "Listening…" (it was cut off).
+- Checked with a simulated keyboard at 4× CPU (`kb-probe`): the last line stays 28 px above the bar in every frame of
+  open/close; before, after a send it sat up to 520 px under it. Main-thread time while the keyboard moves is unchanged.

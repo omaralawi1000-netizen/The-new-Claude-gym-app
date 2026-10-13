@@ -986,6 +986,7 @@ export const da: Record<string, string> = {
  "Left out (not in your exercise library): {list}": "Udeladt (findes ikke i dit øvelsesbibliotek): {list}",
  "Let Gemini understand dictation": "Lad Gemini forstå diktat",
  "Listening… tap the mic to send": "Lytter… tryk på mikrofonen for at sende",
+ "Listening…": "Lytter…",
  "Message the Coach": "Skriv til Coachen",
  "Microphone permission was denied. You can allow it in your browser settings, or type instead.": "Mikrofontilladelsen blev afvist. Du kan give den i browserens indstillinger, eller skrive i stedet.",
  "No microphone was found.": "Der blev ikke fundet nogen mikrofon.",
