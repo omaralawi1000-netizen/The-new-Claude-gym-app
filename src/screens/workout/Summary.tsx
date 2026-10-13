@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useStore, exerciseMap } from '../../state/store';
 import { useUI, haptic } from '../../state/ui';
@@ -17,13 +17,15 @@ import { saveWorkoutAsRoutine } from './actions';
 const REC_LABEL: Record<RecordKind, string> = { weight: 'Heaviest set', e1rm: 'Estimated 1RM', volume: 'Best set volume', reps: 'Most reps', duration: 'Longest hold', distance: 'Longest distance' };
 
 function Stat({ label, value, unit, i }: { label: string; value: React.ReactNode; unit?: string; i: number }) {
-  return <div className="sum-stat" style={{ ['--i' as string]: i }}><div className="micro">{label}</div><div className="display display-md num" style={{ marginTop: 4 }}>{value}<span className="t3 small" style={{ fontFamily: 'var(--f-ui)', fontStretch: '100%', fontWeight: 600 }}> {unit}</span></div></div>;
+  return <div className="sum-stat" style={{ animationDelay: `${FIRST + i * STEP}s` }}><div className="micro">{label}</div><div className="display display-md num" style={{ marginTop: 4 }}>{value}<span className="t3 small" style={{ fontFamily: 'var(--f-ui)', fontStretch: '100%', fontWeight: 600 }}> {unit}</span></div></div>;
 }
 
-// The finish moment, in order: the four numbers arrive one after another, each counting up from zero as it lands, and then
-// one line says what this session meant. STEP and COUNT are the rhythm; everything else on the screen waits for LINE.
-const STEP = 0.32, FIRST = 0.2, COUNT = 0.85;
+// The finish moment, in order, like an award: a medal lands (felt as the workout's "done", or a record's), the four
+// numbers arrive one after another, each counting up as it lands with a light tick, and then one line says what this
+// session meant. MEDAL, STEP and COUNT are the rhythm; everything else on the screen waits for LINE.
+const MEDAL = 0.15, STEP = 0.32, FIRST = 0.95, COUNT = 0.85;
 const LINE = FIRST + 3 * STEP + COUNT * 0.8;
+const celebrated = new Set<string>(); // a session's moment is felt once, not again when its summary is reopened
 const reduced = () => document.documentElement.dataset.motion === 'reduce' || matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 /** A number that counts up from zero once, after `delay` seconds. Writes its own text (no re-render per frame). */
@@ -62,6 +64,14 @@ export function Summary({ props }: { props: { sessionId: string } }) {
   const recs = ses?.records ?? [];
   const rows = useMemo(() => (ses ? ses.exercises.map((e) => ({ e, ex: exMap.get(e.exerciseId) })) : []), [ses, exMap]);
   const headline = useMemo(() => (ses ? sessionHeadline(ses, s.sessions, (kg) => `${fmtNum(Math.round(kgToDisplay(kg, u.weight)), lang, 0)} ${u.weight}`) : null), [ses?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!ses || celebrated.has(ses.id)) return;
+    celebrated.add(ses.id);
+    const big: 'record' | 'finish' = recs.length ? 'record' : 'finish';
+    if (reduced()) { haptic(big); return; }
+    const ids = [setTimeout(() => haptic(big), (MEDAL + 0.4) * 1000), ...[0, 1, 2, 3].map((i) => setTimeout(() => haptic('tick'), (FIRST + i * STEP + 0.1) * 1000))];
+    return () => { ids.forEach(clearTimeout); celebrated.delete(ses.id); };
+  }, [ses?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!ses) return null;
   const hEx = headline?.exerciseId ? exMap.get(headline.exerciseId) : undefined;
   const line = headline ? t(headline.key, { ...headline.vars, exercise: hEx ? exName(hEx, lang) : '' }) : '';
@@ -74,6 +84,16 @@ export function Summary({ props }: { props: { sessionId: string } }) {
     <Sheet onClose={closeAll} tall label={t('Workout summary')} z={60} foot={<div className="row-flex" style={{ gap: 10 }}><button className="btn grow press" onClick={() => push('sessionDetail', { id: ses.id })}>{t('Details')}</button><button className="btn primary grow press" onClick={() => { haptic('light'); backupAfterWorkout(); closeAll(); }}>{t('Done')}</button></div>}>
       <SheetHead title={t('Nice work')} sub={`${ses.name || t('Workout')} · ${fmtDate(ses.date, lang)}`} onClose={closeAll} />
       <div className="sheet-body">
+        {/* the medal: lands once, a ring of its light opens outward, a sheen crosses it; gold with the count when records fell */}
+        <div className={`sum-medal${recs.length ? ' gold' : ''}`} style={{ ['--d' as string]: `${MEDAL}s` }} aria-label={recs.length ? t(recs.length === 1 ? '1 new record' : '{n} new records', { n: recs.length }) : undefined}>
+          {recs.length > 0 && Array.from({ length: 12 }, (_, i) => <i key={i} aria-hidden className="sum-ray" style={{ rotate: `${i * 30}deg`, animationDelay: `${MEDAL + 0.3 + i * 0.03}s` }} />)}
+          <span className="sum-halo" aria-hidden />
+          <span className="sum-disc">
+            {recs.length ? <span className="display num">{recs.length}</span> : <Icon name="check" size={38} />}
+            <span className="sum-sheen" aria-hidden />
+          </span>
+        </div>
+        {recs.length > 0 && <div className="micro sum-line-in" style={{ margin: '-6px 0 16px', textAlign: 'center', color: 'var(--gold)', ['--d' as string]: `${MEDAL + 0.5}s` }}>{recs.length === 1 ? t('New personal record') : t('New personal records')}</div>}
         <div className="plinth dots" style={{ padding: 18, borderRadius: 'var(--r-lg)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
           <Stat i={0} label={t('Time')} value={<CountUp to={elapsedMs(ses) / 1000} delay={at(0)} format={fmtDuration} />} />
           <Stat i={1} label={t('Volume')} value={<CountUp to={kgToDisplay(sessionVolume(ses.exercises), u.weight)} delay={at(1)} format={(n) => fmtNum(Math.round(n), lang, 0)} />} unit={u.weight} />
@@ -82,22 +102,8 @@ export function Summary({ props }: { props: { sessionId: string } }) {
         </div>
         {line && <p className="sum-line display" style={{ ['--d' as string]: `${LINE}s` }}>{line}</p>}
 
-        {recs.length > 0 && (
-          // the record moment: a gold medallion with rays that open once, then the records slide in under it
-          <div style={{ position: 'relative', display: 'grid', placeItems: 'center', margin: '26px 0 14px', height: 120 }} aria-label={t(recs.length === 1 ? '1 new record' : '{n} new records', { n: recs.length })}>
-            {Array.from({ length: 12 }, (_, i) => (
-              <motion.i key={i} aria-hidden initial={{ scaleY: 0, opacity: 0 }} animate={{ scaleY: [0, 1, 0.6], opacity: [0, 1, 0.35] }} transition={{ duration: 1.2, delay: LINE + 0.35 + i * 0.025, ease: [0.22, 1, 0.36, 1] }}
-                style={{ position: 'absolute', width: 2, height: 58, borderRadius: 2, background: 'linear-gradient(var(--gold), transparent)', top: 2, left: 'calc(50% - 1px)', transformOrigin: '50% 58px', rotate: i * 30 }} />
-            ))}
-            <motion.div initial={{ scale: 0.4, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring', stiffness: 320, damping: 14, delay: LINE + 0.25 }}
-              style={{ width: 84, height: 84, borderRadius: '50%', display: 'grid', placeItems: 'center', background: 'radial-gradient(circle at 35% 30%, #fff3c4, var(--gold) 55%, #b98a1d)', color: '#3a2a05', boxShadow: '0 0 0 6px color-mix(in srgb, var(--gold) 18%, transparent), 0 18px 50px -10px var(--gold)' }}>
-              <span className="display num" style={{ fontSize: 40, color: '#3a2a05', fontWeight: 400 }}>{recs.length}</span>
-            </motion.div>
-          </div>
-        )}
-        {recs.length > 0 && <div className="micro sum-line-in" style={{ margin: '0 0 8px', textAlign: 'center', color: 'var(--gold)', ['--d' as string]: `${LINE + 0.45}s` }}>{recs.length === 1 ? t('New personal record') : t('New personal records')}</div>}
         {recs.length === 0 ? null : (
-          <div className="stack gap8">
+          <div className="stack gap8" style={{ marginTop: 22 }}>
             {recs.map((r, i) => {
               const ex = exMap.get(r.exerciseId);
               const vset = r.kind === 'volume' ? ses.exercises.flatMap((e) => e.sets).find((q) => q.id === r.setId && q.reps) : undefined;

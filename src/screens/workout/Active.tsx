@@ -343,11 +343,11 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
   const finish = () => {
     if (done === 0) { setConfirm('discard'); return; }
     if (done < total) { setConfirm('finish'); return; }
-    doFinish();
+    haptic('confirm'); doFinish();
   };
   const doFinish = () => {
     const r = useStore.getState().finishActive();
-    if (r) { haptic(r.records?.length ? 'record' : 'finish'); swap(1, 'summary', { sessionId: r.id }); }
+    if (r) swap(1, 'summary', { sessionId: r.id }); // its medal lands with the finish (or record) feel
   };
   // the bar's "next set": scroll it into the middle and let it glow for a moment
   const jumpTo = (setId: string) => {
@@ -608,8 +608,8 @@ function WorkoutBar({ engage, exMap, focus, onDone, onJump }: { engage: Engage; 
         <AnimatePresence>
           {panel && state === 'rest' && (
             <motion.div key="ctl" className="wk-bar-ctl" initial={{ opacity: 0, x: 14 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} transition={SOFT}>
-              <button className="wk-ctl press num" onClick={() => adjustRest(-15)} aria-label={t('15 seconds less')}>−15</button>
-              <button className="wk-ctl press num" onClick={() => adjustRest(15)} aria-label={t('15 seconds more')}>+15</button>
+              <button className="wk-ctl press num" onClick={() => { haptic('select'); adjustRest(-15); }} aria-label={t('15 seconds less')}>−15</button>
+              <button className="wk-ctl press num" onClick={() => { haptic('select'); adjustRest(15); }} aria-label={t('15 seconds more')}>+15</button>
               <button className="wk-ctl skip press" onClick={() => { haptic('light'); skipRest(); setPanel(false); }}>{t('Skip')}</button>
             </motion.div>
           )}

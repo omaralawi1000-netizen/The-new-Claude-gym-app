@@ -133,6 +133,7 @@ if (typeof window !== 'undefined') {
  */
 export const HAPTICS = {
   step: 5,                          // a dragged item passes another
+  tick: 5,                          // a number lands on the finish screen
   select: 6,                        // a choice changed: a switch, a segment, a day, a favourite, a colour
   light: 8,                         // a small thing done: add a set, undo, skip the rest, pause
   saved: 12,                        // something kept: food logged, a weight, a routine, a plan
@@ -142,8 +143,8 @@ export const HAPTICS = {
   success: [12, 40, 18],            // the orb or the Coach did what you asked
   listen: [6, 70, 10],              // the orb starts listening when you tap it: a soft "I'm here"
   send: 10,                         // the orb stops listening and takes what you said
-  finish: [20, 40, 20],             // the workout is saved
-  record: [14, 70, 14, 70, 36],     // the workout is saved with a new personal record
+  finish: [16, 60, 16, 60, 16],     // the workout's medal lands: three even beats, "done"
+  record: [14, 70, 14, 70, 50],     // a new personal record (a set, or the medal of a workout with one): rising to a firm last beat
   warn: 30,                         // that can't be done yet (a set with no reps)
   countdown: 24,                    // each of a rest's last three seconds
   restOver: [180, 90, 180, 90, 320],// the rest is over (strong enough to feel through a pocket)
