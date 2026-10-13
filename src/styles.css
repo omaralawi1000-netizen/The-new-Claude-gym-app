@@ -970,7 +970,12 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* the window's top rim: only a strip along the top (it lay over the whole window, so every animation under it gave it a
    layer and took it away again, once a second during a rest), kept on a layer of its own */
 .wk-sheet::after { content: ''; position: absolute; left: 0; right: 0; top: 0; height: calc(var(--wk-r) + 4px); border-radius: inherit; pointer-events: none; box-shadow: inset 0 1px 0 var(--hl); z-index: 5; will-change: transform; }
-:root { --wk-r: 38px; }
+:root { --wk-r: 0px; }
+/* a full page: its header starts just under the status bar (no grabber), and its flat top edge has no rim (it would be a line under the bar) */
+.wk-sheet::after { content: none; }
+.wk-sheet .wk-head-wrap { padding-top: 14px; }
+.wk-top { position: absolute; left: 0; right: 0; top: 0; height: calc(var(--sat) + 130px); pointer-events: none;
+  background: linear-gradient(to bottom, var(--bar, var(--bg)) calc(var(--sat) + 2px), transparent); }
 .wk-solid { position: absolute; inset: 0; background: var(--bg); }
 
 /* Settings pages: once a page has glided in, its rows and fields settle in one after another (transform + opacity only) */

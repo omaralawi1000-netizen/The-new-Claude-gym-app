@@ -19,8 +19,8 @@ import { addSet, deleteSet, moveExercise, patchExercise, patchSet, removeExercis
 import { exName, fmtSet, MUSCLE_LABEL } from './common';
 import { SphereSlot, mirrorOrb, orbPress, orbTap } from '../../ui/Sphere';
 import { useSwipeDown } from '../../ui/swipe';
-import { Mirror, mirrorProgress, mirrorStage, trackCover, trackDepth, warmStage, type Engage } from '../../ui/engage';
-import { DIM_VEIL, Veil, mirrorVeil } from '../../ui/Veil';
+import { Mirror, mirrorProgress, trackCover, warmStage, type Engage } from '../../ui/engage';
+import { refreshBar } from '../../ui/statusBar';
 import { kb, keyboardGoal, onKeyboardGoal, rideFocus } from '../../ui/keyboard';
 import { viewportH } from '../../ui/viewport';
 import { BOUNCY, SURFACE, SURFACE_EXIT } from '../../ui/motion';
@@ -76,19 +76,18 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
   const eFinger = useTransform([p, dragY], ([pp, d]: number[]) => Math.min(1, Math.max(0, pp - Math.max(0, d) / H)));
   const engage = useMemo(() => ({ e: eFinger, shift: dialogY }), [eFinger, dialogY]);
   const depthId = useId();
-  useEffect(() => trackDepth(depthId, eFinger), [depthId, eFinger]); // the page behind recedes with the window, frame for frame
+  // A full page, not a pop-up: it rises over the page as it is (nothing behind steps back or dims, and the status bar keeps
+  // its colour), and its own top fades from the status bar's colour like every tab's page, so the bar reads as part of it
+  useLayoutEffect(() => refreshBar(), []);
   useEffect(() => trackCover(depthId, eFinger), [depthId, eFinger]); // and stops being drawn while the window covers it
   const sheetRef = useRef<HTMLDivElement>(null);
   // high refresh rate: the window, the dim and the page behind also run by the browser on the identical spring
-  const scrimRef = useRef<HTMLDivElement>(null);
   const mirror = useRef<Mirror | null>(null); if (!mirror.current) mirror.current = new Mirror();
   const runMirror = (p0: number, p1: number, sp: { stiffness: number; damping: number; mass?: number }, vel: number) => {
     const m = mirror.current!; m.cancel();
     if (reduce) return;
     m.add(
       mirrorProgress(sheetRef.current, p0, p1, sp, vel, (pp) => ({ transform: `translateY(${sheetTop(pp).toFixed(2)}px)` })),
-      ...mirrorVeil(scrimRef.current, p0, p1, sp, vel, DIM_VEIL),
-      mirrorStage(depthId, p0, p1, sp, vel),
       mirrorOrb(sheetRef.current, p0, p1, sp, vel, sheetTop),
     );
   };
@@ -188,7 +187,7 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
   const startOpen = () => {
     closing.current = null;
     // un-park it now, before the orb's flight measures where its slot will be (React would only do it after this effect)
-    dialogRef.current?.classList.remove('wk-off'); scrimRef.current?.classList.remove('wk-off');
+    dialogRef.current?.classList.remove('wk-off');
     const from = p.get();
     opening.current?.stop();
     opening.current = animate(p, 1, reduce ? { duration: 0.01 } : SURFACE);
@@ -315,17 +314,15 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
 
   return (
     <>
-      <Veil e={eFinger} z={z - 1} onClick={() => close()} layers={DIM_VEIL} elRef={scrimRef} className={hidden ? 'wk-off' : ''} />
       <motion.div
         role={hidden ? undefined : 'dialog'} aria-modal={hidden ? undefined : 'true'} aria-label={t('Active workout')} aria-hidden={hidden || undefined}
         ref={dialogRef} data-hue="train" className={`wk-card${hidden ? ' wk-off' : ''}`} style={{ zIndex: z, y: dragT }}
       >
         <WkLive.Provider value={!hidden}>
         <motion.div ref={sheetRef} className="wk-sheet" style={{ transform: sheetT }}>
-          <div className="wk-solid" aria-hidden><div className="aurora-lite"><Breath hold={paused || covered} /></div></div>
+          <div className="wk-solid" aria-hidden><div className="aurora-lite"><Breath hold={paused || covered} /></div><i className="wk-top" data-bar /></div>
         <div className="wk-window" style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column' }}>
           <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, paddingTop: 'var(--sat)' }}>
-          <div className="sheet-grab" style={{ position: 'relative', zIndex: 3 }} />
           {/* header */}
           {/* no backdrop of its own: the list scrolls in its own box below, so the header sits straight on the window's light
               (a solid band here cut the colour field off in a hard line under the grabber) */}
