@@ -1488,10 +1488,19 @@ at the edges.
   It always comes to rest in the same place (its top edge 10 px above a full sheet's top), whatever the new sheet's
   height, and its title fades as it steps back, so above a shorter sheet you see the back of a card, not half a title.
   It steps back by how much of the new sheet is in view, so on close it is fully back the moment the top sheet has left
-  the screen (before, it finished about 15 frames later, which read as a lag). The status bar takes the second dim too. Before, the lower sheet only shrank 6 % and rose 6 px, so half its title
+  the screen (before, it finished about 15 frames later, which read as a lag); the top sheet's dim goes the same way, so
+  it is gone in that same frame. A tall sheet opened over another one takes the full height (Photo used to stop 36 px
+  lower than Scan, which read as a card sitting too low), and the title below is gone before the top sheet's edge
+  reaches it, so the edge never slices a half-faded title. The status bar takes the second dim too. Before, the lower sheet only shrank 6 % and rose 6 px, so half its title
   showed above a shorter sheet; the workout didn't move at all. Omar: "a pop-up in a pop-up can stack … seamless animations and excellent animations".
 - Films are now made with a steady camera (`scripts/film-steady.mjs`): Chrome draws each frame only when asked, exactly
   1/60 s of the app's time after the last, and it is pictured once fully drawn. The old screencast films dropped frames
   whenever this machine was slow to draw the glass, which read as jumps and stalls the app doesn't have.
   `scripts/film-depth.mjs` uses it, films the app at its size under the status bar and logs the bar's colour per frame,
   and closes pop-ups with their close button (Escape is a keyboard, and left a keyboard focus ring in the films).
+  It films at 3 pixels per CSS px, near the phone's 3.5: at 1 the browser rounds whatever moves inside a scrolling list to
+  whole pixels, so the last slow pixels of every glide ticked by 1 px at a time, which the phone doesn't do. Each step
+  starts from a still screen (what it taps is scrolled into view first), the scanner sees a still picture
+  (`scripts/fake-camera.py`) and the Photo sheet a stand-in key. Sheets now come to rest within 0.2 px instead of 0.8, so
+  a glide no longer ends with a last little hop, and the scanner waits for its video if the camera answers before the
+  sheet's contents are in (it said "Couldn't start the camera").

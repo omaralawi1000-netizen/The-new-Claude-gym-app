@@ -50,6 +50,9 @@ export function Scanner({ props }: { props: { date: string; mealId: string } }) 
       setCam('starting');
       try {
         stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } } });
+        // the sheet puts its contents in a couple of frames after it starts to slide (see Sheet): a camera that answers
+        // sooner waits for its video element instead of failing
+        for (let i = 0; i < 60 && !video.current && !stopped; i++) await new Promise((r) => requestAnimationFrame(r));
         if (stopped) { stream.getTracks().forEach((x) => x.stop()); return; }
         const v = video.current!;
         v.srcObject = stream; await v.play();

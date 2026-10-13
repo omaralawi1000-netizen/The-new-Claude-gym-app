@@ -20,7 +20,7 @@ export const apple = (duration: number, bounce = 0) => ({ type: 'spring' as cons
  */
 export const TAP = apple(0.3, 0.15);            // a press, a tick: Apple .snappy, quick
 export const SMOOTH = apple(0.36);                // content settling (Apple .smooth, a touch quicker for small moves)
-export const SURFACE = { ...apple(0.45), restDelta: 0.001 }; // a sheet / card arriving: Apple's .smooth, a hair quicker than the 0.5 s default
+export const SURFACE = { ...apple(0.45), restDelta: 0.0002 }; // a sheet / card arriving: Apple's .smooth, a hair quicker than the 0.5 s default (it rests within 0.2 px: a coarser rest ended every glide with a 1 px hop)
 export const SURFACE_EXIT = { ...apple(0.38), restDelta: 0.002 }; // leaving is a touch quicker than arriving
 export const WINDOW = SURFACE;
 export const BOUNCY = apple(0.5, 0.3);            // Apple .bouncy: a record, a gain, a sent message
@@ -46,7 +46,7 @@ export function springCurve(sp: Spring, v0 = 0): { easing: string; duration: num
     // semi-implicit Euler at 600 Hz: indistinguishable from the analytic spring at this step
     v += ((sp.stiffness * (1 - x) - sp.damping * v) / m) * dt; x += v * dt; t += dt;
     if (Math.round(t * 600) % 10 === 0) xs.push(x);       // a sample every 1/60 s
-    if (t > 0.1 && Math.abs(1 - x) < 0.0008 && Math.abs(v) < 0.02) break;
+    if (t > 0.1 && Math.abs(1 - x) < 0.0002 && Math.abs(v) < 0.005) break; // within 0.2 px of a full-height sheet's travel
   }
   xs[xs.length - 1] = 1;
   const out = { easing: `linear(${xs.map((v2) => +v2.toFixed(4)).join(', ')})`, duration: Math.round(t * 1000) };

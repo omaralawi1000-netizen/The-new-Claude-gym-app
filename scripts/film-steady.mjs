@@ -4,11 +4,17 @@
 // shows the motion as designed, frame by frame: a jump in a film is a jump in the app, not a frame this machine dropped.
 // (It shows nothing about the phone's speed: the time a frame takes to build doesn't count here.)
 //   const s = await steady({ theme: 'light' }); … await s.film('name', () => tap(), 60); await s.close();
+//   await s.advance(30): half a second of the app's time passes, unfilmed
 // → shots/film/<name>/000.jpg… (one per 1/60 s), times.json, bar.json (the theme-color at each frame, for the status bar)
 import fs from 'node:fs';
 import { launch } from './lib.mjs';
-export async function steady({ theme = 'light', size = { width: 384, height: 802 } } = {}) {
-  const { b, ctx, p, errors } = await launch({ theme, size, args: ['--deterministic-mode', '--enable-begin-frame-control', '--run-all-compositor-stages-before-draw'] });
+// dsf: pixels per CSS px. The phone has 3.5; at 1 the browser rounds what moves inside a scrolled list to whole CSS px (it
+// snaps to device pixels), which turns the last, slow pixels of every glide into 1 px ticks the phone doesn't have.
+// The scanner's camera shows shots/fake-camera.y4m (python3 scripts/fake-camera.py) when it is there.
+export async function steady({ theme = 'light', size = { width: 384, height: 802 }, dsf = Number(process.env.FILM_DSF || 3) } = {}) {
+  const cam = fs.existsSync('shots/fake-camera.y4m') ? ['--use-file-for-fake-video-capture=shots/fake-camera.y4m'] : [];
+  const { b, ctx, p, errors } = await launch({ theme, size, args: ['--deterministic-mode', '--enable-begin-frame-control', '--run-all-compositor-stages-before-draw', `--force-device-scale-factor=${dsf}`, ...cam] });
+  await ctx.grantPermissions(['camera', 'microphone']);
   // the page's clock is the frame's time: scripts asking for the time between frames get the time of the frame
   await ctx.addInitScript(() => {
     const pn = performance.now.bind(performance); let last = -1;
@@ -34,8 +40,8 @@ export async function steady({ theme = 'light', size = { width: 384, height: 802
     for (let i = 0; i < frames; i++) {
       let r = await frame(true), tries = 0;
       while (!r.screenshotData && tries++ < 8) r = await frame(true, 0.01); // a frame that drew nothing: ask again, at (almost) the same time
-      // FRAMELOG='.sheet, .wk-card': where each of those is at this frame (top edge in px, scale), read from the page itself
-      if (process.env.FRAMELOG) log.push(await p.evaluate((sel) => [...document.querySelectorAll(sel)].map((e) => { const r = e.getBoundingClientRect(); return [e.className.split(' ')[0] + (e.getAttribute('aria-label') ? ':' + e.getAttribute('aria-label') : ''), Math.round(r.top * 10) / 10, Math.round((r.width / e.offsetWidth) * 1000) / 1000]; }), process.env.FRAMELOG).catch(() => null));
+      // FRAMELOG='.sheet, .wk-card': where each of those is at this frame (top edge in px, scale, browser-run animations on it), read from the page itself
+      if (process.env.FRAMELOG) log.push(await p.evaluate((sel) => [...document.querySelectorAll(sel)].map((e) => { const r = e.getBoundingClientRect(); return [e.className.split(' ')[0] + (e.getAttribute('aria-label') ? ':' + e.getAttribute('aria-label') : ''), Math.round(r.top * 10) / 10, Math.round((r.width / e.offsetWidth) * 1000) / 1000, e.getAnimations().length]; }), process.env.FRAMELOG).catch(() => null));
       skips.push(tries);
       const out = `${dir}/${String(times.length).padStart(3, '0')}.jpg`;
       if (r.screenshotData) fs.writeFileSync(out, Buffer.from(r.screenshotData, 'base64'));
@@ -48,5 +54,7 @@ export async function steady({ theme = 'light', size = { width: 384, height: 802
     pumping = true;
     console.log(`film ${name}: ${times.length} frames`);
   }
-  return { b, ctx, p, errors, film, close: async () => { alive = false; await q; await b.close(); } };
+  /** Let exactly n frames of the app's time pass, unfilmed (so whatever was moving has landed before the next film). */
+  async function advance(n) { pumping = false; await q; for (let i = 0; i < n; i++) await frame(false); pumping = true; }
+  return { b, ctx, p, errors, film, advance, close: async () => { alive = false; await q; await b.close(); } };
 }
