@@ -86,8 +86,7 @@ notes real-after-clear
 grep -c "pkg=app.aven.android" shots/real-after-clear.txt | sed 's/^/aven notifications left after clear: /' | tee -a shots/rest-real.txt
 timeout 20 adb logcat -d | grep -i "OriginVerifier\|TrustedWebActivity\|TWAConnectionPool\|digital asset\|RestTimer\|ForegroundService\|AvenRest" | tail -40 | tee -a shots/carry-over.txt
 
-# 3. the app sees the site's data (last: the emulator may not survive the app being on screen for long)
-cdp set
+# 3. the app sees the data saved in Chrome's tab before it was first opened
 adb shell am start -n app.aven.android/com.google.androidbrowserhelper.trusted.LauncherActivity
 sleep 4
 cdp get | tee -a shots/carry-over.txt
