@@ -1550,3 +1550,20 @@ at the edges.
   arrives; the orb's renderer follows that box, and the screen is small (a few ms of layout per frame at 4×).
 - v0.1.90: after New chat the suggestions still vanished at once when one was tapped: moved into their leaving layer,
   they ran their rise-in again (starting invisible). They now keep still and fade (300 ms, a softer curve).
+
+## Coach and orb answers write in without dropped frames, same look (13 Oct 2026, v0.1.92)
+- Found with style-invalidation tracing (`scripts/audit-coach.mjs`, new `INV=1`, `WHY=1`, `MUT=1`, `DROPS=0`):
+  - `.app:has(.sheet, .voice, [role='dialog']) .aurora i` (pause the colour field under popups): with an attribute inside
+    `:has()` the browser re-checked it on every element added anywhere in the app and restyled every `<i>` (and the pulse
+    dots) each time, so every new word restyled ~24 unrelated elements. Now classes only: `.app:has(.sheet, .voice, .ovl)`,
+    with `.ovl` on the two full-screen overlays that are not sheets (Onboarding, the progress photo viewer). Helps every
+    screen, not only the Coach.
+  - The orb's frame loop runs every frame, so the browser updates every running CSS animation on the main thread every
+    frame (even ones the compositor plays). Each word had four: its rise on the word itself, plus its three soft-focus
+    layers. A word animating made its three layers restyle from scratch every frame. The rise now rides on the three
+    layers (same keyframes, same timing; `.soft-s` became inline-block so it can move), and the word itself is still.
+    Checked pixel for pixel with `scripts/word-ramp.mjs` (the word set frozen at 20 moments, 0-760 ms): identical.
+- Measured (4× CPU, dark, without the layer watcher): Coach answer writing in, style 812 → ~340 ms per 5 s, long tasks
+  ~19 → 0; suggestion answer 739 → ~360 ms, 3 → 0; orb answer 0 long tasks.
+- The audit's layer watcher (`LayerTree`/`DOM` CDP domains) itself costs main-thread time per new element; `DROPS=0`
+  measures without it.

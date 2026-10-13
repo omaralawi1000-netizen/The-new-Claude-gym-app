@@ -48,6 +48,7 @@ const URL = process.env.URL || 'http://127.0.0.1:4173/';
 
 if (process.env.CSS) await ctx.addInitScript((css) => { document.addEventListener('DOMContentLoaded', () => { const st = document.createElement('style'); st.textContent = css; document.head.appendChild(st); }); }, process.env.CSS); // (CSS=…: try a style change)
 if (process.env.UNDER === '0') await ctx.addInitScript(() => { window.__noUnder = true; });
+if (process.env.MUT) await ctx.addInitScript(() => { window.__mutOn = true; }); // (MUT=1: count DOM changes per action)
 await p.goto(URL); await wait(p, 1500);
 await skipOnboarding(p); await loadDemo(p); await wait(p, 800);
 const long = 'At 18, 175 cm and hovering around 97.6 kg, you carry serious density and move real weight, putting up 100 kg on bench, 140 kg on hack squats, and 85 kg rows.\n\nWhat separates your routine from standard bodybuilding is the sheer physical engine behind it: pairing failure-intensity lifting with 40 minutes of hard daily cardio, 12k+ steps, and regular mat time in wrestling.';
@@ -57,7 +58,9 @@ await p.evaluate((older) => { localStorage.setItem('aven.keys', JSON.stringify({
 await p.reload(); await wait(p, 2200);
 
 // ── layer drops (see audit-workout.mjs) ──
-await cdp.send('DOM.enable'); await cdp.send('LayerTree.enable'); await cdp.send('Performance.enable');
+// (DROPS=0: without the layer and DOM watchers, which cost main-thread time per new element and per commit)
+const watch = process.env.DROPS !== '0';
+if (watch) { await cdp.send('DOM.enable'); await cdp.send('LayerTree.enable'); } await cdp.send('Performance.enable');
 let cur = []; const events = [];
 cdp.on('LayerTree.layerTreeDidChange', (e) => { if (e.layers) { events.push({ t: Date.now(), layers: e.layers }); cur = e.layers; } });
 async function drops(startLayers, t0) {
@@ -104,14 +107,15 @@ async function act(label, fn, settle = 1400) {
       if (window.__on) requestAnimationFrame(loop);
     };
     requestAnimationFrame(loop);
+    if (window.__mutOn) { const tally = window.__mut = { add: 0, rm: 0, text: 0, attr: {}, frames: 0, maxAdd: 0 }; let fa = 0; window.__mo?.disconnect(); window.__mo = new MutationObserver((rs) => { for (const r of rs) { if (r.type === 'childList') { const a = [...r.addedNodes].filter((n) => n.nodeType === 1).length; tally.add += a; fa += a; tally.rm += [...r.removedNodes].filter((n) => n.nodeType === 1).length; } else if (r.type === 'attributes') tally.attr[r.attributeName] = (tally.attr[r.attributeName] || 0) + 1; else tally.text++; } }); window.__mo.observe(document.body, { subtree: true, childList: true, attributes: true, characterData: true }); const fl = () => { tally.frames++; tally.maxAdd = Math.max(tally.maxAdd, fa); fa = 0; if (window.__on) requestAnimationFrame(fl); else window.__mo.disconnect(); }; requestAnimationFrame(fl); }
     window.__po?.disconnect(); window.__po = new PerformanceObserver((x) => x.getEntries().forEach((e) => window.__lt.push(Math.round(e.duration)))); window.__po.observe({ type: 'longtask' });
   }, label);
-  await cdp.send('DOM.getDocument', { depth: -1 });
+  if (watch) await cdp.send('DOM.getDocument', { depth: -1 });
   events.length = 0; const start = cur; const t0 = Date.now();
   const profiling = process.env.PROFILE && label.includes(process.env.PROFILE);
   const tracing = process.env.TRACE && label.includes(process.env.TRACE);
   const trace = [];
-  if (tracing) { cdp.on('Tracing.dataCollected', (e) => trace.push(...e.value)); await cdp.send('Tracing.start', { categories: 'devtools.timeline,disabled-by-default-devtools.timeline', transferMode: 'ReportEvents' }); }
+  if (tracing) { cdp.on('Tracing.dataCollected', (e) => trace.push(...e.value)); await cdp.send('Tracing.start', { categories: 'devtools.timeline,disabled-by-default-devtools.timeline' + (process.env.INV ? ',disabled-by-default-devtools.timeline.invalidationTracking' : ''), transferMode: 'ReportEvents' }); }
   if (profiling) { await cdp.send('Profiler.enable'); await cdp.send('Profiler.setSamplingInterval', { interval: 200 }); await cdp.send('Profiler.start'); }
   const a = await m();
   const run = async () => { try { await fn(); } catch (e) { fails.push(`${label}: ${String(e.message).split('\n')[0]}`); } };
@@ -136,10 +140,24 @@ async function act(label, fn, settle = 1400) {
     console.log(`── ${label}: style recalcs ${ult.length}, elements per recalc (top) ${ec.slice(0, 8).join(' ')} median ${ec[ec.length >> 1] ?? 0}`);
     const big = ult.sort((x, y) => y.dur - x.dur).slice(0, 5).map((e) => `${Math.round(e.dur / 1000)}ms/${e.args?.elementCount ?? '?'}`);
     console.log(`── ${label}: biggest style recalcs ${big.join(' ')}`);
+    if (process.env.INV) { const why = new Map(); for (const e of trace) if (/InvalidationTracking/.test(e.name)) { const d = e.args?.data || {}; const k = `${e.name.replace('InvalidationTracking', '')} ${d.reason || ''} ${d.extraData || ''} ${d.nodeName || ''}`.slice(0, 120); why.set(k, (why.get(k) || 0) + 1); } console.log('── invalidations'); [...why].sort((x, y) => y[1] - x[1]).slice(0, 25).forEach(([k, v]) => console.log(`  ${String(v).padStart(5)}  ${k}`)); }
+    if (process.env.WHY) for (const e of ult.slice(0, 12)) { const par = trace.filter((x) => x.pid === e.pid && x.tid === e.tid && x.ph === 'X' && x !== e && x.name !== 'RunTask' && x.ts <= e.ts && x.ts + x.dur >= e.ts + e.dur).map((x) => x.name + (x.args?.data?.functionName ? ':' + x.args.data.functionName : '')).join(' > '); const st = (e.args?.beginData?.stackTrace || []).slice(0, 4).map((f) => `${f.functionName}@${String(f.url).split('/').pop()}:${f.lineNumber}`).join(' < '); console.log(`   style ${Math.round(e.dur / 1000)}ms/${e.args?.elementCount} in [${par || 'frame'}] ${st}`); }
     const fails = new Map(); for (const e of trace) if (e.name === 'Animation' && e.args?.data?.compositeFailed) { const k = `${e.args.data.compositeFailed} ${JSON.stringify(e.args.data.unsupportedProperties || [])}`; fails.set(k, (fails.get(k) || 0) + 1); }
     if (fails.size) console.log(`── ${label}: animations not on the compositor`, Object.fromEntries(fails));
+    // the biggest tasks, broken down by their direct steps
+    const mainX = trace.filter((e) => main && e.pid === main.pid && e.tid === main.tid && e.ph === 'X' && e.dur).sort((x, y) => x.ts - y.ts);
+    const tasks = mainX.filter((e) => e.name === 'RunTask' && e.dur > 40000).sort((x, y) => y.dur - x.dur).slice(0, 4);
+    for (const tk of tasks) {
+      const parts = new Map();
+      for (const e of mainX) if (e !== tk && e.ts >= tk.ts && e.ts + e.dur <= tk.ts + tk.dur && e.name !== 'RunTask') {
+        const k = e.name + (e.args?.data?.functionName ? `:${e.args.data.functionName}` : '') + (e.name === 'UpdateLayoutTree' ? `/${e.args?.elementCount}` : '');
+        parts.set(k, (parts.get(k) || 0) + e.dur);
+      }
+      console.log(`── task ${Math.round(tk.dur / 1000)}ms: ` + [...parts].sort((x, y) => y[1] - x[1]).slice(0, 9).map(([k, v]) => `${k} ${Math.round(v / 1000)}`).join(' · '));
+    }
     console.log(`── ${label}: main thread by step (inclusive)`); [...tot].sort((x, y) => y[1] - x[1]).slice(0, 24).forEach(([k, v]) => console.log(`  ${String(Math.round(v / 1000)).padStart(5)}ms  ${k}`));
   }
+  if (process.env.MUT) console.log('mutations', label, JSON.stringify(await p.evaluate(() => window.__mut)));
   if (process.env.ORBWHY) console.log('orbWhy', label, JSON.stringify(await p.evaluate(() => { const top = (o) => Object.entries(o || {}).sort((a, b) => b[1] - a[1]).slice(0, 10); const r = { by: top(window.__dirtyBy), why: top(window.__orbWhy) }; window.__orbWhy = {}; window.__dirtyBy = {}; return r; }), null, 1));
   const { f, lt, under, pops } = await p.evaluate(() => { window.__on = false; return { f: window.__f.slice(1), lt: window.__lt, under: window.__under, pops: window.__pops.slice() }; });
   const d = (k) => Math.round((z[k] - a[k]) * 1000);
