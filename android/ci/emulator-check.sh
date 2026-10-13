@@ -20,7 +20,7 @@ notes() { timeout 20 adb shell dumpsys notification --noredact > "shots/$1.txt";
 # 1. the signed app, Chrome's data, and the rest notification through Chrome
 adb install -r release/aven.apk
 adb shell pm grant app.aven.android android.permission.POST_NOTIFICATIONS
-adb shell 'echo "_ --disable-fre --no-default-browser-check --no-first-run --disable-gpu" > /data/local/tmp/chrome-command-line'
+adb shell 'echo "_ --disable-fre --no-default-browser-check --no-first-run" > /data/local/tmp/chrome-command-line'
 adb shell am set-debug-app --persistent com.android.chrome
 adb shell am force-stop com.android.chrome
 adb shell dumpsys package com.android.chrome | grep -m1 versionName
