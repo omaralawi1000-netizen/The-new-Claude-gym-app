@@ -1754,3 +1754,26 @@ Ember's field is warm again, the cards are see-through again, the week-strip `we
 switched off too (`data-glass` removed from index.html; the CSS stays dormant): his picture was the pre-glass app, and the
 glass tint resolved to Ember coral in other palettes (brown cards and a peach dock rim in teal). Everything shipped after it (v0.1.103's pop-up step-back and the camera fix) stays.
 Lesson: an opaque neutral card loses the glass Omar liked; "depth" has to come from the glass itself, not a solid block.
+
+## Smooth glows behind the frosted pop-ups: no more colour bands (13 Oct 2026)
+
+Omar (teal palette, dark): the soft glow seen through the Coach, Settings and Scan barcode sheets showed stepped rings with
+a coloured fringe ("chromatic aberration / colour banding, looks cheap"). Reproduced at his screen (384 x 832 at 3.75).
+- Cause: the phone keeps a blur's result in whole steps of colour (0-255). Behind a sheet the page is dimmed, so the glow
+  spans only a few dozen steps there, and the 44 px blur averages away the grain that hides the steps on the page. The
+  steps came back as rings, a little out of line for red, green and blue (saturate after the blur stretches them), so
+  they read as coloured bands. Measured on a test ramp: the blurred glow climbs in 1-1.7 level stairs.
+- Tried and not enough: noise drawn on the glass at full strength only blurs the rings' edges (it is added after the
+  rounding, so each stair stays a stair).
+- Fix, dark theme (light keeps its plain blur): the sheet blurs its backdrop at twice the brightness (`brightness(2)`
+  before the blur, so the blur's result keeps twice as many steps) and lets half as much of it through (the tint's alpha
+  goes up from .46 to .71, its colour worked out so the picture is the same: average colour within 0.2 of a level). On
+  the glass sits `--dither`, a one-screen-pixel noise in the glass's own alpha (black dots, 0-40 of 255, baked once at the
+  screen's pixel size in `lib/grain.ts`). It changes how much backdrop each pixel lets through, which is mixed in the
+  screen's final exact blend, so the last half-steps dissolve into noise about one level strong (finer than the page's
+  own grain). The test ramp is now smooth; the rings are gone even with the contrast raised 6x.
+- Cost: none per frame. The noise is part of the glass's own picture (painted once with it), the blur is the same blur,
+  and brightness is a colour step the blur applies as it reads the page.
+- Recipe for any other frosted layer (tab bar, Coach bar, rest bar): see "Dither" in styles.css.
+- Tools: `scripts/banding-shots.mjs` (Settings, Today, Coach, Scan at phone size, field held still) and
+  `scripts/banding-probe.mjs` (CSS variants on one open sheet).

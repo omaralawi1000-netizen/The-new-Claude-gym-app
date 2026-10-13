@@ -121,6 +121,10 @@ html:root[data-glow='off'] .look-pv i { display: none; }
   --hl: rgba(255, 255, 255, 0.2);
   --glass: rgba(24, 26, 38, 0.46); --glass-2: rgba(30, 32, 46, 0.62);
   --sheet-glass: rgba(26, 28, 42, 0.46); --sheet-solid: #15161f;
+  /* the sheet glass as drawn (see "Dither"): the same picture as --sheet-glass over a blur(44px) saturate(2) of the page */
+  --sheet-frost: brightness(2) blur(44px) saturate(2); --sheet-frost-short: brightness(2) blur(44px) saturate(2.1);
+  --sheet-tint: rgba(18.36, 19.77, 29.65, 0.707); --sheet-tint-short: rgba(16.61, 17.88, 26.83, 0.6721);
+  --dither: var(--dither-dark, none);
   --glass-blur: blur(30px) saturate(1.7);
   --dot: rgba(255, 255, 255, 0.11);
   --sh-c: 0 1px 1px rgba(0,0,0,.35), 0 8px 24px -12px rgba(0,0,0,.5);
@@ -140,6 +144,10 @@ html:root[data-glow='off'] .look-pv i { display: none; }
   --hl: rgba(255, 255, 255, 0.95);
   --glass: rgba(255, 255, 255, 0.5); --glass-2: rgba(255, 255, 255, 0.72);
   --sheet-glass: rgba(255, 255, 255, 0.58); --sheet-solid: #f9fafc;
+  /* light glass keeps its plain blur and tint: doubled, the bright page behind would clip to white */
+  --sheet-frost: blur(44px) saturate(2); --sheet-frost-short: blur(44px) saturate(2.1);
+  --sheet-tint: var(--sheet-glass); --sheet-tint-short: color-mix(in srgb, var(--sheet-glass) 86%, transparent);
+  --dither: none;
   --dot: rgba(20, 28, 48, 0.13);
   --sh-c: 0 1px 1px rgba(30,40,70,.06), 0 10px 26px -14px rgba(30,40,70,.28);
   --sh-a: 0 22px 44px -18px rgba(30,40,70,.3);
@@ -206,6 +214,22 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
 .fields > .aurora::after { content: none; }
 .fields::before { content: ''; position: absolute; inset: 0; z-index: 2147482999; pointer-events: none; opacity: calc(var(--grain) * 1.25); background-image: var(--grain-url, url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")); background-size: var(--grain-size, auto); }
 .aurora::after { content: ''; position: absolute; inset: 0; opacity: calc(var(--grain) * 1.25); /* the grain is what dithers the soft colour gradients; without it they band. No blend mode: 'overlay' made the browser blend a full-screen layer on every frame (the main cause of idle and scroll lag on the tab screens), and the colour field is its own transparent group, so overlay showed the same as a plain layer anyway (measured: within 2 of 255 levels) */ background-image: var(--grain-url, url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")); background-size: var(--grain-size, auto); }
+/* Dither: why soft glows banded behind frosted glass, and the recipe that keeps them smooth (any blurred layer can use it).
+   The phone keeps a blur's result in whole steps of colour (0-255). Behind a sheet the page is dimmed, so a glow there
+   spans only a few dozen steps, and the grain that hides them on the page is averaged away by the blur: the glow came back
+   as rings, a little different for red, green and blue, so they read as coloured bands. Two parts fix it:
+   1. Blur the backdrop at twice its brightness (`brightness(2)` BEFORE the blur), so the blur keeps twice as many steps,
+      and let half as much of it through the glass (the tint's alpha goes up, its colour is worked out so the result is
+      the same picture). Dark only: a light page doubled would clip to white.
+   2. Draw --dither with the tint: one-screen-pixel noise in the tint's alpha (lib/grain.ts installDither). It is mixed
+      with the blurred backdrop in that blend, at full precision, so what is left of each step dissolves into noise
+      about one level strong, finer than the page's own grain. It must sit in the layer drawn straight over the blur
+      (noise drawn any later lands on colours already rounded and only blurs the rings' edges), and in a layer of its
+      own, not in the blurring one (a picture there costs an extra full-screen pass per frame).
+   Recipe for a frosted layer with alpha a and colour c over `blur(r) saturate(s)`, dark theme, the dither's mean m = 0.0784:
+   blurring layer: backdrop-filter: brightness(2) blur(r) saturate(s), no background; a layer of its own right over it:
+   background: var(--dither), rgba(c * a / (1 - m) / a', a') with a' = 1 - (1 - a) / (2 * (1 - m)), image-rendering:
+   pixelated. (--sheet-tint is that, worked out for the sheets; .sheet::before/::after are the example.) */
 /* The workout window's colour field: ONE layer (three gradients) instead of three big layers + blend + mask, so it
    costs a single cheap raster when the window opens; it still drifts slowly. Same lights as .aurora, same positions. */
 .aurora-lite { position: absolute; inset: 0; overflow: hidden; pointer-events: none; container-type: size; }
@@ -599,26 +623,33 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .sheet {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; max-height: calc(100dvh - var(--sat) - 46px); display: flex; flex-direction: column;
   border-radius: var(--r-xl) var(--r-xl) 0 0; will-change: transform;
+  box-shadow: var(--sh-f); /* the drop shadow is the sheet's own (painted with its content): on the dithered tint layer it
+  doubled that layer's cost per frame (measured) */
 }
 /* The glass is a layer of its own UNDER the content (not the sheet itself). A blur on the sheet itself made the sheet a
    closed world for any blur inside it: the floating buttons' glass could only see the sheet's own see-through content, so
    rows under a button stayed sharp. With the glass as a layer, a button's blur sees the real picture and frosts it.
    Same single 44 px blur as before, so it costs the same. */
-.sheet::before {
-  content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none;
-  /* see-through frost: the page's colour glows through, but a 44 px blur leaves nothing behind sharp enough to read */
-  background: var(--sheet-glass); -webkit-backdrop-filter: blur(44px) saturate(2); backdrop-filter: blur(44px) saturate(2);
-  box-shadow: inset 0 1px 0 var(--hl), inset 0 0 0 1px var(--line), var(--sh-f);
+.sheet::before, .sheet::after { content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none; }
+/* see-through frost: the page's colour glows through, but a 44 px blur leaves nothing behind sharp enough to read.
+   The blur (::before) and the glass's tint (::after, over it) are two layers: the tint carries the dither (see "Dither"),
+   and a picture inside a blurring layer costs the phone an extra full-screen pass every frame the sheet moves (measured:
+   frame rate halved), while a plain layer over it is a single draw. Without the dither (light) the tint is one colour. */
+.sheet::before { -webkit-backdrop-filter: var(--sheet-frost); backdrop-filter: var(--sheet-frost); }
+.sheet::after {
+  background: var(--dither), var(--sheet-tint); image-rendering: pixelated;
+  box-shadow: inset 0 1px 0 var(--hl), inset 0 0 0 1px var(--line);
   transition: background-color 260ms var(--ease-out);
 }
 /* The glass reaches on below the sheet's bottom edge (off screen at rest). With the keyboard up, the sheet and the keyboard
    never quite move in lockstep (the phone reports the keyboard once and animates it on its own), and the page used to
    peek through the gap between them; now that gap is the same glass. A floating card (small) keeps its own shape. */
-.sheet:not(.sz-small)::before { bottom: -60vh; }
-.sheet[data-size='short']::before { background: color-mix(in srgb, var(--sheet-glass) 86%, transparent); -webkit-backdrop-filter: blur(44px) saturate(2.1); backdrop-filter: blur(44px) saturate(2.1); }
+.sheet:not(.sz-small)::before, .sheet:not(.sz-small)::after { bottom: -60vh; }
+.sheet[data-size='short']::before { -webkit-backdrop-filter: var(--sheet-frost-short); backdrop-filter: var(--sheet-frost-short); }
+.sheet[data-size='short']::after { background-color: var(--sheet-tint-short); }
 .sheet.tall { height: calc(100dvh - var(--sat) - 46px); }
 /* stepped back behind another sheet (data-stacked, Sheet.tsx markStacked): no drop shadow; narrower, it showed beside it. */
-.sheet[data-stacked]::before { box-shadow: inset 0 1px 0 var(--hl), inset 0 0 0 1px var(--line); }
+.sheet[data-stacked] { box-shadow: none; }
 /* The browser rounds what is inside a scrolling list to whole screen pixels, so while its sheet is scaled a list ticked
    along a pixel at a time against it. A turn of 0.0001° stops the rounding, only while stepped back ([data-stacked]): it
    goes the moment the sheet is back to full size, mid-slide, so the list's own rounding never changes at rest. It is its
@@ -630,13 +661,13 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    (black tiles). The glass turns solid over a moment, then the blur is dropped once nothing can be seen through it (an
    instant swap flashed); coming back up, the blur is there at once and the solid fades away. */
 .sheet.behind.deep::before { -webkit-backdrop-filter: none; backdrop-filter: none;
-  transition: background-color 260ms var(--ease-out), -webkit-backdrop-filter 0s linear 280ms, backdrop-filter 0s linear 280ms; transition-behavior: allow-discrete; }
+  transition: -webkit-backdrop-filter 0s linear 280ms, backdrop-filter 0s linear 280ms; transition-behavior: allow-discrete; }
 /* Inside a sheet everything sits on glass that is already blurred: a second blur on each button, switch and chip only repeats
    it (the same pixels) but makes the browser run one more full pass per element for every frame the sheet moves or scrolls. */
 .sheet :is(.btn, .icon-btn, .seg, .chip, .plinth, .plinth-2, .input, .field input), .sheet-page :is(.btn, .icon-btn, .seg, .chip) { -webkit-backdrop-filter: none; backdrop-filter: none; }
 /* …and without its frost it must not turn see-through (it looked like it was dissolving): it becomes the same glass laid
    over the plain background instead — solid, and under the dim it reads as a card set back. */
-.sheet.behind.deep::before, .sheet.behind.deep[data-size='short']::before { background: var(--sheet-solid); }
+.sheet.behind.deep::after, .sheet.behind.deep[data-size='short']::after { background-color: var(--sheet-solid); background-image: none; }
 /* A sheet's content sits in a pane, so it can step aside when a page opens inside the same sheet (Sheet.tsx, PageSheet). The
    page is laid exactly over it, below the grab handle, on the sheet's own glass. */
 .sheet-pane { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
