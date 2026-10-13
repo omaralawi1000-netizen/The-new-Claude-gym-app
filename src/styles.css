@@ -468,6 +468,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .input-unit { position: relative; }
 .input-unit.has-unit .input { padding-right: 52px; }
 .input.compact { text-align: center; padding: 0 4px; min-height: 46px; font-weight: 600; font-size: 16px; }
+.input.compact:focus::placeholder { color: transparent; } /* the "—" of an empty field and the cursor read as a "+" */
 .input-unit .unit { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: var(--tx3); font-size: 13px; font-weight: 600; pointer-events: none; }
 
 /* list rows: hairlines, no cards */
@@ -779,8 +780,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* The workout bar: the workout's own dock, exactly where the tab bar sits. While resting, its fill grows with the rest
    (a transform, re-aimed four times a second with a matching linear transition, so it moves continuously); at the end it
    turns green with one soft glow and stays green until the next set is ticked. It slides away while you type. */
-.wk-bar-wrap { position: absolute; left: 0; right: 0; bottom: calc(var(--sab) + 14px); padding: 0 16px; display: flex; flex-direction: column; align-items: center; z-index: 5; pointer-events: none; transition: transform 340ms var(--ease-out); }
-.wk-bar-wrap.away { transform: translateY(calc(100% + var(--sab) + 40px)); }
+.wk-bar-wrap { position: absolute; left: 0; right: 0; bottom: calc(var(--sab) + 14px); padding: 0 16px; display: flex; flex-direction: column; align-items: center; z-index: 5; pointer-events: none; }
 .wk-bar { pointer-events: auto; position: relative; width: 100%; max-width: 420px; height: 60px; border-radius: 999px; display: flex; align-items: center; gap: 8px; padding: 0 7px 0 22px; }
 /* The frost, its tint and rim are a layer of their own under the words, the fill and the orb's button: none of them sits inside
    the blurred element (it made Chrome skip the frost under the orb, a darker square on the phone). The fill is clipped by its
@@ -935,9 +935,11 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* the live workout while minimised: kept (so it reopens at once), moved far below the screen — off-screen it isn't drawn
    and can't be tapped. A translate restyles one element; `visibility: hidden` restyled all ~800 inside it on every Resume. */
 .wk-off { translate: 0 calc(200vh + 400px); }
+/* overflow: clip, not hidden: a hidden box can still be scrolled by the browser, and with the keyboard coming up Chrome
+   scrolled the whole window up to show the field (the header slid under the top edge) */
 /* the live workout's window (Apple Music's player is a sheet, Active.tsx): full height, rounded top corners, its own solid colour
    with the area's light in it. It rises from the resume bar and firms up as it goes; nothing on it is blurred or clipped. */
-.wk-sheet { position: absolute; inset: 0; overflow: hidden; border-radius: var(--wk-r) var(--wk-r) 0 0; will-change: transform, opacity;
+.wk-sheet { position: absolute; inset: 0; overflow: clip; border-radius: var(--wk-r) var(--wk-r) 0 0; will-change: transform, opacity;
   box-shadow: 0 -10px 40px -14px rgba(0,0,0,.55); }
 /* the window's top rim: only a strip along the top (it lay over the whole window, so every animation under it gave it a
    layer and took it away again, once a second during a rest), kept on a layer of its own */

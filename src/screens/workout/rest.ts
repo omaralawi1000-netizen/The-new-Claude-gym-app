@@ -36,6 +36,13 @@ export function nextSetText(a: WorkoutSession | null | undefined): string {
 // One shared audio output, woken by a tap (ticking a set): phones only allow sound that a touch started, and a new
 // AudioContext made when the timer ran out — the old way — was often silent.
 let ctx: AudioContext | null = null;
+/** Made ahead, when the phone is idle (making one is slow, and it used to be made by the first tick, right on the tap):
+ *  it waits silent until a tap wakes it. */
+export function prepareRestAudio() {
+  if (ctx) return;
+  const make = () => { try { ctx ??= new (window.AudioContext || (window as any).webkitAudioContext)(); } catch { /* no audio */ } };
+  if (typeof requestIdleCallback === 'function') requestIdleCallback(make, { timeout: 4000 }); else setTimeout(make, 1500);
+}
 export function unlockRestAudio() {
   try {
     ctx ??= new (window.AudioContext || (window as any).webkitAudioContext)();
