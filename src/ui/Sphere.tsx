@@ -452,9 +452,13 @@ export function SphereStage() {
       for (const sl of list) {
         const leaving = isLeaving(sl);
         const mine = handoff?.el === sl.el;
-        // a pop-up that has handed the orb over to the one arriving no longer pulls it back on its way out
-        if (leaving && !mine && (handoff || gaveUp.has(sl.el))) { gaveUp.add(sl.el); continue; }
         const e = sl.engage ? Math.min(1, Math.max(0, sl.engage.e.get())) : 1;
+        // a pop-up that has handed the orb over to the one arriving no longer pulls it back on its way out. Only while it is
+        // on screen and only for that one exit: the live workout's window waits off screen, built but not open, and was
+        // marked here by any hand-over happening meanwhile (the orb screen to the Coach); for good, so on every minimise
+        // after that the orb dropped under the falling window and was gone until the dock came up.
+        if (!leaving) gaveUp.delete(sl.el);
+        else if (!mine && (gaveUp.has(sl.el) || (handoff && e > 0.001))) { gaveUp.add(sl.el); continue; }
         if (have && e <= 0.001 && !mine) continue;
         const r = rects.get(sl.el);
         if (!r) { dirty(); continue; }
