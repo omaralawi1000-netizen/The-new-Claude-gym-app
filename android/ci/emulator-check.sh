@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # The Android emulator check in CI (.github/workflows/android.yml). Screenshots go to shots/ (and the android-shots branch).
-# The emulator tends to die about 10 s after Chrome draws the app full screen (its graphics), so the order is:
+# Order:
 #  1. the debug build's demo trigger (no Chrome needed), a first look at the countdown
-#  2. the signed app: opened only briefly, so Chrome learns the app belongs to the site; then, from Chrome, the
-#     website's rest notification must come out as the app's own live countdown (shade light/dark, lock screen,
-#     ticking), ring "Time for set 2" at the end, and go away when the website takes it back
-#  3. last: the app sees the data saved in Chrome (the step that may take the emulator down)
+#  2. the signed app: the website in it shows its rest notification, which must come out as the app's own live
+#     countdown (shade light/dark, lock screen, ticking), ring "Time for set 2" at the end, and go away when the
+#     website takes it back
+#  3. the app sees the data saved in Chrome
+# The emulator runs with ANGLE graphics (-gpu swangle_indirect): with SwiftShader it died soon after Chrome drew the app.
 # The screen is set to a phone-like size first so the pictures compare with a real phone's.
 set -x
 SITE=https://omaralawi1000-netizen.github.io/The-new-Claude-gym-app/
@@ -40,15 +41,12 @@ adb shell dumpsys package com.android.chrome | grep -m1 versionName
 tab 15
 adb exec-out screencap -p > shots/5-chrome.png
 cdp set
-# the app, briefly: Chrome checks it against the site and remembers it as the site's app
+# the app; the website in it shows the rest notification (as it does the moment you leave mid-rest), then you leave
 adb shell am start -n app.aven.android/com.google.androidbrowserhelper.trusted.LauncherActivity
-sleep 4
+sleep 6
 timeout 10 adb exec-out screencap -p > shots/6-app.png
-timeout 10 adb shell input keyevent KEYCODE_HOME
-sleep 2
-adb get-state
-# the app's page stays open behind the home screen; the website there shows the rest notification, as mid-rest
 cdp rest 95 | tee shots/rest-real.txt
+timeout 10 adb shell input keyevent KEYCODE_HOME
 sleep 4
 notes real-countdown
 shade 1-real-shade
@@ -70,12 +68,18 @@ adb shell wm dismiss-keyguard
 adb shell locksettings set-disabled true
 sleep 1
 # the end of a rest: the countdown goes, the alert rings
+adb shell am start -n app.aven.android/com.google.androidbrowserhelper.trusted.LauncherActivity
+sleep 3
 cdp rest 6 60 | tee -a shots/rest-real.txt
+timeout 10 adb shell input keyevent KEYCODE_HOME
 sleep 10
 notes real-over
 shade 4-real-rest-over
 # back in the app: the website takes its notification away, and the alert goes with it
+adb shell am start -n app.aven.android/com.google.androidbrowserhelper.trusted.LauncherActivity
+sleep 3
 cdp clear | tee -a shots/rest-real.txt
+timeout 10 adb shell input keyevent KEYCODE_HOME
 sleep 3
 notes real-after-clear
 grep -c "pkg=app.aven.android" shots/real-after-clear.txt | sed 's/^/aven notifications left after clear: /' | tee -a shots/rest-real.txt

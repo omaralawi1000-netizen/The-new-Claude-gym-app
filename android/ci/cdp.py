@@ -43,11 +43,13 @@ def wait_page():
     sys.exit('no Aven page found')
 
 
-REST = """(async () => {
+REST = """Promise.race([new Promise((ok) => setTimeout(() => ok('timed out at: ' + window.__step), 25000)), (async () => {
+  window.__step = 'register';
   const scope = '/The-new-Claude-gym-app-rest/';
   const reg = await navigator.serviceWorker.register(scope + 'sw.js', { scope });
   for (let i = 0; i < 50 && !reg.active; i++) await new Promise((r) => setTimeout(r, 200));
   if (!reg.active) return 'no active rest worker';
+  window.__step = 'show (permission ' + Notification.permission + ')';
   const now = Date.now(), endsAt = now + %d * 1000, s = now - %d * 1000;
   const words = { v: 1, s, x: 'Incline Smith Machine Press', l: 'Set 2 of 3 · 60 kg × 8', o: 'Time for set 2',
     b: 'Incline Smith Machine Press · 60 kg × 8', p: '+30 s', k: 'Skip' };
@@ -58,7 +60,7 @@ REST = """(async () => {
     data: { kind: 'aven-native', key: 'ci:' + s, endsAt },
   });
   return 'shown, permission ' + Notification.permission + ', ' + (await reg.getNotifications()).length + ' in Chrome';
-})()"""
+})().catch((e) => 'error at ' + window.__step + ': ' + e)])"""
 
 CLEAR = """(async () => {
   const reg = await navigator.serviceWorker.getRegistration('/The-new-Claude-gym-app-rest/');
