@@ -113,13 +113,32 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       if (!following.current || el.scrollHeight - el.clientHeight - el.scrollTop <= 1) return;
       const reduce = document.documentElement.dataset.motion === 'reduce' || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       scrolling.current = !reduce;
+      // While an answer writes itself in, the list grows a line at a time. A browser smooth-scroll restarts on every
+      // growth and trails behind it, so the newest lines sat under the composer. Follow them with a short glide instead,
+      // one that always closes on the end of the list (re-aimed every frame, so it never falls behind).
+      if (!reduce && el.querySelector('.caret')) { glide(); return; }
       el.scrollTo({ top: el.scrollHeight, behavior: reduce ? 'instant' : 'smooth' });
     });
+    let raf = 0, last = 0;
+    const glide = () => {
+      if (raf) return;
+      last = performance.now();
+      const step = (now: number) => {
+        const gap = el.scrollHeight - el.clientHeight - el.scrollTop;
+        if (!following.current && !scrolling.current) { raf = 0; return; }
+        if (gap <= 0.5) { raf = 0; scrolling.current = false; following.current = true; return; }
+        const dt = Math.min(48, now - last); last = now;
+        el.scrollTop += Math.max(gap * (1 - Math.exp(-dt / 45)), Math.min(gap, 0.4));
+        lastScroll.current = el.scrollTop;
+        raf = requestAnimationFrame(step);
+      };
+      raf = requestAnimationFrame(step);
+    };
     ro.observe(el);
-    const thread = el.querySelector('.coach-thread'); if (thread) ro.observe(thread);
+    const thread = el.querySelector<HTMLElement>('.coach-thread'); if (thread) ro.observe(thread);
     const settled = () => { if (el.scrollHeight - el.clientHeight - el.scrollTop < 80) { scrolling.current = false; following.current = true; } };
     el.addEventListener('scrollend', settled);
-    return () => { ro.disconnect(); el.removeEventListener('scrollend', settled); };
+    return () => { ro.disconnect(); cancelAnimationFrame(raf); el.removeEventListener('scrollend', settled); };
   }, []);
   // A typed message lifts out of the field and glides up into its bubble, like a sent iMessage, while the conversation moves
   // up to make room on the same spring. A copy of the bubble flies above everything (the list clips its own contents), from
