@@ -501,10 +501,10 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
   background: var(--mat-rim);
   -webkit-mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
 }
-/* round buttons are small: a slightly brighter rim and a firmer lift so they read as the same glass at phone size */
-:root[data-glass='v2'] .icon-btn:not(.flat, .acc, .speak-btn)::after { padding: 1.5px; }
+/* round buttons are small: a firmer lift so they read as the same glass at phone size (the rim stays the same 1 px as
+   everything else, a thicker one made them the loudest thing in their row) */
 :root[data-glass='v2'] .icon-btn:not(.flat, .acc, .speak-btn) { box-shadow: var(--mat-depth), 0 7px 16px -7px rgba(0, 0, 0, 0.7); }
-:root[data-glass='v2'][data-theme='light'] .icon-btn:not(.flat, .acc, .speak-btn) { box-shadow: var(--mat-depth), 0 7px 16px -8px rgba(30, 40, 70, 0.3); }
+:root[data-glass='v2'][data-theme='light'] .icon-btn:not(.flat, .acc, .speak-btn) { box-shadow: var(--mat-depth), 0 7px 16px -8px rgba(30, 40, 70, 0.2); }
 /* a sideways row of chips scrolls, so it clips: room underneath lets their shadows fall softly instead of being cut */
 :root[data-glass='v2'] .chips { padding-bottom: 26px; margin-bottom: -26px; }
 /* the dock: the same top edge of light along its rim, and the same lift */
