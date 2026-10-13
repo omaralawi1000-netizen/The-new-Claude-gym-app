@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { LargeTitle, TopBar } from '../ui/TopBar';
 import { exerciseMap } from '../state/store';
 import { useScreenStore } from '../lib/hooks';
 import { useUI } from '../state/ui';
@@ -78,8 +79,10 @@ export function ProgressScreen() {
   const wLabel = (d: string) => fmtDate(d, lang, { day: 'numeric', month: 'short' });
 
   return (
-    <div className="screen">
+    <>
+    <div className="screen" data-tb>
       <header>
+        <LargeTitle><h1 className="display display-lg" style={{ margin: '6px 0 18px', fontStyle: 'italic' }}>{t('Progress')}</h1></LargeTitle>
         <Seg value={range} onChange={setRange} options={[{ value: '4w', label: t('4 weeks') }, { value: '12w', label: t('12 weeks') }, { value: '6m', label: t('6 months') }, { value: 'all', label: t('All') }]} />
       </header>
 
@@ -164,5 +167,7 @@ export function ProgressScreen() {
       )}
       </>}
     </div>
+    <TopBar title={t('Progress')} />
+    </>
   );
 }

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { LargeTitle, TopBar } from '../ui/TopBar';
 import { resumeWorkout } from '../ui/workoutOpen';
 import { motion } from 'motion/react';
 import { exerciseMap, allExercises, plannedFor, missedWorkouts } from '../state/store';
@@ -25,8 +26,10 @@ export function TrainScreen() {
   const tab = useUI((u) => u.trainTab);
   const setTab = useUI((u) => u.setTrainTab);
   return (
-    <div className="screen">
+    <>
+    <div className="screen" data-tb>
       <header>
+        <LargeTitle><h1 className="display display-lg" style={{ margin: '6px 0 18px', fontStyle: 'italic' }}>{t('Train')}</h1></LargeTitle>
         <Seg value={tab} onChange={setTab} options={[{ value: 'plan', label: t('Plan') }, { value: 'library', label: t('Library') }, { value: 'history', label: t('History') }]} />
       </header>
       <Subpage id={tab}>
@@ -35,6 +38,8 @@ export function TrainScreen() {
         {tab === 'history' && <HistoryTab />}
       </Subpage>
     </div>
+    <TopBar title={t('Train')} />
+    </>
   );
 }
 

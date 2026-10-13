@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { LargeTitle, TopBar } from '../ui/TopBar';
 import { resumeWorkout } from '../ui/workoutOpen';
 import { motion } from 'motion/react';
 import { useStore, plannedFor, missedWorkouts, foodPool, exerciseMap } from '../state/store';
@@ -137,13 +138,17 @@ export function TodayScreen() {
   }, [last, s.sessions]);
 
   return (
-    <div className="screen">
-      <header className="row-flex between">
-        <div className="small t2">{fmtDate(today, lang, { weekday: 'long', day: 'numeric', month: 'short' })}{settings.name ? <span className="t3"> · {settings.name}</span> : null}</div>
-        <div className="row-flex" style={{ gap: 8 }}>
-          <button className="icon-btn press" aria-label={t('Coach')} onClick={() => push('coach')}><Icon name="sparkle" /></button>
-          <button className="icon-btn press" aria-label={t('Settings')} onClick={() => push('settings')}><Icon name="settings" /></button>
+    <>
+    <div className="screen" data-tb>
+      <header>
+        <div className="row-flex between">
+          <div className="small t2">{fmtDate(today, lang, { weekday: 'long', day: 'numeric', month: 'short' })}{settings.name ? <span className="t3"> · {settings.name}</span> : null}</div>
+          <div className="row-flex" style={{ gap: 8 }}>
+            <button className="icon-btn press" aria-label={t('Coach')} onClick={() => push('coach')}><Icon name="sparkle" /></button>
+            <button className="icon-btn press" aria-label={t('Settings')} onClick={() => push('settings')}><Icon name="settings" /></button>
+          </div>
         </div>
+        <LargeTitle><h1 className="display display-lg" style={{ margin: '10px 0 0', fontStyle: 'italic' }}>{t('Today')}</h1></LargeTitle>
       </header>
 
       {/* what the Coach noticed: a reminder, a smart change, something in the app */}
@@ -300,6 +305,8 @@ export function TodayScreen() {
       )}
 
     </div>
+    <TopBar title={t('Today')} />
+    </>
   );
 }
 

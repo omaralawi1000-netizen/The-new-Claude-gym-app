@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { TopBar } from '../ui/TopBar';
 import { flushSync } from 'react-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import { useStore } from '../state/store';
@@ -75,7 +76,8 @@ export function FoodScreen() {
   const add = (mealId: string) => push('foodSearch', { date, mealId });
 
   return (
-    <div className="screen" ref={screen}>
+    <>
+    <div className="screen" data-tb ref={screen}>
       <header>
         <div className="row-flex between">
           <div className="row-flex" style={{ gap: 4 }}>
@@ -88,7 +90,7 @@ export function FoodScreen() {
             <button className="icon-btn press" aria-label={t('Day options')} onClick={() => push('entryMenu', { kind: 'day', date })}><Icon name="more" /></button>
           </div>
         </div>
-        <div style={{ marginTop: 16 }}>
+        <div className="large-title" style={{ marginTop: 16 }}>
           <AnimatePresence mode="popLayout" initial={false}>
             <motion.h1 key={date} className="display display-lg" style={{ margin: 0, fontStyle: 'italic' }} initial={{ y: 14 }} animate={{ y: 0 }} exit={{ opacity: 0, y: -14 }} transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1] }}>
               <SoftText text={rel ?? fmtDate(date, lang, { day: 'numeric', month: 'long' })} />
@@ -154,5 +156,7 @@ export function FoodScreen() {
       <WeekStrip date={date} onPick={(d) => setFoodDate(d === today ? null : d)} />
       </Subpage>
     </div>
+    <TopBar title={rel ?? fmtDate(date, lang, { day: 'numeric', month: 'long' })} />
+    </>
   );
 }
