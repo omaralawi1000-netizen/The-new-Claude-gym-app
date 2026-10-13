@@ -84,6 +84,8 @@ function useTheme() {
   }, [motionPref]);
   const palette = useStore((x) => x.settings.palette);
   useLayoutEffect(() => { document.documentElement.dataset.palette = palette; }, [palette]);
+  const glow = useStore((x) => x.settings.glow ?? 'full');
+  useLayoutEffect(() => { document.documentElement.dataset.glow = glow; }, [glow]);
   useEffect(() => { document.documentElement.lang = lang; }, [lang]);
 }
 

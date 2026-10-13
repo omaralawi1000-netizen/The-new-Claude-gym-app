@@ -66,13 +66,25 @@ function FpsField() {
   );
 }
 
-const PALETTES: { id: Settings['palette']; name: string; c: [string, string, string] }[] = [
-  { id: 'ember', name: 'Ember', c: ['#ff7a59', '#7c5cff', '#ff7a59'] },
-  { id: 'aurora', name: 'Aurora', c: ['#3de0c8', '#6a5cff', '#c25cff'] },
-  { id: 'mono', name: 'Mono', c: ['#ff7a59', '#9094a8', '#5b6070'] },
-  { id: 'sunset', name: 'Sunset', c: ['#ff6b9d', '#ff4f7b', '#ff9a4d'] },
-  { id: 'forest', name: 'Forest', c: ['#b6f25a', '#1f9d6a', '#2fd0a0'] },
+// Each look's Today light (styles.css), so its card can show a small Today screen in those colours
+const PALETTES: { id: Settings['palette']; name: string; ac: string; h1: string; h2: string; h3: string }[] = [
+  { id: 'ember', name: 'Ember', ac: '#ff7a59', h1: '#8a3fd1', h2: '#ff7a59', h3: '#ff9a3d' },
+  { id: 'aurora', name: 'Aurora', ac: '#3de0c8', h1: '#6a5cff', h2: '#3de0c8', h3: '#c25cff' },
+  { id: 'mono', name: 'Mono', ac: '#ff7a59', h1: '#9094a8', h2: '#5b6070', h3: '#b8bccb' },
+  { id: 'sunset', name: 'Sunset', ac: '#ff6b9d', h1: '#ff4f7b', h2: '#ff9a4d', h3: '#8a4bff' },
+  { id: 'forest', name: 'Forest', ac: '#b6f25a', h1: '#1f9d6a', h2: '#b6f25a', h3: '#2fd0a0' },
 ];
+/** A tiny Today screen in one look's colours: its light, the ring, a workout card with the play button, the dock. */
+function LookPreview({ p }: { p: (typeof PALETTES)[number] }) {
+  return (
+    <div className="look-pv" aria-hidden style={{ ['--p-ac' as string]: p.ac, ['--p-h1' as string]: p.h1, ['--p-h2' as string]: p.h2, ['--p-h3' as string]: p.h3 }}>
+      <i /><i />
+      <span className="lp-ring" />
+      <span className="lp-card"><em /><b /></span>
+      <span className="lp-dock"><b /></span>
+    </div>
+  );
+}
 
 /**
  * Settings → Today: what the Today screen shows. Under the ring: switches. The cards below the workout: a list you can
@@ -204,6 +216,7 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
                 <Field label={t('Default rest between sets')}><div><Stepper compact label={t('Default rest between sets')} value={st.restDefaultSec} min={15} max={600} step={15} fmt={(v) => fmtDuration(v)} onChange={(v) => set({ restDefaultSec: v })} /></div></Field>
                 <Field label={t('Effort tracking')}><Seg value={st.effort} onChange={(v) => set({ effort: v })} options={[{ value: 'off', label: t('Off') }, { value: 'rpe', label: 'RPE' }, { value: 'rir', label: 'RIR' }]} /></Field>
                 <Field label={t('Smallest weight jump')}><div className="chips" style={{ margin: 0, padding: 0 }}>{[1, 1.25, 2.5, 5].map((v) => <button key={v} className={`chip press ${st.plateStep === v ? 'on' : ''}`} onClick={() => set({ plateStep: v })}>{v} kg</button>)}</div></Field>
+                <Field label={t('Workout opens in')} hint={t('Focus shows one exercise at a time. Last used remembers how you left it.')}><Seg value={st.workoutView ?? 'last'} onChange={(v) => set({ workoutView: v })} options={[{ value: 'last', label: t('Last used') }, { value: 'list', label: t('List') }, { value: 'focus', label: t('Focus') }]} /></Field>
                 <ToggleRow label={t('Rest-timer sound')} on={st.sound} onChange={(v) => set({ sound: v })} />
                 <RestAlertRow />
                 <ToggleRow label={t('Haptic feedback')} on={st.haptics} onChange={(v) => set({ haptics: v })} />
@@ -227,12 +240,13 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
                   <div className="pal" role="radiogroup" aria-label={t('Colours')}>
                     {PALETTES.map((p) => (
                       <button key={p.id} role="radio" aria-checked={st.palette === p.id} className={`pal-card press ${st.palette === p.id ? 'on' : ''}`} onClick={() => { haptic('select'); set({ palette: p.id }); }}>
-                        <div className="pal-sw" style={{ ['--p0' as string]: p.c[0], ['--p1' as string]: p.c[1], ['--p2' as string]: p.c[2] }}><i /><i /><b /></div>
+                        <LookPreview p={p} />
                         <div className="small" style={{ marginTop: 8, fontWeight: 600 }}>{t(p.name)}</div>
                       </button>
                     ))}
                   </div>
                 </Field>
+                <Field label={t('Background glow')} hint={t('The soft colour light behind the app. Off saves battery.')}><Seg value={st.glow ?? 'full'} onChange={(v) => set({ glow: v })} options={[{ value: 'full', label: t('Full') }, { value: 'soft', label: t('Soft') }, { value: 'off', label: t('Off') }]} /></Field>
                 <Field label={t('Theme')}><Seg value={st.theme} onChange={(v) => set({ theme: v })} options={[{ value: 'system', label: t('System') }, { value: 'light', label: t('Light') }, { value: 'dark', label: t('Dark') }]} /></Field>
                 <Field label={t('Motion')}><Seg value={st.motion} onChange={(v) => set({ motion: v })} options={[{ value: 'system', label: t('System') }, { value: 'full', label: t('Full') }, { value: 'reduce', label: t('Reduced') }]} /></Field>
                 <HrrField />

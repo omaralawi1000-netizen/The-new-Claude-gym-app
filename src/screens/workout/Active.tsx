@@ -118,7 +118,11 @@ export function ActiveWorkout({ props, open = true }: { props: { origin?: 'hero'
   const [renaming, setRenaming] = useState(false);
   // List or Focus (one exercise per page, Focus.tsx). Remembered on this phone. Focus is built when you go to it and kept
   // until it has faded out, so leaving it is the same calm crossfade as arriving.
-  const [view, setView] = useState<'list' | 'focus'>(() => { try { return localStorage.getItem('aven.wkView') === 'focus' ? 'focus' : 'list'; } catch { return 'list'; } });
+  const [view, setView] = useState<'list' | 'focus'>(() => {
+    const pick = useStore.getState().settings.workoutView; // Settings → Training: always List, always Focus, or the last one used
+    if (pick === 'list' || pick === 'focus') return pick;
+    try { return localStorage.getItem('aven.wkView') === 'focus' ? 'focus' : 'list'; } catch { return 'list'; }
+  });
   const [focusBuilt, setFocusBuilt] = useState(view === 'focus');
   const [focusIn, setFocusIn] = useState(view === 'focus');
   const focusApi = useRef<FocusApi | null>(null);

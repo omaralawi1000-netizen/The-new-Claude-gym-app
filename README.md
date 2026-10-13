@@ -1103,3 +1103,10 @@ Omar said the colours felt "kind of off". Three Ember colours came from outside 
 - **Mono** keeps its grey light but has one clear colour, Aven's coral, for the next thing to do (play button, Finish, ticks) and the worked muscles. Before, everything was white on grey and nothing stood out. Its settings swatch shows the coral dot.
 
 Mono's macro colours were meant to be greys, but that rule has never won against the dark theme's, so Mono has always shown coloured macros. Left as is: nobody has asked for grey macros.
+
+## The Look page: see a look before you pick it (13 Oct 2026, v0.1.41)
+
+Settings additions, chosen by the coordinator from the customization shortlist (Omar delegated the pick):
+- **Colours as small screens.** Each look in Settings → Appearance is a tiny still Today screen in its own light: the field, the calorie ring, a workout card with its play button, and the dock. The cards follow Theme and Background glow, so what you see is what you get. Picking one still applies at once.
+- **Background glow: Full / Soft / Off** (`settings.glow`, set as `data-glow` on the page). Soft lowers the colour field's strength (`--aurora-a` 0.28). Off removes the field layers entirely (`display: none`), so nothing drifts behind the app and the GPU has less to draw. Missing means Full.
+- **Workout opens in: Last used / List / Focus** (Settings → Training, `settings.workoutView`). Last used is the old behaviour and the default: the view you left is remembered on this phone. List or Focus always opens that view; switching inside a workout still works.

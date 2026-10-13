@@ -64,6 +64,10 @@ html:root[data-palette='ember'][data-theme='light'] { --c-carbs: #7a45d0; }
 :root[data-palette='mono'] [data-hue='progress'] { --ac: #ff7a59; --h1: #b0b4c4; --h2: #555a6a; --h3: #8e93a6; }
 :root[data-palette='mono'] { --c-protein: #e9eaf0; --c-carbs: #9aa0b4; --c-fat: #6c7186; --c-water: #cfd3e0; }
 :root[data-palette='mono'] .aurora i { opacity: calc(var(--aurora-a) * 0.7); }
+/* Background glow (Settings → Appearance): Soft dims the colour light; Off removes it, so nothing drifts behind the app at all.
+   html:root so it outranks the themes' own --aurora-a. */
+html:root[data-glow='soft'] { --aurora-a: 0.28; }
+html:root[data-glow='off'] .aurora, html:root[data-glow='off'] .aurora-lite { display: none; }
 :root[data-palette='sunset'] [data-hue='today'] { --ac: #ff6b9d; --h1: #ff4f7b; --h2: #ff9a4d; --h3: #8a4bff; }
 :root[data-palette='sunset'] [data-hue='train'] { --ac: #ff8a4d; --h1: #ff5a36; --h2: #ff3d7f; --h3: #ffc04d; }
 :root[data-palette='sunset'] [data-hue='food'] { --ac: #ffc04d; --h1: #ff9a4d; --h2: #ff4f7b; --h3: #ffd86b; }
@@ -80,11 +84,21 @@ html:root[data-palette='ember'][data-theme='light'] { --c-carbs: #7a45d0; }
 .pal::-webkit-scrollbar { display: none; }
 .pal-card { flex: none; width: 112px; scroll-snap-align: start; text-align: left; border-radius: 20px; padding: 8px 8px 10px; background: var(--s1); box-shadow: inset 0 0 0 1px var(--line); transition: box-shadow .3s var(--ease-out), transform .3s var(--ease-out); }
 .pal-card.on { box-shadow: inset 0 0 0 2px var(--tx); }
-.pal-sw { position: relative; height: 64px; border-radius: 14px; overflow: hidden; background: var(--bg); }
-.pal-sw i { position: absolute; border-radius: 50%; }
-.pal-sw i:nth-child(1) { width: 90%; aspect-ratio: 1; left: -30%; top: -40%; background: radial-gradient(closest-side, var(--p1), transparent); }
-.pal-sw i:nth-child(2) { width: 80%; aspect-ratio: 1; right: -30%; top: 10%; background: radial-gradient(closest-side, var(--p2), transparent); }
-.pal-sw b { position: absolute; left: 10px; bottom: 9px; width: 16px; height: 16px; border-radius: 50%; background: var(--p0); box-shadow: 0 0 14px var(--p0); }
+/* Look previews: a tiny still Today screen per look, in its own light (follows Theme and Background glow) */
+.look-pv { position: relative; height: 150px; border-radius: 14px; overflow: hidden; background: var(--bg); }
+.look-pv i { position: absolute; border-radius: 50%; opacity: var(--aurora-a); }
+.look-pv i:nth-child(1) { width: 130%; aspect-ratio: 1; left: -55%; top: -45%; background: radial-gradient(closest-side, var(--p-h1), transparent); }
+.look-pv i:nth-child(2) { width: 120%; aspect-ratio: 1; right: -60%; top: 12%; background: radial-gradient(closest-side, var(--p-h2), transparent); }
+html:root[data-glow='off'] .look-pv i { display: none; }
+.look-pv .lp-ring { position: absolute; left: 50%; top: 16px; width: 50px; height: 50px; margin-left: -25px; border-radius: 50%;
+  background: conic-gradient(var(--p-ac) 0 68%, color-mix(in srgb, var(--tx) 13%, transparent) 0);
+  -webkit-mask: radial-gradient(closest-side, transparent 76%, #000 79%); mask: radial-gradient(closest-side, transparent 76%, #000 79%); }
+.look-pv .lp-card { position: absolute; left: 8px; right: 8px; bottom: 34px; height: 36px; border-radius: 10px; background: var(--glass); box-shadow: inset 0 0 0 1px var(--line); }
+.look-pv .lp-card em { position: absolute; left: 9px; top: 11px; width: 34%; height: 7px; border-radius: 4px; background: var(--tx); opacity: .75; }
+.look-pv .lp-card em::after { content: ''; position: absolute; left: 0; top: 11px; width: 70%; height: 4px; border-radius: 4px; background: var(--tx); opacity: .4; }
+.look-pv .lp-card b { position: absolute; right: 7px; top: 7px; width: 22px; height: 22px; border-radius: 50%; background: var(--p-ac); box-shadow: 0 0 12px color-mix(in srgb, var(--p-ac) 60%, transparent); }
+.look-pv .lp-dock { position: absolute; left: 12px; right: 12px; bottom: 8px; height: 18px; border-radius: 999px; background: var(--glass); box-shadow: inset 0 0 0 1px var(--line); }
+.look-pv .lp-dock b { position: absolute; left: 3px; top: 3px; width: 28%; height: 12px; border-radius: 999px; background: color-mix(in srgb, var(--p-ac) 26%, transparent); }
 :root, .app, [data-hue] { --ac-2: color-mix(in srgb, var(--ac) 70%, #fff); --ac-soft: color-mix(in srgb, var(--ac) 18%, transparent); --ac-text: color-mix(in srgb, var(--ac) 82%, #fff); }
 /* On a light page the accent as text has to be the deep version of itself: Food's lime (and Mono's near-white) lightened
    further was close to invisible on the pale glass — the "Today" pill, the meal + buttons, the active tab's icon. */
