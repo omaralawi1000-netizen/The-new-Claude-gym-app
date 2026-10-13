@@ -171,11 +171,15 @@ function useStageDepth(app: React.RefObject<HTMLDivElement | null>, stage: React
       const still = root.motion === 'reduce' || (root.motion !== 'full' && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
       // the page steps back onto the colour of the status bar (no seam under it); the shell only carries that colour while a
       // popup is up, because changing it on the shell restyles the whole app (it would, on every frame of a tab's colour blend)
-      if (v < 0.0005 || still) { st.style.transform = ''; st.style.borderRadius = ''; st.style.willChange = ''; st.style.overflow = ''; a.style.background = ''; if (a.hasAttribute('data-bar')) { a.removeAttribute('data-bar'); a.style.removeProperty('--bar'); } return; }
+      const corners = st.querySelectorAll<HTMLElement>(':scope > .stage-corner');
+      if (v < 0.0005 || still) { st.style.transform = ''; corners.forEach((c) => { c.style.transform = ''; }); a.style.background = ''; if (a.hasAttribute('data-bar')) { a.removeAttribute('data-bar'); a.style.removeProperty('--bar'); } return; }
       if (!a.hasAttribute('data-bar')) { a.setAttribute('data-bar', ''); refreshBar(); }
-      st.style.willChange = 'transform'; st.style.overflow = 'hidden'; // layer hints only while a popup is up, so the idle app is built exactly like the original
       st.style.transform = stageTransform(v); // the same function the browser-run (high refresh) version uses
-      st.style.borderRadius = `${28 * v}px`;
+      // Its corners round off as it steps back (28 px when fully back). Not with border-radius: switching a rounded clip on
+      // and off rebuilt the whole page's layer as a pop-up started and again as it finished closing, and the rebuilt page
+      // was drawn a frame late — a flicker. Four small corner pieces in the shell's colour grow over the corners instead.
+      const k = `scale(${v.toFixed(4)})`;
+      corners.forEach((c) => { c.style.transform = k; });
       a.style.background = 'var(--bar, #000)';
     };
     apply(stageDepth.get());
@@ -298,6 +302,8 @@ export function App() {
           <TabPane key={tab} hue={tab} dir={dir}>{screen}</TabPane>
         </AnimatePresence>
         <TabBar />
+        <i className="stage-corner tl" data-bar aria-hidden /><i className="stage-corner tr" data-bar aria-hidden />
+        <i className="stage-corner bl" data-bar aria-hidden /><i className="stage-corner br" data-bar aria-hidden />
         </div>
         <Overlays />
         <Toaster />

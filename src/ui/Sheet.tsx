@@ -36,9 +36,11 @@ function pageOut(el: HTMLElement, dx: number) {
 const riseTimers = new WeakMap<HTMLElement, ReturnType<typeof setTimeout>>();
 function rise(el: HTMLElement) {
   clearTimeout(riseTimers.get(el));
-  el.classList.remove('page-rise'); void el.offsetWidth; // restart the blocks' animations
+  el.classList.remove('page-rise', 'page-risen'); void el.offsetWidth; // restart the blocks' animations
   el.classList.add('page-rise');
-  riseTimers.set(el, setTimeout(() => el.classList.remove('page-rise'), 1200));
+  // settled: the blocks' finished animations are kept (taking them away dropped each block's layer — a one-frame flicker),
+  // only made instant, so a block that appears later is just there (.page-risen in styles.css)
+  riseTimers.set(el, setTimeout(() => el.classList.add('page-risen'), 1200));
 }
 function pageIn(el: HTMLElement, dx: number) {
   el.style.setProperty('--title-dx', `${Math.sign(dx) * 14}px`); // the title drifts in from the side the page comes from
@@ -432,7 +434,7 @@ export function SheetHead({ title, sub, onClose, right, back: backProp }: { titl
     <div className="sheet-head">
       <AnimatePresence initial={false}>
         {back && onClose && (
-          <motion.button key="back" className="icon-btn flat press" onClick={onClose} aria-label="Back" style={{ overflow: 'hidden', flex: 'none' }}
+          <motion.button key="back" className="icon-btn flat press" onClick={onClose} aria-label="Back" style={{ overflow: 'hidden', flex: 'none', willChange: 'opacity' }}
             initial={{ opacity: 0, width: 0, marginRight: -10 }} animate={{ opacity: 1, width: 40, marginRight: 0 }} exit={{ opacity: 0, width: 0, marginRight: -10 }} transition={SURFACE}>
             <Icon name="chevL" />
           </motion.button>
