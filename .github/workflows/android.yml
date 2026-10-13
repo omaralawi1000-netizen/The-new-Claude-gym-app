@@ -1,0 +1,159 @@
+# Builds the Android app (android/): Aven's website in Chrome as a real app, plus the native live rest countdown.
+# Free on GitHub's machines. Then checks the countdown on an Android emulator and keeps screenshots as an artifact.
+# Release signing: repo secrets AVEN_KEYSTORE_BASE64 and AVEN_KEYSTORE_PASSWORD (without them it's signed with a
+# throwaway debug key: fine to try, but it can't be updated in place later).
+# Publishing: run it by hand with "publish" ticked to put the checked APK at a fixed download link
+# (releases/download/android-latest/aven.apk).
+name: Android app
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Put the APK at the download link
+        type: boolean
+        default: false
+  push:
+    paths: ['android/**', '.github/workflows/android.yml']
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+          # keep the downloaded libraries between runs on this branch too (Maven Central rate-limits fresh runners)
+          cache-read-only: false
+      - name: Release key (if set up)
+        id: key
+        continue-on-error: true # a bad key still gives a (debug-signed) build to test; the fingerprint step says which
+        env:
+          KS: ${{ secrets.AVEN_KEYSTORE_BASE64 }}
+          KP: ${{ secrets.AVEN_KEYSTORE_PASSWORD }}
+        # pasting on a phone can add spaces or line breaks: those are dropped; anything else is reported (not the key)
+        run: |
+          # the password stays hidden; a short fingerprint of it says whether it was pasted right
+          KP=$(printf '%s' "$KP" | tr -d ' \r\n\t')
+          if [ -n "$KP" ]; then
+            if [ "$(printf '%s' "$KP" | sha256sum | cut -c1-12)" = df960bf72556 ]; then echo "AVEN_KEYSTORE_PASSWORD: correct"
+            else echo "::error::AVEN_KEYSTORE_PASSWORD isn't the password from signing-key.txt ($(printf '%s' "$KP" | wc -c) characters, should be 32)"; fi
+          fi
+          if [ -z "$KS" ]; then echo "No release key set up: the release APK gets the debug key"; exit 0; fi
+          printf '%s' "$KS" | tr -d ' \r\n\t' > "$RUNNER_TEMP/ks.b64"
+          echo "Key text: $(wc -c < "$RUNNER_TEMP/ks.b64") characters (should be 3464)"
+          BAD=$(tr -d 'A-Za-z0-9+/=' < "$RUNNER_TEMP/ks.b64" | head -c 20 | od -An -c | tr -s ' ')
+          [ -n "$BAD" ] && echo "Characters that don't belong: $BAD"
+          base64 -d "$RUNNER_TEMP/ks.b64" > "$RUNNER_TEMP/aven.jks" || { echo "::error::AVEN_KEYSTORE_BASE64 isn't the full key text"; exit 1; }
+          echo "Key file: $(wc -c < "$RUNNER_TEMP/aven.jks") bytes, sha256 $(sha256sum "$RUNNER_TEMP/aven.jks" | cut -c1-16) (should be 2596 bytes, 52375c2bf9e622c5)"
+          keytool -list -v -keystore "$RUNNER_TEMP/aven.jks" -storepass "$KP" -alias aven | grep 'SHA256:' \
+            || { echo "::error::The key doesn't open with AVEN_KEYSTORE_PASSWORD"; exit 1; }
+          echo "AVEN_KEYSTORE_FILE=$RUNNER_TEMP/aven.jks" >> "$GITHUB_ENV"
+      - name: Build
+        env:
+          AVEN_KEYSTORE_PASSWORD: ${{ secrets.AVEN_KEYSTORE_PASSWORD }}
+          AVEN_VERSION_CODE: ${{ github.run_number }}
+        # a refused download (429 Too Many Requests) is retried after a pause; what did download is kept
+        run: |
+          for i in 1 2 3; do
+            gradle -p android assembleDebug assembleRelease --stacktrace && exit 0
+            echo "Build attempt $i failed; retrying in 90 s"; sleep 90
+          done
+          exit 1
+      - name: Signing fingerprint (for assetlinks.json)
+        # apksigner, not keytool: keytool can't read the v2/v3 signatures modern APKs use
+        run: |
+          mkdir -p out
+          cp android/app/build/outputs/apk/release/app-release.apk out/aven.apk
+          BT=$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)
+          "$ANDROID_HOME/build-tools/$BT/apksigner" verify --print-certs out/aven.apk | tee out/fingerprint.txt
+          if [ -n "$AVEN_KEYSTORE_FILE" ]; then echo "Signed with the release key" | tee -a out/fingerprint.txt
+          else echo "No release key set up: signed with the debug key" | tee -a out/fingerprint.txt; fi
+      - name: Is the website's link to the app live? (without it the app shows a browser bar)
+        continue-on-error: true
+        run: curl -fsS https://omaralawi1000-netizen.github.io/.well-known/assetlinks.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aven-android
+          path: out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aven-android-debug
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+
+  emulator:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # to put the screenshots on the android-shots branch
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: aven-android-debug
+          path: debug
+      - uses: actions/download-artifact@v4
+        with:
+          name: aven-android
+          path: release
+      - run: python3 -m pip install --user --break-system-packages websocket-client==1.8.0
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Countdown, alarm and data carry-over on an emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 36
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          ram-size: 4096M
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -memory 4096
+          script: bash android/ci/emulator-check.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: aven-android-emulator
+          path: shots
+      - name: Screenshots to the android-shots branch (easy to look at without downloading)
+        if: always()
+        run: |
+          cd shots
+          git init -q && git checkout -q -b android-shots
+          git add . && git -c user.name=github-actions -c user.email=github-actions@users.noreply.github.com commit -qm "Emulator screenshots, run ${{ github.run_number }}"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" android-shots
+      - name: The app must see the site's data
+        run: grep -q "CARRY-OVER OK" shots/carry-over.txt
+
+  publish:
+    if: github.event_name == 'workflow_dispatch' && inputs.publish
+    needs: [build, emulator]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: aven-android
+          path: out
+      - name: Only the release-signed app goes out
+        run: grep -q "Signed with the release key" out/fingerprint.txt
+      - name: Download link (releases/download/android-latest/aven.apk)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          NOTES="Aven for Android, build ${{ github.run_number }}. Install once; the app itself updates with the website."
+          if gh release view android-latest >/dev/null 2>&1; then
+            gh release upload android-latest out/aven.apk --clobber
+            gh release edit android-latest --notes "$NOTES"
+          else
+            gh release create android-latest out/aven.apk --prerelease --title "Aven for Android" --notes "$NOTES" --target ${{ github.sha }}
+          fi

@@ -44,6 +44,16 @@ function saveThread(list: Msg[]) {
 }
 
 /**
+ * Where the list rests at its end: its last line just above the typing bar, wherever the keyboard is. While the keyboard
+ * is up (or on its way) the sheet gives the list extra room at its end (--kb-room, ui/Sheet.tsx) the size of the whole
+ * keyboard; only the part the keyboard has covered so far is scrolled into.
+ */
+function endTop(el: HTMLElement) {
+  const room = parseFloat(el.closest<HTMLElement>('.sheet')?.style.getPropertyValue('--kb-room') || '0') || 0;
+  return Math.max(0, el.scrollHeight - el.clientHeight - Math.max(0, room - kb.get()));
+}
+
+/**
  * One of the Coach's answers. It writes itself in a word at a time at a calm, steady pace (however the network delivers it),
  * each word fading up into place; the text is laid out as it will stay, so no word ever moves once shown. Below it, the
  * play button's row is held open from the first word, so the button fades in where room was already made and nothing is
@@ -51,9 +61,13 @@ function saveThread(list: Msg[]) {
  */
 function CoachReply({ m }: { m: Extract<Msg, { role: 'user' | 'model' }> }) {
   const { shown, done } = useWordReveal(m.text, !!m.streaming, !!m.seeded);
+  // the typing dots don't vanish when the first word comes: they melt away over it (and are then taken out)
+  const typed = useRef(!shown);
+  const [dotsGone, setDotsGone] = useState(false);
   if (!shown) return <TypingDots />;
   return (
-    <div>
+    <div className="coach-answer">
+      {typed.current && !dotsGone && <div className="typing typing-out" aria-hidden onAnimationEnd={(e) => { if (e.target === e.currentTarget) setDotsGone(true); }}><i /><i /><i /></div>}
       <div className={`reply calm coach-reply${m.seeded ? ' still' : ''}`} aria-live="polite"><Rich text={shown} id={m.id} /></div>
       {done && m.note && <div className={`xs t3 coach-after${m.seeded ? '' : ' fresh'}`} style={{ marginTop: 8 }}>{m.note}</div>}
       <div className={`reply-foot coach-after${done ? '' : ' held'}${m.seeded ? '' : ' fresh'}`}>{done && <SpeakButton id={m.id} text={m.text} />}</div>
@@ -75,6 +89,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     ...(x.reply ? [{ id: uid('m'), role: 'model' as const, text: x.reply, seeded: true, at: Date.now() }] : []),
   ])]);
   const [leaving, setLeaving] = useState<Msg[] | null>(null);
+  const [cleared, setCleared] = useState(false); // "New chat" was tapped: the suggestions rise in one after another
   // A long saved chat is not built all at once on the tap that opens the Coach (60 messages of word-by-word text held the
   // tap for ~90 ms on the phone): the newest ones are there from the first frame, scrolled to the bottom as always, and the
   // older ones are added above them a couple at a time once the sheet has risen, with the scroll kept exactly in place.
@@ -92,8 +107,9 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   const ctl = useRef<AbortController | null>(null);
   const clearing = useRef<Animation | null>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
-  const following = useRef(true);
-  const scrolling = useRef(false);
+  const pinned = useRef(true); // the list stays at its end (see below)
+  const user = useRef(false); // a finger or a wheel is moving the list (or its fling is still running)
+  const movedAt = useRef(0);
   const lastScroll = useRef(0);
   const alive = useRef(true);
   const msgsRef = useRef<Msg[]>([]); msgsRef.current = msgs;
@@ -116,17 +132,20 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     lastScroll.current = el.scrollTop;
     el.toggleAttribute('data-scrollable', el.scrollHeight > el.clientHeight + 1);
   }, [older]);
-  // Saved chat is placed before the first paint (below, with the older messages); new lines follow smoothly until you
-  // scroll up to read.
+  // Saved chat is placed before the first paint (below, with the older messages); from then on the list stays at its end
+  // (`pinned`) until you scroll up to read. Only your finger changes that: the list moving by itself (an answer arriving,
+  // the keyboard coming or going, a message sent) never counts as "scrolled up". (It used to: the keyboard dropping after
+  // a send moved the list, that read as you scrolling away, and the answer then wrote itself in under the typing bar.)
   useLayoutEffect(() => {
     const el = bodyRef.current; if (!el) return;
-    if (placed.current) { el.scrollTop = el.scrollHeight; lastScroll.current = el.scrollTop; }
-    // The list follows the conversation as it grows (an answer writing itself in, a card, the play button arriving). It goes
-    // to its end before the frame is drawn, so nothing new lands under the bar, and what it moved glides the rest of the way
-    // on one continuous spring (critically damped, ~0.5 s, starting from rest). A line that arrives while the last one is
-    // still gliding adds to the same motion instead of restarting it, so the list never steps or lurches; when something
-    // shrinks away at the end (an empty play-button row), the list glides down the same way. Drawn as `translate`, which
-    // adds to the `transform` the sent bubble's glide plays on the list at the same time.
+    if (placed.current) { el.scrollTop = endTop(el); lastScroll.current = el.scrollTop; }
+    const reduce = () => document.documentElement.dataset.motion === 'reduce' || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    // What the list moved by itself glides the rest of the way on one continuous spring (critically damped, ~0.5 s,
+    // starting from rest): the list goes to its end before the frame is drawn, so nothing new lands under the bar, and the
+    // move is played back from where it was. A line that arrives while the last one is still gliding adds to the same
+    // motion instead of restarting it, so the list never steps or lurches; when something shrinks away at the end (an
+    // empty play-button row), the list glides down the same way. Drawn as `translate`, which adds to the `transform` the
+    // sent bubble's glide plays on the list at the same time.
     const thread = el.querySelector<HTMLElement>('.coach-thread');
     let off = 0, vel = 0, raf = 0, last = 0;
     const draw = () => { if (thread) thread.style.translate = off ? `0 ${off.toFixed(2)}px` : ''; };
@@ -138,52 +157,53 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       draw(); raf = requestAnimationFrame(step);
     };
     const glide = (d: number) => {
-      if (Math.abs(d) < 0.5) return;
+      if (Math.abs(d) < 0.5 || reduce()) return;
       off += d; draw();
       if (!raf) { last = performance.now(); raf = requestAnimationFrame(step); }
     };
-    // a finger on the list mid-glide: the rest of the glide becomes the scroll position (what you see stays put)
+    // to the end, at once; `smooth`: and play the move back on the spring (the keyboard's ride is already smooth: 1:1)
+    const pin = (smooth: boolean) => {
+      const from = lastScroll.current, to = endTop(el);
+      if (Math.abs(el.scrollTop - to) > 0.5) el.scrollTop = to;
+      lastScroll.current = el.scrollTop;
+      if (smooth) glide(el.scrollTop - from);
+    };
+    // your finger on the list: whatever is still gliding becomes the scroll position (what you see stays put)
     const hold = () => {
       if (!off) return;
       cancelAnimationFrame(raf); raf = 0;
       el.scrollTop -= off; lastScroll.current = el.scrollTop; off = 0; vel = 0; draw();
     };
-    el.addEventListener('touchstart', hold, { passive: true });
-    el.addEventListener('wheel', hold, { passive: true });
-    let from = -1; // where the list rests with the keyboard away, while it is open
+    // the finger (or a wheel) has let the list come to rest: it is pinned again if it was left at its end
+    let quiet: ReturnType<typeof setTimeout> | undefined;
+    const rest = () => { clearTimeout(quiet); if (!user.current) return; user.current = false; pinned.current = endTop(el) - el.scrollTop < 80; };
+    const restSoon = () => { clearTimeout(quiet); quiet = setTimeout(() => { if (performance.now() - movedAt.current > 90) rest(); else restSoon(); }, 110); };
+    const down = () => { clearTimeout(quiet); hold(); user.current = true; };
+    const wheel = () => { down(); restSoon(); };
+    el.addEventListener('touchstart', down, { passive: true });
+    el.addEventListener('touchend', restSoon, { passive: true });
+    el.addEventListener('touchcancel', restSoon, { passive: true });
+    el.addEventListener('wheel', wheel, { passive: true });
+    el.addEventListener('scrollend', rest);
     const ro = new ResizeObserver(() => {
       el.toggleAttribute('data-scrollable', el.scrollHeight > el.clientHeight + 1);
-      if (!following.current) return;
-      const reduce = document.documentElement.dataset.motion === 'reduce' || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      const before = el.scrollTop, was = lastScroll.current;
-      if (el.scrollHeight - el.clientHeight - before > 1) {
-        el.scrollTop = el.scrollHeight;
-        if (from >= 0) from = Math.max(0, el.scrollTop - kb.get());
-        if (!reduce) glide(el.scrollTop - before);
-      } else if (!reduce && from < 0 && was - before > 0.5 && was - before < 200) glide(before - was); // shrank at its end
-      lastScroll.current = el.scrollTop;
+      if (pinned.current && !user.current) pin(true); else lastScroll.current = el.scrollTop;
     });
     ro.observe(el);
     if (thread) ro.observe(thread);
-    const settled = () => { if (el.scrollHeight - el.clientHeight - el.scrollTop < 80) { scrolling.current = false; following.current = true; } };
-    el.addEventListener('scrollend', settled);
-    // The keyboard slides over the sheet and the bar rides up on it (ui/Sheet.tsx). A list resting at its end rides up the
-    // same distance, frame for frame, so its last lines stay above the bar while the keyboard opens and come back down
-    // with it when it leaves. (Scrolled up to read: left alone.)
-    let was = kb.get();
-    const offKb = kb.on('change', (v) => {
-      if (was < 0.5 && v >= 0.5) {
-        const room = parseFloat(el.closest<HTMLElement>('.sheet')?.style.getPropertyValue('--kb-room') || '0') || 0; // (made just before the keyboard moves)
-        from = el.scrollHeight - room - el.clientHeight - el.scrollTop < 80 ? el.scrollTop : -1;
-      }
-      was = v;
-      if (from < 0) return;
-      if (v < 0.5) { el.scrollTop = from; lastScroll.current = el.scrollTop; from = -1; return; }
-      el.scrollTop = Math.min(from + v, el.scrollHeight - el.clientHeight); lastScroll.current = el.scrollTop;
+    // The keyboard slides over the sheet and the bar rides up on it (ui/Sheet.tsx). A list at its end rides up with it,
+    // frame for frame, so its last line stays just above the bar, and comes back down with it when it leaves. Scrolled up
+    // to read, it is left where it is (only the room the keyboard leaves behind goes with it).
+    const offKb = kb.on('change', () => {
+      if (user.current) return;
+      if (pinned.current) { pin(false); return; }
+      const to = endTop(el);
+      if (el.scrollTop > to + 0.5) { el.scrollTop = to; lastScroll.current = el.scrollTop; }
     });
     return () => {
-      ro.disconnect(); offKb(); cancelAnimationFrame(raf);
-      el.removeEventListener('scrollend', settled); el.removeEventListener('touchstart', hold); el.removeEventListener('wheel', hold);
+      ro.disconnect(); offKb(); cancelAnimationFrame(raf); clearTimeout(quiet);
+      el.removeEventListener('touchstart', down); el.removeEventListener('touchend', restSoon); el.removeEventListener('touchcancel', restSoon);
+      el.removeEventListener('wheel', wheel); el.removeEventListener('scrollend', rest);
     };
   }, []);
   // A typed message lifts out of the field and glides up into its bubble, like a sent iMessage, while the conversation moves
@@ -192,6 +212,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   // on the way. Browser-run (Web Animations on transform/opacity only), so it is drawn at the screen's full rate.
   const flyFrom = useRef(new Map<string, { x: number; y: number; fs: number }>());
   const flew = useRef(new Set<string>()); // these arrive by flight, not by the bubble's own rise
+  const dropAfter = useRef(false); // sent from the keyboard: it goes down when the message lands
   const flown = (id: string) => flew.current.has(id);
   useLayoutEffect(() => {
     const el = bodyRef.current;
@@ -204,7 +225,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       if (!bubble || !text || text.nodeType !== Node.TEXT_NODE || !app) continue;
       // the conversation goes to its end at once, then is played back up from where it was (one move, nothing jumps)
       const before = el.scrollTop;
-      el.scrollTop = el.scrollHeight; lastScroll.current = el.scrollTop;
+      el.scrollTop = endTop(el); lastScroll.current = el.scrollTop;
       const lift = el.scrollTop - before;
       const B = bubble.getBoundingClientRect();
       const r = document.createRange(); r.setStart(text, 0); r.setEnd(text, 1);
@@ -235,7 +256,11 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       // the field's "Ask the Coach" comes back once the words have left it
       const field = inputRef.current; field?.classList.add('sent-away');
       const back = setTimeout(() => field?.classList.remove('sent-away'), 280);
-      const land = () => { el.removeEventListener('scroll', follow); clearTimeout(back); field?.classList.remove('sent-away'); bubble.style.visibility = ''; copy.remove(); };
+      // sent while typing: the keyboard leaves once the message has nearly landed (the list, at its end, rides down with it
+      // and the bubble with the list), one thing after the other instead of the field dropping away under the words
+      const drop = () => { if (!dropAfter.current) return; dropAfter.current = false; if (document.activeElement === field) field?.blur(); };
+      const dropping = setTimeout(drop, Math.round(fly.duration * 0.42));
+      const land = () => { el.removeEventListener('scroll', follow); clearTimeout(back); clearTimeout(dropping); drop(); field?.classList.remove('sent-away'); bubble.style.visibility = ''; copy.remove(); };
       anims[0].finished.then(land, land);
     }
   });
@@ -253,18 +278,24 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
 
 
   const say = (m: Msg) => setMsgs((x) => [...x, m]);
+  // the fade is let go only once the old messages are out of the page (letting it go first showed them again for a frame)
+  const cleared$ = useRef<Animation | null>(null);
   const finishClear = () => {
     const animation = clearing.current; clearing.current = null;
-    if (animation) { animation.onfinish = null; animation.cancel(); }
-    const thread = bodyRef.current?.querySelector<HTMLElement>('.coach-thread'); if (thread) thread.style.pointerEvents = '';
+    if (animation) { animation.onfinish = null; cleared$.current = animation; }
     setLeaving(null);
   };
+  useLayoutEffect(() => {
+    if (leaving || !cleared$.current) return;
+    cleared$.current.cancel(); cleared$.current = null;
+    const thread = bodyRef.current?.querySelector<HTMLElement>('.coach-thread'); if (thread) thread.style.pointerEvents = '';
+  }, [leaving]);
   const clearChat = () => {
     if (clearing.current) return;
     const previous = msgsRef.current;
     ctl.current?.abort(); stopSpeaking();
     // Clear the conversation now; only its visible text waits for the brief exit.
-    msgsRef.current = []; setMsgs([]); saveThread([]); setResumed(false); setOlder(0);
+    msgsRef.current = []; setMsgs([]); saveThread([]); setResumed(false); setOlder(0); setCleared(true);
     const thread = bodyRef.current?.querySelector<HTMLElement>('.coach-thread');
     const reduce = document.documentElement.dataset.motion === 'reduce' || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (!thread || reduce) return;
@@ -348,15 +379,17 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     const pic = raw === undefined ? photo : null; // a suggestion chip or dictation sends words only
     if ((!text && !pic) || busy) return;
     if (clearing.current) finishClear();
-    following.current = true;
+    pinned.current = true; user.current = false;
     const id = uid('m');
     const field = inputRef.current;
     const still = document.documentElement.dataset.motion === 'reduce' || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const typing = !!field && document.activeElement === field;
     if ((raw === undefined || spoken) && text && !pic && field && !still) { // typed or said: it leaves from the field
       const fr = field.getBoundingClientRect(), fs = getComputedStyle(field);
       flew.current.add(id);
       flyFrom.current.set(id, { x: fr.left + parseFloat(fs.borderLeftWidth) + parseFloat(fs.paddingLeft) - field.scrollLeft, y: fr.top + fr.height / 2, fs: parseFloat(fs.fontSize) });
-    }
+      dropAfter.current = typing;
+    } else if (typing) field?.blur();
     setInput(''); setPhoto(null); setResumed(false); setBusy(true); stopSpeaking(); orb('processing');
     say({ id, role: 'user', text, at: Date.now(), ...(pic ? { photo: true, image: pic.url } : {}) });
     ctl.current = new AbortController();
@@ -437,7 +470,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   const tipsBlock = (
               <div className="stack gap12">
                 {noKey && <div className="small" style={{ color: 'var(--warn)' }}>{t('Add an AI key to chat.')} <button className="chip sm acc press" style={{ marginLeft: 6 }} onClick={() => push('settings', { section: 'ai' })}>{t('Add a key')}</button></div>}
-                <div className="tips">{tips.map((c, i) => (
+                <div className={`tips${cleared ? ' fresh' : ''}`}>{tips.map((c, i) => (
                   <button key={c.prompt} className="tip press" style={{ ['--i' as string]: i }} onClick={() => send(c.prompt)}>
                     <span className="tip-ic"><Icon name={c.icon} size={18} /></span>
                     <span className="grow" style={{ textAlign: 'left', minWidth: 0 }}><span className="tip-l">{c.label}</span>{c.prompt !== c.label && <span className="tip-p">{c.prompt}</span>}</span>
@@ -468,20 +501,19 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
           <button className="icon-btn flat press coach-cam" aria-label={t('Send a photo')} disabled={busy || recording || hearing} onClick={() => camRef.current?.click()}><Icon name="camera" size={21} /></button>
           <div className="grow coach-field">
             <input ref={inputRef} className="input" style={{ paddingRight: 54 }} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
-              placeholder={recording ? t('Listening… tap the mic to send') : hearing ? t('Transcribing…') : t('Ask the Coach')} aria-label={t('Message the Coach')} disabled={recording || hearing} />
+              enterKeyHint="send" placeholder={recording ? t('Listening…') : hearing ? t('Transcribing…') : t('Ask the Coach')} aria-label={t('Message the Coach')} disabled={recording || hearing} />
             {/* Send is an arrow inside the field, there only when there is something to send (Stop while it works) */}
-            <button className={`coach-send press ${busy || input.trim() || photo ? 'on' : ''}`} aria-label={busy ? t('Stop') : t('Send')} tabIndex={busy || input.trim() || photo ? 0 : -1} onClick={() => (busy ? ctl.current?.abort() : send())}>
+            <button className={`coach-send press ${busy || input.trim() || photo ? 'on' : ''}`} onMouseDown={(e) => e.preventDefault() /* the field keeps the keyboard until the message has landed */} aria-label={busy ? t('Stop') : t('Send')} tabIndex={busy || input.trim() || photo ? 0 : -1} onClick={() => (busy ? ctl.current?.abort() : send())}>
               <Icon name={busy ? 'close' : 'arrowUp'} size={18} sw={2.6} />
             </button>
           </div>
         </div>
       </div>
     )}>
-      <SheetHead title={t('Coach')} onClose={pop} right={shown.length ? <button className="small t2 press" onClick={clearChat}>{t('New chat')}</button> : undefined} />
-      <div className="sheet-body coach-body" ref={bodyRef} onScroll={(e) => {
+      <SheetHead title={t('Coach')} onClose={pop} right={<button className={`small t2 press coach-new${shown.length ? '' : ' gone'}`} onClick={clearChat} tabIndex={shown.length ? 0 : -1} aria-hidden={!shown.length}>{t('New chat')}</button>} />
+      <div className="sheet-body coach-body" data-kb-own ref={bodyRef} onScroll={(e) => {
         const el = e.currentTarget;
-        if (el.scrollTop < lastScroll.current - 1) scrolling.current = false;
-        following.current = scrolling.current || el.scrollHeight - el.clientHeight - el.scrollTop < 80;
+        if (user.current) { movedAt.current = performance.now(); pinned.current = endTop(el) - el.scrollTop < 80; }
         lastScroll.current = el.scrollTop;
       }}>
           <>
@@ -511,7 +543,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
               ))}
             </div>
             {resumed && shown.length > 0 && <div className="coach-resume"><div className="micro" style={{ margin: '22px 0 10px' }}>{t('Today')}</div>{tipsBlock}</div>}
-            {!noteSeen && shown.length === 0 && <div className="xs t3" style={{ marginTop: 18 }}>{solOn(ai) ? t('AI can be wrong, and isn’t medical advice. Messages go to OpenAI (GPT-6.1 Sol).') : t('AI can be wrong, and isn’t medical advice. Messages go to Google Gemini.')}</div>}
+            {!noteSeen && shown.length === 0 && <div className={`xs t3${cleared ? ' coach-note-fresh' : ''}`} style={{ marginTop: 18 }}>{solOn(ai) ? t('AI can be wrong, and isn’t medical advice. Messages go to OpenAI (GPT-6.1 Sol).') : t('AI can be wrong, and isn’t medical advice. Messages go to Google Gemini.')}</div>}
           </>
       </div>
     </Sheet>

@@ -28,6 +28,11 @@ const locale = (lang: Lang) => (lang === 'da' ? 'da-DK' : 'en-GB');
 /** Locale-aware number, trimmed to `max` decimals. */
 /** A percentage the way each language writes it: "26%" in English, "26 %" in Danish. */
 export const fmtPct = (n: number | string, lang: Lang) => (lang === 'da' ? `${n} %` : `${n}%`);
+/** A change with its sign: "+1.5", "−0.3" (a real minus), and a plain "0" when it rounds to nothing (never "−0" or "+0"). */
+export function fmtSigned(v: number, lang: Lang, max = 1): string {
+  const a = fmtNum(Math.abs(v), lang, max);
+  return a === '0' || a === '–' ? a : `${v < 0 ? '−' : '+'}${a}`;
+}
 export function fmtNum(v: number, lang: Lang, max = 1, min = 0): string {
   if (!Number.isFinite(v)) return '–';
   const group = Math.abs(v) >= 1000;

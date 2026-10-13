@@ -176,7 +176,7 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
       const r = Math.max(0, Math.round(goal - maxLift()));
       if (r > 0) { if (!el.style.height || el.dataset.held) { el.style.height = `${natural.current || el.offsetHeight}px`; el.dataset.held = '1'; } el.style.setProperty('--kb-room', `${r}px`); return; }
       // going down: a list scrolled into the extra room glides back with the keyboard, then the room goes once it has landed
-      el.querySelectorAll<HTMLElement>('.sheet-body').forEach((b) => {
+      el.querySelectorAll<HTMLElement>('.sheet-body:not([data-kb-own])').forEach((b) => { // (a list that follows the keyboard itself, the Coach's, is left to it)
         const room = parseFloat(el.style.getPropertyValue('--kb-room')) || 0;
         const max = b.scrollHeight - b.clientHeight - room;
         if (room && b.scrollTop > max) b.scrollTo({ top: Math.max(0, max), behavior: 'smooth' });

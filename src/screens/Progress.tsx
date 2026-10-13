@@ -9,7 +9,7 @@ import { BarChart, ChartCard, LineChart, Sparkline } from '../ui/charts';
 import { Icon } from '../ui/Icon';
 import { Empty, Section, Seg } from '../ui/kit';
 import { average, nutritionByDay, trendRate, weekStreak, weeklyTraining, weightTrend } from '../lib/stats';
-import { fmtNum, kgToDisplay } from '../lib/units';
+import { fmtNum, fmtSigned, kgToDisplay } from '../lib/units';
 import { bestsFor, countable, epley } from '../lib/workout';
 import { exName } from './workout/common';
 import { Roll } from '../ui/Roll';
@@ -88,8 +88,8 @@ export function ProgressScreen() {
       {/* consistency */}
       <ChartCard title={<>{t('Training consistency')}</>} sub={<><span className="num">{wk[wk.length - 1]?.sessions ?? 0}</span><span className="t3 small" style={{ fontFamily: 'var(--f-ui)', fontStretch: '100%', fontWeight: 600 }}> / {target} {t('this week')}</span></>}
         table={{ head: [t('Week of'), t('Sessions'), t('Sets'), `${t('Volume')} (${u.weight})`], rows: wk.map((b) => [fmtDate(b.start, lang, { day: 'numeric', month: 'short' }), b.sessions, b.sets, fmtNum(Math.round(kgToDisplay(b.volume, u.weight)), lang, 0)]) }}>
-        <BarChart label={t('Sessions per week')} bars={wk.map((b, i) => ({ label: fmtDate(b.start, lang, { day: 'numeric', month: 'numeric' }), value: b.sessions, sub: `${t('Week of')} ${fmtDate(b.start, lang, { day: 'numeric', month: 'short' })}`, emphasis: i === wk.length - 1 }))} fmt={(v) => fmtNum(Math.round(v * 10) / 10, lang, 0)} target={target} targetLabel={`${t('target')} ${target}`} />
-        {streak > 0 && <div className="small t2" style={{ marginTop: 8 }}>{t('{n}-week streak of hitting your target', { n: streak })}</div>}
+        <BarChart whole label={t('Sessions per week')} bars={wk.map((b, i) => ({ label: fmtDate(b.start, lang, { day: 'numeric', month: 'numeric' }), value: b.sessions, sub: `${t('Week of')} ${fmtDate(b.start, lang, { day: 'numeric', month: 'short' })}`, emphasis: i === wk.length - 1 }))} fmt={(v) => fmtNum(Math.round(v * 10) / 10, lang, 0)} target={target} targetLabel={`${t('target')} ${target}`} />
+        {streak > 0 && <div className="small t2" style={{ marginTop: 8 }}>{t(streak === 1 ? '1-week streak of hitting your target' : '{n}-week streak of hitting your target', { n: streak })}</div>}
       </ChartCard>
 
       {hasMat && (
@@ -116,8 +116,8 @@ export function ProgressScreen() {
           <>
             <LineChart points={weights.map((w) => ({ x: new Date(w.date + 'T12:00:00').getTime(), y: kgToDisplay(w.kg, u.weight), label: wLabel(w.date) }))} trend={trend.map((p) => ({ x: new Date(p.date + 'T12:00:00').getTime(), y: kgToDisplay(p.kg, u.weight) }))} fmtY={(v) => fmtNum(v, lang, 1)} seriesLabel={t('Weigh-ins')} trendLabel={t('Trend (estimate)')} />
             <div className="row-flex between small t2 num" style={{ marginTop: 10 }}>
-              <span>{firstW && lastWeight && firstW !== lastWeight ? <>{t('Change')} <b style={{ color: 'var(--tx)' }}>{(lastWeight.kg - firstW.kg >= 0 ? '+' : '−')}<Roll text={fmtNum(Math.abs(kgToDisplay(lastWeight.kg, u.weight) - kgToDisplay(firstW.kg, u.weight)), lang, 1)} /> {u.weight}</b></> : null}</span>
-              <span>{rate !== null ? <>{rate >= 0 ? '+' : '−'}<Roll text={fmtNum(Math.abs(kgToDisplay(rate, u.weight)), lang, 1)} /> {u.weight}/{t('wk')}</> : t('Trend rate needs 7+ days of data')}</span>
+              <span>{firstW && lastWeight && firstW !== lastWeight ? <>{t('Change')} <b style={{ color: 'var(--tx)' }}><Roll text={fmtSigned(kgToDisplay(lastWeight.kg, u.weight) - kgToDisplay(firstW.kg, u.weight), lang)} /> {u.weight}</b></> : null}</span>
+              <span>{rate !== null ? <><Roll text={fmtSigned(kgToDisplay(rate, u.weight), lang)} /> {u.weight}/{t('wk')}</> : t('Trend rate needs 7+ days of data')}</span>
             </div>
           </>
         ) : <div className="small t3" style={{ padding: '8px 4px 4px' }}>{t('Log your weight')}</div>}

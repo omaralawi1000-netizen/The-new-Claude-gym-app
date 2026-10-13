@@ -80,12 +80,12 @@ export function PhotoFood({ props }: { props: { date: string; mealId: string } }
     const added = useStore.getState().logEntries(entries);
     haptic('saved');
     useUI.getState().closeAll();
-    toast(t('Added {n} items to {meal}', { n: added.length, meal: mealName(meal, lang) }), { tone: 'ok', actionLabel: t('Undo'), onAction: () => added.forEach((e) => useStore.getState().removeEntry(e.id)) });
+    toast(t(added.length === 1 ? 'Added 1 item to {meal}' : 'Added {n} items to {meal}', { n: added.length, meal: mealName(meal, lang) }), { tone: 'ok', actionLabel: t('Undo'), onAction: () => added.forEach((e) => useStore.getState().removeEntry(e.id)) });
   };
 
   return (
     <Sheet onClose={pop} tall label={t('Photo')} z={100}
-      foot={items.length ? <button className="btn primary block press" disabled={!chosen.length} onClick={log}>{t('Log {n} items', { n: chosen.length })} · {fmtNum(Math.round(total), lang, 0)} kcal</button> : undefined}>
+      foot={items.length ? <button className="btn primary block press" disabled={!chosen.length} onClick={log}>{t(chosen.length === 1 ? 'Log 1 item' : 'Log {n} items', { n: chosen.length })} · {fmtNum(Math.round(total), lang, 0)} kcal</button> : undefined}>
       <SheetHead title={t('Snap your plate')} sub={mealName(meal, lang)} onClose={pop} />
       <div className="sheet-body">
         <input ref={cam} type="file" accept="image/*" capture="environment" hidden onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ''; }} />
