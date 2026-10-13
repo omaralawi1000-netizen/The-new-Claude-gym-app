@@ -22,7 +22,7 @@ export async function steady({ theme = 'light', size = { width: 384, height: 802
   const STEP = 1000 / 60;
   let tick = Number(process.hrtime.bigint() / 1000000n);
   let q = Promise.resolve();
-  const frame = (shot) => (q = q.then(() => cdp.send('HeadlessExperimental.beginFrame', { frameTimeTicks: (tick += STEP), interval: STEP, ...(shot ? { screenshot: { format: 'jpeg', quality: 85 } } : {}) })).catch(() => ({})));
+  const frame = (shot, dt = STEP) => (q = q.then(() => cdp.send('HeadlessExperimental.beginFrame', { frameTimeTicks: (tick += dt), interval: STEP, ...(shot ? { screenshot: { format: 'jpeg', quality: 85 } } : {}) })).catch(() => ({})));
   // between films the page still needs frames (loading, Playwright's own checks)
   let alive = true, pumping = true;
   (async () => { while (alive) { if (pumping) await frame(false); await new Promise((r) => setTimeout(r, 4)); } })();
@@ -30,9 +30,12 @@ export async function steady({ theme = 'light', size = { width: 384, height: 802
   async function film(name, fn, frames = 60) {
     pumping = false; await q;
     const dir = `shots/film/${name}`; fs.rmSync(dir, { recursive: true, force: true }); fs.mkdirSync(dir, { recursive: true });
-    const act = Promise.resolve().then(fn); const times = [], bars = [];
+    const act = Promise.resolve().then(fn); const times = [], bars = [], log = [], skips = [];
     for (let i = 0; i < frames; i++) {
-      const r = await frame(true);
+      let r = await frame(true), tries = 0;
+      while (!r.screenshotData && tries++ < 8) r = await frame(true, 0.01); // a frame that drew nothing: ask again, at (almost) the same time
+      if (process.env.FRAMELOG) log.push(await p.evaluate((sel) => { const e = document.querySelector(sel); return { now: performance.now(), tf: e ? getComputedStyle(e).transform : null, top: e ? e.getBoundingClientRect().top : null }; }, process.env.FRAMELOG).catch(() => null));
+      skips.push(tries);
       const out = `${dir}/${String(times.length).padStart(3, '0')}.jpg`;
       if (r.screenshotData) fs.writeFileSync(out, Buffer.from(r.screenshotData, 'base64'));
       else if (times.length) fs.copyFileSync(`${dir}/${String(times.length - 1).padStart(3, '0')}.jpg`, out); // nothing changed
@@ -40,7 +43,7 @@ export async function steady({ theme = 'light', size = { width: 384, height: 802
       const t = times.length * STEP / 1000; times.push(t); bars.push([t, await bar()]);
     }
     await act.catch((e) => console.log(name, 'action failed:', String(e.message).slice(0, 160)));
-    fs.writeFileSync(`${dir}/times.json`, JSON.stringify(times)); fs.writeFileSync(`${dir}/bar.json`, JSON.stringify(bars));
+    fs.writeFileSync(`${dir}/times.json`, JSON.stringify(times)); if (log.length) fs.writeFileSync(`${dir}/log.json`, JSON.stringify(log)); fs.writeFileSync(`${dir}/skips.json`, JSON.stringify(skips)); fs.writeFileSync(`${dir}/bar.json`, JSON.stringify(bars));
     pumping = true;
     console.log(`film ${name}: ${times.length} frames`);
   }

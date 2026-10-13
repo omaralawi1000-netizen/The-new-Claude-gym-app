@@ -21,7 +21,9 @@ export const OverlayMeta = createContext<{ id: string; page: boolean } | null>(n
 const open = new Map<string, MotionValue<number>>();
 /** 0 = page at rest, 1 = page stepped back behind a fully open popup. */
 export const stageDepth = motionValue(0);
-function recompute() { let m = 0; for (const v of open.values()) m = Math.max(m, v.get()); stageDepth.set(m); }
+/** How many dims lie over the page: each open popup's progress, added up (a sheet on a sheet: 1 + the top one's progress). */
+export const stageLayers = motionValue(0);
+function recompute() { let m = 0, sum = 0; for (const v of open.values()) { const x = v.get(); m = Math.max(m, x); sum += Math.min(1, Math.max(0, x)); } stageDepth.set(m); stageLayers.set(sum); }
 export function trackDepth(id: string, e: MotionValue<number>) {
   open.set(id, e);
   const off = e.on('change', recompute);

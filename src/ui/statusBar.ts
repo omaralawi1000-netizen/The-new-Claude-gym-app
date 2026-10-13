@@ -38,10 +38,13 @@ function frame(now: number) {
   }
   const root = document.documentElement;
   // the dim over the page (Veil's .veil-dim, --scrim) lies over the top of it too, deepening in step with the pop-up's
-  // progress, 0 → 1 — the bar used to reach full dim at 60 %, so it ran ahead of the page: a darker band leading the dim
+  // progress, 0 → 1 — the bar used to reach full dim at 60 %, so it ran ahead of the page: a darker band leading the dim.
+  // A pop-up on a pop-up lays a second dim over the first (depth 1 → 2), and the bar takes that one too.
   const light = root.dataset.theme === 'light';
   const [sr, sg, sb, sa] = light ? [16, 20, 34, 0.3] : [2, 3, 8, 0.5];
-  const a = sa * Math.min(1, Math.max(0, depth));
+  let keep = 1;
+  for (let k = 0; k < 3; k++) keep *= 1 - sa * Math.min(1, Math.max(0, depth - k));
+  const a = 1 - keep;
   let c3: RGB = [cur[0] * (1 - a) + sr * a, cur[1] * (1 - a) + sg * a, cur[2] * (1 - a) + sb * a];
   // the orb screen's frost (VOICE_VEIL: the background colour at 74 % over the page) covers the top too, so the bar goes
   // with it — it stayed the area's purple over a near-black screen, a band across the top
@@ -58,7 +61,7 @@ export function setBarTint(c: RGB, ms = 800) {
   if (!ms) { cur = from = to = c; dur = 0; } else { from = cur; to = c; t0 = performance.now(); dur = ms; }
   schedule();
 }
-/** How far a pop-up has the page stepped back (0..1). */
+/** How many pop-ups' dims lie over the page (0..1 for one, up to 2 or more with a pop-up on a pop-up). */
 export function setBarDepth(v: number) { if (Math.abs(v - depth) < 0.004 && v !== 0) return; depth = v; schedule(); }
 
 /** Reads a CSS colour (rgb() or color(srgb …)) into 0..255 channels. */

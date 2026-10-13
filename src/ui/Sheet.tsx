@@ -106,6 +106,11 @@ const EXIT_SPRING = SURFACE_EXIT;
 /** A sheet with another on top: how much it shrinks, and how much of its top edge peeks out above the new one (px). */
 const STACK_SCALE = 0.07;
 const STACK_PEEK = 10;
+/** Stacked like a deck of cards, as iOS stacks sheets: a sheet with another on top shrinks a little (from its top) and
+ * always comes to rest in the same place, its top edge STACK_PEEK px above where a full-height sheet's top is — whatever
+ * the height of the sheet on top (one that ran down to meet a shorter sheet left a dark gap above the stack). How far it
+ * moves to get there, from where it rests (its layout box, so its current motion doesn't count). */
+const stackShift = (me: HTMLElement | null) => (me ? satPx() + 10 - STACK_PEEK - me.offsetTop : -STACK_PEEK);
 
 /**
  * Bottom sheet: swipe down from anywhere (when its list is at the top) or flick to dismiss; interruptible; keyboard-aware.
@@ -156,7 +161,7 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
   const p = useMotionValue(0);   // opening progress (a spring)
   const y = useMotionValue(0);   // the finger
   const bs = useMotionValue(0);  // stepped back behind another sheet
-  const dy = useMotionValue(-STACK_PEEK); // how far it moves, fully stepped back, so its top edge peeks just above the sheet on top
+  const dy = useMotionValue(-STACK_PEEK); // how far it moves, fully stepped back (stackShift)
   const shift = useTransform([p, y, bs, dy], ([pp, yy, b, d]: number[]) => (1 - pp) * dist.current + yy + d * b);
   // THE KEYBOARD, as in iOS and the Claude app: the keyboard slides over the sheet, and nothing is re-laid out while it moves.
   //  - A sheet never changes size for it. It rises only as far as it can without its top passing the gap under the status
@@ -304,23 +309,22 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
     const upper = at >= 0 ? cur[group(cur, at).hi + 1] : undefined;
     const h = upper ? hosts.get(upper.id) : undefined;
     if (h?.small) return; // a small pop-up on top: this one stays where it is, as the page does
-    if (!h) { dy.set(-STACK_PEEK); const c = animate(bs, 1, reduce ? { duration: 0.01 } : SPRING); return () => c.stop(); }
-    // Stacked like a deck of cards, as iOS stacks sheets: it shrinks a little (from its top) and moves so that only its top
-    // edge peeks out above the new sheet — never a strip of its title. Where that is depends on how tall the new one is:
-    // measured from where both rest (layout boxes, so their current motion doesn't count), and again if the new one's
-    // height changes.
-    const place = () => { const me = ref.current; if (!me) return; dy.set(h.el.offsetTop - STACK_PEEK - me.offsetTop); };
-    place();
-    const ro = new ResizeObserver(place); ro.observe(h.el);
+    dy.set(stackShift(ref.current));
+    if (!h) { const c = animate(bs, 1, reduce ? { duration: 0.01 } : SPRING); return () => c.stop(); }
     bs.set(h.engage.e.get());
     const off = h.engage.e.on('change', (v) => bs.set(v));
-    const done = () => { off(); ro.disconnect(); follow.current = null; if (bs.get() > 0.01) animate(bs, 0, reduce ? { duration: 0.01 } : SPRING); };
+    const done = () => { off(); follow.current = null; if (bs.get() > 0.01) animate(bs, 0, reduce ? { duration: 0.01 } : SPRING); };
     h.gone.add(done);
-    follow.current = () => { off(); ro.disconnect(); h.gone.delete(done); };
+    follow.current = () => { off(); h.gone.delete(done); };
     // kept while the top sheet LEAVES (it is no longer "above" by then, but still moving): released when it is gone
     // eslint-disable-next-line
   }, [behind]);
   useEffect(() => () => follow.current?.(), []);
+  // stepped back, its title fades away: what shows above a shorter sheet on top is the back of a card, not half a title
+  useEffect(() => bs.on('change', (b) => {
+    const o = b < 0.001 ? '' : (1 - b).toFixed(3);
+    for (const hd of ref.current?.querySelectorAll<HTMLElement>('.sheet-head') ?? []) if (hd.style.opacity !== o) hd.style.opacity = o;
+  }), []); // eslint-disable-line
   // leaving: whatever the finger left behind becomes progress, and the exit spring carries on at the finger's speed
   const [present, safeToRemove] = usePresence();
   const leaving = useRef(false);
@@ -362,7 +366,7 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
 /**
  * The same deck-of-cards stacking for a full-screen window that isn't a Sheet (the live workout): while a sheet opens on top
  * of it (the exercise list, an exercise's page), it follows that sheet's progress frame for frame, shrinking from its top
- * and moving down until only its top edge peeks out above the new one. Returns the window's transform, finger drag included.
+ * and moving to where a stacked sheet rests (stackShift). Returns the window's transform, finger drag included.
  */
 export function useStackedBehind(el: { current: HTMLElement | null }, drag: MotionValue<number>) {
   const meta = useContext(OverlayMeta);
@@ -375,15 +379,13 @@ export function useStackedBehind(el: { current: HTMLElement | null }, drag: Moti
     const h = upperId ? hosts.get(upperId) : undefined;
     if (!h || h.small) return;
     follow.current?.();
-    const place = () => { const me = el.current; if (me) dy.set(h.el.offsetTop - STACK_PEEK - me.offsetTop); };
-    place();
-    const ro = new ResizeObserver(place); ro.observe(h.el);
+    dy.set(stackShift(el.current));
     bs.set(h.engage.e.get());
     const off = h.engage.e.on('change', (v) => bs.set(v));
     // kept while the top sheet leaves, released when it is gone
-    const done = () => { off(); ro.disconnect(); follow.current = null; if (bs.get() > 0.01) animate(bs, 0, reduce ? { duration: 0.01 } : SPRING); };
+    const done = () => { off(); follow.current = null; if (bs.get() > 0.01) animate(bs, 0, reduce ? { duration: 0.01 } : SPRING); };
     h.gone.add(done);
-    follow.current = () => { off(); ro.disconnect(); h.gone.delete(done); };
+    follow.current = () => { off(); h.gone.delete(done); };
     // eslint-disable-next-line
   }, [upperId]);
   useEffect(() => () => follow.current?.(), []);

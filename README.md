@@ -1482,12 +1482,13 @@ at the edges.
 
 ## Pop-ups stack like cards (13 Oct 2026, v0.1.82)
 - A pop-up opened from a pop-up (Food → Scan or Photo, the workout → Add exercise, any sheet over a sheet) stacks as iOS
-  does: the one below shrinks 7 % from its top and moves so only its top edge peeks 10 px above the new one, whatever the
-  new one's height (measured from where both rest, and again if the new one resizes). It follows the new sheet's own
+  does: the one below shrinks 7 % from its top and steps back behind the new one. It follows the new sheet's own
   progress frame for frame, so opening, dragging, closing and interrupting can never drift apart. The page under them
   doesn't move again. The live workout window (not a Sheet) stacks the same way through `useStackedBehind` (Sheet.tsx).
-  Before, the lower sheet only shrank 6 % and rose 6 px, so half its title showed above a shorter sheet; the workout
-  didn't move at all. Omar: "a pop-up in a pop-up can stack … seamless animations and excellent animations".
+  It always comes to rest in the same place (its top edge 10 px above a full sheet's top), whatever the new sheet's
+  height, and its title fades as it steps back, so above a shorter sheet you see the back of a card, not half a title.
+  The status bar takes the second dim too. Before, the lower sheet only shrank 6 % and rose 6 px, so half its title
+  showed above a shorter sheet; the workout didn't move at all. Omar: "a pop-up in a pop-up can stack … seamless animations and excellent animations".
 - Films are now made with a steady camera (`scripts/film-steady.mjs`): Chrome draws each frame only when asked, exactly
   1/60 s of the app's time after the last, and it is pictured once fully drawn. The old screencast films dropped frames
   whenever this machine was slow to draw the glass, which read as jumps and stalls the app doesn't have.
