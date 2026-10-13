@@ -473,7 +473,8 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
           <div className="micro" aria-live="polite" style={{ color: phase === 'listening' ? 'var(--ac-text)' : undefined }}>{label}</div>
         </div>
 
-        <div ref={talkRef} style={{ position: 'relative', flex: 1, minHeight: 0, overflowY: 'auto', marginTop: 14, paddingBottom: 12 }} className="hide-scroll fade-top">
+        {/* (room round its content, so the typing box's focus glow is not clipped into hard edges by the scrolling) */}
+        <div ref={talkRef} style={{ position: 'relative', flex: 1, minHeight: 0, overflowY: 'auto', margin: '14px -12px 0', padding: '0 12px 26px' }} className="hide-scroll fade-top fade-bottom">
           <AnimatePresence initial={false} mode="popLayout">
             {!typing && !showing && (
               // what you are saying, as you say it: each new word settles in; when you stop, it rises away into the conversation
@@ -530,7 +531,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
           </AnimatePresence>
         </div>
 
-        <div style={{ padding: '10px 0 calc(var(--sab) + 18px)' }}>
+        <div style={{ padding: '0 0 calc(var(--sab) + 18px)' }}>
           <div className="row-flex" style={{ gap: 10 }}>
             {supported && (
               <button className="btn press grow" disabled={thinking} onClick={() => { if (typing) listen(); else { teardown(); go('idle'); setTyping(true); } }}>

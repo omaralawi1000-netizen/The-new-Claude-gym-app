@@ -1591,3 +1591,15 @@ the fake keyboard now slides in 250 ms like a real one; positions are read after
   the text ended, kept inside the field.
 - Not changed: when you send from the keyboard, the keyboard still goes down as the message nearly lands and the list
   rides down with it (by design since earlier rounds).
+
+## No more hard cut-off edges in the Coach and on the orb screen (13 Oct 2026, v0.1.94)
+Swept with `scripts/shots-cutout.mjs` (AVEN_GPU=1; end, mid and top of a long chat, keyboard up, writing in, answered, new
+chat, the orb screen open, typing, writing in, answered; light and dark):
+- Coach, scrolled up: the list ran sharp right under the typing bar, so words passed under the orb and the camera and were
+  sliced off by the field's edges. It now melts away just above the bar (gone by its middle); with the keyboard up, above
+  the bar where it rides. At the end the melt slides down out of the way (it follows the list's end fade), so the last
+  message and an answer writing in stay whole. This is the Coach only: other sheets' buttons still float with nothing behind
+  (v0.1.8); the Coach's bar is a whole row, not one button.
+- Orb screen: a long answer was cut in a straight line above the buttons; it now melts there while there is more below
+  (`.fade-bottom`, scroll-driven like the top fade). The typing box's focus glow was clipped by the scrolling area into hard
+  bands above and below it; the area has room round its content now.
