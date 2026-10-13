@@ -337,6 +337,8 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
 /* every screen's blocks rise in, one after another (a screen, or the part of one that is swapped: .subpage) */
 .screen > *, .subpage > * { animation: rise-move 780ms var(--ease-out) both; animation-delay: calc(50ms + var(--i, 0) * 60ms); }
 .screen > .subpage { animation: none; }
+/* a swapped part fading out is lifted out of the layout where it stood (Subpage.tsx): its top is measured to its border, so its margin must not push it down again */
+.subpage[data-motion-pop-id] { margin-top: 0 !important; }
 .screen > :nth-child(1) { --i: 0; } .screen > :nth-child(2) { --i: 1; } .screen > :nth-child(3) { --i: 2; } .screen > :nth-child(4) { --i: 3; }
 .subpage > :nth-child(1) { --i: 0; } .subpage > :nth-child(2) { --i: 1; } .subpage > :nth-child(3) { --i: 2; } .subpage > :nth-child(4) { --i: 3; }
 .subpage > :nth-child(5) { --i: 4; } .subpage > :nth-child(6) { --i: 5; } .subpage > :nth-child(7) { --i: 6; } .subpage > :nth-child(n+8) { --i: 7; }
@@ -630,6 +632,8 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .empty .display { color: var(--tx); margin-bottom: 6px; }
 .sheet-enter-fade { animation: fadein 200ms var(--ease-out) both; }
 @keyframes fadein { from { opacity: 0 } } /* no end keyframe: see rise-move */
+/* the rest countdown that joins the workout's header while you type fades in instead of popping */
+.wk-rest-inline { animation: fadein 320ms var(--ease-out) both; }
 .hide-scroll { scrollbar-width: none; } .hide-scroll::-webkit-scrollbar { display: none; }
 
 /* reduced motion: no drifting light, no rise-in, no springs */
@@ -655,7 +659,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 
 /* iOS-style: while a popup is up the page behind steps back. Its transform and corner radius are written by script
    (useStageDepth in App.tsx) from the popups' own progress, so it follows them frame for frame — no CSS transition. */
-.stage { position: absolute; inset: 0; background: var(--bg); transform-origin: 50% 0%; will-change: transform; overflow: hidden; } /* always its own clipped layer: see useStageDepth in App.tsx */
+.stage { position: absolute; inset: 0; background: var(--bg); transform-origin: 50% 0%; will-change: transform; overflow: clip; } /* always its own clipped layer: see useStageDepth in App.tsx. clip, not hidden: a hidden box can still be scrolled by script, and something scrolled it 24 px sideways while a sliding page overhung it, leaving Train and Food shifted left */
 /* the page's rounded corners while a pop-up has it stepped back: a quarter-circle cut-out in the shell's colour, scaled from 0
    (at rest) to 1 (fully back = 28 px corners) by useStageDepth — a transform, so nothing about the page's layer changes */
 .stage-corner { position: absolute; z-index: 2147483647; width: 28px; height: 28px; pointer-events: none; will-change: transform; transform: scale(0); }
@@ -683,7 +687,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    like a message — and the short answer streams in below as easy text, each new word settling in calmly (a soft blur lifting,
    no glow). (.voice-live is the browser-speech engine's live text, used only without a Groq key.) */
 .voice-live { font-size: 26px; line-height: 1.2; text-align: center; padding: 0 6px; overflow-wrap: anywhere; }
-.voice-live .w { animation: wordCalm 520ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards; }
+.voice-live .w { animation: wordCalm 520ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards; --soft-dur: 520ms; }
 /* the orb screen: the orb gives off light. A close halo at its edge (the orb fills ~70% of its button) and a soft oval of
    light just under it, as if it hovers over glass; nothing hazes the rest of the screen (a wide pool of the accent read as
    brown fog). Two gradients on one still layer; only its fade-in animates (opacity), once, as the orb lands. */
@@ -703,10 +707,37 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .reply { font-size: 17.5px; line-height: 1.45; font-weight: 500; letter-spacing: -0.006em; color: var(--tx); overflow-wrap: anywhere; }
 .reply b { font-weight: 680; }
 .coach-reply { font-size: 16px; line-height: 1.5; }
-.calm .w { animation: wordCalm 640ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards; }
-/* each word fades up into place: opacity and a small rise only (an animated blur on every word was costly and read as
-   smudged clumps) */
-@keyframes wordCalm { from { opacity: 0; transform: translateY(0.3em); } to { opacity: 1; transform: none; } }
+.calm .w { animation: wordCalm 640ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards; --soft-dur: 640ms; }
+/* each word rises a little into place while it comes in out of soft focus (.soft below) */
+@keyframes wordCalm { from { transform: translateY(0.3em); } to { transform: none; } }
+/* Soft focus, shared by everything that writes itself in (Coach and orb answers, your spoken words, the Food date,
+   Onboarding titles): the text comes into focus the way a camera pulls focus, without a blur ever being animated. Two still,
+   blurred copies of the text (glows of the glyphs with no fill, painted once) sit on it: a wide one and a slight one. The
+   word passes from the wide copy to the slight one to the sharp text, each handing over to the next, so it reads as one
+   word sharpening. Measured against a real blur (filter: blur, frame by frame): a text-shadow keeps the same amount of
+   light as the text, so each copy alone looks like the word blurred, never bolder or brighter; the hand-overs carry a
+   little extra (power .75) so the word does not dim between steps. The blur is gone at 60% of the time; the rest is the
+   calm rise. The earlier single glow (two shadows at 85%) put out twice the light and lingered as a halo round the sharp
+   word: it read as a fake, bold smudge (13 Oct). Only opacity (and the word's rise) moves, so the compositor draws it at
+   the screen's full rate and nothing is re-blurred per frame. It takes the delay and the length of the element it is on;
+   the curves come from a blur that eases off as the word's light eases in. */
+.soft { display: inline-block; position: relative; }
+.soft::before, .soft::after { content: attr(data-soft) / ""; position: absolute; inset: 0; pointer-events: none; opacity: 0;
+  -webkit-text-fill-color: transparent; }
+.soft::before { text-shadow: 0 0 .42em currentColor; }
+.soft::after { text-shadow: 0 0 .16em currentColor; }
+.soft-in::before { animation: softFar var(--soft-dur, 600ms) linear backwards; animation-delay: inherit; }
+.soft-in::after { animation: softNear var(--soft-dur, 600ms) linear backwards; animation-delay: inherit; }
+.soft-in > .soft-s { animation: softSharp var(--soft-dur, 600ms) linear backwards; animation-delay: inherit; }
+@keyframes softFar { 0% { opacity: 0; } 5% { opacity: .223; } 10% { opacity: .386; } 15% { opacity: .475; } 20% { opacity: .483; }
+  25% { opacity: .413; } 30% { opacity: .266; } 35%, 100% { opacity: 0; } }
+@keyframes softNear { 0% { opacity: 0; } 5% { opacity: .017; } 10% { opacity: .086; } 15% { opacity: .21; } 20% { opacity: .377; }
+  25% { opacity: .572; } 30% { opacity: .775; } 35% { opacity: .956; } 40% { opacity: .745; } 45% { opacity: .513; }
+  50% { opacity: .293; } 55% { opacity: .109; } 60%, 100% { opacity: 0; } }
+@keyframes softSharp { 0%, 30% { opacity: 0; } 35% { opacity: .031; } 40% { opacity: .42; } 45% { opacity: .672; } 50% { opacity: .85; }
+  55% { opacity: .961; } 60%, 100% { opacity: 1; } }
+:root[data-motion='reduce'] :is(.soft-in > .soft-s, .soft-in::before, .soft-in::after) { animation: none; }
+@media (prefers-reduced-motion: reduce) { :is(.soft-in > .soft-s, .soft-in::before, .soft-in::after) { animation: none; } }
 /* Read aloud: the word being said lights up in the accent, the ones said settle back, the ones to come wait a shade lighter.
    Only the colour moves (no size or position change), so the text never shifts while it is read. */
 .w { transition: color 380ms ease, text-shadow 380ms ease; }
@@ -959,6 +990,10 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
   transition: opacity 200ms var(--ease-out), transform 360ms var(--ease-spring); }
 .coach-send.on { opacity: 1; transform: none; pointer-events: auto; }
 .meals-empty { padding: 6px 16px 6px 20px; }
+/* the empty day's card (or the meals) fading out before the other rises in, once the add sheet has gone (Food.tsx) */
+.subpage > .fading { animation: fade-away 220ms ease forwards; pointer-events: none; }
+@keyframes fade-away { to { opacity: 0; } }
+.subpage > .joined { animation-delay: calc((var(--i, 1) - 1) * 60ms); }
 .meal-row { width: 100%; display: flex; align-items: center; justify-content: space-between; padding: 14px 0; text-align: left; position: relative; }
 .meal-row + .meal-row::before { content: ''; position: absolute; top: 0; left: 0; right: 4px; height: 1px; background: var(--line); }
 .meal-bar { display: flex; gap: 3px; height: 3px; margin: 14px 4px 4px 0; }
@@ -1022,7 +1057,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .mem-row { display: flex; align-items: flex-start; gap: 8px; padding: 12px 8px 12px 14px; }
 .mem-text { display: block; width: 100%; text-align: left; font-size: 15px; line-height: 1.4; color: var(--tx); overflow-wrap: anywhere; }
 .mem-edit { width: 100%; min-height: 64px; font-size: 15px; line-height: 1.4; resize: none; }
-.reply.still .w { animation: none; }
+.reply.still .w, .reply.still .soft-in > .soft-s, .reply.still .soft-in::before, .reply.still .soft-in::after { animation: none; }
 /* a note from Coach memory beside the exercise it is about, with a way out */
 .wk-flag { display: flex; align-items: flex-start; gap: 8px; margin-top: 8px; padding: 8px 8px 8px 10px; border-radius: 12px; color: var(--tx); background: color-mix(in srgb, var(--warn) 12%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warn) 24%, transparent); }
 .wk-flag .chip { flex: none; margin-top: -2px; }
@@ -1149,6 +1184,12 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* an exercise's last set ticked: one slow band of warm light passes over the card, once. Laid over the card (not inside its
    frosted glass) and only the band moves: a full-card glow layer cost frames on the test bench, this one doesn't */
 .wk-card-wrap { position: relative; }
+/* an exercise being moved up or down (flip.ts `lead`): above the card it passes, on a solid backing with a soft lift, so the
+   card sliding under it doesn't show through the glass. The backing fades out as it lands. Opacity only; a still layer. */
+.wk-block.flip-lead { z-index: 3; }
+.wk-block.flip-lead .wk-card-wrap::before { content: ''; position: absolute; inset: 0; border-radius: var(--r-lg); background: var(--bg);
+  box-shadow: 0 18px 40px -18px rgba(0, 0, 0, .55); pointer-events: none; animation: flipLift var(--flip-ms, 420ms) linear both; }
+@keyframes flipLift { 0%, 70% { opacity: 1 } 100% { opacity: 0 } }
 .wk-settle { position: absolute; inset: 0; border-radius: var(--r-lg); overflow: hidden; pointer-events: none; z-index: 2; }
 .wk-settle > i { position: absolute; top: 0; bottom: 0; left: 0; width: 55%;
   background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--ac) 22%, transparent) 36%, color-mix(in srgb, #fff 18%, var(--ac) 18%) 50%, color-mix(in srgb, var(--ac) 22%, transparent) 64%, transparent);
@@ -1211,11 +1252,11 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .said-wrap:not(.done) .said .sb { visibility: hidden; }
 .said-big { position: absolute; left: 0; right: 0; top: 0; text-align: center; font-size: 26px; line-height: 1.22; padding: 0 6px; color: var(--tx); overflow-wrap: anywhere; pointer-events: none; }
 .said, .said-big { font-family: var(--f-ui); font-weight: 520; letter-spacing: -0.005em; }
-.said-big .sw { transform-origin: 0 0; animation: saidWrite 600ms cubic-bezier(.2,.7,.2,1) backwards; animation-delay: calc(var(--i) * 70ms); }
+.said-big .sw { transform-origin: 0 0; animation: saidWrite 600ms cubic-bezier(.2,.7,.2,1) backwards; animation-delay: calc(var(--i) * 70ms); --soft-dur: 600ms; }
 .said-wrap.fly .said-big .sw { will-change: transform; }
-/* (opacity and a small rise only: the blur these words used to lift out of was animated on every word) */
-@keyframes saidWrite { from { opacity: 0; transform: translateY(.3em); } to { opacity: 1; transform: none; } }
-.calm .w { animation-duration: 760ms; }
+/* (a small rise; each word comes in out of soft focus, .soft) */
+@keyframes saidWrite { from { transform: translateY(.3em); } to { transform: none; } }
+.calm .w { animation-duration: 760ms; --soft-dur: 760ms; }
 
 /* ── Today's cards (screens/TodayCards.tsx): Up next, Muscles this week, Recent records ── */
 .tc-card { padding: 16px 18px 14px 20px; border-radius: var(--r-lg); text-align: left; }

@@ -229,6 +229,9 @@ export function ActiveWorkout({ props, open = true }: { props: { origin?: 'hero'
   const firstIds = useRef(new Set((a?.exercises ?? []).slice(0, 2).map((e) => e.id)));
   const [listDone, setListDone] = useState(listDoneAtOpen.current); // stays true once the list has been complete (adding an exercise later never hides the buttons)
   useEffect(() => { if (!listDone && shown >= total0) setListDone(true); }, [shown, total0, listDone]);
+  // once the opening has built the list, an exercise that joins it (added, or brought back by Undo) unfolds into place
+  const listSettled = useRef(false);
+  useEffect(() => { if (listDone) listSettled.current = true; }, [listDone]);
   useEffect(() => {
     if (p.get() >= 0.97) { setReady(true); return; }
     const off = p.on('change', (v) => { if (v >= 0.97) { setReady(true); off(); } });
@@ -343,10 +346,11 @@ export function ActiveWorkout({ props, open = true }: { props: { origin?: 'hero'
                 <div className="small t2" style={{ marginTop: 6 }}>{t('Add your first exercise, or tell the orb what you did.')}</div>
               </div>
             )}
-            {/* plain blocks: an exercise added later fades in, a removed one folds away (Collapse) — nothing re-measures the page */}
+            {/* plain blocks: an exercise added later (or brought back by Undo) unfolds, a removed one folds away (Collapse), so the
+                list below opens and closes around it instead of jumping — nothing re-measures the page */}
             <AnimatePresence initial={false}>
               {a.exercises.slice(0, shown).map((se, idx) => (
-                <Collapse key={se.id}>
+                <Collapse key={se.id} appear={listSettled.current}>
                   <ExerciseBlock se={se} ex={exMap.get(se.exerciseId)} onMenu={setMenu} appear={!firstIds.current.has(se.id)}
                     linkedPrev={!!(idx > 0 && se.supersetGroup && a.exercises[idx - 1].supersetGroup === se.supersetGroup)}
                     linkedNext={!!(idx < a.exercises.length - 1 && se.supersetGroup && a.exercises[idx + 1].supersetGroup === se.supersetGroup)} />
@@ -436,7 +440,7 @@ function RestInline() {
   const now = useNow(250, !!a?.rest && live);
   if (!a?.rest) return null;
   const left = (a.pausedAt ? a.rest.endsAt : a.rest.endsAt - now) / 1000;
-  return <span style={{ color: left <= 0 ? 'var(--ok)' : 'var(--ac-text)', fontWeight: 650 }}> · {left <= 0 ? t('Rest over') : `${t('Rest')} ${fmtDuration(Math.ceil(left))}`}</span>;
+  return <span className="wk-rest-inline" style={{ color: left <= 0 ? 'var(--ok)' : 'var(--ac-text)', fontWeight: 650 }}> · {left <= 0 ? t('Rest over') : `${t('Rest')} ${fmtDuration(Math.ceil(left))}`}</span>;
 }
 
 /**
@@ -823,8 +827,8 @@ function ExerciseMenu({ se, ex, onClose }: { se: SessionExercise; ex?: Exercise;
   const items = [
     { icon: 'swap', label: t('Replace exercise'), run: () => { onClose(); push('exercisePicker', { mode: 'replace', seId: se.id, forExercise: ex }); } },
     { icon: 'link', label: se.supersetGroup && s.active!.exercises[idx + 1]?.supersetGroup === se.supersetGroup ? t('Unlink superset') : t('Superset with next'), disabled: idx >= count - 1, run: () => { toggleSuperset(se.id); onClose(); } },
-    { icon: 'arrowUp', label: t('Move up'), disabled: idx === 0, run: () => { flip(document.querySelector('.wk-list'), () => moveExercise(se.id, -1)); onClose(); } },
-    { icon: 'arrowDown', label: t('Move down'), disabled: idx >= count - 1, run: () => { flip(document.querySelector('.wk-list'), () => moveExercise(se.id, 1)); onClose(); } },
+    { icon: 'arrowUp', label: t('Move up'), disabled: idx === 0, run: () => { flip(document.querySelector('.wk-list'), () => moveExercise(se.id, -1), 420, se.id); onClose(); } },
+    { icon: 'arrowDown', label: t('Move down'), disabled: idx >= count - 1, run: () => { flip(document.querySelector('.wk-list'), () => moveExercise(se.id, 1), 420, se.id); onClose(); } },
   ];
   return (
     <Sheet onClose={onClose} size="small" label={t('Exercise options')} nested>

@@ -73,7 +73,11 @@ export function FoodSearch({ props }: { props: { date: string; mealId: string } 
     return () => { live = false; clearTimeout(id); ctrl.abort(); };
   }, [dq, s.settings.foodLookup]);
 
-  const onlineShown = online.foods.filter((f) => !results.some((r) => r.sourceId && r.sourceId === f.sourceId && r.source === f.source));
+  // (the same product can come back twice, e.g. two pack sizes with one entry each: a row that would read exactly like one
+  // already shown is left out)
+  const same = (f: Food) => `${f.name.toLowerCase()}|${(f.brand ?? '').toLowerCase()}|${Math.round(f.per100.kcal ?? 0)}|${f.basis}`;
+  const onlineShown = online.foods.filter((f, i, all) => !results.some((r) => (r.sourceId && r.sourceId === f.sourceId && r.source === f.source) || same(r) === same(f))
+    && all.findIndex((g) => same(g) === same(f)) === i);
 
   const quickAdd = (food: Food) => {
     const last = recents.find((r) => r.food.id === food.id)?.qty;
@@ -128,6 +132,8 @@ export function FoodSearch({ props }: { props: { date: string; mealId: string } 
           </div>
         )}
 
+        {/* as you type, the list filters like iOS search: rows that still match stay where they land, new ones fade in. (Rows used
+            to glide to their new places while the old ones faded out, so for a moment their texts slid through each other.) */}
         <div className="list">
           <AnimatePresence initial={false}>
             {results.map((f) => <FoodResult key={f.id} food={f} open={() => open(f)} add={() => quickAdd(f)} />)}
@@ -144,9 +150,12 @@ export function FoodSearch({ props }: { props: { date: string; mealId: string } 
 
         {/* online */}
         {s.settings.foodLookup && dq.length >= 2 && (
-          <div style={{ marginTop: 14 }}>
+          <div style={{ marginTop: 14, position: 'relative' }}>
             <div className="micro" style={{ margin: '4px 0 6px' }}>{t('Online lookup')}</div>
-            {online.status === 'loading' && <div className="small t2 row-flex" style={{ gap: 8, padding: '10px 0' }}><span className="pulse-dot" /> {t('Searching Open Food Facts and USDA…')}</div>}
+            <AnimatePresence initial={false} mode="popLayout">
+              {online.status === 'loading' && <motion.div key="searching" className="small t2 row-flex" style={{ gap: 8, padding: '10px 0' }}
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.2 } }} transition={SOFT}><span className="pulse-dot" /> {t('Searching Open Food Facts and USDA…')}</motion.div>}
+            </AnimatePresence>
             {online.status === 'ok' && onlineShown.length === 0 && <div className="small t2" style={{ padding: '10px 0' }}>{t('Nothing extra online.')}</div>}
             {(online.status === 'unavailable' || online.status === 'offline' || online.status === 'rate') && (
               <div className="plinth-2 small" style={{ padding: '12px 14px', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
@@ -172,7 +181,7 @@ function FoodResult({ food, open, add }: { food: Food; open: () => void; add: ()
   const lang = useLang();
   const favs = useStore((s) => s.favourites);
   return (
-    <motion.div layout="position" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={SOFT} className="li" style={{ position: 'relative', padding: 0 }}>
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={SOFT} className="li" style={{ position: 'relative', padding: 0 }}>
       <button className="press grow" onClick={open} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 6px', textAlign: 'left', minWidth: 0, position: 'relative', minHeight: 62, borderRadius: 14 }}>
         <div className="grow" style={{ position: 'relative', minWidth: 0 }}>
           <div className="li-title trunc">{food.name}{favs.includes(food.id) && <Icon name="star" size={13} style={{ fill: 'var(--ac-text)', color: 'var(--ac-text)', marginLeft: 6, verticalAlign: '-1px' }} />}</div>

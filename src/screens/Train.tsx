@@ -28,7 +28,7 @@ export function TrainScreen() {
       <header>
         <Seg value={tab} onChange={setTab} options={[{ value: 'plan', label: t('Plan') }, { value: 'library', label: t('Library') }, { value: 'history', label: t('History') }]} />
       </header>
-      <Subpage key={tab}>
+      <Subpage id={tab}>
         {tab === 'plan' && <PlanTab />}
         {tab === 'library' && <LibraryTab />}
         {tab === 'history' && <HistoryTab />}

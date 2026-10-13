@@ -1231,3 +1231,73 @@ writing cursor's style is deleted.
 
 The Onboarding step change and the Food page's date title animated a blur as they changed. Both now move with opacity and
 the same small slide only, on the same timing (0.22 s and 0.34 s), per the rule that blur never animates.
+
+## Soft focus, done the cheap way (13 Oct 2026, v0.1.57)
+
+Omar wanted the blur-in back (13 Oct), polished and the same everywhere, without breaking "never animate the blur". Text
+that writes itself in now arrives out of soft focus: over the sharp text sits a still, soft copy of it (`.soft::after`, a
+text-shadow glow of the glyphs with no fill, painted once), which fades in and away while the sharp text fades up
+(`softGlow` / `softSharp` in styles.css). Only opacity (and each word's small rise) animates; nothing is re-blurred per
+frame (traced at 4x CPU: raster time within ~8% of no blur at all). It takes each element's delay and length, so the
+calm timing is unchanged. Used by Coach and orb answers (`Words`), your spoken words on the orb screen (`.sw`), the Food
+date title and the Onboarding titles (`SoftText`). Photo logging's soft photo is a still blurred copy cross-faded in.
+
+## Small fixes: one row per product, "In this workout", Danish (13 Oct 2026, v0.1.58)
+
+Food search no longer lists the same product twice (online rows that would read exactly like one already shown, same
+name, brand, kcal and unit, are left out; "Cheasy vaniljeskyr" showed Cheasy Skyr Vanilje twice). The exercise page
+says "In this workout" in place of "Add to current workout" when the exercise is already in the running workout. The
+last five missing Danish strings are in (voice styles and "Tap a voice to hear it.").
+## Polish pass, step A: food logging without rough edges (13 Oct 2026, v0.1.59)
+
+Found with a new audit (`scripts/audit-polish.mjs` + `scripts/pop-probe.mjs`): it walks the app at 4x CPU slowdown and
+lists everything that pops in, vanishes, jumps or changes a number without rolling; `scripts/film-act.mjs` films one
+action frame by frame to confirm it.
+- **Food search**: as you type, the list filters like iOS search. Rows that still match stay where they land and new ones
+  fade in. Before, rows glided to their new places while the old ones faded out, so for a few frames their texts slid
+  through each other. "Searching Open Food Facts and USDA…" fades in and out instead of popping.
+- **Deleting a logged food**: the sheet keeps showing the entry while it slides away (it switched to the "add food" layout
+  for a moment on its way out).
+- **Food totals roll**: protein, carbs and fat under the ring, and the week's average, roll to their new values like the
+  calories do.
+
+## Polish pass, step B: pages that hand over, a page that sat 24 px left (13 Oct 2026, v0.1.60)
+
+- **Train's Plan / Library / History and Food's days**: the part being left now fades out where it stands while the new one
+  rises in (`Subpage`). It used to vanish at once, leaving a moment of empty background. Opacity only.
+- **Train and Food sat 24 px to the left** after their first visit (cards cut at the left edge, a wider gap on the right):
+  while the new page slid in, something scrolled the page holder sideways and it stayed scrolled. The holder now clips
+  (`overflow: clip`), which can't be scrolled at all.
+- **Today's water count rolls** to its new value, and its button keeps its width, so the buttons next to it no longer shift.
+- **Workout header**: the rest time that joins the clock while you type fades in instead of popping.
+
+## Polish pass, step C: an exercise unfolds into the workout (13 Oct 2026, v0.1.61)
+
+- In the workout list, an exercise that joins after the list is built (added from the picker, or brought back with Undo
+  after removing it) now unfolds into place and the exercises below make room smoothly, the same way a removed one already
+  folded away. It used to appear at full size in one frame and push everything below down at once. The exercises built
+  while the workout opens are unchanged.
+- Known, left as is: when you move an exercise up or down, the two cards glide past each other and their text overlaps
+  for a few frames (the cards are see-through).
+
+## Soft focus that looks like a real focus pull (13 Oct 2026, v0.1.62)
+
+On the phone the v0.1.57 blur-in "looked very fake" (Omar, 13 Oct, two recordings). Frame by frame, each new word arrived
+as a bright, bold smudge (the glow was two text-shadows at 85%, about twice the light of the text) and then sat as a sharp
+word with a halo round it until 82% of its time. Now each word passes through two still copies, a wide blur
+(`.soft::before`, .42em) and a slight one (`.soft::after`, .16em), and then the sharp text (`softFar` / `softNear` /
+`softSharp`). The curves come from a real blur that eases off while the word's light eases in, and were checked frame by
+frame against `filter: blur` of the same word: a text-shadow carries the same light as the text, so each copy looks like
+the word blurred, never bolder; the hand-overs carry a little extra (power .75) so the word never dims between steps. The
+blur is gone at 60% of the word's time and nothing glows round a sharp word. Still opacity only; smoothness at 4x CPU
+unchanged. Same everywhere text writes in (Coach and orb answers, spoken words, Food date, Onboarding titles).
+
+## Polish pass, round 2: moving an exercise, the first food of the day (13 Oct 2026, v0.1.63)
+
+- Moving an exercise up or down (••• menu): the card you moved now passes over the one it swaps with on a solid backing
+  with a soft lift (`.flip-lead`, set by `flip.ts`'s `lead`), so their texts no longer show through each other's glass.
+  The backing fades as the card lands. Found on the way: since v0.1.61 every card below the two also slid by the height
+  difference, because a moved row met `@starting-style` again; `Collapse` now keeps `appear` only for its first growth.
+- The first food of a day: "Nothing logged yet" used to turn into the meal cards at once, hidden under the closing add
+  sheet. Now it waits until the sheet has gone, the empty card fades out, the meals rise in and the water and week cards
+  below glide to their new place. Removing the last food goes back the same way. Another day still shows at once.
