@@ -1428,4 +1428,10 @@ export const da: Record<string, string> = {
  "1 thing the Coach knows about you": "1 ting, Coach ved om dig",
  "1 new record": "1 ny rekord",
  "1-week streak of hitting your target": "1 uge i træk med målet nået",
+ "Rest timer test": "Test af hviletimer",
+ "Pull down to see the countdown": "Træk ned for at se nedtællingen",
+ "Test sent: pull down from the top of the screen.": "Test sendt: træk ned fra toppen af skærmen.",
+ "The test didn’t reach the Aven app.": "Testen nåede ikke frem til Aven-appen.",
+ "Notifications are off for the Aven app. Turn them on in your phone’s Settings › Apps › Aven › Notifications.": "Notifikationer er slået fra for Aven-appen. Slå dem til i telefonens Indstillinger › Apps › Aven › Notifikationer.",
+ "Send a test": "Send en test",
 };

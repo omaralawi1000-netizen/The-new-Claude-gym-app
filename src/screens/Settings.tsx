@@ -29,6 +29,7 @@ import { startDragSort } from '../ui/dragSort';
 import { setFpsMeter, useFpsMeterOn } from '../ui/FpsMeter';
 import { startStutter, stopStutter, stutterReport, stutterState, subscribeStutter } from '../lib/stutter';
 import { lastRestLate } from './workout/rest';
+import { inAndroidApp, showAppRest } from '../lib/androidApp';
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 // Moving between Settings pages works like iOS: the page you leave steps aside and fades out quickly, then the next one glides
@@ -287,6 +288,7 @@ function RestAlertRow() {
   const s = useStore();
   const supported = typeof Notification !== 'undefined';
   const [perm, setPerm] = useState(() => (supported ? Notification.permission : 'denied'));
+  const toast = useUI((u) => u.toast);
   const on = s.settings.restNotify !== false && perm === 'granted';
   const toggle = async (v: boolean) => {
     if (v && supported && Notification.permission === 'default') { const r = await Notification.requestPermission().catch(() => 'default' as NotificationPermission); setPerm(r); }
@@ -294,11 +296,23 @@ function RestAlertRow() {
   };
   if (!supported) return null;
   const late = on ? lastRestLate() : null;
+  const app = inAndroidApp();
+  // in the Android app: a 15-second rest through the real route, so the phone shows at once whether the countdown works
+  const test = async () => {
+    const now = Date.now();
+    const ok = await showAppRest({
+      key: `test:${now}`, startedAt: now, endsAt: now + 15_000, title: t('Rest timer test'), body: '', exercise: t('Rest timer test'),
+      line: t('Pull down to see the countdown'), overTitle: t('Rest over'), overBody: '', more: t('+30 s'), skip: t('Skip'),
+      icon: `${import.meta.env.BASE_URL}notif-icon.png`, badge: `${import.meta.env.BASE_URL}badge-96.png`,
+    });
+    toast(ok ? t('Test sent: pull down from the top of the screen.') : t('The test didn’t reach the Aven app.'), { tone: ok ? 'ok' : 'bad' });
+  };
   return (
     <div className="row-flex between" style={{ alignItems: 'flex-start', gap: 14 }}>
       <div>
         <div>{t('Rest timer on lock screen')}</div>
-        <div className="xs t2" style={{ marginTop: 2 }}>{perm === 'denied' ? t('Notifications are blocked for Aven in your browser settings.') : t('Shows when rest is over and buzzes, even in another app or with the screen off.')}</div>
+        <div className="xs t2" style={{ marginTop: 2 }}>{perm === 'denied' ? (app ? t('Notifications are off for the Aven app. Turn them on in your phone’s Settings › Apps › Aven › Notifications.') : t('Notifications are blocked for Aven in your browser settings.')) : t('Shows when rest is over and buzzes, even in another app or with the screen off.')}</div>
+        {app && on && <button className="btn sm press" style={{ marginTop: 8 }} onClick={test}>{t('Send a test')}</button>}
         {late && <div className="xs t3" style={{ marginTop: 2 }}>{late.ms < 2000 ? t('Last alert came on time.') : t('Last alert came {n} s late.', { n: Math.round(late.ms / 1000) })}</div>}
       </div>
       <Toggle on={on} onChange={toggle} label={t('Rest timer on lock screen')} />
