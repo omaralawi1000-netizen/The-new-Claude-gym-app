@@ -70,8 +70,10 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
   const H = viewportH;
   const p = useMotionValue(0);
   // it travels a little past the bottom edge: a spring's last few percent take a while, and the window's top edge (and its
-  // shadow) used to hang just under the tab bar for that long after closing
-  const sheetTop = (pp: number) => (1 - pp) * (H + 64);
+  // shadow) used to hang just under the tab bar for that long after closing. Its colour reaches 48 px above that edge
+  // (--wk-lead, styles.css), so that much further too: v0.1.97 left that band lying over the tab bar at the end of a minimise
+  const LEAD = 48;
+  const sheetTop = (pp: number) => (1 - pp) * (H + 64 + LEAD);
   const sheetT = useTransform(p, (pp) => `translateY(${sheetTop(pp).toFixed(2)}px)`);
   const dragT = useTransform(dragY, (d) => Math.max(0, d) + Math.min(0, d) * 0.15);
   const dialogY = useTransform([p, dragY], ([pp, d]: number[]) => sheetTop(pp) + Math.max(0, d) + Math.min(0, d) * 0.15); // how far the content is displaced (for the orb)
@@ -100,8 +102,7 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
   };
   useEffect(() => {
     let last = -1;
-    const lead = 48; // --wk-lead: the window's colour reaches this far above its top edge
-    const at = 1 - lead / (H + 64); // the progress where that colour reaches the screen's top
+    const at = 1 - LEAD / (H + 64 + LEAD); // the progress where that colour reaches the screen's top
     return eFinger.on('change', (v) => {
       const t = tints.current; if (!t) return;
       const k = Math.min(1, Math.max(0, (v - (at - 0.015)) / 0.03));
@@ -110,7 +111,8 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
     });
   }, [eFinger, H]);
   // the shadow along the page's top edge is there while it travels and gone as it lands (a page at rest has no edge to shade)
-  const shade = (pp: number) => Math.min(1, Math.max(0, (1 - pp) / 0.3));
+  // (and while it is down by the bottom edge, so it never lies over the tab bar at the end of a minimise)
+  const shade = (pp: number) => Math.min(1, Math.max(0, (1 - pp) / 0.3), Math.max(0, pp / 0.12));
   const shadeO = useTransform(eFinger, shade);
   const shadeRef = useRef<HTMLDivElement>(null);
   const topRef = useRef<HTMLElement>(null);
@@ -123,7 +125,7 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
     if (reduce) return;
     m.add(
       mirrorProgress(sheetRef.current, p0, p1, sp, vel, (pp) => ({ transform: `translateY(${sheetTop(pp).toFixed(2)}px)` })),
-      mirrorProgress(shadeRef.current, p0, p1, sp, vel, (pp) => ({ transform: `translateY(${sheetTop(pp).toFixed(2)}px)`, opacity: String(shade(pp)) }), [0.7]),
+      mirrorProgress(shadeRef.current, p0, p1, sp, vel, (pp) => ({ transform: `translateY(${sheetTop(pp).toFixed(2)}px)`, opacity: String(shade(pp)) }), [0.12, 0.7]),
       mirrorOrb(sheetRef.current, p0, p1, sp, vel, sheetTop),
     );
   };
