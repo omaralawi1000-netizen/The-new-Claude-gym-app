@@ -5,11 +5,12 @@ import '@fontsource-variable/newsreader/opsz-italic.css';
 import '@fontsource-variable/geist/wght.css';
 import './styles.css';
 import { App } from './App';
-import { installGrain } from './lib/grain';
+import { installDither, installGrain } from './lib/grain';
 import { installPress } from './ui/press';
 import { noteAndroidApp } from './lib/androidApp';
 
 installGrain();
+installDither();
 installPress();
 
 noteAndroidApp(); // opened from the Android app: remembered at once, before any reload can drop the referrer
