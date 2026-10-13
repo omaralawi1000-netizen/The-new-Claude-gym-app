@@ -470,23 +470,27 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
    still compare with and without it (and it is a one-line switch back).
    No longer a flat see-through grey. Three quiet things, all painted once (no extra blur, nothing animates, so it costs
    nothing per frame), the same on the page, in sheets and in the workout window:
-   - a crisp edge of light along the top, warmed by the area's own colour, fading away down the sides
-   - a soft inner glow of that same colour coming down from the top edge (never a cool cast over a warm screen)
+   - neutral graphite glass (dark) or white glass (light) with a soft sheen
+   - a crisp neutral edge of light along the top, fading away down the sides
    - a gentle shadow under it, so it lifts a little off the page
+   Warmth is an accent, never the material: only primary actions and active states (the active dock tab, the active set,
+   a sheet's main button) carry the area's colour (--mat-warm-glow). Everything copper read as one muddy colour (Omar).
    Real frost stays where something passes underneath (the sheet's bottom buttons, the dock, sheets, toasts). */
-/* the glow is a straight vertical fall-off with soft stops (a radial one ended in a visible band on wide, short pills) */
+/* the warm glow is a straight vertical fall-off with soft stops (a radial one ended in a visible band on wide, short pills) */
 :root[data-glass='v2'] {
-  --mat-glow: linear-gradient(180deg, color-mix(in srgb, var(--ac) 18%, transparent), color-mix(in srgb, var(--ac) 7%, transparent) 38%, color-mix(in srgb, var(--ac) 2%, transparent) 72%, transparent);
+  --mat-warm-glow: linear-gradient(180deg, color-mix(in srgb, var(--ac) 18%, transparent), color-mix(in srgb, var(--ac) 7%, transparent) 38%, color-mix(in srgb, var(--ac) 2%, transparent) 72%, transparent);
+  --mat-glow: linear-gradient(rgba(26, 28, 34, 0.3), rgba(26, 28, 34, 0.3));
   --mat-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.085), rgba(255, 255, 255, 0.03) 45%, rgba(255, 255, 255, 0));
-  --mat-rim: linear-gradient(180deg, color-mix(in srgb, color-mix(in srgb, var(--ac) 25%, #fff) 85%, transparent), rgba(255, 255, 255, 0.13) 30%, rgba(255, 255, 255, 0.035) 70%, rgba(255, 255, 255, 0.1));
+  --mat-rim: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.055) 30%, rgba(255, 255, 255, 0.025) 70%, rgba(255, 255, 255, 0.06));
   --mat-depth: 0 1px 1px rgba(0, 0, 0, 0.45), 0 14px 28px -12px rgba(0, 0, 0, 0.85);
-  --mat-well: inset 0 2px 5px rgba(0, 0, 0, 0.6), inset 0 0 0 1px rgba(255, 255, 255, 0.055), inset 0 -1px 0 color-mix(in srgb, color-mix(in srgb, var(--ac) 25%, #fff) 22%, transparent);
+  --mat-well: inset 0 2px 5px rgba(0, 0, 0, 0.6), inset 0 0 0 1px rgba(255, 255, 255, 0.055), inset 0 -1px 0 rgba(255, 255, 255, 0.07);
   --mat-well-bg: linear-gradient(180deg, rgba(0, 0, 0, 0.12), rgba(255, 255, 255, 0.025));
 }
 :root[data-glass='v2'][data-theme='light'] {
-  --mat-glow: linear-gradient(180deg, color-mix(in srgb, var(--ac) 13%, transparent), color-mix(in srgb, var(--ac) 4%, transparent) 40%, transparent 80%);
+  --mat-warm-glow: linear-gradient(180deg, color-mix(in srgb, var(--ac) 13%, transparent), color-mix(in srgb, var(--ac) 4%, transparent) 40%, transparent 80%);
+  --mat-glow: linear-gradient(transparent, transparent);
   --mat-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.35) 50%, rgba(255, 255, 255, 0.15));
-  --mat-rim: linear-gradient(180deg, color-mix(in srgb, var(--ac) 38%, #fff), #fff 22%, rgba(255, 255, 255, 0.6) 40%, rgba(20, 28, 48, 0.08) 68%, rgba(20, 28, 48, 0.16));
+  --mat-rim: linear-gradient(180deg, #fff, #fff 22%, rgba(255, 255, 255, 0.6) 40%, rgba(20, 28, 48, 0.08) 68%, rgba(20, 28, 48, 0.16));
   --mat-depth: 0 1px 1.5px rgba(30, 40, 70, 0.12), 0 12px 24px -12px rgba(30, 40, 70, 0.45);
   --mat-well: inset 0 1.5px 3px rgba(30, 40, 70, 0.16), inset 0 0 0 1px rgba(20, 28, 48, 0.07), inset 0 -1px 0 #fff;
   --mat-well-bg: linear-gradient(180deg, rgba(20, 28, 48, 0.03), rgba(255, 255, 255, 0.3));
@@ -535,9 +539,9 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
   content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; padding: 1px; background: var(--mat-rim);
   -webkit-mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
 }
-/* in light only the active set's tile keeps the warm glow and warm edge; the others are clear glass with a neutral rim */
-:root[data-glass='v2'][data-theme='light'] .wk-set:not(.done, .warm, .current) .wk-set-n { background-image: var(--mat-sheen); }
-:root[data-glass='v2'][data-theme='light'] .wk-set:not(.done, .warm, .current) .wk-set-n::after { background: linear-gradient(180deg, #fff, rgba(255, 255, 255, 0.6) 40%, rgba(20, 28, 48, 0.08) 68%, rgba(20, 28, 48, 0.16)); }
+/* in light the active set's tile is the one warm tile: the area's glow and a warm top edge */
+:root[data-glass='v2'][data-theme='light'] .wk-set.current:not(.done, .warm) .wk-set-n { background-image: var(--mat-warm-glow), var(--mat-sheen); }
+:root[data-glass='v2'][data-theme='light'] .wk-set.current:not(.done, .warm) .wk-set-n::after { background: linear-gradient(180deg, color-mix(in srgb, var(--ac) 38%, #fff), #fff 22%, rgba(255, 255, 255, 0.6) 40%, rgba(20, 28, 48, 0.08) 68%, rgba(20, 28, 48, 0.16)); }
 /* "+ Set" sits at the set tiles' level in dark (rim only), so it never outshines the active set */
 :root[data-glass='v2']:not([data-theme='light']) .wk-add-set { background: transparent; box-shadow: none; }
 :root[data-glass='v2']:not([data-theme='light']) .wk-add-set::after { background: rgba(255, 255, 255, 0.12); }
