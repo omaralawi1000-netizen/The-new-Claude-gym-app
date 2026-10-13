@@ -107,7 +107,7 @@ function PlanTab() {
               const muscles = [...new Set(r.items.map((i) => exMap.get(i.exerciseId)?.muscles[0]).filter(Boolean))] as MuscleGroup[];
               const last = [...s.sessions].reverse().find((x) => x.routineId === r.id);
               return (
-                <div key={r.id} className="plinth" style={{ padding: 16, borderRadius: 'var(--r-lg)' }}>
+                <div key={r.id} className={`plinth${r.id === hero ? ' live' : ''}`} style={{ padding: 16, borderRadius: 'var(--r-lg)' }}>
                   <div className="row-flex between" style={{ alignItems: 'flex-start' }}>
                     <button className="grow press" style={{ textAlign: 'left' }} onClick={() => push('routine', { id: r.id })}>
                       <div className="display" style={{ fontSize: 44, fontStyle: 'italic', lineHeight: 0.95 }}>{r.name}</div>

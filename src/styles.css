@@ -481,6 +481,7 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
   --mat-warm-glow: linear-gradient(180deg, color-mix(in srgb, var(--ac) 18%, transparent), color-mix(in srgb, var(--ac) 7%, transparent) 38%, color-mix(in srgb, var(--ac) 2%, transparent) 72%, transparent);
   --mat-glow: linear-gradient(rgba(26, 28, 34, 0.3), rgba(26, 28, 34, 0.3));
   --mat-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.085), rgba(255, 255, 255, 0.03) 45%, rgba(255, 255, 255, 0));
+  --mat-warm-rim: linear-gradient(180deg, color-mix(in srgb, color-mix(in srgb, var(--ac) 25%, #fff) 85%, transparent), rgba(255, 255, 255, 0.13) 30%, rgba(255, 255, 255, 0.035) 70%, rgba(255, 255, 255, 0.1));
   --mat-rim: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.055) 30%, rgba(255, 255, 255, 0.025) 70%, rgba(255, 255, 255, 0.06));
   --mat-depth: 0 1px 1px rgba(0, 0, 0, 0.45), 0 14px 28px -12px rgba(0, 0, 0, 0.85);
   --mat-well: inset 0 2px 5px rgba(0, 0, 0, 0.6), inset 0 0 0 1px rgba(255, 255, 255, 0.055), inset 0 -1px 0 rgba(255, 255, 255, 0.07);
@@ -490,6 +491,7 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
   --mat-warm-glow: linear-gradient(180deg, color-mix(in srgb, var(--ac) 13%, transparent), color-mix(in srgb, var(--ac) 4%, transparent) 40%, transparent 80%);
   --mat-glow: linear-gradient(transparent, transparent);
   --mat-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.35) 50%, rgba(255, 255, 255, 0.15));
+  --mat-warm-rim: linear-gradient(180deg, color-mix(in srgb, var(--ac) 38%, #fff), #fff 22%, rgba(255, 255, 255, 0.6) 40%, rgba(20, 28, 48, 0.08) 68%, rgba(20, 28, 48, 0.16));
   --mat-rim: linear-gradient(180deg, #fff, #fff 22%, rgba(255, 255, 255, 0.6) 40%, rgba(20, 28, 48, 0.08) 68%, rgba(20, 28, 48, 0.16));
   --mat-depth: 0 1px 1.5px rgba(30, 40, 70, 0.12), 0 12px 24px -12px rgba(30, 40, 70, 0.45);
   --mat-well: inset 0 1.5px 3px rgba(30, 40, 70, 0.16), inset 0 0 0 1px rgba(20, 28, 48, 0.07), inset 0 -1px 0 #fff;
@@ -539,9 +541,18 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
   content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; padding: 1px; background: var(--mat-rim);
   -webkit-mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
 }
+/* live cards: what is happening right now (the meal logged to last, today's routine, the running workout's pill) is
+   warm glass, the area's own colour glowing down from a warm top edge; at most one or two per screen */
+:root[data-glass='v2'] .plinth.live { background-image: var(--mat-warm-glow), var(--mat-sheen); }
+:root[data-glass='v2'] .plinth.live::after { background: var(--mat-warm-rim); }
+:root[data-glass='v2'] [data-wk='pill'] { background-image: var(--mat-warm-glow), var(--mat-sheen); }
+:root[data-glass='v2'] [data-wk='pill']::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; padding: 1px; opacity: 1; background: var(--mat-warm-rim);
+  -webkit-mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}
 /* in light the active set's tile is the one warm tile: the area's glow and a warm top edge */
 :root[data-glass='v2'][data-theme='light'] .wk-set.current:not(.done, .warm) .wk-set-n { background-image: var(--mat-warm-glow), var(--mat-sheen); }
-:root[data-glass='v2'][data-theme='light'] .wk-set.current:not(.done, .warm) .wk-set-n::after { background: linear-gradient(180deg, color-mix(in srgb, var(--ac) 38%, #fff), #fff 22%, rgba(255, 255, 255, 0.6) 40%, rgba(20, 28, 48, 0.08) 68%, rgba(20, 28, 48, 0.16)); }
+:root[data-glass='v2'][data-theme='light'] .wk-set.current:not(.done, .warm) .wk-set-n::after { background: var(--mat-warm-rim); }
 /* "+ Set" sits at the set tiles' level in dark (rim only), so it never outshines the active set */
 :root[data-glass='v2']:not([data-theme='light']) .wk-add-set { background: transparent; box-shadow: none; }
 :root[data-glass='v2']:not([data-theme='light']) .wk-add-set::after { background: rgba(255, 255, 255, 0.12); }
