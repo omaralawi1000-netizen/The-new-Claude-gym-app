@@ -4,7 +4,9 @@ import { useStore, exerciseMap } from '../../state/store';
 import { tNow } from '../../lib/i18n';
 import { fmtTime } from '../../lib/dates';
 import type { SessionExercise, SetRecord, WorkoutSession } from '../../lib/types';
-import { exName } from './common';
+import { exName, fmtSet, isStrength } from './common';
+import { adjustRest, skipRest } from './actions';
+import { fmtNum, kgToDisplay } from '../../lib/units';
 
 /** The set to do next: the first one not yet ticked, in the order of the list (with its label: "W" or the working-set number). */
 export function nextSetOf(a: WorkoutSession | null | undefined): { se: SessionExercise; set: SetRecord; label: string } | null {
@@ -62,25 +64,50 @@ function tones() {
 const vibrate = (p: number | number[]) => { try { if (useStore.getState().settings.haptics && 'vibrate' in navigator) navigator.vibrate(p); } catch { /* ignore */ } };
 
 // ── the rest timer outside the app ──────────────────────────
-// Leave Aven mid-rest (another app, or the screen off) and the rest moves to a notification: "Rest over at 14:32" on the lock
-// screen, which turns into a buzzing "Rest over" alert when the time comes. The service worker (public/rest-sw.js) keeps the
-// time because a hidden page is slowed down; this page keeps a back-up timer. Back in the app, both notifications go away.
-const TAG = 'aven-rest';
+// Leave Aven mid-rest (another app, or the screen off) and the rest moves to a notification: "Back at 14:32" with the set
+// that's next ("Preacher Curl · set 2 of 3 · 25 kg × 10") and two buttons, +30 s and Skip rest. When the time comes a
+// separate alert rings ("Time for set 2"). The service worker (public/rest-sw.js) keeps the time because a hidden page is
+// slowed down; this page keeps a back-up timer. Back in the app, both notifications go away.
 const LATE_KEY = 'aven.restLate';
 const notifyOn = () => typeof Notification !== 'undefined' && Notification.permission === 'granted' && useStore.getState().settings.restNotify !== false;
 const toSW = (msg: unknown) => { navigator.serviceWorker?.ready.then((reg) => reg.active?.postMessage(msg)).catch(() => {}); };
+const isRestNote = (n: Notification) => n.tag === 'aven-rest' || n.tag === 'aven-rest-over';
 
-/** What the notification needs for the rest that's running now, or null when there's nothing to show (`ended`: also once it's over). */
+/** The set that's next, in words for a notification: name, "set 2 of 3" and "25 kg × 10" (what's planned or last typed). */
+function nextSetWords(a: WorkoutSession) {
+  const st = useStore.getState();
+  const nx = nextSetOf(a);
+  if (!nx) return null;
+  const lang = st.settings.language, unit = st.settings.units.weight;
+  const ex = exerciseMap(st.exercises).get(nx.se.exerciseId);
+  const name = ex ? exName(ex, lang) : '';
+  const of = nx.se.sets.filter((x) => x.type === 'working').length;
+  const which = nx.label === 'W' ? tNow('Warm-up').toLowerCase() : tNow('set {n} of {total}', { n: nx.label, total: of });
+  let target = '';
+  if (isStrength(ex)) {
+    const kg = nx.set.weightKg ?? nx.set.target?.weightKg;
+    const reps = nx.set.reps ?? nx.set.target?.repMax;
+    target = [kg ? `${fmtNum(kgToDisplay(kg, unit), lang, 2)} ${unit}` : '', reps ? `× ${reps}` : ''].filter(Boolean).join(' ');
+  } else target = fmtSet(nx.set, ex, st.settings.units, lang, tNow);
+  return { name, which, target, label: nx.label };
+}
+
+/** What the notifications need for the rest that's running now, or null when there's nothing to show (`ended`: also once it's over). */
 function restPayload(ended = false) {
   const st = useStore.getState();
   const a = st.active;
   if (!a?.rest || a.pausedAt || (!ended && a.rest.endsAt <= Date.now())) return null;
-  const next = nextSetText(a);
+  const w = nextSetWords(a);
   const lang = st.settings.language;
+  const titleTpl = tNow('Back at {time}');
   return {
-    key: `${a.id}:${a.rest.endsAt}`, endsAt: a.rest.endsAt,
-    title: tNow('Rest over at {time}', { time: fmtTime(a.rest.endsAt, lang) }), body: next ? tNow('Next: {what}', { what: next }) : '',
-    overTitle: tNow('Rest over'), overBody: next, icon: `${import.meta.env.BASE_URL}icon-192.png`,
+    key: `${a.id}:${a.rest.endsAt}`, id: a.id, endsAt: a.rest.endsAt, locale: lang === 'da' ? 'da-DK' : 'en-GB', titleTpl,
+    title: titleTpl.split('{time}').join(fmtTime(a.rest.endsAt, lang)),
+    body: w ? [w.name, w.which, w.target].filter(Boolean).join(' · ') : '',
+    overTitle: !w ? tNow('Rest over') : w.label === 'W' ? tNow('Time for your warm-up') : tNow('Time for set {n}', { n: w.label }),
+    overBody: w ? [w.name, w.target].filter(Boolean).join(' · ') : '',
+    badge: `${import.meta.env.BASE_URL}badge-96.png`,
+    more: tNow('+30 s'), skip: tNow('Skip rest'),
   };
 }
 
@@ -96,7 +123,7 @@ export function lastRestLate(): { ms: number; by?: string; at: number } | null {
 /** Back in the app: the notifications have done their job (note how late the alert was first). */
 function clearNotice() {
   toSW({ type: 'aven-rest', rest: null });
-  navigator.serviceWorker?.ready.then((reg) => reg.getNotifications({ tag: TAG })).then((ns) => ns.forEach((n) => { if ((n.data as any)?.kind === 'over') rememberLate(n.data); n.close(); })).catch(() => {});
+  navigator.serviceWorker?.ready.then((reg) => reg.getNotifications()).then((ns) => ns.filter(isRestNote).forEach((n) => { if ((n.data as any)?.kind === 'over') rememberLate(n.data); n.close(); })).catch(() => {});
 }
 
 /**
@@ -142,7 +169,10 @@ export function useRestCue() {
       if (cued === key) return;
       cued = key;
       const st = useStore.getState();
-      if (document.hidden) { const r = restPayload(true); if (r && notifyOn()) toSW({ type: 'aven-rest-over', rest: r }); }
+      if (document.hidden) {
+        const r = restPayload(true);
+        if (r && notifyOn()) { toSW({ type: 'aven-rest-over', rest: r }); if (st.settings.sound) tones(); }
+      }
       else { if (st.settings.sound) tones(); vibrate([...HAPTICS.restOver]); }
     }, left));
     return () => timers.forEach(clearTimeout);
@@ -158,6 +188,14 @@ export function useRestCue() {
     document.addEventListener('visibilitychange', on);
     // tapping a notification: open the workout
     const msg = (e: MessageEvent) => {
+      if (e.data?.type === 'aven-rest-action') {
+        // +30 s or Skip rest from the notification: the service worker has already updated it; this keeps the app in step
+        const a = useStore.getState().active;
+        if (!a?.rest || `${a.id}:${a.rest.endsAt}` !== e.data.key) return;
+        if (e.data.action === 'more') adjustRest(30); else skipRest();
+        if (document.hidden) { const r = restPayload(); if (r && notifyOn()) toSW({ type: 'aven-rest', rest: r }); }
+        return;
+      }
       if (e.data?.type !== 'aven-open-workout') return;
       rememberLate(e.data.late);
       openWorkout();

@@ -1405,7 +1405,11 @@ export const da: Record<string, string> = {
  "Shows when rest is over and buzzes, even in another app or with the screen off.": "Viser hvornår hvilen er slut og summer – også i en anden app eller med skærmen slukket.",
  "Last alert came on time.": "Seneste besked kom til tiden.",
  "Last alert came {n} s late.": "Seneste besked kom {n} sek. for sent.",
- "Rest over at {time}": "Hvilen slutter kl. {time}",
- "Next: {what}": "Næste: {what}",
  "See your rest on the lock screen and get a buzz when it’s over, even in another app?": "Vil du se hvilen på låseskærmen og få en summen, når den er slut – også i en anden app?",
+ "Back at {time}": "Tilbage kl. {time}",
+ "set {n} of {total}": "sæt {n} af {total}",
+ "Time for set {n}": "Tid til sæt {n}",
+ "Time for your warm-up": "Tid til opvarmning",
+ "+30 s": "+30 sek.",
+ "Skip rest": "Spring hvilen over",
 };
