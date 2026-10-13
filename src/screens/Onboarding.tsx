@@ -127,7 +127,7 @@ export function Onboarding({ props }: { props: { rerun?: boolean; starterOnly?: 
   }
   const isLast = step === last;
   return (
-    <motion.div data-hue="today" style={{ position: 'fixed', inset: 0, zIndex: z, background: 'var(--bg)', display: 'flex', flexDirection: 'column' }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} role="dialog" aria-modal="true" aria-label={tt('Setup')}>
+    <motion.div className="ovl" data-hue="today" style={{ position: 'fixed', inset: 0, zIndex: z, background: 'var(--bg)', display: 'flex', flexDirection: 'column' }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} role="dialog" aria-modal="true" aria-label={tt('Setup')}>
       <div className="aurora in" aria-hidden><i /><i /><i /></div>
       <div className="aurora in" aria-hidden><i /><i /><i /></div>
       <div style={{ padding: 'calc(var(--sat) + 12px) 20px 0', display: 'flex', alignItems: 'center', gap: 12 }}>
