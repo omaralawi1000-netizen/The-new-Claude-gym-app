@@ -1099,6 +1099,22 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    logged:     a filled check that draws itself, the row tinted */
 .wk-set { display: grid; gap: 8px; align-items: center; padding: 5px 6px; margin: 2px 0; border-radius: 14px; background: transparent; box-shadow: inset 0 0 0 1px transparent;
   transition: background-color 420ms var(--ease-out), box-shadow 420ms var(--ease-out); }
+/* the tick's ripple: one soft ellipse of light, centred on the check, that grows across the row and fades (transform and
+   opacity only; clipped to the row, painted under its numbers) */
+.wk-set { position: relative; isolation: isolate; }
+.wk-set-clip { position: absolute; inset: 0; z-index: -1; overflow: hidden; border-radius: inherit; pointer-events: none; }
+.wk-set-wave { position: absolute; top: 50%; right: 29px; width: 760px; height: 150px; margin: -75px -380px 0 0;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--ac) 50%, transparent), color-mix(in srgb, var(--ac) 18%, transparent) 62%, transparent);
+  opacity: 0; animation: setWave 900ms var(--ease-out) both; }
+@keyframes setWave { 0% { opacity: 1; transform: scale(.05, .3); } 35% { opacity: .9; } 100% { opacity: 0; transform: none; } }
+/* an exercise's last set ticked: one slow band of warm light passes over the card, once. Laid over the card (not inside its
+   frosted glass) and only the band moves: a full-card glow layer cost frames on the test bench, this one doesn't */
+.wk-card-wrap { position: relative; }
+.wk-settle { position: absolute; inset: 0; border-radius: var(--r-lg); overflow: hidden; pointer-events: none; z-index: 2; }
+.wk-settle > i { position: absolute; top: 0; bottom: 0; left: 0; width: 55%;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--ac) 22%, transparent) 36%, color-mix(in srgb, #fff 18%, var(--ac) 18%) 50%, color-mix(in srgb, var(--ac) 22%, transparent) 64%, transparent);
+  transform: translateX(-110%); animation: settleSheen 1250ms 80ms cubic-bezier(0.45, 0, 0.25, 1) both; }
+@keyframes settleSheen { to { transform: translateX(200%); } }
 .wk-set.current { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ac) 55%, transparent); background: color-mix(in srgb, var(--ac) 5%, transparent); }
 .wk-set.done { background: color-mix(in srgb, var(--ac) 13%, transparent); }
 .wk-set .input { transition: color 300ms, background-color 420ms var(--ease-out), box-shadow 420ms var(--ease-out); }

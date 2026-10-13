@@ -1126,3 +1126,14 @@ Settings additions, chosen by the coordinator from the customization shortlist (
 - **Colours as small screens.** Each look in Settings → Appearance is a tiny still Today screen in its own light: the field, the calorie ring, a workout card with its play button, and the dock. The cards follow Theme and Background glow, so what you see is what you get. Picking one still applies at once.
 - **Background glow: Full / Soft / Off** (`settings.glow`, set as `data-glow` on the page). Soft lowers the colour field's strength (`--aurora-a` 0.28). Off removes the field layers entirely (`display: none`), so nothing drifts behind the app and the GPU has less to draw. Missing means Full.
 - **Workout opens in: Last used / List / Focus** (Settings → Training, `settings.workoutView`). Last used is the old behaviour and the default: the view you left is remembered on this phone. List or Focus always opens that view; switching inside a workout still works.
+
+## Alive, step 1: a set lands, an exercise settles (13 Oct 2026, v0.1.45)
+
+Omar asked for the app to feel more alive where it wows him. The tick already filled, drew its check, rang and rolled the
+totals; two moments were missing.
+- **A set ticked**: a soft ellipse of the accent light ripples out from the check across the row (0.9 s) and leaves the row's
+  done tint behind. Clipped to the row and painted under its numbers; transform and opacity only.
+- **An exercise's last set ticked**: one slow band of warm light passes over the card (1.25 s), beside the badge that pops in
+  by the name. Only when it becomes complete while you watch, never when drawn complete or when a set is unticked.
+- Cost: a full-card glow layer (opacity over the card) cost visible frames on the 4× CPU bench, so it was dropped; the band
+  is laid over the card (outside its frosted glass) and only it moves. Main-thread time is unchanged.
