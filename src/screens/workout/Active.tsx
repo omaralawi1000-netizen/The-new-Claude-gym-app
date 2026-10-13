@@ -115,6 +115,15 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
   const shade = (pp: number) => Math.min(1, Math.max(0, (1 - pp) / 0.3), Math.max(0, pp / 0.12));
   const shadeO = useTransform(eFinger, shade);
   const shadeRef = useRef<HTMLDivElement>(null);
+  // what is on the page floats a little behind the page itself, by layer: the header a touch, the list a little more. It
+  // arrives a beat after the window lands (a soft settle, no pop), and on the way down it leads the window into the bar —
+  // one number, so minimising is the exact reverse of opening. The workout bar and its orb ride with the window itself.
+  const lag = (k: number) => (pp: number) => k * Math.pow(Math.max(0, 1 - pp), 0.8);
+  const headLag = lag(20), viewsLag = lag(44);
+  const headT = useTransform(eFinger, (pp) => `translateY(${headLag(pp).toFixed(2)}px)`);
+  const viewsT = useTransform(eFinger, (pp) => `translateY(${viewsLag(pp).toFixed(2)}px)`);
+  const headRef = useRef<HTMLDivElement>(null);
+  const viewsRef = useRef<HTMLDivElement>(null);
   const topRef = useRef<HTMLElement>(null);
   useEffect(() => trackCover(depthId, eFinger), [depthId, eFinger]); // and stops being drawn while the window covers it
   const sheetRef = useRef<HTMLDivElement>(null);
@@ -126,6 +135,8 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
     m.add(
       mirrorProgress(sheetRef.current, p0, p1, sp, vel, (pp) => ({ transform: `translateY(${sheetTop(pp).toFixed(2)}px)` })),
       mirrorProgress(shadeRef.current, p0, p1, sp, vel, (pp) => ({ transform: `translateY(${sheetTop(pp).toFixed(2)}px)`, opacity: String(shade(pp)) }), [0.12, 0.7]),
+      mirrorProgress(headRef.current, p0, p1, sp, vel, (pp) => ({ transform: `translateY(${headLag(pp).toFixed(2)}px)` }), [0.5, 0.8, 0.95]),
+      mirrorProgress(viewsRef.current, p0, p1, sp, vel, (pp) => ({ transform: `translateY(${viewsLag(pp).toFixed(2)}px)` }), [0.5, 0.8, 0.95]),
       mirrorOrb(sheetRef.current, p0, p1, sp, vel, sheetTop),
     );
   };
@@ -380,7 +391,7 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
           {/* header */}
           {/* no backdrop of its own: the list scrolls in its own box below, so the header sits straight on the window's light
               (a solid band here cut the colour field off in a hard line under the grabber) */}
-          <div className="wk-head-wrap" style={{ touchAction: 'none' }}>
+          <motion.div ref={headRef} className="wk-head-wrap" style={{ touchAction: 'none', transform: headT }}>
             <div className="wk-head">
               {/* the finger is down: the page behind starts drawing itself again (unseen) so the window can move the moment it lifts */}
               <button className="icon-btn flat press wk-min" aria-label={t('Minimise workout')} onPointerDown={warmUp} onPointerCancel={() => warmStage(false)} onClick={() => close()}><Icon name="chevD" /></button>
@@ -411,10 +422,10 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
             </div>
             {/* grows by scaling (the compositor's job); it animated its width, which made every set ticked lay the page out again */}
             <div className="wk-progress"><i style={{ transform: `scaleX(${total ? done / total : 0})` }} /></div>
-          </div>
+          </motion.div>
 
           {/* body: the list, and Focus over it when chosen (the list stays, faded out, so switching back keeps your place) */}
-          <div className="wk-views">
+          <motion.div ref={viewsRef} className="wk-views" style={{ transform: viewsT }}>
           <motion.div ref={body} style={{ flex: 1, overflowY: 'auto', padding: '4px 16px 0', paddingBottom: bodyPad, overscrollBehavior: 'contain' }} className={`hide-scroll wk-list${a.exercises.length === 0 ? ' is-empty' : ''}${view === 'focus' && a.exercises.length > 0 && (focusIn || shared !== 'in') ? ' wk-away' : ''}${shared === 'back' ? ' back' : ''}`}>
             {a.exercises.length === 0 && (
               // nothing yet: one calm, centred moment (a soft mark, the line, then the button) instead of a top-heavy
@@ -448,7 +459,7 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
               <FocusView exMap={exMap} onMenu={setMenu} pad={focusPad} apiRef={focusApi} />
             </div>
           )}
-          </div>
+          </motion.div>
 
           {/* the workout's own dock, where the tab bar sits: what's next, the rest timer, and the orb */}
           <WorkoutBar engage={engage} exMap={exMap} focus={view === 'focus'} onDone={pointToFinish} onJump={jumpTo} />
