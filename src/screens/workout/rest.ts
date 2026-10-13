@@ -7,6 +7,7 @@ import type { SessionExercise, SetRecord, WorkoutSession } from '../../lib/types
 import { exName, fmtSet, isStrength } from './common';
 import { adjustRest, skipRest } from './actions';
 import { fmtNum, kgToDisplay } from '../../lib/units';
+import { androidRest, clearAppRest, inAndroidApp, noteAndroidApp, overAppRest, showAppRest } from '../../lib/androidApp';
 
 /** The set to do next: the first one not yet ticked, in the order of the list (with its label: "W" or the working-set number). */
 export function nextSetOf(a: WorkoutSession | null | undefined): { se: SessionExercise; set: SetRecord; label: string } | null {
@@ -68,6 +69,7 @@ const vibrate = (p: number | number[]) => { try { if (useStore.getState().settin
 // that's next ("Preacher Curl · set 2 of 3 · 25 kg × 10") and two buttons, +30 s and Skip rest. When the time comes a
 // separate alert rings ("Time for set 2"). The service worker (public/rest-sw.js) keeps the time because a hidden page is
 // slowed down; this page keeps a back-up timer. Back in the app, both notifications go away.
+// With the Android app on the phone, the rest goes to it instead (src/lib/androidApp.ts): a live countdown that ticks.
 const LATE_KEY = 'aven.restLate';
 const notifyOn = () => typeof Notification !== 'undefined' && Notification.permission === 'granted' && useStore.getState().settings.restNotify !== false;
 const toSW = (msg: unknown) => { navigator.serviceWorker?.ready.then((reg) => reg.active?.postMessage(msg)).catch(() => {}); };
@@ -100,16 +102,32 @@ function restPayload(ended = false) {
   const w = nextSetWords(a);
   const lang = st.settings.language;
   const titleTpl = tNow('Back at {time}');
+  const startedAt = a.rest.endsAt - a.rest.total * 1000; // stays put when +30 s moves the end
   return {
     key: `${a.id}:${a.rest.endsAt}`, id: a.id, endsAt: a.rest.endsAt, locale: lang === 'da' ? 'da-DK' : 'en-GB', titleTpl,
+    // for the Android app's countdown: the exercise, and "Set 2 of 3 · 60 kg × 8" (warm-ups: "Warm-up · 40 kg × 10")
+    appKey: `${a.id}:${startedAt}`, startedAt, exercise: w?.name ?? '',
+    line: w ? [w.which.charAt(0).toUpperCase() + w.which.slice(1), w.target].filter(Boolean).join(' · ') : '',
     title: titleTpl.split('{time}').join(fmtTime(a.rest.endsAt, lang)),
     body: w ? [w.name, w.which, w.target].filter(Boolean).join(' · ') : '',
     overTitle: !w ? tNow('Rest over') : w.label === 'W' ? tNow('Time for your warm-up') : tNow('Time for set {n}', { n: w.label }),
     overBody: w ? [w.name, w.target].filter(Boolean).join(' · ') : '',
     // icon: Aven's orb in a circle (left out, Chrome draws a grey letter bubble); badge: the white mark in the status bar
     icon: `${import.meta.env.BASE_URL}notif-icon.png`, badge: `${import.meta.env.BASE_URL}badge-96.png`,
-    more: tNow('+30 s'), skip: tNow('Skip rest'),
+    more: tNow('+30 s'), skip: tNow('Skip rest'), skipShort: tNow('Skip'),
   };
+}
+type Payload = NonNullable<ReturnType<typeof restPayload>>;
+const appRest = (r: Payload) => ({ ...r, key: r.appKey, skip: r.skipShort });
+
+let viaApp = false; // the rest went to the Android app (its countdown rings by itself)
+/** Leaving Aven mid-rest: to the Android app if it's there, otherwise the website's own notification. */
+function handOff(r: Payload) {
+  showAppRest(appRest(r)).then((ok) => {
+    viaApp = ok;
+    if (!ok) toSW({ type: 'aven-rest', rest: r });
+    else if (!document.hidden) clearAppRest(); // already back while it was on its way
+  });
 }
 
 /** How late the last alert came (shown in Settings → Training, so the phone itself tells us if it's reliable). */
@@ -123,6 +141,7 @@ export function lastRestLate(): { ms: number; by?: string; at: number } | null {
 
 /** Back in the app: the notifications have done their job (note how late the alert was first). */
 function clearNotice() {
+  clearAppRest();
   toSW({ type: 'aven-rest', rest: null });
   navigator.serviceWorker?.ready.then((reg) => reg.getNotifications()).then((ns) => ns.filter(isRestNote).forEach((n) => { if ((n.data as any)?.kind === 'over') rememberLate(n.data); n.close(); })).catch(() => {});
 }
@@ -134,8 +153,10 @@ function clearNotice() {
 export function offerRestAlerts(toast: (text: string, o: { actionLabel: string; onAction: () => void; duration: number }) => void) {
   try {
     if (typeof Notification === 'undefined' || Notification.permission !== 'default') return;
-    if (localStorage.getItem('aven.restAsk2')) return;
-    localStorage.setItem('aven.restAsk2', '1');
+    // asked once on the website; once more inside the Android app, which has its own say in it (Android asks for the app)
+    const asked = inAndroidApp() ? 'aven.restAskApp' : 'aven.restAsk2';
+    if (localStorage.getItem(asked)) return;
+    localStorage.setItem(asked, '1');
     toast(tNow('See your rest on the lock screen and get a buzz when it’s over, even in another app?'), { actionLabel: tNow('Allow'), onAction: () => { Notification.requestPermission().catch(() => {}); }, duration: 9000 });
   } catch { /* ignore */ }
 }
@@ -172,7 +193,10 @@ export function useRestCue() {
       const st = useStore.getState();
       if (document.hidden) {
         const r = restPayload(true);
-        if (r && notifyOn()) { toSW({ type: 'aven-rest-over', rest: r }); if (st.settings.sound) tones(); }
+        if (r && notifyOn()) {
+          if (viaApp) overAppRest(appRest(r)); // the app rings on time itself: this only covers it if it didn't
+          else { toSW({ type: 'aven-rest-over', rest: r }); if (st.settings.sound) tones(); }
+        }
       }
       else { if (st.settings.sound) tones(); vibrate([...HAPTICS.restOver]); }
     }, left));
@@ -180,11 +204,13 @@ export function useRestCue() {
   }, [endsAt, total, paused]);
   // leaving the app mid-rest hands the rest to the notification; coming back takes it away again
   useEffect(() => {
+    noteAndroidApp();
+    androidRest(); // ready before you ever leave mid-rest
     if (!document.hidden) clearNotice(); // opened again from the home screen: a notification left over has done its job
     const on = () => {
       if (!document.hidden) { clearNotice(); return; }
       const r = restPayload();
-      if (r && notifyOn()) toSW({ type: 'aven-rest', rest: r });
+      if (r && notifyOn()) handOff(r);
     };
     document.addEventListener('visibilitychange', on);
     // tapping a notification: open the workout
@@ -192,9 +218,11 @@ export function useRestCue() {
       if (e.data?.type === 'aven-rest-action') {
         // +30 s or Skip rest from the notification: the service worker has already updated it; this keeps the app in step
         const a = useStore.getState().active;
-        if (!a?.rest || `${a.id}:${a.rest.endsAt}` !== e.data.key) return;
+        if (!a?.rest) return;
+        const keys = [`${a.id}:${a.rest.endsAt}`, `${a.id}:${a.rest.endsAt - a.rest.total * 1000}`]; // website's / app's
+        if (!keys.includes(e.data.key)) return;
         if (e.data.action === 'more') adjustRest(30); else skipRest();
-        if (document.hidden) { const r = restPayload(); if (r && notifyOn()) toSW({ type: 'aven-rest', rest: r }); }
+        if (document.hidden) { const r = restPayload(); if (r && notifyOn()) handOff(r); }
         return;
       }
       if (e.data?.type !== 'aven-open-workout') return;

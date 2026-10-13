@@ -12,6 +12,9 @@ import android.media.AudioAttributes;
 import android.media.RingtoneManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.text.SpannableString;
+import android.text.Spanned;
+import android.text.style.RelativeSizeSpan;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -206,7 +209,10 @@ final class RestNotifications {
         if (Build.VERSION.SDK_INT >= 31) b.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE);
         if (ticking) {
             String clock = clock(left);
-            b.setContentTitle(clock).setContentText(r.line).setSubText(r.exercise).setShowWhen(false);
+            // bigger numbers (Android keeps the size where it allows text styling, else shows them normal size)
+            SpannableString big = new SpannableString(clock);
+            big.setSpan(new RelativeSizeSpan(1.6f), 0, clock.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            b.setContentTitle(big).setContentText(r.line).setSubText(r.exercise).setShowWhen(false);
             criticalText(b, clock);
         } else {
             b.setContentTitle(r.line).setContentText(r.exercise)
