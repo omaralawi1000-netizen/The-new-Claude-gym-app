@@ -334,7 +334,7 @@ function RestAlertRow() {
     <div className="row-flex between" style={{ alignItems: 'flex-start', gap: 14 }}>
       <div>
         <div>{t('Rest timer on lock screen')}</div>
-        <div className="xs t2" style={{ marginTop: 2 }}>{perm === 'denied' ? (app ? t('Notifications are off for the Aven app. Turn them on in your phone’s Settings › Apps › Aven › Notifications.') : t('Notifications are blocked for Aven in your browser settings.')) : t('Shows when rest is over and buzzes, even in another app or with the screen off.')}</div>
+        <div className="xs t2" style={{ marginTop: 2 }}>{perm === 'denied' ? (app ? t('Notifications are off for the Aven app. Turn them on in your phone’s Settings › Apps › Aven › Notifications, then force stop Chrome (Settings › Apps › Chrome) so it notices, and open Aven again.') : t('Notifications are blocked for Aven in your browser settings.')) : t('Shows when rest is over and buzzes, even in another app or with the screen off.')}</div>
         {android && line && <div className="xs t3" style={{ marginTop: 4, wordBreak: 'break-word' }}>{line}</div>}
         {android && <button className="btn sm press" style={{ marginTop: 8 }} onClick={test}>{t('Send a test')}</button>}
         {late && <div className="xs t3" style={{ marginTop: 2 }}>{late.ms < 2000 ? t('Last alert came on time.') : t('Last alert came {n} s late.', { n: Math.round(late.ms / 1000) })}</div>}

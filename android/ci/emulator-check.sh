@@ -124,4 +124,20 @@ sleep 4
 cdp get | tee -a shots/carry-over.txt
 timeout 15 adb shell dumpsys activity activities | grep -m2 "ResumedActivity" | tee -a shots/carry-over.txt
 timeout 15 adb exec-out screencap -p > shots/6b-app.png
+
+# 4. Omar's path: the app's notifications off, then switched on in Settings later. When does the website see it?
+perm() { timeout 10 adb shell am start -n app.aven.android/com.google.androidbrowserhelper.trusted.LauncherActivity; sleep 8
+  cdp perm | grep -v '^pages' | sed "s/^/$1: /" | tee -a shots/perm-path.txt; timeout 10 adb shell input keyevent KEYCODE_HOME; sleep 2; }
+adb shell pm revoke app.aven.android android.permission.POST_NOTIFICATIONS
+adb shell pm set-permission-flags app.aven.android android.permission.POST_NOTIFICATIONS user-set user-fixed
+adb shell am force-stop app.aven.android
+perm "switched off, app restarted"
+adb shell am force-stop com.android.chrome
+perm "switched off, Chrome restarted too"
+adb shell pm clear-permission-flags app.aven.android android.permission.POST_NOTIFICATIONS user-fixed
+adb shell pm grant app.aven.android android.permission.POST_NOTIFICATIONS
+adb shell am force-stop app.aven.android
+perm "switched on, app restarted"
+adb shell am force-stop com.android.chrome
+perm "switched on, Chrome restarted too"
 exit 0

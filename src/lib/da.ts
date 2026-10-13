@@ -1433,7 +1433,7 @@ export const da: Record<string, string> = {
  "Test sent ({via}): pull down from the top of the screen.": "Test sendt ({via}): træk ned fra toppen af skærmen.",
  "The test couldn’t be shown.": "Testen kunne ikke vises.",
  "Notifications aren’t allowed, so nothing can show.": "Notifikationer er ikke tilladt, så intet kan vises.",
- "Notifications are off for the Aven app. Turn them on in your phone’s Settings › Apps › Aven › Notifications.": "Notifikationer er slået fra for Aven-appen. Slå dem til i telefonens Indstillinger › Apps › Aven › Notifikationer.",
+ "Notifications are off for the Aven app. Turn them on in your phone’s Settings › Apps › Aven › Notifications, then force stop Chrome (Settings › Apps › Chrome) so it notices, and open Aven again.": "Notifikationer er slået fra for Aven-appen. Slå dem til i telefonens Indstillinger › Apps › Aven › Notifikationer, tving derefter Chrome til at stoppe (Indstillinger › Apps › Chrome), så den opdager det, og åbn Aven igen.",
  "Send a test": "Send en test",
  "notifications": "notifikationer",
 };
