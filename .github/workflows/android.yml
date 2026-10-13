@@ -45,6 +45,9 @@ jobs:
           BT=$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)
           "$ANDROID_HOME/build-tools/$BT/apksigner" verify --print-certs android/app/build/outputs/apk/release/app-release.apk | tee fingerprint.txt
           if [ -n "$AVEN_KEYSTORE_FILE" ]; then echo "Signed with the release key"; else echo "No release key set up: signed with the debug key"; fi
+      - name: Is the website's link to the app live? (without it the app shows a browser bar)
+        continue-on-error: true
+        run: curl -fsS https://omaralawi1000-netizen.github.io/.well-known/assetlinks.json
       - uses: actions/upload-artifact@v4
         with:
           name: aven-android
