@@ -726,9 +726,6 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .typing i:nth-child(2) { animation-delay: 0.16s; } .typing i:nth-child(3) { animation-delay: 0.32s; }
 @keyframes dot { 0%, 60%, 100% { opacity: 0.3; transform: translateY(0); } 30% { opacity: 0.95; transform: translateY(-3px); } }
 @media (prefers-reduced-motion: reduce) { .typing i, .speak-btn.loading::after { animation: none; } }
-/* the writing cursor at the end of a streaming reply */
-.caret { display: inline-block; width: 2px; height: 1.05em; margin-left: 3px; vertical-align: -0.18em; border-radius: 2px; background: var(--ac-text); box-shadow: 0 0 10px var(--ac); animation: caret 1s ease-in-out infinite; }
-@keyframes caret { 0%, 100% { opacity: 0.15; } 50% { opacity: 1; } }
 @keyframes sheen { from { background-position: 130% 0; } to { background-position: -130% 0; } }
 @keyframes thinkIn { from { opacity: 0; transform: translateX(-10px); } }
 /* a sent message: a line of light passes over it once and its rim glows, then both fade */
@@ -1213,7 +1210,8 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .said, .said-big { font-family: var(--f-ui); font-weight: 520; letter-spacing: -0.005em; }
 .said-big .sw { transform-origin: 0 0; animation: saidWrite 600ms cubic-bezier(.2,.7,.2,1) backwards; animation-delay: calc(var(--i) * 70ms); }
 .said-wrap.fly .said-big .sw { will-change: transform; }
-@keyframes saidWrite { from { opacity: 0; filter: blur(6px); transform: translateY(.22em); } to { opacity: 1; filter: blur(0); transform: none; } }
+/* (opacity and a small rise only: the blur these words used to lift out of was animated on every word) */
+@keyframes saidWrite { from { opacity: 0; transform: translateY(.3em); } to { opacity: 1; transform: none; } }
 .calm .w { animation-duration: 760ms; }
 
 /* ── Today's cards (screens/TodayCards.tsx): Up next, Muscles this week, Recent records ── */

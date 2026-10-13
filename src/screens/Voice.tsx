@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion, useTransform } from 'motion/react';
 import { useStore, allExercises } from '../state/store';
 import { useUI, haptic } from '../state/ui';
@@ -21,7 +21,7 @@ import { Veil, VOICE_VEIL, mirrorVeil } from '../ui/Veil';
 import { refreshBar, setBarFrost } from '../ui/statusBar';
 import { Icon } from '../ui/Icon';
 import { useOverlayZ } from '../ui/Sheet';
-import { ActionCard, RotatingHint, Rich, Words, SpeakButton, prefetchAloud, tidy, sttMessage, cardsNote } from '../ui/agentUi';
+import { ActionCard, RotatingHint, Rich, Words, SpeakButton, prefetchAloud, sttMessage, cardsNote, useWordReveal } from '../ui/agentUi';
 import { stopSpeaking } from '../lib/tts';
 import { flyLogged } from '../ui/fly';
 import { apple, springCurve } from '../ui/motion';
@@ -126,6 +126,25 @@ function SaidMorph({ text, onSettled }: { text: string; onSettled: () => void })
   );
 }
 
+/**
+ * The answer on the orb screen, as in the Coach: it writes itself in a word at a time at a calm, steady pace (however the
+ * network delivers it), each word fading up. What comes after it (play, Continue in Coach, the cards) waits for its last
+ * word, and so does the typing field below (`onDone`: written to the end, so nothing under it is pushed down while it
+ * writes). `onGrow`: it took a new line (the screen follows it, unless you scrolled up to read).
+ */
+function OrbReply({ id, text, live, onGrow, onDone, after }: { id: string; text: string; live: boolean; onGrow: () => void; onDone: () => void; after: ReactNode }) {
+  const { shown, done } = useWordReveal(text, live);
+  const ref = useRef<HTMLDivElement>(null);
+  const tall = useRef(0);
+  useLayoutEffect(() => {
+    const h = ref.current?.offsetHeight ?? 0;
+    if (h > tall.current + 1) onGrow();
+    tall.current = h;
+  });
+  useLayoutEffect(() => { if (done) { onDone(); onGrow(); } }, [done]); // eslint-disable-line
+  return <>{shown && <div ref={ref} className="reply calm" aria-live="polite"><Rich text={shown} id={id} /></div>}{done && after}</>;
+}
+
 export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; date?: string; mealId?: string } }) {
   const t = useT();
   const lang = useLang();
@@ -153,6 +172,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   const [typing, setTyping] = useState(!supported);
   const [typed, setTyped] = useState('');
   const [settledId, setSettledId] = useState<string | null>(null); // the exchange whose words have settled into their bubble
+  const [written, setWritten] = useState<string | null>(null); // the exchange whose answer has written itself in to the end
   const [final, setFinal] = useState('');
   const [interim, setInterim] = useState('');
   const [err, setErr] = useState<string | null>(null);
@@ -409,10 +429,11 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
     el.addEventListener('scroll', on, { passive: true });
     return () => el.removeEventListener('scroll', on);
   }, []);
-  useLayoutEffect(() => {
+  const follow = () => {
     const el = talkRef.current;
-    if (el && pinned.current && last && el.scrollHeight > el.clientHeight) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
-  }, [last?.reply, last?.done, last?.results.length]); // eslint-disable-line
+    if (el && pinned.current && el.scrollHeight > el.clientHeight) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+  };
+  useLayoutEffect(follow, [last?.done, last?.results.length]); // eslint-disable-line
 
   return (
     <motion.div ref={rootRef} className="voice" style={{ position: 'fixed', inset: 0, zIndex: z, display: 'flex', flexDirection: 'column', paddingBottom: kbPad }} role="dialog" aria-modal="true" aria-label={t('Dictation')}>
@@ -445,26 +466,16 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
           <AnimatePresence initial={false} mode="popLayout">
             {!typing && !showing && (
               // what you are saying, as you say it: each new word settles in; when you stop, it rises away into the conversation
-              <motion.div key="live" className="display voice-live" exit={{ opacity: 0, y: -10, filter: 'blur(5px)', transition: { duration: 0.22, ease: [0.4, 0, 1, 1] } }}>
+              <motion.div key="live" className="display voice-live" exit={{ opacity: 0, y: -10, transition: { duration: 0.22, ease: [0.4, 0, 1, 1] } }}>
                 {final || interim ? <Words text={[final, interim].filter(Boolean).join(' ')} k="live" />
                   : !listening && <span className="voice-hint"><RotatingHint /></span>}
               </motion.div>
             )}
             {showing && (
-              <motion.div key={last.id} className="exchange" exit={{ opacity: 0, y: -12, filter: 'blur(6px)', transition: { duration: 0.24, ease: [0.4, 0, 1, 1] } }}>
+              <motion.div key={last.id} className="exchange" exit={{ opacity: 0, y: -12, transition: { duration: 0.24, ease: [0.4, 0, 1, 1] } }}>
                 {last.said && <SaidMorph key={`${last.id}:${last.said}`} text={last.said} onSettled={() => setSettledId(last.id)} />}
-                {/* the answer waits until your words have settled into their bubble, then writes in below */}
-                {last.reply && (settledId === last.id || !last.said) && <div className="reply calm" aria-live="polite"><Rich text={last.done ? last.reply : tidy(last.reply)} id={last.id} /></div>}
-                {last.done && last.reply.trim() && (settledId === last.id || !last.said) && (
-                  // read it aloud (each word lights up as it is said), or take the question on in the Coach
-                  <motion.div className="reply-foot" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ ...SEND, delay: 0.12 }}>
-                    <SpeakButton id={last.id} text={last.reply} />
-                    <button className="cont-chip press" onClick={() => { stopSpeaking(); toCoach.current = true; useUI.getState().swap(1, 'coach', { seed: turnsRef.current.filter((x) => x.done && (x.said || x.reply)).slice(-4).map((x) => ({ said: x.said, reply: x.reply })) }); }}>
-                      {t('Continue in Coach')} <Icon name="chevR" size={14} sw={2.2} />
-                    </button>
-                  </motion.div>
-                )}
-                {last.done && last.results.length > 0 && (
+                {(() => {
+                  const cards = last.done && last.results.length > 0 && (
                   <div className="stack gap12">
                     {last.results.map((r, i) => (
                       <motion.div key={r.id} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ ...SEND, delay: 0.06 + i * 0.07 }}>
@@ -474,12 +485,27 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
                       </motion.div>
                     ))}
                   </div>
-                )}
+                  );
+                  // the answer waits until your words have settled into their bubble, then writes in below
+                  if (!last.reply || (last.said && settledId !== last.id)) return last.reply ? null : cards;
+                  return <OrbReply key={last.id} id={last.id} text={last.reply} live={!last.done} onGrow={follow} onDone={() => setWritten(last.id)} after={<>
+                    {last.done && last.reply.trim() && (
+                      // read it aloud (each word lights up as it is said), or take the question on in the Coach
+                      <motion.div className="reply-foot" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ ...SEND, delay: 0.12 }}>
+                        <SpeakButton id={last.id} text={last.reply} />
+                        <button className="cont-chip press" onClick={() => { stopSpeaking(); toCoach.current = true; useUI.getState().swap(1, 'coach', { seed: turnsRef.current.filter((x) => x.done && (x.said || x.reply)).slice(-4).map((x) => ({ said: x.said, reply: x.reply })) }); }}>
+                          {t('Continue in Coach')} <Icon name="chevR" size={14} sw={2.2} />
+                        </button>
+                      </motion.div>
+                    )}
+                    {cards}
+                  </>} />;
+                })()}
               </motion.div>
             )}
           </AnimatePresence>
           {err && <div className="plinth-2 small" role="alert" style={{ padding: '12px 14px', marginTop: 16 }}>{err}{canRetry && <div style={{ marginTop: 10 }}><button className="btn sm press" onClick={retryHear}>{t('Retry transcription')}</button></div>}</div>}
-          {typing && !thinking && (
+          {typing && !thinking && !(showing && last.reply && written !== last.id) && (
             <div style={{ marginTop: 12 }}>
               <textarea className="input" style={{ minHeight: 96 }} value={typed} onChange={(e) => setTyped(e.target.value)} autoFocus aria-label={t('Type what you ate or did')}
                 placeholder={t('“Log a banana” · “Bench 100 kg for 8, 8 and 6” · “How do I change the theme?”')}
