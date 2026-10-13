@@ -1395,3 +1395,33 @@ flicker fingerprint). `--film a,b` films chosen actions, `--light` for the light
   - Lighter: the orb no longer re-measures the page for changes inside the workout window (only the bar's box can move its
     slot); Focus's figures are measured together, then scaled (each one used to lay the page out again); the rest sound is
     made ahead, when the phone is idle, not by the first tick. `scripts/perf-workout.mjs` measures the window's moments at 4×.
+
+## Android app: the rest as a live countdown, new icon, calmer opening (13 Oct 2026, v0.1.72)
+Omar's phone showed the website's plain notice ("Back at 10:02", the site's address) instead of the app's countdown.
+- Why: Chrome gives a site's notifications to an installed web app (his old home-screen icon) before the Android app,
+  even when the page runs inside the Android app. So the app never saw them.
+- Fix: with the Android app on the phone (`src/lib/androidApp.ts`; noted once the site is opened inside it), the rest
+  goes out from a tiny second service worker at `/The-new-Claude-gym-app-rest/`, published on the user site
+  (`omaralawi1000-netizen.github.io`; source in `android/site/`). That's outside the old web app's scope, so Chrome
+  always hands it to the Android app. The words travel in the notification's tag (never shown) and the end time in its
+  timestamp. Without the app, everything is as before.
+- The app draws its own notification (`RestNotifications.java`):
+  - the exercise in the header;
+  - the time left in big numbers (30 sp folded, 44 sp unfolded), ticking each second;
+  - "Set 2 of 3 · 60 kg × 8" and an ember bar draining;
+  - +30 s / Skip;
+  - at the end, one "Time for set 2" alert with sound and buzz, gone when you're back in Aven.
+- How it keeps ticking: a short foreground service (special use), started through an exact alarm when Android won't
+  let it start directly. It redraws only while the screen is on.
+- Android 16 Live Updates: requested. When Android promotes it, its standard layout is used, because that's the only one
+  it promotes. Everywhere else our own layout is used, since the standard one shows the title at normal size.
+- Proven on the emulator through real Chrome: website → app countdown (light, dark, lock screen) → alert → cleared.
+  `android/ci/emulator-check.sh`; the emulator runs with `-gpu swangle_indirect`, because SwiftShader died once Chrome
+  drew the app.
+- Icon (`scripts/gen-android-icon.mjs`):
+  - the orb as even rings of dots, so the outline is a true circle and every dot reads at home-screen size;
+  - plus a monochrome layer, so with themed icons it turns the phone's colours like his other apps.
+- Opening:
+  - the launch window is opaque ink, so Android opens the icon into it (no flat grey card);
+  - on Android 12+, the same 100 dp orb is shown there as on Chrome's hand-off screen, so it stays put from the tap to
+    the page.
