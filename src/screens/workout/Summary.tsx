@@ -23,7 +23,7 @@ function Stat({ label, value, unit, i }: { label: string; value: React.ReactNode
 // The finish moment, in order, like an award: a medal lands (felt as the workout's "done", or a record's), the four
 // numbers arrive one after another, each counting up as it lands with a light tick, and then one line says what this
 // session meant. MEDAL, STEP and COUNT are the rhythm; everything else on the screen waits for LINE.
-const MEDAL = 0.15, STEP = 0.32, FIRST = 0.95, COUNT = 0.85;
+const MEDAL = 0, STEP = 0.32, FIRST = 0.75, COUNT = 0.85; // the medal lands as the sheet settles: no empty beat first
 const LINE = FIRST + 3 * STEP + COUNT * 0.8;
 const celebrated = new Set<string>(); // a session's moment is felt once, not again when its summary is reopened
 const reduced = () => document.documentElement.dataset.motion === 'reduce' || matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -69,7 +69,7 @@ export function Summary({ props }: { props: { sessionId: string } }) {
     celebrated.add(ses.id);
     const big: 'record' | 'finish' = recs.length ? 'record' : 'finish';
     if (reduced()) { haptic(big); return; }
-    const ids = [setTimeout(() => haptic(big), (MEDAL + 0.4) * 1000), ...[0, 1, 2, 3].map((i) => setTimeout(() => haptic('tick'), (FIRST + i * STEP + 0.1) * 1000))];
+    const ids = [setTimeout(() => haptic(big), (MEDAL + 0.35) * 1000), ...[0, 1, 2, 3].map((i) => setTimeout(() => haptic('tick'), (FIRST + i * STEP + 0.1) * 1000))];
     return () => { ids.forEach(clearTimeout); celebrated.delete(ses.id); };
   }, [ses?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!ses) return null;
