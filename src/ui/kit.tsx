@@ -146,7 +146,10 @@ const STARTING_STYLE = typeof window !== 'undefined' && 'CSSStartingStyleRule' i
  * anything changed — most of the pause when a workout opened.) `appear`: grows in when mounted. Inside AnimatePresence it
  * also folds away before it is removed. Once open, its content may overflow (a set's glow and "+2.5 kg" rise above it).
  */
-export function Collapse({ open = true, appear = false, children, className, style, ms = 320 }: { open?: boolean; appear?: boolean; children: ReactNode; className?: string; style?: CSSProperties; ms?: number }) {
+export function Collapse({ open = true, appear: appearProp = false, children, className, style, ms = 320 }: { open?: boolean; appear?: boolean; children: ReactNode; className?: string; style?: CSSProperties; ms?: number }) {
+  // `appear` counts only when the row first mounts, and its class goes once the row has grown: a row React later moves
+  // (Move up / down re-inserts it) would otherwise meet @starting-style again and fold shut and open mid-move
+  const [appear] = useState(appearProp);
   const [isPresent, safeToRemove] = usePresence();
   const reduce = useReducedMotion();
   // Where the browser has @starting-style the row grows from the very first frame (the CSS gives it its 0fr start); older
@@ -174,7 +177,7 @@ export function Collapse({ open = true, appear = false, children, className, sty
     // eslint-disable-next-line
   }, [on]);
   return (
-    <div ref={ref} className={`collapse${appear ? ' appear' : ''}${on ? ' on' : ''}${on && settled ? ' settled' : ''}${className ? ` ${className}` : ''}`} style={{ ['--collapse-ms' as string]: `${reduce ? 0 : ms}ms`, ...style }}>
+    <div ref={ref} className={`collapse${appear && !settled ? ' appear' : ''}${on ? ' on' : ''}${on && settled ? ' settled' : ''}${className ? ` ${className}` : ''}`} style={{ ['--collapse-ms' as string]: `${reduce ? 0 : ms}ms`, ...style }}>
       <div className="collapse-in">{children}</div>
     </div>
   );
