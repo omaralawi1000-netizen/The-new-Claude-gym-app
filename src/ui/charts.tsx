@@ -88,16 +88,18 @@ function niceMax(m: number): number {
   return 10 * p;
 }
 
-export function BarChart({ bars, height = 150, fmt, target, targetLabel, label, color = 'var(--ac)' }: { bars: Bar[]; height?: number; fmt: (v: number) => string; target?: number; targetLabel?: string; label: string; color?: string }) {
+/** `whole`: the values are counts, so the axis only ever shows whole numbers (0 · 1 · 2, never 0 · 1 · 1 or a tick at 2.5). */
+export function BarChart({ bars, height = 150, fmt, target, targetLabel, label, color = 'var(--ac)', whole }: { bars: Bar[]; height?: number; fmt: (v: number) => string; target?: number; targetLabel?: string; label: string; color?: string; whole?: boolean }) {
   const [ref, w] = useWidth();
   const visit = useVisit();
   const [sel, setSel] = useState<number | null>(null);
   const padL = 36, padR = 6, padT = 14, padB = 22;
-  const max = niceMax(Math.max(...bars.map((b) => b.value), target ?? 0, 1));
+  const top = Math.max(...bars.map((b) => b.value), target ?? 0, 1);
+  const max = whole && top <= 10 ? (top <= 2 ? Math.ceil(top) : Math.ceil(top / 2) * 2) : niceMax(top);
   const slot = (w - padL - padR) / Math.max(1, bars.length);
   const bw = Math.min(28, Math.max(6, slot - 6));
   const Y = (v: number) => padT + (1 - v / max) * (height - padT - padB);
-  const ticks = [0, max / 2, max];
+  const ticks = whole && max === 1 ? [0, 1] : [0, max / 2, max];
   const every = Math.ceil(bars.length / Math.max(1, Math.floor((w - padL) / 44)));
   return (
     <div ref={ref} style={{ position: 'relative' }}>

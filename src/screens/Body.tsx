@@ -7,7 +7,7 @@ import { Icon } from '../ui/Icon';
 import { NumInput } from '../ui/kit';
 import { useToday } from '../lib/derive';
 import { addDays, fmtDate, relativeDay } from '../lib/dates';
-import { cmToDisplay, displayToCm, displayToKg, fmtNum, kgToDisplay } from '../lib/units';
+import { cmToDisplay, displayToCm, displayToKg, fmtNum, fmtSigned, kgToDisplay } from '../lib/units';
 import type { MeasureKind } from '../lib/types';
 import { deletePhoto, downscale, loadPhoto, savePhoto } from '../lib/photos';
 import { uid } from '../lib/nutrition';
@@ -73,7 +73,7 @@ export function MeasureSheet() {
         {hist.length > 0 && <div className="list" style={{ marginTop: 18 }}>{hist.slice(0, 10).map((m, i) => {
           const prev = hist[i + 1];
           const d = prev ? cmToDisplay(m.cm, u) - cmToDisplay(prev.cm, u) : null;
-          return <div key={m.id} className="li" style={{ minHeight: 48 }}><div className="grow num"><b>{fmtNum(cmToDisplay(m.cm, u), lang, 1)}</b> {u}{d !== null && <span className="t3 small"> ({d >= 0 ? '+' : '−'}{fmtNum(Math.abs(d), lang, 1)})</span>}</div><div className="small t2">{fmtDate(m.date, lang, { day: 'numeric', month: 'short' })}</div><button className="icon-btn flat sm press" aria-label={t('Delete')} onClick={() => s.removeMeasurement(m.id)}><Icon name="trash" size={16} /></button></div>;
+          return <div key={m.id} className="li" style={{ minHeight: 48 }}><div className="grow num"><b>{fmtNum(cmToDisplay(m.cm, u), lang, 1)}</b> {u}{d !== null && <span className="t3 small"> ({fmtSigned(d, lang)})</span>}</div><div className="small t2">{fmtDate(m.date, lang, { day: 'numeric', month: 'short' })}</div><button className="icon-btn flat sm press" aria-label={t('Delete')} onClick={() => s.removeMeasurement(m.id)}><Icon name="trash" size={16} /></button></div>;
         })}</div>}
       </div>
     </Sheet>
