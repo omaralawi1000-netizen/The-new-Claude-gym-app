@@ -29,6 +29,32 @@ export async function loadDemo(p) {
   await p.getByText('Data & backup').click(); await p.waitForTimeout(400);
   await p.getByText('Load demo data').click(); await p.waitForTimeout(400);
   await p.keyboard.press('Escape'); await p.waitForTimeout(500);
+  // AVEN_BG=mesh / AVEN_PALETTE=aurora / AVEN_GLOW=off: measure or film with another background, colours or glow
+  // (AVEN_PHOTO=file.jpg is picked as Your photo first)
+  const patch = {};
+  if (process.env.AVEN_BG) patch.background = process.env.AVEN_BG;
+  if (process.env.AVEN_PALETTE) patch.palette = process.env.AVEN_PALETTE;
+  if (process.env.AVEN_GLOW) patch.glow = process.env.AVEN_GLOW;
+  if (process.env.AVEN_PHOTO) {
+    for (let i = 0; i < 3 && await p.getByRole('dialog').first().isVisible().catch(() => false); i++) { await p.keyboard.press('Escape'); await p.waitForTimeout(500); }
+    await p.getByLabel('Settings').first().click(); await p.waitForTimeout(600);
+    await p.getByText('Appearance').click(); await p.waitForTimeout(600);
+    await p.locator('input[type=file][accept="image/*"]').last().setInputFiles(process.env.AVEN_PHOTO); await p.waitForTimeout(1500);
+    await p.keyboard.press('Escape'); await p.waitForTimeout(300); await p.keyboard.press('Escape'); await p.waitForTimeout(600);
+  }
+  if (Object.keys(patch).length) await applySettings(p, patch);
+}
+/** Change settings directly in storage and reload (the app's own save on leaving is held off so it can't undo the change). */
+export async function applySettings(p, patch) {
+  await p.waitForTimeout(1200);
+  await p.evaluate((patch) => {
+    const orig = Storage.prototype.setItem;
+    const raw = JSON.parse(localStorage.getItem('aven.v1'));
+    Object.assign(raw.settings, patch);
+    orig.call(localStorage, 'aven.v1', JSON.stringify(raw));
+    Storage.prototype.setItem = function (k, v) { if (String(k).startsWith('aven.v1')) return; return orig.call(this, k, v); };
+  }, patch);
+  await p.reload(); await p.waitForTimeout(2500);
 }
 
 /** On the orb screen: switch to typing (if it is listening) and send a sentence. */

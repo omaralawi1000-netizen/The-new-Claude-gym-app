@@ -1767,3 +1767,25 @@ of a sharp and a blurred copy (the muddy double edge on the card above the dock)
   through as on iOS), light from the top, a hairline and a soft shadow. Light mode: the same in white.
 Omar picked the thin neutral tint ("I want it neutral so the frosted glass can come through") and declined a deeper shadow.
 Measured: scroll frames within noise of before (fewer, smaller blur layers); tab icons 5.5:1 on the pill.
+
+## Backgrounds you can pick (13 Oct 2026, preview, not shipped)
+Settings → Appearance → Background picks what is drawn behind the app: Classic (the drifting colour field, as before),
+Orb light, Colour per tab, Sunrise, Mesh, Dot field, Time of day, Night sky and Your photo (`settings.background`,
+`html[data-bg]`, `ui/Backdrop.tsx`, `.bgx` in styles.css).
+- Why still: Omar found that turning the glow off made the app much smoother. Classic's three lights drift in ~12 steps a
+  second, and every step makes the frosted tab bar, sheets and Coach bar re-blur what is under them. Every new background
+  is a few gradients (or one small picture) painted once and then left alone, so nothing under the glass changes unless
+  you scroll.
+- The only changes: Sunrise's horizon glow rises as the day's calories and protein fill up (one 2.6 s transform +
+  opacity move when food is logged); Orb light's brighter layer fades in (1.2 s) while the Coach or the orb screen works
+  on an answer or reads it aloud (voice phase `processing`, or `voiceOut`), and out again (1.6 s); Time of day / Night
+  sky move on in quarter hours, only when you come back to the app or every 15 minutes while no pop-up is open, as one
+  0.8 s cross-fade. Tab-coloured ones (Classic, Orb, Colour per tab, Sunrise, Mesh, Dot field) cross-fade on a tab switch
+  exactly like the old field did; the others don't change on a tab switch at all.
+- Night sky uses Aarhus sunset/sunrise (NOAA approximation, `sunTimes`): stars after sunset, a calm dusk before.
+- Your photo is blurred once when picked (canvas, to 300×650 JPEG), kept in IndexedDB with the progress photos, never
+  uploaded and not in backups; the screen only scales up a still, already-soft picture and darkens it for legibility.
+- Background glow still applies: Full / Soft set the strength; Off leaves a plain background (Your photo stays). Picking a
+  background while the glow is Off turns it back to Full. Colour per tab uses its own hues (Today warm, Train blue, Food
+  green, Progress violet); the accent on buttons still follows the palette. The workout window keeps its own light.
+- Scripts: `AVEN_BG=mesh AVEN_PALETTE=aurora AVEN_GLOW=off AVEN_PHOTO=file.jpg` in any script that uses `loadDemo`.
