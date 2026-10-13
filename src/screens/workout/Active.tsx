@@ -3,7 +3,7 @@ import { AnimatePresence, animate, motion, useMotionValue, useReducedMotion, use
 import { useStore, exerciseMap } from '../../state/store';
 import { useUI, haptic } from '../../state/ui';
 import { useT, useLang } from '../../lib/i18n';
-import type { Exercise, SessionExercise, SetRecord } from '../../lib/types';
+import type { Exercise, SessionExercise, SetRecord, WorkoutSession } from '../../lib/types';
 import { Icon } from '../../ui/Icon';
 import { Collapse, NumInput, Stepper } from '../../ui/kit';
 import { Roll } from '../../ui/Roll';
@@ -23,21 +23,32 @@ import { DIM_VEIL, Veil, mirrorVeil } from '../../ui/Veil';
 import { kb } from '../../ui/keyboard';
 import { viewportH } from '../../ui/viewport';
 import { BOUNCY, SURFACE, SURFACE_EXIT } from '../../ui/motion';
-import { FocusView, upNextOf, useFocusPage, type FocusApi } from './Focus';
+import { FocusView, fadeOutPage, upNextOf, useFocusPage, type FocusApi } from './Focus';
 import { morphBack, morphLand, morphStart, type Morph } from './morph';
 
 /** False while the workout is minimised (kept alive but hidden): its clocks stop ticking. */
 const WkLive = createContext(true);
+/**
+ * The workout as it was the moment it was finished or discarded, while its window slides away (WorkoutHost). The store has
+ * no active workout any more by then; without this the whole window and the sheet on it vanished in one frame.
+ */
+export const WkFrozen = createContext<WorkoutSession | null>(null);
+/** The live workout, or the one just ended while it leaves the screen. */
+export function useActive(): WorkoutSession | null {
+  const frozen = useContext(WkFrozen);
+  const live = useStore((s) => s.active);
+  return frozen ?? live;
+}
 
 /**
  * The live workout: a full-height card that rises over the page (which steps back behind it), like Apple Music's player.
  * Kept alive between openings (WorkoutHost): `open` false slides it away and then hides it.
  */
-export function ActiveWorkout({ props, open = true }: { props: { origin?: 'hero' | 'pill' | 'none' }; open?: boolean }) {
+export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?: 'hero' | 'pill' | 'none' }; open?: boolean; onGone?: () => void }) {
   const t = useT();
   const lang = useLang();
   // narrow selections: the screen re-renders when the session changes, not on every store write
-  const a = useStore((s) => s.active);
+  const a = useActive();
   const exercises = useStore((s) => s.exercises);
   const weightUnit = useStore((s) => s.settings.units.weight);
   const pop = useUI((u) => u.pop);
@@ -151,7 +162,8 @@ export function ActiveWorkout({ props, open = true }: { props: { origin?: 'hero'
       return () => cancelAnimationFrame(id);
     }
     setFocusIn(false);
-    const id = setTimeout(() => { setFocusBuilt(false); setShared(null); }, 700);
+    // 'back' stays until the next switch: the list's fade-in holds its end, and removing it would drop the cards' layers (a flicker)
+    const id = setTimeout(() => { setFocusBuilt(false); setShared((v) => (v === 'back' ? v : null)); }, 700);
     return () => clearTimeout(id);
   }, [view]);
   // Focus has been laid out and is being shown this frame: its card takes over from the list's, from exactly there
@@ -166,6 +178,7 @@ export function ActiveWorkout({ props, open = true }: { props: { origin?: 'hero'
   // (kept, so the next opening is only the slide).
   const [hidden, setHidden] = useState(!open);
   const openRef = useRef(open); openRef.current = open;
+  const onGoneRef = useRef(onGone); onGoneRef.current = onGone;
   useLayoutEffect(() => {
     if (open) {
       closing.current = null;
@@ -180,7 +193,7 @@ export function ActiveWorkout({ props, open = true }: { props: { origin?: 'hero'
     setMenu(null); setConfirm(null); setRenaming(false);
     const el = document.activeElement as HTMLElement | null;
     if (el && dialogRef.current?.contains(el)) el.blur();
-    (closing.current ?? startClose(swipeV.current || dragY.getVelocity())).then(() => { if (!openRef.current) setHidden(true); });
+    (closing.current ?? startClose(swipeV.current || dragY.getVelocity())).then(() => { if (!openRef.current) { setHidden(true); onGoneRef.current?.(); } });
     // eslint-disable-next-line
   }, [open]);
   // typing a weight or reps: the keyboard takes the bottom half, so the rest timer steps out of the way (it sat right on top
@@ -415,7 +428,7 @@ export function ActiveWorkout({ props, open = true }: { props: { origin?: 'hero'
  * paused, minimised, or another screen covers it. Only opacity changes; the bar's frost sits far below it.
  */
 function Breath({ hold }: { hold: boolean }) {
-  const a = useStore((s) => s.active);
+  const a = useActive();
   const live = useContext(WkLive);
   const now = useNow(60_000, !!a && live && !hold);
   const warm = a ? Math.min(1, elapsedMs(a, now) / 3_600_000) : 0;
@@ -426,7 +439,7 @@ function Breath({ hold }: { hold: boolean }) {
 // The ticking parts live in their own small components, so the clock re-renders a line of text four times a
 // second instead of the whole workout screen.
 function Clock() {
-  const a = useStore((s) => s.active);
+  const a = useActive();
   const live = useContext(WkLive);
   const now = useNow(250, !!a && live);
   return <>{a ? fmtDuration(elapsedMs(a, now) / 1000) : ''}</>;
@@ -435,7 +448,7 @@ function Clock() {
 /** The rest timer as a few words in the header, while the keyboard is up. */
 function RestInline() {
   const t = useT();
-  const a = useStore((s) => s.active);
+  const a = useActive();
   const live = useContext(WkLive);
   const now = useNow(250, !!a?.rest && live);
   if (!a?.rest) return null;
@@ -454,7 +467,7 @@ function WorkoutBar({ engage, exMap, focus, away, onDone, onJump }: { engage: En
   const t = useT();
   const lang = useLang();
   const push = useUI((u) => u.push);
-  const a = useStore((s) => s.active);
+  const a = useActive();
   const unit = useStore((s) => s.settings.units.weight);
   const live = useContext(WkLive);
   const now = useNow(250, !!a?.rest && !a?.pausedAt && live);
@@ -511,12 +524,14 @@ function WorkoutBar({ engage, exMap, focus, away, onDone, onJump }: { engage: En
         <span className="wk-bar-clip" aria-hidden><RestFill state={state} endsAt={rest?.endsAt} total={rest?.total} paused={!!a.pausedAt} /></span>
         <button className="wk-bar-main press" onClick={tap} aria-expanded={state === 'rest' ? panel : undefined}
           aria-label={state === 'rest' ? `${t('Rest')} ${fmtDuration(Math.ceil(left))}` : `${top}. ${big}${(state === 'next' || state === 'go') && target ? `, ${target}` : ''}`}>
-          <span key={`t${state}${after ? after.se.id : ''}`} className="wk-bar-top">{top}</span>
-          <span key={`b${state}${after ? after.se.id : ''}`} className="wk-bar-big num">{state === 'next' || (state === 'go' && nx) ? <><span className="wk-bar-name">{name}</span>{target && <span className="wk-bar-tgt">{target}</span>}</>
-            : state === 'rest' ? (!a.pausedAt && left <= 3
-              // the last three seconds swell on each tick; before that the seconds roll down
-              ? <span key={Math.ceil(left)} className="wk-tick">{big}</span> : <Roll key="r" text={big} />)
-            : state === 'done' ? <Roll text={big} /> : big}</span>
+          <SwapText k={`${state}${after ? after.se.id : ''}`} tone={state}>
+            <span className="wk-bar-top">{top}</span>
+            <span className="wk-bar-big num">{state === 'next' || (state === 'go' && nx) ? <><span className="wk-bar-name">{name}</span>{target && <span className="wk-bar-tgt">{target}</span>}</>
+              : state === 'rest' ? (!a.pausedAt && left <= 3
+                // the last three seconds swell on each tick; before that the seconds roll down
+                ? <span key={Math.ceil(left)} className="wk-tick">{big}</span> : <Roll key="r" text={big} />)
+              : state === 'done' ? <Roll text={big} /> : big}</span>
+          </SwapText>
         </button>
         <button className="wk-bar-orb" aria-label={t('Dictate sets')} onPointerDown={() => orbPress(true)} onPointerUp={() => orbPress(false)} onPointerCancel={() => orbPress(false)} onPointerLeave={() => orbPress(false)}
           onClick={() => { orbTap(1); push('voice', { mode: 'workout' }); }}>
@@ -534,6 +549,35 @@ function WorkoutBar({ engage, exMap, focus, away, onDone, onJump }: { engage: En
         </AnimatePresence>
       </div>
     </div>
+  );
+}
+
+/**
+ * The bar's two lines, swapped as one: when what the bar says changes (a set ticked, the rest over, skipped), the old
+ * words fade up and out while the new ones rise in, in the same place. The old lines used to be removed at once, so the
+ * bar stood empty for a frame or two before the new ones faded in.
+ */
+function SwapText({ k, tone, children }: { k: string; tone: string; children: React.ReactNode }) {
+  const cur = useRef<{ k: string; tone: string; node: React.ReactNode }>({ k, tone, node: children });
+  const [gone, setGone] = useState<{ k: string; tone: string; node: React.ReactNode; n: number } | null>(null);
+  const n = useRef(0);
+  if (cur.current.k !== k) {
+    const was = cur.current;
+    n.current++;
+    // derived during render (React's "store info from previous renders"): the old lines are drawn in the same frame the new ones arrive
+    setGone({ ...was, n: n.current });
+  }
+  cur.current = { k, tone, node: children };
+  useEffect(() => {
+    if (!gone) return;
+    const id = setTimeout(() => setGone((g) => (g && g.n === gone.n ? null : g)), 420);
+    return () => clearTimeout(id);
+  }, [gone]);
+  return (
+    <>
+      {gone && gone.k !== k && <span key={`g${gone.n}`} className={`wk-bar-txt t-${gone.tone} out`} aria-hidden>{gone.node}</span>}
+      <span key={k} className={`wk-bar-txt t-${tone}`}>{children}</span>
+    </>
   );
 }
 
@@ -575,7 +619,11 @@ export const ExerciseBlock = memo(function ExerciseBlock({ se, ex, linkedPrev, l
   const t = useT();
   const lang = useLang();
   const settings = useStore((s) => s.settings);
-  const sessions = useStore((s) => s.sessions);
+  const allSessions = useStore((s) => s.sessions);
+  // while a just-finished workout slides away, its own saved copy must not become its "last time" (the Prev column and
+  // the plan line changed under your eyes as it left)
+  const frozen = useContext(WkFrozen);
+  const sessions = useMemo(() => (frozen ? allSessions.filter((x) => x.id !== frozen.id) : allSessions), [allSessions, frozen]);
   const push = useUI((u) => u.push);
   const last = useMemo(() => lastPerformance(se.exerciseId, sessions), [se.exerciseId, sessions]);
   const lastWorking = last?.sets.filter(countable) ?? [];
@@ -818,15 +866,16 @@ function ExerciseMenu({ se, ex, onClose }: { se: SessionExercise; ex?: Exercise;
   const t = useT();
   const lang = useLang();
   const s = useStore();
+  const act = useActive();
   const push = useUI((u) => u.push);
   const toast = useUI((u) => u.toast);
   const [note, setNote] = useState(se.note ?? '');
   const [rest, setRest] = useState(se.restSec ?? s.settings.restDefaultSec);
-  const idx = s.active!.exercises.findIndex((e) => e.id === se.id);
-  const count = s.active!.exercises.length;
+  const idx = (act?.exercises ?? []).findIndex((e) => e.id === se.id);
+  const count = (act?.exercises ?? []).length;
   const items = [
     { icon: 'swap', label: t('Replace exercise'), run: () => { onClose(); push('exercisePicker', { mode: 'replace', seId: se.id, forExercise: ex }); } },
-    { icon: 'link', label: se.supersetGroup && s.active!.exercises[idx + 1]?.supersetGroup === se.supersetGroup ? t('Unlink superset') : t('Superset with next'), disabled: idx >= count - 1, run: () => { toggleSuperset(se.id); onClose(); } },
+    { icon: 'link', label: se.supersetGroup && (act?.exercises ?? [])[idx + 1]?.supersetGroup === se.supersetGroup ? t('Unlink superset') : t('Superset with next'), disabled: idx >= count - 1, run: () => { toggleSuperset(se.id); onClose(); } },
     { icon: 'arrowUp', label: t('Move up'), disabled: idx === 0, run: () => { flip(document.querySelector('.wk-list'), () => moveExercise(se.id, -1), 420, se.id); onClose(); } },
     { icon: 'arrowDown', label: t('Move down'), disabled: idx >= count - 1, run: () => { flip(document.querySelector('.wk-list'), () => moveExercise(se.id, 1), 420, se.id); onClose(); } },
   ];
@@ -846,7 +895,7 @@ function ExerciseMenu({ se, ex, onClose }: { se: SessionExercise; ex?: Exercise;
           {/* the routine editor's slim stepper: any rest in 15 s steps, and it never wraps onto a second line */}
           <Stepper compact label={t('Rest after a set')} value={rest} min={15} max={600} step={15} fmt={(v) => fmtDuration(v)} onChange={(v) => { setRest(v); patchExercise(se.id, { restSec: v }); }} />
         </div>
-        <button className="btn danger block press" style={{ marginTop: 22 }} onClick={() => { const r = removeExercise(se.id); onClose(); toast(t('Exercise removed'), { actionLabel: t('Undo'), onAction: r.restore }); }}><Icon name="trash" size={18} /> {t('Remove exercise')}</button>
+        <button className="btn danger block press" style={{ marginTop: 22 }} onClick={() => { fadeOutPage(se.id); const r = removeExercise(se.id); onClose(); toast(t('Exercise removed'), { actionLabel: t('Undo'), onAction: r.restore }); }}><Icon name="trash" size={18} /> {t('Remove exercise')}</button>
       </div>
     </Sheet>
   );

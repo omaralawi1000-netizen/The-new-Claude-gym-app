@@ -766,7 +766,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 @keyframes sentGlow { 0% { box-shadow: inset 0 1px 0 var(--hl), inset 0 0 0 1px color-mix(in srgb, var(--ac) 70%, transparent), 0 0 22px -4px color-mix(in srgb, var(--ac) 60%, transparent); } 100% { box-shadow: inset 0 1px 0 color-mix(in srgb, var(--hl) 60%, transparent), inset 0 0 0 1px var(--line), 0 0 0 0 transparent; } }
 
 .wk-progress { height: 3px; border-radius: 3px; background: var(--s3); margin-top: 12px; overflow: hidden; }
-.wk-progress i { display: block; height: 100%; background: var(--ac); transform-origin: 0 50%; transition: transform 520ms var(--ease-out); }
+.wk-progress i { display: block; height: 100%; background: var(--ac); transform-origin: 0 50%; transition: transform 520ms var(--ease-out); will-change: transform; }
 /* The workout bar: the workout's own dock, exactly where the tab bar sits. While resting, its fill grows with the rest
    (a transform, re-aimed four times a second with a matching linear transition, so it moves continuously); at the end it
    turns green with one soft glow and stays green until the next set is ticked. It slides away while you type. */
@@ -787,17 +787,22 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-bar-fill { position: absolute; inset: 0; pointer-events: none; transform: translateX(-100%); will-change: transform, opacity; opacity: 1; transition: opacity 600ms var(--ease-out); background: color-mix(in srgb, var(--ac) 24%, transparent); -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 56px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 56px), transparent); }
 .wk-bar.go .wk-bar-fill { transform: none; -webkit-mask-image: none; mask-image: none; opacity: .55; }
 /* the bar's words settle in when the bar changes what it says (next, rest, go): a slow, short rise, no cut; the big line a beat after the small one */
-.wk-bar-top, .wk-bar-big { animation: wkSwap 560ms var(--ease-out) backwards; }
+.wk-bar-top, .wk-bar-big { animation: wkSwap 560ms var(--ease-out) both; }
+/* the two lines as one unit; the outgoing pair lies over the incoming one and fades up and away (Active.tsx SwapText) */
+.wk-bar-txt { min-width: 0; max-width: 100%; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 1px; }
+.wk-bar-txt.out { position: absolute; inset: 0; pointer-events: none; animation: wkSwapOut 340ms var(--ease-out) both; }
+.wk-bar-txt.out > * { animation: none; }
+@keyframes wkSwapOut { to { opacity: 0; transform: translateY(-5px); } }
 .wk-bar-big { animation-delay: 60ms; }
 @keyframes wkSwap { from { opacity: 0; transform: translateY(5px); } }
 /* the last three seconds: the time swells a touch on each second, in step with the ticks */
-.wk-tick { display: inline-block; transform-origin: 0 60%; animation: wkTick 760ms var(--ease-out); }
+.wk-tick { display: inline-block; transform-origin: 0 60%; animation: wkTick 760ms var(--ease-out) both; }
 @keyframes wkTick { from { transform: scale(1.16); color: var(--ac-text); } }
-.wk-bar.go .wk-bar-top { color: var(--ac-text); }
+.wk-bar-txt.t-go .wk-bar-top { color: var(--ac-text); }
 .wk-bar-main { position: relative; flex: 1; min-width: 0; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; text-align: left; gap: 1px; }
 .wk-bar-top { max-width: 100%; font-size: 12px; font-weight: 600; letter-spacing: 0.01em; color: var(--tx2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wk-bar-big { max-width: 100%; font-size: 17px; font-weight: 680; letter-spacing: -0.01em; color: var(--tx); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.wk-bar.rest .wk-bar-big { font-size: 20px; }
+.wk-bar-txt.t-rest .wk-bar-big { font-size: 20px; }
 .wk-bar-orb { position: relative; width: 46px; height: 46px; flex: none; border-radius: 999px; transition: transform 520ms var(--ease-spring); }
 .wk-bar-orb:active { transform: scale(0.94); transition-duration: 110ms; }
 /* the orb's glow on the bar: a soft accent bloom behind it (the orb itself is drawn above), stronger while you rest and when it is over */
@@ -811,19 +816,19 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 @keyframes finishNudge { 0% { transform: scale(1); } 35% { transform: scale(1.12); } 100% { transform: scale(1); } }
 /* end-of-workout sheet: three calm tiles, a line, then the choice — each settling in after the one before */
 .wk-end-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-.wk-end-stats > div { display: flex; flex-direction: column; gap: 4px; padding: 12px 12px 11px; border-radius: 16px; background: var(--s2); box-shadow: inset 0 0 0 1px var(--line); animation: endIn 520ms var(--ease-out) backwards; }
+.wk-end-stats > div { display: flex; flex-direction: column; gap: 4px; padding: 12px 12px 11px; border-radius: 16px; background: var(--s2); box-shadow: inset 0 0 0 1px var(--line); animation: endIn 520ms var(--ease-out) both; }
 .wk-end-stats > div:nth-child(2) { animation-delay: 50ms; } .wk-end-stats > div:nth-child(3) { animation-delay: 100ms; }
 .wk-end-stats b { font-size: 20px; font-weight: 650; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.wk-end-note { margin: 14px 2px 16px; animation: endIn 520ms 140ms var(--ease-out) backwards; }
-.wk-end-btn { animation: endIn 560ms calc(180ms + var(--i, 0) * 60ms) var(--ease-out) backwards; }
+.wk-end-note { margin: 14px 2px 16px; animation: endIn 520ms 140ms var(--ease-out) both; }
+.wk-end-btn { animation: endIn 560ms calc(180ms + var(--i, 0) * 60ms) var(--ease-out) both; }
 @keyframes endIn { from { opacity: 0; transform: translateY(10px); } }
 @media (prefers-reduced-motion: reduce) { .wk-finish.ready, .wk-finish.nudge, .wk-end-stats > div, .wk-end-note, .wk-end-btn { animation: none; } }
 /* the bar's "next set": the row it scrolled to glows once */
 .wk-flash { animation: wkFlash 1.4s var(--ease-out) 1; border-radius: 12px; }
 @keyframes wkFlash { 0%, 30% { background: color-mix(in srgb, var(--ac) 22%, transparent); } 100% { background: transparent; } }
-@media (prefers-reduced-motion: reduce) { .wk-bar.go .wk-bar-surface::before, .wk-flash, .wk-tick, .wk-bar-top, .wk-bar-big { animation: none; } .wk-bar-fill, .wk-bar-orb::before, .wk-bar-surface::before { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .wk-bar-txt.out { display: none; } .wk-bar.go .wk-bar-surface::before, .wk-flash, .wk-tick, .wk-bar-top, .wk-bar-big { animation: none; } .wk-bar-fill, .wk-bar-orb::before, .wk-bar-surface::before { transition: none; } }
 /* the live workout: an exercise that arrives after the window has landed fades up into place (compositor only) */
-.wk-block.in { animation: blockIn 520ms var(--ease-out) backwards; }
+.wk-block.in { animation: blockIn 520ms var(--ease-out) both; }
 @keyframes blockIn { from { opacity: 0; transform: translateY(16px); } }
 @media (prefers-reduced-motion: reduce) { .wk-block.in { animation: none; } }
 /* the routine editor's exercise settings: two to a row, label above, compact steppers — they fit a phone in any language */
@@ -925,7 +930,9 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    with the area's light in it. It rises from the resume bar and firms up as it goes; nothing on it is blurred or clipped. */
 .wk-sheet { position: absolute; inset: 0; overflow: hidden; border-radius: var(--wk-r) var(--wk-r) 0 0; will-change: transform, opacity;
   box-shadow: 0 -10px 40px -14px rgba(0,0,0,.55); }
-.wk-sheet::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; box-shadow: inset 0 1px 0 var(--hl); z-index: 5; }
+/* the window's top rim: only a strip along the top (it lay over the whole window, so every animation under it gave it a
+   layer and took it away again, once a second during a rest), kept on a layer of its own */
+.wk-sheet::after { content: ''; position: absolute; left: 0; right: 0; top: 0; height: calc(var(--wk-r) + 4px); border-radius: inherit; pointer-events: none; box-shadow: inset 0 1px 0 var(--hl); z-index: 5; will-change: transform; }
 :root { --wk-r: 38px; }
 .wk-solid { position: absolute; inset: 0; background: var(--bg); }
 
@@ -1220,9 +1227,9 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-set.current .wk-check { box-shadow: inset 0 0 0 1.75px color-mix(in srgb, var(--ac) 70%, transparent); }
 .wk-check.on { background: var(--ac); box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--ac) 75%, transparent), inset 0 1px 0 rgba(255,255,255,.45); }
 /* just ticked: the button gives a small spring and the check draws itself in */
-.wk-check.fresh { animation: chkPop 520ms var(--ease-spring); }
+.wk-check.fresh { animation: chkPop 520ms var(--ease-spring) both; }
 .wk-check.fresh .wk-check-mark path { stroke-dasharray: 1; stroke-dashoffset: 1; animation: chkDraw 340ms 70ms cubic-bezier(0.65, 0, 0.35, 1) forwards; }
-@keyframes chkPop { 0% { transform: scale(.86); } 55% { transform: scale(1.06); } 100% { transform: none; } }
+@keyframes chkPop { 0% { transform: scale(.86); } 55% { transform: scale(1.06); } } /* no end keyframe: it lands on the press's own transform and holds its layer */
 @keyframes chkDraw { to { stroke-dashoffset: 0; } }
 /* the bar's "next set": name, then the target in a quieter tone */
 .wk-bar-big { display: flex; align-items: baseline; gap: 8px; }
@@ -1231,7 +1238,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 @media (prefers-reduced-motion: reduce) { .wk-check.fresh, .wk-check.fresh .wk-check-mark path { animation: none; stroke-dashoffset: 0; } .wk-set, .wk-check, .wk-ex-done { transition: none; } }
 
 /* rest controls inside the bar, between the time and the orb */
-.wk-bar-ctl { position: absolute; right: 60px; top: 0; bottom: 0; display: flex; align-items: center; gap: 6px; }
+.wk-bar-ctl { position: absolute; right: 60px; top: 0; bottom: 0; display: flex; align-items: center; gap: 6px; will-change: transform, opacity; }
 .wk-ctl { height: 38px; min-width: 50px; padding: 0 12px; border-radius: 999px; font-size: 15px; font-weight: 650; color: var(--tx); background: color-mix(in srgb, var(--tx) 9%, transparent); }
 .wk-ctl.skip { color: var(--ac-ink); background: linear-gradient(180deg, color-mix(in srgb, var(--ac) 78%, #fff), var(--ac)); box-shadow: inset 0 1px 0 rgba(255,255,255,.45); }
 
@@ -1364,10 +1371,10 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    only fades now, it no longer shrinks as it goes: a shrinking list bent the card's path.) */
 .wk-focus.shared { transform: none; }
 .wk-focus.shared.on { transition: opacity 0s, visibility 0s; }
-.wk-focus.shared.on .wk-dots, .wk-focus.shared.on .wk-stage { animation: wkRise 620ms 120ms var(--ease-out) backwards; }
+.wk-focus.shared.on .wk-dots, .wk-focus.shared.on .wk-stage { animation: wkRise 620ms 120ms var(--ease-out) both; }
 @keyframes wkRise { from { opacity: 0; transform: translateY(10px); } }
 .wk-list.back { transition: opacity 0s, visibility 0s; }
-.wk-list.back > * { animation: wkFade 460ms 100ms var(--ease-out) backwards; }
+.wk-list.back > * { animation: wkFade 460ms 100ms var(--ease-out) both; }
 @keyframes wkFade { from { opacity: 0; } }
 .wk-view { width: 40px; height: 40px; color: var(--tx); }
 /* the dots: one per exercise, done ones filled with the accent; a small pill glides to the one you're on */
@@ -1375,7 +1382,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-dot { width: 16px; height: 20px; display: grid; place-items: center; }
 .wk-dot i { width: 6px; height: 6px; border-radius: 999px; background: var(--tx3); opacity: .6; transition: background-color 420ms var(--ease-out), opacity 420ms var(--ease-out); }
 .wk-dot.done i { background: var(--ac); opacity: .95; }
-.wk-dot-pill { position: absolute; left: 2px; top: 7px; width: 12px; height: 6px; border-radius: 999px; background: var(--tx); pointer-events: none; transition: transform 560ms var(--ease-smooth); }
+.wk-dot-pill { position: absolute; left: 2px; top: 7px; width: 12px; height: 6px; border-radius: 999px; background: var(--tx); pointer-events: none; transition: transform 560ms var(--ease-smooth); will-change: transform; }
 /* the pages: the track moves (ui/pager.ts), each page scrolls on its own */
 .wk-pager { position: relative; flex: 1; min-height: 0; overflow: clip; touch-action: pan-y; }
 .wk-pager.paging { -webkit-user-select: none; user-select: none; }
