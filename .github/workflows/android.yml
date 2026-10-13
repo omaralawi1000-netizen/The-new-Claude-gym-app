@@ -24,11 +24,19 @@ jobs:
           # keep the downloaded libraries between runs on this branch too (Maven Central rate-limits fresh runners)
           cache-read-only: false
       - name: Release key (if set up)
+        id: key
+        continue-on-error: true # a bad key still gives a (debug-signed) build to test; the fingerprint step says which
         env:
           KS: ${{ secrets.AVEN_KEYSTORE_BASE64 }}
           KP: ${{ secrets.AVEN_KEYSTORE_PASSWORD }}
         # pasting on a phone can add spaces or line breaks: those are dropped; anything else is reported (not the key)
         run: |
+          # the password stays hidden; a short fingerprint of it says whether it was pasted right
+          KP=$(printf '%s' "$KP" | tr -d ' \r\n\t')
+          if [ -n "$KP" ]; then
+            if [ "$(printf '%s' "$KP" | sha256sum | cut -c1-12)" = df960bf72556 ]; then echo "AVEN_KEYSTORE_PASSWORD: correct"
+            else echo "::error::AVEN_KEYSTORE_PASSWORD isn't the password from signing-key.txt ($(printf '%s' "$KP" | wc -c) characters, should be 32)"; fi
+          fi
           if [ -z "$KS" ]; then echo "No release key set up: the release APK gets the debug key"; exit 0; fi
           printf '%s' "$KS" | tr -d ' \r\n\t' > "$RUNNER_TEMP/ks.b64"
           echo "Key text: $(wc -c < "$RUNNER_TEMP/ks.b64") characters (should be 3464)"
