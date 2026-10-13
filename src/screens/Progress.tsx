@@ -80,7 +80,7 @@ export function ProgressScreen() {
 
   return (
     <>
-    <div className="screen" data-tb>
+    <div className="screen">
       <header>
         <LargeTitle><h1 className="display display-lg" style={{ margin: '6px 0 18px', fontStyle: 'italic' }}>{t('Progress')}</h1></LargeTitle>
         <Seg value={range} onChange={setRange} options={[{ value: '4w', label: t('4 weeks') }, { value: '12w', label: t('12 weeks') }, { value: '6m', label: t('6 months') }, { value: 'all', label: t('All') }]} />

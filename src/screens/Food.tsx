@@ -77,7 +77,7 @@ export function FoodScreen() {
 
   return (
     <>
-    <div className="screen" data-tb ref={screen}>
+    <div className="screen" ref={screen}>
       <header>
         <div className="row-flex between">
           <div className="row-flex" style={{ gap: 4 }}>

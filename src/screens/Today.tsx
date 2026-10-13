@@ -139,7 +139,7 @@ export function TodayScreen() {
 
   return (
     <>
-    <div className="screen" data-tb>
+    <div className="screen">
       <header>
         <div className="row-flex between">
           <div className="small t2">{fmtDate(today, lang, { weekday: 'long', day: 'numeric', month: 'short' })}{settings.name ? <span className="t3"> · {settings.name}</span> : null}</div>

@@ -27,7 +27,7 @@ export function TrainScreen() {
   const setTab = useUI((u) => u.setTrainTab);
   return (
     <>
-    <div className="screen" data-tb>
+    <div className="screen">
       <header>
         <LargeTitle><h1 className="display display-lg" style={{ margin: '6px 0 18px', fontStyle: 'italic' }}>{t('Train')}</h1></LargeTitle>
         <Seg value={tab} onChange={setTab} options={[{ value: 'plan', label: t('Plan') }, { value: 'library', label: t('Library') }, { value: 'history', label: t('History') }]} />
