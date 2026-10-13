@@ -1069,6 +1069,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-shade { position: absolute; left: 0; right: 0; top: calc(-56px - var(--wk-lead)); height: calc(56px + var(--wk-r)); pointer-events: none; will-change: transform, opacity;
   background: linear-gradient(to bottom, transparent, rgba(0,0,0,.07) 25px, rgba(0,0,0,.2) 56px); } /* (it carries on under the rounded corners) */
 :root[data-theme='dark'] .wk-shade { top: calc(-72px - var(--wk-lead)); height: calc(72px + var(--wk-r)); background: linear-gradient(to bottom, transparent, rgba(0,0,0,.22) 29px, rgba(0,0,0,.6) 72px); }
+.wk-corner-fill { position: absolute; left: 0; right: 0; top: calc(-1 * var(--wk-lead)); height: var(--wk-r); pointer-events: none; background: var(--wk-bar, transparent); opacity: 0; will-change: transform, opacity; }
 /* the window's top rim: only a strip along the top (it lay over the whole window, so every animation under it gave it a
    layer and took it away again, once a second during a rest), kept on a layer of its own */
 .wk-sheet::after { content: ''; position: absolute; left: 0; right: 0; top: 0; height: calc(var(--wk-r) + 4px); border-radius: inherit; pointer-events: none; box-shadow: inset 0 1px 0 var(--hl); z-index: 5; will-change: transform; }

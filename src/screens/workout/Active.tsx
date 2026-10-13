@@ -99,6 +99,7 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
     // the page's own top is that colour, fixed (written on the strip itself: a variable on the window would restyle
     // everything in it, in the tap)
     topRef.current?.style.setProperty('--wk-bar', `rgb(${wk.map(Math.round).join(' ')})`);
+    fillRef.current?.style.setProperty('--wk-bar', `rgb(${wk.map(Math.round).join(' ')})`);
   };
   useEffect(() => {
     let last = -1;
@@ -115,6 +116,12 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
   const shade = (pp: number) => Math.min(1, Math.max(0, (1 - pp) / 0.3), Math.max(0, pp / 0.12));
   const shadeO = useTransform(eFinger, shade);
   const shadeRef = useRef<HTMLDivElement>(null);
+  // the rounded corners' cut-outs fill with the top band's colour over the last 40 px before the band reaches the screen's
+  // top (the bar takes that colour there): two wedges of the page behind no longer show under a strip that is already the
+  // workout's. Opacity only; mid-travel the corners are round over the page.
+  const fill = (pp: number) => Math.min(1, Math.max(0, (LEAD + 60 - sheetTop(pp)) / 40));
+  const fillO = useTransform(eFinger, fill);
+  const fillRef = useRef<HTMLDivElement>(null);
   // what is on the page floats a little behind the page itself, by layer: the header a touch, the list a little more. It
   // arrives a beat after the window lands (a soft settle, no pop), and on the way down it leads the window into the bar —
   // one number, so minimising is the exact reverse of opening. The workout bar and its orb ride with the window itself.
@@ -135,6 +142,7 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
     m.add(
       mirrorProgress(sheetRef.current, p0, p1, sp, vel, (pp) => ({ transform: `translateY(${sheetTop(pp).toFixed(2)}px)` })),
       mirrorProgress(shadeRef.current, p0, p1, sp, vel, (pp) => ({ transform: `translateY(${sheetTop(pp).toFixed(2)}px)`, opacity: String(shade(pp)) }), [0.12, 0.7]),
+      mirrorProgress(fillRef.current, p0, p1, sp, vel, (pp) => ({ transform: `translateY(${sheetTop(pp).toFixed(2)}px)`, opacity: String(fill(pp)) }), [1 - (LEAD + 60) / (H + 64 + LEAD), 1 - (LEAD + 20) / (H + 64 + LEAD)]),
       mirrorProgress(headRef.current, p0, p1, sp, vel, (pp) => ({ transform: `translateY(${headLag(pp).toFixed(2)}px)` }), [0.5, 0.8, 0.95]),
       mirrorProgress(viewsRef.current, p0, p1, sp, vel, (pp) => ({ transform: `translateY(${viewsLag(pp).toFixed(2)}px)` }), [0.5, 0.8, 0.95]),
       mirrorOrb(sheetRef.current, p0, p1, sp, vel, sheetTop),
@@ -384,6 +392,7 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
       >
         <WkLive.Provider value={!hidden}>
         <motion.div ref={shadeRef} className="wk-shade" aria-hidden style={{ transform: sheetT, opacity: shadeO }} />
+        <motion.div ref={fillRef} className="wk-corner-fill" aria-hidden style={{ transform: sheetT, opacity: fillO }} />
         <motion.div ref={sheetRef} className="wk-sheet" style={{ transform: sheetT }}>
           <div className="wk-solid" aria-hidden><div className="aurora-lite"><Breath hold={paused || covered} /></div><i ref={topRef} className="wk-top" /></div>
         <div className="wk-window" style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column' }}>
