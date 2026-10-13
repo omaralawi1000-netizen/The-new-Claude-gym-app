@@ -1065,6 +1065,7 @@ export const da: Record<string, string> = {
  "Mat time per week": "Tid på måtten pr. uge",
  "Needs a Gemini key": "Kræver en Gemini-nøgle",
  "New personal record": "Ny personlig rekord",
+ "New best": "Ny rekord",
  "New personal records": "Nye personlige rekorder",
  "Optional hint, e.g. “with rice, no sauce”": "Valgfrit hint, fx “med ris, uden sovs”",
  "Retake": "Tag igen",
