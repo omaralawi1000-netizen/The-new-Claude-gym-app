@@ -1460,6 +1460,17 @@ flicker fingerprint). `--film a,b` films chosen actions, `--light` for the light
     pop-up opening re-rendered the whole app twice for it, once inside the tap and once two frames into the motion.
   - The calm rule names the one thing on a page that still blurs (`.screen .seg`) instead of `.screen *`: switching it
     restyled every element of the page (~900, 55 ms at 4x), two frames into EVERY pop-up's motion.
+- v0.1.94, Start moves on the tap like Resume (first Start of the day, at 4x CPU, 3 runs each, before → after):
+  - Finger down → first moving frame: 257-342 → 127-137 ms (Resume is 97-150). The 160-230 ms task that built the window
+    inside the tap is gone; what is left (the list's first exercises) runs while the window is already moving on the
+    compositor.
+  - How: once the app has settled (a couple of seconds in, no touch for 1.5 s, then the next idle moment), the
+    window is built ahead and parked off-screen exactly as a minimised one, holding an empty stand-in (`WK_GHOST`). Start
+    sets its slide going first; the workout is made and the app told after that frame, and the started workout takes the
+    same window over (its list comes in as on any first opening). After a workout ends it is built again the same way.
+  - Cost: launch unchanged (Start on screen ~1.2-1.4 s at 4x either way, same long tasks); the build itself is 50-130 ms
+    at 4x, in pieces, ~2.5 s after launch; +0.3 MB JS heap, +52 elements. Also covers reopening the app mid-workout: the
+    first Resume no longer builds the window either.
 
 ## Android app: the rest as a live countdown, new icon, calmer opening (13 Oct 2026, v0.1.72)
 Omar's phone showed the website's plain notice ("Back at 10:02", the site's address) instead of the app's countdown.

@@ -58,8 +58,11 @@ export function TodayScreen() {
 
   const start = (r?: Routine) => {
     haptic('confirm');
-    if (!s.active) s.startWorkout({ routine: r, plannedDate: r && plan?.routineId === r.id ? today : undefined });
-    resumeWorkout(() => push('workout', { origin: 'hero' }));
+    // the window (built ahead) starts rising first; the workout is made and the app told after its first frame
+    resumeWorkout(() => {
+      s.startWorkout({ routine: r, plannedDate: r && plan?.routineId === r.id ? today : undefined }); // (none while one is running)
+      push('workout', { origin: 'hero' });
+    });
   };
 
   // recents for one-tap repeat
