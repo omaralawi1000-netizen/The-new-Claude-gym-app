@@ -539,9 +539,14 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
 :root[data-glass='v2'][data-theme='light'] .wk-set:not(.done, .warm, .current) .wk-set-n { background-image: var(--mat-sheen); }
 :root[data-glass='v2'][data-theme='light'] .wk-set:not(.done, .warm, .current) .wk-set-n::after { background: linear-gradient(180deg, #fff, rgba(255, 255, 255, 0.6) 40%, rgba(20, 28, 48, 0.08) 68%, rgba(20, 28, 48, 0.16)); }
 /* "+ Set" sits at the set tiles' level in dark (rim only), so it never outshines the active set */
-:root[data-glass='v2']:not([data-theme='light']) .wk-add-set { background-image: none; box-shadow: none; }
+:root[data-glass='v2']:not([data-theme='light']) .wk-add-set { background: transparent; box-shadow: none; }
+:root[data-glass='v2']:not([data-theme='light']) .wk-add-set::after { background: rgba(255, 255, 255, 0.12); }
+/* …and in light it is clear white glass with a neutral rim (a peach edge made it compete with set 1) */
+:root[data-glass='v2'][data-theme='light'] .wk-add-set { background-image: var(--mat-sheen); }
+:root[data-glass='v2'][data-theme='light'] .wk-add-set::after { background: linear-gradient(180deg, #fff, rgba(255, 255, 255, 0.6) 40%, rgba(20, 28, 48, 0.08) 68%, rgba(20, 28, 48, 0.16)); }
 /* the main action at the bottom of a sheet, in dark: the full glow and sheen and a clearly visible rim */
-:root[data-glass='v2']:not([data-theme='light']) .sheet .sheet-foot .btn.btn:not([disabled]) { background-image: var(--mat-glow), var(--mat-sheen); }
+/* (the glow keeps a warm floor: fading to nothing let the sheet's navy show through the lower half) */
+:root[data-glass='v2']:not([data-theme='light']) .sheet .sheet-foot .btn.btn:not([disabled]) { background-image: linear-gradient(180deg, color-mix(in srgb, var(--ac) 20%, transparent), color-mix(in srgb, var(--ac) 13%, transparent) 45%, color-mix(in srgb, var(--ac) 12%, transparent)), var(--mat-sheen); }
 :root[data-glass='v2']:not([data-theme='light']) .sheet .sheet-foot .btn.btn:not([disabled])::after { background: linear-gradient(180deg, color-mix(in srgb, var(--ac) 30%, #fff), rgba(255, 255, 255, 0.2) 35%, rgba(255, 255, 255, 0.08) 70%, rgba(255, 255, 255, 0.16)); }
 /* the dock's active tab in dark: warm glass instead of cool grey, with the same warm top edge of light */
 :root[data-glass='v2']:not([data-theme='light']) .tab-lens {
