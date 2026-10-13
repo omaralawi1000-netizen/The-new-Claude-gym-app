@@ -541,14 +541,14 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
         <input ref={camRef} type="file" accept="image/*" hidden onChange={(e) => { pickPhoto(e.target.files?.[0]); e.target.value = ''; }} />
         <div className="coach-composer">
           {/* the orb is the Coach's microphone: it flies in from the tab bar, listens to you, thinks while it answers */}
-          <button className="press" aria-label={recording ? t('Stop and send') : t('Speak')} disabled={busy || hearing} onClick={() => (ai.hasGroq && mic.supported ? toggleRec() : push('settings', { section: 'ai' }))}
+          <button className="press coach-orb frost-seat" aria-label={recording ? t('Stop and send') : t('Speak')} disabled={busy || hearing} onClick={() => (ai.hasGroq && mic.supported ? toggleRec() : push('settings', { section: 'ai' }))}
             style={{ position: 'relative', width: 50, height: 50, flex: 'none', borderRadius: 999 }}>
             <i className={`voice-ring ${recording ? 'on' : ''}`} />
             <SphereSlot id="coach" priority={5} style={{ position: 'absolute', inset: -4 }} />
           </button>
           {/* the camera: a label, a machine, a program screenshot — anything to ask about */}
-          <button className="icon-btn flat press coach-cam" aria-label={t('Send a photo')} disabled={busy || recording || hearing} onClick={() => camRef.current?.click()}><Icon name="camera" size={21} /></button>
-          <div className="grow coach-field">
+          <button className="icon-btn press coach-cam frost-ctl" aria-label={t('Send a photo')} disabled={busy || recording || hearing} onClick={() => camRef.current?.click()}><Icon name="camera" size={21} /></button>
+          <div className="grow coach-field frost-ctl">
             <input ref={inputRef} className="input" style={{ paddingRight: 54 }} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
               enterKeyHint="send" placeholder={recording ? t('Listening…') : hearing ? t('Transcribing…') : t('Ask the Coach')} aria-label={t('Message the Coach')} disabled={recording || hearing} />
             {/* Send is an arrow inside the field, there only when there is something to send (Stop while it works) */}

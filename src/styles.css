@@ -1247,7 +1247,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    and under it, words ran under the orb and the camera and were sliced off by the field's edges (the "cut-out" look).
    The list now ends cleanly ABOVE the bar, always: it fades out over the 20 px just above the bar's top edge, so nothing
    is ever seen behind the orb, the camera or the field (Omar, 13 Oct evening: the text running under "Ask the Coach" with
-   a muddy fade read as a mess). At rest the last message sits 18 px above that edge, clear of the fade; a line that
+   a muddy fade read as a mess). At rest the last message sits 30 px above that edge, clear of the fade; a line that
    arrives while the list glides up comes out of the edge instead of rising from under the bar. (It used to slide down
    out of the way at the list's end, so a new line showed under the bar while the list glided.)
    With the keyboard up the edge rides with the bar, frame by frame (--kb-now, Coach.tsx; it used to sit at the keyboard's
@@ -1256,27 +1256,24 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 @property --melt { syntax: '<length-percentage>'; inherits: false; initial-value: 100%; } /* (not handed down to every word: it changes as you scroll) */
 @supports (animation-timeline: scroll()) {
   .sheet-pane .coach-body.sheet-body[data-scrollable] { --melt: calc(100% - var(--foot-h, 90px) - min(var(--kb-room, 0px), var(--kb-now)));
-    -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--sb-fade), #000 calc(var(--melt) - 6px), rgba(0,0,0,.35) calc(var(--melt) + 14px), transparent calc(var(--melt) + 30px));
-    mask-image: linear-gradient(to bottom, transparent, #000 var(--sb-fade), #000 calc(var(--melt) - 6px), rgba(0,0,0,.35) calc(var(--melt) + 14px), transparent calc(var(--melt) + 30px)); }
+    -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--sb-fade), #000 calc(var(--melt) - 26px), rgba(0,0,0,.35) calc(var(--melt) - 10px), transparent var(--melt));
+    mask-image: linear-gradient(to bottom, transparent, #000 var(--sb-fade), #000 calc(var(--melt) - 26px), rgba(0,0,0,.35) calc(var(--melt) - 10px), transparent var(--melt)); }
 }
-/* SOFT EDGE (Omar picked "soft-edge bars", 13 Oct): the bar has no box and no band. The conversation passes under it and
-   dissolves: a frost that starts clear 24 px above the bar and is full at the bar's top, tinted toward the sheet's own
-   colour so the orb, the camera and the field always read, over any background. One small blur, laid under the whole
-   row (the field has no blur of its own any more, so there is never a blur on a blur), riding with the bar, never
-   animated. The text itself is gone by the middle of the row (the list's mask above), so only colour passes behind the
-   orb. At rest the last message sits 24 px above the bar, clear of the frost. */
-.sheet-pane:has(> .sheet-foot) .coach-body.sheet-body { padding-bottom: calc(var(--foot-h, calc(var(--sab) + 76px)) + 24px + var(--kb-room, 0px)); }
+/* SOFT EDGE (Omar picked "soft-edge bars", 13 Oct): the bar has no box. Behind it a plain fade (no blur: each control
+   carries its own frost, .frost-ctl below, so there is never a blur on a blur) darkens gently toward a neutral grey so the
+   orb, the camera and the field always read, over any background, riding with the bar, never animated. The text itself is
+   gone before the bar's top edge (the list's mask above): it never shows between or behind the controls ("the text bar on
+   its own", Omar 22:07). At rest the last message sits 30 px above the bar, clear of the fade. */
+.sheet-pane:has(> .sheet-foot) .coach-body.sheet-body { padding-bottom: calc(var(--foot-h, calc(var(--sab) + 76px)) + 30px + var(--kb-room, 0px)); }
 .coach-foot.edge-fade { --edge-x: -22px; --edge-top: 34px; --edge-bottom: calc(var(--sab) + 14px); }
-.coach-foot .coach-field { -webkit-backdrop-filter: none; backdrop-filter: none; } /* (it sits on the frost: no blur on a blur) */
-/* .edge-fade, shared by every bottom bar that content passes under (the Coach bar; the tab bar reuses it): a frost under
-   the element that starts clear --edge-top above it and is full --edge-ramp further down, with a neutral grey tint
-   (--edge-tint, card level) easing in over --edge-len up to --edge-a, the same as the dock's. One backdrop blur, only as big as the bar, never animated; whatever sits inside the bar must not
-   blur again. Place: --edge-x (sideways reach, negative to go past the element's padding) and --edge-bottom. */
+/* .edge-fade, shared by every bottom bar that content passes under (the Coach bar; the tab bar reuses it): a neutral grey
+   tint (--edge-tint, card level) under the element, starting --edge-top above it and easing in over --edge-len up to
+   --edge-a, so the bar reads over anything without ever being a dark band. `.frosted` adds a blur that starts clear and
+   is full --edge-ramp down (one backdrop blur the size of the bar, never animated); leave it off when the controls in
+   the bar have their own frost (.frost-ctl), so nothing is blurred twice. Place: --edge-x (sideways reach, negative to go past the element's padding) and --edge-bottom. */
 .edge-fade { position: relative; isolation: isolate; }
 .edge-fade::before { content: ''; position: absolute; z-index: -1; pointer-events: none;
   left: var(--edge-x, 0px); right: var(--edge-x, 0px); top: calc(-1 * var(--edge-top, 24px)); bottom: calc(-1 * var(--edge-bottom, 0px));
-  -webkit-backdrop-filter: blur(var(--edge-blur, 16px)) saturate(1.35); backdrop-filter: blur(var(--edge-blur, 16px)) saturate(1.35);
-  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--edge-ramp, 26px)); mask-image: linear-gradient(to bottom, transparent, #000 var(--edge-ramp, 26px));
   /* the tint eases in over --edge-len and stops at --edge-a (never a dark band at the bottom: no darker than the bar was) */
   --c: var(--edge-tint, rgb(21, 22, 28));
   background: linear-gradient(to bottom, transparent,
@@ -1284,6 +1281,8 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
     color-mix(in srgb, var(--c) calc(var(--edge-a, 65%) * .25), transparent) calc(var(--edge-len, 64px) * .5),
     color-mix(in srgb, var(--c) calc(var(--edge-a, 65%) * .56), transparent) calc(var(--edge-len, 64px) * .75),
     color-mix(in srgb, var(--c) var(--edge-a, 65%), transparent) var(--edge-len, 64px)); }
+.edge-fade.frosted::before { -webkit-backdrop-filter: blur(var(--edge-blur, 16px)) saturate(1.35); backdrop-filter: blur(var(--edge-blur, 16px)) saturate(1.35);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--edge-ramp, 26px)); mask-image: linear-gradient(to bottom, transparent, #000 var(--edge-ramp, 26px)); }
 :root[data-theme='light'] .edge-fade { --edge-tint: var(--sheet-solid); --edge-a: 40%; } /* (light: a pale neutral, or it read as a white strip) */
 .coach-sent { animation: coachSend 620ms cubic-bezier(.2, .8, .2, 1) backwards; }
 @keyframes coachSend {
@@ -1343,13 +1342,29 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* The typing pill has its own surface; the orb and camera sit beside it. */
 .coach-foot { padding-bottom: 12px; }
 .coach-composer { display: flex; align-items: center; gap: 8px; }
-.coach-field { position: relative; min-width: 0; border-radius: 27px;
-  background: linear-gradient(180deg, var(--s1), transparent), color-mix(in srgb, var(--glass) 68%, var(--s1));
-  -webkit-backdrop-filter: blur(18px) saturate(1.25); backdrop-filter: blur(18px) saturate(1.25);
-  box-shadow: 0 8px 24px -8px rgb(0 0 0 / .26), 0 2px 6px -2px rgb(0 0 0 / .18); transition: box-shadow 200ms var(--ease-out); }
-.coach-field:focus-within { box-shadow: 0 10px 26px -8px rgb(0 0 0 / .32), 0 2px 6px -2px rgb(0 0 0 / .22); }
-:root[data-theme='light'] .coach-field { box-shadow: 0 8px 24px -8px rgb(30 40 70 / .16), 0 2px 6px -2px rgb(30 40 70 / .1); }
-:root[data-theme='light'] .coach-field:focus-within { box-shadow: 0 10px 26px -8px rgb(30 40 70 / .2), 0 2px 6px -2px rgb(30 40 70 / .14); }
+/* Each control of the bar sits on its own frosted glass (.frost-ctl, Omar 13 Oct: "the text bar on its own… the camera
+   its own circle that looks 3D… the orb, figure something out"): the field a pill, the camera a round button, the orb
+   rests in a frosted seat a little bigger than itself (.frost-seat). The bar behind them is only a soft tint
+   (.edge-fade, no blur), so nothing is ever blurred twice. */
+.coach-field { position: relative; min-width: 0; border-radius: 27px; transition: box-shadow 200ms var(--ease-out); }
+.coach-field.frost-ctl:focus-within { box-shadow: inset 0 1px 0 var(--fc-hl), inset 0 0 0 1px var(--fc-rim-on), var(--fc-sh); }
+.coach-cam.frost-ctl { flex: none; width: 46px; height: 46px; margin: 0 2px; color: var(--tx); }
+.coach-orb { margin-right: 2px; isolation: isolate; }
+/* .frost-ctl: a floating control on its own frosted glass, the one style for them app-wide. Neutral (never tinted by the
+   area's colour), a light top edge and a fine rim, a soft shadow under it that lifts it off the page, and a faint sheen
+   that brightens its top half so a round one reads as a lens rather than a flat disc. One small blur per control,
+   never animated, and nothing blurred sits under it. `.frost-seat`: the same glass as a disc behind its content
+   (--seat: how far it reaches past the element). */
+:root { --fc-bg: rgba(40, 42, 54, 0.5); --fc-sheen: rgba(255, 255, 255, 0.07); --fc-hl: rgba(255, 255, 255, 0.16); --fc-rim: rgba(255, 255, 255, 0.07); --fc-rim-on: rgba(255, 255, 255, 0.16);
+  --fc-sh: 0 1px 2px rgba(0, 0, 0, 0.32), 0 10px 22px -10px rgba(0, 0, 0, 0.6); }
+:root[data-theme='light'] { --fc-bg: rgba(255, 255, 255, 0.6); --fc-sheen: rgba(255, 255, 255, 0.55); --fc-hl: rgba(255, 255, 255, 0.95); --fc-rim: rgba(20, 28, 48, 0.07); --fc-rim-on: rgba(20, 28, 48, 0.14);
+  --fc-sh: 0 1px 2px rgba(30, 40, 70, 0.12), 0 10px 22px -10px rgba(30, 40, 70, 0.28); }
+.frost-ctl, .frost-seat::before {
+  background: linear-gradient(180deg, var(--fc-sheen), transparent 58%), var(--fc-bg);
+  -webkit-backdrop-filter: blur(20px) saturate(1.5); backdrop-filter: blur(20px) saturate(1.5);
+  box-shadow: inset 0 1px 0 var(--fc-hl), inset 0 0 0 1px var(--fc-rim), var(--fc-sh); }
+.frost-seat { position: relative; isolation: isolate; }
+.frost-seat::before { content: ''; position: absolute; inset: calc(-1 * var(--seat, 2px)); border-radius: 999px; z-index: -1; pointer-events: none; }
 .coach-field .input { height: 54px; padding-left: 16px; background: transparent; box-shadow: none; outline: none; }
 .coach-composer .input::placeholder { color: var(--tx2); opacity: 1; }
 .coach-composer .coach-send { transform: scale(.9); transition: opacity 160ms var(--ease-out), transform 260ms var(--ease-smooth); }
