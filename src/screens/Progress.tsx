@@ -88,7 +88,7 @@ export function ProgressScreen() {
       <ChartCard title={<>{t('Training consistency')}</>} sub={<><span className="num">{wk[wk.length - 1]?.sessions ?? 0}</span><span className="t3 small" style={{ fontFamily: 'var(--f-ui)', fontStretch: '100%', fontWeight: 600 }}> / {target} {t('this week')}</span></>}
         table={{ head: [t('Week of'), t('Sessions'), t('Sets'), `${t('Volume')} (${u.weight})`], rows: wk.map((b) => [fmtDate(b.start, lang, { day: 'numeric', month: 'short' }), b.sessions, b.sets, fmtNum(Math.round(kgToDisplay(b.volume, u.weight)), lang, 0)]) }}>
         <BarChart label={t('Sessions per week')} bars={wk.map((b, i) => ({ label: fmtDate(b.start, lang, { day: 'numeric', month: 'numeric' }), value: b.sessions, sub: `${t('Week of')} ${fmtDate(b.start, lang, { day: 'numeric', month: 'short' })}`, emphasis: i === wk.length - 1 }))} fmt={(v) => fmtNum(Math.round(v * 10) / 10, lang, 0)} target={target} targetLabel={`${t('target')} ${target}`} />
-        {streak > 0 && <div className="small t2" style={{ marginTop: 8 }}>{t('{n}-week streak of hitting your target', { n: streak })}</div>}
+        {streak > 0 && <div className="small t2" style={{ marginTop: 8 }}>{t(streak === 1 ? '1-week streak of hitting your target' : '{n}-week streak of hitting your target', { n: streak })}</div>}
       </ChartCard>
 
       {hasMat && (

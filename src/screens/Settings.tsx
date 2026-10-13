@@ -202,7 +202,7 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
                   <Row icon="moon" title={t('Appearance')} sub={`${t(st.theme === 'system' ? 'System' : st.theme === 'dark' ? 'Dark' : 'Light')} · ${t(st.motion === 'system' ? 'Motion: system' : st.motion === 'reduce' ? 'Reduced motion' : 'Full motion')}`} onClick={() => setSec('look')} />
                   <Row icon="today" title={t('Today')} sub={t('Choose what Today shows')} onClick={() => setSec('today')} />
                   <Row icon="sparkle" title={t('Voice & AI')} sub={ai.hasGroq || ai.hasGemini || ai.hasOpenai ? [ai.hasGroq ? 'Groq' : '', ai.hasOpenai && ai.solFirst ? 'GPT-6.1 Sol' : '', ai.hasGemini ? 'Gemini' : ''].filter(Boolean).join(' + ') : undefined} onClick={() => setSec('ai')} />
-                  <Row icon="note" title={t('Coach memory')} sub={s.memory.length ? t('{n} things the Coach knows about you', { n: s.memory.length }) : t('What the Coach knows about you')} onClick={() => setSec('memory')} />
+                  <Row icon="note" title={t('Coach memory')} sub={s.memory.length ? t(s.memory.length === 1 ? '1 thing the Coach knows about you' : '{n} things the Coach knows about you', { n: s.memory.length }) : t('What the Coach knows about you')} onClick={() => setSec('memory')} />
                   <Row icon="bell" title={t('Reminders')} onClick={() => setSec('reminders')} />
                   <Row icon="download" title={t('Data & backup')} onClick={() => setSec('data')} />
                   <Row icon="shield" title={t('Privacy')} onClick={() => setSec('privacy')} />

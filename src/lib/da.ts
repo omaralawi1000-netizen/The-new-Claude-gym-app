@@ -1418,4 +1418,13 @@ export const da: Record<string, string> = {
  "Warm": "Varm",
  "Tap a voice to hear it.": "Tryk på en stemme for at høre den.",
  "In this workout": "I denne træning",
+ "Added 1 item to {meal}": "Tilføjede 1 ting til {meal}",
+ "1 entry cleared": "1 post ryddet",
+ "Copied 1 entry to {day}": "Kopierede 1 post til {day}",
+ "1 set isn’t ticked. Only the ticked ones are saved.": "1 sæt er ikke krydset af. Kun de afkrydsede gemmes.",
+ "1 set done": "1 sæt udført",
+ "1 answer · estimate": "1 svar · estimat",
+ "1 thing the Coach knows about you": "1 ting, Coach ved om dig",
+ "1 new record": "1 ny rekord",
+ "1-week streak of hitting your target": "1 uge i træk med målet nået",
 };

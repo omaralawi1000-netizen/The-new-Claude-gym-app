@@ -86,7 +86,7 @@ export function EntryMenu({ props }: { props: { kind: 'day' | 'meal'; date: stri
   if (props.kind === 'day') items.push({ icon: 'note', label: t('Notes'), run: () => swap(1, 'dayNotes', { date: props.date }) });
   items.push({ icon: 'trash', label: props.kind === 'meal' ? t('Clear meal') : t('Clear day'), danger: true, run: () => {
     const removed = entries; removed.forEach((e) => s.removeEntry(e.id)); pop();
-    toast(t('{n} entries cleared', { n: removed.length }), { actionLabel: t('Undo'), onAction: () => s.restoreEntries(removed) });
+    toast(t(removed.length === 1 ? '1 entry cleared' : '{n} entries cleared', { n: removed.length }), { actionLabel: t('Undo'), onAction: () => s.restoreEntries(removed) });
   } });
   return (
     <Sheet onClose={pop} size="small" label={t('Options')} z={80}>
@@ -123,7 +123,7 @@ export function MealCopy({ props }: { props: { from: { date: string; mealId?: st
     const copies = s.copyEntries(props.from, { date: to, mealId });
     haptic('saved');
     closeAll();
-    toast(t('Copied {n} entries to {day}', { n: copies.length, day: relativeDay(to, today, lang) ?? fmtDate(to, lang) }), { tone: 'ok', actionLabel: t('Undo'), onAction: () => copies.forEach((e) => s.removeEntry(e.id)) });
+    toast(t(copies.length === 1 ? 'Copied 1 entry to {day}' : 'Copied {n} entries to {day}', { n: copies.length, day: relativeDay(to, today, lang) ?? fmtDate(to, lang) }), { tone: 'ok', actionLabel: t('Undo'), onAction: () => copies.forEach((e) => s.removeEntry(e.id)) });
   };
   return (
     <Sheet onClose={pop} label={t('Copy')} z={90} foot={<button className="btn primary block press" onClick={go}>{t('Copy to {day}', { day: relativeDay(to, today, lang) ?? fmtDate(to, lang) })}</button>}>
