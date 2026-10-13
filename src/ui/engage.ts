@@ -101,14 +101,13 @@ export function satPx(): number {
   satCache = d.offsetHeight; d.remove();
   return satCache;
 }
-/** The page's own transform at depth v (must match useStageDepth in App.tsx). */
-export const stageTransform = (v: number) => `translateY(${((satPx() + 10) * v).toFixed(2)}px) scale(${(1 - 0.08 * v).toFixed(5)})`;
+/** The page's content's transform at depth v (used by useStageDepth in App.tsx): it sinks back to 95 %, from the middle. */
+export const contentTransform = (v: number) => `scale(${(1 - 0.05 * v).toFixed(5)})`;
 
-/** Mirror the page behind (it steps back) — only when this popup alone sets its depth. */
+/** Mirror the page's content behind (it sinks back) — only when this popup alone sets its depth. */
 export function mirrorStage(id: string, p0: number, p1: number, sp: { stiffness: number; damping: number; mass?: number }, velocity: number): Animation | null {
   for (const [k, v] of open) if (k !== id && v.get() > 0.001) return null;
-  const st = document.querySelector('.stage');
-  return mirrorProgress(st, p0, p1, sp, velocity, (p) => ({ transform: stageTransform(clamp01(p)) }));
+  return mirrorProgress(document.querySelector('.stage-content'), p0, p1, sp, velocity, (p) => ({ transform: contentTransform(clamp01(p)) }));
 }
 
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
