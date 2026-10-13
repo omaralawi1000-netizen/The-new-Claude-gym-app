@@ -11,7 +11,8 @@ await p.getByRole('button', { name: /^Add to / }).first().click(); await wait(p,
 await p.getByPlaceholder('Search foods and brands').fill('skyr'); await wait(p, 1800);
 await p.screenshot({ path: 'shots/fd2-1-online.png' });
 assert(await p.getByText('DemoDairy').first().isVisible(), 'online result listed');
-await p.getByText('Skyr Naturel').first().click(); await wait(p, 1000);
+// (the packed Danish list, v0.1.32, now lists its own skyrs above the online ones: pick the online DemoDairy one)
+await p.getByText(/DemoDairy · 62 kcal/).first().click(); await wait(p, 1000);
 await p.screenshot({ path: 'shots/fd2-2-offdetail.png' });
 assert(await p.getByText('Open Food Facts').first().isVisible(), 'source shown');
 await primary().click(); await wait(p, 1200);

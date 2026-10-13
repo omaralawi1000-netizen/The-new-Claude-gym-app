@@ -494,24 +494,27 @@ function WorkoutBar({ engage, exMap, focus, away, onDone, onJump }: { engage: En
     : t('All sets done');
   const big = state === 'next' ? name
     : state === 'rest' ? (a.pausedAt && !panel ? `${fmtDuration(Math.ceil(left))} · ${t('Paused')}` : fmtDuration(Math.ceil(left)))
-    : state === 'go' ? (nx ? `${t('Go')} · ${name}` : t('Go'))
+    : state === 'go' ? (nx ? name : t('Go'))
     : state === 'empty' ? t('Tell the orb what you did')
     : `${sessionSetCount(a.exercises, true)} ${t('sets')} · ${fmtNum(Math.round(kgToDisplay(sessionVolume(a.exercises), unit)), lang, 0)} ${unit}`;
   return (
     <div className={`wk-bar-wrap${away ? ' away' : ''}`}>
       {/* never re-keyed: the orb's slot lives in here, and remounting it made the orb leave and land again (a tick, a hop) */}
-      <div className={`wk-bar glass ${state}`}>
+      <div className={`wk-bar ${state}`}>
+        {/* the frost, tint and rim are a layer of their own under everything: the orb's button and the words sit beside it,
+            not inside the blurred element (Chrome on the phone drew a darker square where the orb is) */}
+        <span className="wk-bar-surface glass" aria-hidden />
         <span className="wk-bar-clip" aria-hidden><RestFill state={state} endsAt={rest?.endsAt} total={rest?.total} paused={!!a.pausedAt} /></span>
         <button className="wk-bar-main press" onClick={tap} aria-expanded={state === 'rest' ? panel : undefined}
-          aria-label={state === 'rest' ? `${t('Rest')} ${fmtDuration(Math.ceil(left))}` : `${top}. ${big}${state === 'next' && target ? `, ${target}` : ''}`}>
+          aria-label={state === 'rest' ? `${t('Rest')} ${fmtDuration(Math.ceil(left))}` : `${top}. ${big}${(state === 'next' || state === 'go') && target ? `, ${target}` : ''}`}>
           <span key={`t${state}${after ? after.se.id : ''}`} className="wk-bar-top">{top}</span>
-          <span key={`b${state}${after ? after.se.id : ''}`} className="wk-bar-big num">{state === 'next' ? <><span className="wk-bar-name">{name}</span>{target && <span className="wk-bar-tgt">{target}</span>}</>
+          <span key={`b${state}${after ? after.se.id : ''}`} className="wk-bar-big num">{state === 'next' || (state === 'go' && nx) ? <><span className="wk-bar-name">{name}</span>{target && <span className="wk-bar-tgt">{target}</span>}</>
             : state === 'rest' ? (!a.pausedAt && left <= 3
               // the last three seconds swell on each tick; before that the seconds roll down
               ? <span key={Math.ceil(left)} className="wk-tick">{big}</span> : <Roll key="r" text={big} />)
             : state === 'done' ? <Roll text={big} /> : big}</span>
         </button>
-        <button className="wk-bar-orb press" aria-label={t('Dictate sets')} onPointerDown={() => orbPress(true)} onPointerUp={() => orbPress(false)} onPointerCancel={() => orbPress(false)} onPointerLeave={() => orbPress(false)}
+        <button className="wk-bar-orb" aria-label={t('Dictate sets')} onPointerDown={() => orbPress(true)} onPointerUp={() => orbPress(false)} onPointerCancel={() => orbPress(false)} onPointerLeave={() => orbPress(false)}
           onClick={() => { orbTap(1); push('voice', { mode: 'workout' }); }}>
           <SphereSlot id="workout" priority={5} engage={engage} style={{ position: 'absolute', inset: -4 }} />
         </button>

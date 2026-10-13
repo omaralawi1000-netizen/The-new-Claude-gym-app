@@ -98,7 +98,11 @@ export function PhotoFood({ props }: { props: { date: string; mealId: string } }
         ) : (
           <>
             <motion.div layout transition={SOFT} style={{ position: 'relative', borderRadius: 'var(--r-lg)', overflow: 'hidden', aspectRatio: img ? '4 / 3' : '4 / 3.2', background: 'var(--s1)', boxShadow: 'inset 0 1px 0 var(--hl), inset 0 0 0 1px var(--line)' }}>
-              {img ? <motion.img key={img.url} src={img.url} alt="" initial={{ opacity: 0, scale: 1.04 }} animate={{ opacity: busy ? 0.55 : 1, scale: 1, filter: busy ? 'blur(2px) saturate(1.2)' : 'blur(0px)' }} transition={{ duration: 0.5 }} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} /> : (
+              {img ? <motion.div key={img.url} initial={{ opacity: 0, scale: 1.04 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5 }} style={{ position: 'absolute', inset: 0 }}>
+                {/* while it is read, a still, softened copy fades in over the photo (the blur itself never animates) */}
+                <motion.img src={img.url} alt="" animate={{ opacity: busy ? 0.55 : 1 }} transition={{ duration: 0.5 }} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                <motion.img src={img.url} alt="" aria-hidden initial={false} animate={{ opacity: busy ? 0.6 : 0 }} transition={{ duration: 0.5 }} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(2px) saturate(1.2)', pointerEvents: 'none' }} />
+              </motion.div> : (
                 <button className="press" onClick={() => cam.current?.click()} style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', alignContent: 'center', gap: 12 }} aria-label={t('Take a photo')}>
                   <span className="icon-btn acc" style={{ width: 74, height: 74 }}><Icon name="camera" size={30} /></span>
                   <span className="small t2">{t('Take a photo')}</span>

@@ -15,6 +15,7 @@ import { assignWeek, buildStarter } from '../lib/starter';
 import { buildDemo } from '../lib/demo';
 import { fmtWeekdayShort } from '../lib/dates';
 import { useOverlayZ } from '../ui/Sheet';
+import { SoftText } from '../ui/SoftText';
 
 const GOALS: { v: Goal; l: string; s: string }[] = [
   { v: 'strength', l: 'Get stronger', s: 'Heavier lifts, lower reps' },
@@ -70,22 +71,22 @@ export function Onboarding({ props }: { props: { rerun?: boolean; starterOnly?: 
   const screens = [
     // 0 welcome + goal
     <div key="0">
-      <div className="display display-xl">{tt('Let’s set up Aven.')}</div>
+      <div className="display display-xl"><SoftText text={tt('Let’s set up Aven.')} /></div>
       <div className="field" style={{ marginTop: 22 }}><label htmlFor="ob-name">{tt('What should I call you?')}</label><input id="ob-name" className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder={tt('Optional')} /></div>
       <div className="lbl" style={{ margin: '22px 0 10px' }}>{tt('What’s your main goal?')}</div>
       <div className="stack gap8">{GOALS.map((g) => <button key={g.v} className="plinth press" style={{ padding: '13px 14px', display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left', outline: goal === g.v ? '2px solid var(--ac)' : undefined }} onClick={() => setGoal(g.v)}><div className="grow"><div className="li-title">{tt(g.l)}</div><div className="li-sub">{tt(g.s)}</div></div>{goal === g.v && <Icon name="check" size={20} style={{ color: 'var(--ac-text)' }} />}</button>)}</div>
     </div>,
     // 1 experience + equipment
     <div key="1">
-      <div className="display display-lg">{tt('Your experience')}</div>
+      <div className="display display-lg"><SoftText text={tt('Your experience')} /></div>
       <div style={{ marginTop: 16 }}><Seg value={exp} onChange={setExp} options={[{ value: 'new', label: tt('New') }, { value: 'some', label: tt('Some') }, { value: 'experienced', label: tt('Experienced') }]} /></div>
-      <div className="display display-lg" style={{ marginTop: 28 }}>{tt('What can you train with?')}</div>
+      <div className="display display-lg" style={{ marginTop: 28 }}><SoftText text={tt('What can you train with?')} /></div>
       <div className="stack gap8" style={{ marginTop: 14 }}>{([['fullGym', 'Full gym', 'Barbells, machines, cables'], ['barbellHome', 'Home with barbell', 'Barbell, dumbbells, bench'], ['homeDumbbells', 'Home with dumbbells', 'Dumbbells, kettlebell, bands'], ['bodyweight', 'Bodyweight only', 'No equipment']] as [EquipmentAccess, string, string][]).map(([v, l, sub]) => (
         <button key={v} className="plinth press" style={{ padding: '13px 14px', display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left', outline: eq === v ? '2px solid var(--ac)' : undefined }} onClick={() => setEq(v)}><div className="grow"><div className="li-title">{tt(l)}</div><div className="li-sub">{tt(sub)}</div></div>{eq === v && <Icon name="check" size={20} style={{ color: 'var(--ac-text)' }} />}</button>))}</div>
     </div>,
     // 2 schedule
     <div key="2">
-      <div className="display display-lg">{tt('Which days can you train?')}</div>
+      <div className="display display-lg"><SoftText text={tt('Which days can you train?')} /></div>
       <div className="row-flex" style={{ gap: 6, marginTop: 22, justifyContent: 'space-between' }}>
         {[1, 2, 3, 4, 5, 6, 0].map((wd) => { const on = days.includes(wd); return <button key={wd} className="press" aria-pressed={on} onClick={() => setDays(on ? days.filter((x) => x !== wd) : [...days, wd])} style={{ flex: 1, height: 64, borderRadius: 16, background: on ? 'var(--ac)' : 'var(--s2)', color: on ? 'var(--ac-ink)' : 'var(--tx2)', fontWeight: 700, boxShadow: on ? '0 8px 18px -8px color-mix(in srgb, var(--ac) 70%, transparent)' : 'inset 0 0 0 1px var(--line)' }}>{fmtWeekdayShort(wd, lang2, true)}</button>; })}
       </div>
@@ -93,7 +94,7 @@ export function Onboarding({ props }: { props: { rerun?: boolean; starterOnly?: 
     </div>,
     // 3 units
     <div key="3">
-      <div className="display display-lg">{tt('Units & language')}</div>
+      <div className="display display-lg"><SoftText text={tt('Units & language')} /></div>
       <div className="lbl" style={{ margin: '20px 0 8px' }}>{tt('Weight')}</div>
       <Seg value={units} onChange={setUnits} options={[{ value: 'kg', label: 'kg (metric)' }, { value: 'lb', label: 'lb' }]} />
       <div className="lbl" style={{ margin: '20px 0 8px' }}>{tt('Language')}</div>
@@ -101,7 +102,7 @@ export function Onboarding({ props }: { props: { rerun?: boolean; starterOnly?: 
     </div>,
     // 4 nutrition
     <div key="4">
-      <div className="display display-lg">{tt('Nutrition targets')}</div>
+      <div className="display display-lg"><SoftText text={tt('Nutrition targets')} /></div>
       <div className="stack gap16" style={{ marginTop: 22 }}>
         <div className="field"><label>{tt('Calories per day')}</label><NumInput value={kcal} onChange={setKcal} unit="kcal" max={0} placeholder="—" /></div>
         <div className="field"><label>{tt('Protein per day')}</label><NumInput value={prot} onChange={setProt} unit="g" max={0} placeholder="—" /></div>
@@ -109,7 +110,7 @@ export function Onboarding({ props }: { props: { rerun?: boolean; starterOnly?: 
     </div>,
     // 5 finish
     <div key="5">
-      <div className="display display-lg">{tt('Ready.')}</div>
+      <div className="display display-lg"><SoftText text={tt('Ready.')} /></div>
       <div className="plinth" style={{ padding: 16, marginTop: 20 }}>
         <div className="row-flex between"><div><div className="li-title">{tt('Create a starter plan')}</div><div className="li-sub" style={{ maxWidth: 240 }}>{days.length ? `${days.length} ${tt('days a week')} · ${tt('editable')}` : tt('Pick training days first')}</div></div><Toggle on={plan && days.length > 0} onChange={setPlan} label={tt('Create a starter plan')} /></div>
       </div>
@@ -134,7 +135,7 @@ export function Onboarding({ props }: { props: { rerun?: boolean; starterOnly?: 
       </div>
       <div style={{ flex: 1, overflowY: 'auto', padding: '8px 22px 20px', position: 'relative' }} className="hide-scroll fade-top">
         <AnimatePresence mode="wait" initial={false} custom={dir}>
-          <motion.div key={step} custom={dir} initial={{ opacity: 0, x: dir * 36, filter: 'blur(6px)' }} animate={{ opacity: 1, x: 0, filter: 'blur(0px)', transitionEnd: { filter: 'none' } }} exit={{ opacity: 0, x: -dir * 36, filter: 'blur(6px)' }} transition={{ duration: 0.22 }}>
+          <motion.div key={step} custom={dir} initial={{ opacity: 0, x: dir * 36 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -dir * 36 }} transition={{ duration: 0.22 }}>
             {screens[step]}
           </motion.div>
         </AnimatePresence>

@@ -106,7 +106,8 @@ function restPayload(ended = false) {
     body: w ? [w.name, w.which, w.target].filter(Boolean).join(' · ') : '',
     overTitle: !w ? tNow('Rest over') : w.label === 'W' ? tNow('Time for your warm-up') : tNow('Time for set {n}', { n: w.label }),
     overBody: w ? [w.name, w.target].filter(Boolean).join(' · ') : '',
-    badge: `${import.meta.env.BASE_URL}badge-96.png`,
+    // icon: Aven's orb in a circle (left out, Chrome draws a grey letter bubble); badge: the white mark in the status bar
+    icon: `${import.meta.env.BASE_URL}notif-icon.png`, badge: `${import.meta.env.BASE_URL}badge-96.png`,
     more: tNow('+30 s'), skip: tNow('Skip rest'),
   };
 }

@@ -139,7 +139,7 @@ const KIND_ICON: Record<string, IconName> = { food: 'recipe', sets: 'dumbbell', 
 /**
  * Minimal, safe rendering of the model's text: paragraphs, "- " bullets, **bold**. No HTML is ever injected.
  * Every word is its own span keyed by position, so while a reply streams in only the NEW words mount — and each one
- * blurs in (CSS .w). Words already on screen never re-animate. While the reply is read aloud (`id` matches what is
+ * comes in out of soft focus (CSS .w, .soft). Words already on screen never re-animate. While the reply is read aloud (`id` matches what is
  * playing), the word being said lights up, the ones already said settle back and the ones to come wait a shade lighter.
  */
 // (memo: while an answer writes itself in, only the piece still growing re-renders, not every word before it)
@@ -161,7 +161,7 @@ export const Words = memo(function Words({ text, k, base = 0, on = -1, stagger }
     if (born.current[i] === undefined) born.current[i] = Math.min(520, Math.max(0, (i - first) / 2) * 34);
     const idx = n++;
     const cls = on < 0 ? 'w' : idx === on ? 'w w-on' : idx < on ? 'w w-past' : 'w w-next';
-    return <span key={`${k}-${i}`} className={cls} style={{ animationDelay: `min(${born.current[i]}ms, var(--word-stagger-cap, 520ms))` }}>{w}</span>;
+    return <span key={`${k}-${i}`} className={`${cls} soft soft-in`} data-soft={w} style={{ animationDelay: `min(${born.current[i]}ms, var(--word-stagger-cap, 520ms))` }}><span className="soft-s">{w}</span></span>;
   })}</>;
 });
 /**
