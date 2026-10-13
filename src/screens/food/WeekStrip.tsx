@@ -28,7 +28,7 @@ export function WeekStrip({ date, onPick }: { date: string; onPick: (d: string) 
   const avg = loggedDays.length ? loggedDays.reduce((a, x) => a + x.kcal, 0) / loggedDays.length : 0;
   const H = 86; // bar area height
   return (
-    <section className="plinth week">
+    <section className="plinth week" data-flip="week">
       <div className="row-flex between">
         <div className="micro">{t('This week')}</div>
         {loggedDays.length > 0 && <div className="xs t2 num">{t('avg')} <Roll text={fmtNum(Math.round(avg), lang, 0)} /> kcal · <Roll text={String(loggedDays.length)} />/7</div>}
