@@ -33,11 +33,15 @@ await ctx.addInitScript(() => {
   const w = window; w.__launchHold = new Promise((r) => { w.__launchGo = r; });
   // the orb drawn on the page: its worker draws on a clock of its own, which the camera doesn't drive
   try { localStorage.setItem('aven.hrr', '0'); } catch { /* */ }
-  if (!document.documentElement) return;
-  document.documentElement.classList.add('film-hold');
-  const st = document.createElement('style');
-  st.textContent = 'html.film-hold .screen > *, html.film-hold .subpage > * { animation-play-state: paused !important; }';
-  (document.head || document.documentElement).appendChild(st);
+  // (this runs before the page has an <html> yet, so the hold goes on the moment it appears)
+  const hold = () => {
+    document.documentElement.classList.add('film-hold');
+    const st = document.createElement('style');
+    st.textContent = 'html.film-hold .screen > *, html.film-hold .subpage > * { animation-play-state: paused !important; }';
+    document.documentElement.appendChild(st);
+  };
+  if (document.documentElement) hold();
+  else new MutationObserver((_, o) => { if (document.documentElement) { o.disconnect(); hold(); } }).observe(document, { childList: true });
 });
 s.wall(true);
 await p.goto(url);

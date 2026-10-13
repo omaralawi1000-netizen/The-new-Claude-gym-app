@@ -8,7 +8,7 @@ import { apple } from './motion';
  * first paint shows exactly the same (index.html), so the hand-over is invisible. Then, once the app is drawn underneath:
  *  1. the logo comes alive: the live orb fades in over it in the same place, size and colours, and
  *     it starts to turn; at the same moment the launch screen fades and the first screen's blocks start rising;
- *  2. once the logo has gone it flows down into the dock, shrinking as it goes and turning into the palette's colours
+ *  2. once the logo has gone it flows down into the dock on a soft arc, shrinking as it goes and turning into the palette's colours
  *     bead by bead (never through a grey blend).
  * Only transform and opacity move, and the orb's flight is run by the browser, so it is drawn at the screen's full rate
  * even while the app is still starting up. With reduced motion the launch screen simply fades and the orb is in the dock.
@@ -20,7 +20,8 @@ if (cover) { cover.dataset.taken = '1'; orbLaunchTint(); orbBright(1); }
 const FLIGHT = { ...apple(0.8), restDelta: 0.0005 };
 const ALIVE_MS = 200;   // the logo becoming the live orb (the app starts to appear at the same moment)
 const LIFT_MS = 230;    // the flight starts once the logo has fully gone, so there is never a second orb behind it
-const FADE_MS = 380;    // the launch screen fading away, from the moment the logo comes alive
+const FADE_MS = 250;    // the launch screen fading away, from the moment the logo comes alive (the app fully there as early as without the morph)
+const BOW = -30;        // the flight's arc: falls first, slides into the dock at the end, clear of the first card's play button
 const MAX_WAIT = 1500;  // the longest the logo waits for the app underneath before it goes anyway
 
 const frames = (n: number) => new Promise<void>((r) => { const f = () => (--n <= 0 ? r() : requestAnimationFrame(f)); requestAnimationFrame(f); });
@@ -71,7 +72,7 @@ async function run(cover: HTMLElement) {
   await after(LIFT_MS);
 
   // 2. down into the dock, turning into the palette's colours on the way
-  const flight = await orbLaunch(FLIGHT);
+  const flight = await orbLaunch(FLIGHT, BOW);
   const move = animate(e, 0, FLIGHT); // the script's copy, which carries the orb if anything interrupts the browser's flight
   animate(1, 0, { duration: 0.6, ease: [0.4, 0, 0.2, 1], onUpdate: orbBright }); // from the logo's even light to its own glassy depth
   await Promise.all([fade.finished.catch(() => {}), flight ? flight.finished.catch(() => {}) : move.then(() => {})]);
