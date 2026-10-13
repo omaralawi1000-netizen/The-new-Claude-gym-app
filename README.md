@@ -861,6 +861,19 @@ alone on purpose (other threads were changing them).
 - Left: the first frame of a tab switch or the workout opening is one long task (building the new screen); that needs
   lazier screens, a bigger change.
 
+## Speed pass, step 4: light taps for the Coach and "Say more" (13 Oct 2026, v0.1.38)
+
+- From Omar's phone report: the only frames over 50 ms were opening the Coach (104 and 91 ms, 88 ms of it the tap's own
+  script) and "Say more" on the orb screen (89 ms, no script).
+- Coach: the tap built the whole saved chat at once (up to 60 messages, every word its own element for the read-aloud
+  highlight) and laid it out. Now it builds only the newest 6 (more if they don't fill the screen), scrolled to the bottom
+  as before; the older ones are added above two at a time when the phone is idle, starting once the sheet has risen, and
+  what you look at stays exactly where it is. Measured (`scripts/perf-taps.mjs`, 60 messages, 4× slow-down): tap script
+  ~500 → ~100 ms, tap to first frame ~610 → ~170 ms.
+- "Say more": its own script is small (~15 ms at 4×). The cost is on the graphics side as the orb grows back from 96 to
+  250 px: its canvas was made anew at every 24 px step (6 new buffers in half a second). It now keeps the big size for the
+  whole grow (and shrink), as flights already do: one resize. Looks the same.
+
 ## Feel pass, step 1: every button presses like a native one (12 Oct 2026, v0.1.12)
 
 - One press for the whole app (`ui/press.ts`), in place of CSS `:active`. `:active` missed quick taps (the finger was up

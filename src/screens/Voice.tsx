@@ -14,7 +14,7 @@ import { decide, brainFor } from '../lib/agentTurn';
 import { runActions, type AgentResult } from '../lib/agent';
 import { dayKey } from '../lib/dates';
 import { uid } from '../lib/nutrition';
-import { SphereSlot, mirrorOrb, orbPress, orbTap } from '../ui/Sphere';
+import { SphereSlot, mirrorOrb, orbPress, orbTap, holdOrbSize } from '../ui/Sphere';
 import { mirrorProgress, useEngage } from '../ui/engage';
 import { kb, watchFocus } from '../ui/keyboard';
 import { Veil, VOICE_VEIL, mirrorVeil } from '../ui/Veil';
@@ -393,6 +393,9 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   // it can never come back later as a false "microphone in use")
   const tapSphere = () => { if (phase === 'requesting') { teardown(); go('idle'); return; } orbTap(0.6); if (listening) finish(); else if (!thinking) { haptic('listen'); listen(); } };
   const big = !showing && !thinking && !typing; // typing: the orb steps up and the box gets the room
+  // the sphere is about to grow or shrink (the .45 s transition below): its canvas holds the big size meanwhile
+  const wasBig = useRef(big);
+  useLayoutEffect(() => { if (wasBig.current !== big) { wasBig.current = big; holdOrbSize(Math.min(window.innerWidth * 0.62, 250), 520); } }, [big]);
   // the keyboard overlays the page: the whole screen rides above it, so the box you type in and the Send button stay in sight
   const rootRef = useRef<HTMLDivElement>(null);
   useEffect(() => (rootRef.current ? watchFocus(rootRef.current, (el) => el.closest<HTMLElement>('.hide-scroll')) : undefined), []);
