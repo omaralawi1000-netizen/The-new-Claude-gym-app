@@ -276,6 +276,8 @@ export interface Settings {
   palette: 'ember' | 'aurora' | 'mono' | 'sunset' | 'forest';
   /** how strong the colour light behind the app is (styles.css `data-glow`); missing = full */
   glow?: 'full' | 'soft' | 'off';
+  /** what is drawn behind the app (ui/Backdrop.tsx, styles.css `.bgx`); missing = classic (the drifting colour field) */
+  background?: 'classic' | 'orb' | 'tabs' | 'sunrise' | 'mesh' | 'dots' | 'time' | 'night' | 'photo';
   /** which view a workout opens in; missing or 'last' = the one last used on this phone */
   workoutView?: 'last' | 'list' | 'focus';
   /** what Today shows; anything switched off is simply gone (and so is the water on the Food screen if `water` is off) */
