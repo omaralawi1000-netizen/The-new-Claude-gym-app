@@ -1691,3 +1691,22 @@ size of the orb's canvas (54 px). Third report of it; the two earlier fixes (lay
 - Fix: an invisible layer under the bar's frost (`.wk-bar-even`, 0.5 % black, its opacity swaying on the compositor)
   makes each frame's redraw cover the whole bar and the blur's reach round it, so the frost is always blurred from the
   page alone. Compositor only (no script, no new paint); it rests while the window is parked.
+
+## Clean look with depth: the glass is off, cards float on neutral depth, no orange (13 Oct 2026, v0.1.102)
+
+Omar, after six rounds of "lit glass": *"Why is it still orange? Just bring it back to before we made the 3D look and the
+glass look. But add depth."* He said yes to this look from a before/after picture.
+
+- **Aven glass is off.** `index.html` no longer sets `data-glass="v2"`, so every rule behind `:root[data-glass='v2']` in
+  `styles.css` is dormant (put the attribute back to compare; `scripts/glass-shots.mjs` still does). The lit-glass rounds
+  (two-tone tab icons, tinted field, ring bloom) never shipped; they are on the branch `backup/glass-take6g`.
+- **Ember's colour field is cool and quiet**: violet, slate and lavender at strength .15 (soft .08) instead of coral,
+  magenta and amber at .55. That was most of the orange: the see-through cards took the field's colour. Other palettes keep
+  their own fields; buttons and the active tab keep Ember's colours.
+- **Dark cards on the tab screens are their own surface**, opaque charcoal one step lighter than the page, with a faint
+  white top edge and a soft, deep, neutral shadow, so they float the way light cards do. All the same, nothing tinted.
+  The Coach's pinned note is the same surface (coral only on its mark).
+- **Light cards are clean white** (94 %) on their original shadows.
+- No colour washes on cards: the coral bloom inside Today's workout card is hidden; today in the week strip is a neutral
+  lift with coral letters (both modes); the play buttons' glow is tight in dark so it never bleeds onto a card.
+- Paint only: no blur, no new layers, nothing animated (layer check TOTAL 11, as before).
