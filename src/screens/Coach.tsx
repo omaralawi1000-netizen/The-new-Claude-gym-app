@@ -23,9 +23,18 @@ import { apple, springCurve } from '../ui/motion';
 
 /* The typing bar opens wide while you type (Omar, 13 Oct: "expands when I type on it and compresses when I'm done"): the
    camera tucks away and the pill's left edge glides over its place on a soft spring with a touch of overshoot, then
-   glides back when the keyboard goes. Drawn with moves only (styles.css .coach-field), never a width animated per frame. */
+   glides back when the keyboard goes. It grows a line taller as your words wrap (up to four lines, then they scroll inside).
+   Drawn with moves only (styles.css .coach-field), never a width or height animated per frame. */
 const CF_X = 58; // how far it opens: the camera's place (46 px, its 2 px margins, the 8 px gap)
-const MORPH = springCurve(apple(0.62, 0.16));
+const CF_LINE = 22, CF_LINES = 4, CF_MAX = CF_LINE * (CF_LINES - 1); // its lines, and how much taller it can grow
+// opening: a spring with a little overshoot you can see (about 5 px past the open edge, then back); closing and growing
+// settle with less
+const MORPH = springCurve(apple(0.62, 0.4));
+const MORPH_BACK = springCurve(apple(0.62, 0.2));
+const GROW = springCurve(apple(0.5, 0.25));
+const growVars = { '--cf-ease-g': GROW.easing, '--cf-dur-g': `${GROW.duration}ms` } as React.CSSProperties;
+const morphVars = { '--cf-x': `${CF_X}px`, '--cf-max': `${CF_MAX}px`, '--cf-ease': MORPH.easing, '--cf-dur': `${MORPH.duration}ms`,
+  '--cf-ease-c': MORPH_BACK.easing, '--cf-dur-c': `${MORPH_BACK.duration}ms`, ...growVars } as React.CSSProperties;
 
 type Msg =
   | { id: string; role: 'user' | 'model'; text: string; streaming?: boolean; seeded?: boolean; /** a quiet line under the answer (which AI answered, and why) */ note?: string; /** when it was said */ at?: number; /** a photo was sent with it (its picture stays only while the Coach is open) */ photo?: boolean; image?: string }
@@ -247,7 +256,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   // up to make room on the same spring. A copy of the bubble flies above everything (the list clips its own contents), from
   // the typed text's place to the bubble's, and hands over to the real one where it lands; its glass gathers round the words
   // on the way. Browser-run (Web Animations on transform/opacity only), so it is drawn at the screen's full rate.
-  const flyFrom = useRef(new Map<string, { x: number; y: number; fs: number; end: number; cut: boolean; right: number }>());
+  const flyFrom = useRef(new Map<string, { x: number; y: number; fs: number; end: number; cut: boolean; right: number; edge: number; kb: number }>());
   const flew = useRef(new Set<string>()); // these arrive by flight, not by the bubble's own rise
   const dropAfter = useRef(false); // sent from the keyboard: it goes down when the message lands
   const flown = (id: string) => flew.current.has(id);
@@ -286,7 +295,13 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       Object.assign(copy.style, { left: `${B.left}px`, top: `${B.top}px`, width: `${B.width}px` });
       copy.style.setProperty('--fly-bg', cs.backgroundColor);
       copy.style.setProperty('--fly-shadow', cs.boxShadow);
-      app.appendChild(copy);
+      // It flies inside a window that ends at the pill's top edge, so it rises out from behind the bar (it used to lift out
+      // through the pill for a few frames, its words across the control). The edge rides with the keyboard.
+      const clip = document.createElement('div');
+      clip.className = 'coach-fly-clip';
+      const edge = () => { clip.style.height = `${Math.max(0, from.edge + (from.kb - kb.get()))}px`; };
+      edge(); const offEdge = kb.on('change', edge);
+      clip.appendChild(copy); app.appendChild(clip);
       // it joins a glide the list is still finishing, so its place is where the bubble will be once that is done
       const rider = ride.current?.(copy); const y0 = B.top - (rider?.off ?? 0); copy.style.top = `${y0}px`;
       bubble.style.visibility = 'hidden';
@@ -304,13 +319,14 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       // frame late, and the copy trailed its landing place by that frame while the keyboard went down)
       el.addEventListener('scroll', follow, { passive: true }); listMoved.current = follow;
       // the field's "Ask the Coach" comes back once the words have left it
+      // ("Ask the Coach" fades back in as the words leave, from the next frame: no empty pill in between)
       const field = inputRef.current; field?.classList.add('sent-away');
-      const back = setTimeout(() => field?.classList.remove('sent-away'), 280);
+      let back = requestAnimationFrame(() => { back = requestAnimationFrame(() => field?.classList.remove('sent-away')); });
       // sent while typing: the keyboard leaves once the message has nearly landed (the list, at its end, rides down with it
       // and the bubble with the list), one thing after the other instead of the field dropping away under the words
       const drop = () => { if (!dropAfter.current) return; dropAfter.current = false; if (document.activeElement === field) field?.blur(); };
       const dropping = setTimeout(drop, Math.round(fly.duration * 0.42));
-      const land = () => { rider?.unride(); el.removeEventListener('scroll', follow); if (listMoved.current === follow) listMoved.current = null; clearTimeout(back); clearTimeout(dropping); drop(); field?.classList.remove('sent-away'); bubble.style.visibility = ''; copy.remove(); };
+      const land = () => { rider?.unride(); el.removeEventListener('scroll', follow); if (listMoved.current === follow) listMoved.current = null; cancelAnimationFrame(back); clearTimeout(dropping); drop(); field?.classList.remove('sent-away'); bubble.style.visibility = ''; offEdge(); clip.remove(); };
       anims[0].finished.then(land, land);
     }
   });
@@ -358,17 +374,39 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   const orb = (p: 'idle' | 'listening' | 'processing' | 'confirmed' | 'error') => useVoice.getState().go(p);
   useEffect(() => () => { if (useVoice.getState().phase !== 'idle') useVoice.getState().go('idle'); }, []);
 
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const composerRef = useRef<HTMLDivElement>(null);
+  const fieldRef = useRef<HTMLDivElement>(null);
+  const measureRef = useRef<HTMLDivElement>(null);
+  // How many lines your words take (a hidden copy of them at the field's text width, read once per change): the pill grows
+  // by whole lines, and the conversation's end moves up with it (--grow: the fade above the bar, on the same spring;
+  // --grow-pad: the room under the last message, at once, and the list glides up on its own spring).
+  const grown = useRef(-1);
+  const fit = () => {
+    const ta = inputRef.current, m = measureRef.current, bar = composerRef.current, body = bodyRef.current;
+    if (!ta || !m || !bar) return;
+    const cs = getComputedStyle(ta);
+    m.style.width = `${ta.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)}px`;
+    m.textContent = `${ta.value || ta.placeholder}\u200b`;
+    const all = Math.max(1, Math.round(m.offsetHeight / CF_LINE)), lines = Math.min(CF_LINES, all);
+    bar.classList.toggle('cf-full', all > CF_LINES); // (only then can it scroll: a scroller of its own otherwise came and went with the keyboard)
+    const mid = (lines - 1) * CF_LINE;
+    if (mid === grown.current) return;
+    grown.current = mid;
+    bar.style.setProperty('--mid', `${mid}px`);
+    bar.style.setProperty('--mid-k', String((mid + 4) / (CF_MAX + 4)));
+    bar.style.setProperty('--sh-y', String((54 + mid) / 54));
+    body?.style.setProperty('--grow', `${mid}px`); body?.style.setProperty('--grow-pad', `${mid}px`);
+  };
   // the field has the keyboard: the bar is open wide (a class set straight on the bar: a state change here re-rendered the
   // whole conversation on every tap into the field and out of it)
-  const composerRef = useRef<HTMLDivElement>(null);
-  const openBar = (on: boolean) => composerRef.current?.classList.toggle('open', on);
-  const fieldRef = useRef<HTMLDivElement>(null);
+  const openBar = (on: boolean) => { composerRef.current?.classList.toggle('open', on); fit(); };
+  useLayoutEffect(fit, [input]);
   // the shadow under the pill is stretched rather than redrawn: how much wider the open pill is than the resting one
   useLayoutEffect(() => {
     const el = fieldRef.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => { const w = el.offsetWidth; if (w) el.style.setProperty('--cf-k', String((w + CF_X) / w)); });
+    const ro = new ResizeObserver(() => { const w = el.offsetWidth; if (w) el.style.setProperty('--cf-k', String((w + CF_X) / w)); grown.current = -1; fit(); });
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
@@ -452,7 +490,10 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       flew.current.add(id);
       const left = fr.left + parseFloat(fs.borderLeftWidth) + parseFloat(fs.paddingLeft);
       // (`end`: where the text's last letter was; `cut`: its start was scrolled out of the field, only its end was showing)
-      flyFrom.current.set(id, { x: left, y: fr.top + fr.height / 2, fs: parseFloat(fs.fontSize), end: fr.left + parseFloat(fs.borderLeftWidth) + field.scrollWidth - parseFloat(fs.paddingRight) - field.scrollLeft, cut: field.scrollLeft > 1, right: fr.right });
+      // (it leaves from the field's bottom line, where the last of your words were; `edge`: the pill's top, which the bubble
+      // comes out above, never through the bar)
+      const top = fieldRef.current?.getBoundingClientRect().top ?? fr.top;
+      flyFrom.current.set(id, { x: left, y: fr.bottom - 27, fs: parseFloat(fs.fontSize), end: left, cut: false, right: fr.right, edge: top - Math.max(0, grown.current), kb: kb.get() });
       dropAfter.current = typing;
     } else if (typing) field?.blur();
     const reduceTips = still || leaving;
@@ -558,7 +599,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
           </div>
         )}
         <input ref={camRef} type="file" accept="image/*" hidden onChange={(e) => { pickPhoto(e.target.files?.[0]); e.target.value = ''; }} />
-        <div className="coach-composer" ref={composerRef} style={{ '--cf-x': `${CF_X}px`, '--cf-ease': MORPH.easing, '--cf-dur': `${MORPH.duration}ms` } as React.CSSProperties}>
+        <div className="coach-composer" ref={composerRef} style={morphVars}>
           {/* the orb is the Coach's microphone: it flies in from the tab bar, listens to you, thinks while it answers */}
           <button className="press coach-orb frost-seat" aria-label={recording ? t('Stop and send') : t('Speak')} disabled={busy || hearing} onClick={() => (ai.hasGroq && mic.supported ? toggleRec() : push('settings', { section: 'ai' }))}
             style={{ position: 'relative', width: 50, height: 50, flex: 'none', borderRadius: 999 }}>
@@ -570,8 +611,10 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
           <div className="grow coach-field" ref={fieldRef}>
             {/* the pill: one frost that never moves (only its outline does), a tint drawn in two halves that slide over each
                 other, and a shadow that stretches — so opening it is moves only */}
-            <i className="cf-sh" /><i className="cf-glass" /><i className="cf-tint"><i className="cf-l" /><i className="cf-r" /></i>
-            <input ref={inputRef} className="input" onFocus={() => openBar(true)} onBlur={() => openBar(false)} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
+            <div className="cf-measure" ref={measureRef} aria-hidden="true" />{/* (first: under the layers, so it never gets one of its own) */}
+            <i className="cf-sh" /><i className="cf-glass" />
+            <i className="cf-tint"><i className="cf-l cf-b" /><i className="cf-r cf-b" /><i className="cf-l cf-m" /><i className="cf-r cf-m" /><i className="cf-l cf-t" /><i className="cf-r cf-t" /></i>
+            <textarea ref={inputRef} className="input" rows={1} onFocus={() => openBar(true)} onBlur={() => openBar(false)} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
               enterKeyHint="send" placeholder={recording ? t('Listening…') : hearing ? t('Transcribing…') : t('Ask the Coach')} aria-label={t('Message the Coach')} disabled={recording || hearing} />
             {/* Send is an arrow inside the field, there only when there is something to send (Stop while it works) */}
             <button className={`coach-send press ${busy || input.trim() || photo ? 'on' : ''}`} onMouseDown={(e) => e.preventDefault() /* the field keeps the keyboard until the message has landed */} aria-label={busy ? t('Stop') : t('Send')} tabIndex={busy || input.trim() || photo ? 0 : -1} onClick={() => (busy ? ctl.current?.abort() : send())}>
@@ -582,7 +625,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       </div>
     )}>
       <SheetHead title={t('Coach')} onClose={pop} right={<button className={`small t2 press coach-new${shown.length ? '' : ' gone'}`} onClick={clearChat} tabIndex={shown.length ? 0 : -1} aria-hidden={!shown.length}>{t('New chat')}</button>} />
-      <div className="sheet-body coach-body" data-kb-own ref={bodyRef} onScroll={(e) => {
+      <div className="sheet-body coach-body" data-kb-own ref={bodyRef} style={growVars} onScroll={(e) => {
         const el = e.currentTarget;
         if (user.current) { movedAt.current = performance.now(); pinned.current = endTop(el) - el.scrollTop < 80; }
         lastScroll.current = el.scrollTop;
