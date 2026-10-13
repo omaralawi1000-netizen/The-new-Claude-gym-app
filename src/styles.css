@@ -466,6 +466,8 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
 .seg-lens { top: 4px; bottom: 4px; --lens-r: 19px; opacity: .95; --lens-fill: linear-gradient(180deg, #4a4d57, #3b3e48); }
 :root[data-theme='light'] .seg-lens { --lens-fill: #fff; }
 /* ── Aven glass: the material of every neutral rounded surface (cards, pills, chips, round buttons) ───────────────
+   Live: index.html sets <html data-glass="v2">. The rules stay behind that attribute so scripts/glass-shots.mjs can
+   still compare with and without it (and it is a one-line switch back).
    No longer a flat see-through grey. Three quiet things, all painted once (no extra blur, nothing animates, so it costs
    nothing per frame), the same on the page, in sheets and in the workout window:
    - a crisp edge of light along the top, warmed by the area's own colour, fading away down the sides
@@ -532,6 +534,19 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
 :root[data-glass='v2'] .wk-set:not(.done, .warm) .wk-set-n::after {
   content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; padding: 1px; background: var(--mat-rim);
   -webkit-mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}
+/* in light only the active set's tile keeps the warm glow and warm edge; the others are clear glass with a neutral rim */
+:root[data-glass='v2'][data-theme='light'] .wk-set:not(.done, .warm, .current) .wk-set-n { background-image: var(--mat-sheen); }
+:root[data-glass='v2'][data-theme='light'] .wk-set:not(.done, .warm, .current) .wk-set-n::after { background: linear-gradient(180deg, #fff, rgba(255, 255, 255, 0.6) 40%, rgba(20, 28, 48, 0.08) 68%, rgba(20, 28, 48, 0.16)); }
+/* "+ Set" sits at the set tiles' level in dark (rim only), so it never outshines the active set */
+:root[data-glass='v2']:not([data-theme='light']) .wk-add-set { background-image: none; box-shadow: none; }
+/* the main action at the bottom of a sheet, in dark: the full glow and sheen and a clearly visible rim */
+:root[data-glass='v2']:not([data-theme='light']) .sheet .sheet-foot .btn.btn:not([disabled]) { background-image: var(--mat-glow), var(--mat-sheen); }
+:root[data-glass='v2']:not([data-theme='light']) .sheet .sheet-foot .btn.btn:not([disabled])::after { background: linear-gradient(180deg, color-mix(in srgb, var(--ac) 30%, #fff), rgba(255, 255, 255, 0.2) 35%, rgba(255, 255, 255, 0.08) 70%, rgba(255, 255, 255, 0.16)); }
+/* the dock's active tab in dark: warm glass instead of cool grey, with the same warm top edge of light */
+:root[data-glass='v2']:not([data-theme='light']) .tab-lens {
+  --lens-fill: linear-gradient(180deg, color-mix(in srgb, var(--ac) 10%, #3f3331), color-mix(in srgb, var(--ac) 6%, #2f2625) 55%, #2b2423);
+  --lens-hl: color-mix(in srgb, color-mix(in srgb, var(--ac) 25%, #fff) 70%, transparent); --lens-line: rgba(255, 236, 225, 0.08);
 }
 /* in dark the glow and sheen made the tiles the brightest thing in their row, louder than the active set's outline and the
    kg/reps numbers: there they keep only the rim */
