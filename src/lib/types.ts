@@ -274,6 +274,10 @@ export interface Settings {
   theme: 'system' | 'light' | 'dark';
   /** the colours of the app (glow + accent), see styles.css `data-palette` */
   palette: 'ember' | 'aurora' | 'mono' | 'sunset' | 'forest';
+  /** how strong the colour light behind the app is (styles.css `data-glow`); missing = full */
+  glow?: 'full' | 'soft' | 'off';
+  /** which view a workout opens in; missing or 'last' = the one last used on this phone */
+  workoutView?: 'last' | 'list' | 'focus';
   /** what Today shows; anything switched off is simply gone (and so is the water on the Food screen if `water` is off) */
   widgets: { water: boolean; quick: boolean; recents: boolean; week: boolean; weight: boolean; targets: boolean; muscles: boolean; records: boolean };
   /** the Coach's pin on Today: things it noticed (lib/nudges.ts); on unless switched off */
