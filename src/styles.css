@@ -1551,14 +1551,21 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
     color-mix(in srgb, var(--c) calc(var(--edge-a, 65%) * .56), transparent) calc(var(--edge-len, 64px) * .75),
     color-mix(in srgb, var(--c) var(--edge-a, 65%), transparent) var(--edge-len, 64px)); }
 :root[data-theme='light'] .edge-fade { --edge-tint: var(--sheet-solid); --edge-a: 40%; } /* (light: a pale neutral, or it read as a white strip) */
-/* the dock reuses the Coach bar's soft edge: one frost under it, clear ~64 px above and full at its top, a neutral tint
-   easing in, so the page passes under the dock and dissolves (Omar: "the tab bar and coach bar fade"). The dock itself has
-   no blur (it sits on the frost): a light neutral tint and a faint light from the top. */
-.tabbar-wrap.edge-fade { position: fixed; --edge-top: 64px; --edge-ramp: 56px; --edge-len: 72px; }
-.tabbar.glass { background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0) 60%), rgba(40, 42, 50, 0.3);
-  -webkit-backdrop-filter: none; backdrop-filter: none;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.09), inset 0 0 0 1px rgba(255, 255, 255, 0.055); }
-:root[data-theme='light'] .tabbar.glass { background: linear-gradient(180deg, #fff, rgba(255, 255, 255, 0.5) 60%), rgba(255, 255, 255, 0.3);
+/* the dock reuses the Coach bar's soft edge: a frost under it, clear ~22 px above its top and full there, a neutral tint
+   easing in, so the page passes under the dock and dissolves (Omar: "the tab bar and coach bar fade"). */
+.tabbar-wrap.edge-fade { position: fixed; --edge-top: 22px; --edge-ramp: 20px; --edge-len: 40px; --edge-blur: 16px; --edge-tint: rgb(30, 31, 38); --edge-a: 55%; }
+/* …with a lighter 8 px frost in front of it, so the page goes soft in two small steps over the last ~50 px, the room the screens already leave under their last card, so nothing at rest is blurred (the sharp page
+   only ever cross-fades with the light blur, not the strong one: no bright halos around text) */
+.tabbar-wrap.edge-fade::after { content: ''; position: absolute; z-index: -2; pointer-events: none; left: 0; right: 0; top: -52px; height: 52px;
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 24px); mask-image: linear-gradient(to bottom, transparent, #000 24px);
+  background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--edge-tint) 14%, transparent)); }
+:root[data-theme='light'] .tabbar-wrap.edge-fade { --edge-tint: #eef0f6; --edge-a: 45%; }
+/* the dock itself is a pill of frosted glass: its own small blur (only the pill's size), a light neutral fill, light from the top */
+.tabbar.glass { background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0) 60%), rgba(44, 46, 54, 0.34);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4); backdrop-filter: blur(24px) saturate(1.4);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), inset 0 0 0 1px rgba(255, 255, 255, 0.06), 0 10px 26px -12px rgba(0, 0, 0, 0.6); }
+:root[data-theme='light'] .tabbar.glass { background: linear-gradient(180deg, #fff, rgba(255, 255, 255, 0.5) 60%), rgba(255, 255, 255, 0.34);
   box-shadow: inset 0 1px 0 #fff, inset 0 0 0 1px rgba(16, 20, 34, 0.06), 0 8px 24px -12px rgba(30, 40, 70, 0.25); }
 
 /* Top fade for scrollers that are neither a page nor a sheet (the orb's talk list, onboarding). */
