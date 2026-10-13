@@ -262,3 +262,33 @@ export function newBest(lt: string, now: { weightKg?: number; reps?: number; dur
   if (w > 0 && prior.some((p) => p.reps)) return { kind: 'weight', weightKg: w, reps: r };
   return null;
 }
+
+/**
+ * The one line the finish screen ends on: the most meaningful true thing about this session. A record first ("Strongest
+ * bench yet"), else the biggest session of this routine, else more than last time, else where it sits in the month.
+ * Returns an English key with its variables (the caller translates and fills in the exercise's name in its language).
+ */
+export type Headline = { key: string; vars: Record<string, string | number>; exerciseId?: string };
+export function sessionHeadline(ses: WorkoutSession, history: WorkoutSession[], unitFmt: (kg: number) => string): Headline {
+  const ORDER: RecordKind[] = ['weight', 'e1rm', 'reps', 'duration', 'distance', 'volume'];
+  const rec = [...(ses.records ?? [])].sort((a, b) => ORDER.indexOf(a.kind) - ORDER.indexOf(b.kind))[0];
+  if (rec) {
+    const key = rec.kind === 'weight' || rec.kind === 'e1rm' ? 'Strongest {exercise} yet'
+      : rec.kind === 'reps' ? 'Most reps yet on {exercise}'
+      : rec.kind === 'duration' || rec.kind === 'distance' ? 'Longest {exercise} yet'
+      : 'Biggest {exercise} set yet';
+    return { key, vars: {}, exerciseId: rec.exerciseId };
+  }
+  const prior = history.filter((h) => h.id !== ses.id && h.status === 'done' && (h.endedAt ?? 0) < (ses.endedAt ?? Date.now()));
+  const vol = sessionVolume(ses.exercises);
+  const same = prior.filter((h) => (ses.routineId ? h.routineId === ses.routineId : h.name.trim().toLowerCase() === ses.name.trim().toLowerCase()))
+    .sort((a, b) => (b.endedAt ?? 0) - (a.endedAt ?? 0));
+  if (vol > 0 && same.length) {
+    if (same.length >= 2 && same.every((h) => vol > sessionVolume(h.exercises))) return { key: 'Your biggest {name} session yet', vars: { name: ses.name } };
+    const up = vol - sessionVolume(same[0].exercises);
+    if (up >= 1) return { key: '{x} more than last {name}', vars: { x: unitFmt(up), name: ses.name } };
+  }
+  const month = ses.date.slice(0, 7);
+  const n = prior.filter((h) => h.date.slice(0, 7) === month).length + 1;
+  return n === 1 ? { key: 'First workout this month', vars: {} } : { key: 'Workout {n} this month', vars: { n } };
+}

@@ -1,12 +1,12 @@
-import { useMemo, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useStore, exerciseMap } from '../../state/store';
 import { useUI, haptic } from '../../state/ui';
 import { useT, useLang } from '../../lib/i18n';
 import { Icon } from '../../ui/Icon';
-import { Count, NumInput } from '../../ui/kit';
+import { NumInput } from '../../ui/kit';
 import { Sheet, SheetHead, SOFT } from '../../ui/Sheet';
-import { elapsedMs, sessionSetCount, sessionVolume, countable } from '../../lib/workout';
+import { elapsedMs, sessionSetCount, sessionVolume, sessionHeadline, countable } from '../../lib/workout';
 import { fmtDate, fmtDuration, fmtDurationLong } from '../../lib/dates';
 import { backupAfterWorkout } from '../../lib/drive';
 import { displayToKg, fmtNum, kgToDisplay } from '../../lib/units';
@@ -16,8 +16,35 @@ import { saveWorkoutAsRoutine } from './actions';
 
 const REC_LABEL: Record<RecordKind, string> = { weight: 'Heaviest set', e1rm: 'Estimated 1RM', volume: 'Best set volume', reps: 'Most reps', duration: 'Longest hold', distance: 'Longest distance' };
 
-function Stat({ label, value, unit }: { label: string; value: React.ReactNode; unit?: string }) {
-  return <div><div className="micro">{label}</div><div className="display display-md num" style={{ marginTop: 4 }}>{value}<span className="t3 small" style={{ fontFamily: 'var(--f-ui)', fontStretch: '100%', fontWeight: 600 }}> {unit}</span></div></div>;
+function Stat({ label, value, unit, i }: { label: string; value: React.ReactNode; unit?: string; i: number }) {
+  return <div className="sum-stat" style={{ ['--i' as string]: i }}><div className="micro">{label}</div><div className="display display-md num" style={{ marginTop: 4 }}>{value}<span className="t3 small" style={{ fontFamily: 'var(--f-ui)', fontStretch: '100%', fontWeight: 600 }}> {unit}</span></div></div>;
+}
+
+// The finish moment, in order: the four numbers arrive one after another, each counting up from zero as it lands, and then
+// one line says what this session meant. STEP and COUNT are the rhythm; everything else on the screen waits for LINE.
+const STEP = 0.32, FIRST = 0.2, COUNT = 0.85;
+const LINE = FIRST + 3 * STEP + COUNT * 0.8;
+const reduced = () => document.documentElement.dataset.motion === 'reduce' || matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/** A number that counts up from zero once, after `delay` seconds. Writes its own text (no re-render per frame). */
+function CountUp({ to, delay, format }: { to: number; delay: number; format: (n: number) => string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current; if (!el || reduced()) return;
+    el.textContent = format(0);
+    let raf = 0;
+    const id = setTimeout(() => {
+      const t0 = performance.now();
+      const step = (t: number) => {
+        const k = Math.min(1, (t - t0) / (COUNT * 1000));
+        el.textContent = format(to * (1 - Math.pow(1 - k, 3)));
+        if (k < 1) raf = requestAnimationFrame(step);
+      };
+      raf = requestAnimationFrame(step);
+    }, delay * 1000);
+    return () => { clearTimeout(id); cancelAnimationFrame(raf); el.textContent = format(to); };
+  }, [to]); // eslint-disable-line react-hooks/exhaustive-deps
+  return <span ref={ref}>{format(to)}</span>;
 }
 
 /** Shown right after finishing. Numbers come from the saved session — what you checked off, nothing assumed. */
@@ -34,7 +61,11 @@ export function Summary({ props }: { props: { sessionId: string } }) {
   const routine = ses?.routineId ? s.routines.find((r) => r.id === ses.routineId) : undefined;
   const recs = ses?.records ?? [];
   const rows = useMemo(() => (ses ? ses.exercises.map((e) => ({ e, ex: exMap.get(e.exerciseId) })) : []), [ses, exMap]);
+  const headline = useMemo(() => (ses ? sessionHeadline(ses, s.sessions, (kg) => `${fmtNum(Math.round(kgToDisplay(kg, u.weight)), lang, 0)} ${u.weight}`) : null), [ses?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!ses) return null;
+  const hEx = headline?.exerciseId ? exMap.get(headline.exerciseId) : undefined;
+  const line = headline ? t(headline.key, { ...headline.vars, exercise: hEx ? exName(hEx, lang) : '' }) : '';
+  const at = (d: number) => FIRST + d * STEP;
   const saveRoutine = () => {
     const r = saveWorkoutAsRoutine(ses, { name: ses.name || t('Workout') });
     haptic('saved'); toast(t('Saved as routine'), { tone: 'ok', actionLabel: t('Undo'), onAction: r.undo });
@@ -44,26 +75,27 @@ export function Summary({ props }: { props: { sessionId: string } }) {
       <SheetHead title={t('Nice work')} sub={`${ses.name || t('Workout')} · ${fmtDate(ses.date, lang)}`} onClose={closeAll} />
       <div className="sheet-body">
         <div className="plinth dots" style={{ padding: 18, borderRadius: 'var(--r-lg)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
-          <Stat label={t('Time')} value={fmtDuration(elapsedMs(ses) / 1000)} />
-          <Stat label={t('Volume')} value={<Count value={kgToDisplay(sessionVolume(ses.exercises), u.weight)} format={(n) => fmtNum(Math.round(n), lang, 0)} />} unit={u.weight} />
-          <Stat label={t('Sets')} value={sessionSetCount(ses.exercises)} />
-          <Stat label={t('Exercises')} value={ses.exercises.length} />
+          <Stat i={0} label={t('Time')} value={<CountUp to={elapsedMs(ses) / 1000} delay={at(0)} format={fmtDuration} />} />
+          <Stat i={1} label={t('Volume')} value={<CountUp to={kgToDisplay(sessionVolume(ses.exercises), u.weight)} delay={at(1)} format={(n) => fmtNum(Math.round(n), lang, 0)} />} unit={u.weight} />
+          <Stat i={2} label={t('Sets')} value={<CountUp to={sessionSetCount(ses.exercises)} delay={at(2)} format={(n) => String(Math.round(n))} />} />
+          <Stat i={3} label={t('Exercises')} value={<CountUp to={ses.exercises.length} delay={at(3)} format={(n) => String(Math.round(n))} />} />
         </div>
+        {line && <p className="sum-line display" style={{ ['--d' as string]: `${LINE}s` }}>{line}</p>}
 
         {recs.length > 0 && (
           // the record moment: a gold medallion with rays that open once, then the records slide in under it
           <div style={{ position: 'relative', display: 'grid', placeItems: 'center', margin: '26px 0 14px', height: 120 }} aria-label={t('{n} new records', { n: recs.length })}>
             {Array.from({ length: 12 }, (_, i) => (
-              <motion.i key={i} aria-hidden initial={{ scaleY: 0, opacity: 0 }} animate={{ scaleY: [0, 1, 0.6], opacity: [0, 1, 0.35] }} transition={{ duration: 1.2, delay: 0.25 + i * 0.025, ease: [0.22, 1, 0.36, 1] }}
+              <motion.i key={i} aria-hidden initial={{ scaleY: 0, opacity: 0 }} animate={{ scaleY: [0, 1, 0.6], opacity: [0, 1, 0.35] }} transition={{ duration: 1.2, delay: LINE + 0.35 + i * 0.025, ease: [0.22, 1, 0.36, 1] }}
                 style={{ position: 'absolute', width: 2, height: 58, borderRadius: 2, background: 'linear-gradient(var(--gold), transparent)', top: 2, left: 'calc(50% - 1px)', transformOrigin: '50% 58px', rotate: i * 30 }} />
             ))}
-            <motion.div initial={{ scale: 0.4, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring', stiffness: 320, damping: 14, delay: 0.15 }}
+            <motion.div initial={{ scale: 0.4, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring', stiffness: 320, damping: 14, delay: LINE + 0.25 }}
               style={{ width: 84, height: 84, borderRadius: '50%', display: 'grid', placeItems: 'center', background: 'radial-gradient(circle at 35% 30%, #fff3c4, var(--gold) 55%, #b98a1d)', color: '#3a2a05', boxShadow: '0 0 0 6px color-mix(in srgb, var(--gold) 18%, transparent), 0 18px 50px -10px var(--gold)' }}>
               <span className="display num" style={{ fontSize: 40, color: '#3a2a05', fontWeight: 400 }}>{recs.length}</span>
             </motion.div>
           </div>
         )}
-        {recs.length > 0 && <div className="micro" style={{ margin: '0 0 8px', textAlign: 'center', color: 'var(--gold)' }}>{recs.length === 1 ? t('New personal record') : t('New personal records')}</div>}
+        {recs.length > 0 && <div className="micro sum-line-in" style={{ margin: '0 0 8px', textAlign: 'center', color: 'var(--gold)', ['--d' as string]: `${LINE + 0.45}s` }}>{recs.length === 1 ? t('New personal record') : t('New personal records')}</div>}
         {recs.length === 0 ? null : (
           <div className="stack gap8">
             {recs.map((r, i) => {
@@ -71,7 +103,7 @@ export function Summary({ props }: { props: { sessionId: string } }) {
               const vset = r.kind === 'volume' ? ses.exercises.flatMap((e) => e.sets).find((q) => q.id === r.setId && q.reps) : undefined;
               const fv = (v: number) => vset && v === r.value ? `${fmtNum(kgToDisplay(vset.weightKg ?? 0, u.weight), lang, 2)} ${u.weight} × ${vset.reps}` : r.kind === 'reps' ? String(v) : r.kind === 'duration' ? `${v}s` : r.kind === 'distance' ? `${fmtNum(v / 1000, lang, 2)} km` : `${fmtNum(kgToDisplay(v, u.weight), lang, r.kind === 'e1rm' ? 1 : 2)} ${u.weight}`;
               return (
-                <motion.div key={i} initial={{ opacity: 0, x: -14 }} animate={{ opacity: 1, x: 0 }} transition={{ ...SOFT, delay: 0.15 + i * 0.07 }} className="plinth" style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                <motion.div key={i} initial={{ opacity: 0, x: -14 }} animate={{ opacity: 1, x: 0 }} transition={{ ...SOFT, delay: LINE + 0.6 + i * 0.07 }} className="plinth" style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
                   <span style={{ width: 34, height: 34, borderRadius: 12, background: 'var(--gold)', color: '#3a2a05', display: 'grid', placeItems: 'center' }}><Icon name="bolt" size={18} /></span>
                   <div className="grow"><div className="li-title small">{ex ? exName(ex, lang) : ''}</div><div className="xs t2">{t(REC_LABEL[r.kind])}{r.kind === 'e1rm' ? ` · ${t('estimate')}` : ''}</div></div>
                   <div style={{ textAlign: 'right' }} className="num"><div style={{ fontWeight: 700 }}>{fv(r.value)}</div><div className="xs t3">{vset ? `${fmtNum(kgToDisplay(r.value, u.weight), lang, 0)} ${u.weight} · ${t('was')} ${fmtNum(kgToDisplay(r.previous!, u.weight), lang, 0)}` : `${t('was')} ${fv(r.previous!)}`}</div></div>

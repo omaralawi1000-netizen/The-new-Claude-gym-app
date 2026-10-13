@@ -1375,3 +1375,11 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .fg-bench .pad { fill: color-mix(in srgb, var(--tx) 20%, var(--bg)); }
 .fg-bench .leg { fill: color-mix(in srgb, var(--tx) 12%, var(--bg)); }
 .fg-floor { stroke: color-mix(in srgb, var(--tx) 14%, transparent); stroke-width: 1; }
+
+/* the finish screen: the four numbers land one after another (each counts up as it lands, Summary.tsx), then one line */
+.sum-stat { animation: sumIn 620ms var(--ease-out) both; animation-delay: calc(0.2s + var(--i) * 0.32s); }
+@keyframes sumIn { from { opacity: 0; transform: translate3d(0, 10px, 0); } }
+.sum-line { margin: 18px 4px 0; text-align: center; font-size: 24px; line-height: 1.2; font-style: italic; text-wrap: balance;
+  animation: sumLine 900ms var(--ease-out) both; animation-delay: var(--d, 0s); }
+@keyframes sumLine { from { opacity: 0; transform: translate3d(0, 8px, 0); } }
+.sum-line-in { animation: sumLine 700ms var(--ease-out) both; animation-delay: var(--d, 0s); }
