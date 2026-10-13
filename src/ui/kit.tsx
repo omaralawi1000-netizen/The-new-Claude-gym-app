@@ -82,7 +82,11 @@ export function NumInput({ value, onChange, unit, placeholder, className, max = 
           let raw = e.target.value;
           // first keystroke after focusing: typed at the end of the old number → the typed part replaces it
           if (fresh.current) { fresh.current = false; if (raw.length > txt.length && raw.startsWith(txt)) raw = raw.slice(txt.length); }
-          const s = raw.replace(/[^0-9.,]/g, '');
+          // keep one separator, no more than 2 decimals (or the field's own), and no absurd lengths ("1.2.3", "82.55555", "99999999")
+          const cleaned = raw.replace(/[^0-9.,]/g, '');
+          const cut = cleaned.search(/[.,]/);
+          const whole = (cut < 0 ? cleaned : cleaned.slice(0, cut)).slice(0, 6);
+          const s = cut < 0 ? whole : `${whole}${cleaned[cut]}${cleaned.slice(cut + 1).replace(/[.,]/g, '').slice(0, Math.max(max, 2))}`;
           setTxt(s);
           const n = parseNum(s);
           onChange(n !== undefined && (min === undefined || n >= min) ? n : s === '' ? undefined : value);

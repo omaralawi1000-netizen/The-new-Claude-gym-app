@@ -1291,3 +1291,11 @@ frame against `filter: blur` of the same word: a text-shadow carries the same li
 the word blurred, never bolder; the hand-overs carry a little extra (power .75) so the word never dims between steps. The
 blur is gone at 60% of the word's time and nothing glows round a sharp word. Still opacity only; smoothness at 4x CPU
 unchanged. Same everywhere text writes in (Coach and orb answers, spoken words, Food date, Onboarding titles).
+
+## Detail pass 1: wording and inputs (13 Oct 2026, v0.1.63)
+
+- Singular wording: "1 uge i træk" (it said "1 uger"), and "1 item / entry / set / answer / record / thing" in toasts, buttons and
+  lists that used the plural for one (English and Danish).
+- Timed and distance exercises (Plank, runs) no longer offer "+ Warm-up"; a warm-up set made no sense there.
+- Number fields (`NumInput`): one decimal separator only ("1.2.3" is now "1.23"), at most 2 decimals, at most 6 digits. A typo
+  like 99999999 kcal can no longer break the totals and rings.
