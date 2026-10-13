@@ -1432,6 +1432,10 @@ flicker fingerprint). `--film a,b` films chosen actions, `--light` for the light
   broken: the Coach. The v0.1.77 tuck (orb waits under a rising window) was meant for the live workout only, but it ran
   for the Coach too; the Coach's sheet rests lower, so the orb left the dock ~120 px early and popped (up to 573 px in one
   frame) instead of gliding to the mic. The tuck is now for the workout window only (`tucks` in Sphere.tsx).
+- v0.1.85, same report: the live workout's orb glides again too. Opening and minimising, the v0.1.77 tuck hid it under the
+  window and brought it back at the other end (it vanished, then popped up in the dock or the bar). Gone: the orb glides
+  along the bottom between the bar and the dock, on top, as in v0.1.72 (its browser-run path checked keyframe by keyframe:
+  identical to v0.1.72's).
 
 ## Android app: the rest as a live countdown, new icon, calmer opening (13 Oct 2026, v0.1.72)
 Omar's phone showed the website's plain notice ("Back at 10:02", the site's address) instead of the app's countdown.
