@@ -1,15 +1,16 @@
 // Polish audit, part 2: the screens part 1 (audit-polish.mjs) doesn't walk: onboarding step by step, Progress, every
 // Settings page and the Look page, the finish sheet and the workout summary. Same probe, 4x CPU.
 // Usage: node scripts/audit-polish2.mjs [dark|light] [out.json]
-import { launch, wait, loadDemo } from './lib.mjs';
+import { launch, wait, loadDemo, skipOnboarding } from './lib.mjs';
 import { PROBE } from './pop-probe.mjs';
 import fs from 'node:fs';
 const theme = process.argv[2] || 'dark';
 const out = process.argv[3] || `shots/polish-audit2-${theme}.json`;
-const { b, ctx, p } = await launch({ size: { width: 384, height: 832 }, theme });
+let { b, ctx, p } = await launch({ size: { width: 384, height: 832 }, theme });
 await ctx.addInitScript(PROBE);
 p.setDefaultTimeout(4000);
-const cdp = await ctx.newCDPSession(p);
+let cdp = await ctx.newCDPSession(p);
+const logs = [];
 const tab = (t) => p.locator('.tabbar').getByRole('button', { name: t, exact: true }).click();
 const esc = async (k = 1) => { for (let i = 0; i < k; i++) { await p.keyboard.press('Escape'); await wait(p, 800); } };
 const fails = [];
@@ -36,8 +37,12 @@ for (let i = 0; i < 12; i++) {
     if (await c.isVisible().catch(() => false) && await c.isEnabled()) await c.click(); else await p.getByRole('button', { name: 'Skip', exact: true }).last().click();
   }, 1500);
 }
-await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
-await act('settings: load demo', async () => { await esc(2); await tab('Today'); await wait(p, 1200); await loadDemo(p); }, 4000);
+// the rest starts from a fresh app with the demo data (what onboarding made would get in the way)
+logs.push(...await p.evaluate(() => window.__pops)); await b.close();
+({ b, ctx, p } = await launch({ size: { width: 384, height: 832 }, theme }));
+await ctx.addInitScript(PROBE); p.setDefaultTimeout(4000); cdp = await ctx.newCDPSession(p);
+await p.goto('http://127.0.0.1:5173/'); await wait(p, 1500);
+await skipOnboarding(p); await loadDemo(p); await wait(p, 2500);
 await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
 
 // Progress
@@ -86,7 +91,7 @@ await act('summary: scroll', () => p.evaluate(() => { const s = document.querySe
 await act('summary: done', () => p.getByRole('button', { name: 'Done', exact: true }).click(), 2500);
 
 await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
-const pops = await p.evaluate(() => window.__pops);
+const pops = [...logs, ...await p.evaluate(() => window.__pops)];
 fs.writeFileSync(out, JSON.stringify({ pops, fails }, null, 1));
 const by = {}; for (const x of pops) (by[x.act] ??= []).push(x);
 for (const [k, v] of Object.entries(by)) { console.log(`\n## ${k}`); for (const x of v.slice(0, 10)) console.log(` ${x.kind.padEnd(7)} ${x.size ?? x.by ?? ''} ${x.what}${x.kind === 'number' ? ` [${x.was} → ${x.now}]` : ''}`); if (v.length > 10) console.log(`  … ${v.length - 10} more`); }
