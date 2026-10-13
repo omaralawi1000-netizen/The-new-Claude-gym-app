@@ -874,6 +874,22 @@ alone on purpose (other threads were changing them).
   250 px: its canvas was made anew at every 24 px step (6 new buffers in half a second). It now keeps the big size for the
   whole grow (and shrink), as flights already do: one resize. Looks the same.
 
+## Speed pass, step 5: tapping through the tabs quickly (13 Oct 2026, v0.1.40)
+
+- Omar: the laggiest moment was tapping the dock tabs fast. Measured (`scripts/perf-tabspam.mjs`: real touches every
+  150 ms in three orders, 4× slow-down): each tap built its whole new screen inside the tap itself, so the next tap waited
+  for it; tap to screen 216–640 ms, the worst frame 383 ms.
+- The dock now answers the tap at once and the page follows as soon as its screen is built (`useDeferredValue` on the
+  tab in App.tsx). That build runs in the background and is dropped if another tab is tapped first. Colours, status bar
+  and screen still change together, with the same slide and cross-fade. Result: the tap itself 85–300 → 13–53 ms; tap
+  to screen on average ~350 → ~175 ms, worst 640 → 280 ms; worst frame 383 → 133 ms.
+- The tab screens' colour fields now share one grain layer instead of one each. During fast switching three or four
+  fields cross-fade at once, and each grain was another full-screen layer. At rest it is the same grain over the same
+  field (checked: identical brightness and texture).
+- What is left: overlapping switches are heavy for the graphics chip by design. Every tap starts its own 0.8 s colour
+  cross-fade and 0.38 s slide, so four quick taps stack about 100 layers. Cutting that would change how a fast switch
+  looks, so it is Omar's call.
+
 ## Feel pass, step 1: every button presses like a native one (12 Oct 2026, v0.1.12)
 
 - One press for the whole app (`ui/press.ts`), in place of CSS `:active`. `:active` missed quick taps (the finger was up
