@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, MotionConfig, motion } from 'motion/react';
 import { useStore } from './state/store';
 import { useUI } from './state/ui';
@@ -244,7 +244,11 @@ export function App() {
   const appRef = useRef<HTMLDivElement>(null), stageRef = useRef<HTMLDivElement>(null);
   useStageDepth(appRef, stageRef);
   const t = useT();
-  const tab = useUI((s) => s.tab);
+  // The dock answers a tap at once (TabBar reads the tab itself); the page, its colours and the status bar follow as soon
+  // as the new screen is built. That build runs in the background and is dropped if another tab is tapped meanwhile, so
+  // tapping through the dock quickly builds only the screen you end on (it used to build every one, each blocking the
+  // next tap: the lag when the tabs were tapped fast).
+  const tab = useDeferredValue(useUI((s) => s.tab));
   useBarTint(appRef, tab);
   // the page switch (pageSwitch above) — screens are rebuilt per visit (two attempts to keep them alive both changed how it felt)
   const prev = useRef(tab);
