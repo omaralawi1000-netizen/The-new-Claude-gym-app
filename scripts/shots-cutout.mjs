@@ -31,7 +31,8 @@ const long = 'At 18, 175 cm and hovering around 97.6 kg, you carry serious densi
 const older = Array.from({ length: 5 }, (_, i) => [['user', `Question ${i + 1}: give me something about myself.`], ['model', long]]).flat().map(([role, text], i) => ({ id: 'seed' + i, role, text, at: Date.now() - 60000 }));
 await p.evaluate((older) => { localStorage.setItem('aven.keys', JSON.stringify({ gemini: 'AIzaTESTKEY' })); localStorage.setItem('aven.coach', JSON.stringify(older)); localStorage.setItem('aven.coachNote', '1'); }, older);
 await p.reload(); await wait(p, 2200);
-const shot = (n) => p.screenshot({ path: `${out}/${theme}-${n}.png` });
+if (process.env.PALETTE) await p.evaluate((pal) => { document.documentElement.dataset.palette = pal; }, process.env.PALETTE); // (PALETTE=aurora…)
+const shot = (n) => p.screenshot({ path: `${out}/${theme}${process.env.PALETTE ? '-' + process.env.PALETTE : ''}-${n}.png` });
 const sheet = () => p.getByRole('dialog', { name: 'Coach' });
 await p.getByRole('button', { name: 'Coach', exact: true }).first().tap(); await wait(p, 2500);
 await shot('1-coach-end');

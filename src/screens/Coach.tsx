@@ -530,7 +530,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   );
   return (
     <Sheet onClose={pop} size="full" instant label={t('Coach')} z={100} foot={(
-      <div className="coach-foot">
+      <div className="coach-foot edge-fade">
         {photo && (
           <div className="coach-photo">
             <img src={photo.url} alt="" />

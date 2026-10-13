@@ -1256,9 +1256,35 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 @property --melt { syntax: '<length-percentage>'; inherits: false; initial-value: 100%; } /* (not handed down to every word: it changes as you scroll) */
 @supports (animation-timeline: scroll()) {
   .sheet-pane .coach-body.sheet-body[data-scrollable] { --melt: calc(100% - var(--foot-h, 90px) - min(var(--kb-room, 0px), var(--kb-now)));
-    -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--sb-fade), #000 calc(var(--melt) - 16px), rgba(0,0,0,.42) calc(var(--melt) - 6px), transparent calc(var(--melt) + 4px));
-    mask-image: linear-gradient(to bottom, transparent, #000 var(--sb-fade), #000 calc(var(--melt) - 16px), rgba(0,0,0,.42) calc(var(--melt) - 6px), transparent calc(var(--melt) + 4px)); }
+    -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--sb-fade), #000 calc(var(--melt) - 6px), rgba(0,0,0,.35) calc(var(--melt) + 14px), transparent calc(var(--melt) + 30px));
+    mask-image: linear-gradient(to bottom, transparent, #000 var(--sb-fade), #000 calc(var(--melt) - 6px), rgba(0,0,0,.35) calc(var(--melt) + 14px), transparent calc(var(--melt) + 30px)); }
 }
+/* SOFT EDGE (Omar picked "soft-edge bars", 13 Oct): the bar has no box and no band. The conversation passes under it and
+   dissolves: a frost that starts clear 24 px above the bar and is full at the bar's top, tinted toward the sheet's own
+   colour so the orb, the camera and the field always read, over any background. One small blur, laid under the whole
+   row (the field has no blur of its own any more, so there is never a blur on a blur), riding with the bar, never
+   animated. The text itself is gone by the middle of the row (the list's mask above), so only colour passes behind the
+   orb. At rest the last message sits 24 px above the bar, clear of the frost. */
+.sheet-pane:has(> .sheet-foot) .coach-body.sheet-body { padding-bottom: calc(var(--foot-h, calc(var(--sab) + 76px)) + 24px + var(--kb-room, 0px)); }
+.coach-foot.edge-fade { --edge-x: -22px; --edge-top: 34px; --edge-bottom: calc(var(--sab) + 14px); }
+.coach-foot .coach-field { -webkit-backdrop-filter: none; backdrop-filter: none; } /* (it sits on the frost: no blur on a blur) */
+/* .edge-fade, shared by every bottom bar that content passes under (the Coach bar; the tab bar reuses it): a frost under
+   the element that starts clear --edge-top above it and is full --edge-ramp further down, with a neutral grey tint
+   (--edge-tint, card level) easing in over --edge-len up to --edge-a, the same as the dock's. One backdrop blur, only as big as the bar, never animated; whatever sits inside the bar must not
+   blur again. Place: --edge-x (sideways reach, negative to go past the element's padding) and --edge-bottom. */
+.edge-fade { position: relative; isolation: isolate; }
+.edge-fade::before { content: ''; position: absolute; z-index: -1; pointer-events: none;
+  left: var(--edge-x, 0px); right: var(--edge-x, 0px); top: calc(-1 * var(--edge-top, 24px)); bottom: calc(-1 * var(--edge-bottom, 0px));
+  -webkit-backdrop-filter: blur(var(--edge-blur, 16px)) saturate(1.35); backdrop-filter: blur(var(--edge-blur, 16px)) saturate(1.35);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--edge-ramp, 26px)); mask-image: linear-gradient(to bottom, transparent, #000 var(--edge-ramp, 26px));
+  /* the tint eases in over --edge-len and stops at --edge-a (never a dark band at the bottom: no darker than the bar was) */
+  --c: var(--edge-tint, rgb(21, 22, 28));
+  background: linear-gradient(to bottom, transparent,
+    color-mix(in srgb, var(--c) calc(var(--edge-a, 65%) * .06), transparent) calc(var(--edge-len, 64px) * .25),
+    color-mix(in srgb, var(--c) calc(var(--edge-a, 65%) * .25), transparent) calc(var(--edge-len, 64px) * .5),
+    color-mix(in srgb, var(--c) calc(var(--edge-a, 65%) * .56), transparent) calc(var(--edge-len, 64px) * .75),
+    color-mix(in srgb, var(--c) var(--edge-a, 65%), transparent) var(--edge-len, 64px)); }
+:root[data-theme='light'] .edge-fade { --edge-tint: var(--sheet-solid); --edge-a: 40%; } /* (light: a pale neutral, or it read as a white strip) */
 .coach-sent { animation: coachSend 620ms cubic-bezier(.2, .8, .2, 1) backwards; }
 @keyframes coachSend {
   from { opacity: 0; transform: translate3d(0, 28px, 0) scale(.975); }

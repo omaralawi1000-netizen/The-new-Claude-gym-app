@@ -1765,9 +1765,13 @@ there was a version where you did it without the blur, it came out smooth". He a
   their soft focus (not answers).
 - **A calmer pace**: at most 45 words a second (was 70). A big clump from the stream used to pour out a line every
   150 ms, which read as text being spat out.
-- **The list ends cleanly above the bar**: it fades out over the last 20 px before the bar's top edge, always, so nothing
-  is seen behind the orb, the camera or the field. It used to fade "by the bar's middle" when scrolled, and to slide out
-  of the way at the list's end, so a line arriving while the list glided up showed under "Ask the Coach". At rest the
-  last message sits 18 px above that edge, fully clear. The edge still rides with the keyboard (`--kb-now`, v0.1.98).
+- **Soft-edge bar** (Omar picked it): no box and no band. The conversation passes under the bar and dissolves into a frost
+  that starts clear 24 px above it and is full at its top edge (`.edge-fade`, shared: the tab bar reuses it). A neutral
+  grey tint (card level, rgb 21 22 28) eases in over 64 px and stops at 65 %, so the bottom is never a dark band (light:
+  the sheet's pale colour at 40 %). The text itself is gone by the middle of the row, so only colour passes behind the
+  orb. One backdrop blur the size of the bar, never animated; the field no longer blurs on its own (no blur on a blur).
+  It used to slide out of the way at the list's end, so a line arriving while the list glided up showed sharp under
+  "Ask the Coach". At rest the last message sits 24 px above the bar, clear of the frost. It rides with the keyboard
+  (`--kb-now`, v0.1.98).
 - Clips: `scripts/clip-coach.mjs <out.mp4> [--palette ember|aurora] [--half]` films a send and a long streamed answer at
   real or half speed (half: the page's clock and animations run at half speed). Backup: `backup/coach-r4-pre-noblur`.
