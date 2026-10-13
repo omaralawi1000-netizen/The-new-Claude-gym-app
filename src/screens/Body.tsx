@@ -114,7 +114,7 @@ export function PhotosSheet() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginTop: 14 }}>{photos.map((p) => <div key={p.id}><Thumb id={p.id} onClick={() => setView(p.id)} /><div className="xs t3 num" style={{ marginTop: 4 }}>{fmtDate(p.date, lang, { day: 'numeric', month: 'short' })}</div></div>)}</div>
         )}
         {view && (
-          <div role="dialog" aria-label={t('Photo')} style={{ position: 'fixed', inset: 0, zIndex: 500, background: 'rgba(0,0,0,.92)', display: 'flex', flexDirection: 'column' }} onClick={() => setView(null)}>
+          <div className="ovl" role="dialog" aria-label={t('Photo')} style={{ position: 'fixed', inset: 0, zIndex: 500, background: 'rgba(0,0,0,.92)', display: 'flex', flexDirection: 'column' }} onClick={() => setView(null)}>
             <div style={{ flex: 1, display: 'grid', placeItems: 'center', padding: 14 }}>{viewUrl && <img src={viewUrl} alt={t('Progress photo')} style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: 14 }} />}</div>
             <div className="row-flex" style={{ gap: 10, padding: '0 18px calc(var(--sab) + 18px)' }}>
               <button className="btn grow press" onClick={(e) => { e.stopPropagation(); setView(null); }}>{t('Close')}</button>

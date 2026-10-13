@@ -669,11 +669,13 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 
 /* While a sheet or full-screen overlay is up, the app's colour field stops drifting. Nothing visible changes (it moves a few
    pixels a minute), but the frosted layers above it no longer have to re-blur a moving background every frame — that was
-   the main source of scroll stutter inside sheets. */
-.app:has(.sheet, .voice, [role='dialog']) .aurora i { animation-play-state: paused; }
+   the main source of scroll stutter inside sheets. (Classes only inside :has(): with an attribute such as [role] in it,
+   the browser re-checked it on every element added anywhere in the app and restyled every <i> each time, a word at a
+   time while the Coach writes. Full-screen overlays that are not sheets carry .ovl.) */
+.app:has(.sheet, .voice, .ovl) .aurora i { animation-play-state: paused; }
 /* same for the looping pulse dots. (Targeted by class on purpose: a `.screen *` selector here made the browser
    restyle every element of the app each time a popup opened or closed — a long frame right as it starts moving.) */
-.app:has(.sheet, .voice, [role='dialog']) .pulse-dot::before { animation-play-state: paused !important; }
+.app:has(.sheet, .voice, .ovl) .pulse-dot::before { animation-play-state: paused !important; }
 
 /* iOS-style: while a popup is up the page's content (screen and dock) sinks back, under the dim, while its background stays
    put edge to edge. The transform is written by script (useStageDepth in App.tsx) from the popups' own progress, so it
@@ -700,7 +702,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    like a message — and the short answer streams in below as easy text, each new word settling in calmly (a soft blur lifting,
    no glow). (.voice-live is the browser-speech engine's live text, used only without a Groq key.) */
 .voice-live { font-size: 26px; line-height: 1.2; text-align: center; padding: 0 6px; overflow-wrap: anywhere; }
-.voice-live .w { animation: wordCalm 520ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards; --soft-dur: 520ms; }
+.voice-live .w { animation: none; --soft-dur: 520ms; } /* (the word's rise rides on its soft-focus layers, .soft below) */
 /* the orb screen: the orb gives off light. A close halo at its edge (the orb fills ~70% of its button) and a soft oval of
    light just under it, as if it hovers over glass; nothing hazes the rest of the screen (a wide pool of the accent read as
    brown fog). Two gradients on one still layer; only its fade-in animates (opacity), once, as the orb lands. */
@@ -727,7 +729,8 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .coach-reply .rich-p { margin-top: 12px; }
 .coach-reply .rich-li { gap: 10px; margin-top: 6px; }
 .coach-reply .rich-p + .rich-li, .coach-reply .rich-li + .rich-p { margin-top: 10px; }
-.calm .w { animation: wordCalm 640ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards; --soft-dur: 640ms; }
+.calm .w { animation: none; --soft-dur: 640ms; }
+.calm .rich-li > .w { animation: wordCalm var(--soft-dur) cubic-bezier(0.2, 0.7, 0.2, 1) backwards; } /* (a bullet: no soft focus) */
 /* each word rises a little into place while it comes in out of soft focus (.soft below) */
 @keyframes wordCalm { from { transform: translateY(0.3em); } to { transform: none; } }
 /* Soft focus, shared by everything that writes itself in (Coach and orb answers, your spoken words, the Food date,
@@ -749,6 +752,13 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .soft-in::before { animation: softFar var(--soft-dur, 600ms) linear backwards; animation-delay: inherit; }
 .soft-in::after { animation: softNear var(--soft-dur, 600ms) linear backwards; animation-delay: inherit; }
 .soft-in > .soft-s { animation: softSharp var(--soft-dur, 600ms) linear backwards; animation-delay: inherit; }
+/* In an answer the word also rises into place (wordCalm). The rise is played by each of its three layers rather than by the
+   word itself: an animated word made the browser restyle its three layers from scratch every frame (a parent changing
+   each frame), which was most of the cost of an answer writing itself in. Same rise, same timing, so it looks the same. */
+:is(.calm, .voice-live) .soft-in > .soft-s { display: inline-block;
+  animation: softSharp var(--soft-dur, 600ms) linear backwards, wordCalm var(--soft-dur, 600ms) cubic-bezier(0.2, 0.7, 0.2, 1) backwards; animation-delay: inherit; }
+:is(.calm, .voice-live) .soft-in::before { animation: softFar var(--soft-dur, 600ms) linear backwards, wordCalm var(--soft-dur, 600ms) cubic-bezier(0.2, 0.7, 0.2, 1) backwards; animation-delay: inherit; }
+:is(.calm, .voice-live) .soft-in::after { animation: softNear var(--soft-dur, 600ms) linear backwards, wordCalm var(--soft-dur, 600ms) cubic-bezier(0.2, 0.7, 0.2, 1) backwards; animation-delay: inherit; }
 @keyframes softFar { 0% { opacity: 0; } 5% { opacity: .223; } 10% { opacity: .386; } 15% { opacity: .475; } 20% { opacity: .483; }
   25% { opacity: .413; } 30% { opacity: .266; } 35%, 100% { opacity: 0; } }
 @keyframes softNear { 0% { opacity: 0; } 5% { opacity: .017; } 10% { opacity: .086; } 15% { opacity: .21; } 20% { opacity: .377; }
@@ -757,7 +767,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 @keyframes softSharp { 0%, 30% { opacity: 0; } 35% { opacity: .031; } 40% { opacity: .42; } 45% { opacity: .672; } 50% { opacity: .85; }
   55% { opacity: .961; } 60%, 100% { opacity: 1; } }
 :root[data-motion='reduce'] :is(.soft-in > .soft-s, .soft-in::before, .soft-in::after) { animation: none; }
-@media (prefers-reduced-motion: reduce) { :is(.soft-in > .soft-s, .soft-in::before, .soft-in::after) { animation: none; } }
+@media (prefers-reduced-motion: reduce) { :is(.calm, .voice-live, :root) :is(.soft-in > .soft-s, .soft-in::before, .soft-in::after) { animation: none; } }
 /* Read aloud: the word being said lights up in the accent, the ones said settle back, the ones to come wait a shade lighter.
    Only the colour moves (no size or position change), so the text never shifts while it is read. */
 .w { transition: color 380ms ease, text-shadow 380ms ease; }
@@ -1321,7 +1331,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .said-wrap.fly .said-big .sw { will-change: transform; }
 /* (a small rise; each word comes in out of soft focus, .soft) */
 @keyframes saidWrite { from { transform: translateY(.3em); } to { transform: none; } }
-.calm .w { animation-duration: 760ms; --soft-dur: 760ms; }
+.calm .w { --soft-dur: 760ms; }
 
 /* ── Today's cards (screens/TodayCards.tsx): Up next, Muscles this week, Recent records ── */
 .tc-card { padding: 16px 18px 14px 20px; border-radius: var(--r-lg); text-align: left; }
