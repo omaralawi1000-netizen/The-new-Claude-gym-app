@@ -1,7 +1,6 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useRef } from 'react';
 import { animate, motionValue, useMotionValue, usePresence, useReducedMotion, type MotionValue } from 'motion/react';
 import { mirrorSpring } from './motion';
-import { toBlack } from './statusBar';
 
 /**
  * One number ties a popup to everything that has to move with it. `e` is how far the popup is open (0 = gone,
@@ -109,14 +108,8 @@ export const stageTransform = (v: number) => `translateY(${((satPx() + 10) * v).
 export function mirrorStage(id: string, p0: number, p1: number, sp: { stiffness: number; damping: number; mass?: number }, velocity: number): Animation | null {
   for (const [k, v] of open) if (k !== id && v.get() > 0.001) return null;
   const st = document.querySelector('.stage');
-  const a = mirrorProgress(st, p0, p1, sp, velocity, (p) => ({ transform: stageTransform(clamp01(p)) }));
-  // its rounded edge (corners and rim, a layer beside the page: see useStageDepth) rides along on the same spring, and stops
-  // when the page's animation is stopped (the callers only hold the page's)
-  const edge = mirrorProgress(document.querySelector('.stage-edge'), p0, p1, sp, velocity, (p) => ({ transform: stageTransform(clamp01(p)), opacity: toBlack(clamp01(p)) }), TO_BLACK_BREAKS);
-  if (a && edge) a.addEventListener('cancel', () => { try { edge.cancel(); } catch { /* ignore */ } });
-  return a ?? edge;
+  return mirrorProgress(st, p0, p1, sp, velocity, (p) => ({ transform: stageTransform(clamp01(p)) }));
 }
-const TO_BLACK_BREAKS = [0.04, 0.08, 0.12, 0.16, 0.2, 0.25];
 
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 /** The dim behind a popup at progress p (full strength from 0.6). */

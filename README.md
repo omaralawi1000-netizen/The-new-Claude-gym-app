@@ -1445,3 +1445,6 @@ at the edges.
     beside the page (`.stage-edge`) on the same transform, reaching 3 px past its edge. The browser-run version of the
     step back (mirrorStage) moves it on the same spring and stops it with the page.
   - A faint light rim along the top of the card (as on the sheets), so in dark mode the rounded card reads against black.
+- v0.1.75: Omar: "now that top layer is not seamless" — back to the v0.1.72 step-back exactly (page onto the status bar's
+  tint, corners growing in, status bar dims). v0.1.73/74 reverted with no other changes; next: only the page's content
+  sinks back, the background stays still.

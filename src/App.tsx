@@ -18,7 +18,7 @@ import { registerSW } from './pwa';
 import { dayKey } from './lib/dates';
 import { defaultMealId } from './lib/derive';
 import { stageCover, stageDepth, stageTransform } from './ui/engage';
-import { readRGB, refreshBar, setBarDepth, setBarTint, toBlack } from './ui/statusBar';
+import { readRGB, refreshBar, setBarDepth, setBarTint } from './ui/statusBar';
 import { setKeyboard } from './ui/keyboard';
 import { FpsMeter } from './ui/FpsMeter';
 
@@ -162,32 +162,25 @@ function useBarTint(app: React.RefObject<HTMLDivElement | null>, tab: string) {
   }, [app, tab, palette, theme]);
 }
 
-function useStageDepth(app: React.RefObject<HTMLDivElement | null>, stage: React.RefObject<HTMLDivElement | null>, edge: React.RefObject<HTMLDivElement | null>) {
+function useStageDepth(app: React.RefObject<HTMLDivElement | null>, stage: React.RefObject<HTMLDivElement | null>) {
   useEffect(() => {
     const apply = (v: number) => {
+      setBarDepth(v);
+      const a = app.current, st = stage.current; if (!a || !st) return;
       const root = document.documentElement.dataset;
       const still = root.motion === 'reduce' || (root.motion !== 'full' && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-      setBarDepth(v, !still);
-      const a = app.current, st = stage.current, ed = edge.current; if (!a || !st || !ed) return;
-      // The whole page steps back as one card onto black, as on iOS: its top, its header and the status bar strip too. It
-      // used to step back onto the status bar's own tint, the same colour as the top of the page, so the top of the card
-      // vanished into it and only the lower part seemed to move. While the page has barely moved the shell keeps that tint
-      // (toBlack), so the hairline round a page that is almost home never flashes black. Only while a pop-up is up, and as
-      // an inline style on the shell alone: nothing inherits it, so no restyle.
-      if (v < 0.0005 || still) { st.style.transform = ''; ed.style.transform = ''; ed.style.opacity = ''; a.style.background = ''; if (a.hasAttribute('data-bar')) { a.removeAttribute('data-bar'); a.style.removeProperty('--bar'); } return; }
+      // the page steps back onto the colour of the status bar (no seam under it); the shell only carries that colour while a
+      // popup is up, because changing it on the shell restyles the whole app (it would, on every frame of a tab's colour blend)
+      const corners = st.querySelectorAll<HTMLElement>(':scope > .stage-corner');
+      if (v < 0.0005 || still) { st.style.transform = ''; corners.forEach((c) => { c.style.transform = ''; }); a.style.background = ''; if (a.hasAttribute('data-bar')) { a.removeAttribute('data-bar'); a.style.removeProperty('--bar'); } return; }
       if (!a.hasAttribute('data-bar')) { a.setAttribute('data-bar', ''); refreshBar(); }
-      const tf = stageTransform(v); // the same function the browser-run (high refresh) version uses
-      st.style.transform = tf;
-      // Its rounded edge: black corner pieces (the pop-ups' own curve, round from the first frame) and a faint light rim along
-      // the top, so the card reads against black in dark mode too. They fade in with the black behind, so they always match
-      // what is around them. Not border-radius on the page: switching a rounded clip on and off rebuilt the whole page's
-      // layer as a pop-up started and again as it finished closing, and the rebuilt page was drawn a frame late — a flicker.
-      // And not inside the page: there, the page's clip cut the corners off exactly at its edge, and the page's own
-      // half-covered edge pixels showed through theirs as a faint square outline. Beside it, on the same transform, they
-      // reach a few pixels past the edge and cover it.
-      ed.style.transform = tf;
-      ed.style.opacity = toBlack(v).toFixed(3);
-      a.style.background = `color-mix(in srgb, var(--bar, #000) ${(100 - 100 * toBlack(v)).toFixed(1)}%, #000)`;
+      st.style.transform = stageTransform(v); // the same function the browser-run (high refresh) version uses
+      // Its corners round off as it steps back (28 px when fully back). Not with border-radius: switching a rounded clip on
+      // and off rebuilt the whole page's layer as a pop-up started and again as it finished closing, and the rebuilt page
+      // was drawn a frame late — a flicker. Four small corner pieces in the shell's colour grow over the corners instead.
+      const k = `scale(${v.toFixed(4)})`;
+      corners.forEach((c) => { c.style.transform = k; });
+      a.style.background = 'var(--bar, #000)';
     };
     apply(stageDepth.get());
     const offDepth = stageDepth.on('change', apply);
@@ -254,8 +247,8 @@ export function App() {
   useDriveAuto(); // Google Drive backups while you use the app (lib/drive.ts)
   useKeyboard();
   useWakeLock();
-  const appRef = useRef<HTMLDivElement>(null), stageRef = useRef<HTMLDivElement>(null), edgeRef = useRef<HTMLDivElement>(null);
-  useStageDepth(appRef, stageRef, edgeRef);
+  const appRef = useRef<HTMLDivElement>(null), stageRef = useRef<HTMLDivElement>(null);
+  useStageDepth(appRef, stageRef);
   const t = useT();
   // The dock answers a tap at once (TabBar reads the tab itself); the page, its colours and the status bar follow as soon
   // as the new screen is built. That build runs in the background and is dropped if another tab is tapped meanwhile, so
@@ -309,9 +302,8 @@ export function App() {
           <TabPane key={tab} hue={tab} dir={dir}>{screen}</TabPane>
         </AnimatePresence>
         <TabBar />
-        </div>
-        <div className="stage-edge" ref={edgeRef} aria-hidden>
-          <i className="stage-corner tl" /><i className="stage-corner tr" /><i className="stage-corner bl" /><i className="stage-corner br" /><i className="stage-rim" />
+        <i className="stage-corner tl" data-bar aria-hidden /><i className="stage-corner tr" data-bar aria-hidden />
+        <i className="stage-corner bl" data-bar aria-hidden /><i className="stage-corner br" data-bar aria-hidden />
         </div>
         <Overlays />
         <Toaster />
