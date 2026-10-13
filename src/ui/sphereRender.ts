@@ -274,7 +274,7 @@ export class SphereRenderer {
     // buckets: 7 light levels × 3 hue mixes (accent ↔ the area's second colour, drifting round the sphere)
     const NB = 7, NH = 3;
     const xk = inp.colorsTo && inp.colorMix !== undefined ? Math.min(1, Math.max(0, inp.colorMix)) : 0;
-    const NM = xk > 0 && xk < 1 ? 4 : 1; // levels of the crossfade (1 = none)
+    const NM = xk > 0 && xk < 1 ? 2 : 1; // the crossfade: each bead is either the old colour or the new one (1 = none)
     const buckets: number[][] = Array.from({ length: NB * NH * NM }, () => []);
     const dots: { x: number; y: number; r: number }[] = new Array(count);
     const tone = new Uint8Array(count); // 0 = base colour, 1 = highlight, 2 = ok
@@ -376,8 +376,9 @@ export class SphereRenderer {
       tone[n] = okMix > 0.25 && depth > 0.42 ? 2 : glow * (0.4 + 0.6 * depth) > 1.25 ? 1 : 0; // highlights are sparkles on the near side, not a wash
       const hueMix = 0.5 + 0.5 * Math.sin(az * 1 + y * 1.6 - T * 0.6); // the second colour drifts around the surface
       const hb = Math.min(NH - 1, Math.floor(hueMix * NH));
-      // crossfade: each bead turns over its own stretch of the change (a fixed shuffle of when)
-      const qm = NM > 1 ? Math.round(Math.min(1, Math.max(0, (xk - 0.62 * ((i * 0.6180339887) % 1)) / 0.38)) * (NM - 1)) : 0;
+      // crossfade: each bead swaps at its own moment of the change (a fixed shuffle of when), in one step: never a blend of
+      // the two colours, which reads pale pink-white between ember and teal
+      const qm = NM > 1 && xk >= 0.19 + 0.62 * ((i * 0.6180339887) % 1) ? 1 : 0;
       buckets[(qm * NB + Math.min(NB - 1, Math.floor(sh * NB))) * NH + hb].push(n);
     }
 
