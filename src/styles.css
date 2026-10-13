@@ -347,25 +347,34 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
 .app[data-pill] .toasts { bottom: calc(var(--bar-h) + var(--sab) + 22px + 66px); }
 .screen > * + * { margin-top: 22px; }
 
-/* Collapsing titles (ui/TopBar.tsx). A tab page's large title hands over to a small one at the top as it slides up into the
-   page's top fade, as on iOS but with no bar: the top stays the soft fade it was (Omar: no frosted band). Both sides are
-   scroll-driven animations on the large title's own view timeline (--lt): the browser draws them on its compositor,
-   nothing runs per frame, and at rest nothing moves (the small title is simply invisible).
-   The timeline's inset is where the small title sits, so each page hands over exactly where its title meets it. */
+/* Collapsing titles (ui/TopBar.tsx). A tab page's large title hands over to a small one at the top as it scrolls away, as on
+   iOS but with no bar: no frost, no band of colour (Omar). Both sides are scroll-driven animations on the large title's own
+   view timeline (--lt): the browser draws them on its compositor, nothing runs per frame, at rest nothing moves.
+   - The handover starts only once the title's top reaches the page's top padding (exit 0%, inset 16 px), so at rest it is untouched on
+     every tab, whatever sits above it.
+   - In sequence, never both at once: the large title is gone over the first half of its height, and only then does the
+     small one rise in, over the second half.
+   - The small title sits on clear space: on tab pages the top fade becomes a clear band of the small title's height that
+     melts into the page below it (the same scroll-driven mask as every page, just deeper; opacity only, no blur). */
 .tab-pane { timeline-scope: --lt; }
 .large-title { transform-origin: 0 100%; }
 .topbar { display: none; }
+@keyframes ft-in-tb { to { --ft: 76px; } }
 @supports (animation-timeline: view()) {
-  .large-title { view-timeline: --lt block; view-timeline-inset: calc(var(--sat) + var(--tb-h)) 0; will-change: transform, opacity;
-    animation: lt-out linear both; animation-timeline: --lt; animation-range: exit 0% exit 80%; }
+  .tab-pane .screen {
+    -webkit-mask-image: linear-gradient(to bottom, transparent calc(var(--sat) + var(--ft) * .5), rgba(0,0,0,.2) calc(var(--sat) + var(--ft) * .64), rgba(0,0,0,.55) calc(var(--sat) + var(--ft) * .8), rgba(0,0,0,.86) calc(var(--sat) + var(--ft) * .92), #000 calc(var(--sat) + var(--ft)), #000 calc(100% - var(--sab) - 56px), rgba(0, 0, 0, 0.6) 100%);
+    mask-image: linear-gradient(to bottom, transparent calc(var(--sat) + var(--ft) * .5), rgba(0,0,0,.2) calc(var(--sat) + var(--ft) * .64), rgba(0,0,0,.55) calc(var(--sat) + var(--ft) * .8), rgba(0,0,0,.86) calc(var(--sat) + var(--ft) * .92), #000 calc(var(--sat) + var(--ft)), #000 calc(100% - var(--sab) - 56px), rgba(0, 0, 0, 0.6) 100%);
+    animation: ft-in-tb linear both; animation-timeline: scroll(self); animation-range: 0 40px; }
+  .large-title { view-timeline: --lt block; view-timeline-inset: calc(var(--sat) + 16px) 0; will-change: transform, opacity;
+    animation: lt-out linear both; animation-timeline: --lt; animation-range: exit 0% exit 50%; }
   .topbar { display: block; position: absolute; left: 0; right: 0; top: 0; height: calc(var(--sat) + var(--tb-h)); z-index: 2; pointer-events: none; }
   .topbar-title { position: absolute; left: 64px; right: 64px; bottom: 0; height: var(--tb-h); line-height: var(--tb-h); text-align: center;
     font-family: var(--f-ui); font-size: 16px; font-weight: 650; letter-spacing: -0.01em; color: var(--tx); will-change: transform, opacity; opacity: 0;
-    animation: tbt-in linear both; animation-timeline: --lt; animation-range: exit 40% exit 100%; }
+    animation: tbt-in linear both; animation-timeline: --lt; animation-range: exit 50% exit 100%; }
 }
-:root { --tb-h: 44px; }
+:root { --tb-h: 38px; }
 @keyframes lt-out { to { opacity: 0; transform: scale(0.94); } }
-@keyframes tbt-in { from { opacity: 0; transform: translate3d(0, 7px, 0); } to { opacity: 1; transform: none; } }
+@keyframes tbt-in { from { opacity: 0; transform: translate3d(0, 6px, 0); } to { opacity: 1; transform: none; } }
 /* every screen's blocks rise in, blurred → sharp, one after another */
 /* every screen's blocks rise in, one after another (a screen, or the part of one that is swapped: .subpage) */
 .screen > *, .subpage > * { animation: rise-move 780ms var(--ease-out) both; animation-delay: calc(50ms + var(--i, 0) * 60ms); }

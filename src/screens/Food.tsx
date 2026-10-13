@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { TopBar } from '../ui/TopBar';
+import { LargeTitle, TopBar } from '../ui/TopBar';
 import { flushSync } from 'react-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import { useStore } from '../state/store';
@@ -90,14 +90,14 @@ export function FoodScreen() {
             <button className="icon-btn press" aria-label={t('Day options')} onClick={() => push('entryMenu', { kind: 'day', date })}><Icon name="more" /></button>
           </div>
         </div>
-        <div className="large-title" style={{ marginTop: 16 }}>
+        <div style={{ marginTop: 14 }}>
           <AnimatePresence mode="popLayout" initial={false}>
-            <motion.h1 key={date} className="display display-lg" style={{ margin: 0, fontStyle: 'italic' }} initial={{ y: 14 }} animate={{ y: 0 }} exit={{ opacity: 0, y: -14 }} transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1] }}>
-              <SoftText text={rel ?? fmtDate(date, lang, { day: 'numeric', month: 'long' })} />
-            </motion.h1>
+            <motion.div key={date} className="small t2" initial={{ y: 8 }} animate={{ y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1] }}>
+              <SoftText text={(rel ? `${rel} · ` : '') + fmtDate(date, lang, { weekday: 'long', day: 'numeric', month: 'long' }) + (isFuture ? ' ↗' : '')} />
+            </motion.div>
           </AnimatePresence>
-          <div className="small t3" style={{ marginTop: 2 }}>{fmtDate(date, lang, { weekday: 'long', day: 'numeric', month: 'long' })}{isFuture ? ' ↗' : ''}</div>
         </div>
+        <LargeTitle><h1 className="display display-lg" style={{ margin: '8px 0 0', fontStyle: 'italic' }}>{t('Food')}</h1></LargeTitle>
       </header>
 
       <Subpage id={date}>
@@ -156,7 +156,7 @@ export function FoodScreen() {
       <WeekStrip date={date} onPick={(d) => setFoodDate(d === today ? null : d)} />
       </Subpage>
     </div>
-    <TopBar title={rel ?? fmtDate(date, lang, { day: 'numeric', month: 'long' })} />
+    <TopBar title={t('Food')} />
     </>
   );
 }
