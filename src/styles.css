@@ -1074,13 +1074,22 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .reply-foot.held { min-height: 32px; }
 .coach-after.fresh, .coach-after.fresh .speak-btn { animation: coachAfter 520ms var(--ease-out) backwards; }
 .reply-foot.coach-after.fresh { animation: none; }
+/* The typing dots come a beat after your message has risen (not under the typing bar while the list makes room), growing
+   out of their corner like a bubble; when the first word arrives they melt away over it instead of being swapped out. */
+.coach-thread .typing { transform-origin: 0% 100%; animation: typingIn 520ms cubic-bezier(.2, .8, .2, 1) 280ms backwards; }
+@keyframes typingIn { from { opacity: 0; transform: scale(.7); } }
+.coach-answer { position: relative; }
+.coach-thread .typing.typing-out { position: absolute; left: 0; top: 0; z-index: 1; pointer-events: none; animation: typingOut 420ms cubic-bezier(.4, 0, .6, 1) forwards; }
+@keyframes typingOut { from { opacity: 1; } to { opacity: 0; transform: scale(.92); } }
+:root[data-motion='reduce'] .coach-thread .typing { animation: none; }
+:root[data-motion='reduce'] .coach-thread .typing.typing-out { display: none; }
 @keyframes coachAfter { from { opacity: 0; transform: translate3d(0, 4px, 0); } }
 @keyframes coachReply { from { opacity: .65; transform: translate3d(0, 3px, 0); } to { opacity: 1; transform: none; } }
 /* a sent message in flight (Coach.tsx): a copy of the bubble above everything; its glass gathers round the words */
 .coach-fly { position: fixed; z-index: 400; margin: 0; max-width: none; box-sizing: border-box; pointer-events: none;
   transform-origin: 0 0; will-change: transform; background: none; border: 0; box-shadow: none; }
 .coach-fly::before { content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; background: var(--fly-bg); box-shadow: var(--fly-shadow);
-  animation: flyGlass 420ms 60ms var(--ease-out) backwards; }
+  animation: flyGlass 300ms var(--ease-out) backwards; }
 @keyframes flyGlass { from { opacity: 0; } }
 .coach-field .input::placeholder { transition: opacity 360ms var(--ease-out); }
 .coach-field .input.sent-away::placeholder { opacity: 0; transition: none; }
