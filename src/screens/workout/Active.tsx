@@ -1,4 +1,4 @@
-import { createContext, memo, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createContext, memo, startTransition, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, animate, motion, useMotionValue, useReducedMotion, useTransform } from 'motion/react';
 import { useStore, exerciseMap } from '../../state/store';
 import { useUI, haptic } from '../../state/ui';
@@ -18,7 +18,7 @@ import { addSet, deleteSet, moveExercise, patchExercise, patchSet, removeExercis
 import { exName, fmtSet, MUSCLE_LABEL } from './common';
 import { SphereSlot, mirrorOrb, orbPress, orbTap } from '../../ui/Sphere';
 import { useSwipeDown } from '../../ui/swipe';
-import { Mirror, mirrorProgress, mirrorStage, trackCover, trackDepth, type Engage } from '../../ui/engage';
+import { Mirror, mirrorProgress, mirrorStage, trackCover, trackDepth, warmStage, type Engage } from '../../ui/engage';
 import { DIM_VEIL, Veil, mirrorVeil } from '../../ui/Veil';
 import { kb, keyboardGoal, onKeyboardGoal, rideFocus } from '../../ui/keyboard';
 import { viewportH } from '../../ui/viewport';
@@ -105,8 +105,11 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
     runMirror(e0, 0, SURFACE_EXIT, vel);
     const c = animate(p, 0, reduce ? { duration: 0.01 } : { ...SURFACE_EXIT, velocity: vel });
     closing.current = new Promise<void>((done) => { c.then(() => done()); });
+    void closing.current.then(() => warmStage(false));
     return closing.current;
   };
+  // a press on Minimise that never became a tap lets the page behind rest again
+  const warmUp = () => { warmStage(true); setTimeout(() => { if (!closing.current) warmStage(false); }, 1000); };
   const close = (v = 0) => {
     if (closing.current) return;
     startClose(v);
@@ -185,7 +188,9 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
       closing.current = null;
       // un-park it now, before the orb's flight measures where its slot will be (React would only do it after this effect)
       dialogRef.current?.classList.remove('wk-off'); scrimRef.current?.classList.remove('wk-off');
-      setHidden(false);
+      // the rest of "shown" (its clocks ticking again, its role) as a render that yields: set at once, here, it re-rendered
+      // the whole window a second time inside the tap, before the slide's first frame
+      startTransition(() => setHidden(false));
       const from = p.get();
       const c = animate(p, 1, reduce ? { duration: 0.01 } : SURFACE);
       runMirror(from, 1, SURFACE, 0);
@@ -315,7 +320,8 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
               (a solid band here cut the colour field off in a hard line under the grabber) */}
           <div className="wk-head-wrap" style={{ touchAction: 'none' }}>
             <div className="wk-head">
-              <button className="icon-btn flat press wk-min" aria-label={t('Minimise workout')} onClick={() => close()}><Icon name="chevD" /></button>
+              {/* the finger is down: the page behind starts drawing itself again (unseen) so the window can move the moment it lifts */}
+              <button className="icon-btn flat press wk-min" aria-label={t('Minimise workout')} onPointerDown={warmUp} onPointerCancel={() => warmStage(false)} onClick={() => close()}><Icon name="chevD" /></button>
               <div className="wk-head-mid">
                 {renaming ? (
                   <input className="input" autoFocus style={{ minHeight: 34, padding: '4px 10px' }} defaultValue={a.name} onBlur={(e) => { useStore.getState().mutateActive((x) => ({ ...x, name: e.target.value.trim() })); setRenaming(false); }} onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} aria-label={t('Workout name')} />
@@ -524,7 +530,7 @@ function WorkoutBar({ engage, exMap, focus, onDone, onJump }: { engage: Engage; 
           aria-label={state === 'rest' ? `${t('Rest')} ${fmtDuration(Math.ceil(left))}` : `${top}. ${big}${(state === 'next' || state === 'go') && target ? `, ${target}` : ''}`}>
           <SwapText k={`${state}${after ? after.se.id : ''}`} tone={state}>
             <span className="wk-bar-top">{top}</span>
-            <span className="wk-bar-big num">{state === 'next' || (state === 'go' && nx) ? <><span className="wk-bar-name">{name}</span>{target && <span className="wk-bar-tgt">{target}</span>}</>
+            <span className="wk-bar-big num">{state === 'next' || (state === 'go' && nx) ? <><Fit className="wk-bar-name" text={name} />{target && <span className="wk-bar-tgt">{target}</span>}</>
               : state === 'rest' ? (!a.pausedAt && left <= 3
                 // the last three seconds swell on each tick; before that the seconds roll down
                 ? <span key={Math.ceil(left)} className="wk-tick">{big}</span> : <Roll key="r" text={big} />)
@@ -548,6 +554,33 @@ function WorkoutBar({ engage, exMap, focus, onDone, onJump }: { engage: Engage; 
       </div>
     </div>
   );
+}
+
+/**
+ * One line that ends in a clean "…" when it doesn't fit, never in "Press, …" (the browser's own ellipsis keeps a trailing
+ * comma or space). Measured only when the text or the room for it changes.
+ */
+function Fit({ text, className }: { text: string; className?: string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current; if (!el) return;
+    const cut = (n: number) => `${text.slice(0, n).replace(/[\s,.;:·–—-]+$/u, '')}…`;
+    const fits = () => el.scrollWidth <= el.clientWidth + 0.5;
+    const fit = () => {
+      el.textContent = text;
+      if (fits()) return;
+      let lo = 1, hi = text.length - 1; // the longest start that fits with its "…"
+      while (lo < hi) { const m = (lo + hi + 1) >> 1; el.textContent = cut(m); if (fits()) lo = m; else hi = m - 1; }
+      el.textContent = cut(lo);
+    };
+    fit();
+    let w = el.parentElement?.clientWidth ?? 0;
+    const ro = new ResizeObserver(() => { const nw = el.parentElement?.clientWidth ?? 0; if (nw !== w) { w = nw; fit(); } });
+    if (el.parentElement) ro.observe(el.parentElement);
+    void document.fonts?.ready.then(() => { if (el.isConnected) fit(); });
+    return () => ro.disconnect();
+  }, [text]);
+  return <span ref={ref} className={className} />;
 }
 
 /**

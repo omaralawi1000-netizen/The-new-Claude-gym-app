@@ -7,6 +7,7 @@ import { speakingLevel } from '../lib/voiceOut';
 import { useStore } from '../state/store';
 import { useUI, haptic } from '../state/ui';
 import { kb } from './keyboard';
+import { viewportH } from './viewport';
 import { highRefresh, onHighRefresh, springCurve } from './motion';
 
 /**
@@ -112,13 +113,14 @@ function carry(O: { X: number; Y: number; S: number }, x: number, y: number, z: 
  * the window's edge uncovers it in the dock. Only for a window that rests at the top of the screen with its slot down by
  * the dock (`tucks`); `restY` is where the slot comes to rest, `y` where it is now.
  */
-const tucks = (O: { Y: number; S: number }, restY: number) => O.S > 4 && O.Y > window.innerHeight - restY + 120;
+const tucks = (O: { Y: number; S: number }, restY: number) => O.S > 4 && O.Y > viewportH - restY + 120;
 function tuck(O: { X: number; Y: number; S: number }, x: number, y: number, z: number, restY: number) {
   const edge = y - restY; // the window's top edge
   return edge > O.Y - 1 ? { X: O.X, Y: O.Y, S: O.S, t: 0 } : { X: x, Y: y, S: z, t: 1 };
 }
-/** Drawn under the window while its bar (and so the orb's place in it) is still below the screen. */
-const tuckedUnder = (y: number) => y > window.innerHeight + 60;
+/** Drawn under the window while it waits in the dock (the window's edge covers and uncovers it there, like the rest of the
+ * dock: closing, it used to appear at once, on top, as the edge passed) and while the bar is still below the screen. */
+const tuckedUnder = (y: number) => y > viewportH + 60;
 let lastOverlayChange = 0;
 /** Where the stage last put the orb (its box's top-left within the app, and its size). */
 let orbNow = { X: NaN, Y: NaN, S: NaN };
@@ -486,7 +488,7 @@ export function SphereStage() {
         } else {
           X += (x - X) * e; Y += (y - Y) * e; S += (z - S) * e; flight = e;
         }
-        if (e > 0.02) { top = Math.max(top, sl.priority); topSlot = sl; under = tucked && tuckedUnder(y); }
+        if (e > 0.02) { top = Math.max(top, sl.priority); topSlot = sl; under = tucked && (flight === 0 || tuckedUnder(y)); }
       }
       if (!have) { el.style.opacity = '0'; pause(); return; }
       orbNow = { X, Y, S };

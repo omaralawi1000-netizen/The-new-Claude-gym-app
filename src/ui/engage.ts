@@ -32,11 +32,19 @@ export function trackDepth(id: string, e: MotionValue<number>) {
 // ── full-screen surfaces that hide the page completely (the live workout) ──
 // While one is fully up, the page behind is still a stack of frosted cards over a moving colour field that the GPU would
 // redraw every frame for nothing — measured, it was most of the drawing cost while scrolling the workout. So the page fades
-// to opacity 0 over the last few percent of the cover's progress (invisible: the cover is already over it). Opacity, not
-// visibility: its tiles stay rasterised, so it is back in the very first frame of a close or a drag.
+// to opacity 0 over the last few percent of the cover's progress (invisible: the cover is already over it). Chrome doesn't
+// paint a page at opacity 0 at all, though, so closing has to paint all of it again first: see `warmStage`.
 const covers = new Map<string, MotionValue<number>>();
 export const stageCover = motionValue(0);
-function recomputeCover() { let m = 0; for (const v of covers.values()) m = Math.max(m, v.get()); stageCover.set(m); }
+let warm = false;
+function recomputeCover() { let m = 0; for (const v of covers.values()) m = Math.max(m, v.get()); stageCover.set(warm ? Math.min(m, 0.984) : m); }
+/**
+ * A finger is on a cover's close button: the page behind is drawn again now, still unseen under the cover, so it is ready
+ * when the cover starts to move. Painting the whole page inside the tap held the close's first frame back (at 4× CPU about
+ * 90 ms from tap to first frame, 10-45 ms warmed). Only the page's opacity changes: just under 0.985, it is still "covered"
+ * for everything else (nothing re-renders).
+ */
+export function warmStage(on: boolean) { if (warm === on) return; warm = on; recomputeCover(); }
 export function trackCover(id: string, e: MotionValue<number>) {
   covers.set(id, e);
   const off = e.on('change', recomputeCover);

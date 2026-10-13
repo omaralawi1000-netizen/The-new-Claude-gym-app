@@ -801,10 +801,12 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-bar-clip { position: absolute; inset: 0; border-radius: inherit; overflow: hidden; pointer-events: none; }
 /* the rest fills the bar in one calm tint of the accent, with a soft leading edge (no gradient: it read muddy over the dark) */
 .wk-bar-fill { position: absolute; inset: 0; pointer-events: none; transform: translateX(-100%); will-change: transform, opacity; opacity: 1; transition: opacity 600ms var(--ease-out); background: linear-gradient(90deg, color-mix(in srgb, var(--ac) 24%, transparent) calc(100% - 56px), transparent); }
-/* rest over: the tint stays full but still fades out before the orb, as it does during the rest. Lit right under the orb,
-   Chrome on the phone drew the orb's square canvas area in a different shade (a box around the orb). The fade is in the
-   background itself, not a mask (a mask is one more compositor layer). */
-.wk-bar.go .wk-bar-fill { transform: none; opacity: .55; }
+/* rest over: the moving fill (which fades out before the orb) hands over to one even tint across the whole bar, so the
+   bar's round end by the orb is the same colour as the rest (the fill's fade left a darker crescent beside the orb). The
+   tint is a flat layer of its own, faded in with opacity. */
+.wk-bar-clip::before { content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0; will-change: opacity; transition: opacity 600ms var(--ease-out); background: color-mix(in srgb, var(--ac) 13%, transparent); }
+.wk-bar.go .wk-bar-clip::before { opacity: 1; }
+.wk-bar.go .wk-bar-fill { transform: none; opacity: 0; }
 /* the bar's words settle in when the bar changes what it says (next, rest, go): a slow, short rise, no cut; the big line a beat after the small one */
 .wk-bar-top, .wk-bar-big { animation: wkSwap 560ms var(--ease-out) both; }
 /* the two lines as one unit; the outgoing pair lies over the incoming one and fades up and away (Active.tsx SwapText) */
@@ -824,8 +826,9 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-bar-txt.t-rest .wk-bar-big { font-size: 20px; }
 .wk-bar-orb { position: relative; width: 46px; height: 46px; flex: none; border-radius: 999px; transition: transform 520ms var(--ease-spring); }
 .wk-bar-orb:active { transform: scale(0.94); transition-duration: 110ms; }
-/* the orb's glow on the bar: a soft accent bloom behind it (the orb itself is drawn above), stronger while you rest and when it is over */
-.wk-bar-orb::before { content: ''; position: absolute; inset: -9px; border-radius: 50%; pointer-events: none; opacity: .5; transition: opacity 600ms var(--ease-out); background: radial-gradient(circle, color-mix(in srgb, var(--ac) 30%, transparent) 0%, transparent 68%); }
+/* the orb's glow on the bar: a soft accent bloom behind it (the orb itself is drawn above), stronger while you rest and when it is over.
+   A layer of its own for good: each fade used to make one and drop it at the end (a one-frame flicker by the orb). */
+.wk-bar-orb::before { content: ''; position: absolute; inset: -9px; border-radius: 50%; pointer-events: none; opacity: .5; will-change: opacity; transition: opacity 600ms var(--ease-out); background: radial-gradient(circle, color-mix(in srgb, var(--ac) 30%, transparent) 0%, transparent 68%); }
 .wk-bar.rest .wk-bar-orb::before { opacity: .75; }
 .wk-bar.go .wk-bar-orb::before { opacity: 1; }
 /* the one Finish: once every set is ticked it glows softly; tapping the bar's "all done" nudges it */
@@ -845,7 +848,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* the bar's "next set": the row it scrolled to glows once */
 .wk-flash { animation: wkFlash 1.4s var(--ease-out) 1; border-radius: 12px; }
 @keyframes wkFlash { 0%, 30% { background: color-mix(in srgb, var(--ac) 22%, transparent); } 100% { background: transparent; } }
-@media (prefers-reduced-motion: reduce) { .wk-bar-txt.out { display: none; } .wk-bar.go .wk-bar-surface::before, .wk-flash, .wk-tick, .wk-bar-top, .wk-bar-big { animation: none; } .wk-bar-fill, .wk-bar-orb::before, .wk-bar-surface::before { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .wk-bar-txt.out { display: none; } .wk-bar.go .wk-bar-surface::before, .wk-flash, .wk-tick, .wk-bar-top, .wk-bar-big { animation: none; } .wk-bar-fill, .wk-bar-clip::before, .wk-bar-orb::before, .wk-bar-surface::before { transition: none; } }
 /* the live workout: an exercise that arrives after the window has landed fades up into place (compositor only) */
 .wk-block.in { animation: blockIn 520ms var(--ease-out) both; }
 @keyframes blockIn { from { opacity: 0; transform: translateY(16px); } }
