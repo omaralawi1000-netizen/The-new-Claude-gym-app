@@ -6,6 +6,8 @@
 set -x
 SITE=https://omaralawi1000-netizen.github.io/The-new-Claude-gym-app/
 mkdir -p shots
+adb logcat -c
+(adb logcat -v time > shots/logcat.txt 2>&1 &) # kept on this side, so it survives if the emulator doesn't
 
 # 1. countdown
 adb install -r debug/app-debug.apk
@@ -54,7 +56,10 @@ adb exec-out screencap -p > shots/5-chrome.png
 adb forward tcp:9222 localabstract:chrome_devtools_remote
 python3 android/ci/cdp.py set
 adb shell am start -n app.aven.android/com.google.androidbrowserhelper.trusted.LauncherActivity
-sleep 20
+sleep 10
 adb exec-out screencap -p > shots/6-app.png
+sleep 10
+adb exec-out screencap -p > shots/6b-app-later.png
+adb forward tcp:9222 localabstract:chrome_devtools_remote
 python3 android/ci/cdp.py get | tee shots/carry-over.txt
 exit 0
