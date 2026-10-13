@@ -1776,14 +1776,21 @@ there was a version where you did it without the blur, it came out smooth". He a
   is blurred twice): a neutral grey (rgb 21 22 28) easing in over 64 px to 35 % (`.edge-fade`, shared; `.edge-fade.frosted`
   adds a blur where a bar has no frosted controls; light: the sheet's pale colour at 40 %).
 - **The pill opens while you type** (Omar 22:19, "expands when I type and compresses when I'm done, like iOS"): on focus
-  the camera tucks back and fades, and the pill's left edge glides over its place on a soft spring with a touch of
-  overshoot (`apple(0.62, 0.16)`); when the keyboard goes it glides back. Moves only: the tint is two halves that slide
-  over each other inside one see-through group, the frost never moves (only its outline is cut back, `clip-path`), the
-  shadow stretches, the typed text rides the edge. Interruptible, every part turning round from where it is. The open
-  class is set straight on the bar (a state change re-rendered the whole conversation on each tap: a 50–60 ms stall at
-  4x CPU), and the moving parts keep their own layers so none is dropped mid-move (the one-frame flicker). The orb stays
-  where it is (it is drawn by the shared sphere above the sheet). Audit at 4x CPU: no long tasks, no dropped layers on
-  keyboard up/down.
+  the camera tucks back and fades, and a beat later (60 ms, so the keyboard's lift doesn't hide it) the pill's left edge
+  glides over its place with a visible overshoot (about 5 px, `apple(0.62, 0.4)`); when the keyboard goes it glides back
+  and the camera fades in from 0.9 only once the edge has mostly passed it.
+- **It grows as you write**: an auto-growing field, a line at a time up to four lines, then the words scroll inside
+  (`apple(0.5, 0.25)`); the end of the conversation rises with it. Moves only: the tint and rim are six solid pieces in
+  one see-through group (left and right columns of top cap, middle, bottom cap: the left column slides, the top caps
+  rise, the middles stretch), the frost never moves (only its outline is cut back, `clip-path`), the shadow stretches,
+  and the text box grows a line at once but is cut back to the pill's rising edge. Interruptible.
+- **Sending**: the bubble rises out from behind the pill's top edge (it flies inside a window that ends there, riding
+  with the keyboard), never across the control, and "Ask the Coach" fades back in at once.
+- Cost (4x CPU audit): no long tasks and no dropped layers on keyboard up/down. Three things that made layers come and go
+  were removed: a React state for "open" (re-rendered the whole chat: a 50–60 ms stall; now a class on the bar), the
+  moving parts without `will-change`, and a mask and an opacity fade on the field's text (now only past four lines, and
+  the placeholder fades by colour). The orb stays where it is (the shared sphere draws it above the sheet).
+- The header fade starts a few px below the header, so no letter tails peek under it.
 - Clips: `scripts/clip-coach.mjs <out.mp4> [--palette ember|aurora] [--half]` films a send and a long streamed answer at
   real or half speed (half: the page's clock and animations run at half speed). Backup: `backup/coach-r4-pre-noblur`.
 
