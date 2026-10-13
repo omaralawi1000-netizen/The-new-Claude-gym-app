@@ -45,17 +45,23 @@
    per tab switch, measured). The tab icons ease their own colour. */
 .fields { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
 [data-hue='train'] { --ac: #ff5f45; --h1: #ff5a36; --h2: #c4206e; --h3: #ffa03d; }
-[data-hue='food'] { --ac: #ffb54d; --h1: #ff8a3d; --h2: #b83a5e; --h3: #ffcf6b; }
-[data-hue='progress'] { --ac: #ff6f91; --h1: #c4206e; --h2: #6a3fd1; --h3: #ff8a5c; }
+/* Food is apricot rather than amber: a faint amber tint over the dark glass read as muddy olive (the meal "+" buttons).
+   Progress is a dusty rose rather than candy pink, so its charts sit in the same warm family. */
+[data-hue='food'] { --ac: #ffa05a; --h1: #ff8a3d; --h2: #b83a5e; --h3: #ffcf6b; }
+[data-hue='progress'] { --ac: #ee7280; --h1: #c4206e; --h2: #6a3fd1; --h3: #ff8a5c; }
 /* Palettes: the same four areas, lit in other colours (Settings → Appearance). Ember is the default above. */
+/* Ember's carbs are plum, not blue, so the macro dots and rings stay in the warm family */
+html:root[data-palette='ember'] { --c-carbs: #b07cff; }
+html:root[data-palette='ember'][data-theme='light'] { --c-carbs: #7a45d0; }
 :root[data-palette='aurora'] [data-hue='today'] { --ac: #3de0c8; --h1: #6a5cff; --h2: #3de0c8; --h3: #c25cff; }
 :root[data-palette='aurora'] [data-hue='train'] { --ac: #7ae0ff; --h1: #3d7bff; --h2: #7a4bff; --h3: #3de0c8; }
 :root[data-palette='aurora'] [data-hue='food'] { --ac: #5cf0b0; --h1: #2fe0b4; --h2: #4b6bff; --h3: #a05cff; }
 :root[data-palette='aurora'] [data-hue='progress'] { --ac: #b08cff; --h1: #8a5cff; --h2: #3de0c8; --h3: #4b9bff; }
-:root[data-palette='mono'] [data-hue='today'] { --ac: #e9eaf0; --h1: #9094a8; --h2: #5b6070; --h3: #b8bccb; }
-:root[data-palette='mono'] [data-hue='train'] { --ac: #e9eaf0; --h1: #a3a7b8; --h2: #4d5262; --h3: #8a8fa3; }
-:root[data-palette='mono'] [data-hue='food'] { --ac: #e9eaf0; --h1: #8a8fa3; --h2: #666b7c; --h3: #c2c6d4; }
-:root[data-palette='mono'] [data-hue='progress'] { --ac: #e9eaf0; --h1: #b0b4c4; --h2: #555a6a; --h3: #8e93a6; }
+/* Mono: grey light everywhere, with one clear colour (Aven's coral) for the next thing to do and the worked muscles */
+:root[data-palette='mono'] [data-hue='today'] { --ac: #ff7a59; --h1: #9094a8; --h2: #5b6070; --h3: #b8bccb; }
+:root[data-palette='mono'] [data-hue='train'] { --ac: #ff7a59; --h1: #a3a7b8; --h2: #4d5262; --h3: #8a8fa3; }
+:root[data-palette='mono'] [data-hue='food'] { --ac: #ff7a59; --h1: #8a8fa3; --h2: #666b7c; --h3: #c2c6d4; }
+:root[data-palette='mono'] [data-hue='progress'] { --ac: #ff7a59; --h1: #b0b4c4; --h2: #555a6a; --h3: #8e93a6; }
 :root[data-palette='mono'] { --c-protein: #e9eaf0; --c-carbs: #9aa0b4; --c-fat: #6c7186; --c-water: #cfd3e0; }
 :root[data-palette='mono'] .aurora i { opacity: calc(var(--aurora-a) * 0.7); }
 :root[data-palette='sunset'] [data-hue='today'] { --ac: #ff6b9d; --h1: #ff4f7b; --h2: #ff9a4d; --h3: #8a4bff; }

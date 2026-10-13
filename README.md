@@ -1093,3 +1093,13 @@ Light only: the orb's outline never changes.
   the flat barbell and close-grip bench press, the barbell and Pendlay row. Before, every curl showed the standing
   dumbbell curl (a preacher or rope curl too) and every press the flat barbell bench. Everything else shows the muscle
   picture until it has a figure of its own (Omar chose to keep drawing Aven's own, for every exercise).
+
+## Warm colours that hold together (13 Oct 2026, v0.1.39)
+
+Omar said the colours felt "kind of off". Three Ember colours came from outside its warm family, and Mono had no colour at all:
+- **Food** is apricot (`#ffa05a`) instead of amber. A faint amber tint on the dark glass read as muddy olive, most visibly on the meal "+" buttons.
+- **Progress** is a dusty rose (`#ee7280`) instead of candy pink, so its charts match the other tabs.
+- **Carbs** are plum on Ember (`#b07cff`, light theme `#7a45d0`) instead of blue: the macro dots, rings and meal bars stay warm. The rule uses `html:root[data-palette]`, because the dark theme's `:root[data-theme='dark']` sets the macro colours at the same strength and comes later.
+- **Mono** keeps its grey light but has one clear colour, Aven's coral, for the next thing to do (play button, Finish, ticks) and the worked muscles. Before, everything was white on grey and nothing stood out. Its settings swatch shows the coral dot.
+
+Mono's macro colours were meant to be greys, but that rule has never won against the dark theme's, so Mono has always shown coloured macros. Left as is: nobody has asked for grey macros.

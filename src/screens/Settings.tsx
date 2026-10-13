@@ -69,7 +69,7 @@ function FpsField() {
 const PALETTES: { id: Settings['palette']; name: string; c: [string, string, string] }[] = [
   { id: 'ember', name: 'Ember', c: ['#ff7a59', '#7c5cff', '#ff7a59'] },
   { id: 'aurora', name: 'Aurora', c: ['#3de0c8', '#6a5cff', '#c25cff'] },
-  { id: 'mono', name: 'Mono', c: ['#e9eaf0', '#9094a8', '#5b6070'] },
+  { id: 'mono', name: 'Mono', c: ['#ff7a59', '#9094a8', '#5b6070'] },
   { id: 'sunset', name: 'Sunset', c: ['#ff6b9d', '#ff4f7b', '#ff9a4d'] },
   { id: 'forest', name: 'Forest', c: ['#b6f25a', '#1f9d6a', '#2fd0a0'] },
 ];
