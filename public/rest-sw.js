@@ -40,7 +40,7 @@ async function timeRest(r) {
   const old = await self.registration.getNotifications({ tag: OVER_TAG });
   old.forEach((n) => n.close());
   await self.registration.showNotification(r.title, {
-    body: r.body, tag: REST_TAG, silent: true, renotify: false, badge: r.badge,
+    body: r.body, tag: REST_TAG, silent: true, renotify: false, icon: r.icon, badge: r.badge,
     actions: [{ action: 'more', title: r.more }, { action: 'skip', title: r.skip }],
     data: { kind: 'resting', key: r.key },
   });
@@ -66,7 +66,7 @@ async function restOver(r, by) {
   const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
   if (wins.some((w) => w.visibilityState === 'visible')) return;
   await self.registration.showNotification(r.overTitle, {
-    body: r.overBody, tag: OVER_TAG, renotify: true, silent: false, requireInteraction: true, badge: r.badge,
+    body: r.overBody, tag: OVER_TAG, renotify: true, silent: false, requireInteraction: true, icon: r.icon, badge: r.badge,
     vibrate: [400, 120, 400, 120, 700],
     data: { kind: 'over', key: r.key, due: r.endsAt, firedAt: Date.now(), by },
   });
