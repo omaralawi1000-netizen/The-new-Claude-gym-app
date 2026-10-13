@@ -1231,3 +1231,13 @@ writing cursor's style is deleted.
 
 The Onboarding step change and the Food page's date title animated a blur as they changed. Both now move with opacity and
 the same small slide only, on the same timing (0.22 s and 0.34 s), per the rule that blur never animates.
+
+## Soft focus, done the cheap way (13 Oct 2026, v0.1.57)
+
+Omar wanted the blur-in back (13 Oct), polished and the same everywhere, without breaking "never animate the blur". Text
+that writes itself in now arrives out of soft focus: over the sharp text sits a still, soft copy of it (`.soft::after`, a
+text-shadow glow of the glyphs with no fill, painted once), which fades in and away while the sharp text fades up
+(`softGlow` / `softSharp` in styles.css). Only opacity (and each word's small rise) animates; nothing is re-blurred per
+frame (traced at 4x CPU: raster time within ~8% of no blur at all). It takes each element's delay and length, so the
+calm timing is unchanged. Used by Coach and orb answers (`Words`), your spoken words on the orb screen (`.sw`), the Food
+date title and the Onboarding titles (`SoftText`). Photo logging's soft photo is a still blurred copy cross-faded in.
