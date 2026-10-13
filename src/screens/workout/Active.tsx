@@ -634,7 +634,8 @@ function WorkoutBar({ engage, exMap, focus, onDone, onJump }: { engage: Engage; 
         </button>
         <button className="wk-bar-orb" aria-label={t('Dictate sets')} onPointerDown={() => orbPress(true)} onPointerUp={() => orbPress(false)} onPointerCancel={() => orbPress(false)} onPointerLeave={() => orbPress(false)}
           onClick={() => { orbTap(1); push('voice', { mode: 'workout' }); }}>
-          <SphereSlot id="workout" priority={5} engage={engage} style={{ position: 'absolute', inset: -4 }} />
+          {/* its bloom is the orb's own light, stronger while you rest and when the rest is over (orb-bloom, ui/Sphere.tsx) */}
+          <SphereSlot id="workout" priority={5} engage={engage} bloom={state === 'go' ? 1 : state === 'rest' ? 0.75 : 0.5} style={{ position: 'absolute', inset: -4 }} />
         </button>
         {/* −15 / +15 / Skip slide in inside the bar itself, beside the time (a pill floating above it covered the sets) */}
         <AnimatePresence>

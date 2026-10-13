@@ -789,17 +789,18 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    no glow). (.voice-live is the browser-speech engine's live text, used only without a Groq key.) */
 .voice-live { font-size: 26px; line-height: 1.2; text-align: center; padding: 0 6px; overflow-wrap: anywhere; }
 .voice-live .w { animation: none; --soft-dur: 520ms; } /* (the word's rise rides on its soft-focus layers, .soft below) */
-/* the orb screen: the orb gives off light. A close halo at its edge (the orb fills ~70% of its button) and a soft oval of
-   light just under it, as if it hovers over glass; nothing hazes the rest of the screen (a wide pool of the accent read as
-   brown fog). Two gradients on one still layer; only its fade-in animates (opacity), once, as the orb lands. */
-.voice-glow { position: absolute; inset: 0; pointer-events: none; transform: translateZ(0);
-  --glow-hi: color-mix(in srgb, var(--ac) 75%, white);
+/* The orb's own light, drawn under it inside its box (ui/Sphere.tsx), so it travels and grows with it. Each place sets how
+   much (SphereSlot halo / bloom). On the orb screen: a close halo at its edge (the orb fills ~70% of its box) and a soft oval
+   of light just under it, as if it hovers over glass; nothing hazes the rest of the screen (a wide pool of the accent read as
+   brown fog). In the workout's bar: a soft accent bloom, stronger while you rest and when it is over. Still gradient layers
+   of their own for good (a layer made and dropped for each fade was a one-frame flicker); only their opacity changes. */
+.orb-light { position: absolute; inset: 0; pointer-events: none; will-change: opacity; }
+.orb-halo { --glow-hi: color-mix(in srgb, var(--ac) 75%, white);
   background:
     radial-gradient(34% 7.5% at 50% 91.5%, color-mix(in srgb, var(--glow-hi) 40%, transparent), color-mix(in srgb, var(--ac) 13%, transparent) 55%, transparent),
-    radial-gradient(closest-side, color-mix(in srgb, var(--glow-hi) 15%, transparent) 64%, color-mix(in srgb, var(--ac) 7%, transparent) 80%, color-mix(in srgb, var(--ac) 2%, transparent) 92%, transparent);
-  animation: glowIn 1.4s 0.25s var(--ease-out) backwards; }
-@keyframes glowIn { from { opacity: 0; } }
-:root[data-theme='light'] .voice-glow { opacity: .7; }
+    radial-gradient(closest-side, color-mix(in srgb, var(--glow-hi) 15%, transparent) 64%, color-mix(in srgb, var(--ac) 7%, transparent) 80%, color-mix(in srgb, var(--ac) 2%, transparent) 92%, transparent); }
+/* the bar's bloom (it reached 9 px past the 46 px button: the same light, fitted inside the orb's own box) */
+.orb-bloom { background: radial-gradient(circle closest-side, color-mix(in srgb, var(--ac) 30%, transparent) 0%, transparent 80%); }
 .voice-hint { color: var(--tx3); font-family: var(--f-ui); font-size: 18px; font-stretch: 100%; font-weight: 560; letter-spacing: 0; }
 .exchange { display: flex; flex-direction: column; gap: 14px; padding: 2px 2px 8px; }
 .said { align-self: flex-end; max-width: 84%; padding: 9px 14px 10px; border-radius: 20px 20px 6px 20px; transform-origin: 100% 100%;
@@ -935,11 +936,6 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-bar-txt.t-rest .wk-bar-big { font-size: 20px; }
 .wk-bar-orb { position: relative; width: 46px; height: 46px; flex: none; border-radius: 999px; transition: transform 520ms var(--ease-spring); }
 .wk-bar-orb:active { transform: scale(0.94); transition-duration: 110ms; }
-/* the orb's glow on the bar: a soft accent bloom behind it (the orb itself is drawn above), stronger while you rest and when it is over.
-   A layer of its own for good: each fade used to make one and drop it at the end (a one-frame flicker by the orb). */
-.wk-bar-orb::before { content: ''; position: absolute; inset: -9px; border-radius: 50%; pointer-events: none; opacity: .5; will-change: opacity; transition: opacity 600ms var(--ease-out); background: radial-gradient(circle, color-mix(in srgb, var(--ac) 30%, transparent) 0%, transparent 68%); }
-.wk-bar.rest .wk-bar-orb::before { opacity: .75; }
-.wk-bar.go .wk-bar-orb::before { opacity: 1; }
 /* the one Finish: once every set is ticked it glows softly; tapping the bar's "all done" nudges it */
 .wk-finish.ready { animation: finishGlow 2.4s ease-in-out infinite; }
 @keyframes finishGlow { 0%, 100% { box-shadow: 0 6px 18px -8px color-mix(in srgb, var(--ac) 70%, transparent); } 50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--ac) 22%, transparent), 0 8px 28px -6px var(--ac); } }
@@ -957,7 +953,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* the bar's "next set": the row it scrolled to glows once */
 .wk-flash { animation: wkFlash 1.4s var(--ease-out) 1; border-radius: 12px; }
 @keyframes wkFlash { 0%, 30% { background: color-mix(in srgb, var(--ac) 22%, transparent); } 100% { background: transparent; } }
-@media (prefers-reduced-motion: reduce) { .wk-bar-txt.out { display: none; } .wk-bar.go .wk-bar-surface::before, .wk-flash, .wk-tick, .wk-bar-top, .wk-bar-big { animation: none; } .wk-bar-fill, .wk-bar-clip::before, .wk-bar-orb::before, .wk-bar-surface::before { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .wk-bar-txt.out { display: none; } .wk-bar.go .wk-bar-surface::before, .wk-flash, .wk-tick, .wk-bar-top, .wk-bar-big { animation: none; } .wk-bar-fill, .wk-bar-clip::before, .wk-bar-surface::before { transition: none; } }
 /* the live workout: an exercise that arrives after the window has landed fades up into place (compositor only) */
 .wk-block.in { animation: blockIn 520ms var(--ease-out) both; }
 @keyframes blockIn { from { opacity: 0; transform: translateY(16px); } }
@@ -1596,7 +1592,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
   background: radial-gradient(closest-side, color-mix(in srgb, var(--ac) 11%, transparent), transparent); }
 .wk-page-ghost { margin-top: 18px; }
 .wk-page-ghost .plinth { padding: 14px 12px 140px; border-radius: var(--r-lg); }
-@media (prefers-reduced-motion: reduce) { .voice-glow, .wk-focus.shared.on .wk-dots, .wk-focus.shared.on .wk-stage, .wk-list.back > * { animation: none; } .wk-list, .wk-list.wk-away, .wk-focus, .wk-focus.on, .wk-dot-pill { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .wk-focus.shared.on .wk-dots, .wk-focus.shared.on .wk-stage, .wk-list.back > * { animation: none; } .wk-list, .wk-list.wk-away, .wk-focus, .wk-focus.on, .wk-dot-pill { transition: none; } }
 
 /* ── exercise page (screens/workout/ExerciseDetail.tsx): the movement on a soft pool of the accent, what it works, then
    one card with what to do next and your numbers, then how to do it. Section titles carry a small icon. */

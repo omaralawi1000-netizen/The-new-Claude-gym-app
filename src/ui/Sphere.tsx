@@ -64,7 +64,11 @@ function orbInputs(): OrbInputs {
 // ── stage ───────────────────────────────────────────────────
 
 /** `ov`: the pop-up the slot lives in (none for the tab bar). A slot whose pop-up has been closed is on its way out. */
-interface Slot { id: string; el: HTMLElement; priority: number; engage?: Engage; ov?: string }
+/** `light`: how strongly the orb gives off light in this place (`halo`: the orb screen's halo and pool of light under it;
+ *  `bloom`: the soft accent bloom it has in the workout's bar). The light is the orb's own: it travels and grows or fades
+ *  with it, on the same progress as its flight, instead of each place having a glow of its own that waits there. */
+interface Light { halo: number; bloom: number }
+interface Slot { id: string; el: HTMLElement; priority: number; engage?: Engage; ov?: string; light?: Light }
 const slots = new Map<string, Slot>();
 /** Geometry changes invalidate anchors; animation transforms are applied separately. */
 let layoutRevision = 0;
@@ -110,6 +114,7 @@ function carry(O: { X: number; Y: number; S: number }, x: number, y: number, z: 
 let lastOverlayChange = 0;
 /** Where the stage last put the orb (its box's top-left within the app, and its size). */
 let orbNow = { X: NaN, Y: NaN, S: NaN };
+let lightNow: Light = { halo: 0, bloom: 0 };
 
 /** The ids of the pop-ups that are open (not on their way out), cached per change of the stack. */
 let idsFor: unknown = null, idsSet = new Set<string>();
@@ -126,14 +131,14 @@ const isLeaving = (s: Slot) => !!s.ov && !openIds().has(s.ov);
  * with the pop-up that is leaving and then jumping across. `from` is where it was when the new one arrived; `back` is set if
  * the new one is closed again before it got there (then the orb returns from wherever it is).
  */
-let handoff: { el: HTMLElement; from: { X: number; Y: number; S: number }; back?: { k: number; P: { X: number; Y: number; S: number } } } | null = null;
+let handoff: { el: HTMLElement; from: { X: number; Y: number; S: number }; light?: Light; back?: { k: number; P: { X: number; Y: number; S: number } } } | null = null;
 /** slots that have handed the orb over: on their way out they no longer pull it back */
 const gaveUp = new WeakSet<HTMLElement>();
 function claim(el: HTMLElement) {
   if (handoff?.el === el || !Number.isFinite(orbNow.X)) return;
   for (const s of slots.values()) {
     if (s.el === el || !s.el.isConnected || !isLeaving(s) || gaveUp.has(s.el)) continue;
-    if ((s.engage ? s.engage.e.get() : 1) > 0.02) { handoff = { el, from: { ...orbNow } }; return; }
+    if ((s.engage ? s.engage.e.get() : 1) > 0.02) { handoff = { el, from: { ...orbNow }, light: { ...lightNow } }; return; }
   }
 }
 
@@ -191,8 +196,8 @@ export function mirrorOrb(container: Element | null, p0: number, p1: number, sp:
   return a;
 }
 
-export function registerSlot(id: string, el: HTMLElement, priority: number, engage?: Engage, ov?: string) {
-  slots.set(id, { id, el, priority, engage, ov });
+export function registerSlot(id: string, el: HTMLElement, priority: number, engage?: Engage, ov?: string, light?: Light) {
+  slots.set(id, { id, el, priority, engage, ov, light });
   if (ov && !isLeaving({ id, el, priority, ov })) claim(el);
   markOrbLayoutDirty();
   return () => { if (slots.get(id)?.el === el) slots.delete(id); markOrbLayoutDirty(); };
@@ -294,6 +299,8 @@ export function SphereStage() {
     // higher slot by that slot's `engage` (how far its popup is open). The popup, the page behind it and the orb all
     // read the same number in the same frame, so they stay in step while a popup opens, is dragged or leaves.
     let px = NaN, py = NaN, ps = NaN, sentV = 0;
+    const lit: Light = { halo: 0, bloom: 0 }; let lightAt = 0;
+    const haloEl = el.querySelector<HTMLElement>('.orb-halo')!, bloomEl = el.querySelector<HTMLElement>('.orb-bloom')!;
     let glide: Animation | null = null;
     let base = { left: 0, top: 0 };
     let wasLifted = false, wasLanded = false, hapticSlot: Slot | null = null;
@@ -438,6 +445,9 @@ export function SphereStage() {
       list.sort((a, b) => a.priority - b.priority);
       const ox = base.left, oy = base.top;
       let X = 0, Y = 0, S = 0, have = false, top = 0, topSlot: Slot | null = null, flight = 1;
+      let halo = 0, bloom = 0; // the orb's light, blended between its places exactly as its position is
+      // (it gathers mostly as the orb nears its place, and leaves it first as it sets off: no pool of light under it mid-air)
+      const mixLight = (l: Light | undefined, t: number) => { const k = t * t; halo += ((l?.halo ?? 0) - halo) * k; bloom += ((l?.bloom ?? 0) - bloom) * k; };
       if (handoff && !handoff.el.isConnected) handoff = null;
       for (const sl of list) {
         const leaving = isLeaving(sl);
@@ -452,19 +462,22 @@ export function SphereStage() {
         // where the slot is drawn right now — its popup's slide included — so the orb is carried by the popup (it used to
         // head for where the slot would come to rest, and sat there over an empty sheet while the sheet caught up)
         const p = position(sl.el, r), x = p.x - ox, y = p.y - oy, z = p.z;
-        if (!have) { X = x; Y = y; S = z; have = true; continue; }
+        if (!have) { X = x; Y = y; S = z; have = true; mixLight(sl.light, 1); continue; }
         if (mine) {
           const h = handoff!;
           if (leaving && !h.back) h.back = { k: Math.max(0.001, e), P: { ...orbNow } };
+          const light0 = h.light ?? { halo: 0, bloom: 0 };
           if (h.back) {
             // closed again before it arrived: straight back from where it was to wherever the orb belongs now
             const f = Math.min(1, e / h.back.k);
             X += (h.back.P.X - X) * f; Y += (h.back.P.Y - Y) * f; S += (h.back.P.S - S) * f; flight = f;
+            mixLight(sl.light, f);
             if (e <= 0.001) handoff = null;
           } else {
             // from where it was handed over, straight to this slot, on this pop-up's progress (as mirrorOrb plays it)
             const c = sl.engage?.shift ? carry(h.from, x, y, z, y - sl.engage.shift.get(), e) : carry(h.from, x, y, z, y, e, false);
             X = c.X; Y = c.Y; S = c.S; flight = c.t;
+            halo = light0.halo; bloom = light0.bloom; mixLight(sl.light, c.t);
             if (e >= 0.999) handoff = null; // arrived: from here on an ordinary slot
           }
           top = Math.max(top, sl.priority); topSlot = sl;
@@ -479,13 +492,26 @@ export function SphereStage() {
           const restY = y - sl.engage.shift.get();
           const c = carry({ X, Y, S }, x, y, z, restY, e);
           X = c.X; Y = c.Y; S = c.S; flight = c.t;
+          mixLight(sl.light, c.t);
         } else {
           X += (x - X) * e; Y += (y - Y) * e; S += (z - S) * e; flight = e;
+          mixLight(sl.light, e);
         }
         if (e > 0.02) { top = Math.max(top, sl.priority); topSlot = sl; }
       }
       if (!have) { el.style.opacity = '0'; pause(); return; }
       orbNow = { X, Y, S };
+      // the light: a set level eases (a rest ending brightens it over ~0.6 s); a flight carries it as it moves
+      const dt = Math.min(0.1, Math.max(0, (now - lightAt) / 1000)); lightAt = now;
+      const ease = 1 - Math.exp(-dt / 0.2);
+      const moving = Math.abs(X - px) + Math.abs(Y - py) + Math.abs(S - ps) > 0.05;
+      lit.halo = moving ? halo : lit.halo + (halo - lit.halo) * ease;
+      lit.bloom = moving ? bloom : lit.bloom + (bloom - lit.bloom) * ease;
+      lightNow = { ...lit };
+      const ho = ((reduced ? (halo > 0.5 ? 1 : 0) : lit.halo) * (colors.dark ? 1 : 0.7)).toFixed(3), // (softer on the light theme)
+        bo = reduced ? String(Math.round(bloom * 4) / 4) : lit.bloom.toFixed(3);
+      if (haloEl.style.opacity !== ho) haloEl.style.opacity = ho;
+      if (bloomEl.style.opacity !== bo) bloomEl.style.opacity = bo;
       // In the tab bar it sits under every popup; in a popup it sits just above that popup — and so under anything
       // opened over it (an exercise menu over the live workout), never floating on top of everything.
       const zi = top > 0 && topSlot ? String(ownerZ(topSlot.el) + 1) : '41';
@@ -583,17 +609,22 @@ export function SphereStage() {
 
   return (
     <div ref={root} className="sphere-stage" aria-hidden="true" style={{ position: 'fixed', left: 0, top: 0, zIndex: 75, pointerEvents: 'none', opacity: 0, willChange: 'transform', transformOrigin: '0 0', contain: 'strict' }}>
-      <canvas key={`${gen}-${hrr}`} ref={canvas} style={{ width: '100%', height: '100%', display: 'block' }} />
+      {/* its light, under it (see Light): two still gradient layers, only their opacity changes */}
+      <i className="orb-light orb-bloom" style={{ opacity: 0 }} />
+      <i className="orb-light orb-halo" style={{ opacity: 0 }} />
+      <canvas key={`${gen}-${hrr}`} ref={canvas} style={{ position: 'relative', width: '100%', height: '100%', display: 'block' }} />
     </div>
   );
 }
 
 /** Put this where the sphere should appear. Inside a popup it follows that popup's progress; elsewhere pass `engage`. */
-export function SphereSlot({ id, priority = 0, className, style, engage }: { id: string; priority?: number; className?: string; style?: React.CSSProperties; engage?: Engage }) {
+export function SphereSlot({ id, priority = 0, className, style, engage, halo = 0, bloom = 0 }: { id: string; priority?: number; className?: string; style?: React.CSSProperties; engage?: Engage; halo?: number; bloom?: number }) {
   const ref = useRef<HTMLDivElement>(null);
   const ctx = useEngageContext();
   const ov = useContext(OverlayMeta)?.id;
   const eng = engage ?? ctx ?? undefined;
-  useEffect(() => registerSlot(id, ref.current!, priority, eng, ov), [id, priority, eng, ov]);
+  const light = useRef<Light>({ halo, bloom });
+  light.current.halo = halo; light.current.bloom = bloom; // (read every frame: a new level needs no new registration)
+  useEffect(() => registerSlot(id, ref.current!, priority, eng, ov, light.current), [id, priority, eng, ov]);
   return <div ref={ref} className={className} style={style} data-orb-slot={id} />;
 }
