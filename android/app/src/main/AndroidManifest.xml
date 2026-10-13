@@ -2,7 +2,7 @@
 <!--
   Aven for Android: the live web app (same Chrome, same data, updates with the website) plus one native part, the rest
   timer notification. Chrome hands Aven's web notifications to RestDelegationService, which turns the rest one into a
-  live, ticking countdown and keeps an exact alarm as a back-up for the "rest over" alert.
+  live countdown (RestTimerService ticks it) and rings "Time for set 2" from an exact alarm (RestNotifications).
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
@@ -13,6 +13,9 @@
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- the countdown ticks every second while a rest runs (RestTimerService) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
     <queries>
         <intent>
@@ -82,6 +85,15 @@
             </intent-filter>
         </service>
 
+        <service
+            android:name=".RestTimerService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="The rest timer between sets of a workout the user is doing: a countdown ticking every second." />
+        </service>
+
         <receiver android:name=".RestAlarmReceiver" android:exported="false" />
+        <receiver android:name=".RestActionReceiver" android:exported="false" />
     </application>
 </manifest>
