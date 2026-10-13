@@ -1680,3 +1680,14 @@ popped back a moment later, which read as the whole list jumping.
   no longer handed down to every word of the conversation.
 - `scripts/probe-melt.mjs`: the melt against the bar, frame by frame, while the keyboard comes up and while a message is sent.
   Its fake keyboard reports its final height once, as Chrome on Android does.
+
+## The rest bar's glass is one piece round the orb (13 Oct 2026, v0.1.101)
+Omar's screenshot (Rest over, full-page workout): the orb sat in a lighter, bluer square with a hard left edge, the
+size of the orb's canvas (54 px). Third report of it; the two earlier fixes (layer split, fill fading early) were blind.
+- Why: the orb is redrawn on every frame, so the phone redraws only that square of the screen. The bar's frost inside it
+  is blurred from the screen as it was, and round the square that is the finished bar (already frosted and tinted), so
+  the square came out frosted and tinted twice. DevTools, emulator and desktop captures redraw the whole frame, so it
+  never showed off the phone (also checked on a real X display: nothing).
+- Fix: an invisible layer under the bar's frost (`.wk-bar-even`, 0.5 % black, its opacity swaying on the compositor)
+  makes each frame's redraw cover the whole bar and the blur's reach round it, so the frost is always blurred from the
+  page alone. Compositor only (no script, no new paint); it rests while the window is parked.

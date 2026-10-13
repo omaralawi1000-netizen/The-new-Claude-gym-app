@@ -586,6 +586,7 @@ function WorkoutBar({ engage, exMap, focus, onDone, onJump }: { engage: Engage; 
       <div className={`wk-bar ${state}`}>
         {/* the frost, tint and rim are a layer of their own under everything: the orb's button and the words sit beside it,
             not inside the blurred element (Chrome on the phone drew a darker square where the orb is) */}
+        <span className="wk-bar-even" aria-hidden />
         <span className="wk-bar-surface glass" aria-hidden />
         <span className="wk-bar-clip" aria-hidden><RestFill state={state} endsAt={rest?.endsAt} total={rest?.total} paused={!!a.pausedAt} /></span>
         <button className="wk-bar-main press" onClick={tap} aria-expanded={state === 'rest' ? panel : undefined}
