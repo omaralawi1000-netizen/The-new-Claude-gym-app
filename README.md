@@ -1626,3 +1626,18 @@ chat, the orb screen open, typing, writing in, answered; light and dark):
   at 4× CPU: worst task ~200-220 ms → ~105-140 ms.
 - Not changed: the orb screen's orb still grows and shrinks by its box size: measured, it costs little layout on that small
   screen and its path is smooth.
+
+## Aven glass: neutral buttons, chips and cards are glass with a warm edge of light (13 Oct 2026, v0.1.96)
+- The see-through grey rounded surfaces (buttons, chips, round buttons, cards, the dock, a sheet's bottom button, set
+  number tiles) now share one material, painted once and never animated:
+  - a soft glow of the area's own colour falling from the top;
+  - a faint sheen;
+  - a crisp 1 px rim that is warm along the top and fades down the sides;
+  - a gentle lift.
+  Text fields became wells. No new blur.
+- Kept quiet on purpose. In dark, the set tiles and "+ Set" keep only the rim, so the active set stays the loudest thing in
+  its card. In light, only the active set's tile glows. Round buttons use the same 1 px rim (1.5 px was too loud); the
+  dock keeps 1.5 px. In dark, the dock's active tab is warm, not cool grey.
+- Switched on by `<html data-glass="v2">` in index.html. The rules sit behind that attribute so
+  `scripts/glass-shots.mjs` can compare with and without it. Checks: `scripts/glass-audit.mjs` (no new blind blurs);
+  `scripts/flicker-layers.mjs` shows the same 11 drops with and without it.
