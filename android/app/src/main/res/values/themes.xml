@@ -1,12 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!--
-      Opaque on purpose, and no TWA splash: asking Chrome for a splash makes it open the app in a see-through window
-      (TranslucentCustomTabActivity) that it only tries to make solid afterwards, and while it's see-through the home
-      screen and wallpaper keep being drawn under the app on every frame. Without it Chrome uses its normal, solid
-      window. The tap still gets an instant answer: Android's own launch screen (the icon on ink), then this black.
-    -->
-    <style name="Theme.Aven" parent="@android:style/Theme.Material.NoActionBar">
+    <style name="Theme.Aven" parent="@android:style/Theme.Translucent.NoTitleBar">
         <item name="android:windowBackground">@color/ink</item>
         <item name="android:statusBarColor">@color/ink</item>
         <item name="android:navigationBarColor">@color/ink</item>
