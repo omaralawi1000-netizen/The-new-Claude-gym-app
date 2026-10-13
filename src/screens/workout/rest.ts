@@ -40,21 +40,36 @@ let ctx: AudioContext | null = null;
  *  it waits silent until a tap wakes it. */
 export function prepareRestAudio() {
   if (ctx) return;
-  const make = () => { try { ctx ??= new (window.AudioContext || (window as any).webkitAudioContext)(); } catch { /* no audio */ } };
+  const make = () => { try { ctx ??= new (window.AudioContext || (window as any).webkitAudioContext)(); loadChime(); } catch { /* no audio */ } };
   if (typeof requestIdleCallback === 'function') requestIdleCallback(make, { timeout: 4000 }); else setTimeout(make, 1500);
 }
 export function unlockRestAudio() {
   try {
     ctx ??= new (window.AudioContext || (window as any).webkitAudioContext)();
     if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+    loadChime();
   } catch { /* no audio */ }
 }
 
-/** Three soft rising tones, under half a second (short, so music in your earbuds only dips for a moment). */
-function tones() {
+// The rest-over sound: three short clicks, two deep and a bright one (public/sounds/rest-over.mp3, the same file the Android
+// app rings with; see CREDITS.md). Decoded once, ahead; until it's there the old soft tones stand in.
+let chimeBuf: AudioBuffer | null = null;
+let chimeLoading = false;
+function loadChime() {
+  if (chimeBuf || chimeLoading || !ctx) return;
+  chimeLoading = true;
+  const ac = ctx;
+  fetch(`${import.meta.env.BASE_URL}sounds/rest-over.mp3`).then((r) => r.arrayBuffer()).then((b) => ac.decodeAudioData(b))
+    .then((buf) => { chimeBuf = buf; }).catch(() => { chimeLoading = false; });
+}
+
+/** The rest-over sound, about half a second (short, so music in your earbuds only dips for a moment). */
+function chime() {
   try {
     unlockRestAudio();
     const ac = ctx; if (!ac) return;
+    if (chimeBuf) { const src = ac.createBufferSource(); src.buffer = chimeBuf; src.connect(ac.destination); src.start(ac.currentTime + 0.02); return; }
+    // not decoded yet: three soft rising tones
     const t0 = ac.currentTime + 0.02;
     [660, 880, 1175].forEach((f, i) => {
       const o = ac.createOscillator(), g = ac.createGain();
@@ -192,7 +207,7 @@ let cued = ''; // the rest that has been cued: a remount or a reload never cues 
 
 /**
  * The end of a rest, wherever you are in the app (it used to live inside the workout screen, so nothing happened while it was
- * minimised): three ticks on the last three seconds, then the tones and a firm buzz, and — if Aven isn't on screen — a
+ * minimised): three ticks on the last three seconds, then the rest-over sound and a firm buzz, and — if Aven isn't on screen — a
  * notification saying what's next. Mounted once, in App.
  */
 export function useRestCue() {
@@ -214,10 +229,10 @@ export function useRestCue() {
         const r = restPayload(true);
         if (r && notifyOn()) {
           if (viaApp) overAppRest(appRest(r)); // the app rings on time itself: this only covers it if it didn't
-          else { toSW({ type: 'aven-rest-over', rest: r }); if (st.settings.sound) tones(); }
+          else { toSW({ type: 'aven-rest-over', rest: r }); if (st.settings.sound) chime(); }
         }
       }
-      else { if (st.settings.sound) tones(); vibrate([...HAPTICS.restOver]); }
+      else { if (st.settings.sound) chime(); vibrate([...HAPTICS.restOver]); }
     }, left));
     return () => timers.forEach(clearTimeout);
   }, [endsAt, total, paused]);

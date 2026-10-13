@@ -773,7 +773,7 @@ const SetRow = memo(function SetRow({ se, set, ex, label, prev, restDefault }: {
     if (!valid) { setShake((n) => n + 1); haptic('warn'); toast(t('Enter reps first'), { tone: 'bad', duration: 1800 }); return; }
     const st = useStore.getState();
     if (st.active?.pausedAt) st.resumeActive();
-    unlockRestAudio(); // a tap: the rest-over tones are allowed to play later
+    unlockRestAudio(); // a tap: the rest-over sound is allowed to play later
     if (st.active?.rest && st.active.rest.endsAt <= Date.now()) skipRest(); // "Go" has done its job
     // a new best beats everything before it (and is the bigger moment); otherwise beating last time gets its own small one
     const earlier = (st.active?.exercises ?? []).filter((e) => e.exerciseId === se.exerciseId).flatMap((e) => e.sets).filter((x) => x.id !== set.id);

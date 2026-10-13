@@ -9,7 +9,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.media.AudioAttributes;
-import android.media.RingtoneManager;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -47,7 +47,10 @@ import java.util.Locale;
  */
 final class RestNotifications {
     static final String CH_REST = "aven_rest_live"; // quiet: the countdown
-    static final String CH_OVER = "aven_rest_over"; // rings
+    // rings, with Aven's own rest-over sound (res/raw/rest_over.mp3, the same file the website plays). Android fixes a
+    // channel's sound once it exists, so a new sound needs a new channel id; the old one (phone's default sound) goes.
+    static final String CH_OVER = "aven_rest_clicks";
+    private static final String CH_OVER_OLD = "aven_rest_over";
     static final int ID_REST = 71, ID_OVER = 72;
     static final String MARK = "aven-rest|";
     static final String ACTION_MORE = "app.aven.android.REST_MORE";
@@ -94,11 +97,12 @@ final class RestNotifications {
             over.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
             over.enableVibration(true);
             over.setVibrationPattern(new long[] {0, 400, 120, 400, 120, 700});
-            over.setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION),
+            over.setSound(Uri.parse("android.resource://" + c.getPackageName() + "/" + R.raw.rest_over),
                 new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_NOTIFICATION_EVENT)
                     .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build());
             nm.createNotificationChannel(over);
         }
+        if (nm.getNotificationChannel(CH_OVER_OLD) != null) nm.deleteNotificationChannel(CH_OVER_OLD);
     }
 
     // ── from Chrome ──────────────────────────────────────────
