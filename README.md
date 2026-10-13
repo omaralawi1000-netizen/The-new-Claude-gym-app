@@ -1148,3 +1148,13 @@ reps than ever at this weight or heavier; for holds and distance, longer or furt
 The first time an exercise is ever logged is a baseline, not a best; a best already ticked earlier in the same workout is
 not celebrated twice; a new best replaces the smaller gold "beat last time" pop. Tests: tests/newbest.test.ts. Enter on
 the reps field now plays the tick's animation too (it used to tick silently).
+
+## Alive, step 3: the finish screen (13 Oct 2026, v0.1.47)
+
+The workout summary now has a rhythm: the four numbers (time, volume, sets, exercises) land one after another, 0.32 s
+apart, and each counts up from zero as it lands (`CountUp` in Summary.tsx writes its own text, so no re-render per frame).
+Then one line, in the existing italic title style, says what the session meant (`sessionHeadline` in lib/workout.ts, tested
+in tests/headline.test.ts): a record first ("Strongest Bench Press yet", "Most reps yet on…", "Longest… yet"), else the
+biggest session of this routine (needs two before it), else "{x} more than last {name}", else "Workout {n} this month" /
+"First workout this month". The record medal, its label and the record rows now wait for that line. Reduced motion shows
+the final numbers at once.
