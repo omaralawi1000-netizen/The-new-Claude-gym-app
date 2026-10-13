@@ -102,7 +102,10 @@ function carry(O: { X: number; Y: number; S: number }, x: number, y: number, z: 
   if (!slides || D <= 60) return { X: O.X + (x - O.X) * e, Y: O.Y + (restY - O.Y) * e, S: O.S + (z - O.S) * e, t: e };
   // across and up to size within the first stretch above the dock, so for most of the way it already sits on its button
   const t = smooth01((O.Y - y) / Math.min(D, 170));
-  return { X: O.X + (x - O.X) * t, Y: softmin(y, O.Y, PICK), S: O.S + (z - O.S) * t, t };
+  // the soft hand-over lets go as it arrives, so it lands exactly on its button: with the dock only ~70 px below the bar
+  // (the page behind now sinks back from its middle) it held the orb 3.5 px high in the workout's bar, and the orb hopped
+  // up by that much the moment the browser-run flight, which does land exactly, handed back to this
+  return { X: O.X + (x - O.X) * t, Y: y + (softmin(y, O.Y, PICK) - y) * (1 - t), S: O.S + (z - O.S) * t, t };
 }
 let lastOverlayChange = 0;
 /** Where the stage last put the orb (its box's top-left within the app, and its size). */
@@ -165,7 +168,7 @@ export function mirrorOrb(container: Element | null, p0: number, p1: number, sp:
   const r = slotEl.getBoundingClientRect();
   const z = Math.min(r.width, r.height);
   if (z < 2) return null;
-  const R = { X: r.left - b.left, Y: r.top - b.top - shiftAt(p0), S: z };
+  const R = { X: r.left - b.left + (r.width - z) / 2, Y: r.top - b.top + (r.height - z) / 2 - shiftAt(p0), S: z };
   const slides = Math.abs(shiftAt(0) - shiftAt(1)) > 1;
   const bucket = Math.ceil(Math.max(O.S, R.S, 8) / 24) * 24;
   whooshPending = Math.max(whooshPending, 1);
@@ -418,7 +421,9 @@ export function SphereStage() {
         y = t.y + (y - t.y) * sy + (m.f - t.matrix.f) * t.sy;
         w *= sx; h *= sy;
       }
-      return { x, y, z: Math.min(w, h) };
+      // centred in its slot: the dock's slot is 68 x 64, and the orb sat 2 px left of the middle of its place
+      const z = Math.min(w, h);
+      return { x: x + (w - z) / 2, y: y + (h - z) / 2, z };
     };
     const tick = (now: number) => {
       if (!running) return;

@@ -39,13 +39,14 @@ export function androidRest(): Promise<ServiceWorkerRegistration | null> {
 export interface AppRest {
   key: string; startedAt: number; endsAt: number; title: string; body: string;
   exercise: string; line: string; overTitle: string; overBody: string; more: string; skip: string; icon: string; badge: string;
+  sound: boolean; // Settings › Sound: the app plays the rest-over clicks itself
 }
 
 /** The rest, for the app's countdown. False when the app can't be reached this way (the website's own one is used then). */
 export async function showAppRest(r: AppRest): Promise<boolean> {
   const sw = await androidRest();
   if (!sw) return false;
-  const words = { v: 1, s: r.startedAt, x: r.exercise, l: r.line, o: r.overTitle, b: r.overBody, p: r.more, k: r.skip };
+  const words = { v: 1, s: r.startedAt, x: r.exercise, l: r.line, o: r.overTitle, b: r.overBody, p: r.more, k: r.skip, q: r.sound ? 1 : 0 };
   const tag = `aven-rest|${JSON.stringify(words)}`;
   try {
     for (const n of await sw.getNotifications()) if (n.tag !== tag) n.close(); // an earlier rest's, or its alert

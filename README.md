@@ -1436,6 +1436,13 @@ flicker fingerprint). `--film a,b` films chosen actions, `--light` for the light
   window and brought it back at the other end (it vanished, then popped up in the dock or the bar). Gone: the orb glides
   along the bottom between the bar and the dock, on top, as in v0.1.72 (its browser-run path checked keyframe by keyframe:
   identical to v0.1.72's).
+- v0.1.86, "a mismatch under it": the orb now lands exactly on its place everywhere (checked on all 16 orb moves).
+  - In the workout's bar it sat 3.5 px high, off-centre on its button, and hopped up by that much as each opening
+    ended (the browser-run flight lands exactly; the script's soft hand-over from the dock then held it high). Since the
+    page behind sinks back from its middle (v0.1.76), the dock sits lower, which is what made the hand-over count. The
+    hand-over now lets go as the orb arrives (`carry`).
+  - In the dock it sat 2 px left of the middle of its place (the place is 68 x 64; the orb went to its left edge). It is
+    centred now, in every place that isn't square.
 
 ## Android app: the rest as a live countdown, new icon, calmer opening (13 Oct 2026, v0.1.72)
 Omar's phone showed the website's plain notice ("Back at 10:02", the site's address) instead of the app's countdown.
@@ -1504,10 +1511,10 @@ at the edges.
   100 %, so for most of the opening the bar was darker than the page under it: a band across the top. It now dims on
   the same 0 → 1 as the page.
 
-## Coach: lighter frames while an answer writes in (13 Oct 2026, v0.1.86)
+## Coach: lighter frames while an answer writes in (13 Oct 2026, v0.1.88)
 - Measured with `scripts/audit-coach.mjs` (phone size, CPU slowed 4×, a fake keyboard and a mocked stream; per action:
   frames, long tasks, script/style/layout time, pops, jumps and GPU layers dropped; `TRACE=`/`PROFILE=` break one action
-  down). Baseline v0.1.85 → v0.1.86 (4×, dark): opening the Coach worst task 548 → ~260 ms and style 883 → ~360 ms;
+  down). Baseline v0.1.85 → v0.1.88 (4×, dark): opening the Coach worst task 548 → ~260 ms and style 883 → ~360 ms;
   an answer writing in paints ~3× less (2.1 s → ~0.6 s of main-thread paint over 5 s) and runs half the script per frame.
 - A word that has come in now settles into a plain word: its two soft-focus copies (`.soft::before/::after`) and its own
   layer go once its coming-in is over (`Words`, `SETTLE`), and saved replies are plain from the start (`still`). A whole
