@@ -116,21 +116,19 @@ const inView = (top: HTMLElement) => {
 
 /** A sheet with another sheet on top steps back a little: it shrinks to 96.5 % from its top edge, which rises STACK_LIFT px,
  * and dims under the top one. Just enough to read as depth (the first version shrank to 93 % and peeked 10 px above, the
- * one before that 94 % and rose 15 px: both read as the card jumping back). */
+ * one before that 94 % and rose 15 px: both read as the card jumping back). 8 px, not 4: a 4 px strip above the top sheet
+ * read as its border drawn twice, not as a card behind it.
+ * The rise is never rounded to whole pixels (the slide under it is): a scaled card is drawn a touch soft wherever it sits,
+ * and rounding its last, slow fractions of a pixel made it hold still and then tick half a pixel as it landed. It starts
+ * and ends on whole pixels (0 and 8), so at rest it is as sharp as before. */
 const STACK_SCALE = 0.035;
-const STACK_LIFT = 4;
+const STACK_LIFT = 8;
 /** Stepped back, a card drops its drop shadow (CSS [data-stacked]): set back and narrower, it showed beside it. It goes and
  * comes back at the very start and end, when the card is still full width and its shadow hardly shows. */
 function markStacked(el: HTMLElement | null, b: number) {
   if (!el || (b >= 0.001) === ('stacked' in el.dataset)) return;
   if (b >= 0.001) el.dataset.stacked = ''; else delete el.dataset.stacked;
 }
-/** How far the sheet below steps back for how much of the top sheet is in view: eased at both ends, and done while half of
- * the top sheet is still on screen. A scaled layer is drawn a touch soft and is sharp again only at exactly full size, so
- * it comes into focus the moment it lands; landing as the top sheet left read as a jump into focus at the end of a close.
- * Now it lands, gently, while the top sheet still covers half the screen and is sliding away at its fastest. */
-const LAND = 0.5;
-const settle = (s: number) => { const t = clamp01((s - LAND) / (1 - LAND)); return t * t * (3 - 2 * t); };
 
 /**
  * Bottom sheet: swipe down from anywhere (when its list is at the top) or flick to dismiss; interruptible; keyboard-aware.
@@ -216,7 +214,7 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
   // keyboard that changes height on the way (letters → numbers) never makes it jump.
   const line = useRef({ a: 0, b: 1 });
   const liftOf = (k: number) => (k < 0.5 ? 0 : Math.max(0, line.current.a + line.current.b * k));
-  const transform = useTransform([shift, bs, kbHere], ([sh, b, k]: number[]) => `translate3d(0, ${snapPx(sh - liftOf(k))}px, 0) scale(${1 - STACK_SCALE * b})`);
+  const transform = useTransform([shift, bs, kbHere], ([sh, b, k]: number[]) => `translate3d(0, ${snapPx(sh + STACK_LIFT * b - liftOf(k)) - STACK_LIFT * b}px, 0) scale(${1 - STACK_SCALE * b})`);
   const rise = useTransform(kbHere, (k: number) => k - liftOf(k)); // how far the buttons ride above the sheet's own bottom
   // the room the keyboard will cover, made once per keyboard change; the sheet's height is held while it is there, so a
   // sheet as tall as its contents doesn't grow with the extra room
@@ -277,7 +275,7 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
     if (reduce) return;
     const b = bs.get();
     const k = liftOf(kbHere.get());
-    m.add(mirrorProgress(ref.current, p0, p1, sp, vel, (pp) => ({ transform: `translate3d(0, ${snapPx((1 - pp) * dist.current - STACK_LIFT * b - k)}px, 0) scale(${1 - STACK_SCALE * b})` }), [], true));
+    m.add(mirrorProgress(ref.current, p0, p1, sp, vel, (pp) => ({ transform: `translate3d(0, ${snapPx((1 - pp) * dist.current - k) - STACK_LIFT * b}px, 0) scale(${1 - STACK_SCALE * b})` }), [], true));
     m.add(...mirrorVeil(scrimRef.current, p0, p1, sp, vel, undefined, seenOf.current), small ? null : mirrorStage(id, p0, p1, sp, vel, seenOf.current), mirrorOrb(ref.current, p0, p1, sp, vel, (pp) => (1 - pp) * dist.current));
   };
   useEffect(() => {
@@ -327,7 +325,10 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
     // eslint-disable-next-line
   }, []);
   // Stepping back behind a sheet that opens on top is not an animation of its own: it follows THAT sheet's progress, frame
-  // for frame — as it rises, as your finger drags it down, as it leaves — so the two can never drift apart.
+  // for frame — as it rises, as your finger drags it down, as it leaves — so the two can never drift apart. How far it steps
+  // back is exactly how much of the top sheet is in view, the number the dim goes by: the two start on the same frame and
+  // finish together on close, the moment the top sheet has left the screen. (It used to land while half the top sheet was
+  // still up: on a close that is the first few frames, so it snapped back in a sixteenth of a second while the dim took a fifth.)
   const follow = useRef<(() => void) | null>(null);
   useEffect(() => {
     if (!behind) return;
@@ -339,8 +340,8 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
     if (h?.small) return; // a small pop-up on top: this one stays where it is, as the page does
     if (!h) { const c = animate(bs, 1, reduce ? { duration: 0.01 } : SPRING); return () => c.stop(); }
     const seen = inView(h.el);
-    bs.set(settle(seen(h.engage.e.get())));
-    const off = h.engage.e.on('change', (v) => bs.set(settle(seen(v))));
+    bs.set(seen(h.engage.e.get()));
+    const off = h.engage.e.on('change', (v) => bs.set(seen(v)));
     const done = () => { off(); follow.current = null; if (bs.get() > 0.01) animate(bs, 0, reduce ? { duration: 0.01 } : SPRING); };
     h.gone.add(done);
     follow.current = () => { off(); h.gone.delete(done); };
@@ -536,8 +537,8 @@ export function useStackedBehind(el: { current: HTMLElement | null }, drag: Moti
     if (!h || h.small) return;
     follow.current?.();
     const seen = inView(h.el);
-    bs.set(settle(seen(h.engage.e.get())));
-    const off = h.engage.e.on('change', (v) => bs.set(settle(seen(v))));
+    bs.set(seen(h.engage.e.get()));
+    const off = h.engage.e.on('change', (v) => bs.set(seen(v)));
     // kept while the top sheet leaves, released when it is gone
     const done = () => { off(); follow.current = null; if (bs.get() > 0.01) animate(bs, 0, reduce ? { duration: 0.01 } : SPRING); };
     h.gone.add(done);
@@ -546,5 +547,5 @@ export function useStackedBehind(el: { current: HTMLElement | null }, drag: Moti
   }, [upperId]);
   useEffect(() => () => follow.current?.(), []);
   useEffect(() => bs.on('change', (b) => markStacked(el.current, b)), []); // eslint-disable-line
-  return useTransform([drag, bs], ([d, b]: number[]) => `translate3d(0, ${snapPx(d - STACK_LIFT * b)}px, 0) scale(${1 - STACK_SCALE * b})`);
+  return useTransform([drag, bs], ([d, b]: number[]) => `translate3d(0, ${snapPx(d) - STACK_LIFT * b}px, 0) scale(${1 - STACK_SCALE * b})`);
 }
