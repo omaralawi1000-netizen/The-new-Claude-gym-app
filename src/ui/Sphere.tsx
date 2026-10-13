@@ -79,6 +79,12 @@ export function orbGlide(sp: { stiffness: number; damping: number; mass?: number
 let orbEl: HTMLElement | null = null;
 let dockRest: { X: number; Y: number; S: number } | null = null;
 const orbLock = { bucket: 0 };
+/** A slot about to grow or shrink by a CSS transition (the orb screen's sphere stepping up or back): the canvas keeps the
+ *  larger size for the whole change, as a flight does, instead of being made anew at every 24 px step on the way (each one
+ *  a new buffer for the graphics chip; growing back for "Say more" made it six times in half a second). Looks the same:
+ *  it is drawn at that size and scaled. */
+const orbHold = { bucket: 0, until: 0 };
+export function holdOrbSize(px: number, ms: number) { orbHold.bucket = Math.ceil(px / 24) * 24; orbHold.until = performance.now() + ms; }
 let orbAnim: Animation | null = null;
 const PICK = 30; // px: how softly the dock hands the orb over to a rising slot (a soft minimum, so its speed never jumps)
 const smooth01 = (x: number) => { const t = Math.min(1, Math.max(0, x)); return t * t * (3 - 2 * t); };
@@ -488,7 +494,8 @@ export function SphereStage() {
       } else { wasLifted = false; wasLanded = false; }
       // The canvas is drawn at a size bucket and scaled down with a transform. Resizing a canvas (and the element) on
       // every frame of a flight reallocated its buffer and re-laid it out each frame — a stutter source.
-      const bucket = orbLock.bucket || Math.ceil(size / 24) * 24;
+      const natural = Math.ceil(size / 24) * 24;
+      const bucket = orbLock.bucket || (top > 0 && performance.now() < orbHold.until ? Math.max(orbHold.bucket, natural) : natural);
       if (el.style.opacity !== '1') el.style.opacity = '1';
       if (el.style.width !== `${bucket}px`) el.style.width = el.style.height = `${bucket}px`;
       const tf = `translate3d(${X}px, ${Y}px, 0) scale(${size / bucket})`;

@@ -26,6 +26,8 @@ type Msg =
   | { id: string; role: 'action'; results: AgentResult[]; undone: string[]; confirmed: string[] }
 
 const THREAD = 'aven.coach';
+/** How many of the newest saved messages are built on the tap that opens the Coach (the rest follow, see `older`). */
+const TAIL = 6;
 /** The Coach conversation as it was left (cards come back without their Undo: that only works right after the change). */
 function loadThread(): Msg[] {
   try {
@@ -60,6 +62,10 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     ...(x.reply ? [{ id: uid('m'), role: 'model' as const, text: x.reply, seeded: true, at: Date.now() }] : []),
   ])]);
   const [leaving, setLeaving] = useState<Msg[] | null>(null);
+  // A long saved chat is not built all at once on the tap that opens the Coach (60 messages of word-by-word text held the
+  // tap for ~90 ms on the phone): the newest ones are there from the first frame, scrolled to the bottom as always, and the
+  // older ones are added above them a couple at a time once the sheet has risen, with the scroll kept exactly in place.
+  const [older, setOlder] = useState(() => Math.max(0, msgs.length - TAIL));
   useEffect(() => { if (!msgs.some((m) => m.role === 'model' && m.streaming)) saveThread(msgs); }, [msgs]);
   // back to an old conversation after a break: the suggestions come back under it until something is sent
   const [resumed, setResumed] = useState(() => { const last = [...msgs].reverse().find((m) => 'at' in m && m.at) as { at?: number } | undefined; return msgs.length > 0 && !props.ask && !props.listen && (!last?.at || Date.now() - last.at > 30 * 60_000); });
@@ -80,11 +86,28 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   const msgsRef = useRef<Msg[]>([]); msgsRef.current = msgs;
 
   useEffect(() => { alive.current = true; return () => { alive.current = false; clearing.current?.cancel(); stopSpeaking(); ctl.current?.abort(); mic.release('coach'); for (const m of msgsRef.current) if ('image' in m && m.image) URL.revokeObjectURL(m.image); }; }, []);
-  // Saved chat is placed before the first paint; new lines follow smoothly until you scroll up to read.
+  // The older messages are added above what you are looking at, and it stays exactly where it is.
+  const placed = useRef(false);
+  const fromBottom = useRef(-1);
   useLayoutEffect(() => {
     const el = bodyRef.current; if (!el) return;
-    el.scrollTop = el.scrollHeight; lastScroll.current = el.scrollTop;
+    if (!placed.current) {
+      // the newest messages don't fill the screen: build more of them now, before the first paint, so nothing lands
+      // later above a list that isn't scrollable yet
+      if (older > 0 && el.scrollHeight <= el.clientHeight + 1) { setOlder((n) => Math.max(0, n - TAIL)); return; }
+      placed.current = true;
+      el.scrollTop = el.scrollHeight;
+    } else if (fromBottom.current >= 0) {
+      el.scrollTop = el.scrollHeight - fromBottom.current; fromBottom.current = -1;
+    }
+    lastScroll.current = el.scrollTop;
     el.toggleAttribute('data-scrollable', el.scrollHeight > el.clientHeight + 1);
+  }, [older]);
+  // Saved chat is placed before the first paint (below, with the older messages); new lines follow smoothly until you
+  // scroll up to read.
+  useLayoutEffect(() => {
+    const el = bodyRef.current; if (!el) return;
+    if (placed.current) { el.scrollTop = el.scrollHeight; lastScroll.current = el.scrollTop; }
     const ro = new ResizeObserver(() => {
       el.toggleAttribute('data-scrollable', el.scrollHeight > el.clientHeight + 1);
       if (!following.current || el.scrollHeight - el.clientHeight - el.scrollTop <= 1) return;
@@ -151,6 +174,17 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       anims[0].finished.then(land, land);
     }
   });
+  const begun = useRef(false);
+  useEffect(() => {
+    if (!older || !placed.current) return;
+    let id = 0;
+    const more = () => { const el = bodyRef.current; if (el) fromBottom.current = el.scrollHeight - el.scrollTop; setOlder((n) => Math.max(0, n - 2)); };
+    const idle = 'requestIdleCallback' in window ? window.requestIdleCallback : null;
+    // the first ones wait until the sheet has risen; then two at a time, whenever the phone has a moment
+    const wait = setTimeout(() => { id = idle ? idle(more, { timeout: 400 }) : window.setTimeout(more, 16); }, begun.current ? 0 : 700);
+    begun.current = true;
+    return () => { clearTimeout(wait); if (idle) window.cancelIdleCallback(id); else clearTimeout(id); };
+  }, [older]);
 
 
   const say = (m: Msg) => setMsgs((x) => [...x, m]);
@@ -165,11 +199,11 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     const previous = msgsRef.current;
     ctl.current?.abort(); stopSpeaking();
     // Clear the conversation now; only its visible text waits for the brief exit.
-    msgsRef.current = []; setMsgs([]); saveThread([]); setResumed(false);
+    msgsRef.current = []; setMsgs([]); saveThread([]); setResumed(false); setOlder(0);
     const thread = bodyRef.current?.querySelector<HTMLElement>('.coach-thread');
     const reduce = document.documentElement.dataset.motion === 'reduce' || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (!thread || reduce) return;
-    setLeaving(previous);
+    setLeaving(previous.slice(older)); // only what was on screen (older saved messages not built yet stay out)
     thread.style.pointerEvents = 'none';
     const animation = thread.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translate3d(0, -4px, 0)' }], { duration: 160, easing: 'cubic-bezier(.4, 0, 1, 1)', fill: 'forwards' });
     clearing.current = animation;
@@ -334,6 +368,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
 
   // the suggestions: on an empty chat at the top; when you come back to an old chat, under it (until you send something)
   const shown = leaving ?? msgs;
+  const listed = older ? shown.slice(older) : shown;
   const tipsBlock = (
               <div className="stack gap12">
                 {noKey && <div className="small" style={{ color: 'var(--warn)' }}>{t('Add an AI key to chat.')} <button className="chip sm acc press" style={{ marginLeft: 6 }} onClick={() => push('settings', { section: 'ai' })}>{t('Add a key')}</button></div>}
@@ -387,7 +422,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
           <>
             {shown.length === 0 && tipsBlock}
             <div className="stack coach-thread" style={{ gap: 16, marginTop: shown.length ? 0 : 16 }}>
-              {shown.map((m) => (
+              {listed.map((m) => (
                 <div key={m.id} data-mid={m.id} className={m.role === 'user' && !m.seeded && !flown(m.id) ? 'coach-sent' : undefined}
                   style={{ transformOrigin: m.role === 'user' ? '100% 100%' : '0% 0%', alignSelf: m.role === 'user' ? 'flex-end' : 'stretch', maxWidth: m.role === 'user' ? '84%' : '100%', display: m.role === 'user' ? 'flex' : undefined }}>
                   {m.role === 'user' && (
