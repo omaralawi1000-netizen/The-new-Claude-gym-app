@@ -122,9 +122,10 @@ export function satPx(): number {
 export const contentTransform = (v: number) => `scale(${(1 - 0.05 * v).toFixed(5)})`;
 
 /** Mirror the page's content behind (it sinks back) — only when this popup alone sets its depth. */
-export function mirrorStage(id: string, p0: number, p1: number, sp: { stiffness: number; damping: number; mass?: number }, velocity: number): Animation | null {
+export function mirrorStage(id: string, p0: number, p1: number, sp: { stiffness: number; damping: number; mass?: number }, velocity: number, map?: ((p: number) => number) & { knee?: number }): Animation | null {
   for (const [k, v] of open) if (k !== id && v.get() > 0.001) return null;
-  return mirrorProgress(document.querySelector('.stage-content'), p0, p1, sp, velocity, (p) => ({ transform: contentTransform(clamp01(p)) }));
+  const m = map ?? ((p: number) => p); // map: the popup's progress → how far the page recedes (how much of a sheet is in view)
+  return mirrorProgress(document.querySelector('.stage-content'), p0, p1, sp, velocity, (p) => ({ transform: contentTransform(clamp01(m(p))) }), map?.knee != null ? [map.knee] : []);
 }
 
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));

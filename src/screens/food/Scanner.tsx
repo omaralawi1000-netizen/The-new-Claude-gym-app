@@ -59,7 +59,8 @@ export function Scanner({ props }: { props: { date: string; mealId: string } }) 
         v.srcObject = stream; await v.play();
         setCam('live');
         // the picture fades in only once its first frame is on screen: before that the phone draws an empty grey box (and
-        // "Starting camera…" vanished first), a flicker of three looks instead of one calm fade from the dark box
+        // "Starting camera…" vanished first), a flicker of three looks instead of one calm fade from the dark box; the words
+        // go first, then the picture comes (fading the two across each other left the words over the barcode)
         const rvfc = (v as HTMLVideoElement & { requestVideoFrameCallback?: (cb: () => void) => number }).requestVideoFrameCallback;
         if (rvfc) rvfc.call(v, () => { if (!stopped) setShown(true); });
         else if (v.readyState >= 2) setShown(true); else v.addEventListener('loadeddata', () => { if (!stopped) setShown(true); }, { once: true });
@@ -84,9 +85,9 @@ export function Scanner({ props }: { props: { date: string; mealId: string } }) 
       <div className="sheet-body">
         {supported && cam !== 'denied' && cam !== 'error' && (
           <div style={{ position: 'relative', borderRadius: 'var(--r-lg)', overflow: 'hidden', aspectRatio: '4 / 3', background: '#000', boxShadow: 'var(--sh-a)' }}>
-            <video ref={video} playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: shown ? 1 : 0, transition: 'opacity 420ms var(--ease-out)' }} />
+            <video ref={video} playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: shown ? 1 : 0, transition: shown ? 'opacity 420ms var(--ease-out) 180ms' : 'none' }} />
             <div style={{ position: 'absolute', inset: '24% 10%', border: '2px solid rgba(255,255,255,.85)', borderRadius: 14, boxShadow: '0 0 0 999px rgba(0,0,0,.35)' }} />
-            <div className="small" aria-hidden={shown || undefined} style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', color: '#fff', opacity: shown ? 0 : 1, transition: 'opacity 300ms var(--ease-out)', pointerEvents: 'none' }}>{t('Starting camera…')}</div>
+            <div className="small" aria-hidden={shown || undefined} style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', color: '#fff', opacity: shown ? 0 : 1, transition: 'opacity 180ms linear', pointerEvents: 'none' }}>{t('Starting camera…')}</div>
           </div>
         )}
         {cam === 'unsupported' && <div className="plinth-2 small" style={{ padding: 14 }}><b>{t('Camera scanning isn’t supported in this browser.')}</b><div className="t2" style={{ marginTop: 4 }}>{t('Type the number under the barcode instead.')}</div></div>}

@@ -103,12 +103,15 @@ export const SNAP = TAP;
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 
 const EXIT_SPRING = SURFACE_EXIT;
-/** A sheet over another sheet: its dim over the one below goes by how much of it is in view (it travels further than the
- * screen: its own height and a little more), so that dim is gone the moment it has left the screen, not a dozen frames
- * later. */
+/** A sheet's dim (over the page, or over a sheet below) and the page's recede go by how much of the sheet is in view: it
+ * travels further than the screen (its own height and 40 px more, for its shadow), so on close they are gone the moment
+ * it has left the screen, not a few frames later while it finishes its unseen last 40 px. */
 const inView = (top: HTMLElement) => {
-  const travel = Math.max(1, window.innerHeight - top.offsetTop), dist = top.offsetHeight + 40; // dist: the top sheet's own travel (measure, below)
-  return Object.assign((v: number) => clamp01(1 - ((1 - v) * dist) / travel), { knee: clamp01(1 - travel / dist) }); // knee: where it starts to count
+  const dist = top.offsetHeight + 40, travel = Math.min(dist, Math.max(1, window.innerHeight - top.offsetTop)); // dist: the sheet's own travel (measure, below); a floating card may not leave the screen before it ends
+  return Object.assign((v: number) => clamp01(1 - ((1 - v) * dist) / travel), {
+    knee: clamp01(1 - travel / dist), // where it starts to count
+    inv: (s: number) => 1 - ((1 - s) * travel) / dist, // the progress at which it counts s
+  });
 };
 
 /**
@@ -226,7 +229,7 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
   const engage = useMemo(() => ({ e, shift }), [e, shift]);
   // Over another sheet, its dim (and its share of the status bar's) goes by how much of it is in view, as the sheet below
   // steps back: so that dim is gone the moment this one has left the screen, together with the sheet below settling.
-  const seenOf = useRef<((v: number) => number) & { knee?: number }>((v: number) => v);
+  const seenOf = useRef<((v: number) => number) & { knee?: number; inv?: (s: number) => number }>((v: number) => v);
   const dim = useTransform(e, (v) => seenOf.current(v));
   const room = availableHeight(0, TOP_GAP[sz]); // the most it may take (it never shrinks for the keyboard: see above)
   // a small pop-up leaves the page where it is: it doesn't count towards the page stepping back
@@ -255,7 +258,7 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
     if (reduce) return;
     const k = liftOf(kbHere.get());
     m.add(mirrorProgress(ref.current, p0, p1, sp, vel, (pp) => ({ transform: `translate3d(0, ${snapPx((1 - pp) * dist.current - k)}px, 0)` }), [], true));
-    m.add(...mirrorVeil(scrimRef.current, p0, p1, sp, vel, undefined, seenOf.current), small ? null : mirrorStage(id, p0, p1, sp, vel), mirrorOrb(ref.current, p0, p1, sp, vel, (pp) => (1 - pp) * dist.current));
+    m.add(...mirrorVeil(scrimRef.current, p0, p1, sp, vel, undefined, seenOf.current), small ? null : mirrorStage(id, p0, p1, sp, vel, seenOf.current), mirrorOrb(ref.current, p0, p1, sp, vel, (pp) => (1 - pp) * dist.current));
   };
   useEffect(() => {
     const stop = () => mirror.current!.cancel();
@@ -269,7 +272,7 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
     const el = ref.current; if (!el) return;
     // short sheets are thinner glass (more of the colour comes through), full-height ones denser for long reading
     // (not while the keyboard is up: a tall sheet squeezed above it used to count as short and change its glass mid-ride)
-    const measure = () => { const h = el.offsetHeight; dist.current = h + 40; if (overSheet) seenOf.current = inView(el); if (kb.get() > 1 || el.dataset.held) return; natural.current = h; const short = h < window.innerHeight * 0.62; if ((el.dataset.size === 'short') !== short) el.dataset.size = short ? 'short' : 'full'; };
+    const measure = () => { const h = el.offsetHeight; dist.current = h + 40; seenOf.current = inView(el); if (kb.get() > 1 || el.dataset.held) return; natural.current = h; const short = h < window.innerHeight * 0.62; if ((el.dataset.size === 'short') !== short) el.dataset.size = short ? 'short' : 'full'; };
     measure();
     const ro = new ResizeObserver(measure); ro.observe(el);
     return () => ro.disconnect();
