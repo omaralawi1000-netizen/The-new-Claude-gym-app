@@ -96,10 +96,9 @@ final class RestNotifications {
                 .setChannelId(CH_OVER)
                 .setCategory(Notification.CATEGORY_ALARM)
                 .setVisibility(Notification.VISIBILITY_PUBLIC);
-            // the back-up alarm already rang for this rest: take its place without ringing a second time
+            // the back-up alarm already rang for this rest: take its place on the quiet channel, without ringing again
             if (now - prefs(c).getLong("nativeRangAt", 0) < 120_000) {
-                if (Build.VERSION.SDK_INT >= 31) b.setSilent(true);
-                b.setOnlyAlertOnce(true);
+                b.setChannelId(CH_REST);
                 c.getSystemService(NotificationManager.class).cancel(NATIVE_OVER_TAG, 1);
             }
             return b.build();
