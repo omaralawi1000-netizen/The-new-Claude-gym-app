@@ -94,15 +94,41 @@ import { mirrorOrb } from './Sphere';
 import { useUI } from '../state/ui';
 import { useSwipeDown } from './swipe';
 
-import { SMOOTH, SURFACE, SURFACE_EXIT, TAP, apple, springCurve } from './motion';
+import { SMOOTH, SURFACE, SURFACE_EXIT, TAP, apple, snapPx, springCurve } from './motion';
 // older names for the motion language (ui/motion.ts)
-export const SPRING = SURFACE;
+export const SPRING = { ...SURFACE, restDelta: 0.00005, restSpeed: 0.001 }; // comes to rest within 0.05 px, a screen pixel at a time (snapPx), not with a last little hop
 export const SOFT = SMOOTH;
 export const SNAP = TAP;
 
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 
 const EXIT_SPRING = SURFACE_EXIT;
+/** A sheet's dim (over the page, or over a sheet below) and the page's recede go by how much of the sheet is in view: it
+ * travels further than the screen (its own height and 40 px more, for its shadow), so on close they are gone the moment
+ * it has left the screen, not a few frames later while it finishes its unseen last 40 px. */
+const inView = (top: HTMLElement) => {
+  const dist = top.offsetHeight + 40, travel = Math.min(dist, Math.max(1, window.innerHeight - top.offsetTop)); // dist: the sheet's own travel (measure, below); a floating card may not leave the screen before it ends
+  return Object.assign((v: number) => clamp01(1 - ((1 - v) * dist) / travel), {
+    knee: clamp01(1 - travel / dist), // where it starts to count
+    inv: (s: number) => 1 - ((1 - s) * travel) / dist, // the progress at which it counts s
+  });
+};
+
+/** A sheet with another sheet on top steps back a little: it shrinks to 96.5 % from its top edge, which rises STACK_LIFT px,
+ * and dims under the top one. Just enough to read as depth (the first version shrank to 93 % and peeked 10 px above, the
+ * one before that 94 % and rose 15 px: both read as the card jumping back). 8 px, not 4: a 4 px strip above the top sheet
+ * read as its border drawn twice, not as a card behind it.
+ * The rise is never rounded to whole pixels (the slide under it is): a scaled card is drawn a touch soft wherever it sits,
+ * and rounding its last, slow fractions of a pixel made it hold still and then tick half a pixel as it landed. It starts
+ * and ends on whole pixels (0 and 8), so at rest it is as sharp as before. */
+const STACK_SCALE = 0.035;
+const STACK_LIFT = 8;
+/** Stepped back, a card drops its drop shadow (CSS [data-stacked]): set back and narrower, it showed beside it. It goes and
+ * comes back at the very start and end, when the card is still full width and its shadow hardly shows. */
+function markStacked(el: HTMLElement | null, b: number) {
+  if (!el || (b >= 0.001) === ('stacked' in el.dataset)) return;
+  if (b >= 0.001) el.dataset.stacked = ''; else delete el.dataset.stacked;
+}
 
 /**
  * Bottom sheet: swipe down from anywhere (when its list is at the top) or flick to dismiss; interruptible; keyboard-aware.
@@ -130,15 +156,22 @@ export function Sheet(props: SheetProps) {
 }
 
 function HostSheet({ children, onClose, size, tall: tallProp, instant, label, foot, z: zProp = 60, nested }: SheetProps) {
-  const sz: SheetSize = size ?? (tallProp ? 'large' : 'medium');
+  const meta = useContext(OverlayMeta);
+  // Opened over another pop-up, a tall sheet takes the full height, so it covers the one below whole (a large one left a
+  // dimmed strip of it showing above).
+  const [overSheet] = useState(() => {
+    const cur = useUI.getState().overlays, at = meta ? cur.findIndex((o) => o.id === meta.id) : -1;
+    return !nested && at > 0 && cur.slice(0, at).some((o) => !o.page && !hosts.get(o.id)?.small);
+  });
+  let sz: SheetSize = size ?? (tallProp ? 'large' : 'medium');
+  if (sz === 'large' && overSheet) sz = 'full';
   const tall = sz === 'full' || sz === 'large';
   const small = sz === 'small';
   const z = useOverlayZ(zProp) + (nested ? 5 : 0);
-  const meta = useContext(OverlayMeta);
   const ov = useUI((u) => u.overlays);
   const i = nested || !meta ? -1 : ov.findIndex((o) => o.id === meta.id);
-  // a sheet with another sheet above it steps back, like a stacked card (and only the top one answers Escape). Pages opened
-  // inside it don't count: they are this same sheet. While it leaves, it keeps how it looked.
+  // a sheet with another sheet above it steps back a little and dims under it (and only the top one answers Escape).
+  // Pages opened inside it don't count: they are this same sheet. While it leaves, it keeps how it looked.
   const g = i >= 0 ? group(ov, i) : null;
   const frozen = useRef({ behind: false, deep: false, covered: false, hi: i });
   // deep: two or more sheets on top of it — only then does it give up its frost (see .sheet.behind.deep)
@@ -153,7 +186,7 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
   const p = useMotionValue(0);   // opening progress (a spring)
   const y = useMotionValue(0);   // the finger
   const bs = useMotionValue(0);  // stepped back behind another sheet
-  const shift = useTransform([p, y, bs], ([pp, yy, b]: number[]) => (1 - pp) * dist.current + yy - 6 * b);
+  const shift = useTransform([p, y, bs], ([pp, yy, b]: number[]) => (1 - pp) * dist.current + yy - STACK_LIFT * b);
   // THE KEYBOARD, as in iOS and the Claude app: the keyboard slides over the sheet, and nothing is re-laid out while it moves.
   //  - A sheet never changes size for it. It rises only as far as it can without its top passing the gap under the status
   //    bar (a full-height sheet doesn't rise at all); the rest of it simply goes under the keyboard.
@@ -181,7 +214,7 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
   // keyboard that changes height on the way (letters → numbers) never makes it jump.
   const line = useRef({ a: 0, b: 1 });
   const liftOf = (k: number) => (k < 0.5 ? 0 : Math.max(0, line.current.a + line.current.b * k));
-  const transform = useTransform([shift, bs, kbHere], ([sh, b, k]: number[]) => `translate3d(0, ${sh - liftOf(k)}px, 0) scale(${1 - 0.06 * b})`);
+  const transform = useTransform([shift, bs, kbHere], ([sh, b, k]: number[]) => `translate3d(0, ${snapPx(sh + STACK_LIFT * b - liftOf(k)) - STACK_LIFT * b}px, 0) scale(${1 - STACK_SCALE * b})`);
   const rise = useTransform(kbHere, (k: number) => k - liftOf(k)); // how far the buttons ride above the sheet's own bottom
   // the room the keyboard will cover, made once per keyboard change; the sheet's height is held while it is there, so a
   // sheet as tall as its contents doesn't grow with the extra room
@@ -211,9 +244,13 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
   }, []);
   const e = useTransform([p, y], ([pp, yy]: number[]) => clamp01(pp - Math.max(0, yy) / dist.current));
   const engage = useMemo(() => ({ e, shift }), [e, shift]);
+  // Over another sheet, its dim (and its share of the status bar's) goes by how much of it is in view, as the sheet below
+  // steps back: so that dim is gone the moment this one has left the screen, together with the sheet below settling.
+  const seenOf = useRef<((v: number) => number) & { knee?: number; inv?: (s: number) => number }>((v: number) => v);
+  const dim = useTransform(e, (v) => seenOf.current(v));
   const room = availableHeight(0, TOP_GAP[sz]); // the most it may take (it never shrinks for the keyboard: see above)
   // a small pop-up leaves the page where it is: it doesn't count towards the page stepping back
-  useEffect(() => (small ? undefined : trackDepth(id, e)), [id, e, small]);
+  useEffect(() => (small ? undefined : trackDepth(id, dim)), [id, dim, small]);
   const swipeV = useRef(0); // px/s the finger had when it let go
   // a swipe on a page inside it closes the whole sheet, pages and all
   useSwipeDown(ref, y, (v) => {
@@ -233,13 +270,13 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
   // drawn at the screen's full rate (see mirrorSpring). A finger or a sheet stacking on top hands control straight back.
   const scrimRef = useRef<HTMLDivElement>(null);
   const mirror = useRef<Mirror | null>(null); if (!mirror.current) mirror.current = new Mirror();
-  const runMirror = (p0: number, p1: number, sp: typeof SURFACE, vel: number) => {
+  const runMirror = (p0: number, p1: number, sp: { stiffness: number; damping: number; mass?: number }, vel: number) => {
     const m = mirror.current!; m.cancel();
     if (reduce) return;
     const b = bs.get();
     const k = liftOf(kbHere.get());
-    m.add(mirrorProgress(ref.current, p0, p1, sp, vel, (pp) => ({ transform: `translate3d(0, ${(1 - pp) * dist.current - k}px, 0) scale(${1 - 0.06 * b})` })));
-    m.add(...mirrorVeil(scrimRef.current, p0, p1, sp, vel), small ? null : mirrorStage(id, p0, p1, sp, vel), mirrorOrb(ref.current, p0, p1, sp, vel, (pp) => (1 - pp) * dist.current));
+    m.add(mirrorProgress(ref.current, p0, p1, sp, vel, (pp) => ({ transform: `translate3d(0, ${snapPx((1 - pp) * dist.current - k) - STACK_LIFT * b}px, 0) scale(${1 - STACK_SCALE * b})` }), [], true));
+    m.add(...mirrorVeil(scrimRef.current, p0, p1, sp, vel, undefined, seenOf.current), small ? null : mirrorStage(id, p0, p1, sp, vel, seenOf.current), mirrorOrb(ref.current, p0, p1, sp, vel, (pp) => (1 - pp) * dist.current));
   };
   useEffect(() => {
     const stop = () => mirror.current!.cancel();
@@ -253,7 +290,7 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
     const el = ref.current; if (!el) return;
     // short sheets are thinner glass (more of the colour comes through), full-height ones denser for long reading
     // (not while the keyboard is up: a tall sheet squeezed above it used to count as short and change its glass mid-ride)
-    const measure = () => { const h = el.offsetHeight; dist.current = h + 40; if (kb.get() > 1 || el.dataset.held) return; natural.current = h; const short = h < window.innerHeight * 0.62; if ((el.dataset.size === 'short') !== short) el.dataset.size = short ? 'short' : 'full'; };
+    const measure = () => { const h = el.offsetHeight; dist.current = h + 40; seenOf.current = inView(el); if (kb.get() > 1 || el.dataset.held) return; natural.current = h; const short = h < window.innerHeight * 0.62; if ((el.dataset.size === 'short') !== short) el.dataset.size = short ? 'short' : 'full'; };
     measure();
     const ro = new ResizeObserver(measure); ro.observe(el);
     return () => ro.disconnect();
@@ -288,8 +325,10 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
     // eslint-disable-next-line
   }, []);
   // Stepping back behind a sheet that opens on top is not an animation of its own: it follows THAT sheet's progress, frame
-  // for frame — as it rises, as your finger drags it down, as it leaves — so the two can never drift apart (it used to stay
-  // stepped back while you dragged the top one away, then snap forward once it had gone).
+  // for frame — as it rises, as your finger drags it down, as it leaves — so the two can never drift apart. How far it steps
+  // back is exactly how much of the top sheet is in view, the number the dim goes by: the two start on the same frame and
+  // finish together on close, the moment the top sheet has left the screen. (It used to land while half the top sheet was
+  // still up: on a close that is the first few frames, so it snapped back in a sixteenth of a second while the dim took a fifth.)
   const follow = useRef<(() => void) | null>(null);
   useEffect(() => {
     if (!behind) return;
@@ -300,8 +339,9 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
     const h = upper ? hosts.get(upper.id) : undefined;
     if (h?.small) return; // a small pop-up on top: this one stays where it is, as the page does
     if (!h) { const c = animate(bs, 1, reduce ? { duration: 0.01 } : SPRING); return () => c.stop(); }
-    bs.set(h.engage.e.get());
-    const off = h.engage.e.on('change', (v) => bs.set(v));
+    const seen = inView(h.el);
+    bs.set(seen(h.engage.e.get()));
+    const off = h.engage.e.on('change', (v) => bs.set(seen(v)));
     const done = () => { off(); follow.current = null; if (bs.get() > 0.01) animate(bs, 0, reduce ? { duration: 0.01 } : SPRING); };
     h.gone.add(done);
     follow.current = () => { off(); h.gone.delete(done); };
@@ -309,6 +349,7 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
     // eslint-disable-next-line
   }, [behind]);
   useEffect(() => () => follow.current?.(), []);
+  useEffect(() => bs.on('change', (b) => markStacked(ref.current, b)), []); // eslint-disable-line
   // leaving: whatever the finger left behind becomes progress, and the exit spring carries on at the finger's speed
   const [present, safeToRemove] = usePresence();
   const leaving = useRef(false);
@@ -330,7 +371,7 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
   }, [onClose]);
   return (
     <EngageContext.Provider value={engage}>
-      <Veil e={e} z={z - 1} onClick={onClose} elRef={scrimRef} className={`${behind ? 'veil-behind' : ''} ${small ? 'veil-light' : ''}`} />
+      <Veil e={dim} z={z - 1} onClick={onClose} elRef={scrimRef} className={`${behind ? 'veil-behind' : ''} ${small ? 'veil-light' : ''}`} />
       <motion.div
         ref={ref}
         className={`sheet sz-${sz} ${tall ? 'tall' : ''} ${behind ? 'behind' : ''} ${behind && deep ? 'deep' : ''}`}
@@ -346,6 +387,7 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
     </EngageContext.Provider>
   );
 }
+
 
 /**
  * A full-height pop-up opened from another full-height one (see PAGE_TYPES in state/ui.ts): the next page of the SAME sheet.
@@ -478,3 +520,4 @@ export function SheetHead({ title, sub, onClose, right, back: backProp }: { titl
 }
 
 export { AnimatePresence, motion };
+

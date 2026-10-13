@@ -8,12 +8,12 @@
 // → shots/film/<name>/000.jpg… (one per 1/60 s), times.json, bar.json (the theme-color at each frame, for the status bar)
 import fs from 'node:fs';
 import { launch } from './lib.mjs';
-// dsf: pixels per CSS px. The phone has 3.5; at 1 the browser rounds what moves inside a scrolled list to whole CSS px (it
+// dsf: pixels per CSS px (default 3.5, the phone's). at 1 the browser rounds what moves inside a scrolled list to whole CSS px (it
 // snaps to device pixels), which turns the last, slow pixels of every glide into 1 px ticks the phone doesn't have.
 // The scanner's camera shows shots/fake-camera.y4m (python3 scripts/fake-camera.py) when it is there.
-export async function steady({ theme = 'light', size = { width: 384, height: 802 }, dsf = Number(process.env.FILM_DSF || 3) } = {}) {
+export async function steady({ theme = 'light', size = { width: 384, height: 802 }, dsf = Number(process.env.FILM_DSF || 3.5) } = {}) {
   const cam = fs.existsSync('shots/fake-camera.y4m') ? ['--use-file-for-fake-video-capture=shots/fake-camera.y4m'] : [];
-  const { b, ctx, p, errors } = await launch({ theme, size, args: ['--deterministic-mode', '--enable-begin-frame-control', '--run-all-compositor-stages-before-draw', `--force-device-scale-factor=${dsf}`, ...cam] });
+  const { b, ctx, p, errors } = await launch({ theme, size, dsf, args: ['--deterministic-mode', '--enable-begin-frame-control', '--run-all-compositor-stages-before-draw', `--force-device-scale-factor=${dsf}`, ...cam] });
   await ctx.grantPermissions(['camera', 'microphone']);
   // the page's clock is the frame's time: scripts asking for the time between frames get the time of the frame
   await ctx.addInitScript(() => {
@@ -22,6 +22,19 @@ export async function steady({ theme = 'light', size = { width: 384, height: 802
     window.requestAnimationFrame = (cb) => raf((t) => { if (t > last) last = t; cb(t); });
     const tick = () => raf((t) => { if (t > last) last = t; tick(); }); tick();
     performance.now = () => (last >= 0 ? last : pn());
+    // and the date too (the workout timer): one frame of film is 1/60 s on the clock, not the second this machine took
+    const RealDate = Date; let d0 = 0, f0 = -1;
+    const now = () => { if (last < 0) return RealDate.now(); if (f0 < 0) { f0 = last; d0 = RealDate.now(); } return d0 + (last - f0); };
+    // eslint-disable-next-line no-global-assign
+    Date = class extends RealDate { constructor(...a) { if (a.length) super(...a); else super(now()); } static now() { return now(); } };
+  });
+  // FRAMEMUT=1: what changed in the page at each frame (attributes, added/removed elements, animations), for finding what
+  // switches on or off at rest (mut.json next to the frames)
+  if (process.env.FRAMEMUT) await ctx.addInitScript(() => {
+    const w = window; w.__mut = [];
+    const name = (n) => (n && n.nodeType === 1 ? n.tagName.toLowerCase() + (n.className && typeof n.className === 'string' ? '.' + n.className.trim().split(/\s+/).slice(0, 2).join('.') : '') : '#text');
+    new MutationObserver((ms) => { for (const m of ms) w.__mut.push(m.type === 'attributes' ? `${name(m.target)} @${m.attributeName}=${String(m.target.getAttribute(m.attributeName)).slice(0, 80)}` : `${name(m.target)} +${[...m.addedNodes].map(name).join(',')} -${[...m.removedNodes].map(name).join(',')}`); })
+      .observe(document, { subtree: true, attributes: true, childList: true });
   });
   const cdp = await ctx.newCDPSession(p);
   await cdp.send('HeadlessExperimental.enable');
@@ -36,12 +49,13 @@ export async function steady({ theme = 'light', size = { width: 384, height: 802
   async function film(name, fn, frames = 60) {
     pumping = false; await q;
     const dir = `shots/film/${name}`; fs.rmSync(dir, { recursive: true, force: true }); fs.mkdirSync(dir, { recursive: true });
-    const act = Promise.resolve().then(fn); const times = [], bars = [], log = [], skips = [];
+    const act = Promise.resolve().then(fn); const times = [], bars = [], log = [], skips = [], mut = [];
     for (let i = 0; i < frames; i++) {
       let r = await frame(true), tries = 0;
       while (!r.screenshotData && tries++ < 8) r = await frame(true, 0.01); // a frame that drew nothing: ask again, at (almost) the same time
       // FRAMELOG='.sheet, .wk-card': where each of those is at this frame (top edge in px, scale, browser-run animations on it), read from the page itself
       if (process.env.FRAMELOG) log.push(await p.evaluate((sel) => [...document.querySelectorAll(sel)].map((e) => { const r = e.getBoundingClientRect(); return [e.className.split(' ')[0] + (e.getAttribute('aria-label') ? ':' + e.getAttribute('aria-label') : ''), Math.round(r.top * 10) / 10, Math.round((r.width / e.offsetWidth) * 1000) / 1000, e.getAnimations().length]; }), process.env.FRAMELOG).catch(() => null));
+      if (process.env.FRAMEMUT) mut.push(await p.evaluate(() => { const m = window.__mut.splice(0); return { m: m.filter((x) => !/@style=.*translate3d|@style=.*opacity/.test(x)).slice(0, 40), n: m.length, anims: document.getAnimations().map((a) => (a.effect?.target ? (a.effect.target.className || a.effect.target.tagName) + ':' + (a.animationName || a.constructor.name) : '?')).slice(0, 12) }; }).catch(() => null));
       skips.push(tries);
       const out = `${dir}/${String(times.length).padStart(3, '0')}.jpg`;
       if (r.screenshotData) fs.writeFileSync(out, Buffer.from(r.screenshotData, 'base64'));
@@ -50,7 +64,7 @@ export async function steady({ theme = 'light', size = { width: 384, height: 802
       const t = times.length * STEP / 1000; times.push(t); bars.push([t, await bar()]);
     }
     await act.catch((e) => console.log(name, 'action failed:', String(e.message).slice(0, 160)));
-    fs.writeFileSync(`${dir}/times.json`, JSON.stringify(times)); if (log.length) fs.writeFileSync(`${dir}/log.json`, JSON.stringify(log)); fs.writeFileSync(`${dir}/skips.json`, JSON.stringify(skips)); fs.writeFileSync(`${dir}/bar.json`, JSON.stringify(bars));
+    fs.writeFileSync(`${dir}/times.json`, JSON.stringify(times)); if (log.length) fs.writeFileSync(`${dir}/log.json`, JSON.stringify(log)); if (mut.length) fs.writeFileSync(`${dir}/mut.json`, JSON.stringify(mut)); fs.writeFileSync(`${dir}/skips.json`, JSON.stringify(skips)); fs.writeFileSync(`${dir}/bar.json`, JSON.stringify(bars));
     pumping = true;
     console.log(`film ${name}: ${times.length} frames`);
   }

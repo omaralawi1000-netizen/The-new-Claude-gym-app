@@ -17,8 +17,8 @@ import { useT } from './lib/i18n';
 import { registerSW } from './pwa';
 import { dayKey } from './lib/dates';
 import { defaultMealId } from './lib/derive';
-import { contentTransform, stageCover, stageDepth } from './ui/engage';
-import { readRGB, setBarDepth, setBarTint } from './ui/statusBar';
+import { contentTransform, stageCover, stageDepth, stageLayers } from './ui/engage';
+import { readRGB, setBarCover, setBarDepth, setBarTint } from './ui/statusBar';
 import { setKeyboard } from './ui/keyboard';
 import { FpsMeter } from './ui/FpsMeter';
 
@@ -165,7 +165,6 @@ function useBarTint(app: React.RefObject<HTMLDivElement | null>, tab: string) {
 function useStageDepth(content: React.RefObject<HTMLDivElement | null>, stage: React.RefObject<HTMLDivElement | null>) {
   useEffect(() => {
     const apply = (v: number) => {
-      setBarDepth(v);
       const c = content.current; if (!c) return;
       const root = document.documentElement.dataset;
       const still = root.motion === 'reduce' || (root.motion !== 'full' && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -177,11 +176,14 @@ function useStageDepth(content: React.RefObject<HTMLDivElement | null>, stage: R
     };
     apply(stageDepth.get());
     const offDepth = stageDepth.on('change', apply);
+    // the status bar darkens with every dim over the page (a pop-up on a pop-up adds a second)
+    setBarDepth(stageLayers.get());
+    const offLayers = stageLayers.on('change', setBarDepth);
     // behind a full cover (the live workout) the page stops being drawn at all — see stageCover
-    const cover = (c: number) => { const st = stage.current; if (!st) return; const o = c >= 0.985 ? Math.max(0, (1 - c) / 0.015) : 1; st.style.opacity = o >= 1 ? '' : String(o); };
+    const cover = (c: number) => { setBarCover(c); const st = stage.current; if (!st) return; const o = c >= 0.985 ? Math.max(0, (1 - c) / 0.015) : 1; st.style.opacity = o >= 1 ? '' : String(o); };
     cover(stageCover.get());
     const offCover = stageCover.on('change', cover);
-    return () => { offDepth(); offCover(); };
+    return () => { offDepth(); offLayers(); offCover(); };
   }, [content, stage]);
 }
 

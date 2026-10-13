@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useRef } from 'react';
 import { animate, motionValue, useMotionValue, usePresence, useReducedMotion, type MotionValue } from 'motion/react';
-import { mirrorSpring } from './motion';
+import { highRefresh, mirrorSpring, springSamples } from './motion';
 
 /**
  * One number ties a popup to everything that has to move with it. `e` is how far the popup is open (0 = gone,
@@ -21,7 +21,9 @@ export const OverlayMeta = createContext<{ id: string; page: boolean } | null>(n
 const open = new Map<string, MotionValue<number>>();
 /** 0 = page at rest, 1 = page stepped back behind a fully open popup. */
 export const stageDepth = motionValue(0);
-function recompute() { let m = 0; for (const v of open.values()) m = Math.max(m, v.get()); stageDepth.set(m); }
+/** How many dims lie over the page: each open popup's progress, added up (a sheet on a sheet: 1 + the top one's progress). */
+export const stageLayers = motionValue(0);
+function recompute() { let m = 0, sum = 0; for (const v of open.values()) { const x = v.get(); m = Math.max(m, x); sum += Math.min(1, Math.max(0, x)); } stageDepth.set(m); stageLayers.set(sum); }
 export function trackDepth(id: string, e: MotionValue<number>) {
   open.set(id, e);
   const off = e.on('change', recompute);
@@ -88,10 +90,17 @@ export function useEngage(mirror?: (p0: number, p1: number, sp: typeof ENGAGE_SP
  * (the dim reaches full strength at 0.6). Returns null when it can't (or shouldn't) run — the script spring still runs
  * either way and is what you see then.
  */
-export function mirrorProgress(el: Element | null | undefined, p0: number, p1: number, sp: { stiffness: number; damping: number; mass?: number }, velocity: number, at: (p: number) => Keyframe, breaks: number[] = []): Animation | null {
+export function mirrorProgress(el: Element | null | undefined, p0: number, p1: number, sp: { stiffness: number; damping: number; mass?: number }, velocity: number, at: (p: number) => Keyframe, breaks: number[] = [], perFrame = false): Animation | null {
   const span = p1 - p0;
   if (!el || Math.abs(span) < 0.02) return null;
   const v0 = Math.max(-40, Math.min(40, velocity / span));
+  // perFrame: a keyframe for every 1/60 s of the spring, each at(p) as it is (so a position at(p) rounds to whole screen
+  // pixels stays on them), instead of the spring as an easing between two keyframes, which passes every fraction between
+  if (perFrame) {
+    if (!(el as HTMLElement).animate || !highRefresh()) return null;
+    const { xs } = springSamples(sp, v0, true), n = xs.length - 1;
+    try { return (el as HTMLElement).animate(xs.map((x, i) => ({ ...at(p0 + span * x), offset: i / n })), { duration: (n * 1000) / 60, easing: 'linear', fill: 'none' }); } catch { return null; }
+  }
   const frames: Keyframe[] = [{ ...at(p0), offset: 0 }];
   for (const b of breaks) { const x = (b - p0) / span; if (x > 0.001 && x < 0.999) frames.push({ ...at(b), offset: x }); }
   frames.sort((a, b) => (a.offset as number) - (b.offset as number));
@@ -113,9 +122,10 @@ export function satPx(): number {
 export const contentTransform = (v: number) => `scale(${(1 - 0.05 * v).toFixed(5)})`;
 
 /** Mirror the page's content behind (it sinks back) — only when this popup alone sets its depth. */
-export function mirrorStage(id: string, p0: number, p1: number, sp: { stiffness: number; damping: number; mass?: number }, velocity: number): Animation | null {
+export function mirrorStage(id: string, p0: number, p1: number, sp: { stiffness: number; damping: number; mass?: number }, velocity: number, map?: ((p: number) => number) & { knee?: number }): Animation | null {
   for (const [k, v] of open) if (k !== id && v.get() > 0.001) return null;
-  return mirrorProgress(document.querySelector('.stage-content'), p0, p1, sp, velocity, (p) => ({ transform: contentTransform(clamp01(p)) }));
+  const m = map ?? ((p: number) => p); // map: the popup's progress → how far the page recedes (how much of a sheet is in view)
+  return mirrorProgress(document.querySelector('.stage-content'), p0, p1, sp, velocity, (p) => ({ transform: contentTransform(clamp01(m(p))) }), map?.knee != null ? [map.knee] : []);
 }
 
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));

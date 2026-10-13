@@ -21,6 +21,7 @@ export function Scanner({ props }: { props: { date: string; mealId: string } }) 
   const swap = useUI((u) => u.swap);
   const video = useRef<HTMLVideoElement>(null);
   const [cam, setCam] = useState<Cam>('idle');
+  const [shown, setShown] = useState(false); // the camera's first frame is on screen
   const [code, setCode] = useState('');
   const [msg, setMsg] = useState<{ kind: 'info' | 'bad'; text: string; create?: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -50,10 +51,19 @@ export function Scanner({ props }: { props: { date: string; mealId: string } }) 
       setCam('starting');
       try {
         stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } } });
+        // the sheet puts its contents in a couple of frames after it starts to slide (see Sheet): a camera that answers
+        // sooner waits for its video element instead of failing
+        for (let i = 0; i < 60 && !video.current && !stopped; i++) await new Promise((r) => requestAnimationFrame(r));
         if (stopped) { stream.getTracks().forEach((x) => x.stop()); return; }
         const v = video.current!;
         v.srcObject = stream; await v.play();
         setCam('live');
+        // the picture fades in only once its first frame is on screen: before that the phone draws an empty grey box (and
+        // "Starting camera…" vanished first), a flicker of three looks instead of one calm fade from the dark box; the words
+        // go first, then the picture comes (fading the two across each other left the words over the barcode)
+        const rvfc = (v as HTMLVideoElement & { requestVideoFrameCallback?: (cb: () => void) => number }).requestVideoFrameCallback;
+        if (rvfc) rvfc.call(v, () => { if (!stopped) setShown(true); });
+        else if (v.readyState >= 2) setShown(true); else v.addEventListener('loadeddata', () => { if (!stopped) setShown(true); }, { once: true });
         const reader = await createReader();
         const loop = async () => {
           if (stopped) return;
@@ -75,9 +85,9 @@ export function Scanner({ props }: { props: { date: string; mealId: string } }) 
       <div className="sheet-body">
         {supported && cam !== 'denied' && cam !== 'error' && (
           <div style={{ position: 'relative', borderRadius: 'var(--r-lg)', overflow: 'hidden', aspectRatio: '4 / 3', background: '#000', boxShadow: 'var(--sh-a)' }}>
-            <video ref={video} playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            <video ref={video} playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: shown ? 1 : 0, transition: shown ? 'opacity 420ms var(--ease-out) 180ms' : 'none' }} />
             <div style={{ position: 'absolute', inset: '24% 10%', border: '2px solid rgba(255,255,255,.85)', borderRadius: 14, boxShadow: '0 0 0 999px rgba(0,0,0,.35)' }} />
-            {cam === 'starting' && <div className="small" style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', color: '#fff' }}>{t('Starting camera…')}</div>}
+            <div className="small" aria-hidden={shown || undefined} style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', color: '#fff', opacity: shown ? 0 : 1, transition: 'opacity 180ms linear', pointerEvents: 'none' }}>{t('Starting camera…')}</div>
           </div>
         )}
         {cam === 'unsupported' && <div className="plinth-2 small" style={{ padding: 14 }}><b>{t('Camera scanning isn’t supported in this browser.')}</b><div className="t2" style={{ marginTop: 4 }}>{t('Type the number under the barcode instead.')}</div></div>}

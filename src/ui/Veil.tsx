@@ -42,8 +42,10 @@ export function Veil({ e, z, onClick, layers = SHEET_VEIL, elRef, className = ''
   );
 }
 
-/** High refresh rate: the same ramps as browser-run animations (see mirrorSpring), one per layer. */
-export function mirrorVeil(root: HTMLElement | null, p0: number, p1: number, sp: { stiffness: number; damping: number; mass?: number }, vel: number, layers: VeilLayer[] = SHEET_VEIL): (Animation | null)[] {
+/** High refresh rate: the same ramps as browser-run animations (see mirrorSpring), one per layer. `map` turns the popup's
+ * progress into the dim's (a sheet over a sheet: how much of it is in view), bending at its `knee`. */
+export function mirrorVeil(root: HTMLElement | null, p0: number, p1: number, sp: { stiffness: number; damping: number; mass?: number }, vel: number, layers: VeilLayer[] = SHEET_VEIL, map?: ((p: number) => number) & { knee?: number; inv?: (s: number) => number }): (Animation | null)[] {
   if (!root) return [];
-  return layers.map((l, i) => mirrorProgress(root.children[i], p0, p1, sp, vel, (p) => ({ opacity: ramp(l, p) }), [l.from, l.to]));
+  const m = map ?? ((p: number) => p);
+  return layers.map((l, i) => mirrorProgress(root.children[i], p0, p1, sp, vel, (p) => ({ opacity: ramp(l, m(p)) }), map?.inv ? [map.knee ?? 0, map.inv(l.from), map.inv(l.to)] : map?.knee != null ? [map.knee] : [l.from, l.to]));
 }

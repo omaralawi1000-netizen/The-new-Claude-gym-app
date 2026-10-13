@@ -1539,6 +1539,41 @@ at the edges.
   100 %, so for most of the opening the bar was darker than the page under it: a band across the top. It now dims on
   the same 0 → 1 as the page.
 
+## A pop-up over a pop-up: a small step back (13 Oct 2026)
+- A pop-up opened from a pop-up (Food → Scan, Photo or Quick add, any sheet over a sheet): the one below steps back a
+  little, to 96.5 % from its top edge, which rises 8 px, and dims. It goes by exactly the number its dim goes by (how
+  much of the new sheet is in view), so the two start on the same frame and, on close, finish together the moment the
+  new sheet has left the screen. The page behind the first pop-up keeps its recede (v0.1.76) and doesn't move again.
+  The live workout is a full page and stays put under the exercise list (only the dim).
+- How it got here. Omar first chose "the first pop-up doesn't move backwards … that's more minimal" (still and dim), then
+  on seeing it: "I like that depth. I think it just needs a little refinement." Rounds 1 to 8 stacked them like iOS
+  cards (shrank 7 %, peeked 10 px; branch backup/stacking-r7-before-no-stepback); live before this it shrank 6 % and rose
+  15 px; both read as the card jumping back. The first take of this one landed while half the new sheet was still up (on
+  a close it snapped back in four frames while the dim took thirteen) and rose only 4 px, which read as the border drawn
+  twice. Its rise isn't rounded to whole pixels while it is scaled (a scaled card is a touch soft anyway; rounding made it
+  hold and then tick half a pixel as it landed); it starts and ends on whole pixels, so at rest it is sharp.
+- Every sheet's dim (over the page or over a sheet below) and the page's recede go by how much of the sheet is in view,
+  so on close they are gone the moment it has left the screen (they lingered 4 frames over the page, about 15 over a
+  sheet, while it finished its unseen last 40 px). A tall sheet opened over another takes the full height and covers it
+  whole. The scanner's "Starting camera…" fades out before its picture fades in.
+- Sheets move in whole screen pixels (`snapPx`; the browser-run version gets a keyframe per frame instead of an easing):
+  one drawn between two screen pixels is a touch soft, so a glide that crept its last 0.1 px came into focus a few frames
+  after it looked still. They come to rest within 0.05 px, a screen pixel at a time, not with a last little hop (sheets
+  only: the shared spring and the workout's own opening keep their end, which a finer one gave a 14-frame soft creep).
+- The status bar takes the second dim too.
+- The scanner's picture fades in once its first frame is on screen (it went black "Starting camera…", then an empty grey
+  box, then the picture), and it waits for its video if the camera answers before the sheet's contents are in (it said
+  "Couldn't start the camera").
+- Films are now made with a steady camera (`scripts/film-steady.mjs`): Chrome draws each frame only when asked, exactly
+  1/60 s of the app's time after the last, and it is pictured once fully drawn. The old screencast films dropped frames
+  whenever this machine was slow to draw the glass, which read as jumps and stalls the app doesn't have.
+  `scripts/film-depth.mjs` uses it, films the app at its size under the status bar and logs the bar's colour per frame,
+  and closes pop-ups with their close button (Escape is a keyboard, and left a keyboard focus ring in the films).
+  It films at the phone's 3.5 pixels per CSS px, and the app's clock (and the workout timer's) moves 1/60 s per frame.
+  Each step starts from a still screen; a button that is out of view is scrolled to on camera, as a person would, easing
+  in and out (Chrome's smooth scroll stopped dead). The page is told the film's real pixel density (it was told 2). The
+  scanner sees a still picture (`scripts/fake-camera.py`) and the Photo sheet a stand-in key.
+
 ## Coach: lighter frames while an answer writes in (13 Oct 2026, v0.1.88)
 - Measured with `scripts/audit-coach.mjs` (phone size, CPU slowed 4×, a fake keyboard and a mocked stream; per action:
   frames, long tasks, script/style/layout time, pops, jumps and GPU layers dropped; `TRACE=`/`PROFILE=` break one action

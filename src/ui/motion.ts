@@ -35,10 +35,13 @@ export const KEYBOARD = { type: 'spring', stiffness: 760, damping: 54, mass: 1, 
 
 type Spring = { stiffness: number; damping: number; mass?: number };
 const curveCache = new Map<string, { easing: string; duration: number }>();
-/** linear() easing for a spring going 0 → 1 with initial velocity v0 (in progress units per second). */
-export function springCurve(sp: Spring, v0 = 0): { easing: string; duration: number } {
-  const key = `${sp.stiffness}|${sp.damping}|${sp.mass ?? 1}|${v0.toFixed(2)}`;
-  const hit = curveCache.get(key); if (hit) return hit;
+const sampleCache = new Map<string, { xs: number[]; duration: number }>();
+/** A spring going 0 → 1 with initial velocity v0 (in progress units per second), sampled every 1/60 s: its positions (the
+ * last one exactly 1) and how long it runs in ms. `fine`: run it until it is within 0.05 px of a full-height sheet's travel
+ * (for a sheet moving in whole screen pixels, which then lands one pixel at a time instead of a last hop of two). */
+export function springSamples(sp: Spring, v0 = 0, fine = false): { xs: number[]; duration: number } {
+  const key = `${sp.stiffness}|${sp.damping}|${sp.mass ?? 1}|${v0.toFixed(2)}|${fine}`;
+  const hit = sampleCache.get(key); if (hit) return hit;
   const m = sp.mass ?? 1, dt = 1 / 600;
   let x = 0, v = v0, t = 0;
   const xs: number[] = [0];
@@ -46,13 +49,26 @@ export function springCurve(sp: Spring, v0 = 0): { easing: string; duration: num
     // semi-implicit Euler at 600 Hz: indistinguishable from the analytic spring at this step
     v += ((sp.stiffness * (1 - x) - sp.damping * v) / m) * dt; x += v * dt; t += dt;
     if (Math.round(t * 600) % 10 === 0) xs.push(x);       // a sample every 1/60 s
-    if (t > 0.1 && Math.abs(1 - x) < 0.0008 && Math.abs(v) < 0.02) break;
+    if (t > 0.1 && (fine ? Math.abs(1 - x) < 0.00005 && Math.abs(v) < 0.002 : Math.abs(1 - x) < 0.0008 && Math.abs(v) < 0.02)) break;
   }
   xs[xs.length - 1] = 1;
-  const out = { easing: `linear(${xs.map((v2) => +v2.toFixed(4)).join(', ')})`, duration: Math.round(t * 1000) };
+  const out = { xs, duration: Math.round(t * 1000) };
+  sampleCache.set(key, out);
+  return out;
+}
+/** linear() easing for a spring going 0 → 1 with initial velocity v0 (in progress units per second). */
+export function springCurve(sp: Spring, v0 = 0): { easing: string; duration: number } {
+  const key = `${sp.stiffness}|${sp.damping}|${sp.mass ?? 1}|${v0.toFixed(2)}`;
+  const hit = curveCache.get(key); if (hit) return hit;
+  const { xs, duration } = springSamples(sp, v0);
+  const out = { easing: `linear(${xs.map((v2) => +v2.toFixed(4)).join(', ')})`, duration };
   curveCache.set(key, out);
   return out;
 }
+/** A position in CSS px rounded to the screen's own pixels. A layer drawn between two screen pixels is resampled, a touch
+ * soft, and sharp again only on a whole pixel, so a glide that crept its last fraction of a pixel came into focus a few
+ * frames after it looked still. Moved in whole screen pixels it is equally sharp on every frame (one is 0.3 CSS px). */
+export const snapPx = (v: number) => { const d = window.devicePixelRatio || 1; return Math.round(v * d) / d; };
 
 /** High-refresh mode (Settings → Appearance), on unless turned off; kept in this browser only. */
 export function highRefresh(): boolean { try { return localStorage.getItem('aven.hrr') !== '0'; } catch { return true; } }
