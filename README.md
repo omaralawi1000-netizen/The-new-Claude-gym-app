@@ -1126,3 +1126,44 @@ Settings additions, chosen by the coordinator from the customization shortlist (
 - **Colours as small screens.** Each look in Settings → Appearance is a tiny still Today screen in its own light: the field, the calorie ring, a workout card with its play button, and the dock. The cards follow Theme and Background glow, so what you see is what you get. Picking one still applies at once.
 - **Background glow: Full / Soft / Off** (`settings.glow`, set as `data-glow` on the page). Soft lowers the colour field's strength (`--aurora-a` 0.28). Off removes the field layers entirely (`display: none`), so nothing drifts behind the app and the GPU has less to draw. Missing means Full.
 - **Workout opens in: Last used / List / Focus** (Settings → Training, `settings.workoutView`). Last used is the old behaviour and the default: the view you left is remembered on this phone. List or Focus always opens that view; switching inside a workout still works.
+
+## Alive, step 1: a set lands, an exercise settles (13 Oct 2026, v0.1.45)
+
+Omar asked for the app to feel more alive where it wows him. The tick already filled, drew its check, rang and rolled the
+totals; two moments were missing.
+- **A set ticked**: a soft ellipse of the accent light ripples out from the check across the row (0.9 s) and leaves the row's
+  done tint behind. Clipped to the row and painted under its numbers; transform and opacity only.
+- **An exercise's last set ticked**: one slow band of warm light passes over the card (1.25 s), beside the badge that pops in
+  by the name. Only when it becomes complete while you watch, never when drawn complete or when a set is unticked.
+- Cost: a full-card glow layer (opacity over the card) cost visible frames on the 4× CPU bench, so it was dropped; the band
+  is laid over the card (outside its frosted glass) and only it moves. Main-thread time is unchanged.
+
+## Alive, step 2: a new best (13 Oct 2026, v0.1.46)
+
+When a ticked set beats everything before it for that exercise (`newBest` in lib/workout.ts: heavier than ever, or more
+reps than ever at this weight or heavier; for holds and distance, longer or further), the row gets the bigger moment:
+- a soft gold band of light sweeps the row from the check to the set number (1.4 s), instead of the tick's ripple;
+- a gold "New best" tag rises in over the Prev column (what you beat), holds about 2 s, and fades back to the old number;
+- the record haptic plays (the same feel as saving a workout with a record).
+The first time an exercise is ever logged is a baseline, not a best; a best already ticked earlier in the same workout is
+not celebrated twice; a new best replaces the smaller gold "beat last time" pop. Tests: tests/newbest.test.ts. Enter on
+the reps field now plays the tick's animation too (it used to tick silently).
+
+## Alive, step 3: the finish screen (13 Oct 2026, v0.1.47)
+
+The workout summary now has a rhythm: the four numbers (time, volume, sets, exercises) land one after another, 0.32 s
+apart, and each counts up from zero as it lands (`CountUp` in Summary.tsx writes its own text, so no re-render per frame).
+Then one line, in the existing italic title style, says what the session meant (`sessionHeadline` in lib/workout.ts, tested
+in tests/headline.test.ts): a record first ("Strongest Bench Press yet", "Most reps yet on…", "Longest… yet"), else the
+biggest session of this routine (needs two before it), else "{x} more than last {name}", else "Workout {n} this month" /
+"First workout this month". The record medal, its label and the record rows now wait for that line. Reduced motion shows
+the final numbers at once.
+
+## Alive, step 4: the workout's living light (13 Oct 2026, v0.1.48)
+
+During a workout the window's top light breathes very slowly (one breath ~11 s) and turns warmer over the first hour
+(`Breath` in Active.tsx sets `--warm` once a minute; a warmer gradient fades in under it). Cost rules it follows: only
+opacity changes, in 80 tiny steps each way (~14 a second, each under half a percent of brightness) instead of every frame
+(idle trace: DrawFrame 3 → ~25 per 3 s; nothing on the main thread); it sits in the top half, far from the frosted bar,
+so the bar never re-blurs; it holds still while the workout is paused, minimised, or covered by another screen. It lives
+inside the colour field, so Settings → Background glow Off removes it and Soft dims it; reduced motion stops it.

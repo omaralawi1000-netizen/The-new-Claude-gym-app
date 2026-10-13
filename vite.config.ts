@@ -39,6 +39,8 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // the rest timer while the app is out of sight: lock-screen notification + the "rest over" alert
+        importScripts: ['rest-sw.js'],
         globPatterns: ['**/*.{js,css,html,svg,png,woff2,wasm}'], maximumFileSizeToCacheInBytes: 3 * 1024 * 1024, navigateFallbackDenylist: [/^\/api\//],
         // the packed Danish food list: fetched the first time food is searched, then kept on the phone (works offline);
         // its name changes when the list changes, so old copies are simply replaced

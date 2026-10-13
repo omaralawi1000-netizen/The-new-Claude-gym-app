@@ -9,7 +9,7 @@ import { Collapse, NumInput, Stepper } from '../../ui/kit';
 import { Roll } from '../../ui/Roll';
 import { flip } from '../../ui/flip';
 import { Sheet, SheetHead, SOFT, useOverlayZ } from '../../ui/Sheet';
-import { beatLastTime, elapsedMs, historyOf, incrementFor, lastPerformance, repRange, sessionSetCount, sessionVolume, suggestProgression, countable } from '../../lib/workout';
+import { beatLastTime, newBest, elapsedMs, historyOf, incrementFor, lastPerformance, repRange, sessionSetCount, sessionVolume, suggestProgression, countable } from '../../lib/workout';
 import { fmtDuration } from '../../lib/dates';
 import { displayToKg, kgToDisplay, fmtNum, displayToM, mToDisplay } from '../../lib/units';
 import { useNow } from '../../lib/hooks';
@@ -292,7 +292,7 @@ export function ActiveWorkout({ props, open = true }: { props: { origin?: 'hero'
       >
         <WkLive.Provider value={!hidden}>
         <motion.div ref={sheetRef} className="wk-sheet" style={{ transform: sheetT }}>
-          <div className="wk-solid" aria-hidden><div className="aurora-lite" /></div>
+          <div className="wk-solid" aria-hidden><div className="aurora-lite"><Breath hold={paused || covered} /></div></div>
         <div className="wk-window" style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column' }}>
           <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, paddingTop: 'var(--sat)' }}>
           <div className="sheet-grab" style={{ position: 'relative', zIndex: 3 }} />
@@ -402,6 +402,20 @@ export function ActiveWorkout({ props, open = true }: { props: { origin?: 'hero'
       </AnimatePresence>
     </>
   );
+}
+
+/**
+ * The workout's living light: the top light of the window breathes very slowly (a stepped opacity change, about 14
+ * tiny steps a second, so it never redraws the screen every frame) and grows warmer as the session goes on, fully warm after
+ * an hour. Off with Settings → Background glow → Off (it lives in the colour field); it holds still while the workout is
+ * paused, minimised, or another screen covers it. Only opacity changes; the bar's frost sits far below it.
+ */
+function Breath({ hold }: { hold: boolean }) {
+  const a = useStore((s) => s.active);
+  const live = useContext(WkLive);
+  const now = useNow(60_000, !!a && live && !hold);
+  const warm = a ? Math.min(1, elapsedMs(a, now) / 3_600_000) : 0;
+  return <i className={`wk-breath${hold || !live ? ' hold' : ''}`} style={{ ['--warm' as string]: warm.toFixed(3) }}><b /></i>;
 }
 
 /** A number that rolls up (or down) when it changes, like the steppers; still on the first draw. */
@@ -576,6 +590,11 @@ export const ExerciseBlock = memo(function ExerciseBlock({ se, ex, linkedPrev, l
     : t('First time · aim {min}–{max} reps', { min: rv.min ?? '', max: rv.max ?? '' });
   const REASON_ICON = { 'add-weight': 'arrowUp', 'add-reps': 'plus', hold: 'repeat', stalled: 'info', first: 'sparkle' } as const;
   const complete = se.sets.length > 0 && se.sets.every((x) => x.done);
+  // the last set ticked while you watch: the card settles with a brief warm glow and one soft sheen (not when it is drawn
+  // already complete, and not when a set is unticked)
+  const wasComplete = useRef(complete);
+  const [settle, setSettle] = useState(0);
+  useEffect(() => { if (complete && !wasComplete.current) setSettle((n) => n + 1); wasComplete.current = complete; }, [complete]);
   // something you told the Coach about this exercise ("left shoulder hurts on overhead press"): shown beside it, with a swap.
   // A joined string, so ticking a set elsewhere doesn't redraw this block.
   const flagged = useStore((s) => s.memory.filter((m) => m.exerciseIds?.includes(se.exerciseId)).map((m) => m.text).join('\n'));
@@ -584,6 +603,7 @@ export const ExerciseBlock = memo(function ExerciseBlock({ se, ex, linkedPrev, l
     <section data-flip={se.id} className={`wk-block${appear ? ' in' : ''}${complete ? ' complete' : ''}`} style={{ position: 'relative', marginTop: linkedPrev ? 0 : 18, paddingLeft: se.supersetGroup ? 14 : 0 }}>
       {se.supersetGroup && <div aria-hidden style={{ position: 'absolute', left: 0, top: linkedPrev ? -4 : 6, bottom: linkedNext ? -14 : 6, width: 3, borderRadius: 3, background: 'var(--ac)', opacity: 0.85 }} />}
       {se.supersetGroup && !linkedPrev && <div className="micro accent" style={{ marginBottom: 4 }}>{t('Superset')}</div>}
+      <div className="wk-card-wrap">
       <div className="plinth" style={{ padding: '14px 12px 12px', borderRadius: 'var(--r-lg)' }}>
         <div className="row-flex between" style={{ alignItems: 'flex-start', gap: 8 }}>
           <button className="grow press" style={{ textAlign: 'left', minWidth: 0 }} onClick={() => ex && push('exercise', { id: ex.id })}>
@@ -621,6 +641,9 @@ export const ExerciseBlock = memo(function ExerciseBlock({ se, ex, linkedPrev, l
           <button className="btn sm press grow" onClick={() => { haptic('light'); addSet(se.id); }}><Icon name="plus" size={16} /> {t('Set')}</button>
           <button className="btn sm ghost press" onClick={() => addSet(se.id, 'warmup')}>{t('+ Warm-up')}</button>
         </div>
+      </div>
+      {/* laid over the card, not inside it: the card's frosted glass then never has to be redrawn while the glow plays */}
+      {settle > 0 && complete && <span key={settle} className="wk-settle" aria-hidden><i /></span>}
       </div>
     </section>
   );
@@ -669,6 +692,7 @@ const SetRow = memo(function SetRow({ se, set, ex, label, prev, restDefault }: {
   const [burst, setBurst] = useState(0); // a ring that expands from the check each time a set is completed
   const [beat, setBeat] = useState<{ n: number; label: string } | null>(null); // you beat last time: gold burst + what you gained
   const [showGain, setShowGain] = useState(false);
+  const [best, setBest] = useState(0); // a new best for this exercise: a gold light sweeps the row and a "New best" tag shows
   // the set to do next gets a quiet accent outline (a boolean, so only the two rows that change redraw)
   const current = useStore((s) => !set.done && nextSetOf(s.active)?.set.id === set.id);
   useEffect(() => { if (!beat) return; setShowGain(true); const id = setTimeout(() => setShowGain(false), 1500); return () => clearTimeout(id); }, [beat]);
@@ -696,8 +720,13 @@ const SetRow = memo(function SetRow({ se, set, ex, label, prev, restDefault }: {
     if (st.active?.pausedAt) st.resumeActive();
     unlockRestAudio(); // a tap: the rest-over tones are allowed to play later
     if (st.active?.rest && st.active.rest.endsAt <= Date.now()) skipRest(); // "Go" has done its job
-    const gain = set.type === 'working' ? beatLastTime(lt, eff, prev, u.weight, lang, t) : null;
-    haptic(gain ? 'gain' : 'set');
+    // a new best beats everything before it (and is the bigger moment); otherwise beating last time gets its own small one
+    const earlier = (st.active?.exercises ?? []).filter((e) => e.exerciseId === se.exerciseId).flatMap((e) => e.sets).filter((x) => x.id !== set.id);
+    const pr = set.type === 'working' ? newBest(lt, eff, se.exerciseId, st.sessions, earlier) : null;
+    const gain = !pr && set.type === 'working' ? beatLastTime(lt, eff, prev, u.weight, lang, t) : null;
+    haptic(pr ? 'record' : gain ? 'gain' : 'set');
+    setBurst(burst + 1); // the check pops and the row's light plays (a tap or Enter on the reps)
+    if (pr) setBest(burst + 1);
     if (gain) setBeat((b) => ({ n: (b?.n ?? 0) + 1, label: gain }));
     patchSet(se.id, set.id, { ...eff, done: true, completedAt: Date.now() });
     // the next set comes into view if it is about to slip under the bar (never scrolls up, never jumps far)
@@ -733,6 +762,9 @@ const SetRow = memo(function SetRow({ se, set, ex, label, prev, restDefault }: {
     // a plain row: it grows in and folds away inside its Collapse (no Motion layout — that re-measured the whole page)
     <div data-set={set.id}>
       <div className={`wk-set ${set.done ? 'done' : current ? 'current' : 'todo'}${set.type === 'warmup' ? ' warm' : ''}`} style={{ gridTemplateColumns: gridCols(ex, settings.effort) }}>
+        {/* ticked: a soft light ripples out from the check across the row, and leaves the row's tint behind */}
+        {burst > 0 && set.done && <span key={`w${burst}`} className="wk-set-clip" aria-hidden><i className={best === burst ? 'wk-set-sweep' : 'wk-set-wave'} /></span>}
+        {best > 0 && best === burst && set.done && <span key={`b${best}`} className="wk-best" role="status">{t('New best')}</span>}
         <button className="press wk-set-n" aria-label={t('Set options')} aria-expanded={open} onClick={() => setOpen((v) => !v)}>{label}</button>
         <button className="num press wk-prev" disabled={!prev} onClick={() => prev && patchSet(se.id, set.id, { weightKg: prev.weightKg, reps: prev.reps, durationSec: prev.durationSec, distanceM: prev.distanceM })} aria-label={prev ? `${t('Use previous')}: ${fmtSet(prev, ex, u, lang, t)}` : undefined}>
           {/* a hold reads in the column's own unit ("66s" over SECONDS, not "1:06" beside a 66), as the records write it */}
@@ -746,7 +778,7 @@ const SetRow = memo(function SetRow({ se, set, ex, label, prev, restDefault }: {
         {(lt === 'weightReps' || lt === 'bodyweightReps' || lt === 'assisted') && <>{fw}{fr}</>}
         {settings.effort !== 'off' && <div onFocusCapture={focusScroll as any}><NumInput compact value={settings.effort === 'rpe' ? set.rpe : set.rir} max={1} placeholder="—" onChange={(v) => patchSet(se.id, set.id, settings.effort === 'rpe' ? { rpe: v } : { rir: v })} label={settings.effort.toUpperCase()} /></div>}
         {/* not logged: an empty outline (no check yet); logged: a filled check that draws itself in */}
-        <motion.button key={shake} className={`press wk-check${set.done ? ' on' : ''}${set.done && burst > 0 ? ' fresh' : ''}`} aria-label={set.done ? t('Mark set not done') : t('Complete set')} aria-pressed={set.done} onClick={() => { if (!set.done) setBurst((n) => n + 1); complete(); }}
+        <motion.button key={shake} className={`press wk-check${set.done ? ' on' : ''}${set.done && burst > 0 ? ' fresh' : ''}`} aria-label={set.done ? t('Mark set not done') : t('Complete set')} aria-pressed={set.done} onClick={complete}
           animate={shake ? { x: [0, -5, 5, -3, 3, 0] } : undefined} transition={{ duration: 0.3 }}>
           {set.done && <svg key={`m${burst}`} className="wk-check-mark" viewBox="0 0 24 24" width="22" height="22" aria-hidden><path d="M5 12.5l4.5 4.5L19 7.5" pathLength={1} fill="none" stroke="currentColor" strokeWidth={2.8} strokeLinecap="round" strokeLinejoin="round" /></svg>}
           {burst > 0 && set.done && <motion.i key={burst} aria-hidden initial={{ scale: 0.9, opacity: 0.85 }} animate={{ scale: 2.2, opacity: 0 }} transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }} style={{ position: 'absolute', inset: 0, borderRadius: 14, boxShadow: '0 0 0 2px var(--ac), 0 0 24px var(--ac)', pointerEvents: 'none' }} />}

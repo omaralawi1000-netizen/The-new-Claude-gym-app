@@ -235,3 +235,60 @@ export function beatLastTime(lt: string, now: { weightKg?: number; reps?: number
   if (Math.abs(w - pw) < 1e-6 && r > pr) return `+${r - pr} ${t(r - pr === 1 ? 'rep' : 'reps')}`;
   return null;
 }
+
+/**
+ * Is this set a new best for the exercise, against everything done before it (finished sessions, and the sets already ticked
+ * in this one)? Heavier than ever, or more reps than ever at this weight or heavier, or longer / further than ever. The
+ * first time an exercise is logged is a baseline, not a best. Returns what makes it a best, or null.
+ */
+export type NewBest = { kind: 'weight' | 'reps' | 'duration' | 'distance'; weightKg?: number; reps?: number; durationSec?: number; distanceM?: number };
+export function newBest(lt: string, now: { weightKg?: number; reps?: number; durationSec?: number; distanceM?: number }, exerciseId: string, sessions: WorkoutSession[], earlier: SetRecord[] = []): NewBest | null {
+  const prior: SetRecord[] = earlier.filter(countable);
+  for (const s of sessions) for (const e of s.exercises) if (e.exerciseId === exerciseId) prior.push(...e.sets.filter(countable));
+  if (!prior.length) return null;
+  if (lt === 'duration') { const b = Math.max(0, ...prior.map((p) => p.durationSec ?? 0)); return b > 0 && (now.durationSec ?? 0) > b ? { kind: 'duration', durationSec: now.durationSec } : null; }
+  if (lt === 'distance') { const b = Math.max(0, ...prior.map((p) => p.distanceM ?? 0)); return b > 0 && (now.distanceM ?? 0) > b ? { kind: 'distance', distanceM: now.distanceM } : null; }
+  const w = now.weightKg ?? 0, r = now.reps ?? 0;
+  if (!r) return null;
+  if (lt === 'assisted') {
+    // less help is harder: a best is more reps than ever with this much help or less
+    const same = prior.filter((p) => (p.weightKg ?? 0) <= w + 1e-6 && p.reps);
+    if (same.length) return r > Math.max(...same.map((p) => p.reps ?? 0)) ? { kind: 'reps', weightKg: w, reps: r } : null;
+    return prior.some((p) => p.reps) ? { kind: 'weight', weightKg: w, reps: r } : null; // less help than ever
+  }
+  const atLeast = prior.filter((p) => (p.weightKg ?? 0) >= w - 1e-6 && p.reps);
+  if (atLeast.length) return r > Math.max(...atLeast.map((p) => p.reps ?? 0)) ? { kind: 'reps', weightKg: w, reps: r } : null;
+  // nothing ever done this heavy: a weight best (bodyweight moves need some added weight to count)
+  if (w > 0 && prior.some((p) => p.reps)) return { kind: 'weight', weightKg: w, reps: r };
+  return null;
+}
+
+/**
+ * The one line the finish screen ends on: the most meaningful true thing about this session. A record first ("Strongest
+ * bench yet"), else the biggest session of this routine, else more than last time, else where it sits in the month.
+ * Returns an English key with its variables (the caller translates and fills in the exercise's name in its language).
+ */
+export type Headline = { key: string; vars: Record<string, string | number>; exerciseId?: string };
+export function sessionHeadline(ses: WorkoutSession, history: WorkoutSession[], unitFmt: (kg: number) => string): Headline {
+  const ORDER: RecordKind[] = ['weight', 'e1rm', 'reps', 'duration', 'distance', 'volume'];
+  const rec = [...(ses.records ?? [])].sort((a, b) => ORDER.indexOf(a.kind) - ORDER.indexOf(b.kind))[0];
+  if (rec) {
+    const key = rec.kind === 'weight' || rec.kind === 'e1rm' ? 'Strongest {exercise} yet'
+      : rec.kind === 'reps' ? 'Most reps yet on {exercise}'
+      : rec.kind === 'duration' || rec.kind === 'distance' ? 'Longest {exercise} yet'
+      : 'Biggest {exercise} set yet';
+    return { key, vars: {}, exerciseId: rec.exerciseId };
+  }
+  const prior = history.filter((h) => h.id !== ses.id && h.status === 'done' && (h.endedAt ?? 0) < (ses.endedAt ?? Date.now()));
+  const vol = sessionVolume(ses.exercises);
+  const same = prior.filter((h) => (ses.routineId ? h.routineId === ses.routineId : h.name.trim().toLowerCase() === ses.name.trim().toLowerCase()))
+    .sort((a, b) => (b.endedAt ?? 0) - (a.endedAt ?? 0));
+  if (vol > 0 && same.length) {
+    if (same.length >= 2 && same.every((h) => vol > sessionVolume(h.exercises))) return { key: 'Your biggest {name} session yet', vars: { name: ses.name } };
+    const up = vol - sessionVolume(same[0].exercises);
+    if (up >= 1) return { key: '{x} more than last {name}', vars: { x: unitFmt(up), name: ses.name } };
+  }
+  const month = ses.date.slice(0, 7);
+  const n = prior.filter((h) => h.date.slice(0, 7) === month).length + 1;
+  return n === 1 ? { key: 'First workout this month', vars: {} } : { key: 'Workout {n} this month', vars: { n } };
+}

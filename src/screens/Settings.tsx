@@ -28,6 +28,7 @@ import { cardOrder, type TodayCard } from './TodayCards';
 import { startDragSort } from '../ui/dragSort';
 import { setFpsMeter, useFpsMeterOn } from '../ui/FpsMeter';
 import { startStutter, stopStutter, stutterReport, stutterState, subscribeStutter } from '../lib/stutter';
+import { lastRestLate } from './workout/rest';
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 // Moving between Settings pages works like iOS: the page you leave steps aside and fades out quickly, then the next one glides
@@ -276,7 +277,11 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
   );
 }
 
-/** The rest-over alert while Aven isn't on screen: a notification, so it needs the browser's permission (asked here, once). */
+/**
+ * The rest on the lock screen while Aven isn't on screen: "Rest over at 14:32", then a buzzing alert when it ends. A
+ * notification, so it needs the browser's permission (asked here, once). Under it: how late the last alert came, so the phone
+ * itself shows whether the alert can be trusted.
+ */
 function RestAlertRow() {
   const t = useT();
   const s = useStore();
@@ -288,10 +293,15 @@ function RestAlertRow() {
     s.updateSettings({ restNotify: v });
   };
   if (!supported) return null;
+  const late = on ? lastRestLate() : null;
   return (
     <div className="row-flex between" style={{ alignItems: 'flex-start', gap: 14 }}>
-      <div><div>{t('Alert when rest is over')}</div><div className="xs t2" style={{ marginTop: 2 }}>{perm === 'denied' ? t('Notifications are blocked for Aven in your browser settings.') : t('Even with the phone in your pocket.')}</div></div>
-      <Toggle on={on} onChange={toggle} label={t('Alert when rest is over')} />
+      <div>
+        <div>{t('Rest timer on lock screen')}</div>
+        <div className="xs t2" style={{ marginTop: 2 }}>{perm === 'denied' ? t('Notifications are blocked for Aven in your browser settings.') : t('Shows when rest is over and buzzes, even in another app or with the screen off.')}</div>
+        {late && <div className="xs t3" style={{ marginTop: 2 }}>{late.ms < 2000 ? t('Last alert came on time.') : t('Last alert came {n} s late.', { n: Math.round(late.ms / 1000) })}</div>}
+      </div>
+      <Toggle on={on} onChange={toggle} label={t('Rest timer on lock screen')} />
     </div>
   );
 }
