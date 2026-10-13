@@ -1486,13 +1486,15 @@ at the edges.
   progress frame for frame, so opening, dragging, closing and interrupting can never drift apart. The page under them
   doesn't move again. The live workout window (not a Sheet) stacks the same way through `useStackedBehind` (Sheet.tsx).
   It always comes to rest in the same place (its top edge 10 px above a full sheet's top), whatever the new sheet's
-  height, and its title fades as it steps back, so above a shorter sheet you see the back of a card, not half a title.
+  height. It stays whole: it only dims, evenly, and the new sheet slides over its title like over everything else (a
+  title that faded on its own, as rounds 3 to 5 tried, read as an effect of its own; iOS fades nothing).
   It steps back by how much of the new sheet is in view, so on close it is fully back the moment the top sheet has left
   the screen (before, it finished about 15 frames later, which read as a lag); the top sheet's dim goes the same way, so
   it is gone in that same frame. A tall sheet opened over another one takes the full height (Photo used to stop 36 px
-  lower than Scan, which read as a card sitting too low). The title below (a sheet's, or the live workout's) dims as the
-  top sheet's edge comes and is gone just before it is covered, one rule for every stack (it used to fade early on its own
-  over a sheet and be sliced in half over the workout). Stepped back, a card drops its shadow: set back and narrower, it
+  lower than Scan, which read as a card sitting too low). Its step-back is eased at both ends and finishes while
+  the last 15 % of the top sheet is still on screen: a scaled layer is drawn a touch soft and is sharp only at exactly full
+  size, so landing at rest read as a jump into focus on the last frame of a close; now it comes into focus while the top
+  sheet is still sliding away. Stepped back, a card drops its shadow: set back and narrower, it
   showed down both sides and was cut off flat by the status bar. While any pop-up moves, the lists in sheets and in the
   workout draw at fractions of a pixel like their sheet (html[data-moving]: Chrome otherwise rounds what is inside a
   scrolling list to whole pixels, so a list ticked along against its gliding sheet and landed a few frames after it).

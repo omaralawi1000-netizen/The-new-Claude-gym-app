@@ -118,25 +118,20 @@ const inView = (top: HTMLElement) => {
   const travel = Math.max(1, window.innerHeight - top.offsetTop), dist = top.offsetHeight + 40; // dist: the top sheet's own travel (measure, below)
   return Object.assign((v: number) => clamp01(1 - ((1 - v) * dist) / travel), { knee: clamp01(1 - travel / dist) }); // knee: where it starts to count
 };
-/** A stepped-back sheet's title, by how far it is stepped back (b): it dims as the edge of the sheet coming over it
- * approaches (from 200 px below the title to 40 px below it), so it is gone just before it is covered and is never
- * sliced; it comes back the same way as that sheet leaves. One rule for every stack (a sheet, the live workout). */
-const titleFade = (heads: HTMLElement[], top: HTMLElement) => {
-  const y = Math.max(0, ...heads.map((h) => h.getBoundingClientRect().bottom));
-  const rest = top.offsetTop, travel = Math.max(1, window.innerHeight - rest);
-  const at = (m: number) => 1 - (y + m - rest) / travel;
-  const from = at(200), to = at(40);
-  return (b: number) => clamp01((to - b) / Math.max(0.01, to - from));
-};
-/** While stepped back: the title fades (titleFade) and the drop shadow goes (CSS [data-stacked]): set back and narrower, a
- * card's shadow showed beside it, cut off flat by the status bar. It goes and comes back at the very start and end, when the
- * card is still full width and its shadow hardly shows. */
-function showStepBack(el: HTMLElement | null, b: number, fade: (b: number) => number, heads: string) {
-  if (!el) return;
-  const o = b < 0.001 ? '' : fade(b).toFixed(3);
-  for (const hd of el.querySelectorAll<HTMLElement>(heads)) if (hd.style.opacity !== o) hd.style.opacity = o;
-  if ((b >= 0.001) !== ('stacked' in el.dataset)) { if (b >= 0.001) el.dataset.stacked = ''; else delete el.dataset.stacked; }
+/** Stepped back, a card drops its drop shadow (CSS [data-stacked]): set back and narrower, its shadow showed beside it, cut
+ * off flat by the status bar. It goes and comes back at the very start and end, when the card is still full width and its
+ * shadow hardly shows. Nothing else on it changes: it stays whole under the top sheet's dim, and the top sheet slides over
+ * its title like over everything else (a title fading on its own read as an effect of its own). */
+function markStacked(el: HTMLElement | null, b: number) {
+  if (!el || (b >= 0.001) === ('stacked' in el.dataset)) return;
+  if (b >= 0.001) el.dataset.stacked = ''; else delete el.dataset.stacked;
 }
+/** How far the sheet below steps back for how much of the top sheet is in view: eased at both ends, and done while the last
+ * 15 % of the top sheet is still on screen. A scaled layer is drawn a touch soft and is sharp again only at exactly full size,
+ * so it comes into focus the moment it lands; landing at rest, as the top sheet left, that read as a jump into focus on the
+ * last frame of a close. Now it lands, gently, while the top sheet is still sliding away and the eye is on that. */
+const LAND = 0.15;
+const settle = (s: number) => { const t = clamp01((s - LAND) / (1 - LAND)); return t * t * (3 - 2 * t); };
 
 /**
  * Bottom sheet: swipe down from anywhere (when its list is at the top) or flick to dismiss; interruptible; keyboard-aware.
@@ -338,7 +333,6 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
   // for frame — as it rises, as your finger drags it down, as it leaves — so the two can never drift apart (it used to stay
   // stepped back while you dragged the top one away, then snap forward once it had gone).
   const follow = useRef<(() => void) | null>(null);
-  const fade = useRef<(b: number) => number>((b) => clamp01(1 - b / 0.8));
   useEffect(() => {
     if (!behind) return;
     follow.current?.();
@@ -350,9 +344,8 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
     dy.set(stackShift(ref.current));
     if (!h) { const c = animate(bs, 1, reduce ? { duration: 0.01 } : SPRING); return () => c.stop(); }
     const seen = inView(h.el);
-    fade.current = titleFade([...(ref.current?.querySelectorAll<HTMLElement>('.sheet-head') ?? [])], h.el);
-    bs.set(seen(h.engage.e.get()));
-    const off = h.engage.e.on('change', (v) => bs.set(seen(v)));
+    bs.set(settle(seen(h.engage.e.get())));
+    const off = h.engage.e.on('change', (v) => bs.set(settle(seen(v))));
     const done = () => { off(); follow.current = null; if (bs.get() > 0.01) animate(bs, 0, reduce ? { duration: 0.01 } : SPRING); };
     h.gone.add(done);
     follow.current = () => { off(); h.gone.delete(done); };
@@ -360,8 +353,8 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
     // eslint-disable-next-line
   }, [behind]);
   useEffect(() => () => follow.current?.(), []);
-  // stepped back: its title fades as the top sheet's edge comes, and its drop shadow goes (showStepBack)
-  useEffect(() => bs.on('change', (b) => showStepBack(ref.current, b, fade.current, '.sheet-head')), []); // eslint-disable-line
+  // stepped back: its drop shadow goes (markStacked)
+  useEffect(() => bs.on('change', (b) => markStacked(ref.current, b)), []); // eslint-disable-line
   // leaving: whatever the finger left behind becomes progress, and the exit spring carries on at the finger's speed
   const [present, safeToRemove] = usePresence();
   const leaving = useRef(false);
@@ -412,16 +405,14 @@ export function useStackedBehind(el: { current: HTMLElement | null }, drag: Moti
   const dy = useMotionValue(0);
   const upperId = useUI((u) => { const at = meta ? u.overlays.findIndex((o) => o.id === meta.id) : -1; return at >= 0 ? u.overlays[at + 1]?.id : undefined; });
   const follow = useRef<(() => void) | null>(null);
-  const fade = useRef<(b: number) => number>(() => 1);
   useEffect(() => {
     const h = upperId ? hosts.get(upperId) : undefined;
     if (!h || h.small) return;
     follow.current?.();
     dy.set(stackShift(el.current));
     const seen = inView(h.el);
-    fade.current = titleFade([...(el.current?.querySelectorAll<HTMLElement>('.wk-head') ?? [])], h.el);
-    bs.set(seen(h.engage.e.get()));
-    const off = h.engage.e.on('change', (v) => bs.set(seen(v)));
+    bs.set(settle(seen(h.engage.e.get())));
+    const off = h.engage.e.on('change', (v) => bs.set(settle(seen(v))));
     // kept while the top sheet leaves, released when it is gone
     const done = () => { off(); follow.current = null; if (bs.get() > 0.01) animate(bs, 0, reduce ? { duration: 0.01 } : SPRING); };
     h.gone.add(done);
@@ -429,7 +420,7 @@ export function useStackedBehind(el: { current: HTMLElement | null }, drag: Moti
     // eslint-disable-next-line
   }, [upperId]);
   useEffect(() => () => follow.current?.(), []);
-  useEffect(() => bs.on('change', (b) => showStepBack(el.current, b, fade.current, '.wk-head')), []); // eslint-disable-line
+  useEffect(() => bs.on('change', (b) => markStacked(el.current, b)), []); // eslint-disable-line
   return useTransform([drag, bs, dy], ([d, b, y]: number[]) => `translate3d(0, ${d + y * b}px, 0) scale(${1 - STACK_SCALE * b})`);
 }
 
