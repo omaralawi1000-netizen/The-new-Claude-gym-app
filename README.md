@@ -1291,3 +1291,13 @@ frame against `filter: blur` of the same word: a text-shadow carries the same li
 the word blurred, never bolder; the hand-overs carry a little extra (power .75) so the word never dims between steps. The
 blur is gone at 60% of the word's time and nothing glows round a sharp word. Still opacity only; smoothness at 4x CPU
 unchanged. Same everywhere text writes in (Coach and orb answers, spoken words, Food date, Onboarding titles).
+
+## Polish pass, round 2: moving an exercise, the first food of the day (13 Oct 2026, v0.1.63)
+
+- Moving an exercise up or down (••• menu): the card you moved now passes over the one it swaps with on a solid backing
+  with a soft lift (`.flip-lead`, set by `flip.ts`'s `lead`), so their texts no longer show through each other's glass.
+  The backing fades as the card lands. Found on the way: since v0.1.61 every card below the two also slid by the height
+  difference, because a moved row met `@starting-style` again; `Collapse` now keeps `appear` only for its first growth.
+- The first food of a day: "Nothing logged yet" used to turn into the meal cards at once, hidden under the closing add
+  sheet. Now it waits until the sheet has gone, the empty card fades out, the meals rise in and the water and week cards
+  below glide to their new place. Removing the last food goes back the same way. Another day still shows at once.
