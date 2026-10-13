@@ -521,31 +521,3 @@ export function SheetHead({ title, sub, onClose, right, back: backProp }: { titl
 
 export { AnimatePresence, motion };
 
-/**
- * The same small step back for a full-screen window that isn't a Sheet (the live workout): while a sheet opens on top of it
- * (the exercise list, an exercise's page), it follows that sheet's progress frame for frame. Returns the window's
- * transform, finger drag included.
- */
-export function useStackedBehind(el: { current: HTMLElement | null }, drag: MotionValue<number>) {
-  const meta = useContext(OverlayMeta);
-  const reduce = useReducedMotion();
-  const bs = useMotionValue(0);
-  const upperId = useUI((u) => { const at = meta ? u.overlays.findIndex((o) => o.id === meta.id) : -1; return at >= 0 ? u.overlays[at + 1]?.id : undefined; });
-  const follow = useRef<(() => void) | null>(null);
-  useEffect(() => {
-    const h = upperId ? hosts.get(upperId) : undefined;
-    if (!h || h.small) return;
-    follow.current?.();
-    const seen = inView(h.el);
-    bs.set(seen(h.engage.e.get()));
-    const off = h.engage.e.on('change', (v) => bs.set(seen(v)));
-    // kept while the top sheet leaves, released when it is gone
-    const done = () => { off(); follow.current = null; if (bs.get() > 0.01) animate(bs, 0, reduce ? { duration: 0.01 } : SPRING); };
-    h.gone.add(done);
-    follow.current = () => { off(); h.gone.delete(done); };
-    // eslint-disable-next-line
-  }, [upperId]);
-  useEffect(() => () => follow.current?.(), []);
-  useEffect(() => bs.on('change', (b) => markStacked(el.current, b)), []); // eslint-disable-line
-  return useTransform([drag, bs], ([d, b]: number[]) => `translate3d(0, ${snapPx(d) - STACK_LIFT * b}px, 0) scale(${1 - STACK_SCALE * b})`);
-}

@@ -619,13 +619,11 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .sheet.tall { height: calc(100dvh - var(--sat) - 46px); }
 /* stepped back behind another sheet (data-stacked, Sheet.tsx markStacked): no drop shadow; narrower, it showed beside it. */
 .sheet[data-stacked]::before { box-shadow: inset 0 1px 0 var(--hl), inset 0 0 0 1px var(--line); }
-.wk-card[data-stacked] .wk-sheet { box-shadow: none; }
 /* The browser rounds what is inside a scrolling list to whole screen pixels, so while its sheet is scaled a list ticked
    along a pixel at a time against it. A turn of 0.0001° stops the rounding, only while stepped back ([data-stacked]): it
    goes the moment the sheet is back to full size, mid-slide, so the list's own rounding never changes at rest. It is its
-   own property: the workout list's transform has a 0.6 s transition, so a turn set as a transform eased away and let go
-   at rest (a 1 px hop). */
-.sheet[data-stacked] .sheet-body, .wk-card[data-stacked] :is(.wk-list, .wk-page) { rotate: 0.0001deg; }
+   own property, so no transform transition inside can ease it away and let go at rest (that was a 1 px hop). */
+.sheet[data-stacked] .sheet-body { rotate: 0.0001deg; }
 /* A sheet with another sheet stacked on top keeps its frost: it stays the same glass, set back under the top one's dim (it
    used to turn solid, and the blur only came back once the top sheet left). Only when two or more sheets are stacked on it
    does it drop the blur: each sheet keeps a full-screen blur alive, and three at once ran the phone out of GPU memory
@@ -901,6 +899,15 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    the blurred element (it made Chrome skip the frost under the orb, a darker square on the phone). The fill is clipped by its
    own layer too. One even tint: no lighter plate behind the orb. The blur is small on purpose: the rows are dark on dark, and
    a big blur over a 60 px bar averaged them into one flat colour. */
+/* The orb over the bar is redrawn on every frame, and the phone then redraws only the orb's square of the screen. The bar's
+   frost inside that square was blurred partly from the finished picture around it (already frosted and tinted once): a
+   lighter, bluer square with a hard edge round the orb. DevTools and emulator captures redraw the whole frame, so it never
+   showed there. This layer under the frost, 0.5 % black with its opacity swaying on the compositor, makes the phone redraw
+   the whole bar and a margin round it with the orb each frame, so the frost is blurred from the page alone, in one piece.
+   It reaches down to the screen's edge and 48 px above (the blur's reach); it rests while the window is parked. */
+.wk-bar-even { position: absolute; top: -48px; left: -16px; right: -16px; bottom: calc(-14px - var(--sab)); pointer-events: none; background: rgba(0, 0, 0, 0.005); animation: wkEven 2s linear infinite alternate; }
+@keyframes wkEven { from { opacity: 0.4; } to { opacity: 1; } }
+.wk-off .wk-bar-even { animation: none; }
 .wk-bar-surface.glass { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: color-mix(in srgb, var(--glass) 72%, transparent); -webkit-backdrop-filter: blur(14px) saturate(1.8); backdrop-filter: blur(14px) saturate(1.8); }
 /* "Rest over": a soft accent ring and glow that swells once and settles to a faint ring. Opacity only. */
 .wk-bar-surface::before { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0; will-change: opacity; transition: opacity 700ms var(--ease-out); box-shadow: inset 0 0 0 1.5px var(--ac), 0 0 30px 2px color-mix(in srgb, var(--ac) 40%, transparent); }
@@ -1060,12 +1067,32 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    scrolled the whole window up to show the field (the header slid under the top edge) */
 /* the live workout's window (Apple Music's player is a sheet, Active.tsx): full height, rounded top corners, its own solid colour
    with the area's light in it. It rises from the resume bar and firms up as it goes; nothing on it is blurred or clipped. */
-.wk-sheet { position: absolute; inset: 0; overflow: clip; border-radius: var(--wk-r) var(--wk-r) 0 0; will-change: transform, opacity;
-  box-shadow: 0 -10px 40px -14px rgba(0,0,0,.55); }
+/* it reaches 48 px above its top edge (its own colour, over the status bar's side of the screen): the spring's slow last
+   pixels happen out of sight above the screen, so no strip of the page behind ever lingers over the window's top */
+.wk-sheet { position: absolute; inset: calc(-1 * var(--wk-lead)) 0 0 0; overflow: clip; border-radius: var(--wk-r) var(--wk-r) 0 0; will-change: transform, opacity; }
+/* the shadow over the page's top edge while it travels: its own small layer riding with it, fading out over the last 30 %
+   (Active.tsx), so a page at rest has no shadow and nothing is repainted to fade it */
+.wk-shade { position: absolute; left: 0; right: 0; top: calc(-56px - var(--wk-lead)); height: 56px; pointer-events: none; will-change: transform, opacity;
+  background: linear-gradient(to bottom, transparent, rgba(0,0,0,.07) 45%, rgba(0,0,0,.2)); }
+:root[data-theme='dark'] .wk-shade { top: calc(-72px - var(--wk-lead)); height: 72px; background: linear-gradient(to bottom, transparent, rgba(0,0,0,.22) 40%, rgba(0,0,0,.6)); }
 /* the window's top rim: only a strip along the top (it lay over the whole window, so every animation under it gave it a
    layer and took it away again, once a second during a rest), kept on a layer of its own */
 .wk-sheet::after { content: ''; position: absolute; left: 0; right: 0; top: 0; height: calc(var(--wk-r) + 4px); border-radius: inherit; pointer-events: none; box-shadow: inset 0 1px 0 var(--hl); z-index: 5; will-change: transform; }
-:root { --wk-r: 38px; }
+:root { --wk-r: 0px; --wk-lead: 48px; }
+.wk-sheet > .wk-window { top: var(--wk-lead) !important; }
+/* the window's light sits where it sat in the card (the reach above the top is plain colour), 16 px higher with the grabber gone,
+   so it glows behind the title */
+.wk-solid > .aurora-lite { top: calc(var(--wk-lead) - 16px); overflow: visible; } /* its light carries on up to the screen's top (the window clips it) */
+/* a full page: its header starts just under the status bar (no grabber), and its flat top edge has no rim (it would be a line under the bar) */
+.wk-sheet::after { content: none; }
+.wk-sheet .wk-head-wrap { padding-top: 10px; }
+.wk-top { position: absolute; left: 0; right: 0; top: 0; height: calc(var(--wk-lead) + var(--sat) + 150px); pointer-events: none; will-change: transform;
+  /* the status bar's colour all along the top edge, then the window's light: quickly where the light is (behind the title),
+     slowly towards the far corner, which is darker than the bar, so no edge shows anywhere under it */
+  background:
+    /* eased, so the light has no line where it starts */
+    linear-gradient(to bottom, var(--wk-bar, var(--bg)) calc(var(--wk-lead) + var(--sat)), color-mix(in srgb, var(--wk-bar, var(--bg)) 100%, transparent) calc(var(--wk-lead) + var(--sat) + 0px), color-mix(in srgb, var(--wk-bar, var(--bg)) 92%, transparent) calc(var(--wk-lead) + var(--sat) + 8px), color-mix(in srgb, var(--wk-bar, var(--bg)) 72%, transparent) calc(var(--wk-lead) + var(--sat) + 18px), color-mix(in srgb, var(--wk-bar, var(--bg)) 45%, transparent) calc(var(--wk-lead) + var(--sat) + 28px), color-mix(in srgb, var(--wk-bar, var(--bg)) 20%, transparent) calc(var(--wk-lead) + var(--sat) + 38px), color-mix(in srgb, var(--wk-bar, var(--bg)) 6%, transparent) calc(var(--wk-lead) + var(--sat) + 46px), color-mix(in srgb, var(--wk-bar, var(--bg)) 0%, transparent) calc(var(--wk-lead) + var(--sat) + 54px)),
+    radial-gradient(80% 150px at 100% calc(var(--wk-lead) + var(--sat)), var(--wk-bar, var(--bg)), color-mix(in srgb, var(--wk-bar, var(--bg)) 55%, transparent) 45%, transparent); }
 .wk-solid { position: absolute; inset: 0; background: var(--bg); }
 
 /* Settings pages: once a page has glided in, its rows and fields settle in one after another (transform + opacity only) */
@@ -1212,9 +1239,15 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    and under it, words ran under the orb and the camera and were sliced off by the field's edges (the "cut-out" look).
    Scrolled up, the list now melts away just above the bar, gone by its middle; at the end it slides down out of the way
    (it follows the list's own end fade, --sb-fade-b), so the last message, and an answer writing in, stay whole.
-   With the keyboard up the melt sits above the bar where it rides (--kb-room, the keyboard's room). */
+   With the keyboard up the melt sits above the bar where it rides, and moves with it frame by frame (--kb-now, Coach.tsx;
+   it used to sit at the keyboard's full room the whole time, so while the keyboard came or went the messages between it
+   and the bar were hidden, then popped back once it landed). On the way the list rides at its end short of the room the
+   keyboard hasn't covered yet: that part doesn't count as "scrolled up", so the melt stays out of the last message's way. */
+@property --kb-now { syntax: '<length>'; inherits: false; initial-value: 0px; }
+@property --melt { syntax: '<length-percentage>'; inherits: false; initial-value: 100%; } /* (not handed down to every word: it changes as you scroll) */
 @supports (animation-timeline: scroll()) {
-  .sheet-pane .coach-body.sheet-body[data-scrollable] { --melt: calc(100% - var(--foot-h, 90px) - var(--kb-room, 0px) + (40px - var(--sb-fade-b)) * 1.3);
+  .sheet-pane .coach-body.sheet-body[data-scrollable] { --melt: calc(100% - var(--foot-h, 90px) - min(var(--kb-room, 0px), var(--kb-now))
+      + (40px - max(0px, var(--sb-fade-b) - max(0px, var(--kb-room, 0px) - var(--kb-now)))) * 1.3);
     -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--sb-fade), #000 calc(var(--melt) - 30px), rgba(0,0,0,.25) calc(var(--melt) + 4px), transparent calc(var(--melt) + 22px));
     mask-image: linear-gradient(to bottom, transparent, #000 var(--sb-fade), #000 calc(var(--melt) - 30px), rgba(0,0,0,.25) calc(var(--melt) + 4px), transparent calc(var(--melt) + 22px)); }
 }
@@ -1411,7 +1444,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    fade to 12% first, and the frosted bar had nothing behind it but the dark background). */
 .wk-card { touch-action: pan-y; }
 .wk-list { overflow-x: hidden; overscroll-behavior-x: none; touch-action: pan-y; }
-.wk-list { -webkit-mask-image: linear-gradient(to bottom, transparent, rgba(0,0,0,.1) calc(var(--ft) * .2), rgba(0,0,0,.36) calc(var(--ft) * .45), rgba(0,0,0,.74) calc(var(--ft) * .74), #000 var(--ft), #000 calc(100% - var(--sab) - 14px), rgba(0, 0, 0, 0.35) 100%); mask-image: linear-gradient(to bottom, transparent, rgba(0,0,0,.1) calc(var(--ft) * .2), rgba(0,0,0,.36) calc(var(--ft) * .45), rgba(0,0,0,.74) calc(var(--ft) * .74), #000 var(--ft), #000 calc(100% - var(--sab) - 14px), rgba(0, 0, 0, 0.35) 100%); }
+.wk-list { -webkit-mask-image: linear-gradient(to bottom, transparent, rgba(0,0,0,.1) calc(var(--ft) * .2), rgba(0,0,0,.36) calc(var(--ft) * .45), rgba(0,0,0,.74) calc(var(--ft) * .74), #000 var(--ft), #000 calc(100% - var(--sab) - 44px), rgba(0, 0, 0, 0.3) calc(100% - var(--sab) - 8px), transparent 100%); mask-image: linear-gradient(to bottom, transparent, rgba(0,0,0,.1) calc(var(--ft) * .2), rgba(0,0,0,.36) calc(var(--ft) * .45), rgba(0,0,0,.74) calc(var(--ft) * .74), #000 var(--ft), #000 calc(100% - var(--sab) - 44px), rgba(0, 0, 0, 0.3) calc(100% - var(--sab) - 8px), transparent 100%); }
 @supports (animation-timeline: scroll()) { .wk-list { animation: ft-in linear both; animation-timeline: scroll(self); animation-range: 0 40px; } }
 
 /* Schedule → Wrestling days: seven round day toggles */
@@ -1558,7 +1591,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-pager.paging { -webkit-user-select: none; user-select: none; }
 .wk-track { display: flex; height: 100%; will-change: transform; }
 .wk-page { flex: 0 0 100%; min-width: 0; height: 100%; display: flex; flex-direction: column; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; touch-action: pan-y; padding: 0 16px;
-  -webkit-mask-image: linear-gradient(to bottom, transparent, rgba(0,0,0,.1) calc(var(--ft) * .2), rgba(0,0,0,.36) calc(var(--ft) * .45), rgba(0,0,0,.74) calc(var(--ft) * .74), #000 var(--ft), #000 calc(100% - var(--sab) - 14px), rgba(0, 0, 0, 0.35) 100%); mask-image: linear-gradient(to bottom, transparent, rgba(0,0,0,.1) calc(var(--ft) * .2), rgba(0,0,0,.36) calc(var(--ft) * .45), rgba(0,0,0,.74) calc(var(--ft) * .74), #000 var(--ft), #000 calc(100% - var(--sab) - 14px), rgba(0, 0, 0, 0.35) 100%); }
+  -webkit-mask-image: linear-gradient(to bottom, transparent, rgba(0,0,0,.1) calc(var(--ft) * .2), rgba(0,0,0,.36) calc(var(--ft) * .45), rgba(0,0,0,.74) calc(var(--ft) * .74), #000 var(--ft), #000 calc(100% - var(--sab) - 44px), rgba(0, 0, 0, 0.3) calc(100% - var(--sab) - 8px), transparent 100%); mask-image: linear-gradient(to bottom, transparent, rgba(0,0,0,.1) calc(var(--ft) * .2), rgba(0,0,0,.36) calc(var(--ft) * .45), rgba(0,0,0,.74) calc(var(--ft) * .74), #000 var(--ft), #000 calc(100% - var(--sab) - 44px), rgba(0, 0, 0, 0.3) calc(100% - var(--sab) - 8px), transparent 100%); }
 @supports (animation-timeline: scroll()) { .wk-page { animation: ft-in linear both; animation-timeline: scroll(self); animation-range: 0 40px; } }
 /* the movement's stage: a soft pool of the accent behind the figure */
 .wk-stage { flex: 1 0 auto; min-height: clamp(170px, 22vh, 204px); max-height: 46vh; display: grid; place-items: center; margin-top: 4px; border-radius: var(--r-lg); overflow: hidden;

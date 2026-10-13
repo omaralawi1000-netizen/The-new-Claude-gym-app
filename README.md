@@ -1539,13 +1539,19 @@ at the edges.
   100 %, so for most of the opening the bar was darker than the page under it: a band across the top. It now dims on
   the same 0 → 1 as the page.
 
-## A pop-up over a pop-up: the first one stays put (13 Oct 2026)
-- A pop-up opened from a pop-up (Food → Scan, Photo or Quick add, the workout → Add exercise, any sheet over a sheet): the
-  one below stays exactly where it is, full size, and only dims, in step with the new sheet; the new sheet slides up over
-  it on the usual spring, and on close the dim lifts as it slides away. The page behind the first pop-up keeps its
-  recede (v0.1.76) and doesn't move again. Omar: "when the second pop-up is up, the first pop-up doesn't move backwards
-  … that's more minimal". (Rounds 1 to 8 stacked them like iOS cards: the lower one shrank 7 % and peeked 10 px above;
-  saved on branch backup/stacking-r7-before-no-stepback. Live before this, it shrank 6 % and rose 15 px.)
+## A pop-up over a pop-up: a small step back (13 Oct 2026)
+- A pop-up opened from a pop-up (Food → Scan, Photo or Quick add, any sheet over a sheet): the one below steps back a
+  little, to 96.5 % from its top edge, which rises 8 px, and dims. It goes by exactly the number its dim goes by (how
+  much of the new sheet is in view), so the two start on the same frame and, on close, finish together the moment the
+  new sheet has left the screen. The page behind the first pop-up keeps its recede (v0.1.76) and doesn't move again.
+  The live workout is a full page and stays put under the exercise list (only the dim).
+- How it got here. Omar first chose "the first pop-up doesn't move backwards … that's more minimal" (still and dim), then
+  on seeing it: "I like that depth. I think it just needs a little refinement." Rounds 1 to 8 stacked them like iOS
+  cards (shrank 7 %, peeked 10 px; branch backup/stacking-r7-before-no-stepback); live before this it shrank 6 % and rose
+  15 px; both read as the card jumping back. The first take of this one landed while half the new sheet was still up (on
+  a close it snapped back in four frames while the dim took thirteen) and rose only 4 px, which read as the border drawn
+  twice. Its rise isn't rounded to whole pixels while it is scaled (a scaled card is a touch soft anyway; rounding made it
+  hold and then tick half a pixel as it landed); it starts and ends on whole pixels, so at rest it is sharp.
 - Every sheet's dim (over the page or over a sheet below) and the page's recede go by how much of the sheet is in view,
   so on close they are gone the moment it has left the screen (they lingered 4 frames over the page, about 15 over a
   sheet, while it finished its unseen last 40 px). A tall sheet opened over another takes the full height and covers it
@@ -1670,3 +1676,53 @@ chat, the orb screen open, typing, writing in, answered; light and dark):
 - Switched on by `<html data-glass="v2">` in index.html. The rules sit behind that attribute so
   `scripts/glass-shots.mjs` can compare with and without it. Checks: `scripts/glass-audit.mjs` (no new blind blurs);
   `scripts/flicker-layers.mjs` shows the same 11 drops with and without it.
+
+## The live workout is a full page, not a pop-up card (13 Oct 2026, v0.1.97)
+Omar spends about 3 hours a day on the workout, so it should feel like a place, not a temporary pop-up. He saw a before/after
+preview (seven judged rounds, `/mnt/project-files/workout-fullpage/`) and said yes.
+- The open workout fills the screen: square top, no grabber, no rim line. The header sits 10 px under the status bar.
+  Minimise (arrow, swipe down) and resume from the bar work as before, on the same spring.
+- Nothing behind it steps back or dims. It slides up over the page as it is, with a soft shadow on its top edge that fades
+  out over the last 30 % (`.wk-shade`, transform and opacity only). The page behind still stops being drawn once covered.
+- The status bar is the top of the page. It takes the workout's warm tint (the mix every tab uses, from the Train hue) on
+  exactly the frames the window's top passes under it, and the tab's tint back as it leaves. Only theme-color changes;
+  nothing on the page is restyled. The window's top edge is that colour all along, then eases into its light behind the
+  title (fast on the left), and slowly towards the darker far corner, so no edge shows.
+- The window reaches 48 px above its top edge (`--wk-lead`): the spring's slow last pixels happen off screen, so no strip
+  of the page lingers under the bar at the end of a slide.
+- Smoothness at 4x CPU (`scripts/perf-open.mjs`): minimise and resume draw fewer late frames than the card did, start the same.
+  Films: `scripts/film-fullpage.mjs` (steady camera, `scripts/film-steady.mjs`).
+
+Fix (v0.1.99): at the end of a minimise the window's 48 px lead band and its full-strength shadow came to rest over the
+tab bar for the spring's slow tail (a dark strip at the bottom of the screen). The window now travels the lead further
+down, and its shadow fades out over the last 12 % of the way, so nothing lingers over the tab bar.
+
+Fix (v0.1.100): the rows under the floating workout bar no longer run sharp into the bottom edge ("+ Set" showed
+below the bar). The list and focus pages stay solid down to the middle of the bar, so its frost still has rows to show,
+then dissolve to nothing at the screen edge.
+
+
+## Coach: the messages stay put while the keyboard goes down after a send (13 Oct 2026, v0.1.98)
+Omar's recording: he sent "Ok", the message flew up smoothly, then as the keyboard went down the last messages vanished and
+popped back a moment later, which read as the whole list jumping.
+- Cause: the soft melt above the typing bar (v0.1.94) was placed at the keyboard's full room the whole time the keyboard was
+  moving. The bar rode down with the keyboard, but the melt stayed up, hiding everything between them (up to 339 px), and
+  jumped back down only once the keyboard had landed. The same happened, briefly, on the way up.
+- Now the Coach tells the list where the keyboard is each frame (`--kb-now`, set where the list already rides with the
+  keyboard) and the melt sits on the bar all the way (0 px hidden in every frame, dark and light, at 4x CPU). The room the
+  keyboard hasn't covered yet doesn't count as "scrolled up", so the melt keeps out of the last message's way on the way.
+- `--melt` is now registered and not inherited: it changes as you scroll and is used only by the list's own mask, so it is
+  no longer handed down to every word of the conversation.
+- `scripts/probe-melt.mjs`: the melt against the bar, frame by frame, while the keyboard comes up and while a message is sent.
+  Its fake keyboard reports its final height once, as Chrome on Android does.
+
+## The rest bar's glass is one piece round the orb (13 Oct 2026, v0.1.101)
+Omar's screenshot (Rest over, full-page workout): the orb sat in a lighter, bluer square with a hard left edge, the
+size of the orb's canvas (54 px). Third report of it; the two earlier fixes (layer split, fill fading early) were blind.
+- Why: the orb is redrawn on every frame, so the phone redraws only that square of the screen. The bar's frost inside it
+  is blurred from the screen as it was, and round the square that is the finished bar (already frosted and tinted), so
+  the square came out frosted and tinted twice. DevTools, emulator and desktop captures redraw the whole frame, so it
+  never showed off the phone (also checked on a real X display: nothing).
+- Fix: an invisible layer under the bar's frost (`.wk-bar-even`, 0.5 % black, its opacity swaying on the compositor)
+  makes each frame's redraw cover the whole bar and the blur's reach round it, so the frost is always blurred from the
+  page alone. Compositor only (no script, no new paint); it rests while the window is parked.

@@ -221,7 +221,11 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     // The keyboard slides over the sheet and the bar rides up on it (ui/Sheet.tsx). A list at its end rides up with it,
     // frame for frame, so its last line stays just above the bar, and comes back down with it when it leaves. Scrolled up
     // to read, it is left where it is (only the room the keyboard leaves behind goes with it).
+    // (the melt above the bar, styles.css, rides with the bar too: it is told where the keyboard is each frame)
+    const melt = () => el.style.setProperty('--kb-now', `${Math.round(kb.get() * 10) / 10}px`);
+    melt();
     const offKb = kb.on('change', () => {
+      melt();
       if (user.current) return;
       if (pinned.current) { pin(false); return; }
       const to = endTop(el);
