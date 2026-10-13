@@ -763,35 +763,38 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    turns green with one soft glow and stays green until the next set is ticked. It slides away while you type. */
 .wk-bar-wrap { position: absolute; left: 0; right: 0; bottom: calc(var(--sab) + 14px); padding: 0 16px; display: flex; flex-direction: column; align-items: center; z-index: 5; pointer-events: none; transition: transform 340ms var(--ease-out); }
 .wk-bar-wrap.away { transform: translateY(calc(100% + var(--sab) + 40px)); }
-.wk-bar { pointer-events: auto; position: relative; width: 100%; max-width: 420px; height: 58px; border-radius: 999px; display: flex; align-items: center; gap: 8px; padding: 0 6px 0 20px; }
-/* the fill is clipped by its own layer, not by the bar: an overflow clip on the frosted bar with the orb's button inside it
-   made Chrome skip the frost under the orb — a dark square around it on the phone */
+.wk-bar { pointer-events: auto; position: relative; width: 100%; max-width: 420px; height: 60px; border-radius: 999px; display: flex; align-items: center; gap: 8px; padding: 0 7px 0 22px; }
+/* The frost, its tint and rim are a layer of their own under the words, the fill and the orb's button: none of them sits inside
+   the blurred element (it made Chrome skip the frost under the orb, a darker square on the phone). The fill is clipped by its
+   own layer too. One even tint: no lighter plate behind the orb. The blur is small on purpose: the rows are dark on dark, and
+   a big blur over a 60 px bar averaged them into one flat colour. */
+.wk-bar-surface.glass { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: color-mix(in srgb, var(--glass) 72%, transparent); -webkit-backdrop-filter: blur(14px) saturate(1.8); backdrop-filter: blur(14px) saturate(1.8); }
+/* "Rest over": a soft accent ring and glow that swells once and settles to a faint ring. Opacity only. */
+.wk-bar-surface::before { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0; will-change: opacity; transition: opacity 700ms var(--ease-out); box-shadow: inset 0 0 0 1.5px var(--ac), 0 0 30px 2px color-mix(in srgb, var(--ac) 40%, transparent); }
+.wk-bar.go .wk-bar-surface::before { opacity: .42; animation: goRing 1.8s var(--ease-out) 1; }
+@keyframes goRing { from { opacity: 0; } 35% { opacity: 1; } }
 .wk-bar-clip { position: absolute; inset: 0; border-radius: inherit; overflow: hidden; pointer-events: none; }
-/* Frosted glass, on purpose: a see-through tint with the blur behind it, so the set rows pass under the bar as soft shapes.
-   It is one even tint (no lighter plate behind the orb: the fill lives in its own clip layer, never inside the blurred one).
-   The blur is small on purpose: the rows are dark on dark, and a 34 px blur over a 58 px bar averaged them into one flat
-   colour, so the bar read as solid on the phone. 8 px was then a touch too sharp; 14 px keeps the rows as soft glowing shapes
-   with a clearly frosted feel, and numbers still can't be read through it. */
-.wk-bar.glass { background: color-mix(in srgb, var(--glass) 72%, transparent); -webkit-backdrop-filter: blur(14px) saturate(1.8); backdrop-filter: blur(14px) saturate(1.8); }
-.wk-bar-fill { position: absolute; inset: 0; pointer-events: none; transform: translateX(-100%); will-change: transform; background: linear-gradient(90deg, color-mix(in srgb, var(--ac) 20%, transparent), color-mix(in srgb, var(--ac) 40%, transparent)); -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 44px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 44px), transparent); }
-.wk-bar-fill::before { content: ''; position: absolute; inset: 0; opacity: 0; will-change: opacity; transition: opacity 500ms var(--ease-out); background: linear-gradient(90deg, color-mix(in srgb, var(--ac) 6%, transparent), color-mix(in srgb, var(--ac) 16%, transparent)); }
-.wk-bar.go .wk-bar-fill { transform: none; -webkit-mask-image: none; mask-image: none; }
-.wk-bar.go .wk-bar-fill::before { opacity: 1; }
-/* the bar's words settle in when the bar changes what it says (next → rest → go): a slow, short rise, no cut */
-.wk-bar-top, .wk-bar-big { animation: wkSwap 520ms var(--ease-out) backwards; }
+/* the rest fills the bar in one calm tint of the accent, with a soft leading edge (no gradient: it read muddy over the dark) */
+.wk-bar-fill { position: absolute; inset: 0; pointer-events: none; transform: translateX(-100%); will-change: transform, opacity; opacity: 1; transition: opacity 600ms var(--ease-out); background: color-mix(in srgb, var(--ac) 24%, transparent); -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 56px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 56px), transparent); }
+.wk-bar.go .wk-bar-fill { transform: none; -webkit-mask-image: none; mask-image: none; opacity: .55; }
+/* the bar's words settle in when the bar changes what it says (next, rest, go): a slow, short rise, no cut; the big line a beat after the small one */
+.wk-bar-top, .wk-bar-big { animation: wkSwap 560ms var(--ease-out) backwards; }
+.wk-bar-big { animation-delay: 60ms; }
 @keyframes wkSwap { from { opacity: 0; transform: translateY(5px); } }
 /* the last three seconds: the time swells a touch on each second, in step with the ticks */
 .wk-tick { display: inline-block; transform-origin: 0 60%; animation: wkTick 760ms var(--ease-out); }
 @keyframes wkTick { from { transform: scale(1.16); color: var(--ac-text); } }
-.wk-bar.go { animation: goGlow 1.8s var(--ease-out) 1; }
-@keyframes goGlow { 0% { box-shadow: inset 0 1px 0 var(--hl), inset 0 0 0 1.5px var(--ac), 0 0 0 0 color-mix(in srgb, var(--ac) 60%, transparent); } 35% { box-shadow: inset 0 1px 0 var(--hl), inset 0 0 0 1.5px var(--ac), 0 0 34px 6px color-mix(in srgb, var(--ac) 45%, transparent); } 100% { box-shadow: inset 0 1px 0 var(--hl), inset 0 0 0 1px color-mix(in srgb, var(--ac) 60%, var(--line)), 0 0 0 0 transparent; } }
-.wk-bar.go .wk-bar-big { color: var(--tx); }
 .wk-bar.go .wk-bar-top { color: var(--ac-text); }
 .wk-bar-main { position: relative; flex: 1; min-width: 0; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; text-align: left; gap: 1px; }
-.wk-bar-top { max-width: 100%; font-size: 12px; font-weight: 600; color: var(--tx2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wk-bar-top { max-width: 100%; font-size: 12px; font-weight: 600; letter-spacing: 0.01em; color: var(--tx2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wk-bar-big { max-width: 100%; font-size: 17px; font-weight: 680; letter-spacing: -0.01em; color: var(--tx); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wk-bar.rest .wk-bar-big { font-size: 20px; }
-.wk-bar-orb { position: relative; width: 46px; height: 46px; flex: none; border-radius: 999px; }
+.wk-bar-orb { position: relative; width: 46px; height: 46px; flex: none; border-radius: 999px; transition: transform 520ms var(--ease-spring); }
+.wk-bar-orb:active { transform: scale(0.94); transition-duration: 110ms; }
+/* the orb's glow on the bar: a soft accent bloom behind it (the orb itself is drawn above), stronger while you rest and when it is over */
+.wk-bar-orb::before { content: ''; position: absolute; inset: -9px; border-radius: 50%; pointer-events: none; opacity: .5; transition: opacity 600ms var(--ease-out); background: radial-gradient(circle, color-mix(in srgb, var(--ac) 30%, transparent) 0%, transparent 68%); }
+.wk-bar.rest .wk-bar-orb::before { opacity: .75; }
+.wk-bar.go .wk-bar-orb::before { opacity: 1; }
 /* the one Finish: once every set is ticked it glows softly; tapping the bar's "all done" nudges it */
 .wk-finish.ready { animation: finishGlow 2.4s ease-in-out infinite; }
 @keyframes finishGlow { 0%, 100% { box-shadow: 0 6px 18px -8px color-mix(in srgb, var(--ac) 70%, transparent); } 50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--ac) 22%, transparent), 0 8px 28px -6px var(--ac); } }
@@ -809,7 +812,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* the bar's "next set": the row it scrolled to glows once */
 .wk-flash { animation: wkFlash 1.4s var(--ease-out) 1; border-radius: 12px; }
 @keyframes wkFlash { 0%, 30% { background: color-mix(in srgb, var(--ac) 22%, transparent); } 100% { background: transparent; } }
-@media (prefers-reduced-motion: reduce) { .wk-bar.go, .wk-flash, .wk-tick, .wk-bar-top, .wk-bar-big { animation: none; } .wk-bar-fill::before { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .wk-bar.go .wk-bar-surface::before, .wk-flash, .wk-tick, .wk-bar-top, .wk-bar-big { animation: none; } .wk-bar-fill, .wk-bar-orb::before, .wk-bar-surface::before { transition: none; } }
 /* the live workout: an exercise that arrives after the window has landed fades up into place (compositor only) */
 .wk-block.in { animation: blockIn 520ms var(--ease-out) backwards; }
 @keyframes blockIn { from { opacity: 0; transform: translateY(16px); } }
