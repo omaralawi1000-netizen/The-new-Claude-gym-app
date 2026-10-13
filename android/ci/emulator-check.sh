@@ -57,13 +57,11 @@ adb forward tcp:9222 localabstract:chrome_devtools_remote
 python3 android/ci/cdp.py set
 adb shell am start -n app.aven.android/com.google.androidbrowserhelper.trusted.LauncherActivity
 sleep 4 # cdp.py waits for the page itself
-# the answer first: on this emulator a screenshot of the app has crashed it
+# the answer first: this emulator dies shortly after opening the app (its graphics, not the app), so everything after
+# this has a time limit
 adb forward tcp:9222 localabstract:chrome_devtools_remote
 python3 android/ci/cdp.py get | tee shots/carry-over.txt
-adb shell dumpsys activity activities | grep -m3 "topResumedActivity\|ResumedActivity" | tee -a shots/carry-over.txt
-# a browser bar would show up as Chrome's toolbar / url_bar in the screen layout
-adb shell uiautomator dump /sdcard/ui.xml && adb pull /sdcard/ui.xml shots/app-layout.xml
-grep -o 'resource-id="com.android.chrome:id/[a-z_]*"' shots/app-layout.xml | sort -u | tee -a shots/carry-over.txt
-adb logcat -d | grep -i "OriginVerifier\|TrustedWebActivity\|TwaVerif\|digital asset\|Verification" | tail -20 | tee -a shots/carry-over.txt
-adb exec-out screencap -p > shots/6-app.png
+timeout 15 adb shell dumpsys activity activities | grep -m2 "ResumedActivity" | tee -a shots/carry-over.txt
+timeout 15 adb exec-out screencap -p > shots/6-app.png
+timeout 20 adb logcat -d | grep -i "OriginVerifier\|TrustedWebActivity\|digital asset" | tail -20 | tee -a shots/carry-over.txt
 exit 0
