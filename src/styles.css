@@ -78,6 +78,10 @@ html:root[data-glow='off'] .aurora, html:root[data-glow='off'] .aurora-lite { di
 :root[data-palette='forest'] [data-hue='progress'] { --ac: #5ae0a8; --h1: #2f9d8a; --h2: #4b9b5a; --h3: #b6f25a; }
 /* contents that arrive a beat after a tall sheet starts moving fade in instead of appearing */
 .sheet-pane.late > * { animation: fadein 220ms var(--ease-out) both; }
+/* …but the bottom buttons' fade is let go once it has run (fill backwards): an animation kept on the foot makes it a closed
+   world for the blur inside it, and the button stopped frosting the list under it (rows read straight through it). The foot
+   keeps its own layer anyway (will-change), so letting the animation go can't flicker. */
+.sheet-pane.late > .sheet-foot { animation-fill-mode: backwards; }
 :root[data-motion='reduce'] .sheet-pane.late > * { animation: none; }
 /* the little swatches in Settings → Appearance */
 .pal { display: flex; gap: 10px; overflow-x: auto; margin: 0 -22px; padding: 4px 22px 6px; scrollbar-width: none; scroll-snap-type: x proximity; scroll-padding: 0 22px; }
@@ -587,6 +591,8 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
   -webkit-backdrop-filter: blur(22px) saturate(1.6); backdrop-filter: blur(22px) saturate(1.6);
   box-shadow: inset 0 1px 0 var(--hl), inset 0 0 0 1px var(--line-2), 0 12px 30px -14px rgba(0, 0, 0, 0.55); }
 .sheet .sheet-foot .btn.btn[disabled] { color: var(--tx3); }
+/* Add exercises: "Create custom exercise" as a quiet line beside the count, not a second pill at the end of the list */
+.picker-create { gap: 5px; font-size: 13.5px; font-weight: 600; padding: 6px 2px 6px 8px; margin-right: -2px; }
 
 /* ── floating tab bar: icons only; the active tab opens up and shows its name ─── */
 .tabbar-wrap { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; padding: 0 16px calc(var(--sab) + 14px); display: flex; justify-content: center; pointer-events: none; }
@@ -978,9 +984,14 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .page-rise :is(.sheet-body, .sheet-body > .list, .sheet-body > .stack) > :nth-child(n+8) { --k: 8; }
 .page-rise > .sheet-body > * { --base: var(--k); }
 .page-rise > .sheet-head { animation: page-title 520ms var(--ease-out) both; animation-delay: 100ms; }
-.page-rise > .sheet-body > :not(.list, .stack, .settings-page):nth-child(-n+10) { animation: rise-soft 560ms var(--ease-out) both; animation-delay: calc(110ms + min(var(--k), 8) * 34ms); }
-.page-rise > .sheet-body > :is(.list, .stack):nth-child(-n+10) > :nth-child(-n+10) { animation: rise-soft 560ms var(--ease-out) both; animation-delay: calc(110ms + min(var(--base) + var(--k) - 1, 9) * 34ms); }
-.page-rise > .sheet-foot { animation: rise-soft 560ms var(--ease-out) both; animation-delay: 210ms; }
+.page-rise:not(.page-back) > .sheet-body > :not(.list, .stack, .settings-page):nth-child(-n+10) { animation: rise-soft 560ms var(--ease-out) both; animation-delay: calc(110ms + min(var(--k), 8) * 34ms); }
+.page-rise:not(.page-back) > .sheet-body > :is(.list, .stack):nth-child(-n+10) > :nth-child(-n+10) { animation: rise-soft 560ms var(--ease-out) both; animation-delay: calc(110ms + min(var(--base) + var(--k) - 1, 9) * 34ms); }
+.page-rise > .sheet-foot { animation: rise-soft 560ms var(--ease-out) backwards; animation-delay: 210ms; } /* backwards, not both: see .sheet-pane.late > .sheet-foot */
+/* Going Back to a page that may be scrolled (Add exercises after New exercise): counting children would make rows 1-10
+   rise while the rows actually on screen further down just sat there (a gap that filled in from the top). Instead the blocks
+   on screen are marked (.rise-b, --k = their order on screen, set by rise() in Sheet.tsx) and only those rise, in that order. */
+.page-rise.page-back .rise-b { animation: rise-soft 560ms var(--ease-out) both; animation-delay: calc(110ms + var(--k) * 34ms); }
+.page-rise.page-back.page-risen .rise-b { animation-duration: 0s; animation-delay: 0s; }
 @keyframes page-title { from { opacity: 0; transform: translate3d(var(--title-dx, 14px), 0, 0); } }
 /* Once a page has settled (Sheet.tsx adds .page-risen), its blocks' animations take no time: they stay finished and keep their
    layers (no flicker), and a block that appears later (a search result) is simply there instead of rising in. */

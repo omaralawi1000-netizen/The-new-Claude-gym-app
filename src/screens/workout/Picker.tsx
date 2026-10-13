@@ -31,7 +31,8 @@ export function ExercisePicker({ props }: { props: PickerProps }) {
   const [mine, setMine] = useState(false);
   const [more, setMore] = useState(false);
   const [sel, setSel] = useState<string[]>([]);
-  const access = equipmentSet(s.settings.profile.equipment);
+  // kept the same between renders: a new set each time made a new list each time, which kept the list stuck at its first 14
+  const access = useMemo(() => equipmentSet(s.settings.profile.equipment), [s.settings.profile.equipment]);
   const single = props.mode === 'replace' || !!props.single;
 
   const list = useMemo(() => {
@@ -90,13 +91,17 @@ export function ExercisePicker({ props }: { props: PickerProps }) {
             <div className="list">{subs.map((e) => <Row key={e.id} e={e} lang={lang} t={t} sel={false} single={single} onClick={() => choose(e)} />)}</div>
           </div>
         )}
-        <div className="micro" style={{ margin: '6px 0' }}>{list.length} {list.length === 1 ? t('exercise') : t('exercises')}</div>
+        {/* Create sits up here, beside the count, where it can always be found: at the end of the list it was a second pill
+            that slid under the Add button */}
+        <div className="row-flex" style={{ justifyContent: 'space-between', minHeight: 32, margin: '0 0 2px' }}>
+          <span className="micro">{list.length} {list.length === 1 ? t('exercise') : t('exercises')}</span>
+          {list.length > 0 && <button className="row-flex press accent picker-create" onClick={() => push('exerciseEditor', { name: q, onSaved: (id: string) => { if (!single) setSel((x) => [...x, id]); } })}><Icon name="plus" size={16} sw={2.2} /> {t('Create custom exercise')}</button>}
+        </div>
         <div className="list">{shown.map((e) => <Row key={e.id} e={e} lang={lang} t={t} sel={sel.includes(e.id)} single={single} onClick={() => choose(e)} onInfo={() => push('exercise', { id: e.id })} />)}</div>
         {list.length === 0 && (
           <div className="empty"><div className="display display-sm">{t('No exercise found')}</div><div className="small" style={{ margin: '6px auto 14px', maxWidth: 260 }}>{t('Create it once and it stays in your library.')}</div>
             <button className="btn primary press" onClick={() => push('exerciseEditor', { name: q, onSaved: (id: string) => choose(useStore.getState().exercises.find((x) => x.id === id)!) })}><Icon name="plus" size={18} /> {t('Create exercise')}</button></div>
         )}
-        {list.length > 0 && <button className="btn block press" style={{ marginTop: 16 }} onClick={() => push('exerciseEditor', { name: q, onSaved: (id: string) => { if (!single) setSel((x) => [...x, id]); } })}><Icon name="plus" size={18} /> {t('Create custom exercise')}</button>}
       </div>
     </Sheet>
   );
@@ -142,19 +147,29 @@ export function ExerciseEditor({ props }: { props: { name?: string; id?: string;
   return (
     <Sheet onClose={pop} tall label={t('Custom exercise')} z={130} foot={<button className="btn primary block press" disabled={!valid} onClick={save}>{t('Save exercise')}</button>}>
       <SheetHead title={ex ? t('Edit exercise') : t('New exercise')} onClose={pop} />
+      {/* one block per question, so the page settles in as a few calm steps (each block of an in-sheet page rises in turn;
+          only the first ten do, and the form used to be eleven loose pieces, the last of which just popped in) */}
       <div className="sheet-body">
         <div className="field"><label htmlFor="ex-name">{t('Name')}</label><input id="ex-name" className="input" value={name} onChange={(e) => setName(e.target.value)} /></div>
-        <div className="lbl" style={{ margin: '18px 0 8px' }}>{t('Muscles (first tapped = primary)')}</div>
-        <div className="chips" style={{ flexWrap: 'wrap', margin: 0, padding: 0 }}>{MUSCLES.map((m) => <button key={m} className={`chip sm press ${muscles[0] === m ? 'on' : muscles.includes(m) ? 'acc' : ''}`} onClick={() => setMuscles(toggle(muscles, m))}>{t(MUSCLE_LABEL[m])}</button>)}</div>
-        <div className="lbl" style={{ margin: '18px 0 8px' }}>{t('Equipment')}</div>
-        <div className="chips" style={{ flexWrap: 'wrap', margin: 0, padding: 0 }}>{EQUIPMENT.map((m) => <button key={m} className={`chip sm press ${equipment.includes(m) ? 'acc' : ''}`} onClick={() => setEquipment(toggle(equipment, m))}>{t(EQUIP_LABEL[m])}</button>)}</div>
-        <div className="lbl" style={{ margin: '18px 0 8px' }}>{t('Movement')}</div>
-        <div className="chips" style={{ flexWrap: 'wrap', margin: 0, padding: 0 }}>{MOVEMENTS.map((m) => <button key={m} className={`chip sm press ${movement === m ? 'on' : ''}`} onClick={() => setMovement(m)}>{t(MOVE_LABEL[m])}</button>)}</div>
-        <div className="lbl" style={{ margin: '18px 0 8px' }}>{t('How is it logged?')}</div>
-        <Seg value={logType} onChange={setLogType} options={[{ value: 'weightReps', label: t('Load × reps') }, { value: 'bodyweightReps', label: t('Reps') }, { value: 'duration', label: t('Time') }]} />
-        <div className="chips" style={{ margin: '8px 0 0', padding: 0, flexWrap: 'wrap' }}>
-          <button className={`chip sm press ${logType === 'assisted' ? 'on' : ''}`} onClick={() => setLogType('assisted')}>{t('Assisted')}</button>
-          <button className={`chip sm press ${logType === 'distance' ? 'on' : ''}`} onClick={() => setLogType('distance')}>{t('Distance')}</button>
+        <div>
+          <div className="lbl" style={{ margin: '18px 0 8px' }}>{t('Muscles (first tapped = primary)')}</div>
+          <div className="chips" style={{ flexWrap: 'wrap', margin: 0, padding: 0 }}>{MUSCLES.map((m) => <button key={m} className={`chip sm press ${muscles[0] === m ? 'on' : muscles.includes(m) ? 'acc' : ''}`} onClick={() => setMuscles(toggle(muscles, m))}>{t(MUSCLE_LABEL[m])}</button>)}</div>
+        </div>
+        <div>
+          <div className="lbl" style={{ margin: '18px 0 8px' }}>{t('Equipment')}</div>
+          <div className="chips" style={{ flexWrap: 'wrap', margin: 0, padding: 0 }}>{EQUIPMENT.map((m) => <button key={m} className={`chip sm press ${equipment.includes(m) ? 'acc' : ''}`} onClick={() => setEquipment(toggle(equipment, m))}>{t(EQUIP_LABEL[m])}</button>)}</div>
+        </div>
+        <div>
+          <div className="lbl" style={{ margin: '18px 0 8px' }}>{t('Movement')}</div>
+          <div className="chips" style={{ flexWrap: 'wrap', margin: 0, padding: 0 }}>{MOVEMENTS.map((m) => <button key={m} className={`chip sm press ${movement === m ? 'on' : ''}`} onClick={() => setMovement(m)}>{t(MOVE_LABEL[m])}</button>)}</div>
+        </div>
+        <div>
+          <div className="lbl" style={{ margin: '18px 0 8px' }}>{t('How is it logged?')}</div>
+          <Seg value={logType} onChange={setLogType} options={[{ value: 'weightReps', label: t('Load × reps') }, { value: 'bodyweightReps', label: t('Reps') }, { value: 'duration', label: t('Time') }]} />
+          <div className="chips" style={{ margin: '8px 0 0', padding: 0, flexWrap: 'wrap' }}>
+            <button className={`chip sm press ${logType === 'assisted' ? 'on' : ''}`} onClick={() => setLogType('assisted')}>{t('Assisted')}</button>
+            <button className={`chip sm press ${logType === 'distance' ? 'on' : ''}`} onClick={() => setLogType('distance')}>{t('Distance')}</button>
+          </div>
         </div>
         <div className="field" style={{ marginTop: 18 }}><label htmlFor="ex-steps">{t('Instructions (one step per line, optional)')}</label><textarea id="ex-steps" className="input" style={{ minHeight: 110 }} value={steps} onChange={(e) => setSteps(e.target.value)} /></div>
       </div>

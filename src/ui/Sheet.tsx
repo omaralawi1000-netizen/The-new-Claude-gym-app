@@ -34,17 +34,35 @@ function pageOut(el: HTMLElement, dx: number) {
   return el.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: `translate3d(${dx}px, 0, 0)` }], { duration: 140, easing: PAGE_EASE_OUT, fill: 'forwards' });
 }
 const riseTimers = new WeakMap<HTMLElement, ReturnType<typeof setTimeout>>();
-function rise(el: HTMLElement) {
+function rise(el: HTMLElement, back = false) {
   clearTimeout(riseTimers.get(el));
-  el.classList.remove('page-rise', 'page-risen'); void el.offsetWidth; // restart the blocks' animations
+  el.classList.remove('page-rise', 'page-risen', 'page-back');
+  el.querySelectorAll<HTMLElement>('.rise-b').forEach((b) => { b.classList.remove('rise-b'); b.style.removeProperty('--k'); });
+  // Back: the page may be scrolled, so the blocks that rise are the ones on screen, in the order they are seen (see .page-back)
+  if (back) markOnScreen(el);
+  void el.offsetWidth; // restart the blocks' animations
   el.classList.add('page-rise');
+  if (back) el.classList.add('page-back');
   // settled: the blocks' finished animations are kept (taking them away dropped each block's layer — a one-frame flicker),
   // only made instant, so a block that appears later is just there (.page-risen in styles.css)
   riseTimers.set(el, setTimeout(() => el.classList.add('page-risen'), 1200));
 }
-function pageIn(el: HTMLElement, dx: number) {
+function markOnScreen(el: HTMLElement) {
+  const body = el.querySelector<HTMLElement>(':scope > .sheet-body'); if (!body) return;
+  const box = body.getBoundingClientRect();
+  let k = 0;
+  rows: for (const c of Array.from(body.children) as HTMLElement[]) {
+    for (const b of (c.matches('.list, .stack') ? Array.from(c.children) : [c]) as HTMLElement[]) {
+      const r = b.getBoundingClientRect();
+      if (r.bottom <= box.top || !r.height) continue;
+      if (r.top >= box.bottom) break rows;
+      b.classList.add('rise-b'); b.style.setProperty('--k', String(Math.min(++k, 9)));
+    }
+  }
+}
+function pageIn(el: HTMLElement, dx: number, back = false) {
   el.style.setProperty('--title-dx', `${Math.sign(dx) * 14}px`); // the title drifts in from the side the page comes from
-  rise(el);
+  rise(el, back);
   const a = el.animate([{ transform: `translate3d(${dx}px, 0, 0)` }, { transform: 'none' }], { duration: PAGE_IN.duration, easing: PAGE_IN.easing, delay: PAGE_DELAY, fill: 'backwards' });
   const b = el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', delay: PAGE_DELAY, fill: 'backwards' });
   return [a, b];
@@ -67,7 +85,7 @@ function useCovered(ref: React.RefObject<HTMLElement | null>, covered: boolean, 
     } else {
       el.style.visibility = '';
       if (reduce) return;
-      anims.current = pageIn(el, -32);
+      anims.current = pageIn(el, -32, true);
     }
   }, [covered]); // eslint-disable-line
 }
