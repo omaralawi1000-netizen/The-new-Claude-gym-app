@@ -592,9 +592,11 @@ export const ExerciseBlock = memo(function ExerciseBlock({ se, ex, linkedPrev, l
   const complete = se.sets.length > 0 && se.sets.every((x) => x.done);
   // the last set ticked while you watch: the card settles with a brief warm glow and one soft sheen (not when it is drawn
   // already complete, and not when a set is unticked)
-  const wasComplete = useRef(complete);
+  // (a set ticked, not the last open set deleted: that also makes it complete, and is no moment)
+  const doneN = se.sets.filter((x) => x.done).length;
+  const was = useRef({ complete, doneN });
   const [settle, setSettle] = useState(0);
-  useEffect(() => { if (complete && !wasComplete.current) setSettle((n) => n + 1); wasComplete.current = complete; }, [complete]);
+  useEffect(() => { if (complete && !was.current.complete && doneN > was.current.doneN) setSettle((n) => n + 1); was.current = { complete, doneN }; }, [complete, doneN]);
   // something you told the Coach about this exercise ("left shoulder hurts on overhead press"): shown beside it, with a swap.
   // A joined string, so ticking a set elsewhere doesn't redraw this block.
   const flagged = useStore((s) => s.memory.filter((m) => m.exerciseIds?.includes(se.exerciseId)).map((m) => m.text).join('\n'));
