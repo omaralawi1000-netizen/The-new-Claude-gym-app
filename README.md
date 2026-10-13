@@ -1309,3 +1309,10 @@ unchanged. Same everywhere text writes in (Coach and orb answers, spoken words, 
 - The first food of a day: "Nothing logged yet" used to turn into the meal cards at once, hidden under the closing add
   sheet. Now it waits until the sheet has gone, the empty card fades out, the meals rise in and the water and week cards
   below glide to their new place. Removing the last food goes back the same way. Another day still shows at once.
+
+## Detail pass 2: charts and signed numbers (13 Oct 2026, v0.1.65)
+
+- "Sessions per week" counts whole sessions, so its axis now only shows whole numbers. A new user (target 1 a week) saw
+  "1 · 1 · 0" because the middle tick was 0.5; `BarChart` has a `whole` flag for count charts.
+- A change that rounds to nothing reads "0", not "−0 kg" or "+0 kg/wk" (`fmtSigned` in `lib/units.ts`, used by Progress,
+  Today's week review and the measurements list).
