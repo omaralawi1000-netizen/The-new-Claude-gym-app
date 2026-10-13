@@ -988,7 +988,8 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
   /* the status bar's colour all along the top edge, then the window's light: quickly where the light is (behind the title),
      slowly towards the far corner, which is darker than the bar, so no edge shows anywhere under it */
   background:
-    linear-gradient(to bottom, var(--wk-bar, var(--bg)) calc(var(--wk-lead) + var(--sat) + 1px), transparent calc(var(--wk-lead) + var(--sat) + 44px)),
+    /* eased, so the light has no line where it starts */
+    linear-gradient(to bottom, var(--wk-bar, var(--bg)) calc(var(--wk-lead) + var(--sat)), color-mix(in srgb, var(--wk-bar, var(--bg)) 100%, transparent) calc(var(--wk-lead) + var(--sat) + 0px), color-mix(in srgb, var(--wk-bar, var(--bg)) 92%, transparent) calc(var(--wk-lead) + var(--sat) + 8px), color-mix(in srgb, var(--wk-bar, var(--bg)) 72%, transparent) calc(var(--wk-lead) + var(--sat) + 18px), color-mix(in srgb, var(--wk-bar, var(--bg)) 45%, transparent) calc(var(--wk-lead) + var(--sat) + 28px), color-mix(in srgb, var(--wk-bar, var(--bg)) 20%, transparent) calc(var(--wk-lead) + var(--sat) + 38px), color-mix(in srgb, var(--wk-bar, var(--bg)) 6%, transparent) calc(var(--wk-lead) + var(--sat) + 46px), color-mix(in srgb, var(--wk-bar, var(--bg)) 0%, transparent) calc(var(--wk-lead) + var(--sat) + 54px)),
     radial-gradient(80% 150px at 100% calc(var(--wk-lead) + var(--sat)), var(--wk-bar, var(--bg)), color-mix(in srgb, var(--wk-bar, var(--bg)) 55%, transparent) 45%, transparent); }
 .wk-solid { position: absolute; inset: 0; background: var(--bg); }
 
