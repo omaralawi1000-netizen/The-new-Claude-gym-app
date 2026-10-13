@@ -64,7 +64,7 @@ const P: Record<string, ReactNode> = {
 };
 
 /** The second tone of a two-tone icon (the dock's active tab, the big empty-state marks): the glyph's body, filled under
- *  its stroke at about 40 % of the colour with a gentle light from the top. Same shapes as the strokes above. */
+ *  its stroke at about 55 % of the colour with a gentle light from the top. Same shapes as the strokes above. */
 const DUO: Record<string, ReactNode> = {
   today: <path d="M4 18.5V9l8-5.5L20 9v9.5z" />,
   train: <><rect x="4.7" y="6.2" width="3.6" height="11.6" rx="1.8" /><rect x="15.7" y="6.2" width="3.6" height="11.6" rx="1.8" /><rect x="2.4" y="8.7" width="2.2" height="6.6" rx="1.1" /><rect x="19.4" y="8.7" width="2.2" height="6.6" rx="1.1" /></>,
@@ -80,7 +80,7 @@ export function Icon({ name, size = 22, sw = 1.8, style, className, duo }: { nam
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" style={style} className={className} aria-hidden="true">
       {body && <>
-        <defs><linearGradient id={gid} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="currentColor" stopOpacity=".55" /><stop offset="1" stopColor="currentColor" stopOpacity=".28" /></linearGradient></defs>
+        <defs><linearGradient id={gid} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="currentColor" stopOpacity=".7" /><stop offset="1" stopColor="currentColor" stopOpacity=".4" /></linearGradient></defs>
         <g className="duo" fill={`url(#${gid})`} stroke="none">{body}</g>
       </>}
       {P[name] ?? null}

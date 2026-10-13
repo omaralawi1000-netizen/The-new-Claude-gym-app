@@ -477,8 +477,9 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
    the active set's outline (Omar: "why does it have to be orange?"). The colour field behind follows the theme's colour,
    softly. */
 :root[data-glass='v2'] {
-  --mat-card: linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.035));
-  --mat-card-lift: inset 0 1px 0 rgba(255, 255, 255, 0.09), 0 1px 2px rgba(0, 0, 0, 0.5), 0 8px 24px -8px rgba(0, 0, 0, 0.55), 0 20px 40px -20px color-mix(in srgb, var(--ac) 10%, transparent);
+  --mat-card: linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.085));
+  --mat-card-lift: inset 0 1px 0 rgba(255, 255, 255, 0.16), inset 0 18px 28px -18px rgba(255, 255, 255, 0.07), 0 1px 2px rgba(0, 0, 0, 0.5), 0 8px 24px -8px rgba(0, 0, 0, 0.55), 0 20px 40px -20px color-mix(in srgb, var(--ac) 10%, transparent);
+  --mat-card-rim: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.06) 30%, rgba(255, 255, 255, 0) 60%);
   --mat-ctl: linear-gradient(180deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.065));
   --mat-ctl-lift: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 1px 2px rgba(0, 0, 0, 0.45), 0 6px 14px -6px rgba(0, 0, 0, 0.5);
   --mat-rim: rgba(255, 255, 255, 0.06);
@@ -486,7 +487,7 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
   --mat-well: inset 0 2px 5px rgba(0, 0, 0, 0.6), inset 0 0 0 1px rgba(255, 255, 255, 0.055), inset 0 -1px 0 rgba(255, 255, 255, 0.07);
   --mat-well-bg: linear-gradient(180deg, rgba(0, 0, 0, 0.12), rgba(255, 255, 255, 0.025));
   /* the colour field: much softer, so it is a mood behind the cards and never their colour */
-  --aurora-a: 0.16;
+  --aurora-a: 0.2;
 }
 :root[data-glass='v2'][data-theme='light'] {
   --mat-card: linear-gradient(180deg, #fff, #fcfaf8);
@@ -494,12 +495,13 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
   --mat-ctl: linear-gradient(180deg, #fff, #fcfaf8);
   --mat-ctl-lift: inset 0 1px 0 #fff, 0 1px 2px rgba(60, 30, 20, 0.07), 0 6px 16px -8px rgba(60, 30, 20, 0.16);
   --mat-rim: rgba(40, 20, 10, 0.06);
+  --mat-card-rim: rgba(40, 20, 10, 0.06);
   --mat-ctl-rim: rgba(40, 20, 10, 0.07);
   --mat-well: inset 0 1.5px 3px rgba(30, 40, 70, 0.16), inset 0 0 0 1px rgba(20, 28, 48, 0.07), inset 0 -1px 0 #fff;
   --mat-well-bg: linear-gradient(180deg, rgba(20, 28, 48, 0.03), rgba(255, 255, 255, 0.3));
   --aurora-a: 0.11;
 }
-html:root[data-glass='v2'][data-glow='soft'] { --aurora-a: 0.08; }
+html:root[data-glass='v2'][data-glow='soft'] { --aurora-a: 0.1; }
 html:root[data-glass='v2'][data-glow='soft'][data-theme='light'] { --aurora-a: 0.055; }
 /* the field's three lights are the theme's colour: itself, a touch towards violet, and a lighter one (Mono keeps its greys) */
 :root[data-glass='v2']:not([data-palette='mono']) :is(.app, [data-hue]) {
@@ -515,7 +517,8 @@ html:root[data-glass='v2'][data-glow='soft'][data-theme='light'] { --aurora-a: 0
   background: var(--mat-ctl-rim);
   -webkit-mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
 }
-:root[data-glass='v2'] .plinth::after { background: var(--mat-rim); }
+/* in dark the card's hairline fades out below its middle, so it reads as light catching the top edge, not an outline */
+:root[data-glass='v2'] .plinth::after { background: var(--mat-card-rim); }
 /* a sideways row of chips scrolls, so it clips: room underneath lets their shadows fall softly instead of being cut */
 :root[data-glass='v2'] .chips { padding-bottom: 26px; margin-bottom: -26px; }
 /* the dock keeps its real frost (things pass under it): only the faint top light, the hairline and the lift */
@@ -525,7 +528,7 @@ html:root[data-glass='v2'][data-glow='soft'][data-theme='light'] { --aurora-a: 0
 /* the dock's active tab is neutral lit glass; the colour is in its icon */
 :root[data-glass='v2']:not([data-theme='light']) .tab-lens { --lens-fill: linear-gradient(180deg, #3d3e45, #303137 60%, #2c2d33); --lens-hl: rgba(255, 255, 255, 0.16); --lens-line: rgba(255, 255, 255, 0.06); }
 /* tab icons: a clean stroke in the secondary text colour; the active one is two-tone in the theme's colour (the stroke in
-   full, its shape filled at about 40 % with a gentle light from the top, see Icon.tsx) and sits on a hair of its own shadow */
+   full, its shape filled at about half strength with a gentle light from the top, see Icon.tsx) and sits on a hair of its own shadow */
 :root[data-glass='v2'] .tab:not(.on) svg { color: var(--tx2); }
 /* (fill-opacity, not opacity: an opacity change put each icon's second tone on a layer of its own, which the graphics
    chip then dropped after every tab switch) */
@@ -584,6 +587,12 @@ html:root[data-glass='v2'][data-glow='soft'][data-theme='light'] { --aurora-a: 0
   box-shadow: inset 0 1px 0 color-mix(in srgb, var(--ac) 30%, rgba(255, 255, 255, 0.3)), inset 0 0 0 1px color-mix(in srgb, var(--ac) 16%, transparent), 0 10px 24px -12px color-mix(in srgb, var(--ac) 40%, transparent); }
 :root[data-glass='v2'] .empty-mark svg { filter: drop-shadow(0 1px 1px color-mix(in srgb, var(--ac) 35%, transparent)); }
 :root[data-glass='v2'] .empty-mark svg .duo { fill-opacity: 1; }
+/* Today's calorie ring keeps a warm bloom of the theme's colour behind it (the softer colour field no longer gives it one):
+   painted once, never moves */
+:root[data-glass='v2'] .ledger-dial.compact { position: relative; isolation: isolate; }
+:root[data-glass='v2'] .ledger-dial.compact::before { content: ''; position: absolute; inset: -28%; z-index: -1; pointer-events: none; border-radius: 50%;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--ac) 22%, transparent), color-mix(in srgb, var(--ac) 8%, transparent) 55%, transparent); }
+:root[data-glass='v2'][data-theme='light'] .ledger-dial.compact::before { background: radial-gradient(closest-side, color-mix(in srgb, var(--ac) 14%, transparent), color-mix(in srgb, var(--ac) 5%, transparent) 55%, transparent); }
 .toggle-knob { position: absolute; top: 3px; left: 3px; width: 26px; height: 26px; border-radius: 99px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.4), 0 3px 8px -2px rgba(0,0,0,.25); transition: transform 460ms var(--ease-spring); will-change: transform; }
 
 .field { display: flex; flex-direction: column; gap: 6px; }

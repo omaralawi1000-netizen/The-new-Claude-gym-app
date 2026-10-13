@@ -33,7 +33,7 @@ export function Ledger({ sum, compact }: { sum: Sum; compact?: boolean }) {
   const ring = (k: 'protein' | 'carbs' | 'fat') => { const g = goals[k]; const v = sum.totals[k] ?? 0; return g ? pct(v, g) : Math.min(1, v / totalMacro); };
   return (
     <div style={{ padding: compact ? '2px 0 0' : '6px 0 0' }}>
-      <div style={{ margin: '0 auto', width: 'fit-content', borderRadius: '50%' }} onClick={!compact && !goal ? () => push('settings', { section: 'targets' }) : undefined}>
+      <div className={compact ? 'ledger-dial compact' : 'ledger-dial'} style={{ margin: '0 auto', width: 'fit-content', borderRadius: '50%' }} onClick={!compact && !goal ? () => push('settings', { section: 'targets' }) : undefined}>
         <Dial size={compact ? 252 : 268} stroke={10} gap={6} label={`${fmtNum(Math.round(kcal), lang, 0)} kcal`}
           rings={[{ value: goal ? pct(kcal, goal) : kcal > 0 ? 1 : 0, color: 'var(--ac)', label: 'kcal', over }, { value: ring('protein'), color: 'var(--c-protein)', label: t('Protein') }, { value: ring('carbs'), color: 'var(--c-carbs)', label: t('Carbs') }, { value: ring('fat'), color: 'var(--c-fat)', label: t('Fat') }]}>
           <div>
