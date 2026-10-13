@@ -1168,7 +1168,7 @@ opacity changes, in 80 tiny steps each way (~14 a second, each under half a perc
 so the bar never re-blurs; it holds still while the workout is paused, minimised, or covered by another screen. It lives
 inside the colour field, so Settings → Background glow Off removes it and Soft dims it; reduced motion stops it.
 
-## Coach answers flow in like iOS (13 Oct 2026, v0.1.49)
+## Coach answers flow in like iOS (13 Oct 2026, v0.1.50)
 
 Omar's recording (v0.1.43+) showed answers arriving in blurry clumps as the network delivered them, the list stepping
 and restarting its glide on every clump, the newest line dipping under the bar, a blinking red cursor, and the play button
