@@ -8,7 +8,7 @@ import { MuscleMap } from './MuscleMap';
 import { Figure, figureFor } from './Figure';
 import { exName } from './common';
 import { nextSetOf } from './rest';
-import { ExerciseBlock } from './Active';
+import { ExerciseBlock, useActive } from './Active';
 
 const GAP = 16; // between pages, as in the iOS photo viewer: you see the edge of the next one only while you swipe
 
@@ -53,6 +53,30 @@ export const useFocusPage = () => useSyncExternalStore((f) => { shownSubs.add(f)
 
 export type FocusApi = { jumpToSet: (setId: string) => void };
 
+const reducedMotion = () => document.documentElement.dataset.motion === 'reduce'
+  || (document.documentElement.dataset.motion !== 'full' && matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+/**
+ * The exercise on the page you're looking at is about to be removed: a still copy of its page stays where it is and fades
+ * away while the next exercise's page rises in under it (it used to be swapped in one frame). Call before removing.
+ */
+export function fadeOutPage(seId: string) {
+  const page = document.querySelector<HTMLElement>('.wk-focus.on .wk-page.cur');
+  const pager = page?.closest<HTMLElement>('.wk-pager');
+  if (!page || !pager || !page.querySelector(`[data-flip="${CSS.escape(seId)}"]`) || reducedMotion()) return;
+  const r = page.getBoundingClientRect(), pr = pager.getBoundingClientRect();
+  const ghost = page.cloneNode(true) as HTMLElement;
+  ghost.setAttribute('aria-hidden', 'true'); ghost.inert = true;
+  Object.assign(ghost.style, { position: 'absolute', left: `${r.left - pr.left}px`, top: `${r.top - pr.top}px`, width: `${r.width}px`, height: `${r.height}px`, zIndex: '2', pointerEvents: 'none' });
+  pager.appendChild(ghost);
+  ghost.scrollTop = page.scrollTop;
+  const a = ghost.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(.97)' }], { duration: 460, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'forwards' });
+  a.onfinish = a.oncancel = () => ghost.remove();
+  arriving = true;
+}
+// set by fadeOutPage: the page that takes the removed one's place rises in
+let arriving = false;
+
 /**
  * Focus view: one exercise fills the screen, the next one a swipe away. A stage for the movement on top (the muscle
  * picture until the figures exist), then the exercise's own card, so the sets tick exactly as in the list. When its last
@@ -61,7 +85,7 @@ export type FocusApi = { jumpToSet: (setId: string) => void };
 export const FocusView = memo(function FocusView({ exMap, onMenu, pad, apiRef }: { exMap: Map<string, Exercise>; onMenu: (id: string) => void; pad: MotionValue<string>; apiRef: React.MutableRefObject<FocusApi | null> }) {
   const t = useT();
   const lang = useLang();
-  const exs = useStore((s) => s.active?.exercises) ?? [];
+  const exs = useActive()?.exercises ?? [];
   const exsRef = useRef(exs); exsRef.current = exs;
   const viewport = useRef<HTMLDivElement>(null), track = useRef<HTMLDivElement>(null);
   // open on the exercise you're on (the one with the next set to do)
@@ -121,8 +145,11 @@ export const FocusView = memo(function FocusView({ exMap, onMenu, pad, apiRef }:
   const ids = exs.map((e) => e.id).join(',');
   useLayoutEffect(() => {
     let i = exs.findIndex((e) => e.id === curId.current);
+    const replaced = i < 0;
     if (i < 0) i = Math.min(index, exs.length - 1);
     if (i < 0) return;
+    if (replaced && arriving) (track.current?.children[i] as HTMLElement | undefined)?.animate([{ opacity: 0, transform: 'translateY(14px)', offset: 0 }], { duration: 620, delay: 90, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'both' });
+    arriving = false;
     curId.current = exs[i].id; at.current = i; setShown(curId.current);
     if (i !== index) { setIndex(i); setWin((w) => new Set([...w, i])); }
     pager.current.place(i); growTo(i, 500); // a page that moved in the list may not be built yet

@@ -3,7 +3,8 @@ import { AnimatePresence } from 'motion/react';
 import { OverlayMeta, OverlayZ } from '../ui/Sheet';
 import { useUI, type Overlay } from '../state/ui';
 import { useStore } from '../state/store';
-import { ActiveWorkout } from './workout/Active';
+import { ActiveWorkout, WkFrozen } from './workout/Active';
+import type { WorkoutSession } from '../lib/types';
 import { SettingsSheet } from './Settings';
 import { FoodSearch } from './food/Search';
 import { FoodDetail } from './food/Detail';
@@ -33,15 +34,28 @@ const meta = (id: string, page: boolean) => { let m = metas.get(id); if (!m) { m
  */
 function WorkoutHost() {
   const overlays = useUI((s) => s.overlays);
-  const activeId = useStore((s) => s.active?.id ?? null);
+  const active = useStore((s) => s.active);
+  const activeId = active?.id ?? null;
   const idx = overlays.findIndex((o) => o.type === 'workout');
   const last = useRef<{ o: Overlay; z: number } | null>(null);
   if (idx >= 0) last.current = { o: overlays[idx], z: 60 + idx * 10 };
   const [kept, setKept] = useState<string | null>(null);
   useEffect(() => { if (idx >= 0 && activeId) setKept(activeId); }, [idx, activeId]);
-  if (!activeId || !last.current || (idx < 0 && kept !== activeId)) return null;
+  // Finished or discarded while open: the store's workout is gone at once, but the window slides down like any closing,
+  // drawn from the workout as it was (WkFrozen), and is let go once it has left the screen.
+  const seen = useRef<{ a: WorkoutSession | null; open: boolean }>({ a: null, open: false });
+  const [leaving, setLeaving] = useState<WorkoutSession | null>(null);
+  if (!active && seen.current.a && seen.current.open && leaving?.id !== seen.current.a.id) setLeaving(seen.current.a);
+  if (active && leaving) setLeaving(null);
+  seen.current = { a: active, open: idx >= 0 && !!active };
+  const shownId = activeId ?? leaving?.id ?? null;
+  if (!shownId || !last.current || (idx < 0 && !leaving && kept !== activeId)) return null;
   const { o, z } = last.current;
-  return <OverlayZ.Provider value={z}><OverlayMeta.Provider value={meta(o.id, false)}><ActiveWorkout key={activeId} props={o.props ?? {}} open={idx >= 0} /></OverlayMeta.Provider></OverlayZ.Provider>;
+  return (
+    <OverlayZ.Provider value={z}><OverlayMeta.Provider value={meta(o.id, false)}><WkFrozen.Provider value={active ? null : leaving}>
+      <ActiveWorkout key={shownId} props={o.props ?? {}} open={idx >= 0 && !!active} onGone={() => setLeaving(null)} />
+    </WkFrozen.Provider></OverlayMeta.Provider></OverlayZ.Provider>
+  );
 }
 
 /** Renders the overlay stack. Each overlay owns its presentation (sheet, morph, or full-screen). */

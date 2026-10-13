@@ -30,7 +30,9 @@ export function Roll({ text, className, style }: { text: string; className?: str
       const cell = cells[i] as HTMLElement | undefined;
       const inner = cell?.firstElementChild as HTMLElement | null;
       if (!cell || !inner) continue;
-      inner.animate([{ transform: `translateY(${0.62 * d}em)`, opacity: 0 }, { transform: 'none', opacity: 1 }], opts);
+      // held at its end (its plain resting look): a finished roll that let go of its layer left the digit missing for a frame on
+      // the phone, once a second while the rest counted down
+      inner.animate([{ transform: `translateY(${0.62 * d}em)`, opacity: 0 }, { transform: 'none', opacity: 1 }], { ...opts, fill: 'both' });
       if (old === undefined || old === ' ') continue;
       const ghost = document.createElement('span');
       ghost.className = 'roll-ghost'; ghost.textContent = old; ghost.setAttribute('aria-hidden', 'true');

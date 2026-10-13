@@ -1361,3 +1361,21 @@ sending, the dots and the answer wrote themselves in *under* the bar.
   rate, average calories, days logged, protein and its % of target.
 - Audited with `scripts/audit-polish2.mjs` (onboarding step by step, Progress, every Settings page, the Look page's
   toggles, finish and summary; dark and light). The workout sheet's own findings went to the thread that now owns it.
+
+## Workout sheet, no flicker and no pops (13 Oct 2026, v0.1.69)
+
+Omar: the workout pop-up has "a lot of bugs and a lot of flickers". `scripts/audit-workout.mjs` drives every action of the
+live workout (tick, rest, ±15, skip, sets, menus, move, remove, undo, picker, Focus, minimise from each tab, reload, finish)
+at 4× CPU with touches and lists per action what popped, jumped and which on-screen layers were dropped (the v0.1.51
+flicker fingerprint). `--film a,b` films chosen actions, `--light` for the light theme. Drops went from ~500 to ~140.
+- The same rule as v0.1.51, applied to the sheet: its entrance animations fill `both` (bar words, the list fading back from
+  Focus, the finish sheet's numbers, an exercise arriving, the check's pop); the progress bar, the dot pill and the rest
+  buttons keep their layer; a rolled digit holds its end (the rest timer rolled a digit every second and dropped it).
+- The window's top rim (`.wk-sheet::after`) is only a strip at the top now: it covered the whole window, so anything
+  animating under it gave it a layer and took it away again, once a second during a rest.
+- The bar's words cross-fade as one unit (`SwapText`): the old words used to vanish at once, the bar stood empty a frame.
+- `useNow` gives the real time on the first frame after it switches on: a rest started at "1:35" and rolled down to 1:30,
+  and the clock showed a stale time for a moment when the workout reopened.
+- Finish and Discard: the window slides down like any closing, drawn from the workout as it was (`WkFrozen`, WorkoutHost),
+  instead of vanishing with its sheet in one frame. Its own saved copy is kept out of "last time" while it leaves.
+- Remove an exercise in Focus: a still copy of its page fades while the next page rises in (it was swapped in one frame).

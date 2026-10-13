@@ -28,6 +28,10 @@ export type Morph = { id: string; x: number; y: number; from: HTMLElement };
 // the card hidden while its twin is shown in the other view (one at a time: a new switch shows the last one again)
 let hidden: HTMLElement | null = null;
 const hide = (el: HTMLElement | null) => { if (hidden && hidden !== el) hidden.style.visibility = ''; hidden = el; if (el) el.style.visibility = 'hidden'; };
+// the list item that glided back instead of fading in with the others: it keeps no fade until the next switch (resetting it
+// sooner replayed the list's fade on it, and the fade itself stays on the others so their layers aren't dropped as it ends)
+let still: HTMLElement | null = null;
+const unstill = () => { if (still) still.style.animation = ''; still = null; };
 
 /** At the tap, going to Focus: where the card of `id` sits in the list (null: no glide, crossfade as before). */
 export function morphStart(list: HTMLElement | null, id: string | undefined): Morph | null {
@@ -52,6 +56,7 @@ export function morphLand(focus: HTMLElement | null, m: Morph) {
  * (the list then fades in as before).
  */
 export function morphBack(list: HTMLElement | null, focus: HTMLElement | null): boolean {
+  unstill();
   const from = focus?.querySelector<HTMLElement>('.wk-page.cur [data-flip]');
   if (!list || !from || reduced()) { hide(null); return false; }
   const id = from.dataset.flip!;
@@ -63,7 +68,7 @@ export function morphBack(list: HTMLElement | null, focus: HTMLElement | null): 
   hide(from);
   // everything else in the list fades in; this card is already there
   const item = first.el.closest<HTMLElement>('.wk-list > *');
-  if (item) { item.style.animation = 'none'; setTimeout(() => { item.style.animation = ''; }, 900); }
+  if (item) { item.style.animation = 'none'; still = item; }
   if (Math.abs(f.left - r.left) + Math.abs(f.top - r.top) > 1) glide(first.el, f.left - r.left, f.top - r.top);
   return true;
 }

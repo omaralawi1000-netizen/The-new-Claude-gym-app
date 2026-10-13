@@ -10,6 +10,9 @@ export function useNow(ms = 500, enabled = true): number {
     const id = setInterval(() => setNow(Date.now()), ms);
     return () => clearInterval(id);
   }, [ms, enabled]);
+  // just switched on (a rest started, the workout reopened): the stored time is from when it last ticked, so the first
+  // frame would show a number seconds or minutes old and then jump (a rest started at 1:35 and rolled to 1:30)
+  if (enabled && Date.now() - now > ms * 2) return Date.now();
   return now;
 }
 
