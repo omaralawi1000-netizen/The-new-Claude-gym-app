@@ -1541,3 +1541,5 @@ at the edges.
   answer writing in, long tasks 9 → 2, style 482 → ~210 ms, layers dropped 68 → ~31; closing, layout shifts gone.
 - Not changed: the orb still grows and shrinks by its box size (a layout transition) when typing starts or an answer
   arrives; the orb's renderer follows that box, and the screen is small (a few ms of layout per frame at 4×).
+- v0.1.90: after New chat the suggestions still vanished at once when one was tapped: moved into their leaving layer,
+  they ran their rise-in again (starting invisible). They now keep still and fade (300 ms, a softer curve).
