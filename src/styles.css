@@ -508,6 +508,12 @@ html:root[data-glass='v2'][data-glow='soft'][data-theme='light'] { --aurora-a: 0
   --h1: var(--ac); --h2: color-mix(in oklch, var(--ac) 75%, #8a5cff); --h3: color-mix(in srgb, var(--ac) 80%, #fff);
 }
 :root[data-glass='v2'] .plinth { background: var(--mat-card); box-shadow: var(--mat-card-lift); }
+/* dark cards are faintly lit by the area's own colour: a whisper of it in the glass, the top glow and the lit top line.
+   (Written here, not in --mat-card: a variable set on :root would take :root's colour, not the area's.) */
+:root[data-glass='v2']:not([data-theme='light']) .plinth {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--ac) 7%, transparent), color-mix(in srgb, var(--ac) 3%, transparent)), var(--mat-card);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, color-mix(in srgb, var(--ac) 45%, #fff) 20%, transparent), inset 0 18px 28px -18px color-mix(in srgb, var(--ac) 16%, transparent), 0 1px 2px rgba(0, 0, 0, 0.5), 0 8px 24px -8px rgba(0, 0, 0, 0.55), 0 20px 40px -20px color-mix(in srgb, var(--ac) 10%, transparent);
+}
 :root[data-glass='v2'] :is(.btn:not(.primary, .ghost), .chip:not(.on, .acc), .icon-btn:not(.flat, .acc, .speak-btn)) { background: var(--mat-ctl); box-shadow: var(--mat-ctl-lift); }
 :root[data-glass='v2'] .chip:not(.on, .acc) { position: relative; color: var(--tx); }
 /* the hairline edge: one even line all round (the lit top line is the inset shadow) */
@@ -534,6 +540,10 @@ html:root[data-glass='v2'][data-glow='soft'][data-theme='light'] { --aurora-a: 0
    chip then dropped after every tab switch) */
 :root[data-glass='v2'] .tab svg .duo { fill-opacity: 0; transition: fill-opacity 360ms var(--ease-smooth); }
 :root[data-glass='v2'] .tab.on svg .duo { fill-opacity: 1; }
+/* (Food's own colour, lightened or deepened like the other tabs' icons, came out a muddy peach or brown: its icon is a
+   clean amber at the same brightness) */
+:root[data-glass='v2']:is(:not([data-palette]), [data-palette='ember']) .app[data-hue='food'] .tab.on svg { color: oklch(0.8 0.16 66); }
+:root[data-glass='v2'][data-theme='light']:is(:not([data-palette]), [data-palette='ember']) .app[data-hue='food'] .tab.on svg { color: oklch(0.66 0.17 58); }
 :root[data-glass='v2'] .tab.on svg { filter: drop-shadow(0 1px 1px color-mix(in srgb, var(--ac) 35%, transparent)); }
 /* fields (the workout's kg and reps, search, forms) are wells cut into the glass: shaded at the top, with a catch-light
    along the bottom edge, so they still read clearly as places to type (focus keeps its own ring) */
@@ -591,7 +601,7 @@ html:root[data-glass='v2'][data-glow='soft'][data-theme='light'] { --aurora-a: 0
    painted once, never moves */
 :root[data-glass='v2'] .ledger-dial.compact { position: relative; isolation: isolate; }
 :root[data-glass='v2'] .ledger-dial.compact::before { content: ''; position: absolute; inset: -28%; z-index: -1; pointer-events: none; border-radius: 50%;
-  background: radial-gradient(closest-side, color-mix(in srgb, var(--ac) 22%, transparent), color-mix(in srgb, var(--ac) 8%, transparent) 55%, transparent); }
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--ac) 56%, transparent), color-mix(in srgb, var(--ac) 22%, transparent) 55%, transparent); }
 :root[data-glass='v2'][data-theme='light'] .ledger-dial.compact::before { background: radial-gradient(closest-side, color-mix(in srgb, var(--ac) 14%, transparent), color-mix(in srgb, var(--ac) 5%, transparent) 55%, transparent); }
 .toggle-knob { position: absolute; top: 3px; left: 3px; width: 26px; height: 26px; border-radius: 99px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.4), 0 3px 8px -2px rgba(0,0,0,.25); transition: transform 460ms var(--ease-spring); will-change: transform; }
 
