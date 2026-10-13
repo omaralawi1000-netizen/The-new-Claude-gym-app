@@ -133,7 +133,7 @@ function handOff(r: Payload) {
   showAppRest(appRest(r)).then((ok) => {
     viaApp = ok;
     if (!ok) toSW({ type: 'aven-rest', rest: r });
-    else if (!document.hidden) clearAppRest(); // already back while it was on its way
+    else if (onScreen()) clearAppRest(); // already back while it was on its way
   });
 }
 
@@ -144,6 +144,18 @@ function rememberLate(d: { due?: number; firedAt?: number; by?: string } | null 
 }
 export function lastRestLate(): { ms: number; by?: string; at: number } | null {
   try { const x = localStorage.getItem(LATE_KEY); return x ? JSON.parse(x) : null; } catch { return null; }
+}
+
+// Really on screen: visible AND focused. Switching the phone to dark mode while Aven is in the background makes Chrome call
+// the page "visible" (without focus, and it stays that way until you come back), so "visible" alone is not enough.
+const onScreen = () => !document.hidden && document.hasFocus();
+let waitingForFocus: (() => void) | null = null;
+/** Back in the app: take the notifications away, but only once the page has the focus (see onScreen). */
+function backInApp() {
+  if (onScreen()) { clearNotice(); return; }
+  if (waitingForFocus) return;
+  waitingForFocus = () => { window.removeEventListener('focus', waitingForFocus!); waitingForFocus = null; if (!document.hidden) clearNotice(); };
+  window.addEventListener('focus', waitingForFocus);
 }
 
 /** Back in the app: the notifications have done their job (note how late the alert was first). */
@@ -198,7 +210,7 @@ export function useRestCue() {
       if (cued === key) return;
       cued = key;
       const st = useStore.getState();
-      if (document.hidden) {
+      if (!onScreen()) {
         const r = restPayload(true);
         if (r && notifyOn()) {
           if (viaApp) overAppRest(appRest(r)); // the app rings on time itself: this only covers it if it didn't
@@ -213,9 +225,9 @@ export function useRestCue() {
   useEffect(() => {
     noteAndroidApp();
     androidRest(); // ready before you ever leave mid-rest
-    if (!document.hidden) clearNotice(); // opened again from the home screen: a notification left over has done its job
+    if (!document.hidden) backInApp(); // opened again from the home screen: a notification left over has done its job
     const on = () => {
-      if (!document.hidden) { clearNotice(); return; }
+      if (!document.hidden) { backInApp(); return; }
       const r = restPayload();
       if (r && notifyOn()) handOff(r);
     };
@@ -229,7 +241,7 @@ export function useRestCue() {
         const keys = [`${a.id}:${a.rest.endsAt}`, `${a.id}:${a.rest.endsAt - a.rest.total * 1000}`]; // website's / app's
         if (!keys.includes(e.data.key)) return;
         if (e.data.action === 'more') adjustRest(30); else skipRest();
-        if (document.hidden) { const r = restPayload(); if (r && notifyOn()) handOff(r); }
+        if (!onScreen()) { const r = restPayload(); if (r && notifyOn()) handOff(r); }
         return;
       }
       if (e.data?.type !== 'aven-open-workout') return;
@@ -237,7 +249,10 @@ export function useRestCue() {
       openWorkout();
     };
     navigator.serviceWorker?.addEventListener('message', msg);
-    return () => { document.removeEventListener('visibilitychange', on); navigator.serviceWorker?.removeEventListener('message', msg); };
+    return () => {
+      document.removeEventListener('visibilitychange', on); navigator.serviceWorker?.removeEventListener('message', msg);
+      if (waitingForFocus) { window.removeEventListener('focus', waitingForFocus); waitingForFocus = null; }
+    };
   }, []);
   // the workout ended (or a rest was skipped) while a notification was up: take it away
   const hasActive = useStore((s) => !!s.active);
