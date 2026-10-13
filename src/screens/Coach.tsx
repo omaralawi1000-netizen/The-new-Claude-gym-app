@@ -5,6 +5,7 @@ import { useAi, anyBrain, solOn } from '../state/ai';
 import { useT, useLang } from '../lib/i18n';
 import { Sheet, SheetHead } from '../ui/Sheet';
 import { Icon } from '../ui/Icon';
+import { kb } from '../ui/keyboard';
 import { SphereSlot } from '../ui/Sphere';
 import { useVoice } from '../state/voice';
 import { mic } from '../lib/mic';
@@ -113,32 +114,47 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       if (!following.current || el.scrollHeight - el.clientHeight - el.scrollTop <= 1) return;
       const reduce = document.documentElement.dataset.motion === 'reduce' || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       scrolling.current = !reduce;
-      // While an answer writes itself in, the list grows a line at a time. A browser smooth-scroll restarts on every
-      // growth and trails behind it, so the newest lines sat under the composer. Follow them with a short glide instead,
-      // one that always closes on the end of the list (re-aimed every frame, so it never falls behind).
-      if (!reduce && el.querySelector('.caret')) { glide(); return; }
+      if (!reduce && el.querySelector('.caret')) { scrolling.current = false; follow(); return; }
       el.scrollTo({ top: el.scrollHeight, behavior: reduce ? 'instant' : 'smooth' });
     });
-    let raf = 0, last = 0;
-    const glide = () => {
-      if (raf) return;
-      last = performance.now();
-      const step = (now: number) => {
-        const gap = el.scrollHeight - el.clientHeight - el.scrollTop;
-        if (!following.current && !scrolling.current) { raf = 0; return; }
-        if (gap <= 0.5) { raf = 0; scrolling.current = false; following.current = true; return; }
-        const dt = Math.min(48, now - last); last = now;
-        el.scrollTop += Math.max(gap * (1 - Math.exp(-dt / 45)), Math.min(gap, 0.4));
-        lastScroll.current = el.scrollTop;
-        raf = requestAnimationFrame(step);
-      };
-      raf = requestAnimationFrame(step);
+    // While an answer writes itself in, the list grows a line at a time. A browser smooth-scroll restarts on every growth
+    // and trails behind it, so the newest lines sat under the composer. So the list goes to its end at once, before the
+    // frame is drawn (nothing ever lands under the composer), and the conversation it moved is played back up from where
+    // it was, as a transform on the browser's own clock: the same calm glide, with the new words (which start invisible)
+    // arriving above the bar.
+    let flow: Animation | null = null, from = -1; // (from: where the list rests with the keyboard away, while it is open)
+    const follow = () => {
+      const thread = el.querySelector<HTMLElement>('.coach-thread'); if (!thread) return;
+      const m = new DOMMatrix(getComputedStyle(thread).transform);
+      const before = el.scrollTop;
+      el.scrollTop = el.scrollHeight; lastScroll.current = el.scrollTop;
+      if (from >= 0) from = Math.max(0, el.scrollTop - kb.get());
+      const d = el.scrollTop - before;
+      if (d < 0.5) return;
+      flow?.cancel();
+      flow = thread.animate([{ transform: `translate3d(0, ${m.m42 + d}px, 0)` }, { transform: 'none' }], { duration: 360, easing: 'cubic-bezier(.2, .8, .2, 1)' });
+      flow.onfinish = () => { flow = null; };
     };
     ro.observe(el);
     const thread = el.querySelector<HTMLElement>('.coach-thread'); if (thread) ro.observe(thread);
     const settled = () => { if (el.scrollHeight - el.clientHeight - el.scrollTop < 80) { scrolling.current = false; following.current = true; } };
     el.addEventListener('scrollend', settled);
-    return () => { ro.disconnect(); cancelAnimationFrame(raf); el.removeEventListener('scrollend', settled); };
+    // The keyboard slides over the sheet and the bar rides up on it (ui/Sheet.tsx). A list resting at its end rides up the
+    // same distance, frame for frame, so its last lines stay above the bar while the keyboard opens and come back down
+    // with it when it leaves. (Scrolled up to read: left alone.)
+    let was = kb.get();
+    const offKb = kb.on('change', (v) => {
+      if (was < 0.5 && v >= 0.5) {
+        const room = parseFloat(el.closest<HTMLElement>('.sheet')?.style.getPropertyValue('--kb-room') || '0') || 0; // (made just before the keyboard moves)
+        from = el.scrollHeight - room - el.clientHeight - el.scrollTop < 80 ? el.scrollTop : -1;
+      }
+      was = v;
+      if (from < 0) return;
+      if (v < 0.5) { el.scrollTop = from; lastScroll.current = el.scrollTop; from = -1; return; }
+      flow?.cancel();
+      el.scrollTop = Math.min(from + v, el.scrollHeight - el.clientHeight); lastScroll.current = el.scrollTop;
+    });
+    return () => { ro.disconnect(); offKb(); flow?.cancel(); el.removeEventListener('scrollend', settled); };
   }, []);
   // A typed message lifts out of the field and glides up into its bubble, like a sent iMessage, while the conversation moves
   // up to make room on the same spring. A copy of the bubble flies above everything (the list clips its own contents), from
