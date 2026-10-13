@@ -466,17 +466,20 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
    - a soft inner glow of that same colour coming down from the top edge (never a cool cast over a warm screen)
    - a gentle shadow under it, so it lifts a little off the page
    Real frost stays where something passes underneath (the sheet's bottom buttons, the dock, sheets, toasts). */
+/* the glow is a straight vertical fall-off with soft stops (a radial one ended in a visible band on wide, short pills) */
 :root[data-glass='v2'] {
-  --mat-glow: radial-gradient(120% 95% at 50% -12%, color-mix(in srgb, var(--ac) 17%, transparent), transparent 72%);
-  --mat-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0) 52%);
-  --mat-rim: linear-gradient(180deg, color-mix(in srgb, color-mix(in srgb, var(--ac) 22%, #fff) 62%, transparent), rgba(255, 255, 255, 0.08) 34%, rgba(255, 255, 255, 0.025) 70%, rgba(255, 255, 255, 0.07));
-  --mat-depth: 0 1px 1px rgba(0, 0, 0, 0.35), 0 12px 26px -14px rgba(0, 0, 0, 0.75);
+  --mat-glow: linear-gradient(180deg, color-mix(in srgb, var(--ac) 15%, transparent), color-mix(in srgb, var(--ac) 6%, transparent) 38%, color-mix(in srgb, var(--ac) 1.5%, transparent) 72%, transparent);
+  --mat-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.025) 45%, rgba(255, 255, 255, 0));
+  --mat-rim: linear-gradient(180deg, color-mix(in srgb, color-mix(in srgb, var(--ac) 25%, #fff) 70%, transparent), rgba(255, 255, 255, 0.1) 32%, rgba(255, 255, 255, 0.03) 70%, rgba(255, 255, 255, 0.08));
+  --mat-depth: 0 1px 1px rgba(0, 0, 0, 0.4), 0 12px 26px -12px rgba(0, 0, 0, 0.8);
+  --mat-well: inset 0 1.5px 3px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(255, 255, 255, 0.05), inset 0 -1px 0 color-mix(in srgb, color-mix(in srgb, var(--ac) 20%, #fff) 14%, transparent);
 }
 :root[data-glass='v2'][data-theme='light'] {
-  --mat-glow: radial-gradient(120% 95% at 50% -12%, color-mix(in srgb, var(--ac) 14%, transparent), transparent 72%);
-  --mat-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0) 58%);
-  --mat-rim: linear-gradient(180deg, #fff, rgba(255, 255, 255, 0.55) 26%, rgba(20, 28, 48, 0.06) 66%, rgba(20, 28, 48, 0.13));
-  --mat-depth: 0 1px 1px rgba(30, 40, 70, 0.09), 0 12px 24px -13px rgba(30, 40, 70, 0.38);
+  --mat-glow: linear-gradient(180deg, color-mix(in srgb, var(--ac) 13%, transparent), color-mix(in srgb, var(--ac) 4%, transparent) 40%, transparent 80%);
+  --mat-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.35) 50%, rgba(255, 255, 255, 0.15));
+  --mat-rim: linear-gradient(180deg, color-mix(in srgb, var(--ac) 38%, #fff), #fff 22%, rgba(255, 255, 255, 0.6) 40%, rgba(20, 28, 48, 0.08) 68%, rgba(20, 28, 48, 0.16));
+  --mat-depth: 0 1px 1.5px rgba(30, 40, 70, 0.12), 0 12px 24px -12px rgba(30, 40, 70, 0.45);
+  --mat-well: inset 0 1.5px 3px rgba(30, 40, 70, 0.16), inset 0 0 0 1px rgba(20, 28, 48, 0.07), inset 0 -1px 0 #fff;
 }
 :root[data-glass='v2'] :is(.btn:not(.primary, .ghost), .chip:not(.on, .acc), .icon-btn:not(.flat, .acc, .speak-btn), .plinth) {
   background-image: var(--mat-glow), var(--mat-sheen);
@@ -490,11 +493,21 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
   background: var(--mat-rim);
   -webkit-mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
 }
-/* the bottom button of a sheet floats over the list: it keeps its frost, takes the same light and a deeper shadow, and
-   once it can be pressed its label is full white and the glow a touch warmer, so ready reads as ready */
-:root[data-glass='v2'] .sheet .sheet-foot .btn.btn { background-image: var(--mat-glow), var(--mat-sheen); box-shadow: 0 1px 1px rgba(0, 0, 0, 0.3), 0 18px 36px -16px rgba(0, 0, 0, 0.8); }
-:root[data-glass='v2'] .sheet .sheet-foot .btn.btn:not([disabled]) { background-image: var(--mat-glow), var(--mat-glow), var(--mat-sheen); color: var(--tx); font-weight: 650; }
-:root[data-glass='v2'][data-theme='light'] .sheet .sheet-foot .btn.btn { box-shadow: 0 1px 1px rgba(30, 40, 70, 0.1), 0 18px 34px -16px rgba(30, 40, 70, 0.42); }
+/* round buttons are small: a slightly brighter rim and a firmer lift so they read as the same glass at phone size */
+:root[data-glass='v2'] .icon-btn:not(.flat, .acc, .speak-btn)::after { padding: 1.25px; }
+:root[data-glass='v2'] .icon-btn:not(.flat, .acc, .speak-btn) { box-shadow: var(--mat-depth), 0 4px 10px -6px rgba(0, 0, 0, 0.5); }
+/* the dock: the same top edge of light along its rim, and the same lift */
+:root[data-glass='v2'] .tabbar.glass { background-image: var(--mat-glow), var(--mat-sheen); box-shadow: var(--mat-depth); }
+:root[data-glass='v2'] .tabbar.glass::after { background: var(--mat-rim); opacity: 1; }
+/* fields (the workout's kg and reps, search, forms) are wells cut into the glass: shaded at the top, with a catch-light
+   along the bottom edge, so they still read clearly as places to type (focus keeps its own ring) */
+:root[data-glass='v2'] .input:not(:focus) { box-shadow: var(--mat-well); }
+:root[data-glass='v2'][data-theme='light'] .input { background-color: rgba(255, 255, 255, 0.5); }
+/* the bottom button of a sheet floats over the list: it keeps its frost and its single colour, takes only a faint wash of
+   the area's light and the rim, and a deeper shadow; once it can be pressed its label is full white and bolder */
+:root[data-glass='v2'] .sheet .sheet-foot .btn.btn { background-image: linear-gradient(180deg, color-mix(in srgb, var(--ac) 9%, transparent), color-mix(in srgb, var(--ac) 3%, transparent) 55%, transparent); box-shadow: 0 1px 1px rgba(0, 0, 0, 0.3), 0 18px 36px -16px rgba(0, 0, 0, 0.8); }
+:root[data-glass='v2'] .sheet .sheet-foot .btn.btn:not([disabled]) { color: var(--tx); font-weight: 650; }
+:root[data-glass='v2'][data-theme='light'] .sheet .sheet-foot .btn.btn { background-image: none; box-shadow: 0 1px 1.5px rgba(30, 40, 70, 0.12), 0 18px 34px -14px rgba(30, 40, 70, 0.45); }
 :root[data-glass='v2'] .btn[disabled]::after { opacity: 0.55; }
 .toggle-knob { position: absolute; top: 3px; left: 3px; width: 26px; height: 26px; border-radius: 99px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.4), 0 3px 8px -2px rgba(0,0,0,.25); transition: transform 460ms var(--ease-spring); will-change: transform; }
 
