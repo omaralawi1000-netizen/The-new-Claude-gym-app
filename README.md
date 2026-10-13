@@ -1158,3 +1158,12 @@ in tests/headline.test.ts): a record first ("Strongest Bench Press yet", "Most r
 biggest session of this routine (needs two before it), else "{x} more than last {name}", else "Workout {n} this month" /
 "First workout this month". The record medal, its label and the record rows now wait for that line. Reduced motion shows
 the final numbers at once.
+
+## Alive, step 4: the workout's living light (13 Oct 2026, v0.1.48)
+
+During a workout the window's top light breathes very slowly (one breath ~11 s) and turns warmer over the first hour
+(`Breath` in Active.tsx sets `--warm` once a minute; a warmer gradient fades in under it). Cost rules it follows: only
+opacity changes, in 80 tiny steps each way (~14 a second, each under half a percent of brightness) instead of every frame
+(idle trace: DrawFrame 3 → ~25 per 3 s; nothing on the main thread); it sits in the top half, far from the frosted bar,
+so the bar never re-blurs; it holds still while the workout is paused, minimised, or covered by another screen. It lives
+inside the colour field, so Settings → Background glow Off removes it and Soft dims it; reduced motion stops it.

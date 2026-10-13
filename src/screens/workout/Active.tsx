@@ -292,7 +292,7 @@ export function ActiveWorkout({ props, open = true }: { props: { origin?: 'hero'
       >
         <WkLive.Provider value={!hidden}>
         <motion.div ref={sheetRef} className="wk-sheet" style={{ transform: sheetT }}>
-          <div className="wk-solid" aria-hidden><div className="aurora-lite" /></div>
+          <div className="wk-solid" aria-hidden><div className="aurora-lite"><Breath hold={paused || covered} /></div></div>
         <div className="wk-window" style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column' }}>
           <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, paddingTop: 'var(--sat)' }}>
           <div className="sheet-grab" style={{ position: 'relative', zIndex: 3 }} />
@@ -402,6 +402,20 @@ export function ActiveWorkout({ props, open = true }: { props: { origin?: 'hero'
       </AnimatePresence>
     </>
   );
+}
+
+/**
+ * The workout's living light: the top light of the window breathes very slowly (a stepped opacity change, about 14
+ * tiny steps a second, so it never redraws the screen every frame) and grows warmer as the session goes on, fully warm after
+ * an hour. Off with Settings → Background glow → Off (it lives in the colour field); it holds still while the workout is
+ * paused, minimised, or another screen covers it. Only opacity changes; the bar's frost sits far below it.
+ */
+function Breath({ hold }: { hold: boolean }) {
+  const a = useStore((s) => s.active);
+  const live = useContext(WkLive);
+  const now = useNow(60_000, !!a && live && !hold);
+  const warm = a ? Math.min(1, elapsedMs(a, now) / 3_600_000) : 0;
+  return <i className={`wk-breath${hold || !live ? ' hold' : ''}`} style={{ ['--warm' as string]: warm.toFixed(3) }}><b /></i>;
 }
 
 /** A number that rolls up (or down) when it changes, like the steppers; still on the first draw. */
