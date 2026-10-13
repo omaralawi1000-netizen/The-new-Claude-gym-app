@@ -560,6 +560,8 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
   .sheet-pane.late > .sheet-body { animation: fadein 220ms var(--ease-out) both, sb-fade linear both, sb-fade-b linear both; animation-timeline: auto, scroll(self), scroll(self); animation-range: normal, 0 40px, calc(100% - 40px) 100%; }
 }
 .sheet-head { flex: none; display: flex; align-items: center; gap: 10px; padding: 2px 22px 12px; }
+/* a title sliding in (Settings pages) isn't cut off at the edge of its box: the clip reaches a little past it (long titles still end in …) */
+.sheet-head .display.trunc { overflow: clip; overflow-clip-margin: 28px; }
 /* The bottom buttons (Add, Finish…) float on their own: nothing but the button. They are laid over the end of the list (not
    below it), so the list scrolls all the way down underneath and stays visible all round them; there is no panel, band,
    tint or fade behind them. The button itself is the glass: the main action is solid colour, the others (and a main
