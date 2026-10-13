@@ -113,6 +113,7 @@ jobs:
             adb shell cmd statusbar collapse
             sleep 1
             adb exec-out screencap -p > shots/3-status-bar.png
+            adb shell locksettings set-disabled false || true
             adb shell input keyevent KEYCODE_SLEEP
             sleep 2
             adb shell input keyevent KEYCODE_WAKEUP
