@@ -70,13 +70,27 @@ export const FocusView = memo(function FocusView({ exMap, onMenu, pad, apiRef }:
   // while the finger moves, only the pill moves (no re-render mid-swipe); the dots catch up when the page settles
   const pillTo = (i: number) => { if (pill.current) pill.current.style.transform = `translateX(${i * 16}px)`; };
   const curId = useRef<string | undefined>(exs[index]?.id);
-  // only the page you're on and its neighbours are built; the rest are a light stand-in until you get near them. At first
-  // only the page itself, so entering is one card's work; its neighbours follow once it has arrived.
+  // Pages are built in the background, nearest first, and once built they stay: a page you swipe onto must already be drawn,
+  // an empty card for a moment (just its title) was the old stand-in showing. At first only the page itself, so entering is
+  // one card's work; the neighbours follow once it has arrived, then the rest one at a time, only while nothing moves.
   const [win, setWin] = useState<Set<number>>(() => new Set([index]));
-  // Growing the window waits until nothing is moving (after the switch's crossfade, after a page has settled): building a
-  // page is a long frame, and a long frame in the middle of a glide is a stutter.
+  const winRef = useRef(win); winRef.current = win;
+  const moving = useRef(false), at = useRef(index);
   const grow = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const growTo = (i: number, ms: number) => { clearTimeout(grow.current); grow.current = setTimeout(() => setWin(new Set([i - 1, i, i + 1])), ms); };
+  // Building a page is a long frame, and a long frame in the middle of a glide is a stutter: wait until nothing is moving.
+  const growTo = (i: number, ms: number) => {
+    clearTimeout(grow.current);
+    const step = () => {
+      if (moving.current || pager.current.dragging()) { grow.current = setTimeout(step, 250); return; }
+      const w = winRef.current, n = exsRef.current.length;
+      let next = -1;
+      for (let d = 0; d < n && next < 0; d++) for (const j of [i + d, i - d]) if (j >= 0 && j < n && !w.has(j)) { next = j; break; }
+      if (next < 0) return;
+      setWin(new Set([...w, next]));
+      grow.current = setTimeout(step, 320);
+    };
+    grow.current = setTimeout(step, ms);
+  };
   useEffect(() => { growTo(index, 750); return () => { clearTimeout(grow.current); setShown(null); }; }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const flashSet = useRef<string | null>(null);
   const flash = (setId: string) => {
@@ -87,8 +101,10 @@ export const FocusView = memo(function FocusView({ exMap, onMenu, pad, apiRef }:
   };
   const pager = usePager(viewport, track, {
     count: exs.length, gap: GAP, initial: index,
-    onNear: pillTo,
+    // a page the finger is bringing in that isn't built yet (a fast flick through several): build it now, a hitch beats an empty card
+    onNear: (i) => { pillTo(i); if (i !== at.current) moving.current = true; if (!winRef.current.has(i)) setWin(new Set([...winRef.current, i])); },
     onSettle: (i) => {
+      moving.current = false; at.current = i;
       setIndex(i); curId.current = exsRef.current[i]?.id; setShown(curId.current ?? null);
       growTo(i, 380);
       const f = flashSet.current; flashSet.current = null;
@@ -97,6 +113,7 @@ export const FocusView = memo(function FocusView({ exMap, onMenu, pad, apiRef }:
   });
   const go = (i: number, auto = false) => {
     setWin((w) => (w.has(i) ? w : new Set([...w, i])));
+    moving.current = true;
     pager.current.go(i, auto);
   };
 
@@ -106,9 +123,9 @@ export const FocusView = memo(function FocusView({ exMap, onMenu, pad, apiRef }:
     let i = exs.findIndex((e) => e.id === curId.current);
     if (i < 0) i = Math.min(index, exs.length - 1);
     if (i < 0) return;
-    curId.current = exs[i].id; setShown(curId.current);
-    if (i !== index) { setIndex(i); setWin(new Set([i - 1, i, i + 1])); }
-    pager.current.place(i);
+    curId.current = exs[i].id; at.current = i; setShown(curId.current);
+    if (i !== index) { setIndex(i); setWin((w) => new Set([...w, i])); }
+    pager.current.place(i); growTo(i, 500); // a page that moved in the list may not be built yet
   }, [ids]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // the last set of the exercise you're on is ticked (or a superset partner's turn has come): glide on, after a beat

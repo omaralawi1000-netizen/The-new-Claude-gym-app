@@ -1213,3 +1213,17 @@ wait for the last word, so nothing under the answer is pushed down while it writ
 No word on the orb screen animates a blur any more: your spoken words write in with opacity and a small rise
 (`saidWrite`), and the live text and the exchange leave with a fade and rise (their exit blur is gone). The unused red
 writing cursor's style is deleted.
+
+## Focus view: no empty card while paging, and a calmer workout bar (13 Oct 2026, v0.1.54)
+
+- **Empty card:** a page that was not built yet showed only its title (a stand-in). Pages were built one step ahead after a
+  pause and *dropped again* when you moved on, so a quick flick, or a swipe soon after opening, landed on the stand-in.
+  Now (`Focus.tsx`) pages are built in the background, nearest first, one at a time and only while nothing is moving, and
+  once built they stay. If a finger brings an unbuilt page in anyway, it is built at once. Measured at 4x CPU throttle,
+  10 quick swipes right after opening: stand-in on screen in 36 of 117 frames before, 0 of 109 after.
+- **Workout bar** (`WorkoutBar`, `.wk-bar*`): the frosted glass is now its own layer (`.wk-bar-surface`) beside the words,
+  the fill and the orb button, not the element they sit inside. Rest over reads "Rest over · Set 2" (small) over
+  "Lat Pulldown  55 kg × 8" (big). The fill is one flat accent tint with a soft leading edge (the gradient read muddy).
+  The orb has a soft accent bloom behind it. "Rest over" swells a ring once and settles to a faint one: opacity only.
+  The darker square around the orb was seen on the phone only; it could not be reproduced headless, so the layer split is
+  the fix to check on the phone.

@@ -29,7 +29,7 @@ const vib = await p.evaluate(() => window.__vib);
 // exactly the cue: nothing else buzzes at that moment (the orb used to "land" again when the bar re-rendered)
 assert.deepEqual(vib, [24, 24, 24, [180, 90, 180, 90, 320]], `3-2-1 ticks, then the buzz, nothing else: ${JSON.stringify(vib)}`);
 assert(await p.locator('.wk-bar.go').isVisible(), 'rest over: the bar glows in the accent');
-assert(/^Rest over · Set 2 \| Go · /.test(await text()), `says what to do: ${await text()}`);
+assert(/^Rest over · Set 2 \| .+ · ?.*|^Rest over · Set 2 \| .+/.test(await text()) && !/Go ·/.test(await text()), `says what to do: ${await text()}`);
 await p.screenshot({ path: 'shots/rest-2-go.png' });
 await wait(p, 7000);
 assert(await p.locator('.wk-bar.go').isVisible(), 'and stays lit (no auto-clear)');
