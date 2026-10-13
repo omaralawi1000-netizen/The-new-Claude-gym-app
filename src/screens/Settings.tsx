@@ -315,7 +315,7 @@ function RestAlertRow() {
     let via = '';
     if (await showAppRest({
       ...words, key: `test:${now}`, startedAt: now, endsAt: now + 15_000, exercise: words.title, line: words.body,
-      overTitle: t('Rest over'), overBody: '', more: t('+30 s'), skip: t('Skip'),
+      overTitle: t('Rest over'), overBody: '', more: t('+30 s'), skip: t('Skip'), sound: useStore.getState().settings.sound,
     })) via = 'app';
     else {
       try {

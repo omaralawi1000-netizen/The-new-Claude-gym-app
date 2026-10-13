@@ -101,12 +101,31 @@ adb exec-out screencap -p > shots/3c-lock-screen-later.png
 adb shell wm dismiss-keyguard
 adb shell locksettings set-disabled true
 sleep 1
-# the end of a rest: the countdown goes, the alert rings
+# the end of a rest, as in a pocket: screen off, the phone dozing, sound on vibrate. The alert must pop up and the app
+# must play the clicks itself (on the alarm volume: a notification's own sound is silent on vibrate)
 adb shell am start -n app.aven.android/com.google.androidbrowserhelper.trusted.LauncherActivity
 sleep 3
-cdp rest 6 60 | tee -a shots/rest-real.txt
+cdp rest 30 60 | tee -a shots/rest-real.txt
 timeout 10 adb shell input keyevent KEYCODE_HOME
-sleep 10
+sleep 2
+adb shell cmd audio set-ringer-mode VIBRATE 2>&1 | tee -a shots/rest-real.txt || true
+adb shell media volume --stream 2 --set 0 >/dev/null 2>&1 || true # ring volume 0: vibrate, on any Android
+adb shell dumpsys battery unplug
+adb shell input keyevent KEYCODE_SLEEP
+sleep 2
+adb shell dumpsys deviceidle force-idle | sed 's/^/doze: /' | tee -a shots/rest-real.txt
+timeout 20 adb shell dumpsys audio | grep -A2 "Ringer mode" | tr -s ' \n' ' ' | sed 's/^/sound: /' | tee -a shots/rest-real.txt; echo
+adb shell dumpsys power | grep -m1 "mWakefulness=" | sed 's/^ */screen: /' | tee -a shots/rest-real.txt
+sleep 40
+timeout 20 adb shell dumpsys audio > shots/audio.txt
+grep -c "usage=USAGE_ALARM" shots/audio.txt | sed 's/^/alarm-volume sounds in the audio log (want 1+): /' | tee -a shots/rest-real.txt
+grep -m6 "USAGE_ALARM" shots/audio.txt | cut -c1-220 | tee -a shots/rest-real.txt
+adb shell dumpsys deviceidle unforce >/dev/null
+adb shell dumpsys battery reset
+adb shell cmd audio set-ringer-mode NORMAL >/dev/null 2>&1 || true
+adb shell media volume --stream 2 --set 5 >/dev/null 2>&1 || true
+adb shell input keyevent KEYCODE_WAKEUP
+sleep 2
 notes real-over
 shade 4-real-rest-over
 # back in the app: the website takes its notification away, and the alert goes with it (by itself: "closed 0" below)

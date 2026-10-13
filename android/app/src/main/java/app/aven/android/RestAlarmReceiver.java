@@ -3,6 +3,8 @@ package app.aven.android;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.os.Handler;
+import android.os.Looper;
 
 /** The exact alarms: the end of a rest, and the nudge that starts the ticking service when Android wouldn't otherwise. */
 public class RestAlarmReceiver extends BroadcastReceiver {
@@ -11,7 +13,10 @@ public class RestAlarmReceiver extends BroadcastReceiver {
 
     @Override
     public void onReceive(Context c, Intent intent) {
-        if (ACTION_TICK.equals(intent.getAction())) RestTimerService.start(c);
-        else RestNotifications.ring(c);
+        if (ACTION_TICK.equals(intent.getAction())) { RestTimerService.start(c); return; }
+        // the end: kept awake a moment longer, so Android doesn't freeze the app while the clicks play
+        PendingResult later = goAsync();
+        RestNotifications.ring(c);
+        new Handler(Looper.getMainLooper()).postDelayed(later::finish, 2500);
     }
 }
