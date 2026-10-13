@@ -1273,7 +1273,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    tint (--edge-tint, card level) under the element, starting --edge-top above it and easing in over --edge-len up to
    --edge-a, so the bar reads over anything without ever being a dark band. `.frosted` adds a blur that starts clear and
    is full --edge-ramp down (one backdrop blur the size of the bar, never animated); leave it off when the controls in
-   the bar have their own frost (.frost-ctl), so nothing is blurred twice. Place: --edge-x (sideways reach, negative to go past the element's padding) and --edge-bottom. */
+   the bar have their own frost (.frost-ctl), so nothing is blurred twice (the dock has it on, below). Place: --edge-x (sideways reach, negative to go past the element's padding) and --edge-bottom. */
 .edge-fade { position: relative; isolation: isolate; }
 .edge-fade::before { content: ''; position: absolute; z-index: -1; pointer-events: none;
   left: var(--edge-x, 0px); right: var(--edge-x, 0px); top: calc(-1 * var(--edge-top, 24px)); bottom: calc(-1 * var(--edge-bottom, 0px));
@@ -1284,7 +1284,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
     color-mix(in srgb, var(--c) calc(var(--edge-a, 65%) * .25), transparent) calc(var(--edge-len, 64px) * .5),
     color-mix(in srgb, var(--c) calc(var(--edge-a, 65%) * .56), transparent) calc(var(--edge-len, 64px) * .75),
     color-mix(in srgb, var(--c) var(--edge-a, 65%), transparent) var(--edge-len, 64px)); }
-.edge-fade.frosted::before { -webkit-backdrop-filter: blur(var(--edge-blur, 16px)) saturate(1.35); backdrop-filter: blur(var(--edge-blur, 16px)) saturate(1.35);
+.edge-fade.frosted::before, .tabbar-wrap.edge-fade::before { -webkit-backdrop-filter: blur(var(--edge-blur, 16px)) saturate(1.35); backdrop-filter: blur(var(--edge-blur, 16px)) saturate(1.35);
   -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--edge-ramp, 26px)); mask-image: linear-gradient(to bottom, transparent, #000 var(--edge-ramp, 26px)); }
 :root[data-theme='light'] .edge-fade { --edge-tint: var(--sheet-solid); --edge-a: 40%; } /* (light: a pale neutral, or it read as a white strip) */
 .coach-sent { animation: coachSend 620ms cubic-bezier(.2, .8, .2, 1) backwards; }
@@ -1655,19 +1655,19 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .pin-acts { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
 .pin-x { flex: none; margin-top: -4px; color: var(--tx3); }
 
-/* ── under the dock: a progressive blur (ui/TabBar.tsx .dock-veil) ───────────────────────────────────────────────────
-   The dock's own glass only frosts what is right behind it; around and below it the page used to run on sharp. Now the page
-   dissolves into the bottom edge: three blurs of fixed strength (a strength can't be animated cheaply), each faded in further
-   down by its own mask, so the blur deepens smoothly instead of starting at a hard line. No tint: a darkening band made the
-   space under the dock read as black. It slides away with the dock.
-   Two layers, not three: each stacked blur re-blurs the one below it on every frame; the faint 3 px layer at the top was most
-   of the scroll lag on the tab screens. The 9 px layer now fades in from the very top instead (screenshots: same look). */
-.dock-veil { position: absolute; left: 0; right: 0; bottom: 0; height: calc(100% + 30px); z-index: -1; pointer-events: none; }
-.dock-veil > i { position: absolute; inset: 0; }
-.dock-veil > .dv2 { -webkit-backdrop-filter: blur(9px); backdrop-filter: blur(9px);
-  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 58%); mask-image: linear-gradient(to bottom, transparent, #000 58%); }
-.dock-veil > .dv3 { -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
-  -webkit-mask-image: linear-gradient(to bottom, transparent 45%, #000 85%); mask-image: linear-gradient(to bottom, transparent 45%, #000 85%); }
+/* the dock reuses the Coach bar's soft edge, kept light: the frost starts 16 px above the dock and is full ~40% down it
+   (one smooth ramp), only 6 px, with a neutral tint only below the dock's top (at most 35%), so whatever is still visible above the dock
+   stays sharp and only what passes under it goes soft (Omar: "the tab bar and coach bar fade"). */
+.tabbar-wrap.edge-fade { position: fixed; --edge-top: 16px; --edge-ramp: 42px; --edge-blur: 6px; --edge-tint: rgb(34, 34, 34); }
+.tabbar-wrap.edge-fade::before { background: linear-gradient(to bottom, transparent 16px, color-mix(in srgb, var(--edge-tint) 12%, transparent) 30px, color-mix(in srgb, var(--edge-tint) 35%, transparent) 56px); }
+:root[data-theme='light'] .tabbar-wrap.edge-fade { --edge-tint: #f2f2f2; }
+/* the dock itself is a pill of frosted glass: its own small blur (only the pill's size), a thin pure-grey fill (no colour cast,
+   so the field comes through the frost, as on iOS), light from the top */
+.tabbar.glass { background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0) 60%), rgba(46, 46, 46, 0.2);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4); backdrop-filter: blur(20px) saturate(1.4);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), inset 0 0 0 1px rgba(255, 255, 255, 0.06), 0 10px 26px -12px rgba(0, 0, 0, 0.6); }
+:root[data-theme='light'] .tabbar.glass { background: linear-gradient(180deg, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.3) 60%), rgba(255, 255, 255, 0.2);
+  box-shadow: inset 0 1px 0 #fff, inset 0 0 0 1px rgba(16, 20, 34, 0.06), 0 8px 24px -12px rgba(30, 40, 70, 0.25); }
 
 /* Top fade for scrollers that are neither a page nor a sheet (the orb's talk list, onboarding). */
 @supports (animation-timeline: scroll()) {
