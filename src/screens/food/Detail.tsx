@@ -46,7 +46,11 @@ export function FoodDetail({ props }: { props: { food?: Food; foodId?: string; e
   const push = useUI((u) => u.push);
   const toast = useUI((u) => u.toast);
   const today = useToday();
-  const entry = props.entryId ? s.entries.find((e) => e.id === props.entryId) : undefined;
+  const live = props.entryId ? s.entries.find((e) => e.id === props.entryId) : undefined;
+  // once deleted, the sheet keeps showing the entry as it was while it slides away (it used to collapse for a moment first)
+  const kept = useRef(live);
+  if (live) kept.current = live;
+  const entry = live ?? kept.current;
   const initialFood = useMemo<Food | undefined>(() => {
     if (entry) return snapToFood(entry.snap);
     if (props.food) return props.food;

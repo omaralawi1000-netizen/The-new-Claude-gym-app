@@ -1248,3 +1248,15 @@ Food search no longer lists the same product twice (online rows that would read 
 name, brand, kcal and unit, are left out; "Cheasy vaniljeskyr" showed Cheasy Skyr Vanilje twice). The exercise page
 says "In this workout" in place of "Add to current workout" when the exercise is already in the running workout. The
 last five missing Danish strings are in (voice styles and "Tap a voice to hear it.").
+## Polish pass, step A: food logging without rough edges (13 Oct 2026, v0.1.59)
+
+Found with a new audit (`scripts/audit-polish.mjs` + `scripts/pop-probe.mjs`): it walks the app at 4x CPU slowdown and
+lists everything that pops in, vanishes, jumps or changes a number without rolling; `scripts/film-act.mjs` films one
+action frame by frame to confirm it.
+- **Food search**: as you type, the list filters like iOS search. Rows that still match stay where they land and new ones
+  fade in. Before, rows glided to their new places while the old ones faded out, so for a few frames their texts slid
+  through each other. "Searching Open Food Facts and USDA…" fades in and out instead of popping.
+- **Deleting a logged food**: the sheet keeps showing the entry while it slides away (it switched to the "add food" layout
+  for a moment on its way out).
+- **Food totals roll**: protein, carbs and fat under the ring, and the week's average, roll to their new values like the
+  calories do.
