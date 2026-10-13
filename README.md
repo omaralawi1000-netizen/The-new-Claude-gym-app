@@ -1168,7 +1168,24 @@ opacity changes, in 80 tiny steps each way (~14 a second, each under half a perc
 so the bar never re-blurs; it holds still while the workout is paused, minimised, or covered by another screen. It lives
 inside the colour field, so Settings → Background glow Off removes it and Soft dims it; reduced motion stops it.
 
-## No flicker as a page lands (13 Oct 2026, v0.1.49)
+## Coach answers flow in like iOS (13 Oct 2026, v0.1.50)
+
+Omar's recording (v0.1.43+) showed answers arriving in blurry clumps as the network delivered them, the list stepping
+and restarting its glide on every clump, the newest line dipping under the bar, a blinking red cursor, and the play button
+popping in at the end and shoving the list. Now:
+- Words are shown at a steady pace decoupled from the network (`useWordReveal` in ui/agentUi.tsx, pure parts in
+  lib/reveal.ts, tested in tests/reveal.test.ts): the pace follows what is waiting (backlog / 0.9 s, 6–70 words/s, eased),
+  so it keeps up with the stream without running dry between clumps; once everything has arrived it finishes at ≥24 words/s.
+  A bold phrase is bold from its first word and a "- " is a bullet from its first word, so nothing restyles mid-answer.
+- Each word fades up (opacity + 0.3em rise, the same 760 ms curve); the animated blur is gone (it was also the orb
+  screen's word animation, which gets the same change). No cursor.
+- The list follows on one continuous critically damped spring (`translate` on `.coach-thread`, ~0.5 s, starts from rest):
+  a new line adds to the motion instead of restarting it; a finger on the list mid-glide hands the rest to the scroll.
+  Filmed at 4x CPU throttle: list jolts > 4 px per frame 13 → 0; newest word never under the bar (was up to 7 px under).
+- The play button's row is held open from the first word, and the button (and the quiet note) fade in there.
+- `Words` is memoised, so only the growing piece re-renders per word.
+
+## No flicker as a page lands (13 Oct 2026, v0.1.51)
 
 Omar saw one flicker at the end of every Settings page, tab switch and pop-up. His 120 fps recordings show it exactly: a
 whole card (Progress) or a block of messages (Coach) vanishes for ONE frame right as the motion ends. Cause: while a block
@@ -1186,4 +1203,4 @@ late. Measured with a layer probe (Chrome's LayerTree): 200 such hand-backs of o
   opened and again as it finished closing): its corners are four small pieces in the shell's colour, scaled 0 → 1
   (`.stage-corner`, `useStageDepth`). Same 28 px corners.
 Checked against the live build: same idle redraws, frame times within run-to-run noise, screenshots match, presses work.
-Not covered: the Coach's word-by-word reply animation (hundreds of words; owned by the Coach thread) still hands back.
+Not covered: the Coach's word-by-word reply animation (owned by the Coach thread).

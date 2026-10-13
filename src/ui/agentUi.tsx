@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { memo, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useLang, useT } from '../lib/i18n';
 import { Icon, type IconName } from './Icon';
 import { useStore } from '../state/store';
@@ -11,6 +11,7 @@ import { useUI, haptic } from '../state/ui';
 import { useAi } from '../state/ai';
 import { getKey } from '../lib/keys';
 import { aiErrorText } from '../lib/gemini';
+import { wordEnds, revealPrefix, revealRate } from '../lib/reveal';
 import { play, prefetch, stopSpeaking, speechState, subscribeSpeech, richLines, wordsOf, BEST_TTS, FALLBACK_TTS, type TtsOpts } from '../lib/tts';
 
 /**
@@ -141,7 +142,8 @@ const KIND_ICON: Record<string, IconName> = { food: 'recipe', sets: 'dumbbell', 
  * blurs in (CSS .w). Words already on screen never re-animate. While the reply is read aloud (`id` matches what is
  * playing), the word being said lights up, the ones already said settle back and the ones to come wait a shade lighter.
  */
-export function Words({ text, k, base = 0, on = -1, stagger }: { text: string; k: string; base?: number; on?: number; stagger?: number }) {
+// (memo: while an answer writes itself in, only the piece still growing re-renders, not every word before it)
+export const Words = memo(function Words({ text, k, base = 0, on = -1, stagger }: { text: string; k: string; base?: number; on?: number; stagger?: number }) {
   const parts = text.split(/(\s+)/);
   // words that arrive together cascade one after another; a word keeps the delay it was born with
   const born = useRef<Record<number, number>>({});
@@ -161,6 +163,35 @@ export function Words({ text, k, base = 0, on = -1, stagger }: { text: string; k
     const cls = on < 0 ? 'w' : idx === on ? 'w w-on' : idx < on ? 'w w-past' : 'w w-next';
     return <span key={`${k}-${i}`} className={cls} style={{ animationDelay: `min(${born.current[i]}ms, var(--word-stagger-cap, 520ms))` }}>{w}</span>;
   })}</>;
+});
+/**
+ * An answer as it should be on screen right now: its words come in one after another at a steady, calm pace, decoupled
+ * from how the network delivers them (a model's stream lands in clumps; shown as it lands, words arrived in bursts and
+ * then stalled). The pace follows what is waiting, so it keeps up with the stream without running dry between clumps.
+ * `instant`: shown whole at once (a saved answer). `done` once the last word is out and nothing more is coming.
+ */
+export function useWordReveal(text: string, live: boolean, instant = false): { shown: string; done: boolean } {
+  const ends = useMemo(() => wordEnds(text, live), [text, live]);
+  const st = useRef({ n: instant ? Infinity : 0, rate: 0, carry: 1 }); // (carry 1: the first word comes at once)
+  const [, setN] = useState(0);
+  useEffect(() => {
+    const s = st.current;
+    if (s.n >= ends.length) return;
+    let raf = 0, last = performance.now();
+    const step = (now: number) => {
+      const dt = Math.min(0.05, Math.max(0, now - last) / 1000); last = now;
+      // the pace eases toward its target (no lurch when a clump lands)
+      s.rate += (revealRate(ends.length - s.n, live) - s.rate) * (1 - Math.exp(-dt / 0.3));
+      s.carry += s.rate * dt;
+      const k = Math.floor(s.carry);
+      if (k > 0) { s.carry -= k; s.n = Math.min(ends.length, s.n + k); setN(s.n); }
+      if (s.n < ends.length) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [ends, live]);
+  const n = Math.min(st.current.n, ends.length);
+  return { shown: n >= ends.length && !live ? text : revealPrefix(text, ends, n), done: !live && n >= ends.length };
 }
 /** The index of the word being read aloud in reply `id` (-1 when that reply is not playing). Only that reply re-renders. */
 export function useSpokenWord(id?: string) {
