@@ -1443,6 +1443,13 @@ flicker fingerprint). `--film a,b` films chosen actions, `--light` for the light
     hand-over now lets go as the orb arrives (`carry`).
   - In the dock it sat 2 px left of the middle of its place (the place is 68 x 64; the orb went to its left edge). It is
     centred now, in every place that isn't square.
+- v0.1.87, smoother minimise and resume (measured at 4x CPU, 3 runs each, before → after):
+  - Minimising: main-thread long tasks 420 → 285 ms in total, script and layout 439 → 351 ms. Resuming: script and layout
+    404 → 342 ms. The orb re-measured its whole path on every frame the page behind sank back or came forward
+    (`.stage-content` was missing from the orb's list of moving surfaces).
+  - The bar's name (`Fit`) no longer lays the window out itself: it reads its room right after the browser's own layout
+    and measures the shorter tries off the page (it forced one full layout per try, about 100 ms at 4x as the window opened).
+  - The rest-over sound is made once the whole list has arrived, not while it is still arriving.
 
 ## Android app: the rest as a live countdown, new icon, calmer opening (13 Oct 2026, v0.1.72)
 Omar's phone showed the website's plain notice ("Back at 10:02", the site's address) instead of the app's countdown.

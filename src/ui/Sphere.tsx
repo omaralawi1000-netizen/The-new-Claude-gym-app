@@ -319,8 +319,9 @@ export function SphereStage() {
     // Scroll, resize, content and keyboard changes invalidate layout. Transform-only motion reuses the local anchors.
     const dirty = () => markOrbLayoutDirty();
     // A popup's own motion (its transform, the dim and blur fading, the page stepping back) rewrites a style attribute every
-    // frame. Its transform is applied below; decorative layers don't change layout.
-    const MOVING = '.sheet, .sheet-pane, .sheet-page, .scrim, .scrim > i, .stage, .wk-card, .wk-sheet, .fields, .aurora, .sphere-stage, .lens, .lens > i';
+    // frame. Its transform is applied below; decorative layers don't change layout. (.stage-content, the page sinking back
+    // behind a pop-up, was missing: every frame of opening and closing the workout measured the whole orb path afresh.)
+    const MOVING = '.sheet, .sheet-pane, .sheet-page, .scrim, .scrim > i, .stage, .stage-content, .wk-card, .wk-sheet, .fields, .aurora, .sphere-stage, .lens, .lens > i';
     // Inside the live workout's window nothing but the bar's own box can move its slot (the bar is pinned to the window's
     // foot): the list, Focus, the header and the bar's words changing used to force a fresh measure of the whole page on
     // every frame they changed (a set ticked, a page turned, the clock rolling), the biggest part of a tick's cost.
