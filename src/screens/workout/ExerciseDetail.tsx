@@ -7,6 +7,7 @@ import { Icon } from '../../ui/Icon';
 import { Stepper } from '../../ui/kit';
 import { MuscleMap } from './MuscleMap';
 import { Figure, figureFor } from './Figure';
+import { FigureClip, hasClip } from './FigureClip';
 import { EQUIP_LABEL, MOVE_LABEL, MUSCLE_LABEL, exName, exSteps, fmtSet } from './common';
 import { bestsFor, countable, epley, historyOf, incrementFor, repRange, suggestProgression } from '../../lib/workout';
 import { fmtDate } from '../../lib/dates';
@@ -81,7 +82,9 @@ export function ExerciseDetail({ props }: { props: { id: string } }) {
       <SheetHead title={exName(ex, lang)} sub={[...ex.equipment.map((q) => t(EQUIP_LABEL[q])), t(MOVE_LABEL[ex.movement])].join(' · ')} onClose={pop} right={ex.custom ? <button className="icon-btn flat press" aria-label={t('Edit')} onClick={() => push('exerciseEditor', { id: ex.id })}><Icon name="edit" /></button> : undefined} />
       <div className="sheet-body">
         {/* the movement: the figure doing it, or the muscles it works where there's no figure yet */}
-        <div className={`exd-stage${kind ? '' : ' map'}`} aria-hidden>{kind ? <Figure ex={ex} kind={kind} active /> : <MuscleMap muscles={ex.muscles} size={124} />}</div>
+        <div className={`exd-stage${kind || hasClip(ex) ? '' : ' map'}`} aria-hidden>{hasClip(ex)
+          ? <FigureClip ex={ex} active fallback={<MuscleMap muscles={ex.muscles} size={124} />} />
+          : kind ? <Figure ex={ex} kind={kind} active /> : <MuscleMap muscles={ex.muscles} size={124} />}</div>
         <div className="exd-works" aria-label={t('Works')}>
           {ex.muscles.map((m, i) => <span key={m} className={`chip sm${i === 0 ? ' acc' : ''}`}>{t(MUSCLE_LABEL[m])}</span>)}
         </div>

@@ -44,7 +44,9 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg,png,woff2,wasm}'], maximumFileSizeToCacheInBytes: 3 * 1024 * 1024, navigateFallbackDenylist: [/^\/api\//],
         // the packed Danish food list: fetched the first time food is searched, then kept on the phone (works offline);
         // its name changes when the list changes, so old copies are simply replaced
-        runtimeCaching: [{ urlPattern: /\/assets\/off-dk-[^/]*\.json$/, handler: 'CacheFirst', options: { cacheName: 'aven-food-dk', expiration: { maxEntries: 2 } } }],
+        runtimeCaching: [{ urlPattern: /\/assets\/off-dk-[^/]*\.json$/, handler: 'CacheFirst', options: { cacheName: 'aven-food-dk', expiration: { maxEntries: 2 } } },
+          // the 3D figure clips: fetched the first time an exercise is shown (or ahead, for today's workout), then kept for offline use
+          { urlPattern: /\/figures\/[^/]*\.webm(\?.*)?$/, handler: 'CacheFirst', options: { cacheName: 'aven-figures', expiration: { maxEntries: 300 } } }],
       },
     }),
   ],

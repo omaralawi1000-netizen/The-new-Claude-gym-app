@@ -1,0 +1,78 @@
+<!doctype html><html><body style="margin:0;background:transparent"><canvas id="c"></canvas>
+<script type="module">
+// Bakes each frame's pose into the shader as constants (SwiftShader runs straight-line code far faster than uniform loops).
+import { VS, makeFS } from './shader.js';
+import { build, lights, sphereOf, framePoints, fitCamera } from './rig.js';
+import { MOVES as M0 } from './moves.js';
+import { MOVES1 } from './moves1.js';
+const MOVES = { ...M0, ...MOVES1 };
+const P = new URLSearchParams(location.search);
+const W = +(P.get('w') ?? 720), Hh = +(P.get('h') ?? 480);
+const cv = document.getElementById('c'); cv.width = W; cv.height = Hh;
+const gl = cv.getContext('webgl2', { premultipliedAlpha: true, alpha: true, preserveDrawingBuffer: true });
+const f = (x) => { const s = (+x).toFixed(5); return s.includes('.') ? s : s + '.0'; };
+const v3 = (a) => `vec3(${f(a[0])},${f(a[1])},${f(a[2])})`;
+const v4 = (a) => `vec4(${f(a[0])},${f(a[1])},${f(a[2])},${f(a[3])})`;
+const arr = (n, a) => `const vec3 ${n}[${a.length}] = vec3[${a.length}](${a.map(v3).join(',')});`;
+const sh = (t, s) => { const x = gl.createShader(t); gl.shaderSource(x, s); gl.compileShader(x); if (!gl.getShaderParameter(x, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(x)); return x; };
+const vs = sh(gl.VERTEX_SHADER, VS);
+const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+let pr = null;
+function partExpr(p) {
+  const [type] = p.A, B = p.B, C = p.C, D = p.D;
+  if (type === 0) return `sdCyl(p,${v3(B)},${v3(C)},${f(B[3])})${C[3] ? '-' + f(C[3]) : ''}`;
+  if (type === 1) { const q = [-D[0], -D[1], -D[2], D[3]]; const id = !D[0] && !D[1] && !D[2];
+    return `sdRBox(${id ? `p-${v3(B)}` : `qrot(${v4(q)},p-${v3(B)})`},${v3(C)},${f(B[3])})`; }
+  return `plate(p,${v3(B)},${v3(C)},${f(B[3])},${f(C[3])})`;
+}
+const FIT = {};
+window.draw = (move, t, alpha, camOverride) => {
+  window.__t0 = performance.now();
+  const pose = MOVES[move](t);
+  if (camOverride) Object.assign(pose.cam, camOverride);
+  // one camera for the whole rep: fitted to every pose of it, so nothing leaves the frame
+  if (!FIT[move]) { const pts = []; for (let i = 0; i <= 12; i++) pts.push(...framePoints(build(MOVES[move](i / 24)))); FIT[move] = fitCamera(pose.cam, pts, W / Hh); }
+  if (!camOverride) pose.cam = FIT[move];
+  const u = build(pose), L = lights(u.cam);
+  // scene sphere and gear sphere
+  let lo = [1e9, 1e9, 1e9], hi = [-1e9, -1e9, -1e9]; const sp = u.parts.map(sphereOf);
+  sp.forEach((s) => { for (let k = 0; k < 3; k++) { lo[k] = Math.min(lo[k], s[k] - s[3]); hi[k] = Math.max(hi[k], s[k] + s[3]); } });
+  const gc = lo.map((v, k) => (v + hi[k]) / 2), gr = Math.hypot(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]) / 2;
+  const tl = [u.T[0] + u.R[1][0] * 1.25, u.T[1] + u.R[1][1] * 1.25, u.T[2] + u.R[1][2] * 1.25];
+  let blo = [...lo], bhi = [...hi];
+  for (const q of [...u.J, tl]) for (let k = 0; k < 3; k++) { blo[k] = Math.min(blo[k], q[k] - 0.6); bhi[k] = Math.max(bhi[k], q[k] + 0.6); }
+  const sc = blo.map((v, k) => (v + bhi[k]) / 2), sr = Math.hypot(bhi[0] - blo[0], bhi[1] - blo[1], bhi[2] - blo[2]) / 2;
+  const decl = [
+    `const vec3 uCam = ${v3(u.cam.pos)}; const vec3 uTa = ${v3(u.cam.ta)}; const float uFocal = ${f(u.cam.focal)};`,
+    `const vec3 uT = ${v3(u.T)}; const mat3 uR = mat3(${u.R.flat().map(f).join(',')});`,
+    arr('uJ', u.J), arr('uAF', u.AF), arr('uAS', u.AS), arr('uLF', u.LF), arr('uLS', u.LS),
+    arr('uGrip', u.GR), arr('uPalm', u.PA), arr('uFoot', u.FT),
+    `const int uHot = ${u.hot | 0}; const float uWork = ${f(u.work)};`,
+    `const vec4 uSB = ${v4([...sc, sr])}; const vec3 uKey = ${v3(L.key)}; const vec3 uFill = ${v3(L.fill)}; const vec3 uRim = ${v3(L.rim)}; const float uAlpha = ${alpha ? '1.0' : '0.0'};`,
+  ].join('\n');
+  // gear: the march may skip by bounding spheres; gearS (for the soft floor shadow) only skips far away, so it stays exact nearby
+  const genGear = (name, far, near) => {
+    let g = `float ${name}(vec3 p){\n`;
+    if (!u.parts.length) return g + '  return 1e9; }\n';
+    g += `  float bs = length(p - ${v3(gc)}) - ${f(gr)}; if (bs > ${far}) return bs;\n`;
+    // each part on its own (bound first, exact only when near), then a branch-free min that also picks the material
+    u.parts.forEach((p, i) => { const s = sp[i];
+      g += `  float d${i} = length(p - ${v3(s)}) - ${f(s[3])}; if (d${i} < ${near}) d${i} = ${partExpr(p)};\n`; });
+    g += `  float d = d0; mat = ${f(u.parts[0].A[1])};\n`;
+    u.parts.slice(1).forEach((p, k) => { const i = k + 1; g += `  mat = d${i} < d ? ${f(p.A[1])} : mat; d = min(d, d${i});\n`; });
+    return g + '  return d; }\n';
+  };
+  const gear = genGear('gear', '.1', '.05') + genGear('gearS', '.3', '.3');
+  if (pr) gl.deleteProgram(pr);
+  pr = gl.createProgram(); gl.attachShader(pr, vs); const fs = sh(gl.FRAGMENT_SHADER, makeFS(decl, gear)); gl.attachShader(pr, fs); gl.linkProgram(pr);
+  if (!gl.getProgramParameter(pr, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(pr));
+  gl.deleteShader(fs); gl.useProgram(pr); window.__ct = performance.now();
+  const loc = gl.getAttribLocation(pr, 'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+  gl.viewport(0, 0, W, Hh); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.uniform2f(gl.getUniformLocation(pr, 'R'), W, Hh);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+  const px = new Uint8Array(4); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+  return [u.parts.length, Math.round(window.__ct - window.__t0), Math.round(performance.now() - window.__ct)];
+};
+document.title = 'READY';
+</script></body></html>

@@ -1316,6 +1316,16 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .exd-stage { height: 216px; display: grid; place-items: center; border-radius: var(--r-lg); overflow: hidden; margin-top: 2px;
   background: radial-gradient(closest-side, color-mix(in srgb, var(--ac) 12%, transparent), transparent); }
 .exd-stage.map { height: 190px; }
+.wk-stage, .exd-stage { position: relative; }
+/* the 3D figure clips (FigureClip.tsx): fill the stage and fade in once the first frame is ready. The clips glow in one warm
+   colour on neutral clay; a colour turn (not a blur, cheap on the GPU) moves only the glow to each look's training colour. */
+.fgc { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; pointer-events: none; opacity: 0;
+  transition: opacity 420ms var(--ease-out); filter: hue-rotate(-12deg) saturate(1.35); }
+.fgc.on { opacity: 1; }
+html[data-palette='aurora'] .fgc { filter: hue-rotate(177deg) saturate(1.6); }
+html[data-palette='mono'] .fgc { filter: hue-rotate(-8deg) saturate(1.3); }
+html[data-palette='sunset'] .fgc { filter: saturate(1.4); }
+html[data-palette='forest'] .fgc { filter: hue-rotate(57deg) saturate(1.5); }
 .exd-works { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 6px; }
 .exd-head { display: flex; align-items: center; gap: 7px; margin: 26px 0 10px; }
 .exd-head svg { flex: none; opacity: .9; }
