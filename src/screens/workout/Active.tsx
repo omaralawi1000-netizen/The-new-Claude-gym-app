@@ -405,8 +405,8 @@ export function ActiveWorkout({ props, open = true }: { props: { origin?: 'hero'
 }
 
 /**
- * The workout's living light: the top light of the window breathes very slowly (a stepped opacity change, about ten
- * steps a second, so it never redraws the screen every frame) and grows warmer as the session goes on, fully warm after
+ * The workout's living light: the top light of the window breathes very slowly (a stepped opacity change, about 14
+ * tiny steps a second, so it never redraws the screen every frame) and grows warmer as the session goes on, fully warm after
  * an hour. Off with Settings → Background glow → Off (it lives in the colour field); it holds still while the workout is
  * paused, minimised, or another screen covers it. Only opacity changes; the bar's frost sits far below it.
  */
