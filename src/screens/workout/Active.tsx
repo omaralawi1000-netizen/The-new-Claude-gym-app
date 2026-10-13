@@ -16,7 +16,6 @@ import { useNow } from '../../lib/hooks';
 import { nextSetOf, offerRestAlerts, unlockRestAudio } from './rest';
 import { addSet, deleteSet, moveExercise, patchExercise, patchSet, removeExercise, startRest, adjustRest, skipRest, toggleSuperset } from './actions';
 import { exName, fmtSet, MUSCLE_LABEL } from './common';
-import { prefetchClips } from './FigureClip';
 import { SphereSlot, mirrorOrb, orbPress, orbTap } from '../../ui/Sphere';
 import { useSwipeDown } from '../../ui/swipe';
 import { Mirror, mirrorProgress, mirrorStage, trackCover, trackDepth, type Engage } from '../../ui/engage';
@@ -230,9 +229,6 @@ export function ActiveWorkout({ props, open = true }: { props: { origin?: 'hero'
   const firstIds = useRef(new Set((a?.exercises ?? []).slice(0, 2).map((e) => e.id)));
   const [listDone, setListDone] = useState(listDoneAtOpen.current); // stays true once the list has been complete (adding an exercise later never hides the buttons)
   useEffect(() => { if (!listDone && shown >= total0) setListDone(true); }, [shown, total0, listDone]);
-  // fetch today's figure clips once the window has opened, so each exercise's figure is ready when you get to it
-  const clipKey = (a?.exercises ?? []).map((e) => e.exerciseId).join(',');
-  useEffect(() => { if (ready && clipKey) prefetchClips(clipKey.split(',')); }, [ready, clipKey]);
   useEffect(() => {
     if (p.get() >= 0.97) { setReady(true); return; }
     const off = p.on('change', (v) => { if (v >= 0.97) { setReady(true); off(); } });

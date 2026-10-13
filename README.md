@@ -1167,31 +1167,3 @@ opacity changes, in 80 tiny steps each way (~14 a second, each under half a perc
 (idle trace: DrawFrame 3 → ~25 per 3 s; nothing on the main thread); it sits in the top half, far from the frosted bar,
 so the bar never re-blurs; it holds still while the workout is paused, minimised, or covered by another screen. It lives
 inside the colour field, so Settings → Background glow Off removes it and Soft dims it; reduced motion stops it.
-
-## 3D figures, batch 1: chest and pressing (13 Oct 2026, v0.1.50)
-
-Omar asked for moving figures for every exercise in Aven's own look: "not too realistic", the worked muscle lit up,
-and as good as the paid figure apps he showed (his clips were only a quality bar; nothing of theirs is copied or traced).
-The coordinator picked 3D clips in matte clay. This version adds the first 38, every chest and pressing exercise:
-flat, incline, decline and floor presses (barbell, dumbbell, Smith), chest press machines, dumbbell and cable flies,
-pec deck and reverse pec deck, five push-ups, four dips, and standing and seated overhead presses.
-
-- **What you see.** A grey clay body with soft muscle shapes, real gripping hands, a faceless head and the exercise's own
-  equipment (bench and rack, Smith machine, cable towers, machines, kettlebell, landmine). The worked muscles glow in the
-  look's training colour and glow brighter as the rep gets harder. A soft shadow sits on the floor. Each exercise has
-  its own camera, angled so the worked muscle faces you, and fitted so the whole rep stays in frame.
-- **The rep.** 2.8 s, the same as the old figures: the lift, a beat at the top, a slower way back. It plays only on the
-  page you're looking at, stops on every other page, and holds the first frame with reduced motion.
-- **How it's made.** The body is built from rounded shapes (signed distance fields) and rendered offline in a browser,
-  pose by pose (`tools/figures/`, see its README). Each clip is a see-through WebM (VP9 with alpha), 840×560, about
-  90 KB. The phone only plays a video, so nothing is drawn per frame on the page.
-- **One clip, five looks.** The clay and equipment are exactly neutral grey and the glow is rendered in one warm colour.
-  A CSS colour turn on the video (`hue-rotate` + `saturate`, no blur) moves only the glow to each look's training colour:
-  blue in Aurora, lime in Forest, coral in Ember, Mono and Sunset.
-- **Loading.** Clips are not in the install. Each one is fetched the first time it is shown, and the clips for today's
-  workout are fetched once the workout window has opened. The service worker keeps them (`aven-figures` cache), so they
-  work offline after that. The page gets the clip as a blob, so it never streams. If a clip can't load, the muscle
-  picture shows instead. Custom exercises and exercises without a clip keep the muscle picture (or the older drawn
-  figure for the curls and rows, until their batches).
-- **Next batches:** back, shoulders and arms, legs, core, power and wrestling, then cardio
-  (`premium-pass/figures-look/patterns.md` in the project files has the full list).

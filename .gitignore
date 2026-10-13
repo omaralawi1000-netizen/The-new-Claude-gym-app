@@ -5,4 +5,3 @@ shots
 .DS_Store
 *.log
 dev-dist
-tools/figures/out/
