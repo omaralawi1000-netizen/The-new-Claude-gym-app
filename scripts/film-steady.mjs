@@ -8,10 +8,10 @@
 // → shots/film/<name>/000.jpg… (one per 1/60 s), times.json, bar.json (the theme-color at each frame, for the status bar)
 import fs from 'node:fs';
 import { launch } from './lib.mjs';
-// dsf: pixels per CSS px. The phone has 3.5; at 1 the browser rounds what moves inside a scrolled list to whole CSS px (it
+// dsf: pixels per CSS px (default 3.5, the phone's). at 1 the browser rounds what moves inside a scrolled list to whole CSS px (it
 // snaps to device pixels), which turns the last, slow pixels of every glide into 1 px ticks the phone doesn't have.
 // The scanner's camera shows shots/fake-camera.y4m (python3 scripts/fake-camera.py) when it is there.
-export async function steady({ theme = 'light', size = { width: 384, height: 802 }, dsf = Number(process.env.FILM_DSF || 3) } = {}) {
+export async function steady({ theme = 'light', size = { width: 384, height: 802 }, dsf = Number(process.env.FILM_DSF || 3.5) } = {}) {
   const cam = fs.existsSync('shots/fake-camera.y4m') ? ['--use-file-for-fake-video-capture=shots/fake-camera.y4m'] : [];
   const { b, ctx, p, errors } = await launch({ theme, size, args: ['--deterministic-mode', '--enable-begin-frame-control', '--run-all-compositor-stages-before-draw', `--force-device-scale-factor=${dsf}`, ...cam] });
   await ctx.grantPermissions(['camera', 'microphone']);
@@ -22,6 +22,11 @@ export async function steady({ theme = 'light', size = { width: 384, height: 802
     window.requestAnimationFrame = (cb) => raf((t) => { if (t > last) last = t; cb(t); });
     const tick = () => raf((t) => { if (t > last) last = t; tick(); }); tick();
     performance.now = () => (last >= 0 ? last : pn());
+    // and the date too (the workout timer): one frame of film is 1/60 s on the clock, not the second this machine took
+    const RealDate = Date; let d0 = 0, f0 = -1;
+    const now = () => { if (last < 0) return RealDate.now(); if (f0 < 0) { f0 = last; d0 = RealDate.now(); } return d0 + (last - f0); };
+    // eslint-disable-next-line no-global-assign
+    Date = class extends RealDate { constructor(...a) { if (a.length) super(...a); else super(now()); } static now() { return now(); } };
   });
   const cdp = await ctx.newCDPSession(p);
   await cdp.send('HeadlessExperimental.enable');

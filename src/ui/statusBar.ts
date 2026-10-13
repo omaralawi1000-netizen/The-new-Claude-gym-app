@@ -9,6 +9,7 @@ type RGB = [number, number, number];
 let cur: RGB = [5, 6, 11];
 let from: RGB = cur, to: RGB = cur, t0 = 0, dur = 0;
 let depth = 0;
+let cover = 0;
 let frost = 0;
 let raf = 0;
 let sent = '';
@@ -45,10 +46,16 @@ function frame(now: number) {
   let keep = 1;
   for (let k = 0; k < 3; k++) keep *= 1 - sa * Math.min(1, Math.max(0, depth - k));
   const a = 1 - keep;
-  let c3: RGB = [cur[0] * (1 - a) + sr * a, cur[1] * (1 - a) + sg * a, cur[2] * (1 - a) + sb * a];
+  // A pop-up over a full cover (the exercise list over the live workout): the page isn't drawn behind the cover, so what
+  // shows beside the cover as it steps back is the app's background colour under both dims; the bar moves to it as the
+  // second dim comes (it stayed on the page's colour: a band 4–8 levels off under the bar).
+  const bg: RGB = light ? [233, 236, 244] : [5, 6, 11];
+  const over = cover >= 0.985 ? Math.min(1, Math.max(0, depth - 1)) : 0;
+  const base = cur.map((v, i) => v * (1 - over) + bg[i] * over) as RGB;
+  let c3: RGB = [base[0] * (1 - a) + sr * a, base[1] * (1 - a) + sg * a, base[2] * (1 - a) + sb * a];
   // the orb screen's frost (VOICE_VEIL: the background colour at 74 % over the page) covers the top too, so the bar goes
   // with it — it stayed the area's purple over a near-black screen, a band across the top
-  if (frost > 0) { const f = 0.74 * frost, bg: RGB = light ? [233, 236, 244] : [5, 6, 11]; c3 = c3.map((v, i) => v * (1 - f) + bg[i] * f) as RGB; }
+  if (frost > 0) { const f = 0.74 * frost; c3 = c3.map((v, i) => v * (1 - f) + bg[i] * f) as RGB; }
   const c = hex(c3);
   if (c !== sent) { sent = c; document.querySelector('meta[name="theme-color"]')?.setAttribute('content', c); }
   shown = c;
@@ -63,6 +70,8 @@ export function setBarTint(c: RGB, ms = 800) {
 }
 /** How many pop-ups' dims lie over the page (0..1 for one, up to 2 or more with a pop-up on a pop-up). */
 export function setBarDepth(v: number) { if (Math.abs(v - depth) < 0.004 && v !== 0) return; depth = v; schedule(); }
+/** How far a full cover (the live workout) covers the page (stageCover). */
+export function setBarCover(v: number) { if (v === cover) return; cover = v; schedule(); }
 
 /** Reads a CSS colour (rgb() or color(srgb …)) into 0..255 channels. */
 export function readRGB(css: string): RGB | null {

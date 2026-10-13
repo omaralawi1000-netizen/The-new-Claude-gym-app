@@ -16,11 +16,19 @@ await p.goto(process.env.URL || 'http://127.0.0.1:4173/'); await wait(p, 1500); 
 // Every step starts from a still screen: what it taps is scrolled into view first and given time to land, so the film shows
 // only the tap and what follows (a tap that has to scroll first moved the list a frame before the pop-up). Steps not filmed
 // still play, frame by frame, so the next one doesn't start in the middle of them.
-const step = async (name, target, frames = 78) => {
+// A step whose button is out of view (scrolled: true) films the scroll too, as a person scrolls to it, so no film cuts
+// from one place in a list to another.
+const scrollTo = (loc) => loc.evaluate((e) => new Promise((done) => {
+  const box = e.closest('.wk-list, .wk-page, .sheet-body, .screen'); e.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  let y = -1, still = 0; const look = () => { const now = box ? box.scrollTop : 0; still = now === y ? still + 1 : 0; y = now; if (still > 10) done(); else requestAnimationFrame(look); }; look();
+}));
+const step = async (name, target, frames = 78, { scrolled = false } = {}) => {
   const loc = target();
-  await loc.scrollIntoViewIfNeeded().catch(() => {}); await s.advance(40);
-  if (!want.length || want.some((w) => name.startsWith(w))) await s.film(`${process.env.TAG || 'depth'}-${theme}-${name}`, () => loc.tap(), frames);
-  else { const t = loc.tap(); await s.advance(frames); await t; }
+  if (!scrolled) await loc.scrollIntoViewIfNeeded().catch(() => {});
+  await s.advance(40);
+  const act = async () => { if (scrolled) { await scrollTo(loc); } await loc.tap(); };
+  if (!want.length || want.some((w) => name.startsWith(w))) await s.film(`${process.env.TAG || 'depth'}-${theme}-${name}`, act, frames);
+  else { const t = act(); await s.advance(frames); await t; }
 };
 // closing as a person does, with the sheet's own close button (Escape is a keyboard, and leaves a keyboard focus ring)
 const close = () => p.getByRole('dialog').last().getByLabel('Close').first();
@@ -39,7 +47,7 @@ await step('stack-photo-close', close);
 await step('stack-food-close', close);
 await step('workout-open', () => p.getByRole('button', { name: /Start workout/ }).first(), 100);
 // the exercise list over the live workout: the workout window stacks behind it
-await step('stack-picker-open', () => p.getByRole('button', { name: 'Add exercise' }).first(), 90);
+await step('stack-picker-open', () => p.getByRole('button', { name: 'Add exercise' }).first(), 150, { scrolled: true });
 await step('stack-picker-close', close, 84);
 await step('workout-close', () => p.getByRole('button', { name: 'Minimise workout' }), 84);
 await s.close();

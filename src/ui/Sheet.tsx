@@ -118,6 +118,25 @@ const inView = (top: HTMLElement) => {
   const travel = Math.max(1, window.innerHeight - top.offsetTop), dist = top.offsetHeight + 40; // dist: the top sheet's own travel (measure, below)
   return Object.assign((v: number) => clamp01(1 - ((1 - v) * dist) / travel), { knee: clamp01(1 - travel / dist) }); // knee: where it starts to count
 };
+/** A stepped-back sheet's title, by how far it is stepped back (b): it dims as the edge of the sheet coming over it
+ * approaches (from 200 px below the title to 40 px below it), so it is gone just before it is covered and is never
+ * sliced; it comes back the same way as that sheet leaves. One rule for every stack (a sheet, the live workout). */
+const titleFade = (heads: HTMLElement[], top: HTMLElement) => {
+  const y = Math.max(0, ...heads.map((h) => h.getBoundingClientRect().bottom));
+  const rest = top.offsetTop, travel = Math.max(1, window.innerHeight - rest);
+  const at = (m: number) => 1 - (y + m - rest) / travel;
+  const from = at(200), to = at(40);
+  return (b: number) => clamp01((to - b) / Math.max(0.01, to - from));
+};
+/** While stepped back: the title fades (titleFade) and the drop shadow goes (CSS [data-stacked]): set back and narrower, a
+ * card's shadow showed beside it, cut off flat by the status bar. It goes and comes back at the very start and end, when the
+ * card is still full width and its shadow hardly shows. */
+function showStepBack(el: HTMLElement | null, b: number, fade: (b: number) => number, heads: string) {
+  if (!el) return;
+  const o = b < 0.001 ? '' : fade(b).toFixed(3);
+  for (const hd of el.querySelectorAll<HTMLElement>(heads)) if (hd.style.opacity !== o) hd.style.opacity = o;
+  if ((b >= 0.001) !== ('stacked' in el.dataset)) { if (b >= 0.001) el.dataset.stacked = ''; else delete el.dataset.stacked; }
+}
 
 /**
  * Bottom sheet: swipe down from anywhere (when its list is at the top) or flick to dismiss; interruptible; keyboard-aware.
@@ -260,7 +279,7 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
   // drawn at the screen's full rate (see mirrorSpring). A finger or a sheet stacking on top hands control straight back.
   const scrimRef = useRef<HTMLDivElement>(null);
   const mirror = useRef<Mirror | null>(null); if (!mirror.current) mirror.current = new Mirror();
-  const runMirror = (p0: number, p1: number, sp: typeof SURFACE, vel: number) => {
+  const runMirror = (p0: number, p1: number, sp: { stiffness: number; damping: number; mass?: number }, vel: number) => {
     const m = mirror.current!; m.cancel();
     if (reduce) return;
     const b = bs.get();
@@ -319,6 +338,7 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
   // for frame — as it rises, as your finger drags it down, as it leaves — so the two can never drift apart (it used to stay
   // stepped back while you dragged the top one away, then snap forward once it had gone).
   const follow = useRef<(() => void) | null>(null);
+  const fade = useRef<(b: number) => number>((b) => clamp01(1 - b / 0.8));
   useEffect(() => {
     if (!behind) return;
     follow.current?.();
@@ -330,6 +350,7 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
     dy.set(stackShift(ref.current));
     if (!h) { const c = animate(bs, 1, reduce ? { duration: 0.01 } : SPRING); return () => c.stop(); }
     const seen = inView(h.el);
+    fade.current = titleFade([...(ref.current?.querySelectorAll<HTMLElement>('.sheet-head') ?? [])], h.el);
     bs.set(seen(h.engage.e.get()));
     const off = h.engage.e.on('change', (v) => bs.set(seen(v)));
     const done = () => { off(); follow.current = null; if (bs.get() > 0.01) animate(bs, 0, reduce ? { duration: 0.01 } : SPRING); };
@@ -339,13 +360,8 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
     // eslint-disable-next-line
   }, [behind]);
   useEffect(() => () => follow.current?.(), []);
-  // stepped back, its title fades away, so what shows above the sheet on top is the back of a card, not half a title. It is
-  // gone by the time the top sheet's edge is still well below it (b 0.8: some 150 px down) and comes back only from there
-  // as that one leaves, so the edge never slices through a half-faded title.
-  useEffect(() => bs.on('change', (b) => {
-    const o = b < 0.001 ? '' : clamp01(1 - b / 0.8).toFixed(3);
-    for (const hd of ref.current?.querySelectorAll<HTMLElement>('.sheet-head') ?? []) if (hd.style.opacity !== o) hd.style.opacity = o;
-  }), []); // eslint-disable-line
+  // stepped back: its title fades as the top sheet's edge comes, and its drop shadow goes (showStepBack)
+  useEffect(() => bs.on('change', (b) => showStepBack(ref.current, b, fade.current, '.sheet-head')), []); // eslint-disable-line
   // leaving: whatever the finger left behind becomes progress, and the exit spring carries on at the finger's speed
   const [present, safeToRemove] = usePresence();
   const leaving = useRef(false);
@@ -396,12 +412,14 @@ export function useStackedBehind(el: { current: HTMLElement | null }, drag: Moti
   const dy = useMotionValue(0);
   const upperId = useUI((u) => { const at = meta ? u.overlays.findIndex((o) => o.id === meta.id) : -1; return at >= 0 ? u.overlays[at + 1]?.id : undefined; });
   const follow = useRef<(() => void) | null>(null);
+  const fade = useRef<(b: number) => number>(() => 1);
   useEffect(() => {
     const h = upperId ? hosts.get(upperId) : undefined;
     if (!h || h.small) return;
     follow.current?.();
     dy.set(stackShift(el.current));
     const seen = inView(h.el);
+    fade.current = titleFade([...(el.current?.querySelectorAll<HTMLElement>('.wk-head') ?? [])], h.el);
     bs.set(seen(h.engage.e.get()));
     const off = h.engage.e.on('change', (v) => bs.set(seen(v)));
     // kept while the top sheet leaves, released when it is gone
@@ -411,6 +429,7 @@ export function useStackedBehind(el: { current: HTMLElement | null }, drag: Moti
     // eslint-disable-next-line
   }, [upperId]);
   useEffect(() => () => follow.current?.(), []);
+  useEffect(() => bs.on('change', (b) => showStepBack(el.current, b, fade.current, '.wk-head')), []); // eslint-disable-line
   return useTransform([drag, bs, dy], ([d, b, y]: number[]) => `translate3d(0, ${d + y * b}px, 0) scale(${1 - STACK_SCALE * b})`);
 }
 
