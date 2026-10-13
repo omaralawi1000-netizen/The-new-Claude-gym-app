@@ -1137,3 +1137,14 @@ totals; two moments were missing.
   by the name. Only when it becomes complete while you watch, never when drawn complete or when a set is unticked.
 - Cost: a full-card glow layer (opacity over the card) cost visible frames on the 4× CPU bench, so it was dropped; the band
   is laid over the card (outside its frosted glass) and only it moves. Main-thread time is unchanged.
+
+## Alive, step 2: a new best (13 Oct 2026, v0.1.46)
+
+When a ticked set beats everything before it for that exercise (`newBest` in lib/workout.ts: heavier than ever, or more
+reps than ever at this weight or heavier; for holds and distance, longer or further), the row gets the bigger moment:
+- a soft gold band of light sweeps the row from the check to the set number (1.4 s), instead of the tick's ripple;
+- a gold "New best" tag rises in over the Prev column (what you beat), holds about 2 s, and fades back to the old number;
+- the record haptic plays (the same feel as saving a workout with a record).
+The first time an exercise is ever logged is a baseline, not a best; a best already ticked earlier in the same workout is
+not celebrated twice; a new best replaces the smaller gold "beat last time" pop. Tests: tests/newbest.test.ts. Enter on
+the reps field now plays the tick's animation too (it used to tick silently).
