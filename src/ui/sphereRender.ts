@@ -92,6 +92,9 @@ export interface OrbInputs {
   rest?: number;
   /** a set was just ticked (strength): one soft heartbeat of light and a single ring of the success colour; consumed */
   beat?: number;
+  /** the launch (0..1): at 1 the sphere is drawn as the launch logo is, its near side evenly lit and its far side hidden, so
+   *  the logo can become it; it eases to 0 (its own look) as it flies to the dock */
+  bright?: number;
 }
 
 type Ctx2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
@@ -244,6 +247,7 @@ export class SphereRenderer {
     }
 
     const nf = N, count = N;
+    const lift = Math.min(1, Math.max(0, inp.bright ?? 0));
     const tilt = 0.42 + Math.sin(this.t * 0.37) * (reduced ? 0 : 0.06);
     const cr = Math.cos(this.rot), sr = Math.sin(this.rot), ct = Math.cos(tilt), st = Math.sin(tilt);
     const confirmAge = v.phase === 'confirmed' ? inp.phaseAge : 9;
@@ -358,7 +362,8 @@ export class SphereRenderer {
       // light stays where you can see it: effects light the near side fully and the far side only a little, so the sphere
       // keeps its depth while you speak (it used to blow out to an even white, front and back alike)
       glow = this.cur.glow + (glow - this.cur.glow) * (0.3 + 0.7 * depth);
-      const sh = Math.min(1, 0.16 + 0.84 * Math.pow(depth, 1.25) * (0.42 + 0.58 * lam) + rim + Math.max(0, glow - 0.4) * 0.25 * depth);
+      let sh = Math.min(1, 0.16 + 0.84 * Math.pow(depth, 1.25) * (0.42 + 0.58 * lam) + rim + Math.max(0, glow - 0.4) * 0.25 * depth);
+      if (lift > 0.001) sh += ((z2 > -0.05 ? 0.5 + 0.5 * Math.min(1, lam * 1.4) : 0) - sh) * lift; // the logo: front lit, back hidden
       const size = spacing * 0.24 * (0.35 + 1.05 * depth) * (1 + Math.min(1, glow) * 0.16);
       dots[n] = { x: px, y: py, r: size };
       tone[n] = okMix > 0.25 && depth > 0.42 ? 2 : glow * (0.4 + 0.6 * depth) > 1.25 ? 1 : 0; // highlights are sparkles on the near side, not a wash
@@ -379,7 +384,7 @@ export class SphereRenderer {
       if (dimK > 0.01) { const grey = dark ? 120 : 140; r += (grey - r) * dimK; g += (grey - g) * dimK; bl += (grey - bl) * dimK; }
       return [r, g, bl];
     };
-    const alphaOf = (b: number) => (0.14 + (b / (NB - 1)) * 0.86) * (dark ? 0.8 : 1) * fade;
+    const alphaOf = (b: number) => (b === 0 && lift > 0.001 ? 1 - lift : 1) * (0.14 + (b / (NB - 1)) * 0.86) * (dark ? 0.8 + 0.2 * lift : 1) * fade;
     const rgba = (c3: RGB, a: number) => `rgba(${c3[0] | 0},${c3[1] | 0},${c3[2] | 0},${a.toFixed(3)})`;
     const whiten = (c3: RGB, k: number): RGB => [c3[0] + (255 - c3[0]) * k, c3[1] + (255 - c3[1]) * k, c3[2] + (255 - c3[2]) * k];
     /** one pass over a set of beads: every bead in it as a disc of `scale` × its size */

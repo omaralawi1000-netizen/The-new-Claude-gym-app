@@ -11,7 +11,7 @@ import { launch } from './lib.mjs';
 // dsf: pixels per CSS px (default 3.5, the phone's). at 1 the browser rounds what moves inside a scrolled list to whole CSS px (it
 // snaps to device pixels), which turns the last, slow pixels of every glide into 1 px ticks the phone doesn't have.
 // The scanner's camera shows shots/fake-camera.y4m (python3 scripts/fake-camera.py) when it is there.
-export async function steady({ theme = 'light', size = { width: 384, height: 802 }, dsf = Number(process.env.FILM_DSF || 3.5) } = {}) {
+export async function steady({ theme = 'light', size = { width: 384, height: 802 }, dsf = Number(process.env.FILM_DSF || 3.5), fps = 60 } = {}) {
   const cam = fs.existsSync('shots/fake-camera.y4m') ? ['--use-file-for-fake-video-capture=shots/fake-camera.y4m'] : [];
   const { b, ctx, p, errors } = await launch({ theme, size, dsf, args: ['--deterministic-mode', '--enable-begin-frame-control', '--run-all-compositor-stages-before-draw', `--force-device-scale-factor=${dsf}`, ...cam] });
   await ctx.grantPermissions(['camera', 'microphone']);
@@ -38,13 +38,17 @@ export async function steady({ theme = 'light', size = { width: 384, height: 802
   });
   const cdp = await ctx.newCDPSession(p);
   await cdp.send('HeadlessExperimental.enable');
-  const STEP = 1000 / 60;
+  const STEP = 1000 / fps; // fps 120: twice as many frames for the same motion (a half-speed film played at 60)
   let tick = Number(process.hrtime.bigint() / 1000000n);
   let q = Promise.resolve();
   const frame = (shot, dt = STEP) => (q = q.then(() => cdp.send('HeadlessExperimental.beginFrame', { frameTimeTicks: (tick += dt), interval: STEP, ...(shot ? { screenshot: { format: 'jpeg', quality: 85 } } : {}) })).catch(() => ({})));
   // between films the page still needs frames (loading, Playwright's own checks)
   let alive = true, pumping = true;
-  (async () => { while (alive) { if (pumping) await frame(false); await new Promise((r) => setTimeout(r, 4)); } })();
+  let wallPump = false;
+  // wallPump (s.wall(true)): between films the app's time follows the wall clock (a page opened between films starts its clock at the real
+  // time, and a camera that had fallen behind it would hand it frames from before it existed)
+  const wall = () => Number(process.hrtime.bigint() / 1000000n);
+  (async () => { while (alive) { if (pumping) await frame(false, wallPump ? Math.max(STEP, wall() - tick) : STEP); await new Promise((r) => setTimeout(r, 4)); } })();
   const bar = () => p.evaluate(() => document.querySelector('meta[name="theme-color"]')?.getAttribute('content') || '#000').catch(() => '#000');
   async function film(name, fn, frames = 60) {
     pumping = false; await q;
@@ -70,5 +74,5 @@ export async function steady({ theme = 'light', size = { width: 384, height: 802
   }
   /** Let exactly n frames of the app's time pass, unfilmed (so whatever was moving has landed before the next film). */
   async function advance(n) { pumping = false; await q; for (let i = 0; i < n; i++) await frame(false); pumping = true; }
-  return { b, ctx, p, errors, film, advance, close: async () => { alive = false; await q; await b.close(); } };
+  return { b, ctx, p, errors, film, advance, wall: (on) => { wallPump = on; }, close: async () => { alive = false; await q; await b.close(); } };
 }

@@ -12,7 +12,7 @@ declare const self: DedicatedWorkerGlobalScope;
 interface State { bucket: number; dpr: number; reduced: boolean; colors: SphereColors; inp: OrbInputs; run: boolean }
 let r: SphereRenderer | null = null;
 let st: Partial<State> = {};
-let tap = 0, whoosh = 0, ignite = 0, frames = 0, t0 = 0, sentVoice = -1, scheduled = false;
+let tap = 0, whoosh = 0, ignite = 0, frames = 0, t0 = 0, sentVoice = -1, scheduled = false, drawn = false;
 
 if (typeof self.requestAnimationFrame !== 'function') self.postMessage({ unsupported: true });
 
@@ -36,6 +36,7 @@ function loop(now: number) {
   r.resize(st.bucket, st.dpr ?? 2);
   r.frame(now, st.bucket, !!st.reduced, st.colors, { ...st.inp, tap, whoosh, ignite });
   tap = 0; whoosh = 0; ignite = 0;
+  if (!drawn) { drawn = true; self.postMessage({ drawn: true }); } // the launch waits for the orb's first frame
   frames++;
   if (!t0) t0 = now;
   if (now - t0 >= 1000) { self.postMessage({ fps: Math.round((frames * 1000) / (now - t0)) }); frames = 0; t0 = now; }

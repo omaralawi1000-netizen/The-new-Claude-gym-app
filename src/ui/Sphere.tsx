@@ -41,6 +41,27 @@ useStore.subscribe((st, prev) => {
 });
 export function orbTap(strength = 1) { tapPending = Math.max(tapPending, strength); pressTarget = 0; }
 
+// ── the launch (ui/launch.ts) ──
+// The app opens on the launch screen's logo (index.html), an Ember orb of dots. The live orb takes its place in the same
+// colours (so nothing changes colour as one becomes the other) and turns into the palette's colours as it flies down to the
+// dock. `launchTint` is set before the stage starts; `tintGoAt` is when the change of colour starts.
+let launchTint = false, tintGoAt = 0;
+export function orbLaunchTint() { launchTint = true; }
+export function orbTintGo() { tintGoAt = performance.now(); }
+export function orbIgnite() { ignitePending = 1; }
+let launchBright = 0;
+/** How much the orb is still drawn as the launch logo (1 … 0, see OrbInputs.bright). */
+export function orbBright(v: number) { launchBright = v; }
+/** Resolves once the orb has drawn its first frame (on the page or in its worker). */
+let drawnResolve: () => void = () => {};
+export const orbDrawn = new Promise<void>((r) => { drawnResolve = () => { performance.mark('aven:orb'); r(); }; });
+/** The orb's flight from the launch screen to the dock, handed to the browser (full refresh rate). Resolves with the
+ *  animation once it has started (null: it couldn't, the script carries the orb). */
+let launchReq: { sp: { stiffness: number; damping: number; mass?: number }; started: (a: Animation | null) => void } | null = null;
+export function orbLaunch(sp: { stiffness: number; damping: number; mass?: number }): Promise<Animation | null> {
+  return new Promise((started) => { launchReq = { sp, started }; markOrbLayoutDirty(); });
+}
+
 /** What the orb's drawing loop is doing, for the frame-rate readout. */
 export const orbStats = { fps: 0, offThread: false };
 let workerBroken = false;
@@ -58,7 +79,7 @@ function orbInputs(): OrbInputs {
   // resting between sets (counting, not paused, not yet over): the orb's light breathes with you
   const a = useStore.getState().active;
   const rest = a?.rest && !a.pausedAt && a.rest.endsAt > Date.now() ? 1 : 0;
-  return { phase: v.phase, phaseAge: (performance.now() - v.since) / 1000, live, raw: live ? mic.voice() : 0, bands: live ? mic.bands() : null, press: pressTarget, tap, whoosh, ignite, voiceOut: speakingLevel(), rest, beat };
+  return { phase: v.phase, phaseAge: (performance.now() - v.since) / 1000, live, raw: live ? mic.voice() : 0, bands: live ? mic.bands() : null, press: pressTarget, tap, whoosh, ignite, voiceOut: speakingLevel(), rest, beat, bright: launchBright };
 }
 
 // ── stage ───────────────────────────────────────────────────
@@ -242,6 +263,7 @@ export function SphereStage() {
           const d = e.data;
           if (typeof d.voice === 'number') workerVoice = d.voice;
           if (typeof d.fps === 'number') orbStats.fps = d.fps;
+          if (d.drawn) requestAnimationFrame(() => drawnResolve()); // on screen with the next frame
           if (d.unsupported) { workerBroken = true; setGen((g) => g + 1); }
         };
         worker.onerror = () => { workerBroken = true; setGen((g) => g + 1); };
@@ -270,16 +292,23 @@ export function SphereStage() {
         : { hi: ac, lo: [ac[0] * 0.55 + 70, ac[1] * 0.55 + 60, ac[2] * 0.55 + 60], alt, ok: [30, 160, 95], dark };
     };
     let colors = readTarget(), from = colors, to = colors, fadeStart = 0;
+    if (launchTint && !tintGoAt) {
+      // the launch logo's colours (scripts/orb-svg.mjs): lit side to shadow side; held until the flight starts
+      colors = from = { ...to, hi: [255, 178, 128], lo: [140, 52, 22], alt: [236, 116, 59] };
+      fadeStart = Infinity;
+    }
     let colorKey = document.documentElement.dataset.theme ?? '';
     const mo = new MutationObserver(() => {
       const theme = document.documentElement.dataset.theme ?? '';
       const next = readTarget();
       if (theme !== colorKey) { colorKey = theme; colors = from = to = next; fadeStart = 0; return; } // theme: switch at once
+      if (fadeStart === Infinity) { to = next; return; } // still the launch logo's colours: it will turn into these
       from = colors; to = next; fadeStart = performance.now();
     });
     if (appEl) mo.observe(appEl, { attributes: true, attributeFilter: ['data-hue'] });
     mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
     const refreshColors = (now: number) => {
+      if (fadeStart === Infinity && tintGoAt) fadeStart = tintGoAt;
       if (!fadeStart) return;
       const k = Math.min(1, Math.max(0, (now - fadeStart) / 1100));
       const e = easeInOut(k);
@@ -436,6 +465,7 @@ export function SphereStage() {
       list.sort((a, b) => a.priority - b.priority);
       const ox = base.left, oy = base.top;
       let X = 0, Y = 0, S = 0, have = false, top = 0, topSlot: Slot | null = null, flight = 1;
+      let launchFrom: { X: number; Y: number; S: number } | null = null, launchTo: { X: number; Y: number; S: number } | null = null;
       if (handoff && !handoff.el.isConnected) handoff = null;
       for (const sl of list) {
         const leaving = isLeaving(sl);
@@ -451,6 +481,7 @@ export function SphereStage() {
         // head for where the slot would come to rest, and sat there over an empty sheet while the sheet caught up)
         const p = position(sl.el, r), x = p.x - ox, y = p.y - oy, z = p.z;
         if (!have) { X = x; Y = y; S = z; have = true; continue; }
+        if (sl.id === 'launch') { launchTo = { X, Y, S }; launchFrom = { X: x, Y: y, S: z }; }
         if (mine) {
           const h = handoff!;
           if (leaving && !h.back) h.back = { k: Math.max(0.001, e), P: { ...orbNow } };
@@ -529,6 +560,24 @@ export function SphereStage() {
         }
       }
       el.style.transform = tf;
+      if (launchReq) {
+        // the launch: from the logo's place straight down to where the orb would be without it (the dock), on the launch's
+        // spring, drawn by the browser; the canvas keeps the logo's size for the whole flight and is scaled down
+        const req = launchReq; launchReq = null;
+        let a: Animation | null = null;
+        if (launchFrom && launchTo && !reduced) {
+          const bk = Math.ceil(launchFrom.S / 24) * 24;
+          orbLock.bucket = bk; el.style.width = el.style.height = `${bk}px`;
+          const at = (P: { X: number; Y: number; S: number }) => `translate3d(${P.X}px, ${P.Y}px, 0) scale(${Math.max(8, P.S) / bk})`;
+          const c = springCurve(req.sp);
+          orbAnim?.cancel();
+          a = el.animate([{ transform: at(launchFrom) }, { transform: at(launchTo) }], { duration: c.duration, easing: c.easing });
+          const done = () => { if (orbAnim === a) { orbAnim = null; orbLock.bucket = 0; } };
+          a.onfinish = done; a.oncancel = done;
+          orbAnim = a;
+        }
+        req.started(a);
+      }
       // where the orb rests in the dock, for flights that are handed to the browser (mirrorOrb)
       // only a dock that has held still (not mid-slide, mid tab change or mid-press) and is its normal size
       if (top === 0 && !glide && useUI.getState().overlays.length === 0 && now - lastOverlayChange > 1100 && S > 30) {
@@ -556,6 +605,7 @@ export function SphereStage() {
       } else {
         renderer!.resize(bucket, dpr);
         renderer!.frame(now, bucket, reduced, colors, inp);
+        if (!drawn) requestAnimationFrame(() => drawnResolve());
         vv = renderer!.voice;
         mainFrames++; if (!mainT0) mainT0 = now;
         if (now - mainT0 >= 1000) { orbStats.fps = Math.round((mainFrames * 1000) / (now - mainT0)); mainFrames = 0; mainT0 = now; }
