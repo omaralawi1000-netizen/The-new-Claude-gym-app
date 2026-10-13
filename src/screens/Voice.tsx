@@ -441,7 +441,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
           Nothing above it fades as a whole: a fading parent switched the blur off until the fade ended, then it snapped on. */}
       <Veil e={veilE} z={0} layers={VOICE_VEIL} className="veil-abs" elRef={veilRef} />
       {/* the top of the screen starts in exactly the status bar's colour and fades into the frost: no edge under the bar */}
-      <motion.div aria-hidden className="voice-top" data-bar ref={refreshBarOn} style={{ opacity: veilE }} />
+      <motion.div aria-hidden className="voice-top" data-bar-shown ref={refreshBarOn} style={{ opacity: veilE }} />
       <motion.div ref={contentRef} style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', padding: 'calc(var(--sat) + 12px) 18px 0', opacity: contentO }}>
         <div className="row-flex between">
           <button className="icon-btn press" aria-label={t('Close')} onClick={() => useUI.getState().pop()}><Icon name="close" /></button>
