@@ -189,8 +189,11 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
 .app[data-calm] .aurora i { animation-play-state: paused; }
 /* The page behind a pop-up recedes (scales) every frame, which makes every frosted card on it re-blur every frame — a dozen
    full-screen-sized blurs on top of the pop-up's own. Over a soft colour field the frost is all but invisible (measured: the
-   two look the same), and the pop-up's dim and blur cover it anyway, so it is switched off while a pop-up is up. The dock keeps its. */
-.app[data-calm] .screen, .app[data-calm] .screen * { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+   two look the same), and the pop-up's dim and blur cover it anyway, so it is switched off while a pop-up is up. The dock keeps its.
+   Only the segmented control still blurs on a page (cards, buttons and chips there never do, see `.screen .plinth` below), so
+   only it is named: `.screen *` restyled every element of the page (~900) two frames into every pop-up's motion, ~14 ms
+   on the phone, a dropped frame or two right as it starts moving. */
+.app[data-calm] .screen .seg { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
 /* inside a full-screen overlay: sits under its content but over its background */
 .aurora.in { z-index: -1; }
 .aurora i { position: absolute; border-radius: 50%; opacity: var(--aurora-a); will-change: transform; animation-delay: var(--drift-t, 0s) !important; }
@@ -462,6 +465,92 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
 .seg button.on { color: var(--tx); }
 .seg-lens { top: 4px; bottom: 4px; --lens-r: 19px; opacity: .95; --lens-fill: linear-gradient(180deg, #4a4d57, #3b3e48); }
 :root[data-theme='light'] .seg-lens { --lens-fill: #fff; }
+/* ── Aven glass: the material of every neutral rounded surface (cards, pills, chips, round buttons) ───────────────
+   Live: index.html sets <html data-glass="v2">. The rules stay behind that attribute so scripts/glass-shots.mjs can
+   still compare with and without it (and it is a one-line switch back).
+   No longer a flat see-through grey. Three quiet things, all painted once (no extra blur, nothing animates, so it costs
+   nothing per frame), the same on the page, in sheets and in the workout window:
+   - a crisp edge of light along the top, warmed by the area's own colour, fading away down the sides
+   - a soft inner glow of that same colour coming down from the top edge (never a cool cast over a warm screen)
+   - a gentle shadow under it, so it lifts a little off the page
+   Real frost stays where something passes underneath (the sheet's bottom buttons, the dock, sheets, toasts). */
+/* the glow is a straight vertical fall-off with soft stops (a radial one ended in a visible band on wide, short pills) */
+:root[data-glass='v2'] {
+  --mat-glow: linear-gradient(180deg, color-mix(in srgb, var(--ac) 18%, transparent), color-mix(in srgb, var(--ac) 7%, transparent) 38%, color-mix(in srgb, var(--ac) 2%, transparent) 72%, transparent);
+  --mat-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.085), rgba(255, 255, 255, 0.03) 45%, rgba(255, 255, 255, 0));
+  --mat-rim: linear-gradient(180deg, color-mix(in srgb, color-mix(in srgb, var(--ac) 25%, #fff) 85%, transparent), rgba(255, 255, 255, 0.13) 30%, rgba(255, 255, 255, 0.035) 70%, rgba(255, 255, 255, 0.1));
+  --mat-depth: 0 1px 1px rgba(0, 0, 0, 0.45), 0 14px 28px -12px rgba(0, 0, 0, 0.85);
+  --mat-well: inset 0 2px 5px rgba(0, 0, 0, 0.6), inset 0 0 0 1px rgba(255, 255, 255, 0.055), inset 0 -1px 0 color-mix(in srgb, color-mix(in srgb, var(--ac) 25%, #fff) 22%, transparent);
+  --mat-well-bg: linear-gradient(180deg, rgba(0, 0, 0, 0.12), rgba(255, 255, 255, 0.025));
+}
+:root[data-glass='v2'][data-theme='light'] {
+  --mat-glow: linear-gradient(180deg, color-mix(in srgb, var(--ac) 13%, transparent), color-mix(in srgb, var(--ac) 4%, transparent) 40%, transparent 80%);
+  --mat-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.35) 50%, rgba(255, 255, 255, 0.15));
+  --mat-rim: linear-gradient(180deg, color-mix(in srgb, var(--ac) 38%, #fff), #fff 22%, rgba(255, 255, 255, 0.6) 40%, rgba(20, 28, 48, 0.08) 68%, rgba(20, 28, 48, 0.16));
+  --mat-depth: 0 1px 1.5px rgba(30, 40, 70, 0.12), 0 12px 24px -12px rgba(30, 40, 70, 0.45);
+  --mat-well: inset 0 1.5px 3px rgba(30, 40, 70, 0.16), inset 0 0 0 1px rgba(20, 28, 48, 0.07), inset 0 -1px 0 #fff;
+  --mat-well-bg: linear-gradient(180deg, rgba(20, 28, 48, 0.03), rgba(255, 255, 255, 0.3));
+}
+:root[data-glass='v2'] :is(.btn:not(.primary, .ghost), .chip:not(.on, .acc), .icon-btn:not(.flat, .acc, .speak-btn), .plinth) {
+  background-image: var(--mat-glow), var(--mat-sheen);
+}
+:root[data-glass='v2'] :is(.btn:not(.primary, .ghost), .chip:not(.on, .acc), .icon-btn:not(.flat, .acc, .speak-btn)) { box-shadow: var(--mat-depth); }
+:root[data-glass='v2'] .chip:not(.on, .acc) { position: relative; color: var(--tx); }
+:root[data-glass='v2'] .plinth { box-shadow: var(--mat-depth); }
+:root[data-glass='v2'] :is(.btn:not(.primary, .ghost), .chip:not(.on, .acc), .icon-btn:not(.flat, .acc, .speak-btn))::after,
+:root[data-glass='v2'] .plinth::after, :root[data-glass='v2'] .sheet .sheet-foot .btn.btn::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 1; padding: 1px;
+  background: var(--mat-rim);
+  -webkit-mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}
+/* round buttons are small: a firmer lift so they read as the same glass at phone size (the rim stays the same 1 px as
+   everything else, a thicker one made them the loudest thing in their row) */
+:root[data-glass='v2'] .icon-btn:not(.flat, .acc, .speak-btn) { box-shadow: var(--mat-depth), 0 7px 16px -7px rgba(0, 0, 0, 0.7); }
+:root[data-glass='v2'][data-theme='light'] .icon-btn:not(.flat, .acc, .speak-btn) { box-shadow: var(--mat-depth), 0 7px 16px -8px rgba(30, 40, 70, 0.2); }
+/* a sideways row of chips scrolls, so it clips: room underneath lets their shadows fall softly instead of being cut */
+:root[data-glass='v2'] .chips { padding-bottom: 26px; margin-bottom: -26px; }
+/* the dock: the same top edge of light along its rim, and the same lift */
+:root[data-glass='v2'] .tabbar.glass { background-image: var(--mat-glow), var(--mat-sheen); box-shadow: 0 1px 1px rgba(0, 0, 0, 0.4), 0 20px 40px -14px rgba(0, 0, 0, 0.9); }
+:root[data-glass='v2'][data-theme='light'] .tabbar.glass { box-shadow: 0 1px 1.5px rgba(30, 40, 70, 0.12), 0 18px 36px -14px rgba(30, 40, 70, 0.4); }
+:root[data-glass='v2'] .tabbar.glass::after { padding: 1.5px; }
+:root[data-glass='v2'] .tabbar.glass::after { background: var(--mat-rim); opacity: 1; }
+/* fields (the workout's kg and reps, search, forms) are wells cut into the glass: shaded at the top, with a catch-light
+   along the bottom edge, so they still read clearly as places to type (focus keeps its own ring) */
+/* (:where keeps it light, so a done set's cleared field and the Coach's bare composer keep their own look) */
+:root[data-glass='v2'] :where(.input):not(:focus, .coach-field *) { box-shadow: var(--mat-well); background-image: var(--mat-well-bg); }
+:root[data-glass='v2'][data-theme='light'] .input { background-color: rgba(255, 255, 255, 0.5); }
+/* the bottom button of a sheet floats over the list: it keeps its frost and its single colour, takes only a faint wash of
+   the area's light and the rim, and a deeper shadow; once it can be pressed its label is full white and bolder */
+:root[data-glass='v2'] .sheet .sheet-foot .btn.btn { background-image: linear-gradient(180deg, color-mix(in srgb, var(--ac) 9%, transparent), color-mix(in srgb, var(--ac) 3%, transparent) 55%, transparent); box-shadow: 0 1px 1px rgba(0, 0, 0, 0.3), 0 18px 36px -16px rgba(0, 0, 0, 0.8); }
+:root[data-glass='v2'] .sheet .sheet-foot .btn.btn:not([disabled]) { color: var(--tx); font-weight: 650; }
+:root[data-glass='v2'][data-theme='light'] .sheet .sheet-foot .btn.btn { background-color: rgba(255, 255, 255, 0.66); background-image: var(--mat-sheen); box-shadow: 0 1px 1.5px rgba(30, 40, 70, 0.14), 0 18px 34px -12px rgba(30, 40, 70, 0.5); }
+:root[data-glass='v2'] .btn[disabled]::after { opacity: 0.55; }
+/* a bottom button that can't be pressed yet is quieter glass: thinner fill, no light, a faint rim, barely lifted */
+:root[data-glass='v2'] .sheet .sheet-foot .btn.btn[disabled] { background-image: none; box-shadow: 0 8px 18px -12px rgba(0, 0, 0, 0.5); }
+:root[data-glass='v2'][data-theme='light'] .sheet .sheet-foot .btn.btn[disabled] { background-color: rgba(255, 255, 255, 0.34); box-shadow: 0 6px 14px -10px rgba(30, 40, 70, 0.22); }
+:root[data-glass='v2'] .sheet .sheet-foot .btn.btn[disabled]::after { opacity: 0.4; }
+/* the workout's set number tiles are the same glass (a done set's tile stays clear, a warm-up keeps its colour) */
+:root[data-glass='v2'] .wk-set:not(.done, .warm) .wk-set-n { position: relative; background-image: var(--mat-glow), var(--mat-sheen); box-shadow: var(--mat-depth); }
+:root[data-glass='v2'] .wk-set:not(.done, .warm) .wk-set-n::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; padding: 1px; background: var(--mat-rim);
+  -webkit-mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}
+/* in light only the active set's tile keeps the warm glow and warm edge; the others are clear glass with a neutral rim */
+:root[data-glass='v2'][data-theme='light'] .wk-set:not(.done, .warm, .current) .wk-set-n { background-image: var(--mat-sheen); }
+:root[data-glass='v2'][data-theme='light'] .wk-set:not(.done, .warm, .current) .wk-set-n::after { background: linear-gradient(180deg, #fff, rgba(255, 255, 255, 0.6) 40%, rgba(20, 28, 48, 0.08) 68%, rgba(20, 28, 48, 0.16)); }
+/* "+ Set" sits at the set tiles' level in dark (rim only), so it never outshines the active set */
+:root[data-glass='v2']:not([data-theme='light']) .wk-add-set { background-image: none; box-shadow: none; }
+/* the main action at the bottom of a sheet, in dark: the full glow and sheen and a clearly visible rim */
+:root[data-glass='v2']:not([data-theme='light']) .sheet .sheet-foot .btn.btn:not([disabled]) { background-image: var(--mat-glow), var(--mat-sheen); }
+:root[data-glass='v2']:not([data-theme='light']) .sheet .sheet-foot .btn.btn:not([disabled])::after { background: linear-gradient(180deg, color-mix(in srgb, var(--ac) 30%, #fff), rgba(255, 255, 255, 0.2) 35%, rgba(255, 255, 255, 0.08) 70%, rgba(255, 255, 255, 0.16)); }
+/* the dock's active tab in dark: warm glass instead of cool grey, with the same warm top edge of light */
+:root[data-glass='v2']:not([data-theme='light']) .tab-lens {
+  --lens-fill: linear-gradient(180deg, color-mix(in srgb, var(--ac) 10%, #3f3331), color-mix(in srgb, var(--ac) 6%, #2f2625) 55%, #2b2423);
+  --lens-hl: color-mix(in srgb, color-mix(in srgb, var(--ac) 25%, #fff) 70%, transparent); --lens-line: rgba(255, 236, 225, 0.08);
+}
+/* in dark the glow and sheen made the tiles the brightest thing in their row, louder than the active set's outline and the
+   kg/reps numbers: there they keep only the rim */
+:root[data-glass='v2']:not([data-theme='light']) .wk-set:not(.done, .warm) .wk-set-n { background-image: none; box-shadow: none; }
 .toggle-knob { position: absolute; top: 3px; left: 3px; width: 26px; height: 26px; border-radius: 99px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.4), 0 3px 8px -2px rgba(0,0,0,.25); transition: transform 460ms var(--ease-spring); will-change: transform; }
 
 .field { display: flex; flex-direction: column; gap: 6px; }
@@ -676,11 +765,13 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 
 /* While a sheet or full-screen overlay is up, the app's colour field stops drifting. Nothing visible changes (it moves a few
    pixels a minute), but the frosted layers above it no longer have to re-blur a moving background every frame — that was
-   the main source of scroll stutter inside sheets. */
-.app:has(.sheet, .voice, [role='dialog']) .aurora i { animation-play-state: paused; }
+   the main source of scroll stutter inside sheets. (Classes only inside :has(): with an attribute such as [role] in it,
+   the browser re-checked it on every element added anywhere in the app and restyled every <i> each time, a word at a
+   time while the Coach writes. Full-screen overlays that are not sheets carry .ovl.) */
+.app:has(.sheet, .voice, .ovl) .aurora i { animation-play-state: paused; }
 /* same for the looping pulse dots. (Targeted by class on purpose: a `.screen *` selector here made the browser
    restyle every element of the app each time a popup opened or closed — a long frame right as it starts moving.) */
-.app:has(.sheet, .voice, [role='dialog']) .pulse-dot::before { animation-play-state: paused !important; }
+.app:has(.sheet, .voice, .ovl) .pulse-dot::before { animation-play-state: paused !important; }
 
 /* iOS-style: while a popup is up the page's content (screen and dock) sinks back, under the dim, while its background stays
    put edge to edge. The transform is written by script (useStageDepth in App.tsx) from the popups' own progress, so it
@@ -707,7 +798,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    like a message — and the short answer streams in below as easy text, each new word settling in calmly (a soft blur lifting,
    no glow). (.voice-live is the browser-speech engine's live text, used only without a Groq key.) */
 .voice-live { font-size: 26px; line-height: 1.2; text-align: center; padding: 0 6px; overflow-wrap: anywhere; }
-.voice-live .w { animation: wordCalm 520ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards; --soft-dur: 520ms; }
+.voice-live .w { animation: none; --soft-dur: 520ms; } /* (the word's rise rides on its soft-focus layers, .soft below) */
 /* the orb screen: the orb gives off light. A close halo at its edge (the orb fills ~70% of its button) and a soft oval of
    light just under it, as if it hovers over glass; nothing hazes the rest of the screen (a wide pool of the accent read as
    brown fog). Two gradients on one still layer; only its fade-in animates (opacity), once, as the orb lands. */
@@ -734,7 +825,8 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .coach-reply .rich-p { margin-top: 12px; }
 .coach-reply .rich-li { gap: 10px; margin-top: 6px; }
 .coach-reply .rich-p + .rich-li, .coach-reply .rich-li + .rich-p { margin-top: 10px; }
-.calm .w { animation: wordCalm 640ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards; --soft-dur: 640ms; }
+.calm .w { animation: none; --soft-dur: 640ms; }
+.calm .rich-li > .w { animation: wordCalm var(--soft-dur) cubic-bezier(0.2, 0.7, 0.2, 1) backwards; } /* (a bullet: no soft focus) */
 /* each word rises a little into place while it comes in out of soft focus (.soft below) */
 @keyframes wordCalm { from { transform: translateY(0.3em); } to { transform: none; } }
 /* Soft focus, shared by everything that writes itself in (Coach and orb answers, your spoken words, the Food date,
@@ -756,6 +848,13 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .soft-in::before { animation: softFar var(--soft-dur, 600ms) linear backwards; animation-delay: inherit; }
 .soft-in::after { animation: softNear var(--soft-dur, 600ms) linear backwards; animation-delay: inherit; }
 .soft-in > .soft-s { animation: softSharp var(--soft-dur, 600ms) linear backwards; animation-delay: inherit; }
+/* In an answer the word also rises into place (wordCalm). The rise is played by each of its three layers rather than by the
+   word itself: an animated word made the browser restyle its three layers from scratch every frame (a parent changing
+   each frame), which was most of the cost of an answer writing itself in. Same rise, same timing, so it looks the same. */
+:is(.calm, .voice-live) .soft-in > .soft-s { display: inline-block;
+  animation: softSharp var(--soft-dur, 600ms) linear backwards, wordCalm var(--soft-dur, 600ms) cubic-bezier(0.2, 0.7, 0.2, 1) backwards; animation-delay: inherit; }
+:is(.calm, .voice-live) .soft-in::before { animation: softFar var(--soft-dur, 600ms) linear backwards, wordCalm var(--soft-dur, 600ms) cubic-bezier(0.2, 0.7, 0.2, 1) backwards; animation-delay: inherit; }
+:is(.calm, .voice-live) .soft-in::after { animation: softNear var(--soft-dur, 600ms) linear backwards, wordCalm var(--soft-dur, 600ms) cubic-bezier(0.2, 0.7, 0.2, 1) backwards; animation-delay: inherit; }
 @keyframes softFar { 0% { opacity: 0; } 5% { opacity: .223; } 10% { opacity: .386; } 15% { opacity: .475; } 20% { opacity: .483; }
   25% { opacity: .413; } 30% { opacity: .266; } 35%, 100% { opacity: 0; } }
 @keyframes softNear { 0% { opacity: 0; } 5% { opacity: .017; } 10% { opacity: .086; } 15% { opacity: .21; } 20% { opacity: .377; }
@@ -764,7 +863,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 @keyframes softSharp { 0%, 30% { opacity: 0; } 35% { opacity: .031; } 40% { opacity: .42; } 45% { opacity: .672; } 50% { opacity: .85; }
   55% { opacity: .961; } 60%, 100% { opacity: 1; } }
 :root[data-motion='reduce'] :is(.soft-in > .soft-s, .soft-in::before, .soft-in::after) { animation: none; }
-@media (prefers-reduced-motion: reduce) { :is(.soft-in > .soft-s, .soft-in::before, .soft-in::after) { animation: none; } }
+@media (prefers-reduced-motion: reduce) { :is(.calm, .voice-live, :root) :is(.soft-in > .soft-s, .soft-in::before, .soft-in::after) { animation: none; } }
 /* Read aloud: the word being said lights up in the accent, the ones said settle back, the ones to come wait a shade lighter.
    Only the colour moves (no size or position change), so the text never shifts while it is read. */
 .w { transition: color 380ms ease, text-shadow 380ms ease; }
@@ -811,10 +910,12 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-bar-clip { position: absolute; inset: 0; border-radius: inherit; overflow: hidden; pointer-events: none; }
 /* the rest fills the bar in one calm tint of the accent, with a soft leading edge (no gradient: it read muddy over the dark) */
 .wk-bar-fill { position: absolute; inset: 0; pointer-events: none; transform: translateX(-100%); will-change: transform, opacity; opacity: 1; transition: opacity 600ms var(--ease-out); background: linear-gradient(90deg, color-mix(in srgb, var(--ac) 24%, transparent) calc(100% - 56px), transparent); }
-/* rest over: the tint stays full but still fades out before the orb, as it does during the rest. Lit right under the orb,
-   Chrome on the phone drew the orb's square canvas area in a different shade (a box around the orb). The fade is in the
-   background itself, not a mask (a mask is one more compositor layer). */
-.wk-bar.go .wk-bar-fill { transform: none; opacity: .55; }
+/* rest over: the moving fill (which fades out before the orb) hands over to one even tint across the whole bar, so the
+   bar's round end by the orb is the same colour as the rest (the fill's fade left a darker crescent beside the orb). The
+   tint is a flat layer of its own, faded in with opacity. */
+.wk-bar-clip::before { content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0; will-change: opacity; transition: opacity 600ms var(--ease-out); background: color-mix(in srgb, var(--ac) 13%, transparent); }
+.wk-bar.go .wk-bar-clip::before { opacity: 1; }
+.wk-bar.go .wk-bar-fill { transform: none; opacity: 0; }
 /* the bar's words settle in when the bar changes what it says (next, rest, go): a slow, short rise, no cut; the big line a beat after the small one */
 .wk-bar-top, .wk-bar-big { animation: wkSwap 560ms var(--ease-out) both; }
 /* the two lines as one unit; the outgoing pair lies over the incoming one and fades up and away (Active.tsx SwapText) */
@@ -834,8 +935,9 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-bar-txt.t-rest .wk-bar-big { font-size: 20px; }
 .wk-bar-orb { position: relative; width: 46px; height: 46px; flex: none; border-radius: 999px; transition: transform 520ms var(--ease-spring); }
 .wk-bar-orb:active { transform: scale(0.94); transition-duration: 110ms; }
-/* the orb's glow on the bar: a soft accent bloom behind it (the orb itself is drawn above), stronger while you rest and when it is over */
-.wk-bar-orb::before { content: ''; position: absolute; inset: -9px; border-radius: 50%; pointer-events: none; opacity: .5; transition: opacity 600ms var(--ease-out); background: radial-gradient(circle, color-mix(in srgb, var(--ac) 30%, transparent) 0%, transparent 68%); }
+/* the orb's glow on the bar: a soft accent bloom behind it (the orb itself is drawn above), stronger while you rest and when it is over.
+   A layer of its own for good: each fade used to make one and drop it at the end (a one-frame flicker by the orb). */
+.wk-bar-orb::before { content: ''; position: absolute; inset: -9px; border-radius: 50%; pointer-events: none; opacity: .5; will-change: opacity; transition: opacity 600ms var(--ease-out); background: radial-gradient(circle, color-mix(in srgb, var(--ac) 30%, transparent) 0%, transparent 68%); }
 .wk-bar.rest .wk-bar-orb::before { opacity: .75; }
 .wk-bar.go .wk-bar-orb::before { opacity: 1; }
 /* the one Finish: once every set is ticked it glows softly; tapping the bar's "all done" nudges it */
@@ -855,7 +957,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* the bar's "next set": the row it scrolled to glows once */
 .wk-flash { animation: wkFlash 1.4s var(--ease-out) 1; border-radius: 12px; }
 @keyframes wkFlash { 0%, 30% { background: color-mix(in srgb, var(--ac) 22%, transparent); } 100% { background: transparent; } }
-@media (prefers-reduced-motion: reduce) { .wk-bar-txt.out { display: none; } .wk-bar.go .wk-bar-surface::before, .wk-flash, .wk-tick, .wk-bar-top, .wk-bar-big { animation: none; } .wk-bar-fill, .wk-bar-orb::before, .wk-bar-surface::before { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .wk-bar-txt.out { display: none; } .wk-bar.go .wk-bar-surface::before, .wk-flash, .wk-tick, .wk-bar-top, .wk-bar-big { animation: none; } .wk-bar-fill, .wk-bar-clip::before, .wk-bar-orb::before, .wk-bar-surface::before { transition: none; } }
 /* the live workout: an exercise that arrives after the window has landed fades up into place (compositor only) */
 .wk-block.in { animation: blockIn 520ms var(--ease-out) both; }
 @keyframes blockIn { from { opacity: 0; transform: translateY(16px); } }
@@ -1107,6 +1209,16 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* the Coach's camera: the chosen photo waits above the field; once sent it sits in your bubble */
 .coach-body { overflow-anchor: none; }
 .sheet-pane .coach-body.sheet-body:not([data-scrollable]) { -webkit-mask-image: none; mask-image: none; } /* (outranks the melt under sheet buttons) */
+/* The Coach's typing bar is a whole row (orb, camera, field) laid over the end of the list. With the list sharp right up to
+   and under it, words ran under the orb and the camera and were sliced off by the field's edges (the "cut-out" look).
+   Scrolled up, the list now melts away just above the bar, gone by its middle; at the end it slides down out of the way
+   (it follows the list's own end fade, --sb-fade-b), so the last message, and an answer writing in, stay whole.
+   With the keyboard up the melt sits above the bar where it rides (--kb-room, the keyboard's room). */
+@supports (animation-timeline: scroll()) {
+  .sheet-pane .coach-body.sheet-body[data-scrollable] { --melt: calc(100% - var(--foot-h, 90px) - var(--kb-room, 0px) + (40px - var(--sb-fade-b)) * 1.3);
+    -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--sb-fade), #000 calc(var(--melt) - 30px), rgba(0,0,0,.25) calc(var(--melt) + 4px), transparent calc(var(--melt) + 22px));
+    mask-image: linear-gradient(to bottom, transparent, #000 var(--sb-fade), #000 calc(var(--melt) - 30px), rgba(0,0,0,.25) calc(var(--melt) + 4px), transparent calc(var(--melt) + 22px)); }
+}
 .coach-sent { animation: coachSend 620ms cubic-bezier(.2, .8, .2, 1) backwards; }
 @keyframes coachSend {
   from { opacity: 0; transform: translate3d(0, 28px, 0) scale(.975); }
@@ -1150,6 +1262,12 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    and the button fades out rather than blinking away (it fades back in with the first message) */
 .coach-body .tips.fresh .tip { animation: rise-soft 520ms var(--ease-out) both; animation-delay: calc(140ms + var(--i, 0) * 70ms); }
 .coach-body .coach-note-fresh { animation: fadein 520ms var(--ease-out) 420ms both; }
+/* sending: the suggestions step away the way the chat does on New chat (they used to vanish in one frame), on a soft
+   300 ms curve; they take no room while they go, so your message rises where they were */
+.coach-tips-out { height: 0; pointer-events: none; animation: coachTipsOut 300ms cubic-bezier(.3, 0, .2, 1) forwards; }
+@keyframes coachTipsOut { from { opacity: 1; } to { opacity: 0; transform: translate3d(0, -4px, 0); } }
+.coach-body .coach-tips-out .tips .tip { animation: none; } /* (re-placed, they must not rise in again on their way out) */
+:root[data-motion='reduce'] .coach-tips-out { display: none; }
 .coach-new { transition: opacity 320ms var(--ease-out); }
 .coach-new.gone { opacity: 0; pointer-events: none; }
 :root[data-motion='reduce'] :is(.coach-body .tips.fresh .tip, .coach-body .coach-note-fresh) { animation: none; }
@@ -1319,7 +1437,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .said-wrap.fly .said-big .sw { will-change: transform; }
 /* (a small rise; each word comes in out of soft focus, .soft) */
 @keyframes saidWrite { from { transform: translateY(.3em); } to { transform: none; } }
-.calm .w { animation-duration: 760ms; --soft-dur: 760ms; }
+.calm .w { --soft-dur: 760ms; }
 
 /* ── Today's cards (screens/TodayCards.tsx): Up next, Muscles this week, Recent records ── */
 .tc-card { padding: 16px 18px 14px 20px; border-radius: var(--r-lg); text-align: left; }
@@ -1402,7 +1520,13 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 @supports (animation-timeline: scroll()) {
   .fade-top { -webkit-mask-image: linear-gradient(to bottom, transparent, rgba(0,0,0,.1) calc(var(--ft) * .2), rgba(0,0,0,.36) calc(var(--ft) * .45), rgba(0,0,0,.74) calc(var(--ft) * .74), #000 var(--ft)); mask-image: linear-gradient(to bottom, transparent, rgba(0,0,0,.1) calc(var(--ft) * .2), rgba(0,0,0,.36) calc(var(--ft) * .45), rgba(0,0,0,.74) calc(var(--ft) * .74), #000 var(--ft));
     animation: ft-in linear both; animation-timeline: scroll(self); animation-range: 0 40px; }
+  /* …and the orb's talk list melts away at its bottom too while there is more below (it was cut in a straight line above the
+     buttons). Gone once it is at its end, so the typing box and its glow sit there whole. */
+  .fade-top.fade-bottom { -webkit-mask-image: linear-gradient(to bottom, transparent, rgba(0,0,0,.1) calc(var(--ft) * .2), rgba(0,0,0,.36) calc(var(--ft) * .45), rgba(0,0,0,.74) calc(var(--ft) * .74), #000 var(--ft), #000 calc(100% - var(--fb)), rgba(0,0,0,.36) calc(100% - var(--fb) * .45), transparent); mask-image: linear-gradient(to bottom, transparent, rgba(0,0,0,.1) calc(var(--ft) * .2), rgba(0,0,0,.36) calc(var(--ft) * .45), rgba(0,0,0,.74) calc(var(--ft) * .74), #000 var(--ft), #000 calc(100% - var(--fb)), rgba(0,0,0,.36) calc(100% - var(--fb) * .45), transparent);
+    animation: ft-in linear both, fb-out linear both; animation-timeline: scroll(self), scroll(self); animation-range: 0 40px, calc(100% - 40px) 100%; }
 }
+@property --fb { syntax: '<length>'; inherits: false; initial-value: 0px; }
+@keyframes fb-out { from { --fb: 40px; } to { --fb: 0px; } }
 
 /* ── Focus view (screens/workout/Focus.tsx): one exercise per page, the next one a swipe away ──
    Switching views is a crossfade on the window's calm curve: the list sinks back and fades, Focus rises in a beat later.

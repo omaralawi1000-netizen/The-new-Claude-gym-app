@@ -143,24 +143,42 @@ const KIND_ICON: Record<string, IconName> = { food: 'recipe', sets: 'dumbbell', 
  * playing), the word being said lights up, the ones already said settle back and the ones to come wait a shade lighter.
  */
 // (memo: while an answer writes itself in, only the piece still growing re-renders, not every word before it)
-export const Words = memo(function Words({ text, k, base = 0, on = -1, stagger }: { text: string; k: string; base?: number; on?: number; stagger?: number }) {
+// Once a word has come in it settles into a plain word (no soft-focus copies, no layer of its own): a whole conversation of
+// soft words made every frame repaint and re-layer hundreds of them while one answer wrote itself in. `still`: already there.
+const SETTLE = 900; // (the longest coming-in is 760 ms; a little slack so nothing is cut short)
+export const Words = memo(function Words({ text, k, base = 0, on = -1, stagger, still }: { text: string; k: string; base?: number; on?: number; stagger?: number; still?: boolean }) {
   const parts = text.split(/(\s+)/);
   // words that arrive together cascade one after another; a word keeps the delay it was born with
   const born = useRef<Record<number, number>>({});
+  const ends = useRef<Record<number, number>>({}); // when each word is fully in
   const seen = useRef(0);
+  const [, settle] = useState(0);
   const first = seen.current;
-  useEffect(() => { seen.current = parts.length; });
+  const now = performance.now();
+  useEffect(() => {
+    seen.current = parts.length;
+    const t = performance.now(); let next = Infinity;
+    for (const i in ends.current) if (ends.current[i] > t) next = Math.min(next, ends.current[i]);
+    if (next === Infinity) return;
+    const id = setTimeout(() => settle((n) => n + 1), next - t + 120); // (settles words in small batches)
+    return () => clearTimeout(id);
+  });
   if (stagger !== undefined) {
     const fresh = parts.map((w, i) => w && /\S/.test(w) && born.current[i] === undefined ? i : -1).filter((i) => i >= 0);
     const step = Math.min(34, stagger / Math.max(1, fresh.length - 1));
     fresh.forEach((i, j) => { born.current[i] = j * step; });
   }
+  // already there and not being read aloud: plain text (a word's span is only needed while it comes in or lights up;
+  // a long chat was hundreds of spans to build and restyle when the Coach opened)
+  if (still && on < 0) return <>{text}</>;
   let n = base;
   return <>{parts.map((w, i) => {
     if (/^\s+$/.test(w) || !w) return w || null;
     if (born.current[i] === undefined) born.current[i] = Math.min(520, Math.max(0, (i - first) / 2) * 34);
+    if (ends.current[i] === undefined) ends.current[i] = still ? 0 : now + Math.min(520, born.current[i]) + SETTLE;
     const idx = n++;
     const cls = on < 0 ? 'w' : idx === on ? 'w w-on' : idx < on ? 'w w-past' : 'w w-next';
+    if (ends.current[i] <= now) return <span key={`${k}-${i}`} className={cls}><span>{w}</span></span>;
     return <span key={`${k}-${i}`} className={`${cls} soft soft-in`} data-soft={w} style={{ animationDelay: `min(${born.current[i]}ms, var(--word-stagger-cap, 520ms))` }}><span className="soft-s">{w}</span></span>;
   })}</>;
 });
@@ -197,12 +215,12 @@ export function useWordReveal(text: string, live: boolean, instant = false): { s
 export function useSpokenWord(id?: string) {
   return useSyncExternalStore(subscribeSpeech, () => (id && speechState().id === id ? Math.max(0, speechState().word) : -1));
 }
-export function Rich({ text, id, stagger }: { text: string; id?: string; stagger?: number }) {
+export function Rich({ text, id, stagger, still }: { text: string; id?: string; stagger?: number; still?: boolean }) {
   const on = useSpokenWord(id);
   let n = 0;
   const run = (segs: ReturnType<typeof richLines>[number]['segs'], k: string) => segs.map((p, i) => {
     const base = n; n += wordsOf(p.text).length;
-    return p.bold ? <b key={i}><Words text={p.text} k={`${k}b${i}`} base={base} on={on} stagger={stagger} /></b> : <Words key={i} text={p.text} k={`${k}t${i}`} base={base} on={on} stagger={stagger} />;
+    return p.bold ? <b key={i}><Words text={p.text} k={`${k}b${i}`} base={base} on={on} stagger={stagger} still={still} /></b> : <Words key={i} text={p.text} k={`${k}t${i}`} base={base} on={on} stagger={stagger} still={still} />;
   });
   return <>{richLines(text).map((l, i) => {
     if (l.bullet) return <div key={i} className="rich-li"><span aria-hidden className="w" style={{ color: 'var(--tx3)' }}>•</span><span>{run(l.segs, `l${i}`)}</span></div>;

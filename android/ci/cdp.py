@@ -78,6 +78,17 @@ page = wait_page()
 if mode == 'rest':
     print('rest:', run(page, REST % (int(sys.argv[2]), int(sys.argv[3]) if len(sys.argv) > 3 else 25)))
     sys.exit(0)
+if mode == 'watch':
+    print('watch:', run(page, """(() => { window.__vis = 'watching'; localStorage.setItem('ci.vis', '');
+      const note = (w) => localStorage.setItem('ci.vis', localStorage.getItem('ci.vis') + ' ' + w + '@' + (Date.now() % 100000));
+      document.addEventListener('visibilitychange', () => note(document.visibilityState + (document.hasFocus() ? '+focus' : '')));
+      window.addEventListener('focus', () => note('focus')); window.addEventListener('blur', () => note('blur'));
+      window.addEventListener('pagehide', () => note('pagehide')); window.addEventListener('pageshow', () => note('pageshow'));
+      return 'ok, now ' + document.visibilityState; })()"""))
+    sys.exit(0)
+if mode == 'seen':
+    print('seen:', run(page, "(window.__vis ? 'same page' : 'page was reloaded') + ', now ' + document.visibilityState + (document.hasFocus() ? '+focus' : '') + ', events:' + localStorage.getItem('ci.vis')"))
+    sys.exit(0)
 if mode == 'perm':
     print(run(page, "(async () => 'page sees ' + Notification.permission + ' (query: ' + (await navigator.permissions.query({name: 'notifications'})).state + ')')()"))
     sys.exit(0)

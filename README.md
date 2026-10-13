@@ -1412,6 +1412,65 @@ flicker fingerprint). `--film a,b` films chosen actions, `--light` for the light
     moves there): ~11 % less tile memory with the window open. The bigger cause is outside it: the status-bar tint written
     on `.fields` every frame redraws the full-screen grain layer each frame (72-96 tiles per minimise, 16 when frozen),
     handed to the page-behind work.
+- v0.1.83, from an independent check of the v0.1.77 proof:
+  - Rest over: the bar's round end by the orb is the same colour as the rest. The moving fill fades out before the orb
+    (that fade read as a dark crescent beside it); in "Rest over" one even tint (`.wk-bar-clip::before`) takes over.
+  - A long exercise name ends in a clean "…" (`Fit`), never "Press, …".
+  - Minimising: the orb waits in the dock UNDER the window, so the window's edge uncovers it with the rest of the dock (it
+    used to appear all at once, on top, as the edge passed). The orb's tuck checks no longer read `window.innerHeight`
+    (a forced style pass on every frame of the slide; `viewportH` instead).
+  - The orb's glow behind it has a layer of its own for good: each fade made one and dropped it at the end (10 of the
+    workout audit's layer drops).
+  - Tap to motion: Chrome doesn't paint a page at opacity 0, so minimising had to paint the whole page behind before the
+    window's first frame. A finger on Minimise now draws it again, unseen (`warmStage`): at 4x CPU the first frame came
+    ~90 ms after the tap, now 50-70. Opening no longer re-renders the whole window a second time inside the tap (the
+    "shown" state is a yielding render): 95-150 ms → 75-130.
+  - Keyboard: proven at 120 fps (virtual time, 1/120 s steps, the keyboard drawn from the app's own curve, which matches
+    Android's 285 ms IME curve within 3 %): the tapped field moves every frame with the keyboard, start to end.
+- v0.1.84, from Omar's "the orb doesn't have seamless animations on some pop-ups": every orb move was checked frame by
+  frame against v0.1.72 (Settings, Coach, voice, rest start/panel/end, picker, workout open/minimise/resume). One had
+  broken: the Coach. The v0.1.77 tuck (orb waits under a rising window) was meant for the live workout only, but it ran
+  for the Coach too; the Coach's sheet rests lower, so the orb left the dock ~120 px early and popped (up to 573 px in one
+  frame) instead of gliding to the mic. The tuck is now for the workout window only (`tucks` in Sphere.tsx).
+- v0.1.85, same report: the live workout's orb glides again too. Opening and minimising, the v0.1.77 tuck hid it under the
+  window and brought it back at the other end (it vanished, then popped up in the dock or the bar). Gone: the orb glides
+  along the bottom between the bar and the dock, on top, as in v0.1.72 (its browser-run path checked keyframe by keyframe:
+  identical to v0.1.72's).
+- v0.1.86, "a mismatch under it": the orb now lands exactly on its place everywhere (checked on all 16 orb moves).
+  - In the workout's bar it sat 3.5 px high, off-centre on its button, and hopped up by that much as each opening
+    ended (the browser-run flight lands exactly; the script's soft hand-over from the dock then held it high). Since the
+    page behind sinks back from its middle (v0.1.76), the dock sits lower, which is what made the hand-over count. The
+    hand-over now lets go as the orb arrives (`carry`).
+  - In the dock it sat 2 px left of the middle of its place (the place is 68 x 64; the orb went to its left edge). It is
+    centred now, in every place that isn't square.
+- v0.1.91, smoother minimise and resume (measured at 4x CPU, 3 runs each, before → after):
+  - Minimising: main-thread long tasks 420 → 285 ms in total, script and layout 439 → 351 ms. Resuming: script and layout
+    404 → 342 ms. The orb re-measured its whole path on every frame the page behind sank back or came forward
+    (`.stage-content` was missing from the orb's list of moving surfaces).
+  - The bar's name (`Fit`) no longer lays the window out itself: it reads its room right after the browser's own layout
+    and measures the shorter tries off the page (it forced one full layout per try, about 100 ms at 4x as the window opened).
+  - The rest-over sound is made once the whole list has arrived, not while it is still arriving.
+- v0.1.93, "the window opens a beat late" (resume, at 4x CPU, 4 runs each, main → this):
+  - Long tasks while it opens: two every time (60-130 ms each) → none. Finger down → first moving frame: ~143 → ~122 ms
+    (1x: about 30 ms, a couple of frames at 120 Hz, of which the finger's own press is part).
+  - It starts moving in the tap itself: the minimised window (kept, parked off-screen) registers itself
+    (`ui/workoutOpen.ts`); a tap on the resume bar or button sets its slide going on the compositor first, and only after
+    that frame is the app told (re-rendering the page behind, the dock and the window), as closing already did.
+  - The "calm" flag (pauses the colour field behind any pop-up) is written on the shell directly, not as React state: each
+    pop-up opening re-rendered the whole app twice for it, once inside the tap and once two frames into the motion.
+  - The calm rule names the one thing on a page that still blurs (`.screen .seg`) instead of `.screen *`: switching it
+    restyled every element of the page (~900, 55 ms at 4x), two frames into EVERY pop-up's motion.
+- v0.1.94, Start moves on the tap like Resume (first Start of the day, at 4x CPU, 3 runs each, before → after):
+  - Finger down → first moving frame: 257-342 → 127-137 ms (Resume is 97-150). The 160-230 ms task that built the window
+    inside the tap is gone; what is left (the list's first exercises) runs while the window is already moving on the
+    compositor.
+  - How: once the app has settled (a couple of seconds in, no touch for 1.5 s, then the next idle moment), the
+    window is built ahead and parked off-screen exactly as a minimised one, holding an empty stand-in (`WK_GHOST`). Start
+    sets its slide going first; the workout is made and the app told after that frame, and the started workout takes the
+    same window over (its list comes in as on any first opening). After a workout ends it is built again the same way.
+  - Cost: launch unchanged (Start on screen ~1.2-1.4 s at 4x either way, same long tasks); the build itself is 50-130 ms
+    at 4x, in pieces, ~2.5 s after launch; +0.3 MB JS heap, +52 elements. Also covers reopening the app mid-workout: the
+    first Resume no longer builds the window either.
 
 ## Android app: the rest as a live countdown, new icon, calmer opening (13 Oct 2026, v0.1.72)
 Omar's phone showed the website's plain notice ("Back at 10:02", the site's address) instead of the app's countdown.
@@ -1516,3 +1575,105 @@ at the edges.
   within 0.05 px instead of 0.8, so a glide no longer ends with a last little hop (sheets only: the shared spring and the
   workout's own opening keep their end, which a finer one gave a 14-frame soft creep), and the scanner waits for its video if the camera answers before the
   sheet's contents are in (it said "Couldn't start the camera").
+## Coach: lighter frames while an answer writes in (13 Oct 2026, v0.1.88)
+- Measured with `scripts/audit-coach.mjs` (phone size, CPU slowed 4×, a fake keyboard and a mocked stream; per action:
+  frames, long tasks, script/style/layout time, pops, jumps and GPU layers dropped; `TRACE=`/`PROFILE=` break one action
+  down). Baseline v0.1.85 → v0.1.88 (4×, dark): opening the Coach worst task 548 → ~260 ms and style 883 → ~360 ms;
+  an answer writing in paints ~3× less (2.1 s → ~0.6 s of main-thread paint over 5 s) and runs half the script per frame.
+- A word that has come in now settles into a plain word: its two soft-focus copies (`.soft::before/::after`) and its own
+  layer go once its coming-in is over (`Words`, `SETTLE`), and saved replies are plain from the start (`still`). A whole
+  saved conversation of soft words made every frame repaint and re-layer hundreds of them. Nothing on screen changes:
+  the copies are invisible by then.
+- The orb no longer re-measures the page for every new word: inside a tall pop-up's list nothing can move an orb slot,
+  and scrolling something with no slot in it moves none (`inTallList`, `noSlotIn` in `ui/Sphere.tsx`).
+- The list's glide after a new line is handed to the browser as a ready-made spring curve (Web Animations on
+  `translate`), so it runs at the screen's rate even while the page is busy writing the next words in; a new line picks
+  the spring up where it is on screen. It used to be stepped from script every frame.
+- Tapping a suggestion: the suggestions step away (200 ms fade and a 4 px lift, like New chat) instead of vanishing in one
+  frame; they take no room while they go, so your message rises where they were. Same for the suggestions under an old
+  chat.
+- A message sent from the keyboard keeps to its landing place while the keyboard goes down: the list now tells it in the
+  same frame (the scroll event came a frame late, so the flying copy trailed its bubble).
+
+## Orb screen: the typing box fades away, nothing jumps as it closes (13 Oct 2026, v0.1.89)
+- Sending what you typed: the box used to vanish in one frame. It now fades out where it was (200 ms; `popLayout`, so the
+  words writing in above don't push it), with your words still in it, and the keyboard leaves at the same moment instead
+  of a beat later. It fades back in when it returns.
+- Closing with the keyboard up: the keyboard going down re-flowed the screen while it faded, and the answer jumped down
+  mid-fade. While the screen leaves, its keyboard room is held (`useIsPresent`), so it fades out as it was.
+- The answer's words settle into plain words (v0.1.88) here too. Measured with `scripts/audit-coach.mjs` (4×, dark):
+  answer writing in, long tasks 9 → 2, style 482 → ~210 ms, layers dropped 68 → ~31; closing, layout shifts gone.
+- Not changed: the orb still grows and shrinks by its box size (a layout transition) when typing starts or an answer
+  arrives; the orb's renderer follows that box, and the screen is small (a few ms of layout per frame at 4×).
+- v0.1.90: after New chat the suggestions still vanished at once when one was tapped: moved into their leaving layer,
+  they ran their rise-in again (starting invisible). They now keep still and fade (300 ms, a softer curve).
+
+## Coach and orb answers write in without dropped frames, same look (13 Oct 2026, v0.1.92)
+- Found with style-invalidation tracing (`scripts/audit-coach.mjs`, new `INV=1`, `WHY=1`, `MUT=1`, `DROPS=0`):
+  - `.app:has(.sheet, .voice, [role='dialog']) .aurora i` (pause the colour field under popups): with an attribute inside
+    `:has()` the browser re-checked it on every element added anywhere in the app and restyled every `<i>` (and the pulse
+    dots) each time, so every new word restyled ~24 unrelated elements. Now classes only: `.app:has(.sheet, .voice, .ovl)`,
+    with `.ovl` on the two full-screen overlays that are not sheets (Onboarding, the progress photo viewer). Helps every
+    screen, not only the Coach.
+  - The orb's frame loop runs every frame, so the browser updates every running CSS animation on the main thread every
+    frame (even ones the compositor plays). Each word had four: its rise on the word itself, plus its three soft-focus
+    layers. A word animating made its three layers restyle from scratch every frame. The rise now rides on the three
+    layers (same keyframes, same timing; `.soft-s` became inline-block so it can move), and the word itself is still.
+    Checked pixel for pixel with `scripts/word-ramp.mjs` (the word set frozen at 20 moments, 0-760 ms): identical.
+- Measured (4× CPU, dark, without the layer watcher): Coach answer writing in, style 812 → ~340 ms per 5 s, long tasks
+  ~19 → 0; suggestion answer 739 → ~360 ms, 3 → 0; orb answer 0 long tasks.
+- The audit's layer watcher (`LayerTree`/`DOM` CDP domains) itself costs main-thread time per new element; `DROPS=0`
+  measures without it.
+
+## Your sent message flies as one move (13 Oct 2026, v0.1.93)
+Measured frame by frame with `scripts/probe-send.mjs` (keyboard up and down, short and long, first message of a new chat;
+the fake keyboard now slides in 250 ms like a real one; positions are read after each frame is drawn):
+- Keyboard going down mid-flight: the flying copy followed the scroll position only, but the list glides that move
+  (`translate` on the thread), so for a couple of frames the copy ran 100+ px away from its bubble, then caught up and
+  stepped 14 px onto it at landing. The copy now rides the same glide (same curve, same clock), and the list tells it
+  whenever it moves, including when the browser moved it (the list grew). Copy and bubble now stay within 0.1-2 px.
+- A glide still finishing when you send (an earlier answer's play row) put the landing place 3 px off: taken into account.
+- Long messages: the field shows only the end of a long message, and the copy swooped in from off the left edge with
+  lines hanging over the keyboard. It now leaves with its last line on the field's line (the rest above it), its end where
+  the text ended, kept inside the field.
+- Not changed: when you send from the keyboard, the keyboard still goes down as the message nearly lands and the list
+  rides down with it (by design since earlier rounds).
+
+## No more hard cut-off edges in the Coach and on the orb screen (13 Oct 2026, v0.1.94)
+Swept with `scripts/shots-cutout.mjs` (AVEN_GPU=1; end, mid and top of a long chat, keyboard up, writing in, answered, new
+chat, the orb screen open, typing, writing in, answered; light and dark):
+- Coach, scrolled up: the list ran sharp right under the typing bar, so words passed under the orb and the camera and were
+  sliced off by the field's edges. It now melts away just above the bar (gone by its middle); with the keyboard up, above
+  the bar where it rides. At the end the melt slides down out of the way (it follows the list's end fade), so the last
+  message and an answer writing in stay whole. This is the Coach only: other sheets' buttons still float with nothing behind
+  (v0.1.8); the Coach's bar is a whole row, not one button.
+- Orb screen: a long answer was cut in a straight line above the buttons; it now melts there while there is more below
+  (`.fade-bottom`, scroll-driven like the top fade). The typing box's focus glow was clipped by the scrolling area into hard
+  bands above and below it; the area has room round its content now.
+
+## The Coach opens with less to build; the orb's glide to the mic starts clean (13 Oct 2026, v0.1.95)
+- Measured the orb's moves frame by frame (`scripts/probe-orb.mjs`, read after each frame is drawn): dock to the Coach's
+  mic, keyboard up and down, back to the dock, the orb screen opening, shrinking for typing, thinking, closing. Each path is
+  one smooth move that lands exactly (0.0 px); none reverses or pushes twice. What broke the dock-to-mic glide was the
+  stall at its start: opening the Coach built every word of the saved chat as its own two spans (~650 elements restyled in
+  the tap).
+- Saved answers that are not being read aloud are now plain text; the words become spans only while one is read aloud
+  (each word lights up) or while an answer writes itself in. Line breaks are the same (checked side by side). Coach open
+  at 4× CPU: worst task ~200-220 ms → ~105-140 ms.
+- Not changed: the orb screen's orb still grows and shrinks by its box size: measured, it costs little layout on that small
+  screen and its path is smooth.
+
+## Aven glass: neutral buttons, chips and cards are glass with a warm edge of light (13 Oct 2026, v0.1.96)
+- The see-through grey rounded surfaces (buttons, chips, round buttons, cards, the dock, a sheet's bottom button, set
+  number tiles) now share one material, painted once and never animated:
+  - a soft glow of the area's own colour falling from the top;
+  - a faint sheen;
+  - a crisp 1 px rim that is warm along the top and fades down the sides;
+  - a gentle lift.
+  Text fields became wells. No new blur.
+- Kept quiet on purpose. In dark, the set tiles and "+ Set" keep only the rim, so the active set stays the loudest thing in
+  its card. In light, only the active set's tile glows. Round buttons use the same 1 px rim (1.5 px was too loud); the
+  dock keeps 1.5 px. In dark, the dock's active tab is warm, not cool grey.
+- Switched on by `<html data-glass="v2">` in index.html. The rules sit behind that attribute so
+  `scripts/glass-shots.mjs` can compare with and without it. Checks: `scripts/glass-audit.mjs` (no new blind blurs);
+  `scripts/flicker-layers.mjs` shows the same 11 drops with and without it.
