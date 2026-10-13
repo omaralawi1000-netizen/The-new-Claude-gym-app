@@ -62,6 +62,10 @@ sleep 4 # cdp.py waits for the page itself
 adb forward tcp:9222 localabstract:chrome_devtools_remote
 python3 android/ci/cdp.py get | tee shots/carry-over.txt
 timeout 15 adb shell dumpsys activity activities | grep -m2 "ResumedActivity" | tee -a shots/carry-over.txt
+# what is still being drawn under the open app (launcher / wallpaper under it = wasted work every frame)
+timeout 15 adb shell dumpsys window windows > shots/windows.txt
+grep -E "^  Window #|isOnScreen=true|isVisible=true|mFormat|fl=" shots/windows.txt | head -60
+timeout 15 adb shell dumpsys SurfaceFlinger > shots/surfaceflinger.txt
 timeout 15 adb exec-out screencap -p > shots/6-app.png
 timeout 20 adb logcat -d | grep -i "OriginVerifier\|TrustedWebActivity\|digital asset" | tail -20 | tee -a shots/carry-over.txt
 exit 0
