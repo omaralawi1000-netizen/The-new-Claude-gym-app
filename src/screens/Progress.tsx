@@ -12,6 +12,7 @@ import { average, nutritionByDay, trendRate, weekStreak, weeklyTraining, weightT
 import { fmtNum, kgToDisplay } from '../lib/units';
 import { bestsFor, countable, epley } from '../lib/workout';
 import { exName } from './workout/common';
+import { Roll } from '../ui/Roll';
 
 type Range = '4w' | '12w' | '6m' | 'all';
 const DAYS: Record<Range, number> = { '4w': 28, '12w': 84, '6m': 182, all: 3650 };
@@ -115,8 +116,8 @@ export function ProgressScreen() {
           <>
             <LineChart points={weights.map((w) => ({ x: new Date(w.date + 'T12:00:00').getTime(), y: kgToDisplay(w.kg, u.weight), label: wLabel(w.date) }))} trend={trend.map((p) => ({ x: new Date(p.date + 'T12:00:00').getTime(), y: kgToDisplay(p.kg, u.weight) }))} fmtY={(v) => fmtNum(v, lang, 1)} seriesLabel={t('Weigh-ins')} trendLabel={t('Trend (estimate)')} />
             <div className="row-flex between small t2 num" style={{ marginTop: 10 }}>
-              <span>{firstW && lastWeight && firstW !== lastWeight ? <>{t('Change')} <b style={{ color: 'var(--tx)' }}>{(lastWeight.kg - firstW.kg >= 0 ? '+' : '−')}{fmtNum(Math.abs(kgToDisplay(lastWeight.kg, u.weight) - kgToDisplay(firstW.kg, u.weight)), lang, 1)} {u.weight}</b></> : null}</span>
-              <span>{rate !== null ? <>{rate >= 0 ? '+' : '−'}{fmtNum(Math.abs(kgToDisplay(rate, u.weight)), lang, 1)} {u.weight}/{t('wk')}</> : t('Trend rate needs 7+ days of data')}</span>
+              <span>{firstW && lastWeight && firstW !== lastWeight ? <>{t('Change')} <b style={{ color: 'var(--tx)' }}>{(lastWeight.kg - firstW.kg >= 0 ? '+' : '−')}<Roll text={fmtNum(Math.abs(kgToDisplay(lastWeight.kg, u.weight) - kgToDisplay(firstW.kg, u.weight)), lang, 1)} /> {u.weight}</b></> : null}</span>
+              <span>{rate !== null ? <>{rate >= 0 ? '+' : '−'}<Roll text={fmtNum(Math.abs(kgToDisplay(rate, u.weight)), lang, 1)} /> {u.weight}/{t('wk')}</> : t('Trend rate needs 7+ days of data')}</span>
             </div>
           </>
         ) : <div className="small t3" style={{ padding: '8px 4px 4px' }}>{t('Log your weight')}</div>}
@@ -127,12 +128,12 @@ export function ProgressScreen() {
       </ChartCard>
 
       {/* nutrition */}
-      <ChartCard title={<>{t('Calories')}</>} sub={avgKcal !== null ? <><span className="num">{fmtNum(Math.round(avgKcal), lang, 0)}</span><span className="t3 small" style={{ fontFamily: 'var(--f-ui)', fontStretch: '100%', fontWeight: 600 }}> kcal {t('avg per logged day')}</span></> : '—'}
+      <ChartCard title={<>{t('Calories')}</>} sub={avgKcal !== null ? <><Roll className="num" text={fmtNum(Math.round(avgKcal), lang, 0)} /><span className="t3 small" style={{ fontFamily: 'var(--f-ui)', fontStretch: '100%', fontWeight: 600 }}> kcal {t('avg per logged day')}</span></> : '—'}
         table={{ head: [t('Date'), 'kcal', `${t('Protein')} g`], rows: nut.map((d) => [fmtDate(d.date, lang, { day: 'numeric', month: 'short' }), d.logged ? Math.round(d.kcal) : '—', d.logged ? Math.round(d.protein) : '—']) }}>
         <BarChart label={t('Calories per day')} bars={nut.map((d) => ({ label: String(Number(d.date.slice(8))), value: d.kcal, sub: `${fmtDate(d.date, lang, { weekday: 'short', day: 'numeric', month: 'short' })}${d.logged ? '' : ` · ${t('nothing logged')}`}`, dim: !d.logged, emphasis: d.date === today }))} fmt={(v) => fmtNum(Math.round(v), lang, 0)} target={s.settings.goals.kcal} targetLabel={s.settings.goals.kcal ? `${t('target')}` : undefined} />
         <div className="row-flex between small t2 num" style={{ marginTop: 8 }}>
-          <span>{loggedN.length}/{nDays} {t('days logged')}</span>
-          <span>{avgP !== null ? `${t('Protein')} ${fmtNum(Math.round(avgP), lang, 0)} g` : ''}{s.settings.goals.protein && avgP !== null ? ` · ${Math.round((avgP / s.settings.goals.protein) * 100)}% ${t('of target')}` : ''}</span>
+          <span><Roll text={String(loggedN.length)} />/<Roll text={String(nDays)} /> {t('days logged')}</span>
+          <span>{avgP !== null ? <>{t('Protein')} <Roll text={fmtNum(Math.round(avgP), lang, 0)} /> g</> : ''}{s.settings.goals.protein && avgP !== null ? <> · <Roll text={String(Math.round((avgP / s.settings.goals.protein) * 100))} />% {t('of target')}</> : ''}</span>
         </div>
       </ChartCard>
 
