@@ -40,7 +40,11 @@ jobs:
           done
           exit 1
       - name: Signing fingerprint (for assetlinks.json)
-        run: keytool -printcert -jarfile android/app/build/outputs/apk/release/app-release.apk | tee fingerprint.txt
+        # apksigner, not keytool: keytool can't read the v2/v3 signatures modern APKs use
+        run: |
+          BT=$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)
+          "$ANDROID_HOME/build-tools/$BT/apksigner" verify --print-certs android/app/build/outputs/apk/release/app-release.apk | tee fingerprint.txt
+          if [ -n "$AVEN_KEYSTORE_FILE" ]; then echo "Signed with the release key"; else echo "No release key set up: signed with the debug key"; fi
       - uses: actions/upload-artifact@v4
         with:
           name: aven-android
@@ -55,6 +59,8 @@ jobs:
   emulator:
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # to put the screenshots on the android-shots branch
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -97,3 +103,10 @@ jobs:
         with:
           name: aven-android-emulator
           path: shots
+      - name: Screenshots to the android-shots branch (easy to look at without downloading)
+        if: always()
+        run: |
+          cd shots
+          git init -q && git checkout -q -b android-shots
+          git add . && git -c user.name=github-actions -c user.email=github-actions@users.noreply.github.com commit -qm "Emulator screenshots, run ${{ github.run_number }}"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" android-shots
