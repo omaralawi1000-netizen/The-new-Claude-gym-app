@@ -1241,3 +1241,16 @@ text-shadow glow of the glyphs with no fill, painted once), which fades in and a
 frame (traced at 4x CPU: raster time within ~8% of no blur at all). It takes each element's delay and length, so the
 calm timing is unchanged. Used by Coach and orb answers (`Words`), your spoken words on the orb screen (`.sw`), the Food
 date title and the Onboarding titles (`SoftText`). Photo logging's soft photo is a still blurred copy cross-faded in.
+
+## Polish pass, step A: food logging without rough edges (13 Oct 2026, v0.1.58)
+
+Found with a new audit (`scripts/audit-polish.mjs` + `scripts/pop-probe.mjs`): it walks the app at 4x CPU slowdown and
+lists everything that pops in, vanishes, jumps or changes a number without rolling; `scripts/film-act.mjs` films one
+action frame by frame to confirm it.
+- **Food search**: as you type, the list filters like iOS search. Rows that still match stay where they land and new ones
+  fade in. Before, rows glided to their new places while the old ones faded out, so for a few frames their texts slid
+  through each other. "Searching Open Food Facts and USDA…" fades in and out instead of popping.
+- **Deleting a logged food**: the sheet keeps showing the entry while it slides away (it switched to the "add food" layout
+  for a moment on its way out).
+- **Food totals roll**: protein, carbs and fat under the ring, and the week's average, roll to their new values like the
+  calories do.

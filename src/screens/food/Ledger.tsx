@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import type { Sum } from '../../lib/nutrition';
 import { pct } from '../../lib/nutrition';
 import { Count } from '../../ui/kit';
+import { Roll } from '../../ui/Roll';
 import { Dial } from '../../ui/Dial';
 import { Icon } from '../../ui/Icon';
 import { useStore } from '../../state/store';
@@ -52,7 +53,7 @@ export function Ledger({ sum, compact }: { sum: Sum; compact?: boolean }) {
           const text = s.partial ? s.text.replace(/^≥\s*/, '') : s.text;
           return (
             <div key={m.k} style={{ textAlign: 'center' }} aria-label={`${m.label} ${s.partial ? `${t('at least')} ` : ''}${text} g`}>
-              <div className="num" style={{ fontSize: 22, fontWeight: 300, letterSpacing: '-0.03em' }}>{text}{s.partial && <i className="partial-dot" aria-hidden />}<span className="t3 xs">{g ? ` / ${fmtNum(g, lang, 0)}` : ' g'}</span></div>
+              <div className="num" style={{ fontSize: 22, fontWeight: 300, letterSpacing: '-0.03em' }}><Roll text={text} />{s.partial && <i className="partial-dot" aria-hidden />}<span className="t3 xs">{g ? ` / ${fmtNum(g, lang, 0)}` : ' g'}</span></div>
               <div className="row-flex" style={{ gap: 6, justifyContent: 'center', marginTop: 4 }}><i style={{ width: 7, height: 7, borderRadius: 7, background: m.c, boxShadow: `0 0 10px ${m.c}` }} /><span className="micro">{m.label.slice(0, 1)}</span></div>
             </div>
           );
