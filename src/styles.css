@@ -984,8 +984,12 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* a full page: its header starts just under the status bar (no grabber), and its flat top edge has no rim (it would be a line under the bar) */
 .wk-sheet::after { content: none; }
 .wk-sheet .wk-head-wrap { padding-top: 10px; }
-.wk-top { position: absolute; left: 0; right: 0; top: 0; height: calc(var(--wk-lead) + var(--sat) + 40px); pointer-events: none; will-change: transform;
-  background: linear-gradient(to bottom, var(--wk-bar, var(--bg)) calc(var(--wk-lead) + var(--sat) + 2px), transparent); }
+.wk-top { position: absolute; left: 0; right: 0; top: 0; height: calc(var(--wk-lead) + var(--sat) + 150px); pointer-events: none; will-change: transform;
+  /* the status bar's colour all along the top edge, then the window's light: quickly where the light is (behind the title),
+     slowly towards the far corner, which is darker than the bar, so no edge shows anywhere under it */
+  background:
+    linear-gradient(to bottom, var(--wk-bar, var(--bg)) calc(var(--wk-lead) + var(--sat) + 1px), transparent calc(var(--wk-lead) + var(--sat) + 44px)),
+    radial-gradient(80% 150px at 100% calc(var(--wk-lead) + var(--sat)), var(--wk-bar, var(--bg)), color-mix(in srgb, var(--wk-bar, var(--bg)) 55%, transparent) 45%, transparent); }
 .wk-solid { position: absolute; inset: 0; background: var(--bg); }
 
 /* Settings pages: once a page has glided in, its rows and fields settle in one after another (transform + opacity only) */
