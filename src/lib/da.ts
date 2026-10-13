@@ -1434,4 +1434,6 @@ export const da: Record<string, string> = {
  "The test didn’t reach the Aven app.": "Testen nåede ikke frem til Aven-appen.",
  "Notifications are off for the Aven app. Turn them on in your phone’s Settings › Apps › Aven › Notifications.": "Notifikationer er slået fra for Aven-appen. Slå dem til i telefonens Indstillinger › Apps › Aven › Notifikationer.",
  "Send a test": "Send en test",
+ "Aven app": "Aven-appen",
+ "notifications": "notifikationer",
 };

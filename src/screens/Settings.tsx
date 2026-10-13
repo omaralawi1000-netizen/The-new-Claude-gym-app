@@ -297,6 +297,13 @@ function RestAlertRow() {
   if (!supported) return null;
   const late = on ? lastRestLate() : null;
   const app = inAndroidApp();
+  // in the app: the phone and the permission in one small line, so a screenshot of this row tells us what we need
+  const [model, setModel] = useState('');
+  useEffect(() => {
+    if (!app) return;
+    const ua = (navigator as any).userAgentData;
+    ua?.getHighEntropyValues?.(['model', 'platformVersion']).then((v: any) => setModel([v.model, v.platformVersion && `Android ${String(v.platformVersion).split('.')[0]}`].filter(Boolean).join(' · '))).catch(() => {});
+  }, [app]);
   // in the Android app: a 15-second rest through the real route, so the phone shows at once whether the countdown works
   const test = async () => {
     const now = Date.now();
@@ -312,6 +319,7 @@ function RestAlertRow() {
       <div>
         <div>{t('Rest timer on lock screen')}</div>
         <div className="xs t2" style={{ marginTop: 2 }}>{perm === 'denied' ? (app ? t('Notifications are off for the Aven app. Turn them on in your phone’s Settings › Apps › Aven › Notifications.') : t('Notifications are blocked for Aven in your browser settings.')) : t('Shows when rest is over and buzzes, even in another app or with the screen off.')}</div>
+        {app && <div className="xs t3" style={{ marginTop: 2 }}>{[t('Aven app'), model, `${t('notifications')}: ${perm}`].filter(Boolean).join(' · ')}</div>}
         {app && on && <button className="btn sm press" style={{ marginTop: 8 }} onClick={test}>{t('Send a test')}</button>}
         {late && <div className="xs t3" style={{ marginTop: 2 }}>{late.ms < 2000 ? t('Last alert came on time.') : t('Last alert came {n} s late.', { n: Math.round(late.ms / 1000) })}</div>}
       </div>
