@@ -1227,7 +1227,7 @@ writing cursor's style is deleted.
   The orb has a soft accent bloom behind it. "Rest over" swells a ring once and settles to a faint one: opacity only.
   The darker square around the orb was seen on the phone only; it could not be reproduced headless, so the layer split is
   the fix to check on the phone.
-## No more animated blur on Onboarding and Food (13 Oct 2026, v0.1.55)
+## No more animated blur on Onboarding and Food (13 Oct 2026, v0.1.54)
 
 The Onboarding step change and the Food page's date title animated a blur as they changed. Both now move with opacity and
 the same small slide only, on the same timing (0.22 s and 0.34 s), per the rule that blur never animates.
