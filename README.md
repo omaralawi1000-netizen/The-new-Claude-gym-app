@@ -1242,7 +1242,13 @@ frame (traced at 4x CPU: raster time within ~8% of no blur at all). It takes eac
 calm timing is unchanged. Used by Coach and orb answers (`Words`), your spoken words on the orb screen (`.sw`), the Food
 date title and the Onboarding titles (`SoftText`). Photo logging's soft photo is a still blurred copy cross-faded in.
 
-## Polish pass, step A: food logging without rough edges (13 Oct 2026, v0.1.58)
+## Small fixes: one row per product, "In this workout", Danish (13 Oct 2026, v0.1.58)
+
+Food search no longer lists the same product twice (online rows that would read exactly like one already shown, same
+name, brand, kcal and unit, are left out; "Cheasy vaniljeskyr" showed Cheasy Skyr Vanilje twice). The exercise page
+says "In this workout" in place of "Add to current workout" when the exercise is already in the running workout. The
+last five missing Danish strings are in (voice styles and "Tap a voice to hear it.").
+## Polish pass, step A: food logging without rough edges (13 Oct 2026, v0.1.59)
 
 Found with a new audit (`scripts/audit-polish.mjs` + `scripts/pop-probe.mjs`): it walks the app at 4x CPU slowdown and
 lists everything that pops in, vanishes, jumps or changes a number without rolling; `scripts/film-act.mjs` films one

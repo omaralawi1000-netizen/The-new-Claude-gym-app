@@ -73,7 +73,11 @@ export function FoodSearch({ props }: { props: { date: string; mealId: string } 
     return () => { live = false; clearTimeout(id); ctrl.abort(); };
   }, [dq, s.settings.foodLookup]);
 
-  const onlineShown = online.foods.filter((f) => !results.some((r) => r.sourceId && r.sourceId === f.sourceId && r.source === f.source));
+  // (the same product can come back twice, e.g. two pack sizes with one entry each: a row that would read exactly like one
+  // already shown is left out)
+  const same = (f: Food) => `${f.name.toLowerCase()}|${(f.brand ?? '').toLowerCase()}|${Math.round(f.per100.kcal ?? 0)}|${f.basis}`;
+  const onlineShown = online.foods.filter((f, i, all) => !results.some((r) => (r.sourceId && r.sourceId === f.sourceId && r.source === f.source) || same(r) === same(f))
+    && all.findIndex((g) => same(g) === same(f)) === i);
 
   const quickAdd = (food: Food) => {
     const last = recents.find((r) => r.food.id === food.id)?.qty;
