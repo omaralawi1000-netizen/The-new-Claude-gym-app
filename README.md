@@ -1270,3 +1270,12 @@ action frame by frame to confirm it.
   (`overflow: clip`), which can't be scrolled at all.
 - **Today's water count rolls** to its new value, and its button keeps its width, so the buttons next to it no longer shift.
 - **Workout header**: the rest time that joins the clock while you type fades in instead of popping.
+
+## Polish pass, step C: an exercise unfolds into the workout (13 Oct 2026, v0.1.61)
+
+- In the workout list, an exercise that joins after the list is built (added from the picker, or brought back with Undo
+  after removing it) now unfolds into place and the exercises below make room smoothly, the same way a removed one already
+  folded away. It used to appear at full size in one frame and push everything below down at once. The exercises built
+  while the workout opens are unchanged.
+- Known, left as is: when you move an exercise up or down, the two cards glide past each other and their text overlaps
+  for a few frames (the cards are see-through).
