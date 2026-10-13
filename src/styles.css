@@ -1199,6 +1199,16 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* the Coach's camera: the chosen photo waits above the field; once sent it sits in your bubble */
 .coach-body { overflow-anchor: none; }
 .sheet-pane .coach-body.sheet-body:not([data-scrollable]) { -webkit-mask-image: none; mask-image: none; } /* (outranks the melt under sheet buttons) */
+/* The Coach's typing bar is a whole row (orb, camera, field) laid over the end of the list. With the list sharp right up to
+   and under it, words ran under the orb and the camera and were sliced off by the field's edges (the "cut-out" look).
+   Scrolled up, the list now melts away just above the bar, gone by its middle; at the end it slides down out of the way
+   (it follows the list's own end fade, --sb-fade-b), so the last message, and an answer writing in, stay whole.
+   With the keyboard up the melt sits above the bar where it rides (--kb-room, the keyboard's room). */
+@supports (animation-timeline: scroll()) {
+  .sheet-pane .coach-body.sheet-body[data-scrollable] { --melt: calc(100% - var(--foot-h, 90px) - var(--kb-room, 0px) + (40px - var(--sb-fade-b)) * 1.3);
+    -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--sb-fade), #000 calc(var(--melt) - 30px), rgba(0,0,0,.25) calc(var(--melt) + 4px), transparent calc(var(--melt) + 22px));
+    mask-image: linear-gradient(to bottom, transparent, #000 var(--sb-fade), #000 calc(var(--melt) - 30px), rgba(0,0,0,.25) calc(var(--melt) + 4px), transparent calc(var(--melt) + 22px)); }
+}
 .coach-sent { animation: coachSend 620ms cubic-bezier(.2, .8, .2, 1) backwards; }
 @keyframes coachSend {
   from { opacity: 0; transform: translate3d(0, 28px, 0) scale(.975); }
@@ -1500,7 +1510,13 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 @supports (animation-timeline: scroll()) {
   .fade-top { -webkit-mask-image: linear-gradient(to bottom, transparent, rgba(0,0,0,.1) calc(var(--ft) * .2), rgba(0,0,0,.36) calc(var(--ft) * .45), rgba(0,0,0,.74) calc(var(--ft) * .74), #000 var(--ft)); mask-image: linear-gradient(to bottom, transparent, rgba(0,0,0,.1) calc(var(--ft) * .2), rgba(0,0,0,.36) calc(var(--ft) * .45), rgba(0,0,0,.74) calc(var(--ft) * .74), #000 var(--ft));
     animation: ft-in linear both; animation-timeline: scroll(self); animation-range: 0 40px; }
+  /* …and the orb's talk list melts away at its bottom too while there is more below (it was cut in a straight line above the
+     buttons). Gone once it is at its end, so the typing box and its glow sit there whole. */
+  .fade-top.fade-bottom { -webkit-mask-image: linear-gradient(to bottom, transparent, rgba(0,0,0,.1) calc(var(--ft) * .2), rgba(0,0,0,.36) calc(var(--ft) * .45), rgba(0,0,0,.74) calc(var(--ft) * .74), #000 var(--ft), #000 calc(100% - var(--fb)), rgba(0,0,0,.36) calc(100% - var(--fb) * .45), transparent); mask-image: linear-gradient(to bottom, transparent, rgba(0,0,0,.1) calc(var(--ft) * .2), rgba(0,0,0,.36) calc(var(--ft) * .45), rgba(0,0,0,.74) calc(var(--ft) * .74), #000 var(--ft), #000 calc(100% - var(--fb)), rgba(0,0,0,.36) calc(100% - var(--fb) * .45), transparent);
+    animation: ft-in linear both, fb-out linear both; animation-timeline: scroll(self), scroll(self); animation-range: 0 40px, calc(100% - 40px) 100%; }
 }
+@property --fb { syntax: '<length>'; inherits: false; initial-value: 0px; }
+@keyframes fb-out { from { --fb: 40px; } to { --fb: 0px; } }
 
 /* ── Focus view (screens/workout/Focus.tsx): one exercise per page, the next one a swipe away ──
    Switching views is a crossfade on the window's calm curve: the list sinks back and fades, Focus rises in a beat later.

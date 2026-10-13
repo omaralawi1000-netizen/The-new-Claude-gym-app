@@ -55,8 +55,10 @@ function PlanTab() {
   const start = (r: Routine) => {
     if (s.active) { resumeWorkout(() => push('workout', { origin: 'pill' })); return; }
     haptic('confirm');
-    s.startWorkout({ routine: r, plannedDate: plannedFor(s, today, today)?.routineId === r.id ? today : undefined });
-    push('workout', { origin: 'none' });
+    resumeWorkout(() => {
+      s.startWorkout({ routine: r, plannedDate: plannedFor(s, today, today)?.routineId === r.id ? today : undefined });
+      push('workout', { origin: 'none' });
+    });
   };
   // one bright play button: the workout you're in, or today's; the others stay glass with the colour only in the icon
   const hero = s.active?.routineId ?? plannedFor(s, today, today)?.routineId;
