@@ -318,17 +318,20 @@ export function SphereStage() {
     // A popup's own motion (its transform, the dim and blur fading, the page stepping back) rewrites a style attribute every
     // frame. Its transform is applied below; decorative layers don't change layout.
     const MOVING = '.sheet, .sheet-pane, .sheet-page, .scrim, .scrim > i, .stage, .wk-card, .wk-sheet, .fields, .aurora, .sphere-stage, .lens, .lens > i';
+    // Inside the live workout's window nothing but the bar's own box can move its slot (the bar is pinned to the window's
+    // foot): the list, Focus, the header and the bar's words changing used to force a fresh measure of the whole page on
+    // every frame they changed (a set ticked, a page turned, the clock rolling), the biggest part of a tick's cost.
+    const inWorkout = (t: Element) => { const sh = t.closest?.('.wk-sheet'); return !!sh && t !== sh && !t.contains(sh.querySelector('.wk-bar-orb')); };
     const lmo = new MutationObserver((recs) => {
       for (const r of recs) {
         if (r.type === 'attributes' && r.target === appEl && r.attributeName === 'style') continue; // the stage's backdrop colour
-        // the live workout's scrolling list never moves a slot (the orb sits in the bar below it), but exercises arriving one
-        // by one as it opens used to force a fresh measure of the whole page on every frame of the opening
-        if ((r.target as Element).closest?.('.wk-list')) continue;
+        const t = (r.target.nodeType === 1 ? r.target : r.target.parentElement) as Element | null;
+        if (t && inWorkout(t)) continue;
         if (r.type !== 'attributes' || !(r.target as Element).matches?.(MOVING)) { dirty(); return; }
       }
     });
     if (appEl) lmo.observe(appEl, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class', 'data-active', 'hidden'] });
-    const onScroll = (e: Event) => { if ((e.target as Element | null)?.classList?.contains('wk-list')) return; dirty(); };
+    const onScroll = (e: Event) => { const t = e.target as Element | null; if (t?.closest?.('.wk-sheet')) return; dirty(); }; // (see inWorkout)
     window.addEventListener('scroll', onScroll, { capture: true, passive: true });
     window.addEventListener('resize', dirty);
     window.visualViewport?.addEventListener('resize', dirty);

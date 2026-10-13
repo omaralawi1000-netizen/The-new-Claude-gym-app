@@ -1384,3 +1384,14 @@ flicker fingerprint). `--film a,b` films chosen actions, `--light` for the light
   Drops over the audit run ~140 → ~116. Tried and left out: building Focus ahead, hidden, to cut the short pause before it
   moves at 4× CPU (no clear gain in films or `perf-app.mjs`, and every tick re-drew the hidden pages). `scripts/film-workout.mjs`
   films the sheet's main moves (start, tick, to/from Focus, page turns, minimise, resume).
+- v0.1.71, from Omar's recording (typing a weight in Focus: "this looks very bad"):
+  - The window's header slid up under the top edge while the keyboard was up, and jumped back when the window closed. The
+    bar stepping out of the way (a transform) made the window 88 px taller than itself, `overflow: hidden` left it
+    scrollable by the browser, and Chrome scrolled it to show the field. `.wk-sheet` is `overflow: clip` now (it can't be
+    scrolled at all), and `watchFocus` glides the field into the room above the keyboard (the list or Focus's page scrolls).
+  - The bar no longer drops out of sight before a pop-up or the keyboard rises: it stays, and the sheet or keyboard covers
+    it in one motion, as a tab bar on iOS. The header shows a running rest while the keyboard (not merely a focused field) is up.
+  - An empty field's "—" hides while you type in it (with the cursor it read as a "+").
+  - Lighter: the orb no longer re-measures the page for changes inside the workout window (only the bar's box can move its
+    slot); Focus's figures are measured together, then scaled (each one used to lay the page out again); the rest sound is
+    made ahead, when the phone is idle, not by the first tick. `scripts/perf-workout.mjs` measures the window's moments at 4×.

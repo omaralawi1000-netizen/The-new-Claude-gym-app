@@ -1,4 +1,4 @@
-// Films workout moments frame by frame (4x CPU, touches): start, switch to Focus, turn a page, back to List, tick, minimise.
+// Films workout moments frame by frame (4x CPU, touches): start, tick, a ••• menu over the bar, switch to Focus, turn a page, back to List, tick, minimise.
 // usage: node scripts/film-workout.mjs [--light] [names…]   (URL defaults to the preview build) → shots/film/<theme>-<name>.jpg
 import { launch, wait, skipOnboarding, loadDemo } from './lib.mjs';
 import { filmer } from './film-act.mjs';
@@ -16,6 +16,8 @@ const swipe = async (dx) => { const bx = await p.locator('.wk-pager').boundingBo
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }); };
 await step('start', () => p.getByRole('button', { name: /Start workout/ }).first().tap(), 2200);
 await step('tick', () => p.getByRole('button', { name: 'Complete set' }).first().tap(), 1400);
+await step('menu', () => p.locator('.wk-list').getByRole('button', { name: 'Exercise options' }).first().tap(), 1400);
+await step('menu-close', () => p.keyboard.press('Escape'), 1400);
 await step('to-focus', () => p.getByRole('button', { name: 'Focus view' }).tap(), 1800);
 await step('page-next', () => swipe(-280), 1500);
 await step('page-back', () => swipe(280), 1500);
