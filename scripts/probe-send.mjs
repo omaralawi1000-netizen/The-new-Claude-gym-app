@@ -9,8 +9,9 @@ const reply = 'Sure. Your **Chest and Biceps** session is lined up for today.';
 await ctx.addInitScript(([reply]) => {
   const l = {}; const vk = { overlaysContent: false, boundingRect: { height: 0 }, addEventListener: (t, f) => { (l[t] ||= []).push(f); }, removeEventListener: () => {} };
   Object.defineProperty(navigator, 'virtualKeyboard', { value: vk });
-  // the keyboard slides (about 250 ms), as a real one does
-  let cur = 0, anim = 0; window.__setKb = (h) => { cancelAnimationFrame(anim); const from = cur, t0 = performance.now(); const step = () => { const k = Math.min(1, (performance.now() - t0) / 250); cur = from + (h - from) * (1 - Math.pow(1 - k, 3)); vk.boundingRect = { height: cur }; (l.geometrychange || []).forEach((f) => f()); if (k < 1) anim = requestAnimationFrame(step); }; step(); };
+  // Chrome on Android tells the keyboard's final height once, as it starts to move (the app springs along with it);
+  // SLIDE=1: a keyboard reported in steps along a 250 ms slide instead
+  let cur = 0, anim = 0; window.__setKb = window.__slide ? (h) => { cancelAnimationFrame(anim); const from = cur, t0 = performance.now(); const step = () => { const k = Math.min(1, (performance.now() - t0) / 250); cur = from + (h - from) * (1 - Math.pow(1 - k, 3)); vk.boundingRect = { height: cur }; (l.geometrychange || []).forEach((f) => f()); if (k < 1) anim = requestAnimationFrame(step); }; step(); } : (h) => { vk.boundingRect = { height: h }; (l.geometrychange || []).forEach((f) => f()); };
   document.addEventListener('focusin', (e) => { if (/INPUT|TEXTAREA/.test(e.target.tagName)) setTimeout(() => window.__setKb(320), 30); });
   document.addEventListener('focusout', (e) => { if (/INPUT|TEXTAREA/.test(e.target.tagName)) setTimeout(() => { if (!/INPUT|TEXTAREA/.test(document.activeElement?.tagName || '')) window.__setKb(0); }, 30); });
   const real = window.fetch;
@@ -24,6 +25,7 @@ await ctx.addInitScript(([reply]) => {
     return new Response(new ReadableStream({ async start(c) { await new Promise((r) => setTimeout(r, 1400)); c.enqueue(enc.encode(`data: ${JSON.stringify({ candidates: [{ content: { parts: [{ text: txt }] } }] })}\n\n`)); c.close(); } }), { headers: { 'content-type': 'text/event-stream' } });
   };
 }, [reply]);
+if (process.env.SLIDE) await ctx.addInitScript(() => { window.__slide = true; });
 const film = await filmer(ctx, p);
 if (process.env.DETAIL) await ctx.addInitScript(() => { window.__detail = true; });
 await p.goto(process.env.URL || 'http://127.0.0.1:4173/'); await wait(p, 1500);

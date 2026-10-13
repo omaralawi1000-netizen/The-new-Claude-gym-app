@@ -1657,3 +1657,17 @@ preview (seven judged rounds, `/mnt/project-files/workout-fullpage/`) and said y
   of the page lingers under the bar at the end of a slide.
 - Smoothness at 4x CPU (`scripts/perf-open.mjs`): minimise and resume draw fewer late frames than the card did, start the same.
   Films: `scripts/film-fullpage.mjs` (steady camera, `scripts/film-steady.mjs`).
+
+## Coach: the messages stay put while the keyboard goes down after a send (13 Oct 2026, v0.1.98)
+Omar's recording: he sent "Ok", the message flew up smoothly, then as the keyboard went down the last messages vanished and
+popped back a moment later, which read as the whole list jumping.
+- Cause: the soft melt above the typing bar (v0.1.94) was placed at the keyboard's full room the whole time the keyboard was
+  moving. The bar rode down with the keyboard, but the melt stayed up, hiding everything between them (up to 339 px), and
+  jumped back down only once the keyboard had landed. The same happened, briefly, on the way up.
+- Now the Coach tells the list where the keyboard is each frame (`--kb-now`, set where the list already rides with the
+  keyboard) and the melt sits on the bar all the way (0 px hidden in every frame, dark and light, at 4x CPU). The room the
+  keyboard hasn't covered yet doesn't count as "scrolled up", so the melt keeps out of the last message's way on the way.
+- `--melt` is now registered and not inherited: it changes as you scroll and is used only by the list's own mask, so it is
+  no longer handed down to every word of the conversation.
+- `scripts/probe-melt.mjs`: the melt against the bar, frame by frame, while the keyboard comes up and while a message is sent.
+  Its fake keyboard reports its final height once, as Chrome on Android does.
