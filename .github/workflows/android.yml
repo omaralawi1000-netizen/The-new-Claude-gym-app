@@ -21,6 +21,8 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.11.1'
+          # keep the downloaded libraries between runs on this branch too (Maven Central rate-limits fresh runners)
+          cache-read-only: false
       - name: Release key (if set up)
         env:
           KS: ${{ secrets.AVEN_KEYSTORE_BASE64 }}
@@ -30,7 +32,13 @@ jobs:
         env:
           AVEN_KEYSTORE_PASSWORD: ${{ secrets.AVEN_KEYSTORE_PASSWORD }}
           AVEN_VERSION_CODE: ${{ github.run_number }}
-        run: gradle -p android assembleDebug assembleRelease --stacktrace
+        # a refused download (429 Too Many Requests) is retried after a pause; what did download is kept
+        run: |
+          for i in 1 2 3; do
+            gradle -p android assembleDebug assembleRelease --stacktrace && exit 0
+            echo "Build attempt $i failed; retrying in 90 s"; sleep 90
+          done
+          exit 1
       - name: Signing fingerprint (for assetlinks.json)
         run: keytool -printcert -jarfile android/app/build/outputs/apk/release/app-release.apk | tee fingerprint.txt
       - uses: actions/upload-artifact@v4
