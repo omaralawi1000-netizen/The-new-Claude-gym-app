@@ -168,6 +168,9 @@ export const Words = memo(function Words({ text, k, base = 0, on = -1, stagger, 
     const step = Math.min(34, stagger / Math.max(1, fresh.length - 1));
     fresh.forEach((i, j) => { born.current[i] = j * step; });
   }
+  // already there and not being read aloud: plain text (a word's span is only needed while it comes in or lights up;
+  // a long chat was hundreds of spans to build and restyle when the Coach opened)
+  if (still && on < 0) return <>{text}</>;
   let n = base;
   return <>{parts.map((w, i) => {
     if (/^\s+$/.test(w) || !w) return w || null;

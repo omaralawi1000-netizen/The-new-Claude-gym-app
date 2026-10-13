@@ -34,6 +34,8 @@ const WkLive = createContext(true);
  * no active workout any more by then; without this the whole window and the sheet on it vanished in one frame.
  */
 export const WkFrozen = createContext<WorkoutSession | null>(null);
+/** The id of the empty stand-in the window is built ahead with, before any workout exists (WorkoutHost). */
+export const WK_GHOST = 'wk-ahead';
 /** The live workout, or the one just ended while it leaves the screen. */
 export function useActive(): WorkoutSession | null {
   const frozen = useContext(WkFrozen);
@@ -290,16 +292,30 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
   // once the opening has built the list, an exercise that joins it (added, or brought back by Undo) unfolds into place
   const listSettled = useRef(false);
   useEffect(() => { if (listDone) listSettled.current = true; }, [listDone]);
+  // built ahead for a workout not started yet (WorkoutHost): the one you start takes this window over, and its list comes in
+  // exactly as on a first opening
+  const sid = a?.id ?? null;
+  const [sidSeen, setSidSeen] = useState(sid);
+  if (sidSeen !== sid) {
+    setSidSeen(sid);
+    if (sidSeen === WK_GHOST) {
+      listDoneAtOpen.current = total0 <= 2;
+      firstIds.current = new Set((a?.exercises ?? []).slice(0, 2).map((e) => e.id));
+      listSettled.current = false;
+      setListDone(listDoneAtOpen.current); setShown(0);
+    }
+  }
   // the rest-over sound, made while nothing else is happening: once the list is built (made as soon as the window had
   // landed, it ran while the rest of the list was still arriving, ~11 ms at once on the phone)
   useEffect(() => { if (ready && listDone) prepareRestAudio(); }, [ready, listDone]);
   useEffect(() => {
+    if (sid === WK_GHOST) return; // (nothing to stage yet)
     if (p.get() >= 0.97) { setReady(true); return; }
     const off = p.on('change', (v) => { if (v >= 0.97) { setReady(true); off(); } });
     const fallback = setTimeout(() => setReady(true), 900);
     return () => { off(); clearTimeout(fallback); };
     // eslint-disable-next-line
-  }, []);
+  }, [sid === WK_GHOST]);
   useEffect(() => {
     if (!ready || shown < lead || shown >= total0) return;
     const id = setTimeout(() => setShown((n) => n + 1), 70);
@@ -789,7 +805,7 @@ export const ExerciseBlock = memo(function ExerciseBlock({ se, ex, linkedPrev, l
           })}
         </AnimatePresence>
         <div className="row-flex" style={{ gap: 8, marginTop: 10 }}>
-          <button className="btn sm press grow" onClick={() => { haptic('light'); addSet(se.id); }}><Icon name="plus" size={16} /> {t('Set')}</button>
+          <button className="btn sm press grow wk-add-set" onClick={() => { haptic('light'); addSet(se.id); }}><Icon name="plus" size={16} /> {t('Set')}</button>
           {(!ex || ex.logType === 'weightReps' || ex.logType === 'bodyweightReps' || ex.logType === 'assisted') && <button className="btn sm ghost press" onClick={() => addSet(se.id, 'warmup')}>{t('+ Warm-up')}</button>}
         </div>
       </div>

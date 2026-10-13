@@ -1460,6 +1460,17 @@ flicker fingerprint). `--film a,b` films chosen actions, `--light` for the light
     pop-up opening re-rendered the whole app twice for it, once inside the tap and once two frames into the motion.
   - The calm rule names the one thing on a page that still blurs (`.screen .seg`) instead of `.screen *`: switching it
     restyled every element of the page (~900, 55 ms at 4x), two frames into EVERY pop-up's motion.
+- v0.1.94, Start moves on the tap like Resume (first Start of the day, at 4x CPU, 3 runs each, before → after):
+  - Finger down → first moving frame: 257-342 → 127-137 ms (Resume is 97-150). The 160-230 ms task that built the window
+    inside the tap is gone; what is left (the list's first exercises) runs while the window is already moving on the
+    compositor.
+  - How: once the app has settled (a couple of seconds in, no touch for 1.5 s, then the next idle moment), the
+    window is built ahead and parked off-screen exactly as a minimised one, holding an empty stand-in (`WK_GHOST`). Start
+    sets its slide going first; the workout is made and the app told after that frame, and the started workout takes the
+    same window over (its list comes in as on any first opening). After a workout ends it is built again the same way.
+  - Cost: launch unchanged (Start on screen ~1.2-1.4 s at 4x either way, same long tasks); the build itself is 50-130 ms
+    at 4x, in pieces, ~2.5 s after launch; +0.3 MB JS heap, +52 elements. Also covers reopening the app mid-workout: the
+    first Resume no longer builds the window either.
 
 ## Android app: the rest as a live countdown, new icon, calmer opening (13 Oct 2026, v0.1.72)
 Omar's phone showed the website's plain notice ("Back at 10:02", the site's address) instead of the app's countdown.
@@ -1591,3 +1602,42 @@ the fake keyboard now slides in 250 ms like a real one; positions are read after
   the text ended, kept inside the field.
 - Not changed: when you send from the keyboard, the keyboard still goes down as the message nearly lands and the list
   rides down with it (by design since earlier rounds).
+
+## No more hard cut-off edges in the Coach and on the orb screen (13 Oct 2026, v0.1.94)
+Swept with `scripts/shots-cutout.mjs` (AVEN_GPU=1; end, mid and top of a long chat, keyboard up, writing in, answered, new
+chat, the orb screen open, typing, writing in, answered; light and dark):
+- Coach, scrolled up: the list ran sharp right under the typing bar, so words passed under the orb and the camera and were
+  sliced off by the field's edges. It now melts away just above the bar (gone by its middle); with the keyboard up, above
+  the bar where it rides. At the end the melt slides down out of the way (it follows the list's end fade), so the last
+  message and an answer writing in stay whole. This is the Coach only: other sheets' buttons still float with nothing behind
+  (v0.1.8); the Coach's bar is a whole row, not one button.
+- Orb screen: a long answer was cut in a straight line above the buttons; it now melts there while there is more below
+  (`.fade-bottom`, scroll-driven like the top fade). The typing box's focus glow was clipped by the scrolling area into hard
+  bands above and below it; the area has room round its content now.
+
+## The Coach opens with less to build; the orb's glide to the mic starts clean (13 Oct 2026, v0.1.95)
+- Measured the orb's moves frame by frame (`scripts/probe-orb.mjs`, read after each frame is drawn): dock to the Coach's
+  mic, keyboard up and down, back to the dock, the orb screen opening, shrinking for typing, thinking, closing. Each path is
+  one smooth move that lands exactly (0.0 px); none reverses or pushes twice. What broke the dock-to-mic glide was the
+  stall at its start: opening the Coach built every word of the saved chat as its own two spans (~650 elements restyled in
+  the tap).
+- Saved answers that are not being read aloud are now plain text; the words become spans only while one is read aloud
+  (each word lights up) or while an answer writes itself in. Line breaks are the same (checked side by side). Coach open
+  at 4× CPU: worst task ~200-220 ms → ~105-140 ms.
+- Not changed: the orb screen's orb still grows and shrinks by its box size: measured, it costs little layout on that small
+  screen and its path is smooth.
+
+## Aven glass: neutral buttons, chips and cards are glass with a warm edge of light (13 Oct 2026, v0.1.96)
+- The see-through grey rounded surfaces (buttons, chips, round buttons, cards, the dock, a sheet's bottom button, set
+  number tiles) now share one material, painted once and never animated:
+  - a soft glow of the area's own colour falling from the top;
+  - a faint sheen;
+  - a crisp 1 px rim that is warm along the top and fades down the sides;
+  - a gentle lift.
+  Text fields became wells. No new blur.
+- Kept quiet on purpose. In dark, the set tiles and "+ Set" keep only the rim, so the active set stays the loudest thing in
+  its card. In light, only the active set's tile glows. Round buttons use the same 1 px rim (1.5 px was too loud); the
+  dock keeps 1.5 px. In dark, the dock's active tab is warm, not cool grey.
+- Switched on by `<html data-glass="v2">` in index.html. The rules sit behind that attribute so
+  `scripts/glass-shots.mjs` can compare with and without it. Checks: `scripts/glass-audit.mjs` (no new blind blurs);
+  `scripts/flicker-layers.mjs` shows the same 11 drops with and without it.

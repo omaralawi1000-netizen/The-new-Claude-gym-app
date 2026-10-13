@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { startTransition, useEffect, useRef, useState } from 'react';
 import { AnimatePresence } from 'motion/react';
 import { OverlayMeta, OverlayZ } from '../ui/Sheet';
 import { useUI, type Overlay } from '../state/ui';
 import { useStore } from '../state/store';
-import { ActiveWorkout, WkFrozen } from './workout/Active';
+import { ActiveWorkout, WkFrozen, WK_GHOST } from './workout/Active';
 import type { WorkoutSession } from '../lib/types';
 import { SettingsSheet } from './Settings';
 import { FoodSearch } from './food/Search';
@@ -31,13 +31,17 @@ const meta = (id: string, page: boolean) => { let m = metas.get(id); if (!m) { m
  * The live workout stays mounted once it has been opened, until it is finished or discarded: minimising only slides it away
  * (and hides it), so opening it again is just the slide — the whole list used to be rebuilt on every Resume, a pause after
  * the tap each time. While it is open it sits in the stack at the workout overlay's place.
+ *
+ * It is also built ahead, hidden, once the app has settled after starting (and again after a workout has ended): before a
+ * workout exists it holds an empty stand-in (WK_GHOST), and the workout you start takes that same window over, so Start moves
+ * on the tap exactly like Resume. Building it in the tap was ~45 ms on the phone before anything moved.
  */
 function WorkoutHost() {
   const overlays = useUI((s) => s.overlays);
   const active = useStore((s) => s.active);
   const activeId = active?.id ?? null;
   const idx = overlays.findIndex((o) => o.type === 'workout');
-  const last = useRef<{ o: Overlay; z: number } | null>(null);
+  const last = useRef<{ o: Overlay; z: number }>({ o: { id: 'workout-ahead', type: 'workout' }, z: 60 });
   if (idx >= 0) last.current = { o: overlays[idx], z: 60 + idx * 10 };
   const [kept, setKept] = useState<string | null>(null);
   useEffect(() => { if (idx >= 0 && activeId) setKept(activeId); }, [idx, activeId]);
@@ -48,14 +52,44 @@ function WorkoutHost() {
   if (!active && seen.current.a && seen.current.open && leaving?.id !== seen.current.a.id) setLeaving(seen.current.a);
   if (active && leaving) setLeaving(null);
   seen.current = { a: active, open: idx >= 0 && !!active };
-  const shownId = activeId ?? leaving?.id ?? null;
-  if (!shownId || !last.current || (idx < 0 && !leaving && kept !== activeId)) return null;
+  const ahead = useAhead(activeId, !!leaving);
+  const shownId = activeId ?? leaving?.id ?? (ahead ? WK_GHOST : null);
+  // one window per workout, except that a workout started while the stand-in is waiting takes that window over
+  const slot = useRef<{ id: string; key: string } | null>(null);
+  if (shownId && slot.current?.id !== shownId) slot.current = { id: shownId, key: slot.current?.id === WK_GHOST ? slot.current.key : shownId === WK_GHOST ? `${WK_GHOST}-${++aheadN}` : shownId };
+  if (!shownId || (idx < 0 && !leaving && kept !== activeId && !ahead)) return null;
   const { o, z } = last.current;
   return (
-    <OverlayZ.Provider value={z}><OverlayMeta.Provider value={meta(o.id, false)}><WkFrozen.Provider value={active ? null : leaving}>
-      <ActiveWorkout key={shownId} props={o.props ?? {}} open={idx >= 0 && !!active} onGone={() => setLeaving(null)} />
+    <OverlayZ.Provider value={z}><OverlayMeta.Provider value={meta(o.id, false)}><WkFrozen.Provider value={active ? null : (leaving ?? ghost)}>
+      <ActiveWorkout key={slot.current!.key} props={o.props ?? {}} open={idx >= 0 && !!active} onGone={() => setLeaving(null)} />
     </WkFrozen.Provider></OverlayMeta.Provider></OverlayZ.Provider>
   );
+}
+
+let aheadN = 0;
+const ghost: WorkoutSession = { id: WK_GHOST, name: '', date: '', startedAt: 0, pausedMs: 0, status: 'active', exercises: [], rest: null };
+/**
+ * True once the app has settled (a few seconds in, the finger off the screen for a moment, the main thread free), so the
+ * workout window can be built ahead. It is built as a render that yields, so a tap in the middle still gets through. Cleared
+ * when a workout ends, and asked for again once its window has gone, so the next one is built ahead too.
+ */
+function useAhead(activeId: string | null, leaving: boolean): boolean {
+  const [ahead, setAhead] = useState(false);
+  const was = useRef(activeId);
+  if (was.current && !activeId && ahead) setAhead(false);
+  was.current = activeId;
+  useEffect(() => {
+    if (ahead || leaving || typeof requestIdleCallback !== 'function') return;
+    let id = 0, timer = 0, touched = performance.now();
+    const touch = () => { touched = performance.now(); };
+    // (the page's slow ambient light keeps frames coming, so "idle" is only ever the gap between two frames)
+    const ask = () => { id = requestIdleCallback(() => { if (performance.now() - touched < 1500) later(); else startTransition(() => setAhead(true)); }, { timeout: 4000 }); };
+    const later = () => { timer = window.setTimeout(ask, 1500); };
+    window.addEventListener('pointerdown', touch, true);
+    later();
+    return () => { clearTimeout(timer); cancelIdleCallback(id); window.removeEventListener('pointerdown', touch, true); };
+  }, [ahead, leaving]);
+  return ahead;
 }
 
 /** Renders the overlay stack. Each overlay owns its presentation (sheet, morph, or full-screen). */
