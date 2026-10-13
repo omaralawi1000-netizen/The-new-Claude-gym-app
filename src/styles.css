@@ -468,10 +468,10 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
    Real frost stays where something passes underneath (the sheet's bottom buttons, the dock, sheets, toasts). */
 /* the glow is a straight vertical fall-off with soft stops (a radial one ended in a visible band on wide, short pills) */
 :root[data-glass='v2'] {
-  --mat-glow: linear-gradient(180deg, color-mix(in srgb, var(--ac) 15%, transparent), color-mix(in srgb, var(--ac) 6%, transparent) 38%, color-mix(in srgb, var(--ac) 1.5%, transparent) 72%, transparent);
-  --mat-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.025) 45%, rgba(255, 255, 255, 0));
-  --mat-rim: linear-gradient(180deg, color-mix(in srgb, color-mix(in srgb, var(--ac) 25%, #fff) 70%, transparent), rgba(255, 255, 255, 0.1) 32%, rgba(255, 255, 255, 0.03) 70%, rgba(255, 255, 255, 0.08));
-  --mat-depth: 0 1px 1px rgba(0, 0, 0, 0.4), 0 12px 26px -12px rgba(0, 0, 0, 0.8);
+  --mat-glow: linear-gradient(180deg, color-mix(in srgb, var(--ac) 18%, transparent), color-mix(in srgb, var(--ac) 7%, transparent) 38%, color-mix(in srgb, var(--ac) 2%, transparent) 72%, transparent);
+  --mat-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.085), rgba(255, 255, 255, 0.03) 45%, rgba(255, 255, 255, 0));
+  --mat-rim: linear-gradient(180deg, color-mix(in srgb, color-mix(in srgb, var(--ac) 25%, #fff) 85%, transparent), rgba(255, 255, 255, 0.13) 30%, rgba(255, 255, 255, 0.035) 70%, rgba(255, 255, 255, 0.1));
+  --mat-depth: 0 1px 1px rgba(0, 0, 0, 0.45), 0 14px 28px -12px rgba(0, 0, 0, 0.85);
   --mat-well: inset 0 2px 5px rgba(0, 0, 0, 0.6), inset 0 0 0 1px rgba(255, 255, 255, 0.055), inset 0 -1px 0 color-mix(in srgb, color-mix(in srgb, var(--ac) 25%, #fff) 22%, transparent);
   --mat-well-bg: linear-gradient(180deg, rgba(0, 0, 0, 0.12), rgba(255, 255, 255, 0.025));
 }
@@ -517,6 +517,16 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
 :root[data-glass='v2'] .sheet .sheet-foot .btn.btn:not([disabled]) { color: var(--tx); font-weight: 650; }
 :root[data-glass='v2'][data-theme='light'] .sheet .sheet-foot .btn.btn { background-color: rgba(255, 255, 255, 0.66); background-image: var(--mat-sheen); box-shadow: 0 1px 1.5px rgba(30, 40, 70, 0.14), 0 18px 34px -12px rgba(30, 40, 70, 0.5); }
 :root[data-glass='v2'] .btn[disabled]::after { opacity: 0.55; }
+/* a bottom button that can't be pressed yet is quieter glass: thinner fill, no light, a faint rim, barely lifted */
+:root[data-glass='v2'] .sheet .sheet-foot .btn.btn[disabled] { background-image: none; box-shadow: 0 8px 18px -12px rgba(0, 0, 0, 0.5); }
+:root[data-glass='v2'][data-theme='light'] .sheet .sheet-foot .btn.btn[disabled] { background-color: rgba(255, 255, 255, 0.34); box-shadow: 0 6px 14px -10px rgba(30, 40, 70, 0.22); }
+:root[data-glass='v2'] .sheet .sheet-foot .btn.btn[disabled]::after { opacity: 0.4; }
+/* the workout's set number tiles are the same glass (a done set's tile stays clear, a warm-up keeps its colour) */
+:root[data-glass='v2'] .wk-set:not(.done, .warm) .wk-set-n { position: relative; background-image: var(--mat-glow), var(--mat-sheen); box-shadow: var(--mat-depth); }
+:root[data-glass='v2'] .wk-set:not(.done, .warm) .wk-set-n::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; padding: 1px; background: var(--mat-rim);
+  -webkit-mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}
 .toggle-knob { position: absolute; top: 3px; left: 3px; width: 26px; height: 26px; border-radius: 99px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.4), 0 3px 8px -2px rgba(0,0,0,.25); transition: transform 460ms var(--ease-spring); will-change: transform; }
 
 .field { display: flex; flex-direction: column; gap: 6px; }
