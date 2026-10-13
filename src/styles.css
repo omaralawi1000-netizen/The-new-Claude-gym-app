@@ -472,7 +472,8 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
   --mat-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.025) 45%, rgba(255, 255, 255, 0));
   --mat-rim: linear-gradient(180deg, color-mix(in srgb, color-mix(in srgb, var(--ac) 25%, #fff) 70%, transparent), rgba(255, 255, 255, 0.1) 32%, rgba(255, 255, 255, 0.03) 70%, rgba(255, 255, 255, 0.08));
   --mat-depth: 0 1px 1px rgba(0, 0, 0, 0.4), 0 12px 26px -12px rgba(0, 0, 0, 0.8);
-  --mat-well: inset 0 1.5px 3px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(255, 255, 255, 0.05), inset 0 -1px 0 color-mix(in srgb, color-mix(in srgb, var(--ac) 20%, #fff) 14%, transparent);
+  --mat-well: inset 0 2px 5px rgba(0, 0, 0, 0.6), inset 0 0 0 1px rgba(255, 255, 255, 0.055), inset 0 -1px 0 color-mix(in srgb, color-mix(in srgb, var(--ac) 25%, #fff) 22%, transparent);
+  --mat-well-bg: linear-gradient(180deg, rgba(0, 0, 0, 0.12), rgba(255, 255, 255, 0.025));
 }
 :root[data-glass='v2'][data-theme='light'] {
   --mat-glow: linear-gradient(180deg, color-mix(in srgb, var(--ac) 13%, transparent), color-mix(in srgb, var(--ac) 4%, transparent) 40%, transparent 80%);
@@ -480,6 +481,7 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
   --mat-rim: linear-gradient(180deg, color-mix(in srgb, var(--ac) 38%, #fff), #fff 22%, rgba(255, 255, 255, 0.6) 40%, rgba(20, 28, 48, 0.08) 68%, rgba(20, 28, 48, 0.16));
   --mat-depth: 0 1px 1.5px rgba(30, 40, 70, 0.12), 0 12px 24px -12px rgba(30, 40, 70, 0.45);
   --mat-well: inset 0 1.5px 3px rgba(30, 40, 70, 0.16), inset 0 0 0 1px rgba(20, 28, 48, 0.07), inset 0 -1px 0 #fff;
+  --mat-well-bg: linear-gradient(180deg, rgba(20, 28, 48, 0.03), rgba(255, 255, 255, 0.3));
 }
 :root[data-glass='v2'] :is(.btn:not(.primary, .ghost), .chip:not(.on, .acc), .icon-btn:not(.flat, .acc, .speak-btn), .plinth) {
   background-image: var(--mat-glow), var(--mat-sheen);
@@ -494,20 +496,26 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
   -webkit-mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
 }
 /* round buttons are small: a slightly brighter rim and a firmer lift so they read as the same glass at phone size */
-:root[data-glass='v2'] .icon-btn:not(.flat, .acc, .speak-btn)::after { padding: 1.25px; }
-:root[data-glass='v2'] .icon-btn:not(.flat, .acc, .speak-btn) { box-shadow: var(--mat-depth), 0 4px 10px -6px rgba(0, 0, 0, 0.5); }
+:root[data-glass='v2'] .icon-btn:not(.flat, .acc, .speak-btn)::after { padding: 1.5px; }
+:root[data-glass='v2'] .icon-btn:not(.flat, .acc, .speak-btn) { box-shadow: var(--mat-depth), 0 7px 16px -7px rgba(0, 0, 0, 0.7); }
+:root[data-glass='v2'][data-theme='light'] .icon-btn:not(.flat, .acc, .speak-btn) { box-shadow: var(--mat-depth), 0 7px 16px -8px rgba(30, 40, 70, 0.3); }
+/* a sideways row of chips scrolls, so it clips: room underneath lets their shadows fall softly instead of being cut */
+:root[data-glass='v2'] .chips { padding-bottom: 26px; margin-bottom: -26px; }
 /* the dock: the same top edge of light along its rim, and the same lift */
-:root[data-glass='v2'] .tabbar.glass { background-image: var(--mat-glow), var(--mat-sheen); box-shadow: var(--mat-depth); }
+:root[data-glass='v2'] .tabbar.glass { background-image: var(--mat-glow), var(--mat-sheen); box-shadow: 0 1px 1px rgba(0, 0, 0, 0.4), 0 20px 40px -14px rgba(0, 0, 0, 0.9); }
+:root[data-glass='v2'][data-theme='light'] .tabbar.glass { box-shadow: 0 1px 1.5px rgba(30, 40, 70, 0.12), 0 18px 36px -14px rgba(30, 40, 70, 0.4); }
+:root[data-glass='v2'] .tabbar.glass::after { padding: 1.5px; }
 :root[data-glass='v2'] .tabbar.glass::after { background: var(--mat-rim); opacity: 1; }
 /* fields (the workout's kg and reps, search, forms) are wells cut into the glass: shaded at the top, with a catch-light
    along the bottom edge, so they still read clearly as places to type (focus keeps its own ring) */
-:root[data-glass='v2'] .input:not(:focus) { box-shadow: var(--mat-well); }
+/* (:where keeps it light, so a done set's cleared field and the Coach's bare composer keep their own look) */
+:root[data-glass='v2'] :where(.input):not(:focus, .coach-field *) { box-shadow: var(--mat-well); background-image: var(--mat-well-bg); }
 :root[data-glass='v2'][data-theme='light'] .input { background-color: rgba(255, 255, 255, 0.5); }
 /* the bottom button of a sheet floats over the list: it keeps its frost and its single colour, takes only a faint wash of
    the area's light and the rim, and a deeper shadow; once it can be pressed its label is full white and bolder */
 :root[data-glass='v2'] .sheet .sheet-foot .btn.btn { background-image: linear-gradient(180deg, color-mix(in srgb, var(--ac) 9%, transparent), color-mix(in srgb, var(--ac) 3%, transparent) 55%, transparent); box-shadow: 0 1px 1px rgba(0, 0, 0, 0.3), 0 18px 36px -16px rgba(0, 0, 0, 0.8); }
 :root[data-glass='v2'] .sheet .sheet-foot .btn.btn:not([disabled]) { color: var(--tx); font-weight: 650; }
-:root[data-glass='v2'][data-theme='light'] .sheet .sheet-foot .btn.btn { background-image: none; box-shadow: 0 1px 1.5px rgba(30, 40, 70, 0.12), 0 18px 34px -14px rgba(30, 40, 70, 0.45); }
+:root[data-glass='v2'][data-theme='light'] .sheet .sheet-foot .btn.btn { background-color: rgba(255, 255, 255, 0.66); background-image: var(--mat-sheen); box-shadow: 0 1px 1.5px rgba(30, 40, 70, 0.14), 0 18px 34px -12px rgba(30, 40, 70, 0.5); }
 :root[data-glass='v2'] .btn[disabled]::after { opacity: 0.55; }
 .toggle-knob { position: absolute; top: 3px; left: 3px; width: 26px; height: 26px; border-radius: 99px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.4), 0 3px 8px -2px rgba(0,0,0,.25); transition: transform 460ms var(--ease-spring); will-change: transform; }
 
