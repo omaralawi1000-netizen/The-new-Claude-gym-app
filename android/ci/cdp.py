@@ -78,6 +78,9 @@ page = wait_page()
 if mode == 'rest':
     print('rest:', run(page, REST % (int(sys.argv[2]), int(sys.argv[3]) if len(sys.argv) > 3 else 25)))
     sys.exit(0)
+if mode == 'perm':
+    print(run(page, "(async () => 'page sees ' + Notification.permission + ' (query: ' + (await navigator.permissions.query({name: 'notifications'})).state + ')')()"))
+    sys.exit(0)
 if mode == 'clear':
     print('clear:', run(page, CLEAR))
     sys.exit(0)
