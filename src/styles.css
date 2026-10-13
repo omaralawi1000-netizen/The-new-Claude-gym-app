@@ -461,46 +461,41 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
 :root[data-theme='light'] .seg-lens { --lens-fill: #fff; }
 /* ── Aven glass: the material of every neutral rounded surface (cards, pills, chips, round buttons) ───────────────
    No longer a flat see-through grey. Three quiet things, all painted once (no extra blur, nothing animates, so it costs
-   nothing per frame):
-   - light from above: a soft sheen across the top half
-   - the area's own colour: a whisper of the orb's first hue glowing in from the top-left corner
-   - a hairline rim that catches the light along the top edge and fades away down the sides, with a faint catch-light
-     at the bottom, plus a soft shadow under it so it floats a little off the page
+   nothing per frame), the same on the page, in sheets and in the workout window:
+   - a crisp edge of light along the top, warmed by the area's own colour, fading away down the sides
+   - a soft inner glow of that same colour coming down from the top edge (never a cool cast over a warm screen)
+   - a gentle shadow under it, so it lifts a little off the page
    Real frost stays where something passes underneath (the sheet's bottom buttons, the dock, sheets, toasts). */
 :root[data-glass='v2'] {
-  --mat-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0) 58%);
-  --mat-hue: radial-gradient(140% 170% at 0% 0%, color-mix(in srgb, var(--h1) 13%, transparent), transparent 64%);
-  --mat-rim: linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.07) 42%, rgba(255, 255, 255, 0.025) 72%, rgba(255, 255, 255, 0.09));
-  --mat-depth: 0 1px 1px rgba(0, 0, 0, 0.3), 0 10px 22px -14px rgba(0, 0, 0, 0.65);
+  --mat-glow: radial-gradient(120% 95% at 50% -12%, color-mix(in srgb, var(--ac) 17%, transparent), transparent 72%);
+  --mat-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0) 52%);
+  --mat-rim: linear-gradient(180deg, color-mix(in srgb, color-mix(in srgb, var(--ac) 22%, #fff) 62%, transparent), rgba(255, 255, 255, 0.08) 34%, rgba(255, 255, 255, 0.025) 70%, rgba(255, 255, 255, 0.07));
+  --mat-depth: 0 1px 1px rgba(0, 0, 0, 0.35), 0 12px 26px -14px rgba(0, 0, 0, 0.75);
 }
 :root[data-glass='v2'][data-theme='light'] {
-  --mat-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0) 62%);
-  --mat-hue: radial-gradient(140% 170% at 0% 0%, color-mix(in srgb, var(--h1) 9%, transparent), transparent 64%);
-  --mat-rim: linear-gradient(180deg, #fff, rgba(255, 255, 255, 0.5) 30%, rgba(20, 28, 48, 0.05) 70%, rgba(20, 28, 48, 0.1));
-  --mat-depth: 0 1px 1px rgba(30, 40, 70, 0.07), 0 10px 22px -14px rgba(30, 40, 70, 0.32);
+  --mat-glow: radial-gradient(120% 95% at 50% -12%, color-mix(in srgb, var(--ac) 14%, transparent), transparent 72%);
+  --mat-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0) 58%);
+  --mat-rim: linear-gradient(180deg, #fff, rgba(255, 255, 255, 0.55) 26%, rgba(20, 28, 48, 0.06) 66%, rgba(20, 28, 48, 0.13));
+  --mat-depth: 0 1px 1px rgba(30, 40, 70, 0.09), 0 12px 24px -13px rgba(30, 40, 70, 0.38);
 }
 :root[data-glass='v2'] :is(.btn:not(.primary, .ghost), .chip:not(.on, .acc), .icon-btn:not(.flat, .acc, .speak-btn), .plinth) {
-  background-image: var(--mat-hue), var(--mat-sheen);
+  background-image: var(--mat-glow), var(--mat-sheen);
 }
-:root[data-glass='v2'] :is(.btn:not(.primary, .ghost), .chip:not(.on, .acc), .icon-btn:not(.flat, .acc, .speak-btn)) {
-  box-shadow: var(--mat-depth);
-}
+:root[data-glass='v2'] :is(.btn:not(.primary, .ghost), .chip:not(.on, .acc), .icon-btn:not(.flat, .acc, .speak-btn)) { box-shadow: var(--mat-depth); }
+:root[data-glass='v2'] .chip:not(.on, .acc) { position: relative; color: var(--tx); }
+:root[data-glass='v2'] .plinth { box-shadow: var(--mat-depth); }
 :root[data-glass='v2'] :is(.btn:not(.primary, .ghost), .chip:not(.on, .acc), .icon-btn:not(.flat, .acc, .speak-btn))::after,
-:root[data-glass='v2'] .plinth::after {
+:root[data-glass='v2'] .plinth::after, :root[data-glass='v2'] .sheet .sheet-foot .btn.btn::after {
   content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 1; padding: 1px;
   background: var(--mat-rim);
   -webkit-mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
 }
-:root[data-glass='v2'] .chip:not(.on, .acc) { position: relative; }
-:root[data-glass='v2'] .plinth { box-shadow: var(--sh-c); }
-/* the bottom button of a sheet floats over the list: its frost stays, it gets the same light, and a deeper shadow */
-:root[data-glass='v2'] .sheet .sheet-foot .btn.btn { background-image: var(--mat-hue), var(--mat-sheen); box-shadow: 0 1px 1px rgba(0, 0, 0, 0.25), 0 18px 34px -16px rgba(0, 0, 0, 0.7); }
-:root[data-glass='v2'][data-theme='light'] .sheet .sheet-foot .btn.btn { box-shadow: 0 1px 1px rgba(30, 40, 70, 0.08), 0 18px 34px -16px rgba(30, 40, 70, 0.38); }
-:root[data-glass='v2'] .sheet .sheet-foot .btn.btn::after {
-  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; padding: 1px; background: var(--mat-rim);
-  -webkit-mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
-}
-:root[data-glass='v2'] .btn[disabled]::after { opacity: 0.6; }
+/* the bottom button of a sheet floats over the list: it keeps its frost, takes the same light and a deeper shadow, and
+   once it can be pressed its label is full white and the glow a touch warmer, so ready reads as ready */
+:root[data-glass='v2'] .sheet .sheet-foot .btn.btn { background-image: var(--mat-glow), var(--mat-sheen); box-shadow: 0 1px 1px rgba(0, 0, 0, 0.3), 0 18px 36px -16px rgba(0, 0, 0, 0.8); }
+:root[data-glass='v2'] .sheet .sheet-foot .btn.btn:not([disabled]) { background-image: var(--mat-glow), var(--mat-glow), var(--mat-sheen); color: var(--tx); font-weight: 650; }
+:root[data-glass='v2'][data-theme='light'] .sheet .sheet-foot .btn.btn { box-shadow: 0 1px 1px rgba(30, 40, 70, 0.1), 0 18px 34px -16px rgba(30, 40, 70, 0.42); }
+:root[data-glass='v2'] .btn[disabled]::after { opacity: 0.55; }
 .toggle-knob { position: absolute; top: 3px; left: 3px; width: 26px; height: 26px; border-radius: 99px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.4), 0 3px 8px -2px rgba(0,0,0,.25); transition: transform 460ms var(--ease-spring); will-change: transform; }
 
 .field { display: flex; flex-direction: column; gap: 6px; }
