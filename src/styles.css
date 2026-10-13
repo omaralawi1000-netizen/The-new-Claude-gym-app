@@ -179,7 +179,10 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
 /* the status-bar tint (ui/statusBar.ts): set only on the elements that use it, and not inherited, so a change restyles just them */
 @property --bar { syntax: '*'; inherits: false; }
 @property --bar-shown { syntax: '*'; inherits: false; }
-.fields::after { --bar: inherit; content: ''; position: absolute; left: 0; right: 0; top: 0; height: calc(var(--sat) + 130px); z-index: 2147483000;
+/* The tint at the top of the page is an element of its own on its own layer (it was .fields::after, with the tint written on
+   .fields): each write of the variable restyled .fields, and Chrome repainted the full-screen grain under it on every frame
+   a pop-up moved (on the phone that starved the GPU: blank patches in the page and the workout window). */
+.fields-top { position: absolute; left: 0; right: 0; top: 0; height: calc(var(--sat) + 130px); z-index: 2147483000; pointer-events: none; will-change: transform;
   background: linear-gradient(to bottom, var(--bar, var(--bg)) calc(var(--sat) + 2px), transparent); }
 .aurora.in { -webkit-mask-image: linear-gradient(to bottom, transparent 0, transparent calc(var(--sat) + 2px), #000 calc(var(--sat) + 130px)); mask-image: linear-gradient(to bottom, transparent 0, transparent calc(var(--sat) + 2px), #000 calc(var(--sat) + 130px)); }
 /* paused while a pop-up is up (see useCalm in App.tsx) */

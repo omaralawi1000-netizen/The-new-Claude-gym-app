@@ -1470,3 +1470,12 @@ at the edges.
   see, and the status bar is as before. The page used to step back as a whole card (v0.1.72 onto the status bar's tint,
   v0.1.73/74 onto black); Omar: "the top layer is not seamless … make it seem like it's moving backwards by moving all the
   icons at the same time". The corner pieces are gone.
+
+## No grain repaint while a pop-up moves; the status bar dims in step (13 Oct 2026, v0.1.81)
+- The status bar's tint used to be written as `--bar` on `.fields` on every frame of a pop-up, and `.fields` holds the
+  full-screen grain, so the whole grain was repainted each frame (blank patches on the phone while a sheet moved). The
+  tint now has its own small layer (`.fields-top`). Raster tiles while opening Settings ~175 → ~120, minimising the
+  workout ~230 → ~138 (`scripts/paint-count.mjs`); layer drops unchanged (11).
+- The status bar reached its full dim at 60 % of a pop-up's progress while the dim over the page grows all the way to
+  100 %, so for most of the opening the bar was darker than the page under it: a band across the top. It now dims on
+  the same 0 → 1 as the page.

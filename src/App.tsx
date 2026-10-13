@@ -290,7 +290,7 @@ export function App() {
     <MotionConfig reducedMotion="user">
       <div className="app" data-hue={tab} data-pill={pill || undefined} data-calm={calm || undefined} ref={appRef}>
         <div className="stage" ref={stageRef}>
-        <div className="fields" data-bar><AnimatePresence initial={false}><Field key={tab} hue={tab} /></AnimatePresence></div>
+        <div className="fields"><AnimatePresence initial={false}><Field key={tab} hue={tab} /></AnimatePresence><i className="fields-top" data-bar aria-hidden /></div>
         <div className="stage-content" ref={contentRef}>
         <AnimatePresence mode="popLayout" initial={false} custom={dir}>
           <TabPane key={tab} hue={tab} dir={dir}>{screen}</TabPane>
