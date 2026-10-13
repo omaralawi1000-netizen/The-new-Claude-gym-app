@@ -113,7 +113,10 @@ function carry(O: { X: number; Y: number; S: number }, x: number, y: number, z: 
  * the window's edge uncovers it in the dock. Only for a window that rests at the top of the screen with its slot down by
  * the dock (`tucks`); `restY` is where the slot comes to rest, `y` where it is now.
  */
-const tucks = (O: { Y: number; S: number }, restY: number) => O.S > 4 && O.Y > viewportH - restY + 120;
+// only the live workout's window: it rests at the very top, so `y - restY` is its top edge. The Coach's sheet rests lower,
+// so that sum put its edge ~120 px too high and the orb left the dock before the sheet covered it (v0.1.77-0.1.83: a pop,
+// and the Coach lost its glide from the dock to the mic, which `carry` does again)
+const tucks = (slot: HTMLElement, O: { Y: number; S: number }, restY: number) => slot.dataset.orbSlot === 'workout' && O.S > 4 && O.Y > viewportH - restY + 120;
 function tuck(O: { X: number; Y: number; S: number }, x: number, y: number, z: number, restY: number) {
   const edge = y - restY; // the window's top edge
   return edge > O.Y - 1 ? { X: O.X, Y: O.Y, S: O.S, t: 0 } : { X: x, Y: y, S: z, t: 1 };
@@ -188,7 +191,7 @@ export function mirrorOrb(container: Element | null, p0: number, p1: number, sp:
   whooshPending = Math.max(whooshPending, 1);
   const at = (p: number): Keyframe => {
     const e = Math.min(1, Math.max(0, p));
-    const c = slides && !mine && tucks(O, R.Y) ? tuck(O, R.X, R.Y + shiftAt(p), R.S, R.Y) : carry(O, R.X, R.Y + shiftAt(p), R.S, R.Y, e, slides);
+    const c = slides && !mine && tucks(slotEl, O, R.Y) ? tuck(O, R.X, R.Y + shiftAt(p), R.S, R.Y) : carry(O, R.X, R.Y + shiftAt(p), R.S, R.Y, e, slides);
     return { transform: `translate3d(${c.X.toFixed(2)}px, ${c.Y.toFixed(2)}px, 0) scale(${(Math.max(8, c.S) / bucket).toFixed(4)})` };
   };
   orbLock.bucket = bucket;
@@ -482,7 +485,7 @@ export function SphereStage() {
         let tucked = false;
         if (sl.engage?.shift) {
           const restY = y - sl.engage.shift.get();
-          tucked = tucks({ Y, S }, restY);
+          tucked = tucks(sl.el, { Y, S }, restY);
           const c = tucked ? tuck({ X, Y, S }, x, y, z, restY) : carry({ X, Y, S }, x, y, z, restY, e);
           X = c.X; Y = c.Y; S = c.S; flight = c.t;
         } else {
