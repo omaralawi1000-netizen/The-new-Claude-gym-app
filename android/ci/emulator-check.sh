@@ -81,9 +81,11 @@ sleep 3
 adb exec-out screencap -p > shots/2c-after-plus30.png
 adb shell cmd statusbar collapse; sleep 1
 notes after-plus30
+cdp watch | grep -v '^pages' | tee -a shots/rest-real.txt
 timeout 10 adb shell cmd uimode night yes
 sleep 3
 shade 2b-real-shade-dark
+cdp seen | grep -v '^pages' | tee -a shots/rest-real.txt
 timeout 10 adb shell cmd uimode night no
 sleep 2
 adb exec-out screencap -p > shots/3-status-bar.png
