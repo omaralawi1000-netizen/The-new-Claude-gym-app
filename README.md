@@ -1614,3 +1614,15 @@ chat, the orb screen open, typing, writing in, answered; light and dark):
 - Orb screen: a long answer was cut in a straight line above the buttons; it now melts there while there is more below
   (`.fade-bottom`, scroll-driven like the top fade). The typing box's focus glow was clipped by the scrolling area into hard
   bands above and below it; the area has room round its content now.
+
+## The Coach opens with less to build; the orb's glide to the mic starts clean (13 Oct 2026, v0.1.95)
+- Measured the orb's moves frame by frame (`scripts/probe-orb.mjs`, read after each frame is drawn): dock to the Coach's
+  mic, keyboard up and down, back to the dock, the orb screen opening, shrinking for typing, thinking, closing. Each path is
+  one smooth move that lands exactly (0.0 px); none reverses or pushes twice. What broke the dock-to-mic glide was the
+  stall at its start: opening the Coach built every word of the saved chat as its own two spans (~650 elements restyled in
+  the tap).
+- Saved answers that are not being read aloud are now plain text; the words become spans only while one is read aloud
+  (each word lights up) or while an answer writes itself in. Line breaks are the same (checked side by side). Coach open
+  at 4× CPU: worst task ~200-220 ms → ~105-140 ms.
+- Not changed: the orb screen's orb still grows and shrinks by its box size: measured, it costs little layout on that small
+  screen and its path is smooth.
