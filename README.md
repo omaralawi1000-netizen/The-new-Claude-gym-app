@@ -1204,3 +1204,12 @@ late. Measured with a layer probe (Chrome's LayerTree): 200 such hand-backs of o
   (`.stage-corner`, `useStageDepth`). Same 28 px corners.
 Checked against the live build: same idle redraws, frame times within run-to-run noise, screenshots match, presses work.
 Not covered: the Coach's word-by-word reply animation (owned by the Coach thread).
+
+## The orb screen's answers flow in too (13 Oct 2026, v0.1.52)
+
+The orb screen's answer now uses the Coach's steady reveal (`OrbReply` in Voice.tsx over `useWordReveal`): words come in
+one after another at a calm pace whatever the network does, and play / Continue in Coach / the cards / the typing field
+wait for the last word, so nothing under the answer is pushed down while it writes. The screen follows each new line.
+No word on the orb screen animates a blur any more: your spoken words write in with opacity and a small rise
+(`saidWrite`), and the live text and the exchange leave with a fade and rise (their exit blur is gone). The unused red
+writing cursor's style is deleted.
