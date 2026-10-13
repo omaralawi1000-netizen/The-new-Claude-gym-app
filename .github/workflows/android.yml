@@ -26,8 +26,19 @@ jobs:
       - name: Release key (if set up)
         env:
           KS: ${{ secrets.AVEN_KEYSTORE_BASE64 }}
+          KP: ${{ secrets.AVEN_KEYSTORE_PASSWORD }}
+        # pasting on a phone can add spaces or line breaks: those are dropped; anything else is reported (not the key)
         run: |
-          if [ -n "$KS" ]; then echo "$KS" | base64 -d > "$RUNNER_TEMP/aven.jks"; echo "AVEN_KEYSTORE_FILE=$RUNNER_TEMP/aven.jks" >> "$GITHUB_ENV"; fi
+          if [ -z "$KS" ]; then echo "No release key set up: the release APK gets the debug key"; exit 0; fi
+          printf '%s' "$KS" | tr -d ' \r\n\t' > "$RUNNER_TEMP/ks.b64"
+          echo "Key text: $(wc -c < "$RUNNER_TEMP/ks.b64") characters (should be 3464)"
+          BAD=$(tr -d 'A-Za-z0-9+/=' < "$RUNNER_TEMP/ks.b64" | head -c 20 | od -An -c | tr -s ' ')
+          [ -n "$BAD" ] && echo "Characters that don't belong: $BAD"
+          base64 -d "$RUNNER_TEMP/ks.b64" > "$RUNNER_TEMP/aven.jks" || { echo "::error::AVEN_KEYSTORE_BASE64 isn't the full key text"; exit 1; }
+          echo "Key file: $(wc -c < "$RUNNER_TEMP/aven.jks") bytes, sha256 $(sha256sum "$RUNNER_TEMP/aven.jks" | cut -c1-16) (should be 2596 bytes, 52375c2bf9e622c5)"
+          keytool -list -v -keystore "$RUNNER_TEMP/aven.jks" -storepass "$KP" -alias aven | grep 'SHA256:' \
+            || { echo "::error::The key doesn't open with AVEN_KEYSTORE_PASSWORD"; exit 1; }
+          echo "AVEN_KEYSTORE_FILE=$RUNNER_TEMP/aven.jks" >> "$GITHUB_ENV"
       - name: Build
         env:
           AVEN_KEYSTORE_PASSWORD: ${{ secrets.AVEN_KEYSTORE_PASSWORD }}
