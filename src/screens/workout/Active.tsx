@@ -80,16 +80,18 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
   // from the status bar's colour like every tab's page, so the bar reads as part of it. The bar takes the workout's own tint
   // (the one the tabs would give its hue) in the frames its top edge passes under the bar, and the tab's back as it leaves:
   // whatever is under the bar, the bar is its colour. Only the bar changes (theme-color); nothing on the page is restyled.
-  const tintOf = (el: Element | null) => {
+  // (the workout's is a deeper one, close to its plain background: its light sits on one side only, so a tab's tint read
+  // brighter than the dark corner beside it under the bar)
+  const tintOf = (el: Element | null, mix = 'var(--bar-mix)') => {
     if (!el) return null;
     const probe = document.createElement('i');
-    probe.style.cssText = 'position:absolute;width:0;height:0;pointer-events:none;color:color-mix(in srgb, var(--h1) var(--bar-mix), var(--bg))';
+    probe.style.cssText = `position:absolute;width:0;height:0;pointer-events:none;color:color-mix(in srgb, var(--h1) ${mix}, var(--bg))`;
     el.appendChild(probe); const c = readRGB(getComputedStyle(probe).color); probe.remove();
     return c;
   };
   const tints = useRef<{ tab: number[]; wk: number[] } | null>(null);
   const takeTints = () => {
-    const tab = tintOf(document.querySelector('.app')), wk = tintOf(dialogRef.current);
+    const tab = tintOf(document.querySelector('.app')), wk = tintOf(dialogRef.current, 'calc(var(--bar-mix) * 0.35)');
     if (!tab || !wk) return;
     tints.current = { tab, wk };
     // the page's own top is that colour, fixed (written on the strip itself: a variable on the window would restyle
