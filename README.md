@@ -1530,3 +1530,14 @@ at the edges.
   chat.
 - A message sent from the keyboard keeps to its landing place while the keyboard goes down: the list now tells it in the
   same frame (the scroll event came a frame late, so the flying copy trailed its bubble).
+
+## Orb screen: the typing box fades away, nothing jumps as it closes (13 Oct 2026, v0.1.89)
+- Sending what you typed: the box used to vanish in one frame. It now fades out where it was (200 ms; `popLayout`, so the
+  words writing in above don't push it), with your words still in it, and the keyboard leaves at the same moment instead
+  of a beat later. It fades back in when it returns.
+- Closing with the keyboard up: the keyboard going down re-flowed the screen while it faded, and the answer jumped down
+  mid-fade. While the screen leaves, its keyboard room is held (`useIsPresent`), so it fades out as it was.
+- The answer's words settle into plain words (v0.1.88) here too. Measured with `scripts/audit-coach.mjs` (4×, dark):
+  answer writing in, long tasks 9 → 2, style 482 → ~210 ms, layers dropped 68 → ~31; closing, layout shifts gone.
+- Not changed: the orb still grows and shrinks by its box size (a layout transition) when typing starts or an answer
+  arrives; the orb's renderer follows that box, and the screen is small (a few ms of layout per frame at 4×).
