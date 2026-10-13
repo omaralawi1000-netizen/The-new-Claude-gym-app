@@ -116,10 +116,11 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
   const shade = (pp: number) => Math.min(1, Math.max(0, (1 - pp) / 0.3), Math.max(0, pp / 0.12));
   const shadeO = useTransform(eFinger, shade);
   const shadeRef = useRef<HTMLDivElement>(null);
-  // the rounded corners' cut-outs fill with the top band's colour over the last 40 px before the band reaches the screen's
-  // top (the bar takes that colour there): two wedges of the page behind no longer show under a strip that is already the
+  // the rounded corners' cut-outs fill with the top band's colour in the very frames the bar takes that colour (the same
+  // ramp as the bar's turn below): two wedges of the page behind no longer show under a strip that is already the
   // workout's. Opacity only; mid-travel the corners are round over the page.
-  const fill = (pp: number) => Math.min(1, Math.max(0, (LEAD + 60 - sheetTop(pp)) / 40));
+  const barAt = 1 - LEAD / (H + 64 + LEAD); // the progress where the band reaches the screen's top (the bar turns there)
+  const fill = (pp: number) => Math.min(1, Math.max(0, (pp - (barAt - 0.015)) / 0.03)); // exactly with the bar's turn
   const fillO = useTransform(eFinger, fill);
   const fillRef = useRef<HTMLDivElement>(null);
   // what is on the page floats a little behind the page itself, by layer: the header a touch, the list a little more. It
@@ -142,7 +143,7 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
     m.add(
       mirrorProgress(sheetRef.current, p0, p1, sp, vel, (pp) => ({ transform: `translateY(${sheetTop(pp).toFixed(2)}px)` })),
       mirrorProgress(shadeRef.current, p0, p1, sp, vel, (pp) => ({ transform: `translateY(${sheetTop(pp).toFixed(2)}px)`, opacity: String(shade(pp)) }), [0.12, 0.7]),
-      mirrorProgress(fillRef.current, p0, p1, sp, vel, (pp) => ({ transform: `translateY(${sheetTop(pp).toFixed(2)}px)`, opacity: String(fill(pp)) }), [1 - (LEAD + 60) / (H + 64 + LEAD), 1 - (LEAD + 20) / (H + 64 + LEAD)]),
+      mirrorProgress(fillRef.current, p0, p1, sp, vel, (pp) => ({ transform: `translateY(${sheetTop(pp).toFixed(2)}px)`, opacity: String(fill(pp)) }), [barAt - 0.015, barAt + 0.015]),
       mirrorProgress(headRef.current, p0, p1, sp, vel, (pp) => ({ transform: `translateY(${headLag(pp).toFixed(2)}px)` }), [0.5, 0.8, 0.95]),
       mirrorProgress(viewsRef.current, p0, p1, sp, vel, (pp) => ({ transform: `translateY(${viewsLag(pp).toFixed(2)}px)` }), [0.5, 0.8, 0.95]),
       mirrorOrb(sheetRef.current, p0, p1, sp, vel, sheetTop),
