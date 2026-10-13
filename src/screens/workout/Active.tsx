@@ -13,14 +13,14 @@ import { beatLastTime, newBest, elapsedMs, historyOf, incrementFor, lastPerforma
 import { fmtDuration } from '../../lib/dates';
 import { displayToKg, kgToDisplay, fmtNum, displayToM, mToDisplay } from '../../lib/units';
 import { useNow } from '../../lib/hooks';
-import { nextSetOf, offerRestAlerts, unlockRestAudio } from './rest';
+import { nextSetOf, offerRestAlerts, prepareRestAudio, unlockRestAudio } from './rest';
 import { addSet, deleteSet, moveExercise, patchExercise, patchSet, removeExercise, startRest, adjustRest, skipRest, toggleSuperset } from './actions';
 import { exName, fmtSet, MUSCLE_LABEL } from './common';
 import { SphereSlot, mirrorOrb, orbPress, orbTap } from '../../ui/Sphere';
 import { useSwipeDown } from '../../ui/swipe';
 import { Mirror, mirrorProgress, mirrorStage, trackCover, trackDepth, type Engage } from '../../ui/engage';
 import { DIM_VEIL, Veil, mirrorVeil } from '../../ui/Veil';
-import { kb } from '../../ui/keyboard';
+import { kb, keyboardGoal, onKeyboardGoal, watchFocus } from '../../ui/keyboard';
 import { viewportH } from '../../ui/viewport';
 import { BOUNCY, SURFACE, SURFACE_EXIT } from '../../ui/motion';
 import { FocusView, fadeOutPage, upNextOf, useFocusPage, type FocusApi } from './Focus';
@@ -120,8 +120,9 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
   const focusPad = useTransform(kb, (v) => `calc(var(--sab) + 112px + ${v}px)`);
   const exMap = useMemo(() => exerciseMap(exercises), [exercises]);
   const [menu, setMenu] = useState<string | null>(null);
-  // another screen on top of the workout (the exercise list, an exercise's page): the bar steps away, or it showed through
-  // the glass of that sheet. Not for the orb's screen or the Coach — the orb flies from the bar's slot and back into it.
+  // another screen on top of the workout (the exercise list, an exercise's page): the window's slow colour stands still under it.
+  // The bar stays where it is under any pop-up, as a tab bar does on iOS: the pop-up simply rises over it (it used to drop
+  // out of sight first and come back up after, two motions where one will do). Not for the orb's screen or the Coach.
   const covered = useUI((u) => { const top = u.overlays[u.overlays.length - 1]; return !!top && top.type !== 'workout' && top.type !== 'voice' && top.type !== 'coach' && u.overlays.some((o) => o.type === 'workout'); });
   const [confirm, setConfirm] = useState<null | 'finish' | 'discard'>(null);
   const finishBtn = useRef<HTMLButtonElement>(null);
@@ -196,17 +197,13 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
     (closing.current ?? startClose(swipeV.current || dragY.getVelocity())).then(() => { if (!openRef.current) { setHidden(true); onGoneRef.current?.(); } });
     // eslint-disable-next-line
   }, [open]);
-  // typing a weight or reps: the keyboard takes the bottom half, so the rest timer steps out of the way (it sat right on top
-  // of the sets you were editing) and keeps counting in the header instead
-  const [typing, setTyping] = useState(false);
-  useEffect(() => {
-    const el = dialogRef.current; if (!el) return;
-    const isField = (n: EventTarget | null) => n instanceof HTMLElement && /^(INPUT|TEXTAREA)$/.test(n.tagName);
-    const on = (e: FocusEvent) => { if (isField(e.target)) setTyping(true); };
-    const off = (e: FocusEvent) => { if (isField(e.target) && !isField(e.relatedTarget)) setTyping(false); };
-    el.addEventListener('focusin', on); el.addEventListener('focusout', off);
-    return () => { el.removeEventListener('focusin', on); el.removeEventListener('focusout', off); };
-  }, []);
+  // the keyboard is up: it slides over the bar (the bar stays put, it no longer drops out of sight before the keyboard rises),
+  // so a running rest keeps counting in the header instead. Told by the keyboard itself, not by a field having focus: a field
+  // keeps its focus when Android's back hides the keyboard, and the header then showed the rest twice.
+  const [typing, setTyping] = useState(() => keyboardGoal() > 0);
+  useEffect(() => onKeyboardGoal((px) => setTyping(px > 0)), []);
+  // the field you tapped glides up into the room above the keyboard once it has landed (the list, or Focus's page, scrolls)
+  useEffect(() => { const el = dialogRef.current; return el ? watchFocus(el, (f) => f.closest<HTMLElement>('.wk-page, .wk-list')) : undefined; }, []);
   const body = useRef<HTMLDivElement>(null);
   // the list never moves sideways: CSS stops a finger, this stops scrollIntoView and friends (a "set done" ring scaling past
   // the right edge used to make room to slide into)
@@ -237,6 +234,7 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
     return () => cancelAnimationFrame(id);
   }, [shown, lead]);
   const [ready, setReady] = useState(false);
+  useEffect(() => { if (ready) prepareRestAudio(); }, [ready]); // the rest-over sound, made while nothing else is happening
   const listDoneAtOpen = useRef(total0 <= 2);
   // the exercises drawn in the very first frame ride up with the window; any that arrive after it fade in
   const firstIds = useRef(new Set((a?.exercises ?? []).slice(0, 2).map((e) => e.id)));
@@ -385,7 +383,7 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
           </div>
 
           {/* the workout's own dock, where the tab bar sits: what's next, the rest timer, and the orb */}
-          <WorkoutBar engage={engage} exMap={exMap} focus={view === 'focus'} away={typing || !!confirm || !!menu || covered} onDone={pointToFinish} onJump={jumpTo} />
+          <WorkoutBar engage={engage} exMap={exMap} focus={view === 'focus'} onDone={pointToFinish} onJump={jumpTo} />
           </div>
         </div>
           </motion.div>
@@ -463,7 +461,7 @@ function RestInline() {
  * stays so until that set is ticked. The orb sits at its right end: tap it to say your sets. It is there from the first
  * frame, so the orb glides into it with the window instead of jumping to a button at the end of the list.
  */
-function WorkoutBar({ engage, exMap, focus, away, onDone, onJump }: { engage: Engage; exMap: Map<string, Exercise>; focus: boolean; away: boolean; onDone: () => void; onJump: (setId: string) => void }) {
+function WorkoutBar({ engage, exMap, focus, onDone, onJump }: { engage: Engage; exMap: Map<string, Exercise>; focus: boolean; onDone: () => void; onJump: (setId: string) => void }) {
   const t = useT();
   const lang = useLang();
   const push = useUI((u) => u.push);
@@ -515,7 +513,7 @@ function WorkoutBar({ engage, exMap, focus, away, onDone, onJump }: { engage: En
     : state === 'empty' ? t('Tell the orb what you did')
     : `${sessionSetCount(a.exercises, true)} ${t('sets')} · ${fmtNum(Math.round(kgToDisplay(sessionVolume(a.exercises), unit)), lang, 0)} ${unit}`;
   return (
-    <div className={`wk-bar-wrap${away ? ' away' : ''}`}>
+    <div className="wk-bar-wrap">
       {/* never re-keyed: the orb's slot lives in here, and remounting it made the orb leave and land again (a tick, a hop) */}
       <div className={`wk-bar ${state}`}>
         {/* the frost, tint and rim are a layer of their own under everything: the orb's button and the words sit beside it,
@@ -714,7 +712,7 @@ function revealSet(id: string) {
   const row = list?.querySelector<HTMLElement>(`[data-set="${id}"]`);
   if (!list || !row) return;
   const r = row.getBoundingClientRect(), box = list.getBoundingClientRect();
-  const bar = document.querySelector('.wk-bar-wrap:not(.away) .wk-bar')?.getBoundingClientRect();
+  const bar = document.querySelector('.wk-bar-wrap .wk-bar')?.getBoundingClientRect();
   const bottom = Math.min(box.bottom, bar ? bar.top - 16 : box.bottom);
   const dy = r.bottom - bottom;
   if (dy > 0 && dy < box.height * 0.8) list.scrollBy({ top: dy + 20, behavior: 'smooth' });

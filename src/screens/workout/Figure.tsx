@@ -155,6 +155,14 @@ const PARTS: Record<Seg, Part[]> = {
   shin: [{ m: 'calves', cx: -3.5, cy: 16, rx: 4.6, ry: 11 }],
 };
 
+type Fit = { read: () => number; write: (s: number) => void };
+const fits = new Set<Fit>();
+/** Scale a figure to its stage: queued, and done for every queued figure at once, still before the frame is drawn. */
+function fitSoon(f: Fit) {
+  if (!fits.size) queueMicrotask(() => { const all = [...fits]; fits.clear(); const s = all.map((x) => x.read()); all.forEach((x, i) => x.write(s[i])); });
+  fits.add(f);
+}
+
 export const Figure = memo(function Figure({ ex, kind, active }: { ex?: Exercise; kind: Kind; active: boolean }) {
   const root = useRef<HTMLDivElement>(null);
   const anims = useRef<Animation[]>([]);
@@ -164,20 +172,24 @@ export const Figure = memo(function Figure({ ex, kind, active }: { ex?: Exercise
   const muscles = ex?.muscles ?? [];
   const tone = (m: MuscleGroup) => (muscles[0] === m ? 'hot' : muscles.includes(m) ? 'warm' : '');
 
-  // fill the stage: scale to the room it has (measured when it settles, so a set being added doesn't re-scale every frame)
+  // fill the stage: scale to the room it has (measured when it settles, so a set being added doesn't re-scale every frame).
+  // All figures are measured together, then all are scaled: one figure per page each reading its stage straight after the
+  // last one was scaled laid the page out again and again (most of the cost of switching to Focus).
   useLayoutEffect(() => {
     const el = root.current, stage = el?.parentElement;
     if (!el || !stage) return;
     let tm = 0, first = true;
-    const apply = () => {
-      const s = Math.max(0.6, Math.min(1.5, (stage.clientHeight - 8) / H, (stage.clientWidth - 8) / W));
-      el.style.setProperty('--fs', s.toFixed(3));
-      if (first) { first = false; requestAnimationFrame(() => el.classList.add('fit')); }
+    const fit: Fit = {
+      read: () => Math.max(0.6, Math.min(1.5, (stage.clientHeight - 8) / H, (stage.clientWidth - 8) / W)),
+      write: (s) => {
+        el.style.setProperty('--fs', s.toFixed(3));
+        if (first) { first = false; requestAnimationFrame(() => el.classList.add('fit')); }
+      },
     };
-    apply();
-    const ro = new ResizeObserver(() => { clearTimeout(tm); tm = window.setTimeout(apply, 220); });
+    fitSoon(fit);
+    const ro = new ResizeObserver(() => { clearTimeout(tm); tm = window.setTimeout(() => fitSoon(fit), 220); });
     ro.observe(stage);
-    return () => { ro.disconnect(); clearTimeout(tm); };
+    return () => { ro.disconnect(); clearTimeout(tm); fits.delete(fit); };
   }, []);
 
   useEffect(() => {
