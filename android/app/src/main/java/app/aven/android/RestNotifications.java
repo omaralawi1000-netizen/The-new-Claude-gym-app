@@ -12,9 +12,15 @@ import android.media.AudioAttributes;
 import android.media.RingtoneManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.SystemClock;
+import android.service.notification.StatusBarNotification;
 import android.text.SpannableString;
 import android.text.Spanned;
 import android.text.style.RelativeSizeSpan;
+import android.view.View;
+import android.widget.RemoteViews;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -61,6 +67,9 @@ final class RestNotifications {
     private static PendingIntent chromeTap, chromeMore, chromeSkip;
     private static long localChangeAt; // when +30 s was last tapped here (the website's own update comes a moment later)
     private static boolean dismissed; // swiped away: stop putting it back every second
+    // Android made the countdown a Live Update (null: not known yet). Only then does it keep the big numbers of the
+    // standard layout; everywhere else the countdown uses our own layout, with the numbers big all the same
+    private static Boolean promoted;
 
     private RestNotifications() {}
 
@@ -181,14 +190,42 @@ final class RestNotifications {
         if (r.endsAt <= System.currentTimeMillis() || prefs(c).getLong("rang", 0) == r.startedAt) return; // over: the alert has it
         if (evenIfSwiped) dismissed = false;
         c.getSystemService(NotificationManager.class).notify(ID_REST, build(c, r, System.currentTimeMillis(), RestTimerService.running));
+        if (promoted == null) new Handler(Looper.getMainLooper()).postDelayed(() -> checkPromoted(c), 400);
+    }
+
+    /** After the first countdown is up: did Android make it a Live Update? If not, it's redrawn in our own layout. */
+    static void checkPromoted(Context c) {
+        if (promoted != null) return;
+        NotificationManager nm = c.getSystemService(NotificationManager.class);
+        for (StatusBarNotification sbn : nm.getActiveNotifications()) {
+            if (sbn.getId() != ID_REST) continue;
+            promoted = isPromoted(sbn.getNotification());
+            if (!promoted) {
+                Rest r = load(c);
+                if (r != null && !dismissed && r.endsAt > System.currentTimeMillis()) {
+                    nm.notify(ID_REST, build(c, r, System.currentTimeMillis(), RestTimerService.running));
+                }
+            }
+            return;
+        }
+    }
+
+    private static boolean isPromoted(Notification n) {
+        if (Build.VERSION.SDK_INT < 36) return false;
+        try {
+            return (Boolean) Notification.class.getMethod("isPromotedOngoing").invoke(n);
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     static boolean isDismissed() { return dismissed; }
 
     /**
-     * The countdown. Ticking (the service runs): the time left is the title, in big numbers ("1:42"), with the exercise
-     * above it and the set below. Not ticking (Android didn't let the service start): Android's own countdown in the
-     * top line, which needs nothing from us.
+     * The countdown: the exercise in the header, the time left in big numbers ("1:42"), the set, a draining bar, and
+     * +30 s / Skip. Ticking (the service runs) we redraw the numbers every second; otherwise Android counts down by
+     * itself. As a Live Update it's Android's standard layout (the only one it promotes); elsewhere our own layout,
+     * because Android shows the standard one's title at normal size there.
      */
     static Notification build(Context c, Rest r, long now, boolean ticking) {
         long left = Math.max(0, r.endsAt - now);
@@ -207,28 +244,51 @@ final class RestNotifications {
             .addAction(new Notification.Action.Builder(null, r.more, own(c, ACTION_MORE, chromeMore)).build())
             .addAction(new Notification.Action.Builder(null, r.skip, own(c, ACTION_SKIP, chromeSkip)).build());
         if (Build.VERSION.SDK_INT >= 31) b.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE);
-        if (ticking) {
-            String clock = clock(left);
-            // bigger numbers (Android keeps the size where it allows text styling, else shows them normal size)
-            SpannableString big = new SpannableString(clock);
-            big.setSpan(new RelativeSizeSpan(1.6f), 0, clock.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-            b.setContentTitle(big).setContentText(r.line).setSubText(r.exercise).setShowWhen(false);
-            criticalText(b, clock);
+        int max = (int) (total / 100), at = (int) (left / 100); // the bar: what's left of the rest, draining
+        if ((Build.VERSION.SDK_INT >= 36 && promoted == null) || Boolean.TRUE.equals(promoted)) {
+            // the standard layout, which Android can make a Live Update (a chip in the status bar, the lock screen)
+            if (ticking) {
+                String clock = clock(left);
+                SpannableString big = new SpannableString(clock); // kept big in a Live Update
+                big.setSpan(new RelativeSizeSpan(1.6f), 0, clock.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                b.setContentTitle(big).setContentText(r.line).setSubText(r.exercise).setShowWhen(false);
+                criticalText(b, clock);
+            } else {
+                b.setContentTitle(r.line).setContentText(r.exercise)
+                    .setWhen(r.endsAt).setShowWhen(true).setUsesChronometer(true).setChronometerCountDown(true);
+            }
+            if (Build.VERSION.SDK_INT >= 36) {
+                b.setStyle(new Notification.ProgressStyle()
+                    .setProgressSegments(Collections.singletonList(new Notification.ProgressStyle.Segment(max).setColor(ember)))
+                    .setProgress(at));
+            } else {
+                b.setProgress(max, at, false);
+            }
         } else {
-            b.setContentTitle(r.line).setContentText(r.exercise)
-                .setWhen(r.endsAt).setShowWhen(true).setUsesChronometer(true).setChronometerCountDown(true);
-        }
-        // the bar: what's left of the rest, draining
-        int max = (int) (total / 100), at = (int) (left / 100);
-        if (Build.VERSION.SDK_INT >= 36) {
-            b.setStyle(new Notification.ProgressStyle()
-                .setProgressSegments(Collections.singletonList(new Notification.ProgressStyle.Segment(max).setColor(ember)))
-                .setProgress(at));
-        } else {
-            b.setProgress(max, at, false);
+            // our own layout under Android's header (app, exercise) and above the buttons: big numbers, the set, the bar
+            RemoteViews small = countdown(c, R.layout.rest_small, r, left, ticking);
+            RemoteViews big = countdown(c, R.layout.rest_big, r, left, ticking);
+            big.setProgressBar(R.id.bar, max, at, false);
+            b.setStyle(new Notification.DecoratedCustomViewStyle()).setCustomContentView(small).setCustomBigContentView(big)
+                .setSubText(r.exercise).setShowWhen(false);
         }
         promote(b);
         return b.build();
+    }
+
+    /** The numbers: ours, redrawn every second while the ticking service runs; otherwise Android's own countdown. */
+    private static RemoteViews countdown(Context c, int layout, Rest r, long left, boolean ticking) {
+        RemoteViews v = new RemoteViews(c.getPackageName(), layout);
+        v.setTextViewText(R.id.line, r.line);
+        if (ticking) {
+            v.setTextViewText(R.id.clock, clock(left));
+        } else {
+            v.setViewVisibility(R.id.clock, View.GONE);
+            v.setViewVisibility(R.id.chrono, View.VISIBLE);
+            v.setChronometer(R.id.chrono, SystemClock.elapsedRealtime() + left + 999, null, true); // + 999: rounded up
+            v.setChronometerCountDown(R.id.chrono, true);
+        }
+        return v;
     }
 
     /** "1:42" (rounded up, so it says 0:01 until the very end, like a kitchen timer). */

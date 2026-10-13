@@ -68,6 +68,7 @@ public class RestTimerService extends Service {
         if (getSystemService(PowerManager.class).isInteractive()) {
             getSystemService(NotificationManager.class).notify(RestNotifications.ID_REST, RestNotifications.build(this, r, now, true));
         }
+        RestNotifications.checkPromoted(this); // once: a Live Update, or our own layout from the next second on
         // next whole second of what's left (the clock is rounded up, so it changes just after one passes)
         long next = left % 1000;
         h.postDelayed(tick, (next == 0 ? 1000 : next) + 15);

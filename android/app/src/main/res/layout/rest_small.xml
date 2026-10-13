@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The rest countdown, folded (shade and lock screen): the time left in big numbers, the set beside it.
+     Used where Android doesn't make it a Live Update (there the standard layout keeps its big title). -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:gravity="center_vertical"
+    android:orientation="horizontal">
+
+    <TextView
+        android:id="@+id/clock"
+        style="@android:style/TextAppearance.Material.Notification.Title"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:fontFeatureSettings="tnum"
+        android:includeFontPadding="false"
+        android:singleLine="true"
+        android:textSize="30sp" />
+
+    <Chronometer
+        android:id="@+id/chrono"
+        style="@android:style/TextAppearance.Material.Notification.Title"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:fontFeatureSettings="tnum"
+        android:includeFontPadding="false"
+        android:singleLine="true"
+        android:textSize="30sp"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/line"
+        style="@android:style/TextAppearance.Material.Notification"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="14dp"
+        android:layout_weight="1"
+        android:ellipsize="end"
+        android:singleLine="true" />
+</LinearLayout>
