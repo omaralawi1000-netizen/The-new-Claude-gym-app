@@ -1260,3 +1260,13 @@ action frame by frame to confirm it.
   for a moment on its way out).
 - **Food totals roll**: protein, carbs and fat under the ring, and the week's average, roll to their new values like the
   calories do.
+
+## Polish pass, step B: pages that hand over, a page that sat 24 px left (13 Oct 2026, v0.1.60)
+
+- **Train's Plan / Library / History and Food's days**: the part being left now fades out where it stands while the new one
+  rises in (`Subpage`). It used to vanish at once, leaving a moment of empty background. Opacity only.
+- **Train and Food sat 24 px to the left** after their first visit (cards cut at the left edge, a wider gap on the right):
+  while the new page slid in, something scrolled the page holder sideways and it stayed scrolled. The holder now clips
+  (`overflow: clip`), which can't be scrolled at all.
+- **Today's water count rolls** to its new value, and its button keeps its width, so the buttons next to it no longer shift.
+- **Workout header**: the rest time that joins the clock while you type fades in instead of popping.

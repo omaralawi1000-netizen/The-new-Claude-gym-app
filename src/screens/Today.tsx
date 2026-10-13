@@ -17,6 +17,7 @@ import { useCovered, useNow, useScreenStore } from '../lib/hooks';
 import type { AppData, Routine } from '../lib/types';
 import { exName } from './workout/common';
 import { cardOrder, NextTargets, MusclesWeek, RecentRecords } from './TodayCards';
+import { Roll } from '../ui/Roll';
 import { CoachPin } from '../ui/CoachPin';
 
 export function estMinutes(r: Routine): number {
@@ -154,7 +155,7 @@ export function TodayScreen() {
           <button className="icon-btn press" aria-label={t('Photo')} onClick={() => push('photoFood', { date: today, mealId })}><Icon name="camera" /></button>
           </>}
           {wd.water && <button className="icon-btn press" aria-label={`+${settings.waterQuick[1] ?? 250} ml`} onClick={addWater} style={{ width: 'auto', padding: '0 16px', gap: 6, display: 'inline-flex', alignItems: 'center' }}>
-            <Icon name="drop" size={18} style={{ color: 'var(--c-water)' }} /><span className="num small" style={{ fontWeight: 600 }}>{fmtNum(water.ml, lang, 0)}</span>
+            <Icon name="drop" size={18} style={{ color: 'var(--c-water)' }} /><span className="num small" style={{ fontWeight: 600, minWidth: '4ch', textAlign: 'center' }}><Roll text={fmtNum(water.ml, lang, 0)} /></span>
           </button>}
         </div>}
         {wd.recents && recents.length > 0 && <div className="chips" style={{ marginTop: 14, justifyContent: 'safe center' }}>{recents.map((r) => <button key={r.id} className="chip press" onClick={() => quickLog(r.id, r.qty)} aria-label={`${t('Add')} ${r.name}`}>+ {r.name.split(',')[0]}</button>)}</div>}
