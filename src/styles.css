@@ -990,6 +990,10 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
   transition: opacity 200ms var(--ease-out), transform 360ms var(--ease-spring); }
 .coach-send.on { opacity: 1; transform: none; pointer-events: auto; }
 .meals-empty { padding: 6px 16px 6px 20px; }
+/* the empty day's card (or the meals) fading out before the other rises in, once the add sheet has gone (Food.tsx) */
+.subpage > .fading { animation: fade-away 220ms ease forwards; pointer-events: none; }
+@keyframes fade-away { to { opacity: 0; } }
+.subpage > .joined { animation-delay: calc((var(--i, 1) - 1) * 60ms); }
 .meal-row { width: 100%; display: flex; align-items: center; justify-content: space-between; padding: 14px 0; text-align: left; position: relative; }
 .meal-row + .meal-row::before { content: ''; position: absolute; top: 0; left: 0; right: 4px; height: 1px; background: var(--line); }
 .meal-bar { display: flex; gap: 3px; height: 3px; margin: 14px 4px 4px 0; }
@@ -1189,6 +1193,12 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* an exercise's last set ticked: one slow band of warm light passes over the card, once. Laid over the card (not inside its
    frosted glass) and only the band moves: a full-card glow layer cost frames on the test bench, this one doesn't */
 .wk-card-wrap { position: relative; }
+/* an exercise being moved up or down (flip.ts `lead`): above the card it passes, on a solid backing with a soft lift, so the
+   card sliding under it doesn't show through the glass. The backing fades out as it lands. Opacity only; a still layer. */
+.wk-block.flip-lead { z-index: 3; }
+.wk-block.flip-lead .wk-card-wrap::before { content: ''; position: absolute; inset: 0; border-radius: var(--r-lg); background: var(--bg);
+  box-shadow: 0 18px 40px -18px rgba(0, 0, 0, .55); pointer-events: none; animation: flipLift var(--flip-ms, 420ms) linear both; }
+@keyframes flipLift { 0%, 70% { opacity: 1 } 100% { opacity: 0 } }
 .wk-settle { position: absolute; inset: 0; border-radius: var(--r-lg); overflow: hidden; pointer-events: none; z-index: 2; }
 .wk-settle > i { position: absolute; top: 0; bottom: 0; left: 0; width: 55%;
   background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--ac) 22%, transparent) 36%, color-mix(in srgb, #fff 18%, var(--ac) 18%) 50%, color-mix(in srgb, var(--ac) 22%, transparent) 64%, transparent);

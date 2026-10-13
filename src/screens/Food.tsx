@@ -1,4 +1,5 @@
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import { useStore } from '../state/store';
 import { useUI } from '../state/ui';
@@ -17,6 +18,7 @@ import type { FoodEntry } from '../lib/types';
 import { WaterTile } from './food/Water';
 import { WeekStrip } from './food/WeekStrip';
 import { SoftText } from '../ui/SoftText';
+import { flip } from '../ui/flip';
 
 export function FoodScreen() {
   const t = useT();
@@ -40,6 +42,29 @@ export function FoodScreen() {
     list.forEach((e) => { if (!seen.current.has(e.id)) { fresh.current.add(e.id); seen.current.add(e.id); setTimeout(() => fresh.current.delete(e.id), 1600); } });
   }, [list]);
 
+  // The first food of a day turns the empty card into the meals (and removing the last one turns them back). That waits until
+  // the sheet you added it from has gone, so it happens where you can see it: the old card fades out, the meals rise in and
+  // the cards below glide to their new place. Another day just shows what it has.
+  const empty = list.length === 0;
+  const covered = useUI((s) => s.overlays.length > 0);
+  const [shown, setShown] = useState(empty);
+  const [leaving, setLeaving] = useState(false);
+  const [swapped, setSwapped] = useState(false); // what rose in after a swap starts at once, not after the screen's stagger
+  const [shownDay, setShownDay] = useState(date);
+  if (shownDay !== date) { setShownDay(date); setShown(empty); setLeaving(false); setSwapped(false); }
+  const screen = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (shown === empty) { setLeaving(false); return; }
+    if (covered) return;
+    const t1 = setTimeout(() => setLeaving(true), 300); // the sheet has slid away by now
+    const t2 = setTimeout(() => {
+      const root = screen.current?.querySelector(':scope > .subpage:not([data-motion-pop-id])') ?? null;
+      flip(root, () => flushSync(() => { setShown(empty); setLeaving(false); setSwapped(true); }), 560);
+    }, 300 + 180);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [shown, empty, covered]);
+  const fade = leaving ? ' fading' : swapped ? ' joined' : '';
+
   const rel = relativeDay(date, today, lang);
   const isFuture = date > today;
 
@@ -50,7 +75,7 @@ export function FoodScreen() {
   const add = (mealId: string) => push('foodSearch', { date, mealId });
 
   return (
-    <div className="screen">
+    <div className="screen" ref={screen}>
       <header>
         <div className="row-flex between">
           <div className="row-flex" style={{ gap: 4 }}>
@@ -76,9 +101,9 @@ export function FoodScreen() {
       <Subpage id={date}>
       <Ledger sum={sum} />
 
-      {list.length === 0 && (
+      {shown && (
         // an empty day is one calm card: the meals as rows, each with its own +
-        <section className="plinth meals-empty" aria-label={date === today ? t('Nothing logged yet') : t('No entries for this day')}>
+        <section className={`plinth meals-empty${fade}`} aria-label={date === today ? t('Nothing logged yet') : t('No entries for this day')}>
           {settings.meals.map((m) => (
             <button key={m.id} className="meal-row press" aria-label={`${t('Add to')} ${mealName(m, lang)}`} onClick={() => add(m.id)}>
               <span className="meal-name display">{mealName(m, lang)}</span>
@@ -88,13 +113,13 @@ export function FoodScreen() {
         </section>
       )}
 
-      {list.length > 0 && settings.meals.map((m) => {
+      {!shown && settings.meals.map((m) => {
         const items = perMeal(list, m.id);
         const ms = sumNutrients(items.map((e) => e.nutrients)).totals;
         // the meal's calories split by macro, as one thin bar
         const pk = (ms.protein ?? 0) * 4, ck = (ms.carbs ?? 0) * 4, fk = (ms.fat ?? 0) * 9, tk = Math.max(1, pk + ck + fk);
         return (
-          <section key={m.id} className={`plinth meal ${items.length ? '' : 'bare'}`} aria-label={mealName(m, lang)}>
+          <section key={m.id} className={`plinth meal${items.length ? '' : ' bare'}${fade}`} aria-label={mealName(m, lang)}>
             <div className="meal-head">
               <div className="grow" style={{ minWidth: 0 }}>
                 <div className="meal-name display">{mealName(m, lang)}</div>

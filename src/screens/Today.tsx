@@ -10,7 +10,7 @@ import { Ledger } from './food/Ledger';
 import { weightTrend, trendRate, reviewWeekEnd, weekReview, weekStreak, weeklyTraining } from '../lib/stats';
 import { Count } from '../ui/kit';
 import { elapsedMs, sessionSetCount, sessionVolume } from '../lib/workout';
-import { fmtNum, fmtPct, kgToDisplay } from '../lib/units';
+import { fmtNum, fmtPct, fmtSigned, kgToDisplay } from '../lib/units';
 import { entryFromSnapshot, snapshotOf, uid } from '../lib/nutrition';
 import { defaultQty } from './food/Detail';
 import { useCovered, useNow, useScreenStore } from '../lib/hooks';
@@ -401,7 +401,7 @@ function WeekReviewCard({ d, today }: { d: AppData; today: string }) {
       <div className="review-grid">
         <div><div className="review-num num">{r.sessions}</div><div className="xs t2">{r.wrestling ? t('workouts + {n} wrestling', { n: r.wrestling }) : t('workouts')}{r.prevSessions !== r.sessions ? ` · ${r.sessions > r.prevSessions ? '↑' : '↓'} ${t('from {n}', { n: r.prevSessions })}` : ''}</div></div>
         <div><div className="review-num num">{r.proteinAvg !== null ? `${Math.round(r.proteinAvg)} g` : '—'}</div><div className="xs t2">{goal ? t('protein a day · target {n} g', { n: goal }) : t('protein a day')}</div></div>
-        <div><div className="review-num num">{rate !== null ? `${rate > 0 ? '+' : rate < 0 ? '−' : ''}${fmtNum(Math.abs(rate), lang, 1)} ${u}` : '—'}</div><div className="xs t2">{t('weight per week (estimate)')}</div></div>
+        <div><div className="review-num num">{rate !== null ? `${fmtSigned(rate, lang)} ${u}` : '—'}</div><div className="xs t2">{t('weight per week (estimate)')}</div></div>
         <div><div className="review-num num">{r.records}</div><div className="xs t2">{r.records === 1 ? t('new record') : t('new records')}</div></div>
       </div>
       {stall && stallEx && (

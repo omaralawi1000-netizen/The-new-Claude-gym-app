@@ -391,7 +391,7 @@ export function ActiveWorkout({ props, open = true }: { props: { origin?: 'hero'
                 <div><span className="micro">{t('Sets')}</span><b className="num">{done}<span className="t3">/{total}</span></b></div>
                 <div><span className="micro">{t('Volume')}</span><b className="num">{fmtNum(Math.round(kgToDisplay(sessionVolume(a.exercises), weightUnit)), lang, 0)}<span className="t3"> {weightUnit}</span></b></div>
               </div>
-              <p className="small t2 wk-end-note">{confirm === 'finish' ? t('{n} sets aren’t ticked. Only the ticked ones are saved.', { n: total - done }) : t('Nothing has been logged yet. You can undo this right after.')}</p>
+              <p className="small t2 wk-end-note">{confirm === 'finish' ? t(total - done === 1 ? '1 set isn’t ticked. Only the ticked ones are saved.' : '{n} sets aren’t ticked. Only the ticked ones are saved.', { n: total - done }) : t('Nothing has been logged yet. You can undo this right after.')}</p>
               <div className="stack gap8">
                 {confirm === 'finish' ? (
                   <button className="btn primary block press wk-end-btn" style={{ ['--i' as string]: 0 }} onClick={() => { haptic('confirm'); setConfirm(null); doFinish(); }}>{done === 1 ? t('Finish and save 1 set') : t('Finish and save {n} sets', { n: done })}</button>
@@ -648,7 +648,7 @@ export const ExerciseBlock = memo(function ExerciseBlock({ se, ex, linkedPrev, l
         </AnimatePresence>
         <div className="row-flex" style={{ gap: 8, marginTop: 10 }}>
           <button className="btn sm press grow" onClick={() => { haptic('light'); addSet(se.id); }}><Icon name="plus" size={16} /> {t('Set')}</button>
-          <button className="btn sm ghost press" onClick={() => addSet(se.id, 'warmup')}>{t('+ Warm-up')}</button>
+          {(!ex || ex.logType === 'weightReps' || ex.logType === 'bodyweightReps' || ex.logType === 'assisted') && <button className="btn sm ghost press" onClick={() => addSet(se.id, 'warmup')}>{t('+ Warm-up')}</button>}
         </div>
       </div>
       {/* laid over the card, not inside it: the card's frosted glass then never has to be redrawn while the glow plays */}
@@ -827,8 +827,8 @@ function ExerciseMenu({ se, ex, onClose }: { se: SessionExercise; ex?: Exercise;
   const items = [
     { icon: 'swap', label: t('Replace exercise'), run: () => { onClose(); push('exercisePicker', { mode: 'replace', seId: se.id, forExercise: ex }); } },
     { icon: 'link', label: se.supersetGroup && s.active!.exercises[idx + 1]?.supersetGroup === se.supersetGroup ? t('Unlink superset') : t('Superset with next'), disabled: idx >= count - 1, run: () => { toggleSuperset(se.id); onClose(); } },
-    { icon: 'arrowUp', label: t('Move up'), disabled: idx === 0, run: () => { flip(document.querySelector('.wk-list'), () => moveExercise(se.id, -1)); onClose(); } },
-    { icon: 'arrowDown', label: t('Move down'), disabled: idx >= count - 1, run: () => { flip(document.querySelector('.wk-list'), () => moveExercise(se.id, 1)); onClose(); } },
+    { icon: 'arrowUp', label: t('Move up'), disabled: idx === 0, run: () => { flip(document.querySelector('.wk-list'), () => moveExercise(se.id, -1), 420, se.id); onClose(); } },
+    { icon: 'arrowDown', label: t('Move down'), disabled: idx >= count - 1, run: () => { flip(document.querySelector('.wk-list'), () => moveExercise(se.id, 1), 420, se.id); onClose(); } },
   ];
   return (
     <Sheet onClose={onClose} size="small" label={t('Exercise options')} nested>

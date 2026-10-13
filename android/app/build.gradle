@@ -1,0 +1,52 @@
+plugins {
+    id 'com.android.application'
+}
+
+// The release key comes from the repo's Actions secrets (see .github/workflows/android.yml); without it the
+// release build is signed with the debug key, which is fine for trying it out but can't be updated later.
+def ks = System.getenv('AVEN_KEYSTORE_FILE')
+
+android {
+    namespace 'app.aven.android'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId 'app.aven.android'
+        minSdk 26
+        targetSdk 36
+        versionCode Integer.parseInt(System.getenv('AVEN_VERSION_CODE') ?: '1')
+        versionName '1.0'
+    }
+
+    signingConfigs {
+        release {
+            if (ks) {
+                storeFile file(ks)
+                storePassword System.getenv('AVEN_KEYSTORE_PASSWORD')
+                keyAlias 'aven'
+                keyPassword System.getenv('AVEN_KEYSTORE_PASSWORD')
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig ks ? signingConfigs.release : signingConfigs.debug
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    lint {
+        checkReleaseBuilds false
+        abortOnError false
+    }
+}
+
+dependencies {
+    implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.6.2'
+}

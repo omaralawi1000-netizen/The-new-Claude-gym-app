@@ -26,7 +26,7 @@ export function WaterTile({ date }: { date: string }) {
     toast(`+${fmtNum(v, lang, 0)} ml`, { tone: 'ok', actionLabel: t('Undo'), onAction: () => removeWater(id), duration: 3500 });
   };
   return (
-    <div className="plinth water">
+    <div className="plinth water" data-flip="water">
       <div className="row-flex between">
         <div>
           <div className="micro row-flex" style={{ gap: 6 }}><Icon name="drop" size={14} /> {t('Water')}</div>

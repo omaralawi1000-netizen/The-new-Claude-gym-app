@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="channel_rest">Hvile-timer</string>
+    <string name="channel_rest_about">Den levende nedtælling, mens du hviler mellem sættene.</string>
+    <string name="channel_over">Hvilen er slut</string>
+    <string name="channel_over_about">Ringer, når hvilen er slut.</string>
+    <string name="rest_over">Hvilen er slut</string>
+</resources>

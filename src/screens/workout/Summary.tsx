@@ -84,7 +84,7 @@ export function Summary({ props }: { props: { sessionId: string } }) {
 
         {recs.length > 0 && (
           // the record moment: a gold medallion with rays that open once, then the records slide in under it
-          <div style={{ position: 'relative', display: 'grid', placeItems: 'center', margin: '26px 0 14px', height: 120 }} aria-label={t('{n} new records', { n: recs.length })}>
+          <div style={{ position: 'relative', display: 'grid', placeItems: 'center', margin: '26px 0 14px', height: 120 }} aria-label={t(recs.length === 1 ? '1 new record' : '{n} new records', { n: recs.length })}>
             {Array.from({ length: 12 }, (_, i) => (
               <motion.i key={i} aria-hidden initial={{ scaleY: 0, opacity: 0 }} animate={{ scaleY: [0, 1, 0.6], opacity: [0, 1, 0.35] }} transition={{ duration: 1.2, delay: LINE + 0.35 + i * 0.025, ease: [0.22, 1, 0.36, 1] }}
                 style={{ position: 'absolute', width: 2, height: 58, borderRadius: 2, background: 'linear-gradient(var(--gold), transparent)', top: 2, left: 'calc(50% - 1px)', transformOrigin: '50% 58px', rotate: i * 30 }} />

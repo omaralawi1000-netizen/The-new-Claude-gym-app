@@ -128,7 +128,7 @@ function SolSpend() {
       <label>{t('Spending this month')}</label>
       <div className="row-flex between" style={{ alignItems: 'baseline' }}>
         <span className="num" style={{ fontSize: 22, fontWeight: 300, letterSpacing: '-0.02em' }}>≈ {fmtNum(kr, lang, kr < 10 ? 2 : 0)} kr</span>
-        <span className="xs t2">{t('{n} answers · estimate', { n: calls })}</span>
+        <span className="xs t2">{t(calls === 1 ? '1 answer · estimate' : '{n} answers · estimate', { n: calls })}</span>
       </div>
       <div className="xs t2" style={{ margin: '10px 0 6px' }}>{t('Monthly limit — then Gemini answers until next month')}</div>
       <div className="chips" style={{ margin: 0, padding: 0, flexWrap: 'wrap' }}>
