@@ -576,6 +576,11 @@ export const ExerciseBlock = memo(function ExerciseBlock({ se, ex, linkedPrev, l
     : t('First time · aim {min}–{max} reps', { min: rv.min ?? '', max: rv.max ?? '' });
   const REASON_ICON = { 'add-weight': 'arrowUp', 'add-reps': 'plus', hold: 'repeat', stalled: 'info', first: 'sparkle' } as const;
   const complete = se.sets.length > 0 && se.sets.every((x) => x.done);
+  // the last set ticked while you watch: the card settles with a brief warm glow and one soft sheen (not when it is drawn
+  // already complete, and not when a set is unticked)
+  const wasComplete = useRef(complete);
+  const [settle, setSettle] = useState(0);
+  useEffect(() => { if (complete && !wasComplete.current) setSettle((n) => n + 1); wasComplete.current = complete; }, [complete]);
   // something you told the Coach about this exercise ("left shoulder hurts on overhead press"): shown beside it, with a swap.
   // A joined string, so ticking a set elsewhere doesn't redraw this block.
   const flagged = useStore((s) => s.memory.filter((m) => m.exerciseIds?.includes(se.exerciseId)).map((m) => m.text).join('\n'));
@@ -584,6 +589,7 @@ export const ExerciseBlock = memo(function ExerciseBlock({ se, ex, linkedPrev, l
     <section data-flip={se.id} className={`wk-block${appear ? ' in' : ''}${complete ? ' complete' : ''}`} style={{ position: 'relative', marginTop: linkedPrev ? 0 : 18, paddingLeft: se.supersetGroup ? 14 : 0 }}>
       {se.supersetGroup && <div aria-hidden style={{ position: 'absolute', left: 0, top: linkedPrev ? -4 : 6, bottom: linkedNext ? -14 : 6, width: 3, borderRadius: 3, background: 'var(--ac)', opacity: 0.85 }} />}
       {se.supersetGroup && !linkedPrev && <div className="micro accent" style={{ marginBottom: 4 }}>{t('Superset')}</div>}
+      <div className="wk-card-wrap">
       <div className="plinth" style={{ padding: '14px 12px 12px', borderRadius: 'var(--r-lg)' }}>
         <div className="row-flex between" style={{ alignItems: 'flex-start', gap: 8 }}>
           <button className="grow press" style={{ textAlign: 'left', minWidth: 0 }} onClick={() => ex && push('exercise', { id: ex.id })}>
@@ -621,6 +627,9 @@ export const ExerciseBlock = memo(function ExerciseBlock({ se, ex, linkedPrev, l
           <button className="btn sm press grow" onClick={() => { haptic('light'); addSet(se.id); }}><Icon name="plus" size={16} /> {t('Set')}</button>
           <button className="btn sm ghost press" onClick={() => addSet(se.id, 'warmup')}>{t('+ Warm-up')}</button>
         </div>
+      </div>
+      {/* laid over the card, not inside it: the card's frosted glass then never has to be redrawn while the glow plays */}
+      {settle > 0 && complete && <span key={settle} className="wk-settle" aria-hidden><i /></span>}
       </div>
     </section>
   );
@@ -733,6 +742,8 @@ const SetRow = memo(function SetRow({ se, set, ex, label, prev, restDefault }: {
     // a plain row: it grows in and folds away inside its Collapse (no Motion layout — that re-measured the whole page)
     <div data-set={set.id}>
       <div className={`wk-set ${set.done ? 'done' : current ? 'current' : 'todo'}${set.type === 'warmup' ? ' warm' : ''}`} style={{ gridTemplateColumns: gridCols(ex, settings.effort) }}>
+        {/* ticked: a soft light ripples out from the check across the row, and leaves the row's tint behind */}
+        {burst > 0 && set.done && <span key={`w${burst}`} className="wk-set-clip" aria-hidden><i className="wk-set-wave" /></span>}
         <button className="press wk-set-n" aria-label={t('Set options')} aria-expanded={open} onClick={() => setOpen((v) => !v)}>{label}</button>
         <button className="num press wk-prev" disabled={!prev} onClick={() => prev && patchSet(se.id, set.id, { weightKg: prev.weightKg, reps: prev.reps, durationSec: prev.durationSec, distanceM: prev.distanceM })} aria-label={prev ? `${t('Use previous')}: ${fmtSet(prev, ex, u, lang, t)}` : undefined}>
           {/* a hold reads in the column's own unit ("66s" over SECONDS, not "1:06" beside a 66), as the records write it */}
