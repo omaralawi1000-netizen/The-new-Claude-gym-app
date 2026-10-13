@@ -112,6 +112,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   const bodyRef = useRef<HTMLDivElement>(null);
   const pinned = useRef(true); // the list stays at its end (see below)
   const listMoved = useRef<(() => void) | null>(null); // a message in flight keeps to its landing place as the list moves
+  const ride = useRef<((rider: HTMLElement) => { off: number; unride: () => void }) | null>(null); // …and glides with the list (see glide)
   const user = useRef(false); // a finger or a wheel is moving the list (or its fling is still running)
   const movedAt = useRef(0);
   const lastScroll = useRef(0);
@@ -156,13 +157,19 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     // every frame, so a busy frame was a missed step). A new move picks the spring up where it is on screen.
     const W = 10; // (the exact critically damped spring: x(t) = (x0 + (v0 + W x0) t) e^(-W t))
     let move: Animation | null = null, x0 = 0, v0 = 0;
+    // A message in flight rides the list's glide too (the same curve on its `translate`, on the same clock): it used to
+    // follow only the scroll position, so while the keyboard went down it ran ahead of its bubble (by up to 200 px) and
+    // stepped back onto it as it landed.
+    const riders = new Set<HTMLElement>(); let riding: Animation[] = [];
+    let last: { frames: Keyframe[]; opts: KeyframeAnimationOptions } | null = null;
+    const mount = (r: HTMLElement) => { if (!move || !last) return; const a = r.animate(last.frames, last.opts); if (move.startTime !== null) a.startTime = move.startTime; riding.push(a); };
     const now$ = () => { // where the glide is right now (px) and how fast it moves (px/s)
       if (!move) return { off: 0, vel: 0 };
       const t = Math.max(0, Number(move.currentTime ?? 0)) / 1000;
       const c = v0 + W * x0, e = Math.exp(-W * t);
       return { off: (x0 + c * t) * e, vel: (v0 - W * c * t) * e };
     };
-    const stop = () => { const m = move; move = null; m?.cancel(); };
+    const stop = () => { const m = move; move = null; m?.cancel(); riding.forEach((a) => a.cancel()); riding = []; };
     const glide = (d: number) => {
       if (Math.abs(d) < 0.5 || reduce() || !thread) return;
       const cur = now$(); stop();
@@ -172,13 +179,19 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       let T = 0.05; while (T < 3 && (Math.abs(pos(T)) >= 0.3 || Math.abs((v0 - W * c * T) * Math.exp(-W * T)) >= 6)) T += 1 / 60;
       const n = Math.max(2, Math.ceil(T * 40));
       const frames = Array.from({ length: n + 1 }, (_, i) => ({ translate: i === n ? '0 0px' : `0 ${pos(T * i / n).toFixed(2)}px`, offset: i / n }));
-      const m = thread.animate(frames, { duration: T * 1000, easing: 'linear' });
-      move = m; m.onfinish = () => { if (move === m) move = null; };
+      const opts = { duration: T * 1000, easing: 'linear' };
+      const m = thread.animate(frames, opts);
+      const at = document.timeline.currentTime; if (at !== null) m.startTime = at; // (riders share its clock)
+      move = m; last = { frames, opts }; m.onfinish = () => { if (move === m) move = null; };
+      riders.forEach(mount);
     };
+    // (`off`: how far the glide still has to go, already in what was measured on screen)
+    ride.current = (r) => { riders.add(r); mount(r); return { off: now$().off, unride: () => { riders.delete(r); } }; };
     // to the end, at once; `smooth`: and play the move back on the spring (the keyboard's ride is already smooth: 1:1)
     const pin = (smooth: boolean) => {
       const from = lastScroll.current, to = endTop(el);
-      if (Math.abs(el.scrollTop - to) > 0.5) { el.scrollTop = to; listMoved.current?.(); }
+      if (Math.abs(el.scrollTop - to) > 0.5) el.scrollTop = to;
+      listMoved.current?.(); // (also when the browser moved it: the list grew, and the scroll event would come a frame late)
       lastScroll.current = el.scrollTop;
       if (smooth) glide(el.scrollTop - from);
     };
@@ -224,7 +237,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   // up to make room on the same spring. A copy of the bubble flies above everything (the list clips its own contents), from
   // the typed text's place to the bubble's, and hands over to the real one where it lands; its glass gathers round the words
   // on the way. Browser-run (Web Animations on transform/opacity only), so it is drawn at the screen's full rate.
-  const flyFrom = useRef(new Map<string, { x: number; y: number; fs: number }>());
+  const flyFrom = useRef(new Map<string, { x: number; y: number; fs: number; end: number; cut: boolean; right: number }>());
   const flew = useRef(new Set<string>()); // these arrive by flight, not by the bubble's own rise
   const dropAfter = useRef(false); // sent from the keyboard: it goes down when the message lands
   const flown = (id: string) => flew.current.has(id);
@@ -242,11 +255,20 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       el.scrollTop = endTop(el); lastScroll.current = el.scrollTop;
       const lift = el.scrollTop - before;
       const B = bubble.getBoundingClientRect();
+      const n = (text as Text).length;
       const r = document.createRange(); r.setStart(text, 0); r.setEnd(text, 1);
       const c = r.getBoundingClientRect();
+      r.setStart(text, n - 1); r.setEnd(text, n);
+      const e = r.getBoundingClientRect();
       const cs = getComputedStyle(bubble);
       const k = from.fs / parseFloat(cs.fontSize);
-      const dx = from.x - (B.left + (c.left - B.left) * k), dy = from.y - (B.top + (c.top + c.height / 2 - B.top) * k);
+      // It leaves from the field's line. A message longer than one line rises with its LAST line on the field's (the rest
+      // above it, nothing hanging over the keyboard); one whose start was scrolled out of the field leaves with its end
+      // where it was (it used to swoop in from off the screen's left edge).
+      const tail = e.top > c.top + 1;
+      const line = tail ? e : c;
+      const dx = from.cut ? Math.min(from.end - (B.left + (e.right - B.left) * k), from.right - (B.left + B.width * k)) : from.x - (B.left + (c.left - B.left) * k); // (and inside the field)
+      const dy = from.y - (B.top + (line.top + line.height / 2 - B.top) * k);
       const copy = document.createElement('div');
       copy.className = 'said coach-fly';
       copy.textContent = (text as Text).data;
@@ -255,6 +277,8 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       copy.style.setProperty('--fly-bg', cs.backgroundColor);
       copy.style.setProperty('--fly-shadow', cs.boxShadow);
       app.appendChild(copy);
+      // it joins a glide the list is still finishing, so its place is where the bubble will be once that is done
+      const rider = ride.current?.(copy); const y0 = B.top - (rider?.off ?? 0); copy.style.top = `${y0}px`;
       bubble.style.visibility = 'hidden';
       const fly = springCurve(apple(0.6));
       const opts = { duration: fly.duration, easing: fly.easing, fill: 'forwards' as const };
@@ -265,7 +289,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       if (at !== null) anims.forEach((a) => { a.startTime = at; });
       // anything that scrolls the conversation on the way (the answer arriving) moves the landing place with it
       const top0 = el.scrollTop;
-      const follow = () => { copy.style.top = `${B.top - (el.scrollTop - top0)}px`; };
+      const follow = () => { copy.style.top = `${y0 - (el.scrollTop - top0)}px`; };
       // (told in the same frame when the list is moved from here, the keyboard's ride above all: the scroll event comes a
       // frame late, and the copy trailed its landing place by that frame while the keyboard went down)
       el.addEventListener('scroll', follow, { passive: true }); listMoved.current = follow;
@@ -276,7 +300,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       // and the bubble with the list), one thing after the other instead of the field dropping away under the words
       const drop = () => { if (!dropAfter.current) return; dropAfter.current = false; if (document.activeElement === field) field?.blur(); };
       const dropping = setTimeout(drop, Math.round(fly.duration * 0.42));
-      const land = () => { el.removeEventListener('scroll', follow); if (listMoved.current === follow) listMoved.current = null; clearTimeout(back); clearTimeout(dropping); drop(); field?.classList.remove('sent-away'); bubble.style.visibility = ''; copy.remove(); };
+      const land = () => { rider?.unride(); el.removeEventListener('scroll', follow); if (listMoved.current === follow) listMoved.current = null; clearTimeout(back); clearTimeout(dropping); drop(); field?.classList.remove('sent-away'); bubble.style.visibility = ''; copy.remove(); };
       anims[0].finished.then(land, land);
     }
   });
@@ -403,7 +427,9 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     if ((raw === undefined || spoken) && text && !pic && field && !still) { // typed or said: it leaves from the field
       const fr = field.getBoundingClientRect(), fs = getComputedStyle(field);
       flew.current.add(id);
-      flyFrom.current.set(id, { x: fr.left + parseFloat(fs.borderLeftWidth) + parseFloat(fs.paddingLeft) - field.scrollLeft, y: fr.top + fr.height / 2, fs: parseFloat(fs.fontSize) });
+      const left = fr.left + parseFloat(fs.borderLeftWidth) + parseFloat(fs.paddingLeft);
+      // (`end`: where the text's last letter was; `cut`: its start was scrolled out of the field, only its end was showing)
+      flyFrom.current.set(id, { x: left, y: fr.top + fr.height / 2, fs: parseFloat(fs.fontSize), end: fr.left + parseFloat(fs.borderLeftWidth) + field.scrollWidth - parseFloat(fs.paddingRight) - field.scrollLeft, cut: field.scrollLeft > 1, right: fr.right });
       dropAfter.current = typing;
     } else if (typing) field?.blur();
     const reduceTips = still || leaving;
