@@ -81,9 +81,12 @@ sleep 3
 adb exec-out screencap -p > shots/2c-after-plus30.png
 adb shell cmd statusbar collapse; sleep 1
 notes after-plus30
+cdp watch | grep -v '^pages' | tee -a shots/rest-real.txt
 timeout 10 adb shell cmd uimode night yes
 sleep 3
 shade 2b-real-shade-dark
+cdp seen | grep -v '^pages' | tee -a shots/rest-real.txt
+notes after-dark >/dev/null; grep -c "pkg=app.aven.android" shots/after-dark.txt | sed 's/^/aven notifications after dark mode (want 1+): /' | tee -a shots/rest-real.txt
 timeout 10 adb shell cmd uimode night no
 sleep 2
 adb exec-out screencap -p > shots/3-status-bar.png
@@ -106,9 +109,11 @@ timeout 10 adb shell input keyevent KEYCODE_HOME
 sleep 10
 notes real-over
 shade 4-real-rest-over
-# back in the app: the website takes its notification away, and the alert goes with it
+# back in the app: the website takes its notification away, and the alert goes with it (by itself: "closed 0" below)
+cdp watch | grep -v '^pages' | tee -a shots/rest-real.txt
 adb shell am start -n app.aven.android/com.google.androidbrowserhelper.trusted.LauncherActivity
 sleep 3
+cdp seen | grep -v '^pages' | tee -a shots/rest-real.txt
 cdp clear | tee -a shots/rest-real.txt
 timeout 10 adb shell input keyevent KEYCODE_HOME
 sleep 3

@@ -59,6 +59,14 @@ await p.getByRole('button', { name: 'Resume workout' }).click().catch(() => {});
 await p.getByRole('button', { name: 'Complete set' }).first().click(); await wait(p, 1500);
 const before = (await rest()).endsAt;
 await setHidden(p, true); await wait(p, 800);
+// the phone switches to dark mode while Aven is in the background: Chrome calls the page visible, but without focus.
+// The notification must stay; it goes only once you're really back (the focus comes)
+const setFocus = (pg, f) => pg.evaluate((f) => { document.hasFocus = () => f; if (f) window.dispatchEvent(new Event('focus')); }, f);
+await setFocus(p, false); await setHidden(p, false); await wait(p, 800);
+assert.equal((await notes(p)).length, 1, 'dark-mode switch in the background: the notification stays');
+await setFocus(p, true); await wait(p, 800);
+assert.equal((await notes(p)).length, 0, 'really back (focus): cleared');
+await setHidden(p, true); await wait(p, 800);
 const tap = (action) => ctx.serviceWorkers()[0].evaluate(async (action) => {
   const [n] = await self.registration.getNotifications({ tag: 'aven-rest' });
   const jobs = []; self.__avenRestClick({ notification: n, action, waitUntil: (x) => jobs.push(x) });
