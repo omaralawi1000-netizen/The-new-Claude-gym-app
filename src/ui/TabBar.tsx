@@ -204,7 +204,7 @@ const wasShown = (btn: Element) => (btn as HTMLElement).dataset.was === '1';
 function TabBtn({ icon, label, on, onClick }: { id: Tab; icon: any; label: string; on: boolean; onClick: () => void }) {
   return (
     <button className={`tab press ${on ? 'on' : ''}`} onClick={onClick} aria-current={on ? 'page' : undefined} aria-label={label}>
-      <Icon name={icon} size={22} sw={on ? 2 : 1.6} />
+      <Icon name={icon} size={22} sw={on ? 2 : 1.6} duo />
       <span className="lab">{label}</span>
     </button>
   );

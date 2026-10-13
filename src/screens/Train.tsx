@@ -107,7 +107,7 @@ function PlanTab() {
               const muscles = [...new Set(r.items.map((i) => exMap.get(i.exerciseId)?.muscles[0]).filter(Boolean))] as MuscleGroup[];
               const last = [...s.sessions].reverse().find((x) => x.routineId === r.id);
               return (
-                <div key={r.id} className={`plinth${r.id === hero ? ' live' : ''}`} style={{ padding: 16, borderRadius: 'var(--r-lg)' }}>
+                <div key={r.id} className="plinth" style={{ padding: 16, borderRadius: 'var(--r-lg)' }}>
                   <div className="row-flex between" style={{ alignItems: 'flex-start' }}>
                     <button className="grow press" style={{ textAlign: 'left' }} onClick={() => push('routine', { id: r.id })}>
                       <div className="display" style={{ fontSize: 44, fontStyle: 'italic', lineHeight: 0.95 }}>{r.name}</div>
@@ -116,7 +116,7 @@ function PlanTab() {
                     <button className="icon-btn flat press" aria-label={t('Duplicate')} onClick={() => dup(r)}><Icon name="copy" size={19} /></button>
                   </div>
                   <div className="row-flex between" style={{ marginTop: 14 }}>
-                    <div className="chips" style={{ margin: 0, padding: 0, gap: 6, flexWrap: 'nowrap', overflow: 'hidden', minWidth: 0, flex: 1 }}>{muscles.slice(0, 2).map((m) => <span key={m} className="chip sm" style={{ flex: 'none' }}>{t(MUSCLE_LABEL[m])}</span>)}{muscles.length > 2 && <span className="chip sm num" style={{ flex: 'none' }}>+{muscles.length - 2}</span>}</div>
+                    <div className="chips" style={{ margin: '0 0 -14px', padding: '0 0 14px', gap: 6, flexWrap: 'nowrap', overflow: 'hidden', minWidth: 0, flex: 1 }}>{muscles.slice(0, 2).map((m) => <span key={m} className="chip sm" style={{ flex: 'none' }}>{t(MUSCLE_LABEL[m])}</span>)}{muscles.length > 2 && <span className="chip sm num" style={{ flex: 'none' }}>+{muscles.length - 2}</span>}</div>
                     <div className="row-flex" style={{ gap: 8, flex: 'none' }}>
                       <button className="icon-btn press" aria-label={t('Schedule')} onClick={() => push('schedule', { routineId: r.id })}><Icon name="calendar" /></button>
                       <button className={`icon-btn ${r.id === hero ? 'acc' : 'acc-soft'} press`} style={{ width: 54, height: 54 }} aria-label={s.active ? t('Resume current') : t('Start')} onClick={() => start(r)}><Icon name="play" size={22} /></button>

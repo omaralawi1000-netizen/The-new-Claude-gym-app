@@ -187,7 +187,7 @@ export function Collapse({ open = true, appear: appearProp = false, children, cl
 export function Empty({ title, body, icon, action }: { title: string; body?: string; icon?: IconName; action?: ReactNode }) {
   return (
     <div className="empty">
-      {icon && <div style={{ display: 'grid', placeItems: 'center', marginBottom: 12, color: 'var(--tx3)' }}><Icon name={icon} size={30} /></div>}
+      {icon && <div className="empty-mark"><Icon name={icon} size={30} duo /></div>}
       <div className="display display-sm">{title}</div>
       {body && <div className="small" style={{ maxWidth: 280, margin: '6px auto 0' }}>{body}</div>}
       {action && <div style={{ marginTop: 16 }}>{action}</div>}

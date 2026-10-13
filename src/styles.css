@@ -465,140 +465,125 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
 .seg button.on { color: var(--tx); }
 .seg-lens { top: 4px; bottom: 4px; --lens-r: 19px; opacity: .95; --lens-fill: linear-gradient(180deg, #4a4d57, #3b3e48); }
 :root[data-theme='light'] .seg-lens { --lens-fill: #fff; }
-/* ── Aven glass: the material of every neutral rounded surface (cards, pills, chips, round buttons) ───────────────
+/* ── Aven glass, "lit glass": the material of every neutral rounded surface (cards, pills, chips, round buttons) ──────
    Live: index.html sets <html data-glass="v2">. The rules stay behind that attribute so scripts/glass-shots.mjs can
    still compare with and without it (and it is a one-line switch back).
-   No longer a flat see-through grey. Three quiet things, all painted once (no extra blur, nothing animates, so it costs
-   nothing per frame), the same on the page, in sheets and in the workout window:
-   - neutral graphite glass (dark) or white glass (light) with a soft sheen
-   - a crisp neutral edge of light along the top, fading away down the sides
-   - a gentle shadow under it, so it lifts a little off the page
-   Warmth is an accent, never the material: only primary actions and active states (the active dock tab, the active set,
-   a sheet's main button) carry the area's colour (--mat-warm-glow). Everything copper read as one muddy colour (Omar).
-   Real frost stays where something passes underneath (the sheet's bottom buttons, the dock, sheets, toasts). */
-/* the warm glow is a straight vertical fall-off with soft stops (a radial one ended in a visible band on wide, short pills) */
+   Every card is the same: no card is singled out (the dock's pill already says where you are). Painted once (no blur,
+   nothing animates, so it costs nothing per frame), the same on the page, in sheets and in the workout window:
+   - dark: a faint white light falling from the top, a hairline edge, a lit top line and a soft shadow, so cards stand off
+     the page the way light-mode cards do; under each one a whisper of the area's colour
+   - light: white with a 2 % warm fall-off, a warm hairline and a soft warm shadow
+   Colour is only on what you act on or where you are: the play and + buttons, the active tab, today in the week strip and
+   the active set's outline (Omar: "why does it have to be orange?"). The colour field behind follows the theme's colour,
+   softly. */
 :root[data-glass='v2'] {
-  --mat-warm-glow: linear-gradient(180deg, color-mix(in srgb, var(--ac) 18%, transparent), color-mix(in srgb, var(--ac) 7%, transparent) 38%, color-mix(in srgb, var(--ac) 2%, transparent) 72%, transparent);
-  --mat-glow: linear-gradient(180deg, rgba(66, 74, 92, 0.5), rgba(44, 50, 64, 0.48) 60%, rgba(40, 46, 58, 0.48)); /* cool slate: keeps the page's glow from tinting a quiet card */
-  --mat-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.035) 30%, rgba(255, 255, 255, 0));
-  --mat-live-glow: linear-gradient(180deg, rgba(102, 112, 136, 0.88), rgba(78, 87, 106, 0.86) 55%, rgba(70, 78, 96, 0.86)); /* dense enough that every live card is the same blue-slate over any part of the field */
-  --mat-live-rim: linear-gradient(180deg, color-mix(in srgb, var(--ac) 10%, rgba(255, 255, 255, 0.36)), rgba(255, 255, 255, 0.12) 30%, rgba(255, 255, 255, 0.05) 70%, rgba(255, 255, 255, 0.1));
-  --mat-live-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.05) 32%, rgba(255, 255, 255, 0));
-  --mat-live-lift: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 0 26px -6px rgba(190, 206, 240, 0.22), 0 2px 2px rgba(0, 0, 0, 0.5), 0 24px 46px -14px rgba(0, 0, 0, 0.95);
-  --mat-warm-rim: linear-gradient(180deg, color-mix(in srgb, color-mix(in srgb, var(--ac) 25%, #fff) 85%, transparent), rgba(255, 255, 255, 0.13) 30%, rgba(255, 255, 255, 0.035) 70%, rgba(255, 255, 255, 0.1));
-  --mat-rim: linear-gradient(180deg, rgba(255, 255, 255, 0.17), rgba(255, 255, 255, 0.06) 30%, rgba(255, 255, 255, 0.025) 70%, rgba(255, 255, 255, 0.06));
-  --mat-depth: 0 1px 1px rgba(0, 0, 0, 0.45), 0 14px 28px -12px rgba(0, 0, 0, 0.85);
+  --mat-card: linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.035));
+  --mat-card-lift: inset 0 1px 0 rgba(255, 255, 255, 0.09), 0 1px 2px rgba(0, 0, 0, 0.5), 0 8px 24px -8px rgba(0, 0, 0, 0.55), 0 20px 40px -20px color-mix(in srgb, var(--ac) 10%, transparent);
+  --mat-ctl: linear-gradient(180deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.065));
+  --mat-ctl-lift: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 1px 2px rgba(0, 0, 0, 0.45), 0 6px 14px -6px rgba(0, 0, 0, 0.5);
+  --mat-rim: rgba(255, 255, 255, 0.06);
+  --mat-ctl-rim: rgba(255, 255, 255, 0.075);
   --mat-well: inset 0 2px 5px rgba(0, 0, 0, 0.6), inset 0 0 0 1px rgba(255, 255, 255, 0.055), inset 0 -1px 0 rgba(255, 255, 255, 0.07);
   --mat-well-bg: linear-gradient(180deg, rgba(0, 0, 0, 0.12), rgba(255, 255, 255, 0.025));
+  /* the colour field: much softer, so it is a mood behind the cards and never their colour */
+  --aurora-a: 0.16;
 }
 :root[data-glass='v2'][data-theme='light'] {
-  --mat-warm-glow: linear-gradient(180deg, color-mix(in srgb, var(--ac) 13%, transparent), color-mix(in srgb, var(--ac) 4%, transparent) 40%, transparent 80%);
-  --mat-glow: linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.4));
-  --mat-live-glow: linear-gradient(rgba(255, 255, 255, 0.97), rgba(255, 255, 255, 0.97));
-  --mat-live-rim: #fff;
-  --mat-live-sheen: linear-gradient(180deg, #fff, rgba(255, 255, 255, 0.5) 45%, rgba(255, 255, 255, 0.2));
-  --mat-live-lift: 0 0 0 0.5px rgba(30, 25, 60, 0.06), 0 18px 40px rgba(30, 25, 60, 0.2), 0 8px 24px rgba(30, 25, 60, 0.1);
-  --mat-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.35) 50%, rgba(255, 255, 255, 0.15));
-  --mat-warm-rim: linear-gradient(180deg, color-mix(in srgb, var(--ac) 38%, #fff), #fff 22%, rgba(255, 255, 255, 0.6) 40%, rgba(20, 28, 48, 0.08) 68%, rgba(20, 28, 48, 0.16));
-  --mat-rim: linear-gradient(180deg, #fff, #fff 22%, rgba(255, 255, 255, 0.6) 40%, rgba(20, 28, 48, 0.08) 68%, rgba(20, 28, 48, 0.16));
-  --mat-depth: 0 1px 1.5px rgba(30, 40, 70, 0.12), 0 12px 24px -12px rgba(30, 40, 70, 0.45);
+  --mat-card: linear-gradient(180deg, #fff, #fcfaf8);
+  --mat-card-lift: inset 0 1px 0 #fff, 0 1px 2px rgba(60, 30, 20, 0.06), 0 10px 28px -10px rgba(60, 30, 20, 0.14);
+  --mat-ctl: linear-gradient(180deg, #fff, #fcfaf8);
+  --mat-ctl-lift: inset 0 1px 0 #fff, 0 1px 2px rgba(60, 30, 20, 0.07), 0 6px 16px -8px rgba(60, 30, 20, 0.16);
+  --mat-rim: rgba(40, 20, 10, 0.06);
+  --mat-ctl-rim: rgba(40, 20, 10, 0.07);
   --mat-well: inset 0 1.5px 3px rgba(30, 40, 70, 0.16), inset 0 0 0 1px rgba(20, 28, 48, 0.07), inset 0 -1px 0 #fff;
   --mat-well-bg: linear-gradient(180deg, rgba(20, 28, 48, 0.03), rgba(255, 255, 255, 0.3));
+  --aurora-a: 0.11;
 }
-:root[data-glass='v2'] :is(.btn:not(.primary, .ghost), .chip:not(.on, .acc), .icon-btn:not(.flat, .acc, .speak-btn), .plinth) {
-  background-image: var(--mat-glow), var(--mat-sheen);
+html:root[data-glass='v2'][data-glow='soft'] { --aurora-a: 0.08; }
+html:root[data-glass='v2'][data-glow='soft'][data-theme='light'] { --aurora-a: 0.055; }
+/* the field's three lights are the theme's colour: itself, a touch towards violet, and a lighter one (Mono keeps its greys) */
+:root[data-glass='v2']:not([data-palette='mono']) :is(.app, [data-hue]) {
+  --h1: var(--ac); --h2: color-mix(in oklch, var(--ac) 75%, #8a5cff); --h3: color-mix(in srgb, var(--ac) 80%, #fff);
 }
-:root[data-glass='v2'] :is(.btn:not(.primary, .ghost), .chip:not(.on, .acc), .icon-btn:not(.flat, .acc, .speak-btn)) { box-shadow: var(--mat-depth); }
+:root[data-glass='v2'] .plinth { background: var(--mat-card); box-shadow: var(--mat-card-lift); }
+:root[data-glass='v2'] :is(.btn:not(.primary, .ghost), .chip:not(.on, .acc), .icon-btn:not(.flat, .acc, .speak-btn)) { background: var(--mat-ctl); box-shadow: var(--mat-ctl-lift); }
 :root[data-glass='v2'] .chip:not(.on, .acc) { position: relative; color: var(--tx); }
-:root[data-glass='v2'] .plinth { box-shadow: var(--mat-depth); }
+/* the hairline edge: one even line all round (the lit top line is the inset shadow) */
 :root[data-glass='v2'] :is(.btn:not(.primary, .ghost), .chip:not(.on, .acc), .icon-btn:not(.flat, .acc, .speak-btn))::after,
 :root[data-glass='v2'] .plinth::after, :root[data-glass='v2'] .sheet .sheet-foot .btn.btn::after {
   content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 1; padding: 1px;
-  background: var(--mat-rim);
+  background: var(--mat-ctl-rim);
   -webkit-mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
 }
-/* round buttons are small: a firmer lift so they read as the same glass at phone size (the rim stays the same 1 px as
-   everything else, a thicker one made them the loudest thing in their row) */
-:root[data-glass='v2'] .icon-btn:not(.flat, .acc, .speak-btn) { box-shadow: var(--mat-depth), 0 7px 16px -7px rgba(0, 0, 0, 0.7); }
-:root[data-glass='v2'][data-theme='light'] .icon-btn:not(.flat, .acc, .speak-btn) { box-shadow: var(--mat-depth), 0 7px 16px -8px rgba(30, 40, 70, 0.2); }
+:root[data-glass='v2'] .plinth::after { background: var(--mat-rim); }
 /* a sideways row of chips scrolls, so it clips: room underneath lets their shadows fall softly instead of being cut */
 :root[data-glass='v2'] .chips { padding-bottom: 26px; margin-bottom: -26px; }
-/* the dock: the same top edge of light along its rim, and the same lift */
-:root[data-glass='v2'] .tabbar.glass { background-image: var(--mat-glow), var(--mat-sheen); box-shadow: 0 1px 1px rgba(0, 0, 0, 0.4), 0 20px 40px -14px rgba(0, 0, 0, 0.9); }
-:root[data-glass='v2'][data-theme='light'] .tabbar.glass { box-shadow: 0 1px 1.5px rgba(30, 40, 70, 0.12), 0 18px 36px -14px rgba(30, 40, 70, 0.4); }
-:root[data-glass='v2'] .tabbar.glass::after { padding: 1.5px; }
-:root[data-glass='v2'] .tabbar.glass::after { background: var(--mat-rim); opacity: 1; }
+/* the dock keeps its real frost (things pass under it): only the faint top light, the hairline and the lift */
+:root[data-glass='v2'] .tabbar.glass { background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.03)); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 1px 2px rgba(0, 0, 0, 0.45), 0 20px 40px -14px rgba(0, 0, 0, 0.9); }
+:root[data-glass='v2'][data-theme='light'] .tabbar.glass { background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0.4)); box-shadow: inset 0 1px 0 #fff, 0 1px 2px rgba(60, 30, 20, 0.07), 0 16px 34px -14px rgba(60, 30, 20, 0.22); }
+:root[data-glass='v2'] .tabbar.glass::after { background: var(--mat-ctl-rim); opacity: 1; padding: 1px; }
+/* the dock's active tab is neutral lit glass; the colour is in its icon */
+:root[data-glass='v2']:not([data-theme='light']) .tab-lens { --lens-fill: linear-gradient(180deg, #3d3e45, #303137 60%, #2c2d33); --lens-hl: rgba(255, 255, 255, 0.16); --lens-line: rgba(255, 255, 255, 0.06); }
+/* tab icons: a clean stroke in the secondary text colour; the active one is two-tone in the theme's colour (the stroke in
+   full, its shape filled at about 40 % with a gentle light from the top, see Icon.tsx) and sits on a hair of its own shadow */
+:root[data-glass='v2'] .tab:not(.on) svg { color: var(--tx2); }
+/* (fill-opacity, not opacity: an opacity change put each icon's second tone on a layer of its own, which the graphics
+   chip then dropped after every tab switch) */
+:root[data-glass='v2'] .tab svg .duo { fill-opacity: 0; transition: fill-opacity 360ms var(--ease-smooth); }
+:root[data-glass='v2'] .tab.on svg .duo { fill-opacity: 1; }
+:root[data-glass='v2'] .tab.on svg { filter: drop-shadow(0 1px 1px color-mix(in srgb, var(--ac) 35%, transparent)); }
 /* fields (the workout's kg and reps, search, forms) are wells cut into the glass: shaded at the top, with a catch-light
    along the bottom edge, so they still read clearly as places to type (focus keeps its own ring) */
 /* (:where keeps it light, so a done set's cleared field and the Coach's bare composer keep their own look) */
 :root[data-glass='v2'] :where(.input):not(:focus, .coach-field *) { box-shadow: var(--mat-well); background-image: var(--mat-well-bg); }
 :root[data-glass='v2'][data-theme='light'] .input { background-color: rgba(255, 255, 255, 0.5); }
-/* the bottom button of a sheet floats over the list: it keeps its frost and its single colour, takes only a faint wash of
-   the area's light and the rim, and a deeper shadow; once it can be pressed its label is full white and bolder */
-:root[data-glass='v2'] .sheet .sheet-foot .btn.btn { background-image: linear-gradient(180deg, color-mix(in srgb, var(--ac) 9%, transparent), color-mix(in srgb, var(--ac) 3%, transparent) 55%, transparent); box-shadow: 0 1px 1px rgba(0, 0, 0, 0.3), 0 18px 36px -16px rgba(0, 0, 0, 0.8); }
+/* the bottom button of a sheet floats over the list: it keeps its frost (no opaque fill), a top light, the hairline and a
+   deeper shadow; once it can be pressed its label is full white and bolder */
+:root[data-glass='v2'] .sheet .sheet-foot .btn.btn { background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.08) 45%, rgba(255, 255, 255, 0.07)); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 1px 1px rgba(0, 0, 0, 0.3), 0 18px 36px -16px rgba(0, 0, 0, 0.8); }
 :root[data-glass='v2'] .sheet .sheet-foot .btn.btn:not([disabled]) { color: var(--tx); font-weight: 650; }
-:root[data-glass='v2'][data-theme='light'] .sheet .sheet-foot .btn.btn { background-color: rgba(255, 255, 255, 0.66); background-image: var(--mat-sheen); box-shadow: 0 1px 1.5px rgba(30, 40, 70, 0.14), 0 18px 34px -12px rgba(30, 40, 70, 0.5); }
+:root[data-glass='v2'][data-theme='light'] .sheet .sheet-foot .btn.btn { background-color: rgba(255, 255, 255, 0.66); background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.35)); box-shadow: inset 0 1px 0 #fff, 0 1px 2px rgba(60, 30, 20, 0.08), 0 18px 34px -12px rgba(60, 30, 20, 0.3); }
 :root[data-glass='v2'] .btn[disabled]::after { opacity: 0.55; }
 /* a bottom button that can't be pressed yet is quieter glass: thinner fill, no light, a faint rim, barely lifted */
 :root[data-glass='v2'] .sheet .sheet-foot .btn.btn[disabled] { background-image: none; box-shadow: 0 8px 18px -12px rgba(0, 0, 0, 0.5); }
 :root[data-glass='v2'][data-theme='light'] .sheet .sheet-foot .btn.btn[disabled] { background-color: rgba(255, 255, 255, 0.34); box-shadow: 0 6px 14px -10px rgba(30, 40, 70, 0.22); }
 :root[data-glass='v2'] .sheet .sheet-foot .btn.btn[disabled]::after { opacity: 0.4; }
-/* the workout's set number tiles are the same glass (a done set's tile stays clear, a warm-up keeps its colour) */
-:root[data-glass='v2'] .wk-set:not(.done, .warm) .wk-set-n { position: relative; background-image: var(--mat-glow), var(--mat-sheen); box-shadow: var(--mat-depth); }
+/* the workout's set number tiles: in light the same glass as the controls; in dark only the hairline (filled, they were
+   the brightest thing in their row, louder than the active set's outline and the kg/reps numbers) */
+:root[data-glass='v2'] .wk-set:not(.done, .warm) .wk-set-n { position: relative; }
+:root[data-glass='v2'][data-theme='light'] .wk-set:not(.done, .warm) .wk-set-n { background: var(--mat-ctl); box-shadow: var(--mat-ctl-lift); }
 :root[data-glass='v2'] .wk-set:not(.done, .warm) .wk-set-n::after {
-  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; padding: 1px; background: var(--mat-rim);
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; padding: 1px; background: var(--mat-ctl-rim);
   -webkit-mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
 }
-/* live cards: what is happening right now (the meal logged to last, today's routine, the running workout's pill) pop by
-   light and lift, not colour (Omar: "pop, but not orange"): brighter clearer glass, a luminous top edge with only a whisper
-   of the area's colour, a faint halo and a deeper shadow; at most one or two per screen */
-:root[data-glass='v2'] .plinth.live { background-image: var(--mat-live-glow), var(--mat-live-sheen); box-shadow: var(--mat-live-lift); }
-:root[data-glass='v2'] .plinth.live::after { background: var(--mat-live-rim); }
-:root[data-glass='v2'] [data-wk='pill'] { background-image: var(--mat-live-glow), var(--mat-live-sheen); }
-/* dark cards sit over the strongest part of the colour field: a slightly denser slate there, so a quiet card never takes
-   the field's magenta or brown */
-:root[data-glass='v2']:not([data-theme='light']) .plinth:not(.live) { background-color: transparent; background-image: var(--mat-sheen), linear-gradient(rgba(44, 48, 57, 0.94), rgba(44, 48, 57, 0.94)); }
-/* every quiet card lands on one neutral hue, whatever part of the colour field is behind it (dark ~46,49,58, light
-   ~242,243,248): a near-opaque neutral layer under the sheen, so the field can't tint some cards mauve and others cool.
-   Light: quiet cards are flat off-white with no shadow or grey edge; the live card is pure white, lifted above them. (No
-   backdrop saturation: screen cards have no backdrop filter at all, see .screen .plinth.) */
-:root[data-glass='v2'][data-theme='light'] .plinth:not(.live) { background-color: transparent; background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0) 45%), linear-gradient(rgba(242, 243, 249, 0.93), rgba(242, 243, 249, 0.93)); box-shadow: none; }
-:root[data-glass='v2'][data-theme='light'] .plinth:not(.live)::after { background: linear-gradient(180deg, #fff, rgba(255, 255, 255, 0.5) 40%, rgba(255, 255, 255, 0.2)); }
-:root[data-glass='v2'][data-theme='light'] .plinth.live { background-color: transparent; }
+:root[data-glass='v2']:not([data-theme='light']) .wk-set:not(.done, .warm) .wk-set-n::after { background: rgba(255, 255, 255, 0.1); }
+/* the running workout's pill floats over the page: it keeps its frost and takes the same top light and hairline */
+:root[data-glass='v2'] [data-wk='pill'] { background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.035)); }
+:root[data-glass='v2'][data-theme='light'] [data-wk='pill'] { background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0.4)); }
+:root[data-glass='v2'] [data-wk='pill']::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; padding: 1px; opacity: 1; background: var(--mat-ctl-rim);
+  -webkit-mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}
 /* the play button's glow stays tight around it (a wide coral bloom read as an orange fill across the card) */
 :root[data-glass='v2'] :is(.plinth, [data-wk='hero'] ~ div) .icon-btn.acc { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), 0 6px 16px -4px color-mix(in srgb, var(--ac) 25%, transparent); }
 :root[data-glass='v2'] [data-wk='hero'] > div { display: none; }
 /* the running workout's pill plays in Aven's one coral on every tab */
 :root[data-glass='v2']:not([data-palette='aurora']) [data-wk='pill'] + span .icon-btn.acc { --ac: #ff7a59; }
-/* dark: today in the week strip is lit neutral glass with coral text, not a low orange wash */
+/* dark: today in the week strip is lit neutral glass with the theme's colour as its number, not a low orange wash */
 :root[data-glass='v2']:not([data-theme='light']) .week-today { background: rgba(255, 255, 255, 0.1) !important; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14); }
 :root[data-glass='v2']:not([data-theme='light']) .week-today > .num { color: var(--ac-text); }
-/* the active set's row is lit glass inside its coral outline, the live thing in the workout (never coral fill: a done
-   set's row is the flat coral one) */
+/* the active set's row is lit glass inside its coloured outline, the live thing in the workout (never a colour fill: a
+   done set's row is the flat coral one) */
 :root[data-glass='v2'] .wk-set.current { background: linear-gradient(180deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.05)); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ac) 55%, transparent), inset 0 2.5px 0 -1px rgba(255, 255, 255, 0.16); }
-:root[data-glass='v2'][data-theme='light'] .wk-set.current { background: linear-gradient(180deg, #fff, rgba(255, 255, 255, 0.86)); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ac) 55%, transparent), 0 6px 16px -10px rgba(30, 40, 70, 0.35); }
-:root[data-glass='v2'] [data-wk='pill']::after {
-  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; padding: 1px; opacity: 1; background: var(--mat-live-rim);
-  -webkit-mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
-}
-/* "+ Set" sits at the set tiles' level in dark (rim only), so it never outshines the active set */
+:root[data-glass='v2'][data-theme='light'] .wk-set.current { background: linear-gradient(180deg, #fff, rgba(255, 255, 255, 0.86)); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ac) 55%, transparent), 0 6px 16px -10px rgba(60, 30, 20, 0.3); }
+/* "+ Set" sits at the set tiles' level in dark (hairline only), so it never outshines the active set */
 :root[data-glass='v2']:not([data-theme='light']) .wk-add-set { background: transparent; box-shadow: none; }
 :root[data-glass='v2']:not([data-theme='light']) .wk-add-set::after { background: rgba(255, 255, 255, 0.12); }
-/* …and in light it is clear white glass with a neutral rim (a peach edge made it compete with set 1) */
-:root[data-glass='v2'][data-theme='light'] .wk-add-set { background-image: var(--mat-sheen); }
-:root[data-glass='v2'][data-theme='light'] .wk-add-set::after { background: linear-gradient(180deg, #fff, rgba(255, 255, 255, 0.6) 40%, rgba(20, 28, 48, 0.08) 68%, rgba(20, 28, 48, 0.16)); }
-/* the main action at the bottom of a sheet, in dark: the full glow and sheen and a clearly visible rim */
-/* (the glow keeps a warm floor: fading to nothing let the sheet's navy show through the lower half) */
-:root[data-glass='v2']:not([data-theme='light']) .sheet .sheet-foot .btn.btn:not([disabled]) { background-image: linear-gradient(180deg, color-mix(in srgb, var(--ac) 20%, transparent), color-mix(in srgb, var(--ac) 13%, transparent) 45%, color-mix(in srgb, var(--ac) 12%, transparent)), var(--mat-sheen); }
-:root[data-glass='v2']:not([data-theme='light']) .sheet .sheet-foot .btn.btn:not([disabled])::after { background: linear-gradient(180deg, color-mix(in srgb, var(--ac) 30%, #fff), rgba(255, 255, 255, 0.2) 35%, rgba(255, 255, 255, 0.08) 70%, rgba(255, 255, 255, 0.16)); }
-/* the dock's active tab in dark: warm glass instead of cool grey, with the same warm top edge of light */
-:root[data-glass='v2']:not([data-theme='light']) .tab-lens {
-  --lens-fill: linear-gradient(180deg, color-mix(in srgb, var(--ac) 10%, #3f3331), color-mix(in srgb, var(--ac) 6%, #2f2625) 55%, #2b2423);
-  --lens-hl: color-mix(in srgb, color-mix(in srgb, var(--ac) 25%, #fff) 70%, transparent); --lens-line: rgba(255, 236, 225, 0.08);
-}
-/* in dark the glow and sheen made the tiles the brightest thing in their row, louder than the active set's outline and the
-   kg/reps numbers: there they keep only the rim */
-:root[data-glass='v2']:not([data-theme='light']) .wk-set:not(.done, .warm) .wk-set-n { background-image: none; box-shadow: none; }
+/* big icons (empty states): a soft lit mark on a tinted plate, light from the top left, a lit rim along the top */
+:root[data-glass='v2'] .empty-mark { width: 64px; height: 64px; margin: 0 auto 14px; display: grid; place-items: center; border-radius: 22px; color: var(--ac-text); position: relative;
+  background: radial-gradient(120% 120% at 28% 18%, color-mix(in srgb, var(--ac) 22%, transparent), color-mix(in srgb, var(--ac) 9%, transparent) 60%, color-mix(in srgb, var(--ac) 6%, transparent)), var(--mat-card);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--ac) 30%, rgba(255, 255, 255, 0.3)), inset 0 0 0 1px color-mix(in srgb, var(--ac) 16%, transparent), 0 10px 24px -12px color-mix(in srgb, var(--ac) 40%, transparent); }
+:root[data-glass='v2'] .empty-mark svg { filter: drop-shadow(0 1px 1px color-mix(in srgb, var(--ac) 35%, transparent)); }
+:root[data-glass='v2'] .empty-mark svg .duo { fill-opacity: 1; }
 .toggle-knob { position: absolute; top: 3px; left: 3px; width: 26px; height: 26px; border-radius: 99px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.4), 0 3px 8px -2px rgba(0,0,0,.25); transition: transform 460ms var(--ease-spring); will-change: transform; }
 
 .field { display: flex; flex-direction: column; gap: 6px; }
@@ -782,6 +767,9 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .settle { animation: settle 1400ms var(--ease-out) both; border-radius: var(--r-sm); }
 .empty { text-align: center; padding: 34px 20px; color: var(--tx2); }
 .empty .display { color: var(--tx); margin-bottom: 6px; }
+.empty-mark { display: grid; place-items: center; margin-bottom: 12px; color: var(--tx3); }
+/* the second tone of a two-tone icon (Icon.tsx) shows only where the glass asks for it */
+svg .duo { fill-opacity: 0; }
 .sheet-enter-fade { animation: fadein 200ms var(--ease-out) both; }
 @keyframes fadein { from { opacity: 0 } } /* no end keyframe: see rise-move */
 /* the rest countdown that joins the workout's header while you type fades in instead of popping */

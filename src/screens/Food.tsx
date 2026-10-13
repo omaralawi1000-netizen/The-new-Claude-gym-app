@@ -46,8 +46,6 @@ export function FoodScreen() {
   // the sheet you added it from has gone, so it happens where you can see it: the old card fades out, the meals rise in and
   // the cards below glide to their new place. Another day just shows what it has.
   const empty = list.length === 0;
-  // the meal with the latest entry is the day's live card (warm glass); the others stay neutral
-  const liveMeal = list.reduce<FoodEntry | undefined>((x, e) => (!x || e.at > x.at ? e : x), undefined)?.mealId;
   const covered = useUI((s) => s.overlays.length > 0);
   const [shown, setShown] = useState(empty);
   const [leaving, setLeaving] = useState(false);
@@ -117,12 +115,11 @@ export function FoodScreen() {
 
       {!shown && settings.meals.map((m) => {
         const items = perMeal(list, m.id);
-        const live = m.id === liveMeal; // the meal logged to last is the one warm card
         const ms = sumNutrients(items.map((e) => e.nutrients)).totals;
         // the meal's calories split by macro, as one thin bar
         const pk = (ms.protein ?? 0) * 4, ck = (ms.carbs ?? 0) * 4, fk = (ms.fat ?? 0) * 9, tk = Math.max(1, pk + ck + fk);
         return (
-          <section key={m.id} className={`plinth meal${items.length ? '' : ' bare'}${live ? ' live' : ''}${fade}`} aria-label={mealName(m, lang)}>
+          <section key={m.id} className={`plinth meal${items.length ? '' : ' bare'}${fade}`} aria-label={mealName(m, lang)}>
             <div className="meal-head">
               <div className="grow" style={{ minWidth: 0 }}>
                 <div className="meal-name display">{mealName(m, lang)}</div>

@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from 'react';
+import { useId, type CSSProperties, type ReactNode } from 'react';
 
 /** Aven icon set — authored on a 24 grid, 1.8 stroke, round joins. */
 const P: Record<string, ReactNode> = {
@@ -63,9 +63,26 @@ const P: Record<string, ReactNode> = {
   wifiOff: <><path d="M3.5 3.5l17 17" /><path d="M8.5 15.5a5 5 0 0 1 4-1.3M5 12a9 9 0 0 1 3-2M12 19.2h.01" /></>,
 };
 
-export function Icon({ name, size = 22, sw = 1.8, style, className }: { name: keyof typeof P | string; size?: number; sw?: number; style?: CSSProperties; className?: string }) {
+/** The second tone of a two-tone icon (the dock's active tab, the big empty-state marks): the glyph's body, filled under
+ *  its stroke at about 40 % of the colour with a gentle light from the top. Same shapes as the strokes above. */
+const DUO: Record<string, ReactNode> = {
+  today: <path d="M4 18.5V9l8-5.5L20 9v9.5z" />,
+  train: <><rect x="4.7" y="6.2" width="3.6" height="11.6" rx="1.8" /><rect x="15.7" y="6.2" width="3.6" height="11.6" rx="1.8" /><rect x="2.4" y="8.7" width="2.2" height="6.6" rx="1.1" /><rect x="19.4" y="8.7" width="2.2" height="6.6" rx="1.1" /></>,
+  dumbbell: <><rect x="4.2" y="7.2" width="3.6" height="9.6" rx="1.8" /><rect x="16.2" y="7.2" width="3.6" height="9.6" rx="1.8" /><rect x="2.4" y="9.2" width="2.2" height="5.6" rx="1.1" /><rect x="19.4" y="9.2" width="2.2" height="5.6" rx="1.1" /></>,
+  food: <><path d="M4.2 6.5h7.6v3.2a3.8 3.8 0 0 1-7.6 0z" /><path d="M17 13V3c-2.4 1.2-3.5 4-3.5 7.5 0 1.5.9 2.5 2 2.5z" /></>,
+  progress: <path d="M6 15.5l4-4.5 3.2 2.8L19 7v12.5H6z" />,
+  clock: <circle cx="12" cy="12" r="8.5" />,
+};
+
+export function Icon({ name, size = 22, sw = 1.8, style, className, duo }: { name: keyof typeof P | string; size?: number; sw?: number; style?: CSSProperties; className?: string; duo?: boolean }) {
+  const gid = `duo${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
+  const body = duo ? DUO[name] : undefined;
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" style={style} className={className} aria-hidden="true">
+      {body && <>
+        <defs><linearGradient id={gid} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="currentColor" stopOpacity=".55" /><stop offset="1" stopColor="currentColor" stopOpacity=".28" /></linearGradient></defs>
+        <g className="duo" fill={`url(#${gid})`} stroke="none">{body}</g>
+      </>}
       {P[name] ?? null}
     </svg>
   );
