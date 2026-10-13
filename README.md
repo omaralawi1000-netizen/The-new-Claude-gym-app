@@ -1438,3 +1438,10 @@ at the edges.
   the black (`toBlack` in `ui/statusBar.ts`), so the hairline round a page that is almost home never flashes black.
 - Same motion and timing; only the colours behind changed. Reduced motion: the bar only dims, as before.
   `scripts/film-depth.mjs [--light]` films the page stepping back for Settings, Coach, a food sheet and the workout.
+- v0.1.74, from Omar's recording of v0.1.73 and a zoomed check:
+  - The corners are round from the first frame (they fade in with the black instead of growing from nothing).
+  - A faint square outline showed round each corner (on his phone too): the corners sat inside the page, whose clip cut
+    them off exactly at its edge, and the page's half-covered edge pixels showed through theirs. They are now a layer
+    beside the page (`.stage-edge`) on the same transform, reaching 3 px past its edge. The browser-run version of the
+    step back (mirrorStage) moves it on the same spring and stops it with the page.
+  - A faint light rim along the top of the card (as on the sheets), so in dark mode the rounded card reads against black.

@@ -7,6 +7,15 @@ const want = process.argv.slice(2).filter((a) => !a.startsWith('--'));
 const { b, ctx, p } = await launch({ theme, size: { width: 384, height: 832 } });
 const cdp = await ctx.newCDPSession(p);
 const film = await filmer(ctx, p);
+// a stand-in for Android's status bar: an opaque 30 px strip above the app in the page's theme-color, as on the phone
+await ctx.addInitScript(() => addEventListener('DOMContentLoaded', () => {
+  const st = document.createElement('style'); st.textContent = '.app { top: 30px !important; }'; document.head.appendChild(st);
+  const bar = document.createElement('div'); bar.style.cssText = 'position:fixed;left:0;right:0;top:0;height:30px;z-index:2147483647;pointer-events:none';
+  document.body.appendChild(bar);
+  const m = document.querySelector('meta[name="theme-color"]');
+  const sync = () => { bar.style.background = m.getAttribute('content'); };
+  new MutationObserver(sync).observe(m, { attributes: true }); sync();
+}));
 await p.goto(process.env.URL || 'http://127.0.0.1:4173/'); await wait(p, 1500); await skipOnboarding(p); await loadDemo(p); await wait(p, 1000);
 await cdp.send('Emulation.setCPUThrottlingRate', { rate: +(process.env.CPU || 4) });
 const step = async (name, fn, ms = 1400) => { if (!want.length || want.some((w) => name.startsWith(w))) await film(`depth-${theme}-${name}`, fn, ms, { every: +(process.env.EVERY || 2), cols: 8 }); else { await fn(); await wait(p, ms); } };

@@ -663,14 +663,18 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* iOS-style: while a popup is up the page behind steps back. Its transform and corner radius are written by script
    (useStageDepth in App.tsx) from the popups' own progress, so it follows them frame for frame — no CSS transition. */
 .stage { position: absolute; inset: 0; background: var(--bg); transform-origin: 50% 0%; will-change: transform; overflow: clip; } /* always its own clipped layer: see useStageDepth in App.tsx. clip, not hidden: a hidden box can still be scrolled by script, and something scrolled it 24 px sideways while a sliding page overhung it, leaving Train and Food shifted left */
-/* the page's rounded corners while a pop-up has it stepped back: a quarter-circle cut-out in black (what it steps back
-   onto), scaled from 0 (at rest) to 1 (fully back) by useStageDepth — a transform, so nothing about the page's layer
-   changes. 41 px, so that on the page scaled to 0.92 they read as 38 px, the same curve as the pop-ups' own corners. */
-.stage-corner { position: absolute; z-index: 2147483647; width: 41px; height: 41px; pointer-events: none; will-change: transform; transform: scale(0); }
-.stage-corner.tl { top: 0; left: 0; transform-origin: 0 0; background: radial-gradient(circle at 100% 100%, transparent 40.25px, #000 41px); }
-.stage-corner.tr { top: 0; right: 0; transform-origin: 100% 0; background: radial-gradient(circle at 0 100%, transparent 40.25px, #000 41px); }
-.stage-corner.bl { bottom: 0; left: 0; transform-origin: 0 100%; background: radial-gradient(circle at 100% 0, transparent 40.25px, #000 41px); }
-.stage-corner.br { bottom: 0; right: 0; transform-origin: 100% 100%; background: radial-gradient(circle at 0 0, transparent 40.25px, #000 41px); }
+/* the page's rounded edge while a pop-up has it stepped back: a layer beside the page (not in it: see useStageDepth) on the
+   page's own transform, faded in with the black behind. Black quarter-circle cut-outs at the corners, reaching 3 px past
+   the page's edge so they cover its half-covered edge pixels; 41 px of curve, which on the page scaled to 0.92 reads as
+   38 px, the same as the pop-ups' own corners. Along the top a faint light rim (as on the sheets), so in dark mode the
+   card's edge reads against the black. */
+.stage-edge { position: absolute; inset: 0; pointer-events: none; transform-origin: 50% 0%; will-change: transform, opacity; opacity: 0; }
+.stage-corner { position: absolute; width: 44px; height: 44px; }
+.stage-corner.tl { top: -3px; left: -3px; background: radial-gradient(circle at 100% 100%, transparent 40.25px, #000 41px); }
+.stage-corner.tr { top: -3px; right: -3px; background: radial-gradient(circle at 0 100%, transparent 40.25px, #000 41px); }
+.stage-corner.bl { bottom: -3px; left: -3px; background: radial-gradient(circle at 100% 0, transparent 40.25px, #000 41px); }
+.stage-corner.br { bottom: -3px; right: -3px; background: radial-gradient(circle at 0 0, transparent 40.25px, #000 41px); }
+.stage-rim { position: absolute; left: 0; right: 0; top: 0; height: 64px; border-radius: 41px 41px 0 0; box-shadow: inset 0 1px 0 var(--hl); }
 /* The same for everything a page switch, a Settings page, a sheet page or the dock slides by script (Motion / Web Animations):
    each keeps one layer for good, so nothing is handed back to the page — and redrawn a frame late — the moment its slide
    ends (see rise-move). A handful of big layers, created once; the motion itself is unchanged. */
