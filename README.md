@@ -1450,6 +1450,16 @@ flicker fingerprint). `--film a,b` films chosen actions, `--light` for the light
   - The bar's name (`Fit`) no longer lays the window out itself: it reads its room right after the browser's own layout
     and measures the shorter tries off the page (it forced one full layout per try, about 100 ms at 4x as the window opened).
   - The rest-over sound is made once the whole list has arrived, not while it is still arriving.
+- v0.1.93, "the window opens a beat late" (resume, at 4x CPU, 4 runs each, main → this):
+  - Long tasks while it opens: two every time (60-130 ms each) → none. Finger down → first moving frame: ~143 → ~122 ms
+    (1x: about 30 ms, a couple of frames at 120 Hz, of which the finger's own press is part).
+  - It starts moving in the tap itself: the minimised window (kept, parked off-screen) registers itself
+    (`ui/workoutOpen.ts`); a tap on the resume bar or button sets its slide going on the compositor first, and only after
+    that frame is the app told (re-rendering the page behind, the dock and the window), as closing already did.
+  - The "calm" flag (pauses the colour field behind any pop-up) is written on the shell directly, not as React state: each
+    pop-up opening re-rendered the whole app twice for it, once inside the tap and once two frames into the motion.
+  - The calm rule names the one thing on a page that still blurs (`.screen .seg`) instead of `.screen *`: switching it
+    restyled every element of the page (~900, 55 ms at 4x), two frames into EVERY pop-up's motion.
 
 ## Android app: the rest as a live countdown, new icon, calmer opening (13 Oct 2026, v0.1.72)
 Omar's phone showed the website's plain notice ("Back at 10:02", the site's address) instead of the app's countdown.
