@@ -1336,3 +1336,28 @@ sending, the dots and the answer wrote themselves in *under* the bar.
 - The flying message's glass gathers sooner (no bare text mid-flight). Recording shows "Listening…" (it was cut off).
 - Checked with a simulated keyboard at 4× CPU (`kb-probe`): the last line stays 28 px above the bar in every frame of
   open/close; before, after a send it sat up to 520 px under it. Main-thread time while the keyboard moves is unchanged.
+
+## Coach: a calm "New chat", answers that read like a page (13 Oct 2026, v0.1.67)
+
+- **New chat**: the old conversation used to flash back for a frame after fading out (the fade was let go before the
+  messages left the page; now it is let go in a layout effect once they are gone). The suggestions then rise in one after
+  another (they used to pop in together), the "AI can be wrong" note fades in after them, and the "New chat" button fades
+  out instead of blinking away (it fades back with the first message).
+- **Reading**: paragraphs and bullet points come from classes now (`.rich-p`, `.rich-li`) instead of inline margins. In the
+  Coach a paragraph break is 12 px, a list sits 10 px apart from the sentence before and after it. The orb screen keeps 8/4.
+- **Play button**: under each Coach answer it is a quiet glyph, lined up with the text, instead of a filled circle (a column
+  of circles down the chat read as noise). It keeps its 32 px tap area and gets its colour and ring while it reads aloud.
+
+## Polish pass, round 2: Settings pages, onboarding buttons, Progress numbers (13 Oct 2026, v0.1.68)
+
+- Settings: going into a page (Targets, Training, Look…) used to make the close × vanish in one frame and the Back arrow
+  grow from nothing, which pushed the title sideways every frame. Now × fades out, Back fades in where it will sit, and
+  only the titles move (on their own transforms). Going back, "Settings" is no longer cut off at the left edge while it
+  slides in (`.sheet-head .display.trunc` clips a little past its box).
+- Onboarding: the Back button used to appear in one frame on the second step (squeezing Continue at once) and Skip to
+  vanish on the last one. Now Back and Skip fade, and Continue / Start glides to its new width (Motion layout on wrappers,
+  transforms only, so the buttons' own press still works).
+- Progress: changing the range (4 weeks, 12 weeks…) now rolls the numbers that change with it: weight change and trend
+  rate, average calories, days logged, protein and its % of target.
+- Audited with `scripts/audit-polish2.mjs` (onboarding step by step, Progress, every Settings page, the Look page's
+  toggles, finish and summary; dark and light). The workout sheet's own findings went to the thread that now owns it.

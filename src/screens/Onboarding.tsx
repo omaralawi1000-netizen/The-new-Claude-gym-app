@@ -16,6 +16,10 @@ import { buildDemo } from '../lib/demo';
 import { fmtWeekdayShort } from '../lib/dates';
 import { useOverlayZ } from '../ui/Sheet';
 import { SoftText } from '../ui/SoftText';
+import { SURFACE } from '../ui/motion';
+
+const FOOT_MOVE = SURFACE;
+const FOOT_FADE = { initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0, transition: { duration: 0.16 } }, transition: { opacity: { duration: 0.3, delay: 0.08 }, layout: SURFACE } };
 
 const GOALS: { v: Goal; l: string; s: string }[] = [
   { v: 'strength', l: 'Get stronger', s: 'Heavier lifts, lower reps' },
@@ -141,9 +145,13 @@ export function Onboarding({ props }: { props: { rerun?: boolean; starterOnly?: 
         </AnimatePresence>
       </div>
       <div style={{ padding: '12px 20px calc(var(--sab) + 16px)', display: 'flex', gap: 10, borderTop: '1px solid var(--line)' }}>
-        {step > (props.starterOnly ? 1 : 0) && <button className="btn press" onClick={() => go(step - 1)} aria-label={tt('Back')}><Icon name="chevL" size={18} /></button>}
-        {!isLast && <button className="btn ghost press" onClick={() => go(step + 1)}>{tt('Skip')}</button>}
-        <button className="btn primary grow press" onClick={() => (isLast ? finish() : go(step + 1))}>{isLast ? tt('Start') : tt('Continue')}</button>
+        {/* Back and Skip fade in and out and the main button glides to its new width (Motion's layout: transforms only). Each
+            button sits in a wrapper that does the moving, so the button's own press keeps working. */}
+        <AnimatePresence initial={false} mode="popLayout">
+          {step > (props.starterOnly ? 1 : 0) && <motion.div key="back" layout="position" {...FOOT_FADE} style={{ display: 'flex' }}><button className="btn press" onClick={() => go(step - 1)} aria-label={tt('Back')}><Icon name="chevL" size={18} /></button></motion.div>}
+          {!isLast && <motion.div key="skip" layout="position" {...FOOT_FADE} style={{ display: 'flex' }}><button className="btn ghost press" onClick={() => go(step + 1)}>{tt('Skip')}</button></motion.div>}
+          <motion.div key="go" layout transition={FOOT_MOVE} className="grow" style={{ display: 'flex' }}><button className="btn primary grow press" onClick={() => (isLast ? finish() : go(step + 1))}><motion.span layout="position" transition={FOOT_MOVE}>{isLast ? tt('Start') : tt('Continue')}</motion.span></button></motion.div>
+        </AnimatePresence>
       </div>
     </motion.div>
   );

@@ -432,10 +432,12 @@ export function SheetHead({ title, sub, onClose, right, back: backProp }: { titl
   const back = backProp || page; // a page inside another sheet goes Back to it rather than closing
   return (
     <div className="sheet-head">
-      <AnimatePresence initial={false}>
+      {/* Back and Close come and go by fading (no width animation, which re-laid the title out every frame): the title
+          beside them moves on its own transform, and a leaving Back steps out of the row at once */}
+      <AnimatePresence initial={false} mode="popLayout">
         {back && onClose && (
-          <motion.button key="back" className="icon-btn flat press" onClick={onClose} aria-label="Back" style={{ overflow: 'hidden', flex: 'none', willChange: 'opacity' }}
-            initial={{ opacity: 0, width: 0, marginRight: -10 }} animate={{ opacity: 1, width: 40, marginRight: 0 }} exit={{ opacity: 0, width: 0, marginRight: -10 }} transition={SURFACE}>
+          <motion.button key="back" className="icon-btn flat press" onClick={onClose} aria-label="Back" style={{ flex: 'none' }}
+            initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10, transition: { duration: 0.18 } }} transition={SURFACE}>
             <Icon name="chevL" />
           </motion.button>
         )}
@@ -445,7 +447,14 @@ export function SheetHead({ title, sub, onClose, right, back: backProp }: { titl
         {sub && <div className="small t2 clamp2" style={{ marginTop: 2 }}>{sub}</div>}
       </div>
       {right}
-      {!back && onClose && <button className="icon-btn flat press" onClick={onClose} aria-label="Close"><Icon name="close" /></button>}
+      <AnimatePresence initial={false}>
+        {!back && onClose && (
+          <motion.button key="close" className="icon-btn flat press" onClick={onClose} aria-label="Close"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.18 } }} transition={{ duration: 0.3 }}>
+            <Icon name="close" />
+          </motion.button>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
