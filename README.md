@@ -1448,3 +1448,8 @@ at the edges.
 - v0.1.75: Omar: "now that top layer is not seamless" — back to the v0.1.72 step-back exactly (page onto the status bar's
   tint, corners growing in, status bar dims). v0.1.73/74 reverted with no other changes; next: only the page's content
   sinks back, the background stays still.
+- v0.1.76: behind a pop-up only the page's content sinks back (screen and dock together, `.stage-content`, to 95 % from the
+  middle, under the dim). The background stays full-bleed and still, so there's no card edge, corner or colour behind to
+  see, and the status bar is as before. The page used to step back as a whole card (v0.1.72 onto the status bar's tint,
+  v0.1.73/74 onto black); Omar: "the top layer is not seamless … make it seem like it's moving backwards by moving all the
+  icons at the same time". The corner pieces are gone.
