@@ -16,6 +16,7 @@ import { Count } from '../ui/kit';
 import type { FoodEntry } from '../lib/types';
 import { WaterTile } from './food/Water';
 import { WeekStrip } from './food/WeekStrip';
+import { SoftText } from '../ui/SoftText';
 
 export function FoodScreen() {
   const t = useT();
@@ -64,8 +65,8 @@ export function FoodScreen() {
         </div>
         <div style={{ marginTop: 16 }}>
           <AnimatePresence mode="popLayout" initial={false}>
-            <motion.h1 key={date} className="display display-lg" style={{ margin: 0, fontStyle: 'italic' }} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -14 }} transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1] }}>
-              {rel ?? fmtDate(date, lang, { day: 'numeric', month: 'long' })}
+            <motion.h1 key={date} className="display display-lg" style={{ margin: 0, fontStyle: 'italic' }} initial={{ y: 14 }} animate={{ y: 0 }} exit={{ opacity: 0, y: -14 }} transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1] }}>
+              <SoftText text={rel ?? fmtDate(date, lang, { day: 'numeric', month: 'long' })} />
             </motion.h1>
           </AnimatePresence>
           <div className="small t3" style={{ marginTop: 2 }}>{fmtDate(date, lang, { weekday: 'long', day: 'numeric', month: 'long' })}{isFuture ? ' ↗' : ''}</div>

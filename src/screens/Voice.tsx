@@ -119,7 +119,7 @@ function SaidMorph({ text, onSettled }: { text: string; onSettled: () => void })
       <div className="said">{words.map((w, i) => <Fragment key={i}><span className="sb">{w}</span>{i === words.length - 1 ? null : breaks.includes(i) ? <br /> : ' '}</Fragment>)}</div>
       {phase !== 'done' && (
         <div className="said-big" aria-hidden>
-          {words.map((w, i) => <Fragment key={i}><span className="sw" style={{ ['--i' as string]: Math.min(i, 18) }}>{w}</span>{i < words.length - 1 ? ' ' : ''}</Fragment>)}
+          {words.map((w, i) => <Fragment key={i}><span className="sw soft soft-in" data-soft={w} style={{ ['--i' as string]: Math.min(i, 18) }}><span className="soft-s">{w}</span></span>{i < words.length - 1 ? ' ' : ''}</Fragment>)}
         </div>
       )}
     </div>
