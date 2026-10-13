@@ -47,10 +47,7 @@ timeout 10 adb exec-out screencap -p > shots/6-app.png
 timeout 10 adb shell input keyevent KEYCODE_HOME
 sleep 2
 adb get-state
-# the website in Chrome, then left, as you do mid-rest; the website then shows the rest notification
-tab 8
-timeout 10 adb shell input keyevent KEYCODE_HOME
-sleep 2
+# the app's page stays open behind the home screen; the website there shows the rest notification, as mid-rest
 cdp rest 95 | tee shots/rest-real.txt
 sleep 4
 notes real-countdown
