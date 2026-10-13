@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Aven</string>
+    <string name="launch_url" translatable="false">https://omaralawi1000-netizen.github.io/The-new-Claude-gym-app/</string>
+    <!-- Android checks this against https://omaralawi1000-netizen.github.io/.well-known/assetlinks.json -->
+    <string name="asset_statements" translatable="false">
+        [{
+            \"relation\": [\"delegate_permission/common.handle_all_urls\"],
+            \"target\": {\"namespace\": \"web\", \"site\": \"https://omaralawi1000-netizen.github.io\"}
+        }]
+    </string>
+    <string name="channel_rest">Rest timer</string>
+    <string name="channel_rest_about">The live countdown while you rest between sets.</string>
+    <string name="channel_over">Rest over</string>
+    <string name="channel_over_about">Rings when your rest is over.</string>
+    <string name="rest_over">Rest over</string>
+</resources>

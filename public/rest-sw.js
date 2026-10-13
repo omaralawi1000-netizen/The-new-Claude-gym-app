@@ -9,7 +9,7 @@
 // Limits a web app can't get around: Chrome stops a service-worker task after 5 minutes, so a longer rest left in the
 // background relies on the page's back-up timer only; the sound and vibration are the phone's own settings for Aven's
 // notifications; and a notification can always be swiped away.
-const REST_TAG = 'aven-rest'; // the quiet one, while resting
+const REST_TAG = 'aven-rest'; // the quiet one, while resting (its timestamp is the end: the Android app counts down to it)
 const OVER_TAG = 'aven-rest-over'; // the alert when it ends
 const MAX_WAIT = 290000; // just under Chrome's 5-minute limit for one task
 let rest = null; // the rest being timed here
@@ -40,7 +40,7 @@ async function timeRest(r) {
   const old = await self.registration.getNotifications({ tag: OVER_TAG });
   old.forEach((n) => n.close());
   await self.registration.showNotification(r.title, {
-    body: r.body, tag: REST_TAG, silent: true, renotify: false, icon: r.icon, badge: r.badge,
+    body: r.body, tag: REST_TAG, silent: true, renotify: false, timestamp: r.endsAt, icon: r.icon, badge: r.badge,
     actions: [{ action: 'more', title: r.more }, { action: 'skip', title: r.skip }],
     data: { kind: 'resting', key: r.key },
   });
