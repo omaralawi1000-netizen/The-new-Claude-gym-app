@@ -1383,7 +1383,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-views { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .wk-list { transition: opacity 380ms 90ms var(--ease-out), transform 620ms var(--ease-smooth), visibility 0s; }
 .wk-list.wk-away { opacity: 0; transform: none; visibility: hidden; pointer-events: none; transition: opacity 260ms var(--ease-out), transform 560ms var(--ease-smooth), visibility 0s 560ms; }
-.wk-focus { position: absolute; inset: 0; display: flex; flex-direction: column; opacity: 0; transform: translateY(16px) scale(.985); visibility: hidden; pointer-events: none;
+.wk-focus { position: absolute; inset: 0; display: flex; flex-direction: column; opacity: 0; transform: translateY(16px) scale(.985); visibility: hidden; pointer-events: none; will-change: opacity, transform;
   transition: opacity 260ms var(--ease-out), transform 560ms var(--ease-smooth), visibility 0s 560ms; }
 .wk-focus.on { opacity: 1; transform: none; visibility: visible; pointer-events: auto; transition: opacity 380ms 90ms var(--ease-out), transform 620ms var(--ease-smooth), visibility 0s; }
 /* with the card travelling between the views (morph.ts): the card itself is never faded, so Focus shows at once and only
@@ -1404,7 +1404,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-dot.done i { background: var(--ac); opacity: .95; }
 .wk-dot-pill { position: absolute; left: 2px; top: 7px; width: 12px; height: 6px; border-radius: 999px; background: var(--tx); pointer-events: none; transition: transform 560ms var(--ease-smooth); will-change: transform; }
 /* the pages: the track moves (ui/pager.ts), each page scrolls on its own */
-.wk-pager { position: relative; flex: 1; min-height: 0; overflow: clip; touch-action: pan-y; }
+.wk-pager { position: relative; flex: 1; min-height: 0; overflow: clip; touch-action: pan-y; will-change: transform; } /* keeps its layer: it got one for each page turn and lost it as the page landed (a flicker) */
 .wk-pager.paging { -webkit-user-select: none; user-select: none; }
 .wk-track { display: flex; height: 100%; will-change: transform; }
 .wk-page { flex: 0 0 100%; min-width: 0; height: 100%; display: flex; flex-direction: column; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; touch-action: pan-y; padding: 0 16px;
