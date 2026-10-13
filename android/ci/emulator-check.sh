@@ -43,7 +43,8 @@ adb exec-out screencap -p > shots/5-chrome.png
 cdp set
 # the app; the website in it shows the rest notification (as it does the moment you leave mid-rest), then you leave
 adb shell am start -n app.aven.android/com.google.androidbrowserhelper.trusted.LauncherActivity
-sleep 6
+for i in 1 2 3 4; do timeout 5 adb exec-out screencap -p > shots/6a-launch-$i.png; done # the opening, frame by frame
+sleep 4
 timeout 10 adb exec-out screencap -p > shots/6-app.png
 cdp rest 95 | tee shots/rest-real.txt
 timeout 10 adb shell input keyevent KEYCODE_HOME

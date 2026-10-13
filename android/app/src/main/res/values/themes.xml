@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.Aven" parent="@android:style/Theme.Translucent.NoTitleBar">
+    <!-- Opaque, so Android has a launch window to open the icon into (a see-through one showed a flat grey card first).
+         Ink in light and dark alike: the app's own look is set inside the website, which Android can't read. -->
+    <style name="Theme.Aven" parent="@android:style/Theme.Material.NoActionBar">
         <item name="android:windowBackground">@color/ink</item>
         <item name="android:statusBarColor">@color/ink</item>
         <item name="android:navigationBarColor">@color/ink</item>
