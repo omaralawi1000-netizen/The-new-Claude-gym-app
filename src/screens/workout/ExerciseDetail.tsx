@@ -77,7 +77,10 @@ export function ExerciseDetail({ props }: { props: { id: string } }) {
   const steps = exSteps(ex, lang);
   return (
     <Sheet onClose={pop} tall label={exName(ex, lang)} z={115}
-      foot={s.active ? <button className="btn primary block press" onClick={() => { addExercises([ex.id]); toast(t('Added to workout'), { tone: 'ok' }); pop(); }}><Icon name="plus" size={18} /> {t('Add to current workout')}</button> : undefined}>
+      // already in the workout: a quiet note in place of the button (adding it twice was never what was meant)
+      foot={!s.active ? undefined : s.active.exercises.some((e) => e.exerciseId === ex.id)
+        ? <div className="small t2 row-flex" style={{ justifyContent: 'center', gap: 6, padding: '13px 0' }}><Icon name="check" size={16} /> {t('In this workout')}</div>
+        : <button className="btn primary block press" onClick={() => { addExercises([ex.id]); toast(t('Added to workout'), { tone: 'ok' }); pop(); }}><Icon name="plus" size={18} /> {t('Add to current workout')}</button>}>
       <SheetHead title={exName(ex, lang)} sub={[...ex.equipment.map((q) => t(EQUIP_LABEL[q])), t(MOVE_LABEL[ex.movement])].join(' · ')} onClose={pop} right={ex.custom ? <button className="icon-btn flat press" aria-label={t('Edit')} onClick={() => push('exerciseEditor', { id: ex.id })}><Icon name="edit" /></button> : undefined} />
       <div className="sheet-body">
         {/* the movement: the figure doing it, or the muscles it works where there's no figure yet */}

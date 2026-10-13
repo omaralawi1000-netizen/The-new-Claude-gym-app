@@ -1412,4 +1412,10 @@ export const da: Record<string, string> = {
  "Time for your warm-up": "Tid til opvarmning",
  "+30 s": "+30 sek.",
  "Skip rest": "Spring hvilen over",
+ "Breathy": "Luftig",
+ "Easy-going": "Afslappet",
+ "Firm": "Fast",
+ "Warm": "Varm",
+ "Tap a voice to hear it.": "Tryk på en stemme for at høre den.",
+ "In this workout": "I denne træning",
 };
