@@ -549,6 +549,11 @@ html:root[data-glass='v2'][data-glow='soft'][data-theme='light'] { --aurora-a: 0
 :root[data-glass='v2'][data-theme='light']:is(:not([data-palette]), [data-palette='ember']) .app[data-hue='food'] .tab.on svg { color: oklch(from #ff7a59 0.64 c h); }
 /* light: the active icon is a deep coral, close to the play button's, not the brick of the deep text colour */
 :root[data-glass='v2'][data-theme='light'] .tab.on svg { color: oklch(from var(--ac) 0.64 c h); }
+/* …and in Ember every accent button on a light page is that same coral (the deep text colour of Train's red and Food's
+   amber came out pure red and amber): play buttons, the meal +, today in the week strip, accent chips */
+:root[data-glass='v2'][data-theme='light']:is(:not([data-palette]), [data-palette='ember']) :is(.icon-btn.acc, .icon-btn.acc-soft, .meal-add, .chip.acc, .week-today, .tab.on svg) { --ac: #ff7a59; --ac-text: oklch(from #ff7a59 0.64 c h); }
+:root[data-glass='v2'][data-theme='light']:is(:not([data-palette]), [data-palette='ember']) :is(.icon-btn.acc-soft, .meal-add, .chip.acc, .app .tab.on svg) { color: var(--ac-text); }
+:root[data-glass='v2'][data-theme='light']:is(:not([data-palette]), [data-palette='ember']) .week-today { background: color-mix(in srgb, #ff7a59 18%, transparent) !important; }
 :root[data-glass='v2'] .tab.on svg { filter: drop-shadow(0 1px 1px color-mix(in srgb, var(--ac) 35%, transparent)); }
 /* fields (the workout's kg and reps, search, forms) are wells cut into the glass: shaded at the top, with a catch-light
    along the bottom edge, so they still read clearly as places to type (focus keeps its own ring) */
