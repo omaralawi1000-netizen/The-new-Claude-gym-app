@@ -239,7 +239,7 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
     return () => cancelAnimationFrame(id);
   }, [shown, lead]);
   const [ready, setReady] = useState(false);
-  useEffect(() => { if (ready) prepareRestAudio(); }, [ready]); // the rest-over sound, made while nothing else is happening
+
   const listDoneAtOpen = useRef(total0 <= 2);
   // the exercises drawn in the very first frame ride up with the window; any that arrive after it fade in
   const firstIds = useRef(new Set((a?.exercises ?? []).slice(0, 2).map((e) => e.id)));
@@ -248,6 +248,9 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
   // once the opening has built the list, an exercise that joins it (added, or brought back by Undo) unfolds into place
   const listSettled = useRef(false);
   useEffect(() => { if (listDone) listSettled.current = true; }, [listDone]);
+  // the rest-over sound, made while nothing else is happening: once the list is built (made as soon as the window had
+  // landed, it ran while the rest of the list was still arriving, ~11 ms at once on the phone)
+  useEffect(() => { if (ready && listDone) prepareRestAudio(); }, [ready, listDone]);
   useEffect(() => {
     if (p.get() >= 0.97) { setReady(true); return; }
     const off = p.on('change', (v) => { if (v >= 0.97) { setReady(true); off(); } });
@@ -556,6 +559,9 @@ function WorkoutBar({ engage, exMap, focus, onDone, onJump }: { engage: Engage; 
   );
 }
 
+/** Text measured off the page (Fit). */
+let measureCtx: CanvasRenderingContext2D | null = null;
+const measurer = () => (measureCtx ??= document.createElement('canvas').getContext('2d')!);
 /**
  * One line that ends in a clean "…" when it doesn't fit, never in "Press, …" (the browser's own ellipsis keeps a trailing
  * comma or space). Measured only when the text or the room for it changes.
@@ -565,19 +571,35 @@ function Fit({ text, className }: { text: string; className?: string }) {
   useLayoutEffect(() => {
     const el = ref.current; if (!el) return;
     const cut = (n: number) => `${text.slice(0, n).replace(/[\s,.;:·–—-]+$/u, '')}…`;
-    const fits = () => el.scrollWidth <= el.clientWidth + 0.5;
+    // Nothing is read from the page here. The room is read when the browser reports the line's size, right after its own
+    // layout (free then), and the shorter tries are measured off the page. Reading widths here laid the whole window out an
+    // extra time (and once per try), in the tap that ticks a set and in the first frame of opening.
+    let whole = true, font = '', spacing = '', parentW = -1;
     const fit = () => {
-      el.textContent = text;
-      if (fits()) return;
+      const room = el.clientWidth;
+      if (el.scrollWidth <= room + 0.5) return;
+      const c = measurer();
+      if (!font) { const cs = getComputedStyle(el); font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`; spacing = cs.letterSpacing; }
+      c.font = font; c.letterSpacing = spacing;
+      const fits = (n: number) => c.measureText(cut(n)).width <= room - 1;
       let lo = 1, hi = text.length - 1; // the longest start that fits with its "…"
-      while (lo < hi) { const m = (lo + hi + 1) >> 1; el.textContent = cut(m); if (fits()) lo = m; else hi = m - 1; }
-      el.textContent = cut(lo);
+      while (lo < hi) { const m = (lo + hi + 1) >> 1; if (fits(m)) lo = m; else hi = m - 1; }
+      whole = false; el.textContent = cut(lo);
     };
-    fit();
-    let w = el.parentElement?.clientWidth ?? 0;
-    const ro = new ResizeObserver(() => { const nw = el.parentElement?.clientWidth ?? 0; if (nw !== w) { w = nw; fit(); } });
+    // the line shrinks to a cut name, so only the whole name tells the room; the room changes only with the parent's width
+    const ro = new ResizeObserver((entries) => {
+      for (const e of entries) {
+        if (e.target === el) { if (whole) fit(); continue; }
+        const w = e.contentRect.width;
+        if (parentW >= 0 && w !== parentW) reset();
+        parentW = w;
+      }
+    });
+    const reset = () => { whole = true; el.textContent = text; ro.unobserve(el); ro.observe(el); };
+    el.textContent = text;
+    ro.observe(el);
     if (el.parentElement) ro.observe(el.parentElement);
-    void document.fonts?.ready.then(() => { if (el.isConnected) fit(); });
+    if (document.fonts && document.fonts.status !== 'loaded') void document.fonts.ready.then(() => { if (el.isConnected) { font = ''; reset(); } });
     return () => ro.disconnect();
   }, [text]);
   return <span ref={ref} className={className} />;
