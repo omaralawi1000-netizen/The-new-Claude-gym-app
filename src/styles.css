@@ -78,6 +78,10 @@ html:root[data-glow='off'] .aurora, html:root[data-glow='off'] .aurora-lite { di
 :root[data-palette='forest'] [data-hue='progress'] { --ac: #5ae0a8; --h1: #2f9d8a; --h2: #4b9b5a; --h3: #b6f25a; }
 /* contents that arrive a beat after a tall sheet starts moving fade in instead of appearing */
 .sheet-pane.late > * { animation: fadein 220ms var(--ease-out) both; }
+/* …but the bottom buttons' fade is let go once it has run (fill backwards): an animation kept on the foot makes it a closed
+   world for the blur inside it, and the button stopped frosting the list under it (rows read straight through it). The foot
+   keeps its own layer anyway (will-change), so letting the animation go can't flicker. */
+.sheet-pane.late > .sheet-foot { animation-fill-mode: backwards; }
 :root[data-motion='reduce'] .sheet-pane.late > * { animation: none; }
 /* the little swatches in Settings → Appearance */
 .pal { display: flex; gap: 10px; overflow-x: auto; margin: 0 -22px; padding: 4px 22px 6px; scrollbar-width: none; scroll-snap-type: x proximity; scroll-padding: 0 22px; }
@@ -220,6 +224,9 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
    something passes underneath: the tab bar, sheets, popups, toasts. */
 .screen .plinth, .screen .btn, .screen .icon-btn, .screen .chip, .screen .glass { -webkit-backdrop-filter: none; backdrop-filter: none; }
 .wk-window .aurora-lite::before, .wk-solid .aurora-lite::before { animation: none; }
+/* …and since it never moves there, it is painted with the window instead of on a layer of its own: one screen and a half
+   less for the phone's graphics memory, which ran short as the window slid down over the page (parts of both went blank) */
+.wk-solid .aurora-lite::before { will-change: auto; }
 .wk-window .plinth, .wk-window .btn, .wk-window .icon-btn, .wk-window .chip, .wk-window .plinth-2 { -webkit-backdrop-filter: none; backdrop-filter: none; }
 .wk-window .plinth { background: color-mix(in srgb, var(--s1) 100%, var(--bg) 22%); }
 .wk-window .btn:not(.primary):not(.ghost), .wk-window .icon-btn { background: color-mix(in srgb, var(--s3) 100%, var(--bg) 18%); }
@@ -584,6 +591,8 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
   -webkit-backdrop-filter: blur(22px) saturate(1.6); backdrop-filter: blur(22px) saturate(1.6);
   box-shadow: inset 0 1px 0 var(--hl), inset 0 0 0 1px var(--line-2), 0 12px 30px -14px rgba(0, 0, 0, 0.55); }
 .sheet .sheet-foot .btn.btn[disabled] { color: var(--tx3); }
+/* Add exercises: "Create custom exercise" as a quiet line beside the count, not a second pill at the end of the list */
+.picker-create { gap: 5px; font-size: 13.5px; font-weight: 600; padding: 6px 2px 6px 8px; margin-right: -2px; }
 
 /* ── floating tab bar: icons only; the active tab opens up and shows its name ─── */
 .tabbar-wrap { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; padding: 0 16px calc(var(--sab) + 14px); display: flex; justify-content: center; pointer-events: none; }
@@ -788,13 +797,16 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 @keyframes goRing { from { opacity: 0; } 35% { opacity: 1; } }
 .wk-bar-clip { position: absolute; inset: 0; border-radius: inherit; overflow: hidden; pointer-events: none; }
 /* the rest fills the bar in one calm tint of the accent, with a soft leading edge (no gradient: it read muddy over the dark) */
-.wk-bar-fill { position: absolute; inset: 0; pointer-events: none; transform: translateX(-100%); will-change: transform, opacity; opacity: 1; transition: opacity 600ms var(--ease-out); background: color-mix(in srgb, var(--ac) 24%, transparent); -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 56px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 56px), transparent); }
-.wk-bar.go .wk-bar-fill { transform: none; -webkit-mask-image: none; mask-image: none; opacity: .55; }
+.wk-bar-fill { position: absolute; inset: 0; pointer-events: none; transform: translateX(-100%); will-change: transform, opacity; opacity: 1; transition: opacity 600ms var(--ease-out); background: linear-gradient(90deg, color-mix(in srgb, var(--ac) 24%, transparent) calc(100% - 56px), transparent); }
+/* rest over: the tint stays full but still fades out before the orb, as it does during the rest. Lit right under the orb,
+   Chrome on the phone drew the orb's square canvas area in a different shade (a box around the orb). The fade is in the
+   background itself, not a mask (a mask is one more compositor layer). */
+.wk-bar.go .wk-bar-fill { transform: none; opacity: .55; }
 /* the bar's words settle in when the bar changes what it says (next, rest, go): a slow, short rise, no cut; the big line a beat after the small one */
 .wk-bar-top, .wk-bar-big { animation: wkSwap 560ms var(--ease-out) both; }
 /* the two lines as one unit; the outgoing pair lies over the incoming one and fades up and away (Active.tsx SwapText) */
 .wk-bar-txt { min-width: 0; max-width: 100%; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 1px; }
-.wk-bar-txt.out { position: absolute; inset: 0; pointer-events: none; animation: wkSwapOut 340ms var(--ease-out) both; }
+.wk-bar-txt.out { position: absolute; inset: 0 8px 0 0; pointer-events: none; animation: wkSwapOut 340ms var(--ease-out) both; }
 .wk-bar-txt.out > * { animation: none; }
 @keyframes wkSwapOut { to { opacity: 0; transform: translateY(-5px); } }
 .wk-bar-big { animation-delay: 60ms; }
@@ -803,7 +815,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-tick { display: inline-block; transform-origin: 0 60%; animation: wkTick 760ms var(--ease-out) both; }
 @keyframes wkTick { from { transform: scale(1.16); color: var(--ac-text); } }
 .wk-bar-txt.t-go .wk-bar-top { color: var(--ac-text); }
-.wk-bar-main { position: relative; flex: 1; min-width: 0; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; text-align: left; gap: 1px; }
+.wk-bar-main { position: relative; flex: 1; min-width: 0; height: 100%; padding-right: 8px; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; text-align: left; gap: 1px; }
 .wk-bar-top { max-width: 100%; font-size: 12px; font-weight: 600; letter-spacing: 0.01em; color: var(--tx2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wk-bar-big { max-width: 100%; font-size: 17px; font-weight: 680; letter-spacing: -0.01em; color: var(--tx); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wk-bar-txt.t-rest .wk-bar-big { font-size: 20px; }
@@ -972,9 +984,14 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .page-rise :is(.sheet-body, .sheet-body > .list, .sheet-body > .stack) > :nth-child(n+8) { --k: 8; }
 .page-rise > .sheet-body > * { --base: var(--k); }
 .page-rise > .sheet-head { animation: page-title 520ms var(--ease-out) both; animation-delay: 100ms; }
-.page-rise > .sheet-body > :not(.list, .stack, .settings-page):nth-child(-n+10) { animation: rise-soft 560ms var(--ease-out) both; animation-delay: calc(110ms + min(var(--k), 8) * 34ms); }
-.page-rise > .sheet-body > :is(.list, .stack):nth-child(-n+10) > :nth-child(-n+10) { animation: rise-soft 560ms var(--ease-out) both; animation-delay: calc(110ms + min(var(--base) + var(--k) - 1, 9) * 34ms); }
-.page-rise > .sheet-foot { animation: rise-soft 560ms var(--ease-out) both; animation-delay: 210ms; }
+.page-rise:not(.page-back) > .sheet-body > :not(.list, .stack, .settings-page):nth-child(-n+10) { animation: rise-soft 560ms var(--ease-out) both; animation-delay: calc(110ms + min(var(--k), 8) * 34ms); }
+.page-rise:not(.page-back) > .sheet-body > :is(.list, .stack):nth-child(-n+10) > :nth-child(-n+10) { animation: rise-soft 560ms var(--ease-out) both; animation-delay: calc(110ms + min(var(--base) + var(--k) - 1, 9) * 34ms); }
+.page-rise > .sheet-foot { animation: rise-soft 560ms var(--ease-out) backwards; animation-delay: 210ms; } /* backwards, not both: see .sheet-pane.late > .sheet-foot */
+/* Going Back to a page that may be scrolled (Add exercises after New exercise): counting children would make rows 1-10
+   rise while the rows actually on screen further down just sat there (a gap that filled in from the top). Instead the blocks
+   on screen are marked (.rise-b, --k = their order on screen, set by rise() in Sheet.tsx) and only those rise, in that order. */
+.page-rise.page-back .rise-b { animation: rise-soft 560ms var(--ease-out) both; animation-delay: calc(110ms + var(--k) * 34ms); }
+.page-rise.page-back.page-risen .rise-b { animation-duration: 0s; animation-delay: 0s; }
 @keyframes page-title { from { opacity: 0; transform: translate3d(var(--title-dx, 14px), 0, 0); } }
 /* Once a page has settled (Sheet.tsx adds .page-risen), its blocks' animations take no time: they stay finished and keep their
    layers (no flicker), and a block that appears later (a search result) is simply there instead of rising in. */

@@ -20,7 +20,7 @@ import { SphereSlot, mirrorOrb, orbPress, orbTap } from '../../ui/Sphere';
 import { useSwipeDown } from '../../ui/swipe';
 import { Mirror, mirrorProgress, mirrorStage, trackCover, trackDepth, type Engage } from '../../ui/engage';
 import { DIM_VEIL, Veil, mirrorVeil } from '../../ui/Veil';
-import { kb, keyboardGoal, onKeyboardGoal, watchFocus } from '../../ui/keyboard';
+import { kb, keyboardGoal, onKeyboardGoal, rideFocus } from '../../ui/keyboard';
 import { viewportH } from '../../ui/viewport';
 import { BOUNCY, SURFACE, SURFACE_EXIT } from '../../ui/motion';
 import { FocusView, fadeOutPage, upNextOf, useFocusPage, type FocusApi } from './Focus';
@@ -202,8 +202,8 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
   // keeps its focus when Android's back hides the keyboard, and the header then showed the rest twice.
   const [typing, setTyping] = useState(() => keyboardGoal() > 0);
   useEffect(() => onKeyboardGoal((px) => setTyping(px > 0)), []);
-  // the field you tapped glides up into the room above the keyboard once it has landed (the list, or Focus's page, scrolls)
-  useEffect(() => { const el = dialogRef.current; return el ? watchFocus(el, (f) => f.closest<HTMLElement>('.wk-page, .wk-list')) : undefined; }, []);
+  // the field you tapped rides up with the keyboard, on its curve, as far as needed (the list, or Focus's page, scrolls)
+  useEffect(() => { const el = dialogRef.current; return el ? rideFocus(el, (f) => f.closest<HTMLElement>('.wk-page, .wk-list')) : undefined; }, []);
   const body = useRef<HTMLDivElement>(null);
   // the list never moves sideways: CSS stops a finger, this stops scrollIntoView and friends (a "set done" ring scaling past
   // the right edge used to make room to slide into)
@@ -802,10 +802,9 @@ const SetRow = memo(function SetRow({ se, set, ex, label, prev, restDefault }: {
     const r = deleteSet(se.id, set.id);
     toast(t('Set removed'), { actionLabel: t('Undo'), onAction: r.restore });
   };
-  const focusScroll = (e: React.FocusEvent<HTMLInputElement>) => { const el = e.currentTarget; setTimeout(() => el.scrollIntoView({ block: 'center', behavior: 'smooth' }), 280); };
 
   const field = (value: number | undefined, placeholder: number | undefined, onChange: (v: number | undefined) => void, max: number, key: string, onEnter?: () => void) => (
-    <div onFocusCapture={focusScroll as any}>
+    <div>
       <NumInput compact value={value} max={max} placeholder={placeholder !== undefined ? fmtNum(placeholder, lang, max) : '—'} onChange={onChange} label={key} onEnter={onEnter} />
     </div>
   );
@@ -831,7 +830,7 @@ const SetRow = memo(function SetRow({ se, set, ex, label, prev, restDefault }: {
           {field(set.durationSec === undefined ? undefined : Math.round((set.durationSec / 60) * 10) / 10, prev?.durationSec ? prev.durationSec / 60 : undefined, (v) => patchSet(se.id, set.id, { durationSec: v === undefined ? undefined : Math.round(v * 60) }), 1, t('Minutes'), complete)}
         </>}
         {(lt === 'weightReps' || lt === 'bodyweightReps' || lt === 'assisted') && <>{fw}{fr}</>}
-        {settings.effort !== 'off' && <div onFocusCapture={focusScroll as any}><NumInput compact value={settings.effort === 'rpe' ? set.rpe : set.rir} max={1} placeholder="—" onChange={(v) => patchSet(se.id, set.id, settings.effort === 'rpe' ? { rpe: v } : { rir: v })} label={settings.effort.toUpperCase()} /></div>}
+        {settings.effort !== 'off' && <div><NumInput compact value={settings.effort === 'rpe' ? set.rpe : set.rir} max={1} placeholder="—" onChange={(v) => patchSet(se.id, set.id, settings.effort === 'rpe' ? { rpe: v } : { rir: v })} label={settings.effort.toUpperCase()} /></div>}
         {/* not logged: an empty outline (no check yet); logged: a filled check that draws itself in */}
         <motion.button key={shake} className={`press wk-check${set.done ? ' on' : ''}${set.done && burst > 0 ? ' fresh' : ''}`} aria-label={set.done ? t('Mark set not done') : t('Complete set')} aria-pressed={set.done} onClick={complete}
           animate={shake ? { x: [0, -5, 5, -3, 3, 0] } : undefined} transition={{ duration: 0.3 }}>
