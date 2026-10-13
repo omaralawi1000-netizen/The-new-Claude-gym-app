@@ -28,6 +28,14 @@ export async function steady({ theme = 'light', size = { width: 384, height: 802
     // eslint-disable-next-line no-global-assign
     Date = class extends RealDate { constructor(...a) { if (a.length) super(...a); else super(now()); } static now() { return now(); } };
   });
+  // FRAMEMUT=1: what changed in the page at each frame (attributes, added/removed elements, animations), for finding what
+  // switches on or off at rest (mut.json next to the frames)
+  if (process.env.FRAMEMUT) await ctx.addInitScript(() => {
+    const w = window; w.__mut = [];
+    const name = (n) => (n && n.nodeType === 1 ? n.tagName.toLowerCase() + (n.className && typeof n.className === 'string' ? '.' + n.className.trim().split(/\s+/).slice(0, 2).join('.') : '') : '#text');
+    new MutationObserver((ms) => { for (const m of ms) w.__mut.push(m.type === 'attributes' ? `${name(m.target)} @${m.attributeName}=${String(m.target.getAttribute(m.attributeName)).slice(0, 80)}` : `${name(m.target)} +${[...m.addedNodes].map(name).join(',')} -${[...m.removedNodes].map(name).join(',')}`); })
+      .observe(document, { subtree: true, attributes: true, childList: true });
+  });
   const cdp = await ctx.newCDPSession(p);
   await cdp.send('HeadlessExperimental.enable');
   const STEP = 1000 / 60;
@@ -41,12 +49,13 @@ export async function steady({ theme = 'light', size = { width: 384, height: 802
   async function film(name, fn, frames = 60) {
     pumping = false; await q;
     const dir = `shots/film/${name}`; fs.rmSync(dir, { recursive: true, force: true }); fs.mkdirSync(dir, { recursive: true });
-    const act = Promise.resolve().then(fn); const times = [], bars = [], log = [], skips = [];
+    const act = Promise.resolve().then(fn); const times = [], bars = [], log = [], skips = [], mut = [];
     for (let i = 0; i < frames; i++) {
       let r = await frame(true), tries = 0;
       while (!r.screenshotData && tries++ < 8) r = await frame(true, 0.01); // a frame that drew nothing: ask again, at (almost) the same time
       // FRAMELOG='.sheet, .wk-card': where each of those is at this frame (top edge in px, scale, browser-run animations on it), read from the page itself
       if (process.env.FRAMELOG) log.push(await p.evaluate((sel) => [...document.querySelectorAll(sel)].map((e) => { const r = e.getBoundingClientRect(); return [e.className.split(' ')[0] + (e.getAttribute('aria-label') ? ':' + e.getAttribute('aria-label') : ''), Math.round(r.top * 10) / 10, Math.round((r.width / e.offsetWidth) * 1000) / 1000, e.getAnimations().length]; }), process.env.FRAMELOG).catch(() => null));
+      if (process.env.FRAMEMUT) mut.push(await p.evaluate(() => { const m = window.__mut.splice(0); return { m: m.filter((x) => !/@style=.*translate3d|@style=.*opacity/.test(x)).slice(0, 40), n: m.length, anims: document.getAnimations().map((a) => (a.effect?.target ? (a.effect.target.className || a.effect.target.tagName) + ':' + (a.animationName || a.constructor.name) : '?')).slice(0, 12) }; }).catch(() => null));
       skips.push(tries);
       const out = `${dir}/${String(times.length).padStart(3, '0')}.jpg`;
       if (r.screenshotData) fs.writeFileSync(out, Buffer.from(r.screenshotData, 'base64'));
@@ -55,7 +64,7 @@ export async function steady({ theme = 'light', size = { width: 384, height: 802
       const t = times.length * STEP / 1000; times.push(t); bars.push([t, await bar()]);
     }
     await act.catch((e) => console.log(name, 'action failed:', String(e.message).slice(0, 160)));
-    fs.writeFileSync(`${dir}/times.json`, JSON.stringify(times)); if (log.length) fs.writeFileSync(`${dir}/log.json`, JSON.stringify(log)); fs.writeFileSync(`${dir}/skips.json`, JSON.stringify(skips)); fs.writeFileSync(`${dir}/bar.json`, JSON.stringify(bars));
+    fs.writeFileSync(`${dir}/times.json`, JSON.stringify(times)); if (log.length) fs.writeFileSync(`${dir}/log.json`, JSON.stringify(log)); if (mut.length) fs.writeFileSync(`${dir}/mut.json`, JSON.stringify(mut)); fs.writeFileSync(`${dir}/skips.json`, JSON.stringify(skips)); fs.writeFileSync(`${dir}/bar.json`, JSON.stringify(bars));
     pumping = true;
     console.log(`film ${name}: ${times.length} frames`);
   }

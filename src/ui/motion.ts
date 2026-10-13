@@ -20,7 +20,7 @@ export const apple = (duration: number, bounce = 0) => ({ type: 'spring' as cons
  */
 export const TAP = apple(0.3, 0.15);            // a press, a tick: Apple .snappy, quick
 export const SMOOTH = apple(0.36);                // content settling (Apple .smooth, a touch quicker for small moves)
-export const SURFACE = { ...apple(0.45), restDelta: 0.00005, restSpeed: 0.001 }; // a sheet / card arriving: Apple's .smooth, a hair quicker than the 0.5 s default (it comes to rest within 0.05 px: a coarser rest ended every glide with a little hop)
+export const SURFACE = { ...apple(0.45), restDelta: 0.001 }; // a sheet / card arriving: Apple's .smooth, a hair quicker than the 0.5 s default
 export const SURFACE_EXIT = { ...apple(0.38), restDelta: 0.002 }; // leaving is a touch quicker than arriving
 export const WINDOW = SURFACE;
 export const BOUNCY = apple(0.5, 0.3);            // Apple .bouncy: a record, a gain, a sent message
@@ -37,9 +37,10 @@ type Spring = { stiffness: number; damping: number; mass?: number };
 const curveCache = new Map<string, { easing: string; duration: number }>();
 const sampleCache = new Map<string, { xs: number[]; duration: number }>();
 /** A spring going 0 → 1 with initial velocity v0 (in progress units per second), sampled every 1/60 s: its positions (the
- * last one exactly 1) and how long it runs in ms. */
-export function springSamples(sp: Spring, v0 = 0): { xs: number[]; duration: number } {
-  const key = `${sp.stiffness}|${sp.damping}|${sp.mass ?? 1}|${v0.toFixed(2)}`;
+ * last one exactly 1) and how long it runs in ms. `fine`: run it until it is within 0.05 px of a full-height sheet's travel
+ * (for a sheet moving in whole screen pixels, which then lands one pixel at a time instead of a last hop of two). */
+export function springSamples(sp: Spring, v0 = 0, fine = false): { xs: number[]; duration: number } {
+  const key = `${sp.stiffness}|${sp.damping}|${sp.mass ?? 1}|${v0.toFixed(2)}|${fine}`;
   const hit = sampleCache.get(key); if (hit) return hit;
   const m = sp.mass ?? 1, dt = 1 / 600;
   let x = 0, v = v0, t = 0;
@@ -48,7 +49,7 @@ export function springSamples(sp: Spring, v0 = 0): { xs: number[]; duration: num
     // semi-implicit Euler at 600 Hz: indistinguishable from the analytic spring at this step
     v += ((sp.stiffness * (1 - x) - sp.damping * v) / m) * dt; x += v * dt; t += dt;
     if (Math.round(t * 600) % 10 === 0) xs.push(x);       // a sample every 1/60 s
-    if (t > 0.1 && Math.abs(1 - x) < 0.00005 && Math.abs(v) < 0.002) break; // within 0.05 px of a full-height sheet's travel
+    if (t > 0.1 && (fine ? Math.abs(1 - x) < 0.00005 && Math.abs(v) < 0.002 : Math.abs(1 - x) < 0.0008 && Math.abs(v) < 0.02)) break;
   }
   xs[xs.length - 1] = 1;
   const out = { xs, duration: Math.round(t * 1000) };

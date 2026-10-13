@@ -96,7 +96,7 @@ import { useSwipeDown } from './swipe';
 
 import { SMOOTH, SURFACE, SURFACE_EXIT, TAP, apple, snapPx, springCurve } from './motion';
 // older names for the motion language (ui/motion.ts)
-export const SPRING = SURFACE;
+export const SPRING = { ...SURFACE, restDelta: 0.00005, restSpeed: 0.001 }; // comes to rest within 0.05 px, a screen pixel at a time (snapPx), not with a last little hop
 export const SOFT = SMOOTH;
 export const SNAP = TAP;
 

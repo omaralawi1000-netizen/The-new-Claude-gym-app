@@ -90,7 +90,7 @@ export function mirrorProgress(el: Element | null | undefined, p0: number, p1: n
   // pixels stays on them), instead of the spring as an easing between two keyframes, which passes every fraction between
   if (perFrame) {
     if (!(el as HTMLElement).animate || !highRefresh()) return null;
-    const { xs } = springSamples(sp, v0), n = xs.length - 1;
+    const { xs } = springSamples(sp, v0, true), n = xs.length - 1;
     try { return (el as HTMLElement).animate(xs.map((x, i) => ({ ...at(p0 + span * x), offset: i / n })), { duration: (n * 1000) / 60, easing: 'linear', fill: 'none' }); } catch { return null; }
   }
   const frames: Keyframe[] = [{ ...at(p0), offset: 0 }];

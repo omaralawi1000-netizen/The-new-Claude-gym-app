@@ -1500,6 +1500,8 @@ at the edges.
   showed down both sides and was cut off flat by the status bar. While a sheet is stepped back (scaled), the lists in it draw at fractions of a pixel like
   their sheet (.sheet[data-stacked]: Chrome otherwise rounds what is inside a scrolling list to whole pixels, so a list
   ticked along against its sheet); it goes the moment the sheet is back to full size, mid-slide, so nothing hops at rest.
+  It is the `rotate` property, not a transform: the workout list's transform has a 0.6 s transition, so a turn set as a
+  transform eased away and let go 37 frames after the picker closed (a 1 px hop at rest).
   The status bar takes the second dim too. Before, the lower sheet only shrank 6 % and rose 6 px, so half its title
   showed above a shorter sheet; the workout didn't move at all. Omar: "a pop-up in a pop-up can stack … seamless animations and excellent animations".
 - Films are now made with a steady camera (`scripts/film-steady.mjs`): Chrome draws each frame only when asked, exactly
@@ -1511,5 +1513,6 @@ at the edges.
   Each step starts from a still screen; a button that is out of view is scrolled to on camera, as a person would, easing
   in and out (Chrome's smooth scroll stopped dead). The page is told the film's real pixel density (it was told 2). The
   scanner sees a still picture (`scripts/fake-camera.py`) and the Photo sheet a stand-in key. Sheets now come to rest
-  within 0.05 px instead of 0.8, so a glide no longer ends with a last little hop, and the scanner waits for its video if the camera answers before the
+  within 0.05 px instead of 0.8, so a glide no longer ends with a last little hop (sheets only: the shared spring and the
+  workout's own opening keep their end, which a finer one gave a 14-frame soft creep), and the scanner waits for its video if the camera answers before the
   sheet's contents are in (it said "Couldn't start the camera").

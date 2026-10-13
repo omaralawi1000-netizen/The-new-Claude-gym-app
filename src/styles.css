@@ -537,7 +537,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    glide in whole screen pixels (snapPx), so this is needed only where one is scaled: stepped back behind another
    ([data-stacked]). It goes the moment the sheet is back to full size, while the top sheet is still sliding away, so the
    list's own rounding never changes at rest (switched off a few frames after everything stopped, it hopped a pixel). */
-.sheet[data-stacked] .sheet-body, .wk-card[data-stacked] :is(.wk-list, .wk-page) { transform: rotate(0.0001deg); }
+.sheet[data-stacked] .sheet-body, .wk-card[data-stacked] :is(.wk-list, .wk-page) { rotate: 0.0001deg; } /* its own property: the workout list's transform has a 0.6 s transition, so a turn set as a transform eased away and let go at rest (a 1 px hop) */
 /* A sheet with another sheet stacked on top keeps its frost: it stays the same glass, set back under the top one's dim (it
    used to turn solid, and the blur only came back once the top sheet left). Only when two or more sheets are stacked on it
    does it drop the blur: each sheet keeps a full-screen blur alive, and three at once ran the phone out of GPU memory
