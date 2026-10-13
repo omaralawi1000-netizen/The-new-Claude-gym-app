@@ -980,11 +980,11 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-sheet > .wk-window { top: var(--wk-lead) !important; }
 /* the window's light sits where it sat in the card (the reach above the top is plain colour), 16 px higher with the grabber gone,
    so it glows behind the title */
-.wk-solid > .aurora-lite { top: calc(var(--wk-lead) - 16px); }
+.wk-solid > .aurora-lite { top: calc(var(--wk-lead) - 16px); overflow: visible; } /* its light carries on up to the screen's top (the window clips it) */
 /* a full page: its header starts just under the status bar (no grabber), and its flat top edge has no rim (it would be a line under the bar) */
 .wk-sheet::after { content: none; }
 .wk-sheet .wk-head-wrap { padding-top: 10px; }
-.wk-top { position: absolute; left: 0; right: 0; top: 0; height: calc(var(--wk-lead) + var(--sat) + 26px); pointer-events: none; will-change: transform;
+.wk-top { position: absolute; left: 0; right: 0; top: 0; height: calc(var(--wk-lead) + var(--sat) + 40px); pointer-events: none; will-change: transform;
   background: linear-gradient(to bottom, var(--wk-bar, var(--bg)) calc(var(--wk-lead) + var(--sat) + 2px), transparent); }
 .wk-solid { position: absolute; inset: 0; background: var(--bg); }
 

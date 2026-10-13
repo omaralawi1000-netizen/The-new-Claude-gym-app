@@ -14,7 +14,7 @@ await s.film(`${tag}-${theme}-start`, () => start.tap(), 90);
 await s.advance(120);
 const tick = p.locator('.wk-sheet').getByRole('button', { name: 'Complete set' }).first();
 await (async () => { const t = tick.tap(); await s.advance(150); await t; })();
-await s.film(`${tag}-${theme}-still`, async () => {}, 1);
+await s.film(`${tag}-${theme}-still`, async () => {}, 60);
 await s.film(`${tag}-${theme}-minimise`, () => p.getByRole('button', { name: 'Minimise workout' }).tap(), 80);
 await s.advance(60);
 await s.film(`${tag}-${theme}-resume`, () => p.getByLabel('Resume workout').first().tap(), 80);
