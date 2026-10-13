@@ -56,10 +56,14 @@ adb exec-out screencap -p > shots/5-chrome.png
 adb forward tcp:9222 localabstract:chrome_devtools_remote
 python3 android/ci/cdp.py set
 adb shell am start -n app.aven.android/com.google.androidbrowserhelper.trusted.LauncherActivity
-sleep 10
-adb exec-out screencap -p > shots/6-app.png
-sleep 10
-adb exec-out screencap -p > shots/6b-app-later.png
+sleep 12
+# the answer first: on this emulator a screenshot of the app has crashed it
 adb forward tcp:9222 localabstract:chrome_devtools_remote
 python3 android/ci/cdp.py get | tee shots/carry-over.txt
+adb shell dumpsys activity activities | grep -m3 "topResumedActivity\|ResumedActivity" | tee -a shots/carry-over.txt
+# a browser bar would show up as Chrome's toolbar / url_bar in the screen layout
+adb shell uiautomator dump /sdcard/ui.xml && adb pull /sdcard/ui.xml shots/app-layout.xml
+grep -o 'resource-id="com.android.chrome:id/[a-z_]*"' shots/app-layout.xml | sort -u | tee -a shots/carry-over.txt
+adb logcat -d | grep -i "OriginVerifier\|TrustedWebActivity\|TwaVerif\|digital asset\|Verification" | tail -20 | tee -a shots/carry-over.txt
+adb exec-out screencap -p > shots/6-app.png
 exit 0
