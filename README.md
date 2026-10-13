@@ -1588,3 +1588,17 @@ at the edges.
   ~19 → 0; suggestion answer 739 → ~360 ms, 3 → 0; orb answer 0 long tasks.
 - The audit's layer watcher (`LayerTree`/`DOM` CDP domains) itself costs main-thread time per new element; `DROPS=0`
   measures without it.
+
+## Your sent message flies as one move (13 Oct 2026, v0.1.93)
+Measured frame by frame with `scripts/probe-send.mjs` (keyboard up and down, short and long, first message of a new chat;
+the fake keyboard now slides in 250 ms like a real one; positions are read after each frame is drawn):
+- Keyboard going down mid-flight: the flying copy followed the scroll position only, but the list glides that move
+  (`translate` on the thread), so for a couple of frames the copy ran 100+ px away from its bubble, then caught up and
+  stepped 14 px onto it at landing. The copy now rides the same glide (same curve, same clock), and the list tells it
+  whenever it moves, including when the browser moved it (the list grew). Copy and bubble now stay within 0.1-2 px.
+- A glide still finishing when you send (an earlier answer's play row) put the landing place 3 px off: taken into account.
+- Long messages: the field shows only the end of a long message, and the copy swooped in from off the left edge with
+  lines hanging over the keyboard. It now leaves with its last line on the field's line (the rest above it), its end where
+  the text ended, kept inside the field.
+- Not changed: when you send from the keyboard, the keyboard still goes down as the message nearly lands and the list
+  rides down with it (by design since earlier rounds).
