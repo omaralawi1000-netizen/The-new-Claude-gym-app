@@ -1425,3 +1425,16 @@ Omar's phone showed the website's plain notice ("Back at 10:02", the site's addr
   - the launch window is opaque ink, so Android opens the icon into it (no flat grey card);
   - on Android 12+, the same 100 dp orb is shown there as on Chrome's hand-off screen, so it stays put from the tap to
     the page.
+
+## The whole page steps back as one card (13 Oct 2026, v0.1.73)
+Omar's screenshot: as a pop-up opened, only the lower part of the page seemed to step back; the top (date, Coach and
+Settings buttons) and the status bar sat in a band that didn't move, with no rounded corners, and the background flashed
+at the edges.
+- Cause: the page stepped back onto the status bar's own tint, the same colour the top of the page fades from, so the top
+  of the card and its corners vanished into what was behind it.
+- Now it steps back onto black, as on iOS, in light and dark: the shell turns black, the status bar goes black with it,
+  and the black corner pieces (now 41 px, reading as 38 px on the 0.92 card: the pop-ups' own curve) show the rounded
+  top. While the page has barely moved (the first and last quarter) the shell keeps the tint and the corners fade in with
+  the black (`toBlack` in `ui/statusBar.ts`), so the hairline round a page that is almost home never flashes black.
+- Same motion and timing; only the colours behind changed. Reduced motion: the bar only dims, as before.
+  `scripts/film-depth.mjs [--light]` films the page stepping back for Settings, Coach, a food sheet and the workout.
