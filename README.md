@@ -1754,3 +1754,16 @@ Ember's field is warm again, the cards are see-through again, the week-strip `we
 switched off too (`data-glass` removed from index.html; the CSS stays dormant): his picture was the pre-glass app, and the
 glass tint resolved to Ember coral in other palettes (brown cards and a peach dock rim in teal). Everything shipped after it (v0.1.103's pop-up step-back and the camera fix) stays.
 Lesson: an opaque neutral card loses the glass Omar liked; "depth" has to come from the glass itself, not a solid block.
+
+## Frosted tab bar with a soft edge (13 Oct 2026, v0.1.105)
+
+Omar on v0.1.103: "the blur underneath looks garbage". Cause: two full-height "progressive blur" layers under the dock
+(9 px and 20 px, each faded in by a mask) with the dock's own 28 px blur on top. A blur faded in by a mask is a cross-fade
+of a sharp and a blurred copy (the muddy double edge on the card above the dock), three blurs deep. Now:
+- the dock reuses the Coach bar's shared `.edge-fade` (one frost, never animated): a light 6 px frost that starts 16 px
+  above the pill and is full ~40% down it, with a pure-grey tint only below the pill's top. Content still visible above
+  the dock stays fully sharp; at rest the last card ends 48 px above the pill, clear of it.
+- the pill is frosted glass of its own: blur(20px) saturate(1.4), a 20% pure-grey fill (no colour cast, so the field comes
+  through as on iOS), light from the top, a hairline and a soft shadow. Light mode: the same in white.
+Omar picked the thin neutral tint ("I want it neutral so the frosted glass can come through") and declined a deeper shadow.
+Measured: scroll frames within noise of before (fewer, smaller blur layers); tab icons 5.5:1 on the pill.
