@@ -1,5 +1,5 @@
 import { Fragment, type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { AnimatePresence, motion, useReducedMotion, useTransform } from 'motion/react';
+import { AnimatePresence, motion, useIsPresent, useReducedMotion, useTransform } from 'motion/react';
 import { useStore, allExercises } from '../state/store';
 import { useUI, haptic } from '../state/ui';
 import { useVoice } from '../state/voice';
@@ -367,7 +367,13 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
     // still starting the microphone (Samsung Browser can take a second): a tap here is not "stop" — stopping a start that
     // hasn't finished used to end in "Didn't catch anything" followed by a false "microphone in use"
     if (p === 'processing' || (p === 'requesting' && !typing)) return;
-    if (typing) { const text = typed.trim(); if (!text) return; haptic('send'); setTyped(''); act(text, openTurn(text)); return; }
+    if (typing) {
+      const text = typed.trim(); if (!text) return;
+      haptic('send');
+      // the box fades away as your words rise into the conversation, and the keyboard leaves with it (not after it)
+      const f = document.activeElement as HTMLElement | null; if (f?.tagName === 'TEXTAREA') f.blur();
+      setTyped(''); act(text, openTurn(text)); return;
+    }
     if (engine === 'groq' && mic.recording) {
       haptic('send'); // by a tap or by falling quiet: felt the same, "got it"
       busy.current = true;
@@ -419,7 +425,12 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   // the keyboard overlays the page: the whole screen rides above it, so the box you type in and the Send button stay in sight
   const rootRef = useRef<HTMLDivElement>(null);
   useEffect(() => (rootRef.current ? watchFocus(rootRef.current, (el) => el.closest<HTMLElement>('.hide-scroll')) : undefined), []);
-  const kbPad = useTransform(kb, (v) => (v > 1 ? v + 6 : 0));
+  // (while the screen fades away it keeps its shape: the keyboard leaving used to re-flow it, and the answer jumped down
+  // mid-fade)
+  const present = useIsPresent();
+  const live = useRef(true); live.current = present;
+  const padAt = useRef(0);
+  const kbPad = useTransform(kb, (v) => (live.current ? (padAt.current = v > 1 ? v + 6 : 0) : padAt.current));
   // a long answer keeps its newest words in view while it streams in — unless you have scrolled up to read
   const talkRef = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
@@ -441,7 +452,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
           Nothing above it fades as a whole: a fading parent switched the blur off until the fade ended, then it snapped on. */}
       <Veil e={veilE} z={0} layers={VOICE_VEIL} className="veil-abs" elRef={veilRef} />
       {/* the top of the screen starts in exactly the status bar's colour and fades into the frost: no edge under the bar */}
-      <motion.div aria-hidden className="voice-top" data-bar ref={refreshBarOn} style={{ opacity: veilE }} />
+      <motion.div aria-hidden className="voice-top" data-bar-shown ref={refreshBarOn} style={{ opacity: veilE }} />
       <motion.div ref={contentRef} style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', padding: 'calc(var(--sat) + 12px) 18px 0', opacity: contentO }}>
         <div className="row-flex between">
           <button className="icon-btn press" aria-label={t('Close')} onClick={() => useUI.getState().pop()}><Icon name="close" /></button>
@@ -462,7 +473,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
           <div className="micro" aria-live="polite" style={{ color: phase === 'listening' ? 'var(--ac-text)' : undefined }}>{label}</div>
         </div>
 
-        <div ref={talkRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto', marginTop: 14, paddingBottom: 12 }} className="hide-scroll fade-top">
+        <div ref={talkRef} style={{ position: 'relative', flex: 1, minHeight: 0, overflowY: 'auto', marginTop: 14, paddingBottom: 12 }} className="hide-scroll fade-top">
           <AnimatePresence initial={false} mode="popLayout">
             {!typing && !showing && (
               // what you are saying, as you say it: each new word settles in; when you stop, it rises away into the conversation
@@ -505,14 +516,18 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
             )}
           </AnimatePresence>
           {err && <div className="plinth-2 small" role="alert" style={{ padding: '12px 14px', marginTop: 16 }}>{err}{canRetry && <div style={{ marginTop: 10 }}><button className="btn sm press" onClick={retryHear}>{t('Retry transcription')}</button></div>}</div>}
+          <AnimatePresence initial={false} mode="popLayout">
           {typing && !thinking && !(showing && last.reply && written !== last.id) && (
-            <div style={{ marginTop: 12 }}>
+            // (it fades in and out instead of appearing and vanishing in one frame; leaving, it stays where it was)
+            <motion.div key="type" style={{ paddingTop: 12 }} initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { duration: 0.32, ease: [0.2, 0.7, 0.2, 1] } }}
+              exit={{ opacity: 0, pointerEvents: 'none', transition: { duration: 0.2, ease: [0.4, 0, 1, 1] } }}>
               <textarea className="input" style={{ minHeight: 96 }} value={typed} onChange={(e) => setTyped(e.target.value)} autoFocus aria-label={t('Type what you ate or did')}
                 placeholder={t('“Log a banana” · “Bench 100 kg for 8, 8 and 6” · “How do I change the theme?”')}
                 onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); finish(); } }} />
               {!supported && <div className="xs t3" style={{ marginTop: 8 }}>{t('Speech recognition isn’t available in this browser. Type it, or use your keyboard’s microphone key.')} {t('Or add a Groq key in Settings → Voice & AI.')}</div>}
-            </div>
+            </motion.div>
           )}
+          </AnimatePresence>
         </div>
 
         <div style={{ padding: '10px 0 calc(var(--sab) + 18px)' }}>

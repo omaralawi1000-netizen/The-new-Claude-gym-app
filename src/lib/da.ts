@@ -1428,4 +1428,12 @@ export const da: Record<string, string> = {
  "1 thing the Coach knows about you": "1 ting, Coach ved om dig",
  "1 new record": "1 ny rekord",
  "1-week streak of hitting your target": "1 uge i træk med målet nået",
+ "Rest timer test": "Test af hviletimer",
+ "Pull down to see the countdown": "Træk ned for at se nedtællingen",
+ "Test sent ({via}): pull down from the top of the screen.": "Test sendt ({via}): træk ned fra toppen af skærmen.",
+ "The test couldn’t be shown.": "Testen kunne ikke vises.",
+ "Notifications aren’t allowed, so nothing can show.": "Notifikationer er ikke tilladt, så intet kan vises.",
+ "Notifications are off for the Aven app. Turn them on in your phone’s Settings › Apps › Aven › Notifications, then force stop Chrome (Settings › Apps › Chrome) so it notices, and open Aven again.": "Notifikationer er slået fra for Aven-appen. Slå dem til i telefonens Indstillinger › Apps › Aven › Notifikationer, tving derefter Chrome til at stoppe (Indstillinger › Apps › Chrome), så den opdager det, og åbn Aven igen.",
+ "Send a test": "Send en test",
+ "notifications": "notifikationer",
 };

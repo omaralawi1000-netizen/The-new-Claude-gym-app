@@ -44,7 +44,9 @@ def wait_page():
 
 
 REST = """Promise.race([new Promise((ok) => setTimeout(() => ok('timed out at: ' + window.__step), 25000)), (async () => {
-  window.__step = 'register';
+  window.__step = 'load';
+  for (let i = 0; i < 60 && (document.readyState !== 'complete' || !navigator.serviceWorker); i++) await new Promise((r) => setTimeout(r, 250));
+  window.__step = 'register (referrer ' + document.referrer + ', app flag ' + localStorage.getItem('aven.androidApp') + ')';
   const scope = '/The-new-Claude-gym-app-rest/';
   const reg = await navigator.serviceWorker.register(scope + 'sw.js', { scope });
   for (let i = 0; i < 50 && !reg.active; i++) await new Promise((r) => setTimeout(r, 200));
@@ -59,7 +61,8 @@ REST = """Promise.race([new Promise((ok) => setTimeout(() => ok('timed out at: '
     timestamp: endsAt, actions: [{ action: 'more', title: '+30 s' }, { action: 'skip', title: 'Skip' }],
     data: { kind: 'aven-native', key: 'ci:' + s, endsAt },
   });
-  return 'shown, permission ' + Notification.permission + ', ' + (await reg.getNotifications()).length + ' in Chrome';
+  return 'shown, permission ' + Notification.permission + ', ' + (await reg.getNotifications()).length + ' in Chrome; referrer '
+    + document.referrer + ', app flag ' + localStorage.getItem('aven.androidApp');
 })().catch((e) => 'error at ' + window.__step + ': ' + e)])"""
 
 CLEAR = """(async () => {
@@ -74,6 +77,20 @@ mode = sys.argv[1]
 page = wait_page()
 if mode == 'rest':
     print('rest:', run(page, REST % (int(sys.argv[2]), int(sys.argv[3]) if len(sys.argv) > 3 else 25)))
+    sys.exit(0)
+if mode == 'watch':
+    print('watch:', run(page, """(() => { window.__vis = 'watching'; localStorage.setItem('ci.vis', '');
+      const note = (w) => localStorage.setItem('ci.vis', localStorage.getItem('ci.vis') + ' ' + w + '@' + (Date.now() % 100000));
+      document.addEventListener('visibilitychange', () => note(document.visibilityState + (document.hasFocus() ? '+focus' : '')));
+      window.addEventListener('focus', () => note('focus')); window.addEventListener('blur', () => note('blur'));
+      window.addEventListener('pagehide', () => note('pagehide')); window.addEventListener('pageshow', () => note('pageshow'));
+      return 'ok, now ' + document.visibilityState; })()"""))
+    sys.exit(0)
+if mode == 'seen':
+    print('seen:', run(page, "(window.__vis ? 'same page' : 'page was reloaded') + ', now ' + document.visibilityState + (document.hasFocus() ? '+focus' : '') + ', events:' + localStorage.getItem('ci.vis')"))
+    sys.exit(0)
+if mode == 'perm':
+    print(run(page, "(async () => 'page sees ' + Notification.permission + ' (query: ' + (await navigator.permissions.query({name: 'notifications'})).state + ')')()"))
     sys.exit(0)
 if mode == 'clear':
     print('clear:', run(page, CLEAR))

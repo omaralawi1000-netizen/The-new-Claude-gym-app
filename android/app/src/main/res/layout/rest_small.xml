@@ -1,40 +1,76 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The rest countdown, folded (shade and lock screen): the time left in big numbers, the set beside it.
-     Used where Android doesn't make it a Live Update (there the standard layout keeps its big title). -->
+<!-- The rest countdown, folded (lock screen, and the shade when it's not the top card): the time left in big numbers,
+     the exercise and the set beside it, and the bar under both. Android shows no header row here, so the exercise is
+     ours to show. Used where Android doesn't make it a Live Update (there the standard layout keeps its big title). -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:gravity="center_vertical"
-    android:orientation="horizontal">
+    android:orientation="vertical">
 
-    <TextView
-        android:id="@+id/clock"
-        style="@android:style/TextAppearance.Material.Notification.Title"
-        android:layout_width="wrap_content"
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:fontFeatureSettings="tnum"
-        android:includeFontPadding="false"
-        android:singleLine="true"
-        android:textSize="30sp" />
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
 
-    <Chronometer
-        android:id="@+id/chrono"
-        style="@android:style/TextAppearance.Material.Notification.Title"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:fontFeatureSettings="tnum"
-        android:includeFontPadding="false"
-        android:singleLine="true"
-        android:textSize="30sp"
-        android:visibility="gone" />
+        <TextView
+            android:id="@+id/clock"
+            style="@android:style/TextAppearance.Material.Notification.Title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFeatureSettings="tnum"
+            android:includeFontPadding="false"
+            android:singleLine="true"
+            android:textSize="30sp" />
 
-    <TextView
-        android:id="@+id/line"
-        style="@android:style/TextAppearance.Material.Notification"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="14dp"
-        android:layout_weight="1"
-        android:ellipsize="end"
-        android:singleLine="true" />
+        <Chronometer
+            android:id="@+id/chrono"
+            style="@android:style/TextAppearance.Material.Notification.Title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFeatureSettings="tnum"
+            android:includeFontPadding="false"
+            android:singleLine="true"
+            android:textSize="30sp"
+            android:visibility="gone" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="14dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/exercise"
+                style="@android:style/TextAppearance.Material.Notification.Title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:includeFontPadding="false"
+                android:singleLine="true"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/line"
+                style="@android:style/TextAppearance.Material.Notification"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="3dp"
+                android:ellipsize="end"
+                android:includeFontPadding="false"
+                android:singleLine="true"
+                android:textSize="14sp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <ProgressBar
+        android:id="@+id/bar"
+        style="@android:style/Widget.Material.ProgressBar.Horizontal"
+        android:layout_width="match_parent"
+        android:layout_height="4dp"
+        android:layout_marginTop="8dp"
+        android:maxHeight="4dp"
+        android:minHeight="4dp"
+        android:progressDrawable="@drawable/rest_bar" />
 </LinearLayout>

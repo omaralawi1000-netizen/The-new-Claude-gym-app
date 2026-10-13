@@ -179,15 +179,21 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
 /* the status-bar tint (ui/statusBar.ts): set only on the elements that use it, and not inherited, so a change restyles just them */
 @property --bar { syntax: '*'; inherits: false; }
 @property --bar-shown { syntax: '*'; inherits: false; }
-.fields::after { --bar: inherit; content: ''; position: absolute; left: 0; right: 0; top: 0; height: calc(var(--sat) + 130px); z-index: 2147483000;
+/* The tint at the top of the page is an element of its own on its own layer (it was .fields::after, with the tint written on
+   .fields): each write of the variable restyled .fields, and Chrome repainted the full-screen grain under it on every frame
+   a pop-up moved (on the phone that starved the GPU: blank patches in the page and the workout window). */
+.fields-top { position: absolute; left: 0; right: 0; top: 0; height: calc(var(--sat) + 130px); z-index: 2147483000; pointer-events: none; will-change: transform;
   background: linear-gradient(to bottom, var(--bar, var(--bg)) calc(var(--sat) + 2px), transparent); }
 .aurora.in { -webkit-mask-image: linear-gradient(to bottom, transparent 0, transparent calc(var(--sat) + 2px), #000 calc(var(--sat) + 130px)); mask-image: linear-gradient(to bottom, transparent 0, transparent calc(var(--sat) + 2px), #000 calc(var(--sat) + 130px)); }
 /* paused while a pop-up is up (see useCalm in App.tsx) */
 .app[data-calm] .aurora i { animation-play-state: paused; }
 /* The page behind a pop-up recedes (scales) every frame, which makes every frosted card on it re-blur every frame — a dozen
    full-screen-sized blurs on top of the pop-up's own. Over a soft colour field the frost is all but invisible (measured: the
-   two look the same), and the pop-up's dim and blur cover it anyway, so it is switched off while a pop-up is up. The dock keeps its. */
-.app[data-calm] .screen, .app[data-calm] .screen * { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+   two look the same), and the pop-up's dim and blur cover it anyway, so it is switched off while a pop-up is up. The dock keeps its.
+   Only the segmented control still blurs on a page (cards, buttons and chips there never do, see `.screen .plinth` below), so
+   only it is named: `.screen *` restyled every element of the page (~900) two frames into every pop-up's motion, ~14 ms
+   on the phone, a dropped frame or two right as it starts moving. */
+.app[data-calm] .screen .seg { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
 /* inside a full-screen overlay: sits under its content but over its background */
 .aurora.in { z-index: -1; }
 .aurora i { position: absolute; border-radius: 50%; opacity: var(--aurora-a); will-change: transform; animation-delay: var(--drift-t, 0s) !important; }
@@ -731,11 +737,13 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 
 /* While a sheet or full-screen overlay is up, the app's colour field stops drifting. Nothing visible changes (it moves a few
    pixels a minute), but the frosted layers above it no longer have to re-blur a moving background every frame — that was
-   the main source of scroll stutter inside sheets. */
-.app:has(.sheet, .voice, [role='dialog']) .aurora i { animation-play-state: paused; }
+   the main source of scroll stutter inside sheets. (Classes only inside :has(): with an attribute such as [role] in it,
+   the browser re-checked it on every element added anywhere in the app and restyled every <i> each time, a word at a
+   time while the Coach writes. Full-screen overlays that are not sheets carry .ovl.) */
+.app:has(.sheet, .voice, .ovl) .aurora i { animation-play-state: paused; }
 /* same for the looping pulse dots. (Targeted by class on purpose: a `.screen *` selector here made the browser
    restyle every element of the app each time a popup opened or closed — a long frame right as it starts moving.) */
-.app:has(.sheet, .voice, [role='dialog']) .pulse-dot::before { animation-play-state: paused !important; }
+.app:has(.sheet, .voice, .ovl) .pulse-dot::before { animation-play-state: paused !important; }
 
 /* iOS-style: while a popup is up the page's content (screen and dock) sinks back, under the dim, while its background stays
    put edge to edge. The transform is written by script (useStageDepth in App.tsx) from the popups' own progress, so it
@@ -762,7 +770,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    like a message — and the short answer streams in below as easy text, each new word settling in calmly (a soft blur lifting,
    no glow). (.voice-live is the browser-speech engine's live text, used only without a Groq key.) */
 .voice-live { font-size: 26px; line-height: 1.2; text-align: center; padding: 0 6px; overflow-wrap: anywhere; }
-.voice-live .w { animation: wordCalm 520ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards; --soft-dur: 520ms; }
+.voice-live .w { animation: none; --soft-dur: 520ms; } /* (the word's rise rides on its soft-focus layers, .soft below) */
 /* the orb screen: the orb gives off light. A close halo at its edge (the orb fills ~70% of its button) and a soft oval of
    light just under it, as if it hovers over glass; nothing hazes the rest of the screen (a wide pool of the accent read as
    brown fog). Two gradients on one still layer; only its fade-in animates (opacity), once, as the orb lands. */
@@ -789,7 +797,8 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .coach-reply .rich-p { margin-top: 12px; }
 .coach-reply .rich-li { gap: 10px; margin-top: 6px; }
 .coach-reply .rich-p + .rich-li, .coach-reply .rich-li + .rich-p { margin-top: 10px; }
-.calm .w { animation: wordCalm 640ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards; --soft-dur: 640ms; }
+.calm .w { animation: none; --soft-dur: 640ms; }
+.calm .rich-li > .w { animation: wordCalm var(--soft-dur) cubic-bezier(0.2, 0.7, 0.2, 1) backwards; } /* (a bullet: no soft focus) */
 /* each word rises a little into place while it comes in out of soft focus (.soft below) */
 @keyframes wordCalm { from { transform: translateY(0.3em); } to { transform: none; } }
 /* Soft focus, shared by everything that writes itself in (Coach and orb answers, your spoken words, the Food date,
@@ -811,6 +820,13 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .soft-in::before { animation: softFar var(--soft-dur, 600ms) linear backwards; animation-delay: inherit; }
 .soft-in::after { animation: softNear var(--soft-dur, 600ms) linear backwards; animation-delay: inherit; }
 .soft-in > .soft-s { animation: softSharp var(--soft-dur, 600ms) linear backwards; animation-delay: inherit; }
+/* In an answer the word also rises into place (wordCalm). The rise is played by each of its three layers rather than by the
+   word itself: an animated word made the browser restyle its three layers from scratch every frame (a parent changing
+   each frame), which was most of the cost of an answer writing itself in. Same rise, same timing, so it looks the same. */
+:is(.calm, .voice-live) .soft-in > .soft-s { display: inline-block;
+  animation: softSharp var(--soft-dur, 600ms) linear backwards, wordCalm var(--soft-dur, 600ms) cubic-bezier(0.2, 0.7, 0.2, 1) backwards; animation-delay: inherit; }
+:is(.calm, .voice-live) .soft-in::before { animation: softFar var(--soft-dur, 600ms) linear backwards, wordCalm var(--soft-dur, 600ms) cubic-bezier(0.2, 0.7, 0.2, 1) backwards; animation-delay: inherit; }
+:is(.calm, .voice-live) .soft-in::after { animation: softNear var(--soft-dur, 600ms) linear backwards, wordCalm var(--soft-dur, 600ms) cubic-bezier(0.2, 0.7, 0.2, 1) backwards; animation-delay: inherit; }
 @keyframes softFar { 0% { opacity: 0; } 5% { opacity: .223; } 10% { opacity: .386; } 15% { opacity: .475; } 20% { opacity: .483; }
   25% { opacity: .413; } 30% { opacity: .266; } 35%, 100% { opacity: 0; } }
 @keyframes softNear { 0% { opacity: 0; } 5% { opacity: .017; } 10% { opacity: .086; } 15% { opacity: .21; } 20% { opacity: .377; }
@@ -819,7 +835,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 @keyframes softSharp { 0%, 30% { opacity: 0; } 35% { opacity: .031; } 40% { opacity: .42; } 45% { opacity: .672; } 50% { opacity: .85; }
   55% { opacity: .961; } 60%, 100% { opacity: 1; } }
 :root[data-motion='reduce'] :is(.soft-in > .soft-s, .soft-in::before, .soft-in::after) { animation: none; }
-@media (prefers-reduced-motion: reduce) { :is(.soft-in > .soft-s, .soft-in::before, .soft-in::after) { animation: none; } }
+@media (prefers-reduced-motion: reduce) { :is(.calm, .voice-live, :root) :is(.soft-in > .soft-s, .soft-in::before, .soft-in::after) { animation: none; } }
 /* Read aloud: the word being said lights up in the accent, the ones said settle back, the ones to come wait a shade lighter.
    Only the colour moves (no size or position change), so the text never shifts while it is read. */
 .w { transition: color 380ms ease, text-shadow 380ms ease; }
@@ -866,10 +882,12 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-bar-clip { position: absolute; inset: 0; border-radius: inherit; overflow: hidden; pointer-events: none; }
 /* the rest fills the bar in one calm tint of the accent, with a soft leading edge (no gradient: it read muddy over the dark) */
 .wk-bar-fill { position: absolute; inset: 0; pointer-events: none; transform: translateX(-100%); will-change: transform, opacity; opacity: 1; transition: opacity 600ms var(--ease-out); background: linear-gradient(90deg, color-mix(in srgb, var(--ac) 24%, transparent) calc(100% - 56px), transparent); }
-/* rest over: the tint stays full but still fades out before the orb, as it does during the rest. Lit right under the orb,
-   Chrome on the phone drew the orb's square canvas area in a different shade (a box around the orb). The fade is in the
-   background itself, not a mask (a mask is one more compositor layer). */
-.wk-bar.go .wk-bar-fill { transform: none; opacity: .55; }
+/* rest over: the moving fill (which fades out before the orb) hands over to one even tint across the whole bar, so the
+   bar's round end by the orb is the same colour as the rest (the fill's fade left a darker crescent beside the orb). The
+   tint is a flat layer of its own, faded in with opacity. */
+.wk-bar-clip::before { content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0; will-change: opacity; transition: opacity 600ms var(--ease-out); background: color-mix(in srgb, var(--ac) 13%, transparent); }
+.wk-bar.go .wk-bar-clip::before { opacity: 1; }
+.wk-bar.go .wk-bar-fill { transform: none; opacity: 0; }
 /* the bar's words settle in when the bar changes what it says (next, rest, go): a slow, short rise, no cut; the big line a beat after the small one */
 .wk-bar-top, .wk-bar-big { animation: wkSwap 560ms var(--ease-out) both; }
 /* the two lines as one unit; the outgoing pair lies over the incoming one and fades up and away (Active.tsx SwapText) */
@@ -889,8 +907,9 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-bar-txt.t-rest .wk-bar-big { font-size: 20px; }
 .wk-bar-orb { position: relative; width: 46px; height: 46px; flex: none; border-radius: 999px; transition: transform 520ms var(--ease-spring); }
 .wk-bar-orb:active { transform: scale(0.94); transition-duration: 110ms; }
-/* the orb's glow on the bar: a soft accent bloom behind it (the orb itself is drawn above), stronger while you rest and when it is over */
-.wk-bar-orb::before { content: ''; position: absolute; inset: -9px; border-radius: 50%; pointer-events: none; opacity: .5; transition: opacity 600ms var(--ease-out); background: radial-gradient(circle, color-mix(in srgb, var(--ac) 30%, transparent) 0%, transparent 68%); }
+/* the orb's glow on the bar: a soft accent bloom behind it (the orb itself is drawn above), stronger while you rest and when it is over.
+   A layer of its own for good: each fade used to make one and drop it at the end (a one-frame flicker by the orb). */
+.wk-bar-orb::before { content: ''; position: absolute; inset: -9px; border-radius: 50%; pointer-events: none; opacity: .5; will-change: opacity; transition: opacity 600ms var(--ease-out); background: radial-gradient(circle, color-mix(in srgb, var(--ac) 30%, transparent) 0%, transparent 68%); }
 .wk-bar.rest .wk-bar-orb::before { opacity: .75; }
 .wk-bar.go .wk-bar-orb::before { opacity: 1; }
 /* the one Finish: once every set is ticked it glows softly; tapping the bar's "all done" nudges it */
@@ -910,7 +929,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* the bar's "next set": the row it scrolled to glows once */
 .wk-flash { animation: wkFlash 1.4s var(--ease-out) 1; border-radius: 12px; }
 @keyframes wkFlash { 0%, 30% { background: color-mix(in srgb, var(--ac) 22%, transparent); } 100% { background: transparent; } }
-@media (prefers-reduced-motion: reduce) { .wk-bar-txt.out { display: none; } .wk-bar.go .wk-bar-surface::before, .wk-flash, .wk-tick, .wk-bar-top, .wk-bar-big { animation: none; } .wk-bar-fill, .wk-bar-orb::before, .wk-bar-surface::before { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .wk-bar-txt.out { display: none; } .wk-bar.go .wk-bar-surface::before, .wk-flash, .wk-tick, .wk-bar-top, .wk-bar-big { animation: none; } .wk-bar-fill, .wk-bar-clip::before, .wk-bar-orb::before, .wk-bar-surface::before { transition: none; } }
 /* the live workout: an exercise that arrives after the window has landed fades up into place (compositor only) */
 .wk-block.in { animation: blockIn 520ms var(--ease-out) both; }
 @keyframes blockIn { from { opacity: 0; transform: translateY(16px); } }
@@ -1205,6 +1224,12 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    and the button fades out rather than blinking away (it fades back in with the first message) */
 .coach-body .tips.fresh .tip { animation: rise-soft 520ms var(--ease-out) both; animation-delay: calc(140ms + var(--i, 0) * 70ms); }
 .coach-body .coach-note-fresh { animation: fadein 520ms var(--ease-out) 420ms both; }
+/* sending: the suggestions step away the way the chat does on New chat (they used to vanish in one frame), on a soft
+   300 ms curve; they take no room while they go, so your message rises where they were */
+.coach-tips-out { height: 0; pointer-events: none; animation: coachTipsOut 300ms cubic-bezier(.3, 0, .2, 1) forwards; }
+@keyframes coachTipsOut { from { opacity: 1; } to { opacity: 0; transform: translate3d(0, -4px, 0); } }
+.coach-body .coach-tips-out .tips .tip { animation: none; } /* (re-placed, they must not rise in again on their way out) */
+:root[data-motion='reduce'] .coach-tips-out { display: none; }
 .coach-new { transition: opacity 320ms var(--ease-out); }
 .coach-new.gone { opacity: 0; pointer-events: none; }
 :root[data-motion='reduce'] :is(.coach-body .tips.fresh .tip, .coach-body .coach-note-fresh) { animation: none; }
@@ -1374,7 +1399,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .said-wrap.fly .said-big .sw { will-change: transform; }
 /* (a small rise; each word comes in out of soft focus, .soft) */
 @keyframes saidWrite { from { transform: translateY(.3em); } to { transform: none; } }
-.calm .w { animation-duration: 760ms; --soft-dur: 760ms; }
+.calm .w { --soft-dur: 760ms; }
 
 /* ── Today's cards (screens/TodayCards.tsx): Up next, Muscles this week, Recent records ── */
 .tc-card { padding: 16px 18px 14px 20px; border-radius: var(--r-lg); text-align: left; }

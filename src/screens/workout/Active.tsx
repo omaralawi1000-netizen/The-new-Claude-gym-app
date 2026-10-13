@@ -1,4 +1,4 @@
-import { createContext, memo, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createContext, memo, startTransition, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, animate, motion, useMotionValue, useReducedMotion, useTransform } from 'motion/react';
 import { useStore, exerciseMap } from '../../state/store';
 import { useUI, haptic } from '../../state/ui';
@@ -13,12 +13,13 @@ import { beatLastTime, newBest, elapsedMs, historyOf, incrementFor, lastPerforma
 import { fmtDuration } from '../../lib/dates';
 import { displayToKg, kgToDisplay, fmtNum, displayToM, mToDisplay } from '../../lib/units';
 import { useNow } from '../../lib/hooks';
+import { setWorkoutOpener } from '../../ui/workoutOpen';
 import { nextSetOf, offerRestAlerts, prepareRestAudio, unlockRestAudio } from './rest';
 import { addSet, deleteSet, moveExercise, patchExercise, patchSet, removeExercise, startRest, adjustRest, skipRest, toggleSuperset } from './actions';
 import { exName, fmtSet, MUSCLE_LABEL } from './common';
 import { SphereSlot, mirrorOrb, orbPress, orbTap } from '../../ui/Sphere';
 import { useSwipeDown } from '../../ui/swipe';
-import { Mirror, mirrorProgress, mirrorStage, trackCover, trackDepth, type Engage } from '../../ui/engage';
+import { Mirror, mirrorProgress, mirrorStage, trackCover, trackDepth, warmStage, type Engage } from '../../ui/engage';
 import { DIM_VEIL, Veil, mirrorVeil } from '../../ui/Veil';
 import { kb, keyboardGoal, onKeyboardGoal, rideFocus } from '../../ui/keyboard';
 import { viewportH } from '../../ui/viewport';
@@ -105,8 +106,11 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
     runMirror(e0, 0, SURFACE_EXIT, vel);
     const c = animate(p, 0, reduce ? { duration: 0.01 } : { ...SURFACE_EXIT, velocity: vel });
     closing.current = new Promise<void>((done) => { c.then(() => done()); });
+    void closing.current.then(() => warmStage(false));
     return closing.current;
   };
+  // a press on Minimise that never became a tap lets the page behind rest again
+  const warmUp = () => { warmStage(true); setTimeout(() => { if (!closing.current) warmStage(false); }, 1000); };
   const close = (v = 0) => {
     if (closing.current) return;
     startClose(v);
@@ -180,16 +184,25 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
   const [hidden, setHidden] = useState(!open);
   const openRef = useRef(open); openRef.current = open;
   const onGoneRef = useRef(onGone); onGoneRef.current = onGone;
+  const opening = useRef<{ stop: () => void } | null>(null);
+  const startOpen = () => {
+    closing.current = null;
+    // un-park it now, before the orb's flight measures where its slot will be (React would only do it after this effect)
+    dialogRef.current?.classList.remove('wk-off'); scrimRef.current?.classList.remove('wk-off');
+    const from = p.get();
+    opening.current?.stop();
+    opening.current = animate(p, 1, reduce ? { duration: 0.01 } : SURFACE);
+    runMirror(from, 1, SURFACE, 0);
+  };
+  // waiting minimised: a tap on the resume bar or button starts the slide at once (ui/workoutOpen.ts)
+  useEffect(() => (!open && hidden ? setWorkoutOpener(startOpen) : undefined));
   useLayoutEffect(() => {
     if (open) {
-      closing.current = null;
-      // un-park it now, before the orb's flight measures where its slot will be (React would only do it after this effect)
-      dialogRef.current?.classList.remove('wk-off'); scrimRef.current?.classList.remove('wk-off');
-      setHidden(false);
-      const from = p.get();
-      const c = animate(p, 1, reduce ? { duration: 0.01 } : SURFACE);
-      runMirror(from, 1, SURFACE, 0);
-      return () => c.stop();
+      if (!opening.current) startOpen(); // (already sliding when the tap started it)
+      // the rest of "shown" (its clocks ticking again, its role) as a render that yields: set at once, here, it re-rendered
+      // the whole window a second time inside the tap, before the slide's first frame
+      startTransition(() => setHidden(false));
+      return () => { opening.current?.stop(); opening.current = null; };
     }
     setMenu(null); setConfirm(null); setRenaming(false);
     const el = document.activeElement as HTMLElement | null;
@@ -234,7 +247,7 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
     return () => cancelAnimationFrame(id);
   }, [shown, lead]);
   const [ready, setReady] = useState(false);
-  useEffect(() => { if (ready) prepareRestAudio(); }, [ready]); // the rest-over sound, made while nothing else is happening
+
   const listDoneAtOpen = useRef(total0 <= 2);
   // the exercises drawn in the very first frame ride up with the window; any that arrive after it fade in
   const firstIds = useRef(new Set((a?.exercises ?? []).slice(0, 2).map((e) => e.id)));
@@ -243,6 +256,9 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
   // once the opening has built the list, an exercise that joins it (added, or brought back by Undo) unfolds into place
   const listSettled = useRef(false);
   useEffect(() => { if (listDone) listSettled.current = true; }, [listDone]);
+  // the rest-over sound, made while nothing else is happening: once the list is built (made as soon as the window had
+  // landed, it ran while the rest of the list was still arriving, ~11 ms at once on the phone)
+  useEffect(() => { if (ready && listDone) prepareRestAudio(); }, [ready, listDone]);
   useEffect(() => {
     if (p.get() >= 0.97) { setReady(true); return; }
     const off = p.on('change', (v) => { if (v >= 0.97) { setReady(true); off(); } });
@@ -315,7 +331,8 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
               (a solid band here cut the colour field off in a hard line under the grabber) */}
           <div className="wk-head-wrap" style={{ touchAction: 'none' }}>
             <div className="wk-head">
-              <button className="icon-btn flat press wk-min" aria-label={t('Minimise workout')} onClick={() => close()}><Icon name="chevD" /></button>
+              {/* the finger is down: the page behind starts drawing itself again (unseen) so the window can move the moment it lifts */}
+              <button className="icon-btn flat press wk-min" aria-label={t('Minimise workout')} onPointerDown={warmUp} onPointerCancel={() => warmStage(false)} onClick={() => close()}><Icon name="chevD" /></button>
               <div className="wk-head-mid">
                 {renaming ? (
                   <input className="input" autoFocus style={{ minHeight: 34, padding: '4px 10px' }} defaultValue={a.name} onBlur={(e) => { useStore.getState().mutateActive((x) => ({ ...x, name: e.target.value.trim() })); setRenaming(false); }} onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} aria-label={t('Workout name')} />
@@ -524,7 +541,7 @@ function WorkoutBar({ engage, exMap, focus, onDone, onJump }: { engage: Engage; 
           aria-label={state === 'rest' ? `${t('Rest')} ${fmtDuration(Math.ceil(left))}` : `${top}. ${big}${(state === 'next' || state === 'go') && target ? `, ${target}` : ''}`}>
           <SwapText k={`${state}${after ? after.se.id : ''}`} tone={state}>
             <span className="wk-bar-top">{top}</span>
-            <span className="wk-bar-big num">{state === 'next' || (state === 'go' && nx) ? <><span className="wk-bar-name">{name}</span>{target && <span className="wk-bar-tgt">{target}</span>}</>
+            <span className="wk-bar-big num">{state === 'next' || (state === 'go' && nx) ? <><Fit className="wk-bar-name" text={name} />{target && <span className="wk-bar-tgt">{target}</span>}</>
               : state === 'rest' ? (!a.pausedAt && left <= 3
                 // the last three seconds swell on each tick; before that the seconds roll down
                 ? <span key={Math.ceil(left)} className="wk-tick">{big}</span> : <Roll key="r" text={big} />)
@@ -548,6 +565,52 @@ function WorkoutBar({ engage, exMap, focus, onDone, onJump }: { engage: Engage; 
       </div>
     </div>
   );
+}
+
+/** Text measured off the page (Fit). */
+let measureCtx: CanvasRenderingContext2D | null = null;
+const measurer = () => (measureCtx ??= document.createElement('canvas').getContext('2d')!);
+/**
+ * One line that ends in a clean "…" when it doesn't fit, never in "Press, …" (the browser's own ellipsis keeps a trailing
+ * comma or space). Measured only when the text or the room for it changes.
+ */
+function Fit({ text, className }: { text: string; className?: string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current; if (!el) return;
+    const cut = (n: number) => `${text.slice(0, n).replace(/[\s,.;:·–—-]+$/u, '')}…`;
+    // Nothing is read from the page here. The room is read when the browser reports the line's size, right after its own
+    // layout (free then), and the shorter tries are measured off the page. Reading widths here laid the whole window out an
+    // extra time (and once per try), in the tap that ticks a set and in the first frame of opening.
+    let whole = true, font = '', spacing = '', parentW = -1;
+    const fit = () => {
+      const room = el.clientWidth;
+      if (el.scrollWidth <= room + 0.5) return;
+      const c = measurer();
+      if (!font) { const cs = getComputedStyle(el); font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`; spacing = cs.letterSpacing; }
+      c.font = font; c.letterSpacing = spacing;
+      const fits = (n: number) => c.measureText(cut(n)).width <= room - 1;
+      let lo = 1, hi = text.length - 1; // the longest start that fits with its "…"
+      while (lo < hi) { const m = (lo + hi + 1) >> 1; if (fits(m)) lo = m; else hi = m - 1; }
+      whole = false; el.textContent = cut(lo);
+    };
+    // the line shrinks to a cut name, so only the whole name tells the room; the room changes only with the parent's width
+    const ro = new ResizeObserver((entries) => {
+      for (const e of entries) {
+        if (e.target === el) { if (whole) fit(); continue; }
+        const w = e.contentRect.width;
+        if (parentW >= 0 && w !== parentW) reset();
+        parentW = w;
+      }
+    });
+    const reset = () => { whole = true; el.textContent = text; ro.unobserve(el); ro.observe(el); };
+    el.textContent = text;
+    ro.observe(el);
+    if (el.parentElement) ro.observe(el.parentElement);
+    if (document.fonts && document.fonts.status !== 'loaded') void document.fonts.ready.then(() => { if (el.isConnected) { font = ''; reset(); } });
+    return () => ro.disconnect();
+  }, [text]);
+  return <span ref={ref} className={className} />;
 }
 
 /**
@@ -773,7 +836,7 @@ const SetRow = memo(function SetRow({ se, set, ex, label, prev, restDefault }: {
     if (!valid) { setShake((n) => n + 1); haptic('warn'); toast(t('Enter reps first'), { tone: 'bad', duration: 1800 }); return; }
     const st = useStore.getState();
     if (st.active?.pausedAt) st.resumeActive();
-    unlockRestAudio(); // a tap: the rest-over tones are allowed to play later
+    unlockRestAudio(); // a tap: the rest-over sound is allowed to play later
     if (st.active?.rest && st.active.rest.endsAt <= Date.now()) skipRest(); // "Go" has done its job
     // a new best beats everything before it (and is the bigger moment); otherwise beating last time gets its own small one
     const earlier = (st.active?.exercises ?? []).filter((e) => e.exerciseId === se.exerciseId).flatMap((e) => e.sets).filter((x) => x.id !== set.id);

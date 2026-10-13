@@ -1,4 +1,4 @@
-import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { AnimatePresence, MotionConfig, motion } from 'motion/react';
 import { useStore } from './state/store';
 import { useUI } from './state/ui';
@@ -215,22 +215,29 @@ function useKeyboard() {
 const SCREENS = { today: TodayScreen, train: TrainScreen, food: FoodScreen, progress: ProgressScreen };
 
 /**
- * True while a pop-up is open (and for a moment after it has left). The drifting colour field sits under dozens of frosted
- * cards, so while it moves every one of them must be re-blurred every frame — and a pop-up adds two more full-screen
- * blurs on top. The field is hidden behind the dim then anyway, so it is paused for the duration: the pop-up gets the
- * whole GPU for its own slide.
+ * While a pop-up is open (and for a moment after it has left) the app is "calm" (data-calm). The drifting colour field sits
+ * under dozens of frosted cards, so while it moves every one of them must be re-blurred every frame — and a pop-up adds two
+ * more full-screen blurs on top. The field is hidden behind the dim then anyway, so it is paused for the duration: the
+ * pop-up gets the whole GPU for its own slide. Written on the shell directly, not as React state: as state, every pop-up
+ * opening re-rendered the whole app twice (~270 components, once inside the tap and once two frames into the motion).
  */
-function useCalm(): boolean {
-  const open = useUI((u) => u.overlays.length > 0);
-  const [calm, setCalm] = useState(open);
+function useCalm(app: React.RefObject<HTMLDivElement | null>) {
   useEffect(() => {
-    // switched on two frames after the pop-up has started moving: it restyles every element of the page behind (its
-    // frosted cards stop blurring), and doing that inside the tap delayed the pop-up's first frame
-    if (open) { let id = requestAnimationFrame(() => { id = requestAnimationFrame(() => setCalm(true)); }); return () => cancelAnimationFrame(id); }
-    const id = setTimeout(() => setCalm(false), 900); // resume after the closing slide
-    return () => clearTimeout(id);
-  }, [open]);
-  return calm;
+    let raf = 0, timer = 0;
+    const set = (on: boolean) => { const el = app.current; if (el) on ? el.setAttribute('data-calm', '') : el.removeAttribute('data-calm'); };
+    let open = useUI.getState().overlays.length > 0;
+    set(open);
+    const off = useUI.subscribe((u) => {
+      const now = u.overlays.length > 0;
+      if (now === open) return;
+      open = now; cancelAnimationFrame(raf); clearTimeout(timer);
+      // switched on two frames after the pop-up has started moving: it restyles the page behind (its frosted bits stop
+      // blurring), and doing that inside the tap delayed the pop-up's first frame
+      if (now) raf = requestAnimationFrame(() => { raf = requestAnimationFrame(() => set(true)); });
+      else timer = window.setTimeout(() => set(false), 900); // resume after the closing slide
+    });
+    return () => { off(); cancelAnimationFrame(raf); clearTimeout(timer); };
+  }, [app]);
 }
 
 export function App() {
@@ -263,7 +270,7 @@ export function App() {
   // a running workout shows a resume bar above the tab bar on every tab but Today: the page makes room for it
   const pill = useStore((s) => !!s.active) && tab !== 'today';
   const onboarded = useStore((s) => s.settings.onboarded);
-  const calm = useCalm();
+  useCalm(appRef);
   const push = useUI((s) => s.push);
   const asked = useRef(false);
   useEffect(() => {
@@ -288,9 +295,9 @@ export function App() {
   }, [push]);
   return (
     <MotionConfig reducedMotion="user">
-      <div className="app" data-hue={tab} data-pill={pill || undefined} data-calm={calm || undefined} ref={appRef}>
+      <div className="app" data-hue={tab} data-pill={pill || undefined} ref={appRef}>
         <div className="stage" ref={stageRef}>
-        <div className="fields" data-bar><AnimatePresence initial={false}><Field key={tab} hue={tab} /></AnimatePresence></div>
+        <div className="fields"><AnimatePresence initial={false}><Field key={tab} hue={tab} /></AnimatePresence><i className="fields-top" data-bar aria-hidden /></div>
         <div className="stage-content" ref={contentRef}>
         <AnimatePresence mode="popLayout" initial={false} custom={dir}>
           <TabPane key={tab} hue={tab} dir={dir}>{screen}</TabPane>

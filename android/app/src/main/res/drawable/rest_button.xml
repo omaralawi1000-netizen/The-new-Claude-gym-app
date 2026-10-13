@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- +30 s and Skip: a soft ember pill (Aven's colour instead of the phone's blue), darker while pressed. -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android" android:color="@color/ember_track">
+    <item>
+        <shape>
+            <corners android:radius="20dp" />
+            <solid android:color="@color/ember_pill" />
+        </shape>
+    </item>
+</ripple>

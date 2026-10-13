@@ -8,8 +8,12 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.res.AssetFileDescriptor;
 import android.media.AudioAttributes;
-import android.media.RingtoneManager;
+import android.media.AudioFocusRequest;
+import android.media.AudioManager;
+import android.media.MediaPlayer;
+import android.os.PowerManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -17,7 +21,9 @@ import android.os.Looper;
 import android.os.SystemClock;
 import android.service.notification.StatusBarNotification;
 import android.text.SpannableString;
+import android.util.Log;
 import android.text.Spanned;
+import android.text.style.ForegroundColorSpan;
 import android.text.style.RelativeSizeSpan;
 import android.view.View;
 import android.widget.RemoteViews;
@@ -25,6 +31,7 @@ import android.widget.RemoteViews;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.IOException;
 import java.lang.reflect.Method;
 import java.util.Collections;
 import java.util.Locale;
@@ -45,7 +52,12 @@ import java.util.Locale;
  */
 final class RestNotifications {
     static final String CH_REST = "aven_rest_live"; // quiet: the countdown
-    static final String CH_OVER = "aven_rest_over"; // rings
+    // "Time for set 2": pops up and buzzes, but makes no sound of its own. The app plays the clicks itself (clicks()),
+    // because a notification's sound stays silent with the phone on vibrate or silent, and Android also quietens the
+    // sounds of an app that posts often (the countdown, every second). Android fixes a channel's sound once it exists,
+    // hence a new id; the older ones (the phone's default sound, then the clicks) go.
+    static final String CH_OVER = "aven_rest_end";
+    private static final String[] CH_OVER_OLD = {"aven_rest_over", "aven_rest_clicks"};
     static final int ID_REST = 71, ID_OVER = 72;
     static final String MARK = "aven-rest|";
     static final String ACTION_MORE = "app.aven.android.REST_MORE";
@@ -59,6 +71,7 @@ final class RestNotifications {
         String chromeTag = "";
         long startedAt, endsAt;
         String exercise = "", line = "", overTitle = "", overBody = "", more = "+30 s", skip = "Skip";
+        boolean sound = true; // Settings › Sound in the app
     }
 
     private static Rest current; // this process's copy of what's in the prefs
@@ -92,11 +105,10 @@ final class RestNotifications {
             over.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
             over.enableVibration(true);
             over.setVibrationPattern(new long[] {0, 400, 120, 400, 120, 700});
-            over.setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION),
-                new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_NOTIFICATION_EVENT)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build());
+            over.setSound(null, null);
             nm.createNotificationChannel(over);
         }
+        for (String old : CH_OVER_OLD) if (nm.getNotificationChannel(old) != null) nm.deleteNotificationChannel(old);
     }
 
     // ── from Chrome ──────────────────────────────────────────
@@ -116,6 +128,7 @@ final class RestNotifications {
             return true;
         }
         Rest r = parse(tag, n);
+        log("from Chrome: " + (r == null ? "not a rest" : "rest ending in " + (r.endsAt - now) + " ms"));
         if (r == null) return false;
         if (r.endsAt <= now + 500) return true; // already over (a late update): the alarm has it
         ensureChannels(c);
@@ -139,7 +152,9 @@ final class RestNotifications {
     /** Chrome took one of the website's notifications away: you're back in Aven, or the rest was skipped. */
     static void chromeCancelled(Context c, String tag) {
         Rest r = load(c);
-        if (r == null || tag == null || !tag.equals(r.chromeTag)) return; // an older rest's (a newer one has taken over)
+        boolean ours = r != null && tag != null && tag.equals(r.chromeTag);
+        log("Chrome took its notification away" + (ours ? "" : " (an older one)"));
+        if (!ours) return; // an older rest's (a newer one has taken over)
         stopAll(c, true);
     }
 
@@ -158,6 +173,7 @@ final class RestNotifications {
             r.overBody = j.optString("b");
             r.more = j.optString("p", r.more);
             r.skip = j.optString("k", r.skip);
+            r.sound = j.optInt("q", 1) == 1;
             return r.endsAt > r.startedAt ? r : null;
         } catch (JSONException e) {
             return null;
@@ -240,9 +256,7 @@ final class RestNotifications {
             .setCategory(Notification.CATEGORY_STOPWATCH)
             .setVisibility(Notification.VISIBILITY_PUBLIC)
             .setContentIntent(tap(c))
-            .setDeleteIntent(own(c, ACTION_GONE, null))
-            .addAction(new Notification.Action.Builder(null, r.more, own(c, ACTION_MORE, chromeMore)).build())
-            .addAction(new Notification.Action.Builder(null, r.skip, own(c, ACTION_SKIP, chromeSkip)).build());
+            .setDeleteIntent(own(c, ACTION_GONE, null));
         if (Build.VERSION.SDK_INT >= 31) b.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE);
         int max = (int) (total / 100), at = (int) (left / 100); // the bar: what's left of the rest, draining
         if ((Build.VERSION.SDK_INT >= 36 && promoted == null) || Boolean.TRUE.equals(promoted)) {
@@ -257,6 +271,9 @@ final class RestNotifications {
                 b.setContentTitle(r.line).setContentText(r.exercise)
                     .setWhen(r.endsAt).setShowWhen(true).setUsesChronometer(true).setChronometerCountDown(true);
             }
+            // Android's own buttons here, in Aven's colour where the phone keeps it
+            b.addAction(new Notification.Action.Builder(null, ember(r.more, ember), own(c, ACTION_MORE, chromeMore)).build())
+                .addAction(new Notification.Action.Builder(null, ember(r.skip, ember), own(c, ACTION_SKIP, chromeSkip)).build());
             if (Build.VERSION.SDK_INT >= 36) {
                 b.setStyle(new Notification.ProgressStyle()
                     .setProgressSegments(Collections.singletonList(new Notification.ProgressStyle.Segment(max).setColor(ember)))
@@ -265,10 +282,18 @@ final class RestNotifications {
                 b.setProgress(max, at, false);
             }
         } else {
-            // our own layout under Android's header (app, exercise) and above the buttons: big numbers, the set, the bar
+            // our own layout under Android's header (app, exercise): big numbers, the set, the bar and our own +30 s / Skip
+            // (Android's are thin words in the phone's blue, pushed left). Folded there's no header, so the exercise is ours.
             RemoteViews small = countdown(c, R.layout.rest_small, r, left, ticking);
+            small.setTextViewText(R.id.exercise, r.exercise);
+            small.setViewVisibility(R.id.exercise, r.exercise.isEmpty() ? View.GONE : View.VISIBLE);
+            small.setProgressBar(R.id.bar, max, at, false);
             RemoteViews big = countdown(c, R.layout.rest_big, r, left, ticking);
             big.setProgressBar(R.id.bar, max, at, false);
+            big.setTextViewText(R.id.more, r.more);
+            big.setTextViewText(R.id.skip, r.skip);
+            big.setOnClickPendingIntent(R.id.more, own(c, ACTION_MORE, chromeMore));
+            big.setOnClickPendingIntent(R.id.skip, own(c, ACTION_SKIP, chromeSkip));
             b.setStyle(new Notification.DecoratedCustomViewStyle()).setCustomContentView(small).setCustomBigContentView(big)
                 .setSubText(r.exercise).setShowWhen(false);
         }
@@ -289,6 +314,13 @@ final class RestNotifications {
             v.setChronometerCountDown(R.id.chrono, true);
         }
         return v;
+    }
+
+    /** A button's words in ember (Android keeps the colour on some phones and drops it on others). */
+    private static CharSequence ember(String text, int colour) {
+        SpannableString s = new SpannableString(text);
+        s.setSpan(new ForegroundColorSpan(colour), 0, text.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        return s;
     }
 
     /** "1:42" (rounded up, so it says 0:01 until the very end, like a kitchen timer). */
@@ -323,10 +355,52 @@ final class RestNotifications {
             .setTimeoutAfter(15 * 60_000L) // left for a long time, it tidies itself away
             .setContentIntent(tap(c));
         nm.notify(ID_OVER, b.build());
+        if (r.sound) clicks(c);
+    }
+
+    private static MediaPlayer player; // kept until it has played (a player nobody holds can stop halfway)
+
+    /**
+     * The rest-over clicks (res/raw/rest_over.mp3, the same file the website plays), played the way a clock's timer
+     * rings: on the alarm volume, so they're heard with the phone on vibrate, in a pocket, with the screen off. Music
+     * dips for the half second they take. Settings › Sound in the app turns them off.
+     */
+    static void clicks(Context c) {
+        AudioManager am = c.getSystemService(AudioManager.class);
+        AudioAttributes aa = new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ALARM)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build();
+        AudioFocusRequest focus = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+            .setAudioAttributes(aa).build();
+        PowerManager.WakeLock awake = c.getSystemService(PowerManager.class).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "aven:clicks");
+        awake.acquire(5000); // the phone may be asleep: stay up until they've played
+        if (player != null) { player.release(); player = null; }
+        MediaPlayer mp = new MediaPlayer();
+        Runnable done = () -> {
+            mp.release();
+            if (player == mp) player = null;
+            am.abandonAudioFocusRequest(focus);
+            if (awake.isHeld()) awake.release();
+        };
+        try (AssetFileDescriptor fd = c.getResources().openRawResourceFd(R.raw.rest_over)) {
+            mp.setAudioAttributes(aa);
+            mp.setDataSource(fd);
+            mp.setOnCompletionListener(p -> { log("clicks played"); done.run(); });
+            mp.setOnErrorListener((p, what, extra) -> { log("clicks failed: " + what + "/" + extra); done.run(); return true; });
+            mp.prepare();
+            am.requestAudioFocus(focus);
+            player = mp;
+            mp.start();
+            log("clicks: alarm volume " + am.getStreamVolume(AudioManager.STREAM_ALARM) + " of "
+                + am.getStreamMaxVolume(AudioManager.STREAM_ALARM) + ", ringer mode " + am.getRingerMode());
+        } catch (IOException | RuntimeException e) {
+            log("clicks failed: " + e);
+            done.run();
+        }
     }
 
     /** Everything off: the countdown, its alarm, and (when you're back) the alert. */
     static void stopAll(Context c, boolean alertToo) {
+        log("stop all" + (alertToo ? ", alert too" : ""));
         cancelAlarm(c);
         RestTimerService.stop(c);
         NotificationManager nm = c.getSystemService(NotificationManager.class);
@@ -353,6 +427,9 @@ final class RestNotifications {
     private static void criticalText(Notification.Builder b, String text) {
         if (Build.VERSION.SDK_INT >= 36) call(b, "setShortCriticalText", String.class, text);
     }
+
+    /** What happened, in the phone's log under "AvenRest" (the emulator check prints it). */
+    static void log(String what) { Log.i("AvenRest", what); }
 
     private static void call(Notification.Builder b, String name, Class<?> type, Object value) {
         try {
@@ -415,6 +492,7 @@ final class RestNotifications {
         r.overBody = p.getString("overBody", "");
         r.more = p.getString("more", r.more);
         r.skip = p.getString("skip", r.skip);
+        r.sound = p.getBoolean("sound", true);
         current = r;
         return r;
     }
@@ -425,7 +503,7 @@ final class RestNotifications {
             .putString("chromeTag", r.chromeTag).putLong("startedAt", r.startedAt).putLong("endsAt", r.endsAt)
             .putString("exercise", r.exercise).putString("line", r.line)
             .putString("overTitle", r.overTitle).putString("overBody", r.overBody)
-            .putString("more", r.more).putString("skip", r.skip)
+            .putString("more", r.more).putString("skip", r.skip).putBoolean("sound", r.sound)
             .apply();
     }
 

@@ -76,6 +76,7 @@ public class RestTimerService extends Service {
 
     @Override
     public void onDestroy() {
+        RestNotifications.log("ticking stopped");
         h.removeCallbacks(tick);
         running = false;
         stopForeground(STOP_FOREGROUND_REMOVE);

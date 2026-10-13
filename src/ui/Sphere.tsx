@@ -102,23 +102,11 @@ function carry(O: { X: number; Y: number; S: number }, x: number, y: number, z: 
   if (!slides || D <= 60) return { X: O.X + (x - O.X) * e, Y: O.Y + (restY - O.Y) * e, S: O.S + (z - O.S) * e, t: e };
   // across and up to size within the first stretch above the dock, so for most of the way it already sits on its button
   const t = smooth01((O.Y - y) / Math.min(D, 170));
-  return { X: O.X + (x - O.X) * t, Y: softmin(y, O.Y, PICK), S: O.S + (z - O.S) * t, t };
+  // the soft hand-over lets go as it arrives, so it lands exactly on its button: with the dock only ~70 px below the bar
+  // (the page behind now sinks back from its middle) it held the orb 3.5 px high in the workout's bar, and the orb hopped
+  // up by that much the moment the browser-run flight, which does land exactly, handed back to this
+  return { X: O.X + (x - O.X) * t, Y: y + (softmin(y, O.Y, PICK) - y) * (1 - t), S: O.S + (z - O.S) * t, t };
 }
-/**
- * The live workout's window rises from below over the dock. The orb stays in the dock, drawn UNDER the window (`tuckedUnder`),
- * so the window's edge covers it like the rest of the page; once covered it moves (unseen) to the window's bar and comes up
- * with it. It no longer hovers over the window's sets on the way (it used to glide between the dock and the bar, on top of
- * everything, while the window's content slid up under it). Closing runs the same in reverse: the bar takes it down, and
- * the window's edge uncovers it in the dock. Only for a window that rests at the top of the screen with its slot down by
- * the dock (`tucks`); `restY` is where the slot comes to rest, `y` where it is now.
- */
-const tucks = (O: { Y: number; S: number }, restY: number) => O.S > 4 && O.Y > window.innerHeight - restY + 120;
-function tuck(O: { X: number; Y: number; S: number }, x: number, y: number, z: number, restY: number) {
-  const edge = y - restY; // the window's top edge
-  return edge > O.Y - 1 ? { X: O.X, Y: O.Y, S: O.S, t: 0 } : { X: x, Y: y, S: z, t: 1 };
-}
-/** Drawn under the window while its bar (and so the orb's place in it) is still below the screen. */
-const tuckedUnder = (y: number) => y > window.innerHeight + 60;
 let lastOverlayChange = 0;
 /** Where the stage last put the orb (its box's top-left within the app, and its size). */
 let orbNow = { X: NaN, Y: NaN, S: NaN };
@@ -180,13 +168,13 @@ export function mirrorOrb(container: Element | null, p0: number, p1: number, sp:
   const r = slotEl.getBoundingClientRect();
   const z = Math.min(r.width, r.height);
   if (z < 2) return null;
-  const R = { X: r.left - b.left, Y: r.top - b.top - shiftAt(p0), S: z };
+  const R = { X: r.left - b.left + (r.width - z) / 2, Y: r.top - b.top + (r.height - z) / 2 - shiftAt(p0), S: z };
   const slides = Math.abs(shiftAt(0) - shiftAt(1)) > 1;
   const bucket = Math.ceil(Math.max(O.S, R.S, 8) / 24) * 24;
   whooshPending = Math.max(whooshPending, 1);
   const at = (p: number): Keyframe => {
     const e = Math.min(1, Math.max(0, p));
-    const c = slides && !mine && tucks(O, R.Y) ? tuck(O, R.X, R.Y + shiftAt(p), R.S, R.Y) : carry(O, R.X, R.Y + shiftAt(p), R.S, R.Y, e, slides);
+    const c = carry(O, R.X, R.Y + shiftAt(p), R.S, R.Y, e, slides);
     return { transform: `translate3d(${c.X.toFixed(2)}px, ${c.Y.toFixed(2)}px, 0) scale(${(Math.max(8, c.S) / bucket).toFixed(4)})` };
   };
   orbLock.bucket = bucket;
@@ -331,22 +319,28 @@ export function SphereStage() {
     // Scroll, resize, content and keyboard changes invalidate layout. Transform-only motion reuses the local anchors.
     const dirty = () => markOrbLayoutDirty();
     // A popup's own motion (its transform, the dim and blur fading, the page stepping back) rewrites a style attribute every
-    // frame. Its transform is applied below; decorative layers don't change layout.
-    const MOVING = '.sheet, .sheet-pane, .sheet-page, .scrim, .scrim > i, .stage, .wk-card, .wk-sheet, .fields, .aurora, .sphere-stage, .lens, .lens > i';
+    // frame. Its transform is applied below; decorative layers don't change layout. (.stage-content, the page sinking back
+    // behind a pop-up, was missing: every frame of opening and closing the workout measured the whole orb path afresh.)
+    const MOVING = '.sheet, .sheet-pane, .sheet-page, .scrim, .scrim > i, .stage, .stage-content, .wk-card, .wk-sheet, .fields, .aurora, .sphere-stage, .lens, .lens > i';
     // Inside the live workout's window nothing but the bar's own box can move its slot (the bar is pinned to the window's
     // foot): the list, Focus, the header and the bar's words changing used to force a fresh measure of the whole page on
     // every frame they changed (a set ticked, a page turned, the clock rolling), the biggest part of a tick's cost.
     const inWorkout = (t: Element) => { const sh = t.closest?.('.wk-sheet'); return !!sh && t !== sh && !t.contains(sh.querySelector('.wk-bar-orb')); };
+    // The same for the list of a tall popup (its height is fixed): what changes inside it, the Coach writing an answer in
+    // word by word, the list gliding after it, never moves a slot outside it. Without this every new word forced a fresh
+    // measure of the page in the frame it landed. Scrolling something with no slot inside moves no slot either.
+    const noSlotIn = (box: Element) => { for (const sl of slots.values()) if (box.contains(sl.el)) return false; return true; };
+    const inTallList = (t: Element) => { const body = t.closest?.('.sheet.tall .sheet-body'); return !!body && t !== body && noSlotIn(body); };
     const lmo = new MutationObserver((recs) => {
       for (const r of recs) {
         if (r.type === 'attributes' && r.target === appEl && r.attributeName === 'style') continue; // the stage's backdrop colour
         const t = (r.target.nodeType === 1 ? r.target : r.target.parentElement) as Element | null;
-        if (t && inWorkout(t)) continue;
+        if (t && (inWorkout(t) || inTallList(t))) continue;
         if (r.type !== 'attributes' || !(r.target as Element).matches?.(MOVING)) { dirty(); return; }
       }
     });
     if (appEl) lmo.observe(appEl, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class', 'data-active', 'hidden'] });
-    const onScroll = (e: Event) => { const t = e.target as Element | null; if (t?.closest?.('.wk-sheet')) return; dirty(); }; // (see inWorkout)
+    const onScroll = (e: Event) => { const t = e.target as Element | null; if (t?.closest?.('.wk-sheet') || (t?.nodeType === 1 && noSlotIn(t))) return; dirty(); }; // (see inWorkout, noSlotIn)
     window.addEventListener('scroll', onScroll, { capture: true, passive: true });
     window.addEventListener('resize', dirty);
     window.visualViewport?.addEventListener('resize', dirty);
@@ -428,7 +422,9 @@ export function SphereStage() {
         y = t.y + (y - t.y) * sy + (m.f - t.matrix.f) * t.sy;
         w *= sx; h *= sy;
       }
-      return { x, y, z: Math.min(w, h) };
+      // centred in its slot: the dock's slot is 68 x 64, and the orb sat 2 px left of the middle of its place
+      const z = Math.min(w, h);
+      return { x: x + (w - z) / 2, y: y + (h - z) / 2, z };
     };
     const tick = (now: number) => {
       if (!running) return;
@@ -439,7 +435,7 @@ export function SphereStage() {
       for (const s of slots.values()) if (s.el.isConnected) list.push(s);
       list.sort((a, b) => a.priority - b.priority);
       const ox = base.left, oy = base.top;
-      let X = 0, Y = 0, S = 0, have = false, top = 0, topSlot: Slot | null = null, flight = 1, under = false;
+      let X = 0, Y = 0, S = 0, have = false, top = 0, topSlot: Slot | null = null, flight = 1;
       if (handoff && !handoff.el.isConnected) handoff = null;
       for (const sl of list) {
         const leaving = isLeaving(sl);
@@ -469,7 +465,7 @@ export function SphereStage() {
             X = c.X; Y = c.Y; S = c.S; flight = c.t;
             if (e >= 0.999) handoff = null; // arrived: from here on an ordinary slot
           }
-          top = Math.max(top, sl.priority); topSlot = sl; under = false;
+          top = Math.max(top, sl.priority); topSlot = sl;
           continue;
         }
         // a sliding popup's slot comes up from below the screen: the orb waits where it is until the slot reaches it, then
@@ -477,22 +473,20 @@ export function SphereStage() {
         // A sliding popup's slot (a sheet, the live workout): the orb heads for where the slot comes to REST, on the very
         // same progress as the popup. Both start together and land together, so the orb never trails the sheet or crosses its
         // buttons on the way; while the popup is opening it is simply a shared element flying to its place.
-        let tucked = false;
         if (sl.engage?.shift) {
           const restY = y - sl.engage.shift.get();
-          tucked = tucks({ Y, S }, restY);
-          const c = tucked ? tuck({ X, Y, S }, x, y, z, restY) : carry({ X, Y, S }, x, y, z, restY, e);
+          const c = carry({ X, Y, S }, x, y, z, restY, e);
           X = c.X; Y = c.Y; S = c.S; flight = c.t;
         } else {
           X += (x - X) * e; Y += (y - Y) * e; S += (z - S) * e; flight = e;
         }
-        if (e > 0.02) { top = Math.max(top, sl.priority); topSlot = sl; under = tucked && tuckedUnder(y); }
+        if (e > 0.02) { top = Math.max(top, sl.priority); topSlot = sl; }
       }
       if (!have) { el.style.opacity = '0'; pause(); return; }
       orbNow = { X, Y, S };
       // In the tab bar it sits under every popup; in a popup it sits just above that popup — and so under anything
       // opened over it (an exercise menu over the live workout), never floating on top of everything.
-      const zi = top > 0 && topSlot && !under ? String(ownerZ(topSlot.el) + 1) : '41';
+      const zi = top > 0 && topSlot ? String(ownerZ(topSlot.el) + 1) : '41';
       if (el.style.zIndex !== zi) el.style.zIndex = zi;
       const size = Math.max(8, S);
       // haptics: only the arrival on the orb screen plays (its heartbeat). Flying with an ordinary pop-up (the workout, the

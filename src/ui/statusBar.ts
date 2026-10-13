@@ -15,16 +15,16 @@ let sent = '';
 const hex = (c: RGB) => '#' + c.map((v) => Math.round(Math.min(255, Math.max(0, v))).toString(16).padStart(2, '0')).join('');
 const ease = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
 
-/* The tint is written on the few elements that use it (marked data-bar: the app shell, the colour field, the orb screen's
-   top), never on <html>. A variable changed on <html> is inherited by every element, so the browser restyled the whole app
+/* The tint is written on the few elements that use it (marked data-bar: the page's top tint; data-bar-shown: the orb
+   screen's top), never on <html>. A variable changed on <html> is inherited by every element, so the browser restyled the whole app
    on each frame of the 0.8 s blend (measured: 60 % of the style work and most of the long frames in a tab switch). The two
    variables are registered as non-inherited (styles.css), so changing them restyles only these elements. */
 let shown = '';
 function paint(bar: string) {
-  for (const el of document.querySelectorAll<HTMLElement>('[data-bar]')) {
-    if (el.style.getPropertyValue('--bar') !== bar) el.style.setProperty('--bar', bar);
-    if (shown && el.style.getPropertyValue('--bar-shown') !== shown) el.style.setProperty('--bar-shown', shown);
-  }
+  for (const el of document.querySelectorAll<HTMLElement>('[data-bar]')) if (el.style.getPropertyValue('--bar') !== bar) el.style.setProperty('--bar', bar);
+  // the colour the bar is showing right now changes on every frame of a pop-up's dim: written only where it is used (the
+  // orb screen's top), never on anything large — a write restyles the element, and on a big painted one that is a repaint
+  if (shown) for (const el of document.querySelectorAll<HTMLElement>('[data-bar-shown]')) if (el.style.getPropertyValue('--bar-shown') !== shown) el.style.setProperty('--bar-shown', shown);
 }
 /** Gives a just-mounted data-bar element the current tint. */
 export function refreshBar() { paint(`rgb(${cur.map((v) => Math.round(v)).join(' ')})`); }
@@ -37,10 +37,11 @@ function frame(now: number) {
     if (k >= 1) dur = 0; else raf = requestAnimationFrame(frame);
   }
   const root = document.documentElement;
-  // the dim over the page (Veil: full strength from 60 % of a pop-up's progress) lies over the top of it too
+  // the dim over the page (Veil's .veil-dim, --scrim) lies over the top of it too, deepening in step with the pop-up's
+  // progress, 0 → 1 — the bar used to reach full dim at 60 %, so it ran ahead of the page: a darker band leading the dim
   const light = root.dataset.theme === 'light';
   const [sr, sg, sb, sa] = light ? [16, 20, 34, 0.3] : [2, 3, 8, 0.5];
-  const a = sa * Math.min(1, Math.max(0, depth / 0.6));
+  const a = sa * Math.min(1, Math.max(0, depth));
   let c3: RGB = [cur[0] * (1 - a) + sr * a, cur[1] * (1 - a) + sg * a, cur[2] * (1 - a) + sb * a];
   // the orb screen's frost (VOICE_VEIL: the background colour at 74 % over the page) covers the top too, so the bar goes
   // with it — it stayed the area's purple over a near-black screen, a band across the top

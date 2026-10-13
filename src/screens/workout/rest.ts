@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { resumeWorkout } from '../../ui/workoutOpen';
 import { HAPTICS, useUI } from '../../state/ui';
 import { useStore, exerciseMap } from '../../state/store';
 import { tNow } from '../../lib/i18n';
@@ -40,21 +41,36 @@ let ctx: AudioContext | null = null;
  *  it waits silent until a tap wakes it. */
 export function prepareRestAudio() {
   if (ctx) return;
-  const make = () => { try { ctx ??= new (window.AudioContext || (window as any).webkitAudioContext)(); } catch { /* no audio */ } };
+  const make = () => { try { ctx ??= new (window.AudioContext || (window as any).webkitAudioContext)(); loadChime(); } catch { /* no audio */ } };
   if (typeof requestIdleCallback === 'function') requestIdleCallback(make, { timeout: 4000 }); else setTimeout(make, 1500);
 }
 export function unlockRestAudio() {
   try {
     ctx ??= new (window.AudioContext || (window as any).webkitAudioContext)();
     if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+    loadChime();
   } catch { /* no audio */ }
 }
 
-/** Three soft rising tones, under half a second (short, so music in your earbuds only dips for a moment). */
-function tones() {
+// The rest-over sound: three short clicks, two deep and a bright one (public/sounds/rest-over.mp3, the same file the Android
+// app rings with; see CREDITS.md). Decoded once, ahead; until it's there the old soft tones stand in.
+let chimeBuf: AudioBuffer | null = null;
+let chimeLoading = false;
+function loadChime() {
+  if (chimeBuf || chimeLoading || !ctx) return;
+  chimeLoading = true;
+  const ac = ctx;
+  fetch(`${import.meta.env.BASE_URL}sounds/rest-over.mp3`).then((r) => r.arrayBuffer()).then((b) => ac.decodeAudioData(b))
+    .then((buf) => { chimeBuf = buf; }).catch(() => { chimeLoading = false; });
+}
+
+/** The rest-over sound, about half a second (short, so music in your earbuds only dips for a moment). */
+function chime() {
   try {
     unlockRestAudio();
     const ac = ctx; if (!ac) return;
+    if (chimeBuf) { const src = ac.createBufferSource(); src.buffer = chimeBuf; src.connect(ac.destination); src.start(ac.currentTime + 0.02); return; }
+    // not decoded yet: three soft rising tones
     const t0 = ac.currentTime + 0.02;
     [660, 880, 1175].forEach((f, i) => {
       const o = ac.createOscillator(), g = ac.createGain();
@@ -122,6 +138,7 @@ function restPayload(ended = false) {
     // icon: Aven's orb in a circle (left out, Chrome draws a grey letter bubble); badge: the white mark in the status bar
     icon: `${import.meta.env.BASE_URL}notif-icon.png`, badge: `${import.meta.env.BASE_URL}badge-96.png`,
     more: tNow('+30 s'), skip: tNow('Skip rest'), skipShort: tNow('Skip'),
+    sound: st.settings.sound,
   };
 }
 type Payload = NonNullable<ReturnType<typeof restPayload>>;
@@ -133,7 +150,7 @@ function handOff(r: Payload) {
   showAppRest(appRest(r)).then((ok) => {
     viaApp = ok;
     if (!ok) toSW({ type: 'aven-rest', rest: r });
-    else if (!document.hidden) clearAppRest(); // already back while it was on its way
+    else if (onScreen()) clearAppRest(); // already back while it was on its way
   });
 }
 
@@ -144,6 +161,18 @@ function rememberLate(d: { due?: number; firedAt?: number; by?: string } | null 
 }
 export function lastRestLate(): { ms: number; by?: string; at: number } | null {
   try { const x = localStorage.getItem(LATE_KEY); return x ? JSON.parse(x) : null; } catch { return null; }
+}
+
+// Really on screen: visible AND focused. Switching the phone to dark mode while Aven is in the background makes Chrome call
+// the page "visible" (without focus, and it stays that way until you come back), so "visible" alone is not enough.
+const onScreen = () => !document.hidden && document.hasFocus();
+let waitingForFocus: (() => void) | null = null;
+/** Back in the app: take the notifications away, but only once the page has the focus (see onScreen). */
+function backInApp() {
+  if (onScreen()) { clearNotice(); return; }
+  if (waitingForFocus) return;
+  waitingForFocus = () => { window.removeEventListener('focus', waitingForFocus!); waitingForFocus = null; if (!document.hidden) clearNotice(); };
+  window.addEventListener('focus', waitingForFocus);
 }
 
 /** Back in the app: the notifications have done their job (note how late the alert was first). */
@@ -173,14 +202,14 @@ export function openWorkout() {
   if (!useStore.getState().active) return;
   const ui = useUI.getState();
   if (ui.overlays.some((o) => o.type === 'workout')) ui.popTo('workout');
-  else ui.push('workout', { origin: 'none' });
+  else resumeWorkout(() => ui.push('workout', { origin: 'none' }));
 }
 
 let cued = ''; // the rest that has been cued: a remount or a reload never cues it twice
 
 /**
  * The end of a rest, wherever you are in the app (it used to live inside the workout screen, so nothing happened while it was
- * minimised): three ticks on the last three seconds, then the tones and a firm buzz, and — if Aven isn't on screen — a
+ * minimised): three ticks on the last three seconds, then the rest-over sound and a firm buzz, and — if Aven isn't on screen — a
  * notification saying what's next. Mounted once, in App.
  */
 export function useRestCue() {
@@ -198,14 +227,14 @@ export function useRestCue() {
       if (cued === key) return;
       cued = key;
       const st = useStore.getState();
-      if (document.hidden) {
+      if (!onScreen()) {
         const r = restPayload(true);
         if (r && notifyOn()) {
           if (viaApp) overAppRest(appRest(r)); // the app rings on time itself: this only covers it if it didn't
-          else { toSW({ type: 'aven-rest-over', rest: r }); if (st.settings.sound) tones(); }
+          else { toSW({ type: 'aven-rest-over', rest: r }); if (st.settings.sound) chime(); }
         }
       }
-      else { if (st.settings.sound) tones(); vibrate([...HAPTICS.restOver]); }
+      else { if (st.settings.sound) chime(); vibrate([...HAPTICS.restOver]); }
     }, left));
     return () => timers.forEach(clearTimeout);
   }, [endsAt, total, paused]);
@@ -213,9 +242,9 @@ export function useRestCue() {
   useEffect(() => {
     noteAndroidApp();
     androidRest(); // ready before you ever leave mid-rest
-    if (!document.hidden) clearNotice(); // opened again from the home screen: a notification left over has done its job
+    if (!document.hidden) backInApp(); // opened again from the home screen: a notification left over has done its job
     const on = () => {
-      if (!document.hidden) { clearNotice(); return; }
+      if (!document.hidden) { backInApp(); return; }
       const r = restPayload();
       if (r && notifyOn()) handOff(r);
     };
@@ -229,7 +258,7 @@ export function useRestCue() {
         const keys = [`${a.id}:${a.rest.endsAt}`, `${a.id}:${a.rest.endsAt - a.rest.total * 1000}`]; // website's / app's
         if (!keys.includes(e.data.key)) return;
         if (e.data.action === 'more') adjustRest(30); else skipRest();
-        if (document.hidden) { const r = restPayload(); if (r && notifyOn()) handOff(r); }
+        if (!onScreen()) { const r = restPayload(); if (r && notifyOn()) handOff(r); }
         return;
       }
       if (e.data?.type !== 'aven-open-workout') return;
@@ -237,7 +266,10 @@ export function useRestCue() {
       openWorkout();
     };
     navigator.serviceWorker?.addEventListener('message', msg);
-    return () => { document.removeEventListener('visibilitychange', on); navigator.serviceWorker?.removeEventListener('message', msg); };
+    return () => {
+      document.removeEventListener('visibilitychange', on); navigator.serviceWorker?.removeEventListener('message', msg);
+      if (waitingForFocus) { window.removeEventListener('focus', waitingForFocus); waitingForFocus = null; }
+    };
   }, []);
   // the workout ended (or a rest was skipped) while a notification was up: take it away
   const hasActive = useStore((s) => !!s.active);

@@ -29,6 +29,7 @@ import { startDragSort } from '../ui/dragSort';
 import { setFpsMeter, useFpsMeterOn } from '../ui/FpsMeter';
 import { startStutter, stopStutter, stutterReport, stutterState, subscribeStutter } from '../lib/stutter';
 import { lastRestLate } from './workout/rest';
+import { inAndroidApp, restCheck, showAppRest } from '../lib/androidApp';
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 // Moving between Settings pages works like iOS: the page you leave steps aside and fades out quickly, then the next one glides
@@ -287,6 +288,7 @@ function RestAlertRow() {
   const s = useStore();
   const supported = typeof Notification !== 'undefined';
   const [perm, setPerm] = useState(() => (supported ? Notification.permission : 'denied'));
+  const toast = useUI((u) => u.toast);
   const on = s.settings.restNotify !== false && perm === 'granted';
   const toggle = async (v: boolean) => {
     if (v && supported && Notification.permission === 'default') { const r = await Notification.requestPermission().catch(() => 'default' as NotificationPermission); setPerm(r); }
@@ -294,11 +296,47 @@ function RestAlertRow() {
   };
   if (!supported) return null;
   const late = on ? lastRestLate() : null;
+  const app = inAndroidApp();
+  // on Android: one small line saying which link of the chain works (browser, phone, permission, app, rest worker, last
+  // error), and a test that goes the same way a real rest does, so one screenshot of this row tells us what's wrong
+  const android = /Android/i.test(navigator.userAgent);
+  const [check, setCheck] = useState<Awaited<ReturnType<typeof restCheck>> | null>(null);
+  const recheck = () => { restCheck().then(setCheck).catch(() => {}); };
+  useEffect(() => { if (android) recheck(); }, [android, perm]);
+  const test = async () => {
+    let p = Notification.permission;
+    if (p === 'default') { p = await Notification.requestPermission().catch(() => 'default' as NotificationPermission); setPerm(p); }
+    if (p !== 'granted') { toast(t('Notifications aren’t allowed, so nothing can show.'), { tone: 'bad' }); recheck(); return; }
+    const now = Date.now();
+    const words = {
+      title: t('Rest timer test'), body: t('Pull down to see the countdown'), icon: `${import.meta.env.BASE_URL}notif-icon.png`,
+      badge: `${import.meta.env.BASE_URL}badge-96.png`,
+    };
+    let via = '';
+    if (await showAppRest({
+      ...words, key: `test:${now}`, startedAt: now, endsAt: now + 15_000, exercise: words.title, line: words.body,
+      overTitle: t('Rest over'), overBody: '', more: t('+30 s'), skip: t('Skip'), sound: useStore.getState().settings.sound,
+    })) via = 'app';
+    else {
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        await reg.showNotification(words.title, { body: words.body, icon: words.icon, badge: words.badge, tag: 'aven-test', timestamp: now + 15_000 } as NotificationOptions);
+        via = 'web';
+      } catch (e: any) { try { localStorage.setItem('aven.androidApp.err', `web: ${e?.message ?? e}`); } catch { /* ignore */ } }
+    }
+    toast(via ? t('Test sent ({via}): pull down from the top of the screen.', { via }) : t('The test couldn’t be shown.'), { tone: via ? 'ok' : 'bad' });
+    recheck();
+  };
+  const line = check && [check.browser, [check.model, check.android && `Android ${check.android}`].filter(Boolean).join(' '),
+    `${t('notifications')} ${check.permission}`, `app ${check.inApp ? 'yes' : check.seen ? 'seen' : 'no'}`, `worker ${check.worker}`,
+    check.err && `err ${check.err}`].filter(Boolean).join(' · ');
   return (
     <div className="row-flex between" style={{ alignItems: 'flex-start', gap: 14 }}>
       <div>
         <div>{t('Rest timer on lock screen')}</div>
-        <div className="xs t2" style={{ marginTop: 2 }}>{perm === 'denied' ? t('Notifications are blocked for Aven in your browser settings.') : t('Shows when rest is over and buzzes, even in another app or with the screen off.')}</div>
+        <div className="xs t2" style={{ marginTop: 2 }}>{perm === 'denied' ? (app ? t('Notifications are off for the Aven app. Turn them on in your phone’s Settings › Apps › Aven › Notifications, then force stop Chrome (Settings › Apps › Chrome) so it notices, and open Aven again.') : t('Notifications are blocked for Aven in your browser settings.')) : t('Shows when rest is over and buzzes, even in another app or with the screen off.')}</div>
+        {android && line && <div className="xs t3" style={{ marginTop: 4, wordBreak: 'break-word' }}>{line}</div>}
+        {android && <button className="btn sm press" style={{ marginTop: 8 }} onClick={test}>{t('Send a test')}</button>}
         {late && <div className="xs t3" style={{ marginTop: 2 }}>{late.ms < 2000 ? t('Last alert came on time.') : t('Last alert came {n} s late.', { n: Math.round(late.ms / 1000) })}</div>}
       </div>
       <Toggle on={on} onChange={toggle} label={t('Rest timer on lock screen')} />
