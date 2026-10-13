@@ -1492,12 +1492,14 @@ at the edges.
   the screen (before, it finished about 15 frames later, which read as a lag); the top sheet's dim goes the same way, so
   it is gone in that same frame. A tall sheet opened over another one takes the full height (Photo used to stop 36 px
   lower than Scan, which read as a card sitting too low). Its step-back is eased at both ends and finishes while
-  the last 15 % of the top sheet is still on screen: a scaled layer is drawn a touch soft and is sharp only at exactly full
-  size, so landing at rest read as a jump into focus on the last frame of a close; now it comes into focus while the top
-  sheet is still sliding away. Stepped back, a card drops its shadow: set back and narrower, it
-  showed down both sides and was cut off flat by the status bar. While any pop-up moves, the lists in sheets and in the
-  workout draw at fractions of a pixel like their sheet (html[data-moving]: Chrome otherwise rounds what is inside a
-  scrolling list to whole pixels, so a list ticked along against its gliding sheet and landed a few frames after it).
+  half of the top sheet is still on screen: a scaled layer is drawn a touch soft and is sharp only at exactly full size,
+  so landing as the top sheet left read as a jump into focus at the end of a close; now it comes into focus while the top
+  sheet still covers half the screen and slides away at its fastest. Sheets move in whole screen pixels (`snapPx`, and the
+  browser-run version gets a keyframe per frame instead of an easing): one drawn between two screen pixels is a touch soft,
+  so a glide that crept its last 0.1 px came into focus a few frames after it looked still. Stepped back, a card drops its shadow: set back and narrower, it
+  showed down both sides and was cut off flat by the status bar. While a sheet is stepped back (scaled), the lists in it draw at fractions of a pixel like
+  their sheet (.sheet[data-stacked]: Chrome otherwise rounds what is inside a scrolling list to whole pixels, so a list
+  ticked along against its sheet); it goes the moment the sheet is back to full size, mid-slide, so nothing hops at rest.
   The status bar takes the second dim too. Before, the lower sheet only shrank 6 % and rose 6 px, so half its title
   showed above a shorter sheet; the workout didn't move at all. Omar: "a pop-up in a pop-up can stack … seamless animations and excellent animations".
 - Films are now made with a steady camera (`scripts/film-steady.mjs`): Chrome draws each frame only when asked, exactly
@@ -1506,7 +1508,8 @@ at the edges.
   `scripts/film-depth.mjs` uses it, films the app at its size under the status bar and logs the bar's colour per frame,
   and closes pop-ups with their close button (Escape is a keyboard, and left a keyboard focus ring in the films).
   It films at the phone's 3.5 pixels per CSS px, and the app's clock (and the workout timer's) moves 1/60 s per frame.
-  Each step starts from a still screen; a button that is out of view is scrolled to on camera, as a person would. The
+  Each step starts from a still screen; a button that is out of view is scrolled to on camera, as a person would, easing
+  in and out (Chrome's smooth scroll stopped dead). The page is told the film's real pixel density (it was told 2). The
   scanner sees a still picture (`scripts/fake-camera.py`) and the Photo sheet a stand-in key. Sheets now come to rest
   within 0.05 px instead of 0.8, so a glide no longer ends with a last little hop, and the scanner waits for its video if the camera answers before the
   sheet's contents are in (it said "Couldn't start the camera").

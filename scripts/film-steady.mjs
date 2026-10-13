@@ -13,7 +13,7 @@ import { launch } from './lib.mjs';
 // The scanner's camera shows shots/fake-camera.y4m (python3 scripts/fake-camera.py) when it is there.
 export async function steady({ theme = 'light', size = { width: 384, height: 802 }, dsf = Number(process.env.FILM_DSF || 3.5) } = {}) {
   const cam = fs.existsSync('shots/fake-camera.y4m') ? ['--use-file-for-fake-video-capture=shots/fake-camera.y4m'] : [];
-  const { b, ctx, p, errors } = await launch({ theme, size, args: ['--deterministic-mode', '--enable-begin-frame-control', '--run-all-compositor-stages-before-draw', `--force-device-scale-factor=${dsf}`, ...cam] });
+  const { b, ctx, p, errors } = await launch({ theme, size, dsf, args: ['--deterministic-mode', '--enable-begin-frame-control', '--run-all-compositor-stages-before-draw', `--force-device-scale-factor=${dsf}`, ...cam] });
   await ctx.grantPermissions(['camera', 'microphone']);
   // the page's clock is the frame's time: scripts asking for the time between frames get the time of the frame
   await ctx.addInitScript(() => {

@@ -183,13 +183,7 @@ function useStageDepth(content: React.RefObject<HTMLDivElement | null>, stage: R
     const cover = (c: number) => { setBarCover(c); const st = stage.current; if (!st) return; const o = c >= 0.985 ? Math.max(0, (1 - c) / 0.015) : 1; st.style.opacity = o >= 1 ? '' : String(o); };
     cover(stageCover.get());
     const offCover = stageCover.on('change', cover);
-    // a pop-up is moving (anything that moves the page, a dim or a cover is): see html[data-moving] in styles.css
-    // (cleared after 8 still frames, counted in frames so it holds however long a frame takes)
-    const root = document.documentElement; let idle = 0, raf = 0;
-    const tick = () => { if (++idle > 8) { delete root.dataset.moving; raf = 0; return; } raf = requestAnimationFrame(tick); };
-    const moving = () => { idle = 0; if (!('moving' in root.dataset)) root.dataset.moving = ''; if (!raf) raf = requestAnimationFrame(tick); };
-    const offMoving = [stageDepth, stageLayers, stageCover].map((v) => v.on('change', moving));
-    return () => { offDepth(); offLayers(); offCover(); offMoving.forEach((f) => f()); cancelAnimationFrame(raf); delete root.dataset.moving; };
+    return () => { offDepth(); offLayers(); offCover(); };
   }, [content, stage]);
 }
 

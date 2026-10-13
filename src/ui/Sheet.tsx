@@ -94,7 +94,7 @@ import { mirrorOrb } from './Sphere';
 import { useUI } from '../state/ui';
 import { useSwipeDown } from './swipe';
 
-import { SMOOTH, SURFACE, SURFACE_EXIT, TAP, apple, springCurve } from './motion';
+import { SMOOTH, SURFACE, SURFACE_EXIT, TAP, apple, snapPx, springCurve } from './motion';
 // older names for the motion language (ui/motion.ts)
 export const SPRING = SURFACE;
 export const SOFT = SMOOTH;
@@ -126,11 +126,11 @@ function markStacked(el: HTMLElement | null, b: number) {
   if (!el || (b >= 0.001) === ('stacked' in el.dataset)) return;
   if (b >= 0.001) el.dataset.stacked = ''; else delete el.dataset.stacked;
 }
-/** How far the sheet below steps back for how much of the top sheet is in view: eased at both ends, and done while the last
- * 15 % of the top sheet is still on screen. A scaled layer is drawn a touch soft and is sharp again only at exactly full size,
- * so it comes into focus the moment it lands; landing at rest, as the top sheet left, that read as a jump into focus on the
- * last frame of a close. Now it lands, gently, while the top sheet is still sliding away and the eye is on that. */
-const LAND = 0.15;
+/** How far the sheet below steps back for how much of the top sheet is in view: eased at both ends, and done while half of
+ * the top sheet is still on screen. A scaled layer is drawn a touch soft and is sharp again only at exactly full size, so
+ * it comes into focus the moment it lands; landing as the top sheet left, that read as a jump into focus at the end of a
+ * close. Now it lands, gently, while the top sheet still covers half the screen and is sliding away at its fastest. */
+const LAND = 0.5;
 const settle = (s: number) => { const t = clamp01((s - LAND) / (1 - LAND)); return t * t * (3 - 2 * t); };
 
 /**
@@ -218,7 +218,7 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
   // keyboard that changes height on the way (letters → numbers) never makes it jump.
   const line = useRef({ a: 0, b: 1 });
   const liftOf = (k: number) => (k < 0.5 ? 0 : Math.max(0, line.current.a + line.current.b * k));
-  const transform = useTransform([shift, bs, kbHere], ([sh, b, k]: number[]) => `translate3d(0, ${sh - liftOf(k)}px, 0) scale(${1 - STACK_SCALE * b})`);
+  const transform = useTransform([shift, bs, kbHere], ([sh, b, k]: number[]) => `translate3d(0, ${snapPx(sh - liftOf(k))}px, 0) scale(${1 - STACK_SCALE * b})`);
   const rise = useTransform(kbHere, (k: number) => k - liftOf(k)); // how far the buttons ride above the sheet's own bottom
   // the room the keyboard will cover, made once per keyboard change; the sheet's height is held while it is there, so a
   // sheet as tall as its contents doesn't grow with the extra room
@@ -280,7 +280,7 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
     const b = bs.get();
     const k = liftOf(kbHere.get());
     const d = dy.get() * b;
-    m.add(mirrorProgress(ref.current, p0, p1, sp, vel, (pp) => ({ transform: `translate3d(0, ${(1 - pp) * dist.current + d - k}px, 0) scale(${1 - STACK_SCALE * b})` })));
+    m.add(mirrorProgress(ref.current, p0, p1, sp, vel, (pp) => ({ transform: `translate3d(0, ${snapPx((1 - pp) * dist.current + d - k)}px, 0) scale(${1 - STACK_SCALE * b})` }), [], true));
     m.add(...mirrorVeil(scrimRef.current, p0, p1, sp, vel, undefined, seenOf.current), small ? null : mirrorStage(id, p0, p1, sp, vel), mirrorOrb(ref.current, p0, p1, sp, vel, (pp) => (1 - pp) * dist.current));
   };
   useEffect(() => {
@@ -421,7 +421,7 @@ export function useStackedBehind(el: { current: HTMLElement | null }, drag: Moti
   }, [upperId]);
   useEffect(() => () => follow.current?.(), []);
   useEffect(() => bs.on('change', (b) => markStacked(el.current, b)), []); // eslint-disable-line
-  return useTransform([drag, bs, dy], ([d, b, y]: number[]) => `translate3d(0, ${d + y * b}px, 0) scale(${1 - STACK_SCALE * b})`);
+  return useTransform([drag, bs, dy], ([d, b, y]: number[]) => `translate3d(0, ${snapPx(d + y * b)}px, 0) scale(${1 - STACK_SCALE * b})`);
 }
 
 /**

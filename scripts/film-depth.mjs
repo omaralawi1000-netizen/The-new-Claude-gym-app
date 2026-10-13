@@ -18,9 +18,15 @@ await p.goto(process.env.URL || 'http://127.0.0.1:4173/'); await wait(p, 1500); 
 // still play, frame by frame, so the next one doesn't start in the middle of them.
 // A step whose button is out of view (scrolled: true) films the scroll too, as a person scrolls to it, so no film cuts
 // from one place in a list to another.
+// The scroll eases in and out over 0.7 s (Chrome's own smooth scroll stopped dead at the end).
 const scrollTo = (loc) => loc.evaluate((e) => new Promise((done) => {
-  const box = e.closest('.wk-list, .wk-page, .sheet-body, .screen'); e.scrollIntoView({ block: 'center', behavior: 'smooth' });
-  let y = -1, still = 0; const look = () => { const now = box ? box.scrollTop : 0; still = now === y ? still + 1 : 0; y = now; if (still > 10) done(); else requestAnimationFrame(look); }; look();
+  const box = e.closest('.wk-list, .wk-page, .sheet-body, .screen'); if (!box) { e.scrollIntoView({ block: 'center' }); done(); return; }
+  const a = box.getBoundingClientRect(), r = e.getBoundingClientRect(), from = box.scrollTop;
+  const to = Math.max(0, Math.min(box.scrollHeight - box.clientHeight, from + r.top + r.height / 2 - (a.top + a.height / 2)));
+  const t0 = performance.now(), T = 700, ease = (x) => (x < 0.5 ? 4 * x * x * x : 1 - (-2 * x + 2) ** 3 / 2);
+  const go = () => { const x = Math.min(1, (performance.now() - t0) / T); box.scrollTo({ top: from + (to - from) * ease(x), behavior: 'instant' }); if (x < 1) requestAnimationFrame(go); else hold(10); };
+  const hold = (n) => (n ? requestAnimationFrame(() => hold(n - 1)) : done());
+  requestAnimationFrame(go);
 }));
 const step = async (name, target, frames = 78, { scrolled = false } = {}) => {
   const loc = target();

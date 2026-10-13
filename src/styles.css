@@ -532,10 +532,12 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    showed down both sides and was cut off flat by the status bar; it goes while the card is still full width (invisible). */
 .sheet[data-stacked]::before { box-shadow: inset 0 1px 0 var(--hl), inset 0 0 0 1px var(--line); }
 .wk-card[data-stacked] .wk-sheet { box-shadow: none; }
-/* While a pop-up moves (html[data-moving], App.tsx), lists draw at fractions of a pixel like the rest of the sheet. The
-   browser otherwise rounds what is inside a scrolling list to whole pixels, so a list ticked along a pixel at a time
-   against its sliding sheet, and landed after it. A turn of 0.0001° is enough to stop the rounding; at rest it goes. */
-html[data-moving] :is(.sheet-body, .wk-list, .wk-page) { transform: rotate(0.0001deg); }
+/* The browser rounds what is inside a scrolling list to whole screen pixels, so while its sheet is drawn between pixels
+   a list ticked along a pixel at a time against it, and landed after it. A turn of 0.0001° stops the rounding. Sheets
+   glide in whole screen pixels (snapPx), so this is needed only where one is scaled: stepped back behind another
+   ([data-stacked]). It goes the moment the sheet is back to full size, while the top sheet is still sliding away, so the
+   list's own rounding never changes at rest (switched off a few frames after everything stopped, it hopped a pixel). */
+.sheet[data-stacked] .sheet-body, .wk-card[data-stacked] :is(.wk-list, .wk-page) { transform: rotate(0.0001deg); }
 /* A sheet with another sheet stacked on top keeps its frost: it stays the same glass, set back under the top one's dim (it
    used to turn solid, and the blur only came back once the top sheet left). Only when two or more sheets are stacked on it
    does it drop the blur: each sheet keeps a full-screen blur alive, and three at once ran the phone out of GPU memory

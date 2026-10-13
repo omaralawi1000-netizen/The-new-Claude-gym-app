@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useRef } from 'react';
 import { animate, motionValue, useMotionValue, usePresence, useReducedMotion, type MotionValue } from 'motion/react';
-import { mirrorSpring } from './motion';
+import { highRefresh, mirrorSpring, springSamples } from './motion';
 
 /**
  * One number ties a popup to everything that has to move with it. `e` is how far the popup is open (0 = gone,
@@ -82,10 +82,17 @@ export function useEngage(mirror?: (p0: number, p1: number, sp: typeof ENGAGE_SP
  * (the dim reaches full strength at 0.6). Returns null when it can't (or shouldn't) run — the script spring still runs
  * either way and is what you see then.
  */
-export function mirrorProgress(el: Element | null | undefined, p0: number, p1: number, sp: { stiffness: number; damping: number; mass?: number }, velocity: number, at: (p: number) => Keyframe, breaks: number[] = []): Animation | null {
+export function mirrorProgress(el: Element | null | undefined, p0: number, p1: number, sp: { stiffness: number; damping: number; mass?: number }, velocity: number, at: (p: number) => Keyframe, breaks: number[] = [], perFrame = false): Animation | null {
   const span = p1 - p0;
   if (!el || Math.abs(span) < 0.02) return null;
   const v0 = Math.max(-40, Math.min(40, velocity / span));
+  // perFrame: a keyframe for every 1/60 s of the spring, each at(p) as it is (so a position at(p) rounds to whole screen
+  // pixels stays on them), instead of the spring as an easing between two keyframes, which passes every fraction between
+  if (perFrame) {
+    if (!(el as HTMLElement).animate || !highRefresh()) return null;
+    const { xs } = springSamples(sp, v0), n = xs.length - 1;
+    try { return (el as HTMLElement).animate(xs.map((x, i) => ({ ...at(p0 + span * x), offset: i / n })), { duration: (n * 1000) / 60, easing: 'linear', fill: 'none' }); } catch { return null; }
+  }
   const frames: Keyframe[] = [{ ...at(p0), offset: 0 }];
   for (const b of breaks) { const x = (b - p0) / span; if (x > 0.001 && x < 0.999) frames.push({ ...at(b), offset: x }); }
   frames.sort((a, b) => (a.offset as number) - (b.offset as number));
