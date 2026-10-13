@@ -77,7 +77,7 @@ html:root[data-glow='off'] .aurora, html:root[data-glow='off'] .aurora-lite { di
 :root[data-palette='forest'] [data-hue='food'] { --ac: #8af25a; --h1: #2fe08a; --h2: #1c8a63; --h3: #c6f24a; }
 :root[data-palette='forest'] [data-hue='progress'] { --ac: #5ae0a8; --h1: #2f9d8a; --h2: #4b9b5a; --h3: #b6f25a; }
 /* contents that arrive a beat after a tall sheet starts moving fade in instead of appearing */
-.sheet-pane.late > * { animation: fadein 220ms var(--ease-out) backwards; }
+.sheet-pane.late > * { animation: fadein 220ms var(--ease-out) both; }
 :root[data-motion='reduce'] .sheet-pane.late > * { animation: none; }
 /* the little swatches in Settings → Appearance */
 .pal { display: flex; gap: 10px; overflow-x: auto; margin: 0 -22px; padding: 4px 22px 6px; scrollbar-width: none; scroll-snap-type: x proximity; scroll-padding: 0 22px; }
@@ -335,16 +335,20 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
 .screen > * + * { margin-top: 22px; }
 /* every screen's blocks rise in, blurred → sharp, one after another */
 /* every screen's blocks rise in, one after another (a screen, or the part of one that is swapped: .subpage) */
-.screen > *, .subpage > * { animation: rise-move 780ms var(--ease-out) backwards; animation-delay: calc(50ms + var(--i, 0) * 60ms); }
+.screen > *, .subpage > * { animation: rise-move 780ms var(--ease-out) both; animation-delay: calc(50ms + var(--i, 0) * 60ms); }
 .screen > .subpage { animation: none; }
 .screen > :nth-child(1) { --i: 0; } .screen > :nth-child(2) { --i: 1; } .screen > :nth-child(3) { --i: 2; } .screen > :nth-child(4) { --i: 3; }
 .subpage > :nth-child(1) { --i: 0; } .subpage > :nth-child(2) { --i: 1; } .subpage > :nth-child(3) { --i: 2; } .subpage > :nth-child(4) { --i: 3; }
 .subpage > :nth-child(5) { --i: 4; } .subpage > :nth-child(6) { --i: 5; } .subpage > :nth-child(7) { --i: 6; } .subpage > :nth-child(n+8) { --i: 7; }
 .screen > :nth-child(5) { --i: 4; } .screen > :nth-child(6) { --i: 5; } .screen > :nth-child(7) { --i: 6; } .screen > :nth-child(n+8) { --i: 7; }
-/* Movement and blur are separate animations on purpose. The movement must NOT stay applied after it finishes (fill
-   "backwards"): a finished CSS animation that keeps `transform`/`opacity` overrides every later motion/spring animation on
-   the same element — that was the cause of pages that froze, popped or stayed visible under a new title. */
-@keyframes rise-move { from { opacity: 0; transform: translate3d(0, 18px, 0) scale(.985); } to { opacity: 1; transform: none; } }
+/* NO FLICKER AT THE END (13 Oct 2026). While a block animates it is drawn on its own GPU layer; with fill "backwards" that
+   layer is thrown away the moment the animation ends and the block is redrawn into the page — and on Omar's phone that
+   redraw is one frame late, so the block vanished for a frame right as everything landed (seen in his 120 fps recordings).
+   So these entrance animations fill "both" (the finished animation stays, and so does its layer) and have NO end keyframe:
+   their end is the element's own style, whatever it is now. That is why holding them is safe — a finished animation with an
+   explicit end (transform: none / opacity: 1) would override every later spring or press on the element (pages that froze,
+   popped or stayed visible under a new title); one with no end just shows the element's own value. */
+@keyframes rise-move { from { opacity: 0; transform: translate3d(0, 18px, 0) scale(.985); } }
 /* (No blur in the rise any more. A blur animated on whole blocks made the GPU filter every block every frame while a popup
    slid in — and with fill "both" an empty blur(0) filter then stayed on every block for good, each one its own filtered
    layer for as long as the page lived. The rise is movement + fade + a slight scale, which reads the same at speed.) */
@@ -551,7 +555,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    scroll-driven fade, so Add food, Coach and the other tall sheets had no soft edge at all. The list keeps both: the opening
    fade runs on time, the edges follow the scroll. */
 @supports (animation-timeline: scroll()) {
-  .sheet-pane.late > .sheet-body { animation: fadein 220ms var(--ease-out) backwards, sb-fade linear both, sb-fade-b linear both; animation-timeline: auto, scroll(self), scroll(self); animation-range: normal, 0 40px, calc(100% - 40px) 100%; }
+  .sheet-pane.late > .sheet-body { animation: fadein 220ms var(--ease-out) both, sb-fade linear both, sb-fade-b linear both; animation-timeline: auto, scroll(self), scroll(self); animation-range: normal, 0 40px, calc(100% - 40px) 100%; }
 }
 .sheet-head { flex: none; display: flex; align-items: center; gap: 10px; padding: 2px 22px 12px; }
 /* The bottom buttons (Add, Finish…) float on their own: nothing but the button. They are laid over the end of the list (not
@@ -625,7 +629,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .empty { text-align: center; padding: 34px 20px; color: var(--tx2); }
 .empty .display { color: var(--tx); margin-bottom: 6px; }
 .sheet-enter-fade { animation: fadein 200ms var(--ease-out) both; }
-@keyframes fadein { from { opacity: 0 } to { opacity: 1 } }
+@keyframes fadein { from { opacity: 0 } } /* no end keyframe: see rise-move */
 .hide-scroll { scrollbar-width: none; } .hide-scroll::-webkit-scrollbar { display: none; }
 
 /* reduced motion: no drifting light, no rise-in, no springs */
@@ -651,7 +655,19 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 
 /* iOS-style: while a popup is up the page behind steps back. Its transform and corner radius are written by script
    (useStageDepth in App.tsx) from the popups' own progress, so it follows them frame for frame — no CSS transition. */
-.stage { position: absolute; inset: 0; background: var(--bg); transform-origin: 50% 0%; }
+.stage { position: absolute; inset: 0; background: var(--bg); transform-origin: 50% 0%; will-change: transform; overflow: hidden; } /* always its own clipped layer: see useStageDepth in App.tsx */
+/* the page's rounded corners while a pop-up has it stepped back: a quarter-circle cut-out in the shell's colour, scaled from 0
+   (at rest) to 1 (fully back = 28 px corners) by useStageDepth — a transform, so nothing about the page's layer changes */
+.stage-corner { position: absolute; z-index: 2147483647; width: 28px; height: 28px; pointer-events: none; will-change: transform; transform: scale(0); }
+.stage-corner.tl { top: 0; left: 0; transform-origin: 0 0; background: radial-gradient(circle at 100% 100%, transparent 27.25px, var(--bar, #000) 28px); }
+.stage-corner.tr { top: 0; right: 0; transform-origin: 100% 0; background: radial-gradient(circle at 0 100%, transparent 27.25px, var(--bar, #000) 28px); }
+.stage-corner.bl { bottom: 0; left: 0; transform-origin: 0 100%; background: radial-gradient(circle at 100% 0, transparent 27.25px, var(--bar, #000) 28px); }
+.stage-corner.br { bottom: 0; right: 0; transform-origin: 100% 100%; background: radial-gradient(circle at 0 0, transparent 27.25px, var(--bar, #000) 28px); }
+/* The same for everything a page switch, a Settings page, a sheet page or the dock slides by script (Motion / Web Animations):
+   each keeps one layer for good, so nothing is handed back to the page — and redrawn a frame late — the moment its slide
+   ends (see rise-move). A handful of big layers, created once; the motion itself is unchanged. */
+.tab-pane, .settings-page, .sheet-pane, .sheet-page, .sheet-head > .icon-btn, .tab, .tab svg, .tab > span.lab, .sphere-slot, .tabbar.glass::after { will-change: transform; }
+.fields > .aurora { will-change: opacity; }
 
 /* Coach replies: each new word inks in — blurred and lifted, glowing in the accent, then settling into the text colour.
    Only new words mount, so nothing already read re-animates; words that arrive together cascade. */
@@ -688,7 +704,9 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .reply b { font-weight: 680; }
 .coach-reply { font-size: 16px; line-height: 1.5; }
 .calm .w { animation: wordCalm 640ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards; }
-@keyframes wordCalm { from { opacity: 0; filter: blur(6px); transform: translateY(0.18em); } to { opacity: 1; filter: blur(0); transform: none; } }
+/* each word fades up into place: opacity and a small rise only (an animated blur on every word was costly and read as
+   smudged clumps) */
+@keyframes wordCalm { from { opacity: 0; transform: translateY(0.3em); } to { opacity: 1; transform: none; } }
 /* Read aloud: the word being said lights up in the accent, the ones said settle back, the ones to come wait a shade lighter.
    Only the colour moves (no size or position change), so the text never shifts while it is read. */
 .w { transition: color 380ms ease, text-shadow 380ms ease; }
@@ -708,9 +726,6 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .typing i:nth-child(2) { animation-delay: 0.16s; } .typing i:nth-child(3) { animation-delay: 0.32s; }
 @keyframes dot { 0%, 60%, 100% { opacity: 0.3; transform: translateY(0); } 30% { opacity: 0.95; transform: translateY(-3px); } }
 @media (prefers-reduced-motion: reduce) { .typing i, .speak-btn.loading::after { animation: none; } }
-/* the writing cursor at the end of a streaming reply */
-.caret { display: inline-block; width: 2px; height: 1.05em; margin-left: 3px; vertical-align: -0.18em; border-radius: 2px; background: var(--ac-text); box-shadow: 0 0 10px var(--ac); animation: caret 1s ease-in-out infinite; }
-@keyframes caret { 0%, 100% { opacity: 0.15; } 50% { opacity: 1; } }
 @keyframes sheen { from { background-position: 130% 0; } to { background-position: -130% 0; } }
 @keyframes thinkIn { from { opacity: 0; transform: translateX(-10px); } }
 /* a sent message: a line of light passes over it once and its rim glows, then both fade */
@@ -851,7 +866,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .voice-ring.on { opacity: calc(0.4 + var(--voice, 0) * 0.6); transform: scale(calc(1 + var(--voice, 0) * 0.16)); transition: none; }
 
 /* charts: bars grow from the axis, lines draw themselves in — CSS animations, so they cost a repaint, not script work */
-.bar-in { transform-box: fill-box; transform-origin: 50% 100%; animation: barIn 500ms var(--ease-out) backwards; }
+.bar-in { transform-box: fill-box; transform-origin: 50% 100%; animation: barIn 500ms var(--ease-out) both; }
 @keyframes barIn { from { transform: scaleY(0); } }
 .line-in { stroke-dasharray: 1; animation: lineDraw 700ms var(--ease-out) backwards; }
 @keyframes lineDraw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
@@ -882,7 +897,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 
 /* Settings pages: once a page has glided in, its rows and fields settle in one after another (transform + opacity only) */
 /* Settings pages: once a page has glided in, its rows and fields settle in one after another (transform + opacity only). */
-.settings-page > *, .settings-page > .stack > *, .settings-page .list > * { animation: rise-soft 520ms var(--ease-out) backwards; animation-delay: calc(110ms + var(--j, 0) * 32ms); }
+.settings-page > *, .settings-page > .stack > *, .settings-page .list > * { animation: rise-soft 520ms var(--ease-out) both; animation-delay: calc(110ms + var(--j, 0) * 32ms); }
 .settings-page :is(.list, .stack) > :nth-child(1), .settings-page > :nth-child(1) { --j: 0; }
 .settings-page :is(.list, .stack) > :nth-child(2), .settings-page > :nth-child(2) { --j: 1; }
 .settings-page :is(.list, .stack) > :nth-child(3), .settings-page > :nth-child(3) { --j: 2; }
@@ -892,10 +907,10 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .settings-page > .list, .settings-page > .stack { animation: none; }
 /* The page Settings opens on: just a hint — the rows drift up a few pixels and settle as the sheet lands, quick and light,
    so the pop-up feels alive without a cascade arriving after it. */
-.settings-page.still > *, .settings-page.still > .stack > *, .settings-page.still .list > * { animation: rise-hint 420ms var(--ease-out) backwards; animation-delay: calc(60ms + min(var(--j, 0), 6) * 18ms); }
+.settings-page.still > *, .settings-page.still > .stack > *, .settings-page.still .list > * { animation: rise-hint 420ms var(--ease-out) both; animation-delay: calc(60ms + min(var(--j, 0), 6) * 18ms); }
 .settings-page.still > .list, .settings-page.still > .stack { animation: none; }
-@keyframes rise-soft { from { opacity: 0; transform: translate3d(0, 10px, 0); } to { opacity: 1; transform: none; } }
-@keyframes rise-hint { from { opacity: .4; transform: translate3d(0, 7px, 0); } to { opacity: 1; transform: none; } }
+@keyframes rise-soft { from { opacity: 0; transform: translate3d(0, 10px, 0); } } /* no end keyframe: see rise-move */
+@keyframes rise-hint { from { opacity: .4; transform: translate3d(0, 7px, 0); } }
 :root[data-motion='reduce'] .settings-page * { animation: none !important; }
 /* In-sheet pages (Sheet.tsx): like Settings — once the page starts gliding in, its title, then each card, field and list row
    settle in one after another. Only the first ten of each level animate (the rest start off screen), delays are capped, and
@@ -909,11 +924,15 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .page-rise :is(.sheet-body, .sheet-body > .list, .sheet-body > .stack) > :nth-child(7) { --k: 7; }
 .page-rise :is(.sheet-body, .sheet-body > .list, .sheet-body > .stack) > :nth-child(n+8) { --k: 8; }
 .page-rise > .sheet-body > * { --base: var(--k); }
-.page-rise > .sheet-head { animation: page-title 520ms var(--ease-out) backwards; animation-delay: 100ms; }
-.page-rise > .sheet-body > :not(.list, .stack, .settings-page):nth-child(-n+10) { animation: rise-soft 560ms var(--ease-out) backwards; animation-delay: calc(110ms + min(var(--k), 8) * 34ms); }
-.page-rise > .sheet-body > :is(.list, .stack):nth-child(-n+10) > :nth-child(-n+10) { animation: rise-soft 560ms var(--ease-out) backwards; animation-delay: calc(110ms + min(var(--base) + var(--k) - 1, 9) * 34ms); }
-.page-rise > .sheet-foot { animation: rise-soft 560ms var(--ease-out) backwards; animation-delay: 210ms; }
-@keyframes page-title { from { opacity: 0; transform: translate3d(var(--title-dx, 14px), 0, 0); } to { opacity: 1; transform: none; } }
+.page-rise > .sheet-head { animation: page-title 520ms var(--ease-out) both; animation-delay: 100ms; }
+.page-rise > .sheet-body > :not(.list, .stack, .settings-page):nth-child(-n+10) { animation: rise-soft 560ms var(--ease-out) both; animation-delay: calc(110ms + min(var(--k), 8) * 34ms); }
+.page-rise > .sheet-body > :is(.list, .stack):nth-child(-n+10) > :nth-child(-n+10) { animation: rise-soft 560ms var(--ease-out) both; animation-delay: calc(110ms + min(var(--base) + var(--k) - 1, 9) * 34ms); }
+.page-rise > .sheet-foot { animation: rise-soft 560ms var(--ease-out) both; animation-delay: 210ms; }
+@keyframes page-title { from { opacity: 0; transform: translate3d(var(--title-dx, 14px), 0, 0); } }
+/* Once a page has settled (Sheet.tsx adds .page-risen), its blocks' animations take no time: they stay finished and keep their
+   layers (no flicker), and a block that appears later (a search result) is simply there instead of rising in. */
+.page-rise.page-risen > .sheet-head, .page-rise.page-risen > .sheet-body > :not(.list, .stack, .settings-page):nth-child(-n+10),
+.page-rise.page-risen > .sheet-body > :is(.list, .stack):nth-child(-n+10) > :nth-child(-n+10), .page-rise.page-risen > .sheet-foot { animation-duration: 0s; animation-delay: 0s; }
 :root[data-motion='reduce'] .page-rise * { animation: none !important; }
 /* a veil inside its own overlay (the orb screen) rather than a page-level one */
 .scrim.veil-abs { position: absolute; }
@@ -973,16 +992,16 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 
 /* the weight line on Today draws itself in once, the area fades up under it, the dot arrives last */
 .trend-line { stroke-dasharray: 1; stroke-dashoffset: 0; animation: trend-draw 1100ms var(--ease-out) 150ms backwards; }
-.trend-area { animation: fadein 700ms ease 500ms backwards; }
-.trend-dot { animation: trend-dot 500ms var(--ease-out) 1000ms backwards; transform-box: fill-box; transform-origin: center; }
+.trend-area { animation: fadein 700ms ease 500ms both; }
+.trend-dot { animation: trend-dot 500ms var(--ease-out) 1000ms both; transform-box: fill-box; transform-origin: center; }
 @keyframes trend-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
-@keyframes trend-dot { from { opacity: 0; transform: scale(0); } to { opacity: 1; transform: none; } }
+@keyframes trend-dot { from { opacity: 0; transform: scale(0); } }
 :root[data-motion='reduce'] .trend-line, :root[data-motion='reduce'] .trend-area, :root[data-motion='reduce'] .trend-dot { animation: none; }
 
 /* Coach: what the assistant can see right now, as three tappable notes */
 .tips { display: flex; flex-direction: column; gap: 8px; }
 .tip { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px 12px 12px; border-radius: 20px; background: var(--s1); box-shadow: inset 0 0 0 1px var(--line);
-  animation: rise-soft 520ms var(--ease-out) backwards; animation-delay: calc(80ms + var(--i, 0) * 70ms); }
+  animation: rise-soft 520ms var(--ease-out) both; animation-delay: calc(80ms + var(--i, 0) * 70ms); }
 .tip-ic { flex: none; width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center; background: var(--ac-soft); color: var(--ac-text); }
 .tip-l { display: block; font-weight: 600; line-height: 1.25; }
 .tip-p { display: block; margin-top: 2px; font-size: 13px; color: var(--tx3); line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -1013,9 +1032,15 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
   45% { opacity: 1; }
   to { opacity: 1; transform: none; }
 }
-/* the Coach's answers write themselves in exactly like the orb screen's: word by word, each lifting out of a soft blur
-   (.calm .w above) */
+/* the Coach's answers write themselves in word by word at a steady pace (useWordReveal), each word fading up (.calm .w
+   above). The list glides on a layer of its own (Coach.tsx), so following the answer redraws nothing. Under the answer the
+   play button's row is held open while it writes, and the button (and the quiet note) fade in where the room already is. */
 .coach-reply:not(.still) { animation: coachReply 240ms var(--ease-out) backwards; }
+.coach-thread { will-change: transform; }
+.reply-foot.held { min-height: 32px; }
+.coach-after.fresh, .coach-after.fresh .speak-btn { animation: coachAfter 520ms var(--ease-out) backwards; }
+.reply-foot.coach-after.fresh { animation: none; }
+@keyframes coachAfter { from { opacity: 0; transform: translate3d(0, 4px, 0); } }
 @keyframes coachReply { from { opacity: .65; transform: translate3d(0, 3px, 0); } to { opacity: 1; transform: none; } }
 /* a sent message in flight (Coach.tsx): a copy of the bubble above everything; its glass gathers round the words */
 .coach-fly { position: fixed; z-index: 400; margin: 0; max-width: none; box-sizing: border-box; pointer-events: none;
@@ -1025,7 +1050,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 @keyframes flyGlass { from { opacity: 0; } }
 .coach-field .input::placeholder { transition: opacity 360ms var(--ease-out); }
 .coach-field .input.sent-away::placeholder { opacity: 0; transition: none; }
-:root[data-motion='reduce'] :is(.coach-sent, .coach-reply, .coach-reply .w) { animation: none; }
+:root[data-motion='reduce'] :is(.coach-sent, .coach-reply, .coach-reply .w, .coach-after, .coach-after .speak-btn) { animation: none; }
 .coach-body :is(.action-card, .action-ic, .action-line, .tip) { animation: none; }
 .coach-body .said { background: color-mix(in srgb, var(--ac) 9%, var(--s2)); border: 0;
   box-shadow: 0 6px 18px -5px rgb(0 0 0 / .24), 0 2px 6px -2px rgb(0 0 0 / .16); }
@@ -1185,7 +1210,8 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .said, .said-big { font-family: var(--f-ui); font-weight: 520; letter-spacing: -0.005em; }
 .said-big .sw { transform-origin: 0 0; animation: saidWrite 600ms cubic-bezier(.2,.7,.2,1) backwards; animation-delay: calc(var(--i) * 70ms); }
 .said-wrap.fly .said-big .sw { will-change: transform; }
-@keyframes saidWrite { from { opacity: 0; filter: blur(6px); transform: translateY(.22em); } to { opacity: 1; filter: blur(0); transform: none; } }
+/* (opacity and a small rise only: the blur these words used to lift out of was animated on every word) */
+@keyframes saidWrite { from { opacity: 0; transform: translateY(.3em); } to { opacity: 1; transform: none; } }
 .calm .w { animation-duration: 760ms; }
 
 /* ── Today's cards (screens/TodayCards.tsx): Up next, Muscles this week, Recent records ── */
