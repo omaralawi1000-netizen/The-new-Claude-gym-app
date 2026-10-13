@@ -19,8 +19,8 @@ import { addSet, deleteSet, moveExercise, patchExercise, patchSet, removeExercis
 import { exName, fmtSet, MUSCLE_LABEL } from './common';
 import { SphereSlot, mirrorOrb, orbPress, orbTap } from '../../ui/Sphere';
 import { useSwipeDown } from '../../ui/swipe';
-import { Mirror, mirrorProgress, mirrorStage, trackCover, trackDepth, warmStage, type Engage } from '../../ui/engage';
-import { DIM_VEIL, Veil, mirrorVeil } from '../../ui/Veil';
+import { Mirror, mirrorProgress, trackCover, warmStage, type Engage } from '../../ui/engage';
+import { readRGB, setBarTint } from '../../ui/statusBar';
 import { kb, keyboardGoal, onKeyboardGoal, rideFocus } from '../../ui/keyboard';
 import { viewportH } from '../../ui/viewport';
 import { BOUNCY, SURFACE, SURFACE_EXIT } from '../../ui/motion';
@@ -78,19 +78,52 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
   const eFinger = useTransform([p, dragY], ([pp, d]: number[]) => Math.min(1, Math.max(0, pp - Math.max(0, d) / H)));
   const engage = useMemo(() => ({ e: eFinger, shift: dialogY }), [eFinger, dialogY]);
   const depthId = useId();
-  useEffect(() => trackDepth(depthId, eFinger), [depthId, eFinger]); // the page behind recedes with the window, frame for frame
+  // A full page, not a pop-up: it rises over the page as it is (nothing behind steps back or dims), and its own top fades
+  // from the status bar's colour like every tab's page, so the bar reads as part of it. The bar takes the workout's own tint
+  // (the one the tabs would give its hue) in the frames its top edge passes under the bar, and the tab's back as it leaves:
+  // whatever is under the bar, the bar is its colour. Only the bar changes (theme-color); nothing on the page is restyled.
+  const tintOf = (el: Element | null, mix = 'var(--bar-mix)') => {
+    if (!el) return null;
+    const probe = document.createElement('i');
+    probe.style.cssText = `position:absolute;width:0;height:0;pointer-events:none;color:color-mix(in srgb, var(--h1) ${mix}, var(--bg))`;
+    el.appendChild(probe); const c = readRGB(getComputedStyle(probe).color); probe.remove();
+    return c;
+  };
+  const tints = useRef<{ tab: number[]; wk: number[] } | null>(null);
+  const takeTints = () => {
+    const tab = tintOf(document.querySelector('.app')), wk = tintOf(dialogRef.current);
+    if (!tab || !wk) return;
+    tints.current = { tab, wk };
+    // the page's own top is that colour, fixed (written on the strip itself: a variable on the window would restyle
+    // everything in it, in the tap)
+    topRef.current?.style.setProperty('--wk-bar', `rgb(${wk.map(Math.round).join(' ')})`);
+  };
+  useEffect(() => {
+    let last = -1;
+    const lead = 48; // --wk-lead: the window's colour reaches this far above its top edge
+    const at = 1 - lead / (H + 64); // the progress where that colour reaches the screen's top
+    return eFinger.on('change', (v) => {
+      const t = tints.current; if (!t) return;
+      const k = Math.min(1, Math.max(0, (v - (at - 0.015)) / 0.03));
+      if (k === last) return; last = k;
+      setBarTint([0, 1, 2].map((i) => t.tab[i] + (t.wk[i] - t.tab[i]) * k) as [number, number, number], 0, false);
+    });
+  }, [eFinger, H]);
+  // the shadow along the page's top edge is there while it travels and gone as it lands (a page at rest has no edge to shade)
+  const shade = (pp: number) => Math.min(1, Math.max(0, (1 - pp) / 0.3));
+  const shadeO = useTransform(eFinger, shade);
+  const shadeRef = useRef<HTMLDivElement>(null);
+  const topRef = useRef<HTMLElement>(null);
   useEffect(() => trackCover(depthId, eFinger), [depthId, eFinger]); // and stops being drawn while the window covers it
   const sheetRef = useRef<HTMLDivElement>(null);
   // high refresh rate: the window, the dim and the page behind also run by the browser on the identical spring
-  const scrimRef = useRef<HTMLDivElement>(null);
   const mirror = useRef<Mirror | null>(null); if (!mirror.current) mirror.current = new Mirror();
   const runMirror = (p0: number, p1: number, sp: { stiffness: number; damping: number; mass?: number }, vel: number) => {
     const m = mirror.current!; m.cancel();
     if (reduce) return;
     m.add(
       mirrorProgress(sheetRef.current, p0, p1, sp, vel, (pp) => ({ transform: `translateY(${sheetTop(pp).toFixed(2)}px)` })),
-      ...mirrorVeil(scrimRef.current, p0, p1, sp, vel, DIM_VEIL),
-      mirrorStage(depthId, p0, p1, sp, vel),
+      mirrorProgress(shadeRef.current, p0, p1, sp, vel, (pp) => ({ transform: `translateY(${sheetTop(pp).toFixed(2)}px)`, opacity: String(shade(pp)) }), [0.7]),
       mirrorOrb(sheetRef.current, p0, p1, sp, vel, sheetTop),
     );
   };
@@ -190,11 +223,12 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
   const startOpen = () => {
     closing.current = null;
     // un-park it now, before the orb's flight measures where its slot will be (React would only do it after this effect)
-    dialogRef.current?.classList.remove('wk-off'); scrimRef.current?.classList.remove('wk-off');
+    dialogRef.current?.classList.remove('wk-off');
     const from = p.get();
     opening.current?.stop();
     opening.current = animate(p, 1, reduce ? { duration: 0.01 } : SURFACE);
     runMirror(from, 1, SURFACE, 0);
+    takeTints();
   };
   // waiting minimised: a tap on the resume bar or button starts the slide at once (ui/workoutOpen.ts)
   useEffect(() => (!open && hidden ? setWorkoutOpener(startOpen) : undefined));
@@ -331,17 +365,16 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
 
   return (
     <>
-      <Veil e={eFinger} z={z - 1} onClick={() => close()} layers={DIM_VEIL} elRef={scrimRef} className={hidden ? 'wk-off' : ''} />
       <motion.div
         role={hidden ? undefined : 'dialog'} aria-modal={hidden ? undefined : 'true'} aria-label={t('Active workout')} aria-hidden={hidden || undefined}
         ref={dialogRef} data-hue="train" className={`wk-card${hidden ? ' wk-off' : ''}`} style={{ zIndex: z, y: dragT }}
       >
         <WkLive.Provider value={!hidden}>
+        <motion.div ref={shadeRef} className="wk-shade" aria-hidden style={{ transform: sheetT, opacity: shadeO }} />
         <motion.div ref={sheetRef} className="wk-sheet" style={{ transform: sheetT }}>
-          <div className="wk-solid" aria-hidden><div className="aurora-lite"><Breath hold={paused || covered} /></div></div>
+          <div className="wk-solid" aria-hidden><div className="aurora-lite"><Breath hold={paused || covered} /></div><i ref={topRef} className="wk-top" /></div>
         <div className="wk-window" style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column' }}>
           <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, paddingTop: 'var(--sat)' }}>
-          <div className="sheet-grab" style={{ position: 'relative', zIndex: 3 }} />
           {/* header */}
           {/* no backdrop of its own: the list scrolls in its own box below, so the header sits straight on the window's light
               (a solid band here cut the colour field off in a hard line under the grabber) */}

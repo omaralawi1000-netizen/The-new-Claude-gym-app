@@ -20,7 +20,10 @@ const ease = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 
    on each frame of the 0.8 s blend (measured: 60 % of the style work and most of the long frames in a tab switch). The two
    variables are registered as non-inherited (styles.css), so changing them restyles only these elements. */
 let shown = '';
+/** The page's own tint, held while only the bar blends (setBarTint with page = false) */
+let hold = '';
 function paint(bar: string) {
+  if (hold) bar = hold;
   for (const el of document.querySelectorAll<HTMLElement>('[data-bar]')) if (el.style.getPropertyValue('--bar') !== bar) el.style.setProperty('--bar', bar);
   // the colour the bar is showing right now changes on every frame of a pop-up's dim: written only where it is used (the
   // orb screen's top), never on anything large — a write restyles the element, and on a big painted one that is a repaint
@@ -53,8 +56,10 @@ function frame(now: number) {
 }
 const schedule = () => { if (!raf) raf = requestAnimationFrame(frame); };
 
-/** The tint the bar should take; `ms` = how long to blend into it (0 = at once). */
-export function setBarTint(c: RGB, ms = 800) {
+/** The tint the bar should take; `ms` = how long to blend into it (0 = at once). `page` = false: only the status bar blends
+ * (a full page over the app brings its own top, Active.tsx), the page's top keeps its tint and is not restyled every frame. */
+export function setBarTint(c: RGB, ms = 800, page = true) {
+  hold = page ? '' : (hold || `rgb(${cur.map((v) => Math.round(v)).join(' ')})`);
   if (!ms) { cur = from = to = c; dur = 0; } else { from = cur; to = c; t0 = performance.now(); dur = ms; }
   schedule();
 }

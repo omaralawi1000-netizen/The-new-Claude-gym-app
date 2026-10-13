@@ -1051,12 +1051,32 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    scrolled the whole window up to show the field (the header slid under the top edge) */
 /* the live workout's window (Apple Music's player is a sheet, Active.tsx): full height, rounded top corners, its own solid colour
    with the area's light in it. It rises from the resume bar and firms up as it goes; nothing on it is blurred or clipped. */
-.wk-sheet { position: absolute; inset: 0; overflow: clip; border-radius: var(--wk-r) var(--wk-r) 0 0; will-change: transform, opacity;
-  box-shadow: 0 -10px 40px -14px rgba(0,0,0,.55); }
+/* it reaches 48 px above its top edge (its own colour, over the status bar's side of the screen): the spring's slow last
+   pixels happen out of sight above the screen, so no strip of the page behind ever lingers over the window's top */
+.wk-sheet { position: absolute; inset: calc(-1 * var(--wk-lead)) 0 0 0; overflow: clip; border-radius: var(--wk-r) var(--wk-r) 0 0; will-change: transform, opacity; }
+/* the shadow over the page's top edge while it travels: its own small layer riding with it, fading out over the last 30 %
+   (Active.tsx), so a page at rest has no shadow and nothing is repainted to fade it */
+.wk-shade { position: absolute; left: 0; right: 0; top: calc(-56px - var(--wk-lead)); height: 56px; pointer-events: none; will-change: transform, opacity;
+  background: linear-gradient(to bottom, transparent, rgba(0,0,0,.07) 45%, rgba(0,0,0,.2)); }
+:root[data-theme='dark'] .wk-shade { top: calc(-72px - var(--wk-lead)); height: 72px; background: linear-gradient(to bottom, transparent, rgba(0,0,0,.22) 40%, rgba(0,0,0,.6)); }
 /* the window's top rim: only a strip along the top (it lay over the whole window, so every animation under it gave it a
    layer and took it away again, once a second during a rest), kept on a layer of its own */
 .wk-sheet::after { content: ''; position: absolute; left: 0; right: 0; top: 0; height: calc(var(--wk-r) + 4px); border-radius: inherit; pointer-events: none; box-shadow: inset 0 1px 0 var(--hl); z-index: 5; will-change: transform; }
-:root { --wk-r: 38px; }
+:root { --wk-r: 0px; --wk-lead: 48px; }
+.wk-sheet > .wk-window { top: var(--wk-lead) !important; }
+/* the window's light sits where it sat in the card (the reach above the top is plain colour), 16 px higher with the grabber gone,
+   so it glows behind the title */
+.wk-solid > .aurora-lite { top: calc(var(--wk-lead) - 16px); overflow: visible; } /* its light carries on up to the screen's top (the window clips it) */
+/* a full page: its header starts just under the status bar (no grabber), and its flat top edge has no rim (it would be a line under the bar) */
+.wk-sheet::after { content: none; }
+.wk-sheet .wk-head-wrap { padding-top: 10px; }
+.wk-top { position: absolute; left: 0; right: 0; top: 0; height: calc(var(--wk-lead) + var(--sat) + 150px); pointer-events: none; will-change: transform;
+  /* the status bar's colour all along the top edge, then the window's light: quickly where the light is (behind the title),
+     slowly towards the far corner, which is darker than the bar, so no edge shows anywhere under it */
+  background:
+    /* eased, so the light has no line where it starts */
+    linear-gradient(to bottom, var(--wk-bar, var(--bg)) calc(var(--wk-lead) + var(--sat)), color-mix(in srgb, var(--wk-bar, var(--bg)) 100%, transparent) calc(var(--wk-lead) + var(--sat) + 0px), color-mix(in srgb, var(--wk-bar, var(--bg)) 92%, transparent) calc(var(--wk-lead) + var(--sat) + 8px), color-mix(in srgb, var(--wk-bar, var(--bg)) 72%, transparent) calc(var(--wk-lead) + var(--sat) + 18px), color-mix(in srgb, var(--wk-bar, var(--bg)) 45%, transparent) calc(var(--wk-lead) + var(--sat) + 28px), color-mix(in srgb, var(--wk-bar, var(--bg)) 20%, transparent) calc(var(--wk-lead) + var(--sat) + 38px), color-mix(in srgb, var(--wk-bar, var(--bg)) 6%, transparent) calc(var(--wk-lead) + var(--sat) + 46px), color-mix(in srgb, var(--wk-bar, var(--bg)) 0%, transparent) calc(var(--wk-lead) + var(--sat) + 54px)),
+    radial-gradient(80% 150px at 100% calc(var(--wk-lead) + var(--sat)), var(--wk-bar, var(--bg)), color-mix(in srgb, var(--wk-bar, var(--bg)) 55%, transparent) 45%, transparent); }
 .wk-solid { position: absolute; inset: 0; background: var(--bg); }
 
 /* Settings pages: once a page has glided in, its rows and fields settle in one after another (transform + opacity only) */

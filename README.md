@@ -1641,3 +1641,19 @@ chat, the orb screen open, typing, writing in, answered; light and dark):
 - Switched on by `<html data-glass="v2">` in index.html. The rules sit behind that attribute so
   `scripts/glass-shots.mjs` can compare with and without it. Checks: `scripts/glass-audit.mjs` (no new blind blurs);
   `scripts/flicker-layers.mjs` shows the same 11 drops with and without it.
+
+## The live workout is a full page, not a pop-up card (13 Oct 2026, v0.1.97)
+Omar spends about 3 hours a day on the workout, so it should feel like a place, not a temporary pop-up. He saw a before/after
+preview (seven judged rounds, `/mnt/project-files/workout-fullpage/`) and said yes.
+- The open workout fills the screen: square top, no grabber, no rim line. The header sits 10 px under the status bar.
+  Minimise (arrow, swipe down) and resume from the bar work as before, on the same spring.
+- Nothing behind it steps back or dims. It slides up over the page as it is, with a soft shadow on its top edge that fades
+  out over the last 30 % (`.wk-shade`, transform and opacity only). The page behind still stops being drawn once covered.
+- The status bar is the top of the page. It takes the workout's warm tint (the mix every tab uses, from the Train hue) on
+  exactly the frames the window's top passes under it, and the tab's tint back as it leaves. Only theme-color changes;
+  nothing on the page is restyled. The window's top edge is that colour all along, then eases into its light behind the
+  title (fast on the left), and slowly towards the darker far corner, so no edge shows.
+- The window reaches 48 px above its top edge (`--wk-lead`): the spring's slow last pixels happen off screen, so no strip
+  of the page lingers under the bar at the end of a slide.
+- Smoothness at 4x CPU (`scripts/perf-open.mjs`): minimise and resume draw fewer late frames than the card did, start the same.
+  Films: `scripts/film-fullpage.mjs` (steady camera, `scripts/film-steady.mjs`).
