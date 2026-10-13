@@ -6,7 +6,7 @@ import { TabBar } from './ui/TabBar';
 import { Toaster } from './ui/Toaster';
 import { SphereStage } from './ui/Sphere';
 import { Overlays } from './screens/Overlays';
-import { useRestCue } from './screens/workout/rest';
+import { useRestCue, openWorkout } from './screens/workout/rest';
 import { useKeepStorage } from './lib/persist';
 import { useDriveAuto } from './screens/DriveBackup';
 import { TodayScreen } from './screens/Today';
@@ -273,7 +273,7 @@ export function App() {
     if (!onboarded && !asked.current) { asked.current = true; push('onboarding', {}); }
   }, [onboarded, push]);
   useEffect(() => { registerSW(); }, []);
-  // home-screen shortcuts (manifest "shortcuts"): ./?do=food | voice | photo | wrestling
+  // home-screen shortcuts (manifest "shortcuts"): ./?do=food | voice | photo | wrestling; ?do=workout from a rest notification
   useEffect(() => {
     const doIt = new URLSearchParams(location.search).get('do');
     if (!doIt || !useStore.getState().settings.onboarded) return;
@@ -286,6 +286,7 @@ export function App() {
       else if (doIt === 'voice') push('voice', { mode: 'food', date: today, mealId });
       else if (doIt === 'photo') push('photoFood', { date: today, mealId });
       else if (doIt === 'wrestling') push('activity', { kind: 'wrestling' });
+      else if (doIt === 'workout') openWorkout();
     }, 350);
   }, [push]);
   return (
