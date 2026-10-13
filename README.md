@@ -1395,6 +1395,23 @@ flicker fingerprint). `--film a,b` films chosen actions, `--light` for the light
   - Lighter: the orb no longer re-measures the page for changes inside the workout window (only the bar's box can move its
     slot); Focus's figures are measured together, then scaled (each one used to lay the page out again); the rest sound is
     made ahead, when the phone is idle, not by the first tick. `scripts/perf-workout.mjs` measures the window's moments at 4×.
+- v0.1.77, from Omar's two recordings and two screenshots ("the keyboard scrolls too slow… it flickers a lot"):
+  - Typing: the field you tap rides up WITH the keyboard (`rideFocus`, keyboard.ts): the list's scroll follows the
+    keyboard's own eased height (`kb`) frame by frame, starts and stops with it, and goes only as far as needed (the field
+    ends ~84 px above the keyboard, so the next row shows). It used to move twice: a `scrollIntoView` 0.28 s after the tap,
+    then a second smooth scroll once the keyboard had settled. With the keyboard already up (the next field) it slides on
+    the keyboard's spring. A finger on the list takes over.
+  - Rest over: the orb sat in a square of a different shade (Chrome on the phone draws the orb's square canvas area
+    differently over the lit fill). The fill now fades out before the orb in "Rest over" too, as during the rest, and the
+    fade is a background gradient, not a mask. The words stop 8 px earlier, clear of the orb's glow.
+  - Opening and closing, the orb no longer hovers over the window's sets. It stays in the dock, drawn under the window,
+    so the window's edge covers it like the rest of the page; then (unseen) it moves to the bar and comes up with it.
+    Closing is the reverse. (`tuck`, `tucks`, `tuckedUnder` in Sphere.tsx; only the workout's window, the one sliding popup.)
+  - Blank patches while minimising (header words and rows gone for a few frames, a dark wedge on the page): the phone's
+    graphics memory and drawing ran short. Inside the window the colour field no longer has a layer of its own (it never
+    moves there): ~11 % less tile memory with the window open. The bigger cause is outside it: the status-bar tint written
+    on `.fields` every frame redraws the full-screen grain layer each frame (72-96 tiles per minimise, 16 when frozen),
+    handed to the page-behind work.
 
 ## Android app: the rest as a live countdown, new icon, calmer opening (13 Oct 2026, v0.1.72)
 Omar's phone showed the website's plain notice ("Back at 10:02", the site's address) instead of the app's countdown.
@@ -1448,3 +1465,8 @@ at the edges.
 - v0.1.75: Omar: "now that top layer is not seamless" — back to the v0.1.72 step-back exactly (page onto the status bar's
   tint, corners growing in, status bar dims). v0.1.73/74 reverted with no other changes; next: only the page's content
   sinks back, the background stays still.
+- v0.1.76: behind a pop-up only the page's content sinks back (screen and dock together, `.stage-content`, to 95 % from the
+  middle, under the dim). The background stays full-bleed and still, so there's no card edge, corner or colour behind to
+  see, and the status bar is as before. The page used to step back as a whole card (v0.1.72 onto the status bar's tint,
+  v0.1.73/74 onto black); Omar: "the top layer is not seamless … make it seem like it's moving backwards by moving all the
+  icons at the same time". The corner pieces are gone.

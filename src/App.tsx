@@ -17,8 +17,8 @@ import { useT } from './lib/i18n';
 import { registerSW } from './pwa';
 import { dayKey } from './lib/dates';
 import { defaultMealId } from './lib/derive';
-import { stageCover, stageDepth, stageTransform } from './ui/engage';
-import { readRGB, refreshBar, setBarDepth, setBarTint } from './ui/statusBar';
+import { contentTransform, stageCover, stageDepth } from './ui/engage';
+import { readRGB, setBarDepth, setBarTint } from './ui/statusBar';
 import { setKeyboard } from './ui/keyboard';
 import { FpsMeter } from './ui/FpsMeter';
 
@@ -162,25 +162,18 @@ function useBarTint(app: React.RefObject<HTMLDivElement | null>, tab: string) {
   }, [app, tab, palette, theme]);
 }
 
-function useStageDepth(app: React.RefObject<HTMLDivElement | null>, stage: React.RefObject<HTMLDivElement | null>) {
+function useStageDepth(content: React.RefObject<HTMLDivElement | null>, stage: React.RefObject<HTMLDivElement | null>) {
   useEffect(() => {
     const apply = (v: number) => {
       setBarDepth(v);
-      const a = app.current, st = stage.current; if (!a || !st) return;
+      const c = content.current; if (!c) return;
       const root = document.documentElement.dataset;
       const still = root.motion === 'reduce' || (root.motion !== 'full' && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-      // the page steps back onto the colour of the status bar (no seam under it); the shell only carries that colour while a
-      // popup is up, because changing it on the shell restyles the whole app (it would, on every frame of a tab's colour blend)
-      const corners = st.querySelectorAll<HTMLElement>(':scope > .stage-corner');
-      if (v < 0.0005 || still) { st.style.transform = ''; corners.forEach((c) => { c.style.transform = ''; }); a.style.background = ''; if (a.hasAttribute('data-bar')) { a.removeAttribute('data-bar'); a.style.removeProperty('--bar'); } return; }
-      if (!a.hasAttribute('data-bar')) { a.setAttribute('data-bar', ''); refreshBar(); }
-      st.style.transform = stageTransform(v); // the same function the browser-run (high refresh) version uses
-      // Its corners round off as it steps back (28 px when fully back). Not with border-radius: switching a rounded clip on
-      // and off rebuilt the whole page's layer as a pop-up started and again as it finished closing, and the rebuilt page
-      // was drawn a frame late — a flicker. Four small corner pieces in the shell's colour grow over the corners instead.
-      const k = `scale(${v.toFixed(4)})`;
-      corners.forEach((c) => { c.style.transform = k; });
-      a.style.background = 'var(--bar, #000)';
+      // Behind a pop-up the page's content (the screen and the dock) sinks back as one piece, under the dim; the page's
+      // background (the colour field) stays where it is, edge to edge. The whole page used to step back as a card, and its
+      // edges, the colour behind it and its corners all showed (v0.1.72 onto the status bar's tint, v0.1.73 onto black):
+      // "the top layer is not seamless". Now there is no edge to see.
+      c.style.transform = v < 0.0005 || still ? '' : contentTransform(v); // the same function the browser-run (high refresh) version uses
     };
     apply(stageDepth.get());
     const offDepth = stageDepth.on('change', apply);
@@ -189,7 +182,7 @@ function useStageDepth(app: React.RefObject<HTMLDivElement | null>, stage: React
     cover(stageCover.get());
     const offCover = stageCover.on('change', cover);
     return () => { offDepth(); offCover(); };
-  }, [app, stage]);
+  }, [content, stage]);
 }
 
 /**
@@ -247,8 +240,8 @@ export function App() {
   useDriveAuto(); // Google Drive backups while you use the app (lib/drive.ts)
   useKeyboard();
   useWakeLock();
-  const appRef = useRef<HTMLDivElement>(null), stageRef = useRef<HTMLDivElement>(null);
-  useStageDepth(appRef, stageRef);
+  const appRef = useRef<HTMLDivElement>(null), stageRef = useRef<HTMLDivElement>(null), contentRef = useRef<HTMLDivElement>(null);
+  useStageDepth(contentRef, stageRef);
   const t = useT();
   // The dock answers a tap at once (TabBar reads the tab itself); the page, its colours and the status bar follow as soon
   // as the new screen is built. That build runs in the background and is dropped if another tab is tapped meanwhile, so
@@ -298,12 +291,12 @@ export function App() {
       <div className="app" data-hue={tab} data-pill={pill || undefined} data-calm={calm || undefined} ref={appRef}>
         <div className="stage" ref={stageRef}>
         <div className="fields" data-bar><AnimatePresence initial={false}><Field key={tab} hue={tab} /></AnimatePresence></div>
+        <div className="stage-content" ref={contentRef}>
         <AnimatePresence mode="popLayout" initial={false} custom={dir}>
           <TabPane key={tab} hue={tab} dir={dir}>{screen}</TabPane>
         </AnimatePresence>
         <TabBar />
-        <i className="stage-corner tl" data-bar aria-hidden /><i className="stage-corner tr" data-bar aria-hidden />
-        <i className="stage-corner bl" data-bar aria-hidden /><i className="stage-corner br" data-bar aria-hidden />
+        </div>
         </div>
         <Overlays />
         <Toaster />

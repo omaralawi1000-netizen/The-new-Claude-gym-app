@@ -224,6 +224,9 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
    something passes underneath: the tab bar, sheets, popups, toasts. */
 .screen .plinth, .screen .btn, .screen .icon-btn, .screen .chip, .screen .glass { -webkit-backdrop-filter: none; backdrop-filter: none; }
 .wk-window .aurora-lite::before, .wk-solid .aurora-lite::before { animation: none; }
+/* …and since it never moves there, it is painted with the window instead of on a layer of its own: one screen and a half
+   less for the phone's graphics memory, which ran short as the window slid down over the page (parts of both went blank) */
+.wk-solid .aurora-lite::before { will-change: auto; }
 .wk-window .plinth, .wk-window .btn, .wk-window .icon-btn, .wk-window .chip, .wk-window .plinth-2 { -webkit-backdrop-filter: none; backdrop-filter: none; }
 .wk-window .plinth { background: color-mix(in srgb, var(--s1) 100%, var(--bg) 22%); }
 .wk-window .btn:not(.primary):not(.ghost), .wk-window .icon-btn { background: color-mix(in srgb, var(--s3) 100%, var(--bg) 18%); }
@@ -666,16 +669,11 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    restyle every element of the app each time a popup opened or closed — a long frame right as it starts moving.) */
 .app:has(.sheet, .voice, [role='dialog']) .pulse-dot::before { animation-play-state: paused !important; }
 
-/* iOS-style: while a popup is up the page behind steps back. Its transform and corner radius are written by script
-   (useStageDepth in App.tsx) from the popups' own progress, so it follows them frame for frame — no CSS transition. */
-.stage { position: absolute; inset: 0; background: var(--bg); transform-origin: 50% 0%; will-change: transform; overflow: clip; } /* always its own clipped layer: see useStageDepth in App.tsx. clip, not hidden: a hidden box can still be scrolled by script, and something scrolled it 24 px sideways while a sliding page overhung it, leaving Train and Food shifted left */
-/* the page's rounded corners while a pop-up has it stepped back: a quarter-circle cut-out in the shell's colour, scaled from 0
-   (at rest) to 1 (fully back = 28 px corners) by useStageDepth — a transform, so nothing about the page's layer changes */
-.stage-corner { position: absolute; z-index: 2147483647; width: 28px; height: 28px; pointer-events: none; will-change: transform; transform: scale(0); }
-.stage-corner.tl { top: 0; left: 0; transform-origin: 0 0; background: radial-gradient(circle at 100% 100%, transparent 27.25px, var(--bar, #000) 28px); }
-.stage-corner.tr { top: 0; right: 0; transform-origin: 100% 0; background: radial-gradient(circle at 0 100%, transparent 27.25px, var(--bar, #000) 28px); }
-.stage-corner.bl { bottom: 0; left: 0; transform-origin: 0 100%; background: radial-gradient(circle at 100% 0, transparent 27.25px, var(--bar, #000) 28px); }
-.stage-corner.br { bottom: 0; right: 0; transform-origin: 100% 100%; background: radial-gradient(circle at 0 0, transparent 27.25px, var(--bar, #000) 28px); }
+/* iOS-style: while a popup is up the page's content (screen and dock) sinks back, under the dim, while its background stays
+   put edge to edge. The transform is written by script (useStageDepth in App.tsx) from the popups' own progress, so it
+   follows them frame for frame — no CSS transition. */
+.stage { position: absolute; inset: 0; background: var(--bg); will-change: transform; overflow: clip; } /* always its own clipped layer. clip, not hidden: a hidden box can still be scrolled by script, and something scrolled it 24 px sideways while a sliding page overhung it, leaving Train and Food shifted left */
+.stage-content { position: absolute; inset: 0; z-index: 1; transform-origin: 50% 50%; will-change: transform; }
 /* The same for everything a page switch, a Settings page, a sheet page or the dock slides by script (Motion / Web Animations):
    each keeps one layer for good, so nothing is handed back to the page — and redrawn a frame late — the moment its slide
    ends (see rise-move). A handful of big layers, created once; the motion itself is unchanged. */
@@ -799,13 +797,16 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 @keyframes goRing { from { opacity: 0; } 35% { opacity: 1; } }
 .wk-bar-clip { position: absolute; inset: 0; border-radius: inherit; overflow: hidden; pointer-events: none; }
 /* the rest fills the bar in one calm tint of the accent, with a soft leading edge (no gradient: it read muddy over the dark) */
-.wk-bar-fill { position: absolute; inset: 0; pointer-events: none; transform: translateX(-100%); will-change: transform, opacity; opacity: 1; transition: opacity 600ms var(--ease-out); background: color-mix(in srgb, var(--ac) 24%, transparent); -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 56px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 56px), transparent); }
-.wk-bar.go .wk-bar-fill { transform: none; -webkit-mask-image: none; mask-image: none; opacity: .55; }
+.wk-bar-fill { position: absolute; inset: 0; pointer-events: none; transform: translateX(-100%); will-change: transform, opacity; opacity: 1; transition: opacity 600ms var(--ease-out); background: linear-gradient(90deg, color-mix(in srgb, var(--ac) 24%, transparent) calc(100% - 56px), transparent); }
+/* rest over: the tint stays full but still fades out before the orb, as it does during the rest. Lit right under the orb,
+   Chrome on the phone drew the orb's square canvas area in a different shade (a box around the orb). The fade is in the
+   background itself, not a mask (a mask is one more compositor layer). */
+.wk-bar.go .wk-bar-fill { transform: none; opacity: .55; }
 /* the bar's words settle in when the bar changes what it says (next, rest, go): a slow, short rise, no cut; the big line a beat after the small one */
 .wk-bar-top, .wk-bar-big { animation: wkSwap 560ms var(--ease-out) both; }
 /* the two lines as one unit; the outgoing pair lies over the incoming one and fades up and away (Active.tsx SwapText) */
 .wk-bar-txt { min-width: 0; max-width: 100%; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 1px; }
-.wk-bar-txt.out { position: absolute; inset: 0; pointer-events: none; animation: wkSwapOut 340ms var(--ease-out) both; }
+.wk-bar-txt.out { position: absolute; inset: 0 8px 0 0; pointer-events: none; animation: wkSwapOut 340ms var(--ease-out) both; }
 .wk-bar-txt.out > * { animation: none; }
 @keyframes wkSwapOut { to { opacity: 0; transform: translateY(-5px); } }
 .wk-bar-big { animation-delay: 60ms; }
@@ -814,7 +815,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-tick { display: inline-block; transform-origin: 0 60%; animation: wkTick 760ms var(--ease-out) both; }
 @keyframes wkTick { from { transform: scale(1.16); color: var(--ac-text); } }
 .wk-bar-txt.t-go .wk-bar-top { color: var(--ac-text); }
-.wk-bar-main { position: relative; flex: 1; min-width: 0; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; text-align: left; gap: 1px; }
+.wk-bar-main { position: relative; flex: 1; min-width: 0; height: 100%; padding-right: 8px; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; text-align: left; gap: 1px; }
 .wk-bar-top { max-width: 100%; font-size: 12px; font-weight: 600; letter-spacing: 0.01em; color: var(--tx2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wk-bar-big { max-width: 100%; font-size: 17px; font-weight: 680; letter-spacing: -0.01em; color: var(--tx); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wk-bar-txt.t-rest .wk-bar-big { font-size: 20px; }
