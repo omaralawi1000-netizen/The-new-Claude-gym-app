@@ -235,3 +235,30 @@ export function beatLastTime(lt: string, now: { weightKg?: number; reps?: number
   if (Math.abs(w - pw) < 1e-6 && r > pr) return `+${r - pr} ${t(r - pr === 1 ? 'rep' : 'reps')}`;
   return null;
 }
+
+/**
+ * Is this set a new best for the exercise, against everything done before it (finished sessions, and the sets already ticked
+ * in this one)? Heavier than ever, or more reps than ever at this weight or heavier, or longer / further than ever. The
+ * first time an exercise is logged is a baseline, not a best. Returns what makes it a best, or null.
+ */
+export type NewBest = { kind: 'weight' | 'reps' | 'duration' | 'distance'; weightKg?: number; reps?: number; durationSec?: number; distanceM?: number };
+export function newBest(lt: string, now: { weightKg?: number; reps?: number; durationSec?: number; distanceM?: number }, exerciseId: string, sessions: WorkoutSession[], earlier: SetRecord[] = []): NewBest | null {
+  const prior: SetRecord[] = earlier.filter(countable);
+  for (const s of sessions) for (const e of s.exercises) if (e.exerciseId === exerciseId) prior.push(...e.sets.filter(countable));
+  if (!prior.length) return null;
+  if (lt === 'duration') { const b = Math.max(0, ...prior.map((p) => p.durationSec ?? 0)); return b > 0 && (now.durationSec ?? 0) > b ? { kind: 'duration', durationSec: now.durationSec } : null; }
+  if (lt === 'distance') { const b = Math.max(0, ...prior.map((p) => p.distanceM ?? 0)); return b > 0 && (now.distanceM ?? 0) > b ? { kind: 'distance', distanceM: now.distanceM } : null; }
+  const w = now.weightKg ?? 0, r = now.reps ?? 0;
+  if (!r) return null;
+  if (lt === 'assisted') {
+    // less help is harder: a best is more reps than ever with this much help or less
+    const same = prior.filter((p) => (p.weightKg ?? 0) <= w + 1e-6 && p.reps);
+    if (same.length) return r > Math.max(...same.map((p) => p.reps ?? 0)) ? { kind: 'reps', weightKg: w, reps: r } : null;
+    return prior.some((p) => p.reps) ? { kind: 'weight', weightKg: w, reps: r } : null; // less help than ever
+  }
+  const atLeast = prior.filter((p) => (p.weightKg ?? 0) >= w - 1e-6 && p.reps);
+  if (atLeast.length) return r > Math.max(...atLeast.map((p) => p.reps ?? 0)) ? { kind: 'reps', weightKg: w, reps: r } : null;
+  // nothing ever done this heavy: a weight best (bodyweight moves need some added weight to count)
+  if (w > 0 && prior.some((p) => p.reps)) return { kind: 'weight', weightKg: w, reps: r };
+  return null;
+}

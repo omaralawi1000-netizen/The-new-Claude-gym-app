@@ -9,7 +9,7 @@ import { Collapse, NumInput, Stepper } from '../../ui/kit';
 import { Roll } from '../../ui/Roll';
 import { flip } from '../../ui/flip';
 import { Sheet, SheetHead, SOFT, useOverlayZ } from '../../ui/Sheet';
-import { beatLastTime, elapsedMs, historyOf, incrementFor, lastPerformance, repRange, sessionSetCount, sessionVolume, suggestProgression, countable } from '../../lib/workout';
+import { beatLastTime, newBest, elapsedMs, historyOf, incrementFor, lastPerformance, repRange, sessionSetCount, sessionVolume, suggestProgression, countable } from '../../lib/workout';
 import { fmtDuration } from '../../lib/dates';
 import { displayToKg, kgToDisplay, fmtNum, displayToM, mToDisplay } from '../../lib/units';
 import { useNow } from '../../lib/hooks';
@@ -678,6 +678,7 @@ const SetRow = memo(function SetRow({ se, set, ex, label, prev, restDefault }: {
   const [burst, setBurst] = useState(0); // a ring that expands from the check each time a set is completed
   const [beat, setBeat] = useState<{ n: number; label: string } | null>(null); // you beat last time: gold burst + what you gained
   const [showGain, setShowGain] = useState(false);
+  const [best, setBest] = useState(0); // a new best for this exercise: a gold light sweeps the row and a "New best" tag shows
   // the set to do next gets a quiet accent outline (a boolean, so only the two rows that change redraw)
   const current = useStore((s) => !set.done && nextSetOf(s.active)?.set.id === set.id);
   useEffect(() => { if (!beat) return; setShowGain(true); const id = setTimeout(() => setShowGain(false), 1500); return () => clearTimeout(id); }, [beat]);
@@ -705,8 +706,13 @@ const SetRow = memo(function SetRow({ se, set, ex, label, prev, restDefault }: {
     if (st.active?.pausedAt) st.resumeActive();
     unlockRestAudio(); // a tap: the rest-over tones are allowed to play later
     if (st.active?.rest && st.active.rest.endsAt <= Date.now()) skipRest(); // "Go" has done its job
-    const gain = set.type === 'working' ? beatLastTime(lt, eff, prev, u.weight, lang, t) : null;
-    haptic(gain ? 'gain' : 'set');
+    // a new best beats everything before it (and is the bigger moment); otherwise beating last time gets its own small one
+    const earlier = (st.active?.exercises ?? []).filter((e) => e.exerciseId === se.exerciseId).flatMap((e) => e.sets).filter((x) => x.id !== set.id);
+    const pr = set.type === 'working' ? newBest(lt, eff, se.exerciseId, st.sessions, earlier) : null;
+    const gain = !pr && set.type === 'working' ? beatLastTime(lt, eff, prev, u.weight, lang, t) : null;
+    haptic(pr ? 'record' : gain ? 'gain' : 'set');
+    setBurst(burst + 1); // the check pops and the row's light plays (a tap or Enter on the reps)
+    if (pr) setBest(burst + 1);
     if (gain) setBeat((b) => ({ n: (b?.n ?? 0) + 1, label: gain }));
     patchSet(se.id, set.id, { ...eff, done: true, completedAt: Date.now() });
     // the next set comes into view if it is about to slip under the bar (never scrolls up, never jumps far)
@@ -743,7 +749,8 @@ const SetRow = memo(function SetRow({ se, set, ex, label, prev, restDefault }: {
     <div data-set={set.id}>
       <div className={`wk-set ${set.done ? 'done' : current ? 'current' : 'todo'}${set.type === 'warmup' ? ' warm' : ''}`} style={{ gridTemplateColumns: gridCols(ex, settings.effort) }}>
         {/* ticked: a soft light ripples out from the check across the row, and leaves the row's tint behind */}
-        {burst > 0 && set.done && <span key={`w${burst}`} className="wk-set-clip" aria-hidden><i className="wk-set-wave" /></span>}
+        {burst > 0 && set.done && <span key={`w${burst}`} className="wk-set-clip" aria-hidden><i className={best === burst ? 'wk-set-sweep' : 'wk-set-wave'} /></span>}
+        {best > 0 && best === burst && set.done && <span key={`b${best}`} className="wk-best" role="status">{t('New best')}</span>}
         <button className="press wk-set-n" aria-label={t('Set options')} aria-expanded={open} onClick={() => setOpen((v) => !v)}>{label}</button>
         <button className="num press wk-prev" disabled={!prev} onClick={() => prev && patchSet(se.id, set.id, { weightKg: prev.weightKg, reps: prev.reps, durationSec: prev.durationSec, distanceM: prev.distanceM })} aria-label={prev ? `${t('Use previous')}: ${fmtSet(prev, ex, u, lang, t)}` : undefined}>
           {/* a hold reads in the column's own unit ("66s" over SECONDS, not "1:06" beside a 66), as the records write it */}
@@ -757,7 +764,7 @@ const SetRow = memo(function SetRow({ se, set, ex, label, prev, restDefault }: {
         {(lt === 'weightReps' || lt === 'bodyweightReps' || lt === 'assisted') && <>{fw}{fr}</>}
         {settings.effort !== 'off' && <div onFocusCapture={focusScroll as any}><NumInput compact value={settings.effort === 'rpe' ? set.rpe : set.rir} max={1} placeholder="—" onChange={(v) => patchSet(se.id, set.id, settings.effort === 'rpe' ? { rpe: v } : { rir: v })} label={settings.effort.toUpperCase()} /></div>}
         {/* not logged: an empty outline (no check yet); logged: a filled check that draws itself in */}
-        <motion.button key={shake} className={`press wk-check${set.done ? ' on' : ''}${set.done && burst > 0 ? ' fresh' : ''}`} aria-label={set.done ? t('Mark set not done') : t('Complete set')} aria-pressed={set.done} onClick={() => { if (!set.done) setBurst((n) => n + 1); complete(); }}
+        <motion.button key={shake} className={`press wk-check${set.done ? ' on' : ''}${set.done && burst > 0 ? ' fresh' : ''}`} aria-label={set.done ? t('Mark set not done') : t('Complete set')} aria-pressed={set.done} onClick={complete}
           animate={shake ? { x: [0, -5, 5, -3, 3, 0] } : undefined} transition={{ duration: 0.3 }}>
           {set.done && <svg key={`m${burst}`} className="wk-check-mark" viewBox="0 0 24 24" width="22" height="22" aria-hidden><path d="M5 12.5l4.5 4.5L19 7.5" pathLength={1} fill="none" stroke="currentColor" strokeWidth={2.8} strokeLinecap="round" strokeLinejoin="round" /></svg>}
           {burst > 0 && set.done && <motion.i key={burst} aria-hidden initial={{ scale: 0.9, opacity: 0.85 }} animate={{ scale: 2.2, opacity: 0 }} transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }} style={{ position: 'absolute', inset: 0, borderRadius: 14, boxShadow: '0 0 0 2px var(--ac), 0 0 24px var(--ac)', pointerEvents: 'none' }} />}

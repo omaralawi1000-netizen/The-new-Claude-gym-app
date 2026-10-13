@@ -1107,6 +1107,17 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
   background: radial-gradient(closest-side, color-mix(in srgb, var(--ac) 50%, transparent), color-mix(in srgb, var(--ac) 18%, transparent) 62%, transparent);
   opacity: 0; animation: setWave 900ms var(--ease-out) both; }
 @keyframes setWave { 0% { opacity: 1; transform: scale(.05, .3); } 35% { opacity: .9; } 100% { opacity: 0; transform: none; } }
+/* a new best: a gold band of light sweeps the row from the check to the set number, and a small "New best" tag rises in over
+   the "Prev" column (what you beat), holds, and fades (transform and opacity only) */
+.wk-set-sweep { position: absolute; top: 0; bottom: 0; right: 0; width: 90%;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--gold) 18%, transparent) 25%, color-mix(in srgb, var(--gold) 34%, transparent) 50%, color-mix(in srgb, var(--gold) 18%, transparent) 75%, transparent);
+  transform: translateX(110%); animation: bestSweep 1400ms cubic-bezier(0.45, 0, 0.25, 1) both; }
+@keyframes bestSweep { to { transform: translateX(-130%); } }
+.wk-best { position: absolute; z-index: 3; left: 44px; top: calc(50% - 11px); height: 22px; line-height: 16px; padding: 3px 9px; border-radius: 999px; pointer-events: none; white-space: nowrap;
+  font-size: 11.5px; font-weight: 700; letter-spacing: .02em; color: #3a2a05; background: var(--gold);
+  box-shadow: 0 4px 14px -4px color-mix(in srgb, var(--gold) 70%, transparent);
+  animation: bestTag 2600ms var(--ease-out) both; }
+@keyframes bestTag { 0% { opacity: 0; transform: translate3d(0, 8px, 0) scale(.9); } 14% { opacity: 1; transform: none; } 78% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translate3d(0, -6px, 0); } }
 /* an exercise's last set ticked: one slow band of warm light passes over the card, once. Laid over the card (not inside its
    frosted glass) and only the band moves: a full-card glow layer cost frames on the test bench, this one doesn't */
 .wk-card-wrap { position: relative; }
