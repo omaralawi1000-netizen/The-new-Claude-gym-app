@@ -185,7 +185,7 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
     <Sheet onClose={pop} tall instant label={t('Settings')} z={100}>
       <SheetHead title={
         <AnimatePresence mode="popLayout" initial={false} custom={dir}>
-          <motion.span key={sec ?? 'root'} custom={dir} variants={TITLE} initial="enter" animate="center" exit="exit" style={{ display: 'inline-block' }}>{sec ? titles[sec] : t('Settings')}</motion.span>
+          <motion.span key={sec ?? 'root'} custom={dir} variants={TITLE} initial="enter" animate="center" exit="exit" style={{ display: 'inline-block', willChange: 'transform' }}>{sec ? titles[sec] : t('Settings')}</motion.span>
         </AnimatePresence>} onClose={sec ? goBack : pop} back={!!sec && !props.section} />
       <div className="sheet-body" style={{ position: 'relative', overflowX: 'hidden' }}>
         {/* both pages move at once (no blank gap): the new one slides in sharpening from blur, the old one drifts out */}

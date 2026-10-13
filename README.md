@@ -1184,3 +1184,23 @@ popping in at the end and shoving the list. Now:
   Filmed at 4x CPU throttle: list jolts > 4 px per frame 13 → 0; newest word never under the bar (was up to 7 px under).
 - The play button's row is held open from the first word, and the button (and the quiet note) fade in there.
 - `Words` is memoised, so only the growing piece re-renders per word.
+
+## No flicker as a page lands (13 Oct 2026, v0.1.51)
+
+Omar saw one flicker at the end of every Settings page, tab switch and pop-up. His 120 fps recordings show it exactly: a
+whole card (Progress) or a block of messages (Coach) vanishes for ONE frame right as the motion ends. Cause: while a block
+animates, Chrome draws it on its own GPU layer; when the animation ends (fill "backwards", or Motion cancelling its
+animation) that layer is thrown away and the block is redrawn into the page — and on the phone that redraw lands a frame
+late. Measured with a layer probe (Chrome's LayerTree): 200 such hand-backs of on-screen elements over 4 tab switches,
+4 Settings pages and a pop-up; now 5 (a scroller changing mid-slide, the tapped gear under the dim). The motion is unchanged.
+- Entrance animations (cards rising in, Settings rows, in-sheet pages, sheet fade-in, chart bars, the weight trend) fill
+  `both` and have no end keyframe, so the finished animation — and its layer — stays, and its end is the element's own style
+  (presses, springs and Motion still work on top; a finished animation WITH an end keyframe would override them, the old
+  "pages froze" bug). In-sheet pages get `.page-risen` after 1.2 s instead of losing `.page-rise`.
+- Things moved by script keep one layer for good (`will-change`): tab pages, Settings pages and title, sheet panes and pages,
+  sheet header buttons, the dock's tabs, icons, labels and orb slot, the colour field, and the page (`.stage`).
+- The page behind a pop-up no longer switches a rounded clip on and off (that rebuilt the whole page's layer as a pop-up
+  opened and again as it finished closing): its corners are four small pieces in the shell's colour, scaled 0 → 1
+  (`.stage-corner`, `useStageDepth`). Same 28 px corners.
+Checked against the live build: same idle redraws, frame times within run-to-run noise, screenshots match, presses work.
+Not covered: the Coach's word-by-word reply animation (owned by the Coach thread).
