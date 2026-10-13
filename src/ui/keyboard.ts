@@ -1,4 +1,4 @@
-import { animate, motionValue, type MotionValue } from 'motion/react';
+import { animate, cancelFrame, frame, motionValue, type MotionValue } from 'motion/react';
 import { KEYBOARD } from './motion';
 
 /**
@@ -72,4 +72,69 @@ export function watchFocus(root: HTMLElement, scroller: (el: HTMLElement) => HTM
   const off = kb.on('change', () => { if (pending && document.activeElement === pending) later(150); });
   root.addEventListener('focusin', onFocus);
   return () => { clearTimeout(timer); off(); root.removeEventListener('focusin', onFocus); };
+}
+
+/**
+ * Like `watchFocus`, but the list moves *with* the keyboard: it starts when the keyboard starts, follows the same eased
+ * height (`kb`) frame by frame and stops the moment the keyboard lands. No waiting for it to settle, no second slide after.
+ * Only as far as needed: the field ends a little above the keyboard (with room to see the row under it), or not at all
+ * when it is already clear of it. With the keyboard already up (the next field), the list slides on the keyboard's spring.
+ * A finger on the list takes over at once.
+ */
+export function rideFocus(root: HTMLElement, scroller: (el: HTMLElement) => HTMLElement | null): () => void {
+  let ride: { sc: HTMLElement; from: number; d: number; p0: number; goal: number } | null = null;
+  let glide: { stop: () => void } | null = null;
+  let waiting: { el: HTMLElement; off: () => void; timer: ReturnType<typeof setTimeout> } | null = null;
+  const apply = () => {
+    const r = ride; if (!r) return;
+    const p = Math.min(1, Math.max(0, (kb.get() / r.goal - r.p0) / (1 - r.p0)));
+    r.sc.scrollTop = r.from + r.d * p;
+    if (p >= 0.999 && Math.abs(kb.get() - target) < 0.5) ride = null;
+  };
+  const offKb = kb.on('change', () => { if (ride) frame.postRender(apply); });
+  const stop = () => {
+    ride = null; glide?.stop(); glide = null; cancelFrame(apply);
+    if (waiting) { waiting.off(); clearTimeout(waiting.timer); waiting = null; }
+  };
+  // how far the scroller must move so the field sits clear of a keyboard `goal` px tall (0: it already does)
+  const need = (el: HTMLElement, sc: HTMLElement, goal: number) => {
+    const sr = sc.getBoundingClientRect(), er = el.getBoundingClientRect();
+    const bottom = Math.min(sr.bottom, base - goal);
+    const top = sr.top + 16;
+    if (er.top >= top && er.bottom <= bottom - 16) return 0;
+    if (er.top < top) return er.top - top - 24;
+    const d = er.bottom - (bottom - Math.min(84, (bottom - sr.top) * 0.25));
+    return Math.min(d, er.top - top); // never past the top of the list
+  };
+  const start = (el: HTMLElement, goal: number) => {
+    if (!el.isConnected || document.activeElement !== el || goal <= 0) return;
+    const sc = scroller(el); if (!sc) return;
+    const d = need(el, sc, goal);
+    if (Math.abs(d) < 1) return;
+    const now = kb.get();
+    if (now < goal - 1) {
+      // the keyboard is on its way: ride along with it
+      ride = { sc, from: sc.scrollTop, d, p0: Math.min(0.9, now / goal), goal };
+    } else {
+      // it is already up: the same spring the keyboard moves on
+      const from = sc.scrollTop;
+      const v = motionValue(0);
+      v.on('change', (x) => { sc.scrollTop = from + d * x; });
+      glide = animate(v, 1, KEYBOARD as never);
+    }
+  };
+  const onFocus = (e: FocusEvent) => {
+    const el = e.target as HTMLElement | null;
+    if (!el || !/^(INPUT|TEXTAREA)$/.test(el.tagName)) return;
+    stop();
+    if (target > 0) { start(el, target); return; }
+    // the keyboard's height is known the moment it starts to rise: wait for that (no keyboard at all: nothing to do)
+    const off = onKeyboardGoal((px) => { if (px > 0) { stop(); start(el, px); } });
+    waiting = { el, off, timer: setTimeout(stop, 900) };
+  };
+  const onTouch = () => { if (ride || glide) { ride = null; glide?.stop(); glide = null; } };
+  root.addEventListener('focusin', onFocus);
+  root.addEventListener('pointerdown', onTouch, true);
+  root.addEventListener('wheel', onTouch, { capture: true, passive: true });
+  return () => { stop(); offKb(); root.removeEventListener('focusin', onFocus); root.removeEventListener('pointerdown', onTouch, true); root.removeEventListener('wheel', onTouch, true); };
 }
