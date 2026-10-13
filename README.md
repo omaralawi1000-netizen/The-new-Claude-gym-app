@@ -1745,3 +1745,20 @@ glass look. But add depth."* He said yes to this look from a before/after pictur
 - No colour washes on cards: the coral bloom inside Today's workout card is hidden; today in the week strip is a neutral
   lift with coral letters (both modes); the play buttons' glow is tight in dark so it never bleeds onto a card.
 - Paint only: no blur, no new layers, nothing animated (layer check TOTAL 11, as before).
+
+## Coach: answers fade in without blur, the list ends cleanly above the bar (13 Oct 2026, evening)
+Omar on the phone (v0.1.103): "the coach is a mess… the text spits out, it's still laggy… just do it without the blur,
+there was a version where you did it without the blur, it came out smooth". He asked for it, so the blur-in goes.
+- **Answers (Coach and orb) write in without blur**, the v0.1.56 way he remembers: each word fades up 0.3 em into place
+  (`.w-in`: `wordLight` + `wordCalm`), its light coming in a touch slower than the rise so no word pops in bright. One
+  layer per word instead of the soft focus's three (`.soft::before/::after`), opacity and transform only, and it settles
+  to plain text once in, as before. Your own spoken words on the orb screen, the Food date and the Onboarding titles keep
+  their soft focus (not answers).
+- **A calmer pace**: at most 45 words a second (was 70). A big clump from the stream used to pour out a line every
+  150 ms, which read as text being spat out.
+- **The list ends cleanly above the bar**: it fades out over the last 20 px before the bar's top edge, always, so nothing
+  is seen behind the orb, the camera or the field. It used to fade "by the bar's middle" when scrolled, and to slide out
+  of the way at the list's end, so a line arriving while the list glided up showed under "Ask the Coach". At rest the
+  last message sits 18 px above that edge, fully clear. The edge still rides with the keyboard (`--kb-now`, v0.1.98).
+- Clips: `scripts/clip-coach.mjs <out.mp4> [--palette ember|aurora] [--half]` films a send and a long streamed answer at
+  real or half speed (half: the page's clock and animations run at half speed). Backup: `backup/coach-r4-pre-noblur`.

@@ -847,8 +847,8 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .coach-reply .rich-li { gap: 10px; margin-top: 6px; }
 .coach-reply .rich-p + .rich-li, .coach-reply .rich-li + .rich-p { margin-top: 10px; }
 .calm .w { animation: none; --soft-dur: 640ms; }
-.calm .rich-li > .w { animation: wordCalm var(--soft-dur) cubic-bezier(0.2, 0.7, 0.2, 1) backwards; } /* (a bullet: no soft focus) */
-/* each word rises a little into place while it comes in out of soft focus (.soft below) */
+.calm .rich-li > .w { animation: wordLight var(--soft-dur) cubic-bezier(0.33, 0.1, 0.25, 1) backwards, wordCalm var(--soft-dur) cubic-bezier(0.2, 0.7, 0.2, 1) backwards; } /* (a bullet comes in like a word) */
+/* each word rises a little into place while it fades up (.w-in below) */
 @keyframes wordCalm { from { transform: translateY(0.3em); } to { transform: none; } }
 /* Soft focus, shared by everything that writes itself in (Coach and orb answers, your spoken words, the Food date,
    Onboarding titles): the text comes into focus the way a camera pulls focus, without a blur ever being animated. Two still,
@@ -883,6 +883,14 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
   50% { opacity: .293; } 55% { opacity: .109; } 60%, 100% { opacity: 0; } }
 @keyframes softSharp { 0%, 30% { opacity: 0; } 35% { opacity: .031; } 40% { opacity: .42; } 45% { opacity: .672; } 50% { opacity: .85; }
   55% { opacity: .961; } 60%, 100% { opacity: 1; } }
+/* Answers (Coach and orb) write in WITHOUT blur (Omar, 13 Oct evening: "just do it without the blur… there was a version
+   where you did it without the blur, it came out smooth"). That was v0.1.56: each word fades up 0.3em into place. One
+   layer per word (the soft focus was three), opacity and transform only, so the compositor draws it; the light comes in
+   a touch slower than the rise, so a word never pops in bright. Once in, it settles to plain text (Words, agentUi.tsx). */
+:is(.calm, .voice-live) .w-in { animation: wordLight var(--soft-dur, 600ms) cubic-bezier(0.33, 0.1, 0.25, 1) backwards, wordCalm var(--soft-dur, 600ms) cubic-bezier(0.2, 0.7, 0.2, 1) backwards; }
+@keyframes wordLight { from { opacity: 0; } to { opacity: 1; } }
+:root[data-motion='reduce'] .w-in { animation: none !important; }
+@media (prefers-reduced-motion: reduce) { :is(.calm, .voice-live, :root) .w-in { animation: none; } }
 :root[data-motion='reduce'] :is(.soft-in > .soft-s, .soft-in::before, .soft-in::after) { animation: none; }
 @media (prefers-reduced-motion: reduce) { :is(.calm, .voice-live, :root) :is(.soft-in > .soft-s, .soft-in::before, .soft-in::after) { animation: none; } }
 /* Read aloud: the word being said lights up in the accent, the ones said settle back, the ones to come wait a shade lighter.
@@ -1252,7 +1260,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .mem-row { display: flex; align-items: flex-start; gap: 8px; padding: 12px 8px 12px 14px; }
 .mem-text { display: block; width: 100%; text-align: left; font-size: 15px; line-height: 1.4; color: var(--tx); overflow-wrap: anywhere; }
 .mem-edit { width: 100%; min-height: 64px; font-size: 15px; line-height: 1.4; resize: none; }
-.reply.still .w, .reply.still .soft-in > .soft-s, .reply.still .soft-in::before, .reply.still .soft-in::after { animation: none; }
+.reply.still .w, .reply.still .w-in, .reply.still .soft-in > .soft-s, .reply.still .soft-in::before, .reply.still .soft-in::after { animation: none; }
 /* a note from Coach memory beside the exercise it is about, with a way out */
 .wk-flag { display: flex; align-items: flex-start; gap: 8px; margin-top: 8px; padding: 8px 8px 8px 10px; border-radius: 12px; color: var(--tx); background: color-mix(in srgb, var(--warn) 12%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warn) 24%, transparent); }
 .wk-flag .chip { flex: none; margin-top: -2px; }
@@ -1261,19 +1269,19 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .sheet-pane .coach-body.sheet-body:not([data-scrollable]) { -webkit-mask-image: none; mask-image: none; } /* (outranks the melt under sheet buttons) */
 /* The Coach's typing bar is a whole row (orb, camera, field) laid over the end of the list. With the list sharp right up to
    and under it, words ran under the orb and the camera and were sliced off by the field's edges (the "cut-out" look).
-   Scrolled up, the list now melts away just above the bar, gone by its middle; at the end it slides down out of the way
-   (it follows the list's own end fade, --sb-fade-b), so the last message, and an answer writing in, stay whole.
-   With the keyboard up the melt sits above the bar where it rides, and moves with it frame by frame (--kb-now, Coach.tsx;
-   it used to sit at the keyboard's full room the whole time, so while the keyboard came or went the messages between it
-   and the bar were hidden, then popped back once it landed). On the way the list rides at its end short of the room the
-   keyboard hasn't covered yet: that part doesn't count as "scrolled up", so the melt stays out of the last message's way. */
+   The list now ends cleanly ABOVE the bar, always: it fades out over the 20 px just above the bar's top edge, so nothing
+   is ever seen behind the orb, the camera or the field (Omar, 13 Oct evening: the text running under "Ask the Coach" with
+   a muddy fade read as a mess). At rest the last message sits 18 px above that edge, clear of the fade; a line that
+   arrives while the list glides up comes out of the edge instead of rising from under the bar. (It used to slide down
+   out of the way at the list's end, so a new line showed under the bar while the list glided.)
+   With the keyboard up the edge rides with the bar, frame by frame (--kb-now, Coach.tsx; it used to sit at the keyboard's
+   full room the whole time, so while the keyboard came or went the messages between it and the bar were hidden). */
 @property --kb-now { syntax: '<length>'; inherits: false; initial-value: 0px; }
 @property --melt { syntax: '<length-percentage>'; inherits: false; initial-value: 100%; } /* (not handed down to every word: it changes as you scroll) */
 @supports (animation-timeline: scroll()) {
-  .sheet-pane .coach-body.sheet-body[data-scrollable] { --melt: calc(100% - var(--foot-h, 90px) - min(var(--kb-room, 0px), var(--kb-now))
-      + (40px - max(0px, var(--sb-fade-b) - max(0px, var(--kb-room, 0px) - var(--kb-now)))) * 1.3);
-    -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--sb-fade), #000 calc(var(--melt) - 30px), rgba(0,0,0,.25) calc(var(--melt) + 4px), transparent calc(var(--melt) + 22px));
-    mask-image: linear-gradient(to bottom, transparent, #000 var(--sb-fade), #000 calc(var(--melt) - 30px), rgba(0,0,0,.25) calc(var(--melt) + 4px), transparent calc(var(--melt) + 22px)); }
+  .sheet-pane .coach-body.sheet-body[data-scrollable] { --melt: calc(100% - var(--foot-h, 90px) - min(var(--kb-room, 0px), var(--kb-now)));
+    -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--sb-fade), #000 calc(var(--melt) - 16px), rgba(0,0,0,.42) calc(var(--melt) - 6px), transparent calc(var(--melt) + 4px));
+    mask-image: linear-gradient(to bottom, transparent, #000 var(--sb-fade), #000 calc(var(--melt) - 16px), rgba(0,0,0,.42) calc(var(--melt) - 6px), transparent calc(var(--melt) + 4px)); }
 }
 .coach-sent { animation: coachSend 620ms cubic-bezier(.2, .8, .2, 1) backwards; }
 @keyframes coachSend {
