@@ -507,12 +507,14 @@ html:root[data-glass='v2'][data-glow='soft'][data-theme='light'] { --aurora-a: 0
 :root[data-glass='v2']:not([data-palette='mono']) :is(.app, [data-hue]) {
   --h1: var(--ac); --h2: color-mix(in oklch, var(--ac) 75%, #8a5cff); --h3: color-mix(in srgb, var(--ac) 80%, #fff);
 }
+/* in dark the first light is a cool violet with only a hint of the theme's colour: cool air around warm-lit cards */
+:root[data-glass='v2']:not([data-palette='mono']):not([data-theme='light']) :is(.app, [data-hue]) { --h1: color-mix(in oklch, var(--ac) 30%, #5b3fd1); }
 :root[data-glass='v2'] .plinth { background: var(--mat-card); box-shadow: var(--mat-card-lift); }
 /* dark cards are faintly lit by the area's own colour: a whisper of it in the glass, the top glow and the lit top line.
    (Written here, not in --mat-card: a variable set on :root would take :root's colour, not the area's.) */
 :root[data-glass='v2']:not([data-theme='light']) .plinth {
   --card-warm: color-mix(in oklch, var(--ac) 70%, #ffb27a);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--card-warm) 20%, transparent), color-mix(in srgb, var(--card-warm) 12%, transparent) 40%, color-mix(in srgb, var(--card-warm) 8%, transparent)), linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 35%), var(--mat-card);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--card-warm) 26%, transparent), color-mix(in srgb, var(--card-warm) 12%, transparent) 50%, color-mix(in srgb, var(--card-warm) 6%, transparent)), linear-gradient(180deg, rgba(255, 255, 255, 0.17), rgba(255, 255, 255, 0.07) 50%, rgba(255, 255, 255, 0.035)), linear-gradient(rgba(26, 19, 18, 0.4), rgba(26, 19, 18, 0.4));
   box-shadow: inset 0 1px 0 color-mix(in srgb, color-mix(in srgb, var(--card-warm) 45%, #fff) 30%, transparent), inset 0 26px 34px -20px color-mix(in srgb, var(--card-warm) 22%, transparent), 0 1px 2px rgba(0, 0, 0, 0.5), 0 8px 24px -8px rgba(0, 0, 0, 0.55), 0 22px 44px -18px color-mix(in srgb, var(--ac) 22%, transparent);
 }
 :root[data-glass='v2'] :is(.btn:not(.primary, .ghost), .chip:not(.on, .acc), .icon-btn:not(.flat, .acc, .speak-btn)) { background: var(--mat-ctl); box-shadow: var(--mat-ctl-lift); }
@@ -544,7 +546,9 @@ html:root[data-glass='v2'][data-glow='soft'][data-theme='light'] { --aurora-a: 0
 /* (Food's own colour, lightened or deepened like the other tabs' icons, came out a muddy peach or brown and stood apart:
    in Ember its active icon takes Aven's coral, the same as Today's) */
 :root[data-glass='v2']:is(:not([data-palette]), [data-palette='ember']) .app[data-hue='food'] .tab.on svg { --ac: #ff7a59; color: color-mix(in srgb, #ff7a59 82%, #fff); }
-:root[data-glass='v2'][data-theme='light']:is(:not([data-palette]), [data-palette='ember']) .app[data-hue='food'] .tab.on svg { color: oklch(from #ff7a59 0.55 c h); }
+:root[data-glass='v2'][data-theme='light']:is(:not([data-palette]), [data-palette='ember']) .app[data-hue='food'] .tab.on svg { color: oklch(from #ff7a59 0.64 c h); }
+/* light: the active icon is a deep coral, close to the play button's, not the brick of the deep text colour */
+:root[data-glass='v2'][data-theme='light'] .tab.on svg { color: oklch(from var(--ac) 0.64 c h); }
 :root[data-glass='v2'] .tab.on svg { filter: drop-shadow(0 1px 1px color-mix(in srgb, var(--ac) 35%, transparent)); }
 /* fields (the workout's kg and reps, search, forms) are wells cut into the glass: shaded at the top, with a catch-light
    along the bottom edge, so they still read clearly as places to type (focus keeps its own ring) */
@@ -601,8 +605,8 @@ html:root[data-glass='v2'][data-glow='soft'][data-theme='light'] { --aurora-a: 0
 /* Today's calorie ring keeps a warm bloom of the theme's colour behind it (the softer colour field no longer gives it one):
    painted once, never moves */
 :root[data-glass='v2'] .ledger-dial.compact { position: relative; isolation: isolate; }
-:root[data-glass='v2'] .ledger-dial.compact::before { content: ''; position: absolute; inset: -28%; z-index: -1; pointer-events: none; border-radius: 50%;
-  background: radial-gradient(closest-side, color-mix(in srgb, var(--ac) 56%, transparent), color-mix(in srgb, var(--ac) 22%, transparent) 55%, transparent); }
+:root[data-glass='v2'] .ledger-dial.compact::before { content: ''; position: absolute; inset: -14%; z-index: -1; pointer-events: none; border-radius: 50%;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--ac) 30%, transparent), color-mix(in srgb, var(--ac) 12%, transparent) 55%, transparent); }
 :root[data-glass='v2'][data-theme='light'] .ledger-dial.compact::before { background: radial-gradient(closest-side, color-mix(in srgb, var(--ac) 14%, transparent), color-mix(in srgb, var(--ac) 5%, transparent) 55%, transparent); }
 .toggle-knob { position: absolute; top: 3px; left: 3px; width: 26px; height: 26px; border-radius: 99px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.4), 0 3px 8px -2px rgba(0,0,0,.25); transition: transform 460ms var(--ease-spring); will-change: transform; }
 
