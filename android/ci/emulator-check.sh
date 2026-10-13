@@ -65,11 +65,6 @@ notes real-countdown
 shade 1-real-shade
 sleep 3
 shade 2-real-shade-3s-later
-timeout 10 adb shell cmd uimode night yes
-sleep 3
-shade 2b-real-shade-dark
-timeout 10 adb shell cmd uimode night no
-sleep 2
 # our own +30 s button, tapped like a finger would (it must still reach the app and the website)
 adb shell cmd statusbar expand-notifications; sleep 2
 timeout 15 adb shell uiautomator dump /sdcard/ui.xml >/dev/null; adb shell cat /sdcard/ui.xml > shots/ui-shade.xml
@@ -86,6 +81,11 @@ sleep 3
 adb exec-out screencap -p > shots/2c-after-plus30.png
 adb shell cmd statusbar collapse; sleep 1
 notes after-plus30
+timeout 10 adb shell cmd uimode night yes
+sleep 3
+shade 2b-real-shade-dark
+timeout 10 adb shell cmd uimode night no
+sleep 2
 adb exec-out screencap -p > shots/3-status-bar.png
 adb shell locksettings set-disabled false
 adb shell input keyevent KEYCODE_SLEEP
@@ -114,6 +114,8 @@ timeout 10 adb shell input keyevent KEYCODE_HOME
 sleep 3
 notes real-after-clear
 grep -c "pkg=app.aven.android" shots/real-after-clear.txt | sed 's/^/aven notifications left after clear: /' | tee -a shots/rest-real.txt
+timeout 20 adb logcat -d -s AvenRest | tee -a shots/rest-real.txt
+timeout 20 adb logcat -d -b events | grep -i "notification_cancel\|notification_enqueue" | grep -i aven | tail -30 | tee -a shots/rest-real.txt
 timeout 20 adb logcat -d | grep -i "OriginVerifier\|TrustedWebActivity\|TWAConnectionPool\|digital asset\|RestTimer\|ForegroundService\|AvenRest" | tail -40 | tee -a shots/carry-over.txt
 
 # 3. the app sees the data saved in Chrome's tab before it was first opened

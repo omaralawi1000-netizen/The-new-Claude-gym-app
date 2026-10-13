@@ -17,6 +17,7 @@ import android.os.Looper;
 import android.os.SystemClock;
 import android.service.notification.StatusBarNotification;
 import android.text.SpannableString;
+import android.util.Log;
 import android.text.Spanned;
 import android.text.style.ForegroundColorSpan;
 import android.text.style.RelativeSizeSpan;
@@ -117,6 +118,7 @@ final class RestNotifications {
             return true;
         }
         Rest r = parse(tag, n);
+        log("from Chrome: " + (r == null ? "not a rest" : "rest ending in " + (r.endsAt - now) + " ms"));
         if (r == null) return false;
         if (r.endsAt <= now + 500) return true; // already over (a late update): the alarm has it
         ensureChannels(c);
@@ -140,7 +142,9 @@ final class RestNotifications {
     /** Chrome took one of the website's notifications away: you're back in Aven, or the rest was skipped. */
     static void chromeCancelled(Context c, String tag) {
         Rest r = load(c);
-        if (r == null || tag == null || !tag.equals(r.chromeTag)) return; // an older rest's (a newer one has taken over)
+        boolean ours = r != null && tag != null && tag.equals(r.chromeTag);
+        log("Chrome took its notification away" + (ours ? "" : " (an older one)"));
+        if (!ours) return; // an older rest's (a newer one has taken over)
         stopAll(c, true);
     }
 
@@ -344,6 +348,7 @@ final class RestNotifications {
 
     /** Everything off: the countdown, its alarm, and (when you're back) the alert. */
     static void stopAll(Context c, boolean alertToo) {
+        log("stop all" + (alertToo ? ", alert too" : ""));
         cancelAlarm(c);
         RestTimerService.stop(c);
         NotificationManager nm = c.getSystemService(NotificationManager.class);
@@ -370,6 +375,9 @@ final class RestNotifications {
     private static void criticalText(Notification.Builder b, String text) {
         if (Build.VERSION.SDK_INT >= 36) call(b, "setShortCriticalText", String.class, text);
     }
+
+    /** What happened, in the phone's log under "AvenRest" (the emulator check prints it). */
+    static void log(String what) { Log.i("AvenRest", what); }
 
     private static void call(Notification.Builder b, String name, Class<?> type, Object value) {
         try {

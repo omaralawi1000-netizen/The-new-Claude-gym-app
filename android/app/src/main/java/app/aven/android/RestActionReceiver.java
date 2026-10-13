@@ -11,6 +11,7 @@ public class RestActionReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context c, Intent intent) {
         String a = intent.getAction();
+        RestNotifications.log("button: " + a);
         if (RestNotifications.ACTION_MORE.equals(a)) RestNotifications.more(c);
         else if (RestNotifications.ACTION_SKIP.equals(a)) RestNotifications.stopAll(c, true);
         else if (RestNotifications.ACTION_GONE.equals(a)) RestNotifications.swiped(c);
