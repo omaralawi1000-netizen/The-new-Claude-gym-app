@@ -102,10 +102,8 @@ export function TabBar() {
   return (
     <LayoutGroup>
       {/* hides by sliding only: fading it would switch its frosted blur off until the fade ends (a clear bar that then frosts) */}
-      <motion.div className="tabbar-wrap" style={{ flexDirection: 'column', alignItems: 'center' }} initial={false}
+      <motion.div className="tabbar-wrap edge-fade" style={{ flexDirection: 'column', alignItems: 'center' }} initial={false}
         animate={{ transform: hidden ? 'translateY(115%)' : 'translateY(0%)', transitionEnd: hidden ? undefined : { transform: 'none' } }} transition={SOFT}>
-        {/* the page melts into the dock: a blur that grows by small steps toward the bottom edge (styles.css .soft-edge) */}
-        <span className="soft-edge" aria-hidden><i /><i /><i /></span>
         <AnimatePresence>{<LivePill />}</AnimatePresence>
         <nav className="tabbar glass" aria-label="Main" ref={nav}>
           <span className="lens tab-lens" aria-hidden><i className="lens-l" /><i className="lens-r" /><i className="lens-m" /></span>

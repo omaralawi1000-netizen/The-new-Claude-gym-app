@@ -1534,27 +1534,32 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .pin-acts { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
 .pin-x { flex: none; margin-top: -4px; color: var(--tx3); }
 
-/* ── .soft-edge: a bar's soft edge (the dock here; the Coach's typing bar uses the same class) ──────────────────────
-   Markup: <span class="soft-edge" aria-hidden><i /><i /><i /></span> as the bar's first child, under it (z-index -1);
-   --se-h sets how far up it reaches. The page melts into the bar instead of meeting a hard box: three blurs of fixed
-   strength (3, 8, 18 px), each shown only in its own band and cross-faded into the next, so the blur grows by small steps
-   (a strong blur faded straight over the sharp page is what read as a muddy double edge), plus a gentle fade toward the
-   base colour on top so nothing sharp reaches the bar. Each band is its own short box, so the layers barely overlap and none
-   re-blurs another (the old full-height layers each blurred the whole area), the bar on top has no blur of its own, and nothing animates: three small fixed layers per frame. */
-.soft-edge { position: absolute; left: 0; right: 0; bottom: 0; height: var(--se-h, 190px); z-index: -1; pointer-events: none; }
-.soft-edge > i { position: absolute; left: 0; right: 0; }
-.soft-edge > i:nth-child(1) { top: 0; height: 52%; -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
-  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 42%, #000 73%, transparent); mask-image: linear-gradient(to bottom, transparent, #000 42%, #000 73%, transparent); }
-.soft-edge > i:nth-child(2) { top: 38%; height: 34%; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
-  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 41%, #000 65%, transparent); mask-image: linear-gradient(to bottom, transparent, #000 41%, #000 65%, transparent); }
-.soft-edge > i:nth-child(3) { top: 60%; bottom: 0; -webkit-backdrop-filter: blur(18px) saturate(1.3); backdrop-filter: blur(18px) saturate(1.3);
-  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 30%); mask-image: linear-gradient(to bottom, transparent, #000 30%); }
-.soft-edge::after { content: ''; position: absolute; inset: 0;
-  background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--bg) 30%, transparent) 35%, color-mix(in srgb, var(--bg) 62%, transparent) 62%, color-mix(in srgb, var(--bg) 80%, transparent)); }
-/* the dock sits wholly inside the strongest band, so it needs no blur of its own: a quiet tint, a hairline of light */
-.tabbar.glass { background: rgba(255, 255, 255, 0.045); -webkit-backdrop-filter: none; backdrop-filter: none;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), inset 0 0 0 1px rgba(255, 255, 255, 0.055); }
-:root[data-theme='light'] .tabbar.glass { background: rgba(255, 255, 255, 0.55); box-shadow: inset 0 1px 0 #fff, inset 0 0 0 1px rgba(16, 20, 34, 0.06), 0 8px 24px -12px rgba(30, 40, 70, 0.25); }
+/* .edge-fade, shared by every bottom bar that content passes under (the Coach bar; the tab bar reuses it): a frost under
+   the element that starts clear --edge-top above it and is full --edge-ramp further down, with a neutral grey tint
+   (--edge-tint, card level) easing in over --edge-len up to --edge-a, the same as the dock's. One backdrop blur, only as big as the bar, never animated; whatever sits inside the bar must not
+   blur again. Place: --edge-x (sideways reach, negative to go past the element's padding) and --edge-bottom. */
+.edge-fade { position: relative; isolation: isolate; }
+.edge-fade::before { content: ''; position: absolute; z-index: -1; pointer-events: none;
+  left: var(--edge-x, 0px); right: var(--edge-x, 0px); top: calc(-1 * var(--edge-top, 24px)); bottom: calc(-1 * var(--edge-bottom, 0px));
+  -webkit-backdrop-filter: blur(var(--edge-blur, 16px)) saturate(1.35); backdrop-filter: blur(var(--edge-blur, 16px)) saturate(1.35);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--edge-ramp, 26px)); mask-image: linear-gradient(to bottom, transparent, #000 var(--edge-ramp, 26px));
+  /* the tint eases in over --edge-len and stops at --edge-a (never a dark band at the bottom: no darker than the bar was) */
+  --c: var(--edge-tint, rgb(21, 22, 28));
+  background: linear-gradient(to bottom, transparent,
+    color-mix(in srgb, var(--c) calc(var(--edge-a, 65%) * .06), transparent) calc(var(--edge-len, 64px) * .25),
+    color-mix(in srgb, var(--c) calc(var(--edge-a, 65%) * .25), transparent) calc(var(--edge-len, 64px) * .5),
+    color-mix(in srgb, var(--c) calc(var(--edge-a, 65%) * .56), transparent) calc(var(--edge-len, 64px) * .75),
+    color-mix(in srgb, var(--c) var(--edge-a, 65%), transparent) var(--edge-len, 64px)); }
+:root[data-theme='light'] .edge-fade { --edge-tint: var(--sheet-solid); --edge-a: 40%; } /* (light: a pale neutral, or it read as a white strip) */
+/* the dock reuses the Coach bar's soft edge: one frost under it, clear ~64 px above and full at its top, a neutral tint
+   easing in, so the page passes under the dock and dissolves (Omar: "the tab bar and coach bar fade"). The dock itself has
+   no blur (it sits on the frost): a light neutral tint and a faint light from the top. */
+.tabbar-wrap.edge-fade { position: fixed; --edge-top: 64px; --edge-ramp: 56px; --edge-len: 72px; }
+.tabbar.glass { background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0) 60%), rgba(40, 42, 50, 0.3);
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.09), inset 0 0 0 1px rgba(255, 255, 255, 0.055); }
+:root[data-theme='light'] .tabbar.glass { background: linear-gradient(180deg, #fff, rgba(255, 255, 255, 0.5) 60%), rgba(255, 255, 255, 0.3);
+  box-shadow: inset 0 1px 0 #fff, inset 0 0 0 1px rgba(16, 20, 34, 0.06), 0 8px 24px -12px rgba(30, 40, 70, 0.25); }
 
 /* Top fade for scrollers that are neither a page nor a sheet (the orb's talk list, onboarding). */
 @supports (animation-timeline: scroll()) {
