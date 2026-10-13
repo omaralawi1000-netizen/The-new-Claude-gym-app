@@ -44,7 +44,9 @@ def wait_page():
 
 
 REST = """Promise.race([new Promise((ok) => setTimeout(() => ok('timed out at: ' + window.__step), 25000)), (async () => {
-  window.__step = 'register';
+  window.__step = 'load';
+  for (let i = 0; i < 60 && (document.readyState !== 'complete' || !navigator.serviceWorker); i++) await new Promise((r) => setTimeout(r, 250));
+  window.__step = 'register (referrer ' + document.referrer + ', app flag ' + localStorage.getItem('aven.androidApp') + ')';
   const scope = '/The-new-Claude-gym-app-rest/';
   const reg = await navigator.serviceWorker.register(scope + 'sw.js', { scope });
   for (let i = 0; i < 50 && !reg.active; i++) await new Promise((r) => setTimeout(r, 200));
@@ -59,7 +61,8 @@ REST = """Promise.race([new Promise((ok) => setTimeout(() => ok('timed out at: '
     timestamp: endsAt, actions: [{ action: 'more', title: '+30 s' }, { action: 'skip', title: 'Skip' }],
     data: { kind: 'aven-native', key: 'ci:' + s, endsAt },
   });
-  return 'shown, permission ' + Notification.permission + ', ' + (await reg.getNotifications()).length + ' in Chrome';
+  return 'shown, permission ' + Notification.permission + ', ' + (await reg.getNotifications()).length + ' in Chrome; referrer '
+    + document.referrer + ', app flag ' + localStorage.getItem('aven.androidApp');
 })().catch((e) => 'error at ' + window.__step + ': ' + e)])"""
 
 CLEAR = """(async () => {
