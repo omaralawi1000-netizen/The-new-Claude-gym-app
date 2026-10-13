@@ -72,7 +72,7 @@ function PlanTab() {
             const r = p ? s.routines.find((x) => x.id === p.routineId) : undefined;
             const isToday = d === today;
             return (
-              <button key={d} className="press" onClick={() => push('schedule', { focusDate: d })} aria-label={`${fmtDate(d, lang)}${r ? `: ${r.name}` : ''}`} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '8px 0', borderRadius: 14, background: isToday ? 'var(--ac-soft)' : 'transparent' }}>
+              <button key={d} className={`press${isToday ? ' week-today' : ''}`} onClick={() => push('schedule', { focusDate: d })} aria-label={`${fmtDate(d, lang)}${r ? `: ${r.name}` : ''}`} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '8px 0', borderRadius: 14, background: isToday ? 'var(--ac-soft)' : 'transparent' }}>
                 <span className="micro" style={{ color: isToday ? 'var(--ac-text)' : undefined }}>{fmtWeekdayShort(weekdayOf(d), lang, true)}</span>
                 <span className="num" style={{ fontWeight: 650, fontSize: 15 }}>{Number(d.slice(8))}</span>
                 <span style={{ width: 26, height: 26, borderRadius: 9, display: 'grid', placeItems: 'center', background: done ? 'var(--ac)' : wr ? 'var(--ac-soft)' : r ? 'var(--s3)' : 'transparent', color: done ? 'var(--ac-ink)' : wr ? 'var(--ac-text)' : 'var(--tx2)', fontSize: 11, fontWeight: 700, }}>{done ? <Icon name="check" size={14} sw={3} /> : wr ? <Icon name="wrestle" size={15} /> : r ? r.name.slice(0, 1).toUpperCase() : pw ? <Icon name="wrestle" size={14} style={{ opacity: 0.75 }} /> : <i aria-hidden style={{ width: 4, height: 4, borderRadius: 4, background: 'var(--tx3)', opacity: 0.6 }} />}</span>
