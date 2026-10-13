@@ -1,4 +1,5 @@
 // The orb stays on its slot while the page steps back, in both native and script animation modes.
+// The orb is centred in its slot (the dock's slot is 68 x 64), so positions are compared centre to centre.
 // Idle drawing must not continually force geometry reads; keyboard and interrupted flights still have to land correctly.
 import assert from 'node:assert/strict';
 import { launch } from './lib.mjs';
@@ -14,7 +15,7 @@ for (const hrr of ['0','1']) {
    await p.waitForTimeout(1400);
    const data=await p.evaluate(id=>{
     const a=document.querySelector('.sphere-stage').getBoundingClientRect(),s=document.querySelector(`[data-orb-slot="${id}"]`).getBoundingClientRect();
-    return {x:Math.abs(a.left-s.left),y:Math.abs(a.top-s.top),size:Math.abs(a.width-Math.min(s.width,s.height)),square:Math.abs(a.width-a.height)};
+    return {x:Math.abs(a.left+a.width/2-s.left-s.width/2),y:Math.abs(a.top+a.height/2-s.top-s.height/2),size:Math.abs(a.width-Math.min(s.width,s.height)),square:Math.abs(a.width-a.height)};
    },id);
    assert(data.x<1.5&&data.y<1.5&&data.size<1.5&&data.square<.01,`${hrr} ${id}: ${JSON.stringify(data)}`);
   };
@@ -33,7 +34,7 @@ for (const hrr of ['0','1']) {
     window.__sampleOrb=true;
     const a=o.getBoundingClientRect(),r=s.getBoundingClientRect();
     window.__sampleOrb=false;
-    window.__orbSamples.push({gap:Math.max(Math.abs(a.left-r.left),Math.abs(a.top-r.top),Math.abs(a.width-Math.min(r.width,r.height))),y:r.top});
+    window.__orbSamples.push({gap:Math.max(Math.abs(a.left+a.width/2-r.left-r.width/2),Math.abs(a.top+a.height/2-r.top-r.height/2),Math.abs(a.width-Math.min(r.width,r.height))),y:r.top});
    };
    frame.postRender(sample,true);window.__stopOrbSample=()=>cancelFrame(sample);
   });

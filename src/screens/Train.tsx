@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { resumeWorkout } from '../ui/workoutOpen';
 import { motion } from 'motion/react';
 import { exerciseMap, allExercises, plannedFor, missedWorkouts } from '../state/store';
 import { useUI, haptic } from '../state/ui';
@@ -52,7 +53,7 @@ function PlanTab() {
     return { d, p: plannedFor(s, d, today), done: s.sessions.some((x) => x.date === d), wr: s.activities.some((x) => x.date === d && x.kind === 'wrestling'), pw: !!s.schedule.activities?.[weekdayOf(d)]?.includes('wrestling') };
   });
   const start = (r: Routine) => {
-    if (s.active) { push('workout', { origin: 'pill' }); return; }
+    if (s.active) { resumeWorkout(() => push('workout', { origin: 'pill' })); return; }
     haptic('confirm');
     s.startWorkout({ routine: r, plannedDate: plannedFor(s, today, today)?.routineId === r.id ? today : undefined });
     push('workout', { origin: 'none' });

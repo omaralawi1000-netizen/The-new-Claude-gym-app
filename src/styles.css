@@ -189,8 +189,11 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
 .app[data-calm] .aurora i { animation-play-state: paused; }
 /* The page behind a pop-up recedes (scales) every frame, which makes every frosted card on it re-blur every frame — a dozen
    full-screen-sized blurs on top of the pop-up's own. Over a soft colour field the frost is all but invisible (measured: the
-   two look the same), and the pop-up's dim and blur cover it anyway, so it is switched off while a pop-up is up. The dock keeps its. */
-.app[data-calm] .screen, .app[data-calm] .screen * { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+   two look the same), and the pop-up's dim and blur cover it anyway, so it is switched off while a pop-up is up. The dock keeps its.
+   Only the segmented control still blurs on a page (cards, buttons and chips there never do, see `.screen .plinth` below), so
+   only it is named: `.screen *` restyled every element of the page (~900) two frames into every pop-up's motion, ~14 ms
+   on the phone, a dropped frame or two right as it starts moving. */
+.app[data-calm] .screen .seg { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
 /* inside a full-screen overlay: sits under its content but over its background */
 .aurora.in { z-index: -1; }
 .aurora i { position: absolute; border-radius: 50%; opacity: var(--aurora-a); will-change: transform; animation-delay: var(--drift-t, 0s) !important; }
