@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { resumeWorkout } from '../../ui/workoutOpen';
 import { HAPTICS, useUI } from '../../state/ui';
 import { useStore, exerciseMap } from '../../state/store';
 import { tNow } from '../../lib/i18n';
@@ -201,7 +202,7 @@ export function openWorkout() {
   if (!useStore.getState().active) return;
   const ui = useUI.getState();
   if (ui.overlays.some((o) => o.type === 'workout')) ui.popTo('workout');
-  else ui.push('workout', { origin: 'none' });
+  else resumeWorkout(() => ui.push('workout', { origin: 'none' }));
 }
 
 let cued = ''; // the rest that has been cued: a remount or a reload never cues it twice

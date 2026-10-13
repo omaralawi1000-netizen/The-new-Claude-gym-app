@@ -13,6 +13,7 @@ import { beatLastTime, newBest, elapsedMs, historyOf, incrementFor, lastPerforma
 import { fmtDuration } from '../../lib/dates';
 import { displayToKg, kgToDisplay, fmtNum, displayToM, mToDisplay } from '../../lib/units';
 import { useNow } from '../../lib/hooks';
+import { setWorkoutOpener } from '../../ui/workoutOpen';
 import { nextSetOf, offerRestAlerts, prepareRestAudio, unlockRestAudio } from './rest';
 import { addSet, deleteSet, moveExercise, patchExercise, patchSet, removeExercise, startRest, adjustRest, skipRest, toggleSuperset } from './actions';
 import { exName, fmtSet, MUSCLE_LABEL } from './common';
@@ -183,18 +184,25 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
   const [hidden, setHidden] = useState(!open);
   const openRef = useRef(open); openRef.current = open;
   const onGoneRef = useRef(onGone); onGoneRef.current = onGone;
+  const opening = useRef<{ stop: () => void } | null>(null);
+  const startOpen = () => {
+    closing.current = null;
+    // un-park it now, before the orb's flight measures where its slot will be (React would only do it after this effect)
+    dialogRef.current?.classList.remove('wk-off'); scrimRef.current?.classList.remove('wk-off');
+    const from = p.get();
+    opening.current?.stop();
+    opening.current = animate(p, 1, reduce ? { duration: 0.01 } : SURFACE);
+    runMirror(from, 1, SURFACE, 0);
+  };
+  // waiting minimised: a tap on the resume bar or button starts the slide at once (ui/workoutOpen.ts)
+  useEffect(() => (!open && hidden ? setWorkoutOpener(startOpen) : undefined));
   useLayoutEffect(() => {
     if (open) {
-      closing.current = null;
-      // un-park it now, before the orb's flight measures where its slot will be (React would only do it after this effect)
-      dialogRef.current?.classList.remove('wk-off'); scrimRef.current?.classList.remove('wk-off');
+      if (!opening.current) startOpen(); // (already sliding when the tap started it)
       // the rest of "shown" (its clocks ticking again, its role) as a render that yields: set at once, here, it re-rendered
       // the whole window a second time inside the tap, before the slide's first frame
       startTransition(() => setHidden(false));
-      const from = p.get();
-      const c = animate(p, 1, reduce ? { duration: 0.01 } : SURFACE);
-      runMirror(from, 1, SURFACE, 0);
-      return () => c.stop();
+      return () => { opening.current?.stop(); opening.current = null; };
     }
     setMenu(null); setConfirm(null); setRenaming(false);
     const el = document.activeElement as HTMLElement | null;

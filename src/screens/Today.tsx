@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { resumeWorkout } from '../ui/workoutOpen';
 import { motion } from 'motion/react';
 import { useStore, plannedFor, missedWorkouts, foodPool, exerciseMap } from '../state/store';
 import { useUI, haptic } from '../state/ui';
@@ -58,7 +59,7 @@ export function TodayScreen() {
   const start = (r?: Routine) => {
     haptic('confirm');
     if (!s.active) s.startWorkout({ routine: r, plannedDate: r && plan?.routineId === r.id ? today : undefined });
-    push('workout', { origin: 'hero' });
+    resumeWorkout(() => push('workout', { origin: 'hero' }));
   };
 
   // recents for one-tap repeat
@@ -175,7 +176,7 @@ export function TodayScreen() {
                 <div className="display num" style={{ fontSize: 54, marginTop: 8 }}><HeroClock /></div>
                 <div className="small t2 num" style={{ marginTop: 2 }}>{aDone}<span className="t3"> / {aTotal}</span></div>
               </div>
-              <button className="icon-btn acc press" style={{ width: 68, height: 68, flex: 'none' }} aria-label={t('Resume workout')} onClick={() => push('workout', { origin: 'hero' })}><Icon name="play" size={26} /></button>
+              <button className="icon-btn acc press" style={{ width: 68, height: 68, flex: 'none' }} aria-label={t('Resume workout')} onClick={() => resumeWorkout(() => push('workout', { origin: 'hero' }))}><Icon name="play" size={26} /></button>
             </div>
           ) : routine && !(plannedDone && last) ? (
             <div className="row-flex between" style={{ gap: 14 }}>
