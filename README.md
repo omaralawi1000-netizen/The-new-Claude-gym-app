@@ -1745,3 +1745,11 @@ glass look. But add depth."* He said yes to this look from a before/after pictur
 - No colour washes on cards: the coral bloom inside Today's workout card is hidden; today in the week strip is a neutral
   lift with coral letters (both modes); the play buttons' glow is tight in dark so it never bleeds onto a card.
 - Paint only: no blur, no new layers, nothing animated (layer check TOTAL 11, as before).
+
+## Clean look with depth undone: Aven glass is back (13 Oct 2026, v0.1.104)
+
+Omar on v0.1.102/103 (teal palette): flat grey cards and a muddy blur under the tab bar; "I want this design back", pointing
+at the glass round 5 "now" column (warm Ember field, glassy round buttons, frosted dock). PR #117 is reverted on its own:
+`<html data-glass="v2">` is back, Ember's field is warm again, the cards are see-through glass again, the week-strip
+`week-today` class is gone. Everything shipped after it (v0.1.103's pop-up step-back and the camera fix) stays.
+Lesson: an opaque neutral card loses the glass Omar liked; "depth" has to come from the glass itself, not a solid block.
