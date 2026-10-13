@@ -137,6 +137,7 @@ function restPayload(ended = false) {
     // icon: Aven's orb in a circle (left out, Chrome draws a grey letter bubble); badge: the white mark in the status bar
     icon: `${import.meta.env.BASE_URL}notif-icon.png`, badge: `${import.meta.env.BASE_URL}badge-96.png`,
     more: tNow('+30 s'), skip: tNow('Skip rest'), skipShort: tNow('Skip'),
+    sound: st.settings.sound,
   };
 }
 type Payload = NonNullable<ReturnType<typeof restPayload>>;

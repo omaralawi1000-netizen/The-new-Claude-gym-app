@@ -326,16 +326,21 @@ export function SphereStage() {
     // foot): the list, Focus, the header and the bar's words changing used to force a fresh measure of the whole page on
     // every frame they changed (a set ticked, a page turned, the clock rolling), the biggest part of a tick's cost.
     const inWorkout = (t: Element) => { const sh = t.closest?.('.wk-sheet'); return !!sh && t !== sh && !t.contains(sh.querySelector('.wk-bar-orb')); };
+    // The same for the list of a tall popup (its height is fixed): what changes inside it, the Coach writing an answer in
+    // word by word, the list gliding after it, never moves a slot outside it. Without this every new word forced a fresh
+    // measure of the page in the frame it landed. Scrolling something with no slot inside moves no slot either.
+    const noSlotIn = (box: Element) => { for (const sl of slots.values()) if (box.contains(sl.el)) return false; return true; };
+    const inTallList = (t: Element) => { const body = t.closest?.('.sheet.tall .sheet-body'); return !!body && t !== body && noSlotIn(body); };
     const lmo = new MutationObserver((recs) => {
       for (const r of recs) {
         if (r.type === 'attributes' && r.target === appEl && r.attributeName === 'style') continue; // the stage's backdrop colour
         const t = (r.target.nodeType === 1 ? r.target : r.target.parentElement) as Element | null;
-        if (t && inWorkout(t)) continue;
+        if (t && (inWorkout(t) || inTallList(t))) continue;
         if (r.type !== 'attributes' || !(r.target as Element).matches?.(MOVING)) { dirty(); return; }
       }
     });
     if (appEl) lmo.observe(appEl, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class', 'data-active', 'hidden'] });
-    const onScroll = (e: Event) => { const t = e.target as Element | null; if (t?.closest?.('.wk-sheet')) return; dirty(); }; // (see inWorkout)
+    const onScroll = (e: Event) => { const t = e.target as Element | null; if (t?.closest?.('.wk-sheet') || (t?.nodeType === 1 && noSlotIn(t))) return; dirty(); }; // (see inWorkout, noSlotIn)
     window.addEventListener('scroll', onScroll, { capture: true, passive: true });
     window.addEventListener('resize', dirty);
     window.visualViewport?.addEventListener('resize', dirty);

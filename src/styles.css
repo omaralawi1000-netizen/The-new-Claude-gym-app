@@ -1143,6 +1143,12 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    and the button fades out rather than blinking away (it fades back in with the first message) */
 .coach-body .tips.fresh .tip { animation: rise-soft 520ms var(--ease-out) both; animation-delay: calc(140ms + var(--i, 0) * 70ms); }
 .coach-body .coach-note-fresh { animation: fadein 520ms var(--ease-out) 420ms both; }
+/* sending: the suggestions step away the way the chat does on New chat (they used to vanish in one frame), on a soft
+   300 ms curve; they take no room while they go, so your message rises where they were */
+.coach-tips-out { height: 0; pointer-events: none; animation: coachTipsOut 300ms cubic-bezier(.3, 0, .2, 1) forwards; }
+@keyframes coachTipsOut { from { opacity: 1; } to { opacity: 0; transform: translate3d(0, -4px, 0); } }
+.coach-body .coach-tips-out .tips .tip { animation: none; } /* (re-placed, they must not rise in again on their way out) */
+:root[data-motion='reduce'] .coach-tips-out { display: none; }
 .coach-new { transition: opacity 320ms var(--ease-out); }
 .coach-new.gone { opacity: 0; pointer-events: none; }
 :root[data-motion='reduce'] :is(.coach-body .tips.fresh .tip, .coach-body .coach-note-fresh) { animation: none; }

@@ -1443,7 +1443,7 @@ flicker fingerprint). `--film a,b` films chosen actions, `--light` for the light
     hand-over now lets go as the orb arrives (`carry`).
   - In the dock it sat 2 px left of the middle of its place (the place is 68 x 64; the orb went to its left edge). It is
     centred now, in every place that isn't square.
-- v0.1.87, smoother minimise and resume (measured at 4x CPU, 3 runs each, before → after):
+- v0.1.91, smoother minimise and resume (measured at 4x CPU, 3 runs each, before → after):
   - Minimising: main-thread long tasks 420 → 285 ms in total, script and layout 439 → 351 ms. Resuming: script and layout
     404 → 342 ms. The orb re-measured its whole path on every frame the page behind sank back or came forward
     (`.stage-content` was missing from the orb's list of moving surfaces).
@@ -1517,3 +1517,36 @@ at the edges.
 - The status bar reached its full dim at 60 % of a pop-up's progress while the dim over the page grows all the way to
   100 %, so for most of the opening the bar was darker than the page under it: a band across the top. It now dims on
   the same 0 → 1 as the page.
+
+## Coach: lighter frames while an answer writes in (13 Oct 2026, v0.1.88)
+- Measured with `scripts/audit-coach.mjs` (phone size, CPU slowed 4×, a fake keyboard and a mocked stream; per action:
+  frames, long tasks, script/style/layout time, pops, jumps and GPU layers dropped; `TRACE=`/`PROFILE=` break one action
+  down). Baseline v0.1.85 → v0.1.88 (4×, dark): opening the Coach worst task 548 → ~260 ms and style 883 → ~360 ms;
+  an answer writing in paints ~3× less (2.1 s → ~0.6 s of main-thread paint over 5 s) and runs half the script per frame.
+- A word that has come in now settles into a plain word: its two soft-focus copies (`.soft::before/::after`) and its own
+  layer go once its coming-in is over (`Words`, `SETTLE`), and saved replies are plain from the start (`still`). A whole
+  saved conversation of soft words made every frame repaint and re-layer hundreds of them. Nothing on screen changes:
+  the copies are invisible by then.
+- The orb no longer re-measures the page for every new word: inside a tall pop-up's list nothing can move an orb slot,
+  and scrolling something with no slot in it moves none (`inTallList`, `noSlotIn` in `ui/Sphere.tsx`).
+- The list's glide after a new line is handed to the browser as a ready-made spring curve (Web Animations on
+  `translate`), so it runs at the screen's rate even while the page is busy writing the next words in; a new line picks
+  the spring up where it is on screen. It used to be stepped from script every frame.
+- Tapping a suggestion: the suggestions step away (200 ms fade and a 4 px lift, like New chat) instead of vanishing in one
+  frame; they take no room while they go, so your message rises where they were. Same for the suggestions under an old
+  chat.
+- A message sent from the keyboard keeps to its landing place while the keyboard goes down: the list now tells it in the
+  same frame (the scroll event came a frame late, so the flying copy trailed its bubble).
+
+## Orb screen: the typing box fades away, nothing jumps as it closes (13 Oct 2026, v0.1.89)
+- Sending what you typed: the box used to vanish in one frame. It now fades out where it was (200 ms; `popLayout`, so the
+  words writing in above don't push it), with your words still in it, and the keyboard leaves at the same moment instead
+  of a beat later. It fades back in when it returns.
+- Closing with the keyboard up: the keyboard going down re-flowed the screen while it faded, and the answer jumped down
+  mid-fade. While the screen leaves, its keyboard room is held (`useIsPresent`), so it fades out as it was.
+- The answer's words settle into plain words (v0.1.88) here too. Measured with `scripts/audit-coach.mjs` (4×, dark):
+  answer writing in, long tasks 9 → 2, style 482 → ~210 ms, layers dropped 68 → ~31; closing, layout shifts gone.
+- Not changed: the orb still grows and shrinks by its box size (a layout transition) when typing starts or an answer
+  arrives; the orb's renderer follows that box, and the screen is small (a few ms of layout per frame at 4×).
+- v0.1.90: after New chat the suggestions still vanished at once when one was tapped: moved into their leaving layer,
+  they ran their rise-in again (starting invisible). They now keep still and fade (300 ms, a softer curve).
