@@ -2,4 +2,8 @@
 <resources>
     <color name="ink">#05060B</color>
     <color name="ember">#E8743B</color>
+    <!-- the rest notification: button words, button pill, the bar's track (values-night: for the dark shade) -->
+    <color name="ember_text">#B4501C</color>
+    <color name="ember_pill">#24E8743B</color>
+    <color name="ember_track">#38E8743B</color>
 </resources>
