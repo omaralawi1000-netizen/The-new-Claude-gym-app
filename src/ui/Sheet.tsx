@@ -103,6 +103,9 @@ export const SNAP = TAP;
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 
 const EXIT_SPRING = SURFACE_EXIT;
+/** A sheet with another on top: how much it shrinks, and how much of its top edge peeks out above the new one (px). */
+const STACK_SCALE = 0.07;
+const STACK_PEEK = 10;
 
 /**
  * Bottom sheet: swipe down from anywhere (when its list is at the top) or flick to dismiss; interruptible; keyboard-aware.
@@ -153,7 +156,8 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
   const p = useMotionValue(0);   // opening progress (a spring)
   const y = useMotionValue(0);   // the finger
   const bs = useMotionValue(0);  // stepped back behind another sheet
-  const shift = useTransform([p, y, bs], ([pp, yy, b]: number[]) => (1 - pp) * dist.current + yy - 6 * b);
+  const dy = useMotionValue(-STACK_PEEK); // how far it moves, fully stepped back, so its top edge peeks just above the sheet on top
+  const shift = useTransform([p, y, bs, dy], ([pp, yy, b, d]: number[]) => (1 - pp) * dist.current + yy + d * b);
   // THE KEYBOARD, as in iOS and the Claude app: the keyboard slides over the sheet, and nothing is re-laid out while it moves.
   //  - A sheet never changes size for it. It rises only as far as it can without its top passing the gap under the status
   //    bar (a full-height sheet doesn't rise at all); the rest of it simply goes under the keyboard.
@@ -181,7 +185,7 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
   // keyboard that changes height on the way (letters → numbers) never makes it jump.
   const line = useRef({ a: 0, b: 1 });
   const liftOf = (k: number) => (k < 0.5 ? 0 : Math.max(0, line.current.a + line.current.b * k));
-  const transform = useTransform([shift, bs, kbHere], ([sh, b, k]: number[]) => `translate3d(0, ${sh - liftOf(k)}px, 0) scale(${1 - 0.06 * b})`);
+  const transform = useTransform([shift, bs, kbHere], ([sh, b, k]: number[]) => `translate3d(0, ${sh - liftOf(k)}px, 0) scale(${1 - STACK_SCALE * b})`);
   const rise = useTransform(kbHere, (k: number) => k - liftOf(k)); // how far the buttons ride above the sheet's own bottom
   // the room the keyboard will cover, made once per keyboard change; the sheet's height is held while it is there, so a
   // sheet as tall as its contents doesn't grow with the extra room
@@ -238,7 +242,8 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
     if (reduce) return;
     const b = bs.get();
     const k = liftOf(kbHere.get());
-    m.add(mirrorProgress(ref.current, p0, p1, sp, vel, (pp) => ({ transform: `translate3d(0, ${(1 - pp) * dist.current - k}px, 0) scale(${1 - 0.06 * b})` })));
+    const d = dy.get() * b;
+    m.add(mirrorProgress(ref.current, p0, p1, sp, vel, (pp) => ({ transform: `translate3d(0, ${(1 - pp) * dist.current + d - k}px, 0) scale(${1 - STACK_SCALE * b})` })));
     m.add(...mirrorVeil(scrimRef.current, p0, p1, sp, vel), small ? null : mirrorStage(id, p0, p1, sp, vel), mirrorOrb(ref.current, p0, p1, sp, vel, (pp) => (1 - pp) * dist.current));
   };
   useEffect(() => {
@@ -299,12 +304,19 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
     const upper = at >= 0 ? cur[group(cur, at).hi + 1] : undefined;
     const h = upper ? hosts.get(upper.id) : undefined;
     if (h?.small) return; // a small pop-up on top: this one stays where it is, as the page does
-    if (!h) { const c = animate(bs, 1, reduce ? { duration: 0.01 } : SPRING); return () => c.stop(); }
+    if (!h) { dy.set(-STACK_PEEK); const c = animate(bs, 1, reduce ? { duration: 0.01 } : SPRING); return () => c.stop(); }
+    // Stacked like a deck of cards, as iOS stacks sheets: it shrinks a little (from its top) and moves so that only its top
+    // edge peeks out above the new sheet — never a strip of its title. Where that is depends on how tall the new one is:
+    // measured from where both rest (layout boxes, so their current motion doesn't count), and again if the new one's
+    // height changes.
+    const place = () => { const me = ref.current; if (!me) return; dy.set(h.el.offsetTop - STACK_PEEK - me.offsetTop); };
+    place();
+    const ro = new ResizeObserver(place); ro.observe(h.el);
     bs.set(h.engage.e.get());
     const off = h.engage.e.on('change', (v) => bs.set(v));
-    const done = () => { off(); follow.current = null; if (bs.get() > 0.01) animate(bs, 0, reduce ? { duration: 0.01 } : SPRING); };
+    const done = () => { off(); ro.disconnect(); follow.current = null; if (bs.get() > 0.01) animate(bs, 0, reduce ? { duration: 0.01 } : SPRING); };
     h.gone.add(done);
-    follow.current = () => { off(); h.gone.delete(done); };
+    follow.current = () => { off(); ro.disconnect(); h.gone.delete(done); };
     // kept while the top sheet LEAVES (it is no longer "above" by then, but still moving): released when it is gone
     // eslint-disable-next-line
   }, [behind]);
@@ -345,6 +357,37 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
       </motion.div>
     </EngageContext.Provider>
   );
+}
+
+/**
+ * The same deck-of-cards stacking for a full-screen window that isn't a Sheet (the live workout): while a sheet opens on top
+ * of it (the exercise list, an exercise's page), it follows that sheet's progress frame for frame, shrinking from its top
+ * and moving down until only its top edge peeks out above the new one. Returns the window's transform, finger drag included.
+ */
+export function useStackedBehind(el: { current: HTMLElement | null }, drag: MotionValue<number>) {
+  const meta = useContext(OverlayMeta);
+  const reduce = useReducedMotion();
+  const bs = useMotionValue(0);
+  const dy = useMotionValue(0);
+  const upperId = useUI((u) => { const at = meta ? u.overlays.findIndex((o) => o.id === meta.id) : -1; return at >= 0 ? u.overlays[at + 1]?.id : undefined; });
+  const follow = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    const h = upperId ? hosts.get(upperId) : undefined;
+    if (!h || h.small) return;
+    follow.current?.();
+    const place = () => { const me = el.current; if (me) dy.set(h.el.offsetTop - STACK_PEEK - me.offsetTop); };
+    place();
+    const ro = new ResizeObserver(place); ro.observe(h.el);
+    bs.set(h.engage.e.get());
+    const off = h.engage.e.on('change', (v) => bs.set(v));
+    // kept while the top sheet leaves, released when it is gone
+    const done = () => { off(); ro.disconnect(); follow.current = null; if (bs.get() > 0.01) animate(bs, 0, reduce ? { duration: 0.01 } : SPRING); };
+    h.gone.add(done);
+    follow.current = () => { off(); ro.disconnect(); h.gone.delete(done); };
+    // eslint-disable-next-line
+  }, [upperId]);
+  useEffect(() => () => follow.current?.(), []);
+  return useTransform([drag, bs, dy], ([d, b, y]: number[]) => `translate3d(0, ${d + y * b}px, 0) scale(${1 - STACK_SCALE * b})`);
 }
 
 /**

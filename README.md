@@ -1479,3 +1479,17 @@ at the edges.
 - The status bar reached its full dim at 60 % of a pop-up's progress while the dim over the page grows all the way to
   100 %, so for most of the opening the bar was darker than the page under it: a band across the top. It now dims on
   the same 0 → 1 as the page.
+
+## Pop-ups stack like cards (13 Oct 2026, v0.1.82)
+- A pop-up opened from a pop-up (Food → Scan or Photo, the workout → Add exercise, any sheet over a sheet) stacks as iOS
+  does: the one below shrinks 7 % from its top and moves so only its top edge peeks 10 px above the new one, whatever the
+  new one's height (measured from where both rest, and again if the new one resizes). It follows the new sheet's own
+  progress frame for frame, so opening, dragging, closing and interrupting can never drift apart. The page under them
+  doesn't move again. The live workout window (not a Sheet) stacks the same way through `useStackedBehind` (Sheet.tsx).
+  Before, the lower sheet only shrank 6 % and rose 6 px, so half its title showed above a shorter sheet; the workout
+  didn't move at all. Omar: "a pop-up in a pop-up can stack … seamless animations and excellent animations".
+- Films are now made with a steady camera (`scripts/film-steady.mjs`): Chrome draws each frame only when asked, exactly
+  1/60 s of the app's time after the last, and it is pictured once fully drawn. The old screencast films dropped frames
+  whenever this machine was slow to draw the glass, which read as jumps and stalls the app doesn't have.
+  `scripts/film-depth.mjs` uses it, films the app at its size under the status bar and logs the bar's colour per frame,
+  and closes pop-ups with their close button (Escape is a keyboard, and left a keyboard focus ring in the films).
