@@ -14,7 +14,7 @@ import { transcribe, buildPrompt, STT_MODEL, SttError } from '../lib/groq';
 import { aiErrorText, type Photo, type Turn } from '../lib/gemini';
 import { stopSpeaking } from '../lib/tts';
 import { decide, brainFor } from '../lib/agentTurn';
-import { ActionCard, Rich, TypingDots, SpeakButton, prefetchAloud, sttMessage, useCoachTips, cardsNote } from '../ui/agentUi';
+import { ActionCard, Rich, TypingDots, SpeakButton, prefetchAloud, sttMessage, useCoachTips, cardsNote, useWordReveal } from '../ui/agentUi';
 import { runActions, type AgentResult } from '../lib/agent';
 import { uid } from '../lib/nutrition';
 import { dayKey } from '../lib/dates';
@@ -43,10 +43,22 @@ function saveThread(list: Msg[]) {
   try { localStorage.setItem(THREAD, JSON.stringify(list.slice(-60).map((m) => ('image' in m && m.image ? { ...m, image: undefined } : m)))); } catch { /* storage full: the chat just won't come back */ }
 }
 
-/** Let a word or bold phrase finish before it arrives, so streamed fragments never reshape text already shown. */
-function streamingText(text: string): string {
-  const complete = text.replace(/\S+$/, '');
-  return (complete.match(/\*\*/g)?.length ?? 0) % 2 ? complete.slice(0, complete.lastIndexOf('**')) : complete;
+/**
+ * One of the Coach's answers. It writes itself in a word at a time at a calm, steady pace (however the network delivers it),
+ * each word fading up into place; the text is laid out as it will stay, so no word ever moves once shown. Below it, the
+ * play button's row is held open from the first word, so the button fades in where room was already made and nothing is
+ * pushed when the answer ends.
+ */
+function CoachReply({ m }: { m: Extract<Msg, { role: 'user' | 'model' }> }) {
+  const { shown, done } = useWordReveal(m.text, !!m.streaming, !!m.seeded);
+  if (!shown) return <TypingDots />;
+  return (
+    <div>
+      <div className={`reply calm coach-reply${m.seeded ? ' still' : ''}`} aria-live="polite"><Rich text={shown} id={m.id} /></div>
+      {done && m.note && <div className={`xs t3 coach-after${m.seeded ? '' : ' fresh'}`} style={{ marginTop: 8 }}>{m.note}</div>}
+      <div className={`reply-foot coach-after${done ? '' : ' held'}${m.seeded ? '' : ' fresh'}`}>{done && <SpeakButton id={m.id} text={m.text} />}</div>
+    </div>
+  );
 }
 
 export function Coach({ props }: { props: { listen?: boolean; date?: string; mealId?: string; /** the orb screen's conversation, carried over by "Continue in Coach" */ seed?: { said: string; reply: string }[]; /** a question to ask as soon as it opens (the weekly review's button) */ ask?: string } }) {
@@ -109,34 +121,50 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   useLayoutEffect(() => {
     const el = bodyRef.current; if (!el) return;
     if (placed.current) { el.scrollTop = el.scrollHeight; lastScroll.current = el.scrollTop; }
+    // The list follows the conversation as it grows (an answer writing itself in, a card, the play button arriving). It goes
+    // to its end before the frame is drawn, so nothing new lands under the bar, and what it moved glides the rest of the way
+    // on one continuous spring (critically damped, ~0.5 s, starting from rest). A line that arrives while the last one is
+    // still gliding adds to the same motion instead of restarting it, so the list never steps or lurches; when something
+    // shrinks away at the end (an empty play-button row), the list glides down the same way. Drawn as `translate`, which
+    // adds to the `transform` the sent bubble's glide plays on the list at the same time.
+    const thread = el.querySelector<HTMLElement>('.coach-thread');
+    let off = 0, vel = 0, raf = 0, last = 0;
+    const draw = () => { if (thread) thread.style.translate = off ? `0 ${off.toFixed(2)}px` : ''; };
+    const step = (now: number) => {
+      const dt = Math.min(0.05, Math.max(0, now - last) / 1000); last = now;
+      const W = 10, e = Math.exp(-W * dt), c = vel + W * off; // the exact critically damped step: the same at any frame rate
+      off = (off + c * dt) * e; vel = (vel - W * c * dt) * e;
+      if (Math.abs(off) < 0.3 && Math.abs(vel) < 6) { off = 0; vel = 0; raf = 0; draw(); return; }
+      draw(); raf = requestAnimationFrame(step);
+    };
+    const glide = (d: number) => {
+      if (Math.abs(d) < 0.5) return;
+      off += d; draw();
+      if (!raf) { last = performance.now(); raf = requestAnimationFrame(step); }
+    };
+    // a finger on the list mid-glide: the rest of the glide becomes the scroll position (what you see stays put)
+    const hold = () => {
+      if (!off) return;
+      cancelAnimationFrame(raf); raf = 0;
+      el.scrollTop -= off; lastScroll.current = el.scrollTop; off = 0; vel = 0; draw();
+    };
+    el.addEventListener('touchstart', hold, { passive: true });
+    el.addEventListener('wheel', hold, { passive: true });
+    let from = -1; // where the list rests with the keyboard away, while it is open
     const ro = new ResizeObserver(() => {
       el.toggleAttribute('data-scrollable', el.scrollHeight > el.clientHeight + 1);
-      if (!following.current || el.scrollHeight - el.clientHeight - el.scrollTop <= 1) return;
+      if (!following.current) return;
       const reduce = document.documentElement.dataset.motion === 'reduce' || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      scrolling.current = !reduce;
-      if (!reduce && el.querySelector('.caret')) { scrolling.current = false; follow(); return; }
-      el.scrollTo({ top: el.scrollHeight, behavior: reduce ? 'instant' : 'smooth' });
+      const before = el.scrollTop, was = lastScroll.current;
+      if (el.scrollHeight - el.clientHeight - before > 1) {
+        el.scrollTop = el.scrollHeight;
+        if (from >= 0) from = Math.max(0, el.scrollTop - kb.get());
+        if (!reduce) glide(el.scrollTop - before);
+      } else if (!reduce && from < 0 && was - before > 0.5 && was - before < 200) glide(before - was); // shrank at its end
+      lastScroll.current = el.scrollTop;
     });
-    // While an answer writes itself in, the list grows a line at a time. A browser smooth-scroll restarts on every growth
-    // and trails behind it, so the newest lines sat under the composer. So the list goes to its end at once, before the
-    // frame is drawn (nothing ever lands under the composer), and the conversation it moved is played back up from where
-    // it was, as a transform on the browser's own clock: the same calm glide, with the new words (which start invisible)
-    // arriving above the bar.
-    let flow: Animation | null = null, from = -1; // (from: where the list rests with the keyboard away, while it is open)
-    const follow = () => {
-      const thread = el.querySelector<HTMLElement>('.coach-thread'); if (!thread) return;
-      const m = new DOMMatrix(getComputedStyle(thread).transform);
-      const before = el.scrollTop;
-      el.scrollTop = el.scrollHeight; lastScroll.current = el.scrollTop;
-      if (from >= 0) from = Math.max(0, el.scrollTop - kb.get());
-      const d = el.scrollTop - before;
-      if (d < 0.5) return;
-      flow?.cancel();
-      flow = thread.animate([{ transform: `translate3d(0, ${m.m42 + d}px, 0)` }, { transform: 'none' }], { duration: 360, easing: 'cubic-bezier(.2, .8, .2, 1)' });
-      flow.onfinish = () => { flow = null; };
-    };
     ro.observe(el);
-    const thread = el.querySelector<HTMLElement>('.coach-thread'); if (thread) ro.observe(thread);
+    if (thread) ro.observe(thread);
     const settled = () => { if (el.scrollHeight - el.clientHeight - el.scrollTop < 80) { scrolling.current = false; following.current = true; } };
     el.addEventListener('scrollend', settled);
     // The keyboard slides over the sheet and the bar rides up on it (ui/Sheet.tsx). A list resting at its end rides up the
@@ -151,10 +179,12 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       was = v;
       if (from < 0) return;
       if (v < 0.5) { el.scrollTop = from; lastScroll.current = el.scrollTop; from = -1; return; }
-      flow?.cancel();
       el.scrollTop = Math.min(from + v, el.scrollHeight - el.clientHeight); lastScroll.current = el.scrollTop;
     });
-    return () => { ro.disconnect(); offKb(); flow?.cancel(); el.removeEventListener('scrollend', settled); };
+    return () => {
+      ro.disconnect(); offKb(); cancelAnimationFrame(raf);
+      el.removeEventListener('scrollend', settled); el.removeEventListener('touchstart', hold); el.removeEventListener('wheel', hold);
+    };
   }, []);
   // A typed message lifts out of the field and glides up into its bubble, like a sent iMessage, while the conversation moves
   // up to make room on the same spring. A copy of the bubble flies above everything (the list clips its own contents), from
@@ -466,13 +496,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
                       {m.text && <div className="said" style={{ maxWidth: '100%' }}>{m.text}</div>}
                     </div>
                   )}
-                  {m.role === 'model' && (m.text ? (
-                    <div>
-                      <div className={`reply calm coach-reply${m.seeded ? ' still' : ''}`} aria-live="polite"><Rich text={m.streaming ? streamingText(m.text) : m.text} id={m.id} />{m.streaming && <span className="caret" aria-hidden />}</div>
-                      {!m.streaming && m.note && <div className="xs t3" style={{ marginTop: 8 }}>{m.note}</div>}
-                      {!m.streaming && <div className="reply-foot"><SpeakButton id={m.id} text={m.text} /></div>}
-                    </div>
-                  ) : <TypingDots />)}
+                  {m.role === 'model' && <CoachReply m={m} />}
                   {m.role === 'action' && (
                     <div className="stack gap8">
                       {m.results.map((r) => (

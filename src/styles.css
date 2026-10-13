@@ -688,7 +688,9 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .reply b { font-weight: 680; }
 .coach-reply { font-size: 16px; line-height: 1.5; }
 .calm .w { animation: wordCalm 640ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards; }
-@keyframes wordCalm { from { opacity: 0; filter: blur(6px); transform: translateY(0.18em); } to { opacity: 1; filter: blur(0); transform: none; } }
+/* each word fades up into place: opacity and a small rise only (an animated blur on every word was costly and read as
+   smudged clumps) */
+@keyframes wordCalm { from { opacity: 0; transform: translateY(0.3em); } to { opacity: 1; transform: none; } }
 /* Read aloud: the word being said lights up in the accent, the ones said settle back, the ones to come wait a shade lighter.
    Only the colour moves (no size or position change), so the text never shifts while it is read. */
 .w { transition: color 380ms ease, text-shadow 380ms ease; }
@@ -1013,9 +1015,15 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
   45% { opacity: 1; }
   to { opacity: 1; transform: none; }
 }
-/* the Coach's answers write themselves in exactly like the orb screen's: word by word, each lifting out of a soft blur
-   (.calm .w above) */
+/* the Coach's answers write themselves in word by word at a steady pace (useWordReveal), each word fading up (.calm .w
+   above). The list glides on a layer of its own (Coach.tsx), so following the answer redraws nothing. Under the answer the
+   play button's row is held open while it writes, and the button (and the quiet note) fade in where the room already is. */
 .coach-reply:not(.still) { animation: coachReply 240ms var(--ease-out) backwards; }
+.coach-thread { will-change: transform; }
+.reply-foot.held { min-height: 32px; }
+.coach-after.fresh, .coach-after.fresh .speak-btn { animation: coachAfter 520ms var(--ease-out) backwards; }
+.reply-foot.coach-after.fresh { animation: none; }
+@keyframes coachAfter { from { opacity: 0; transform: translate3d(0, 4px, 0); } }
 @keyframes coachReply { from { opacity: .65; transform: translate3d(0, 3px, 0); } to { opacity: 1; transform: none; } }
 /* a sent message in flight (Coach.tsx): a copy of the bubble above everything; its glass gathers round the words */
 .coach-fly { position: fixed; z-index: 400; margin: 0; max-width: none; box-sizing: border-box; pointer-events: none;
@@ -1025,7 +1033,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 @keyframes flyGlass { from { opacity: 0; } }
 .coach-field .input::placeholder { transition: opacity 360ms var(--ease-out); }
 .coach-field .input.sent-away::placeholder { opacity: 0; transition: none; }
-:root[data-motion='reduce'] :is(.coach-sent, .coach-reply, .coach-reply .w) { animation: none; }
+:root[data-motion='reduce'] :is(.coach-sent, .coach-reply, .coach-reply .w, .coach-after, .coach-after .speak-btn) { animation: none; }
 .coach-body :is(.action-card, .action-ic, .action-line, .tip) { animation: none; }
 .coach-body .said { background: color-mix(in srgb, var(--ac) 9%, var(--s2)); border: 0;
   box-shadow: 0 6px 18px -5px rgb(0 0 0 / .24), 0 2px 6px -2px rgb(0 0 0 / .16); }
