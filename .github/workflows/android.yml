@@ -1,0 +1,91 @@
+# Builds the Android app (android/): Aven's website in Chrome as a real app, plus the native live rest countdown.
+# Free on GitHub's machines. Then checks the countdown on an Android emulator and keeps screenshots as an artifact.
+# Release signing: repo secrets AVEN_KEYSTORE_BASE64 and AVEN_KEYSTORE_PASSWORD (without them it's signed with a
+# throwaway debug key: fine to try, but it can't be updated in place later).
+name: Android app
+on:
+  workflow_dispatch:
+  push:
+    paths: ['android/**', '.github/workflows/android.yml']
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Release key (if set up)
+        env:
+          KS: ${{ secrets.AVEN_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KS" ]; then echo "$KS" | base64 -d > "$RUNNER_TEMP/aven.jks"; echo "AVEN_KEYSTORE_FILE=$RUNNER_TEMP/aven.jks" >> "$GITHUB_ENV"; fi
+      - name: Build
+        env:
+          AVEN_KEYSTORE_PASSWORD: ${{ secrets.AVEN_KEYSTORE_PASSWORD }}
+          AVEN_VERSION_CODE: ${{ github.run_number }}
+        run: gradle -p android assembleDebug assembleRelease --stacktrace
+      - name: Signing fingerprint (for assetlinks.json)
+        run: keytool -printcert -jarfile android/app/build/outputs/apk/release/app-release.apk | tee fingerprint.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aven-android
+          path: |
+            android/app/build/outputs/apk/release/app-release.apk
+            fingerprint.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aven-android-debug
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+
+  emulator:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: aven-android-debug
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Rest countdown on an emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 36
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          script: |
+            mkdir -p shots
+            adb install -r app-debug.apk
+            adb shell pm grant app.aven.android android.permission.POST_NOTIFICATIONS
+            adb shell am broadcast -n app.aven.android/.DemoRestReceiver --ei sec 95
+            sleep 2
+            adb shell cmd statusbar expand-notifications
+            sleep 3
+            adb exec-out screencap -p > shots/1-shade.png
+            sleep 4
+            adb exec-out screencap -p > shots/2-shade-4s-later.png
+            adb shell cmd statusbar collapse
+            sleep 1
+            adb exec-out screencap -p > shots/3-status-bar.png
+            adb shell dumpsys notification --noredact > shots/notifications.txt
+            adb shell am broadcast -n app.aven.android/.DemoRestReceiver --ei sec 4
+            sleep 10
+            adb shell dumpsys notification --noredact > shots/after-alarm.txt
+            adb shell cmd statusbar expand-notifications
+            sleep 2
+            adb exec-out screencap -p > shots/4-rest-over.png
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: aven-android-emulator
+          path: shots
