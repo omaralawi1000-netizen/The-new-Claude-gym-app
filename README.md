@@ -1214,7 +1214,7 @@ No word on the orb screen animates a blur any more: your spoken words write in w
 (`saidWrite`), and the live text and the exchange leave with a fade and rise (their exit blur is gone). The unused red
 writing cursor's style is deleted.
 
-## Focus view: no empty card while paging, and a calmer workout bar (13 Oct 2026, v0.1.54)
+## Focus view: no empty card while paging, and a calmer workout bar (13 Oct 2026, v0.1.55)
 
 - **Empty card:** a page that was not built yet showed only its title (a stand-in). Pages were built one step ahead after a
   pause and *dropped again* when you moved on, so a quick flick, or a swipe soon after opening, landed on the stand-in.
@@ -1227,3 +1227,7 @@ writing cursor's style is deleted.
   The orb has a soft accent bloom behind it. "Rest over" swells a ring once and settles to a faint one: opacity only.
   The darker square around the orb was seen on the phone only; it could not be reproduced headless, so the layer split is
   the fix to check on the phone.
+## No more animated blur on Onboarding and Food (13 Oct 2026, v0.1.55)
+
+The Onboarding step change and the Food page's date title animated a blur as they changed. Both now move with opacity and
+the same small slide only, on the same timing (0.22 s and 0.34 s), per the rule that blur never animates.
