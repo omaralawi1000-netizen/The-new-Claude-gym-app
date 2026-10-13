@@ -1279,3 +1279,15 @@ action frame by frame to confirm it.
   while the workout opens are unchanged.
 - Known, left as is: when you move an exercise up or down, the two cards glide past each other and their text overlaps
   for a few frames (the cards are see-through).
+
+## Soft focus that looks like a real focus pull (13 Oct 2026, v0.1.62)
+
+On the phone the v0.1.57 blur-in "looked very fake" (Omar, 13 Oct, two recordings). Frame by frame, each new word arrived
+as a bright, bold smudge (the glow was two text-shadows at 85%, about twice the light of the text) and then sat as a sharp
+word with a halo round it until 82% of its time. Now each word passes through two still copies, a wide blur
+(`.soft::before`, .42em) and a slight one (`.soft::after`, .16em), and then the sharp text (`softFar` / `softNear` /
+`softSharp`). The curves come from a real blur that eases off while the word's light eases in, and were checked frame by
+frame against `filter: blur` of the same word: a text-shadow carries the same light as the text, so each copy looks like
+the word blurred, never bolder; the hand-overs carry a little extra (power .75) so the word never dims between steps. The
+blur is gone at 60% of the word's time and nothing glows round a sharp word. Still opacity only; smoothness at 4x CPU
+unchanged. Same everywhere text writes in (Coach and orb answers, spoken words, Food date, Onboarding titles).
