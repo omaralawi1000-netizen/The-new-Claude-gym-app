@@ -1336,3 +1336,14 @@ sending, the dots and the answer wrote themselves in *under* the bar.
 - The flying message's glass gathers sooner (no bare text mid-flight). Recording shows "Listening…" (it was cut off).
 - Checked with a simulated keyboard at 4× CPU (`kb-probe`): the last line stays 28 px above the bar in every frame of
   open/close; before, after a send it sat up to 520 px under it. Main-thread time while the keyboard moves is unchanged.
+
+## Coach: a calm "New chat", answers that read like a page (13 Oct 2026, v0.1.67)
+
+- **New chat**: the old conversation used to flash back for a frame after fading out (the fade was let go before the
+  messages left the page; now it is let go in a layout effect once they are gone). The suggestions then rise in one after
+  another (they used to pop in together), the "AI can be wrong" note fades in after them, and the "New chat" button fades
+  out instead of blinking away (it fades back with the first message).
+- **Reading**: paragraphs and bullet points come from classes now (`.rich-p`, `.rich-li`) instead of inline margins. In the
+  Coach a paragraph break is 12 px, a list sits 10 px apart from the sentence before and after it. The orb screen keeps 8/4.
+- **Play button**: under each Coach answer it is a quiet glyph, lined up with the text, instead of a filled circle (a column
+  of circles down the chat read as noise). It keeps its 32 px tap area and gets its colour and ring while it reads aloud.

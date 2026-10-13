@@ -89,6 +89,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     ...(x.reply ? [{ id: uid('m'), role: 'model' as const, text: x.reply, seeded: true, at: Date.now() }] : []),
   ])]);
   const [leaving, setLeaving] = useState<Msg[] | null>(null);
+  const [cleared, setCleared] = useState(false); // "New chat" was tapped: the suggestions rise in one after another
   // A long saved chat is not built all at once on the tap that opens the Coach (60 messages of word-by-word text held the
   // tap for ~90 ms on the phone): the newest ones are there from the first frame, scrolled to the bottom as always, and the
   // older ones are added above them a couple at a time once the sheet has risen, with the scroll kept exactly in place.
@@ -277,18 +278,24 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
 
 
   const say = (m: Msg) => setMsgs((x) => [...x, m]);
+  // the fade is let go only once the old messages are out of the page (letting it go first showed them again for a frame)
+  const cleared$ = useRef<Animation | null>(null);
   const finishClear = () => {
     const animation = clearing.current; clearing.current = null;
-    if (animation) { animation.onfinish = null; animation.cancel(); }
-    const thread = bodyRef.current?.querySelector<HTMLElement>('.coach-thread'); if (thread) thread.style.pointerEvents = '';
+    if (animation) { animation.onfinish = null; cleared$.current = animation; }
     setLeaving(null);
   };
+  useLayoutEffect(() => {
+    if (leaving || !cleared$.current) return;
+    cleared$.current.cancel(); cleared$.current = null;
+    const thread = bodyRef.current?.querySelector<HTMLElement>('.coach-thread'); if (thread) thread.style.pointerEvents = '';
+  }, [leaving]);
   const clearChat = () => {
     if (clearing.current) return;
     const previous = msgsRef.current;
     ctl.current?.abort(); stopSpeaking();
     // Clear the conversation now; only its visible text waits for the brief exit.
-    msgsRef.current = []; setMsgs([]); saveThread([]); setResumed(false); setOlder(0);
+    msgsRef.current = []; setMsgs([]); saveThread([]); setResumed(false); setOlder(0); setCleared(true);
     const thread = bodyRef.current?.querySelector<HTMLElement>('.coach-thread');
     const reduce = document.documentElement.dataset.motion === 'reduce' || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (!thread || reduce) return;
@@ -463,7 +470,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   const tipsBlock = (
               <div className="stack gap12">
                 {noKey && <div className="small" style={{ color: 'var(--warn)' }}>{t('Add an AI key to chat.')} <button className="chip sm acc press" style={{ marginLeft: 6 }} onClick={() => push('settings', { section: 'ai' })}>{t('Add a key')}</button></div>}
-                <div className="tips">{tips.map((c, i) => (
+                <div className={`tips${cleared ? ' fresh' : ''}`}>{tips.map((c, i) => (
                   <button key={c.prompt} className="tip press" style={{ ['--i' as string]: i }} onClick={() => send(c.prompt)}>
                     <span className="tip-ic"><Icon name={c.icon} size={18} /></span>
                     <span className="grow" style={{ textAlign: 'left', minWidth: 0 }}><span className="tip-l">{c.label}</span>{c.prompt !== c.label && <span className="tip-p">{c.prompt}</span>}</span>
@@ -503,7 +510,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
         </div>
       </div>
     )}>
-      <SheetHead title={t('Coach')} onClose={pop} right={shown.length ? <button className="small t2 press" onClick={clearChat}>{t('New chat')}</button> : undefined} />
+      <SheetHead title={t('Coach')} onClose={pop} right={<button className={`small t2 press coach-new${shown.length ? '' : ' gone'}`} onClick={clearChat} tabIndex={shown.length ? 0 : -1} aria-hidden={!shown.length}>{t('New chat')}</button>} />
       <div className="sheet-body coach-body" data-kb-own ref={bodyRef} onScroll={(e) => {
         const el = e.currentTarget;
         if (user.current) { movedAt.current = performance.now(); pinned.current = endTop(el) - el.scrollTop < 80; }
@@ -536,7 +543,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
               ))}
             </div>
             {resumed && shown.length > 0 && <div className="coach-resume"><div className="micro" style={{ margin: '22px 0 10px' }}>{t('Today')}</div>{tipsBlock}</div>}
-            {!noteSeen && shown.length === 0 && <div className="xs t3" style={{ marginTop: 18 }}>{solOn(ai) ? t('AI can be wrong, and isn’t medical advice. Messages go to OpenAI (GPT-6.1 Sol).') : t('AI can be wrong, and isn’t medical advice. Messages go to Google Gemini.')}</div>}
+            {!noteSeen && shown.length === 0 && <div className={`xs t3${cleared ? ' coach-note-fresh' : ''}`} style={{ marginTop: 18 }}>{solOn(ai) ? t('AI can be wrong, and isn’t medical advice. Messages go to OpenAI (GPT-6.1 Sol).') : t('AI can be wrong, and isn’t medical advice. Messages go to Google Gemini.')}</div>}
           </>
       </div>
     </Sheet>

@@ -205,8 +205,8 @@ export function Rich({ text, id, stagger }: { text: string; id?: string; stagger
     return p.bold ? <b key={i}><Words text={p.text} k={`${k}b${i}`} base={base} on={on} stagger={stagger} /></b> : <Words key={i} text={p.text} k={`${k}t${i}`} base={base} on={on} stagger={stagger} />;
   });
   return <>{richLines(text).map((l, i) => {
-    if (l.bullet) return <div key={i} style={{ display: 'flex', gap: 8, marginTop: 4 }}><span aria-hidden className="w" style={{ color: 'var(--tx3)' }}>•</span><span>{run(l.segs, `l${i}`)}</span></div>;
-    return l.segs.some((x) => x.text.trim()) ? <div key={i} style={{ marginTop: i ? 8 : 0 }}>{run(l.segs, `l${i}`)}</div> : null;
+    if (l.bullet) return <div key={i} className="rich-li"><span aria-hidden className="w" style={{ color: 'var(--tx3)' }}>•</span><span>{run(l.segs, `l${i}`)}</span></div>;
+    return l.segs.some((x) => x.text.trim()) ? <div key={i} className={i ? 'rich-p' : undefined}>{run(l.segs, `l${i}`)}</div> : null;
   })}</>;
 }
 
