@@ -11,7 +11,11 @@ export function outMeter(ac: AudioContext): AnalyserNode {
   if (!meter || meter.context !== ac) { meter = ac.createAnalyser(); meter.fftSize = 1024; meter.connect(ac.destination); buf = null; }
   return meter;
 }
-export const setVoiceOut = (v: boolean) => { on = v; };
+const subs = new Set<(v: boolean) => void>();
+export const setVoiceOut = (v: boolean) => { if (v === on) return; on = v; subs.forEach((f) => f(v)); };
+/** Called when the reply starts or stops being read aloud (the Orb light background brightens while it is). */
+export const onVoiceOut = (f: (v: boolean) => void) => { subs.add(f); return () => { subs.delete(f); }; };
+export const voiceOutOn = () => on;
 
 /** How loud the reply being read aloud is right now, 0..1 (0 when nothing is playing). */
 export function speakingLevel(): number {
