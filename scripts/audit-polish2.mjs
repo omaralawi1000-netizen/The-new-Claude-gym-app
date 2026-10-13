@@ -74,7 +74,7 @@ for (const pg of pages) {
     await act('training: effort RPE', () => p.locator('.sheet .seg').first().locator('button').nth(1).click(), 1200);
     await act('training: effort Off', () => p.locator('.sheet .seg').first().locator('button').nth(0).click(), 1200);
   }
-  await act(`settings: back from ${pg}`, () => p.getByRole('button', { name: 'Back' }).first().click(), 1300);
+  await act(`settings: back from ${pg}`, () => p.locator('.sheet [aria-label=Back]').first().click(), 1300);
 }
 await act('settings: close', () => esc(2));
 
