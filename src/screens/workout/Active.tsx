@@ -8,7 +8,7 @@ import { Icon } from '../../ui/Icon';
 import { Collapse, NumInput, Stepper } from '../../ui/kit';
 import { Roll } from '../../ui/Roll';
 import { flip } from '../../ui/flip';
-import { Sheet, SheetHead, SOFT, useOverlayZ } from '../../ui/Sheet';
+import { Sheet, SheetHead, SOFT, useOverlayZ, useStackedBehind } from '../../ui/Sheet';
 import { beatLastTime, newBest, elapsedMs, historyOf, incrementFor, lastPerformance, repRange, sessionSetCount, sessionVolume, suggestProgression, countable } from '../../lib/workout';
 import { fmtDuration } from '../../lib/dates';
 import { displayToKg, kgToDisplay, fmtNum, displayToM, mToDisplay } from '../../lib/units';
@@ -74,6 +74,8 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
   const sheetTop = (pp: number) => (1 - pp) * (H + 64);
   const sheetT = useTransform(p, (pp) => `translateY(${sheetTop(pp).toFixed(2)}px)`);
   const dragT = useTransform(dragY, (d) => Math.max(0, d) + Math.min(0, d) * 0.15);
+  // a sheet opened on top (the exercise list, an exercise's page): the window steps back a little behind it
+  const cardT = useStackedBehind(dialogRef, dragT);
   const dialogY = useTransform([p, dragY], ([pp, d]: number[]) => sheetTop(pp) + Math.max(0, d) + Math.min(0, d) * 0.15); // how far the content is displaced (for the orb)
   const eFinger = useTransform([p, dragY], ([pp, d]: number[]) => Math.min(1, Math.max(0, pp - Math.max(0, d) / H)));
   const engage = useMemo(() => ({ e: eFinger, shift: dialogY }), [eFinger, dialogY]);
@@ -334,7 +336,7 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
       <Veil e={eFinger} z={z - 1} onClick={() => close()} layers={DIM_VEIL} elRef={scrimRef} className={hidden ? 'wk-off' : ''} />
       <motion.div
         role={hidden ? undefined : 'dialog'} aria-modal={hidden ? undefined : 'true'} aria-label={t('Active workout')} aria-hidden={hidden || undefined}
-        ref={dialogRef} data-hue="train" className={`wk-card${hidden ? ' wk-off' : ''}`} style={{ zIndex: z, y: dragT }}
+        ref={dialogRef} data-hue="train" className={`wk-card${hidden ? ' wk-off' : ''}`} style={{ zIndex: z, transform: cardT, transformOrigin: '50% 0%' }}
       >
         <WkLive.Provider value={!hidden}>
         <motion.div ref={sheetRef} className="wk-sheet" style={{ transform: sheetT }}>
