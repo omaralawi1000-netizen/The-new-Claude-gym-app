@@ -1383,3 +1383,24 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .fg-bench .pad { fill: color-mix(in srgb, var(--tx) 20%, var(--bg)); }
 .fg-bench .leg { fill: color-mix(in srgb, var(--tx) 12%, var(--bg)); }
 .fg-floor { stroke: color-mix(in srgb, var(--tx) 14%, transparent); stroke-width: 1; }
+
+/* the finish screen: the four numbers land one after another (each counts up as it lands, Summary.tsx), then one line */
+.sum-stat { animation: sumIn 620ms var(--ease-out) both; animation-delay: calc(0.2s + var(--i) * 0.32s); }
+@keyframes sumIn { from { opacity: 0; transform: translate3d(0, 10px, 0); } }
+.sum-line { margin: 18px 4px 0; text-align: center; font-size: 24px; line-height: 1.2; font-style: italic; text-wrap: balance;
+  animation: sumLine 900ms var(--ease-out) both; animation-delay: var(--d, 0s); }
+@keyframes sumLine { from { opacity: 0; transform: translate3d(0, 8px, 0); } }
+.sum-line-in { animation: sumLine 700ms var(--ease-out) both; animation-delay: var(--d, 0s); }
+
+/* the workout's living light (Breath in Active.tsx): the window's top light breathes in and out over ~11 s, in 80 tiny steps
+   each way (~14 a second, each under half a percent of brightness, too small to see) instead of a redraw every frame; a warmer light fades in over the first
+   hour (--warm). Inside the colour field, so Background glow Off removes it and Soft dims it. */
+.wk-breath { position: absolute; left: -10%; top: -14%; width: 120%; height: 62%; pointer-events: none; opacity: var(--aurora-a); }
+.wk-breath > b { position: absolute; inset: 0; will-change: opacity; animation: breathe 5.5s infinite alternate; }
+.wk-breath > b::before, .wk-breath > b::after { content: ''; position: absolute; inset: 0; }
+.wk-breath > b::before { background: radial-gradient(ellipse 55% 60% at 32% 30%, color-mix(in srgb, var(--h1) 55%, transparent), transparent 72%); }
+.wk-breath > b::after { opacity: var(--warm, 0); transition: opacity 6s ease-in-out;
+  background: radial-gradient(ellipse 60% 62% at 40% 32%, color-mix(in srgb, var(--h3) 60%, transparent), transparent 72%); }
+.wk-breath.hold > b { animation-play-state: paused; }
+@keyframes breathe { 0.0% { opacity: 0.4000; animation-timing-function: steps(10, jump-none); } 12.5% { opacity: 0.4228; animation-timing-function: steps(10, jump-none); } 25.0% { opacity: 0.4879; animation-timing-function: steps(10, jump-none); } 37.5% { opacity: 0.5852; animation-timing-function: steps(10, jump-none); } 50.0% { opacity: 0.7000; animation-timing-function: steps(10, jump-none); } 62.5% { opacity: 0.8148; animation-timing-function: steps(10, jump-none); } 75.0% { opacity: 0.9121; animation-timing-function: steps(10, jump-none); } 87.5% { opacity: 0.9772; animation-timing-function: steps(10, jump-none); } 100.0% { opacity: 1.0000; } }
+:root[data-motion='reduce'] .wk-breath > b { animation: none; }
