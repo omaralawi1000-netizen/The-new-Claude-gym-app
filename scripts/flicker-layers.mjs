@@ -22,7 +22,7 @@ const scen = [
   ['settings ← back 2', () => p.getByLabel('Back').first().click()],
   ['settings close', () => p.keyboard.press('Escape')],
   ['food tab', tab('Food')],
-  ['food search open', () => p.getByText('Add food').first().click()],
+  ['food search open', () => p.getByLabel(/^Add to /).first().click()],
   ['food search close', () => p.keyboard.press('Escape')],
   ['today tab', tab('Today')],
 ].filter(([n]) => !only.length || only.some((o) => n.includes(o)));

@@ -34,7 +34,8 @@ export async function steady({ theme = 'light', size = { width: 384, height: 802
     for (let i = 0; i < frames; i++) {
       let r = await frame(true), tries = 0;
       while (!r.screenshotData && tries++ < 8) r = await frame(true, 0.01); // a frame that drew nothing: ask again, at (almost) the same time
-      if (process.env.FRAMELOG) log.push(await p.evaluate((sel) => { const e = document.querySelector(sel); return { now: performance.now(), tf: e ? getComputedStyle(e).transform : null, top: e ? e.getBoundingClientRect().top : null }; }, process.env.FRAMELOG).catch(() => null));
+      // FRAMELOG='.sheet, .wk-card': where each of those is at this frame (top edge in px, scale), read from the page itself
+      if (process.env.FRAMELOG) log.push(await p.evaluate((sel) => [...document.querySelectorAll(sel)].map((e) => { const r = e.getBoundingClientRect(); return [e.className.split(' ')[0] + (e.getAttribute('aria-label') ? ':' + e.getAttribute('aria-label') : ''), Math.round(r.top * 10) / 10, Math.round((r.width / e.offsetWidth) * 1000) / 1000]; }), process.env.FRAMELOG).catch(() => null));
       skips.push(tries);
       const out = `${dir}/${String(times.length).padStart(3, '0')}.jpg`;
       if (r.screenshotData) fs.writeFileSync(out, Buffer.from(r.screenshotData, 'base64'));

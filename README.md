@@ -1487,7 +1487,8 @@ at the edges.
   doesn't move again. The live workout window (not a Sheet) stacks the same way through `useStackedBehind` (Sheet.tsx).
   It always comes to rest in the same place (its top edge 10 px above a full sheet's top), whatever the new sheet's
   height, and its title fades as it steps back, so above a shorter sheet you see the back of a card, not half a title.
-  The status bar takes the second dim too. Before, the lower sheet only shrank 6 % and rose 6 px, so half its title
+  It steps back by how much of the new sheet is in view, so on close it is fully back the moment the top sheet has left
+  the screen (before, it finished about 15 frames later, which read as a lag). The status bar takes the second dim too. Before, the lower sheet only shrank 6 % and rose 6 px, so half its title
   showed above a shorter sheet; the workout didn't move at all. Omar: "a pop-up in a pop-up can stack … seamless animations and excellent animations".
 - Films are now made with a steady camera (`scripts/film-steady.mjs`): Chrome draws each frame only when asked, exactly
   1/60 s of the app's time after the last, and it is pictured once fully drawn. The old screencast films dropped frames

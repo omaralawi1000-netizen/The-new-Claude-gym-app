@@ -111,6 +111,13 @@ const STACK_PEEK = 10;
  * the height of the sheet on top (one that ran down to meet a shorter sheet left a dark gap above the stack). How far it
  * moves to get there, from where it rests (its layout box, so its current motion doesn't count). */
 const stackShift = (me: HTMLElement | null) => (me ? satPx() + 10 - STACK_PEEK - me.offsetTop : -STACK_PEEK);
+/** How far a sheet is stepped back, from the progress of the one on top: by how much of that one is in view (it travels
+ * further than the screen: its own height and a little more). So the sheet under it starts to step back as the top one
+ * comes into view, and is fully back in place the moment it has left the screen, not a dozen frames later. */
+const inView = (top: HTMLElement) => {
+  const travel = Math.max(1, window.innerHeight - top.offsetTop), dist = top.offsetHeight + 40; // dist: the top sheet's own travel (measure, below)
+  return (v: number) => clamp01(1 - ((1 - v) * dist) / travel);
+};
 
 /**
  * Bottom sheet: swipe down from anywhere (when its list is at the top) or flick to dismiss; interruptible; keyboard-aware.
@@ -311,8 +318,9 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
     if (h?.small) return; // a small pop-up on top: this one stays where it is, as the page does
     dy.set(stackShift(ref.current));
     if (!h) { const c = animate(bs, 1, reduce ? { duration: 0.01 } : SPRING); return () => c.stop(); }
-    bs.set(h.engage.e.get());
-    const off = h.engage.e.on('change', (v) => bs.set(v));
+    const seen = inView(h.el);
+    bs.set(seen(h.engage.e.get()));
+    const off = h.engage.e.on('change', (v) => bs.set(seen(v)));
     const done = () => { off(); follow.current = null; if (bs.get() > 0.01) animate(bs, 0, reduce ? { duration: 0.01 } : SPRING); };
     h.gone.add(done);
     follow.current = () => { off(); h.gone.delete(done); };
@@ -380,8 +388,9 @@ export function useStackedBehind(el: { current: HTMLElement | null }, drag: Moti
     if (!h || h.small) return;
     follow.current?.();
     dy.set(stackShift(el.current));
-    bs.set(h.engage.e.get());
-    const off = h.engage.e.on('change', (v) => bs.set(v));
+    const seen = inView(h.el);
+    bs.set(seen(h.engage.e.get()));
+    const off = h.engage.e.on('change', (v) => bs.set(seen(v)));
     // kept while the top sheet leaves, released when it is gone
     const done = () => { off(); follow.current = null; if (bs.get() > 0.01) animate(bs, 0, reduce ? { duration: 0.01 } : SPRING); };
     h.gone.add(done);
