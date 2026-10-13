@@ -385,6 +385,10 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   const fit = () => {
     const ta = inputRef.current, m = measureRef.current, bar = composerRef.current, body = bodyRef.current;
     if (!ta || !m || !bar) return;
+    // Open wide while it has the keyboard, and while there are words in it (as on iOS: a draft keeps the bar wide, so its
+    // lines never re-wrap under the camera coming back). Set straight on the bar: a state change here re-rendered the
+    // whole conversation on every tap into the field and out of it.
+    bar.classList.toggle('open', document.activeElement === ta || ta.value.length > 0);
     const cs = getComputedStyle(ta);
     m.style.width = `${ta.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)}px`;
     m.textContent = `${ta.value || ta.placeholder}\u200b`;
@@ -392,15 +396,25 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     bar.classList.toggle('cf-full', all > CF_LINES); // (only then can it scroll: a scroller of its own otherwise came and went with the keyboard)
     const mid = (lines - 1) * CF_LINE;
     if (mid === grown.current) return;
+    // The words ride the pill's edge: their box takes its new height at once, and they are played back from where they
+    // were on the pill's own spring, so the line that moves up rises with the top edge, 16 px inside it, never cut by it
+    // (the box's window is inset from the rim: a new line comes up into it from inside the pill, as text does on iOS).
+    const was = grown.current;
     grown.current = mid;
+    const still = document.documentElement.dataset.motion === 'reduce' || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (was >= 0 && !still) {
+      const now = ta.getAnimations().find((a) => a.id === 'cf-grow');
+      const off = now ? new DOMMatrixReadOnly(getComputedStyle(ta).transform).f : 0;
+      now?.cancel();
+      const a = ta.animate([{ transform: `translateY(${off + mid - was}px)` }, { transform: 'translateY(0px)' }], { duration: GROW.duration, easing: GROW.easing });
+      a.id = 'cf-grow';
+    }
     bar.style.setProperty('--mid', `${mid}px`);
     bar.style.setProperty('--mid-k', String((mid + 4) / (CF_MAX + 4)));
     bar.style.setProperty('--sh-y', String((54 + mid) / 54));
     body?.style.setProperty('--grow', `${mid}px`); body?.style.setProperty('--grow-pad', `${mid}px`);
   };
-  // the field has the keyboard: the bar is open wide (a class set straight on the bar: a state change here re-rendered the
-  // whole conversation on every tap into the field and out of it)
-  const openBar = (on: boolean) => { composerRef.current?.classList.toggle('open', on); fit(); };
+  const openBar = () => fit();
   useLayoutEffect(fit, [input]);
   // the shadow under the pill is stretched rather than redrawn: how much wider the open pill is than the resting one
   useLayoutEffect(() => {
@@ -614,8 +628,8 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
             <div className="cf-measure" ref={measureRef} aria-hidden="true" />{/* (first: under the layers, so it never gets one of its own) */}
             <i className="cf-sh" /><i className="cf-glass" />
             <i className="cf-tint"><i className="cf-l cf-b" /><i className="cf-r cf-b" /><i className="cf-l cf-m" /><i className="cf-r cf-m" /><i className="cf-l cf-t" /><i className="cf-r cf-t" /></i>
-            <textarea ref={inputRef} className="input" rows={1} onFocus={() => openBar(true)} onBlur={() => openBar(false)} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
-              enterKeyHint="send" placeholder={recording ? t('Listening…') : hearing ? t('Transcribing…') : t('Ask the Coach')} aria-label={t('Message the Coach')} disabled={recording || hearing} />
+            <div className="cf-text"><textarea ref={inputRef} className="input" rows={1} onFocus={openBar} onBlur={openBar} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
+              enterKeyHint="send" placeholder={recording ? t('Listening…') : hearing ? t('Transcribing…') : t('Ask the Coach')} aria-label={t('Message the Coach')} disabled={recording || hearing} /></div>
             {/* Send is an arrow inside the field, there only when there is something to send (Stop while it works) */}
             <button className={`coach-send press ${busy || input.trim() || photo ? 'on' : ''}`} onMouseDown={(e) => e.preventDefault() /* the field keeps the keyboard until the message has landed */} aria-label={busy ? t('Stop') : t('Send')} tabIndex={busy || input.trim() || photo ? 0 : -1} onClick={() => (busy ? ctl.current?.abort() : send())}>
               <Icon name={busy ? 'close' : 'arrowUp'} size={18} sw={2.6} />

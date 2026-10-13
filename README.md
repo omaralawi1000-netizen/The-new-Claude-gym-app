@@ -1783,7 +1783,9 @@ there was a version where you did it without the blur, it came out smooth". He a
   (`apple(0.5, 0.25)`); the end of the conversation rises with it. Moves only: the tint and rim are six solid pieces in
   one see-through group (left and right columns of top cap, middle, bottom cap: the left column slides, the top caps
   rise, the middles stretch), the frost never moves (only its outline is cut back, `clip-path`), the shadow stretches,
-  and the text box grows a line at once but is cut back to the pill's rising edge. Interruptible.
+  and the words sit in a window 10 px inside the rim: their box grows a line at once and is played back from where it
+  was on the same spring, so the lines that move rise with the top edge and are never cut by it. Interruptible. A draft
+  keeps the bar wide when the keyboard goes (as on iOS), so its lines never re-wrap under the returning camera.
 - **Sending**: the bubble rises out from behind the pill's top edge (it flies inside a window that ends there, riding
   with the keyboard), never across the control, and "Ask the Coach" fades back in at once.
 - Cost (4x CPU audit): no long tasks and no dropped layers on keyboard up/down. Three things that made layers come and go
