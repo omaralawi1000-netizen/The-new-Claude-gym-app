@@ -1427,6 +1427,11 @@ flicker fingerprint). `--film a,b` films chosen actions, `--light` for the light
     "shown" state is a yielding render): 95-150 ms → 75-130.
   - Keyboard: proven at 120 fps (virtual time, 1/120 s steps, the keyboard drawn from the app's own curve, which matches
     Android's 285 ms IME curve within 3 %): the tapped field moves every frame with the keyboard, start to end.
+- v0.1.84, from Omar's "the orb doesn't have seamless animations on some pop-ups": every orb move was checked frame by
+  frame against v0.1.72 (Settings, Coach, voice, rest start/panel/end, picker, workout open/minimise/resume). One had
+  broken: the Coach. The v0.1.77 tuck (orb waits under a rising window) was meant for the live workout only, but it ran
+  for the Coach too; the Coach's sheet rests lower, so the orb left the dock ~120 px early and popped (up to 573 px in one
+  frame) instead of gliding to the mic. The tuck is now for the workout window only (`tucks` in Sphere.tsx).
 
 ## Android app: the rest as a live countdown, new icon, calmer opening (13 Oct 2026, v0.1.72)
 Omar's phone showed the website's plain notice ("Back at 10:02", the site's address) instead of the app's countdown.
