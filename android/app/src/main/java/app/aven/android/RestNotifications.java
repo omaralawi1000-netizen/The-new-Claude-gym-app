@@ -18,6 +18,7 @@ import android.os.SystemClock;
 import android.service.notification.StatusBarNotification;
 import android.text.SpannableString;
 import android.text.Spanned;
+import android.text.style.ForegroundColorSpan;
 import android.text.style.RelativeSizeSpan;
 import android.view.View;
 import android.widget.RemoteViews;
@@ -240,9 +241,7 @@ final class RestNotifications {
             .setCategory(Notification.CATEGORY_STOPWATCH)
             .setVisibility(Notification.VISIBILITY_PUBLIC)
             .setContentIntent(tap(c))
-            .setDeleteIntent(own(c, ACTION_GONE, null))
-            .addAction(new Notification.Action.Builder(null, r.more, own(c, ACTION_MORE, chromeMore)).build())
-            .addAction(new Notification.Action.Builder(null, r.skip, own(c, ACTION_SKIP, chromeSkip)).build());
+            .setDeleteIntent(own(c, ACTION_GONE, null));
         if (Build.VERSION.SDK_INT >= 31) b.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE);
         int max = (int) (total / 100), at = (int) (left / 100); // the bar: what's left of the rest, draining
         if ((Build.VERSION.SDK_INT >= 36 && promoted == null) || Boolean.TRUE.equals(promoted)) {
@@ -257,6 +256,9 @@ final class RestNotifications {
                 b.setContentTitle(r.line).setContentText(r.exercise)
                     .setWhen(r.endsAt).setShowWhen(true).setUsesChronometer(true).setChronometerCountDown(true);
             }
+            // Android's own buttons here, in Aven's colour where the phone keeps it
+            b.addAction(new Notification.Action.Builder(null, ember(r.more, ember), own(c, ACTION_MORE, chromeMore)).build())
+                .addAction(new Notification.Action.Builder(null, ember(r.skip, ember), own(c, ACTION_SKIP, chromeSkip)).build());
             if (Build.VERSION.SDK_INT >= 36) {
                 b.setStyle(new Notification.ProgressStyle()
                     .setProgressSegments(Collections.singletonList(new Notification.ProgressStyle.Segment(max).setColor(ember)))
@@ -265,10 +267,18 @@ final class RestNotifications {
                 b.setProgress(max, at, false);
             }
         } else {
-            // our own layout under Android's header (app, exercise) and above the buttons: big numbers, the set, the bar
+            // our own layout under Android's header (app, exercise): big numbers, the set, the bar and our own +30 s / Skip
+            // (Android's are thin words in the phone's blue, pushed left). Folded there's no header, so the exercise is ours.
             RemoteViews small = countdown(c, R.layout.rest_small, r, left, ticking);
+            small.setTextViewText(R.id.exercise, r.exercise);
+            small.setViewVisibility(R.id.exercise, r.exercise.isEmpty() ? View.GONE : View.VISIBLE);
+            small.setProgressBar(R.id.bar, max, at, false);
             RemoteViews big = countdown(c, R.layout.rest_big, r, left, ticking);
             big.setProgressBar(R.id.bar, max, at, false);
+            big.setTextViewText(R.id.more, r.more);
+            big.setTextViewText(R.id.skip, r.skip);
+            big.setOnClickPendingIntent(R.id.more, own(c, ACTION_MORE, chromeMore));
+            big.setOnClickPendingIntent(R.id.skip, own(c, ACTION_SKIP, chromeSkip));
             b.setStyle(new Notification.DecoratedCustomViewStyle()).setCustomContentView(small).setCustomBigContentView(big)
                 .setSubText(r.exercise).setShowWhen(false);
         }
@@ -289,6 +299,13 @@ final class RestNotifications {
             v.setChronometerCountDown(R.id.chrono, true);
         }
         return v;
+    }
+
+    /** A button's words in ember (Android keeps the colour on some phones and drops it on others). */
+    private static CharSequence ember(String text, int colour) {
+        SpannableString s = new SpannableString(text);
+        s.setSpan(new ForegroundColorSpan(colour), 0, text.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        return s;
     }
 
     /** "1:42" (rounded up, so it says 0:01 until the very end, like a kitchen timer). */

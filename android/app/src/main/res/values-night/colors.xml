@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ember_text">#F59A68</color>
+    <color name="ember_pill">#2EE8743B</color>
+    <color name="ember_track">#40E8743B</color>
+</resources>

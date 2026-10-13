@@ -32,8 +32,7 @@ notes demo
 adb uninstall app.aven.android
 
 # 2. the signed app, then the rest notification through Chrome
-adb install -r release/aven.apk
-adb shell pm grant app.aven.android android.permission.POST_NOTIFICATIONS
+adb install -r release/aven.apk # no permission granted by script: the app must ask for it itself, as on a phone
 adb shell 'echo "_ --disable-fre --no-default-browser-check --no-first-run" > /data/local/tmp/chrome-command-line'
 adb shell am set-debug-app --persistent com.android.chrome
 adb shell am force-stop com.android.chrome
@@ -44,9 +43,22 @@ cdp set
 # the app; the website in it shows the rest notification (as it does the moment you leave mid-rest), then you leave
 adb shell am start -n app.aven.android/com.google.androidbrowserhelper.trusted.LauncherActivity
 for i in 1 2 3 4; do timeout 5 adb exec-out screencap -p > shots/6a-launch-$i.png; done # the opening, frame by frame
-sleep 4
+# the first opening asks to allow notifications: tap Allow like a person would
+sleep 3
+adb exec-out screencap -p > shots/6c-ask.png
+tapid() { timeout 15 adb shell uiautomator dump /sdcard/ui.xml >/dev/null; adb shell cat /sdcard/ui.xml > shots/ui-$2.xml
+  XY=$(python3 - "$1" "shots/ui-$2.xml" <<'PY'
+import re, sys
+x = open(sys.argv[2]).read()
+m = re.search(r'resource-id="' + re.escape(sys.argv[1]) + r'"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', x)
+print(f"{(int(m[1])+int(m[3]))//2} {(int(m[2])+int(m[4]))//2}" if m else "")
+PY
+); echo "$1 at: ${XY:-not found}" | tee -a shots/rest-real.txt; [ -n "$XY" ] && adb shell input tap $XY; }
+tapid com.android.permissioncontroller:id/permission_allow_button ask
+sleep 6
+adb shell dumpsys package app.aven.android | grep -m1 "POST_NOTIFICATIONS" | sed 's/^ */notification permission: /' | tee -a shots/rest-real.txt
 timeout 10 adb exec-out screencap -p > shots/6-app.png
-cdp rest 95 | tee shots/rest-real.txt
+cdp rest 95 | tee -a shots/rest-real.txt
 timeout 10 adb shell input keyevent KEYCODE_HOME
 sleep 4
 notes real-countdown
@@ -58,6 +70,22 @@ sleep 3
 shade 2b-real-shade-dark
 timeout 10 adb shell cmd uimode night no
 sleep 2
+# our own +30 s button, tapped like a finger would (it must still reach the app and the website)
+adb shell cmd statusbar expand-notifications; sleep 2
+timeout 15 adb shell uiautomator dump /sdcard/ui.xml >/dev/null; adb shell cat /sdcard/ui.xml > shots/ui-shade.xml
+XY=$(python3 - <<'PY'
+import re
+x = open('shots/ui-shade.xml').read()
+m = re.search(r'text="\+30 s"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', x)
+print(f"{(int(m[1])+int(m[3]))//2} {(int(m[2])+int(m[4]))//2}" if m else "")
+PY
+)
+echo "+30 s button at: ${XY:-not found}" | tee -a shots/rest-real.txt
+[ -n "$XY" ] && adb shell input tap $XY
+sleep 3
+adb exec-out screencap -p > shots/2c-after-plus30.png
+adb shell cmd statusbar collapse; sleep 1
+notes after-plus30
 adb exec-out screencap -p > shots/3-status-bar.png
 adb shell locksettings set-disabled false
 adb shell input keyevent KEYCODE_SLEEP
@@ -65,6 +93,8 @@ sleep 2
 adb shell input keyevent KEYCODE_WAKEUP
 sleep 3
 adb exec-out screencap -p > shots/3b-lock-screen.png
+sleep 4
+adb exec-out screencap -p > shots/3c-lock-screen-later.png
 adb shell wm dismiss-keyguard
 adb shell locksettings set-disabled true
 sleep 1
