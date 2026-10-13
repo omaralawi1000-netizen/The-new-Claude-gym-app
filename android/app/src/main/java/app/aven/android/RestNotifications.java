@@ -11,6 +11,7 @@ import android.content.SharedPreferences;
 import android.media.AudioAttributes;
 import android.media.RingtoneManager;
 import android.os.Build;
+import android.os.Bundle;
 import android.service.notification.StatusBarNotification;
 
 import java.lang.reflect.Method;
@@ -42,8 +43,12 @@ final class RestNotifications {
     static void ensureChannels(Context c) {
         NotificationManager nm = c.getSystemService(NotificationManager.class);
         if (nm.getNotificationChannel(CH_REST) == null) {
-            NotificationChannel rest = new NotificationChannel(CH_REST, c.getString(R.string.channel_rest), NotificationManager.IMPORTANCE_LOW);
+            // DEFAULT, not LOW, but without sound or buzz: LOW counts as "silent", which many phones leave off the lock
+            // screen and out of the status bar, and the lock screen is the point
+            NotificationChannel rest = new NotificationChannel(CH_REST, c.getString(R.string.channel_rest), NotificationManager.IMPORTANCE_DEFAULT);
             rest.setDescription(c.getString(R.string.channel_rest_about));
+            rest.setSound(null, null);
+            rest.enableVibration(false);
             rest.setShowBadge(false);
             rest.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
             nm.createNotificationChannel(rest);
@@ -141,10 +146,15 @@ final class RestNotifications {
     /** Android 16 Live Updates: the countdown also shows as a chip in the status bar and on the lock screen. */
     private static void promote(Notification.Builder b) {
         if (Build.VERSION.SDK_INT < 36) return;
+        // the request is an extra the system reads (what AndroidX's setRequestPromotedOngoing sets too); the builder
+        // method only exists on newer Android 16 builds
+        Bundle e = new Bundle();
+        e.putBoolean("android.requestPromotedOngoing", true);
+        b.addExtras(e);
         try {
             Method m = Notification.Builder.class.getMethod("setRequestPromotedOngoing", boolean.class);
             m.invoke(b, true);
-        } catch (Exception ignored) { /* not on this phone */ }
+        } catch (Exception ignored) { /* older Android 16 build: the extra does it */ }
     }
 
     private static void schedule(Context c, long at) {
