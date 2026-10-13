@@ -1379,3 +1379,8 @@ flicker fingerprint). `--film a,b` films chosen actions, `--light` for the light
 - Finish and Discard: the window slides down like any closing, drawn from the workout as it was (`WkFrozen`, WorkoutHost),
   instead of vanishing with its sheet in one frame. Its own saved copy is kept out of "last time" while it leaves.
 - Remove an exercise in Focus: a still copy of its page fades while the next page rises in (it was swapped in one frame).
+- v0.1.70: the Focus pager keeps its layer (it got one for each page turn and lost it as the page landed, a flicker over
+  the page), and so does the Focus view itself; the dots and stage hold the end of their rise until the next switch.
+  Drops over the audit run ~140 → ~116. Tried and left out: building Focus ahead, hidden, to cut the short pause before it
+  moves at 4× CPU (no clear gain in films or `perf-app.mjs`, and every tick re-drew the hidden pages). `scripts/film-workout.mjs`
+  films the sheet's main moves (start, tick, to/from Focus, page turns, minimise, resume).

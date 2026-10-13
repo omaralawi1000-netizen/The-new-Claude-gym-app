@@ -169,9 +169,9 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
   // Focus has been laid out and is being shown this frame: its card takes over from the list's, from exactly there
   useLayoutEffect(() => {
     if (!focusIn || !morph.current) return;
+    // 'in' stays until the next switch, like 'back': the dots and stage rise in and hold their end (dropping the class as
+    // they finished took their layers away, a flicker over the whole page)
     morphLand(focusEl.current, morph.current); morph.current = null;
-    const id = setTimeout(() => setShared(null), 900);
-    return () => clearTimeout(id);
   }, [focusIn]);
   // Opening is started before the first paint, so the browser-run half is already going when the rest of the window's setup
   // work runs. Closing — the chevron, a swipe, Back, or another screen taking its place — slides it down; then it is hidden
