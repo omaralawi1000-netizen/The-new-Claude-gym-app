@@ -35,9 +35,13 @@ export const KEYBOARD = { type: 'spring', stiffness: 760, damping: 54, mass: 1, 
 
 type Spring = { stiffness: number; damping: number; mass?: number };
 const curveCache = new Map<string, { easing: string; duration: number }>();
-/** linear() easing for a spring going 0 → 1 with initial velocity v0 (in progress units per second). */
-export function springCurve(sp: Spring, v0 = 0): { easing: string; duration: number } {
-  const key = `${sp.stiffness}|${sp.damping}|${sp.mass ?? 1}|${v0.toFixed(2)}`;
+/**
+ * linear() easing for a spring going 0 → 1 with initial velocity v0 (in progress units per second). `rest`: how close to 1
+ * it has to be before the curve ends there. The default (0.08 %) is invisible on a sheet; something that travels a long way
+ * and lands on a small target (the orb) asks for less, or its last frame is a visible step onto its place.
+ */
+export function springCurve(sp: Spring, v0 = 0, rest = 0.0008): { easing: string; duration: number } {
+  const key = `${sp.stiffness}|${sp.damping}|${sp.mass ?? 1}|${v0.toFixed(2)}|${rest}`;
   const hit = curveCache.get(key); if (hit) return hit;
   const m = sp.mass ?? 1, dt = 1 / 600;
   let x = 0, v = v0, t = 0;
@@ -46,7 +50,7 @@ export function springCurve(sp: Spring, v0 = 0): { easing: string; duration: num
     // semi-implicit Euler at 600 Hz: indistinguishable from the analytic spring at this step
     v += ((sp.stiffness * (1 - x) - sp.damping * v) / m) * dt; x += v * dt; t += dt;
     if (Math.round(t * 600) % 10 === 0) xs.push(x);       // a sample every 1/60 s
-    if (t > 0.1 && Math.abs(1 - x) < 0.0008 && Math.abs(v) < 0.02) break;
+    if (t > 0.1 && Math.abs(1 - x) < rest && Math.abs(v) < rest * 25) break;
   }
   xs[xs.length - 1] = 1;
   const out = { easing: `linear(${xs.map((v2) => +v2.toFixed(4)).join(', ')})`, duration: Math.round(t * 1000) };
@@ -67,8 +71,8 @@ export const onHighRefresh = (fn: () => void) => { hrrListeners.add(fn); return 
  * ends the inline style is already at the same final value. `frames` are keyframes at progress 0 and 1 (and optional
  * offsets in between); `from`/`to` are the progress values the spring runs between.
  */
-export function mirrorSpring(el: Element | null | undefined, frames: Keyframe[], sp: Spring, velocity = 0): Animation | null {
+export function mirrorSpring(el: Element | null | undefined, frames: Keyframe[], sp: Spring, velocity = 0, rest?: number): Animation | null {
   if (!el || typeof (el as HTMLElement).animate !== 'function' || !highRefresh()) return null;
-  const c = springCurve(sp, velocity);
+  const c = springCurve(sp, velocity, rest);
   try { return (el as HTMLElement).animate(frames, { duration: c.duration, easing: c.easing, fill: 'none' }); } catch { return null; }
 }

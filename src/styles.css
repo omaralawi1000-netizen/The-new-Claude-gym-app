@@ -1063,6 +1063,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    with the area's light in it. It rises from the resume bar and firms up as it goes; nothing on it is blurred or clipped. */
 /* it reaches 48 px above its top edge (its own colour, over the status bar's side of the screen): the spring's slow last
    pixels happen out of sight above the screen, so no strip of the page behind ever lingers over the window's top */
+.wk-bar-ride { position: absolute; inset: 0; pointer-events: none; z-index: 2; will-change: transform; }
 .wk-sheet { position: absolute; inset: calc(-1 * var(--wk-lead)) 0 0 0; overflow: clip; border-radius: var(--wk-r) var(--wk-r) 0 0; will-change: transform, opacity; }
 /* the shadow over the page's top edge while it travels: its own small layer riding with it, fading out over the last 30 %
    (Active.tsx), so a page at rest has no shadow and nothing is repainted to fade it */

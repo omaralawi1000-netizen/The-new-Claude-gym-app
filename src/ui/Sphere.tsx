@@ -179,7 +179,9 @@ export function mirrorOrb(container: Element | null, p0: number, p1: number, sp:
   };
   orbLock.bucket = bucket;
   if (el.style.width !== `${bucket}px`) el.style.width = el.style.height = `${bucket}px`;
-  const a = mirrorProgress(el, p0, p1, sp, vel, at, Array.from({ length: 23 }, (_, i) => (i + 1) / 24));
+  // (its curve runs until it is within 0.005 % of its place: cut at the usual 0.08 % its last frame was a 0.5-1 px step onto
+  // its slot, a tick at the end of every flight)
+  const a = mirrorProgress(el, p0, p1, sp, vel, at, Array.from({ length: 23 }, (_, i) => (i + 1) / 24), 0.00005);
   if (!a) { orbLock.bucket = 0; return null; }
   // finish/cancel events arrive later, asynchronously: only the flight that still owns the orb may release its size lock
   // (an earlier flight's late "cancelled" used to unlock the new one mid-air — the orb drawn at a quarter of its size)
@@ -321,11 +323,11 @@ export function SphereStage() {
     // A popup's own motion (its transform, the dim and blur fading, the page stepping back) rewrites a style attribute every
     // frame. Its transform is applied below; decorative layers don't change layout. (.stage-content, the page sinking back
     // behind a pop-up, was missing: every frame of opening and closing the workout measured the whole orb path afresh.)
-    const MOVING = '.sheet, .sheet-pane, .sheet-page, .scrim, .scrim > i, .stage, .stage-content, .wk-card, .wk-sheet, .fields, .aurora, .sphere-stage, .lens, .lens > i';
+    const MOVING = '.sheet, .sheet-pane, .sheet-page, .scrim, .scrim > i, .stage, .stage-content, .wk-card, .wk-sheet, .wk-bar-ride, .fields, .aurora, .sphere-stage, .lens, .lens > i';
     // Inside the live workout's window nothing but the bar's own box can move its slot (the bar is pinned to the window's
     // foot): the list, Focus, the header and the bar's words changing used to force a fresh measure of the whole page on
     // every frame they changed (a set ticked, a page turned, the clock rolling), the biggest part of a tick's cost.
-    const inWorkout = (t: Element) => { const sh = t.closest?.('.wk-sheet'); return !!sh && t !== sh && !t.contains(sh.querySelector('.wk-bar-orb')); };
+    const inWorkout = (t: Element) => { const sh = t.closest?.('.wk-sheet, .wk-bar-wrap'); return !!sh && t !== sh && !t.contains(sh.querySelector('.wk-bar-orb')); };
     // The same for the list of a tall popup (its height is fixed): what changes inside it, the Coach writing an answer in
     // word by word, the list gliding after it, never moves a slot outside it. Without this every new word forced a fresh
     // measure of the page in the frame it landed. Scrolling something with no slot inside moves no slot either.
@@ -340,7 +342,7 @@ export function SphereStage() {
       }
     });
     if (appEl) lmo.observe(appEl, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class', 'data-active', 'hidden'] });
-    const onScroll = (e: Event) => { const t = e.target as Element | null; if (t?.closest?.('.wk-sheet') || (t?.nodeType === 1 && noSlotIn(t))) return; dirty(); }; // (see inWorkout, noSlotIn)
+    const onScroll = (e: Event) => { const t = e.target as Element | null; if (t?.closest?.('.wk-sheet, .wk-bar-wrap') || (t?.nodeType === 1 && noSlotIn(t))) return; dirty(); }; // (see inWorkout, noSlotIn)
     window.addEventListener('scroll', onScroll, { capture: true, passive: true });
     window.addEventListener('resize', dirty);
     window.visualViewport?.addEventListener('resize', dirty);

@@ -76,9 +76,18 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
   const sheetTop = (pp: number) => (1 - pp) * (H + 64 + LEAD);
   const sheetT = useTransform(p, (pp) => `translateY(${sheetTop(pp).toFixed(2)}px)`);
   const dragT = useTransform(dragY, (d) => Math.max(0, d) + Math.min(0, d) * 0.15);
-  const dialogY = useTransform([p, dragY], ([pp, d]: number[]) => sheetTop(pp) + Math.max(0, d) + Math.min(0, d) * 0.15); // how far the content is displaced (for the orb)
   const eFinger = useTransform([p, dragY], ([pp, d]: number[]) => Math.min(1, Math.max(0, pp - Math.max(0, d) / H)));
-  const engage = useMemo(() => ({ e: eFinger, shift: dialogY }), [eFinger, dialogY]);
+  // The workout's bar takes the tab bar's place, as one bottom bar handing over to the next: it rises only from just under
+  // the screen's edge, on the window's own progress, while the tab bar sinks away and the page rises behind. So the orb slides
+  // from the dock straight into a bar that is already there (riding a window's foot, the bar came up a whole screen late and
+  // the orb waited over the page's rows with no button round it). On the way down it is the exact reverse.
+  // (it covers its short way early in the window's progress, so it is in place while the window is still coming up)
+  const BAR_RISE = 120;
+  const barShift = (pp: number) => Math.pow(Math.min(1, Math.max(0, 1 - pp)), 3) * BAR_RISE;
+  const barT = useTransform(p, (pp) => `translateY(${barShift(pp).toFixed(2)}px)`);
+  const barY = useTransform([p, dragY], ([pp, d]: number[]) => barShift(pp) + Math.max(0, d) + Math.min(0, d) * 0.15); // (for the orb)
+  const barEngage = useMemo(() => ({ e: eFinger, shift: barY }), [eFinger, barY]);
+  const barRef = useRef<HTMLDivElement>(null);
   const depthId = useId();
   // A full page, not a pop-up: it rises over the page as it is (nothing behind steps back or dims), and its own top fades
   // from the status bar's colour like every tab's page, so the bar reads as part of it. The bar takes the workout's own tint
@@ -145,7 +154,8 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
       mirrorProgress(fillRef.current, p0, p1, sp, vel, (pp) => ({ transform: `translateY(${sheetTop(pp).toFixed(2)}px)`, opacity: String(fill(pp)) }), [1 - (LEAD + 60) / (H + 64 + LEAD), 1 - (LEAD + 20) / (H + 64 + LEAD)]),
       mirrorProgress(headRef.current, p0, p1, sp, vel, (pp) => ({ transform: `translateY(${headLag(pp).toFixed(2)}px)` }), [0.5, 0.8, 0.95]),
       mirrorProgress(viewsRef.current, p0, p1, sp, vel, (pp) => ({ transform: `translateY(${viewsLag(pp).toFixed(2)}px)` }), [0.5, 0.8, 0.95]),
-      mirrorOrb(sheetRef.current, p0, p1, sp, vel, sheetTop),
+      mirrorProgress(barRef.current, p0, p1, sp, vel, (pp) => ({ transform: `translateY(${barShift(pp).toFixed(2)}px)` }), [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]),
+      mirrorOrb(barRef.current, p0, p1, sp, vel, barShift),
     );
   };
   useEffect(() => { const off = dragY.on('change', () => mirror.current!.cancel()); return () => { off(); mirror.current!.cancel(); }; }, [dragY]);
@@ -469,12 +479,14 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
             </div>
           )}
           </motion.div>
-
-          {/* the workout's own dock, where the tab bar sits: what's next, the rest timer, and the orb */}
-          <WorkoutBar engage={engage} exMap={exMap} focus={view === 'focus'} onDone={pointToFinish} onJump={jumpTo} />
           </div>
         </div>
           </motion.div>
+        {/* the workout's own dock, where the tab bar sits: what's next, the rest timer, and the orb. Over the window, not in it:
+            it arrives in the tab bar's place first (see BAR_RISE) */}
+        <motion.div ref={barRef} className="wk-bar-ride" style={{ transform: barT }}>
+          <WorkoutBar engage={barEngage} exMap={exMap} focus={view === 'focus'} onDone={pointToFinish} onJump={jumpTo} />
+        </motion.div>
         </WkLive.Provider>
         </motion.div>
 

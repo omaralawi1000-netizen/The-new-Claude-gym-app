@@ -88,7 +88,7 @@ export function useEngage(mirror?: (p0: number, p1: number, sp: typeof ENGAGE_SP
  * (the dim reaches full strength at 0.6). Returns null when it can't (or shouldn't) run — the script spring still runs
  * either way and is what you see then.
  */
-export function mirrorProgress(el: Element | null | undefined, p0: number, p1: number, sp: { stiffness: number; damping: number; mass?: number }, velocity: number, at: (p: number) => Keyframe, breaks: number[] = []): Animation | null {
+export function mirrorProgress(el: Element | null | undefined, p0: number, p1: number, sp: { stiffness: number; damping: number; mass?: number }, velocity: number, at: (p: number) => Keyframe, breaks: number[] = [], rest?: number): Animation | null {
   const span = p1 - p0;
   if (!el || Math.abs(span) < 0.02) return null;
   const v0 = Math.max(-40, Math.min(40, velocity / span));
@@ -96,7 +96,7 @@ export function mirrorProgress(el: Element | null | undefined, p0: number, p1: n
   for (const b of breaks) { const x = (b - p0) / span; if (x > 0.001 && x < 0.999) frames.push({ ...at(b), offset: x }); }
   frames.sort((a, b) => (a.offset as number) - (b.offset as number));
   frames.push({ ...at(p1), offset: 1 });
-  return mirrorSpring(el, frames, sp, v0);
+  return mirrorSpring(el, frames, sp, v0, rest);
 }
 
 let satCache = -1;

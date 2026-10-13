@@ -4,7 +4,7 @@ import { useUI, type Tab } from '../state/ui';
 import { useStore } from '../state/store';
 import { useCovered } from '../lib/hooks';
 import { Icon } from './Icon';
-import { SphereSlot, orbGlide, orbPress, orbTap } from './Sphere';
+import { SphereSlot, markOrbLayoutDirty, orbGlide, orbPress, orbTap } from './Sphere';
 import { useT } from '../lib/i18n';
 import { SOFT } from './Sheet';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
@@ -103,7 +103,11 @@ export function TabBar() {
     <LayoutGroup>
       {/* hides by sliding only: fading it would switch its frosted blur off until the fade ends (a clear bar that then frosts) */}
       <motion.div className="tabbar-wrap" style={{ flexDirection: 'column', alignItems: 'center' }} initial={false}
-        animate={{ transform: hidden ? 'translateY(115%)' : 'translateY(0%)', transitionEnd: hidden ? undefined : { transform: 'none' } }} transition={SOFT}>
+        animate={{ transform: hidden ? 'translateY(115%)' : 'translateY(0%)', transitionEnd: hidden ? undefined : { transform: 'none' } }} transition={SOFT}
+        // the browser runs this slide without touching the page, so the orb is told: it re-reads the dock and follows it (it used
+        // to aim at where the dock was before the slide, and jumped ~70 px when the dock was measured again at the end of setup).
+        // The browser's animation exists only a frame after it is started, so the dock is read again once it does.
+        onAnimationStart={() => { markOrbLayoutDirty(); requestAnimationFrame(() => requestAnimationFrame(markOrbLayoutDirty)); }}>
         {/* the page dissolves under the dock: a blur that strengthens toward the bottom edge (three fixed strengths, each faded
             in by a mask, so it grows smoothly instead of starting at a line) */}
         <span className="dock-veil" aria-hidden><i className="dv2" /><i className="dv3" /></span>
