@@ -1265,7 +1265,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    gone before the bar's top edge (the list's mask above): it never shows between or behind the controls ("the text bar on
    its own", Omar 22:07). At rest the last message sits 30 px above the bar, clear of the fade. */
 .sheet-pane:has(> .sheet-foot) .coach-body.sheet-body { padding-bottom: calc(var(--foot-h, calc(var(--sab) + 76px)) + 30px + var(--kb-room, 0px)); }
-.coach-foot.edge-fade { --edge-x: -22px; --edge-top: 34px; --edge-bottom: calc(var(--sab) + 14px); }
+.coach-foot.edge-fade { --edge-x: -22px; --edge-top: 34px; --edge-bottom: calc(var(--sab) + 14px); --edge-a: 35%; }
 /* .edge-fade, shared by every bottom bar that content passes under (the Coach bar; the tab bar reuses it): a neutral grey
    tint (--edge-tint, card level) under the element, starting --edge-top above it and easing in over --edge-len up to
    --edge-a, so the bar reads over anything without ever being a dark band. `.frosted` adds a blur that starts clear and
@@ -1346,9 +1346,48 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    its own circle that looks 3D… the orb, figure something out"): the field a pill, the camera a round button, the orb
    rests in a frosted seat a little bigger than itself (.frost-seat). The bar behind them is only a soft tint
    (.edge-fade, no blur), so nothing is ever blurred twice. */
-.coach-field { position: relative; min-width: 0; border-radius: 27px; transition: box-shadow 200ms var(--ease-out); }
-.coach-field.frost-ctl:focus-within { box-shadow: inset 0 1px 0 var(--fc-hl), inset 0 0 0 1px var(--fc-rim-on), var(--fc-sh); }
 .coach-cam.frost-ctl { flex: none; width: 46px; height: 46px; margin: 0 2px; color: var(--tx); }
+/* THE PILL OPENS WHILE YOU TYPE (Coach.tsx CF_X, MORPH): the camera tucks away and the pill's left edge glides over its
+   place (--cf-x) on a soft spring, and back when the keyboard goes. A pill's width can't be animated without laying it out
+   every frame, and a stretched pill squashes its round ends, so it is built from moves only:
+   - the tint and its rim are two halves inside one see-through group (.cf-tint): the right half with the right end stays,
+     the left half with the left end slides; they overlap in the middle and, being solid inside the group, always read as
+     one pill (the group's opacity makes the whole see-through at once, so the overlap is never doubled);
+   - the frost (.cf-glass) is one layer laid out at the open size that never moves; only its outline is cut back to the
+     resting pill (clip-path), so its blur is never scaled or animated;
+   - the shadow (.cf-sh) is soft enough to be stretched (--cf-k, the open width over the resting one);
+   - the typed text rides the left edge (its box is laid out at the open width, shifted back at rest).
+   All on the same spring, so they move as one. Interrupted (tap, close, tap again) every part turns round from where it
+   is. The overshoot has 8 px of room past the open edge. The moving parts keep their own layers (will-change), so opening
+   and closing never makes or drops a layer mid-move (a dropped layer is the phone's one-frame flicker). */
+.coach-field { position: relative; min-width: 0; height: 54px; border-radius: 27px; }
+.coach-field > i { position: absolute; top: 0; bottom: 0; right: 0; pointer-events: none; }
+.cf-glass, .cf-tint { left: calc(-1 * (var(--cf-x) + 8px)); }
+.cf-glass { -webkit-backdrop-filter: blur(20px) saturate(1.5); backdrop-filter: blur(20px) saturate(1.5);
+  clip-path: inset(0 0 0 calc(var(--cf-x) + 8px) round 27px); transition: clip-path var(--cf-dur) var(--cf-ease); }
+.open .cf-glass { clip-path: inset(0 0 0 8px round 27px); }
+.cf-tint { opacity: var(--fc-op); }
+.cf-l, .cf-r { position: absolute; top: 0; bottom: 0; box-sizing: border-box;
+  background: linear-gradient(180deg, var(--fc-top), var(--fc-solid) 58%); border: 1px solid var(--fc-rim-s); border-top-color: var(--fc-hl-s); }
+.cf-l { left: calc(var(--cf-x) + 8px); width: calc(100% - var(--cf-x) - 42px); border-right: 0; border-radius: 27px 0 0 27px;
+  transition: transform var(--cf-dur) var(--cf-ease); }
+.open .cf-l { transform: translateX(calc(-1 * var(--cf-x))); }
+.cf-r { right: 0; width: calc(var(--cf-x) + 44px); border-left: 0; border-radius: 0 27px 27px 0; }
+.cf-sh { left: 0; border-radius: 27px; box-shadow: var(--fc-sh); transform-origin: 100% 50%; transition: transform var(--cf-dur) var(--cf-ease); }
+.open .cf-sh { transform: scaleX(var(--cf-k, 1.25)); }
+.coach-field .input { position: relative; z-index: 1; width: calc(100% + var(--cf-x)); margin-left: calc(-1 * var(--cf-x));
+  padding-right: calc(54px + var(--cf-x)); transform: translateX(var(--cf-x)); transition: transform var(--cf-dur) var(--cf-ease); }
+.open .coach-field .input { padding-right: 54px; transform: none; }
+.coach-field .coach-send { z-index: 2; }
+/* the camera steps back under the opening edge and fades, and comes back as the edge leaves (its own frost fades with
+   it: opacity on the glass itself, never on something around it, which would cut the glass off from the page) */
+.coach-cam-slot { display: flex; flex: none; transition: transform var(--cf-dur) var(--cf-ease); }
+.open .coach-cam-slot { transform: translateX(-10px) scale(0.7); }
+.open .coach-cam { opacity: 0; pointer-events: none; }
+:root[data-motion='reduce'] :is(.cf-glass, .cf-l, .cf-sh, .coach-field .input, .coach-cam-slot) { transition: none; }
+.cf-l, .cf-sh, .coach-field .input, .coach-cam-slot, .coach-field { will-change: transform; }
+.coach-cam.frost-ctl { will-change: opacity; }
+@media (prefers-reduced-motion: reduce) { :is(.cf-glass, .cf-l, .cf-sh, .coach-field .input, .coach-cam-slot) { transition: none; } }
 .coach-orb { margin-right: 2px; isolation: isolate; }
 /* .frost-ctl: a floating control on its own frosted glass, the one style for them app-wide. Neutral (never tinted by the
    area's colour), a light top edge and a fine rim, a soft shadow under it that lifts it off the page, and a faint sheen
@@ -1356,9 +1395,12 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    never animated, and nothing blurred sits under it. `.frost-seat`: the same glass as a disc behind its content
    (--seat: how far it reaches past the element). */
 :root { --fc-bg: rgba(40, 42, 54, 0.5); --fc-sheen: rgba(255, 255, 255, 0.07); --fc-hl: rgba(255, 255, 255, 0.16); --fc-rim: rgba(255, 255, 255, 0.07); --fc-rim-on: rgba(255, 255, 255, 0.16);
-  --fc-sh: 0 1px 2px rgba(0, 0, 0, 0.32), 0 10px 22px -10px rgba(0, 0, 0, 0.6); }
+  --fc-sh: 0 1px 2px rgba(0, 0, 0, 0.32), 0 10px 22px -10px rgba(0, 0, 0, 0.6);
+  /* the same glass as solid colours under one opacity (--fc-op), for a control drawn in pieces (the Coach pill) */
+  --fc-solid: rgb(40, 42, 54); --fc-op: 0.5; --fc-top: color-mix(in srgb, var(--fc-solid), #fff 14%); --fc-hl-s: color-mix(in srgb, var(--fc-solid), #fff 32%); --fc-rim-s: color-mix(in srgb, var(--fc-solid), #fff 14%); }
 :root[data-theme='light'] { --fc-bg: rgba(255, 255, 255, 0.6); --fc-sheen: rgba(255, 255, 255, 0.55); --fc-hl: rgba(255, 255, 255, 0.95); --fc-rim: rgba(20, 28, 48, 0.07); --fc-rim-on: rgba(20, 28, 48, 0.14);
-  --fc-sh: 0 1px 2px rgba(30, 40, 70, 0.12), 0 10px 22px -10px rgba(30, 40, 70, 0.28); }
+  --fc-sh: 0 1px 2px rgba(30, 40, 70, 0.12), 0 10px 22px -10px rgba(30, 40, 70, 0.28);
+  --fc-solid: #fff; --fc-op: 0.6; --fc-top: #fff; --fc-hl-s: #fff; --fc-rim-s: color-mix(in srgb, #fff, rgb(20, 28, 48) 12%); }
 .frost-ctl, .frost-seat::before {
   background: linear-gradient(180deg, var(--fc-sheen), transparent 58%), var(--fc-bg);
   -webkit-backdrop-filter: blur(20px) saturate(1.5); backdrop-filter: blur(20px) saturate(1.5);

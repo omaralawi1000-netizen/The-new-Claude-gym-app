@@ -21,6 +21,12 @@ import { dayKey } from '../lib/dates';
 import { blobToBase64, downscale } from '../lib/photos';
 import { apple, springCurve } from '../ui/motion';
 
+/* The typing bar opens wide while you type (Omar, 13 Oct: "expands when I type on it and compresses when I'm done"): the
+   camera tucks away and the pill's left edge glides over its place on a soft spring with a touch of overshoot, then
+   glides back when the keyboard goes. Drawn with moves only (styles.css .coach-field), never a width animated per frame. */
+const CF_X = 58; // how far it opens: the camera's place (46 px, its 2 px margins, the 8 px gap)
+const MORPH = springCurve(apple(0.62, 0.16));
+
 type Msg =
   | { id: string; role: 'user' | 'model'; text: string; streaming?: boolean; seeded?: boolean; /** a quiet line under the answer (which AI answered, and why) */ note?: string; /** when it was said */ at?: number; /** a photo was sent with it (its picture stays only while the Coach is open) */ photo?: boolean; image?: string }
   | { id: string; role: 'error'; text: string }
@@ -353,6 +359,19 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   useEffect(() => () => { if (useVoice.getState().phase !== 'idle') useVoice.getState().go('idle'); }, []);
 
   const inputRef = useRef<HTMLInputElement>(null);
+  // the field has the keyboard: the bar is open wide (a class set straight on the bar: a state change here re-rendered the
+  // whole conversation on every tap into the field and out of it)
+  const composerRef = useRef<HTMLDivElement>(null);
+  const openBar = (on: boolean) => composerRef.current?.classList.toggle('open', on);
+  const fieldRef = useRef<HTMLDivElement>(null);
+  // the shadow under the pill is stretched rather than redrawn: how much wider the open pill is than the resting one
+  useLayoutEffect(() => {
+    const el = fieldRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => { const w = el.offsetWidth; if (w) el.style.setProperty('--cf-k', String((w + CF_X) / w)); });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   const autoClose = useRef(!!props.listen); // a command spoken from the orb slips away once it has been done
   const recRef = useRef<() => void>(() => {});
 
@@ -539,7 +558,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
           </div>
         )}
         <input ref={camRef} type="file" accept="image/*" hidden onChange={(e) => { pickPhoto(e.target.files?.[0]); e.target.value = ''; }} />
-        <div className="coach-composer">
+        <div className="coach-composer" ref={composerRef} style={{ '--cf-x': `${CF_X}px`, '--cf-ease': MORPH.easing, '--cf-dur': `${MORPH.duration}ms` } as React.CSSProperties}>
           {/* the orb is the Coach's microphone: it flies in from the tab bar, listens to you, thinks while it answers */}
           <button className="press coach-orb frost-seat" aria-label={recording ? t('Stop and send') : t('Speak')} disabled={busy || hearing} onClick={() => (ai.hasGroq && mic.supported ? toggleRec() : push('settings', { section: 'ai' }))}
             style={{ position: 'relative', width: 50, height: 50, flex: 'none', borderRadius: 999 }}>
@@ -547,9 +566,12 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
             <SphereSlot id="coach" priority={5} style={{ position: 'absolute', inset: -4 }} />
           </button>
           {/* the camera: a label, a machine, a program screenshot — anything to ask about */}
-          <button className="icon-btn press coach-cam frost-ctl" aria-label={t('Send a photo')} disabled={busy || recording || hearing} onClick={() => camRef.current?.click()}><Icon name="camera" size={21} /></button>
-          <div className="grow coach-field frost-ctl">
-            <input ref={inputRef} className="input" style={{ paddingRight: 54 }} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
+          <span className="coach-cam-slot"><button className="icon-btn press coach-cam frost-ctl" aria-label={t('Send a photo')} disabled={busy || recording || hearing} onClick={() => camRef.current?.click()}><Icon name="camera" size={21} /></button></span>
+          <div className="grow coach-field" ref={fieldRef}>
+            {/* the pill: one frost that never moves (only its outline does), a tint drawn in two halves that slide over each
+                other, and a shadow that stretches — so opening it is moves only */}
+            <i className="cf-sh" /><i className="cf-glass" /><i className="cf-tint"><i className="cf-l" /><i className="cf-r" /></i>
+            <input ref={inputRef} className="input" onFocus={() => openBar(true)} onBlur={() => openBar(false)} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
               enterKeyHint="send" placeholder={recording ? t('Listening…') : hearing ? t('Transcribing…') : t('Ask the Coach')} aria-label={t('Message the Coach')} disabled={recording || hearing} />
             {/* Send is an arrow inside the field, there only when there is something to send (Stop while it works) */}
             <button className={`coach-send press ${busy || input.trim() || photo ? 'on' : ''}`} onMouseDown={(e) => e.preventDefault() /* the field keeps the keyboard until the message has landed */} aria-label={busy ? t('Stop') : t('Send')} tabIndex={busy || input.trim() || photo ? 0 : -1} onClick={() => (busy ? ctl.current?.abort() : send())}>

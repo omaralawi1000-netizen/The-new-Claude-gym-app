@@ -1765,13 +1765,24 @@ there was a version where you did it without the blur, it came out smooth". He a
   their soft focus (not answers).
 - **A calmer pace**: at most 45 words a second (was 70). A big clump from the stream used to pour out a line every
   150 ms, which read as text being spat out.
-- **Soft-edge bar** (Omar picked it): no box and no band. The conversation passes under the bar and dissolves into a frost
-  that starts clear 24 px above it and is full at its top edge (`.edge-fade`, shared: the tab bar reuses it). A neutral
-  grey tint (card level, rgb 21 22 28) eases in over 64 px and stops at 65 %, so the bottom is never a dark band (light:
-  the sheet's pale colour at 40 %). The text itself is gone by the middle of the row, so only colour passes behind the
-  orb. One backdrop blur the size of the bar, never animated; the field no longer blurs on its own (no blur on a blur).
-  It used to slide out of the way at the list's end, so a line arriving while the list glided up showed sharp under
-  "Ask the Coach". At rest the last message sits 24 px above the bar, clear of the frost. It rides with the keyboard
-  (`--kb-now`, v0.1.98).
+- **The list ends above the bar** ("the text bar on its own", Omar 22:07): the conversation fades out before the bar's top
+  edge, so no text ever shows between or behind the orb, the camera or the field. At rest the last message sits 30 px
+  above the bar. It rides with the keyboard (`--kb-now`, v0.1.98).
+- **Each control on its own frosted glass** (Omar 22:10: "the text bar… the orb and the camera… its own circle that looks
+  3D"): the field is a frosted pill, the camera a round frosted button, the orb rests in a frosted seat the field's
+  height (`.frost-ctl` / `.frost-seat`, shared, `--fc-*` tokens): neutral glass, a light top edge, a fine rim, a soft
+  shadow and a faint sheen on the top half. One small blur per control, never animated.
+- **Soft-edge bar** (Omar picked it): behind the controls only a plain fade, no blur (each control has its own, so nothing
+  is blurred twice): a neutral grey (rgb 21 22 28) easing in over 64 px to 35 % (`.edge-fade`, shared; `.edge-fade.frosted`
+  adds a blur where a bar has no frosted controls; light: the sheet's pale colour at 40 %).
+- **The pill opens while you type** (Omar 22:19, "expands when I type and compresses when I'm done, like iOS"): on focus
+  the camera tucks back and fades, and the pill's left edge glides over its place on a soft spring with a touch of
+  overshoot (`apple(0.62, 0.16)`); when the keyboard goes it glides back. Moves only: the tint is two halves that slide
+  over each other inside one see-through group, the frost never moves (only its outline is cut back, `clip-path`), the
+  shadow stretches, the typed text rides the edge. Interruptible, every part turning round from where it is. The open
+  class is set straight on the bar (a state change re-rendered the whole conversation on each tap: a 50–60 ms stall at
+  4x CPU), and the moving parts keep their own layers so none is dropped mid-move (the one-frame flicker). The orb stays
+  where it is (it is drawn by the shared sphere above the sheet). Audit at 4x CPU: no long tasks, no dropped layers on
+  keyboard up/down.
 - Clips: `scripts/clip-coach.mjs <out.mp4> [--palette ember|aurora] [--half]` films a send and a long streamed answer at
   real or half speed (half: the page's clock and animations run at half speed). Backup: `backup/coach-r4-pre-noblur`.
