@@ -1768,7 +1768,7 @@ of a sharp and a blurred copy (the muddy double edge on the card above the dock)
 Omar picked the thin neutral tint ("I want it neutral so the frosted glass can come through") and declined a deeper shadow.
 Measured: scroll frames within noise of before (fewer, smaller blur layers); tab icons 5.5:1 on the pill.
 
-## Smooth glows behind the frosted pop-ups: no more colour bands (13 Oct 2026)
+## Smooth glows behind the frosted pop-ups: no more colour bands (13 Oct 2026, v0.1.106)
 
 Omar (teal palette, dark): the soft glow seen through the Coach, Settings and Scan barcode sheets showed stepped rings with
 a coloured fringe ("chromatic aberration / colour banding, looks cheap"). Reproduced at his screen (384 x 832 at 3.75).
@@ -1785,8 +1785,11 @@ a coloured fringe ("chromatic aberration / colour banding, looks cheap"). Reprod
   screen's pixel size in `lib/grain.ts`). It changes how much backdrop each pixel lets through, which is mixed in the
   screen's final exact blend, so the last half-steps dissolve into noise about one level strong (finer than the page's
   own grain). The test ramp is now smooth; the rings are gone even with the contrast raised 6x.
-- Cost: none per frame. The noise is part of the glass's own picture (painted once with it), the blur is the same blur,
-  and brightness is a colour step the blur applies as it reads the page.
+- Cost: the tint is a layer of its own over the blur (a picture inside the blurring layer halved the frame rate in
+  tests: an extra full-screen pass), and the sheet's drop shadow moved onto `.sheet` (on the dithered layer it doubled
+  that layer's cost). Scrolling in a sheet and closing it measure the same as before. Opening draws one more image layer:
+  in software-GPU Chromium about 19% fewer frames while a sheet opens (13 runs); the phone's GPU should barely notice,
+  Omar to judge. Way back: branch backup/pre-banding-v0.1.105.
 - Recipe for any other frosted layer (tab bar, Coach bar, rest bar): see "Dither" in styles.css.
 - Tools: `scripts/banding-shots.mjs` (Settings, Today, Coach, Scan at phone size, field held still) and
   `scripts/banding-probe.mjs` (CSS variants on one open sheet).
