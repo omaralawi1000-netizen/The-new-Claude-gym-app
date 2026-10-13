@@ -465,11 +465,20 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
 .seg button.on { color: var(--tx); }
 .seg-lens { top: 4px; bottom: 4px; --lens-r: 19px; opacity: .95; --lens-fill: linear-gradient(180deg, #4a4d57, #3b3e48); }
 :root[data-theme='light'] .seg-lens { --lens-fill: #fff; }
-/* Depth without colour (dark): a card on a tab screen is its own neutral surface, one step lighter than the page (dense
-   enough that the colour field behind doesn't tint it), a faint white edge along its top and a soft, deep, neutral shadow under it, so it floats the way light-mode cards do. Every card the same; nothing is
+/* Depth without colour (dark): a card on a tab screen is its own neutral surface, one step lighter than the page (opaque,
+   so the colour field behind never tints it), a faint white edge along its top and a soft, deep, neutral shadow under it, so it floats the way light-mode cards do. Every card the same; nothing is
    tinted (Omar: "bring it back to before the glass, but add depth"). Paint only: no blur, nothing animates. */
+/* Ember's colour field is cool and quiet: violet, slate and lavender at low strength, never orange, amber or salmon behind
+   the cards (Omar: "why is it still orange?"). The buttons and the active tab keep Ember's colours. Other palettes keep theirs. */
+:root:is(:not([data-palette]), [data-palette='ember']) :is(.app, [data-hue]) { --h1: #5b3fd1; --h2: #3b4a80; --h3: #6c5aa6; }
+:root:is(:not([data-palette]), [data-palette='ember']):is([data-theme], :not([data-theme])) { --aurora-a: 0.15; }
+html:root:is(:not([data-palette]), [data-palette='ember'])[data-glow='soft'] { --aurora-a: 0.08; }
+/* light: tab-screen cards are clean white and float on their shadows (the see-through white took the field's colour) */
+:root[data-theme='light'] .screen .plinth { background: rgba(255, 255, 255, 0.94); }
+/* the coral bloom inside Today's workout card goes too: no colour washes on cards */
+[data-wk='hero'] > div { display: none; }
 :root:not([data-theme='light']) .screen .plinth {
-  background: linear-gradient(rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.07)), rgba(17, 18, 22, 0.74);
+  background: linear-gradient(rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.075)), #121317;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.075), inset 0 0 0 1px rgba(255, 255, 255, 0.05), 0 1px 2px rgba(0, 0, 0, 0.45), 0 12px 30px -10px rgba(0, 0, 0, 0.75);
 }
 /* ── Aven glass: the material of every neutral rounded surface (cards, pills, chips, round buttons) ───────────────
