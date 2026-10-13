@@ -540,10 +540,10 @@ html:root[data-glass='v2'][data-glow='soft'][data-theme='light'] { --aurora-a: 0
    chip then dropped after every tab switch) */
 :root[data-glass='v2'] .tab svg .duo { fill-opacity: 0; transition: fill-opacity 360ms var(--ease-smooth); }
 :root[data-glass='v2'] .tab.on svg .duo { fill-opacity: 1; }
-/* (Food's own colour, lightened or deepened like the other tabs' icons, came out a muddy peach or brown: its icon is a
-   clean amber at the same brightness) */
-:root[data-glass='v2']:is(:not([data-palette]), [data-palette='ember']) .app[data-hue='food'] .tab.on svg { color: oklch(0.8 0.16 66); }
-:root[data-glass='v2'][data-theme='light']:is(:not([data-palette]), [data-palette='ember']) .app[data-hue='food'] .tab.on svg { color: oklch(0.66 0.17 58); }
+/* (Food's own colour, lightened or deepened like the other tabs' icons, came out a muddy peach or brown and stood apart:
+   in Ember its active icon takes Aven's coral, the same as Today's) */
+:root[data-glass='v2']:is(:not([data-palette]), [data-palette='ember']) .app[data-hue='food'] .tab.on svg { --ac: #ff7a59; color: color-mix(in srgb, #ff7a59 82%, #fff); }
+:root[data-glass='v2'][data-theme='light']:is(:not([data-palette]), [data-palette='ember']) .app[data-hue='food'] .tab.on svg { color: oklch(from #ff7a59 0.55 c h); }
 :root[data-glass='v2'] .tab.on svg { filter: drop-shadow(0 1px 1px color-mix(in srgb, var(--ac) 35%, transparent)); }
 /* fields (the workout's kg and reps, search, forms) are wells cut into the glass: shaded at the top, with a catch-light
    along the bottom edge, so they still read clearly as places to type (focus keeps its own ring) */
