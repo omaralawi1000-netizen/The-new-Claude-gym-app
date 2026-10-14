@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useStore, exerciseMap } from '../../state/store';
 import { useUI, haptic } from '../../state/ui';
@@ -67,6 +67,8 @@ export function Summary({ props }: { props: { sessionId: string } }) {
     stop.current = () => { anim(); ids.forEach(clearTimeout); };
   }, [ses?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => stop.current?.(), []);
+  // the orb fades out while the summary is up (styles.css, :root[data-finish])
+  useLayoutEffect(() => { const r = document.documentElement; r.dataset.finish = ''; return () => { delete r.dataset.finish; }; }, []);
   if (!ses) return null;
   const hEx = headline?.exerciseId ? exMap.get(headline.exerciseId) : undefined;
   const line = headline ? t(headline.key, { ...headline.vars, exercise: hEx ? exName(hEx, lang) : '' }) : '';
@@ -77,7 +79,7 @@ export function Summary({ props }: { props: { sessionId: string } }) {
   return (
     <Sheet onClose={closeAll} tall label={t('Workout summary')} z={60} foot={<div className="row-flex" style={{ gap: 10 }}><button className="btn grow press" onClick={() => push('sessionDetail', { id: ses.id })}>{t('Details')}</button><button className="btn primary grow press" onClick={() => { haptic('light'); backupAfterWorkout(); closeAll(); }}>{t('Done')}</button></div>}>
       <SheetHead title={t('Nice work')} sub={`${ses.name || t('Workout')} · ${fmtDate(ses.date, lang)}`} onClose={closeAll} />
-      <div className="sheet-body" ref={body}>
+      <div className="sheet-body melt-foot" ref={body}>
         {/* the medal turns in like a coin as the sheet rises; gold with the count when records fell (finishMoment.ts) */}
         <div className={`sum-medal${recs.length ? ' gold' : ''}`} data-fm="medal" aria-label={recs.length ? t(recs.length === 1 ? '1 new record' : '{n} new records', { n: recs.length }) : undefined}>
           {recs.length > 0 && Array.from({ length: 12 }, (_, i) => <i key={i} aria-hidden className="sum-ray" data-fm="ray" style={{ rotate: `${i * 30}deg` }} />)}
