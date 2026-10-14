@@ -1882,7 +1882,7 @@ screen (the Ember orb of dots) cut to a blank page, then the app.
 - Tools: `scripts/launch.mjs` (timings), `scripts/film-launch.mjs` (steady-camera launch films). Previews and notes in the
   project folder `launch-morph/`.
 
-## Backgrounds you can pick, and three new colours (14 Oct 2026, v0.1.111)
+## Backgrounds you can pick, and three new colours (14 Oct 2026, v0.1.112)
 Settings → Appearance → Background picks what is drawn behind the app: Classic (the drifting colour field, as before),
 Orb light, Colour per tab, Sunrise, Mesh, Dot field, Time of day, Night sky and Your photo (`settings.background`,
 `html[data-bg]`, `ui/Backdrop.tsx`, `.bgx` in styles.css).
