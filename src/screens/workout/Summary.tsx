@@ -20,17 +20,20 @@ function Stat({ label, value, unit, i }: { label: string; value: React.ReactNode
   return <div className="sum-stat" style={{ animationDelay: `${FIRST + i * STEP}s` }}><div className="micro">{label}</div><div className="display display-md num" style={{ marginTop: 4 }}>{value}<span className="t3 small" style={{ fontFamily: 'var(--f-ui)', fontStretch: '100%', fontWeight: 600 }}> {unit}</span></div></div>;
 }
 
-// The finish moment, in order, like an award: a medal lands (felt as the workout's "done", or a record's), the four
-// numbers arrive one after another, each counting up as it lands with a light tick, and then one line says what this
-// session meant. MEDAL, STEP and COUNT are the rhythm; everything else on the screen waits for LINE.
-// One continuous movement from the tap: the medal and the numbers' card rise with the sheet itself (no empty beat, nothing
-// popping in), the numbers overlap as they arrive, each tick is felt as its number settles, and the line comes last.
-const MEDAL = 0, CARD = 0.1, STEP = 0.26, FIRST = 0.5, COUNT = 0.9, SETTLE = 0.42;
-const LINE = FIRST + 3 * STEP + COUNT * 0.75;
+// The finish moment, like an award, in one continuous movement from the tap: the medal and the numbers' card rise with the
+// sheet itself (no empty beat, nothing popping in), the first number already counting while the sheet still rises; the
+// numbers overlap as they arrive, and each one settles on its final value exactly SETTLE after it starts, STEP apart, which
+// is when its tick is felt (so four distinct ticks, never one blur); then one line says what this session meant.
+const MEDAL = 0, CARD = 0, STEP = 0.26, FIRST = 0.2, SETTLE = 0.6;
+const LINE = FIRST + 3 * STEP + SETTLE + 0.15;
 const celebrated = new Set<string>(); // a session's moment is felt once, not again when its summary is reopened
 const reduced = () => document.documentElement.dataset.motion === 'reduce' || matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-/** A number that counts up from zero once, after `delay` seconds. Writes its own text (no re-render per frame). */
+/**
+ * A number that counts up from zero once, after `delay` seconds, and shows its final value exactly SETTLE later whatever its
+ * size (a 1 and a 1,200 land on the same beat: the count runs longer the fewer steps it has). Writes its own text (no
+ * re-render per frame).
+ */
 function CountUp({ to, delay, format }: { to: number; delay: number; format: (n: number) => string }) {
   const ref = useRef<HTMLSpanElement>(null);
   useLayoutEffect(() => {
@@ -39,8 +42,12 @@ function CountUp({ to, delay, format }: { to: number; delay: number; format: (n:
     let raf = 0;
     const id = setTimeout(() => {
       const t0 = performance.now();
+      // the eased count (1 − (1 − k)³) reads as final once within half a step of `to`
+      const kFinal = to > 0.5 ? 1 - Math.cbrt(0.5 / to) : 1;
+      const dur = Math.min(4, SETTLE / kFinal) * 1000;
       const step = (t: number) => {
-        const k = Math.min(1, (t - t0) / (COUNT * 1000));
+        const k = Math.min(1, (t - t0) / dur);
+        if (performance.now() - t0 >= SETTLE * 1000) { el.textContent = format(to); return; }
         el.textContent = format(to * (1 - Math.pow(1 - k, 3)));
         if (k < 1) raf = requestAnimationFrame(step);
       };

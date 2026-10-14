@@ -142,10 +142,17 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     p.set(e0); dragY.set(0);
     const vel = -v / H;
     runMirror(e0, 0, SURFACE_EXIT, vel);
-    // under the finish sheet: no slide, just a soft fade of what still shows above the sheet, then put away
-    const fade = vanishRef.current && !reduce ? dialogRef.current?.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 700, easing: 'ease-in-out', fill: 'forwards' }) : undefined;
-    const c = fade ? fade.finished.then(() => { p.set(0); }) : animate(p, 0, reduce || vanishRef.current ? { duration: 0.01 } : { ...SURFACE_EXIT, velocity: vel });
-    closing.current = new Promise<void>((done) => { c.then(() => { done(); if (fade) requestAnimationFrame(() => fade.cancel()); }, () => done()); });
+    // under the finish sheet: no slide, just a soft crossfade of what still shows above the sheet into the page behind. The
+    // page is drawn again first (warmStage; behind a full cover it is not drawn at all, and fading over it showed black,
+    // then the page cut in), two frames before the fade starts, then the window is put away.
+    let fade: Animation | undefined;
+    const c = vanishRef.current && !reduce
+      ? new Promise<void>((ok) => { warmStage(true); requestAnimationFrame(() => requestAnimationFrame(() => {
+        fade = dialogRef.current?.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 700, easing: 'ease-in-out', fill: 'forwards' });
+        (fade?.finished ?? Promise.resolve()).then(() => { p.set(0); ok(); }, () => ok());
+      })); })
+      : animate(p, 0, reduce || vanishRef.current ? { duration: 0.01 } : { ...SURFACE_EXIT, velocity: vel });
+    closing.current = new Promise<void>((done) => { c.then(() => { done(); if (fade) requestAnimationFrame(() => fade?.cancel()); }, () => done()); });
     void closing.current.then(() => warmStage(false));
     return closing.current;
   };
