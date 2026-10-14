@@ -1440,10 +1440,12 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .coach-composer .coach-field .input.sent-away::placeholder { color: transparent; transition: none; }
 /* while you speak: "Ask the Coach" fades out and the field's word fades across ("Listening…", then "Transcribing…"),
    drawn exactly where the placeholder is (Coach.tsx cf-status) */
-.coach-composer .coach-field .input.quiet::placeholder { color: transparent; }
+/* (one at a time: the old word fades out in 90 ms, then the new one in over 150 ms; they are never seen over each other) */
+.coach-composer .coach-field .input.quiet::placeholder { color: transparent; transition: color 90ms var(--ease-out); }
+.coach-composer .coach-field .input:not(.quiet, .sent-away)::placeholder { transition: color 220ms var(--ease-out) 90ms; }
 .coach-field .cf-status { position: absolute; left: 16px; bottom: 16px; font-size: 16px; line-height: 22px; color: var(--tx2); white-space: nowrap; pointer-events: none;
-  opacity: 0; transition: opacity 180ms var(--ease-out); will-change: opacity; }
-.coach-field .cf-status.on { opacity: 1; }
+  opacity: 0; transition: opacity 90ms var(--ease-out); will-change: opacity; }
+.coach-field .cf-status.on { opacity: 1; transition: opacity 150ms var(--ease-out) 90ms; }
 /* the said words' "Transcribing…", lifting with the pill as the words come up (Coach.tsx flight) */
 .fly-ghost { position: absolute; white-space: nowrap; font-weight: 400; letter-spacing: 0; color: var(--tx2); will-change: opacity; pointer-events: none; }
 /* closing up unseen, at once (said words: the bar is hidden while the pill lifts away) */

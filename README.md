@@ -1989,7 +1989,10 @@ a shadow… make them a little 3D".
   a swap) and the arrow is there to stop and send. When you stop (or go quiet) "Listening…" fades into "Transcribing…",
   the arrow steps aside and the orb thinks. When Whisper's words arrive the pill itself lifts away into the chat as your
   message (one shape, 560 ms on a soft-start ease, `FLY_SAID`, not the typed message's spring, whose quick start read
-  as a jump), "Transcribing…" fading as the words come up inside it (from 100 ms, full by 350 ms). They never sit in the
+  as a jump), "Transcribing…" fading out first (140 ms), then each line of words fading in only once the growing bubble has room
+  for it (from 150 ms; the line on the field's line first, the ones above as the bubble's top passes them), so nothing
+  is ever drawn over another or past the bubble's edge. The field's words cross the same way: the old fades out in
+  90 ms, then the new in over 150 ms. They never sit in the
   field first. The bar under it is hidden at once and closes up there unseen (`.snap`), then comes back whole once the
   bubble has left: field, camera and stop button fading in together (from 340 ms, over 300 ms): no empty pill, no slide. With a typed draft already in the field, the whole
   message is shown there a moment and then leaves as typed words do. Tapping the field while you speak still stops and
