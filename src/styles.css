@@ -2178,3 +2178,21 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 .bg-pv .bg-orb-spot { display: none; }
 .bg-pv .bg-dots { top: 2px; background-size: 260% auto; }
 .bg-pv-empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--tx3); z-index: 1; }
+
+/* Dictation in the Add food field (Whisper): a thread of light on the field's bottom edge (src/ui/voiceThread.ts moves it).
+   Both thread layers and both labels exist from load; only transform and opacity ever change. */
+.dict-mic { position: absolute; right: 7px; top: 7px; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: var(--s2); color: var(--tx2); transition: color 260ms var(--ease-out), transform 520ms var(--ease-spring); }
+.dict-mic > svg { grid-area: 1 / 1; }
+.dict-mic .dict-ring { position: absolute; inset: 0; border-radius: 50%; box-shadow: inset 0 0 0 1px var(--ac); opacity: 0; transition: opacity 300ms var(--ease-out); }
+.dict-listen .dict-mic, .dict-proc .dict-mic { color: var(--ac-text); }
+.dict-listen .dict-ring, .dict-proc .dict-ring { opacity: .5; }
+.dict-field .input::placeholder { transition: color 180ms var(--ease-out); } /* (its colour, not its opacity: no layer to drop) */
+.dict-listen .input::placeholder, .dict-proc .input::placeholder { color: transparent; }
+.dict-lbl { position: absolute; left: 42px; top: 0; height: 50px; line-height: 50px; font-size: 16px; color: var(--tx3); pointer-events: none; opacity: 0; transition: opacity 150ms var(--ease-out); }
+.dict-listen .dict-ls { opacity: 1; transition: opacity 180ms var(--ease-out) 120ms; }
+.dict-proc .dict-tr { opacity: 1; transition: opacity 180ms var(--ease-out) 80ms; }
+.dict-thread { position: absolute; left: 14px; right: 14px; bottom: 0; height: 3px; pointer-events: none; }
+.dict-thread i { position: absolute; left: 0; right: 0; bottom: 0; opacity: 0; transform: scaleX(.06); will-change: transform, opacity; }
+.dict-thread .dt-a { height: 2.4px; border-radius: 2px; background: linear-gradient(to right, transparent, var(--ac) 28%, var(--ac-2) 50%, var(--ac) 72%, transparent); }
+.dict-thread .dt-c { height: 1.6px; bottom: .4px; border-radius: 1px; background: linear-gradient(to right, transparent, #fff 50%, transparent); }
+:root[data-theme='light'] .dict-thread .dt-c { background: linear-gradient(to right, transparent, color-mix(in srgb, var(--ac) 40%, #fff) 50%, transparent); }
