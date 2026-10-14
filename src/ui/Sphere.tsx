@@ -314,8 +314,9 @@ export function SphereStage() {
       if (fadeStart === Infinity && tintGoAt) fadeStart = tintGoAt;
       if (!fadeStart) return;
       if (launchFade && fadeStart !== Infinity) {
-        // at an even pace: the wave of new colour moves up the orb steadily, without lingering half-way
-        const k = Math.min(1, Math.max(0, (now - fadeStart) / 450));
+        // at an even pace: the wave of new colour moves up the orb steadily, without lingering half-way; the last bead has
+        // changed ~0.38 s into the flight (three quarters of the way down), well before the orb is in the dock
+        const k = Math.min(1, Math.max(0, (now - fadeStart) / 280));
         if (k < 1) { colors = from; launchMix = k; return; }
         colors = to; launchMix = -1; launchFade = false; fadeStart = 0; return;
       }

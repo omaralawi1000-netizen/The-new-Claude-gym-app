@@ -10,6 +10,10 @@ import { LOGO } from './logoDots';
 
 const N = 400;
 type V3 = Float32Array;
+// a colour change's wave: each bead switches when the mix passes WAVE_J + WAVE_S × (its height, 0 bottom … 1 top) ± WAVE_J.
+// The offset is ±12% of the sweep: a narrow front of about three rows of mixed beads (a wider one reads as stripes that
+// blur to grey), and every bead has switched between mix 0 and 1.
+const WAVE_S = 1 / 1.24, WAVE_J = 0.12 * WAVE_S;
 
 function lattice(): { pts: V3; order: Uint16Array; jit: Float32Array } {
   const pts = new Float32Array(N * 3);
@@ -26,15 +30,14 @@ function lattice(): { pts: V3; order: Uint16Array; jit: Float32Array } {
   let seed = 7;
   const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
   for (let i = N - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); const t = order[i]; order[i] = order[j]; order[j] = t; }
-  // each bead's own random 0..1, fixed (when it changes colour within a colour change's wave)
+  // a colour change's wave (see WAVE_S): each bead's small offset, spread evenly (golden-ratio steps, so no clump of beads
+  // switches together), taken in the shuffled order so neighbours on the sphere get unrelated ones (in lattice order they
+  // would follow its spiral and draw a seam)
   const jit = new Float32Array(N);
-  for (let i = 0; i < N; i++) jit[i] = rnd();
+  for (let n = 0; n < N; n++) jit[order[n]] = 2 * (((n + 0.5) * 0.6180339887) % 1) - 1;
   return { pts, order, jit };
 }
 const LAT = lattice();
-// a colour change's wave: each bead switches when the mix passes WAVE_J + WAVE_S × (how high it is, 0 bottom … 1 top) ± WAVE_J,
-// so the sweep is WAVE_S of the mix, every bead is a random ±35% of it early or late, and all switch between mix 0 and 1
-const WAVE_S = 1 / 1.7, WAVE_J = 0.35 * WAVE_S;
 const ALL = (() => { const a = new Uint16Array(N); for (let i = 0; i < N; i++) a[i] = i; return a; })();
 
 /**
@@ -406,10 +409,10 @@ export class SphereRenderer {
       tone[n] = okMix > 0.25 && depth > 0.42 ? 2 : glow * (0.4 + 0.6 * depth) > 1.25 ? 1 : 0; // highlights are sparkles on the near side, not a wash
       const hueMix = 0.5 + 0.5 * Math.sin(az * 1 + y * 1.6 - T * 0.6); // the second colour drifts around the surface
       const hb = Math.min(NH - 1, Math.floor(hueMix * NH));
-      // crossfade: one wave of the new colour from the bottom of the orb (on screen) to its top, each bead in one step: never
-      // a blend of the two colours (it reads grey). Each bead switches a random bit early or late (±35% of the wave's sweep),
-      // so the front is a soft, ragged band of mixed beads, never a straight seam.
-      const qm = NM > 1 && xk >= WAVE_J + WAVE_S * ((1 - y2) / 2) + WAVE_J * (2 * LAT.jit[i] - 1) ? 1 : 0;
+      // crossfade: one wave of the new colour from the bottom of the orb to its top, each bead in one step: never a blend of
+      // the two colours (it reads grey). By its height as you see it (the far side included), so the front is one clean band;
+      // it moves far faster than a bead turns, so none switches back
+      const qm = NM > 1 && xk >= WAVE_J + WAVE_S * ((1 - y2) / 2) + WAVE_J * LAT.jit[i] ? 1 : 0;
       buckets[(qm * NB + Math.min(NB - 1, Math.floor(sh * NB))) * NH + hb].push(n);
     }
 
