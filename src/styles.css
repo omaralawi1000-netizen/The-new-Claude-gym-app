@@ -1748,29 +1748,30 @@ html:root[data-glow='off'] .bgx:not([data-k='photo']) { display: none; }
 /* where the tab bar's orb sits (the middle of the dock) */
 .bgx { --orb-y: calc(100% - 50px - var(--sab)); }
 
-/* Orb light: a beam of the accent rising from the orb in the tab bar, with a halo round it. While the Coach (or the orb
-   screen) answers, a brighter copy fades in. With the Coach open the light sits on the Coach's orb, bottom-left. Every
-   change is an opacity fade between layers that are already drawn. */
-.bg-orb { opacity: calc(var(--bgk) * .95); transition: opacity .9s var(--ease-io);
+/* Orb light: a halo centred on the orb (measured, --ox / --oy) and a beam of the accent rising from the dock. With the
+   Coach open the halo glides to the Coach's orb, bottom-left, as one transform, and the beam fades. While the Coach (or
+   the orb screen) answers, a brighter copy fades in. Only transform and opacity ever change. */
+.bg-orb-all i { position: absolute; inset: 0; display: block; }
+/* the beam follows the orb sideways (the dock's orb moves with the tab you are on, the Coach's is at the left) */
+.bg-orb, .bg-orb-lit { will-change: transform; transform: translate3d(calc(var(--ox, 50%) - 50%), 0, 0); }
+.bg-orb { opacity: calc(var(--bgk) * .95); transition: opacity 1.1s var(--ease-io), transform 1.1s var(--ease-smooth);
   background:
-    radial-gradient(circle 120px at 50% var(--orb-y), color-mix(in srgb, var(--ac) 62%, transparent), transparent 100%),
-    radial-gradient(26% 72% at 50% 100%, color-mix(in srgb, var(--ac) 36%, transparent), transparent 100%),
-    radial-gradient(70% 34% at 50% 100%, color-mix(in srgb, var(--ac) 30%, transparent), transparent 100%),
-    radial-gradient(120% 52% at 50% 100%, color-mix(in srgb, var(--h1) 34%, transparent), transparent 100%); }
-.bg-orb.away { opacity: 0; }
-.bg-orb-lit, .bg-orb-c, .bg-orb-c-lit { opacity: 0; transition: opacity 1.6s var(--ease-io); }
-.bg-orb-lit { background:
-    radial-gradient(circle 170px at 50% var(--orb-y), color-mix(in srgb, var(--ac) 78%, #fff 8%), transparent 100%),
-    radial-gradient(34% 92% at 50% 100%, color-mix(in srgb, var(--ac) 44%, transparent), transparent 100%); }
-.bg-orb-c { background:
-    radial-gradient(circle 130px at 41px calc(100% - 42px - var(--sab)), color-mix(in srgb, var(--ac) 60%, transparent), transparent 100%),
-    radial-gradient(40% 66% at 41px 100%, color-mix(in srgb, var(--ac) 30%, transparent), transparent 100%),
-    radial-gradient(100% 46% at 0% 100%, color-mix(in srgb, var(--h1) 32%, transparent), transparent 100%); }
-.bg-orb-c-lit { background:
-    radial-gradient(circle 190px at 41px calc(100% - 42px - var(--sab)), color-mix(in srgb, var(--ac) 78%, #fff 8%), transparent 100%),
-    radial-gradient(48% 90% at 41px 100%, color-mix(in srgb, var(--ac) 40%, transparent), transparent 100%); }
-.bg-orb-c.on { opacity: calc(var(--bgk) * .95); transition-duration: .9s; }
-.bg-orb-lit.on, .bg-orb-c-lit.on { opacity: calc(var(--bgk) * .9); transition-duration: 1.2s; }
+    radial-gradient(26% 72% at 50% 100%, color-mix(in srgb, var(--ac) 34%, transparent), transparent 100%),
+    radial-gradient(70% 34% at 50% 100%, color-mix(in srgb, var(--ac) 26%, transparent), transparent 100%),
+    radial-gradient(120% 52% at 50% 100%, color-mix(in srgb, var(--h1) 30%, transparent), transparent 100%); }
+.bg-orb.away { opacity: calc(var(--bgk) * .12); }
+.bg-orb-lit { opacity: 0; transition: opacity 1.6s var(--ease-io), transform 1.1s var(--ease-smooth);
+  background: radial-gradient(34% 92% at 50% 100%, color-mix(in srgb, var(--ac) 44%, transparent), transparent 100%); }
+.bg-orb-lit.on { opacity: calc(var(--bgk) * .9); transition-duration: 1.2s, 1.1s; }
+.bg-orb-all > i.bg-orb-spot { inset: auto; left: 0; top: 0; width: 560px; height: 560px; margin: -280px 0 0 -280px; will-change: transform;
+  transform: translate3d(var(--ox, 50vw), var(--oy, calc(100vh - 50px)), 0); transition: transform 1.1s var(--ease-smooth); }
+.bg-orb-spot > i { position: absolute; inset: 0; opacity: calc(var(--bgk) * .95); transition: opacity 1.6s var(--ease-io);
+  background:
+    radial-gradient(circle 140px at 50% 50%, color-mix(in srgb, var(--ac) 64%, transparent), transparent 100%),
+    radial-gradient(circle 280px at 50% 50%, color-mix(in srgb, var(--ac) 20%, transparent), transparent 100%); }
+.bg-orb-spot > i + i { opacity: 0;
+  background: radial-gradient(circle 180px at 50% 50%, color-mix(in srgb, var(--ac) 78%, #fff 8%), transparent 100%); }
+.bg-orb-spot > i + i.on { opacity: calc(var(--bgk) * .9); transition-duration: 1.2s; }
 
 /* Colour per tab: its own cool colour on each area, whatever the palette (the accent on buttons still follows the palette).
    All four are cool on purpose: a warm wash under see-through cards turned them amber next to a teal accent. */
@@ -1785,18 +1786,21 @@ html:root[data-glow='off'] .bgx:not([data-k='photo']) { display: none; }
     radial-gradient(115% 48% at 50% 108%, color-mix(in srgb, var(--t3) 34%, transparent), transparent 76%),
     linear-gradient(168deg, color-mix(in srgb, var(--t1) 16%, transparent), transparent 62%); }
 
-/* Sunrise: a sun on the horizon that rises as the day's calories and protein fill up (--fill, 0..1), in one slow move.
-   Even on an empty day the first light shows on the horizon. */
+/* Sunrise: a sun on a horizon that rises as the day's calories and protein fill up (--fill, 0..1), in one slow move. On a
+   full day the horizon sits at the quick-add row, clear of the big cards and the tab bar, so the sun reads at rest; on an
+   empty day only its first light shows at the bottom. Below the horizon the sky dims again, like land. */
 .bg-sun-sky { opacity: var(--bgk); background: linear-gradient(to top, color-mix(in srgb, var(--h1) 30%, transparent), transparent 62%); }
 .bg-sun { will-change: transform;
   opacity: calc(var(--bgk) * (.75 + var(--fill, 0) * .25));
-  transform: translateY(calc((1 - var(--fill, 0)) * 40%));
+  transform: translateY(calc((1 - var(--fill, 0)) * 34%));
   transition: transform 2.6s var(--ease-smooth), opacity 2.6s var(--ease-smooth);
   background:
-    radial-gradient(34% 14% at 50% 100%, color-mix(in srgb, var(--ac) 70%, #fff 22%), transparent 100%),
-    radial-gradient(85% 40% at 50% 100%, color-mix(in srgb, var(--ac) 72%, transparent), transparent 100%),
-    radial-gradient(110% 58% at 50% 100%, color-mix(in srgb, var(--h2) 46%, transparent), transparent 100%),
-    radial-gradient(140% 78% at 50% 100%, color-mix(in srgb, var(--h1) 32%, transparent), transparent 100%); }
+    linear-gradient(to bottom, transparent 64%, color-mix(in srgb, var(--bg) 34%, transparent) 69%, color-mix(in srgb, var(--bg) 52%, transparent) 84%),
+    radial-gradient(22% 7% at 50% 64%, color-mix(in srgb, var(--ac) 66%, #fff 30%), transparent 100%),
+    radial-gradient(46% 17% at 50% 64%, color-mix(in srgb, var(--ac) 70%, transparent), transparent 100%),
+    radial-gradient(90% 32% at 50% 64%, color-mix(in srgb, var(--ac) 46%, transparent), transparent 100%),
+    radial-gradient(130% 48% at 50% 66%, color-mix(in srgb, var(--h2) 40%, transparent), transparent 100%),
+    radial-gradient(160% 70% at 50% 70%, color-mix(in srgb, var(--h1) 28%, transparent), transparent 100%); }
 
 /* Mesh: a still blend of the area's colours across the whole screen, like the colour behind album art */
 .bg-mesh { opacity: var(--bgk);
@@ -1838,6 +1842,9 @@ html:root[data-glow='off'] .bgx:not([data-k='photo']) { display: none; }
    over a near-black background it looks the same, and no dot or star shows through a card. (Dark only.) */
 :root:not([data-theme='light'])[data-bg='night'] .screen { --s1: #111421; --s2: #151826; --s3: #1c1f2e; --bg-2: #03040c; }
 :root:not([data-theme='light'])[data-bg='dots'] .screen { --s1: #14151b; --s2: #18191f; --s3: #212228; --bg-2: #030407; }
+/* Under Time of day's brighter skies (midday, dusk) the cards are a darker frost, so their grey text and the accent buttons
+   keep their contrast (4.5:1 or better) while a little of the sky still shows through. (Dark only.) */
+:root:not([data-theme='light'])[data-bg='time'] .screen { --s1: rgb(8 11 19 / .76); --s2: rgb(12 15 24 / .8); --s3: rgb(22 25 35 / .82); --bg-2: rgb(3 4 10 / .55); }
 
 /* Your photo: blurred once when you picked it, darkened here so cards and text stay easy to read */
 .bg-photo { background: center / cover no-repeat; background-color: var(--bg); }
@@ -1873,5 +1880,6 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
     radial-gradient(circle 34px at 50% calc(100% - 17px), color-mix(in srgb, var(--ac) 62%, transparent), transparent 100%),
     radial-gradient(26% 72% at 50% 100%, color-mix(in srgb, var(--ac) 36%, transparent), transparent 100%),
     radial-gradient(120% 52% at 50% 100%, color-mix(in srgb, var(--h1) 34%, transparent), transparent 100%); }
+.bg-pv .bg-orb-spot { display: none; }
 .bg-pv .bg-dots { top: 2px; background-size: 260% auto; }
 .bg-pv-empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--tx3); z-index: 1; }

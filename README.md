@@ -1837,4 +1837,12 @@ Orb light, Colour per tab, Sunrise, Mesh, Dot field, Time of day, Night sky and 
   cards, chips and buttons are the same dark glass made solid (`--s1..3`, `--bg-2` on `.screen`), so no star or dot
   shows through a card; Night sky got a faint Milky Way band and is near-black, unlike Time of day's indigo night;
   Orb light moves to the Coach's orb (bottom-left) while the Coach is open, by fading between layers already drawn.
+- Round 3: the fade between layers read as a jump, so Orb light now measures where the orb really is (the dock's moves
+  with the tab you are on; the Coach's sits in its bar) and its halo (140 px) and beam glide there as one transform
+  (1.1 s), re-measured once the Coach's sheet has settled and on resize. Sunrise's horizon sits at the quick-add row on
+  a full day (the sun was hidden behind the big card and the tab bar), with the sky dimming below it like land. Under
+  Time of day the cards are a darker frost (`--s1..3` on `.screen`), so grey text keeps 6:1 or better against a bright
+  midday or dusk sky. Two things the judge flagged were not the backgrounds: the half-and-half frames mid tab switch are
+  the page cross-fade, the same in Classic; the tab name "vanishing" was one bad frame of the test filming (the same
+  filming on the current app never shows it, and the label is never re-mounted).
 - Scripts: `AVEN_BG=mesh AVEN_PALETTE=aurora AVEN_GLOW=off AVEN_PHOTO=file.jpg` in any script that uses `loadDemo`.

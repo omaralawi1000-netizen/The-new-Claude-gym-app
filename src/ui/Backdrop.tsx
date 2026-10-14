@@ -232,17 +232,45 @@ function Sunrise({ fill }: { fill: number }) {
 }
 function LiveOrb() {
   const coach = useUI((u) => u.overlays.some((o) => o.type === 'coach'));
-  return <Orb talk={useTalking()} coach={coach} />;
+  return <Orb talk={useTalking()} coach={coach} spot={useOrbSpot(coach)} />;
+}
+type Spot = { x: number; y: number } | null;
+/** the centre of the orb that is showing (the dock's, or the Coach's while it is open), in px inside the background's box */
+function orbSpot(coach: boolean): Spot {
+  if (typeof document === 'undefined') return null;
+  const box = document.querySelector('.fields') as HTMLElement | null;
+  const orb = (coach ? document.querySelector('.coach-composer .voice-ring')?.parentElement : document.querySelector('.tabbar .sphere-slot')) as HTMLElement | null | undefined;
+  if (!box || !orb) return null;
+  const b = box.getBoundingClientRect(), o = orb.getBoundingClientRect();
+  if (!o.width || !b.width) return null;
+  const k = b.width / (box.offsetWidth || b.width); // the page may be scaled back behind a pop-up
+  return { x: Math.round((o.left + o.width / 2 - b.left) / k), y: Math.round((o.top + o.height / 2 - b.top) / k) };
+}
+/** follows the orb: measured when the Coach opens or closes (again once its sheet has settled) and when the screen resizes */
+function useOrbSpot(coach: boolean): Spot {
+  const [spot, setSpot] = useState<Spot>(() => orbSpot(coach));
+  useEffect(() => {
+    const m = () => { const s = orbSpot(coach); if (s) setSpot((p) => (p && p.x === s.x && p.y === s.y ? p : s)); };
+    const raf = requestAnimationFrame(m), t1 = setTimeout(m, 450), t2 = setTimeout(m, 1000);
+    const vv = window.visualViewport;
+    window.addEventListener('resize', m); vv?.addEventListener('resize', m);
+    return () => { cancelAnimationFrame(raf); clearTimeout(t1); clearTimeout(t2); window.removeEventListener('resize', m); vv?.removeEventListener('resize', m); };
+  }, [coach]);
+  return spot;
 }
 /**
- * The orb's light: a still glow over the tab bar's orb. With the Coach open, the Coach's orb sits bottom-left in its bar, so
- * the light moves there: two more layers already in place there, swapped in by opacity (nothing is redrawn).
+ * The orb's light: a halo centred on the orb, with a beam rising from it. When the Coach opens, the light glides over to
+ * the Coach's orb (bottom-left) in one slow transform while the beam fades; while the Coach answers, a brighter copy of
+ * the halo fades in on top. Nothing is redrawn: the layers only move and fade.
  */
-function Orb({ talk, coach = false }: { talk: boolean; coach?: boolean }) {
-  return <>
-    <b className={`bg-orb${coach ? ' away' : ''}`} /><b className={`bg-orb-lit${talk && !coach ? ' on' : ''}`} />
-    <b className={`bg-orb-c${coach ? ' on' : ''}`} /><b className={`bg-orb-c-lit${talk && coach ? ' on' : ''}`} />
-  </>;
+function Orb({ talk, coach = false, spot = null }: { talk: boolean; coach?: boolean; spot?: Spot }) {
+  const at = spot ? { ['--ox' as string]: `${spot.x}px`, ['--oy' as string]: `${spot.y}px` } : undefined;
+  return (
+    <b className="bg-orb-all" style={at}>
+      <i className={`bg-orb${coach ? ' away' : ''}`} /><i className={`bg-orb-lit${talk && !coach ? ' on' : ''}`} />
+      <i className="bg-orb-spot"><i /><i className={talk ? 'on' : ''} /></i>
+    </b>
+  );
 }
 function Dots() {
   const ref = useRef<HTMLElement>(null);
