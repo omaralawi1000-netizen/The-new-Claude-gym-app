@@ -31,5 +31,5 @@ export function revealPrefix(text: string, ends: number[], n: number): string {
  * between its clumps) within calm limits; once everything has arrived it finishes at no less than a steady reading pace.
  */
 export function revealRate(backlog: number, live: boolean): number {
-  return Math.min(70, Math.max(live ? 6 : 24, backlog / 0.9));
+  return Math.min(45, Math.max(live ? 6 : 24, backlog / 0.9)); // (at most 45 a second: 70 read as text spat out in bursts)
 }

@@ -56,11 +56,12 @@ export function springSamples(sp: Spring, v0 = 0, fine = false): { xs: number[];
   sampleCache.set(key, out);
   return out;
 }
-/** linear() easing for a spring going 0 → 1 with initial velocity v0 (in progress units per second). */
-export function springCurve(sp: Spring, v0 = 0): { easing: string; duration: number } {
-  const key = `${sp.stiffness}|${sp.damping}|${sp.mass ?? 1}|${v0.toFixed(2)}`;
+/** linear() easing for a spring going 0 → 1 with initial velocity v0 (in progress units per second). `fine`: run it until it
+ * is still to a hundredth of a percent (for a long move handed over to something else at its end, which would jump). */
+export function springCurve(sp: Spring, v0 = 0, fine = false): { easing: string; duration: number } {
+  const key = `${sp.stiffness}|${sp.damping}|${sp.mass ?? 1}|${v0.toFixed(2)}|${fine}`;
   const hit = curveCache.get(key); if (hit) return hit;
-  const { xs, duration } = springSamples(sp, v0);
+  const { xs, duration } = springSamples(sp, v0, fine);
   const out = { easing: `linear(${xs.map((v2) => +v2.toFixed(4)).join(', ')})`, duration };
   curveCache.set(key, out);
   return out;
