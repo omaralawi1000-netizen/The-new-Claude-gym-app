@@ -139,11 +139,11 @@ const KIND_ICON: Record<string, IconName> = { food: 'recipe', sets: 'dumbbell', 
 /**
  * Minimal, safe rendering of the model's text: paragraphs, "- " bullets, **bold**. No HTML is ever injected.
  * Every word is its own span keyed by position, so while a reply streams in only the NEW words mount — and each one
- * comes in out of soft focus (CSS .w, .soft). Words already on screen never re-animate. While the reply is read aloud (`id` matches what is
+ * fades up into place (CSS .w-in; no blur: Omar, 13 Oct evening). Words already on screen never re-animate. While the reply is read aloud (`id` matches what is
  * playing), the word being said lights up, the ones already said settle back and the ones to come wait a shade lighter.
  */
 // (memo: while an answer writes itself in, only the piece still growing re-renders, not every word before it)
-// Once a word has come in it settles into a plain word (no soft-focus copies, no layer of its own): a whole conversation of
+// Once a word has come in it settles into a plain word (no animation, no layer of its own): a whole conversation of
 // soft words made every frame repaint and re-layer hundreds of them while one answer wrote itself in. `still`: already there.
 const SETTLE = 900; // (the longest coming-in is 760 ms; a little slack so nothing is cut short)
 export const Words = memo(function Words({ text, k, base = 0, on = -1, stagger, still }: { text: string; k: string; base?: number; on?: number; stagger?: number; still?: boolean }) {
@@ -179,7 +179,7 @@ export const Words = memo(function Words({ text, k, base = 0, on = -1, stagger, 
     const idx = n++;
     const cls = on < 0 ? 'w' : idx === on ? 'w w-on' : idx < on ? 'w w-past' : 'w w-next';
     if (ends.current[i] <= now) return <span key={`${k}-${i}`} className={cls}><span>{w}</span></span>;
-    return <span key={`${k}-${i}`} className={`${cls} soft soft-in`} data-soft={w} style={{ animationDelay: `min(${born.current[i]}ms, var(--word-stagger-cap, 520ms))` }}><span className="soft-s">{w}</span></span>;
+    return <span key={`${k}-${i}`} className={`${cls} w-in`} style={{ animationDelay: `min(${born.current[i]}ms, var(--word-stagger-cap, 520ms))` }}><span>{w}</span></span>; // (same shape as a settled word: settling only drops the class)
   })}</>;
 });
 /**

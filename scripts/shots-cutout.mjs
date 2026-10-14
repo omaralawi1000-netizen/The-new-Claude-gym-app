@@ -5,7 +5,8 @@ import { launch, wait, skipOnboarding, loadDemo } from './lib.mjs';
 import fs from 'node:fs';
 const theme = process.argv.includes('--light') ? 'light' : 'dark';
 const out = process.argv.filter((a) => !a.startsWith('--'))[2] || 'shots/cutout'; fs.mkdirSync(out, { recursive: true });
-const { b, ctx, p } = await launch({ theme, size: { width: 384, height: 832 } });
+// (PHONE=1: Omar's phone, 412 x 892 at 3.5x)
+const { b, ctx, p } = await launch({ theme, size: process.env.PHONE ? { width: 412, height: 892 } : { width: 384, height: 832 }, dsf: process.env.PHONE ? 3.5 : 2 });
 const reply = 'Here is the plan.\n\n- **Protein**: about 40 g more today, so a solid dinner closes it.\n- **Sleep**: aim for 8 hours; you averaged 6.5 this week.\n- **Training**: Chest and Biceps today, keep the last set of each one rep short of failure.\n\nThat should leave you fresh for wrestling on Thursday.';
 await ctx.addInitScript(([reply]) => {
   const l = {}; const vk = { overlaysContent: false, boundingRect: { height: 0 }, addEventListener: (t, f) => { (l[t] ||= []).push(f); }, removeEventListener: () => {} };
@@ -31,7 +32,8 @@ const long = 'At 18, 175 cm and hovering around 97.6 kg, you carry serious densi
 const older = Array.from({ length: 5 }, (_, i) => [['user', `Question ${i + 1}: give me something about myself.`], ['model', long]]).flat().map(([role, text], i) => ({ id: 'seed' + i, role, text, at: Date.now() - 60000 }));
 await p.evaluate((older) => { localStorage.setItem('aven.keys', JSON.stringify({ gemini: 'AIzaTESTKEY' })); localStorage.setItem('aven.coach', JSON.stringify(older)); localStorage.setItem('aven.coachNote', '1'); }, older);
 await p.reload(); await wait(p, 2200);
-const shot = (n) => p.screenshot({ path: `${out}/${theme}-${n}.png` });
+if (process.env.PALETTE) await p.evaluate((pal) => { document.documentElement.dataset.palette = pal; }, process.env.PALETTE); // (PALETTE=aurora…)
+const shot = (n) => p.screenshot({ path: `${out}/${theme}${process.env.PALETTE ? '-' + process.env.PALETTE : ''}-${n}.png` });
 const sheet = () => p.getByRole('dialog', { name: 'Coach' });
 await p.getByRole('button', { name: 'Coach', exact: true }).first().tap(); await wait(p, 2500);
 await shot('1-coach-end');
@@ -39,6 +41,7 @@ await p.evaluate(() => { const el = document.querySelector('.coach-body'); el.sc
 await p.evaluate(() => { const el = document.querySelector('.coach-body'); el.scrollTop = 0; }); await wait(p, 700); await shot('3-coach-top');
 await p.evaluate(() => { const el = document.querySelector('.coach-body'); el.scrollTop = el.scrollHeight; }); await wait(p, 700);
 await p.getByLabel('Message the Coach').tap(); await wait(p, 900); await shot('4-coach-kb');
+if (process.env.QUICK) { await b.close(); console.log('shots in', out); process.exit(0); } // (QUICK=1: the Coach only)
 await p.evaluate(() => { const el = document.querySelector('.coach-body'); el.scrollTop -= 260; }); await wait(p, 700); await shot('4b-coach-kb-mid');
 await p.evaluate(() => { const el = document.querySelector('.coach-body'); el.scrollTop = el.scrollHeight; }); await wait(p, 500);
 await p.getByLabel('Message the Coach').fill('Plan my day'); await sheet().getByRole('button', { name: 'Send', exact: true }).tap();
