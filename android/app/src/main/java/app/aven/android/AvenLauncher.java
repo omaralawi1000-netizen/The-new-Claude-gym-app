@@ -19,7 +19,7 @@ public class AvenLauncher extends LauncherActivity {
     private static final int ASK = 7;
     private static final String ASKED = "askedNotifications";
     private static final long ZOOM_AT_MOST = 800; // ms; in case Android never says the opening zoom has finished
-    private boolean zoomed, opening, finishLater;
+    private boolean zoomed, opening, started, left, finishLater;
     private Runnable held;
 
     @Override
@@ -61,8 +61,10 @@ public class AvenLauncher extends LauncherActivity {
     @Override
     public void startActivity(Intent intent, Bundle options) {
         // (before launchTwa the helper may restart this screen in a new task: that goes straight through)
-        if (zoomed || !opening) { super.startActivity(intent, options); return; }
-        held = () -> super.startActivity(intent, options);
+        if (!opening) { super.startActivity(intent, options); return; }
+        if (left) return; // the person left before Chrome was ready: don't pull them back into the app
+        held = () -> { started = true; super.startActivity(intent, options); };
+        if (zoomed) zoomDone();
     }
 
     @Override
@@ -90,6 +92,7 @@ public class AvenLauncher extends LauncherActivity {
     @SuppressWarnings("deprecation")
     public void onBackPressed() {
         held = null; // Back during the zoom closes the app, as it would have before
+        left = true;
         super.onBackPressed();
     }
 
@@ -101,11 +104,18 @@ public class AvenLauncher extends LauncherActivity {
     @Override
     protected void onPause() {
         super.onPause();
-        if (held != null) { // left during the zoom (Home, a call): don't open Chrome after the person has gone
+        if (opening && !started) { // left before Chrome opened (Home, a call): don't open it after the person has gone
+            left = true;
             held = null;
             if (finishLater) super.finish();
             return;
         }
         if (opening) overridePendingTransition(0, 0); // (the notifications question keeps its own animation)
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        left = false; // back before Chrome was ready: carry on opening it
     }
 }
