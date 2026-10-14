@@ -61,7 +61,8 @@ export const useUI = create<UI>((set, get) => ({
   trainTab: 'plan',
   overlays: [],
   toasts: [],
-  setTab: (tab) => set({ tab }),
+  // arriving on Food from another tab always shows today: a day browsed earlier must not hide what was just logged elsewhere
+  setTab: (tab) => set((s) => (tab === 'food' && s.tab !== 'food' ? { tab, foodDate: null } : { tab })),
   setFoodDate: (foodDate) => set({ foodDate }),
   setTrainTab: (trainTab) => set({ trainTab }),
   push: (type, props) => {
