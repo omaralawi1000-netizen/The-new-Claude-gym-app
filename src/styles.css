@@ -94,12 +94,12 @@ html:root[data-palette='golden'] { --c-kcal: #ff7a2f; --c-protein: #ff5436; --c-
 :root[data-palette='midnight'] [data-hue='food'] { --ac: #9ee6ff; --h1: #1f5fb0; --h2: #3aa0d8; --h3: #3a46b8; }
 :root[data-palette='midnight'] [data-hue='progress'] { --ac: #b4bcff; --h1: #3a3fb8; --h2: #5a8cff; --h3: #2a5aa8; }
 html:root[data-palette='midnight'] { --c-protein: #ff8a7a; --c-carbs: #9cc4ff; --c-fat: #f2d48a; --c-water: #9ee6ff; --nokey: #9cc4ff; }
-/* Champagne: graphite light with one champagne-gold accent. Macros: champagne kcal, honey protein, ice-platinum carbs,
+/* Champagne: graphite light with one warm gold glow (saturated: a pale warm glow reads grey-beige) and a champagne accent. Macros: champagne kcal, honey protein, ice-platinum carbs,
    bronze fat. Its sun is a deep, saturated gold low down (a pale warm glow over the dark page reads grey-khaki). */
-:root[data-palette='champagne'] [data-hue='today'] { --ac: #e8cf9a; --h1: #6e6c78; --h2: #a8977c; --h3: #4a4a56; }
-:root[data-palette='champagne'] [data-hue='train'] { --ac: #e6c58a; --h1: #76727e; --h2: #9c8b70; --h3: #44444f; }
-:root[data-palette='champagne'] [data-hue='food'] { --ac: #ecd6a8; --h1: #7c7884; --h2: #b0a084; --h3: #50505c; }
-:root[data-palette='champagne'] [data-hue='progress'] { --ac: #e2c896; --h1: #706e7a; --h2: #a4937a; --h3: #4c4c58; }
+:root[data-palette='champagne'] [data-hue='today'] { --ac: #e8cf9a; --h1: #6e6c78; --h2: #c08c2e; --h3: #4a4a56; }
+:root[data-palette='champagne'] [data-hue='train'] { --ac: #e6c58a; --h1: #76727e; --h2: #b8862c; --h3: #44444f; }
+:root[data-palette='champagne'] [data-hue='food'] { --ac: #ecd6a8; --h1: #7c7884; --h2: #c49434; --h3: #50505c; }
+:root[data-palette='champagne'] [data-hue='progress'] { --ac: #e2c896; --h1: #706e7a; --h2: #bc8a30; --h3: #4c4c58; }
 html:root[data-palette='champagne'] { --c-kcal: #f5e2b8; --c-protein: #e0b07a; --c-carbs: #b4caf2; --c-fat: #b9784a; --c-water: #d8e6f5; }
 :root[data-palette='champagne'] .bg-sun { --sun-mid: #8a6224; --sun-wide: #6a4a1a; --sun-h2: #4a3a2a; --sun-h1: #3a3640; }
 /* contents that arrive a beat after a tall sheet starts moving fade in instead of appearing */
