@@ -41,7 +41,10 @@ const rampSpring = (response: number, ramp: number, cut = 0.0002) => {
   }
   xs[xs.length - 1] = 1; return xs;
 };
-const asCurve = (xs: number[]) => ({ duration: Math.round((xs.length - 1) * 1000 / 60), easing: `linear(${xs.map((v) => +v.toFixed(4)).join(', ')})` });
+// (each ends on two frames held exactly where it lands: a move still a ten-thousandth short on its last frame is drawn
+// a hair differently from one at rest, a resized copy's letters and a disc's rim stepping by up to a fifth as it stopped;
+// held there for its last frames, the moving picture and the resting one are the same, 14 Oct)
+const asCurve = (xs: number[]) => { const all = [...xs, 1, 1]; return { duration: Math.round((all.length - 1) * 1000 / 60), easing: `linear(${all.map((v) => +v.toFixed(4)).join(', ')})` }; };
 const MORPH = asCurve(rampSpring(0.62, 0.09)); // opening
 // closing: quicker and with no tail, so the pill's edge and the camera land together with the bar riding down on the
 // keyboard (on the opening's curve the edge crept on ~14 px for half a second after the bar had landed: laggy, not calm);
@@ -294,6 +297,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   // over to the real one where it lands. Browser-run (Web Animations on transform/opacity only), at the screen's full rate.
   const flyFrom = useRef(new Map<string, { x: number; y: number; fs: number; box: { l: number; r: number; t: number; b: number }; win: { t: number; b: number }; fresh?: boolean }>());
   const flew = useRef(new Set<string>()); // these arrive by flight, not by the bubble's own rise
+  const landed = useRef<HTMLElement | null>(null); // the last bubble to land, still drawn the way its flying copy was (below)
   const flown = (id: string) => flew.current.has(id);
   useLayoutEffect(() => {
     const el = bodyRef.current;
@@ -374,7 +378,9 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       bubble.childNodes.forEach((n) => words.appendChild(n.cloneNode(true)));
       // (and, as it settles in its place with only the page behind it, the bubble's own see-through glass, so the real
       // bubble taking over is the same picture: the solid colour can't match the page behind it everywhere)
-      const glass = document.createElement('i'); glass.className = 'fly-end'; glass.style.background = fill;
+      // (its colour as the bubble's own, alpha and all, not a solid colour under an opacity: the two blend a level or two
+      // apart, a change you could see as the copy handed over)
+      const glass = document.createElement('i'); glass.className = 'fly-end'; glass.style.background = cs.backgroundColor;
       // said words: "Transcribing…" is still in the pill as it lifts and fades as the words come up (one pill, never empty)
       let ghost: HTMLElement | null = null;
       if (from.fresh) {
@@ -410,6 +416,13 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       // it joins a glide the list is still finishing, so its place is where the bubble will be once that is done
       const rider = ride.current?.(copy); const top0 = B.top - (rider?.off ?? 0); copy.style.top = `${top0}px`;
       bubble.style.visibility = 'hidden';
+      // its letters drawn the way the copy's are: a moving, resizing copy can't draw text on the page's own pixel grid, so
+      // the real bubble, drawn on it, had every letter a hair off the copy's last frame as it took over (a third of a pixel,
+      // a line up to two); on a layer of its own it draws them as the copy did, the same frame. It keeps that until the next
+      // message sends the list up, and drops it once that is moving, where the hair's change can't be seen
+      bubble.style.willChange = 'transform';
+      const was = landed.current; landed.current = bubble;
+      if (was && was !== bubble) setTimeout(() => { if (landed.current !== was) was.style.willChange = ''; }, 160);
       const at = document.timeline.currentTime;
       const go = (a: Animation) => { if (at !== null) a.startTime = at; return a; };
       // the real button (stop, now) waits hidden under the shape until the shape has risen clear of it, then fades in
@@ -429,6 +442,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       const opts = { duration: from.fresh ? FLY_SAID.duration : FLY.duration, easing: from.fresh ? FLY_SAID.easing : FLY.easing, fill: 'forwards' as const };
       const shape = { duration: from.fresh ? FLY_SAID.duration : FLY_SHAPE.duration, easing: from.fresh ? FLY_SAID.easing : FLY_SHAPE.easing, fill: 'forwards' as const };
       const fade = (ms: number, delay = 0) => ({ duration: ms, delay, easing: 'cubic-bezier(.3, 0, .2, 1)', fill: 'backwards' as const });
+      const inked = (a: Animation) => { a.finished.then(() => { words.style.color = cs.color; a.cancel(); }, () => {}); return a; };
       const flight = go(copy.animate([{ transform: `translate(${dx}px, ${dy}px) scale(${k})` }, { transform: 'none' }], opts));
       const place = (c: number[], i: number) => `translate(${c[0]}px, ${c[1]}px) scale(${c[2] / base[i][0]}, ${c[3] / base[i][1]})`;
       for (const group of [pill, tone]) [...group.children].forEach((p, i) => go((p as HTMLElement).animate([{ transform: place(c0[i], i) }, { transform: place(c1[i], i) }], shape)));
@@ -445,7 +459,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
           ? go(pill.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 40, delay: 250, fill: 'both' }))
           : go(pill.animate([{ opacity: 0, easing: 'cubic-bezier(.4, 0, .2, 1)' }, { opacity: 1, offset: 200 / 290 }, { opacity: 1, offset: 250 / 290 }, { opacity: 0 }], { duration: 290, easing: 'linear', fill: 'forwards' })),
         // (said words: settled sooner, the lift being shorter; done before it lands)
-        go(glass.animate([{ opacity: fillA }, { opacity: fillA }], { duration: 1, delay: from.fresh ? 360 : 420, fill: 'forwards' })),
+        go(glass.animate([{ opacity: 1 }, { opacity: 1 }], { duration: 1, delay: from.fresh ? 360 : 420, fill: 'forwards' })),
         go(tone.animate([{ opacity: 1 }, { opacity: 0 }], { ...fade(200, from.fresh ? 360 : 420), fill: 'forwards' })),
         // (typed: the emptied bar stays drawn under it the whole way: the shape starts as the pill, over the pill)
         go(sh.animate([{ transform: `translate(${x0}px, ${y0}px) scale(${sx}, ${sy})` }, { transform: 'none' }], shape)),
@@ -453,9 +467,11 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
         ...(from.fresh ? [] : [go(sh.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: 'cubic-bezier(.4, 0, .2, 1)', fill: 'backwards' }))]),
         // the field's bright ink settles to the bubble's softer one; said words (never in the field) come up inside the
         // pill as it lifts, softly, while it is still the pill, and are the bubble's ink by the time it is the bubble
-        from.fresh
+        // (once there, the ink becomes the bubble's own colour, alpha and all, under no opacity, as the real bubble draws it:
+        // the copy's last frame and the bubble's first are then the same letters, not a level apart at every edge)
+        inked(from.fresh
           ? go(words.animate([{ opacity: 1 }, { opacity: 1, offset: 0.7 }, { opacity: inkA }], { duration: SAID_INK, easing: 'linear', fill: 'both' }))
-          : go(words.animate([{ opacity: 1 }, { opacity: inkA }], { ...fade(380, 60), fill: 'both' })),
+          : go(words.animate([{ opacity: 1 }, { opacity: inkA }], { ...fade(380, 60), fill: 'both' }))),
       ];
       // said words: uncovered by the growing bubble (above), and coming in as "Transcribing…" goes: it fades out over
       // 110 ms from the moment the pill starts to change, the words come in over 260 ms from 80 ms on, eased (the two are
