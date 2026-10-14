@@ -53,8 +53,8 @@
 /* The food rings: each look has its own four (kcal, protein, carbs, fat), one family per look, four clearly different
    colours, with deeper ones on a light page. kcal is its own colour (it used to be the area's accent, so in Ember it was
    the same coral as protein, and it changed with the tab). html:root so they outrank the theme's default trio. */
-html:root[data-palette='ember'] { --c-kcal: #ff7a59; --c-protein: #ff4f7d; --c-carbs: #b07cff; --c-fat: #ffcf5a; }
-html:root[data-palette='ember'][data-theme='light'] { --c-kcal: #e85a36; --c-protein: #d92f5e; --c-carbs: #7a45d0; --c-fat: #c8920e; }
+html:root[data-palette='ember'] { --c-kcal: #ff7a59; --c-protein: #ff5a9e; --c-carbs: #b07cff; --c-fat: #ffcf5a; }
+html:root[data-palette='ember'][data-theme='light'] { --c-kcal: #e85a36; --c-protein: #d92f7a; --c-carbs: #7a45d0; --c-fat: #c8920e; }
 html:root[data-palette='aurora'] { --c-kcal: #3de0c8; --c-protein: #ff7aa8; --c-carbs: #6f8cff; --c-fat: #c08cff; --c-water: #7ae0ff; }
 html:root[data-palette='aurora'][data-theme='light'] { --c-kcal: #0fa892; --c-protein: #e0457e; --c-carbs: #3d5ee0; --c-fat: #8a52e0; --c-water: #1590b8; }
 html:root[data-palette='sunset'] { --c-kcal: #ff6b9d; --c-protein: #ff8a4d; --c-carbs: #a76bff; --c-fat: #ffc94d; }
@@ -70,8 +70,8 @@ html:root[data-palette='forest'][data-theme='light'] { --c-kcal: #5f9a12; --c-pr
 :root[data-palette='mono'] [data-hue='train'] { --ac: #ff7a59; --h1: #a3a7b8; --h2: #4d5262; --h3: #8a8fa3; }
 :root[data-palette='mono'] [data-hue='food'] { --ac: #ff7a59; --h1: #8a8fa3; --h2: #666b7c; --h3: #c2c6d4; }
 :root[data-palette='mono'] [data-hue='progress'] { --ac: #ff7a59; --h1: #b0b4c4; --h2: #555a6a; --h3: #8e93a6; }
-html:root[data-palette='mono'] { --c-kcal: #ff7a59; --c-protein: #e9eaf0; --c-carbs: #9aa0b4; --c-fat: #6c7186; --c-water: #cfd3e0; }
-html:root[data-palette='mono'][data-theme='light'] { --c-kcal: #e85a36; --c-protein: #2e3240; --c-carbs: #6c7186; --c-fat: #a3a7b8; --c-water: #5b6070; }
+html:root[data-palette='mono'] { --c-kcal: #ff7a59; --c-protein: #eef0f5; --c-carbs: #9fb6e0; --c-fat: #8f94a8; --c-water: #cfd3e0; }
+html:root[data-palette='mono'][data-theme='light'] { --c-kcal: #e85a36; --c-protein: #2e3240; --c-carbs: #4a6fa8; --c-fat: #858a9e; --c-water: #5b6070; }
 :root[data-palette='mono'] .aurora i { opacity: calc(var(--aurora-a) * 0.7); }
 /* Background glow (Settings → Appearance): Soft dims the colour light; Off removes it, so nothing drifts behind the app at all.
    html:root so it outranks the themes' own --aurora-a. */
@@ -93,7 +93,7 @@ html:root[data-glow='off'] .aurora, html:root[data-glow='off'] .aurora-lite { di
 :root[data-palette='golden'] [data-hue='train'] { --ac: #ff9a3d; --h1: #ff3d1a; --h2: #ff5a24; --h3: #d92a1a; }
 :root[data-palette='golden'] [data-hue='food'] { --ac: #ffc44d; --h1: #ff5a1f; --h2: #ff3d1a; --h3: #ff6a2a; }
 :root[data-palette='golden'] [data-hue='progress'] { --ac: #ffa84a; --h1: #ff4a1a; --h2: #e8301a; --h3: #ff6a2a; }
-html:root[data-palette='golden'] { --c-kcal: #ff7a2f; --c-protein: #ff5436; --c-carbs: #a8b4ff; --c-fat: #ffd060; --c-water: #ffb547; }
+html:root[data-palette='golden'] { --c-kcal: #ff7a2f; --c-protein: #e8365e; --c-carbs: #a8b4ff; --c-fat: #ffd060; --c-water: #ffb547; }
 :root[data-palette='golden'] .bg-sun { --sun-mid: #ff7a2f; --sun-wide: #c8401a; --sun-h2: #8a2410; --sun-h1: #5a1a0e; }
 :root[data-palette='golden'] .bg-sun-sky { --h1: #5a1a0e; }
 :root[data-palette='golden'] .icon-btn.acc { background: linear-gradient(180deg, #ffc65a, #ff7a2f); box-shadow: inset 0 1px 0 rgba(255,255,255,.55), 0 14px 34px -10px rgb(255 74 26 / .7); }
@@ -113,9 +113,9 @@ html:root[data-palette='midnight']:not([data-theme='light']) { --nokey: #9cc4ff;
 html:root[data-palette='champagne'] { --c-kcal: #f5e2b8; --c-protein: #e0b07a; --c-carbs: #b4caf2; --c-fat: #b9784a; --c-water: #d8e6f5; }
 :root[data-palette='champagne'] .bg-sun { --sun-mid: #8a6224; --sun-wide: #6a4a1a; --sun-h2: #4a3a2a; --sun-h1: #3a3640; }
 /* on a light page the new looks' rings and water drop take the deep version of their colours (the pale ones vanish) */
-html:root[data-palette='golden'][data-theme='light'] { --c-kcal: #f2641a; --c-protein: #e0401f; --c-carbs: #6a78e0; --c-fat: #d49a12; --c-water: #e08a12; }
+html:root[data-palette='golden'][data-theme='light'] { --c-kcal: #f2641a; --c-protein: #c81f48; --c-carbs: #6a78e0; --c-fat: #d49a12; --c-water: #e08a12; }
 html:root[data-palette='midnight'][data-theme='light'] { --c-kcal: #3a78d8; --c-protein: #e8604e; --c-carbs: #6a52d8; --c-fat: #c99a2a; --c-water: #1f8fc4; }
-html:root[data-palette='champagne'][data-theme='light'] { --c-kcal: #c9a050; --c-protein: #c07a3a; --c-carbs: #6a88b8; --c-fat: #8a5a32; --c-water: #6a90b0; }
+html:root[data-palette='champagne'][data-theme='light'] { --c-kcal: #a8822e; --c-protein: #b9604a; --c-carbs: #6a88b8; --c-fat: #8a5a32; --c-water: #6a90b0; }
 /* contents that arrive a beat after a tall sheet starts moving fade in instead of appearing */
 .sheet-pane.late > * { animation: fadein 220ms var(--ease-out) both; }
 /* …but the bottom buttons' fade is let go once it has run (fill backwards): an animation kept on the foot makes it a closed
