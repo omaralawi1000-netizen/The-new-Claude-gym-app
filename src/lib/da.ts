@@ -1,5 +1,10 @@
 /** Danish strings. Keys are the English UI strings. Missing keys fall back to English (see scripts/i18n-keys.mjs --missing). */
 export const da: Record<string, string> = {
+ "Aven Beta": "Aven Beta",
+ "This is the test copy. Its workouts, food and settings are separate from your real Aven, and nothing you do here changes the real app.": "Det her er testkopien. Dens træning, mad og indstillinger er adskilt fra din rigtige Aven, og intet du gør her ændrer den rigtige app.",
+ "Copy my real Aven data in": "Kopiér mine rigtige Aven-data ind",
+ "This replaces everything in the Beta with a copy of your real Aven (including your API keys), then restarts the Beta. Your real Aven is not touched.": "Det erstatter alt i Beta med en kopi af din rigtige Aven (også dine API-nøgler) og genstarter Beta. Din rigtige Aven bliver ikke rørt.",
+ "Yes, copy it": "Ja, kopiér",
  "How strong the background is. Off leaves it plain.": "Hvor kraftig baggrunden er. Fra gør den helt rolig.",
  "Only Classic keeps drifting. The others hold still while you scroll.": "Kun Klassisk bevæger sig hele tiden. De andre står stille, mens du scroller.",
  "Change photo": "Skift billede",
