@@ -296,7 +296,7 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
                     ))}
                   </div>
                 </Field>
-                <Field label={t('Background')} hint={t('Everything but Classic holds still, so the app stays smooth.')}><BackgroundPicker /></Field>
+                <Field label={t('Background')} hint={t('Only Classic keeps drifting. The others hold still while you scroll.')}><BackgroundPicker /></Field>
                 <Field label={t('Background glow')} hint={t('How strong the background is. Off leaves it plain.')}><Seg value={st.glow ?? 'full'} onChange={(v) => set({ glow: v })} options={[{ value: 'full', label: t('Full') }, { value: 'soft', label: t('Soft') }, { value: 'off', label: t('Off') }]} /></Field>
                 <Field label={t('Theme')}><Seg value={st.theme} onChange={(v) => set({ theme: v })} options={[{ value: 'system', label: t('System') }, { value: 'light', label: t('Light') }, { value: 'dark', label: t('Dark') }]} /></Field>
                 <Field label={t('Motion')}><Seg value={st.motion} onChange={(v) => set({ motion: v })} options={[{ value: 'system', label: t('System') }, { value: 'full', label: t('Full') }, { value: 'reduce', label: t('Reduced') }]} /></Field>

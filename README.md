@@ -1783,11 +1783,17 @@ Orb light, Colour per tab, Sunrise, Mesh, Dot field, Time of day, Night sky and 
   0.8 s cross-fade. Tab-coloured ones (Classic, Orb, Colour per tab, Sunrise, Mesh, Dot field) cross-fade on a tab switch
   exactly like the old field did; the others don't change on a tab switch at all.
 - Night sky uses Aarhus sunset/sunrise (NOAA approximation, `sunTimes`): stars after sunset, a calm dusk before.
-- Your photo is blurred once when picked (canvas, to 300×650 JPEG), kept in IndexedDB with the progress photos, never
+- Your photo is blurred once when picked (canvas blur 16 px, to a 240×520 JPEG), kept in IndexedDB with the progress photos, never
   uploaded and not in backups; the screen only scales up a still, already-soft picture and darkens it for legibility.
 - Background glow still applies: Full / Soft set the strength; Off leaves a plain background (Your photo stays). Picking a
   background while the glow is Off turns it back to Full. Colour per tab uses its own hues (Today warm, Train blue, Food
   green, Progress violet); the accent on buttons still follows the palette. The workout window keeps its own light.
+- Round 2 (after the judge): Colour per tab's Today is a cool aqua (a warm wash turned see-through cards amber next to
+  a teal accent); Time of day has a warm sky (Ember, Sunset) and a cool one (the rest) so evenings never go brown, and
+  midday is a clean light blue, not white (white over dark reads grey); over Night sky and Dot field the tab screens'
+  cards, chips and buttons are the same dark glass made solid (`--s1..3`, `--bg-2` on `.screen`), so no star or dot
+  shows through a card; Night sky got a faint Milky Way band and is near-black, unlike Time of day's indigo night;
+  Orb light moves to the Coach's orb (bottom-left) while the Coach is open, by fading between layers already drawn.
 - Scripts: `AVEN_BG=mesh AVEN_PALETTE=aurora AVEN_GLOW=off AVEN_PHOTO=file.jpg` in any script that uses `loadDemo`.
 
 ## Smooth glows behind the frosted pop-ups: no more colour bands (13 Oct 2026)
