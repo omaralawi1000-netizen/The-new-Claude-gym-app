@@ -95,19 +95,11 @@ export function TabBar() {
   const push = useUI((s) => s.push);
   // derived booleans, not the overlay list: opening a sheet must not re-render (and re-measure) the tab bar
   const covered = useUI((s) => s.overlays.some((o) => o.type === 'voice' || o.type === 'onboarding'));
-  // the live workout: the bar steps aside a beat after it starts (the window first takes the resume bar's place, in the
-  // bar, where it stands: sliding away at once, the bar left the window's outline while the two still crossed)
-  const wk = useUI((s) => s.overlays.some((o) => o.type === 'workout'));
-  const [wkLate, setWkLate] = useState(wk);
-  useEffect(() => {
-    if (!wk) { setWkLate(false); return; }
-    // counted in frames' time (the clock the window's own motion runs on), not a timer
-    let id = 0; const t0 = performance.now();
-    const wait = () => { if (performance.now() - t0 >= 90) setWkLate(true); else id = requestAnimationFrame(wait); };
-    id = requestAnimationFrame(wait);
-    return () => cancelAnimationFrame(id);
-  }, [wk]);
-  const hidden = covered || wkLate;
+  // the live workout: the bar steps aside as the window sets off, so the window's bottom edge, growing down, never crosses
+  // it (waiting a beat, the bar stood still while that edge ran across it, and looked laid over the window). Out of Today's
+  // card it doesn't slide on its own: the window's bottom edge carries it down, and back up behind it (Active.tsx `dock`).
+  const wk = useUI((s) => s.overlays.some((o) => o.type === 'workout' && o.props?.origin !== 'hero'));
+  const hidden = covered || wk;
   const t = useT();
   const nav = useRef<HTMLElement>(null);
   useDock(nav, tab);

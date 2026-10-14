@@ -13,7 +13,7 @@ import { beatLastTime, newBest, elapsedMs, historyOf, incrementFor, lastPerforma
 import { fmtDuration } from '../../lib/dates';
 import { displayToKg, kgToDisplay, fmtNum, displayToM, mToDisplay } from '../../lib/units';
 import { useNow } from '../../lib/hooks';
-import { setWorkoutOpener, takeWorkoutFrom, wkSourceRect, type WkSource } from '../../ui/workoutOpen';
+import { dockTop, setWorkoutOpener, takeWorkoutFrom, wkSourceRect, type WkSource } from '../../ui/workoutOpen';
 import { nextSetOf, offerRestAlerts, prepareRestAudio, unlockRestAudio } from './rest';
 import { addSet, deleteSet, moveExercise, patchExercise, patchSet, removeExercise, startRest, adjustRest, skipRest, toggleSuperset } from './actions';
 import { exName, fmtSet, MUSCLE_LABEL } from './common';
@@ -23,7 +23,7 @@ import { Mirror, contentTransform, mirrorProgress, trackCover, warmStage, type E
 import { readRGB, setBarTint } from '../../ui/statusBar';
 import { kb, keyboardGoal, onKeyboardGoal, rideFocus } from '../../ui/keyboard';
 import { viewportH } from '../../ui/viewport';
-import { BOUNCY, SURFACE, SURFACE_EXIT, WINDOW_CLOSE, WINDOW_OPEN, snapPx } from '../../ui/motion';
+import { BOUNCY, SMOOTH, SURFACE, SURFACE_EXIT, WINDOW_CLOSE, WINDOW_OPEN, mirrorSpring, snapPx } from '../../ui/motion';
 import { FocusView, fadeOutPage, upNextOf, useFocusPage, type FocusApi } from './Focus';
 import { morphBack, morphLand, morphStart, type Morph } from './morph';
 
@@ -275,11 +275,34 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     sunk.current = v >= 0.0005;
     el.style.transform = sunk.current ? contentTransform(v) : '';
   };
+  // The tab bar, grown out of Today's card (it may run on under the bar): the window's bottom edge carries the bar down as it
+  // grows and draws it back up behind it as it goes back, so the edge never crosses it, and the two land together. Its
+  // place at rest in `dockAt`; the page it is on sinks (scale, from the middle), which the shift makes up for.
+  const dockAt = useRef<number | null>(null);
+  const navEl = () => document.querySelector<HTMLElement>('.tabbar');
+  const dock = (pp: number) => {
+    const n = dockAt.current, g = from.current, { hA, RB } = dims.current;
+    if (n === null || !g) return 0;
+    const bot = g.b + (hA - LEAD + RB - g.b) * qAt(pp), k = 1 - 0.05 * env(pp), c = H / 2;
+    const v = (bot - c) / k + c - Math.max(n, g.b); // (a card ending below the bar's top: from where it ends)
+    return v > 0.25 ? v : 0;
+  };
+  const dockT = (pp: number) => { const v = dock(pp); return v ? `translate3d(0, ${v.toFixed(2)}px, 0)` : 'none'; };
+  const lastDock = useRef('');
+  const setDock = (pp: number) => { const v = dockT(pp); if (v === lastDock.current) return; lastDock.current = v; const el = navEl(); if (el) el.style.transform = v === 'none' ? '' : v; };
+  // let it go (closing without a card: it comes back up on its own)
+  const freeDock = () => {
+    const el = navEl(); dockAt.current = null; lastDock.current = '';
+    if (!el || !el.style.transform) return;
+    const t0 = el.style.transform; el.style.transform = '';
+    if (!reduce) mirrorSpring(el, [{ transform: t0 }, { transform: 'none' }], SMOOTH);
+  };
   useEffect(() => p.on('change', (pp) => {
     if (!reduce) sink(env(pp));
+    if (dockAt.current !== null) setDock(pp);
     if (!from.current || !src.current.length) return; const c = card(pp); showCard(c, under(pp)); showSkin(1 - c);
   }), [p, reduce]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => () => sink(0), []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => { sink(0); freeDock(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const slotRest = useRef<{ left: number; top: number; width: number; height: number } | undefined>(undefined);
   const measure = (g: WkSource | null) => {
     const d = dialogRef.current, a0 = sheetRef.current;
@@ -300,7 +323,9 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     const ok = !!g && g.w > 40 && g.b - g.t > 30;
     from.current = ok ? { l: g.l - box.left, t: g.t - box.top, w: g.w, b: g.b - box.top } : null;
     radius.current = ok ? (g.r * box.width) / g.w : screenR();
-    if (!ok || !g) return;
+    if (!ok || !g) { freeDock(); return; }
+    dockAt.current = g.bg.dataset.wk === 'hero' ? dockTop() : null;
+    if (dockAt.current === null) freeDock();
     // the card's surface, copied as it is drawn (its colours read off the card: the window has its own hue), without the
     // frost (nothing on a moving layer is blurred)
     const s = skinRef.current;
@@ -339,6 +364,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
       ...(morph ? [skinRef.current, ...src.current].map((el, i) => mirrorProgress(el, p0, p1, sp, vel, (pp) => ({ opacity: String(i === 0 ? 1 - card(pp) : i === 1 ? under(pp) : card(pp)) }), [...F().card, F().card[1] - 0.002])) : []),
       morph ? mirrorProgress(dimRef.current, p0, p1, sp, vel, (pp) => ({ opacity: String(dim(pp)) }), ENV) : null,
       morph ? mirrorProgress(stageEl(), p0, p1, sp, vel, (pp) => ({ transform: contentTransform(env(pp)) }), ENV) : null,
+      morph && dockAt.current !== null ? mirrorProgress(navEl(), p0, p1, sp, vel, (pp) => ({ transform: dockT(pp) }), [], true) : null,
       morph ? null : mirrorProgress(shadeRef.current, p0, p1, sp, vel, (pp) => ({ opacity: String(shade(pp)) }), [0.12, 0.7]),
       mirrorProgress(fillRef.current, p0, p1, sp, vel, (pp) => ({ opacity: String(fill(pp)) }), [at - 0.015, at + 0.015]),
       mirrorProgress(headRef.current, p0, p1, sp, vel, (pp) => ({ transform: yAt(headOff(pp, pp)), opacity: String(inside(pp)) }), [], true),

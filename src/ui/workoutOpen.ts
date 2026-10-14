@@ -36,7 +36,20 @@ export function wkSourceRect(kind: From): WkSource | null {
   }
   if (w < 40 || h < 30 || t < 0 || t + h > window.innerHeight) return null;
   const r = parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0;
-  return { l, t, w, b: t + h, r: Math.min(r, h / 2, w / 2), bg: el, fg: el.nextElementSibling as HTMLElement | null };
+  // Today's card scrolled down to the tab bar runs on under it: the window takes only the part above the bar (where the bar
+  // sits at rest), so it never lies over the bar. Grown from the whole card, its first frame laid the card's hidden end over
+  // the bar, and its bottom edge then cut across the bar while the bar slid away, as if the bar were over the window.
+  let b = t + h;
+  if (kind === 'hero') { const top = dockTop(); if (top !== null && top < b && top - t >= 60) b = top; }
+  return { l, t, w, b, r: Math.min(r, (b - t) / 2, w / 2), bg: el, fg: el.nextElementSibling as HTMLElement | null };
+}
+/** The tab bar's top edge where it sits at rest (its layout, not where its slide has it this frame); null when there is none. */
+export function dockTop(): number | null {
+  const nav = document.querySelector<HTMLElement>('.tabbar');
+  if (!nav || !nav.offsetParent) return null;
+  let t = 0;
+  for (let n: HTMLElement | null = nav; n; n = n.offsetParent as HTMLElement | null) t += n.offsetTop;
+  return t;
 }
 /** Open the workout: `tell` updates the app (pushes the overlay); with a minimised window waiting, after its first frame.
  * `from`: the card that was tapped, which the window grows out of. */
