@@ -19,7 +19,7 @@ import { ActionCard, Rich, TypingDots, SpeakButton, prefetchAloud, sttMessage, u
 import { runActions, type AgentResult } from '../lib/agent';
 import { uid } from '../lib/nutrition';
 import { dayKey } from '../lib/dates';
-import { blobToBase64, downscale } from '../lib/photos';
+import { blobToBase64, cameraSupported, downscale } from '../lib/photos';
 import { apple, springCurve } from '../ui/motion';
 
 /* The typing bar opens wide while you type (Omar, 13 Oct: "expands when I type on it and compresses when I'm done"): the
@@ -821,7 +821,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
             <SphereSlot id="coach" priority={5} style={{ position: 'absolute', inset: -4 }} />
           </button>
           {/* the camera: a label, a machine, a program screenshot — anything to ask about */}
-          <span className="coach-cam-slot"><button className="icon-btn press coach-cam frost-ctl" aria-label={t('Send a photo')} disabled={busy || recording || hearing} onClick={() => camRef.current?.click()}><Icon name="camera" size={21} /></button></span>
+          <span className="coach-cam-slot"><button className="icon-btn press coach-cam frost-ctl" aria-label={t('Send a photo')} disabled={busy || recording || hearing} onClick={() => { if (cameraSupported()) useUI.getState().push('camera', { onShot: pickPhoto }); else camRef.current?.click(); }}><Icon name="camera" size={21} /></button></span>
           <div className="grow coach-field" ref={fieldRef}>
             {/* the pill: one frost that never moves (only its outline does), a tint drawn in two halves that slide over each
                 other, and a shadow that stretches — so opening it is moves only */}

@@ -24,9 +24,10 @@ const Coach = deferred(() => import('./Coach').then((m) => m.Coach));
 const VoiceComposer = deferred(() => import('./Voice').then((m) => m.VoiceComposer));
 const SettingsSheet = deferred(() => import('./Settings').then((m) => m.SettingsSheet));
 const PhotoFood = deferred(() => import('./food/PhotoFood').then((m) => m.PhotoFood));
+const CameraSheet = deferred(() => import('./CameraSheet').then((m) => m.CameraSheet));
 const Scanner = deferred(() => import('./food/Scanner').then((m) => m.Scanner));
 const Onboarding = deferred(() => import('./Onboarding').then((m) => m.Onboarding));
-preloadLater(Coach, VoiceComposer, SettingsSheet, PhotoFood, Scanner, Onboarding);
+preloadLater(Coach, VoiceComposer, SettingsSheet, PhotoFood, Scanner, CameraSheet, Onboarding);
 
 // one stable object per overlay, so its consumers don't re-render on every change to the stack
 const metas = new Map<string, { id: string; page: boolean }>();
@@ -132,6 +133,7 @@ export function Overlays() {
           case 'recipes': return <RecipeList key={o.id} props={p} />;
           case 'recipe': return <RecipeEditor key={o.id} props={p} />;
           case 'savedMeals': return <SavedMeals key={o.id} props={p} />;
+          case 'camera': return <CameraSheet key={o.id} props={p} />;
           case 'scanner': return <Scanner key={o.id} props={p} />;
           case 'datePicker': return <DatePicker key={o.id} props={p} />;
           case 'entryMenu': return <EntryMenu key={o.id} props={p} />;

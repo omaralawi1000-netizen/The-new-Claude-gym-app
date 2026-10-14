@@ -2178,3 +2178,17 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 .bg-pv .bg-orb-spot { display: none; }
 .bg-pv .bg-dots { top: 2px; background-size: 260% auto; }
 .bg-pv-empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--tx3); z-index: 1; }
+
+/* ---- in-app camera pop-up (CameraSheet.tsx): live preview in a rounded panel, Back / shutter / gallery under it.
+   Nothing blurs over the live picture (it changes every frame): the round buttons are a dark film, as on the scanner. ---- */
+.cam-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 14px 10px calc(var(--sab) + 12px); gap: 14px; }
+.cam-panel { position: relative; flex: 1; min-height: 0; border-radius: var(--r-xl); overflow: hidden; background: #000; box-shadow: inset 0 0 0 1px rgba(255,255,255,.06); }
+.cam-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.cam-flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+.cam-msg { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 6px; padding: 0 28px; text-align: center; color: #fff; pointer-events: none; transition: opacity 180ms linear; }
+.cam-bar { flex: none; display: flex; align-items: center; justify-content: space-between; padding: 0 14px; height: 84px; }
+.cam-btn { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; color: #fff; background: rgba(255,255,255,.12); box-shadow: inset 0 1px 0 rgba(255,255,255,.14); }
+.cam-flip { position: absolute; top: 14px; right: 14px; width: 44px; height: 44px; background: rgba(0,0,0,.38); }
+.cam-shutter { width: 80px; height: 80px; border-radius: 50%; display: grid; place-items: center; box-shadow: inset 0 0 0 4px rgba(255,255,255,.5); }
+.cam-shutter i { width: 62px; height: 62px; border-radius: 50%; background: #fff; display: block; }
+.cam-shutter:disabled { opacity: 0.45; }

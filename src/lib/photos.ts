@@ -41,3 +41,6 @@ export async function blobToBase64(b: Blob): Promise<string> {
   let s = ''; for (let i = 0; i < buf.length; i += 0x8000) s += String.fromCharCode(...buf.subarray(i, i + 0x8000));
   return btoa(s);
 }
+
+/** the browser can open a live camera (the in-app camera pop-up); otherwise the phone's own camera picker is used */
+export const cameraSupported = () => typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia;
