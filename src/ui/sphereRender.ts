@@ -137,6 +137,7 @@ export class SphereRenderer {
   private spin = 0;                        // extra turn speed from a tap or a flight, decaying
   private calm = 0;                        // seconds left of a flight's calm start (flashes and blooms damped)
   private flash = 0;                       // light running through the dots after a tap or a syllable
+  private ignSeen = false;                 // the launch's arrival spiral: climbs by height as you see it (and carries the colour)
   private ripples: { ox: number; oy: number; oz: number; age: number; amp: number }[] = []; // a syllable: a ring of light crossing it towards you
   private restK = 0;                       // how far into its resting breath it is (smoothed 0..1, so it eases in and out)
   private ign = -1;                        // seconds into the arrival spiral (-1: none)
@@ -189,13 +190,14 @@ export class SphereRenderer {
       this.scV += (-420 * (this.sc - scTo) - 34 * this.scV) * h; this.sc += this.scV * h;
     }
     if (inp.ignite && inp.ignite > 0) {
-      if (!reduced) { this.ign = 0; this.ignTop = false; this.spin += 2.2; }
+      if (!reduced) { this.ign = 0; this.ignTop = false; this.spin += 2.2; this.ignSeen = inp.ignite >= 2; }
       inp.ignite = 0;
     }
     if (this.ign >= 0) {
       this.ign += dt;
       // the moment the spiral reaches the top, the whole sphere lights up once (in time with the haptic heartbeat's last thump)
-      if (!this.ignTop && ignFront(this.ign) >= 1) { this.ignTop = true; this.flash = Math.min(1, this.flash + 0.7); this.kickV += 2.4; }
+      // (the launch's is gentler: a soft glow of light as it finishes, not a flash, so it stays calm)
+      if (!this.ignTop && ignFront(this.ign) >= 1) { this.ignTop = true; this.flash = Math.min(1, this.flash + (this.ignSeen ? 0.25 : 0.7)); this.kickV += this.ignSeen ? 1.6 : 2.4; }
       if (this.ign > 1.3) this.ign = -1;
     }
     // a set ticked: one heartbeat — the light swells once and a single ring of the success colour leaves it. No spin and no
@@ -271,7 +273,12 @@ export class SphereRenderer {
     const haloA = (1 - LK) * breathe * (this.cur.halo + this.restK * 0.18 + this.body * 0.55 + this.env * 0.25 + Math.max(0, this.kick) * 0.25 + this.press * 0.35 + this.flash * 0.6) * (1 - this.cur.dim * 0.8);
     // a change of colours (OrbInputs.colorsTo): the beads change one by one (below); the light around them (this inner light,
     // the glass edge, the sparkles) goes with them, evenly, so nothing switches in one frame when the change ends
-    const xk = inp.colorsTo && inp.colorMix !== undefined ? Math.min(1, Math.max(0, inp.colorMix)) : 0;
+    // (the launch: the new colour rides the arrival spiral's front, never behind the plain wave)
+    const ignF = this.ign >= 0 ? ignFront(this.ign) : -9;
+    // (once it has run its course every bead stays new until the change itself ends: never back to the old colour)
+    if (!inp.colorsTo && this.ign < 0) this.ignSeen = false;
+    const xkIgn = !inp.colorsTo || !this.ignSeen ? 0 : this.ign >= 0 ? WAVE_J + WAVE_S * ignF : 1;
+    const xk = inp.colorsTo && inp.colorMix !== undefined ? Math.min(1, Math.max(0, inp.colorMix, xkIgn)) : 0;
     const B = inp.colorsTo ?? colors;
     const lerp3 = (x: RGB, y: RGB): RGB => [x[0] + (y[0] - x[0]) * xk, x[1] + (y[1] - x[1]) * xk, x[2] + (y[2] - x[2]) * xk];
     const halo = (h: RGB, a: RGB, w: number) => {
@@ -300,7 +307,6 @@ export class SphereRenderer {
     if (!live && v.phase === 'listening') { amps[0] += 0.015; amps[1] += 0.012; } // no level available: honest gentle light, no fake voice
     const spacing = Math.sqrt(12.566 / nf) * R;
     // arrival spiral: a front of light climbing from the bottom pole to the top, three arms winding round as it goes
-    const ignF = this.ign >= 0 ? ignFront(this.ign) : -9;
     const ignK = this.ign < 0 ? 0 : this.ign < 0.75 ? 1 : Math.max(0, 1 - (this.ign - 0.75) / 0.5);
     const rip = this.ripples.map((r) => ({ ...r, front: r.age * 2.7, k: r.amp * Math.pow(1 - r.age / 1.3, 2) }));
     const cometHead = T * 3.1;
@@ -308,7 +314,7 @@ export class SphereRenderer {
 
     // buckets: 7 light levels × 3 hue mixes (accent ↔ the area's second colour, drifting round the sphere)
     const NB = 7, NH = 3;
-    const NM = xk > 0 && xk < 1 ? 2 : 1; // the crossfade: each bead is either the old colour or the new one (1 = none)
+    const NM = xk > 0 && inp.colorsTo ? 2 : 1; // the crossfade: each bead is either the old colour or the new one (1 = none; all new at 1)
     const buckets: number[][] = Array.from({ length: NB * NH * NM }, () => []);
     const dots: { x: number; y: number; r: number; z: number }[] = new Array(count);
     const tone = new Uint8Array(count); // 0 = base colour, 1 = highlight, 2 = ok
@@ -382,10 +388,11 @@ export class SphereRenderer {
         if (dd > -0.6 && dd < 0.6) glow += r.k * 0.8 * Math.exp(-(dd * dd) / 0.03);
       }
       if (ignK > 0) {
-        const u = (1 - y) / 2; // 0 bottom pole (on screen) … 1 top
+        const u = (1 - (this.ignSeen ? y2 : y)) / 2; // 0 bottom pole (on screen) … 1 top
         const arms = 0.5 + 0.5 * Math.cos(az * 3 - u * 13 + this.ign * 4);
         const du = u - ignF;
-        glow += ignK * (Math.exp(-(du * du) / 0.005) * (0.8 + 1.8 * arms) + (du < 0 ? Math.exp(du * 5) * 0.35 * arms : 0));
+        // (the launch's front is a band of the new colour's light, not white-hot: about half as strong)
+        glow += ignK * (this.ignSeen ? 0.5 : 1) * (Math.exp(-(du * du) / 0.005) * (0.8 + 1.8 * arms) + (du < 0 ? Math.exp(du * 5) * 0.35 * arms : 0));
       }
       if (this.cur.ring > 0.01) glow += Math.exp(-(y * y) / 0.004) * 0.9 * this.cur.ring;
       let okMix = 0;
@@ -406,7 +413,8 @@ export class SphereRenderer {
       let sh = Math.min(1, 0.16 + 0.84 * Math.pow(depth, 1.25) * (0.42 + 0.58 * lam) + rim + Math.max(0, glow - 0.4) * 0.25 * depth);
       const size = spacing * 0.24 * (0.35 + 1.05 * depth) * (1 + Math.min(1, glow) * 0.16);
       dots[n] = { x: px, y: py, r: size, z: z2 };
-      tone[n] = okMix > 0.25 && depth > 0.42 ? 2 : glow * (0.4 + 0.6 * depth) > 1.25 ? 1 : 0; // highlights are sparkles on the near side, not a wash
+      // (the launch's spiral lights the beads, never as white sparkles: single white beads read as stuck pixels at that size)
+      tone[n] = okMix > 0.25 && depth > 0.42 ? 2 : glow * (0.4 + 0.6 * depth) > 1.25 && !(this.ignSeen && this.ign >= 0) ? 1 : 0; // highlights are sparkles on the near side, not a wash
       const hueMix = 0.5 + 0.5 * Math.sin(az * 1 + y * 1.6 - T * 0.6); // the second colour drifts around the surface
       const hb = Math.min(NH - 1, Math.floor(hueMix * NH));
       // crossfade: one wave of the new colour from the bottom of the orb to its top, each bead in one step: never a blend of

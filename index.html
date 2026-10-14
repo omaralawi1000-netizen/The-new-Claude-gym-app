@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-launch>
+<html lang="en" data-launch data-rise-hold>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=overlays-content" />
@@ -16,9 +16,10 @@
       html, body { background: #05060b; }
       #launch { position: fixed; inset: 0; z-index: 900; background: #05060b; pointer-events: none; contain: strict; }
       #launch .launch-logo { position: absolute; left: 50%; top: 50%; width: 120px; height: 120px; margin: -60px 0 0 -60px; }
-      /* until the launch has started: the live orb waits unseen under the logo, and the first screen's blocks wait to rise */
+      /* until the launch has started the live orb waits unseen under the logo; the first screen's blocks wait to rise until
+         the orb lands (launch.ts) */
       html[data-launch] .sphere-stage canvas { opacity: 0; }
-      html[data-launch] .screen > *, html[data-launch] .subpage > * { animation-play-state: paused; }
+      html[data-rise-hold] .screen > *, html[data-rise-hold] .subpage > * { animation-play-state: paused; }
       #launch .launch-slot { position: absolute; left: 50%; top: 50%; width: 151.52px; height: 151.52px; margin: -75.76px 0 0 -75.76px; } /* the live orb is drawn 0.66 of its box: 100 px, as the logo */
     </style>
   </head>
@@ -27,7 +28,7 @@
     <div id="root"></div>
     <script>
       // if the app never takes the launch screen over (a script failed to load), it still steps aside
-      setTimeout(function () { var l = document.getElementById('launch'); if (l && !l.dataset.taken) { l.remove(); delete document.documentElement.dataset.launch; } }, 6000);
+      setTimeout(function () { var l = document.getElementById('launch'); if (l && !l.dataset.taken) { l.remove(); delete document.documentElement.dataset.launch; delete document.documentElement.dataset.riseHold; } }, 6000);
     </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>

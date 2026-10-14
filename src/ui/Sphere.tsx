@@ -49,6 +49,9 @@ export function orbTap(strength = 1) { tapPending = Math.max(tapPending, strengt
 let launchTint = false, tintGoAt = 0;
 export function orbLaunchTint() { launchTint = true; }
 export function orbTintGo() { tintGoAt = performance.now(); }
+/** The launch's arrival spiral: light winds up the orb from the bottom and the palette's colour rides its front
+ *  (OrbInputs.ignite 2; start it with orbTintGo). */
+export function orbIgnite() { ignitePending = 2; }
 let launchLogo: number | undefined;
 /** The orb drawn as the launch logo (1), or turning into itself (0; see OrbInputs.logo). */
 export function orbLogo(v: number | undefined) { launchLogo = v; }
@@ -315,10 +318,10 @@ export function SphereStage() {
       if (fadeStart === Infinity && tintGoAt) fadeStart = tintGoAt;
       if (!fadeStart) return;
       if (launchFade && fadeStart !== Infinity) {
-        // at an even pace: the wave of new colour moves up the orb steadily, without lingering half-way; the last bead has
-        // changed ~0.38 s into the flight (three quarters of the way down), well before the orb is in the dock
-        const k = Math.min(1, Math.max(0, (now - fadeStart) / 280));
-        if (k < 1) { colors = from; launchMix = k; return; }
+        // the colour rides the arrival spiral (orbIgnite), which has every bead changed by ~0.8 s; this slower curve only
+        // makes sure the change is finished (and lags behind the spiral, so it never runs ahead of it)
+        const k = Math.min(1, Math.max(0, (now - fadeStart) / 1000));
+        if (k < 1) { colors = from; launchMix = k * k; return; }
         colors = to; launchMix = -1; launchFade = false; fadeStart = 0; return;
       }
       const k = Math.min(1, Math.max(0, (now - fadeStart) / 1100));
