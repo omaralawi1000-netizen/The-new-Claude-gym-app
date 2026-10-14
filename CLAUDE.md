@@ -26,7 +26,8 @@ as an installed app and judges everything on the phone. He is not a programmer: 
   green. If it fails, fix it right away: red means his phone keeps the old version.
 - End with exactly what to check on the phone (screen, what to do, what it should look like) and tell him to fully reload.
 
-## Aven Beta: try it on the phone BEFORE it ships
+## Ship to Beta (try it on the phone BEFORE it ships)
+Steps, in order: **1. Deploy** to Beta (command below) → **2. Omar tries it** → **3. Promote** to the real app only after his yes.
 A second installable app, "Aven Beta" (teal icon with a BETA label), lives at `https://omaralawi1000-netizen.github.io/The-new-Claude-gym-app/beta/`.
 It is the same code with its own name, icon and its own storage (every storage key and database name gets `beta:` in front,
 `src/lib/beta.ts`), so it can never read or change the real app's workouts, food or keys. Omar installs it once, next to the real app.
@@ -35,6 +36,13 @@ It is the same code with its own name, icon and its own storage (every storage k
   (workflow `pages.yml`, ref = the default branch, inputs `{"beta_branch": "<your branch>"}`), or by hand: Actions → Deploy web app →
   Run workflow → branch name. Wait until it is green, tell Omar to open Aven Beta (it offers "Update" / reload), and send him what to check.
   Only after he approves, do the normal PR into the default branch (below). Don't bump the version for a Beta-only trial.
+- **Deploy command:** GitHub tool `actions_run_trigger`, method `run_workflow`, workflow `pages.yml`, ref = the default branch,
+  inputs `{"beta_branch": "<your branch>"}`. Green run = Beta updated (about 90 s). Beta needs the branch to contain this setup: merge the default branch first.
+- **Version in Beta:** Settings → About Aven shows `v<package.json version of your branch> beta` and a "Aven Beta" box. A trial has no bump, so
+  it shows the same number as the real app; tell Omar which branch/trial he is looking at in your message, not by version.
+- **Promote after his yes:** bump the version (check the default branch right before), `npm run verify`, PR into the default branch, merge, wait for
+  "Deploy web app" green, then tell him what to check on the real app and to fully reload. Beta is rebuilt from the same branch on that deploy
+  (merge first so it matches). If he says no, change the branch and deploy to Beta again; nothing real was touched.
 - Beta shows ONE branch at a time (the branch called `beta` remembers it); a new trial replaces the old one. Leaving the box empty keeps it.
 - The real app still deploys only from the default branch. Every real deploy rebuilds Beta from the remembered branch, so a broken
   Beta never blocks the real app (it shows a short note instead).
