@@ -86,15 +86,19 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
   // The window stands in the card's own outline for the first few percent: opening, it takes the card's place exactly (its
   // look, corners and all) and the card's words go before it moves; closing, it has landed in the card (or bar) exactly and
   // hands it back there. It sets off from that outline, and lands in it, at no speed (eased in over the first 15 %).
-  const hold = () => (leaving.current ? 0.03 : 0.06);
+  const hold = () => (leaving.current ? 0.05 : 0.06);
   const EASE = 0.15;
   const qOf = (pp: number) => { const h = hold(), u = Math.max(0, (pp - h) / (1 - h)); return (u < EASE ? (u * u) / (2 * EASE) : u - EASE / 2) / (1 - EASE / 2); };
   const ppOf = (q: number) => { const h = hold(), v = q * (1 - EASE / 2), u = v < EASE / 2 ? Math.sqrt(2 * EASE * v) : v + EASE / 2; return h + u * (1 - h); };
+  // opening, it is all the way up at 99.7 % of the spring (which ends with no visible bounce): the spring's last few tenths
+  // of a pixel no longer creep in one screen pixel at a time, nor go past and come back
+  const landed = (pp: number) => (from.current && !leaving.current ? Math.min(1, pp / 0.997) : pp);
   const geo = (pp: number) => {
     const g = from.current, { W, hA, RB } = dims.current;
     if (!g || !W) return { x: 0, y: sheetTop(pp) - LEAD, s: 1, by: 0 };
     // the spring's last stretch (and its faint landing past the top) is under half a pixel for every edge: it lands there,
     // instead of creeping the last pixels one screen pixel at a time
+    pp = landed(pp);
     if (Math.abs(1 - pp) * (g.t + LEAD + hA) < 0.5) pp = 1;
     const q = qOf(pp);
     // the width is whole a moment before the window lands (at 98.5 %): it then settles at exactly its own size, sharp, and
@@ -118,11 +122,13 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
   // bottom edge it is solid all the way, as before.
   const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
   const solid = (pp: number) => (from.current ? clamp01((pp - hold()) / 0.1) : 1);
-  const inside = (pp: number) => (from.current ? clamp01((pp - (leaving.current ? 0.03 : 0.1)) / 0.2) : 1);
+  const inside = (pp: number) => (from.current ? clamp01((pp - (leaving.current ? hold() : 0.1)) / 0.2) : 1);
   // the card in the page: 1 = itself, 0 = the window has taken its place (its surface and its words)
   // (closing, its words start back as the window's go, in the last few pixels before it lands: never an empty card)
-  const CARD_BACK = 0.07;
-  const card = (pp: number) => (leaving.current ? 1 - clamp01((pp - 0.004) / (CARD_BACK - 0.004)) : 1 - clamp01(pp / hold()));
+  // (a bar shows only the window's plain top band once it is that small, so its words come back sooner there; on Today's
+  // card the window's own words are still readable then, and the two sets would overlap)
+  const cardBack = () => (from.current && from.current.b - from.current.t < 80 ? 0.12 : 0.07);
+  const card = (pp: number) => (leaving.current ? 1 - clamp01((pp - 0.004) / (cardBack() - 0.004)) : 1 - clamp01(pp / hold()));
   const dim = (pp: number) => (from.current ? 0.3 * clamp01(pp / 0.6) * (1 - clamp01((pp - 0.9) / 0.08)) : 0);
   const solidO = useTransform(p, solid);
   const insideO = useTransform(p, inside);
@@ -159,13 +165,18 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
   // the progress where the window's top reaches the screen's top (the status bar turns to its colour there)
   const barAtOf = () => { const g = from.current; return g ? ppOf(g.t / (g.t + LEAD)) : 1 - LEAD / (H + 64 + LEAD); };
   useEffect(() => {
-    let last = -1;
+    let last = '';
     return eFinger.on('change', (v) => {
       const t = tints.current; if (!t) return;
       const at = barAtOf();
       const k = Math.min(1, Math.max(0, (v - (at - 0.015)) / 0.03));
-      if (k === last) return; last = k;
-      setBarTint([0, 1, 2].map((i) => t.tab[i] + (t.wk[i] - t.tab[i]) * k) as [number, number, number], 0, false);
+      // the page's side of the bar dims with the page while the window grows out of a card (.wk-dim: the same colour and
+      // strength), so no bright strip lies across the top of a dimmed page
+      const light = document.documentElement.dataset.theme === 'light';
+      const a = dim(v) * (light ? 0.55 : 1), dc = light ? [20, 24, 30] : [0, 0, 0];
+      const key = `${k}|${a.toFixed(3)}`;
+      if (key === last) return; last = key;
+      setBarTint([0, 1, 2].map((i) => t.tab[i] * (1 - a) + dc[i] * a + (t.wk[i] - (t.tab[i] * (1 - a) + dc[i] * a)) * k) as [number, number, number], 0, false);
     });
   }, [eFinger, H]); // eslint-disable-line react-hooks/exhaustive-deps
   // the shadow along the page's top edge is there while it travels and gone as it lands (a page at rest has no edge to shade)
@@ -185,7 +196,7 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
   // arrives a beat after the window lands (a soft settle, no pop), and on the way down it leads the window into the bar —
   // one number, so minimising is the exact reverse of opening. The workout bar and its orb ride with the window itself.
   // (its last half pixel is dropped: it lands, instead of ticking the last screen pixels in one at a time)
-  const lag = (k: number) => (pp: number) => { const v = k * Math.pow(Math.max(0, 1 - pp), 0.8); return v < 0.5 ? 0 : v; };
+  const lag = (k: number) => (pp: number) => { const v = k * Math.pow(Math.max(0, 1 - landed(pp)), 0.8); return v < 0.5 ? 0 : v; };
   const headLag = lag(20), viewsLag = lag(44);
   const lagAt = (f: (pp: number) => number) => (pp: number) => `translate3d(0, ${snapPx(f(pp))}px, 0)`;
   const headT = useTransform(eFinger, lagAt(headLag));
@@ -277,7 +288,7 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
       morph ? mirrorProgress(bclipRef.current, p0, p1, sp, vel, (pp) => ({ transform: bAt(pp) }), [], true) : null,
       morph ? mirrorProgress(bshiftRef.current, p0, p1, sp, vel, (pp) => ({ transform: cAt(pp) }), [], true) : null,
       morph ? mirrorProgress(solidRef.current, p0, p1, sp, vel, (pp) => ({ opacity: String(solid(pp)) }), [hold(), hold() + 0.1]) : null,
-      ...(morph ? [skinRef.current, ...src.current].map((el, i) => mirrorProgress(el, p0, p1, sp, vel, (pp) => ({ opacity: String(i ? card(pp) : 1 - card(pp)) }), [0.004, leaving.current ? CARD_BACK : hold()])) : []),
+      ...(morph ? [skinRef.current, ...src.current].map((el, i) => mirrorProgress(el, p0, p1, sp, vel, (pp) => ({ opacity: String(i ? card(pp) : 1 - card(pp)) }), [0.004, leaving.current ? cardBack() : hold()])) : []),
       morph ? mirrorProgress(dimRef.current, p0, p1, sp, vel, (pp) => ({ opacity: String(dim(pp)) }), [0.3, 0.6, 0.9, 0.98]) : null,
       morph ? null : mirrorProgress(shadeRef.current, p0, p1, sp, vel, (pp) => ({ opacity: String(shade(pp)) }), [0.12, 0.7]),
       mirrorProgress(fillRef.current, p0, p1, sp, vel, (pp) => ({ opacity: String(fill(pp)) }), [at - 0.015, at + 0.015]),
