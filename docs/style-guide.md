@@ -7,6 +7,12 @@ guide in the same pull request. `README.md` is the history of why; this file is 
 Omar judges on his phone (Galaxy S26 Ultra, 120 Hz, Chrome, installed app, DPR 3.75, 384 css px wide). Explain things to
 him in plain, short words. Rules marked **[Omar]** are his own words or decisions: never reverse them without his yes.
 
+## The quality bar [Omar, 14 Oct]
+
+Omar wants the standard for animation, look and everything to be **very high, Apple-level**. Nothing goes to him that a top
+iOS designer would wince at. Every Omar-facing preview passes a harsh judge first (section 7). Fewer rounds is never a
+reason to show something mediocre: spend the extra round before he sees it, not after.
+
 ## 0. The four things that must always hold
 
 1. **Blur AND 120 fps.** Frosted glass stays; make it cheap, never remove it (section 5).
