@@ -11,8 +11,8 @@ import { orbDrawn, orbIgnite, orbLaunch, orbLaunchTint, orbLogo, orbTintGo, regi
  *  2. Ignite: a coil of light winds up it from the bottom, and the palette's colour fills in under it, bead by bead
  *     (never through a grey blend), all before it moves.
  *  3. Glide: it drifts down into the dock on a soft arc, one calm move, while the launch screen gives way to the app and
- *     the first screen's blocks rise with it, each as the orb comes down to it.
- *  4. Touchdown: a soft bloom of light in the dock glass under it.
+ *     the whole first screen builds behind it, block by block from the top down.
+ *  4. Touchdown: its light spreads out along the whole dock glass and fades.
  * Only transform and opacity move, and the orb's flight is run by the browser, so it is drawn at the screen's full rate
  * even while the app is still starting up. With reduced motion the launch screen simply fades and the orb is in the dock.
  */
@@ -28,11 +28,12 @@ const FLIGHT = (() => {
   return { xs: Array.from({ length: n + 1 }, (_, i) => f(i / n)), duration: FLIGHT_MS };
 })();
 const BOW = -30;          // the flight's arc: falls first, slides into the dock at the end, clear of the first card's play button
-const FADE_MS = 400;      // the launch screen giving way to the app, as the orb sets off
+const FADE_MS = 260;      // the launch screen giving way to the app (its blocks still unseen), as the orb sets off
 const IGNITE_AT = 40;     // the coil of light and colour starts as the logo becomes the sphere (its morph: 0.34 s)
 const GLIDE_AT = 560;     // the flight sets off once the coil is done and every bead has turned (0.48 s after it starts)
-const RISE_AHEAD = 0.75;  // a block rises as the orb comes down to it (at 3/4 of the time the orb takes to reach it)
-const BLOOM_MS = 520;
+const RISE_FIRST = 40;    // the page builds from the top down as the orb sets off: the first block …
+const RISE_STEP = 80;     // … and each next one (five in sight: the last lifts as the orb is two thirds down)
+const GLOW_MS = 650;      // the touchdown's light spreading along the dock
 const SPLASH_FADE = 330;  // Android's launch screen fades over 300 ms from the page's first paint: never fly under it
 const MAX_WAIT = 1500;    // the longest the logo waits for the app underneath before it goes anyway
 
@@ -89,8 +90,8 @@ async function run(cover: HTMLElement) {
   const move = animate(e, 0, { duration: FLIGHT_MS / 1000, ease: [...FLIGHT_EASE] }); // the script's copy, which carries the orb if anything interrupts the browser's flight
   riseInWake();
 
-  // 4. touchdown: a soft bloom in the dock glass
-  void after(FLIGHT_MS - 120).then(bloom);
+  // 4. touchdown: its light spreads along the whole dock
+  void after(FLIGHT_MS - 50).then(barGlow);
   await Promise.all([fade.finished.catch(() => {}), flight ? flight.finished.catch(() => {}) : move.then(() => {})]);
   move.stop(); e.set(0); // landed: exactly in the dock, from here on the dock's own orb
   done();
@@ -104,44 +105,47 @@ function dockOrb() {
   return { x: r.left + r.width / 2, y: r.top + r.height / 2, d: (r.height + 12) * 0.66 };
 }
 
-/** The first screen's blocks rise with the orb: each one (its usual rise) as the orb comes down to its middle. The orb's height on the way down is a straight line between the launch screen's middle and the dock (its arc
- *  bends sideways only), along the flight's curve in time. */
+/** The whole first screen builds as the orb comes down: every block, from the header at the top to the last one in sight,
+ *  rises in its usual way (a small rise and fade), one after another from the top down, the wave keeping pace with the orb.
+ *  They wait unseen under the launch screen until then, so none is already there when it lifts. */
 function riseInWake() {
   const root = document.documentElement;
-  const o = dockOrb();
-  const H = window.innerHeight, from = H / 2;
-  if (o) {
-    const xs = FLIGHT.xs, step = FLIGHT.duration / (xs.length - 1);
-    document.querySelectorAll<HTMLElement>('.screen > *, .subpage > *').forEach((b) => {
-      const r = b.getBoundingClientRect();
-      if (r.bottom < 0 || r.top > H) return; // out of sight: its own order
-      const p = Math.min(1, Math.max(0, ((r.top + r.bottom) / 2 - from) / (o.y - from)));
-      let i = 0; while (i < xs.length - 1 && xs[i] < p) i++;
-      b.style.animationDelay = `${Math.round(i * step * RISE_AHEAD)}ms`;
-      b.addEventListener('animationend', () => { b.style.animationDelay = ''; }, { once: true });
-    });
-  }
+  const H = window.innerHeight;
+  const blocks = [...document.querySelectorAll<HTMLElement>('.screen > *, .subpage > *')]
+    .map((b) => ({ b, r: b.getBoundingClientRect() }))
+    .filter(({ r }) => r.bottom > 0 && r.top < H && r.height > 0) // out of sight: its own order
+    .sort((a, c) => a.r.top - c.r.top);
+  blocks.forEach(({ b }, k) => {
+    b.style.animationDelay = `${RISE_FIRST + k * RISE_STEP}ms`;
+    b.addEventListener('animationend', () => { b.style.animationDelay = ''; }, { once: true });
+  });
   delete root.dataset.riseHold;
 }
 
-/** A soft bloom of the palette's light round the orb as it settles: no outline, under the orb, spreading out of the dock
- *  glass around it and fading (it swells in, then gives way). */
-function bloom() {
+/** On touchdown the palette's light spreads out of the orb along the whole dock: a wide, soft glow inside the dock glass,
+ *  widening from the orb to both ends and fading (no outline; under the icons; only its size and its light move). */
+function barGlow() {
   const o = dockOrb();
   const bar = document.querySelector<HTMLElement>('.tabbar');
   if (!o || !bar) return;
-  const b = bar.getBoundingClientRect(), d = o.d * 1.5;
-  const el = document.createElement('i');
-  el.setAttribute('aria-hidden', 'true');
-  el.style.cssText = `position:absolute;left:${o.x - b.left - d / 2}px;top:${o.y - b.top - d / 2}px;width:${d}px;height:${d}px;pointer-events:none;border-radius:50%;` +
-    'background:radial-gradient(closest-side, var(--ac) 0%, color-mix(in srgb, var(--ac) 55%, transparent) 45%, transparent 100%)';
-  bar.appendChild(el);
-  el.animate([
-    { transform: 'scale(1)', opacity: 0 },
-    { transform: 'scale(1.25)', opacity: 0.3, offset: 0.3 },
-    { transform: 'scale(1.6)', opacity: 0 },
-  ], { duration: BLOOM_MS, easing: 'cubic-bezier(0.25, 0.1, 0.25, 1)', fill: 'forwards' })
-    .finished.catch(() => {}).then(() => el.remove());
+  const b = bar.getBoundingClientRect();
+  const x = o.x - b.left, reach = Math.max(x, b.width - x); // the farther end
+  const clip = document.createElement('i');
+  clip.setAttribute('aria-hidden', 'true');
+  clip.style.cssText = 'position:absolute;inset:0;z-index:-1;border-radius:inherit;overflow:hidden;pointer-events:none';
+  const w = reach * 2.3, h = b.height * 1.5;
+  const glow = document.createElement('i');
+  glow.style.cssText = `position:absolute;left:${x - w / 2}px;top:${(b.height - h) / 2}px;width:${w}px;height:${h}px;opacity:0;` +
+    'background:radial-gradient(closest-side, color-mix(in srgb, var(--ac) 62%, transparent) 0%, color-mix(in srgb, var(--ac) 38%, transparent) 60%, color-mix(in srgb, var(--ac) 18%, transparent) 85%, transparent 100%)';
+  clip.appendChild(glow);
+  bar.appendChild(clip);
+  glow.animate([
+    { transform: 'scale(0.14, 0.7)', opacity: 0 },
+    { transform: 'scale(0.55, 0.95)', opacity: 0.32, offset: 0.25 },
+    { transform: 'scale(0.95, 1)', opacity: 0.22, offset: 0.62 },
+    { transform: 'scale(1, 1)', opacity: 0 },
+  ], { duration: GLOW_MS, easing: 'cubic-bezier(0.25, 0.1, 0.25, 1)', fill: 'forwards' })
+    .finished.catch(() => {}).then(() => clip.remove());
 }
 
 /** Takes the launch screen over once the app has mounted (once, also under StrictMode's double effects). */
