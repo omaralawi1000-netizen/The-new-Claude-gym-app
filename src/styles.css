@@ -1153,6 +1153,12 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* the Coach's mic: the ring around the orb swells with your voice (--voice is written by the sphere stage) */
 .voice-ring { position: absolute; inset: -2px; border-radius: 999px; pointer-events: none; border: 2px solid var(--ac); opacity: 0; box-shadow: 0 0 22px -4px var(--ac); transition: opacity .3s var(--ease-io, ease); }
 .voice-ring.on { opacity: calc(0.4 + var(--voice, 0) * 0.6); transform: scale(calc(1 + var(--voice, 0) * 0.16)); transition: none; }
+/* (the Coach's ring on a layer of its own all the time: it follows your voice every frame, which redrew the orb's glow
+   each frame, and its fade at the end made and dropped a layer for the orb beside it) */
+.coach-orb .voice-ring { will-change: transform, opacity; }
+/* (calm: the ring breathes with your voice instead of following every flicker of it: each new level glides in over
+   180 ms, re-aimed on the next frame, which smooths it; and it swells less) */
+.coach-orb .voice-ring.on { opacity: calc(0.45 + var(--voice, 0) * 0.45); transform: scale(calc(1 + var(--voice, 0) * 0.11)); transition: opacity 180ms linear, transform 180ms linear; }
 
 /* charts: bars grow from the axis, lines draw themselves in — CSS animations, so they cost a repaint, not script work */
 .bar-in { transform-box: fill-box; transform-origin: 50% 100%; animation: barIn 500ms var(--ease-out) both; }
@@ -1274,19 +1280,12 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
   transition: opacity 200ms var(--ease-out), transform 360ms var(--ease-spring); }
 .coach-send.on { opacity: 1; transform: none; pointer-events: auto; }
 /* send and stop share the button: a short cross-fade with a little turn (120 ms), never a cut */
-.coach-send .cs-ico { grid-area: 1 / 1; display: grid; will-change: transform, opacity; transition: opacity 120ms var(--ease-out), transform 160ms var(--ease-out); }
-.coach-send .cs-stop, .coach-send.busy .cs-go { opacity: 0; transform: rotate(-45deg) scale(0.7); }
-.coach-send.busy .cs-go { transform: rotate(45deg) scale(0.7); }
+.coach-send .cs-ico { grid-area: 1 / 1; display: grid; will-change: transform, opacity; transition: opacity 260ms cubic-bezier(.45, 0, .25, 1), transform 380ms var(--ease-smooth); }
+/* (calm, 14 Oct 21:13: a soft cross-fade where the old one settles back as the new one comes forward; it turned 45° in
+   120 ms, a twitch) */
+.coach-send .cs-stop, .coach-send.busy .cs-go { opacity: 0; transform: scale(0.6); }
+.coach-send.busy .cs-go { transform: scale(0.6); }
 .coach-send.busy .cs-stop { opacity: 1; transform: none; }
-/* while you speak (Coach.tsx toggleRec) the button listens with you: a small live wave of five bars (scaled to your voice,
-   transform only) until your first words show in the field, then the arrow: tap either to stop and send */
-.coach-send .cs-wave { display: flex; align-items: center; gap: 2.5px; height: 16px; opacity: 0; transform: scale(0.7); }
-.coach-send .cs-wave > i { width: 3px; height: 16px; border-radius: 2px; background: currentColor; transform: scaleY(0.22); will-change: transform; }
-.coach-send.rec .cs-go { opacity: 0; transform: scale(0.7); }
-.coach-send.rec:not(.cs-heard) .cs-go { transition: none; } /* (the button fades in already listening: no arrow fading out inside it) */
-.coach-send.rec .cs-wave { opacity: 1; transform: none; }
-.coach-send.rec.cs-heard .cs-wave { opacity: 0; transform: scale(0.7); }
-.coach-send.rec.cs-heard .cs-go { opacity: 1; transform: none; }
 .meals-empty { padding: 6px 16px 6px 20px; }
 /* the empty day's card (or the meals) fading out before the other rises in, once the add sheet has gone (Food.tsx) */
 .subpage > .fading { animation: fade-away 220ms ease forwards; pointer-events: none; }
@@ -1379,9 +1378,12 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 @supports (animation-timeline: scroll()) {
   .sheet-pane .coach-body.sheet-body[data-scrollable] { --melt: calc(100% - var(--foot-h, 90px) - var(--grow) - min(var(--kb-room, 0px), var(--kb-now)));
     transition: --grow var(--cf-dur-g, 500ms) var(--cf-ease-g, ease);
-    /* (--melt: the bar's top, 10 px above the row of controls) */
-    -webkit-mask-image: linear-gradient(to bottom, transparent, transparent calc(var(--sb-fade) * .2), rgba(0,0,0,.45) calc(var(--sb-fade) * .6 - 4px), #000 calc(var(--sb-fade) - 8px), #000 calc(var(--melt) - 28px), rgba(0,0,0,.45) calc(var(--melt) - 12px), rgba(0,0,0,.12) calc(var(--melt) + 2px), transparent calc(var(--melt) + 8px));
-    mask-image: linear-gradient(to bottom, transparent, transparent calc(var(--sb-fade) * .2), rgba(0,0,0,.45) calc(var(--sb-fade) * .6 - 4px), #000 calc(var(--sb-fade) - 8px), #000 calc(var(--melt) - 28px), rgba(0,0,0,.45) calc(var(--melt) - 12px), rgba(0,0,0,.12) calc(var(--melt) + 2px), transparent calc(var(--melt) + 8px)); }
+    /* (--melt: the bar's top, 10 px above the row of controls. The words pass under the controls at about two thirds
+       (14 Oct 14:52, Omar: "I want to see the words under the buttons, so that's how you know it's frosted glass"): at
+       about half, so in the gaps they are soft, never crisp, and each control's frost (--fc-bd) shows them as soft
+       word shapes; gone 4 px below the controls, so nothing peeks out under them) */
+    -webkit-mask-image: linear-gradient(to bottom, transparent, transparent calc(var(--sb-fade) * .2), rgba(0,0,0,.45) calc(var(--sb-fade) * .6 - 4px), #000 calc(var(--sb-fade) - 8px), #000 calc(var(--melt) - 8px), rgba(0,0,0,.5) calc(var(--melt) + 10px), rgba(0,0,0,.46) calc(var(--melt) + 37px), rgba(0,0,0,.3) calc(var(--melt) + 56px), transparent calc(var(--melt) + 68px));
+    mask-image: linear-gradient(to bottom, transparent, transparent calc(var(--sb-fade) * .2), rgba(0,0,0,.45) calc(var(--sb-fade) * .6 - 4px), #000 calc(var(--sb-fade) - 8px), #000 calc(var(--melt) - 8px), rgba(0,0,0,.5) calc(var(--melt) + 10px), rgba(0,0,0,.46) calc(var(--melt) + 37px), rgba(0,0,0,.3) calc(var(--melt) + 56px), transparent calc(var(--melt) + 68px)); }
 }
 .sheet-pane:has(> .sheet-foot) .coach-body.sheet-body { padding-bottom: calc(var(--foot-h, calc(var(--sab) + 76px)) + 30px + var(--grow-pad, 0px) + var(--kb-room, 0px)); }
 /* .edge-fade, for a bottom bar that content passes under (the tab bar; the Coach bar had it until 14 Oct): a neutral grey
@@ -1402,7 +1404,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .edge-fade.frosted::before, .tabbar-wrap.edge-fade::before { -webkit-backdrop-filter: blur(var(--edge-blur, 16px)) saturate(1.35); backdrop-filter: blur(var(--edge-blur, 16px)) saturate(1.35);
   -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--edge-ramp, 26px)); mask-image: linear-gradient(to bottom, transparent, #000 var(--edge-ramp, 26px)); }
 :root[data-theme='light'] .edge-fade { --edge-tint: var(--sheet-solid); --edge-a: 40%; } /* (light: a pale neutral, or it read as a white strip) */
-.coach-sent { animation: coachSend 620ms cubic-bezier(.2, .8, .2, 1) backwards; }
+.coach-sent { animation: coachSend 760ms cubic-bezier(.2, .7, .2, 1) backwards; }
 @keyframes coachSend {
   from { opacity: 0; transform: translate3d(0, 28px, 0) scale(.975); }
   45% { opacity: 1; }
@@ -1411,21 +1413,21 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* the Coach's answers write themselves in word by word at a steady pace (useWordReveal), each word fading up (.calm .w
    above). The list glides on a layer of its own (Coach.tsx), so following the answer redraws nothing. Under the answer the
    play button's row is held open while it writes, and the button (and the quiet note) fade in where the room already is. */
-.coach-reply:not(.still) { animation: coachReply 240ms var(--ease-out) backwards; }
+.coach-reply:not(.still) { animation: coachReply 420ms var(--ease-out) backwards; }
 .coach-thread { will-change: transform; }
 .reply-foot.held { min-height: 32px; }
 /* the play button under each answer is a quiet glyph, not a filled circle (a column of circles down the chat read as noise);
    it keeps its 32 px tap area and lines up with the text, and takes its colour and ring only while it reads aloud */
 .coach-body .reply-foot { margin-left: -9px; }
 .coach-body .speak-btn:not(.playing, .loading) { background: transparent; border-color: transparent; color: var(--tx3); }
-.coach-after.fresh, .coach-after.fresh .speak-btn { animation: coachAfter 520ms var(--ease-out) backwards; }
+.coach-after.fresh, .coach-after.fresh .speak-btn { animation: coachAfter 680ms var(--ease-out) backwards; }
 .reply-foot.coach-after.fresh { animation: none; }
 /* The typing dots come a beat after your message has risen (not under the typing bar while the list makes room), growing
    out of their corner like a bubble; when the first word arrives they melt away over it instead of being swapped out. */
-.coach-thread .typing { transform-origin: 0% 100%; animation: typingIn 520ms cubic-bezier(.2, .8, .2, 1) 280ms backwards; }
-@keyframes typingIn { from { opacity: 0; transform: scale(.7); } }
+.coach-thread .typing { transform-origin: 0% 100%; animation: typingIn 680ms cubic-bezier(.2, .7, .2, 1) 340ms backwards; }
+@keyframes typingIn { from { opacity: 0; transform: translate3d(0, 3px, 0) scale(.86); } } /* (calm: grew from .7, a pop) */
 .coach-answer { position: relative; }
-.coach-thread .typing.typing-out { position: absolute; left: 0; top: 0; z-index: 1; pointer-events: none; animation: typingOut 420ms cubic-bezier(.4, 0, .6, 1) forwards; }
+.coach-thread .typing.typing-out { position: absolute; left: 0; top: 0; z-index: 1; pointer-events: none; animation: typingOut 520ms cubic-bezier(.4, 0, .6, 1) forwards; }
 @keyframes typingOut { from { opacity: 1; } to { opacity: 0; transform: scale(.92); } }
 :root[data-motion='reduce'] .coach-thread .typing { animation: none; }
 :root[data-motion='reduce'] .coach-thread .typing.typing-out { display: none; }
@@ -1460,12 +1462,26 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .coach-field .input::placeholder { transition: color 300ms var(--ease-out); } /* (its colour, not its opacity: an opacity fade gave it a layer that was dropped when it ended) */
 .coach-field .input { transition: caret-color 300ms var(--ease-out); } /* (the cursor comes back with "Ask the Coach", not before it) */
 .coach-composer .coach-field .input.sent-away::placeholder { color: transparent; transition: none; }
+/* while you speak: "Ask the Coach" fades out and the field's word fades across ("Listening…", then "Transcribing…"),
+   drawn exactly where the placeholder is (Coach.tsx cf-status) */
+/* (one at a time: the old word fades out in 140 ms, then the new one in over 240 ms; they are never seen over each other) */
+.coach-composer .coach-field .input.quiet::placeholder { color: transparent; transition: color 140ms var(--ease-out); }
+.coach-composer .coach-field .input:not(.quiet, .sent-away)::placeholder { transition: color 240ms var(--ease-out) 120ms; }
+.coach-field .cf-status { position: absolute; left: 16px; bottom: 16px; font-size: 16px; line-height: 22px; color: var(--tx2); white-space: nowrap; pointer-events: none;
+  opacity: 0; transition: opacity 140ms var(--ease-out); will-change: opacity; }
+.coach-field .cf-status.on { opacity: 1; transition: opacity 240ms var(--ease-out) 120ms; }
+/* the said words' "Transcribing…", lifting with the pill as the words come up (Coach.tsx flight) */
+.fly-reveal { position: absolute; top: 0; left: -40px; right: -40px; bottom: -40px; overflow: hidden; will-change: transform, opacity; pointer-events: none;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--pad, 9px)); mask-image: linear-gradient(to bottom, transparent, #000 var(--pad, 9px)); }
+.fly-ghost { position: absolute; white-space: nowrap; font-weight: 400; letter-spacing: 0; color: var(--tx2); will-change: opacity; pointer-events: none; }
+/* closing up unseen, at once (said words: the bar is hidden while the pill lifts away) */
+.coach-composer.snap :is(.cf-glass, .cf-tint > i, .cf-sh, .cf-text, .coach-field textarea.input, .coach-cam-slot, .coach-cam-slot::before, .coach-cam) { transition: none !important; }
 .coach-composer .coach-field .input.sent-away { caret-color: transparent; transition: none; } /* (the cursor jumped to the start as the words left) */
 :root[data-motion='reduce'] :is(.coach-sent, .coach-reply, .coach-reply .w, .coach-after, .coach-after .speak-btn) { animation: none; }
 .coach-body :is(.action-card, .action-ic, .action-line, .tip) { animation: none; }
 /* "New chat": the conversation steps away, then the suggestions rise in one after another (on opening they are simply there),
    and the button fades out rather than blinking away (it fades back in with the first message) */
-.coach-body .tips.fresh .tip { animation: rise-soft 520ms var(--ease-out) both; animation-delay: calc(140ms + var(--i, 0) * 70ms); }
+.coach-body .tips.fresh .tip { animation: rise-soft 640ms var(--ease-out) both; animation-delay: calc(180ms + var(--i, 0) * 90ms); }
 .coach-body .coach-note-fresh { animation: fadein 520ms var(--ease-out) 420ms both; }
 /* sending: the suggestions step away the way the chat does on New chat (they used to vanish in one frame), on a soft
    300 ms curve; they take no room while they go, so your message rises where they were */
@@ -1476,17 +1492,26 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .coach-new { transition: opacity 320ms var(--ease-out); }
 .coach-new.gone { opacity: 0; pointer-events: none; }
 :root[data-motion='reduce'] :is(.coach-body .tips.fresh .tip, .coach-body .coach-note-fresh) { animation: none; }
-.coach-body .said { background: color-mix(in srgb, var(--ac) 9%, var(--s2)); border: 0;
-  box-shadow: 0 6px 18px -5px rgb(0 0 0 / .24), 0 2px 6px -2px rgb(0 0 0 / .16); }
-:root[data-theme='light'] .coach-body .said { box-shadow: 0 6px 18px -5px rgb(30 40 70 / .14), 0 2px 6px -2px rgb(30 40 70 / .08); }
+/* your messages sit on a soft, layered shadow, as the bar's controls do (14 Oct 21:15, Omar: "a backdrop shadow so it
+   looks very premium"): a tight contact shade, a short soft one and a wide, low one. Static (drawn once with the bubble,
+   never animated); a sent message's flying copy carries the same shadow, so it lands on its own. */
+:root { --bubble-sh: 0 1px 2px rgba(0, 0, 0, 0.32), 0 5px 12px -1px rgba(0, 0, 0, 0.4), 0 16px 36px -2px rgba(0, 0, 0, 0.62); }
+/* (light: warm and light, gone within ~18 px, a shade of the page's own warmth: a grey-blue one read as a Material card) */
+:root[data-theme='light'] { --bubble-sh: 0 0.5px 1px rgba(60, 30, 30, 0.08), 0 2px 6px rgba(60, 30, 30, 0.06), 0 8px 20px rgba(60, 30, 30, 0.05); }
+.coach-body .said { background: color-mix(in srgb, var(--ac) 9%, var(--s2)); border: 0; box-shadow: var(--bubble-sh); }
 /* The typing pill has its own surface; the orb and camera sit beside it. */
 .coach-foot { padding-bottom: 12px; }
-.coach-composer { display: flex; align-items: center; gap: 8px; }
+.coach-composer { display: flex; align-items: center; gap: 14px; }
 /* Each control of the bar sits on its own frosted glass (.frost-ctl, Omar 13 Oct: "the text bar on its own… the camera
    its own circle that looks 3D… the orb, figure something out"): the field a pill, the camera a round button, the orb
    rests in a frosted seat a little bigger than itself (.frost-seat). Nothing is behind them as a row (14 Oct: no tint,
-   no band; the list fades out just above them), so each is one blur and nothing is ever blurred twice. */
-.coach-cam.frost-ctl { flex: none; width: 46px; height: 46px; margin: 0 2px; color: var(--tx); }
+   no band), so each is one blur and nothing is ever blurred twice. 14 Oct (r7, "on their own, blur under them, no shadow,
+   a little 3D"): clear space between them (14 px), no shadow under any of them, and the conversation passes behind them
+   (dimmed a little above the bar and more below, see --melt) so each one's frost shows it softened. */
+.coach-cam.frost-ctl { flex: none; width: 46px; height: 46px; margin: 0; color: var(--tx);
+  /* (a small disc: a lighter tint and a 3.5 px blur, so words under it show as the same soft shapes as under the pill) */
+  --fc-bg: rgba(58, 61, 78, 0.26); --fc-bd: blur(3.5px) brightness(1.5) saturate(1.4); }
+:root[data-theme='light'] .coach-cam.frost-ctl { --fc-bg: rgba(255, 255, 255, 0.5); --fc-bd: blur(3.5px) saturate(1.4); }
 /* THE PILL OPENS WHILE YOU TYPE AND GROWS AS YOU WRITE (Coach.tsx CF_X, CF_MAX, MORPH, GROW): on focus the camera tucks
    away and the pill's left edge glides over its place (--cf-x), a beat after the tap (60 ms, so the keyboard's lift doesn't
    swallow it) with a little overshoot; it glides back when the keyboard goes. As your words wrap it grows upward a line at a
@@ -1506,12 +1531,16 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .coach-field { position: relative; min-width: 0; height: 54px; border-radius: 27px; }
 .coach-field > i { position: absolute; right: 0; bottom: 0; pointer-events: none; }
 .cf-glass { left: calc(-1 * (var(--cf-x) + 8px)); height: calc(62px + var(--cf-max)); /* (8 px of room past the open edge and the top, for the overshoot) */
-  -webkit-backdrop-filter: blur(20px) saturate(1.5); backdrop-filter: blur(20px) saturate(1.5);
+  -webkit-backdrop-filter: var(--fc-bd); backdrop-filter: var(--fc-bd);
   /* its top follows the lines on their own spring and its left edge the opening on the opening's, each through a property
      of its own (one transition on the outline carried both on the opening's timing: the frost trailed the pill's top by
      60 ms as it grew, and lagged it as it closed up after a send) */
   --cf-gt: calc(8px + var(--cf-max) - var(--mid, 0px)); --cf-gl: calc(var(--cf-x) + 8px);
-  clip-path: inset(var(--cf-gt) 0 0 var(--cf-gl) round 27px);
+  /* (its edges land on quarter pixels: on in-between positions the phone cut the frost with a mask layer instead of its
+     plain rounded edge, and switched between the two on the frames of every opening, closing and new line, about 7
+     times each, a flicker at the bar; on quarter pixels it is the plain edge all the way, a step of a quarter of a
+     pixel nobody can see) */
+  clip-path: inset(round(nearest, var(--cf-gt), 0.25px) 0 0 round(nearest, var(--cf-gl), 0.25px) round 27px);
   transition: --cf-gl var(--cf-dur-c) var(--cf-ease-c), --cf-gt var(--cf-dur-g) var(--cf-ease-g); }
 .open .cf-glass { --cf-gl: 8px; transition: --cf-gl var(--cf-dur) var(--cf-ease) 60ms, --cf-gt var(--cf-dur-g) var(--cf-ease-g); }
 .cf-tint { left: calc(-1 * (var(--cf-x) + 8px)); top: 0; opacity: var(--fc-op); }
@@ -1523,7 +1552,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .cf-tint > .cf-r { right: 0; width: calc(var(--cf-x) + 44px); border-right-width: 1px; }
 .cf-tint > .cf-t { top: 0; height: 29px; border-top-width: 1px; border-top-color: var(--fc-hl-s); background: linear-gradient(180deg, var(--fc-top), var(--fc-solid));
   transform: translateY(calc(-1 * var(--mid, 0px))); }
-.cf-tint > .cf-b { bottom: 0; height: 29px; border-bottom-width: 1px; }
+.cf-tint > .cf-b { bottom: 0; height: 29px; border-bottom-width: 1px; border-bottom-color: var(--fc-lo-s); background: linear-gradient(180deg, var(--fc-solid) 40%, color-mix(in srgb, var(--fc-solid), #fff 5%)); }
 .cf-tint > .cf-m { bottom: 25px; height: calc(var(--cf-max) + 4px); transform-origin: 50% 100%; scale: 1 var(--mid-k, 0.0577); }
 .cf-l.cf-t { border-top-left-radius: 27px; } .cf-r.cf-t { border-top-right-radius: 27px; }
 .cf-l.cf-b { border-bottom-left-radius: 27px; } .cf-r.cf-b { border-bottom-right-radius: 27px; }
@@ -1556,42 +1585,58 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    fades with it: opacity on the glass itself, never on something around it, which would cut the glass off from the page) */
 .coach-cam-slot { display: flex; flex: none; transition: transform var(--cf-dur-c) var(--cf-ease-c); }
 .open .coach-cam-slot { transform: translateX(-6px) scale(0.82); transition: transform var(--cf-dur) var(--cf-ease) 40ms; }
-.coach-composer .coach-cam.frost-ctl:not([data-pressed], [data-press-off]) { transition: transform 520ms var(--ease-spring), opacity 220ms var(--ease-out) 180ms; }
-.coach-composer.open .coach-cam.frost-ctl:not([data-pressed], [data-press-off]) { transition: transform 520ms var(--ease-spring), opacity 170ms var(--ease-out) 40ms; }
+.coach-composer .coach-cam.frost-ctl:not([data-pressed], [data-press-off]) { transition: transform 460ms var(--ease-smooth), opacity 300ms cubic-bezier(.4, 0, .2, 1) 80ms; }
+.coach-composer.open .coach-cam.frost-ctl:not([data-pressed], [data-press-off]) { transition: transform 460ms var(--ease-smooth), opacity 200ms cubic-bezier(.4, 0, .2, 1) 30ms; } /* (calm: no spring overshoot, a longer return) */
 .open .coach-cam { opacity: 0; pointer-events: none; }
-/* a message just sent: the emptied pill closes up at once, under the flying shape (Coach.tsx CLOSE); the bar is held open meanwhile */
-.coach-composer.closing .cf-glass { transition: --cf-gl var(--cf-dur) var(--cf-ease) 60ms, --cf-gt var(--cf-dur-k) var(--cf-ease-k); }
-.coach-composer.closing .cf-tint > i { transition: translate var(--cf-dur) var(--cf-ease) 60ms, transform var(--cf-dur-k) var(--cf-ease-k), scale var(--cf-dur-k) var(--cf-ease-k); }
-.coach-composer.closing .cf-sh { transition: scale var(--cf-dur) var(--cf-ease) 60ms, transform var(--cf-dur-k) var(--cf-ease-k); }
-.coach-composer.closing .cf-text { transition: translate var(--cf-dur) var(--cf-ease) 60ms, clip-path var(--cf-dur-k) var(--cf-ease-k); }
+/* a message just sent: the emptied pill holds its shape while the flying copy's paint comes up over it, then closes up under it as it
+   lifts away (Coach.tsx CLOSE); the bar is held open meanwhile */
+.coach-composer.closing .cf-glass { transition: --cf-gl var(--cf-dur) var(--cf-ease) 60ms, --cf-gt var(--cf-dur-k) var(--cf-ease-k) var(--cf-delay-k, 0ms); }
+.coach-composer.closing .cf-tint > i { transition: translate var(--cf-dur) var(--cf-ease) 60ms, transform var(--cf-dur-k) var(--cf-ease-k) var(--cf-delay-k, 0ms), scale var(--cf-dur-k) var(--cf-ease-k) var(--cf-delay-k, 0ms); }
+.coach-composer.closing .cf-sh { transition: scale var(--cf-dur) var(--cf-ease) 60ms, transform var(--cf-dur-k) var(--cf-ease-k) var(--cf-delay-k, 0ms); }
+.coach-composer.closing .cf-text { transition: translate var(--cf-dur) var(--cf-ease) 60ms, clip-path var(--cf-dur-k) var(--cf-ease-k) var(--cf-delay-k, 0ms); }
 .cf-tint > i, .cf-sh, .cf-text, .coach-field textarea.input, .coach-cam-slot, .coach-field { will-change: transform; }
 .coach-cam.frost-ctl { will-change: opacity; }
 :root[data-motion='reduce'] :is(.cf-glass, .cf-tint > i, .cf-sh, .cf-text, .coach-cam-slot) { transition: none !important; }
 @media (prefers-reduced-motion: reduce) { :is(.cf-glass, .cf-tint > i, .cf-sh, .cf-text, .coach-cam-slot) { transition: none !important; } }
-.coach-orb { margin-right: 2px; isolation: isolate; }
+.coach-orb { margin-right: 2px; isolation: isolate; will-change: transform; } /* (its own layer all the time: a tap made one for the press and dropped it, under its frost) */
 /* .frost-ctl: a floating control on its own frosted glass, the one style for them app-wide. Neutral (never tinted by the
    area's colour), a light top edge and a fine rim, a soft shadow under it that lifts it off the page, and a faint sheen
    that brightens its top half so a round one reads as a lens rather than a flat disc. One small blur per control,
    never animated, and nothing blurred sits under it. `.frost-seat`: the same glass as a disc behind its content
    (--seat: how far it reaches past the element). */
-:root { --fc-bg: rgba(40, 42, 54, 0.5); --fc-sheen: rgba(255, 255, 255, 0.07); --fc-hl: rgba(255, 255, 255, 0.16); --fc-rim: rgba(255, 255, 255, 0.07); --fc-rim-on: rgba(255, 255, 255, 0.16);
-  --fc-sh: 0 1px 2px rgba(0, 0, 0, 0.32), 0 10px 22px -10px rgba(0, 0, 0, 0.6);
+:root { --fc-bg: rgba(58, 61, 78, 0.36); --fc-sheen: rgba(255, 255, 255, 0.1); --fc-lens: rgba(255, 255, 255, 0.07); --fc-glow: rgba(255, 255, 255, 0.04); --fc-hl: rgba(255, 255, 255, 0.3); --fc-lo: rgba(255, 255, 255, 0.09); --fc-rim: rgba(255, 255, 255, 0.09); --fc-rim-on: rgba(255, 255, 255, 0.16);
+  /* a soft, static shadow under each control so it lifts off the page (14 Oct 14:52, Omar: "I want a drop shadow so it
+     looks 3D"; it had been taken off at his 12:56 ask): a wide soft one and a tight one where it meets the page */
+  --fc-sh: 0 2px 5px rgba(0, 0, 0, 0.35), 0 12px 30px rgba(0, 0, 0, 0.55);
+  /* the frost (static, never animated): a light 5 px blur, so the words under a control stay word-shaped (8 px melted
+     them into one faint band), lifted (brightness) so they read through the tint: about 80-90 of 255 under the glass,
+     where the gaps show them at about 110 (Omar 14:52: "I want to see the words under the buttons") */
+  --fc-bd: blur(5px) brightness(1.5) saturate(1.4);
   /* the same glass as solid colours under one opacity (--fc-op), for a control drawn in pieces (the Coach pill) */
-  --fc-solid: rgb(40, 42, 54); --fc-op: 0.5; --fc-top: color-mix(in srgb, var(--fc-solid), #fff 14%); --fc-hl-s: color-mix(in srgb, var(--fc-solid), #fff 32%); --fc-rim-s: color-mix(in srgb, var(--fc-solid), #fff 14%);
+  --fc-solid: rgb(58, 61, 78); --fc-op: 0.38; --fc-top: color-mix(in srgb, var(--fc-solid), #fff 20%); --fc-hl-s: color-mix(in srgb, var(--fc-solid), #fff 56%); --fc-rim-s: color-mix(in srgb, var(--fc-solid), #fff 16%); --fc-lo-s: color-mix(in srgb, var(--fc-solid), #fff 22%);
   /* what the pill's frost shows on average (the sheet seen through it): a sent message's flying copy is solid, drawn over this */
-  --fly-under: rgb(20, 24, 40); }
+  --fly-under: rgb(29, 37, 62); }
 :root[data-theme='light'] { --fc-bg: rgba(255, 255, 255, 0.6); --fc-sheen: rgba(255, 255, 255, 0.55); --fc-hl: rgba(255, 255, 255, 0.95); --fc-rim: rgba(20, 28, 48, 0.07); --fc-rim-on: rgba(20, 28, 48, 0.14);
-  --fc-sh: 0 1px 2px rgba(30, 40, 70, 0.12), 0 10px 22px -10px rgba(30, 40, 70, 0.28);
-  --fc-solid: #fff; --fc-op: 0.6; --fc-top: #fff; --fc-hl-s: #fff; --fc-rim-s: color-mix(in srgb, #fff, rgb(20, 28, 48) 12%); --fly-under: rgb(222, 225, 235); }
-.frost-ctl, .frost-seat::before {
-  background: linear-gradient(180deg, var(--fc-sheen), transparent 58%), var(--fc-bg);
-  -webkit-backdrop-filter: blur(20px) saturate(1.5); backdrop-filter: blur(20px) saturate(1.5);
-  box-shadow: inset 0 1px 0 var(--fc-hl), inset 0 0 0 1px var(--fc-rim), var(--fc-sh); }
+  --fc-lens: rgba(255, 255, 255, 0.35); --fc-glow: rgba(255, 255, 255, 0.2); --fc-lo: rgba(255, 255, 255, 0.5); --fc-sh: 0 2px 4px rgba(30, 40, 70, 0.14), 0 10px 28px rgba(30, 40, 70, 0.22);
+  --fc-bd: blur(5px) saturate(1.4); --fc-solid: #fff; --fc-op: 0.6; --fc-top: #fff; --fc-hl-s: #fff; --fc-rim-s: color-mix(in srgb, #fff, rgb(20, 28, 48) 12%); --fc-lo-s: color-mix(in srgb, #fff, rgb(20, 28, 48) 6%); --fly-under: rgb(222, 225, 235); }
+.frost-ctl, .sheet .frost-ctl.frost-ctl, .frost-seat::before { /* (.sheet: the sheets' rule that takes the blur off their buttons, above, took it off these too: the camera had no frost until 14 Oct) */
+  /* a little 3D, as a lens: light on the top edge and a brighter top half, a faint light back up along the bottom edge
+     (as light comes through glass), a fine rim all round, and nothing under it */
+  background: radial-gradient(90% 55% at 50% 0%, var(--fc-lens), transparent 70%), linear-gradient(180deg, var(--fc-sheen), transparent 52%, var(--fc-glow)), var(--fc-bg);
+  -webkit-backdrop-filter: var(--fc-bd); backdrop-filter: var(--fc-bd);
+  box-shadow: inset 0 1px 0 var(--fc-hl), inset 0 -1px 0 var(--fc-lo), inset 0 0 0 1px var(--fc-rim); }
+/* the drop shadow is its own layer, never on the blurred one (a shadow on a backdrop layer makes it dearer to draw):
+   behind the orb's seat, and under the camera on its slot, fading with the button */
+.frost-seat::after { content: ''; position: absolute; inset: calc(-1 * var(--seat, 2px)); border-radius: 999px; z-index: -2; box-shadow: var(--fc-sh); pointer-events: none; }
+.coach-cam-slot { position: relative; }
+.coach-cam-slot::before { content: ''; position: absolute; inset: 0; border-radius: 999px; box-shadow: var(--fc-sh); pointer-events: none; transition: opacity 300ms cubic-bezier(.4, 0, .2, 1) 80ms;
+  will-change: opacity; } /* (a layer of its own all the time: it was made for each fade and dropped after it) */
+.open .coach-cam-slot::before { opacity: 0; transition: opacity 200ms cubic-bezier(.4, 0, .2, 1) 30ms; }
 .frost-seat { position: relative; isolation: isolate; }
 .frost-seat::before { content: ''; position: absolute; inset: calc(-1 * var(--seat, 2px)); border-radius: 999px; z-index: -1; pointer-events: none; }
 .coach-field .input { background: transparent; box-shadow: none; outline: none; }
 .coach-composer .input::placeholder { color: var(--tx2); opacity: 1; font-weight: 400; letter-spacing: 0; }
-.coach-composer .coach-send { transform: scale(.9); transition: opacity 160ms var(--ease-out), transform 260ms var(--ease-smooth); }
+.coach-composer .coach-send { transform: scale(.92); transition: opacity 280ms cubic-bezier(.4, 0, .2, 1), transform 460ms var(--ease-smooth); } /* (calm, 14 Oct 21:13: was 160 / 260 ms) */
 .coach-composer .coach-send.on { transform: none; }
 .coach-cam { flex: none; width: 44px; height: 50px; color: var(--tx2); }
 .coach-photo { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; padding: 6px 6px 6px 6px; border-radius: 16px; background: var(--s2); box-shadow: inset 0 0 0 1px var(--line); animation: rise-soft 420ms var(--ease-out) backwards; }
