@@ -32,7 +32,7 @@ const FADE_MS = 400;      // the launch screen giving way to the app, as the orb
 const IGNITE_AT = 40;     // the coil of light and colour starts as the logo becomes the sphere (its morph: 0.34 s)
 const GLIDE_AT = 560;     // the flight sets off once the coil is done and every bead has turned (0.48 s after it starts)
 const RISE_AHEAD = 0.75;  // a block rises as the orb comes down to it (at 3/4 of the time the orb takes to reach it)
-const BLOOM_MS = 470;
+const BLOOM_MS = 520;
 const SPLASH_FADE = 330;  // Android's launch screen fades over 300 ms from the page's first paint: never fly under it
 const MAX_WAIT = 1500;    // the longest the logo waits for the app underneath before it goes anyway
 
@@ -90,7 +90,7 @@ async function run(cover: HTMLElement) {
   riseInWake();
 
   // 4. touchdown: a soft bloom in the dock glass
-  void after(FLIGHT_MS - 70).then(bloom);
+  void after(FLIGHT_MS - 120).then(bloom);
   await Promise.all([fade.finished.catch(() => {}), flight ? flight.finished.catch(() => {}) : move.then(() => {})]);
   move.stop(); e.set(0); // landed: exactly in the dock, from here on the dock's own orb
   done();
@@ -124,17 +124,23 @@ function riseInWake() {
   delete root.dataset.riseHold;
 }
 
-/** A soft bloom of the palette's light in the dock glass as the orb settles: no outline, under the orb, inside the dock. */
+/** A soft bloom of the palette's light round the orb as it settles: no outline, under the orb, spreading out of the dock
+ *  glass around it and fading (it swells in, then gives way). */
 function bloom() {
   const o = dockOrb();
-  const slot = document.querySelector<HTMLElement>('.tabbar .sphere-slot');
-  if (!o || !slot) return;
+  const bar = document.querySelector<HTMLElement>('.tabbar');
+  if (!o || !bar) return;
+  const b = bar.getBoundingClientRect(), d = o.d * 1.5;
   const el = document.createElement('i');
   el.setAttribute('aria-hidden', 'true');
-  el.style.cssText = `position:absolute;left:50%;top:50%;width:${o.d}px;height:${o.d}px;margin:${-o.d / 2}px 0 0 ${-o.d / 2}px;pointer-events:none;border-radius:50%;` +
-    'background:radial-gradient(closest-side, var(--ac) 0%, color-mix(in srgb, var(--ac) 45%, transparent) 40%, transparent 70%)';
-  slot.appendChild(el);
-  el.animate([{ transform: 'scale(1)', opacity: 0.3 }, { transform: 'scale(1.6)', opacity: 0 }], { duration: BLOOM_MS, easing: 'cubic-bezier(0, 0, 0.2, 1)', fill: 'forwards' })
+  el.style.cssText = `position:absolute;left:${o.x - b.left - d / 2}px;top:${o.y - b.top - d / 2}px;width:${d}px;height:${d}px;pointer-events:none;border-radius:50%;` +
+    'background:radial-gradient(closest-side, var(--ac) 0%, color-mix(in srgb, var(--ac) 55%, transparent) 45%, transparent 100%)';
+  bar.appendChild(el);
+  el.animate([
+    { transform: 'scale(1)', opacity: 0 },
+    { transform: 'scale(1.25)', opacity: 0.3, offset: 0.3 },
+    { transform: 'scale(1.6)', opacity: 0 },
+  ], { duration: BLOOM_MS, easing: 'cubic-bezier(0.25, 0.1, 0.25, 1)', fill: 'forwards' })
     .finished.catch(() => {}).then(() => el.remove());
 }
 

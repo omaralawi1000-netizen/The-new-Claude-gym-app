@@ -198,8 +198,8 @@ export class SphereRenderer {
     if (this.ign >= 0) {
       this.ign += dt * (this.ignSeen ? 1.67 : 1); // (the launch's runs quicker: every bead has turned before the orb sets off)
       // the moment the spiral reaches the top, the whole sphere lights up once (in time with the haptic heartbeat's last thump)
-      // (the launch's is gentler: a soft glow of light as it finishes, not a flash, so it stays calm)
-      if (!this.ignTop && ignFront(this.ign) >= 1) { this.ignTop = true; this.flash = Math.min(1, this.flash + (this.ignSeen ? 0.25 : 0.7)); this.kickV += this.ignSeen ? 1.6 : 2.4; }
+      // (not the launch's: its band is its light, and a flash switched on in one frame would read as a pop)
+      if (!this.ignTop && ignFront(this.ign) >= 1) { this.ignTop = true; if (!this.ignSeen) { this.flash = Math.min(1, this.flash + 0.7); this.kickV += 2.4; } }
       if (this.ign > 1.3) this.ign = -1;
     }
     // a set ticked: one heartbeat — the light swells once and a single ring of the success colour leaves it. No spin and no
