@@ -1355,11 +1355,12 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 @supports (animation-timeline: scroll()) {
   .sheet-pane .coach-body.sheet-body[data-scrollable] { --melt: calc(100% - var(--foot-h, 90px) - var(--grow) - min(var(--kb-room, 0px), var(--kb-now)));
     transition: --grow var(--cf-dur-g, 500ms) var(--cf-ease-g, ease);
-    /* (--melt: the bar's top, 10 px above the row of controls. The words are full until 32 px above the controls, about
-       a third at their top edge and gone by their middle: the frost softens what reaches under them, and the gaps
-       between them show a soft blend, never pieces of letters) */
-    -webkit-mask-image: linear-gradient(to bottom, transparent, transparent calc(var(--sb-fade) * .2), rgba(0,0,0,.45) calc(var(--sb-fade) * .6 - 4px), #000 calc(var(--sb-fade) - 8px), #000 calc(var(--melt) - 22px), rgba(0,0,0,.62) calc(var(--melt) - 4px), rgba(0,0,0,.35) calc(var(--melt) + 10px), rgba(0,0,0,.12) calc(var(--melt) + 26px), transparent calc(var(--melt) + 37px));
-    mask-image: linear-gradient(to bottom, transparent, transparent calc(var(--sb-fade) * .2), rgba(0,0,0,.45) calc(var(--sb-fade) * .6 - 4px), #000 calc(var(--sb-fade) - 8px), #000 calc(var(--melt) - 22px), rgba(0,0,0,.62) calc(var(--melt) - 4px), rgba(0,0,0,.35) calc(var(--melt) + 10px), rgba(0,0,0,.12) calc(var(--melt) + 26px), transparent calc(var(--melt) + 37px)); }
+    /* (--melt: the bar's top, 10 px above the row of controls. The words pass under the controls at about two thirds
+       (14 Oct 14:52, Omar: "I want to see the words under the buttons, so that's how you know it's frosted glass"):
+       each control's frost visibly blurs them, and in the gaps they are a little dimmed, never cut; they fade out below
+       the controls) */
+    -webkit-mask-image: linear-gradient(to bottom, transparent, transparent calc(var(--sb-fade) * .2), rgba(0,0,0,.45) calc(var(--sb-fade) * .6 - 4px), #000 calc(var(--sb-fade) - 8px), #000 calc(var(--melt) - 8px), rgba(0,0,0,.82) calc(var(--melt) + 10px), rgba(0,0,0,.76) calc(var(--melt) + 37px), rgba(0,0,0,.34) calc(var(--melt) + 64px), transparent calc(var(--melt) + 82px));
+    mask-image: linear-gradient(to bottom, transparent, transparent calc(var(--sb-fade) * .2), rgba(0,0,0,.45) calc(var(--sb-fade) * .6 - 4px), #000 calc(var(--sb-fade) - 8px), #000 calc(var(--melt) - 8px), rgba(0,0,0,.82) calc(var(--melt) + 10px), rgba(0,0,0,.76) calc(var(--melt) + 37px), rgba(0,0,0,.34) calc(var(--melt) + 64px), transparent calc(var(--melt) + 82px)); }
 }
 .sheet-pane:has(> .sheet-foot) .coach-body.sheet-body { padding-bottom: calc(var(--foot-h, calc(var(--sab) + 76px)) + 30px + var(--grow-pad, 0px) + var(--kb-room, 0px)); }
 /* .edge-fade, for a bottom bar that content passes under (the tab bar; the Coach bar had it until 14 Oct): a neutral grey
@@ -1449,7 +1450,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* the said words' "Transcribing…", lifting with the pill as the words come up (Coach.tsx flight) */
 .fly-ghost { position: absolute; white-space: nowrap; font-weight: 400; letter-spacing: 0; color: var(--tx2); will-change: opacity; pointer-events: none; }
 /* closing up unseen, at once (said words: the bar is hidden while the pill lifts away) */
-.coach-composer.snap :is(.cf-glass, .cf-tint > i, .cf-sh, .cf-text, .coach-field textarea.input, .coach-cam-slot, .coach-cam) { transition: none !important; }
+.coach-composer.snap :is(.cf-glass, .cf-tint > i, .cf-sh, .cf-text, .coach-field textarea.input, .coach-cam-slot, .coach-cam-slot::before, .coach-cam) { transition: none !important; }
 .coach-composer .coach-field .input.sent-away { caret-color: transparent; transition: none; } /* (the cursor jumped to the start as the words left) */
 :root[data-motion='reduce'] :is(.coach-sent, .coach-reply, .coach-reply .w, .coach-after, .coach-after .speak-btn) { animation: none; }
 .coach-body :is(.action-card, .action-ic, .action-line, .tip) { animation: none; }
@@ -1567,20 +1568,28 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    never animated, and nothing blurred sits under it. `.frost-seat`: the same glass as a disc behind its content
    (--seat: how far it reaches past the element). */
 :root { --fc-bg: rgba(58, 61, 78, 0.36); --fc-sheen: rgba(255, 255, 255, 0.1); --fc-lens: rgba(255, 255, 255, 0.07); --fc-glow: rgba(255, 255, 255, 0.04); --fc-hl: rgba(255, 255, 255, 0.3); --fc-lo: rgba(255, 255, 255, 0.09); --fc-rim: rgba(255, 255, 255, 0.09); --fc-rim-on: rgba(255, 255, 255, 0.16);
-  --fc-sh: 0 0 #0000; /* (no shadow: 14 Oct, Omar, "I don't want a shadow") */
+  /* a soft, static shadow under each control so it lifts off the page (14 Oct 14:52, Omar: "I want a drop shadow so it
+     looks 3D"; it had been taken off at his 12:56 ask): a wide soft one and a tight one where it meets the page */
+  --fc-sh: 0 2px 5px rgba(0, 0, 0, 0.35), 0 12px 30px rgba(0, 0, 0, 0.55);
   /* the same glass as solid colours under one opacity (--fc-op), for a control drawn in pieces (the Coach pill) */
   --fc-solid: rgb(58, 61, 78); --fc-op: 0.38; --fc-top: color-mix(in srgb, var(--fc-solid), #fff 20%); --fc-hl-s: color-mix(in srgb, var(--fc-solid), #fff 56%); --fc-rim-s: color-mix(in srgb, var(--fc-solid), #fff 16%); --fc-lo-s: color-mix(in srgb, var(--fc-solid), #fff 22%);
   /* what the pill's frost shows on average (the sheet seen through it): a sent message's flying copy is solid, drawn over this */
   --fly-under: rgb(20, 24, 40); }
 :root[data-theme='light'] { --fc-bg: rgba(255, 255, 255, 0.6); --fc-sheen: rgba(255, 255, 255, 0.55); --fc-hl: rgba(255, 255, 255, 0.95); --fc-rim: rgba(20, 28, 48, 0.07); --fc-rim-on: rgba(20, 28, 48, 0.14);
-  --fc-lens: rgba(255, 255, 255, 0.35); --fc-glow: rgba(255, 255, 255, 0.2); --fc-lo: rgba(255, 255, 255, 0.5); --fc-sh: 0 0 #0000;
+  --fc-lens: rgba(255, 255, 255, 0.35); --fc-glow: rgba(255, 255, 255, 0.2); --fc-lo: rgba(255, 255, 255, 0.5); --fc-sh: 0 2px 4px rgba(30, 40, 70, 0.14), 0 10px 28px rgba(30, 40, 70, 0.22);
   --fc-solid: #fff; --fc-op: 0.6; --fc-top: #fff; --fc-hl-s: #fff; --fc-rim-s: color-mix(in srgb, #fff, rgb(20, 28, 48) 12%); --fc-lo-s: color-mix(in srgb, #fff, rgb(20, 28, 48) 6%); --fly-under: rgb(222, 225, 235); }
 .frost-ctl, .sheet .frost-ctl.frost-ctl, .frost-seat::before { /* (.sheet: the sheets' rule that takes the blur off their buttons, above, took it off these too: the camera had no frost until 14 Oct) */
   /* a little 3D, as a lens: light on the top edge and a brighter top half, a faint light back up along the bottom edge
      (as light comes through glass), a fine rim all round, and nothing under it */
   background: radial-gradient(90% 55% at 50% 0%, var(--fc-lens), transparent 70%), linear-gradient(180deg, var(--fc-sheen), transparent 52%, var(--fc-glow)), var(--fc-bg);
   -webkit-backdrop-filter: blur(8px) saturate(1.6); backdrop-filter: blur(8px) saturate(1.6);
-  box-shadow: inset 0 1px 0 var(--fc-hl), inset 0 -1px 0 var(--fc-lo), inset 0 0 0 1px var(--fc-rim), var(--fc-sh); }
+  box-shadow: inset 0 1px 0 var(--fc-hl), inset 0 -1px 0 var(--fc-lo), inset 0 0 0 1px var(--fc-rim); }
+/* the drop shadow is its own layer, never on the blurred one (a shadow on a backdrop layer makes it dearer to draw):
+   behind the orb's seat, and under the camera on its slot, fading with the button */
+.frost-seat::after { content: ''; position: absolute; inset: calc(-1 * var(--seat, 2px)); border-radius: 999px; z-index: -2; box-shadow: var(--fc-sh); pointer-events: none; }
+.coach-cam-slot { position: relative; }
+.coach-cam-slot::before { content: ''; position: absolute; inset: 0; border-radius: 999px; box-shadow: var(--fc-sh); pointer-events: none; transition: opacity 220ms var(--ease-out) 180ms; }
+.open .coach-cam-slot::before { opacity: 0; transition: opacity 170ms var(--ease-out) 40ms; }
 .frost-seat { position: relative; isolation: isolate; }
 .frost-seat::before { content: ''; position: absolute; inset: calc(-1 * var(--seat, 2px)); border-radius: 999px; z-index: -1; pointer-events: none; }
 .coach-field .input { background: transparent; box-shadow: none; outline: none; }

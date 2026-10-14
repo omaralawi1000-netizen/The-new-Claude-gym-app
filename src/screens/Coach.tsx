@@ -34,19 +34,29 @@ const MORPH_BACK = springCurve(apple(0.55, 0.15));
 const GROW = springCurve(apple(0.5, 0.25));
 // a sent message: its flight to its place, and the pill turning into its bubble (quicker: mostly done by 200 ms, so it
 // has its shape before it is far from the field)
-const FLY = springCurve(apple(0.6, 0.15), 0, true); // (to the last fraction of a pixel: it hands over to the real bubble)
+// (critically damped, 14 Oct: the small overshoot it had read as a bump where it stopped; now it eases into its place on
+// the spring's long tail, as iOS lands things; to the last fraction of a pixel: it hands over to the real bubble)
+const FLY = springCurve(apple(0.55), 0, true);
 const FLY_SHAPE = springCurve(apple(0.34, 0.06));
-// said words (they were never in the field): one calm lift of the pill into its bubble, no spring's quick start (the
-// words come up inside it on the way, so the move itself has to read: the spring's first 150 ms read as a jump, and so
-// did a fast-start ease-out; this one starts softly, so the pill is seen to peel off the bar)
-const SAID_EASE = [0.3, 0.1, 0.2, 1] as const;
-const FLY_SAID = { duration: 560, easing: `cubic-bezier(${SAID_EASE.join(', ')})` };
-// how far along that curve the move is at a given share of its time (to know when the growing bubble has room for a line)
-const saidAt = (x: number) => {
-  const [x1, y1, x2, y2] = SAID_EASE, f = (a: number, b: number, m: number) => 3 * (1 - m) * (1 - m) * m * a + 3 * (1 - m) * m * m * b + m * m * m;
-  let lo = 0, hi = 1; for (let i = 0; i < 24; i++) { const m = (lo + hi) / 2; if (f(x1, x2, m) < x) lo = m; else hi = m; }
-  return f(y1, y2, (lo + hi) / 2);
-};
+// said words (they were never in the field): one calm lift of the pill into its bubble on an iOS spring, critically
+// damped (0.52 s, no overshoot), that follows a target easing up out of the bar over its first 100 ms. A spring straight
+// from rest reads as a jump in its first frames (the words come up inside it on the way, so the move itself has to read),
+// so the pill is seen to peel off the bar; and it lands on the spring's long tail, its speed dying away over the last
+// ~150 ms with no point where it brakes (a bezier's end read as a sudden stop, Omar 14 Oct 14:54: "a more easing motion
+// like iOS"). Sampled every 1/60 s into linear(), so the browser plays it at the screen's full rate.
+const SAID_XS = (() => {
+  const k = (2 * Math.PI / 0.52) ** 2, c = 4 * Math.PI / 0.52, ramp = 0.1, dt = 1 / 600;
+  let x = 0, v = 0, t = 0; const xs = [0];
+  for (let f = 1; f < 150; f++) {
+    for (let i = 0; i < 10; i++) { const u = Math.min(t / ramp, 1), g = u * u * u * (u * (6 * u - 15) + 10); v += (k * (g - x) - c * v) * dt; x += v * dt; t += dt; }
+    xs.push(x); if (t > ramp && 1 - x < 0.0002 && Math.abs(v) < 0.005) break; // (still to a fiftieth of a percent: it hands over to the real bubble)
+  }
+  xs[xs.length - 1] = 1; return xs;
+})();
+const FLY_SAID = { duration: Math.round((SAID_XS.length - 1) * 1000 / 60), easing: `linear(${SAID_XS.map((v) => +v.toFixed(4)).join(', ')})` };
+// how far along that move it is at a given share of its time (to know when the growing bubble has room for a line)
+const saidAt = (x: number) => { const i = Math.max(0, x) * (SAID_XS.length - 1), a = Math.floor(i); return a >= SAID_XS.length - 1 ? 1 : SAID_XS[a] + (SAID_XS[a + 1] - SAID_XS[a]) * (i - a); };
+const SAID_INK = 560; // the said words' ink: full while the pill is still the pill, the bubble's own by then
 const SAID_BACK = 340; // …and the bar comes back, fresh, only once the bubble has left it (faded in over 300 ms from here)
 // the emptied pill behind a sent message: closed at once, out of sight under the flying shape, which starts as the whole
 // pill (the empty bar is only ever seen where the shape has left it)
@@ -417,18 +427,19 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
         // the field's bright ink settles to the bubble's softer one; said words (never in the field) come up inside the
         // pill as it lifts, softly, while it is still the pill, and are the bubble's ink by the time it is the bubble
         from.fresh
-          ? go(words.animate([{ opacity: 1 }, { opacity: 1, offset: 0.7 }, { opacity: inkA }], { duration: FLY_SAID.duration, easing: 'linear', fill: 'both' }))
+          ? go(words.animate([{ opacity: 1 }, { opacity: 1, offset: 0.7 }, { opacity: inkA }], { duration: SAID_INK, easing: 'linear', fill: 'both' }))
           : go(words.animate([{ opacity: 1 }, { opacity: inkA }], { ...fade(380, 60), fill: 'both' })),
         // ("Transcribing…" is gone before the first words come: the two are never seen over each other)
-        ...(ghost ? [go(ghost.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 140, easing: 'cubic-bezier(.3, 0, .2, 1)', fill: 'forwards' }))] : []),
+        ...(ghost ? [go(ghost.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 150, easing: 'cubic-bezier(.3, 0, .2, 1)', fill: 'forwards' }))] : []),
       ];
       // said words: each line comes up only once the growing bubble has room for it (never on or past its edge), and not
-      // before 150 ms: the line on the field's line first, the ones above as the bubble's top rises past them
+      // before 120 ms: the line on the field's line first, the ones above as the bubble's top rises past them (from 120 ms
+      // the first line takes over from "Transcribing…" as it goes, both faint: the pill is never empty for a frame)
       if (from.fresh) {
         const pt = parseFloat(cs.paddingTop), lh = parseFloat(cs.lineHeight) || CF_LINE / k;
         [...words.children].forEach((line, i) => {
           const top = pt + i * lh, bot = top + lh;
-          let at = 150;
+          let at = 120;
           while (at < 380) { const e = saidAt(at / FLY_SAID.duration); if (y0 * (1 - e) <= top - 1 && y1 * (1 - e) + H * e >= bot - 2) break; at += 4; }
           go((line as HTMLElement).animate([{ opacity: 0 }, { opacity: 1 }], { duration: 180, delay: at, easing: 'cubic-bezier(.3, 0, .2, 1)', fill: 'backwards' }));
         });

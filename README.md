@@ -2018,3 +2018,22 @@ a shadow… make them a little 3D".
   half a touch brighter, a lighter, more see-through glass. The blur is 8 px (was 20; cheaper, and the softened words
   behind stay visible instead of vanishing). The camera had no blur at all until now: the sheets' rule that takes blur off
   their buttons (`.sheet :is(.btn, .icon-btn…)`) also took it off the camera; `.frost-ctl` now wins.
+
+## Coach r8: a soft shadow, words seen through the glass, an iOS landing (14 Oct 2026)
+
+Omar, after the r7 page: "I want a drop shadow so it looks 3D on the buttons, and… I want to see the words under the
+buttons, so that's how you know it's frosted glass", then "a more easing motion for the bubble when it suddenly stops…
+like iOS. And please polish everything".
+- **Shadow back.** Orb, camera and pill each get a soft, static drop shadow (`--fc-sh`: a tight 2 px one where it meets
+  the page and a wide 12/30 px one, neutral black; navy and lighter in the light theme). Never animated, and never on a
+  blurred layer: the pill's is its own piece (`.cf-sh`), the orb's is `.frost-seat::after` behind its glass disc, the
+  camera's is `.coach-cam-slot::before`, which fades with the button when the field opens.
+- **Words under the glass.** The list no longer fades out above the controls: it passes under them at about 80% (the
+  mask in `.coach-body` reaches 0.82 at the controls' top and 0.76 at their middle, gone 82 px below the bar's top), so
+  the 8 px frost visibly softens real words, while the gaps between the controls show them only a little dimmed.
+- **iOS landing.** Said words now lift on a critically damped spring (0.52 s, no overshoot) that follows a target easing
+  up out of the bar over its first 100 ms (`SAID_XS` → `FLY_SAID`, sampled into linear()): the soft start stays, and the
+  end is the spring's long tail (90% at ~370 ms, its speed dying away over the last ~150 ms) instead of a bezier that
+  braked. A typed message's flight lost its small overshoot the same way (`apple(0.55)`, was `apple(0.6, 0.15)`).
+- **Handover.** The first said line now starts at 120 ms, as "Transcribing…" finishes fading (150 ms): both faint for a
+  moment, so the pill is never empty for a frame.
