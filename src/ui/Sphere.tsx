@@ -7,7 +7,7 @@ import { speakingLevel } from '../lib/voiceOut';
 import { useStore } from '../state/store';
 import { useUI, haptic } from '../state/ui';
 import { kb } from './keyboard';
-import { highRefresh, onHighRefresh, springCurve, springSamples } from './motion';
+import { highRefresh, onHighRefresh, springCurve } from './motion';
 
 /**
  * The Aven sphere: ~900 points on a Fibonacci lattice, lit from upper-left so it reads as a volume.
@@ -42,24 +42,33 @@ useStore.subscribe((st, prev) => {
 export function orbTap(strength = 1) { tapPending = Math.max(tapPending, strength); pressTarget = 0; }
 
 // ── the launch (ui/launch.ts) ──
-// The app opens on the launch screen's logo (index.html), an Ember orb of dots. The live orb takes its place in the same
-// colours (so nothing changes colour as one becomes the other) and turns into the palette's colours as it flies down to the
-// dock. `launchTint` is set before the stage starts; `tintGoAt` is when the change of colour starts.
+// The app opens on the launch screen's logo (index.html), an Ember orb of dots. The live orb takes its place drawn as that
+// very logo (same dots, colours and size, so the swap can't be seen), becomes the sphere as it flies down to the dock and
+// turns into the palette's colours on the way. `launchTint` is set before the stage starts; `tintGoAt` is when the change
+// of colour starts.
 let launchTint = false, tintGoAt = 0;
 export function orbLaunchTint() { launchTint = true; }
 export function orbTintGo() { tintGoAt = performance.now(); }
-let launchBright = 0;
-/** How much the orb is still drawn as the launch logo (1 … 0, see OrbInputs.bright). */
-export function orbBright(v: number) { launchBright = v; }
+/** The launch's arrival spiral: light winds up the orb from the bottom and the palette's colour rides its front
+ *  (OrbInputs.ignite 2; start it with orbTintGo). */
+export function orbIgnite() { ignitePending = 2; }
+let launchLogo: number | undefined;
+/** The orb drawn as the launch logo (1), or turning into itself (0; see OrbInputs.logo). */
+export function orbLogo(v: number | undefined) { launchLogo = v; }
 /** Resolves once the orb has drawn its first frame (on the page or in its worker). */
 let drawnResolve: () => void = () => {};
 export const orbDrawn = new Promise<void>((r) => { drawnResolve = () => { performance.mark('aven:orb'); r(); }; });
 /** The orb's flight from the launch screen to the dock, handed to the browser (full refresh rate), on a gentle arc that
  *  bows `bow` px sideways (negative: to the left). Resolves with the animation once it has started (null: it couldn't, the
  *  script carries the orb). */
-let launchReq: { sp: { stiffness: number; damping: number; mass?: number }; bow: number; started: (a: Animation | null) => void } | null = null;
-export function orbLaunch(sp: { stiffness: number; damping: number; mass?: number }, bow = 0): Promise<Animation | null> {
-  return new Promise((started) => { launchReq = { sp, bow, started }; markOrbLayoutDirty(); });
+type LaunchPath = { xs: number[]; duration: number; land?: { ys: number[]; v0: number } };
+let launchReq: { path: LaunchPath; bow: number; started: (a: Animation | null) => void } | null = null;
+/** `path`: how far along it is (0…1) at even steps of time over `duration` ms. `land`: it comes down into the dock still
+ *  moving down at `v0` px/s and goes on with the dock's give (`ys`: px below its place, a step per 1/120 s from touchdown),
+ *  in the same animation, so the dock (given the same steps from touchdown, `duration` ms after this one's start) and the
+ *  orb in it move as one. */
+export function orbLaunch(path: LaunchPath, bow = 0): Promise<Animation | null> {
+  return new Promise((started) => { launchReq = { path, bow, started }; markOrbLayoutDirty(); });
 }
 
 /** What the orb's drawing loop is doing, for the frame-rate readout. */
@@ -79,7 +88,7 @@ function orbInputs(): OrbInputs {
   // resting between sets (counting, not paused, not yet over): the orb's light breathes with you
   const a = useStore.getState().active;
   const rest = a?.rest && !a.pausedAt && a.rest.endsAt > Date.now() ? 1 : 0;
-  return { phase: v.phase, phaseAge: (performance.now() - v.since) / 1000, live, raw: live ? mic.voice() : 0, bands: live ? mic.bands() : null, press: pressTarget, tap, whoosh, ignite, voiceOut: speakingLevel(), rest, beat, bright: launchBright };
+  return { phase: v.phase, phaseAge: (performance.now() - v.since) / 1000, live, raw: live ? mic.voice() : 0, bands: live ? mic.bands() : null, press: pressTarget, tap, whoosh, ignite, voiceOut: speakingLevel(), rest, beat, logo: launchLogo };
 }
 
 // ── stage ───────────────────────────────────────────────────
@@ -313,8 +322,10 @@ export function SphereStage() {
       if (fadeStart === Infinity && tintGoAt) fadeStart = tintGoAt;
       if (!fadeStart) return;
       if (launchFade && fadeStart !== Infinity) {
-        const k = Math.min(1, Math.max(0, (now - fadeStart) / 750));
-        if (k < 1) { colors = from; launchMix = easeInOut(k); return; }
+        // the colour rides the arrival spiral (orbIgnite), which has every bead changed by ~0.8 s; this slower curve only
+        // makes sure the change is finished (and lags behind the spiral, so it never runs ahead of it)
+        const k = Math.min(1, Math.max(0, (now - fadeStart) / 1000));
+        if (k < 1) { colors = from; launchMix = k * k; return; }
         colors = to; launchMix = -1; launchFade = false; fadeStart = 0; return;
       }
       const k = Math.min(1, Math.max(0, (now - fadeStart) / 1100));
@@ -568,24 +579,29 @@ export function SphereStage() {
       }
       el.style.transform = tf;
       if (launchReq) {
-        // the launch: from the logo's place down to where the orb would be without it (the dock), on the launch's spring,
+        // the launch: from the logo's place down to where the orb would be without it (the dock), along the launch's curve,
         // drawn by the browser; the canvas keeps the logo's size for the whole flight and is scaled down. The path is a soft
         // arc (a quadratic curve through a point `bow` px to the side of the start): it falls first and slides across into
-        // the dock at the end, so it passes well clear of the first card's play button. One keyframe per 1/60 s of the spring.
+        // the dock at the end, so it passes well clear of the first card's play button. One keyframe per step of the curve.
         const req = launchReq; launchReq = null;
         let a: Animation | null = null;
         if (launchFrom && launchTo && !reduced) {
           const bk = Math.ceil(launchFrom.S / 24) * 24;
           orbLock.bucket = bk; el.style.width = el.style.height = `${bk}px`;
           const at = (P: { X: number; Y: number; S: number }) => `translate3d(${P.X}px, ${P.Y}px, 0) scale(${Math.max(8, P.S) / bk})`;
-          const { xs, duration } = springSamples(req.sp);
-          const F = launchFrom, T = launchTo, cx = F.X + req.bow, cy = (F.Y + T.Y) / 2;
+          const { xs, duration, land } = req.path;
+          const F = launchFrom, T = launchTo, cx = F.X + req.bow;
+          // (straight down it goes from F.Y to T.Y as p goes 0 … 1; with a landing, its height takes a touch longer, so it
+          // arrives still moving down at v0 — the curve's own end is at rest — and gives with the dock from there)
+          const n = xs.length - 1, dy = T.Y - F.Y, c = land && dy > 1 ? (land.v0 * duration) / 1000 / dy : 0;
+          const drop = land?.ys ?? [], total = duration + (drop.length ? (drop.length - 1) * (1000 / 120) : 0);
           const frames = xs.map((p, i): Keyframe => {
-            const u = 1 - p;
-            return { offset: i / (xs.length - 1), transform: at({ X: u * u * F.X + 2 * p * u * cx + p * p * T.X, Y: u * u * F.Y + 2 * p * u * cy + p * p * T.Y, S: F.S + (T.S - F.S) * p }) };
+            const u = 1 - p, t = i / n, q = p + c * (t * t * t - t * t);
+            return { offset: (t * duration) / total, transform: at({ X: u * u * F.X + 2 * p * u * cx + p * p * T.X, Y: F.Y + dy * q, S: F.S + (T.S - F.S) * p }) };
           });
+          for (let j = 1; j < drop.length; j++) frames.push({ offset: Math.min(1, (duration + j * (1000 / 120)) / total), transform: at({ X: T.X, Y: T.Y + drop[j], S: T.S }) });
           orbAnim?.cancel();
-          a = el.animate(frames, { duration, easing: 'linear' });
+          a = el.animate(frames, { duration: total, easing: 'linear' });
           const done = () => { if (orbAnim === a) { orbAnim = null; orbLock.bucket = 0; } };
           a.onfinish = done; a.oncancel = done;
           orbAnim = a;
@@ -600,7 +616,8 @@ export function SphereStage() {
       }
       // A big orb is soft light, not fine detail: at 2× it looks the same as at 3×, with less than half the pixels to fill and
       // hand to the screen every frame (that hand-over was most of the orb screen's cost). Small orbs keep full sharpness.
-      const dpr = Math.min(bucket > 120 ? 2 : 3, window.devicePixelRatio || 1);
+      // (the launch logo is drawn at full sharpness: it takes over from a picture drawn at the screen's own resolution)
+      const dpr = Math.min(bucket > 120 && launchLogo === undefined ? 2 : 3, window.devicePixelRatio || 1);
       // Sitting still in the tab bar under an open sheet/overlay: keep the last frame instead of redrawing, so the
       // frosted layers above stop re-blurring it every frame.
       const still = Math.abs(X - px) < 0.05 && Math.abs(Y - py) < 0.05 && Math.abs(S - ps) < 0.05;
