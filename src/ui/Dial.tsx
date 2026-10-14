@@ -9,7 +9,7 @@ export interface DialRing { value: number; color: string; label: string; over?: 
  * Concentric progress rings. Each ring draws itself in with a spring (outer first), keeps a soft glow in its own colour,
  * and sits in a track. A little depth, all of it painted once: the track is a soft groove (a darkening under a faint
  * lift that is lighter at the bottom, as if lit from above), and a filled ring is a rounded tube (its colour a touch
- * lighter at the top and deeper at the bottom, with a thin soft highlight along its outer edge). Only pathLength
+ * lighter at the top and deeper at the bottom, with a soft light fading out to its outer edge). Only pathLength
  * moves, as before; the shading rides with it. Values are 0..1 (clamped); the centre holds whatever the screen wants to say.
  */
 export function Dial({ rings, size = 280, stroke = 13, gap = 9, children, label }: { rings: DialRing[]; size?: number; stroke?: number; gap?: number; children?: ReactNode; label: string }) {
@@ -39,6 +39,18 @@ export function Dial({ rings, size = 280, stroke = 13, gap = 9, children, label 
               </linearGradient>
             );
           })}
+          {/* the tube's light: a soft fade from its middle out to its outer edge, in the dial's own space */}
+          {rings.map((r, i) => {
+            const rad = c - stroke / 2 - i * (stroke + gap) - 2;
+            if (rad <= 0) return null;
+            const R = rad + stroke / 2;
+            return (
+              <radialGradient key={`s${i}`} id={`${ids}-shine-${i}`} gradientUnits="userSpaceOnUse" cx={c} cy={c} r={R}>
+                <stop offset={(rad - stroke * 0.1) / R} style={{ stopColor: 'var(--ring-shine)', stopOpacity: 0 }} />
+                <stop offset="1" style={{ stopColor: 'var(--ring-shine)' }} />
+              </radialGradient>
+            );
+          })}
         </defs>
         {rings.map((r, i) => {
           const rad = c - stroke / 2 - i * (stroke + gap) - 2;
@@ -48,7 +60,6 @@ export function Dial({ rings, size = 280, stroke = 13, gap = 9, children, label 
           const p = { cx: c, cy: c, r: rad, fill: 'none', strokeLinecap: 'round' as const, transform: `rotate(-90 ${c} ${c})` };
           const t = { ...GENTLE, delay: reduce ? 0 : 0.15 + i * 0.12 };
           const len = Math.max(v, v > 0 ? 0.012 : 0);
-          const hi = stroke * 0.26; // the highlight's width, along the outer half of the tube
           return (
             <g key={i}>
               <circle {...p} stroke="var(--ring-groove)" strokeWidth={stroke} />
@@ -56,7 +67,7 @@ export function Dial({ rings, size = 280, stroke = 13, gap = 9, children, label 
               <circle {...p} r={rad + stroke / 2 - 0.6} stroke="var(--ring-rim)" strokeWidth={1.2} />
               <motion.circle {...p} stroke={col} strokeWidth={stroke + 6} filter={`url(#dial-glow-${i})`} opacity={v > 0 ? 0.55 : 0} initial={{ pathLength: reduce ? v : 0 }} animate={{ pathLength: v }} transition={t} />
               <motion.circle {...p} stroke={`url(#${ids}-tube-${i})`} strokeWidth={stroke} opacity={v > 0 ? 1 : 0} initial={{ pathLength: reduce ? v : 0 }} animate={{ pathLength: len }} transition={t} />
-              <motion.circle {...p} r={rad + stroke * 0.2} stroke="var(--ring-shine)" strokeWidth={hi} opacity={v > 0 ? 1 : 0} initial={{ pathLength: reduce ? v : 0 }} animate={{ pathLength: len }} transition={t} />
+              <motion.circle {...p} stroke={`url(#${ids}-shine-${i})`} strokeWidth={stroke} opacity={v > 0 ? 1 : 0} initial={{ pathLength: reduce ? v : 0 }} animate={{ pathLength: len }} transition={t} />
             </g>
           );
         })}
