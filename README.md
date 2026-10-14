@@ -100,7 +100,7 @@ There are no separate food / workout voice modes any more. The orb opens its own
 - **How it works**: Gemini gets your sentence, the app's guide (every screen, setting and rule — so "how do I change the theme?" is simply answered) and a compact live summary computed on the device (settings, today's meals/water, a running workout, routines, targets, recent training). It answers with a reply and a short list of actions. The model never writes data itself: each action is validated (`src/lib/agent.ts` → `validateAgent`), then run by the same code the screens use (food matching/quantity rules, exercise matching, settings patching).
 - **Safety**: everything reversible is applied at once and shown as a card with **Undo**; spoken quick logs close the Coach and leave an Undo toast. Finishing a workout always needs a tap. Nothing deletes data. Unknown foods become a clearly labelled **AI estimate**; ambiguous names the Coach can't settle are shown on the card, not guessed silently.
 - **Without a Gemini key** (or if Gemini is down) a built-in reader still logs simple sentences (food, sets, water, weight); chat and settings changes need the key. Without a Groq key the mic falls back as before.
-- The Coach hears you with Groq Whisper: it listens, stops by itself when you finish speaking (or tap the orb), transcribes, then acts.
+- The Coach hears you with Groq Whisper: it listens, stops by itself when you finish speaking (or tap the orb), transcribes, then acts. Since 14 Oct your words also appear in the field as you speak (Chrome's own speech service, a cloud service; see the Coach dictation section); Whisper's words replace them when you stop.
 - Tested with stubbed Gemini/Groq (`tests/agent.test.ts`, `scripts/journey-ai.mjs`). Real-model quality and real-microphone behaviour are unverified until you try it.
 
 ### The orb listens to your voice
@@ -1894,3 +1894,27 @@ screen (the Ember orb of dots) cut to a blank page, then the app.
   playing only while on screen and while the app is in view; reduced motion shows the still first frame.
 - Made in Blender from the Z-Anatomy model (CC BY-SA 4.0, credited in Settings › About). Each exercise gets its own
   choreography on one full-body rig; sources and judge notes are in the project folder `anatomy-proof/`.
+
+## Coach: dictation like iOS, calmer answer text (14 Oct 2026)
+
+Omar: "when you say something to the coach… I want it to be easy and like Apple". And: "refine the animations of the text… ultra premium".
+- **Your words appear as you speak.** Tap the orb: the pill opens wide at once ("Listening…"), and what you say shows in
+  it as you say it, growing a line at a time like typed words. The send button listens with you: a small live wave of
+  five bars (your voice's bands, scale only) until the first words, then the arrow. It still stops by itself when you go
+  quiet, or tap the orb or the arrow. Whisper (Groq) then hears the whole recording as before (it is the better ear, and
+  keeps the Danish and accent handling); if its words differ, they take the live ones' place for a moment, then lift out
+  of the field into the chat exactly as typed words do. Tap your words while speaking and it stops there and leaves them
+  in the field to fix (keyboard up), as tapping the text does on iOS. A draft already in the field is kept, the words go
+  after it.
+- **Where the live words come from**: Chrome's Web Speech service (free, no key; on Chrome it is Google's cloud
+  recogniser), running next to the recording. The earlier live words (Groq looks every 1.2 s) were late and misheard and
+  were dropped; this one streams word by word. Language: Settings → Voice & AI → Language, or the app's language on Auto.
+  If it is missing or fails, it listens as before (the wave, then Whisper's words). If Whisper fails, the live words are
+  sent; if the recording itself hears nothing while live words come, the live words decide when to stop (1.5 s after the
+  last one) and are sent.
+- **Answers, refined**: each word barely rises now (0.14em, was 0.3em: a line of small hops read as busy) and takes its
+  light a little longer (820 ms, was 640), so the words in flight overlap and a line fills in as one soft wave. Opacity
+  and transform only, no blur.
+- Not verified on a phone: whether Chrome on Android lets its speech service and the recording share the mic (the
+  fallbacks above cover either one failing), and live-word accuracy.
+
