@@ -2119,7 +2119,7 @@ softer easing and fewer moving things, not more effects; the look is unchanged e
   message's flying copy carries the same shadow, and for a typed message it fades in over 160 ms over the pill's own so
   the two never double up for a frame.
 - **After a harsh review (r10b):** a typed message's copy now starts see-through and its paint comes up over the real pill
-  over 200 ms while the pill holds its shape (`CLOSE`: it closes up on the growing curve from 200 ms, under the copy as it
+  over 200 ms while the pill holds its shape (`CLOSE`: it closes up on the copy's own shape curve from 60 ms, as the copy
   lifts away); the copy used to replace the pill's warm frost with its solid slate in one frame. The send arrow fades over
   120 ms from the tap (it was cut off by the copy). Closing is quicker with no tail (`MORPH_BACK` 0.4 s, done within half a
   pixel) and the camera starts back 80 ms in, so edge, camera and bar land together (the edge used to creep on ~14 px
