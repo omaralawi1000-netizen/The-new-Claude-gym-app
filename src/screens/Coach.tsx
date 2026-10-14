@@ -370,6 +370,9 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       bubble.style.visibility = 'hidden';
       const at = document.timeline.currentTime;
       const go = (a: Animation) => { if (at !== null) a.startTime = at; return a; };
+      // the real button (stop, now) waits hidden under the shape until the shape has risen clear of it, then fades in
+      // (shown at once, a sliver of it peeked out under the shape's rounded corner as it left)
+      if (btn) go(btn.animate([{ opacity: 0 }, { opacity: 0, offset: 0.74 }, { opacity: 1 }], { duration: 680, easing: 'linear' }));
       const opts = { duration: FLY.duration, easing: FLY.easing, fill: 'forwards' as const };
       const shape = { duration: FLY_SHAPE.duration, easing: FLY_SHAPE.easing, fill: 'forwards' as const };
       const fade = (ms: number, delay = 0) => ({ duration: ms, delay, easing: 'cubic-bezier(.3, 0, .2, 1)', fill: 'backwards' as const });
@@ -470,22 +473,23 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   const grown = useRef(-1);
   const fitKey = useRef(''), fieldW = useRef(0);
   const holdOpen = useRef(false); // a message just sent: the bar stays as it was until it settles (see the flight)
-  const fit = (curve: { duration: number; easing: string } = GROW) => {
+  const fit = (curve: { duration: number; easing: string } = GROW, text?: string) => {
     const ta = inputRef.current, m = measureRef.current, bar = composerRef.current, body = bodyRef.current;
     if (!ta || !m || !bar) return;
+    const val = text ?? ta.value; // (`text`: grow for words about to be shown, Coach dictation)
     // Open wide while it has the keyboard, and while there are words in it (as on iOS: a draft keeps the bar wide, so its
     // lines never re-wrap under the camera coming back). Set straight on the bar: a state change here re-rendered the
     // whole conversation on every tap into the field and out of it.
-    const open = document.activeElement === ta || ta.value.length > 0 || holdOpen.current || listening.current;
+    const open = document.activeElement === ta || val.length > 0 || holdOpen.current || listening.current;
     bar.classList.toggle('open', open);
     // (the words are measured again only when they or the field's width changed: each measure is a layout of the page,
     // and on a send it ran three times in the tap)
-    const key = `${open}|${fieldW.current}|${ta.value || ta.placeholder}`;
+    const key = `${open}|${fieldW.current}|${val || ta.placeholder}`;
     if (key === fitKey.current) return;
     fitKey.current = key;
     const cs = getComputedStyle(ta);
     m.style.width = `${ta.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)}px`;
-    m.textContent = `${ta.value || ta.placeholder}\u200b`;
+    m.textContent = `${val || ta.placeholder}\u200b`;
     const all = Math.max(1, Math.round(m.offsetHeight / CF_LINE)), lines = Math.min(CF_LINES, all);
     bar.classList.toggle('cf-full', all > CF_LINES); // (only then can it scroll: a scroller of its own otherwise came and went with the keyboard)
     const mid = (lines - 1) * CF_LINE;
@@ -668,12 +672,30 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     if (mode === 'edit') { requestAnimationFrame(() => { const f = inputRef.current; if (f) { f.focus(); f.setSelectionRange(f.value.length, f.value.length); } }); return; }
     setTimeout(() => { if (alive.current) send(text, true); }, swap ? 260 : 0);
   };
+  // Live words that need a new line: the pill grows first (on its spring, its lines rising with the top edge) and the words
+  // are painted once it has mostly grown, in their place; painted at once, the new line's tops showed under the pill's
+  // bottom edge before it grew. Words that fit are shown at once. (`pending`: the newest words while a grow is under way.)
+  const liveGrow = useRef<{ timer: number; pending: string | null }>({ timer: 0, pending: null });
+  const paintLive = (text: string) => { setInput(text); requestAnimationFrame(() => { const f = inputRef.current; if (f) f.scrollTop = f.scrollHeight; }); }; // (the newest words stay in view)
+  const showLive = (text: string) => {
+    const lg = liveGrow.current;
+    if (lg.timer) { lg.pending = text; return; }
+    const was = grown.current;
+    fit(GROW, text);
+    if (grown.current > was && was >= 0) {
+      lg.pending = text;
+      lg.timer = window.setTimeout(() => { lg.timer = 0; const t2 = lg.pending; lg.pending = null; if (t2 !== null && listening.current) showLive(t2); }, Math.round(GROW.duration * 0.45));
+      return;
+    }
+    paintLive(text);
+  };
+  const flushLive = () => { const lg = liveGrow.current; clearTimeout(lg.timer); lg.timer = 0; lg.pending = null; };
   const toggleRec = async (mode: 'send' | 'edit' = 'send') => {
     if (busy || hearing) return;
     const sd = said.current;
     if (recording) {
       setRecording(false); setHearing(true); orb(mode === 'edit' ? 'idle' : 'processing');
-      sd.speech?.stop(); sd.speech = null; // (its last words may still land: from here they are ignored)
+      sd.speech?.stop(); sd.speech = null; flushLive(); // (its last words may still land: from here they are ignored)
       const live = sd.live.trim(), base = sd.base;
       const blob = await mic.stopRecording(); mic.release('coach');
       if (mode === 'edit' && live) { setHearing(false); setHeardLive(false); finishSaid(join(base, live), 'edit'); return; }
@@ -704,8 +726,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
           if (!listening.current || said.current !== sd || !sd.speech) return;
           sd.live = join(fin, interim); sd.at = performance.now();
           if (sd.live) setHeardLive(true);
-          setInput(join(sd.base, sd.live));
-          requestAnimationFrame(() => { const f = inputRef.current; if (f) f.scrollTop = f.scrollHeight; }); // (the newest words stay in view)
+          showLive(join(sd.base, sd.live));
         },
         onError: () => { sd.speech = null; }, // (no live words: it listens as before)
         onEnd: () => { sd.speech = null; },
@@ -749,9 +770,10 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     const v = bars.map(() => 0); let raf = 0, last = performance.now();
     const pick = [2, 4, 6, 8, 11];
     const step = (now: number) => {
-      const dt = Math.min(0.05, (now - last) / 1000); last = now;
+      const dt = Math.min(0.05, Math.max(0, now - last) / 1000); last = now; // (a frame's time can be a little before the start)
       const b = mic.bands(), k = 1 - Math.exp(-dt / 0.09);
-      bars.forEach((el, i) => { v[i] += (Math.min(1, (b[pick[i]] ?? 0) * 1.6) - v[i]) * k; el.style.transform = `scaleY(${(0.22 + v[i] * 0.78).toFixed(3)})`; });
+      // (quiet, the bars breathe in a slow wave, so it reads as listening, never as a "more" button)
+      bars.forEach((el, i) => { const idle = 0.1 + 0.42 * (0.5 + 0.5 * Math.sin(now / 1300 * 2 * Math.PI - i * 0.8)); v[i] += (Math.max(idle, Math.min(1, (b[pick[i]] ?? 0) * 1.6)) - v[i]) * k; el.style.transform = `scaleY(${(0.22 + v[i] * 0.78).toFixed(3)})`; });
       raf = requestAnimationFrame(step);
     };
     raf = requestAnimationFrame(step);
@@ -810,7 +832,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
               onPointerDown={(e) => { if (!listening.current) return; e.preventDefault(); if (recording) toggleRec('edit'); /* (tap your words while speaking: it stops and leaves them to fix) */ }}
               enterKeyHint="send" placeholder={recording ? t('Listening…') : hearing ? t('Transcribing…') : t('Ask the Coach')} aria-label={t('Message the Coach')} readOnly={recording || hearing} /></div>
             {/* Send is an arrow inside the field, there only when there is something to send (Stop while it works) */}
-            <button className={`coach-send press ${busy || input.trim() || photo || recording || hearing ? 'on' : ''} ${busy ? 'busy' : ''} ${recording || hearing ? 'rec' : ''} ${heardLive ? 'said' : ''}`} onMouseDown={(e) => e.preventDefault() /* the field keeps the keyboard (it stays up after a send) */}
+            <button className={`coach-send press ${busy || input.trim() || photo || recording || hearing ? 'on' : ''} ${busy ? 'busy' : ''} ${recording || hearing ? 'rec' : ''} ${heardLive ? 'cs-heard' : ''}`} onMouseDown={(e) => e.preventDefault() /* the field keeps the keyboard (it stays up after a send) */}
               aria-label={busy ? t('Stop') : recording ? t('Stop and send') : t('Send')} tabIndex={busy || input.trim() || photo || recording ? 0 : -1} onClick={() => (busy ? ctl.current?.abort() : recording ? toggleRec('send') : hearing ? undefined : send())}>
               {/* send turns into stop (and back) by a short cross-fade with a little turn, not a cut */}
               <span className="cs-ico cs-go"><Icon name="arrowUp" size={18} sw={2.6} /></span>

@@ -1215,9 +1215,10 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .coach-send .cs-wave { display: flex; align-items: center; gap: 2.5px; height: 16px; opacity: 0; transform: scale(0.7); }
 .coach-send .cs-wave > i { width: 3px; height: 16px; border-radius: 2px; background: currentColor; transform: scaleY(0.22); will-change: transform; }
 .coach-send.rec .cs-go { opacity: 0; transform: scale(0.7); }
+.coach-send.rec:not(.cs-heard) .cs-go { transition: none; } /* (the button fades in already listening: no arrow fading out inside it) */
 .coach-send.rec .cs-wave { opacity: 1; transform: none; }
-.coach-send.rec.said .cs-wave { opacity: 0; transform: scale(0.7); }
-.coach-send.rec.said .cs-go { opacity: 1; transform: none; }
+.coach-send.rec.cs-heard .cs-wave { opacity: 0; transform: scale(0.7); }
+.coach-send.rec.cs-heard .cs-go { opacity: 1; transform: none; }
 .meals-empty { padding: 6px 16px 6px 20px; }
 /* the empty day's card (or the meals) fading out before the other rises in, once the add sheet has gone (Food.tsx) */
 .subpage > .fading { animation: fade-away 220ms ease forwards; pointer-events: none; }
@@ -1294,26 +1295,25 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .coach-body { overflow-anchor: none; }
 .sheet-pane .coach-body.sheet-body:not([data-scrollable]) { -webkit-mask-image: none; mask-image: none; } /* (outranks the melt under sheet buttons) */
 /* The Coach's typing bar is a whole row (orb, camera, field) laid over the end of the list. THREE GLASS OBJECTS (Omar,
-   14 Oct: "each on its own… separated with frosted glass blur"): the list now runs on behind the bar, and each control's
-   own frost blurs whatever passes under it. Nothing sits behind the row as a whole: no band, no tint. The text only fades
-   a little: over the 40 px above the controls it dims to half (so the orb, the camera and the field read clearly over
-   it), then fades on out behind them, gone at their bottom edge, so no stray letters peek out under the row.
-   (13 Oct it ended ABOVE the bar; the bar had a dark tint band and the controls sat on a dark strip.)
-   At rest the last message sits 30 px above the bar, clear of the fade, so only words scrolling past go behind the glass.
-   With the keyboard up the bar's place rides with it, frame by frame (--kb-now, Coach.tsx; it used to sit at the
-   keyboard's full room the whole time, so while the keyboard came or went the messages between it and the bar were hidden). */
+   14 Oct: "each on its own… separated with frosted glass blur"): nothing sits behind the row as a whole, no band, no tint;
+   each control is its own frosted glass over the page. The list fades out softly just above them (from 28 px above the
+   bar's top to gone 8 px into it, before the controls start), so no letters ever show in the gaps between them or
+   through them: the stencil look of words cut round each button read as clutter (judge, 14 Oct). (13 Oct the bar also
+   had a dark tint band behind it, and the controls sat on a dark strip.)
+   At rest the last message sits 30 px above the bar, clear of the fade.
+   With the keyboard up the edge rides with the bar, frame by frame (--kb-now, Coach.tsx; it used to sit at the keyboard's
+   full room the whole time, so while the keyboard came or went the messages between it and the bar were hidden). */
 @property --kb-now { syntax: '<length>'; inherits: false; initial-value: 0px; }
 @property --cf-gt { syntax: '<length>'; inherits: false; initial-value: 0px; } /* (the pill's frost outline: its top and its left edge) */
 @property --cf-gl { syntax: '<length>'; inherits: false; initial-value: 0px; }
 @property --grow { syntax: '<length>'; inherits: false; initial-value: 0px; } /* (the typing pill's extra lines: the end of the conversation rises with it) */
 @property --melt { syntax: '<length-percentage>'; inherits: false; initial-value: 100%; } /* (not handed down to every word: it changes as you scroll) */
-@property --melt-b { syntax: '<length-percentage>'; inherits: false; initial-value: 100%; }
 @supports (animation-timeline: scroll()) {
-  .sheet-pane .coach-body.sheet-body[data-scrollable] { --melt-b: calc(100% - min(var(--kb-room, 0px), var(--kb-now))); --melt: calc(var(--melt-b) - var(--foot-h, 90px) - var(--grow));
+  .sheet-pane .coach-body.sheet-body[data-scrollable] { --melt: calc(100% - var(--foot-h, 90px) - var(--grow) - min(var(--kb-room, 0px), var(--kb-now)));
     transition: --grow var(--cf-dur-g, 500ms) var(--cf-ease-g, ease);
-    /* --melt: the bar's top; --melt-b: its bottom (the screen's, or the keyboard's top) */
-    -webkit-mask-image: linear-gradient(to bottom, transparent, transparent calc(var(--sb-fade) * .2), rgba(0,0,0,.45) calc(var(--sb-fade) * .6 - 4px), #000 calc(var(--sb-fade) - 8px), #000 calc(var(--melt) - 30px), rgba(0,0,0,.72) calc(var(--melt) - 12px), rgba(0,0,0,.5) calc(var(--melt) + 10px), transparent calc(var(--melt-b) - var(--sab) - 26px));
-    mask-image: linear-gradient(to bottom, transparent, transparent calc(var(--sb-fade) * .2), rgba(0,0,0,.45) calc(var(--sb-fade) * .6 - 4px), #000 calc(var(--sb-fade) - 8px), #000 calc(var(--melt) - 30px), rgba(0,0,0,.72) calc(var(--melt) - 12px), rgba(0,0,0,.5) calc(var(--melt) + 10px), transparent calc(var(--melt-b) - var(--sab) - 26px)); }
+    /* (--melt: the bar's top, 10 px above the row of controls) */
+    -webkit-mask-image: linear-gradient(to bottom, transparent, transparent calc(var(--sb-fade) * .2), rgba(0,0,0,.45) calc(var(--sb-fade) * .6 - 4px), #000 calc(var(--sb-fade) - 8px), #000 calc(var(--melt) - 28px), rgba(0,0,0,.45) calc(var(--melt) - 12px), rgba(0,0,0,.12) calc(var(--melt) + 2px), transparent calc(var(--melt) + 8px));
+    mask-image: linear-gradient(to bottom, transparent, transparent calc(var(--sb-fade) * .2), rgba(0,0,0,.45) calc(var(--sb-fade) * .6 - 4px), #000 calc(var(--sb-fade) - 8px), #000 calc(var(--melt) - 28px), rgba(0,0,0,.45) calc(var(--melt) - 12px), rgba(0,0,0,.12) calc(var(--melt) + 2px), transparent calc(var(--melt) + 8px)); }
 }
 .sheet-pane:has(> .sheet-foot) .coach-body.sheet-body { padding-bottom: calc(var(--foot-h, calc(var(--sab) + 76px)) + 30px + var(--grow-pad, 0px) + var(--kb-room, 0px)); }
 /* .edge-fade, for a bottom bar that content passes under (the tab bar; the Coach bar had it until 14 Oct): a neutral grey
@@ -1390,8 +1390,9 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .fly-words { position: relative; will-change: opacity; }
 .fly-words > .said-l { will-change: auto; }
 .coach-field .input::placeholder { transition: color 300ms var(--ease-out); } /* (its colour, not its opacity: an opacity fade gave it a layer that was dropped when it ended) */
+.coach-field .input { transition: caret-color 300ms var(--ease-out); } /* (the cursor comes back with "Ask the Coach", not before it) */
 .coach-composer .coach-field .input.sent-away::placeholder { color: transparent; transition: none; }
-.coach-composer .coach-field .input.sent-away { caret-color: transparent; } /* (the cursor jumped to the start as the words left) */
+.coach-composer .coach-field .input.sent-away { caret-color: transparent; transition: none; } /* (the cursor jumped to the start as the words left) */
 :root[data-motion='reduce'] :is(.coach-sent, .coach-reply, .coach-reply .w, .coach-after, .coach-after .speak-btn) { animation: none; }
 .coach-body :is(.action-card, .action-ic, .action-line, .tip) { animation: none; }
 /* "New chat": the conversation steps away, then the suggestions rise in one after another (on opening they are simply there),
@@ -1416,7 +1417,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* Each control of the bar sits on its own frosted glass (.frost-ctl, Omar 13 Oct: "the text bar on its own… the camera
    its own circle that looks 3D… the orb, figure something out"): the field a pill, the camera a round button, the orb
    rests in a frosted seat a little bigger than itself (.frost-seat). Nothing is behind them as a row (14 Oct: no tint,
-   no band; the list's own fade above does the rest), so each is one blur and nothing is ever blurred twice. */
+   no band; the list fades out just above them), so each is one blur and nothing is ever blurred twice. */
 .coach-cam.frost-ctl { flex: none; width: 46px; height: 46px; margin: 0 2px; color: var(--tx); }
 /* THE PILL OPENS WHILE YOU TYPE AND GROWS AS YOU WRITE (Coach.tsx CF_X, CF_MAX, MORPH, GROW): on focus the camera tucks
    away and the pill's left edge glides over its place (--cf-x), a beat after the tap (60 ms, so the keyboard's lift doesn't

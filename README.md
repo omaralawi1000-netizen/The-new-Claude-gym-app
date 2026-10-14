@@ -1765,12 +1765,11 @@ there was a version where you did it without the blur, it came out smooth". He a
   their soft focus (not answers).
 - **A calmer pace**: at most 45 words a second (was 70). A big clump from the stream used to pour out a line every
   150 ms, which read as text being spat out.
-- **Three glass objects, the chat runs on behind them** (14 Oct, Omar: "each on its own… separated with frosted glass
-  blur"; before that, 22:07, the list ended above the bar): nothing sits behind the row as a whole, no band or tint. The
-  conversation scrolls on behind the bar and each control's own frost blurs what passes under it. The text only fades a
-  little: over the 40 px above the controls it dims to half, then fades on out behind them, gone at their bottom edge, so
-  no stray letters show under the row. At rest the last message sits 30 px above the bar, clear of the fade. It rides
-  with the keyboard (`--kb-now`, v0.1.98).
+- **Three glass objects** (14 Oct, Omar: "each on its own… separated with frosted glass blur"; before that, 22:07, "the
+  text bar on its own"): nothing sits behind the row as a whole, no band or tint; each control is its own frosted glass.
+  The conversation fades out softly just above them (from 28 px above the bar to gone before the controls start), so no
+  letters show between or through them (letters cut round each button read as a stencil, judge 14 Oct). At rest the last
+  message sits 30 px above the bar, clear of the fade. It rides with the keyboard (`--kb-now`, v0.1.98).
 - **Each control on its own frosted glass** (Omar 22:10: "the text bar… the orb and the camera… its own circle that looks
   3D"): the field is a frosted pill, the camera a round frosted button, the orb rests in a frosted seat the field's
   height (`.frost-ctl` / `.frost-seat`, shared, `--fc-*` tokens): neutral glass, a light top edge, a fine rim, a soft
