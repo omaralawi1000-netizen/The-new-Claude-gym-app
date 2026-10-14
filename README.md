@@ -2112,3 +2112,6 @@ and outlines stacked inside outlines (card rim, every chip rim, the + button rim
 - Chips and round buttons inside a card are plain soft fills with no outline.
 - The workout card's corner glow is gone (`Today.tsx`).
 - Same cost as before: no blur, no grain, no tint, no new layers.
+- v0.1.130: Omar on v0.1.129: "They're not see-through. And why do they have this tint?" The navy fill (`rgb(30 33 52 / .58)`)
+  read as solid blue-grey slabs on his warm Golden hour field. Now the dark fill is a neutral 4.5% white film (the field
+  shows through, nothing is tinted); over Sunrise and Time of day a neutral dark film (`rgba(8,8,10,.42)`). Rim and shadow unchanged.
