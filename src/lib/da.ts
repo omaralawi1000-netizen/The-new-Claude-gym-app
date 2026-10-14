@@ -229,6 +229,7 @@ export const da: Record<string, string> = {
  "Details": "Detaljer",
  "Diagram: front and back. Orange = main muscle, tint = helpers. No video demonstration is included.": "Diagram: forfra og bagfra. Orange = hovedmuskel, nuance = hjælpemuskler. Ingen videodemonstration er medtaget.",
  "Dictate": "Indtal",
+ "Stop and transcribe": "Stop og skriv ud",
  "Dictate sets": "Indtal sæt",
  "Dictation": "Diktering",
  "Didn’t catch anything. Tap the sphere to try again, or type it.": "Jeg hørte ikke noget. Tryk på kuglen for at prøve igen, eller skriv det.",

@@ -43,6 +43,10 @@ Tokens live in `src/styles.css` (`:root` dark block and `:root[data-theme='light
 - **Frosted controls (Coach bar etc.):** `.frost-ctl` (the control), `.frost-seat` (a seat a little bigger than the
   control), tokens `--fc-*`. Soft edges: `.edge-fade` (plain, tint only) and `.edge-fade.frosted` (adds a small blur; the
   tab bar uses `.tabbar-wrap.edge-fade`). Soft edges must not reach visible content (leave 48 px under the last card).
+- **Soft static shadows on the Coach [Omar, 14 Oct, Coach r8–r10]:** the Coach controls and chat bubbles sit on a soft,
+  static drop shadow painted with the element itself (`--bubble-sh` for bubbles): dark = deep and neutral, light = warm
+  and faint (`rgba(60, 30, 30, …)`, gone within ~18 px; a grey Material-card shadow was rejected as too heavy). Never
+  animated: a flying copy carries its own shadow and fades it.
 - **Neutral frost [Omar]:** glass tint is neutral grey (R=G=B or the navy `--sheet-tint`), so the colour field comes
   through. Never tint glass with the accent.
 - **Opaque fallback:** a dark card that needs to be neutral over a coloured field may be opaque charcoal, but Omar rejected
@@ -131,6 +135,10 @@ All of it: **slow, calm, Apple-like, never snappier unless Omar agrees.** The or
   A `.press` rule that sets its own `transition` must include `transform 520ms var(--ease-spring)` or the release snaps.
 - **Haptics:** `buzz()` from `src/state/ui.ts` (obeys Settings → Haptic feedback). Few, light, one system.
 - **Numbers that change roll** (`src/ui/Roll.tsx`), they never just swap.
+- **Seamless settle [Omar, 14 Oct: "seamless, not an animation, then a different look"]:** the last moving frame and the
+  first still frame must be the same picture (measure: hold every animation 1 ms before its end vs finished; within
+  ~3/255). A stand-in that hands over to the real element uses the real element's own colours (alpha and all, not a solid
+  colour under an opacity), and curves end on frames held exactly at their end (Coach `asCurve`).
 - **Reduced motion** is respected on every new animation.
 
 ## 5. Performance (every change must not make it worse)

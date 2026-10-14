@@ -11,7 +11,6 @@ import { useVoice } from '../state/voice';
 import { mic } from '../lib/mic';
 import { getKey } from '../lib/keys';
 import { transcribe, buildPrompt, STT_MODEL, SttError } from '../lib/groq';
-import { speechSupported, startSpeech, type SpeechHandle } from '../lib/speech';
 import { aiErrorText, type Photo, type Turn } from '../lib/gemini';
 import { stopSpeaking } from '../lib/tts';
 import { decide, brainFor } from '../lib/agentTurn';
@@ -20,29 +19,57 @@ import { runActions, type AgentResult } from '../lib/agent';
 import { uid } from '../lib/nutrition';
 import { dayKey } from '../lib/dates';
 import { blobToBase64, cameraSupported, downscale } from '../lib/photos';
-import { apple, springCurve } from '../ui/motion';
 
 /* The typing bar opens wide while you type (Omar, 13 Oct: "expands when I type on it and compresses when I'm done"): the
-   camera tucks away and the pill's left edge glides over its place on a soft spring with a touch of overshoot, then
-   glides back when the keyboard goes. It grows a line taller as your words wrap (up to four lines, then they scroll inside).
-   Drawn with moves only (styles.css .coach-field), never a width or height animated per frame. */
-const CF_X = 58; // how far it opens: the camera's place (46 px, its 2 px margins, the 8 px gap)
+   camera tucks away and the pill's left edge glides over its place, then glides back when the keyboard goes. It grows a
+   line taller as your words wrap (up to four lines, then they scroll inside). Drawn with moves only (styles.css
+   .coach-field), never a width or height animated per frame. */
+const CF_X = 60; // how far it opens: the camera's place (46 px and the 14 px gap)
 const CF_LINE = 22, CF_LINES = 4, CF_MAX = CF_LINE * (CF_LINES - 1); // its lines, and how much taller it can grow
-// opening: a spring with a little overshoot you can see (about 5 px past the open edge, then back); closing and growing
-// settle with less
-const MORPH = springCurve(apple(0.62, 0.4));
-const MORPH_BACK = springCurve(apple(0.55, 0.15));
-const GROW = springCurve(apple(0.5, 0.25));
-// a sent message: its flight to its place, and the pill turning into its bubble (quicker: mostly done by 200 ms, so it
-// has its shape before it is far from the field)
-const FLY = springCurve(apple(0.6, 0.15), 0, true); // (to the last fraction of a pixel: it hands over to the real bubble)
-const FLY_SHAPE = springCurve(apple(0.34, 0.06));
-// the emptied pill behind a sent message: closed at once, out of sight under the flying shape, which starts as the whole
-// pill (the empty bar is only ever seen where the shape has left it)
-const CLOSE = { easing: 'linear', duration: 0 };
+// ONE CALM MOTION for everything on the Coach (14 Oct 21:13, Omar: "even calmer and more polished… smoothly easing"):
+// a critically damped spring (no overshoot, no bounce anywhere: the opening's 5 px overshoot and the growing's little
+// bounce read as restless) that follows a target easing up over its first moments, so nothing jumps off from rest, and
+// that lands on the spring's long tail, its speed dying away with no point where it brakes (a bezier's end read as a
+// sudden stop, 14 Oct 14:54: "a more easing motion like iOS"). Sampled every 1/60 s into linear(), so the browser plays it
+// at the screen's full rate. `response`: how unhurried (seconds); `ramp`: how soft the start (seconds).
+const rampSpring = (response: number, ramp: number, cut = 0.0002) => {
+  const k = (2 * Math.PI / response) ** 2, c = 4 * Math.PI / response, dt = 1 / 600;
+  let x = 0, v = 0, t = 0; const xs = [0];
+  for (let f = 1; f < 150; f++) {
+    for (let i = 0; i < 10; i++) { const u = Math.min(t / ramp, 1), g = u * u * u * (u * (6 * u - 15) + 10); v += (k * (g - x) - c * v) * dt; x += v * dt; t += dt; }
+    xs.push(x); if (t > ramp && 1 - x < cut && (cut > 0.0002 || Math.abs(v) < 0.005)) break; // (still to a fiftieth of a percent: a flight hands over to the real bubble; `cut`: done once that close, the last step too small to see)
+  }
+  xs[xs.length - 1] = 1; return xs;
+};
+// (each ends on two frames held exactly where it lands: a move still a ten-thousandth short on its last frame is drawn
+// a hair differently from one at rest, a resized copy's letters and a disc's rim stepping by up to a fifth as it stopped;
+// held there for its last frames, the moving picture and the resting one are the same, 14 Oct)
+const asCurve = (xs: number[]) => { const all = [...xs, 1, 1]; return { duration: Math.round((all.length - 1) * 1000 / 60), easing: `linear(${all.map((v) => +v.toFixed(4)).join(', ')})` }; };
+const MORPH = asCurve(rampSpring(0.62, 0.09)); // opening
+// closing: quicker and with no tail, so the pill's edge and the camera land together with the bar riding down on the
+// keyboard (on the opening's curve the edge crept on ~14 px for half a second after the bar had landed: laggy, not calm);
+// ends within half a pixel of the edge's ~50 px travel
+const MORPH_BACK = asCurve(rampSpring(0.4, 0.05, 0.008));
+const GROW = asCurve(rampSpring(0.52, 0.07)); // a line more or less
+// a sent message: its flight to its place, and the pill turning into its bubble (sooner: it has its shape before it is
+// far from the field); both start soft, so the copy is seen to lift off the pill rather than be thrown
+const FLY = asCurve(rampSpring(0.58, 0.09));
+const FLY_SHAPE = asCurve(rampSpring(0.42, 0.07));
+// said words (they were never in the field): the pill lifts into its bubble on the same motion, a touch slower, starting
+// softer (the words come up inside it on the way, so the move itself has to read: the pill peels off the bar)
+const FLY_SAID = asCurve(rampSpring(0.6, 0.11));
+const SAID_INK = 620; // the said words' ink: full while the pill is still the pill, the bubble's own by then
+const SAID_BACK = 390; // …and the bar comes back, fresh, only once the bubble has left it…
+const SAID_IN = 360; // …faded in over this, eased (a straight fade read as switched on)
+const SAID_OUT = 160; // (and it goes over this as the pill starts to lift: hidden at once, it left a hole as the pill rose off it)
+// the emptied pill behind a sent message: it holds its shape while the flying copy's paint comes up over it (the copy starts
+// see-through, so the pill's own frost is the first frame's picture: a solid copy turned its warm glow slate in one frame),
+// then closes up on the copy's own shape curve as the copy lifts away, so the two read as one move (it used to close at
+// once, hidden by the solid copy; held for 200 ms it showed as an empty slab under the leaving bubble)
+const CLOSE = { ...FLY_SHAPE, delay: 60 };
 const growVars = { '--cf-ease-g': GROW.easing, '--cf-dur-g': `${GROW.duration}ms` } as React.CSSProperties;
 const morphVars = { '--cf-x': `${CF_X}px`, '--cf-max': `${CF_MAX}px`, '--cf-ease': MORPH.easing, '--cf-dur': `${MORPH.duration}ms`,
-  '--cf-ease-c': MORPH_BACK.easing, '--cf-dur-c': `${MORPH_BACK.duration}ms`, '--cf-ease-k': CLOSE.easing, '--cf-dur-k': `${CLOSE.duration}ms`, ...growVars } as React.CSSProperties;
+  '--cf-ease-c': MORPH_BACK.easing, '--cf-dur-c': `${MORPH_BACK.duration}ms`, '--cf-ease-k': CLOSE.easing, '--cf-dur-k': `${CLOSE.duration}ms`, '--cf-delay-k': `${CLOSE.delay}ms`, ...growVars } as React.CSSProperties;
 
 type Msg =
   | { id: string; role: 'user' | 'model'; text: string; streaming?: boolean; seeded?: boolean; /** a quiet line under the answer (which AI answered, and why) */ note?: string; /** when it was said */ at?: number; /** a photo was sent with it (its picture stays only while the Coach is open) */ photo?: boolean; image?: string; /** typed: its lines as they wrapped in the field (the bubble keeps them) */ lines?: string[] }
@@ -130,12 +157,8 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   const [busy, setBusy] = useState(false);
   const [recording, setRecording] = useState(false);
   const [hearing, setHearing] = useState(false);
-  // Dictation, as on iOS: what you say appears in the field as you say it (Chrome's own speech service, `live`), on top
-  // of a draft already there (`said.base`); Whisper's hearing of the whole recording replaces it when you stop.
-  const said = useRef<{ base: string; live: string; at: number; speech: SpeechHandle | null }>({ base: '', live: '', at: 0, speech: null });
-  const [heardLive, setHeardLive] = useState(false);
   const listening = useRef(false); listening.current = recording || hearing;
-  const waveRef = useRef<HTMLSpanElement>(null);
+  const draft = useRef(''); // what was already typed when you started speaking (your words are added after it)
   const ctl = useRef<AbortController | null>(null);
   const clearing = useRef<Animation | null>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -148,7 +171,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   const alive = useRef(true);
   const msgsRef = useRef<Msg[]>([]); msgsRef.current = msgs;
 
-  useEffect(() => { alive.current = true; return () => { alive.current = false; clearing.current?.cancel(); stopSpeaking(); ctl.current?.abort(); said.current.speech?.abort(); mic.release('coach'); for (const m of msgsRef.current) if ('image' in m && m.image) URL.revokeObjectURL(m.image); }; }, []);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; clearing.current?.cancel(); stopSpeaking(); ctl.current?.abort(); mic.release('coach'); for (const m of msgsRef.current) if ('image' in m && m.image) URL.revokeObjectURL(m.image); }; }, []);
   // The older messages are added above what you are looking at, and it stays exactly where it is.
   const placed = useRef(false);
   const fromBottom = useRef(-1);
@@ -184,7 +207,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     // The spring is handed to the browser as a ready-made curve (Web Animations on `translate`), so the compositor draws it
     // at the screen's full rate even while the page is busy writing the next words in (it used to be stepped from script
     // every frame, so a busy frame was a missed step). A new move picks the spring up where it is on screen.
-    const W = 10; // (the exact critically damped spring: x(t) = (x0 + (v0 + W x0) t) e^(-W t))
+    const W = 8; // (the exact critically damped spring: x(t) = (x0 + (v0 + W x0) t) e^(-W t); 8, unhurried: ~0.7 s, was 10)
     let move: Animation | null = null, x0 = 0, v0 = 0;
     // A message in flight rides the list's glide too (the same curve on its `translate`, on the same clock): it used to
     // follow only the scroll position, so while the keyboard went down it ran ahead of its bubble (by up to 200 px) and
@@ -272,22 +295,27 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   // the words are drawn at the field's size on the way (scaled down to the bubble's as they land), so nothing re-wraps or
   // jumps from one end to the other. A copy of the bubble flies above everything (the list clips its own contents) and hands
   // over to the real one where it lands. Browser-run (Web Animations on transform/opacity only), at the screen's full rate.
-  const flyFrom = useRef(new Map<string, { x: number; y: number; fs: number; box: { l: number; r: number; t: number; b: number }; win: { t: number; b: number } }>());
+  const flyFrom = useRef(new Map<string, { x: number; y: number; fs: number; box: { l: number; r: number; t: number; b: number }; win: { t: number; b: number }; fresh?: boolean }>());
   const flew = useRef(new Set<string>()); // these arrive by flight, not by the bubble's own rise
   const flown = (id: string) => flew.current.has(id);
   useLayoutEffect(() => {
     const el = bodyRef.current;
     if (!el || !flyFrom.current.size) return;
-    // the emptied pill closes up on this frame, at once (the flying shape covers all of it as it starts: the empty bar
-    // shows only where the shape has left; the room it leaves under the list moves the landing place, so it goes first);
-    // it stays wide until "Ask the Coach" comes back
+    // the emptied pill's room under the list goes on this frame (it moves the landing place, so it goes first); the pill
+    // itself holds its shape under the copy coming up over it, then closes up as the copy lifts away (CLOSE); it stays
+    // wide until "Ask the Coach" comes back
     holdOpen.current = true;
     const bar = composerRef.current;
+    const said = [...flyFrom.current.values()].some((f) => f.fresh);
     // (a class that points the pill's parts at that curve: changing the curve's own property on the bar restyled every
     // part of it, and on the conversation every message, a stall on the tap)
     bar?.classList.add('closing');
     fit(CLOSE);
-    setTimeout(() => bar?.classList.remove('closing'), CLOSE.duration + 40);
+    setTimeout(() => bar?.classList.remove('closing'), CLOSE.delay + CLOSE.duration + 40);
+    // said words: the bar is hidden under the lifting pill (below) and closes up at once there, unseen (no slide of the
+    // pill's edge, no camera coming in late); it fades back in whole once the bubble has gone
+    // (once it has faded out under the pill, SAID_OUT: closed up while still showing, its edge and the camera jumped)
+    if (said && bar) setTimeout(() => { holdOpen.current = false; bar.classList.add('snap'); fit(CLOSE); requestAnimationFrame(() => requestAnimationFrame(() => bar.classList.remove('snap'))); }, SAID_OUT + 10);
     for (const [id, from] of flyFrom.current) {
       flyFrom.current.delete(id);
       const bubble = el.querySelector<HTMLElement>(`[data-mid="${id}"] .said`);
@@ -349,8 +377,27 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       bubble.childNodes.forEach((n) => words.appendChild(n.cloneNode(true)));
       // (and, as it settles in its place with only the page behind it, the bubble's own see-through glass, so the real
       // bubble taking over is the same picture: the solid colour can't match the page behind it everywhere)
-      const glass = document.createElement('i'); glass.className = 'fly-end'; glass.style.background = fill;
-      copy.append(sh, glass, pill, tone, words);
+      // (its colour as the bubble's own, alpha and all, not a solid colour under an opacity: the two blend a level or two
+      // apart, a change you could see as the copy handed over)
+      const glass = document.createElement('i'); glass.className = 'fly-end'; glass.style.background = cs.backgroundColor;
+      // said words: "Transcribing…" is still in the pill as it lifts and fades as the words come up (one pill, never empty)
+      let ghost: HTMLElement | null = null;
+      if (from.fresh) {
+        ghost = document.createElement('div'); ghost.className = 'fly-ghost'; ghost.textContent = t('Transcribing…');
+        const n = Math.max(1, words.querySelectorAll('.said-l').length);
+        Object.assign(ghost.style, { left: cs.paddingLeft, top: `calc(${cs.paddingTop} + ${n - 1} * ${cs.lineHeight})` });
+      }
+      // (said words: laid out at the bubble's width from the first frame, all lines, in a window whose top edge rides the
+      // shape's top while the words in it are held still, so the growing bubble uncovers them, the top line last, and no
+      // line ever pops in or shows past its edge; moves only: the window and the words move by the same amount, opposite.
+      // The window's top is soft across the bubble's padding: a line comes up in it as it is uncovered, never cut by an edge)
+      let reveal: HTMLElement | null = null;
+      if (from.fresh) {
+        reveal = document.createElement('div'); reveal.className = 'fly-reveal'; reveal.style.setProperty('--pad', cs.paddingTop);
+        Object.assign(words.style, { position: 'absolute', left: `calc(40px + ${cs.paddingLeft})`, top: cs.paddingTop, width: `${W - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)}px` });
+        reveal.appendChild(words);
+      }
+      copy.append(sh, glass, pill, tone, reveal ?? words, ...(ghost ? [ghost] : []));
       app.appendChild(copy);
       // the send button as it was (the arrow) stays on top for a moment and fades as the shape starts to leave: the bar,
       // stop button and all, is then under the shape and shows where it has left (the shape is never cut by the button)
@@ -363,7 +410,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
         stand.className = 'coach-send on fly-send'; stand.removeAttribute('tabindex'); stand.setAttribute('aria-hidden', 'true'); // (not busy: the arrow)
         Object.assign(stand.style, { left: `${sr.left + sr.width / 2 - btn.offsetWidth / 2}px`, top: `${sr.top + sr.height / 2 - btn.offsetHeight / 2}px`, transform: ss.transform, opacity: ss.opacity });
         app.appendChild(stand);
-        stand.animate([{ opacity: ss.opacity }, { opacity: 0 }], { duration: 14, easing: 'linear', fill: 'forwards' }); // (gone within a frame or two at 120 Hz)
+        stand.animate([{ opacity: ss.opacity }, { opacity: 0 }], { duration: 120, easing: 'cubic-bezier(.4, 0, .6, 1)', fill: 'forwards' }); // (a fade, from the tap: the copy coming up under it no longer cuts it off)
       }
       // it joins a glide the list is still finishing, so its place is where the bubble will be once that is done
       const rider = ride.current?.(copy); const top0 = B.top - (rider?.off ?? 0); copy.style.top = `${top0}px`;
@@ -372,10 +419,22 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       const go = (a: Animation) => { if (at !== null) a.startTime = at; return a; };
       // the real button (stop, now) waits hidden under the shape until the shape has risen clear of it, then fades in
       // (shown at once, a sliver of it peeked out under the shape's rounded corner as it left)
-      if (btn) go(btn.animate([{ opacity: 0 }, { opacity: 0, offset: 0.74 }, { opacity: 1 }], { duration: 680, easing: 'linear' }));
-      const opts = { duration: FLY.duration, easing: FLY.easing, fill: 'forwards' as const };
-      const shape = { duration: FLY_SHAPE.duration, easing: FLY_SHAPE.easing, fill: 'forwards' as const };
+      // (said words: the whole bar waits hidden, then comes back together: field, camera and the stop button)
+      if (from.fresh) {
+        // (it fades out under the lifting pill rather than vanishing, and comes back whole once the bubble has gone)
+        const T = SAID_BACK + SAID_IN;
+        const hold = (o: string | number, from: string | number = o): Keyframe[] => [{ opacity: from, easing: 'cubic-bezier(.4, 0, .6, 1)' }, { opacity: 0, offset: SAID_OUT / T }, { opacity: 0, offset: SAID_BACK / T, easing: 'cubic-bezier(.25, 0, .25, 1)' }, { opacity: o }];
+        const back = (e: Element | null | undefined, o = e ? getComputedStyle(e).opacity : '1') => { if (!e) return; go((e as HTMLElement).animate(hold(o), { duration: T, easing: 'linear' })); };
+        // (the camera fades on its own glass, never on its slot: a fading slot cut the camera's frost off from the page
+        // until the fade ended, then the frost popped back in; its shadow fades on the slot's own ::before)
+        composerRef.current?.querySelectorAll('.cf-tint, .cf-sh, .cf-glass, .cf-text, .coach-cam').forEach((e) => back(e)); if (btn) go(btn.animate(hold(1, getComputedStyle(btn).opacity), { duration: T, easing: 'linear' })); // (the button was fading in from hidden: its own value now is not where it ends)
+        const slot = composerRef.current?.querySelector<HTMLElement>('.coach-cam-slot');
+        if (slot) go(slot.animate(hold(1), { duration: T, easing: 'linear', pseudoElement: '::before' }));
+      } else if (btn) go(btn.animate([{ opacity: 0 }, { opacity: 0, offset: 0.74 }, { opacity: 1 }], { duration: 680, easing: 'linear' }));
+      const opts = { duration: from.fresh ? FLY_SAID.duration : FLY.duration, easing: from.fresh ? FLY_SAID.easing : FLY.easing, fill: 'forwards' as const };
+      const shape = { duration: from.fresh ? FLY_SAID.duration : FLY_SHAPE.duration, easing: from.fresh ? FLY_SAID.easing : FLY_SHAPE.easing, fill: 'forwards' as const };
       const fade = (ms: number, delay = 0) => ({ duration: ms, delay, easing: 'cubic-bezier(.3, 0, .2, 1)', fill: 'backwards' as const });
+      const inked = (a: Animation) => { a.finished.then(() => { words.style.color = cs.color; a.cancel(); }, () => {}); return a; };
       const flight = go(copy.animate([{ transform: `translate(${dx}px, ${dy}px) scale(${k})` }, { transform: 'none' }], opts));
       const place = (c: number[], i: number) => `translate(${c[0]}px, ${c[1]}px) scale(${c[2] / base[i][0]}, ${c[3] / base[i][1]})`;
       for (const group of [pill, tone]) [...group.children].forEach((p, i) => go((p as HTMLElement).animate([{ transform: place(c0[i], i) }, { transform: place(c1[i], i) }], shape)));
@@ -384,19 +443,45 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
         // its colour turns from the pill's into the bubble's as it leaves the pill: the bubble's solid colour comes up over
         // the pill's (solid under it the whole way, so the shape is never see-through), which then goes
         go(tone.animate([{ opacity: 0 }, { opacity: 1 }], { ...fade(200, 40), fill: 'both' })),
-        go(pill.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 40, delay: 250, fill: 'both' })),
-        go(glass.animate([{ opacity: fillA }, { opacity: fillA }], { duration: 1, delay: 400, fill: 'forwards' })),
-        go(tone.animate([{ opacity: 1 }, { opacity: 0 }], { ...fade(160, 400), fill: 'forwards' })),
-        // the emptied bar's tint and shadow come in under it as it lifts away (none of the bar is drawn where the shape is
-        // on the first frames: the shape is the pill then)
-        ...[...(composerRef.current?.querySelectorAll<HTMLElement>('.cf-tint, .cf-sh') ?? [])].map((e) => go(e.animate([{ opacity: 0 }, { opacity: getComputedStyle(e).opacity }], fade(80, 30)))),
+        // (typed: the copy's solid pill comes up over the real one, which holds its shape meanwhile (CLOSE), over 200 ms
+        // rather than replacing it: the real pill's frost takes the colour of whatever is behind it, warm over the
+        // palette's glow with the keyboard up, and the solid copy, drawn for an average page, turned it slate in one frame,
+        // a flash at the bar; 60 ms was still a step on the phone's frames)
+        from.fresh
+          ? go(pill.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 40, delay: 250, fill: 'both' }))
+          : go(pill.animate([{ opacity: 0, easing: 'cubic-bezier(.4, 0, .2, 1)' }, { opacity: 1, offset: 200 / 290 }, { opacity: 1, offset: 250 / 290 }, { opacity: 0 }], { duration: 290, easing: 'linear', fill: 'forwards' })),
+        // (said words: settled sooner, the lift being shorter; done before it lands)
+        go(glass.animate([{ opacity: 1 }, { opacity: 1 }], { duration: 1, delay: from.fresh ? 360 : 420, fill: 'forwards' })),
+        go(tone.animate([{ opacity: 1 }, { opacity: 0 }], { ...fade(200, from.fresh ? 360 : 420), fill: 'forwards' })),
+        // (typed: the emptied bar stays drawn under it the whole way: the shape starts as the pill, over the pill)
         go(sh.animate([{ transform: `translate(${x0}px, ${y0}px) scale(${sx}, ${sy})` }, { transform: 'none' }], shape)),
-        // the field's bright ink settles to the bubble's softer one
-        go(words.animate([{ opacity: 1 }, { opacity: inkA }], { ...fade(380, 60), fill: 'both' })),
+        // (typed: its shadow comes in with it, over the real pill's own, rather than doubling it on the first frame)
+        ...(from.fresh ? [] : [go(sh.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: 'cubic-bezier(.4, 0, .2, 1)', fill: 'backwards' }))]),
+        // the field's bright ink settles to the bubble's softer one; said words (never in the field) come up inside the
+        // pill as it lifts, softly, while it is still the pill, and are the bubble's ink by the time it is the bubble
+        // (once there, the ink becomes the bubble's own colour, alpha and all, under no opacity, as the real bubble draws it:
+        // the copy's last frame and the bubble's first are then the same letters, not a level apart at every edge)
+        inked(from.fresh
+          ? go(words.animate([{ opacity: 1 }, { opacity: 1, offset: 0.7 }, { opacity: inkA }], { duration: SAID_INK, easing: 'linear', fill: 'both' }))
+          : go(words.animate([{ opacity: 1 }, { opacity: inkA }], { ...fade(380, 60), fill: 'both' }))),
       ];
-      if (stand) setTimeout(() => stand?.remove(), 60);
+      // said words: uncovered by the growing bubble (above), and coming in as "Transcribing…" goes: it fades out over
+      // 110 ms from the moment the pill starts to change, the words come in over 260 ms from 80 ms on, eased (the two are
+      // never both readable at once: one is under 30% whenever the other is over it)
+      if (reveal) {
+        const top = Math.max(0, y0);
+        go(reveal.animate([{ transform: `translateY(${top}px)` }, { transform: 'none' }], shape));
+        go(words.animate([{ transform: `translateY(${-top}px)` }, { transform: 'none' }], shape));
+        go(reveal.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 260, delay: 80, easing: 'cubic-bezier(.2, 0, .2, 1)', fill: 'backwards' }));
+        // (and settle the last few pixels up into place as they come, on a soft ease: they arrive, they don't appear)
+        go(words.animate([{ transform: 'translateY(4px)' }, { transform: 'none' }], { duration: 560, delay: 80, easing: 'cubic-bezier(.2, 0, 0, 1)', fill: 'backwards', composite: 'add' }));
+        // (from where the field's own "Transcribing…" was, if a quick answer caught it still fading in)
+        const was = composerRef.current?.querySelectorAll<HTMLElement>('.cf-status')[1];
+        if (ghost) go(ghost.animate([{ opacity: was ? getComputedStyle(was).opacity : 1 }, { opacity: 0 }], { duration: 110, easing: 'cubic-bezier(.3, 0, .7, 1)', fill: 'both' }));
+      }
+      if (stand) setTimeout(() => stand?.remove(), 140);
       // lines that were scrolled out of a long draft's view come in on the way, rather than appearing over the chat
-      [...words.children].forEach((line, i) => {
+      if (!from.fresh) [...words.children].forEach((line, i) => {
         const ly = from.y + i * CF_LINE;
         if (ly < from.win.t - 2 || ly + CF_LINE > from.win.b + 2) go((line as HTMLElement).animate([{ opacity: 0 }, { opacity: 1 }], fade(260, 60)));
       });
@@ -414,7 +499,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       // camera returns in the same move.
       const field = inputRef.current; field?.classList.add('sent-away');
       const settle = () => { holdOpen.current = false; field?.classList.remove('sent-away'); fit(); };
-      const back = setTimeout(settle, 140);
+      const back = setTimeout(from.fresh ? () => field?.classList.remove('sent-away') : settle, from.fresh ? SAID_BACK : 140);
       const land = () => { rider?.unride(); el.removeEventListener('scroll', follow); if (listMoved.current === follow) listMoved.current = null; clearTimeout(back); if (holdOpen.current) settle(); bubble.style.visibility = ''; copy.remove(); };
       flight.finished.then(land, land);
     }
@@ -456,7 +541,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     if (!thread || reduce) return;
     setLeaving(previous.slice(older)); // only what was on screen (older saved messages not built yet stay out)
     thread.style.pointerEvents = 'none';
-    const animation = thread.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translate3d(0, -4px, 0)' }], { duration: 160, easing: 'cubic-bezier(.4, 0, 1, 1)', fill: 'forwards' });
+    const animation = thread.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translate3d(0, -4px, 0)' }], { duration: 280, easing: 'cubic-bezier(.4, 0, .7, 1)', fill: 'forwards' });
     clearing.current = animation;
     animation.onfinish = () => { if (alive.current) finishClear(); };
   };
@@ -473,7 +558,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   const grown = useRef(-1);
   const fitKey = useRef(''), fieldW = useRef(0);
   const holdOpen = useRef(false); // a message just sent: the bar stays as it was until it settles (see the flight)
-  const fit = (curve: { duration: number; easing: string } = GROW, text?: string) => {
+  const fit = (curve: { duration: number; easing: string; delay?: number } = GROW, text?: string) => {
     const ta = inputRef.current, m = measureRef.current, bar = composerRef.current, body = bodyRef.current;
     if (!ta || !m || !bar) return;
     const val = text ?? ta.value; // (`text`: grow for words about to be shown, Coach dictation)
@@ -504,7 +589,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       const now = ta.getAnimations().find((a) => a.id === 'cf-grow');
       const off = now ? new DOMMatrixReadOnly(getComputedStyle(ta).transform).f : 0;
       now?.cancel();
-      const a = ta.animate([{ transform: `translateY(${off + mid - was}px)` }, { transform: 'translateY(0px)' }], { duration: curve.duration, easing: curve.easing });
+      const a = ta.animate([{ transform: `translateY(${off + mid - was}px)` }, { transform: 'translateY(0px)' }], { duration: curve.duration, easing: curve.easing, delay: curve.delay ?? 0, fill: 'backwards' });
       a.id = 'cf-grow';
     }
     bar.style.setProperty('--mid', `${mid}px`);
@@ -636,6 +721,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
         x: lt, y: raw === undefined || field.value === raw ? fr.top + pad - field.scrollTop + wrap.first * CF_LINE : fr.bottom - pad - wrap.lines.length * CF_LINE, fs: parseFloat(fs.fontSize),
         box: { l: fr.left, r: pill.right, t: pill.bottom - 54 - mid, b: pill.bottom },
         win: { t: pill.bottom - 54 - mid + 10, b: pill.bottom - 10 },
+        fresh: raw !== undefined && !field.value.trim(),
       });
     }
     const reduceTips = still || leaving;
@@ -658,80 +744,41 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   };
 
   // ── voice input through Groq (same single-owner mic as dictation) ──
-  // Tap the orb and speak: your words appear in the field as you say them, the pill opens wide for them and grows a line
-  // at a time, and the send button listens with you (a small live wave until the first words, then the arrow). It stops
-  // by itself when you go quiet (or tap the orb or the arrow); Whisper hears the whole recording, its words take the
-  // live ones' place, and they lift out of the field into the chat exactly as typed words do. Tap the words instead and
-  // it stops there and leaves them in the field to fix. Without Chrome's speech service (or if it fails) it listens
-  // exactly as before: the wave, then Whisper's words; if Whisper fails the live words are sent instead.
+  // Tap the orb and speak: the orb listens (its ring follows your voice: nothing else on the bar moves for it), the pill
+  // opens wide and says "Listening…", and its arrow is there to stop and send. It stops by itself when you go quiet (or
+  // tap the orb or the arrow); Whisper hears the whole recording, and the pill itself lifts away into the chat as your
+  // message, your words coming up inside it on the way (they never stop in the field first: 14 Oct, Omar, "the words
+  // don't have to come in the text box, just seamless"). Tap the field instead and it stops there and leaves your words in
+  // the field to fix. (Words shown live as you speak, 14 Oct, didn't work on his phone and were taken out.)
   const join = (a: string, b: string) => [a.trim(), b.trim()].filter(Boolean).join(' ');
   const finishSaid = (text: string, mode: 'send' | 'edit') => {
-    const ta = inputRef.current;
-    const swap = ta?.value.trim() !== text; // Whisper heard it differently: show its words a moment before they leave
-    setInput(text);
-    if (mode === 'edit') { requestAnimationFrame(() => { const f = inputRef.current; if (f) { f.focus(); f.setSelectionRange(f.value.length, f.value.length); } }); return; }
-    setTimeout(() => { if (alive.current) send(text, true); }, swap ? 260 : 0);
+    if (mode === 'edit') { setInput(text); requestAnimationFrame(() => { const f = inputRef.current; if (f) { f.focus(); f.setSelectionRange(f.value.length, f.value.length); } }); return; }
+    // (added to a draft you had typed: the whole message is shown in the field a moment, then leaves as typed words do)
+    if (draft.current.trim()) { setInput(text); setTimeout(() => { if (alive.current) send(text, true); }, 260); } else send(text, true);
   };
-  // Live words that need a new line: the pill grows first (on its spring, its lines rising with the top edge) and the words
-  // are painted once it has mostly grown, in their place; painted at once, the new line's tops showed under the pill's
-  // bottom edge before it grew. Words that fit are shown at once. (`pending`: the newest words while a grow is under way.)
-  const liveGrow = useRef<{ timer: number; pending: string | null }>({ timer: 0, pending: null });
-  const paintLive = (text: string) => { setInput(text); requestAnimationFrame(() => { const f = inputRef.current; if (f) f.scrollTop = f.scrollHeight; }); }; // (the newest words stay in view)
-  const showLive = (text: string) => {
-    const lg = liveGrow.current;
-    if (lg.timer) { lg.pending = text; return; }
-    const was = grown.current;
-    fit(GROW, text);
-    if (grown.current > was && was >= 0) {
-      lg.pending = text;
-      lg.timer = window.setTimeout(() => { lg.timer = 0; const t2 = lg.pending; lg.pending = null; if (t2 !== null && listening.current) showLive(t2); }, Math.round(GROW.duration * 0.45));
-      return;
-    }
-    paintLive(text);
-  };
-  const flushLive = () => { const lg = liveGrow.current; clearTimeout(lg.timer); lg.timer = 0; lg.pending = null; };
   const toggleRec = async (mode: 'send' | 'edit' = 'send') => {
     if (busy || hearing) return;
-    const sd = said.current;
     if (recording) {
       setRecording(false); setHearing(true); orb(mode === 'edit' ? 'idle' : 'processing');
-      sd.speech?.stop(); sd.speech = null; flushLive(); // (its last words may still land: from here they are ignored)
-      const live = sd.live.trim(), base = sd.base;
+      const base = draft.current;
       const blob = await mic.stopRecording(); mic.release('coach');
-      if (mode === 'edit' && live) { setHearing(false); setHeardLive(false); finishSaid(join(base, live), 'edit'); return; }
       try {
         if (!blob) throw new SttError('failed');
         const st = useAi.getState();
-        const out = (await transcribe(blob, { key: getKey('groq'), model: STT_MODEL[st.stt], language: st.voiceLang === 'auto' ? 'auto' : st.voiceLang, prompt: buildPrompt([]) })).trim();
+        const words = (await transcribe(blob, { key: getKey('groq'), model: STT_MODEL[st.stt], language: st.voiceLang === 'auto' ? 'auto' : st.voiceLang, prompt: buildPrompt([]) })).trim();
         if (!alive.current) return;
-        const words = out || live;
-        if (words) finishSaid(join(base, words), mode); else { setInput(base); say({ id: uid('m'), role: 'error', text: t('Didn’t catch anything. Try again.') }); }
+        if (words) finishSaid(join(base, words), mode); else say({ id: uid('m'), role: 'error', text: t('Didn’t catch anything. Try again.') });
       } catch (e) {
         if (!alive.current) return;
-        if (live) finishSaid(join(base, live), mode);
-        else { setInput(base); say({ id: uid('m'), role: 'error', text: sttMessage(e instanceof SttError ? e.code : 'failed', t) }); }
-      } finally { if (alive.current) { setHearing(false); setHeardLive(false); if (mode === 'edit') orb('idle'); } }
+        say({ id: uid('m'), role: 'error', text: sttMessage(e instanceof SttError ? e.code : 'failed', t) });
+      } finally { if (alive.current) { setHearing(false); if (mode === 'edit') orb('idle'); } }
       return;
     }
     stopSpeaking();
     const r = await mic.acquire('coach');
     if (!r.ok || !mic.startRecording('coach')) { mic.release('coach'); say({ id: uid('m'), role: 'error', text: r.ok ? t('This browser can’t record audio.') : t('The microphone isn’t available. Check the permission, or type.') }); return; }
-    sd.base = input; sd.live = ''; sd.at = 0; setHeardLive(false);
+    draft.current = input;
     setRecording(true); orb('listening');
-    if (speechSupported()) {
-      const vl = useAi.getState().voiceLang;
-      sd.speech = startSpeech({
-        lang: (vl === 'auto' ? lang : vl) === 'da' ? 'da-DK' : 'en-GB',
-        onText: (fin, interim) => {
-          if (!listening.current || said.current !== sd || !sd.speech) return;
-          sd.live = join(fin, interim); sd.at = performance.now();
-          if (sd.live) setHeardLive(true);
-          showLive(join(sd.base, sd.live));
-        },
-        onError: () => { sd.speech = null; }, // (no live words: it listens as before)
-        onEnd: () => { sd.speech = null; },
-      });
-    }
   };
   recRef.current = toggleRec;
   // opened with a question (the weekly review): ask it once the sheet has risen
@@ -757,29 +804,10 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     const id = setInterval(() => {
       const lv = mic.level();
       if (lv > 0.16) { heard += 80; quiet = 0; } else if (lv < 0.09) quiet += 80;
-      // (if the recording hears nothing while the live words come, they decide: 1.5 s after the last one)
-      const wordsDone = heard < 240 && said.current.at > 0 && performance.now() - said.current.at > 1500;
-      if ((heard >= 240 && quiet >= 900) || wordsDone || performance.now() - t0 > 40000) { clearInterval(id); recRef.current(); }
+      if ((heard >= 240 && quiet >= 900) || performance.now() - t0 > 40000) { clearInterval(id); recRef.current(); }
     }, 80);
     return () => clearInterval(id);
   }, [recording]);
-  // the send button's live wave: five bars following your voice, calmly (each eases toward its band; scale only)
-  useEffect(() => {
-    if (!recording) return;
-    const bars = [...(waveRef.current?.children ?? [])] as HTMLElement[];
-    const v = bars.map(() => 0); let raf = 0, last = performance.now();
-    const pick = [2, 4, 6, 8, 11];
-    const step = (now: number) => {
-      const dt = Math.min(0.05, Math.max(0, now - last) / 1000); last = now; // (a frame's time can be a little before the start)
-      const b = mic.bands(), k = 1 - Math.exp(-dt / 0.09);
-      // (quiet, the bars breathe in a slow wave, so it reads as listening, never as a "more" button)
-      bars.forEach((el, i) => { const idle = 0.1 + 0.42 * (0.5 + 0.5 * Math.sin(now / 1300 * 2 * Math.PI - i * 0.8)); v[i] += (Math.max(idle, Math.min(1, (b[pick[i]] ?? 0) * 1.6)) - v[i]) * k; el.style.transform = `scaleY(${(0.22 + v[i] * 0.78).toFixed(3)})`; });
-      raf = requestAnimationFrame(step);
-    };
-    raf = requestAnimationFrame(step);
-    return () => { cancelAnimationFrame(raf); bars.forEach((el) => { el.style.transform = ''; }); };
-  }, [recording]);
-
   const noKey = !anyBrain(ai);
   const tips = useCoachTips(3);
   // the "AI can be wrong" note: said once, on the first open (it also lives in Settings → Privacy)
@@ -828,16 +856,19 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
             <div className="cf-measure" ref={measureRef} aria-hidden="true" />{/* (first: under the layers, so it never gets one of its own) */}
             <i className="cf-sh" /><i className="cf-glass" />
             <i className="cf-tint"><i className="cf-l cf-b" /><i className="cf-r cf-b" /><i className="cf-l cf-m" /><i className="cf-r cf-m" /><i className="cf-l cf-t" /><i className="cf-r cf-t" /></i>
-            <div className="cf-text"><textarea ref={inputRef} className="input" rows={1} onFocus={openBar} onBlur={openBar} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
+            <div className="cf-text"><textarea ref={inputRef} className={`input${recording || hearing ? ' quiet' : ''}`} rows={1} onFocus={openBar} onBlur={openBar} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
               onPointerDown={(e) => { if (!listening.current) return; e.preventDefault(); if (recording) toggleRec('edit'); /* (tap your words while speaking: it stops and leaves them to fix) */ }}
-              enterKeyHint="send" placeholder={recording ? t('Listening…') : hearing ? t('Transcribing…') : t('Ask the Coach')} aria-label={t('Message the Coach')} readOnly={recording || hearing} /></div>
+              enterKeyHint="send" placeholder={t('Ask the Coach')} aria-label={t('Message the Coach')} readOnly={recording || hearing} />
+              {/* while you speak the field's word fades across, never swaps: "Ask the Coach", "Listening…", "Transcribing…" */}
+              <span className={`cf-status${recording ? ' on' : ''}`} aria-hidden="true">{t('Listening…')}</span>
+              <span className={`cf-status${hearing ? ' on' : ''}`} aria-hidden="true">{t('Transcribing…')}</span></div>
             {/* Send is an arrow inside the field, there only when there is something to send (Stop while it works) */}
-            <button className={`coach-send press ${busy || input.trim() || photo || recording || hearing ? 'on' : ''} ${busy ? 'busy' : ''} ${recording || hearing ? 'rec' : ''} ${heardLive ? 'cs-heard' : ''}`} onMouseDown={(e) => e.preventDefault() /* the field keeps the keyboard (it stays up after a send) */}
+            <button className={`coach-send press ${busy || input.trim() || photo || recording ? 'on' : ''} ${busy ? 'busy' : ''}`} onMouseDown={(e) => e.preventDefault() /* the field keeps the keyboard (it stays up after a send) */}
               aria-label={busy ? t('Stop') : recording ? t('Stop and send') : t('Send')} tabIndex={busy || input.trim() || photo || recording ? 0 : -1} onClick={() => (busy ? ctl.current?.abort() : recording ? toggleRec('send') : hearing ? undefined : send())}>
-              {/* send turns into stop (and back) by a short cross-fade with a little turn, not a cut */}
+              {/* send turns into stop (and back) by a short cross-fade with a little turn, not a cut. While you speak it is the
+                  arrow (stop and send); once you have stopped it steps aside while your words are heard (the orb thinks) */}
               <span className="cs-ico cs-go"><Icon name="arrowUp" size={18} sw={2.6} /></span>
               <span className="cs-ico cs-stop"><Icon name="close" size={18} sw={2.6} /></span>
-              <span className="cs-ico cs-wave" ref={waveRef} aria-hidden="true"><i /><i /><i /><i /><i /></span>
             </button>
           </div>
         </div>
