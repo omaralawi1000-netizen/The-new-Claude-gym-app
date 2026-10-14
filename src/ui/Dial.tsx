@@ -19,6 +19,8 @@ export function Dial({ rings, size = 280, stroke = 13, gap = 9, children, label 
   const ids = useId().replace(/:/g, '');
   return (
     <div role="img" aria-label={label} data-fly="kcal" style={{ position: 'relative', width: size, height: size, margin: '0 auto' }}>
+      {/* one tight, soft, static shadow under the whole set: painted once, never animated */}
+      <div aria-hidden style={{ position: 'absolute', inset: 2, borderRadius: '50%', boxShadow: 'var(--ring-shadow)', pointerEvents: 'none' }} />
       <svg key={visit} width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ position: 'absolute', inset: 0, overflow: 'visible' }} aria-hidden>
         {rings.map((r, i) => {
           const rad = c - stroke / 2 - i * (stroke + gap) - 2;
@@ -49,11 +51,13 @@ function turn(css: string): { s: number; t: number; y: boolean } {
 
 function Ring({ i, ring, c, rad, stroke, size, id }: { i: number; ring: DialRing; c: number; rad: number; stroke: number; size: number; id: string }) {
   const reduce = useReducedMotion();
-  const v = Math.max(0, Math.min(1, ring.value));
+  const v = Math.max(0, Math.min(2, ring.value));
   const col = ring.over ? 'var(--bad)' : ring.color;
   const prog = useMotionValue(reduce ? v : 0);
   const len = useTransform(prog, (p) => Math.min(1, Math.max(p, p > 0 ? 0.012 : 0)));
-  const root = useRef<SVGGElement>(null), cap = useRef<SVGCircleElement>(null), lap = useRef<SVGGElement>(null), head = useRef<SVGGElement>(null), hl = useRef<SVGCircleElement>(null), flash = useRef<SVGCircleElement>(null), arcG = useRef<SVGGElement>(null);
+  // past 100 % the ring carries on round a second lap over the first: its own arc, from the top
+  const len2 = useTransform(prog, (p) => Math.min(1, Math.max(0, p - 1)));
+  const root = useRef<SVGGElement>(null), cap = useRef<SVGCircleElement>(null), lap = useRef<SVGGElement>(null), head = useRef<SVGGElement>(null), hl = useRef<SVGCircleElement>(null), lap2 = useRef<SVGGElement>(null), tip2 = useRef<SVGGElement>(null), shade2 = useRef<SVGCircleElement>(null), flash = useRef<SVGCircleElement>(null), arcG = useRef<SVGGElement>(null);
   const closed = useRef(false), armed = useRef(false);
   const [{ s, t, y }, setTurn] = useState({ s: 1, t: 0, y: false });
   // read the ring's real colour once (and again if the palette or theme changes) to know which way its hue turns
@@ -95,6 +99,13 @@ function Ring({ i, ring, c, rad, stroke, size, id }: { i: number; ring: DialRing
       lap.current?.setAttribute('opacity', String(clamp((Math.min(p, 1) - 0.88) / 0.12)));
       head.current?.setAttribute('transform', `rotate(${deg} ${c} ${c})`); head.current?.setAttribute('opacity', full);
       lap.current?.setAttribute('transform', `rotate(${deg} ${c} ${c})`);
+      // second lap: its tip (a round end) rides the angle, and a small crisp shade falls ahead of it onto the first lap
+      const q = clamp(p - 1), on = p > 1.0005 ? '1' : '0', qa = Math.max(q, 0.012) * Math.PI * 2;
+      lap2.current?.setAttribute('opacity', on);
+      tip2.current?.setAttribute('transform', `rotate(${(Math.max(q, 0.012) * 360).toFixed(3)} ${c} ${c})`);
+      shade2.current?.setAttribute('opacity', on);
+      shade2.current?.setAttribute('cx', String(c + rad * Math.sin(qa + ahead * 0.9)));
+      shade2.current?.setAttribute('cy', String(c - rad * Math.cos(qa + ahead * 0.9)));
     };
     // a bright, soft spot rides the leading end while it travels, brighter the faster it goes, and is gone when it rests
     const ride = (p: number) => {
@@ -124,13 +135,16 @@ function Ring({ i, ring, c, rad, stroke, size, id }: { i: number; ring: DialRing
   // colours, all mixed in OKLCH in the ring's own hue: a start no darker than the plain colour, a brighter end turned
   // ~12° along the hue (the depth comes from the turn, not from darkening), a dim carved track
   const start = `oklch(from ${col} calc(l - var(--ring-dl0)) c calc(h - ${6 * s}))`;
-  const end = `oklch(from ${col} min(calc(l + var(--ring-dl1)), .97) calc(c * var(--ring-dc1)) calc(h + ${6 * s}))`;
+  const end = `oklch(from ${col} min(calc(l + var(--ring-dl1)), .92) calc(c * var(--ring-dc1)) calc(h + ${6 * s}))`;
   const track = y
     ? `oklch(from ${col} var(--ring-trk-yl, var(--ring-trk-l)) min(calc(c * var(--ring-trk-cm)), var(--ring-trk-yc, var(--ring-trk-c))) h)`
     : `oklch(from ${col} var(--ring-trk-l) min(calc(c * var(--ring-trk-cm)), var(--ring-trk-c)) calc(h + ${t}))`;
   const shade = `oklch(from ${col} calc(l - .25) c h)`;
   // the gradient never wraps: short of full, the few degrees behind the start (its round cap) hold the start colour
-  const span = Math.max(v, 0.3) * 360, o = v >= 1 ? 0 : 6;
+  const span = Math.max(Math.min(v, 1), 0.3) * 360, o = v >= 1 ? 0 : 6;
+  // the second lap carries on from the first lap's end colour to the brightest: the hue keeps turning, the light keeps rising
+  const end2 = `oklch(from ${col} min(calc(l + var(--ring-dl1) + .04), .94) calc(c * var(--ring-dc1)) calc(h + ${8 * s}))`;
+  const lapShade = `oklch(from ${col} calc(l - .42) c h)`;
   return (
     <g ref={root} style={{ color: col }}>
       <defs>
@@ -147,6 +161,12 @@ function Ring({ i, ring, c, rad, stroke, size, id }: { i: number; ring: DialRing
           <stop offset={(rad + stroke * 0.05) / R} style={{ stopColor: 'var(--ring-tube-out)', stopOpacity: 0 }} />
           <stop offset="1" style={{ stopColor: 'var(--ring-tube-out)' }} />
         </radialGradient>
+        {/* the gloss: a thin crisp line just inside the fill's outer edge, brightest at the top (light falls from above) */}
+        <linearGradient id={`${id}-gloss`} gradientUnits="userSpaceOnUse" x1="0" y1={c - R} x2="0" y2={c + R}>
+          <stop offset="0" style={{ stopColor: '#fff', stopOpacity: 'var(--ring-gloss-top)' }} />
+          <stop offset=".55" style={{ stopColor: '#fff', stopOpacity: 'var(--ring-gloss-mid)' }} />
+          <stop offset="1" style={{ stopColor: '#fff', stopOpacity: 'var(--ring-gloss-bot)' }} />
+        </linearGradient>
         {/* a soft round shade (a blurred disc): neutral on the track, the ring's own darker hue on the ring */}
         <radialGradient id={`${id}-cap`}>
           <stop offset="0" style={{ stopColor: 'var(--ring-cap)' }} />
@@ -168,6 +188,16 @@ function Ring({ i, ring, c, rad, stroke, size, id }: { i: number; ring: DialRing
         <mask id={`${id}-arc`} maskUnits="userSpaceOnUse" x="0" y="0" width={size} height={size}>
           <motion.circle {...p} stroke="#fff" strokeWidth={stroke} style={{ pathLength: len }} />
         </mask>
+        <mask id={`${id}-arc2`} maskUnits="userSpaceOnUse" x="0" y="0" width={size} height={size}>
+          <motion.circle {...p} strokeLinecap="butt" stroke="#fff" strokeWidth={stroke} style={{ pathLength: len2 }} />
+          <g ref={tip2}><circle cx={c} cy={c - rad} r={stroke / 2} fill="#fff" /></g>
+        </mask>
+        <radialGradient id={`${id}-shade2`}>
+          <stop offset="0" style={{ stopColor: lapShade, stopOpacity: 0.62 }} />
+          <stop offset=".55" style={{ stopColor: lapShade, stopOpacity: 0.5 }} />
+          <stop offset=".85" style={{ stopColor: lapShade, stopOpacity: 0.12 }} />
+          <stop offset="1" style={{ stopColor: lapShade, stopOpacity: 0 }} />
+        </radialGradient>
         <mask id={`${id}-band`} maskUnits="userSpaceOnUse" x="0" y="0" width={size} height={size}>
           <circle {...p} stroke="#fff" strokeWidth={stroke} />
         </mask>
@@ -186,21 +216,34 @@ function Ring({ i, ring, c, rad, stroke, size, id }: { i: number; ring: DialRing
           <div style={{ width: '100%', height: '100%', background: `var(--ring-dither), conic-gradient(from ${-o}deg, ${start} 0deg, ${start} ${o}deg, ${col} ${o + span * 0.55}deg, ${end} ${o + span}deg, ${end} 360deg)` }} />
         </foreignObject>
         <circle {...p} stroke={`url(#${id}-tube)`} strokeWidth={stroke} />
+        <circle {...p} r={rad + stroke * 0.3} stroke={`url(#${id}-gloss)`} strokeWidth={stroke * 0.15} />
         {/* full: the end's shade falls on the ring's own start */}
         <g ref={lap} opacity="0"><circle cx={c + stroke * 0.5} cy={c - rad} r={stroke * 0.75} fill={`url(#${id}-lap)`} /></g>
-      </g>
-      {/* the leading end's travelling highlight and the closing shine: one soft spot, moved by rotation, clipped to the band */}
-      <g mask={`url(#${id}-band)`}>
-        <circle ref={flash} {...p} stroke="#fff" strokeWidth={stroke} opacity="0" />
-        <circle ref={hl} cx={c} cy={c - rad} r={stroke * 0.95} fill={`url(#${id}-hl)`} opacity="0" />
-      </g>
       </g>
       {/* full: the end drawn again on top, in the gradient's exact end colour with the same dither and tube shading, so it lies over the start */}
       <g ref={head} opacity="0">
         <g mask={`url(#${id}-end)`}>
           <foreignObject x="0" y="0" width={size} height={size}><div style={{ width: '100%', height: '100%', background: `var(--ring-dither), ${end}` }} /></foreignObject>
           <circle {...p} stroke={`url(#${id}-tube)`} strokeWidth={stroke} />
+          <circle {...p} r={rad + stroke * 0.3} stroke={`url(#${id}-gloss)`} strokeWidth={stroke * 0.15} />
         </g>
+      </g>
+      {/* past 100 %: a small crisp shade ahead of the second lap's tip falls on the first lap, then the second lap itself */}
+      <g mask={`url(#${id}-band)`}>
+        <circle ref={shade2} r={stroke * 0.62} fill={`url(#${id}-shade2)`} opacity="0" />
+      </g>
+      <g ref={lap2} mask={`url(#${id}-arc2)`} opacity="0">
+        <foreignObject x="0" y="0" width={size} height={size}>
+          <div style={{ width: '100%', height: '100%', background: `var(--ring-dither), conic-gradient(${end} 0deg, ${end2} 360deg)` }} />
+        </foreignObject>
+        <circle {...p} stroke={`url(#${id}-tube)`} strokeWidth={stroke} />
+        <circle {...p} r={rad + stroke * 0.3} stroke={`url(#${id}-gloss)`} strokeWidth={stroke * 0.15} />
+      </g>
+      {/* the leading end's travelling highlight and the closing shine: one soft spot, moved by rotation, clipped to the band */}
+      <g mask={`url(#${id}-band)`}>
+        <circle ref={flash} {...p} stroke="#fff" strokeWidth={stroke} opacity="0" />
+        <circle ref={hl} cx={c} cy={c - rad} r={stroke * 0.95} fill={`url(#${id}-hl)`} opacity="0" />
+      </g>
       </g>
     </g>
   );

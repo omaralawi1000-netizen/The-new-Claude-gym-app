@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import type { Sum } from '../../lib/nutrition';
-import { pct } from '../../lib/nutrition';
+/** like pct, but runs past 100 % (up to two laps) for the rings, which overflow like Apple's */
+const lapsOf = (v: number, of: number) => (of > 0 ? Math.max(0, Math.min(2, v / of)) : 0);
 import { Count } from '../../ui/kit';
 import { Roll } from '../../ui/Roll';
 import { Dial } from '../../ui/Dial';
@@ -30,12 +31,12 @@ export function Ledger({ sum, compact }: { sum: Sum; compact?: boolean }) {
     { k: 'fat' as const, label: t('Fat'), c: 'var(--c-fat)' },
   ];
   const totalMacro = Math.max(1, (goals.protein ?? 0) + (goals.carbs ?? 0) + (goals.fat ?? 0) || 300);
-  const ring = (k: 'protein' | 'carbs' | 'fat') => { const g = goals[k]; const v = sum.totals[k] ?? 0; return g ? pct(v, g) : Math.min(1, v / totalMacro); };
+  const ring = (k: 'protein' | 'carbs' | 'fat') => { const g = goals[k]; const v = sum.totals[k] ?? 0; return g ? lapsOf(v, g) : Math.min(1, v / totalMacro); };
   return (
     <div style={{ padding: compact ? '2px 0 0' : '6px 0 0' }}>
       <div style={{ margin: '0 auto', width: 'fit-content', borderRadius: '50%' }} onClick={!compact && !goal ? () => push('settings', { section: 'targets' }) : undefined}>
-        <Dial size={compact ? 252 : 268} stroke={10} gap={6} label={`${fmtNum(Math.round(kcal), lang, 0)} kcal`}
-          rings={[{ value: goal ? pct(kcal, goal) : kcal > 0 ? 1 : 0, color: 'var(--c-kcal, var(--ac))', label: 'kcal', over }, { value: ring('protein'), color: 'var(--c-protein)', label: t('Protein') }, { value: ring('carbs'), color: 'var(--c-carbs)', label: t('Carbs') }, { value: ring('fat'), color: 'var(--c-fat)', label: t('Fat') }]}>
+        <Dial size={compact ? 252 : 268} stroke={10.5} gap={6.5} label={`${fmtNum(Math.round(kcal), lang, 0)} kcal`}
+          rings={[{ value: goal ? lapsOf(kcal, goal) : kcal > 0 ? 1 : 0, color: 'var(--c-kcal, var(--ac))', label: 'kcal', over }, { value: ring('protein'), color: 'var(--c-protein)', label: t('Protein') }, { value: ring('carbs'), color: 'var(--c-carbs)', label: t('Carbs') }, { value: ring('fat'), color: 'var(--c-fat)', label: t('Fat') }]}>
           <div>
             <div className="display num" data-testid="ledger-kcal" style={{ fontSize: 42, lineHeight: 0.95, color: over ? 'var(--bad)' : 'var(--tx)' }}>
               <Count value={goal ? Math.abs(remaining!) : kcal} format={(n) => fmtNum(Math.round(n), lang, 0)} />
