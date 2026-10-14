@@ -93,7 +93,8 @@ html:root[data-palette='golden'] { --c-kcal: #ff7a2f; --c-protein: #ff5436; --c-
 :root[data-palette='midnight'] [data-hue='train'] { --ac: #8ab4ff; --h1: #2348c4; --h2: #5b6cff; --h3: #1a6a9e; }
 :root[data-palette='midnight'] [data-hue='food'] { --ac: #9ee6ff; --h1: #1f5fb0; --h2: #3aa0d8; --h3: #3a46b8; }
 :root[data-palette='midnight'] [data-hue='progress'] { --ac: #b4bcff; --h1: #3a3fb8; --h2: #5a8cff; --h3: #2a5aa8; }
-html:root[data-palette='midnight'] { --c-protein: #ff8a7a; --c-carbs: #9cc4ff; --c-fat: #f2d48a; --c-water: #9ee6ff; --nokey: #9cc4ff; }
+html:root[data-palette='midnight'] { --c-protein: #ff8a7a; --c-carbs: #9cc4ff; --c-fat: #f2d48a; --c-water: #9ee6ff; }
+html:root[data-palette='midnight']:not([data-theme='light']) { --nokey: #9cc4ff; }
 /* Champagne: graphite light with one warm gold glow (saturated: a pale warm glow reads grey-beige) and a champagne accent. Macros: champagne kcal, honey protein, ice-platinum carbs,
    bronze fat. Its sun is a deep, saturated gold low down (a pale warm glow over the dark page reads grey-khaki). */
 :root[data-palette='champagne'] [data-hue='today'] { --ac: #e8cf9a; --h1: #6e6c78; --h2: #c08c2e; --h3: #4a4a56; }
@@ -102,6 +103,10 @@ html:root[data-palette='midnight'] { --c-protein: #ff8a7a; --c-carbs: #9cc4ff; -
 :root[data-palette='champagne'] [data-hue='progress'] { --ac: #e2c896; --h1: #706e7a; --h2: #bc8a30; --h3: #4c4c58; }
 html:root[data-palette='champagne'] { --c-kcal: #f5e2b8; --c-protein: #e0b07a; --c-carbs: #b4caf2; --c-fat: #b9784a; --c-water: #d8e6f5; }
 :root[data-palette='champagne'] .bg-sun { --sun-mid: #8a6224; --sun-wide: #6a4a1a; --sun-h2: #4a3a2a; --sun-h1: #3a3640; }
+/* on a light page the new looks' rings and water drop take the deep version of their colours (the pale ones vanish) */
+html:root[data-palette='golden'][data-theme='light'] { --c-kcal: #f2641a; --c-protein: #e0401f; --c-carbs: #6a78e0; --c-fat: #d49a12; --c-water: #e08a12; }
+html:root[data-palette='midnight'][data-theme='light'] { --c-protein: #e8604e; --c-carbs: #3a78d8; --c-fat: #c99a2a; --c-water: #1f8fc4; }
+html:root[data-palette='champagne'][data-theme='light'] { --c-kcal: #c9a050; --c-protein: #c07a3a; --c-carbs: #6a88b8; --c-fat: #8a5a32; --c-water: #6a90b0; }
 /* contents that arrive a beat after a tall sheet starts moving fade in instead of appearing */
 .sheet-pane.late > * { animation: fadein 220ms var(--ease-out) both; }
 /* …but the bottom buttons' fade is let go once it has run (fill backwards): an animation kept on the foot makes it a closed
@@ -1834,6 +1839,7 @@ html:root[data-glow='off'] .bgx:not([data-k='photo']) { display: none; }
 :root:not([data-theme='light'])[data-bg='sunrise'] .macro-row::before { content: ''; position: absolute; inset: -14px -18px -10px; z-index: -1;
   border-radius: 40px; background: radial-gradient(closest-side, rgb(4 5 10 / .62), rgb(4 5 10 / .4) 60%, transparent); }
 :root:not([data-theme='light'])[data-bg='sunrise'] .macro-row .t3, :root:not([data-theme='light'])[data-bg='sunrise'] .macro-row .micro { color: rgb(236 239 250 / .82); }
+:root[data-theme='light'][data-bg='sunrise'] .macro-row .t3, :root[data-theme='light'][data-bg='sunrise'] .macro-row .micro { color: rgb(15 18 32 / .74); }
 
 /* Mesh: a still blend of the area's colours across the whole screen, like the colour behind album art */
 .bg-mesh { opacity: var(--bgk);
