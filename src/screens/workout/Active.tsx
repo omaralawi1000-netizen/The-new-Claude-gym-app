@@ -90,14 +90,14 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   const EASE = 0.15;
   const qOf = (pp: number) => { const h = hold(), u = Math.max(0, (pp - h) / (1 - h)); return (u < EASE ? (u * u) / (2 * EASE) : u - EASE / 2) / (1 - EASE / 2); };
   const ppOf = (q: number) => { const h = hold(), v = q * (1 - EASE / 2), u = v < EASE / 2 ? Math.sqrt(2 * EASE * v) : v + EASE / 2; return h + u * (1 - h); };
-  // Opening, the spring (no bounce) has a long tail: its last 2 % used to glide in a screen pixel at a time for a tenth of a
-  // second, then stop dead. Its last 2 % is eased out instead (the remaining distance squared: the same speed where it
-  // starts, slowing to nothing), so it settles softly and sooner, and the last half pixel is dropped (geo).
-  const LAND = 0.01;
+  // Opening, the spring (no bounce) has a long tail: its last pixels glided in a screen pixel at a time, then it snapped.
+  // Its last 3.5 % is eased out to a stop instead (the remaining distance squared), and it is all the way up with 0.5 % of
+  // the spring still to go: it slows to nothing and rests, at about 0.66 s, with no last step.
+  const LAND = 0.015, LAND_AT = 0.005;
+  const G = (v: number) => (v >= 2 * LAND ? v - LAND : (v * v) / (4 * LAND));
   const landed = (pp: number) => {
     if (!from.current || leaving.current) return pp;
-    const u = 1 - pp, g = u >= 2 * LAND ? u - LAND : (u * u) / (4 * LAND);
-    return 1 - Math.max(0, g) / (1 - LAND);
+    return 1 - G(Math.max(0, 1 - pp - LAND_AT)) / G(1 - LAND_AT);
   };
   // how far the window has grown (0 = the card, 1 = the screen), eased in from the hold
   const qAt = (pp: number) => {
@@ -132,21 +132,22 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   // back on it. The page around it dims a touch while it grows (gone, unseen, by the time it is covered). Rising from the
   // bottom edge it is solid all the way, as before.
   const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
-  const solid = (pp: number) => (from.current ? clamp01((pp - hold()) / 0.1) : 1);
-  // The card's words and the workout's own (its header, at the card's top: `lift`) cross in the card's outline, in one
-  // overlapping fade, before it moves; minimising, the same in reverse as it lands. The window is never an empty card (v3
-  // let the card's words go first, and for a few frames it was a blank slab), and its page is there from the first frame
-  // and grows with it, as on iOS, instead of fading in later down the window.
-  // (minimising, the tail is slow, so the two barely overlap: the workout's words go, then the card's come back on its own
-  // surface; overlapping there, the two sets of words lay over each other for a tenth of a second)
-  const cardOff = () => (leaving.current ? 0.05 : 0.074);
-  const IN0 = () => (leaving.current ? 0.04 : 0.015), IN1 = 0.1;
-  const inside = (pp: number) => (from.current ? clamp01((pp - IN0()) / (IN1 - IN0())) : 1);
+  // The card's words and the workout's own (its header, at the card's top: `lift`) cross in the card's outline, never both
+  // showing: opening, the card's go over the first 3 % and the header comes in over 2.5-8 %, as the window sets off;
+  // minimising, the window's page and colour go over 14-10 % and the card's words come back over 10-5.5 %, all before it
+  // lands in the card (at 5 %): nothing fades once it has stopped. Its page is there from the first frame and grows with
+  // it, as on iOS (v3 let the card's words go first and showed a blank slab; r4 crossed them over each other).
+  const F = () => (leaving.current
+    ? { card: [0.055, 0.1], inside: [0.1, 0.14], solid: [0.1, 0.14] }
+    : { card: [0.002, 0.03], inside: [0.025, 0.08], solid: [hold(), hold() + 0.1] });
+  const ramp = (pp: number, [a, b]: number[]) => clamp01((pp - a) / (b - a));
+  const solid = (pp: number) => (from.current ? ramp(pp, F().solid) : 1);
+  const inside = (pp: number) => (from.current ? ramp(pp, F().inside) : 1);
   // the card in the page: 1 = itself, 0 = the window has taken its place (its surface and its words)
-  const card = (pp: number) => 1 - clamp01((pp - 0.004) / (cardOff() - 0.004));
-  // the card's own surface stays under the copy until the copy is whole (a frosted bar faded under a fading copy let the
-  // page's words show through it sharp), and goes, unseen, the moment the window sets off (back the moment it lands)
-  const under = (pp: number) => 1 - clamp01((pp - (cardOff() - 0.002)) / 0.002);
+  const card = (pp: number) => 1 - ramp(pp, F().card);
+  // the card's own surface stays under the copy while the copy is whole (a frosted bar faded under a fading copy let the
+  // page's words show through it sharp): it goes, unseen, as the card's words have gone, and is back as they start back
+  const under = (pp: number) => 1 - ramp(pp, [F().card[1] - 0.002, F().card[1]]);
   // The page behind steps back while the window grows: it dims and sinks a touch (the sheets' own step back, v0.1.76:
   // contentTransform, to 95 %), the two in step. It starts as the window sets off and is back at rest before the window lands
   // in the card on the way down (so the card is exactly where it was measured); at the top it lets go only once the window
@@ -315,10 +316,10 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
       Object.assign(copy.style, { position: 'absolute', inset: '0', width: 'auto', height: 'auto', transform: 'none', opacity: '1', borderRadius: `${radius.current}px`, backdropFilter: 'none', webkitBackdropFilter: 'none' });
       s.replaceChildren(copy);
       s.style.display = 'block';
-      // a frosted card (the resume bar) shows only a blur of what is behind it; the copy, unfrosted, lies on the window's own
-      // ground instead, or the page's words behind would show through it sharp
-      const bf = getComputedStyle(g.bg).backdropFilter;
-      s.style.background = bf && bf !== 'none' ? 'var(--bg)' : '';
+      // a card's glass shows a blur of what is behind it; the copy, unfrosted, lies on the window's own ground instead: it is
+      // the window, and opaque from the first frame (Today's card copied see-through, and until the window's colour came up
+      // the dock behind showed through its lower half, as if it lay over the window)
+      s.style.background = 'var(--bg)';
     }
     src.current = [g.bg, ...(g.fg ? [g.fg] : [])];
   };
@@ -334,8 +335,8 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
       mirrorProgress(followRef.current, p0, p1, sp, vel, (pp) => ({ transform: aAt(pp) }), [], true),
       morph ? mirrorProgress(bclipRef.current, p0, p1, sp, vel, (pp) => ({ transform: bAt(pp) }), [], true) : null,
       morph ? mirrorProgress(bshiftRef.current, p0, p1, sp, vel, (pp) => ({ transform: cAt(pp) }), [], true) : null,
-      morph ? mirrorProgress(solidRef.current, p0, p1, sp, vel, (pp) => ({ opacity: String(solid(pp)) }), [hold(), hold() + 0.1]) : null,
-      ...(morph ? [skinRef.current, ...src.current].map((el, i) => mirrorProgress(el, p0, p1, sp, vel, (pp) => ({ opacity: String(i === 0 ? 1 - card(pp) : i === 1 ? under(pp) : card(pp)) }), [0.004, cardOff() - 0.002, cardOff()])) : []),
+      morph ? mirrorProgress(solidRef.current, p0, p1, sp, vel, (pp) => ({ opacity: String(solid(pp)) }), F().solid) : null,
+      ...(morph ? [skinRef.current, ...src.current].map((el, i) => mirrorProgress(el, p0, p1, sp, vel, (pp) => ({ opacity: String(i === 0 ? 1 - card(pp) : i === 1 ? under(pp) : card(pp)) }), [...F().card, F().card[1] - 0.002])) : []),
       morph ? mirrorProgress(dimRef.current, p0, p1, sp, vel, (pp) => ({ opacity: String(dim(pp)) }), ENV) : null,
       morph ? mirrorProgress(stageEl(), p0, p1, sp, vel, (pp) => ({ transform: contentTransform(env(pp)) }), ENV) : null,
       morph ? null : mirrorProgress(shadeRef.current, p0, p1, sp, vel, (pp) => ({ opacity: String(shade(pp)) }), [0.12, 0.7]),

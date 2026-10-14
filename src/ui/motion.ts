@@ -24,9 +24,11 @@ export const SURFACE = { ...apple(0.45), restDelta: 0.001 }; // a sheet / card a
 export const SURFACE_EXIT = { ...apple(0.38), restDelta: 0.002 }; // leaving is a touch quicker than arriving
 export const WINDOW = SURFACE;
 // the live workout growing out of its card, and back: its own, slower spring, critically damped both ways (no bounce: it
-// never goes past and comes back; the last tenths of a pixel are dropped, Active.tsx `landed`, so its tail never creeps)
+// never goes past and comes back; opening, its tail is eased to a stop, Active.tsx `landed`, so it never creeps). Closing
+// is the mirror of opening: the window is back in the card at 5 % of the spring (Active.tsx `hold`), so its spring is
+// longer to take the same time to get there (0.5 s, where 0.5 s took it there in 0.38 s, quicker than it came out).
 export const WINDOW_OPEN = { ...apple(0.56), restDelta: 0.0005 };
-export const WINDOW_CLOSE = { ...apple(0.5), restDelta: 0.0005 };
+export const WINDOW_CLOSE = { ...apple(0.68), restDelta: 0.01 }; // (still from 5 % down: done once nothing more changes)
 export const BOUNCY = apple(0.5, 0.3);            // Apple .bouncy: a record, a gain, a sent message
 export const GENTLE = { type: 'spring', stiffness: 60, damping: 18 } as const;
 export const KEYBOARD = { type: 'spring', stiffness: 760, damping: 54, mass: 1, restDelta: 0.5 } as const; // ~0.25 s: keeps up with Android's keyboard instead of trailing it

@@ -1,6 +1,6 @@
 // The live workout growing out of Today's card and the resume bar, and back, with the steady camera (film-steady.mjs), in
 // Omar's teal (aurora) palette at 120 frames a second (a half-speed film is the same frames played at 60).
-// usage: AVEN_GPU=1 TAG=after [URL=…] node scripts/film-morph.mjs [moments…] → shots/film/<TAG>-<moment>/
+// usage: AVEN_GPU=1 TAG=after [URL=…] [PAL=sunset] node scripts/film-morph.mjs [moments…] → shots/film/<TAG>-<moment>/
 //   moments: open tick minimise resume pill-min pill-resume (default: all)
 import { wait, skipOnboarding } from './lib.mjs';
 import { steady } from './film-steady.mjs';
@@ -17,7 +17,7 @@ await p.getByText('Load demo data').click(); await s.advance(120);
 await p.keyboard.press('Escape'); await s.advance(240);
 await p.getByLabel('Settings').first().click(); await s.advance(150);
 await p.locator('.sheet').getByText('Appearance', { exact: true }).first().click(); await s.advance(150);
-await p.locator('.pal-card').filter({ hasText: /^aurora/i }).first().click(); await s.advance(120);
+await p.locator('.pal-card').filter({ hasText: new RegExp(`^${process.env.PAL || 'aurora'}`, 'i') }).first().click(); await s.advance(120);
 await p.locator('.sheet [aria-label=Back]').first().click(); await s.advance(150);
 await p.keyboard.press('Escape'); await s.advance(240);
 // the colour field holds still, so frame differences are the motion
