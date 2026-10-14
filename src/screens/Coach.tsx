@@ -379,10 +379,11 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       }
       // (said words: laid out at the bubble's width from the first frame, all lines, in a window whose top edge rides the
       // shape's top while the words in it are held still, so the growing bubble uncovers them, the top line last, and no
-      // line ever pops in or shows past its edge; moves only: the window and the words move by the same amount, opposite)
+      // line ever pops in or shows past its edge; moves only: the window and the words move by the same amount, opposite.
+      // The window's top is soft across the bubble's padding: a line comes up in it as it is uncovered, never cut by an edge)
       let reveal: HTMLElement | null = null;
       if (from.fresh) {
-        reveal = document.createElement('div'); reveal.className = 'fly-reveal';
+        reveal = document.createElement('div'); reveal.className = 'fly-reveal'; reveal.style.setProperty('--pad', cs.paddingTop);
         Object.assign(words.style, { position: 'absolute', left: `calc(40px + ${cs.paddingLeft})`, top: cs.paddingTop, width: `${W - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)}px` });
         reveal.appendChild(words);
       }
@@ -438,14 +439,15 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
           ? go(words.animate([{ opacity: 1 }, { opacity: 1, offset: 0.7 }, { opacity: inkA }], { duration: SAID_INK, easing: 'linear', fill: 'both' }))
           : go(words.animate([{ opacity: 1 }, { opacity: inkA }], { ...fade(380, 60), fill: 'both' })),
       ];
-      // said words: uncovered by the growing bubble (above), and coming in as "Transcribing…" goes, from the moment the
-      // pill starts to lift: it fades out over 120 ms as the words come in over 140 ms, so there is always text in the pill (together never under 0.85)
+      // said words: uncovered by the growing bubble (above), and coming in as "Transcribing…" goes: it fades out in 60 ms
+      // from the moment the pill starts to change, the words come in over 140 ms from 40 ms on (the two are never both
+      // readable at once: one is under 30% whenever the other is over it)
       if (reveal) {
-        const top = Math.max(0, y0), SAY = 80;
+        const top = Math.max(0, y0);
         go(reveal.animate([{ transform: `translateY(${top}px)` }, { transform: 'none' }], shape));
         go(words.animate([{ transform: `translateY(${-top}px)` }, { transform: 'none' }], shape));
-        go(reveal.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 140, delay: SAY, easing: 'linear', fill: 'backwards' }));
-        if (ghost) go(ghost.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 120, delay: SAY, easing: 'linear', fill: 'both' }));
+        go(reveal.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 140, delay: 40, easing: 'linear', fill: 'backwards' }));
+        if (ghost) go(ghost.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 60, easing: 'linear', fill: 'both' }));
       }
       if (stand) setTimeout(() => stand?.remove(), 60);
       // lines that were scrolled out of a long draft's view come in on the way, rather than appearing over the chat

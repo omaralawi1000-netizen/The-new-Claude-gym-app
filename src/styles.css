@@ -1463,7 +1463,8 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
   opacity: 0; transition: opacity 90ms var(--ease-out); will-change: opacity; }
 .coach-field .cf-status.on { opacity: 1; transition: opacity 150ms var(--ease-out) 90ms; }
 /* the said words' "Transcribing…", lifting with the pill as the words come up (Coach.tsx flight) */
-.fly-reveal { position: absolute; top: 0; left: -40px; right: -40px; bottom: -40px; overflow: hidden; will-change: transform, opacity; pointer-events: none; }
+.fly-reveal { position: absolute; top: 0; left: -40px; right: -40px; bottom: -40px; overflow: hidden; will-change: transform, opacity; pointer-events: none;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--pad, 9px)); mask-image: linear-gradient(to bottom, transparent, #000 var(--pad, 9px)); }
 .fly-ghost { position: absolute; white-space: nowrap; font-weight: 400; letter-spacing: 0; color: var(--tx2); will-change: opacity; pointer-events: none; }
 /* closing up unseen, at once (said words: the bar is hidden while the pill lifts away) */
 .coach-composer.snap :is(.cf-glass, .cf-tint > i, .cf-sh, .cf-text, .coach-field textarea.input, .coach-cam-slot, .coach-cam-slot::before, .coach-cam) { transition: none !important; }
@@ -1495,7 +1496,10 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    no band), so each is one blur and nothing is ever blurred twice. 14 Oct (r7, "on their own, blur under them, no shadow,
    a little 3D"): clear space between them (14 px), no shadow under any of them, and the conversation passes behind them
    (dimmed a little above the bar and more below, see --melt) so each one's frost shows it softened. */
-.coach-cam.frost-ctl { flex: none; width: 46px; height: 46px; margin: 0; color: var(--tx); }
+.coach-cam.frost-ctl { flex: none; width: 46px; height: 46px; margin: 0; color: var(--tx);
+  /* (a small disc: a lighter tint and a 3.5 px blur, so words under it show as the same soft shapes as under the pill) */
+  --fc-bg: rgba(58, 61, 78, 0.26); --fc-bd: blur(3.5px) brightness(1.5) saturate(1.4); }
+:root[data-theme='light'] .coach-cam.frost-ctl { --fc-bg: rgba(255, 255, 255, 0.5); --fc-bd: blur(3.5px) saturate(1.4); }
 /* THE PILL OPENS WHILE YOU TYPE AND GROWS AS YOU WRITE (Coach.tsx CF_X, CF_MAX, MORPH, GROW): on focus the camera tucks
    away and the pill's left edge glides over its place (--cf-x), a beat after the tap (60 ms, so the keyboard's lift doesn't
    swallow it) with a little overshoot; it glides back when the keyboard goes. As your words wrap it grows upward a line at a
