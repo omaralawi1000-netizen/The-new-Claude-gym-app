@@ -44,18 +44,17 @@ const FLY_SHAPE = springCurve(apple(0.34, 0.06));
 // so the pill is seen to peel off the bar; and it lands on the spring's long tail, its speed dying away over the last
 // ~150 ms with no point where it brakes (a bezier's end read as a sudden stop, Omar 14 Oct 14:54: "a more easing motion
 // like iOS"). Sampled every 1/60 s into linear(), so the browser plays it at the screen's full rate.
-const SAID_XS = (() => {
-  const k = (2 * Math.PI / 0.52) ** 2, c = 4 * Math.PI / 0.52, ramp = 0.1, dt = 1 / 600;
+const rampSpring = (response: number, ramp: number) => {
+  const k = (2 * Math.PI / response) ** 2, c = 4 * Math.PI / response, dt = 1 / 600;
   let x = 0, v = 0, t = 0; const xs = [0];
   for (let f = 1; f < 150; f++) {
     for (let i = 0; i < 10; i++) { const u = Math.min(t / ramp, 1), g = u * u * u * (u * (6 * u - 15) + 10); v += (k * (g - x) - c * v) * dt; x += v * dt; t += dt; }
     xs.push(x); if (t > ramp && 1 - x < 0.0002 && Math.abs(v) < 0.005) break; // (still to a fiftieth of a percent: it hands over to the real bubble)
   }
   xs[xs.length - 1] = 1; return xs;
-})();
-const FLY_SAID = { duration: Math.round((SAID_XS.length - 1) * 1000 / 60), easing: `linear(${SAID_XS.map((v) => +v.toFixed(4)).join(', ')})` };
-// how far along that move it is at a given share of its time (to know when the growing bubble has room for a line)
-const saidAt = (x: number) => { const i = Math.max(0, x) * (SAID_XS.length - 1), a = Math.floor(i); return a >= SAID_XS.length - 1 ? 1 : SAID_XS[a] + (SAID_XS[a + 1] - SAID_XS[a]) * (i - a); };
+};
+const asCurve = (xs: number[]) => ({ duration: Math.round((xs.length - 1) * 1000 / 60), easing: `linear(${xs.map((v) => +v.toFixed(4)).join(', ')})` });
+const FLY_SAID = asCurve(rampSpring(0.52, 0.1));
 const SAID_INK = 560; // the said words' ink: full while the pill is still the pill, the bubble's own by then
 const SAID_BACK = 340; // …and the bar comes back, fresh, only once the bubble has left it (faded in over 300 ms from here)
 // the emptied pill behind a sent message: closed at once, out of sight under the flying shape, which starts as the whole
@@ -378,7 +377,16 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
         const n = Math.max(1, words.querySelectorAll('.said-l').length);
         Object.assign(ghost.style, { left: cs.paddingLeft, top: `calc(${cs.paddingTop} + ${n - 1} * ${cs.lineHeight})` });
       }
-      copy.append(sh, glass, pill, tone, words, ...(ghost ? [ghost] : []));
+      // (said words: laid out at the bubble's width from the first frame, all lines, in a window whose top edge rides the
+      // shape's top while the words in it are held still, so the growing bubble uncovers them, the top line last, and no
+      // line ever pops in or shows past its edge; moves only: the window and the words move by the same amount, opposite)
+      let reveal: HTMLElement | null = null;
+      if (from.fresh) {
+        reveal = document.createElement('div'); reveal.className = 'fly-reveal';
+        Object.assign(words.style, { position: 'absolute', left: `calc(40px + ${cs.paddingLeft})`, top: cs.paddingTop, width: `${W - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)}px` });
+        reveal.appendChild(words);
+      }
+      copy.append(sh, glass, pill, tone, reveal ?? words, ...(ghost ? [ghost] : []));
       app.appendChild(copy);
       // the send button as it was (the arrow) stays on top for a moment and fades as the shape starts to leave: the bar,
       // stop button and all, is then under the shape and shows where it has left (the shape is never cut by the button)
@@ -429,20 +437,15 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
         from.fresh
           ? go(words.animate([{ opacity: 1 }, { opacity: 1, offset: 0.7 }, { opacity: inkA }], { duration: SAID_INK, easing: 'linear', fill: 'both' }))
           : go(words.animate([{ opacity: 1 }, { opacity: inkA }], { ...fade(380, 60), fill: 'both' })),
-        // ("Transcribing…" is gone before the first words come: the two are never seen over each other)
-        ...(ghost ? [go(ghost.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 150, easing: 'cubic-bezier(.3, 0, .2, 1)', fill: 'forwards' }))] : []),
       ];
-      // said words: each line comes up only once the growing bubble has room for it (never on or past its edge), and not
-      // before 120 ms: the line on the field's line first, the ones above as the bubble's top rises past them (from 120 ms
-      // the first line takes over from "Transcribing…" as it goes, both faint: the pill is never empty for a frame)
-      if (from.fresh) {
-        const pt = parseFloat(cs.paddingTop), lh = parseFloat(cs.lineHeight) || CF_LINE / k;
-        [...words.children].forEach((line, i) => {
-          const top = pt + i * lh, bot = top + lh;
-          let at = 120;
-          while (at < 380) { const e = saidAt(at / FLY_SAID.duration); if (y0 * (1 - e) <= top - 1 && y1 * (1 - e) + H * e >= bot - 2) break; at += 4; }
-          go((line as HTMLElement).animate([{ opacity: 0 }, { opacity: 1 }], { duration: 180, delay: at, easing: 'cubic-bezier(.3, 0, .2, 1)', fill: 'backwards' }));
-        });
+      // said words: uncovered by the growing bubble (above), and coming in as "Transcribing…" goes, from the moment the
+      // pill starts to lift: it fades out over 120 ms as the words come in over 140 ms, so there is always text in the pill (together never under 0.85)
+      if (reveal) {
+        const top = Math.max(0, y0), SAY = 80;
+        go(reveal.animate([{ transform: `translateY(${top}px)` }, { transform: 'none' }], shape));
+        go(words.animate([{ transform: `translateY(${-top}px)` }, { transform: 'none' }], shape));
+        go(reveal.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 140, delay: SAY, easing: 'linear', fill: 'backwards' }));
+        if (ghost) go(ghost.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 120, delay: SAY, easing: 'linear', fill: 'both' }));
       }
       if (stand) setTimeout(() => stand?.remove(), 60);
       // lines that were scrolled out of a long draft's view come in on the way, rather than appearing over the chat

@@ -2070,12 +2070,18 @@ like iOS. And please polish everything".
   the page and a wide 12/30 px one, neutral black; navy and lighter in the light theme). Never animated, and never on a
   blurred layer: the pill's is its own piece (`.cf-sh`), the orb's is `.frost-seat::after` behind its glass disc, the
   camera's is `.coach-cam-slot::before`, which fades with the button when the field opens.
-- **Words under the glass.** The list no longer fades out above the controls: it passes under them at about 80% (the
-  mask in `.coach-body` reaches 0.82 at the controls' top and 0.76 at their middle, gone 82 px below the bar's top), so
-  the 8 px frost visibly softens real words, while the gaps between the controls show them only a little dimmed.
+- **Words under the glass.** The list no longer fades out above the controls: it passes under them at about half (the
+  mask in `.coach-body` is 0.5 at the controls' top, 0.46 at their middle, gone 4 px below them, so nothing peeks out
+  under the orb), and the frost is lighter: `--fc-bd` = `blur(5px) brightness(1.5) saturate(1.4)` (was 8 px; light theme
+  without the brightness). Measured on a GPU still: words under a control about 80–85 of 255 as soft word shapes (8 px
+  melted them into a faint band at ~60), in the gaps about 110 (were ~165, crisp, read as a stencil). `--fly-under`
+  follows the lifted frost so the flying copy still matches the pill it starts as.
 - **iOS landing.** Said words now lift on a critically damped spring (0.52 s, no overshoot) that follows a target easing
   up out of the bar over its first 100 ms (`SAID_XS` → `FLY_SAID`, sampled into linear()): the soft start stays, and the
   end is the spring's long tail (90% at ~370 ms, its speed dying away over the last ~150 ms) instead of a bezier that
   braked. A typed message's flight lost its small overshoot the same way (`apple(0.55)`, was `apple(0.6, 0.15)`).
-- **Handover.** The first said line now starts at 120 ms, as "Transcribing…" finishes fading (150 ms): both faint for a
-  moment, so the pill is never empty for a frame.
+- **Handover and lines.** "Transcribing…" fades out over 120 ms while the words fade in over 140 ms, both from the
+  moment the pill starts to lift (linear: together never under 0.85, so the pill is never blank). The words are laid out
+  at the bubble's width from the first frame, all lines, in a window (`.fly-reveal`) whose top edge rides the shape's
+  top while the words inside are held still (window and words moved by the same amount, opposite, on the same curve):
+  the growing bubble uncovers the lines, the top one last, so none pops in and none shows past the bubble's edge.
