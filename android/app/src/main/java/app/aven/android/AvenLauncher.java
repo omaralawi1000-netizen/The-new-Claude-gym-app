@@ -60,7 +60,8 @@ public class AvenLauncher extends LauncherActivity {
      */
     @Override
     public void startActivity(Intent intent, Bundle options) {
-        if (zoomed) { super.startActivity(intent, options); return; }
+        // (before launchTwa the helper may restart this screen in a new task: that goes straight through)
+        if (zoomed || !opening) { super.startActivity(intent, options); return; }
         held = () -> super.startActivity(intent, options);
     }
 
@@ -78,10 +79,25 @@ public class AvenLauncher extends LauncherActivity {
 
     private void zoomDone() {
         zoomed = true;
-        if (held == null || isDestroyed()) return; // (closed during the zoom: don't open Chrome after all)
+        if (held == null) return;
         Runnable start = held;
         held = null;
         start.run();
+        if (finishLater) super.finish();
+    }
+
+    @Override
+    @SuppressWarnings("deprecation")
+    public void onBackPressed() {
+        held = null; // Back during the zoom closes the app, as it would have before
+        super.onBackPressed();
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        if (held == null) return; // Home or Back during the zoom: don't open Chrome after the person has left
+        held = null;
         if (finishLater) super.finish();
     }
 
