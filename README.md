@@ -1793,8 +1793,13 @@ there was a version where you did it without the blur, it came out smooth". He a
   bubble's softer one, and they glide on a soft spring (`apple(0.6, 0.15)`, the shape on `apple(0.42, 0.08)`) to their
   place above the bar, passing over the pill as one object. The bubble keeps the field's line breaks (`lines` on the
   message, read off the field's hidden copy) and the words fly at the field's size, so nothing re-wraps or jumps; the
-  field now types in the bubble's letters (weight 520, the placeholder stays as it was). The pill closes up behind it
-  and "Ask the Coach" comes back after 140 ms, once the pill has mostly closed.
+  field now types in the bubble's letters (weight 520, the placeholder stays as it was). For its first ~80 ms the flying
+  shape is the pill's inside itself (the pill's outline up to the send button, its corners and solid colour), then it
+  turns into the bubble: one object leaving the field. The emptied pill closes up on the same frame on a firm curve of its
+  own (`CLOSE`, `apple(0.34)` already moving: past half closed by about 60 ms; a `.closing` class points the parts at it,
+  since changing the curve's property on the bar restyled all of it). The cursor hides until "Ask the Coach" comes back
+  at 140 ms, and then the bar settles in one move: the keyboard goes, the left edge glides back and the camera returns
+  (the keyboard used to wait until the message had nearly landed, a second beat after everything else).
 - **Bar polish (r5)**: the frost's top follows the lines on their own spring and its left edge the opening on the
   opening's (two registered properties, `--cf-gt`/`--cf-gl`; one transition carried both and the frost trailed the pill
   by 60 ms as it grew or closed up); a new line comes up through a soft bottom edge (a mask on the words' window, not a

@@ -1328,10 +1328,18 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .fly-glass > .fg-m { left: 19px; }
 .fly-glass > .fg-r { right: 0; width: 20px; border-radius: 0 20px 20px 0; }
 .fly-glass > .fg-tail { right: 0; width: 20px; border-radius: 0 20px 6px 0; will-change: transform, opacity; }
+/* its first moments: the pill's inside itself, its corners and solid colour, lifting out (then it turns into the bubble) */
+.fly-skin { position: absolute; left: 0; top: 0; width: 100%; height: 100%; transform-origin: 0 0; will-change: transform, opacity; }
+.fly-skin > i { position: absolute; top: 0; height: 100%; transform-origin: 0 0; will-change: transform;
+  background: color-mix(in srgb, var(--fc-solid) calc(var(--fc-op) * 100%), var(--bg)); box-shadow: inset 0 1px 0 var(--fc-hl-s); }
+.fly-skin > .fs-l { left: 0; width: var(--rs); border-radius: var(--rs) 0 0 var(--rs); }
+.fly-skin > .fs-m { left: calc(var(--rs) - 1px); }
+.fly-skin > .fs-r { right: 0; width: var(--rs); border-radius: 0 var(--rs) var(--rs) 0; }
 .fly-words { position: relative; will-change: opacity; }
 .fly-words > .said-l { will-change: auto; }
 .coach-field .input::placeholder { transition: color 300ms var(--ease-out); } /* (its colour, not its opacity: an opacity fade gave it a layer that was dropped when it ended) */
 .coach-composer .coach-field .input.sent-away::placeholder { color: transparent; transition: none; }
+.coach-composer .coach-field .input.sent-away { caret-color: transparent; } /* (the cursor jumped to the start as the words left) */
 :root[data-motion='reduce'] :is(.coach-sent, .coach-reply, .coach-reply .w, .coach-after, .coach-after .speak-btn) { animation: none; }
 .coach-body :is(.action-card, .action-ic, .action-line, .tip) { animation: none; }
 /* "New chat": the conversation steps away, then the suggestions rise in one after another (on opening they are simply there),
@@ -1427,9 +1435,14 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    fades with it: opacity on the glass itself, never on something around it, which would cut the glass off from the page) */
 .coach-cam-slot { display: flex; flex: none; transition: transform var(--cf-dur-c) var(--cf-ease-c); }
 .open .coach-cam-slot { transform: translateX(-6px) scale(0.82); transition: transform var(--cf-dur) var(--cf-ease) 40ms; }
-.coach-composer .coach-cam.frost-ctl:not([data-pressed], [data-press-off]) { transition: transform 520ms var(--ease-spring), opacity 220ms var(--ease-out) 200ms; }
+.coach-composer .coach-cam.frost-ctl:not([data-pressed], [data-press-off]) { transition: transform 520ms var(--ease-spring), opacity 220ms var(--ease-out) 180ms; }
 .coach-composer.open .coach-cam.frost-ctl:not([data-pressed], [data-press-off]) { transition: transform 520ms var(--ease-spring), opacity 170ms var(--ease-out) 40ms; }
 .open .coach-cam { opacity: 0; pointer-events: none; }
+/* a message just sent: the emptied pill closes up on its own firm curve (Coach.tsx CLOSE); the bar is held open meanwhile */
+.coach-composer.closing .cf-glass { transition: --cf-gl var(--cf-dur) var(--cf-ease) 60ms, --cf-gt var(--cf-dur-k) var(--cf-ease-k); }
+.coach-composer.closing .cf-tint > i { transition: translate var(--cf-dur) var(--cf-ease) 60ms, transform var(--cf-dur-k) var(--cf-ease-k), scale var(--cf-dur-k) var(--cf-ease-k); }
+.coach-composer.closing .cf-sh { transition: scale var(--cf-dur) var(--cf-ease) 60ms, transform var(--cf-dur-k) var(--cf-ease-k); }
+.coach-composer.closing .cf-text { transition: translate var(--cf-dur) var(--cf-ease) 60ms, clip-path var(--cf-dur-k) var(--cf-ease-k); }
 .cf-tint > i, .cf-sh, .cf-text, .coach-field textarea.input, .coach-cam-slot, .coach-field { will-change: transform; }
 .coach-cam.frost-ctl { will-change: opacity; }
 :root[data-motion='reduce'] :is(.cf-glass, .cf-tint > i, .cf-sh, .cf-text, .coach-cam-slot) { transition: none !important; }
