@@ -76,6 +76,25 @@ html:root[data-glow='off'] .aurora, html:root[data-glow='off'] .aurora-lite { di
 :root[data-palette='forest'] [data-hue='train'] { --ac: #d4f25a; --h1: #2fa05a; --h2: #6a8f1c; --h3: #ffd04d; }
 :root[data-palette='forest'] [data-hue='food'] { --ac: #8af25a; --h1: #2fe08a; --h2: #1c8a63; --h3: #c6f24a; }
 :root[data-palette='forest'] [data-hue='progress'] { --ac: #5ae0a8; --h1: #2f9d8a; --h2: #4b9b5a; --h3: #b6f25a; }
+/* Golden hour: a real sunset, sun-yellow through orange into red-orange, nothing pink. The field glows orange and red
+   (yellow light over the dark page reads olive); the sun-yellow is the accent. The macro rings take the
+   dusk sky above it (soft blue-lavender carbs), so the ring still reads as three colours. */
+:root[data-palette='golden'] [data-hue='today'] { --ac: #ffb547; --h1: #ff6a1a; --h2: #ff9a32; --h3: #ff4a2a; }
+:root[data-palette='golden'] [data-hue='train'] { --ac: #ff8f3a; --h1: #ff5a1f; --h2: #ff8a2a; --h3: #e8362a; }
+:root[data-palette='golden'] [data-hue='food'] { --ac: #ffc44d; --h1: #ff9a2a; --h2: #ff6a1a; --h3: #ffae3a; }
+:root[data-palette='golden'] [data-hue='progress'] { --ac: #ffa04a; --h1: #ff7a2b; --h2: #ffa63a; --h3: #ff4a2a; }
+html:root[data-palette='golden'] { --c-protein: #ff6b3d; --c-carbs: #9fb2ff; --c-fat: #ffd060; }
+/* Midnight: deep blue light with an ice-blue accent; quiet, cool, one family */
+:root[data-palette='midnight'] [data-hue='today'] { --ac: #9cc4ff; --h1: #1d3fa8; --h2: #4a7dff; --h3: #2a2f8f; }
+:root[data-palette='midnight'] [data-hue='train'] { --ac: #8ab4ff; --h1: #2348c4; --h2: #5b6cff; --h3: #1a6a9e; }
+:root[data-palette='midnight'] [data-hue='food'] { --ac: #9ee6ff; --h1: #1f5fb0; --h2: #3aa0d8; --h3: #3a46b8; }
+:root[data-palette='midnight'] [data-hue='progress'] { --ac: #b4bcff; --h1: #3a3fb8; --h2: #5a8cff; --h3: #2a5aa8; }
+/* Champagne: graphite light with one champagne-gold accent; the macros are champagne, platinum and bronze */
+:root[data-palette='champagne'] [data-hue='today'] { --ac: #e8cf9a; --h1: #6e6c78; --h2: #a8977c; --h3: #4a4a56; }
+:root[data-palette='champagne'] [data-hue='train'] { --ac: #e6c58a; --h1: #76727e; --h2: #9c8b70; --h3: #44444f; }
+:root[data-palette='champagne'] [data-hue='food'] { --ac: #ecd6a8; --h1: #7c7884; --h2: #b0a084; --h3: #50505c; }
+:root[data-palette='champagne'] [data-hue='progress'] { --ac: #e2c896; --h1: #706e7a; --h2: #a4937a; --h3: #4c4c58; }
+html:root[data-palette='champagne'] { --c-protein: #f2dcae; --c-carbs: #a9b4c6; --c-fat: #c9925e; --c-water: #d8e2ea; }
 /* contents that arrive a beat after a tall sheet starts moving fade in instead of appearing */
 .sheet-pane.late > * { animation: fadein 220ms var(--ease-out) both; }
 /* …but the bottom buttons' fade is let go once it has run (fill backwards): an animation kept on the foot makes it a closed

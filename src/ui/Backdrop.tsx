@@ -35,7 +35,7 @@ export function sunTimes(d: Date, lat = 56.1567, lon = 10.2108): { rise: number;
 
 /**
  * Sky colours through the day (top of the screen, middle, horizon), by local hour, interpolated between these. Two skies:
- * warm (Ember, Sunset: golden evenings) and cool (the others: evenings stay blue and violet, so cards never go muddy
+ * warm (Ember, Sunset, Golden hour: golden evenings) and cool (the others: evenings stay blue and violet, so cards never go muddy
  * brown next to a teal or green accent). Midday is a clean light blue in both, never white (white over dark reads grey).
  */
 const SKY_WARM: [number, string, string, string][] = [
@@ -64,7 +64,7 @@ const SKY_COOL: [number, string, string, string][] = [
 ];
 const hex = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
 const mix = (a: string, b: string, t: number) => `rgb(${hex(a).map((v, i) => Math.round(v + (hex(b)[i] - v) * t)).join(' ')})`;
-export const warmSky = (palette: string) => palette === 'ember' || palette === 'sunset';
+export const warmSky = (palette: string) => palette === 'ember' || palette === 'sunset' || palette === 'golden';
 export function skyAt(hour: number, warm = true): { top: string; mid: string; low: string; bright: number } {
   const SKY = warm ? SKY_WARM : SKY_COOL;
   let i = 0; while (i < SKY.length - 2 && SKY[i + 1][0] <= hour) i++;

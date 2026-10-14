@@ -4,6 +4,8 @@ export const da: Record<string, string> = {
  "Only Classic keeps drifting. The others hold still while you scroll.": "Kun Klassisk bevæger sig hele tiden. De andre står stille, mens du scroller.",
  "Change photo": "Skift billede",
  "Night sky": "Nattehimmel",
+ "Golden hour": "Gylden time",
+ "Midnight": "Midnat",
  "Time of day": "Tid på dagen",
  "Dot field": "Prikfelt",
  "Mesh": "Farveblanding",

@@ -76,6 +76,9 @@ const PALETTES: { id: Settings['palette']; name: string; ac: string; h1: string;
   { id: 'mono', name: 'Mono', ac: '#ff7a59', h1: '#9094a8', h2: '#5b6070', h3: '#b8bccb' },
   { id: 'sunset', name: 'Sunset', ac: '#ff6b9d', h1: '#ff4f7b', h2: '#ff9a4d', h3: '#8a4bff' },
   { id: 'forest', name: 'Forest', ac: '#b6f25a', h1: '#1f9d6a', h2: '#b6f25a', h3: '#2fd0a0' },
+  { id: 'golden', name: 'Golden hour', ac: '#ffb547', h1: '#ff6a1a', h2: '#ff9a32', h3: '#ff4a2a' },
+  { id: 'midnight', name: 'Midnight', ac: '#9cc4ff', h1: '#1d3fa8', h2: '#4a7dff', h3: '#2a2f8f' },
+  { id: 'champagne', name: 'Champagne', ac: '#e8cf9a', h1: '#6e6c78', h2: '#a8977c', h3: '#4a4a56' },
 ];
 /** A tiny Today screen in one look's colours: its light, the ring, a workout card with the play button, the dock. */
 function LookPreview({ p }: { p: (typeof PALETTES)[number] }) {

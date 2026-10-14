@@ -273,7 +273,7 @@ export interface Settings {
   language: Lang;
   theme: 'system' | 'light' | 'dark';
   /** the colours of the app (glow + accent), see styles.css `data-palette` */
-  palette: 'ember' | 'aurora' | 'mono' | 'sunset' | 'forest';
+  palette: 'ember' | 'aurora' | 'mono' | 'sunset' | 'forest' | 'golden' | 'midnight' | 'champagne';
   /** how strong the colour light behind the app is (styles.css `data-glow`); missing = full */
   glow?: 'full' | 'soft' | 'off';
   /** what is drawn behind the app (ui/Backdrop.tsx, styles.css `.bgx`); missing = classic (the drifting colour field) */
