@@ -2096,7 +2096,20 @@ html:root[data-glow='off'] .bgx:not([data-k='photo']) { display: none; }
    same everywhere. It used to be three recipes: a faint white lift (Classic, Orb light, Mesh, Colour per tab: cards
    took on the glow's colour), solid (Night sky, Dot field) and a darker frost (Time of day, Sunrise). Only the
    colours changed: no extra layer or blur. */
-:root:not([data-theme='light']) .screen { --s1: rgb(17 19 29 / .72); --s2: rgb(23 25 37 / .76); --s3: rgb(36 39 54 / .8); --bg-2: rgb(3 4 10 / .5); }
+:root:not([data-theme='light']) .screen { --s1: rgb(20 22 32 / .54); --s2: rgb(26 28 40 / .6); --s3: rgb(38 41 56 / .66); --bg-2: rgb(3 4 10 / .5);
+  --card-sheen: rgba(255, 255, 255, .055); --card-hl: rgba(255, 255, 255, .17); --card-rim: rgba(255, 255, 255, .07);
+  --card-sh: 0 1px 2px rgba(0, 0, 0, .35), 0 6px 14px -8px rgba(0, 0, 0, .4), 0 20px 40px -18px rgba(0, 0, 0, .75); }
+/* where the background has sharp detail (stars, the dot field), a real frost would melt it: the cards stay denser there */
+:root:not([data-theme='light']):is([data-bg='night'], [data-bg='dots']) .screen { --s1: rgb(18 20 30 / .7); --s2: rgb(24 26 38 / .74); --s3: rgb(36 39 54 / .78); }
+:root[data-theme='light'] .screen { --s1: rgba(255, 255, 255, .42); --s2: rgba(255, 255, 255, .56);
+  --card-sheen: rgba(255, 255, 255, .5); --card-hl: rgba(255, 255, 255, .95); --card-rim: rgba(20, 28, 48, .06);
+  --card-sh: 0 1px 2px rgba(30, 40, 70, .08), 0 6px 14px -8px rgba(30, 40, 70, .12), 0 18px 36px -18px rgba(30, 40, 70, .34); }
+/* Cards on the tab screens are clear glass (Omar 14 Oct: "more transparent… a white line so it's 3D"): about half the
+   background shows through, a faint sheen brightens the top, a white top edge and a fine rim catch the light, and a deeper
+   soft shadow lifts them. No blur: nothing scrolls under a card and the field is already soft, so a frost here would look
+   the same and re-blur every card on every frame (36 fps, see `.screen .plinth` above). Painted once, never animated. */
+:where(.screen) .plinth:where(:not(.dots, .dragging)) { background-image: linear-gradient(180deg, var(--card-sheen), transparent 58%); }
+:where(.screen) .plinth:where(:not(.dragging)) { box-shadow: inset 0 1px 0 var(--card-hl), inset 0 0 0 1px var(--card-rim), var(--card-sh); }
 
 /* Your photo: blurred once when you picked it, darkened here so cards and text stay easy to read */
 .bg-photo { background: center / cover no-repeat; background-color: var(--bg); }
