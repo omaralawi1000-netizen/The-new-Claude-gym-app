@@ -32,7 +32,16 @@ export type LiquidSlice = {
   late?: { el: HTMLElement; at: number }[];
 };
 
+/** How the real cards look right now, read from them (never copied into this file), so the glass follows whatever the cards are styled as. */
+export type LiquidLook = {
+  fill: string; shadow: string; ring: string; hl: string;
+  /** the soft light over the top of each card (its background gradient, top to bottom) */
+  sheen: { c: string; at: number }[] | null;
+  rim: { angle: number; opacity: number; stops: { c: string; at: number }[] } | null;
+};
+
 export type LiquidPlan = {
+  look: LiquidLook;
   layer: SVGSVGElement;
   dir: 'split' | 'merge';
   x0: number; x1: number; radius: number;
@@ -125,20 +134,48 @@ export function playLiquid(plan: LiquidPlan): { done: Promise<void>; cancel: () 
   // glass plays: the glass draws the rim light itself (one gradient over the block, fading out) and the cards' own rim light
   // and shadow fade back in as the glass lands in them (the CSS values take over when the class goes). The shadow of what was
   // there before is a ghost that fades out as the glass leaves.
+  const look = plan.look, rimO = look.rim ? look.rim.opacity : 0;
   const fadeIn = [{ opacity: 0, offset: 0 }, { opacity: 0, offset: 0.5 }, { opacity: 1, offset: 1 }];
   plan.glints.forEach((el) => {
-    A(el, fadeIn.map((k) => ({ ...k, ...(k.opacity ? { opacity: 0.5 } : {}) })), { pseudoElement: '::after' });
+    A(el, fadeIn.map((k) => ({ ...k, ...(k.opacity ? { opacity: rimO } : {}) })), { pseudoElement: '::after' });
     A(el, fadeIn, { pseudoElement: '::before' });
   });
   const gl = plan.layer.querySelector<SVGPathElement>('.lq-gl')!;
-  A(gl, states.map((s, i) => ({ opacity: 0.5 * (split ? clamp01(1 - xs[i] / 0.55) : clamp01((xs[i] - 0.45) / 0.55)), offset: offs(i) })));
+  A(gl, states.map((s, i) => ({ opacity: rimO * (split ? clamp01(1 - xs[i] / 0.55) : clamp01((xs[i] - 0.45) / 0.55)), offset: offs(i) })));
   {
     // CSS linear-gradient(150deg, …) over the block's box, as SVG endpoints
-    const { x0, x1, top, bottom } = plan.box, w = x1 - x0, h = bottom - top, a = (150 * Math.PI) / 180;
+    const { x0, x1, top, bottom } = plan.box, w = x1 - x0, h = bottom - top, a = ((look.rim?.angle ?? 150) * Math.PI) / 180;
     const L = Math.abs(w * Math.sin(a)) + Math.abs(h * Math.cos(a)), dx = Math.sin(a), dy = -Math.cos(a), cx = x0 + w / 2, cy = top + h / 2;
     const g = plan.layer.querySelector('#lqG')!;
+    g.replaceChildren(...(look.rim?.stops ?? []).map(({ c, at }) => { const st = document.createElementNS('http://www.w3.org/2000/svg', 'stop'); st.setAttribute('offset', String(at)); st.style.stopColor = c; return st; }));
     g.setAttribute('x1', String(cx - (dx * L) / 2)); g.setAttribute('y1', String(cy - (dy * L) / 2));
     g.setAttribute('x2', String(cx + (dx * L) / 2)); g.setAttribute('y2', String(cy + (dy * L) / 2));
+  }
+  plan.layer.style.setProperty('--lq-fill', look.fill); plan.layer.style.setProperty('--lq-ring', look.ring); plan.layer.style.setProperty('--lq-hl', look.hl);
+  plan.layer.parentElement!.style.setProperty('--lq-sh', look.shadow);
+  // the soft light over the top of each card: one rectangle per card under the outline, the joined card's is one tall piece
+  const sheenRects: SVGRectElement[] = [];
+  if (look.sheen) {
+    const NS = 'http://www.w3.org/2000/svg', n = plan.slices.length;
+    const grad = plan.layer.querySelector('#lqS')!;
+    grad.replaceChildren(...look.sheen.map(({ c, at }) => { const st = document.createElementNS(NS, 'stop'); st.setAttribute('offset', String(at)); st.style.stopColor = c; return st; }));
+    const sl = plan.slices, last = n - 1;
+    const rect = (k: number, from: boolean) => {
+      const side = (from ? sl[k].from : sl[k].to);
+      const joinedSide = split === from; // split starts joined, merge ends joined
+      if (joinedSide) return k === 0 ? { y: sl[0][from ? 'from' : 'to'].top, h: sl[last][from ? 'from' : 'to'].bottom - sl[0][from ? 'from' : 'to'].top } : { y: side.top, h: 0 };
+      return { y: side.top, h: side.bottom - side.top };
+    };
+    const g = plan.layer.querySelector('.lq-sheen')!;
+    for (let k = 0; k < n; k++) {
+      const r = document.createElementNS(NS, 'rect'); r.setAttribute('x', String(plan.x0)); r.setAttribute('width', String(plan.x1 - plan.x0)); r.setAttribute('fill', 'url(#lqS)');
+      g.appendChild(r); sheenRects.push(r);
+      const a = rect(k, true), b = rect(k, false);
+      A(r, states.map((s, i) => {
+        const w = s.Pg, lift = split ? s.lift(k) : 0;
+        return { y: px(a.y * (1 - w) + b.y * w + lift), height: px(Math.max(0, a.h * (1 - w) + b.h * w)), offset: offs(i) } as Keyframe;
+      }));
+    }
   }
   const ghosts: HTMLElement[] = plan.ghosts.map((r) => {
     const el = document.createElement('div');
@@ -155,5 +192,5 @@ export function playLiquid(plan: LiquidPlan): { done: Promise<void>; cancel: () 
     ghosts.push(el);
     A(el, [{ opacity: 1, offset: 0 }, { opacity: 0, offset: 0.1 }, { opacity: 0, offset: 1 }]);
   });
-  return { done, cancel: () => { anims.forEach((a) => a.cancel()); ghosts.forEach((g) => g.remove()); } };
+  return { done, cancel: () => { anims.forEach((a) => a.cancel()); ghosts.forEach((g) => g.remove()); sheenRects.forEach((r) => r.remove()); plan.layer.parentElement?.style.removeProperty('--lq-sh'); } };
 }

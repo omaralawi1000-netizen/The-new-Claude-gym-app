@@ -12,11 +12,9 @@ export const LiquidLayer = forwardRef<SVGSVGElement>(function LiquidLayer(_, ref
     <svg ref={ref} className="liquid" aria-hidden width="100%" height="100%">
       <defs>
         <linearGradient id="lqG" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" className="lq-g1" />
-          <stop offset="0.34" className="lq-g0" />
-          <stop offset="0.7" className="lq-g0" />
-          <stop offset="1" className="lq-g2" />
+          {/* stops are filled in when a change plays (read from the real cards) */}
         </linearGradient>
+        <linearGradient id="lqS" x1="0" y1="0" x2="0" y2="1" />
         <clipPath id="lqC"><path className="lqp" d="M0 0" /></clipPath>
         <mask id="lqH" maskUnits="userSpaceOnUse" x="-40" y="-40" width="3000" height="6000">
           <path className="lqp" d="M0 0" fill="#fff" />
@@ -24,6 +22,7 @@ export const LiquidLayer = forwardRef<SVGSVGElement>(function LiquidLayer(_, ref
         </mask>
       </defs>
       <path className="lqp lq-fill" d="M0 0" />
+      <g className="lq-sheen" clipPath="url(#lqC)" />
       <path className="lqp lq-ring" d="M0 0" clipPath="url(#lqC)" />
       <path className="lqp lq-gl" d="M0 0" clipPath="url(#lqC)" stroke="url(#lqG)" />
       <path className="lqp lq-hl" d="M0 0" mask="url(#lqH)" />

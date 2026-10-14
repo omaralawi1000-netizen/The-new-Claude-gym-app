@@ -1299,13 +1299,13 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .subpage > .plinth.lq-hide::after, .lq-hide .meal-row::before { opacity: 0; }
 /* the shadow of a card, on its own so it can fade in alone (the card's box-shadow is off while the glass plays); the ghost is the
    shadow of what was there before, fading out */
-.subpage > .plinth.lq-hide::before, .subpage > .lq-ghost { content: ''; position: absolute; inset: 0; border-radius: var(--r-md); box-shadow: var(--sh-c); pointer-events: none; z-index: -1; }
+.subpage > .plinth.lq-hide::before, .subpage > .lq-ghost { content: ''; position: absolute; inset: 0; border-radius: var(--r-md); box-shadow: var(--lq-sh, none); pointer-events: none; z-index: -1; }
 .subpage > .lq-ghost { inset: auto; animation: none; margin: 0; }
 .liquid .lq-gl { fill: none; stroke-width: 2; stroke-linejoin: round; }
-.liquid .lq-g1 { stop-color: var(--hl); } .liquid .lq-g0 { stop-color: rgb(255 255 255 / 0); } .liquid .lq-g2 { stop-color: color-mix(in srgb, var(--hl) 40%, transparent); }
-.liquid .lq-fill { fill: var(--s1); }
-.liquid .lq-ring { fill: none; stroke: var(--line); stroke-width: 2; stroke-linejoin: round; }
-.liquid .lq-hl { fill: var(--hl); }
+/* what the glass looks like (fill, hairline, top light, rim light, shadow) is read from the real cards when a change starts (liquidMeals.ts readLook), so it follows the cards' style: nothing about it is written here */
+.liquid .lq-fill { fill: var(--lq-fill); }
+.liquid .lq-ring { fill: none; stroke: var(--lq-ring); stroke-width: 2; stroke-linejoin: round; }
+.liquid .lq-hl { fill: var(--lq-hl); }
 .liquid .lq-div { fill: none; stroke: var(--line); stroke-width: 1; }
 .meal-row { width: 100%; display: flex; align-items: center; justify-content: space-between; padding: 14px 0; text-align: left; position: relative; }
 .meal-row + .meal-row::before { content: ''; position: absolute; top: 0; left: 0; right: 4px; height: 1px; background: var(--line); }
