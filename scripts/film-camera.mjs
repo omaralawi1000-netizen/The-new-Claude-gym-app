@@ -28,7 +28,7 @@ await p.reload(); await wait(p, 1500); await s.advance(240);
 const press = async (loc) => { const b = await loc.boundingBox(); await p.touchscreen.tap(b.x + b.width / 2, b.y + b.height / 2); };
 await p.getByLabel('Photo').first().waitFor({ state: 'visible', timeout: 20000 }); await s.advance(180);
 let opener;
-if (which === 'coach') { await press(p.getByRole('button', { name: 'Coach', exact: true }).first()); await s.advance(150); opener = p.getByLabel('Send a photo'); }
+if (which === 'coach') { await press(p.getByRole('button', { name: 'Coach', exact: true }).first()); opener = p.getByLabel('Send a photo'); await opener.waitFor({ state: 'visible', timeout: 20000 }); await s.advance(240); }
 else { await press(p.getByLabel('Photo').first()); await s.advance(150); opener = p.getByRole('button', { name: 'Camera', exact: true }); } // Today's camera icon opens the plate sheet; its Camera button opens the camera
 await s.film(`camera-${which}-open`, () => press(opener), 90);
 await s.advance(90); // the live picture settles in
