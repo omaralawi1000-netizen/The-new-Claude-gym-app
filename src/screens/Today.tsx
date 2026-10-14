@@ -20,6 +20,13 @@ import { exName } from './workout/common';
 import { cardOrder, NextTargets, MusclesWeek, RecentRecords } from './TodayCards';
 import { Roll } from '../ui/Roll';
 import { CoachPin } from '../ui/CoachPin';
+import { useEdgeFade } from '../ui/edgeFade';
+
+/** a sideways row of chips that fades only on the side with more to scroll to */
+function SoftChips({ style, children }: { style?: React.CSSProperties; children: React.ReactNode }) {
+  const ref = useEdgeFade<HTMLDivElement>();
+  return <div ref={ref} className="chips fade-x" style={style}>{children}</div>;
+}
 
 export function estMinutes(r: Routine): number {
   const sets = r.items.reduce((n, i) => n + i.warmupSets + i.workingSets, 0);
@@ -162,7 +169,7 @@ export function TodayScreen() {
             <Icon name="drop" size={18} style={{ color: 'var(--c-water)' }} /><span className="num small" style={{ fontWeight: 600, minWidth: '4ch', textAlign: 'center' }}><Roll text={fmtNum(water.ml, lang, 0)} /></span>
           </button>}
         </div>}
-        {wd.recents && recents.length > 0 && <div className="chips" style={{ marginTop: 14, justifyContent: 'safe center' }}>{recents.map((r) => <button key={r.id} className="chip press" onClick={() => quickLog(r.id, r.qty)} aria-label={`${t('Add')} ${r.name}`}>+ {r.name.split(',')[0]}</button>)}</div>}
+        {wd.recents && recents.length > 0 && <SoftChips style={{ marginTop: 14, justifyContent: 'safe center' }}>{recents.map((r) => <button key={r.id} className="chip press" onClick={() => quickLog(r.id, r.qty)} aria-label={`${t('Add')} ${r.name}`}>+ {r.name.split(',')[0]}</button>)}</SoftChips>}
       </section>
 
       {/* ── workout ── */}
@@ -225,10 +232,10 @@ export function TodayScreen() {
                 <div className="display" style={{ fontSize: 46, fontStyle: 'italic', opacity: .85 }}>{t('Rest day')}</div>
                 <button className="icon-btn press" aria-label={t('Empty session')} onClick={() => start()}><Icon name="plus" /></button>
               </div>
-              <div className="chips" style={{ marginTop: 14 }}>
+              <SoftChips style={{ marginTop: 14 }}>
                 {s.routines.slice(0, 5).map((r) => <button key={r.id} className="chip press" onClick={() => start(r)}>{r.name}</button>)}
                 <button className="chip acc press" onClick={() => push('activity', { kind: 'wrestling' })}><Icon name="wrestle" size={15} /> {t('Wrestling')}</button>
-              </div>
+              </SoftChips>
             </div>
           )}
         </div>
@@ -274,8 +281,8 @@ export function TodayScreen() {
           return (
             <button key={w.d} className="press" onClick={() => setTab('train')} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }} aria-label={`${fmtDate(w.d, lang)}${r ? `: ${r.name}` : ''}${w.done ? `, ${t('done')}` : ''}`}>
               <span className="micro" style={{ color: isToday ? 'var(--ac-text)' : undefined }}>{fmtWeekdayShort(weekdayOf(w.d), lang, true)}</span>
-              <span style={{ width: 36, height: 36, borderRadius: '50%', display: 'grid', placeItems: 'center', background: w.done ? 'var(--ac)' : w.wr ? 'var(--ac-soft)' : r || isToday ? 'var(--s2)' : 'transparent', color: w.done ? 'var(--ac-ink)' : w.wr ? 'var(--ac-text)' : 'var(--tx2)', boxShadow: w.done ? '0 0 18px -2px var(--ac)' : isToday ? 'inset 0 0 0 1.5px var(--ac), 0 0 18px -6px var(--ac)' : r ? 'inset 0 0 0 1px var(--line)' : undefined, fontSize: 12, fontWeight: 700 }}>
-                {/* a rest day is just a quiet dot: circles only where something is planned or done */}
+              <span style={{ width: 36, height: 36, borderRadius: '50%', display: 'grid', placeItems: 'center', background: w.done || w.wr ? 'var(--ac)' : r || isToday ? 'var(--s2)' : 'transparent', color: w.done || w.wr ? 'var(--ac-ink)' : 'var(--tx2)', boxShadow: w.done || w.wr ? '0 0 18px -2px var(--ac)' : isToday ? 'inset 0 0 0 1.5px var(--ac), 0 0 18px -6px var(--ac)' : r ? 'inset 0 0 0 1px var(--line)' : undefined, fontSize: 12, fontWeight: 700 }}>
+                {/* filled = done (the glyph says what: a check for the gym, the wrestler for the mat); a rest day is just a quiet dot */}
                 {w.done ? <Icon name="check" size={17} sw={2.6} /> : w.wr ? <Icon name="wrestle" size={17} /> : r ? r.name.slice(0, 1).toUpperCase() : w.pw ? <Icon name="wrestle" size={16} style={{ opacity: 0.75 }} /> : <i aria-hidden style={{ width: 4, height: 4, borderRadius: 4, background: 'var(--tx3)', opacity: 0.6 }} />}
               </span>
               {/* under it: a missed workout (red), or wrestling planned beside the gym (accent) */}
