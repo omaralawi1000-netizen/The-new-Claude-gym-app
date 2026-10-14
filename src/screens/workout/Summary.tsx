@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useStore, exerciseMap } from '../../state/store';
-import { useUI, haptic } from '../../state/ui';
+import { useUI, haptic, HAPTICS, type Haptic } from '../../state/ui';
 import { useT, useLang } from '../../lib/i18n';
 import { Icon } from '../../ui/Icon';
 import { NumInput } from '../../ui/kit';
@@ -33,6 +33,8 @@ function Odo({ text }: { text: string }) {
   );
 }
 
+const BUZZ_LEAD = 25; // ms: a phone's motor takes about this long to be felt after it is asked
+const RECORD_RISE = HAPTICS.record.slice(0, -1).reduce((a, b) => a + b, 0); // ms from the record pattern's start to its firm beat
 const celebrated = new Set<string>(); // a session's moment is felt once, not again when its summary is reopened
 const reduced = () => document.documentElement.dataset.motion === 'reduce' || (document.documentElement.dataset.motion !== 'full' && matchMedia('(prefers-reduced-motion: reduce)').matches);
 
@@ -62,9 +64,19 @@ export function Summary({ props }: { props: { sessionId: string } }) {
     const big: 'record' | 'finish' = recs.length ? 'record' : 'finish';
     const feel = !celebrated.has(ses.id); celebrated.add(ses.id);
     if (reduced()) { if (feel) haptic(big); stop.current = () => {}; return; }
-    const anim = play(el, fm);
-    const ids = feel ? [setTimeout(() => haptic(big), fm.medalLand * 1000), ...fm.settles.map((t) => setTimeout(() => haptic('tick'), t * 1000))] : [];
-    stop.current = () => { anim(); ids.forEach(clearTimeout); };
+    const { stop: anim, clock } = play(el, fm);
+    // Each buzz is fired from the animation's own clock, on the frame its beat is drawn: timers counted from here ran ahead
+    // of the picture (the first frame of the sheet comes late on a busy phone; measured 50-150 ms early). The record's
+    // rising pattern is started early so its firm last beat is the landing. A beat whose frame comes too late is dropped.
+    const beats: [number, Haptic][] = feel ? [[fm.medalLand * 1000 - (big === 'record' ? RECORD_RISE : 0), big], ...fm.settles.map((t): [number, Haptic] => [t * 1000, 'tick'])] : [];
+    let next = 0, raf = 0;
+    const pulse = () => {
+      const t = clock?.currentTime;
+      if (typeof t === 'number') for (; next < beats.length && t >= beats[next][0] - BUZZ_LEAD; next++) if (t <= beats[next][0] + 80) haptic(beats[next][1]);
+      if (next < beats.length && clock) raf = requestAnimationFrame(pulse);
+    };
+    if (beats.length) raf = requestAnimationFrame(pulse);
+    stop.current = () => { anim(); cancelAnimationFrame(raf); };
   }, [ses?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => stop.current?.(), []);
   // the orb fades out while the summary is up (styles.css, :root[data-finish])

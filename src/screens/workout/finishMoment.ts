@@ -59,8 +59,9 @@ export function plan(texts: string[]): Plan {
 
 const ROW = 1.15; // em: one digit's height in the odometer
 
-/** Plays the choreography on the summary's elements (found by data-fm). Returns a stop. */
-export function play(root: HTMLElement, p: Plan): () => void {
+/** Plays the choreography on the summary's elements (found by data-fm). Returns a stop, and its clock: one of its own
+ * animations, whose time is 0 on the frame the choreography really started (on a busy phone well after `play` is called). */
+export function play(root: HTMLElement, p: Plan): { stop: () => void; clock: Animation | undefined } {
   const all: Animation[] = [];
   const run = (el: Element | null | undefined, frames: Keyframe[], sp: { stiffness: number; damping: number }, delay: number, fill: FillMode = 'backwards', v0 = 0) => {
     if (!el) return;
@@ -103,5 +104,7 @@ export function play(root: HTMLElement, p: Plan): () => void {
   qa('after').forEach((el, i) => { run(el, [{ transform: 'translate3d(0, 12px, 0)' }, { transform: 'none' }], CARD_SPRING, p.line + 0.3 + i * 0.08); fade(el, p.line + 0.3 + i * 0.08); });
   // the settle: one fainter, slower breath of the medal's light
   ease(q('settle'), [{ opacity: 0, transform: 'scale(1)' }, { opacity: 0.4, transform: 'scale(1.08)', offset: 0.3 }, { opacity: 0, transform: 'scale(1.2)' }], 2, p.line + 0.25);
-  return () => all.forEach((a) => a.cancel());
+  // the clock is the one that runs longest (a finished animation's time stands still), started in the same frame as the rest
+  const end = (a: Animation) => Number(a.effect?.getComputedTiming().endTime ?? 0);
+  return { stop: () => all.forEach((a) => a.cancel()), clock: all.reduce<Animation | undefined>((m, a) => (!m || end(a) > end(m) ? a : m), undefined) };
 }
