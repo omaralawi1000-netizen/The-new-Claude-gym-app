@@ -90,9 +90,15 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   const EASE = 0.15;
   const qOf = (pp: number) => { const h = hold(), u = Math.max(0, (pp - h) / (1 - h)); return (u < EASE ? (u * u) / (2 * EASE) : u - EASE / 2) / (1 - EASE / 2); };
   const ppOf = (q: number) => { const h = hold(), v = q * (1 - EASE / 2), u = v < EASE / 2 ? Math.sqrt(2 * EASE * v) : v + EASE / 2; return h + u * (1 - h); };
-  // opening, it is all the way up at 99.7 % of the spring (which ends with no visible bounce): the spring's last few tenths
-  // of a pixel no longer creep in one screen pixel at a time, nor go past and come back
-  const landed = (pp: number) => (from.current && !leaving.current ? Math.min(1, pp / 0.997) : pp);
+  // Opening, the spring (no bounce) has a long tail: its last 2 % used to glide in a screen pixel at a time for a tenth of a
+  // second, then stop dead. Its last 2 % is eased out instead (the remaining distance squared: the same speed where it
+  // starts, slowing to nothing), so it settles softly and sooner, and the last half pixel is dropped (geo).
+  const LAND = 0.01;
+  const landed = (pp: number) => {
+    if (!from.current || leaving.current) return pp;
+    const u = 1 - pp, g = u >= 2 * LAND ? u - LAND : (u * u) / (4 * LAND);
+    return 1 - Math.max(0, g) / (1 - LAND);
+  };
   // how far the window has grown (0 = the card, 1 = the screen), eased in from the hold
   const qAt = (pp: number) => {
     const g = from.current;
@@ -131,10 +137,16 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   // overlapping fade, before it moves; minimising, the same in reverse as it lands. The window is never an empty card (v3
   // let the card's words go first, and for a few frames it was a blank slab), and its page is there from the first frame
   // and grows with it, as on iOS, instead of fading in later down the window.
-  const CARD_OFF = 0.074, IN0 = 0.015, IN1 = 0.1;
-  const inside = (pp: number) => (from.current ? clamp01((pp - IN0) / (IN1 - IN0)) : 1);
+  // (minimising, the tail is slow, so the two barely overlap: the workout's words go, then the card's come back on its own
+  // surface; overlapping there, the two sets of words lay over each other for a tenth of a second)
+  const cardOff = () => (leaving.current ? 0.05 : 0.074);
+  const IN0 = () => (leaving.current ? 0.04 : 0.015), IN1 = 0.1;
+  const inside = (pp: number) => (from.current ? clamp01((pp - IN0()) / (IN1 - IN0())) : 1);
   // the card in the page: 1 = itself, 0 = the window has taken its place (its surface and its words)
-  const card = (pp: number) => 1 - clamp01((pp - 0.004) / (CARD_OFF - 0.004));
+  const card = (pp: number) => 1 - clamp01((pp - 0.004) / (cardOff() - 0.004));
+  // the card's own surface stays under the copy until the copy is whole (a frosted bar faded under a fading copy let the
+  // page's words show through it sharp), and goes, unseen, the moment the window sets off (back the moment it lands)
+  const under = (pp: number) => 1 - clamp01((pp - (cardOff() - 0.002)) / 0.002);
   // The page behind steps back while the window grows: it dims and sinks a touch (the sheets' own step back, v0.1.76:
   // contentTransform, to 95 %), the two in step. It starts as the window sets off and is back at rest before the window lands
   // in the card on the way down (so the card is exactly where it was measured); at the top it lets go only once the window
@@ -245,9 +257,12 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   // the card itself while the window stands in for it: its surface and its words follow `card` (and are handed back whole
   // once the window is up, or has landed)
   const src = useRef<HTMLElement[]>([]);
-  const lastCard = useRef(-1);
-  const showCard = (v: number) => { if (v === lastCard.current) return; lastCard.current = v; for (const el of src.current) el.style.opacity = v >= 1 ? '' : String(v); };
-  const releaseCard = () => { for (const el of src.current) el.style.opacity = ''; src.current = []; lastCard.current = -1; };
+  const lastCard = useRef('');
+  const showCard = (v: number, u: number) => {
+    const key = `${v}|${u}`; if (key === lastCard.current) return; lastCard.current = key;
+    src.current.forEach((el, i) => { const o = i ? v : u; el.style.opacity = o >= 1 ? '' : String(o); });
+  };
+  const releaseCard = () => { for (const el of src.current) el.style.opacity = ''; src.current = []; lastCard.current = ''; };
   const showSkin = (v: number) => { const s = skinRef.current; if (s) s.style.opacity = String(v); };
   const dropSkin = () => { const s = skinRef.current; if (!s) return; s.replaceChildren(); s.style.display = ''; s.style.opacity = ''; s.style.background = ''; };
   // the page behind (its screen and dock, as a sheet steps it back: App.tsx useStageDepth), written only while it is moved
@@ -261,7 +276,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   };
   useEffect(() => p.on('change', (pp) => {
     if (!reduce) sink(env(pp));
-    if (!from.current || !src.current.length) return; const c = card(pp); showCard(c); showSkin(1 - c);
+    if (!from.current || !src.current.length) return; const c = card(pp); showCard(c, under(pp)); showSkin(1 - c);
   }), [p, reduce]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => sink(0), []); // eslint-disable-line react-hooks/exhaustive-deps
   const slotRest = useRef<{ left: number; top: number; width: number; height: number } | undefined>(undefined);
@@ -320,7 +335,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
       morph ? mirrorProgress(bclipRef.current, p0, p1, sp, vel, (pp) => ({ transform: bAt(pp) }), [], true) : null,
       morph ? mirrorProgress(bshiftRef.current, p0, p1, sp, vel, (pp) => ({ transform: cAt(pp) }), [], true) : null,
       morph ? mirrorProgress(solidRef.current, p0, p1, sp, vel, (pp) => ({ opacity: String(solid(pp)) }), [hold(), hold() + 0.1]) : null,
-      ...(morph ? [skinRef.current, ...src.current].map((el, i) => mirrorProgress(el, p0, p1, sp, vel, (pp) => ({ opacity: String(i ? card(pp) : 1 - card(pp)) }), [0.004, CARD_OFF])) : []),
+      ...(morph ? [skinRef.current, ...src.current].map((el, i) => mirrorProgress(el, p0, p1, sp, vel, (pp) => ({ opacity: String(i === 0 ? 1 - card(pp) : i === 1 ? under(pp) : card(pp)) }), [0.004, cardOff() - 0.002, cardOff()])) : []),
       morph ? mirrorProgress(dimRef.current, p0, p1, sp, vel, (pp) => ({ opacity: String(dim(pp)) }), ENV) : null,
       morph ? mirrorProgress(stageEl(), p0, p1, sp, vel, (pp) => ({ transform: contentTransform(env(pp)) }), ENV) : null,
       morph ? null : mirrorProgress(shadeRef.current, p0, p1, sp, vel, (pp) => ({ opacity: String(shade(pp)) }), [0.12, 0.7]),
