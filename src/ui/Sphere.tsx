@@ -42,15 +42,16 @@ useStore.subscribe((st, prev) => {
 export function orbTap(strength = 1) { tapPending = Math.max(tapPending, strength); pressTarget = 0; }
 
 // ── the launch (ui/launch.ts) ──
-// The app opens on the launch screen's logo (index.html), an Ember orb of dots. The live orb takes its place in the same
-// colours (so nothing changes colour as one becomes the other) and turns into the palette's colours as it flies down to the
-// dock. `launchTint` is set before the stage starts; `tintGoAt` is when the change of colour starts.
+// The app opens on the launch screen's logo (index.html), an Ember orb of dots. The live orb takes its place drawn as that
+// very logo (same dots, colours and size, so the swap can't be seen), becomes the sphere as it flies down to the dock and
+// turns into the palette's colours on the way. `launchTint` is set before the stage starts; `tintGoAt` is when the change
+// of colour starts.
 let launchTint = false, tintGoAt = 0;
 export function orbLaunchTint() { launchTint = true; }
 export function orbTintGo() { tintGoAt = performance.now(); }
-let launchBright = 0;
-/** How much the orb is still drawn as the launch logo (1 … 0, see OrbInputs.bright). */
-export function orbBright(v: number) { launchBright = v; }
+let launchLogo: number | undefined;
+/** The orb drawn as the launch logo (1), or turning into itself (0; see OrbInputs.logo). */
+export function orbLogo(v: number | undefined) { launchLogo = v; }
 /** Resolves once the orb has drawn its first frame (on the page or in its worker). */
 let drawnResolve: () => void = () => {};
 export const orbDrawn = new Promise<void>((r) => { drawnResolve = () => { performance.mark('aven:orb'); r(); }; });
@@ -79,7 +80,7 @@ function orbInputs(): OrbInputs {
   // resting between sets (counting, not paused, not yet over): the orb's light breathes with you
   const a = useStore.getState().active;
   const rest = a?.rest && !a.pausedAt && a.rest.endsAt > Date.now() ? 1 : 0;
-  return { phase: v.phase, phaseAge: (performance.now() - v.since) / 1000, live, raw: live ? mic.voice() : 0, bands: live ? mic.bands() : null, press: pressTarget, tap, whoosh, ignite, voiceOut: speakingLevel(), rest, beat, bright: launchBright };
+  return { phase: v.phase, phaseAge: (performance.now() - v.since) / 1000, live, raw: live ? mic.voice() : 0, bands: live ? mic.bands() : null, press: pressTarget, tap, whoosh, ignite, voiceOut: speakingLevel(), rest, beat, logo: launchLogo };
 }
 
 // ── stage ───────────────────────────────────────────────────
@@ -313,7 +314,7 @@ export function SphereStage() {
       if (fadeStart === Infinity && tintGoAt) fadeStart = tintGoAt;
       if (!fadeStart) return;
       if (launchFade && fadeStart !== Infinity) {
-        const k = Math.min(1, Math.max(0, (now - fadeStart) / 750));
+        const k = Math.min(1, Math.max(0, (now - fadeStart) / 420));
         if (k < 1) { colors = from; launchMix = easeInOut(k); return; }
         colors = to; launchMix = -1; launchFade = false; fadeStart = 0; return;
       }
@@ -600,7 +601,8 @@ export function SphereStage() {
       }
       // A big orb is soft light, not fine detail: at 2× it looks the same as at 3×, with less than half the pixels to fill and
       // hand to the screen every frame (that hand-over was most of the orb screen's cost). Small orbs keep full sharpness.
-      const dpr = Math.min(bucket > 120 ? 2 : 3, window.devicePixelRatio || 1);
+      // (the launch logo is drawn at full sharpness: it takes over from a picture drawn at the screen's own resolution)
+      const dpr = Math.min(bucket > 120 && launchLogo === undefined ? 2 : 3, window.devicePixelRatio || 1);
       // Sitting still in the tab bar under an open sheet/overlay: keep the last frame instead of redrawing, so the
       // frosted layers above stop re-blurring it every frame.
       const still = Math.abs(X - px) < 0.05 && Math.abs(Y - py) < 0.05 && Math.abs(S - ps) < 0.05;

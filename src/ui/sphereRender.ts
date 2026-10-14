@@ -6,6 +6,8 @@
 // One pattern everywhere: the same 400 evenly spaced beads whether the orb is a 44 px button in the dock or the 250 px orb
 // screen — only the scale changes, so it is recognisably the same object wherever it goes (it used to be a sparse, patchy
 // sample of a 1100-dot lattice when small and a dense one when big).
+import { LOGO } from './logoDots';
+
 const N = 400;
 type V3 = Float32Array;
 
@@ -92,12 +94,13 @@ export interface OrbInputs {
   rest?: number;
   /** a set was just ticked (strength): one soft heartbeat of light and a single ring of the success colour; consumed */
   beat?: number;
-  /** the launch (0..1): at 1 the sphere is drawn as the launch logo is, its near side evenly lit and its far side hidden, so
-   *  the logo can become it; it eases to 0 (its own look) as it flies to the dock */
-  bright?: number;
+  /** the launch: 1 = drawn as the launch logo, exactly (its flat dots, colours and size, scripts/orb-svg.mjs), so the logo
+   *  can be swapped for it unseen; set to 0, it becomes the sphere on its own clock (each bead flows from its logo dot
+   *  to its place on the turning sphere, ~0.4 s) */
+  logo?: number;
   /** a change of palette as a crossfade (the launch: from the logo's ember to the palette's colours): each bead turns from
-   *  `colors` to `colorsTo` on its own beat as `colorMix` goes 0 → 1, so the sphere is a mix of beads in either colour and
-   *  never a blend of the two (ember and teal blended are grey) */
+   *  `colors` to `colorsTo` as `colorMix` goes 0 → 1, in one wave from the bottom (the side it is heading for) to the top,
+   *  each bead in one step: never a blend of the two (ember and teal blended are grey) */
   colorsTo?: SphereColors;
   colorMix?: number;
 }
@@ -129,6 +132,12 @@ export class SphereRenderer {
   private restK = 0;                       // how far into its resting breath it is (smoothed 0..1, so it eases in and out)
   private ign = -1;                        // seconds into the arrival spiral (-1: none)
   private ignTop = false;                  // its front has reached the top (the whole orb lit up)
+  private lk = 0;                          // how much it is still the launch logo (1 … 0)
+  private lt = -1;                         // seconds into becoming the sphere (-1: not yet)
+  /** each bead's logo dot (-1: on the far side, it isn't in the logo), its share of that dot's light, and the logo dots no
+   *  near bead is closest to (drawn by their nearest bead's twin, fading as the sphere forms). Fixed when the logo is
+   *  first drawn, so no bead ever changes dot. */
+  private lmap: { dot: Int16Array; w: Float32Array; extra: { j: number; n: number }[] } | null = null;
   /** how loudly you are speaking right now, 0..1 (time-smoothed) — for things around the orb that should breathe with it */
   get voice() { return Math.min(1, this.body * 0.75 + this.env * 0.45); }
   constructor(private canvas: HTMLCanvasElement | OffscreenCanvas) { this.ctx = canvas.getContext('2d') as Ctx2D; }
@@ -197,6 +206,14 @@ export class SphereRenderer {
     this.spin *= Math.exp(-dt * 3.2); this.flash *= Math.exp(-dt * 3.6);
     const speed = reduced ? 0 : this.cur.rotSpeed * (1 + Math.max(0, this.kick) * 2) + this.spin;
     this.rot += dt * speed;
+    // the launch logo, and its turning into the sphere: an ease of its own, drawn on this clock (so at the screen's rate)
+    if (inp.logo !== undefined && inp.logo >= 1 && this.lt < 0) this.lk = 1;
+    else if (this.lk > 0) {
+      if (this.lt < 0) this.lt = 0; else this.lt += dt;
+      this.lk = reduced ? 0 : 1 - easeIO(this.lt / 0.42);
+      if (this.lk <= 0) { this.lk = 0; this.lmap = null; }
+    }
+    const LK = this.lk;
 
     // real input — zero unless the microphone is genuinely live. Everything is smoothed here by TIME (not per call), with a
     // very fast attack so a syllable lands on the very frame it starts, and a slower release so it fades like a bell.
@@ -242,7 +259,7 @@ export class SphereRenderer {
     // the inner light breathes slowly at rest; during a rest between sets the breath is deeper (same slow beat, ~6 s, so it
     // never jumps) and the light sits a little higher, as if it were waiting with you
     const breathe = reduced ? 1 : 1 + (0.16 + 0.3 * this.restK) * Math.sin(this.t * 1.05);
-    const haloA = breathe * (this.cur.halo + this.restK * 0.18 + this.body * 0.55 + this.env * 0.25 + Math.max(0, this.kick) * 0.25 + this.press * 0.35 + this.flash * 0.6) * (1 - this.cur.dim * 0.8);
+    const haloA = (1 - LK) * breathe * (this.cur.halo + this.restK * 0.18 + this.body * 0.55 + this.env * 0.25 + Math.max(0, this.kick) * 0.25 + this.press * 0.35 + this.flash * 0.6) * (1 - this.cur.dim * 0.8);
     if (haloA > 0.01) {
       const gr = ctx.createRadialGradient(c, c, R * 0.15, c, c, c * 0.98);
       gr.addColorStop(0, `rgba(${hi[0] | 0},${hi[1] | 0},${hi[2] | 0},${Math.min(0.55, haloA * (dark ? 0.55 : 0.4))})`);
@@ -252,7 +269,6 @@ export class SphereRenderer {
     }
 
     const nf = N, count = N;
-    const lift = Math.min(1, Math.max(0, inp.bright ?? 0));
     const tilt = 0.42 + Math.sin(this.t * 0.37) * (reduced ? 0 : 0.06);
     const cr = Math.cos(this.rot), sr = Math.sin(this.rot), ct = Math.cos(tilt), st = Math.sin(tilt);
     const confirmAge = v.phase === 'confirmed' ? inp.phaseAge : 9;
@@ -276,7 +292,7 @@ export class SphereRenderer {
     const xk = inp.colorsTo && inp.colorMix !== undefined ? Math.min(1, Math.max(0, inp.colorMix)) : 0;
     const NM = xk > 0 && xk < 1 ? 2 : 1; // the crossfade: each bead is either the old colour or the new one (1 = none)
     const buckets: number[][] = Array.from({ length: NB * NH * NM }, () => []);
-    const dots: { x: number; y: number; r: number }[] = new Array(count);
+    const dots: { x: number; y: number; r: number; z: number }[] = new Array(count);
     const tone = new Uint8Array(count); // 0 = base colour, 1 = highlight, 2 = ok
 
     for (let n = 0; n < count; n++) {
@@ -370,15 +386,14 @@ export class SphereRenderer {
       // keeps its depth while you speak (it used to blow out to an even white, front and back alike)
       glow = this.cur.glow + (glow - this.cur.glow) * (0.3 + 0.7 * depth);
       let sh = Math.min(1, 0.16 + 0.84 * Math.pow(depth, 1.25) * (0.42 + 0.58 * lam) + rim + Math.max(0, glow - 0.4) * 0.25 * depth);
-      if (lift > 0.001) sh += ((z2 > -0.05 ? 0.5 + 0.5 * Math.min(1, lam * 1.4) : 0) - sh) * lift; // the logo: front lit, back hidden
       const size = spacing * 0.24 * (0.35 + 1.05 * depth) * (1 + Math.min(1, glow) * 0.16);
-      dots[n] = { x: px, y: py, r: size };
+      dots[n] = { x: px, y: py, r: size, z: z2 };
       tone[n] = okMix > 0.25 && depth > 0.42 ? 2 : glow * (0.4 + 0.6 * depth) > 1.25 ? 1 : 0; // highlights are sparkles on the near side, not a wash
       const hueMix = 0.5 + 0.5 * Math.sin(az * 1 + y * 1.6 - T * 0.6); // the second colour drifts around the surface
       const hb = Math.min(NH - 1, Math.floor(hueMix * NH));
-      // crossfade: each bead swaps at its own moment of the change (a fixed shuffle of when), in one step: never a blend of
-      // the two colours, which reads pale pink-white between ember and teal
-      const qm = NM > 1 && xk >= 0.19 + 0.62 * ((i * 0.6180339887) % 1) ? 1 : 0;
+      // crossfade: one wave of the new colour from the bottom of the orb (on screen) to its top, a little ragged at its edge
+      // so it reads as light flowing over the beads, each bead in one step: never a blend of the two colours (it reads grey)
+      const qm = NM > 1 && xk >= 0.1 + 0.72 * ((1 - y2) / 2) + 0.08 * (((i * 0.6180339887) % 1) - 0.5) ? 1 : 0;
       buckets[(qm * NB + Math.min(NB - 1, Math.floor(sh * NB))) * NH + hb].push(n);
     }
 
@@ -401,7 +416,7 @@ export class SphereRenderer {
       if (dimK > 0.01) { const grey = dark ? 120 : 140; r += (grey - r) * dimK; g += (grey - g) * dimK; bl += (grey - bl) * dimK; }
       return [r, g, bl];
     };
-    const alphaOf = (b: number) => (b === 0 && lift > 0.001 ? 1 - lift : 1) * (0.14 + (b / (NB - 1)) * 0.86) * (dark ? 0.8 + 0.2 * lift : 1) * fade;
+    const alphaOf = (b: number) => (0.14 + (b / (NB - 1)) * 0.86) * (dark ? 0.8 : 1) * fade;
     const rgba = (c3: RGB, a: number) => `rgba(${c3[0] | 0},${c3[1] | 0},${c3[2] | 0},${a.toFixed(3)})`;
     const whiten = (c3: RGB, k: number): RGB => [c3[0] + (255 - c3[0]) * k, c3[1] + (255 - c3[1]) * k, c3[2] + (255 - c3[2]) * k];
     /** one pass over a set of beads: every bead in it as a disc of `scale` × its size */
@@ -414,7 +429,9 @@ export class SphereRenderer {
     // disc under it), its core is crisp, and the brightest ones have a white-hot heart. The far side stays small and quiet,
     // so the sphere reads as deep glass with light inside it.
     const glowK = 0.1;
-    for (let q = 0; q < NM; q++) {
+    if (LK > 0) {
+      this.drawLogo(LK, c, R, dots, buckets, NB, NH, NM, (b, h, q) => tint(b, h, q), alphaOf, dark, glowK);
+    } else for (let q = 0; q < NM; q++) {
       const at = (b: number, h: number) => buckets[(q * NB + b) * NH + h];
       if (dark) for (let b = 4; b < NB; b++) for (let h = 0; h < NH; h++) { const list = at(b, h); if (list.length) pass(list, 0, 2.0, rgba(tint(b, h, q), alphaOf(b) * glowK)); }
       for (let b = 0; b < NB; b++) for (let h = 0; h < NH; h++) { const list = at(b, h); if (list.length) pass(list, 0, 0.96, rgba(tint(b, h, q), alphaOf(b))); }
@@ -422,17 +439,19 @@ export class SphereRenderer {
     }
     // highlights (a flash, a comet, the arrival spiral): sparkles with a halo and a white heart
     const hiC: RGB = [Math.min(255, hi[0] + 30), Math.min(255, hi[1] + 50), Math.min(255, hi[2] + 50)];
-    if (dark) pass(ALL, 1, 2.6, rgba(hiC, 0.16));
-    pass(ALL, 1, 1.05, rgba(hiC, 0.95));
-    if (dark) pass(ALL, 1, 0.5, rgba(whiten(hiC, 0.8), 0.7));
-    // done: the success colour
-    if (dark) pass(ALL, 2, 2.6, rgba(ok, 0.16));
-    pass(ALL, 2, 1.1, rgba(ok, 0.98));
+    if (LK <= 0) {
+      if (dark) pass(ALL, 1, 2.6, rgba(hiC, 0.16));
+      pass(ALL, 1, 1.05, rgba(hiC, 0.95));
+      if (dark) pass(ALL, 1, 0.5, rgba(whiten(hiC, 0.8), 0.7));
+      // done: the success colour
+      if (dark) pass(ALL, 2, 2.6, rgba(ok, 0.16));
+      pass(ALL, 2, 1.1, rgba(ok, 0.98));
+    }
     // The glass it is made of: a fine bright edge exactly on its outline (where glass catches the light) and a soft reflection
     // at the top left, where the light comes from. Both are light only and sit still while the beads turn inside.
     const Rs = R * 1.03; // the outline, perspective included
     const edge = whiten([hi[0] + (alt[0] - hi[0]) * 0.4, hi[1] + (alt[1] - hi[1]) * 0.4, hi[2] + (alt[2] - hi[2]) * 0.4], 0.35);
-    const ek = (dark ? 1 : 0.7) * fade;
+    const ek = (dark ? 1 : 0.7) * fade * (1 - LK);
     const rim = ctx.createRadialGradient(c, c, Rs * 0.8, c, c, Rs * 1.07);
     rim.addColorStop(0, rgba(edge, 0));
     rim.addColorStop(0.5, rgba(edge, 0.035 * ek));
@@ -442,8 +461,8 @@ export class SphereRenderer {
     ctx.fillStyle = rim; ctx.beginPath(); ctx.arc(c, c, Rs * 1.07, 0, TAU); ctx.fill();
     const sx = c - R * 0.34, sy = c - R * 0.4;
     const gloss = ctx.createRadialGradient(sx, sy, 0, sx, sy, R * 0.66);
-    gloss.addColorStop(0, `rgba(255,255,255,${(dark ? 0.085 : 0.1) * fade})`);
-    gloss.addColorStop(0.45, `rgba(255,255,255,${(dark ? 0.03 : 0.035) * fade})`);
+    gloss.addColorStop(0, `rgba(255,255,255,${(dark ? 0.085 : 0.1) * fade * (1 - LK)})`);
+    gloss.addColorStop(0.45, `rgba(255,255,255,${(dark ? 0.03 : 0.035) * fade * (1 - LK)})`);
     gloss.addColorStop(1, 'rgba(255,255,255,0)');
     ctx.save(); ctx.beginPath(); ctx.arc(c, c, Rs, 0, TAU); ctx.clip();
     ctx.fillStyle = gloss; ctx.fillRect(c - Rs, c - Rs, Rs * 2, Rs * 2);
@@ -463,5 +482,64 @@ export class SphereRenderer {
         ctx.beginPath(); ctx.arc(c, c, rad, 0, TAU); ctx.stroke();
       }
     }
+  }
+
+  /**
+   * The launch logo becoming the sphere (k: 1 the logo … 0 the sphere). Every bead on the near side belongs to its nearest
+   * logo dot; at 1 the beads of a dot are drawn exactly on it, at its size and colour, sharing its light (added light, so
+   * two beads at half strength are the one dot), and the far side is dark: it is the logo, pixel for pixel. As k falls each
+   * bead flows from its dot to its own place on the turning sphere, its size, colour and light easing to its own, and the
+   * far side comes up. One set of dots throughout, so there is never a second grid.
+   */
+  private drawLogo(k: number, c: number, R: number, dots: { x: number; y: number; r: number; z: number }[], buckets: number[][],
+    NB: number, NH: number, NM: number, tint: (b: number, h: number, q: number) => RGB, alphaOf: (b: number) => number, dark: boolean, glowK: number) {
+    const ctx = this.ctx;
+    if (!this.lmap) {
+      const dot = new Int16Array(N).fill(-1), w = new Float32Array(N), many = new Uint16Array(LOGO.length);
+      const near = (x: number, y: number) => { let best = 0, bd = 1e9; for (let j = 0; j < LOGO.length; j++) { const dx = LOGO[j].x - x, dy = LOGO[j].y - y, d = dx * dx + dy * dy; if (d < bd) { bd = d; best = j; } } return best; };
+      for (let n = 0; n < N; n++) { const d = dots[n]; const j = near((d.x - c) / R, (d.y - c) / R); dot[n] = j; if (d.z > 0) many[j]++; }
+      for (let n = 0; n < N; n++) w[n] = dots[n].z > 0 ? 1 / many[dot[n]] : 0;
+      const extra: { j: number; n: number }[] = [];
+      for (let j = 0; j < LOGO.length; j++) {
+        if (many[j]) continue;
+        let best = 0, bd = 1e9;
+        for (let n = 0; n < N; n++) { if (dots[n].z <= 0) continue; const dx = (dots[n].x - c) / R - LOGO[j].x, dy = (dots[n].y - c) / R - LOGO[j].y, d = dx * dx + dy * dy; if (d < bd) { bd = d; best = n; } }
+        extra.push({ j, n: best });
+      }
+      this.lmap = { dot, w, extra };
+    }
+    const { dot, w, extra } = this.lmap;
+    // each bead's own look (its light level and hue, from the buckets)
+    const col = new Float32Array(N * 3), al = new Float32Array(N), lvl = new Uint8Array(N), now = new Uint8Array(N);
+    for (let q = 0; q < NM; q++) for (let b = 0; b < NB; b++) for (let h = 0; h < NH; h++) {
+      const list = buckets[(q * NB + b) * NH + h]; if (!list.length) continue;
+      const t = tint(b, h, q), a = alphaOf(b);
+      for (const n of list) { col[n * 3] = t[0]; col[n * 3 + 1] = t[1]; col[n * 3 + 2] = t[2]; al[n] = a; lvl[n] = b; now[n] = q; }
+    }
+    const f = (v: number) => v | 0;
+    const disc = (x: number, y: number, r: number, R3: number, G3: number, B3: number, a: number) => {
+      if (a < 0.002 || r < 0.05) return;
+      ctx.fillStyle = `rgba(${f(R3)},${f(G3)},${f(B3)},${a.toFixed(3)})`;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill();
+    };
+    const u = 1 - k;
+    ctx.globalCompositeOperation = 'lighter'; // shared dots add up to exactly the logo's dot
+    for (let n = 0; n < N; n++) {
+      const d = dots[n], L = LOGO[dot[n]];
+      const x = d.x * u + (c + L.x * R) * k, y = d.y * u + (c + L.y * R) * k;
+      const r = d.r * 0.96 * u + L.r * R * k;
+      // its colour eases from the logo's ember to its own; once it has turned to the new colour it is that colour outright
+      // (ember eased into teal would pass through grey)
+      const kc = now[n] ? 0 : k, uc = 1 - kc;
+      const R3 = col[n * 3] * uc + L.rgb[0] * kc, G3 = col[n * 3 + 1] * uc + L.rgb[1] * kc, B3 = col[n * 3 + 2] * uc + L.rgb[2] * kc;
+      if (dark && lvl[n] >= 4) disc(x, y, r * 2.0 / 0.96, col[n * 3], col[n * 3 + 1], col[n * 3 + 2], al[n] * glowK * u);
+      disc(x, y, r, R3, G3, B3, al[n] * u + w[n] * k);
+      if (dark && lvl[n] === NB - 1) disc(x, y, r * 0.36 / 0.96, col[n * 3] + (255 - col[n * 3]) * 0.6, col[n * 3 + 1] + (255 - col[n * 3 + 1]) * 0.6, col[n * 3 + 2] + (255 - col[n * 3 + 2]) * 0.6, al[n] * 0.36 * u);
+    }
+    for (const { j, n } of extra) {
+      const d = dots[n], L = LOGO[j];
+      disc(d.x * u + (c + L.x * R) * k, d.y * u + (c + L.y * R) * k, d.r * 0.96 * u + L.r * R * k, L.rgb[0], L.rgb[1], L.rgb[2], k);
+    }
+    ctx.globalCompositeOperation = dark ? 'lighter' : 'source-over';
   }
 }
