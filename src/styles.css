@@ -1288,10 +1288,25 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .coach-send.rec.cs-heard .cs-wave { opacity: 0; transform: scale(0.7); }
 .coach-send.rec.cs-heard .cs-go { opacity: 1; transform: none; }
 .meals-empty { padding: 6px 16px 6px 20px; }
-/* the empty day's card (or the meals) fading out before the other rises in, once the add sheet has gone (Food.tsx) */
-.subpage > .fading { animation: fade-away 220ms ease forwards; pointer-events: none; }
-@keyframes fade-away { to { opacity: 0; } }
-.subpage > .joined { animation-delay: calc((var(--i, 1) - 1) * 60ms); }
+/* the empty day's card turning into the meals (or back) as liquid glass (ui/liquid.ts, Food.tsx): while it plays the cards have
+   no glass of their own, an SVG outline behind them is their glass; the meals it swaps in don't rise in as new blocks do, and
+   keep their layer (will-change) so nothing flickers when it lets go */
+.subpage { position: relative; isolation: isolate; }
+.subpage > .liquid { position: absolute; left: 0; top: 0; z-index: -1; margin: 0; overflow: visible; pointer-events: none; visibility: hidden; animation: none; }
+.subpage > .lq-in { animation: none; will-change: transform; }
+.subpage > .lq-ghost-text { position: absolute; margin: 0; animation: none; pointer-events: none; z-index: 0; }
+.subpage > .plinth.lq-hide { background: none; box-shadow: none; }
+.subpage > .plinth.lq-hide::after, .lq-hide .meal-row::before { opacity: 0; }
+/* the shadow of a card, on its own so it can fade in alone (the card's box-shadow is off while the glass plays); the ghost is the
+   shadow of what was there before, fading out */
+.subpage > .plinth.lq-hide::before, .subpage > .lq-ghost { content: ''; position: absolute; inset: 0; border-radius: var(--r-md); box-shadow: var(--sh-c); pointer-events: none; z-index: -1; }
+.subpage > .lq-ghost { inset: auto; animation: none; margin: 0; }
+.liquid .lq-gl { fill: none; stroke-width: 2; stroke-linejoin: round; }
+.liquid .lq-g1 { stop-color: var(--hl); } .liquid .lq-g0 { stop-color: rgb(255 255 255 / 0); } .liquid .lq-g2 { stop-color: color-mix(in srgb, var(--hl) 40%, transparent); }
+.liquid .lq-fill { fill: var(--s1); }
+.liquid .lq-ring { fill: none; stroke: var(--line); stroke-width: 2; stroke-linejoin: round; }
+.liquid .lq-hl { fill: var(--hl); }
+.liquid .lq-div { fill: none; stroke: var(--line); stroke-width: 1; }
 .meal-row { width: 100%; display: flex; align-items: center; justify-content: space-between; padding: 14px 0; text-align: left; position: relative; }
 .meal-row + .meal-row::before { content: ''; position: absolute; top: 0; left: 0; right: 4px; height: 1px; background: var(--line); }
 .meal-bar { display: flex; gap: 3px; height: 3px; margin: 14px 4px 4px 0; }

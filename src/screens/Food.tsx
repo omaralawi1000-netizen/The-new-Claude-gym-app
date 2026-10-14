@@ -18,7 +18,9 @@ import type { FoodEntry } from '../lib/types';
 import { WaterTile } from './food/Water';
 import { WeekStrip } from './food/WeekStrip';
 import { SoftText } from '../ui/SoftText';
-import { flip } from '../ui/flip';
+import { liquidReduced } from '../ui/liquid';
+import { LiquidLayer } from '../ui/LiquidLayer';
+import { snapMeals, playMealsLiquid } from './food/liquidMeals';
 
 export function FoodScreen() {
   const t = useT();
@@ -43,27 +45,44 @@ export function FoodScreen() {
   }, [list]);
 
   // The first food of a day turns the empty card into the meals (and removing the last one turns them back). That waits until
-  // the sheet you added it from has gone, so it happens where you can see it: the old card fades out, the meals rise in and
-  // the cards below glide to their new place. Another day just shows what it has.
+  // the sheet you added it from has gone, so it happens where you can see it: the card's glass pulls apart like liquid into one
+  // card per meal, the texts ride on it and the cards below glide to their new place (ui/liquid.ts). Another day just shows
+  // what it has.
   const empty = list.length === 0;
   const covered = useUI((s) => s.overlays.length > 0);
   const [shown, setShown] = useState(empty);
-  const [leaving, setLeaving] = useState(false);
-  const [swapped, setSwapped] = useState(false); // what rose in after a swap starts at once, not after the screen's stagger
   const [shownDay, setShownDay] = useState(date);
-  if (shownDay !== date) { setShownDay(date); setShown(empty); setLeaving(false); setSwapped(false); }
+  const [lq, setLq] = useState(false); // the glass is playing: the cards have none of their own
+  const [lqIn, setLqIn] = useState(false); // the cards were swapped in by it: they don't rise in as new blocks do
+  if (shownDay !== date) { setShownDay(date); setShown(empty); setLq(false); setLqIn(false); }
   const screen = useRef<HTMLDivElement>(null);
+  const layer = useRef<SVGSVGElement>(null);
+  const closedAt = useRef(-1e9); // when the last pop-up closed
+  useEffect(() => { if (!covered) closedAt.current = performance.now(); }, [covered]);
   useEffect(() => {
-    if (shown === empty) { setLeaving(false); return; }
+    if (shown === empty) return;
     if (covered) return;
-    const t1 = setTimeout(() => setLeaving(true), 300); // the sheet has slid away by now
-    const t2 = setTimeout(() => {
-      const root = screen.current?.querySelector(':scope > .subpage:not([data-motion-pop-id])') ?? null;
-      flip(root, () => flushSync(() => { setShown(empty); setLeaving(false); setSwapped(true); }), 560);
-    }, 300 + 180);
-    return () => { clearTimeout(t1); clearTimeout(t2); };
+    const go = () => {
+      const root = screen.current?.querySelector<HTMLElement>(':scope > .subpage:not([data-motion-pop-id])') ?? null;
+      const svg = layer.current;
+      const before = root && svg && root.offsetHeight > 0 && !liquidReduced() ? snapMeals(root) : null;
+      if (!root || !svg || !before) { setShown(empty); return; }
+      flushSync(() => { setLq(true); setLqIn(true); setShown(empty); });
+      const after = snapMeals(root);
+      const run = after && playMealsLiquid(svg, before, after);
+      if (!run) { setLq(false); return; }
+      run.done.then(() => { flushSync(() => setLq(false)); run.cancel(); svg.style.visibility = 'hidden'; });
+    };
+    // once the sheet has slid away (it takes 380 ms), or a beat after a food was removed; counted in frames' time, like the animations
+    const t0 = performance.now();
+    const wait = Math.max(140, 440 - (t0 - closedAt.current));
+    let raf = 0;
+    const tick = () => { if (performance.now() - t0 >= wait) go(); else raf = requestAnimationFrame(tick); };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
   }, [shown, empty, covered]);
-  const fade = leaving ? ' fading' : swapped ? ' joined' : '';
+  const hide = lq ? ' lq-hide' : '';
+  const cls = (lqIn ? ' lq-in' : '') + hide;
 
   const rel = relativeDay(date, today, lang);
   const isFuture = date > today;
@@ -103,7 +122,7 @@ export function FoodScreen() {
 
       {shown && (
         // an empty day is one calm card: the meals as rows, each with its own +
-        <section className={`plinth meals-empty${fade}`} aria-label={date === today ? t('Nothing logged yet') : t('No entries for this day')}>
+        <section className={`plinth meals-empty${cls}`} aria-label={date === today ? t('Nothing logged yet') : t('No entries for this day')}>
           {settings.meals.map((m) => (
             <button key={m.id} className="meal-row press" aria-label={`${t('Add to')} ${mealName(m, lang)}`} onClick={() => add(m.id)}>
               <span className="meal-name display">{mealName(m, lang)}</span>
@@ -119,7 +138,7 @@ export function FoodScreen() {
         // the meal's calories split by macro, as one thin bar
         const pk = (ms.protein ?? 0) * 4, ck = (ms.carbs ?? 0) * 4, fk = (ms.fat ?? 0) * 9, tk = Math.max(1, pk + ck + fk);
         return (
-          <section key={m.id} className={`plinth meal${items.length ? '' : ' bare'}${fade}`} aria-label={mealName(m, lang)}>
+          <section key={m.id} className={`plinth meal${items.length ? '' : ' bare'}${cls}`} aria-label={mealName(m, lang)}>
             <div className="meal-head">
               <div className="grow" style={{ minWidth: 0 }}>
                 <div className="meal-name display">{mealName(m, lang)}</div>
@@ -152,6 +171,7 @@ export function FoodScreen() {
 
       {settings.widgets.water && <WaterTile date={date} />}
       <WeekStrip date={date} onPick={(d) => setFoodDate(d === today ? null : d)} />
+      <LiquidLayer ref={layer} />
       </Subpage>
     </div>
   );
