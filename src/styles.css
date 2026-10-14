@@ -2197,30 +2197,39 @@ html:root[data-glow='off'] .bgx:not([data-k='photo']) { display: none; }
    same everywhere. It used to be three recipes: a faint white lift (Classic, Orb light, Mesh, Colour per tab: cards
    took on the glow's colour), solid (Night sky, Dot field) and a darker frost (Time of day, Sunrise). Only the
    colours changed: no extra layer or blur. */
-:root:not([data-theme='light']) .screen { --s1: rgb(10 12 20 / .6); --s2: rgb(18 20 30 / .62); --s3: rgb(40 43 58 / .7); --bg-2: rgb(3 4 10 / .5);
-  --card-milk: rgba(140, 146, 160, .015); --card-sheen: rgba(255, 255, 255, .015); --card-hl: rgba(255, 255, 255, .19); --card-hl-w: .5px; --card-rim: rgba(255, 255, 255, .1);
-  --card-sh: 0 0 0 1px rgba(0, 0, 0, .3), 0 6px 14px -8px rgba(0, 0, 0, .3), 0 24px 48px -16px rgba(0, 0, 0, .3); }
-/* over a warm field (Ember, Sunset, Golden hour) the glass is just as clear, only tinted a touch cooler, so a warm glow
-   shows through as warm grey instead of turning the card orange or brown */
-:root:not([data-theme='light']):is([data-palette='ember'], [data-palette='sunset'], [data-palette='golden']) .screen { --s1: rgb(8 12 32 / .6); --s2: rgb(16 20 40 / .62); }
-:root[data-theme='light']:is([data-palette='ember'], [data-palette='sunset'], [data-palette='golden']) .screen { --s1: rgba(236, 243, 255, .4); --s2: rgba(242, 247, 255, .44); }
-/* where the background has sharp detail (stars, the dot field), a real frost would melt it: the cards stay denser there */
-:root:not([data-theme='light']):is([data-bg='night'], [data-bg='dots']) .screen { --s1: rgb(26 28 38 / .78); --s2: rgb(28 30 42 / .78); --s3: rgb(38 41 56 / .8); }
-:root[data-theme='light'] .screen { --s1: rgba(250, 251, 254, .4); --s2: rgba(255, 255, 255, .44);
-  --card-milk: rgba(238, 241, 248, 0); --card-sheen: rgba(255, 255, 255, .2); --card-hl: rgba(255, 255, 255, .92); --card-hl-w: 1px; --card-rim: rgba(20, 28, 48, .08);
-  --card-sh: 0 0 0 1px rgba(30, 40, 70, .035), 0 6px 14px -8px rgba(16, 18, 24, .07), 0 24px 44px -18px rgba(16, 18, 24, .09); }
-/* Cards on the tab screens are frosted glass painted once (Omar 14 Oct: "more transparent… frost under them… a white line so
-   it's 3D"): a neutral milk and a fine static grain inside (frost without a live blur), a faint sheen on the top half, a clear
-   white top edge and a fine rim, a dark contact line and a deep soft shadow. The milk keeps the field's colour from passing
-   straight through (a warm glow must not turn a card orange). No blur: nothing scrolls under a card and the field is already
-   soft, and a real frost here re-blurred every card on every frame (36 fps, see `.screen .plinth` above). Never animated. */
-/* the frost's grain is a ready-made image (a generated noise image had to be redrawn for every card while scrolling) */
-:root { --card-grain: url('./assets/card-grain-dark.png'); }
-:root[data-theme='light'] { --card-grain: url('./assets/card-grain.png'); }
-/* the grain: a 256 px tile of loose random specks (white and black at very low alpha, fainter on dark), large enough to never
-   show a repeat */
-:where(.screen) .plinth:where(:not(.dots, .dragging)) { background-image: linear-gradient(180deg, var(--card-sheen), transparent 58%), var(--card-grain), linear-gradient(var(--card-milk), var(--card-milk)); background-size: auto, 256px 256px, auto; }
-:where(.screen) .plinth:where(:not(.dragging)) { box-shadow: inset 0 var(--card-hl-w) 0 var(--card-hl), inset 0 0 0 1px var(--card-rim), var(--card-sh); }
+:root:not([data-theme='light']) .screen { --s1: rgb(17 19 29 / .72); --s2: rgb(23 25 37 / .76); --s3: rgb(36 39 54 / .8); --bg-2: rgb(3 4 10 / .5); }
+
+/* Lit glass cards (14 Oct): a see-through navy glass with a soft sheen at the top, a thin line of light along the top
+   edge that fades down the sides, and a soft shadow under it. Chips and round buttons inside a card are plain soft
+   fills with no outline (outlines inside an outlined card read as clutter). No blur, no grain, no colour tint: the
+   same cheap layers as before (one background, one shadow, the existing ::after rim). */
+:where(:root:not([data-theme='light'])) .screen .plinth {
+  background: rgb(30 33 52 / .58) linear-gradient(180deg, rgba(255, 255, 255, .055), rgba(255, 255, 255, .012) 55%, rgba(255, 255, 255, 0));
+  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, .25), 0 1px 1px rgba(0, 0, 0, .4), 0 14px 40px rgba(0, 0, 0, .6);
+}
+:where(:root:not([data-theme='light']):is([data-bg='sunrise'], [data-bg='time'])) .screen .plinth { background-color: rgb(22 25 40 / .74); } /* over a bright sun the glass darkens it, so grey text stays readable */
+:where(:root:not([data-theme='light'])) .screen .plinth::after { opacity: 1;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .2), rgba(255, 255, 255, .06) 24%, rgba(255, 255, 255, .025) 60%, rgba(255, 255, 255, .02)); }
+:where(:root[data-theme='light']) .screen .plinth {
+  background: rgb(255 255 255 / .6) linear-gradient(180deg, rgba(255, 255, 255, .35), rgba(255, 255, 255, 0) 55%);
+  box-shadow: 0 1px 1px rgba(30, 40, 70, .06), 0 14px 36px -12px rgba(30, 40, 70, .22);
+}
+:where(:root[data-theme='light']) .screen .plinth::after { opacity: 1;
+  background: linear-gradient(180deg, #fff, rgba(255, 255, 255, .6) 24%, rgba(20, 28, 48, .05) 70%, rgba(20, 28, 48, .08)); }
+.screen :is(.plinth, [data-wk='hero'] + div) :is(.chip:not(.on, .acc), .icon-btn:not(.flat, .acc)) { background: rgba(255, 255, 255, .07); box-shadow: none; }
+:root[data-theme='light'] .screen :is(.plinth, [data-wk='hero'] + div) :is(.chip:not(.on, .acc), .icon-btn:not(.flat, .acc)) { background: rgba(20, 28, 48, .055); }
+
+/* BETA TRIAL ONLY (not for the real app): "Liquid glass" cards. Same see-through navy, but light catches the rim at the
+   top-left corner and again, fainter, at the bottom-right, with a soft inner light at the top. */
+:where(:root:not([data-theme='light'])) .screen .plinth {
+  background: rgb(30 33 52 / .58) radial-gradient(120% 60% at 30% -10%, rgba(255, 255, 255, .075), rgba(255, 255, 255, 0) 60%);
+  box-shadow: inset 0 14px 28px -20px rgba(255, 255, 255, .16), inset 0 -10px 24px -20px rgba(160, 180, 255, .12), 0 1px 1px rgba(0, 0, 0, .4), 0 16px 40px -8px rgba(0, 0, 0, .6);
+}
+:where(:root:not([data-theme='light']):is([data-bg='sunrise'], [data-bg='time'])) .screen .plinth { background-color: rgb(22 25 40 / .74); }
+:where(:root:not([data-theme='light'])) .screen .plinth::after { padding: 1.5px;
+  background: linear-gradient(150deg, rgba(255, 255, 255, .4), rgba(255, 255, 255, .07) 26%, rgba(255, 255, 255, .015) 55%, rgba(255, 255, 255, .04) 80%, rgba(255, 255, 255, .1)); }
+:where(:root[data-theme='light']) .screen .plinth::after {
+  background: linear-gradient(150deg, #fff, rgba(255, 255, 255, .55) 26%, rgba(20, 28, 48, .04) 60%, rgba(20, 28, 48, .06) 80%, rgba(255, 255, 255, .7)); }
 
 /* Your photo: blurred once when you picked it, darkened here so cards and text stay easy to read */
 .bg-photo { background: center / cover no-repeat; background-color: var(--bg); }

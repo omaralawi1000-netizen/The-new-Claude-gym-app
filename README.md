@@ -2099,3 +2099,16 @@ layers (DevTools LayerTree) through opening, typing, sending and dictating at th
   260 ms from 80 ms on an ease (were 60 ms and 140 ms, straight), and settle the last 4 px up into place over 560 ms.
   The bar comes back after the bubble on an ease over 360 ms (was a straight 300 ms). "Ask the Coach", "Listening…" and
   "Transcribing…" cross over in 140 ms out, 240 ms in from 120 ms (were 90 and 150 from 90).
+
+## Lit glass cards (14 Oct 2026, v0.1.129)
+Omar: the cards "just look off", live and on Beta. A design look at his Today screen (Golden hour, dark) found two causes:
+an accent glow trapped in the workout card's top-right corner read as a stain (orange in Golden hour, green in Forest),
+and outlines stacked inside outlines (card rim, every chip rim, the + button rim). He picked from six looks on one page
+(Calm, Clear frost, Lit glass, Liquid glass, Etched, Fade away): **Lit glass** for the real app, Liquid glass to try on Beta.
+- Tab-screen cards (dark): see-through navy `rgb(30 33 52 / .58)` with a soft white sheen at the top, the existing `::after`
+  rim now bright along the top edge and fading down the sides, a soft shadow `0 14px 40px rgba(0,0,0,.6)`. Over the
+  bright Sunrise and Time of day backgrounds the fill is darker (`rgb(22 25 40 / .74)`) so grey text keeps its contrast.
+- Light: 60% white with a top sheen, white top rim, soft neutral shadow.
+- Chips and round buttons inside a card are plain soft fills with no outline.
+- The workout card's corner glow is gone (`Today.tsx`).
+- Same cost as before: no blur, no grain, no tint, no new layers.
