@@ -97,8 +97,9 @@ export function TabBar() {
   const covered = useUI((s) => s.overlays.some((o) => o.type === 'voice' || o.type === 'onboarding'));
   // the live workout: the bar steps aside as the window sets off, so the window's bottom edge, growing down, never crosses
   // it (waiting a beat, the bar stood still while that edge ran across it, and looked laid over the window). Out of Today's
-  // card it doesn't slide on its own: the window's bottom edge carries it down, and back up behind it (Active.tsx `dock`).
-  const wk = useUI((s) => s.overlays.some((o) => o.type === 'workout' && o.props?.origin !== 'hero'));
+  // card or the resume bar it doesn't slide on its own: the window's bottom edge carries it down, and back up behind it
+  // (Active.tsx `dock`), and the resume bar stays where it is, under the window, for it to land in again.
+  const wk = useUI((s) => s.overlays.some((o) => o.type === 'workout' && o.props?.origin !== 'hero' && o.props?.origin !== 'pill'));
   const hidden = covered || wk;
   const t = useT();
   const nav = useRef<HTMLElement>(null);

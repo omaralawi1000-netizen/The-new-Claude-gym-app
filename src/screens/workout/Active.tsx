@@ -134,11 +134,11 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
   // The card's words and the workout's own (its header, at the card's top: `lift`) cross in the card's outline, never both
   // showing: opening, the card's go over the first 3 % and the header comes in over 2.5-8 %, as the window sets off;
-  // minimising, the window's page and colour go over 14-10 % and the card's words come back over 10-5.5 %, all before it
-  // lands in the card (at 5 %): nothing fades once it has stopped. Its page is there from the first frame and grows with
+  // minimising, the window's page and colour go over 20-15 % and the card's words come back over 15-9 %, all while it is
+  // still visibly moving (it lands in the card at 5 %, the last stretch slow): nothing fades once it has come to rest. Its page is there from the first frame and grows with
   // it, as on iOS (v3 let the card's words go first and showed a blank slab; r4 crossed them over each other).
   const F = () => (leaving.current
-    ? { card: [0.055, 0.1], inside: [0.1, 0.14], solid: [0.1, 0.14] }
+    ? { card: [0.09, 0.15], inside: [0.15, 0.2], solid: [0.15, 0.2] }
     : { card: [0.002, 0.03], inside: [0.025, 0.08], solid: [hold(), hold() + 0.1] });
   const ramp = (pp: number, [a, b]: number[]) => clamp01((pp - a) / (b - a));
   const solid = (pp: number) => (from.current ? ramp(pp, F().solid) : 1);
@@ -275,7 +275,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     sunk.current = v >= 0.0005;
     el.style.transform = sunk.current ? contentTransform(v) : '';
   };
-  // The tab bar, grown out of Today's card (it may run on under the bar): the window's bottom edge carries the bar down as it
+  // The tab bar, grown out of Today's card (it may run on under the bar) or the resume bar: the window's bottom edge carries the bar down as it
   // grows and draws it back up behind it as it goes back, so the edge never crosses it, and the two land together. Its
   // place at rest in `dockAt`; the page it is on sinks (scale, from the middle), which the shift makes up for.
   const dockAt = useRef<number | null>(null);
@@ -283,8 +283,10 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   const dock = (pp: number) => {
     const n = dockAt.current, g = from.current, { hA, RB } = dims.current;
     if (n === null || !g) return 0;
+    // where its top is to be on the screen: where it rests, or under the window's bottom edge once that is past it (a card
+    // ending below the bar's top: once that is past where the card ends). It holds still while the page under it sinks.
     const bot = g.b + (hA - LEAD + RB - g.b) * qAt(pp), k = 1 - 0.05 * env(pp), c = H / 2;
-    const v = (bot - c) / k + c - Math.max(n, g.b); // (a card ending below the bar's top: from where it ends)
+    const v = (n + Math.max(0, bot - Math.max(n, g.b)) - c) / k + c - n;
     return v > 0.25 ? v : 0;
   };
   const dockT = (pp: number) => { const v = dock(pp); return v ? `translate3d(0, ${v.toFixed(2)}px, 0)` : 'none'; };
@@ -324,7 +326,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     from.current = ok ? { l: g.l - box.left, t: g.t - box.top, w: g.w, b: g.b - box.top } : null;
     radius.current = ok ? (g.r * box.width) / g.w : screenR();
     if (!ok || !g) { freeDock(); return; }
-    dockAt.current = g.bg.dataset.wk === 'hero' ? dockTop() : null;
+    dockAt.current = dockTop();
     if (dockAt.current === null) freeDock();
     // the card's surface, copied as it is drawn (its colours read off the card: the window has its own hue), without the
     // frost (nothing on a moving layer is blurred)
