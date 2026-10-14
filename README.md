@@ -2031,3 +2031,11 @@ and outlines stacked inside outlines (card rim, every chip rim, the + button rim
 - v0.1.130: Omar on v0.1.129: "They're not see-through. And why do they have this tint?" The navy fill (`rgb(30 33 52 / .58)`)
   read as solid blue-grey slabs on his warm Golden hour field. Now the dark fill is a neutral 4.5% white film (the field
   shows through, nothing is tinted); over Sunrise and Time of day a neutral dark film (`rgba(8,8,10,.42)`). Rim and shadow unchanged.
+
+## Food cards as liquid glass: PARKED trial, not shipped (14 Oct 2026, branch claude/project-thread-3z25ps)
+
+Omar asked for the Food diary's joined empty-day card to split into the four meal cards (and back) like iOS 26 liquid glass. Built and filmed (`scripts/film-liquid.mjs`), judged twice, but **never put on Beta or shipped**: Omar felt a once-a-day animation is unnecessary, so it is parked. The base (`src/ui/liquid.ts`, `liquidShape.ts`, `LiquidLayer.tsx`) is meant to be reused, for example for a Coach merge/split.
+
+How it works: one SVG outline behind the real cards is their glass while it plays (the cards get `.lq-hide`). Its `d` is animated from a spring sampled once, so the browser plays it at the screen's rate. The seams groove in, the join stretches into a thread on its own slow clock, lets go, and the cards spring apart. The glass reads fill, hairline, top light, rim and shadow from the real cards when a change starts (`readLook` in `liquidMeals.ts`), so it follows the card style.
+
+**Open problem that blocks Beta (hard rule: no GPU layers added or dropped at animation end).** The play promotes about 22 elements to their own layers (the cards, texts and the blocks below move with transform animations) and they drop when it ends. Measured in headless Chrome: layers 123 → 145 → 101 (main without this: 122 → 100). Before this goes anywhere near Beta, either give those elements a standing layer before the play that stays after it, or run the whole morph on one standing layer. The one extra permanent layer is the hidden SVG. Also still open: a small brightness step (about 2/255 on average) along the top of each card when the real card chrome takes over, because the cards' top sheen is not matched exactly.
