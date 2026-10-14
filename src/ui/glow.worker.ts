@@ -15,7 +15,7 @@ const rnd = () => { seed ^= seed << 13; seed ^= seed >>> 17; seed ^= seed << 5; 
 self.onmessage = (e: MessageEvent<{ id: number; job: GlowJob }>) => {
   const { id, job } = e.data;
   try {
-    const { w, h, base, glows, group, amp } = job;
+    const { w, h, base, glows, group, amp, grain } = job;
     const d = new ImageData(w, h), px = d.data;
     for (let y = 0; y < h; y++) {
       for (let x = 0; x < w; x++) {
@@ -33,9 +33,15 @@ self.onmessage = (e: MessageEvent<{ id: number; job: GlowJob }>) => {
         // triangular noise (the sum of two): the mean stays exact, nothing is left of the steps
         if (base) {
           // an opaque picture (the clamped array rounds to the nearest whole level)
-          px[i] = base[0] * (1 - a) + r + (rnd() + rnd() - 1) * amp;
-          px[i + 1] = base[1] * (1 - a) + g + (rnd() + rnd() - 1) * amp;
-          px[i + 2] = base[2] * (1 - a) + b + (rnd() + rnd() - 1) * amp;
+          let o0 = base[0] * (1 - a) + r, o1 = base[1] * (1 - a) + g, o2 = base[2] * (1 - a) + b;
+          if (grain && y >= grain.y0) {
+            // the grain as lib/grain.ts makes it (white, at a random strength: the product of two randoms), laid on top
+            const k = grain.g * rnd() * rnd();
+            o0 += (255 - o0) * k; o1 += (255 - o1) * k; o2 += (255 - o2) * k;
+          }
+          px[i] = o0 + (rnd() + rnd() - 1) * amp;
+          px[i + 1] = o1 + (rnd() + rnd() - 1) * amp;
+          px[i + 2] = o2 + (rnd() + rnd() - 1) * amp;
           px[i + 3] = 255;
         } else {
           // a see-through picture: the canvas keeps colour premultiplied by alpha, so the dither is chosen in that form and
@@ -51,7 +57,8 @@ self.onmessage = (e: MessageEvent<{ id: number; job: GlowJob }>) => {
         }
       }
     }
-    const cv = new OffscreenCanvas(w, h), cx = cv.getContext('2d', { alpha: !base });
+    // willReadFrequently: the picture stays in memory, not on the graphics chip (it is kept to show again at once)
+    const cv = new OffscreenCanvas(w, h), cx = cv.getContext('2d', { alpha: !base, willReadFrequently: true });
     if (!cx) throw new Error('no 2d');
     cx.putImageData(d, 0, 0);
     const bm = cv.transferToImageBitmap();

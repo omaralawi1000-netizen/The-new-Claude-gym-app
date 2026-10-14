@@ -1,4 +1,4 @@
-import { useEffect, type RefObject } from 'react';
+import { useLayoutEffect, type RefObject } from 'react';
 
 /**
  * Soft glows drawn as dithered pictures instead of CSS gradients (glow.worker.ts says why: on the phone a CSS gradient
@@ -7,8 +7,9 @@ import { useEffect, type RefObject } from 'react';
  * and drawn once into a canvas; until it is ready the CSS gradient shows, which is the same picture with the steps.
  */
 export interface Glow { cx: number; cy: number; rx: number; ry: number; stop: number; c: [number, number, number]; a: number }
-/** w×h canvas pixels; glows bottom first; `group` is the opacity of all of them together; `amp` the dither in levels */
-export interface GlowJob { w: number; h: number; base: [number, number, number] | null; glows: Glow[]; group: number; amp: number }
+/** w×h canvas pixels; glows bottom first; `group` is the opacity of all of them together; `amp` the dither in levels;
+ * `grain`: the film grain (lib/grain.ts) drawn in as well, at strength `g`, from row `y0` down (opaque pictures only) */
+export interface GlowJob { w: number; h: number; base: [number, number, number] | null; glows: Glow[]; group: number; amp: number; grain?: { g: number; y0: number } }
 
 let worker: Worker | null = null, broken = false, seq = 0;
 const waiting = new Map<number, (b: ImageBitmap | null) => void>();
@@ -52,7 +53,9 @@ export const glowScale = () => Math.max(1, (window.devicePixelRatio || 1) / 2);
  * when the page is idle and the window has settled, so it never competes with a motion.
  */
 export function useGlowCanvases(slot: string, host: () => HTMLElement | null, refs: RefObject<HTMLCanvasElement | null>[], describe: (host: HTMLElement) => (GlowJob | null)[] | null, shown: (on: boolean) => void) {
-  useEffect(() => {
+  // before the first paint, so a picture kept from before is there in the window's first frame: no layer is added or
+  // dropped once its motion has started
+  useLayoutEffect(() => {
     const el = host();
     if (!el || !glowCanvasOk()) return;
     let alive = true, shownKey = '', timer = 0, idle = 0;
