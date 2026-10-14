@@ -32,10 +32,10 @@ const CF_LINE = 22, CF_LINES = 4, CF_MAX = CF_LINE * (CF_LINES - 1); // its line
 const MORPH = springCurve(apple(0.62, 0.4));
 const MORPH_BACK = springCurve(apple(0.55, 0.15));
 const GROW = springCurve(apple(0.5, 0.25));
-// a sent message: its flight to its place, and its bubble gathering round the words (quicker, so it has its shape before
-// it is far from the field)
+// a sent message: its flight to its place, and the pill turning into its bubble (quicker: mostly done by 200 ms, so it
+// has its shape before it is far from the field)
 const FLY = springCurve(apple(0.6, 0.15));
-const FLY_SHAPE = springCurve(apple(0.42, 0.08));
+const FLY_SHAPE = springCurve(apple(0.34, 0.06));
 // the emptied pill closing up behind a sent message: firm, no bounce, already moving (past half closed by about 60 ms)
 const CLOSE = springCurve(apple(0.34), 14);
 const growVars = { '--cf-ease-g': GROW.easing, '--cf-dur-g': `${GROW.duration}ms` } as React.CSSProperties;
@@ -266,7 +266,6 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   // over to the real one where it lands. Browser-run (Web Animations on transform/opacity only), at the screen's full rate.
   const flyFrom = useRef(new Map<string, { x: number; y: number; fs: number; box: { l: number; r: number; t: number; b: number }; win: { t: number; b: number } }>());
   const flew = useRef(new Set<string>()); // these arrive by flight, not by the bubble's own rise
-  const dropAfter = useRef(false); // sent from the keyboard: it goes down when the message lands
   const flown = (id: string) => flew.current.has(id);
   useLayoutEffect(() => {
     const el = bodyRef.current;
@@ -295,8 +294,8 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       // its first line starts on the field's first line, letter on letter
       const dx = from.x - (B.left + parseFloat(cs.paddingLeft) * k);
       const dy = from.y - (B.top + parseFloat(cs.paddingTop) * k);
-      // the field's inside, in the copy's own units as it starts (where its bubble gathers from)
-      const W = B.width, H = B.height, R = 20, RS = 27 / k; // (RS: the pill's own corners)
+      // the pill as it was, in the copy's own units as it starts (where its bubble comes from)
+      const W = B.width, H = B.height, RS = 27 / k; // (RS: the pill's own corners)
       const x0 = (from.box.l - B.left - dx) / k, x1 = (from.box.r - B.left - dx) / k;
       const y0 = (from.box.t - B.top - dy) / k, y1 = (from.box.b - B.top - dy) / k;
       const solid = (c: string): [string, number] => { // a colour without its alpha, and the alpha
@@ -309,20 +308,49 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       copy.className = 'said coach-fly';
       copy.setAttribute('aria-hidden', 'true');
       Object.assign(copy.style, { left: `${B.left}px`, top: `${B.top}px`, width: `${W}px`, height: `${H}px` });
-      // its glass: one shadow, and the bubble's colour in pieces under one opacity (a cap each side and a middle that
-      // stretches), so its shape changes by moves alone, its corners never squashed; the bubble's tail corner settles in
+      // ONE SHAPE: it starts as the whole pill (its full width, its corners, its see-through tint, top sheen and rim, over
+      // the pill itself) and springs into the bubble (its size, corners 20 and the tail's 6), its colour turning from the
+      // pill's into the bubble's. A shape's size and corners can't be animated by moves alone, so it is cut into eight
+      // pieces (four corners, which scale evenly so a corner stays round, and four straight pieces between them), each
+      // moved and scaled on the same spring, so at every moment they make one outline. The two colours are that same set
+      // of pieces twice, each under one opacity (the pill's and the bubble's), so there is only ever the one outline.
       const sh = document.createElement('i'); sh.className = 'fly-sh'; sh.style.boxShadow = cs.boxShadow;
-      const glass = document.createElement('div'); glass.className = 'fly-glass'; glass.style.setProperty('--fly-fill', fill);
-      const mw = Math.max(2, W - 2 * R + 2), sw = Math.max(2, W - 2 * RS + 2);
-      glass.innerHTML = `<i class="fg-l"></i><i class="fg-m" style="width:${mw}px"></i><i class="fg-r"></i><i class="fg-tail"></i>`;
-      // for its first moments it is the pill's inside itself (the pill's corners, its solid colour): one object leaving the
-      // field, not a bubble drawn over the pill, and the pill's rim never shows through it
-      const skin = document.createElement('div'); skin.className = 'fly-skin'; skin.style.setProperty('--rs', `${RS}px`);
-      skin.innerHTML = `<i class="fs-l"></i><i class="fs-m" style="width:${sw}px"></i><i class="fs-r"></i>`;
+      type Geo = { L: number; R: number; T: number; B: number; r: number; q: number };
+      const g0: Geo = { L: x0, R: x1, T: y0, B: y1, r: RS, q: RS }, g1: Geo = { L: 0, R: W, T: 0, B: H, r: 20, q: 6 };
+      // [x, y, width, height] of each piece (the straight ones reach 1 px under their neighbours: no hairline between them)
+      const cut = ({ L, R, T, B: Bt, r, q }: Geo) => [
+        [L, T, r, r], [R - r, T, r, r], [L, Bt - r, r, r], [R - q, Bt - q, q, q],
+        [L + r - 1, T, Math.max(0, R - L - 2 * r) + 2, r],
+        [L, T + r - 1, R - L, Math.max(0, Bt - T - 2 * r) + 2],
+        [L + r - 1, Bt - r, Math.max(0, R - L - r - q) + 2, r],
+        [R - q, Bt - r, q, r - q + 1],
+      ];
+      const c0 = cut(g0), c1 = cut(g1);
+      const base = c0.map((a, i) => [Math.max(a[2], c1[i][2], 1), Math.max(a[3], c1[i][3], 1)]);
+      const names = ['tl', 'tr', 'bl', 'br', 'top', 'mid', 'bot', 'side'];
+      const pieces = (cls: string) => {
+        const group = document.createElement('div'); group.className = `fly-shape ${cls}`;
+        group.innerHTML = names.map((n, i) => `<i class="fp-${n}" style="width:${base[i][0]}px;height:${base[i][1]}px"></i>`).join('');
+        return group;
+      };
+      const pill = pieces('fly-pill'), tone = pieces('fly-tone'); tone.style.setProperty('--fly-fill', fill);
       const words = document.createElement('div'); words.className = 'fly-words'; words.style.color = ink;
       bubble.childNodes.forEach((n) => words.appendChild(n.cloneNode(true)));
-      copy.append(sh, skin, glass, words);
+      copy.append(sh, pill, tone, words);
       app.appendChild(copy);
+      // the send button stays where it is, above the pill-coloured shape leaving from under it (an exact stand-in for it,
+      // drawn over the flight until the shape has left)
+      const btn = composerRef.current?.querySelector<HTMLElement>('.coach-send');
+      const ss = btn && getComputedStyle(btn);
+      let stand: HTMLElement | null = null;
+      if (btn && ss && parseFloat(ss.opacity) > 0.01) {
+        const sr = btn.getBoundingClientRect();
+        stand = btn.cloneNode(true) as HTMLElement;
+        stand.className = 'coach-send on fly-send'; stand.removeAttribute('tabindex'); stand.setAttribute('aria-hidden', 'true');
+        Object.assign(stand.style, { left: `${sr.left + sr.width / 2 - btn.offsetWidth / 2}px`, top: `${sr.top + sr.height / 2 - btn.offsetHeight / 2}px`, transform: ss.transform, opacity: ss.opacity });
+        app.appendChild(stand);
+        if (ss.transform !== 'none') stand.animate([{ transform: ss.transform }, { transform: 'none' }], { duration: 360, easing: 'cubic-bezier(.2, .7, .2, 1)', fill: 'forwards' });
+      }
       // it joins a glide the list is still finishing, so its place is where the bubble will be once that is done
       const rider = ride.current?.(copy); const top0 = B.top - (rider?.off ?? 0); copy.style.top = `${top0}px`;
       bubble.style.visibility = 'hidden';
@@ -332,24 +360,19 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       const shape = { duration: FLY_SHAPE.duration, easing: FLY_SHAPE.easing, fill: 'forwards' as const };
       const fade = (ms: number, delay = 0) => ({ duration: ms, delay, easing: 'cubic-bezier(.3, 0, .2, 1)', fill: 'backwards' as const });
       const flight = go(copy.animate([{ transform: `translate(${dx}px, ${dy}px) scale(${k})` }, { transform: 'none' }], opts));
-      const [l, m, r, tail] = [...glass.children] as HTMLElement[];
-      const [sl, sm, sr] = [...skin.children] as HTMLElement[];
+      const place = (c: number[], i: number) => `translate(${c[0]}px, ${c[1]}px) scale(${c[2] / base[i][0]}, ${c[3] / base[i][1]})`;
+      for (const group of [pill, tone]) [...group.children].forEach((p, i) => go((p as HTMLElement).animate([{ transform: place(c0[i], i) }, { transform: place(c1[i], i) }], shape)));
       const sx = (x1 - x0) / W, sy = (y1 - y0) / H;
+      const op = parseFloat(getComputedStyle(copy).getPropertyValue('--fc-op')) || 0.5;
       [
-        ...[glass, skin].map((g) => go(g.animate([{ transform: `translateY(${y0}px) scaleY(${sy})` }, { transform: 'none' }], shape))),
-        go(skin.animate([{ opacity: 1 }, { opacity: 1, offset: 0.4 }, { opacity: 0 }], { duration: 200, easing: 'linear', fill: 'forwards' })),
-        go(sl.animate([{ transform: `translateX(${x0}px)` }, { transform: 'none' }], shape)),
-        go(sm.animate([{ transform: `translateX(${x0}px) scaleX(${Math.max(0, x1 - x0 - 2 * RS + 2) / sw})` }, { transform: 'none' }], shape)),
-        go(sr.animate([{ transform: `translateX(${x1 - W}px)` }, { transform: 'none' }], shape)),
-        go(glass.animate([{ opacity: 0 }, { opacity: fillA }], { ...fade(170, 60), fill: 'both' })),
-        go(l.animate([{ transform: `translateX(${x0}px)` }, { transform: 'none' }], shape)),
-        go(m.animate([{ transform: `translateX(${x0}px) scaleX(${Math.max(0, x1 - x0 - 2 * R + 2) / mw})` }, { transform: 'none' }], shape)),
-        ...[r, tail].map((p) => go(p.animate([{ transform: `translateX(${x1 - W}px)` }, { transform: 'none' }], shape))),
-        go(tail.animate([{ opacity: 0 }, { opacity: 1 }], fade(260, 90))),
+        // its colour turns from the pill's into the bubble's as it leaves the pill
+        go(pill.animate([{ opacity: op }, { opacity: 0 }], { ...fade(200, 40), fill: 'both' })),
+        go(tone.animate([{ opacity: 0 }, { opacity: fillA }], { ...fade(160, 40), fill: 'both' })),
         go(sh.animate([{ transform: `translate(${x0}px, ${y0}px) scale(${sx}, ${sy})`, opacity: 0 }, { transform: 'none', opacity: 1 }], shape)),
         // the field's bright ink settles to the bubble's softer one
         go(words.animate([{ opacity: 1 }, { opacity: inkA }], { ...fade(380, 60), fill: 'both' })),
       ];
+      if (stand) setTimeout(() => stand?.remove(), 280);
       // lines that were scrolled out of a long draft's view come in on the way, rather than appearing over the chat
       [...words.children].forEach((line, i) => {
         const ly = from.y + i * CF_LINE;
@@ -363,13 +386,12 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       // (told in the same frame when the list is moved from here, the keyboard's ride above all: the scroll event comes a
       // frame late, and the copy trailed its landing place by that frame while the keyboard went down)
       el.addEventListener('scroll', follow, { passive: true }); listMoved.current = follow;
-      // "Ask the Coach" (and the cursor) come back once the pill has mostly closed up behind the words, and with them the
-      // bar settles as one move: sent while typing, the keyboard goes (the list, at its end, rides down with it and the
-      // bubble's landing place with the list), the pill's left edge glides back and the camera returns. (The keyboard
-      // used to wait until the message had nearly landed: a second beat after everything else had settled.)
+      // "Ask the Coach" (and the cursor) come back once the pill has mostly closed up behind the words. Sent while typing,
+      // the keyboard stays up, as in iMessage, ready for the next message (it used to go down as the message landed, and
+      // the whole conversation rode down with it); sent with the keyboard down, the pill's left edge glides back and the
+      // camera returns in the same move.
       const field = inputRef.current; field?.classList.add('sent-away');
-      const drop = () => { if (!dropAfter.current) return; dropAfter.current = false; if (document.activeElement === field) field?.blur(); };
-      const settle = () => { holdOpen.current = false; field?.classList.remove('sent-away'); drop(); fit(); };
+      const settle = () => { holdOpen.current = false; field?.classList.remove('sent-away'); fit(); };
       const back = setTimeout(settle, 140);
       const land = () => { rider?.unride(); el.removeEventListener('scroll', follow); if (listMoved.current === follow) listMoved.current = null; clearTimeout(back); if (holdOpen.current) settle(); bubble.style.visibility = ''; copy.remove(); };
       flight.finished.then(land, land);
@@ -578,24 +600,21 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     const id = uid('m');
     const field = inputRef.current;
     const still = document.documentElement.dataset.motion === 'reduce' || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const typing = !!field && document.activeElement === field;
     const wrap = (raw === undefined || spoken) && text && !pic && field && !still ? fieldLines(raw ?? input) : null;
     if (wrap && field) { // typed or said: it leaves from the field
       const fr = field.getBoundingClientRect(), fs = getComputedStyle(field), pill = fieldRef.current?.getBoundingClientRect() ?? fr;
       flew.current.add(id);
       const mid = Math.max(0, grown.current);
       // where its first line is in the field (the box is played on the pill's spring, its rect has that in it), the
-      // field's inside (the pill's own outline up to the send button: its bubble gathers from there) and the part of the
-      // field the words show in
-      const pad = parseFloat(fs.paddingTop), lt = fr.left + parseFloat(fs.paddingLeft), rt = fr.right - parseFloat(fs.paddingRight);
+      // whole pill (its bubble starts as the pill) and the part of the field the words show in
+      const pad = parseFloat(fs.paddingTop), lt = fr.left + parseFloat(fs.paddingLeft);
       flyFrom.current.set(id, {
         // (said words that were never in the field rise with their last line on the field's)
         x: lt, y: raw === undefined || field.value === raw ? fr.top + pad - field.scrollTop + wrap.first * CF_LINE : fr.bottom - pad - wrap.lines.length * CF_LINE, fs: parseFloat(fs.fontSize),
-        box: { l: fr.left, r: Math.min(rt + 12, (fieldRef.current?.querySelector('.coach-send')?.getBoundingClientRect().left ?? Infinity) - 4), t: pill.bottom - 54 - mid, b: pill.bottom },
+        box: { l: fr.left, r: pill.right, t: pill.bottom - 54 - mid, b: pill.bottom },
         win: { t: pill.bottom - 54 - mid + 10, b: pill.bottom - 10 },
       });
-      dropAfter.current = typing;
-    } else if (typing) field?.blur();
+    }
     const reduceTips = still || leaving;
     if (!reduceTips && (msgsRef.current.length === 0 || resumed)) setTipsOut(msgsRef.current.length === 0 ? 'top' : 'resume');
     setInput(''); setPhoto(null); setResumed(false); setBusy(true); stopSpeaking(); orb('processing');
@@ -717,7 +736,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
             <div className="cf-text"><textarea ref={inputRef} className="input" rows={1} onFocus={openBar} onBlur={openBar} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
               enterKeyHint="send" placeholder={recording ? t('Listening…') : hearing ? t('Transcribing…') : t('Ask the Coach')} aria-label={t('Message the Coach')} disabled={recording || hearing} /></div>
             {/* Send is an arrow inside the field, there only when there is something to send (Stop while it works) */}
-            <button className={`coach-send press ${busy || input.trim() || photo ? 'on' : ''}`} onMouseDown={(e) => e.preventDefault() /* the field keeps the keyboard until the message has landed */} aria-label={busy ? t('Stop') : t('Send')} tabIndex={busy || input.trim() || photo ? 0 : -1} onClick={() => (busy ? ctl.current?.abort() : send())}>
+            <button className={`coach-send press ${busy || input.trim() || photo ? 'on' : ''}`} onMouseDown={(e) => e.preventDefault() /* the field keeps the keyboard (it stays up after a send) */} aria-label={busy ? t('Stop') : t('Send')} tabIndex={busy || input.trim() || photo ? 0 : -1} onClick={() => (busy ? ctl.current?.abort() : send())}>
               <Icon name={busy ? 'close' : 'arrowUp'} size={18} sw={2.6} />
             </button>
           </div>

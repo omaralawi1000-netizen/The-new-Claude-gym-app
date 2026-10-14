@@ -1317,24 +1317,25 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 :root[data-motion='reduce'] .coach-thread .typing.typing-out { display: none; }
 @keyframes coachAfter { from { opacity: 0; transform: translate3d(0, 4px, 0); } }
 @keyframes coachReply { from { opacity: .65; transform: translate3d(0, 3px, 0); } to { opacity: 1; transform: none; } }
-/* a sent message in flight (Coach.tsx): a copy of the bubble above everything, its glass drawn in pieces under one
-   opacity (caps that move, a middle that stretches) so it can gather round the words from the field's shape by moves alone */
+/* a sent message in flight (Coach.tsx): a copy of the bubble above everything. Its shape is eight pieces (four corners
+   that scale evenly, four straight pieces between them), moved together on one spring so they always make one outline:
+   it starts as the whole pill and becomes the bubble. The pill's colours (.fly-pill: its tint, top sheen and rim, under
+   the pill's opacity) and the bubble's (.fly-tone) are the same pieces twice, so the colour turns without a second shape. */
 .coach-fly { position: fixed; z-index: 400; margin: 0; max-width: none; box-sizing: border-box; pointer-events: none;
   transform-origin: 0 0; will-change: transform; background: none; border: 0; box-shadow: none; }
-.fly-sh, .fly-glass { position: absolute; left: 0; top: 0; width: 100%; height: 100%; transform-origin: 0 0; will-change: transform, opacity; }
-.fly-sh { border-radius: 20px 20px 6px 20px; }
-.fly-glass > i { position: absolute; top: 0; height: 100%; background: var(--fly-fill); transform-origin: 0 0; will-change: transform; }
-.fly-glass > .fg-l { left: 0; width: 20px; border-radius: 20px 0 0 20px; }
-.fly-glass > .fg-m { left: 19px; }
-.fly-glass > .fg-r { right: 0; width: 20px; border-radius: 0 20px 20px 0; }
-.fly-glass > .fg-tail { right: 0; width: 20px; border-radius: 0 20px 6px 0; will-change: transform, opacity; }
-/* its first moments: the pill's inside itself, its corners and solid colour, lifting out (then it turns into the bubble) */
-.fly-skin { position: absolute; left: 0; top: 0; width: 100%; height: 100%; transform-origin: 0 0; will-change: transform, opacity; }
-.fly-skin > i { position: absolute; top: 0; height: 100%; transform-origin: 0 0; will-change: transform;
-  background: color-mix(in srgb, var(--fc-solid) calc(var(--fc-op) * 100%), var(--bg)); box-shadow: inset 0 1px 0 var(--fc-hl-s); }
-.fly-skin > .fs-l { left: 0; width: var(--rs); border-radius: var(--rs) 0 0 var(--rs); }
-.fly-skin > .fs-m { left: calc(var(--rs) - 1px); }
-.fly-skin > .fs-r { right: 0; width: var(--rs); border-radius: 0 var(--rs) var(--rs) 0; }
+.fly-sh { position: absolute; left: 0; top: 0; width: 100%; height: 100%; transform-origin: 0 0; will-change: transform, opacity; border-radius: 20px 20px 6px 20px; }
+.fly-shape { position: absolute; left: 0; top: 0; width: 100%; height: 100%; will-change: opacity; }
+.fly-shape > i { position: absolute; left: 0; top: 0; box-sizing: border-box; transform-origin: 0 0; will-change: transform; }
+.fly-tone > i { background: var(--fly-fill); }
+.fly-pill > i { background: var(--fc-solid); border: 0 solid var(--fc-rim-s); }
+.fly-pill > :is(.fp-tl, .fp-tr, .fp-top) { background: linear-gradient(180deg, var(--fc-top), var(--fc-solid)); border-top: 1px solid var(--fc-hl-s); }
+.fly-pill > :is(.fp-tl, .fp-bl, .fp-mid) { border-left-width: 1px; }
+.fly-pill > :is(.fp-tr, .fp-br, .fp-mid, .fp-side) { border-right-width: 1px; }
+.fly-pill > :is(.fp-bl, .fp-br, .fp-bot) { border-bottom-width: 1px; }
+.fly-shape > .fp-tl { border-top-left-radius: 100%; } .fly-shape > .fp-tr { border-top-right-radius: 100%; }
+.fly-shape > .fp-bl { border-bottom-left-radius: 100%; } .fly-shape > .fp-br { border-bottom-right-radius: 100%; }
+/* the send button, drawn over the flight while the shape leaves from under it */
+.coach-send.fly-send { position: fixed; z-index: 401; right: auto; margin: 0; transition: none; pointer-events: none; }
 .fly-words { position: relative; will-change: opacity; }
 .fly-words > .said-l { will-change: auto; }
 .coach-field .input::placeholder { transition: color 300ms var(--ease-out); } /* (its colour, not its opacity: an opacity fade gave it a layer that was dropped when it ended) */

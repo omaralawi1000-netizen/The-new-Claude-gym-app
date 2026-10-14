@@ -1787,19 +1787,25 @@ there was a version where you did it without the blur, it came out smooth". He a
   was on the same spring, so the lines that move rise with the top edge and are never cut by it. Interruptible. A draft
   keeps the bar wide when the keyboard goes (as on iOS), so its lines never re-wrap under the returning camera.
 - **Sending, iMessage-style** (Omar 23:41, "the text moves from the text bar into the chat seamlessly"): the very words
-  in the field, same letters in the same place, lift out of the pill on the frame you tap send; their bubble gathers
-  round them out of the field's inside shape (its colour in pieces under one opacity: two caps that move and a middle that
-  stretches, so its corners are never squashed; the tail corner settles in), the field's bright ink settles to the
-  bubble's softer one, and they glide on a soft spring (`apple(0.6, 0.15)`, the shape on `apple(0.42, 0.08)`) to their
-  place above the bar, passing over the pill as one object. The bubble keeps the field's line breaks (`lines` on the
+  in the field, same letters in the same place, lift out of the pill on the frame you tap send, and they glide on a soft
+  spring (`apple(0.6, 0.15)`) to their place above the bar. The bubble keeps the field's line breaks (`lines` on the
   message, read off the field's hidden copy) and the words fly at the field's size, so nothing re-wraps or jumps; the
-  field now types in the bubble's letters (weight 520, the placeholder stays as it was). For its first ~80 ms the flying
-  shape is the pill's inside itself (the pill's outline up to the send button, its corners and solid colour), then it
-  turns into the bubble: one object leaving the field. The emptied pill closes up on the same frame on a firm curve of its
-  own (`CLOSE`, `apple(0.34)` already moving: past half closed by about 60 ms; a `.closing` class points the parts at it,
-  since changing the curve's property on the bar restyled all of it). The cursor hides until "Ask the Coach" comes back
-  at 140 ms, and then the bar settles in one move: the keyboard goes, the left edge glides back and the camera returns
-  (the keyboard used to wait until the message had nearly landed, a second beat after everything else).
+  field now types in the bubble's letters (weight 520, the placeholder stays as it was).
+  - **One shape, from pill to bubble**: on the first frame the flying shape is the whole pill (its full width, its 27 px
+    corners, its see-through tint, top sheen, highlight and rim, drawn over the pill), and on its own quicker spring
+    (`apple(0.34, 0.06)`: about half way by 80 ms, nearly there by 200 ms) it becomes the bubble: its size, corners of 20
+    and the tail's 6, its colour turning from the pill's into the bubble's (40–240 ms). A shape's size and corners can't
+    be animated by moves alone, so it is eight pieces (four corners that scale evenly, so they stay round, and four
+    straight pieces between them, each reaching 1 px under its neighbours), all moved and scaled on the one spring, so
+    they always make one outline. The two colours are the same pieces twice under one opacity each, so there is never a
+    second outline (round 5 cross-faded a pill-shaped and a bubble-shaped layer: the tail corner poked out of the
+    pill's for ~80 ms). The send button stays on top while the shape leaves from under it (an exact stand-in for 280 ms).
+  - The emptied pill closes up on the same frame on a firm curve of its own (`CLOSE`, `apple(0.34)` already moving: past
+    half closed by about 60 ms; a `.closing` class points the parts at it, since changing the curve's property on the bar
+    restyled all of it). The cursor hides until "Ask the Coach" comes back at 140 ms.
+  - **The keyboard stays up after a send**, as in iMessage, ready for the next message (it used to go down as the message
+    landed, and the whole conversation rode ~650 px down with it). Sent with the keyboard down, the left edge glides back
+    and the camera returns at 140 ms.
 - **Bar polish (r5)**: the frost's top follows the lines on their own spring and its left edge the opening on the
   opening's (two registered properties, `--cf-gt`/`--cf-gl`; one transition carried both and the frost trailed the pill
   by 60 ms as it grew or closed up); a new line comes up through a soft bottom edge (a mask on the words' window, not a
