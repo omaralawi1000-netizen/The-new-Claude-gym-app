@@ -23,10 +23,9 @@ export const SMOOTH = apple(0.36);                // content settling (Apple .sm
 export const SURFACE = { ...apple(0.45), restDelta: 0.001 }; // a sheet / card arriving: Apple's .smooth, a hair quicker than the 0.5 s default
 export const SURFACE_EXIT = { ...apple(0.38), restDelta: 0.002 }; // leaving is a touch quicker than arriving
 export const WINDOW = SURFACE;
-// the live workout growing out of its card, and back: its own, slower spring; it lands with the barest bounce (0.05: past
-// by well under a pixel, and the window is whole before then, Active.tsx); a bit more went 2 px past and crept back a
-// screen pixel at a time. It settles into the card with none.
-export const WINDOW_OPEN = { ...apple(0.56, 0.05), restDelta: 0.0005 };
+// the live workout growing out of its card, and back: its own, slower spring, critically damped both ways (no bounce: it
+// never goes past and comes back; the last tenths of a pixel are dropped, Active.tsx `landed`, so its tail never creeps)
+export const WINDOW_OPEN = { ...apple(0.56), restDelta: 0.0005 };
 export const WINDOW_CLOSE = { ...apple(0.5), restDelta: 0.0005 };
 export const BOUNCY = apple(0.5, 0.3);            // Apple .bouncy: a record, a gain, a sent message
 export const GENTLE = { type: 'spring', stiffness: 60, damping: 18 } as const;

@@ -2,13 +2,19 @@
 // Omar's teal (aurora) palette at 120 frames a second (a half-speed film is the same frames played at 60).
 // usage: AVEN_GPU=1 TAG=after [URL=…] node scripts/film-morph.mjs [moments…] → shots/film/<TAG>-<moment>/
 //   moments: open tick minimise resume pill-min pill-resume (default: all)
-import { wait, skipOnboarding, loadDemo } from './lib.mjs';
+import { wait, skipOnboarding } from './lib.mjs';
 import { steady } from './film-steady.mjs';
 const tag = process.env.TAG || 'morph';
 const want = process.argv.slice(2);
 const s = await steady({ theme: process.argv.includes('--light') ? 'light' : 'dark', fps: 120, size: { width: 384, height: 832 }, dsf: 3.75 });
 const { p } = s;
-await p.goto(process.env.URL || 'http://127.0.0.1:4173/'); await wait(p, 1500); await skipOnboarding(p); await loadDemo(p); await s.advance(240);
+// (the launch plays out first, in the film's own time: on a slow emulated GPU too few frames passed in real seconds)
+await p.goto(process.env.URL || 'http://127.0.0.1:4173/'); await wait(p, 1500); await s.advance(300); await skipOnboarding(p); await s.advance(120);
+// the demo data, step by step in film time (lib.mjs's loadDemo waits in real time, which a slow emulated GPU never fills)
+await p.getByLabel('Settings').click(); await s.advance(150);
+await p.getByText('Data & backup').click(); await s.advance(120);
+await p.getByText('Load demo data').click(); await s.advance(120);
+await p.keyboard.press('Escape'); await s.advance(240);
 await p.getByLabel('Settings').first().click(); await s.advance(150);
 await p.locator('.sheet').getByText('Appearance', { exact: true }).first().click(); await s.advance(150);
 await p.locator('.pal-card').filter({ hasText: /^aurora/i }).first().click(); await s.advance(120);
