@@ -161,24 +161,53 @@ function TabPane({ hue, dir, children }: { hue: string; dir: number; children: R
   );
 }
 
-/** The status bar takes the colour of the top of the page: a deep tint of the current area's light (ui/statusBar.ts). */
-function useBarTint(app: React.RefObject<HTMLDivElement | null>, tab: string) {
+/** The status bar takes the colour of the top of the page: a deep tint of what the background shows up there (ui/statusBar.ts).
+ * Each background has its own top: Classic and Mesh the area's light, Colour per tab its own first colour, Dot field the
+ * accent's wash, Time of day the sky; Orb light, Sunrise, Night sky and Your photo are dark at the top, so the bar is
+ * the page colour with only a breath of the area's light. It used to be the area's light on every background: a coloured
+ * band fading into a night sky or a dark Orb light page. */
+const BAR_SRC: Record<BgKind, { src: 'h1' | 'ac' | 't1' | 'sky'; dark: string; light: string }> = {
+  classic: { src: 'h1', dark: 'var(--bar-mix)', light: 'var(--bar-mix)' },
+  mesh: { src: 'h1', dark: 'var(--bar-mix)', light: 'var(--bar-mix)' },
+  tabs: { src: 't1', dark: '15%', light: '9%' },
+  dots: { src: 'ac', dark: '8%', light: '6%' },
+  time: { src: 'sky', dark: '58%', light: '22%' },
+  orb: { src: 'h1', dark: '4%', light: '4%' },
+  sunrise: { src: 'h1', dark: '4%', light: '4%' },
+  night: { src: 'h1', dark: '0%', light: '4%' },
+  photo: { src: 'h1', dark: '0%', light: '0%' },
+};
+function useBarTint(app: React.RefObject<HTMLDivElement | null>, tab: string, bg: BgKind, fieldKey: string) {
   const palette = useStore((x) => x.settings.palette);
   const theme = useStore((x) => x.settings.theme);
   const first = useRef(true);
   useEffect(() => {
     const el = app.current; if (!el) return;
     const probe = document.createElement('i');
-    probe.style.cssText = 'position:absolute;width:0;height:0;pointer-events:none;color:color-mix(in srgb, var(--h1) var(--bar-mix), var(--bg))';
+    probe.style.cssText = 'position:absolute;width:0;height:0;pointer-events:none';
     el.appendChild(probe);
-    const read = (ms: number) => { const c = readRGB(getComputedStyle(probe).color); if (c) setBarTint(c, ms); };
-    // after this frame's styles (the new area's colours) are in place
+    const read = (ms: number) => {
+      const how = BAR_SRC[bg] ?? BAR_SRC.classic;
+      const pct = document.documentElement.dataset.theme === 'light' ? how.light : how.dark;
+      let src = `var(--${how.src})`;
+      if (how.src === 't1' || how.src === 'sky') {
+        // these colours live on the background's own layer (the newest one: the one fading in)
+        const layers = [...document.querySelectorAll<HTMLElement>('.fields > [data-k]')];
+        const top = layers.sort((a, b) => Number(b.style.zIndex) - Number(a.style.zIndex))[0];
+        const host = how.src === 'sky' ? top?.querySelector<HTMLElement>('.bg-sky') : top;
+        const v = host ? getComputedStyle(host).getPropertyValue(how.src === 'sky' ? '--sk1' : '--t1').trim() : '';
+        src = v || 'var(--h1)';
+      }
+      probe.style.color = `color-mix(in srgb, ${src} ${pct}, var(--bg))`;
+      const c = readRGB(getComputedStyle(probe).color); if (c) setBarTint(c, ms);
+    };
+    // after this frame's styles (the new area's colours, the new background's layer) are in place
     const id = requestAnimationFrame(() => { read(first.current ? 0 : 800); first.current = false; });
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
     const onMq = () => requestAnimationFrame(() => read(0));
     mq.addEventListener('change', onMq);
     return () => { cancelAnimationFrame(id); mq.removeEventListener('change', onMq); probe.remove(); };
-  }, [app, tab, palette, theme]);
+  }, [app, tab, palette, theme, bg, fieldKey]);
 }
 
 function useStageDepth(content: React.RefObject<HTMLDivElement | null>, stage: React.RefObject<HTMLDivElement | null>) {
@@ -277,7 +306,6 @@ export function App() {
   // tapping through the dock quickly builds only the screen you end on (it used to build every one, each blocking the
   // next tap: the lag when the tabs were tapped fast).
   const tab = useDeferredValue(useUI((s) => s.tab));
-  useBarTint(appRef, tab);
   // the page switch (pageSwitch above) — screens are rebuilt per visit (two attempts to keep them alive both changed how it felt)
   const prev = useRef(tab);
   const lastDir = useRef(1); // the side of the last switch, kept while anything re-renders mid-slide
@@ -297,6 +325,7 @@ export function App() {
   const bg = useStore((s) => s.settings.background ?? 'classic');
   const sky = useSkyClock(bg === 'time' || bg === 'night');
   const fieldKey = PER_TAB[bg] ? `${bg}:${tab}` : bg === 'time' ? `time:${sky.hour}` : bg === 'night' ? `night:${sky.night}` : bg;
+  useBarTint(appRef, tab, bg, fieldKey);
   const change = useRef<{ key: string; bg: BgKind; dur: number; over?: boolean }>({ key: fieldKey, bg, dur: GLOW });
   if (change.current.key !== fieldKey) {
     const was = change.current.bg;

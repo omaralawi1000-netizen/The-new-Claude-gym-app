@@ -50,9 +50,17 @@
 [data-hue='food'] { --ac: #ffa05a; --h1: #ff8a3d; --h2: #b83a5e; --h3: #ffcf6b; }
 [data-hue='progress'] { --ac: #ee7280; --h1: #c4206e; --h2: #6a3fd1; --h3: #ff8a5c; }
 /* Palettes: the same four areas, lit in other colours (Settings → Appearance). Ember is the default above. */
-/* Ember's carbs are plum, not blue, so the macro dots and rings stay in the warm family */
-html:root[data-palette='ember'] { --c-carbs: #b07cff; }
-html:root[data-palette='ember'][data-theme='light'] { --c-carbs: #7a45d0; }
+/* The food rings: each look has its own four (kcal, protein, carbs, fat), one family per look, four clearly different
+   colours, with deeper ones on a light page. kcal is its own colour (it used to be the area's accent, so in Ember it was
+   the same coral as protein, and it changed with the tab). html:root so they outrank the theme's default trio. */
+html:root[data-palette='ember'] { --c-kcal: #ff7a59; --c-protein: #ff4f7d; --c-carbs: #b07cff; --c-fat: #ffcf5a; }
+html:root[data-palette='ember'][data-theme='light'] { --c-kcal: #e85a36; --c-protein: #d92f5e; --c-carbs: #7a45d0; --c-fat: #c8920e; }
+html:root[data-palette='aurora'] { --c-kcal: #3de0c8; --c-protein: #ff7aa8; --c-carbs: #6f8cff; --c-fat: #c08cff; --c-water: #7ae0ff; }
+html:root[data-palette='aurora'][data-theme='light'] { --c-kcal: #0fa892; --c-protein: #e0457e; --c-carbs: #3d5ee0; --c-fat: #8a52e0; --c-water: #1590b8; }
+html:root[data-palette='sunset'] { --c-kcal: #ff6b9d; --c-protein: #ff8a4d; --c-carbs: #a76bff; --c-fat: #ffc94d; }
+html:root[data-palette='sunset'][data-theme='light'] { --c-kcal: #e0457e; --c-protein: #e8651e; --c-carbs: #7a3fe0; --c-fat: #c99010; }
+html:root[data-palette='forest'] { --c-kcal: #b6f25a; --c-protein: #2fd09a; --c-carbs: #5ac8e0; --c-fat: #ffd04d; --c-water: #5ac8e0; }
+html:root[data-palette='forest'][data-theme='light'] { --c-kcal: #5f9a12; --c-protein: #13a072; --c-carbs: #1f8fb0; --c-fat: #c09a0e; --c-water: #1f8fb0; }
 :root[data-palette='aurora'] [data-hue='today'] { --ac: #3de0c8; --h1: #6a5cff; --h2: #3de0c8; --h3: #c25cff; }
 :root[data-palette='aurora'] [data-hue='train'] { --ac: #7ae0ff; --h1: #3d7bff; --h2: #7a4bff; --h3: #3de0c8; }
 :root[data-palette='aurora'] [data-hue='food'] { --ac: #5cf0b0; --h1: #2fe0b4; --h2: #4b6bff; --h3: #a05cff; }
@@ -62,7 +70,8 @@ html:root[data-palette='ember'][data-theme='light'] { --c-carbs: #7a45d0; }
 :root[data-palette='mono'] [data-hue='train'] { --ac: #ff7a59; --h1: #a3a7b8; --h2: #4d5262; --h3: #8a8fa3; }
 :root[data-palette='mono'] [data-hue='food'] { --ac: #ff7a59; --h1: #8a8fa3; --h2: #666b7c; --h3: #c2c6d4; }
 :root[data-palette='mono'] [data-hue='progress'] { --ac: #ff7a59; --h1: #b0b4c4; --h2: #555a6a; --h3: #8e93a6; }
-:root[data-palette='mono'] { --c-protein: #e9eaf0; --c-carbs: #9aa0b4; --c-fat: #6c7186; --c-water: #cfd3e0; }
+html:root[data-palette='mono'] { --c-kcal: #ff7a59; --c-protein: #e9eaf0; --c-carbs: #9aa0b4; --c-fat: #6c7186; --c-water: #cfd3e0; }
+html:root[data-palette='mono'][data-theme='light'] { --c-kcal: #e85a36; --c-protein: #2e3240; --c-carbs: #6c7186; --c-fat: #a3a7b8; --c-water: #5b6070; }
 :root[data-palette='mono'] .aurora i { opacity: calc(var(--aurora-a) * 0.7); }
 /* Background glow (Settings → Appearance): Soft dims the colour light; Off removes it, so nothing drifts behind the app at all.
    html:root so it outranks the themes' own --aurora-a. */
@@ -93,7 +102,7 @@ html:root[data-palette='golden'] { --c-kcal: #ff7a2f; --c-protein: #ff5436; --c-
 :root[data-palette='midnight'] [data-hue='train'] { --ac: #8ab4ff; --h1: #2348c4; --h2: #5b6cff; --h3: #1a6a9e; }
 :root[data-palette='midnight'] [data-hue='food'] { --ac: #9ee6ff; --h1: #1f5fb0; --h2: #3aa0d8; --h3: #3a46b8; }
 :root[data-palette='midnight'] [data-hue='progress'] { --ac: #b4bcff; --h1: #3a3fb8; --h2: #5a8cff; --h3: #2a5aa8; }
-html:root[data-palette='midnight'] { --c-protein: #ff8a7a; --c-carbs: #9cc4ff; --c-fat: #f2d48a; --c-water: #9ee6ff; }
+html:root[data-palette='midnight'] { --c-kcal: #9cc4ff; --c-protein: #ff8a7a; --c-carbs: #b8a4ff; --c-fat: #f2d48a; --c-water: #9ee6ff; }
 html:root[data-palette='midnight']:not([data-theme='light']) { --nokey: #9cc4ff; }
 /* Champagne: graphite light with one warm gold glow (saturated: a pale warm glow reads grey-beige) and a champagne accent. Macros: champagne kcal, honey protein, ice-platinum carbs,
    bronze fat. Its sun is a deep, saturated gold low down (a pale warm glow over the dark page reads grey-khaki). */
@@ -105,7 +114,7 @@ html:root[data-palette='champagne'] { --c-kcal: #f5e2b8; --c-protein: #e0b07a; -
 :root[data-palette='champagne'] .bg-sun { --sun-mid: #8a6224; --sun-wide: #6a4a1a; --sun-h2: #4a3a2a; --sun-h1: #3a3640; }
 /* on a light page the new looks' rings and water drop take the deep version of their colours (the pale ones vanish) */
 html:root[data-palette='golden'][data-theme='light'] { --c-kcal: #f2641a; --c-protein: #e0401f; --c-carbs: #6a78e0; --c-fat: #d49a12; --c-water: #e08a12; }
-html:root[data-palette='midnight'][data-theme='light'] { --c-protein: #e8604e; --c-carbs: #3a78d8; --c-fat: #c99a2a; --c-water: #1f8fc4; }
+html:root[data-palette='midnight'][data-theme='light'] { --c-kcal: #3a78d8; --c-protein: #e8604e; --c-carbs: #6a52d8; --c-fat: #c99a2a; --c-water: #1f8fc4; }
 html:root[data-palette='champagne'][data-theme='light'] { --c-kcal: #c9a050; --c-protein: #c07a3a; --c-carbs: #6a88b8; --c-fat: #8a5a32; --c-water: #6a90b0; }
 /* contents that arrive a beat after a tall sheet starts moving fade in instead of appearing */
 .sheet-pane.late > * { animation: fadein 220ms var(--ease-out) both; }
@@ -2051,14 +2060,13 @@ html:root[data-glow='off'] .bgx:not([data-k='photo']) { display: none; }
   background: radial-gradient(140% 42% at 50% 104%, rgb(255 138 76 / .55), transparent 72%),
     linear-gradient(to bottom, rgb(14 20 58 / .9), rgb(52 36 96 / .7) 55%, rgb(150 70 110 / .55) 86%, rgb(222 110 80 / .5)); }
 
-/* Over the dot field and the night sky, cards, chips and buttons on the tab screens are the same dark glass made solid:
-   over a near-black background it looks the same, and no dot or star shows through a card. (Dark only.) */
-:root:not([data-theme='light'])[data-bg='night'] .screen { --s1: #111421; --s2: #151826; --s3: #1c1f2e; --bg-2: #03040c; }
-:root:not([data-theme='light'])[data-bg='dots'] .screen { --s1: #14151b; --s2: #18191f; --s3: #212228; --bg-2: #030407; }
-/* Under Time of day's brighter skies (midday, dusk) and Sunrise's sun, the cards and chips are a darker frost, so their
-   grey text and the accent buttons keep their contrast (4.5:1 or better) while a little of the light still shows
-   through. (Dark only.) */
-:root:not([data-theme='light'])[data-bg='time'] .screen, :root:not([data-theme='light'])[data-bg='sunrise'] .screen { --s1: rgb(8 11 19 / .76); --s2: rgb(12 15 24 / .8); --s3: rgb(22 25 35 / .82); --bg-2: rgb(3 4 10 / .55); }
+/* Cards, chips and buttons on the tab screens: one dark glass on every background and every look (dark only). It lifts a
+   little off the page's near-black, darkens a bright glow under it (Sunrise's sun, Time of day's midday) so grey text
+   keeps its contrast, and lets about a quarter of the background through, so each look tints them a little and the
+   same everywhere. It used to be three recipes: a faint white lift (Classic, Orb light, Mesh, Colour per tab: cards
+   took on the glow's colour), solid (Night sky, Dot field) and a darker frost (Time of day, Sunrise). Only the
+   colours changed: no extra layer or blur. */
+:root:not([data-theme='light']) .screen { --s1: rgb(17 19 29 / .72); --s2: rgb(23 25 37 / .76); --s3: rgb(36 39 54 / .8); --bg-2: rgb(3 4 10 / .5); }
 
 /* Your photo: blurred once when you picked it, darkened here so cards and text stay easy to read */
 .bg-photo { background: center / cover no-repeat; background-color: var(--bg); }
