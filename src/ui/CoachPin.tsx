@@ -6,10 +6,8 @@ import { useAi } from '../state/ai';
 import { useT, useLang } from '../lib/i18n';
 import { dayKey } from '../lib/dates';
 import { findNudges, hideNudge, visibleNudges, type Nudge, type NudgeAction } from '../lib/nudges';
-import { aiInsights, type Insight } from '../lib/gemini';
-import { agentModels } from '../lib/agentTurn';
+import type { Insight } from '../lib/gemini';
 import { getKey } from '../lib/keys';
-import { buildCoachContext } from '../lib/coachContext';
 import { userHasData } from '../lib/stats';
 import { Icon, type IconName } from './Icon';
 import { Collapse } from './kit';
@@ -30,8 +28,11 @@ function useInsights(d: AppData, today: string): Insight[] {
   const has = userHasData(d) && !(d as { demo?: boolean }).demo;
   useEffect(() => {
     if (!on || !hasGemini || asking || cache?.date === today || !has) return;
-    const id = setTimeout(() => {
+    const id = setTimeout(async () => {
       asking = true;
+      // the Coach's code is loaded with the Coach (a file of its own), not when the app opens
+      const [{ aiInsights }, { agentModels }, { buildCoachContext }] = await Promise.all([import('../lib/gemini'), import('../lib/agentTurn'), import('../lib/coachContext')]).catch(() => { asking = false; return [null, null, null] as never; });
+      if (!aiInsights) return;
       const map = exerciseMap(d.exercises);
       const ctx = buildCoachContext(d, today, (x) => { const e = map.get(x); return e ? exName(e, lang) : x; }, (x) => map.get(x)?.muscles);
       const app = `\nApp setup: Today shows ${Object.entries(d.settings.widgets).filter(([, v]) => v).map(([k]) => k).join(', ')}; hidden: ${Object.entries(d.settings.widgets).filter(([, v]) => !v).map(([k]) => k).join(', ') || 'none'}.`;
