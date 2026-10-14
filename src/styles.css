@@ -272,7 +272,7 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
    pixelated. (--sheet-tint is that, worked out for the sheets; .sheet::before/::after are the example.) */
 /* The workout window's colour field: ONE layer (three gradients) instead of three big layers + blend + mask, so it
    costs a single cheap raster when the window opens; it still drifts slowly. Same lights as .aurora, same positions. */
-.aurora-lite { position: absolute; inset: 0; overflow: hidden; pointer-events: none; container-type: size; isolation: isolate; }
+.aurora-lite { position: absolute; inset: 0; overflow: hidden; pointer-events: none; container-type: size; }
 .aurora-lite::before {
   content: ''; position: absolute; inset: -12%; opacity: var(--aurora-a); will-change: transform;
   background:
@@ -281,7 +281,7 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
     radial-gradient(circle 65cqw at 46% 110%, color-mix(in srgb, var(--h3) 80%, transparent), transparent);
   animation: driftLite 46s ease-in-out infinite alternate;
 }
-.aurora-lite::after { content: ''; position: absolute; inset: 0; z-index: 0; /* under the breathing light (.wk-breath z-index 1): over it, the grain had to be a full-screen layer of its own on every workout frame */ opacity: calc(var(--grain) * 0.7); background-image: var(--grain-url, none); background-size: var(--grain-size, auto); }
+.aurora-lite::after { content: ''; position: absolute; inset: 0; opacity: calc(var(--grain) * 0.7); background-image: var(--grain-url, none); background-size: var(--grain-size, auto); }
 @keyframes driftLite { to { transform: translate3d(3%, 2%, 0) scale(1.08) rotate(7deg); } }
 :root[data-motion='reduce'] .aurora-lite::before { animation: none; }
 /* Inside the live workout the colour field holds still and nothing frosts it. A frosted card re-blurs whatever is behind it on
@@ -863,20 +863,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    each keeps one layer for good, so nothing is handed back to the page — and redrawn a frame late — the moment its slide
    ends (see rise-move). A handful of big layers, created once; the motion itself is unchanged. */
 .tab-pane, .settings-page, .sheet-pane, .sheet-page, .sheet-head > .icon-btn, .tab, .tab svg, .tab > span.lab, .sphere-slot, .tabbar.glass::after { will-change: transform; }
-.fields > .aurora { background-color: var(--bg); } /* opaque like the others, so a change lays the new field over the old (App.tsx FIELD) */
-/* The colour field costs the graphics chip nothing at rest: no layer of its own, so it is painted once into the stage's
-   own layer together with the grain, the same single layer the app draws with Background glow off. A field was its own
-   full-screen layer (will-change), which pushed the grain over it onto another full-screen layer, and the phone blended
-   both, at full resolution, on every frame of every scroll, tab switch and pop-up: what made glow on feel heavier than
-   glow off. A field gets a layer only while it fades in (.moving, set by Field in App.tsx), then is folded back in. */
-.fields > .moving { will-change: opacity; }
-/* Classic's lights hold still in the app (they drifted, first forever, then for a few seconds after opening): a drifting
-   light is a big layer of its own, three of them plus the grain pushed over them, and a finished drift that holds its end
-   kept them there. Still, they are painted once with the page. (The onboarding's field still drifts.) */
-.fields > .aurora i { animation: none; } /* held where the drift used to settle: */
-.fields > .aurora i:nth-child(1) { transform: translate(3.350%, 2.605%) scale(1.0223) rotate(4.467deg); }
-.fields > .aurora i:nth-child(2) { transform: translate(-4.113%, -1.869%) scale(0.9850) rotate(-5.608deg); }
-.fields > .aurora i:nth-child(3) { transform: translate(2.625%, -3.000%) scale(1.0188) rotate(3.375deg); }
+.fields > .aurora { will-change: opacity; }
 
 /* Coach replies: each new word inks in — blurred and lifted, glowing in the accent, then settling into the text colour.
    Only new words mount, so nothing already read re-animates; words that arrive together cascade. */
@@ -1978,7 +1965,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* the workout's living light (Breath in Active.tsx): the window's top light breathes in and out over ~11 s, in 80 tiny steps
    each way (~14 a second, each under half a percent of brightness, too small to see) instead of a redraw every frame; a warmer light fades in over the first
    hour (--warm). Inside the colour field, so Background glow Off removes it and Soft dims it. */
-.wk-breath { position: absolute; z-index: 1; left: -10%; top: -14%; width: 120%; height: 62%; pointer-events: none; opacity: var(--aurora-a); }
+.wk-breath { position: absolute; left: -10%; top: -14%; width: 120%; height: 62%; pointer-events: none; opacity: var(--aurora-a); }
 .wk-card.wk-leaving * { animation-play-state: paused !important; } /* (fading out under the finish sheet: nothing in it keeps moving) */
 .wk-breath > b { position: absolute; inset: 0; will-change: opacity; animation: breathe 5.5s infinite alternate; }
 .wk-breath > b::before, .wk-breath > b::after { content: ''; position: absolute; inset: 0; }
@@ -2006,7 +1993,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    (.fields::before) lies over all of them, which is what keeps their soft gradients from banding. Sized in % of their
    box, so the small previews in Settings are the same picture. */
 .bgx { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; contain: strict; --bgk: calc(var(--aurora-a) * 1.8); }
-.fields > .bgx { background-color: var(--bg); } /* opaque, so a change lays the new one over the old (App.tsx FIELD; layer: see .fields > .moving) */
+.fields > .bgx { will-change: opacity; background-color: var(--bg); } /* opaque, so a change lays the new one over the old (App.tsx FIELD) */
 .bgx > b { position: absolute; inset: 0; display: block; }
 html:root[data-glow='off'] .bgx:not([data-k='photo']) { display: none; }
 :root[data-palette='mono'] .bgx { --bgk: calc(var(--aurora-a) * 1.3); }
@@ -2018,7 +2005,7 @@ html:root[data-glow='off'] .bgx:not([data-k='photo']) { display: none; }
    the orb screen) answers, a brighter copy fades in. Only transform and opacity ever change. */
 .bg-orb-all i { position: absolute; inset: 0; display: block; }
 /* the beam follows the orb sideways (the dock's orb moves with the tab you are on, the Coach's is at the left) */
-.bg-orb, .bg-orb-lit { transform: translate(calc(var(--ox, 50%) - 50%), 0); } /* no standing layer: a glide gets one for its length only */
+.bg-orb, .bg-orb-lit { will-change: transform; transform: translate3d(calc(var(--ox, 50%) - 50%), 0, 0); }
 .bg-orb { opacity: calc(var(--bgk) * .95); transition: opacity 1.1s var(--ease-io), transform 1.1s var(--ease-smooth);
   background:
     radial-gradient(26% 72% at 50% 100%, color-mix(in srgb, var(--ac) 34%, transparent), transparent 100%),
@@ -2028,8 +2015,8 @@ html:root[data-glow='off'] .bgx:not([data-k='photo']) { display: none; }
 .bg-orb-lit { opacity: 0; transition: opacity 1.6s var(--ease-io), transform 1.1s var(--ease-smooth);
   background: radial-gradient(34% 92% at 50% 100%, color-mix(in srgb, var(--ac) 44%, transparent), transparent 100%); }
 .bg-orb-lit.on { opacity: calc(var(--bgk) * .9); transition-duration: 1.2s, 1.1s; }
-.bg-orb-all > i.bg-orb-spot { inset: auto; left: 0; top: 0; width: 560px; height: 560px; margin: -280px 0 0 -280px;
-  transform: translate(var(--ox, 50vw), var(--oy, calc(100vh - 50px))); transition: transform 1.1s var(--ease-smooth); }
+.bg-orb-all > i.bg-orb-spot { inset: auto; left: 0; top: 0; width: 560px; height: 560px; margin: -280px 0 0 -280px; will-change: transform;
+  transform: translate3d(var(--ox, 50vw), var(--oy, calc(100vh - 50px)), 0); transition: transform 1.1s var(--ease-smooth); }
 .bg-orb-spot > i { position: absolute; inset: 0; opacity: calc(var(--bgk) * .95); transition: opacity 1.6s var(--ease-io);
   background:
     radial-gradient(circle 140px at 50% 50%, color-mix(in srgb, var(--ac) 64%, transparent), transparent 100%),
@@ -2055,7 +2042,7 @@ html:root[data-glow='off'] .bgx:not([data-k='photo']) { display: none; }
    full day the horizon sits at the quick-add row, clear of the big cards and the tab bar, so the sun reads at rest; on an
    empty day only its first light shows at the bottom. Below the horizon the sky dims again, like land. */
 .bg-sun-sky { opacity: var(--bgk); background: linear-gradient(to top, color-mix(in srgb, var(--h1) 30%, transparent), transparent 62%); }
-.bg-sun {
+.bg-sun { will-change: transform;
   opacity: calc(var(--bgk) * (.75 + var(--fill, 0) * .25));
   transform: translateY(calc((1 - var(--fill, 0)) * 34%));
   transition: transform 2.6s var(--ease-smooth), opacity 2.6s var(--ease-smooth);
