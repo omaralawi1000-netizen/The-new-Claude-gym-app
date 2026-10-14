@@ -94,7 +94,13 @@ export function TabBar() {
   const setTab = useUI((s) => s.setTab);
   const push = useUI((s) => s.push);
   // derived booleans, not the overlay list: opening a sheet must not re-render (and re-measure) the tab bar
-  const hidden = useUI((s) => s.overlays.some((o) => o.type === 'workout' || o.type === 'voice' || o.type === 'onboarding'));
+  const covered = useUI((s) => s.overlays.some((o) => o.type === 'voice' || o.type === 'onboarding'));
+  // the live workout: the bar steps aside a beat after it starts (the window first takes the resume bar's place, in the
+  // bar, where it stands: sliding away at once, the bar left the window's outline while the two still crossed)
+  const wk = useUI((s) => s.overlays.some((o) => o.type === 'workout'));
+  const [wkLate, setWkLate] = useState(wk);
+  useEffect(() => { if (!wk) { setWkLate(false); return; } const id = setTimeout(() => setWkLate(true), 90); return () => clearTimeout(id); }, [wk]);
+  const hidden = covered || wkLate;
   const t = useT();
   const nav = useRef<HTMLElement>(null);
   useDock(nav, tab);
