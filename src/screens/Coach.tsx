@@ -297,6 +297,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   // over to the real one where it lands. Browser-run (Web Animations on transform/opacity only), at the screen's full rate.
   const flyFrom = useRef(new Map<string, { x: number; y: number; fs: number; box: { l: number; r: number; t: number; b: number }; win: { t: number; b: number }; fresh?: boolean }>());
   const flew = useRef(new Set<string>()); // these arrive by flight, not by the bubble's own rise
+  const landed = useRef<HTMLElement | null>(null); // the last bubble to land, still drawn the way its flying copy was (below)
   const flown = (id: string) => flew.current.has(id);
   useLayoutEffect(() => {
     const el = bodyRef.current;
@@ -415,6 +416,13 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       // it joins a glide the list is still finishing, so its place is where the bubble will be once that is done
       const rider = ride.current?.(copy); const top0 = B.top - (rider?.off ?? 0); copy.style.top = `${top0}px`;
       bubble.style.visibility = 'hidden';
+      // its letters drawn the way the copy's are: a moving, resizing copy can't draw text on the page's own pixel grid, so
+      // the real bubble, drawn on it, had every letter a hair off the copy's last frame as it took over (a third of a pixel,
+      // a line up to two); on a layer of its own it draws them as the copy did, the same frame. It keeps that until the next
+      // message sends the list up, and drops it once that is moving, where the hair's change can't be seen
+      bubble.style.willChange = 'transform';
+      const was = landed.current; landed.current = bubble;
+      if (was && was !== bubble) setTimeout(() => { if (landed.current !== was) was.style.willChange = ''; }, 160);
       const at = document.timeline.currentTime;
       const go = (a: Animation) => { if (at !== null) a.startTime = at; return a; };
       // the real button (stop, now) waits hidden under the shape until the shape has risen clear of it, then fades in
