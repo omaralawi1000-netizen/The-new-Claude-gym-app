@@ -1802,7 +1802,10 @@ there was a version where you did it without the blur, it came out smooth". He a
     straight pieces between them, each reaching 1 px under its neighbours), all moved and scaled on the one spring, so
     they always make one outline. The two colours are the same pieces twice under one opacity each, so there is never a
     second outline (round 5 cross-faded a pill-shaped and a bubble-shaped layer: the tail corner poked out of the
-    pill's for ~80 ms). The send button stays on top while the shape leaves from under it (an exact stand-in for 280 ms).
+    pill's for ~80 ms). The send arrow (a stand-in on top) dissolves in its first 24 ms, then the bar, stop button and all, shows from
+    under the shape as it leaves (the shape is never cut by the button). The flight's spring runs to a hundredth of a
+    percent (`springCurve(…, fine)`), so it lands exactly on the bubble, with no last-pixel step.
+  - Send and stop share the button: a 120 ms cross-fade with a little turn (±45°), not a cut.
   - The emptied pill closes up at once, out of sight under the shape (which covers all of it as it starts), and its tint
     and shadow fade in 30–110 ms, so the empty bar is only ever seen where the shape has left it: never the pill and the shape drawn in the same place (a see-through
     shape over a closing pill read as two stacked cards, the pill's rim cutting through the words). A `.closing` class

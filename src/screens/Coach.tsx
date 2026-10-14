@@ -34,7 +34,7 @@ const MORPH_BACK = springCurve(apple(0.55, 0.15));
 const GROW = springCurve(apple(0.5, 0.25));
 // a sent message: its flight to its place, and the pill turning into its bubble (quicker: mostly done by 200 ms, so it
 // has its shape before it is far from the field)
-const FLY = springCurve(apple(0.6, 0.15));
+const FLY = springCurve(apple(0.6, 0.15), 0, true); // (to the last fraction of a pixel: it hands over to the real bubble)
 const FLY_SHAPE = springCurve(apple(0.34, 0.06));
 // the emptied pill behind a sent message: closed at once, out of sight under the flying shape, which starts as the whole
 // pill (the empty bar is only ever seen where the shape has left it)
@@ -345,18 +345,18 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       const glass = document.createElement('i'); glass.className = 'fly-end'; glass.style.background = fill;
       copy.append(sh, glass, pill, tone, words);
       app.appendChild(copy);
-      // the send button stays where it is, above the pill-coloured shape leaving from under it (an exact stand-in for it,
-      // drawn over the flight until the shape has left)
+      // the send button as it was (the arrow) stays on top for a moment and fades as the shape starts to leave: the bar,
+      // stop button and all, is then under the shape and shows where it has left (the shape is never cut by the button)
       const btn = composerRef.current?.querySelector<HTMLElement>('.coach-send');
       const ss = btn && getComputedStyle(btn);
       let stand: HTMLElement | null = null;
       if (btn && ss && parseFloat(ss.opacity) > 0.01) {
         const sr = btn.getBoundingClientRect();
         stand = btn.cloneNode(true) as HTMLElement;
-        stand.className = 'coach-send on fly-send'; stand.removeAttribute('tabindex'); stand.setAttribute('aria-hidden', 'true');
+        stand.className = 'coach-send on fly-send'; stand.removeAttribute('tabindex'); stand.setAttribute('aria-hidden', 'true'); // (not busy: the arrow)
         Object.assign(stand.style, { left: `${sr.left + sr.width / 2 - btn.offsetWidth / 2}px`, top: `${sr.top + sr.height / 2 - btn.offsetHeight / 2}px`, transform: ss.transform, opacity: ss.opacity });
         app.appendChild(stand);
-        if (ss.transform !== 'none') stand.animate([{ transform: ss.transform }, { transform: 'none' }], { duration: 360, easing: 'cubic-bezier(.2, .7, .2, 1)', fill: 'forwards' });
+        stand.animate([{ opacity: ss.opacity }, { opacity: 0 }], { duration: 24, easing: 'linear', fill: 'forwards' });
       }
       // it joins a glide the list is still finishing, so its place is where the bubble will be once that is done
       const rider = ride.current?.(copy); const top0 = B.top - (rider?.off ?? 0); copy.style.top = `${top0}px`;
@@ -384,7 +384,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
         // the field's bright ink settles to the bubble's softer one
         go(words.animate([{ opacity: 1 }, { opacity: inkA }], { ...fade(380, 60), fill: 'both' })),
       ];
-      if (stand) setTimeout(() => stand?.remove(), 280);
+      if (stand) setTimeout(() => stand?.remove(), 60);
       // lines that were scrolled out of a long draft's view come in on the way, rather than appearing over the chat
       [...words.children].forEach((line, i) => {
         const ly = from.y + i * CF_LINE;
@@ -748,8 +748,10 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
             <div className="cf-text"><textarea ref={inputRef} className="input" rows={1} onFocus={openBar} onBlur={openBar} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
               enterKeyHint="send" placeholder={recording ? t('Listening…') : hearing ? t('Transcribing…') : t('Ask the Coach')} aria-label={t('Message the Coach')} disabled={recording || hearing} /></div>
             {/* Send is an arrow inside the field, there only when there is something to send (Stop while it works) */}
-            <button className={`coach-send press ${busy || input.trim() || photo ? 'on' : ''}`} onMouseDown={(e) => e.preventDefault() /* the field keeps the keyboard (it stays up after a send) */} aria-label={busy ? t('Stop') : t('Send')} tabIndex={busy || input.trim() || photo ? 0 : -1} onClick={() => (busy ? ctl.current?.abort() : send())}>
-              <Icon name={busy ? 'close' : 'arrowUp'} size={18} sw={2.6} />
+            <button className={`coach-send press ${busy || input.trim() || photo ? 'on' : ''} ${busy ? 'busy' : ''}`} onMouseDown={(e) => e.preventDefault() /* the field keeps the keyboard (it stays up after a send) */} aria-label={busy ? t('Stop') : t('Send')} tabIndex={busy || input.trim() || photo ? 0 : -1} onClick={() => (busy ? ctl.current?.abort() : send())}>
+              {/* send turns into stop (and back) by a short cross-fade with a little turn, not a cut */}
+              <span className="cs-ico cs-go"><Icon name="arrowUp" size={18} sw={2.6} /></span>
+              <span className="cs-ico cs-stop"><Icon name="close" size={18} sw={2.6} /></span>
             </button>
           </div>
         </div>

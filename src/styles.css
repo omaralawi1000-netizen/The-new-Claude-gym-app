@@ -1168,6 +1168,11 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
   background: linear-gradient(180deg, color-mix(in srgb, var(--ac) 78%, #fff), var(--ac)); opacity: 0; transform: scale(.6); pointer-events: none;
   transition: opacity 200ms var(--ease-out), transform 360ms var(--ease-spring); }
 .coach-send.on { opacity: 1; transform: none; pointer-events: auto; }
+/* send and stop share the button: a short cross-fade with a little turn (120 ms), never a cut */
+.coach-send .cs-ico { grid-area: 1 / 1; display: grid; will-change: transform, opacity; transition: opacity 120ms var(--ease-out), transform 160ms var(--ease-out); }
+.coach-send .cs-stop, .coach-send.busy .cs-go { opacity: 0; transform: rotate(-45deg) scale(0.7); }
+.coach-send.busy .cs-go { transform: rotate(45deg) scale(0.7); }
+.coach-send.busy .cs-stop { opacity: 1; transform: none; }
 .meals-empty { padding: 6px 16px 6px 20px; }
 /* the empty day's card (or the meals) fading out before the other rises in, once the add sheet has gone (Food.tsx) */
 .subpage > .fading { animation: fade-away 220ms ease forwards; pointer-events: none; }
@@ -1338,8 +1343,9 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .fly-pill > :is(.fp-bl, .fp-br, .fp-bot) { border-bottom-width: 1px; }
 .fly-shape > .fp-tl { border-top-left-radius: 100%; } .fly-shape > .fp-tr { border-top-right-radius: 100%; }
 .fly-shape > .fp-bl { border-bottom-left-radius: 100%; } .fly-shape > .fp-br { border-bottom-right-radius: 100%; }
-/* the send button, drawn over the flight while the shape leaves from under it */
+/* the send button as it was, over the flight's first moments (it fades as the shape starts to leave) */
 .coach-send.fly-send { position: fixed; z-index: 401; right: auto; margin: 0; transition: none; pointer-events: none; }
+.coach-send.fly-send .cs-ico { transition: none; }
 .fly-words { position: relative; will-change: opacity; }
 .fly-words > .said-l { will-change: auto; }
 .coach-field .input::placeholder { transition: color 300ms var(--ease-out); } /* (its colour, not its opacity: an opacity fade gave it a layer that was dropped when it ended) */
