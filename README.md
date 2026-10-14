@@ -1966,6 +1966,18 @@ Orb light, Colour per tab, Sunrise, Mesh, Dot field, Time of day, Night sky and 
 - Made in Blender from the Z-Anatomy model (CC BY-SA 4.0, credited in Settings › About). Each exercise gets its own
   choreography on one full-body rig; sources and judge notes are in the project folder `anatomy-proof/`.
 
+## The curl clip, calmer and truer (14 Oct 2026)
+
+- Omar: "the hands still doesn't hold the bar properly", "refine the neck to the head", then on the motion: "at the bottom it
+  doesn't even pause for half a second… I want to learn from the motion… but it still has to be fast enough".
+- New take (r15): the grip is solved against the hand itself (bar deep in the palm, fingers and thumb round it, no clipping,
+  the bar never slides); the neck is shaped into the head and traps; the timing is traced from his reference video: about
+  4.3 s per rep, a slower 1.5 s lift, a short squeeze at the top, a slightly slower lowering and a half-second settle at
+  the bottom, no machine-like stops, a seamless loop.
+- Clip files carry their take in the name (`figures/barbell-curl.r15.*`) so phones fetch the new clip, not a cached one.
+- Every rule the curl taught (look, grip, neck, tempo, loop, checks) is written down for the next exercises in the project
+  folder `anatomy-proof/figure-rules.md`.
+
 ## Coach: dictation like iOS, calmer answer text (14 Oct 2026)
 
 Omar: "when you say something to the coach… I want it to be easy and like Apple". And: "refine the animations of the text… ultra premium".
