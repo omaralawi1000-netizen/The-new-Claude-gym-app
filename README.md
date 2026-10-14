@@ -2115,3 +2115,143 @@ and outlines stacked inside outlines (card rim, every chip rim, the + button rim
 - v0.1.130: Omar on v0.1.129: "They're not see-through. And why do they have this tint?" The navy fill (`rgb(30 33 52 / .58)`)
   read as solid blue-grey slabs on his warm Golden hour field. Now the dark fill is a neutral 4.5% white film (the field
   shows through, nothing is tinted); over Sunrise and Time of day a neutral dark film (`rgba(8,8,10,.42)`). Rim and shadow unchanged.
+## Coach r7: dictation without words in the field, controls truly on their own (14 Oct 2026)
+
+Omar, after trying v0.1.116 on his phone (two screen recordings): "It doesn't dictate live, so just remove it… Find an
+animation that can really be seamless when I dictate. The words don't have to come in the text box… Remove the speaking
+indicator because the orb already does that. And please have the icons by their own with blur under them. I don't want
+a shadow… make them a little 3D".
+- **Live words removed.** Chrome's speech service gave no words in his installed app (the recordings show only
+  "Listening…"), so it is gone from the Coach (`src/lib/speech.ts` stays for the orb screen). The wave in the send
+  button is gone too: the orb's ring already shows that it hears you.
+- **One seamless moment.** Tap the orb: the pill opens wide, "Ask the Coach" fades across into "Listening…" (180 ms, never
+  a swap) and the arrow is there to stop and send. When you stop (or go quiet) "Listening…" fades into "Transcribing…",
+  the arrow steps aside and the orb thinks. When Whisper's words arrive the pill itself lifts away into the chat as your
+  message (one shape, 560 ms on a soft-start ease, `FLY_SAID`, not the typed message's spring, whose quick start read
+  as a jump), "Transcribing…" fading out first (140 ms), then each line of words fading in only once the growing bubble has room
+  for it (from 150 ms; the line on the field's line first, the ones above as the bubble's top passes them), so nothing
+  is ever drawn over another or past the bubble's edge. The field's words cross the same way: the old fades out in
+  90 ms, then the new in over 150 ms. They never sit in the
+  field first. The bar under it is hidden at once and closes up there unseen (`.snap`), then comes back whole once the
+  bubble has left: field, camera and stop button fading in together (from 340 ms, over 300 ms): no empty pill, no slide. With a typed draft already in the field, the whole
+  message is shown there a moment and then leaves as typed words do. Tapping the field while you speak still stops and
+  leaves the words in it to fix.
+- **Each control on its own.** 14 px of clear space between orb, camera and pill (was 8–10). No shadow under any of them
+  (`--fc-sh` is none). A little 3D: a brighter light on the top edge, a faint light back up along the bottom edge, the top
+  half a touch brighter, a lighter, more see-through glass. The blur is 8 px (was 20; cheaper, and the softened words
+  behind stay visible instead of vanishing). The camera had no blur at all until now: the sheets' rule that takes blur off
+  their buttons (`.sheet :is(.btn, .icon-btn…)`) also took it off the camera; `.frost-ctl` now wins.
+
+## Coach r8: a soft shadow, words seen through the glass, an iOS landing (14 Oct 2026)
+
+Omar, after the r7 page: "I want a drop shadow so it looks 3D on the buttons, and… I want to see the words under the
+buttons, so that's how you know it's frosted glass", then "a more easing motion for the bubble when it suddenly stops…
+like iOS. And please polish everything".
+- **Shadow back.** Orb, camera and pill each get a soft, static drop shadow (`--fc-sh`: a tight 2 px one where it meets
+  the page and a wide 12/30 px one, neutral black; navy and lighter in the light theme). Never animated, and never on a
+  blurred layer: the pill's is its own piece (`.cf-sh`), the orb's is `.frost-seat::after` behind its glass disc, the
+  camera's is `.coach-cam-slot::before`, which fades with the button when the field opens.
+- **Words under the glass.** The list no longer fades out above the controls: it passes under them at about half (the
+  mask in `.coach-body` is 0.5 at the controls' top, 0.46 at their middle, gone 4 px below them, so nothing peeks out
+  under the orb), and the frost is lighter: `--fc-bd` = `blur(5px) brightness(1.5) saturate(1.4)` (was 8 px; light theme
+  without the brightness). Measured on a GPU still: words under a control about 80–85 of 255 as soft word shapes (8 px
+  melted them into a faint band at ~60), in the gaps about 110 (were ~165, crisp, read as a stencil). `--fly-under`
+  follows the lifted frost so the flying copy still matches the pill it starts as.
+- **iOS landing.** Said words now lift on a critically damped spring (0.52 s, no overshoot) that follows a target easing
+  up out of the bar over its first 100 ms (`SAID_XS` → `FLY_SAID`, sampled into linear()): the soft start stays, and the
+  end is the spring's long tail (90% at ~370 ms, its speed dying away over the last ~150 ms) instead of a bezier that
+  braked. A typed message's flight lost its small overshoot the same way (`apple(0.55)`, was `apple(0.6, 0.15)`).
+- **Handover and lines.** "Transcribing…" fades out in 60 ms from the moment the pill starts to change, and the words
+  fade in over 140 ms from 40 ms on (linear): the two are never both readable at once. The words are laid out at the
+  bubble's width from the first frame, all lines, in a window (`.fly-reveal`) whose top edge rides the shape's top while
+  the words inside are held still (window and words moved by the same amount, opposite, on the same curve), and whose
+  top is soft across the bubble's padding (a mask): the growing bubble uncovers the lines, the top one last, each coming
+  up inside the padding, never cut by an edge, never popping in.
+- **Camera frost.** The small camera disc gets a lighter tint (0.26) and a 3.5 px blur, so words under it show as soft
+  shapes like under the pill.
+
+## Food rings like Apple Fitness (14 Oct 2026, v0.1.127)
+Omar 15:06: "turn the rings like 3D with like inner shadows and like Apple's fitness". `ui/Dial.tsx`, tokens `--ring-*` in `styles.css`.
+- Each empty track is a deep (dark) or pale (light) version of its own ring's colour, mixed in OKLCH (`oklch(from …)`), carved in
+  with a soft inner shadow. Dark yellow/orange tracks hold less colour (L .275, C .037) so they never turn brown.
+- The fill is a conic gradient along the ring: no darker than the plain colour at its start, brighter and turned ~12° in hue at
+  its end (pink → magenta, lime → yellow-green, teal → cyan-blue; the direction is read once from the ring's real colour). It
+  never wraps, so the start's round cap keeps the start colour. A faint dither keeps it free of bands.
+- A full ring's end is drawn again over its start (same dither and tube shading) with a soft shade in its own darker hue just
+  ahead; short of full, a neutral shade falls on the track ahead of the end.
+- Light mode: no glow and a crisper edge; fat is a clean amber `#e6ad00` in every light palette (was mustard).
+- Cost: painted once; only the fill's mask length, the shade's position and the end's rotation move, on the same spring.
+- Judge rounds: r4 failed (brown smudge at 12 o'clock, brown tracks, dim fills, soft light edge); r5 passed after the yellow
+  track and end-disc fixes. Before/after page: https://claude.ai/artifact/GhMcA41DrV79hCh2tKwT63
+
+## Coach r9: no flicker at the bar, calmer said words (14 Oct 2026)
+Omar 19:46 on Beta: "the look is very, very good… a little polish with the text when I dictate… I noticed some flickers at
+the text bar… polish for the animations, not the look." Nothing in the look changed. Found by watching the compositor's
+layers (DevTools LayerTree) through opening, typing, sending and dictating at the phone's 3.75 pixel ratio:
+- **The pill's frost edge.** `.cf-glass` is cut to the pill by a rounded `clip-path` whose left and top edges glide
+  (`--cf-gl`, `--cf-gt`). On in-between pixel positions Chrome cut it with a mask layer, on others with its plain rounded
+  edge, and switched between the two about 7 times in every opening, closing and new line: a layer made and dropped
+  under the frost, the phone's one-frame flicker. The edges now land on quarter pixels (`round(nearest, …, 0.25px)`),
+  where it is the plain edge all the way: 0 switches measured (was 7–14 per move). A quarter pixel is under one of the
+  phone's pixels.
+- **The camera's frost.** When said words left, the camera faded back in on its slot (`.coach-cam-slot`). A fading
+  parent cuts a backdrop blur off from the page, so the camera showed no frost until the fade ended and then its frost
+  popped in. It now fades on its own glass, and its shadow on the slot's own `::before`.
+- **Layers made and dropped.** The camera's shadow (`.coach-cam-slot::before`) got a layer for each fade, the orb one
+  for each press, and the voice ring one when it faded out (it also redrew the orb's glow every frame while you spoke).
+  Each now keeps its own layer all the time (`will-change`). Measured: no layer comes or goes in the bar in any of
+  open, type, send, dictate (only the flying copy's own).
+- **Colour at the hand-over.** A typed message's flying copy is solid, drawn for an average page (`--fly-under`); with
+  the keyboard up the real pill's frost sits over the palette's glow and is warmer (Golden hour: 62,42,54 against the
+  copy's 40,46,68), so the pill turned navy in one frame as it left. The real pill now stays drawn and the copy's pill
+  comes up over it in its first 60 ms: measured the same colour on the first frame. (Said words leave with the keyboard
+  down, where the two already matched within 3 levels.)
+- **Said words, calmer.** "Transcribing…" fades out over 110 ms (from the field's own value), the words come in over
+  260 ms from 80 ms on an ease (were 60 ms and 140 ms, straight), and settle the last 4 px up into place over 560 ms.
+  The bar comes back after the bubble on an ease over 360 ms (was a straight 300 ms). "Ask the Coach", "Listening…" and
+  "Transcribing…" cross over in 140 ms out, 240 ms in from 120 ms (were 90 and 150 from 90).
+
+## Coach r10: one calm motion, bubbles on a shadow (14 Oct 2026)
+Omar 21:13: "still not polished enough… even calmer and more polished… smoothly easing… attention to detail", and 21:15:
+"the text bubbles on the coach screen to have a backdrop shadow so it looks very premium". Calm here means longer,
+softer easing and fewer moving things, not more effects; the look is unchanged except the bubbles' shadow.
+- **One motion for everything that moves in the bar** (`rampSpring` in Coach.tsx): a critically damped spring that starts
+  soft and dies away with no point where it brakes. The opening's 5 px overshoot and the growing's small bounce are gone
+  (they read as restless); opening and closing now match (0.62 s), a new line 0.52 s, a sent message's flight 0.58 s and
+  its shape 0.42 s, said words 0.6 s with the softest start. The list's glide to make room is a touch slower (W 8, was 10).
+- **Smaller things calmed:** the send/stop icon cross-fades (260/380 ms, the old one settles back as the new one comes
+  forward; it used to turn 45 degrees in 120 ms); the send button 280/460 ms (was 160/260); the camera tucks away and
+  comes back on a smooth ease instead of a spring (opacity 320 ms from 200 ms); the "typing" dots rise 3 px from 86 %
+  instead of popping from 70 %; a sent message, a reply, its buttons and the tips all come in more slowly (760, 420,
+  680, 640 ms); New chat fades the old chat over 280 ms (was 160); the voice ring breathes with your voice (each level
+  glides in over 180 ms, swells 11 % at most) instead of following every flicker.
+- **Bubbles on a shadow** (`--bubble-sh`): your messages sit on a tight contact shade, a short soft one and a wide, low
+  one, like the bar's controls, in both themes (the old one was too faint to see). Static, never animated; a sent
+  message's flying copy carries the same shadow, and for a typed message it fades in over 160 ms over the pill's own so
+  the two never double up for a frame.
+- **After a harsh review (r10b):** a typed message's copy now starts see-through and its paint comes up over the real pill
+  over 200 ms while the pill holds its shape (`CLOSE`: it closes up on the copy's own shape curve from 60 ms, as the copy
+  lifts away); the copy used to replace the pill's warm frost with its solid slate in one frame. The send arrow fades over
+  120 ms from the tap (it was cut off by the copy). Closing is quicker with no tail (`MORPH_BACK` 0.4 s, done within half a
+  pixel) and the camera starts back 80 ms in, so edge, camera and bar land together (the edge used to creep on ~14 px
+  for half a second). Said words: the bar fades out over 160 ms under the lifting pill (`SAID_OUT`) and only then closes up,
+  instead of vanishing. Light theme bubble shadow: warm and light, gone within ~18 px (it read as a grey Material card).
+- Still measured: no layer made or dropped in the bar when opening, typing, sending or dictating.
+- **Seamless settle (r10c, Omar 22:46: "seamless, not an animation, then a different look"):** every hand-over measured
+  as the last animated frame (each animation held 1 ms before its end) against the first settled frame. Three steps were
+  found and removed: (1) the flying copy's glass was a solid colour under an opacity and its ink an opaque colour under an
+  opacity, a level or three off the real bubble's alpha colours: it now uses the bubble's own colours, alpha and all; (2) a
+  moving, resizing copy can't draw letters on the page's pixel grid, so as the real bubble took over every letter edge
+  stepped (up to 133/255, one line up to two pixels): the fix (the landing bubble on a layer of its own, `will-change:
+  transform`, from the moment it is hidden, dropped 160 ms into the next send while the list moves) adds and drops a GPU
+  layer, so it goes to Beta first and is not in this release; (3) a move still a ten-thousandth short on its last frame is drawn a hair differently
+  from one at rest (the camera's rim stepped 51/255 as the pill closed): every Coach curve now ends on two frames held
+  exactly at its end (`asCurve`). With all three: sent and said landings, pill close, keyboard ride end and the reply's
+  words settling to plain text all within 3/255 (capture noise is 2/255).
+
+## Keyboard: the chat always lifts with it (14 Oct 2026)
+Sometimes the Coach chat stayed where it was when the keyboard came up, so a sent message landed under the bar. A sheet
+takes away the keyboard's room (`--kb-room`, ui/Sheet.tsx) once its keyboard value is back at 0, and the keyboard's very
+first frame on the way UP also reads 0: when that frame came right after the room was made, the room went again. The room
+now goes only when the keyboard is heading down (`keyboardGoal() === 0`). Slowed ride probe: up to 5 of 6 failed before,
+20 of 20 pass after.
