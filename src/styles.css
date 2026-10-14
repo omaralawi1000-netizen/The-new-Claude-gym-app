@@ -1916,11 +1916,12 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .sum-ray { position: absolute; width: 2px; height: 30px; top: -38px; left: calc(50% - 1px); border-radius: 2px; transform-origin: 50% 80px;
   background: linear-gradient(transparent, var(--gold)); opacity: 0; }
 /* an odometer: each digit a column of digits clipped to one row, rolled up by its transform */
-.odo { display: inline-flex; height: 1.15em; line-height: 1.15em; vertical-align: bottom; }
-/* the window is exactly one row, its edges softened by a hair (a static mask, it never moves), so a rolling digit slips in
-   and out cleanly and nothing of its neighbours shows at rest */
-.odo-c { display: inline-block; height: 1.15em; overflow: hidden;
-  -webkit-mask-image: linear-gradient(transparent, #000 9%, #000 91%, transparent); mask-image: linear-gradient(transparent, #000 9%, #000 91%, transparent); }
+/* the window is exactly one row, its edges softened (a static mask, it never moves), so a rolling digit slips in and out
+   cleanly and nothing of its neighbours shows at rest. One mask per number, not per digit: every mask is a layer of its own
+   for the GPU, and a dozen of them at once was more than the phone kept drawn when the page behind changed */
+.odo { display: inline-flex; height: 1.15em; line-height: 1.15em; vertical-align: bottom;
+  -webkit-mask-image: linear-gradient(transparent, #000 14%, #000 86%, transparent); mask-image: linear-gradient(transparent, #000 14%, #000 86%, transparent); }
+.odo-c { display: inline-block; height: 1.15em; overflow: hidden; }
 .odo-s, .odo-s > span { display: block; }
 .odo-s > span, .odo-k { height: 1.15em; line-height: 1.15em; }
 .odo-k { display: inline-block; white-space: pre; }
