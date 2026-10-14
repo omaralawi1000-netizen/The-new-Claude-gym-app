@@ -24,15 +24,21 @@ const smooth = (v: number) => { const x = clamp01(v); return x * x * (3 - 2 * x)
  */
 export function seamShape(sep: number, gap: number, width: number, R: number) {
   const s = clamp01(sep);
-  const rho = R * smooth(s / 0.4); // the inner corners round off while the seam draws in
+  // the inner corners round off while the seam draws in, but only as far as there is a gap to show them in: a groove must never
+  // be a hairline tick at the edge of a card
+  const rho = R * smooth(s / 0.4) * smooth(gap / (R * 0.6));
   const ry0 = Math.max(0, gap / 2);
   // the waist narrows from the full width to a thread: slowly at first, then fast, so the neck "lets go" near the end
-  const hwTarget = (width / 2) * (1 - smooth((s - 0.05) / 0.5)) ** 1.5;
+  // (the last 12 px are cut off: the end of that curve is nearly flat, which would leave a hairline string for several frames)
+  const hwTarget = Math.max(0, (width / 2) * (1 - smooth((s - 0.05) / 0.5)) ** 1.5 - 12 * smooth(s / 0.3));
   const rx0 = Math.min(ry0 * 5 + 5, 70);
-  const hw = Math.max(0, Math.min(hwTarget, width / 2 - rho - rx0));
-  const rx = Math.max(0, Math.min(rx0, width / 2 - rho - hw));
-  // a thread has no body to taper from: its fillets shrink with it
-  const k = hw > 0 ? Math.min(1, hw / 3) : 0;
+  // no gap, no notch: a seam that is still closed must not leave a line at the card's edge
+  const open = smooth(gap / 3);
+  const hw0 = Math.max(0, Math.min(hwTarget, width / 2 - (rho + rx0) * open));
+  const hw = width / 2 - (width / 2 - hw0) * open;
+  const rx = Math.max(0, Math.min(rx0, width / 2 - rho - hw)) * open;
+  // a thread has no body to taper from: its fillets shrink with it, so nothing is left hanging when it lets go
+  const k = smooth(hw / 10);
   return { rho, hw, rx: rx * k, ry: ry0 * k };
 }
 
