@@ -79,13 +79,13 @@ export function Summary({ props }: { props: { sessionId: string } }) {
       <SheetHead title={t('Nice work')} sub={`${ses.name || t('Workout')} · ${fmtDate(ses.date, lang)}`} onClose={closeAll} />
       <div className="sheet-body" ref={body}>
         {/* the medal turns in like a coin as the sheet rises; gold with the count when records fell (finishMoment.ts) */}
-        <div className={`sum-medal${recs.length ? ' gold' : ''}`} aria-label={recs.length ? t(recs.length === 1 ? '1 new record' : '{n} new records', { n: recs.length }) : undefined}>
+        <div className={`sum-medal${recs.length ? ' gold' : ''}`} data-fm="medal" aria-label={recs.length ? t(recs.length === 1 ? '1 new record' : '{n} new records', { n: recs.length }) : undefined}>
           {recs.length > 0 && Array.from({ length: 12 }, (_, i) => <i key={i} aria-hidden className="sum-ray" data-fm="ray" style={{ rotate: `${i * 30}deg` }} />)}
           <span className="sum-halo" data-fm="halo" aria-hidden />
           <span className="sum-halo" data-fm="settle" aria-hidden />
           <span className="sum-disc" data-fm="disc">
-            <span className="sum-face">{recs.length ? <span className="display num">{recs.length}</span> : <Icon name="check" size={38} />}</span>
-            <span className="sum-sheen" data-fm="sheen" aria-hidden />
+            <span className="sum-back" aria-hidden />
+            <span className="sum-front">{recs.length ? <span className="display num">{recs.length}</span> : <Icon name="check" size={38} />}<span className="sum-sheen" data-fm="sheen" aria-hidden /></span>
           </span>
         </div>
         {recs.length > 0 && <div className="micro" data-fm="label" style={{ margin: '-6px 0 16px', textAlign: 'center', color: 'var(--gold)' }}>{recs.length === 1 ? t('New personal record') : t('New personal records')}</div>}

@@ -15,11 +15,13 @@ import { apple, springCurve, springSamples } from '../../ui/motion';
 export const MEDAL_SPRING = apple(1.15, 0.1);  // the coin's turn: slow, the faintest settle at the end
 const CARD_SPRING = apple(0.62);               // the card and the rest of the screen: Apple .smooth, unhurried
 const TILE_SPRING = apple(0.55);
-const ROLL_SPRING = apple(0.95);               // an odometer slowing to rest
+const ROLL_SPRING = apple(0.8);                // an odometer slowing to rest (no bounce: critically damped)
+const ROLL_LEAD = 0.1;                         // a number is already rolling when its tile starts to appear
+const ROLL_V0 = 2.5;                           // and it starts already moving (progress per second), never resting on 0 first
 const WORD_SPRING = apple(0.6);
 
-const at = (sp: { stiffness: number; damping: number }, x: number) => {
-  const { xs } = springSamples(sp);
+const at = (sp: { stiffness: number; damping: number }, x: number, v0 = 0) => {
+  const { xs } = springSamples(sp, v0);
   const i = xs.findIndex((v) => v >= x);
   return (i < 0 ? xs.length : i) / 60;
 };
@@ -37,8 +39,8 @@ export function odoCols(text: string): OdoCol[] {
     return { ch, travel: d + (place === 0 && ds > 1 ? 10 : 0) };
   });
 }
-/** Seconds until a roll of `travel` places reads as landed (within an eighth of a digit). */
-export const rollSettle = (travel: number) => (travel <= 0 ? 0 : at(ROLL_SPRING, 1 - 0.12 / travel));
+/** Seconds after its tile starts until a roll of `travel` places has landed (within a twenty-fifth of a digit). */
+export const rollSettle = (travel: number) => (travel <= 0 ? 0 : Math.max(0, at(ROLL_SPRING, 1 - 0.04 / travel, ROLL_V0) - ROLL_LEAD));
 
 export type Plan = { medalLand: number; starts: number[]; settles: number[]; line: number; end: number };
 /** When each number starts and settles: each one lands about a quarter second after the one before, never closer. */
@@ -60,9 +62,9 @@ const ROW = 1.15; // em: one digit's height in the odometer
 /** Plays the choreography on the summary's elements (found by data-fm). Returns a stop. */
 export function play(root: HTMLElement, p: Plan): () => void {
   const all: Animation[] = [];
-  const run = (el: Element | null | undefined, frames: Keyframe[], sp: { stiffness: number; damping: number }, delay: number, fill: FillMode = 'backwards') => {
+  const run = (el: Element | null | undefined, frames: Keyframe[], sp: { stiffness: number; damping: number }, delay: number, fill: FillMode = 'backwards', v0 = 0) => {
     if (!el) return;
-    const c = springCurve(sp);
+    const c = springCurve(sp, v0);
     all.push((el as HTMLElement).animate(frames, { duration: c.duration, easing: c.easing, delay: delay * 1000, fill }));
   };
   const fade = (el: Element | null | undefined, delay: number, duration = 0.32) => {
@@ -78,7 +80,7 @@ export function play(root: HTMLElement, p: Plan): () => void {
 
   // the medal turns to face you as it rises with the sheet
   run(q('disc'), [{ transform: 'translate3d(0, 26px, 0) scale(.55) rotateY(-360deg)' }, { transform: 'translate3d(0, 0, 0) scale(1) rotateY(0deg)' }], MEDAL_SPRING, 0.02);
-  fade(q('disc'), 0.02, 0.4);
+  fade(q('medal'), 0.02, 0.4); // (on the medal, not the coin: an opacity on the coin would flatten its two faces into one)
   // as it lands: its light opens once, a sheen crosses it, the rays (records) open and fade, the record label rises
   ease(q('halo'), [{ opacity: 0.75, transform: 'scale(1)' }, { opacity: 0, transform: 'scale(1.3)' }], 1.6, p.medalLand - 0.12);
   ease(q('sheen'), [{ transform: 'translate3d(-120%, 0, 0)' }, { transform: 'translate3d(120%, 0, 0)' }], 1.5, p.medalLand - 0.05, 'cubic-bezier(.45, 0, .2, 1)');
@@ -93,7 +95,7 @@ export function play(root: HTMLElement, p: Plan): () => void {
     run(tile, [{ transform: 'translate3d(0, 14px, 0)' }, { transform: 'none' }], TILE_SPRING, st); fade(tile, st, 0.28);
     tile.querySelectorAll<HTMLElement>('[data-travel]').forEach((strip) => {
       const n = +strip.dataset.travel!;
-      run(strip, [{ transform: 'translate3d(0, 0, 0)' }, { transform: `translate3d(0, ${-n * ROW}em, 0)` }], ROLL_SPRING, st);
+      run(strip, [{ transform: 'translate3d(0, 0, 0)' }, { transform: `translate3d(0, ${-n * ROW}em, 0)` }], ROLL_SPRING, Math.max(0, st - ROLL_LEAD), 'backwards', ROLL_V0);
     });
   });
   // the line, word by word
