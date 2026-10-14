@@ -76,25 +76,32 @@ html:root[data-glow='off'] .aurora, html:root[data-glow='off'] .aurora-lite { di
 :root[data-palette='forest'] [data-hue='train'] { --ac: #d4f25a; --h1: #2fa05a; --h2: #6a8f1c; --h3: #ffd04d; }
 :root[data-palette='forest'] [data-hue='food'] { --ac: #8af25a; --h1: #2fe08a; --h2: #1c8a63; --h3: #c6f24a; }
 :root[data-palette='forest'] [data-hue='progress'] { --ac: #5ae0a8; --h1: #2f9d8a; --h2: #4b9b5a; --h3: #b6f25a; }
-/* Golden hour: a real sunset, sun-yellow through orange into red-orange, nothing pink. The field glows orange and red
-   (yellow light over the dark page reads olive); the sun-yellow is the accent. The macro rings take the
-   dusk sky above it (soft blue-lavender carbs), so the ring still reads as three colours. */
-:root[data-palette='golden'] [data-hue='today'] { --ac: #ffb547; --h1: #ff6a1a; --h2: #ff9a32; --h3: #ff4a2a; }
-:root[data-palette='golden'] [data-hue='train'] { --ac: #ff8f3a; --h1: #ff5a1f; --h2: #ff8a2a; --h3: #e8362a; }
-:root[data-palette='golden'] [data-hue='food'] { --ac: #ffc44d; --h1: #ff9a2a; --h2: #ff6a1a; --h3: #ffae3a; }
-:root[data-palette='golden'] [data-hue='progress'] { --ac: #ffa04a; --h1: #ff7a2b; --h2: #ffa63a; --h3: #ff4a2a; }
-html:root[data-palette='golden'] { --c-protein: #ff6b3d; --c-carbs: #9fb2ff; --c-fat: #ffd060; }
-/* Midnight: deep blue light with an ice-blue accent; quiet, cool, one family */
+/* Golden hour: a real sunset. The light is red-orange (hue 10-15, like the sky low on the horizon); sun-yellow only where
+   it is brightest: the accent, the sun's core, the top of the start button. Mid-light yellow-orange over the dark page
+   reads as caramel/brown, so nothing in the fields sits there. The macro rings: sunset orange kcal, ember protein, dusk
+   lavender carbs, gold fat. */
+:root[data-palette='golden'] [data-hue='today'] { --ac: #ffb547; --h1: #ff4a1a; --h2: #ff5a24; --h3: #e8301a; }
+:root[data-palette='golden'] [data-hue='train'] { --ac: #ff9a3d; --h1: #ff3d1a; --h2: #ff5a24; --h3: #d92a1a; }
+:root[data-palette='golden'] [data-hue='food'] { --ac: #ffc44d; --h1: #ff5a1f; --h2: #ff3d1a; --h3: #ff6a2a; }
+:root[data-palette='golden'] [data-hue='progress'] { --ac: #ffa84a; --h1: #ff4a1a; --h2: #e8301a; --h3: #ff6a2a; }
+html:root[data-palette='golden'] { --c-kcal: #ff7a2f; --c-protein: #ff5436; --c-carbs: #a8b4ff; --c-fat: #ffd060; --c-water: #ffb547; }
+:root[data-palette='golden'] .bg-sun { --sun-mid: #ff7a2f; --sun-wide: #c8401a; --sun-h2: #8a2410; --sun-h1: #5a1a0e; }
+:root[data-palette='golden'] .bg-sun-sky { --h1: #5a1a0e; }
+:root[data-palette='golden'] .icon-btn.acc { background: linear-gradient(180deg, #ffc65a, #ff7a2f); box-shadow: inset 0 1px 0 rgba(255,255,255,.55), 0 14px 34px -10px rgb(255 74 26 / .7); }
+/* Midnight: deep blue light with an ice-blue accent; quiet, cool, one family. Macros: coral, ice, pale gold. */
 :root[data-palette='midnight'] [data-hue='today'] { --ac: #9cc4ff; --h1: #1d3fa8; --h2: #4a7dff; --h3: #2a2f8f; }
 :root[data-palette='midnight'] [data-hue='train'] { --ac: #8ab4ff; --h1: #2348c4; --h2: #5b6cff; --h3: #1a6a9e; }
 :root[data-palette='midnight'] [data-hue='food'] { --ac: #9ee6ff; --h1: #1f5fb0; --h2: #3aa0d8; --h3: #3a46b8; }
 :root[data-palette='midnight'] [data-hue='progress'] { --ac: #b4bcff; --h1: #3a3fb8; --h2: #5a8cff; --h3: #2a5aa8; }
-/* Champagne: graphite light with one champagne-gold accent; the macros are champagne, platinum and bronze */
+html:root[data-palette='midnight'] { --c-protein: #ff8a7a; --c-carbs: #9cc4ff; --c-fat: #f2d48a; --c-water: #9ee6ff; --nokey: #9cc4ff; }
+/* Champagne: graphite light with one champagne-gold accent. Macros: champagne kcal, honey protein, ice-platinum carbs,
+   bronze fat. Its sun is a deep, saturated gold low down (a pale warm glow over the dark page reads grey-khaki). */
 :root[data-palette='champagne'] [data-hue='today'] { --ac: #e8cf9a; --h1: #6e6c78; --h2: #a8977c; --h3: #4a4a56; }
 :root[data-palette='champagne'] [data-hue='train'] { --ac: #e6c58a; --h1: #76727e; --h2: #9c8b70; --h3: #44444f; }
 :root[data-palette='champagne'] [data-hue='food'] { --ac: #ecd6a8; --h1: #7c7884; --h2: #b0a084; --h3: #50505c; }
 :root[data-palette='champagne'] [data-hue='progress'] { --ac: #e2c896; --h1: #706e7a; --h2: #a4937a; --h3: #4c4c58; }
-html:root[data-palette='champagne'] { --c-protein: #f2dcae; --c-carbs: #a9b4c6; --c-fat: #c9925e; --c-water: #d8e2ea; }
+html:root[data-palette='champagne'] { --c-kcal: #f5e2b8; --c-protein: #e0b07a; --c-carbs: #b4caf2; --c-fat: #b9784a; --c-water: #d8e6f5; }
+:root[data-palette='champagne'] .bg-sun { --sun-mid: #8a6224; --sun-wide: #6a4a1a; --sun-h2: #4a3a2a; --sun-h1: #3a3640; }
 /* contents that arrive a beat after a tall sheet starts moving fade in instead of appearing */
 .sheet-pane.late > * { animation: fadein 220ms var(--ease-out) both; }
 /* …but the bottom buttons' fade is let go once it has run (fill backwards): an animation kept on the foot makes it a closed
@@ -1264,7 +1271,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
   animation: rise-soft 520ms var(--ease-out) both; animation-delay: calc(80ms + var(--i, 0) * 70ms); }
 .tip-ic { flex: none; width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center; background: var(--ac-soft); color: var(--ac-text); }
 .tip-l { display: block; font-weight: 600; line-height: 1.25; }
-.tip-p { display: block; margin-top: 2px; font-size: 13px; color: var(--tx3); line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tip-p { display: block; margin-top: 2px; font-size: 13px; color: var(--tx2); line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* Food search: the six ways in, as one tidy grid (nothing scrolls sideways or hides off the edge) */
 /* the ways to add food: one compact row of pills (it used to be two rows of tiles that pushed your recent foods down) */
@@ -1817,10 +1824,16 @@ html:root[data-glow='off'] .bgx:not([data-k='photo']) { display: none; }
   background:
     linear-gradient(to bottom, transparent 64%, color-mix(in srgb, var(--bg) 34%, transparent) 69%, color-mix(in srgb, var(--bg) 52%, transparent) 84%),
     radial-gradient(22% 7% at 50% 64%, color-mix(in srgb, var(--ac) 66%, #fff 30%), transparent 100%),
-    radial-gradient(46% 17% at 50% 64%, color-mix(in srgb, var(--ac) 70%, transparent), transparent 100%),
-    radial-gradient(90% 32% at 50% 64%, color-mix(in srgb, var(--ac) 46%, transparent), transparent 100%),
-    radial-gradient(130% 48% at 50% 66%, color-mix(in srgb, var(--h2) 40%, transparent), transparent 100%),
-    radial-gradient(160% 70% at 50% 70%, color-mix(in srgb, var(--h1) 28%, transparent), transparent 100%); }
+    radial-gradient(46% 17% at 50% 64%, color-mix(in srgb, var(--sun-mid, var(--ac)) 70%, transparent), transparent 100%),
+    radial-gradient(90% 32% at 50% 64%, color-mix(in srgb, var(--sun-wide, var(--ac)) 46%, transparent), transparent 100%),
+    radial-gradient(130% 48% at 50% 66%, color-mix(in srgb, var(--sun-h2, var(--h2)) 40%, transparent), transparent 100%),
+    radial-gradient(160% 70% at 50% 70%, color-mix(in srgb, var(--sun-h1, var(--h1)) 28%, transparent), transparent 100%); }
+/* the macro numbers sit just above the horizon, where the sun is brightest: a soft dark pool under them and full-strength
+   muted text keep them readable (4.5:1) at any fill */
+:root:not([data-theme='light'])[data-bg='sunrise'] .macro-row { position: relative; isolation: isolate; }
+:root:not([data-theme='light'])[data-bg='sunrise'] .macro-row::before { content: ''; position: absolute; inset: -14px -18px -10px; z-index: -1;
+  border-radius: 40px; background: radial-gradient(closest-side, rgb(4 5 10 / .62), rgb(4 5 10 / .4) 60%, transparent); }
+:root:not([data-theme='light'])[data-bg='sunrise'] .macro-row .t3, :root:not([data-theme='light'])[data-bg='sunrise'] .macro-row .micro { color: rgb(236 239 250 / .82); }
 
 /* Mesh: a still blend of the area's colours across the whole screen, like the colour behind album art */
 .bg-mesh { opacity: var(--bgk);

@@ -518,7 +518,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   const resumeHead = <div className="micro" style={{ margin: '22px 0 10px' }}>{t('Today')}</div>;
   const tipsBlock = (
               <div className="stack gap12">
-                {noKey && <div className="small" style={{ color: 'var(--warn)' }}>{t('Add an AI key to chat.')} <button className="chip sm acc press" style={{ marginLeft: 6 }} onClick={() => push('settings', { section: 'ai' })}>{t('Add a key')}</button></div>}
+                {noKey && <div className="small" style={{ color: 'var(--nokey, var(--warn))' }}>{t('Add an AI key to chat.')} <button className="chip sm acc press" style={{ marginLeft: 6 }} onClick={() => push('settings', { section: 'ai' })}>{t('Add a key')}</button></div>}
                 <div className={`tips${cleared ? ' fresh' : ''}`}>{tips.map((c, i) => (
                   <button key={c.prompt} className="tip press" style={{ ['--i' as string]: i }} onClick={() => send(c.prompt)}>
                     <span className="tip-ic"><Icon name={c.icon} size={18} /></span>
@@ -593,7 +593,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
             </div>
             {resumed && shown.length > 0 ? <div className="coach-resume">{resumeHead}{tipsBlock}</div>
               : tipsOut === 'resume' && <div className="coach-resume coach-tips-out" inert onAnimationEnd={(e) => { if (e.target === e.currentTarget) setTipsOut(null); }}>{resumeHead}{tipsBlock}</div>}
-            {!noteSeen && shown.length === 0 && <div className={`xs t3${cleared ? ' coach-note-fresh' : ''}`} style={{ marginTop: 18 }}>{solOn(ai) ? t('AI can be wrong, and isn’t medical advice. Messages go to OpenAI (GPT-6.1 Sol).') : t('AI can be wrong, and isn’t medical advice. Messages go to Google Gemini.')}</div>}
+            {!noteSeen && shown.length === 0 && <div className={`xs t2${cleared ? ' coach-note-fresh' : ''}`} style={{ marginTop: 18 }}>{solOn(ai) ? t('AI can be wrong, and isn’t medical advice. Messages go to OpenAI (GPT-6.1 Sol).') : t('AI can be wrong, and isn’t medical advice. Messages go to Google Gemini.')}</div>}
           </>
       </div>
     </Sheet>
