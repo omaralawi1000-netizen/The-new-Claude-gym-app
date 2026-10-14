@@ -17,6 +17,8 @@ export function Dial({ rings, size = 280, stroke = 13, gap = 9, children, label 
   const visit = useVisit();
   const c = size / 2;
   const ids = useId().replace(/:/g, '');
+  // each ring is drawn turned a quarter (so it starts at 12 o'clock); turning its light back keeps "top" at the top
+  const up = `rotate(90 ${c} ${c})`;
   return (
     <div role="img" aria-label={label} data-fly="kcal" style={{ position: 'relative', width: size, height: size, margin: '0 auto' }}>
       <svg key={visit} width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ position: 'absolute', inset: 0, overflow: 'visible' }} aria-hidden>
@@ -25,14 +27,14 @@ export function Dial({ rings, size = 280, stroke = 13, gap = 9, children, label 
             <filter key={i} id={`dial-glow-${i}`} x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="5" /></filter>
           ))}
           {/* top-to-bottom light, in the dial's own space: the groove is lit at the bottom, a tube at the top */}
-          <linearGradient id={`${ids}-trk`} gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2={size}>
+          <linearGradient id={`${ids}-trk`} gradientUnits="userSpaceOnUse" gradientTransform={up} x1="0" y1="0" x2="0" y2={size}>
             <stop offset="0" style={{ stopColor: 'var(--ring-lift-top)' }} />
             <stop offset="1" style={{ stopColor: 'var(--ring-lift-bot)' }} />
           </linearGradient>
           {rings.map((r, i) => {
             const col = r.over ? 'var(--bad)' : r.color;
             return (
-              <linearGradient key={i} id={`${ids}-tube-${i}`} gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2={size}>
+              <linearGradient key={i} id={`${ids}-tube-${i}`} gradientUnits="userSpaceOnUse" gradientTransform={up} x1="0" y1="0" x2="0" y2={size}>
                 <stop offset="0" style={{ stopColor: `color-mix(in srgb, ${col} 90%, #fff)` }} />
                 <stop offset="0.5" style={{ stopColor: col }} />
                 <stop offset="1" style={{ stopColor: `color-mix(in srgb, ${col} var(--ring-deep), #000)` }} />
@@ -64,7 +66,6 @@ export function Dial({ rings, size = 280, stroke = 13, gap = 9, children, label 
             <g key={i}>
               <circle {...p} stroke="var(--ring-groove)" strokeWidth={stroke} />
               <circle {...p} stroke={`url(#${ids}-trk)`} strokeWidth={stroke} />
-              <circle {...p} r={rad + stroke / 2 - 0.6} stroke="var(--ring-rim)" strokeWidth={1.2} />
               <motion.circle {...p} stroke={col} strokeWidth={stroke + 6} filter={`url(#dial-glow-${i})`} opacity={v > 0 ? 0.55 : 0} initial={{ pathLength: reduce ? v : 0 }} animate={{ pathLength: v }} transition={t} />
               <motion.circle {...p} stroke={`url(#${ids}-tube-${i})`} strokeWidth={stroke} opacity={v > 0 ? 1 : 0} initial={{ pathLength: reduce ? v : 0 }} animate={{ pathLength: len }} transition={t} />
               <motion.circle {...p} stroke={`url(#${ids}-shine-${i})`} strokeWidth={stroke} opacity={v > 0 ? 1 : 0} initial={{ pathLength: reduce ? v : 0 }} animate={{ pathLength: len }} transition={t} />
