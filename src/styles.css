@@ -1153,6 +1153,9 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* the Coach's mic: the ring around the orb swells with your voice (--voice is written by the sphere stage) */
 .voice-ring { position: absolute; inset: -2px; border-radius: 999px; pointer-events: none; border: 2px solid var(--ac); opacity: 0; box-shadow: 0 0 22px -4px var(--ac); transition: opacity .3s var(--ease-io, ease); }
 .voice-ring.on { opacity: calc(0.4 + var(--voice, 0) * 0.6); transform: scale(calc(1 + var(--voice, 0) * 0.16)); transition: none; }
+/* (the Coach's ring on a layer of its own all the time: it follows your voice every frame, which redrew the orb's glow
+   each frame, and its fade at the end made and dropped a layer for the orb beside it) */
+.coach-orb .voice-ring { will-change: transform, opacity; }
 
 /* charts: bars grow from the axis, lines draw themselves in — CSS animations, so they cost a repaint, not script work */
 .bar-in { transform-box: fill-box; transform-origin: 50% 100%; animation: barIn 500ms var(--ease-out) both; }
@@ -1456,12 +1459,12 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .coach-composer .coach-field .input.sent-away::placeholder { color: transparent; transition: none; }
 /* while you speak: "Ask the Coach" fades out and the field's word fades across ("Listening…", then "Transcribing…"),
    drawn exactly where the placeholder is (Coach.tsx cf-status) */
-/* (one at a time: the old word fades out in 90 ms, then the new one in over 150 ms; they are never seen over each other) */
-.coach-composer .coach-field .input.quiet::placeholder { color: transparent; transition: color 90ms var(--ease-out); }
-.coach-composer .coach-field .input:not(.quiet, .sent-away)::placeholder { transition: color 220ms var(--ease-out) 90ms; }
+/* (one at a time: the old word fades out in 140 ms, then the new one in over 240 ms; they are never seen over each other) */
+.coach-composer .coach-field .input.quiet::placeholder { color: transparent; transition: color 140ms var(--ease-out); }
+.coach-composer .coach-field .input:not(.quiet, .sent-away)::placeholder { transition: color 240ms var(--ease-out) 120ms; }
 .coach-field .cf-status { position: absolute; left: 16px; bottom: 16px; font-size: 16px; line-height: 22px; color: var(--tx2); white-space: nowrap; pointer-events: none;
-  opacity: 0; transition: opacity 90ms var(--ease-out); will-change: opacity; }
-.coach-field .cf-status.on { opacity: 1; transition: opacity 150ms var(--ease-out) 90ms; }
+  opacity: 0; transition: opacity 140ms var(--ease-out); will-change: opacity; }
+.coach-field .cf-status.on { opacity: 1; transition: opacity 240ms var(--ease-out) 120ms; }
 /* the said words' "Transcribing…", lifting with the pill as the words come up (Coach.tsx flight) */
 .fly-reveal { position: absolute; top: 0; left: -40px; right: -40px; bottom: -40px; overflow: hidden; will-change: transform, opacity; pointer-events: none;
   -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--pad, 9px)); mask-image: linear-gradient(to bottom, transparent, #000 var(--pad, 9px)); }
@@ -1524,7 +1527,11 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
      of its own (one transition on the outline carried both on the opening's timing: the frost trailed the pill's top by
      60 ms as it grew, and lagged it as it closed up after a send) */
   --cf-gt: calc(8px + var(--cf-max) - var(--mid, 0px)); --cf-gl: calc(var(--cf-x) + 8px);
-  clip-path: inset(var(--cf-gt) 0 0 var(--cf-gl) round 27px);
+  /* (its edges land on quarter pixels: on in-between positions the phone cut the frost with a mask layer instead of its
+     plain rounded edge, and switched between the two on the frames of every opening, closing and new line, about 7
+     times each, a flicker at the bar; on quarter pixels it is the plain edge all the way, a step of a quarter of a
+     pixel nobody can see) */
+  clip-path: inset(round(nearest, var(--cf-gt), 0.25px) 0 0 round(nearest, var(--cf-gl), 0.25px) round 27px);
   transition: --cf-gl var(--cf-dur-c) var(--cf-ease-c), --cf-gt var(--cf-dur-g) var(--cf-ease-g); }
 .open .cf-glass { --cf-gl: 8px; transition: --cf-gl var(--cf-dur) var(--cf-ease) 60ms, --cf-gt var(--cf-dur-g) var(--cf-ease-g); }
 .cf-tint { left: calc(-1 * (var(--cf-x) + 8px)); top: 0; opacity: var(--fc-op); }
@@ -1581,7 +1588,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .coach-cam.frost-ctl { will-change: opacity; }
 :root[data-motion='reduce'] :is(.cf-glass, .cf-tint > i, .cf-sh, .cf-text, .coach-cam-slot) { transition: none !important; }
 @media (prefers-reduced-motion: reduce) { :is(.cf-glass, .cf-tint > i, .cf-sh, .cf-text, .coach-cam-slot) { transition: none !important; } }
-.coach-orb { margin-right: 2px; isolation: isolate; }
+.coach-orb { margin-right: 2px; isolation: isolate; will-change: transform; } /* (its own layer all the time: a tap made one for the press and dropped it, under its frost) */
 /* .frost-ctl: a floating control on its own frosted glass, the one style for them app-wide. Neutral (never tinted by the
    area's colour), a light top edge and a fine rim, a soft shadow under it that lifts it off the page, and a faint sheen
    that brightens its top half so a round one reads as a lens rather than a flat disc. One small blur per control,
@@ -1612,7 +1619,8 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    behind the orb's seat, and under the camera on its slot, fading with the button */
 .frost-seat::after { content: ''; position: absolute; inset: calc(-1 * var(--seat, 2px)); border-radius: 999px; z-index: -2; box-shadow: var(--fc-sh); pointer-events: none; }
 .coach-cam-slot { position: relative; }
-.coach-cam-slot::before { content: ''; position: absolute; inset: 0; border-radius: 999px; box-shadow: var(--fc-sh); pointer-events: none; transition: opacity 220ms var(--ease-out) 180ms; }
+.coach-cam-slot::before { content: ''; position: absolute; inset: 0; border-radius: 999px; box-shadow: var(--fc-sh); pointer-events: none; transition: opacity 220ms var(--ease-out) 180ms;
+  will-change: opacity; } /* (a layer of its own all the time: it was made for each fade and dropped after it) */
 .open .coach-cam-slot::before { opacity: 0; transition: opacity 170ms var(--ease-out) 40ms; }
 .frost-seat { position: relative; isolation: isolate; }
 .frost-seat::before { content: ''; position: absolute; inset: calc(-1 * var(--seat, 2px)); border-radius: 999px; z-index: -1; pointer-events: none; }

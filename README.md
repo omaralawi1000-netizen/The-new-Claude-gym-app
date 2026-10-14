@@ -2088,3 +2088,44 @@ like iOS. And please polish everything".
   up inside the padding, never cut by an edge, never popping in.
 - **Camera frost.** The small camera disc gets a lighter tint (0.26) and a 3.5 px blur, so words under it show as soft
   shapes like under the pill.
+
+## Food rings like Apple Fitness (14 Oct 2026, v0.1.127)
+Omar 15:06: "turn the rings like 3D with like inner shadows and like Apple's fitness". `ui/Dial.tsx`, tokens `--ring-*` in `styles.css`.
+- Each empty track is a deep (dark) or pale (light) version of its own ring's colour, mixed in OKLCH (`oklch(from …)`), carved in
+  with a soft inner shadow. Dark yellow/orange tracks hold less colour (L .275, C .037) so they never turn brown.
+- The fill is a conic gradient along the ring: no darker than the plain colour at its start, brighter and turned ~12° in hue at
+  its end (pink → magenta, lime → yellow-green, teal → cyan-blue; the direction is read once from the ring's real colour). It
+  never wraps, so the start's round cap keeps the start colour. A faint dither keeps it free of bands.
+- A full ring's end is drawn again over its start (same dither and tube shading) with a soft shade in its own darker hue just
+  ahead; short of full, a neutral shade falls on the track ahead of the end.
+- Light mode: no glow and a crisper edge; fat is a clean amber `#e6ad00` in every light palette (was mustard).
+- Cost: painted once; only the fill's mask length, the shade's position and the end's rotation move, on the same spring.
+- Judge rounds: r4 failed (brown smudge at 12 o'clock, brown tracks, dim fills, soft light edge); r5 passed after the yellow
+  track and end-disc fixes. Before/after page: https://claude.ai/artifact/GhMcA41DrV79hCh2tKwT63
+
+## Coach r9: no flicker at the bar, calmer said words (14 Oct 2026)
+Omar 19:46 on Beta: "the look is very, very good… a little polish with the text when I dictate… I noticed some flickers at
+the text bar… polish for the animations, not the look." Nothing in the look changed. Found by watching the compositor's
+layers (DevTools LayerTree) through opening, typing, sending and dictating at the phone's 3.75 pixel ratio:
+- **The pill's frost edge.** `.cf-glass` is cut to the pill by a rounded `clip-path` whose left and top edges glide
+  (`--cf-gl`, `--cf-gt`). On in-between pixel positions Chrome cut it with a mask layer, on others with its plain rounded
+  edge, and switched between the two about 7 times in every opening, closing and new line: a layer made and dropped
+  under the frost, the phone's one-frame flicker. The edges now land on quarter pixels (`round(nearest, …, 0.25px)`),
+  where it is the plain edge all the way: 0 switches measured (was 7–14 per move). A quarter pixel is under one of the
+  phone's pixels.
+- **The camera's frost.** When said words left, the camera faded back in on its slot (`.coach-cam-slot`). A fading
+  parent cuts a backdrop blur off from the page, so the camera showed no frost until the fade ended and then its frost
+  popped in. It now fades on its own glass, and its shadow on the slot's own `::before`.
+- **Layers made and dropped.** The camera's shadow (`.coach-cam-slot::before`) got a layer for each fade, the orb one
+  for each press, and the voice ring one when it faded out (it also redrew the orb's glow every frame while you spoke).
+  Each now keeps its own layer all the time (`will-change`). Measured: no layer comes or goes in the bar in any of
+  open, type, send, dictate (only the flying copy's own).
+- **Colour at the hand-over.** A typed message's flying copy is solid, drawn for an average page (`--fly-under`); with
+  the keyboard up the real pill's frost sits over the palette's glow and is warmer (Golden hour: 62,42,54 against the
+  copy's 40,46,68), so the pill turned navy in one frame as it left. The real pill now stays drawn and the copy's pill
+  comes up over it in its first 60 ms: measured the same colour on the first frame. (Said words leave with the keyboard
+  down, where the two already matched within 3 levels.)
+- **Said words, calmer.** "Transcribing…" fades out over 110 ms (from the field's own value), the words come in over
+  260 ms from 80 ms on an ease (were 60 ms and 140 ms, straight), and settle the last 4 px up into place over 560 ms.
+  The bar comes back after the bubble on an ease over 360 ms (was a straight 300 ms). "Ask the Coach", "Listening…" and
+  "Transcribing…" cross over in 140 ms out, 240 ms in from 120 ms (were 90 and 150 from 90).

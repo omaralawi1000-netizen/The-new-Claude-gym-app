@@ -56,7 +56,8 @@ const rampSpring = (response: number, ramp: number) => {
 const asCurve = (xs: number[]) => ({ duration: Math.round((xs.length - 1) * 1000 / 60), easing: `linear(${xs.map((v) => +v.toFixed(4)).join(', ')})` });
 const FLY_SAID = asCurve(rampSpring(0.52, 0.1));
 const SAID_INK = 560; // the said words' ink: full while the pill is still the pill, the bubble's own by then
-const SAID_BACK = 340; // …and the bar comes back, fresh, only once the bubble has left it (faded in over 300 ms from here)
+const SAID_BACK = 340; // …and the bar comes back, fresh, only once the bubble has left it…
+const SAID_IN = 360; // …faded in over this, eased (a straight fade read as switched on)
 // the emptied pill behind a sent message: closed at once, out of sight under the flying shape, which starts as the whole
 // pill (the empty bar is only ever seen where the shape has left it)
 const CLOSE = { easing: 'linear', duration: 0 };
@@ -411,8 +412,13 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       // (shown at once, a sliver of it peeked out under the shape's rounded corner as it left)
       // (said words: the whole bar waits hidden, then comes back together: field, camera and the stop button)
       if (from.fresh) {
-        const back = (e: Element | null | undefined, o = e ? getComputedStyle(e).opacity : '1') => { if (!e) return; go((e as HTMLElement).animate([{ opacity: 0 }, { opacity: 0, offset: SAID_BACK / (SAID_BACK + 300) }, { opacity: o }], { duration: SAID_BACK + 300, easing: 'linear' })); };
-        composerRef.current?.querySelectorAll('.cf-tint, .cf-sh, .cf-glass, .cf-text, .coach-cam-slot').forEach((e) => back(e)); back(btn, '1'); // (the button was fading in from hidden: its own value now is not where it ends)
+        const hold = (o: string | number): Keyframe[] => [{ opacity: 0 }, { opacity: 0, offset: SAID_BACK / (SAID_BACK + SAID_IN), easing: 'cubic-bezier(.25, 0, .25, 1)' }, { opacity: o }];
+        const back = (e: Element | null | undefined, o = e ? getComputedStyle(e).opacity : '1') => { if (!e) return; go((e as HTMLElement).animate(hold(o), { duration: SAID_BACK + SAID_IN, easing: 'linear' })); };
+        // (the camera fades on its own glass, never on its slot: a fading slot cut the camera's frost off from the page
+        // until the fade ended, then the frost popped back in; its shadow fades on the slot's own ::before)
+        composerRef.current?.querySelectorAll('.cf-tint, .cf-sh, .cf-glass, .cf-text, .coach-cam').forEach((e) => back(e)); back(btn, '1'); // (the button was fading in from hidden: its own value now is not where it ends)
+        const slot = composerRef.current?.querySelector<HTMLElement>('.coach-cam-slot');
+        if (slot) go(slot.animate(hold(1), { duration: SAID_BACK + SAID_IN, easing: 'linear', pseudoElement: '::before' }));
       } else if (btn) go(btn.animate([{ opacity: 0 }, { opacity: 0, offset: 0.74 }, { opacity: 1 }], { duration: 680, easing: 'linear' }));
       const opts = { duration: from.fresh ? FLY_SAID.duration : FLY.duration, easing: from.fresh ? FLY_SAID.easing : FLY.easing, fill: 'forwards' as const };
       const shape = { duration: from.fresh ? FLY_SAID.duration : FLY_SHAPE.duration, easing: from.fresh ? FLY_SAID.easing : FLY_SHAPE.easing, fill: 'forwards' as const };
@@ -425,13 +431,16 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
         // its colour turns from the pill's into the bubble's as it leaves the pill: the bubble's solid colour comes up over
         // the pill's (solid under it the whole way, so the shape is never see-through), which then goes
         go(tone.animate([{ opacity: 0 }, { opacity: 1 }], { ...fade(200, 40), fill: 'both' })),
-        go(pill.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 40, delay: 250, fill: 'both' })),
+        // (typed: the copy's solid pill comes up over the real one in its first 60 ms rather than replacing it on the
+        // first frame: the real pill's frost takes the colour of whatever is behind it, warm over the palette's glow with
+        // the keyboard up, and the solid copy, drawn for an average page, turned it navy in one frame, a flash at the bar)
+        from.fresh
+          ? go(pill.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 40, delay: 250, fill: 'both' }))
+          : go(pill.animate([{ opacity: 0, easing: 'cubic-bezier(.2, 0, .4, 1)' }, { opacity: 1, offset: 60 / 290 }, { opacity: 1, offset: 250 / 290 }, { opacity: 0 }], { duration: 290, easing: 'linear', fill: 'forwards' })),
         // (said words: settled sooner, the lift being shorter; done before it lands)
         go(glass.animate([{ opacity: fillA }, { opacity: fillA }], { duration: 1, delay: from.fresh ? 320 : 400, fill: 'forwards' })),
         go(tone.animate([{ opacity: 1 }, { opacity: 0 }], { ...fade(160, from.fresh ? 320 : 400), fill: 'forwards' })),
-        // the emptied bar's tint and shadow come in under it as it lifts away (none of the bar is drawn where the shape is
-        // on the first frames: the shape is the pill then)
-        ...(from.fresh ? [] : [...(composerRef.current?.querySelectorAll<HTMLElement>('.cf-tint, .cf-sh') ?? [])].map((e) => go(e.animate([{ opacity: 0 }, { opacity: getComputedStyle(e).opacity }], fade(80, 30))))),
+        // (typed: the emptied bar stays drawn under it the whole way: the shape starts as the pill, over the pill)
         go(sh.animate([{ transform: `translate(${x0}px, ${y0}px) scale(${sx}, ${sy})` }, { transform: 'none' }], shape)),
         // the field's bright ink settles to the bubble's softer one; said words (never in the field) come up inside the
         // pill as it lifts, softly, while it is still the pill, and are the bubble's ink by the time it is the bubble
@@ -439,15 +448,19 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
           ? go(words.animate([{ opacity: 1 }, { opacity: 1, offset: 0.7 }, { opacity: inkA }], { duration: SAID_INK, easing: 'linear', fill: 'both' }))
           : go(words.animate([{ opacity: 1 }, { opacity: inkA }], { ...fade(380, 60), fill: 'both' })),
       ];
-      // said words: uncovered by the growing bubble (above), and coming in as "Transcribing…" goes: it fades out in 60 ms
-      // from the moment the pill starts to change, the words come in over 140 ms from 40 ms on (the two are never both
-      // readable at once: one is under 30% whenever the other is over it)
+      // said words: uncovered by the growing bubble (above), and coming in as "Transcribing…" goes: it fades out over
+      // 110 ms from the moment the pill starts to change, the words come in over 260 ms from 80 ms on, eased (the two are
+      // never both readable at once: one is under 30% whenever the other is over it)
       if (reveal) {
         const top = Math.max(0, y0);
         go(reveal.animate([{ transform: `translateY(${top}px)` }, { transform: 'none' }], shape));
         go(words.animate([{ transform: `translateY(${-top}px)` }, { transform: 'none' }], shape));
-        go(reveal.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 140, delay: 40, easing: 'linear', fill: 'backwards' }));
-        if (ghost) go(ghost.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 60, easing: 'linear', fill: 'both' }));
+        go(reveal.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 260, delay: 80, easing: 'cubic-bezier(.2, 0, .2, 1)', fill: 'backwards' }));
+        // (and settle the last few pixels up into place as they come, on a soft ease: they arrive, they don't appear)
+        go(words.animate([{ transform: 'translateY(4px)' }, { transform: 'none' }], { duration: 560, delay: 80, easing: 'cubic-bezier(.2, 0, 0, 1)', fill: 'backwards', composite: 'add' }));
+        // (from where the field's own "Transcribing…" was, if a quick answer caught it still fading in)
+        const was = composerRef.current?.querySelectorAll<HTMLElement>('.cf-status')[1];
+        if (ghost) go(ghost.animate([{ opacity: was ? getComputedStyle(was).opacity : 1 }, { opacity: 0 }], { duration: 110, easing: 'cubic-bezier(.3, 0, .7, 1)', fill: 'both' }));
       }
       if (stand) setTimeout(() => stand?.remove(), 60);
       // lines that were scrolled out of a long draft's view come in on the way, rather than appearing over the chat
