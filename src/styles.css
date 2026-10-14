@@ -1496,7 +1496,8 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    looks very premium"): a tight contact shade, a short soft one and a wide, low one. Static (drawn once with the bubble,
    never animated); a sent message's flying copy carries the same shadow, so it lands on its own. */
 :root { --bubble-sh: 0 1px 2px rgba(0, 0, 0, 0.32), 0 5px 12px -1px rgba(0, 0, 0, 0.4), 0 16px 36px -2px rgba(0, 0, 0, 0.62); }
-:root[data-theme='light'] { --bubble-sh: 0 1px 2px rgba(30, 40, 70, 0.12), 0 5px 12px -2px rgba(30, 40, 70, 0.16), 0 16px 34px -4px rgba(30, 40, 70, 0.27); }
+/* (light: warm and light, gone within ~18 px, a shade of the page's own warmth: a grey-blue one read as a Material card) */
+:root[data-theme='light'] { --bubble-sh: 0 0.5px 1px rgba(60, 30, 30, 0.08), 0 2px 6px rgba(60, 30, 30, 0.06), 0 8px 20px rgba(60, 30, 30, 0.05); }
 .coach-body .said { background: color-mix(in srgb, var(--ac) 9%, var(--s2)); border: 0; box-shadow: var(--bubble-sh); }
 /* The typing pill has its own surface; the orb and camera sit beside it. */
 .coach-foot { padding-bottom: 12px; }
@@ -1584,14 +1585,15 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    fades with it: opacity on the glass itself, never on something around it, which would cut the glass off from the page) */
 .coach-cam-slot { display: flex; flex: none; transition: transform var(--cf-dur-c) var(--cf-ease-c); }
 .open .coach-cam-slot { transform: translateX(-6px) scale(0.82); transition: transform var(--cf-dur) var(--cf-ease) 40ms; }
-.coach-composer .coach-cam.frost-ctl:not([data-pressed], [data-press-off]) { transition: transform 460ms var(--ease-smooth), opacity 320ms cubic-bezier(.4, 0, .2, 1) 200ms; }
+.coach-composer .coach-cam.frost-ctl:not([data-pressed], [data-press-off]) { transition: transform 460ms var(--ease-smooth), opacity 300ms cubic-bezier(.4, 0, .2, 1) 80ms; }
 .coach-composer.open .coach-cam.frost-ctl:not([data-pressed], [data-press-off]) { transition: transform 460ms var(--ease-smooth), opacity 200ms cubic-bezier(.4, 0, .2, 1) 30ms; } /* (calm: no spring overshoot, a longer return) */
 .open .coach-cam { opacity: 0; pointer-events: none; }
-/* a message just sent: the emptied pill closes up at once, under the flying shape (Coach.tsx CLOSE); the bar is held open meanwhile */
-.coach-composer.closing .cf-glass { transition: --cf-gl var(--cf-dur) var(--cf-ease) 60ms, --cf-gt var(--cf-dur-k) var(--cf-ease-k); }
-.coach-composer.closing .cf-tint > i { transition: translate var(--cf-dur) var(--cf-ease) 60ms, transform var(--cf-dur-k) var(--cf-ease-k), scale var(--cf-dur-k) var(--cf-ease-k); }
-.coach-composer.closing .cf-sh { transition: scale var(--cf-dur) var(--cf-ease) 60ms, transform var(--cf-dur-k) var(--cf-ease-k); }
-.coach-composer.closing .cf-text { transition: translate var(--cf-dur) var(--cf-ease) 60ms, clip-path var(--cf-dur-k) var(--cf-ease-k); }
+/* a message just sent: the emptied pill holds its shape while the flying copy's paint comes up over it, then closes up under it as it
+   lifts away (Coach.tsx CLOSE); the bar is held open meanwhile */
+.coach-composer.closing .cf-glass { transition: --cf-gl var(--cf-dur) var(--cf-ease) 60ms, --cf-gt var(--cf-dur-k) var(--cf-ease-k) var(--cf-delay-k, 0ms); }
+.coach-composer.closing .cf-tint > i { transition: translate var(--cf-dur) var(--cf-ease) 60ms, transform var(--cf-dur-k) var(--cf-ease-k) var(--cf-delay-k, 0ms), scale var(--cf-dur-k) var(--cf-ease-k) var(--cf-delay-k, 0ms); }
+.coach-composer.closing .cf-sh { transition: scale var(--cf-dur) var(--cf-ease) 60ms, transform var(--cf-dur-k) var(--cf-ease-k) var(--cf-delay-k, 0ms); }
+.coach-composer.closing .cf-text { transition: translate var(--cf-dur) var(--cf-ease) 60ms, clip-path var(--cf-dur-k) var(--cf-ease-k) var(--cf-delay-k, 0ms); }
 .cf-tint > i, .cf-sh, .cf-text, .coach-field textarea.input, .coach-cam-slot, .coach-field { will-change: transform; }
 .coach-cam.frost-ctl { will-change: opacity; }
 :root[data-motion='reduce'] :is(.cf-glass, .cf-tint > i, .cf-sh, .cf-text, .coach-cam-slot) { transition: none !important; }
@@ -1627,7 +1629,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    behind the orb's seat, and under the camera on its slot, fading with the button */
 .frost-seat::after { content: ''; position: absolute; inset: calc(-1 * var(--seat, 2px)); border-radius: 999px; z-index: -2; box-shadow: var(--fc-sh); pointer-events: none; }
 .coach-cam-slot { position: relative; }
-.coach-cam-slot::before { content: ''; position: absolute; inset: 0; border-radius: 999px; box-shadow: var(--fc-sh); pointer-events: none; transition: opacity 320ms cubic-bezier(.4, 0, .2, 1) 200ms;
+.coach-cam-slot::before { content: ''; position: absolute; inset: 0; border-radius: 999px; box-shadow: var(--fc-sh); pointer-events: none; transition: opacity 300ms cubic-bezier(.4, 0, .2, 1) 80ms;
   will-change: opacity; } /* (a layer of its own all the time: it was made for each fade and dropped after it) */
 .open .coach-cam-slot::before { opacity: 0; transition: opacity 200ms cubic-bezier(.4, 0, .2, 1) 30ms; }
 .frost-seat { position: relative; isolation: isolate; }
