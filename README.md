@@ -1967,6 +1967,18 @@ Orb light, Colour per tab, Sunrise, Mesh, Dot field, Time of day, Night sky and 
 - Made in Blender from the Z-Anatomy model (CC BY-SA 4.0, credited in Settings › About). Each exercise gets its own
   choreography on one full-body rig; sources and judge notes are in the project folder `anatomy-proof/`.
 
+## The curl clip, calmer and truer (14 Oct 2026, v0.1.126)
+
+- Omar: "the hands still doesn't hold the bar properly", "refine the neck to the head", then on the motion: "at the bottom it
+  doesn't even pause for half a second… I want to learn from the motion… but it still has to be fast enough".
+- New take (r15): the grip is solved against the hand itself (bar deep in the palm, fingers and thumb round it, no clipping,
+  the bar never slides); the neck is shaped into the head and traps; the timing is traced from his reference video: about
+  4.3 s per rep, a slower 1.5 s lift, a short squeeze at the top, a slightly slower lowering and a half-second settle at
+  the bottom, no machine-like stops, a seamless loop.
+- Clip files carry their take in the name (`figures/barbell-curl.r15.*`) so phones fetch the new clip, not a cached one.
+- Every rule the curl taught (look, grip, neck, tempo, loop, checks) is written down for the next exercises in the project
+  folder `anatomy-proof/figure-rules.md`.
+
 ## Coach: dictation like iOS, calmer answer text (14 Oct 2026)
 
 (The live words and the wave below were removed in r7, same day: see the last section.)
@@ -2046,3 +2058,17 @@ like iOS. And please polish everything".
   up inside the padding, never cut by an edge, never popping in.
 - **Camera frost.** The small camera disc gets a lighter tint (0.26) and a 3.5 px blur, so words under it show as soft
   shapes like under the pill.
+
+## Food rings like Apple Fitness (14 Oct 2026, v0.1.127)
+Omar 15:06: "turn the rings like 3D with like inner shadows and like Apple's fitness". `ui/Dial.tsx`, tokens `--ring-*` in `styles.css`.
+- Each empty track is a deep (dark) or pale (light) version of its own ring's colour, mixed in OKLCH (`oklch(from …)`), carved in
+  with a soft inner shadow. Dark yellow/orange tracks hold less colour (L .275, C .037) so they never turn brown.
+- The fill is a conic gradient along the ring: no darker than the plain colour at its start, brighter and turned ~12° in hue at
+  its end (pink → magenta, lime → yellow-green, teal → cyan-blue; the direction is read once from the ring's real colour). It
+  never wraps, so the start's round cap keeps the start colour. A faint dither keeps it free of bands.
+- A full ring's end is drawn again over its start (same dither and tube shading) with a soft shade in its own darker hue just
+  ahead; short of full, a neutral shade falls on the track ahead of the end.
+- Light mode: no glow and a crisper edge; fat is a clean amber `#e6ad00` in every light palette (was mustard).
+- Cost: painted once; only the fill's mask length, the shade's position and the end's rotation move, on the same spring.
+- Judge rounds: r4 failed (brown smudge at 12 o'clock, brown tracks, dim fills, soft light edge); r5 passed after the yellow
+  track and end-disc fixes. Before/after page: https://claude.ai/artifact/GhMcA41DrV79hCh2tKwT63

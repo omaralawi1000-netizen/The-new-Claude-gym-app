@@ -5,7 +5,7 @@ import { orbDrawn, orbIgnite, orbLaunch, orbLaunchTint, orbLogo, orbTintGo, regi
 /**
  * Opening the app. The phone shows the launch screen first (ink, the Ember orb of dots in the middle); the page's very
  * first paint shows exactly the same (index.html), so the hand-over is invisible. Then, once the app is drawn underneath,
- * one short story, about 1.6 s: the orb wakes up and switches the app on.
+ * one short story, about 1.3 s: the orb wakes up and switches the app on.
  *  1. Wake: the live orb takes the logo's place drawn as the very same logo, so the swap can't be seen, and at once sets
  *     off for the dock, the flat logo swelling into the turning glass sphere on the way (each dot flows to its bead).
  *  2. Ignite: as it goes, a coil of light winds up it from the bottom, and the palette's colour fills in under it, bead by
@@ -32,7 +32,7 @@ const LAND = (() => {
 /** The launch's curve: one move. It leaves promptly (no standstill, no slow wind-up) and slows gently as it comes into
  *  the dock, the way a thing settles into place, and the dock gives under it as it touches down (LAND). */
 const FLIGHT_EASE = [0.3, 0.08, 0.2, 1] as const;
-const FLIGHT_MS = 760;
+const FLIGHT_MS = 620;
 const FLIGHT = (() => {
   const f = cubicBezier(...FLIGHT_EASE), n = Math.round(FLIGHT_MS / (1000 / 120)); // a keyframe per 1/120 s
   return { xs: Array.from({ length: n + 1 }, (_, i) => f(i / n)), duration: FLIGHT_MS, land: { ys: LAND.ys, v0: LAND.v0 } };
@@ -42,8 +42,8 @@ const FADE_MS = 260;      // the launch screen giving way to the app (its blocks
 const IGNITE_AT = 40;     // the coil of light and colour starts as the logo becomes the sphere (its morph: 0.34 s) …
 const GLIDE_AT = 60;      // … and the orb is already on its way (every bead has turned a little past halfway down)
 const RISE_FIRST = 40;    // the page builds from the top down as the orb sets off: the first item …
-const RISE_ROW = 50;      // … each next row …
-const RISE_COL = 30;      // … and each next item along a row
+const RISE_ROW = 42;      // … each next row …
+const RISE_COL = 26;      // … and each next item along a row
 const GLOW_MS = 720;      // the touchdown's light spreading along the dock
 const SPLASH_FADE = 330;  // Android's launch screen fades over 300 ms from the page's first paint: never fly under it
 const MAX_WAIT = 1500;    // the longest the logo waits for the app underneath before it goes anyway
@@ -88,7 +88,10 @@ async function run(cover: HTMLElement) {
 
   // 1. wake: the live orb is the same picture as the logo, so the swap happens in one frame; in place it becomes the sphere
   if (logo) logo.style.visibility = 'hidden';
-  delete root.dataset.launch; // the orb shows
+  // the orb shows, in the same frame (the orb's own fade, for the finish screen, would bring it in from black instead)
+  const cv = document.querySelector<HTMLElement>('.sphere-stage > canvas');
+  if (cv) { cv.style.transition = 'none'; void frames(2).then(() => { cv.style.transition = ''; }); }
+  delete root.dataset.launch;
   orbLogo(0);
 
   // 2. ignite: a coil of light winds up it, the colour filling in under it

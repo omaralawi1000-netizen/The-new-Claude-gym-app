@@ -54,13 +54,13 @@
    colours, with deeper ones on a light page. kcal is its own colour (it used to be the area's accent, so in Ember it was
    the same coral as protein, and it changed with the tab). html:root so they outrank the theme's default trio. */
 html:root[data-palette='ember'] { --c-kcal: #ff7a59; --c-protein: #ff5a9e; --c-carbs: #b07cff; --c-fat: #ffcf5a; }
-html:root[data-palette='ember'][data-theme='light'] { --c-kcal: #e85a36; --c-protein: #d92f7a; --c-carbs: #7a45d0; --c-fat: #c8920e; }
+html:root[data-palette='ember'][data-theme='light'] { --c-kcal: #e85a36; --c-protein: #d92f7a; --c-carbs: #7a45d0; --c-fat: #e6ad00; }
 html:root[data-palette='aurora'] { --c-kcal: #3de0c8; --c-protein: #ff7aa8; --c-carbs: #6f8cff; --c-fat: #c08cff; --c-water: #7ae0ff; }
 html:root[data-palette='aurora'][data-theme='light'] { --c-kcal: #0fa892; --c-protein: #e0457e; --c-carbs: #3d5ee0; --c-fat: #8a52e0; --c-water: #1590b8; }
 html:root[data-palette='sunset'] { --c-kcal: #ff6b9d; --c-protein: #ff8a4d; --c-carbs: #a76bff; --c-fat: #ffc94d; }
-html:root[data-palette='sunset'][data-theme='light'] { --c-kcal: #e0457e; --c-protein: #e8651e; --c-carbs: #7a3fe0; --c-fat: #c99010; }
+html:root[data-palette='sunset'][data-theme='light'] { --c-kcal: #e0457e; --c-protein: #e8651e; --c-carbs: #7a3fe0; --c-fat: #e6ad00; }
 html:root[data-palette='forest'] { --c-kcal: #b6f25a; --c-protein: #2fd09a; --c-carbs: #5ac8e0; --c-fat: #ffd04d; --c-water: #5ac8e0; }
-html:root[data-palette='forest'][data-theme='light'] { --c-kcal: #5f9a12; --c-protein: #13a072; --c-carbs: #1f8fb0; --c-fat: #c09a0e; --c-water: #1f8fb0; }
+html:root[data-palette='forest'][data-theme='light'] { --c-kcal: #5f9a12; --c-protein: #13a072; --c-carbs: #1f8fb0; --c-fat: #e6ad00; --c-water: #1f8fb0; }
 :root[data-palette='aurora'] [data-hue='today'] { --ac: #3de0c8; --h1: #6a5cff; --h2: #3de0c8; --h3: #c25cff; }
 :root[data-palette='aurora'] [data-hue='train'] { --ac: #7ae0ff; --h1: #3d7bff; --h2: #7a4bff; --h3: #3de0c8; }
 :root[data-palette='aurora'] [data-hue='food'] { --ac: #5cf0b0; --h1: #2fe0b4; --h2: #4b6bff; --h3: #a05cff; }
@@ -113,8 +113,8 @@ html:root[data-palette='midnight']:not([data-theme='light']) { --nokey: #9cc4ff;
 html:root[data-palette='champagne'] { --c-kcal: #f5e2b8; --c-protein: #e0b07a; --c-carbs: #b4caf2; --c-fat: #b9784a; --c-water: #d8e6f5; }
 :root[data-palette='champagne'] .bg-sun { --sun-mid: #8a6224; --sun-wide: #6a4a1a; --sun-h2: #4a3a2a; --sun-h1: #3a3640; }
 /* on a light page the new looks' rings and water drop take the deep version of their colours (the pale ones vanish) */
-html:root[data-palette='golden'][data-theme='light'] { --c-kcal: #f2641a; --c-protein: #c81f48; --c-carbs: #6a78e0; --c-fat: #d49a12; --c-water: #e08a12; }
-html:root[data-palette='midnight'][data-theme='light'] { --c-kcal: #3a78d8; --c-protein: #e8604e; --c-carbs: #6a52d8; --c-fat: #c99a2a; --c-water: #1f8fc4; }
+html:root[data-palette='golden'][data-theme='light'] { --c-kcal: #f2641a; --c-protein: #c81f48; --c-carbs: #6a78e0; --c-fat: #e6ad00; --c-water: #e08a12; }
+html:root[data-palette='midnight'][data-theme='light'] { --c-kcal: #3a78d8; --c-protein: #e8604e; --c-carbs: #6a52d8; --c-fat: #e6ad00; --c-water: #1f8fc4; }
 html:root[data-palette='champagne'][data-theme='light'] { --c-kcal: #a8822e; --c-protein: #b9604a; --c-carbs: #6a88b8; --c-fat: #8a5a32; --c-water: #6a90b0; }
 /* contents that arrive a beat after a tall sheet starts moving fade in instead of appearing */
 .sheet-pane.late > * { animation: fadein 220ms var(--ease-out) both; }
@@ -153,6 +153,13 @@ html:root[data-glow='off'] .look-pv i { display: none; }
 
 /* dark (default) */
 :root, :root[data-theme='dark'] {
+  /* the food rings (ui/Dial.tsx), built like Apple Activity rings: each track is its own colour, dim and carved in;
+     the fill deepens at its start and brightens to its end, lit along its outer edge; its end casts a soft shadow */
+  --ring-trk-l: .26; --ring-trk-c: .08; --ring-trk-cm: 1; --ring-in-l: 0; --ring-in-c: 0; --ring-in-a: .55; --ring-out: rgb(0 0 0 / .2);
+  --ring-cap: rgb(0 0 0 / .42); --ring-tube-in: rgb(0 0 0 / .07); --ring-tube-out: rgb(255 255 255 / .14);
+  --ring-dl0: .03; --ring-dl1: .07; --ring-dc1: 1; --ring-glow: .5;
+  --ring-trk-yl: .275; --ring-trk-yc: .037;
+  --ring-dither: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='96' height='96'><filter id='d' color-interpolation-filters='sRGB'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='1' stitchTiles='stitch'/><feColorMatrix values='.5 0 0 0 .25  .5 0 0 0 .25  .5 0 0 0 .25  0 0 0 0 .06'/></filter><rect width='100%' height='100%' filter='url(%23d)'/></svg>");
   color-scheme: dark;
   --bg: #05060b; --bg-2: rgba(0, 0, 0, 0.34);
   --s1: rgba(255, 255, 255, 0.065); --s2: rgba(255, 255, 255, 0.085); --s3: rgba(255, 255, 255, 0.12); --s4: rgba(255, 255, 255, 0.2);
@@ -176,6 +183,9 @@ html:root[data-glow='off'] .look-pv i { display: none; }
   --bar-mix: 15%;
 }
 :root[data-theme='light'] {
+  --ring-trk-l: .925; --ring-trk-c: .065; --ring-trk-cm: .45; --ring-in-l: .45; --ring-in-c: c; --ring-in-a: .084; --ring-out: rgb(255 255 255 / .5);
+  --ring-cap: rgb(20 28 48 / .1); --ring-tube-in: rgb(0 0 0 / .03); --ring-tube-out: rgb(255 255 255 / .11);
+  --ring-dl0: .02; --ring-dl1: .045; --ring-dc1: 1.12; --ring-glow: 0; --ring-trk-yl: var(--ring-trk-l); --ring-trk-yc: var(--ring-trk-c);
   color-scheme: light;
   --bg: #e9ecf4; --bg-2: rgba(20, 28, 48, 0.06);
   --s1: rgba(255, 255, 255, 0.55); --s2: rgba(255, 255, 255, 0.7); --s3: rgba(20, 28, 48, 0.07); --s4: rgba(20, 28, 48, 0.14);
@@ -192,7 +202,7 @@ html:root[data-glow='off'] .look-pv i { display: none; }
   --sh-c: 0 1px 1px rgba(30,40,70,.06), 0 10px 26px -14px rgba(30,40,70,.28);
   --sh-a: 0 22px 44px -18px rgba(30,40,70,.3);
   --sh-f: 0 30px 70px -22px rgba(30,40,70,.42);
-  --c-protein: #e4531c; --c-carbs: #2a7bd4; --c-fat: #a8860d; --c-water: #0e93a8;
+  --c-protein: #e4531c; --c-carbs: #2a7bd4; --c-fat: #e6ad00; --c-water: #0e93a8;
   --scrim: rgba(16, 20, 34, 0.3);
   --ac-ink: #1a0d08;
   --aurora-a: 0.5; --grain: 0.035;
@@ -248,12 +258,15 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
 .aurora i:nth-child(1) { width: 120%; aspect-ratio: 1; left: -35%; top: -30%; background: radial-gradient(closest-side, var(--h1), transparent); animation: drift1 38s ease-in-out 0.3 alternate both; }
 .aurora i:nth-child(2) { width: 105%; aspect-ratio: 1; right: -40%; top: 18%; background: radial-gradient(closest-side, var(--h2), transparent); animation: drift2 46s ease-in-out 0.3 alternate both; }
 .aurora i:nth-child(3) { width: 130%; aspect-ratio: 1; left: -20%; bottom: -55%; background: radial-gradient(closest-side, var(--h3), transparent); animation: drift3 54s ease-in-out 0.3 alternate both; opacity: calc(var(--aurora-a) * .8); }
-/* The tab screens' colour fields share ONE grain, laid over all of them (.fields::before), instead of one per field: while
-   tabs are switched quickly several fields are cross-fading at once, and each grain was another full-screen layer for the
-   graphics chip to blend on every frame. At rest it is the same grain over the same single field. */
-.fields > .aurora::after { content: none; }
-.fields::before { content: ''; position: absolute; inset: 0; z-index: 2147482999; pointer-events: none; opacity: calc(var(--grain) * 1.25); background-image: var(--grain-url, url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")); background-size: var(--grain-size, auto); }
-.aurora::after { content: ''; position: absolute; inset: 0; opacity: calc(var(--grain) * 1.25); /* the grain is what dithers the soft colour gradients; without it they band. No blend mode: 'overlay' made the browser blend a full-screen layer on every frame (the main cause of idle and scroll lag on the tab screens), and the colour field is its own transparent group, so overlay showed the same as a plain layer anyway (measured: within 2 of 255 levels) */ background-image: var(--grain-url, url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")); background-size: var(--grain-size, auto); }
+/* Each tab colour field carries its own grain, painted INTO the field's own layer (.fields > .aurora/.bgx::after below), so
+   the grain costs no layer at all. One grain laid over all the fields (.fields::before) sat over a layer, so Chrome had to
+   make it a full-screen layer of its own (an "overlap" layer) that the phone blended at full resolution on every frame:
+   the main reason glow on felt heavier than glow off. The fields and their cross-fade are unchanged (each keeps its
+   standing layer, so a tab switch never repaints the page). With Background glow off there is no field, and the shared
+   grain lies over the plain page as before. */
+.fields::before { content: none; }
+html:root[data-glow='off']:not([data-bg='photo']) .fields::before { content: ''; position: absolute; inset: 0; z-index: 2147482999; pointer-events: none; opacity: calc(var(--grain) * 1.25); background-image: var(--grain-url, url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")); background-size: var(--grain-size, auto); }
+.aurora::after, .fields > .bgx::after { content: ''; position: absolute; inset: 0; z-index: 2147483000; pointer-events: none; opacity: calc(var(--grain) * 1.25); /* the grain is what dithers the soft colour gradients; without it they band. No blend mode: 'overlay' made the browser blend a full-screen layer on every frame (the main cause of idle and scroll lag on the tab screens), and the colour field is its own transparent group, so overlay showed the same as a plain layer anyway (measured: within 2 of 255 levels) */ background-image: var(--grain-url, url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")); background-size: var(--grain-size, auto); }
 /* Dither: why soft glows banded behind frosted glass, and the recipe that keeps them smooth (any blurred layer can use it).
    The phone keeps a blur's result in whole steps of colour (0-255). Behind a sheet the page is dimmed, so a glow there
    spans only a few dozen steps, and the grain that hides them on the page is averaged away by the blur: the glow came back
@@ -864,6 +877,47 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    ends (see rise-move). A handful of big layers, created once; the motion itself is unchanged. */
 .tab-pane, .settings-page, .sheet-pane, .sheet-page, .sheet-head > .icon-btn, .tab, .tab svg, .tab > span.lab, .sphere-slot, .tabbar.glass::after { will-change: transform; }
 .fields > .aurora { will-change: opacity; }
+/* Classic on the tab screens: the lights are painted once into the field's own layer (a drifting light was a big layer of
+   its own, three of them, and they pushed the grain over them onto a layer too), and it is that one layer that drifts
+   (sway): the lights and their grain move together, slowly, a few pixels over 40 s, and nothing new is drawn. It is
+   opaque, like every other background, so a tab switch lays the new field over the old one (no dip in the light), and
+   slightly larger than the screen so its edge never shows. The new field takes over the old one's place in the sway
+   (Field in App.tsx), so the lights carry on through a switch. Stepped (~8 a second, each step about a quarter of a phone
+   pixel at most) so the phone redraws 8 times a second instead of every frame (measured: no main-thread work at all). (The onboarding's field still drifts its lights.) */
+.fields > .aurora { inset: -3%; background-color: var(--bg); animation: sway 40s infinite alternate both; animation-delay: var(--drift-t, 0s); }
+.app[data-calm] .fields > .aurora, .app:has(.sheet, .voice, .ovl) .fields > .aurora { animation-play-state: paused; }
+:root[data-motion='reduce'] .fields > .aurora { animation: none; }
+@keyframes sway {
+  0% { transform: translate(-1.800%, 0.000%) scale(1.0000); animation-timing-function: steps(14, jump-none); }
+  4.167% { transform: translate(-1.785%, 0.193%) scale(1.0001); animation-timing-function: steps(14, jump-none); }
+  8.333% { transform: translate(-1.739%, 0.378%) scale(1.0004); animation-timing-function: steps(14, jump-none); }
+  12.5% { transform: translate(-1.663%, 0.551%) scale(1.0010); animation-timing-function: steps(14, jump-none); }
+  16.67% { transform: translate(-1.559%, 0.710%) scale(1.0017); animation-timing-function: steps(14, jump-none); }
+  20.83% { transform: translate(-1.428%, 0.851%) scale(1.0026); animation-timing-function: steps(14, jump-none); }
+  25% { transform: translate(-1.273%, 0.973%) scale(1.0037); animation-timing-function: steps(14, jump-none); }
+  29.17% { transform: translate(-1.096%, 1.073%) scale(1.0049); animation-timing-function: steps(14, jump-none); }
+  33.33% { transform: translate(-0.900%, 1.149%) scale(1.0063); animation-timing-function: steps(14, jump-none); }
+  37.5% { transform: translate(-0.689%, 1.201%) scale(1.0077); animation-timing-function: steps(14, jump-none); }
+  41.67% { transform: translate(-0.466%, 1.227%) scale(1.0093); animation-timing-function: steps(14, jump-none); }
+  45.83% { transform: translate(-0.235%, 1.226%) scale(1.0109); animation-timing-function: steps(14, jump-none); }
+  50% { transform: translate(-0.000%, 1.200%) scale(1.0125); animation-timing-function: steps(14, jump-none); }
+  54.17% { transform: translate(0.235%, 1.148%) scale(1.0141); animation-timing-function: steps(14, jump-none); }
+  58.33% { transform: translate(0.466%, 1.071%) scale(1.0157); animation-timing-function: steps(14, jump-none); }
+  62.5% { transform: translate(0.689%, 0.971%) scale(1.0173); animation-timing-function: steps(14, jump-none); }
+  66.67% { transform: translate(0.900%, 0.849%) scale(1.0188); animation-timing-function: steps(14, jump-none); }
+  70.83% { transform: translate(1.096%, 0.707%) scale(1.0201); animation-timing-function: steps(14, jump-none); }
+  75% { transform: translate(1.273%, 0.549%) scale(1.0213); animation-timing-function: steps(14, jump-none); }
+  79.17% { transform: translate(1.428%, 0.375%) scale(1.0224); animation-timing-function: steps(14, jump-none); }
+  83.33% { transform: translate(1.559%, 0.190%) scale(1.0233); animation-timing-function: steps(14, jump-none); }
+  87.5% { transform: translate(1.663%, -0.003%) scale(1.0240); animation-timing-function: steps(14, jump-none); }
+  91.67% { transform: translate(1.739%, -0.202%) scale(1.0246); animation-timing-function: steps(14, jump-none); }
+  95.83% { transform: translate(1.785%, -0.402%) scale(1.0249); animation-timing-function: steps(14, jump-none); }
+  100% { transform: translate(1.800%, -0.600%) scale(1.0250); }
+}
+.fields > .aurora i { animation: none; }
+.fields > .aurora i:nth-child(1) { transform: translate(3.350%, 2.605%) scale(1.0223) rotate(4.467deg); }
+.fields > .aurora i:nth-child(2) { transform: translate(-4.113%, -1.869%) scale(0.9850) rotate(-5.608deg); }
+.fields > .aurora i:nth-child(3) { transform: translate(2.625%, -3.000%) scale(1.0188) rotate(3.375deg); }
 
 /* Coach replies: each new word inks in — blurred and lifted, glowing in the accent, then settling into the text colour.
    Only new words mount, so nothing already read re-animates; words that arrive together cascade. */
@@ -2017,7 +2071,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    Every one but Classic holds still: a few gradients (or one small, already-blurred photo) painted once, so the frosted
    tab bar, sheets and Coach bar over them never re-blur a moving field. Strength follows Background glow (--aurora-a:
    Full / Soft); Off leaves a plain background (Your photo stays: it is your picture, not a glow). The page's grain
-   (.fields::before) lies over all of them, which is what keeps their soft gradients from banding. Sized in % of their
+   (each field's own ::after) lies over them, which is what keeps their soft gradients from banding. Sized in % of their
    box, so the small previews in Settings are the same picture. */
 .bgx { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; contain: strict; --bgk: calc(var(--aurora-a) * 1.8); }
 .fields > .bgx { will-change: opacity; background-color: var(--bg); } /* opaque, so a change lays the new one over the old (App.tsx FIELD) */
@@ -2130,7 +2184,30 @@ html:root[data-glow='off'] .bgx:not([data-k='photo']) { display: none; }
    same everywhere. It used to be three recipes: a faint white lift (Classic, Orb light, Mesh, Colour per tab: cards
    took on the glow's colour), solid (Night sky, Dot field) and a darker frost (Time of day, Sunrise). Only the
    colours changed: no extra layer or blur. */
-:root:not([data-theme='light']) .screen { --s1: rgb(17 19 29 / .72); --s2: rgb(23 25 37 / .76); --s3: rgb(36 39 54 / .8); --bg-2: rgb(3 4 10 / .5); }
+:root:not([data-theme='light']) .screen { --s1: rgb(10 12 20 / .6); --s2: rgb(18 20 30 / .62); --s3: rgb(40 43 58 / .7); --bg-2: rgb(3 4 10 / .5);
+  --card-milk: rgba(140, 146, 160, .015); --card-sheen: rgba(255, 255, 255, .015); --card-hl: rgba(255, 255, 255, .19); --card-hl-w: .5px; --card-rim: rgba(255, 255, 255, .1);
+  --card-sh: 0 0 0 1px rgba(0, 0, 0, .3), 0 6px 14px -8px rgba(0, 0, 0, .3), 0 24px 48px -16px rgba(0, 0, 0, .3); }
+/* over a warm field (Ember, Sunset, Golden hour) the glass is just as clear, only tinted a touch cooler, so a warm glow
+   shows through as warm grey instead of turning the card orange or brown */
+:root:not([data-theme='light']):is([data-palette='ember'], [data-palette='sunset'], [data-palette='golden']) .screen { --s1: rgb(8 12 32 / .6); --s2: rgb(16 20 40 / .62); }
+:root[data-theme='light']:is([data-palette='ember'], [data-palette='sunset'], [data-palette='golden']) .screen { --s1: rgba(236, 243, 255, .4); --s2: rgba(242, 247, 255, .44); }
+/* where the background has sharp detail (stars, the dot field), a real frost would melt it: the cards stay denser there */
+:root:not([data-theme='light']):is([data-bg='night'], [data-bg='dots']) .screen { --s1: rgb(26 28 38 / .78); --s2: rgb(28 30 42 / .78); --s3: rgb(38 41 56 / .8); }
+:root[data-theme='light'] .screen { --s1: rgba(250, 251, 254, .4); --s2: rgba(255, 255, 255, .44);
+  --card-milk: rgba(238, 241, 248, 0); --card-sheen: rgba(255, 255, 255, .2); --card-hl: rgba(255, 255, 255, .92); --card-hl-w: 1px; --card-rim: rgba(20, 28, 48, .08);
+  --card-sh: 0 0 0 1px rgba(30, 40, 70, .035), 0 6px 14px -8px rgba(16, 18, 24, .07), 0 24px 44px -18px rgba(16, 18, 24, .09); }
+/* Cards on the tab screens are frosted glass painted once (Omar 14 Oct: "more transparent… frost under them… a white line so
+   it's 3D"): a neutral milk and a fine static grain inside (frost without a live blur), a faint sheen on the top half, a clear
+   white top edge and a fine rim, a dark contact line and a deep soft shadow. The milk keeps the field's colour from passing
+   straight through (a warm glow must not turn a card orange). No blur: nothing scrolls under a card and the field is already
+   soft, and a real frost here re-blurred every card on every frame (36 fps, see `.screen .plinth` above). Never animated. */
+/* the frost's grain is a ready-made image (a generated noise image had to be redrawn for every card while scrolling) */
+:root { --card-grain: url('./assets/card-grain-dark.png'); }
+:root[data-theme='light'] { --card-grain: url('./assets/card-grain.png'); }
+/* the grain: a 256 px tile of loose random specks (white and black at very low alpha, fainter on dark), large enough to never
+   show a repeat */
+:where(.screen) .plinth:where(:not(.dots, .dragging)) { background-image: linear-gradient(180deg, var(--card-sheen), transparent 58%), var(--card-grain), linear-gradient(var(--card-milk), var(--card-milk)); background-size: auto, 256px 256px, auto; }
+:where(.screen) .plinth:where(:not(.dragging)) { box-shadow: inset 0 var(--card-hl-w) 0 var(--card-hl), inset 0 0 0 1px var(--card-rim), var(--card-sh); }
 
 /* Your photo: blurred once when you picked it, darkened here so cards and text stay easy to read */
 .bg-photo { background: center / cover no-repeat; background-color: var(--bg); }

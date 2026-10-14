@@ -1,5 +1,5 @@
 import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
-import { AnimatePresence, MotionConfig, motion } from 'motion/react';
+import { AnimatePresence, MotionConfig, motion, type TargetAndTransition } from 'motion/react';
 import { useStore } from './state/store';
 import { useUI } from './state/ui';
 import { TabBar } from './ui/TabBar';
@@ -100,13 +100,12 @@ function useTheme() {
  */
 /**
  * Switching tabs. Two things happen together:
- *  - the glow changes: the area's colour field cross-fades into the next area's colours (Field) — the new layer fades in
- *    while the old one fades out (a little later, so the light never dips), and the browser just blends them instead of
- *    repainting the field on every frame. Both layers are partly see-through, so the old one must fade out too: left at
- *    full strength underneath, it tinted the new colours until it was removed, and then they snapped;
+ *  - the glow changes: the area's colour field cross-fades into the next area's colours (Field). Every field is opaque, so
+ *    the new layer fades in over the old one, which stays whole until it is covered: the light never dips, and the
+ *    browser just blends two finished layers instead of repainting anything;
  *  - the screens swap (TabPane, below).
  */
-const GLOW = 0.8; // seconds the colours take to change over
+const GLOW = 1; // seconds the colours take to change over (eased in and out: calm, no rush at the start)
 let fieldSeq = 0;
 // how long a change of field takes: a tab switch GLOW; picking another background a little longer, so it settles in
 // under the Settings sheet; the sky moving on (Time of day, Night sky) slower still, so it never reads as a jump
@@ -115,18 +114,26 @@ const PICK = 1.2, SKY_SHIFT = 2.6;
 type FieldChange = { d: number; over: boolean };
 const FIELD = {
   hidden: { opacity: 0 },
-  shown: (c: FieldChange) => ({ opacity: 1, transition: { duration: c.d, ease: [0.4, 0, 0.2, 1] as const, delay: 0.05 } }),
+  shown: (c: FieldChange) => ({ opacity: 1, transition: { duration: c.d, ease: [0.42, 0, 0.58, 1] as const, delay: 0.05 } }),
   // Between two of the picked backgrounds (each painted opaque, see .bgx) the new one is laid over the old one, which stays
   // whole until it is covered: a true blend from one to the other. Fading both at once let the room show through mid-way
-  // (a dip in the picker) and two half-skies came out brighter than either. Classic's drifting field is see-through, so
-  // to and from it both still fade.
-  gone: (c: FieldChange) => (c.over
-    ? { opacity: 0.99, transition: { duration: c.d, ease: 'linear' as const, delay: 0.1 } }
+  // (a dip in the picker) and two half-skies came out brighter than either. (Classic is opaque too now.)
+  gone: (c: FieldChange): TargetAndTransition => (c.over
+    // held whole until it is covered, then removed. (Exactly whole: at 0.99 it stopped being an opaque layer and the screen
+    // dimmed by a level for the whole change. The exit still needs something that takes that long, so it counts a variable
+    // nothing reads: no drawing, no layout.)
+    ? { '--gone': [0, 1], transition: { duration: c.d, ease: 'linear' as const, delay: 0.1 } }
     : { opacity: 0, transition: { duration: c.d, ease: [0.55, 0, 0.75, 1] as const, delay: 0.05 } }),
 };
 function Field({ hue, kind, sky, change }: { hue: string; kind: BgKind; sky: { hour: number; night: boolean }; change: FieldChange }) {
-  // every field drifts on the same clock, so the new one lines up with the old one and only its colours change
-  const drift = useRef(`-${Math.round(performance.now())}ms`);
+  // the new field takes up the sway (Classic's slow drift, styles.css) exactly where the field on screen is, so the lights
+  // carry on through a switch and only their colours change (the sway pauses under pop-ups, so a plain clock would not match)
+  const drift = useRef('');
+  if (!drift.current) {
+    const on = document.querySelector<HTMLElement>('.fields > .aurora')?.getAnimations().find((a) => (a as CSSAnimation).animationName === 'sway');
+    const t = on?.effect?.getComputedTiming(); // how far into the sway it is: its time since it started, plus the head start it was given
+    drift.current = `-${Math.round(t && t.localTime != null ? Number(t.localTime) - (t.delay ?? 0) : performance.now())}ms`;
+  }
   const z = useRef(++fieldSeq);
   return (
     <motion.div className={kind === 'classic' ? 'aurora' : 'bgx'} data-k={kind} data-hue={hue} aria-hidden style={{ zIndex: z.current, ['--drift-t' as string]: drift.current }}
@@ -329,7 +336,7 @@ export function App() {
   const change = useRef<{ key: string; bg: BgKind; dur: number; over?: boolean }>({ key: fieldKey, bg, dur: GLOW });
   if (change.current.key !== fieldKey) {
     const was = change.current.bg;
-    change.current = { key: fieldKey, bg, dur: was !== bg ? PICK : PER_TAB[bg] ? GLOW : SKY_SHIFT, over: bg !== 'classic' && was !== 'classic' };
+    change.current = { key: fieldKey, bg, dur: was !== bg ? PICK : PER_TAB[bg] ? GLOW : SKY_SHIFT, over: true };
   }
   const fieldChange = useMemo<FieldChange>(() => ({ d: change.current.dur, over: !!change.current.over }), [change.current.dur, change.current.over]); // eslint-disable-line
   const push = useUI((s) => s.push);

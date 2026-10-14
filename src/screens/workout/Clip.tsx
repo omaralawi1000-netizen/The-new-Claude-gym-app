@@ -7,8 +7,9 @@ import type { Exercise } from '../../lib/types';
  * the page opens (the browser keeps it after that), and playing only while it's on screen and the app is in view.
  * Reduced motion: the first frame stands still.
  */
+// The take is in the file name (`<id>.r15`), so a re-rendered clip is a new file: phones fetch it instead of the old cached one.
 const CLIPS: Record<string, string> = {
-  'barbell-curl': 'figures/barbell-curl',
+  'barbell-curl': 'figures/barbell-curl.r15',
 };
 
 export function clipFor(ex: Exercise | undefined): string | null {
