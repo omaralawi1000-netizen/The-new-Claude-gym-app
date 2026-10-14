@@ -1319,16 +1319,19 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 @keyframes coachReply { from { opacity: .65; transform: translate3d(0, 3px, 0); } to { opacity: 1; transform: none; } }
 /* a sent message in flight (Coach.tsx): a copy of the bubble above everything. Its shape is eight pieces (four corners
    that scale evenly, four straight pieces between them), moved together on one spring so they always make one outline:
-   it starts as the whole pill and becomes the bubble. The pill's colours (.fly-pill: its tint, top sheen and rim, under
-   the pill's opacity) and the bubble's (.fly-tone) are the same pieces twice, so the colour turns without a second shape. */
+   it starts as the whole pill and becomes the bubble. The pill's colours (.fly-pill: its tint, top sheen and rim as they
+   look over the sheet, solid, so nothing behind shows through) and the bubble's (.fly-tone) are the same pieces twice, so
+   the colour turns without a second shape. */
 .coach-fly { position: fixed; z-index: 400; margin: 0; max-width: none; box-sizing: border-box; pointer-events: none;
   transform-origin: 0 0; will-change: transform; background: none; border: 0; box-shadow: none; }
 .fly-sh { position: absolute; left: 0; top: 0; width: 100%; height: 100%; transform-origin: 0 0; will-change: transform, opacity; border-radius: 20px 20px 6px 20px; }
 .fly-shape { position: absolute; left: 0; top: 0; width: 100%; height: 100%; will-change: opacity; }
 .fly-shape > i { position: absolute; left: 0; top: 0; box-sizing: border-box; transform-origin: 0 0; will-change: transform; }
 .fly-tone > i { background: var(--fly-fill); }
-.fly-pill > i { background: var(--fc-solid); border: 0 solid var(--fc-rim-s); }
-.fly-pill > :is(.fp-tl, .fp-tr, .fp-top) { background: linear-gradient(180deg, var(--fc-top), var(--fc-solid)); border-top: 1px solid var(--fc-hl-s); }
+.fly-pill { --fp-a: calc(var(--fc-op) * 100%); --fp-solid: color-mix(in srgb, var(--fc-solid) var(--fp-a), var(--sheet-solid)); }
+.fly-pill > i { background: var(--fp-solid); border: 0 solid color-mix(in srgb, var(--fc-rim-s) var(--fp-a), var(--sheet-solid)); }
+.fly-pill > :is(.fp-tl, .fp-tr, .fp-top) { background: linear-gradient(180deg, color-mix(in srgb, var(--fc-top) var(--fp-a), var(--sheet-solid)), var(--fp-solid));
+  border-top: 1px solid color-mix(in srgb, var(--fc-hl-s) var(--fp-a), var(--sheet-solid)); }
 .fly-pill > :is(.fp-tl, .fp-bl, .fp-mid) { border-left-width: 1px; }
 .fly-pill > :is(.fp-tr, .fp-br, .fp-mid, .fp-side) { border-right-width: 1px; }
 .fly-pill > :is(.fp-bl, .fp-br, .fp-bot) { border-bottom-width: 1px; }
@@ -1439,7 +1442,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .coach-composer .coach-cam.frost-ctl:not([data-pressed], [data-press-off]) { transition: transform 520ms var(--ease-spring), opacity 220ms var(--ease-out) 180ms; }
 .coach-composer.open .coach-cam.frost-ctl:not([data-pressed], [data-press-off]) { transition: transform 520ms var(--ease-spring), opacity 170ms var(--ease-out) 40ms; }
 .open .coach-cam { opacity: 0; pointer-events: none; }
-/* a message just sent: the emptied pill closes up on its own firm curve (Coach.tsx CLOSE); the bar is held open meanwhile */
+/* a message just sent: the emptied pill closes up at once, under the flying shape (Coach.tsx CLOSE); the bar is held open meanwhile */
 .coach-composer.closing .cf-glass { transition: --cf-gl var(--cf-dur) var(--cf-ease) 60ms, --cf-gt var(--cf-dur-k) var(--cf-ease-k); }
 .coach-composer.closing .cf-tint > i { transition: translate var(--cf-dur) var(--cf-ease) 60ms, transform var(--cf-dur-k) var(--cf-ease-k), scale var(--cf-dur-k) var(--cf-ease-k); }
 .coach-composer.closing .cf-sh { transition: scale var(--cf-dur) var(--cf-ease) 60ms, transform var(--cf-dur-k) var(--cf-ease-k); }

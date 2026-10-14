@@ -36,8 +36,9 @@ const GROW = springCurve(apple(0.5, 0.25));
 // has its shape before it is far from the field)
 const FLY = springCurve(apple(0.6, 0.15));
 const FLY_SHAPE = springCurve(apple(0.34, 0.06));
-// the emptied pill closing up behind a sent message: firm, no bounce, already moving (past half closed by about 60 ms)
-const CLOSE = springCurve(apple(0.34), 14);
+// the emptied pill behind a sent message: closed at once, out of sight under the flying shape, which starts as the whole
+// pill (the empty bar is only ever seen where the shape has left it)
+const CLOSE = { easing: 'linear', duration: 0 };
 const growVars = { '--cf-ease-g': GROW.easing, '--cf-dur-g': `${GROW.duration}ms` } as React.CSSProperties;
 const morphVars = { '--cf-x': `${CF_X}px`, '--cf-max': `${CF_MAX}px`, '--cf-ease': MORPH.easing, '--cf-dur': `${MORPH.duration}ms`,
   '--cf-ease-c': MORPH_BACK.easing, '--cf-dur-c': `${MORPH_BACK.duration}ms`, '--cf-ease-k': CLOSE.easing, '--cf-dur-k': `${CLOSE.duration}ms`, ...growVars } as React.CSSProperties;
@@ -270,8 +271,9 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   useLayoutEffect(() => {
     const el = bodyRef.current;
     if (!el || !flyFrom.current.size) return;
-    // the emptied pill starts closing up on this frame, on its own firm curve (the room it leaves under the list moves
-    // the landing place, so it goes first); it stays open until "Ask the Coach" comes back, then closes in one move
+    // the emptied pill closes up on this frame, at once (the flying shape covers all of it as it starts: the empty bar
+    // shows only where the shape has left; the room it leaves under the list moves the landing place, so it goes first);
+    // it stays wide until "Ask the Coach" comes back
     holdOpen.current = true;
     const bar = composerRef.current;
     // (a class that points the pill's parts at that curve: changing the curve's own property on the bar restyled every
@@ -308,8 +310,9 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       copy.className = 'said coach-fly';
       copy.setAttribute('aria-hidden', 'true');
       Object.assign(copy.style, { left: `${B.left}px`, top: `${B.top}px`, width: `${W}px`, height: `${H}px` });
-      // ONE SHAPE: it starts as the whole pill (its full width, its corners, its see-through tint, top sheen and rim, over
-      // the pill itself) and springs into the bubble (its size, corners 20 and the tail's 6), its colour turning from the
+      // ONE SHAPE: it starts as the whole pill (its full width, its corners, its tint, top sheen and rim, solid: the pill's
+      // colours as they look over the sheet, so nothing behind shows through), covering the pill (which closes up at once
+      // under it), and springs into the bubble (its size, corners 20 and the tail's 6), its colour turning from the
       // pill's into the bubble's. A shape's size and corners can't be animated by moves alone, so it is cut into eight
       // pieces (four corners, which scale evenly so a corner stays round, and four straight pieces between them), each
       // moved and scaled on the same spring, so at every moment they make one outline. The two colours are that same set
@@ -363,12 +366,11 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       const place = (c: number[], i: number) => `translate(${c[0]}px, ${c[1]}px) scale(${c[2] / base[i][0]}, ${c[3] / base[i][1]})`;
       for (const group of [pill, tone]) [...group.children].forEach((p, i) => go((p as HTMLElement).animate([{ transform: place(c0[i], i) }, { transform: place(c1[i], i) }], shape)));
       const sx = (x1 - x0) / W, sy = (y1 - y0) / H;
-      const op = parseFloat(getComputedStyle(copy).getPropertyValue('--fc-op')) || 0.5;
       [
         // its colour turns from the pill's into the bubble's as it leaves the pill
-        go(pill.animate([{ opacity: op }, { opacity: 0 }], { ...fade(200, 40), fill: 'both' })),
+        go(pill.animate([{ opacity: 1 }, { opacity: 0 }], { ...fade(200, 40), fill: 'both' })),
         go(tone.animate([{ opacity: 0 }, { opacity: fillA }], { ...fade(160, 40), fill: 'both' })),
-        go(sh.animate([{ transform: `translate(${x0}px, ${y0}px) scale(${sx}, ${sy})`, opacity: 0 }, { transform: 'none', opacity: 1 }], shape)),
+        go(sh.animate([{ transform: `translate(${x0}px, ${y0}px) scale(${sx}, ${sy})` }, { transform: 'none' }], shape)),
         // the field's bright ink settles to the bubble's softer one
         go(words.animate([{ opacity: 1 }, { opacity: inkA }], { ...fade(380, 60), fill: 'both' })),
       ];

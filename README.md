@@ -1792,7 +1792,8 @@ there was a version where you did it without the blur, it came out smooth". He a
   message, read off the field's hidden copy) and the words fly at the field's size, so nothing re-wraps or jumps; the
   field now types in the bubble's letters (weight 520, the placeholder stays as it was).
   - **One shape, from pill to bubble**: on the first frame the flying shape is the whole pill (its full width, its 27 px
-    corners, its see-through tint, top sheen, highlight and rim, drawn over the pill), and on its own quicker spring
+    corners, its tint, top sheen, highlight and rim, solid: the pill's colours as they look over the sheet, so nothing
+    behind shows through its words), and on its own quicker spring
     (`apple(0.34, 0.06)`: about half way by 80 ms, nearly there by 200 ms) it becomes the bubble: its size, corners of 20
     and the tail's 6, its colour turning from the pill's into the bubble's (40–240 ms). A shape's size and corners can't
     be animated by moves alone, so it is eight pieces (four corners that scale evenly, so they stay round, and four
@@ -1800,9 +1801,11 @@ there was a version where you did it without the blur, it came out smooth". He a
     they always make one outline. The two colours are the same pieces twice under one opacity each, so there is never a
     second outline (round 5 cross-faded a pill-shaped and a bubble-shaped layer: the tail corner poked out of the
     pill's for ~80 ms). The send button stays on top while the shape leaves from under it (an exact stand-in for 280 ms).
-  - The emptied pill closes up on the same frame on a firm curve of its own (`CLOSE`, `apple(0.34)` already moving: past
-    half closed by about 60 ms; a `.closing` class points the parts at it, since changing the curve's property on the bar
-    restyled all of it). The cursor hides until "Ask the Coach" comes back at 140 ms.
+  - The emptied pill closes up at once, out of sight under the shape (which covers all of it as it starts), so the empty
+    bar is only ever seen where the shape has left it: never the pill and the shape drawn in the same place (a see-through
+    shape over a closing pill read as two stacked cards, the pill's rim cutting through the words). A `.closing` class
+    points the parts at that (`CLOSE`; changing the curve's property on the bar restyled all of it). The cursor hides
+    until "Ask the Coach" comes back at 140 ms.
   - **The keyboard stays up after a send**, as in iMessage, ready for the next message (it used to go down as the message
     landed, and the whole conversation rode ~650 px down with it). Sent with the keyboard down, the left edge glides back
     and the camera returns at 140 ms.
