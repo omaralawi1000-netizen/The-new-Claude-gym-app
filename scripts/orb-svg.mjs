@@ -2,8 +2,9 @@
 // screen in index.html (gen-launch-orb.mjs) are drawn from this one function, so they match dot for dot.
 // the sphere, as dots: evenly spaced rings (1, 6, 12, 18, 24, 31 dots, each ring turned half a step against the last),
 // so the dots sit evenly everywhere and the outline is a true circle; shaded and shrunk towards the edge as on a ball
-// seen front on (E: how far round the ball the edge is)
-function dots(K = 5, E = 0.87) {
+// seen front on (E: how far round the ball the edge is). src/ui/logoDots.ts draws the same dots in the app (a test keeps
+// them equal).
+export function dots(K = 5, E = 0.87) {
   const L = (() => { const v = [-0.45, -0.6, 0.66], m = Math.hypot(...v); return v.map((x) => x / m); })();
   const out = [];
   for (let k = 0; k <= K; k++) {
@@ -18,7 +19,7 @@ function dots(K = 5, E = 0.87) {
 }
 const mix = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * t));
 const SHADOW = [140, 52, 22], EMBER = [236, 116, 59], LIGHT = [255, 178, 128];
-function colour(lam) {
+export function colour(lam) {
   const t = 0.2 + 0.8 * lam;
   return t < 0.6 ? mix(SHADOW, EMBER, t / 0.6) : mix(EMBER, LIGHT, (t - 0.6) / 0.4);
 }

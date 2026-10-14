@@ -9,6 +9,7 @@ const { b, ctx, p } = await launch();
 const cdp = await ctx.newCDPSession(p);
 await p.goto(process.env.URL || 'http://127.0.0.1:5174/'); await wait(p, 1200); await skipOnboarding(p); await loadDemo(p); await wait(p, 2000);
 if (process.env.TAB) { await p.locator('.tabbar').getByRole('button', { name: process.env.TAB, exact: true }).click(); await wait(p, 1500); }
+await wait(p, Number(process.env.WAIT || 0));
 for (const [name, css] of Object.entries(exps)) {
   await p.evaluate((css) => { let s = document.getElementById('__exp'); if (!s) { s = document.createElement('style'); s.id = '__exp'; document.head.append(s); } s.textContent = css; }, css);
   await wait(p, 800);

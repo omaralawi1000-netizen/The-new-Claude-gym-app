@@ -1,12 +1,24 @@
 # Publishes the built web app to GitHub Pages: https://<user>.github.io/<repo>/
 # One-time: repo Settings → Pages → Source = "GitHub Actions".
+#
+# Two apps go out together, because Pages publishes the whole site in one piece:
+#   - the REAL app at /        always built from the default branch (updates only when that branch changes)
+#   - Aven Beta at /beta/      the test copy: any branch, built with its own name, icon and storage (src/lib/beta.ts)
+# Put a branch on Aven Beta: Actions → "Deploy web app" → Run workflow → type the branch name (or the GitHub tool
+# actions_run_trigger with inputs {beta_branch: "<branch>"}). The branch is remembered as the branch "beta", so a
+# later real deploy keeps showing the same beta. Leave the box empty to keep Aven Beta as it is.
 name: Deploy web app
 on:
   push:
     branches: [main, master, ccr-d1172cc7-1e03wh]
   workflow_dispatch:
+    inputs:
+      beta_branch:
+        description: Branch to show in Aven Beta (empty = keep Aven Beta as it is)
+        required: false
+        default: ''
 permissions:
-  contents: read
+  contents: write # only to remember the beta branch (the branch called "beta")
   pages: write
   id-token: write
 concurrency:
@@ -20,6 +32,8 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -28,10 +42,55 @@ jobs:
       - run: npx tsc --noEmit
       - run: npx vitest run
       - run: npm run build
-      - run: cp dist/index.html dist/404.html
+      - name: Which branch is Aven Beta?
+        id: beta
+        env:
+          INPUT: ${{ inputs.beta_branch }}
+        run: |
+          BR="$INPUT"
+          if [ -z "$BR" ] && git ls-remote --exit-code --heads origin beta >/dev/null 2>&1; then BR=beta; fi
+          if [ -n "$BR" ] && ! printf '%s' "$BR" | grep -Eq '^[A-Za-z0-9._/-]+$'; then echo "::error::Not a branch name I can use: $BR"; exit 1; fi
+          echo "branch=$BR" >> "$GITHUB_OUTPUT"
+          echo "Aven Beta shows: ${BR:-nothing yet}"
+      - uses: actions/checkout@v4
+        if: steps.beta.outputs.branch != ''
+        with:
+          ref: ${{ steps.beta.outputs.branch }}
+          path: beta-src
+      - uses: actions/setup-node@v4
+        if: steps.beta.outputs.branch != ''
+        with:
+          node-version: 22
+      - name: Build Aven Beta
+        id: betabuild
+        if: steps.beta.outputs.branch != ''
+        # a broken beta must never stop the real app going out; asked for by hand it fails loudly instead
+        continue-on-error: ${{ inputs.beta_branch == '' }}
+        working-directory: beta-src
+        run: |
+          grep -q AVEN_BETA vite.config.ts || { echo "::error::This branch has no Aven Beta support yet: merge the default branch into it first"; exit 1; }
+          npm ci
+          node scripts/build-beta.mjs
+      - name: Put the two apps together
+        env:
+          BETA_BRANCH: ${{ steps.beta.outputs.branch }}
+          BETA_OUTCOME: ${{ steps.betabuild.outcome }}
+        run: |
+          cp dist/index.html dist/404.html
+          mkdir -p dist/beta
+          if [ "$BETA_OUTCOME" = success ]; then
+            cp -r beta-src/beta-dist/. dist/beta/
+          else
+            if [ -n "$BETA_BRANCH" ]; then MSG="Aven Beta could not be built from the branch $BETA_BRANCH."; else MSG="No Aven Beta has been published yet."; fi
+            printf '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Aven Beta</title><body style="background:#05060b;color:#eee;font:16px system-ui;padding:32px">%s' "$MSG" > dist/beta/index.html
+          fi
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
       - id: deployment
         uses: actions/deploy-pages@v4
+      - name: Remember the beta branch
+        if: inputs.beta_branch != '' && steps.betabuild.outcome == 'success'
+        working-directory: beta-src
+        run: git push --force origin HEAD:refs/heads/beta

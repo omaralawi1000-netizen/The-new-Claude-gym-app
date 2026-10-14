@@ -100,7 +100,7 @@ There are no separate food / workout voice modes any more. The orb opens its own
 - **How it works**: Gemini gets your sentence, the app's guide (every screen, setting and rule — so "how do I change the theme?" is simply answered) and a compact live summary computed on the device (settings, today's meals/water, a running workout, routines, targets, recent training). It answers with a reply and a short list of actions. The model never writes data itself: each action is validated (`src/lib/agent.ts` → `validateAgent`), then run by the same code the screens use (food matching/quantity rules, exercise matching, settings patching).
 - **Safety**: everything reversible is applied at once and shown as a card with **Undo**; spoken quick logs close the Coach and leave an Undo toast. Finishing a workout always needs a tap. Nothing deletes data. Unknown foods become a clearly labelled **AI estimate**; ambiguous names the Coach can't settle are shown on the card, not guessed silently.
 - **Without a Gemini key** (or if Gemini is down) a built-in reader still logs simple sentences (food, sets, water, weight); chat and settings changes need the key. Without a Groq key the mic falls back as before.
-- The Coach hears you with Groq Whisper: it listens, stops by itself when you finish speaking (or tap the orb), transcribes, then acts.
+- The Coach hears you with Groq Whisper: it listens, stops by itself when you finish speaking (or tap the orb), transcribes, then acts. Since 14 Oct your words also appear in the field as you speak (Chrome's own speech service, a cloud service; see the Coach dictation section); Whisper's words replace them when you stop.
 - Tested with stubbed Gemini/Groq (`tests/agent.test.ts`, `scripts/journey-ai.mjs`). Real-model quality and real-microphone behaviour are unverified until you try it.
 
 ### The orb listens to your voice
@@ -1765,16 +1765,17 @@ there was a version where you did it without the blur, it came out smooth". He a
   their soft focus (not answers).
 - **A calmer pace**: at most 45 words a second (was 70). A big clump from the stream used to pour out a line every
   150 ms, which read as text being spat out.
-- **The list ends above the bar** ("the text bar on its own", Omar 22:07): the conversation fades out before the bar's top
-  edge, so no text ever shows between or behind the orb, the camera or the field. At rest the last message sits 30 px
-  above the bar. It rides with the keyboard (`--kb-now`, v0.1.98).
+- **Three glass objects** (14 Oct, Omar: "each on its own… separated with frosted glass blur"; before that, 22:07, "the
+  text bar on its own"): nothing sits behind the row as a whole, no band or tint; each control is its own frosted glass.
+  The conversation fades out softly just above them (from 28 px above the bar to gone before the controls start), so no
+  letters show between or through them (letters cut round each button read as a stencil, judge 14 Oct). At rest the last
+  message sits 30 px above the bar, clear of the fade. It rides with the keyboard (`--kb-now`, v0.1.98).
 - **Each control on its own frosted glass** (Omar 22:10: "the text bar… the orb and the camera… its own circle that looks
   3D"): the field is a frosted pill, the camera a round frosted button, the orb rests in a frosted seat the field's
   height (`.frost-ctl` / `.frost-seat`, shared, `--fc-*` tokens): neutral glass, a light top edge, a fine rim, a soft
   shadow and a faint sheen on the top half. One small blur per control, never animated.
-- **Soft-edge bar** (Omar picked it): behind the controls only a plain fade, no blur (each control has its own, so nothing
-  is blurred twice): a neutral grey (rgb 21 22 28) easing in over 64 px to 35 % (`.edge-fade`, shared; `.edge-fade.frosted`
-  adds a blur where a bar has no frosted controls; light: the sheet's pale colour at 40 %).
+- **Soft-edge bar** (Omar picked it, 13 Oct; removed 14 Oct for the three glass objects above): a plain grey fade behind
+  the whole row (`.edge-fade`, still used by the dock).
 - **The pill opens while you type** (Omar 22:19, "expands when I type and compresses when I'm done, like iOS"): on focus
   the camera tucks back and fades, and a beat later (60 ms, so the keyboard's lift doesn't hide it) the pill's left edge
   glides over its place with a visible overshoot (about 5 px, `apple(0.62, 0.4)`); when the keyboard goes it glides back
@@ -1865,6 +1866,22 @@ a coloured fringe ("chromatic aberration / colour banding, looks cheap"). Reprod
 - Tools: `scripts/banding-shots.mjs` (Settings, Today, Coach, Scan at phone size, field held still) and
   `scripts/banding-probe.mjs` (CSS variants on one open sheet).
 
+## Smooth glows in the live workout window: no more rings (14 Oct 2026, v0.1.121)
+
+Omar saw stepped, slightly coloured rings in the workout window's glow (the gold light behind the exercise card and the
+light behind the title and figure). Cause: on the phone, Chrome draws a CSS gradient in whole colour steps without
+smoothing them (the test browser smooths them, so lab shots looked clean; judge from his own screenshots). A dim glow
+spans only a few dozen steps, and red, green and blue step at different places, so the rings look coloured. The grain
+on top was drawn after the rounding, so it only hid the rings' edges.
+
+Fix: the window's colour field (`.aurora-lite::before`) and its breathing top light (`.wk-breath`) are worked out in a
+worker at full precision with a dither (`src/ui/glow.ts`, `glow.worker.ts`, `screens/workout/wkGlow.tsx`), drawn once
+into canvases at half the screen's pixels (the screen smooths them back up). The CSS gradients show until the pictures
+are ready ([data-dith] swaps them); colour matches within a third of a step, dark and light. Frost, card and grain are
+unchanged. Cost: open, resume, scroll and idle frame counts the same as before (software GPU). Tools:
+`scripts/banding-workout.mjs`. Way back: branch backup/pre-banding-v0.1.119. Not yet done: the tab screens' Classic glow
+(same cause; `ui/glow.ts` can do it).
+
 ## Launch morph: the launch screen's orb flies into the dock; a lighter start (13 Oct 2026, v0.1.107)
 
 Omar: "launch morph would be amazing… you have to work very hard on it to make it seamless". Before, Android's launch
@@ -1930,6 +1947,12 @@ Orb light, Colour per tab, Sunrise, Mesh, Dot field, Time of day, Night sky and 
   champagne accent; a pale warm glow read grey-beige). Each has its own ring colours (`--c-kcal` is new: kcal no longer
   has to be the accent), deeper ones on a light page. Under Sunrise the macro numbers get a soft dark pool and stronger
   grey text (4.5:1+ over the sun); the Coach's suggestion subtitles and note use the second text grey (5.5:1).
+- One look everywhere (v0.1.117): the status bar takes the top colour of the background you picked (Classic and Mesh
+  the area's light, Colour per tab its first colour, Dot field the accent's wash, Time of day the sky; Orb light,
+  Sunrise, Night sky and Your photo the page colour), so no coloured strip sits over a dark top (`BAR_SRC` in App.tsx).
+  Every look has its own four food-ring colours (`--c-kcal/protein/carbs/fat`, deeper on a light page); kcal no longer
+  follows the tab. Cards, chips and buttons on the tab screens are one dark glass on every background (`.screen`
+  `--s1..3`), replacing three recipes (white lift, solid, darker frost).
 - Scripts: `AVEN_BG=mesh AVEN_PALETTE=aurora AVEN_GLOW=off AVEN_PHOTO=file.jpg` in any script that uses `loadDemo`.
 
 ## Rendered exercise clips: the barbell curl first (14 Oct 2026, v0.1.110)
@@ -1942,3 +1965,53 @@ Orb light, Colour per tab, Sunrise, Mesh, Dot field, Time of day, Night sky and 
   playing only while on screen and while the app is in view; reduced motion shows the still first frame.
 - Made in Blender from the Z-Anatomy model (CC BY-SA 4.0, credited in Settings › About). Each exercise gets its own
   choreography on one full-body rig; sources and judge notes are in the project folder `anatomy-proof/`.
+
+## The curl clip, calmer and truer (14 Oct 2026, v0.1.126)
+
+- Omar: "the hands still doesn't hold the bar properly", "refine the neck to the head", then on the motion: "at the bottom it
+  doesn't even pause for half a second… I want to learn from the motion… but it still has to be fast enough".
+- New take (r15): the grip is solved against the hand itself (bar deep in the palm, fingers and thumb round it, no clipping,
+  the bar never slides); the neck is shaped into the head and traps; the timing is traced from his reference video: about
+  4.3 s per rep, a slower 1.5 s lift, a short squeeze at the top, a slightly slower lowering and a half-second settle at
+  the bottom, no machine-like stops, a seamless loop.
+- Clip files carry their take in the name (`figures/barbell-curl.r15.*`) so phones fetch the new clip, not a cached one.
+- Every rule the curl taught (look, grip, neck, tempo, loop, checks) is written down for the next exercises in the project
+  folder `anatomy-proof/figure-rules.md`.
+
+## Coach: dictation like iOS, calmer answer text (14 Oct 2026)
+
+Omar: "when you say something to the coach… I want it to be easy and like Apple". And: "refine the animations of the text… ultra premium".
+- **Your words appear as you speak.** Tap the orb: the pill opens wide at once ("Listening…"), and what you say shows in
+  it as you say it, growing a line at a time like typed words. The send button listens with you: a small live wave of
+  five bars (your voice's bands, scale only) until the first words, then the arrow. It still stops by itself when you go
+  quiet, or tap the orb or the arrow. Whisper (Groq) then hears the whole recording as before (it is the better ear, and
+  keeps the Danish and accent handling); if its words differ, they take the live ones' place for a moment, then lift out
+  of the field into the chat exactly as typed words do. Tap your words while speaking and it stops there and leaves them
+  in the field to fix (keyboard up), as tapping the text does on iOS. A draft already in the field is kept, the words go
+  after it.
+- **Where the live words come from**: Chrome's Web Speech service (free, no key; on Chrome it is Google's cloud
+  recogniser), running next to the recording. The earlier live words (Groq looks every 1.2 s) were late and misheard and
+  were dropped; this one streams word by word. Language: Settings → Voice & AI → Language, or the app's language on Auto.
+  If it is missing or fails, it listens as before (the wave, then Whisper's words). If Whisper fails, the live words are
+  sent; if the recording itself hears nothing while live words come, the live words decide when to stop (1.5 s after the
+  last one) and are sent.
+- **Answers, refined**: each word barely rises now (0.14em, was 0.3em: a line of small hops read as busy) and takes its
+  light a little longer (820 ms, was 640), so the words in flight overlap and a line fills in as one soft wave. Opacity
+  and transform only, no blur.
+- Not verified on a phone: whether Chrome on Android lets its speech service and the recording share the mic (the
+  fallbacks above cover either one failing), and live-word accuracy.
+
+
+## Food rings like Apple Fitness (14 Oct 2026, v0.1.127)
+Omar 15:06: "turn the rings like 3D with like inner shadows and like Apple's fitness". `ui/Dial.tsx`, tokens `--ring-*` in `styles.css`.
+- Each empty track is a deep (dark) or pale (light) version of its own ring's colour, mixed in OKLCH (`oklch(from …)`), carved in
+  with a soft inner shadow. Dark yellow/orange tracks hold less colour (L .275, C .037) so they never turn brown.
+- The fill is a conic gradient along the ring: no darker than the plain colour at its start, brighter and turned ~12° in hue at
+  its end (pink → magenta, lime → yellow-green, teal → cyan-blue; the direction is read once from the ring's real colour). It
+  never wraps, so the start's round cap keeps the start colour. A faint dither keeps it free of bands.
+- A full ring's end is drawn again over its start (same dither and tube shading) with a soft shade in its own darker hue just
+  ahead; short of full, a neutral shade falls on the track ahead of the end.
+- Light mode: no glow and a crisper edge; fat is a clean amber `#e6ad00` in every light palette (was mustard).
+- Cost: painted once; only the fill's mask length, the shade's position and the end's rotation move, on the same spring.
+- Judge rounds: r4 failed (brown smudge at 12 o'clock, brown tracks, dim fills, soft light edge); r5 passed after the yellow
+  track and end-disc fixes. Before/after page: https://claude.ai/artifact/GhMcA41DrV79hCh2tKwT63
