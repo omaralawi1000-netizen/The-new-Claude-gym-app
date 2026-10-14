@@ -8,6 +8,7 @@ as an installed app and judges everything on the phone. He is not a programmer: 
 - `README.md` is the history of every design decision. Read the relevant section before changing something.
 
 ## Rules that must hold
+- **Read `docs/style-guide.md` first and follow it** (glass, colour, motion, performance, process, rejected looks). It is Omar's one written style for every session.
 - Blur AND 120 fps. Frosted glass stays; make it cheap instead of removing it: blur only small fixed layers, never blur
   on blur, never animate the blur, animate only transform and opacity, pause off-screen animation.
 - Motion stays slow, calm and Apple-like. Never faster or snappier unless Omar agrees. The orb never changes shape.
