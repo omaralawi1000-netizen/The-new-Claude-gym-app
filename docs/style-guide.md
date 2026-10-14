@@ -26,6 +26,9 @@ Tokens live in `src/styles.css` (`:root` dark block and `:root[data-theme='light
 
 - **Page cards = `.plinth`** (radius `--r-md` 22 px; fill `--s1`; edge `inset 0 1px 0 var(--hl)` + `inset 0 0 0 1px var(--line)`;
   shadow `--sh-c`). Inner cells = `.plinth-2` (`--s2`, `--r-sm`). Floating bars and toasts = `.glass` (`--glass`, `--sh-a`).
+- **Tab-screen cards = Lit glass [Omar, 14 Oct, v0.1.129]:** see-through navy (no tint, no grain, no blur), soft white
+  sheen at the top, rim bright along the top and fading down the sides, soft deep shadow. Chips and round buttons inside a
+  card are soft fills with **no outline** (outlines inside an outlined card read as clutter). No accent glow inside cards.
 - **Edge of light:** every glass surface has a 1 px white top line (`--hl`) and a hairline ring (`--line`). Do not add
   coloured rims. Shadows are deep and neutral (black / navy), never tinted.
 - **Shadow ladder:** `--sh-c` card, `--sh-a` floating, `--sh-f` sheet. Pick one; do not invent new ones. Shadows are static:
@@ -203,6 +206,8 @@ All of it: **slow, calm, Apple-like, never snappier unless Omar agrees.** The or
 | Animated blur (blur-in on Coach text, blurred exits, soft focus via blur) | GPU cost; rule |
 | Tab-screen cards, chips or buttons with real backdrop blur | 36 fps on Train/Progress |
 | Rosé / Emerald or any new colour | Omar 14 Oct: no more colours |
+| Accent glow in a card corner (hero workout card) | read as a stain (14 Oct, removed in v0.1.129) |
+| Accent-tinted card glass ("colour glass") | Golden hour reads brown (14 Oct preview) |
 | Font experiments in titles | back to v0.1.29 look in v0.1.34 |
 | Camera drift on figures | read as wobble |
 | Cross-fade / "melting" pop-up open | feels unnatural to him; a real moving frame is wanted |
