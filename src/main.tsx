@@ -5,7 +5,7 @@ import '@fontsource-variable/newsreader/opsz-italic.css';
 import '@fontsource-variable/geist/wght.css';
 import './styles.css';
 import { App } from './App';
-import { installGrain } from './lib/grain';
+import { installDither, installGrain } from './lib/grain';
 import { installPress } from './ui/press';
 import { noteAndroidApp } from './lib/androidApp';
 import { useStore } from './state/store';
@@ -14,6 +14,7 @@ import { preloadScreens } from './ui/lazy';
 
 performance.mark('aven:main'); // the app's code has loaded and starts (scripts/launch.mjs reads these marks)
 installGrain();
+installDither();
 installPress();
 
 noteAndroidApp(); // opened from the Android app: remembered at once, before any reload can drop the referrer
