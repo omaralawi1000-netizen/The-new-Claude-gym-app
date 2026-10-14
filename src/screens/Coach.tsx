@@ -32,18 +32,21 @@ const CF_LINE = 22, CF_LINES = 4, CF_MAX = CF_LINE * (CF_LINES - 1); // its line
 // that lands on the spring's long tail, its speed dying away with no point where it brakes (a bezier's end read as a
 // sudden stop, 14 Oct 14:54: "a more easing motion like iOS"). Sampled every 1/60 s into linear(), so the browser plays it
 // at the screen's full rate. `response`: how unhurried (seconds); `ramp`: how soft the start (seconds).
-const rampSpring = (response: number, ramp: number) => {
+const rampSpring = (response: number, ramp: number, cut = 0.0002) => {
   const k = (2 * Math.PI / response) ** 2, c = 4 * Math.PI / response, dt = 1 / 600;
   let x = 0, v = 0, t = 0; const xs = [0];
   for (let f = 1; f < 150; f++) {
     for (let i = 0; i < 10; i++) { const u = Math.min(t / ramp, 1), g = u * u * u * (u * (6 * u - 15) + 10); v += (k * (g - x) - c * v) * dt; x += v * dt; t += dt; }
-    xs.push(x); if (t > ramp && 1 - x < 0.0002 && Math.abs(v) < 0.005) break; // (still to a fiftieth of a percent: a flight hands over to the real bubble)
+    xs.push(x); if (t > ramp && 1 - x < cut && (cut > 0.0002 || Math.abs(v) < 0.005)) break; // (still to a fiftieth of a percent: a flight hands over to the real bubble; `cut`: done once that close, the last step too small to see)
   }
   xs[xs.length - 1] = 1; return xs;
 };
 const asCurve = (xs: number[]) => ({ duration: Math.round((xs.length - 1) * 1000 / 60), easing: `linear(${xs.map((v) => +v.toFixed(4)).join(', ')})` });
 const MORPH = asCurve(rampSpring(0.62, 0.09)); // opening
-const MORPH_BACK = asCurve(rampSpring(0.62, 0.09)); // closing
+// closing: quicker and with no tail, so the pill's edge and the camera land together with the bar riding down on the
+// keyboard (on the opening's curve the edge crept on ~14 px for half a second after the bar had landed: laggy, not calm);
+// ends within half a pixel of the edge's ~50 px travel
+const MORPH_BACK = asCurve(rampSpring(0.4, 0.05, 0.008));
 const GROW = asCurve(rampSpring(0.52, 0.07)); // a line more or less
 // a sent message: its flight to its place, and the pill turning into its bubble (sooner: it has its shape before it is
 // far from the field); both start soft, so the copy is seen to lift off the pill rather than be thrown
@@ -55,12 +58,14 @@ const FLY_SAID = asCurve(rampSpring(0.6, 0.11));
 const SAID_INK = 620; // the said words' ink: full while the pill is still the pill, the bubble's own by then
 const SAID_BACK = 390; // …and the bar comes back, fresh, only once the bubble has left it…
 const SAID_IN = 360; // …faded in over this, eased (a straight fade read as switched on)
-// the emptied pill behind a sent message: closed at once, out of sight under the flying shape, which starts as the whole
-// pill (the empty bar is only ever seen where the shape has left it)
-const CLOSE = { easing: 'linear', duration: 0 };
+const SAID_OUT = 160; // (and it goes over this as the pill starts to lift: hidden at once, it left a hole as the pill rose off it)
+// the emptied pill behind a sent message: it holds its shape while the flying copy's paint comes up over it (the copy starts
+// see-through, so the pill's own frost is the first frame's picture: a solid copy turned its warm glow slate in one frame),
+// then closes up on the growing curve under the copy as it lifts away (it used to close at once, hidden by the solid copy)
+const CLOSE = { ...GROW, delay: 200 };
 const growVars = { '--cf-ease-g': GROW.easing, '--cf-dur-g': `${GROW.duration}ms` } as React.CSSProperties;
 const morphVars = { '--cf-x': `${CF_X}px`, '--cf-max': `${CF_MAX}px`, '--cf-ease': MORPH.easing, '--cf-dur': `${MORPH.duration}ms`,
-  '--cf-ease-c': MORPH_BACK.easing, '--cf-dur-c': `${MORPH_BACK.duration}ms`, '--cf-ease-k': CLOSE.easing, '--cf-dur-k': `${CLOSE.duration}ms`, ...growVars } as React.CSSProperties;
+  '--cf-ease-c': MORPH_BACK.easing, '--cf-dur-c': `${MORPH_BACK.duration}ms`, '--cf-ease-k': CLOSE.easing, '--cf-dur-k': `${CLOSE.duration}ms`, '--cf-delay-k': `${CLOSE.delay}ms`, ...growVars } as React.CSSProperties;
 
 type Msg =
   | { id: string; role: 'user' | 'model'; text: string; streaming?: boolean; seeded?: boolean; /** a quiet line under the answer (which AI answered, and why) */ note?: string; /** when it was said */ at?: number; /** a photo was sent with it (its picture stays only while the Coach is open) */ photo?: boolean; image?: string; /** typed: its lines as they wrapped in the field (the bubble keeps them) */ lines?: string[] }
@@ -292,9 +297,9 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   useLayoutEffect(() => {
     const el = bodyRef.current;
     if (!el || !flyFrom.current.size) return;
-    // the emptied pill closes up on this frame, at once (the flying shape covers all of it as it starts: the empty bar
-    // shows only where the shape has left; the room it leaves under the list moves the landing place, so it goes first);
-    // it stays wide until "Ask the Coach" comes back
+    // the emptied pill's room under the list goes on this frame (it moves the landing place, so it goes first); the pill
+    // itself holds its shape under the copy coming up over it, then closes up as the copy lifts away (CLOSE); it stays
+    // wide until "Ask the Coach" comes back
     holdOpen.current = true;
     const bar = composerRef.current;
     const said = [...flyFrom.current.values()].some((f) => f.fresh);
@@ -302,10 +307,11 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     // part of it, and on the conversation every message, a stall on the tap)
     bar?.classList.add('closing');
     fit(CLOSE);
-    setTimeout(() => bar?.classList.remove('closing'), CLOSE.duration + 40);
+    setTimeout(() => bar?.classList.remove('closing'), CLOSE.delay + CLOSE.duration + 40);
     // said words: the bar is hidden under the lifting pill (below) and closes up at once there, unseen (no slide of the
     // pill's edge, no camera coming in late); it fades back in whole once the bubble has gone
-    if (said && bar) { holdOpen.current = false; bar.classList.add('snap'); fit(CLOSE); requestAnimationFrame(() => requestAnimationFrame(() => bar.classList.remove('snap'))); }
+    // (once it has faded out under the pill, SAID_OUT: closed up while still showing, its edge and the camera jumped)
+    if (said && bar) setTimeout(() => { holdOpen.current = false; bar.classList.add('snap'); fit(CLOSE); requestAnimationFrame(() => requestAnimationFrame(() => bar.classList.remove('snap'))); }, SAID_OUT + 10);
     for (const [id, from] of flyFrom.current) {
       flyFrom.current.delete(id);
       const bubble = el.querySelector<HTMLElement>(`[data-mid="${id}"] .said`);
@@ -398,7 +404,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
         stand.className = 'coach-send on fly-send'; stand.removeAttribute('tabindex'); stand.setAttribute('aria-hidden', 'true'); // (not busy: the arrow)
         Object.assign(stand.style, { left: `${sr.left + sr.width / 2 - btn.offsetWidth / 2}px`, top: `${sr.top + sr.height / 2 - btn.offsetHeight / 2}px`, transform: ss.transform, opacity: ss.opacity });
         app.appendChild(stand);
-        stand.animate([{ opacity: ss.opacity }, { opacity: 0 }], { duration: 14, easing: 'linear', fill: 'forwards' }); // (gone within a frame or two at 120 Hz)
+        stand.animate([{ opacity: ss.opacity }, { opacity: 0 }], { duration: 120, easing: 'cubic-bezier(.4, 0, .6, 1)', fill: 'forwards' }); // (a fade, from the tap: the copy coming up under it no longer cuts it off)
       }
       // it joins a glide the list is still finishing, so its place is where the bubble will be once that is done
       const rider = ride.current?.(copy); const top0 = B.top - (rider?.off ?? 0); copy.style.top = `${top0}px`;
@@ -409,13 +415,15 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       // (shown at once, a sliver of it peeked out under the shape's rounded corner as it left)
       // (said words: the whole bar waits hidden, then comes back together: field, camera and the stop button)
       if (from.fresh) {
-        const hold = (o: string | number): Keyframe[] => [{ opacity: 0 }, { opacity: 0, offset: SAID_BACK / (SAID_BACK + SAID_IN), easing: 'cubic-bezier(.25, 0, .25, 1)' }, { opacity: o }];
-        const back = (e: Element | null | undefined, o = e ? getComputedStyle(e).opacity : '1') => { if (!e) return; go((e as HTMLElement).animate(hold(o), { duration: SAID_BACK + SAID_IN, easing: 'linear' })); };
+        // (it fades out under the lifting pill rather than vanishing, and comes back whole once the bubble has gone)
+        const T = SAID_BACK + SAID_IN;
+        const hold = (o: string | number, from: string | number = o): Keyframe[] => [{ opacity: from, easing: 'cubic-bezier(.4, 0, .6, 1)' }, { opacity: 0, offset: SAID_OUT / T }, { opacity: 0, offset: SAID_BACK / T, easing: 'cubic-bezier(.25, 0, .25, 1)' }, { opacity: o }];
+        const back = (e: Element | null | undefined, o = e ? getComputedStyle(e).opacity : '1') => { if (!e) return; go((e as HTMLElement).animate(hold(o), { duration: T, easing: 'linear' })); };
         // (the camera fades on its own glass, never on its slot: a fading slot cut the camera's frost off from the page
         // until the fade ended, then the frost popped back in; its shadow fades on the slot's own ::before)
-        composerRef.current?.querySelectorAll('.cf-tint, .cf-sh, .cf-glass, .cf-text, .coach-cam').forEach((e) => back(e)); back(btn, '1'); // (the button was fading in from hidden: its own value now is not where it ends)
+        composerRef.current?.querySelectorAll('.cf-tint, .cf-sh, .cf-glass, .cf-text, .coach-cam').forEach((e) => back(e)); if (btn) go(btn.animate(hold(1, getComputedStyle(btn).opacity), { duration: T, easing: 'linear' })); // (the button was fading in from hidden: its own value now is not where it ends)
         const slot = composerRef.current?.querySelector<HTMLElement>('.coach-cam-slot');
-        if (slot) go(slot.animate(hold(1), { duration: SAID_BACK + SAID_IN, easing: 'linear', pseudoElement: '::before' }));
+        if (slot) go(slot.animate(hold(1), { duration: T, easing: 'linear', pseudoElement: '::before' }));
       } else if (btn) go(btn.animate([{ opacity: 0 }, { opacity: 0, offset: 0.74 }, { opacity: 1 }], { duration: 680, easing: 'linear' }));
       const opts = { duration: from.fresh ? FLY_SAID.duration : FLY.duration, easing: from.fresh ? FLY_SAID.easing : FLY.easing, fill: 'forwards' as const };
       const shape = { duration: from.fresh ? FLY_SAID.duration : FLY_SHAPE.duration, easing: from.fresh ? FLY_SAID.easing : FLY_SHAPE.easing, fill: 'forwards' as const };
@@ -428,19 +436,20 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
         // its colour turns from the pill's into the bubble's as it leaves the pill: the bubble's solid colour comes up over
         // the pill's (solid under it the whole way, so the shape is never see-through), which then goes
         go(tone.animate([{ opacity: 0 }, { opacity: 1 }], { ...fade(200, 40), fill: 'both' })),
-        // (typed: the copy's solid pill comes up over the real one in its first 60 ms rather than replacing it on the
-        // first frame: the real pill's frost takes the colour of whatever is behind it, warm over the palette's glow with
-        // the keyboard up, and the solid copy, drawn for an average page, turned it navy in one frame, a flash at the bar)
+        // (typed: the copy's solid pill comes up over the real one, which holds its shape meanwhile (CLOSE), over 200 ms
+        // rather than replacing it: the real pill's frost takes the colour of whatever is behind it, warm over the
+        // palette's glow with the keyboard up, and the solid copy, drawn for an average page, turned it slate in one frame,
+        // a flash at the bar; 60 ms was still a step on the phone's frames)
         from.fresh
           ? go(pill.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 40, delay: 250, fill: 'both' }))
-          : go(pill.animate([{ opacity: 0, easing: 'cubic-bezier(.2, 0, .4, 1)' }, { opacity: 1, offset: 60 / 290 }, { opacity: 1, offset: 250 / 290 }, { opacity: 0 }], { duration: 290, easing: 'linear', fill: 'forwards' })),
+          : go(pill.animate([{ opacity: 0, easing: 'cubic-bezier(.4, 0, .2, 1)' }, { opacity: 1, offset: 200 / 290 }, { opacity: 1, offset: 250 / 290 }, { opacity: 0 }], { duration: 290, easing: 'linear', fill: 'forwards' })),
         // (said words: settled sooner, the lift being shorter; done before it lands)
         go(glass.animate([{ opacity: fillA }, { opacity: fillA }], { duration: 1, delay: from.fresh ? 360 : 420, fill: 'forwards' })),
         go(tone.animate([{ opacity: 1 }, { opacity: 0 }], { ...fade(200, from.fresh ? 360 : 420), fill: 'forwards' })),
         // (typed: the emptied bar stays drawn under it the whole way: the shape starts as the pill, over the pill)
         go(sh.animate([{ transform: `translate(${x0}px, ${y0}px) scale(${sx}, ${sy})` }, { transform: 'none' }], shape)),
         // (typed: its shadow comes in with it, over the real pill's own, rather than doubling it on the first frame)
-        ...(from.fresh ? [] : [go(sh.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 160, easing: 'cubic-bezier(.4, 0, .2, 1)', fill: 'backwards' }))]),
+        ...(from.fresh ? [] : [go(sh.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: 'cubic-bezier(.4, 0, .2, 1)', fill: 'backwards' }))]),
         // the field's bright ink settles to the bubble's softer one; said words (never in the field) come up inside the
         // pill as it lifts, softly, while it is still the pill, and are the bubble's ink by the time it is the bubble
         from.fresh
@@ -461,7 +470,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
         const was = composerRef.current?.querySelectorAll<HTMLElement>('.cf-status')[1];
         if (ghost) go(ghost.animate([{ opacity: was ? getComputedStyle(was).opacity : 1 }, { opacity: 0 }], { duration: 110, easing: 'cubic-bezier(.3, 0, .7, 1)', fill: 'both' }));
       }
-      if (stand) setTimeout(() => stand?.remove(), 60);
+      if (stand) setTimeout(() => stand?.remove(), 140);
       // lines that were scrolled out of a long draft's view come in on the way, rather than appearing over the chat
       if (!from.fresh) [...words.children].forEach((line, i) => {
         const ly = from.y + i * CF_LINE;
@@ -540,7 +549,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   const grown = useRef(-1);
   const fitKey = useRef(''), fieldW = useRef(0);
   const holdOpen = useRef(false); // a message just sent: the bar stays as it was until it settles (see the flight)
-  const fit = (curve: { duration: number; easing: string } = GROW, text?: string) => {
+  const fit = (curve: { duration: number; easing: string; delay?: number } = GROW, text?: string) => {
     const ta = inputRef.current, m = measureRef.current, bar = composerRef.current, body = bodyRef.current;
     if (!ta || !m || !bar) return;
     const val = text ?? ta.value; // (`text`: grow for words about to be shown, Coach dictation)
@@ -571,7 +580,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       const now = ta.getAnimations().find((a) => a.id === 'cf-grow');
       const off = now ? new DOMMatrixReadOnly(getComputedStyle(ta).transform).f : 0;
       now?.cancel();
-      const a = ta.animate([{ transform: `translateY(${off + mid - was}px)` }, { transform: 'translateY(0px)' }], { duration: curve.duration, easing: curve.easing });
+      const a = ta.animate([{ transform: `translateY(${off + mid - was}px)` }, { transform: 'translateY(0px)' }], { duration: curve.duration, easing: curve.easing, delay: curve.delay ?? 0, fill: 'backwards' });
       a.id = 'cf-grow';
     }
     bar.style.setProperty('--mid', `${mid}px`);
