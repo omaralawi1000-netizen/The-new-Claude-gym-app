@@ -6,35 +6,44 @@ import { orbDrawn, orbIgnite, orbLaunch, orbLaunchTint, orbLogo, orbTintGo, regi
  * Opening the app. The phone shows the launch screen first (ink, the Ember orb of dots in the middle); the page's very
  * first paint shows exactly the same (index.html), so the hand-over is invisible. Then, once the app is drawn underneath,
  * one short story, about 1.6 s: the orb wakes up and switches the app on.
- *  1. Wake: the live orb takes the logo's place drawn as the very same logo, so the swap can't be seen, and in place, still
- *     on the launch screen, the flat logo swells into the turning glass sphere (each dot flows to its bead).
- *  2. Ignite: a coil of light winds up it from the bottom, and the palette's colour fills in under it, bead by bead
- *     (never through a grey blend), all before it moves.
- *  3. Glide: it drifts down into the dock on a soft arc, one calm move, while the launch screen gives way to the app and
- *     the whole first screen builds behind it, block by block from the top down.
- *  4. Touchdown: its light spreads out along the whole dock glass and fades.
+ *  1. Wake: the live orb takes the logo's place drawn as the very same logo, so the swap can't be seen, and at once sets
+ *     off for the dock, the flat logo swelling into the turning glass sphere on the way (each dot flows to its bead).
+ *  2. Ignite: as it goes, a coil of light winds up it from the bottom, and the palette's colour fills in under it, bead by
+ *     bead (never through a grey blend), done a little past halfway.
+ *  3. Glide: one move down into the dock on a soft arc, slowing gently as it arrives, while the launch screen gives way to
+ *     the app and the whole first screen builds behind it, item by item from the top down.
+ *  4. Touchdown: the dock gives under it, one soft dip and settle, and its light spreads out along the whole dock glass.
  * Only transform and opacity move, and the orb's flight is run by the browser, so it is drawn at the screen's full rate
  * even while the app is still starting up. With reduced motion the launch screen simply fades and the orb is in the dock.
  */
 const cover = typeof document !== 'undefined' ? document.getElementById('launch') : null;
 if (cover) { cover.dataset.taken = '1'; orbLaunchTint(); orbLogo(1); }
 
-/** The launch's curve: one calm move. It eases off the launch screen (a spring would leave at full pull from a standstill)
- *  and lands in the dock decisively: no slow crawl over the last stretch (its last 5 % takes about 0.12 s). */
-const FLIGHT_EASE = [0.55, 0, 0.45, 1] as const;
-const FLIGHT_MS = 640;
+/** The launch's curve: one move. It leaves promptly (no standstill, no slow wind-up) and slows gently as it comes into
+ *  the dock, the way a thing settles into place; the dock's own give takes the last of it (BOUNCE). */
+const FLIGHT_EASE = [0.3, 0.08, 0.2, 1] as const;
+const FLIGHT_MS = 760;
 const FLIGHT = (() => {
   const f = cubicBezier(...FLIGHT_EASE), n = Math.round(FLIGHT_MS / (1000 / 120)); // a keyframe per 1/120 s
   return { xs: Array.from({ length: n + 1 }, (_, i) => f(i / n)), duration: FLIGHT_MS };
 })();
 const BOW = -30;          // the flight's arc: falls first, slides into the dock at the end, clear of the first card's play button
 const FADE_MS = 260;      // the launch screen giving way to the app (its blocks still unseen), as the orb sets off
-const IGNITE_AT = 40;     // the coil of light and colour starts as the logo becomes the sphere (its morph: 0.34 s)
-const GLIDE_AT = 560;     // the flight sets off once the coil is done and every bead has turned (0.48 s after it starts)
+const IGNITE_AT = 40;     // the coil of light and colour starts as the logo becomes the sphere (its morph: 0.34 s) …
+const GLIDE_AT = 60;      // … and the orb is already on its way (every bead has turned a little past halfway down)
+const TOUCH_AT = 0.76;    // touchdown: the dock gives and lights up when the orb is this far into its flight (~97 % of the way)
 const RISE_FIRST = 40;    // the page builds from the top down as the orb sets off: the first item …
 const RISE_ROW = 50;      // … each next row …
 const RISE_COL = 30;      // … and each next item along a row
 const GLOW_MS = 720;      // the touchdown's light spreading along the dock
+/** The dock's give as the orb lands: a damped spring struck once (pushed down 4 px, back up with a sub-pixel rebound),
+ *  one soft dip and settle, no wobble. A keyframe per 1/120 s. */
+const BOUNCE = (() => {
+  const w = 2 * Math.PI * 2.2, z = 0.6, wd = w * Math.sqrt(1 - z * z), n = Math.round(0.62 * 120);
+  const ys = Array.from({ length: n + 1 }, (_, i) => Math.exp(-z * w * (i / 120)) * Math.sin(wd * (i / 120)));
+  const peak = Math.max(...ys);
+  return { ys: ys.map((y, i) => (i === n ? 0 : (y / peak) * 4)), duration: n * (1000 / 120) };
+})();
 const SPLASH_FADE = 330;  // Android's launch screen fades over 300 ms from the page's first paint: never fly under it
 const MAX_WAIT = 1500;    // the longest the logo waits for the app underneath before it goes anyway
 
@@ -84,15 +93,15 @@ async function run(cover: HTMLElement) {
   // 2. ignite: a coil of light winds up it, the colour filling in under it
   void after(IGNITE_AT).then(() => { orbIgnite(); orbTintGo(); });
 
-  // 3. glide down into the dock; the launch screen gives way and the blocks rise as it passes them
+  // 3. glide down into the dock; the launch screen gives way and the page builds behind it
   await after(GLIDE_AT);
   const fade = cover.animate([{ opacity: 1 }, { opacity: 0 }], { duration: FADE_MS, easing: 'cubic-bezier(0.4, 0, 0.2, 1)', fill: 'forwards' });
   const flight = await orbLaunch(FLIGHT, BOW);
   const move = animate(e, 0, { duration: FLIGHT_MS / 1000, ease: [...FLIGHT_EASE] }); // the script's copy, which carries the orb if anything interrupts the browser's flight
   riseInWake();
 
-  // 4. touchdown: its light spreads along the whole dock
-  void after(FLIGHT_MS - 110).then(barGlow);
+  // 4. touchdown: the dock gives under it and its light spreads along the whole dock
+  void after(FLIGHT_MS * TOUCH_AT).then(() => { dockBounce(); barGlow(); });
   await Promise.all([fade.finished.catch(() => {}), flight ? flight.finished.catch(() => {}) : move.then(() => {})]);
   move.stop(); e.set(0); // landed: exactly in the dock, from here on the dock's own orb
   done();
@@ -169,6 +178,16 @@ function split(el: Element, out: { el: Element; r: DOMRect }[], seen: (r: DOMRec
   const small = r.width < 130 && r.height < 90 && !(apart && kids.every((k) => k.el.tagName === 'BUTTON'));
   if (depth < 6 && plain && !small && (apart || one)) { for (const k of kids) if (seen(k.r)) split(k.el, out, seen, depth + 1); return; }
   out.push({ el, r });
+}
+
+/** The dock gives as the orb lands on it: the dock and the orb in it dip together and settle (one animation each on the
+ *  browser's clock, started on the same tick, so the orb never slips in its slot). Only their position moves. */
+function dockBounce() {
+  const parts = [document.querySelector<HTMLElement>('.tabbar'), document.querySelector<HTMLElement>('.sphere-stage')].filter((x): x is HTMLElement => !!x);
+  const frames = BOUNCE.ys.map((y, i) => ({ offset: i / (BOUNCE.ys.length - 1), transform: `translate3d(0, ${y.toFixed(2)}px, 0)` }));
+  const anims = parts.map((el) => el.animate(frames, { duration: BOUNCE.duration, easing: 'linear', composite: 'add' }));
+  const t = document.timeline.currentTime;
+  if (t !== null) for (const a of anims) a.startTime = t;
 }
 
 /** On touchdown the palette's light spreads out of the orb along the whole dock: a wide, soft glow inside the dock glass,
