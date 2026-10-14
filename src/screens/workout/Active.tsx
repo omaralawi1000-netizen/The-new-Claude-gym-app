@@ -147,8 +147,8 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     // then the page cut in), two frames before the fade starts, then the window is put away.
     let fade: Animation | undefined;
     const c = vanishRef.current && !reduce
-      ? new Promise<void>((ok) => { warmStage(true); requestAnimationFrame(() => requestAnimationFrame(() => {
-        fade = dialogRef.current?.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 700, easing: 'ease-in-out', fill: 'forwards' });
+      ? new Promise<void>((ok) => { warmStage(true); dialogRef.current?.classList.add('wk-leaving'); requestAnimationFrame(() => requestAnimationFrame(() => {
+        fade = dialogRef.current?.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 420, easing: 'ease-in-out', fill: 'forwards' });
         // The page stops being kept warm only once the cover has really reached 0: let go in the same frame, it read the cover
         // as still full and hid the page for a frame, so the phone threw its whole drawing away and redrew all of it at once,
         // in the middle of the finish moment (which went blank for a beat).
@@ -179,6 +179,11 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   // out of sight first and come back up after, two motions where one will do). Not for the orb's screen or the Coach.
   const covered = useUI((u) => { const top = u.overlays[u.overlays.length - 1]; return !!top && top.type !== 'workout' && top.type !== 'voice' && top.type !== 'coach' && u.overlays.some((o) => o.type === 'workout'); });
   const [confirm, setConfirm] = useState<null | 'finish' | 'discard'>(null);
+  const finishing = useRef(false);
+  // The finish is coming: the page behind is drawn now, while "Finish workout?" is up (or the finger is on Finish), not in
+  // the middle of the finish moment. Painting the whole page there, on top of the workout and the summary's own layers, was
+  // more than the phone's GPU kept drawn: parts of the summary went blank and flickered for half a second.
+  useEffect(() => { if (confirm !== 'finish') return; warmStage(true); return () => { if (!closing.current && !finishing.current) warmStage(false); }; }, [confirm]); // eslint-disable-line react-hooks/exhaustive-deps
   const finishBtn = useRef<HTMLButtonElement>(null);
   const pointToFinish = () => { const b = finishBtn.current; if (!b) return; b.classList.remove('nudge'); void b.offsetWidth; b.classList.add('nudge'); };
   const [renaming, setRenaming] = useState(false);
@@ -238,7 +243,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   const startOpen = () => {
     closing.current = null;
     // un-park it now, before the orb's flight measures where its slot will be (React would only do it after this effect)
-    dialogRef.current?.classList.remove('wk-off');
+    dialogRef.current?.classList.remove('wk-off', 'wk-leaving');
     const from = p.get();
     opening.current?.stop();
     opening.current = animate(p, 1, reduce ? { duration: 0.01 } : SURFACE);
@@ -359,6 +364,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     haptic('confirm'); doFinish();
   };
   const doFinish = () => {
+    finishing.current = true;
     const r = useStore.getState().finishActive();
     if (r) swap(1, 'summary', { sessionId: r.id }); // its medal lands with the finish (or record) feel
   };
@@ -420,7 +426,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
                 <Icon name={paused ? 'play' : 'pause'} size={18} />
               </button>
               {/* the one Finish: muted until a set is logged, then the accent; it glows once every set is ticked */}
-              <button ref={finishBtn} className={`btn sm press wk-finish ${total > 0 && done === total ? 'primary ready' : 'muted'}`} onClick={finish}>{t('Finish')}</button>
+              <button ref={finishBtn} className={`btn sm press wk-finish ${total > 0 && done === total ? 'primary ready' : 'muted'}`} onPointerDown={total > 0 && done === total ? warmUp : undefined} onClick={finish}>{t('Finish')}</button>
             </div>
             {/* grows by scaling (the compositor's job); it animated its width, which made every set ticked lay the page out again */}
             <div className="wk-progress"><i style={{ transform: `scaleX(${total ? done / total : 0})` }} /></div>
