@@ -336,10 +336,14 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
         group.innerHTML = names.map((n, i) => `<i class="fp-${n}" style="width:${base[i][0]}px;height:${base[i][1]}px"></i>`).join('');
         return group;
       };
-      const pill = pieces('fly-pill'), tone = pieces('fly-tone'); tone.style.setProperty('--fly-fill', fill);
+      const pill = pieces('fly-pill'), tone = pieces('fly-tone');
+      tone.style.setProperty('--fly-fill', `color-mix(in srgb, ${fill} ${(fillA * 100).toFixed(1)}%, var(--fly-under))`); // (the bubble as it looks, solid)
       const words = document.createElement('div'); words.className = 'fly-words'; words.style.color = ink;
       bubble.childNodes.forEach((n) => words.appendChild(n.cloneNode(true)));
-      copy.append(sh, pill, tone, words);
+      // (and, as it settles in its place with only the page behind it, the bubble's own see-through glass, so the real
+      // bubble taking over is the same picture: the solid colour can't match the page behind it everywhere)
+      const glass = document.createElement('i'); glass.className = 'fly-end'; glass.style.background = fill;
+      copy.append(sh, glass, pill, tone, words);
       app.appendChild(copy);
       // the send button stays where it is, above the pill-coloured shape leaving from under it (an exact stand-in for it,
       // drawn over the flight until the shape has left)
@@ -367,9 +371,15 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       for (const group of [pill, tone]) [...group.children].forEach((p, i) => go((p as HTMLElement).animate([{ transform: place(c0[i], i) }, { transform: place(c1[i], i) }], shape)));
       const sx = (x1 - x0) / W, sy = (y1 - y0) / H;
       [
-        // its colour turns from the pill's into the bubble's as it leaves the pill
-        go(pill.animate([{ opacity: 1 }, { opacity: 0 }], { ...fade(200, 40), fill: 'both' })),
-        go(tone.animate([{ opacity: 0 }, { opacity: fillA }], { ...fade(160, 40), fill: 'both' })),
+        // its colour turns from the pill's into the bubble's as it leaves the pill: the bubble's solid colour comes up over
+        // the pill's (solid under it the whole way, so the shape is never see-through), which then goes
+        go(tone.animate([{ opacity: 0 }, { opacity: 1 }], { ...fade(200, 40), fill: 'both' })),
+        go(pill.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 40, delay: 250, fill: 'both' })),
+        go(glass.animate([{ opacity: fillA }, { opacity: fillA }], { duration: 1, delay: 400, fill: 'forwards' })),
+        go(tone.animate([{ opacity: 1 }, { opacity: 0 }], { ...fade(160, 400), fill: 'forwards' })),
+        // the emptied bar's tint and shadow come in under it as it lifts away (none of the bar is drawn where the shape is
+        // on the first frames: the shape is the pill then)
+        ...[...(composerRef.current?.querySelectorAll<HTMLElement>('.cf-tint, .cf-sh') ?? [])].map((e) => go(e.animate([{ opacity: 0 }, { opacity: getComputedStyle(e).opacity }], fade(80, 30)))),
         go(sh.animate([{ transform: `translate(${x0}px, ${y0}px) scale(${sx}, ${sy})` }, { transform: 'none' }], shape)),
         // the field's bright ink settles to the bubble's softer one
         go(words.animate([{ opacity: 1 }, { opacity: inkA }], { ...fade(380, 60), fill: 'both' })),

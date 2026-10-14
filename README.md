@@ -1792,17 +1792,19 @@ there was a version where you did it without the blur, it came out smooth". He a
   message, read off the field's hidden copy) and the words fly at the field's size, so nothing re-wraps or jumps; the
   field now types in the bubble's letters (weight 520, the placeholder stays as it was).
   - **One shape, from pill to bubble**: on the first frame the flying shape is the whole pill (its full width, its 27 px
-    corners, its tint, top sheen, highlight and rim, solid: the pill's colours as they look over the sheet, so nothing
-    behind shows through its words), and on its own quicker spring
+    corners, its tint, top sheen, highlight and rim, solid: the pill's colours over the frost's average colour,
+    `--fly-under`, so nothing behind shows through its words), and on its own quicker spring
     (`apple(0.34, 0.06)`: about half way by 80 ms, nearly there by 200 ms) it becomes the bubble: its size, corners of 20
-    and the tail's 6, its colour turning from the pill's into the bubble's (40–240 ms). A shape's size and corners can't
+    and the tail's 6, its colour turning from the pill's into the bubble's (40–240 ms, solid the whole way: the bubble's colour as it looks,
+    coming up over the pill's; as it settles in place, 400–560 ms, it hands over to the bubble's own see-through glass, so
+    the real bubble taking over is the same picture). A shape's size and corners can't
     be animated by moves alone, so it is eight pieces (four corners that scale evenly, so they stay round, and four
     straight pieces between them, each reaching 1 px under its neighbours), all moved and scaled on the one spring, so
     they always make one outline. The two colours are the same pieces twice under one opacity each, so there is never a
     second outline (round 5 cross-faded a pill-shaped and a bubble-shaped layer: the tail corner poked out of the
     pill's for ~80 ms). The send button stays on top while the shape leaves from under it (an exact stand-in for 280 ms).
-  - The emptied pill closes up at once, out of sight under the shape (which covers all of it as it starts), so the empty
-    bar is only ever seen where the shape has left it: never the pill and the shape drawn in the same place (a see-through
+  - The emptied pill closes up at once, out of sight under the shape (which covers all of it as it starts), and its tint
+    and shadow fade in 30–110 ms, so the empty bar is only ever seen where the shape has left it: never the pill and the shape drawn in the same place (a see-through
     shape over a closing pill read as two stacked cards, the pill's rim cutting through the words). A `.closing` class
     points the parts at that (`CLOSE`; changing the curve's property on the bar restyled all of it). The cursor hides
     until "Ask the Coach" comes back at 140 ms.

@@ -636,7 +636,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .sheet :is(.btn, .icon-btn, .seg, .chip, .plinth, .plinth-2, .input, .field input), .sheet-page :is(.btn, .icon-btn, .seg, .chip) { -webkit-backdrop-filter: none; backdrop-filter: none; }
 /* …and without its frost it must not turn see-through (it looked like it was dissolving): it becomes the same glass laid
    over the plain background instead — solid, and under the dim it reads as a card set back. */
-.sheet.behind.deep::before, .sheet.behind.deep[data-size='short']::before { background: var(--sheet-solid); }
+.sheet.behind.deep::before, .sheet.behind.deep[data-size='short']::before { background: var(--fly-under); }
 /* A sheet's content sits in a pane, so it can step aside when a page opens inside the same sheet (Sheet.tsx, PageSheet). The
    page is laid exactly over it, below the grab handle, on the sheet's own glass. */
 .sheet-pane { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
@@ -686,7 +686,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    and glass in others, and took each area's colour). A blur of its own, only the size of the pill, so what passes under
    it turns into soft colour. Ready or not ready is told by the label alone: bright when it can be pressed, faint when not. */
 .sheet .sheet-foot .btn.btn {
-  background: color-mix(in srgb, color-mix(in srgb, var(--tx) 10%, var(--sheet-solid)) 58%, transparent); color: var(--tx);
+  background: color-mix(in srgb, color-mix(in srgb, var(--tx) 10%, var(--fly-under)) 58%, transparent); color: var(--tx);
   -webkit-backdrop-filter: blur(22px) saturate(1.6); backdrop-filter: blur(22px) saturate(1.6);
   box-shadow: inset 0 1px 0 var(--hl), inset 0 0 0 1px var(--line-2), 0 12px 30px -14px rgba(0, 0, 0, 0.55); }
 .sheet .sheet-foot .btn.btn[disabled] { color: var(--tx3); }
@@ -1287,7 +1287,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
     color-mix(in srgb, var(--c) var(--edge-a, 65%), transparent) var(--edge-len, 64px)); }
 .edge-fade.frosted::before, .tabbar-wrap.edge-fade::before { -webkit-backdrop-filter: blur(var(--edge-blur, 16px)) saturate(1.35); backdrop-filter: blur(var(--edge-blur, 16px)) saturate(1.35);
   -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--edge-ramp, 26px)); mask-image: linear-gradient(to bottom, transparent, #000 var(--edge-ramp, 26px)); }
-:root[data-theme='light'] .edge-fade { --edge-tint: var(--sheet-solid); --edge-a: 40%; } /* (light: a pale neutral, or it read as a white strip) */
+:root[data-theme='light'] .edge-fade { --edge-tint: var(--fly-under); --edge-a: 40%; } /* (light: a pale neutral, or it read as a white strip) */
 .coach-sent { animation: coachSend 620ms cubic-bezier(.2, .8, .2, 1) backwards; }
 @keyframes coachSend {
   from { opacity: 0; transform: translate3d(0, 28px, 0) scale(.975); }
@@ -1320,18 +1320,19 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* a sent message in flight (Coach.tsx): a copy of the bubble above everything. Its shape is eight pieces (four corners
    that scale evenly, four straight pieces between them), moved together on one spring so they always make one outline:
    it starts as the whole pill and becomes the bubble. The pill's colours (.fly-pill: its tint, top sheen and rim as they
-   look over the sheet, solid, so nothing behind shows through) and the bubble's (.fly-tone) are the same pieces twice, so
-   the colour turns without a second shape. */
+   look over the frost, solid, so nothing behind shows through) and the bubble's (.fly-tone, also solid) are the same
+   pieces twice, so the colour turns without a second shape, and the shape is never see-through on the way. */
 .coach-fly { position: fixed; z-index: 400; margin: 0; max-width: none; box-sizing: border-box; pointer-events: none;
   transform-origin: 0 0; will-change: transform; background: none; border: 0; box-shadow: none; }
 .fly-sh { position: absolute; left: 0; top: 0; width: 100%; height: 100%; transform-origin: 0 0; will-change: transform, opacity; border-radius: 20px 20px 6px 20px; }
+.fly-end { position: absolute; left: 0; top: 0; width: 100%; height: 100%; border-radius: 20px 20px 6px 20px; opacity: 0; will-change: opacity; }
 .fly-shape { position: absolute; left: 0; top: 0; width: 100%; height: 100%; will-change: opacity; }
 .fly-shape > i { position: absolute; left: 0; top: 0; box-sizing: border-box; transform-origin: 0 0; will-change: transform; }
 .fly-tone > i { background: var(--fly-fill); }
-.fly-pill { --fp-a: calc(var(--fc-op) * 100%); --fp-solid: color-mix(in srgb, var(--fc-solid) var(--fp-a), var(--sheet-solid)); }
-.fly-pill > i { background: var(--fp-solid); border: 0 solid color-mix(in srgb, var(--fc-rim-s) var(--fp-a), var(--sheet-solid)); }
-.fly-pill > :is(.fp-tl, .fp-tr, .fp-top) { background: linear-gradient(180deg, color-mix(in srgb, var(--fc-top) var(--fp-a), var(--sheet-solid)), var(--fp-solid));
-  border-top: 1px solid color-mix(in srgb, var(--fc-hl-s) var(--fp-a), var(--sheet-solid)); }
+.fly-pill { --fp-a: calc(var(--fc-op) * 100%); --fp-solid: color-mix(in srgb, var(--fc-solid) var(--fp-a), var(--fly-under)); }
+.fly-pill > i { background: var(--fp-solid); border: 0 solid color-mix(in srgb, var(--fc-rim-s) var(--fp-a), var(--fly-under)); }
+.fly-pill > :is(.fp-tl, .fp-tr, .fp-top) { background: linear-gradient(180deg, color-mix(in srgb, var(--fc-top) var(--fp-a), var(--fly-under)), var(--fp-solid));
+  border-top: 1px solid color-mix(in srgb, var(--fc-hl-s) var(--fp-a), var(--fly-under)); }
 .fly-pill > :is(.fp-tl, .fp-bl, .fp-mid) { border-left-width: 1px; }
 .fly-pill > :is(.fp-tr, .fp-br, .fp-mid, .fp-side) { border-right-width: 1px; }
 .fly-pill > :is(.fp-bl, .fp-br, .fp-bot) { border-bottom-width: 1px; }
@@ -1460,10 +1461,12 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 :root { --fc-bg: rgba(40, 42, 54, 0.5); --fc-sheen: rgba(255, 255, 255, 0.07); --fc-hl: rgba(255, 255, 255, 0.16); --fc-rim: rgba(255, 255, 255, 0.07); --fc-rim-on: rgba(255, 255, 255, 0.16);
   --fc-sh: 0 1px 2px rgba(0, 0, 0, 0.32), 0 10px 22px -10px rgba(0, 0, 0, 0.6);
   /* the same glass as solid colours under one opacity (--fc-op), for a control drawn in pieces (the Coach pill) */
-  --fc-solid: rgb(40, 42, 54); --fc-op: 0.5; --fc-top: color-mix(in srgb, var(--fc-solid), #fff 14%); --fc-hl-s: color-mix(in srgb, var(--fc-solid), #fff 32%); --fc-rim-s: color-mix(in srgb, var(--fc-solid), #fff 14%); }
+  --fc-solid: rgb(40, 42, 54); --fc-op: 0.5; --fc-top: color-mix(in srgb, var(--fc-solid), #fff 14%); --fc-hl-s: color-mix(in srgb, var(--fc-solid), #fff 32%); --fc-rim-s: color-mix(in srgb, var(--fc-solid), #fff 14%);
+  /* what the pill's frost shows on average (the sheet seen through it): a sent message's flying copy is solid, drawn over this */
+  --fly-under: rgb(20, 24, 40); }
 :root[data-theme='light'] { --fc-bg: rgba(255, 255, 255, 0.6); --fc-sheen: rgba(255, 255, 255, 0.55); --fc-hl: rgba(255, 255, 255, 0.95); --fc-rim: rgba(20, 28, 48, 0.07); --fc-rim-on: rgba(20, 28, 48, 0.14);
   --fc-sh: 0 1px 2px rgba(30, 40, 70, 0.12), 0 10px 22px -10px rgba(30, 40, 70, 0.28);
-  --fc-solid: #fff; --fc-op: 0.6; --fc-top: #fff; --fc-hl-s: #fff; --fc-rim-s: color-mix(in srgb, #fff, rgb(20, 28, 48) 12%); }
+  --fc-solid: #fff; --fc-op: 0.6; --fc-top: #fff; --fc-hl-s: #fff; --fc-rim-s: color-mix(in srgb, #fff, rgb(20, 28, 48) 12%); --fly-under: rgb(222, 225, 235); }
 .frost-ctl, .frost-seat::before {
   background: linear-gradient(180deg, var(--fc-sheen), transparent 58%), var(--fc-bg);
   -webkit-backdrop-filter: blur(20px) saturate(1.5); backdrop-filter: blur(20px) saturate(1.5);
