@@ -61,8 +61,9 @@ const SAID_IN = 360; // …faded in over this, eased (a straight fade read as sw
 const SAID_OUT = 160; // (and it goes over this as the pill starts to lift: hidden at once, it left a hole as the pill rose off it)
 // the emptied pill behind a sent message: it holds its shape while the flying copy's paint comes up over it (the copy starts
 // see-through, so the pill's own frost is the first frame's picture: a solid copy turned its warm glow slate in one frame),
-// then closes up on the growing curve under the copy as it lifts away (it used to close at once, hidden by the solid copy)
-const CLOSE = { ...GROW, delay: 200 };
+// then closes up on the copy's own shape curve as the copy lifts away, so the two read as one move (it used to close at
+// once, hidden by the solid copy; held for 200 ms it showed as an empty slab under the leaving bubble)
+const CLOSE = { ...FLY_SHAPE, delay: 60 };
 const growVars = { '--cf-ease-g': GROW.easing, '--cf-dur-g': `${GROW.duration}ms` } as React.CSSProperties;
 const morphVars = { '--cf-x': `${CF_X}px`, '--cf-max': `${CF_MAX}px`, '--cf-ease': MORPH.easing, '--cf-dur': `${MORPH.duration}ms`,
   '--cf-ease-c': MORPH_BACK.easing, '--cf-dur-c': `${MORPH_BACK.duration}ms`, '--cf-ease-k': CLOSE.easing, '--cf-dur-k': `${CLOSE.duration}ms`, '--cf-delay-k': `${CLOSE.delay}ms`, ...growVars } as React.CSSProperties;
