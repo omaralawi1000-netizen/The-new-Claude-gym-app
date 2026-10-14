@@ -1253,6 +1253,8 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    With the keyboard up the edge rides with the bar, frame by frame (--kb-now, Coach.tsx; it used to sit at the keyboard's
    full room the whole time, so while the keyboard came or went the messages between it and the bar were hidden). */
 @property --kb-now { syntax: '<length>'; inherits: false; initial-value: 0px; }
+@property --cf-gt { syntax: '<length>'; inherits: false; initial-value: 0px; } /* (the pill's frost outline: its top and its left edge) */
+@property --cf-gl { syntax: '<length>'; inherits: false; initial-value: 0px; }
 @property --grow { syntax: '<length>'; inherits: false; initial-value: 0px; } /* (the typing pill's extra lines: the end of the conversation rises with it) */
 @property --melt { syntax: '<length-percentage>'; inherits: false; initial-value: 100%; } /* (not handed down to every word: it changes as you scroll) */
 @supports (animation-timeline: scroll()) {
@@ -1315,13 +1317,19 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 :root[data-motion='reduce'] .coach-thread .typing.typing-out { display: none; }
 @keyframes coachAfter { from { opacity: 0; transform: translate3d(0, 4px, 0); } }
 @keyframes coachReply { from { opacity: .65; transform: translate3d(0, 3px, 0); } to { opacity: 1; transform: none; } }
-/* a sent message in flight (Coach.tsx): a copy of the bubble above everything; its glass gathers round the words */
-.coach-fly-clip { position: fixed; left: 0; right: 0; top: 0; z-index: 400; overflow: hidden; contain: paint; pointer-events: none; } /* (Coach.tsx: ends at the pill's top edge) */
+/* a sent message in flight (Coach.tsx): a copy of the bubble above everything, its glass drawn in pieces under one
+   opacity (caps that move, a middle that stretches) so it can gather round the words from the field's shape by moves alone */
 .coach-fly { position: fixed; z-index: 400; margin: 0; max-width: none; box-sizing: border-box; pointer-events: none;
   transform-origin: 0 0; will-change: transform; background: none; border: 0; box-shadow: none; }
-.coach-fly::before { content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; background: var(--fly-bg); box-shadow: var(--fly-shadow);
-  animation: flyGlass 300ms var(--ease-out) backwards; }
-@keyframes flyGlass { from { opacity: 0; } }
+.fly-sh, .fly-glass { position: absolute; left: 0; top: 0; width: 100%; height: 100%; transform-origin: 0 0; will-change: transform, opacity; }
+.fly-sh { border-radius: 20px 20px 6px 20px; }
+.fly-glass > i { position: absolute; top: 0; height: 100%; background: var(--fly-fill); transform-origin: 0 0; will-change: transform; }
+.fly-glass > .fg-l { left: 0; width: 20px; border-radius: 20px 0 0 20px; }
+.fly-glass > .fg-m { left: 19px; }
+.fly-glass > .fg-r { right: 0; width: 20px; border-radius: 0 20px 20px 0; }
+.fly-glass > .fg-tail { right: 0; width: 20px; border-radius: 0 20px 6px 0; will-change: transform, opacity; }
+.fly-words { position: relative; will-change: opacity; }
+.fly-words > .said-l { will-change: auto; }
 .coach-field .input::placeholder { transition: color 300ms var(--ease-out); } /* (its colour, not its opacity: an opacity fade gave it a layer that was dropped when it ended) */
 .coach-composer .coach-field .input.sent-away::placeholder { color: transparent; transition: none; }
 :root[data-motion='reduce'] :is(.coach-sent, .coach-reply, .coach-reply .w, .coach-after, .coach-after .speak-btn) { animation: none; }
@@ -1370,9 +1378,13 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .coach-field > i { position: absolute; right: 0; bottom: 0; pointer-events: none; }
 .cf-glass { left: calc(-1 * (var(--cf-x) + 8px)); height: calc(62px + var(--cf-max)); /* (8 px of room past the open edge and the top, for the overshoot) */
   -webkit-backdrop-filter: blur(20px) saturate(1.5); backdrop-filter: blur(20px) saturate(1.5);
-  clip-path: inset(calc(8px + var(--cf-max) - var(--mid, 0px)) 0 0 calc(var(--cf-x) + 8px) round 27px);
-  transition: clip-path var(--cf-dur-c) var(--cf-ease-c); }
-.open .cf-glass { clip-path: inset(calc(8px + var(--cf-max) - var(--mid, 0px)) 0 0 8px round 27px); transition: clip-path var(--cf-dur) var(--cf-ease) 60ms; }
+  /* its top follows the lines on their own spring and its left edge the opening on the opening's, each through a property
+     of its own (one transition on the outline carried both on the opening's timing: the frost trailed the pill's top by
+     60 ms as it grew, and lagged it as it closed up after a send) */
+  --cf-gt: calc(8px + var(--cf-max) - var(--mid, 0px)); --cf-gl: calc(var(--cf-x) + 8px);
+  clip-path: inset(var(--cf-gt) 0 0 var(--cf-gl) round 27px);
+  transition: --cf-gl var(--cf-dur-c) var(--cf-ease-c), --cf-gt var(--cf-dur-g) var(--cf-ease-g); }
+.open .cf-glass { --cf-gl: 8px; transition: --cf-gl var(--cf-dur) var(--cf-ease) 60ms, --cf-gt var(--cf-dur-g) var(--cf-ease-g); }
 .cf-tint { left: calc(-1 * (var(--cf-x) + 8px)); top: 0; opacity: var(--fc-op); }
 .cf-tint > i { position: absolute; box-sizing: border-box; background: var(--fc-solid); border: 0 solid var(--fc-rim-s);
   transition: translate var(--cf-dur-c) var(--cf-ease-c), transform var(--cf-dur-g) var(--cf-ease-g), scale var(--cf-dur-g) var(--cf-ease-g); }
@@ -1390,16 +1402,19 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
   transition: scale var(--cf-dur-c) var(--cf-ease-c), transform var(--cf-dur-g) var(--cf-ease-g); }
 .open .cf-sh { scale: var(--cf-k, 1.25) 1; transition: scale var(--cf-dur) var(--cf-ease) 60ms, transform var(--cf-dur-g) var(--cf-ease-g); }
 .cf-measure { position: absolute; left: 0; bottom: 0; visibility: hidden; pointer-events: none; white-space: pre-wrap; overflow-wrap: break-word;
-  font-size: 16px; line-height: 22px; }
+  font-size: 16px; line-height: 22px; font-weight: 520; letter-spacing: -0.005em; }
 /* the words: a window laid out at the open width (shifted back at rest), its edges 10 px inside the rim and its top
    following the pill's on the same spring (nothing in it ever touches the rim); the text box in it takes its new height
    at once and is played back from where it was (Coach.tsx fit) */
 .cf-text { position: absolute; left: calc(-1 * var(--cf-x)); bottom: 0; z-index: 1; width: calc(100% + var(--cf-x)); height: calc(54px + var(--cf-max));
-  clip-path: inset(calc(var(--cf-max) - var(--mid, 0px) + 10px) 0 10px 0); translate: var(--cf-x) 0;
+  clip-path: inset(calc(var(--cf-max) - var(--mid, 0px) + 10px) 0 4px 0); translate: var(--cf-x) 0;
+  /* a new line comes up into view through a soft bottom edge (a hard one sliced its letters as it rose) */
+  -webkit-mask-image: linear-gradient(to top, transparent 5px, #000 16px); mask-image: linear-gradient(to top, transparent 5px, #000 16px);
   transition: translate var(--cf-dur-c) var(--cf-ease-c), clip-path var(--cf-dur-g) var(--cf-ease-g); }
 .open .cf-text { translate: 0 0; transition: translate var(--cf-dur) var(--cf-ease) 60ms, clip-path var(--cf-dur-g) var(--cf-ease-g); }
 .coach-field textarea.input { position: absolute; left: 0; bottom: 0; display: block; margin: 0; resize: none; width: 100%; height: calc(54px + var(--mid, 0px)); min-height: 0;
   line-height: 22px; overflow: hidden; scrollbar-width: none; padding: 16px calc(54px + var(--cf-x)) 16px 16px; border-radius: 0;
+  font-weight: 520; letter-spacing: -0.005em; /* (the sent bubble's own letters: the words that lift out of the field are the same ones) */
   clip-path: inset(0); /* (a focused text box with no clip of its own got a scrolling layer that came and went with the keyboard) */ }
 .coach-field textarea.input::-webkit-scrollbar { display: none; }
 .cf-full .coach-field textarea.input { overflow-y: auto; /* past four lines the words scroll up under a soft top edge (only then: a mask gave the
@@ -1408,12 +1423,12 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .open .coach-field textarea.input { padding-right: 54px; }
 .coach-field .coach-send { z-index: 2; }
 /* the camera steps back under the opening edge and fades; closing, it waits until the edge has mostly passed (about 70 %
-   of the way) before it fades back in and settles from 0.9, so it never shows cut off under the pill's rim (its own frost
+   of the way) before it fades back in and settles from 0.82, so it never shows cut off under the pill's rim (its own frost
    fades with it: opacity on the glass itself, never on something around it, which would cut the glass off from the page) */
 .coach-cam-slot { display: flex; flex: none; transition: transform var(--cf-dur-c) var(--cf-ease-c); }
-.open .coach-cam-slot { transform: translateX(-8px) scale(0.9); transition: transform var(--cf-dur) var(--cf-ease) 60ms; }
-.coach-composer .coach-cam.frost-ctl:not([data-pressed], [data-press-off]) { transition: transform 520ms var(--ease-spring), opacity 200ms var(--ease-out) 210ms; }
-.coach-composer.open .coach-cam.frost-ctl:not([data-pressed], [data-press-off]) { transition: transform 520ms var(--ease-spring), opacity 140ms var(--ease-out) 60ms; }
+.open .coach-cam-slot { transform: translateX(-6px) scale(0.82); transition: transform var(--cf-dur) var(--cf-ease) 40ms; }
+.coach-composer .coach-cam.frost-ctl:not([data-pressed], [data-press-off]) { transition: transform 520ms var(--ease-spring), opacity 220ms var(--ease-out) 200ms; }
+.coach-composer.open .coach-cam.frost-ctl:not([data-pressed], [data-press-off]) { transition: transform 520ms var(--ease-spring), opacity 170ms var(--ease-out) 40ms; }
 .open .coach-cam { opacity: 0; pointer-events: none; }
 .cf-tint > i, .cf-sh, .cf-text, .coach-field textarea.input, .coach-cam-slot, .coach-field { will-change: transform; }
 .coach-cam.frost-ctl { will-change: opacity; }
@@ -1439,7 +1454,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .frost-seat { position: relative; isolation: isolate; }
 .frost-seat::before { content: ''; position: absolute; inset: calc(-1 * var(--seat, 2px)); border-radius: 999px; z-index: -1; pointer-events: none; }
 .coach-field .input { background: transparent; box-shadow: none; outline: none; }
-.coach-composer .input::placeholder { color: var(--tx2); opacity: 1; }
+.coach-composer .input::placeholder { color: var(--tx2); opacity: 1; font-weight: 400; letter-spacing: 0; }
 .coach-composer .coach-send { transform: scale(.9); transition: opacity 160ms var(--ease-out), transform 260ms var(--ease-smooth); }
 .coach-composer .coach-send.on { transform: none; }
 .coach-cam { flex: none; width: 44px; height: 50px; color: var(--tx2); }
@@ -1581,6 +1596,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    line breaks). The big words use the bubble's own
    typeface, weight and tracking, so only their size changes on the way down. */
 .said-wrap { position: relative; display: flex; flex-direction: column; }
+.said-l { display: block; white-space: pre-wrap; } /* a typed message's lines, as they wrapped in the field (Coach.tsx) */
 .said .sb, .said-big .sw { display: inline-block; }
 .said-wrap.write .said { opacity: 0; }
 .said-wrap.fly .said { transform-origin: 0 0; will-change: transform, opacity; }

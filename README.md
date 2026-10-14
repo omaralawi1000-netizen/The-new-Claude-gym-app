@@ -1786,15 +1786,26 @@ there was a version where you did it without the blur, it came out smooth". He a
   and the words sit in a window 10 px inside the rim: their box grows a line at once and is played back from where it
   was on the same spring, so the lines that move rise with the top edge and are never cut by it. Interruptible. A draft
   keeps the bar wide when the keyboard goes (as on iOS), so its lines never re-wrap under the returning camera.
-- **Sending**: the bubble rises out from behind the pill's top edge (it flies inside a window that ends there, riding
-  with the keyboard), never across the control, and "Ask the Coach" fades back in at once.
+- **Sending, iMessage-style** (Omar 23:41, "the text moves from the text bar into the chat seamlessly"): the very words
+  in the field, same letters in the same place, lift out of the pill on the frame you tap send; their bubble gathers
+  round them out of the field's inside shape (its colour in pieces under one opacity: two caps that move and a middle that
+  stretches, so its corners are never squashed; the tail corner settles in), the field's bright ink settles to the
+  bubble's softer one, and they glide on a soft spring (`apple(0.6, 0.15)`, the shape on `apple(0.42, 0.08)`) to their
+  place above the bar, passing over the pill as one object. The bubble keeps the field's line breaks (`lines` on the
+  message, read off the field's hidden copy) and the words fly at the field's size, so nothing re-wraps or jumps; the
+  field now types in the bubble's letters (weight 520, the placeholder stays as it was). The pill closes up behind it
+  and "Ask the Coach" comes back after 140 ms, once the pill has mostly closed.
+- **Bar polish (r5)**: the frost's top follows the lines on their own spring and its left edge the opening on the
+  opening's (two registered properties, `--cf-gt`/`--cf-gl`; one transition carried both and the frost trailed the pill
+  by 60 ms as it grew or closed up); a new line comes up through a soft bottom edge (a mask on the words' window, not a
+  hard cut that sliced its letters); the camera tucks to 0.82 as the edge passes and fades a touch slower.
 - Cost (4x CPU audit): no long tasks and no dropped layers on keyboard up/down. Three things that made layers come and go
   were removed: a React state for "open" (re-rendered the whole chat: a 50–60 ms stall; now a class on the bar), the
   moving parts without `will-change`, and a mask and an opacity fade on the field's text (now only past four lines, and
   the placeholder fades by colour). The orb stays where it is (the shared sphere draws it above the sheet).
 - The header fade starts a few px below the header, so no letter tails peek under it.
 - Clips: `scripts/clip-coach.mjs <out.mp4> [--palette ember|aurora] [--half]` films a send and a long streamed answer at
-  real or half speed (half: the page's clock and animations run at half speed). Backup: `backup/coach-r4-pre-noblur`.
+  real or half speed (half: the page's clock and animations run at half speed). Backups: `backup/coach-r4-pre-noblur`, `backup/coach-r5-pre-send` (round 4 as Omar saw it).
 
 ## Frosted tab bar with a soft edge (13 Oct 2026, v0.1.105)
 

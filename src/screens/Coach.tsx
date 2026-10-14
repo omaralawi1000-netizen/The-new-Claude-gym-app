@@ -32,12 +32,16 @@ const CF_LINE = 22, CF_LINES = 4, CF_MAX = CF_LINE * (CF_LINES - 1); // its line
 const MORPH = springCurve(apple(0.62, 0.4));
 const MORPH_BACK = springCurve(apple(0.62, 0.2));
 const GROW = springCurve(apple(0.5, 0.25));
+// a sent message: its flight to its place, and its bubble gathering round the words (quicker, so it has its shape before
+// it is far from the field)
+const FLY = springCurve(apple(0.6, 0.15));
+const FLY_SHAPE = springCurve(apple(0.42, 0.08));
 const growVars = { '--cf-ease-g': GROW.easing, '--cf-dur-g': `${GROW.duration}ms` } as React.CSSProperties;
 const morphVars = { '--cf-x': `${CF_X}px`, '--cf-max': `${CF_MAX}px`, '--cf-ease': MORPH.easing, '--cf-dur': `${MORPH.duration}ms`,
   '--cf-ease-c': MORPH_BACK.easing, '--cf-dur-c': `${MORPH_BACK.duration}ms`, ...growVars } as React.CSSProperties;
 
 type Msg =
-  | { id: string; role: 'user' | 'model'; text: string; streaming?: boolean; seeded?: boolean; /** a quiet line under the answer (which AI answered, and why) */ note?: string; /** when it was said */ at?: number; /** a photo was sent with it (its picture stays only while the Coach is open) */ photo?: boolean; image?: string }
+  | { id: string; role: 'user' | 'model'; text: string; streaming?: boolean; seeded?: boolean; /** a quiet line under the answer (which AI answered, and why) */ note?: string; /** when it was said */ at?: number; /** a photo was sent with it (its picture stays only while the Coach is open) */ photo?: boolean; image?: string; /** typed: its lines as they wrapped in the field (the bubble keeps them) */ lines?: string[] }
   | { id: string; role: 'error'; text: string }
   | { id: string; role: 'action'; results: AgentResult[]; undone: string[]; confirmed: string[] }
 
@@ -49,7 +53,7 @@ function loadThread(): Msg[] {
   try {
     const v = JSON.parse(localStorage.getItem(THREAD) || '[]');
     return (Array.isArray(v) ? v : []).filter((m: any) => m && typeof m.id === 'string' && ['user', 'model', 'action', 'error'].includes(m.role))
-      .map((m: any) => (m.role === 'user' || m.role === 'model' ? { ...m, seeded: true, streaming: false }
+      .map((m: any) => (m.role === 'user' || m.role === 'model' ? { ...m, seeded: true, streaming: false, lines: Array.isArray(m.lines) && m.lines.every((l: unknown) => typeof l === 'string') ? m.lines : undefined }
         // a card's buttons were functions: they don't survive the trip, so a restored card has none (no dead buttons)
         : m.role === 'action' ? { ...m, results: (Array.isArray(m.results) ? m.results : []).map((r: any) => ({ ...r, button: undefined, more: undefined, undo: undefined })) } : m));
   } catch { return []; }
@@ -252,82 +256,103 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       el.removeEventListener('wheel', wheel); el.removeEventListener('scrollend', rest);
     };
   }, []);
-  // A typed message lifts out of the field and glides up into its bubble, like a sent iMessage, while the conversation moves
-  // up to make room on the same spring. A copy of the bubble flies above everything (the list clips its own contents), from
-  // the typed text's place to the bubble's, and hands over to the real one where it lands; its glass gathers round the words
-  // on the way. Browser-run (Web Animations on transform/opacity only), so it is drawn at the screen's full rate.
-  const flyFrom = useRef(new Map<string, { x: number; y: number; fs: number; end: number; cut: boolean; right: number; edge: number; kb: number }>());
+  // A typed message leaves the field the way a sent iMessage does: the very words you typed, where you typed them, lift out
+  // of the pill, their bubble gathers round them out of the field's inside shape, and they glide on a soft spring to their
+  // place in the conversation, which moves up to make room on the same spring. The bubble keeps the field's line breaks and
+  // the words are drawn at the field's size on the way (scaled down to the bubble's as they land), so nothing re-wraps or
+  // jumps from one end to the other. A copy of the bubble flies above everything (the list clips its own contents) and hands
+  // over to the real one where it lands. Browser-run (Web Animations on transform/opacity only), at the screen's full rate.
+  const flyFrom = useRef(new Map<string, { x: number; y: number; fs: number; box: { l: number; r: number; t: number; b: number }; win: { t: number; b: number } }>());
   const flew = useRef(new Set<string>()); // these arrive by flight, not by the bubble's own rise
   const dropAfter = useRef(false); // sent from the keyboard: it goes down when the message lands
   const flown = (id: string) => flew.current.has(id);
   useLayoutEffect(() => {
     const el = bodyRef.current;
     if (!el || !flyFrom.current.size) return;
+    fit(); // (the emptied field's height first: the room it leaves under the list moves the landing place)
     for (const [id, from] of flyFrom.current) {
       flyFrom.current.delete(id);
       const bubble = el.querySelector<HTMLElement>(`[data-mid="${id}"] .said`);
-      const text = bubble?.firstChild;
       const app = document.querySelector<HTMLElement>('.app');
-      if (!bubble || !text || text.nodeType !== Node.TEXT_NODE || !app) continue;
+      if (!bubble || !app) continue;
       // the conversation goes to its end at once, then is played back up from where it was (one move, nothing jumps)
       const before = el.scrollTop;
       el.scrollTop = endTop(el); lastScroll.current = el.scrollTop;
       const lift = el.scrollTop - before;
       const B = bubble.getBoundingClientRect();
-      const n = (text as Text).length;
-      const r = document.createRange(); r.setStart(text, 0); r.setEnd(text, 1);
-      const c = r.getBoundingClientRect();
-      r.setStart(text, n - 1); r.setEnd(text, n);
-      const e = r.getBoundingClientRect();
       const cs = getComputedStyle(bubble);
       const k = from.fs / parseFloat(cs.fontSize);
-      // It leaves from the field's line. A message longer than one line rises with its LAST line on the field's (the rest
-      // above it, nothing hanging over the keyboard); one whose start was scrolled out of the field leaves with its end
-      // where it was (it used to swoop in from off the screen's left edge).
-      const tail = e.top > c.top + 1;
-      const line = tail ? e : c;
-      const dx = from.cut ? Math.min(from.end - (B.left + (e.right - B.left) * k), from.right - (B.left + B.width * k)) : from.x - (B.left + (c.left - B.left) * k); // (and inside the field)
-      const dy = from.y - (B.top + (line.top + line.height / 2 - B.top) * k);
+      // its first line starts on the field's first line, letter on letter
+      const dx = from.x - (B.left + parseFloat(cs.paddingLeft) * k);
+      const dy = from.y - (B.top + parseFloat(cs.paddingTop) * k);
+      // the field's inside, in the copy's own units as it starts (where its bubble gathers from)
+      const W = B.width, H = B.height, R = 20;
+      const x0 = (from.box.l - B.left - dx) / k, x1 = (from.box.r - B.left - dx) / k;
+      const y0 = (from.box.t - B.top - dy) / k, y1 = (from.box.b - B.top - dy) / k;
+      const solid = (c: string): [string, number] => { // a colour without its alpha, and the alpha
+        const n = (c.match(/-?[\d.]+/g) ?? []).map(Number);
+        const [r = 0, g = 0, b = 0, a = 1] = n;
+        return [c.startsWith('color(') ? `color(srgb ${r} ${g} ${b})` : `rgb(${r}, ${g}, ${b})`, a];
+      };
+      const [fill, fillA] = solid(cs.backgroundColor), [ink, inkA] = solid(cs.color);
       const copy = document.createElement('div');
       copy.className = 'said coach-fly';
-      copy.textContent = (text as Text).data;
       copy.setAttribute('aria-hidden', 'true');
-      Object.assign(copy.style, { left: `${B.left}px`, top: `${B.top}px`, width: `${B.width}px` });
-      copy.style.setProperty('--fly-bg', cs.backgroundColor);
-      copy.style.setProperty('--fly-shadow', cs.boxShadow);
-      // It flies inside a window that ends at the pill's top edge, so it rises out from behind the bar (it used to lift out
-      // through the pill for a few frames, its words across the control). The edge rides with the keyboard.
-      const clip = document.createElement('div');
-      clip.className = 'coach-fly-clip';
-      const edge = () => { clip.style.height = `${Math.max(0, from.edge + (from.kb - kb.get()))}px`; };
-      edge(); const offEdge = kb.on('change', edge);
-      clip.appendChild(copy); app.appendChild(clip);
+      Object.assign(copy.style, { left: `${B.left}px`, top: `${B.top}px`, width: `${W}px`, height: `${H}px` });
+      // its glass: one shadow, and the bubble's colour in pieces under one opacity (a cap each side and a middle that
+      // stretches), so its shape changes by moves alone, its corners never squashed; the bubble's tail corner settles in
+      const sh = document.createElement('i'); sh.className = 'fly-sh'; sh.style.boxShadow = cs.boxShadow;
+      const glass = document.createElement('div'); glass.className = 'fly-glass'; glass.style.setProperty('--fly-fill', fill);
+      const mw = Math.max(2, W - 2 * R + 2);
+      glass.innerHTML = `<i class="fg-l"></i><i class="fg-m" style="width:${mw}px"></i><i class="fg-r"></i><i class="fg-tail"></i>`;
+      const words = document.createElement('div'); words.className = 'fly-words'; words.style.color = ink;
+      bubble.childNodes.forEach((n) => words.appendChild(n.cloneNode(true)));
+      copy.append(sh, glass, words);
+      app.appendChild(copy);
       // it joins a glide the list is still finishing, so its place is where the bubble will be once that is done
-      const rider = ride.current?.(copy); const y0 = B.top - (rider?.off ?? 0); copy.style.top = `${y0}px`;
+      const rider = ride.current?.(copy); const top0 = B.top - (rider?.off ?? 0); copy.style.top = `${top0}px`;
       bubble.style.visibility = 'hidden';
-      const fly = springCurve(apple(0.6));
-      const opts = { duration: fly.duration, easing: fly.easing, fill: 'forwards' as const };
-      const anims = [copy.animate([{ transform: `translate(${dx}px, ${dy}px) scale(${k})` }, { transform: 'none' }], opts)];
-      const thread = el.querySelector<HTMLElement>('.coach-thread');
-      if (thread && lift > 0.5) anims.push(thread.animate([{ transform: `translate3d(0, ${lift}px, 0)` }, { transform: 'none' }], { ...opts, fill: 'none' }));
       const at = document.timeline.currentTime;
-      if (at !== null) anims.forEach((a) => { a.startTime = at; });
+      const go = (a: Animation) => { if (at !== null) a.startTime = at; return a; };
+      const opts = { duration: FLY.duration, easing: FLY.easing, fill: 'forwards' as const };
+      const shape = { duration: FLY_SHAPE.duration, easing: FLY_SHAPE.easing, fill: 'forwards' as const };
+      const fade = (ms: number, delay = 0) => ({ duration: ms, delay, easing: 'cubic-bezier(.3, 0, .2, 1)', fill: 'backwards' as const });
+      const flight = go(copy.animate([{ transform: `translate(${dx}px, ${dy}px) scale(${k})` }, { transform: 'none' }], opts));
+      const [l, m, r, tail] = [...glass.children] as HTMLElement[];
+      const sx = (x1 - x0) / W, sy = (y1 - y0) / H;
+      [
+        go(glass.animate([{ transform: `translateY(${y0}px) scaleY(${sy})` }, { transform: 'none' }], shape)),
+        go(glass.animate([{ opacity: 0 }, { opacity: fillA }], { ...fade(200), fill: 'both' })),
+        go(l.animate([{ transform: `translateX(${x0}px)` }, { transform: 'none' }], shape)),
+        go(m.animate([{ transform: `translateX(${x0}px) scaleX(${Math.max(0, x1 - x0 - 2 * R + 2) / mw})` }, { transform: 'none' }], shape)),
+        ...[r, tail].map((p) => go(p.animate([{ transform: `translateX(${x1 - W}px)` }, { transform: 'none' }], shape))),
+        go(tail.animate([{ opacity: 0 }, { opacity: 1 }], fade(260, 90))),
+        go(sh.animate([{ transform: `translate(${x0}px, ${y0}px) scale(${sx}, ${sy})`, opacity: 0 }, { transform: 'none', opacity: 1 }], shape)),
+        // the field's bright ink settles to the bubble's softer one
+        go(words.animate([{ opacity: 1 }, { opacity: inkA }], { ...fade(380, 60), fill: 'both' })),
+      ];
+      // lines that were scrolled out of a long draft's view come in on the way, rather than appearing over the chat
+      [...words.children].forEach((line, i) => {
+        const ly = from.y + i * CF_LINE;
+        if (ly < from.win.t - 2 || ly + CF_LINE > from.win.b + 2) go((line as HTMLElement).animate([{ opacity: 0 }, { opacity: 1 }], fade(260, 60)));
+      });
+      const thread = el.querySelector<HTMLElement>('.coach-thread');
+      if (thread && lift > 0.5) go(thread.animate([{ transform: `translate3d(0, ${lift}px, 0)` }, { transform: 'none' }], { ...opts, fill: 'none' }));
       // anything that scrolls the conversation on the way (the answer arriving) moves the landing place with it
-      const top0 = el.scrollTop;
-      const follow = () => { copy.style.top = `${y0 - (el.scrollTop - top0)}px`; };
+      const scroll0 = el.scrollTop;
+      const follow = () => { copy.style.top = `${top0 - (el.scrollTop - scroll0)}px`; };
       // (told in the same frame when the list is moved from here, the keyboard's ride above all: the scroll event comes a
       // frame late, and the copy trailed its landing place by that frame while the keyboard went down)
       el.addEventListener('scroll', follow, { passive: true }); listMoved.current = follow;
-      // the field's "Ask the Coach" comes back once the words have left it
-      // ("Ask the Coach" fades back in as the words leave, from the next frame: no empty pill in between)
+      // "Ask the Coach" comes back once the pill has mostly closed behind the words (it rode down inside it before)
       const field = inputRef.current; field?.classList.add('sent-away');
-      let back = requestAnimationFrame(() => { back = requestAnimationFrame(() => field?.classList.remove('sent-away')); });
+      const back = setTimeout(() => field?.classList.remove('sent-away'), 140);
       // sent while typing: the keyboard leaves once the message has nearly landed (the list, at its end, rides down with it
       // and the bubble with the list), one thing after the other instead of the field dropping away under the words
       const drop = () => { if (!dropAfter.current) return; dropAfter.current = false; if (document.activeElement === field) field?.blur(); };
-      const dropping = setTimeout(drop, Math.round(fly.duration * 0.42));
-      const land = () => { rider?.unride(); el.removeEventListener('scroll', follow); if (listMoved.current === follow) listMoved.current = null; cancelAnimationFrame(back); clearTimeout(dropping); drop(); field?.classList.remove('sent-away'); bubble.style.visibility = ''; offEdge(); clip.remove(); };
-      anims[0].finished.then(land, land);
+      const dropping = setTimeout(drop, Math.round(FLY.duration * 0.42));
+      const land = () => { rider?.unride(); el.removeEventListener('scroll', follow); if (listMoved.current === follow) listMoved.current = null; clearTimeout(back); clearTimeout(dropping); drop(); field?.classList.remove('sent-away'); bubble.style.visibility = ''; copy.remove(); };
+      flight.finished.then(land, land);
     }
   });
   const begun = useRef(false);
@@ -414,6 +439,33 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     bar.style.setProperty('--sh-y', String((54 + mid) / 54));
     body?.style.setProperty('--grow', `${mid}px`); body?.style.setProperty('--grow-pad', `${mid}px`);
   };
+  // The field's own line breaks, read off its hidden copy (which wraps exactly as the field does): the sent bubble keeps
+  // them, so the words land line for line as they were typed. `first`: the field line the kept ones start on (blank lines
+  // around the words are left out, as the message leaves them out).
+  const fieldLines = (value: string) => {
+    const ta = inputRef.current, m = measureRef.current;
+    if (!ta || !m || !value) return null;
+    const cs = getComputedStyle(ta);
+    m.style.width = `${ta.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)}px`;
+    m.textContent = value;
+    const node = m.firstChild;
+    if (!node || node.nodeType !== Node.TEXT_NODE) return null;
+    const r = document.createRange(), all: string[] = [];
+    let start = 0, top = NaN;
+    for (let i = 0; i < value.length; i++) {
+      if (value[i] === '\n') { all.push(value.slice(start, i)); start = i + 1; top = NaN; continue; }
+      r.setStart(node, i); r.setEnd(node, i + 1);
+      const y = r.getBoundingClientRect().top;
+      if (Number.isNaN(top)) top = y;
+      else if (y > top + CF_LINE / 2) { all.push(value.slice(start, i)); start = i; top = y; }
+    }
+    all.push(value.slice(start));
+    const lines = all.map((l) => l.replace(/\s+$/, ''));
+    let first = 0, end = lines.length;
+    while (first < end && !lines[first].trim()) first++;
+    while (end > first && !lines[end - 1].trim()) end--;
+    return end > first ? { lines: lines.slice(first, end), first } : null;
+  };
   const openBar = () => fit();
   useLayoutEffect(fit, [input]);
   // the shadow under the pill is stretched rather than redrawn: how much wider the open pill is than the resting one
@@ -499,21 +551,27 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     const field = inputRef.current;
     const still = document.documentElement.dataset.motion === 'reduce' || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const typing = !!field && document.activeElement === field;
-    if ((raw === undefined || spoken) && text && !pic && field && !still) { // typed or said: it leaves from the field
-      const fr = field.getBoundingClientRect(), fs = getComputedStyle(field);
+    const wrap = (raw === undefined || spoken) && text && !pic && field && !still ? fieldLines(raw ?? input) : null;
+    if (wrap && field) { // typed or said: it leaves from the field
+      const fr = field.getBoundingClientRect(), fs = getComputedStyle(field), pill = fieldRef.current?.getBoundingClientRect() ?? fr;
       flew.current.add(id);
-      const left = fr.left + parseFloat(fs.borderLeftWidth) + parseFloat(fs.paddingLeft);
-      // (`end`: where the text's last letter was; `cut`: its start was scrolled out of the field, only its end was showing)
-      // (it leaves from the field's bottom line, where the last of your words were; `edge`: the pill's top, which the bubble
-      // comes out above, never through the bar)
-      const top = fieldRef.current?.getBoundingClientRect().top ?? fr.top;
-      flyFrom.current.set(id, { x: left, y: fr.bottom - 27, fs: parseFloat(fs.fontSize), end: left, cut: false, right: fr.right, edge: top - Math.max(0, grown.current), kb: kb.get() });
+      const mid = Math.max(0, grown.current);
+      // where its first line is in the field (the box is played on the pill's spring, its rect has that in it), the
+      // field's inside (the pill's shape, a little in from its rim and clear of the send button: its bubble gathers from
+      // there) and the part of the field the words show in
+      const pad = parseFloat(fs.paddingTop), lt = fr.left + parseFloat(fs.paddingLeft), rt = fr.right - parseFloat(fs.paddingRight);
+      flyFrom.current.set(id, {
+        // (said words that were never in the field rise with their last line on the field's)
+        x: lt, y: raw === undefined || field.value === raw ? fr.top + pad - field.scrollTop + wrap.first * CF_LINE : fr.bottom - pad - wrap.lines.length * CF_LINE, fs: parseFloat(fs.fontSize),
+        box: { l: lt - 12, r: rt + 12, t: pill.bottom - 54 - mid + 5, b: pill.bottom - 5 },
+        win: { t: pill.bottom - 54 - mid + 10, b: pill.bottom - 10 },
+      });
       dropAfter.current = typing;
     } else if (typing) field?.blur();
     const reduceTips = still || leaving;
     if (!reduceTips && (msgsRef.current.length === 0 || resumed)) setTipsOut(msgsRef.current.length === 0 ? 'top' : 'resume');
     setInput(''); setPhoto(null); setResumed(false); setBusy(true); stopSpeaking(); orb('processing');
-    say({ id, role: 'user', text, at: Date.now(), ...(pic ? { photo: true, image: pic.url } : {}) });
+    say({ id, role: 'user', text, at: Date.now(), ...(wrap ? { lines: wrap.lines } : {}), ...(pic ? { photo: true, image: pic.url } : {}) });
     ctl.current = new AbortController();
     const signal = ctl.current.signal;
     try {
@@ -653,7 +711,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
                   {m.role === 'user' && (
                     <div className="stack" style={{ alignItems: 'flex-end', gap: 6, maxWidth: '100%' }}>
                       {m.photo && (m.image ? <img className="said-photo" src={m.image} alt={t('Your photo')} /> : <div className="said xs t2"><Icon name="camera" size={13} style={{ verticalAlign: '-2px', marginRight: 4 }} />{t('Photo')}</div>)}
-                      {m.text && <div className="said" style={{ maxWidth: '100%' }}>{m.text}</div>}
+                      {m.text && <div className="said" style={{ maxWidth: '100%' }}>{m.lines ? m.lines.map((l, i) => <span key={i} className="said-l">{l || '\u200b'}</span>) : m.text}</div>}
                     </div>
                   )}
                   {m.role === 'model' && <CoachReply m={m} />}
