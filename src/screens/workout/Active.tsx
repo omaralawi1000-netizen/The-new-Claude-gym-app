@@ -47,7 +47,7 @@ export function useActive(): WorkoutSession | null {
  * The live workout: a full-height card that rises over the page (which steps back behind it), like Apple Music's player.
  * Kept alive between openings (WorkoutHost): `open` false slides it away and then hides it.
  */
-export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?: 'hero' | 'pill' | 'none' }; open?: boolean; onGone?: () => void }) {
+export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { props: { origin?: 'hero' | 'pill' | 'none' }; open?: boolean; onGone?: () => void; /** close without the slide (it is already hidden under the finish sheet) */ vanish?: boolean }) {
   const t = useT();
   const lang = useLang();
   // narrow selections: the screen re-renders when the session changes, not on every store write
@@ -120,9 +120,10 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
   const sheetRef = useRef<HTMLDivElement>(null);
   // high refresh rate: the window, the dim and the page behind also run by the browser on the identical spring
   const mirror = useRef<Mirror | null>(null); if (!mirror.current) mirror.current = new Mirror();
+  const vanishRef = useRef(vanish); vanishRef.current = vanish;
   const runMirror = (p0: number, p1: number, sp: { stiffness: number; damping: number; mass?: number }, vel: number) => {
     const m = mirror.current!; m.cancel();
-    if (reduce) return;
+    if (reduce || (p1 === 0 && vanishRef.current)) return;
     m.add(
       mirrorProgress(sheetRef.current, p0, p1, sp, vel, (pp) => ({ transform: `translateY(${sheetTop(pp).toFixed(2)}px)` })),
       mirrorProgress(shadeRef.current, p0, p1, sp, vel, (pp) => ({ transform: `translateY(${sheetTop(pp).toFixed(2)}px)`, opacity: String(shade(pp)) }), [0.12, 0.7]),
@@ -141,8 +142,20 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
     p.set(e0); dragY.set(0);
     const vel = -v / H;
     runMirror(e0, 0, SURFACE_EXIT, vel);
-    const c = animate(p, 0, reduce ? { duration: 0.01 } : { ...SURFACE_EXIT, velocity: vel });
-    closing.current = new Promise<void>((done) => { c.then(() => done()); });
+    // under the finish sheet: no slide, just a soft crossfade of what still shows above the sheet into the page behind. The
+    // page is drawn again first (warmStage; behind a full cover it is not drawn at all, and fading over it showed black,
+    // then the page cut in), two frames before the fade starts, then the window is put away.
+    let fade: Animation | undefined;
+    const c = vanishRef.current && !reduce
+      ? new Promise<void>((ok) => { warmStage(true); requestAnimationFrame(() => requestAnimationFrame(() => {
+        fade = dialogRef.current?.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 700, easing: 'ease-in-out', fill: 'forwards' });
+        // The page stops being kept warm only once the cover has really reached 0: let go in the same frame, it read the cover
+        // as still full and hid the page for a frame, so the phone threw its whole drawing away and redrew all of it at once,
+        // in the middle of the finish moment (which went blank for a beat).
+        (fade?.finished ?? Promise.resolve()).then(() => { p.set(0); requestAnimationFrame(() => requestAnimationFrame(() => ok())); }, () => ok());
+      })); })
+      : animate(p, 0, reduce || vanishRef.current ? { duration: 0.01 } : { ...SURFACE_EXIT, velocity: vel });
+    closing.current = new Promise<void>((done) => { c.then(() => { done(); if (fade) requestAnimationFrame(() => fade?.cancel()); }, () => done()); });
     void closing.current.then(() => warmStage(false));
     return closing.current;
   };
@@ -343,11 +356,11 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
   const finish = () => {
     if (done === 0) { setConfirm('discard'); return; }
     if (done < total) { setConfirm('finish'); return; }
-    doFinish();
+    haptic('confirm'); doFinish();
   };
   const doFinish = () => {
     const r = useStore.getState().finishActive();
-    if (r) { haptic(r.records?.length ? 'record' : 'finish'); swap(1, 'summary', { sessionId: r.id }); }
+    if (r) swap(1, 'summary', { sessionId: r.id }); // its medal lands with the finish (or record) feel
   };
   // the bar's "next set": scroll it into the middle and let it glow for a moment
   const jumpTo = (setId: string) => {
@@ -608,8 +621,8 @@ function WorkoutBar({ engage, exMap, focus, onDone, onJump }: { engage: Engage; 
         <AnimatePresence>
           {panel && state === 'rest' && (
             <motion.div key="ctl" className="wk-bar-ctl" initial={{ opacity: 0, x: 14 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} transition={SOFT}>
-              <button className="wk-ctl press num" onClick={() => adjustRest(-15)} aria-label={t('15 seconds less')}>−15</button>
-              <button className="wk-ctl press num" onClick={() => adjustRest(15)} aria-label={t('15 seconds more')}>+15</button>
+              <button className="wk-ctl press num" onClick={() => { haptic('select'); adjustRest(-15); }} aria-label={t('15 seconds less')}>−15</button>
+              <button className="wk-ctl press num" onClick={() => { haptic('select'); adjustRest(15); }} aria-label={t('15 seconds more')}>+15</button>
               <button className="wk-ctl skip press" onClick={() => { haptic('light'); skipRest(); setPanel(false); }}>{t('Skip')}</button>
             </motion.div>
           )}

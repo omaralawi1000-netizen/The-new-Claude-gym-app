@@ -1883,6 +1883,56 @@ screen (the Ember orb of dots) cut to a blank page, then the app.
 - Tools: `scripts/launch.mjs` (timings), `scripts/film-launch.mjs` (steady-camera launch films). Previews and notes in the
   project folder `launch-morph/`.
 
+## Backgrounds you can pick, and three new colours (14 Oct 2026, v0.1.112)
+Settings → Appearance → Background picks what is drawn behind the app: Classic (the drifting colour field, as before),
+Orb light, Colour per tab, Sunrise, Mesh, Dot field, Time of day, Night sky and Your photo (`settings.background`,
+`html[data-bg]`, `ui/Backdrop.tsx`, `.bgx` in styles.css).
+- Why still: Omar found that turning the glow off made the app much smoother. Classic's three lights drift in ~12 steps a
+  second, and every step makes the frosted tab bar, sheets and Coach bar re-blur what is under them. Every new background
+  is a few gradients (or one small picture) painted once and then left alone, so nothing under the glass changes unless
+  you scroll.
+- The only changes: Sunrise's horizon glow rises as the day's calories and protein fill up (one 2.6 s transform +
+  opacity move when food is logged); Orb light's brighter layer fades in (1.2 s) while the Coach or the orb screen works
+  on an answer or reads it aloud (voice phase `processing`, or `voiceOut`), and out again (1.6 s); Time of day / Night
+  sky move on in quarter hours, only when you come back to the app or every 15 minutes while no pop-up is open, as one
+  0.8 s cross-fade. Tab-coloured ones (Classic, Orb, Colour per tab, Sunrise, Mesh, Dot field) cross-fade on a tab switch
+  exactly like the old field did; the others don't change on a tab switch at all.
+- Night sky uses Aarhus sunset/sunrise (NOAA approximation, `sunTimes`): stars after sunset, a calm dusk before.
+- Your photo is blurred once when picked (canvas blur 16 px, to a 240×520 JPEG), kept in IndexedDB with the progress photos, never
+  uploaded and not in backups; the screen only scales up a still, already-soft picture and darkens it for legibility.
+- Background glow still applies: Full / Soft set the strength; Off leaves a plain background (Your photo stays). Picking a
+  background while the glow is Off turns it back to Full. Colour per tab uses its own hues (Today warm, Train blue, Food
+  green, Progress violet); the accent on buttons still follows the palette. The workout window keeps its own light.
+- Round 2 (after the judge): Colour per tab's Today is a cool aqua (a warm wash turned see-through cards amber next to
+  a teal accent); Time of day has a warm sky (Ember, Sunset) and a cool one (the rest) so evenings never go brown, and
+  midday is a clean light blue, not white (white over dark reads grey); over Night sky and Dot field the tab screens'
+  cards, chips and buttons are the same dark glass made solid (`--s1..3`, `--bg-2` on `.screen`), so no star or dot
+  shows through a card; Night sky got a faint Milky Way band and is near-black, unlike Time of day's indigo night;
+  Orb light moves to the Coach's orb (bottom-left) while the Coach is open, by fading between layers already drawn.
+- Round 3: the fade between layers read as a jump, so Orb light now measures where the orb really is (the dock's moves
+  with the tab you are on; the Coach's sits in its bar) and its halo (140 px) and beam glide there as one transform
+  (1.1 s), re-measured once the Coach's sheet has settled and on resize. Sunrise's horizon sits at the quick-add row on
+  a full day (the sun was hidden behind the big card and the tab bar), with the sky dimming below it like land. Under
+  Time of day the cards are a darker frost (`--s1..3` on `.screen`), so grey text keeps 6:1 or better against a bright
+  midday or dusk sky. Two things the judge flagged were not the backgrounds: the half-and-half frames mid tab switch are
+  the page cross-fade, the same in Classic; the tab name "vanishing" was one bad frame of the test filming (the same
+  filming on the current app never shows it, and the label is never re-mounted).
+- Round 4: under Sunrise the cards and quick-add chips get Time of day's darker frost (the sun sat behind the chips:
+  "+ Beef mince" was 1.5:1, now 5.5:1); every change between two of the picked backgrounds (picking one, a tab
+  switch, a change of sky) lays the new one over the old one, which stays whole until it is covered; for that each is
+  painted opaque (`.fields > .bgx` has the page colour behind it). Fading both at once let the room show through
+  mid-way (a dip) and two half-skies came out brighter than either. Classic's drifting field is see-through, so changes
+  to and from it still fade both; the soft fade
+  under a sheet's title now starts after 8 px of scroll (all sheets), so a list nudged a few px by a tap keeps its
+  heading clear.
+- Three new colours (Omar asked for "a real sunset" and colours that look premium): Golden hour (a red-orange light
+  with sun-yellow only where it is brightest: accent, sun core, the top of the start button; yellow light over the dark
+  page read as caramel), Midnight (deep blue, ice-blue accent) and Champagne (graphite with a saturated gold glow and a
+  champagne accent; a pale warm glow read grey-beige). Each has its own ring colours (`--c-kcal` is new: kcal no longer
+  has to be the accent), deeper ones on a light page. Under Sunrise the macro numbers get a soft dark pool and stronger
+  grey text (4.5:1+ over the sun); the Coach's suggestion subtitles and note use the second text grey (5.5:1).
+- Scripts: `AVEN_BG=mesh AVEN_PALETTE=aurora AVEN_GLOW=off AVEN_PHOTO=file.jpg` in any script that uses `loadDemo`.
+
 ## Rendered exercise clips: the barbell curl first (14 Oct 2026, v0.1.110)
 
 - Omar approved the muscled figure ("the figure looks good now") and its whole-body motion: the arms curl, the body leans

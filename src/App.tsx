@@ -22,6 +22,7 @@ import { readRGB, setBarCover, setBarDepth, setBarTint } from './ui/statusBar';
 import { setKeyboard } from './ui/keyboard';
 import { FpsMeter } from './ui/FpsMeter';
 import { useLaunch } from './ui/launch';
+import { BgBody, PER_TAB, useSkyClock, type BgKind } from './ui/Backdrop';
 
 /** Where the last tap landed — the theme switch spreads out from there. */
 const lastTap = { x: typeof window !== 'undefined' ? window.innerWidth / 2 : 0, y: 0 };
@@ -87,6 +88,8 @@ function useTheme() {
   useLayoutEffect(() => { document.documentElement.dataset.palette = palette; }, [palette]);
   const glow = useStore((x) => x.settings.glow ?? 'full');
   useLayoutEffect(() => { document.documentElement.dataset.glow = glow; }, [glow]);
+  const bg = useStore((x) => x.settings.background ?? 'classic');
+  useLayoutEffect(() => { document.documentElement.dataset.bg = bg; }, [bg]);
   useEffect(() => { document.documentElement.lang = lang; }, [lang]);
 }
 
@@ -105,15 +108,30 @@ function useTheme() {
  */
 const GLOW = 0.8; // seconds the colours take to change over
 let fieldSeq = 0;
-function Field({ hue }: { hue: string }) {
+// how long a change of field takes: a tab switch GLOW; picking another background a little longer, so it settles in
+// under the Settings sheet; the sky moving on (Time of day, Night sky) slower still, so it never reads as a jump
+const PICK = 1.2, SKY_SHIFT = 2.6;
+/** how a field change runs: its length, and whether the new field is laid over the old one (`over`) */
+type FieldChange = { d: number; over: boolean };
+const FIELD = {
+  hidden: { opacity: 0 },
+  shown: (c: FieldChange) => ({ opacity: 1, transition: { duration: c.d, ease: [0.4, 0, 0.2, 1] as const, delay: 0.05 } }),
+  // Between two of the picked backgrounds (each painted opaque, see .bgx) the new one is laid over the old one, which stays
+  // whole until it is covered: a true blend from one to the other. Fading both at once let the room show through mid-way
+  // (a dip in the picker) and two half-skies came out brighter than either. Classic's drifting field is see-through, so
+  // to and from it both still fade.
+  gone: (c: FieldChange) => (c.over
+    ? { opacity: 0.99, transition: { duration: c.d, ease: 'linear' as const, delay: 0.1 } }
+    : { opacity: 0, transition: { duration: c.d, ease: [0.55, 0, 0.75, 1] as const, delay: 0.05 } }),
+};
+function Field({ hue, kind, sky, change }: { hue: string; kind: BgKind; sky: { hour: number; night: boolean }; change: FieldChange }) {
   // every field drifts on the same clock, so the new one lines up with the old one and only its colours change
   const drift = useRef(`-${Math.round(performance.now())}ms`);
   const z = useRef(++fieldSeq);
   return (
-    <motion.div className="aurora" data-hue={hue} aria-hidden style={{ zIndex: z.current, ['--drift-t' as string]: drift.current }}
-      initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { duration: GLOW, ease: [0.4, 0, 0.2, 1], delay: 0.05 } }}
-      exit={{ opacity: 0, transition: { duration: GLOW, ease: [0.55, 0, 0.75, 1], delay: 0.05 } }}>
-      <i /><i /><i />
+    <motion.div className={kind === 'classic' ? 'aurora' : 'bgx'} data-k={kind} data-hue={hue} aria-hidden style={{ zIndex: z.current, ['--drift-t' as string]: drift.current }}
+      custom={change} variants={FIELD} initial="hidden" animate="shown" exit="gone">
+      <BgBody kind={kind} sky={sky} />
     </motion.div>
   );
 }
@@ -275,6 +293,16 @@ export function App() {
   const pill = useStore((s) => !!s.active) && tab !== 'today';
   const onboarded = useStore((s) => s.settings.onboarded);
   useCalm(appRef);
+  // the background (Settings → Appearance): the ones in each tab's colours change with the tab, the others only with the sky
+  const bg = useStore((s) => s.settings.background ?? 'classic');
+  const sky = useSkyClock(bg === 'time' || bg === 'night');
+  const fieldKey = PER_TAB[bg] ? `${bg}:${tab}` : bg === 'time' ? `time:${sky.hour}` : bg === 'night' ? `night:${sky.night}` : bg;
+  const change = useRef<{ key: string; bg: BgKind; dur: number; over?: boolean }>({ key: fieldKey, bg, dur: GLOW });
+  if (change.current.key !== fieldKey) {
+    const was = change.current.bg;
+    change.current = { key: fieldKey, bg, dur: was !== bg ? PICK : PER_TAB[bg] ? GLOW : SKY_SHIFT, over: bg !== 'classic' && was !== 'classic' };
+  }
+  const fieldChange = useMemo<FieldChange>(() => ({ d: change.current.dur, over: !!change.current.over }), [change.current.dur, change.current.over]); // eslint-disable-line
   const push = useUI((s) => s.push);
   const asked = useRef(false);
   useEffect(() => {
@@ -301,7 +329,7 @@ export function App() {
     <MotionConfig reducedMotion="user">
       <div className="app" data-hue={tab} data-pill={pill || undefined} ref={appRef}>
         <div className="stage" ref={stageRef}>
-        <div className="fields"><AnimatePresence initial={false}><Field key={tab} hue={tab} /></AnimatePresence><i className="fields-top" data-bar aria-hidden /></div>
+        <div className="fields"><AnimatePresence initial={false} custom={fieldChange}><Field key={fieldKey} hue={tab} kind={bg} sky={sky} change={fieldChange} /></AnimatePresence><i className="fields-top" data-bar aria-hidden /></div>
         <div className="stage-content" ref={contentRef}>
         <AnimatePresence mode="popLayout" initial={false} custom={dir}>
           <TabPane key={tab} hue={tab} dir={dir}>{screen}</TabPane>
