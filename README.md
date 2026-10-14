@@ -2001,3 +2001,17 @@ Omar: "when you say something to the coach… I want it to be easy and like Appl
 - Not verified on a phone: whether Chrome on Android lets its speech service and the recording share the mic (the
   fallbacks above cover either one failing), and live-word accuracy.
 
+
+## Food rings like Apple Fitness (14 Oct 2026, v0.1.127)
+Omar 15:06: "turn the rings like 3D with like inner shadows and like Apple's fitness". `ui/Dial.tsx`, tokens `--ring-*` in `styles.css`.
+- Each empty track is a deep (dark) or pale (light) version of its own ring's colour, mixed in OKLCH (`oklch(from …)`), carved in
+  with a soft inner shadow. Dark yellow/orange tracks hold less colour (L .275, C .037) so they never turn brown.
+- The fill is a conic gradient along the ring: no darker than the plain colour at its start, brighter and turned ~12° in hue at
+  its end (pink → magenta, lime → yellow-green, teal → cyan-blue; the direction is read once from the ring's real colour). It
+  never wraps, so the start's round cap keeps the start colour. A faint dither keeps it free of bands.
+- A full ring's end is drawn again over its start (same dither and tube shading) with a soft shade in its own darker hue just
+  ahead; short of full, a neutral shade falls on the track ahead of the end.
+- Light mode: no glow and a crisper edge; fat is a clean amber `#e6ad00` in every light palette (was mustard).
+- Cost: painted once; only the fill's mask length, the shade's position and the end's rotation move, on the same spring.
+- Judge rounds: r4 failed (brown smudge at 12 o'clock, brown tracks, dim fills, soft light edge); r5 passed after the yellow
+  track and end-disc fixes. Before/after page: https://claude.ai/artifact/GhMcA41DrV79hCh2tKwT63
