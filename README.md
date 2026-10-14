@@ -1867,6 +1867,22 @@ a coloured fringe ("chromatic aberration / colour banding, looks cheap"). Reprod
 - Tools: `scripts/banding-shots.mjs` (Settings, Today, Coach, Scan at phone size, field held still) and
   `scripts/banding-probe.mjs` (CSS variants on one open sheet).
 
+## Smooth glows in the live workout window: no more rings (14 Oct 2026, v0.1.121)
+
+Omar saw stepped, slightly coloured rings in the workout window's glow (the gold light behind the exercise card and the
+light behind the title and figure). Cause: on the phone, Chrome draws a CSS gradient in whole colour steps without
+smoothing them (the test browser smooths them, so lab shots looked clean; judge from his own screenshots). A dim glow
+spans only a few dozen steps, and red, green and blue step at different places, so the rings look coloured. The grain
+on top was drawn after the rounding, so it only hid the rings' edges.
+
+Fix: the window's colour field (`.aurora-lite::before`) and its breathing top light (`.wk-breath`) are worked out in a
+worker at full precision with a dither (`src/ui/glow.ts`, `glow.worker.ts`, `screens/workout/wkGlow.tsx`), drawn once
+into canvases at half the screen's pixels (the screen smooths them back up). The CSS gradients show until the pictures
+are ready ([data-dith] swaps them); colour matches within a third of a step, dark and light. Frost, card and grain are
+unchanged. Cost: open, resume, scroll and idle frame counts the same as before (software GPU). Tools:
+`scripts/banding-workout.mjs`. Way back: branch backup/pre-banding-v0.1.119. Not yet done: the tab screens' Classic glow
+(same cause; `ui/glow.ts` can do it).
+
 ## Launch morph: the launch screen's orb flies into the dock; a lighter start (13 Oct 2026, v0.1.107)
 
 Omar: "launch morph would be amazing… you have to work very hard on it to make it seamless". Before, Android's launch
