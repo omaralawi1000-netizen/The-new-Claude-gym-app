@@ -246,31 +246,50 @@ function svgSize(url: string): [number, number] | null {
   return vb ? [+vb[1], +vb[2]] : null;
 }
 
+/** pictures decoded once, by address (the quick picture in glow.ts draws them at once, without waiting) */
+export const decoded = new Map<string, HTMLImageElement>();
+export async function decode(url: string): Promise<HTMLImageElement | null> {
+  const had = decoded.get(url); if (had) return had;
+  const el = new Image(); el.src = url;
+  try { await el.decode(); } catch { return null; }
+  decoded.set(url, el); return el;
+}
+
+/** Draws `src`'s picture `el` into `g` where CSS puts it (cover, contain or a size, at its position), in the element's own px
+ * (the caller has set `g`'s transform from the element to the canvas) */
+export function placePicture(g: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D, src: GlowSrc, el: HTMLImageElement) {
+  const im = src.img as (GlowSrc['img'] & { fit: string; pos: string[] }) | undefined;
+  if (!im?.url) return;
+  const [iw, ih] = svgSize(im.url) ?? [el.naturalWidth || 300, el.naturalHeight || 150], W = src.w, H = src.h;
+  let dw: number, dh: number;
+  if (im.fit === 'cover' || im.fit === 'contain') { const k = (im.fit === 'cover' ? Math.max : Math.min)(W / iw, H / ih); dw = iw * k; dh = ih * k; }
+  else {
+    const [a, b = 'auto'] = im.fit.split(' '), x = a === 'auto' ? null : len(a, W), y = b === 'auto' ? null : len(b, H);
+    dw = x ?? (y !== null ? (y * iw) / ih : iw); dh = y ?? (dw * ih) / iw;
+  }
+  // a position in % is a share of the room left over (CSS's rule); in px it is a plain offset
+  const at = (p: string | undefined, free: number) => (p?.endsWith('%') ? (parseFloat(p) / 100) * free : len(p ?? '0', 0) ?? 0);
+  g.imageSmoothingQuality = 'high';
+  g.drawImage(el, at(im.pos[0], W - dw), at(im.pos[1], H - dh), dw, dh);
+}
+
+/** element px → canvas px: the inverse of a source's `m` */
+export function inverse(m: number[]): [number, number, number, number, number, number] {
+  const [a, b, c, d, e, f] = m, det = a * d - b * c;
+  return [d / det, -b / det, -c / det, a / det, (c * f - d * e) / det, (b * e - a * f) / det];
+}
+
 /** Fetches the pictures of `srcs` and draws each into a w × h canvas-sized picture, where CSS puts it */
 export async function loadPictures(srcs: GlowSrc[], w: number, h: number): Promise<boolean> {
   for (const src of srcs) {
-    const im = src.img as (GlowSrc['img'] & { fit: string; pos: string[] }) | undefined;
-    if (!im?.url) continue;
-    const el = new Image(); el.src = im.url;
-    try { await el.decode(); } catch { return false; }
-    const [iw, ih] = svgSize(im.url) ?? [el.naturalWidth || 300, el.naturalHeight || 150], W = src.w, H = src.h;
-    let dw: number, dh: number;
-    if (im.fit === 'cover' || im.fit === 'contain') { const k = (im.fit === 'cover' ? Math.max : Math.min)(W / iw, H / ih); dw = iw * k; dh = ih * k; }
-    else {
-      const [a, b = 'auto'] = im.fit.split(' '), x = a === 'auto' ? null : len(a, W), y = b === 'auto' ? null : len(b, H);
-      dw = x ?? (y !== null ? (y * iw) / ih : iw); dh = y ?? (dw * ih) / iw;
-    }
-    // a position in % is a share of the room left over (CSS's rule); in px it is a plain offset
-    const at = (p: string | undefined, free: number) => (p?.endsWith('%') ? (parseFloat(p) / 100) * free : len(p ?? '0', 0) ?? 0);
-    const x0 = at(im.pos[0], W - dw), y0 = at(im.pos[1], H - dh);
+    const url = src.img?.url;
+    if (!url || !src.img) continue;
+    const el = await decode(url); if (!el) return false;
     const c = document.createElement('canvas'); c.width = w; c.height = h;
     const g = c.getContext('2d'); if (!g) return false;
-    // element px → canvas px: the inverse of src.m
-    const [ma, mb, mc, md, me, mf] = src.m, det = ma * md - mb * mc;
-    g.setTransform(md / det, -mb / det, -mc / det, ma / det, (mc * mf - md * me) / det, (mb * me - ma * mf) / det);
-    g.imageSmoothingQuality = 'high';
-    g.drawImage(el, x0, y0, dw, dh);
-    im.bm = await createImageBitmap(c); im.x = 0; im.y = 0; im.w = w; im.h = h;
+    g.setTransform(...inverse(src.m));
+    placePicture(g, src, el);
+    src.img.bm = await createImageBitmap(c); src.img.x = 0; src.img.y = 0; src.img.w = w; src.img.h = h;
   }
   return true;
 }

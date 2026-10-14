@@ -20,6 +20,7 @@ import { exName } from './workout/common';
 import { cardOrder, NextTargets, MusclesWeek, RecentRecords } from './TodayCards';
 import { Roll } from '../ui/Roll';
 import { CoachPin } from '../ui/CoachPin';
+import { ImgGlow } from '../ui/Glows';
 
 export function estMinutes(r: Routine): number {
   const sets = r.items.reduce((n, i) => n + i.warmupSets + i.workingSets, 0);
@@ -169,7 +170,7 @@ export function TodayScreen() {
       <motion.section style={{ position: 'relative' }}>
         <div data-wk="hero" className="plinth"
           style={{ position: 'absolute', inset: 0, borderRadius: 30, overflow: 'hidden' }}>
-          <div style={{ position: 'absolute', right: -60, top: -60, width: 220, height: 220, borderRadius: '50%', background: 'radial-gradient(closest-side, var(--ac-soft), transparent)' }} />
+          <div style={{ position: 'absolute', right: -60, top: -60, width: 220, height: 220, borderRadius: '50%', background: 'radial-gradient(closest-side, var(--ac-soft), transparent)' }}><ImgGlow /></div>
         </div>
         <div style={{ position: 'relative', padding: '22px 22px 22px 24px' }}>
           {active ? (

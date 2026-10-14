@@ -61,12 +61,26 @@ browser smooths them, so **lab shots lie: judge from Omar's own screenshots.**
     standing layer. Never lay new content over a field canvas (it becomes an extra full-screen layer).
   - A glow that moves or fades by itself (orb screen halo, Orb light, Sunrise sun, workout top): `<SelfGlow />` inside it.
   - Workout window: `screens/workout/wkGlow.tsx`.
-  - Never add or drop a layer at a tab switch or when an animation ends (v0.1.123 black frames).
+  - A small glow inside a page (Today card corner glow, exercise stage pools): `<ImgGlow />` inside it; its picture
+    becomes the element's own background image, so it adds no layer.
+  - Never add or drop a layer at a tab switch or when an animation ends (v0.1.123 black frames). A glow canvas gets its
+    size and a picture in the same frame it mounts, and again in the same task as a theme, palette or size change (the
+    kept dithered picture, else a quick undithered one at once), so a switch's snapshot never shows the old picture.
+  - Pictures go into a canvas with `putImageData` only. Never `drawImage` a kept ImageBitmap into a GPU canvas: the chip
+    keeps a copy of every picture drawn that way (+20-50 MB). Each new picture resets the canvas size first, so its old
+    buffer is let go.
+  - A glow shown faint (Coach-open beam, a fade) needs a stronger dither in its picture: `ampFor(opacity)`.
+  - GPU reset (`contextlost`): the CSS shows until `contextrestored`, then the picture is written again.
 - Frosted bars without brightness(2) (orb screen veil, dock, dock edge fade): the tint is corrected for the dither tile's
-  darkening instead (maths in the `styles.css` Dither comment).
-- Proof tools: `scripts/banding-fields.mjs` (`SIM=1` = how the phone drew it before), `scripts/perf-gpu.mjs`.
-- Still CSS (small, judged fine): onboarding's drifting aurora, Today card corner glow, stage pools, button glows.
-- Light theme: plain blur and tint, no dither (a doubled bright page would clip to white).
+  darkening instead (maths in the `styles.css` Dither comment). The corrected tint is aimed at the old look's mean as the
+  chip rounded it, so the darks don't lift.
+- Light theme: the same bars carry a white dither (`--dither-light`) with the tint corrected for its lightening; the edge
+  fade darkens its backdrop by the same first (`brightness(0.92728) contrast(1.17021)`).
+- Proof tools: `scripts/banding-fields.mjs` (`SIM=1` = how the phone drew it before), `scripts/perf-gpu.mjs` (use the
+  `chip` number: all graphics memory, counted once), `scripts/glow-layers.mjs` (layer life per step),
+  `scripts/glow-theme-sync.mjs` (picture changes in the same task as the theme).
+- Still CSS (small or seen once): onboarding's drifting aurora (6 more layers for one screen), button glows, Settings
+  previews.
 
 ## 2. Colour
 

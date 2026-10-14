@@ -1879,9 +1879,26 @@ the workout window: the phone draws CSS gradients and blur output in whole 8-bit
 - Orb screen veil, dock and dock edge fade: dither tile in the tint, with the tint corrected for its darkening.
 - The workout grain is folded into the workout field picture (was its own full-screen layer).
 - Rules kept from v0.1.123: no layer added or dropped at tab switches or animation ends; each field one standing layer.
-- Cost (software GPU, his screen): fewer layers and less memory everywhere, e.g. Today 36.9 → 26.7 MB, orb screen
-  43.2 → 34.6 MB, sheet open 55.6 → 46.0 MB.
-- Tools: `scripts/banding-fields.mjs`, `scripts/perf-gpu.mjs`. Way back: branch backup/pre-allbanding-8cb066f.
+- Today's card corner glow and the exercise stage pools (workout Focus view, exercise page) use `ImgGlow`: the dithered
+  picture becomes the element's own background image, no extra layer. Onboarding's aurora stays CSS (6 more layers for a
+  screen seen once).
+- Light theme too: dock, orb screen veil and dock edge fade carry a white dither with corrected tints.
+- Round 2 after the judge (same day):
+  - Theme or palette switch: every glow canvas gets the new picture in the same task as the switch (the kept dithered
+    picture, or a quick undithered one drawn at once and replaced when idle; within about one step of it), so the circle
+    reveal never shows the old field. Lab: 85 ms with a kept picture, about 230 ms the first time per theme (software
+    GPU; the phone is faster).
+  - GPU reset: the CSS shows while the chip is gone and the picture comes back after (tested with a forced GPU crash).
+  - Canvases get their size and picture at mount; the top tint strip stays (painted clear) instead of hiding.
+  - Faint glows (Coach-open beam, fades) get a stronger dither for their opacity.
+  - Darks: the darkest fifth now matches the old look within 0.25 of a step (was 0.6-0.8 lighter); the grain in the
+    pictures matches the CSS grain's size and strength.
+  - Pictures are written with `putImageData`: drawing kept bitmaps into GPU canvases made the chip keep a copy of each.
+- Cost (software GPU, his screen; `chip` = all graphics memory counted once): equal or less everywhere, e.g. Today
+  52.8 → 43.2 MB, workout 53.6 → 43.6 MB, orb screen 64.1 → 58.1 MB, sheet open 70.2 → 60.8 MB. Page memory is about
+  30 MB higher (the kept pictures, capped at 48 MB).
+- Tools: `scripts/banding-fields.mjs`, `scripts/perf-gpu.mjs`, `scripts/glow-layers.mjs`, `scripts/glow-theme-sync.mjs`.
+  Way back: branch backup/pre-allbanding-8cb066f.
 
 ## Smooth glows in the live workout window: no more rings (14 Oct 2026, v0.1.121)
 

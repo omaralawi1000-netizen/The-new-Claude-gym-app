@@ -669,8 +669,14 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* (dark) the orb screen's frost carries the dither (see "Dither"): its 26 px blur is kept in whole steps of colour, which
    showed as coloured contours all over the screen. The tint is the same --bg at 74 %, worked out for the dither's mean
    darkening (m = 0.0784): a' = 1 - 0.26 / (1 - m), colour = --bg * 0.74 / ((1 - m) * a'). No brightness(2) here: the frost
-   fades in with the screen, and a doubled blur would read brighter half-way. */
-:root:not([data-theme='light']) .veil-tint { background: var(--dither), rgba(5.593, 6.711, 12.304, 0.7179); image-rendering: pixelated; }
+   fades in with the screen, and a doubled blur would read brighter half-way. The tint's own layer keeps it in whole steps
+   (premultiplied: 4, 4, 8 of 255 at alpha 189 before), so the numbers are picked to land on that old mean, not the exact
+   one: the frost's darks stay as they were (lab, within 0.2 of a step; the old values read 0.6 of a step greener). */
+:root:not([data-theme='light']) .veil-tint { background: var(--dither), rgba(6, 6, 12.5, 0.7176); image-rendering: pixelated; }
+/* (light) the same with a white dither (lib/grain.ts installDither, mean m the same): it lightens instead, so the tint takes
+   more alpha, a' = 1 - (1 - a) / (1 - m), and a darker colour, (c * a - 255 * m) / ((1 - m) * a'), for the same mean. */
+:root[data-theme='light'] .veil-tint { image-rendering: pixelated;
+  background: var(--dither-light, none), rgb(from var(--bg) calc(r * 1.1185 - 30.23) calc(g * 1.1185 - 30.23) calc(b * 1.1185 - 30.23) / 0.71788); }
 .sheet {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; max-height: calc(100dvh - var(--sat) - 46px); display: flex; flex-direction: column;
   border-radius: var(--r-xl) var(--r-xl) 0 0; will-change: transform;
@@ -1834,6 +1840,15 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 :root:not([data-theme='light']) .tabbar-wrap.edge-fade::before { image-rendering: pixelated; --edge-tint: rgb(36.89, 36.89, 36.89);
   background: var(--dither), linear-gradient(to bottom, transparent 16px, color-mix(in srgb, var(--edge-tint) 12%, transparent) 30px, color-mix(in srgb, var(--edge-tint) 35%, transparent) 56px);
   -webkit-backdrop-filter: brightness(1.0851) blur(var(--edge-blur, 16px)) saturate(1.35); backdrop-filter: brightness(1.0851) blur(var(--edge-blur, 16px)) saturate(1.35); }
+/* (light) a white dither (lib/grain.ts), which lightens by m: the dock's tint takes a little less alpha and nearly the same
+   white, (c * a - 255 * m) / ((1 - m) * a') with a' = 1 - (1 - a) / (1 - m), the same mean wherever its sheen is. The edge
+   fade is clear at its top, where no tint can make up for it: its backdrop is darkened by the same instead,
+   brightness(0.92728) contrast(1.17021) = (x - m) / (1 - m) before the blur, and its tint's colour is (c - 255 * m) / (1 - m). */
+:root[data-theme='light'] .tabbar.glass { image-rendering: pixelated;
+  background: var(--dither-light, none), linear-gradient(180deg, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.3) 60%), rgba(254.94, 254.94, 254.94, 0.13194); }
+:root[data-theme='light'] .tabbar-wrap.edge-fade::before { image-rendering: pixelated; --edge-tint: rgb(240.89, 240.89, 240.89);
+  background: var(--dither-light, none), linear-gradient(to bottom, transparent 16px, color-mix(in srgb, var(--edge-tint) 12%, transparent) 30px, color-mix(in srgb, var(--edge-tint) 35%, transparent) 56px);
+  -webkit-backdrop-filter: brightness(0.92728) contrast(1.17021) blur(var(--edge-blur, 16px)) saturate(1.35); backdrop-filter: brightness(0.92728) contrast(1.17021) blur(var(--edge-blur, 16px)) saturate(1.35); }
 
 /* Top fade for scrollers that are neither a page nor a sheet (the orb's talk list, onboarding). */
 @supports (animation-timeline: scroll()) {
@@ -2024,9 +2039,12 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .fields > [data-dith] [data-bake], .fields > .aurora[data-dith] > i { visibility: hidden; }
 .fields > .bgx[data-dith] { background-color: transparent; }
 .fields > [data-still]::after { content: none; }
-.fields:not(:has(> [data-k]:not([data-still]))) > .fields-top { visibility: hidden; }
+/* (the top tint is in the picture then: the strip stays, painted clear, so it never leaves or joins the layers) */
+.fields:not(:has(> [data-k]:not([data-still]))) > .fields-top { background: none; }
 /* a glow that moves or fades by itself carries its picture inside it (its own opacity and motion stay as they are) */
 [data-dith-self] { background: none !important; }
+/* a small glow in a page carries its picture as its own background image (ImgGlow): painted with the page, no layer */
+[data-dith-img] { background: var(--glow-img) 0 0 / 100% 100% no-repeat !important; }
 .glow-self { border-radius: inherit; }
 
 /* ── Backgrounds (Settings → Appearance → Background; ui/Backdrop.tsx) ──────────────────────────────────────────────

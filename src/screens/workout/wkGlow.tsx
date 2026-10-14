@@ -28,7 +28,7 @@ export function WkFieldGlow() {
     // full-screen layer of its own whenever the window was open
     const g = parseFloat(getComputedStyle(lite, '::after').opacity) || 0;
     // bottom first (CSS lists the topmost first)
-    const jobs: GlowJob[] = [{ w, h, base: cssColor(lite, 'var(--bg)'), amp: 2, grain: { g, y0: T * sy },
+    const jobs: GlowJob[] = [{ w, h, base: cssColor(lite, 'var(--bg)'), amp: 2, grain: { g, y0: T * sy, s: sx, f: Math.min(1, sx / 4) },
       srcs: [one([at(0.46, 1.1, 0.65, '--h3', 0.8), at(0.802, 0.435, 0.525, '--h2', 1), at(0.298, 0.08, 0.6, '--h1', 1)], a)] }];
     return { jobs, key: planKey(jobs, 'wk-field') };
   }, (on) => cv.current?.parentElement?.toggleAttribute('data-dith', on));

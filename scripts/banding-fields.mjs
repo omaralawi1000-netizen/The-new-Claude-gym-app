@@ -13,9 +13,13 @@ if (process.env.TAB) { await p.locator('.tabbar').getByRole('button', { name: pr
 if (process.env.VOICE) { await p.locator('.tabbar .sphere-slot').first().click(); await wait(p, 2500); }
 if (process.env.COACH) { await p.getByRole('button', { name: 'Coach', exact: true }).first().click(); await wait(p, 2500); }
 if (process.env.SHEET) { await p.locator('.tabbar').getByRole('button', { name: 'Food', exact: true }).click(); await wait(p, 1400); await p.getByRole('button', { name: 'Add to Dinner' }).first().click(); await wait(p, 2000); }
+// THEMEFLIP=1: to light and back first (the pictures must come back exactly as they were)
+if (process.env.THEMEFLIP) { await p.emulateMedia({ colorScheme: 'light' }); await wait(p, 2500); await p.emulateMedia({ colorScheme: 'dark' }); await wait(p, 2500); }
 // the pictures are painted once the page is idle
 await p.waitForFunction(() => !document.querySelector('.fields > [data-k]:not([data-dith])'), null, { timeout: Number(process.env.WAIT || 9000) }).catch(() => {});
 if (process.env.VOICE) await p.waitForFunction(() => document.querySelector('.voice-glow[data-dith-self]'), null, { timeout: 9000 }).catch(() => {});
+// …and the dithered pictures, not the quick ones drawn at once (canvas[data-q])
+await p.waitForFunction(() => !document.querySelector('canvas[data-q]'), null, { timeout: 12000 }).catch(() => console.log('(still quick)'));
 await wait(p, 1200);
 if (process.env.CSS) await p.addStyleTag({ content: process.env.CSS });
 if (process.env.NOSPHERE) await p.addStyleTag({ content: '.sphere-stage { visibility: hidden !important; }' });
@@ -28,7 +32,13 @@ console.log('state:', await p.evaluate(() => JSON.stringify({
   self: document.querySelectorAll('[data-dith-self]').length,
   top: getComputedStyle(document.querySelector('.fields-top')).visibility,
 })));
-const name = `${process.env.AVEN_PALETTE || 'ember'}-${process.env.AVEN_BG || 'classic'}${process.env.THEME === 'light' ? '-light' : ''}${process.env.VOICE ? '-voice' : ''}${process.env.COACH ? '-coach' : ''}${process.env.SHEET ? '-sheet' : ''}${process.env.TAB ? '-' + process.env.TAB.toLowerCase() : ''}`;
+// MIDTHEME=1: the frame half-way through a switch to light (animations slowed tenfold, so the circle is mid-way)
+if (process.env.MIDTHEME) {
+  const cdp = await p.context().newCDPSession(p); await cdp.send('Animation.enable'); await cdp.send('Animation.setPlaybackRate', { playbackRate: 0.1 });
+  await p.evaluate(() => { window.__t0 = performance.now(); });
+  await p.emulateMedia({ colorScheme: 'light' }); await wait(p, Number(process.env.MIDTHEME) > 1 ? Number(process.env.MIDTHEME) : 3000);
+}
+const name = `${process.env.AVEN_PALETTE || 'ember'}-${process.env.AVEN_BG || 'classic'}${process.env.THEME === 'light' ? '-light' : ''}${process.env.VOICE ? '-voice' : ''}${process.env.COACH ? '-coach' : ''}${process.env.SHEET ? '-sheet' : ''}${process.env.TAB ? '-' + process.env.TAB.toLowerCase() : ''}${process.env.MIDTHEME ? '-midtheme' : ''}`;
 await p.screenshot({ path: `${out}/${name}-${tag}.png`, timeout: 60000 });
 // the same moment with the CSS gradients back, for a like-for-like comparison of the means
 if (process.env.ALSO_CSS) {
