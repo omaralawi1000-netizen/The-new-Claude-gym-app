@@ -363,7 +363,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
         stand.className = 'coach-send on fly-send'; stand.removeAttribute('tabindex'); stand.setAttribute('aria-hidden', 'true'); // (not busy: the arrow)
         Object.assign(stand.style, { left: `${sr.left + sr.width / 2 - btn.offsetWidth / 2}px`, top: `${sr.top + sr.height / 2 - btn.offsetHeight / 2}px`, transform: ss.transform, opacity: ss.opacity });
         app.appendChild(stand);
-        stand.animate([{ opacity: ss.opacity }, { opacity: 0 }], { duration: 24, easing: 'linear', fill: 'forwards' });
+        stand.animate([{ opacity: ss.opacity }, { opacity: 0 }], { duration: 14, easing: 'linear', fill: 'forwards' }); // (gone within a frame or two at 120 Hz)
       }
       // it joins a glide the list is still finishing, so its place is where the bubble will be once that is done
       const rider = ride.current?.(copy); const top0 = B.top - (rider?.off ?? 0); copy.style.top = `${top0}px`;
