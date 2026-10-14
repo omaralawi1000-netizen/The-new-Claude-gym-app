@@ -17,6 +17,7 @@ import com.google.androidbrowserhelper.trusted.LauncherActivity;
 public class AvenLauncher extends LauncherActivity {
     private static final int ASK = 7;
     private static final String ASKED = "askedNotifications";
+    private boolean opening;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -39,5 +40,22 @@ public class AvenLauncher extends LauncherActivity {
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == ASK) launchTwa();
+    }
+
+    @Override
+    protected void launchTwa() {
+        opening = true;
+        super.launchTwa();
+    }
+
+    /**
+     * Chrome opens over the launch screen with no animation, every time. The helper turns the animation off itself, but
+     * only when it managed to hand the launch picture to Chrome; when that fails (1 launch in 4 on Omar's phone) Chrome
+     * slid in sideways with the page's orb while the launch screen's orb slid out: two orbs.
+     */
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if (opening) overridePendingTransition(0, 0); // (the notifications question keeps its own animation)
     }
 }
