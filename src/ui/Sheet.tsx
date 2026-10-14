@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useId, useLayoutEffect, useMemo, 
 import { EngageContext, Mirror, OverlayMeta, mirrorProgress, mirrorStage, satPx, trackDepth, type Engage } from './engage';
 import { viewportH } from './viewport';
 import { Veil, mirrorVeil } from './Veil';
-import { availableHeight, baseHeight, dropKeyboard, kb, onKeyboardGoal, watchFocus } from './keyboard';
+import { availableHeight, baseHeight, dropKeyboard, kb, keyboardGoal, onKeyboardGoal, watchFocus } from './keyboard';
 
 /** Stack-position z-index for the current overlay: a later overlay is always above an earlier one. */
 export const OverlayZ = createContext<number | null>(null);
@@ -235,7 +235,9 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
     };
     const offGoal = onKeyboardGoal((g) => { if (!still.current) make(g); });
     const offKb = kbHere.on('change', (k) => {
-      if (k > 0.5 || !el.style.getPropertyValue('--kb-room')) return;
+      // only once the keyboard has gone down: its first frame on the way UP is still at 0 too, and taking the room away
+      // there left a chat with nowhere to go (the sent message landed under the bar, 14 Oct)
+      if (k > 0.5 || keyboardGoal() > 0 || !el.style.getPropertyValue('--kb-room')) return;
       el.style.removeProperty('--kb-room');
       if (el.dataset.held) { el.style.height = ''; delete el.dataset.held; }
     });

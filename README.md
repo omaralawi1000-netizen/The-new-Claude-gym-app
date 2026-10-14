@@ -2119,3 +2119,10 @@ softer easing and fewer moving things, not more effects; the look is unchanged e
   message's flying copy carries the same shadow, and for a typed message it fades in over 160 ms over the pill's own so
   the two never double up for a frame.
 - Still measured: no layer made or dropped in the bar when opening, typing, sending or dictating.
+
+## Keyboard: the chat always lifts with it (14 Oct 2026)
+Sometimes the Coach chat stayed where it was when the keyboard came up, so a sent message landed under the bar. A sheet
+takes away the keyboard's room (`--kb-room`, ui/Sheet.tsx) once its keyboard value is back at 0, and the keyboard's very
+first frame on the way UP also reads 0: when that frame came right after the room was made, the room went again. The room
+now goes only when the keyboard is heading down (`keyboardGoal() === 0`). Slowed ride probe: up to 5 of 6 failed before,
+20 of 20 pass after.
