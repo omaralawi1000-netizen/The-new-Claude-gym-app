@@ -235,7 +235,7 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
 .app[data-calm] .screen .seg { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
 /* inside a full-screen overlay: sits under its content but over its background */
 .aurora.in { z-index: -1; }
-.aurora i { position: absolute; border-radius: 50%; opacity: var(--aurora-a); will-change: transform; animation-delay: var(--drift-t, 0s) !important; }
+.aurora i { position: absolute; border-radius: 50%; opacity: var(--aurora-a); animation-delay: var(--drift-t, 0s) !important; }
 .aurora i:nth-child(1) { width: 120%; aspect-ratio: 1; left: -35%; top: -30%; background: radial-gradient(closest-side, var(--h1), transparent); animation: drift1 38s ease-in-out 0.3 alternate both; }
 .aurora i:nth-child(2) { width: 105%; aspect-ratio: 1; right: -40%; top: 18%; background: radial-gradient(closest-side, var(--h2), transparent); animation: drift2 46s ease-in-out 0.3 alternate both; }
 .aurora i:nth-child(3) { width: 130%; aspect-ratio: 1; left: -20%; bottom: -55%; background: radial-gradient(closest-side, var(--h3), transparent); animation: drift3 54s ease-in-out 0.3 alternate both; opacity: calc(var(--aurora-a) * .8); }
