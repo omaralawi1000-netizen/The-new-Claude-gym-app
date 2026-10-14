@@ -1,3 +1,4 @@
+import { IS_BETA, requestCopyFromReal } from '../lib/beta';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useStore, persistStatus } from '../state/store';
@@ -627,12 +628,34 @@ function StutterRecorder() {
   );
 }
 
+/** Aven Beta only: says so, and copies the real app's data in (one way; the real app is only read). */
+function BetaBox() {
+  const t = useT();
+  const [ask, setAsk] = useState(false);
+  return (
+    <div className="plinth" style={{ padding: 18 }}>
+      <div className="display display-md">{t('Aven Beta')}</div>
+      <div className="t2" style={{ marginTop: 4 }}>{t('This is the test copy. Its workouts, food and settings are separate from your real Aven, and nothing you do here changes the real app.')}</div>
+      {!ask ? <button className="btn block press" style={{ marginTop: 14 }} onClick={() => setAsk(true)}>{t('Copy my real Aven data in')}</button> : (
+        <div style={{ marginTop: 14 }}>
+          <div className="t2">{t('This replaces everything in the Beta with a copy of your real Aven (including your API keys), then restarts the Beta. Your real Aven is not touched.')}</div>
+          <div className="row-flex" style={{ gap: 8, marginTop: 10 }}>
+            <button className="btn grow press" onClick={() => { if (requestCopyFromReal()) location.reload(); }}>{t('Yes, copy it')}</button>
+            <button className="btn grow press" onClick={() => setAsk(false)}>{t('Cancel')}</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function About() {
   const t = useT();
   return (
     <div className="stack gap12 small">
+      {IS_BETA && <BetaBox />}
       <StutterRecorder />
-      <div className="plinth dots" style={{ padding: 18 }}><div className="display display-lg">Aven</div><div className="t2" style={{ marginTop: 4 }}>{t('Training, food and progress in one place.')} · v{__APP_VERSION__}</div></div>
+      <div className="plinth dots" style={{ padding: 18 }}><div className="display display-lg">{IS_BETA ? 'Aven Beta' : 'Aven'}</div><div className="t2" style={{ marginTop: 4 }}>{t('Training, food and progress in one place.')} · v{__APP_VERSION__}{IS_BETA ? ' beta' : ''}</div></div>
       <div><b>{t('Food data')}</b><div className="t2" style={{ marginTop: 4 }}>{t('Bundled foods are approximate reference values. Online results come from Open Food Facts (© contributors, ODbL — open database licence) and USDA FoodData Central (public domain, CC0).')}</div></div>
       <div><b>{t('Exercise clips')}</b><div className="t2" style={{ marginTop: 4 }}>{t('The muscle figure is Aven’s own render, built on the Z-Anatomy model (CC BY-SA 4.0).')}</div></div>
       <div><b>{t('What’s simulated or not built')}</b><div className="t2" style={{ marginTop: 4 }}>{t('No cloud sync or accounts. No photo-based food estimation. The Coach only advises and never changes your data. Background reminders need a push server.')}</div></div>
