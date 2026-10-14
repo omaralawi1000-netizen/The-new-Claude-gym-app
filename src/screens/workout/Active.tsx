@@ -149,7 +149,10 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     const c = vanishRef.current && !reduce
       ? new Promise<void>((ok) => { warmStage(true); requestAnimationFrame(() => requestAnimationFrame(() => {
         fade = dialogRef.current?.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 700, easing: 'ease-in-out', fill: 'forwards' });
-        (fade?.finished ?? Promise.resolve()).then(() => { p.set(0); ok(); }, () => ok());
+        // The page stops being kept warm only once the cover has really reached 0: let go in the same frame, it read the cover
+        // as still full and hid the page for a frame, so the phone threw its whole drawing away and redrew all of it at once,
+        // in the middle of the finish moment (which went blank for a beat).
+        (fade?.finished ?? Promise.resolve()).then(() => { p.set(0); requestAnimationFrame(() => requestAnimationFrame(() => ok())); }, () => ok());
       })); })
       : animate(p, 0, reduce || vanishRef.current ? { duration: 0.01 } : { ...SURFACE_EXIT, velocity: vel });
     closing.current = new Promise<void>((done) => { c.then(() => { done(); if (fade) requestAnimationFrame(() => fade?.cancel()); }, () => done()); });
