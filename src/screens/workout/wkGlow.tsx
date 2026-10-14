@@ -41,7 +41,8 @@ export function WkBreathGlow() {
   useGlowCanvases(() => cool.current?.closest<HTMLElement>('.wk-breath') ?? null, [cool, warm], (br) => {
     const W = br.clientWidth, H = br.clientHeight, a = auroraA(br);
     if (!W || !H || !a) return null;
-    const s = glowScale(), w = Math.round(W * s), h = Math.round(H * s), sx = w / W, sy = h / H;
+    // (a very soft light: a quarter of the screen's pixels is plenty, and four times less to keep)
+    const s = glowScale() / 2, w = Math.round(W * s), h = Math.round(H * s), sx = w / W, sy = h / H;
     // the breath dims the light to 40 % and back, which thins the dither by as much: it is drawn stronger to stay smooth there
     const job = (x: number, y: number, rx: number, ry: number, v: string, al: number): GlowJob =>
       ({ w, h, base: null, amp: 2.5, srcs: [one([light(x * W * sx, y * H * sy, rx * W * sx, ry * H * sy, cssColor(br, `var(${v})`), al, 0.72)], a)] });

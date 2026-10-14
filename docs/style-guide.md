@@ -60,20 +60,34 @@ browser smooths them, so **lab shots lie: judge from Omar's own screenshots.**
     (parts marked `data-bake`, Classic's `i`), plus grain and the status-bar tint, into ONE picture: the field stays one
     standing layer. Never lay new content over a field canvas (it becomes an extra full-screen layer).
   - A glow that moves or fades by itself (orb screen halo, Orb light, Sunrise sun, workout top): `<SelfGlow />` inside it.
+    Like `ImgGlow`, its picture becomes the element's own background image (`[data-dith-img]`): no canvas, no layer.
   - Workout window: `screens/workout/wkGlow.tsx`.
   - A small glow inside a page (Today card corner glow, exercise stage pools): `<ImgGlow />` inside it; its picture
     becomes the element's own background image, so it adds no layer.
   - Never add or drop a layer at a tab switch or when an animation ends (v0.1.123 black frames). A glow canvas gets its
-    size and a picture in the same frame it mounts, and again in the same task as a theme, palette or size change (the
-    kept dithered picture, else a quick undithered one at once), so a switch's snapshot never shows the old picture.
-  - Pictures go into a canvas with `putImageData` only. Never `drawImage` a kept ImageBitmap into a GPU canvas: the chip
-    keeps a copy of every picture drawn that way (+20-50 MB). Each new picture resets the canvas size first, so its old
-    buffer is let go.
+    size and a picture in the same frame it mounts, and again in the same task as a theme, palette or size change, so a
+    switch's snapshot never shows the old picture.
+  - ONE painter (`src/ui/glowPaint.ts`) for the worker and the page: a picture painted at once on the page is the same
+    picture as the worker's (they differ only in their noise, under half a step per 8 x 8 block). Never show a quick
+    undithered stand-in: it bands, and the swap to the real one can pop.
+  - A theme switch or a tab switch reads NO styles (no `getComputedStyle`, no probe inserted or removed: either makes the
+    browser work out the whole page's styles again, 100 ms a time on a slow phone). Each glow keeps its plan by state (the
+    root's `data-*`, its own attributes, its size; `rootKey`/`hostKey`/`shareKey` in `glow.ts`); the other theme's plans
+    and pictures are painted ahead while idle from a hidden twin frame (the page's styles with the other theme), the other
+    tabs' fields from hidden copies. The switch only looks the plan up and draws; the page is read again once idle.
+  - Pictures go into a canvas with `putImageData`, or from a bitmap made ready ahead that is drawn ONCE and closed straight
+    after (theme switch, tab field). Never keep a bitmap and draw it again: the chip keeps a copy of every bitmap drawn
+    that way while it lives (+20-50 MB). Each new picture resets the canvas size first, so its old buffer is let go.
+  - Kept pictures (pixels, image files, ready bitmaps) share 48 MB, oldest first; a file still shown is never let go; all
+    of it is let go when the app goes to the background.
   - A glow shown faint (Coach-open beam, a fade) needs a stronger dither in its picture: `ampFor(opacity)`.
   - GPU reset (`contextlost`): the CSS shows until `contextrestored`, then the picture is written again.
 - Frosted bars without brightness(2) (orb screen veil, dock, dock edge fade): the tint is corrected for the dither tile's
   darkening instead (maths in the `styles.css` Dither comment). The corrected tint is aimed at the old look's mean as the
-  chip rounded it, so the darks don't lift.
+  chip rounded it, so the darks don't lift. The dark orb screen veil's tint is itself a dithered tile (`--veil-tint-dark`,
+  `src/lib/grain.ts`): its mean sits between whole steps, so each colour lands within 0.15 of a step of the old look.
+- Big soft shadows band too: the light dock's outer shadow is a dithered picture (`src/ui/dockShadow.ts`, on
+  `.tabbar.glass::before`), not a `box-shadow` blur.
 - Light theme: the same bars carry a white dither (`--dither-light`) with the tint corrected for its lightening; the edge
   fade darkens its backdrop by the same first (`brightness(0.92728) contrast(1.17021)`).
 - Proof tools: `scripts/banding-fields.mjs` (`SIM=1` = how the phone drew it before), `scripts/perf-gpu.mjs` (use the

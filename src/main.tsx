@@ -7,6 +7,7 @@ import '@fontsource-variable/geist/wght.css';
 import './styles.css';
 import { App } from './App';
 import { installDither, installGrain } from './lib/grain';
+import { installDockShadow } from './ui/dockShadow';
 import { installPress } from './ui/press';
 import { noteAndroidApp } from './lib/androidApp';
 import { useStore } from './state/store';
@@ -16,6 +17,7 @@ import { preloadScreens } from './ui/lazy';
 performance.mark('aven:main'); // the app's code has loaded and starts (scripts/launch.mjs reads these marks)
 installGrain();
 installDither();
+installDockShadow();
 installPress();
 
 noteAndroidApp(); // opened from the Android app: remembered at once, before any reload can drop the referrer

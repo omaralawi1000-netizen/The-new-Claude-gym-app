@@ -55,5 +55,30 @@ export function installDither() {
     l.toBlob((b) => {
       if (b) document.documentElement.style.setProperty('--dither-light', `url(${URL.createObjectURL(b)}) 0 0 / ${n / dpr}px ${n / dpr}px`);
     });
+    veilTint(n, dpr);
   } catch { /* the glass stays plain */ }
+}
+
+/**
+ * The orb screen's dark tint (styles.css .veil-tint) as a tile instead of one plain colour: its layer is kept in whole
+ * levels, premultiplied (4, 4, 9 of 255 at alpha 183), which left the frost a quarter to a third of a level cooler than the
+ * look before the dither (blue up, red and green down). Each pixel here is one of the two whole levels around the exact
+ * value, in proportion, so the mean lands on it: --veil-tint-dark. (Premultiplied values; the canvas keeps them as they are.)
+ */
+function veilTint(n: number, dpr: number) {
+  const A = 183, mean = [4.29, 4.35, 8.67];
+  const c = document.createElement('canvas'); c.width = c.height = n;
+  const x = c.getContext('2d'); if (!x) return;
+  const d = x.createImageData(n, n);
+  for (let i = 0; i < d.data.length; i += 4) {
+    for (let k = 0; k < 3; k++) {
+      const lo = Math.floor(mean[k]), t = lo + (Math.random() < mean[k] - lo ? 1 : 0);
+      d.data[i + k] = Math.round((t * 255) / A);
+    }
+    d.data[i + 3] = A;
+  }
+  x.putImageData(d, 0, 0);
+  c.toBlob((b) => {
+    if (b) document.documentElement.style.setProperty('--veil-tint-dark', `url(${URL.createObjectURL(b)}) 0 0 / ${n / dpr}px ${n / dpr}px`);
+  });
 }

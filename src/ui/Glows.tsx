@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef } from 'react';
-import { ampFor, cssColor, glowCanvasOk, glowScale, paintPlan, planKey, recall, useGlowCanvases, type GlowJob, type GlowPlan, type GlowSrc } from './glow';
+import { addTwin, ampFor, isKept, keepBitmaps, shareKey, sharedPlan, setSharedPlan, cssColor, fileShown, glowCanvasOk, glowScale, paintFile, paintPlan, planKey, recallFile, rootKey, hostKey, Plans, whenIdle, unIdle, stats, useGlowCanvases, type GlowJob, type GlowPlan, type GlowSrc } from './glow';
 import { gradient, loadPictures, readSrc } from './glowCss';
 import { barColor, PER_TAB, type BgKind } from './Backdrop';
 
@@ -13,10 +13,9 @@ import { barColor, PER_TAB, type BgKind } from './Backdrop';
  * nothing is laid over the picture that would have to become a layer of its own.
  *
  * SelfGlow: one element's own gradients (a glow that moves or fades by itself: Orb light's beam and halo, Sunrise's sun, the
- * orb screen's halo), as a picture inside it that moves and fades with it.
- *
- * ImgGlow: a small glow that sits in a page (Today's card glow, the exercise stage's pool): its picture becomes the
- * element's own background image, painted with the page, so it adds no layer at all.
+ * orb screen's halo, the workout window's top) as its own background image, which moves and fades with it. ImgGlow: the
+ * same for a small glow that sits in a page (Today's card glow, the exercise stage's pool). A background image is drawn
+ * where the gradient was, on the element's own layer: neither adds a layer.
  */
 
 /** the field's parts that move (their own SelfGlow); a field with any keeps its grain and top tint in CSS, laid over them */
@@ -55,6 +54,9 @@ function describeField(host: HTMLElement, kind: BgKind): GlowPlan | null {
   };
 }
 
+/** whether a kind of field moves itself (read once per look: a tab switch brings a new field, and reading it then made the
+ * browser work the page's styles out in the middle of the tap) */
+const swaysBy = new Map<string, boolean>();
 export function FieldGlow({ kind }: { kind: BgKind }) {
   const cv = useRef<HTMLCanvasElement>(null);
   const host = () => cv.current?.parentElement ?? null;
@@ -62,9 +64,11 @@ export function FieldGlow({ kind }: { kind: BgKind }) {
     const el = host(); if (!el) return;
     const still = on && !el.querySelector(MOVING);
     el.toggleAttribute('data-dith', on); el.toggleAttribute('data-still', still);
-    el.toggleAttribute('data-top', still && getComputedStyle(el).animationName === 'none');
+    const sk = `${kind}§${rootKey()}`;
+    if (still && !swaysBy.has(sk)) swaysBy.set(sk, getComputedStyle(el).animationName !== 'none');
+    el.toggleAttribute('data-top', still && !swaysBy.get(sk));
     if (on && PER_TAB[kind]) prewarm(el, kind);
-  });
+  }, (el) => el.parentElement ?? el, (el) => `field§${kind}§${el.dataset.hue}`);
   return <canvas ref={cv} className="glow-cv glow-field" aria-hidden />;
 }
 
@@ -72,31 +76,48 @@ export function FieldGlow({ kind }: { kind: BgKind }) {
  * Paints the other tabs' fields ahead, while the page is idle, so a tab switch finds its picture ready (the new field then
  * shows it from its first frame instead of swapping the gradient for it after the cross-fade).
  */
-const warmed = new Set<string>();
+let prewarmAt = 0, prewarmIdle = 0;
 function prewarm(field: HTMLElement, kind: BgKind) {
   const run = () => {
     const parent = field.parentElement; if (!parent || !field.isConnected) return;
     for (const hue of ['today', 'train', 'food', 'progress']) {
       if (hue === field.dataset.hue) continue;
-      const clone = field.cloneNode(true) as HTMLElement;
-      clone.dataset.hue = hue; clone.style.visibility = 'hidden'; clone.style.zIndex = '-1';
-      clone.removeAttribute('data-dith');
-      parent.insertBefore(clone, parent.firstChild);
-      let plan: GlowPlan | null = null;
-      try { plan = describeField(clone, kind); } finally { clone.remove(); }
-      if (!plan || warmed.has(plan.key) || recall(plan.key, false)) continue;
-      warmed.add(plan.key);
-      void paintPlan(plan);
+      // (its plan, for the field that tab brings, kept so that field needn't read the page when it comes)
+      const sk = shareKey(field, `field§${kind}§${hue}`);
+      let plan = sharedPlan(sk) ?? null;
+      if (!plan) {
+        const clone = field.cloneNode(true) as HTMLElement;
+        clone.dataset.hue = hue; clone.style.visibility = 'hidden'; clone.style.zIndex = '-1';
+        clone.removeAttribute('data-dith');
+        parent.insertBefore(clone, parent.firstChild);
+        try { plan = describeField(clone, kind); } finally { clone.remove(); }
+        if (plan) setSharedPlan(sk, plan);
+      }
+      if (!plan) continue;
+      const k = plan.key;
+      // (and its picture, ready to draw)
+      if (isKept(k)) { void keepBitmaps(k); continue; }
+      // (painted again after its bitmap was drawn: the worker does it, off the page)
+      void paintPlan(plan).then((got) => { if (got) void keepBitmaps(k); });
     }
   };
-  if (typeof requestIdleCallback === 'function') requestIdleCallback(run, { timeout: 4000 }); else setTimeout(run, 1500);
+  // (once the switch that brought this field has played: the worker's painting then can't take time from its animation)
+  clearTimeout(prewarmAt); unIdle(prewarmIdle);
+  prewarmAt = window.setTimeout(() => { prewarmIdle = whenIdle(run, 4000); }, 2500);
 }
 
-/** the opacity `el` is headed for (its fade's end, not where the fade is now): read from a copy of it with no fade */
+/** the opacity `el` is headed for (its fade's end, not where the fade is now) */
 function targetOpacity(el: HTMLElement): number {
+  const anims = el.getAnimations().filter((a) => a.playState !== 'finished');
+  const fade = anims.find((a) => (a as CSSTransition).transitionProperty === 'opacity');
+  if (anims.every((a) => a === fade)) {
+    if (!fade) return parseFloat(getComputedStyle(el).opacity) || 0;
+    const end = (fade.effect as KeyframeEffect | null)?.getKeyframes().at(-1)?.opacity;
+    if (end != null) return parseFloat(String(end)) || 0;
+  }
+  // (an animation of its own: read from a copy of it with no motion, just before it, so the same rules apply: `i + i`)
   const c = el.cloneNode(false) as HTMLElement;
   c.style.setProperty('animation', 'none', 'important'); c.style.setProperty('transition', 'none', 'important');
-  // just before it, so the same rules apply (`i + i`)
   el.parentElement?.insertBefore(c, el);
   try { return parseFloat(getComputedStyle(c).opacity) || 0; } finally { c.remove(); }
 }
@@ -117,67 +138,94 @@ function describeSelf(el: HTMLElement, scale: number, amp: number, attr: string,
   return { jobs, key: planKey(jobs, extra) };
 }
 
-/** `coarse`: a very wide, soft glow, drawn at a quarter of the screen's pixels (half the memory again; nothing in it is sharp
- * enough to show it). The glow's own opacity and motion stay in CSS: the screen multiplies the picture by that opacity, so
- * the dither is made for the opacity the glow is headed for (a stronger one while it is faint: the orb's beam with the Coach
- * open), and a picture for a fainter state is swapped in once the fade has finished. */
-export function SelfGlow({ coarse }: { coarse?: boolean }) {
-  const cv = useRef<HTMLCanvasElement>(null);
-  const host = () => cv.current?.parentElement ?? null;
-  useGlowCanvases(host, [cv], (el) => {
-    const op = targetOpacity(el), plan = describeSelf(el, glowScale() / (coarse ? 2 : 1), ampFor(op), 'data-dith-self', '');
-    if (plan) plan.op = op;
-    return plan;
-  }, (on) => host()?.toggleAttribute('data-dith-self', on), true);
-  return <canvas ref={cv} className="glow-cv glow-self" aria-hidden />;
-}
-
-/** the small glows' pictures as images (by plan), the newest last; the oldest are let go past 24 */
-const urls = new Map<string, string>();
-async function imageOf(plan: GlowPlan): Promise<string | null> {
-  const had = urls.get(plan.key); if (had) return had;
-  const pics = await paintPlan(plan); if (!pics) return null;
-  const c = new OffscreenCanvas(pics[0].width, pics[0].height), g = c.getContext('2d'); if (!g) return null;
-  g.putImageData(pics[0], 0, 0);
-  const url = URL.createObjectURL(await c.convertToBlob({ type: 'image/png' }));
-  // the picture must be ready to draw before it is shown (else the glow would be missing for a frame)
-  const im = new Image(); im.src = url; await im.decode().catch(() => {});
-  urls.set(plan.key, url);
-  for (const [k, u] of urls) { if (urls.size <= 24) break; URL.revokeObjectURL(u); urls.delete(k); }
-  return url;
-}
-
-/** A small glow in a page (its parent's own background gradient) as a dithered image in its background: no layer, no
- * canvas. Until the image is ready, and right after a theme or palette change it has no image for yet, the CSS shows. */
-export function ImgGlow() {
-  const at = useRef<HTMLElement>(null);
+/**
+ * Keeps an element's background image the dithered picture of what `describe` returns (the CSS shows until it is ready):
+ * the picture painted ahead if there is one, else painted in the worker (a theme or colour change shows the CSS until then,
+ * not the picture before). `watchHost`: a change of its own class or style too, which keeps the picture it has until the
+ * new one is there, and a picture for a fainter state (a stronger dither) waits for the fade to finish.
+ */
+function useGlowImage(at: React.RefObject<HTMLElement | null>, describe: (el: HTMLElement) => GlowPlan | null, whole: (el: HTMLElement) => HTMLElement, watchHost: boolean) {
   useLayoutEffect(() => {
     const el = at.current?.parentElement;
     if (!el || !glowCanvasOk()) return;
-    let alive = true, timer = 0, want = '';
-    const plan = () => { try { return describeSelf(el, glowScale(), 4, 'data-dith-img', ':img'); } catch { return null; } };
-    const set = (url: string | null) => {
-      if (url) el.style.setProperty('--glow-img', `url(${url})`); else el.style.removeProperty('--glow-img');
-      el.toggleAttribute('data-dith-img', !!url);
+    let alive = true, cur = '', want = '', url = '', op = 1, idle = 0, verify = 0;
+    const set = (u: string | null, p?: GlowPlan) => {
+      if (url) fileShown(url, false);
+      url = u ?? '';
+      if (u) { fileShown(u, true); el.style.setProperty('--glow-img', `url(${u})`); } else el.style.removeProperty('--glow-img');
+      el.toggleAttribute('data-dith-img', !!u);
+      cur = p?.key ?? ''; op = p?.op ?? 1;
     };
-    const now = () => {
+    const plan = (on: HTMLElement) => { try { return describe(on); } catch { return null; } };
+    const plans = new Plans();
+    let size = `${el.clientWidth}x${el.clientHeight}`, last = '';
+    const state = (rk = rootKey()) => `${rk}§${hostKey(el)}§${size}`;
+    const show = (p: GlowPlan, u: string) => {
+      if ((p.op ?? 1) < op - 0.01 && url) {
+        const fades = el.getAnimations().filter((a) => (a as CSSTransition).transitionProperty === 'opacity');
+        if (fades.length) {
+          void Promise.all(fades.map((a) => a.finished)).catch(() => {}).then(() => { if (alive && want === p.key) set(recallFile(p.key) ?? u, p); });
+          return;
+        }
+      }
+      set(u, p);
+    };
+    /** how: 'root' a theme (palette…) change: the plan for the new state is looked up (painted ahead) and checked against the
+     * page once it is idle; 'host' its own class or style: looked up, else read once the page is idle ('later'; the picture
+     * it has stays until the new one is there); 'read': read now */
+    const now = (how: 'root' | 'host' | 'later' | 'read') => {
       if (!alive) return;
-      const p = plan(); if (!p) return;
+      const st = state();
+      if (how === 'host' && st === last) return; // (its own picture being set, or a motion: nothing that shows in it)
+      last = st;
+      let p = how === 'read' || how === 'later' ? undefined : plans.get(st);
+      if (p) { unIdle(verify); verify = whenIdle(() => now(how === 'host' ? 'later' : 'read')); }
+      else if (how === 'host') { unIdle(verify); verify = whenIdle(() => now('later')); return; }
+      else { p = plan(el) ?? undefined; if (p) plans.set(st, p); }
+      if (!p) return;
       want = p.key;
-      const url = urls.get(p.key);
-      if (url) { urls.delete(p.key); urls.set(p.key, url); set(url); return; }
-      set(null);
-      clearTimeout(timer);
-      timer = window.setTimeout(() => {
-        const go = () => { const q = plan(); if (q && q.key === want) void imageOf(q).then((u) => { if (alive && u && want === q.key) set(u); }); };
-        if (typeof requestIdleCallback === 'function') requestIdleCallback(go, { timeout: 1500 }); else go();
-      }, 900);
+      if (p.key === cur) return;
+      const u = recallFile(p.key);
+      stats[u ? 'fileHit' : 'fileMiss']++;
+      if (u) { show(p, u); return; }
+      // (a theme or colour change: not the picture before, the CSS shows until the new one is there)
+      if ((how === 'root' || how === 'read') && url) set(null);
+      unIdle(idle);
+      const q = p;
+      idle = whenIdle(() => { if (alive && want === q.key) void paintFile(q).then((v) => { if (alive && v && want === q.key) show(q, v); }); }, 1000);
     };
-    now();
-    const ro = new ResizeObserver(now); ro.observe(el);
-    const mo = new MutationObserver(now);
-    mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-palette'] });
-    return () => { alive = false; clearTimeout(timer); ro.disconnect(); mo.disconnect(); };
+    now('read');
+    const ro = new ResizeObserver(() => { const s2 = `${el.clientWidth}x${el.clientHeight}`; if (s2 !== size) { size = s2; now('read'); } }); ro.observe(el);
+    const mo = new MutationObserver((recs) => now(recs.every((r) => r.target === el) ? 'host' : 'root'));
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-palette', 'data-glow', 'data-motion'] });
+    if (watchHost) mo.observe(el, { attributes: true, attributeFilter: ['style', 'class'] });
+    const untwin = addTwin({ el: () => el, whole, warm: (copy, rk) => {
+      const p = plan(copy); if (!p) return;
+      plans.set(state(rk), p);
+      if (!recallFile(p.key)) void paintFile(p);
+    } });
+    return () => { alive = false; ro.disconnect(); mo.disconnect(); untwin(); unIdle(idle); unIdle(verify); if (url) fileShown(url, false); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+}
+
+/** `coarse`: a very wide, soft glow, drawn at a quarter of the screen's pixels (nothing in it is sharp enough to show it).
+ * The glow's own opacity and motion stay in CSS: the screen multiplies the picture by that opacity, so the dither is made for
+ * the opacity the glow is headed for (a stronger one while it is faint: the orb's beam with the Coach open), and a picture
+ * for a fainter state is swapped in once the fade has finished. `whole`: how much around it its look depends on. */
+export function SelfGlow({ coarse, whole }: { coarse?: boolean; whole?: (el: HTMLElement) => HTMLElement }) {
+  const at = useRef<HTMLElement>(null);
+  useGlowImage(at, (el) => {
+    const op = targetOpacity(el), plan = describeSelf(el, glowScale() / (coarse ? 2 : 1), ampFor(op), 'data-dith-img', ':self');
+    if (plan) plan.op = op;
+    return plan;
+  }, whole ?? ((el) => el.parentElement ?? el), true);
+  return <i ref={at} hidden aria-hidden />;
+}
+
+/** A small glow in a page (its parent's own background gradient) as a dithered image in its background. */
+export function ImgGlow() {
+  const at = useRef<HTMLElement>(null);
+  useGlowImage(at, (el) => describeSelf(el, glowScale(), 4, 'data-dith-img', ':img'), (el) => el, false);
   return <i ref={at} hidden aria-hidden />;
 }

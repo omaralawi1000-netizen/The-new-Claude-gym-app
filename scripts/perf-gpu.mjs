@@ -1,18 +1,22 @@
 // Graphics-chip cost probe: what the compositor holds and draws, at the phone's real size (Galaxy S26 Ultra: 384 x 832 CSS px
 // at 3.75 = 1440 x 3120). Prints the composited layers (count, device-pixel area, and what draws content), and the tile memory
 // the compositor keeps (memory-infra dump). Run against a production build on :5174.
-//   AVEN_BG=classic AVEN_GLOW=full node scripts/perf-gpu.mjs     (TAB=Train; SHEET=1 opens a sheet first; VERBOSE=1 lists layers;
+//   AVEN_BG=classic AVEN_GLOW=full node scripts/perf-gpu.mjs     (TAB=Train; TABS=Food,Today switches first; SHEET=1 opens a sheet first; VERBOSE=1 lists layers;
 //   WORKOUT=1 starts a workout, WORKOUT=min starts and minimises it, VOICE=1 opens the orb screen)
 import { launch, wait, skipOnboarding, loadDemo } from './lib.mjs';
 const DSF = 3.75;
 const { b, ctx, p } = await launch({ size: { width: 384, height: 832 }, dsf: DSF });
 const cdp = await ctx.newCDPSession(p);
 await p.goto(process.env.URL || 'http://127.0.0.1:5174/'); await wait(p, 1200); await skipOnboarding(p); await loadDemo(p); await wait(p, 2000);
+// TABS=Food,Today,…: switches through those tabs first (what the switches leave behind on the chip)
+for (const t of (process.env.TABS || '').split(',').filter(Boolean)) { await p.locator('.tabbar').getByRole('button', { name: t, exact: true }).click(); await wait(p, 2500); }
 if (process.env.TAB) { await p.locator('.tabbar').getByRole('button', { name: process.env.TAB, exact: true }).click(); await wait(p, 1500); }
 if (process.env.VOICE) { await p.locator('.tabbar .sphere-slot').first().click(); await wait(p, 2500); }
 if (process.env.WORKOUT) { await p.getByRole('button', { name: /Start workout/ }).first().tap(); await wait(p, 2500); if (process.env.WORKOUT === 'min') { await p.getByRole('button', { name: 'Minimise workout' }).tap(); } }
 if (process.env.SHEET) { await p.locator('.tabbar').getByRole('button', { name: 'Food', exact: true }).click(); await wait(p, 1400); await p.getByRole('button', { name: 'Add to Dinner' }).first().click(); }
 await wait(p, Number(process.env.WAIT || 15000));
+if (process.env.EVAL) { await p.evaluate(process.env.EVAL); await wait(p, 1500); }
+if (process.env.GC) { await cdp.send('HeapProfiler.collectGarbage'); await wait(p, 1000); }
 if (process.env.CSS) { await p.addStyleTag({ content: process.env.CSS }); await wait(p, 1500); }
 await cdp.send('DOM.enable'); await cdp.send('LayerTree.enable');
 const doc = (await cdp.send('DOM.getDocument', { depth: -1, pierce: true })).root;

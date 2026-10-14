@@ -17,21 +17,20 @@ if (process.env.SHEET) { await p.locator('.tabbar').getByRole('button', { name: 
 if (process.env.THEMEFLIP) { await p.emulateMedia({ colorScheme: 'light' }); await wait(p, 2500); await p.emulateMedia({ colorScheme: 'dark' }); await wait(p, 2500); }
 // the pictures are painted once the page is idle
 await p.waitForFunction(() => !document.querySelector('.fields > [data-k]:not([data-dith])'), null, { timeout: Number(process.env.WAIT || 9000) }).catch(() => {});
-if (process.env.VOICE) await p.waitForFunction(() => document.querySelector('.voice-glow[data-dith-self]'), null, { timeout: 9000 }).catch(() => {});
-// …and the dithered pictures, not the quick ones drawn at once (canvas[data-q])
-await p.waitForFunction(() => !document.querySelector('canvas[data-q]'), null, { timeout: 12000 }).catch(() => console.log('(still quick)'));
+if (process.env.VOICE) await p.waitForFunction(() => document.querySelector('.voice-glow[data-dith-img]'), null, { timeout: 9000 }).catch(() => {});
 await wait(p, 1200);
 if (process.env.CSS) await p.addStyleTag({ content: process.env.CSS });
 if (process.env.NOSPHERE) await p.addStyleTag({ content: '.sphere-stage { visibility: hidden !important; }' });
 if (process.env.BARE) await p.addStyleTag({ content: '.stage-content, .voice > :not(.scrim) { visibility: hidden !important; }' });
 // settle anything still fading (a field's cross-fade, the orb screen's frost)
 await p.evaluate(() => { for (const a of document.getAnimations()) if (a.playState === 'running' && Number.isFinite(a.effect?.getComputedTiming().endTime)) a.finish(); });
-// Classic's slow sway held at one place, so shots of two builds line up
-await p.evaluate(() => { for (const a of document.getAnimations()) if (a.animationName === 'sway') { a.pause(); a.currentTime = 0; } });
+// Classic's slow sway and every other endless motion (the pulse by the insight, the breath) held at one place, so shots of
+// two builds line up
+await p.evaluate(() => { for (const a of document.getAnimations()) if (a.animationName === 'sway' || a.effect?.getComputedTiming().iterations === Infinity) { a.pause(); a.currentTime = 0; } });
 await wait(p, 500);
 console.log('state:', await p.evaluate(() => JSON.stringify({
   fields: [...document.querySelectorAll('.fields > [data-k]')].map((e) => `${e.dataset.k}:${e.dataset.hue}${e.hasAttribute('data-dith') ? ' dith' : ''}${e.hasAttribute('data-still') ? ' still' : ''}${e.hasAttribute('data-top') ? ' top' : ''}`),
-  self: document.querySelectorAll('[data-dith-self]').length,
+  img: document.querySelectorAll('[data-dith-img]').length,
   top: getComputedStyle(document.querySelector(".fields-top")).backgroundImage.slice(0, 40),
 })));
 // MIDTHEME=1: the frame half-way through a switch to light (animations slowed tenfold, so the circle is mid-way)

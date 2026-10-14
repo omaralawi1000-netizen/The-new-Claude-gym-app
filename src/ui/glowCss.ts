@@ -293,3 +293,19 @@ export async function loadPictures(srcs: GlowSrc[], w: number, h: number): Promi
   }
   return true;
 }
+
+/** The pixels of each source's picture at a w × h canvas's size, drawn here and now (null where a source has none); null if
+ * a picture isn't decoded yet (start one with `decode`) */
+export function picturesNow(srcs: GlowSrc[], w: number, h: number): (Uint8ClampedArray | null)[] | null {
+  const out: (Uint8ClampedArray | null)[] = [];
+  for (const src of srcs) {
+    const url = src.img?.url;
+    if (!url) { out.push(null); continue; }
+    const el = decoded.get(url); if (!el) return null;
+    const g = new OffscreenCanvas(w, h).getContext('2d', { willReadFrequently: true }); if (!g) return null;
+    g.setTransform(...inverse(src.m));
+    placePicture(g, src, el);
+    out.push(g.getImageData(0, 0, w, h).data);
+  }
+  return out;
+}

@@ -39,7 +39,7 @@ export const BAR_SRC: Record<BgKind, { src: 'h1' | 'ac' | 't1' | 'sky'; dark: st
  * colours that are its own (Colour per tab's, the sky's) */
 export function barColor(field: HTMLElement | null, kind: BgKind): string {
   const how = BAR_SRC[kind] ?? BAR_SRC.classic;
-  const pct = document.documentElement.dataset.theme === 'light' ? how.light : how.dark;
+  const pct = (field?.ownerDocument ?? document).documentElement.dataset.theme === 'light' ? how.light : how.dark;
   let src = `var(--${how.src})`;
   if (how.src === 't1' || how.src === 'sky') {
     const host = how.src === 'sky' ? field?.querySelector<HTMLElement>('.bg-sky') : field;
