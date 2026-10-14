@@ -1355,11 +1355,11 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 @supports (animation-timeline: scroll()) {
   .sheet-pane .coach-body.sheet-body[data-scrollable] { --melt: calc(100% - var(--foot-h, 90px) - var(--grow) - min(var(--kb-room, 0px), var(--kb-now)));
     transition: --grow var(--cf-dur-g, 500ms) var(--cf-ease-g, ease);
-    /* (--melt: the bar's top, 10 px above the row of controls. The words dim a little as they reach it and pass behind
-       the controls at about half strength, fading out to the screen's edge: each control's frost softens what is under
-       it, and between them it is only dimmed, never cut) */
-    -webkit-mask-image: linear-gradient(to bottom, transparent, transparent calc(var(--sb-fade) * .2), rgba(0,0,0,.45) calc(var(--sb-fade) * .6 - 4px), #000 calc(var(--sb-fade) - 8px), #000 calc(var(--melt) - 36px), rgba(0,0,0,.66) calc(var(--melt) - 8px), rgba(0,0,0,.5) calc(var(--melt) + 14px), rgba(0,0,0,.3) calc(var(--melt) + 44px), transparent calc(var(--melt) + 68px));
-    mask-image: linear-gradient(to bottom, transparent, transparent calc(var(--sb-fade) * .2), rgba(0,0,0,.45) calc(var(--sb-fade) * .6 - 4px), #000 calc(var(--sb-fade) - 8px), #000 calc(var(--melt) - 36px), rgba(0,0,0,.66) calc(var(--melt) - 8px), rgba(0,0,0,.5) calc(var(--melt) + 14px), rgba(0,0,0,.3) calc(var(--melt) + 44px), transparent calc(var(--melt) + 68px)); }
+    /* (--melt: the bar's top, 10 px above the row of controls. The words are full until 32 px above the controls, about
+       a third at their top edge and gone by their middle: the frost softens what reaches under them, and the gaps
+       between them show a soft blend, never pieces of letters) */
+    -webkit-mask-image: linear-gradient(to bottom, transparent, transparent calc(var(--sb-fade) * .2), rgba(0,0,0,.45) calc(var(--sb-fade) * .6 - 4px), #000 calc(var(--sb-fade) - 8px), #000 calc(var(--melt) - 22px), rgba(0,0,0,.62) calc(var(--melt) - 4px), rgba(0,0,0,.35) calc(var(--melt) + 10px), rgba(0,0,0,.12) calc(var(--melt) + 26px), transparent calc(var(--melt) + 37px));
+    mask-image: linear-gradient(to bottom, transparent, transparent calc(var(--sb-fade) * .2), rgba(0,0,0,.45) calc(var(--sb-fade) * .6 - 4px), #000 calc(var(--sb-fade) - 8px), #000 calc(var(--melt) - 22px), rgba(0,0,0,.62) calc(var(--melt) - 4px), rgba(0,0,0,.35) calc(var(--melt) + 10px), rgba(0,0,0,.12) calc(var(--melt) + 26px), transparent calc(var(--melt) + 37px)); }
 }
 .sheet-pane:has(> .sheet-foot) .coach-body.sheet-body { padding-bottom: calc(var(--foot-h, calc(var(--sab) + 76px)) + 30px + var(--grow-pad, 0px) + var(--kb-room, 0px)); }
 /* .edge-fade, for a bottom bar that content passes under (the tab bar; the Coach bar had it until 14 Oct): a neutral grey
@@ -1438,6 +1438,16 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .coach-field .input::placeholder { transition: color 300ms var(--ease-out); } /* (its colour, not its opacity: an opacity fade gave it a layer that was dropped when it ended) */
 .coach-field .input { transition: caret-color 300ms var(--ease-out); } /* (the cursor comes back with "Ask the Coach", not before it) */
 .coach-composer .coach-field .input.sent-away::placeholder { color: transparent; transition: none; }
+/* while you speak: "Ask the Coach" fades out and the field's word fades across ("Listening…", then "Transcribing…"),
+   drawn exactly where the placeholder is (Coach.tsx cf-status) */
+.coach-composer .coach-field .input.quiet::placeholder { color: transparent; }
+.coach-field .cf-status { position: absolute; left: 16px; bottom: 16px; font-size: 16px; line-height: 22px; color: var(--tx2); white-space: nowrap; pointer-events: none;
+  opacity: 0; transition: opacity 180ms var(--ease-out); will-change: opacity; }
+.coach-field .cf-status.on { opacity: 1; }
+/* the said words' "Transcribing…", lifting with the pill as the words come up (Coach.tsx flight) */
+.fly-ghost { position: absolute; white-space: nowrap; font-weight: 400; letter-spacing: 0; color: var(--tx2); will-change: opacity; pointer-events: none; }
+/* closing up unseen, at once (said words: the bar is hidden while the pill lifts away) */
+.coach-composer.snap :is(.cf-glass, .cf-tint > i, .cf-sh, .cf-text, .coach-field textarea.input, .coach-cam-slot, .coach-cam) { transition: none !important; }
 .coach-composer .coach-field .input.sent-away { caret-color: transparent; transition: none; } /* (the cursor jumped to the start as the words left) */
 :root[data-motion='reduce'] :is(.coach-sent, .coach-reply, .coach-reply .w, .coach-after, .coach-after .speak-btn) { animation: none; }
 .coach-body :is(.action-card, .action-ic, .action-line, .tip) { animation: none; }

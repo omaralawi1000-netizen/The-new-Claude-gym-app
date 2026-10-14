@@ -36,6 +36,11 @@ const GROW = springCurve(apple(0.5, 0.25));
 // has its shape before it is far from the field)
 const FLY = springCurve(apple(0.6, 0.15), 0, true); // (to the last fraction of a pixel: it hands over to the real bubble)
 const FLY_SHAPE = springCurve(apple(0.34, 0.06));
+// said words (they were never in the field): one calm lift of the pill into its bubble, no spring's quick start (the
+// words come up inside it on the way, so the move itself has to read: the spring's first 150 ms read as a jump, and so
+// did a fast-start ease-out; this one starts softly, so the pill is seen to peel off the bar)
+const FLY_SAID = { duration: 560, easing: 'cubic-bezier(.3, .1, .2, 1)' };
+const SAID_BACK = 340; // …and the bar comes back, fresh, only once the bubble has left it (faded in over 300 ms from here)
 // the emptied pill behind a sent message: closed at once, out of sight under the flying shape, which starts as the whole
 // pill (the empty bar is only ever seen where the shape has left it)
 const CLOSE = { easing: 'linear', duration: 0 };
@@ -278,11 +283,15 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     // it stays wide until "Ask the Coach" comes back
     holdOpen.current = true;
     const bar = composerRef.current;
+    const said = [...flyFrom.current.values()].some((f) => f.fresh);
     // (a class that points the pill's parts at that curve: changing the curve's own property on the bar restyled every
     // part of it, and on the conversation every message, a stall on the tap)
     bar?.classList.add('closing');
     fit(CLOSE);
     setTimeout(() => bar?.classList.remove('closing'), CLOSE.duration + 40);
+    // said words: the bar is hidden under the lifting pill (below) and closes up at once there, unseen (no slide of the
+    // pill's edge, no camera coming in late); it fades back in whole once the bubble has gone
+    if (said && bar) { holdOpen.current = false; bar.classList.add('snap'); fit(CLOSE); requestAnimationFrame(() => requestAnimationFrame(() => bar.classList.remove('snap'))); }
     for (const [id, from] of flyFrom.current) {
       flyFrom.current.delete(id);
       const bubble = el.querySelector<HTMLElement>(`[data-mid="${id}"] .said`);
@@ -345,7 +354,14 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       // (and, as it settles in its place with only the page behind it, the bubble's own see-through glass, so the real
       // bubble taking over is the same picture: the solid colour can't match the page behind it everywhere)
       const glass = document.createElement('i'); glass.className = 'fly-end'; glass.style.background = fill;
-      copy.append(sh, glass, pill, tone, words);
+      // said words: "Transcribing…" is still in the pill as it lifts and fades as the words come up (one pill, never empty)
+      let ghost: HTMLElement | null = null;
+      if (from.fresh) {
+        ghost = document.createElement('div'); ghost.className = 'fly-ghost'; ghost.textContent = t('Transcribing…');
+        const n = Math.max(1, words.querySelectorAll('.said-l').length);
+        Object.assign(ghost.style, { left: cs.paddingLeft, top: `calc(${cs.paddingTop} + ${n - 1} * ${cs.lineHeight})` });
+      }
+      copy.append(sh, glass, pill, tone, words, ...(ghost ? [ghost] : []));
       app.appendChild(copy);
       // the send button as it was (the arrow) stays on top for a moment and fades as the shape starts to leave: the bar,
       // stop button and all, is then under the shape and shows where it has left (the shape is never cut by the button)
@@ -367,9 +383,13 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       const go = (a: Animation) => { if (at !== null) a.startTime = at; return a; };
       // the real button (stop, now) waits hidden under the shape until the shape has risen clear of it, then fades in
       // (shown at once, a sliver of it peeked out under the shape's rounded corner as it left)
-      if (btn) go(btn.animate([{ opacity: 0 }, { opacity: 0, offset: 0.74 }, { opacity: 1 }], { duration: 680, easing: 'linear' }));
-      const opts = { duration: FLY.duration, easing: FLY.easing, fill: 'forwards' as const };
-      const shape = { duration: FLY_SHAPE.duration, easing: FLY_SHAPE.easing, fill: 'forwards' as const };
+      // (said words: the whole bar waits hidden, then comes back together: field, camera and the stop button)
+      if (from.fresh) {
+        const back = (e: Element | null | undefined, o = e ? getComputedStyle(e).opacity : '1') => { if (!e) return; go((e as HTMLElement).animate([{ opacity: 0 }, { opacity: 0, offset: SAID_BACK / (SAID_BACK + 300) }, { opacity: o }], { duration: SAID_BACK + 300, easing: 'linear' })); };
+        composerRef.current?.querySelectorAll('.cf-tint, .cf-sh, .cf-glass, .cf-text, .coach-cam-slot').forEach((e) => back(e)); back(btn, '1'); // (the button was fading in from hidden: its own value now is not where it ends)
+      } else if (btn) go(btn.animate([{ opacity: 0 }, { opacity: 0, offset: 0.74 }, { opacity: 1 }], { duration: 680, easing: 'linear' }));
+      const opts = { duration: from.fresh ? FLY_SAID.duration : FLY.duration, easing: from.fresh ? FLY_SAID.easing : FLY.easing, fill: 'forwards' as const };
+      const shape = { duration: from.fresh ? FLY_SAID.duration : FLY_SHAPE.duration, easing: from.fresh ? FLY_SAID.easing : FLY_SHAPE.easing, fill: 'forwards' as const };
       const fade = (ms: number, delay = 0) => ({ duration: ms, delay, easing: 'cubic-bezier(.3, 0, .2, 1)', fill: 'backwards' as const });
       const flight = go(copy.animate([{ transform: `translate(${dx}px, ${dy}px) scale(${k})` }, { transform: 'none' }], opts));
       const place = (c: number[], i: number) => `translate(${c[0]}px, ${c[1]}px) scale(${c[2] / base[i][0]}, ${c[3] / base[i][1]})`;
@@ -380,17 +400,19 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
         // the pill's (solid under it the whole way, so the shape is never see-through), which then goes
         go(tone.animate([{ opacity: 0 }, { opacity: 1 }], { ...fade(200, 40), fill: 'both' })),
         go(pill.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 40, delay: 250, fill: 'both' })),
-        go(glass.animate([{ opacity: fillA }, { opacity: fillA }], { duration: 1, delay: 400, fill: 'forwards' })),
-        go(tone.animate([{ opacity: 1 }, { opacity: 0 }], { ...fade(160, 400), fill: 'forwards' })),
+        // (said words: settled sooner, the lift being shorter; done before it lands)
+        go(glass.animate([{ opacity: fillA }, { opacity: fillA }], { duration: 1, delay: from.fresh ? 320 : 400, fill: 'forwards' })),
+        go(tone.animate([{ opacity: 1 }, { opacity: 0 }], { ...fade(160, from.fresh ? 320 : 400), fill: 'forwards' })),
         // the emptied bar's tint and shadow come in under it as it lifts away (none of the bar is drawn where the shape is
         // on the first frames: the shape is the pill then)
-        ...[...(composerRef.current?.querySelectorAll<HTMLElement>('.cf-tint, .cf-sh') ?? [])].map((e) => go(e.animate([{ opacity: 0 }, { opacity: getComputedStyle(e).opacity }], fade(80, 30)))),
+        ...(from.fresh ? [] : [...(composerRef.current?.querySelectorAll<HTMLElement>('.cf-tint, .cf-sh') ?? [])].map((e) => go(e.animate([{ opacity: 0 }, { opacity: getComputedStyle(e).opacity }], fade(80, 30))))),
         go(sh.animate([{ transform: `translate(${x0}px, ${y0}px) scale(${sx}, ${sy})` }, { transform: 'none' }], shape)),
         // the field's bright ink settles to the bubble's softer one; said words (never in the field) come up inside the
         // pill as it lifts, softly, while it is still the pill, and are the bubble's ink by the time it is the bubble
         from.fresh
-          ? go(words.animate([{ opacity: 0 }, { opacity: 1, offset: 0.5 }, { opacity: inkA }], { duration: 560, delay: 30, easing: 'cubic-bezier(.33, .1, .25, 1)', fill: 'both' }))
+          ? go(words.animate([{ opacity: 0 }, { opacity: 1, offset: 0.6 }, { opacity: inkA }], { duration: 420, delay: 100, easing: 'linear', fill: 'both' }))
           : go(words.animate([{ opacity: 1 }, { opacity: inkA }], { ...fade(380, 60), fill: 'both' })),
+        ...(ghost ? [go(ghost.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 200, easing: 'cubic-bezier(.3, 0, .2, 1)', fill: 'forwards' }))] : []),
       ];
       if (stand) setTimeout(() => stand?.remove(), 60);
       // lines that were scrolled out of a long draft's view come in on the way, rather than appearing over the chat
@@ -412,7 +434,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       // camera returns in the same move.
       const field = inputRef.current; field?.classList.add('sent-away');
       const settle = () => { holdOpen.current = false; field?.classList.remove('sent-away'); fit(); };
-      const back = setTimeout(settle, 140);
+      const back = setTimeout(from.fresh ? () => field?.classList.remove('sent-away') : settle, from.fresh ? SAID_BACK : 140);
       const land = () => { rider?.unride(); el.removeEventListener('scroll', follow); if (listMoved.current === follow) listMoved.current = null; clearTimeout(back); if (holdOpen.current) settle(); bubble.style.visibility = ''; copy.remove(); };
       flight.finished.then(land, land);
     }
@@ -769,9 +791,12 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
             <div className="cf-measure" ref={measureRef} aria-hidden="true" />{/* (first: under the layers, so it never gets one of its own) */}
             <i className="cf-sh" /><i className="cf-glass" />
             <i className="cf-tint"><i className="cf-l cf-b" /><i className="cf-r cf-b" /><i className="cf-l cf-m" /><i className="cf-r cf-m" /><i className="cf-l cf-t" /><i className="cf-r cf-t" /></i>
-            <div className="cf-text"><textarea ref={inputRef} className="input" rows={1} onFocus={openBar} onBlur={openBar} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
+            <div className="cf-text"><textarea ref={inputRef} className={`input${recording || hearing ? ' quiet' : ''}`} rows={1} onFocus={openBar} onBlur={openBar} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
               onPointerDown={(e) => { if (!listening.current) return; e.preventDefault(); if (recording) toggleRec('edit'); /* (tap your words while speaking: it stops and leaves them to fix) */ }}
-              enterKeyHint="send" placeholder={recording ? t('Listening…') : hearing ? t('Transcribing…') : t('Ask the Coach')} aria-label={t('Message the Coach')} readOnly={recording || hearing} /></div>
+              enterKeyHint="send" placeholder={t('Ask the Coach')} aria-label={t('Message the Coach')} readOnly={recording || hearing} />
+              {/* while you speak the field's word fades across, never swaps: "Ask the Coach", "Listening…", "Transcribing…" */}
+              <span className={`cf-status${recording ? ' on' : ''}`} aria-hidden="true">{t('Listening…')}</span>
+              <span className={`cf-status${hearing ? ' on' : ''}`} aria-hidden="true">{t('Transcribing…')}</span></div>
             {/* Send is an arrow inside the field, there only when there is something to send (Stop while it works) */}
             <button className={`coach-send press ${busy || input.trim() || photo || recording ? 'on' : ''} ${busy ? 'busy' : ''}`} onMouseDown={(e) => e.preventDefault() /* the field keeps the keyboard (it stays up after a send) */}
               aria-label={busy ? t('Stop') : recording ? t('Stop and send') : t('Send')} tabIndex={busy || input.trim() || photo || recording ? 0 : -1} onClick={() => (busy ? ctl.current?.abort() : recording ? toggleRec('send') : hearing ? undefined : send())}>
