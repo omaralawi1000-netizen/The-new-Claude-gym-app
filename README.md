@@ -2161,12 +2161,12 @@ softer easing and fewer moving things, not more effects; the look is unchanged e
   found and removed: (1) the flying copy's glass was a solid colour under an opacity and its ink an opaque colour under an
   opacity, a level or three off the real bubble's alpha colours: it now uses the bubble's own colours, alpha and all; (2) a
   moving, resizing copy can't draw letters on the page's pixel grid, so as the real bubble took over every letter edge
-  stepped (up to 133/255, one line up to two pixels): the landing bubble now has a layer of its own (`will-change:
-  transform`) from the moment it is hidden, so it draws its letters as the copy did, and drops it 160 ms into the next
-  send, while the list is moving; (3) a move still a ten-thousandth short on its last frame is drawn a hair differently
+  stepped (up to 133/255, one line up to two pixels): the fix (the landing bubble on a layer of its own, `will-change:
+  transform`, from the moment it is hidden, dropped 160 ms into the next send while the list moves) adds and drops a GPU
+  layer, so it goes to Beta first and is not in this release; (3) a move still a ten-thousandth short on its last frame is drawn a hair differently
   from one at rest (the camera's rim stepped 51/255 as the pill closed): every Coach curve now ends on two frames held
-  exactly at its end (`asCurve`). After: sent and said landings, pill close, keyboard ride end and the reply's words
-  settling to plain text all within 3/255 (capture noise is 2/255).
+  exactly at its end (`asCurve`). With all three: sent and said landings, pill close, keyboard ride end and the reply's
+  words settling to plain text all within 3/255 (capture noise is 2/255).
 
 ## Keyboard: the chat always lifts with it (14 Oct 2026)
 Sometimes the Coach chat stayed where it was when the keyboard came up, so a sent message landed under the bar. A sheet
