@@ -19,44 +19,41 @@ import { runActions, type AgentResult } from '../lib/agent';
 import { uid } from '../lib/nutrition';
 import { dayKey } from '../lib/dates';
 import { blobToBase64, downscale } from '../lib/photos';
-import { apple, springCurve } from '../ui/motion';
 
 /* The typing bar opens wide while you type (Omar, 13 Oct: "expands when I type on it and compresses when I'm done"): the
-   camera tucks away and the pill's left edge glides over its place on a soft spring with a touch of overshoot, then
-   glides back when the keyboard goes. It grows a line taller as your words wrap (up to four lines, then they scroll inside).
-   Drawn with moves only (styles.css .coach-field), never a width or height animated per frame. */
+   camera tucks away and the pill's left edge glides over its place, then glides back when the keyboard goes. It grows a
+   line taller as your words wrap (up to four lines, then they scroll inside). Drawn with moves only (styles.css
+   .coach-field), never a width or height animated per frame. */
 const CF_X = 60; // how far it opens: the camera's place (46 px and the 14 px gap)
 const CF_LINE = 22, CF_LINES = 4, CF_MAX = CF_LINE * (CF_LINES - 1); // its lines, and how much taller it can grow
-// opening: a spring with a little overshoot you can see (about 5 px past the open edge, then back); closing and growing
-// settle with less
-const MORPH = springCurve(apple(0.62, 0.4));
-const MORPH_BACK = springCurve(apple(0.55, 0.15));
-const GROW = springCurve(apple(0.5, 0.25));
-// a sent message: its flight to its place, and the pill turning into its bubble (quicker: mostly done by 200 ms, so it
-// has its shape before it is far from the field)
-// (critically damped, 14 Oct: the small overshoot it had read as a bump where it stopped; now it eases into its place on
-// the spring's long tail, as iOS lands things; to the last fraction of a pixel: it hands over to the real bubble)
-const FLY = springCurve(apple(0.55), 0, true);
-const FLY_SHAPE = springCurve(apple(0.34, 0.06));
-// said words (they were never in the field): one calm lift of the pill into its bubble on an iOS spring, critically
-// damped (0.52 s, no overshoot), that follows a target easing up out of the bar over its first 100 ms. A spring straight
-// from rest reads as a jump in its first frames (the words come up inside it on the way, so the move itself has to read),
-// so the pill is seen to peel off the bar; and it lands on the spring's long tail, its speed dying away over the last
-// ~150 ms with no point where it brakes (a bezier's end read as a sudden stop, Omar 14 Oct 14:54: "a more easing motion
-// like iOS"). Sampled every 1/60 s into linear(), so the browser plays it at the screen's full rate.
+// ONE CALM MOTION for everything on the Coach (14 Oct 21:13, Omar: "even calmer and more polished… smoothly easing"):
+// a critically damped spring (no overshoot, no bounce anywhere: the opening's 5 px overshoot and the growing's little
+// bounce read as restless) that follows a target easing up over its first moments, so nothing jumps off from rest, and
+// that lands on the spring's long tail, its speed dying away with no point where it brakes (a bezier's end read as a
+// sudden stop, 14 Oct 14:54: "a more easing motion like iOS"). Sampled every 1/60 s into linear(), so the browser plays it
+// at the screen's full rate. `response`: how unhurried (seconds); `ramp`: how soft the start (seconds).
 const rampSpring = (response: number, ramp: number) => {
   const k = (2 * Math.PI / response) ** 2, c = 4 * Math.PI / response, dt = 1 / 600;
   let x = 0, v = 0, t = 0; const xs = [0];
   for (let f = 1; f < 150; f++) {
     for (let i = 0; i < 10; i++) { const u = Math.min(t / ramp, 1), g = u * u * u * (u * (6 * u - 15) + 10); v += (k * (g - x) - c * v) * dt; x += v * dt; t += dt; }
-    xs.push(x); if (t > ramp && 1 - x < 0.0002 && Math.abs(v) < 0.005) break; // (still to a fiftieth of a percent: it hands over to the real bubble)
+    xs.push(x); if (t > ramp && 1 - x < 0.0002 && Math.abs(v) < 0.005) break; // (still to a fiftieth of a percent: a flight hands over to the real bubble)
   }
   xs[xs.length - 1] = 1; return xs;
 };
 const asCurve = (xs: number[]) => ({ duration: Math.round((xs.length - 1) * 1000 / 60), easing: `linear(${xs.map((v) => +v.toFixed(4)).join(', ')})` });
-const FLY_SAID = asCurve(rampSpring(0.52, 0.1));
-const SAID_INK = 560; // the said words' ink: full while the pill is still the pill, the bubble's own by then
-const SAID_BACK = 340; // …and the bar comes back, fresh, only once the bubble has left it…
+const MORPH = asCurve(rampSpring(0.62, 0.09)); // opening
+const MORPH_BACK = asCurve(rampSpring(0.62, 0.09)); // closing
+const GROW = asCurve(rampSpring(0.52, 0.07)); // a line more or less
+// a sent message: its flight to its place, and the pill turning into its bubble (sooner: it has its shape before it is
+// far from the field); both start soft, so the copy is seen to lift off the pill rather than be thrown
+const FLY = asCurve(rampSpring(0.58, 0.09));
+const FLY_SHAPE = asCurve(rampSpring(0.42, 0.07));
+// said words (they were never in the field): the pill lifts into its bubble on the same motion, a touch slower, starting
+// softer (the words come up inside it on the way, so the move itself has to read: the pill peels off the bar)
+const FLY_SAID = asCurve(rampSpring(0.6, 0.11));
+const SAID_INK = 620; // the said words' ink: full while the pill is still the pill, the bubble's own by then
+const SAID_BACK = 390; // …and the bar comes back, fresh, only once the bubble has left it…
 const SAID_IN = 360; // …faded in over this, eased (a straight fade read as switched on)
 // the emptied pill behind a sent message: closed at once, out of sight under the flying shape, which starts as the whole
 // pill (the empty bar is only ever seen where the shape has left it)
@@ -201,7 +198,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     // The spring is handed to the browser as a ready-made curve (Web Animations on `translate`), so the compositor draws it
     // at the screen's full rate even while the page is busy writing the next words in (it used to be stepped from script
     // every frame, so a busy frame was a missed step). A new move picks the spring up where it is on screen.
-    const W = 10; // (the exact critically damped spring: x(t) = (x0 + (v0 + W x0) t) e^(-W t))
+    const W = 8; // (the exact critically damped spring: x(t) = (x0 + (v0 + W x0) t) e^(-W t); 8, unhurried: ~0.7 s, was 10)
     let move: Animation | null = null, x0 = 0, v0 = 0;
     // A message in flight rides the list's glide too (the same curve on its `translate`, on the same clock): it used to
     // follow only the scroll position, so while the keyboard went down it ran ahead of its bubble (by up to 200 px) and
@@ -438,10 +435,12 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
           ? go(pill.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 40, delay: 250, fill: 'both' }))
           : go(pill.animate([{ opacity: 0, easing: 'cubic-bezier(.2, 0, .4, 1)' }, { opacity: 1, offset: 60 / 290 }, { opacity: 1, offset: 250 / 290 }, { opacity: 0 }], { duration: 290, easing: 'linear', fill: 'forwards' })),
         // (said words: settled sooner, the lift being shorter; done before it lands)
-        go(glass.animate([{ opacity: fillA }, { opacity: fillA }], { duration: 1, delay: from.fresh ? 320 : 400, fill: 'forwards' })),
-        go(tone.animate([{ opacity: 1 }, { opacity: 0 }], { ...fade(160, from.fresh ? 320 : 400), fill: 'forwards' })),
+        go(glass.animate([{ opacity: fillA }, { opacity: fillA }], { duration: 1, delay: from.fresh ? 360 : 420, fill: 'forwards' })),
+        go(tone.animate([{ opacity: 1 }, { opacity: 0 }], { ...fade(200, from.fresh ? 360 : 420), fill: 'forwards' })),
         // (typed: the emptied bar stays drawn under it the whole way: the shape starts as the pill, over the pill)
         go(sh.animate([{ transform: `translate(${x0}px, ${y0}px) scale(${sx}, ${sy})` }, { transform: 'none' }], shape)),
+        // (typed: its shadow comes in with it, over the real pill's own, rather than doubling it on the first frame)
+        ...(from.fresh ? [] : [go(sh.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 160, easing: 'cubic-bezier(.4, 0, .2, 1)', fill: 'backwards' }))]),
         // the field's bright ink settles to the bubble's softer one; said words (never in the field) come up inside the
         // pill as it lifts, softly, while it is still the pill, and are the bubble's ink by the time it is the bubble
         from.fresh
@@ -524,7 +523,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     if (!thread || reduce) return;
     setLeaving(previous.slice(older)); // only what was on screen (older saved messages not built yet stay out)
     thread.style.pointerEvents = 'none';
-    const animation = thread.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translate3d(0, -4px, 0)' }], { duration: 160, easing: 'cubic-bezier(.4, 0, 1, 1)', fill: 'forwards' });
+    const animation = thread.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translate3d(0, -4px, 0)' }], { duration: 280, easing: 'cubic-bezier(.4, 0, .7, 1)', fill: 'forwards' });
     clearing.current = animation;
     animation.onfinish = () => { if (alive.current) finishClear(); };
   };
