@@ -1972,6 +1972,16 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-breath.hold > b { animation-play-state: paused; }
 @keyframes breathe { 0.0% { opacity: 0.4000; animation-timing-function: steps(10, jump-none); } 12.5% { opacity: 0.4228; animation-timing-function: steps(10, jump-none); } 25.0% { opacity: 0.4879; animation-timing-function: steps(10, jump-none); } 37.5% { opacity: 0.5852; animation-timing-function: steps(10, jump-none); } 50.0% { opacity: 0.7000; animation-timing-function: steps(10, jump-none); } 62.5% { opacity: 0.8148; animation-timing-function: steps(10, jump-none); } 75.0% { opacity: 0.9121; animation-timing-function: steps(10, jump-none); } 87.5% { opacity: 0.9772; animation-timing-function: steps(10, jump-none); } 100.0% { opacity: 1.0000; } }
 :root[data-motion='reduce'] .wk-breath > b { animation: none; }
+/* The same lights as dithered pictures (screens/workout/wkGlow.tsx): the phone draws a CSS gradient in whole colour steps,
+   which showed as coloured rings in the dim glow. Each picture replaces its gradient once it is ready ([data-dith], an
+   attribute React leaves alone), drawn at half the screen's pixels (the screen smooths it back up); they hold still, so
+   nothing is redrawn while the window is open. */
+.glow-cv { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; visibility: hidden; }
+.aurora-lite > .wk-field-cv { top: calc(16px - var(--wk-lead)); height: calc(100% + var(--wk-lead) - 16px); }
+.aurora-lite[data-dith]::before, .wk-breath[data-dith] > b::before, .wk-breath[data-dith] > b::after { content: none; }
+.aurora-lite[data-dith] > .glow-cv, .wk-breath[data-dith] .glow-cv { visibility: visible; }
+.wk-breath[data-dith] { opacity: 1; } /* the picture has the glow's strength in it */
+.wk-breath .glow-cv.warm { opacity: var(--warm, 0); transition: opacity 6s ease-in-out; }
 
 /* ── Backgrounds (Settings → Appearance → Background; ui/Backdrop.tsx) ──────────────────────────────────────────────
    Every one but Classic holds still: a few gradients (or one small, already-blurred photo) painted once, so the frosted
