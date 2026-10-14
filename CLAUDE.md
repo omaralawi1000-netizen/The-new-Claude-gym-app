@@ -4,6 +4,7 @@ Omar's gym, food and wrestling app (React + TypeScript + Vite PWA). He uses it o
 as an installed app and judges everything on the phone. He is not a programmer: explain results in plain, short words.
 
 ## Where things are
+- **Style guide: `docs/style-guide.md`. Read it and follow it before any visual, motion or glass change.**
 - To-do list: `docs/polish-plan.md`. When Omar says "do section N", do it and tick it off there.
 - `README.md` is the history of every design decision. Read the relevant section before changing something.
 
