@@ -235,16 +235,18 @@ function LiveOrb() {
   return <Orb talk={useTalking()} coach={coach} spot={useOrbSpot(coach)} />;
 }
 type Spot = { x: number; y: number } | null;
-/** the centre of the orb that is showing (the dock's, or the Coach's while it is open), in px inside the background's box */
+/**
+ * The centre of the orb that is showing (the dock's, or the Coach's while it is open), in px from the screen's top left. It
+ * is read from the layout (offsets), not from where it is drawn right now, so a sheet still sliding up or the dock still
+ * gliding doesn't send the light somewhere on the way: it heads for where the orb comes to rest.
+ */
 function orbSpot(coach: boolean): Spot {
   if (typeof document === 'undefined') return null;
-  const box = document.querySelector('.fields') as HTMLElement | null;
   const orb = (coach ? document.querySelector('.coach-composer .voice-ring')?.parentElement : document.querySelector('.tabbar .sphere-slot')) as HTMLElement | null | undefined;
-  if (!box || !orb) return null;
-  const b = box.getBoundingClientRect(), o = orb.getBoundingClientRect();
-  if (!o.width || !b.width) return null;
-  const k = b.width / (box.offsetWidth || b.width); // the page may be scaled back behind a pop-up
-  return { x: Math.round((o.left + o.width / 2 - b.left) / k), y: Math.round((o.top + o.height / 2 - b.top) / k) };
+  if (!orb || !orb.offsetWidth) return null;
+  let x = orb.offsetWidth / 2, y = orb.offsetHeight / 2;
+  for (let e: HTMLElement | null = orb; e; e = e.offsetParent as HTMLElement | null) { x += e.offsetLeft - (e === orb ? 0 : e.scrollLeft); y += e.offsetTop - (e === orb ? 0 : e.scrollTop); }
+  return { x: Math.round(x), y: Math.round(y) };
 }
 /** follows the orb: measured when the Coach opens or closes (again once its sheet has settled) and when the screen resizes */
 function useOrbSpot(coach: boolean): Spot {
