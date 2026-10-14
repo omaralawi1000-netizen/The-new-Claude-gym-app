@@ -1,7 +1,7 @@
 import { animate, motion, useMotionValue, useReducedMotion, useTransform } from 'motion/react';
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { useVisit } from './visit';
-import { GENTLE } from './motion';
+import { apple } from './motion';
 
 export interface DialRing { value: number; color: string; label: string; over?: boolean }
 
@@ -52,8 +52,9 @@ function Ring({ i, ring, c, rad, stroke, size, id }: { i: number; ring: DialRing
   const v = Math.max(0, Math.min(1, ring.value));
   const col = ring.over ? 'var(--bad)' : ring.color;
   const prog = useMotionValue(reduce ? v : 0);
-  const len = useTransform(prog, (p) => Math.max(p, p > 0 ? 0.012 : 0));
-  const root = useRef<SVGGElement>(null), cap = useRef<SVGCircleElement>(null), lap = useRef<SVGGElement>(null), head = useRef<SVGGElement>(null);
+  const len = useTransform(prog, (p) => Math.min(1, Math.max(p, p > 0 ? 0.012 : 0)));
+  const root = useRef<SVGGElement>(null), cap = useRef<SVGCircleElement>(null), lap = useRef<SVGGElement>(null), head = useRef<SVGGElement>(null), hl = useRef<SVGCircleElement>(null), flash = useRef<SVGCircleElement>(null), arcG = useRef<SVGGElement>(null);
+  const closed = useRef(false), armed = useRef(false);
   const [{ s, t, y }, setTurn] = useState({ s: 1, t: 0, y: false });
   // read the ring's real colour once (and again if the palette or theme changes) to know which way its hue turns
   useLayoutEffect(() => {
@@ -68,18 +69,56 @@ function Ring({ i, ring, c, rad, stroke, size, id }: { i: number; ring: DialRing
   // layout). Once the ring is full the end is drawn again over its start, with the shadow falling on the ring itself.
   useEffect(() => {
     const ahead = (stroke * 0.5) / rad;
+    const clamp = (x: number) => Math.max(0, Math.min(1, x));
+    // the closing moment: a soft shine runs once round the ring, its tube brightens, and the ring swells a hair and settles
+    const shine = { t: 0 }, swell = { s: 0 };
+    const paintShine = () => {
+      const k = shine.t, a = (k * 360) % 360;
+      hl.current?.setAttribute('transform', `rotate(${a} ${c} ${c})`);
+      hl.current?.setAttribute('opacity', String(k > 0 && k < 1 ? Math.sin(Math.PI * k) * 0.9 : 0));
+      flash.current?.setAttribute('opacity', String(k > 0 && k < 1 ? Math.sin(Math.PI * k) * 0.16 : 0));
+    };
+    const paintSwell = () => arcG.current?.setAttribute('transform', `translate(${c} ${c}) scale(${1 + swell.s * 0.014}) translate(${-c} ${-c})`);
+    const controls: { stop: () => void }[] = [];
+    const close = () => {
+      if (reduce) return;
+      controls.push(animate(0, 1, { duration: 1.5, ease: [0.45, 0.05, 0.3, 1], onUpdate: (k) => { shine.t = k; paintShine(); }, onComplete: () => { shine.t = 0; paintShine(); } }));
+      controls.push(animate(0, [0, 1, 0], { duration: 1.7, times: [0, 0.3, 1], ease: 'easeInOut', onUpdate: (k) => { swell.s = k; paintSwell(); }, onComplete: () => { swell.s = 0; paintSwell(); } }));
+    };
     const place = (p: number) => {
       const a = Math.max(p, 0.012) * Math.PI * 2;
       cap.current?.setAttribute('cx', String(c + rad * Math.sin(a + ahead)));
       cap.current?.setAttribute('cy', String(c - rad * Math.cos(a + ahead)));
       const full = p >= 0.985 ? '1' : '0';
-      for (const el of [head.current, lap.current]) { el?.setAttribute('transform', `rotate(${(a * 180) / Math.PI} ${c} ${c})`); el?.setAttribute('opacity', full); }
+      const deg = (Math.min(p, 1) * 360).toFixed(3);
+      // the end's shade on the ring's own start fades in as the end closes in on it
+      lap.current?.setAttribute('opacity', String(clamp((Math.min(p, 1) - 0.88) / 0.12)));
+      head.current?.setAttribute('transform', `rotate(${deg} ${c} ${c})`); head.current?.setAttribute('opacity', full);
+      lap.current?.setAttribute('transform', `rotate(${deg} ${c} ${c})`);
+    };
+    // a bright, soft spot rides the leading end while it travels, brighter the faster it goes, and is gone when it rests
+    const ride = (p: number) => {
+      if (shine.t > 0) return;
+      const sp = Math.abs(prog.getVelocity());
+      hl.current?.setAttribute('transform', `rotate(${(Math.min(p, 1) * 360).toFixed(3)} ${c} ${c})`);
+      hl.current?.setAttribute('opacity', String(Math.min(0.55, sp * 1.1)));
     };
     place(prog.get());
-    const off = prog.on('change', place);
-    const ctl = reduce ? null : animate(prog, v, { ...GENTLE, delay: 0.15 + i * 0.12 });
-    if (reduce) prog.set(v);
-    return () => { off(); ctl?.stop(); };
+    const off = prog.on('change', (p) => {
+      place(p); ride(p);
+      if (p >= 0.995 && !closed.current && armed.current) { closed.current = true; close(); }
+      else if (p < 0.9) closed.current = false;
+    });
+    // first draw: outer ring first, each a touch after the last; later changes (a food logged) grow from where the ring is
+    // now, nearly together; a ring that closes on the way gets the closing moment
+    // (a ring still at zero is drawing in; a ring that already shows something is growing)
+    const first = prog.get() < 0.001;
+    const sp = v >= 0.97 ? apple(1.35, 0) : apple(1.35, 0.16);
+    const ctl = reduce ? null : animate(prog, v, first ? { ...sp, delay: 0.2 + i * 0.14 } : { ...(v >= 0.97 ? apple(1.0, 0) : apple(1.0, 0.14)), delay: i * 0.05 });
+    // the closing moment is for a ring that closes because you logged something, not for every drawing-in
+    if (first) ctl?.then(() => { armed.current = true; closed.current = v >= 0.995; }); else armed.current = true;
+    if (reduce) { prog.set(v); closed.current = v >= 0.995; }
+    return () => { off(); ctl?.stop(); controls.forEach((x) => x.stop()); };
   }, [v, reduce, i, c, rad, stroke, prog]);
   const p = { cx: c, cy: c, r: rad, fill: 'none', strokeLinecap: 'round' as const, transform: `rotate(-90 ${c} ${c})` };
   // colours, all mixed in OKLCH in the ring's own hue: a start no darker than the plain colour, a brighter end turned
@@ -115,6 +154,11 @@ function Ring({ i, ring, c, rad, stroke, size, id }: { i: number; ring: DialRing
           <stop offset=".75" style={{ stopColor: 'var(--ring-cap)', stopOpacity: 0.25 }} />
           <stop offset="1" style={{ stopColor: 'var(--ring-cap)', stopOpacity: 0 }} />
         </radialGradient>
+        <radialGradient id={`${id}-hl`}>
+          <stop offset="0" style={{ stopColor: '#fff', stopOpacity: 0.85 }} />
+          <stop offset=".45" style={{ stopColor: '#fff', stopOpacity: 0.3 }} />
+          <stop offset="1" style={{ stopColor: '#fff', stopOpacity: 0 }} />
+        </radialGradient>
         <radialGradient id={`${id}-lap`}>
           <stop offset="0" style={{ stopColor: shade, stopOpacity: 0.35 }} />
           <stop offset=".4" style={{ stopColor: shade, stopOpacity: 0.26 }} />
@@ -136,6 +180,7 @@ function Ring({ i, ring, c, rad, stroke, size, id }: { i: number; ring: DialRing
       <g mask={`url(#${id}-band)`} opacity={v > 0 ? 1 : 0}>
         <circle ref={cap} r={stroke * 0.75} fill={`url(#${id}-cap)`} />
       </g>
+      <g ref={arcG}>
       <g mask={`url(#${id}-arc)`} opacity={v > 0 ? 1 : 0}>
         <foreignObject x="0" y="0" width={size} height={size}>
           <div style={{ width: '100%', height: '100%', background: `var(--ring-dither), conic-gradient(from ${-o}deg, ${start} 0deg, ${start} ${o}deg, ${col} ${o + span * 0.55}deg, ${end} ${o + span}deg, ${end} 360deg)` }} />
@@ -143,6 +188,12 @@ function Ring({ i, ring, c, rad, stroke, size, id }: { i: number; ring: DialRing
         <circle {...p} stroke={`url(#${id}-tube)`} strokeWidth={stroke} />
         {/* full: the end's shade falls on the ring's own start */}
         <g ref={lap} opacity="0"><circle cx={c + stroke * 0.5} cy={c - rad} r={stroke * 0.75} fill={`url(#${id}-lap)`} /></g>
+      </g>
+      {/* the leading end's travelling highlight and the closing shine: one soft spot, moved by rotation, clipped to the band */}
+      <g mask={`url(#${id}-band)`}>
+        <circle ref={flash} {...p} stroke="#fff" strokeWidth={stroke} opacity="0" />
+        <circle ref={hl} cx={c} cy={c - rad} r={stroke * 0.95} fill={`url(#${id}-hl)`} opacity="0" />
+      </g>
       </g>
       {/* full: the end drawn again on top, in the gradient's exact end colour with the same dither and tube shading, so it lies over the start */}
       <g ref={head} opacity="0">
