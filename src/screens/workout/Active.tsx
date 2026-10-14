@@ -47,7 +47,7 @@ export function useActive(): WorkoutSession | null {
  * The live workout: a full-height card that rises over the page (which steps back behind it), like Apple Music's player.
  * Kept alive between openings (WorkoutHost): `open` false slides it away and then hides it.
  */
-export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?: 'hero' | 'pill' | 'none' }; open?: boolean; onGone?: () => void }) {
+export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { props: { origin?: 'hero' | 'pill' | 'none' }; open?: boolean; onGone?: () => void; /** close without the slide (it is already hidden under the finish sheet) */ vanish?: boolean }) {
   const t = useT();
   const lang = useLang();
   // narrow selections: the screen re-renders when the session changes, not on every store write
@@ -120,9 +120,10 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
   const sheetRef = useRef<HTMLDivElement>(null);
   // high refresh rate: the window, the dim and the page behind also run by the browser on the identical spring
   const mirror = useRef<Mirror | null>(null); if (!mirror.current) mirror.current = new Mirror();
+  const vanishRef = useRef(vanish); vanishRef.current = vanish;
   const runMirror = (p0: number, p1: number, sp: { stiffness: number; damping: number; mass?: number }, vel: number) => {
     const m = mirror.current!; m.cancel();
-    if (reduce) return;
+    if (reduce || (p1 === 0 && vanishRef.current)) return;
     m.add(
       mirrorProgress(sheetRef.current, p0, p1, sp, vel, (pp) => ({ transform: `translateY(${sheetTop(pp).toFixed(2)}px)` })),
       mirrorProgress(shadeRef.current, p0, p1, sp, vel, (pp) => ({ transform: `translateY(${sheetTop(pp).toFixed(2)}px)`, opacity: String(shade(pp)) }), [0.12, 0.7]),
@@ -141,8 +142,10 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
     p.set(e0); dragY.set(0);
     const vel = -v / H;
     runMirror(e0, 0, SURFACE_EXIT, vel);
-    const c = animate(p, 0, reduce ? { duration: 0.01 } : { ...SURFACE_EXIT, velocity: vel });
-    closing.current = new Promise<void>((done) => { c.then(() => done()); });
+    // under the finish sheet: no slide, just a soft fade of what still shows above the sheet, then put away
+    const fade = vanishRef.current && !reduce ? dialogRef.current?.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 700, easing: 'ease-in-out', fill: 'forwards' }) : undefined;
+    const c = fade ? fade.finished.then(() => { p.set(0); }) : animate(p, 0, reduce || vanishRef.current ? { duration: 0.01 } : { ...SURFACE_EXIT, velocity: vel });
+    closing.current = new Promise<void>((done) => { c.then(() => { done(); if (fade) requestAnimationFrame(() => fade.cancel()); }, () => done()); });
     void closing.current.then(() => warmStage(false));
     return closing.current;
   };

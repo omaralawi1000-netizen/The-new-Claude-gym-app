@@ -23,8 +23,10 @@ function Stat({ label, value, unit, i }: { label: string; value: React.ReactNode
 // The finish moment, in order, like an award: a medal lands (felt as the workout's "done", or a record's), the four
 // numbers arrive one after another, each counting up as it lands with a light tick, and then one line says what this
 // session meant. MEDAL, STEP and COUNT are the rhythm; everything else on the screen waits for LINE.
-const MEDAL = 0, STEP = 0.32, FIRST = 0.75, COUNT = 0.85; // the medal lands as the sheet settles: no empty beat first
-const LINE = FIRST + 3 * STEP + COUNT * 0.8;
+// One continuous movement from the tap: the medal and the numbers' card rise with the sheet itself (no empty beat, nothing
+// popping in), the numbers overlap as they arrive, each tick is felt as its number settles, and the line comes last.
+const MEDAL = 0, CARD = 0.1, STEP = 0.26, FIRST = 0.5, COUNT = 0.9, SETTLE = 0.42;
+const LINE = FIRST + 3 * STEP + COUNT * 0.75;
 const celebrated = new Set<string>(); // a session's moment is felt once, not again when its summary is reopened
 const reduced = () => document.documentElement.dataset.motion === 'reduce' || matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -69,7 +71,7 @@ export function Summary({ props }: { props: { sessionId: string } }) {
     celebrated.add(ses.id);
     const big: 'record' | 'finish' = recs.length ? 'record' : 'finish';
     if (reduced()) { haptic(big); return; }
-    const ids = [setTimeout(() => haptic(big), (MEDAL + 0.35) * 1000), ...[0, 1, 2, 3].map((i) => setTimeout(() => haptic('tick'), (FIRST + i * STEP + 0.1) * 1000))];
+    const ids = [setTimeout(() => haptic(big), (MEDAL + 0.35) * 1000), ...[0, 1, 2, 3].map((i) => setTimeout(() => haptic('tick'), (FIRST + i * STEP + SETTLE) * 1000))];
     return () => { ids.forEach(clearTimeout); celebrated.delete(ses.id); };
   }, [ses?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!ses) return null;
@@ -88,19 +90,21 @@ export function Summary({ props }: { props: { sessionId: string } }) {
         <div className={`sum-medal${recs.length ? ' gold' : ''}`} style={{ ['--d' as string]: `${MEDAL}s` }} aria-label={recs.length ? t(recs.length === 1 ? '1 new record' : '{n} new records', { n: recs.length }) : undefined}>
           {recs.length > 0 && Array.from({ length: 12 }, (_, i) => <i key={i} aria-hidden className="sum-ray" style={{ rotate: `${i * 30}deg`, animationDelay: `${MEDAL + 0.3 + i * 0.03}s` }} />)}
           <span className="sum-halo" aria-hidden />
+          <span className="sum-halo settle" aria-hidden style={{ animationDelay: `${LINE + 0.1}s` }} />
           <span className="sum-disc">
             {recs.length ? <span className="display num">{recs.length}</span> : <Icon name="check" size={38} />}
             <span className="sum-sheen" aria-hidden />
           </span>
         </div>
         {recs.length > 0 && <div className="micro sum-line-in" style={{ margin: '-6px 0 16px', textAlign: 'center', color: 'var(--gold)', ['--d' as string]: `${MEDAL + 0.5}s` }}>{recs.length === 1 ? t('New personal record') : t('New personal records')}</div>}
-        <div className="plinth dots" style={{ padding: 18, borderRadius: 'var(--r-lg)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
+        <div className="plinth dots sum-card" style={{ animationDelay: `${CARD}s`, padding: 18, borderRadius: 'var(--r-lg)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
           <Stat i={0} label={t('Time')} value={<CountUp to={elapsedMs(ses) / 1000} delay={at(0)} format={fmtDuration} />} />
           <Stat i={1} label={t('Volume')} value={<CountUp to={kgToDisplay(sessionVolume(ses.exercises), u.weight)} delay={at(1)} format={(n) => fmtNum(Math.round(n), lang, 0)} />} unit={u.weight} />
           <Stat i={2} label={t('Sets')} value={<CountUp to={sessionSetCount(ses.exercises)} delay={at(2)} format={(n) => String(Math.round(n))} />} />
           <Stat i={3} label={t('Exercises')} value={<CountUp to={ses.exercises.length} delay={at(3)} format={(n) => String(Math.round(n))} />} />
         </div>
         {line && <p className="sum-line display" style={{ ['--d' as string]: `${LINE}s` }}>{line}</p>}
+
 
         {recs.length === 0 ? null : (
           <div className="stack gap8" style={{ marginTop: 22 }}>
@@ -109,7 +113,7 @@ export function Summary({ props }: { props: { sessionId: string } }) {
               const vset = r.kind === 'volume' ? ses.exercises.flatMap((e) => e.sets).find((q) => q.id === r.setId && q.reps) : undefined;
               const fv = (v: number) => vset && v === r.value ? `${fmtNum(kgToDisplay(vset.weightKg ?? 0, u.weight), lang, 2)} ${u.weight} × ${vset.reps}` : r.kind === 'reps' ? String(v) : r.kind === 'duration' ? `${v}s` : r.kind === 'distance' ? `${fmtNum(v / 1000, lang, 2)} km` : `${fmtNum(kgToDisplay(v, u.weight), lang, r.kind === 'e1rm' ? 1 : 2)} ${u.weight}`;
               return (
-                <motion.div key={i} initial={{ opacity: 0, x: -14 }} animate={{ opacity: 1, x: 0 }} transition={{ ...SOFT, delay: LINE + 0.6 + i * 0.07 }} className="plinth" style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ ...SOFT, delay: LINE + 0.35 + i * 0.08 }} className="plinth" style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
                   <span style={{ width: 34, height: 34, borderRadius: 12, background: 'var(--gold)', color: '#3a2a05', display: 'grid', placeItems: 'center' }}><Icon name="bolt" size={18} /></span>
                   <div className="grow"><div className="li-title small">{ex ? exName(ex, lang) : ''}</div><div className="xs t2">{t(REC_LABEL[r.kind])}{r.kind === 'e1rm' ? ` · ${t('estimate')}` : ''}</div></div>
                   <div style={{ textAlign: 'right' }} className="num"><div style={{ fontWeight: 700 }}>{fv(r.value)}</div><div className="xs t3">{vset ? `${fmtNum(kgToDisplay(r.value, u.weight), lang, 0)} ${u.weight} · ${t('was')} ${fmtNum(kgToDisplay(r.previous!, u.weight), lang, 0)}` : `${t('was')} ${fv(r.previous!)}`}</div></div>
@@ -119,6 +123,8 @@ export function Summary({ props }: { props: { sessionId: string } }) {
           </div>
         )}
 
+        {/* the rest of the screen rises gently with the sheet, under the moment, never pulling the eye from it */}
+        <div className="sum-rest">
         <div className="micro" style={{ margin: '24px 0 8px' }}>{t('Planned vs done')}</div>
         <div className="list">
           {rows.map(({ e, ex }) => {
@@ -136,6 +142,7 @@ export function Summary({ props }: { props: { sessionId: string } }) {
         </div>
         <div className="field" style={{ marginTop: 20 }}><label htmlFor="s-note">{t('Session note')}</label><textarea id="s-note" className="input" defaultValue={ses.note ?? ''} placeholder={t('How did it feel?')} onBlur={(e) => s.mutateSession(ses.id, (x) => ({ ...x, note: e.target.value.trim() || undefined }))} /></div>
         {!ses.routineId && <button className="btn block press" style={{ marginTop: 14 }} onClick={saveRoutine}><Icon name="copy" size={18} /> {t('Save as routine')}</button>}
+        </div>
       </div>
     </Sheet>
   );

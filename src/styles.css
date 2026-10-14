@@ -1675,20 +1675,27 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
   animation: medalIn 1100ms cubic-bezier(.2, .8, .2, 1) both; animation-delay: var(--d); }
 .sum-medal.gold .sum-disc { color: #3a2a05; }
 .sum-disc .display { font-size: 40px; font-weight: 400; color: inherit; }
-@keyframes medalIn { from { opacity: 0; transform: scale(.78); } 30% { opacity: 1; } }
-.sum-sheen { position: absolute; inset: -10%; background: linear-gradient(105deg, transparent 38%, rgba(255, 255, 255, .5) 50%, transparent 62%);
-  transform: translate3d(-120%, 0, 0); animation: medalSheen 1300ms cubic-bezier(.4, 0, .2, 1) both; animation-delay: calc(var(--d) + .55s); }
+@keyframes medalIn { from { opacity: 0; transform: translate3d(0, 16px, 0) scale(.8); } 35% { opacity: 1; } }
+.sum-sheen { position: absolute; inset: -10%; background: linear-gradient(105deg, transparent 30%, rgba(255, 255, 255, .16) 42%, rgba(255, 255, 255, .34) 50%, rgba(255, 255, 255, .16) 58%, transparent 70%);
+  transform: translate3d(-120%, 0, 0); animation: medalSheen 1700ms cubic-bezier(.45, 0, .2, 1) both; animation-delay: calc(var(--d) + .6s); }
 @keyframes medalSheen { to { transform: translate3d(120%, 0, 0); } }
 .sum-halo { position: absolute; inset: 0; border-radius: 50%; box-shadow: 0 0 10px 2px color-mix(in srgb, var(--m) 45%, transparent), inset 0 0 10px 2px color-mix(in srgb, var(--m) 25%, transparent);
   opacity: 0; animation: medalHalo 1600ms cubic-bezier(.2, .7, .3, 1) both; animation-delay: calc(var(--d) + .3s); }
+/* the settle: once the line has landed, one fainter, slower breath of the same light, and then everything is still */
+.sum-halo.settle { animation: medalSettle 2000ms cubic-bezier(.3, .6, .3, 1) both; }
+@keyframes medalSettle { from { opacity: 0; transform: scale(1); } 30% { opacity: .45; } to { opacity: 0; transform: scale(1.2); } }
 /* a soft glow, no hard line, that stops well above the numbers' card */
 @keyframes medalHalo { from { opacity: .8; transform: scale(1); } to { opacity: 0; transform: scale(1.28); } }
 .sum-ray { position: absolute; width: 2px; height: 30px; top: -38px; left: calc(50% - 1px); border-radius: 2px; transform-origin: 50% 80px;
   background: linear-gradient(transparent, var(--gold)); opacity: 0; animation: medalRay 1300ms cubic-bezier(.22, 1, .36, 1) both; }
 /* the rays open once and are gone again ~0.6 s after the medal lands, never a standing sunburst */
 @keyframes medalRay { from { opacity: 0; transform: scaleY(0); } 40% { opacity: .85; transform: scaleY(1); } to { opacity: 0; transform: scaleY(.8); } }
-.sum-stat { animation: sumIn 620ms var(--ease-out) both; }
-@keyframes sumIn { from { opacity: 0; transform: translate3d(0, 10px, 0); } }
+.sum-stat { animation: sumIn 760ms cubic-bezier(.2, .8, .2, 1) both; }
+.sum-card { animation: sumCard 900ms cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes sumCard { from { opacity: 0; transform: translate3d(0, 22px, 0); } 40% { opacity: 1; } }
+.sum-rest { animation: sumRest 1000ms cubic-bezier(.2, .8, .2, 1) .25s both; }
+@keyframes sumRest { from { opacity: 0; transform: translate3d(0, 28px, 0); } }
+@keyframes sumIn { from { opacity: 0; transform: translate3d(0, 12px, 0); } }
 .sum-line { margin: 18px 4px 0; text-align: center; font-size: 24px; line-height: 1.2; font-style: italic; text-wrap: balance;
   animation: sumLine 900ms var(--ease-out) both; animation-delay: var(--d, 0s); }
 @keyframes sumLine { from { opacity: 0; transform: translate3d(0, 8px, 0); } }

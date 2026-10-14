@@ -49,24 +49,38 @@ function WorkoutHost() {
   // drawn from the workout as it was (WkFrozen), and is let go once it has left the screen.
   const seen = useRef<{ a: WorkoutSession | null; open: boolean }>({ a: null, open: false });
   const [leaving, setLeaving] = useState<WorkoutSession | null>(null);
-  if (!active && seen.current.a && seen.current.open && leaving?.id !== seen.current.a.id) setLeaving(seen.current.a);
+  // (read in this same render too: waiting for the state to catch up let one pass pick the built-ahead stand-in's slot,
+  // which remounted the window, so it vanished at once instead of leaving smoothly)
+  let gone = active ? null : leaving;
+  if (!active && seen.current.a && seen.current.open && leaving?.id !== seen.current.a.id) { gone = seen.current.a; setLeaving(gone); }
   if (active && leaving) setLeaving(null);
   seen.current = { a: active, open: idx >= 0 && !!active };
-  const ahead = useAhead(activeId, !!leaving);
-  const shownId = activeId ?? leaving?.id ?? (ahead ? WK_GHOST : null);
+  // Finished from the open window: it stays where it is while the finish sheet rises over it (no gap where the page behind
+  // flashes through), and is let go without its slide once the sheet has covered it
+  const held = !!gone && overlays.some((o) => o.type === 'summary' && o.props?.sessionId === gone.id);
+  const [covered, setCovered] = useState<string | null>(null);
+  useEffect(() => {
+    if (!held || !gone) return;
+    const id = gone.id, t = setTimeout(() => setCovered(id), HOLD_MS);
+    return () => clearTimeout(t);
+  }, [held, gone?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const hold = held && covered !== gone?.id;
+  const ahead = useAhead(activeId, !!gone);
+  const shownId = activeId ?? gone?.id ?? (ahead ? WK_GHOST : null);
   // one window per workout, except that a workout started while the stand-in is waiting takes that window over
   const slot = useRef<{ id: string; key: string } | null>(null);
   if (shownId && slot.current?.id !== shownId) slot.current = { id: shownId, key: slot.current?.id === WK_GHOST ? slot.current.key : shownId === WK_GHOST ? `${WK_GHOST}-${++aheadN}` : shownId };
-  if (!shownId || (idx < 0 && !leaving && kept !== activeId && !ahead)) return null;
+  if (!shownId || (idx < 0 && !gone && kept !== activeId && !ahead)) return null;
   const { o, z } = last.current;
   return (
-    <OverlayZ.Provider value={z}><OverlayMeta.Provider value={meta(o.id, false)}><WkFrozen.Provider value={active ? null : (leaving ?? ghost)}>
-      <ActiveWorkout key={slot.current!.key} props={o.props ?? {}} open={idx >= 0 && !!active} onGone={() => setLeaving(null)} />
+    <OverlayZ.Provider value={z}><OverlayMeta.Provider value={meta(o.id, false)}><WkFrozen.Provider value={active ? null : (gone ?? ghost)}>
+      <ActiveWorkout key={slot.current!.key} props={o.props ?? {}} open={(idx >= 0 && !!active) || hold} vanish={held} onGone={() => setLeaving(null)} />
     </WkFrozen.Provider></OverlayMeta.Provider></OverlayZ.Provider>
   );
 }
 
 let aheadN = 0;
+const HOLD_MS = 700; // the finish sheet's rise, until it covers the window
 const ghost: WorkoutSession = { id: WK_GHOST, name: '', date: '', startedAt: 0, pausedMs: 0, status: 'active', exercises: [], rest: null };
 /**
  * True once the app has settled (a few seconds in, the finger off the screen for a moment, the main thread free), so the
