@@ -1966,7 +1966,7 @@ Orb light, Colour per tab, Sunrise, Mesh, Dot field, Time of day, Night sky and 
 - Made in Blender from the Z-Anatomy model (CC BY-SA 4.0, credited in Settings › About). Each exercise gets its own
   choreography on one full-body rig; sources and judge notes are in the project folder `anatomy-proof/`.
 
-## The curl clip, calmer and truer (14 Oct 2026)
+## The curl clip, calmer and truer (14 Oct 2026, v0.1.126)
 
 - Omar: "the hands still doesn't hold the bar properly", "refine the neck to the head", then on the motion: "at the bottom it
   doesn't even pause for half a second… I want to learn from the motion… but it still has to be fast enough".
