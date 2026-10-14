@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef } from 'react';
-import { addTwin, ampFor, isKept, keepBitmaps, shareKey, sharedPlan, setSharedPlan, cssColor, fileShown, glowCanvasOk, glowScale, paintFile, paintPlan, planKey, recallFile, rootKey, hostKey, Plans, whenIdle, unIdle, stats, useGlowCanvases, type GlowJob, type GlowPlan, type GlowSrc } from './glow';
+import { addTwin, ampFor, recall, shareKey, sharedPlan, setSharedPlan, cssColor, fileShown, glowCanvasOk, glowScale, paintFile, paintPlan, planKey, recallFile, rootKey, hostKey, Plans, whenIdle, unIdle, stats, useGlowCanvases, type GlowJob, type GlowPlan, type GlowSrc } from './glow';
 import { gradient, loadPictures, readSrc } from './glowCss';
 import { barColor, PER_TAB, type BgKind } from './Backdrop';
 
@@ -95,10 +95,8 @@ function prewarm(field: HTMLElement, kind: BgKind) {
       }
       if (!plan) continue;
       const k = plan.key;
-      // (and its picture, ready to draw)
-      if (isKept(k)) { void keepBitmaps(k); continue; }
-      // (painted again after its bitmap was drawn: the worker does it, off the page)
-      void paintPlan(plan).then((got) => { if (got) void keepBitmaps(k); });
+      // (and its picture, painted by the worker, off the page)
+      if (!recall(k, false)) void paintPlan(plan);
     }
   };
   // (once the switch that brought this field has played: the worker's painting then can't take time from its animation)

@@ -76,7 +76,6 @@ const KEEP_BYTES = 48 << 20;
 const sizeOf = (v: ImageData[]) => v.reduce((n, b) => n + b.width * b.height * 4, 0);
 const keptBytes = () => {
   let bytes = 0;
-  for (const v of bitmaps.values()) bytes += v.reduce((n, b) => n + b.width * b.height * 4, 0);
   for (const v of kept.values()) bytes += sizeOf(v);
   for (const f of files.values()) bytes += f.bytes;
   return bytes;
@@ -91,30 +90,9 @@ function trim(keepKey: string) {
     bytes -= f.bytes; URL.revokeObjectURL(f.url); files.delete(k);
   }
 }
-/**
- * A few pictures (the other tabs' colour fields) are kept ready to draw instead of as pixels: a tab switch draws its new
- * field's picture from one, which costs the tap far less than writing the pixels in (a quarter of the time on a slow
- * phone). Each is drawn once and let go (one kept and drawn again would keep a copy on the graphics chip); the worker paints
- * it again while idle for the next time. In the 48 MB.
- */
-const bitmaps = new Map<string, ImageBitmap[]>();
-export async function keepBitmaps(key: string) {
-  const pics = recall(key, false);
-  if (!pics || bitmaps.has(key) || typeof createImageBitmap !== 'function') return;
-  const bms = await Promise.all(pics.map((d) => createImageBitmap(d))).catch(() => null);
-  if (!bms) return;
-  if (bitmaps.has(key) || document.visibilityState === 'hidden') { for (const b of bms) b.close(); return; }
-  bitmaps.set(key, bms);
-  kept.delete(key); // (the same picture: not kept twice)
-  for (const [k, v] of bitmaps) { if (bitmaps.size <= 4) break; for (const b of v) b.close(); bitmaps.delete(k); }
-}
 function keep(key: string, pics: ImageData[]) { kept.delete(key); kept.set(key, pics); trim(key); }
 /** the pictures kept for `key` (and, by default, marks them as just used) */
 export const recall = (key: string, touch = true) => { const v = kept.get(key); if (v && touch) { kept.delete(key); kept.set(key, v); } return v; };
-/** whether `key`'s picture is kept, as pixels or ready to draw */
-export const isKept = (key: string) => kept.has(key) || bitmaps.has(key);
-/** (stands in for pixels when the picture is kept ready to draw: `put` draws the bitmaps) */
-const READY: ImageData[] = [];
 /** an image file kept for `key` (marked as just used) */
 export function recallFile(key: string): string | undefined {
   const f = files.get(key); if (!f) return undefined;
@@ -128,8 +106,6 @@ export function fileShown(url: string, on: boolean) {
 if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'hidden') { scheduleTwins(); return; }
   kept.clear();
-  for (const v of bitmaps.values()) for (const b of v) b.close();
-  bitmaps.clear();
   for (const [k, f] of files) if (!shownUrls.get(f.url)) { URL.revokeObjectURL(f.url); files.delete(k); }
 });
 
@@ -142,7 +118,7 @@ export const planKey = (jobs: GlowJob[], extra = '') => JSON.stringify(jobs, (k,
 /** Paints a plan's pictures in the worker (once; later calls with the same key get the same pictures) */
 const painting = new Map<string, Promise<ImageData[] | null>>();
 export function paintPlan(plan: GlowPlan): Promise<ImageData[] | null> {
-  const hit = recall(plan.key) ?? (bitmaps.has(plan.key) ? READY : undefined); if (hit) return Promise.resolve(hit);
+  const hit = recall(plan.key); if (hit) return Promise.resolve(hit);
   let p = painting.get(plan.key);
   if (!p) {
     p = (async () => {
@@ -363,38 +339,18 @@ export function useGlowCanvases(host: () => HTMLElement | null, refs: RefObject<
     /** Writes a picture's pixels into its canvas (straight in: no copy of it is kept on the graphics chip for drawing). Each
      * new picture starts the canvas afresh (its size set anew), so the buffer of the picture before is let go, not kept to
      * draw into next time: one copy of the picture on the graphics chip, as the CSS had */
-    const put = (plan: GlowPlan, pics: ImageData[]): boolean => {
-      // (the pictures for the other theme are made ready to draw ahead: a theme switch only hands them over, which costs the
-      // page next to nothing; each is drawn once and let go, so the chip keeps no copy of it)
-      const own = ready?.key === plan.key ? ready.bms : null, bms = own ?? bitmaps.get(plan.key) ?? null;
-      if (!bms && plan.jobs.some((_, i) => !pics[i])) return false; // (its bitmaps were drawn meanwhile: painted again, see now)
-      if (!own) bitmaps.delete(plan.key);
+    const put = (plan: GlowPlan, pics: ImageData[]) => {
       plan.jobs.forEach((job, i) => {
         const cv = refs[i]?.current; if (!cv) return;
         cv.width = 1; cv.width = job.w; cv.height = job.h;
+        // (written straight in: drawing bitmaps made ready ahead was quicker, but left a copy of each on the graphics chip,
+        // +20 MB after a few tab switches; a canvas kept in memory took longer to write)
         const g = cv.getContext('2d', { alpha: !job.base }) as CanvasRenderingContext2D | null; if (!g) return;
-        if (bms?.[i]) g.drawImage(bms[i], 0, 0); else g.putImageData(pics[i], 0, 0);
+        g.putImageData(pics[i], 0, 0);
         drawn.add(cv);
       });
-      if (bms) for (const b of bms) b.close();
-      if (own) ready = null;
-      const left = real;
       real = plan.key;
       shown(true);
-      // (and the one just left is made ready, for a switch back)
-      if (left && left !== real) { const k = left; whenIdle(() => void prep(k), 3000); }
-      return true;
-    };
-    /** the pictures of `key` made ready to draw (one set at a time) */
-    let ready: { key: string; bms: ImageBitmap[] } | null = null;
-    const prep = async (key: string) => {
-      const pics = recall(key, false);
-      if (!alive || !pics || ready?.key === key || key === real) return;
-      const bms = await Promise.all(pics.map((d) => createImageBitmap(d))).catch(() => null);
-      if (!bms) return;
-      if (!alive || key === real) { for (const b of bms) b.close(); return; }
-      if (ready) for (const b of ready.bms) b.close();
-      ready = { key, bms };
     };
     const plan = (on: HTMLElement) => { try { return describe(on); } catch { return null; } };
     const plans = new Plans();
@@ -420,11 +376,11 @@ export function useGlowCanvases(host: () => HTMLElement | null, refs: RefObject<
       if (p.key === real) return;
       // (not on screen, e.g. a minimised workout window: written once the page is idle, or as soon as it shows)
       if (known && !onScreen) { unIdle(defer); defer = whenIdle(() => now(false)); return; }
-      const hit = recall(p.key) ?? (bitmaps.has(p.key) ? READY : undefined), pics = hit ?? paintNow(p);
+      const hit = recall(p.key), pics = hit ?? paintNow(p);
       stats[hit ? 'hit' : pics ? 'now' : 'later']++;
-      if (pics && put(p, pics)) return;
+      if (pics) { put(p, pics); return; }
       // (a picture it shows isn't fetched yet: the CSS shows, not the picture before, until the worker has painted it)
-      if (real && !pics) { real = ''; shown(false); }
+      if (real) { real = ''; shown(false); }
       const q = p;
       void paintPlan(q).then((got) => { if (alive && !lost && got && want === q.key) put(q, got); });
     };
@@ -437,7 +393,7 @@ export function useGlowCanvases(host: () => HTMLElement | null, refs: RefObject<
       const p = plan(copy); if (!p) return;
       plans.set(state(rk), p);
       if (share) sharedPlans.set(shared(rk), p);
-      void paintPlan(p).then((got) => { if (got) void prep(p.key); });
+      void paintPlan(p);
     } });
     // the graphics chip lost the canvas (a GPU reset): the CSS shows until it is back, then it is drawn again
     const onLost = () => { lost = true; real = ''; shown(false); }; // (not cancelled: that would stop the restore)
@@ -448,7 +404,6 @@ export function useGlowCanvases(host: () => HTMLElement | null, refs: RefObject<
     document.addEventListener('visibilitychange', check);
     return () => {
       alive = false; ro.disconnect(); mo.disconnect(); io.disconnect(); untwin(); unIdle(verify); unIdle(defer); clearTimeout(late);
-      if (ready) for (const b of ready.bms) b.close();
       for (const c of cvs) { c.removeEventListener('contextlost', onLost); c.removeEventListener('contextrestored', onBack); }
       document.removeEventListener('visibilitychange', check);
     };
