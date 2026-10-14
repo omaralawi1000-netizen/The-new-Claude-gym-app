@@ -7,7 +7,9 @@ import { execFileSync } from 'node:child_process';
 import { steady } from './film-steady.mjs';
 import { wait, skipOnboarding, loadDemo } from './lib.mjs';
 const which = process.argv[2] || 'food';
-const s = await steady({ theme: 'dark', size: { width: 412, height: 892 } });
+const theme = process.argv.includes('--light') ? 'light' : 'dark';
+const tag = `${which}-${theme}`;
+const s = await steady({ theme, size: { width: 412, height: 892 } });
 const p = s.p;
 if (process.env.FILMDEBUG) { p.on('console', (m) => console.log('console', m.type(), m.text().slice(0, 200))); p.on('pageerror', (e) => console.log('pageerror', e.message.slice(0, 200))); }
 await s.ctx.addInitScript(() => {
@@ -29,16 +31,19 @@ const press = async (loc) => { const b = await loc.boundingBox(); await p.touchs
 await p.getByLabel('Photo').first().waitFor({ state: 'visible', timeout: 20000 }); await s.advance(180);
 let opener;
 if (which === 'coach') { await press(p.getByRole('button', { name: 'Coach', exact: true }).first()); opener = p.getByLabel('Send a photo'); await opener.waitFor({ state: 'visible', timeout: 20000 }); await s.advance(240); }
-else { await press(p.getByLabel('Photo').first()); await s.advance(150); opener = p.getByRole('button', { name: 'Camera', exact: true }); } // Today's camera icon opens the plate sheet; its Camera button opens the camera
-await s.film(`camera-${which}-open`, () => press(opener), 90);
+else opener = p.getByLabel('Photo').first(); // one tap: Today's camera icon opens the camera itself
+await s.film(`camera-${tag}-open`, () => press(opener), 90);
 await s.advance(90); // the live picture settles in
-await s.film(`camera-${which}-shot`, () => press(p.locator('.cam-shutter')), which === 'food' ? 150 : 120);
+if (which === 'food' && theme === 'dark') { // the flip: the picture is held, then the other camera fades in over it (the fake camera shows the same plate, mirrored)
+  await s.film(`camera-${tag}-flip`, () => press(p.getByLabel('Flip camera')), 70); await s.advance(90);
+}
+await s.film(`camera-${tag}-shot`, () => press(p.locator('.cam-shutter')), which === 'food' ? 150 : 120);
 await s.advance(60);
-await s.film(`camera-${which}-rest`, async () => {}, 12);
+await s.film(`camera-${tag}-rest`, async () => {}, 12);
 await s.close();
 // one clip: the three films joined, real speed (60 fps)
-const dirs = ['open', 'shot', 'rest'].map((k) => `shots/film/camera-${which}-${k}`);
+const dirs = (which === 'food' && theme === 'dark' ? ['open', 'flip', 'shot', 'rest'] : ['open', 'shot', 'rest']).map((k) => `shots/film/camera-${tag}-${k}`);
 const list = dirs.map((d) => `file '${process.cwd()}/${d}/%03d.jpg'`);
 const inputs = dirs.flatMap((d) => ['-framerate', '60', '-i', `${d}/%03d.jpg`]);
-execFileSync('ffmpeg', ['-y', '-loglevel', 'error', ...inputs, '-filter_complex', '[0:v][1:v][2:v]concat=n=3:v=1[v];[v]scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p[o]', '-map', '[o]', '-c:v', 'libx264', '-crf', '20', `shots/camera-${which}.mp4`]);
-console.log(`→ shots/camera-${which}.mp4`);
+execFileSync('ffmpeg', ['-y', '-loglevel', 'error', ...inputs, '-filter_complex', `${dirs.map((_, i) => `[${i}:v]`).join('')}concat=n=${dirs.length}:v=1[v];[v]scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p[o]`, '-map', '[o]', '-c:v', 'libx264', '-crf', '20', `shots/camera-${tag}.mp4`]);
+console.log(`→ shots/camera-${tag}.mp4`);

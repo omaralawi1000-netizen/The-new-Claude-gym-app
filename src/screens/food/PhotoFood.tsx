@@ -9,7 +9,7 @@ import { Sheet, SheetHead, SOFT } from '../../ui/Sheet';
 import { SphereSlot } from '../../ui/Sphere';
 import { Icon } from '../../ui/Icon';
 import { getKey } from '../../lib/keys';
-import { blobToBase64, cameraSupported, downscale } from '../../lib/photos';
+import { blobToBase64, cameraUsable, downscale } from '../../lib/photos';
 import { aiErrorText, FALLBACK_MODELS } from '../../lib/gemini';
 import { estimatePhoto } from '../../lib/brain';
 import { overLimit } from '../../lib/spend';
@@ -23,7 +23,7 @@ const PORTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
 
 /** Snap your plate: a photo → Gemini's per-item estimate → you adjust portions → logged as clearly labelled AI estimates. */
-export function PhotoFood({ props }: { props: { date: string; mealId: string } }) {
+export function PhotoFood({ props }: { props: { date: string; mealId: string; file?: File } }) {
   const t = useT();
   const lang = useLang();
   const pop = useUI((u) => u.pop);
@@ -40,7 +40,7 @@ export function PhotoFood({ props }: { props: { date: string; mealId: string } }
   const cam = useRef<HTMLInputElement>(null);
   const lib = useRef<HTMLInputElement>(null);
   const ctl = useRef<AbortController | null>(null);
-  const openCam = () => { if (cameraSupported()) push('camera', { onShot: pick }); else cam.current?.click(); };
+  const openCam = () => { if (cameraUsable()) push('camera', { onShot: pick }); else cam.current?.click(); };
   const meal = meals.find((m) => m.id === props.mealId) ?? meals[0];
 
   useEffect(() => () => { ctl.current?.abort(); if (useVoice.getState().phase === 'processing') useVoice.getState().go('idle'); if (img) URL.revokeObjectURL(img.url); }, []); // eslint-disable-line
@@ -69,6 +69,8 @@ export function PhotoFood({ props }: { props: { date: string; mealId: string } }
       analyse(small);
     } catch { setErr(t('Couldn’t read that image.')); }
   };
+
+  useEffect(() => { if (props.file) pick(props.file); }, []); // eslint-disable-line -- the camera hands its shot over (CameraSheet)
 
   const chosen = items.filter((x) => x.on);
   const total = chosen.reduce((n, x) => n + x.kcal * x.k, 0);

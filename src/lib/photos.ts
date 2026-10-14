@@ -44,3 +44,8 @@ export async function blobToBase64(b: Blob): Promise<string> {
 
 /** the browser can open a live camera (the in-app camera pop-up); otherwise the phone's own camera picker is used */
 export const cameraSupported = () => typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia;
+
+// Camera permission, remembered as it changes: once it is denied, the pop-up has nothing to show, so the phone's own camera picker is used
+let camDenied = false;
+try { navigator.permissions?.query({ name: 'camera' as PermissionName }).then((r) => { camDenied = r.state === 'denied'; r.onchange = () => { camDenied = r.state === 'denied'; }; }).catch(() => {}); } catch { /* no Permissions API */ }
+export const cameraUsable = () => cameraSupported() && !camDenied;
