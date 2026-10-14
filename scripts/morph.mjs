@@ -9,7 +9,7 @@ const { b, ctx, p, errors } = await launch({ record: !!process.env.FILM });
 await p.goto('http://127.0.0.1:5173/'); await wait(p, 900); await skipOnboarding(p);
 
 // ── 1. stacked pop-ups ──
-const blurOf = () => p.evaluate(() => [...document.querySelectorAll('.sheet')].map((s) => ({ cls: s.className.replace(/\s+/g, ' ').trim(), bf: getComputedStyle(s, '::before').backdropFilter, bg: getComputedStyle(s, '::before').backgroundColor })));
+const blurOf = () => p.evaluate(() => [...document.querySelectorAll('.sheet')].map((s) => ({ cls: s.className.replace(/\s+/g, ' ').trim(), bf: getComputedStyle(s, '::before').backdropFilter, bg: getComputedStyle(s, '::after').backgroundColor })));
 const today = await p.evaluate(async () => { const { dayKey } = await import('/src/lib/dates.ts'); return dayKey(Date.now(), 4); });
 await p.evaluate(async (date) => { const { useUI } = await import('/src/state/ui.ts'); useUI.getState().push('waterSheet', { date }); }, today);
 await wait(p, 900);

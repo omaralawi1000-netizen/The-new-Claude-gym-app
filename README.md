@@ -1838,3 +1838,46 @@ of a sharp and a blurred copy (the muddy double edge on the card above the dock)
   through as on iOS), light from the top, a hairline and a soft shadow. Light mode: the same in white.
 Omar picked the thin neutral tint ("I want it neutral so the frosted glass can come through") and declined a deeper shadow.
 Measured: scroll frames within noise of before (fewer, smaller blur layers); tab icons 5.5:1 on the pill.
+
+## Smooth glows behind the frosted pop-ups: no more colour bands (13 Oct 2026, v0.1.106)
+
+Omar (teal palette, dark): the soft glow seen through the Coach, Settings and Scan barcode sheets showed stepped rings with
+a coloured fringe ("chromatic aberration / colour banding, looks cheap"). Reproduced at his screen (384 x 832 at 3.75).
+- Cause: the phone keeps a blur's result in whole steps of colour (0-255). Behind a sheet the page is dimmed, so the glow
+  spans only a few dozen steps there, and the 44 px blur averages away the grain that hides the steps on the page. The
+  steps came back as rings, a little out of line for red, green and blue (saturate after the blur stretches them), so
+  they read as coloured bands. Measured on a test ramp: the blurred glow climbs in 1-1.7 level stairs.
+- Tried and not enough: noise drawn on the glass at full strength only blurs the rings' edges (it is added after the
+  rounding, so each stair stays a stair).
+- Fix, dark theme (light keeps its plain blur): the sheet blurs its backdrop at twice the brightness (`brightness(2)`
+  before the blur, so the blur's result keeps twice as many steps) and lets half as much of it through (the tint's alpha
+  goes up from .46 to .71, its colour worked out so the picture is the same: average colour within 0.2 of a level). On
+  the glass sits `--dither`, a one-screen-pixel noise in the glass's own alpha (black dots, 0-40 of 255, baked once at the
+  screen's pixel size in `lib/grain.ts`). It changes how much backdrop each pixel lets through, which is mixed in the
+  screen's final exact blend, so the last half-steps dissolve into noise about one level strong (finer than the page's
+  own grain). The test ramp is now smooth; the rings are gone even with the contrast raised 6x.
+- Cost: the tint is a layer of its own over the blur (a picture inside the blurring layer halved the frame rate in
+  tests: an extra full-screen pass), and the sheet's drop shadow moved onto `.sheet` (on the dithered layer it doubled
+  that layer's cost). Scrolling in a sheet and closing it measure the same as before. Opening draws one more image layer:
+  in software-GPU Chromium about 19% fewer frames while a sheet opens (13 runs); the phone's GPU should barely notice,
+  Omar to judge. Way back: branch backup/pre-banding-v0.1.105.
+- Recipe for any other frosted layer (tab bar, Coach bar, rest bar): see "Dither" in styles.css.
+- Tools: `scripts/banding-shots.mjs` (Settings, Today, Coach, Scan at phone size, field held still) and
+  `scripts/banding-probe.mjs` (CSS variants on one open sheet).
+
+## Launch morph: the launch screen's orb flies into the dock; a lighter start (13 Oct 2026, v0.1.107)
+
+Omar: "launch morph would be amazing… you have to work very hard on it to make it seamless". Before, Android's launch
+screen (the Ember orb of dots) cut to a blank page, then the app.
+- First paint: index.html draws the exact launch-screen orb before any script (`scripts/gen-launch-orb.mjs`, same SVG code
+  as the Android icon via `scripts/orb-svg.mjs`), so Chrome's hand-over from the splash is invisible.
+- Then (`src/ui/launch.ts`): the live orb fades in over the logo in its colours (0.2 s) while the logo fades (0.16 s), the
+  launch screen fades (0.25 s) and Today's blocks start their rise; 0.23 s in, the orb falls on a soft arc into the dock
+  (Apple smooth spring 0.8 s, browser-run, transform only), clear of the first card's play button. Its colours turn to the
+  palette bead by bead, each bead in one step: an RGB blend went through grey, a blend inside a bead read pale pink.
+- Judge rounds fixed: a second (splash) orb left behind during the flight, teal through grey, the app appearing late.
+- Reduced motion: the launch screen just fades, the orb already in the dock.
+- Lighter start: Coach, voice, Settings, photo food, the scanner and onboarding load on demand (`src/ui/lazy.ts`, preloaded
+  when idle after 2.5 s); Danish loads only when used. Start JS 1,221 → 897 KB; app drawn 329 → 306 ms (4× CPU 1,434 → 1,345).
+- Tools: `scripts/launch.mjs` (timings), `scripts/film-launch.mjs` (steady-camera launch films). Previews and notes in the
+  project folder `launch-morph/`.
