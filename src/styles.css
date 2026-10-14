@@ -949,6 +949,12 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    a touch slower than the rise, so a word never pops in bright. Once in, it settles to plain text (Words, agentUi.tsx). */
 :is(.calm, .voice-live) .w-in { animation: wordLight var(--soft-dur, 600ms) cubic-bezier(0.33, 0.1, 0.25, 1) backwards, wordCalm var(--soft-dur, 600ms) cubic-bezier(0.2, 0.7, 0.2, 1) backwards; }
 @keyframes wordLight { from { opacity: 0; } to { opacity: 1; } }
+/* The Coach's answers, refined (14 Oct, "ultra premium"): each word now barely rises (0.14em, was 0.3em: a whole line
+   of small hops read as busy) and takes its light a little longer (820 ms, was 640), so the words in flight overlap
+   more and the line fills in as one soft wave running ahead of the reader rather than word after word. The rise settles
+   before the light does, so a word is in place while it is still brightening. (Still opacity and transform only.) */
+.coach-reply.calm .w-in { animation: wordLight 820ms cubic-bezier(0.33, 0.1, 0.25, 1) backwards, wordRise 700ms cubic-bezier(0.2, 0.75, 0.25, 1) backwards; }
+@keyframes wordRise { from { transform: translateY(0.14em); } to { transform: none; } }
 :root[data-motion='reduce'] .w-in { animation: none !important; }
 @media (prefers-reduced-motion: reduce) { :is(.calm, .voice-live, :root) .w-in { animation: none; } }
 :root[data-motion='reduce'] :is(.soft-in > .soft-s, .soft-in::before, .soft-in::after) { animation: none; }
@@ -1257,6 +1263,15 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .coach-send .cs-stop, .coach-send.busy .cs-go { opacity: 0; transform: rotate(-45deg) scale(0.7); }
 .coach-send.busy .cs-go { transform: rotate(45deg) scale(0.7); }
 .coach-send.busy .cs-stop { opacity: 1; transform: none; }
+/* while you speak (Coach.tsx toggleRec) the button listens with you: a small live wave of five bars (scaled to your voice,
+   transform only) until your first words show in the field, then the arrow: tap either to stop and send */
+.coach-send .cs-wave { display: flex; align-items: center; gap: 2.5px; height: 16px; opacity: 0; transform: scale(0.7); }
+.coach-send .cs-wave > i { width: 3px; height: 16px; border-radius: 2px; background: currentColor; transform: scaleY(0.22); will-change: transform; }
+.coach-send.rec .cs-go { opacity: 0; transform: scale(0.7); }
+.coach-send.rec:not(.cs-heard) .cs-go { transition: none; } /* (the button fades in already listening: no arrow fading out inside it) */
+.coach-send.rec .cs-wave { opacity: 1; transform: none; }
+.coach-send.rec.cs-heard .cs-wave { opacity: 0; transform: scale(0.7); }
+.coach-send.rec.cs-heard .cs-go { opacity: 1; transform: none; }
 .meals-empty { padding: 6px 16px 6px 20px; }
 /* the empty day's card (or the meals) fading out before the other rises in, once the add sheet has gone (Food.tsx) */
 .subpage > .fading { animation: fade-away 220ms ease forwards; pointer-events: none; }
@@ -1332,13 +1347,13 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* the Coach's camera: the chosen photo waits above the field; once sent it sits in your bubble */
 .coach-body { overflow-anchor: none; }
 .sheet-pane .coach-body.sheet-body:not([data-scrollable]) { -webkit-mask-image: none; mask-image: none; } /* (outranks the melt under sheet buttons) */
-/* The Coach's typing bar is a whole row (orb, camera, field) laid over the end of the list. With the list sharp right up to
-   and under it, words ran under the orb and the camera and were sliced off by the field's edges (the "cut-out" look).
-   The list now ends cleanly ABOVE the bar, always: it fades out over the 20 px just above the bar's top edge, so nothing
-   is ever seen behind the orb, the camera or the field (Omar, 13 Oct evening: the text running under "Ask the Coach" with
-   a muddy fade read as a mess). At rest the last message sits 30 px above that edge, clear of the fade; a line that
-   arrives while the list glides up comes out of the edge instead of rising from under the bar. (It used to slide down
-   out of the way at the list's end, so a new line showed under the bar while the list glided.)
+/* The Coach's typing bar is a whole row (orb, camera, field) laid over the end of the list. THREE GLASS OBJECTS (Omar,
+   14 Oct: "each on its own… separated with frosted glass blur"): nothing sits behind the row as a whole, no band, no tint;
+   each control is its own frosted glass over the page. The list fades out softly just above them (from 28 px above the
+   bar's top to gone 8 px into it, before the controls start), so no letters ever show in the gaps between them or
+   through them: the stencil look of words cut round each button read as clutter (judge, 14 Oct). (13 Oct the bar also
+   had a dark tint band behind it, and the controls sat on a dark strip.)
+   At rest the last message sits 30 px above the bar, clear of the fade.
    With the keyboard up the edge rides with the bar, frame by frame (--kb-now, Coach.tsx; it used to sit at the keyboard's
    full room the whole time, so while the keyboard came or went the messages between it and the bar were hidden). */
 @property --kb-now { syntax: '<length>'; inherits: false; initial-value: 0px; }
@@ -1349,17 +1364,12 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 @supports (animation-timeline: scroll()) {
   .sheet-pane .coach-body.sheet-body[data-scrollable] { --melt: calc(100% - var(--foot-h, 90px) - var(--grow) - min(var(--kb-room, 0px), var(--kb-now)));
     transition: --grow var(--cf-dur-g, 500ms) var(--cf-ease-g, ease);
-    -webkit-mask-image: linear-gradient(to bottom, transparent, transparent calc(var(--sb-fade) * .2), rgba(0,0,0,.45) calc(var(--sb-fade) * .6 - 4px), #000 calc(var(--sb-fade) - 8px), #000 calc(var(--melt) - 26px), rgba(0,0,0,.35) calc(var(--melt) - 10px), transparent var(--melt));
-    mask-image: linear-gradient(to bottom, transparent, transparent calc(var(--sb-fade) * .2), rgba(0,0,0,.45) calc(var(--sb-fade) * .6 - 4px), #000 calc(var(--sb-fade) - 8px), #000 calc(var(--melt) - 26px), rgba(0,0,0,.35) calc(var(--melt) - 10px), transparent var(--melt)); }
+    /* (--melt: the bar's top, 10 px above the row of controls) */
+    -webkit-mask-image: linear-gradient(to bottom, transparent, transparent calc(var(--sb-fade) * .2), rgba(0,0,0,.45) calc(var(--sb-fade) * .6 - 4px), #000 calc(var(--sb-fade) - 8px), #000 calc(var(--melt) - 28px), rgba(0,0,0,.45) calc(var(--melt) - 12px), rgba(0,0,0,.12) calc(var(--melt) + 2px), transparent calc(var(--melt) + 8px));
+    mask-image: linear-gradient(to bottom, transparent, transparent calc(var(--sb-fade) * .2), rgba(0,0,0,.45) calc(var(--sb-fade) * .6 - 4px), #000 calc(var(--sb-fade) - 8px), #000 calc(var(--melt) - 28px), rgba(0,0,0,.45) calc(var(--melt) - 12px), rgba(0,0,0,.12) calc(var(--melt) + 2px), transparent calc(var(--melt) + 8px)); }
 }
-/* SOFT EDGE (Omar picked "soft-edge bars", 13 Oct): the bar has no box. Behind it a plain fade (no blur: each control
-   carries its own frost, .frost-ctl below, so there is never a blur on a blur) darkens gently toward a neutral grey so the
-   orb, the camera and the field always read, over any background, riding with the bar, never animated. The text itself is
-   gone before the bar's top edge (the list's mask above): it never shows between or behind the controls ("the text bar on
-   its own", Omar 22:07). At rest the last message sits 30 px above the bar, clear of the fade. */
 .sheet-pane:has(> .sheet-foot) .coach-body.sheet-body { padding-bottom: calc(var(--foot-h, calc(var(--sab) + 76px)) + 30px + var(--grow-pad, 0px) + var(--kb-room, 0px)); }
-.coach-foot.edge-fade { --edge-x: -22px; --edge-top: 34px; --edge-bottom: calc(var(--sab) + 14px); --edge-a: 35%; }
-/* .edge-fade, shared by every bottom bar that content passes under (the Coach bar; the tab bar reuses it): a neutral grey
+/* .edge-fade, for a bottom bar that content passes under (the tab bar; the Coach bar had it until 14 Oct): a neutral grey
    tint (--edge-tint, card level) under the element, starting --edge-top above it and easing in over --edge-len up to
    --edge-a, so the bar reads over anything without ever being a dark band. `.frosted` adds a blur that starts clear and
    is full --edge-ramp down (one backdrop blur the size of the bar, never animated); leave it off when the controls in
@@ -1433,8 +1443,9 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .fly-words { position: relative; will-change: opacity; }
 .fly-words > .said-l { will-change: auto; }
 .coach-field .input::placeholder { transition: color 300ms var(--ease-out); } /* (its colour, not its opacity: an opacity fade gave it a layer that was dropped when it ended) */
+.coach-field .input { transition: caret-color 300ms var(--ease-out); } /* (the cursor comes back with "Ask the Coach", not before it) */
 .coach-composer .coach-field .input.sent-away::placeholder { color: transparent; transition: none; }
-.coach-composer .coach-field .input.sent-away { caret-color: transparent; } /* (the cursor jumped to the start as the words left) */
+.coach-composer .coach-field .input.sent-away { caret-color: transparent; transition: none; } /* (the cursor jumped to the start as the words left) */
 :root[data-motion='reduce'] :is(.coach-sent, .coach-reply, .coach-reply .w, .coach-after, .coach-after .speak-btn) { animation: none; }
 .coach-body :is(.action-card, .action-ic, .action-line, .tip) { animation: none; }
 /* "New chat": the conversation steps away, then the suggestions rise in one after another (on opening they are simply there),
@@ -1458,8 +1469,8 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .coach-composer { display: flex; align-items: center; gap: 8px; }
 /* Each control of the bar sits on its own frosted glass (.frost-ctl, Omar 13 Oct: "the text bar on its own… the camera
    its own circle that looks 3D… the orb, figure something out"): the field a pill, the camera a round button, the orb
-   rests in a frosted seat a little bigger than itself (.frost-seat). The bar behind them is only a soft tint
-   (.edge-fade, no blur), so nothing is ever blurred twice. */
+   rests in a frosted seat a little bigger than itself (.frost-seat). Nothing is behind them as a row (14 Oct: no tint,
+   no band; the list fades out just above them), so each is one blur and nothing is ever blurred twice. */
 .coach-cam.frost-ctl { flex: none; width: 46px; height: 46px; margin: 0 2px; color: var(--tx); }
 /* THE PILL OPENS WHILE YOU TYPE AND GROWS AS YOU WRITE (Coach.tsx CF_X, CF_MAX, MORPH, GROW): on focus the camera tucks
    away and the pill's left edge glides over its place (--cf-x), a beat after the tap (60 ms, so the keyboard's lift doesn't
