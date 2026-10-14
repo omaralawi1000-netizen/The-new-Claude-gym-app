@@ -745,6 +745,18 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 @supports (animation-timeline: scroll()) {
   .sheet-pane:has(> .sheet-foot) .sheet-body, .sheet-page:has(> .sheet-foot) .sheet-body { -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--sb-fade)); mask-image: linear-gradient(to bottom, transparent, #000 var(--sb-fade)); }
 }
+/* The finish screen: what scrolls under its buttons melts away just above them (as in the Coach), so no clipped letters
+   ever show in the gap between Details and Done. Before the end of the list only: at the end nothing is under the buttons,
+   and the last row rests clear above the melt (--sb-fade-b, the bottom fade above, is 0 there). */
+@supports (animation-timeline: scroll()) {
+  .sheet-pane:has(> .sheet-foot) .sheet-body.melt-foot { --mf: calc(100% - var(--foot-h, 90px) - var(--kb-room, 0px) + 10px);
+    -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--sb-fade), #000 calc(var(--mf) - 20px - var(--sb-fade-b) * .7), transparent calc(var(--mf) - 20px));
+    mask-image: linear-gradient(to bottom, transparent, #000 var(--sb-fade), #000 calc(var(--mf) - 20px - var(--sb-fade-b) * .7), transparent calc(var(--mf) - 20px)); }
+}
+/* the orb has no place on the finish screen (it was left floating beside Done, where the workout's rest bar had been): it
+   fades out while the summary is up and back in once it has gone. Only its opacity, never where it is or its size. */
+.sphere-stage > canvas { transition: opacity 320ms cubic-bezier(.3, .6, .3, 1); }
+:root[data-finish] .sphere-stage > canvas { opacity: 0; }
 /* One glass pill for every bottom button, the same on every screen (Omar: the main action was solid colour in some places
    and glass in others, and took each area's colour). A blur of its own, only the size of the pill, so what passes under
    it turns into soft colour. Ready or not ready is told by the label alone: bright when it can be pressed, faint when not. */
@@ -1916,11 +1928,12 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .sum-ray { position: absolute; width: 2px; height: 30px; top: -38px; left: calc(50% - 1px); border-radius: 2px; transform-origin: 50% 80px;
   background: linear-gradient(transparent, var(--gold)); opacity: 0; }
 /* an odometer: each digit a column of digits clipped to one row, rolled up by its transform */
-.odo { display: inline-flex; height: 1.15em; line-height: 1.15em; vertical-align: bottom; }
-/* the window is exactly one row, its edges softened by a hair (a static mask, it never moves), so a rolling digit slips in
-   and out cleanly and nothing of its neighbours shows at rest */
-.odo-c { display: inline-block; height: 1.15em; overflow: hidden;
-  -webkit-mask-image: linear-gradient(transparent, #000 9%, #000 91%, transparent); mask-image: linear-gradient(transparent, #000 9%, #000 91%, transparent); }
+/* the window is exactly one row, its edges softened (a static mask, it never moves), so a rolling digit slips in and out
+   cleanly and nothing of its neighbours shows at rest. One mask per number, not per digit: every mask is a layer of its own
+   for the GPU, and a dozen of them at once was more than the phone kept drawn when the page behind changed */
+.odo { display: inline-flex; height: 1.15em; line-height: 1.15em; vertical-align: bottom;
+  -webkit-mask-image: linear-gradient(transparent, #000 14%, #000 86%, transparent); mask-image: linear-gradient(transparent, #000 14%, #000 86%, transparent); }
+.odo-c { display: inline-block; height: 1.15em; overflow: hidden; }
 .odo-s, .odo-s > span { display: block; }
 .odo-s > span, .odo-k { height: 1.15em; line-height: 1.15em; }
 .odo-k { display: inline-block; white-space: pre; }
