@@ -1765,16 +1765,18 @@ there was a version where you did it without the blur, it came out smooth". He a
   their soft focus (not answers).
 - **A calmer pace**: at most 45 words a second (was 70). A big clump from the stream used to pour out a line every
   150 ms, which read as text being spat out.
-- **The list ends above the bar** ("the text bar on its own", Omar 22:07): the conversation fades out before the bar's top
-  edge, so no text ever shows between or behind the orb, the camera or the field. At rest the last message sits 30 px
-  above the bar. It rides with the keyboard (`--kb-now`, v0.1.98).
+- **Three glass objects, the chat runs on behind them** (14 Oct, Omar: "each on its own… separated with frosted glass
+  blur"; before that, 22:07, the list ended above the bar): nothing sits behind the row as a whole, no band or tint. The
+  conversation scrolls on behind the bar and each control's own frost blurs what passes under it. The text only fades a
+  little: over the 40 px above the controls it dims to half, then fades on out behind them, gone at their bottom edge, so
+  no stray letters show under the row. At rest the last message sits 30 px above the bar, clear of the fade. It rides
+  with the keyboard (`--kb-now`, v0.1.98).
 - **Each control on its own frosted glass** (Omar 22:10: "the text bar… the orb and the camera… its own circle that looks
   3D"): the field is a frosted pill, the camera a round frosted button, the orb rests in a frosted seat the field's
   height (`.frost-ctl` / `.frost-seat`, shared, `--fc-*` tokens): neutral glass, a light top edge, a fine rim, a soft
   shadow and a faint sheen on the top half. One small blur per control, never animated.
-- **Soft-edge bar** (Omar picked it): behind the controls only a plain fade, no blur (each control has its own, so nothing
-  is blurred twice): a neutral grey (rgb 21 22 28) easing in over 64 px to 35 % (`.edge-fade`, shared; `.edge-fade.frosted`
-  adds a blur where a bar has no frosted controls; light: the sheet's pale colour at 40 %).
+- **Soft-edge bar** (Omar picked it, 13 Oct; removed 14 Oct for the three glass objects above): a plain grey fade behind
+  the whole row (`.edge-fade`, still used by the dock).
 - **The pill opens while you type** (Omar 22:19, "expands when I type and compresses when I'm done, like iOS"): on focus
   the camera tucks back and fades, and a beat later (60 ms, so the keyboard's lift doesn't hide it) the pill's left edge
   glides over its place with a visible overshoot (about 5 px, `apple(0.62, 0.4)`); when the keyboard goes it glides back

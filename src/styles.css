@@ -1279,34 +1279,30 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* the Coach's camera: the chosen photo waits above the field; once sent it sits in your bubble */
 .coach-body { overflow-anchor: none; }
 .sheet-pane .coach-body.sheet-body:not([data-scrollable]) { -webkit-mask-image: none; mask-image: none; } /* (outranks the melt under sheet buttons) */
-/* The Coach's typing bar is a whole row (orb, camera, field) laid over the end of the list. With the list sharp right up to
-   and under it, words ran under the orb and the camera and were sliced off by the field's edges (the "cut-out" look).
-   The list now ends cleanly ABOVE the bar, always: it fades out over the 20 px just above the bar's top edge, so nothing
-   is ever seen behind the orb, the camera or the field (Omar, 13 Oct evening: the text running under "Ask the Coach" with
-   a muddy fade read as a mess). At rest the last message sits 30 px above that edge, clear of the fade; a line that
-   arrives while the list glides up comes out of the edge instead of rising from under the bar. (It used to slide down
-   out of the way at the list's end, so a new line showed under the bar while the list glided.)
-   With the keyboard up the edge rides with the bar, frame by frame (--kb-now, Coach.tsx; it used to sit at the keyboard's
-   full room the whole time, so while the keyboard came or went the messages between it and the bar were hidden). */
+/* The Coach's typing bar is a whole row (orb, camera, field) laid over the end of the list. THREE GLASS OBJECTS (Omar,
+   14 Oct: "each on its own… separated with frosted glass blur"): the list now runs on behind the bar, and each control's
+   own frost blurs whatever passes under it. Nothing sits behind the row as a whole: no band, no tint. The text only fades
+   a little: over the 40 px above the controls it dims to half (so the orb, the camera and the field read clearly over
+   it), then fades on out behind them, gone at their bottom edge, so no stray letters peek out under the row.
+   (13 Oct it ended ABOVE the bar; the bar had a dark tint band and the controls sat on a dark strip.)
+   At rest the last message sits 30 px above the bar, clear of the fade, so only words scrolling past go behind the glass.
+   With the keyboard up the bar's place rides with it, frame by frame (--kb-now, Coach.tsx; it used to sit at the
+   keyboard's full room the whole time, so while the keyboard came or went the messages between it and the bar were hidden). */
 @property --kb-now { syntax: '<length>'; inherits: false; initial-value: 0px; }
 @property --cf-gt { syntax: '<length>'; inherits: false; initial-value: 0px; } /* (the pill's frost outline: its top and its left edge) */
 @property --cf-gl { syntax: '<length>'; inherits: false; initial-value: 0px; }
 @property --grow { syntax: '<length>'; inherits: false; initial-value: 0px; } /* (the typing pill's extra lines: the end of the conversation rises with it) */
 @property --melt { syntax: '<length-percentage>'; inherits: false; initial-value: 100%; } /* (not handed down to every word: it changes as you scroll) */
+@property --melt-b { syntax: '<length-percentage>'; inherits: false; initial-value: 100%; }
 @supports (animation-timeline: scroll()) {
-  .sheet-pane .coach-body.sheet-body[data-scrollable] { --melt: calc(100% - var(--foot-h, 90px) - var(--grow) - min(var(--kb-room, 0px), var(--kb-now)));
+  .sheet-pane .coach-body.sheet-body[data-scrollable] { --melt-b: calc(100% - min(var(--kb-room, 0px), var(--kb-now))); --melt: calc(var(--melt-b) - var(--foot-h, 90px) - var(--grow));
     transition: --grow var(--cf-dur-g, 500ms) var(--cf-ease-g, ease);
-    -webkit-mask-image: linear-gradient(to bottom, transparent, transparent calc(var(--sb-fade) * .2), rgba(0,0,0,.45) calc(var(--sb-fade) * .6 - 4px), #000 calc(var(--sb-fade) - 8px), #000 calc(var(--melt) - 26px), rgba(0,0,0,.35) calc(var(--melt) - 10px), transparent var(--melt));
-    mask-image: linear-gradient(to bottom, transparent, transparent calc(var(--sb-fade) * .2), rgba(0,0,0,.45) calc(var(--sb-fade) * .6 - 4px), #000 calc(var(--sb-fade) - 8px), #000 calc(var(--melt) - 26px), rgba(0,0,0,.35) calc(var(--melt) - 10px), transparent var(--melt)); }
+    /* --melt: the bar's top; --melt-b: its bottom (the screen's, or the keyboard's top) */
+    -webkit-mask-image: linear-gradient(to bottom, transparent, transparent calc(var(--sb-fade) * .2), rgba(0,0,0,.45) calc(var(--sb-fade) * .6 - 4px), #000 calc(var(--sb-fade) - 8px), #000 calc(var(--melt) - 30px), rgba(0,0,0,.72) calc(var(--melt) - 12px), rgba(0,0,0,.5) calc(var(--melt) + 10px), transparent calc(var(--melt-b) - var(--sab) - 26px));
+    mask-image: linear-gradient(to bottom, transparent, transparent calc(var(--sb-fade) * .2), rgba(0,0,0,.45) calc(var(--sb-fade) * .6 - 4px), #000 calc(var(--sb-fade) - 8px), #000 calc(var(--melt) - 30px), rgba(0,0,0,.72) calc(var(--melt) - 12px), rgba(0,0,0,.5) calc(var(--melt) + 10px), transparent calc(var(--melt-b) - var(--sab) - 26px)); }
 }
-/* SOFT EDGE (Omar picked "soft-edge bars", 13 Oct): the bar has no box. Behind it a plain fade (no blur: each control
-   carries its own frost, .frost-ctl below, so there is never a blur on a blur) darkens gently toward a neutral grey so the
-   orb, the camera and the field always read, over any background, riding with the bar, never animated. The text itself is
-   gone before the bar's top edge (the list's mask above): it never shows between or behind the controls ("the text bar on
-   its own", Omar 22:07). At rest the last message sits 30 px above the bar, clear of the fade. */
 .sheet-pane:has(> .sheet-foot) .coach-body.sheet-body { padding-bottom: calc(var(--foot-h, calc(var(--sab) + 76px)) + 30px + var(--grow-pad, 0px) + var(--kb-room, 0px)); }
-.coach-foot.edge-fade { --edge-x: -22px; --edge-top: 34px; --edge-bottom: calc(var(--sab) + 14px); --edge-a: 35%; }
-/* .edge-fade, shared by every bottom bar that content passes under (the Coach bar; the tab bar reuses it): a neutral grey
+/* .edge-fade, for a bottom bar that content passes under (the tab bar; the Coach bar had it until 14 Oct): a neutral grey
    tint (--edge-tint, card level) under the element, starting --edge-top above it and easing in over --edge-len up to
    --edge-a, so the bar reads over anything without ever being a dark band. `.frosted` adds a blur that starts clear and
    is full --edge-ramp down (one backdrop blur the size of the bar, never animated); leave it off when the controls in
@@ -1405,8 +1401,8 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .coach-composer { display: flex; align-items: center; gap: 8px; }
 /* Each control of the bar sits on its own frosted glass (.frost-ctl, Omar 13 Oct: "the text bar on its own… the camera
    its own circle that looks 3D… the orb, figure something out"): the field a pill, the camera a round button, the orb
-   rests in a frosted seat a little bigger than itself (.frost-seat). The bar behind them is only a soft tint
-   (.edge-fade, no blur), so nothing is ever blurred twice. */
+   rests in a frosted seat a little bigger than itself (.frost-seat). Nothing is behind them as a row (14 Oct: no tint,
+   no band; the list's own fade above does the rest), so each is one blur and nothing is ever blurred twice. */
 .coach-cam.frost-ctl { flex: none; width: 46px; height: 46px; margin: 0 2px; color: var(--tx); }
 /* THE PILL OPENS WHILE YOU TYPE AND GROWS AS YOU WRITE (Coach.tsx CF_X, CF_MAX, MORPH, GROW): on focus the camera tucks
    away and the pill's left edge glides over its place (--cf-x), a beat after the tap (60 ms, so the keyboard's lift doesn't
