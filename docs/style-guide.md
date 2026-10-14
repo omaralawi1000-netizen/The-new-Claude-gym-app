@@ -178,7 +178,8 @@ All of it: **slow, calm, Apple-like, never snappier unless Omar agrees.** The or
 7. **Film rules:** steps of 1000/30 ms per frame for real speed; half-speed by duplicating frames (never minterpolate);
    clips without `AVEN_GPU=1` do not draw frost; freeze `document.getAnimations()` and step `currentTime` for stepped films.
    `AVEN_GPU=1` is needed to render blur in headless.
-8. **Ship only on Omar's yes** (visual changes): bump `package.json` (check `main` right before, others ship in parallel),
+8. **Ship to Beta first, then ship on Omar's yes** (visual changes): deploy the branch to Aven Beta (see CLAUDE.md → "Ship to Beta":
+   workflow `pages.yml` with input `beta_branch`), Omar tries it on his phone, and only after his yes: bump `package.json` (check `main` right before, others ship in parallel),
    `npm run verify`, PR into `ccr-d1172cc7-1e03wh`, merge, confirm "Deploy web app" is green. Red = his phone keeps the old
    version: fix at once.
 9. **Tell him** exactly what to check on the phone (screen, action, what it should look like) and to fully reload.
