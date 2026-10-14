@@ -76,6 +76,37 @@ html:root[data-glow='off'] .aurora, html:root[data-glow='off'] .aurora-lite { di
 :root[data-palette='forest'] [data-hue='train'] { --ac: #d4f25a; --h1: #2fa05a; --h2: #6a8f1c; --h3: #ffd04d; }
 :root[data-palette='forest'] [data-hue='food'] { --ac: #8af25a; --h1: #2fe08a; --h2: #1c8a63; --h3: #c6f24a; }
 :root[data-palette='forest'] [data-hue='progress'] { --ac: #5ae0a8; --h1: #2f9d8a; --h2: #4b9b5a; --h3: #b6f25a; }
+/* Golden hour: a real sunset. The light is red-orange (hue 10-15, like the sky low on the horizon); sun-yellow only where
+   it is brightest: the accent, the sun's core, the top of the start button. Mid-light yellow-orange over the dark page
+   reads as caramel/brown, so nothing in the fields sits there. The macro rings: sunset orange kcal, ember protein, dusk
+   lavender carbs, gold fat. */
+:root[data-palette='golden'] [data-hue='today'] { --ac: #ffb547; --h1: #ff4a1a; --h2: #ff5a24; --h3: #e8301a; }
+:root[data-palette='golden'] [data-hue='train'] { --ac: #ff9a3d; --h1: #ff3d1a; --h2: #ff5a24; --h3: #d92a1a; }
+:root[data-palette='golden'] [data-hue='food'] { --ac: #ffc44d; --h1: #ff5a1f; --h2: #ff3d1a; --h3: #ff6a2a; }
+:root[data-palette='golden'] [data-hue='progress'] { --ac: #ffa84a; --h1: #ff4a1a; --h2: #e8301a; --h3: #ff6a2a; }
+html:root[data-palette='golden'] { --c-kcal: #ff7a2f; --c-protein: #ff5436; --c-carbs: #a8b4ff; --c-fat: #ffd060; --c-water: #ffb547; }
+:root[data-palette='golden'] .bg-sun { --sun-mid: #ff7a2f; --sun-wide: #c8401a; --sun-h2: #8a2410; --sun-h1: #5a1a0e; }
+:root[data-palette='golden'] .bg-sun-sky { --h1: #5a1a0e; }
+:root[data-palette='golden'] .icon-btn.acc { background: linear-gradient(180deg, #ffc65a, #ff7a2f); box-shadow: inset 0 1px 0 rgba(255,255,255,.55), 0 14px 34px -10px rgb(255 74 26 / .7); }
+/* Midnight: deep blue light with an ice-blue accent; quiet, cool, one family. Macros: coral, ice, pale gold. */
+:root[data-palette='midnight'] [data-hue='today'] { --ac: #9cc4ff; --h1: #1d3fa8; --h2: #4a7dff; --h3: #2a2f8f; }
+:root[data-palette='midnight'] [data-hue='train'] { --ac: #8ab4ff; --h1: #2348c4; --h2: #5b6cff; --h3: #1a6a9e; }
+:root[data-palette='midnight'] [data-hue='food'] { --ac: #9ee6ff; --h1: #1f5fb0; --h2: #3aa0d8; --h3: #3a46b8; }
+:root[data-palette='midnight'] [data-hue='progress'] { --ac: #b4bcff; --h1: #3a3fb8; --h2: #5a8cff; --h3: #2a5aa8; }
+html:root[data-palette='midnight'] { --c-protein: #ff8a7a; --c-carbs: #9cc4ff; --c-fat: #f2d48a; --c-water: #9ee6ff; }
+html:root[data-palette='midnight']:not([data-theme='light']) { --nokey: #9cc4ff; }
+/* Champagne: graphite light with one warm gold glow (saturated: a pale warm glow reads grey-beige) and a champagne accent. Macros: champagne kcal, honey protein, ice-platinum carbs,
+   bronze fat. Its sun is a deep, saturated gold low down (a pale warm glow over the dark page reads grey-khaki). */
+:root[data-palette='champagne'] [data-hue='today'] { --ac: #e8cf9a; --h1: #6e6c78; --h2: #c08c2e; --h3: #4a4a56; }
+:root[data-palette='champagne'] [data-hue='train'] { --ac: #e6c58a; --h1: #76727e; --h2: #b8862c; --h3: #44444f; }
+:root[data-palette='champagne'] [data-hue='food'] { --ac: #ecd6a8; --h1: #7c7884; --h2: #c49434; --h3: #50505c; }
+:root[data-palette='champagne'] [data-hue='progress'] { --ac: #e2c896; --h1: #706e7a; --h2: #bc8a30; --h3: #4c4c58; }
+html:root[data-palette='champagne'] { --c-kcal: #f5e2b8; --c-protein: #e0b07a; --c-carbs: #b4caf2; --c-fat: #b9784a; --c-water: #d8e6f5; }
+:root[data-palette='champagne'] .bg-sun { --sun-mid: #8a6224; --sun-wide: #6a4a1a; --sun-h2: #4a3a2a; --sun-h1: #3a3640; }
+/* on a light page the new looks' rings and water drop take the deep version of their colours (the pale ones vanish) */
+html:root[data-palette='golden'][data-theme='light'] { --c-kcal: #f2641a; --c-protein: #e0401f; --c-carbs: #6a78e0; --c-fat: #d49a12; --c-water: #e08a12; }
+html:root[data-palette='midnight'][data-theme='light'] { --c-protein: #e8604e; --c-carbs: #3a78d8; --c-fat: #c99a2a; --c-water: #1f8fc4; }
+html:root[data-palette='champagne'][data-theme='light'] { --c-kcal: #c9a050; --c-protein: #c07a3a; --c-carbs: #6a88b8; --c-fat: #8a5a32; --c-water: #6a90b0; }
 /* contents that arrive a beat after a tall sheet starts moving fade in instead of appearing */
 .sheet-pane.late > * { animation: fadein 220ms var(--ease-out) both; }
 /* …but the bottom buttons' fade is let go once it has run (fill backwards): an animation kept on the foot makes it a closed
@@ -680,7 +711,8 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .sheet-body { overflow-y: auto; flex: 1; padding: 0 22px calc(var(--sab) + 28px + var(--kb-room, 0px)); overscroll-behavior: contain; scrollbar-width: none; }
 .sheet-body::-webkit-scrollbar { display: none; }
 /* content that scrolls up under a sheet's title fades out softly instead of being cut by a hard edge. The fade only grows
-   in once the list has moved (a scroll-driven animation), so the first row is never faded at rest. */
+   in once the list has moved (a scroll-driven animation, from 8 px of scroll), so the first row is never faded at rest
+   and a list nudged by a few px (a tap that scrolls a row into view) doesn't dim its heading. */
 @property --sb-fade { syntax: '<length>'; inherits: false; initial-value: 0px; }
 @property --sb-fade-b { syntax: '<length>'; inherits: false; initial-value: 0px; }
 @keyframes sb-fade { to { --sb-fade: 44px; } }
@@ -689,13 +721,13 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 @keyframes sb-fade-b { from { --sb-fade-b: 40px; } to { --sb-fade-b: 0px; } }
 @supports (animation-timeline: scroll()) {
   .sheet-body { -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--sb-fade), #000 calc(100% - var(--sb-fade-b)), transparent); mask-image: linear-gradient(to bottom, transparent, #000 var(--sb-fade), #000 calc(100% - var(--sb-fade-b)), transparent);
-    animation: sb-fade linear both, sb-fade-b linear both; animation-timeline: scroll(self), scroll(self); animation-range: 0 40px, calc(100% - 40px) 100%; }
+    animation: sb-fade linear both, sb-fade-b linear both; animation-timeline: scroll(self), scroll(self); animation-range: 8px 48px, calc(100% - 40px) 100%; }
 }
 /* Tall sheets fade their content in as they open (`.sheet-pane.late > *`, line ~68). That shorthand also replaced the list's
    scroll-driven fade, so Add food, Coach and the other tall sheets had no soft edge at all. The list keeps both: the opening
    fade runs on time, the edges follow the scroll. */
 @supports (animation-timeline: scroll()) {
-  .sheet-pane.late > .sheet-body { animation: fadein 220ms var(--ease-out) both, sb-fade linear both, sb-fade-b linear both; animation-timeline: auto, scroll(self), scroll(self); animation-range: normal, 0 40px, calc(100% - 40px) 100%; }
+  .sheet-pane.late > .sheet-body { animation: fadein 220ms var(--ease-out) both, sb-fade linear both, sb-fade-b linear both; animation-timeline: auto, scroll(self), scroll(self); animation-range: normal, 8px 48px, calc(100% - 40px) 100%; }
 }
 .sheet-head { flex: none; display: flex; align-items: center; gap: 10px; padding: 2px 22px 12px; }
 /* a title sliding in (Settings pages) isn't cut off at the edge of its box: the clip reaches a little past it (long titles still end in …) */
@@ -1257,7 +1289,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
   animation: rise-soft 520ms var(--ease-out) both; animation-delay: calc(80ms + var(--i, 0) * 70ms); }
 .tip-ic { flex: none; width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center; background: var(--ac-soft); color: var(--ac-text); }
 .tip-l { display: block; font-weight: 600; line-height: 1.25; }
-.tip-p { display: block; margin-top: 2px; font-size: 13px; color: var(--tx3); line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tip-p { display: block; margin-top: 2px; font-size: 13px; color: var(--tx2); line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* Food search: the six ways in, as one tidy grid (nothing scrolls sideways or hides off the edge) */
 /* the ways to add food: one compact row of pills (it used to be two rows of tiles that pushed your recent foods down) */
@@ -1750,7 +1782,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
   /* …and the orb's talk list melts away at its bottom too while there is more below (it was cut in a straight line above the
      buttons). Gone once it is at its end, so the typing box and its glow sit there whole. */
   .fade-top.fade-bottom { -webkit-mask-image: linear-gradient(to bottom, transparent, rgba(0,0,0,.1) calc(var(--ft) * .2), rgba(0,0,0,.36) calc(var(--ft) * .45), rgba(0,0,0,.74) calc(var(--ft) * .74), #000 var(--ft), #000 calc(100% - var(--fb)), rgba(0,0,0,.36) calc(100% - var(--fb) * .45), transparent); mask-image: linear-gradient(to bottom, transparent, rgba(0,0,0,.1) calc(var(--ft) * .2), rgba(0,0,0,.36) calc(var(--ft) * .45), rgba(0,0,0,.74) calc(var(--ft) * .74), #000 var(--ft), #000 calc(100% - var(--fb)), rgba(0,0,0,.36) calc(100% - var(--fb) * .45), transparent);
-    animation: ft-in linear both, fb-out linear both; animation-timeline: scroll(self), scroll(self); animation-range: 0 40px, calc(100% - 40px) 100%; }
+    animation: ft-in linear both, fb-out linear both; animation-timeline: scroll(self), scroll(self); animation-range: 8px 48px, calc(100% - 40px) 100%; }
 }
 @property --fb { syntax: '<length>'; inherits: false; initial-value: 0px; }
 @keyframes fb-out { from { --fb: 40px; } to { --fb: 0px; } }
@@ -1907,3 +1939,161 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-breath.hold > b { animation-play-state: paused; }
 @keyframes breathe { 0.0% { opacity: 0.4000; animation-timing-function: steps(10, jump-none); } 12.5% { opacity: 0.4228; animation-timing-function: steps(10, jump-none); } 25.0% { opacity: 0.4879; animation-timing-function: steps(10, jump-none); } 37.5% { opacity: 0.5852; animation-timing-function: steps(10, jump-none); } 50.0% { opacity: 0.7000; animation-timing-function: steps(10, jump-none); } 62.5% { opacity: 0.8148; animation-timing-function: steps(10, jump-none); } 75.0% { opacity: 0.9121; animation-timing-function: steps(10, jump-none); } 87.5% { opacity: 0.9772; animation-timing-function: steps(10, jump-none); } 100.0% { opacity: 1.0000; } }
 :root[data-motion='reduce'] .wk-breath > b { animation: none; }
+
+/* ── Backgrounds (Settings → Appearance → Background; ui/Backdrop.tsx) ──────────────────────────────────────────────
+   Every one but Classic holds still: a few gradients (or one small, already-blurred photo) painted once, so the frosted
+   tab bar, sheets and Coach bar over them never re-blur a moving field. Strength follows Background glow (--aurora-a:
+   Full / Soft); Off leaves a plain background (Your photo stays: it is your picture, not a glow). The page's grain
+   (.fields::before) lies over all of them, which is what keeps their soft gradients from banding. Sized in % of their
+   box, so the small previews in Settings are the same picture. */
+.bgx { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; contain: strict; --bgk: calc(var(--aurora-a) * 1.8); }
+.fields > .bgx { will-change: opacity; background-color: var(--bg); } /* opaque, so a change lays the new one over the old (App.tsx FIELD) */
+.bgx > b { position: absolute; inset: 0; display: block; }
+html:root[data-glow='off'] .bgx:not([data-k='photo']) { display: none; }
+:root[data-palette='mono'] .bgx { --bgk: calc(var(--aurora-a) * 1.3); }
+/* where the tab bar's orb sits (the middle of the dock) */
+.bgx { --orb-y: calc(100% - 50px - var(--sab)); }
+
+/* Orb light: a halo centred on the orb (measured, --ox / --oy) and a beam of the accent rising from the dock. With the
+   Coach open the halo glides to the Coach's orb, bottom-left, as one transform, and the beam fades. While the Coach (or
+   the orb screen) answers, a brighter copy fades in. Only transform and opacity ever change. */
+.bg-orb-all i { position: absolute; inset: 0; display: block; }
+/* the beam follows the orb sideways (the dock's orb moves with the tab you are on, the Coach's is at the left) */
+.bg-orb, .bg-orb-lit { will-change: transform; transform: translate3d(calc(var(--ox, 50%) - 50%), 0, 0); }
+.bg-orb { opacity: calc(var(--bgk) * .95); transition: opacity 1.1s var(--ease-io), transform 1.1s var(--ease-smooth);
+  background:
+    radial-gradient(26% 72% at 50% 100%, color-mix(in srgb, var(--ac) 34%, transparent), transparent 100%),
+    radial-gradient(70% 34% at 50% 100%, color-mix(in srgb, var(--ac) 26%, transparent), transparent 100%),
+    radial-gradient(120% 52% at 50% 100%, color-mix(in srgb, var(--h1) 30%, transparent), transparent 100%); }
+.bg-orb.away { opacity: calc(var(--bgk) * .12); }
+.bg-orb-lit { opacity: 0; transition: opacity 1.6s var(--ease-io), transform 1.1s var(--ease-smooth);
+  background: radial-gradient(34% 92% at 50% 100%, color-mix(in srgb, var(--ac) 44%, transparent), transparent 100%); }
+.bg-orb-lit.on { opacity: calc(var(--bgk) * .9); transition-duration: 1.2s, 1.1s; }
+.bg-orb-all > i.bg-orb-spot { inset: auto; left: 0; top: 0; width: 560px; height: 560px; margin: -280px 0 0 -280px; will-change: transform;
+  transform: translate3d(var(--ox, 50vw), var(--oy, calc(100vh - 50px)), 0); transition: transform 1.1s var(--ease-smooth); }
+.bg-orb-spot > i { position: absolute; inset: 0; opacity: calc(var(--bgk) * .95); transition: opacity 1.6s var(--ease-io);
+  background:
+    radial-gradient(circle 140px at 50% 50%, color-mix(in srgb, var(--ac) 64%, transparent), transparent 100%),
+    radial-gradient(circle 280px at 50% 50%, color-mix(in srgb, var(--ac) 20%, transparent), transparent 100%); }
+.bg-orb-spot > i + i { opacity: 0;
+  background: radial-gradient(circle 180px at 50% 50%, color-mix(in srgb, var(--ac) 78%, #fff 8%), transparent 100%); }
+.bg-orb-spot > i + i.on { opacity: calc(var(--bgk) * .9); transition-duration: 1.2s; }
+
+/* Colour per tab: its own cool colour on each area, whatever the palette (the accent on buttons still follows the palette).
+   All four are cool on purpose: a warm wash under see-through cards turned them amber next to a teal accent. */
+.bgx[data-hue='today'] { --t1: #1fb8d0; --t2: #2f6bdc; --t3: #4be0c0; }
+.bgx[data-hue='train'] { --t1: #3d6bff; --t2: #22a8ff; --t3: #6a4bff; }
+.bgx[data-hue='food'] { --t1: #1fc77a; --t2: #12a6a0; --t3: #a8e05a; }
+.bgx[data-hue='progress'] { --t1: #8a5cff; --t2: #c25cff; --t3: #4b7bff; }
+.bg-tabs { opacity: var(--bgk);
+  background:
+    radial-gradient(120% 62% at 0% 0%, color-mix(in srgb, var(--t1) 62%, transparent), transparent 72%),
+    radial-gradient(85% 55% at 100% 30%, color-mix(in srgb, var(--t2) 40%, transparent), transparent 72%),
+    radial-gradient(115% 48% at 50% 108%, color-mix(in srgb, var(--t3) 34%, transparent), transparent 76%),
+    linear-gradient(168deg, color-mix(in srgb, var(--t1) 16%, transparent), transparent 62%); }
+
+/* Sunrise: a sun on a horizon that rises as the day's calories and protein fill up (--fill, 0..1), in one slow move. On a
+   full day the horizon sits at the quick-add row, clear of the big cards and the tab bar, so the sun reads at rest; on an
+   empty day only its first light shows at the bottom. Below the horizon the sky dims again, like land. */
+.bg-sun-sky { opacity: var(--bgk); background: linear-gradient(to top, color-mix(in srgb, var(--h1) 30%, transparent), transparent 62%); }
+.bg-sun { will-change: transform;
+  opacity: calc(var(--bgk) * (.75 + var(--fill, 0) * .25));
+  transform: translateY(calc((1 - var(--fill, 0)) * 34%));
+  transition: transform 2.6s var(--ease-smooth), opacity 2.6s var(--ease-smooth);
+  background:
+    linear-gradient(to bottom, transparent 64%, color-mix(in srgb, var(--bg) 34%, transparent) 69%, color-mix(in srgb, var(--bg) 52%, transparent) 84%),
+    radial-gradient(22% 7% at 50% 64%, color-mix(in srgb, var(--ac) 66%, #fff 30%), transparent 100%),
+    radial-gradient(46% 17% at 50% 64%, color-mix(in srgb, var(--sun-mid, var(--ac)) 70%, transparent), transparent 100%),
+    radial-gradient(90% 32% at 50% 64%, color-mix(in srgb, var(--sun-wide, var(--ac)) 46%, transparent), transparent 100%),
+    radial-gradient(130% 48% at 50% 66%, color-mix(in srgb, var(--sun-h2, var(--h2)) 40%, transparent), transparent 100%),
+    radial-gradient(160% 70% at 50% 70%, color-mix(in srgb, var(--sun-h1, var(--h1)) 28%, transparent), transparent 100%); }
+/* the macro numbers sit just above the horizon, where the sun is brightest: a soft dark pool under them and full-strength
+   muted text keep them readable (4.5:1) at any fill */
+:root:not([data-theme='light'])[data-bg='sunrise'] .macro-row { position: relative; isolation: isolate; }
+:root:not([data-theme='light'])[data-bg='sunrise'] .macro-row::before { content: ''; position: absolute; inset: -14px -18px -10px; z-index: -1;
+  border-radius: 40px; background: radial-gradient(closest-side, rgb(4 5 10 / .62), rgb(4 5 10 / .4) 60%, transparent); }
+:root:not([data-theme='light'])[data-bg='sunrise'] .macro-row .t3, :root:not([data-theme='light'])[data-bg='sunrise'] .macro-row .micro { color: rgb(236 239 250 / .82); }
+:root[data-theme='light'][data-bg='sunrise'] .macro-row .t3, :root[data-theme='light'][data-bg='sunrise'] .macro-row .micro { color: rgb(15 18 32 / .74); }
+
+/* Mesh: a still blend of the area's colours across the whole screen, like the colour behind album art */
+.bg-mesh { opacity: var(--bgk);
+  background:
+    radial-gradient(75% 48% at 6% 4%, color-mix(in srgb, var(--h1) 78%, transparent), transparent 74%),
+    radial-gradient(70% 44% at 98% 20%, color-mix(in srgb, var(--h2) 62%, transparent), transparent 74%),
+    radial-gradient(85% 46% at 14% 62%, color-mix(in srgb, var(--h3) 46%, transparent), transparent 74%),
+    radial-gradient(80% 46% at 94% 96%, color-mix(in srgb, var(--h1) 50%, transparent), transparent 74%),
+    linear-gradient(160deg, color-mix(in srgb, var(--h2) 12%, transparent), color-mix(in srgb, var(--h3) 10%, transparent)); }
+
+/* Dot field: fine dots in the area's colour that shrink and fade down from the top, under a light of the accent */
+.bg-dots-wash { opacity: var(--bgk);
+  background: radial-gradient(110% 46% at 50% 0%, color-mix(in srgb, var(--ac) 36%, transparent), transparent 80%),
+    radial-gradient(70% 32% at 90% 4%, color-mix(in srgb, var(--h1) 30%, transparent), transparent 80%); }
+.bg-dots { opacity: calc(var(--bgk) * .9); background: center top / 106% auto no-repeat; top: calc(var(--sat) + 4px); }
+
+/* Time of day: the sky of the hour (cool dawn, light midday, dusk, deep night), set when you open the app */
+.bg-sky { opacity: calc(var(--bgk) * (.62 + var(--skb, 0) * .3));
+  background:
+    radial-gradient(130% 52% at 50% 0%, var(--sk1), transparent 76%),
+    radial-gradient(140% 46% at 50% 104%, var(--sk3), transparent 74%),
+    linear-gradient(to bottom, color-mix(in srgb, var(--sk1) 34%, transparent), color-mix(in srgb, var(--sk2) 30%, transparent) 52%, color-mix(in srgb, var(--sk3) 36%, transparent)); }
+
+/* Night sky: after sunset in Aarhus, near-black with still stars and the faint band of the Milky Way; before it, a calm
+   dusk (blue and violet, or golden with the warm palettes). Darker and starrier than Time of day's night on purpose. */
+.bg-night { opacity: var(--bgk); background: radial-gradient(130% 34% at 50% 106%, rgb(40 52 120 / .5), transparent 76%), linear-gradient(to bottom, #010207, #03050f 62%, #070a1e); }
+.bg-milky { opacity: var(--bgk); background:
+    radial-gradient(60% 20% at 62% 26%, rgb(170 185 255 / .07), transparent 80%),
+    linear-gradient(118deg, transparent 26%, rgb(140 160 255 / .06) 38%, rgb(200 210 255 / .11) 46%, rgb(160 170 255 / .065) 54%, transparent 66%); }
+.bg-stars { background-size: cover; background-position: center; opacity: min(1, calc(var(--bgk) * 1.1)); }
+.bg-dusk { opacity: var(--bgk);
+  background: radial-gradient(140% 42% at 50% 104%, rgb(150 100 230 / .55), transparent 72%),
+    linear-gradient(to bottom, rgb(10 16 54 / .92), rgb(30 36 110 / .72) 55%, rgb(80 60 160 / .6) 86%, rgb(140 100 210 / .5)); }
+.bg-dusk.warm {
+  background: radial-gradient(140% 42% at 50% 104%, rgb(255 138 76 / .55), transparent 72%),
+    linear-gradient(to bottom, rgb(14 20 58 / .9), rgb(52 36 96 / .7) 55%, rgb(150 70 110 / .55) 86%, rgb(222 110 80 / .5)); }
+
+/* Over the dot field and the night sky, cards, chips and buttons on the tab screens are the same dark glass made solid:
+   over a near-black background it looks the same, and no dot or star shows through a card. (Dark only.) */
+:root:not([data-theme='light'])[data-bg='night'] .screen { --s1: #111421; --s2: #151826; --s3: #1c1f2e; --bg-2: #03040c; }
+:root:not([data-theme='light'])[data-bg='dots'] .screen { --s1: #14151b; --s2: #18191f; --s3: #212228; --bg-2: #030407; }
+/* Under Time of day's brighter skies (midday, dusk) and Sunrise's sun, the cards and chips are a darker frost, so their
+   grey text and the accent buttons keep their contrast (4.5:1 or better) while a little of the light still shows
+   through. (Dark only.) */
+:root:not([data-theme='light'])[data-bg='time'] .screen, :root:not([data-theme='light'])[data-bg='sunrise'] .screen { --s1: rgb(8 11 19 / .76); --s2: rgb(12 15 24 / .8); --s3: rgb(22 25 35 / .82); --bg-2: rgb(3 4 10 / .55); }
+
+/* Your photo: blurred once when you picked it, darkened here so cards and text stay easy to read */
+.bg-photo { background: center / cover no-repeat; background-color: var(--bg); }
+.bg-photo-dim { background: linear-gradient(to bottom, rgb(5 6 11 / .64), rgb(5 6 11 / .7) 45%, rgb(5 6 11 / .84)); }
+html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to bottom, rgb(5 6 11 / .74), rgb(5 6 11 / .8) 45%, rgb(5 6 11 / .88)); }
+
+/* light: the same lights, a little softer; night and dusk become a pale evening sky (no stars on a light page) */
+:root[data-theme='light'] .bgx { --bgk: calc(var(--aurora-a) * 1.6); }
+:root[data-theme='light'] .bg-night { background: radial-gradient(130% 45% at 50% 104%, rgb(160 150 230 / .45), transparent 76%), linear-gradient(to bottom, rgb(190 198 238 / .75), rgb(210 210 242 / .5) 60%, rgb(220 210 242 / .6)); }
+:root[data-theme='light'] .bg-stars, :root[data-theme='light'] .bg-milky { display: none; }
+:root[data-theme='light'] .bg-dusk { background: radial-gradient(140% 42% at 50% 104%, rgb(170 150 255 / .5), transparent 72%), linear-gradient(to bottom, rgb(180 196 245 / .6), rgb(200 196 245 / .45) 60%, rgb(215 190 245 / .5)); }
+:root[data-theme='light'] .bg-dusk.warm { background: radial-gradient(140% 42% at 50% 104%, rgb(255 170 130 / .55), transparent 72%), linear-gradient(to bottom, rgb(190 200 240 / .6), rgb(220 200 236 / .45) 60%, rgb(255 200 180 / .5)); }
+:root[data-theme='light'] .bg-photo-dim { background: linear-gradient(to bottom, rgb(233 236 244 / .66), rgb(233 236 244 / .72) 45%, rgb(233 236 244 / .84)); }
+/* a light page keeps the hour's colour but never its darkness: night is a pale indigo, not grey */
+:root[data-theme='light'] .bg-sky { opacity: var(--bgk);
+  background:
+    radial-gradient(130% 52% at 50% 0%, color-mix(in srgb, var(--sk1) 55%, #fff), transparent 76%),
+    radial-gradient(140% 46% at 50% 104%, color-mix(in srgb, var(--sk3) 60%, #fff), transparent 74%); }
+@supports (color: oklch(from red l c h)) {
+  :root[data-theme='light'] .bg-sky {
+    background:
+      radial-gradient(130% 52% at 50% 0%, oklch(from var(--sk1) .84 calc(c * .9 + .05) h), transparent 76%),
+      radial-gradient(140% 46% at 50% 104%, oklch(from var(--sk3) .86 calc(c * .9 + .05) h), transparent 74%),
+      linear-gradient(to bottom, oklch(from var(--sk1) .88 calc(c * .6 + .03) h / .45), oklch(from var(--sk2) .9 calc(c * .6 + .03) h / .35) 52%, oklch(from var(--sk3) .9 calc(c * .6 + .03) h / .45)); }
+}
+
+/* the picker's small previews: the real layer, small, under a sketch of Today */
+.bg-pv > .bgx, .bg-pv > .aurora { z-index: 0; }
+.bg-pv > .aurora i { animation: none !important; }
+.bg-pv > span { z-index: 1; }
+.bg-pv .bgx { --orb-y: calc(100% - 17px); }
+.bg-pv .bg-orb { background:
+    radial-gradient(circle 34px at 50% calc(100% - 17px), color-mix(in srgb, var(--ac) 62%, transparent), transparent 100%),
+    radial-gradient(26% 72% at 50% 100%, color-mix(in srgb, var(--ac) 36%, transparent), transparent 100%),
+    radial-gradient(120% 52% at 50% 100%, color-mix(in srgb, var(--h1) 34%, transparent), transparent 100%); }
+.bg-pv .bg-orb-spot { display: none; }
+.bg-pv .bg-dots { top: 2px; background-size: 260% auto; }
+.bg-pv-empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--tx3); z-index: 1; }

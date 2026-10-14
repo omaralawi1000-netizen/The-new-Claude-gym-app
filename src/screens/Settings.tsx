@@ -27,6 +27,7 @@ import { CoachMemory } from './CoachMemory';
 import { cardOrder, type TodayCard } from './TodayCards';
 import { startDragSort } from '../ui/dragSort';
 import { setFpsMeter, useFpsMeterOn } from '../ui/FpsMeter';
+import { BG_KINDS, BgBody, setBgPhoto, useBgPhoto, useSkyClock, type BgKind } from '../ui/Backdrop';
 import { startStutter, stopStutter, stutterReport, stutterState, subscribeStutter } from '../lib/stutter';
 import { lastRestLate } from './workout/rest';
 import { inAndroidApp, restCheck, showAppRest } from '../lib/androidApp';
@@ -75,6 +76,9 @@ const PALETTES: { id: Settings['palette']; name: string; ac: string; h1: string;
   { id: 'mono', name: 'Mono', ac: '#ff7a59', h1: '#9094a8', h2: '#5b6070', h3: '#b8bccb' },
   { id: 'sunset', name: 'Sunset', ac: '#ff6b9d', h1: '#ff4f7b', h2: '#ff9a4d', h3: '#8a4bff' },
   { id: 'forest', name: 'Forest', ac: '#b6f25a', h1: '#1f9d6a', h2: '#b6f25a', h3: '#2fd0a0' },
+  { id: 'golden', name: 'Golden hour', ac: '#ffb547', h1: '#ff4a1a', h2: '#ff5a24', h3: '#e8301a' },
+  { id: 'midnight', name: 'Midnight', ac: '#9cc4ff', h1: '#1d3fa8', h2: '#4a7dff', h3: '#2a2f8f' },
+  { id: 'champagne', name: 'Champagne', ac: '#e8cf9a', h1: '#6e6c78', h2: '#c08c2e', h3: '#4a4a56' },
 ];
 /** A tiny Today screen in one look's colours: its light, the ring, a workout card with the play button, the dock. */
 function LookPreview({ p }: { p: (typeof PALETTES)[number] }) {
@@ -85,6 +89,53 @@ function LookPreview({ p }: { p: (typeof PALETTES)[number] }) {
       <span className="lp-card"><em /><b /></span>
       <span className="lp-dock"><b /></span>
     </div>
+  );
+}
+
+const BG_NAMES: Record<BgKind, string> = { classic: 'Classic', orb: 'Orb light', tabs: 'Colour per tab', sunrise: 'Sunrise', mesh: 'Mesh', dots: 'Dot field', time: 'Time of day', night: 'Night sky', photo: 'Your photo' };
+/**
+ * Settings → Appearance → Background: each one shown small, as the real layer under a sketch of Today. Picking one while
+ * Background glow is Off turns the glow back on (Off would hide it). Your photo asks for a picture the first time.
+ */
+function BackgroundPicker() {
+  const t = useT();
+  const st = useStore((x) => x.settings);
+  const set = useStore((x) => x.updateSettings);
+  const photo = useBgPhoto();
+  const sky = useSkyClock(true);
+  const file = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const cur = st.background ?? 'classic';
+  const tab = useUI((x) => x.tab);
+  const pick = (k: BgKind) => {
+    if (k === 'photo' && !photo) { file.current?.click(); return; }
+    haptic('select');
+    set({ background: k, ...(st.glow === 'off' && k !== 'photo' ? { glow: 'full' as const } : {}) });
+  };
+  const onFile = async (f?: File) => {
+    if (!f) return;
+    setBusy(true);
+    try { await setBgPhoto(f); haptic('select'); set({ background: 'photo' }); } catch { /* not a picture the phone can read */ } finally { setBusy(false); }
+  };
+  return (
+    <>
+      <div className="pal" role="radiogroup" aria-label={t('Background')}>
+        {BG_KINDS.map((k) => (
+          <button key={k} role="radio" aria-checked={cur === k} className={`pal-card press ${cur === k ? 'on' : ''}`} onClick={() => pick(k)}>
+            <div className="look-pv bg-pv" aria-hidden style={{ ['--p-ac' as string]: 'var(--ac)' }}>
+              <div className={k === 'classic' ? 'aurora' : 'bgx'} data-k={k} data-hue={tab}><BgBody kind={k} preview sky={sky} /></div>
+              {k === 'photo' && !photo && <span className="bg-pv-empty"><Icon name={busy ? 'clock' : 'camera'} size={22} /></span>}
+              <span className="lp-ring" />
+              <span className="lp-card"><em /><b /></span>
+              <span className="lp-dock"><b /></span>
+            </div>
+            <div className="small" style={{ marginTop: 8, fontWeight: 600 }}>{t(BG_NAMES[k])}</div>
+          </button>
+        ))}
+      </div>
+      <input ref={file} type="file" accept="image/*" hidden onChange={(e) => { onFile(e.target.files?.[0]); e.target.value = ''; }} />
+      {cur === 'photo' && photo && <button className="btn sm press" style={{ marginTop: 10 }} onClick={() => file.current?.click()} disabled={busy}><Icon name="camera" size={16} />{t('Change photo')}</button>}
+    </>
   );
 }
 
@@ -248,7 +299,8 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
                     ))}
                   </div>
                 </Field>
-                <Field label={t('Background glow')} hint={t('The soft colour light behind the app. Off saves battery.')}><Seg value={st.glow ?? 'full'} onChange={(v) => set({ glow: v })} options={[{ value: 'full', label: t('Full') }, { value: 'soft', label: t('Soft') }, { value: 'off', label: t('Off') }]} /></Field>
+                <Field label={t('Background')} hint={t('Only Classic keeps drifting. The others hold still while you scroll.')}><BackgroundPicker /></Field>
+                <Field label={t('Background glow')} hint={t('How strong the background is. Off leaves it plain.')}><Seg value={st.glow ?? 'full'} onChange={(v) => set({ glow: v })} options={[{ value: 'full', label: t('Full') }, { value: 'soft', label: t('Soft') }, { value: 'off', label: t('Off') }]} /></Field>
                 <Field label={t('Theme')}><Seg value={st.theme} onChange={(v) => set({ theme: v })} options={[{ value: 'system', label: t('System') }, { value: 'light', label: t('Light') }, { value: 'dark', label: t('Dark') }]} /></Field>
                 <Field label={t('Motion')}><Seg value={st.motion} onChange={(v) => set({ motion: v })} options={[{ value: 'system', label: t('System') }, { value: 'full', label: t('Full') }, { value: 'reduce', label: t('Reduced') }]} /></Field>
                 <HrrField />
