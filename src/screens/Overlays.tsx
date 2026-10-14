@@ -177,7 +177,9 @@ export function Overlays() {
           case 'onboarding': return <Onboarding key={o.id} props={p} />;
           default: return null;
         } })();
-        return <OverlayZ.Provider key={o.id} value={60 + idx * 10}><OverlayMeta.Provider value={meta(o.id, !!o.page)}><OverlayBoundary id={o.id}><Suspense fallback={null}>{el}</Suspense></OverlayBoundary></OverlayMeta.Provider></OverlayZ.Provider>;
+        // the finish sheet takes the workout's place in the stack, so it would share the workout's height: it sits just above
+        // it (and its "Finish workout?" pop-up), so that pop-up leaves underneath it instead of sliding down across it
+        return <OverlayZ.Provider key={o.id} value={60 + idx * 10 + (o.type === 'summary' ? 6 : 0)}><OverlayMeta.Provider value={meta(o.id, !!o.page)}><OverlayBoundary id={o.id}><Suspense fallback={null}>{el}</Suspense></OverlayBoundary></OverlayMeta.Provider></OverlayZ.Provider>;
       })}
     </AnimatePresence>
     </>
