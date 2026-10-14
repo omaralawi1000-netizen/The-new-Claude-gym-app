@@ -93,14 +93,6 @@ public class AvenLauncher extends LauncherActivity {
         super.onBackPressed();
     }
 
-    @Override
-    protected void onStop() {
-        super.onStop();
-        if (held == null) return; // Home or Back during the zoom: don't open Chrome after the person has left
-        held = null;
-        if (finishLater) super.finish();
-    }
-
     /**
      * Chrome opens over the launch screen with no animation, every time. The helper turns the animation off itself, but
      * only when it managed to hand the launch picture to Chrome; when that fails (1 launch in 4 on Omar's phone) Chrome
@@ -109,6 +101,11 @@ public class AvenLauncher extends LauncherActivity {
     @Override
     protected void onPause() {
         super.onPause();
+        if (held != null) { // left during the zoom (Home, a call): don't open Chrome after the person has gone
+            held = null;
+            if (finishLater) super.finish();
+            return;
+        }
         if (opening) overridePendingTransition(0, 0); // (the notifications question keeps its own animation)
     }
 }
