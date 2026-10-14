@@ -25,6 +25,7 @@ const tab = (n) => p.locator('.tabbar').getByRole('button', { name: n, exact: tr
 
 await p.goto(process.env.URL || 'http://127.0.0.1:5173/'); await wait(p, 1200); await skipOnboarding(p); await loadDemo(p); await wait(p, 2000);
 if (process.env.CSS) await p.addStyleTag({ content: process.env.CSS });
+await wait(p, Number(process.env.WAIT || 0));
 await cdp.send('Performance.enable'); await cdp.send('Emulation.setCPUThrottlingRate', { rate });
 
 await measure('idle-today', async () => {}, 2000);

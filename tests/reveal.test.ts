@@ -28,6 +28,6 @@ describe('word reveal', () => {
     expect(revealRate(0, true)).toBe(6);
     expect(revealRate(0, false)).toBe(24);
     expect(revealRate(27, true)).toBeCloseTo(30);
-    expect(revealRate(500, false)).toBe(70);
+    expect(revealRate(500, false)).toBe(45);
   });
 });

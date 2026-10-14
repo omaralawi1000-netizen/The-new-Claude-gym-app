@@ -100,7 +100,7 @@ There are no separate food / workout voice modes any more. The orb opens its own
 - **How it works**: Gemini gets your sentence, the app's guide (every screen, setting and rule — so "how do I change the theme?" is simply answered) and a compact live summary computed on the device (settings, today's meals/water, a running workout, routines, targets, recent training). It answers with a reply and a short list of actions. The model never writes data itself: each action is validated (`src/lib/agent.ts` → `validateAgent`), then run by the same code the screens use (food matching/quantity rules, exercise matching, settings patching).
 - **Safety**: everything reversible is applied at once and shown as a card with **Undo**; spoken quick logs close the Coach and leave an Undo toast. Finishing a workout always needs a tap. Nothing deletes data. Unknown foods become a clearly labelled **AI estimate**; ambiguous names the Coach can't settle are shown on the card, not guessed silently.
 - **Without a Gemini key** (or if Gemini is down) a built-in reader still logs simple sentences (food, sets, water, weight); chat and settings changes need the key. Without a Groq key the mic falls back as before.
-- The Coach hears you with Groq Whisper: it listens, stops by itself when you finish speaking (or tap the orb), transcribes, then acts.
+- The Coach hears you with Groq Whisper: it listens, stops by itself when you finish speaking (or tap the orb), transcribes, then acts. Since 14 Oct your words also appear in the field as you speak (Chrome's own speech service, a cloud service; see the Coach dictation section); Whisper's words replace them when you stop.
 - Tested with stubbed Gemini/Groq (`tests/agent.test.ts`, `scripts/journey-ai.mjs`). Real-model quality and real-microphone behaviour are unverified until you try it.
 
 ### The orb listens to your voice
@@ -1755,6 +1755,78 @@ switched off too (`data-glass` removed from index.html; the CSS stays dormant): 
 glass tint resolved to Ember coral in other palettes (brown cards and a peach dock rim in teal). Everything shipped after it (v0.1.103's pop-up step-back and the camera fix) stays.
 Lesson: an opaque neutral card loses the glass Omar liked; "depth" has to come from the glass itself, not a solid block.
 
+## Coach: answers fade in without blur, the list ends cleanly above the bar (13 Oct 2026, evening)
+Omar on the phone (v0.1.103): "the coach is a mess… the text spits out, it's still laggy… just do it without the blur,
+there was a version where you did it without the blur, it came out smooth". He asked for it, so the blur-in goes.
+- **Answers (Coach and orb) write in without blur**, the v0.1.56 way he remembers: each word fades up 0.3 em into place
+  (`.w-in`: `wordLight` + `wordCalm`), its light coming in a touch slower than the rise so no word pops in bright. One
+  layer per word instead of the soft focus's three (`.soft::before/::after`), opacity and transform only, and it settles
+  to plain text once in, as before. Your own spoken words on the orb screen, the Food date and the Onboarding titles keep
+  their soft focus (not answers).
+- **A calmer pace**: at most 45 words a second (was 70). A big clump from the stream used to pour out a line every
+  150 ms, which read as text being spat out.
+- **Three glass objects** (14 Oct, Omar: "each on its own… separated with frosted glass blur"; before that, 22:07, "the
+  text bar on its own"): nothing sits behind the row as a whole, no band or tint; each control is its own frosted glass.
+  The conversation fades out softly just above them (from 28 px above the bar to gone before the controls start), so no
+  letters show between or through them (letters cut round each button read as a stencil, judge 14 Oct). At rest the last
+  message sits 30 px above the bar, clear of the fade. It rides with the keyboard (`--kb-now`, v0.1.98).
+- **Each control on its own frosted glass** (Omar 22:10: "the text bar… the orb and the camera… its own circle that looks
+  3D"): the field is a frosted pill, the camera a round frosted button, the orb rests in a frosted seat the field's
+  height (`.frost-ctl` / `.frost-seat`, shared, `--fc-*` tokens): neutral glass, a light top edge, a fine rim, a soft
+  shadow and a faint sheen on the top half. One small blur per control, never animated.
+- **Soft-edge bar** (Omar picked it, 13 Oct; removed 14 Oct for the three glass objects above): a plain grey fade behind
+  the whole row (`.edge-fade`, still used by the dock).
+- **The pill opens while you type** (Omar 22:19, "expands when I type and compresses when I'm done, like iOS"): on focus
+  the camera tucks back and fades, and a beat later (60 ms, so the keyboard's lift doesn't hide it) the pill's left edge
+  glides over its place with a visible overshoot (about 5 px, `apple(0.62, 0.4)`); when the keyboard goes it glides back
+  and the camera fades in from 0.9 only once the edge has mostly passed it.
+- **It grows as you write**: an auto-growing field, a line at a time up to four lines, then the words scroll inside
+  (`apple(0.5, 0.25)`); the end of the conversation rises with it. Moves only: the tint and rim are six solid pieces in
+  one see-through group (left and right columns of top cap, middle, bottom cap: the left column slides, the top caps
+  rise, the middles stretch), the frost never moves (only its outline is cut back, `clip-path`), the shadow stretches,
+  and the words sit in a window 10 px inside the rim: their box grows a line at once and is played back from where it
+  was on the same spring, so the lines that move rise with the top edge and are never cut by it. Interruptible. A draft
+  keeps the bar wide when the keyboard goes (as on iOS), so its lines never re-wrap under the returning camera.
+- **Sending, iMessage-style** (Omar 23:41, "the text moves from the text bar into the chat seamlessly"): the very words
+  in the field, same letters in the same place, lift out of the pill on the frame you tap send, and they glide on a soft
+  spring (`apple(0.6, 0.15)`) to their place above the bar. The bubble keeps the field's line breaks (`lines` on the
+  message, read off the field's hidden copy) and the words fly at the field's size, so nothing re-wraps or jumps; the
+  field now types in the bubble's letters (weight 520, the placeholder stays as it was).
+  - **One shape, from pill to bubble**: on the first frame the flying shape is the whole pill (its full width, its 27 px
+    corners, its tint, top sheen, highlight and rim, solid: the pill's colours over the frost's average colour,
+    `--fly-under`, so nothing behind shows through its words), and on its own quicker spring
+    (`apple(0.34, 0.06)`: about half way by 80 ms, nearly there by 200 ms) it becomes the bubble: its size, corners of 20
+    and the tail's 6, its colour turning from the pill's into the bubble's (40–240 ms, solid the whole way: the bubble's colour as it looks,
+    coming up over the pill's; as it settles in place, 400–560 ms, it hands over to the bubble's own see-through glass, so
+    the real bubble taking over is the same picture). A shape's size and corners can't
+    be animated by moves alone, so it is eight pieces (four corners that scale evenly, so they stay round, and four
+    straight pieces between them, each reaching 1 px under its neighbours), all moved and scaled on the one spring, so
+    they always make one outline. The two colours are the same pieces twice under one opacity each, so there is never a
+    second outline (round 5 cross-faded a pill-shaped and a bubble-shaped layer: the tail corner poked out of the
+    pill's for ~80 ms). The send arrow (a stand-in on top) dissolves in its first 24 ms, then the bar, stop button and all, shows from
+    under the shape as it leaves (the shape is never cut by the button). The flight's spring runs to a hundredth of a
+    percent (`springCurve(…, fine)`), so it lands exactly on the bubble, with no last-pixel step.
+  - Send and stop share the button: a 120 ms cross-fade with a little turn (±45°), not a cut.
+  - The emptied pill closes up at once, out of sight under the shape (which covers all of it as it starts), and its tint
+    and shadow fade in 30–110 ms, so the empty bar is only ever seen where the shape has left it: never the pill and the shape drawn in the same place (a see-through
+    shape over a closing pill read as two stacked cards, the pill's rim cutting through the words). A `.closing` class
+    points the parts at that (`CLOSE`; changing the curve's property on the bar restyled all of it). The cursor hides
+    until "Ask the Coach" comes back at 140 ms.
+  - **The keyboard stays up after a send**, as in iMessage, ready for the next message (it used to go down as the message
+    landed, and the whole conversation rode ~650 px down with it). Sent with the keyboard down, the left edge glides back
+    and the camera returns at 140 ms.
+- **Bar polish (r5)**: the frost's top follows the lines on their own spring and its left edge the opening on the
+  opening's (two registered properties, `--cf-gt`/`--cf-gl`; one transition carried both and the frost trailed the pill
+  by 60 ms as it grew or closed up); a new line comes up through a soft bottom edge (a mask on the words' window, not a
+  hard cut that sliced its letters); the camera tucks to 0.82 as the edge passes and fades a touch slower.
+- Cost (4x CPU audit): no long tasks and no dropped layers on keyboard up/down. Three things that made layers come and go
+  were removed: a React state for "open" (re-rendered the whole chat: a 50–60 ms stall; now a class on the bar), the
+  moving parts without `will-change`, and a mask and an opacity fade on the field's text (now only past four lines, and
+  the placeholder fades by colour). The orb stays where it is (the shared sphere draws it above the sheet).
+- The header fade starts a few px below the header, so no letter tails peek under it.
+- Clips: `scripts/clip-coach.mjs <out.mp4> [--palette ember|aurora] [--half]` films a send and a long streamed answer at
+  real or half speed (half: the page's clock and animations run at half speed). Backups: `backup/coach-r4-pre-noblur`, `backup/coach-r5-pre-send` (round 4 as Omar saw it).
+
 ## Frosted tab bar with a soft edge (13 Oct 2026, v0.1.105)
 
 Omar on v0.1.103: "the blur underneath looks garbage". Cause: two full-height "progressive blur" layers under the dock
@@ -1810,3 +1882,94 @@ screen (the Ember orb of dots) cut to a blank page, then the app.
   when idle after 2.5 s); Danish loads only when used. Start JS 1,221 → 897 KB; app drawn 329 → 306 ms (4× CPU 1,434 → 1,345).
 - Tools: `scripts/launch.mjs` (timings), `scripts/film-launch.mjs` (steady-camera launch films). Previews and notes in the
   project folder `launch-morph/`.
+
+## Backgrounds you can pick, and three new colours (14 Oct 2026, v0.1.112)
+Settings → Appearance → Background picks what is drawn behind the app: Classic (the drifting colour field, as before),
+Orb light, Colour per tab, Sunrise, Mesh, Dot field, Time of day, Night sky and Your photo (`settings.background`,
+`html[data-bg]`, `ui/Backdrop.tsx`, `.bgx` in styles.css).
+- Why still: Omar found that turning the glow off made the app much smoother. Classic's three lights drift in ~12 steps a
+  second, and every step makes the frosted tab bar, sheets and Coach bar re-blur what is under them. Every new background
+  is a few gradients (or one small picture) painted once and then left alone, so nothing under the glass changes unless
+  you scroll.
+- The only changes: Sunrise's horizon glow rises as the day's calories and protein fill up (one 2.6 s transform +
+  opacity move when food is logged); Orb light's brighter layer fades in (1.2 s) while the Coach or the orb screen works
+  on an answer or reads it aloud (voice phase `processing`, or `voiceOut`), and out again (1.6 s); Time of day / Night
+  sky move on in quarter hours, only when you come back to the app or every 15 minutes while no pop-up is open, as one
+  0.8 s cross-fade. Tab-coloured ones (Classic, Orb, Colour per tab, Sunrise, Mesh, Dot field) cross-fade on a tab switch
+  exactly like the old field did; the others don't change on a tab switch at all.
+- Night sky uses Aarhus sunset/sunrise (NOAA approximation, `sunTimes`): stars after sunset, a calm dusk before.
+- Your photo is blurred once when picked (canvas blur 16 px, to a 240×520 JPEG), kept in IndexedDB with the progress photos, never
+  uploaded and not in backups; the screen only scales up a still, already-soft picture and darkens it for legibility.
+- Background glow still applies: Full / Soft set the strength; Off leaves a plain background (Your photo stays). Picking a
+  background while the glow is Off turns it back to Full. Colour per tab uses its own hues (Today warm, Train blue, Food
+  green, Progress violet); the accent on buttons still follows the palette. The workout window keeps its own light.
+- Round 2 (after the judge): Colour per tab's Today is a cool aqua (a warm wash turned see-through cards amber next to
+  a teal accent); Time of day has a warm sky (Ember, Sunset) and a cool one (the rest) so evenings never go brown, and
+  midday is a clean light blue, not white (white over dark reads grey); over Night sky and Dot field the tab screens'
+  cards, chips and buttons are the same dark glass made solid (`--s1..3`, `--bg-2` on `.screen`), so no star or dot
+  shows through a card; Night sky got a faint Milky Way band and is near-black, unlike Time of day's indigo night;
+  Orb light moves to the Coach's orb (bottom-left) while the Coach is open, by fading between layers already drawn.
+- Round 3: the fade between layers read as a jump, so Orb light now measures where the orb really is (the dock's moves
+  with the tab you are on; the Coach's sits in its bar) and its halo (140 px) and beam glide there as one transform
+  (1.1 s), re-measured once the Coach's sheet has settled and on resize. Sunrise's horizon sits at the quick-add row on
+  a full day (the sun was hidden behind the big card and the tab bar), with the sky dimming below it like land. Under
+  Time of day the cards are a darker frost (`--s1..3` on `.screen`), so grey text keeps 6:1 or better against a bright
+  midday or dusk sky. Two things the judge flagged were not the backgrounds: the half-and-half frames mid tab switch are
+  the page cross-fade, the same in Classic; the tab name "vanishing" was one bad frame of the test filming (the same
+  filming on the current app never shows it, and the label is never re-mounted).
+- Round 4: under Sunrise the cards and quick-add chips get Time of day's darker frost (the sun sat behind the chips:
+  "+ Beef mince" was 1.5:1, now 5.5:1); every change between two of the picked backgrounds (picking one, a tab
+  switch, a change of sky) lays the new one over the old one, which stays whole until it is covered; for that each is
+  painted opaque (`.fields > .bgx` has the page colour behind it). Fading both at once let the room show through
+  mid-way (a dip) and two half-skies came out brighter than either. Classic's drifting field is see-through, so changes
+  to and from it still fade both; the soft fade
+  under a sheet's title now starts after 8 px of scroll (all sheets), so a list nudged a few px by a tap keeps its
+  heading clear.
+- Three new colours (Omar asked for "a real sunset" and colours that look premium): Golden hour (a red-orange light
+  with sun-yellow only where it is brightest: accent, sun core, the top of the start button; yellow light over the dark
+  page read as caramel), Midnight (deep blue, ice-blue accent) and Champagne (graphite with a saturated gold glow and a
+  champagne accent; a pale warm glow read grey-beige). Each has its own ring colours (`--c-kcal` is new: kcal no longer
+  has to be the accent), deeper ones on a light page. Under Sunrise the macro numbers get a soft dark pool and stronger
+  grey text (4.5:1+ over the sun); the Coach's suggestion subtitles and note use the second text grey (5.5:1).
+- One look everywhere (v0.1.117): the status bar takes the top colour of the background you picked (Classic and Mesh
+  the area's light, Colour per tab its first colour, Dot field the accent's wash, Time of day the sky; Orb light,
+  Sunrise, Night sky and Your photo the page colour), so no coloured strip sits over a dark top (`BAR_SRC` in App.tsx).
+  Every look has its own four food-ring colours (`--c-kcal/protein/carbs/fat`, deeper on a light page); kcal no longer
+  follows the tab. Cards, chips and buttons on the tab screens are one dark glass on every background (`.screen`
+  `--s1..3`), replacing three recipes (white lift, solid, darker frost).
+- Scripts: `AVEN_BG=mesh AVEN_PALETTE=aurora AVEN_GLOW=off AVEN_PHOTO=file.jpg` in any script that uses `loadDemo`.
+
+## Rendered exercise clips: the barbell curl first (14 Oct 2026, v0.1.110)
+
+- Omar approved the muscled figure ("the figure looks good now") and its whole-body motion: the arms curl, the body leans
+  back a touch with the bar, breathes, and the knees soften on the way down. The exercise page for Barbell Curl now shows
+  that clip in place of the muscle picture, as its own light studio card at the clip's 3:2.
+- `src/screens/workout/Clip.tsx`: `clipFor(ex)` picks a clip from `public/figures/<id>.{webm,mp4,jpg}` (VP9 webm ~200 KB,
+  mp4 fallback, first frame as the poster). Fetched only when the page opens (not in the offline precache), muted, looping,
+  playing only while on screen and while the app is in view; reduced motion shows the still first frame.
+- Made in Blender from the Z-Anatomy model (CC BY-SA 4.0, credited in Settings › About). Each exercise gets its own
+  choreography on one full-body rig; sources and judge notes are in the project folder `anatomy-proof/`.
+
+## Coach: dictation like iOS, calmer answer text (14 Oct 2026)
+
+Omar: "when you say something to the coach… I want it to be easy and like Apple". And: "refine the animations of the text… ultra premium".
+- **Your words appear as you speak.** Tap the orb: the pill opens wide at once ("Listening…"), and what you say shows in
+  it as you say it, growing a line at a time like typed words. The send button listens with you: a small live wave of
+  five bars (your voice's bands, scale only) until the first words, then the arrow. It still stops by itself when you go
+  quiet, or tap the orb or the arrow. Whisper (Groq) then hears the whole recording as before (it is the better ear, and
+  keeps the Danish and accent handling); if its words differ, they take the live ones' place for a moment, then lift out
+  of the field into the chat exactly as typed words do. Tap your words while speaking and it stops there and leaves them
+  in the field to fix (keyboard up), as tapping the text does on iOS. A draft already in the field is kept, the words go
+  after it.
+- **Where the live words come from**: Chrome's Web Speech service (free, no key; on Chrome it is Google's cloud
+  recogniser), running next to the recording. The earlier live words (Groq looks every 1.2 s) were late and misheard and
+  were dropped; this one streams word by word. Language: Settings → Voice & AI → Language, or the app's language on Auto.
+  If it is missing or fails, it listens as before (the wave, then Whisper's words). If Whisper fails, the live words are
+  sent; if the recording itself hears nothing while live words come, the live words decide when to stop (1.5 s after the
+  last one) and are sent.
+- **Answers, refined**: each word barely rises now (0.14em, was 0.3em: a line of small hops read as busy) and takes its
+  light a little longer (820 ms, was 640), so the words in flight overlap and a line fills in as one soft wave. Opacity
+  and transform only, no blur.
+- Not verified on a phone: whether Chrome on Android lets its speech service and the recording share the mic (the
+  fallbacks above cover either one failing), and live-word accuracy.
+
