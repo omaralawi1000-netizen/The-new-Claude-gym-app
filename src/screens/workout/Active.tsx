@@ -29,6 +29,8 @@ import { morphBack, morphLand, morphStart, type Morph } from './morph';
 
 /** False while the workout is minimised (kept alive but hidden): its clocks stop ticking. */
 const WkLive = createContext(true);
+/** When Finish was tapped: the header clock holds that time while the window fades out. */
+let clockStop: number | null = null;
 /**
  * The workout as it was the moment it was finished or discarded, while its window slides away (WorkoutHost). The store has
  * no active workout any more by then; without this the whole window and the sheet on it vanished in one frame.
@@ -149,6 +151,9 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     const c = vanishRef.current && !reduce
       ? new Promise<void>((ok) => { warmStage(true); dialogRef.current?.classList.add('wk-leaving'); requestAnimationFrame(() => requestAnimationFrame(() => {
         fade = dialogRef.current?.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 420, easing: 'ease-in-out', fill: 'forwards' });
+        // The finish sheet leaves the top of the screen open: the page's own header waits until the workout's is almost gone
+        // (under ~15%), then fades in, so the two headers never show through each other. Only the page's opacity moves.
+        document.querySelector('.stage-content')?.animate([{ opacity: 0 }, { opacity: 0, offset: 0.62, easing: 'ease-out' }, { opacity: 1 }], { duration: 540 });
         // The page stops being kept warm only once the cover has really reached 0: let go in the same frame, it read the cover
         // as still full and hid the page for a frame, so the phone threw its whole drawing away and redrew all of it at once,
         // in the middle of the finish moment (which went blank for a beat).
@@ -242,6 +247,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   const opening = useRef<{ stop: () => void } | null>(null);
   const startOpen = () => {
     closing.current = null;
+    clockStop = null;
     // un-park it now, before the orb's flight measures where its slot will be (React would only do it after this effect)
     dialogRef.current?.classList.remove('wk-off', 'wk-leaving');
     const from = p.get();
@@ -365,6 +371,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   };
   const doFinish = () => {
     finishing.current = true;
+    clockStop = Date.now(); // the clock stands still while the window fades out
     const r = useStore.getState().finishActive();
     if (r) swap(1, 'summary', { sessionId: r.id }); // its medal lands with the finish (or record) feel
   };
@@ -527,7 +534,7 @@ function Clock() {
   const a = useActive();
   const live = useContext(WkLive);
   const now = useNow(250, !!a && live);
-  return <>{a ? fmtDuration(elapsedMs(a, now) / 1000) : ''}</>;
+  return <>{a ? fmtDuration(elapsedMs(a, clockStop ?? now) / 1000) : ''}</>;
 }
 
 /** The rest timer as a few words in the header, while the keyboard is up. */
