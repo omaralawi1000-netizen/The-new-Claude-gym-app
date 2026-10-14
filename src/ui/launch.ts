@@ -21,7 +21,7 @@ if (cover) { cover.dataset.taken = '1'; orbLaunchTint(); orbLogo(1); }
 const FLIGHT = { ...apple(0.8), restDelta: 0.0005 };
 const BOW = -30;          // the flight's arc: falls first, slides into the dock at the end, clear of the first card's play button
 const FADE_MS = 250;      // the launch screen fading away as the orb sets off
-const TINT_AFTER = 120;   // the palette's colour starts as it becomes the sphere (ms into the flight), so it is teal before it lands
+const TINT_AFTER = 100;   // the palette's colour starts 0.1 s into the flight and takes 0.45 s (Sphere.tsx), so it is done well before it lands
 const SPLASH_FADE = 330;  // Android's launch screen fades over 300 ms from the page's first paint: never fly under it
 const MAX_WAIT = 1500;    // the longest the logo waits for the app underneath before it goes anyway
 

@@ -11,7 +11,7 @@ import { LOGO } from './logoDots';
 const N = 400;
 type V3 = Float32Array;
 
-function lattice(): { pts: V3; order: Uint16Array } {
+function lattice(): { pts: V3; order: Uint16Array; jit: Float32Array } {
   const pts = new Float32Array(N * 3);
   const g = Math.PI * (3 - Math.sqrt(5));
   for (let i = 0; i < N; i++) {
@@ -26,9 +26,15 @@ function lattice(): { pts: V3; order: Uint16Array } {
   let seed = 7;
   const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
   for (let i = N - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); const t = order[i]; order[i] = order[j]; order[j] = t; }
-  return { pts, order };
+  // each bead's own random 0..1, fixed (when it changes colour within a colour change's wave)
+  const jit = new Float32Array(N);
+  for (let i = 0; i < N; i++) jit[i] = rnd();
+  return { pts, order, jit };
 }
 const LAT = lattice();
+// a colour change's wave: each bead switches when the mix passes WAVE_J + WAVE_S × (how high it is, 0 bottom … 1 top) ± WAVE_J,
+// so the sweep is WAVE_S of the mix, every bead is a random ±35% of it early or late, and all switch between mix 0 and 1
+const WAVE_S = 1 / 1.7, WAVE_J = 0.35 * WAVE_S;
 const ALL = (() => { const a = new Uint16Array(N); for (let i = 0; i < N; i++) a[i] = i; return a; })();
 
 /**
@@ -260,12 +266,22 @@ export class SphereRenderer {
     // never jumps) and the light sits a little higher, as if it were waiting with you
     const breathe = reduced ? 1 : 1 + (0.16 + 0.3 * this.restK) * Math.sin(this.t * 1.05);
     const haloA = (1 - LK) * breathe * (this.cur.halo + this.restK * 0.18 + this.body * 0.55 + this.env * 0.25 + Math.max(0, this.kick) * 0.25 + this.press * 0.35 + this.flash * 0.6) * (1 - this.cur.dim * 0.8);
-    if (haloA > 0.01) {
+    // a change of colours (OrbInputs.colorsTo): the beads change one by one (below); the light around them (this inner light,
+    // the glass edge, the sparkles) goes with them, evenly, so nothing switches in one frame when the change ends
+    const xk = inp.colorsTo && inp.colorMix !== undefined ? Math.min(1, Math.max(0, inp.colorMix)) : 0;
+    const B = inp.colorsTo ?? colors;
+    const lerp3 = (x: RGB, y: RGB): RGB => [x[0] + (y[0] - x[0]) * xk, x[1] + (y[1] - x[1]) * xk, x[2] + (y[2] - x[2]) * xk];
+    const halo = (h: RGB, a: RGB, w: number) => {
       const gr = ctx.createRadialGradient(c, c, R * 0.15, c, c, c * 0.98);
-      gr.addColorStop(0, `rgba(${hi[0] | 0},${hi[1] | 0},${hi[2] | 0},${Math.min(0.55, haloA * (dark ? 0.55 : 0.4))})`);
-      gr.addColorStop(0.55, `rgba(${alt[0] | 0},${alt[1] | 0},${alt[2] | 0},${Math.min(0.3, haloA * (dark ? 0.22 : 0.16))})`);
-      gr.addColorStop(1, `rgba(${alt[0] | 0},${alt[1] | 0},${alt[2] | 0},0)`);
+      gr.addColorStop(0, `rgba(${h[0] | 0},${h[1] | 0},${h[2] | 0},${w * Math.min(0.55, haloA * (dark ? 0.55 : 0.4))})`);
+      gr.addColorStop(0.55, `rgba(${a[0] | 0},${a[1] | 0},${a[2] | 0},${w * Math.min(0.3, haloA * (dark ? 0.22 : 0.16))})`);
+      gr.addColorStop(1, `rgba(${a[0] | 0},${a[1] | 0},${a[2] | 0},0)`);
       ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(c, c, c * 0.98, 0, 6.2832); ctx.fill();
+    };
+    if (haloA > 0.01) {
+      // two lights crossfading, not one light of an in-between colour (that reads grey)
+      if (xk < 1) halo(hi, alt, 1 - xk);
+      if (xk > 0) halo(B.hi, B.alt, xk);
     }
 
     const nf = N, count = N;
@@ -289,7 +305,6 @@ export class SphereRenderer {
 
     // buckets: 7 light levels × 3 hue mixes (accent ↔ the area's second colour, drifting round the sphere)
     const NB = 7, NH = 3;
-    const xk = inp.colorsTo && inp.colorMix !== undefined ? Math.min(1, Math.max(0, inp.colorMix)) : 0;
     const NM = xk > 0 && xk < 1 ? 2 : 1; // the crossfade: each bead is either the old colour or the new one (1 = none)
     const buckets: number[][] = Array.from({ length: NB * NH * NM }, () => []);
     const dots: { x: number; y: number; r: number; z: number }[] = new Array(count);
@@ -391,9 +406,10 @@ export class SphereRenderer {
       tone[n] = okMix > 0.25 && depth > 0.42 ? 2 : glow * (0.4 + 0.6 * depth) > 1.25 ? 1 : 0; // highlights are sparkles on the near side, not a wash
       const hueMix = 0.5 + 0.5 * Math.sin(az * 1 + y * 1.6 - T * 0.6); // the second colour drifts around the surface
       const hb = Math.min(NH - 1, Math.floor(hueMix * NH));
-      // crossfade: one wave of the new colour from the bottom of the orb (on screen) to its top, a little ragged at its edge
-      // so it reads as light flowing over the beads, each bead in one step: never a blend of the two colours (it reads grey)
-      const qm = NM > 1 && xk >= 0.1 + 0.72 * ((1 - y2) / 2) + 0.08 * (((i * 0.6180339887) % 1) - 0.5) ? 1 : 0;
+      // crossfade: one wave of the new colour from the bottom of the orb (on screen) to its top, each bead in one step: never
+      // a blend of the two colours (it reads grey). Each bead switches a random bit early or late (±35% of the wave's sweep),
+      // so the front is a soft, ragged band of mixed beads, never a straight seam.
+      const qm = NM > 1 && xk >= WAVE_J + WAVE_S * ((1 - y2) / 2) + WAVE_J * (2 * LAT.jit[i] - 1) ? 1 : 0;
       buckets[(qm * NB + Math.min(NB - 1, Math.floor(sh * NB))) * NH + hb].push(n);
     }
 
@@ -401,7 +417,6 @@ export class SphereRenderer {
     // dark mode: additive light, so overlapping highlights bloom like light rather than paint
     ctx.globalCompositeOperation = dark ? 'lighter' : 'source-over';
     const fade = 1 - dimK * 0.5;
-    const B = inp.colorsTo ?? colors;
     const tint = (b: number, h: number, q = 0): RGB => {
       const c = tintOf(hi, lo, alt, b, h);
       if (!q) return c;
@@ -438,19 +453,20 @@ export class SphereRenderer {
       if (dark) for (let h = 0; h < NH; h++) { const list = at(NB - 1, h); if (list.length) pass(list, 0, 0.36, rgba(whiten(tint(NB - 1, h, q), 0.6), alphaOf(NB - 1) * 0.36)); }
     }
     // highlights (a flash, a comet, the arrival spiral): sparkles with a halo and a white heart
-    const hiC: RGB = [Math.min(255, hi[0] + 30), Math.min(255, hi[1] + 50), Math.min(255, hi[2] + 50)];
+    const hiX = lerp3(hi, B.hi), altX = lerp3(alt, B.alt), okX = lerp3(ok, B.ok);
+    const hiC: RGB = [Math.min(255, hiX[0] + 30), Math.min(255, hiX[1] + 50), Math.min(255, hiX[2] + 50)];
     if (LK <= 0) {
       if (dark) pass(ALL, 1, 2.6, rgba(hiC, 0.16));
       pass(ALL, 1, 1.05, rgba(hiC, 0.95));
       if (dark) pass(ALL, 1, 0.5, rgba(whiten(hiC, 0.8), 0.7));
       // done: the success colour
-      if (dark) pass(ALL, 2, 2.6, rgba(ok, 0.16));
-      pass(ALL, 2, 1.1, rgba(ok, 0.98));
+      if (dark) pass(ALL, 2, 2.6, rgba(okX, 0.16));
+      pass(ALL, 2, 1.1, rgba(okX, 0.98));
     }
     // The glass it is made of: a fine bright edge exactly on its outline (where glass catches the light) and a soft reflection
     // at the top left, where the light comes from. Both are light only and sit still while the beads turn inside.
     const Rs = R * 1.03; // the outline, perspective included
-    const edge = whiten([hi[0] + (alt[0] - hi[0]) * 0.4, hi[1] + (alt[1] - hi[1]) * 0.4, hi[2] + (alt[2] - hi[2]) * 0.4], 0.35);
+    const edge = whiten([hiX[0] + (altX[0] - hiX[0]) * 0.4, hiX[1] + (altX[1] - hiX[1]) * 0.4, hiX[2] + (altX[2] - hiX[2]) * 0.4], 0.35);
     const ek = (dark ? 1 : 0.7) * fade * (1 - LK);
     const rim = ctx.createRadialGradient(c, c, Rs * 0.8, c, c, Rs * 1.07);
     rim.addColorStop(0, rgba(edge, 0));

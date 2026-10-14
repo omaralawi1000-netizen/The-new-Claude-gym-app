@@ -314,8 +314,9 @@ export function SphereStage() {
       if (fadeStart === Infinity && tintGoAt) fadeStart = tintGoAt;
       if (!fadeStart) return;
       if (launchFade && fadeStart !== Infinity) {
-        const k = Math.min(1, Math.max(0, (now - fadeStart) / 420));
-        if (k < 1) { colors = from; launchMix = easeInOut(k); return; }
+        // at an even pace: the wave of new colour moves up the orb steadily, without lingering half-way
+        const k = Math.min(1, Math.max(0, (now - fadeStart) / 450));
+        if (k < 1) { colors = from; launchMix = k; return; }
         colors = to; launchMix = -1; launchFade = false; fadeStart = 0; return;
       }
       const k = Math.min(1, Math.max(0, (now - fadeStart) / 1100));
