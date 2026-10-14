@@ -1,6 +1,7 @@
 package app.aven.android;
 
 import android.Manifest;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Build;
@@ -17,12 +18,15 @@ import com.google.androidbrowserhelper.trusted.LauncherActivity;
 public class AvenLauncher extends LauncherActivity {
     private static final int ASK = 7;
     private static final String ASKED = "askedNotifications";
-    private boolean opening;
+    private static final long ZOOM_AT_MOST = 800; // ms; in case Android never says the opening zoom has finished
+    private boolean zoomed, opening, finishLater;
+    private Runnable held;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         RestNotifications.ensureChannels(this); // so the phone's notification settings list the rest timer from the start
+        getWindow().getDecorView().postDelayed(this::zoomDone, ZOOM_AT_MOST);
     }
 
     @Override
@@ -46,6 +50,39 @@ public class AvenLauncher extends LauncherActivity {
     protected void launchTwa() {
         opening = true;
         super.launchTwa();
+    }
+
+    /**
+     * Chrome opens once the zoom from the icon has finished, never halfway through it: there, the orb blinked out on a
+     * dark window for ~90 ms (3 launches in 4 on Omar's phone). The helper gets everything ready during the zoom (the
+     * launch picture on screen, Chrome connected); only the final start is held back, and this screen stays until then.
+     * (The helper can wait for the zoom itself, but only when it managed to hand the launch picture to Chrome.)
+     */
+    @Override
+    public void startActivity(Intent intent, Bundle options) {
+        if (zoomed) { super.startActivity(intent, options); return; }
+        held = () -> super.startActivity(intent, options);
+    }
+
+    @Override
+    public void finish() {
+        if (held != null) finishLater = true; // the helper closes this screen right after starting Chrome
+        else super.finish();
+    }
+
+    @Override
+    public void onEnterAnimationComplete() {
+        super.onEnterAnimationComplete();
+        zoomDone();
+    }
+
+    private void zoomDone() {
+        zoomed = true;
+        if (held == null || isDestroyed()) return; // (closed during the zoom: don't open Chrome after all)
+        Runnable start = held;
+        held = null;
+        start.run();
+        if (finishLater) super.finish();
     }
 
     /**

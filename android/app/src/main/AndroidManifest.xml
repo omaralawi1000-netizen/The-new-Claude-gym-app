@@ -34,9 +34,7 @@
         <meta-data android:name="asset_statements" android:resource="@string/asset_statements" />
 
         <!-- AvenLauncher: Android Browser Helper's launcher, plus a one-time ask for notifications before the site opens.
-             It sits behind an alias with the old launcher's name, so the icon already on the home screen keeps working.
-             START_CHROME_BEFORE_ANIMATION_COMPLETE false: Chrome opens once the zoom from the icon has finished (it's
-             warmed up meanwhile), not halfway through it, where the orb blinked out on a dark window for ~90 ms. -->
+             It sits behind an alias with the old launcher's name, so the icon already on the home screen keeps working. -->
         <activity
             android:name=".AvenLauncher"
             android:exported="false"
@@ -53,7 +51,6 @@
             <meta-data android:name="android.support.customtabs.trusted.FILE_PROVIDER_AUTHORITY" android:value="app.aven.android.fileprovider" />
             <meta-data android:name="android.support.customtabs.trusted.DISPLAY_MODE" android:value="standalone" />
             <meta-data android:name="android.support.customtabs.trusted.SCREEN_ORIENTATION" android:value="portrait" />
-            <meta-data android:name="android.support.customtabs.trusted.START_CHROME_BEFORE_ANIMATION_COMPLETE" android:value="false" />
         </activity>
         <activity-alias
             android:name="com.google.androidbrowserhelper.trusted.LauncherActivity"
@@ -71,7 +68,6 @@
             <meta-data android:name="android.support.customtabs.trusted.FILE_PROVIDER_AUTHORITY" android:value="app.aven.android.fileprovider" />
             <meta-data android:name="android.support.customtabs.trusted.DISPLAY_MODE" android:value="standalone" />
             <meta-data android:name="android.support.customtabs.trusted.SCREEN_ORIENTATION" android:value="portrait" />
-            <meta-data android:name="android.support.customtabs.trusted.START_CHROME_BEFORE_ANIMATION_COMPLETE" android:value="false" />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
