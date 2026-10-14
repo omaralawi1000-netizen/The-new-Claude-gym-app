@@ -62,7 +62,7 @@ export function TodayScreen() {
     resumeWorkout(() => {
       s.startWorkout({ routine: r, plannedDate: r && plan?.routineId === r.id ? today : undefined }); // (none while one is running)
       push('workout', { origin: 'hero' });
-    });
+    }, 'hero');
   };
 
   // recents for one-tap repeat
@@ -179,7 +179,7 @@ export function TodayScreen() {
                 <div className="display num" style={{ fontSize: 54, marginTop: 8 }}><HeroClock /></div>
                 <div className="small t2 num" style={{ marginTop: 2 }}>{aDone}<span className="t3"> / {aTotal}</span></div>
               </div>
-              <button className="icon-btn acc press" style={{ width: 68, height: 68, flex: 'none' }} aria-label={t('Resume workout')} onClick={() => resumeWorkout(() => push('workout', { origin: 'hero' }))}><Icon name="play" size={26} /></button>
+              <button className="icon-btn acc press" style={{ width: 68, height: 68, flex: 'none' }} aria-label={t('Resume workout')} onClick={() => resumeWorkout(() => push('workout', { origin: 'hero' }), 'hero')}><Icon name="play" size={26} /></button>
             </div>
           ) : routine && !(plannedDone && last) ? (
             <div className="row-flex between" style={{ gap: 14 }}>

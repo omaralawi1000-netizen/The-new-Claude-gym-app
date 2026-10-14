@@ -9,10 +9,37 @@ export function setWorkoutOpener(fn: () => void) {
   opener = fn;
   return () => { if (opener === fn) opener = null; };
 }
-/** Open the workout: `tell` updates the app (pushes the overlay); with a minimised window waiting, after its first frame. */
+/** Which card the window grows out of on its next opening: Today's workout card, or the resume bar (none: it rises). */
+type From = 'hero' | 'pill' | null;
+let pendingFrom: From = null;
+export function workoutFrom(f: From) { pendingFrom = f; }
+export function takeWorkoutFrom(): From { const f = pendingFrom; pendingFrom = null; return f; }
+/**
+ * Where that card is on the screen (client px), as it is at rest: the resume bar is measured by its layout, not where its
+ * own show/hide motion or the tab bar's slide has it this frame. Null when it isn't there or isn't fully on the screen.
+ */
+export function wkSourceRect(kind: From): { l: number; t: number; w: number; b: number } | null {
+  if (!kind) return null;
+  const el = document.querySelector<HTMLElement>(`[data-wk="${kind}"]`);
+  if (!el) return null;
+  let l: number, t: number;
+  const w = el.offsetWidth, h = el.offsetHeight;
+  if (kind === 'pill') {
+    // offsets ignore transforms: summed up to the fixed dock, they are where the bar sits once it has slid back in
+    l = 0; t = 0;
+    for (let n: HTMLElement | null = el; n; n = n.offsetParent as HTMLElement | null) { l += n.offsetLeft; t += n.offsetTop; }
+  } else {
+    const r = el.getBoundingClientRect(); l = r.left; t = r.top;
+  }
+  if (w < 40 || h < 30 || t < 0 || t + h > window.innerHeight) return null;
+  return { l, t, w, b: t + h };
+}
+/** Open the workout: `tell` updates the app (pushes the overlay); with a minimised window waiting, after its first frame.
+ * `from`: the card that was tapped, which the window grows out of. */
 let telling = false;
-export function resumeWorkout(tell: () => void) {
+export function resumeWorkout(tell: () => void, from: From = null) {
   if (telling) return; // a second tap before the app has been told: it is already opening
+  pendingFrom = from;
   const go = opener;
   if (!go) { tell(); return; }
   opener = null; telling = true;

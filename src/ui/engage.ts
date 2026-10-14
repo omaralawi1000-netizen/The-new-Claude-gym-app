@@ -137,4 +137,6 @@ export class Mirror {
   private anims: Animation[] = [];
   add(...a: (Animation | null)[]) { for (const x of a) if (x) this.anims.push(x); }
   cancel() { for (const a of this.anims) { try { a.cancel(); } catch { /* ignore */ } } this.anims = []; }
+  /** Settles when every browser-run part has finished (or been cancelled). */
+  settled(): Promise<void> { return Promise.all(this.anims.map((a) => a.finished.catch(() => null))).then(() => undefined); }
 }

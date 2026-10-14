@@ -53,7 +53,7 @@ function PlanTab() {
     return { d, p: plannedFor(s, d, today), done: s.sessions.some((x) => x.date === d), wr: s.activities.some((x) => x.date === d && x.kind === 'wrestling'), pw: !!s.schedule.activities?.[weekdayOf(d)]?.includes('wrestling') };
   });
   const start = (r: Routine) => {
-    if (s.active) { resumeWorkout(() => push('workout', { origin: 'pill' })); return; }
+    if (s.active) { resumeWorkout(() => push('workout', { origin: 'pill' }), 'pill'); return; }
     haptic('confirm');
     resumeWorkout(() => {
       s.startWorkout({ routine: r, plannedDate: plannedFor(s, today, today)?.routineId === r.id ? today : undefined });

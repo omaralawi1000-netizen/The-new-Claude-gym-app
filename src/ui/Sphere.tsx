@@ -164,7 +164,9 @@ function claim(el: HTMLElement) {
  * the moment anything interrupts it, e.g. a finger). `container` is the popup; `shiftAt(p)` how far its slot is displaced
  * at progress p (0 for a popup that doesn't slide).
  */
-export function mirrorOrb(container: Element | null, p0: number, p1: number, sp: { stiffness: number; damping: number; mass?: number }, vel: number, shiftAt: (p: number) => number = () => 0): Animation | null {
+/** `rest`: where the slot is at rest, in client px, when the container is scaled as well as moved (the workout window growing
+ * out of a card): its rectangle now is then not its rectangle at rest shifted by shiftAt. */
+export function mirrorOrb(container: Element | null, p0: number, p1: number, sp: { stiffness: number; damping: number; mass?: number }, vel: number, shiftAt: (p: number) => number = () => 0, rest?: { left: number; top: number; width: number; height: number }): Animation | null {
   const el = orbEl;
   const slotEl = container?.querySelector<HTMLElement>('[data-orb-slot]');
   if (!el || !slotEl || !slotEl.isConnected) return null;
@@ -186,10 +188,10 @@ export function mirrorOrb(container: Element | null, p0: number, p1: number, sp:
   }
   const app = el.closest('.app') ?? el.parentElement;
   const b = app?.getBoundingClientRect() ?? { left: 0, top: 0 };
-  const r = slotEl.getBoundingClientRect();
+  const r = rest ?? slotEl.getBoundingClientRect();
   const z = Math.min(r.width, r.height);
   if (z < 2) return null;
-  const R = { X: r.left - b.left + (r.width - z) / 2, Y: r.top - b.top + (r.height - z) / 2 - shiftAt(p0), S: z };
+  const R = { X: r.left - b.left + (r.width - z) / 2, Y: r.top - b.top + (r.height - z) / 2 - (rest ? 0 : shiftAt(p0)), S: z };
   const slides = Math.abs(shiftAt(0) - shiftAt(1)) > 1;
   const bucket = Math.ceil(Math.max(O.S, R.S, 8) / 24) * 24;
   whooshPending = Math.max(whooshPending, 1);
@@ -357,7 +359,7 @@ export function SphereStage() {
     // A popup's own motion (its transform, the dim and blur fading, the page stepping back) rewrites a style attribute every
     // frame. Its transform is applied below; decorative layers don't change layout. (.stage-content, the page sinking back
     // behind a pop-up, was missing: every frame of opening and closing the workout measured the whole orb path afresh.)
-    const MOVING = '.sheet, .sheet-pane, .sheet-page, .scrim, .scrim > i, .stage, .stage-content, .wk-card, .wk-sheet, .fields, .aurora, .sphere-stage, .lens, .lens > i';
+    const MOVING = '.sheet, .sheet-pane, .sheet-page, .scrim, .scrim > i, .stage, .stage-content, .wk-card, .wk-sheet, .wk-bclip, .wk-bshift, .wk-follow, .wk-dim, .wk-solid, .fields, .aurora, .sphere-stage, .lens, .lens > i';
     // Inside the live workout's window nothing but the bar's own box can move its slot (the bar is pinned to the window's
     // foot): the list, Focus, the header and the bar's words changing used to force a fresh measure of the whole page on
     // every frame they changed (a set ticked, a page turned, the clock rolling), the biggest part of a tick's cost.

@@ -18,6 +18,12 @@
   --ok: #6fe3a0; --bad: #ff6b72; --warn: #f2c35a; --gold: #f7c95c;
 
   --r-xs: 10px; --r-sm: 14px; --r-md: 22px; --r-lg: 30px; --r-xl: 38px;
+  /* the Galaxy S26 Ultra's own screen corners, in CSS px: Samsung gives its screen as 6.9" measured as a rectangle and 6.7"
+     with the corners cut off (3120 x 1440, ~498 ppi, a CSS px is ~0.19 mm at its 3.75 density), which puts the corner
+     radius near 5.6 mm, ~29 px. Every pop-up's top corners and the workout window's corners are this, so an edge that
+     meets the screen's edge runs on in the same curve. */
+  --screen-r: 29px;
+  --beat: 520ms; /* a set ticked: everything that answers it lands on this one beat (the check's spring) */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-io: cubic-bezier(0.65, 0, 0.35, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -622,7 +628,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .veil-tint { background: color-mix(in srgb, var(--bg) 74%, transparent); }
 .sheet {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; max-height: calc(100dvh - var(--sat) - 46px); display: flex; flex-direction: column;
-  border-radius: var(--r-xl) var(--r-xl) 0 0; will-change: transform;
+  border-radius: var(--screen-r) var(--screen-r) 0 0; will-change: transform;
   box-shadow: var(--sh-f); /* the drop shadow is the sheet's own (painted with its content): on the dithered tint layer it
   doubled that layer's cost per frame (measured) */
 }
@@ -928,8 +934,9 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 @keyframes sentGlow { 0% { box-shadow: inset 0 1px 0 var(--hl), inset 0 0 0 1px color-mix(in srgb, var(--ac) 70%, transparent), 0 0 22px -4px color-mix(in srgb, var(--ac) 60%, transparent); } 100% { box-shadow: inset 0 1px 0 color-mix(in srgb, var(--hl) 60%, transparent), inset 0 0 0 1px var(--line), 0 0 0 0 transparent; } }
 
 .wk-progress { height: 3px; border-radius: 3px; background: var(--s3); margin-top: 12px; overflow: hidden; }
-/* it fills on the calm page curve, a little slower than a tap's feedback, so a tick reads as progress settling rather than a jump */
-.wk-progress i { display: block; height: 100%; background: var(--ac); transform-origin: 0 50%; transition: transform 900ms var(--ease-smooth); will-change: transform; }
+/* a tick is one beat: the check's spring, the row's tint, this fill and the bar's new words all start in the tap's frame
+   and land together (--beat, the check's own 520 ms), instead of four things finishing one after another */
+.wk-progress i { display: block; height: 100%; background: var(--ac); transform-origin: 0 50%; transition: transform var(--beat) var(--ease-smooth); will-change: transform; }
 /* The workout bar: the workout's own dock, exactly where the tab bar sits. While resting, its fill grows with the rest
    (a transform, re-aimed four times a second with a matching linear transition, so it moves continuously); at the end it
    turns green with one soft glow and stays green until the next set is ticked. It slides away while you type. */
@@ -963,7 +970,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-bar.go .wk-bar-clip::before { opacity: 1; }
 .wk-bar.go .wk-bar-fill { transform: none; opacity: 0; }
 /* the bar's words settle in when the bar changes what it says (next, rest, go): a slow, short rise, no cut; the big line a beat after the small one */
-.wk-bar-top, .wk-bar-big { animation: wkSwap 560ms var(--ease-out) both; }
+.wk-bar-top, .wk-bar-big { animation: wkSwap var(--beat) var(--ease-smooth) both; }
 /* the two lines as one unit; the outgoing pair lies over the incoming one and fades up and away (Active.tsx SwapText) */
 .wk-bar-txt { min-width: 0; max-width: 100%; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 1px; }
 .wk-bar-txt.out { position: absolute; inset: 0 8px 0 0; pointer-events: none; animation: wkSwapOut 340ms var(--ease-out) both; }
@@ -1109,20 +1116,33 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    with the area's light in it. It rises from the resume bar and firms up as it goes; nothing on it is blurred or clipped. */
 /* it reaches 48 px above its top edge (its own colour, over the status bar's side of the screen): the spring's slow last
    pixels happen out of sight above the screen, so no strip of the page behind ever lingers over the window's top */
-.wk-sheet { position: absolute; inset: calc(-1 * var(--wk-lead)) 0 0 0; overflow: clip; border-radius: var(--wk-r) var(--wk-r) 0 0; will-change: transform, opacity; }
+.wk-sheet { position: absolute; inset: calc(-1 * var(--wk-lead)) 0 0 0; overflow: clip; will-change: transform, opacity; transform-origin: 0 0; }
+.wk-card.wk-moving .wk-sheet { border-radius: var(--wk-r) var(--wk-r) 0 0; }
+.wk-card.wk-moving .wk-bclip { border-radius: 0 0 var(--wk-r) var(--wk-r); }
+/* Growing out of a card (Active.tsx): the window's own box is its top and sides (moved and scaled from its top-left corner);
+   its bottom edge is this second box, reaching a corner's height past the window above and below, moved up by as much as
+   its contents (.wk-bshift) are moved down, so the page itself never moves with it. At rest both are where they started
+   and the bottom corners lie below the screen. */
+.wk-bclip { position: absolute; left: 0; right: 0; top: calc(-2px - var(--wk-r)); bottom: calc(-2px - var(--wk-r)); overflow: clip; will-change: transform; }
+.wk-bshift { position: absolute; left: 0; right: 0; top: calc(2px + var(--wk-r)); bottom: calc(2px + var(--wk-r)); will-change: transform; }
+/* the page around the card dims a touch while the window grows out of it (gone, unseen, before it is covered) */
+.wk-dim { position: absolute; inset: 0; background: #000; opacity: 0; pointer-events: none; will-change: opacity; }
+:root[data-theme='light'] .wk-dim { background: rgb(20 24 30 / .55); }
+/* the shadow and the corner fill ride with the window's top edge, as one layer moved like the window */
+.wk-follow { position: absolute; inset: calc(-1 * var(--wk-lead)) 0 0 0; pointer-events: none; transform-origin: 0 0; will-change: transform; }
 /* the shadow over the page's top edge while it travels: its own small layer riding with it, fading out over the last 30 %
    (Active.tsx), so a page at rest has no shadow and nothing is repainted to fade it */
-.wk-shade { position: absolute; left: 0; right: 0; top: calc(-56px - var(--wk-lead)); height: calc(56px + var(--wk-r)); pointer-events: none; will-change: transform, opacity;
+.wk-shade { position: absolute; left: 0; right: 0; top: -56px; height: calc(56px + var(--wk-r)); pointer-events: none; will-change: opacity;
   background: linear-gradient(to bottom, transparent, rgba(0,0,0,.07) 25px, rgba(0,0,0,.2) 56px); } /* (it carries on under the rounded corners) */
-:root[data-theme='dark'] .wk-shade { top: calc(-72px - var(--wk-lead)); height: calc(72px + var(--wk-r)); background: linear-gradient(to bottom, transparent, rgba(0,0,0,.22) 29px, rgba(0,0,0,.6) 72px); }
-.wk-corner-fill { position: absolute; left: 0; right: 0; top: calc(-1 * var(--wk-lead)); height: var(--wk-r); pointer-events: none; background: var(--wk-bar, transparent); opacity: 0; will-change: transform, opacity; }
+:root[data-theme='dark'] .wk-shade { top: -72px; height: calc(72px + var(--wk-r)); background: linear-gradient(to bottom, transparent, rgba(0,0,0,.22) 29px, rgba(0,0,0,.6) 72px); }
+.wk-corner-fill { position: absolute; left: 0; right: 0; top: 0; height: var(--wk-r); pointer-events: none; background: var(--wk-bar, transparent); opacity: 0; will-change: opacity; }
 /* the window's top rim: only a strip along the top (it lay over the whole window, so every animation under it gave it a
    layer and took it away again, once a second during a rest), kept on a layer of its own */
 .wk-sheet::after { content: ''; position: absolute; left: 0; right: 0; top: 0; height: calc(var(--wk-r) + 4px); border-radius: inherit; pointer-events: none; box-shadow: inset 0 1px 0 var(--hl); z-index: 5; will-change: transform; }
-:root { --wk-r: 28px; --wk-lead: 48px; }
+:root { --wk-r: var(--screen-r); --wk-lead: 48px; }
 /* rounded top corners while it travels (a page in motion reads as one surface rising, and on the way down it narrows into
    the bar at its corners); at rest they sit inside the 48 px reach above the screen, so the page at rest is square */
-.wk-sheet > .wk-window { top: var(--wk-lead) !important; }
+.wk-bshift > .wk-window { top: var(--wk-lead) !important; }
 /* the window's light sits where it sat in the card (the reach above the top is plain colour), 16 px higher with the grabber gone,
    so it glows behind the title */
 .wk-solid > .aurora-lite { top: calc(var(--wk-lead) - 16px); overflow: visible; } /* its light carries on up to the screen's top (the window clips it) */
@@ -1136,7 +1156,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
     /* eased, so the light has no line where it starts */
     linear-gradient(to bottom, var(--wk-bar, var(--bg)) calc(var(--wk-lead) + var(--sat)), color-mix(in srgb, var(--wk-bar, var(--bg)) 100%, transparent) calc(var(--wk-lead) + var(--sat) + 0px), color-mix(in srgb, var(--wk-bar, var(--bg)) 92%, transparent) calc(var(--wk-lead) + var(--sat) + 8px), color-mix(in srgb, var(--wk-bar, var(--bg)) 72%, transparent) calc(var(--wk-lead) + var(--sat) + 18px), color-mix(in srgb, var(--wk-bar, var(--bg)) 45%, transparent) calc(var(--wk-lead) + var(--sat) + 28px), color-mix(in srgb, var(--wk-bar, var(--bg)) 20%, transparent) calc(var(--wk-lead) + var(--sat) + 38px), color-mix(in srgb, var(--wk-bar, var(--bg)) 6%, transparent) calc(var(--wk-lead) + var(--sat) + 46px), color-mix(in srgb, var(--wk-bar, var(--bg)) 0%, transparent) calc(var(--wk-lead) + var(--sat) + 54px)),
     radial-gradient(80% 150px at 100% calc(var(--wk-lead) + var(--sat)), var(--wk-bar, var(--bg)), color-mix(in srgb, var(--wk-bar, var(--bg)) 55%, transparent) 45%, transparent); }
-.wk-solid { position: absolute; inset: 0; background: var(--bg); }
+.wk-solid { position: absolute; inset: 0; background: var(--bg); will-change: opacity; }
 
 /* Settings pages: once a page has glided in, its rows and fields settle in one after another (transform + opacity only) */
 /* Settings pages: once a page has glided in, its rows and fields settle in one after another (transform + opacity only). */
@@ -1529,7 +1549,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .review-stall { display: flex; gap: 8px; align-items: flex-start; margin-top: 14px; padding: 9px 10px; border-radius: 12px; color: var(--tx); background: color-mix(in srgb, var(--warn) 12%, transparent); }
 
 /* ── live workout, compact header: name and the clock line beside the minimise button; pause and Finish on the right ── */
-.wk-head-wrap { position: relative; z-index: 2; padding: 0 16px 10px; }
+.wk-head-wrap { position: relative; z-index: 2; padding: 0 16px 10px; will-change: transform, opacity; }
 .wk-head { display: flex; align-items: center; gap: 6px; }
 .wk-min { width: 40px; height: 40px; margin-left: -6px; color: var(--tx); }
 .wk-head-mid { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
@@ -1572,7 +1592,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    current:    the one to do now, a quiet accent outline around the row
    logged:     a filled check that draws itself, the row tinted */
 .wk-set { display: grid; gap: 8px; align-items: center; padding: 5px 6px; margin: 2px 0; border-radius: 14px; background: transparent; box-shadow: inset 0 0 0 1px transparent;
-  transition: background-color 420ms var(--ease-out), box-shadow 420ms var(--ease-out); }
+  transition: background-color var(--beat) var(--ease-smooth), box-shadow var(--beat) var(--ease-smooth); }
 /* the tick's ripple: one soft ellipse of light, centred on the check, that grows across the row and fades (transform and
    opacity only; clipped to the row, painted under its numbers) */
 .wk-set { position: relative; isolation: isolate; }
@@ -1622,7 +1642,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-set.current .wk-check { box-shadow: inset 0 0 0 1.75px color-mix(in srgb, var(--ac) 70%, transparent); }
 .wk-check.on { background: var(--ac); box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--ac) 75%, transparent), inset 0 1px 0 rgba(255,255,255,.45); }
 /* just ticked: the button gives a small spring and the check draws itself in */
-.wk-check.fresh { animation: chkPop 520ms var(--ease-spring) both; }
+.wk-check.fresh { animation: chkPop var(--beat) var(--ease-spring) both; }
 .wk-check.fresh .wk-check-mark path { stroke-dasharray: 1; stroke-dashoffset: 1; animation: chkDraw 340ms 70ms cubic-bezier(0.65, 0, 0.35, 1) forwards; }
 @keyframes chkPop { 0% { transform: scale(.86); } 55% { transform: scale(1.06); } } /* no end keyframe: it lands on the press's own transform and holds its layer */
 @keyframes chkDraw { to { stroke-dashoffset: 0; } }
@@ -1694,7 +1714,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    full: just under the status bar; large: the stacked-card height; medium: as tall as its contents; small: a floating card
    with a gap all round (rounded on every corner), over a lighter dim, and the page behind stays put. */
 .sheet.sz-full.tall { height: calc(100dvh - var(--sat) - 10px); }
-.sheet.sz-small { left: 10px; right: 10px; bottom: calc(var(--sab) + 10px); border-radius: 30px;
+.sheet.sz-small { left: 10px; right: 10px; bottom: calc(var(--sab) + 10px); border-radius: var(--screen-r);
   box-shadow: inset 0 1px 0 var(--hl), inset 0 0 0 1px var(--line), 0 24px 60px -20px rgba(0, 0, 0, .55); }
 .sheet.sz-small .sheet-body { padding-bottom: 20px; }
 .sheet.sz-small .sheet-foot { padding-bottom: 14px; }
@@ -1762,7 +1782,9 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* ── Focus view (screens/workout/Focus.tsx): one exercise per page, the next one a swipe away ──
    Switching views is a crossfade on the window's calm curve: the list sinks back and fades, Focus rises in a beat later.
    Only opacity and transform move; when a view has faded out it stops being drawn (visibility) but keeps its place. */
-.wk-views { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.wk-views { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; will-change: transform, opacity; }
+/* (both are moved and faded as the window grows out of its card: kept on their layers, so reaching exactly opacity 1, or
+   leaving it, never re-layers and repaints the whole list mid-motion) */
 .wk-list { transition: opacity 380ms 90ms var(--ease-out), transform 620ms var(--ease-smooth), visibility 0s; }
 .wk-list.wk-away { opacity: 0; transform: none; visibility: hidden; pointer-events: none; transition: opacity 260ms var(--ease-out), transform 560ms var(--ease-smooth), visibility 0s 560ms; }
 .wk-focus { position: absolute; inset: 0; display: flex; flex-direction: column; opacity: 0; transform: translateY(16px) scale(.985); visibility: hidden; pointer-events: none; will-change: opacity, transform;

@@ -23,6 +23,10 @@ export const SMOOTH = apple(0.36);                // content settling (Apple .sm
 export const SURFACE = { ...apple(0.45), restDelta: 0.001 }; // a sheet / card arriving: Apple's .smooth, a hair quicker than the 0.5 s default
 export const SURFACE_EXIT = { ...apple(0.38), restDelta: 0.002 }; // leaving is a touch quicker than arriving
 export const WINDOW = SURFACE;
+// the live workout growing out of its card, and back: its own, slower spring, with the faintest landing (0.3 % past, all
+// of it off the top of the screen: the width is whole before it lands); closing settles into the card with no bounce
+export const WINDOW_OPEN = { ...apple(0.56, 0.12), restDelta: 0.0005 };
+export const WINDOW_CLOSE = { ...apple(0.5), restDelta: 0.0005 };
 export const BOUNCY = apple(0.5, 0.3);            // Apple .bouncy: a record, a gain, a sent message
 export const GENTLE = { type: 'spring', stiffness: 60, damping: 18 } as const;
 export const KEYBOARD = { type: 'spring', stiffness: 760, damping: 54, mass: 1, restDelta: 0.5 } as const; // ~0.25 s: keeps up with Android's keyboard instead of trailing it
