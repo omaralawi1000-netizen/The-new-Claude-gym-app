@@ -95,13 +95,11 @@ function Ring({ i, ring, c, rad, stroke, size, id }: { i: number; ring: DialRing
   return (
     <g ref={root} style={{ color: col }}>
       <defs>
-        <filter id={`${id}-glow`} x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="5" /></filter>
-        {/* the groove: darker along its inside (in the ring's own hue on light), a little along its outer lip, clear in the middle */}
+        {/* the groove: a thin, crisp shade along the track's inside edge only the rest of the band stays flat */}
         <radialGradient id={`${id}-groove`} gradientUnits="userSpaceOnUse" cx={c} cy={c} r={R}>
           <stop offset={r0 / R} style={{ stopColor: `oklch(from ${col} var(--ring-in-l) var(--ring-in-c) h / var(--ring-in-a))` }} />
-          <stop offset={(rad - stroke * 0.05) / R} style={{ stopColor: `oklch(from ${col} var(--ring-in-l) var(--ring-in-c) h / 0)` }} />
-          <stop offset={(rad + stroke * 0.25) / R} style={{ stopColor: 'var(--ring-out)', stopOpacity: 0 }} />
-          <stop offset="1" style={{ stopColor: 'var(--ring-out)' }} />
+          <stop offset={(r0 + stroke * 0.2) / R} style={{ stopColor: `oklch(from ${col} var(--ring-in-l) var(--ring-in-c) h / 0)` }} />
+          <stop offset="1" style={{ stopColor: `oklch(from ${col} var(--ring-in-l) var(--ring-in-c) h / 0)` }} />
         </radialGradient>
         {/* the tube: a touch deeper along its inner edge, lit along its outer one */}
         <radialGradient id={`${id}-tube`} gradientUnits="userSpaceOnUse" cx={c} cy={c} r={R}>
@@ -135,7 +133,6 @@ function Ring({ i, ring, c, rad, stroke, size, id }: { i: number; ring: DialRing
       </defs>
       <circle {...p} style={{ stroke: track }} strokeWidth={stroke} />
       <circle {...p} stroke={`url(#${id}-groove)`} strokeWidth={stroke} />
-      <motion.circle {...p} stroke={col} strokeWidth={stroke + 6} filter={`url(#${id}-glow)`} style={{ pathLength: prog, opacity: v > 0 ? 'var(--ring-glow)' : 0 }} />
       <g mask={`url(#${id}-band)`} opacity={v > 0 ? 1 : 0}>
         <circle ref={cap} r={stroke * 0.75} fill={`url(#${id}-cap)`} />
       </g>
