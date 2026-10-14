@@ -158,6 +158,7 @@ html:root[data-glow='off'] .look-pv i { display: none; }
   --ring-trk-l: .26; --ring-trk-c: .08; --ring-trk-cm: 1; --ring-in-l: 0; --ring-in-c: 0; --ring-in-a: .55; --ring-out: rgb(0 0 0 / .2);
   --ring-cap: rgb(0 0 0 / .42); --ring-tube-in: rgb(0 0 0 / .07); --ring-tube-out: rgb(255 255 255 / .14);
   --ring-dl0: .03; --ring-dl1: .07; --ring-dc1: 1; --ring-glow: .5;
+  --ring-trk-yl: .275; --ring-trk-yc: .037;
   --ring-dither: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='96' height='96'><filter id='d' color-interpolation-filters='sRGB'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='1' stitchTiles='stitch'/><feColorMatrix values='.5 0 0 0 .25  .5 0 0 0 .25  .5 0 0 0 .25  0 0 0 0 .06'/></filter><rect width='100%' height='100%' filter='url(%23d)'/></svg>");
   color-scheme: dark;
   --bg: #05060b; --bg-2: rgba(0, 0, 0, 0.34);
@@ -184,7 +185,7 @@ html:root[data-glow='off'] .look-pv i { display: none; }
 :root[data-theme='light'] {
   --ring-trk-l: .925; --ring-trk-c: .065; --ring-trk-cm: .45; --ring-in-l: .45; --ring-in-c: c; --ring-in-a: .084; --ring-out: rgb(255 255 255 / .5);
   --ring-cap: rgb(20 28 48 / .1); --ring-tube-in: rgb(0 0 0 / .03); --ring-tube-out: rgb(255 255 255 / .11);
-  --ring-dl0: .02; --ring-dl1: .045; --ring-dc1: 1.12; --ring-glow: 0;
+  --ring-dl0: .02; --ring-dl1: .045; --ring-dc1: 1.12; --ring-glow: 0; --ring-trk-yl: var(--ring-trk-l); --ring-trk-yc: var(--ring-trk-c);
   color-scheme: light;
   --bg: #e9ecf4; --bg-2: rgba(20, 28, 48, 0.06);
   --s1: rgba(255, 255, 255, 0.55); --s2: rgba(255, 255, 255, 0.7); --s3: rgba(20, 28, 48, 0.07); --s4: rgba(20, 28, 48, 0.14);

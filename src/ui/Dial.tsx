@@ -32,9 +32,9 @@ export function Dial({ rings, size = 280, stroke = 13, gap = 9, children, label 
 
 /** which way a ring's colour turns along its length, like Apple's (pink → magenta, lime → yellow-green, teal → cyan-blue):
  *  +1 = towards higher hue, -1 = lower. `t` = extra hue for the empty track (teals lean a little towards cyan). */
-function turn(css: string): { s: number; t: number } {
+function turn(css: string): { s: number; t: number; y: boolean } {
   const m = css.match(/[\d.]+/g);
-  if (!m || m.length < 3) return { s: 1, t: 0 };
+  if (!m || m.length < 3) return { s: 1, t: 0, y: false };
   let h: number;
   if (css.startsWith('oklch')) h = +m[2];
   else {
@@ -43,7 +43,8 @@ function turn(css: string): { s: number; t: number } {
     h = (Math.atan2(0.0259040371 * l + 0.7827717662 * mm - 0.808675766 * q, 1.9779984951 * l - 2.428592205 * mm + 0.4505937099 * q) * 180) / Math.PI;
   }
   h = (h + 360) % 360;
-  return { s: (h >= 105 && h < 150) || h >= 330 || h < 40 ? -1 : 1, t: h >= 150 && h < 250 ? 8 : 0 };
+  // y: yellows and oranges, whose dark track can't hold much colour without turning brown (kept inside the screen's gamut)
+  return { s: (h >= 105 && h < 150) || h >= 330 || h < 40 ? -1 : 1, t: h >= 150 && h < 250 ? 8 : 0, y: h >= 55 && h < 110 };
 }
 
 function Ring({ i, ring, c, rad, stroke, size, id }: { i: number; ring: DialRing; c: number; rad: number; stroke: number; size: number; id: string }) {
@@ -53,10 +54,10 @@ function Ring({ i, ring, c, rad, stroke, size, id }: { i: number; ring: DialRing
   const prog = useMotionValue(reduce ? v : 0);
   const len = useTransform(prog, (p) => Math.max(p, p > 0 ? 0.012 : 0));
   const root = useRef<SVGGElement>(null), cap = useRef<SVGCircleElement>(null), lap = useRef<SVGGElement>(null), head = useRef<SVGGElement>(null);
-  const [{ s, t }, setTurn] = useState({ s: 1, t: 0 });
+  const [{ s, t, y }, setTurn] = useState({ s: 1, t: 0, y: false });
   // read the ring's real colour once (and again if the palette or theme changes) to know which way its hue turns
   useLayoutEffect(() => {
-    const read = () => { const el = root.current; if (el) { const n = turn(getComputedStyle(el).color); setTurn((o) => (o.s === n.s && o.t === n.t ? o : n)); } };
+    const read = () => { const el = root.current; if (el) { const n = turn(getComputedStyle(el).color); setTurn((o) => (o.s === n.s && o.t === n.t && o.y === n.y ? o : n)); } };
     read();
     const mo = new MutationObserver(read);
     mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-palette', 'data-theme'] });
@@ -85,7 +86,9 @@ function Ring({ i, ring, c, rad, stroke, size, id }: { i: number; ring: DialRing
   // ~12° along the hue (the depth comes from the turn, not from darkening), a dim carved track
   const start = `oklch(from ${col} calc(l - var(--ring-dl0)) c calc(h - ${6 * s}))`;
   const end = `oklch(from ${col} min(calc(l + var(--ring-dl1)), .97) calc(c * var(--ring-dc1)) calc(h + ${6 * s}))`;
-  const track = `oklch(from ${col} var(--ring-trk-l) min(calc(c * var(--ring-trk-cm)), var(--ring-trk-c)) calc(h + ${t}))`;
+  const track = y
+    ? `oklch(from ${col} var(--ring-trk-yl, var(--ring-trk-l)) min(calc(c * var(--ring-trk-cm)), var(--ring-trk-yc, var(--ring-trk-c))) h)`
+    : `oklch(from ${col} var(--ring-trk-l) min(calc(c * var(--ring-trk-cm)), var(--ring-trk-c)) calc(h + ${t}))`;
   const shade = `oklch(from ${col} calc(l - .25) c h)`;
   // the gradient never wraps: short of full, the few degrees behind the start (its round cap) hold the start colour
   const span = Math.max(v, 0.3) * 360, o = v >= 1 ? 0 : 6;
@@ -126,6 +129,9 @@ function Ring({ i, ring, c, rad, stroke, size, id }: { i: number; ring: DialRing
         <mask id={`${id}-band`} maskUnits="userSpaceOnUse" x="0" y="0" width={size} height={size}>
           <circle {...p} stroke="#fff" strokeWidth={stroke} />
         </mask>
+        <mask id={`${id}-end`} maskUnits="userSpaceOnUse" x="0" y="0" width={size} height={size}>
+          <circle cx={c} cy={c - rad} r={stroke / 2} fill="#fff" />
+        </mask>
       </defs>
       <circle {...p} style={{ stroke: track }} strokeWidth={stroke} />
       <circle {...p} stroke={`url(#${id}-groove)`} strokeWidth={stroke} />
@@ -141,10 +147,12 @@ function Ring({ i, ring, c, rad, stroke, size, id }: { i: number; ring: DialRing
         {/* full: the end's shade falls on the ring's own start */}
         <g ref={lap} opacity="0"><circle cx={c + stroke * 0.5} cy={c - rad} r={stroke * 0.75} fill={`url(#${id}-lap)`} /></g>
       </g>
-      {/* full: the end drawn again on top, in the gradient's exact end colour, so it lies over the start */}
+      {/* full: the end drawn again on top, in the gradient's exact end colour with the same dither and tube shading, so it lies over the start */}
       <g ref={head} opacity="0">
-        <circle cx={c} cy={c - rad} r={stroke / 2} style={{ fill: end }} />
-        <circle cx={c} cy={c - rad} r={stroke / 2} fill={`url(#${id}-tube)`} />
+        <g mask={`url(#${id}-end)`}>
+          <foreignObject x="0" y="0" width={size} height={size}><div style={{ width: '100%', height: '100%', background: `var(--ring-dither), ${end}` }} /></foreignObject>
+          <circle {...p} stroke={`url(#${id}-tube)`} strokeWidth={stroke} />
+        </g>
       </g>
     </g>
   );
