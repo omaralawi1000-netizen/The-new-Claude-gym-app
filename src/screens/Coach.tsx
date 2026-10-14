@@ -39,7 +39,14 @@ const FLY_SHAPE = springCurve(apple(0.34, 0.06));
 // said words (they were never in the field): one calm lift of the pill into its bubble, no spring's quick start (the
 // words come up inside it on the way, so the move itself has to read: the spring's first 150 ms read as a jump, and so
 // did a fast-start ease-out; this one starts softly, so the pill is seen to peel off the bar)
-const FLY_SAID = { duration: 560, easing: 'cubic-bezier(.3, .1, .2, 1)' };
+const SAID_EASE = [0.3, 0.1, 0.2, 1] as const;
+const FLY_SAID = { duration: 560, easing: `cubic-bezier(${SAID_EASE.join(', ')})` };
+// how far along that curve the move is at a given share of its time (to know when the growing bubble has room for a line)
+const saidAt = (x: number) => {
+  const [x1, y1, x2, y2] = SAID_EASE, f = (a: number, b: number, m: number) => 3 * (1 - m) * (1 - m) * m * a + 3 * (1 - m) * m * m * b + m * m * m;
+  let lo = 0, hi = 1; for (let i = 0; i < 24; i++) { const m = (lo + hi) / 2; if (f(x1, x2, m) < x) lo = m; else hi = m; }
+  return f(y1, y2, (lo + hi) / 2);
+};
 const SAID_BACK = 340; // …and the bar comes back, fresh, only once the bubble has left it (faded in over 300 ms from here)
 // the emptied pill behind a sent message: closed at once, out of sight under the flying shape, which starts as the whole
 // pill (the empty bar is only ever seen where the shape has left it)
@@ -410,13 +417,25 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
         // the field's bright ink settles to the bubble's softer one; said words (never in the field) come up inside the
         // pill as it lifts, softly, while it is still the pill, and are the bubble's ink by the time it is the bubble
         from.fresh
-          ? go(words.animate([{ opacity: 0 }, { opacity: 1, offset: 0.6 }, { opacity: inkA }], { duration: 420, delay: 100, easing: 'linear', fill: 'both' }))
+          ? go(words.animate([{ opacity: 1 }, { opacity: 1, offset: 0.7 }, { opacity: inkA }], { duration: FLY_SAID.duration, easing: 'linear', fill: 'both' }))
           : go(words.animate([{ opacity: 1 }, { opacity: inkA }], { ...fade(380, 60), fill: 'both' })),
-        ...(ghost ? [go(ghost.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 200, easing: 'cubic-bezier(.3, 0, .2, 1)', fill: 'forwards' }))] : []),
+        // ("Transcribing…" is gone before the first words come: the two are never seen over each other)
+        ...(ghost ? [go(ghost.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 140, easing: 'cubic-bezier(.3, 0, .2, 1)', fill: 'forwards' }))] : []),
       ];
+      // said words: each line comes up only once the growing bubble has room for it (never on or past its edge), and not
+      // before 150 ms: the line on the field's line first, the ones above as the bubble's top rises past them
+      if (from.fresh) {
+        const pt = parseFloat(cs.paddingTop), lh = parseFloat(cs.lineHeight) || CF_LINE / k;
+        [...words.children].forEach((line, i) => {
+          const top = pt + i * lh, bot = top + lh;
+          let at = 150;
+          while (at < 380) { const e = saidAt(at / FLY_SAID.duration); if (y0 * (1 - e) <= top - 1 && y1 * (1 - e) + H * e >= bot - 2) break; at += 4; }
+          go((line as HTMLElement).animate([{ opacity: 0 }, { opacity: 1 }], { duration: 180, delay: at, easing: 'cubic-bezier(.3, 0, .2, 1)', fill: 'backwards' }));
+        });
+      }
       if (stand) setTimeout(() => stand?.remove(), 60);
       // lines that were scrolled out of a long draft's view come in on the way, rather than appearing over the chat
-      [...words.children].forEach((line, i) => {
+      if (!from.fresh) [...words.children].forEach((line, i) => {
         const ly = from.y + i * CF_LINE;
         if (ly < from.win.t - 2 || ly + CF_LINE > from.win.b + 2) go((line as HTMLElement).animate([{ opacity: 0 }, { opacity: 1 }], fade(260, 60)));
       });
