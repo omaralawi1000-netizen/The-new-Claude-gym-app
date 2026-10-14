@@ -12,6 +12,12 @@ import { Sheet, SheetHead, SOFT } from '../../ui/Sheet';
 import { mealName } from '../../lib/derive';
 import { searchOnline, type LookupStatus } from '../../lib/foodApi';
 import { defaultQty } from './Detail';
+import { mic } from '../../lib/mic';
+import { transcribe, buildPrompt, STT_MODEL, SttError } from '../../lib/groq';
+import { getKey } from '../../lib/keys';
+import { useAi } from '../../state/ai';
+import { sttMessage } from '../../ui/agentUi';
+import { voiceThread } from '../../ui/voiceThread';
 
 type Filter = 'all' | 'recent' | 'fav' | 'mine';
 
@@ -30,6 +36,57 @@ export function FoodSearch({ props }: { props: { date: string; mealId: string } 
   const [added, setAdded] = useState<{ id: string; name: string }[]>([]);
   const meal = s.settings.meals.find((m) => m.id === props.mealId);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // dictation (Groq Whisper): record with a live voice thread → stop → "Transcribing…" → the words land in the field.
+  // Whisper answers after you stop, so there are no live words: the thread is the whole "listening" picture.
+  const [dict, setDict] = useState<'idle' | 'listen' | 'proc'>('idle');
+  const dictRef = useRef(dict); dictRef.current = dict;
+  const aRef = useRef<HTMLElement>(null), coreRef = useRef<HTMLElement>(null);
+  const thread = useRef<ReturnType<typeof voiceThread> | null>(null);
+  const base = useRef('');
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    thread.current = voiceThread(() => aRef.current, () => coreRef.current);
+    return () => { alive.current = false; thread.current?.destroy(); mic.release('food'); };
+  }, []);
+  const land = () => { inputRef.current?.animate([{ color: 'transparent' }], { duration: 380, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'backwards' }); };
+  const finishDict = async () => {
+    if (dictRef.current !== 'listen') return;
+    setDict('proc'); thread.current?.stop();
+    const blob = await mic.stopRecording(); mic.release('food');
+    try {
+      if (!blob) throw new SttError('failed');
+      const st = useAi.getState();
+      const out = (await transcribe(blob, { key: getKey('groq'), model: STT_MODEL[st.stt], language: st.voiceLang === 'auto' ? 'auto' : st.voiceLang, prompt: buildPrompt([]) })).trim();
+      if (!alive.current) return;
+      if (out) { thread.current?.reveal(); setQ((base.current ? base.current.trimEnd() + ' ' : '') + out); requestAnimationFrame(land); haptic('send'); }
+      else { thread.current?.cancel(); toast(t('Didn’t catch anything. Try again.')); }
+    } catch (e) {
+      if (!alive.current) return;
+      thread.current?.cancel(); toast(sttMessage(e instanceof SttError ? e.code : 'failed', t), { tone: 'bad' });
+    } finally { if (alive.current) setDict('idle'); }
+  };
+  const toggleDict = async () => {
+    if (dictRef.current === 'proc') return;
+    if (dictRef.current === 'listen') { finishDict(); return; }
+    if (!useAi.getState().hasGroq || !mic.supported) { push('settings', { section: 'ai' }); return; }
+    const r = await mic.acquire('food');
+    if (!r.ok || !mic.startRecording('food')) { mic.release('food'); toast(r.ok ? t('This browser can’t record audio.') : t('The microphone isn’t available. Check the permission, or type.'), { tone: 'bad' }); return; }
+    base.current = q; haptic('listen'); setDict('listen'); inputRef.current?.blur(); thread.current?.start();
+  };
+  // stop by itself once you have spoken and gone quiet for 0.9 s (same rule as the Coach), or after 40 s
+  useEffect(() => {
+    if (dict !== 'listen') return;
+    let heard = 0, quiet = 0; const t0 = performance.now();
+    const id = setInterval(() => {
+      const lv = mic.level();
+      if (lv > 0.16) { heard += 80; quiet = 0; } else if (lv < 0.09) quiet += 80;
+      if ((heard >= 240 && quiet >= 900) || performance.now() - t0 > 40000) { clearInterval(id); finishDict(); }
+    }, 80);
+    return () => clearInterval(id);
+    // eslint-disable-next-line
+  }, [dict]);
 
   useEffect(() => { const id = setTimeout(() => setDq(q.trim()), 220); return () => clearTimeout(id); }, [q]);
 
@@ -109,10 +166,14 @@ export function FoodSearch({ props }: { props: { date: string; mealId: string } 
       <SheetHead title={t('Add to {meal}', { meal: meal ? mealName(meal, lang) : '' })} sub={added.length ? t('{n} added — tap + to add more', { n: added.length }) : undefined} onClose={pop}
         right={added.length > 0 ? <button className="btn sm primary press" onClick={pop}>{t('Done')} · {added.length}</button> : undefined} />
       <div style={{ padding: '0 20px 10px' }}>
-        <div style={{ position: 'relative' }}>
+        <div className={`dict-field ${dict !== 'idle' ? `dict-${dict}` : ''}`} style={{ position: 'relative' }}>
           <Icon name="search" size={18} style={{ position: 'absolute', left: 14, top: 15, color: 'var(--tx3)' }} />
-          <input ref={inputRef} className="input" style={{ paddingLeft: 42, paddingRight: 42 }} placeholder={t('Search foods and brands')} value={q} onChange={(e) => setQ(e.target.value)} enterKeyHint="search" aria-label={t('Search foods and brands')} />
-          {q && <button className="icon-btn flat sm press" style={{ position: 'absolute', right: 6, top: 7 }} aria-label={t('Clear')} onClick={() => { setQ(''); inputRef.current?.focus(); }}><Icon name="close" size={16} /></button>}
+          <input ref={inputRef} className="input" style={{ paddingLeft: 42, paddingRight: 90 }} placeholder={t('Search foods and brands')} value={q} onChange={(e) => setQ(e.target.value)} enterKeyHint="search" aria-label={t('Search foods and brands')} readOnly={dict !== 'idle'} />
+          <span className="dict-lbl dict-ls" aria-hidden="true">{t('Listening…')}</span>
+          <span className="dict-lbl dict-tr" aria-hidden="true">{t('Transcribing…')}</span>
+          {q && dict === 'idle' && <button className="icon-btn flat sm press" style={{ position: 'absolute', right: 46, top: 7 }} aria-label={t('Clear')} onClick={() => { setQ(''); inputRef.current?.focus(); }}><Icon name="close" size={16} /></button>}
+          <button className="dict-mic press" aria-label={dict === 'listen' ? t('Stop and transcribe') : t('Dictate')} aria-pressed={dict === 'listen'} disabled={dict === 'proc'} onClick={toggleDict}><span className="dict-ring" /><Icon name="mic" size={18} /></button>
+          <div className="dict-thread" aria-hidden="true"><i className="dt-a" ref={aRef as any} /><i className="dt-c" ref={coreRef as any} /></div>
         </div>
         <div className="tools">
           {actions.map((a) => <button key={a.label} className="tool press" onClick={a.run}><Icon name={a.icon} size={17} /><span>{a.label}</span></button>)}
