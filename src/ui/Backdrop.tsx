@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useStore } from '../state/store';
+import { useUI } from '../state/ui';
 import { useVoice } from '../state/voice';
 import { onVoiceOut, voiceOutOn } from '../lib/voiceOut';
 import { useDaySummary, useToday } from '../lib/derive';
@@ -32,22 +33,40 @@ export function sunTimes(d: Date, lat = 56.1567, lon = 10.2108): { rise: number;
   return { rise: day0 + (720 - 4 * (lon + ha) - eqt) * 60000, set: day0 + (720 - 4 * (lon - ha) - eqt) * 60000 };
 }
 
-/** Sky colours through the day (top of the screen, middle, horizon), by local hour. Interpolated between these. */
-const SKY: [number, string, string, string][] = [
-  [0, '#0a1238', '#1a1c52', '#2e2464'],
+/**
+ * Sky colours through the day (top of the screen, middle, horizon), by local hour, interpolated between these. Two skies:
+ * warm (Ember, Sunset: golden evenings) and cool (the others: evenings stay blue and violet, so cards never go muddy
+ * brown next to a teal or green accent). Midday is a clean light blue in both, never white (white over dark reads grey).
+ */
+const SKY_WARM: [number, string, string, string][] = [
+  [0, '#0a1238', '#1a1c52', '#2a2462'],
   [4.5, '#0d1640', '#22265e', '#3a2c6a'],
   [6.5, '#284684', '#7466b8', '#ff9c86'],
   [9, '#2f7fd0', '#58bfe4', '#ffd49a'],
-  [13, '#3f9cf6', '#86d8ff', '#dff2ff'],
+  [13, '#2f8ff0', '#5cc8ff', '#86e2ff'],
   [16.5, '#3471c0', '#e2a874', '#ffb466'],
   [19, '#33296f', '#c24f78', '#ff8a3d'],
-  [21, '#171a52', '#2e2464', '#4a2c6c'],
-  [22.5, '#0c143c', '#1c1d54', '#30266a'],
-  [24, '#0a1238', '#1a1c52', '#2e2464'],
+  [21, '#1a1f5c', '#2c2a6c', '#3e2c70'],
+  [22.5, '#101a4c', '#1e2460', '#2a2a6c'],
+  [24, '#0a1238', '#1a1c52', '#2a2462'],
+];
+const SKY_COOL: [number, string, string, string][] = [
+  [0, '#0a1440', '#162058', '#1e2a6a'],
+  [4.5, '#0d1846', '#1c2862', '#263472'],
+  [6.5, '#284a8c', '#5a6cc8', '#b49cf0'],
+  [9, '#2a7ad0', '#4cb8e8', '#7ae0f0'],
+  [13, '#2f8ff0', '#5cc8ff', '#86e2ff'],
+  [16.5, '#2c62c0', '#4a8ee0', '#8ab4ff'],
+  [19, '#232a80', '#5a3cb0', '#9a5ce0'],
+  [21, '#141e62', '#22307a', '#36408a'],
+  [22.5, '#0e1a52', '#18266a', '#223478'],
+  [24, '#0a1440', '#162058', '#1e2a6a'],
 ];
 const hex = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
 const mix = (a: string, b: string, t: number) => `rgb(${hex(a).map((v, i) => Math.round(v + (hex(b)[i] - v) * t)).join(' ')})`;
-export function skyAt(hour: number): { top: string; mid: string; low: string; bright: number } {
+export const warmSky = (palette: string) => palette === 'ember' || palette === 'sunset';
+export function skyAt(hour: number, warm = true): { top: string; mid: string; low: string; bright: number } {
+  const SKY = warm ? SKY_WARM : SKY_COOL;
   let i = 0; while (i < SKY.length - 2 && SKY[i + 1][0] <= hour) i++;
   const [h0, ...a] = SKY[i], [h1, ...b] = SKY[i + 1];
   const t = Math.min(1, Math.max(0, (hour - h0) / (h1 - h0)));
@@ -125,13 +144,13 @@ export function useBgPhoto(): string | null {
  */
 export async function setBgPhoto(file: File): Promise<void> {
   const bmp = await createImageBitmap(file);
-  const W = 300, H = 650;
+  const W = 240, H = 520;
   const c = document.createElement('canvas'); c.width = W; c.height = H;
   const g = c.getContext('2d')!;
   const k = Math.max(W / bmp.width, H / bmp.height), w = bmp.width * k, h = bmp.height * k;
-  const pad = 28; // drawn a little past the edges, so the blur doesn't fade out at the sides
+  const pad = 40; // drawn a little past the edges, so the blur doesn't fade out at the sides
   if (typeof (g as { filter?: unknown }).filter === 'string') {
-    g.filter = 'blur(10px) saturate(1.15)';
+    g.filter = 'blur(16px) saturate(1.1)';
     g.drawImage(bmp, (W - w) / 2 - pad, (H - h) / 2 - pad, w + pad * 2, h + pad * 2);
   } else {
     // no canvas filter: shrink it to a few dozen pixels and scale back up, which blurs it just as softly
@@ -155,7 +174,7 @@ function dotsSvg(color: string): string {
   let d = '';
   for (let r = 0; r < rows; r++) {
     const k = 1 - r / rows;
-    const rad = (0.3 + 1.05 * Math.pow(k, 0.9)).toFixed(2), op = (0.62 * Math.pow(k, 1.6)).toFixed(3);
+    const rad = (0.28 + 0.7 * Math.pow(k, 0.9)).toFixed(2), op = (0.5 * Math.pow(k, 1.8)).toFixed(3);
     for (let c = 0; c < cols; c++) d += `<circle cx='${c * step + 7}' cy='${r * step + 7}' r='${rad}' fill-opacity='${op}'/>`;
   }
   return `url("data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='${cols * step}' height='${rows * step}' fill='${color}'>${d}</svg>`)}")`;
@@ -168,10 +187,9 @@ const STARS = (() => {
   for (let i = 0; i < 70; i++) {
     const x = rnd() * W, y = Math.pow(rnd(), 2) * H * 0.78;
     const big = rnd() > 0.93;
-    const r = big ? 1 + rnd() * 0.5 : 0.35 + rnd() * 0.55;
-    const op = (big ? 0.7 : 0.16 + rnd() * 0.46) * (1 - (y / H) * 0.9);
+    const r = big ? 0.8 + rnd() * 0.35 : 0.3 + rnd() * 0.45;
+    const op = (big ? 0.85 : 0.2 + rnd() * 0.45) * (1 - (y / H) * 0.9);
     const fill = tints[Math.floor(rnd() * tints.length)];
-    if (big) d += `<circle cx='${x.toFixed(1)}' cy='${y.toFixed(1)}' r='${(r * 4).toFixed(1)}' fill='${fill}' fill-opacity='.07'/>`;
     d += `<circle cx='${x.toFixed(1)}' cy='${y.toFixed(1)}' r='${r.toFixed(2)}' fill='${fill}' fill-opacity='${op.toFixed(2)}'/>`;
   }
   return `url("data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 ${W} ${H}' preserveAspectRatio='xMidYMid slice'>${d}</svg>`)}")`;
@@ -212,9 +230,19 @@ function LiveSunrise() { return <Sunrise fill={useDayFill()} />; }
 function Sunrise({ fill }: { fill: number }) {
   return <><b className="bg-sun-sky" /><b className="bg-sun" style={{ ['--fill' as string]: fill }} /></>;
 }
-function LiveOrb() { return <Orb talk={useTalking()} />; }
-function Orb({ talk }: { talk: boolean }) {
-  return <><b className="bg-orb" /><b className={`bg-orb-lit${talk ? ' on' : ''}`} /></>;
+function LiveOrb() {
+  const coach = useUI((u) => u.overlays.some((o) => o.type === 'coach'));
+  return <Orb talk={useTalking()} coach={coach} />;
+}
+/**
+ * The orb's light: a still glow over the tab bar's orb. With the Coach open, the Coach's orb sits bottom-left in its bar, so
+ * the light moves there: two more layers already in place there, swapped in by opacity (nothing is redrawn).
+ */
+function Orb({ talk, coach = false }: { talk: boolean; coach?: boolean }) {
+  return <>
+    <b className={`bg-orb${coach ? ' away' : ''}`} /><b className={`bg-orb-lit${talk && !coach ? ' on' : ''}`} />
+    <b className={`bg-orb-c${coach ? ' on' : ''}`} /><b className={`bg-orb-c-lit${talk && coach ? ' on' : ''}`} />
+  </>;
 }
 function Dots() {
   const ref = useRef<HTMLElement>(null);
@@ -222,11 +250,13 @@ function Dots() {
   return <><b className="bg-dots-wash" /><b ref={ref} className="bg-dots" style={img ? { backgroundImage: img } : undefined} /></>;
 }
 function Sky({ hour }: { hour: number }) {
-  const s = useMemo(() => skyAt(hour), [hour]);
+  const warm = warmSky(useStore((x) => x.settings.palette));
+  const s = useMemo(() => skyAt(hour, warm), [hour, warm]);
   return <b className="bg-sky" style={{ ['--sk1' as string]: s.top, ['--sk2' as string]: s.mid, ['--sk3' as string]: s.low, ['--skb' as string]: s.bright.toFixed(2) }} />;
 }
 function Night({ night }: { night: boolean }) {
-  return night ? <><b className="bg-night" /><b className="bg-stars" style={{ backgroundImage: STARS }} /></> : <b className="bg-dusk" />;
+  const warm = warmSky(useStore((x) => x.settings.palette));
+  return night ? <><b className="bg-night" /><b className="bg-milky" /><b className="bg-stars" style={{ backgroundImage: STARS }} /></> : <b className={`bg-dusk${warm ? ' warm' : ''}`} />;
 }
 function Photo() {
   const url = useBgPhoto();

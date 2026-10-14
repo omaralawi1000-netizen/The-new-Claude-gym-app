@@ -108,14 +108,21 @@ function useTheme() {
  */
 const GLOW = 0.8; // seconds the colours take to change over
 let fieldSeq = 0;
-function Field({ hue, kind, sky }: { hue: string; kind: BgKind; sky: { hour: number; night: boolean } }) {
+// how long a change of field takes: a tab switch GLOW; picking another background a little longer, so it settles in
+// under the Settings sheet; the sky moving on (Time of day, Night sky) slower still, so it never reads as a jump
+const PICK = 1.2, SKY_SHIFT = 2.6;
+const FIELD = {
+  hidden: { opacity: 0 },
+  shown: (d: number) => ({ opacity: 1, transition: { duration: d, ease: [0.4, 0, 0.2, 1] as const, delay: 0.05 } }),
+  gone: (d: number) => ({ opacity: 0, transition: { duration: d, ease: [0.55, 0, 0.75, 1] as const, delay: 0.05 } }),
+};
+function Field({ hue, kind, sky, dur }: { hue: string; kind: BgKind; sky: { hour: number; night: boolean }; dur: number }) {
   // every field drifts on the same clock, so the new one lines up with the old one and only its colours change
   const drift = useRef(`-${Math.round(performance.now())}ms`);
   const z = useRef(++fieldSeq);
   return (
     <motion.div className={kind === 'classic' ? 'aurora' : 'bgx'} data-k={kind} data-hue={hue} aria-hidden style={{ zIndex: z.current, ['--drift-t' as string]: drift.current }}
-      initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { duration: GLOW, ease: [0.4, 0, 0.2, 1], delay: 0.05 } }}
-      exit={{ opacity: 0, transition: { duration: GLOW, ease: [0.55, 0, 0.75, 1], delay: 0.05 } }}>
+      custom={dur} variants={FIELD} initial="hidden" animate="shown" exit="gone">
       <BgBody kind={kind} sky={sky} />
     </motion.div>
   );
@@ -282,6 +289,9 @@ export function App() {
   const bg = useStore((s) => s.settings.background ?? 'classic');
   const sky = useSkyClock(bg === 'time' || bg === 'night');
   const fieldKey = PER_TAB[bg] ? `${bg}:${tab}` : bg === 'time' ? `time:${sky.hour}` : bg === 'night' ? `night:${sky.night}` : bg;
+  const change = useRef({ key: fieldKey, bg, dur: GLOW });
+  if (change.current.key !== fieldKey) change.current = { key: fieldKey, bg, dur: change.current.bg !== bg ? PICK : PER_TAB[bg] ? GLOW : SKY_SHIFT };
+  const fieldDur = change.current.dur;
   const push = useUI((s) => s.push);
   const asked = useRef(false);
   useEffect(() => {
@@ -308,7 +318,7 @@ export function App() {
     <MotionConfig reducedMotion="user">
       <div className="app" data-hue={tab} data-pill={pill || undefined} ref={appRef}>
         <div className="stage" ref={stageRef}>
-        <div className="fields"><AnimatePresence initial={false}><Field key={fieldKey} hue={tab} kind={bg} sky={sky} /></AnimatePresence><i className="fields-top" data-bar aria-hidden /></div>
+        <div className="fields"><AnimatePresence initial={false} custom={fieldDur}><Field key={fieldKey} hue={tab} kind={bg} sky={sky} dur={fieldDur} /></AnimatePresence><i className="fields-top" data-bar aria-hidden /></div>
         <div className="stage-content" ref={contentRef}>
         <AnimatePresence mode="popLayout" initial={false} custom={dir}>
           <TabPane key={tab} hue={tab} dir={dir}>{screen}</TabPane>

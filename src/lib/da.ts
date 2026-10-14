@@ -1,7 +1,7 @@
 /** Danish strings. Keys are the English UI strings. Missing keys fall back to English (see scripts/i18n-keys.mjs --missing). */
 export const da: Record<string, string> = {
  "How strong the background is. Off leaves it plain.": "Hvor kraftig baggrunden er. Fra gør den helt rolig.",
- "Everything but Classic holds still, so the app stays smooth.": "Alt undtagen Klassisk står stille, så appen kører glat.",
+ "Only Classic keeps drifting. The others hold still while you scroll.": "Kun Klassisk bevæger sig hele tiden. De andre står stille, mens du scroller.",
  "Change photo": "Skift billede",
  "Night sky": "Nattehimmel",
  "Time of day": "Tid på dagen",
