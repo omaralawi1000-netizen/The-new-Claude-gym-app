@@ -84,7 +84,7 @@ export function play(root: HTMLElement, p: Plan): () => void {
   // as it lands: its light opens once, a sheen crosses it, the rays (records) open and fade, the record label rises
   ease(q('halo'), [{ opacity: 0.75, transform: 'scale(1)' }, { opacity: 0, transform: 'scale(1.3)' }], 1.6, p.medalLand - 0.12);
   ease(q('sheen'), [{ transform: 'translate3d(-120%, 0, 0)' }, { transform: 'translate3d(120%, 0, 0)' }], 1.5, p.medalLand - 0.05, 'cubic-bezier(.45, 0, .2, 1)');
-  qa('ray').forEach((r, i) => ease(r, [{ opacity: 0, transform: 'scaleY(0)' }, { opacity: 0.85, transform: 'scaleY(1)', offset: 0.4 }, { opacity: 0, transform: 'scaleY(.8)' }], 1.3, p.medalLand - 0.25 + i * 0.025, 'cubic-bezier(.22, 1, .36, 1)'));
+  ease(q('rays'), [{ opacity: 0, transform: 'scale(.72)' }, { opacity: 0.85, transform: 'scale(1)', offset: 0.4 }, { opacity: 0, transform: 'scale(1.06)' }], 1.3, p.medalLand - 0.2, 'cubic-bezier(.22, 1, .36, 1)');
   run(q('label'), [{ transform: 'translate3d(0, 8px, 0)' }, { transform: 'none' }], WORD_SPRING, p.medalLand - 0.1); fade(q('label'), p.medalLand - 0.1);
   // the card and everything under it ride up with the sheet
   run(q('card'), [{ transform: 'translate3d(0, 28px, 0)' }, { transform: 'none' }], CARD_SPRING, 0.06); fade(q('card'), 0.06);

@@ -1946,7 +1946,9 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .sum-halo { position: absolute; inset: 0; border-radius: 50%; opacity: 0; pointer-events: none;
   box-shadow: 0 0 10px 2px color-mix(in srgb, var(--m) 45%, transparent), inset 0 0 10px 2px color-mix(in srgb, var(--m) 25%, transparent); }
 .sum-ray { position: absolute; width: 2px; height: 30px; top: -38px; left: calc(50% - 1px); border-radius: 2px; transform-origin: 50% 80px;
-  background: linear-gradient(transparent, var(--gold)); opacity: 0; }
+  background: linear-gradient(transparent, var(--gold)); }
+/* the rays open as one ring (one layer for the GPU, not twelve) */
+.sum-rays { position: absolute; inset: 0; opacity: 0; pointer-events: none; }
 /* an odometer: each digit a column of digits clipped to one row, rolled up by its transform */
 /* the window is exactly one row, its edges softened (a static mask, it never moves), so a rolling digit slips in and out
    cleanly and nothing of its neighbours shows at rest. One mask per number, not per digit: every mask is a layer of its own
@@ -1964,6 +1966,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    each way (~14 a second, each under half a percent of brightness, too small to see) instead of a redraw every frame; a warmer light fades in over the first
    hour (--warm). Inside the colour field, so Background glow Off removes it and Soft dims it. */
 .wk-breath { position: absolute; left: -10%; top: -14%; width: 120%; height: 62%; pointer-events: none; opacity: var(--aurora-a); }
+.wk-card.wk-leaving * { animation-play-state: paused !important; } /* (fading out under the finish sheet: nothing in it keeps moving) */
 .wk-breath > b { position: absolute; inset: 0; will-change: opacity; animation: breathe 5.5s infinite alternate; }
 .wk-breath > b::before, .wk-breath > b::after { content: ''; position: absolute; inset: 0; }
 .wk-breath > b::before { background: radial-gradient(ellipse 55% 60% at 32% 30%, color-mix(in srgb, var(--h1) 55%, transparent), transparent 72%); }

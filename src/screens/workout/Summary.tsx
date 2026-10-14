@@ -82,7 +82,7 @@ export function Summary({ props }: { props: { sessionId: string } }) {
       <div className="sheet-body melt-foot" ref={body}>
         {/* the medal turns in like a coin as the sheet rises; gold with the count when records fell (finishMoment.ts) */}
         <div className={`sum-medal${recs.length ? ' gold' : ''}`} data-fm="medal" aria-label={recs.length ? t(recs.length === 1 ? '1 new record' : '{n} new records', { n: recs.length }) : undefined}>
-          {recs.length > 0 && Array.from({ length: 12 }, (_, i) => <i key={i} aria-hidden className="sum-ray" data-fm="ray" style={{ rotate: `${i * 30}deg` }} />)}
+          {recs.length > 0 && <span className="sum-rays" data-fm="rays" aria-hidden>{Array.from({ length: 12 }, (_, i) => <i key={i} className="sum-ray" style={{ rotate: `${i * 30}deg` }} />)}</span>}
           <span className="sum-halo" data-fm="halo" aria-hidden />
           <span className="sum-halo" data-fm="settle" aria-hidden />
           <span className="sum-disc" data-fm="disc">
