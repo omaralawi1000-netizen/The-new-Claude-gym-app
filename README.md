@@ -1881,3 +1881,14 @@ screen (the Ember orb of dots) cut to a blank page, then the app.
   when idle after 2.5 s); Danish loads only when used. Start JS 1,221 → 897 KB; app drawn 329 → 306 ms (4× CPU 1,434 → 1,345).
 - Tools: `scripts/launch.mjs` (timings), `scripts/film-launch.mjs` (steady-camera launch films). Previews and notes in the
   project folder `launch-morph/`.
+
+## Rendered exercise clips: the barbell curl first (14 Oct 2026, v0.1.110)
+
+- Omar approved the muscled figure ("the figure looks good now") and its whole-body motion: the arms curl, the body leans
+  back a touch with the bar, breathes, and the knees soften on the way down. The exercise page for Barbell Curl now shows
+  that clip in place of the muscle picture, as its own light studio card at the clip's 3:2.
+- `src/screens/workout/Clip.tsx`: `clipFor(ex)` picks a clip from `public/figures/<id>.{webm,mp4,jpg}` (VP9 webm ~200 KB,
+  mp4 fallback, first frame as the poster). Fetched only when the page opens (not in the offline precache), muted, looping,
+  playing only while on screen and while the app is in view; reduced motion shows the still first frame.
+- Made in Blender from the Z-Anatomy model (CC BY-SA 4.0, credited in Settings › About). Each exercise gets its own
+  choreography on one full-body rig; sources and judge notes are in the project folder `anatomy-proof/`.
