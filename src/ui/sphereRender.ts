@@ -190,7 +190,8 @@ export class SphereRenderer {
       this.scV += (-420 * (this.sc - scTo) - 34 * this.scV) * h; this.sc += this.scV * h;
     }
     if (inp.ignite && inp.ignite > 0) {
-      if (!reduced) { this.ign = 0; this.ignTop = false; this.spin += 2.2; this.ignSeen = inp.ignite >= 2; }
+      // (the launch's spiral adds no sudden spin: the turn it already has carries on evenly, no jolt in the motion)
+      if (!reduced) { this.ign = 0; this.ignTop = false; this.ignSeen = inp.ignite >= 2; if (!this.ignSeen) this.spin += 2.2; }
       inp.ignite = 0;
     }
     if (this.ign >= 0) {
@@ -536,13 +537,9 @@ export class SphereRenderer {
       this.lmap = { dot, w, extra };
     }
     const { dot, w, extra } = this.lmap;
-    // each bead's own look (its light level and hue, from the buckets)
-    const col = new Float32Array(N * 3), al = new Float32Array(N), lvl = new Uint8Array(N), now = new Uint8Array(N);
-    for (let q = 0; q < NM; q++) for (let b = 0; b < NB; b++) for (let h = 0; h < NH; h++) {
-      const list = buckets[(q * NB + b) * NH + h]; if (!list.length) continue;
-      const t = tint(b, h, q), a = alphaOf(b);
-      for (const n of list) { col[n * 3] = t[0]; col[n * 3 + 1] = t[1]; col[n * 3 + 2] = t[2]; al[n] = a; lvl[n] = b; now[n] = q; }
-    }
+    // which beads have already turned to the new colour
+    const now = new Uint8Array(N);
+    for (let b = 0; b < NB * NH; b++) for (const n of buckets[NB * NH + b] ?? []) now[n] = 1;
     const f = (v: number) => v | 0;
     const disc = (x: number, y: number, r: number, R3: number, G3: number, B3: number, a: number) => {
       if (a < 0.002 || r < 0.05) return;
@@ -551,17 +548,37 @@ export class SphereRenderer {
     };
     const u = 1 - k;
     ctx.globalCompositeOperation = 'lighter'; // shared dots add up to exactly the logo's dot
+    const px = new Float32Array(N), py = new Float32Array(N), pr = new Float32Array(N);
     for (let n = 0; n < N; n++) {
       const d = dots[n], L = LOGO[dot[n]];
-      const x = d.x * u + (c + L.x * R) * k, y = d.y * u + (c + L.y * R) * k;
-      const r = d.r * 0.96 * u + L.r * R * k;
-      // its colour eases from the logo's ember to its own; once it has turned to the new colour it is that colour outright
-      // (ember eased into teal would pass through grey)
-      const kc = now[n] ? 0 : k, uc = 1 - kc;
-      const R3 = col[n * 3] * uc + L.rgb[0] * kc, G3 = col[n * 3 + 1] * uc + L.rgb[1] * kc, B3 = col[n * 3 + 2] * uc + L.rgb[2] * kc;
-      if (dark && lvl[n] >= 4) disc(x, y, r * 2.0 / 0.96, col[n * 3], col[n * 3 + 1], col[n * 3 + 2], al[n] * glowK * u);
-      disc(x, y, r, R3, G3, B3, al[n] * u + w[n] * k);
-      if (dark && lvl[n] === NB - 1) disc(x, y, r * 0.36 / 0.96, col[n * 3] + (255 - col[n * 3]) * 0.6, col[n * 3 + 1] + (255 - col[n * 3 + 1]) * 0.6, col[n * 3 + 2] + (255 - col[n * 3 + 2]) * 0.6, al[n] * 0.36 * u);
+      px[n] = d.x * u + (c + L.x * R) * k; py[n] = d.y * u + (c + L.y * R) * k; pr[n] = d.r * 0.96 * u + L.r * R * k;
+    }
+    // a bead's soft glow and its white heart are drawn a set at a time, one shape per set, exactly as the sphere draws them
+    // (glows that overlap light the overlap once, not twice): so nothing brightens or dims the moment the logo is gone
+    const set = (list: number[], scale: number, style: string) => {
+      ctx.fillStyle = style; ctx.beginPath();
+      for (const n of list) { const rr = (pr[n] / 0.96) * scale; if (rr < 0.05) continue; ctx.moveTo(px[n] + rr, py[n]); ctx.arc(px[n], py[n], rr, 0, TAU); }
+      ctx.fill();
+    };
+    const rgba = (r3: number, g3: number, b3: number, a: number) => `rgba(${f(r3)},${f(g3)},${f(b3)},${a.toFixed(3)})`;
+    if (dark && u > 0.002) for (let q = 0; q < NM; q++) for (let b = 4; b < NB; b++) for (let h = 0; h < NH; h++) {
+      const list = buckets[(q * NB + b) * NH + h]; if (!list.length) continue;
+      const t = tint(b, h, q); set(list, 2.0, rgba(t[0], t[1], t[2], alphaOf(b) * glowK * u));
+    }
+    // its core: the sphere's bead (a set at a time, as the sphere draws it) fading in over the logo's dot fading out. A bead
+    // that has already turned to the new colour drops its logo dot: never ember and teal mixed in one dot (that reads grey)
+    if (u > 0.002) for (let q = 0; q < NM; q++) for (let b = 0; b < NB; b++) for (let h = 0; h < NH; h++) {
+      const list = buckets[(q * NB + b) * NH + h]; if (!list.length) continue;
+      const t = tint(b, h, q); set(list, 0.96, rgba(t[0], t[1], t[2], alphaOf(b) * u));
+    }
+    for (let n = 0; n < N; n++) {
+      if (now[n] || !w[n]) continue;
+      const L = LOGO[dot[n]];
+      disc(px[n], py[n], pr[n], L.rgb[0], L.rgb[1], L.rgb[2], w[n] * k);
+    }
+    if (dark && u > 0.002) for (let q = 0; q < NM; q++) for (let h = 0; h < NH; h++) {
+      const list = buckets[(q * NB + NB - 1) * NH + h]; if (!list.length) continue;
+      const t = tint(NB - 1, h, q); set(list, 0.36, rgba(t[0] + (255 - t[0]) * 0.6, t[1] + (255 - t[1]) * 0.6, t[2] + (255 - t[2]) * 0.6, alphaOf(NB - 1) * 0.36 * u));
     }
     for (const { j, n } of extra) {
       const d = dots[n], L = LOGO[j];
