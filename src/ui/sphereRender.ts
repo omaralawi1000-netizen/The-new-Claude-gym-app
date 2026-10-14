@@ -139,6 +139,7 @@ export class SphereRenderer {
   private flash = 0;                       // light running through the dots after a tap or a syllable
   private bandA = new Float32Array(N);       // the launch coil's light on each bead (0 … 1), drawn over it
   private ignSeen = false;                 // the launch's arrival spiral: climbs by height as you see it (and carries the colour)
+  private lTurn = 0; private lRot0 = 0;    // the launch's spiral: the extra turn it has given the sphere so far, and its start
   private ripples: { ox: number; oy: number; oz: number; age: number; amp: number }[] = []; // a syllable: a ring of light crossing it towards you
   private restK = 0;                       // how far into its resting breath it is (smoothed 0..1, so it eases in and out)
   private ign = -1;                        // seconds into the arrival spiral (-1: none)
@@ -192,7 +193,7 @@ export class SphereRenderer {
     }
     if (inp.ignite && inp.ignite > 0) {
       // (the launch's spiral adds no sudden spin: the turn it already has carries on evenly, no jolt in the motion)
-      if (!reduced) { this.ign = 0; this.ignTop = false; this.ignSeen = inp.ignite >= 2; if (!this.ignSeen) this.spin += 2.2; }
+      if (!reduced) { this.ign = 0; this.ignTop = false; this.ignSeen = inp.ignite >= 2; if (!this.ignSeen) this.spin += 2.2; this.lTurn = 0; this.lRot0 = this.rot; }
       inp.ignite = 0;
     }
     if (this.ign >= 0) {
@@ -280,14 +281,19 @@ export class SphereRenderer {
     // you and dropping back round the far side, and the new colour fills in under it, bead by bead. Never a level line and
     // never a straight seam; its edge is ragged (each bead's own small offset).
     const launchIgn = this.ignSeen && this.ign >= 0;
-    const LP = 0.6, LJ = 0.07;
-    const lF = launchIgn ? easeIO(this.ign / 0.8) * 1.62 - 0.31 : 0;
-    const lRot = launchIgn ? 0.25 - easeIO(this.ign / 0.8) : 0; // and it turns round the orb once as it climbs: it winds
-    const lK = this.ign < 0.7 ? 1 : Math.max(0, 1 - (this.ign - 0.7) / 0.15); // the coil's light, gone as the last beads turn
+    const LP = 0.85, LJ = 0.07;
+    // (an even climb, eased only at its ends, so the middle of the orb, where you see the spiral, isn't rushed)
+    const lU = Math.min(1, Math.max(0, this.ign / 0.9)), lE = launchIgn ? lU * lU * (3 - 2 * lU) : 0;
+    const lF = launchIgn ? lE * 1.78 - 0.39 : 0;
+    // The band is fixed on the sphere and the sphere turns a little over a quarter round under it as it climbs (eased in and
+    // out, on top of its own turn): the slanted front travels sideways as it rises, so you see it wind up the orb.
+    if (launchIgn && !reduced) { const t = 1.8 * lE; this.rot += t - this.lTurn; this.lTurn = t; }
+    const lRot = this.lRot0 / TAU + 0.15; // (the long slope of the band faces you as it passes the middle)
+    const lK = this.ign < 0.79 ? 1 : Math.max(0, 1 - (this.ign - 0.79) / 0.16); // the coil's light, gone as the last beads turn
     // (once it has run its course every bead stays new until the change itself ends: never back to the old colour)
     if (!inp.colorsTo && this.ign < 0) this.ignSeen = false;
     // (the light around the beads follows the share that has turned)
-    const xkIgn = !inp.colorsTo || !this.ignSeen ? 0 : this.ign >= 0 ? Math.min(1, Math.max(0, (lF + 0.26) / 1.52)) : 1;
+    const xkIgn = !inp.colorsTo || !this.ignSeen ? 0 : this.ign >= 0 ? Math.min(1, Math.max(0, (lF + 0.32) / 1.64)) : 1;
     const xk = inp.colorsTo && inp.colorMix !== undefined ? Math.min(1, Math.max(0, inp.colorMix, xkIgn)) : 0;
     const B = inp.colorsTo ?? colors;
     const lerp3 = (x: RGB, y: RGB): RGB => [x[0] + (y[0] - x[0]) * xk, x[1] + (y[1] - x[1]) * xk, x[2] + (y[2] - x[2]) * xk];
@@ -400,8 +406,9 @@ export class SphereRenderer {
       // the launch's spiral: this bead's height against its tilted front (as you see it: 0 bottom … 1 top)
       let lq = 0, band = 0;
       if (launchIgn) {
-        const h = (1 - y2) / 2; let a = Math.atan2(x1, z2) / TAU - lRot; a -= Math.round(a); // 0 bottom … 1 top; 0 its lead … ±0.5 opposite
-        // the coil's rise round the orb: up across the side facing you, back down round the far side (gently, so no seam)
+        const h = (1 - y2) / 2; let a = Math.atan2(x, z) / TAU + lRot; a -= Math.round(a); // 0 bottom … 1 top; its place round the sphere
+        // the coil's rise round the orb: higher to the left across the side facing you (so, the sphere turning to the right,
+        // it climbs as it goes past, like a barber's pole), back down round the far side (gently, so no seam)
         const s = Math.abs(a) <= 0.3 ? a * 1.25 : Math.sign(a) * 0.375 * (0.5 - Math.abs(a)) / 0.2;
         const du = h + LP * s - lF;
         lq = du + LJ * LAT.jit[i] < 0 ? 1 : 0;

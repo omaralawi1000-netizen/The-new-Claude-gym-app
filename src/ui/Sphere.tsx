@@ -61,9 +61,13 @@ export const orbDrawn = new Promise<void>((r) => { drawnResolve = () => { perfor
 /** The orb's flight from the launch screen to the dock, handed to the browser (full refresh rate), on a gentle arc that
  *  bows `bow` px sideways (negative: to the left). Resolves with the animation once it has started (null: it couldn't, the
  *  script carries the orb). */
-let launchReq: { path: { xs: number[]; duration: number }; bow: number; started: (a: Animation | null) => void } | null = null;
-/** `path`: how far along it is (0…1) at even steps of time over `duration` ms */
-export function orbLaunch(path: { xs: number[]; duration: number }, bow = 0): Promise<Animation | null> {
+type LaunchPath = { xs: number[]; duration: number; land?: { ys: number[]; v0: number } };
+let launchReq: { path: LaunchPath; bow: number; started: (a: Animation | null) => void } | null = null;
+/** `path`: how far along it is (0…1) at even steps of time over `duration` ms. `land`: it comes down into the dock still
+ *  moving down at `v0` px/s and goes on with the dock's give (`ys`: px below its place, a step per 1/120 s from touchdown),
+ *  in the same animation, so the dock (given the same steps from touchdown, `duration` ms after this one's start) and the
+ *  orb in it move as one. */
+export function orbLaunch(path: LaunchPath, bow = 0): Promise<Animation | null> {
   return new Promise((started) => { launchReq = { path, bow, started }; markOrbLayoutDirty(); });
 }
 
@@ -585,14 +589,19 @@ export function SphereStage() {
           const bk = Math.ceil(launchFrom.S / 24) * 24;
           orbLock.bucket = bk; el.style.width = el.style.height = `${bk}px`;
           const at = (P: { X: number; Y: number; S: number }) => `translate3d(${P.X}px, ${P.Y}px, 0) scale(${Math.max(8, P.S) / bk})`;
-          const { xs, duration } = req.path;
-          const F = launchFrom, T = launchTo, cx = F.X + req.bow, cy = (F.Y + T.Y) / 2;
+          const { xs, duration, land } = req.path;
+          const F = launchFrom, T = launchTo, cx = F.X + req.bow;
+          // (straight down it goes from F.Y to T.Y as p goes 0 … 1; with a landing, its height takes a touch longer, so it
+          // arrives still moving down at v0 — the curve's own end is at rest — and gives with the dock from there)
+          const n = xs.length - 1, dy = T.Y - F.Y, c = land && dy > 1 ? (land.v0 * duration) / 1000 / dy : 0;
+          const drop = land?.ys ?? [], total = duration + (drop.length ? (drop.length - 1) * (1000 / 120) : 0);
           const frames = xs.map((p, i): Keyframe => {
-            const u = 1 - p;
-            return { offset: i / (xs.length - 1), transform: at({ X: u * u * F.X + 2 * p * u * cx + p * p * T.X, Y: u * u * F.Y + 2 * p * u * cy + p * p * T.Y, S: F.S + (T.S - F.S) * p }) };
+            const u = 1 - p, t = i / n, q = p + c * (t * t * t - t * t);
+            return { offset: (t * duration) / total, transform: at({ X: u * u * F.X + 2 * p * u * cx + p * p * T.X, Y: F.Y + dy * q, S: F.S + (T.S - F.S) * p }) };
           });
+          for (let j = 1; j < drop.length; j++) frames.push({ offset: Math.min(1, (duration + j * (1000 / 120)) / total), transform: at({ X: T.X, Y: T.Y + drop[j], S: T.S }) });
           orbAnim?.cancel();
-          a = el.animate(frames, { duration, easing: 'linear' });
+          a = el.animate(frames, { duration: total, easing: 'linear' });
           const done = () => { if (orbAnim === a) { orbAnim = null; orbLock.bucket = 0; } };
           a.onfinish = done; a.oncancel = done;
           orbAnim = a;
