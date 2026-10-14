@@ -292,7 +292,7 @@ export function useGlowCanvases(host: () => HTMLElement | null, refs: RefObject<
     const ro = new ResizeObserver(() => now(false)); ro.observe(el);
     // (a microtask after the change, before the next frame: a theme switch's snapshot already holds the new picture)
     const mo = new MutationObserver((recs) => now(recs.every((r) => r.target === el)));
-    mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-palette', 'data-glow'] });
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-palette', 'data-glow', 'data-motion'] });
     if (watchHost) mo.observe(el, { attributes: true, attributeFilter: ['style', 'class'] });
     // the graphics chip lost the canvas (a GPU reset): the CSS shows until it is back, then it is drawn again
     const onLost = () => { lost = true; real = quick = ''; shown(false); }; // (not cancelled: that would stop the restore)

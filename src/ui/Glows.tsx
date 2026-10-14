@@ -31,22 +31,26 @@ function describeField(host: HTMLElement, kind: BgKind): GlowPlan | null {
   const srcs: GlowSrc[] = [];
   for (const el of parts) { const src = readSrc(el, host, { s: w / W, inHost: true }); if (!src) return null; srcs.push(src); }
   const still = !host.querySelector(MOVING);
-  const job: GlowJob = { w, h, base: kind === 'classic' ? null : cssColor(host, 'var(--bg)'), amp: 2, srcs };
+  // (every field is opaque: its picture is too, over the page's colour)
+  const job: GlowJob = { w, h, base: cssColor(host, 'var(--bg)'), amp: 2, srcs };
+  // the top tint goes in too where the field itself holds still (Classic's sways: there it stays the CSS strip, which
+  // holds the status bar's colour in place)
+  const top = still && getComputedStyle(host).animationName === 'none' ? host.parentElement?.querySelector<HTMLElement>('.fields-top') : null;
   if (still) {
-    // the grain (::after) and the top tint, as styles.css draws them
+    // the grain (::after), as styles.css draws it
     job.grain = { g: parseFloat(getComputedStyle(host, '::after').opacity) || 0, y0: 0, s: w / W, f: Math.min(1, w / W / 4) };
-    const top = host.parentElement?.querySelector<HTMLElement>('.fields-top');
     if (top) {
+      // (where the strip sits in the field: a field may reach past the screen's edges)
       const th = top.offsetHeight, sat = th - 130, bar = cssColor(host, barColor(host, kind)).map(Math.round);
       const g = gradient(`linear-gradient(rgb(${bar.join(', ')}) ${sat + 2}px, rgba(0, 0, 0, 0))`, W, th);
       if (!g) return null;
-      job.top = [{ op: 1, m: [W / w, 0, 0, H / h, 0, 0], w: W, h: th, clip: true, bg: null, layers: [g] }];
+      job.top = [{ op: 1, m: [W / w, 0, 0, H / h, host.offsetLeft - top.offsetLeft, host.offsetTop - top.offsetTop], w: W, h: th, clip: true, bg: null, layers: [g] }];
     }
   }
   const jobs = [job];
   const pics = srcs.some((x) => x.img);
   return {
-    jobs, key: planKey(jobs, still ? ':still' : ''),
+    jobs, key: planKey(jobs, (still ? ':still' : '') + (top ? ':top' : '')),
     load: pics ? async () => ((await loadPictures(srcs, w, h)) ? jobs : null) : undefined,
   };
 }
@@ -58,6 +62,7 @@ export function FieldGlow({ kind }: { kind: BgKind }) {
     const el = host(); if (!el) return;
     const still = on && !el.querySelector(MOVING);
     el.toggleAttribute('data-dith', on); el.toggleAttribute('data-still', still);
+    el.toggleAttribute('data-top', still && getComputedStyle(el).animationName === 'none');
     if (on && PER_TAB[kind]) prewarm(el, kind);
   });
   return <canvas ref={cv} className="glow-cv glow-field" aria-hidden />;

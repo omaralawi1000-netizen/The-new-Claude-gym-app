@@ -1894,9 +1894,11 @@ the workout window: the phone draws CSS gradients and blur output in whole 8-bit
   - Darks: the darkest fifth now matches the old look within 0.25 of a step (was 0.6-0.8 lighter); the grain in the
     pictures matches the CSS grain's size and strength.
   - Pictures are written with `putImageData`: drawing kept bitmaps into GPU canvases made the chip keep a copy of each.
-- Cost (software GPU, his screen; `chip` = all graphics memory counted once): equal or less everywhere, e.g. Today
-  52.8 → 43.2 MB, workout 53.6 → 43.6 MB, orb screen 64.1 → 58.1 MB, sheet open 70.2 → 60.8 MB. Page memory is about
-  30 MB higher (the kept pictures, capped at 48 MB).
+- Classic's field (Glow round 2: opaque, swaying) is painted opaque too; its top tint stays the CSS strip, since the
+  field moves under it.
+- Cost against Glow round 2 (software GPU, his screen; `chip` = all graphics memory counted once): equal or less
+  everywhere, e.g. Today 50.8 → 47.3 MB, workout 54.4 → 48.1 MB, Train 57.0 → 45.2 MB, sheet open 69.8 → 62.6 MB.
+  Page memory is about 30 MB higher (the kept pictures, capped at 48 MB).
 - Tools: `scripts/banding-fields.mjs`, `scripts/perf-gpu.mjs`, `scripts/glow-layers.mjs`, `scripts/glow-theme-sync.mjs`.
   Way back: branch backup/pre-allbanding-8cb066f.
 

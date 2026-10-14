@@ -2065,16 +2065,17 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-breath .glow-cv.warm { opacity: var(--warm, 0); transition: opacity 6s ease-in-out; }
 /* The tab screens' colour fields and the glows that move by themselves, as dithered pictures too (ui/Glows.tsx). A field's
    picture holds everything in it that keeps still (Classic's lights, a background's gradients and pictures: data-bake),
-   and, when nothing in the field moves, the grain and the status bar's colour fading in at the top (.fields-top): so the
+   and, when nothing in the field moves, the grain and (where the field itself holds still, not Classic's sway) the status
+   bar's colour fading in at the top (.fields-top, data-top): so the
    field is still ONE standing layer (the picture), with nothing laid over it that would need a layer of its own, and a
    tab switch still only cross-fades two of them. Until a picture is ready (or where one can't be made) the CSS shows. */
 .glow-field { z-index: -1; }
 .fields > [data-dith] > .glow-field, [data-dith-self] > .glow-self { visibility: visible; }
 .fields > [data-dith] [data-bake], .fields > .aurora[data-dith] > i { visibility: hidden; }
-.fields > .bgx[data-dith] { background-color: transparent; }
+.fields > .bgx[data-dith], .fields > .aurora[data-dith] { background-color: transparent; }
 .fields > [data-still]::after { content: none; }
 /* (the top tint is in the picture then: the strip stays, painted clear, so it never leaves or joins the layers) */
-.fields:not(:has(> [data-k]:not([data-still]))) > .fields-top { background: none; }
+.fields:not(:has(> [data-k]:not([data-top]))) > .fields-top { background: none; }
 /* a glow that moves or fades by itself carries its picture inside it (its own opacity and motion stay as they are) */
 [data-dith-self] { background: none !important; }
 /* a small glow in a page carries its picture as its own background image (ImgGlow): painted with the page, no layer */
