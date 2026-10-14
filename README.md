@@ -1767,10 +1767,9 @@ there was a version where you did it without the blur, it came out smooth". He a
   150 ms, which read as text being spat out.
 - **Three glass objects** (14 Oct, Omar: "each on its own… separated with frosted glass blur"; before that, 22:07, "the
   text bar on its own"): nothing sits behind the row as a whole, no band or tint; each control is its own frosted glass.
-  Since r7 (below) the conversation passes behind them: it dims a little as it reaches the bar, passes behind the
-  controls at about half strength and fades out at their bottom edge, so each control's frost visibly softens what is
-  under it. (Before r7 it faded out before the controls, so the frost had nothing to show and the controls read as dark
-  discs.) At rest the last message sits 30 px above the bar, clear of the fade. It rides with the keyboard (`--kb-now`).
+  Since r7 (below) the words fade softly into them: full until 32 px above the controls, about a third at their top edge,
+  gone by their middle, so the frost softens what reaches under them and the gaps show a soft blend, never pieces of
+  letters (a first try at half strength right through them read as a stencil, judge 14 Oct). At rest the last message sits 30 px above the bar, clear of the fade. It rides with the keyboard (`--kb-now`).
 - **Each control on its own frosted glass** (Omar 22:10: "the text bar… the orb and the camera… its own circle that looks
   3D"): the field is a frosted pill, the camera a round frosted button, the orb rests in a frosted seat the field's
   height (`.frost-ctl` / `.frost-seat`, shared, `--fc-*` tokens): neutral glass, a light top edge, a fine rim and a faint
@@ -2044,10 +2043,13 @@ a shadow… make them a little 3D".
 - **Live words removed.** Chrome's speech service gave no words in his installed app (the recordings show only
   "Listening…"), so it is gone from the Coach (`src/lib/speech.ts` stays for the orb screen). The wave in the send
   button is gone too: the orb's ring already shows that it hears you.
-- **One seamless moment.** Tap the orb: the pill opens wide ("Listening…") and its arrow is there to stop and send. When
-  you stop (or go quiet), the orb thinks ("Transcribing…"), and when Whisper's words arrive the pill itself lifts away
-  into the chat as your message, the words coming up inside it as it rises (0 → full in the first half of the flight,
-  then the bubble's softer ink). They never sit in the field first. With a typed draft already in the field, the whole
+- **One seamless moment.** Tap the orb: the pill opens wide, "Ask the Coach" fades across into "Listening…" (180 ms, never
+  a swap) and the arrow is there to stop and send. When you stop (or go quiet) "Listening…" fades into "Transcribing…",
+  the arrow steps aside and the orb thinks. When Whisper's words arrive the pill itself lifts away into the chat as your
+  message (one shape, 560 ms on a soft-start ease, `FLY_SAID`, not the typed message's spring, whose quick start read
+  as a jump), "Transcribing…" fading as the words come up inside it (from 100 ms, full by 350 ms). They never sit in the
+  field first. The bar under it is hidden at once and closes up there unseen (`.snap`), then comes back whole once the
+  bubble has left: field, camera and stop button fading in together (from 340 ms, over 300 ms): no empty pill, no slide. With a typed draft already in the field, the whole
   message is shown there a moment and then leaves as typed words do. Tapping the field while you speak still stops and
   leaves the words in it to fix.
 - **Each control on its own.** 14 px of clear space between orb, camera and pill (was 8–10). No shadow under any of them
