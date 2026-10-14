@@ -1846,8 +1846,11 @@ Orb light, Colour per tab, Sunrise, Mesh, Dot field, Time of day, Night sky and 
   the page cross-fade, the same in Classic; the tab name "vanishing" was one bad frame of the test filming (the same
   filming on the current app never shows it, and the label is never re-mounted).
 - Round 4: under Sunrise the cards and quick-add chips get Time of day's darker frost (the sun sat behind the chips:
-  "+ Beef mince" was 1.5:1, now 5.5:1); a change of sky lays the new sky over the old one, which stays whole until it is
-  covered (fading both let the room through and the half-and-half blend came out brighter than either); the soft fade
+  "+ Beef mince" was 1.5:1, now 5.5:1); every change between two of the picked backgrounds (picking one, a tab
+  switch, a change of sky) lays the new one over the old one, which stays whole until it is covered; for that each is
+  painted opaque (`.fields > .bgx` has the page colour behind it). Fading both at once let the room show through
+  mid-way (a dip) and two half-skies came out brighter than either. Classic's drifting field is see-through, so changes
+  to and from it still fade both; the soft fade
   under a sheet's title now starts after 8 px of scroll (all sheets), so a list nudged a few px by a tap keeps its
   heading clear.
 - Scripts: `AVEN_BG=mesh AVEN_PALETTE=aurora AVEN_GLOW=off AVEN_PHOTO=file.jpg` in any script that uses `loadDemo`.

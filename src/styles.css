@@ -1742,7 +1742,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    (.fields::before) lies over all of them, which is what keeps their soft gradients from banding. Sized in % of their
    box, so the small previews in Settings are the same picture. */
 .bgx { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; contain: strict; --bgk: calc(var(--aurora-a) * 1.8); }
-.fields > .bgx { will-change: opacity; }
+.fields > .bgx { will-change: opacity; background-color: var(--bg); } /* opaque, so a change lays the new one over the old (App.tsx FIELD) */
 .bgx > b { position: absolute; inset: 0; display: block; }
 html:root[data-glow='off'] .bgx:not([data-k='photo']) { display: none; }
 :root[data-palette='mono'] .bgx { --bgk: calc(var(--aurora-a) * 1.3); }
