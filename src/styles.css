@@ -1200,6 +1200,9 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* (the Coach's ring on a layer of its own all the time: it follows your voice every frame, which redrew the orb's glow
    each frame, and its fade at the end made and dropped a layer for the orb beside it) */
 .coach-orb .voice-ring { will-change: transform, opacity; }
+/* (calm: the ring breathes with your voice instead of following every flicker of it: each new level glides in over
+   180 ms, re-aimed on the next frame, which smooths it; and it swells less) */
+.coach-orb .voice-ring.on { opacity: calc(0.45 + var(--voice, 0) * 0.45); transform: scale(calc(1 + var(--voice, 0) * 0.11)); transition: opacity 180ms linear, transform 180ms linear; }
 
 /* charts: bars grow from the axis, lines draw themselves in — CSS animations, so they cost a repaint, not script work */
 .bar-in { transform-box: fill-box; transform-origin: 50% 100%; animation: barIn 500ms var(--ease-out) both; }
@@ -1321,9 +1324,11 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
   transition: opacity 200ms var(--ease-out), transform 360ms var(--ease-spring); }
 .coach-send.on { opacity: 1; transform: none; pointer-events: auto; }
 /* send and stop share the button: a short cross-fade with a little turn (120 ms), never a cut */
-.coach-send .cs-ico { grid-area: 1 / 1; display: grid; will-change: transform, opacity; transition: opacity 120ms var(--ease-out), transform 160ms var(--ease-out); }
-.coach-send .cs-stop, .coach-send.busy .cs-go { opacity: 0; transform: rotate(-45deg) scale(0.7); }
-.coach-send.busy .cs-go { transform: rotate(45deg) scale(0.7); }
+.coach-send .cs-ico { grid-area: 1 / 1; display: grid; will-change: transform, opacity; transition: opacity 260ms cubic-bezier(.45, 0, .25, 1), transform 380ms var(--ease-smooth); }
+/* (calm, 14 Oct 21:13: a soft cross-fade where the old one settles back as the new one comes forward; it turned 45° in
+   120 ms, a twitch) */
+.coach-send .cs-stop, .coach-send.busy .cs-go { opacity: 0; transform: scale(0.6); }
+.coach-send.busy .cs-go { transform: scale(0.6); }
 .coach-send.busy .cs-stop { opacity: 1; transform: none; }
 .meals-empty { padding: 6px 16px 6px 20px; }
 /* the empty day's card (or the meals) fading out before the other rises in, once the add sheet has gone (Food.tsx) */
@@ -1443,7 +1448,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .edge-fade.frosted::before, .tabbar-wrap.edge-fade::before { -webkit-backdrop-filter: blur(var(--edge-blur, 16px)) saturate(1.35); backdrop-filter: blur(var(--edge-blur, 16px)) saturate(1.35);
   -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--edge-ramp, 26px)); mask-image: linear-gradient(to bottom, transparent, #000 var(--edge-ramp, 26px)); }
 :root[data-theme='light'] .edge-fade { --edge-tint: var(--sheet-solid); --edge-a: 40%; } /* (light: a pale neutral, or it read as a white strip) */
-.coach-sent { animation: coachSend 620ms cubic-bezier(.2, .8, .2, 1) backwards; }
+.coach-sent { animation: coachSend 760ms cubic-bezier(.2, .7, .2, 1) backwards; }
 @keyframes coachSend {
   from { opacity: 0; transform: translate3d(0, 28px, 0) scale(.975); }
   45% { opacity: 1; }
@@ -1452,21 +1457,21 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* the Coach's answers write themselves in word by word at a steady pace (useWordReveal), each word fading up (.calm .w
    above). The list glides on a layer of its own (Coach.tsx), so following the answer redraws nothing. Under the answer the
    play button's row is held open while it writes, and the button (and the quiet note) fade in where the room already is. */
-.coach-reply:not(.still) { animation: coachReply 240ms var(--ease-out) backwards; }
+.coach-reply:not(.still) { animation: coachReply 420ms var(--ease-out) backwards; }
 .coach-thread { will-change: transform; }
 .reply-foot.held { min-height: 32px; }
 /* the play button under each answer is a quiet glyph, not a filled circle (a column of circles down the chat read as noise);
    it keeps its 32 px tap area and lines up with the text, and takes its colour and ring only while it reads aloud */
 .coach-body .reply-foot { margin-left: -9px; }
 .coach-body .speak-btn:not(.playing, .loading) { background: transparent; border-color: transparent; color: var(--tx3); }
-.coach-after.fresh, .coach-after.fresh .speak-btn { animation: coachAfter 520ms var(--ease-out) backwards; }
+.coach-after.fresh, .coach-after.fresh .speak-btn { animation: coachAfter 680ms var(--ease-out) backwards; }
 .reply-foot.coach-after.fresh { animation: none; }
 /* The typing dots come a beat after your message has risen (not under the typing bar while the list makes room), growing
    out of their corner like a bubble; when the first word arrives they melt away over it instead of being swapped out. */
-.coach-thread .typing { transform-origin: 0% 100%; animation: typingIn 520ms cubic-bezier(.2, .8, .2, 1) 280ms backwards; }
-@keyframes typingIn { from { opacity: 0; transform: scale(.7); } }
+.coach-thread .typing { transform-origin: 0% 100%; animation: typingIn 680ms cubic-bezier(.2, .7, .2, 1) 340ms backwards; }
+@keyframes typingIn { from { opacity: 0; transform: translate3d(0, 3px, 0) scale(.86); } } /* (calm: grew from .7, a pop) */
 .coach-answer { position: relative; }
-.coach-thread .typing.typing-out { position: absolute; left: 0; top: 0; z-index: 1; pointer-events: none; animation: typingOut 420ms cubic-bezier(.4, 0, .6, 1) forwards; }
+.coach-thread .typing.typing-out { position: absolute; left: 0; top: 0; z-index: 1; pointer-events: none; animation: typingOut 520ms cubic-bezier(.4, 0, .6, 1) forwards; }
 @keyframes typingOut { from { opacity: 1; } to { opacity: 0; transform: scale(.92); } }
 :root[data-motion='reduce'] .coach-thread .typing { animation: none; }
 :root[data-motion='reduce'] .coach-thread .typing.typing-out { display: none; }
@@ -1520,7 +1525,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .coach-body :is(.action-card, .action-ic, .action-line, .tip) { animation: none; }
 /* "New chat": the conversation steps away, then the suggestions rise in one after another (on opening they are simply there),
    and the button fades out rather than blinking away (it fades back in with the first message) */
-.coach-body .tips.fresh .tip { animation: rise-soft 520ms var(--ease-out) both; animation-delay: calc(140ms + var(--i, 0) * 70ms); }
+.coach-body .tips.fresh .tip { animation: rise-soft 640ms var(--ease-out) both; animation-delay: calc(180ms + var(--i, 0) * 90ms); }
 .coach-body .coach-note-fresh { animation: fadein 520ms var(--ease-out) 420ms both; }
 /* sending: the suggestions step away the way the chat does on New chat (they used to vanish in one frame), on a soft
    300 ms curve; they take no room while they go, so your message rises where they were */
@@ -1531,9 +1536,12 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .coach-new { transition: opacity 320ms var(--ease-out); }
 .coach-new.gone { opacity: 0; pointer-events: none; }
 :root[data-motion='reduce'] :is(.coach-body .tips.fresh .tip, .coach-body .coach-note-fresh) { animation: none; }
-.coach-body .said { background: color-mix(in srgb, var(--ac) 9%, var(--s2)); border: 0;
-  box-shadow: 0 6px 18px -5px rgb(0 0 0 / .24), 0 2px 6px -2px rgb(0 0 0 / .16); }
-:root[data-theme='light'] .coach-body .said { box-shadow: 0 6px 18px -5px rgb(30 40 70 / .14), 0 2px 6px -2px rgb(30 40 70 / .08); }
+/* your messages sit on a soft, layered shadow, as the bar's controls do (14 Oct 21:15, Omar: "a backdrop shadow so it
+   looks very premium"): a tight contact shade, a short soft one and a wide, low one. Static (drawn once with the bubble,
+   never animated); a sent message's flying copy carries the same shadow, so it lands on its own. */
+:root { --bubble-sh: 0 1px 2px rgba(0, 0, 0, 0.32), 0 5px 12px -1px rgba(0, 0, 0, 0.4), 0 16px 36px -2px rgba(0, 0, 0, 0.62); }
+:root[data-theme='light'] { --bubble-sh: 0 1px 2px rgba(30, 40, 70, 0.12), 0 5px 12px -2px rgba(30, 40, 70, 0.16), 0 16px 34px -4px rgba(30, 40, 70, 0.27); }
+.coach-body .said { background: color-mix(in srgb, var(--ac) 9%, var(--s2)); border: 0; box-shadow: var(--bubble-sh); }
 /* The typing pill has its own surface; the orb and camera sit beside it. */
 .coach-foot { padding-bottom: 12px; }
 .coach-composer { display: flex; align-items: center; gap: 14px; }
@@ -1620,8 +1628,8 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    fades with it: opacity on the glass itself, never on something around it, which would cut the glass off from the page) */
 .coach-cam-slot { display: flex; flex: none; transition: transform var(--cf-dur-c) var(--cf-ease-c); }
 .open .coach-cam-slot { transform: translateX(-6px) scale(0.82); transition: transform var(--cf-dur) var(--cf-ease) 40ms; }
-.coach-composer .coach-cam.frost-ctl:not([data-pressed], [data-press-off]) { transition: transform 520ms var(--ease-spring), opacity 220ms var(--ease-out) 180ms; }
-.coach-composer.open .coach-cam.frost-ctl:not([data-pressed], [data-press-off]) { transition: transform 520ms var(--ease-spring), opacity 170ms var(--ease-out) 40ms; }
+.coach-composer .coach-cam.frost-ctl:not([data-pressed], [data-press-off]) { transition: transform 460ms var(--ease-smooth), opacity 320ms cubic-bezier(.4, 0, .2, 1) 200ms; }
+.coach-composer.open .coach-cam.frost-ctl:not([data-pressed], [data-press-off]) { transition: transform 460ms var(--ease-smooth), opacity 200ms cubic-bezier(.4, 0, .2, 1) 30ms; } /* (calm: no spring overshoot, a longer return) */
 .open .coach-cam { opacity: 0; pointer-events: none; }
 /* a message just sent: the emptied pill closes up at once, under the flying shape (Coach.tsx CLOSE); the bar is held open meanwhile */
 .coach-composer.closing .cf-glass { transition: --cf-gl var(--cf-dur) var(--cf-ease) 60ms, --cf-gt var(--cf-dur-k) var(--cf-ease-k); }
@@ -1663,14 +1671,14 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    behind the orb's seat, and under the camera on its slot, fading with the button */
 .frost-seat::after { content: ''; position: absolute; inset: calc(-1 * var(--seat, 2px)); border-radius: 999px; z-index: -2; box-shadow: var(--fc-sh); pointer-events: none; }
 .coach-cam-slot { position: relative; }
-.coach-cam-slot::before { content: ''; position: absolute; inset: 0; border-radius: 999px; box-shadow: var(--fc-sh); pointer-events: none; transition: opacity 220ms var(--ease-out) 180ms;
+.coach-cam-slot::before { content: ''; position: absolute; inset: 0; border-radius: 999px; box-shadow: var(--fc-sh); pointer-events: none; transition: opacity 320ms cubic-bezier(.4, 0, .2, 1) 200ms;
   will-change: opacity; } /* (a layer of its own all the time: it was made for each fade and dropped after it) */
-.open .coach-cam-slot::before { opacity: 0; transition: opacity 170ms var(--ease-out) 40ms; }
+.open .coach-cam-slot::before { opacity: 0; transition: opacity 200ms cubic-bezier(.4, 0, .2, 1) 30ms; }
 .frost-seat { position: relative; isolation: isolate; }
 .frost-seat::before { content: ''; position: absolute; inset: calc(-1 * var(--seat, 2px)); border-radius: 999px; z-index: -1; pointer-events: none; }
 .coach-field .input { background: transparent; box-shadow: none; outline: none; }
 .coach-composer .input::placeholder { color: var(--tx2); opacity: 1; font-weight: 400; letter-spacing: 0; }
-.coach-composer .coach-send { transform: scale(.9); transition: opacity 160ms var(--ease-out), transform 260ms var(--ease-smooth); }
+.coach-composer .coach-send { transform: scale(.92); transition: opacity 280ms cubic-bezier(.4, 0, .2, 1), transform 460ms var(--ease-smooth); } /* (calm, 14 Oct 21:13: was 160 / 260 ms) */
 .coach-composer .coach-send.on { transform: none; }
 .coach-cam { flex: none; width: 44px; height: 50px; color: var(--tx2); }
 .coach-photo { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; padding: 6px 6px 6px 6px; border-radius: 16px; background: var(--s2); box-shadow: inset 0 0 0 1px var(--line); animation: rise-soft 420ms var(--ease-out) backwards; }

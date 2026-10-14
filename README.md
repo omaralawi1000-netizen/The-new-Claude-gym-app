@@ -2099,3 +2099,23 @@ layers (DevTools LayerTree) through opening, typing, sending and dictating at th
   260 ms from 80 ms on an ease (were 60 ms and 140 ms, straight), and settle the last 4 px up into place over 560 ms.
   The bar comes back after the bubble on an ease over 360 ms (was a straight 300 ms). "Ask the Coach", "Listening…" and
   "Transcribing…" cross over in 140 ms out, 240 ms in from 120 ms (were 90 and 150 from 90).
+
+## Coach r10: one calm motion, bubbles on a shadow (14 Oct 2026)
+Omar 21:13: "still not polished enough… even calmer and more polished… smoothly easing… attention to detail", and 21:15:
+"the text bubbles on the coach screen to have a backdrop shadow so it looks very premium". Calm here means longer,
+softer easing and fewer moving things, not more effects; the look is unchanged except the bubbles' shadow.
+- **One motion for everything that moves in the bar** (`rampSpring` in Coach.tsx): a critically damped spring that starts
+  soft and dies away with no point where it brakes. The opening's 5 px overshoot and the growing's small bounce are gone
+  (they read as restless); opening and closing now match (0.62 s), a new line 0.52 s, a sent message's flight 0.58 s and
+  its shape 0.42 s, said words 0.6 s with the softest start. The list's glide to make room is a touch slower (W 8, was 10).
+- **Smaller things calmed:** the send/stop icon cross-fades (260/380 ms, the old one settles back as the new one comes
+  forward; it used to turn 45 degrees in 120 ms); the send button 280/460 ms (was 160/260); the camera tucks away and
+  comes back on a smooth ease instead of a spring (opacity 320 ms from 200 ms); the "typing" dots rise 3 px from 86 %
+  instead of popping from 70 %; a sent message, a reply, its buttons and the tips all come in more slowly (760, 420,
+  680, 640 ms); New chat fades the old chat over 280 ms (was 160); the voice ring breathes with your voice (each level
+  glides in over 180 ms, swells 11 % at most) instead of following every flicker.
+- **Bubbles on a shadow** (`--bubble-sh`): your messages sit on a tight contact shade, a short soft one and a wide, low
+  one, like the bar's controls, in both themes (the old one was too faint to see). Static, never animated; a sent
+  message's flying copy carries the same shadow, and for a typed message it fades in over 160 ms over the pill's own so
+  the two never double up for a frame.
+- Still measured: no layer made or dropped in the bar when opening, typing, sending or dictating.
