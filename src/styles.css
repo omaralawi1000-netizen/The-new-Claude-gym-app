@@ -153,10 +153,11 @@ html:root[data-glow='off'] .look-pv i { display: none; }
 
 /* dark (default) */
 :root, :root[data-theme='dark'] {
-  /* the food rings' depth (ui/Dial.tsx): a groove that darkens what is under it, a faint lift lit from below, a thin rim,
-     and a soft highlight along each filled tube */
-  --ring-groove: rgb(0 0 0 / .5); --ring-lift-top: rgb(208 220 255 / .06); --ring-lift-bot: rgb(208 220 255 / .07);
-  --ring-shine: rgb(255 255 255 / .16); --ring-deep: 78%;
+  /* the food rings (ui/Dial.tsx), built like Apple Activity rings: each track is its own colour, dim and carved in;
+     the fill deepens at its start and brightens to its end, lit along its outer edge; its end casts a soft shadow */
+  --ring-trk-k: 24%; --ring-trk-base: #06070b; --ring-in: rgb(0 0 0 / .55); --ring-out: rgb(0 0 0 / .2); --ring-cap: rgb(0 0 0 / .42);
+  --ring-tube-in: rgb(0 0 0 / .2); --ring-tube-out: rgb(255 255 255 / .14); --ring-deep: 86%; --ring-bright: 90%;
+  --ring-dither: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='96' height='96'><filter id='d' color-interpolation-filters='sRGB'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='1' stitchTiles='stitch'/><feColorMatrix values='.5 0 0 0 .25  .5 0 0 0 .25  .5 0 0 0 .25  0 0 0 0 .06'/></filter><rect width='100%' height='100%' filter='url(%23d)'/></svg>");
   color-scheme: dark;
   --bg: #05060b; --bg-2: rgba(0, 0, 0, 0.34);
   --s1: rgba(255, 255, 255, 0.065); --s2: rgba(255, 255, 255, 0.085); --s3: rgba(255, 255, 255, 0.12); --s4: rgba(255, 255, 255, 0.2);
@@ -180,8 +181,8 @@ html:root[data-glow='off'] .look-pv i { display: none; }
   --bar-mix: 15%;
 }
 :root[data-theme='light'] {
-  --ring-groove: transparent; --ring-lift-top: rgb(255 255 255 / .9); --ring-lift-bot: rgb(226 231 243 / .9);
-  --ring-shine: transparent; --ring-deep: 90%;
+  --ring-trk-k: 18%; --ring-trk-base: #f2f4f9; --ring-in: rgb(20 28 48 / .14); --ring-out: rgb(255 255 255 / .5); --ring-cap: rgb(20 28 48 / .1);
+  --ring-tube-in: rgb(0 0 0 / .03); --ring-tube-out: rgb(255 255 255 / .22); --ring-deep: 95%; --ring-bright: 92%;
   color-scheme: light;
   --bg: #e9ecf4; --bg-2: rgba(20, 28, 48, 0.06);
   --s1: rgba(255, 255, 255, 0.55); --s2: rgba(255, 255, 255, 0.7); --s3: rgba(20, 28, 48, 0.07); --s4: rgba(20, 28, 48, 0.14);
@@ -2096,19 +2097,26 @@ html:root[data-glow='off'] .bgx:not([data-k='photo']) { display: none; }
    same everywhere. It used to be three recipes: a faint white lift (Classic, Orb light, Mesh, Colour per tab: cards
    took on the glow's colour), solid (Night sky, Dot field) and a darker frost (Time of day, Sunrise). Only the
    colours changed: no extra layer or blur. */
-:root:not([data-theme='light']) .screen { --s1: rgb(20 22 32 / .54); --s2: rgb(26 28 40 / .6); --s3: rgb(38 41 56 / .66); --bg-2: rgb(3 4 10 / .5);
-  --card-sheen: rgba(255, 255, 255, .055); --card-hl: rgba(255, 255, 255, .17); --card-rim: rgba(255, 255, 255, .07);
-  --card-sh: 0 1px 2px rgba(0, 0, 0, .35), 0 6px 14px -8px rgba(0, 0, 0, .4), 0 20px 40px -18px rgba(0, 0, 0, .75); }
+:root:not([data-theme='light']) .screen { --s1: rgb(18 20 29 / .68); --s2: rgb(26 28 40 / .68); --s3: rgb(40 43 58 / .7); --bg-2: rgb(3 4 10 / .5);
+  --card-milk: rgba(140, 146, 160, .04); --card-sheen: rgba(255, 255, 255, .025); --card-hl: rgba(255, 255, 255, .28); --card-rim: rgba(255, 255, 255, .1);
+  --card-sh: 0 0 0 1px rgba(0, 0, 0, .35), 0 6px 14px -8px rgba(0, 0, 0, .45), 0 24px 48px -16px rgba(0, 0, 0, .9); }
+/* over a warm field (Ember, Sunset, Golden hour) the glass lets less through, so a warm glow never turns a card orange;
+   the cards stay neutral first and see-through second */
+:root:not([data-theme='light']):is([data-palette='ember'], [data-palette='sunset'], [data-palette='golden']) .screen { --s1: rgb(18 20 29 / .82); --s2: rgb(26 28 40 / .8); }
+:root[data-theme='light']:is([data-palette='ember'], [data-palette='sunset'], [data-palette='golden']) .screen { --s1: rgba(250, 251, 254, .76); --s2: rgba(255, 255, 255, .72); }
 /* where the background has sharp detail (stars, the dot field), a real frost would melt it: the cards stay denser there */
-:root:not([data-theme='light']):is([data-bg='night'], [data-bg='dots']) .screen { --s1: rgb(18 20 30 / .7); --s2: rgb(24 26 38 / .74); --s3: rgb(36 39 54 / .78); }
-:root[data-theme='light'] .screen { --s1: rgba(255, 255, 255, .42); --s2: rgba(255, 255, 255, .56);
-  --card-sheen: rgba(255, 255, 255, .5); --card-hl: rgba(255, 255, 255, .95); --card-rim: rgba(20, 28, 48, .06);
-  --card-sh: 0 1px 2px rgba(30, 40, 70, .08), 0 6px 14px -8px rgba(30, 40, 70, .12), 0 18px 36px -18px rgba(30, 40, 70, .34); }
-/* Cards on the tab screens are clear glass (Omar 14 Oct: "more transparent… a white line so it's 3D"): about half the
-   background shows through, a faint sheen brightens the top, a white top edge and a fine rim catch the light, and a deeper
-   soft shadow lifts them. No blur: nothing scrolls under a card and the field is already soft, so a frost here would look
-   the same and re-blur every card on every frame (36 fps, see `.screen .plinth` above). Painted once, never animated. */
-:where(.screen) .plinth:where(:not(.dots, .dragging)) { background-image: linear-gradient(180deg, var(--card-sheen), transparent 58%); }
+:root:not([data-theme='light']):is([data-bg='night'], [data-bg='dots']) .screen { --s1: rgb(26 28 38 / .78); --s2: rgb(28 30 42 / .78); --s3: rgb(38 41 56 / .8); }
+:root[data-theme='light'] .screen { --s1: rgba(250, 251, 254, .6); --s2: rgba(255, 255, 255, .6);
+  --card-milk: rgba(238, 241, 248, .2); --card-sheen: rgba(255, 255, 255, .5); --card-hl: rgba(255, 255, 255, .92); --card-rim: rgba(20, 28, 48, .08);
+  --card-sh: 0 0 0 1px rgba(30, 40, 70, .05), 0 6px 14px -8px rgba(30, 40, 70, .14), 0 24px 44px -18px rgba(30, 40, 70, .38); }
+/* Cards on the tab screens are frosted glass painted once (Omar 14 Oct: "more transparent… frost under them… a white line so
+   it's 3D"): a neutral milk and a fine static grain inside (frost without a live blur), a faint sheen on the top half, a clear
+   white top edge and a fine rim, a dark contact line and a deep soft shadow. The milk keeps the field's colour from passing
+   straight through (a warm glow must not turn a card orange). No blur: nothing scrolls under a card and the field is already
+   soft, and a real frost here re-blurred every card on every frame (36 fps, see `.screen .plinth` above). Never animated. */
+:root { --card-grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='g' color-interpolation-filters='sRGB'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='.2 0 0 0 0  .2 0 0 0 0  .2 0 0 0 0  0 0 0 0 .08'/></filter><rect width='100%' height='100%' filter='url(%23g)'/></svg>"); }
+:root[data-theme='light'] { --card-grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='g' color-interpolation-filters='sRGB'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='.25 0 0 0 .75  .25 0 0 0 .75  .25 0 0 0 .75  0 0 0 0 .1'/></filter><rect width='100%' height='100%' filter='url(%23g)'/></svg>"); }
+:where(.screen) .plinth:where(:not(.dots, .dragging)) { background-image: linear-gradient(180deg, var(--card-sheen), transparent 58%), var(--card-grain), linear-gradient(var(--card-milk), var(--card-milk)); }
 :where(.screen) .plinth:where(:not(.dragging)) { box-shadow: inset 0 1px 0 var(--card-hl), inset 0 0 0 1px var(--card-rim), var(--card-sh); }
 
 /* Your photo: blurred once when you picked it, darkened here so cards and text stay easy to read */
