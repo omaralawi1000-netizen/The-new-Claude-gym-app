@@ -1199,6 +1199,11 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-bshift { position: absolute; left: 0; right: 0; top: calc(2px + var(--wk-rb)); bottom: calc(2px + var(--wk-rb)); will-change: transform; }
 /* the card it grows out of, copied (Active.tsx): there only while it travels, under the window's own colour */
 .wk-skin { position: absolute; inset: 0; display: none; opacity: 0; pointer-events: none; will-change: opacity; }
+/* the ground under the card's copy: the window's own colour, opaque; it clears as the window comes down onto the card */
+.wk-skin-back { position: absolute; inset: 0; background: var(--bg); will-change: opacity; }
+/* the card itself while its copy is on the window: only its shadow on the page is left (Active.tsx `cardAt`) */
+.wk-hollow { background: none !important; }
+.wk-hollow > *, .wk-hollow::after { visibility: hidden !important; }
 /* the page around the card dims a touch while the window grows out of it (gone, unseen, before it is covered) */
 .wk-dim { position: absolute; inset: 0; background: #000; opacity: 0; pointer-events: none; will-change: opacity; }
 :root[data-theme='light'] .wk-dim { background: rgb(20 24 30 / .55); }

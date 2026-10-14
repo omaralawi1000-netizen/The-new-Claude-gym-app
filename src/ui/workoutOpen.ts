@@ -18,8 +18,8 @@ export function takeWorkoutFrom(): From { const f = pendingFrom; pendingFrom = n
  * Where that card is on the screen (client px), as it is at rest: the resume bar is measured by its layout, not where its
  * own show/hide motion or the tab bar's slide has it this frame. Null when it isn't there or isn't fully on the screen.
  */
-export type WkSource = { l: number; t: number; w: number; b: number; r: number; bg: HTMLElement; fg: HTMLElement | null };
-/** `r` its corner radius; `bg` its surface (a layer of its own) and `fg` what is on it (the surface's next sibling), which
+export type WkSource = { l: number; t: number; w: number; b: number; h: number; r: number; bg: HTMLElement; fg: HTMLElement | null };
+/** `b` where the window ends (above the tab bar: see below) and `h` the card's own height; `r` its corner radius; `bg` its surface (a layer of its own) and `fg` what is on it (the surface's next sibling), which
  * the window hides while it stands in for the card and hands back as it lands. */
 export function wkSourceRect(kind: From): WkSource | null {
   if (!kind) return null;
@@ -41,7 +41,7 @@ export function wkSourceRect(kind: From): WkSource | null {
   // the bar, and its bottom edge then cut across the bar while the bar slid away, as if the bar were over the window.
   let b = t + h;
   if (kind === 'hero') { const top = dockTop(); if (top !== null && top < b && top - t >= 60) b = top; }
-  return { l, t, w, b, r: Math.min(r, (b - t) / 2, w / 2), bg: el, fg: el.nextElementSibling as HTMLElement | null };
+  return { l, t, w, b, h, r: Math.min(r, h / 2, w / 2), bg: el, fg: el.nextElementSibling as HTMLElement | null };
 }
 /** The tab bar's top edge where it sits at rest (its layout, not where its slide has it this frame); null when there is none. */
 export function dockTop(): number | null {

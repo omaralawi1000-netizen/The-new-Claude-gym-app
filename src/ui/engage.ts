@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useRef } from 'react';
 import { animate, motionValue, useMotionValue, usePresence, useReducedMotion, type MotionValue } from 'motion/react';
-import { highRefresh, mirrorSpring, springSamples } from './motion';
+import { highRefresh, mirrorSpring, springSamples, type MirrorOpts } from './motion';
 
 /**
  * One number ties a popup to everything that has to move with it. `e` is how far the popup is open (0 = gone,
@@ -83,6 +83,10 @@ export function useEngage(mirror?: (p0: number, p1: number, sp: typeof ENGAGE_SP
 
 // ── high refresh rate: the popup's whole motion run by the browser ─────────────────────────────
 
+/** A per-frame mirror's keyframes as written (linear between them), so the orb, riding one, reads them without asking the
+ * browser for its hundred-odd keyframes again. */
+export const mirrorKeys = new WeakMap<Animation, Keyframe[]>();
+const kept = (a: Animation, k: Keyframe[]) => { mirrorKeys.set(a, k); return a; };
 /**
  * Play one stretch of a popup's progress (p0 → p1, a spring with a start velocity in progress units per second) as a
  * browser-run animation on an element, so it is drawn at the screen's full rate even where script animation is capped at
@@ -90,7 +94,7 @@ export function useEngage(mirror?: (p0: number, p1: number, sp: typeof ENGAGE_SP
  * (the dim reaches full strength at 0.6). Returns null when it can't (or shouldn't) run — the script spring still runs
  * either way and is what you see then.
  */
-export function mirrorProgress(el: Element | null | undefined, p0: number, p1: number, sp: { stiffness: number; damping: number; mass?: number }, velocity: number, at: (p: number) => Keyframe, breaks: number[] = [], perFrame = false): Animation | null {
+export function mirrorProgress(el: Element | null | undefined, p0: number, p1: number, sp: { stiffness: number; damping: number; mass?: number }, velocity: number, at: (p: number) => Keyframe, breaks: number[] = [], perFrame = false, opts: MirrorOpts = {}): Animation | null {
   const span = p1 - p0;
   if (!el || Math.abs(span) < 0.02) return null;
   const v0 = Math.max(-40, Math.min(40, velocity / span));
@@ -98,14 +102,29 @@ export function mirrorProgress(el: Element | null | undefined, p0: number, p1: n
   // pixels stays on them), instead of the spring as an easing between two keyframes, which passes every fraction between
   if (perFrame) {
     if (!(el as HTMLElement).animate || !highRefresh()) return null;
-    const { xs } = springSamples(sp, v0, true), n = xs.length - 1;
-    try { return (el as HTMLElement).animate(xs.map((x, i) => ({ ...at(p0 + span * x), offset: i / n })), { duration: (n * 1000) / 60, easing: 'linear', fill: 'none' }); } catch { return null; }
+    const hz = opts.hz ?? 60, { xs } = springSamples(sp, v0, true, hz), n = xs.length - 1;
+    const all = xs.map((x) => at(p0 + span * x)), keys = all.map((k) => Object.values(k).join('|'));
+    if (!opts.trim) {
+      const frames = all.map((k, i) => ({ ...k, offset: i / n }));
+      try { return kept((el as HTMLElement).animate(frames, { duration: (n * 1000) / hz, easing: 'linear', fill: opts.fill ?? 'none' }), frames); } catch { return null; }
+    }
+    // `trim`: it runs only while it changes. Whatever holds still at the start waits (a delay, its first frame held) and
+    // whatever holds still at the end is over: the browser keeps no animation alive (it is also ticked by the page every
+    // frame) through a spring's long still tail, or a fade that waits its turn. A stretch that changes nothing in between
+    // keeps only its two ends.
+    let a = 0, z = n;
+    while (a < n && keys[a + 1] === keys[0]) a++;
+    while (z > a && keys[z - 1] === keys[n]) z--;
+    if (a >= z) return null; // (never changes: its style stays as written)
+    const m = z - a, frames: Keyframe[] = [];
+    for (let i = a; i <= z; i++) if (i === a || i === z || keys[i] !== keys[i - 1] || keys[i] !== keys[i + 1]) frames.push({ ...all[i], offset: (i - a) / m });
+    try { return kept((el as HTMLElement).animate(frames, { delay: (a * 1000) / hz, duration: (m * 1000) / hz, easing: 'linear', fill: 'both' }), frames); } catch { return null; }
   }
   const frames: Keyframe[] = [{ ...at(p0), offset: 0 }];
   for (const b of breaks) { const x = (b - p0) / span; if (x > 0.001 && x < 0.999) frames.push({ ...at(b), offset: x }); }
   frames.sort((a, b) => (a.offset as number) - (b.offset as number));
   frames.push({ ...at(p1), offset: 1 });
-  return mirrorSpring(el, frames, sp, v0);
+  return mirrorSpring(el, frames, sp, v0, opts);
 }
 
 let satCache = -1;
@@ -136,6 +155,7 @@ export const scrimFrame = (p: number): Keyframe => ({ opacity: clamp01(p / 0.6) 
 export class Mirror {
   private anims: Animation[] = [];
   add(...a: (Animation | null)[]) { for (const x of a) if (x) this.anims.push(x); }
+  get size() { return this.anims.length; }
   cancel() { for (const a of this.anims) { try { a.cancel(); } catch { /* ignore */ } } this.anims = []; }
   /** Settles when every browser-run part has finished (or been cancelled). */
   settled(): Promise<void> { return Promise.all(this.anims.map((a) => a.finished.catch(() => null))).then(() => undefined); }
