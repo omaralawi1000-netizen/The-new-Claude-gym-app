@@ -202,8 +202,12 @@ All of it: **slow, calm, Apple-like, never snappier unless Omar agrees.** The or
 7. **Film rules:** steps of 1000/30 ms per frame for real speed; half-speed by duplicating frames (never minterpolate);
    clips without `AVEN_GPU=1` do not draw frost; freeze `document.getAnimations()` and step `currentTime` for stepped films.
    `AVEN_GPU=1` is needed to render blur in headless.
-8. **Ship to Beta first, then ship on Omar's yes** (visual changes): deploy the branch to Aven Beta (see CLAUDE.md → "Ship to Beta":
-   workflow `pages.yml` with input `beta_branch`), Omar tries it on his phone, and only after his yes: bump `package.json` (check `main` right before, others ship in parallel),
+8. **Beta only when his real phone is needed to judge** [Omar, 14 Oct]. Beta is for: smoothness and frame drops; flicker or
+   black frames; banding; how blur and glass look on his screen; touch and gesture feel; GPU, layer or performance changes.
+   For those, tell him in one plain line: "I think you should test this on Beta first", deploy the branch to Aven Beta (see
+   CLAUDE.md → "Ship to Beta": workflow `pages.yml` with input `beta_branch`), and ship to the real app only after his yes in
+   Beta. Everything else (pure looks or timing that the in-Claude video already shows faithfully) goes straight to the real app
+   after his yes on the video. If he says skip Beta, skip it. To ship: bump `package.json` (check `main` right before, others ship in parallel),
    `npm run verify`, PR into `ccr-d1172cc7-1e03wh`, merge, confirm "Deploy web app" is green. Red = his phone keeps the old
    version: fix at once.
 9. **Tell him** exactly what to check on the phone (screen, action, what it should look like) and to fully reload.

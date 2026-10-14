@@ -31,7 +31,12 @@ Steps, in order: **1. Deploy** to Beta (command below) → **2. Omar tries it** 
 A second installable app, "Aven Beta" (teal icon with a BETA label), lives at `https://omaralawi1000-netizen.github.io/The-new-Claude-gym-app/beta/`.
 It is the same code with its own name, icon and its own storage (every storage key and database name gets `beta:` in front,
 `src/lib/beta.ts`), so it can never read or change the real app's workouts, food or keys. Omar installs it once, next to the real app.
-- **Visual or risky change (look, motion, anything he must judge on the phone): ship it to Beta first.** Merge the default branch
+- **Beta is only for changes that need his real phone to judge** (Omar, 14 Oct): smoothness and frame drops, flicker or black frames,
+  banding, how blur and glass look on his screen, touch and gesture feel, GPU, layer or performance changes. For those, tell him in
+  one plain line "I think you should test this on Beta first" and ship to the real app only after his yes in Beta. Everything else
+  (pure looks or timing the in-Claude video already shows faithfully) goes straight to the real app after his yes on the video.
+  If he says skip Beta, skip it.
+- **For such a change, ship it to Beta first.** Merge the default branch
   into your branch, run `npm run verify`, then put the branch on Beta with the GitHub tool `actions_run_trigger`
   (workflow `pages.yml`, ref = the default branch, inputs `{"beta_branch": "<your branch>"}`), or by hand: Actions → Deploy web app →
   Run workflow → branch name. Wait until it is green, tell Omar to open Aven Beta (it offers "Update" / reload), and send him what to check.

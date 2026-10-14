@@ -881,9 +881,43 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    ends (see rise-move). A handful of big layers, created once; the motion itself is unchanged. */
 .tab-pane, .settings-page, .sheet-pane, .sheet-page, .sheet-head > .icon-btn, .tab, .tab svg, .tab > span.lab, .sphere-slot, .tabbar.glass::after { will-change: transform; }
 .fields > .aurora { will-change: opacity; }
-/* Classic's lights hold still on the tab screens, where the drift used to settle (it ran for the first seconds only): a
-   drifting light is a big layer of its own, three of them, and they pushed the grain over them onto a layer too. Held
-   still they are painted once into the field's layer. (The onboarding's field still drifts.) */
+/* Classic on the tab screens: the lights are painted once into the field's own layer (a drifting light was a big layer of
+   its own, three of them, and they pushed the grain over them onto a layer too), and it is that one layer that drifts
+   (sway): the lights and their grain move together, slowly, a few pixels over 40 s, and nothing new is drawn. It is
+   opaque, like every other background, so a tab switch lays the new field over the old one (no dip in the light), and
+   slightly larger than the screen so its edge never shows. The new field takes over the old one's place in the sway
+   (Field in App.tsx), so the lights carry on through a switch. Stepped (~8 a second, each step about a quarter of a phone
+   pixel at most) so the phone redraws 8 times a second instead of every frame (measured: no main-thread work at all). (The onboarding's field still drifts its lights.) */
+.fields > .aurora { inset: -3%; background-color: var(--bg); animation: sway 40s infinite alternate both; animation-delay: var(--drift-t, 0s); }
+.app[data-calm] .fields > .aurora, .app:has(.sheet, .voice, .ovl) .fields > .aurora { animation-play-state: paused; }
+:root[data-motion='reduce'] .fields > .aurora { animation: none; }
+@keyframes sway {
+  0% { transform: translate(-1.800%, 0.000%) scale(1.0000); animation-timing-function: steps(14, jump-none); }
+  4.167% { transform: translate(-1.785%, 0.193%) scale(1.0001); animation-timing-function: steps(14, jump-none); }
+  8.333% { transform: translate(-1.739%, 0.378%) scale(1.0004); animation-timing-function: steps(14, jump-none); }
+  12.5% { transform: translate(-1.663%, 0.551%) scale(1.0010); animation-timing-function: steps(14, jump-none); }
+  16.67% { transform: translate(-1.559%, 0.710%) scale(1.0017); animation-timing-function: steps(14, jump-none); }
+  20.83% { transform: translate(-1.428%, 0.851%) scale(1.0026); animation-timing-function: steps(14, jump-none); }
+  25% { transform: translate(-1.273%, 0.973%) scale(1.0037); animation-timing-function: steps(14, jump-none); }
+  29.17% { transform: translate(-1.096%, 1.073%) scale(1.0049); animation-timing-function: steps(14, jump-none); }
+  33.33% { transform: translate(-0.900%, 1.149%) scale(1.0063); animation-timing-function: steps(14, jump-none); }
+  37.5% { transform: translate(-0.689%, 1.201%) scale(1.0077); animation-timing-function: steps(14, jump-none); }
+  41.67% { transform: translate(-0.466%, 1.227%) scale(1.0093); animation-timing-function: steps(14, jump-none); }
+  45.83% { transform: translate(-0.235%, 1.226%) scale(1.0109); animation-timing-function: steps(14, jump-none); }
+  50% { transform: translate(-0.000%, 1.200%) scale(1.0125); animation-timing-function: steps(14, jump-none); }
+  54.17% { transform: translate(0.235%, 1.148%) scale(1.0141); animation-timing-function: steps(14, jump-none); }
+  58.33% { transform: translate(0.466%, 1.071%) scale(1.0157); animation-timing-function: steps(14, jump-none); }
+  62.5% { transform: translate(0.689%, 0.971%) scale(1.0173); animation-timing-function: steps(14, jump-none); }
+  66.67% { transform: translate(0.900%, 0.849%) scale(1.0188); animation-timing-function: steps(14, jump-none); }
+  70.83% { transform: translate(1.096%, 0.707%) scale(1.0201); animation-timing-function: steps(14, jump-none); }
+  75% { transform: translate(1.273%, 0.549%) scale(1.0213); animation-timing-function: steps(14, jump-none); }
+  79.17% { transform: translate(1.428%, 0.375%) scale(1.0224); animation-timing-function: steps(14, jump-none); }
+  83.33% { transform: translate(1.559%, 0.190%) scale(1.0233); animation-timing-function: steps(14, jump-none); }
+  87.5% { transform: translate(1.663%, -0.003%) scale(1.0240); animation-timing-function: steps(14, jump-none); }
+  91.67% { transform: translate(1.739%, -0.202%) scale(1.0246); animation-timing-function: steps(14, jump-none); }
+  95.83% { transform: translate(1.785%, -0.402%) scale(1.0249); animation-timing-function: steps(14, jump-none); }
+  100% { transform: translate(1.800%, -0.600%) scale(1.0250); }
+}
 .fields > .aurora i { animation: none; }
 .fields > .aurora i:nth-child(1) { transform: translate(3.350%, 2.605%) scale(1.0223) rotate(4.467deg); }
 .fields > .aurora i:nth-child(2) { transform: translate(-4.113%, -1.869%) scale(0.9850) rotate(-5.608deg); }

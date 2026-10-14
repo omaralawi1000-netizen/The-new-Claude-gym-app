@@ -12,9 +12,9 @@ await s.p.goto(process.env.URL || 'http://127.0.0.1:5174/'); await s.p.waitForTi
 if (process.env.CSS) await s.p.addStyleTag({ content: process.env.CSS }); // e.g. hide the screens to see only the colour field
 const tab = (t) => s.p.locator('.tabbar').getByRole('button', { name: t, exact: true }).click();
 await tab('Train'); await s.advance(150);
-const runs = [['Today', 90], ['Train', 90], ['Food', 90], ['Progress', 90]];
+const runs = [['Today', 90], ['Train', 90], ['Food', 90], ['Progress', 90]].slice(0, Number(process.env.RUNS || 4));
 for (const [i, [t, n]] of runs.entries()) { await s.film(`${name}-${i}`, () => tab(t), n); await s.advance(60); }
 // quick taps: three tabs inside a second
-await s.film(`${name}-quick`, async () => { await tab('Today'); await s.p.waitForTimeout(250); await tab('Food'); await s.p.waitForTimeout(250); await tab('Train'); }, 120);
+if (!process.env.RUNS) await s.film(`${name}-quick`, async () => { await tab('Today'); await s.p.waitForTimeout(250); await tab('Food'); await s.p.waitForTimeout(250); await tab('Train'); }, 120);
 await s.close();
 console.log('done', fs.readdirSync('shots/film').filter((d) => d.startsWith(name)).join(' '));
