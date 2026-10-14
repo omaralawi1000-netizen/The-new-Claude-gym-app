@@ -39,3 +39,21 @@ describe('haptics', () => {
     for (const p of Object.values(HAPTICS)) for (const ms of [p].flat()) expect(Number.isInteger(ms) && ms > 0 && ms <= 400).toBe(true);
   });
 });
+
+describe('food tab date', () => {
+  it('arriving on Food from another tab shows today, so food logged elsewhere is not hidden by a browsed day', async () => {
+    const { useUI } = await import('../src/state/ui');
+    useUI.getState().setTab('food');
+    useUI.getState().setFoodDate('2026-10-13');
+    useUI.getState().setTab('today');
+    useUI.getState().setTab('food');
+    expect(useUI.getState().foodDate).toBeNull();
+  });
+  it('staying on Food keeps the browsed day', async () => {
+    const { useUI } = await import('../src/state/ui');
+    useUI.getState().setTab('food');
+    useUI.getState().setFoodDate('2026-10-13');
+    useUI.getState().setTab('food');
+    expect(useUI.getState().foodDate).toBe('2026-10-13');
+  });
+});
