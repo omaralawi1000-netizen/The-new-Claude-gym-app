@@ -1866,6 +1866,23 @@ a coloured fringe ("chromatic aberration / colour banding, looks cheap"). Reprod
 - Tools: `scripts/banding-shots.mjs` (Settings, Today, Coach, Scan at phone size, field held still) and
   `scripts/banding-probe.mjs` (CSS variants on one open sheet).
 
+## No banding anywhere: tab fields, backgrounds, orb screen, dock (14 Oct 2026)
+
+Omar (14 Oct, on the orb screen in Forest): "There's still banding here. Remove banding on all of the app." Same cause as
+the workout window: the phone draws CSS gradients and blur output in whole 8-bit steps with no dither.
+- Every tab field (Classic's three lights and all nine `.bgx` backgrounds) is painted dithered by `FieldGlow`
+  (`src/ui/Glows.tsx`): the gradients, pictures (stars, dots, photo), the grain and the status-bar tint that hold still go
+  into ONE picture read straight from the computed CSS (`src/ui/glowCss.ts`: radial/linear, sRGB and Oklab mixing,
+  transforms, opacity). Matches the CSS within about a third of a step. Other tabs' fields are painted ahead while idle.
+- Moving glows (orb screen halo, Orb light's beam and halo, Sunrise's sun, workout top) use `SelfGlow` inside themselves
+  (Orb light at quarter res).
+- Orb screen veil, dock and dock edge fade: dither tile in the tint, with the tint corrected for its darkening.
+- The workout grain is folded into the workout field picture (was its own full-screen layer).
+- Rules kept from v0.1.123: no layer added or dropped at tab switches or animation ends; each field one standing layer.
+- Cost (software GPU, his screen): fewer layers and less memory everywhere, e.g. Today 36.9 → 26.7 MB, orb screen
+  43.2 → 34.6 MB, sheet open 55.6 → 46.0 MB.
+- Tools: `scripts/banding-fields.mjs`, `scripts/perf-gpu.mjs`. Way back: branch backup/pre-allbanding-8cb066f.
+
 ## Smooth glows in the live workout window: no more rings (14 Oct 2026, v0.1.121)
 
 Omar saw stepped, slightly coloured rings in the workout window's glow (the gold light behind the exercise card and the

@@ -53,9 +53,19 @@ browser smooths them, so **lab shots lie: judge from Omar's own screenshots.**
   rounding only hides the rings' edges. Full recipe and the maths: the "Dither" comment in `styles.css`; noise tile is
   installed by `src/lib/grain.ts` (`installDither`).
 - Never put a picture inside a blurring layer (extra full-screen pass: frames halved).
-- Glows in the live workout window are painted by `src/ui/glow.ts` + `glow.worker.ts` (TPDF dither into half-res canvases,
-  `[data-dith]` swaps the CSS gradient out). Any new large soft glow should use it. Open: tab-screen Classic glow
-  (`.aurora i`) and `.bgx` backgrounds still use CSS gradients.
+- Large soft glows are painted by `src/ui/glow.ts` + `glow.worker.ts` (TPDF dither into half-res canvases; the CSS
+  gradient shows until the picture is ready, then `[data-dith]` swaps it out). The picture is read from the element's own
+  computed CSS (`src/ui/glowCss.ts`), so changing a gradient in `styles.css` changes the picture too.
+  - Tab fields (Classic and every `.bgx` background): `FieldGlow` (`src/ui/Glows.tsx`) bakes everything that holds still
+    (parts marked `data-bake`, Classic's `i`), plus grain and the status-bar tint, into ONE picture: the field stays one
+    standing layer. Never lay new content over a field canvas (it becomes an extra full-screen layer).
+  - A glow that moves or fades by itself (orb screen halo, Orb light, Sunrise sun, workout top): `<SelfGlow />` inside it.
+  - Workout window: `screens/workout/wkGlow.tsx`.
+  - Never add or drop a layer at a tab switch or when an animation ends (v0.1.123 black frames).
+- Frosted bars without brightness(2) (orb screen veil, dock, dock edge fade): the tint is corrected for the dither tile's
+  darkening instead (maths in the `styles.css` Dither comment).
+- Proof tools: `scripts/banding-fields.mjs` (`SIM=1` = how the phone drew it before), `scripts/perf-gpu.mjs`.
+- Still CSS (small, judged fine): onboarding's drifting aurora, Today card corner glow, stage pools, button glows.
 - Light theme: plain blur and tint, no dither (a doubled bright page would clip to white).
 
 ## 2. Colour

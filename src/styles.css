@@ -272,7 +272,10 @@ html:root[data-glow='off']:not([data-bg='photo']) .fields::before { content: '';
    Recipe for a frosted layer with alpha a and colour c over `blur(r) saturate(s)`, dark theme, the dither's mean m = 0.0784:
    blurring layer: backdrop-filter: brightness(2) blur(r) saturate(s), no background; a layer of its own right over it:
    background: var(--dither), rgba(c * a / (1 - m) / a', a') with a' = 1 - (1 - a) / (2 * (1 - m)), image-rendering:
-   pixelated. (--sheet-tint is that, worked out for the sheets; .sheet::before/::after are the example.) */
+   pixelated. (--sheet-tint is that, worked out for the sheets; .sheet::before/::after are the example.)
+   Where the tint sits on the blurring layer itself (no brightness(2): the orb screen's veil, the dock, the dock's edge
+   fade), the tile's darkening is undone instead: a' = 1 - (1 - a) / (1 - m) and colour c * a / ((1 - m) * a'), or
+   brightness(1 / (1 - m)) = 1.0851 before the blur with the tint's colours and sheen worked out to match. */
 /* The workout window's colour field: ONE layer (three gradients) instead of three big layers + blend + mask, so it
    costs a single cheap raster when the window opens; it still drifts slowly. Same lights as .aurora, same positions. */
 .aurora-lite { position: absolute; inset: 0; overflow: hidden; pointer-events: none; container-type: size; }
@@ -663,6 +666,11 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .veil-blur-b { -webkit-backdrop-filter: blur(9px) saturate(1.15); backdrop-filter: blur(9px) saturate(1.15); }
 .veil-blur-v2 { -webkit-backdrop-filter: blur(26px) saturate(1.4); backdrop-filter: blur(26px) saturate(1.4); }
 .veil-tint { background: color-mix(in srgb, var(--bg) 74%, transparent); }
+/* (dark) the orb screen's frost carries the dither (see "Dither"): its 26 px blur is kept in whole steps of colour, which
+   showed as coloured contours all over the screen. The tint is the same --bg at 74 %, worked out for the dither's mean
+   darkening (m = 0.0784): a' = 1 - 0.26 / (1 - m), colour = --bg * 0.74 / ((1 - m) * a'). No brightness(2) here: the frost
+   fades in with the screen, and a doubled blur would read brighter half-way. */
+:root:not([data-theme='light']) .veil-tint { background: var(--dither), rgba(5.593, 6.711, 12.304, 0.7179); image-rendering: pixelated; }
 .sheet {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; max-height: calc(100dvh - var(--sat) - 46px); display: flex; flex-direction: column;
   border-radius: var(--r-xl) var(--r-xl) 0 0; will-change: transform;
@@ -1816,6 +1824,16 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), inset 0 0 0 1px rgba(255, 255, 255, 0.06), 0 10px 26px -12px rgba(0, 0, 0, 0.6); }
 :root[data-theme='light'] .tabbar.glass { background: linear-gradient(180deg, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.3) 60%), rgba(255, 255, 255, 0.2);
   box-shadow: inset 0 1px 0 #fff, inset 0 0 0 1px rgba(16, 20, 34, 0.06), 0 8px 24px -12px rgba(30, 40, 70, 0.25); }
+/* (dark) the dock and the soft edge above it carry the dither too (see "Dither"): their blurs are kept in whole steps of
+   colour, which showed as faint contours in the field passing under them. The dither's mean darkening (1 - m = 0.9216) is
+   made up for by a brightness of 1 / 0.9216 before the blur and by the tints' colours / 0.9216 (the sheen's alpha: white
+   can't go brighter), so on average the glass shows exactly what it did. Both are small, so the dither costs next to nothing. */
+:root:not([data-theme='light']) .tabbar.glass { image-rendering: pixelated;
+  background: var(--dither), linear-gradient(180deg, rgba(255, 255, 255, 0.07596), rgba(255, 255, 255, 0) 60%), rgba(49.91, 49.91, 49.91, 0.2);
+  -webkit-backdrop-filter: brightness(1.0851) blur(20px) saturate(1.4); backdrop-filter: brightness(1.0851) blur(20px) saturate(1.4); }
+:root:not([data-theme='light']) .tabbar-wrap.edge-fade::before { image-rendering: pixelated; --edge-tint: rgb(36.89, 36.89, 36.89);
+  background: var(--dither), linear-gradient(to bottom, transparent 16px, color-mix(in srgb, var(--edge-tint) 12%, transparent) 30px, color-mix(in srgb, var(--edge-tint) 35%, transparent) 56px);
+  -webkit-backdrop-filter: brightness(1.0851) blur(var(--edge-blur, 16px)) saturate(1.35); backdrop-filter: brightness(1.0851) blur(var(--edge-blur, 16px)) saturate(1.35); }
 
 /* Top fade for scrollers that are neither a page nor a sheet (the orb's talk list, onboarding). */
 @supports (animation-timeline: scroll()) {
@@ -1996,6 +2014,20 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .aurora-lite[data-dith] > .glow-cv, .wk-breath[data-dith] .glow-cv { visibility: visible; }
 .wk-breath[data-dith] { opacity: 1; } /* the picture has the glow's strength in it */
 .wk-breath .glow-cv.warm { opacity: var(--warm, 0); transition: opacity 6s ease-in-out; }
+/* The tab screens' colour fields and the glows that move by themselves, as dithered pictures too (ui/Glows.tsx). A field's
+   picture holds everything in it that keeps still (Classic's lights, a background's gradients and pictures: data-bake),
+   and, when nothing in the field moves, the grain and the status bar's colour fading in at the top (.fields-top): so the
+   field is still ONE standing layer (the picture), with nothing laid over it that would need a layer of its own, and a
+   tab switch still only cross-fades two of them. Until a picture is ready (or where one can't be made) the CSS shows. */
+.glow-field { z-index: -1; }
+.fields > [data-dith] > .glow-field, [data-dith-self] > .glow-self { visibility: visible; }
+.fields > [data-dith] [data-bake], .fields > .aurora[data-dith] > i { visibility: hidden; }
+.fields > .bgx[data-dith] { background-color: transparent; }
+.fields > [data-still]::after { content: none; }
+.fields:not(:has(> [data-k]:not([data-still]))) > .fields-top { visibility: hidden; }
+/* a glow that moves or fades by itself carries its picture inside it (its own opacity and motion stay as they are) */
+[data-dith-self] { background: none !important; }
+.glow-self { border-radius: inherit; }
 
 /* ── Backgrounds (Settings → Appearance → Background; ui/Backdrop.tsx) ──────────────────────────────────────────────
    Every one but Classic holds still: a few gradients (or one small, already-blurred photo) painted once, so the frosted

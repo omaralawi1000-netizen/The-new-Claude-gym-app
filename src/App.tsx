@@ -22,7 +22,8 @@ import { readRGB, setBarCover, setBarDepth, setBarTint } from './ui/statusBar';
 import { setKeyboard } from './ui/keyboard';
 import { FpsMeter } from './ui/FpsMeter';
 import { useLaunch } from './ui/launch';
-import { BgBody, PER_TAB, useSkyClock, type BgKind } from './ui/Backdrop';
+import { BgBody, PER_TAB, barColor, useSkyClock, type BgKind } from './ui/Backdrop';
+import { FieldGlow } from './ui/Glows';
 
 /** Where the last tap landed — the theme switch spreads out from there. */
 const lastTap = { x: typeof window !== 'undefined' ? window.innerWidth / 2 : 0, y: 0 };
@@ -132,6 +133,7 @@ function Field({ hue, kind, sky, change }: { hue: string; kind: BgKind; sky: { h
     <motion.div className={kind === 'classic' ? 'aurora' : 'bgx'} data-k={kind} data-hue={hue} aria-hidden style={{ zIndex: z.current, ['--drift-t' as string]: drift.current }}
       custom={change} variants={FIELD} initial="hidden" animate="shown" exit="gone">
       <BgBody kind={kind} sky={sky} />
+      <FieldGlow kind={kind} />
     </motion.div>
   );
 }
@@ -161,22 +163,6 @@ function TabPane({ hue, dir, children }: { hue: string; dir: number; children: R
   );
 }
 
-/** The status bar takes the colour of the top of the page: a deep tint of what the background shows up there (ui/statusBar.ts).
- * Each background has its own top: Classic and Mesh the area's light, Colour per tab its own first colour, Dot field the
- * accent's wash, Time of day the sky; Orb light, Sunrise, Night sky and Your photo are dark at the top, so the bar is
- * the page colour with only a breath of the area's light. It used to be the area's light on every background: a coloured
- * band fading into a night sky or a dark Orb light page. */
-const BAR_SRC: Record<BgKind, { src: 'h1' | 'ac' | 't1' | 'sky'; dark: string; light: string }> = {
-  classic: { src: 'h1', dark: 'var(--bar-mix)', light: 'var(--bar-mix)' },
-  mesh: { src: 'h1', dark: 'var(--bar-mix)', light: 'var(--bar-mix)' },
-  tabs: { src: 't1', dark: '15%', light: '9%' },
-  dots: { src: 'ac', dark: '8%', light: '6%' },
-  time: { src: 'sky', dark: '58%', light: '22%' },
-  orb: { src: 'h1', dark: '4%', light: '4%' },
-  sunrise: { src: 'h1', dark: '4%', light: '4%' },
-  night: { src: 'h1', dark: '0%', light: '4%' },
-  photo: { src: 'h1', dark: '0%', light: '0%' },
-};
 function useBarTint(app: React.RefObject<HTMLDivElement | null>, tab: string, bg: BgKind, fieldKey: string) {
   const palette = useStore((x) => x.settings.palette);
   const theme = useStore((x) => x.settings.theme);
@@ -187,18 +173,10 @@ function useBarTint(app: React.RefObject<HTMLDivElement | null>, tab: string, bg
     probe.style.cssText = 'position:absolute;width:0;height:0;pointer-events:none';
     el.appendChild(probe);
     const read = (ms: number) => {
-      const how = BAR_SRC[bg] ?? BAR_SRC.classic;
-      const pct = document.documentElement.dataset.theme === 'light' ? how.light : how.dark;
-      let src = `var(--${how.src})`;
-      if (how.src === 't1' || how.src === 'sky') {
-        // these colours live on the background's own layer (the newest one: the one fading in)
-        const layers = [...document.querySelectorAll<HTMLElement>('.fields > [data-k]')];
-        const top = layers.sort((a, b) => Number(b.style.zIndex) - Number(a.style.zIndex))[0];
-        const host = how.src === 'sky' ? top?.querySelector<HTMLElement>('.bg-sky') : top;
-        const v = host ? getComputedStyle(host).getPropertyValue(how.src === 'sky' ? '--sk1' : '--t1').trim() : '';
-        src = v || 'var(--h1)';
-      }
-      probe.style.color = `color-mix(in srgb, ${src} ${pct}, var(--bg))`;
+      // some colours live on the background's own layer (the newest one: the one fading in)
+      const layers = [...document.querySelectorAll<HTMLElement>('.fields > [data-k]')];
+      const top = layers.sort((a, b) => Number(b.style.zIndex) - Number(a.style.zIndex))[0];
+      probe.style.color = barColor(top ?? null, bg);
       const c = readRGB(getComputedStyle(probe).color); if (c) setBarTint(c, ms);
     };
     // after this frame's styles (the new area's colours, the new background's layer) are in place

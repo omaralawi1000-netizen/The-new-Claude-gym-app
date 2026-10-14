@@ -6,6 +6,7 @@ import { onVoiceOut, voiceOutOn } from '../lib/voiceOut';
 import { useDaySummary, useToday } from '../lib/derive';
 import { loadPhoto, savePhoto, deletePhoto } from '../lib/photos';
 import type { Settings } from '../lib/types';
+import { SelfGlow } from './Glows';
 
 /**
  * The backgrounds you can pick in Settings → Appearance. All but Classic hold completely still: each is a few gradients (or
@@ -17,6 +18,36 @@ export type BgKind = NonNullable<Settings['background']>;
 export const BG_KINDS: BgKind[] = ['classic', 'orb', 'tabs', 'sunrise', 'mesh', 'dots', 'time', 'night', 'photo'];
 /** the backgrounds that take each tab's colours (they cross-fade on a tab switch); the rest look the same on every tab */
 export const PER_TAB: Record<BgKind, boolean> = { classic: true, orb: true, tabs: true, sunrise: true, mesh: true, dots: true, time: false, night: false, photo: false };
+
+/** The status bar takes the colour of the top of the page: a deep tint of what the background shows up there (ui/statusBar.ts).
+ * Each background has its own top: Classic and Mesh the area's light, Colour per tab its own first colour, Dot field the
+ * accent's wash, Time of day the sky; Orb light, Sunrise, Night sky and Your photo are dark at the top, so the bar is
+ * the page colour with only a breath of the area's light. It used to be the area's light on every background: a coloured
+ * band fading into a night sky or a dark Orb light page. */
+export const BAR_SRC: Record<BgKind, { src: 'h1' | 'ac' | 't1' | 'sky'; dark: string; light: string }> = {
+  classic: { src: 'h1', dark: 'var(--bar-mix)', light: 'var(--bar-mix)' },
+  mesh: { src: 'h1', dark: 'var(--bar-mix)', light: 'var(--bar-mix)' },
+  tabs: { src: 't1', dark: '15%', light: '9%' },
+  dots: { src: 'ac', dark: '8%', light: '6%' },
+  time: { src: 'sky', dark: '58%', light: '22%' },
+  orb: { src: 'h1', dark: '4%', light: '4%' },
+  sunrise: { src: 'h1', dark: '4%', light: '4%' },
+  night: { src: 'h1', dark: '0%', light: '4%' },
+  photo: { src: 'h1', dark: '0%', light: '0%' },
+};
+/** The status bar's colour for a background (a CSS colour, worked out where it is used): `field` is its layer, which holds the
+ * colours that are its own (Colour per tab's, the sky's) */
+export function barColor(field: HTMLElement | null, kind: BgKind): string {
+  const how = BAR_SRC[kind] ?? BAR_SRC.classic;
+  const pct = document.documentElement.dataset.theme === 'light' ? how.light : how.dark;
+  let src = `var(--${how.src})`;
+  if (how.src === 't1' || how.src === 'sky') {
+    const host = how.src === 'sky' ? field?.querySelector<HTMLElement>('.bg-sky') : field;
+    const v = host ? getComputedStyle(host).getPropertyValue(how.src === 'sky' ? '--sk1' : '--t1').trim() : '';
+    src = v || 'var(--h1)';
+  }
+  return `color-mix(in srgb, ${src} ${pct}, var(--bg))`;
+}
 
 // ── the clock: Time of day and Night sky ────────────────────
 
@@ -218,21 +249,21 @@ export function BgBody({ kind, preview, fill: fixedFill, sky }: { kind: BgKind; 
   if (kind === 'classic') return <><i /><i /><i /></>;
   if (kind === 'sunrise') return preview ? <Sunrise fill={fixedFill ?? 0.6} /> : <LiveSunrise />;
   if (kind === 'orb') return preview ? <Orb talk={false} /> : <LiveOrb />;
-  if (kind === 'tabs') return <b className="bg-tabs" />;
-  if (kind === 'mesh') return <b className="bg-mesh" />;
+  if (kind === 'tabs') return <b className="bg-tabs" data-bake />;
+  if (kind === 'mesh') return <b className="bg-mesh" data-bake />;
   if (kind === 'dots') return <Dots />;
   if (kind === 'time') return <Sky hour={sky?.hour ?? new Date().getHours()} />;
   if (kind === 'night') return <Night night={sky?.night ?? true} />;
   return <Photo />;
 }
 
-function LiveSunrise() { return <Sunrise fill={useDayFill()} />; }
-function Sunrise({ fill }: { fill: number }) {
-  return <><b className="bg-sun-sky" /><b className="bg-sun" style={{ ['--fill' as string]: fill }} /></>;
+function LiveSunrise() { return <Sunrise fill={useDayFill()} live />; }
+function Sunrise({ fill, live }: { fill: number; live?: boolean }) {
+  return <><b className="bg-sun-sky" data-bake /><b className="bg-sun" style={{ ['--fill' as string]: fill }}>{live && <SelfGlow />}</b></>;
 }
 function LiveOrb() {
   const coach = useUI((u) => u.overlays.some((o) => o.type === 'coach'));
-  return <Orb talk={useTalking()} coach={coach} spot={useOrbSpot(coach)} />;
+  return <Orb talk={useTalking()} coach={coach} spot={useOrbSpot(coach)} live />;
 }
 type Spot = { x: number; y: number } | null;
 /**
@@ -265,30 +296,31 @@ function useOrbSpot(coach: boolean): Spot {
  * the Coach's orb (bottom-left) in one slow transform while the beam fades; while the Coach answers, a brighter copy of
  * the halo fades in on top. Nothing is redrawn: the layers only move and fade.
  */
-function Orb({ talk, coach = false, spot = null }: { talk: boolean; coach?: boolean; spot?: Spot }) {
+function Orb({ talk, coach = false, spot = null, live }: { talk: boolean; coach?: boolean; spot?: Spot; live?: boolean }) {
+  const g = live ? <SelfGlow coarse /> : null;
   const at = spot ? { ['--ox' as string]: `${spot.x}px`, ['--oy' as string]: `${spot.y}px` } : undefined;
   return (
     <b className="bg-orb-all" style={at}>
-      <i className={`bg-orb${coach ? ' away' : ''}`} /><i className={`bg-orb-lit${talk && !coach ? ' on' : ''}`} />
-      <i className="bg-orb-spot"><i /><i className={talk ? 'on' : ''} /></i>
+      <i className={`bg-orb${coach ? ' away' : ''}`}>{g}</i><i className={`bg-orb-lit${talk && !coach ? ' on' : ''}`}>{g}</i>
+      <i className="bg-orb-spot"><i>{g}</i><i className={talk ? 'on' : ''}>{g}</i></i>
     </b>
   );
 }
 function Dots() {
   const ref = useRef<HTMLElement>(null);
   const img = useDots(ref, true);
-  return <><b className="bg-dots-wash" /><b ref={ref} className="bg-dots" style={img ? { backgroundImage: img } : undefined} /></>;
+  return <><b className="bg-dots-wash" data-bake /><b ref={ref} className="bg-dots" data-bake style={img ? { backgroundImage: img } : undefined} /></>;
 }
 function Sky({ hour }: { hour: number }) {
   const warm = warmSky(useStore((x) => x.settings.palette));
   const s = useMemo(() => skyAt(hour, warm), [hour, warm]);
-  return <b className="bg-sky" style={{ ['--sk1' as string]: s.top, ['--sk2' as string]: s.mid, ['--sk3' as string]: s.low, ['--skb' as string]: s.bright.toFixed(2) }} />;
+  return <b className="bg-sky" data-bake style={{ ['--sk1' as string]: s.top, ['--sk2' as string]: s.mid, ['--sk3' as string]: s.low, ['--skb' as string]: s.bright.toFixed(2) }} />;
 }
 function Night({ night }: { night: boolean }) {
   const warm = warmSky(useStore((x) => x.settings.palette));
-  return night ? <><b className="bg-night" /><b className="bg-milky" /><b className="bg-stars" style={{ backgroundImage: STARS }} /></> : <b className={`bg-dusk${warm ? ' warm' : ''}`} />;
+  return night ? <><b className="bg-night" data-bake /><b className="bg-milky" data-bake /><b className="bg-stars" data-bake style={{ backgroundImage: STARS }} /></> : <b className={`bg-dusk${warm ? ' warm' : ''}`} data-bake />;
 }
 function Photo() {
   const url = useBgPhoto();
-  return <><b className="bg-photo" style={url ? { backgroundImage: `url("${url}")` } : undefined} /><b className="bg-photo-dim" /></>;
+  return <><b className="bg-photo" data-bake style={url ? { backgroundImage: `url("${url}")` } : undefined} /><b className="bg-photo-dim" data-bake /></>;
 }
