@@ -1,16 +1,14 @@
-import { startTransition, useEffect, useRef, useState } from 'react';
+import { Suspense, startTransition, useEffect, useRef, useState } from 'react';
 import { AnimatePresence } from 'motion/react';
 import { OverlayMeta, OverlayZ } from '../ui/Sheet';
 import { useUI, type Overlay } from '../state/ui';
 import { useStore } from '../state/store';
 import { ActiveWorkout, WkFrozen, WK_GHOST } from './workout/Active';
 import type { WorkoutSession } from '../lib/types';
-import { SettingsSheet } from './Settings';
 import { FoodSearch } from './food/Search';
 import { FoodDetail } from './food/Detail';
 import { QuickAdd, CustomFood } from './food/QuickCustom';
 import { RecipeEditor, RecipeList, SavedMeals } from './food/Meals';
-import { Scanner } from './food/Scanner';
 import { DatePicker, DayNotes, EntryMenu, MealCopy, WaterSheet } from './food/Menus';
 import { ExerciseDetail } from './workout/ExerciseDetail';
 import { ExerciseEditor, ExercisePicker } from './workout/Picker';
@@ -18,10 +16,17 @@ import { SessionDetail, Summary } from './workout/Summary';
 import { RoutineEditor } from './workout/Routine';
 import { ActivityLog, Reschedule, Schedule } from './workout/Schedule';
 import { MeasureSheet, PhotosSheet, WeightSheet } from './Body';
-import { Onboarding } from './Onboarding';
-import { Coach } from './Coach';
-import { VoiceComposer } from './Voice';
-import { PhotoFood } from './food/PhotoFood';
+import { deferred, preloadLater } from '../ui/lazy';
+
+// The biggest pop-ups are files of their own, loaded after the app has opened (ui/lazy.ts): the app starts with less to load
+// and run. They are fetched while the app is idle a few seconds after opening, so they open as quickly as before.
+const Coach = deferred(() => import('./Coach').then((m) => m.Coach));
+const VoiceComposer = deferred(() => import('./Voice').then((m) => m.VoiceComposer));
+const SettingsSheet = deferred(() => import('./Settings').then((m) => m.SettingsSheet));
+const PhotoFood = deferred(() => import('./food/PhotoFood').then((m) => m.PhotoFood));
+const Scanner = deferred(() => import('./food/Scanner').then((m) => m.Scanner));
+const Onboarding = deferred(() => import('./Onboarding').then((m) => m.Onboarding));
+preloadLater(Coach, VoiceComposer, SettingsSheet, PhotoFood, Scanner, Onboarding);
 
 // one stable object per overlay, so its consumers don't re-render on every change to the stack
 const metas = new Map<string, { id: string; page: boolean }>();
@@ -149,7 +154,7 @@ export function Overlays() {
           case 'onboarding': return <Onboarding key={o.id} props={p} />;
           default: return null;
         } })();
-        return <OverlayZ.Provider key={o.id} value={60 + idx * 10}><OverlayMeta.Provider value={meta(o.id, !!o.page)}>{el}</OverlayMeta.Provider></OverlayZ.Provider>;
+        return <OverlayZ.Provider key={o.id} value={60 + idx * 10}><OverlayMeta.Provider value={meta(o.id, !!o.page)}><Suspense fallback={null}>{el}</Suspense></OverlayMeta.Provider></OverlayZ.Provider>;
       })}
     </AnimatePresence>
     </>

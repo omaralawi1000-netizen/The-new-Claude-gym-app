@@ -1754,3 +1754,141 @@ Ember's field is warm again, the cards are see-through again, the week-strip `we
 switched off too (`data-glass` removed from index.html; the CSS stays dormant): his picture was the pre-glass app, and the
 glass tint resolved to Ember coral in other palettes (brown cards and a peach dock rim in teal). Everything shipped after it (v0.1.103's pop-up step-back and the camera fix) stays.
 Lesson: an opaque neutral card loses the glass Omar liked; "depth" has to come from the glass itself, not a solid block.
+
+## Coach: answers fade in without blur, the list ends cleanly above the bar (13 Oct 2026, evening)
+Omar on the phone (v0.1.103): "the coach is a mess… the text spits out, it's still laggy… just do it without the blur,
+there was a version where you did it without the blur, it came out smooth". He asked for it, so the blur-in goes.
+- **Answers (Coach and orb) write in without blur**, the v0.1.56 way he remembers: each word fades up 0.3 em into place
+  (`.w-in`: `wordLight` + `wordCalm`), its light coming in a touch slower than the rise so no word pops in bright. One
+  layer per word instead of the soft focus's three (`.soft::before/::after`), opacity and transform only, and it settles
+  to plain text once in, as before. Your own spoken words on the orb screen, the Food date and the Onboarding titles keep
+  their soft focus (not answers).
+- **A calmer pace**: at most 45 words a second (was 70). A big clump from the stream used to pour out a line every
+  150 ms, which read as text being spat out.
+- **The list ends above the bar** ("the text bar on its own", Omar 22:07): the conversation fades out before the bar's top
+  edge, so no text ever shows between or behind the orb, the camera or the field. At rest the last message sits 30 px
+  above the bar. It rides with the keyboard (`--kb-now`, v0.1.98).
+- **Each control on its own frosted glass** (Omar 22:10: "the text bar… the orb and the camera… its own circle that looks
+  3D"): the field is a frosted pill, the camera a round frosted button, the orb rests in a frosted seat the field's
+  height (`.frost-ctl` / `.frost-seat`, shared, `--fc-*` tokens): neutral glass, a light top edge, a fine rim, a soft
+  shadow and a faint sheen on the top half. One small blur per control, never animated.
+- **Soft-edge bar** (Omar picked it): behind the controls only a plain fade, no blur (each control has its own, so nothing
+  is blurred twice): a neutral grey (rgb 21 22 28) easing in over 64 px to 35 % (`.edge-fade`, shared; `.edge-fade.frosted`
+  adds a blur where a bar has no frosted controls; light: the sheet's pale colour at 40 %).
+- **The pill opens while you type** (Omar 22:19, "expands when I type and compresses when I'm done, like iOS"): on focus
+  the camera tucks back and fades, and a beat later (60 ms, so the keyboard's lift doesn't hide it) the pill's left edge
+  glides over its place with a visible overshoot (about 5 px, `apple(0.62, 0.4)`); when the keyboard goes it glides back
+  and the camera fades in from 0.9 only once the edge has mostly passed it.
+- **It grows as you write**: an auto-growing field, a line at a time up to four lines, then the words scroll inside
+  (`apple(0.5, 0.25)`); the end of the conversation rises with it. Moves only: the tint and rim are six solid pieces in
+  one see-through group (left and right columns of top cap, middle, bottom cap: the left column slides, the top caps
+  rise, the middles stretch), the frost never moves (only its outline is cut back, `clip-path`), the shadow stretches,
+  and the words sit in a window 10 px inside the rim: their box grows a line at once and is played back from where it
+  was on the same spring, so the lines that move rise with the top edge and are never cut by it. Interruptible. A draft
+  keeps the bar wide when the keyboard goes (as on iOS), so its lines never re-wrap under the returning camera.
+- **Sending, iMessage-style** (Omar 23:41, "the text moves from the text bar into the chat seamlessly"): the very words
+  in the field, same letters in the same place, lift out of the pill on the frame you tap send, and they glide on a soft
+  spring (`apple(0.6, 0.15)`) to their place above the bar. The bubble keeps the field's line breaks (`lines` on the
+  message, read off the field's hidden copy) and the words fly at the field's size, so nothing re-wraps or jumps; the
+  field now types in the bubble's letters (weight 520, the placeholder stays as it was).
+  - **One shape, from pill to bubble**: on the first frame the flying shape is the whole pill (its full width, its 27 px
+    corners, its tint, top sheen, highlight and rim, solid: the pill's colours over the frost's average colour,
+    `--fly-under`, so nothing behind shows through its words), and on its own quicker spring
+    (`apple(0.34, 0.06)`: about half way by 80 ms, nearly there by 200 ms) it becomes the bubble: its size, corners of 20
+    and the tail's 6, its colour turning from the pill's into the bubble's (40–240 ms, solid the whole way: the bubble's colour as it looks,
+    coming up over the pill's; as it settles in place, 400–560 ms, it hands over to the bubble's own see-through glass, so
+    the real bubble taking over is the same picture). A shape's size and corners can't
+    be animated by moves alone, so it is eight pieces (four corners that scale evenly, so they stay round, and four
+    straight pieces between them, each reaching 1 px under its neighbours), all moved and scaled on the one spring, so
+    they always make one outline. The two colours are the same pieces twice under one opacity each, so there is never a
+    second outline (round 5 cross-faded a pill-shaped and a bubble-shaped layer: the tail corner poked out of the
+    pill's for ~80 ms). The send arrow (a stand-in on top) dissolves in its first 24 ms, then the bar, stop button and all, shows from
+    under the shape as it leaves (the shape is never cut by the button). The flight's spring runs to a hundredth of a
+    percent (`springCurve(…, fine)`), so it lands exactly on the bubble, with no last-pixel step.
+  - Send and stop share the button: a 120 ms cross-fade with a little turn (±45°), not a cut.
+  - The emptied pill closes up at once, out of sight under the shape (which covers all of it as it starts), and its tint
+    and shadow fade in 30–110 ms, so the empty bar is only ever seen where the shape has left it: never the pill and the shape drawn in the same place (a see-through
+    shape over a closing pill read as two stacked cards, the pill's rim cutting through the words). A `.closing` class
+    points the parts at that (`CLOSE`; changing the curve's property on the bar restyled all of it). The cursor hides
+    until "Ask the Coach" comes back at 140 ms.
+  - **The keyboard stays up after a send**, as in iMessage, ready for the next message (it used to go down as the message
+    landed, and the whole conversation rode ~650 px down with it). Sent with the keyboard down, the left edge glides back
+    and the camera returns at 140 ms.
+- **Bar polish (r5)**: the frost's top follows the lines on their own spring and its left edge the opening on the
+  opening's (two registered properties, `--cf-gt`/`--cf-gl`; one transition carried both and the frost trailed the pill
+  by 60 ms as it grew or closed up); a new line comes up through a soft bottom edge (a mask on the words' window, not a
+  hard cut that sliced its letters); the camera tucks to 0.82 as the edge passes and fades a touch slower.
+- Cost (4x CPU audit): no long tasks and no dropped layers on keyboard up/down. Three things that made layers come and go
+  were removed: a React state for "open" (re-rendered the whole chat: a 50–60 ms stall; now a class on the bar), the
+  moving parts without `will-change`, and a mask and an opacity fade on the field's text (now only past four lines, and
+  the placeholder fades by colour). The orb stays where it is (the shared sphere draws it above the sheet).
+- The header fade starts a few px below the header, so no letter tails peek under it.
+- Clips: `scripts/clip-coach.mjs <out.mp4> [--palette ember|aurora] [--half]` films a send and a long streamed answer at
+  real or half speed (half: the page's clock and animations run at half speed). Backups: `backup/coach-r4-pre-noblur`, `backup/coach-r5-pre-send` (round 4 as Omar saw it).
+
+## Frosted tab bar with a soft edge (13 Oct 2026, v0.1.105)
+
+Omar on v0.1.103: "the blur underneath looks garbage". Cause: two full-height "progressive blur" layers under the dock
+(9 px and 20 px, each faded in by a mask) with the dock's own 28 px blur on top. A blur faded in by a mask is a cross-fade
+of a sharp and a blurred copy (the muddy double edge on the card above the dock), three blurs deep. Now:
+- the dock reuses the Coach bar's shared `.edge-fade` (one frost, never animated): a light 6 px frost that starts 16 px
+  above the pill and is full ~40% down it, with a pure-grey tint only below the pill's top. Content still visible above
+  the dock stays fully sharp; at rest the last card ends 48 px above the pill, clear of it.
+- the pill is frosted glass of its own: blur(20px) saturate(1.4), a 20% pure-grey fill (no colour cast, so the field comes
+  through as on iOS), light from the top, a hairline and a soft shadow. Light mode: the same in white.
+Omar picked the thin neutral tint ("I want it neutral so the frosted glass can come through") and declined a deeper shadow.
+Measured: scroll frames within noise of before (fewer, smaller blur layers); tab icons 5.5:1 on the pill.
+
+## Smooth glows behind the frosted pop-ups: no more colour bands (13 Oct 2026, v0.1.106)
+
+Omar (teal palette, dark): the soft glow seen through the Coach, Settings and Scan barcode sheets showed stepped rings with
+a coloured fringe ("chromatic aberration / colour banding, looks cheap"). Reproduced at his screen (384 x 832 at 3.75).
+- Cause: the phone keeps a blur's result in whole steps of colour (0-255). Behind a sheet the page is dimmed, so the glow
+  spans only a few dozen steps there, and the 44 px blur averages away the grain that hides the steps on the page. The
+  steps came back as rings, a little out of line for red, green and blue (saturate after the blur stretches them), so
+  they read as coloured bands. Measured on a test ramp: the blurred glow climbs in 1-1.7 level stairs.
+- Tried and not enough: noise drawn on the glass at full strength only blurs the rings' edges (it is added after the
+  rounding, so each stair stays a stair).
+- Fix, dark theme (light keeps its plain blur): the sheet blurs its backdrop at twice the brightness (`brightness(2)`
+  before the blur, so the blur's result keeps twice as many steps) and lets half as much of it through (the tint's alpha
+  goes up from .46 to .71, its colour worked out so the picture is the same: average colour within 0.2 of a level). On
+  the glass sits `--dither`, a one-screen-pixel noise in the glass's own alpha (black dots, 0-40 of 255, baked once at the
+  screen's pixel size in `lib/grain.ts`). It changes how much backdrop each pixel lets through, which is mixed in the
+  screen's final exact blend, so the last half-steps dissolve into noise about one level strong (finer than the page's
+  own grain). The test ramp is now smooth; the rings are gone even with the contrast raised 6x.
+- Cost: the tint is a layer of its own over the blur (a picture inside the blurring layer halved the frame rate in
+  tests: an extra full-screen pass), and the sheet's drop shadow moved onto `.sheet` (on the dithered layer it doubled
+  that layer's cost). Scrolling in a sheet and closing it measure the same as before. Opening draws one more image layer:
+  in software-GPU Chromium about 19% fewer frames while a sheet opens (13 runs); the phone's GPU should barely notice,
+  Omar to judge. Way back: branch backup/pre-banding-v0.1.105.
+- Recipe for any other frosted layer (tab bar, Coach bar, rest bar): see "Dither" in styles.css.
+- Tools: `scripts/banding-shots.mjs` (Settings, Today, Coach, Scan at phone size, field held still) and
+  `scripts/banding-probe.mjs` (CSS variants on one open sheet).
+
+## Launch morph: the launch screen's orb flies into the dock; a lighter start (13 Oct 2026, v0.1.107)
+
+Omar: "launch morph would be amazing… you have to work very hard on it to make it seamless". Before, Android's launch
+screen (the Ember orb of dots) cut to a blank page, then the app.
+- First paint: index.html draws the exact launch-screen orb before any script (`scripts/gen-launch-orb.mjs`, same SVG code
+  as the Android icon via `scripts/orb-svg.mjs`), so Chrome's hand-over from the splash is invisible.
+- Then (`src/ui/launch.ts`): the live orb fades in over the logo in its colours (0.2 s) while the logo fades (0.16 s), the
+  launch screen fades (0.25 s) and Today's blocks start their rise; 0.23 s in, the orb falls on a soft arc into the dock
+  (Apple smooth spring 0.8 s, browser-run, transform only), clear of the first card's play button. Its colours turn to the
+  palette bead by bead, each bead in one step: an RGB blend went through grey, a blend inside a bead read pale pink.
+- Judge rounds fixed: a second (splash) orb left behind during the flight, teal through grey, the app appearing late.
+- Reduced motion: the launch screen just fades, the orb already in the dock.
+- Lighter start: Coach, voice, Settings, photo food, the scanner and onboarding load on demand (`src/ui/lazy.ts`, preloaded
+  when idle after 2.5 s); Danish loads only when used. Start JS 1,221 → 897 KB; app drawn 329 → 306 ms (4× CPU 1,434 → 1,345).
+- Tools: `scripts/launch.mjs` (timings), `scripts/film-launch.mjs` (steady-camera launch films). Previews and notes in the
+  project folder `launch-morph/`.
+
+## Rendered exercise clips: the barbell curl first (14 Oct 2026, v0.1.110)
+
+- Omar approved the muscled figure ("the figure looks good now") and its whole-body motion: the arms curl, the body leans
+  back a touch with the bar, breathes, and the knees soften on the way down. The exercise page for Barbell Curl now shows
+  that clip in place of the muscle picture, as its own light studio card at the clip's 3:2.
+- `src/screens/workout/Clip.tsx`: `clipFor(ex)` picks a clip from `public/figures/<id>.{webm,mp4,jpg}` (VP9 webm ~200 KB,
+  mp4 fallback, first frame as the poster). Fetched only when the page opens (not in the offline precache), muted, looping,
+  playing only while on screen and while the app is in view; reduced motion shows the still first frame.
+- Made in Blender from the Z-Anatomy model (CC BY-SA 4.0, credited in Settings › About). Each exercise gets its own
+  choreography on one full-body rig; sources and judge notes are in the project folder `anatomy-proof/`.

@@ -121,6 +121,10 @@ html:root[data-glow='off'] .look-pv i { display: none; }
   --hl: rgba(255, 255, 255, 0.2);
   --glass: rgba(24, 26, 38, 0.46); --glass-2: rgba(30, 32, 46, 0.62);
   --sheet-glass: rgba(26, 28, 42, 0.46); --sheet-solid: #15161f;
+  /* the sheet glass as drawn (see "Dither"): the same picture as --sheet-glass over a blur(44px) saturate(2) of the page */
+  --sheet-frost: brightness(2) blur(44px) saturate(2); --sheet-frost-short: brightness(2) blur(44px) saturate(2.1);
+  --sheet-tint: rgba(18.36, 19.77, 29.65, 0.707); --sheet-tint-short: rgba(16.61, 17.88, 26.83, 0.6721);
+  --dither: var(--dither-dark, none);
   --glass-blur: blur(30px) saturate(1.7);
   --dot: rgba(255, 255, 255, 0.11);
   --sh-c: 0 1px 1px rgba(0,0,0,.35), 0 8px 24px -12px rgba(0,0,0,.5);
@@ -140,6 +144,10 @@ html:root[data-glow='off'] .look-pv i { display: none; }
   --hl: rgba(255, 255, 255, 0.95);
   --glass: rgba(255, 255, 255, 0.5); --glass-2: rgba(255, 255, 255, 0.72);
   --sheet-glass: rgba(255, 255, 255, 0.58); --sheet-solid: #f9fafc;
+  /* light glass keeps its plain blur and tint: doubled, the bright page behind would clip to white */
+  --sheet-frost: blur(44px) saturate(2); --sheet-frost-short: blur(44px) saturate(2.1);
+  --sheet-tint: var(--sheet-glass); --sheet-tint-short: color-mix(in srgb, var(--sheet-glass) 86%, transparent);
+  --dither: none;
   --dot: rgba(20, 28, 48, 0.13);
   --sh-c: 0 1px 1px rgba(30,40,70,.06), 0 10px 26px -14px rgba(30,40,70,.28);
   --sh-a: 0 22px 44px -18px rgba(30,40,70,.3);
@@ -206,6 +214,22 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
 .fields > .aurora::after { content: none; }
 .fields::before { content: ''; position: absolute; inset: 0; z-index: 2147482999; pointer-events: none; opacity: calc(var(--grain) * 1.25); background-image: var(--grain-url, url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")); background-size: var(--grain-size, auto); }
 .aurora::after { content: ''; position: absolute; inset: 0; opacity: calc(var(--grain) * 1.25); /* the grain is what dithers the soft colour gradients; without it they band. No blend mode: 'overlay' made the browser blend a full-screen layer on every frame (the main cause of idle and scroll lag on the tab screens), and the colour field is its own transparent group, so overlay showed the same as a plain layer anyway (measured: within 2 of 255 levels) */ background-image: var(--grain-url, url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")); background-size: var(--grain-size, auto); }
+/* Dither: why soft glows banded behind frosted glass, and the recipe that keeps them smooth (any blurred layer can use it).
+   The phone keeps a blur's result in whole steps of colour (0-255). Behind a sheet the page is dimmed, so a glow there
+   spans only a few dozen steps, and the grain that hides them on the page is averaged away by the blur: the glow came back
+   as rings, a little different for red, green and blue, so they read as coloured bands. Two parts fix it:
+   1. Blur the backdrop at twice its brightness (`brightness(2)` BEFORE the blur), so the blur keeps twice as many steps,
+      and let half as much of it through the glass (the tint's alpha goes up, its colour is worked out so the result is
+      the same picture). Dark only: a light page doubled would clip to white.
+   2. Draw --dither with the tint: one-screen-pixel noise in the tint's alpha (lib/grain.ts installDither). It is mixed
+      with the blurred backdrop in that blend, at full precision, so what is left of each step dissolves into noise
+      about one level strong, finer than the page's own grain. It must sit in the layer drawn straight over the blur
+      (noise drawn any later lands on colours already rounded and only blurs the rings' edges), and in a layer of its
+      own, not in the blurring one (a picture there costs an extra full-screen pass per frame).
+   Recipe for a frosted layer with alpha a and colour c over `blur(r) saturate(s)`, dark theme, the dither's mean m = 0.0784:
+   blurring layer: backdrop-filter: brightness(2) blur(r) saturate(s), no background; a layer of its own right over it:
+   background: var(--dither), rgba(c * a / (1 - m) / a', a') with a' = 1 - (1 - a) / (2 * (1 - m)), image-rendering:
+   pixelated. (--sheet-tint is that, worked out for the sheets; .sheet::before/::after are the example.) */
 /* The workout window's colour field: ONE layer (three gradients) instead of three big layers + blend + mask, so it
    costs a single cheap raster when the window opens; it still drifts slowly. Same lights as .aurora, same positions. */
 .aurora-lite { position: absolute; inset: 0; overflow: hidden; pointer-events: none; container-type: size; }
@@ -599,26 +623,33 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .sheet {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; max-height: calc(100dvh - var(--sat) - 46px); display: flex; flex-direction: column;
   border-radius: var(--r-xl) var(--r-xl) 0 0; will-change: transform;
+  box-shadow: var(--sh-f); /* the drop shadow is the sheet's own (painted with its content): on the dithered tint layer it
+  doubled that layer's cost per frame (measured) */
 }
 /* The glass is a layer of its own UNDER the content (not the sheet itself). A blur on the sheet itself made the sheet a
    closed world for any blur inside it: the floating buttons' glass could only see the sheet's own see-through content, so
    rows under a button stayed sharp. With the glass as a layer, a button's blur sees the real picture and frosts it.
    Same single 44 px blur as before, so it costs the same. */
-.sheet::before {
-  content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none;
-  /* see-through frost: the page's colour glows through, but a 44 px blur leaves nothing behind sharp enough to read */
-  background: var(--sheet-glass); -webkit-backdrop-filter: blur(44px) saturate(2); backdrop-filter: blur(44px) saturate(2);
-  box-shadow: inset 0 1px 0 var(--hl), inset 0 0 0 1px var(--line), var(--sh-f);
+.sheet::before, .sheet::after { content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none; }
+/* see-through frost: the page's colour glows through, but a 44 px blur leaves nothing behind sharp enough to read.
+   The blur (::before) and the glass's tint (::after, over it) are two layers: the tint carries the dither (see "Dither"),
+   and a picture inside a blurring layer costs the phone an extra full-screen pass every frame the sheet moves (measured:
+   frame rate halved), while a plain layer over it is a single draw. Without the dither (light) the tint is one colour. */
+.sheet::before { -webkit-backdrop-filter: var(--sheet-frost); backdrop-filter: var(--sheet-frost); }
+.sheet::after {
+  background: var(--dither), var(--sheet-tint); image-rendering: pixelated;
+  box-shadow: inset 0 1px 0 var(--hl), inset 0 0 0 1px var(--line);
   transition: background-color 260ms var(--ease-out);
 }
 /* The glass reaches on below the sheet's bottom edge (off screen at rest). With the keyboard up, the sheet and the keyboard
    never quite move in lockstep (the phone reports the keyboard once and animates it on its own), and the page used to
    peek through the gap between them; now that gap is the same glass. A floating card (small) keeps its own shape. */
-.sheet:not(.sz-small)::before { bottom: -60vh; }
-.sheet[data-size='short']::before { background: color-mix(in srgb, var(--sheet-glass) 86%, transparent); -webkit-backdrop-filter: blur(44px) saturate(2.1); backdrop-filter: blur(44px) saturate(2.1); }
+.sheet:not(.sz-small)::before, .sheet:not(.sz-small)::after { bottom: -60vh; }
+.sheet[data-size='short']::before { -webkit-backdrop-filter: var(--sheet-frost-short); backdrop-filter: var(--sheet-frost-short); }
+.sheet[data-size='short']::after { background-color: var(--sheet-tint-short); }
 .sheet.tall { height: calc(100dvh - var(--sat) - 46px); }
 /* stepped back behind another sheet (data-stacked, Sheet.tsx markStacked): no drop shadow; narrower, it showed beside it. */
-.sheet[data-stacked]::before { box-shadow: inset 0 1px 0 var(--hl), inset 0 0 0 1px var(--line); }
+.sheet[data-stacked] { box-shadow: none; }
 /* The browser rounds what is inside a scrolling list to whole screen pixels, so while its sheet is scaled a list ticked
    along a pixel at a time against it. A turn of 0.0001° stops the rounding, only while stepped back ([data-stacked]): it
    goes the moment the sheet is back to full size, mid-slide, so the list's own rounding never changes at rest. It is its
@@ -630,13 +661,13 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    (black tiles). The glass turns solid over a moment, then the blur is dropped once nothing can be seen through it (an
    instant swap flashed); coming back up, the blur is there at once and the solid fades away. */
 .sheet.behind.deep::before { -webkit-backdrop-filter: none; backdrop-filter: none;
-  transition: background-color 260ms var(--ease-out), -webkit-backdrop-filter 0s linear 280ms, backdrop-filter 0s linear 280ms; transition-behavior: allow-discrete; }
+  transition: -webkit-backdrop-filter 0s linear 280ms, backdrop-filter 0s linear 280ms; transition-behavior: allow-discrete; }
 /* Inside a sheet everything sits on glass that is already blurred: a second blur on each button, switch and chip only repeats
    it (the same pixels) but makes the browser run one more full pass per element for every frame the sheet moves or scrolls. */
 .sheet :is(.btn, .icon-btn, .seg, .chip, .plinth, .plinth-2, .input, .field input), .sheet-page :is(.btn, .icon-btn, .seg, .chip) { -webkit-backdrop-filter: none; backdrop-filter: none; }
 /* …and without its frost it must not turn see-through (it looked like it was dissolving): it becomes the same glass laid
    over the plain background instead — solid, and under the dim it reads as a card set back. */
-.sheet.behind.deep::before, .sheet.behind.deep[data-size='short']::before { background: var(--sheet-solid); }
+.sheet.behind.deep::after, .sheet.behind.deep[data-size='short']::after { background-color: var(--sheet-solid); background-image: none; }
 /* A sheet's content sits in a pane, so it can step aside when a page opens inside the same sheet (Sheet.tsx, PageSheet). The
    page is laid exactly over it, below the grab handle, on the sheet's own glass. */
 .sheet-pane { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
@@ -823,8 +854,8 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .coach-reply .rich-li { gap: 10px; margin-top: 6px; }
 .coach-reply .rich-p + .rich-li, .coach-reply .rich-li + .rich-p { margin-top: 10px; }
 .calm .w { animation: none; --soft-dur: 640ms; }
-.calm .rich-li > .w { animation: wordCalm var(--soft-dur) cubic-bezier(0.2, 0.7, 0.2, 1) backwards; } /* (a bullet: no soft focus) */
-/* each word rises a little into place while it comes in out of soft focus (.soft below) */
+.calm .rich-li > .w { animation: wordLight var(--soft-dur) cubic-bezier(0.33, 0.1, 0.25, 1) backwards, wordCalm var(--soft-dur) cubic-bezier(0.2, 0.7, 0.2, 1) backwards; } /* (a bullet comes in like a word) */
+/* each word rises a little into place while it fades up (.w-in below) */
 @keyframes wordCalm { from { transform: translateY(0.3em); } to { transform: none; } }
 /* Soft focus, shared by everything that writes itself in (Coach and orb answers, your spoken words, the Food date,
    Onboarding titles): the text comes into focus the way a camera pulls focus, without a blur ever being animated. Two still,
@@ -859,6 +890,14 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
   50% { opacity: .293; } 55% { opacity: .109; } 60%, 100% { opacity: 0; } }
 @keyframes softSharp { 0%, 30% { opacity: 0; } 35% { opacity: .031; } 40% { opacity: .42; } 45% { opacity: .672; } 50% { opacity: .85; }
   55% { opacity: .961; } 60%, 100% { opacity: 1; } }
+/* Answers (Coach and orb) write in WITHOUT blur (Omar, 13 Oct evening: "just do it without the blur… there was a version
+   where you did it without the blur, it came out smooth"). That was v0.1.56: each word fades up 0.3em into place. One
+   layer per word (the soft focus was three), opacity and transform only, so the compositor draws it; the light comes in
+   a touch slower than the rise, so a word never pops in bright. Once in, it settles to plain text (Words, agentUi.tsx). */
+:is(.calm, .voice-live) .w-in { animation: wordLight var(--soft-dur, 600ms) cubic-bezier(0.33, 0.1, 0.25, 1) backwards, wordCalm var(--soft-dur, 600ms) cubic-bezier(0.2, 0.7, 0.2, 1) backwards; }
+@keyframes wordLight { from { opacity: 0; } to { opacity: 1; } }
+:root[data-motion='reduce'] .w-in { animation: none !important; }
+@media (prefers-reduced-motion: reduce) { :is(.calm, .voice-live, :root) .w-in { animation: none; } }
 :root[data-motion='reduce'] :is(.soft-in > .soft-s, .soft-in::before, .soft-in::after) { animation: none; }
 @media (prefers-reduced-motion: reduce) { :is(.calm, .voice-live, :root) :is(.soft-in > .soft-s, .soft-in::before, .soft-in::after) { animation: none; } }
 /* Read aloud: the word being said lights up in the accent, the ones said settle back, the ones to come wait a shade lighter.
@@ -1160,6 +1199,11 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
   background: linear-gradient(180deg, color-mix(in srgb, var(--ac) 78%, #fff), var(--ac)); opacity: 0; transform: scale(.6); pointer-events: none;
   transition: opacity 200ms var(--ease-out), transform 360ms var(--ease-spring); }
 .coach-send.on { opacity: 1; transform: none; pointer-events: auto; }
+/* send and stop share the button: a short cross-fade with a little turn (120 ms), never a cut */
+.coach-send .cs-ico { grid-area: 1 / 1; display: grid; will-change: transform, opacity; transition: opacity 120ms var(--ease-out), transform 160ms var(--ease-out); }
+.coach-send .cs-stop, .coach-send.busy .cs-go { opacity: 0; transform: rotate(-45deg) scale(0.7); }
+.coach-send.busy .cs-go { transform: rotate(45deg) scale(0.7); }
+.coach-send.busy .cs-stop { opacity: 1; transform: none; }
 .meals-empty { padding: 6px 16px 6px 20px; }
 /* the empty day's card (or the meals) fading out before the other rises in, once the add sheet has gone (Food.tsx) */
 .subpage > .fading { animation: fade-away 220ms ease forwards; pointer-events: none; }
@@ -1228,7 +1272,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .mem-row { display: flex; align-items: flex-start; gap: 8px; padding: 12px 8px 12px 14px; }
 .mem-text { display: block; width: 100%; text-align: left; font-size: 15px; line-height: 1.4; color: var(--tx); overflow-wrap: anywhere; }
 .mem-edit { width: 100%; min-height: 64px; font-size: 15px; line-height: 1.4; resize: none; }
-.reply.still .w, .reply.still .soft-in > .soft-s, .reply.still .soft-in::before, .reply.still .soft-in::after { animation: none; }
+.reply.still .w, .reply.still .w-in, .reply.still .soft-in > .soft-s, .reply.still .soft-in::before, .reply.still .soft-in::after { animation: none; }
 /* a note from Coach memory beside the exercise it is about, with a way out */
 .wk-flag { display: flex; align-items: flex-start; gap: 8px; margin-top: 8px; padding: 8px 8px 8px 10px; border-radius: 12px; color: var(--tx); background: color-mix(in srgb, var(--warn) 12%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warn) 24%, transparent); }
 .wk-flag .chip { flex: none; margin-top: -2px; }
@@ -1237,20 +1281,49 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .sheet-pane .coach-body.sheet-body:not([data-scrollable]) { -webkit-mask-image: none; mask-image: none; } /* (outranks the melt under sheet buttons) */
 /* The Coach's typing bar is a whole row (orb, camera, field) laid over the end of the list. With the list sharp right up to
    and under it, words ran under the orb and the camera and were sliced off by the field's edges (the "cut-out" look).
-   Scrolled up, the list now melts away just above the bar, gone by its middle; at the end it slides down out of the way
-   (it follows the list's own end fade, --sb-fade-b), so the last message, and an answer writing in, stay whole.
-   With the keyboard up the melt sits above the bar where it rides, and moves with it frame by frame (--kb-now, Coach.tsx;
-   it used to sit at the keyboard's full room the whole time, so while the keyboard came or went the messages between it
-   and the bar were hidden, then popped back once it landed). On the way the list rides at its end short of the room the
-   keyboard hasn't covered yet: that part doesn't count as "scrolled up", so the melt stays out of the last message's way. */
+   The list now ends cleanly ABOVE the bar, always: it fades out over the 20 px just above the bar's top edge, so nothing
+   is ever seen behind the orb, the camera or the field (Omar, 13 Oct evening: the text running under "Ask the Coach" with
+   a muddy fade read as a mess). At rest the last message sits 30 px above that edge, clear of the fade; a line that
+   arrives while the list glides up comes out of the edge instead of rising from under the bar. (It used to slide down
+   out of the way at the list's end, so a new line showed under the bar while the list glided.)
+   With the keyboard up the edge rides with the bar, frame by frame (--kb-now, Coach.tsx; it used to sit at the keyboard's
+   full room the whole time, so while the keyboard came or went the messages between it and the bar were hidden). */
 @property --kb-now { syntax: '<length>'; inherits: false; initial-value: 0px; }
+@property --cf-gt { syntax: '<length>'; inherits: false; initial-value: 0px; } /* (the pill's frost outline: its top and its left edge) */
+@property --cf-gl { syntax: '<length>'; inherits: false; initial-value: 0px; }
+@property --grow { syntax: '<length>'; inherits: false; initial-value: 0px; } /* (the typing pill's extra lines: the end of the conversation rises with it) */
 @property --melt { syntax: '<length-percentage>'; inherits: false; initial-value: 100%; } /* (not handed down to every word: it changes as you scroll) */
 @supports (animation-timeline: scroll()) {
-  .sheet-pane .coach-body.sheet-body[data-scrollable] { --melt: calc(100% - var(--foot-h, 90px) - min(var(--kb-room, 0px), var(--kb-now))
-      + (40px - max(0px, var(--sb-fade-b) - max(0px, var(--kb-room, 0px) - var(--kb-now)))) * 1.3);
-    -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--sb-fade), #000 calc(var(--melt) - 30px), rgba(0,0,0,.25) calc(var(--melt) + 4px), transparent calc(var(--melt) + 22px));
-    mask-image: linear-gradient(to bottom, transparent, #000 var(--sb-fade), #000 calc(var(--melt) - 30px), rgba(0,0,0,.25) calc(var(--melt) + 4px), transparent calc(var(--melt) + 22px)); }
+  .sheet-pane .coach-body.sheet-body[data-scrollable] { --melt: calc(100% - var(--foot-h, 90px) - var(--grow) - min(var(--kb-room, 0px), var(--kb-now)));
+    transition: --grow var(--cf-dur-g, 500ms) var(--cf-ease-g, ease);
+    -webkit-mask-image: linear-gradient(to bottom, transparent, transparent calc(var(--sb-fade) * .2), rgba(0,0,0,.45) calc(var(--sb-fade) * .6 - 4px), #000 calc(var(--sb-fade) - 8px), #000 calc(var(--melt) - 26px), rgba(0,0,0,.35) calc(var(--melt) - 10px), transparent var(--melt));
+    mask-image: linear-gradient(to bottom, transparent, transparent calc(var(--sb-fade) * .2), rgba(0,0,0,.45) calc(var(--sb-fade) * .6 - 4px), #000 calc(var(--sb-fade) - 8px), #000 calc(var(--melt) - 26px), rgba(0,0,0,.35) calc(var(--melt) - 10px), transparent var(--melt)); }
 }
+/* SOFT EDGE (Omar picked "soft-edge bars", 13 Oct): the bar has no box. Behind it a plain fade (no blur: each control
+   carries its own frost, .frost-ctl below, so there is never a blur on a blur) darkens gently toward a neutral grey so the
+   orb, the camera and the field always read, over any background, riding with the bar, never animated. The text itself is
+   gone before the bar's top edge (the list's mask above): it never shows between or behind the controls ("the text bar on
+   its own", Omar 22:07). At rest the last message sits 30 px above the bar, clear of the fade. */
+.sheet-pane:has(> .sheet-foot) .coach-body.sheet-body { padding-bottom: calc(var(--foot-h, calc(var(--sab) + 76px)) + 30px + var(--grow-pad, 0px) + var(--kb-room, 0px)); }
+.coach-foot.edge-fade { --edge-x: -22px; --edge-top: 34px; --edge-bottom: calc(var(--sab) + 14px); --edge-a: 35%; }
+/* .edge-fade, shared by every bottom bar that content passes under (the Coach bar; the tab bar reuses it): a neutral grey
+   tint (--edge-tint, card level) under the element, starting --edge-top above it and easing in over --edge-len up to
+   --edge-a, so the bar reads over anything without ever being a dark band. `.frosted` adds a blur that starts clear and
+   is full --edge-ramp down (one backdrop blur the size of the bar, never animated); leave it off when the controls in
+   the bar have their own frost (.frost-ctl), so nothing is blurred twice (the dock has it on, below). Place: --edge-x (sideways reach, negative to go past the element's padding) and --edge-bottom. */
+.edge-fade { position: relative; isolation: isolate; }
+.edge-fade::before { content: ''; position: absolute; z-index: -1; pointer-events: none;
+  left: var(--edge-x, 0px); right: var(--edge-x, 0px); top: calc(-1 * var(--edge-top, 24px)); bottom: calc(-1 * var(--edge-bottom, 0px));
+  /* the tint eases in over --edge-len and stops at --edge-a (never a dark band at the bottom: no darker than the bar was) */
+  --c: var(--edge-tint, rgb(21, 22, 28));
+  background: linear-gradient(to bottom, transparent,
+    color-mix(in srgb, var(--c) calc(var(--edge-a, 65%) * .06), transparent) calc(var(--edge-len, 64px) * .25),
+    color-mix(in srgb, var(--c) calc(var(--edge-a, 65%) * .25), transparent) calc(var(--edge-len, 64px) * .5),
+    color-mix(in srgb, var(--c) calc(var(--edge-a, 65%) * .56), transparent) calc(var(--edge-len, 64px) * .75),
+    color-mix(in srgb, var(--c) var(--edge-a, 65%), transparent) var(--edge-len, 64px)); }
+.edge-fade.frosted::before, .tabbar-wrap.edge-fade::before { -webkit-backdrop-filter: blur(var(--edge-blur, 16px)) saturate(1.35); backdrop-filter: blur(var(--edge-blur, 16px)) saturate(1.35);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--edge-ramp, 26px)); mask-image: linear-gradient(to bottom, transparent, #000 var(--edge-ramp, 26px)); }
+:root[data-theme='light'] .edge-fade { --edge-tint: var(--sheet-solid); --edge-a: 40%; } /* (light: a pale neutral, or it read as a white strip) */
 .coach-sent { animation: coachSend 620ms cubic-bezier(.2, .8, .2, 1) backwards; }
 @keyframes coachSend {
   from { opacity: 0; transform: translate3d(0, 28px, 0) scale(.975); }
@@ -1280,14 +1353,35 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 :root[data-motion='reduce'] .coach-thread .typing.typing-out { display: none; }
 @keyframes coachAfter { from { opacity: 0; transform: translate3d(0, 4px, 0); } }
 @keyframes coachReply { from { opacity: .65; transform: translate3d(0, 3px, 0); } to { opacity: 1; transform: none; } }
-/* a sent message in flight (Coach.tsx): a copy of the bubble above everything; its glass gathers round the words */
+/* a sent message in flight (Coach.tsx): a copy of the bubble above everything. Its shape is eight pieces (four corners
+   that scale evenly, four straight pieces between them), moved together on one spring so they always make one outline:
+   it starts as the whole pill and becomes the bubble. The pill's colours (.fly-pill: its tint, top sheen and rim as they
+   look over the frost, solid, so nothing behind shows through) and the bubble's (.fly-tone, also solid) are the same
+   pieces twice, so the colour turns without a second shape, and the shape is never see-through on the way. */
 .coach-fly { position: fixed; z-index: 400; margin: 0; max-width: none; box-sizing: border-box; pointer-events: none;
   transform-origin: 0 0; will-change: transform; background: none; border: 0; box-shadow: none; }
-.coach-fly::before { content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; background: var(--fly-bg); box-shadow: var(--fly-shadow);
-  animation: flyGlass 300ms var(--ease-out) backwards; }
-@keyframes flyGlass { from { opacity: 0; } }
-.coach-field .input::placeholder { transition: opacity 360ms var(--ease-out); }
-.coach-field .input.sent-away::placeholder { opacity: 0; transition: none; }
+.fly-sh { position: absolute; left: 0; top: 0; width: 100%; height: 100%; transform-origin: 0 0; will-change: transform, opacity; border-radius: 20px 20px 6px 20px; }
+.fly-end { position: absolute; left: 0; top: 0; width: 100%; height: 100%; border-radius: 20px 20px 6px 20px; opacity: 0; will-change: opacity; }
+.fly-shape { position: absolute; left: 0; top: 0; width: 100%; height: 100%; will-change: opacity; }
+.fly-shape > i { position: absolute; left: 0; top: 0; box-sizing: border-box; transform-origin: 0 0; will-change: transform; }
+.fly-tone > i { background: var(--fly-fill); }
+.fly-pill { --fp-a: calc(var(--fc-op) * 100%); --fp-solid: color-mix(in srgb, var(--fc-solid) var(--fp-a), var(--fly-under)); }
+.fly-pill > i { background: var(--fp-solid); border: 0 solid color-mix(in srgb, var(--fc-rim-s) var(--fp-a), var(--fly-under)); }
+.fly-pill > :is(.fp-tl, .fp-tr, .fp-top) { background: linear-gradient(180deg, color-mix(in srgb, var(--fc-top) var(--fp-a), var(--fly-under)), var(--fp-solid));
+  border-top: 1px solid color-mix(in srgb, var(--fc-hl-s) var(--fp-a), var(--fly-under)); }
+.fly-pill > :is(.fp-tl, .fp-bl, .fp-mid) { border-left-width: 1px; }
+.fly-pill > :is(.fp-tr, .fp-br, .fp-mid, .fp-side) { border-right-width: 1px; }
+.fly-pill > :is(.fp-bl, .fp-br, .fp-bot) { border-bottom-width: 1px; }
+.fly-shape > .fp-tl { border-top-left-radius: 100%; } .fly-shape > .fp-tr { border-top-right-radius: 100%; }
+.fly-shape > .fp-bl { border-bottom-left-radius: 100%; } .fly-shape > .fp-br { border-bottom-right-radius: 100%; }
+/* the send button as it was, over the flight's first moments (it fades as the shape starts to leave) */
+.coach-send.fly-send { position: fixed; z-index: 401; right: auto; margin: 0; transition: none; pointer-events: none; }
+.coach-send.fly-send .cs-ico { transition: none; }
+.fly-words { position: relative; will-change: opacity; }
+.fly-words > .said-l { will-change: auto; }
+.coach-field .input::placeholder { transition: color 300ms var(--ease-out); } /* (its colour, not its opacity: an opacity fade gave it a layer that was dropped when it ended) */
+.coach-composer .coach-field .input.sent-away::placeholder { color: transparent; transition: none; }
+.coach-composer .coach-field .input.sent-away { caret-color: transparent; } /* (the cursor jumped to the start as the words left) */
 :root[data-motion='reduce'] :is(.coach-sent, .coach-reply, .coach-reply .w, .coach-after, .coach-after .speak-btn) { animation: none; }
 .coach-body :is(.action-card, .action-ic, .action-line, .tip) { animation: none; }
 /* "New chat": the conversation steps away, then the suggestions rise in one after another (on opening they are simply there),
@@ -1309,15 +1403,115 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* The typing pill has its own surface; the orb and camera sit beside it. */
 .coach-foot { padding-bottom: 12px; }
 .coach-composer { display: flex; align-items: center; gap: 8px; }
-.coach-field { position: relative; min-width: 0; border-radius: 27px;
-  background: linear-gradient(180deg, var(--s1), transparent), color-mix(in srgb, var(--glass) 68%, var(--s1));
-  -webkit-backdrop-filter: blur(18px) saturate(1.25); backdrop-filter: blur(18px) saturate(1.25);
-  box-shadow: 0 8px 24px -8px rgb(0 0 0 / .26), 0 2px 6px -2px rgb(0 0 0 / .18); transition: box-shadow 200ms var(--ease-out); }
-.coach-field:focus-within { box-shadow: 0 10px 26px -8px rgb(0 0 0 / .32), 0 2px 6px -2px rgb(0 0 0 / .22); }
-:root[data-theme='light'] .coach-field { box-shadow: 0 8px 24px -8px rgb(30 40 70 / .16), 0 2px 6px -2px rgb(30 40 70 / .1); }
-:root[data-theme='light'] .coach-field:focus-within { box-shadow: 0 10px 26px -8px rgb(30 40 70 / .2), 0 2px 6px -2px rgb(30 40 70 / .14); }
-.coach-field .input { height: 54px; padding-left: 16px; background: transparent; box-shadow: none; outline: none; }
-.coach-composer .input::placeholder { color: var(--tx2); opacity: 1; }
+/* Each control of the bar sits on its own frosted glass (.frost-ctl, Omar 13 Oct: "the text bar on its own… the camera
+   its own circle that looks 3D… the orb, figure something out"): the field a pill, the camera a round button, the orb
+   rests in a frosted seat a little bigger than itself (.frost-seat). The bar behind them is only a soft tint
+   (.edge-fade, no blur), so nothing is ever blurred twice. */
+.coach-cam.frost-ctl { flex: none; width: 46px; height: 46px; margin: 0 2px; color: var(--tx); }
+/* THE PILL OPENS WHILE YOU TYPE AND GROWS AS YOU WRITE (Coach.tsx CF_X, CF_MAX, MORPH, GROW): on focus the camera tucks
+   away and the pill's left edge glides over its place (--cf-x), a beat after the tap (60 ms, so the keyboard's lift doesn't
+   swallow it) with a little overshoot; it glides back when the keyboard goes. As your words wrap it grows upward a line at a
+   time (--mid, up to --cf-max), then they scroll inside. A pill's size can't be animated without laying it out every frame,
+   and a stretched pill squashes its round ends, so it is built from moves only:
+   - the tint and its rim are six solid pieces inside one see-through group (.cf-tint): a left and a right column, each a
+     top cap, a middle and a bottom cap. The left column slides (translate) to open it; the top caps rise (transform) and the
+     middles stretch (scale, plain colour and straight rims only) to grow it. They overlap a little and, being solid inside
+     the group, always read as one pill (the group's opacity makes the whole see-through at once: nothing is doubled);
+   - the frost (.cf-glass) is one layer laid out at the biggest size that never moves; only its outline is cut back to the
+     pill's (clip-path), so its blur is never scaled or animated;
+   - the shadow (.cf-sh) is soft enough to be stretched (--cf-k: open width over resting; --sh-y: grown height over one line);
+   - the words sit in a window inset from the rim (.cf-text); their box grows a line at once and is played back from where
+     it was on the pill's spring, so the line that moves up rises with the top edge, never cut by it.
+   Interrupted (tap, close, tap again) every part turns round from where it is. The moving parts keep their own layers
+   (will-change), so none is made or dropped mid-move (a dropped layer is the phone's one-frame flicker). */
+.coach-field { position: relative; min-width: 0; height: 54px; border-radius: 27px; }
+.coach-field > i { position: absolute; right: 0; bottom: 0; pointer-events: none; }
+.cf-glass { left: calc(-1 * (var(--cf-x) + 8px)); height: calc(62px + var(--cf-max)); /* (8 px of room past the open edge and the top, for the overshoot) */
+  -webkit-backdrop-filter: blur(20px) saturate(1.5); backdrop-filter: blur(20px) saturate(1.5);
+  /* its top follows the lines on their own spring and its left edge the opening on the opening's, each through a property
+     of its own (one transition on the outline carried both on the opening's timing: the frost trailed the pill's top by
+     60 ms as it grew, and lagged it as it closed up after a send) */
+  --cf-gt: calc(8px + var(--cf-max) - var(--mid, 0px)); --cf-gl: calc(var(--cf-x) + 8px);
+  clip-path: inset(var(--cf-gt) 0 0 var(--cf-gl) round 27px);
+  transition: --cf-gl var(--cf-dur-c) var(--cf-ease-c), --cf-gt var(--cf-dur-g) var(--cf-ease-g); }
+.open .cf-glass { --cf-gl: 8px; transition: --cf-gl var(--cf-dur) var(--cf-ease) 60ms, --cf-gt var(--cf-dur-g) var(--cf-ease-g); }
+.cf-tint { left: calc(-1 * (var(--cf-x) + 8px)); top: 0; opacity: var(--fc-op); }
+.cf-tint > i { position: absolute; box-sizing: border-box; background: var(--fc-solid); border: 0 solid var(--fc-rim-s);
+  transition: translate var(--cf-dur-c) var(--cf-ease-c), transform var(--cf-dur-g) var(--cf-ease-g), scale var(--cf-dur-g) var(--cf-ease-g); }
+.open .cf-tint > i { transition: translate var(--cf-dur) var(--cf-ease) 60ms, transform var(--cf-dur-g) var(--cf-ease-g), scale var(--cf-dur-g) var(--cf-ease-g); }
+.cf-tint > .cf-l { left: calc(var(--cf-x) + 8px); width: calc(100% - var(--cf-x) - 42px); border-left-width: 1px; }
+.open .cf-l { translate: calc(-1 * var(--cf-x)) 0; }
+.cf-tint > .cf-r { right: 0; width: calc(var(--cf-x) + 44px); border-right-width: 1px; }
+.cf-tint > .cf-t { top: 0; height: 29px; border-top-width: 1px; border-top-color: var(--fc-hl-s); background: linear-gradient(180deg, var(--fc-top), var(--fc-solid));
+  transform: translateY(calc(-1 * var(--mid, 0px))); }
+.cf-tint > .cf-b { bottom: 0; height: 29px; border-bottom-width: 1px; }
+.cf-tint > .cf-m { bottom: 25px; height: calc(var(--cf-max) + 4px); transform-origin: 50% 100%; scale: 1 var(--mid-k, 0.0577); }
+.cf-l.cf-t { border-top-left-radius: 27px; } .cf-r.cf-t { border-top-right-radius: 27px; }
+.cf-l.cf-b { border-bottom-left-radius: 27px; } .cf-r.cf-b { border-bottom-right-radius: 27px; }
+.cf-sh { left: 0; top: 0; border-radius: 27px; box-shadow: var(--fc-sh); transform-origin: 100% 100%; transform: scaleY(var(--sh-y, 1));
+  transition: scale var(--cf-dur-c) var(--cf-ease-c), transform var(--cf-dur-g) var(--cf-ease-g); }
+.open .cf-sh { scale: var(--cf-k, 1.25) 1; transition: scale var(--cf-dur) var(--cf-ease) 60ms, transform var(--cf-dur-g) var(--cf-ease-g); }
+.cf-measure { position: absolute; left: 0; bottom: 0; visibility: hidden; pointer-events: none; white-space: pre-wrap; overflow-wrap: break-word;
+  font-size: 16px; line-height: 22px; font-weight: 520; letter-spacing: -0.005em; }
+/* the words: a window laid out at the open width (shifted back at rest), its edges 10 px inside the rim and its top
+   following the pill's on the same spring (nothing in it ever touches the rim); the text box in it takes its new height
+   at once and is played back from where it was (Coach.tsx fit) */
+.cf-text { position: absolute; left: calc(-1 * var(--cf-x)); bottom: 0; z-index: 1; width: calc(100% + var(--cf-x)); height: calc(54px + var(--cf-max));
+  clip-path: inset(calc(var(--cf-max) - var(--mid, 0px) + 10px) 0 4px 0); translate: var(--cf-x) 0;
+  /* a new line comes up into view through a soft bottom edge (a hard one sliced its letters as it rose) */
+  -webkit-mask-image: linear-gradient(to top, transparent 5px, #000 16px); mask-image: linear-gradient(to top, transparent 5px, #000 16px);
+  transition: translate var(--cf-dur-c) var(--cf-ease-c), clip-path var(--cf-dur-g) var(--cf-ease-g); }
+.open .cf-text { translate: 0 0; transition: translate var(--cf-dur) var(--cf-ease) 60ms, clip-path var(--cf-dur-g) var(--cf-ease-g); }
+.coach-field textarea.input { position: absolute; left: 0; bottom: 0; display: block; margin: 0; resize: none; width: 100%; height: calc(54px + var(--mid, 0px)); min-height: 0;
+  line-height: 22px; overflow: hidden; scrollbar-width: none; padding: 16px calc(54px + var(--cf-x)) 16px 16px; border-radius: 0;
+  font-weight: 520; letter-spacing: -0.005em; /* (the sent bubble's own letters: the words that lift out of the field are the same ones) */
+  clip-path: inset(0); /* (a focused text box with no clip of its own got a scrolling layer that came and went with the keyboard) */ }
+.coach-field textarea.input::-webkit-scrollbar { display: none; }
+.cf-full .coach-field textarea.input { overflow-y: auto; /* past four lines the words scroll up under a soft top edge (only then: a mask gave the
+  text a layer that came and went with the keyboard) */
+  -webkit-mask-image: linear-gradient(to bottom, transparent 3px, #000 15px); mask-image: linear-gradient(to bottom, transparent 3px, #000 15px); }
+.open .coach-field textarea.input { padding-right: 54px; }
+.coach-field .coach-send { z-index: 2; }
+/* the camera steps back under the opening edge and fades; closing, it waits until the edge has mostly passed (about 70 %
+   of the way) before it fades back in and settles from 0.82, so it never shows cut off under the pill's rim (its own frost
+   fades with it: opacity on the glass itself, never on something around it, which would cut the glass off from the page) */
+.coach-cam-slot { display: flex; flex: none; transition: transform var(--cf-dur-c) var(--cf-ease-c); }
+.open .coach-cam-slot { transform: translateX(-6px) scale(0.82); transition: transform var(--cf-dur) var(--cf-ease) 40ms; }
+.coach-composer .coach-cam.frost-ctl:not([data-pressed], [data-press-off]) { transition: transform 520ms var(--ease-spring), opacity 220ms var(--ease-out) 180ms; }
+.coach-composer.open .coach-cam.frost-ctl:not([data-pressed], [data-press-off]) { transition: transform 520ms var(--ease-spring), opacity 170ms var(--ease-out) 40ms; }
+.open .coach-cam { opacity: 0; pointer-events: none; }
+/* a message just sent: the emptied pill closes up at once, under the flying shape (Coach.tsx CLOSE); the bar is held open meanwhile */
+.coach-composer.closing .cf-glass { transition: --cf-gl var(--cf-dur) var(--cf-ease) 60ms, --cf-gt var(--cf-dur-k) var(--cf-ease-k); }
+.coach-composer.closing .cf-tint > i { transition: translate var(--cf-dur) var(--cf-ease) 60ms, transform var(--cf-dur-k) var(--cf-ease-k), scale var(--cf-dur-k) var(--cf-ease-k); }
+.coach-composer.closing .cf-sh { transition: scale var(--cf-dur) var(--cf-ease) 60ms, transform var(--cf-dur-k) var(--cf-ease-k); }
+.coach-composer.closing .cf-text { transition: translate var(--cf-dur) var(--cf-ease) 60ms, clip-path var(--cf-dur-k) var(--cf-ease-k); }
+.cf-tint > i, .cf-sh, .cf-text, .coach-field textarea.input, .coach-cam-slot, .coach-field { will-change: transform; }
+.coach-cam.frost-ctl { will-change: opacity; }
+:root[data-motion='reduce'] :is(.cf-glass, .cf-tint > i, .cf-sh, .cf-text, .coach-cam-slot) { transition: none !important; }
+@media (prefers-reduced-motion: reduce) { :is(.cf-glass, .cf-tint > i, .cf-sh, .cf-text, .coach-cam-slot) { transition: none !important; } }
+.coach-orb { margin-right: 2px; isolation: isolate; }
+/* .frost-ctl: a floating control on its own frosted glass, the one style for them app-wide. Neutral (never tinted by the
+   area's colour), a light top edge and a fine rim, a soft shadow under it that lifts it off the page, and a faint sheen
+   that brightens its top half so a round one reads as a lens rather than a flat disc. One small blur per control,
+   never animated, and nothing blurred sits under it. `.frost-seat`: the same glass as a disc behind its content
+   (--seat: how far it reaches past the element). */
+:root { --fc-bg: rgba(40, 42, 54, 0.5); --fc-sheen: rgba(255, 255, 255, 0.07); --fc-hl: rgba(255, 255, 255, 0.16); --fc-rim: rgba(255, 255, 255, 0.07); --fc-rim-on: rgba(255, 255, 255, 0.16);
+  --fc-sh: 0 1px 2px rgba(0, 0, 0, 0.32), 0 10px 22px -10px rgba(0, 0, 0, 0.6);
+  /* the same glass as solid colours under one opacity (--fc-op), for a control drawn in pieces (the Coach pill) */
+  --fc-solid: rgb(40, 42, 54); --fc-op: 0.5; --fc-top: color-mix(in srgb, var(--fc-solid), #fff 14%); --fc-hl-s: color-mix(in srgb, var(--fc-solid), #fff 32%); --fc-rim-s: color-mix(in srgb, var(--fc-solid), #fff 14%);
+  /* what the pill's frost shows on average (the sheet seen through it): a sent message's flying copy is solid, drawn over this */
+  --fly-under: rgb(20, 24, 40); }
+:root[data-theme='light'] { --fc-bg: rgba(255, 255, 255, 0.6); --fc-sheen: rgba(255, 255, 255, 0.55); --fc-hl: rgba(255, 255, 255, 0.95); --fc-rim: rgba(20, 28, 48, 0.07); --fc-rim-on: rgba(20, 28, 48, 0.14);
+  --fc-sh: 0 1px 2px rgba(30, 40, 70, 0.12), 0 10px 22px -10px rgba(30, 40, 70, 0.28);
+  --fc-solid: #fff; --fc-op: 0.6; --fc-top: #fff; --fc-hl-s: #fff; --fc-rim-s: color-mix(in srgb, #fff, rgb(20, 28, 48) 12%); --fly-under: rgb(222, 225, 235); }
+.frost-ctl, .frost-seat::before {
+  background: linear-gradient(180deg, var(--fc-sheen), transparent 58%), var(--fc-bg);
+  -webkit-backdrop-filter: blur(20px) saturate(1.5); backdrop-filter: blur(20px) saturate(1.5);
+  box-shadow: inset 0 1px 0 var(--fc-hl), inset 0 0 0 1px var(--fc-rim), var(--fc-sh); }
+.frost-seat { position: relative; isolation: isolate; }
+.frost-seat::before { content: ''; position: absolute; inset: calc(-1 * var(--seat, 2px)); border-radius: 999px; z-index: -1; pointer-events: none; }
+.coach-field .input { background: transparent; box-shadow: none; outline: none; }
+.coach-composer .input::placeholder { color: var(--tx2); opacity: 1; font-weight: 400; letter-spacing: 0; }
 .coach-composer .coach-send { transform: scale(.9); transition: opacity 160ms var(--ease-out), transform 260ms var(--ease-smooth); }
 .coach-composer .coach-send.on { transform: none; }
 .coach-cam { flex: none; width: 44px; height: 50px; color: var(--tx2); }
@@ -1459,6 +1653,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    line breaks). The big words use the bubble's own
    typeface, weight and tracking, so only their size changes on the way down. */
 .said-wrap { position: relative; display: flex; flex-direction: column; }
+.said-l { display: block; white-space: pre-wrap; } /* a typed message's lines, as they wrapped in the field (Coach.tsx) */
 .said .sb, .said-big .sw { display: inline-block; }
 .said-wrap.write .said { opacity: 0; }
 .said-wrap.fly .said { transform-origin: 0 0; will-change: transform, opacity; }
@@ -1534,19 +1729,19 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .pin-acts { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
 .pin-x { flex: none; margin-top: -4px; color: var(--tx3); }
 
-/* ── under the dock: a progressive blur (ui/TabBar.tsx .dock-veil) ───────────────────────────────────────────────────
-   The dock's own glass only frosts what is right behind it; around and below it the page used to run on sharp. Now the page
-   dissolves into the bottom edge: three blurs of fixed strength (a strength can't be animated cheaply), each faded in further
-   down by its own mask, so the blur deepens smoothly instead of starting at a hard line. No tint: a darkening band made the
-   space under the dock read as black. It slides away with the dock.
-   Two layers, not three: each stacked blur re-blurs the one below it on every frame; the faint 3 px layer at the top was most
-   of the scroll lag on the tab screens. The 9 px layer now fades in from the very top instead (screenshots: same look). */
-.dock-veil { position: absolute; left: 0; right: 0; bottom: 0; height: calc(100% + 30px); z-index: -1; pointer-events: none; }
-.dock-veil > i { position: absolute; inset: 0; }
-.dock-veil > .dv2 { -webkit-backdrop-filter: blur(9px); backdrop-filter: blur(9px);
-  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 58%); mask-image: linear-gradient(to bottom, transparent, #000 58%); }
-.dock-veil > .dv3 { -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
-  -webkit-mask-image: linear-gradient(to bottom, transparent 45%, #000 85%); mask-image: linear-gradient(to bottom, transparent 45%, #000 85%); }
+/* the dock reuses the Coach bar's soft edge, kept light: the frost starts 16 px above the dock and is full ~40% down it
+   (one smooth ramp), only 6 px, with a neutral tint only below the dock's top (at most 35%), so whatever is still visible above the dock
+   stays sharp and only what passes under it goes soft (Omar: "the tab bar and coach bar fade"). */
+.tabbar-wrap.edge-fade { position: fixed; --edge-top: 16px; --edge-ramp: 42px; --edge-blur: 6px; --edge-tint: rgb(34, 34, 34); }
+.tabbar-wrap.edge-fade::before { background: linear-gradient(to bottom, transparent 16px, color-mix(in srgb, var(--edge-tint) 12%, transparent) 30px, color-mix(in srgb, var(--edge-tint) 35%, transparent) 56px); }
+:root[data-theme='light'] .tabbar-wrap.edge-fade { --edge-tint: #f2f2f2; }
+/* the dock itself is a pill of frosted glass: its own small blur (only the pill's size), a thin pure-grey fill (no colour cast,
+   so the field comes through the frost, as on iOS), light from the top */
+.tabbar.glass { background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0) 60%), rgba(46, 46, 46, 0.2);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4); backdrop-filter: blur(20px) saturate(1.4);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), inset 0 0 0 1px rgba(255, 255, 255, 0.06), 0 10px 26px -12px rgba(0, 0, 0, 0.6); }
+:root[data-theme='light'] .tabbar.glass { background: linear-gradient(180deg, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.3) 60%), rgba(255, 255, 255, 0.2);
+  box-shadow: inset 0 1px 0 #fff, inset 0 0 0 1px rgba(16, 20, 34, 0.06), 0 8px 24px -12px rgba(30, 40, 70, 0.25); }
 
 /* Top fade for scrollers that are neither a page nor a sheet (the orb's talk list, onboarding). */
 @supports (animation-timeline: scroll()) {
@@ -1605,6 +1800,9 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .exd-stage { height: 216px; display: grid; place-items: center; border-radius: var(--r-lg); overflow: hidden; margin-top: 2px;
   background: radial-gradient(closest-side, color-mix(in srgb, var(--ac) 12%, transparent), transparent); }
 .exd-stage.map { height: 190px; }
+/* the rendered clip: its own light studio card, edge to edge, at the clip's 3:2 */
+.exd-stage.clip { height: auto; aspect-ratio: 3 / 2; background: #ececec; }
+.exd-clip { display: block; width: 100%; height: 100%; object-fit: cover; }
 .exd-works { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 6px; }
 .exd-head { display: flex; align-items: center; gap: 7px; margin: 26px 0 10px; }
 .exd-head svg { flex: none; opacity: .9; }

@@ -21,6 +21,7 @@ import { contentTransform, stageCover, stageDepth, stageLayers } from './ui/enga
 import { readRGB, setBarCover, setBarDepth, setBarTint } from './ui/statusBar';
 import { setKeyboard } from './ui/keyboard';
 import { FpsMeter } from './ui/FpsMeter';
+import { useLaunch } from './ui/launch';
 
 /** Where the last tap landed — the theme switch spreads out from there. */
 const lastTap = { x: typeof window !== 'undefined' ? window.innerWidth / 2 : 0, y: 0 };
@@ -249,6 +250,7 @@ export function App() {
   useDriveAuto(); // Google Drive backups while you use the app (lib/drive.ts)
   useKeyboard();
   useWakeLock();
+  useLaunch(); // the launch screen's logo flows into the orb in the dock (ui/launch.ts)
   const appRef = useRef<HTMLDivElement>(null), stageRef = useRef<HTMLDivElement>(null), contentRef = useRef<HTMLDivElement>(null);
   useStageDepth(contentRef, stageRef);
   const t = useT();
