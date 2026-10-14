@@ -140,6 +140,7 @@ export class SphereRenderer {
   private bandA = new Float32Array(N);       // the launch coil's light on each bead (0 … 1), drawn over it
   private ignSeen = false;                 // the launch's arrival spiral: climbs by height as you see it (and carries the colour)
   private lTurn = 0; private lRot0 = 0;    // the launch's spiral: the extra turn it has given the sphere so far, and its start
+  private lT = -1;                         // seconds since the launch's spiral started (-1: none)
   private ripples: { ox: number; oy: number; oz: number; age: number; amp: number }[] = []; // a syllable: a ring of light crossing it towards you
   private restK = 0;                       // how far into its resting breath it is (smoothed 0..1, so it eases in and out)
   private ign = -1;                        // seconds into the arrival spiral (-1: none)
@@ -193,7 +194,7 @@ export class SphereRenderer {
     }
     if (inp.ignite && inp.ignite > 0) {
       // (the launch's spiral adds no sudden spin: the turn it already has carries on evenly, no jolt in the motion)
-      if (!reduced) { this.ign = 0; this.ignTop = false; this.ignSeen = inp.ignite >= 2; if (!this.ignSeen) this.spin += 2.2; this.lTurn = 0; this.lRot0 = this.rot; }
+      if (!reduced) { this.ign = 0; this.ignTop = false; this.ignSeen = inp.ignite >= 2; if (!this.ignSeen) this.spin += 2.2; this.lTurn = 0; this.lRot0 = this.rot; this.lT = this.ignSeen ? 0 : -1; }
       inp.ignite = 0;
     }
     if (this.ign >= 0) {
@@ -285,9 +286,17 @@ export class SphereRenderer {
     // (an even climb, eased only at its ends, so the middle of the orb, where you see the spiral, isn't rushed)
     const lU = Math.min(1, Math.max(0, this.ign / 0.9)), lE = launchIgn ? lU * lU * (3 - 2 * lU) : 0;
     const lF = launchIgn ? lE * 1.78 - 0.39 : 0;
-    // The band is fixed on the sphere and the sphere turns a little over a quarter round under it as it climbs (eased in and
-    // out, on top of its own turn): the slanted front travels sideways as it rises, so you see it wind up the orb.
-    if (launchIgn && !reduced) { const t = 1.8 * lE; this.rot += t - this.lTurn; this.lTurn = t; }
+    // The band is fixed on the sphere and the sphere turns under it as it climbs (about a quarter round while the colour
+    // runs up it, on top of its own turn): the slanted front travels sideways as it rises, so you see it wind up the orb.
+    // The turn is one swing: it picks up quickly, then the orb carries it down into the dock and lets it run down evenly to
+    // its usual slow turn a moment after it lands (never stopping, never starting again). Its speed: LW·x·e^(1−x), x = t/LTAU.
+    if (this.lT >= 0) {
+      this.lT += dt;
+      const LW = 4, LTAU = 0.27, x = this.lT / LTAU;
+      const t = reduced ? this.lTurn : LW * LTAU * Math.E * (1 - Math.exp(-x) * (1 + x));
+      this.rot += t - this.lTurn; this.lTurn = t;
+      if (x > 14) this.lT = -1;
+    }
     const lRot = this.lRot0 / TAU + 0.15; // (the long slope of the band faces you as it passes the middle)
     const lK = this.ign < 0.79 ? 1 : Math.max(0, 1 - (this.ign - 0.79) / 0.16); // the coil's light, gone as the last beads turn
     // (once it has run its course every bead stays new until the change itself ends: never back to the old colour)
