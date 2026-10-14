@@ -114,7 +114,11 @@ const PICK = 1.2, SKY_SHIFT = 2.6;
 const FIELD = {
   hidden: { opacity: 0 },
   shown: (d: number) => ({ opacity: 1, transition: { duration: d, ease: [0.4, 0, 0.2, 1] as const, delay: 0.05 } }),
-  gone: (d: number) => ({ opacity: 0, transition: { duration: d, ease: [0.55, 0, 0.75, 1] as const, delay: 0.05 } }),
+  // a change of sky (Time of day, Night sky) lays the new sky over the old one, which stays whole until it is covered:
+  // fading both at once let the room show through mid-way and the blend of two half-skies came out brighter than either
+  gone: (d: number) => (d === SKY_SHIFT
+    ? { opacity: 0.99, transition: { duration: d, ease: 'linear' as const, delay: 0.1 } }
+    : { opacity: 0, transition: { duration: d, ease: [0.55, 0, 0.75, 1] as const, delay: 0.05 } }),
 };
 function Field({ hue, kind, sky, dur }: { hue: string; kind: BgKind; sky: { hour: number; night: boolean }; dur: number }) {
   // every field drifts on the same clock, so the new one lines up with the old one and only its colours change

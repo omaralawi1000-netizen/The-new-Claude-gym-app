@@ -680,7 +680,8 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .sheet-body { overflow-y: auto; flex: 1; padding: 0 22px calc(var(--sab) + 28px + var(--kb-room, 0px)); overscroll-behavior: contain; scrollbar-width: none; }
 .sheet-body::-webkit-scrollbar { display: none; }
 /* content that scrolls up under a sheet's title fades out softly instead of being cut by a hard edge. The fade only grows
-   in once the list has moved (a scroll-driven animation), so the first row is never faded at rest. */
+   in once the list has moved (a scroll-driven animation, from 8 px of scroll), so the first row is never faded at rest
+   and a list nudged by a few px (a tap that scrolls a row into view) doesn't dim its heading. */
 @property --sb-fade { syntax: '<length>'; inherits: false; initial-value: 0px; }
 @property --sb-fade-b { syntax: '<length>'; inherits: false; initial-value: 0px; }
 @keyframes sb-fade { to { --sb-fade: 44px; } }
@@ -689,13 +690,13 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 @keyframes sb-fade-b { from { --sb-fade-b: 40px; } to { --sb-fade-b: 0px; } }
 @supports (animation-timeline: scroll()) {
   .sheet-body { -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--sb-fade), #000 calc(100% - var(--sb-fade-b)), transparent); mask-image: linear-gradient(to bottom, transparent, #000 var(--sb-fade), #000 calc(100% - var(--sb-fade-b)), transparent);
-    animation: sb-fade linear both, sb-fade-b linear both; animation-timeline: scroll(self), scroll(self); animation-range: 0 40px, calc(100% - 40px) 100%; }
+    animation: sb-fade linear both, sb-fade-b linear both; animation-timeline: scroll(self), scroll(self); animation-range: 8px 48px, calc(100% - 40px) 100%; }
 }
 /* Tall sheets fade their content in as they open (`.sheet-pane.late > *`, line ~68). That shorthand also replaced the list's
    scroll-driven fade, so Add food, Coach and the other tall sheets had no soft edge at all. The list keeps both: the opening
    fade runs on time, the edges follow the scroll. */
 @supports (animation-timeline: scroll()) {
-  .sheet-pane.late > .sheet-body { animation: fadein 220ms var(--ease-out) both, sb-fade linear both, sb-fade-b linear both; animation-timeline: auto, scroll(self), scroll(self); animation-range: normal, 0 40px, calc(100% - 40px) 100%; }
+  .sheet-pane.late > .sheet-body { animation: fadein 220ms var(--ease-out) both, sb-fade linear both, sb-fade-b linear both; animation-timeline: auto, scroll(self), scroll(self); animation-range: normal, 8px 48px, calc(100% - 40px) 100%; }
 }
 .sheet-head { flex: none; display: flex; align-items: center; gap: 10px; padding: 2px 22px 12px; }
 /* a title sliding in (Settings pages) isn't cut off at the edge of its box: the clip reaches a little past it (long titles still end in …) */
@@ -1603,7 +1604,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
   /* …and the orb's talk list melts away at its bottom too while there is more below (it was cut in a straight line above the
      buttons). Gone once it is at its end, so the typing box and its glow sit there whole. */
   .fade-top.fade-bottom { -webkit-mask-image: linear-gradient(to bottom, transparent, rgba(0,0,0,.1) calc(var(--ft) * .2), rgba(0,0,0,.36) calc(var(--ft) * .45), rgba(0,0,0,.74) calc(var(--ft) * .74), #000 var(--ft), #000 calc(100% - var(--fb)), rgba(0,0,0,.36) calc(100% - var(--fb) * .45), transparent); mask-image: linear-gradient(to bottom, transparent, rgba(0,0,0,.1) calc(var(--ft) * .2), rgba(0,0,0,.36) calc(var(--ft) * .45), rgba(0,0,0,.74) calc(var(--ft) * .74), #000 var(--ft), #000 calc(100% - var(--fb)), rgba(0,0,0,.36) calc(100% - var(--fb) * .45), transparent);
-    animation: ft-in linear both, fb-out linear both; animation-timeline: scroll(self), scroll(self); animation-range: 0 40px, calc(100% - 40px) 100%; }
+    animation: ft-in linear both, fb-out linear both; animation-timeline: scroll(self), scroll(self); animation-range: 8px 48px, calc(100% - 40px) 100%; }
 }
 @property --fb { syntax: '<length>'; inherits: false; initial-value: 0px; }
 @keyframes fb-out { from { --fb: 40px; } to { --fb: 0px; } }
@@ -1842,9 +1843,10 @@ html:root[data-glow='off'] .bgx:not([data-k='photo']) { display: none; }
    over a near-black background it looks the same, and no dot or star shows through a card. (Dark only.) */
 :root:not([data-theme='light'])[data-bg='night'] .screen { --s1: #111421; --s2: #151826; --s3: #1c1f2e; --bg-2: #03040c; }
 :root:not([data-theme='light'])[data-bg='dots'] .screen { --s1: #14151b; --s2: #18191f; --s3: #212228; --bg-2: #030407; }
-/* Under Time of day's brighter skies (midday, dusk) the cards are a darker frost, so their grey text and the accent buttons
-   keep their contrast (4.5:1 or better) while a little of the sky still shows through. (Dark only.) */
-:root:not([data-theme='light'])[data-bg='time'] .screen { --s1: rgb(8 11 19 / .76); --s2: rgb(12 15 24 / .8); --s3: rgb(22 25 35 / .82); --bg-2: rgb(3 4 10 / .55); }
+/* Under Time of day's brighter skies (midday, dusk) and Sunrise's sun, the cards and chips are a darker frost, so their
+   grey text and the accent buttons keep their contrast (4.5:1 or better) while a little of the light still shows
+   through. (Dark only.) */
+:root:not([data-theme='light'])[data-bg='time'] .screen, :root:not([data-theme='light'])[data-bg='sunrise'] .screen { --s1: rgb(8 11 19 / .76); --s2: rgb(12 15 24 / .8); --s3: rgb(22 25 35 / .82); --bg-2: rgb(3 4 10 / .55); }
 
 /* Your photo: blurred once when you picked it, darkened here so cards and text stay easy to read */
 .bg-photo { background: center / cover no-repeat; background-color: var(--bg); }
