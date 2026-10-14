@@ -100,7 +100,7 @@ There are no separate food / workout voice modes any more. The orb opens its own
 - **How it works**: Gemini gets your sentence, the app's guide (every screen, setting and rule — so "how do I change the theme?" is simply answered) and a compact live summary computed on the device (settings, today's meals/water, a running workout, routines, targets, recent training). It answers with a reply and a short list of actions. The model never writes data itself: each action is validated (`src/lib/agent.ts` → `validateAgent`), then run by the same code the screens use (food matching/quantity rules, exercise matching, settings patching).
 - **Safety**: everything reversible is applied at once and shown as a card with **Undo**; spoken quick logs close the Coach and leave an Undo toast. Finishing a workout always needs a tap. Nothing deletes data. Unknown foods become a clearly labelled **AI estimate**; ambiguous names the Coach can't settle are shown on the card, not guessed silently.
 - **Without a Gemini key** (or if Gemini is down) a built-in reader still logs simple sentences (food, sets, water, weight); chat and settings changes need the key. Without a Groq key the mic falls back as before.
-- The Coach hears you with Groq Whisper: it listens, stops by itself when you finish speaking (or tap the orb), transcribes, then acts. Since 14 Oct your words also appear in the field as you speak (Chrome's own speech service, a cloud service; see the Coach dictation section); Whisper's words replace them when you stop.
+- The Coach hears you with Groq Whisper: it listens, stops by itself when you finish speaking (or tap the orb), transcribes, then acts. Live words in the field were tried on 14 Oct and removed the same day (they didn't work in the installed app): your words lift straight from the pill into the chat (see Coach r7).
 - Tested with stubbed Gemini/Groq (`tests/agent.test.ts`, `scripts/journey-ai.mjs`). Real-model quality and real-microphone behaviour are unverified until you try it.
 
 ### The orb listens to your voice
@@ -1767,13 +1767,15 @@ there was a version where you did it without the blur, it came out smooth". He a
   150 ms, which read as text being spat out.
 - **Three glass objects** (14 Oct, Omar: "each on its own… separated with frosted glass blur"; before that, 22:07, "the
   text bar on its own"): nothing sits behind the row as a whole, no band or tint; each control is its own frosted glass.
-  The conversation fades out softly just above them (from 28 px above the bar to gone before the controls start), so no
-  letters show between or through them (letters cut round each button read as a stencil, judge 14 Oct). At rest the last
-  message sits 30 px above the bar, clear of the fade. It rides with the keyboard (`--kb-now`, v0.1.98).
+  Since r7 (below) the conversation passes behind them: it dims a little as it reaches the bar, passes behind the
+  controls at about half strength and fades out at their bottom edge, so each control's frost visibly softens what is
+  under it. (Before r7 it faded out before the controls, so the frost had nothing to show and the controls read as dark
+  discs.) At rest the last message sits 30 px above the bar, clear of the fade. It rides with the keyboard (`--kb-now`).
 - **Each control on its own frosted glass** (Omar 22:10: "the text bar… the orb and the camera… its own circle that looks
   3D"): the field is a frosted pill, the camera a round frosted button, the orb rests in a frosted seat the field's
-  height (`.frost-ctl` / `.frost-seat`, shared, `--fc-*` tokens): neutral glass, a light top edge, a fine rim, a soft
-  shadow and a faint sheen on the top half. One small blur per control, never animated.
+  height (`.frost-ctl` / `.frost-seat`, shared, `--fc-*` tokens): neutral glass, a light top edge, a fine rim and a faint
+  sheen on the top half; since r7 no shadow, and a faint light along the bottom edge. One small blur per control, never
+  animated.
 - **Soft-edge bar** (Omar picked it, 13 Oct; removed 14 Oct for the three glass objects above): a plain grey fade behind
   the whole row (`.edge-fade`, still used by the dock).
 - **The pill opens while you type** (Omar 22:19, "expands when I type and compresses when I'm done, like iOS"): on focus
@@ -1952,6 +1954,8 @@ Orb light, Colour per tab, Sunrise, Mesh, Dot field, Time of day, Night sky and 
 
 ## Coach: dictation like iOS, calmer answer text (14 Oct 2026)
 
+(The live words and the wave below were removed in r7, same day: see the last section.)
+
 Omar: "when you say something to the coach… I want it to be easy and like Apple". And: "refine the animations of the text… ultra premium".
 - **Your words appear as you speak.** Tap the orb: the pill opens wide at once ("Listening…"), and what you say shows in
   it as you say it, growing a line at a time like typed words. The send button listens with you: a small live wave of
@@ -1973,3 +1977,23 @@ Omar: "when you say something to the coach… I want it to be easy and like Appl
 - Not verified on a phone: whether Chrome on Android lets its speech service and the recording share the mic (the
   fallbacks above cover either one failing), and live-word accuracy.
 
+## Coach r7: dictation without words in the field, controls truly on their own (14 Oct 2026)
+
+Omar, after trying v0.1.116 on his phone (two screen recordings): "It doesn't dictate live, so just remove it… Find an
+animation that can really be seamless when I dictate. The words don't have to come in the text box… Remove the speaking
+indicator because the orb already does that. And please have the icons by their own with blur under them. I don't want
+a shadow… make them a little 3D".
+- **Live words removed.** Chrome's speech service gave no words in his installed app (the recordings show only
+  "Listening…"), so it is gone from the Coach (`src/lib/speech.ts` stays for the orb screen). The wave in the send
+  button is gone too: the orb's ring already shows that it hears you.
+- **One seamless moment.** Tap the orb: the pill opens wide ("Listening…") and its arrow is there to stop and send. When
+  you stop (or go quiet), the orb thinks ("Transcribing…"), and when Whisper's words arrive the pill itself lifts away
+  into the chat as your message, the words coming up inside it as it rises (0 → full in the first half of the flight,
+  then the bubble's softer ink). They never sit in the field first. With a typed draft already in the field, the whole
+  message is shown there a moment and then leaves as typed words do. Tapping the field while you speak still stops and
+  leaves the words in it to fix.
+- **Each control on its own.** 14 px of clear space between orb, camera and pill (was 8–10). No shadow under any of them
+  (`--fc-sh` is none). A little 3D: a brighter light on the top edge, a faint light back up along the bottom edge, the top
+  half a touch brighter, a lighter, more see-through glass. The blur is 8 px (was 20; cheaper, and the softened words
+  behind stay visible instead of vanishing). The camera had no blur at all until now: the sheets' rule that takes blur off
+  their buttons (`.sheet :is(.btn, .icon-btn…)`) also took it off the camera; `.frost-ctl` now wins.
