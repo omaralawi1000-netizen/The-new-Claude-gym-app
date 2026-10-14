@@ -1665,41 +1665,36 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .fg-bench .leg { fill: color-mix(in srgb, var(--tx) 12%, var(--bg)); }
 .fg-floor { stroke: color-mix(in srgb, var(--tx) 14%, transparent); stroke-width: 1; }
 
-/* the finish screen (Summary.tsx): a medal lands, the four numbers land one after another (each counts up as it lands),
-   then one line. Only transform and opacity move; the medal's light is painted once and never re-drawn. */
-.sum-medal { --m: var(--ac); position: relative; width: 84px; height: 84px; margin: 6px auto 26px; display: grid; place-items: center; }
+/* the finish screen (Summary.tsx): the medal, the numbers' odometers and the line are moved by finishMoment.ts (Web
+   Animations on transform and opacity, one timeline on the app's springs); here they only have their resting look. The
+   medal's light is painted once and never re-drawn. */
+.sum-medal { --m: var(--ac); position: relative; width: 84px; height: 84px; margin: 6px auto 26px; display: grid; place-items: center; perspective: 640px; }
 .sum-medal.gold { --m: var(--gold); margin-top: 20px; }
 .sum-disc { position: relative; width: 100%; height: 100%; border-radius: 50%; display: grid; place-items: center; overflow: hidden; isolation: isolate;
   color: var(--ac-ink); background: radial-gradient(circle at 34% 28%, color-mix(in srgb, var(--m) 45%, #fff), var(--m) 58%, color-mix(in srgb, var(--m) 72%, #000));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .45), 0 0 0 6px color-mix(in srgb, var(--m) 16%, transparent), 0 18px 44px -12px var(--m);
-  animation: medalIn 1100ms cubic-bezier(.2, .8, .2, 1) both; animation-delay: var(--d); }
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .45), inset 0 -2px 3px color-mix(in srgb, var(--m) 60%, #000), 0 0 0 6px color-mix(in srgb, var(--m) 16%, transparent), 0 18px 44px -12px var(--m); }
+/* the face is printed on the front only: while the coin turns its back to you, you see a plain back */
+.sum-face { display: grid; place-items: center; backface-visibility: hidden; }
 .sum-medal.gold .sum-disc { color: #3a2a05; }
 .sum-disc .display { font-size: 40px; font-weight: 400; color: inherit; }
-@keyframes medalIn { from { opacity: 0; transform: translate3d(0, 16px, 0) scale(.8); } 35% { opacity: 1; } }
 .sum-sheen { position: absolute; inset: -10%; background: linear-gradient(105deg, transparent 30%, rgba(255, 255, 255, .16) 42%, rgba(255, 255, 255, .34) 50%, rgba(255, 255, 255, .16) 58%, transparent 70%);
-  transform: translate3d(-120%, 0, 0); animation: medalSheen 1700ms cubic-bezier(.45, 0, .2, 1) both; animation-delay: calc(var(--d) + .6s); }
-@keyframes medalSheen { to { transform: translate3d(120%, 0, 0); } }
-.sum-halo { position: absolute; inset: 0; border-radius: 50%; box-shadow: 0 0 10px 2px color-mix(in srgb, var(--m) 45%, transparent), inset 0 0 10px 2px color-mix(in srgb, var(--m) 25%, transparent);
-  opacity: 0; animation: medalHalo 1600ms cubic-bezier(.2, .7, .3, 1) both; animation-delay: calc(var(--d) + .3s); }
-/* the settle: once the line has landed, one fainter, slower breath of the same light, and then everything is still */
-.sum-halo.settle { animation: medalSettle 2000ms cubic-bezier(.3, .6, .3, 1) both; }
-@keyframes medalSettle { from { opacity: 0; transform: scale(1); } 30% { opacity: .45; } to { opacity: 0; transform: scale(1.2); } }
-/* a soft glow, no hard line, that stops well above the numbers' card */
-@keyframes medalHalo { from { opacity: .8; transform: scale(1); } to { opacity: 0; transform: scale(1.28); } }
+  transform: translate3d(-120%, 0, 0); }
+.sum-halo { position: absolute; inset: 0; border-radius: 50%; opacity: 0; pointer-events: none;
+  box-shadow: 0 0 10px 2px color-mix(in srgb, var(--m) 45%, transparent), inset 0 0 10px 2px color-mix(in srgb, var(--m) 25%, transparent); }
 .sum-ray { position: absolute; width: 2px; height: 30px; top: -38px; left: calc(50% - 1px); border-radius: 2px; transform-origin: 50% 80px;
-  background: linear-gradient(transparent, var(--gold)); opacity: 0; animation: medalRay 1300ms cubic-bezier(.22, 1, .36, 1) both; }
-/* the rays open once and are gone again ~0.6 s after the medal lands, never a standing sunburst */
-@keyframes medalRay { from { opacity: 0; transform: scaleY(0); } 40% { opacity: .85; transform: scaleY(1); } to { opacity: 0; transform: scaleY(.8); } }
-.sum-stat { animation: sumIn 760ms cubic-bezier(.2, .8, .2, 1) both; }
-.sum-card { animation: sumCard 900ms cubic-bezier(.2, .8, .2, 1) both; }
-@keyframes sumCard { from { opacity: 0; transform: translate3d(0, 22px, 0); } 40% { opacity: 1; } }
-.sum-rest { animation: sumRest 1000ms cubic-bezier(.2, .8, .2, 1) .25s both; }
-@keyframes sumRest { from { opacity: 0; transform: translate3d(0, 28px, 0); } }
-@keyframes sumIn { from { opacity: 0; transform: translate3d(0, 12px, 0); } }
-.sum-line { margin: 18px 4px 0; text-align: center; font-size: 24px; line-height: 1.2; font-style: italic; text-wrap: balance;
-  animation: sumLine 900ms var(--ease-out) both; animation-delay: var(--d, 0s); }
-@keyframes sumLine { from { opacity: 0; transform: translate3d(0, 8px, 0); } }
-.sum-line-in { animation: sumLine 700ms var(--ease-out) both; animation-delay: var(--d, 0s); }
+  background: linear-gradient(transparent, var(--gold)); opacity: 0; }
+/* an odometer: each digit a column of digits clipped to one row, rolled up by its transform */
+.odo { display: inline-flex; height: 1.15em; line-height: 1.15em; vertical-align: bottom; }
+/* the window is a little taller than a row (the extra hidden by negative margins, so the layout is one row) and fades out
+   at its edges, so a rolling digit dissolves in and out instead of being cut by a hard line; the mask never moves */
+.odo-c { display: inline-block; height: 1.55em; margin: -0.2em 0; overflow: hidden;
+  -webkit-mask-image: linear-gradient(transparent, #000 16%, #000 84%, transparent); mask-image: linear-gradient(transparent, #000 16%, #000 84%, transparent); }
+.odo-s { padding-top: 0.2em; }
+.odo-s, .odo-s > span { display: block; }
+.odo-s > span, .odo-k { height: 1.15em; line-height: 1.15em; }
+.odo-k { display: inline-block; white-space: pre; }
+.sum-word { display: inline-block; }
+.sum-line { margin: 18px 4px 0; text-align: center; font-size: 24px; line-height: 1.2; font-style: italic; text-wrap: balance; }
 
 /* the workout's living light (Breath in Active.tsx): the window's top light breathes in and out over ~11 s, in 80 tiny steps
    each way (~14 a second, each under half a percent of brightness, too small to see) instead of a redraw every frame; a warmer light fades in over the first
