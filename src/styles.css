@@ -54,13 +54,13 @@
    colours, with deeper ones on a light page. kcal is its own colour (it used to be the area's accent, so in Ember it was
    the same coral as protein, and it changed with the tab). html:root so they outrank the theme's default trio. */
 html:root[data-palette='ember'] { --c-kcal: #ff7a59; --c-protein: #ff5a9e; --c-carbs: #b07cff; --c-fat: #ffcf5a; }
-html:root[data-palette='ember'][data-theme='light'] { --c-kcal: #e85a36; --c-protein: #d92f7a; --c-carbs: #7a45d0; --c-fat: #c8920e; }
+html:root[data-palette='ember'][data-theme='light'] { --c-kcal: #e85a36; --c-protein: #d92f7a; --c-carbs: #7a45d0; --c-fat: #e6ad00; }
 html:root[data-palette='aurora'] { --c-kcal: #3de0c8; --c-protein: #ff7aa8; --c-carbs: #6f8cff; --c-fat: #c08cff; --c-water: #7ae0ff; }
 html:root[data-palette='aurora'][data-theme='light'] { --c-kcal: #0fa892; --c-protein: #e0457e; --c-carbs: #3d5ee0; --c-fat: #8a52e0; --c-water: #1590b8; }
 html:root[data-palette='sunset'] { --c-kcal: #ff6b9d; --c-protein: #ff8a4d; --c-carbs: #a76bff; --c-fat: #ffc94d; }
-html:root[data-palette='sunset'][data-theme='light'] { --c-kcal: #e0457e; --c-protein: #e8651e; --c-carbs: #7a3fe0; --c-fat: #c99010; }
+html:root[data-palette='sunset'][data-theme='light'] { --c-kcal: #e0457e; --c-protein: #e8651e; --c-carbs: #7a3fe0; --c-fat: #e6ad00; }
 html:root[data-palette='forest'] { --c-kcal: #b6f25a; --c-protein: #2fd09a; --c-carbs: #5ac8e0; --c-fat: #ffd04d; --c-water: #5ac8e0; }
-html:root[data-palette='forest'][data-theme='light'] { --c-kcal: #5f9a12; --c-protein: #13a072; --c-carbs: #1f8fb0; --c-fat: #c09a0e; --c-water: #1f8fb0; }
+html:root[data-palette='forest'][data-theme='light'] { --c-kcal: #5f9a12; --c-protein: #13a072; --c-carbs: #1f8fb0; --c-fat: #e6ad00; --c-water: #1f8fb0; }
 :root[data-palette='aurora'] [data-hue='today'] { --ac: #3de0c8; --h1: #6a5cff; --h2: #3de0c8; --h3: #c25cff; }
 :root[data-palette='aurora'] [data-hue='train'] { --ac: #7ae0ff; --h1: #3d7bff; --h2: #7a4bff; --h3: #3de0c8; }
 :root[data-palette='aurora'] [data-hue='food'] { --ac: #5cf0b0; --h1: #2fe0b4; --h2: #4b6bff; --h3: #a05cff; }
@@ -113,8 +113,8 @@ html:root[data-palette='midnight']:not([data-theme='light']) { --nokey: #9cc4ff;
 html:root[data-palette='champagne'] { --c-kcal: #f5e2b8; --c-protein: #e0b07a; --c-carbs: #b4caf2; --c-fat: #b9784a; --c-water: #d8e6f5; }
 :root[data-palette='champagne'] .bg-sun { --sun-mid: #8a6224; --sun-wide: #6a4a1a; --sun-h2: #4a3a2a; --sun-h1: #3a3640; }
 /* on a light page the new looks' rings and water drop take the deep version of their colours (the pale ones vanish) */
-html:root[data-palette='golden'][data-theme='light'] { --c-kcal: #f2641a; --c-protein: #c81f48; --c-carbs: #6a78e0; --c-fat: #d49a12; --c-water: #e08a12; }
-html:root[data-palette='midnight'][data-theme='light'] { --c-kcal: #3a78d8; --c-protein: #e8604e; --c-carbs: #6a52d8; --c-fat: #c99a2a; --c-water: #1f8fc4; }
+html:root[data-palette='golden'][data-theme='light'] { --c-kcal: #f2641a; --c-protein: #c81f48; --c-carbs: #6a78e0; --c-fat: #e6ad00; --c-water: #e08a12; }
+html:root[data-palette='midnight'][data-theme='light'] { --c-kcal: #3a78d8; --c-protein: #e8604e; --c-carbs: #6a52d8; --c-fat: #e6ad00; --c-water: #1f8fc4; }
 html:root[data-palette='champagne'][data-theme='light'] { --c-kcal: #a8822e; --c-protein: #b9604a; --c-carbs: #6a88b8; --c-fat: #8a5a32; --c-water: #6a90b0; }
 /* contents that arrive a beat after a tall sheet starts moving fade in instead of appearing */
 .sheet-pane.late > * { animation: fadein 220ms var(--ease-out) both; }
@@ -153,6 +153,13 @@ html:root[data-glow='off'] .look-pv i { display: none; }
 
 /* dark (default) */
 :root, :root[data-theme='dark'] {
+  /* the food rings (ui/Dial.tsx), built like Apple Activity rings: each track is its own colour, dim and carved in;
+     the fill deepens at its start and brightens to its end, lit along its outer edge; its end casts a soft shadow */
+  --ring-trk-l: .26; --ring-trk-c: .08; --ring-trk-cm: 1; --ring-in-l: 0; --ring-in-c: 0; --ring-in-a: .55; --ring-out: rgb(0 0 0 / .2);
+  --ring-cap: rgb(0 0 0 / .42); --ring-tube-in: rgb(0 0 0 / .07); --ring-tube-out: rgb(255 255 255 / .14);
+  --ring-dl0: .03; --ring-dl1: .07; --ring-dc1: 1; --ring-glow: .5;
+  --ring-trk-yl: .275; --ring-trk-yc: .037;
+  --ring-dither: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='96' height='96'><filter id='d' color-interpolation-filters='sRGB'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='1' stitchTiles='stitch'/><feColorMatrix values='.5 0 0 0 .25  .5 0 0 0 .25  .5 0 0 0 .25  0 0 0 0 .06'/></filter><rect width='100%' height='100%' filter='url(%23d)'/></svg>");
   color-scheme: dark;
   --bg: #05060b; --bg-2: rgba(0, 0, 0, 0.34);
   --s1: rgba(255, 255, 255, 0.065); --s2: rgba(255, 255, 255, 0.085); --s3: rgba(255, 255, 255, 0.12); --s4: rgba(255, 255, 255, 0.2);
@@ -176,6 +183,9 @@ html:root[data-glow='off'] .look-pv i { display: none; }
   --bar-mix: 15%;
 }
 :root[data-theme='light'] {
+  --ring-trk-l: .925; --ring-trk-c: .065; --ring-trk-cm: .45; --ring-in-l: .45; --ring-in-c: c; --ring-in-a: .084; --ring-out: rgb(255 255 255 / .5);
+  --ring-cap: rgb(20 28 48 / .1); --ring-tube-in: rgb(0 0 0 / .03); --ring-tube-out: rgb(255 255 255 / .11);
+  --ring-dl0: .02; --ring-dl1: .045; --ring-dc1: 1.12; --ring-glow: 0; --ring-trk-yl: var(--ring-trk-l); --ring-trk-yc: var(--ring-trk-c);
   color-scheme: light;
   --bg: #e9ecf4; --bg-2: rgba(20, 28, 48, 0.06);
   --s1: rgba(255, 255, 255, 0.55); --s2: rgba(255, 255, 255, 0.7); --s3: rgba(20, 28, 48, 0.07); --s4: rgba(20, 28, 48, 0.14);
@@ -192,7 +202,7 @@ html:root[data-glow='off'] .look-pv i { display: none; }
   --sh-c: 0 1px 1px rgba(30,40,70,.06), 0 10px 26px -14px rgba(30,40,70,.28);
   --sh-a: 0 22px 44px -18px rgba(30,40,70,.3);
   --sh-f: 0 30px 70px -22px rgba(30,40,70,.42);
-  --c-protein: #e4531c; --c-carbs: #2a7bd4; --c-fat: #a8860d; --c-water: #0e93a8;
+  --c-protein: #e4531c; --c-carbs: #2a7bd4; --c-fat: #e6ad00; --c-water: #0e93a8;
   --scrim: rgba(16, 20, 34, 0.3);
   --ac-ink: #1a0d08;
   --aurora-a: 0.5; --grain: 0.035;
