@@ -2038,8 +2038,11 @@ like iOS. And please polish everything".
   up out of the bar over its first 100 ms (`SAID_XS` → `FLY_SAID`, sampled into linear()): the soft start stays, and the
   end is the spring's long tail (90% at ~370 ms, its speed dying away over the last ~150 ms) instead of a bezier that
   braked. A typed message's flight lost its small overshoot the same way (`apple(0.55)`, was `apple(0.6, 0.15)`).
-- **Handover and lines.** "Transcribing…" fades out over 120 ms while the words fade in over 140 ms, both from the
-  moment the pill starts to lift (linear: together never under 0.85, so the pill is never blank). The words are laid out
-  at the bubble's width from the first frame, all lines, in a window (`.fly-reveal`) whose top edge rides the shape's
-  top while the words inside are held still (window and words moved by the same amount, opposite, on the same curve):
-  the growing bubble uncovers the lines, the top one last, so none pops in and none shows past the bubble's edge.
+- **Handover and lines.** "Transcribing…" fades out in 60 ms from the moment the pill starts to change, and the words
+  fade in over 140 ms from 40 ms on (linear): the two are never both readable at once. The words are laid out at the
+  bubble's width from the first frame, all lines, in a window (`.fly-reveal`) whose top edge rides the shape's top while
+  the words inside are held still (window and words moved by the same amount, opposite, on the same curve), and whose
+  top is soft across the bubble's padding (a mask): the growing bubble uncovers the lines, the top one last, each coming
+  up inside the padding, never cut by an edge, never popping in.
+- **Camera frost.** The small camera disc gets a lighter tint (0.26) and a 3.5 px blur, so words under it show as soft
+  shapes like under the pill.
