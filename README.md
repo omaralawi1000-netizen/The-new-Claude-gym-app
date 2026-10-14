@@ -1931,6 +1931,12 @@ Orb light, Colour per tab, Sunrise, Mesh, Dot field, Time of day, Night sky and 
   champagne accent; a pale warm glow read grey-beige). Each has its own ring colours (`--c-kcal` is new: kcal no longer
   has to be the accent), deeper ones on a light page. Under Sunrise the macro numbers get a soft dark pool and stronger
   grey text (4.5:1+ over the sun); the Coach's suggestion subtitles and note use the second text grey (5.5:1).
+- One look everywhere (v0.1.117): the status bar takes the top colour of the background you picked (Classic and Mesh
+  the area's light, Colour per tab its first colour, Dot field the accent's wash, Time of day the sky; Orb light,
+  Sunrise, Night sky and Your photo the page colour), so no coloured strip sits over a dark top (`BAR_SRC` in App.tsx).
+  Every look has its own four food-ring colours (`--c-kcal/protein/carbs/fat`, deeper on a light page); kcal no longer
+  follows the tab. Cards, chips and buttons on the tab screens are one dark glass on every background (`.screen`
+  `--s1..3`), replacing three recipes (white lift, solid, darker frost).
 - Scripts: `AVEN_BG=mesh AVEN_PALETTE=aurora AVEN_GLOW=off AVEN_PHOTO=file.jpg` in any script that uses `loadDemo`.
 
 ## Rendered exercise clips: the barbell curl first (14 Oct 2026, v0.1.110)
