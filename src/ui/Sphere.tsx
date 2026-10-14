@@ -7,7 +7,7 @@ import { speakingLevel } from '../lib/voiceOut';
 import { useStore } from '../state/store';
 import { useUI, haptic } from '../state/ui';
 import { kb } from './keyboard';
-import { highRefresh, onHighRefresh, springCurve, springSamples } from './motion';
+import { highRefresh, onHighRefresh, springCurve } from './motion';
 
 /**
  * The Aven sphere: ~900 points on a Fibonacci lattice, lit from upper-left so it reads as a volume.
@@ -58,9 +58,10 @@ export const orbDrawn = new Promise<void>((r) => { drawnResolve = () => { perfor
 /** The orb's flight from the launch screen to the dock, handed to the browser (full refresh rate), on a gentle arc that
  *  bows `bow` px sideways (negative: to the left). Resolves with the animation once it has started (null: it couldn't, the
  *  script carries the orb). */
-let launchReq: { sp: { stiffness: number; damping: number; mass?: number }; bow: number; started: (a: Animation | null) => void } | null = null;
-export function orbLaunch(sp: { stiffness: number; damping: number; mass?: number }, bow = 0): Promise<Animation | null> {
-  return new Promise((started) => { launchReq = { sp, bow, started }; markOrbLayoutDirty(); });
+let launchReq: { path: { xs: number[]; duration: number }; bow: number; started: (a: Animation | null) => void } | null = null;
+/** `path`: how far along it is (0…1) at even steps of time over `duration` ms */
+export function orbLaunch(path: { xs: number[]; duration: number }, bow = 0): Promise<Animation | null> {
+  return new Promise((started) => { launchReq = { path, bow, started }; markOrbLayoutDirty(); });
 }
 
 /** What the orb's drawing loop is doing, for the frame-rate readout. */
@@ -571,17 +572,17 @@ export function SphereStage() {
       }
       el.style.transform = tf;
       if (launchReq) {
-        // the launch: from the logo's place down to where the orb would be without it (the dock), on the launch's spring,
+        // the launch: from the logo's place down to where the orb would be without it (the dock), along the launch's curve,
         // drawn by the browser; the canvas keeps the logo's size for the whole flight and is scaled down. The path is a soft
         // arc (a quadratic curve through a point `bow` px to the side of the start): it falls first and slides across into
-        // the dock at the end, so it passes well clear of the first card's play button. One keyframe per 1/60 s of the spring.
+        // the dock at the end, so it passes well clear of the first card's play button. One keyframe per step of the curve.
         const req = launchReq; launchReq = null;
         let a: Animation | null = null;
         if (launchFrom && launchTo && !reduced) {
           const bk = Math.ceil(launchFrom.S / 24) * 24;
           orbLock.bucket = bk; el.style.width = el.style.height = `${bk}px`;
           const at = (P: { X: number; Y: number; S: number }) => `translate3d(${P.X}px, ${P.Y}px, 0) scale(${Math.max(8, P.S) / bk})`;
-          const { xs, duration } = springSamples(req.sp);
+          const { xs, duration } = req.path;
           const F = launchFrom, T = launchTo, cx = F.X + req.bow, cy = (F.Y + T.Y) / 2;
           const frames = xs.map((p, i): Keyframe => {
             const u = 1 - p;

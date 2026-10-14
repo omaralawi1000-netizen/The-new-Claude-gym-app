@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
-import { animate, motionValue } from 'motion/react';
+import { animate, cubicBezier, motionValue } from 'motion/react';
 import { orbDrawn, orbLaunch, orbLaunchTint, orbLogo, orbTintGo, registerSlot } from './Sphere';
-import { apple } from './motion';
 
 /**
  * Opening the app. The phone shows the launch screen first (ink, the Ember orb of dots in the middle); the page's very
@@ -17,11 +16,17 @@ import { apple } from './motion';
 const cover = typeof document !== 'undefined' ? document.getElementById('launch') : null;
 if (cover) { cover.dataset.taken = '1'; orbLaunchTint(); orbLogo(1); }
 
-/** The launch's spring: Apple's smooth curve, unhurried (the same family as every sheet, a little longer for the distance). */
-const FLIGHT = { ...apple(0.8), restDelta: 0.0005 };
+/** The launch's curve: one calm move. It eases off the launch screen (a spring would leave at full pull from a standstill)
+ *  and settles into the dock without the slow crawl a spring's tail has over this long a way (its last tenth took 0.6 s). */
+const FLIGHT_EASE = [0.4, 0, 0.2, 1] as const;
+const FLIGHT_MS = 900;
+const FLIGHT = (() => {
+  const f = cubicBezier(...FLIGHT_EASE), n = Math.round(FLIGHT_MS / (1000 / 120)); // a keyframe per 1/120 s
+  return { xs: Array.from({ length: n + 1 }, (_, i) => f(i / n)), duration: FLIGHT_MS };
+})();
 const BOW = -30;          // the flight's arc: falls first, slides into the dock at the end, clear of the first card's play button
 const FADE_MS = 250;      // the launch screen fading away as the orb sets off
-const TINT_AFTER = 100;   // the palette's colour starts 0.1 s into the flight and takes 0.28 s (Sphere.tsx): every bead is teal by ~3/4 of the way down
+const TINT_AFTER = 100;   // the palette's colour starts 0.1 s into the flight and takes 0.28 s (Sphere.tsx): every bead is teal by ~2/3 of the way down
 const SPLASH_FADE = 330;  // Android's launch screen fades over 300 ms from the page's first paint: never fly under it
 const MAX_WAIT = 1500;    // the longest the logo waits for the app underneath before it goes anyway
 
@@ -70,7 +75,7 @@ async function run(cover: HTMLElement) {
 
   // 2. and off it goes, becoming the sphere on the way, then turning into the palette's colours
   const flight = await orbLaunch(FLIGHT, BOW);
-  const move = animate(e, 0, FLIGHT); // the script's copy, which carries the orb if anything interrupts the browser's flight
+  const move = animate(e, 0, { duration: FLIGHT_MS / 1000, ease: [...FLIGHT_EASE] }); // the script's copy, which carries the orb if anything interrupts the browser's flight
   orbLogo(0);
   void after(TINT_AFTER).then(orbTintGo);
   await Promise.all([fade.finished.catch(() => {}), flight ? flight.finished.catch(() => {}) : move.then(() => {})]);
