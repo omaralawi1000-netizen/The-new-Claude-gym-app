@@ -85,7 +85,9 @@ function WorkoutHost() {
 }
 
 let aheadN = 0;
-const HOLD_MS = 700; // the finish sheet's rise, until it covers the window
+// the finish sheet's rise, until it covers most of the window: the window is let go early, before the numbers roll, so the
+// phone never has the workout, the page behind and the whole finish moment to draw at once
+const HOLD_MS = 120;
 const ghost: WorkoutSession = { id: WK_GHOST, name: '', date: '', startedAt: 0, pausedMs: 0, status: 'active', exercises: [], rest: null };
 /**
  * True once the app has settled (a few seconds in, the finger off the screen for a moment, the main thread free), so the

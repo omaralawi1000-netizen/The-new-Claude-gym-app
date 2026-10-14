@@ -1953,7 +1953,9 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .sum-halo { position: absolute; inset: 0; border-radius: 50%; opacity: 0; pointer-events: none;
   box-shadow: 0 0 10px 2px color-mix(in srgb, var(--m) 45%, transparent), inset 0 0 10px 2px color-mix(in srgb, var(--m) 25%, transparent); }
 .sum-ray { position: absolute; width: 2px; height: 30px; top: -38px; left: calc(50% - 1px); border-radius: 2px; transform-origin: 50% 80px;
-  background: linear-gradient(transparent, var(--gold)); opacity: 0; }
+  background: linear-gradient(transparent, var(--gold)); }
+/* the rays open as one ring (one layer for the GPU, not twelve) */
+.sum-rays { position: absolute; inset: 0; opacity: 0; pointer-events: none; }
 /* an odometer: each digit a column of digits clipped to one row, rolled up by its transform */
 /* the window is exactly one row, its edges softened (a static mask, it never moves), so a rolling digit slips in and out
    cleanly and nothing of its neighbours shows at rest. One mask per number, not per digit: every mask is a layer of its own
@@ -1971,6 +1973,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    each way (~14 a second, each under half a percent of brightness, too small to see) instead of a redraw every frame; a warmer light fades in over the first
    hour (--warm). Inside the colour field, so Background glow Off removes it and Soft dims it. */
 .wk-breath { position: absolute; left: -10%; top: -14%; width: 120%; height: 62%; pointer-events: none; opacity: var(--aurora-a); }
+.wk-card.wk-leaving * { animation-play-state: paused !important; } /* (fading out under the finish sheet: nothing in it keeps moving) */
 .wk-breath > b { position: absolute; inset: 0; will-change: opacity; animation: breathe 5.5s infinite alternate; }
 .wk-breath > b::before, .wk-breath > b::after { content: ''; position: absolute; inset: 0; }
 .wk-breath > b::before { background: radial-gradient(ellipse 55% 60% at 32% 30%, color-mix(in srgb, var(--h1) 55%, transparent), transparent 72%); }
@@ -1979,6 +1982,16 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-breath.hold > b { animation-play-state: paused; }
 @keyframes breathe { 0.0% { opacity: 0.4000; animation-timing-function: steps(10, jump-none); } 12.5% { opacity: 0.4228; animation-timing-function: steps(10, jump-none); } 25.0% { opacity: 0.4879; animation-timing-function: steps(10, jump-none); } 37.5% { opacity: 0.5852; animation-timing-function: steps(10, jump-none); } 50.0% { opacity: 0.7000; animation-timing-function: steps(10, jump-none); } 62.5% { opacity: 0.8148; animation-timing-function: steps(10, jump-none); } 75.0% { opacity: 0.9121; animation-timing-function: steps(10, jump-none); } 87.5% { opacity: 0.9772; animation-timing-function: steps(10, jump-none); } 100.0% { opacity: 1.0000; } }
 :root[data-motion='reduce'] .wk-breath > b { animation: none; }
+/* The same lights as dithered pictures (screens/workout/wkGlow.tsx): the phone draws a CSS gradient in whole colour steps,
+   which showed as coloured rings in the dim glow. Each picture replaces its gradient once it is ready ([data-dith], an
+   attribute React leaves alone), drawn at half the screen's pixels (the screen smooths it back up); they hold still, so
+   nothing is redrawn while the window is open. */
+.glow-cv { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; visibility: hidden; }
+.aurora-lite > .wk-field-cv { top: calc(16px - var(--wk-lead)); height: calc(100% + var(--wk-lead) - 16px); }
+.aurora-lite[data-dith]::before, .wk-breath[data-dith] > b::before, .wk-breath[data-dith] > b::after { content: none; }
+.aurora-lite[data-dith] > .glow-cv, .wk-breath[data-dith] .glow-cv { visibility: visible; }
+.wk-breath[data-dith] { opacity: 1; } /* the picture has the glow's strength in it */
+.wk-breath .glow-cv.warm { opacity: var(--warm, 0); transition: opacity 6s ease-in-out; }
 
 /* ── Backgrounds (Settings → Appearance → Background; ui/Backdrop.tsx) ──────────────────────────────────────────────
    Every one but Classic holds still: a few gradients (or one small, already-blurred photo) painted once, so the frosted

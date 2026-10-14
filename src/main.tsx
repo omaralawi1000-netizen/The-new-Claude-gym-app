@@ -1,3 +1,4 @@
+import './lib/beta'; // FIRST: in the Aven Beta build it gives the beta its own storage before anything reads it
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import '@fontsource-variable/newsreader/opsz.css';
