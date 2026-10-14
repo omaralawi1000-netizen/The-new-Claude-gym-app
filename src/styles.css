@@ -1117,14 +1117,14 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* it reaches 48 px above its top edge (its own colour, over the status bar's side of the screen): the spring's slow last
    pixels happen out of sight above the screen, so no strip of the page behind ever lingers over the window's top */
 .wk-sheet { position: absolute; inset: calc(-1 * var(--wk-lead)) 0 0 0; overflow: clip; will-change: transform, opacity; transform-origin: 0 0; }
-.wk-card.wk-moving .wk-sheet { border-radius: var(--wk-r) var(--wk-r) 0 0; }
-.wk-card.wk-moving .wk-bclip { border-radius: 0 0 var(--wk-r) var(--wk-r); }
 /* Growing out of a card (Active.tsx): the window's own box is its top and sides (moved and scaled from its top-left corner);
    its bottom edge is this second box, reaching a corner's height past the window above and below, moved up by as much as
    its contents (.wk-bshift) are moved down, so the page itself never moves with it. At rest both are where they started
    and the bottom corners lie below the screen. */
-.wk-bclip { position: absolute; left: 0; right: 0; top: calc(-2px - var(--wk-r)); bottom: calc(-2px - var(--wk-r)); overflow: clip; will-change: transform; }
-.wk-bshift { position: absolute; left: 0; right: 0; top: calc(2px + var(--wk-r)); bottom: calc(2px + var(--wk-r)); will-change: transform; }
+.wk-bclip { position: absolute; left: 0; right: 0; top: calc(-2px - var(--wk-rb)); bottom: calc(-2px - var(--wk-rb)); overflow: clip; will-change: transform; }
+.wk-bshift { position: absolute; left: 0; right: 0; top: calc(2px + var(--wk-rb)); bottom: calc(2px + var(--wk-rb)); will-change: transform; }
+/* the card it grows out of, copied (Active.tsx): there only while it travels, under the window's own colour */
+.wk-skin { position: absolute; inset: 0; display: none; opacity: 0; pointer-events: none; will-change: opacity; }
 /* the page around the card dims a touch while the window grows out of it (gone, unseen, before it is covered) */
 .wk-dim { position: absolute; inset: 0; background: #000; opacity: 0; pointer-events: none; will-change: opacity; }
 :root[data-theme='light'] .wk-dim { background: rgb(20 24 30 / .55); }
@@ -1135,11 +1135,11 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-shade { position: absolute; left: 0; right: 0; top: -56px; height: calc(56px + var(--wk-r)); pointer-events: none; will-change: opacity;
   background: linear-gradient(to bottom, transparent, rgba(0,0,0,.07) 25px, rgba(0,0,0,.2) 56px); } /* (it carries on under the rounded corners) */
 :root[data-theme='dark'] .wk-shade { top: -72px; height: calc(72px + var(--wk-r)); background: linear-gradient(to bottom, transparent, rgba(0,0,0,.22) 29px, rgba(0,0,0,.6) 72px); }
-.wk-corner-fill { position: absolute; left: 0; right: 0; top: 0; height: var(--wk-r); pointer-events: none; background: var(--wk-bar, transparent); opacity: 0; will-change: opacity; }
+.wk-corner-fill { position: absolute; left: 0; right: 0; top: 0; height: calc(var(--wk-r) + 8px); pointer-events: none; background: var(--wk-bar, transparent); opacity: 0; will-change: opacity; }
 /* the window's top rim: only a strip along the top (it lay over the whole window, so every animation under it gave it a
    layer and took it away again, once a second during a rest), kept on a layer of its own */
 .wk-sheet::after { content: ''; position: absolute; left: 0; right: 0; top: 0; height: calc(var(--wk-r) + 4px); border-radius: inherit; pointer-events: none; box-shadow: inset 0 1px 0 var(--hl); z-index: 5; will-change: transform; }
-:root { --wk-r: var(--screen-r); --wk-lead: 48px; }
+:root { --wk-r: var(--screen-r); --wk-rb: 40px; --wk-lead: 48px; } /* --wk-rb: room for a grown card's corners (they are the card's, scaled up) */
 /* rounded top corners while it travels (a page in motion reads as one surface rising, and on the way down it narrows into
    the bar at its corners); at rest they sit inside the 48 px reach above the screen, so the page at rest is square */
 .wk-bshift > .wk-window { top: var(--wk-lead) !important; }

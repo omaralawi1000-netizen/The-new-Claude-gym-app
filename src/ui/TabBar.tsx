@@ -53,11 +53,13 @@ function LivePill() {
     <motion.button
       key="pill" className="press"
       style={{ position: 'relative', borderRadius: 999, height: 56, width: '100%', maxWidth: 420, display: 'flex', alignItems: 'center', gap: 12, padding: '0 8px 0 18px', marginBottom: 10, pointerEvents: workoutOpen ? 'none' : 'auto' }}
-      initial="hide" animate={workoutOpen ? 'hide' : 'show'} exit="hide" variants={PILL} transition={SOFT}
+      initial="hide" animate="show" exit="hide" variants={PILL} transition={SOFT}
       onClick={() => resumeWorkout(() => push('workout', { origin: 'pill' }), 'pill')}
       aria-label={t('Resume workout')}
     >
-      {/* The pill's surface is a separate layer; the workout window opens from its rectangle (data-wk). It fades on its OWN
+      {/* It stays where it is while the workout is up (in the dock, out of sight): the window grows out of it and lands back in
+          it, and hides and hands back its surface and words itself (Active.tsx), so the bar never slides or fades on its own.
+          The pill's surface is a separate layer; the workout window opens from its rectangle (data-wk). It fades on its OWN
           layers: fading the button (their parent) switches the frosted blur off until the fade ends — the "clear bar that
           suddenly frosts" flicker. */}
       <motion.span data-wk="pill" className="glass" variants={FADE} transition={SOFT} style={{ position: 'absolute', inset: 0, borderRadius: 28 }} />

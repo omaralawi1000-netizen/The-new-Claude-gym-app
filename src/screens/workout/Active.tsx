@@ -13,7 +13,7 @@ import { beatLastTime, newBest, elapsedMs, historyOf, incrementFor, lastPerforma
 import { fmtDuration } from '../../lib/dates';
 import { displayToKg, kgToDisplay, fmtNum, displayToM, mToDisplay } from '../../lib/units';
 import { useNow } from '../../lib/hooks';
-import { setWorkoutOpener, takeWorkoutFrom, wkSourceRect } from '../../ui/workoutOpen';
+import { setWorkoutOpener, takeWorkoutFrom, wkSourceRect, type WkSource } from '../../ui/workoutOpen';
 import { nextSetOf, offerRestAlerts, prepareRestAudio, unlockRestAudio } from './rest';
 import { addSet, deleteSet, moveExercise, patchExercise, patchSet, removeExercise, startRest, adjustRest, skipRest, toggleSuperset } from './actions';
 import { exName, fmtSet, MUSCLE_LABEL } from './common';
@@ -82,12 +82,21 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
   // inside it, moved up while its contents move down by the same amount, so nothing in the page moves with it.
   const from = useRef<{ l: number; t: number; w: number; b: number } | null>(null);
   const dims = useRef({ W: 0, hA: 0, RB: 0 }); // the window's width, its box's height (screen + lead), how far the bottom box reaches below the screen
+  const leaving = useRef(false);
+  // The window stands in the card's own outline for the first few percent: opening, it takes the card's place exactly (its
+  // look, corners and all) and the card's words go before it moves; closing, it has landed in the card (or bar) exactly and
+  // hands it back there. It sets off from that outline, and lands in it, at no speed (eased in over the first 15 %).
+  const hold = () => (leaving.current ? 0.03 : 0.06);
+  const EASE = 0.15;
+  const qOf = (pp: number) => { const h = hold(), u = Math.max(0, (pp - h) / (1 - h)); return (u < EASE ? (u * u) / (2 * EASE) : u - EASE / 2) / (1 - EASE / 2); };
+  const ppOf = (q: number) => { const h = hold(), v = q * (1 - EASE / 2), u = v < EASE / 2 ? Math.sqrt(2 * EASE * v) : v + EASE / 2; return h + u * (1 - h); };
   const geo = (pp: number) => {
     const g = from.current, { W, hA, RB } = dims.current;
     if (!g || !W) return { x: 0, y: sheetTop(pp) - LEAD, s: 1, by: 0 };
-    // the first 3 % happen in the card's own outline: opening, its colour comes up in place before it grows; closing, it has
-    // landed in the card (or bar) exactly and melts into it there, instead of fading while still hanging above it
-    const q = Math.max(0, (pp - 0.03) / 0.97);
+    // the spring's last stretch (and its faint landing past the top) is under half a pixel for every edge: it lands there,
+    // instead of creeping the last pixels one screen pixel at a time
+    if (Math.abs(1 - pp) * (g.t + LEAD + hA) < 0.5) pp = 1;
+    const q = qOf(pp);
     // the width is whole a moment before the window lands (at 98.5 %): it then settles at exactly its own size, sharp, and
     // the spring's tail is only a vertical glide off the top of the screen
     const k = Math.min(1, q / 0.985);
@@ -101,15 +110,19 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
   const sheetT = useTransform(p, aAt);
   const bclipT = useTransform(p, bAt);
   const bshiftT = useTransform(p, cAt);
-  // grown from a card, the window is the card's own glass to begin with: its colour comes up over the card in the first
-  // eighth of the way, and the page on it only once that colour hides the card's words (never the two sets of words at once), and the page around it dims a touch while it grows (gone, unseen, by the time
-  // it is covered). Rising from the bottom edge it is solid all the way, as before.
+  // Grown from a card, the window IS the card to begin with: a copy of the card's surface (.wk-skin) takes the card's place
+  // exactly while the card's words fade (`card`, in the outline), then the window's own colour comes up over it as it sets
+  // off, and its page as that colour hides the page behind. Closing, the same in reverse with no gap: the page goes as the
+  // colour turns back into the card's, which lands in the outline already the card's colour; then the card's words come
+  // back on it. The page around it dims a touch while it grows (gone, unseen, by the time it is covered). Rising from the
+  // bottom edge it is solid all the way, as before.
   const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
-  // Closing, the empty colour lands in the card's own outline and only then melts into it (the last 3 %, see geo; at 12 %
-  // it was still a big blue slab well above a small bar).
-  const leaving = useRef(false);
-  const solid = (pp: number) => (from.current ? clamp01(pp / (leaving.current ? 0.03 : 0.1)) : 1);
-  const inside = (pp: number) => (from.current ? clamp01((pp - (leaving.current ? 0.07 : 0.12)) / 0.25) : 1);
+  const solid = (pp: number) => (from.current ? clamp01((pp - hold()) / 0.1) : 1);
+  const inside = (pp: number) => (from.current ? clamp01((pp - (leaving.current ? 0.03 : 0.1)) / 0.2) : 1);
+  // the card in the page: 1 = itself, 0 = the window has taken its place (its surface and its words)
+  // (closing, its words start back as the window's go, in the last few pixels before it lands: never an empty card)
+  const CARD_BACK = 0.07;
+  const card = (pp: number) => (leaving.current ? 1 - clamp01((pp - 0.004) / (CARD_BACK - 0.004)) : 1 - clamp01(pp / hold()));
   const dim = (pp: number) => (from.current ? 0.3 * clamp01(pp / 0.6) * (1 - clamp01((pp - 0.9) / 0.08)) : 0);
   const solidO = useTransform(p, solid);
   const insideO = useTransform(p, inside);
@@ -144,7 +157,7 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
     fillRef.current?.style.setProperty('--wk-bar', `rgb(${wk.map(Math.round).join(' ')})`);
   };
   // the progress where the window's top reaches the screen's top (the status bar turns to its colour there)
-  const barAtOf = () => { const g = from.current; return g ? 0.03 + 0.97 * (g.t / (g.t + LEAD)) : 1 - LEAD / (H + 64 + LEAD); };
+  const barAtOf = () => { const g = from.current; return g ? ppOf(g.t / (g.t + LEAD)) : 1 - LEAD / (H + 64 + LEAD); };
   useEffect(() => {
     let last = -1;
     return eFinger.on('change', (v) => {
@@ -171,7 +184,8 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
   // what is on the page floats a little behind the page itself, by layer: the header a touch, the list a little more. It
   // arrives a beat after the window lands (a soft settle, no pop), and on the way down it leads the window into the bar —
   // one number, so minimising is the exact reverse of opening. The workout bar and its orb ride with the window itself.
-  const lag = (k: number) => (pp: number) => k * Math.pow(Math.max(0, 1 - pp), 0.8);
+  // (its last half pixel is dropped: it lands, instead of ticking the last screen pixels in one at a time)
+  const lag = (k: number) => (pp: number) => { const v = k * Math.pow(Math.max(0, 1 - pp), 0.8); return v < 0.5 ? 0 : v; };
   const headLag = lag(20), viewsLag = lag(44);
   const lagAt = (f: (pp: number) => number) => (pp: number) => `translate3d(0, ${snapPx(f(pp))}px, 0)`;
   const headT = useTransform(eFinger, lagAt(headLag));
@@ -187,13 +201,32 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
   const dimRef = useRef<HTMLDivElement>(null);
   // where the window is going to or coming from, measured as the motion starts (the card may have scrolled; the bar is only
   // on the other tabs). Null: it rises from the bottom edge.
+  const skinRef = useRef<HTMLDivElement>(null);
   // the window's corners are round only while it moves (or follows a finger); at rest it is a plain rectangle, as on main,
-  // so three hours of scrolling a workout pay nothing for corners that sit off the screen anyway (CSS: .wk-card.wk-moving)
-  const setMoving = (on: boolean) => { dialogRef.current?.classList.toggle('wk-moving', on); };
+  // so three hours of scrolling a workout pay nothing for corners that sit off the screen anyway. Written on the two boxes
+  // themselves (a class on the window was dropped whenever React re-rendered its class). Grown from a card they are the
+  // card's corners at its size (the window is scaled, so they open out with it to the screen's as it grows).
+  const radius = useRef(0);
+  const screenR = () => parseFloat(getComputedStyle(dialogRef.current ?? document.documentElement).getPropertyValue('--wk-r')) || 0;
+  const setMoving = (on: boolean, r = radius.current) => {
+    const a0 = sheetRef.current, b0 = bclipRef.current;
+    if (a0) a0.style.borderRadius = on ? `${r}px ${r}px 0 0` : '';
+    if (b0) b0.style.borderRadius = on ? `0 0 ${r}px ${r}px` : '';
+  };
+  // the card itself while the window stands in for it: its surface and its words follow `card` (and are handed back whole
+  // once the window is up, or has landed)
+  const src = useRef<HTMLElement[]>([]);
+  const lastCard = useRef(-1);
+  const showCard = (v: number) => { if (v === lastCard.current) return; lastCard.current = v; for (const el of src.current) el.style.opacity = v >= 1 ? '' : String(v); };
+  const releaseCard = () => { for (const el of src.current) el.style.opacity = ''; src.current = []; lastCard.current = -1; };
+  const showSkin = (v: number) => { const s = skinRef.current; if (s) s.style.opacity = String(v); };
+  const dropSkin = () => { const s = skinRef.current; if (!s) return; s.replaceChildren(); s.style.display = ''; s.style.opacity = ''; s.style.background = ''; };
+  useEffect(() => p.on('change', (pp) => { if (!from.current || !src.current.length) return; const c = card(pp); showCard(c); showSkin(1 - c); }), [p]); // eslint-disable-line react-hooks/exhaustive-deps
   const slotRest = useRef<{ left: number; top: number; width: number; height: number } | undefined>(undefined);
-  const measure = (g: { l: number; t: number; w: number; b: number } | null) => {
+  const measure = (g: WkSource | null) => {
     const d = dialogRef.current, a0 = sheetRef.current;
     const box = d?.getBoundingClientRect();
+    releaseCard(); dropSkin();
     if (!d || !a0 || !box) { from.current = null; return; }
     // the orb's slot at rest: undo where the window is drawn now (its offset and scale, from the motion so far), so the orb
     // flies to the right place
@@ -204,9 +237,33 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
       slotTop.current = top;
       slotRest.current = { left: (r.left - box.left - now.x) / now.s + box.left, top: top + box.top, width: r.width / now.s, height: r.height / now.s };
     }
-    const rb = parseFloat(getComputedStyle(d).getPropertyValue('--wk-r')) || 0;
+    const rb = parseFloat(getComputedStyle(d).getPropertyValue('--wk-rb')) || 0;
     dims.current = { W: box.width, hA: a0.offsetHeight, RB: rb + 2 };
-    from.current = g && g.w > 40 && g.b - g.t > 30 ? { l: g.l - box.left, t: g.t - box.top, w: g.w, b: g.b - box.top } : null;
+    const ok = !!g && g.w > 40 && g.b - g.t > 30;
+    from.current = ok ? { l: g.l - box.left, t: g.t - box.top, w: g.w, b: g.b - box.top } : null;
+    radius.current = ok ? (g.r * box.width) / g.w : screenR();
+    if (!ok || !g) return;
+    // the card's surface, copied as it is drawn (its colours read off the card: the window has its own hue), without the
+    // frost (nothing on a moving layer is blurred)
+    const s = skinRef.current;
+    if (s) {
+      const copy = g.bg.cloneNode(true) as HTMLElement;
+      const paint = (a: Element, b: HTMLElement) => {
+        const cs = getComputedStyle(a);
+        b.style.background = cs.background; b.style.boxShadow = cs.boxShadow;
+        [...a.children].forEach((c, i) => { if (b.children[i]) paint(c, b.children[i] as HTMLElement); });
+      };
+      paint(g.bg, copy);
+      copy.removeAttribute('data-wk');
+      Object.assign(copy.style, { position: 'absolute', inset: '0', width: 'auto', height: 'auto', transform: 'none', opacity: '1', borderRadius: `${radius.current}px`, backdropFilter: 'none', webkitBackdropFilter: 'none' });
+      s.replaceChildren(copy);
+      s.style.display = 'block';
+      // a frosted card (the resume bar) shows only a blur of what is behind it; the copy, unfrosted, lies on the window's own
+      // ground instead, or the page's words behind would show through it sharp
+      const bf = getComputedStyle(g.bg).backdropFilter;
+      s.style.background = bf && bf !== 'none' ? 'var(--bg)' : '';
+    }
+    src.current = [g.bg, ...(g.fg ? [g.fg] : [])];
   };
   // high refresh rate: the window, the dim and the page behind also run by the browser on the identical spring
   const mirror = useRef<Mirror | null>(null); if (!mirror.current) mirror.current = new Mirror();
@@ -219,7 +276,8 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
       mirrorProgress(followRef.current, p0, p1, sp, vel, (pp) => ({ transform: aAt(pp) }), [], true),
       morph ? mirrorProgress(bclipRef.current, p0, p1, sp, vel, (pp) => ({ transform: bAt(pp) }), [], true) : null,
       morph ? mirrorProgress(bshiftRef.current, p0, p1, sp, vel, (pp) => ({ transform: cAt(pp) }), [], true) : null,
-      morph ? mirrorProgress(solidRef.current, p0, p1, sp, vel, (pp) => ({ opacity: String(solid(pp)) }), [0.015, 0.03, 0.05, 0.1]) : null,
+      morph ? mirrorProgress(solidRef.current, p0, p1, sp, vel, (pp) => ({ opacity: String(solid(pp)) }), [hold(), hold() + 0.1]) : null,
+      ...(morph ? [skinRef.current, ...src.current].map((el, i) => mirrorProgress(el, p0, p1, sp, vel, (pp) => ({ opacity: String(i ? card(pp) : 1 - card(pp)) }), [0.004, leaving.current ? CARD_BACK : hold()])) : []),
       morph ? mirrorProgress(dimRef.current, p0, p1, sp, vel, (pp) => ({ opacity: String(dim(pp)) }), [0.3, 0.6, 0.9, 0.98]) : null,
       morph ? null : mirrorProgress(shadeRef.current, p0, p1, sp, vel, (pp) => ({ opacity: String(shade(pp)) }), [0.12, 0.7]),
       mirrorProgress(fillRef.current, p0, p1, sp, vel, (pp) => ({ opacity: String(fill(pp)) }), [at - 0.015, at + 0.015]),
@@ -228,7 +286,7 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
       mirrorOrb(sheetRef.current, p0, p1, sp, vel, slotShift, slotRest.current),
     );
   };
-  useEffect(() => { const off = dragY.on('change', (v) => { mirror.current!.cancel(); if (v > 0) setMoving(true); else if (!closing.current) setMoving(false); }); return () => { off(); mirror.current!.cancel(); }; }, [dragY]);
+  useEffect(() => { const off = dragY.on('change', (v) => { mirror.current!.cancel(); if (v > 0) setMoving(true, screenR()); else if (!closing.current) setMoving(false); }); return () => { off(); mirror.current!.cancel(); }; }, [dragY]);
   // Closing starts the very moment you let go: the window's own animation is set going first (on the compositor), and only
   // after the next frame has been drawn is the app told the workout is closed — re-rendering the page behind, the tab bar
   // and the resume bar takes a phone a good while, and before, nothing moved until it was done (the pause after a tap).
@@ -253,7 +311,8 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
     const c = animate(p, 0, reduce ? { duration: 0.01 } : { ...sp, velocity: vel });
     setMoving(true);
     closing.current = new Promise<void>((done) => { c.then(() => done()); });
-    void closing.current.then(() => warmStage(false));
+    // landed: the card is itself again (its words already back), and the copy of it goes
+    void closing.current.then(() => { warmStage(false); releaseCard(); dropSkin(); });
     return closing.current;
   };
   // a press on Minimise that never became a tap lets the page behind rest again
@@ -347,7 +406,7 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
     runMirror(p0, 1, sp, 0);
     setMoving(true);
     const m = mirror.current!;
-    void Promise.all([o.then(() => undefined), m.settled()]).then(() => { if (opening.current === o && !closing.current && dragY.get() <= 0) setMoving(false); });
+    void Promise.all([o.then(() => undefined), m.settled()]).then(() => { if (opening.current === o && !closing.current) { releaseCard(); dropSkin(); if (dragY.get() <= 0) setMoving(false); } });
     takeTints();
   };
   // waiting minimised: a tap on the resume bar or button starts the slide at once (ui/workoutOpen.ts)
@@ -498,6 +557,7 @@ export function ActiveWorkout({ props, open = true, onGone }: { props: { origin?
         <motion.div ref={sheetRef} className="wk-sheet" style={{ transform: sheetT }}>
         <motion.div ref={bclipRef} className="wk-bclip" style={{ transform: bclipT }}>
         <motion.div ref={bshiftRef} className="wk-bshift" style={{ transform: bshiftT }}>
+          <div ref={skinRef} className="wk-skin" aria-hidden />
           <motion.div ref={solidRef} className="wk-solid" aria-hidden style={{ opacity: solidO }}><div className="aurora-lite"><Breath hold={paused || covered} /></div><i ref={topRef} className="wk-top" /></motion.div>
         <div className="wk-window" style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column' }}>
           <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, paddingTop: 'var(--sat)' }}>

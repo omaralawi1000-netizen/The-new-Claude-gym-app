@@ -18,7 +18,10 @@ export function takeWorkoutFrom(): From { const f = pendingFrom; pendingFrom = n
  * Where that card is on the screen (client px), as it is at rest: the resume bar is measured by its layout, not where its
  * own show/hide motion or the tab bar's slide has it this frame. Null when it isn't there or isn't fully on the screen.
  */
-export function wkSourceRect(kind: From): { l: number; t: number; w: number; b: number } | null {
+export type WkSource = { l: number; t: number; w: number; b: number; r: number; bg: HTMLElement; fg: HTMLElement | null };
+/** `r` its corner radius; `bg` its surface (a layer of its own) and `fg` what is on it (the surface's next sibling), which
+ * the window hides while it stands in for the card and hands back as it lands. */
+export function wkSourceRect(kind: From): WkSource | null {
   if (!kind) return null;
   const el = document.querySelector<HTMLElement>(`[data-wk="${kind}"]`);
   if (!el) return null;
@@ -32,7 +35,8 @@ export function wkSourceRect(kind: From): { l: number; t: number; w: number; b: 
     const r = el.getBoundingClientRect(); l = r.left; t = r.top;
   }
   if (w < 40 || h < 30 || t < 0 || t + h > window.innerHeight) return null;
-  return { l, t, w, b: t + h };
+  const r = parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0;
+  return { l, t, w, b: t + h, r: Math.min(r, h / 2, w / 2), bg: el, fg: el.nextElementSibling as HTMLElement | null };
 }
 /** Open the workout: `tell` updates the app (pushes the overlay); with a minimised window waiting, after its first frame.
  * `from`: the card that was tapped, which the window grows out of. */
