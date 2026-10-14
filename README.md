@@ -2015,3 +2015,19 @@ Omar 15:06: "turn the rings like 3D with like inner shadows and like Apple's fit
 - Cost: painted once; only the fill's mask length, the shade's position and the end's rotation move, on the same spring.
 - Judge rounds: r4 failed (brown smudge at 12 o'clock, brown tracks, dim fills, soft light edge); r5 passed after the yellow
   track and end-disc fixes. Before/after page: https://claude.ai/artifact/GhMcA41DrV79hCh2tKwT63
+
+## Lit glass cards (14 Oct 2026, v0.1.129)
+Omar: the cards "just look off", live and on Beta. A design look at his Today screen (Golden hour, dark) found two causes:
+an accent glow trapped in the workout card's top-right corner read as a stain (orange in Golden hour, green in Forest),
+and outlines stacked inside outlines (card rim, every chip rim, the + button rim). He picked from six looks on one page
+(Calm, Clear frost, Lit glass, Liquid glass, Etched, Fade away): **Lit glass** for the real app, Liquid glass to try on Beta.
+- Tab-screen cards (dark): see-through navy `rgb(30 33 52 / .58)` with a soft white sheen at the top, the existing `::after`
+  rim now bright along the top edge and fading down the sides, a soft shadow `0 14px 40px rgba(0,0,0,.6)`. Over the
+  bright Sunrise and Time of day backgrounds the fill is darker (`rgb(22 25 40 / .74)`) so grey text keeps its contrast.
+- Light: 60% white with a top sheen, white top rim, soft neutral shadow.
+- Chips and round buttons inside a card are plain soft fills with no outline.
+- The workout card's corner glow is gone (`Today.tsx`).
+- Same cost as before: no blur, no grain, no tint, no new layers.
+- v0.1.130: Omar on v0.1.129: "They're not see-through. And why do they have this tint?" The navy fill (`rgb(30 33 52 / .58)`)
+  read as solid blue-grey slabs on his warm Golden hour field. Now the dark fill is a neutral 4.5% white film (the field
+  shows through, nothing is tinted); over Sunrise and Time of day a neutral dark film (`rgba(8,8,10,.42)`). Rim and shadow unchanged.
