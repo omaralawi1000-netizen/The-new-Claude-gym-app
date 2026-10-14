@@ -99,7 +99,14 @@ export function TabBar() {
   // bar, where it stands: sliding away at once, the bar left the window's outline while the two still crossed)
   const wk = useUI((s) => s.overlays.some((o) => o.type === 'workout'));
   const [wkLate, setWkLate] = useState(wk);
-  useEffect(() => { if (!wk) { setWkLate(false); return; } const id = setTimeout(() => setWkLate(true), 90); return () => clearTimeout(id); }, [wk]);
+  useEffect(() => {
+    if (!wk) { setWkLate(false); return; }
+    // counted in frames' time (the clock the window's own motion runs on), not a timer
+    let id = 0; const t0 = performance.now();
+    const wait = () => { if (performance.now() - t0 >= 90) setWkLate(true); else id = requestAnimationFrame(wait); };
+    id = requestAnimationFrame(wait);
+    return () => cancelAnimationFrame(id);
+  }, [wk]);
   const hidden = covered || wkLate;
   const t = useT();
   const nav = useRef<HTMLElement>(null);
