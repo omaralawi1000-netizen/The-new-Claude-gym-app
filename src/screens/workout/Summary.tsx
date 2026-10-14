@@ -38,6 +38,13 @@ function CountUp({ to, delay, format }: { to: number; delay: number; format: (n:
   const ref = useRef<HTMLSpanElement>(null);
   useLayoutEffect(() => {
     const el = ref.current; if (!el || reduced()) return;
+    // a small number (a 1, a 3) has too few steps to count: it would sit on 0 and jump. It rises in at its final value
+    // instead, arriving on the same beat
+    if (to < 5) {
+      el.textContent = format(to);
+      const a = el.animate([{ opacity: 0, transform: 'translate3d(0, 8px, 0)' }, { opacity: 1, transform: 'none' }], { duration: 420, delay: (delay + SETTLE - 0.42) * 1000, easing: 'cubic-bezier(.2, .8, .2, 1)', fill: 'backwards' });
+      return () => a.cancel();
+    }
     el.textContent = format(0);
     let raf = 0;
     const id = setTimeout(() => {
@@ -55,7 +62,7 @@ function CountUp({ to, delay, format }: { to: number; delay: number; format: (n:
     }, delay * 1000);
     return () => { clearTimeout(id); cancelAnimationFrame(raf); el.textContent = format(to); };
   }, [to]); // eslint-disable-line react-hooks/exhaustive-deps
-  return <span ref={ref}>{format(to)}</span>;
+  return <span ref={ref} style={{ display: 'inline-block' }}>{format(to)}</span>;
 }
 
 /** Shown right after finishing. Numbers come from the saved session — what you checked off, nothing assumed. */
