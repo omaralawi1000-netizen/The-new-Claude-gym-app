@@ -6,7 +6,7 @@ export type Tab = 'today' | 'train' | 'food' | 'progress';
 export type OverlayType =
   | 'workout' | 'voice' | 'settings' | 'foodSearch' | 'foodDetail' | 'quickAdd' | 'customFood' | 'recipe' | 'recipes' | 'savedMeals'
   | 'scanner' | 'waterSheet' | 'exercise' | 'exercisePicker' | 'routine' | 'schedule' | 'sessionDetail' | 'summary' | 'weight'
-  | 'activity' | 'measure' | 'photos' | 'onboarding' | 'history' | 'dayNotes' | 'exerciseEditor' | 'rescheduleSheet' | 'mealCopy' | 'mealsEditor' | 'about' | 'foodPick' | 'datePicker' | 'entryMenu' | 'lookupInfo' | 'coach' | 'photoFood';
+  | 'activity' | 'measure' | 'photos' | 'onboarding' | 'history' | 'dayNotes' | 'exerciseEditor' | 'rescheduleSheet' | 'mealCopy' | 'mealsEditor' | 'about' | 'foodPick' | 'datePicker' | 'entryMenu' | 'lookupInfo' | 'coach' | 'photoFood' | 'camera';
 
 /** `page`: shown as the next page INSIDE the sheet below it (see Sheet.tsx) instead of as a second sheet stacked on top. */
 export interface Overlay { id: string; type: OverlayType; props?: any; page?: boolean }

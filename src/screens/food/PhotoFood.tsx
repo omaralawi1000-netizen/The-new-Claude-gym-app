@@ -9,7 +9,7 @@ import { Sheet, SheetHead, SOFT } from '../../ui/Sheet';
 import { SphereSlot } from '../../ui/Sphere';
 import { Icon } from '../../ui/Icon';
 import { getKey } from '../../lib/keys';
-import { blobToBase64, downscale } from '../../lib/photos';
+import { blobToBase64, cameraUsable, downscale } from '../../lib/photos';
 import { aiErrorText, FALLBACK_MODELS } from '../../lib/gemini';
 import { estimatePhoto } from '../../lib/brain';
 import { overLimit } from '../../lib/spend';
@@ -23,7 +23,7 @@ const PORTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
 
 /** Snap your plate: a photo → Gemini's per-item estimate → you adjust portions → logged as clearly labelled AI estimates. */
-export function PhotoFood({ props }: { props: { date: string; mealId: string } }) {
+export function PhotoFood({ props }: { props: { date: string; mealId: string; file?: File } }) {
   const t = useT();
   const lang = useLang();
   const pop = useUI((u) => u.pop);
@@ -40,6 +40,7 @@ export function PhotoFood({ props }: { props: { date: string; mealId: string } }
   const cam = useRef<HTMLInputElement>(null);
   const lib = useRef<HTMLInputElement>(null);
   const ctl = useRef<AbortController | null>(null);
+  const openCam = () => { if (cameraUsable()) push('camera', { onShot: pick }); else cam.current?.click(); };
   const meal = meals.find((m) => m.id === props.mealId) ?? meals[0];
 
   useEffect(() => () => { ctl.current?.abort(); if (useVoice.getState().phase === 'processing') useVoice.getState().go('idle'); if (img) URL.revokeObjectURL(img.url); }, []); // eslint-disable-line
@@ -68,6 +69,8 @@ export function PhotoFood({ props }: { props: { date: string; mealId: string } }
       analyse(small);
     } catch { setErr(t('Couldn’t read that image.')); }
   };
+
+  useEffect(() => { if (props.file) pick(props.file); }, []); // eslint-disable-line -- the camera hands its shot over (CameraSheet)
 
   const chosen = items.filter((x) => x.on);
   const total = chosen.reduce((n, x) => n + x.kcal * x.k, 0);
@@ -103,7 +106,7 @@ export function PhotoFood({ props }: { props: { date: string; mealId: string } }
                 <motion.img src={img.url} alt="" animate={{ opacity: busy ? 0.55 : 1 }} transition={{ duration: 0.5 }} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                 <motion.img src={img.url} alt="" aria-hidden initial={false} animate={{ opacity: busy ? 0.6 : 0 }} transition={{ duration: 0.5 }} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(2px) saturate(1.2)', pointerEvents: 'none' }} />
               </motion.div> : (
-                <button className="press" onClick={() => cam.current?.click()} style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', alignContent: 'center', gap: 12 }} aria-label={t('Take a photo')}>
+                <button className="press" onClick={openCam} style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', alignContent: 'center', gap: 12 }} aria-label={t('Take a photo')}>
                   <span className="icon-btn acc" style={{ width: 74, height: 74 }}><Icon name="camera" size={30} /></span>
                   <span className="small t2">{t('Take a photo')}</span>
                 </button>
@@ -117,7 +120,7 @@ export function PhotoFood({ props }: { props: { date: string; mealId: string } }
               )}
             </motion.div>
             <div className="row-flex" style={{ gap: 8, marginTop: 12 }}>
-              <button className="btn sm press grow" onClick={() => cam.current?.click()}><Icon name="camera" size={16} /> {img ? t('Retake') : t('Camera')}</button>
+              <button className="btn sm press grow" onClick={openCam}><Icon name="camera" size={16} /> {img ? t('Retake') : t('Camera')}</button>
               <button className="btn sm press grow" onClick={() => lib.current?.click()}><Icon name="upload" size={16} /> {t('From gallery')}</button>
             </div>
             <div className="row-flex" style={{ gap: 8, marginTop: 10 }}>

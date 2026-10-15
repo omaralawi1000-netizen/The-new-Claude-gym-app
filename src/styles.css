@@ -2291,6 +2291,27 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 .bg-pv .bg-dots { top: 2px; background-size: 260% auto; }
 .bg-pv-empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--tx3); z-index: 1; }
 
+/* ---- in-app camera pop-up (CameraSheet.tsx): live preview in a rounded panel, Gallery / shutter / Flip under it, Close on the picture.
+   Black in light and dark (a camera is neutral, no navy tint, no white glass under white icons). Nothing blurs over the live picture
+   (it changes every frame): the round buttons are a dark film, as on the scanner. ---- */
+.sheet:has(.cam-wrap)::before { -webkit-backdrop-filter: none; backdrop-filter: none; }
+.sheet:has(.cam-wrap)::after { background: #000; image-rendering: auto; box-shadow: inset 0 1px 0 rgba(255,255,255,.1); }
+.sheet:has(.cam-wrap) .sheet-grab::after { background: rgba(255,255,255,.3); }
+.cam-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 4px 10px calc(var(--sab) + 12px); gap: 14px; color: #fff; --tx2: rgba(255,255,255,.64); }
+.cam-panel { position: relative; flex: 1; min-height: 0; border-radius: var(--r-lg); overflow: hidden; background: #000; box-shadow: inset 0 0 0 1px rgba(255,255,255,.06); }
+.cam-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.cam-still { position: absolute; inset: 0; width: 100%; height: 100%; transition: opacity 420ms var(--ease-out); pointer-events: none; }
+.cam-flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+.cam-msg { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 6px; padding: 0 28px; text-align: center; color: #fff; pointer-events: none; transition: opacity 180ms linear; }
+.cam-why { color: var(--tx2); }
+.cam-bar { flex: none; display: flex; align-items: center; justify-content: space-between; padding: 0 14px; height: 84px; }
+.cam-btn, .cam-btn-gap { width: 52px; height: 52px; flex: none; }
+.cam-btn { border-radius: 50%; display: grid; place-items: center; color: #fff; background: rgba(255,255,255,.14); box-shadow: inset 0 1px 0 rgba(255,255,255,.12); transition: opacity 300ms var(--ease-out), transform 520ms var(--ease-spring); }
+.cam-x { position: absolute; top: 12px; left: 12px; width: 44px; height: 44px; background: rgba(0,0,0,.4); }
+.cam-shutter { --press: 1; width: 80px; height: 80px; border-radius: 50%; display: grid; place-items: center; box-shadow: inset 0 0 0 4px rgba(255,255,255,.92); transition: opacity 300ms var(--ease-out); }
+.cam-shutter i { width: 62px; height: 62px; border-radius: 50%; background: #fff; display: block; transition: transform 520ms var(--ease-spring); }
+.cam-shutter[data-pressed] i { transform: scale(0.86); transition: transform 110ms var(--ease-out); }
+.cam-shutter.wait { opacity: 0.45; }
 /* Dictation in the Add food field (Whisper): a thread of light on the field's bottom edge (src/ui/voiceThread.ts moves it).
    Both thread layers and both labels exist from load; only transform and opacity ever change. */
 .dict-mic { position: absolute; right: 7px; top: 7px; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: var(--s2); color: var(--tx2); transition: color 260ms var(--ease-out), transform 520ms var(--ease-spring); }
