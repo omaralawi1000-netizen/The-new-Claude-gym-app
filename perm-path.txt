@@ -1,0 +1,4 @@
+switched off, app restarted: page sees granted (query: granted)
+switched off, Chrome restarted too: page sees default (query: prompt)
+switched on, app restarted: page sees default (query: prompt)
+switched on, Chrome restarted too: page sees granted (query: granted)

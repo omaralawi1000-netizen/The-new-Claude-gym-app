@@ -1,0 +1,44 @@
+10-15 23:36:56.235  2473  2473 I AvenRest: from Chrome: rest ending in 94978 ms
+10-15 23:36:56.300   659  2149 W ActivityManager: Background started FGS: Disallowed [callingPackage: app.aven.android; callingUid: 10216; uidState: RCVR; uidBFSL: n/a; intent: Intent { xflg=0x4 cmp=app.aven.android/.RestTimerService }; code:DENIED; tempAllowListReason:<null>; allowWiu:-1; targetSdkVersion:36; callerTargetSdkVersion:36; startForegroundCount:0; bindFromPackage:null: isBindService:false]
+10-15 23:36:56.300   659  2149 W ActivityManager: startForegroundService() not allowed due to mAllowStartForeground false: service app.aven.android/.RestTimerService
+10-15 23:37:01.313   659  2150 I ActivityManager: Background started FGS: Allowed [callingPackage: app.aven.android; callingUid: 10216; uidState: RCVR; uidBFSL: n/a; intent: Intent { xflg=0x4 cmp=app.aven.android/.RestTimerService }; code:ALARM_MANAGER_WHILE_IDLE; tempAllowListReason:<e12978c app.aven.android.REST_TICK/u0,reasonCode:ALARM_MANAGER_WHILE_IDLE,duration:10000,callingUid:10216>; allowWiu:-1; targetSdkVersion:36; callerTargetSdkVersion:36; startForegroundCount:0; bindFromPackage:null: isBindService:false]
+10-15 23:37:01.488   659  2128 W ActivityManager: Foreground service started from background can not have location/camera/microphone access: service app.aven.android/.RestTimerService
+10-15 23:37:01.500   659  2128 W ForegroundServiceTypeLoggerModule: Foreground service start for UID: 10216 does not have any types
+10-15 23:37:04.764   659  1888 I ActivityManager: Background started FGS: Allowed [callingPackage: com.google.android.apps.wellbeing; callingUid: 10141; uidState: BTOP; uidBFSL: [BFSL]; intent: Intent { xflg=0x4 cmp=com.google.android.apps.wellbeing/com.google.apps.tiktok.concurrent.InternalForegroundService (has extras) }; code:BACKGROUND_ACTIVITY_PERMISSION; tempAllowListReason:<null>; allowWiu:58; targetSdkVersion:35; callerTargetSdkVersion:35; startForegroundCount:0; bindFromPackage:null: isBindService:false]
+10-15 23:37:04.769   659  1888 W ForegroundServiceTypeLoggerModule: Foreground service start for UID: 10141 does not have any types
+10-15 23:37:05.360   659  1422 W ForegroundServiceTypeLoggerModule: FGS stop call for: 10141 has no types!
+10-15 23:37:05.691   659   700 W ForegroundServiceTypeLoggerModule: FGS stop call for: 10216 has no types!
+10-15 23:37:23.959   659  2127 I ActivityManager: Background started FGS: Allowed [callingPackage: com.google.android.apps.wellbeing; callingUid: 10141; uidState: BFGS; uidBFSL: [BFSL]; intent: Intent { xflg=0x4 cmp=com.google.android.apps.wellbeing/com.google.apps.tiktok.concurrent.InternalForegroundService (has extras) }; code:BACKGROUND_ACTIVITY_PERMISSION; tempAllowListReason:<null>; allowWiu:58; targetSdkVersion:35; callerTargetSdkVersion:35; startForegroundCount:0; bindFromPackage:null: isBindService:false]
+10-15 23:37:24.334   659  1886 W ForegroundServiceTypeLoggerModule: Foreground service start for UID: 10141 does not have any types
+10-15 23:37:24.343   659  1886 W ForegroundServiceTypeLoggerModule: FGS stop call for: 10141 has no types!
+10-15 23:37:39.275  3105  3105 I TWAConnectionPool: Found app.aven.android.RestDelegationService to handle request for https://omaralawi1000-netizen.github.io/The-new-Claude-gym-app/
+10-15 23:37:39.709   659  1009 I ActivityManager: Background started FGS: Allowed [callingPackage: com.google.android.apps.messaging; callingUid: 10144; uidState: TRNB; uidBFSL: n/a; intent: Intent { xflg=0x4 cmp=com.google.android.apps.messaging/com.google.apps.tiktok.concurrent.InternalForegroundService (has extras) }; code:BACKGROUND_FGS_PERMISSION; tempAllowListReason:<null>; allowWiu:-1; targetSdkVersion:36; callerTargetSdkVersion:36; startForegroundCount:0; bindFromPackage:null: isBindService:false]
+10-15 23:37:39.759   659  2127 W ActivityManager: Foreground service started from background can not have location/camera/microphone access: service com.google.android.apps.messaging/com.google.apps.tiktok.concurrent.InternalForegroundService
+10-15 23:37:39.765   659  2127 W ForegroundServiceTypeLoggerModule: Foreground service start for UID: 10144 does not have any types
+10-15 23:37:46.483  3105  3105 I TWAConnectionPool: Found app.aven.android.RestDelegationService to handle request for https://omaralawi1000-netizen.github.io/The-new-Claude-gym-app-rest/
+10-15 23:37:46.755  3886  3914 I AvenRest: from Chrome: rest ending in 94697 ms
+10-15 23:37:46.955   659  2146 I ActivityManager: Background started FGS: Allowed [callingPackage: app.aven.android; callingUid: 10217; uidState: BTOP; uidBFSL: [BFSL]; intent: Intent { xflg=0x4 cmp=app.aven.android/.RestTimerService }; code:PROC_STATE_BTOP; tempAllowListReason:<null>; allowWiu:-1; targetSdkVersion:36; callerTargetSdkVersion:36; startForegroundCount:0; bindFromPackage:null: isBindService:false]
+10-15 23:37:47.020   659  1271 W ActivityManager: Foreground service started from background can not have location/camera/microphone access: service app.aven.android/.RestTimerService
+10-15 23:37:47.024   659  1271 W ForegroundServiceTypeLoggerModule: Foreground service start for UID: 10217 does not have any types
+10-15 23:38:01.032   659  1416 W ForegroundServiceTypeLoggerModule: FGS stop call for: 10144 has no types!
+10-15 23:38:07.356  3028  3513 I AiAiCaptions: Enable com.google.android.apps.miphone.aiai.captions.CaptionsForegroundService
+10-15 23:38:15.169  3886  3886 I AvenRest: button: app.aven.android.REST_MORE
+10-15 23:38:36.441  3028  3513 I AiAiCaptions: Would enable com.google.android.apps.miphone.aiai.captions.CaptionsForegroundService but already enabled
+10-15 23:38:45.359  3886  4857 I AvenRest: Chrome took its notification away
+10-15 23:38:45.359  3886  4857 I AvenRest: stop all, alert too
+10-15 23:38:45.364   659  1886 W ForegroundServiceTypeLoggerModule: FGS stop call for: 10217 has no types!
+10-15 23:38:45.372  3886  3886 I AvenRest: ticking stopped
+10-15 23:38:48.362  3886  4857 I AvenRest: from Chrome: rest ending in 29980 ms
+10-15 23:38:48.455   659  1888 I ActivityManager: Background started FGS: Allowed [callingPackage: app.aven.android; callingUid: 10217; uidState: BTOP; uidBFSL: [BFSL]; intent: Intent { xflg=0x4 cmp=app.aven.android/.RestTimerService }; code:ACTIVITY_STARTER; tempAllowListReason:<null>; allowWiu:52; targetSdkVersion:36; callerTargetSdkVersion:36; startForegroundCount:0; bindFromPackage:null: isBindService:false]
+10-15 23:38:48.482   659  1257 W ForegroundServiceTypeLoggerModule: Foreground service start for UID: 10217 does not have any types
+10-15 23:39:18.352   659  2147 W ForegroundServiceTypeLoggerModule: FGS stop call for: 10217 has no types!
+10-15 23:39:18.420  3886  3886 I AvenRest: clicks: alarm volume 6 of 7, ringer mode 1
+10-15 23:39:18.420  3886  3886 I AvenRest: ticking stopped
+10-15 23:39:19.097  3886  3886 I AvenRest: clicks played
+10-15 23:39:39.032  3886  4428 I AvenRest: Chrome took its notification away
+10-15 23:39:39.032  3886  4428 I AvenRest: stop all, alert too
+pages: [('page', 'https://omaralawi1000-netizen.github.io/The-new-Claude-gym-app/'), ('page', 'chrome-native://newtab/'), ('service_worker', 'https://omaralawi1000-netizen.github.io/The-new-Claude-gym-app/sw.js'), ('worker', ''), ('worker', '')]
+get: {"mark":"saved in Chrome 2026-10-15T23:37:25.485Z","keys":5,"standalone":true,"url":"https://omaralawi1000-netizen.github.io/The-new-Claude-gym-app/"}
+CARRY-OVER OK
+    topResumedActivity=ActivityRecord{256949138 u0 com.android.chrome/org.chromium.chrome.browser.customtabs.TranslucentCustomTabActivity t10}
+  ResumedActivity: ActivityRecord{256949138 u0 com.android.chrome/org.chromium.chrome.browser.customtabs.TranslucentCustomTabActivity t10}
