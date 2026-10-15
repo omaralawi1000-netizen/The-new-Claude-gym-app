@@ -5,6 +5,7 @@
  */
 import type { ParsedFoodRow } from './foodText';
 import type { ParsedWorkoutRow } from './workoutText';
+import { LOOKUP_KINDS } from './lookupKinds';
 import { MAX_ITEMS, validateFoodItems, validateWorkoutItems, validateEstimate, type FoodEstimate } from './aiValidate';
 
 const API = 'https://generativelanguage.googleapis.com/v1beta';
@@ -225,7 +226,7 @@ const noThinking = new Set<string>();
 export interface Turn { role: 'user' | 'model'; parts: { text: string }[] }
 
 // ── the Coach as an agent: one answer = a short reply plus the actions to carry out ──
-const ACTION_TYPES = ['log_food', 'log_water', 'log_weight', 'log_sets', 'log_activity', 'start_workout', 'finish_workout', 'navigate', 'set_setting', 'edit_food', 'delete_food', 'move_food', 'copy_food', 'replace_food', 'create_food', 'favourite_food', 'save_meal', 'edit_set', 'add_exercise', 'remove_exercise', 'replace_exercise', 'create_routine', 'edit_routine', 'delete_routine', 'delete_workout', 'discard_workout', 'set_schedule', 'move_workout', 'plan_activity', 'log_current_set', 'delete_activity', 'delete_weight', 'add_note', 'remember', 'forget', 'show_exercise', 'suggest_food', 'undo_last'];
+const ACTION_TYPES = ['log_food', 'log_water', 'log_weight', 'log_sets', 'log_activity', 'start_workout', 'finish_workout', 'navigate', 'set_setting', 'edit_food', 'delete_food', 'move_food', 'copy_food', 'replace_food', 'create_food', 'favourite_food', 'save_meal', 'edit_set', 'add_exercise', 'remove_exercise', 'replace_exercise', 'create_routine', 'edit_routine', 'delete_routine', 'delete_workout', 'discard_workout', 'set_schedule', 'move_workout', 'plan_activity', 'log_current_set', 'delete_activity', 'delete_weight', 'add_note', 'remember', 'forget', 'show_exercise', 'suggest_food', 'plan_day', 'undo_last'];
 const BIT = { type: 'ARRAY', nullable: true, items: { type: 'OBJECT', properties: { exercise: { type: 'STRING' }, sets: { type: 'INTEGER', nullable: true }, repMin: { type: 'INTEGER', nullable: true }, repMax: { type: 'INTEGER', nullable: true }, restSec: { type: 'INTEGER', nullable: true } }, required: ['exercise'] } };
 const NUTRI = (d: string) => ({ type: 'OBJECT', nullable: true, description: d, properties: { kcal: { type: 'NUMBER', nullable: true }, protein: { type: 'NUMBER', nullable: true }, carbs: { type: 'NUMBER', nullable: true }, fat: { type: 'NUMBER', nullable: true } } });
 const AGENT_FOOD = { type: 'OBJECT', properties: {
@@ -238,6 +239,12 @@ const AGENT_FOOD = { type: 'OBJECT', properties: {
 export const AGENT_SCHEMA = {
   type: 'OBJECT',
   properties: {
+    lookups: { type: 'ARRAY', nullable: true, description: 'data to look up BEFORE answering, when DATA does not show what you need (older days, a lift\'s full history, the whole plan, exercises for a muscle, settings, what they said before). With lookups, leave reply empty and actions empty: you will be asked again with LOOKUP RESULTS.', items: { type: 'OBJECT', properties: {
+      kind: { type: 'STRING', enum: LOOKUP_KINDS as unknown as string[] },
+      query: { type: 'STRING', nullable: true, description: 'an exercise, food, routine, muscle(s), equipment or word to search for' },
+      from: { type: 'STRING', nullable: true, description: 'first day YYYY-MM-DD' }, to: { type: 'STRING', nullable: true, description: 'last day YYYY-MM-DD' },
+      meal: { type: 'STRING', nullable: true, description: 'food: only this meal' },
+    }, required: ['kind'] } },
     reply: { type: 'STRING', description: 'what to say to the user: short, natural, in their language. Never claim something was done unless you put it in actions.' },
     actions: { type: 'ARRAY', items: { type: 'OBJECT', properties: {
       type: { type: 'STRING', enum: ACTION_TYPES },
@@ -246,7 +253,7 @@ export const AGENT_SCHEMA = {
         label: { type: 'STRING', description: 'a short name, e.g. "Skyr with banana"' }, foods: { type: 'ARRAY', items: AGENT_FOOD }, totals: NUTRI('approximate totals for this option'),
       }, required: ['label', 'foods'] } },
       meal: { type: 'STRING', nullable: true, description: 'meal name if the user said one (breakfast, lunch, dinner, snacks…)' },
-      day: { type: 'STRING', nullable: true, description: 'today, yesterday, or a date YYYY-MM-DD (work it out from "Today" in DATA)' },
+      day: { type: 'STRING', nullable: true, description: 'today, yesterday, or a date YYYY-MM-DD (work it out from "Today" in DATA). plan_day: today, tomorrow or a date' },
       day_to: { type: 'STRING', nullable: true, description: 'move_food/copy_food: destination day (today, yesterday or YYYY-MM-DD)' },
       meal_from: { type: 'STRING', nullable: true, description: 'the meal the item is in now (breakfast, lunch, dinner, snacks…)' },
       meal_to: { type: 'STRING', nullable: true, description: 'move_food/copy_food: destination meal' },
@@ -264,13 +271,16 @@ export const AGENT_SCHEMA = {
       exercise: { type: 'STRING', nullable: true, description: 'edit_set: the exercise. remember: the catalog exercise it is about, if any. show_exercise: the catalog exercise to show' }, workout: { type: 'STRING', nullable: true, description: 'edit_set/delete_workout: current, last, a date YYYY-MM-DD, or a workout name' },
       set_number: { type: 'INTEGER', nullable: true, description: '1-based set number as listed in DATA' }, reps: { type: 'INTEGER', nullable: true }, delete_set: { type: 'BOOLEAN', nullable: true, description: 'edit_set: true to delete that set' }, remove: { type: 'ARRAY', nullable: true, items: { type: 'STRING' }, description: 'edit_routine: exercise names to take out of the routine' },
       from: { type: 'STRING', nullable: true }, to: { type: 'STRING', nullable: true },
-      add: BIT, change: BIT, rename: { type: 'STRING', nullable: true },
+      add: { ...BIT, description: 'create_routine / edit_routine: exercises to add. plan_day: the exercises for that day, chosen from the ones they actually do (look up exercises for the muscles first)' }, change: BIT, rename: { type: 'STRING', nullable: true },
+      focus: { type: 'ARRAY', nullable: true, items: { type: 'STRING' }, description: 'plan_day: the muscles to train, most important first (chest, triceps…)' },
+      light: { type: 'ARRAY', nullable: true, items: { type: 'STRING' }, description: 'plan_day: muscles they want only a little of ("with some shoulder")' },
       weekday: { type: 'INTEGER', nullable: true, description: '0 = Sunday … 6 = Saturday (set_schedule, plan_activity; move_workout: the day it moves TO)' },
       from_weekday: { type: 'INTEGER', nullable: true, description: 'move_workout: the day it is planned on now, if said' },
       once: { type: 'BOOLEAN', nullable: true, description: 'move_workout: true = only this week ("this week", "tomorrow"), false = the weekly plan from now on' },
       which: { type: 'STRING', nullable: true, enum: ['current', 'last'], description: 'log_current_set: current = the set they are on now (it gets ticked), last = the set they just finished' }, text: { type: 'STRING', nullable: true, description: 'add_note: the note. remember: one short third-person line, e.g. "Doesn\'t do a separate leg day; wrestling covers legs."' },
       memory: { type: 'STRING', nullable: true, description: 'forget: the number of the MEMORY line to drop, e.g. "3"' },
       target: { type: 'STRING', nullable: true, description: 'edit_food / delete_food: the logged item\'s name exactly as in DATA' },
+      ref: { type: 'STRING', nullable: true, description: 'edit_food / delete_food / move_food / copy_food / replace_food: the item\'s [ref …] id from an earlier card or DATA, when it is about one exact item ("it", "that", "the banana I just logged")' },
       amount: { type: 'NUMBER', nullable: true, description: 'edit_food: the corrected amount' }, unit: { type: 'STRING', nullable: true, description: 'edit_food: unit of amount (g, ml, kg, l, piece)' },
       per100: NUTRI('edit_food: corrected label values per 100 g/ml (only the ones the user gave)'),
       totals: NUTRI('edit_food on a quick entry: corrected totals for the entry'),
@@ -303,7 +313,7 @@ export async function aiAgent(system: string, contents: Turn[], brain: Brain, ph
 }
 
 /** The agent's schema with the reply FIRST, so when it is streamed the words to show arrive before the actions. */
-export const AGENT_SCHEMA_STREAM = { ...AGENT_SCHEMA, propertyOrdering: ['reply', 'actions'] };
+export const AGENT_SCHEMA_STREAM = { ...AGENT_SCHEMA, propertyOrdering: ['lookups', 'reply', 'actions'] };
 
 /**
  * The "reply" text of a JSON answer that is still arriving, decoded so far. `{"reply": "You trained 3 tim` → "You trained 3 tim".

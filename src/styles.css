@@ -2241,3 +2241,8 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 .dict-thread .dt-a { height: 2.4px; border-radius: 2px; background: linear-gradient(to right, transparent, var(--ac) 28%, var(--ac-2) 50%, var(--ac) 72%, transparent); }
 .dict-thread .dt-c { height: 1.6px; bottom: .4px; border-radius: 1px; background: linear-gradient(to right, transparent, #fff 50%, transparent); }
 :root[data-theme='light'] .dict-thread .dt-c { background: linear-gradient(to right, transparent, color-mix(in srgb, var(--ac) 40%, #fff) 50%, transparent); }
+
+/* the Coach looking something up in the data: a quiet line under the typing dots, fading in calmly */
+.coach-looking { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.coach-look { padding-left: 4px; animation: thinkIn 0.6s var(--ease-out) backwards; }
+@media (prefers-reduced-motion: reduce) { .coach-look { animation: none; } }

@@ -14,9 +14,10 @@ import { transcribe, buildPrompt, STT_MODEL, SttError } from '../lib/groq';
 import { aiErrorText, type Photo, type Turn } from '../lib/gemini';
 import { stopSpeaking } from '../lib/tts';
 import { decide, brainFor } from '../lib/agentTurn';
-import { ActionCard, Rich, TypingDots, SpeakButton, prefetchAloud, sttMessage, useCoachTips, cardsNote, useWordReveal } from '../ui/agentUi';
+import { ActionCard, Rich, TypingDots, SpeakButton, prefetchAloud, sttMessage, useCoachTips, useWordReveal } from '../ui/agentUi';
 import { runActions, type AgentResult } from '../lib/agent';
 import { uid } from '../lib/nutrition';
+import { onThreadChange, readThread, threadSaid, threadTurns, writeThread, type ThreadMsg } from '../lib/thread';
 import { dayKey } from '../lib/dates';
 import { blobToBase64, downscale } from '../lib/photos';
 
@@ -72,26 +73,22 @@ const morphVars = { '--cf-x': `${CF_X}px`, '--cf-max': `${CF_MAX}px`, '--cf-ease
   '--cf-ease-c': MORPH_BACK.easing, '--cf-dur-c': `${MORPH_BACK.duration}ms`, '--cf-ease-k': CLOSE.easing, '--cf-dur-k': `${CLOSE.duration}ms`, '--cf-delay-k': `${CLOSE.delay}ms`, ...growVars } as React.CSSProperties;
 
 type Msg =
-  | { id: string; role: 'user' | 'model'; text: string; streaming?: boolean; seeded?: boolean; /** a quiet line under the answer (which AI answered, and why) */ note?: string; /** when it was said */ at?: number; /** a photo was sent with it (its picture stays only while the Coach is open) */ photo?: boolean; image?: string; /** typed: its lines as they wrapped in the field (the bubble keeps them) */ lines?: string[] }
+  | { id: string; role: 'user' | 'model'; text: string; streaming?: boolean; /** while it looks something up in the data */ status?: string; seeded?: boolean; /** a quiet line under the answer (which AI answered, and why) */ note?: string; /** when it was said */ at?: number; /** a photo was sent with it (its picture stays only while the Coach is open) */ photo?: boolean; image?: string; /** typed: its lines as they wrapped in the field (the bubble keeps them) */ lines?: string[] }
   | { id: string; role: 'error'; text: string }
   | { id: string; role: 'action'; results: AgentResult[]; undone: string[]; confirmed: string[] }
 
-const THREAD = 'aven.coach';
 /** How many of the newest saved messages are built on the tap that opens the Coach (the rest follow, see `older`). */
 const TAIL = 6;
 /** The Coach conversation as it was left (cards come back without their Undo: that only works right after the change). */
 function loadThread(): Msg[] {
   try {
-    const v = JSON.parse(localStorage.getItem(THREAD) || '[]');
-    return (Array.isArray(v) ? v : []).filter((m: any) => m && typeof m.id === 'string' && ['user', 'model', 'action', 'error'].includes(m.role))
+    return (readThread() as any[])
       .map((m: any) => (m.role === 'user' || m.role === 'model' ? { ...m, seeded: true, streaming: false, lines: Array.isArray(m.lines) && m.lines.every((l: unknown) => typeof l === 'string') ? m.lines : undefined }
         // a card's buttons were functions: they don't survive the trip, so a restored card has none (no dead buttons)
         : m.role === 'action' ? { ...m, results: (Array.isArray(m.results) ? m.results : []).map((r: any) => ({ ...r, button: undefined, more: undefined, undo: undefined })) } : m));
   } catch { return []; }
 }
-function saveThread(list: Msg[]) {
-  try { localStorage.setItem(THREAD, JSON.stringify(list.slice(-60).map((m) => ('image' in m && m.image ? { ...m, image: undefined } : m)))); } catch { /* storage full: the chat just won't come back */ }
-}
+const saveThread = (list: Msg[]) => writeThread(list as ThreadMsg[]);
 
 /**
  * Where the list rests at its end: its last line just above the typing bar, wherever the keyboard is. While the keyboard
@@ -114,7 +111,7 @@ function CoachReply({ m }: { m: Extract<Msg, { role: 'user' | 'model' }> }) {
   // the typing dots don't vanish when the first word comes: they melt away over it (and are then taken out)
   const typed = useRef(!shown);
   const [dotsGone, setDotsGone] = useState(false);
-  if (!shown) return <TypingDots />;
+  if (!shown) return m.status ? <div className="coach-looking"><TypingDots /><div key={m.status} className="xs t3 coach-look">{m.status}</div></div> : <TypingDots />;
   return (
     <div className="coach-answer">
       {typed.current && !dotsGone && <div className="typing typing-out" aria-hidden onAnimationEnd={(e) => { if (e.target === e.currentTarget) setDotsGone(true); }}><i /><i /><i /></div>}
@@ -170,6 +167,9 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   const lastScroll = useRef(0);
   const alive = useRef(true);
   const msgsRef = useRef<Msg[]>([]); msgsRef.current = msgs;
+  // the orb screen added to the conversation while the Coach is open underneath: show it (and never save over it)
+  const busyRef = useRef(false); busyRef.current = busy;
+  useEffect(() => onThreadChange(() => { if (busyRef.current) return; const next = loadThread(); msgsRef.current = next; setMsgs(next); }), []);
 
   useEffect(() => { alive.current = true; return () => { alive.current = false; clearing.current?.cancel(); stopSpeaking(); ctl.current?.abort(); mic.release('coach'); for (const m of msgsRef.current) if ('image' in m && m.image) URL.revokeObjectURL(m.image); }; }, []);
   // The older messages are added above what you are looking at, and it stays exactly where it is.
@@ -637,27 +637,14 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   const autoClose = useRef(!!props.listen); // a command spoken from the orb slips away once it has been done
   const recRef = useRef<() => void>(() => {});
 
-  /** The conversation so far as the model sees it (cards become a one-line note of what was done). */
-  const turnsFor = (text: string): Turn[] => {
-    const out: Turn[] = [];
-    const push = (role: 'user' | 'model', t: string) => { if (!t.trim()) return; const last = out[out.length - 1]; if (last && last.role === role) last.parts[0].text += `\n${t}`; else out.push({ role, parts: [{ text: t }] }); };
-    const today = dayKey(Date.now(), useStore.getState().settings.dayStartHour);
-    for (const m of msgsRef.current) {
-      // something said on an earlier day is marked so, so "today" in an old message isn't taken for today
-      const old = m.role === 'user' && m.at && dayKey(m.at, useStore.getState().settings.dayStartHour) !== today ? `(said on ${dayKey(m.at, useStore.getState().settings.dayStartHour)}) ` : '';
-      if (m.role === 'user' || m.role === 'model') push(m.role, old + (m.role === 'user' && m.photo ? `[photo] ${m.text}` : m.text));
-      else if (m.role === 'action') push('model', cardsNote(m.results, m.confirmed, m.undone));
-    }
-    push('user', text);
-    const tail = out.slice(-14);
-    return tail[0]?.role === 'model' ? tail.slice(1) : tail;
-  };
+  /** The conversation so far as the model sees it (cards become a one-line note of what was done, with each item's id). */
+  const turnsFor = (): Turn[] => threadTurns(msgsRef.current as ThreadMsg[], useStore.getState().settings.dayStartHour);
 
   const undoLast = () => {
     for (let i = msgsRef.current.length - 1; i >= 0; i--) {
       const m = msgsRef.current[i];
       if (m.role !== 'action') continue;
-      const r = [...m.results].reverse().find((x) => x.undo && !m.undone.includes(x.id) && !x.pending);
+      const r = [...m.results].reverse().find((x) => x.undo && !m.undone.includes(x.id) && (!x.pending || m.confirmed.includes(x.id)));
       if (r) { r.undo!(); setMsgs((x) => x.map((y) => (y.id === m.id && y.role === 'action' ? { ...y, undone: [...y.undone, r.id] } : y))); return; }
     }
   };
@@ -669,9 +656,9 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     const placeholder = uid('m');
     say({ id: placeholder, role: 'model', text: '', streaming: true });
     const where = props.mealId || props.date ? `The user opened this from the Food tab${props.date ? ` (day ${props.date})` : ''}${props.mealId ? `, meal ${props.mealId}` : ''}: foods go there unless they say otherwise.` : 'The user opened this from the main screen.';
-    const history = turnsFor(''); // the conversation so far (an empty text adds no turn)
+    const history = turnsFor(); // the conversation so far (the orb screen's turns included)
     // the answer streams in as the model writes it, into the same message that then stays (nothing re-mounts or re-animates)
-    const d = await decide(photo ? `[photo] ${text}` : text, { lang, t, pool, history, where, signal, surface: 'coach', photo, onReply: (r) => { if (alive.current) setMsgs((x) => x.map((m) => (m.id === placeholder && m.role === 'model' ? { ...m, text: r } : m))); } });
+    const d = await decide(photo ? `[photo] ${text}` : text, { lang, t, pool, history, where, signal, surface: 'coach', photo, said: threadSaid(msgsRef.current as ThreadMsg[]), onStatus: (x) => { if (alive.current) setMsgs((all) => all.map((m) => (m.id === placeholder && m.role === 'model' ? { ...m, status: x || undefined } : m))); }, onReply: (r) => { if (alive.current) setMsgs((x) => x.map((m) => (m.id === placeholder && m.role === 'model' ? { ...m, text: r } : m))); } });
     let { reply } = d; const { note, actions } = d;
     if (d.wantsUndo) { undoLast(); if (!actions.length && !reply) reply = t('Undone.'); }
     const results = actions.length ? await runActions(actions, { t, lang, today, brain: brainFor({ big: false, surface: 'coach', signal }), date: props.date, mealId: props.mealId }) : [];

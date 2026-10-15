@@ -11,6 +11,8 @@ await p.route('https://api.openai.com/**', async (r) => {
   const req = r.request(); const url = req.url();
   if (req.method() === 'OPTIONS') return r.fulfill({ status: 204, headers: cors });
   if (url.includes('/models/')) { calls.models++; return r.fulfill(json({ id: 'gpt-6.1-sol', object: 'model' })); }
+  // the key's model list: a newer model on the account is picked up by itself (smaller and pro variants are not)
+  if (/\/models$/.test(url)) { calls.list = (calls.list ?? 0) + 1; return r.fulfill(json({ data: ['gpt-6.1-sol', 'gpt-6.5', 'gpt-6.5-mini', 'gpt-6.5-pro', 'whisper-1'].map((id) => ({ id, object: 'model' })) })); }
   const body = JSON.parse(req.postData() || '{}');
   calls.responses.push({ effort: body.reasoning?.effort, stream: body.stream, store: body.store, model: body.model, auth: req.headers().authorization, strict: body.text?.format?.strict, last: [...body.input].reverse().find((m) => m.role === 'user')?.content });
   if (solMode === 'broke') return r.fulfill(json({ error: { code: 'insufficient_quota', message: 'You exceeded your current quota' } }, 429));
@@ -57,7 +59,7 @@ assert(await p.getByText(/Messages go to OpenAI/).isVisible(), 'the Coach says w
 await p.getByLabel('Message the Coach').fill('why am I stuck? plan my next week'); await p.getByRole('button', { name: 'Send', exact: true }).click(); await wait(p, 1800);
 assert(await p.getByText(/Sol here/).isVisible(), 'Sol answered in the Coach');
 let c = calls.responses.at(-1);
-assert.deepEqual([c.model, c.effort, c.stream, c.store, c.strict, c.auth], ['gpt-6.1-sol', 'high', true, false, true, 'Bearer sk-proj-TESTKEY_9999'], 'a planning question: Sol thinks as hard as the Coach setting allows, streamed, not stored');
+assert.deepEqual([c.model, c.effort, c.stream, c.store, c.strict, c.auth], ['gpt-6.5', 'high', true, false, true, 'Bearer sk-proj-TESTKEY_9999'], 'a planning question: the newest model on the key thinks as hard as the Coach setting allows, streamed, not stored');
 await p.getByLabel('Message the Coach').fill('bench 100 for 8'); await p.getByRole('button', { name: 'Send', exact: true }).click(); await wait(p, 2000);
 assert(await p.getByText('Logged 1 set').isVisible() || await p.getByText(/Logged/).first().isVisible(), 'Sol’s actions are carried out');
 await p.screenshot({ path: 'shots/sol-2-coach.png' });

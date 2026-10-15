@@ -14,6 +14,7 @@ import { decide, brainFor } from '../lib/agentTurn';
 import { runActions, type AgentResult } from '../lib/agent';
 import { dayKey } from '../lib/dates';
 import { uid } from '../lib/nutrition';
+import { appendExchange, markInThread, readThread, threadSaid, threadTurns } from '../lib/thread';
 import { SphereSlot, mirrorOrb, orbPress, orbTap, holdOrbSize } from '../ui/Sphere';
 import { mirrorProgress, useEngage } from '../ui/engage';
 import { kb, watchFocus } from '../ui/keyboard';
@@ -21,7 +22,7 @@ import { Veil, VOICE_VEIL, mirrorVeil } from '../ui/Veil';
 import { refreshBar, setBarFrost } from '../ui/statusBar';
 import { Icon } from '../ui/Icon';
 import { useOverlayZ } from '../ui/Sheet';
-import { ActionCard, RotatingHint, Rich, Words, SpeakButton, prefetchAloud, sttMessage, cardsNote, useWordReveal } from '../ui/agentUi';
+import { ActionCard, RotatingHint, Rich, Words, SpeakButton, prefetchAloud, sttMessage, useWordReveal } from '../ui/agentUi';
 import { stopSpeaking } from '../lib/tts';
 import { flyLogged } from '../ui/fly';
 import { apple, springCurve } from '../ui/motion';
@@ -29,7 +30,7 @@ import { apple, springCurve } from '../ui/motion';
 const refreshBarOn = (el: HTMLElement | null) => { if (el) refreshBar(); }; // the top band takes the status bar's current tint
 
 /** One thing you said and what the assistant did about it. `done` once the answer is complete (until then it streams in). */
-interface Turn1 { id: string; said: string; reply: string; results: AgentResult[]; undone: string[]; confirmed: string[]; done: boolean }
+interface Turn1 { id: string; said: string; reply: string; results: AgentResult[]; undone: string[]; confirmed: string[]; done: boolean; /** its cards in the shared conversation (lib/thread.ts) */ threadId?: string | null }
 
 /** How a sent message and the answer's cards settle: calm, a hint of spring, no wobble (iMessage). */
 const SEND = { type: 'spring', stiffness: 170, damping: 26, mass: 1 } as const; // calm: a soft rise, no hurry, no wobble
@@ -293,17 +294,10 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
     }
   }
 
-  /** The conversation so far, for the model (what was done becomes a one-line note). */
-  const history = (): Turn[] => {
-    const out: Turn[] = [];
-    for (const x of turnsRef.current.filter((y) => y.done).slice(-6)) {
-      out.push({ role: 'user', parts: [{ text: x.said }] });
-      const done = cardsNote(x.results, x.confirmed, x.undone, false);
-      const said = [x.reply, done].filter(Boolean).join('\n');
-      if (said) out.push({ role: 'model', parts: [{ text: said }] });
-    }
-    return out;
-  };
+  /** what it is looking up in the data right now (shown instead of "Thinking…") */
+  const [looking, setLooking] = useState('');
+  /** The conversation so far, for the model: the one shared with the Coach (what was said there, and here, in order). */
+  const history = (): Turn[] => threadTurns(readThread(), useStore.getState().settings.dayStartHour, 12);
 
   /** Understand what was said, do it, show it. */
   const act = async (text: string, id: string) => {
@@ -311,7 +305,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
     setErr(null); go('processing');
     ctl.current = new AbortController();
     const signal = ctl.current.signal;
-    const kill = setTimeout(() => ctl.current?.abort(), 30_000);
+    const kill = setTimeout(() => ctl.current?.abort(), 45_000); // a look-up in the data adds a round
     try {
       const where = props.mode === 'workout' && useStore.getState().active ? 'The user is in their running workout: sets go into it.'
         : props.mealId || props.date ? `The user came from the Food tab${props.date ? ` (day ${props.date})` : ''}${props.mealId ? `, meal ${props.mealId}` : ''}: foods go there unless they say otherwise.`
@@ -319,11 +313,12 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
       // the orb screen is spoken to, often mid-workout: one or two short sentences, not an article (the Coach chat keeps longer answers)
       const brief = ' They are speaking to the orb screen, probably mid-workout: answer in 1–2 short sentences (about 35 words), plain text, no bullet lists or headings — this overrides the usual reply length. If the question really needs more (a plan, a breakdown), give just the short answer: a “Continue in Coach” button sits under it, so never tell them to open the Coach.';
       // the answer streams in word by word as the model writes it (Gemini), under what you said
-      const d = await decide(text, { lang, t, pool, history: history(), where: where + brief, signal, surface: 'orb', onReply: (r) => { if (alive.current) patch(id, { reply: r }); } });
+      const d = await decide(text, { lang, t, pool, history: history(), where: where + brief, signal, surface: 'orb', said: threadSaid(readThread()), onStatus: (x) => { if (alive.current) setLooking(x); }, onReply: (r) => { if (alive.current) patch(id, { reply: r }); } });
       let reply = d.reply;
       if (d.wantsUndo) {
-        const last = [...turnsRef.current].reverse().find((x) => x.results.some((r) => r.undo && !x.undone.includes(r.id) && !r.pending));
-        if (last) { const r = [...last.results].reverse().find((x) => x.undo && !last.undone.includes(x.id) && !x.pending)!; r.undo!(); setTurns((all) => all.map((x) => (x.id === last.id ? { ...x, undone: [...x.undone, r.id] } : x))); }
+        const ok = (t1: Turn1, r: AgentResult) => !!r.undo && !t1.undone.includes(r.id) && (!r.pending || t1.confirmed.includes(r.id));
+        const last = [...turnsRef.current].reverse().find((x) => x.results.some((r) => ok(x, r)));
+        if (last) { const r = [...last.results].reverse().find((x) => ok(last, x))!; r.undo!(); markInThread(last.threadId, r.id, 'undone'); setTurns((all) => all.map((x) => (x.id === last.id ? { ...x, undone: [...x.undone, r.id] } : x))); }
         if (!d.actions.length && !reply) reply = t('Undone.');
       }
       const st = useStore.getState();
@@ -331,7 +326,9 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
       const results = d.actions.length ? await runActions(d.actions, { t, lang, today, brain: brainFor({ big: false, surface: 'orb', signal }), date: props.date, mealId: props.mealId }) : [];
       if (!alive.current) return;
       const said = [reply, d.note].filter(Boolean).join('\n\n');
-      patch(id, { reply: said, results, done: true });
+      // it joins the conversation the Coach shows too (so "move it to lunch" there knows what "it" is)
+      const threadId = appendExchange({ said: turnsRef.current.find((x) => x.id === id)?.said ?? text, reply: said, results });
+      patch(id, { reply: said, results, done: true, threadId });
       // green "Done" only when something was actually logged or changed; a plain answer just settles
       const acted = d.wantsUndo || results.some((r) => r.kind !== 'miss' && r.kind !== 'nav');
       if (acted) { haptic('success'); go('confirmed'); } else go('idle');
@@ -358,7 +355,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
       if (!alive.current) return;
       patch(id, { done: true });
       if (e?.code !== 'aborted') { setErr(aiErrorText(e, t)); go('error'); } else go('idle');
-    } finally { clearTimeout(kill); busy.current = false; }
+    } finally { clearTimeout(kill); busy.current = false; setLooking(''); }
   };
 
   const finish = async () => {
@@ -412,7 +409,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   const label = ({
     idle: showing ? '' : t('Tap the sphere and speak'), requesting: t('Starting the microphone…'), // with an answer up, the Say more button says it
     listening: engine === 'groq' ? t('Listening') : mic.active ? t('Listening') : t('Listening (no level meter)'),
-    processing: t('Thinking…'), confirmed: t('Done'), error: t('Couldn’t do that'), unavailable: t('Microphone unavailable'),
+    processing: looking || t('Thinking…'), confirmed: t('Done'), error: t('Couldn’t do that'), unavailable: t('Microphone unavailable'),
     review: t('Done'),
   } as Record<string, string>)[phase] ?? '';
   // tapping while the microphone is still starting cancels that start cleanly (teardown also invalidates the pending start, so
@@ -492,8 +489,8 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
                     {last.results.map((r, i) => (
                       <motion.div key={r.id} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ ...SEND, delay: 0.06 + i * 0.07 }}>
                         <ActionCard r={r} undone={last.undone.includes(r.id)} confirmed={last.confirmed.includes(r.id)}
-                          onUndo={() => { r.undo?.(); haptic('light'); setTurns((all) => all.map((x) => (x.id === last.id ? { ...x, undone: [...x.undone, r.id] } : x))); }}
-                          onConfirm={() => { r.button?.run(); haptic('confirm'); setTurns((all) => all.map((x) => (x.id === last.id ? { ...x, confirmed: [...x.confirmed, r.id] } : x))); }} />
+                          onUndo={() => { r.undo?.(); haptic('light'); markInThread(last.threadId, r.id, 'undone'); setTurns((all) => all.map((x) => (x.id === last.id ? { ...x, undone: [...x.undone, r.id] } : x))); }}
+                          onConfirm={() => { r.button?.run(); haptic('confirm'); markInThread(last.threadId, r.id, 'confirmed'); setTurns((all) => all.map((x) => (x.id === last.id ? { ...x, confirmed: [...x.confirmed, r.id] } : x))); }} />
                       </motion.div>
                     ))}
                   </div>
@@ -505,7 +502,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
                       // read it aloud (each word lights up as it is said), or take the question on in the Coach
                       <motion.div className="reply-foot" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ ...SEND, delay: 0.12 }}>
                         <SpeakButton id={last.id} text={last.reply} />
-                        <button className="cont-chip press" onClick={() => { stopSpeaking(); toCoach.current = true; useUI.getState().swap(1, 'coach', { seed: turnsRef.current.filter((x) => x.done && (x.said || x.reply)).slice(-4).map((x) => ({ said: x.said, reply: x.reply })) }); }}>
+                        <button className="cont-chip press" onClick={() => { stopSpeaking(); toCoach.current = true; useUI.getState().swap(1, 'coach', {}); /* this screen's turns are already in the shared conversation (lib/thread.ts) */ }}>
                           {t('Continue in Coach')} <Icon name="chevR" size={14} sw={2.2} />
                         </button>
                       </motion.div>

@@ -10,9 +10,44 @@
 import { AiError, AGENT_SCHEMA, ESTIMATE_SCHEMA, ESTIMATE_SYSTEM, PHOTO_SCHEMA, PHOTO_SYSTEM, parseSSE, partialReply, photoPrompt, readPhoto, type Photo, type Turn } from './gemini';
 import { validateEstimate, type FoodEstimate } from './aiValidate';
 import { recordUsage } from './spend';
+import { useAi } from '../state/ai';
 
 export const OPENAI_API = 'https://api.openai.com/v1';
+/** The model Aven was built and priced against; used until a newer one is found on the key (and never gone below). */
 export const OPENAI_MODEL = 'gpt-6.1-sol';
+/** The model to ask: chosen by hand in Settings, else the newest one found on the key, else OPENAI_MODEL. */
+export const solModel = (): string => { const m = useAi.getState().models; return m.sol || m.solAuto || OPENAI_MODEL; };
+
+/**
+ * The newest general GPT model in a key's model list: "gpt-<major>.<minor>" or "gpt-<major>.<minor>-sol". Smaller, older,
+ * dated, pro-priced and special-purpose variants (mini, nano, audio, search, codex…) are left out, and it never goes below
+ * the model Aven was built for. A newer model on the account is then used without an app update.
+ */
+export function pickSolModel(ids: string[]): string | null {
+  const ver = (id: string) => { const m = /^gpt-(\d+)(?:\.(\d+))?(-sol)?$/.exec(id); return m ? { v: Number(m[1]) * 100 + Number(m[2] ?? 0), sol: !!m[3] } : null; };
+  const floor = ver(OPENAI_MODEL)!.v;
+  let best: { id: string; v: number; sol: boolean } | null = null;
+  for (const id of ids) {
+    const x = ver(id);
+    if (!x || x.v < floor) continue;
+    if (!best || x.v > best.v || (x.v === best.v && x.sol && !best.sol)) best = { id, ...x };
+  }
+  return best?.id ?? null;
+}
+
+/** Look up the newest model on the key (at most once a day, or now with `force`). Quiet: a failure keeps what was there. */
+export async function refreshSolModel(key: string, force = false): Promise<string | null> {
+  const ai = useAi.getState();
+  if (!force && Date.now() - ai.solChecked < 24 * 3600_000) return ai.models.solAuto || null;
+  try {
+    const res = await fetch(`${OPENAI_API}/models`, { headers: { Authorization: `Bearer ${key}` } });
+    if (!res.ok) { useAi.getState().patch({ solChecked: Date.now() }); return null; } // not asked again until tomorrow
+    const data = await res.json();
+    const id = pickSolModel((Array.isArray(data?.data) ? data.data : []).map((m: any) => String(m?.id ?? '')));
+    useAi.getState().patch({ models: { ...useAi.getState().models, solAuto: id ?? '' }, solChecked: Date.now() });
+    return id;
+  } catch { return null; }
+}
 export type Effort = 'low' | 'medium' | 'high';
 export interface Sol { key: string; effort: Effort; signal?: AbortSignal }
 
@@ -45,7 +80,7 @@ const STRICT = new WeakMap<object, any>();
 const strict = (s: object) => { let v = STRICT.get(s); if (!v) { v = toStrictSchema(s); STRICT.set(s, v); } return v; };
 
 // ── transport ───────────────────────────────────────────────
-const fail = (code: ConstructorParameters<typeof AiError>[0], status = 0) => new AiError(code, status, { provider: 'openai', model: OPENAI_MODEL });
+const fail = (code: ConstructorParameters<typeof AiError>[0], status = 0) => new AiError(code, status, { provider: 'openai', model: solModel() });
 /** OpenAI's error body → one of the app's error codes. "insufficient_quota" means the account is out of credit. */
 export function openaiError(status: number, body: string): AiError {
   let code = ''; try { code = JSON.parse(body)?.error?.code || JSON.parse(body)?.error?.type || ''; } catch { /* not json */ }
@@ -86,7 +121,7 @@ const toInput = (turns: Turn[], photo?: Photo): Input => turns.map((x, i) => {
   return { role: x.role === 'model' ? 'assistant' : 'user', content: text };
 });
 const body = (o: { system: string; input: Input; schema: object; name: string; effort: Effort; stream?: boolean; maxTokens: number; cacheKey: string }) => ({
-  model: OPENAI_MODEL, instructions: o.system, input: o.input, stream: !!o.stream, store: false,
+  model: solModel(), instructions: o.system, input: o.input, stream: !!o.stream, store: false,
   reasoning: { effort: o.effort },
   text: { format: { type: 'json_schema', name: o.name, schema: strict(o.schema), strict: true } },
   // reasoning tokens count toward this, so it has room to think before it writes
@@ -169,7 +204,8 @@ export async function solEstimatePhoto(image: { mime: string; data: string }, so
 /** Settings → Test: can this key use GPT-6.1 Sol? ('nomodel': the key works but the model isn't enabled on the account.) */
 export async function testOpenaiKey(key: string): Promise<'ok' | 'bad' | 'nomodel' | 'offline' | string> {
   try {
-    const res = await fetch(`${OPENAI_API}/models/${OPENAI_MODEL}`, { headers: { Authorization: `Bearer ${key}` } });
+    await refreshSolModel(key, true);
+    const res = await fetch(`${OPENAI_API}/models/${solModel()}`, { headers: { Authorization: `Bearer ${key}` } });
     if (res.ok) return 'ok';
     if (res.status === 401 || res.status === 403) return 'bad';
     if (res.status === 404) return 'nomodel';

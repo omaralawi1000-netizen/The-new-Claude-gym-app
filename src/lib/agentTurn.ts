@@ -2,11 +2,12 @@ import { useAi, solOn } from '../state/ai';
 import { useStore } from '../state/store';
 import { getKey } from './keys';
 import { AiError, FALLBACK_MODELS, aiAgent, aiAgentStream, type Brain, type Photo, type Turn } from './gemini';
-import { solAgent, type Effort } from './openai';
+import { refreshSolModel, solAgent, type Effort } from './openai';
 import { solThenGemini } from './brain';
 import { overLimit } from './spend';
 import { AGENT_SYSTEM, APP_GUIDE, buildAgentContext, buildTodayContext, exerciseNames, memoryBlock } from './coachContext';
 import { localActions, validateAgent, type AgentAction } from './agent';
+import { lookupStatus, runLookups, validateLookups, type SaidLine } from './agentLookup';
 import { mealName } from './derive';
 import { dayKey } from './dates';
 import type { Exercise, Lang } from './types';
@@ -25,6 +26,7 @@ export function brainFor(o: { big: boolean; surface: 'orb' | 'coach'; signal?: A
   const g = useAi.getState();
   // past this month's spending limit Sol rests and Gemini answers (decide() says so)
   const sol = solOn(g) && !overLimit(g.solLimitKr) ? { key: getKey('openai'), effort: o.surface === 'coach' ? g.effortCoach : g.effortOrb } : undefined;
+  if (sol?.key) void refreshSolModel(sol.key); // a newer model on the account is picked up (at most one look a day)
   if (!sol && !g.hasGemini) return null;
   return { key: g.hasGemini ? getKey('gemini') : '', models: agentModels(o.big), signal: o.signal, sol };
 }
@@ -44,6 +46,9 @@ export function effortFor(text: string, setting: Effort, photo = false): Effort 
   return words > 40 ? cap('medium') : 'low';
 }
 
+/** Rounds per message: up to two rounds of look-ups, then the answer. */
+const MAX_ROUNDS = 3;
+
 export interface Decision { reply: string; note: string; actions: AgentAction[]; wantsUndo: boolean }
 
 /**
@@ -51,7 +56,9 @@ export interface Decision { reply: string; note: string; actions: AgentAction[];
  * app guide and a summary of the live data; otherwise — or if the AI fails — the built-in reader for simple logging. It only DECIDES:
  * the caller runs the actions (runActions) and shows them with Undo. Shared by the Coach chat and the orb screen.
  */
-export async function decide(text: string, o: { lang: Lang; t: (k: string, v?: Record<string, string | number>) => string; pool: Exercise[]; history: Turn[]; where: string; signal: AbortSignal; /** the orb thinks fast (medium), the Coach deeper (high) */ surface: 'orb' | 'coach'; /** the reply so far, while the model is still writing it (the orb screen streams it in) */ onReply?: (partial: string) => void; /** a photo sent with this message (the Coach's camera) */ photo?: Photo }): Promise<Decision> {
+export async function decide(text: string, o: { lang: Lang; t: (k: string, v?: Record<string, string | number>) => string; pool: Exercise[]; history: Turn[]; where: string; signal: AbortSignal; /** the orb thinks fast (medium), the Coach deeper (high) */ surface: 'orb' | 'coach'; /** the reply so far, while the model is still writing it (the orb screen streams it in) */ onReply?: (partial: string) => void; /** a photo sent with this message (the Coach's camera) */ photo?: Photo;
+  /** a few words while it looks something up in the data ("Looking at your bench press history…"); '' when done */ onStatus?: (s: string) => void;
+  /** the whole saved conversation, for the `conversations` look-up (what they said before) */ said?: SaidLine[] }): Promise<Decision> {
   const st = useStore.getState();
   const g = useAi.getState();
   const { t, lang } = o;
@@ -74,11 +81,25 @@ export async function decide(text: string, o: { lang: Lang; t: (k: string, v?: R
       const system = `${AGENT_SYSTEM(lang)}\n\nGUIDE:\n${APP_GUIDE}\n\nEXERCISE CATALOG (use these exact names): ${exerciseNames(o.pool).join(', ')}\n\n${memoryBlock(st, (id) => names.get(id) ?? id)}\n\nWHERE THE USER IS: ${o.where}\n\nDATA (computed on this device just now):\n${buildTodayContext(st, today, new Date(), (id) => byId.get(id), (id) => names.get(id) ?? id)}\n\n${buildAgentContext(st, today, (id) => names.get(id) ?? id, mealLabel, (id) => muscles.get(id))}`;
       const conv: Turn[] = [...o.history, { role: 'user', parts: [{ text }] }];
       // streamed when someone is watching the words arrive; a request the API refuses to stream is asked again the plain way
-      const gemini = () => (o.onReply
-        ? aiAgentStream(system, conv, brain, o.onReply, o.photo).catch((e) => { if (e?.code === 'badrequest') return aiAgent(system, conv, brain, o.photo); throw e; })
-        : aiAgent(system, conv, brain, o.photo));
-      const { value: raw, fellBack } = await solThenGemini(brain, (sol) => solAgent(system, conv, { ...sol, signal: o.signal }, o.onReply, o.photo), () => { o.onReply?.(''); return gemini(); });
-      if (fellBack) note = fellBack.code === 'quota' ? t('Your OpenAI account is out of credit, so Gemini answered.') : t('GPT-6.1 Sol wasn’t available, so Gemini answered.');
+      const gemini = (sys: string) => (o.onReply
+        ? aiAgentStream(sys, conv, brain, o.onReply, o.photo).catch((e) => { if (e?.code === 'badrequest') return aiAgent(sys, conv, brain, o.photo); throw e; })
+        : aiAgent(sys, conv, brain, o.photo));
+      // Up to three rounds: the model may first ask to look something up in the data (any day, any lift, the whole plan…),
+      // the phone answers at once, and the model is asked again with the results. The last round must answer.
+      let raw: any = null, found = '';
+      for (let round = 0; round < MAX_ROUNDS; round++) {
+        const last = round === MAX_ROUNDS - 1;
+        const sys = system + (found ? `\n\nLOOKUP RESULTS (you asked for these in this turn; answer from them, do not ask for them again):\n${found}` : '') + (last && round > 0 ? '\n\nNo more look-ups this turn: answer now with what you have, and say if something is still unknown.' : '');
+        const r = await solThenGemini(brain, (sol) => solAgent(sys, conv, { ...sol, signal: o.signal }, o.onReply, o.photo), () => { o.onReply?.(''); return gemini(sys); });
+        if (r.fellBack) note = r.fellBack.code === 'quota' ? t('Your OpenAI account is out of credit, so Gemini answered.') : t('GPT-6.1 Sol wasn’t available, so Gemini answered.');
+        raw = r.value;
+        const look = last ? [] : validateLookups((raw as any)?.lookups);
+        if (!look.length) break;
+        o.onReply?.(''); // anything it wrote beside the look-up is not the answer
+        o.onStatus?.(lookupStatus(look, t));
+        found += (found ? '\n\n' : '') + runLookups(st, look, { today, lang, pool: o.pool, mealLabel, said: o.said });
+      }
+      o.onStatus?.('');
       const v = validateAgent(raw);
       if (!v) throw new AiError('invalid');
       reply = v.reply; actions = v.actions;

@@ -2174,3 +2174,36 @@ takes away the keyboard's room (`--kb-room`, ui/Sheet.tsx) once its keyboard val
 first frame on the way UP also reads 0: when that frame came right after the room was made, the room went again. The room
 now goes only when the keyboard is heading down (`keyboardGoal() === 0`). Slowed ride probe: up to 5 of 6 failed before,
 20 of 20 pass after.
+
+## Coach 2.0, phase 1: it knows everything and follows the conversation (15 Oct 2026, v0.1.133)
+
+Omar wants the Coach to be an agent over the whole app. The plan is in `docs/coach-plan.md`; this is phase 1.
+
+- **Look-ups** (`src/lib/agentLookup.ts`): every request still carries the short summary (a week of food, the last workouts,
+  top lifts), but the model can now ask for anything else and the phone answers at once from its own data: food on any day or
+  by name over months, daily nutrition, workouts in any range, the whole history of one lift (best set, e1RM per session,
+  what to do next), records and stalls, weigh-ins and measurements, wrestling and other activities, sets per muscle, the
+  whole plan and the next 14 days, routines in full, exercises by muscle (English or Danish words) or equipment with the ones
+  he does first, saved food, settings, memory, day notes and what he said before. `decide()` runs up to three rounds: look
+  up, look up again if needed, answer. While it looks, the Coach shows "Looking at your bench press history…" under the
+  typing dots; the orb shows it instead of "Thinking…". Each answer is capped at ~6,000 characters. Nothing extra leaves the
+  phone: the results go to the same AI as the rest of the turn, and API keys never appear in them.
+- **"It" is the exact item**: every food on a card and in today's DATA carries its id (`[ref e_…]`), the cards' notes in the
+  conversation keep it, and `edit_food` / `delete_food` / `move_food` / `copy_food` / `replace_food` take `ref`. "Log a
+  banana" → "move it to lunch" → "make it two" changes exactly that banana, even with another banana in breakfast. A ref
+  that is gone falls back to the name.
+- **One conversation** (`src/lib/thread.ts`): what is said at the orb screen joins the Coach's saved chat (and shows there);
+  both build what the model sees from it. Undo and Apply at the orb are written back. "Continue in Coach" no longer copies
+  the turns (they are already there).
+- **Plan a day** (`plan_day`, `src/lib/planDay.ts`): "chest and triceps with some shoulder tomorrow" → the model looks up his
+  exercises for those muscles and sends the day; without a list the app picks itself (the first muscle 3 exercises, the
+  others 2, "some" 1; most done, then most recent; anything memory says hurts is left out). Each exercise gets the sets and
+  reps from his routines and the progression target from his history. A preview card; Apply makes a routine for that day and
+  places it as a one-off (the weekly plan is untouched); Undo takes both back, also by voice. A hard leg day before a planned
+  wrestling day gets a warning line.
+- **Newest model by itself**: the OpenAI model is picked from the key's model list once a day (`pickSolModel`): the newest
+  `gpt-X.Y` or `gpt-X.Y-sol`, never mini/nano/pro/dated variants and never below GPT-6.1 Sol. Settings → Voice & AI → Model pins
+  one. Spending is still estimated at GPT-6.1 Sol prices.
+- Checks: `tests/coach2.test.ts` (17 tests), `scripts/journey-coach2.mjs` (stubbed Gemini: look-up round trip, orb → Coach
+  "move it to lunch", plan → Apply → Undo), `journey-sol` now also proves a newer model on the key is used.
+- Known, not from this change: `journey-coach` fails on the unchanged app too ("the copy hands over to the real bubble").
