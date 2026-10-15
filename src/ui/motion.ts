@@ -39,7 +39,7 @@ export const KEYBOARD = { type: 'spring', stiffness: 760, damping: 54, mass: 1, 
 // screen's full rate. `springCurve` turns a spring into a CSS linear() easing + duration by simulating it, so a browser-run
 // animation follows exactly the curve the script spring follows (same physics, same start velocity).
 
-type Spring = { stiffness: number; damping: number; mass?: number };
+export type Spring = { stiffness: number; damping: number; mass?: number };
 const curveCache = new Map<string, { easing: string; duration: number }>();
 const sampleCache = new Map<string, { xs: number[]; duration: number }>();
 /** A spring going 0 → 1 with initial velocity v0 (in progress units per second), sampled `hz` times a second (60 or 120):
