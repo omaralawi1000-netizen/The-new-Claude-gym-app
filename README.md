@@ -1894,7 +1894,7 @@ the workout window: the phone draws CSS gradients and blur output in whole 8-bit
   - Darks: the darkest fifth now matches the old look within 0.25 of a step (was 0.6-0.8 lighter); the grain in the
     pictures matches the CSS grain's size and strength.
   - Pictures are written with `putImageData`: drawing kept bitmaps into GPU canvases made the chip keep a copy of each
-    (round 3: a bitmap made ready ahead is drawn once and closed at once, which keeps no copy).
+    (round 3: even one drawn once and closed straight after does).
 - Classic's field (Glow round 2: opaque, swaying) is painted opaque too; its top tint stays the CSS strip, since the
   field moves under it.
 - Cost against Glow round 2 (software GPU, his screen; `chip` = all graphics memory counted once): equal or less
@@ -1909,9 +1909,9 @@ the workout window: the phone draws CSS gradients and blur output in whole 8-bit
     styles during the switch (the old way) made the browser redo the whole page's styles for each glow. Lab, 4x slower
     CPU, base and branch in one run: busy 131 → 138 ms (medians), every switch a cache hit.
   - Tab switch: each tab brings a new field; its plan (painted ahead with the other tabs) is looked up without reading the
-    page, and its picture drawn from a bitmap made ready ahead (drawn once, then let go; the worker paints the tab just
-    left again once the switch has played). Lab at 4x: about 40 → 3 ms of glow work per tap. The switch's animations end
-    at the same time as on base.
+    page, and its kept picture written in. Lab at 4x: about 40 → 10-20 ms of glow work per tap (most of it the write).
+    Bitmaps made ready ahead were quicker (3 ms) but left copies on the graphics chip (+20 MB after six switches), so
+    they are not used. The switch's animations end at the same time as on base.
   - Glows that move by themselves (`SelfGlow`: Orb light, orb screen halo, Sunrise sun, workout top) are background
     images now, like `ImgGlow`: no canvas, no layer (Orb light 64-66 layers on base → 63 on every run).
   - Field elements keep their CSS background colour (no layer change at the end of a theme switch).

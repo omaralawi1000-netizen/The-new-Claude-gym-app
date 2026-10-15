@@ -80,19 +80,24 @@ const keptBytes = () => {
   for (const f of files.values()) bytes += f.bytes;
   return bytes;
 };
+/** pictures painted on the chance they're needed (the other tabs' fields), not yet shown: let go before the rest, so the
+ * pictures of the glows on the page, in both themes, stay (one let go made a switch back paint on the page: half a second
+ * on a slow phone) */
+const ahead = new Set<string>();
 function trim(keepKey: string) {
   let bytes = keptBytes();
-  // oldest first, pixels before files (files are small, and slow to make again)
-  for (const [k, v] of kept) { if (bytes <= KEEP_BYTES) return; if (k === keepKey) continue; bytes -= sizeOf(v); kept.delete(k); }
+  // oldest first, those painted ahead first, pixels before files (files are small, and slow to make again)
+  for (const [k, v] of kept) { if (bytes <= KEEP_BYTES) return; if (k === keepKey || !ahead.has(k)) continue; bytes -= sizeOf(v); kept.delete(k); ahead.delete(k); }
+  for (const [k, v] of kept) { if (bytes <= KEEP_BYTES) return; if (k === keepKey) continue; bytes -= sizeOf(v); kept.delete(k); ahead.delete(k); }
   for (const [k, f] of files) {
     if (bytes <= KEEP_BYTES) return;
     if (k === keepKey || shownUrls.get(f.url)) continue;
     bytes -= f.bytes; URL.revokeObjectURL(f.url); files.delete(k);
   }
 }
-function keep(key: string, pics: ImageData[]) { kept.delete(key); kept.set(key, pics); trim(key); }
+function keep(key: string, pics: ImageData[], maybe = false) { kept.delete(key); kept.set(key, pics); if (maybe) ahead.add(key); else ahead.delete(key); trim(key); }
 /** the pictures kept for `key` (and, by default, marks them as just used) */
-export const recall = (key: string, touch = true) => { const v = kept.get(key); if (v && touch) { kept.delete(key); kept.set(key, v); } return v; };
+export const recall = (key: string, touch = true) => { const v = kept.get(key); if (v && touch) { kept.delete(key); kept.set(key, v); ahead.delete(key); } return v; };
 /** an image file kept for `key` (marked as just used) */
 export function recallFile(key: string): string | undefined {
   const f = files.get(key); if (!f) return undefined;
@@ -117,8 +122,9 @@ export const planKey = (jobs: GlowJob[], extra = '') => JSON.stringify(jobs, (k,
 
 /** Paints a plan's pictures in the worker (once; later calls with the same key get the same pictures) */
 const painting = new Map<string, Promise<ImageData[] | null>>();
-export function paintPlan(plan: GlowPlan): Promise<ImageData[] | null> {
-  const hit = recall(plan.key); if (hit) return Promise.resolve(hit);
+/** `maybe`: painted on the chance it's needed (see `ahead`) */
+export function paintPlan(plan: GlowPlan, maybe = false): Promise<ImageData[] | null> {
+  const hit = recall(plan.key, !maybe); if (hit) return Promise.resolve(hit);
   let p = painting.get(plan.key);
   if (!p) {
     p = (async () => {
@@ -126,7 +132,7 @@ export function paintPlan(plan: GlowPlan): Promise<ImageData[] | null> {
       if (!jobs) return null;
       const pics = await Promise.all(jobs.map(paint));
       if (pics.some((b) => !b)) return null;
-      keep(plan.key, pics as ImageData[]);
+      keep(plan.key, pics as ImageData[], maybe);
       return pics as ImageData[];
     })().catch(() => null).finally(() => painting.delete(plan.key));
     painting.set(plan.key, p);
@@ -197,7 +203,7 @@ type Twin = { el: () => HTMLElement | null; whole: (el: HTMLElement) => HTMLElem
 export const rootKey = (root: Element = document.documentElement) =>
   [...root.attributes].filter((a) => a.name.startsWith('data-')).map((a) => `${a.name}=${a.value}`).sort().join(' ');
 export const hostKey = (el: Element) => [...el.attributes].filter((a) => !/^data-(dith|still|top)/.test(a.name))
-  .map((a) => `${a.name}=${a.name === 'style' ? a.value.replace(/(^|;)\s*(--glow-img|opacity|transform|--gone)\s*:[^;]*/g, '') : a.value}`).join(' ');
+  .map((a) => `${a.name}=${a.name === 'style' ? a.value.split(';').map((d) => d.trim()).filter((d) => d && !/^(--glow-img|opacity|transform|--gone)\s*:/.test(d)).join(';') : a.value}`).filter((t) => t !== 'style=').join(' ');
 /** a glow's plans by state (the newest dozen) */
 export class Plans {
   constructor(private max = 12) {}
@@ -340,18 +346,41 @@ export function useGlowCanvases(host: () => HTMLElement | null, refs: RefObject<
      * new picture starts the canvas afresh (its size set anew), so the buffer of the picture before is let go, not kept to
      * draw into next time: one copy of the picture on the graphics chip, as the CSS had */
     const put = (plan: GlowPlan, pics: ImageData[]) => {
+      const sp = spare?.key === plan.key ? spare : null;
       plan.jobs.forEach((job, i) => {
         const cv = refs[i]?.current; if (!cv) return;
         cv.width = 1; cv.width = job.w; cv.height = job.h;
-        // (written straight in: drawing bitmaps made ready ahead was quicker, but left a copy of each on the graphics chip,
-        // +20 MB after a few tab switches; a canvas kept in memory took longer to write)
         const g = cv.getContext('2d', { alpha: !job.base }) as CanvasRenderingContext2D | null; if (!g) return;
-        g.putImageData(pics[i], 0, 0);
+        if (sp?.cvs[i]) g.drawImage(sp.cvs[i], 0, 0); else g.putImageData(pics[i], 0, 0);
         drawn.add(cv);
       });
+      const left = real;
       real = plan.key;
       shown(true);
+      // (the picture just left is written into the spare, for a switch back)
+      if (left && left !== real) { const k = left; unIdle(prepping); prepping = whenIdle(() => prep(k), 3000); }
     };
+    /**
+     * The theme just left, written ahead into a spare canvas of the same size off the page, so a switch back only copies it
+     * across on the graphics chip (writing the pixels in took the switch 10-20 ms on a slow phone). One spare per glow, made
+     * once and written again each time (bitmaps made ready instead left a copy of each on the chip: +20 MB after a few tab
+     * switches); let go in the background.
+     */
+    let spare: { key: string; cvs: OffscreenCanvas[] } | null = null, prepping = 0;
+    const prep = (key: string) => {
+      const pics = recall(key, false);
+      if (!alive || lost || !pics || key === real || spare?.key === key || typeof OffscreenCanvas === 'undefined') return;
+      try {
+        const cvs = pics.map((d, i) => {
+          const c = spare?.cvs[i] ?? new OffscreenCanvas(d.width, d.height);
+          c.width = d.width; c.height = d.height;
+          c.getContext('2d')!.putImageData(d, 0, 0);
+          return c;
+        });
+        spare = { key, cvs };
+      } catch { spare = null; }
+    };
+    const dropSpare = () => { if (spare) for (const c of spare.cvs) { c.width = 0; c.height = 0; } spare = null; };
     const plan = (on: HTMLElement) => { try { return describe(on); } catch { return null; } };
     const plans = new Plans();
     let size = `${el.clientWidth}x${el.clientHeight}`, verify = 0, defer = 0, late = 0, onScreen = true;
@@ -393,17 +422,17 @@ export function useGlowCanvases(host: () => HTMLElement | null, refs: RefObject<
       const p = plan(copy); if (!p) return;
       plans.set(state(rk), p);
       if (share) sharedPlans.set(shared(rk), p);
-      void paintPlan(p);
+      void paintPlan(p).then((got) => { if (got && onScreen) { unIdle(prepping); prepping = whenIdle(() => prep(p.key), 3000); } });
     } });
     // the graphics chip lost the canvas (a GPU reset): the CSS shows until it is back, then it is drawn again
-    const onLost = () => { lost = true; real = ''; shown(false); }; // (not cancelled: that would stop the restore)
+    const onLost = () => { lost = true; real = ''; shown(false); dropSpare(); }; // (not cancelled: that would stop the restore)
     const onBack = () => { lost = false; real = ''; now(false); };
-    const check = () => { if (!document.hidden && [...drawn].some((c) => (c.getContext('2d') as CanvasRenderingContext2D | null)?.isContextLost?.())) onLost(); };
+    const check = () => { if (document.hidden) dropSpare(); if (!document.hidden && [...drawn].some((c) => (c.getContext('2d') as CanvasRenderingContext2D | null)?.isContextLost?.())) onLost(); };
     const cvs = refs.map((r) => r.current).filter((c): c is HTMLCanvasElement => !!c);
     for (const c of cvs) { c.addEventListener('contextlost', onLost); c.addEventListener('contextrestored', onBack); }
     document.addEventListener('visibilitychange', check);
     return () => {
-      alive = false; ro.disconnect(); mo.disconnect(); io.disconnect(); untwin(); unIdle(verify); unIdle(defer); clearTimeout(late);
+      alive = false; ro.disconnect(); mo.disconnect(); io.disconnect(); untwin(); unIdle(verify); unIdle(defer); clearTimeout(late); unIdle(prepping); dropSpare();
       for (const c of cvs) { c.removeEventListener('contextlost', onLost); c.removeEventListener('contextrestored', onBack); }
       document.removeEventListener('visibilitychange', check);
     };

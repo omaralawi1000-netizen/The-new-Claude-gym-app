@@ -64,9 +64,14 @@ export function FieldGlow({ kind }: { kind: BgKind }) {
     const el = host(); if (!el) return;
     const still = on && !el.querySelector(MOVING);
     el.toggleAttribute('data-dith', on); el.toggleAttribute('data-still', still);
-    const sk = `${kind}§${rootKey()}`;
-    if (still && !swaysBy.has(sk)) swaysBy.set(sk, getComputedStyle(el).animationName !== 'none');
-    el.toggleAttribute('data-top', still && !swaysBy.get(sk));
+    // (read once the page is idle, never in the middle of a switch: there it made the browser work the page's styles out twice)
+    const r = document.documentElement.dataset, sk = `${kind}§${r.motion}§${r.glow}`;
+    if (still && !swaysBy.has(sk)) whenIdle(() => {
+      if (!el.isConnected || !el.hasAttribute('data-still')) return;
+      swaysBy.set(sk, getComputedStyle(el).animationName !== 'none');
+      el.toggleAttribute('data-top', !swaysBy.get(sk));
+    });
+    el.toggleAttribute('data-top', still && swaysBy.get(sk) === false);
     if (on && PER_TAB[kind]) prewarm(el, kind);
   }, (el) => el.parentElement ?? el, (el) => `field§${kind}§${el.dataset.hue}`);
   return <canvas ref={cv} className="glow-cv glow-field" aria-hidden />;
@@ -96,7 +101,7 @@ function prewarm(field: HTMLElement, kind: BgKind) {
       if (!plan) continue;
       const k = plan.key;
       // (and its picture, painted by the worker, off the page)
-      if (!recall(k, false)) void paintPlan(plan);
+      if (!recall(k, false)) void paintPlan(plan, true);
     }
   };
   // (once the switch that brought this field has played: the worker's painting then can't take time from its animation)
