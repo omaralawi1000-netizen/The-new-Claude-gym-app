@@ -22,9 +22,9 @@ export function landStyle(): Land {
 
 /** The springs of each way: the window's own (`win`, null: Active's usual one) and the clock's (`hero`, null: it rides the window). */
 export const LANDS: Record<Land, { closeWin: Spring | null; openWin: Spring | null; closeHero: Spring | null; openHero: Spring | null }> = {
-  A: { closeWin: null, openWin: null, closeHero: apple(0.6, 0.14), openHero: apple(0.64, 0.1) },
+  A: { closeWin: null, openWin: null, closeHero: apple(0.6, 0.14), openHero: apple(0.46, 0.08) },
   B: { closeWin: apple(0.62, 0.26), openWin: apple(0.6, 0.22), closeHero: null, openHero: null },
-  C: { closeWin: apple(0.8), openWin: null, closeHero: apple(0.44, 0.16), openHero: apple(0.44, 0.12) },
+  C: { closeWin: apple(0.8), openWin: null, closeHero: apple(0.38, 0.18), openHero: apple(0.34, 0.14) },
 };
 
 type Pt = { x: number; y: number };
@@ -86,8 +86,8 @@ export function flyHero(host: HTMLElement, from: HTMLElement, to: HTMLElement, a
     const x = lerp(s.x, d.x, w <= 1 ? Math.pow(Math.max(0, w), 0.86) : w);
     const y = lerp(s.y, d.y, w);
     const f = Math.exp(lerp(Math.log(s.f * s.s), Math.log(d.f * d.s), wc)); // the drawn font size
-    // the crossing: while it is small (the first third), as a quick fade over each other
-    const o1 = smooth((wc - 0.08) / 0.3), o0 = 1 - o1;
+    // the crossing: while it is small (its first fifth), a quick fade over each other
+    const o1 = smooth((wc - 0.04) / 0.2), o0 = 1 - o1;
     const s1 = f / a1.f, s0 = f / a0.f;
     k1.push({ transform: `translate(${(x - a1.x).toFixed(2)}px, ${(y - a1.y).toFixed(2)}px) scale(${s1.toFixed(5)})`, opacity: String(Math.max(0.002, o1)) });
     if (gone0 < 0) {

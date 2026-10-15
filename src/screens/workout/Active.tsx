@@ -34,10 +34,12 @@ const FADE_OUT = { inside: [0.167, 0.28], skin: [0.18, 0.26], words: [0.1, 0.188
 const FADE_IN = { inside: [0.025, 0.08], skin: [0.06, 0.16], words: [0.002, 0.03], back: [0, 0.03], solid: [0, 0.03] };
 // Round 7 (landing.ts): the window's page leaves early on the way down and comes in late on the way up, so it is never seen
 // as a shrunken page; the clock carries the eye. B lands on the card itself (no hold), so its fades are r6's, moved down.
-const FADES: Record<Land, { out: typeof FADE_OUT; in: typeof FADE_IN }> = {
-  A: { out: { ...FADE_OUT, inside: [0.62, 0.88] }, in: { ...FADE_IN, inside: [0.55, 0.9] } },
-  B: { out: { inside: [0.42, 0.72], skin: [0.089, 0.178], words: [0, 0.098], back: [0.006, 0.056], solid: [0.078, 0.089] }, in: { ...FADE_IN, inside: [0.4, 0.78] } },
-  C: { out: { ...FADE_OUT, inside: [0.66, 0.9] }, in: { ...FADE_IN, inside: [0.5, 0.86] } },
+// (`views`: the list, which comes in after the header, once the clock has passed it)
+type Fades = typeof FADE_OUT & { views?: number[] };
+const FADES: Record<Land, { out: Fades; in: Fades }> = {
+  A: { out: { ...FADE_OUT, inside: [0.86, 0.99] }, in: { ...FADE_IN, inside: [0.68, 0.94], views: [0.86, 0.995] } },
+  B: { out: { inside: [0.8, 0.97], skin: [0.089, 0.178], words: [0, 0.098], back: [0.006, 0.056], solid: [0.078, 0.089] }, in: { ...FADE_IN, inside: [0.62, 0.9], views: [0.8, 0.99] } },
+  C: { out: { ...FADE_OUT, inside: [0.88, 0.995] }, in: { ...FADE_IN, inside: [0.6, 0.9], views: [0.8, 0.99] } },
 };
 // B: how much the card gives as it catches the window (per unit of the spring's overshoot past the card): it shrinks a
 // touch about its middle and dips, then springs back; the shape never changes, only its size and place
@@ -189,6 +191,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   const ramp = (pp: number, [a, b]: number[]) => clamp01((pp - a) / (b - a));
   const solid = (pp: number) => (from.current ? ramp(pp, F().solid) : 1);
   const inside = (pp: number) => (from.current ? ramp(pp, F().inside) : 1);
+  const insideV = (pp: number) => (from.current ? ramp(pp, F().views ?? F().inside) : 1);
   // (never quite 0 while it is there: the browser leaves what lies inside a fully clear layer to the page to animate, frame
   // by frame, instead of running it itself)
   const skinO = (pp: number) => Math.max(0.002, 1 - ramp(pp, F().skin));
@@ -206,6 +209,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   const ENVB = [...Array.from({ length: 11 }, (_, i) => ENV[0] + i * 0.015), ENV[1], ENV[2], ENV[3]];
   const solidO = useTransform(pv, solid);
   const insideO = useTransform(pv, inside);
+  const insideVO = useTransform(pv, insideV);
   const dimO = useTransform(pv, dim);
   // the orb's slot in the bar: where it is at rest, and how far the window has moved it at progress pp (its top edge, scaled)
   const slotTop = useRef(0);
@@ -520,7 +524,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     set(solidRef.current, 'opacity', solid(pp)); set(dimRef.current, 'opacity', dim(pp));
     set(shadeRef.current, 'opacity', shade(e)); set(fillRef.current, 'opacity', fill(e));
     set(headRef.current, 'transform', yAt(headOff(pp, e))); set(headRef.current, 'opacity', inside(pp));
-    set(viewsRef.current, 'transform', yAt(viewsOff(pp, e))); set(viewsRef.current, 'opacity', inside(pp));
+    set(viewsRef.current, 'transform', yAt(viewsOff(pp, e))); set(viewsRef.current, 'opacity', insideV(pp));
     paintAt(pp);
   };
   const thaw = () => {
@@ -557,7 +561,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
       morph ? null : go(shadeRef.current, (pp) => ({ opacity: String(shade(pp)) }), [0.12, 0.7]),
       go(fillRef.current, (pp) => ({ opacity: String(fill(pp)) }), [at - 0.015, at + 0.015]),
       go(headRef.current, (pp) => ({ transform: yAt(headOff(seen(pp), seen(pp))), opacity: String(inside(pp)) }), [], true),
-      go(viewsRef.current, (pp) => ({ transform: yAt(viewsOff(seen(pp), seen(pp))), opacity: String(inside(pp)) }), [], true),
+      go(viewsRef.current, (pp) => ({ transform: yAt(viewsOff(seen(pp), seen(pp))), opacity: String(insideV(pp)) }), [], true),
     );
     if (!m.size) return;
     const id = run.current; frozen.current = true;
@@ -601,13 +605,16 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     const span = p1 - p0, v0 = Math.max(-40, Math.min(40, span ? vel / span : 0));
     const fs = samples(sp, v0), L = LANDS[ls.current], hsp = opening ? L.openHero : L.closeHero, hs = hsp ? samples(hsp) : null;
     const ppAt = (i: number) => p0 + span * fs[Math.min(i, fs.length - 1)];
-    const hw = (i: number) => (hs ? hs[Math.min(i, hs.length - 1)] : 1);
-    const frames = Math.max(fs.length, hs?.length ?? 0) - 1;
-    const B = ls.current === 'B', C = ls.current === 'C';
+    // closing, it rides the header (with the window) while the page around it fades, and sets off once that is gone, so it
+    // never crosses words still on the screen
+    const wait = opening ? 0 : ls.current === 'C' ? 6 : 9;
+    const hw = (i: number) => (hs ? hs[Math.max(0, Math.min(i - wait, hs.length - 1))] : 1);
+    const frames = Math.max(fs.length, (hs?.length ?? 0) + wait) - 1;
+    const B = ls.current === 'B';
     const restHead = headerAt(1);
     const flight = opening
-      ? { frames, src: (i: number) => (B ? skinAt(ppAt(i)) : cardRest), dst: (i: number) => (C ? restHead : headerAt(ppAt(i))), w: (i: number) => (B ? Math.min(1, qAt(ppAt(i))) : hw(i)) }
-      : { frames, src: (i: number) => headerAt(ppAt(i)), dst: (i: number) => (B ? skinAt(ppAt(i)) : cardRest), w: (i: number) => (B ? 1 - qAt(ppAt(i)) : hw(i)) };
+      ? { frames, src: (i: number) => (B ? skinAt(ppAt(i)) : cardRest), dst: (i: number) => headerAt(ppAt(i)), w: (i: number) => (B ? Math.min(1, qAt(ppAt(i))) : hw(i)) }
+      : { frames, src: (i: number) => headerAt(ppAt(i)), dst: (i: number) => (B ? skinAt(ppAt(i)) : cardRest), w: (i: number) => (B ? Math.pow(Math.max(0, 1 - qAt(ppAt(i))), 1.5) : hw(i)) };
     const a0 = opening ? cardA : headNow, a1 = opening ? { x: restHead.x, y: restHead.y, f: restHead.f } : cardA;
     const fromEl = opening ? cardClock : headClock, toEl = opening ? headClock : cardClock;
     const h = flyHero(host, fromEl, toEl, a0, a1, flight, Math.round(((performance.now() - t0) * 120) / 1000));
@@ -655,7 +662,10 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
       })); })
       : animate(p, 0, reduce || vanishRef.current ? { duration: 0.01 } : { ...sp, velocity: vel });
     if (!vanishRef.current) setMoving(true);
-    closing.current = new Promise<void>((done) => { c.then(() => { done(); if (fade) requestAnimationFrame(() => fade?.cancel()); }, () => done()); });
+    // (B hands over to the card only once the browser's copy of the spring has come to rest too: its last frames are the
+    // card's give settling, and handing over on the page's own spring, a few frames sooner, left a sub-pixel jump)
+    const cc = catching() && mirror.current!.size ? Promise.all([c, mirror.current!.settled()]).then(() => undefined) : c;
+    closing.current = new Promise<void>((done) => { cc.then(() => { done(); if (fade) requestAnimationFrame(() => fade?.cancel()); }, () => done()); });
     // landed: the card is itself again (its words already back), and the copy of it goes
     void closing.current.then(() => { caught.current = true; cardAt(p.get()); warmStage(false); releaseCard(); dropSkin(); if (hero.current) dropHero(); });
     return closing.current;
@@ -954,7 +964,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
           </motion.div>
 
           {/* body: the list, and Focus over it when chosen (the list stays, faded out, so switching back keeps your place) */}
-          <motion.div ref={viewsRef} className="wk-views" style={{ transform: viewsT, opacity: insideO }}>
+          <motion.div ref={viewsRef} className="wk-views" style={{ transform: viewsT, opacity: insideVO }}>
           <motion.div ref={body} style={{ flex: 1, overflowY: 'auto', padding: '4px 16px 0', paddingBottom: bodyPad, overscrollBehavior: 'contain' }} className={`hide-scroll wk-list${a.exercises.length === 0 ? ' is-empty' : ''}${view === 'focus' && a.exercises.length > 0 && (focusIn || shared !== 'in') ? ' wk-away' : ''}${shared === 'back' ? ' back' : ''}`}>
             {a.exercises.length === 0 && (
               // nothing yet: one calm, centred moment (a soft mark, the line, then the button) instead of a top-heavy
