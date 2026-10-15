@@ -146,7 +146,10 @@ const KIND_ICON: Record<string, IconName> = { food: 'recipe', sets: 'dumbbell', 
 // Once a word has come in it settles into a plain word (no animation, no layer of its own): a whole conversation of
 // soft words made every frame repaint and re-layer hundreds of them while one answer wrote itself in. `still`: already there.
 const SETTLE = 900; // (the longest coming-in is 760 ms; a little slack so nothing is cut short)
-export const Words = memo(function Words({ text, k, base = 0, on = -1, stagger, still }: { text: string; k: string; base?: number; on?: number; stagger?: number; still?: boolean }) {
+// `hold`: while an answer is still writing itself in, no word settles (the Coach keeps each word's layer until the whole
+// answer is in, then lets them all go in one frame, Coach.tsx CoachReply): a word settling dropped its layer and redrew the
+// conversation's tiles under it, two or three times a frame while the next words came in (14 Oct r11, frame drops)
+export const Words = memo(function Words({ text, k, base = 0, on = -1, stagger, still, hold }: { text: string; k: string; base?: number; on?: number; stagger?: number; still?: boolean; hold?: boolean }) {
   const parts = text.split(/(\s+)/);
   // words that arrive together cascade one after another; a word keeps the delay it was born with
   const born = useRef<Record<number, number>>({});
@@ -157,6 +160,7 @@ export const Words = memo(function Words({ text, k, base = 0, on = -1, stagger, 
   const now = performance.now();
   useEffect(() => {
     seen.current = parts.length;
+    if (hold) return;
     const t = performance.now(); let next = Infinity;
     for (const i in ends.current) if (ends.current[i] > t) next = Math.min(next, ends.current[i]);
     if (next === Infinity) return;
@@ -178,7 +182,7 @@ export const Words = memo(function Words({ text, k, base = 0, on = -1, stagger, 
     if (ends.current[i] === undefined) ends.current[i] = still ? 0 : now + Math.min(520, born.current[i]) + SETTLE;
     const idx = n++;
     const cls = on < 0 ? 'w' : idx === on ? 'w w-on' : idx < on ? 'w w-past' : 'w w-next';
-    if (ends.current[i] <= now) return <span key={`${k}-${i}`} className={cls}><span>{w}</span></span>;
+    if (ends.current[i] <= now && !hold) return <span key={`${k}-${i}`} className={cls}><span>{w}</span></span>;
     return <span key={`${k}-${i}`} className={`${cls} w-in`} style={{ animationDelay: `min(${born.current[i]}ms, var(--word-stagger-cap, 520ms))` }}><span>{w}</span></span>; // (same shape as a settled word: settling only drops the class)
   })}</>;
 });
@@ -215,12 +219,12 @@ export function useWordReveal(text: string, live: boolean, instant = false): { s
 export function useSpokenWord(id?: string) {
   return useSyncExternalStore(subscribeSpeech, () => (id && speechState().id === id ? Math.max(0, speechState().word) : -1));
 }
-export function Rich({ text, id, stagger, still }: { text: string; id?: string; stagger?: number; still?: boolean }) {
+export function Rich({ text, id, stagger, still, hold }: { text: string; id?: string; stagger?: number; still?: boolean; hold?: boolean }) {
   const on = useSpokenWord(id);
   let n = 0;
   const run = (segs: ReturnType<typeof richLines>[number]['segs'], k: string) => segs.map((p, i) => {
     const base = n; n += wordsOf(p.text).length;
-    return p.bold ? <b key={i}><Words text={p.text} k={`${k}b${i}`} base={base} on={on} stagger={stagger} still={still} /></b> : <Words key={i} text={p.text} k={`${k}t${i}`} base={base} on={on} stagger={stagger} still={still} />;
+    return p.bold ? <b key={i}><Words text={p.text} k={`${k}b${i}`} base={base} on={on} stagger={stagger} still={still} hold={hold} /></b> : <Words key={i} text={p.text} k={`${k}t${i}`} base={base} on={on} stagger={stagger} still={still} hold={hold} />;
   });
   return <>{richLines(text).map((l, i) => {
     if (l.bullet) return <div key={i} className="rich-li"><span aria-hidden className="w" style={{ color: 'var(--tx3)' }}>•</span><span>{run(l.segs, `l${i}`)}</span></div>;
