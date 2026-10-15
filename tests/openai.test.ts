@@ -27,7 +27,8 @@ describe('strict schema from the Gemini schema', () => {
   it('turns the whole agent schema into a valid strict JSON schema', () => {
     const s = toStrictSchema(AGENT_SCHEMA);
     expect(checkStrict(s)).toEqual([]);
-    expect(Object.keys(s.properties)[0]).toBe('reply'); // the reply streams first
+    // a look-up is decided before any words are written; then the reply streams before the actions
+    expect(Object.keys(s.properties).slice(0, 3)).toEqual(['lookups', 'reply', 'actions']);
   });
   it('makes optional fields nullable instead of leaving them out', () => {
     const s = toStrictSchema({ type: 'OBJECT', properties: { a: { type: 'STRING' }, b: { type: 'NUMBER' }, u: { type: 'STRING', nullable: true, enum: ['g', 'ml'] } }, required: ['a'] });

@@ -280,7 +280,8 @@ export function cardsNote(results: AgentResult[], confirmed: string[], undone: s
   if (!results.length) return '';
   return `(${results.map((r) => {
     const state = undone.includes(r.id) ? 'undone' : r.pending && !confirmed.includes(r.id) ? 'offered, not taken' : 'done';
-    const what = detail && r.lines.length ? ` — ${r.lines.map((l) => `${l.text}${l.sub ? ` ${l.sub}` : ''}`).join(', ')}` : '';
+    // each item keeps its id ([ref e_…]), so "move it to lunch" / "make that two" can name exactly this one
+    const what = r.lines.length && (detail || r.lines.some((l) => l.ref)) ? ` — ${r.lines.map((l) => `${l.text}${detail && l.sub ? ` ${l.sub}` : ''}${l.ref ? ` [ref ${l.ref}]` : ''}`).join(', ')}` : '';
     return `${state}: ${r.title}${what}`;
   }).join(' | ')})`;
 }
@@ -303,6 +304,12 @@ export function ActionCard({ r, undone, confirmed, onUndo, onConfirm }: { r: Age
                   {l.sub && <span className="xs t2 num" style={l.sub.length > 22 ? { display: 'block', marginTop: 1 } : { textAlign: 'right', flex: 'none', maxWidth: '62%' }}>{l.sub}</span>}
                 </div>
               ))}
+            </div>
+          )}
+          {/* applied from a preview (a planned day): it can still be taken back */}
+          {!undone && confirmed && r.undo && (
+            <div className="row-flex" style={{ gap: 8, marginTop: 10 }}>
+              <button className="btn sm ghost press" onClick={onUndo}><Icon name="undo" size={15} /> {t('Undo')}</button>
             </div>
           )}
           {!undone && !confirmed && (r.button || r.undo || r.more?.length) && (

@@ -22,10 +22,13 @@ import { type Brain } from './gemini';
 import { estimateFood } from './brain';
 import { ACTIVITY_KINDS, ACTIVITY_LABEL } from './activity';
 import { fmtNum, kgToDisplay } from './units';
-import type { ActivityKind, Exercise, Food, FoodEntry, Meal, MemoryKind, MemoryNote, Quantity, RoutineItem, SessionExercise, SetRecord, Settings } from './types';
+import type { ActivityKind, Exercise, Food, FoodEntry, Meal, MemoryKind, MemoryNote, MuscleGroup, Quantity, RoutineItem, SessionExercise, SetRecord, Settings } from './types';
 import { MEMORY_KINDS, MEMORY_MAX } from '../state/defaults';
 import { addExercises, replaceExercise, startRest } from '../screens/workout/actions';
 import { EQUIP_LABEL, MUSCLE_LABEL } from '../screens/workout/common';
+import { muscleOf } from './agentLookup';
+import { buildDayPlan, pickForMuscles } from './planDay';
+import { weekdayOf } from './dates';
 
 // ── what the model may ask for ──────────────────────────────
 
@@ -41,11 +44,11 @@ export type AgentAction =
   | { type: 'finish_workout' }
   | { type: 'navigate'; screen: 'today' | 'train' | 'food' | 'progress' | 'settings' | 'coach'; section?: string | null }
   | { type: 'set_setting'; key: SettingKey; value: string }
-  | { type: 'edit_food'; target: string; day?: string | null; meal_from?: string | null; amount?: number | null; unit?: string | null; meal?: string | null; per100?: NutriFix | null; totals?: NutriFix | null }
-  | { type: 'delete_food'; target?: string | null; day?: string | null; meal?: string | null }
-  | { type: 'move_food'; target?: string | null; meal_from?: string | null; day?: string | null; meal_to?: string | null; day_to?: string | null }
-  | { type: 'copy_food'; target?: string | null; meal_from?: string | null; day?: string | null; meal_to?: string | null; day_to?: string | null }
-  | { type: 'replace_food'; target: string; meal_from?: string | null; day?: string | null; with: AgentFood }
+  | { type: 'edit_food'; target: string; ref?: string | null; day?: string | null; meal_from?: string | null; amount?: number | null; unit?: string | null; meal?: string | null; per100?: NutriFix | null; totals?: NutriFix | null }
+  | { type: 'delete_food'; target?: string | null; ref?: string | null; day?: string | null; meal?: string | null }
+  | { type: 'move_food'; target?: string | null; ref?: string | null; meal_from?: string | null; day?: string | null; meal_to?: string | null; day_to?: string | null }
+  | { type: 'copy_food'; target?: string | null; ref?: string | null; meal_from?: string | null; day?: string | null; meal_to?: string | null; day_to?: string | null }
+  | { type: 'replace_food'; target: string; ref?: string | null; meal_from?: string | null; day?: string | null; with: AgentFood }
   | { type: 'create_food'; name: string; basis: 'g' | 'ml'; per100: NutriFix & { fibre?: number }; amount?: number | null; unit?: string | null; meal?: string | null; day?: string | null }
   | { type: 'favourite_food'; name: string; on: boolean }
   | { type: 'save_meal'; name: string; meal: string; day?: string | null }
@@ -69,6 +72,7 @@ export type AgentAction =
   | { type: 'forget'; memory?: number | null; target?: string | null }
   | { type: 'show_exercise'; exercise: string }
   | { type: 'suggest_food'; options: { label: string; foods: AgentFood[]; totals: NutriFix | null }[]; meal?: string | null }
+  | { type: 'plan_day'; day: string; name?: string | null; focus: string[]; light: string[]; items: RoutineBit[] }
   | { type: 'undo_last' };
 
 export interface RoutineBit { exercise: string; sets?: number | null; repMin?: number | null; repMax?: number | null; restSec?: number | null }
@@ -92,6 +96,8 @@ export const SETTING_KEYS = ['theme', 'language', 'weightUnit', 'distanceUnit', 
 export type SettingKey = (typeof SETTING_KEYS)[number];
 const SETTINGS_SECTIONS = ['targets', 'training', 'food', 'units', 'look', 'reminders', 'data', 'privacy', 'ai', 'about'];
 
+/** An item's id as a card showed it ("e_k3x9…"): letters, digits, _ and - only. */
+const refArg = (v: unknown): string | null => (typeof v === 'string' && /^[\w-]{3,40}$/.test(v.trim()) ? v.trim() : null);
 const num = (v: unknown, min: number, max: number): number | undefined => (typeof v === 'number' && Number.isFinite(v) && v >= min && v <= max ? v : undefined);
 const str = (v: unknown, max = 80): string | undefined => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : undefined);
 
@@ -144,20 +150,20 @@ export function validateAgent(raw: any): { reply: string; actions: AgentAction[]
       case 'finish_workout': out.push({ type: 'finish_workout' }); break;
       case 'undo_last': out.push({ type: 'undo_last' }); break;
       case 'edit_food': {
-        const target = str(a.target, 60); if (!target) break;
-        const e: AgentAction = { type: 'edit_food', target, day: dayArg(a.day), meal_from: str(a.meal_from, 30) ?? null, amount: num(a.amount, 0.01, 20000) ?? null, unit: str(a.unit, 12) ?? null, meal: str(a.meal, 30) ?? null, per100: nutriFix(a.per100, true), totals: nutriFix(a.totals, false) };
+        const ref = refArg(a.ref), target = str(a.target, 60) ?? ''; if (!target && !ref) break;
+        const e: AgentAction = { type: 'edit_food', target, ref, day: dayArg(a.day), meal_from: str(a.meal_from, 30) ?? null, amount: num(a.amount, 0.01, 20000) ?? null, unit: str(a.unit, 12) ?? null, meal: str(a.meal, 30) ?? null, per100: nutriFix(a.per100, true), totals: nutriFix(a.totals, false) };
         if (e.amount || e.meal || e.per100 || e.totals) out.push(e);
         break;
       }
-      case 'delete_food': { const target = str(a.target, 60) ?? null, meal = str(a.meal, 30) ?? null; if (target || meal) out.push({ type: 'delete_food', target, meal, day: dayArg(a.day) }); break; }
+      case 'delete_food': { const target = str(a.target, 60) ?? null, meal = str(a.meal, 30) ?? null, ref = refArg(a.ref); if (target || meal || ref) out.push({ type: 'delete_food', target, ref, meal, day: dayArg(a.day) }); break; }
       case 'move_food': case 'copy_food': {
-        const target = str(a.target, 60) ?? null, meal_from = str(a.meal_from, 30) ?? null, meal_to = str(a.meal_to, 30) ?? null, day_to = dayArg(a.day_to);
-        if ((target || meal_from) && (meal_to || day_to)) out.push({ type: a.type, target, meal_from, day: dayArg(a.day), meal_to, day_to });
+        const target = str(a.target, 60) ?? null, ref = refArg(a.ref), meal_from = str(a.meal_from, 30) ?? null, meal_to = str(a.meal_to, 30) ?? null, day_to = dayArg(a.day_to);
+        if ((target || ref || meal_from) && (meal_to || day_to)) out.push({ type: a.type, target, ref, meal_from, day: dayArg(a.day), meal_to, day_to });
         break;
       }
       case 'replace_food': {
-        const target = str(a.target, 60), w = a.with, name = str(w?.name, 60); if (!target || !name) break;
-        out.push({ type: 'replace_food', target, meal_from: str(a.meal_from, 30) ?? null, day: dayArg(a.day), with: { name, brand: str(w?.brand, 40) ?? null, amount: num(w?.amount, 0.01, 20000) ?? null, unit: str(w?.unit, 12) ?? null, state: ['raw', 'cooked', 'dry'].includes(w?.state) ? w.state : null } });
+        const ref = refArg(a.ref), target = str(a.target, 60) ?? '', w = a.with, name = str(w?.name, 60); if ((!target && !ref) || !name) break;
+        out.push({ type: 'replace_food', target, ref, meal_from: str(a.meal_from, 30) ?? null, day: dayArg(a.day), with: { name, brand: str(w?.brand, 40) ?? null, amount: num(w?.amount, 0.01, 20000) ?? null, unit: str(w?.unit, 12) ?? null, state: ['raw', 'cooked', 'dry'].includes(w?.state) ? w.state : null } });
         break;
       }
       case 'create_food': {
@@ -217,6 +223,13 @@ export function validateAgent(raw: any): { reply: string; actions: AgentAction[]
         if (n || target) out.push({ type: 'forget', memory: n ?? null, target });
         break;
       }
+      case 'plan_day': {
+        const day = a.day === 'tomorrow' ? 'tomorrow' : dayArg(a.day);
+        const words = (v: unknown) => (Array.isArray(v) ? v : []).slice(0, 6).map((x: any) => str(x, 20)).filter(Boolean) as string[];
+        const items = bits(a.add, 10), focus = words(a.focus), light = words(a.light);
+        if (day && (items.length || focus.length)) out.push({ type: 'plan_day', day, name: str(a.name, 50) ?? null, focus, light, items });
+        break;
+      }
       case 'navigate': {
         const screen = ['today', 'train', 'food', 'progress', 'settings', 'coach'].includes(a.screen) ? a.screen : null; if (!screen) break;
         out.push({ type: 'navigate', screen, section: SETTINGS_SECTIONS.includes(a.section) ? a.section : null });
@@ -240,7 +253,7 @@ export interface AgentResult {
   id: string;
   kind: 'food' | 'sets' | 'water' | 'weight' | 'activity' | 'workout' | 'routine' | 'nav' | 'setting' | 'memory' | 'miss';
   title: string;
-  lines: { text: string; sub?: string; warn?: boolean }[];
+  lines: { text: string; sub?: string; warn?: boolean; /** the item's id (a food entry), so "move it" later means exactly this one */ ref?: string }[];
   /** reverses everything this card did */
   undo?: () => void;
   /** a button on the card (open the workout, or confirm something that waits for a tap) */
@@ -334,7 +347,7 @@ async function doLogFood(a: Extract<AgentAction, { type: 'log_food' }>, ctx: Age
         if (guessed) entry.estimated = true;
         entries.push(entry);
         const label = q.qty!.unit === 'portion' ? `${fmtNum(q.qty!.amount, lang, 1)} × ${food.portions.find((p) => p.id === q.qty!.portionId)?.label.replace(/^1\s+/, '') ?? t('serving')}` : `${fmtNum(q.qty!.amount, lang, 0)} ${q.qty!.unit}`;
-        lines.push({ text: lang === 'da' && food.nameDa ? food.nameDa : food.name, sub: `${label}${kcalOf(entry) !== undefined ? ` · ${kcalOf(entry)} kcal` : ''}${guessed ? ` · ${t('typical portion')}` : ''}`, warn: false });
+        lines.push({ text: lang === 'da' && food.nameDa ? food.nameDa : food.name, sub: `${label}${kcalOf(entry) !== undefined ? ` · ${kcalOf(entry)} kcal` : ''}${guessed ? ` · ${t('typical portion')}` : ''}`, warn: false, ref: entry.id });
         continue;
       }
     }
@@ -344,7 +357,7 @@ async function doLogFood(a: Extract<AgentAction, { type: 'log_food' }>, ctx: Age
         const est = await estimateFood(r.amount !== undefined ? `${r.amount} ${r.dim === 'count' ? (r.countWord ?? '') : r.dim} ${r.query}`.trim() : r.query, ctx.brain, lang);
         const q = quickEntry(`${est.name} (${t('AI estimate')})`, { kcal: est.kcal, protein: est.protein, carbs: est.carbs, fat: est.fat }, date, mealId);
         entries.push({ ...q, estimated: true, note: est.assumptions || undefined });
-        lines.push({ text: est.name, sub: `${Math.round(est.kcal)} kcal · ${t('AI estimate')}`, warn: true });
+        lines.push({ text: est.name, sub: `${Math.round(est.kcal)} kcal · ${t('AI estimate')}`, warn: true, ref: q.id });
         continue;
       } catch { /* fall through to the honest miss */ }
     }
@@ -394,6 +407,12 @@ function findEntry(target: string, days: string[], mealId?: string): FoodEntry |
   return undefined;
 }
 
+/** The item a card showed (its id), else the one the name points at. */
+function pickEntry(ref: string | null | undefined, target: string | null | undefined, days: string[], mealId?: string): FoodEntry | undefined {
+  if (ref) { const e = useStore.getState().entries.find((x) => x.id === ref); if (e) return e; }
+  return target ? findEntry(target, days, mealId) : undefined;
+}
+
 /** Everything in a meal on a day (or the whole day). */
 function mealItems(date: string, mealId: string | undefined) {
   return useStore.getState().entries.filter((e) => e.date === date && (!mealId || e.mealId === mealId));
@@ -405,8 +424,8 @@ const notFound = (ctx: AgentCtx, what: string): AgentResult => ({ id: uid('r'), 
 function doEditFood(a: Extract<AgentAction, { type: 'edit_food' }>, ctx: AgentCtx): AgentResult {
   const { t, lang } = ctx;
   const st = useStore.getState();
-  const prev = findEntry(a.target, searchDays(a.day, ctx), mealIdOf(a.meal_from, ctx));
-  if (!prev) return notFound(ctx, a.target);
+  const prev = pickEntry(a.ref, a.target, searchDays(a.day, ctx), mealIdOf(a.meal_from, ctx));
+  if (!prev) return notFound(ctx, a.target || a.ref || '');
   let next: FoodEntry = prev;
   const changed: string[] = [];
   // new label values: recompute the entry from the corrected food (a quick entry has no label, its totals are set instead)
@@ -436,7 +455,7 @@ function doEditFood(a: Extract<AgentAction, { type: 'edit_food' }>, ctx: AgentCt
   if (own) st.saveFood({ ...own, per100: { ...own.per100, ...a.per100 } });
   return {
     id: uid('r'), kind: 'food', title: t('Corrected'),
-    lines: [{ text: prev.snap.name, sub: `${kcalStr(prev)} → ${kcalStr(next)} · ${changed.join(' · ')}` }],
+    lines: [{ text: prev.snap.name, sub: `${kcalStr(prev)} → ${kcalStr(next)} · ${changed.join(' · ')}`, ref: prev.id }],
     undo: () => { const s = useStore.getState(); s.updateEntry(prev.id, prev); if (own) s.saveFood(own); },
   };
 }
@@ -444,7 +463,7 @@ function doEditFood(a: Extract<AgentAction, { type: 'edit_food' }>, ctx: AgentCt
 function doDeleteFood(a: Extract<AgentAction, { type: 'delete_food' }>, ctx: AgentCtx): AgentResult {
   const { t } = ctx;
   let list: FoodEntry[];
-  if (a.target) { const e = findEntry(a.target, searchDays(a.day, ctx), mealIdOf(a.meal, ctx)); if (!e) return notFound(ctx, a.target); list = [e]; }
+  if (a.target || a.ref) { const e = pickEntry(a.ref, a.target, searchDays(a.day, ctx), mealIdOf(a.meal, ctx)); if (!e) return notFound(ctx, a.target || a.ref || ''); list = [e]; }
   else {
     const date = resolveDay(a.day, ctx.today) ?? ctx.date ?? ctx.today;
     const all = fold(a.meal ?? '') === 'all' || fold(a.meal ?? '') === 'day';
@@ -468,7 +487,7 @@ function doMoveCopy(a: Extract<AgentAction, { type: 'move_food' | 'copy_food' }>
   const copy = a.type === 'copy_food';
   const fromMeal = mealIdOf(a.meal_from, ctx);
   let list: FoodEntry[];
-  if (a.target) { const e = findEntry(a.target, searchDays(a.day, ctx), fromMeal); if (!e) return notFound(ctx, a.target); list = [e]; }
+  if (a.target || a.ref) { const e = pickEntry(a.ref, a.target, searchDays(a.day, ctx), fromMeal); if (!e) return notFound(ctx, a.target || a.ref || ''); list = [e]; }
   else {
     const date = resolveDay(a.day, ctx.today) ?? ctx.date ?? ctx.today;
     if (!fromMeal) return notFound(ctx, a.meal_from ?? '');
@@ -483,13 +502,13 @@ function doMoveCopy(a: Extract<AgentAction, { type: 'move_food' | 'copy_food' }>
   if (copy) {
     const copies = list.map((e) => ({ ...e, id: uid('e'), date: toDate ?? e.date, mealId: toMeal ?? e.mealId, at: Date.now() }));
     st.logEntries(copies);
-    return { id: uid('r'), kind: 'food', title: t('Copied to {where}', { where: dest }), lines: list.slice(0, 8).map((e) => ({ text: e.snap.name, sub: kcalStr(e) })), undo: () => copies.forEach((e) => useStore.getState().removeEntry(e.id)) };
+    return { id: uid('r'), kind: 'food', title: t('Copied to {where}', { where: dest }), lines: copies.slice(0, 8).map((e) => ({ text: e.snap.name, sub: kcalStr(e), ref: e.id })), undo: () => copies.forEach((e) => useStore.getState().removeEntry(e.id)) };
   }
   list = list.filter((e) => (toMeal && e.mealId !== toMeal) || (toDate && e.date !== toDate));
   if (!list.length) return { id: uid('r'), kind: 'miss', title: t('Already there'), lines: [{ text: dest }] };
   list.forEach((e) => st.moveEntry(e.id, { date: toDate, mealId: toMeal }));
   return {
-    id: uid('r'), kind: 'food', title: t('Moved to {where}', { where: dest }), lines: list.slice(0, 8).map((e) => ({ text: e.snap.name, sub: `${mealLabelOf(e.mealId, ctx)} → ${dest}` })),
+    id: uid('r'), kind: 'food', title: t('Moved to {where}', { where: dest }), lines: list.slice(0, 8).map((e) => ({ text: e.snap.name, sub: `${mealLabelOf(e.mealId, ctx)} → ${dest}`, ref: e.id })),
     undo: () => list.forEach((e) => useStore.getState().moveEntry(e.id, { date: e.date, mealId: e.mealId })),
   };
 }
@@ -497,8 +516,8 @@ function doMoveCopy(a: Extract<AgentAction, { type: 'move_food' | 'copy_food' }>
 /** Swap a logged food for another one: same meal, same day, and — unless a new amount was said — the same amount. */
 async function doReplaceFood(a: Extract<AgentAction, { type: 'replace_food' }>, ctx: AgentCtx): Promise<AgentResult> {
   const { t } = ctx;
-  const old = findEntry(a.target, searchDays(a.day, ctx), mealIdOf(a.meal_from, ctx));
-  if (!old) return notFound(ctx, a.target);
+  const old = pickEntry(a.ref, a.target, searchDays(a.day, ctx), mealIdOf(a.meal_from, ctx));
+  if (!old) return notFound(ctx, a.target || a.ref || '');
   const w = { ...a.with };
   if (w.amount == null && !old.quick) { // keep the old amount (a count stays a count only when it was a portion: then a typical portion)
     if (old.qty.unit === 'portion') { w.amount = old.qty.amount; w.unit = 'piece'; } else { w.amount = Math.round(old.base); w.unit = old.snap.basis; }
@@ -919,6 +938,58 @@ function doForget(a: Extract<AgentAction, { type: 'forget' }>, ctx: AgentCtx): A
   return { id: uid('r'), kind: 'memory', title: t('Forgotten'), lines: [{ text: hit.text }], undo: () => useStore.getState().restoreMemory(hit) };
 }
 
+/**
+ * "Chest and triceps with some shoulder tomorrow": the day's workout from their own exercises, as a preview. Apply puts it
+ * in the plan for that date (a routine of its own, placed as a one-off: the weekly plan is untouched), with Undo.
+ */
+function doPlanDay(a: Extract<AgentAction, { type: 'plan_day' }>, ctx: AgentCtx): AgentResult {
+  const { t, lang } = ctx;
+  const st = useStore.getState();
+  const date = a.day === 'tomorrow' ? addDays(ctx.today, 1) : resolveDay(a.day, ctx.today);
+  if (!date) return { id: uid('r'), kind: 'miss', title: t('Which day?'), lines: [] };
+  const pool = allExercises(st.exercises);
+  // the exercises: the ones the Coach chose (from their history), else the app picks for the muscles named
+  let chosen: (Exercise & { sets?: number | null; repMin?: number | null; repMax?: number | null; restSec?: number | null })[] = [];
+  const missing: string[] = [];
+  if (a.items.length) {
+    for (const b of a.items) { const ex = findExercise(b.exercise, lang); if (ex && !chosen.some((c) => c.id === ex.id)) chosen.push({ ...ex, sets: b.sets, repMin: b.repMin, repMax: b.repMax, restSec: b.restSec }); else if (!ex) missing.push(b.exercise); }
+  } else {
+    const light = new Set(a.light.map(muscleOf).filter(Boolean));
+    const focus = [...new Set([...a.focus, ...a.light].map(muscleOf).filter(Boolean) as MuscleGroup[])].map((m) => ({ muscle: m, light: light.has(m) }));
+    chosen = pickForMuscles(focus, st, pool);
+  }
+  if (!chosen.length) return { id: uid('r'), kind: 'miss', title: t('Couldn’t build that workout'), lines: missing.map((n) => ({ text: n, sub: t('Not in your exercise library'), warn: true })) };
+  const plan = buildDayPlan(chosen, date, st);
+  const muscles = [...new Set(plan.picks.map((p) => p.ex.muscles[0]))];
+  const name = a.name || muscles.slice(0, 3).map((m) => t(MUSCLE_LABEL[m])).join(' + ');
+  const when = date === ctx.today ? t('Today') : date === addDays(ctx.today, 1) ? t('Tomorrow') : `${t(WEEKDAYS[weekdayOf(date)])} ${date.slice(8)}/${date.slice(5, 7)}`;
+  const was = (() => { const ov = st.schedule.overrides.find((o) => o.date === date); const id = ov?.routineId ?? (st.schedule.mode === 'weekly' && !st.schedule.cleared.includes(date) ? st.schedule.weekly[weekdayOf(date)] : null); return id ? st.routines.find((r) => r.id === id) : undefined; })();
+  const lines: AgentResult['lines'] = plan.picks.map((p) => ({ text: exLabel(p.ex, lang), sub: `${p.sets} × ${p.repMin === p.repMax ? p.repMin : `${p.repMin}–${p.repMax}`}${p.target ? ` · ${p.target}` : ''}`, warn: !!p.flagged }));
+  plan.picks.filter((p) => p.flagged).forEach((p) => lines.push({ text: exLabel(p.ex, lang), sub: `${t('You told me')}: ${p.flagged}`, warn: true }));
+  if (plan.warnings.includes('wrestling-next-day')) lines.push({ text: t('Wrestling the next day'), sub: t('A lot of leg work the day before — keep it lighter?'), warn: true });
+  missing.forEach((n) => lines.push({ text: n, sub: t('Not in your exercise library'), warn: true }));
+  const result: AgentResult = {
+    id: uid('r'), kind: 'routine', pending: true, offer: true,
+    title: `${when}: ${name}`,
+    subtitle: [`${plan.picks.length} ${t('exercises')} · ${plan.picks.reduce((n, p) => n + p.sets, 0)} ${t('sets')}`, was ? `${t('instead of')} ${was.name}` : ''].filter(Boolean).join(' · '),
+    lines,
+    button: {
+      label: t('Apply'),
+      run: () => {
+        const s = useStore.getState();
+        const prevSchedule = s.schedule;
+        const now = Date.now();
+        const items: RoutineItem[] = plan.picks.map((p) => ({ id: uid('ri'), exerciseId: p.ex.id, warmupSets: 0, workingSets: p.sets, repMin: p.repMin, repMax: p.repMax, restSec: p.restSec }));
+        const routine = { id: uid('rt'), name, items, note: t('Planned by the Coach for {date}', { date }), createdAt: now, updatedAt: now };
+        s.upsertRoutine(routine);
+        s.setSchedule({ overrides: [...s.schedule.overrides.filter((o) => o.date !== date), { date, routineId: routine.id }], cleared: s.schedule.cleared.filter((c) => c !== date) });
+        result.undo = () => { const u = useStore.getState(); u.deleteRoutine(routine.id); u.setSchedule(prevSchedule); };
+      },
+    },
+  };
+  return result;
+}
+
 /** "That's a seated leg curl": the catalog exercise as a card, with its how-to and a way to add it to today's workout. */
 function doShowExercise(a: Extract<AgentAction, { type: 'show_exercise' }>, ctx: AgentCtx): AgentResult {
   const { t, lang } = ctx;
@@ -1168,6 +1239,7 @@ export async function runActions(actions: AgentAction[], ctxIn: AgentCtx): Promi
         case 'forget': out.push(doForget(a, ctx)); break;
         case 'show_exercise': out.push(doShowExercise(a, ctx)); break;
         case 'suggest_food': out.push(...doSuggest(a, ctx)); break;
+        case 'plan_day': out.push(doPlanDay(a, ctx)); break;
         case 'undo_last': break; // handled by the Coach (it knows its own cards)
       }
     } catch {
