@@ -88,7 +88,7 @@ export function CameraSheet({ props }: { props: Props }) {
     taken.current = true; haptic('light');
     const c = cut(v, p, 1600);
     v.pause(); // the frame freezes under the flash; the pop-up closes over that still
-    const hold = flash.current!.animate([{ opacity: 0 }, { opacity: 0.32, offset: 0.2 }, { opacity: 0 }], { duration: 380, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' });
+    const hold = flash.current!.animate([{ opacity: 0 }, { opacity: 0.17, offset: 0.25 }, { opacity: 0 }], { duration: 260, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' });
     const blob = await new Promise<Blob | null>((r) => c.toBlob(r, 'image/jpeg', 0.9));
     try { await Promise.all([hold.finished, new Promise((r) => setTimeout(r, 0))]); } catch { return; } // cancelled: the pop-up is gone
     if (!alive.current) return;
@@ -110,7 +110,7 @@ export function CameraSheet({ props }: { props: Props }) {
   const live = cam === 'live';
 
   return (
-    <Sheet onClose={pop} size="full" label={t('Camera')} z={110}>
+    <Sheet onClose={pop} size="full" label={t('Camera')} z={110} cam>
       <div className="cam-wrap">
         <div ref={panel} className="cam-panel">
           {!failed && <video ref={video} playsInline muted className="cam-video" style={{ opacity: shown ? 1 : 0, transition: shown ? 'opacity 420ms var(--ease-out) 180ms' : 'none' }} />}

@@ -148,14 +148,14 @@ function markStacked(el: HTMLElement | null, b: number) {
 export type SheetSize = 'full' | 'large' | 'medium' | 'small';
 /** the gap left above each size (below the status bar) */
 const TOP_GAP: Record<SheetSize, number> = { full: 10, large: 46, medium: 46, small: 58 };
-type SheetProps = { children: ReactNode; onClose: () => void; size?: SheetSize; /** older name for size="large" */ tall?: boolean; /** light contents (Settings): present from the first frame instead of arriving a beat later */ instant?: boolean; label: string; foot?: ReactNode; z?: number; /** a sheet rendered inside another overlay's component (e.g. the workout's exercise menu) */ nested?: boolean };
+type SheetProps = { children: ReactNode; onClose: () => void; size?: SheetSize; /** older name for size="large" */ tall?: boolean; /** light contents (Settings): present from the first frame instead of arriving a beat later */ instant?: boolean; label: string; foot?: ReactNode; z?: number; /** a sheet rendered inside another overlay's component (e.g. the workout's exercise menu) */ nested?: boolean; /** the camera: black and blur-free from its very first frame, in both themes */ cam?: boolean };
 
 export function Sheet(props: SheetProps) {
   const meta = useContext(OverlayMeta);
   return !props.nested && meta?.page ? <PageSheet {...props} id={meta.id} /> : <HostSheet {...props} />;
 }
 
-function HostSheet({ children, onClose, size, tall: tallProp, instant, label, foot, z: zProp = 60, nested }: SheetProps) {
+function HostSheet({ children, onClose, size, tall: tallProp, instant, label, foot, z: zProp = 60, nested, cam }: SheetProps) {
   const meta = useContext(OverlayMeta);
   // Opened over another pop-up, a tall sheet takes the full height, so it covers the one below whole (a large one left a
   // dimmed strip of it showing above).
@@ -376,7 +376,7 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
       <Veil e={dim} z={z - 1} onClick={onClose} elRef={scrimRef} className={`${behind ? 'veil-behind' : ''} ${small ? 'veil-light' : ''}`} />
       <motion.div
         ref={ref}
-        className={`sheet sz-${sz} ${tall ? 'tall' : ''} ${behind ? 'behind' : ''} ${behind && deep ? 'deep' : ''}`}
+        className={`sheet sz-${sz} ${tall ? 'tall' : ''} ${behind ? 'behind' : ''} ${behind && deep ? 'deep' : ''} ${cam ? 'sheet-cam' : ''}`}
         style={{ zIndex: z, transformOrigin: '50% 0%', transform, maxHeight: room, ...(tall ? { height: room } : {}) }}
         role="dialog" aria-modal="true" aria-label={label}
       >
