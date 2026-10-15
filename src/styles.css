@@ -1209,6 +1209,10 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-skin-back { position: absolute; inset: 0; background: var(--bg); will-change: opacity; }
 /* the card itself while its copy is on the window: only its shadow on the page is left (Active.tsx `cardAt`) */
 .wk-hollow { background: none !important; }
+/* the clock's flight home (landing.ts): its copies ride above the window */
+.wk-hero { position: absolute; inset: 0; pointer-events: none; z-index: 8; }
+/* what arrives on Today's card after the clock (landing.ts arrive): kept on their layers, so nothing is re-layered as they land */
+[data-wk-in] { will-change: transform, opacity; }
 .wk-hollow > *, .wk-hollow::after { visibility: hidden !important; }
 /* the page around the card dims a touch while the window grows out of it (gone, unseen, before it is covered) */
 .wk-dim { position: absolute; inset: 0; background: #000; opacity: 0; pointer-events: none; will-change: opacity; }
