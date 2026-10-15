@@ -378,15 +378,20 @@ export function SphereStage() {
     // measure of the page in the frame it landed. Scrolling something with no slot inside moves no slot either.
     const noSlotIn = (box: Element) => { for (const sl of slots.values()) if (box.contains(sl.el)) return false; return true; };
     const inTallList = (t: Element) => { const body = t.closest?.('.sheet.tall .sheet-body'); return !!body && t !== body && noSlotIn(body); };
+    // The listening ring's level (--voice, written below as your voice moves, most frames while you speak) moves nothing: a
+    // style change that is only that is not a layout change. (Counted as one, it measured the whole orb path afresh every
+    // frame you spoke on the Coach, eight boxes and a dozen computed styles a frame: frame drops while it listened, r11.)
+    const noVoice = (v: string | null) => (v ?? '').replace(/--voice:\s*[^;]*;?\s*/g, '').trim();
     const lmo = new MutationObserver((recs) => {
       for (const r of recs) {
         if (r.type === 'attributes' && r.target === appEl && r.attributeName === 'style') continue; // the stage's backdrop colour
+        if (r.type === 'attributes' && r.attributeName === 'style' && noVoice(r.oldValue) === noVoice((r.target as Element).getAttribute('style'))) continue;
         const t = (r.target.nodeType === 1 ? r.target : r.target.parentElement) as Element | null;
         if (t && (inWorkout(t) || inTallList(t))) continue;
         if (r.type !== 'attributes' || !(r.target as Element).matches?.(MOVING)) { dirty(); return; }
       }
     });
-    if (appEl) lmo.observe(appEl, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class', 'data-active', 'hidden'] });
+    if (appEl) lmo.observe(appEl, { childList: true, subtree: true, attributes: true, attributeOldValue: true, attributeFilter: ['style', 'class', 'data-active', 'hidden'] });
     const onScroll = (e: Event) => { const t = e.target as Element | null; if (t?.closest?.('.wk-sheet') || (t?.nodeType === 1 && noSlotIn(t))) return; dirty(); }; // (see inWorkout, noSlotIn)
     window.addEventListener('scroll', onScroll, { capture: true, passive: true });
     window.addEventListener('resize', dirty);
