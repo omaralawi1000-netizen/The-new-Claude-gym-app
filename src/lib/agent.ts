@@ -13,6 +13,7 @@
 import { useStore, foodPool, allExercises, plannedFor } from '../state/store';
 import { useUI } from '../state/ui';
 import { addDays, fmtDate } from './dates';
+import { noteEvent } from './ledger';
 import { defaultMealId, mealName } from './derive';
 import { fold, parseFoodText, pickOnline, resolveRows, rowQuantity, type ParsedFoodRow } from './foodText';
 import { matchExercises, parseWorkoutText } from './workoutText';
@@ -581,9 +582,11 @@ function doMoveCopy(a: Extract<AgentAction, { type: 'move_food' | 'copy_food' }>
   list = list.filter((e) => (toMeal && e.mealId !== toMeal) || (toDate && e.date !== toDate));
   if (!list.length) return { id: uid('r'), kind: 'miss', title: t('Already there'), lines: [{ text: dest }] };
   list.forEach((e) => st.moveEntry(e.id, { date: toDate, mealId: toMeal }));
+  // one food moved to another meal: the Coach learns where it goes (lib/ledger.ts), unless this is undone
+  const unlearn = list.length === 1 && toMeal && (a.target || a.ref) ? noteEvent({ k: 'move', food: list[0].snap.name, meal: toMeal }) : () => {};
   return {
     id: uid('r'), kind: 'food', title: t('Moved to {where}', { where: dest }), lines: list.slice(0, 8).map((e) => ({ text: e.snap.name, sub: `${mealLabelOf(e.mealId, ctx)} → ${dest}`, ref: e.id })),
-    undo: () => list.forEach((e) => useStore.getState().moveEntry(e.id, { date: e.date, mealId: e.mealId })),
+    undo: () => { list.forEach((e) => useStore.getState().moveEntry(e.id, { date: e.date, mealId: e.mealId })); unlearn(); },
   };
 }
 
@@ -750,7 +753,8 @@ function doReplaceExercise(a: Extract<AgentAction, { type: 'replace_exercise' }>
     const item = c.length && c[0].score >= 0.5 ? r.items.find((i) => i.exerciseId === c[0].ex.id) : undefined;
     if (!item) return { id: uid('r'), kind: 'miss', title: t('Couldn’t find that exercise in the routine'), lines: [{ text: a.from, warn: true }] };
     st.upsertRoutine({ ...r, items: r.items.map((i) => (i === item ? { ...i, exerciseId: to.id } : i)) });
-    return { id: uid('r'), kind: 'routine', title: t('Routine updated'), lines: [{ text: r.name, sub: `${nameOf(item.exerciseId)} → ${exLabel(to, lang)}` }], undo: () => useStore.getState().upsertRoutine(r) };
+    const unlearn = item.exerciseId !== to.id ? noteEvent({ k: 'swap', from: item.exerciseId, to: to.id }) : () => {};
+    return { id: uid('r'), kind: 'routine', title: t('Routine updated'), lines: [{ text: r.name, sub: `${nameOf(item.exerciseId)} → ${exLabel(to, lang)}` }], undo: () => { useStore.getState().upsertRoutine(r); unlearn(); } };
   }
   // in the running workout
   if (!st.active) return { id: uid('r'), kind: 'miss', title: t('No workout is running'), lines: [{ text: t('Say which routine to change, or start a workout first.') }] };
@@ -758,10 +762,11 @@ function doReplaceExercise(a: Extract<AgentAction, { type: 'replace_exercise' }>
   if (!hit) return { id: uid('r'), kind: 'miss', title: t('Couldn’t find that exercise in the workout'), lines: [{ text: a.from, warn: true }] };
   const prev = st.active.exercises;
   replaceExercise(hit.block.id, to.id);
+  const unlearn = hit.ex.id !== to.id ? noteEvent({ k: 'swap', from: hit.ex.id, to: to.id }) : () => {};
   return {
     id: uid('r'), kind: 'workout', title: t('Exercise swapped'), lines: [{ text: exLabel(hit.ex, lang), sub: `→ ${exLabel(to, lang)}` }],
     button: { label: t('Open workout'), run: () => useUI.getState().push('workout', { origin: 'none' }) },
-    undo: () => useStore.getState().mutateActive((x) => ({ ...x, exercises: prev })),
+    undo: () => { useStore.getState().mutateActive((x) => ({ ...x, exercises: prev })); unlearn(); },
   };
 }
 
@@ -1077,7 +1082,10 @@ function doPlanDay(a: Extract<AgentAction, { type: 'plan_day' }>, ctx: AgentCtx)
         const routine = { id: uid('rt'), name, items, note: t('Planned by the Coach for {date}', { date }), oneOff: date, createdAt: now, updatedAt: now };
         s.upsertRoutine(routine);
         s.setSchedule({ overrides: [...s.schedule.overrides.filter((o) => o.date !== date), { date, routineId: routine.id }], cleared: s.schedule.cleared.filter((c) => c !== date) });
-        result.undo = () => { const u = useStore.getState(); u.deleteRoutine(routine.id); u.patch({ schedule: prevSchedule }); };
+        // kept or taken back: the Coach learns which exercises he doesn't want planned (lib/ledger.ts)
+        const exercises = items.map((i) => i.exerciseId);
+        const unkeep = noteEvent({ k: 'plan', ok: true, exercises });
+        result.undo = () => { const u = useStore.getState(); u.deleteRoutine(routine.id); u.patch({ schedule: prevSchedule }); unkeep(); noteEvent({ k: 'plan', ok: false, exercises }); };
       },
     },
   };
@@ -1476,7 +1484,8 @@ function doSetting(a: Extract<AgentAction, { type: 'set_setting' }>, ctx: AgentC
   return {
     id: uid('r'), kind: 'setting', title: lines.length > 1 ? ctx.t('Settings changed') : ctx.t('Setting changed'),
     lines: [...lines, ...bad.map((b) => ({ text: b, sub: ctx.t('not changed'), warn: true }))],
-    undo: () => useStore.getState().updateSettings(prev),
+    // (changed back: the Coach learns which settings to leave alone, lib/ledger.ts)
+    undo: () => { useStore.getState().updateSettings(prev); pairs.filter((p) => specOf(p.key)).forEach((p) => noteEvent({ k: 'setting', key: p.key })); },
   };
 }
 

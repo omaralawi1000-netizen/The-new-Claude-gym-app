@@ -124,3 +124,36 @@ describe('memory that grows: newer replaces older, temporary things end', () => 
     expect(typeof back.updatedAt).toBe('number');
   });
 });
+
+describe('it learns from what is kept, undone and corrected', () => {
+  beforeEach(() => { localStorage.clear(); useStore.getState().replaceAll(defaultData('en')); });
+
+  it('one moment is never a rule; two that agree are, and an undone one is taken back', async () => {
+    const { noteEvent, learnedRules, learnedBlock, dismissRule } = await import('../src/lib/ledger');
+    noteEvent({ k: 'move', food: 'Skyr', meal: 'breakfast' });
+    expect(learnedRules()).toEqual([]);
+    const back = noteEvent({ k: 'move', food: 'skyr', meal: 'breakfast' });
+    expect(learnedRules()[0]).toMatchObject({ kind: 'move', b: 'breakfast', count: 2 });
+    expect(learnedBlock((x) => x, (m) => m)).toMatch(/put it in breakfast/);
+    back(); // that move was undone
+    expect(learnedRules()).toEqual([]);
+    noteEvent({ k: 'move', food: 'skyr', meal: 'breakfast' });
+    dismissRule(learnedRules()[0].id);
+    expect(learnedRules()).toEqual([]);
+    expect(learnedBlock((x) => x, (m) => m)).toBe('');
+  });
+
+  it('a planned day taken back twice with the same lift → leave it out; a kept day with it cancels that', async () => {
+    const { noteEvent, learnedRules } = await import('../src/lib/ledger');
+    noteEvent({ k: 'plan', ok: false, exercises: ['ohp', 'bench'] });
+    noteEvent({ k: 'plan', ok: false, exercises: ['ohp', 'dips'] });
+    noteEvent({ k: 'plan', ok: true, exercises: ['bench'] });
+    expect(learnedRules().map((r) => r.id)).toEqual(['avoid:ohp']);
+  });
+
+  it('the Coach notes it itself: a setting changed back twice', async () => {
+    const { learnedRules } = await import('../src/lib/ledger');
+    for (let i = 0; i < 2; i++) { const r = await act({ type: 'set_setting', key: 'theme', value: i ? 'dark' : 'light' }); r.undo!(); }
+    expect(learnedRules()).toMatchObject([{ kind: 'setting', a: 'theme', count: 2 }]);
+  });
+});

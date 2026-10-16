@@ -11,6 +11,9 @@ import { Collapse } from '../ui/kit';
 import { AnimatePresence } from 'motion/react';
 import { archived, archiveSize, clearArchive, onArchiveChange, searchArchive } from '../lib/archive';
 import { writeThread } from '../lib/thread';
+import { dismissRule, learnedRules, type Rule } from '../lib/ledger';
+import { mealName } from '../lib/derive';
+import { specOf } from '../lib/settingSpec';
 
 const KIND_GROUP: Record<MemoryKind, string> = { goal: 'Goals', health: 'Body', schedule: 'Schedule', preference: 'Preferences', gear: 'Gym', food: 'Food', other: 'Notes' };
 const GROUP_ORDER: MemoryKind[] = ['goal', 'health', 'schedule', 'preference', 'gear', 'food', 'other'];
@@ -60,8 +63,48 @@ export function CoachMemory() {
         <div className="xs t3">{full ? t('Memory is full. Remove something first.') : t('{n} of {max}', { n: memory.length, max: MEMORY_MAX })}</div>
       </div>
       <div className="xs t3">{t('Saved on this device and in your backups. Sent with each question to the AI you use (Gemini or GPT-6.1 Sol).')}</div>
+      <Learned />
       <ChatHistory />
     </div>
+  );
+}
+
+/**
+ * What the Coach has learned from what you kept, undid and corrected (lib/ledger.ts): each rule says where it came from, and
+ * Forget drops it for good. Only something that happened twice becomes a rule.
+ */
+function Learned() {
+  const t = useT();
+  const lang = useLang();
+  const exs = useStore((s) => s.exercises);
+  const meals = useStore((s) => s.settings.meals);
+  const [rules, setRules] = useState<Rule[]>(() => learnedRules());
+  if (!rules.length) return null;
+  const ex = (id: string) => { const e = exerciseMap(exs).get(id); return e ? exName(e, lang) : id; };
+  const meal = (id: string) => { const m = meals.find((x) => x.id === id); return m ? mealName(m, lang) : id; };
+  const text = (r: Rule) => r.kind === 'move' ? t('Logs {food} at {meal}', { food: r.a, meal: meal(r.b!) })
+    : r.kind === 'swap' ? t('Prefers {to} to {from}', { to: ex(r.b!), from: ex(r.a) })
+    : r.kind === 'avoid' ? t('Leaves {ex} out of planned days', { ex: ex(r.a) })
+    : t('Changes {setting} only when you ask', { setting: t(specOf(r.a)?.label ?? r.a) });
+  const why = (r: Rule) => r.kind === 'move' ? t('You moved it there {n} times', { n: r.count }) : r.kind === 'swap' ? t('You swapped it {n} times', { n: r.count }) : r.kind === 'avoid' ? t('You took back {n} planned days with it', { n: r.count }) : t('You changed it back {n} times', { n: r.count });
+  const forget = (r: Rule) => { dismissRule(r.id); haptic('light'); setRules((x) => x.filter((y) => y.id !== r.id)); };
+  return (
+    <section className="stack gap8" aria-label={t('Learned from you')}>
+      <div className="micro" style={{ marginTop: 8 }}>{t('Learned from you')}</div>
+      <AnimatePresence initial={false}>
+        {rules.map((r) => (
+          <Collapse key={r.id} appear>
+            <div className="plinth-2 mem-row">
+              <div className="grow" style={{ minWidth: 0 }}>
+                <div className="small">{text(r)}</div>
+                <div className="xs t3" style={{ marginTop: 2 }}>{why(r)}</div>
+              </div>
+              <button className="btn sm ghost press" onClick={() => forget(r)}>{t('Forget')}</button>
+            </div>
+          </Collapse>
+        ))}
+      </AnimatePresence>
+    </section>
   );
 }
 
