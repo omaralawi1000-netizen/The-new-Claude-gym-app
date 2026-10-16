@@ -36,6 +36,7 @@ const arm = (sel) => p.evaluate((sel) => {
     const el = document.querySelector(sel);
     if (!el) return;
     mo.disconnect();
+    window.__el = el;
     // only what starts now: an entrance that already finished (and holds its end) is not part of this move
     const anims = document.getAnimations().filter((a) => { const t = a.effect?.target; return t && (el.contains(t) || t === el) && a.playState !== 'finished' && a.effect.getComputedTiming().iterations !== Infinity; }); // (loops are not part of a move)
     window.__names = anims.map((a) => `${a.animationName ?? 'waapi'}@${a.effect.target.className?.baseVal ?? a.effect.target.className}`.slice(0, 60));
@@ -49,7 +50,7 @@ const film = async (name, sel, totalMs) => {
   console.log("filming", name, new Date().toISOString().slice(11, 19));
   await p.waitForFunction(() => window.__frozen !== null, null, { timeout: 15000 });
   const dir = `${OUT}/${name}`; fs.rmSync(dir, { recursive: true, force: true }); fs.mkdirSync(dir, { recursive: true });
-  const box = await p.evaluate((sel) => { const r = document.querySelector(sel).getBoundingClientRect(); return { x: 0, y: Math.max(0, r.top - 70), width: innerWidth, height: Math.min(innerHeight - Math.max(0, r.top - 70), r.height + 140) }; }, sel);
+  const box = await p.evaluate(() => { const r = window.__el.getBoundingClientRect(); return { x: 0, y: Math.max(0, r.top - 70), width: innerWidth, height: Math.min(innerHeight - Math.max(0, r.top - 70), r.height + 140) }; }, sel);
   const step = 1000 / 30;
   let n = 0;
   for (let ms = 0; ms <= totalMs; ms += step) {
@@ -62,7 +63,7 @@ const film = async (name, sel, totalMs) => {
   // (the answer above writes itself in at its own pace and pushes the card down: let it finish first)
   await p.waitForFunction(() => !document.querySelector('.coach-reply:not(.still)') || [...document.querySelectorAll('.coach-answer .reply-foot')].every((f) => !f.classList.contains('held')), null, { timeout: 8000 }).catch(() => {});
   await p.waitForTimeout(600);
-  const card = await p.evaluate((sel) => { const r = document.querySelector(sel).getBoundingClientRect(); return { x: Math.max(0, r.left - 4), y: Math.max(0, r.top - 4), width: Math.min(innerWidth, r.width + 8), height: r.height + 8 }; }, sel);
+  const card = await p.evaluate(() => { const r = window.__el.getBoundingClientRect(); return { x: Math.max(0, r.left - 4), y: Math.max(0, r.top - 4), width: Math.min(innerWidth, r.width + 8), height: r.height + 8 }; }, sel);
   await p.evaluate(() => window.__anims.forEach((a) => { const end = a.effect.getComputedTiming().endTime; a.currentTime = Math.max(0, end - 1); }));
   await p.waitForTimeout(40);
   const before = (await p.screenshot({ clip: card })).toString('base64');
