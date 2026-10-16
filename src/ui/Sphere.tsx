@@ -437,9 +437,14 @@ export function SphereStage() {
           const origin = cs.transformOrigin.split(' ').map(Number.parseFloat);
           const animations = n.getAnimations().map(animation => {
             const keys = (animation.effect as KeyframeEffect).getKeyframes().filter(k => k.transform !== undefined);
-            const sampled = animation instanceof CSSAnimation || animation instanceof CSSTransition || keys.some(k => k.easing !== 'linear');
+            let sampled = animation instanceof CSSAnimation || animation instanceof CSSTransition || keys.some(k => k.easing !== 'linear');
+            let frames: { offset: number; matrix: DOMMatrixReadOnly }[] = [];
+            if (!sampled) {
+              try { frames = keys.map(k => ({ offset: k.computedOffset!, matrix: matrixOf(String(k.transform), h) })); }
+              catch { sampled = true; } // valid relative transforms need the browser's resolved matrix, not DOMMatrix's parser
+            }
             if (sampled) sampledStates.set(animation, animation.playState);
-            return { animation, sampled, frames: sampled ? [] : keys.map(k => ({ offset: k.computedOffset!, matrix: matrixOf(String(k.transform), h) })), moving: keys.length > 1 };
+            return { animation, sampled, frames, moving: keys.length > 1 };
           }).filter(a => a.moving);
           sampledAnimations.push(...animations.filter(a => a.sampled).map(a => a.animation));
           transforms.set(n, { matrix, css: n.style.transform ? new DOMMatrixReadOnly() : matrix, x: r.left + r.width * origin[0] / w, y: r.top + r.height * origin[1] / h,
@@ -457,7 +462,8 @@ export function SphereStage() {
         if (!t) continue;
         let m = currentTransforms.get(n);
         if (!m) {
-          m = n.style.transform ? matrixOf(n.style.transform, t.height) : t.css;
+          try { m = n.style.transform ? matrixOf(n.style.transform, t.height) : t.css; }
+          catch { m = t.matrix; dirty(); } // sample an unresolved inline transform in the next read phase; never break Motion's frame loop
           for (const a of t.animations) {
             const p = a.animation.effect?.getComputedTiming().progress;
             if (p == null || a.animation.playState === 'idle') continue;

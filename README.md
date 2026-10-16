@@ -2404,3 +2404,13 @@ styles and animation curves. `scripts/journey-open-recovery.mjs` blocks both scr
 remain usable, then unblocks them and verifies Coach and the orb open after reload. It is in `scripts/run-all.sh`.
 
 This reproduces a download-failure crash; the owner's exact intermittent phone freeze and GPU flicker still need device confirmation.
+
+## Relative orb transforms cannot stop the shared animation loop
+
+The orb's position reader parsed native keyframes with `DOMMatrixReadOnly`. Valid percentage forms such as
+`translate3d(0, 10%, 0)` need an element's dimensions, so that parser throws. Inside Motion's frame callback, the exception
+could stop the shared frame scheduler: Today stayed visible while Coach remained off screen and sheets stopped responding.
+Unresolvable keyframes now use the existing browser-sampled path; unresolvable inline transforms use the last resolved
+matrix and request a fresh measurement. The native animations, their timing and the orb's renderer are unchanged.
+`scripts/orb-motion.mjs` covers relative native and inline transforms, opening/closing Coach and continued keyboard motion
+in both high-refresh modes. The observed phone's exact offending transform has not been captured.
