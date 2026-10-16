@@ -322,6 +322,12 @@ export interface MemoryNote {
   at: number;
   /** the exercises it is about (a sore shoulder on overhead press): the workout shows it beside them */
   exerciseIds?: string[];
+  /** a temporary thing ("sick until Friday"): the last day it applies (YYYY-MM-DD). After it, the Coach no longer reads it */
+  until?: string;
+  /** when it was last reworded (a newer fact replaced the older one) */
+  updatedAt?: number;
+  /** its earlier wordings, newest first (up to 3) */
+  was?: { text: string; at: number }[];
 }
 
 export interface AppData {

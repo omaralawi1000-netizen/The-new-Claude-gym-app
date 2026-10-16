@@ -333,10 +333,12 @@ export function ActionCard({ r, undone, confirmed, onUndo, onConfirm, replaced =
           {/* (kept when undone: taking it away collapsed the card in one frame) */}
           {r.subtitle && <div className="xs t2 num ac-sub" style={{ marginTop: 2 }}>{confirmed && r.doneSubtitle ? r.doneSubtitle : r.subtitle}</div>}
           {r.week && <WeekStrip week={r.week} />}
+          {/* a memory reworded: the old wording, struck through (drawn as the card arrives), above the new one */}
+          {r.was && <div className="ac-was small" style={{ marginTop: 6 }}><span className="ac-was-t">{r.was}</span></div>}
           {r.lines.length > 0 && (
-            <div style={{ marginTop: 6 }}>
+            <div style={{ marginTop: r.was ? 2 : 6 }}>
               {r.lines.map((l, i) => (
-                <div key={i} className={`action-line ${l.sub && l.sub.length > 30 ? 'stack' : 'row-flex between'}`} style={{ gap: l.sub && l.sub.length > 30 ? 2 : 10, padding: '5px 0', borderTop: i ? '1px solid var(--line)' : 'none', animationDelay: `${120 + i * 70}ms`, ['--i' as string]: i }}>
+                <div key={i} className={`action-line ${l.sub && l.sub.length > 30 ? 'stack' : 'row-flex between'}`} style={{ gap: l.sub && l.sub.length > 30 ? 2 : 10, padding: '5px 0', borderTop: i ? '1px solid var(--line)' : 'none', animationDelay: `${120 + i * 70}ms`, ['--i' as string]: i + (r.was ? 1 : 0) }}>
                   <span className="small ac-text" style={{ color: l.warn ? 'var(--warn)' : 'var(--tx)', minWidth: 0, overflowWrap: 'anywhere' }}>{l.text}</span>
                   {l.sub && <span className="xs t2 num" style={l.sub.length > 30 ? { display: 'block', marginTop: 1 } : { textAlign: 'right', flex: 'none', maxWidth: '62%' }}>{l.sub}</span>}
                 </div>

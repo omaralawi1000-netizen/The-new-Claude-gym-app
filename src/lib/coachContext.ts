@@ -146,9 +146,19 @@ export function buildTodayContext(d: AppData, today: string, now: Date, exOf: (i
 export const exerciseNames = (list: Exercise[]) => list.filter((e) => !e.archived).map((e) => e.name);
 
 /** What the user told the Coach before, oldest first and numbered (the numbers are what `forget` points at). */
-export function memoryBlock(d: Pick<AppData, 'memory'>, exName: (id: string) => string): string {
+export function memoryBlock(d: Pick<AppData, 'memory'>, exName: (id: string) => string, now = Date.now()): string {
   if (!d.memory.length) return 'MEMORY: nothing yet.';
-  return `MEMORY (what the user has told you before; follow it — the numbers are for forget):\n${d.memory.map((m, i) => `${i + 1}. [${m.kind}] ${m.text}${m.exerciseIds?.length ? ` (about: ${m.exerciseIds.map(exName).join(', ')})` : ''}`).join('\n')}`;
+  const day = (at: number) => { const x = new Date(at); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; };
+  const today = day(now);
+  // how old a note is, so a newer thing said in the chat weighs more than an old note
+  const age = (at: number) => { const n = Math.floor((now - at) / 86_400_000); return !at ? '' : n < 1 ? 'today' : n < 14 ? `${n} d ago` : n < 60 ? `${Math.round(n / 7)} wk ago` : `${Math.round(n / 30)} mo ago`; };
+  const lines = d.memory.map((m, i) => {
+    // a temporary note past its last day stays numbered (forget keeps its number) but is no longer followed
+    if (m.until && m.until < today) return `${i + 1}. (ended ${m.until}, ignore) ${m.text}`;
+    const when = age(m.updatedAt ?? m.at);
+    return `${i + 1}. [${m.kind}] ${m.text}${m.exerciseIds?.length ? ` (about: ${m.exerciseIds.map(exName).join(', ')})` : ''}${m.until ? ` (until ${m.until})` : ''}${when ? ` (${when})` : ''}`;
+  });
+  return `MEMORY (what the user has told you before; follow it — the numbers are for forget and for remember's replaces):\n${lines.join('\n')}`;
 }
 
 import { matchExercises } from './workoutText';
@@ -246,7 +256,7 @@ export const AGENT_SYSTEM = (lang: 'en' | 'da') =>
   'UNDO: "undo that", "take that back", "fortryd" → undo_last (it undoes the newest card that can be undone); add other actions only if they also ask for something new. ' +
   'Big changes (a split, a planned day, deleting a routine or a workout, clearing a whole meal or day) are shown as a preview the user applies; say so in one short line, never claim they are done. ' +
   '5. They ask a QUESTION or want to TALK (how the app works, where a setting is, their training, food, weight, progress, records, what to change next, a plan) → answer in the reply from the GUIDE and DATA, no actions unless they ask for a change. You may combine: give the advice AND make the change they asked for. When a setting is asked about ("how do I change the theme?"), explain where it is AND offer to do it.\n' +
-  '6. They tell you something LASTING about themselves — a goal, a preference or dislike, how they train (e.g. "wrestling is my leg day"), an injury or pain to work around, their schedule, their gym\'s equipment, foods they avoid → remember (text: one short third-person line; kind; exercise if it is about one exercise). Not for one-off things (what they ate today) or what DATA already shows. If they correct or contradict a MEMORY line, forget that line (memory: its number) and remember the new version. "Forget that…" → forget.\n' +
+  '6. They tell you something LASTING about themselves — a goal, a preference or dislike, how they train (e.g. "wrestling is my leg day"), an injury or pain to work around, their schedule, their gym\'s equipment, foods they avoid → remember (text: one short third-person line; kind; exercise if it is about one exercise). Not for one-off things (what they ate today) or what DATA already shows. If they correct, update or contradict a MEMORY line, remember the new version with memory = that line\'s number (it replaces it; never forget + remember). Something temporary (sick, travelling, sore this week, a deload week) → remember with until = its last day (ask nothing; a week if they gave no end). "Forget that…" → forget.\n' +
   '7. They send a PHOTO (their message starts with [photo]) → work out what it shows. A nutrition label → create_food with the per-100 g/ml values exactly as printed, named from the package (add amount if they say they ate some). A gym machine, a piece of equipment or an exercise → say what it is, how to set it up and 2–3 form cues, and add show_exercise with the closest catalog exercise (say if it is only close). A training program or plan (screenshot, whiteboard) → create_routine with its exercises mapped to catalog names. Food on a plate → describe it, and log_food the items with estimated amounts only if they ask you to log it. If you can\'t tell, say what you see and ask. You can\'t judge someone\'s form from one photo — say so if asked.\n' +
   'When you recommend specific exercises, add show_exercise for each (up to 3) so they can open the how-to.\n' +
   '8. They ask what to EAT (to hit protein or calories, or for a meal idea) → suggest_food with 2–3 options built mainly from their FREQUENT FOODS (things they have at home), each with amounts and approximate totals that fit what is left today; the reply is one short line. Each option becomes a card they can log with one tap, so don\'t also log_food.\n' +

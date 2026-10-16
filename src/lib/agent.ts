@@ -12,7 +12,7 @@
  */
 import { useStore, foodPool, allExercises, plannedFor } from '../state/store';
 import { useUI } from '../state/ui';
-import { addDays } from './dates';
+import { addDays, fmtDate } from './dates';
 import { defaultMealId, mealName } from './derive';
 import { fold, parseFoodText, pickOnline, resolveRows, rowQuantity, type ParsedFoodRow } from './foodText';
 import { matchExercises, parseWorkoutText } from './workoutText';
@@ -69,7 +69,7 @@ export type AgentAction =
   | { type: 'delete_activity'; kind?: string | null; day?: string | null }
   | { type: 'delete_weight'; day?: string | null }
   | { type: 'add_note'; text: string; kind: 'training' | 'nutrition'; day?: string | null }
-  | { type: 'remember'; text: string; kind: MemoryKind; exercise?: string | null }
+  | { type: 'remember'; text: string; kind: MemoryKind; exercise?: string | null; /** the MEMORY number this replaces */ replaces?: number | null; /** last day it applies */ until?: string | null }
   | { type: 'forget'; memory?: number | null; target?: string | null }
   | { type: 'show_exercise'; exercise: string }
   | { type: 'suggest_food'; options: { label: string; foods: AgentFood[]; totals: NutriFix | null }[]; meal?: string | null }
@@ -234,7 +234,13 @@ export function validateAgent(raw: any): { reply: string; actions: AgentAction[]
       case 'delete_activity': out.push({ type: 'delete_activity', kind: str(a.kind, 20) ?? null, day: dayArg(a.day) }); break;
       case 'delete_weight': out.push({ type: 'delete_weight', day: dayArg(a.day) }); break;
       case 'add_note': { const text = str(a.text, 400); if (text) out.push({ type: 'add_note', text, kind: a.kind === 'nutrition' ? 'nutrition' : 'training', day: dayArg(a.day) }); break; }
-      case 'remember': { const text = str(a.text, 200); if (text) out.push({ type: 'remember', text, kind: MEMORY_KINDS.includes(a.kind) ? a.kind : 'other', exercise: str(a.exercise, 60) ?? null }); break; }
+      case 'remember': {
+        const text = str(a.text, 200);
+        const n = typeof a.memory === 'number' ? a.memory : typeof a.memory === 'string' && /^\d{1,3}$/.test(a.memory.trim()) ? Number(a.memory.trim()) : null;
+        const until = typeof a.until === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(a.until.trim()) ? a.until.trim() : null;
+        if (text) out.push({ type: 'remember', text, kind: MEMORY_KINDS.includes(a.kind) ? a.kind : 'other', exercise: str(a.exercise, 60) ?? null, replaces: n, until });
+        break;
+      }
       case 'show_exercise': { const exercise = str(a.exercise, 60); if (exercise) out.push({ type: 'show_exercise', exercise }); break; }
       case 'forget': {
         const n = typeof a.memory === 'number' ? a.memory : typeof a.memory === 'string' && /^\d{1,3}$/.test(a.memory.trim()) ? Number(a.memory.trim()) : undefined;
@@ -320,6 +326,8 @@ export interface AgentResult {
   pending?: boolean;
   /** a preview of one thing ("plan:2026-10-16", "split"): a newer preview with the same key replaces it (no applying both) */
   key?: string;
+  /** a memory reworded: what it said before (shown struck through above the new wording) */
+  was?: string;
   /** the subtitle once a preview is applied ("2 days changed") */
   doneSubtitle?: string;
   /** a week shown as seven days (a split preview), Monday first: routine initials and wrestling */
@@ -986,17 +994,30 @@ function doRemember(a: Extract<AgentAction, { type: 'remember' }>, ctx: AgentCtx
   const { t, lang } = ctx;
   const st = useStore.getState();
   const ex = a.exercise ? findExercise(a.exercise, lang) : undefined;
+  // a temporary thing ends on its own (a date in the past or years away is not one)
+  const until = a.until && a.until >= ctx.today && a.until <= addDays(ctx.today, 366) ? a.until : undefined;
   const fields = { text: a.text, kind: a.kind, ...(ex ? { exerciseIds: [ex.id] } : {}) };
-  const twin = st.memory.find((m) => sameNote(m.text, a.text));
   const more = { label: t('See all'), run: openMemory };
-  if (twin) {
-    const before = { ...twin };
-    st.updateMemory(twin.id, fields);
-    return { id: uid('r'), kind: 'memory', title: t('Memory updated'), lines: [{ text: a.text, sub: ex ? exLabel(ex, lang) : undefined }], button: more, undo: () => useStore.getState().updateMemory(before.id, before) };
+  const untilSub = until ? t('until {date}', { date: fmtDate(until, lang, { weekday: 'short', day: 'numeric', month: 'short' }) }) : undefined;
+  // the newer fact replaces the older one: the note the Coach named (its MEMORY number), else the same note said again
+  const seen = a.replaces ? (ctx.memAtStart ?? st.memory)[a.replaces - 1] : undefined;
+  const old = (seen && st.memory.find((m) => m.id === seen.id)) || st.memory.find((m) => sameNote(m.text, a.text));
+  if (old) {
+    const before = { ...old };
+    const same = fold(old.text) === fold(a.text);
+    const was = same ? old.was : [{ text: old.text, at: old.updatedAt ?? old.at }, ...(old.was ?? [])].slice(0, 3);
+    // (an exercise or end date the new wording doesn't carry goes with the old one)
+    st.updateMemory(old.id, { ...fields, exerciseIds: ex ? [ex.id] : undefined, until, updatedAt: Date.now(), was });
+    return { id: uid('r'), kind: 'memory', title: t('Memory updated'), was: same ? undefined : old.text, lines: [{ text: a.text, sub: untilSub ?? (ex ? exLabel(ex, lang) : undefined) }], button: more, undo: () => useStore.getState().updateMemory(before.id, { ...before, until: before.until, updatedAt: before.updatedAt, was: before.was, exerciseIds: before.exerciseIds }) };
   }
-  if (st.memory.length >= MEMORY_MAX) return { id: uid('r'), kind: 'miss', title: t('Memory is full'), lines: [{ text: a.text, sub: t('Remove something in Settings → Coach memory first'), warn: true }], button: more };
-  const note = st.addMemory(fields);
-  return { id: uid('r'), kind: 'memory', title: t('Remembered'), lines: [{ text: note.text, sub: ex ? exLabel(ex, lang) : undefined }], button: more, undo: () => useStore.getState().removeMemory(note.id) };
+  // full: a temporary note that has ended makes room first (its time is over), else the Coach says so
+  if (st.memory.length >= MEMORY_MAX) {
+    const ended = st.memory.filter((m) => m.until && m.until < ctx.today).sort((x, y) => x.until!.localeCompare(y.until!))[0];
+    if (!ended) return { id: uid('r'), kind: 'miss', title: t('Memory is full'), lines: [{ text: a.text, sub: t('Remove something in Settings → Coach memory first'), warn: true }], button: more };
+    st.removeMemory(ended.id);
+  }
+  const note = st.addMemory({ ...fields, ...(until ? { until } : {}) });
+  return { id: uid('r'), kind: 'memory', title: t('Remembered'), lines: [{ text: note.text, sub: untilSub ?? (ex ? exLabel(ex, lang) : undefined) }], button: more, undo: () => useStore.getState().removeMemory(note.id) };
 }
 
 function doForget(a: Extract<AgentAction, { type: 'forget' }>, ctx: AgentCtx): AgentResult {

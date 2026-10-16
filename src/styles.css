@@ -1213,6 +1213,13 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .action-card.undoing { transition: opacity 520ms var(--ease-smooth); }
 .action-card.undoing .action-line .ac-text::after { animation: acStrike 460ms var(--ease-io) both; animation-delay: calc(var(--i, 0) * 45ms); }
 @keyframes acStrike { from { transform: scaleX(0); } }
+/* a memory reworded: the old wording sits above the new one, struck through; on arrival it comes in first, then the line is
+   drawn through it while the new wording rises in under it */
+.ac-was { color: var(--tx2); opacity: 0.6; }
+.ac-was-t { position: relative; display: inline-block; max-width: 100%; overflow-wrap: anywhere; }
+.ac-was-t::after { content: ''; position: absolute; left: 0; right: 0; top: 52%; height: 1.5px; border-radius: 1px; background: currentColor; opacity: 0.8; transform-origin: 0 50%; }
+.coach-body .action-card.fresh .ac-was { animation: acLine 520ms var(--ease-smooth) 190ms both; }
+.coach-body .action-card.fresh .ac-was-t::after { animation: acStrike 520ms var(--ease-io) 480ms both; }
 /* a replaced preview steps back quietly */
 .action-card.replaced { opacity: 0.6; transition: opacity 600ms var(--ease-smooth); }
 
@@ -1438,6 +1445,10 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* ── Settings → Coach memory: one quiet row per thing the Coach knows; tap the words to reword them */
 .mem-row { display: flex; align-items: flex-start; gap: 8px; padding: 12px 8px 12px 14px; }
 .chat-hit { padding: 10px 14px; }
+.mem-group { margin-top: 4px; }
+.mem-row.ended { opacity: 0.6; }
+.mem-hist-btn { display: inline-block; margin-top: 6px; padding: 2px 0; background: none; border: 0; color: var(--tx3); text-decoration: underline; text-underline-offset: 2px; }
+.mem-hist { padding-top: 6px; }
 .mem-text { display: block; width: 100%; text-align: left; font-size: 15px; line-height: 1.4; color: var(--tx); overflow-wrap: anywhere; }
 .mem-edit { width: 100%; min-height: 64px; font-size: 15px; line-height: 1.4; resize: none; }
 .reply.still .w, .reply.still .w-in, .reply.still .soft-in > .soft-s, .reply.still .soft-in::before, .reply.still .soft-in::after { animation: none; }

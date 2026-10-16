@@ -3,6 +3,7 @@ import { useStore, exerciseMap } from '../state/store';
 import { exName } from './workout/common';
 import { useUI, haptic } from '../state/ui';
 import { useT, useLang } from '../lib/i18n';
+import { dayKey, fmtDate } from '../lib/dates';
 import { MEMORY_MAX } from '../state/defaults';
 import type { MemoryKind, MemoryNote } from '../lib/types';
 import { Icon } from '../ui/Icon';
@@ -11,7 +12,8 @@ import { AnimatePresence } from 'motion/react';
 import { archived, archiveSize, clearArchive, onArchiveChange, searchArchive } from '../lib/archive';
 import { writeThread } from '../lib/thread';
 
-const KIND_LABEL: Record<MemoryKind, string> = { goal: 'Goal', preference: 'Preference', health: 'Body', schedule: 'Schedule', gear: 'Gym', food: 'Food', other: 'Note' };
+const KIND_GROUP: Record<MemoryKind, string> = { goal: 'Goals', health: 'Body', schedule: 'Schedule', preference: 'Preferences', gear: 'Gym', food: 'Food', other: 'Notes' };
+const GROUP_ORDER: MemoryKind[] = ['goal', 'health', 'schedule', 'preference', 'gear', 'food', 'other'];
 
 /**
  * Settings → Coach memory: everything the Coach keeps about you, in plain words. It adds to this when you tell it something
@@ -22,6 +24,12 @@ export function CoachMemory() {
   const memory = useStore((s) => s.memory);
   const [draft, setDraft] = useState('');
   const full = memory.length >= MEMORY_MAX;
+  const today = dayKey(Date.now(), useStore((s) => s.settings.dayStartHour));
+  const groups = useMemo(() => {
+    const by = new Map<MemoryKind | 'ended', MemoryNote[]>();
+    for (const m of memory) { const k = m.until && m.until < today ? 'ended' : m.kind; (by.get(k) ?? by.set(k, []).get(k)!).push(m); }
+    return [...GROUP_ORDER, 'ended' as const].filter((k) => by.has(k)).map((k) => [k, by.get(k)!] as const);
+  }, [memory, today]);
   const add = () => {
     const text = draft.trim().slice(0, 240);
     if (!text || full) return;
@@ -34,11 +42,15 @@ export function CoachMemory() {
       {memory.length === 0 && (
         <div className="plinth-2 small t2" style={{ padding: 14 }}>{t('Nothing yet. Try telling the Coach: “I don’t do a separate leg day, wrestling covers my legs.”')}</div>
       )}
-      <div className="stack gap8">
-        <AnimatePresence initial={false}>
-          {memory.map((m) => <Collapse key={m.id} appear><MemoryRow m={m} /></Collapse>)}
-        </AnimatePresence>
-      </div>
+      {/* by kind, in a fixed order (goals first); a temporary note that has ended goes last, under "Ended" */}
+      {groups.map(([k, list]) => (
+        <div key={k} className="stack gap8">
+          <div className="micro mem-group">{k === 'ended' ? t('Ended') : t(KIND_GROUP[k])}</div>
+          <AnimatePresence initial={false}>
+            {list.map((m) => <Collapse key={m.id} appear><MemoryRow m={m} ended={k === 'ended'} /></Collapse>)}
+          </AnimatePresence>
+        </div>
+      ))}
       <div className="field">
         <label htmlFor="mem-add">{t('Add something the Coach should know')}</label>
         <div className="row-flex" style={{ gap: 8 }}>
@@ -94,7 +106,7 @@ function ChatHistory() {
   );
 }
 
-function MemoryRow({ m }: { m: MemoryNote }) {
+function MemoryRow({ m, ended = false }: { m: MemoryNote; ended?: boolean }) {
   const t = useT();
   const [edit, setEdit] = useState<string | null>(null);
   const lang = useLang();
@@ -105,19 +117,34 @@ function MemoryRow({ m }: { m: MemoryNote }) {
     if (text && text !== m.text) useStore.getState().updateMemory(m.id, { text: text.slice(0, 240) });
     setEdit(null);
   };
+  const [history, setHistory] = useState(false);
+  const day = (at: number) => new Date(at).toLocaleDateString(lang === 'da' ? 'da-DK' : 'en-GB', { day: 'numeric', month: 'short' });
   const remove = () => {
     const gone = useStore.getState().removeMemory(m.id);
     haptic('light');
     if (gone) useUI.getState().toast(t('Removed from memory'), { actionLabel: t('Undo'), onAction: () => useStore.getState().restoreMemory(gone) });
   };
   return (
-    <div className="plinth-2 mem-row">
+    <div className={`plinth-2 mem-row${ended ? ' ended' : ''}`}>
       <div className="grow" style={{ minWidth: 0 }}>
-        <div className="micro" style={{ marginBottom: 4 }}>{t(KIND_LABEL[m.kind] ?? 'Note')}</div>
+        {/* (the group says what kind it is; this line says only when: until, ended, reworded) */}
+        {(m.until || m.updatedAt) && (
+          <div className="xs t3 num" style={{ marginBottom: 4 }}>
+            {[m.until && (ended ? t('Ended {date}', { date: fmtDate(m.until, lang, { day: 'numeric', month: 'short' }) }) : t('Until {date}', { date: fmtDate(m.until, lang, { weekday: 'short', day: 'numeric', month: 'short' }) })), m.updatedAt && t('updated {date}', { date: day(m.updatedAt) })].filter(Boolean).join(' · ')}
+          </div>
+        )}
         {edit === null
           ? <button className="mem-text" onClick={() => setEdit(m.text)} aria-label={`${t('Edit')}: ${m.text}`}>{m.text}</button>
           : <textarea className="input mem-edit" autoFocus value={edit} maxLength={240} rows={2} onChange={(e) => setEdit(e.target.value)} onBlur={save} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); save(); } if (e.key === 'Escape') { e.stopPropagation(); setEdit(null); } }} />}
         {about.length > 0 && <div className="xs t3" style={{ marginTop: 4 }}><Icon name="dumbbell" size={12} style={{ verticalAlign: '-2px', marginRight: 4 }} />{about.join(' · ')}</div>}
+        {!!m.was?.length && (
+          <>
+            <button className="xs t3 mem-hist-btn press" aria-expanded={history} onClick={() => setHistory((x) => !x)}>{history ? t('Hide earlier wording') : t('Earlier wording ({n})', { n: m.was.length })}</button>
+            <Collapse open={history}>
+              <div className="stack gap4 mem-hist">{m.was.map((w) => <div key={w.at} className="xs t2"><span className="num t3">{day(w.at)}</span> · <s>{w.text}</s></div>)}</div>
+            </Collapse>
+          </>
+        )}
       </div>
       <button className="icon-btn flat sm press" aria-label={t('Remove')} onClick={remove}><Icon name="trash" size={17} /></button>
     </div>

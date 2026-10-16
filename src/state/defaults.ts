@@ -3,7 +3,7 @@ import { ACTIVITY_KINDS } from '../lib/activity';
 
 export const DATA_VERSION = 1;
 /** The Coach remembers at most this many things: each one is sent with every question, so the list stays short and sharp. */
-export const MEMORY_MAX = 40;
+export const MEMORY_MAX = 60;
 export const MEMORY_KINDS: MemoryKind[] = ['goal', 'preference', 'health', 'schedule', 'gear', 'food', 'other'];
 
 export function detectLang(): Lang {
@@ -80,7 +80,10 @@ export function normaliseData(raw: any, lang: Lang = 'en'): AppData {
     increments: raw.increments && typeof raw.increments === 'object' && !Array.isArray(raw.increments) ? raw.increments : {},
     // a hand-edited or older backup: keep only notes that still make sense
     memory: (Array.isArray(raw.memory) ? raw.memory : []).filter((m: any) => m && typeof m.text === 'string' && m.text.trim() && typeof m.id === 'string').slice(0, MEMORY_MAX)
-      .map((m: any) => ({ id: m.id, text: m.text.trim().slice(0, 240), kind: MEMORY_KINDS.includes(m.kind) ? m.kind : 'other', at: typeof m.at === 'number' ? m.at : 0, ...(Array.isArray(m.exerciseIds) && m.exerciseIds.length ? { exerciseIds: m.exerciseIds.filter((x: unknown) => typeof x === 'string').slice(0, 6) } : {}) })),
+      .map((m: any) => ({ id: m.id, text: m.text.trim().slice(0, 240), kind: MEMORY_KINDS.includes(m.kind) ? m.kind : 'other', at: typeof m.at === 'number' ? m.at : 0, ...(Array.isArray(m.exerciseIds) && m.exerciseIds.length ? { exerciseIds: m.exerciseIds.filter((x: unknown) => typeof x === 'string').slice(0, 6) } : {}),
+        ...(typeof m.until === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(m.until) ? { until: m.until } : {}),
+        ...(typeof m.updatedAt === 'number' ? { updatedAt: m.updatedAt } : {}),
+        ...(Array.isArray(m.was) ? { was: m.was.filter((w: any) => w && typeof w.text === 'string' && typeof w.at === 'number').slice(0, 3).map((w: any) => ({ text: w.text.slice(0, 240), at: w.at })) } : {}) })),
     demo: !!raw.demo,
   };
 }
