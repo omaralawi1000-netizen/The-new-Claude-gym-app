@@ -58,7 +58,7 @@ export function defaultData(lang: Lang = 'en'): AppData {
     settings: defaultSettings(lang),
     foods: [], favourites: [], savedMeals: [], recipes: [], entries: [], water: [],
     exercises: [], routines: [], schedule: defaultSchedule(), sessions: [], active: null,
-    weights: [], measurements: [], photos: [], activities: [], notes: [], choices: {}, increments: {}, memory: [],
+    weights: [], measurements: [], photos: [], activities: [], notes: [], choices: {}, increments: {}, memory: [], reviews: [],
     demo: false,
   };
 }
@@ -79,6 +79,8 @@ export function normaliseData(raw: any, lang: Lang = 'en'): AppData {
     choices: raw.choices && typeof raw.choices === 'object' && !Array.isArray(raw.choices) ? raw.choices : {},
     increments: raw.increments && typeof raw.increments === 'object' && !Array.isArray(raw.increments) ? raw.increments : {},
     // a hand-edited or older backup: keep only notes that still make sense
+    reviews: (Array.isArray(raw.reviews) ? raw.reviews : []).filter((r: any) => r && typeof r.week === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(r.week) && Array.isArray(r.priorities)).slice(-26)
+      .map((r: any) => ({ week: r.week, at: typeof r.at === 'number' ? r.at : 0, ...(typeof r.verdict === 'string' && r.verdict.trim() ? { verdict: r.verdict.slice(0, 400) } : {}), priorities: r.priorities.filter((p: any) => p && typeof p.id === 'string' && typeof p.text === 'string').slice(0, 2).map((p: any) => ({ id: p.id.slice(0, 80), text: p.text.slice(0, 160) })) })),
     memory: (Array.isArray(raw.memory) ? raw.memory : []).filter((m: any) => m && typeof m.text === 'string' && m.text.trim() && typeof m.id === 'string').slice(0, MEMORY_MAX)
       .map((m: any) => ({ id: m.id, text: m.text.trim().slice(0, 240), kind: MEMORY_KINDS.includes(m.kind) ? m.kind : 'other', at: typeof m.at === 'number' ? m.at : 0, ...(Array.isArray(m.exerciseIds) && m.exerciseIds.length ? { exerciseIds: m.exerciseIds.filter((x: unknown) => typeof x === 'string').slice(0, 6) } : {}),
         ...(typeof m.until === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(m.until) ? { until: m.until } : {}),

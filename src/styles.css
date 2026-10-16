@@ -1744,6 +1744,34 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .review-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 12px; margin-top: 14px; }
 .review-num { font-size: 24px; font-weight: 300; letter-spacing: -0.03em; line-height: 1.1; }
 .review-stall { display: flex; gap: 8px; align-items: flex-start; margin-top: 14px; padding: 9px 10px; border-radius: 12px; color: var(--tx); background: color-mix(in srgb, var(--warn) 12%, transparent); }
+/* the week in review (screens/WeekReview.tsx): numbers that roll in, muscle bars that grow from the left, the Coach's words */
+.rv-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 12px; }
+.rv-tile { min-width: 0; }
+.rv-num { line-height: 1.05; margin-bottom: 4px; }
+.rv-unit { font-family: var(--f-ui); font-stretch: 100%; font-weight: 600; }
+.rv-muscles { padding: 14px 14px 12px; display: grid; gap: 9px; }
+.rv-key { display: inline-flex; align-items: center; gap: 6px; }
+.rv-key-mark { display: inline-block; width: 2px; height: 10px; border-radius: 1px; background: var(--tx2); }
+.rv-bar { display: grid; grid-template-columns: 78px minmax(0, 1fr) 32px; align-items: center; gap: 10px; }
+.rv-bar-l { color: var(--tx2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rv-bar-n { text-align: right; color: var(--tx); }
+.rv-bar-track { position: relative; height: 8px; border-radius: 4px; background: var(--s2); }
+.rv-bar-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; background: var(--ac); transform-origin: 0 50%; }
+.rv-bar-fill.low { background: color-mix(in srgb, var(--warn) 80%, var(--ac)); }
+.rv-bar-mark { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; border-radius: 1px; background: var(--tx2); opacity: 0.85; }
+.rv-ok { flex: none; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; background: var(--s2); color: var(--tx3); }
+.rv-ok.yes { background: color-mix(in srgb, var(--ok) 22%, transparent); color: var(--ok); }
+.rv-ok.no { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+.rv-coach { display: grid; gap: 10px; }
+.rv-verdict { margin: 0; font-size: 16px; line-height: 1.45; color: var(--tx); }
+.rv-thinking { animation: lookIn 520ms var(--ease-smooth) both; }
+.rv-w { display: inline-block; animation: rvWord 560ms var(--ease-smooth) both; animation-delay: calc(var(--rv-base, 0ms) + var(--w, 0) * 22ms); }
+@keyframes rvWord { from { opacity: 0; transform: translate3d(0, 4px, 0); } }
+.rv-pri { display: flex; align-items: center; gap: 12px; padding: 10px 10px 10px 12px; animation: acSettle 720ms var(--ease-smooth) both; animation-delay: calc(var(--rv-base, 0ms) + var(--rv-words, 0) * 22ms + 160ms + var(--i, 0) * 90ms); }
+.rv-pri-n { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; font-weight: 650; color: var(--ac-text); background: var(--ac-soft); }
+.rv.still :is(.rv-w, .rv-pri, .rv-thinking) { animation: none; }
+@media (prefers-reduced-motion: reduce) { .rv :is(.rv-w, .rv-pri, .rv-thinking) { animation: none !important; } }
+:root[data-motion='reduce'] .rv :is(.rv-w, .rv-pri, .rv-thinking) { animation: none !important; }
 
 /* ── live workout, compact header: name and the clock line beside the minimise button; pause and Finish on the right ── */
 .wk-head-wrap { position: relative; z-index: 2; padding: 0 16px 10px; }

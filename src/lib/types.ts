@@ -330,6 +330,9 @@ export interface MemoryNote {
   was?: { text: string; at: number }[];
 }
 
+/** One weekly review as kept: the week's last day, the Coach's verdict and up to two priorities (ids from lib/weekReview). */
+export interface WeekReviewNote { week: string; at: number; verdict?: string; priorities: { id: string; text: string }[] }
+
 export interface AppData {
   v: number;
   settings: Settings;
@@ -355,5 +358,7 @@ export interface AppData {
   increments: Record<string, number>;
   /** what the Coach remembers about you */
   memory: MemoryNote[];
+  /** the weekly reviews (the newest 26): the Coach's verdict and the priorities it set, so the next review can check them */
+  reviews?: WeekReviewNote[];
   demo: boolean;
 }

@@ -11,7 +11,7 @@ import { buildBackup, parseBackup } from '../src/lib/backup';
 import { runActions, validateAgent, type AgentCtx, type AgentResult } from '../src/lib/agent';
 import { memoryBlock } from '../src/lib/coachContext';
 import { makeT } from '../src/lib/i18n';
-import { addDays, dayKey } from '../src/lib/dates';
+import { addDays, dayKey, startOfWeek } from '../src/lib/dates';
 import { MEMORY_MAX } from '../src/state/defaults';
 
 const t = makeT('en') as any;
@@ -155,5 +155,70 @@ describe('it learns from what is kept, undone and corrected', () => {
     const { learnedRules } = await import('../src/lib/ledger');
     for (let i = 0; i < 2; i++) { const r = await act({ type: 'set_setting', key: 'theme', value: i ? 'dark' : 'light' }); r.undo!(); }
     expect(learnedRules()).toMatchObject([{ kind: 'setting', a: 'theme', count: 2 }]);
+  });
+});
+
+describe('the weekly review: the app computes, the Coach only chooses', () => {
+  const musclesOf = (id: string) => allExercises(useStore.getState().exercises).find((e) => e.id === id)?.muscles;
+  const demo = async () => {
+    const { buildDemo } = await import('../src/lib/demo');
+    const d = defaultData('en'); d.settings.onboarded = true;
+    useStore.getState().replaceAll({ ...d, ...buildDemo(d.settings) } as any);
+    return useStore.getState();
+  };
+  const lastWeekEnd = () => addDays(startOfWeek(today, useStore.getState().settings.weekStart), -1);
+
+  it('numbers from the data: sets per muscle against the usual week, planned vs done; days not logged stay unknown', async () => {
+    const { reviewNumbers } = await import('../src/lib/weekReview');
+    const d = await demo();
+    const end = lastWeekEnd();
+    const n = reviewNumbers(d, end, musclesOf);
+    expect(n.from).toBe(addDays(end, -6));
+    expect(n.sets).toBeGreaterThan(0);
+    expect(n.muscles.length).toBeGreaterThan(0);
+    expect(n.missed).toBeLessThanOrEqual(n.planned);
+    // no food logged at all: protein is unknown, never 0
+    useStore.getState().replaceAll({ ...useStore.getState(), entries: [] } as any);
+    const m = reviewNumbers(useStore.getState(), end, musclesOf);
+    expect(m.loggedDays).toBe(0);
+    expect(m.proteinAvg).toBeNull();
+  });
+
+  it('candidates come from the numbers, the most important first; each can be checked a week later', async () => {
+    const { candidates, met } = await import('../src/lib/weekReview');
+    const d = await demo();
+    const n: any = { from: '2026-10-05', to: '2026-10-11', sessions: 2, prevSessions: 3, wrestling: 1, proteinAvg: 110, kcalAvg: 2500, loggedDays: 6, records: 0, weightRate: -1.2, stalls: [], planned: 4, missed: 2, sets: 30, muscles: [{ m: 'back', sets: 2, avg: 10 }, { m: 'chest', sets: 12, avg: 11 }], streak: 3, weightPct: -1.5 };
+    const list = candidates({ ...d, settings: { ...d.settings, goals: { ...d.settings.goals, protein: 160 } } } as any, n, (x) => x, (m) => m);
+    expect(list.map((c) => c.id)).toEqual(['weight', 'missed', 'protein', 'muscle:back']);
+    expect(list.find((c) => c.id === 'protein')!.vars).toEqual({ avg: 110, goal: 160 });
+    expect(met('protein', { ...n, proteinAvg: 150 }, 160)).toBe(true);
+    expect(met('muscle:back', { ...n, muscles: [{ m: 'back', sets: 9, avg: 10 }] }, 160)).toBe(true);
+    expect(met('missed', { ...n, planned: 0 }, 160)).toBeNull();
+  });
+
+  it('a review is kept (one per week, the newest 26) and survives a backup; the Coach reads what happened after it', async () => {
+    const { storedReview, reviewsBlock } = await import('../src/lib/weekReview');
+    await demo();
+    const st = useStore.getState();
+    st.saveReview(storedReview('2026-09-27', 'Good week.', [{ id: 'protein', text: 'Get protein to 160 g a day' }]));
+    st.saveReview(storedReview('2026-09-27', 'Better wording.', [{ id: 'protein', text: 'Protein to 160 g' }]));
+    expect(useStore.getState().reviews).toHaveLength(1);
+    expect(useStore.getState().reviews![0].verdict).toBe('Better wording.');
+    const back = parseBackup(JSON.stringify(buildBackup()), 'en').data;
+    expect(back.reviews).toEqual(useStore.getState().reviews);
+    expect(reviewsBlock(useStore.getState(), musclesOf)).toMatch(/week ending 2026-09-27: "Better wording\." priorities: Protein to 160 g \((not )?done the week after\)|week ending 2026-09-27: "Better wording\." priorities: Protein to 160 g$/m);
+    const old = parseBackup(JSON.stringify({ app: 'aven', v: 1, data: defaultData('en') }), 'en').data;
+    expect(old.reviews).toEqual([]);
+  });
+
+  it('the Coach may only choose the app’s candidates', async () => {
+    const { aiWeekReview } = await import('../src/lib/gemini');
+    const reply = { verdict: 'Solid week.', priorities: [{ id: 'protein', text: 'More protein' }, { id: 'invented', text: 'Run a marathon' }, { id: 'protein', text: 'again' }] };
+    const orig = globalThis.fetch;
+    globalThis.fetch = (async () => new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify(reply) }] } }] }), { status: 200 })) as any;
+    try {
+      const r = await aiWeekReview('WEEK …', { key: 'k', models: ['gemini-2.5-flash'] } as any, 'en', ['protein', 'missed']);
+      expect(r).toEqual({ verdict: 'Solid week.', priorities: [{ id: 'protein', text: 'More protein' }] });
+    } finally { globalThis.fetch = orig; }
   });
 });

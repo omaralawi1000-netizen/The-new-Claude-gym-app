@@ -162,6 +162,22 @@ export function ProgressScreen() {
           </div>
         </Section>
       )}
+      {/* the weekly reviews kept (newest first): each opens again, its numbers recomputed from the data */}
+      {(s.reviews ?? []).length > 0 && (
+        <Section title={t('Weekly reviews')}>
+          <div className="list">
+            {[...(s.reviews ?? [])].reverse().slice(0, 8).map((r) => (
+              <button key={r.week} className="li press" onClick={() => push('weekReview', { end: r.week })}>
+                <div className="grow" style={{ textAlign: 'left', minWidth: 0 }}>
+                  <div className="li-title small">{fmtDate(addDays(r.week, -6), lang, { day: 'numeric', month: 'short' })} – {fmtDate(r.week, lang, { day: 'numeric', month: 'short' })}</div>
+                  <div className="li-sub trunc">{r.priorities.map((p) => p.text).join(' · ') || r.verdict || ''}</div>
+                </div>
+                <Icon name="chevR" size={16} style={{ color: 'var(--tx3)' }} />
+              </button>
+            ))}
+          </div>
+        </Section>
+      )}
       </>}
     </div>
   );
