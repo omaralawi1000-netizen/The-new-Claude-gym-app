@@ -2156,8 +2156,8 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* the finish screen (Summary.tsx): the medal, the numbers' odometers and the line are moved by finishMoment.ts (Web
    Animations on transform and opacity, one timeline on the app's springs); here they only have their resting look. The
    medal's light is painted once and never re-drawn. */
-.sum-medal { --m: var(--ac); position: relative; width: 84px; height: 84px; margin: 6px auto 26px; display: grid; place-items: center; perspective: 640px; }
-.sum-medal.gold { --m: var(--gold); margin-top: 20px; }
+.sum-medal { --m: var(--ac); position: relative; width: 84px; height: 84px; margin: 6px auto 20px; display: grid; place-items: center; perspective: 640px; }
+.sum-medal.gold { --m: var(--gold); margin-top: 10px; }
 .sum-disc { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; }
 /* a coin with two faces: the front (glyph, sheen) and a plain back turned away, each hidden while it faces away, so the
    glyph is never seen mirrored while it turns */
@@ -2186,10 +2186,10 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .odo-s > span, .odo-k { height: 1.15em; line-height: 1.15em; }
 .odo-k { display: inline-block; white-space: pre; }
 .sum-word { display: inline-block; }
-.sum-line { margin: 18px 4px 0; text-align: center; font-size: 24px; line-height: 1.2; font-style: italic; text-wrap: balance; }
+.sum-line { margin: 14px 4px 0; text-align: center; font-size: 24px; line-height: 1.2; font-style: italic; text-wrap: balance; }
 /* the finish screen's coach: next time's targets for the main lifts (the "+2.5 kg" in the accent: it means something) */
-.sum-next { margin-top: 12px; padding: 10px 14px 6px; border-radius: var(--r-md); }
-.sum-next-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; font-size: 14.5px; }
+.sum-next { margin-top: 8px; padding: 10px 14px 6px; border-radius: var(--r-md); }
+.sum-next-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; font-size: 14.5px; }
 .sum-next-what { min-width: 0; flex: 1; }
 .sum-next-what .xs { display: block; margin-top: 1px; color: var(--ac-text); font-weight: 600; }
 .sum-next-row + .sum-next-row { box-shadow: inset 0 1px 0 var(--line); }

@@ -93,7 +93,7 @@ export function Summary({ props }: { props: { sessionId: string } }) {
         {line && <p className="sum-line display">{line.split(' ').map((w, i) => <Fragment key={i}><span data-fm="word" className="sum-word">{w}</span>{' '}</Fragment>)}</p>}
 
         {recs.length === 0 ? null : (
-          <div className="stack gap8" style={{ marginTop: 22 }}>
+          <div className="stack gap8" style={{ marginTop: 12 }}>
             {recs.map((r, i) => {
               const ex = exMap.get(r.exerciseId);
               const vset = r.kind === 'volume' ? ses.exercises.flatMap((e) => e.sets).find((q) => q.id === r.setId && q.reps) : undefined;
@@ -170,7 +170,7 @@ function CheckInRows({ id, value }: { id: string; value?: CheckIn }) {
   };
   return (
     <div className="sum-checkin">
-      <div className="micro" style={{ margin: '20px 0 4px' }}>{t('Quick check-in')}</div>
+      <div className="micro" style={{ margin: '10px 0 2px' }}>{t('Quick check-in')}</div>
       {CHECKIN.map((r) => (
         <div key={r.k} className="ci-row" role="group" aria-label={t(r.label)}>
           <span className="ci-label xs t2">{t(r.label)}</span>
