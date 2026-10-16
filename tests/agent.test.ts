@@ -170,6 +170,9 @@ describe('the whole app by voice: move, replace, copy, routines, sets, plan', ()
   });
   it('builds, edits and deletes a routine, and puts it on a weekday', async () => {
     const [c] = await run([{ type: 'create_routine', name: 'Test push', add: [{ exercise: 'Barbell Bench Press', sets: 4, repMin: 6, repMax: 8 }, { exercise: 'Overhead Press', sets: 3, repMin: 8, repMax: 10 }, { exercise: 'Unicorn Curl', sets: 3 }] }]);
+    expect(c.pending).toBe(true); // a new routine is a preview first (phase 4): nothing saved before Apply
+    expect(useStore.getState().routines.some((x) => x.name === 'Test push')).toBe(false);
+    c.button!.run();
     const r = useStore.getState().routines.find((x) => x.name === 'Test push')!;
     expect(r.items).toHaveLength(2);
     expect(c.lines.some((l) => l.warn)).toBe(true); // the unknown exercise is reported, not invented

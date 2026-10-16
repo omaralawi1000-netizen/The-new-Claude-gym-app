@@ -786,15 +786,18 @@ function doCreateRoutine(a: Extract<AgentAction, { type: 'create_routine' }>, ct
   const { t } = ctx;
   const { items, skipped } = itemsFrom(a.items, ctx.lang);
   if (!items.length) return { id: uid('r'), kind: 'miss', title: t('Couldn’t build that routine'), lines: skipped.map((n) => ({ text: n, sub: t('Not in your exercise library'), warn: true })) };
-  const now = Date.now();
-  const r = { id: uid('r'), name: a.name, items, createdAt: now, updatedAt: now };
-  useStore.getState().upsertRoutine(r);
   const pool = allExercises(useStore.getState().exercises);
-  return {
-    id: uid('r'), kind: 'routine', title: t('Routine created'),
-    lines: [{ text: a.name, sub: `${items.length} ${t('exercises')}` }, ...items.map((i) => ({ text: exLabel(pool.find((e) => e.id === i.exerciseId)!, ctx.lang), sub: `${i.workingSets} × ${i.repMin}–${i.repMax}` })), ...skipped.map((n) => ({ text: n, sub: t('Not in your exercise library'), warn: true }))],
-    undo: () => useStore.getState().deleteRoutine(r.id),
-  };
+  // a preview first (from a photo of a program, or said): nothing is saved until Apply, and a newer version replaces it
+  return preview({
+    id: uid('r'), kind: 'routine', title: a.name, subtitle: `${items.length} ${t('exercises')} · ${items.reduce((n, i) => n + i.workingSets, 0)} ${t('sets')}`, key: `routine:${fold(a.name)}`,
+    doneSubtitle: t('Saved to your routines'),
+    lines: [...items.map((i) => ({ text: exLabel(pool.find((e) => e.id === i.exerciseId)!, ctx.lang), sub: `${i.workingSets} × ${i.repMin}–${i.repMax}` })), ...skipped.map((n) => ({ text: n, sub: t('Not in your exercise library'), warn: true }))],
+  }, t('Apply'), () => {
+    const now = Date.now();
+    const r = { id: uid('r'), name: a.name, items, createdAt: now, updatedAt: now };
+    useStore.getState().upsertRoutine(r);
+    return () => useStore.getState().deleteRoutine(r.id);
+  });
 }
 
 function doEditRoutine(a: Extract<AgentAction, { type: 'edit_routine' }>, ctx: AgentCtx): AgentResult {

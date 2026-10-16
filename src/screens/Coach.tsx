@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type SetStateAction } from 'react';
 import { useStore, allExercises } from '../state/store';
 import { useUI, haptic } from '../state/ui';
 import { useAi, anyBrain, solOn } from '../state/ai';
@@ -101,6 +101,40 @@ function endTop(el: HTMLElement) {
 }
 
 /**
+ * One message of the chat. A row is drawn again only when its own message changes: while an answer streams in (a new
+ * piece every few hundred ms) and while you type, the other 59 rows stay as they are. Every row used to be rebuilt each
+ * time, saved answers and cards included.
+ */
+const ChatRow = memo(function ChatRow({ m, sent, gone, setMsgs }: { m: Msg; /** sent just now, and not flown in */ sent: boolean; /** the ids of this message's previews that a newer one replaced */ gone: string; setMsgs: Dispatch<SetStateAction<Msg[]>> }) {
+  const t = useT();
+  const replaced = gone ? gone.split(',') : [];
+  return (
+    <div data-mid={m.id} className={sent ? 'coach-sent' : undefined}
+      style={m.role === 'user' ? USER_ROW : OTHER_ROW}>
+      {m.role === 'user' && (
+        <div className="stack" style={{ alignItems: 'flex-end', gap: 6, maxWidth: '100%' }}>
+          {m.photo && (m.image ? <img className="said-photo" src={m.image} alt={t('Your photo')} /> : <div className="said xs t2"><Icon name="camera" size={13} style={{ verticalAlign: '-2px', marginRight: 4 }} />{t('Photo')}</div>)}
+          {m.text && <div className="said" style={{ maxWidth: '100%' }}>{m.lines ? m.lines.map((l, i) => <span key={i} className="said-l">{l || '\u200b'}</span>) : m.text}</div>}
+        </div>
+      )}
+      {m.role === 'model' && <CoachReply m={m} />}
+      {m.role === 'action' && (
+        <div className="stack gap8">
+          {m.results.map((r) => (
+            <ActionCard key={r.id} r={r} undone={m.undone.includes(r.id)} confirmed={m.confirmed.includes(r.id)} replaced={replaced.includes(r.id)} fresh={!!m.fresh}
+              onUndo={() => { r.undo?.(); haptic('light'); setMsgs((x) => x.map((y) => (y.id === m.id && y.role === 'action' ? { ...y, undone: [...y.undone, r.id] } : y))); }}
+              onConfirm={() => { r.button?.run(); haptic('confirm'); setMsgs((x) => x.map((y) => (y.id === m.id && y.role === 'action' ? { ...y, confirmed: [...y.confirmed, r.id] } : y))); }} />
+          ))}
+        </div>
+      )}
+      {m.role === 'error' && <div className="plinth-2 small" role="alert" style={{ padding: '10px 14px', color: 'var(--bad)' }}>{m.text}</div>}
+    </div>
+  );
+});
+const USER_ROW: CSSProperties = { transformOrigin: '100% 100%', alignSelf: 'flex-end', maxWidth: '84%', display: 'flex' };
+const OTHER_ROW: CSSProperties = { transformOrigin: '0% 0%', alignSelf: 'stretch', maxWidth: '100%' };
+
+/**
  * One of the Coach's answers. It writes itself in a word at a time at a calm, steady pace (however the network delivers it),
  * each word fading up into place; the text is laid out as it will stay, so no word ever moves once shown. Below it, the
  * play button's row is held open from the first word, so the button fades in where room was already made and nothing is
@@ -128,8 +162,8 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   const pop = useUI((u) => u.pop);
   const push = useUI((u) => u.push);
   const ai = useAi();
-  const s = useStore();
-  const pool = useMemo(() => allExercises(s.exercises), [s.exercises]);
+  const exercises = useStore((x) => x.exercises); // (only these: the whole store re-drew the chat on any change)
+  const pool = useMemo(() => allExercises(exercises), [exercises]);
   // the conversation carries on where you left it (kept on this device); the orb screen's turns join the end of it
   const [msgs, setMsgs] = useState<Msg[]>(() => [...loadThread(), ...(props.seed ?? []).flatMap((x) => [
     ...(x.said ? [{ id: uid('m'), role: 'user' as const, text: x.said, seeded: true, at: Date.now() }] : []),
@@ -144,7 +178,18 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   // tap for ~90 ms on the phone): the newest ones are there from the first frame, scrolled to the bottom as always, and the
   // older ones are added above them a couple at a time once the sheet has risen, with the scroll kept exactly in place.
   const [older, setOlder] = useState(() => Math.max(0, msgs.length - TAIL));
-  useEffect(() => { if (!msgs.some((m) => m.role === 'model' && m.streaming)) saveThread(msgs); }, [msgs]);
+  // (saved when the phone is idle, not in the frame the answer ends: turning 60 messages into JSON, writing it and adding to
+  // the archive held the frames while the last words were still coming in; a pending save is made at once on close)
+  const pendingSave = useRef<Msg[] | null>(null);
+  useEffect(() => {
+    if (msgs.some((m) => m.role === 'model' && m.streaming)) return;
+    pendingSave.current = msgs;
+    const idle = (window as any).requestIdleCallback ?? ((f: () => void) => setTimeout(f, 300));
+    const cancel = (window as any).cancelIdleCallback ?? clearTimeout;
+    const id = idle(() => { if (pendingSave.current) { saveThread(pendingSave.current); pendingSave.current = null; } }, { timeout: 2000 });
+    return () => cancel(id);
+  }, [msgs]);
+  useEffect(() => () => { if (pendingSave.current) saveThread(pendingSave.current); }, []);
   // back to an old conversation after a break: the suggestions come back under it until something is sent
   const [resumed, setResumed] = useState(() => { const last = [...msgs].reverse().find((m) => 'at' in m && m.at) as { at?: number } | undefined; return msgs.length > 0 && !props.ask && !props.listen && (!last?.at || Date.now() - last.at > 30 * 60_000); });
   const [input, setInput] = useState('');
@@ -872,28 +917,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
           <>
             {shown.length === 0 ? tipsBlock : tipsOut === 'top' && <div className="coach-tips-out" inert onAnimationEnd={(e) => { if (e.target === e.currentTarget) setTipsOut(null); }}>{tipsBlock}</div>}
             <div className="stack coach-thread" style={{ gap: 16, marginTop: shown.length ? 0 : 16 }}>
-              {listed.map((m) => (
-                <div key={m.id} data-mid={m.id} className={m.role === 'user' && !m.seeded && !flown(m.id) ? 'coach-sent' : undefined}
-                  style={{ transformOrigin: m.role === 'user' ? '100% 100%' : '0% 0%', alignSelf: m.role === 'user' ? 'flex-end' : 'stretch', maxWidth: m.role === 'user' ? '84%' : '100%', display: m.role === 'user' ? 'flex' : undefined }}>
-                  {m.role === 'user' && (
-                    <div className="stack" style={{ alignItems: 'flex-end', gap: 6, maxWidth: '100%' }}>
-                      {m.photo && (m.image ? <img className="said-photo" src={m.image} alt={t('Your photo')} /> : <div className="said xs t2"><Icon name="camera" size={13} style={{ verticalAlign: '-2px', marginRight: 4 }} />{t('Photo')}</div>)}
-                      {m.text && <div className="said" style={{ maxWidth: '100%' }}>{m.lines ? m.lines.map((l, i) => <span key={i} className="said-l">{l || '\u200b'}</span>) : m.text}</div>}
-                    </div>
-                  )}
-                  {m.role === 'model' && <CoachReply m={m} />}
-                  {m.role === 'action' && (
-                    <div className="stack gap8">
-                      {m.results.map((r) => (
-                        <ActionCard key={r.id} r={r} undone={m.undone.includes(r.id)} confirmed={m.confirmed.includes(r.id)} replaced={replaced.has(r.id)} fresh={!!m.fresh}
-                          onUndo={() => { r.undo?.(); haptic('light'); setMsgs((x) => x.map((y) => (y.id === m.id && y.role === 'action' ? { ...y, undone: [...y.undone, r.id] } : y))); }}
-                          onConfirm={() => { r.button?.run(); haptic('confirm'); setMsgs((x) => x.map((y) => (y.id === m.id && y.role === 'action' ? { ...y, confirmed: [...y.confirmed, r.id] } : y))); }} />
-                      ))}
-                    </div>
-                  )}
-                  {m.role === 'error' && <div className="plinth-2 small" role="alert" style={{ padding: '10px 14px', color: 'var(--bad)' }}>{m.text}</div>}
-                </div>
-              ))}
+              {listed.map((m) => <ChatRow key={m.id} m={m} sent={m.role === 'user' && !m.seeded && !flown(m.id)} gone={m.role === 'action' ? m.results.filter((r) => replaced.has(r.id)).map((r) => r.id).join(',') : ''} setMsgs={setMsgs} />)}
             </div>
             {resumed && shown.length > 0 ? <div className="coach-resume">{resumeHead}{tipsBlock}</div>
               : tipsOut === 'resume' && <div className="coach-resume coach-tips-out" inert onAnimationEnd={(e) => { if (e.target === e.currentTarget) setTipsOut(null); }}>{resumeHead}{tipsBlock}</div>}

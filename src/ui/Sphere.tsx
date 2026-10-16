@@ -24,6 +24,8 @@ type RGB = [number, number, number];
  * Touching the orb. While a finger is on it the whole sphere sinks in a touch and its light gathers; on release it springs
  * back, a flash of light runs through it, it spins up and two thin rings leave it. It never changes shape: only light moves.
  */
+/** The buttons the orb writes its voice level on (--voice): their style changes never move a slot. */
+const voiceEls = new WeakSet<Element>();
 let pressTarget = 0;
 let tapPending = 0;
 let whooshPending = 0;
@@ -381,6 +383,9 @@ export function SphereStage() {
     const lmo = new MutationObserver((recs) => {
       for (const r of recs) {
         if (r.type === 'attributes' && r.target === appEl && r.attributeName === 'style') continue; // the stage's backdrop colour
+        // (the voice level written on a slot's button, every frame while you speak, moves nothing: it re-measured the page
+        // on every frame of a recording)
+        if (r.type === 'attributes' && r.attributeName === 'style' && voiceEls.has(r.target as Element)) continue;
         const t = (r.target.nodeType === 1 ? r.target : r.target.parentElement) as Element | null;
         if (t && (inWorkout(t) || inTallList(t))) continue;
         if (r.type !== 'attributes' || !(r.target as Element).matches?.(MOVING)) { dirty(); return; }
@@ -645,7 +650,8 @@ export function SphereStage() {
       drawn = true;
       // the slot's button listens too: its ring swells with your voice (one CSS variable, written only when it moves)
       if (topSlot && top > 0 && (Math.abs(vv - sentV) > 0.015 || (vv < 0.004) !== (sentV < 0.004))) {
-        (topSlot.el.parentElement ?? topSlot.el).style.setProperty('--voice', vv < 0.004 ? '0' : vv.toFixed(3));
+        const vEl = topSlot.el.parentElement ?? topSlot.el; voiceEls.add(vEl);
+        vEl.style.setProperty('--voice', vv < 0.004 ? '0' : vv.toFixed(3));
         sentV = vv;
       }
     };

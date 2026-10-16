@@ -1505,27 +1505,26 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .edge-fade.frosted::before, .tabbar-wrap.edge-fade::before { -webkit-backdrop-filter: blur(var(--edge-blur, 16px)) saturate(1.35); backdrop-filter: blur(var(--edge-blur, 16px)) saturate(1.35);
   -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--edge-ramp, 26px)); mask-image: linear-gradient(to bottom, transparent, #000 var(--edge-ramp, 26px)); }
 :root[data-theme='light'] .edge-fade { --edge-tint: var(--sheet-solid); --edge-a: 40%; } /* (light: a pale neutral, or it read as a white strip) */
-.coach-sent { animation: coachSend 760ms cubic-bezier(.2, .7, .2, 1) backwards; }
+.coach-sent { animation: coachSend 760ms cubic-bezier(.2, .7, .2, 1) both; }
 @keyframes coachSend {
   from { opacity: 0; transform: translate3d(0, 28px, 0) scale(.975); }
   45% { opacity: 1; }
-  to { opacity: 1; transform: none; }
-}
+} /* (both, no `to`: an end keyframe with backwards fill dropped the layer as it ended — the one-frame flicker; style guide §4) */
 /* the Coach's answers write themselves in word by word at a steady pace (useWordReveal), each word fading up (.calm .w
    above). The list glides on a layer of its own (Coach.tsx), so following the answer redraws nothing. Under the answer the
    play button's row is held open while it writes, and the button (and the quiet note) fade in where the room already is. */
-.coach-reply:not(.still) { animation: coachReply 420ms var(--ease-out) backwards; }
+.coach-reply:not(.still) { animation: coachReply 420ms var(--ease-out) both; }
 .coach-thread { will-change: transform; }
 .reply-foot.held { min-height: 32px; }
 /* the play button under each answer is a quiet glyph, not a filled circle (a column of circles down the chat read as noise);
    it keeps its 32 px tap area and lines up with the text, and takes its colour and ring only while it reads aloud */
 .coach-body .reply-foot { margin-left: -9px; }
 .coach-body .speak-btn:not(.playing, .loading) { background: transparent; border-color: transparent; color: var(--tx3); }
-.coach-after.fresh, .coach-after.fresh .speak-btn { animation: coachAfter 680ms var(--ease-out) backwards; }
+.coach-after.fresh, .coach-after.fresh .speak-btn { animation: coachAfter 680ms var(--ease-out) both; }
 .reply-foot.coach-after.fresh { animation: none; }
 /* The typing dots come a beat after your message has risen (not under the typing bar while the list makes room), growing
    out of their corner like a bubble; when the first word arrives they melt away over it instead of being swapped out. */
-.coach-thread .typing { transform-origin: 0% 100%; animation: typingIn 680ms cubic-bezier(.2, .7, .2, 1) 340ms backwards; }
+.coach-thread .typing { transform-origin: 0% 100%; animation: typingIn 680ms cubic-bezier(.2, .7, .2, 1) 340ms both; }
 @keyframes typingIn { from { opacity: 0; transform: translate3d(0, 3px, 0) scale(.86); } } /* (calm: grew from .7, a pop) */
 .coach-answer { position: relative; }
 .coach-thread .typing.typing-out { position: absolute; left: 0; top: 0; z-index: 1; pointer-events: none; animation: typingOut 520ms cubic-bezier(.4, 0, .6, 1) forwards; }
@@ -1533,7 +1532,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 :root[data-motion='reduce'] .coach-thread .typing { animation: none; }
 :root[data-motion='reduce'] .coach-thread .typing.typing-out { display: none; }
 @keyframes coachAfter { from { opacity: 0; transform: translate3d(0, 4px, 0); } }
-@keyframes coachReply { from { opacity: .65; transform: translate3d(0, 3px, 0); } to { opacity: 1; transform: none; } }
+@keyframes coachReply { from { opacity: .65; transform: translate3d(0, 3px, 0); } }
 /* a sent message in flight (Coach.tsx): a copy of the bubble above everything. Its shape is eight pieces (four corners
    that scale evenly, four straight pieces between them), moved together on one spring so they always make one outline:
    it starts as the whole pill and becomes the bubble. The pill's colours (.fly-pill: its tint, top sheen and rim as they
