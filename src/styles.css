@@ -1437,6 +1437,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 
 /* ── Settings → Coach memory: one quiet row per thing the Coach knows; tap the words to reword them */
 .mem-row { display: flex; align-items: flex-start; gap: 8px; padding: 12px 8px 12px 14px; }
+.chat-hit { padding: 10px 14px; }
 .mem-text { display: block; width: 100%; text-align: left; font-size: 15px; line-height: 1.4; color: var(--tx); overflow-wrap: anywhere; }
 .mem-edit { width: 100%; min-height: 64px; font-size: 15px; line-height: 1.4; resize: none; }
 .reply.still .w, .reply.still .w-in, .reply.still .soft-in > .soft-s, .reply.still .soft-in::before, .reply.still .soft-in::after { animation: none; }

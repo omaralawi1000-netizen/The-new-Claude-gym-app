@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useDeferredValue, useMemo, useState, useSyncExternalStore } from 'react';
 import { useStore, exerciseMap } from '../state/store';
 import { exName } from './workout/common';
 import { useUI, haptic } from '../state/ui';
@@ -8,6 +8,8 @@ import type { MemoryKind, MemoryNote } from '../lib/types';
 import { Icon } from '../ui/Icon';
 import { Collapse } from '../ui/kit';
 import { AnimatePresence } from 'motion/react';
+import { archived, archiveSize, clearArchive, onArchiveChange, searchArchive } from '../lib/archive';
+import { writeThread } from '../lib/thread';
 
 const KIND_LABEL: Record<MemoryKind, string> = { goal: 'Goal', preference: 'Preference', health: 'Body', schedule: 'Schedule', gear: 'Gym', food: 'Food', other: 'Note' };
 
@@ -46,7 +48,49 @@ export function CoachMemory() {
         <div className="xs t3">{full ? t('Memory is full. Remove something first.') : t('{n} of {max}', { n: memory.length, max: MEMORY_MAX })}</div>
       </div>
       <div className="xs t3">{t('Saved on this device and in your backups. Sent with each question to the AI you use (Gemini or GPT-6.1 Sol).')}</div>
+      <ChatHistory />
     </div>
+  );
+}
+
+/**
+ * Everything ever said to the Coach and the orb (lib/archive.ts): searchable here, and by the Coach itself when you ask
+ * "what did I say about…". Kept on this phone and in backups; only the parts the Coach looks up are ever sent.
+ */
+function ChatHistory() {
+  const t = useT();
+  const lang = useLang();
+  const n = useSyncExternalStore(onArchiveChange, archiveSize, archiveSize);
+  const [q, setQ] = useState('');
+  const dq = useDeferredValue(q.trim());
+  const [sure, setSure] = useState(false);
+  const found = useMemo(() => searchArchive(archived(), dq || null, null, null, dq ? 30 : 12).reverse(), [dq, n]); // newest first
+  if (!n) return null;
+  const first = archived()[0]?.at;
+  const forget = async () => { writeThread([]); await clearArchive(); setSure(false); setQ(''); haptic('light'); useUI.getState().toast(t('Conversation history deleted')); };
+  return (
+    <section className="stack gap8" aria-label={t('Conversation history')}>
+      <div className="micro" style={{ marginTop: 8 }}>{t('Conversation history')}</div>
+      <div className="xs t2">{t('{n} messages kept since {date}. The Coach searches them when you ask what you said before.', { n, date: first ? new Date(first).toLocaleDateString(lang === 'da' ? 'da-DK' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '' })}</div>
+      <input className="input" type="search" value={q} placeholder={t('Search what you said')} aria-label={t('Search what you said')} onChange={(e) => setQ(e.target.value)} />
+      <div className="stack gap8">
+        <AnimatePresence initial={false}>
+          {found.map((m) => (
+            <Collapse key={`${m.at}:${m.text.slice(0, 24)}`} appear>
+              <div className="plinth-2 chat-hit">
+                <div className="xs t3 num">{new Date(m.at).toLocaleString(lang === 'da' ? 'da-DK' : 'en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · {m.role === 'user' ? t('You') : t('Coach')}</div>
+                <div className="small" style={{ marginTop: 2 }}>{m.text.length > 280 ? `${m.text.slice(0, 280)}…` : m.text}</div>
+                {m.beside && <div className="xs t2" style={{ marginTop: 4 }}>↳ {m.beside.text.length > 160 ? `${m.beside.text.slice(0, 160)}…` : m.beside.text}</div>}
+              </div>
+            </Collapse>
+          ))}
+        </AnimatePresence>
+        {dq && !found.length && <div className="xs t3">{t('Nothing found.')}</div>}
+      </div>
+      {!sure
+        ? <button className="btn ghost sm press" style={{ alignSelf: 'flex-start' }} onClick={() => setSure(true)}><Icon name="trash" size={15} /> {t('Delete conversation history')}</button>
+        : <div className="row-flex" style={{ gap: 8 }}><button className="btn danger sm grow press" onClick={forget}>{t('Yes, delete it')}</button><button className="btn sm grow press" onClick={() => setSure(false)}>{t('Keep')}</button></div>}
+    </section>
   );
 }
 
