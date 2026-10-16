@@ -8,7 +8,6 @@ import type { AppData, MuscleGroup, WeekReviewNote } from './types';
 import { addDays } from './dates';
 import { MUSCLES, setsPerMuscle, weekReview, weekStreak, weeklyTraining, type WeekReview } from './stats';
 import { plannedFor } from '../state/store';
-import { tiredCheckins } from './readiness';
 
 export interface MuscleWeek { m: MuscleGroup; sets: number; /** a week, on average, over the 4 weeks before */ avg: number }
 export interface ReviewNumbers extends WeekReview {
@@ -23,9 +22,6 @@ export interface ReviewNumbers extends WeekReview {
   streak: number;
   /** weight change per week as % of body weight (negative = losing), when known */
   weightPct: number | null;
-  /** check-ins after workouts this week, and how many said tired (low energy, poor sleep or very sore) */
-  checkins: number;
-  tired: number;
 }
 
 const r1 = (n: number) => Math.round(n * 10) / 10;
@@ -46,14 +42,12 @@ export function reviewNumbers(d: AppData, to: string, musclesOf: (exerciseId: st
   const before = setsPerMuscle(d.sessions, musclesOf, addDays(from, -28), addDays(from, -1));
   const muscles = MUSCLES.map((m) => ({ m, sets: r1(now[m]), avg: r1(before[m] / 4) })).filter((x) => x.sets > 0 || x.avg >= 1).sort((a, b) => b.sets - a.sets || b.avg - a.avg);
   const weeks = weeklyTraining(d.sessions.filter((s) => s.status === 'done'), to, 12, d.settings.weekStart);
-  const felt = tiredCheckins(d, from, to);
   const lastKg = [...d.weights].filter((w) => w.date <= to).sort((a, b) => a.date.localeCompare(b.date)).at(-1)?.kg;
   return {
     ...base, planned, missed,
     sets: done.reduce((n, s) => n + s.exercises.reduce((k, e) => k + e.sets.filter((x) => x.done && x.type === 'working').length, 0), 0),
     muscles, streak: weekStreak(weeks, 2),
     weightPct: base.weightRate !== null && lastKg ? r1((base.weightRate / lastKg) * 100) : null,
-    checkins: felt.total, tired: felt.tired,
   };
 }
 
@@ -75,7 +69,6 @@ export function candidates(d: AppData, n: ReviewNumbers, name: (id: string) => s
   const goal = d.settings.goals.protein;
   if (n.planned >= 2 && n.missed >= 1) out.push({ id: 'missed', key: '{done} of {planned} planned workouts done', vars: { done: n.planned - n.missed, planned: n.planned }, ask: 'My plan did not fit my week. Help me set a week I can keep.', score: 60 + n.missed * 10 });
   if (n.weightPct !== null && n.weightPct <= -1) out.push({ id: 'weight', key: 'Weight is dropping {pct}% a week, faster than is healthy', vars: { pct: Math.abs(n.weightPct) }, ask: 'My weight is dropping fast. What should I change in what I eat?', score: 85 });
-  if (n.tired >= 2) out.push({ id: 'fatigue', key: 'Tired after {n} of {m} workouts', vars: { n: n.tired, m: n.checkins }, ask: 'I have felt tired after most workouts this week. Should next week be lighter? Plan it if so.', score: 65 + n.tired * 5 });
   for (const s of n.stalls.slice(0, 1)) out.push({ id: `stall:${s.exerciseId}`, key: '{exercise} has not moved since {date}', vars: { exercise: name(s.exerciseId), date: s.since }, ask: `My ${name(s.exerciseId)} has stalled. What should I change?`, score: 70 });
   if (goal && n.loggedDays >= 3 && n.proteinAvg !== null && n.proteinAvg < goal * 0.9) out.push({ id: 'protein', key: 'Protein: {avg} g a day, target {goal} g', vars: { avg: Math.round(n.proteinAvg), goal }, ask: 'Give me three easy ways to get more protein from what I usually eat.', score: 55 + Math.round((1 - n.proteinAvg / goal) * 40) });
   const dropped = n.muscles.filter((x) => x.avg >= 3 && x.sets < x.avg * 0.5).sort((a, b) => (b.avg - b.sets) - (a.avg - a.sets))[0];
@@ -91,7 +84,6 @@ export function met(id: string, n: ReviewNumbers, goalProtein: number | undefine
   if (id === 'weight') return n.weightPct === null ? null : n.weightPct > -1;
   if (id === 'protein') return n.proteinAvg === null || !goalProtein ? null : n.proteinAvg >= goalProtein * 0.9;
   if (id === 'log') return n.loggedDays >= 5;
-  if (id === 'fatigue') return n.checkins ? n.tired < 2 : null;
   if (id.startsWith('stall:')) { const x = id.slice(6); return !n.stalls.some((s) => s.exerciseId === x); }
   if (id.startsWith('muscle:')) { const m = n.muscles.find((x) => x.m === id.slice(7)); return m ? m.sets >= m.avg * 0.8 && m.sets > 0 : false; }
   return null;

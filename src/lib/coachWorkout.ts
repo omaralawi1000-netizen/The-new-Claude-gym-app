@@ -1,19 +1,31 @@
 /**
- * The coach around a workout, all worked out on the phone (instant, free, no AI):
- *  - before: a short briefing at the top of a planned workout — today's key targets (the same numbers the rows hold, from
- *    `suggestProgression`), anything worth knowing today (tired, fresh, wrestling tomorrow, a health note) and one focus;
+ * The coach around a workout, all worked out on the phone (instant, free, no AI). Omar trains to failure whatever the day,
+ * so it never tells him to do less; it only says what he can't see in the rows:
+ *  - for a lift: the heaviest weight ever on it, when today's plan reaches it ("82.5 kg × 8 is your heaviest yet"), a stalled lift with one concrete change ("stuck at
+ *    60 × 8 · try 57.5 × 12", which one tap puts in the sets), and the note he left on it last time;
+ *  - for the workout: wrestling tomorrow on a heavy leg day, and a health note that isn't about one lift (the Today card at
+ *    the top of the List, the first page in Focus); a lift's own line sits on its card in both views, so nothing is said twice;
  *  - after: what moved on the main lifts and next time's target for them, under the finish screen's headline.
+ * Nothing is said when nothing applies.
  */
-import type { AppData, Exercise, MuscleGroup, SessionExercise, SetRecord, WorkoutSession } from './types';
+import type { AppData, Exercise, MuscleGroup, SessionExercise, WorkoutSession } from './types';
 import { addDays, weekdayOf } from './dates';
-import { countable, historyOf, incrementFor, lastPerformance, repRange, suggestProgression, type Suggestion } from './workout';
-import { readiness, type Readiness } from './readiness';
+import { countable, historyOf, incrementFor, lastPerformance, newBest, repRange, suggestProgression } from './workout';
 
 export interface Move { kg?: number; reps?: number }
-export interface BriefTarget { exerciseId: string; kg?: number; reps: number; kind: Suggestion['kind']; up: Move | null }
-export interface BriefFlag { kind: 'tired' | 'fresh' | 'wrestle' | 'note'; key: string; vars?: Record<string, string | number>; reasons?: Readiness['reasons'] }
-export interface Briefing { targets: BriefTarget[]; flags: BriefFlag[]; /** one line; `{exercise}` in it is the lift named by exerciseId */
-  focus: { key: string; exerciseId?: string } | null; level: Readiness['level'] }
+/** What is worth saying about one lift today (each part only when it applies). */
+export interface LiftHint {
+  /** set 1 as planned is the heaviest ever on this lift */
+  record?: { kg?: number; reps: number; planned: boolean };
+  /** stuck at `from` for a few sessions: `to` is the change to try today */
+  stall?: { from: { kg: number; reps: number }; to: { kg: number; reps: number }; sessions: number };
+  /** the note left on this lift last time */
+  lastNote?: string;
+}
+export type BriefLine =
+  | { kind: 'record' | 'stall' | 'lastNote'; exerciseId: string; hint: LiftHint }
+  | { kind: 'wrestle' }
+  | { kind: 'health'; text: string };
 
 const LEGS: MuscleGroup[] = ['quads', 'hamstrings', 'glutes'];
 const r2 = (n: number) => Math.round(n * 100) / 100;
@@ -27,64 +39,49 @@ function moved(now: { weightKg?: number; reps?: number } | undefined, before: { 
   return null;
 }
 
-export function briefing(d: AppData, a: WorkoutSession, today: string, exMap: Map<string, Exercise>): Briefing {
+/** The hint for one lift of the running workout, from finished workouts only (today's sets don't move it). */
+export function liftHint(d: Pick<AppData, 'sessions' | 'increments' | 'settings'>, se: SessionExercise, ex: Exercise | undefined): LiftHint {
+  const out: LiftHint = {};
   const done = d.sessions.filter((s) => s.status === 'done');
-  const targets: BriefTarget[] = [];
-  for (const se of a.exercises) {
-    const ex = exMap.get(se.exerciseId);
-    if (!ex || ex.logType !== 'weightReps') continue;
-    const hist = historyOf(se.exerciseId, done);
-    if (!hist.length) continue;
-    const sug = suggestProgression(ex, hist, repRange(se.sets), incrementFor(ex, d.increments, d.settings.plateStep));
-    const s1 = sug.sets?.[0];
-    if (!s1) continue;
-    targets.push({ exerciseId: se.exerciseId, kg: s1.weightKg, reps: s1.reps, kind: sug.kind, up: moved(s1, hist[0].sets.find(countable)) });
-    if (targets.length === 3) break;
+  const last = lastPerformance(se.exerciseId, done);
+  const note = last?.note?.trim();
+  if (note && note !== se.note?.trim()) out.lastNote = note;
+  if (!ex || ex.logType !== 'weightReps') return out;
+  const hist = historyOf(se.exerciseId, done);
+  if (!hist.length) return out;
+  const range = repRange(se.sets);
+  const inc = incrementFor(ex, d.increments, d.settings.plateStep);
+  const sug = suggestProgression(ex, hist, range, inc);
+  // stalled: drop about 5 % (to the plate step) and aim for the top of the range — a fresh start the next sessions build on
+  if (sug.kind === 'stalled' && sug.weightKg) {
+    const s1 = hist[0].sets.find(countable);
+    const kg = Math.max(inc, Math.round((sug.weightKg * 0.95) / inc) * inc);
+    const to = { kg: kg < sug.weightKg ? kg : sug.weightKg - inc, reps: range.max };
+    if (to.kg > 0) out.stall = { from: { kg: sug.weightKg, reps: s1?.reps ?? 0 }, to, sessions: 3 };
   }
-  const r = readiness(d, today);
-  const flags: BriefFlag[] = [];
-  if (r.level === 'tired') flags.push({ kind: 'tired', key: 'You look tired today', reasons: r.reasons });
-  else if (r.level === 'fresh') flags.push({ kind: 'fresh', key: 'Fresh today', reasons: r.reasons });
-  const legSets = a.exercises.reduce((n, se) => n + (LEGS.includes(exMap.get(se.exerciseId)?.muscles[0] as MuscleGroup) ? se.sets.filter((x) => x.type === 'working').length : 0), 0);
-  if (legSets >= 6 && (d.schedule.activities?.[weekdayOf(addDays(today, 1))] ?? []).includes('wrestling')) flags.push({ kind: 'wrestle', key: 'Wrestling tomorrow: keep the legs a little lighter' });
-  // a health note that isn't about one lift (those show beside the lift itself) and hasn't ended
+  // a record that is a moment: set 1's planned weight is the heaviest ever on this lift. (A rep best at a weight done before
+  // is what the progression aims at almost every session, so saying it on every card would be noise.)
+  const w1 = se.sets.find((x) => x.type === 'working');
+  const kg = w1?.weightKg ?? w1?.target?.weightKg, reps = w1?.reps ?? w1?.target?.repMax;
+  if (!out.stall && kg && reps && newBest('weightReps', { weightKg: kg, reps }, se.exerciseId, done)?.kind === 'weight') out.record = { kg, reps, planned: true };
+  return out;
+}
+
+/** Puts a stalled lift's change into its open working sets that you haven't typed into. Returns Undo. */
+export function applyStallChange(a: WorkoutSession, seId: string, to: { kg: number; reps: number }): { next: WorkoutSession; undo: (x: WorkoutSession) => WorkoutSession } {
+  const before = a.exercises.find((e) => e.id === seId);
+  const next = { ...a, exercises: a.exercises.map((e) => (e.id !== seId ? e : { ...e, sets: e.sets.map((x) => (x.type !== 'working' || x.done ? x : { ...x, weightKg: to.kg, reps: to.reps, target: { ...x.target, weightKg: to.kg } })) })) };
+  return { next, undo: (x) => ({ ...x, exercises: x.exercises.map((e) => (e.id !== seId || !before ? e : { ...e, sets: e.sets.map((q) => (q.done ? q : before.sets.find((b) => b.id === q.id) ?? q)) })) }) };
+}
+
+/** Lines about the whole workout: wrestling tomorrow on a heavy leg day, a health note that isn't about one lift. */
+export function workoutLines(d: Pick<AppData, 'schedule' | 'memory'>, a: WorkoutSession, today: string, exMap: Map<string, Exercise>): BriefLine[] {
+  const out: BriefLine[] = [];
   const note = d.memory.find((m) => m.kind === 'health' && !m.exerciseIds?.length && !(m.until && m.until < today));
-  if (note) flags.push({ kind: 'note', key: note.text });
-
-  const stalled = targets.find((x) => x.kind === 'stalled');
-  const heavier = targets.find((x) => x.kind === 'add-weight');
-  const focus = r.level === 'tired' ? { key: 'Focus: clean sets, leave a rep or two in the tank' }
-    : stalled ? { key: 'Focus: one more rep on set 1 of {exercise}', exerciseId: stalled.exerciseId }
-    : heavier ? { key: 'Focus: the new weight on {exercise}', exerciseId: heavier.exerciseId }
-    : r.level === 'fresh' ? { key: 'Focus: push the top sets' }
-    : null;
-  return { targets, flags, focus, level: r.level };
-}
-
-/** "One set less per lift": the last open working set of each exercise that has three or more. Returns the new workout
- *  and what was taken off (so Undo can put each set back where it was). */
-export interface Trimmed { seId: string; index: number; set: SetRecord }
-export function trimOneSet(a: WorkoutSession): { next: WorkoutSession; removed: Trimmed[] } {
-  const removed: Trimmed[] = [];
-  const exercises: SessionExercise[] = a.exercises.map((se) => {
-    const work = se.sets.filter((x) => x.type === 'working');
-    const open = work.filter((x) => !x.done);
-    if (work.length < 3 || !open.length) return se;
-    const drop = open[open.length - 1];
-    removed.push({ seId: se.id, index: se.sets.indexOf(drop), set: drop });
-    return { ...se, sets: se.sets.filter((x) => x !== drop) };
-  });
-  return { next: { ...a, exercises }, removed };
-}
-/** Puts trimmed sets back (into exercises that are still there). */
-export function untrim(a: WorkoutSession, removed: Trimmed[]): WorkoutSession {
-  return { ...a, exercises: a.exercises.map((se) => {
-    const back = removed.filter((r) => r.seId === se.id);
-    if (!back.length) return se;
-    const sets = [...se.sets];
-    for (const r of back) sets.splice(Math.min(r.index, sets.length), 0, r.set);
-    return { ...se, sets };
-  }) };
+  if (note) out.push({ kind: 'health', text: note.text });
+  const legSets = a.exercises.reduce((n, se) => n + (LEGS.includes(exMap.get(se.exerciseId)?.muscles[0] as MuscleGroup) ? se.sets.filter((x) => x.type === 'working').length : 0), 0);
+  if (legSets >= 6 && (d.schedule.activities?.[weekdayOf(addDays(today, 1))] ?? []).includes('wrestling')) out.push({ kind: 'wrestle' });
+  return out;
 }
 
 export interface NextTime { exerciseId: string; up: Move | null; kg?: number; reps: number }

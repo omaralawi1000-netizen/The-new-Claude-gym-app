@@ -3,7 +3,6 @@ import { addDays, diffDays } from './dates';
 import { nutritionByDay, trendRate, weekStreak, weeklyTraining, weightTrend, average, setsPerMuscle, usualDays, stalledLifts, MUSCLES } from './stats';
 import { elapsedMs, historyOf, incrementFor, suggestProgression } from './workout';
 import { plannedFor, missedWorkouts } from '../state/store';
-import { readinessLine } from './readiness';
 import { SETTING_SPEC, settingsForPrompt } from './settingSpec';
 
 /**
@@ -204,7 +203,7 @@ HOW TO: change theme → Settings → Appearance (or ask me to switch it). Chang
 WHAT I (the Coach) CAN DO — anything you can do by hand, by talking:
 FOOD: log foods (any day/meal); correct a logged food (amount, meal, calories/macros per 100 g); move a food or a whole meal to another meal or day ("move the chicken from dinner to lunch"); copy a meal/day; replace one food with another ("swap the rice for potatoes"); remove a food, a meal or a whole day; create your own food with its label values; favourite a food; save a meal; water; weight (remove a weigh-in too); day notes; recipes: ask for one (a protein cake, a low-calorie dinner) and I write it, the app matches every ingredient to a real food and works out the macros, then Save recipe, Log a portion or copy a Shopping list; what to eat to hit your targets (the totals are the app's own).
 WEB: I search the internet when it makes sense — a fact that could be wrong or out of date (a number, a study, a supplement, something recent), recipe ideas, or when you ask me to check — not for everyday coaching I know well; the sources show as links under my answer (Gemini's search first, which is free within its daily allowance).
-BEFORE AND AFTER A WORKOUT: a planned workout opens with a short briefing (today's targets, anything worth knowing like being tired or wrestling tomorrow, one focus; tired → "One set less per lift"); it folds away on the first ticked set, ✕ hides it. The finish screen shows Next time (the target for the main lifts) and a one-tap check-in (energy, soreness, sleep) that the next briefing, day plans and I use. Readiness (fresh / normal / tired) comes from check-ins, logged wrestling, a big week and RPE creeping up.
+BEFORE AND AFTER A WORKOUT: a planned workout can open with a short Today card (at most three lines, only when one applies: a health note, wrestling tomorrow on a heavy leg day, a stalled lift with one change to try, a record within reach, the note left on a lift last time); it folds away on the first ticked set, ✕ hides it. Each lift's own line also sits on its card (List and Focus); a stalled lift's "Use it" puts the change in its sets (Undo). The finish screen shows Next time: the target for the main lifts and what went up today. The app never tells them to do less because they're tired: they train to failure whatever the day.
 COACH HEALTH: Settings → About counts the Coach's AI trouble this week (on the phone only) and copies the details.
 TRAINING: log sets or cardio/wrestling; start a workout (from a routine, today's planned one, or empty); pause/resume it, start/skip/lengthen the rest timer, link a superset, move an exercise up/down, add a note to an exercise, rename the workout; add, remove or swap exercises in the running workout; correct or delete a single set (also in a finished workout: "make that last bench set 85 kg"); finish (one tap to confirm) or discard (one tap) the workout; build a routine from scratch, edit one (rename, add / remove / change sets & reps, swap an exercise) or delete it; put a routine on a weekday or make it a rest day; set the whole week at once (which routine on which day, wrestling days) as a preview; plan one day from muscles ("chest and triceps tomorrow"); skip a planned day; change rest and warm-up sets in a routine; create your own exercise, hide one, set an exercise's weight jump; delete a past workout or activity (deleting asks first).
 BODY: weight and measurements (waist, chest, hips, arm, thigh, neck), and remove them.
@@ -322,13 +321,9 @@ export function buildAgentContext(d: AppData, today: string, exName: (id: string
     if (cur) { const q = cur.e.sets[cur.i]; const kg = q.weightKg ?? q.target?.weightKg, reps = q.reps ?? q.target?.repMax; L.push(`CURRENT SET (the one they are on now): ${exName(cur.e.exerciseId)} set ${cur.i + 1}${q.type === 'warmup' ? ' (warm-up)' : ''}, planned ${kg ? `${r1(kg)} kg × ` : ''}${reps ?? '?'} reps.`); }
     else L.push('CURRENT SET: none — every set is ticked.');
   } else L.push('No workout is running.');
-  const ready = readinessLine(d, today);
-  if (ready) L.push(ready);
   // the last finished workouts in full, so "make my last bench set 85" and "how did Tuesday go?" have something to read
   for (const ss of d.sessions.filter((x) => x.status === 'done').slice(-6).reverse()) {
-    const c = ss.checkin;
-    const felt = c ? ` Check-in after: ${[c.energy && `energy ${['low', 'ok', 'great'][c.energy - 1]}`, c.soreness && `soreness ${['none', 'some', 'a lot'][c.soreness - 1]}`, c.sleep && `sleep ${['poor', 'ok', 'good'][c.sleep - 1]}`].filter(Boolean).join(', ')}.` : '';
-    L.push(`Workout ${ss.date} "${ss.name || 'Workout'}" (${Math.round(elapsedMs(ss) / 60000)} min): ${ss.exercises.map((e) => `${exName(e.exerciseId)}: ${e.sets.filter((q) => q.done).map(setTxt).join(', ')}`).join(' | ')}.${felt}`);
+    L.push(`Workout ${ss.date} "${ss.name || 'Workout'}" (${Math.round(elapsedMs(ss) / 60000)} min): ${ss.exercises.map((e) => `${exName(e.exerciseId)}: ${e.sets.filter((q) => q.done).map(setTxt).join(', ')}`).join(' | ')}.`);
   }
   // personal bests for the lifts that come up most
   const freq = new Map<string, number>();

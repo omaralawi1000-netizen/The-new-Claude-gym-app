@@ -6,7 +6,6 @@
 import type { AppData, Exercise, MuscleGroup, RoutineItem } from './types';
 import { addDays, dayKey, weekdayOf } from './dates';
 import { historyOf, incrementFor, suggestProgression } from './workout';
-import { readiness } from './readiness';
 
 export interface PlanPick { ex: Exercise; sets: number; repMin: number; repMax: number; restSec: number; target?: string; flagged?: string }
 export interface DayPlan { picks: PlanPick[]; warnings: string[] }
@@ -63,14 +62,11 @@ export function buildDayPlan(exercises: (Exercise & { sets?: number | null; repM
   const today = dayKey(Date.now(), d.settings.dayStartHour);
   // a note that has ended ("sore this week") no longer flags a lift
   const hurtNotes = d.memory.filter((m) => m.kind === 'health' && m.exerciseIds?.length && !(m.until && m.until < today));
-  // tired today (check-in, wrestling, a big week, RPE up): a day planned for today or tomorrow gets a set less per lift
-  // where the Coach didn't choose the sets itself (never under two)
-  const tired = date <= addDays(today, 1) && readiness(d, today).level === 'tired';
   const picks: PlanPick[] = exercises.map((ex) => {
     const base = shapeFor(ex, d);
     const repMin = ex.repMin ?? base.repMin, repMax = Math.max(repMin, ex.repMax ?? base.repMax);
     const flagged = hurtNotes.find((m) => m.exerciseIds!.includes(ex.id))?.text;
-    const sets = ex.sets ?? (tired && base.sets >= 3 ? base.sets - 1 : base.sets);
+    const sets = ex.sets ?? base.sets;
     return { ex, sets, repMin, repMax, restSec: ex.restSec ?? base.restSec, target: targetFor(ex, d, { min: repMin, max: repMax }), flagged };
   });
   const warnings: string[] = [];
@@ -81,6 +77,5 @@ export function buildDayPlan(exercises: (Exercise & { sets?: number | null; repM
   // wrestling already logged the day before (hard, or a lot of rounds), not only the weekly plan
   const matBefore = d.activities.some((a) => a.kind === 'wrestling' && a.date === addDays(date, -1) && ((a.intensity ?? 0) >= 2 || (a.rounds ?? 0) >= 6));
   if (matBefore && legSets >= 6) warnings.push('wrestled-day-before');
-  if (tired) warnings.push('tired');
   return { picks, warnings };
 }

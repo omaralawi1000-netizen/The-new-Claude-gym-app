@@ -16,7 +16,7 @@ import { useNow } from '../../lib/hooks';
 import { setWorkoutOpener } from '../../ui/workoutOpen';
 import { nextSetOf, prepareRestAudio } from './rest';
 import { completeSet, onSetDone } from './complete';
-import { Briefing } from './Briefing';
+import { Briefing, LiftHints } from './Briefing';
 import { addSet, deleteSet, moveExercise, patchExercise, patchSet, removeExercise, adjustRest, skipRest, toggleSuperset } from './actions';
 import { exName, fmtSet, MUSCLE_LABEL } from './common';
 import { SphereSlot, mirrorOrb, orbPress, orbTap } from '../../ui/Sphere';
@@ -759,7 +759,7 @@ function RestFill({ state, endsAt, total, paused }: { state: string; endsAt?: nu
 // ── exercise block ──────────────────────────────────────────
 
 // memoised: ticking a set re-renders that exercise only
-export const ExerciseBlock = memo(function ExerciseBlock({ se, ex, linkedPrev, linkedNext, onMenu, appear }: { se: SessionExercise; ex?: Exercise; linkedPrev: boolean; linkedNext: boolean; onMenu: (id: string) => void; appear?: boolean }) {
+export const ExerciseBlock = memo(function ExerciseBlock({ se, ex, linkedPrev, linkedNext, onMenu, appear, workout }: { se: SessionExercise; ex?: Exercise; linkedPrev: boolean; linkedNext: boolean; onMenu: (id: string) => void; appear?: boolean; /** also the lines about the whole workout (the first Focus page) */ workout?: boolean }) {
   const t = useT();
   const lang = useLang();
   const settings = useStore((s) => s.settings);
@@ -823,7 +823,9 @@ export const ExerciseBlock = memo(function ExerciseBlock({ se, ex, linkedPrev, l
             <button className="chip sm press" onClick={() => push('exercisePicker', { mode: 'replace', seId: se.id, forExercise: ex })}>{t('Swap')}</button>
           </div>
         )}
-        {sugg && reason && (
+        {/* what the rows don't show: a record within reach, a stalled lift's change, last time's note (Briefing.tsx) */}
+        <LiftHints se={se} ex={ex} workout={workout} />
+        {sugg && reason && sugg.kind !== 'stalled' && (
           <div className="wk-reason num"><Icon name={REASON_ICON[sugg.kind]} size={13} style={{ flex: 'none' }} /><span>{reason}</span></div>
         )}
 
