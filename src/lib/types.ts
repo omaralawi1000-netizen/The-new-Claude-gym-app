@@ -224,6 +224,9 @@ export interface Routine {
   name: string;
   items: RoutineItem[];
   note?: string;
+  /** made for one day only (the Coach's "chest and triceps tomorrow"): it works in the plan and the history, but the
+   *  routine lists leave it out so they don't fill up with one-off days */
+  oneOff?: string;
   createdAt: number;
   updatedAt: number;
 }

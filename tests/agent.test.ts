@@ -173,7 +173,10 @@ describe('the whole app by voice: move, replace, copy, routines, sets, plan', ()
     const r = useStore.getState().routines.find((x) => x.name === 'Test push')!;
     expect(r.items).toHaveLength(2);
     expect(c.lines.some((l) => l.warn)).toBe(true); // the unknown exercise is reported, not invented
-    await run([{ type: 'edit_routine', routine: 'test push', add: [{ exercise: 'Dip', sets: 3, repMin: 8, repMax: 12 }], remove: ['overhead press'], change: [{ exercise: 'bench press', sets: 5 }] }]);
+    const [ed] = await run([{ type: 'edit_routine', routine: 'test push', add: [{ exercise: 'Dip', sets: 3, repMin: 8, repMax: 12 }], remove: ['overhead press'], change: [{ exercise: 'bench press', sets: 5 }] }]);
+    expect(ed.pending).toBe(true); // three changes at once: a preview first
+    expect(useStore.getState().routines.find((x) => x.id === r.id)!.items.some((i) => i.workingSets === 5)).toBe(false);
+    ed.button!.run();
     const r2 = useStore.getState().routines.find((x) => x.id === r.id)!;
     expect(r2.items).toHaveLength(2);
     expect(r2.items.find((i) => i.workingSets === 5)).toBeTruthy();
@@ -182,6 +185,9 @@ describe('the whole app by voice: move, replace, copy, routines, sets, plan', ()
     s.undo!();
     expect(useStore.getState().schedule.weekly[3] ?? null).not.toBe(r.id);
     const [d] = await run([{ type: 'delete_routine', routine: 'Test push' }]);
+    expect(d.pending).toBe(true); // deleting a routine waits for a tap
+    expect(useStore.getState().routines.find((x) => x.id === r.id)).toBeTruthy();
+    d.button!.run();
     expect(useStore.getState().routines.find((x) => x.id === r.id)).toBeUndefined();
     d.undo!();
     expect(useStore.getState().routines.find((x) => x.id === r.id)).toBeTruthy();

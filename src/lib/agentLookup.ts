@@ -12,6 +12,7 @@ import { matchExercises } from './workoutText';
 import { epley, historyOf, incrementFor, repRange, suggestProgression, elapsedMs } from './workout';
 import { MUSCLES, nutritionByDay, setsPerMuscle, stalledLifts, trendRate, weightTrend, average } from './stats';
 import { plannedFor } from '../state/store';
+import { guideSections } from './coachContext';
 
 import { LOOKUP_KINDS, type LookupKind } from './lookupKinds';
 export { LOOKUP_KINDS, type LookupKind };
@@ -311,6 +312,7 @@ export function runLookups(d: AppData, list: Lookup[], env: LookupEnv): string {
         case 'memory': out = memory(d, l); break;
         case 'notes': out = notes(d, l, env); break;
         case 'conversations': out = conversations(l, env); break;
+        case 'guide': { const g = guideSections(); const k = fold(l.query ?? ''); const hit = Object.keys(g).find((x) => k.includes(x) || x.includes(k)); out = k && hit ? g[hit] : `Sections: ${Object.keys(g).join(', ')}.\n${g.coach}`; break; }
         default: out = 'Unknown look-up.';
       }
     } catch { out = 'That look-up failed.'; }
@@ -326,7 +328,7 @@ export function lookupStatus(list: Lookup[], t: (k: string, v?: Record<string, s
   const what: Record<LookupKind, string> = {
     food: 'your food log', nutrition: 'your nutrition', workouts: 'your workouts', exercise_history: 'your history', records: 'your records',
     body: 'your weight', activities: 'your activities', training_balance: 'your training balance', schedule: 'your plan', routines: 'your routines',
-    exercises: 'your exercises', saved_food: 'your saved food', settings: 'your settings', memory: 'what you told me', notes: 'your notes', conversations: 'what you said',
+    exercises: 'your exercises', saved_food: 'your saved food', settings: 'your settings', memory: 'what you told me', notes: 'your notes', conversations: 'what you said', guide: 'the app',
   };
   if (l.kind === 'exercise_history' && l.query) return t('Looking at your {x} history…', { x: l.query });
   return t('Looking at {x}…', { x: t(what[l.kind]) });

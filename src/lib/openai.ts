@@ -17,6 +17,8 @@ export const OPENAI_API = 'https://api.openai.com/v1';
 export const OPENAI_MODEL = 'gpt-6.1-sol';
 /** The model to ask: chosen by hand in Settings, else the newest one found on the key, else OPENAI_MODEL. */
 export const solModel = (): string => { const m = useAi.getState().models; return m.sol || m.solAuto || OPENAI_MODEL; };
+/** What to call the OpenAI brain on screen when it is not GPT-6.1 Sol ("GPT-6.5"); null while it is. */
+export const solLabel = (): string | null => { const m = solModel(); return m === OPENAI_MODEL ? null : m.replace(/^gpt-/i, 'GPT-'); };
 
 /**
  * The newest general GPT model in a key's model list: "gpt-<major>.<minor>" or "gpt-<major>.<minor>-sol". Smaller, older,

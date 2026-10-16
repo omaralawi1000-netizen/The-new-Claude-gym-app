@@ -47,6 +47,8 @@ function PlanTab() {
   const today = useToday();
   const exMap = exerciseMap(s.exercises);
   const weekStart = startOfWeek(today, s.settings.weekStart);
+  // a day the Coach planned once keeps its routine (the plan and history use it), but the list shows only the real ones
+  const listedRoutines = useMemo(() => s.routines.filter((r) => !r.oneOff), [s.routines]);
   const missed = useMemo(() => missedWorkouts(s, today), [s.schedule, s.routines, s.sessions, today]);
   const days = Array.from({ length: 7 }, (_, i) => {
     const d = addDays(weekStart, i);
@@ -99,11 +101,11 @@ function PlanTab() {
           <button className="chip press" onClick={() => push('schedule')}><Icon name="calendar" size={16} /> {t('Schedule')}</button>
           <button className="chip press" onClick={() => push('routine', {})}><Icon name="plus" size={16} /> {t('New routine')}</button>
         </div>
-        {s.routines.length === 0 ? (
+        {listedRoutines.length === 0 ? (
           <Empty icon="dumbbell" title={t('No routines yet')} action={<div className="row-flex" style={{ gap: 8, justifyContent: 'center' }}><button className="btn primary press" onClick={() => push('routine', {})}>{t('Build a routine')}</button><button className="btn press" onClick={() => push('onboarding', { starterOnly: true })}>{t('Starter plan')}</button></div>} />
         ) : (
           <div className="stack gap12">
-            {s.routines.map((r) => {
+            {listedRoutines.map((r) => {
               const muscles = [...new Set(r.items.map((i) => exMap.get(i.exerciseId)?.muscles[0]).filter(Boolean))] as MuscleGroup[];
               const last = [...s.sessions].reverse().find((x) => x.routineId === r.id);
               return (

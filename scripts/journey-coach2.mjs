@@ -24,6 +24,9 @@ await p.route('https://generativelanguage.googleapis.com/**', async (r) => {
   else if (/log a banana/i.test(last)) a = { reply: '', actions: [{ type: 'log_food', foods: [{ name: 'banana', amount: 1, unit: 'piece' }], meal: 'snacks', day: 'today' }] };
   else if (/move it to lunch/i.test(last)) a = { reply: 'Moved.', actions: [{ type: 'move_food', ref: refs.at(-1) ?? null, target: 'banana', meal_to: 'lunch' }] };
   else if (/chest and triceps/i.test(last)) a = looked ? { reply: 'Here is tomorrow.', actions: [{ type: 'plan_day', day: 'tomorrow', focus: ['chest', 'triceps'], light: ['shoulders'] }] } : { reply: '', actions: [], lookups: [{ kind: 'exercises', query: 'chest triceps shoulders' }] };
+  else if (/legs on friday/i.test(last)) a = { reply: 'Here is your week.', actions: [{ type: 'set_split', days: [{ weekday: 5, routine: 'Legs' }, { weekday: 2, routine: null, wrestling: true }, { weekday: 4, routine: null, wrestling: true }, { weekday: 3, routine: 'rest' }] }] };
+  else if (/light mode and danish/i.test(last)) a = { reply: '', actions: [{ type: 'set_setting', settings: [{ key: 'theme', value: 'light' }, { key: 'kcalGoal', value: '2800' }] }] };
+  else if (/waist/i.test(last)) a = { reply: '', actions: [{ type: 'log_measurement', kind: 'waist', cm: 82 }] };
   else a = { reply: 'OK.', actions: [] };
   const txt = JSON.stringify(a);
   if (url.includes('streamGenerateContent')) return r.fulfill({ status: 200, headers: { ...cors, 'content-type': 'text/event-stream' }, body: `data: ${JSON.stringify({ candidates: [{ content: { parts: [{ text: txt }] } }] })}\n\n` });
@@ -83,6 +86,28 @@ d = await data();
 assert.equal(d.routines.length, r0, 'Undo takes it back');
 assert(!d.schedule.overrides.some((o) => o.date === tomorrow && o.routineId), 'and off tomorrow');
 await p.screenshot({ path: 'shots/coach2-3-undo.png' });
+
+// ── phase 2: the whole week as a preview, several settings at once, a measurement ──
+const sch0 = (await data()).schedule;
+await ask('legs on friday, wrestling tuesday and thursday, wednesday off');
+assert(await p.getByText('Your week', { exact: true }).isVisible(), 'the week preview');
+assert.deepEqual((await data()).schedule, sch0, 'nothing changes before Apply');
+await p.screenshot({ path: 'shots/coach2-4-week.png' });
+await p.getByRole('button', { name: 'Apply', exact: true }).last().click(); await wait(p, 900);
+d = await data();
+assert(d.schedule.activities?.[2]?.includes('wrestling') && d.schedule.activities?.[4]?.includes('wrestling'), 'wrestling Tuesday and Thursday');
+assert.equal(d.routines.find((r) => r.id === d.schedule.weekly[5])?.name, 'Legs', 'legs on Friday');
+await p.getByRole('button', { name: 'Undo' }).last().click(); await wait(p, 600);
+assert.deepEqual((await data()).schedule, sch0, 'Undo puts the week back');
+const st0 = await p.evaluate(() => JSON.parse(localStorage.getItem('aven.v1')).settings);
+await ask('light mode and danish no wait 2800 kcal');
+let st1 = await p.evaluate(() => JSON.parse(localStorage.getItem('aven.v1')).settings);
+assert.equal(st1.theme, 'light'); assert.equal(st1.goals.kcal, 2800);
+await p.getByRole('button', { name: 'Undo' }).last().click(); await wait(p, 600);
+st1 = await p.evaluate(() => JSON.parse(localStorage.getItem('aven.v1')).settings);
+assert.equal(st1.theme, st0.theme); assert.equal(st1.goals.kcal, st0.goals.kcal);
+await ask('add a waist measurement of 82');
+assert((await p.evaluate(() => JSON.parse(localStorage.getItem('aven.v1')).measurements)).some((m) => m.kind === 'waist' && m.cm === 82), 'measurement logged');
 
 console.log('errors', errors.length);
 assert.equal(errors.filter((e) => !/Failed to load resource/.test(e)).length, 0);

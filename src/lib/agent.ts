@@ -10,7 +10,7 @@
  *  - Logging uses the same food/exercise matching as the rest of the app, and says plainly what it matched.
  *  - Without a Gemini key (or when Gemini is down) simple commands still work through the local parsers.
  */
-import { useStore, foodPool, allExercises } from '../state/store';
+import { useStore, foodPool, allExercises, plannedFor } from '../state/store';
 import { useUI } from '../state/ui';
 import { addDays } from './dates';
 import { defaultMealId, mealName } from './derive';
@@ -22,12 +22,13 @@ import { type Brain } from './gemini';
 import { estimateFood } from './brain';
 import { ACTIVITY_KINDS, ACTIVITY_LABEL } from './activity';
 import { fmtNum, kgToDisplay } from './units';
-import type { ActivityKind, Exercise, Food, FoodEntry, Meal, MemoryKind, MemoryNote, MuscleGroup, Quantity, RoutineItem, SessionExercise, SetRecord, Settings } from './types';
+import type { ActivityKind, Equipment, Exercise, Food, FoodEntry, LogType, Meal, MeasureKind, MemoryKind, MemoryNote, MuscleGroup, Quantity, RoutineItem, SessionExercise, SetRecord, Settings } from './types';
 import { MEMORY_KINDS, MEMORY_MAX } from '../state/defaults';
-import { addExercises, replaceExercise, startRest } from '../screens/workout/actions';
+import { addExercises, adjustRest, moveExercise, patchExercise, replaceExercise, skipRest, startRest, toggleSuperset } from '../screens/workout/actions';
 import { EQUIP_LABEL, MUSCLE_LABEL } from '../screens/workout/common';
 import { muscleOf } from './agentLookup';
 import { buildDayPlan, pickForMuscles } from './planDay';
+import { specOf } from './settingSpec';
 import { weekdayOf } from './dates';
 
 // ── what the model may ask for ──────────────────────────────
@@ -43,7 +44,7 @@ export type AgentAction =
   | { type: 'start_workout'; routine?: string | null }
   | { type: 'finish_workout' }
   | { type: 'navigate'; screen: 'today' | 'train' | 'food' | 'progress' | 'settings' | 'coach'; section?: string | null }
-  | { type: 'set_setting'; key: SettingKey; value: string }
+  | { type: 'set_setting'; key?: string; value?: string; pairs?: { key: string; value: string }[] }
   | { type: 'edit_food'; target: string; ref?: string | null; day?: string | null; meal_from?: string | null; amount?: number | null; unit?: string | null; meal?: string | null; per100?: NutriFix | null; totals?: NutriFix | null }
   | { type: 'delete_food'; target?: string | null; ref?: string | null; day?: string | null; meal?: string | null }
   | { type: 'move_food'; target?: string | null; ref?: string | null; meal_from?: string | null; day?: string | null; meal_to?: string | null; day_to?: string | null }
@@ -73,13 +74,32 @@ export type AgentAction =
   | { type: 'show_exercise'; exercise: string }
   | { type: 'suggest_food'; options: { label: string; foods: AgentFood[]; totals: NutriFix | null }[]; meal?: string | null }
   | { type: 'plan_day'; day: string; name?: string | null; focus: string[]; light: string[]; items: RoutineBit[] }
+  | { type: 'edit_meals'; meal?: string | null; rename?: string | null; add?: string | null; remove?: string[]; order?: string[] }
+  | { type: 'log_saved_meal'; name: string; meal?: string | null; day?: string | null }
+  | { type: 'delete_water'; day?: string | null; ml?: number | null }
+  | { type: 'create_exercise'; name: string; muscles: MuscleGroup[]; equipment: Equipment; logType: LogType }
+  | { type: 'archive_exercise'; exercise: string; on: boolean }
+  | { type: 'set_increment'; exercise: string; kg: number | null }
+  | { type: 'log_measurement'; kind: MeasureKind; cm: number; day?: string | null }
+  | { type: 'delete_measurement'; kind?: MeasureKind | null; day?: string | null }
+  | { type: 'workout_control'; op: WorkoutOp; exercise?: string | null; seconds?: number | null; text?: string | null }
+  | { type: 'set_split'; days: { weekday: number; /** undefined = leave the gym day as it is, null = rest day */ routine?: string | null; wrestling: boolean | null }[] }
+  | { type: 'skip_day'; day: string }
   | { type: 'undo_last' };
 
-export interface RoutineBit { exercise: string; sets?: number | null; repMin?: number | null; repMax?: number | null; restSec?: number | null }
+/** what a split day says when it becomes a rest day (null / missing = leave the gym day as it is) */
+const REST_WORDS = /^\s*(rest|rest day|none|off|hvile|hviledag|fri)\s*$/i;
+export const WORKOUT_OPS = ['pause', 'resume', 'rest_start', 'rest_skip', 'rest_add', 'rest_set', 'superset', 'move_up', 'move_down', 'note', 'rename'] as const;
+export type WorkoutOp = (typeof WORKOUT_OPS)[number];
+const MEASURE_KINDS: MeasureKind[] = ['waist', 'chest', 'hips', 'arm', 'thigh', 'neck'];
+const EQUIPMENT: Equipment[] = ['barbell', 'dumbbell', 'machine', 'smith', 'cable', 'bodyweight', 'kettlebell', 'band', 'bench', 'other'];
+const LOG_TYPES: LogType[] = ['weightReps', 'bodyweightReps', 'assisted', 'duration', 'distance'];
+
+export interface RoutineBit { exercise: string; sets?: number | null; repMin?: number | null; repMax?: number | null; restSec?: number | null; warmup?: number | null }
 /** "today" | "yesterday" | YYYY-MM-DD, anything else is "not said". */
 const dayArg = (v: unknown): string | null => (v === 'yesterday' ? 'yesterday' : v === 'today' ? 'today' : typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
 const resolveDay = (d: string | null | undefined, today: string): string | undefined => (d === 'yesterday' ? addDays(today, -1) : d === 'today' ? today : d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : undefined);
-const routineBit = (b: any): RoutineBit | null => { const exercise = str(b?.exercise, 60); return exercise ? { exercise, sets: num(b?.sets, 1, 10) ?? null, repMin: num(b?.repMin, 1, 100) ?? null, repMax: num(b?.repMax, 1, 100) ?? null, restSec: num(b?.restSec, 15, 600) ?? null } : null; };
+const routineBit = (b: any): RoutineBit | null => { const exercise = str(b?.exercise, 60); return exercise ? { exercise, sets: num(b?.sets, 1, 10) ?? null, repMin: num(b?.repMin, 1, 100) ?? null, repMax: num(b?.repMax, 1, 100) ?? null, restSec: num(b?.restSec, 15, 600) ?? null, warmup: num(b?.warmup, 0, 5) ?? null } : null; };
 const bits = (v: unknown, n = 12): RoutineBit[] => (Array.isArray(v) ? v : []).slice(0, n).map(routineBit).filter(Boolean) as RoutineBit[];
 
 /** Corrected nutrition values: per 100 g/ml (a food's label) or the entry's own totals (a quick entry). */
@@ -92,9 +112,8 @@ const nutriFix = (v: any, per100: boolean): NutriFix | null => {
   return Object.keys(o).length ? o : null;
 };
 
-export const SETTING_KEYS = ['theme', 'language', 'weightUnit', 'distanceUnit', 'motion', 'sound', 'haptics', 'restSeconds', 'kcalGoal', 'proteinGoal', 'carbsGoal', 'fatGoal', 'waterGoal', 'weekStart', 'foodLookup', 'effort'] as const;
-export type SettingKey = (typeof SETTING_KEYS)[number];
-const SETTINGS_SECTIONS = ['targets', 'training', 'food', 'units', 'look', 'reminders', 'data', 'privacy', 'ai', 'about'];
+export { SETTING_KEYS } from './settingSpec';
+export const SETTINGS_SECTIONS = ['today', 'targets', 'training', 'food', 'units', 'look', 'reminders', 'data', 'privacy', 'ai', 'memory', 'about'];
 
 /** An item's id as a card showed it ("e_k3x9…"): letters, digits, _ and - only. */
 const refArg = (v: unknown): string | null => (typeof v === 'string' && /^[\w-]{3,40}$/.test(v.trim()) ? v.trim() : null);
@@ -223,6 +242,37 @@ export function validateAgent(raw: any): { reply: string; actions: AgentAction[]
         if (n || target) out.push({ type: 'forget', memory: n ?? null, target });
         break;
       }
+      case 'edit_meals': {
+        const words = (v: unknown) => (Array.isArray(v) ? v : []).slice(0, 8).map((x: any) => str(x, 30)).filter(Boolean) as string[];
+        const e = { type: 'edit_meals' as const, meal: str(a.meal, 30) ?? null, rename: str(a.rename, 30) ?? null, add: str(a.name, 30) ?? null, remove: words(a.remove), order: words(a.order) };
+        if ((e.meal && e.rename) || e.add || e.remove.length || e.order.length) out.push(e);
+        break;
+      }
+      case 'log_saved_meal': { const name = str(a.name, 40); if (name) out.push({ type: 'log_saved_meal', name, meal: str(a.meal, 30) ?? null, day: dayArg(a.day) }); break; }
+      case 'delete_water': out.push({ type: 'delete_water', day: dayArg(a.day), ml: num(a.ml, 10, 5000) ?? null }); break;
+      case 'create_exercise': {
+        const name = str(a.name, 50);
+        const muscles = [...new Set((Array.isArray(a.focus) ? a.focus : []).map((m: any) => muscleOf(String(m ?? ''))).filter(Boolean))].slice(0, 3) as MuscleGroup[];
+        const equipment = EQUIPMENT.find((x) => x === fold(String(a.equipment ?? ''))) ?? 'other';
+        const logType = LOG_TYPES.find((x) => x === a.log_type) ?? 'weightReps';
+        if (name && muscles.length) out.push({ type: 'create_exercise', name, muscles, equipment, logType });
+        break;
+      }
+      case 'archive_exercise': { const exercise = str(a.exercise, 60); if (exercise) out.push({ type: 'archive_exercise', exercise, on: a.on !== false }); break; }
+      case 'set_increment': { const exercise = str(a.exercise, 60); if (exercise) out.push({ type: 'set_increment', exercise, kg: num(a.kg, 0.25, 20) ?? null }); break; }
+      case 'log_measurement': { const kind = MEASURE_KINDS.find((k) => k === fold(String(a.kind ?? ''))); const cm = num(a.cm, 10, 250); if (kind && cm) out.push({ type: 'log_measurement', kind, cm: Math.round(cm * 10) / 10, day: dayArg(a.day) }); break; }
+      case 'delete_measurement': out.push({ type: 'delete_measurement', kind: MEASURE_KINDS.find((k) => k === fold(String(a.kind ?? ''))) ?? null, day: dayArg(a.day) }); break;
+      case 'workout_control': {
+        const op = WORKOUT_OPS.find((x) => x === a.op);
+        if (op) out.push({ type: 'workout_control', op, exercise: str(a.exercise, 60) ?? null, seconds: num(a.seconds, -600, 600) ?? null, text: str(a.text, 200) ?? null });
+        break;
+      }
+      case 'set_split': {
+        const days = (Array.isArray(a.days) ? a.days : []).slice(0, 7).map((x: any) => { const wd = num(x?.weekday, 0, 6); return wd === undefined ? null : { weekday: Math.round(wd), routine: REST_WORDS.test(String(x?.routine ?? '')) ? null : str(x?.routine, 60) ?? undefined, wrestling: typeof x?.wrestling === 'boolean' ? x.wrestling : null }; }).filter(Boolean) as { weekday: number; routine?: string | null; wrestling: boolean | null }[];
+        if (days.length) out.push({ type: 'set_split', days: [...new Map(days.map((d) => [d.weekday, d])).values()] });
+        break;
+      }
+      case 'skip_day': { const day = a.day === 'tomorrow' ? 'tomorrow' : dayArg(a.day) ?? 'today'; out.push({ type: 'skip_day', day }); break; }
       case 'plan_day': {
         const day = a.day === 'tomorrow' ? 'tomorrow' : dayArg(a.day);
         const words = (v: unknown) => (Array.isArray(v) ? v : []).slice(0, 6).map((x: any) => str(x, 20)).filter(Boolean) as string[];
@@ -236,9 +286,11 @@ export function validateAgent(raw: any): { reply: string; actions: AgentAction[]
         break;
       }
       case 'set_setting': {
-        if (!(SETTING_KEYS as readonly string[]).includes(a.key)) break;
-        const value = str(a.value, 20); if (value === undefined) break;
-        out.push({ type: 'set_setting', key: a.key, value });
+        // one setting (key, value) or several at once (settings: [{ key, value }]): all checked against the table, undone together
+        const pairs = [...(a.key ? [{ key: a.key, value: a.value }] : []), ...(Array.isArray(a.settings) ? a.settings : [])].slice(0, 12)
+          .map((x: any) => ({ key: str(x?.key, 30), value: typeof x?.value === 'number' || typeof x?.value === 'boolean' ? String(x.value) : str(x?.value, 80) }))
+          .filter((x): x is { key: string; value: string } => !!x.key && x.value !== undefined && !!specOf(x.key));
+        if (pairs.length) out.push({ type: 'set_setting', pairs });
         break;
       }
     }
@@ -266,6 +318,10 @@ export interface AgentResult {
   offer?: boolean;
   /** the card is a question: nothing happened yet */
   pending?: boolean;
+  /** a preview of one thing ("plan:2026-10-16", "split"): a newer preview with the same key replaces it (no applying both) */
+  key?: string;
+  /** a week shown as seven days (a split preview), Monday first: routine initials and wrestling */
+  week?: { label: string; routine: string | null; wrestling: boolean; changed: boolean }[];
 }
 
 export interface AgentCtx {
@@ -418,6 +474,15 @@ function mealItems(date: string, mealId: string | undefined) {
   return useStore.getState().entries.filter((e) => e.date === date && (!mealId || e.mealId === mealId));
 }
 
+/**
+ * A big change as a preview: the card says what will happen and nothing changes until Apply; after Apply it can be undone.
+ * `apply` makes the change and returns how to take it back.
+ */
+function preview(r: Omit<AgentResult, 'pending' | 'button' | 'undo'>, label: string, apply: () => () => void): AgentResult {
+  const out: AgentResult = { ...r, pending: true, offer: true, button: { label, run: () => { out.undo = apply(); } } };
+  return out;
+}
+
 const kcalStr = (e: FoodEntry) => (kcalOf(e) !== undefined ? `${kcalOf(e)} kcal` : '— kcal');
 const notFound = (ctx: AgentCtx, what: string): AgentResult => ({ id: uid('r'), kind: 'miss', title: ctx.t('Couldn’t find that in the log'), lines: [{ text: what, warn: true }] });
 
@@ -472,13 +537,12 @@ function doDeleteFood(a: Extract<AgentAction, { type: 'delete_food' }>, ctx: Age
     list = mealItems(date, mid);
     if (!list.length) return { id: uid('r'), kind: 'miss', title: t('Nothing to remove'), lines: [{ text: `${mid ? mealLabelOf(mid, ctx) : t('Today')} · ${dayLabel(date, ctx)}` }] };
   }
-  list.forEach((e) => useStore.getState().removeEntry(e.id));
   const total = list.reduce((n, e) => n + (e.nutrients.kcal ?? 0), 0);
-  return {
-    id: uid('r'), kind: 'food', title: t('Removed'),
-    lines: [...list.slice(0, 8).map((e) => ({ text: e.snap.name, sub: kcalStr(e) })), ...(list.length > 1 ? [{ text: t('Total'), sub: `${Math.round(total)} kcal` }] : [])],
-    undo: () => useStore.getState().restoreEntries(list),
-  };
+  const lines = [...list.slice(0, 8).map((e) => ({ text: e.snap.name, sub: kcalStr(e), ref: e.id })), ...(list.length > 8 ? [{ text: t('{n} more', { n: list.length - 8 }) }] : []), ...(list.length > 1 ? [{ text: t('Total'), sub: `${Math.round(total)} kcal` }] : [])];
+  const remove = () => { list.forEach((e) => useStore.getState().removeEntry(e.id)); return () => useStore.getState().restoreEntries(list); };
+  // a whole meal or day waits for a tap; one item goes at once (with Undo)
+  if (list.length > 1) return preview({ id: uid('r'), kind: 'food', title: t('Remove {n} items?', { n: list.length }), key: `del:${list.map((e) => e.id).join(',')}`, lines }, t('Remove'), remove);
+  return { id: uid('r'), kind: 'food', title: t('Removed'), lines, undo: remove() };
 }
 
 /** Move or copy: one item, or a whole meal, to another meal and/or day. */
@@ -698,7 +762,7 @@ function itemsFrom(list: RoutineBit[], lang: 'en' | 'da') {
     if (!ex) { skipped.push(b.exercise); continue; }
     const timed = ex.logType === 'duration' || ex.logType === 'distance';
     const repMin = b.repMin ?? 8, repMax = Math.max(repMin, b.repMax ?? Math.max(repMin, 12));
-    items.push({ id: uid('ri'), exerciseId: ex.id, warmupSets: 0, workingSets: timed ? 1 : b.sets ?? 3, repMin, repMax, restSec: b.restSec ?? 90 });
+    items.push({ id: uid('ri'), exerciseId: ex.id, warmupSets: b.warmup ?? 0, workingSets: timed ? 1 : b.sets ?? 3, repMin, repMax, restSec: b.restSec ?? 90 });
   }
   return { items, skipped };
 }
@@ -733,24 +797,28 @@ function doEditRoutine(a: Extract<AgentAction, { type: 'edit_routine' }>, ctx: A
     const it = pick(b.exercise);
     if (!it) { lines.push({ text: b.exercise, sub: t('not in this routine'), warn: true }); continue; }
     const repMin = b.repMin ?? it.repMin, repMax = Math.max(repMin, b.repMax ?? it.repMax);
-    const nx = { ...it, workingSets: b.sets ?? it.workingSets, repMin, repMax, restSec: b.restSec ?? it.restSec };
+    const nx = { ...it, workingSets: b.sets ?? it.workingSets, repMin, repMax, restSec: b.restSec ?? it.restSec, warmupSets: b.warmup ?? it.warmupSets };
     items = items.map((i) => (i === it ? nx : i));
-    lines.push({ text: nameOf(it.exerciseId), sub: `${it.workingSets} × ${it.repMin}–${it.repMax} → ${nx.workingSets} × ${nx.repMin}–${nx.repMax}` });
+    lines.push({ text: nameOf(it.exerciseId), sub: `${it.workingSets} × ${it.repMin}–${it.repMax} → ${nx.workingSets} × ${nx.repMin}–${nx.repMax}${nx.restSec !== it.restSec ? ` · ${fmtSec(nx.restSec)}` : ''}${nx.warmupSets !== it.warmupSets ? ` · ${nx.warmupSets} W` : ''}` });
   }
   if (a.add?.length) { const m = itemsFrom(a.add, lang); items = [...items, ...m.items]; m.items.forEach((i) => lines.push({ text: nameOf(i.exerciseId), sub: `${t('added')} · ${i.workingSets} × ${i.repMin}–${i.repMax}` })); m.skipped.forEach((n) => lines.push({ text: n, sub: t('Not in your exercise library'), warn: true })); }
   if (a.rename) lines.unshift({ text: r.name, sub: `→ ${a.rename}` });
   if (!lines.length || lines.every((l) => l.warn)) return { id: uid('r'), kind: 'miss', title: t('Couldn’t change that routine'), lines };
-  st.upsertRoutine({ ...r, name: a.rename ?? r.name, items });
-  return { id: uid('r'), kind: 'routine', title: t('Routine updated'), lines: [{ text: a.rename ?? r.name }, ...lines], undo: () => useStore.getState().upsertRoutine(r) };
+  const next = { ...r, name: a.rename ?? r.name, items, updatedAt: Date.now() };
+  const apply = () => { useStore.getState().upsertRoutine(next); return () => useStore.getState().upsertRoutine(r); };
+  // a rewrite (three or more changes) is a preview; a small edit happens at once
+  if (lines.filter((l) => !l.warn).length >= 3) return preview({ id: uid('r'), kind: 'routine', title: t('Change {name}?', { name: r.name }), key: `routine:${r.id}`, lines: [{ text: a.rename ?? r.name }, ...lines] }, t('Apply'), apply);
+  return { id: uid('r'), kind: 'routine', title: t('Routine updated'), lines: [{ text: a.rename ?? r.name }, ...lines], undo: apply() };
 }
 
 function doDeleteRoutine(a: Extract<AgentAction, { type: 'delete_routine' }>, ctx: AgentCtx): AgentResult {
   const r = findRoutine(a.routine);
   if (!r) return { id: uid('r'), kind: 'miss', title: ctx.t('Couldn’t find that routine'), lines: [{ text: a.routine, warn: true }] };
-  const st = useStore.getState();
-  const sch = st.schedule;
-  st.deleteRoutine(r.id);
-  return { id: uid('r'), kind: 'routine', title: ctx.t('Routine deleted'), lines: [{ text: r.name, sub: `${r.items.length} ${ctx.t('exercises')}` }], undo: () => { const s = useStore.getState(); s.restoreRoutine(r); s.setSchedule(sch); } };
+  return preview({ id: uid('r'), kind: 'routine', title: ctx.t('Delete {name}?', { name: r.name }), key: `delroutine:${r.id}`, lines: [{ text: r.name, sub: `${r.items.length} ${ctx.t('exercises')}` }, { text: ctx.t('Past workouts stay in your history') }] }, ctx.t('Delete'), () => {
+    const st = useStore.getState(); const sch = st.schedule;
+    st.deleteRoutine(r.id);
+    return () => { const s = useStore.getState(); s.restoreRoutine(r); s.setSchedule(sch); };
+  });
 }
 
 function doDeleteWorkout(a: Extract<AgentAction, { type: 'delete_workout' }>, ctx: AgentCtx): AgentResult {
@@ -759,8 +827,11 @@ function doDeleteWorkout(a: Extract<AgentAction, { type: 'delete_workout' }>, ct
   const w = a.workout ? fold(a.workout) : '';
   const ses = !w || w === 'last' ? done[done.length - 1] : [...done].reverse().find((s) => s.date === a.workout || fold(s.name).includes(w));
   if (!ses) return { id: uid('r'), kind: 'miss', title: t('Couldn’t find that workout'), lines: a.workout ? [{ text: a.workout, warn: true }] : [] };
-  useStore.getState().deleteSession(ses.id);
-  return { id: uid('r'), kind: 'workout', title: t('Workout deleted'), lines: [{ text: ses.name || t('Workout'), sub: `${ses.date} · ${ses.exercises.length} ${t('exercises')}` }], undo: () => useStore.getState().restoreSession(ses) };
+  const sets = ses.exercises.reduce((n, e) => n + e.sets.filter((x) => x.done).length, 0);
+  return preview({ id: uid('r'), kind: 'workout', title: t('Delete this workout?'), key: `delworkout:${ses.id}`, lines: [{ text: ses.name || t('Workout'), sub: `${ses.date} · ${ses.exercises.length} ${t('exercises')} · ${sets} ${t('sets')}` }] }, t('Delete'), () => {
+    useStore.getState().deleteSession(ses.id);
+    return () => useStore.getState().restoreSession(ses);
+  });
 }
 
 function doDiscardWorkout(ctx: AgentCtx): AgentResult {
@@ -969,7 +1040,7 @@ function doPlanDay(a: Extract<AgentAction, { type: 'plan_day' }>, ctx: AgentCtx)
   if (plan.warnings.includes('wrestling-next-day')) lines.push({ text: t('Wrestling the next day'), sub: t('A lot of leg work the day before — keep it lighter?'), warn: true });
   missing.forEach((n) => lines.push({ text: n, sub: t('Not in your exercise library'), warn: true }));
   const result: AgentResult = {
-    id: uid('r'), kind: 'routine', pending: true, offer: true,
+    id: uid('r'), kind: 'routine', pending: true, offer: true, key: `plan:${date}`,
     title: `${when}: ${name}`,
     subtitle: [`${plan.picks.length} ${t('exercises')} · ${plan.picks.reduce((n, p) => n + p.sets, 0)} ${t('sets')}`, was ? `${t('instead of')} ${was.name}` : ''].filter(Boolean).join(' · '),
     lines,
@@ -980,14 +1051,210 @@ function doPlanDay(a: Extract<AgentAction, { type: 'plan_day' }>, ctx: AgentCtx)
         const prevSchedule = s.schedule;
         const now = Date.now();
         const items: RoutineItem[] = plan.picks.map((p) => ({ id: uid('ri'), exerciseId: p.ex.id, warmupSets: 0, workingSets: p.sets, repMin: p.repMin, repMax: p.repMax, restSec: p.restSec }));
-        const routine = { id: uid('rt'), name, items, note: t('Planned by the Coach for {date}', { date }), createdAt: now, updatedAt: now };
+        const routine = { id: uid('rt'), name, items, note: t('Planned by the Coach for {date}', { date }), oneOff: date, createdAt: now, updatedAt: now };
         s.upsertRoutine(routine);
         s.setSchedule({ overrides: [...s.schedule.overrides.filter((o) => o.date !== date), { date, routineId: routine.id }], cleared: s.schedule.cleared.filter((c) => c !== date) });
-        result.undo = () => { const u = useStore.getState(); u.deleteRoutine(routine.id); u.setSchedule(prevSchedule); };
+        result.undo = () => { const u = useStore.getState(); u.deleteRoutine(routine.id); u.patch({ schedule: prevSchedule }); };
       },
     },
   };
   return result;
+}
+
+// ── meals, saved meals, water, own exercises, measurements ──
+
+function doEditMeals(a: Extract<AgentAction, { type: 'edit_meals' }>, ctx: AgentCtx): AgentResult {
+  const { t, lang } = ctx;
+  const st = useStore.getState();
+  const before = st.settings.meals;
+  let meals = before.map((m) => ({ ...m }));
+  const lines: AgentResult['lines'] = [];
+  const find = (w: string) => { const id = mealIdOf(w, ctx); return meals.find((m) => m.id === id); };
+  if (a.meal && a.rename) { const m = find(a.meal); if (m) { lines.push({ text: mealName(m, lang), sub: `→ ${a.rename}` }); m.name = a.rename; } else lines.push({ text: a.meal, sub: t('No meal with that name'), warn: true }); }
+  if (a.add && !meals.some((m) => fold(mealName(m, lang)) === fold(a.add!))) { meals.push({ id: uid('meal'), name: a.add }); lines.push({ text: a.add, sub: t('added') }); }
+  for (const w of a.remove ?? []) {
+    const m = find(w);
+    if (!m) { lines.push({ text: w, sub: t('No meal with that name'), warn: true }); continue; }
+    if (st.entries.some((e) => e.mealId === m.id)) { lines.push({ text: mealName(m, lang), sub: t('Has food logged in it, so it stays'), warn: true }); continue; }
+    if (meals.length <= 1) continue;
+    meals = meals.filter((x) => x !== m); lines.push({ text: mealName(m, lang), sub: t('removed') });
+  }
+  if (a.order?.length) {
+    const picked = a.order.map((w) => find(w)).filter(Boolean) as Meal[];
+    if (picked.length) { meals = [...new Set([...picked, ...meals])]; lines.push({ text: t('Order'), sub: meals.map((m) => mealName(m, lang)).join(' · ') }); }
+  }
+  if (!lines.some((l) => !l.warn)) return { id: uid('r'), kind: 'miss', title: t('Couldn’t change the meals'), lines };
+  st.setMeals(meals);
+  return { id: uid('r'), kind: 'setting', title: t('Meals updated'), lines, undo: () => useStore.getState().setMeals(before) };
+}
+
+function doLogSavedMeal(a: Extract<AgentAction, { type: 'log_saved_meal' }>, ctx: AgentCtx): AgentResult {
+  const { t } = ctx;
+  const st = useStore.getState();
+  const w = fold(a.name);
+  const m = st.savedMeals.find((x) => fold(x.name) === w) ?? st.savedMeals.find((x) => fold(x.name).includes(w) || w.includes(fold(x.name)));
+  if (!m) return { id: uid('r'), kind: 'miss', title: t('No saved meal with that name'), lines: [{ text: a.name, sub: st.savedMeals.map((x) => x.name).join(' · ').slice(0, 120), warn: true }] };
+  const date = resolveDay(a.day, ctx.today) ?? ctx.date ?? ctx.today;
+  const mealId = mealIdOf(a.meal, ctx) ?? ctx.mealId ?? defaultMealId(st.settings.meals);
+  const entries = m.items.map((it) => entryFromSnapshot(it.snap, it.qty, date, mealId, { id: uid('e') })).filter(Boolean) as FoodEntry[];
+  const added = st.logEntries(entries);
+  const total = added.reduce((n, e) => n + (e.nutrients.kcal ?? 0), 0);
+  return {
+    id: uid('r'), kind: 'food', title: t('Logged to {meal}', { meal: mealLabelOf(mealId, ctx) }) + (date !== ctx.today ? ` · ${dayLabel(date, ctx)}` : ''),
+    lines: [...added.map((e) => ({ text: e.snap.name, sub: kcalStr(e), ref: e.id })), { text: m.name, sub: `${Math.round(total)} kcal` }],
+    undo: () => added.forEach((e) => useStore.getState().removeEntry(e.id)),
+  };
+}
+
+function doDeleteWater(a: Extract<AgentAction, { type: 'delete_water' }>, ctx: AgentCtx): AgentResult {
+  const { t, lang } = ctx;
+  const date = resolveDay(a.day, ctx.today) ?? ctx.today;
+  const list = useStore.getState().water.filter((w) => w.date === date && (!a.ml || Math.abs(w.ml - a.ml) < 1));
+  const w = list[list.length - 1];
+  if (!w) return { id: uid('r'), kind: 'miss', title: t('No water to remove'), lines: [{ text: dayLabel(date, ctx) }] };
+  useStore.getState().removeWater(w.id);
+  return { id: uid('r'), kind: 'water', title: t('Water removed'), lines: [{ text: `${fmtNum(w.ml, lang, 0)} ml`, sub: dayLabel(date, ctx) }], undo: () => useStore.getState().patch((s) => ({ water: [...s.water, w] })) };
+}
+
+function doCreateExercise(a: Extract<AgentAction, { type: 'create_exercise' }>, ctx: AgentCtx): AgentResult {
+  const { t, lang } = ctx;
+  const st = useStore.getState();
+  const same = allExercises(st.exercises).find((e) => fold(e.name) === fold(a.name));
+  if (same) return { id: uid('r'), kind: 'miss', title: t('That exercise already exists'), lines: [{ text: exLabel(same, lang) }] };
+  const ex: Exercise = { id: uid('ex'), name: a.name, muscles: a.muscles, equipment: [a.equipment], movement: 'isolation', logType: a.logType, instructions: [], custom: true };
+  st.upsertExercise(ex);
+  return {
+    id: uid('r'), kind: 'workout', title: t('Exercise created'),
+    lines: [{ text: a.name, sub: [...a.muscles.map((m) => t(MUSCLE_LABEL[m])), t(EQUIP_LABEL[a.equipment])].join(' · ') }],
+    undo: () => useStore.getState().patch((s) => ({ exercises: s.exercises.filter((e) => e.id !== ex.id) })),
+  };
+}
+
+function doArchiveExercise(a: Extract<AgentAction, { type: 'archive_exercise' }>, ctx: AgentCtx): AgentResult {
+  const { t, lang } = ctx;
+  const st = useStore.getState();
+  const c = matchExercises(a.exercise, st.exercises, lang, 2);
+  const ex = c.length && c[0].score >= 0.6 ? c[0].ex : undefined;
+  if (!ex) return { id: uid('r'), kind: 'miss', title: t('Only your own exercises can be hidden'), lines: [{ text: a.exercise, warn: true }] };
+  const before = ex;
+  st.upsertExercise({ ...ex, archived: a.on });
+  return { id: uid('r'), kind: 'workout', title: a.on ? t('Exercise hidden') : t('Exercise back'), lines: [{ text: exLabel(ex, lang) }], undo: () => useStore.getState().upsertExercise(before) };
+}
+
+function doSetIncrement(a: Extract<AgentAction, { type: 'set_increment' }>, ctx: AgentCtx): AgentResult {
+  const { t, lang } = ctx;
+  const st = useStore.getState();
+  const ex = findExercise(a.exercise, lang);
+  if (!ex) return { id: uid('r'), kind: 'miss', title: t('Couldn’t find that exercise'), lines: [{ text: a.exercise, warn: true }] };
+  const before = st.increments[ex.id];
+  st.setIncrement(ex.id, a.kg ?? undefined);
+  return { id: uid('r'), kind: 'setting', title: t('Weight jump set'), lines: [{ text: exLabel(ex, lang), sub: a.kg ? `${fmtNum(a.kg, lang, 2)} kg` : t('Default') }], undo: () => useStore.getState().setIncrement(ex.id, before) };
+}
+
+function doMeasurement(a: Extract<AgentAction, { type: 'log_measurement' }>, ctx: AgentCtx): AgentResult {
+  const { t, lang } = ctx;
+  const st = useStore.getState();
+  const date = resolveDay(a.day, ctx.today) ?? ctx.today;
+  const before = new Set(st.measurements.map((m) => m.id));
+  st.addMeasurement({ date, kind: a.kind, cm: a.cm });
+  const made = useStore.getState().measurements.find((m) => !before.has(m.id));
+  return { id: uid('r'), kind: 'weight', title: t('Measurement logged'), lines: [{ text: t(MEASURE_LABEL[a.kind]), sub: `${fmtNum(a.cm, lang, 1)} cm · ${dayLabel(date, ctx)}` }], undo: () => { if (made) useStore.getState().removeMeasurement(made.id); } };
+}
+
+function doDeleteMeasurement(a: Extract<AgentAction, { type: 'delete_measurement' }>, ctx: AgentCtx): AgentResult {
+  const { t, lang } = ctx;
+  const date = resolveDay(a.day, ctx.today);
+  const list = useStore.getState().measurements.filter((m) => (!a.kind || m.kind === a.kind) && (!date || m.date === date));
+  const m = list[list.length - 1];
+  if (!m) return { id: uid('r'), kind: 'miss', title: t('No measurement to remove'), lines: [] };
+  useStore.getState().removeMeasurement(m.id);
+  return { id: uid('r'), kind: 'weight', title: t('Measurement removed'), lines: [{ text: t(MEASURE_LABEL[m.kind]), sub: `${fmtNum(m.cm, lang, 1)} cm · ${m.date}` }], undo: () => useStore.getState().patch((s) => ({ measurements: [...s.measurements, m] })) };
+}
+const MEASURE_LABEL: Record<MeasureKind, string> = { waist: 'Waist', chest: 'Chest', hips: 'Hips', arm: 'Arm', thigh: 'Thigh', neck: 'Neck' };
+
+// ── the running workout: pause, rest timer, supersets, order, notes, name ──
+
+function doWorkoutControl(a: Extract<AgentAction, { type: 'workout_control' }>, ctx: AgentCtx): AgentResult {
+  const { t, lang } = ctx;
+  const st = useStore.getState();
+  const act = st.active;
+  if (!act) return { id: uid('r'), kind: 'miss', title: t('No workout is running'), lines: [] };
+  const before = act;
+  const back = () => useStore.getState().mutateActive(() => before);
+  const ok = (title: string, lines: AgentResult['lines'] = [], undo: (() => void) | undefined = back): AgentResult => ({ id: uid('r'), kind: 'workout', title, lines, undo });
+  const block = a.exercise ? findBlock(a.exercise, act, lang) : null;
+  const cur = act.exercises.find((e) => e.sets.some((x) => !x.done)) ?? act.exercises[act.exercises.length - 1];
+  const target = block?.block ?? cur;
+  const exOf = (id?: string) => allExercises(st.exercises).find((e) => e.id === id);
+  const name = target ? exLabel(exOf(target.exerciseId) ?? { name: '' }, lang) : '';
+  if (a.exercise && !block && ['superset', 'move_up', 'move_down', 'note', 'rest_set'].includes(a.op)) return { id: uid('r'), kind: 'miss', title: t('Couldn’t find that exercise in the workout'), lines: [{ text: a.exercise, warn: true }] };
+  switch (a.op) {
+    case 'pause': if (act.pausedAt) return ok(t('Already paused'), [], undefined); st.pauseActive(); return ok(t('Workout paused'), [], () => useStore.getState().resumeActive());
+    case 'resume': if (!act.pausedAt) return ok(t('Workout is running'), [], undefined); st.resumeActive(); return ok(t('Workout resumed'), [], () => useStore.getState().pauseActive());
+    case 'rest_start': { const sec = Math.max(15, Math.abs(a.seconds ?? target?.restSec ?? st.settings.restDefaultSec)); startRest(sec, target?.exerciseId ?? ''); return ok(t('Rest started'), [{ text: fmtSec(sec) }]); }
+    case 'rest_skip': if (!act.rest) return ok(t('No rest is running'), [], undefined); skipRest(); return ok(t('Rest skipped'));
+    case 'rest_add': if (!act.rest) return ok(t('No rest is running'), [], undefined); adjustRest(a.seconds ?? 15); return ok((a.seconds ?? 15) < 0 ? t('Rest shortened') : t('Rest extended'), [{ text: `${(a.seconds ?? 15) > 0 ? '+' : '−'}${Math.abs(a.seconds ?? 15)} s` }]);
+    case 'rest_set': { if (!target) return ok(t('No exercise'), [], undefined); const sec = Math.min(600, Math.max(15, Math.abs(a.seconds ?? 90))); patchExercise(target.id, { restSec: sec }); return ok(t('Rest changed'), [{ text: name, sub: fmtSec(sec) }]); }
+    case 'superset': { if (!target) return ok(t('No exercise'), [], undefined); toggleSuperset(target.id); return ok(t('Superset changed'), [{ text: name }]); }
+    case 'move_up': case 'move_down': { if (!target) return ok(t('No exercise'), [], undefined); moveExercise(target.id, a.op === 'move_up' ? -1 : 1); return ok(t('Order changed'), [{ text: name, sub: a.op === 'move_up' ? t('up') : t('down') }]); }
+    case 'note': { if (!target || !a.text) return ok(t('No note'), [], undefined); patchExercise(target.id, { note: a.text }); return ok(t('Note added'), [{ text: name, sub: a.text }]); }
+    case 'rename': { if (!a.text) return ok(t('No name'), [], undefined); st.mutateActive((x) => ({ ...x, name: a.text! })); return ok(t('Workout renamed'), [{ text: a.text }]); }
+  }
+}
+const fmtSec = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, '0')}`;
+
+// ── the plan: a whole week at once, skipping a day ──
+
+/** "Legs on Friday, wrestling Tuesday and Thursday, the rest rest days": the week as a preview; Apply sets it (weekly plan). */
+function doSetSplit(a: Extract<AgentAction, { type: 'set_split' }>, ctx: AgentCtx): AgentResult {
+  const { t } = ctx;
+  const st = useStore.getState();
+  const prev = st.schedule;
+  const weekly: Record<number, string | null> = { ...(prev.mode === 'weekly' ? prev.weekly : {}) };
+  const acts: Record<number, ActivityKind[]> = Object.fromEntries(Object.entries(prev.activities ?? {}).map(([k, v]) => [k, [...(v ?? [])]]));
+  const missing: string[] = [];
+  const changed = new Set<number>();
+  for (const d of a.days) {
+    if (d.routine !== undefined) {
+      const r = d.routine ? findRoutine(d.routine) : null;
+      if (d.routine && !r) { missing.push(d.routine); continue; }
+      if ((weekly[d.weekday] ?? null) !== (r?.id ?? null)) changed.add(d.weekday);
+      weekly[d.weekday] = r?.id ?? null;
+    }
+    if (d.wrestling !== null) {
+      const has = (acts[d.weekday] ?? []).includes('wrestling');
+      if (has !== d.wrestling) changed.add(d.weekday);
+      acts[d.weekday] = d.wrestling ? [...new Set([...(acts[d.weekday] ?? []), 'wrestling' as ActivityKind])] : (acts[d.weekday] ?? []).filter((k) => k !== 'wrestling');
+      if (!acts[d.weekday].length) delete acts[d.weekday];
+    }
+  }
+  if (missing.length && !changed.size) return { id: uid('r'), kind: 'miss', title: t('Couldn’t find that routine'), lines: missing.map((n) => ({ text: n, sub: st.routines.map((x) => x.name).join(' · ').slice(0, 120), warn: true })) };
+  const order = st.settings.weekStart === 1 ? [1, 2, 3, 4, 5, 6, 0] : [0, 1, 2, 3, 4, 5, 6];
+  const nameOf = (id: string | null | undefined) => (id ? st.routines.find((r) => r.id === id)?.name ?? null : null);
+  const week = order.map((wd) => ({ label: t(WEEKDAYS[wd]).slice(0, 3), routine: nameOf(weekly[wd]), wrestling: (acts[wd] ?? []).includes('wrestling'), changed: changed.has(wd) }));
+  const lines: AgentResult['lines'] = order.filter((wd) => changed.has(wd)).map((wd) => ({
+    text: t(WEEKDAYS[wd]),
+    sub: [nameOf(weekly[wd]) ?? t('Rest day'), (acts[wd] ?? []).includes('wrestling') ? t(ACTIVITY_LABEL.wrestling) : ''].filter(Boolean).join(' + '),
+  }));
+  missing.forEach((n) => lines.push({ text: n, sub: t('Couldn’t find that routine'), warn: true }));
+  if (!changed.size) return { id: uid('r'), kind: 'routine', title: t('Your week is already like that'), lines: [], week };
+  const result: AgentResult = {
+    id: uid('r'), kind: 'routine', pending: true, offer: true, key: 'split',
+    title: t('Your week'), subtitle: t(changed.size === 1 ? '1 day changes' : '{n} days change', { n: changed.size }), lines, week,
+    button: { label: t('Apply'), run: () => { useStore.getState().setSchedule({ mode: 'weekly', weekly, activities: acts }); result.undo = () => useStore.getState().patch({ schedule: prev }); } },
+  };
+  return result;
+}
+
+function doSkipDay(a: Extract<AgentAction, { type: 'skip_day' }>, ctx: AgentCtx): AgentResult {
+  const { t } = ctx;
+  const st = useStore.getState();
+  const date = a.day === 'tomorrow' ? addDays(ctx.today, 1) : resolveDay(a.day, ctx.today) ?? ctx.today;
+  const p = plannedFor(st, date, ctx.today);
+  if (!p) return { id: uid('r'), kind: 'miss', title: t('Nothing planned that day'), lines: [{ text: dayLabel(date, ctx) }] };
+  const prev = st.schedule;
+  st.skipPlanned(date);
+  return { id: uid('r'), kind: 'routine', title: t('Skipped'), lines: [{ text: st.routines.find((r) => r.id === p.routineId)?.name ?? '', sub: date === addDays(ctx.today, 1) ? t('Tomorrow') : dayLabel(date, ctx) }], undo: () => useStore.getState().patch({ schedule: prev }) };
 }
 
 /** "That's a seated leg curl": the catalog exercise as a card, with its how-to and a way to add it to today's workout. */
@@ -1107,7 +1374,12 @@ function doStartWorkout(a: Extract<AgentAction, { type: 'start_workout' }>, ctx:
   const { t } = ctx;
   const st = useStore.getState();
   if (st.active) return { id: uid('r'), kind: 'workout', title: t('A workout is already running'), lines: [{ text: st.active.name || t('Workout') }], button: { label: t('Open workout'), run: () => useUI.getState().push('workout', { origin: 'none' }) } };
-  const w = a.routine ? fold(a.routine) : '';
+  // "start today's workout": whatever the plan has today
+  const askedPlan = /^(planned|today|todays?|plan|dagens|i ?dag)$/.test(fold(a.routine ?? '').replace(/\s+(workout|traening)$/, ''));
+  const today = askedPlan ? plannedFor(st, ctx.today, ctx.today) : null;
+  const w = askedPlan ? '' : a.routine ? fold(a.routine) : '';
+  if (today) { const r = st.routines.find((x) => x.id === today.routineId)!; const ses = st.startWorkout({ routine: r, plannedDate: ctx.today }); if (ses) return { id: uid('r'), kind: 'workout', title: t('Workout started'), lines: [{ text: r.name, sub: `${r.items.length} ${t('exercises')}` }], button: { label: t('Open workout'), run: () => useUI.getState().push('workout', { origin: 'none' }) }, undo: () => { const s2 = useStore.getState(); if (s2.active && s2.active.id === ses.id && s2.active.exercises.every((e) => e.sets.every((q) => !q.done))) s2.discardActive(); } }; }
+  if (askedPlan && !today) return { id: uid('r'), kind: 'miss', title: t('Nothing planned today'), lines: [] };
   const routine = w ? st.routines.find((r) => fold(r.name) === w) ?? st.routines.find((r) => fold(r.name).includes(w) || w.includes(fold(r.name))) : undefined;
   if (a.routine && !routine) return { id: uid('r'), kind: 'miss', title: t('Couldn’t start that'), lines: [{ text: a.routine, sub: `${t('No routine with that name')} · ${st.routines.map((r) => r.name).join(' · ')}`.slice(0, 160), warn: true }] };
   const ses = st.startWorkout(routine ? { routine } : { name: '' });
@@ -1161,39 +1433,28 @@ function doNavigate(a: Extract<AgentAction, { type: 'navigate' }>, ctx: AgentCtx
   return { id: uid('r'), kind: 'nav', title: t('Opening {screen}', { screen: names[a.screen] }), lines: [] };
 }
 
-// settings the Coach may change: all reversible, all with Undo
-const BOOL = (v: string) => (/^(on|true|yes|1|enable|enabled|til|ja)$/i.test(v) ? true : /^(off|false|no|0|disable|disabled|fra|nej)$/i.test(v) ? false : undefined);
-function settingPatch(key: SettingKey, value: string, cur: Settings): { patch: Partial<Settings>; label: string; show: string } | null {
-  const v = value.toLowerCase();
-  const n = Number(value.replace(',', '.'));
-  switch (key) {
-    case 'theme': return ['light', 'dark', 'system'].includes(v) ? { patch: { theme: v as Settings['theme'] }, label: 'Theme', show: v } : null;
-    case 'language': return v === 'da' || v === 'en' ? { patch: { language: v as Settings['language'] }, label: 'Language', show: v === 'da' ? 'Dansk' : 'English' } : null;
-    case 'weightUnit': return v === 'kg' || v === 'lb' ? { patch: { units: { ...cur.units, weight: v } }, label: 'Weight unit', show: v } : null;
-    case 'distanceUnit': return v === 'km' || v === 'mi' ? { patch: { units: { ...cur.units, distance: v } }, label: 'Distance unit', show: v } : null;
-    case 'motion': return ['system', 'reduce', 'full'].includes(v) ? { patch: { motion: v as Settings['motion'] }, label: 'Motion', show: v } : null;
-    case 'sound': { const b = BOOL(v); return b === undefined ? null : { patch: { sound: b }, label: 'Sound', show: b ? 'on' : 'off' }; }
-    case 'haptics': { const b = BOOL(v); return b === undefined ? null : { patch: { haptics: b }, label: 'Haptics', show: b ? 'on' : 'off' }; }
-    case 'foodLookup': { const b = BOOL(v); return b === undefined ? null : { patch: { foodLookup: b }, label: 'Online food lookup', show: b ? 'on' : 'off' }; }
-    case 'restSeconds': return Number.isFinite(n) && n >= 15 && n <= 600 ? { patch: { restDefaultSec: Math.round(n) }, label: 'Default rest', show: `${Math.round(n)} s` } : null;
-    case 'kcalGoal': return Number.isFinite(n) && n >= 800 && n <= 8000 ? { patch: { goals: { ...cur.goals, kcal: Math.round(n) } }, label: 'Calorie target', show: `${Math.round(n)} kcal` } : null;
-    case 'proteinGoal': return Number.isFinite(n) && n >= 10 && n <= 500 ? { patch: { goals: { ...cur.goals, protein: Math.round(n) } }, label: 'Protein target', show: `${Math.round(n)} g` } : null;
-    case 'carbsGoal': return Number.isFinite(n) && n >= 10 && n <= 1000 ? { patch: { goals: { ...cur.goals, carbs: Math.round(n) } }, label: 'Carb target', show: `${Math.round(n)} g` } : null;
-    case 'fatGoal': return Number.isFinite(n) && n >= 10 && n <= 500 ? { patch: { goals: { ...cur.goals, fat: Math.round(n) } }, label: 'Fat target', show: `${Math.round(n)} g` } : null;
-    case 'waterGoal': return Number.isFinite(n) && n >= 500 && n <= 10000 ? { patch: { goals: { ...cur.goals, waterMl: Math.round(n) } }, label: 'Water target', show: `${Math.round(n)} ml` } : null;
-    case 'weekStart': return v === 'monday' || v === 'sunday' ? { patch: { weekStart: v === 'monday' ? 1 : 0 }, label: 'Week starts on', show: v } : null;
-    case 'effort': return ['off', 'rpe', 'rir'].includes(v) ? { patch: { effort: v as Settings['effort'] }, label: 'Effort scale', show: v } : null;
-  }
-}
-
+/** Settings (one or several at once): each checked against SETTING_SPEC; the card shows every change and undoes them together. */
 function doSetting(a: Extract<AgentAction, { type: 'set_setting' }>, ctx: AgentCtx): AgentResult {
   const st = useStore.getState();
-  const r = settingPatch(a.key, a.value, st.settings);
-  if (!r) return { id: uid('r'), kind: 'miss', title: ctx.t('Couldn’t change that setting'), lines: [{ text: `${a.key} = ${a.value}`, warn: true }] };
+  const pairs = a.pairs ?? (a.key && a.value !== undefined ? [{ key: a.key, value: a.value }] : []);
+  let cur = st.settings;
+  const lines: AgentResult['lines'] = []; const bad: string[] = [];
+  const patch: Partial<Settings> = {};
+  for (const p of pairs) {
+    const spec = specOf(p.key); const r = spec?.parse(p.value, cur);
+    if (!spec || !r) { bad.push(`${p.key} = ${p.value}`); continue; }
+    Object.assign(patch, r.patch); cur = { ...cur, ...r.patch };
+    lines.push({ text: ctx.t(spec.label), sub: r.show });
+  }
+  if (!lines.length) return { id: uid('r'), kind: 'miss', title: ctx.t('Couldn’t change that setting'), lines: bad.map((b) => ({ text: b, warn: true })) };
   const prev: Partial<Settings> = {};
-  for (const k of Object.keys(r.patch) as (keyof Settings)[]) (prev as any)[k] = (st.settings as any)[k];
-  st.updateSettings(r.patch);
-  return { id: uid('r'), kind: 'setting', title: ctx.t('Setting changed'), lines: [{ text: ctx.t(r.label), sub: r.show }], undo: () => useStore.getState().updateSettings(prev) };
+  for (const k of Object.keys(patch) as (keyof Settings)[]) (prev as any)[k] = (st.settings as any)[k];
+  st.updateSettings(patch);
+  return {
+    id: uid('r'), kind: 'setting', title: lines.length > 1 ? ctx.t('Settings changed') : ctx.t('Setting changed'),
+    lines: [...lines, ...bad.map((b) => ({ text: b, sub: ctx.t('not changed'), warn: true }))],
+    undo: () => useStore.getState().updateSettings(prev),
+  };
 }
 
 /** Carry out what the model asked for, in order. Each result is one card in the chat. */
@@ -1240,6 +1501,17 @@ export async function runActions(actions: AgentAction[], ctxIn: AgentCtx): Promi
         case 'show_exercise': out.push(doShowExercise(a, ctx)); break;
         case 'suggest_food': out.push(...doSuggest(a, ctx)); break;
         case 'plan_day': out.push(doPlanDay(a, ctx)); break;
+        case 'edit_meals': out.push(doEditMeals(a, ctx)); break;
+        case 'log_saved_meal': out.push(doLogSavedMeal(a, ctx)); break;
+        case 'delete_water': out.push(doDeleteWater(a, ctx)); break;
+        case 'create_exercise': out.push(doCreateExercise(a, ctx)); break;
+        case 'archive_exercise': out.push(doArchiveExercise(a, ctx)); break;
+        case 'set_increment': out.push(doSetIncrement(a, ctx)); break;
+        case 'log_measurement': out.push(doMeasurement(a, ctx)); break;
+        case 'delete_measurement': out.push(doDeleteMeasurement(a, ctx)); break;
+        case 'workout_control': out.push(doWorkoutControl(a, ctx)); break;
+        case 'set_split': out.push(doSetSplit(a, ctx)); break;
+        case 'skip_day': out.push(doSkipDay(a, ctx)); break;
         case 'undo_last': break; // handled by the Coach (it knows its own cards)
       }
     } catch {
