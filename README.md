@@ -2327,7 +2327,7 @@ All of it is transform and opacity, ends on the card exactly as it rests, and is
   answer" copies the AI's last raw answer (kept in memory only, no keys) for diagnosing the next odd answer.
   `journey-coach4` runs the plain-mode path end to end. Shipped as v0.1.137.
 
-## Coach 2.0, phase 5 part 1: the coach around the workout (16 Oct 2026)
+## Coach 2.0, phase 5 part 1: the coach around the workout (16 Oct 2026, v0.1.138)
 
 All of it is the app's own numbers: instant, free, no AI.
 - **One way to tick a set** (`completeSet`, src/screens/workout/complete.ts): a tap, a set said to the orb or the Coach
