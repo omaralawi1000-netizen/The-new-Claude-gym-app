@@ -16,6 +16,7 @@ import { useNow } from '../../lib/hooks';
 import { setWorkoutOpener } from '../../ui/workoutOpen';
 import { nextSetOf, prepareRestAudio } from './rest';
 import { completeSet, onSetDone } from './complete';
+import { Briefing } from './Briefing';
 import { addSet, deleteSet, moveExercise, patchExercise, patchSet, removeExercise, adjustRest, skipRest, toggleSuperset } from './actions';
 import { exName, fmtSet, MUSCLE_LABEL } from './common';
 import { SphereSlot, mirrorOrb, orbPress, orbTap } from '../../ui/Sphere';
@@ -455,6 +456,8 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
             )}
             {/* plain blocks: an exercise added later (or brought back by Undo) unfolds, a removed one folds away (Collapse), so the
                 list below opens and closes around it instead of jumping — nothing re-measures the page */}
+            {/* before the first set: today's targets, anything worth knowing today, one focus (folds away on the first tick) */}
+            {a.exercises.length > 0 && a.id !== WK_GHOST && <Briefing key={a.id} a={a} exMap={exMap} />}
             <AnimatePresence initial={false}>
               {a.exercises.slice(0, shown).map((se, idx) => (
                 <Collapse key={se.id} appear={listSettled.current}>

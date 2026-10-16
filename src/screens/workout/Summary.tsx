@@ -10,11 +10,13 @@ import { elapsedMs, sessionSetCount, sessionVolume, sessionHeadline, countable }
 import { fmtDate, fmtDuration, fmtDurationLong } from '../../lib/dates';
 import { backupAfterWorkout } from '../../lib/drive';
 import { displayToKg, fmtNum, kgToDisplay } from '../../lib/units';
-import type { RecordKind, WorkoutSession } from '../../lib/types';
+import type { CheckIn, RecordKind, WorkoutSession } from '../../lib/types';
 import { exName, fmtSet } from './common';
 import { plan, play } from './finishMoment';
 import { Odo } from '../../ui/Odo';
 import { saveWorkoutAsRoutine } from './actions';
+import { nextTime } from '../../lib/coachWorkout';
+import { moveText } from './Briefing';
 
 const REC_LABEL: Record<RecordKind, string> = { weight: 'Heaviest set', e1rm: 'Estimated 1RM', volume: 'Best set volume', reps: 'Most reps', duration: 'Longest hold', distance: 'Longest distance' };
 
@@ -40,6 +42,8 @@ export function Summary({ props }: { props: { sessionId: string } }) {
   const recs = ses?.records ?? [];
   const rows = useMemo(() => (ses ? ses.exercises.map((e) => ({ e, ex: exMap.get(e.exerciseId) })) : []), [ses, exMap]);
   const headline = useMemo(() => (ses ? sessionHeadline(ses, s.sessions, (kg) => `${fmtNum(Math.round(kgToDisplay(kg, u.weight)), lang, 0)} ${u.weight}`) : null), [ses?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  // what moved on the main lifts and next time's target for them (the app's own progression, no AI)
+  const next = useMemo(() => (ses ? nextTime(ses, s.sessions, s, exMap) : []), [ses?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const texts = ses ? [fmtDuration(elapsedMs(ses) / 1000), fmtNum(Math.round(kgToDisplay(sessionVolume(ses.exercises), u.weight)), lang, 0), String(sessionSetCount(ses.exercises)), String(ses.exercises.length)] : [];
   const fm = useMemo(() => plan(texts), [texts.join('|')]); // eslint-disable-line react-hooks/exhaustive-deps
   // The choreography and its haptics start together the moment the sheet's contents are attached (they arrive a beat after
@@ -105,8 +109,25 @@ export function Summary({ props }: { props: { sessionId: string } }) {
           </div>
         )}
 
+        {next.length > 0 && (
+          <div className="plinth sum-next" data-fm="after">
+            <div className="micro">{t('Next time')}</div>
+            {next.map((x) => {
+              const ex = exMap.get(x.exerciseId);
+              return (
+                <div key={x.exerciseId} className="sum-next-row">
+                  <span className="grow sum-next-name">{ex ? exName(ex, lang) : ''}</span>
+                  {x.up && <span className="sum-next-up num">{moveText(x.up, u.weight, lang, t)}</span>}
+                  <span className="num sum-next-to">{x.kg !== undefined ? `${fmtNum(kgToDisplay(x.kg, u.weight), lang, 2)} ${u.weight} × ` : ''}{x.reps}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
         {/* the rest of the screen rises gently with the sheet, under the moment, never pulling the eye from it */}
         <div data-fm="rest">
+        <CheckInRows id={ses.id} value={ses.checkin} />
         <div className="micro" style={{ margin: '24px 0 8px' }}>{t('Planned vs done')}</div>
         <div className="list">
           {rows.map(({ e, ex }) => {
@@ -127,6 +148,33 @@ export function Summary({ props }: { props: { sessionId: string } }) {
         </div>
       </div>
     </Sheet>
+  );
+}
+
+const CHECKIN: { k: 'energy' | 'soreness' | 'sleep'; label: string; opts: [string, string, string] }[] = [
+  { k: 'energy', label: 'Energy', opts: ['Low', 'OK', 'Great'] },
+  { k: 'soreness', label: 'Soreness', opts: ['None', 'Some', 'A lot'] },
+  { k: 'sleep', label: 'Sleep last night', opts: ['Poor', 'OK', 'Good'] },
+];
+/** One tap each, all optional: how it felt. Saved on the workout; the next briefing, day plan and the Coach read it. */
+function CheckInRows({ id, value }: { id: string; value?: CheckIn }) {
+  const t = useT();
+  const mutate = useStore((x) => x.mutateSession);
+  const pick = (k: 'energy' | 'soreness' | 'sleep', v: 1 | 2 | 3) => {
+    haptic('select');
+    mutate(id, (x) => { const c = { ...x.checkin, [k]: x.checkin?.[k] === v ? undefined : v, at: Date.now() }; return { ...x, checkin: c.energy || c.soreness || c.sleep ? c : undefined }; });
+  };
+  return (
+    <div className="sum-checkin">
+      <div className="micro" style={{ margin: '24px 0 4px' }}>{t('Quick check-in')}</div>
+      {CHECKIN.map((r) => (
+        <div key={r.k} className="ci-row" role="group" aria-label={t(r.label)}>
+          <span className="ci-label xs t2">{t(r.label)}</span>
+          {r.opts.map((o, i) => { const v = (i + 1) as 1 | 2 | 3; const on = value?.[r.k] === v; return <button key={o} className={`ci-chip press${on ? ' on' : ''}`} aria-pressed={on} onClick={() => pick(r.k, v)}><span>{t(o)}</span></button>; })}
+        </div>
+      ))}
+      <div className={`xs t3 ci-note${value ? ' on' : ''}`}>{t('Your next briefing and plans will take this into account.')}</div>
+    </div>
   );
 }
 
