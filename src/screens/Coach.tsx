@@ -75,7 +75,7 @@ const morphVars = { '--cf-x': `${CF_X}px`, '--cf-max': `${CF_MAX}px`, '--cf-ease
 type Msg =
   | { id: string; role: 'user' | 'model'; text: string; streaming?: boolean; /** while it looks something up in the data */ status?: string; seeded?: boolean; /** a quiet line under the answer (which AI answered, and why) */ note?: string; /** when it was said */ at?: number; /** a photo was sent with it (its picture stays only while the Coach is open) */ photo?: boolean; image?: string; /** typed: its lines as they wrapped in the field (the bubble keeps them) */ lines?: string[] }
   | { id: string; role: 'error'; text: string }
-  | { id: string; role: 'action'; results: AgentResult[]; undone: string[]; confirmed: string[] }
+  | { id: string; role: 'action'; results: AgentResult[]; undone: string[]; confirmed: string[]; /** arrived in this visit (it animates in; a restored one stays still) */ fresh?: boolean }
 
 /** How many of the newest saved messages are built on the tap that opens the Coach (the rest follow, see `older`). */
 const TAIL = 6;
@@ -85,7 +85,7 @@ function loadThread(): Msg[] {
     return (readThread() as any[])
       .map((m: any) => (m.role === 'user' || m.role === 'model' ? { ...m, seeded: true, streaming: false, lines: Array.isArray(m.lines) && m.lines.every((l: unknown) => typeof l === 'string') ? m.lines : undefined }
         // a card's buttons were functions: they don't survive the trip, so a restored card has none (no dead buttons)
-        : m.role === 'action' ? { ...m, results: (Array.isArray(m.results) ? m.results : []).map((r: any) => ({ ...r, button: undefined, more: undefined, undo: undefined })) } : m));
+        : m.role === 'action' ? { ...m, fresh: false, results: (Array.isArray(m.results) ? m.results : []).map((r: any) => ({ ...r, button: undefined, more: undefined, undo: undefined })) } : m));
   } catch { return []; }
 }
 const saveThread = (list: Msg[]) => writeThread(list as ThreadMsg[]);
@@ -667,7 +667,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     const said = reply || note;
     setMsgs((x) => {
       const base = said ? x.map((m) => (m.id === placeholder ? { ...m, text: said, note: reply ? note || undefined : undefined, streaming: false } as Msg : m)) : x.filter((m) => m.id !== placeholder);
-      return results.length ? [...base, { id: uid('m'), role: 'action', results, undone: [], confirmed: [] }] : base;
+      return results.length ? [...base, { id: uid('m'), role: 'action', results, undone: [], confirmed: [], fresh: true }] : base;
     });
     // green "Done" only when something was actually logged or changed
     const acted = d.wantsUndo || results.some((r) => r.kind !== 'miss' && r.kind !== 'nav');
@@ -885,7 +885,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
                   {m.role === 'action' && (
                     <div className="stack gap8">
                       {m.results.map((r) => (
-                        <ActionCard key={r.id} r={r} undone={m.undone.includes(r.id)} confirmed={m.confirmed.includes(r.id)} replaced={replaced.has(r.id)}
+                        <ActionCard key={r.id} r={r} undone={m.undone.includes(r.id)} confirmed={m.confirmed.includes(r.id)} replaced={replaced.has(r.id)} fresh={!!m.fresh}
                           onUndo={() => { r.undo?.(); haptic('light'); setMsgs((x) => x.map((y) => (y.id === m.id && y.role === 'action' ? { ...y, undone: [...y.undone, r.id] } : y))); }}
                           onConfirm={() => { r.button?.run(); haptic('confirm'); setMsgs((x) => x.map((y) => (y.id === m.id && y.role === 'action' ? { ...y, confirmed: [...y.confirmed, r.id] } : y))); }} />
                       ))}

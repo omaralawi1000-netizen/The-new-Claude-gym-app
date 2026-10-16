@@ -320,6 +320,8 @@ export interface AgentResult {
   pending?: boolean;
   /** a preview of one thing ("plan:2026-10-16", "split"): a newer preview with the same key replaces it (no applying both) */
   key?: string;
+  /** the subtitle once a preview is applied ("2 days changed") */
+  doneSubtitle?: string;
   /** a week shown as seven days (a split preview), Monday first: routine initials and wrestling */
   week?: { label: string; routine: string | null; wrestling: boolean; changed: boolean }[];
 }
@@ -1240,7 +1242,7 @@ function doSetSplit(a: Extract<AgentAction, { type: 'set_split' }>, ctx: AgentCt
   if (!changed.size) return { id: uid('r'), kind: 'routine', title: t('Your week is already like that'), lines: [], week };
   const result: AgentResult = {
     id: uid('r'), kind: 'routine', pending: true, offer: true, key: 'split',
-    title: t('Your week'), subtitle: t(changed.size === 1 ? '1 day changes' : '{n} days change', { n: changed.size }), lines, week,
+    title: t('Your week'), subtitle: t(changed.size === 1 ? '1 day changes' : '{n} days change', { n: changed.size }), doneSubtitle: t(changed.size === 1 ? '1 day changed' : '{n} days changed', { n: changed.size }), lines, week,
     button: { label: t('Apply'), run: () => { useStore.getState().setSchedule({ mode: 'weekly', weekly, activities: acts }); result.undo = () => useStore.getState().patch({ schedule: prev }); } },
   };
   return result;

@@ -295,41 +295,92 @@ export function cardsNote(results: AgentResult[], confirmed: string[], undone: s
   }).join(' | ')})`;
 }
 
-export function ActionCard({ r, undone, confirmed, onUndo, onConfirm, replaced = false }: { r: AgentResult; undone: boolean; confirmed: boolean; onUndo: () => void; onConfirm: () => void; /** a newer preview of the same thing came: this one can no longer be applied */ replaced?: boolean }) {
+export function ActionCard({ r, undone, confirmed, onUndo, onConfirm, replaced = false, fresh = false }: { r: AgentResult; undone: boolean; confirmed: boolean; onUndo: () => void; onConfirm: () => void; /** a newer preview of the same thing came: this one can no longer be applied */ replaced?: boolean; /** it arrived just now (a restored card stays still) */ fresh?: boolean }) {
   const t = useT();
   const miss = r.kind === 'miss';
+  // Apply and Undo animate only when they happen here, not when a card comes back already applied or undone
+  const was = useRef({ confirmed, undone, replaced });
+  const [sealing, setSealing] = useState(false);
+  const [undoing, setUndoing] = useState(false);
+  // the buttons went away under the user's eyes (undone or replaced here): their row fades out but keeps its room
+  const [goneLive, setGoneLive] = useState(false);
+  useEffect(() => {
+    if (confirmed && !was.current.confirmed) setSealing(true);
+    if (undone && !was.current.undone) setUndoing(true);
+    if ((undone && !was.current.undone) || (replaced && !was.current.replaced)) setGoneLive(true);
+    was.current = { confirmed, undone, replaced };
+  }, [confirmed, undone, replaced]);
+  const waiting = !!r.pending && !confirmed && !undone && !replaced;
+  const hadButtons = !!(r.button || r.undo || r.more?.length);
+  const gone = undone || (replaced && !confirmed);
+  const title = undone ? t('Undone') : confirmed ? t('Done') : replaced ? t('Replaced by the newer version below') : r.title;
+  // the title changed under the user's eyes: the old one rolls up and out while the new one rolls in (never a blank frame)
+  const shownTitle = useRef({ now: title, before: '' });
+  if (shownTitle.current.now !== title) shownTitle.current = { now: title, before: shownTitle.current.now };
+  const rolled = !!shownTitle.current.before;
+  const cls = ['plinth', 'action-card', fresh ? 'fresh' : '', waiting ? 'waiting' : '', confirmed ? 'sealed' : '', sealing ? 'sealing' : '', undone ? 'undone' : '', undoing ? 'undoing' : '', miss ? 'miss' : '', replaced && !confirmed ? 'replaced' : ''].filter(Boolean).join(' ');
   return (
-    <div className={`plinth action-card ${undone ? 'undone' : ''} ${miss ? 'miss' : ''}${replaced && !confirmed ? ' replaced' : ''}`} style={{ padding: '12px 14px 12px 12px' }}>
+    <div className={cls} style={{ padding: '12px 14px 12px 12px', ['--n' as string]: r.lines.length }}>
+      {/* a preview waiting for its tap: one slow light passes over the glass, once (it never loops) */}
+      {waiting && fresh && <span className="ac-sheen" aria-hidden><i /></span>}
       <div className="row-flex" style={{ gap: 10, alignItems: 'flex-start' }}>
-        <span className="action-ic" aria-hidden><Icon name={miss || (r.pending && !confirmed && !r.offer) ? 'info' : (KIND_ICON[r.kind] ?? 'check')} size={16} sw={2.2} /></span>
-        <div className="grow">
-          <div className="small" style={{ fontWeight: 650 }}>{undone ? t('Undone') : confirmed ? t('Done') : replaced ? t('Replaced by the newer version below') : r.title}</div>
-          {r.subtitle && !undone && <div className="xs t2 num" style={{ marginTop: 2 }}>{r.subtitle}</div>}
+        <span className="action-ic" aria-hidden><Icon key={confirmed ? 'done' : 'wait'} name={miss || (r.pending && !confirmed && !r.offer) ? 'info' : undone ? 'undo' : (KIND_ICON[r.kind] ?? 'check')} size={16} sw={2.2} /></span>
+        <div className="grow ac-body">
+          <div className="small ac-title" style={{ fontWeight: 650 }}>
+            {rolled && <span key={`o${shownTitle.current.before}`} className="ac-roll-out" aria-hidden>{shownTitle.current.before}</span>}
+            <span key={title} className={rolled ? 'ac-roll' : undefined}>{title}</span>
+          </div>
+          {/* (kept when undone: taking it away collapsed the card in one frame) */}
+          {r.subtitle && <div className="xs t2 num ac-sub" style={{ marginTop: 2 }}>{confirmed && r.doneSubtitle ? r.doneSubtitle : r.subtitle}</div>}
+          {r.week && <WeekStrip week={r.week} />}
           {r.lines.length > 0 && (
             <div style={{ marginTop: 6 }}>
               {r.lines.map((l, i) => (
-                <div key={i} className={`action-line ${l.sub && l.sub.length > 22 ? 'stack' : 'row-flex between'}`} style={{ gap: 10, padding: '5px 0', borderTop: i ? '1px solid var(--line)' : 'none', animationDelay: `${120 + i * 70}ms` }}>
-                  <span className="small" style={{ color: l.warn ? 'var(--warn)' : 'var(--tx)', minWidth: 0, overflowWrap: 'anywhere' }}>{l.text}</span>
-                  {l.sub && <span className="xs t2 num" style={l.sub.length > 22 ? { display: 'block', marginTop: 1 } : { textAlign: 'right', flex: 'none', maxWidth: '62%' }}>{l.sub}</span>}
+                <div key={i} className={`action-line ${l.sub && l.sub.length > 30 ? 'stack' : 'row-flex between'}`} style={{ gap: l.sub && l.sub.length > 30 ? 2 : 10, padding: '5px 0', borderTop: i ? '1px solid var(--line)' : 'none', animationDelay: `${120 + i * 70}ms`, ['--i' as string]: i }}>
+                  <span className="small ac-text" style={{ color: l.warn ? 'var(--warn)' : 'var(--tx)', minWidth: 0, overflowWrap: 'anywhere' }}>{l.text}</span>
+                  {l.sub && <span className="xs t2 num" style={l.sub.length > 30 ? { display: 'block', marginTop: 1 } : { textAlign: 'right', flex: 'none', maxWidth: '62%' }}>{l.sub}</span>}
                 </div>
               ))}
             </div>
           )}
-          {/* applied from a preview (a planned day): it can still be taken back */}
-          {!undone && confirmed && r.undo && (
-            <div className="row-flex" style={{ gap: 8, marginTop: 10 }}>
-              <button className="btn sm ghost press" onClick={onUndo}><Icon name="undo" size={15} /> {t('Undo')}</button>
-            </div>
-          )}
-          {!undone && !confirmed && !replaced && (r.button || r.undo || r.more?.length) && (
-            <div className="row-flex" style={{ gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-              {r.button && <button className={`btn sm press ${r.pending ? 'primary' : ''}`} onClick={r.pending ? onConfirm : r.button.run}>{r.button.label}</button>}
-              {r.more?.map((b) => <button key={b.label} className="btn sm ghost press" onClick={() => { haptic('light'); b.run(); }}>{b.label}</button>)}
-              {r.undo && !r.pending && <button className="btn sm ghost press" onClick={onUndo}><Icon name="undo" size={15} /> {t('Undo')}</button>}
+          {/* The buttons live in one cell. On Apply the Apply row leaves in place while the Undo row fades in over it; once
+              undone (or replaced) the row keeps its room and fades out, so the card never changes height in one frame. */}
+          {(hadButtons || (confirmed && r.undo)) && (!gone || goneLive) && (
+            <div className={`ac-actions-cell${gone ? ' gone' : ''}`} inert={gone || undefined}>
+              {(!confirmed || sealing) && hadButtons && (
+                <div key="before" className={`row-flex ac-actions${confirmed ? ' ac-out' : ''}`} style={{ gap: 8, flexWrap: 'wrap' }} aria-hidden={confirmed || undefined} inert={confirmed ? true : undefined}>
+                  {r.button && <button className={`btn sm press ${r.pending ? 'primary' : ''}`} onClick={r.pending ? onConfirm : r.button.run}>{r.button.label}</button>}
+                  {r.more?.map((b) => <button key={b.label} className="btn sm ghost press" onClick={() => { haptic('light'); b.run(); }}>{b.label}</button>)}
+                  {r.undo && !r.pending && <button className="btn sm ghost press" onClick={onUndo}><Icon name="undo" size={15} /> {t('Undo')}</button>}
+                </div>
+              )}
+              {confirmed && r.undo && (
+                <div key="after" className={`row-flex ac-actions${sealing ? ' ac-in-late' : ''}`} style={{ gap: 8 }}>
+                  <button className="btn sm ghost press" onClick={onUndo}><Icon name="undo" size={15} /> {t('Undo')}</button>
+                </div>
+              )}
             </div>
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/** The week a split preview would set: seven days, the routine's first letter or a quiet dot for rest, wrestling as a small
+ *  ring, the days that change outlined. On Apply the changed days settle in one after another, left to right. */
+function WeekStrip({ week }: { week: NonNullable<AgentResult['week']> }) {
+  const t = useT();
+  let n = 0;
+  return (
+    <div className="ac-week" role="list">
+      {week.map((d, i) => (
+        <div key={i} role="listitem" className={`ac-day${d.changed ? ' changed' : ''}${d.routine ? ' gym' : ''}`} style={{ ['--i' as string]: i, ['--c' as string]: d.changed ? n++ : 0 }}
+          aria-label={`${d.label}: ${d.routine ?? t('Rest day')}${d.wrestling ? ` + ${t('Wrestling')}` : ''}`}>
+          <span className="ac-day-l">{d.label}</span>
+          <span className="ac-day-dot">{d.routine ? d.routine.slice(0, 1).toUpperCase() : ''}{d.wrestling && <i className="ac-day-w" />}</span>
+        </div>
+      ))}
     </div>
   );
 }

@@ -1545,6 +1545,8 @@ export const da: Record<string, string> = {
  "Experience": "Erfaring",
  "1 day changes": "1 dag ændres",
  "{n} days change": "{n} dage ændres",
+ "1 day changed": "1 dag ændret",
+ "{n} days changed": "{n} dage ændret",
  "Today: water": "I dag: vand",
  "Today: quick": "I dag: hurtigknapper",
  "Today: recents": "I dag: seneste",

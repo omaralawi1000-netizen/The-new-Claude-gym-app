@@ -2236,3 +2236,30 @@ Omar wants the Coach to be an agent over the whole app. The plan is in `docs/coa
   flight lands at ~1.7 s, after its 1.4 s window) and passes again.
 - Checks: `tests/coach3.test.ts` (14), `journey-coach2` (+ week preview → Apply → Undo, several settings, a measurement),
   `journey-sol`, `journey-ai`, `journey-coach`.
+
+## Coach 2.0, phase 2 part B: cards that settle, wait, seal and undo (16 Oct 2026)
+
+The Coach's cards used to appear with no motion at all (restored chats are kept still while the sheet opens, and that rule
+also stilled new cards). Now a card that arrives in this visit moves; a restored one stays still (`fresh` on the message).
+All of it is transform and opacity, ends on the card exactly as it rests, and is off with reduced motion.
+
+- **Arrival**: the card rises 12 px on the smooth curve (780 ms) while its glass fades in; what it says follows 110 ms later,
+  the lines in a 55 ms cascade, and a soft ring opens out from the icon once. (A spring, or a slight scale, left the text a
+  sub-pixel off its resting place, so the card visibly settled when the animation ended: 38/255 against the still card. The
+  plain rise lands within 2–3/255.)
+- **A preview waiting for its tap**: one slow light passes across its glass, once, 0.7 s after it lands. It never loops.
+- **Apply ("seal")**: one after the other, the old title leaves upward (240 ms) and "Done" comes up from below (420 ms,
+  180 ms later), so two titles never overlap. The icon pulses once from rest (it never dips the instant it is tapped) with the
+  ring once more (`acHalo2`: a keyframe the icon already ran does not replay), the lines breathe once (40 ms ripple), and
+  Apply fades out in place while Undo fades in over it, in one grid cell, so the card never changes height. A week card's
+  subtitle turns to "2 days changed".
+- **The week** (`set_split` previews): seven day dots under the title (routine initial, a green dot for wrestling, the days
+  that change outlined); on Apply the changed days settle in one after another, left to right.
+- **Undo**: the strike is drawn left to right through each line, as wide as its words, and the card eases back to 55 %. The
+  subtitle stays and the buttons fade out but keep their room (taking them away collapsed the card in one frame); a card
+  restored already undone simply has no buttons.
+- **"Looking at…"**: each new status rises 3 px into the place of the one before.
+- `scripts/film-cards.mjs`: films these moves frame by frame (animations frozen and stepped 1000/30 ms) and checks the
+  seamless settle (1 ms before the end vs finished, ≤ 3/255). `CLIPS=2,5` films only some.
+- A harsh-judge pass found the one-frame jumps above; after the fixes every clip settles within 0–3/255. Filmed in Aurora
+  (`AVEN_PALETTE`, default `aurora` in the film script). Shipped as v0.1.135 on Omar's "I would call it done".
