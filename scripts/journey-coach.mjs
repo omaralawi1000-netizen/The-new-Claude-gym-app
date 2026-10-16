@@ -158,8 +158,11 @@ await p.getByLabel('Coach').click().catch(() => {}); await wait(p, 800);
 if (await p.getByRole('button', { name: 'New chat' }).isVisible().catch(() => false)) {
   await p.getByRole('button', { name: 'New chat' }).click(); await wait(p, 400);
   assert.equal(await p.evaluate(() => JSON.parse(localStorage.getItem('aven.coach') || '[]').length), 0, 'New chat clears it');
-  // (the old messages fade out first, ~280 ms plus a frame: wait for them to be gone rather than for a fixed time)
-  await p.waitForFunction(() => !document.querySelector('.coach-body [data-mid]'), null, { timeout: 3000 });
+  // The old messages fade out first; ResizeObserver updates the scroll flag after their removal, before the next paint.
+  await p.waitForFunction(() => {
+    const el = document.querySelector('.coach-body');
+    return el && !el.querySelector('[data-mid]') && !el.hasAttribute('data-scrollable');
+  }, null, { timeout: 3000 });
   const fresh = await p.locator('.coach-body').evaluate((el) => ({
     range: el.scrollHeight - el.clientHeight, scrollable: el.hasAttribute('data-scrollable'),
     tips: [...el.querySelectorAll('.tip')].map((tip) => tip.getBoundingClientRect().bottom),
