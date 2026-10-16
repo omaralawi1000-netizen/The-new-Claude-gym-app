@@ -32,8 +32,9 @@ await p.getByLabel('Coach').click(); await wait(p, 1200);
 // freeze every animation the moment `sel` appears (before it is painted), so the film starts at its first frame
 const arm = (sel) => p.evaluate((sel) => {
   window.__frozen = null;
+  const before = new Set(document.querySelectorAll(sel)); // (a card that already matched, e.g. applied earlier, is not this move)
   const mo = new MutationObserver(() => {
-    const el = document.querySelector(sel);
+    const el = [...document.querySelectorAll(sel)].find((x) => !before.has(x));
     if (!el) return;
     mo.disconnect();
     window.__el = el;
@@ -84,16 +85,19 @@ const film = async (name, sel, totalMs) => {
   console.log('  ', (await p.evaluate(() => window.__names)).join(' | '));
 };
 
+// CLIPS=2,5 films only those (the steps before them still happen, unfilmed)
+const want = (name) => !process.env.CLIPS || process.env.CLIPS.split(',').some((c) => name.startsWith(c));
+const shoot = async (name, sel, ms) => { if (want(name)) return film(name, sel, ms); await p.waitForFunction(() => window.__frozen !== null, null, { timeout: 15000 }); await p.evaluate(() => window.__anims.forEach((a) => a.play())); await wait(p, 1500); };
 const ask = async (text) => { await p.getByLabel('Message the Coach').fill(text); await p.getByRole('button', { name: 'Send', exact: true }).click(); };
 // 1. a planned day arrives, waits (one sheen), is applied (seal), then undone (strike)
-await arm('.action-card.fresh'); await ask('chest and triceps with some shoulder tomorrow'); await film('1-arrive', '.action-card.fresh', 2500);
+await arm('.action-card.fresh'); await ask('chest and triceps with some shoulder tomorrow'); await shoot('1-arrive', '.action-card.fresh', 2500);
 await wait(p, 300);
-await arm('.action-card.sealing'); await p.getByRole('button', { name: 'Apply', exact: true }).last().click(); await film('2-apply', '.action-card.sealing', 1300);
+await arm('.action-card.sealing'); await p.getByRole('button', { name: 'Apply', exact: true }).last().click(); await shoot('2-apply', '.action-card.sealing', 1300);
 await wait(p, 300);
-await arm('.action-card.undoing'); await p.getByRole('button', { name: 'Undo' }).last().click(); await film('3-undo', '.action-card.undoing', 900);
+await arm('.action-card.undoing'); await p.getByRole('button', { name: 'Undo' }).last().click(); await shoot('3-undo', '.action-card.undoing', 900);
 await wait(p, 300);
 // 2. the week: the strip arrives, then Apply settles the changed days left to right
-await arm('.action-card.fresh:has(.ac-week)'); await ask('set my week'); await film('4-week', '.action-card.fresh:has(.ac-week)', 2500);
+await arm('.action-card.fresh:has(.ac-week)'); await ask('set my week'); await shoot('4-week', '.action-card.fresh:has(.ac-week)', 2500);
 await wait(p, 300);
-await arm('.action-card.sealing'); await p.getByRole('button', { name: 'Apply', exact: true }).last().click(); await film('5-week-apply', '.action-card.sealing', 1300);
+await arm('.action-card.sealing'); await p.getByRole('button', { name: 'Apply', exact: true }).last().click(); await shoot('5-week-apply', '.action-card.sealing', 1300);
 await b.close();
