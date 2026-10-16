@@ -1557,6 +1557,7 @@ export const da: Record<string, string> = {
  "Sets per muscle": "Sæt pr. muskel",
  "The Coach": "Coachen",
  "Weekly reviews": "Ugeopsummeringer",
+ "Last week": "Sidste uge",
  "and {n} wrestling": "og {n} brydning",
  "logged {n} of 7 days": "logget {n} af 7 dage",
  "not yet": "ikke endnu",
