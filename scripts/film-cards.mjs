@@ -37,7 +37,8 @@ const arm = (sel) => p.evaluate((sel) => {
     if (!el) return;
     mo.disconnect();
     // only what starts now: an entrance that already finished (and holds its end) is not part of this move
-    const anims = document.getAnimations().filter((a) => { const t = a.effect?.target; return t && (el.contains(t) || t === el) && a.playState !== 'finished'; });
+    const anims = document.getAnimations().filter((a) => { const t = a.effect?.target; return t && (el.contains(t) || t === el) && a.playState !== 'finished' && a.effect.getComputedTiming().iterations !== Infinity; }); // (loops are not part of a move)
+    window.__names = anims.map((a) => `${a.animationName ?? 'waapi'}@${a.effect.target.className?.baseVal ?? a.effect.target.className}`.slice(0, 60));
     anims.forEach((a) => a.pause());
     window.__frozen = anims.length;
     window.__anims = anims;
@@ -58,6 +59,9 @@ const film = async (name, sel, totalMs) => {
   }
   // seamless settle: 1 ms before every animation ends vs all of them finished — the card alone (the answer above it keeps
   // writing itself in, it isn't frozen)
+  // (the answer above writes itself in at its own pace and pushes the card down: let it finish first)
+  await p.waitForFunction(() => !document.querySelector('.coach-reply:not(.still)') || [...document.querySelectorAll('.coach-answer .reply-foot')].every((f) => !f.classList.contains('held')), null, { timeout: 8000 }).catch(() => {});
+  await p.waitForTimeout(600);
   const card = await p.evaluate((sel) => { const r = document.querySelector(sel).getBoundingClientRect(); return { x: Math.max(0, r.left - 4), y: Math.max(0, r.top - 4), width: Math.min(innerWidth, r.width + 8), height: r.height + 8 }; }, sel);
   await p.evaluate(() => window.__anims.forEach((a) => { const end = a.effect.getComputedTiming().endTime; a.currentTime = Math.max(0, end - 1); }));
   await p.waitForTimeout(40);
@@ -76,6 +80,7 @@ const film = async (name, sel, totalMs) => {
   }, [before, after]);
   execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-framerate', '30', '-i', `${dir}/%03d.png`, '-vf', 'pad=ceil(iw/2)*2:ceil(ih/2)*2', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '20', `${OUT}/${name}.mp4`]);
   console.log(`${name}: ${n} frames, ${await p.evaluate(() => window.__frozen)} animations, settle diff ${diff}/255 ${diff <= 3 ? 'OK' : 'NOT SEAMLESS'}`);
+  console.log('  ', (await p.evaluate(() => window.__names)).join(' | '));
 };
 
 const ask = async (text) => { await p.getByLabel('Message the Coach').fill(text); await p.getByRole('button', { name: 'Send', exact: true }).click(); };
