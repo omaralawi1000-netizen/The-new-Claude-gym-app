@@ -26,6 +26,7 @@ run coach node scripts/journey-coach.mjs
 run coach2 node scripts/journey-coach2.mjs
 run coach3 node scripts/journey-coach3.mjs
 run coach4 node scripts/journey-coach4.mjs
+run workout5 node scripts/journey-workout5.mjs
 run drive node scripts/journey-drive.mjs
 run align node scripts/align.mjs
 run sync node scripts/sync-check.mjs

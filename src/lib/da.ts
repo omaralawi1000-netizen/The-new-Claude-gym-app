@@ -1689,4 +1689,5 @@ export const da: Record<string, string> = {
  "Focus: push the top sets": "Fokus: giv den gas i de tunge sæt",
  "Tired after {n} of {m} workouts": "Træt efter {n} af {m} træninger",
  "I have felt tired after most workouts this week. Should next week be lighter? Plan it if so.": "Jeg har været træt efter de fleste træninger i denne uge. Skal næste uge være lettere? Planlæg det i så fald.",
+ "{x} today": "{x} i dag",
 };

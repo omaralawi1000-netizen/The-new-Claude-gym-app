@@ -211,7 +211,10 @@ await p.getByRole('button', { name: 'How is my week going?' }).click(); await wa
 assert(await p.getByText('3 times').isVisible(), 'answer rendered');
 await p.screenshot({ path: 'shots/ai-9-coach.png' });
 await p.getByLabel('Message the Coach').fill('build a push day with 4 exercises'); await p.getByRole('button', { name: 'Send', exact: true }).click(); await wait(p, 2000);
-assert(await p.getByText('Routine created').isVisible(), 'the Coach built the routine and says so');
+// a new routine is a preview first (phase 4): Apply saves it
+const rcard = p.locator('.action-card').filter({ hasText: 'Push day' }).last();
+await rcard.getByRole('button', { name: 'Apply', exact: true }).click(); await wait(p, 900);
+assert(await rcard.getByText('Saved to your routines').isVisible(), 'the Coach built the routine and says so');
 assert(await p.getByText('Unicorn Curl').first().isVisible(), 'the unknown exercise is reported, not invented');
 await p.screenshot({ path: 'shots/ai-10-routine.png' });
 await p.keyboard.press('Escape'); await wait(p, 600);
