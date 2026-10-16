@@ -1192,9 +1192,10 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .coach-body .action-card.fresh .ac-actions:not(.ac-in-late):not(.ac-out) { animation-delay: calc(190ms + var(--n, 0) * 55ms); } /* (after the last line) */
 /* the buttons live in one cell: on Apply the Apply row leaves in place while Undo fades in over it; undone or replaced, the
    row fades but keeps its room, so the card never changes height in one frame */
-.ac-actions-cell { display: grid; margin-top: 10px; transition: opacity 300ms var(--ease-smooth); }
+.ac-actions-cell { display: grid; margin-top: 10px; }
 .ac-actions-cell > * { grid-area: 1 / 1; }
-.ac-actions-cell.gone { opacity: 0; pointer-events: none; }
+.ac-actions-cell.gone { opacity: 0; animation: acGone 300ms var(--ease-smooth) both; pointer-events: none; } /* (only rendered when it went away here; still hidden with motion off) */
+@keyframes acGone { from { opacity: 1; } to { opacity: 0; } }
 .action-card .ac-actions.ac-out { animation: acOut 260ms var(--ease-smooth) both; pointer-events: none; }
 @keyframes acOut { to { opacity: 0; transform: scale(0.96); } }
 .action-card .ac-actions.ac-in-late { animation: acActions 460ms var(--ease-smooth) 160ms both; }
