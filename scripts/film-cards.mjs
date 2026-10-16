@@ -36,7 +36,8 @@ const arm = (sel) => p.evaluate((sel) => {
     const el = document.querySelector(sel);
     if (!el) return;
     mo.disconnect();
-    const anims = document.getAnimations().filter((a) => { const t = a.effect?.target; return t && (el.contains(t) || t === el); });
+    // only what starts now: an entrance that already finished (and holds its end) is not part of this move
+    const anims = document.getAnimations().filter((a) => { const t = a.effect?.target; return t && (el.contains(t) || t === el) && a.playState !== 'finished'; });
     anims.forEach((a) => a.pause());
     window.__frozen = anims.length;
     window.__anims = anims;
