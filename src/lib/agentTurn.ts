@@ -6,6 +6,8 @@ import { refreshSolModel, solAgent, type Effort } from './openai';
 import { solThenGemini } from './brain';
 import { overLimit } from './spend';
 import { AGENT_SYSTEM, APP_GUIDE, buildAgentContext, buildTodayContext, exerciseNames, memoryBlock } from './coachContext';
+import { learnedBlock } from './ledger';
+import { reviewsBlock } from './weekReview';
 import { localActions, validateAgent, type AgentAction } from './agent';
 import { lookupStatus, runLookups, validateLookups, type SaidLine } from './agentLookup';
 import { mealName } from './derive';
@@ -77,8 +79,9 @@ export async function decide(text: string, o: { lang: Lang; t: (k: string, v?: R
       const muscles = new Map(o.pool.map((e) => [e.id, e.muscles]));
       const byId = new Map(o.pool.map((e) => [e.id, e]));
       const mealLabel = (id: string) => { const m = st.settings.meals.find((x) => x.id === id); return m ? mealName(m, lang) : id; };
+      const learned = [learnedBlock((id) => names.get(id) ?? id, mealLabel), reviewsBlock(st, (id) => muscles.get(id))].filter(Boolean).join('\n\n');
       // what never changes comes first and the live data last: repeated requests then share a cached beginning (cheaper with OpenAI)
-      const system = `${AGENT_SYSTEM(lang)}\n\nGUIDE:\n${APP_GUIDE}\n\nEXERCISE CATALOG (use these exact names): ${exerciseNames(o.pool).join(', ')}\n\n${memoryBlock(st, (id) => names.get(id) ?? id)}\n\nWHERE THE USER IS: ${o.where}\n\nDATA (computed on this device just now):\n${buildTodayContext(st, today, new Date(), (id) => byId.get(id), (id) => names.get(id) ?? id)}\n\n${buildAgentContext(st, today, (id) => names.get(id) ?? id, mealLabel, (id) => muscles.get(id))}`;
+      const system = `${AGENT_SYSTEM(lang)}\n\nGUIDE:\n${APP_GUIDE}\n\nEXERCISE CATALOG (use these exact names): ${exerciseNames(o.pool).join(', ')}\n\n${memoryBlock(st, (id) => names.get(id) ?? id)}${learned ? `\n\n${learned}` : ''}\n\nWHERE THE USER IS: ${o.where}\n\nDATA (computed on this device just now):\n${buildTodayContext(st, today, new Date(), (id) => byId.get(id), (id) => names.get(id) ?? id)}\n\n${buildAgentContext(st, today, (id) => names.get(id) ?? id, mealLabel, (id) => muscles.get(id))}`;
       const conv: Turn[] = [...o.history, { role: 'user', parts: [{ text }] }];
       // streamed when someone is watching the words arrive; a request the API refuses to stream is asked again the plain way
       const gemini = (sys: string) => (o.onReply

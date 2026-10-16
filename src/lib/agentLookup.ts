@@ -8,6 +8,7 @@
 import type { AppData, Exercise, MuscleGroup } from './types';
 import { addDays, diffDays, weekdayOf } from './dates';
 import { fold } from './foodText';
+import { searchArchive } from './archive';
 import { matchExercises } from './workoutText';
 import { epley, historyOf, incrementFor, repRange, suggestProgression, elapsedMs } from './workout';
 import { MUSCLES, nutritionByDay, setsPerMuscle, stalledLifts, trendRate, weightTrend, average } from './stats';
@@ -19,7 +20,7 @@ export { LOOKUP_KINDS, type LookupKind };
 export interface Lookup { kind: LookupKind; from?: string | null; to?: string | null; query?: string | null; meal?: string | null }
 
 /** Earlier things said to the Coach or the orb (the shared conversation), for the `conversations` look-up. */
-export interface SaidLine { at: number; role: 'user' | 'model'; text: string }
+export interface SaidLine { at: number; role: 'user' | 'model' | 'cards'; text: string }
 
 export interface LookupEnv {
   today: string;
@@ -28,7 +29,7 @@ export interface LookupEnv {
   pool: Exercise[];
   mealLabel: (id: string) => string;
   /** the conversation so far, oldest first */
-  said?: SaidLine[];
+  said?: readonly SaidLine[];
 }
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -282,12 +283,12 @@ function notes(d: AppData, l: Lookup, env: LookupEnv): string {
 }
 
 function conversations(l: Lookup, env: LookupEnv): string {
-  const said = env.said ?? [];
-  const q = l.query ? fold(l.query) : '';
-  const words = q.split(/\s+/).filter((w) => w.length > 2);
-  const hits = said.filter((x) => !words.length || words.some((w) => fold(x.text).includes(w)));
-  if (!hits.length) return q ? `Nothing said about "${l.query}" in the saved conversation.` : 'No earlier conversation saved.';
-  return cap(hits.slice(-40).map((x) => `${new Date(x.at).toISOString().slice(0, 10)} ${x.role === 'user' ? 'User' : 'Coach'}: ${x.text.replace(/\s+/g, ' ').slice(0, 300)}`));
+  // everything ever said (lib/archive.ts), searched by meaning-carrying words; each hit comes with the answer next to it
+  const hits = searchArchive(env.said ?? [], l.query ?? null, l.from, l.to);
+  if (!hits.length) return l.query ? `Nothing said about "${l.query}"${l.from || l.to ? ' in that range' : ''} in the whole conversation.` : 'No earlier conversation saved.';
+  const who = (r: SaidLine['role']) => (r === 'user' ? 'User' : r === 'model' ? 'Coach' : 'Coach did');
+  const line = (at: number, r: SaidLine['role'], t: string) => `${new Date(at).toISOString().slice(0, 10)} ${who(r)}: ${t.replace(/\s+/g, ' ').slice(0, 300)}`;
+  return cap(hits.map((x) => line(x.at, x.role, x.text) + (x.beside ? `\n   ↳ ${who(x.beside.role)}: ${x.beside.text.replace(/\s+/g, ' ').slice(0, 200)}` : '')));
 }
 
 /** Answer each look-up; the block goes back to the model as "LOOKUP RESULTS". */

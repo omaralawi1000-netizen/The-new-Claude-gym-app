@@ -26,7 +26,8 @@ const SettingsSheet = deferred(() => import('./Settings').then((m) => m.Settings
 const PhotoFood = deferred(() => import('./food/PhotoFood').then((m) => m.PhotoFood));
 const Scanner = deferred(() => import('./food/Scanner').then((m) => m.Scanner));
 const Onboarding = deferred(() => import('./Onboarding').then((m) => m.Onboarding));
-preloadLater(Coach, VoiceComposer, SettingsSheet, PhotoFood, Scanner, Onboarding);
+const WeekReviewSheet = deferred(() => import('./WeekReview').then((m) => m.WeekReviewSheet));
+preloadLater(Coach, VoiceComposer, SettingsSheet, PhotoFood, Scanner, Onboarding, WeekReviewSheet);
 
 // one stable object per overlay, so its consumers don't re-render on every change to the stack
 const metas = new Map<string, { id: string; page: boolean }>();
@@ -142,6 +143,7 @@ export function Overlays() {
           case 'exercisePicker': return <ExercisePicker key={o.id} props={p} />;
           case 'exerciseEditor': return <ExerciseEditor key={o.id} props={p} />;
           case 'summary': return <Summary key={o.id} props={p} />;
+          case 'weekReview': return <WeekReviewSheet key={o.id} props={p} />;
           case 'sessionDetail': return <SessionDetail key={o.id} props={p} />;
           case 'routine': return <RoutineEditor key={o.id} props={p} />;
           case 'schedule': return <Schedule key={o.id} props={p} />;

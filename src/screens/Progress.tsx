@@ -4,7 +4,7 @@ import { useScreenStore } from '../lib/hooks';
 import { useUI } from '../state/ui';
 import { useT, useLang } from '../lib/i18n';
 import { useToday } from '../lib/derive';
-import { addDays, fmtDate } from '../lib/dates';
+import { addDays, fmtDate, startOfWeek } from '../lib/dates';
 import { BarChart, ChartCard, LineChart, Sparkline } from '../ui/charts';
 import { Icon } from '../ui/Icon';
 import { Empty, Section, Seg } from '../ui/kit';
@@ -27,6 +27,7 @@ export function ProgressScreen() {
   const u = s.settings.units;
   const from = addDays(today, -DAYS[range]);
   const exMap = exerciseMap(s.exercises);
+  const lastWeek = addDays(startOfWeek(today, s.settings.weekStart), -1);
 
   const weights = useMemo(() => s.weights.filter((w) => w.date >= from).sort((a, b) => a.date.localeCompare(b.date)), [s.weights, from]);
   const allTrend = useMemo(() => weightTrend(s.weights), [s.weights]);
@@ -157,6 +158,32 @@ export function ProgressScreen() {
               <button key={r.id} className="li press" onClick={() => push('exercise', { id: r.id })}>
                 <div className="grow" style={{ textAlign: 'left', minWidth: 0 }}><div className="li-title small trunc">{exName(r.ex, lang)}</div><div className="li-sub num">{r.n} {t('sessions')} · {r.best.e1rm > 0 ? `${t('est. 1RM')} ${fmtNum(kgToDisplay(r.best.e1rm, u.weight), lang, 0)} ${u.weight}` : r.best.reps > 0 ? `${r.best.reps} ${t('reps best')}` : ''}</div></div>
                 <Sparkline values={r.series} w={84} h={28} />
+              </button>
+            ))}
+          </div>
+        </Section>
+      )}
+      {/* the weekly reviews kept (newest first): each opens again, its numbers recomputed from the data */}
+      {/* last week is always there to open (the Today card shows it only around the week's turn); then the ones kept */}
+      {s.sessions.length > 0 && (
+        <Section title={t('Weekly reviews')}>
+          <div className="list">
+            {!(s.reviews ?? []).some((r) => r.week === lastWeek) && (
+              <button className="li press" onClick={() => push('weekReview', { end: lastWeek })}>
+                <div className="grow" style={{ textAlign: 'left', minWidth: 0 }}>
+                  <div className="li-title small">{t('Last week')}</div>
+                  <div className="li-sub">{fmtDate(addDays(lastWeek, -6), lang, { day: 'numeric', month: 'short' })} – {fmtDate(lastWeek, lang, { day: 'numeric', month: 'short' })}</div>
+                </div>
+                <Icon name="chevR" size={16} style={{ color: 'var(--tx3)' }} />
+              </button>
+            )}
+            {[...(s.reviews ?? [])].reverse().slice(0, 8).map((r) => (
+              <button key={r.week} className="li press" onClick={() => push('weekReview', { end: r.week })}>
+                <div className="grow" style={{ textAlign: 'left', minWidth: 0 }}>
+                  <div className="li-title small">{fmtDate(addDays(r.week, -6), lang, { day: 'numeric', month: 'short' })} – {fmtDate(r.week, lang, { day: 'numeric', month: 'short' })}</div>
+                  <div className="li-sub trunc">{r.priorities.map((p) => p.text).join(' · ') || r.verdict || ''}</div>
+                </div>
+                <Icon name="chevR" size={16} style={{ color: 'var(--tx3)' }} />
               </button>
             ))}
           </div>

@@ -416,8 +416,9 @@ function WeekReviewCard({ d, today }: { d: AppData; today: string }) {
       {stall && stallEx && (
         <div className="xs review-stall"><Icon name="info" size={14} style={{ flex: 'none', marginTop: 1 }} /><span>{t('{ex} has stalled: best {w} × {r} since {date}', { ex: exName(stallEx, lang), w: `${fmtNum(kgToDisplay(stall.best.kg, u), lang, 2)} ${u}`, r: stall.best.reps, date: fmtDate(stall.since, lang, { day: 'numeric', month: 'short' }) })}</span></div>
       )}
-      <button className="btn sm primary press" style={{ marginTop: 14 }} onClick={() => { push('coach', { ask: t('Review my week and give me the one thing to change next week.') }); }}>
-        <Icon name="sparkle" size={15} /> {t('Plan next week with the Coach')}
+      {/* the whole review: every number, the muscles, last week's focus and the Coach's priorities (screens/WeekReview.tsx) */}
+      <button className="btn sm primary press" style={{ marginTop: 14 }} onClick={() => { haptic('light'); push('weekReview', { end }); }}>
+        <Icon name="sparkle" size={15} /> {t('See your week')}
       </button>
     </section>
   );

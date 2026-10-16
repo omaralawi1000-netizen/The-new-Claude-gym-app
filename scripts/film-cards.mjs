@@ -40,7 +40,7 @@ const arm = (sel) => p.evaluate((sel) => {
     mo.disconnect();
     window.__el = el;
     // only what starts now: an entrance that already finished (and holds its end) is not part of this move
-    const anims = document.getAnimations().filter((a) => { const t = a.effect?.target; return t && (el.contains(t) || t === el) && a.playState !== 'finished' && a.effect.getComputedTiming().iterations !== Infinity; }); // (loops are not part of a move)
+    const anims = document.getAnimations().filter((a) => { const t = a.effect?.target; return t && (el.contains(t) || t === el) && a.playState !== 'finished' && a.effect.getComputedTiming().iterations !== Infinity && (!a.timeline || a.timeline === document.timeline); }); // (loops, and scroll-driven effects, are not part of a move)
     window.__names = anims.map((a) => `${a.animationName ?? 'waapi'}@${a.effect.target.className?.baseVal ?? a.effect.target.className}`.slice(0, 60));
     anims.forEach((a) => a.pause());
     window.__frozen = anims.length;

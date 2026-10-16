@@ -9,6 +9,7 @@ import type { SaidLine } from './agentLookup';
 import { cardsNote } from '../ui/agentUi';
 import { dayKey } from './dates';
 import { uid } from './nutrition';
+import { archive, archived, type ArchivedMsg } from './archive';
 
 export const THREAD_KEY = 'aven.coach';
 /** Messages kept on the phone (the oldest drop off). */
@@ -28,6 +29,8 @@ export function readThread(): ThreadMsg[] {
 }
 
 export function writeThread(list: ThreadMsg[]) {
+  // everything said is also kept for good (lib/archive.ts), past the 60 the chat holds
+  try { archive(toArchived(list)); } catch { /* the chat still saves */ }
   try { localStorage.setItem(THREAD_KEY, JSON.stringify(list.slice(-THREAD_MAX).map((m) => ('image' in m && m.image ? { ...m, image: undefined } : m)))); } catch { /* storage full: the chat just won't come back */ }
 }
 
@@ -78,9 +81,28 @@ export function threadTurns(list: ThreadMsg[], dayStartHour: number, max = 14): 
   return tail[0]?.role === 'model' ? tail.slice(1) : tail;
 }
 
-/** Everything said, oldest first: for the `conversations` look-up ("what did I say about my knee?"). */
+/** The chat's messages as the archive keeps them: text, with each card as its one-line note (and its state). */
+export function toArchived(list: ThreadMsg[]): ArchivedMsg[] {
+  let at = 0; // a message without its own time took place when the one before it did
+  const out: ArchivedMsg[] = [];
+  for (const m of list) {
+    if (m.role === 'user' || m.role === 'model') {
+      if (typeof m.at === 'number') at = m.at; else if (!at) at = Date.now();
+      if (m.text.trim()) out.push({ id: m.id, at, role: m.role, text: m.text });
+    } else if (m.role === 'action') {
+      if (!at) at = Date.now();
+      const note = cardsNote(m.results, m.confirmed, m.undone);
+      if (note) out.push({ id: m.id, at, role: 'cards', text: note });
+    }
+  }
+  return out;
+}
+
+/** Everything said, oldest first: the whole archive plus anything in the chat not archived yet. For the `conversations`
+ *  look-up ("what did I say about my knee?"). */
 export function threadSaid(list: ThreadMsg[]): SaidLine[] {
-  let at = 0; // an answer without its own time took place when its question did
-  return list.filter((m): m is Extract<ThreadMsg, { role: 'user' | 'model' }> => m.role === 'user' || m.role === 'model')
-    .map((m) => { if (typeof m.at === 'number') at = m.at; return { at, role: m.role, text: m.text }; });
+  const kept = archived();
+  const ids = new Set(kept.map((m) => m.id));
+  const extra = toArchived(list).filter((m) => !ids.has(m.id));
+  return extra.length ? [...kept, ...extra].sort((a, b) => a.at - b.at) : [...kept];
 }

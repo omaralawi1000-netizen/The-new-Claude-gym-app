@@ -25,7 +25,7 @@ await p.route('https://generativelanguage.googleapis.com/**', async (r) => {
   else if (/what should i eat/i.test(last)) o = { reply: 'Two easy ones:', actions: [{ type: 'suggest_food', options: [{ label: 'Skyr with banana', foods: [{ name: 'skyr', amount: 300, unit: 'g' }, { name: 'banana', amount: 1, unit: 'piece' }], totals: { kcal: 280, protein: 34 } }, { label: 'Eggs', foods: [{ name: 'egg', amount: 3, unit: 'piece' }], totals: { kcal: 230, protein: 19 } }] }] };
   else if (/routine/i.test(last)) o = { reply: 'It looks balanced for you.', actions: [] };
   else if (/start push/i.test(last)) o = { reply: '', actions: [{ type: 'start_workout', routine: 'Push' }] };
-  else if (/review my week/i.test(last)) o = { reply: 'Solid week. Next week: add one set of rows on Pull day.', actions: [] };
+  else if (/review my week|plan next week/i.test(last)) o = { reply: 'Solid week. Next week: add one set of rows on Pull day.', actions: [] };
   const txt = JSON.stringify(o);
   if (url.includes('streamGenerateContent')) return r.fulfill({ status: 200, headers: { ...cors, 'content-type': 'text/event-stream' }, body: `data: ${JSON.stringify({ candidates: [{ content: { parts: [{ text: txt }] } }] })}\n\n` });
   return r.fulfill(json({ candidates: [{ content: { parts: [{ text: txt }] } }] }));
@@ -60,7 +60,9 @@ const closeSheets = async () => { for (let i = 0; i < 3; i++) { await p.keyboard
 // ── the weekly review on a Sunday afternoon ──
 assert(await p.getByRole('region', { name: 'Your week' }).isVisible(), 'the weekly review is on Today');
 await p.screenshot({ path: 'shots/coach-1-review.png' });
-await p.getByRole('button', { name: 'Plan next week with the Coach' }).click(); await wait(p, 2200);
+// the card opens the whole review (screens/WeekReview.tsx); its Plan next week opens the Coach and asks it
+await p.getByRole('button', { name: 'See your week' }).click(); await wait(p, 2600);
+await p.getByRole('button', { name: 'Plan next week', exact: true }).click(); await wait(p, 2400);
 assert(await p.getByText(/add one set of rows/).isVisible(), 'the review opens the Coach and asks it');
 assert(/Hard sets per muscle/.test(seen.at(-1).system), 'the Coach sees sets per muscle');
 assert(/FREQUENT FOODS/.test(seen.at(-1).system), 'the Coach sees the foods you actually eat');
@@ -128,8 +130,8 @@ await ask('my left shoulder hurts on overhead press');
 await closeSheets();
 await p.getByLabel('Settings').click(); await wait(p, 600);
 await p.getByText('Coach memory').click(); await wait(p, 700);
-assert(await p.getByText('Left shoulder hurts on overhead press.').isVisible(), 'Settings → Coach memory lists it');
-assert(await p.getByText('Doesn’t do a separate leg day; wrestling covers legs.').isVisible());
+assert(await p.getByRole('button', { name: 'Edit: Left shoulder hurts on overhead press.' }).isVisible(), 'Settings → Coach memory lists it');
+assert(await p.getByRole('button', { name: 'Edit: Doesn’t do a separate leg day; wrestling covers legs.' }).isVisible());
 await p.screenshot({ path: 'shots/coach-5-memory-settings.png' });
 // edit one, remove one (with Undo)
 await p.getByRole('button', { name: /^Edit: Doesn’t do/ }).click(); await wait(p, 300);

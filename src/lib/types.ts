@@ -322,7 +322,16 @@ export interface MemoryNote {
   at: number;
   /** the exercises it is about (a sore shoulder on overhead press): the workout shows it beside them */
   exerciseIds?: string[];
+  /** a temporary thing ("sick until Friday"): the last day it applies (YYYY-MM-DD). After it, the Coach no longer reads it */
+  until?: string;
+  /** when it was last reworded (a newer fact replaced the older one) */
+  updatedAt?: number;
+  /** its earlier wordings, newest first (up to 3) */
+  was?: { text: string; at: number }[];
 }
+
+/** One weekly review as kept: the week's last day, the Coach's verdict and up to two priorities (ids from lib/weekReview). */
+export interface WeekReviewNote { week: string; at: number; verdict?: string; priorities: { id: string; text: string }[] }
 
 export interface AppData {
   v: number;
@@ -349,5 +358,7 @@ export interface AppData {
   increments: Record<string, number>;
   /** what the Coach remembers about you */
   memory: MemoryNote[];
+  /** the weekly reviews (the newest 26): the Coach's verdict and the priorities it set, so the next review can check them */
+  reviews?: WeekReviewNote[];
   demo: boolean;
 }

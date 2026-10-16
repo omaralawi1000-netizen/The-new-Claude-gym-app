@@ -12,25 +12,14 @@ import { backupAfterWorkout } from '../../lib/drive';
 import { displayToKg, fmtNum, kgToDisplay } from '../../lib/units';
 import type { RecordKind, WorkoutSession } from '../../lib/types';
 import { exName, fmtSet } from './common';
-import { odoCols, plan, play } from './finishMoment';
+import { plan, play } from './finishMoment';
+import { Odo } from '../../ui/Odo';
 import { saveWorkoutAsRoutine } from './actions';
 
 const REC_LABEL: Record<RecordKind, string> = { weight: 'Heaviest set', e1rm: 'Estimated 1RM', volume: 'Best set volume', reps: 'Most reps', duration: 'Longest hold', distance: 'Longest distance' };
 
 function Stat({ label, text, unit }: { label: string; text: string; unit?: string }) {
   return <div className="sum-stat" data-fm="tile"><div className="micro">{label}</div><div className="display display-md num" style={{ marginTop: 4 }}><Odo text={text} /><span className="t3 small" style={{ fontFamily: 'var(--f-ui)', fontStretch: '100%', fontWeight: 600 }}> {unit}</span></div></div>;
-}
-
-/** A number drawn as an odometer: each digit a column that rolls up to land on itself (finishMoment.ts plays it). At rest,
- * and with reduced motion, it simply shows the number. */
-function Odo({ text }: { text: string }) {
-  return (
-    <span className="odo" aria-label={text} role="text">
-      {odoCols(text).map((c, i) => c.travel > 0
-        ? <span key={i} className="odo-c" aria-hidden><span className="odo-s" data-travel={c.travel} style={{ transform: `translate3d(0, ${-c.travel * 1.15}em, 0)` }}>{Array.from({ length: c.travel + 1 }, (_, k) => <span key={k}>{k % 10}</span>)}</span></span>
-        : <span key={i} className="odo-k" aria-hidden>{c.ch}</span>)}
-    </span>
-  );
 }
 
 const celebrated = new Set<string>(); // a session's moment is felt once, not again when its summary is reopened

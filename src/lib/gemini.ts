@@ -294,7 +294,8 @@ export const AGENT_SCHEMA = {
       from_weekday: { type: 'INTEGER', nullable: true, description: 'move_workout: the day it is planned on now, if said' },
       once: { type: 'BOOLEAN', nullable: true, description: 'move_workout: true = only this week ("this week", "tomorrow"), false = the weekly plan from now on' },
       which: { type: 'STRING', nullable: true, enum: ['current', 'last'], description: 'log_current_set: current = the set they are on now (it gets ticked), last = the set they just finished' }, text: { type: 'STRING', nullable: true, description: 'add_note: the note. remember: one short third-person line, e.g. "Doesn\'t do a separate leg day; wrestling covers legs."' },
-      memory: { type: 'STRING', nullable: true, description: 'forget: the number of the MEMORY line to drop, e.g. "3"' },
+      memory: { type: 'STRING', nullable: true, description: 'forget: the number of the MEMORY line to drop, e.g. "3". remember: the number of the MEMORY line the new fact replaces (it changed)' },
+      until: { type: 'STRING', nullable: true, description: 'remember: for a temporary thing (sick, travelling, sore this week), the last day it applies, YYYY-MM-DD' },
       target: { type: 'STRING', nullable: true, description: 'edit_food / delete_food: the logged item\'s name exactly as in DATA' },
       ref: { type: 'STRING', nullable: true, description: 'edit_food / delete_food / move_food / copy_food / replace_food: the item\'s [ref …] id from an earlier card or DATA, when it is about one exact item ("it", "that", "the banana I just logged")' },
       amount: { type: 'NUMBER', nullable: true, description: 'edit_food: the corrected amount' }, unit: { type: 'STRING', nullable: true, description: 'edit_food: unit of amount (g, ml, kg, l, piece)' },
@@ -491,4 +492,34 @@ export async function aiInsights(context: string, brain: Brain, lang: string): P
   const list = Array.isArray(raw?.insights) ? raw.insights : [];
   return list.filter((x: any) => typeof x?.title === 'string' && typeof x?.body === 'string' && typeof x?.ask === 'string' && x.title.trim())
     .slice(0, 2).map((x: any) => ({ title: x.title.trim().slice(0, 80), body: x.body.trim().slice(0, 220), kind: ['reminder', 'suggestion', 'warning', 'app'].includes(x.kind) ? x.kind : 'suggestion', ask: x.ask.trim().slice(0, 300) }));
+}
+
+// ── the weekly review: a short verdict, and at most two of the app's own priorities (lib/weekReview.ts) ──
+const REVIEW_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    verdict: { type: 'STRING', description: '2–3 short sentences on the week, specific (numbers from the review), warm and honest, no emoji' },
+    priorities: { type: 'ARRAY', items: { type: 'OBJECT', properties: {
+      id: { type: 'STRING', description: 'the id of one CANDIDATE, exactly as given' },
+      text: { type: 'STRING', description: 'that priority for next week in at most 10 words, an action, e.g. "Get protein to 160 g a day"' },
+    }, required: ['id', 'text'] } },
+  },
+  required: ['verdict', 'priorities'],
+};
+export const REVIEW_SYSTEM = (lang: string) =>
+  'You are the coach inside a gym, food and wrestling tracker, writing the user\'s weekly review. The app has computed the week (WEEK) and ' +
+  'the things worth working on (CANDIDATES, most important first). Write a short verdict on the week, then pick AT MOST 2 candidates as next ' +
+  'week\'s priorities (fewer if the week was good: one is fine, none if nothing needs changing) and phrase each as one action. Never invent a ' +
+  'number or a priority that is not a candidate. If LAST WEEK says a priority was not done, say so kindly and keep it only if it still matters; ' +
+  'if it was done, say that. Wrestling counts as hard training. Respect MEMORY (injuries, temporary things). ' +
+  `Write in ${lang === 'da' ? 'Danish' : 'English'}, plain and friendly, no emoji.`;
+export async function aiWeekReview(context: string, brain: Brain, lang: string, ids: string[]): Promise<{ verdict: string; priorities: { id: string; text: string }[] } | null> {
+  const raw = await withFallback(brain.models, (m) => generateJson(brain.key, m, { system: REVIEW_SYSTEM(lang), prompt: context, schema: REVIEW_SCHEMA, temperature: 0.3, signal: brain.signal, timeout: 20000, maxOutputTokens: 600 }));
+  const verdict = typeof raw?.verdict === 'string' ? raw.verdict.trim().slice(0, 400) : '';
+  if (!verdict) return null;
+  const seen = new Set<string>();
+  const priorities = (Array.isArray(raw?.priorities) ? raw.priorities : [])
+    .filter((p: any) => p && typeof p.id === 'string' && ids.includes(p.id) && typeof p.text === 'string' && p.text.trim() && !seen.has(p.id) && seen.add(p.id))
+    .slice(0, 2).map((p: any) => ({ id: p.id, text: p.text.trim().slice(0, 120) }));
+  return { verdict, priorities };
 }

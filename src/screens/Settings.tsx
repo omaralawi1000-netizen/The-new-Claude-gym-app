@@ -17,6 +17,7 @@ import { defaultData } from '../state/defaults';
 import { buildDemo } from '../lib/demo';
 import { userHasData } from '../lib/stats';
 import { clearPhotos, loadPhoto, savePhoto } from '../lib/photos';
+import { clearArchive, importArchive } from '../lib/archive';
 import type { AppData, Meal, Settings } from '../lib/types';
 import { uid, kcalOf, scaleMacros, suggestMacros } from '../lib/nutrition';
 import { mealName } from '../lib/derive';
@@ -526,7 +527,7 @@ function DataSection() {
   const push = useUI((u) => u.push);
   const file = useRef<HTMLInputElement>(null);
   const [withPhotos, setWithPhotos] = useState(false);
-  const [pending, setPending] = useState<{ data: AppData; photos?: Record<string, string> } | null>(null);
+  const [pending, setPending] = useState<{ data: AppData; photos?: Record<string, string>; chat?: unknown[] } | null>(null);
   const [confirmDel, setConfirmDel] = useState(false);
   const has = userHasData(s);
   const lang = useLang();
@@ -556,10 +557,11 @@ function DataSection() {
     const prev = snapshotData();
     before.replaceAll(pending.data);
     if (pending.photos) for (const [id, url] of Object.entries(pending.photos)) { try { await savePhoto(id, await (await fetch(url)).blob()); } catch { /* skip */ } }
+    importArchive(pending.chat); // the conversation: merged in, nothing here is lost
     setPending(null);
     toast(t('Backup restored'), { tone: 'ok', actionLabel: t('Undo'), onAction: () => useStore.getState().replaceAll(prev), duration: 10000 });
   };
-  const doDelete = async () => { resetDrive(); useStore.getState().resetAll(); await clearPhotos().catch(() => {}); try { Object.keys(localStorage).filter((k) => k.startsWith('aven')).forEach((k) => localStorage.removeItem(k)); } catch { /* ignore */ } clearKeys(); useAi.getState().patch({ stt: 'accurate', voiceLang: 'auto', voice: 'Achird', brain: true, solFirst: true, effortOrb: 'medium', effortCoach: 'high', models: { fast: '', brain: '', fastAlt: '', brainAlt: '', tts: '', sol: '', solAuto: '' }, solChecked: 0 }); setConfirmDel(false); closeAll(); setTimeout(() => push('onboarding', {}), 80); };
+  const doDelete = async () => { resetDrive(); useStore.getState().resetAll(); await clearPhotos().catch(() => {}); await clearArchive(); try { Object.keys(localStorage).filter((k) => k.startsWith('aven')).forEach((k) => localStorage.removeItem(k)); } catch { /* ignore */ } clearKeys(); useAi.getState().patch({ stt: 'accurate', voiceLang: 'auto', voice: 'Achird', brain: true, solFirst: true, effortOrb: 'medium', effortCoach: 'high', models: { fast: '', brain: '', fastAlt: '', brainAlt: '', tts: '', sol: '', solAuto: '' }, solChecked: 0 }); setConfirmDel(false); closeAll(); setTimeout(() => push('onboarding', {}), 80); };
   const demo = () => { const d = buildDemo(s.settings); useStore.getState().patch(d); toast(t('Demo data loaded'), { tone: 'ok' }); };
   const removeDemo = () => { const lang = s.settings.language; const settings = s.settings; useStore.getState().replaceAll({ ...defaultData(lang), settings }); toast(t('Demo data removed'), { tone: 'ok' }); };
 
