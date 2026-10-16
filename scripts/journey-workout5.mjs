@@ -34,7 +34,7 @@ assert(await brief.isVisible(), 'the Today card opens the planned workout');
 assert(await brief.getByText('Lower back is tight this week').isVisible(), 'with the health note');
 assert.equal(await brief.locator('.wk-brief-line').count(), 1, 'and nothing a lift’s own card already says');
 const card = p.locator('.wk-block').nth(1);
-assert(await card.getByText(/Stuck at 60 kg × 8 · try 57.5 kg × 12 today/).isVisible(), 'the stalled lift says what to try');
+assert(await card.getByText(/Stuck at 60 kg × 8 · try 57.5 kg × 12$/).isVisible(), 'the stalled lift says what to try');
 assert(await card.getByText('Last time: Pause at the bottom').isVisible(), 'and last time’s note');
 assert.equal(await card.locator('.wk-reason').count(), 0, 'not also the old "stalled" line');
 await p.screenshot({ path: 'shots/workout5-1-list.png' });

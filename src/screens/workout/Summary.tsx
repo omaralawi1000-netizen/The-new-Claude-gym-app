@@ -118,7 +118,7 @@ export function Summary({ props }: { props: { sessionId: string } }) {
                 <div key={x.exerciseId} className="sum-next-row">
                   <span className="sum-next-what">
                     <span className="sum-next-name">{ex ? exName(ex, lang) : ''}</span>
-                    {x.up && <span className="xs num">{t('{x} today', { x: moveText(x.up, u.weight, lang, t) })}</span>}
+                    {x.up && <span className="xs num">{t('{x} this time', { x: moveText(x.up, u.weight, lang, t) })}</span>}
                   </span>
                   <span className="num sum-next-to">{x.kg !== undefined ? `${fmtNum(kgToDisplay(x.kg, u.weight), lang, 2)} ${u.weight} × ` : ''}{x.reps}</span>
                 </div>

@@ -36,8 +36,8 @@ function lineText(l: BriefLine, t: T, set: (kg: number | undefined, reps: number
   if (l.kind === 'health') return l.text;
   if (l.kind === 'wrestle') return t('Wrestling tomorrow: keep the legs a little lighter');
   const h = l.hint;
-  if (l.kind === 'record' && h.record) return t('{set} would be your heaviest yet', { set: set(h.record.kg, h.record.reps) });
-  if (l.kind === 'stall' && h.stall) return t('Stuck at {from} · try {to} today', { from: set(h.stall.from.kg, h.stall.from.reps), to: set(h.stall.to.kg, h.stall.to.reps) });
+  if (l.kind === 'record' && h.record) return t('{set} · your heaviest yet', { set: set(h.record.kg, h.record.reps) });
+  if (l.kind === 'stall' && h.stall) return t('Stuck at {from} · try {to}', { from: set(h.stall.from.kg, h.stall.from.reps), to: set(h.stall.to.kg, h.stall.to.reps) });
   if (l.kind === 'lastNote' && h.lastNote) return t('Last time: {note}', { note: h.lastNote });
   return '';
 }
@@ -56,19 +56,20 @@ export function Briefing({ a, exMap }: { a: WorkoutSession; exMap: Map<string, E
   const lines = useMemo(() => { const st = useStore.getState(); return workoutLines(st, a, dayKey(Date.now(), st.settings.dayStartHour), exMap); }, [a.id]); // eslint-disable-line react-hooks/exhaustive-deps
   if (late || !a.routineId || !lines.length) return null;
   const hide = () => { haptic('light'); setHidden(true); try { localStorage.setItem(KEY, a.id); } catch { /* fine */ } };
+  const x = <button className="icon-btn flat sm press wk-brief-x" aria-label={t('Hide the briefing')} onClick={hide}><Icon name="close" size={15} /></button>;
+  const one = lines.length === 1;
   return (
     <Collapse open={!hidden && !started} ms={620} className="wk-brief-wrap">
-      <div className="plinth wk-brief" aria-label={t('Today')}>
-        <div className="wk-brief-head">
-          <span className="micro">{t('Today')}</span>
-          <button className="icon-btn flat sm press wk-brief-x" aria-label={t('Hide the briefing')} onClick={hide}><Icon name="close" size={15} /></button>
-        </div>
+      {/* one line: one compact row with its ✕; more: under a "Today" label */}
+      <div className={`plinth wk-brief${one ? ' one' : ''}`} aria-label={t('Today')}>
+        {!one && <div className="wk-brief-head"><span className="micro">{t('Today')}</span>{x}</div>}
         {lines.map((l, i) => {
           const ex = 'exerciseId' in l ? exMap.get(l.exerciseId) : undefined;
           return (
             <div key={i} className={`wk-brief-line ${l.kind}`}>
               <Icon name={ICON[l.kind]} size={15} />
               <span className="grow">{ex && <b>{exName(ex, lang)}</b>}{ex && ' · '}{lineText(l, t, set)}</span>
+              {one && x}
             </div>
           );
         })}
@@ -77,24 +78,21 @@ export function Briefing({ a, exMap }: { a: WorkoutSession; exMap: Map<string, E
   );
 }
 
+/** What one lift says today (computed once per lift, and again when a workout is finished). */
+export function useLiftHint(se: SessionExercise, ex?: Exercise): LiftHint {
+  const sessions = useStore((s) => s.sessions.length);
+  return useMemo(() => liftHint(useStore.getState(), se, ex), [se.id, ex?.id, sessions]); // eslint-disable-line react-hooks/exhaustive-deps
+}
+
 /**
- * The same lines on a lift's own card (List and Focus), where you are when they matter: a record within reach, a stalled
- * lift with "Use it" (puts the change in its open sets, Undo), last time's note. `workout`: the lines about the whole
- * workout too (the first Focus page, where the Today card isn't seen).
+ * A lift's own lines on its card (List and Focus), where you are when they matter: the heaviest weight yet when today's plan
+ * reaches it, a stalled lift with "Use it" (puts the change in its open sets, Undo), last time's note.
  */
-export function LiftHints({ se, ex, workout }: { se: SessionExercise; ex?: Exercise; workout?: boolean }) {
+export function LiftHints({ se, h }: { se: SessionExercise; h: LiftHint }) {
   const { t, set } = useFmt();
   const toast = useUI((u) => u.toast);
-  const sessions = useStore((s) => s.sessions.length);
-  const h: LiftHint = useMemo(() => liftHint(useStore.getState(), se, ex), [se.id, ex?.id, sessions]); // eslint-disable-line react-hooks/exhaustive-deps
-  const whole = useMemo(() => {
-    if (!workout) return [];
-    const st = useStore.getState();
-    return st.active ? workoutLines(st, st.active, dayKey(Date.now(), st.settings.dayStartHour), exerciseMap(st.exercises)) : [];
-  }, [workout]);
   const [used, setUsed] = useState(false);
   const lines: BriefLine[] = [
-    ...whole,
     ...(h.stall ? [{ kind: 'stall' as const, exerciseId: se.exerciseId, hint: h }] : []),
     ...(h.record ? [{ kind: 'record' as const, exerciseId: se.exerciseId, hint: h }] : []),
     ...(h.lastNote ? [{ kind: 'lastNote' as const, exerciseId: se.exerciseId, hint: h }] : []),
@@ -115,9 +113,22 @@ export function LiftHints({ se, ex, workout }: { se: SessionExercise; ex?: Exerc
         <div key={i} className={`wk-hint ${l.kind}`}>
           <Icon name={ICON[l.kind]} size={14} />
           <span className="grow">{lineText(l, t, set)}</span>
-          {l.kind === 'stall' && !used && !se.sets.every((x) => x.done) && <button className="chip sm press" onClick={use}>{t('Use it')}</button>}
+          {l.kind === 'stall' && !used && !se.sets.every((x) => x.done) && <button className="chip sm acc press wk-hint-act" onClick={use}>{t('Use it')}</button>}
         </div>
       ))}
+    </div>
+  );
+}
+
+/** Focus: what is about the whole workout, as a caption between the first page's figure and its card (the List's Today
+ *  card isn't seen in Focus, and inside the card it read as a note about that one lift). */
+export function WorkoutNote() {
+  const { t, set } = useFmt();
+  const lines = useMemo(() => { const st = useStore.getState(); return st.active ? workoutLines(st, st.active, dayKey(Date.now(), st.settings.dayStartHour), exerciseMap(st.exercises)) : []; }, []);
+  if (!lines.length) return null;
+  return (
+    <div className="wk-page-note">
+      {lines.map((l, i) => <div key={i} className="wk-hint"><Icon name={ICON[l.kind]} size={14} /><span className="grow">{lineText(l, t, set)}</span></div>)}
     </div>
   );
 }

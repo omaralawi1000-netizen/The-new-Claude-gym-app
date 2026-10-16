@@ -1467,7 +1467,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-flag .chip { flex: none; margin-top: -2px; }
 /* the briefing at the top of a planned workout (Briefing.tsx): neutral glass like the blocks under it; colour only on the
    icons and the "+2.5 kg" that mean something. It folds away (Collapse) on the first ticked set. */
-.wk-brief { margin: 8px 0 2px; padding: 10px 14px 14px; border-radius: var(--r-md); transform-origin: 50% 0; transition: transform 300ms cubic-bezier(.4, 0, .2, 1); }
+.wk-brief { margin: 8px 0 2px; padding: 10px 12px 12px; border-radius: var(--r-md); transform-origin: 50% 0; transition: transform 300ms cubic-bezier(.4, 0, .2, 1); }
 /* folding away (judge, phase 5): the card fades and settles back first, then the space closes on a calm ease-in-out, so
    nothing readable is ever sliced by the closing row and the list below glides up instead of lurching */
 .collapse.wk-brief-wrap { transition: grid-template-rows 520ms cubic-bezier(.45, 0, .2, 1) 90ms, opacity 220ms cubic-bezier(.4, 0, .2, 1); }
@@ -1475,17 +1475,25 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 :root[data-motion='reduce'] .collapse.wk-brief-wrap { transition-delay: 0s !important; }
 .wk-brief-head { display: flex; align-items: center; justify-content: space-between; margin-right: -8px; min-height: 34px; }
 .wk-brief-x { color: var(--tx3); }
-.wk-brief-line { display: flex; align-items: flex-start; gap: 9px; padding: 7px 0; font-size: 14px; line-height: 1.35; color: var(--tx2); }
+.wk-brief-line { display: flex; align-items: flex-start; gap: 8px; padding: 7px 0; font-size: 14px; line-height: 1.35; color: var(--tx2); }
 .wk-brief-line + .wk-brief-line { box-shadow: inset 0 1px 0 var(--line); }
 .wk-brief-line > svg { flex: none; margin-top: 2px; color: var(--tx3); }
 .wk-brief-line b { color: var(--tx); font-weight: 600; }
 /* a lift's own line on its card (List and Focus): quiet text, colour only on the record's bolt (gold, as records are) */
 .wk-hints { display: grid; gap: 6px; margin-top: 8px; }
-.wk-hint { display: flex; align-items: center; gap: 7px; min-height: 22px; font-size: 13px; font-weight: 550; line-height: 1.35; color: var(--tx2); }
-.wk-hint > svg { flex: none; color: var(--tx3); }
+.wk-hint { display: flex; align-items: flex-start; gap: 7px; font-size: 13px; font-weight: 550; line-height: 1.35; color: var(--tx2); }
+.wk-hint > svg { flex: none; margin-top: 1px; color: var(--tx3); }
 .wk-hint.record > svg { color: var(--gold); }
 .wk-hint > span { min-width: 0; overflow-wrap: anywhere; }
-.wk-hint .chip { flex: none; margin: -3px 0; box-shadow: none; background: var(--s3); color: var(--tx); }
+.wk-hint-act { position: relative; flex: none; margin: -5px 0 -5px 4px; }
+.wk-hint-act::after { content: ''; position: absolute; inset: -8px -6px; } /* a 44 px finger target around the small chip */
+.wk-hints + .wk-reason { margin-top: 6px; }
+/* one line in the Today card: one compact row, its ✕ at the end */
+.wk-brief.one { padding: 4px 4px 4px 12px; }
+.wk-brief.one .wk-brief-line { align-items: center; padding: 0; }
+.wk-brief.one .wk-brief-line > svg { margin-top: 0; }
+/* Focus: what is about the whole workout, as a caption between the first page's figure and its card */
+.wk-page-note { display: grid; gap: 6px; margin: 0 4px 10px; }
 /* the Coach's camera: the chosen photo waits above the field; once sent it sits in your bubble */
 .coach-body { overflow-anchor: none; }
 .sheet-pane .coach-body.sheet-body:not([data-scrollable]) { -webkit-mask-image: none; mask-image: none; } /* (outranks the melt under sheet buttons) */
@@ -1845,7 +1853,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-block .plinth { transition: box-shadow 500ms var(--ease-out); }
 .wk-block.complete .plinth { box-shadow: inset 0 1px 0 var(--hl), inset 0 0 0 1px color-mix(in srgb, var(--ac) 32%, transparent), var(--sh-c); }
 .wk-muscles { margin-top: 3px; font-size: 13px; font-weight: 500; color: var(--tx2); }
-.wk-reason { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 13px; font-weight: 550; color: var(--tx2); }
+.wk-reason { display: flex; align-items: center; gap: 7px; margin-top: 8px; font-size: 13px; font-weight: 550; color: var(--tx2); }
 .wk-reason svg { color: var(--tx3); }
 /* the column titles: readable at a glance under gym lights */
 .set-head { padding: 0 6px; }
@@ -2189,7 +2197,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .sum-next { margin-top: 8px; padding: 10px 14px 6px; border-radius: var(--r-md); }
 .sum-next-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; font-size: 14.5px; }
 .sum-next-what { min-width: 0; flex: 1; }
-.sum-next-what .xs { display: block; margin-top: 1px; color: var(--ac-text); font-weight: 600; }
+.sum-next-what .xs { display: block; margin-top: 1px; color: var(--tx3); font-weight: 600; }
 .sum-next-row + .sum-next-row { box-shadow: inset 0 1px 0 var(--line); }
 .sum-next-name { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .sum-next-to { flex: none; color: var(--tx2); font-weight: 600; }

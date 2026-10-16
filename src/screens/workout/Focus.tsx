@@ -9,6 +9,7 @@ import { Figure, figureFor } from './Figure';
 import { exName } from './common';
 import { nextSetOf } from './rest';
 import { ExerciseBlock, useActive } from './Active';
+import { WorkoutNote } from './Briefing';
 
 const GAP = 16; // between pages, as in the iOS photo viewer: you see the edge of the next one only while you swipe
 
@@ -209,7 +210,7 @@ const Page = memo(function Page({ se, ex, full, cur, onMenu, pad, first }: { se:
       {/* the movement's stage: a figure doing it (Figure.tsx), or the muscles it works where there is no figure yet */}
       <div className="wk-stage" aria-hidden>{(() => { const k = figureFor(ex); return k ? <Figure ex={ex} kind={k} active={cur} /> : ex && <MuscleMap muscles={ex.muscles} size={104} />; })()}</div>
       {full
-        ? <ExerciseBlock se={se} ex={ex} onMenu={onMenu} linkedPrev={false} linkedNext={false} workout={first} />
+        ? <>{first && <WorkoutNote />}<ExerciseBlock se={se} ex={ex} onMenu={onMenu} linkedPrev={false} linkedNext={false} /></>
         : <div className="wk-page-ghost"><div className="plinth"><div className="display display-sm wk-ex-title">{ex ? exName(ex, lang) : t('Unknown exercise')}</div></div></div>}
     </motion.div>
   );

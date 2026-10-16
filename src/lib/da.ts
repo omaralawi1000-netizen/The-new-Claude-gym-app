@@ -1649,10 +1649,10 @@ export const da: Record<string, string> = {
  "{n} leg sets the day after the mat. Lighter legs today, or swap the day?": "{n} bensæt dagen efter måtten. Lettere ben i dag, eller byt dagen?",
  "{routine} after hard wrestling": "{routine} efter hård brydning",
  "Wrestling tomorrow: keep the legs a little lighter": "Brydning i morgen: hold benene lidt lettere",
- "{x} today": "{x} i dag",
+ "{x} this time": "{x} denne gang",
  "Last time: {note}": "Sidste gang: {note}",
  "Set to {set}": "Sat til {set}",
- "Stuck at {from} · try {to} today": "Står stille på {from} · prøv {to} i dag",
+ "Stuck at {from} · try {to}": "Står stille på {from} · prøv {to}",
  "Use it": "Brug det",
- "{set} would be your heaviest yet": "{set} ville være dit tungeste til dato",
+ "{set} · your heaviest yet": "{set} · dit tungeste til dato",
 };
