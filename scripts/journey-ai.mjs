@@ -94,6 +94,7 @@ await p.goto('http://127.0.0.1:5173/'); await wait(p, 900); await skipOnboarding
 
 // ── no keys: honest, still works ──
 await p.getByLabel('Coach').click(); await wait(p, 700);
+await p.getByText(/Add an AI key to chat/).waitFor({ state: 'visible', timeout: 3000 }); // the separate screen download can outlast the sheet's rise
 assert(await p.getByText(/Add an AI key to chat/).isVisible(), 'coach says what works without a key');
 await p.screenshot({ path: 'shots/ai-1-coach-nokey.png' });
 // simple logging still works through the built-in reader (no Gemini, no Groq)
