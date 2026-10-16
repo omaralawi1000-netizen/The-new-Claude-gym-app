@@ -69,6 +69,7 @@ const film = async (name, sel, totalMs) => {
   await p.evaluate(() => window.__anims.forEach((a) => a.finish()));
   await p.waitForTimeout(80);
   const after = (await p.screenshot({ clip: card })).toString('base64');
+  if (process.env.SETTLE_PNG) { fs.writeFileSync(`${dir}-before.png`, Buffer.from(before, 'base64')); fs.writeFileSync(`${dir}-after.png`, Buffer.from(after, 'base64')); }
   const diff = await p.evaluate(async ([a, b]) => {
     const load = (s) => new Promise((ok) => { const i = new Image(); i.onload = () => ok(i); i.src = `data:image/png;base64,${s}`; });
     const [ia, ib] = await Promise.all([load(a), load(b)]);

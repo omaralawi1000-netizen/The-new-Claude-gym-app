@@ -11,7 +11,6 @@ import { getKey } from '../lib/keys';
 import { Sheet, SheetHead } from '../ui/Sheet';
 import { Icon } from '../ui/Icon';
 import { Odo } from '../ui/Odo';
-import { apple, springCurve } from '../ui/motion';
 import { exName, MUSCLE_LABEL } from './workout/common';
 import type { AppData, MuscleGroup, WeekReviewNote } from '../lib/types';
 
@@ -21,9 +20,7 @@ import type { AppData, MuscleGroup, WeekReviewNote } from '../lib/types';
  * week's review says whether they happened. Its entrance is one calm timeline on transform and opacity: the numbers roll in
  * like the workout summary's, the muscle bars grow from the left one after another, then the Coach's words rise in.
  */
-const TILE = apple(0.55);
-const CARD = apple(0.62);
-const ROLL = apple(0.8);
+const SMOOTH = 'cubic-bezier(0.22, 1, 0.36, 1)'; // var(--ease-smooth)
 const played = new Set<string>(); // the full entrance once per week per visit; reopened, it is simply there
 
 const reduced = () => document.documentElement.dataset.motion === 'reduce' || (document.documentElement.dataset.motion !== 'full' && matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -35,26 +32,27 @@ export function reviewEndFor(today: string, weekStart: 0 | 1): string {
 
 function play(root: HTMLElement): () => void {
   const all: Animation[] = [];
-  const spring = (el: Element, frames: Keyframe[], sp: ReturnType<typeof apple>, delay: number, v0 = 0) => { const c = springCurve(sp, v0); all.push((el as HTMLElement).animate(frames, { duration: c.duration, easing: c.easing, delay: delay * 1000, fill: 'backwards' })); };
-  const ease = (el: Element, frames: Keyframe[], dur: number, delay: number, easing = 'cubic-bezier(0.22, 1, 0.36, 1)') => all.push((el as HTMLElement).animate(frames, { duration: dur * 1000, easing, delay: delay * 1000, fill: 'backwards' }));
+  // (the smooth curve throughout, as on the Coach's cards: a spring's last overshoot left text a sub-pixel off its rest, and
+  // the sheet visibly sharpened when the entrance ended — 20/255 against the still sheet)
+  const ease = (el: Element, frames: Keyframe[], dur: number, delay: number, easing = SMOOTH) => all.push((el as HTMLElement).animate(frames, { duration: dur * 1000, easing, delay: delay * 1000, fill: 'backwards' }));
   const qa = (k: string) => [...root.querySelectorAll(`[data-rv="${k}"]`)];
-  const rise = (el: Element, px: number, delay: number, sp = CARD) => { spring(el, [{ transform: `translate3d(0, ${px}px, 0)` }, { transform: 'none' }], sp, delay); ease(el, [{ opacity: 0 }, { opacity: 1 }], 0.34, delay); };
-  qa('head').forEach((el) => rise(el, 10, 0.04));
-  // the numbers: each tile rises as its digits begin to roll, a little after the one before
+  const rise = (el: Element, px: number, delay: number, dur = 0.72) => { ease(el, [{ transform: `translate3d(0, ${px}px, 0)` }, { transform: 'none' }], dur, delay); ease(el, [{ opacity: 0 }, { opacity: 1 }], 0.34, delay); };
+  // the numbers: each tile rises as its digits roll in one continuous roll, a little after the one before
   qa('tile').forEach((tile, i) => {
-    const st = 0.16 + i * 0.1;
-    rise(tile, 14, st, TILE);
-    tile.querySelectorAll<HTMLElement>('[data-travel]').forEach((strip) => spring(strip, [{ transform: 'translate3d(0, 0, 0)' }, { transform: `translate3d(0, ${-Number(strip.dataset.travel) * 1.15}em, 0)` }], ROLL, Math.max(0, st - 0.1), 2.5));
+    const st = 0.06 + i * 0.1;
+    rise(tile, 14, st, 0.66);
+    tile.querySelectorAll<HTMLElement>('[data-travel]').forEach((strip) => ease(strip, [{ transform: 'translate3d(0, 0, 0)' }, { transform: `translate3d(0, ${-Number(strip.dataset.travel) * 1.15}em, 0)` }], 0.9, st));
   });
-  // the muscles' glass rises in first, then each bar grows from the left, one after another; the mark for the usual week fades in once its bar is there
-  qa('panel').forEach((el) => rise(el, 12, 0.42));
+  // the muscles: the glass rises with its label; each bar slides in from the left, one after another, and the mark for
+  // the usual week fades in as its own bar lands
+  qa('panel').forEach((el) => rise(el, 12, 0.36));
   qa('bar').forEach((row, i) => {
-    const st = 0.55 + i * 0.06;
-    ease(row, [{ opacity: 0 }, { opacity: 1 }], 0.3, st);
-    const fill = row.querySelector('[data-rv-fill]'); if (fill) ease(fill, [{ transform: 'scaleX(0)' }, { transform: 'none' }], 0.9, st + 0.04);
-    const mark = row.querySelector('[data-rv-mark]'); if (mark) ease(mark, [{ opacity: 0 }, { opacity: 1 }], 0.4, st + 0.55);
+    const st = 0.42 + i * 0.05;
+    ease(row, [{ opacity: 0 }, { opacity: 1 }], 0.28, st);
+    const fill = row.querySelector('[data-rv-fill]'); if (fill) ease(fill, [{ transform: 'translate3d(-100%, 0, 0)' }, { transform: 'none' }], 0.72, st + 0.03);
+    const mark = row.querySelector('[data-rv-mark]'); if (mark) ease(mark, [{ opacity: 0, offset: 0 }], 0.2, st + 0.75);
   });
-  qa('more').forEach((el, i) => rise(el, 10, 0.75 + i * 0.08));
+  qa('more').forEach((el, i) => rise(el, 10, 1.1 + i * 0.08));
   return () => all.forEach((a) => a.cancel());
 }
 
@@ -111,7 +109,7 @@ export function WeekReviewSheet({ props }: { props: { end?: string } }) {
   // the entrance plays when the sheet's contents attach (a beat after it starts rising), before that frame is painted
   const [calm] = useState(() => played.has(end) || reduced()); // reopened: still from the first frame
   // the Coach's words follow the bars when they are already there; written later (the AI), they rise in at once
-  const [base] = useState(() => (saved?.verdict || !hasGemini ? 950 : 0));
+  const [base] = useState(() => (saved?.verdict || !hasGemini ? 1450 : 0)); // (after the last bar has landed)
   const stop = useRef<(() => void) | null>(null);
   const body = useCallback((el: HTMLDivElement | null) => {
     if (!el || stop.current) return;
@@ -142,12 +140,12 @@ export function WeekReviewSheet({ props }: { props: { end?: string } }) {
         </div>
         {n.muscles.length > 0 && (
           <section className="plinth-2 rv-muscles" data-rv="panel" aria-label={t('Sets per muscle')}>
-            <div className="row-flex between xs t2" data-rv="more"><span>{t('Sets per muscle')}</span><span className="rv-key"><i className="rv-key-mark" /> {t('your usual week')}</span></div>
+            <div className="row-flex between xs t2"><span>{t('Sets per muscle')}</span><span className="rv-key"><i className="rv-key-mark" /> {t('your usual week')}</span></div>
             {n.muscles.slice(0, 8).map((x) => (
               <div key={x.m} className="rv-bar" data-rv="bar">
                 <span className="xs rv-bar-l">{muscle(x.m)}</span>
                 <span className="rv-bar-track">
-                  <i className={`rv-bar-fill${x.avg >= 3 && x.sets < x.avg * 0.5 ? ' low' : ''}`} data-rv-fill style={{ width: `${(x.sets / top) * 100}%` }} />
+                  <span className="rv-bar-clip"><i className={`rv-bar-fill${x.avg >= 3 && x.sets < x.avg * 0.5 ? ' low' : ''}`} data-rv-fill style={{ width: `${(x.sets / top) * 100}%` }} /></span>
                   {x.avg > 0 && <i className="rv-bar-mark" data-rv-mark style={{ left: `${(x.avg / top) * 100}%` }} />}
                 </span>
                 <span className="xs num rv-bar-n">{fmtNum(x.sets, lang, 1)}</span>

@@ -497,6 +497,7 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
   background: var(--s3); color: var(--tx); box-shadow: inset 0 1px 0 var(--hl), inset 0 0 0 1px var(--line);
   -webkit-backdrop-filter: blur(16px) saturate(1.5); backdrop-filter: blur(16px) saturate(1.5);
 }
+.btn > svg { flex: none; } /* (a long label squeezed its icon to a 3 px sliver) */
 .btn.primary {
   background: linear-gradient(180deg, color-mix(in srgb, var(--ac) 78%, #fff) 0%, var(--ac) 100%); color: var(--ac-ink);
   box-shadow: inset 0 1px 0 rgba(255,255,255,.55), inset 0 -1px 0 rgba(0,0,0,.14), 0 14px 34px -10px color-mix(in srgb, var(--ac) 75%, transparent), 0 0 0 1px color-mix(in srgb, var(--ac) 60%, transparent);
@@ -1162,17 +1163,17 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .coach-body .action-card.fresh { animation: acSettle 780ms var(--ease-smooth) both; }
 @keyframes acSettle { from { opacity: 0; transform: translate3d(0, 12px, 0); } }
 /* the glass forms first, then what it says */
-.coach-body .action-card.fresh .ac-body, .coach-body .action-card.fresh .action-ic { animation: acContent 560ms var(--ease-smooth) 110ms both; }
+.coach-body .action-card.fresh .ac-body, .coach-body .action-card.fresh .action-ic { animation: acContent 560ms var(--ease-smooth) 60ms both; }
 @keyframes acContent { from { opacity: 0; transform: translate3d(0, 4px, 0); } }
 .coach-body .action-card.fresh .action-line { animation: acLine 520ms var(--ease-smooth) both; animation-delay: calc(190ms + var(--i, 0) * 55ms); }
 @keyframes acLine { from { opacity: 0; transform: translate3d(0, 4px, 0); } }
 /* the icon's halo: one soft ring opening out as the card arrives (and again on Apply) */
 .action-card .action-ic { position: relative; }
 .action-card .action-ic::after { content: ''; position: absolute; inset: 0; border-radius: 50%; box-shadow: 0 0 0 1.5px currentColor; opacity: 0; pointer-events: none; }
-.coach-body .action-card.fresh .action-ic::after { animation: acHalo 980ms var(--ease-out) 260ms both; }
-@keyframes acHalo { 0% { opacity: 0; transform: scale(0.9); } 15% { opacity: 0.4; } 100% { opacity: 0; transform: scale(1.8); } }
+.coach-body .action-card.fresh .action-ic::after { animation: acHalo 700ms var(--ease-out) 240ms both; }
+@keyframes acHalo { 0% { opacity: 0; transform: scale(0.95); } 15% { opacity: 0.35; } 100% { opacity: 0; transform: scale(1.35); } } /* (at 1.8 it ran past the card's edge and under the title) */
 /* (the same ring again on Apply needs a keyframe of its own name: one the icon already ran does not replay) */
-@keyframes acHalo2 { 0% { opacity: 0; transform: scale(0.9); } 15% { opacity: 0.4; } 100% { opacity: 0; transform: scale(1.8); } }
+@keyframes acHalo2 { 0% { opacity: 0; transform: scale(0.95); } 15% { opacity: 0.35; } 100% { opacity: 0; transform: scale(1.35); } }
 /* a preview waiting for its tap: one slow sheen passes across the glass, once */
 .ac-sheen { position: absolute; inset: 0; border-radius: inherit; overflow: hidden; pointer-events: none; z-index: 0; }
 .ac-sheen i { position: absolute; top: -20%; bottom: -20%; left: 0; width: 46%; background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.07) 45%, rgba(255, 255, 255, 0.11) 50%, rgba(255, 255, 255, 0.07) 55%, transparent); transform: translate3d(-120%, 0, 0) skewX(-12deg); animation: acSheen 1700ms var(--ease-io) 720ms both; }
@@ -1184,7 +1185,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .action-card.sealing .action-ic svg { animation: acSeal 620ms var(--ease-smooth) both; } /* (a spring's last overshoot left the icon a hair off its rest: 39/255) */
 /* (a pulse from rest: the icon never dips the instant it is tapped) */
 @keyframes acSeal { 0%, 100% { opacity: 1; transform: none; } 35% { opacity: 0.6; transform: scale(0.86); } }
-.coach-body .action-card.sealing.sealing .action-ic::after, .action-card.sealing.sealing .action-ic::after { animation: acHalo2 980ms var(--ease-out) 60ms both; }
+.coach-body .action-card.sealing.sealing .action-ic::after, .action-card.sealing.sealing .action-ic::after { animation: acHalo2 700ms var(--ease-out) 60ms both; }
 .coach-body .action-card.sealing.sealing .action-line, .action-card.sealing.sealing .action-line { animation: acRipple 520ms var(--ease-smooth) both; animation-delay: calc(80ms + var(--i, 0) * 40ms); }
 /* (a pulse that starts and ends at rest: no line ever jumps on the tap) */
 @keyframes acRipple { 0%, 100% { opacity: 1; transform: none; } 38% { opacity: 0.85; transform: translate3d(0, -1.5px, 0); } }
@@ -1215,11 +1216,14 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 @keyframes acStrike { from { transform: scaleX(0); } }
 /* a memory reworded: the old wording sits above the new one, struck through; on arrival it comes in first, then the line is
    drawn through it while the new wording rises in under it */
-.ac-was { color: var(--tx2); opacity: 0.6; }
+.ac-was { color: var(--tx2); opacity: 0.72; }
 .ac-was-t { position: relative; display: inline-block; max-width: 100%; overflow-wrap: anywhere; }
 .ac-was-t::after { content: ''; position: absolute; left: 0; right: 0; top: 52%; height: 1.5px; border-radius: 1px; background: currentColor; opacity: 0.8; transform-origin: 0 50%; }
-.coach-body .action-card.fresh .ac-was { animation: acLine 520ms var(--ease-smooth) 190ms both; }
-.coach-body .action-card.fresh .ac-was-t::after { animation: acStrike 520ms var(--ease-io) 480ms both; }
+.coach-body .action-card.fresh .ac-was { animation: acLine 520ms var(--ease-smooth) 130ms both; }
+.coach-body .action-card.fresh .ac-was-t::after { animation: acStrike 450ms var(--ease-io) 380ms both; }
+/* (in this order: old, crossed out, then new — the new wording waits for the strike) */
+.coach-body .action-card.fresh:has(.ac-was) .action-line { animation-delay: calc(760ms + var(--i, 1) * 55ms - 55ms); }
+.coach-body .action-card.fresh:has(.ac-was) .ac-actions:not(.ac-in-late):not(.ac-out) { animation-delay: 940ms; }
 /* a replaced preview steps back quietly */
 .action-card.replaced { opacity: 0.6; transition: opacity 600ms var(--ease-smooth); }
 
@@ -1756,7 +1760,9 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .rv-bar-l { color: var(--tx2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rv-bar-n { text-align: right; color: var(--tx); }
 .rv-bar-track { position: relative; height: 8px; border-radius: 4px; background: var(--s2); }
-.rv-bar-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; background: var(--ac); transform-origin: 0 50%; }
+.rv-bar-clip { position: absolute; inset: 0; border-radius: 4px; overflow: hidden; }
+.rv-bar-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; background: var(--ac); }
+.rv-tile .odo-c { -webkit-mask-image: linear-gradient(transparent, #000 18%, #000 82%, transparent); mask-image: linear-gradient(transparent, #000 18%, #000 82%, transparent); }
 .rv-bar-fill.low { background: color-mix(in srgb, var(--warn) 80%, var(--ac)); }
 .rv-bar-mark { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; border-radius: 1px; background: var(--tx2); opacity: 0.85; }
 .rv-ok { flex: none; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; background: var(--s2); color: var(--tx3); }
