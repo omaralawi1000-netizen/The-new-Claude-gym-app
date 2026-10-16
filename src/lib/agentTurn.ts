@@ -12,6 +12,7 @@ import { localActions, validateAgent, type AgentAction } from './agent';
 import { lookupStatus, runLookups, validateLookups, type SaidLine } from './agentLookup';
 import { mealName } from './derive';
 import { dayKey } from './dates';
+import { noteTrouble } from './trouble';
 import type { Exercise, Lang } from './types';
 
 /** Gemini models to try, best first: the strong one for understanding, the fast one for small jobs (estimates). */
@@ -114,6 +115,7 @@ export async function decide(text: string, o: { lang: Lang; t: (k: string, v?: R
         const sys = system + (found ? `\n\nLOOKUP RESULTS (you asked for these in this turn; answer from them, do not ask for them again):\n${found}` : '') + (last && round > 0 ? '\n\nNo more look-ups this turn: answer now with what you have, and say if something is still unknown.' : '');
         const r = await solThenGemini(brain, (sol) => solAgent(sys, conv, { ...sol, signal: o.signal }, o.onReply, o.photo), () => { o.onReply?.(''); return gemini(sys); });
         if (r.fellBack) note = r.fellBack.code === 'quota' ? t('Your OpenAI account is out of credit, so Gemini answered.') : t('GPT-6.1 Sol wasn’t available, so Gemini answered.');
+        if (r.fellBack) noteTrouble('fellBack', r.fellBack.code);
         raw = r.value;
         const look = last ? [] : validateLookups((raw as any)?.lookups);
         if (!look.length) break;
@@ -124,7 +126,7 @@ export async function decide(text: string, o: { lang: Lang; t: (k: string, v?: R
         const local = look.filter((l) => l.kind !== 'web');
         if (local.length) found += (found ? '\n\n' : '') + runLookups(st, local, { today, lang, pool: o.pool, mealLabel, said: o.said });
         for (const w of await Promise.all(webs.map((l) => webSearch(l.query!, brain, lang).catch(() => null)))) {
-          if (!w) { found += `${found ? '\n\n' : ''}### web\nThe web search failed: answer from what you know and say you could not check it.`; continue; }
+          if (!w) { noteTrouble('webFailed'); found += `${found ? '\n\n' : ''}### web\nThe web search failed: answer from what you know and say you could not check it.`; continue; }
           sources.push(...w.sources);
           found += `${found ? '\n\n' : ''}### web (searched)\n${w.text}\nSources: ${w.sources.map((s, i) => `[${i + 1}] ${s.title}`).join('; ') || 'none listed'}`;
         }
@@ -132,10 +134,12 @@ export async function decide(text: string, o: { lang: Lang; t: (k: string, v?: R
       o.onStatus?.('');
       lastRaw = { at: Date.now(), by: brain.sol?.key && !note ? `OpenAI ${solModel()}` : `Gemini (${brain.models.join(', ')})`, plain: plainModels(), text: (() => { try { return JSON.stringify(raw, null, 1).slice(0, 20000); } catch { return String(raw).slice(0, 20000); } })() };
       const v = validateAgent(raw);
-      if (!v) throw new AiError('invalid');
+      if (!v) { noteTrouble('invalid', lastRaw.by); throw new AiError('invalid'); }
       reply = v.reply; actions = v.actions; dropped = v.dropped;
+      if (dropped) noteTrouble('dropped', `${dropped} action${dropped > 1 ? 's' : ''} · ${lastRaw.by}`);
     } catch (e: any) {
       if (e?.code === 'aborted') throw e;
+      if (e?.code !== 'invalid') noteTrouble('failed', String(e?.code ?? e?.message ?? 'error'));
       const local = localActions(text);
       if (!local) throw e;
       actions = local; note = t(solOn(g) ? 'The AI wasn’t available, so I used the built-in reader.' : 'Gemini wasn’t available, so I used the built-in reader.');
