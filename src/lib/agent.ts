@@ -338,6 +338,8 @@ export interface AgentResult {
   key?: string;
   /** a memory reworded: what it said before (shown struck through above the new wording) */
   was?: string;
+  /** the title once a preview is applied, when "Done" would lose what it was (a recipe's, a routine's name) */
+  doneTitle?: string;
   /** the subtitle once a preview is applied ("2 days changed") */
   doneSubtitle?: string;
   /** a week shown as seven days (a split preview), Monday first: routine initials and wrestling */
@@ -806,7 +808,7 @@ function doCreateRoutine(a: Extract<AgentAction, { type: 'create_routine' }>, ct
   // a preview first (from a photo of a program, or said): nothing is saved until Apply, and a newer version replaces it
   return preview({
     id: uid('r'), kind: 'routine', title: a.name, subtitle: `${items.length} ${t('exercises')} · ${items.reduce((n, i) => n + i.workingSets, 0)} ${t('sets')}`, key: `routine:${fold(a.name)}`,
-    doneSubtitle: t('Saved to your routines'),
+    doneTitle: a.name, doneSubtitle: t('Saved to your routines'),
     lines: [...items.map((i) => ({ text: exLabel(pool.find((e) => e.id === i.exerciseId)!, ctx.lang), sub: `${i.workingSets} × ${i.repMin}–${i.repMax}` })), ...skipped.map((n) => ({ text: n, sub: t('Not in your exercise library'), warn: true }))],
   }, t('Apply'), () => {
     const now = Date.now();
@@ -1373,7 +1375,7 @@ async function doProposeRecipe(a: Extract<AgentAction, { type: 'propose_recipe' 
   const result = preview({
     id: uid('r'), kind: 'recipe', title: a.name, key: `recipe:${fold(a.name)}`,
     subtitle: `${serves} · ${t('per serving')} ${per}${missed ? ` · ${t('{n} left out', { n: missed })}` : ''}`,
-    doneSubtitle: t('Saved to your recipes'),
+    doneTitle: a.name, doneSubtitle: t('Saved to your recipes'),
     lines, steps: a.steps.length ? a.steps : undefined,
   }, t('Save recipe'), () => {
     const s2 = useStore.getState();

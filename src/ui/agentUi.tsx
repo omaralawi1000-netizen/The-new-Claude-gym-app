@@ -314,7 +314,7 @@ export function ActionCard({ r, undone, confirmed, onUndo, onConfirm, replaced =
   const waiting = !!r.pending && !confirmed && !undone && !replaced;
   const hadButtons = !!(r.button || r.undo || r.more?.length);
   const gone = undone || (replaced && !confirmed);
-  const title = undone ? t('Undone') : confirmed ? t('Done') : replaced ? t('Replaced by the newer version below') : r.title;
+  const title = undone ? t('Undone') : confirmed ? (r.doneTitle ?? t('Done')) : replaced ? t('Replaced by the newer version below') : r.title;
   // the title changed under the user's eyes: the old one rolls up and out while the new one rolls in (never a blank frame)
   const shownTitle = useRef({ now: title, before: '' });
   if (shownTitle.current.now !== title) shownTitle.current = { now: title, before: shownTitle.current.now };
@@ -350,7 +350,7 @@ export function ActionCard({ r, undone, confirmed, onUndo, onConfirm, replaced =
           {r.steps && r.steps.length > 0 && <Method steps={r.steps} />}
           {/* The buttons live in one cell. On Apply the Apply row leaves in place while the Undo row fades in over it; once
               undone (or replaced) the row keeps its room and fades out, so the card never changes height in one frame. */}
-          {(hadButtons || (confirmed && r.undo)) && (!gone || goneLive) && (
+          {(hadButtons || (confirmed && (r.undo || r.more?.length))) && (!gone || goneLive) && (
             <div className={`ac-actions-cell${gone ? ' gone' : ''}`} inert={gone || undefined}>
               {(!confirmed || sealing) && hadButtons && (
                 <div key="before" className={`row-flex ac-actions${confirmed ? ' ac-out' : ''}`} style={{ gap: 8, flexWrap: 'wrap' }} aria-hidden={confirmed || undefined} inert={confirmed ? true : undefined}>
@@ -359,9 +359,11 @@ export function ActionCard({ r, undone, confirmed, onUndo, onConfirm, replaced =
                   {r.undo && !r.pending && <button className="btn sm ghost press" onClick={onUndo}><Icon name="undo" size={15} /> {t('Undo')}</button>}
                 </div>
               )}
-              {confirmed && r.undo && (
-                <div key="after" className={`row-flex ac-actions${sealing ? ' ac-in-late' : ''}`} style={{ gap: 8 }}>
-                  <button className="btn sm ghost press" onClick={onUndo}><Icon name="undo" size={15} /> {t('Undo')}</button>
+              {confirmed && (r.undo || r.more?.length) && (
+                <div key="after" className={`row-flex ac-actions${sealing ? ' ac-in-late' : ''}`} style={{ gap: 8, flexWrap: 'wrap' }}>
+                  {/* (a saved recipe can still be logged or listed: its other buttons stay beside Undo) */}
+                  {r.undo && <button className="btn sm ghost press" onClick={onUndo}><Icon name="undo" size={15} /> {t('Undo')}</button>}
+                  {r.more?.map((b) => <button key={b.label} className="btn sm ghost press" onClick={() => { haptic('light'); b.run(); }}>{b.label}</button>)}
                 </div>
               )}
             </div>
