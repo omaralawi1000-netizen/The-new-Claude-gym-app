@@ -2236,3 +2236,24 @@ Omar wants the Coach to be an agent over the whole app. The plan is in `docs/coa
   flight lands at ~1.7 s, after its 1.4 s window) and passes again.
 - Checks: `tests/coach3.test.ts` (14), `journey-coach2` (+ week preview → Apply → Undo, several settings, a measurement),
   `journey-sol`, `journey-ai`, `journey-coach`.
+
+## Coach 2.0, phase 2 part B: cards that settle, wait, seal and undo (16 Oct 2026)
+
+The Coach's cards used to appear with no motion at all (restored chats are kept still while the sheet opens, and that rule
+also stilled new cards). Now a card that arrives in this visit moves; a restored one stays still (`fresh` on the message).
+All of it is transform and opacity, ends on the card exactly as it rests, and is off with reduced motion.
+
+- **Arrival**: the card rises 12 px on the smooth curve (780 ms) while its glass fades in; what it says follows 110 ms later,
+  the lines in a 55 ms cascade, and a soft ring opens out from the icon once. (A spring, or a slight scale, left the text a
+  sub-pixel off its resting place, so the card visibly settled when the animation ended: 38/255 against the still card. The
+  plain rise lands within 2–3/255.)
+- **A preview waiting for its tap**: one slow light passes across its glass, once, 0.7 s after it lands. It never loops.
+- **Apply ("seal")**: the old title rolls up and out while "Done" rolls in (never a blank frame), the icon settles into its
+  mark on a soft spring with the ring once more, the lines pulse once from rest and back (40 ms ripple), and the Undo button
+  fades in where Apply was (it fades in place: rising, its icon sharpened as it stopped).
+- **The week** (`set_split` previews): seven day dots under the title (routine initial, a green dot for wrestling, the days
+  that change outlined); on Apply the changed days settle in one after another, left to right.
+- **Undo**: the strike is drawn left to right through each line, as wide as its words, and the card eases back to 55 %.
+- **"Looking at…"**: each new status rises 3 px into the place of the one before.
+- `scripts/film-cards.mjs`: films these moves frame by frame (animations frozen and stepped 1000/30 ms) and checks the
+  seamless settle (1 ms before the end vs finished, ≤ 3/255). `CLIPS=2,5` films only some.
