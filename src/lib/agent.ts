@@ -122,18 +122,43 @@ const refArg = (v: unknown): string | null => (typeof v === 'string' && /^[\w-]{
 const num = (v: unknown, min: number, max: number): number | undefined => (typeof v === 'number' && Number.isFinite(v) && v >= min && v <= max ? v : undefined);
 const str = (v: unknown, max = 80): string | undefined => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : undefined);
 
+/**
+ * The foods the model named. Forgiving about the shape (read-side only): a plain string ("30 g whey protein", "2 eggs") is
+ * read by the app's own food parser, and `ingredient` / `item` / `food` count as the name, `quantity` / `qty` as the amount.
+ */
 const agentFoods = (v: unknown, n: number): AgentFood[] => (Array.isArray(v) ? v : []).slice(0, n).map((f: any): AgentFood | null => {
-  const name = str(f?.name, 60); if (!name) return null;
-  return { name, brand: str(f?.brand, 40) ?? null, amount: num(f?.amount, 0.01, 20000) ?? null, unit: str(f?.unit, 12) ?? null, state: ['raw', 'cooked', 'dry'].includes(f?.state) ? f.state : null };
+  if (typeof f === 'string') {
+    const row = parseFoodText(f)[0];
+    const name = str(row?.query ?? f, 60); if (!name) return null;
+    const unit = row?.dim === 'g' ? 'g' : row?.dim === 'ml' ? 'ml' : row?.amount !== undefined ? 'piece' : null;
+    return { name, brand: null, amount: num(row?.amount, 0.01, 20000) ?? null, unit, state: null };
+  }
+  const name = str(f?.name ?? f?.ingredient ?? f?.item ?? f?.food, 60); if (!name) return null;
+  const amount = f?.amount ?? f?.quantity ?? f?.qty;
+  const n2 = typeof amount === 'string' ? Number(amount.replace(',', '.')) : amount;
+  return { name, brand: str(f?.brand, 40) ?? null, amount: num(n2, 0.01, 20000) ?? null, unit: str(f?.unit, 12) ?? null, state: ['raw', 'cooked', 'dry'].includes(f?.state) ? f.state : null };
 }).filter(Boolean) as AgentFood[];
 
+/** Something in the answer couldn't be read (it was dropped): said in a card, never silent. */
+export const droppedCard = (t: AgentCtx['t']): AgentResult => ({ id: uid('r'), kind: 'miss', title: t('Part of the answer couldn’t be read'), lines: [{ text: t('Nothing was changed for it. Ask again — or copy the raw answer in Settings → About.') }] });
+
 /** Whatever came back from the model → a safe list of actions (anything odd is dropped, numbers are clamped). */
-export function validateAgent(raw: any): { reply: string; actions: AgentAction[] } | null {
+export function validateAgent(raw: any): { reply: string; actions: AgentAction[]; /** actions it had to drop (unreadable): said, never silent */ dropped: number } | null {
   if (!raw || typeof raw !== 'object') return null;
   const reply = str(raw.reply, 1800) ?? '';
   const out: AgentAction[] = [];
+  let dropped = 0;
   for (const a of (Array.isArray(raw.actions) ? raw.actions : []).slice(0, 12)) {
-    if (!a || typeof a !== 'object') continue;
+    if (!a || typeof a !== 'object') { dropped++; continue; }
+    const before = out.length;
+    validateOne(a, out);
+    if (out.length === before) dropped++;
+  }
+  if (!reply && !out.length && !dropped) return null;
+  return { reply, actions: out, dropped };
+}
+
+function validateOne(a: any, out: AgentAction[]) {
     switch (a.type) {
       case 'log_food': {
         const foods = agentFoods(a.foods, 14);
@@ -141,9 +166,12 @@ export function validateAgent(raw: any): { reply: string; actions: AgentAction[]
         break;
       }
       case 'propose_recipe': {
-        const name = str(a.name, 60), foods = agentFoods(a.foods, 15);
-        const steps = (Array.isArray(a.steps) ? a.steps : []).map((x: unknown) => str(x, 220)).filter(Boolean).slice(0, 12) as string[];
-        if (name && foods.length) out.push({ type: 'propose_recipe', name, servings: Math.round(num(a.servings, 1, 20) ?? 1), foods, steps });
+        // (forgiving: ingredients / items for the foods, method / instructions for the steps, a step list as one text)
+        const name = str(a.name ?? a.title, 60), foods = agentFoods(a.foods ?? a.ingredients ?? a.items, 15);
+        const rawSteps = a.steps ?? a.method ?? a.instructions;
+        const steps = (Array.isArray(rawSteps) ? rawSteps : typeof rawSteps === 'string' ? rawSteps.split(/\n+|(?<=\.)\s+(?=\d+[.)]\s)/) : []).map((x: unknown) => str(typeof x === 'string' ? x.replace(/^\s*\d+[.)]\s*/, '') : x, 220)).filter(Boolean).slice(0, 12) as string[];
+        const servings = typeof a.servings === 'string' ? Number(a.servings) : a.servings;
+        if (name && foods.length) out.push({ type: 'propose_recipe', name, servings: Math.round(num(servings, 1, 20) ?? 1), foods, steps });
         break;
       }
       case 'suggest_food': {
@@ -308,9 +336,6 @@ export function validateAgent(raw: any): { reply: string; actions: AgentAction[]
         break;
       }
     }
-  }
-  if (!reply && !out.length) return null;
-  return { reply, actions: out };
 }
 
 // ── results: what the Coach shows after acting ─────────────
@@ -1348,8 +1373,10 @@ async function doProposeRecipe(a: Extract<AgentAction, { type: 'propose_recipe' 
   const lines: AgentResult['lines'] = [];
   const found: Food[] = [];
   let missed = 0;
-  for (const r of rows) {
-    const { food, online } = await findFood(r, st.settings.foodLookup);
+  // every ingredient looked up at once (one at a time, a cake with six online lookups could take most of a minute)
+  const hits = await Promise.all(rows.map((r) => findFood(r, st.settings.foodLookup).catch(() => ({} as { food?: Food; online?: Food }))));
+  for (const [ri, r] of rows.entries()) {
+    const { food, online } = hits[ri];
     const q = food ? rowQuantity(r, food) : null;
     const snap = food ? snapshotOf(food) : null;
     const b = snap && q?.qty ? toBase(snap, q.qty) : null;

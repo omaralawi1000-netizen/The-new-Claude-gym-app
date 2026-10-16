@@ -1,8 +1,8 @@
 import { useAi, solOn } from '../state/ai';
 import { useStore } from '../state/store';
 import { getKey } from './keys';
-import { AiError, FALLBACK_MODELS, aiAgent, aiAgentStream, dedupeSources, geminiSearch, type Brain, type Photo, type Turn, type WebSource } from './gemini';
-import { refreshSolModel, solAgent, solSearch, type Effort } from './openai';
+import { AiError, FALLBACK_MODELS, aiAgent, aiAgentStream, dedupeSources, geminiSearch, plainModels, type Brain, type Photo, type Turn, type WebSource } from './gemini';
+import { refreshSolModel, solAgent, solModel, solSearch, type Effort } from './openai';
 import { solThenGemini } from './brain';
 import { overLimit } from './spend';
 import { AGENT_SYSTEM, APP_GUIDE, buildAgentContext, buildTodayContext, exerciseNames, memoryBlock } from './coachContext';
@@ -64,7 +64,11 @@ async function webSearch(query: string, brain: Brain, lang: string): Promise<{ t
 /** Rounds per message: up to two rounds of look-ups, then the answer. */
 const MAX_ROUNDS = 3;
 
-export interface Decision { reply: string; note: string; actions: AgentAction[]; wantsUndo: boolean; /** the web pages a search used (shown under the answer) */ sources: WebSource[] }
+export interface Decision { reply: string; note: string; actions: AgentAction[]; wantsUndo: boolean; /** the web pages a search used (shown under the answer) */ sources: WebSource[]; /** actions in the answer that couldn't be read (said in a card) */ dropped: number }
+
+/** The last raw answer, kept in memory only (never saved): Settings → About copies it to diagnose an odd answer. */
+let lastRaw: { at: number; by: string; plain: string[]; text: string } | null = null;
+export const lastRawAnswer = () => lastRaw;
 
 /**
  * What the assistant decides to say and do for one sentence. The AI when there is a key — GPT-6.1 Sol or Gemini, given the
@@ -80,6 +84,7 @@ export async function decide(text: string, o: { lang: Lang; t: (k: string, v?: R
   let reply = '', note = '';
   let actions: AgentAction[] = [];
   const sources: WebSource[] = [];
+  let dropped = 0;
   const brain0 = brainFor({ big: true, surface: o.surface, signal: o.signal });
   // think only as hard as the message needs (see effortFor)
   const brain = brain0?.sol ? { ...brain0, sol: { ...brain0.sol, effort: effortFor(text, brain0.sol.effort, !!o.photo) } } : brain0;
@@ -125,9 +130,10 @@ export async function decide(text: string, o: { lang: Lang; t: (k: string, v?: R
         }
       }
       o.onStatus?.('');
+      lastRaw = { at: Date.now(), by: brain.sol?.key && !note ? `OpenAI ${solModel()}` : `Gemini (${brain.models.join(', ')})`, plain: plainModels(), text: (() => { try { return JSON.stringify(raw, null, 1).slice(0, 20000); } catch { return String(raw).slice(0, 20000); } })() };
       const v = validateAgent(raw);
       if (!v) throw new AiError('invalid');
-      reply = v.reply; actions = v.actions;
+      reply = v.reply; actions = v.actions; dropped = v.dropped;
     } catch (e: any) {
       if (e?.code === 'aborted') throw e;
       const local = localActions(text);
@@ -145,5 +151,5 @@ export async function decide(text: string, o: { lang: Lang; t: (k: string, v?: R
     else reply = t('To chat or ask about the app I need an AI key (Settings → Voice & AI). I can still log what you tell me, like “200 g skyr” or “bench 80 for 8”.');
   }
   const wantsUndo = actions.some((a) => a.type === 'undo_last');
-  return { reply, note, actions: actions.filter((a) => a.type !== 'undo_last'), wantsUndo, sources: dedupeSources(sources) };
+  return { reply, note, actions: actions.filter((a) => a.type !== 'undo_last'), wantsUndo, sources: dedupeSources(sources), dropped };
 }

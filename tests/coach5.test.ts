@@ -115,3 +115,47 @@ describe('a routine from a photo (or said) is a preview first', () => {
     expect(useStore.getState().routines.some((x) => x.name === 'Coach Mike upper')).toBe(true);
   });
 });
+
+describe('a recipe is never lost to the shape of the answer', () => {
+  const today = dayKey(Date.now(), 0);
+  beforeEach(() => { const d = defaultData('en'); d.settings.onboarded = true; d.settings.foodLookup = false; useStore.getState().replaceAll(d); });
+
+  it('plain JSON mode: ingredients as text, "ingredients" and "method" keys, steps in one string — still a recipe card', async () => {
+    const v = validateAgent({ reply: 'Here is one:', actions: [{ type: 'propose_recipe', title: 'Mug cake', servings: '1', ingredients: ['100 g skyr', '1 egg', { ingredient: 'havregryn', quantity: '30', unit: 'g' }], method: '1. Mix everything. 2. Microwave 90 s.' }] })!;
+    expect(v.dropped).toBe(0);
+    const a = v.actions[0] as any;
+    expect(a.foods.map((f: any) => [f.name, f.amount, f.unit])).toEqual([['skyr', 100, 'g'], ['egg', 1, 'piece'], ['havregryn', 30, 'g']]);
+    expect(a.steps).toEqual(['Mix everything.', 'Microwave 90 s.']);
+    const [card] = await runActions(v.actions, { t, lang: 'en', today, brain: null });
+    expect(card.kind).toBe('recipe');
+    expect(card.lines.filter((l) => !l.warn)).toHaveLength(3);
+  });
+
+  it('OpenAI strict mode: every field present, the unused ones null — still a recipe card', async () => {
+    const { AGENT_SCHEMA } = await import('../src/lib/gemini');
+    const keys = Object.keys((AGENT_SCHEMA as any).properties.actions.items.properties);
+    const blank = Object.fromEntries(keys.map((k) => [k, null]));
+    const v = validateAgent({ reply: '', lookups: null, actions: [{ ...blank, type: 'propose_recipe', name: 'Skyr bowl', servings: 2, foods: [{ name: 'skyr', brand: null, amount: 300, unit: 'g', state: null }], steps: ['Stir.'] }] })!;
+    expect(v.actions[0].type).toBe('propose_recipe');
+    expect(v.dropped).toBe(0);
+  });
+
+  it('the format written for plain mode names the nested fields', async () => {
+    const { schemaHintForTest } = await import('../src/lib/gemini');
+    const h = schemaHintForTest();
+    expect(h).toMatch(/- foods: \[\{name, brand, amount, unit \(g \| kg \| ml/);
+    expect(h).toMatch(/- steps: \[string\]/);
+    expect(h).toMatch(/- options: \[\{label, foods: \[\{name/);
+  });
+
+  it('something unreadable is said in a card, never silent', async () => {
+    script = [{ reply: 'Here is a quick one:', actions: [{ type: 'propose_recipe', name: 'Cake', foods: [] }] }];
+    const d = await ask('I want cake');
+    expect(d.reply).toBe('Here is a quick one:');
+    expect(d.dropped).toBe(1);
+    const { droppedCard } = await import('../src/lib/agent');
+    expect(droppedCard(t).title).toBe('Part of the answer couldn’t be read');
+    const { lastRawAnswer } = await import('../src/lib/agentTurn');
+    expect(lastRawAnswer()?.text).toContain('"propose_recipe"');
+  });
+});

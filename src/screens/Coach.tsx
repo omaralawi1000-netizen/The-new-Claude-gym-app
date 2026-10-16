@@ -15,7 +15,7 @@ import { aiErrorText, type Photo, type Turn } from '../lib/gemini';
 import { stopSpeaking } from '../lib/tts';
 import { decide, brainFor } from '../lib/agentTurn';
 import { ActionCard, Rich, TypingDots, SpeakButton, prefetchAloud, replacedIds, sttMessage, useCoachTips, useWordReveal } from '../ui/agentUi';
-import { runActions, type AgentResult } from '../lib/agent';
+import { droppedCard, runActions, type AgentResult } from '../lib/agent';
 import { uid } from '../lib/nutrition';
 import { onThreadChange, readThread, threadSaid, threadTurns, writeThread, type ThreadMsg } from '../lib/thread';
 import { dayKey } from '../lib/dates';
@@ -714,6 +714,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     let { reply } = d; const { note, actions } = d;
     if (d.wantsUndo) { undoLast(); if (!actions.length && !reply) reply = t('Undone.'); }
     const results = actions.length ? await runActions(actions, { t, lang, today, brain: brainFor({ big: false, surface: 'coach', signal }), date: props.date, mealId: props.mealId }) : [];
+    if (d.dropped) results.push(droppedCard(t)); // (never silent: part of the answer was unreadable)
     if (!alive.current) return;
     // the answer is the message; a note about who answered sits under it, quieter (and is never read aloud)
     const said = reply || note;

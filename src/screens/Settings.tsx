@@ -626,6 +626,26 @@ function StutterRecorder() {
         <button className={`btn sm press ${on ? '' : 'primary'}`} onClick={() => (on ? stopStutter() : startStutter())}>{on ? t('Stop') : t('Start recording')}</button>
         {count > 0 && <button className="btn sm press" onClick={copy}><Icon name="copy" size={15} /> {t('Copy report')}</button>}
       </div>
+      <CoachRawCopy />
+    </div>
+  );
+}
+
+/** The Coach's last raw answer (kept in memory only, never saved, no keys), for when an answer did something odd. */
+function CoachRawCopy() {
+  const t = useT();
+  const copy = async () => {
+    const { lastRawAnswer } = await import('../lib/agentTurn');
+    const r = lastRawAnswer();
+    if (!r) { useUI.getState().toast(t('Ask the Coach something first')); return; }
+    const text = `Aven ${__APP_VERSION__} · ${new Date(r.at).toISOString()} · ${r.by}${r.plain.length ? ` · plain JSON mode: ${r.plain.join(', ')}` : ''}\n${r.text}`;
+    try { await navigator.clipboard.writeText(text); useUI.getState().toast(t('Copied'), { tone: 'ok' }); } catch { useUI.getState().toast(t('Couldn’t copy'), { tone: 'bad' }); }
+  };
+  return (
+    <div style={{ marginTop: 14 }}>
+      <b>{t('The Coach’s last answer')}</b>
+      <div className="t2" style={{ marginTop: 4 }}>{t('If the Coach said it did something but nothing happened, copy its last answer exactly as the AI sent it and paste it to whoever is fixing the app. No keys, nothing else.')}</div>
+      <button className="btn sm press" style={{ marginTop: 10 }} onClick={copy}><Icon name="copy" size={15} /> {t('Copy last answer')}</button>
     </div>
   );
 }

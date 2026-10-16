@@ -228,9 +228,19 @@ const noSchema = new Set<string>();
 /** The agent's schema as plain words, for a model answering in plain JSON mode (every answer is validated all the same). */
 function schemaHint(): string {
   const items = (AGENT_SCHEMA.properties.actions as any).items.properties as Record<string, any>;
-  const field = (k: string, v: any) => `${k}: ${String(v.type).toLowerCase()}${v.enum ? ` (${v.enum.join(' | ')})` : ''}${v.description ? ` — ${v.description}` : ''}`;
-  return `\n\nANSWER FORMAT: only a JSON object {"lookups": [{"kind", "query", "from", "to", "meal"}] (optional), "reply": string, "actions": [ … ]}. Each action has "type" and only the fields it needs:\n${Object.entries(items).map(([k, v]) => `- ${field(k, v)}`).join('\n')}\nLookup kinds: ${LOOKUP_KINDS.join(', ')}.`;
+  // nested shapes written out too ("foods: [{name, amount, unit (g | ml | …)}]"): with only "array" a model wrote its
+  // ingredients as plain strings, and the whole action was dropped
+  const shape = (v: any): string => {
+    if (v?.type === 'ARRAY') return v.items?.type === 'OBJECT' ? `[${shape(v.items)}]` : `[${String(v.items?.type ?? 'string').toLowerCase()}]`;
+    if (v?.type === 'OBJECT' && v.properties) return `{${Object.entries(v.properties).map(([k, x]: [string, any]) => `${k}${x.enum ? ` (${x.enum.join(' | ')})` : x.type === 'ARRAY' || x.type === 'OBJECT' ? `: ${shape(x)}` : ''}`).join(', ')}}`;
+    return String(v?.type ?? 'string').toLowerCase();
+  };
+  const field = (k: string, v: any) => `${k}: ${shape(v)}${v.enum ? ` (${v.enum.join(' | ')})` : ''}${v.description ? ` — ${v.description}` : ''}`;
+  return `\n\nANSWER FORMAT: only a JSON object {"lookups": [{"kind", "query", "from", "to", "meal"}] (optional), "reply": string, "actions": [ … ]}. Each action has "type" and only the fields it needs; an array of objects is written exactly with the keys shown:\n${Object.entries(items).map(([k, v]) => `- ${field(k, v)}`).join('\n')}\nLookup kinds: ${LOOKUP_KINDS.join(', ')}.`;
 }
+/** For the raw-answer copy (Settings → About): the models answering in plain JSON mode in this visit. */
+export const plainModels = () => [...noSchema];
+export const schemaHintForTest = () => schemaHint();
 export interface Turn { role: 'user' | 'model'; parts: { text: string }[] }
 
 // ── the Coach as an agent: one answer = a short reply plus the actions to carry out ──

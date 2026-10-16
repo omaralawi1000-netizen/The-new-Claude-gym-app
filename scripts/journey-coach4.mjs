@@ -7,6 +7,7 @@ const { b, p, errors } = await launch({});
 const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' };
 const json = (o) => ({ status: 200, headers: { ...cors, 'content-type': 'application/json' }, body: JSON.stringify(o) });
 const seen = [];
+let rejectSchema = false; // (like a model that finds the agent's schema too complex: 400 → the app's plain JSON mode)
 await p.route('https://generativelanguage.googleapis.com/**', async (r) => {
   const req = r.request(); const url = req.url();
   if (req.method() === 'OPTIONS') return r.fulfill({ status: 204, headers: cors });
@@ -15,11 +16,13 @@ await p.route('https://generativelanguage.googleapis.com/**', async (r) => {
   if (body.generationConfig?.responseModalities?.includes('AUDIO')) return r.fulfill(json({ candidates: [] }));
   const system = body.systemInstruction?.parts?.[0]?.text ?? '';
   const last = [...(body.contents ?? [])].reverse().find((c) => c.role === 'user')?.parts?.map((x) => x.text ?? '').join('') ?? '';
-  seen.push({ system, last, tools: body.tools });
+  seen.push({ system, last, tools: body.tools, plain: !body.generationConfig?.responseSchema });
+  if (rejectSchema && body.generationConfig?.responseSchema && !body.tools) return r.fulfill({ status: 400, headers: { ...cors, 'content-type': 'application/json' }, body: JSON.stringify({ error: { code: 400, message: 'schema too complex' } }) });
   // the grounded search itself
   if (body.tools?.some((t) => t.google_search)) return r.fulfill(json({ candidates: [{ content: { parts: [{ text: 'A protein mug cake: whey, an egg, oat flour, baking powder; microwave about 90 seconds.' }] }, groundingMetadata: { groundingChunks: [{ web: { uri: 'https://www.bbcgoodfood.com/recipes/protein-mug-cake', title: 'bbcgoodfood.com' } }, { web: { uri: 'https://www.healthline.com/nutrition/protein', title: 'healthline.com' } }] } }] }));
   let a;
-  if (/mug cake/i.test(last)) a = system.includes('LOOKUP RESULTS (you asked')
+  if (/i want cake/i.test(last)) a = { reply: 'Here is a quick, high-protein mug cake:', actions: [{ type: 'propose_recipe', name: 'Chocolate mug cake', servings: 1, ingredients: ['100 g skyr', '1 egg', '30 g havregryn'], method: '1. Mix. 2. Microwave 90 s.' }] };
+  else if (/mug cake/i.test(last)) a = system.includes('LOOKUP RESULTS (you asked')
     ? { reply: 'Here is a quick one from what you usually have.', actions: [{ type: 'propose_recipe', name: 'Protein mug cake', servings: 1, foods: [{ name: 'skyr', amount: 100, unit: 'g' }, { name: 'egg', amount: 1, unit: 'piece' }, { name: 'havregryn', amount: 30, unit: 'g' }], steps: ['Mix everything in a big mug.', 'Microwave about 90 seconds.', 'Let it rest a minute.'] }] }
     : { reply: '', actions: [], lookups: [{ kind: 'web', query: 'protein mug cake recipe' }] };
   else if (/program/i.test(last)) a = { reply: 'Here it is as a routine.', actions: [{ type: 'create_routine', name: 'Upper from photo', add: [{ exercise: 'Barbell Bench Press', sets: 4, repMin: 6, repMax: 8 }, { exercise: 'Barbell Row', sets: 4, repMin: 8, repMax: 10 }] }] };
@@ -56,6 +59,16 @@ const e0 = (await data()).entries.length;
 await card.getByRole('button', { name: 'Log a portion' }).click(); await wait(p, 700);
 assert.equal((await data()).entries.length, e0 + 1, 'Log a portion logs one serving');
 await p.screenshot({ path: 'shots/coach4-2-saved.png' });
+
+// a model that turned the full schema down (plain JSON mode, as Omar's may have): text ingredients still make the card
+rejectSchema = true;
+await ask('I want cake', 4000);
+assert(seen.some((x) => x.plain && /an array of objects is written exactly with the keys shown/.test(x.system)), 'it answered in plain JSON mode, with the nested format written out');
+const cake = p.locator('.action-card').filter({ hasText: 'Chocolate mug cake' }).last();
+assert(await cake.isVisible(), 'the recipe card still appears');
+assert(/per serving \d+ kcal/.test(await cake.innerText()), 'with the app’s macros');
+await p.screenshot({ path: 'shots/coach4-3-plain.png' });
+rejectSchema = false;
 
 // a program (from a photo, or said): a preview first
 const n0 = (await data()).routines.length;
