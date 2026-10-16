@@ -14,7 +14,7 @@ import { transcribe, buildPrompt, STT_MODEL, SttError } from '../lib/groq';
 import { aiErrorText, type Photo, type Turn } from '../lib/gemini';
 import { stopSpeaking } from '../lib/tts';
 import { decide, brainFor } from '../lib/agentTurn';
-import { ActionCard, Rich, TypingDots, SpeakButton, prefetchAloud, sttMessage, useCoachTips, useWordReveal } from '../ui/agentUi';
+import { ActionCard, Rich, TypingDots, SpeakButton, prefetchAloud, replacedIds, sttMessage, useCoachTips, useWordReveal } from '../ui/agentUi';
 import { runActions, type AgentResult } from '../lib/agent';
 import { uid } from '../lib/nutrition';
 import { onThreadChange, readThread, threadSaid, threadTurns, writeThread, type ThreadMsg } from '../lib/thread';
@@ -804,6 +804,8 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   // the suggestions: on an empty chat at the top; when you come back to an old chat, under it (until you send something)
   const shown = leaving ?? msgs;
   const listed = older ? shown.slice(older) : shown;
+  // a newer preview of the same thing (tomorrow's plan, the week) replaces the older one: only the newest can be applied
+  const replaced = useMemo(() => replacedIds(msgs.filter((m): m is Extract<Msg, { role: 'action' }> => m.role === 'action')), [msgs]);
   const resumeHead = <div className="micro" style={{ margin: '22px 0 10px' }}>{t('Today')}</div>;
   const tipsBlock = (
               <div className="stack gap12">
@@ -883,7 +885,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
                   {m.role === 'action' && (
                     <div className="stack gap8">
                       {m.results.map((r) => (
-                        <ActionCard key={r.id} r={r} undone={m.undone.includes(r.id)} confirmed={m.confirmed.includes(r.id)}
+                        <ActionCard key={r.id} r={r} undone={m.undone.includes(r.id)} confirmed={m.confirmed.includes(r.id)} replaced={replaced.has(r.id)}
                           onUndo={() => { r.undo?.(); haptic('light'); setMsgs((x) => x.map((y) => (y.id === m.id && y.role === 'action' ? { ...y, undone: [...y.undone, r.id] } : y))); }}
                           onConfirm={() => { r.button?.run(); haptic('confirm'); setMsgs((x) => x.map((y) => (y.id === m.id && y.role === 'action' ? { ...y, confirmed: [...y.confirmed, r.id] } : y))); }} />
                       ))}

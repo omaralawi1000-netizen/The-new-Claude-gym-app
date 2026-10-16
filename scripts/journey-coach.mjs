@@ -42,12 +42,13 @@ const ask = async (text, motion = false) => {
     const frame = () => {
       // a typed message flies from the field into its bubble: a copy moves, the real bubble waits hidden until it lands
       const fly = document.querySelector('.coach-fly');
-      const bubble = [...document.querySelectorAll('.coach-thread .said')].find((el) => el.textContent === text);
+      // (a typed message keeps the lines it wrapped into in the field, one span per line: compare without the spaces)
+      const bubble = [...document.querySelectorAll('.coach-thread .said')].find((el) => el.textContent.replace(/\s+/g, '') === text.replace(/\s+/g, ''));
       if (fly || bubble) window.__coachSent.push({ fly: fly ? getComputedStyle(fly).transform : null, shown: bubble ? getComputedStyle(bubble).visibility === 'visible' : false });
-      if (performance.now() - start < 1400) requestAnimationFrame(frame);
+      if (performance.now() - start < 2600) requestAnimationFrame(frame); // the calmer flight (Coach r10) lands at ~1.7 s here
     }; requestAnimationFrame(frame);
   }, text);
-  await p.getByRole('button', { name: 'Send', exact: true }).click(); await wait(p, 1500);
+  await p.getByRole('button', { name: 'Send', exact: true }).click(); await wait(p, motion ? 2800 : 1500);
   if (motion) {
     const frames = await p.evaluate(() => window.__coachSent);
     assert(frames.some((f) => f.fly && f.fly !== 'none' && !f.shown), 'sent message glides from the field while its bubble waits');

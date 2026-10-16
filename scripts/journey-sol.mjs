@@ -44,7 +44,8 @@ await p.getByLabel('Settings').click(); await wait(p, 500);
 await p.getByText('Voice & AI').click(); await wait(p, 600);
 await p.getByLabel('Gemini key — understands you').fill('AIzaTESTKEY_5678'); await p.getByRole('button', { name: 'Save and test' }).nth(1).click(); await wait(p, 800);
 await p.getByLabel('OpenAI key — GPT-6.1 Sol (paid)').fill('sk-proj-TESTKEY_9999'); await p.getByRole('button', { name: 'Save and test' }).nth(2).click(); await wait(p, 800);
-assert(await p.getByText('OpenAI key works. GPT-6.1 Sol now answers the orb and the Coach.').isVisible(), 'openai key tested');
+// the key's newest model (GPT-6.5 in the stubbed list) is named, not the one Aven was built against
+assert(await p.getByText('OpenAI key works. GPT-6.5 now answers the orb and the Coach.').isVisible(), 'openai key tested, the newer model named');
 assert.equal(calls.models, 1);
 assert(await p.getByText('Thinking — orb').isVisible() && await p.getByText('Thinking — Coach').isVisible(), 'brain and thinking controls appear with a key');
 await p.screenshot({ path: 'shots/sol-1-settings.png' });

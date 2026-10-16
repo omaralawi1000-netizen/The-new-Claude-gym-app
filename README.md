@@ -2207,3 +2207,32 @@ Omar wants the Coach to be an agent over the whole app. The plan is in `docs/coa
 - Checks: `tests/coach2.test.ts` (17 tests), `scripts/journey-coach2.mjs` (stubbed Gemini: look-up round trip, orb → Coach
   "move it to lunch", plan → Apply → Undo), `journey-sol` now also proves a newer model on the key is used.
 - Known, not from this change: `journey-coach` fails on the unchanged app too ("the copy hands over to the real bubble").
+
+## Coach 2.0, phase 2 part A: anything you can tap, by talking (16 Oct 2026, v0.1.134)
+
+- **Every setting is one table** (`src/lib/settingSpec.ts`): key, label, allowed values, what it changes. The schema's keys, the
+  validator, the prompt's list and the guide all read it. Beyond the old 16: colours, background, glow, length unit, when a new
+  day starts, fibre target, plate step, which view a workout opens in, the rest-over notification, every Today card on/off and
+  their order, Coach notes, reminders and their time, quick water sizes, name, goal, experience, equipment and training days.
+  `set_setting` takes several at once (`settings: [{key, value}]`): one card, one Undo; anything not in the table is dropped.
+- **New actions** (all with Undo): `edit_meals` (rename, add, reorder; a meal with food in it is never removed),
+  `log_saved_meal`, `delete_water`, `create_exercise`, `archive_exercise` (own exercises only), `set_increment`,
+  `log_measurement` / `delete_measurement`, `workout_control` (pause, resume, start/skip/±rest, an exercise's rest, superset,
+  move up/down, note, rename), `set_split` (the whole week incl. wrestling days, as a preview), `skip_day`, and
+  `start_workout` "planned" (today's planned workout). Routine edits can change rest and warm-up sets too. The prompt now also
+  teaches `undo_last` ("undo that"), which the schema had but the instructions never mentioned.
+- **Big changes are previews**: the whole week, a planned day, deleting a routine or a workout, clearing a meal or a day
+  (more than one food), and a routine edit with three or more changes. The card says what will happen; nothing changes until
+  Apply; after Apply it can still be undone (button or "undo that").
+- **A newer preview replaces the older one** (`replacedIds` in `ui/agentUi.tsx`): two versions of tomorrow can't both be
+  applied; the older card says "Replaced by the newer version below".
+- **The guide by section** (`guideSections` in `lib/coachContext.ts`, the `guide` look-up): the Settings section is built from
+  the settings table, so it can't fall behind. A test fails if any action, setting key or Settings page is missing.
+- **Fixes**: days the Coach plans once (`Routine.oneOff`, additive) no longer fill Train → Plan's routine list or the week
+  editor, but still work in the plan and history; the OpenAI brain is called by the model actually used ("GPT-6.5" when the key
+  has it) everywhere it is named; Gemini, if it ever turns the long schema down, is asked again in plain JSON mode with the
+  schema written into its instructions (remembered per model; answers are validated the same way); `journey-coach` was stale
+  (it matched a typed message's bubble by exact text, but the bubble now keeps the field's wrapped lines; and the calmer
+  flight lands at ~1.7 s, after its 1.4 s window) and passes again.
+- Checks: `tests/coach3.test.ts` (14), `journey-coach2` (+ week preview → Apply → Undo, several settings, a measurement),
+  `journey-sol`, `journey-ai`, `journey-coach`.

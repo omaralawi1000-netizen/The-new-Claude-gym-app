@@ -223,11 +223,19 @@ export function readPhoto(raw: any): { items: FoodEstimate[]; assumptions: strin
 export const photoPrompt = (hint: string) => (hint ? `The user says: "${hint}"` : 'Estimate this meal.');
 
 const noThinking = new Set<string>();
+/** Models that turned the agent's schema down as too complex: they get plain JSON mode with the schema written out instead. */
+const noSchema = new Set<string>();
+/** The agent's schema as plain words, for a model answering in plain JSON mode (every answer is validated all the same). */
+function schemaHint(): string {
+  const items = (AGENT_SCHEMA.properties.actions as any).items.properties as Record<string, any>;
+  const field = (k: string, v: any) => `${k}: ${String(v.type).toLowerCase()}${v.enum ? ` (${v.enum.join(' | ')})` : ''}${v.description ? ` — ${v.description}` : ''}`;
+  return `\n\nANSWER FORMAT: only a JSON object {"lookups": [{"kind", "query", "from", "to", "meal"}] (optional), "reply": string, "actions": [ … ]}. Each action has "type" and only the fields it needs:\n${Object.entries(items).map(([k, v]) => `- ${field(k, v)}`).join('\n')}\nLookup kinds: ${LOOKUP_KINDS.join(', ')}.`;
+}
 export interface Turn { role: 'user' | 'model'; parts: { text: string }[] }
 
 // ── the Coach as an agent: one answer = a short reply plus the actions to carry out ──
-const ACTION_TYPES = ['log_food', 'log_water', 'log_weight', 'log_sets', 'log_activity', 'start_workout', 'finish_workout', 'navigate', 'set_setting', 'edit_food', 'delete_food', 'move_food', 'copy_food', 'replace_food', 'create_food', 'favourite_food', 'save_meal', 'edit_set', 'add_exercise', 'remove_exercise', 'replace_exercise', 'create_routine', 'edit_routine', 'delete_routine', 'delete_workout', 'discard_workout', 'set_schedule', 'move_workout', 'plan_activity', 'log_current_set', 'delete_activity', 'delete_weight', 'add_note', 'remember', 'forget', 'show_exercise', 'suggest_food', 'plan_day', 'undo_last'];
-const BIT = { type: 'ARRAY', nullable: true, items: { type: 'OBJECT', properties: { exercise: { type: 'STRING' }, sets: { type: 'INTEGER', nullable: true }, repMin: { type: 'INTEGER', nullable: true }, repMax: { type: 'INTEGER', nullable: true }, restSec: { type: 'INTEGER', nullable: true } }, required: ['exercise'] } };
+export const ACTION_TYPES = ['log_food', 'log_water', 'log_weight', 'log_sets', 'log_activity', 'start_workout', 'finish_workout', 'navigate', 'set_setting', 'edit_food', 'delete_food', 'move_food', 'copy_food', 'replace_food', 'create_food', 'favourite_food', 'save_meal', 'edit_set', 'add_exercise', 'remove_exercise', 'replace_exercise', 'create_routine', 'edit_routine', 'delete_routine', 'delete_workout', 'discard_workout', 'set_schedule', 'move_workout', 'plan_activity', 'log_current_set', 'delete_activity', 'delete_weight', 'add_note', 'remember', 'forget', 'show_exercise', 'suggest_food', 'plan_day', 'edit_meals', 'log_saved_meal', 'delete_water', 'create_exercise', 'archive_exercise', 'set_increment', 'log_measurement', 'delete_measurement', 'workout_control', 'set_split', 'skip_day', 'undo_last'];
+const BIT = { type: 'ARRAY', nullable: true, items: { type: 'OBJECT', properties: { exercise: { type: 'STRING' }, sets: { type: 'INTEGER', nullable: true }, repMin: { type: 'INTEGER', nullable: true }, repMax: { type: 'INTEGER', nullable: true }, restSec: { type: 'INTEGER', nullable: true }, warmup: { type: 'INTEGER', nullable: true } }, required: ['exercise'] } };
 const NUTRI = (d: string) => ({ type: 'OBJECT', nullable: true, description: d, properties: { kcal: { type: 'NUMBER', nullable: true }, protein: { type: 'NUMBER', nullable: true }, carbs: { type: 'NUMBER', nullable: true }, fat: { type: 'NUMBER', nullable: true } } });
 const AGENT_FOOD = { type: 'OBJECT', properties: {
   name: { type: 'STRING', description: 'the food as said, in the language it was said (never translate), keeping flavour and variant words, e.g. "vaniljeskyr", "rugbrød", "greek yogurt"' },
@@ -264,7 +272,15 @@ export const AGENT_SCHEMA = {
       }, required: ['exercise', 'sets'] } },
       kind: { type: 'STRING', nullable: true, description: 'log_activity / plan_activity: the activity (wrestling, run…). remember: goal | preference | health | schedule | gear | food | other' }, minutes: { type: 'NUMBER', nullable: true }, rounds: { type: 'INTEGER', nullable: true }, intensity: { type: 'INTEGER', nullable: true }, note: { type: 'STRING', nullable: true },
       routine: { type: 'STRING', nullable: true }, screen: { type: 'STRING', nullable: true }, section: { type: 'STRING', nullable: true },
-      key: { type: 'STRING', nullable: true }, value: { type: 'STRING', nullable: true },
+      key: { type: 'STRING', nullable: true, description: 'set_setting: one setting key' }, value: { type: 'STRING', nullable: true, description: 'set_setting: its new value' },
+      settings: { type: 'ARRAY', nullable: true, description: 'set_setting: several settings at once', items: { type: 'OBJECT', properties: { key: { type: 'STRING' }, value: { type: 'STRING' } }, required: ['key', 'value'] } },
+      order: { type: 'ARRAY', nullable: true, items: { type: 'STRING' }, description: 'edit_meals: the meals in their new order' },
+      equipment: { type: 'STRING', nullable: true, description: 'create_exercise: barbell, dumbbell, machine, smith, cable, bodyweight, kettlebell, band, bench or other' },
+      log_type: { type: 'STRING', nullable: true, enum: ['weightReps', 'bodyweightReps', 'assisted', 'duration', 'distance'] },
+      cm: { type: 'NUMBER', nullable: true, description: 'log_measurement: centimetres' },
+      op: { type: 'STRING', nullable: true, enum: ['pause', 'resume', 'rest_start', 'rest_skip', 'rest_add', 'rest_set', 'superset', 'move_up', 'move_down', 'note', 'rename'], description: 'workout_control: what to do in the running workout' },
+      seconds: { type: 'INTEGER', nullable: true, description: 'workout_control: rest length (rest_start, rest_set) or change (rest_add, negative = shorter)' },
+      days: { type: 'ARRAY', nullable: true, description: 'set_split: the days that change (or all seven)', items: { type: 'OBJECT', properties: { weekday: { type: 'INTEGER' }, routine: { type: 'STRING', nullable: true, description: 'routine name, or "rest" for a rest day; null = leave the gym day as it is' }, wrestling: { type: 'BOOLEAN', nullable: true, description: 'true/false to set wrestling that day; null = leave as is' } }, required: ['weekday'] } },
       with: { type: 'OBJECT', nullable: true, description: 'replace_food: the food to put in its place', properties: { name: { type: 'STRING' }, brand: { type: 'STRING', nullable: true }, amount: { type: 'NUMBER', nullable: true }, unit: { type: 'STRING', nullable: true, enum: FOOD_UNITS }, state: { type: 'STRING', nullable: true, enum: ['raw', 'cooked', 'dry'] } }, required: ['name'] },
       name: { type: 'STRING', nullable: true, description: 'create_food / favourite_food / save_meal: the name' },
       basis: { type: 'STRING', nullable: true, enum: ['g', 'ml'] }, on: { type: 'BOOLEAN', nullable: true, description: 'favourite_food: favourite or not. plan_activity: true = add to that day, false = take it off' },
@@ -289,6 +305,19 @@ export const AGENT_SCHEMA = {
   required: ['reply', 'actions'],
 };
 
+/**
+ * A request the model turned down (400): first without thinking, then — if it still says no — without the schema (some
+ * models find the agent's long schema too complex); the schema is then written into the instructions and every answer is
+ * validated as always. Remembered per model, so it is asked the plainer way straight away next time.
+ */
+async function retryPlainer(e: unknown, m: string, think: boolean, run: (m: string, think: boolean) => Promise<unknown>): Promise<unknown> {
+  if (!(e instanceof AiError) || e.code !== 'badrequest') throw e;
+  if (think) { noThinking.add(m); try { return await run(m, false); } catch (e2) { if (!(e2 instanceof AiError) || e2.code !== 'badrequest' || noSchema.has(m)) throw e2; } }
+  else if (noSchema.has(m)) throw e;
+  noSchema.add(m);
+  return run(m, false);
+}
+
 /** One agent turn: the conversation so far in, { reply, actions } out (unvalidated — see agent.ts). */
 /** A photo sent with the last message: Gemini reads it as an inline image part in front of the words. */
 export interface Photo { mime: string; data: string }
@@ -299,16 +328,17 @@ const withPhoto = (contents: Turn[], photo?: Photo): unknown[] => {
 };
 export async function aiAgent(system: string, contents: Turn[], brain: Brain, photo?: Photo): Promise<unknown> {
   const run = async (model: string, think: boolean): Promise<unknown> => {
+    const plain = noSchema.has(model);
     const { res, done } = await post(`models/${encodeURIComponent(model)}:generateContent`, brain.key, {
-      systemInstruction: { parts: [{ text: system }] }, contents: withPhoto(contents, photo),
-      generationConfig: { temperature: 0.3, responseMimeType: 'application/json', responseSchema: AGENT_SCHEMA, maxOutputTokens: 3072, ...(think ? { thinkingConfig: { thinkingBudget: 512 } } : {}) },
+      systemInstruction: { parts: [{ text: plain ? system + schemaHint() : system }] }, contents: withPhoto(contents, photo),
+      generationConfig: { temperature: 0.3, responseMimeType: 'application/json', ...(plain ? {} : { responseSchema: AGENT_SCHEMA }), maxOutputTokens: 3072, ...(think ? { thinkingConfig: { thinkingBudget: 512 } } : {}) },
     }, { timeout: 30000, signal: brain.signal });
     try { const data = await res.json(); try { return JSON.parse(textOf(data)); } catch { throw new AiError('invalid'); } } finally { done(); }
   };
   return withFallback(brain.models, async (m) => {
     const think = !noThinking.has(m);
     try { return await run(m, think); }
-    catch (e) { if (think && e instanceof AiError && e.code === 'badrequest') { noThinking.add(m); return run(m, false); } throw e; }
+    catch (e) { return retryPlainer(e, m, think, run); }
   });
 }
 
@@ -342,9 +372,10 @@ export function partialReply(src: string): string {
  */
 export async function aiAgentStream(system: string, contents: Turn[], brain: Brain, onReply: (text: string) => void, photo?: Photo): Promise<unknown> {
   const run = async (model: string, think: boolean): Promise<unknown> => {
+    const plain = noSchema.has(model);
     const { res, done } = await post(`models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`, brain.key, {
-      systemInstruction: { parts: [{ text: system }] }, contents: withPhoto(contents, photo),
-      generationConfig: { temperature: 0.3, responseMimeType: 'application/json', responseSchema: AGENT_SCHEMA_STREAM, maxOutputTokens: 3072, ...(think ? { thinkingConfig: { thinkingBudget: 512 } } : {}) },
+      systemInstruction: { parts: [{ text: plain ? system + schemaHint() : system }] }, contents: withPhoto(contents, photo),
+      generationConfig: { temperature: 0.3, responseMimeType: 'application/json', ...(plain ? {} : { responseSchema: AGENT_SCHEMA_STREAM }), maxOutputTokens: 3072, ...(think ? { thinkingConfig: { thinkingBudget: 512 } } : {}) },
     }, { timeout: 30000, signal: brain.signal });
     done();
     let shown = '';
@@ -354,7 +385,7 @@ export async function aiAgentStream(system: string, contents: Turn[], brain: Bra
   return withFallback(brain.models, async (m) => {
     const think = !noThinking.has(m);
     try { return await run(m, think); }
-    catch (e) { if (think && e instanceof AiError && e.code === 'badrequest') { noThinking.add(m); return run(m, false); } throw e; }
+    catch (e) { return retryPlainer(e, m, think, run); }
   });
 }
 

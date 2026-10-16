@@ -11,7 +11,10 @@ The polish plan (`docs/polish-plan.md`) is paused while this runs.
   - One conversation for the orb and the Coach (`src/lib/thread.ts`).
   - `plan_day`: "chest and triceps with some shoulder tomorrow" → a preview from his exercises, Apply, Undo (`src/lib/planDay.ts`).
   - The newest GPT model on his key is used by itself; Settings → Voice & AI → Model pins one.
-- [ ] **Phase 2: it can change anything he can tap**: capability audit of every store function and screen; all settings
+- [x] **Phase 2, part A** (v0.1.134): done as below.
+- [ ] **Phase 2, part B**: the Coach's cards animate (arrival, preview sheen, Apply "seal", week strip, drawn Undo, rolling
+  setting values); ships after Omar's yes on a clip.
+- Phase 2 as planned: **it can change anything he can tap**: capability audit of every store function and screen; all settings
   (profile, meals, reminders, Today cards, plate step, weight jumps, rest per exercise); custom exercises; recipes and saved
   meals; measurements; `set_split` for the whole week; Preview → Apply for every plan-sized change; the full app guide served
   by section, with a test that fails when a screen, setting or action is missing from it.
