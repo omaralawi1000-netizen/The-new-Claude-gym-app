@@ -1177,7 +1177,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .action-card > .row-flex { position: relative; z-index: 1; }
 /* Apply: the icon settles into its done mark on a soft spring with its halo, the lines ripple once, the Undo row rises
    where the Apply button was, and the title rolls to "Done" */
-.action-card.sealing .action-ic svg { animation: acSeal 640ms var(--ease-spring) both; }
+.action-card.sealing .action-ic svg { animation: acSeal 620ms var(--ease-smooth) both; } /* (a spring's last overshoot left the icon a hair off its rest: 39/255) */
 @keyframes acSeal { from { opacity: 0.35; transform: scale(0.6); } }
 .coach-body .action-card.sealing.sealing .action-ic::after, .action-card.sealing.sealing .action-ic::after { animation: acHalo 980ms var(--ease-out) 60ms both; }
 .coach-body .action-card.sealing.sealing .action-line, .action-card.sealing.sealing .action-line { animation: acRipple 520ms var(--ease-smooth) both; animation-delay: calc(80ms + var(--i, 0) * 40ms); }
