@@ -1208,7 +1208,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .ac-day.changed .ac-day-dot { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ac) 70%, transparent); }
 .ac-day-w { position: absolute; right: -2px; bottom: -2px; width: 10px; height: 10px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 2px var(--bg); }
 .coach-body .action-card.fresh .ac-day { animation: acLine 520ms var(--ease-smooth) both; animation-delay: calc(200ms + var(--i, 0) * 40ms); }
-.action-card.sealing .ac-day.changed .ac-day-dot { animation: acDay 680ms var(--ease-spring) both; animation-delay: calc(60ms + var(--c, 0) * 70ms); }
+.action-card.sealing .ac-day.changed .ac-day-dot { animation: acDay 680ms var(--ease-smooth) both; animation-delay: calc(60ms + var(--c, 0) * 70ms); }
 @keyframes acDay { from { transform: scale(0.82); opacity: 0.5; } }
 @media (prefers-reduced-motion: reduce) {
   .action-card, .action-card *, .action-card *::after { animation: none !important; transition: none !important; }
