@@ -1655,4 +1655,6 @@ export const da: Record<string, string> = {
  "Stuck at {from} · or reset to {to}": "Står stille på {from} · eller nulstil til {to}",
  "Use it": "Brug det",
  "{set} · your heaviest yet": "{set} · dit tungeste til dato",
+ "Couldn’t open this screen. Reload Aven and try again.": "Kunne ikke åbne denne skærm. Genindlæs Aven, og prøv igen.",
+ "Reload": "Genindlæs",
 };

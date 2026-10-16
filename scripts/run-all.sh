@@ -18,6 +18,7 @@ run ai node scripts/journey-ai.mjs
 run new node scripts/journey-new.mjs
 run keyboard node scripts/journey-keyboard.mjs
 run robust node scripts/robust.mjs
+run open-recovery node scripts/journey-open-recovery.mjs
 run interrupt node scripts/interrupt.mjs
 run orb node scripts/orb-motion.mjs
 run rest node scripts/journey-rest.mjs

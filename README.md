@@ -2393,3 +2393,14 @@ chocolate, milk chocolate chips → milk chocolate; caster / icing sugar → sug
 whole milk, rolled oats, Greek yoghurt), else the same words without filler (chopped, melted, fresh…). The food picked is
 the one shown on the card, so a swap is never hidden. Also: a spice only matches itself ("cinnamon" had matched Cinnamon
 roll). Tests in coach5.test.ts.
+
+## A failed screen download leaves the app usable
+
+Coach and the orb are loaded as separate screen files. If a download failed, the deferred loader replaced its rejected
+promise during React's retries, and the uncaught error could unmount the whole app. Rejected promises now stay stable,
+and each overlay has an error boundary: the failed overlay is dismissed and the existing toast offers Reload. Reloading
+fetches the current app; recovery does not clear workouts, food, chat or keys. Successful openings use the same components,
+styles and animation curves. `scripts/journey-open-recovery.mjs` blocks both screen downloads, checks the app and Settings
+remain usable, then unblocks them and verifies Coach and the orb open after reload. It is in `scripts/run-all.sh`.
+
+This reproduces a download-failure crash; the owner's exact intermittent phone freeze and GPU flicker still need device confirmation.
