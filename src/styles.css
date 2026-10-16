@@ -1185,7 +1185,8 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 @keyframes acRipple { 0%, 100% { opacity: 1; transform: none; } 38% { opacity: 0.7; transform: translate3d(0, -1.5px, 0); } }
 .action-card .ac-actions { animation: acActions 460ms var(--ease-smooth) both; }
 .coach-body .action-card:not(.fresh):not(.sealing) .ac-actions { animation: none; }
-@keyframes acActions { from { opacity: 0; transform: translate3d(0, 4px, 0); } }
+/* (a fade in place: rising, the Undo icon was drawn a touch differently and sharpened as it stopped — 34/255) */
+@keyframes acActions { from { opacity: 0; } }
 .ac-title { position: relative; overflow: hidden; }
 .ac-title .ac-roll { display: inline-block; animation: roll-up 460ms var(--ease-smooth) both; }
 .ac-title .ac-roll-out { position: absolute; left: 0; top: 0; white-space: nowrap; pointer-events: none; animation: acRollOut 360ms var(--ease-smooth) both; }
