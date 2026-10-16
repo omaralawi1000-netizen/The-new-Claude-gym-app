@@ -1,6 +1,6 @@
 // Films phase 5 part 1's motion frame by frame (animations frozen the moment they start, stepped 1000/30 ms) and checks the
-// seamless settle (1 ms before the end vs finished, ≤ 3/255): the briefing folding away on the first tick, a check-in chip
-// filling in, and the finish screen with Next time and the check-in.   AVEN_GPU=1 node scripts/film-phase5.mjs [theme]
+// seamless settle (1 ms before the end vs finished, ≤ 3/255): the Today card folding away on the first tick, and the finish
+// screen with Next time.   AVEN_GPU=1 node scripts/film-phase5.mjs [theme]
 import { launch, wait, skipOnboarding, loadDemo } from './lib.mjs';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -11,12 +11,8 @@ const { b, p } = await launch({ theme, size: { width: 384, height: 832 } });
 await p.goto('http://127.0.0.1:5173/'); await wait(p, 900); await skipOnboarding(p); await loadDemo(p);
 await p.evaluate(async () => {
   const { useStore } = await import('/src/state/store.ts');
-  const st = useStore.getState();
-  const done = st.sessions.filter((s) => s.status === 'done');
-  const last = done[done.length - 1];
-  const y = new Date(Date.now() - 86400000);
-  const date = `${y.getFullYear()}-${String(y.getMonth() + 1).padStart(2, '0')}-${String(y.getDate()).padStart(2, '0')}`;
-  st.mutateSession(last.id, (x) => ({ ...x, date, checkin: { energy: 1, sleep: 1, at: Date.now() - 86400000 } }));
+  // a health note that isn't about one lift: the Today card's line
+  useStore.getState().addMemory({ text: 'Lower back is tight this week', kind: 'health' });
   localStorage.removeItem('aven.briefHidden');
 });
 await p.reload(); await wait(p, 1600);
@@ -85,9 +81,6 @@ await p.getByRole('button', { name: 'Finish', exact: true }).click(); await wait
 await arm('.sheet:has(.sum-medal)');
 await p.getByRole('button', { name: /Finish and save/ }).click();
 await film('2-summary', 3400, '.sum-next');
+await p.screenshot({ path: `${OUT}-2-summary-rest.png` });
 await wait(p, 600);
-await p.locator('.sum-checkin').scrollIntoViewIfNeeded(); await wait(p, 700);
-await arm('.ci-chip.on');
-await p.getByRole('group', { name: 'Energy' }).getByRole('button', { name: 'Great' }).click();
-await film('3-checkin', 600, '.sum-checkin');
 await b.close();

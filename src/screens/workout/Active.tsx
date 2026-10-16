@@ -16,7 +16,7 @@ import { useNow } from '../../lib/hooks';
 import { setWorkoutOpener } from '../../ui/workoutOpen';
 import { nextSetOf, prepareRestAudio } from './rest';
 import { completeSet, onSetDone } from './complete';
-import { Briefing } from './Briefing';
+import { Briefing, LiftHints, useLiftHint } from './Briefing';
 import { addSet, deleteSet, moveExercise, patchExercise, patchSet, removeExercise, adjustRest, skipRest, toggleSuperset } from './actions';
 import { exName, fmtSet, MUSCLE_LABEL } from './common';
 import { SphereSlot, mirrorOrb, orbPress, orbTap } from '../../ui/Sphere';
@@ -772,6 +772,7 @@ export const ExerciseBlock = memo(function ExerciseBlock({ se, ex, linkedPrev, l
   const last = useMemo(() => lastPerformance(se.exerciseId, sessions), [se.exerciseId, sessions]);
   const lastWorking = last?.sets.filter(countable) ?? [];
   const increments = useStore((s) => s.increments);
+  const hint = useLiftHint(se, ex);
   const sugg = useMemo(() => (ex && ex.logType === 'weightReps' ? suggestProgression(ex, historyOf(se.exerciseId, sessions), repRange(se.sets), incrementFor(ex, increments, settings.plateStep)) : undefined),
     [ex, se.exerciseId, sessions, se.sets, increments, settings.plateStep]); // eslint-disable-line react-hooks/exhaustive-deps
   const u = settings.units;
@@ -823,8 +824,11 @@ export const ExerciseBlock = memo(function ExerciseBlock({ se, ex, linkedPrev, l
             <button className="chip sm press" onClick={() => push('exercisePicker', { mode: 'replace', seId: se.id, forExercise: ex })}>{t('Swap')}</button>
           </div>
         )}
-        {sugg && reason && (
-          <div className="wk-reason num"><Icon name={REASON_ICON[sugg.kind]} size={13} style={{ flex: 'none' }} /><span>{reason}</span></div>
+        {/* what the rows don't show: a record within reach, a stalled lift's change, last time's note (Briefing.tsx) */}
+        <LiftHints se={se} h={hint} />
+        {/* (a stalled lift's change and a heaviest-yet line already say why: one line, not two) */}
+        {sugg && reason && sugg.kind !== 'stalled' && !hint.record && (
+          <div className="wk-reason num"><Icon name={REASON_ICON[sugg.kind]} size={14} style={{ flex: 'none' }} /><span>{reason}</span></div>
         )}
 
         <div className="set-head" style={{ display: 'grid', gridTemplateColumns: gridCols(ex, settings.effort), gap: 8, marginTop: 12 }}>

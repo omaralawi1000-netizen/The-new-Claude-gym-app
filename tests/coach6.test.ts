@@ -1,22 +1,19 @@
 // @vitest-environment jsdom
-// Coach 2.0, phase 5, part 1: the coach around a workout. Readiness from what is logged; the briefing's targets are the
-// rows' own numbers; one set less per lift and back; next time's targets; one way to tick a set (tap, voice and the Coach);
-// ended notes stop flagging; the app counts its AI trouble.
+// Coach 2.0, phase 5, part 1: the coach around a workout. Each lift says only what its rows don't (a record within reach, a
+// stalled lift's change, last time's note); the Today card only what is about the whole workout; next time's targets; one
+// way to tick a set (tap, voice and the Coach); the app counts its AI trouble. It never tells him to do less.
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useStore, allExercises } from '../src/state/store';
 import { defaultData } from '../src/state/defaults';
-import { readiness, readinessLine, rpeCreep } from '../src/lib/readiness';
-import { briefing, nextTime, trimOneSet, untrim } from '../src/lib/coachWorkout';
+import { applyStallChange, liftHint, nextTime, workoutLines } from '../src/lib/coachWorkout';
 import { buildDayPlan } from '../src/lib/planDay';
-import { candidates, met, reviewNumbers } from '../src/lib/weekReview';
-import { historyOf, incrementFor, repRange, suggestProgression } from '../src/lib/workout';
 import { completeSet, onSetDone } from '../src/screens/workout/complete';
 import { runActions, validateAgent, type AgentCtx } from '../src/lib/agent';
 import { noteTrouble, troubleReport, troubleThisWeek } from '../src/lib/trouble';
 import { exerciseMap } from '../src/state/store';
 import { makeT } from '../src/lib/i18n';
 import { addDays, dayKey } from '../src/lib/dates';
-import type { ActivityLog, CheckIn, SetRecord, WorkoutSession } from '../src/lib/types';
+import type { ActivityLog, SetRecord, WorkoutSession } from '../src/lib/types';
 
 const t = makeT('en') as any;
 const today = dayKey(Date.now(), 0);
@@ -38,69 +35,52 @@ const put = (sessions: WorkoutSession[], activities: ActivityLog[] = []) => useS
 
 beforeEach(() => { localStorage.clear(); useStore.getState().replaceAll(defaultData('en')); });
 
-describe('readiness: from what is logged, never guessed', () => {
-  it('is normal with nothing to go on', () => {
+describe('what each lift says (only what the rows don’t)', () => {
+  const start = (sets = 3, repMin = 8, repMax = 12) => { useStore.getState().startWorkout({ routine: routine([item(bench().id, sets, repMin, repMax)]) }); return useStore.getState().active!.exercises[0]; };
+  it('a record within reach: set 1 as planned, or a rep or two more', () => {
+    put([ses(addDays(today, -6), [set(80, 9)]), ses(addDays(today, -3), [set(80, 12), set(80, 11)])]);
+    const se = start();
+    const h = liftHint(useStore.getState(), se, bench());
+    // the plan is 82.5 × 8 (set 1 hit 12): heavier than ever, so set 1 as planned is a new best
+    expect(h.record).toMatchObject({ kg: 82.5, reps: 8, planned: true });
+  });
+  it('a stalled lift: about 5 % lighter, top of the range, and "Use it" puts it in the open sets (Undo puts them back)', () => {
+    const at = (d: number, r: number) => ses(addDays(today, -d), [set(60, r), set(60, r - 1)]);
+    put([at(12, 8), at(9, 8), at(6, 8), at(3, 8)]);
+    const se = start(3, 8, 12);
+    const h = liftHint(useStore.getState(), se, bench());
+    expect(h.stall).toEqual({ from: { kg: 60, reps: 8 }, to: { kg: 57.5, reps: 12 }, sessions: 3 });
+    expect(h.record).toBeUndefined(); // one thing at a time
+    const a = useStore.getState().active!;
+    const r = applyStallChange(a, se.id, h.stall!.to);
+    expect(r.next.exercises[0].sets.filter((x) => x.type === 'working').every((x) => x.weightKg === 57.5 && x.reps === 12)).toBe(true);
+    expect(r.undo(r.next).exercises[0].sets).toEqual(a.exercises[0].sets);
+  });
+  it('the note left on it last time (not when today already carries the same note)', () => {
+    const last = ses(addDays(today, -3), [set(80, 8)]);
+    last.exercises[0].note = 'Seat on 4';
+    put([last]);
+    const se = start();
+    expect(liftHint(useStore.getState(), se, bench()).lastNote).toBe('Seat on 4');
+    expect(liftHint(useStore.getState(), { ...se, note: 'Seat on 4' }, bench()).lastNote).toBeUndefined();
+  });
+  it('nothing to say → nothing', () => {
     put([]);
-    expect(readiness(useStore.getState(), today).level).toBe('normal');
-    expect(readinessLine(useStore.getState(), today)).toBe('');
-  });
-  it('a poor night and low energy at the last check-in → tired, with the reasons', () => {
-    const c: CheckIn = { energy: 1, sleep: 1, at: Date.now() - DAY };
-    put([ses(addDays(today, -1), [set(80, 8)], { checkin: c })]);
-    const r = readiness(useStore.getState(), today);
-    expect(r.level).toBe('tired');
-    expect(r.reasons.map((x) => x.key)).toEqual(['Poor sleep', 'Low energy last time']);
-    expect(readinessLine(useStore.getState(), today)).toMatch(/READINESS.*tired — Poor sleep; Low energy last time/);
-  });
-  it('a check-in older than two days says nothing about today', () => {
-    put([ses(addDays(today, -4), [set(80, 8)], { checkin: { energy: 1, sleep: 1, at: Date.now() - 4 * DAY } })]);
-    expect(readiness(useStore.getState(), today).level).not.toBe('tired');
-  });
-  it('hard wrestling yesterday counts double; an easy roll a little', () => {
-    put([ses(addDays(today, -2), [set(80, 8)])], [wrestle(addDays(today, -1), 3)]);
-    expect(readiness(useStore.getState(), today)).toMatchObject({ level: 'tired', reasons: [{ key: 'Hard wrestling yesterday' }] });
-    put([ses(addDays(today, -2), [set(80, 8)])], [wrestle(addDays(today, -1), 1)]);
-    expect(readiness(useStore.getState(), today).level).toBe('normal');
-  });
-  it('the same weight at a higher RPE is a creep; a few days off and a great check-in → fresh', () => {
-    const s = [ses(addDays(today, -10), [set(80, 8, { rpe: 7 })]), ses(addDays(today, -6), [set(80, 8, { rpe: 8.5 })])];
-    expect(rpeCreep(s, today)).toEqual({ up: 1, checked: 1 });
-    put([ses(addDays(today, -4), [set(80, 8)], { checkin: { energy: 3, sleep: 3, at: Date.now() - 4 * DAY } })]);
-    expect(readiness(useStore.getState(), today).level).toBe('fresh');
+    expect(liftHint(useStore.getState(), start(), bench())).toEqual({});
   });
 });
 
-describe('the briefing', () => {
-  it('its targets are the rows’ own numbers (suggestProgression), with what moved', () => {
-    put([ses(addDays(today, -3), [set(80, 12), set(80, 11), set(80, 10)])]);
-    const st = useStore.getState();
-    st.startWorkout({ routine: routine([item(bench().id, 3, 8, 12)]) });
-    const a = useStore.getState().active!;
-    const b = briefing(useStore.getState(), a, today, exerciseMap(useStore.getState().exercises));
-    const sug = suggestProgression(bench(), historyOf(bench().id, useStore.getState().sessions), repRange(a.exercises[0].sets), incrementFor(bench(), {}, 2.5));
-    expect(b.targets[0]).toMatchObject({ exerciseId: bench().id, kg: sug.sets![0].weightKg, reps: sug.sets![0].reps, kind: 'add-weight', up: { kg: 2.5 } });
-    expect(b.focus?.key).toBe('Focus: the new weight on {exercise}');
-  });
-  it('tired: a flag with reasons and one set less per lift, which Undo puts back', () => {
-    put([ses(addDays(today, -1), [set(80, 8)], { checkin: { energy: 1, sleep: 1, at: Date.now() - DAY } })]);
-    const st = useStore.getState();
-    st.startWorkout({ routine: routine() });
-    const a = useStore.getState().active!;
-    const b = briefing(useStore.getState(), a, today, exerciseMap(useStore.getState().exercises));
-    expect(b.flags[0]).toMatchObject({ kind: 'tired', key: 'You look tired today' });
-    const r = trimOneSet(a);
-    const big = a.exercises.filter((e) => e.sets.filter((x) => x.type === 'working').length >= 3).length;
-    expect(r.removed).toHaveLength(big);
-    expect(untrim(r.next, r.removed)).toEqual(a);
-  });
-  it('an ended health note is not shown; a live one is', () => {
+describe('the Today card: only what is about the whole workout', () => {
+  it('a live health note that isn’t about one lift (an ended one isn’t shown), and wrestling tomorrow on a heavy leg day', () => {
     const st = useStore.getState();
     st.addMemory({ text: 'Sick, keep it light', kind: 'health', until: addDays(today, -1) });
-    st.startWorkout({ routine: routine() });
+    st.startWorkout({ routine: routine([item(squat().id, 6, 6, 8)]) });
     const map = exerciseMap(useStore.getState().exercises);
-    expect(briefing(useStore.getState(), useStore.getState().active!, today, map).flags.some((f) => f.kind === 'note')).toBe(false);
+    expect(workoutLines(useStore.getState(), useStore.getState().active!, today, map)).toEqual([]);
     useStore.getState().addMemory({ text: 'Back is tight this week', kind: 'health', until: addDays(today, 3) });
-    expect(briefing(useStore.getState(), useStore.getState().active!, today, map).flags.find((f) => f.kind === 'note')?.key).toBe('Back is tight this week');
+    const tomorrow = new Date(`${addDays(today, 1)}T12:00:00`).getDay();
+    useStore.getState().setSchedule({ activities: { [tomorrow]: ['wrestling'] } });
+    expect(workoutLines(useStore.getState(), useStore.getState().active!, today, map)).toEqual([{ kind: 'health', text: 'Back is tight this week' }, { kind: 'wrestle' }]);
   });
 });
 
@@ -112,28 +92,15 @@ describe('after the workout', () => {
     const out = nextTime(now, useStore.getState().sessions, useStore.getState(), exerciseMap(useStore.getState().exercises));
     expect(out[0]).toMatchObject({ exerciseId: bench().id, up: { kg: 2.5 }, kg: 85, reps: 8 });
   });
-  it('tired check-ins become a weekly priority, judged a week later', () => {
-    const c = (e: 1 | 2 | 3): CheckIn => ({ energy: e, at: Date.now() });
-    put([ses(addDays(today, -3), [set(80, 8)], { checkin: c(1) }), ses(addDays(today, -1), [set(80, 8)], { checkin: c(1) })]);
-    const d = useStore.getState();
-    const musc = (x: string) => allExercises(d.exercises).find((e) => e.id === x)?.muscles;
-    const nums = reviewNumbers(d, today, musc);
-    expect(nums).toMatchObject({ checkins: 2, tired: 2 });
-    expect(candidates(d, nums, (x) => x, (m) => m).some((x) => x.id === 'fatigue')).toBe(true);
-    expect(met('fatigue', nums, undefined)).toBe(false);
-  });
 });
 
 describe('day plans', () => {
-  it('a set lighter when tired (not under two, not where the Coach chose), and a warning after hard wrestling', () => {
+  it('never a set lighter for being tired; a warning after hard wrestling the day before', () => {
     put([ses(addDays(today, -3), [set(80, 8)])], [wrestle(today, 3, 8)]);
     const d = useStore.getState();
     const plan = buildDayPlan([{ ...squat(), sets: 6 }, { ...bench() }], addDays(today, 1), d);
-    expect(plan.warnings).toEqual(expect.arrayContaining(['tired', 'wrestled-day-before']));
-    expect(plan.picks[0].sets).toBe(6); // the Coach chose it
-    const later = buildDayPlan([{ ...bench() }], addDays(today, 5), d);
-    expect(plan.picks[1].sets).toBe(later.picks[0].sets - 1);
-    expect(later.warnings).toEqual([]);
+    expect(plan.warnings).toEqual(['wrestled-day-before']);
+    expect(plan.picks[1].sets).toBe(buildDayPlan([{ ...bench() }], addDays(today, 5), d).picks[0].sets);
   });
 });
 

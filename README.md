@@ -2361,3 +2361,24 @@ All of it is the app's own numbers: instant, free, no AI.
 - `tests/coach6.test.ts`, `scripts/journey-workout5.mjs` (in run-all), `scripts/film-phase5.mjs` (settle: finish screen
   1/255, chip 2/255; the fold's card is identical, only the background's slow breath differs). `journey-ai` now applies the
   routine preview (phase 4).
+
+## Coach 2.0, phase 5 part 1b: a briefing that only says what matters (16 Oct 2026, v0.1.139)
+
+Omar trains to failure whatever the day, so readiness only added suggestions he would ignore. Redone:
+- **Gone:** readiness (fresh/normal/tired), "You look tired today", "One set less per lift", the after-workout check-in,
+  lighter day plans and the tired nudges, the earlier lighter-week nudge, the weekly review's fatigue priority, the
+  Coach's READINESS line. (Wrestling clashes stay: they protect his performance on the mat, not how he feels.)
+- **Each lift says only what its rows don't** (`liftHint` in src/lib/coachWorkout.ts, `LiftHints` in Briefing.tsx), on its
+  own card in List and Focus alike:
+  - "55 kg × 8 · your heaviest yet": only when set 1's planned weight is the heaviest ever on that lift (a rep best is
+    what the progression aims at almost every session, so it would show on nearly every card); it replaces the reason
+    line, not repeats it;
+  - a stalled lift: "Stuck at 60 kg × 8 · or reset to 57.5 kg × 12" (about 5 % lighter, top of the range) with Use it
+    (the accent chip, 44 px target), which fills its open sets, with Undo;
+  - "Last time: …", the note left on that lift last time.
+- **Today card** (List): only what is about the whole workout (a health note that isn't about one lift, wrestling
+  tomorrow on a heavy leg day), one compact row when there's one line; no card when nothing applies. In Focus those lines
+  are a caption above the first exercise.
+- **Next time** says what went up "this time" in grey (in the accent it read like an instruction).
+- Judged twice (sliced fold fixed earlier; this round: the stall line read as a contradiction of the rows, a capsule row
+  read as a search field, lines didn't share one alignment); tests and journey-workout5 rewritten.

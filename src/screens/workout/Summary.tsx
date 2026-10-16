@@ -10,7 +10,7 @@ import { elapsedMs, sessionSetCount, sessionVolume, sessionHeadline, countable }
 import { fmtDate, fmtDuration, fmtDurationLong } from '../../lib/dates';
 import { backupAfterWorkout } from '../../lib/drive';
 import { displayToKg, fmtNum, kgToDisplay } from '../../lib/units';
-import type { CheckIn, RecordKind, WorkoutSession } from '../../lib/types';
+import type { RecordKind, WorkoutSession } from '../../lib/types';
 import { exName, fmtSet } from './common';
 import { plan, play } from './finishMoment';
 import { Odo } from '../../ui/Odo';
@@ -118,7 +118,7 @@ export function Summary({ props }: { props: { sessionId: string } }) {
                 <div key={x.exerciseId} className="sum-next-row">
                   <span className="sum-next-what">
                     <span className="sum-next-name">{ex ? exName(ex, lang) : ''}</span>
-                    {x.up && <span className="xs num">{t('{x} today', { x: moveText(x.up, u.weight, lang, t) })}</span>}
+                    {x.up && <span className="xs num">{t('{x} this time', { x: moveText(x.up, u.weight, lang, t) })}</span>}
                   </span>
                   <span className="num sum-next-to">{x.kg !== undefined ? `${fmtNum(kgToDisplay(x.kg, u.weight), lang, 2)} ${u.weight} × ` : ''}{x.reps}</span>
                 </div>
@@ -126,9 +126,6 @@ export function Summary({ props }: { props: { sessionId: string } }) {
             })}
           </div>
         )}
-
-        {/* how it felt: rises right after Next time, in the finish moment's own order */}
-        <div data-fm="after"><CheckInRows id={ses.id} value={ses.checkin} /></div>
 
         {/* the rest of the screen rises gently with the sheet, under the moment, never pulling the eye from it */}
         <div data-fm="rest">
@@ -152,33 +149,6 @@ export function Summary({ props }: { props: { sessionId: string } }) {
         </div>
       </div>
     </Sheet>
-  );
-}
-
-const CHECKIN: { k: 'energy' | 'soreness' | 'sleep'; label: string; opts: [string, string, string] }[] = [
-  { k: 'energy', label: 'Energy', opts: ['Low', 'OK', 'Great'] },
-  { k: 'soreness', label: 'Soreness', opts: ['None', 'Some', 'A lot'] },
-  { k: 'sleep', label: 'Sleep last night', opts: ['Poor', 'OK', 'Good'] },
-];
-/** One tap each, all optional: how it felt. Saved on the workout; the next briefing, day plan and the Coach read it. */
-function CheckInRows({ id, value }: { id: string; value?: CheckIn }) {
-  const t = useT();
-  const mutate = useStore((x) => x.mutateSession);
-  const pick = (k: 'energy' | 'soreness' | 'sleep', v: 1 | 2 | 3) => {
-    haptic('select');
-    mutate(id, (x) => { const c = { ...x.checkin, [k]: x.checkin?.[k] === v ? undefined : v, at: Date.now() }; return { ...x, checkin: c.energy || c.soreness || c.sleep ? c : undefined }; });
-  };
-  return (
-    <div className="sum-checkin">
-      <div className="micro" style={{ margin: '10px 0 2px' }}>{t('Quick check-in')}</div>
-      {CHECKIN.map((r) => (
-        <div key={r.k} className="ci-row" role="group" aria-label={t(r.label)}>
-          <span className="ci-label xs t2">{t(r.label)}</span>
-          {r.opts.map((o, i) => { const v = (i + 1) as 1 | 2 | 3; const on = value?.[r.k] === v; return <button key={o} className={`ci-chip press${on ? ' on' : ''}`} aria-pressed={on} onClick={() => pick(r.k, v)}><span>{t(o)}</span></button>; })}
-        </div>
-      ))}
-      <div className={`xs t3 ci-note${value ? ' on' : ''}`}>{t('Your next briefing and plans will take this into account.')}</div>
-    </div>
   );
 }
 

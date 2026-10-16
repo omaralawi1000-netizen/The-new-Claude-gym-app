@@ -1115,7 +1115,6 @@ function doPlanDay(a: Extract<AgentAction, { type: 'plan_day' }>, ctx: AgentCtx)
   plan.picks.filter((p) => p.flagged).forEach((p) => lines.push({ text: exLabel(p.ex, lang), sub: `${t('You told me')}: ${p.flagged}`, warn: true }));
   if (plan.warnings.includes('wrestling-next-day')) lines.push({ text: t('Wrestling the next day'), sub: t('A lot of leg work the day before — keep it lighter?'), warn: true });
   if (plan.warnings.includes('wrestled-day-before')) lines.push({ text: t('Wrestling the day before'), sub: t('Your legs may still be tired from the mat — keep the leg work lighter?'), warn: true });
-  if (plan.warnings.includes('tired')) lines.push({ text: t('You look tired today'), sub: t('One set less per lift'), warn: true });
   missing.forEach((n) => lines.push({ text: n, sub: t('Not in your exercise library'), warn: true }));
   const result: AgentResult = {
     id: uid('r'), kind: 'routine', pending: true, offer: true, key: `plan:${date}`,
