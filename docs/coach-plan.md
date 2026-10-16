@@ -27,7 +27,7 @@ The polish plan (`docs/polish-plan.md`) is paused while this runs.
   - The weekly review: the app computes the week (training, muscles vs his 4-week average, PRs, food on logged days, weight
     trend, last week's priorities done or not); the Coach writes a short verdict and at most two priorities, each with one
     Apply. Animated sheet (rolling numbers, bars growing, cards sealing).
-- [ ] **Phase 4: internet and recipes** (plan of 16 Oct; fresh look done)
+- [x] **Phase 4: internet and recipes** (v0.1.137; plan of 16 Oct, fresh look done)
   - **A. Coach smoothness first** (Omar: "any stutters, hiccups or flickers in the Coach"), measured before/after with
     `scripts/audit-coach.mjs` (seeded with a full 60-message chat, plus a mic action), Beta first:
     - a streamed answer re-renders the whole chat on every chunk and every keystroke → rows memoised, the composer's text

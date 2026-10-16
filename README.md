@@ -2319,3 +2319,10 @@ All of it is transform and opacity, ends on the card exactly as it rests, and is
   unknown) instead of the model's.
 - **A routine from a photo or said** (`create_routine`) is a preview first, like a planned day.
 - `scripts/journey-coach4.mjs` (in run-all) and `tests/coach5.test.ts`.
+- **A recipe is never lost to the shape of the answer** (found on Beta: "I want cake" answered three times, no card). A model
+  that turns the full schema down answers in plain JSON mode; its format hint said only `foods: array`, so ingredients came
+  back as text and the whole action was silently dropped. Now: the hint writes every nested shape out; `agentFoods` reads
+  text ingredients ("30 g whey") and other keys (`ingredients`, `quantity`, `method`…); anything still unreadable is said in
+  a card ("Part of the answer couldn't be read"); ingredients are matched in parallel; and Settings → About → "Copy last
+  answer" copies the AI's last raw answer (kept in memory only, no keys) for diagnosing the next odd answer.
+  `journey-coach4` runs the plain-mode path end to end. Shipped as v0.1.137.
