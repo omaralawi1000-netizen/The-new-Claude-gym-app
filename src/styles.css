@@ -1222,7 +1222,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .coach-body .action-card.fresh .ac-was { animation: acLine 520ms var(--ease-smooth) 130ms both; }
 .coach-body .action-card.fresh .ac-was-t::after { animation: acStrike 450ms var(--ease-io) 380ms both; }
 /* (in this order: old, crossed out, then new — the new wording waits for the strike) */
-.coach-body .action-card.fresh:has(.ac-was) .action-line { animation-delay: calc(760ms + var(--i, 1) * 55ms - 55ms); }
+.coach-body .action-card.fresh:has(.ac-was) .action-line { animation-delay: calc(760ms + var(--i, 1) * 55ms - 55ms) !important; } /* (over the inline delay each line carries) */
 .coach-body .action-card.fresh:has(.ac-was) .ac-actions:not(.ac-in-late):not(.ac-out) { animation-delay: 940ms; }
 /* a replaced preview steps back quietly */
 .action-card.replaced { opacity: 0.6; transition: opacity 600ms var(--ease-smooth); }
