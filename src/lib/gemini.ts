@@ -228,13 +228,23 @@ const noSchema = new Set<string>();
 /** The agent's schema as plain words, for a model answering in plain JSON mode (every answer is validated all the same). */
 function schemaHint(): string {
   const items = (AGENT_SCHEMA.properties.actions as any).items.properties as Record<string, any>;
-  const field = (k: string, v: any) => `${k}: ${String(v.type).toLowerCase()}${v.enum ? ` (${v.enum.join(' | ')})` : ''}${v.description ? ` — ${v.description}` : ''}`;
-  return `\n\nANSWER FORMAT: only a JSON object {"lookups": [{"kind", "query", "from", "to", "meal"}] (optional), "reply": string, "actions": [ … ]}. Each action has "type" and only the fields it needs:\n${Object.entries(items).map(([k, v]) => `- ${field(k, v)}`).join('\n')}\nLookup kinds: ${LOOKUP_KINDS.join(', ')}.`;
+  // nested shapes written out too ("foods: [{name, amount, unit (g | ml | …)}]"): with only "array" a model wrote its
+  // ingredients as plain strings, and the whole action was dropped
+  const shape = (v: any): string => {
+    if (v?.type === 'ARRAY') return v.items?.type === 'OBJECT' ? `[${shape(v.items)}]` : `[${String(v.items?.type ?? 'string').toLowerCase()}]`;
+    if (v?.type === 'OBJECT' && v.properties) return `{${Object.entries(v.properties).map(([k, x]: [string, any]) => `${k}${x.enum ? ` (${x.enum.join(' | ')})` : x.type === 'ARRAY' || x.type === 'OBJECT' ? `: ${shape(x)}` : ''}`).join(', ')}}`;
+    return String(v?.type ?? 'string').toLowerCase();
+  };
+  const field = (k: string, v: any) => `${k}: ${shape(v)}${v.enum ? ` (${v.enum.join(' | ')})` : ''}${v.description ? ` — ${v.description}` : ''}`;
+  return `\n\nANSWER FORMAT: only a JSON object {"lookups": [{"kind", "query", "from", "to", "meal"}] (optional), "reply": string, "actions": [ … ]}. Each action has "type" and only the fields it needs; an array of objects is written exactly with the keys shown:\n${Object.entries(items).map(([k, v]) => `- ${field(k, v)}`).join('\n')}\nLookup kinds: ${LOOKUP_KINDS.join(', ')}.`;
 }
+/** For the raw-answer copy (Settings → About): the models answering in plain JSON mode in this visit. */
+export const plainModels = () => [...noSchema];
+export const schemaHintForTest = () => schemaHint();
 export interface Turn { role: 'user' | 'model'; parts: { text: string }[] }
 
 // ── the Coach as an agent: one answer = a short reply plus the actions to carry out ──
-export const ACTION_TYPES = ['log_food', 'log_water', 'log_weight', 'log_sets', 'log_activity', 'start_workout', 'finish_workout', 'navigate', 'set_setting', 'edit_food', 'delete_food', 'move_food', 'copy_food', 'replace_food', 'create_food', 'favourite_food', 'save_meal', 'edit_set', 'add_exercise', 'remove_exercise', 'replace_exercise', 'create_routine', 'edit_routine', 'delete_routine', 'delete_workout', 'discard_workout', 'set_schedule', 'move_workout', 'plan_activity', 'log_current_set', 'delete_activity', 'delete_weight', 'add_note', 'remember', 'forget', 'show_exercise', 'suggest_food', 'plan_day', 'edit_meals', 'log_saved_meal', 'delete_water', 'create_exercise', 'archive_exercise', 'set_increment', 'log_measurement', 'delete_measurement', 'workout_control', 'set_split', 'skip_day', 'undo_last'];
+export const ACTION_TYPES = ['log_food', 'log_water', 'log_weight', 'log_sets', 'log_activity', 'start_workout', 'finish_workout', 'navigate', 'set_setting', 'edit_food', 'delete_food', 'move_food', 'copy_food', 'replace_food', 'create_food', 'favourite_food', 'save_meal', 'edit_set', 'add_exercise', 'remove_exercise', 'replace_exercise', 'create_routine', 'edit_routine', 'delete_routine', 'delete_workout', 'discard_workout', 'set_schedule', 'move_workout', 'plan_activity', 'log_current_set', 'delete_activity', 'delete_weight', 'add_note', 'remember', 'forget', 'show_exercise', 'suggest_food', 'plan_day', 'edit_meals', 'log_saved_meal', 'delete_water', 'create_exercise', 'archive_exercise', 'set_increment', 'log_measurement', 'delete_measurement', 'workout_control', 'set_split', 'skip_day', 'propose_recipe', 'undo_last'];
 const BIT = { type: 'ARRAY', nullable: true, items: { type: 'OBJECT', properties: { exercise: { type: 'STRING' }, sets: { type: 'INTEGER', nullable: true }, repMin: { type: 'INTEGER', nullable: true }, repMax: { type: 'INTEGER', nullable: true }, restSec: { type: 'INTEGER', nullable: true }, warmup: { type: 'INTEGER', nullable: true } }, required: ['exercise'] } };
 const NUTRI = (d: string) => ({ type: 'OBJECT', nullable: true, description: d, properties: { kcal: { type: 'NUMBER', nullable: true }, protein: { type: 'NUMBER', nullable: true }, carbs: { type: 'NUMBER', nullable: true }, fat: { type: 'NUMBER', nullable: true } } });
 const AGENT_FOOD = { type: 'OBJECT', properties: {
@@ -257,6 +267,8 @@ export const AGENT_SCHEMA = {
     actions: { type: 'ARRAY', items: { type: 'OBJECT', properties: {
       type: { type: 'STRING', enum: ACTION_TYPES },
       foods: { type: 'ARRAY', nullable: true, items: AGENT_FOOD },
+      servings: { type: 'NUMBER', nullable: true, description: 'propose_recipe: how many servings the recipe makes' },
+      steps: { type: 'ARRAY', nullable: true, items: { type: 'STRING' }, description: 'propose_recipe: the method, one short step each' },
       options: { type: 'ARRAY', nullable: true, description: 'suggest_food: 2–3 things to eat, each with its foods (amounts filled in) and approximate totals', items: { type: 'OBJECT', properties: {
         label: { type: 'STRING', description: 'a short name, e.g. "Skyr with banana"' }, foods: { type: 'ARRAY', items: AGENT_FOOD }, totals: NUTRI('approximate totals for this option'),
       }, required: ['label', 'foods'] } },
@@ -282,7 +294,7 @@ export const AGENT_SCHEMA = {
       seconds: { type: 'INTEGER', nullable: true, description: 'workout_control: rest length (rest_start, rest_set) or change (rest_add, negative = shorter)' },
       days: { type: 'ARRAY', nullable: true, description: 'set_split: the days that change (or all seven)', items: { type: 'OBJECT', properties: { weekday: { type: 'INTEGER' }, routine: { type: 'STRING', nullable: true, description: 'routine name, or "rest" for a rest day; null = leave the gym day as it is' }, wrestling: { type: 'BOOLEAN', nullable: true, description: 'true/false to set wrestling that day; null = leave as is' } }, required: ['weekday'] } },
       with: { type: 'OBJECT', nullable: true, description: 'replace_food: the food to put in its place', properties: { name: { type: 'STRING' }, brand: { type: 'STRING', nullable: true }, amount: { type: 'NUMBER', nullable: true }, unit: { type: 'STRING', nullable: true, enum: FOOD_UNITS }, state: { type: 'STRING', nullable: true, enum: ['raw', 'cooked', 'dry'] } }, required: ['name'] },
-      name: { type: 'STRING', nullable: true, description: 'create_food / favourite_food / save_meal: the name' },
+      name: { type: 'STRING', nullable: true, description: 'create_food / favourite_food / save_meal / propose_recipe: the name' },
       basis: { type: 'STRING', nullable: true, enum: ['g', 'ml'] }, on: { type: 'BOOLEAN', nullable: true, description: 'favourite_food: favourite or not. plan_activity: true = add to that day, false = take it off' },
       exercise: { type: 'STRING', nullable: true, description: 'edit_set: the exercise. remember: the catalog exercise it is about, if any. show_exercise: the catalog exercise to show' }, workout: { type: 'STRING', nullable: true, description: 'edit_set/delete_workout: current, last, a date YYYY-MM-DD, or a workout name' },
       set_number: { type: 'INTEGER', nullable: true, description: '1-based set number as listed in DATA' }, reps: { type: 'INTEGER', nullable: true }, delete_set: { type: 'BOOLEAN', nullable: true, description: 'edit_set: true to delete that set' }, remove: { type: 'ARRAY', nullable: true, items: { type: 'STRING' }, description: 'edit_routine: exercise names to take out of the routine' },
@@ -523,3 +535,30 @@ export async function aiWeekReview(context: string, brain: Brain, lang: string, 
     .slice(0, 2).map((p: any) => ({ id: p.id, text: p.text.trim().slice(0, 120) }));
   return { verdict, priorities };
 }
+
+
+// ── web search (phase 4): Google Search grounding, free within its daily allowance ──
+export interface WebSource { title: string; url: string }
+export const SEARCH_SYSTEM = (lang: string) =>
+  'Search the web and report what answers the question: the facts, with numbers, amounts and steps where they matter, in at ' +
+  'most about 220 words. Prefer official, scientific and well-known sources. Say plainly when evidence is mixed, early or ' +
+  'from one small study, and when sources disagree. Report; do not give advice about the person asking. ' +
+  `Write in ${lang === 'da' ? 'Danish' : 'English'}.`;
+/** One grounded search: the answer and the pages it came from. */
+export async function geminiSearch(query: string, brain: Pick<Brain, 'key' | 'models' | 'signal'>, lang: string): Promise<{ text: string; sources: WebSource[] }> {
+  return withFallback(brain.models, async (m) => {
+    const { res, done } = await post(`models/${m}:generateContent`, brain.key, {
+      systemInstruction: { parts: [{ text: SEARCH_SYSTEM(lang) }] },
+      contents: [{ role: 'user', parts: [{ text: query }] }],
+      tools: [{ google_search: {} }],
+      generationConfig: { temperature: 0.2, maxOutputTokens: 1400 },
+    }, { timeout: 30000, signal: brain.signal });
+    const data = await res.json(); done();
+    const text = textOf(data).trim();
+    if (!text) throw new AiError('empty');
+    const chunks = data?.candidates?.[0]?.groundingMetadata?.groundingChunks ?? [];
+    const sources = chunks.map((c: any) => c?.web).filter((w: any) => w && typeof w.uri === 'string').map((w: any) => ({ title: String(w.title || new URL(w.uri).hostname).slice(0, 80), url: w.uri }));
+    return { text: text.slice(0, 3000), sources: dedupeSources(sources) };
+  });
+}
+export const dedupeSources = (list: WebSource[]): WebSource[] => { const seen = new Set<string>(); return list.filter((s) => /^https:\/\//.test(s.url) && !seen.has(s.title.toLowerCase()) && seen.add(s.title.toLowerCase())).slice(0, 6); };

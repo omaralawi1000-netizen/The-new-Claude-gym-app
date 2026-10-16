@@ -1,6 +1,7 @@
 import { memo, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useLang, useT } from '../lib/i18n';
 import { Icon, type IconName } from './Icon';
+import { Collapse } from './kit';
 import { useStore } from '../state/store';
 import { dayKey, diffDays } from '../lib/dates';
 import { sumNutrients } from '../lib/nutrition';
@@ -132,7 +133,7 @@ export function RotatingHint() {
   return <span key={text} className="hint-rot">“{text}”</span>;
 }
 
-const KIND_ICON: Record<string, IconName> = { food: 'recipe', sets: 'dumbbell', water: 'drop', weight: 'scale', activity: 'wrestle', workout: 'dumbbell', routine: 'list', nav: 'info', setting: 'settings', memory: 'note', miss: 'info' };
+const KIND_ICON: Record<string, IconName> = { food: 'recipe', recipe: 'recipe', sets: 'dumbbell', water: 'drop', weight: 'scale', activity: 'wrestle', workout: 'dumbbell', routine: 'list', nav: 'info', setting: 'settings', memory: 'note', miss: 'info' };
 
 /** Pieces shared by the Coach chat and the orb screen: how the assistant's words and actions are shown. */
 
@@ -313,7 +314,7 @@ export function ActionCard({ r, undone, confirmed, onUndo, onConfirm, replaced =
   const waiting = !!r.pending && !confirmed && !undone && !replaced;
   const hadButtons = !!(r.button || r.undo || r.more?.length);
   const gone = undone || (replaced && !confirmed);
-  const title = undone ? t('Undone') : confirmed ? t('Done') : replaced ? t('Replaced by the newer version below') : r.title;
+  const title = undone ? t('Undone') : confirmed ? (r.doneTitle ?? t('Done')) : replaced ? t('Replaced by the newer version below') : r.title;
   // the title changed under the user's eyes: the old one rolls up and out while the new one rolls in (never a blank frame)
   const shownTitle = useRef({ now: title, before: '' });
   if (shownTitle.current.now !== title) shownTitle.current = { now: title, before: shownTitle.current.now };
@@ -345,9 +346,11 @@ export function ActionCard({ r, undone, confirmed, onUndo, onConfirm, replaced =
               ))}
             </div>
           )}
+          {/* a recipe's method: folded away under its ingredients until opened */}
+          {r.steps && r.steps.length > 0 && <Method steps={r.steps} />}
           {/* The buttons live in one cell. On Apply the Apply row leaves in place while the Undo row fades in over it; once
               undone (or replaced) the row keeps its room and fades out, so the card never changes height in one frame. */}
-          {(hadButtons || (confirmed && r.undo)) && (!gone || goneLive) && (
+          {(hadButtons || (confirmed && (r.undo || r.more?.length))) && (!gone || goneLive) && (
             <div className={`ac-actions-cell${gone ? ' gone' : ''}`} inert={gone || undefined}>
               {(!confirmed || sealing) && hadButtons && (
                 <div key="before" className={`row-flex ac-actions${confirmed ? ' ac-out' : ''}`} style={{ gap: 8, flexWrap: 'wrap' }} aria-hidden={confirmed || undefined} inert={confirmed ? true : undefined}>
@@ -356,9 +359,11 @@ export function ActionCard({ r, undone, confirmed, onUndo, onConfirm, replaced =
                   {r.undo && !r.pending && <button className="btn sm ghost press" onClick={onUndo}><Icon name="undo" size={15} /> {t('Undo')}</button>}
                 </div>
               )}
-              {confirmed && r.undo && (
-                <div key="after" className={`row-flex ac-actions${sealing ? ' ac-in-late' : ''}`} style={{ gap: 8 }}>
-                  <button className="btn sm ghost press" onClick={onUndo}><Icon name="undo" size={15} /> {t('Undo')}</button>
+              {confirmed && (r.undo || r.more?.length) && (
+                <div key="after" className={`row-flex ac-actions${sealing ? ' ac-in-late' : ''}`} style={{ gap: 8, flexWrap: 'wrap' }}>
+                  {/* (a saved recipe can still be logged or listed: its other buttons stay beside Undo) */}
+                  {r.undo && <button className="btn sm ghost press" onClick={onUndo}><Icon name="undo" size={15} /> {t('Undo')}</button>}
+                  {r.more?.map((b) => <button key={b.label} className="btn sm ghost press" onClick={() => { haptic('light'); b.run(); }}>{b.label}</button>)}
                 </div>
               )}
             </div>
@@ -383,6 +388,24 @@ function WeekStrip({ week }: { week: NonNullable<AgentResult['week']> }) {
           <span className="ac-day-dot">{d.routine ? d.routine.slice(0, 1).toUpperCase() : ''}{d.wrestling && <i className="ac-day-w" />}</span>
         </div>
       ))}
+    </div>
+  );
+}
+
+
+/** A recipe's method on its card: one quiet line to open it; the steps fold open (and shut) smoothly. */
+function Method({ steps }: { steps: string[] }) {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="ac-method">
+      <button className="xs t2 ac-method-btn press" aria-expanded={open} onClick={() => setOpen((x) => !x)}>
+        <Icon name="chevD" size={14} style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 320ms var(--ease-smooth)' }} />
+        {open ? t('Hide method') : t('Method ({n} steps)', { n: steps.length })}
+      </button>
+      <Collapse open={open}>
+        <ol className="ac-steps small">{steps.map((x, i) => <li key={i}>{x}</li>)}</ol>
+      </Collapse>
     </div>
   );
 }

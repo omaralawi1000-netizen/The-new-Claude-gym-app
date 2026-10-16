@@ -2294,3 +2294,35 @@ All of it is transform and opacity, ends on the card exactly as it rests, and is
     left (scaleX, 60 ms apart) and the usual-week mark fades in after it; then the verdict's words rise in and the
     priorities settle like the Coach's cards. Once per week per visit; reopened, it is still. Off with reduced motion.
 - `scripts/journey-coach3.mjs` (in `run-all.sh`) and `scripts/film-review.mjs` (frame-stepped clips + seamless settle).
+
+## Coach 2.0, phase 4: smoother Coach, the web, recipes (16 Oct 2026)
+
+- **Smoothness** (measured with `scripts/audit-coach.mjs`, which now starts from a full 60-message chat and records the mic;
+  4× CPU, production build; averages of 2 runs before and 3 after, software Chromium is noisy):
+  - every chat row is its own memoised component (`ChatRow`): a streamed piece or a keystroke no longer rebuilds all 60
+    rows; the Coach reads only `exercises` from the store. Scroll, type, send, new chat: about 25–32 % less script;
+  - the orb re-measured the page on every frame while you speak (its voice level is a style write on the slot's button);
+    a style change that is only `--voice` is now ignored (anything else on that element still counts): mic about −16 %.
+    (A first version ignored every style change on that element and made the orb screen's answer measurably worse; fixed.)
+  - the chat is saved when the phone is idle (and at once on close), not in the frame the answer ends;
+  - the answer, sent message, quiet note and typing-dots entrances fill `both` with no end keyframe (style guide §4).
+  - An answer streaming in is about unchanged: its cost is the word-by-word fade (deliberate, v0.1.88).
+- **The web** (`geminiSearch` in gemini.ts, `solSearch` in openai.ts): a `web` look-up. Gemini's Google Search grounding
+  first (free within its daily allowance), OpenAI's search tool only without a Gemini key (its per-search fee is counted
+  in the monthly Sol limit, `recordFee`). The text goes back to the model as LOOKUP RESULTS; its pages (https only, no
+  duplicates, at most 6) are shown as chips under the answer and saved with it. A failed search is said, never made up.
+- **Recipes** (`propose_recipe`): the model names the ingredients with amounts and the method; the app matches each one to
+  a real food (`findFood`, shared with logging, but never an AI estimate), computes the macros (`calcRecipe`) and shows a
+  preview: per-serving kcal/protein/carbs/fat, every ingredient with its amount and kcal, misses flagged and left out, the
+  method folding open. Save recipe (Undo), Log a portion (one serving now, Undo), Shopping list (copied). After Save the
+  card keeps its name and its other buttons. `suggest_food` cards show the app's own totals (no number when a food is
+  unknown) instead of the model's.
+- **A routine from a photo or said** (`create_routine`) is a preview first, like a planned day.
+- `scripts/journey-coach4.mjs` (in run-all) and `tests/coach5.test.ts`.
+- **A recipe is never lost to the shape of the answer** (found on Beta: "I want cake" answered three times, no card). A model
+  that turns the full schema down answers in plain JSON mode; its format hint said only `foods: array`, so ingredients came
+  back as text and the whole action was silently dropped. Now: the hint writes every nested shape out; `agentFoods` reads
+  text ingredients ("30 g whey") and other keys (`ingredients`, `quantity`, `method`…); anything still unreadable is said in
+  a card ("Part of the answer couldn't be read"); ingredients are matched in parallel; and Settings → About → "Copy last
+  answer" copies the AI's last raw answer (kept in memory only, no keys) for diagnosing the next odd answer.
+  `journey-coach4` runs the plain-mode path end to end. Shipped as v0.1.137.

@@ -116,7 +116,8 @@ describe('what to eat', () => {
     const cards = await runActions(v.actions, ctx());
     expect(cards).toHaveLength(2);
     expect(cards.every((c) => c.pending && c.button)).toBe(true);
-    expect(cards[0].subtitle).toMatch(/280 kcal · 34 g protein/);
+    expect(cards[0].subtitle).toMatch(/^294 kcal · 34 g protein$/); // the app's own totals from real foods (the model said 280)
+    expect(cards[1].subtitle).toBe('195 kcal · 44 g protein'); // a can of tuna, from the bundled foods
     expect(useStore.getState().entries).toHaveLength(0);
   });
 });

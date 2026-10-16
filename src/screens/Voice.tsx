@@ -11,7 +11,7 @@ import { getKey } from '../lib/keys';
 import { transcribe, buildPrompt, STT_MODEL, SttError } from '../lib/groq';
 import { aiErrorText, type Turn } from '../lib/gemini';
 import { decide, brainFor } from '../lib/agentTurn';
-import { runActions, type AgentResult } from '../lib/agent';
+import { droppedCard, runActions, type AgentResult } from '../lib/agent';
 import { dayKey } from '../lib/dates';
 import { uid } from '../lib/nutrition';
 import { appendExchange, markInThread, readThread, threadSaid, threadTurns } from '../lib/thread';
@@ -324,6 +324,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
       const st = useStore.getState();
       const today = dayKey(Date.now(), st.settings.dayStartHour);
       const results = d.actions.length ? await runActions(d.actions, { t, lang, today, brain: brainFor({ big: false, surface: 'orb', signal }), date: props.date, mealId: props.mealId }) : [];
+      if (d.dropped) results.push(droppedCard(t)); // (never silent: part of the answer was unreadable)
       if (!alive.current) return;
       const said = [reply, d.note].filter(Boolean).join('\n\n');
       // it joins the conversation the Coach shows too (so "move it to lunch" there knows what "it" is)

@@ -27,9 +27,25 @@ The polish plan (`docs/polish-plan.md`) is paused while this runs.
   - The weekly review: the app computes the week (training, muscles vs his 4-week average, PRs, food on logged days, weight
     trend, last week's priorities done or not); the Coach writes a short verdict and at most two priorities, each with one
     Apply. Animated sheet (rolling numbers, bars growing, cards sealing).
-- [ ] **Phase 4: internet, recipes, meal plans**: web search with sources he can tap (consensus kept apart from early
-  findings); recipes (high-protein / low-calorie) with macros computed by the app from real foods, Save as recipe / Log a
-  portion; a 3–7 day meal plan from foods he eats, with a shopping list; a photo of a program → a routine preview.
+- [x] **Phase 4: internet and recipes** (v0.1.137; plan of 16 Oct, fresh look done)
+  - **A. Coach smoothness first** (Omar: "any stutters, hiccups or flickers in the Coach"), measured before/after with
+    `scripts/audit-coach.mjs` (seeded with a full 60-message chat, plus a mic action), Beta first:
+    - a streamed answer re-renders the whole chat on every chunk and every keystroke → rows memoised, the composer's text
+      kept out of the chat, store reads narrowed;
+    - the mic makes the orb re-measure every frame while he speaks → the voice level no longer marks the orb's geometry dirty;
+    - answer/sent/typing entrances that end on a `to` keyframe with `backwards` fill (they drop their layer mid-stream: the
+      flicker fingerprint) → `both`, no `to`;
+    - the chat is saved (JSON + IndexedDB) on idle, not while words are still revealing.
+  - **B. Web search with sources**: a `web` look-up (Gemini Google Search grounding: free daily allowance; OpenAI's web
+    search only when Sol is on, counted in the monthly limit). The answer shows its sources as small tappable chips.
+    Consensus kept apart from early findings; never used for his own data.
+  - **C. Recipes the app can stand behind**: `propose_recipe` (name, servings, ingredients with amounts, steps). The app
+    matches every ingredient to a real food (no AI estimate for missing ones: they are flagged), computes the macros per
+    serving, and shows a preview: Save recipe (Apply, Undo) or Log a portion. `suggest_food` shows app-computed totals too.
+    A shopping list from one or more recipes (copy to clipboard).
+  - **D. A photo of a program → a routine preview** (`create_routine` becomes Preview → Apply, like a planned day).
+  - Dropped on the fresh look: multi-day meal plans (a plan that doesn't sync with what he logs is rarely followed;
+    recipes + shopping list cover the real need).
 - [ ] **Phase 5: the coach around the workout**: a short briefing when today's workout starts; a Coach line on the Summary
   (what moved, next time's targets, computed locally); a one-tap check-in (energy, soreness, sleep) that makes the next plan
   lighter when needed; smarter deload and wrestling load; long-press anything ("Ask the Coach about this"); small charts in
