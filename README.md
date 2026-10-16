@@ -2263,3 +2263,34 @@ All of it is transform and opacity, ends on the card exactly as it rests, and is
   seamless settle (1 ms before the end vs finished, ≤ 3/255). `CLIPS=2,5` films only some.
 - A harsh-judge pass found the one-frame jumps above; after the fixes every clip settles within 0–3/255. Filmed in Aurora
   (`AVEN_PALETTE`, default `aurora` in the film script). Shipped as v0.1.135 on Omar's "I would call it done".
+
+## Coach 2.0, phase 3: memory that grows (16 Oct 2026)
+
+- **The whole conversation, kept** (`src/lib/archive.ts`): the chat on screen still holds its last 60 messages, but every
+  message to the Coach or the orb is also kept on the phone (IndexedDB `aven-chat`, text only, each card as its one-line
+  note with its state). It is read once when the phone is idle after start and kept in memory, so the look-ups stay
+  synchronous. The `conversations` look-up searches all of it: Danish and English folded, words that carry no meaning
+  ignored, a word's start counts ("knæ" finds "knæet"), a date range, the best 12 hits each with the answer beside it.
+  Backups carry it as `chat` (additive: an old backup has none and restores as before; restoring merges, nothing is lost).
+  Settings → Coach memory → Conversation history: search it, or delete it (confirm). "Delete all data" clears it too.
+- **Memory v2**: `remember` takes `memory` (the number of the note it replaces: a correction rewords that note, its earlier
+  wordings kept, Undo puts it back) and `until` (a temporary thing: "sick until Friday" ends by itself; a date in the past or
+  over a year away is ignored). Each note goes to the model with its age; an ended one stays numbered but marked "ignore".
+  Up to 60 notes; when full, an ended note makes room. The card shows the old wording struck through (drawn as the card
+  arrives) above the new one. The memory page groups notes by kind, shows "Until …", "updated …", and earlier wording.
+- **It learns from what he does with its work** (`src/lib/ledger.ts`): a food moved to another meal, an exercise swapped
+  for another, a planned day applied or taken back, a setting changed back. Undoing a move or swap takes its moment back.
+  Two moments that agree make a rule (one never does); the rules go to the model as LEARNED (at most 6) and are listed in
+  Coach memory → Learned from you, where Forget drops one for good.
+- **The weekly review** (`src/lib/weekReview.ts`, `src/screens/WeekReview.tsx`): the Today card's button now opens a sheet
+  with every number of the week (workouts vs planned, working sets, protein on logged days, weight trend, records, streak),
+  sets per muscle against the usual week (the 4 weeks before), last week's focus checked against the data, and the Coach.
+  The app computes everything and offers the candidates (missed workouts, fast weight loss, a stalled lift, protein, a
+  muscle that dropped, food logging); the Coach (Gemini) writes a 2–3 line verdict and chooses at most two of them — an id
+  it was not offered is dropped. Without a key, the app's own verdict and its top two. Kept in `reviews` (one per week, the
+  newest 26, in backups); the Coach reads its last two reviews and whether their priorities happened the week after.
+  Progress → Weekly reviews opens them again (no second AI call).
+  - Motion: the numbers roll in like the workout summary's odometers, the muscles' glass rises, each bar grows from the
+    left (scaleX, 60 ms apart) and the usual-week mark fades in after it; then the verdict's words rise in and the
+    priorities settle like the Coach's cards. Once per week per visit; reopened, it is still. Off with reduced motion.
+- `scripts/journey-coach3.mjs` (in `run-all.sh`) and `scripts/film-review.mjs` (frame-stepped clips + seamless settle).

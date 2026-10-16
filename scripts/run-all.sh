@@ -24,6 +24,7 @@ run rest node scripts/journey-rest.mjs
 run sol node scripts/journey-sol.mjs
 run coach node scripts/journey-coach.mjs
 run coach2 node scripts/journey-coach2.mjs
+run coach3 node scripts/journey-coach3.mjs
 run drive node scripts/journey-drive.mjs
 run align node scripts/align.mjs
 run sync node scripts/sync-check.mjs

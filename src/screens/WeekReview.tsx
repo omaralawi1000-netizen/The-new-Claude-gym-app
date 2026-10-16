@@ -8,7 +8,7 @@ import { reviewWeekEnd } from '../lib/stats';
 import { candidates, localVerdict, met, reviewNumbers, storedReview, type Candidate, type ReviewNumbers } from '../lib/weekReview';
 import { fmtNum, fmtSigned, kgToDisplay } from '../lib/units';
 import { getKey } from '../lib/keys';
-import { Sheet } from '../ui/Sheet';
+import { Sheet, SheetHead } from '../ui/Sheet';
 import { Icon } from '../ui/Icon';
 import { Odo } from '../ui/Odo';
 import { apple, springCurve } from '../ui/motion';
@@ -46,7 +46,8 @@ function play(root: HTMLElement): () => void {
     rise(tile, 14, st, TILE);
     tile.querySelectorAll<HTMLElement>('[data-travel]').forEach((strip) => spring(strip, [{ transform: 'translate3d(0, 0, 0)' }, { transform: `translate3d(0, ${-Number(strip.dataset.travel) * 1.15}em, 0)` }], ROLL, Math.max(0, st - 0.1), 2.5));
   });
-  // the muscles: each bar grows from the left, one after another; the mark for the usual week fades in once its bar is there
+  // the muscles' glass rises in first, then each bar grows from the left, one after another; the mark for the usual week fades in once its bar is there
+  qa('panel').forEach((el) => rise(el, 12, 0.42));
   qa('bar').forEach((row, i) => {
     const st = 0.55 + i * 0.06;
     ease(row, [{ opacity: 0 }, { opacity: 1 }], 0.3, st);
@@ -130,12 +131,9 @@ export function WeekReviewSheet({ props }: { props: { end?: string } }) {
     push('coach', { ask: focus ? t('Plan next week with me. Focus: {focus}', { focus }) : t('Review my week and give me the one thing to change next week.') });
   };
   return (
-    <Sheet onClose={closeAll} tall label={t('Your week')} foot={<div className="row-flex" style={{ gap: 10 }}><button className="btn grow press" onClick={closeAll}>{t('Done')}</button><button className="btn primary grow press" onClick={planNext}><Icon name="sparkle" size={16} /> {t('Plan next week')}</button></div>}>
-      <div ref={body} className={`stack gap16 rv${calm ? ' still' : ''}`} style={{ ['--rv-base' as string]: `${base}ms` }}>
-        <header data-rv="head">
-          <div className="micro">{t('Your week')}</div>
-          <div className="display display-sm" style={{ fontStyle: 'italic', marginTop: 4 }}>{fmtDate(n.from, lang, { day: 'numeric', month: 'short' })} – {fmtDate(n.to, lang, { day: 'numeric', month: 'short' })}</div>
-        </header>
+    <Sheet onClose={closeAll} tall label={t('Your week')} foot={<div className="row-flex" style={{ gap: 10 }}><button className="btn grow press" onClick={closeAll}>{t('Done')}</button><button className="btn primary grow press" onClick={planNext}><Icon name="calendar" size={16} /> {t('Plan next week')}</button></div>}>
+      <SheetHead title={t('Your week')} sub={`${fmtDate(n.from, lang, { day: 'numeric', month: 'short' })} – ${fmtDate(n.to, lang, { day: 'numeric', month: 'short' })}`} onClose={closeAll} />
+      <div ref={body} className={`sheet-body melt-foot stack gap16 rv${calm ? ' still' : ''}`} style={{ ['--rv-base' as string]: `${base}ms` }}>
         <div className="rv-tiles">
           <Tile label={n.wrestling ? t('workouts + {n} wrestling', { n: n.wrestling }) : t('workouts')} text={String(n.sessions)} sub={n.planned ? t('{done} of {planned} planned', { done: n.planned - n.missed, planned: n.planned }) : undefined} />
           <Tile label={t('working sets')} text={String(n.sets)} sub={n.streak >= 2 ? t('{n} weeks in a row', { n: n.streak }) : undefined} />
@@ -143,7 +141,7 @@ export function WeekReviewSheet({ props }: { props: { end?: string } }) {
           <Tile label={t('weight per week (estimate)')} text={rate !== null ? fmtSigned(rate, lang) : '—'} unit={rate !== null ? u : undefined} sub={n.records ? (n.records === 1 ? t('1 new record') : t('{n} new records', { n: n.records })) : undefined} />
         </div>
         {n.muscles.length > 0 && (
-          <section className="plinth-2 rv-muscles" aria-label={t('Sets per muscle')}>
+          <section className="plinth-2 rv-muscles" data-rv="panel" aria-label={t('Sets per muscle')}>
             <div className="row-flex between xs t2" data-rv="more"><span>{t('Sets per muscle')}</span><span className="rv-key"><i className="rv-key-mark" /> {t('your usual week')}</span></div>
             {n.muscles.slice(0, 8).map((x) => (
               <div key={x.m} className="rv-bar" data-rv="bar">

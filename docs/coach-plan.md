@@ -18,7 +18,7 @@ The polish plan (`docs/polish-plan.md`) is paused while this runs.
   (profile, meals, reminders, Today cards, plate step, weight jumps, rest per exercise); custom exercises; recipes and saved
   meals; measurements; `set_split` for the whole week; Preview → Apply for every plan-sized change; the full app guide served
   by section, with a test that fails when a screen, setting or action is missing from it.
-- [ ] **Phase 3: memory that grows**
+- [x] **Phase 3: memory that grows** (v0.1.136)
   - The whole conversation kept on the phone (IndexedDB `aven-chat`), searchable by the Coach and by him; older days load
     when he scrolls up; in backups (additive).
   - Memory v2: a newer fact replaces the older one (shown as "Updated", Undo); temporary things end by themselves
