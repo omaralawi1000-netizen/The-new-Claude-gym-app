@@ -1489,11 +1489,11 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-hint-act::after { content: ''; position: absolute; inset: -8px -6px; } /* a 44 px finger target around the small chip */
 .wk-hints + .wk-reason { margin-top: 6px; }
 /* one line in the Today card: one compact row, its ✕ at the end */
-.wk-brief.one { padding: 4px 4px 4px 12px; }
+.wk-brief.one { padding: 4px 4px 4px 12px; border-radius: var(--r-sm); } /* a card's corner, not a capsule (that read as a search field) */
 .wk-brief.one .wk-brief-line { align-items: center; padding: 0; }
 .wk-brief.one .wk-brief-line > svg { margin-top: 0; }
 /* Focus: what is about the whole workout, as a caption between the first page's figure and its card */
-.wk-page-note { display: grid; gap: 6px; margin: 0 4px 10px; }
+.wk-page-note { display: grid; gap: 6px; margin: 0 12px 8px; } /* its icon lines up with the card's text below */
 /* the Coach's camera: the chosen photo waits above the field; once sent it sits in your bubble */
 .coach-body { overflow-anchor: none; }
 .sheet-pane .coach-body.sheet-body:not([data-scrollable]) { -webkit-mask-image: none; mask-image: none; } /* (outranks the melt under sheet buttons) */

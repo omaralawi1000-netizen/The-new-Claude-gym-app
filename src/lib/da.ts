@@ -1652,7 +1652,7 @@ export const da: Record<string, string> = {
  "{x} this time": "{x} denne gang",
  "Last time: {note}": "Sidste gang: {note}",
  "Set to {set}": "Sat til {set}",
- "Stuck at {from} · try {to}": "Står stille på {from} · prøv {to}",
+ "Stuck at {from} · or reset to {to}": "Står stille på {from} · eller nulstil til {to}",
  "Use it": "Brug det",
  "{set} · your heaviest yet": "{set} · dit tungeste til dato",
 };

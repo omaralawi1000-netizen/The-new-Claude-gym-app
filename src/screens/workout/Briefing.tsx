@@ -37,7 +37,7 @@ function lineText(l: BriefLine, t: T, set: (kg: number | undefined, reps: number
   if (l.kind === 'wrestle') return t('Wrestling tomorrow: keep the legs a little lighter');
   const h = l.hint;
   if (l.kind === 'record' && h.record) return t('{set} · your heaviest yet', { set: set(h.record.kg, h.record.reps) });
-  if (l.kind === 'stall' && h.stall) return t('Stuck at {from} · try {to}', { from: set(h.stall.from.kg, h.stall.from.reps), to: set(h.stall.to.kg, h.stall.to.reps) });
+  if (l.kind === 'stall' && h.stall) return t('Stuck at {from} · or reset to {to}', { from: set(h.stall.from.kg, h.stall.from.reps), to: set(h.stall.to.kg, h.stall.to.reps) });
   if (l.kind === 'lastNote' && h.lastNote) return t('Last time: {note}', { note: h.lastNote });
   return '';
 }
