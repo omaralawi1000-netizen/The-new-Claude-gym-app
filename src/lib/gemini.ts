@@ -523,3 +523,30 @@ export async function aiWeekReview(context: string, brain: Brain, lang: string, 
     .slice(0, 2).map((p: any) => ({ id: p.id, text: p.text.trim().slice(0, 120) }));
   return { verdict, priorities };
 }
+
+
+// ── web search (phase 4): Google Search grounding, free within its daily allowance ──
+export interface WebSource { title: string; url: string }
+export const SEARCH_SYSTEM = (lang: string) =>
+  'Search the web and report what answers the question: the facts, with numbers, amounts and steps where they matter, in at ' +
+  'most about 220 words. Prefer official, scientific and well-known sources. Say plainly when evidence is mixed, early or ' +
+  'from one small study, and when sources disagree. Report; do not give advice about the person asking. ' +
+  `Write in ${lang === 'da' ? 'Danish' : 'English'}.`;
+/** One grounded search: the answer and the pages it came from. */
+export async function geminiSearch(query: string, brain: Pick<Brain, 'key' | 'models' | 'signal'>, lang: string): Promise<{ text: string; sources: WebSource[] }> {
+  return withFallback(brain.models, async (m) => {
+    const { res, done } = await post(`models/${m}:generateContent`, brain.key, {
+      systemInstruction: { parts: [{ text: SEARCH_SYSTEM(lang) }] },
+      contents: [{ role: 'user', parts: [{ text: query }] }],
+      tools: [{ google_search: {} }],
+      generationConfig: { temperature: 0.2, maxOutputTokens: 1400 },
+    }, { timeout: 30000, signal: brain.signal });
+    const data = await res.json(); done();
+    const text = textOf(data).trim();
+    if (!text) throw new AiError('empty');
+    const chunks = data?.candidates?.[0]?.groundingMetadata?.groundingChunks ?? [];
+    const sources = chunks.map((c: any) => c?.web).filter((w: any) => w && typeof w.uri === 'string').map((w: any) => ({ title: String(w.title || new URL(w.uri).hostname).slice(0, 80), url: w.uri }));
+    return { text: text.slice(0, 3000), sources: dedupeSources(sources) };
+  });
+}
+export const dedupeSources = (list: WebSource[]): WebSource[] => { const seen = new Set<string>(); return list.filter((s) => /^https:\/\//.test(s.url) && !seen.has(s.title.toLowerCase()) && seen.add(s.title.toLowerCase())).slice(0, 6); };

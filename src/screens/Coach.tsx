@@ -73,7 +73,7 @@ const morphVars = { '--cf-x': `${CF_X}px`, '--cf-max': `${CF_MAX}px`, '--cf-ease
   '--cf-ease-c': MORPH_BACK.easing, '--cf-dur-c': `${MORPH_BACK.duration}ms`, '--cf-ease-k': CLOSE.easing, '--cf-dur-k': `${CLOSE.duration}ms`, '--cf-delay-k': `${CLOSE.delay}ms`, ...growVars } as React.CSSProperties;
 
 type Msg =
-  | { id: string; role: 'user' | 'model'; text: string; streaming?: boolean; /** while it looks something up in the data */ status?: string; seeded?: boolean; /** a quiet line under the answer (which AI answered, and why) */ note?: string; /** when it was said */ at?: number; /** a photo was sent with it (its picture stays only while the Coach is open) */ photo?: boolean; image?: string; /** typed: its lines as they wrapped in the field (the bubble keeps them) */ lines?: string[] }
+  | { id: string; role: 'user' | 'model'; text: string; streaming?: boolean; /** while it looks something up in the data */ status?: string; seeded?: boolean; /** a quiet line under the answer (which AI answered, and why) */ note?: string; /** when it was said */ at?: number; /** a photo was sent with it (its picture stays only while the Coach is open) */ photo?: boolean; image?: string; /** typed: its lines as they wrapped in the field (the bubble keeps them) */ lines?: string[]; /** the pages a web search used */ sources?: { title: string; url: string }[] }
   | { id: string; role: 'error'; text: string }
   | { id: string; role: 'action'; results: AgentResult[]; undone: string[]; confirmed: string[]; /** arrived in this visit (it animates in; a restored one stays still) */ fresh?: boolean }
 
@@ -141,6 +141,7 @@ const OTHER_ROW: CSSProperties = { transformOrigin: '0% 0%', alignSelf: 'stretch
  * pushed when the answer ends.
  */
 function CoachReply({ m }: { m: Extract<Msg, { role: 'user' | 'model' }> }) {
+  const t = useT();
   const { shown, done } = useWordReveal(m.text, !!m.streaming, !!m.seeded);
   // the typing dots don't vanish when the first word comes: they melt away over it (and are then taken out)
   const typed = useRef(!shown);
@@ -151,6 +152,12 @@ function CoachReply({ m }: { m: Extract<Msg, { role: 'user' | 'model' }> }) {
       {typed.current && !dotsGone && <div className="typing typing-out" aria-hidden onAnimationEnd={(e) => { if (e.target === e.currentTarget) setDotsGone(true); }}><i /><i /><i /></div>}
       <div className={`reply calm coach-reply${m.seeded ? ' still' : ''}`} aria-live="polite"><Rich text={shown} id={m.id} still={m.seeded} /></div>
       {done && m.note && <div className={`xs t3 coach-after${m.seeded ? '' : ' fresh'}`} style={{ marginTop: 8 }}>{m.note}</div>}
+      {/* a web search's pages, as small chips under the answer (they open in the browser) */}
+      {done && !!m.sources?.length && (
+        <div className={`coach-sources${m.seeded ? '' : ' fresh'}`} aria-label={t('Sources')}>
+          {m.sources.map((x, i) => <a key={x.url} className="chip sm press src-chip" href={x.url} target="_blank" rel="noopener noreferrer" style={{ ['--i' as string]: i }}><Icon name="globe" size={12} />{x.title}</a>)}
+        </div>
+      )}
       <div className={`reply-foot coach-after${done ? '' : ' held'}${m.seeded ? '' : ' fresh'}`}>{done && <SpeakButton id={m.id} text={m.text} />}</div>
     </div>
   );
@@ -711,7 +718,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     // the answer is the message; a note about who answered sits under it, quieter (and is never read aloud)
     const said = reply || note;
     setMsgs((x) => {
-      const base = said ? x.map((m) => (m.id === placeholder ? { ...m, text: said, note: reply ? note || undefined : undefined, streaming: false } as Msg : m)) : x.filter((m) => m.id !== placeholder);
+      const base = said ? x.map((m) => (m.id === placeholder ? { ...m, text: said, note: reply ? note || undefined : undefined, streaming: false, ...(d.sources.length && reply ? { sources: d.sources } : {}) } as Msg : m)) : x.filter((m) => m.id !== placeholder);
       return results.length ? [...base, { id: uid('m'), role: 'action', results, undone: [], confirmed: [], fresh: true }] : base;
     });
     // green "Done" only when something was actually logged or changed

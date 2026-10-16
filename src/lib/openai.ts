@@ -7,9 +7,9 @@
  * high for the Coach), `text.format` as a strict JSON schema. The app's instructions come first and the live data last, so
  * OpenAI's prompt cache can bill the repeated part at a twentieth of the price.
  */
-import { AiError, AGENT_SCHEMA, ESTIMATE_SCHEMA, ESTIMATE_SYSTEM, PHOTO_SCHEMA, PHOTO_SYSTEM, parseSSE, partialReply, photoPrompt, readPhoto, type Photo, type Turn } from './gemini';
+import { AiError, AGENT_SCHEMA, SEARCH_SYSTEM, dedupeSources, type WebSource, ESTIMATE_SCHEMA, ESTIMATE_SYSTEM, PHOTO_SCHEMA, PHOTO_SYSTEM, parseSSE, partialReply, photoPrompt, readPhoto, type Photo, type Turn } from './gemini';
 import { validateEstimate, type FoodEstimate } from './aiValidate';
-import { recordUsage } from './spend';
+import { recordFee, recordUsage, WEB_SEARCH_USD } from './spend';
 import { useAi } from '../state/ai';
 
 export const OPENAI_API = 'https://api.openai.com/v1';
@@ -213,4 +213,20 @@ export async function testOpenaiKey(key: string): Promise<'ok' | 'bad' | 'nomode
     if (res.status === 404) return 'nomodel';
     return String(res.status);
   } catch { return 'offline'; }
+}
+
+
+/** One web search through OpenAI's own search tool (costs a little per search; counted in the monthly limit). */
+export async function solSearch(query: string, sol: Sol & { signal?: AbortSignal }, lang: string): Promise<{ text: string; sources: WebSource[] }> {
+  const { res, done } = await request(sol.key, {
+    model: solModel(), instructions: SEARCH_SYSTEM(lang), input: query, store: false,
+    tools: [{ type: 'web_search' }], reasoning: { effort: 'low' }, max_output_tokens: 3000,
+  }, { timeout: 60_000, signal: sol.signal });
+  const data = await res.json(); done();
+  recordUsage(data?.usage); recordFee(WEB_SEARCH_USD);
+  const text = outputText(data).trim();
+  if (!text) throw fail('empty');
+  const notes = (data?.output || []).filter((o: any) => o?.type === 'message').flatMap((o: any) => o.content || []).flatMap((c: any) => c?.annotations || []);
+  const sources = notes.filter((a: any) => a?.type === 'url_citation' && typeof a.url === 'string').map((a: any) => ({ title: String(a.title || new URL(a.url).hostname).slice(0, 80), url: a.url }));
+  return { text: text.slice(0, 3000), sources: dedupeSources(sources) };
 }

@@ -1,8 +1,8 @@
 import { useAi, solOn } from '../state/ai';
 import { useStore } from '../state/store';
 import { getKey } from './keys';
-import { AiError, FALLBACK_MODELS, aiAgent, aiAgentStream, type Brain, type Photo, type Turn } from './gemini';
-import { refreshSolModel, solAgent, type Effort } from './openai';
+import { AiError, FALLBACK_MODELS, aiAgent, aiAgentStream, dedupeSources, geminiSearch, type Brain, type Photo, type Turn, type WebSource } from './gemini';
+import { refreshSolModel, solAgent, solSearch, type Effort } from './openai';
 import { solThenGemini } from './brain';
 import { overLimit } from './spend';
 import { AGENT_SYSTEM, APP_GUIDE, buildAgentContext, buildTodayContext, exerciseNames, memoryBlock } from './coachContext';
@@ -48,10 +48,23 @@ export function effortFor(text: string, setting: Effort, photo = false): Effort 
   return words > 40 ? cap('medium') : 'low';
 }
 
+/**
+ * One web search for the Coach: Gemini's Google Search grounding when there is a Gemini key (free within its daily
+ * allowance), else OpenAI's search tool (a small fee per search, counted in the monthly Sol limit).
+ */
+async function webSearch(query: string, brain: Brain, lang: string): Promise<{ text: string; sources: WebSource[] }> {
+  if (brain.key) {
+    try { return await geminiSearch(query, brain, lang); }
+    catch (e: any) { if (e?.code === 'aborted' || !brain.sol?.key) throw e; }
+  }
+  if (brain.sol?.key) return solSearch(query, { ...brain.sol, signal: brain.signal }, lang);
+  throw new AiError('failed');
+}
+
 /** Rounds per message: up to two rounds of look-ups, then the answer. */
 const MAX_ROUNDS = 3;
 
-export interface Decision { reply: string; note: string; actions: AgentAction[]; wantsUndo: boolean }
+export interface Decision { reply: string; note: string; actions: AgentAction[]; wantsUndo: boolean; /** the web pages a search used (shown under the answer) */ sources: WebSource[] }
 
 /**
  * What the assistant decides to say and do for one sentence. The AI when there is a key — GPT-6.1 Sol or Gemini, given the
@@ -66,6 +79,7 @@ export async function decide(text: string, o: { lang: Lang; t: (k: string, v?: R
   const { t, lang } = o;
   let reply = '', note = '';
   let actions: AgentAction[] = [];
+  const sources: WebSource[] = [];
   const brain0 = brainFor({ big: true, surface: o.surface, signal: o.signal });
   // think only as hard as the message needs (see effortFor)
   const brain = brain0?.sol ? { ...brain0, sol: { ...brain0.sol, effort: effortFor(text, brain0.sol.effort, !!o.photo) } } : brain0;
@@ -100,7 +114,15 @@ export async function decide(text: string, o: { lang: Lang; t: (k: string, v?: R
         if (!look.length) break;
         o.onReply?.(''); // anything it wrote beside the look-up is not the answer
         o.onStatus?.(lookupStatus(look, t));
-        found += (found ? '\n\n' : '') + runLookups(st, look, { today, lang, pool: o.pool, mealLabel, said: o.said });
+        // the web (phase 4): searched by the AI's own search, the rest answered on the phone
+        const webs = look.filter((l) => l.kind === 'web' && l.query).slice(0, 2);
+        const local = look.filter((l) => l.kind !== 'web');
+        if (local.length) found += (found ? '\n\n' : '') + runLookups(st, local, { today, lang, pool: o.pool, mealLabel, said: o.said });
+        for (const w of await Promise.all(webs.map((l) => webSearch(l.query!, brain, lang).catch(() => null)))) {
+          if (!w) { found += `${found ? '\n\n' : ''}### web\nThe web search failed: answer from what you know and say you could not check it.`; continue; }
+          sources.push(...w.sources);
+          found += `${found ? '\n\n' : ''}### web (searched)\n${w.text}\nSources: ${w.sources.map((s, i) => `[${i + 1}] ${s.title}`).join('; ') || 'none listed'}`;
+        }
       }
       o.onStatus?.('');
       const v = validateAgent(raw);
@@ -123,5 +145,5 @@ export async function decide(text: string, o: { lang: Lang; t: (k: string, v?: R
     else reply = t('To chat or ask about the app I need an AI key (Settings → Voice & AI). I can still log what you tell me, like “200 g skyr” or “bench 80 for 8”.');
   }
   const wantsUndo = actions.some((a) => a.type === 'undo_last');
-  return { reply, note, actions: actions.filter((a) => a.type !== 'undo_last'), wantsUndo };
+  return { reply, note, actions: actions.filter((a) => a.type !== 'undo_last'), wantsUndo, sources: dedupeSources(sources) };
 }

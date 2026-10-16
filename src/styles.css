@@ -1532,6 +1532,13 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 :root[data-motion='reduce'] .coach-thread .typing { animation: none; }
 :root[data-motion='reduce'] .coach-thread .typing.typing-out { display: none; }
 @keyframes coachAfter { from { opacity: 0; transform: translate3d(0, 4px, 0); } }
+/* a web search's sources: small chips under the answer, rising in one after another once it has finished writing */
+.coach-sources { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.src-chip { gap: 5px; max-width: 100%; height: 26px; padding: 0 10px; font-size: 12px; color: var(--tx2); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.src-chip svg { flex: none; color: var(--tx3); }
+.coach-sources.fresh .src-chip { animation: coachAfter 560ms var(--ease-smooth) both; animation-delay: calc(120ms + var(--i, 0) * 60ms); }
+:root[data-motion='reduce'] .coach-sources .src-chip { animation: none; }
+@media (prefers-reduced-motion: reduce) { .coach-sources .src-chip { animation: none; } }
 @keyframes coachReply { from { opacity: .65; transform: translate3d(0, 3px, 0); } }
 /* a sent message in flight (Coach.tsx): a copy of the bubble above everything. Its shape is eight pieces (four corners
    that scale evenly, four straight pieces between them), moved together on one spring so they always make one outline:
