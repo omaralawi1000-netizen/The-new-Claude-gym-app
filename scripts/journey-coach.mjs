@@ -38,13 +38,15 @@ const ask = async (text, motion = false) => {
   await p.getByLabel('Message the Coach').fill(text);
   if (motion) await p.evaluate((text) => {
     window.__coachSent = [];
-    const start = performance.now();
+    let start = Infinity;
+    // Playwright can wait for the expanding Send button to settle before clicking. Time the flight from that click.
+    document.addEventListener('click', () => { start = performance.now(); }, { once: true, capture: true });
     const frame = () => {
       // a typed message flies from the field into its bubble: a copy moves, the real bubble waits hidden until it lands
       const fly = document.querySelector('.coach-fly');
       // (a typed message keeps the lines it wrapped into in the field, one span per line: compare without the spaces)
       const bubble = [...document.querySelectorAll('.coach-thread .said')].find((el) => el.textContent.replace(/\s+/g, '') === text.replace(/\s+/g, ''));
-      if (fly || bubble) window.__coachSent.push({ fly: fly ? getComputedStyle(fly).transform : null, shown: bubble ? getComputedStyle(bubble).visibility === 'visible' : false });
+      if (Number.isFinite(start) && (fly || bubble)) window.__coachSent.push({ fly: fly ? getComputedStyle(fly).transform : null, shown: bubble ? getComputedStyle(bubble).visibility === 'visible' : false });
       if (performance.now() - start < 2600) requestAnimationFrame(frame); // the calmer flight (Coach r10) lands at ~1.7 s here
     }; requestAnimationFrame(frame);
   }, text);
@@ -158,9 +160,15 @@ if (await p.getByRole('button', { name: 'New chat' }).isVisible().catch(() => fa
   assert.equal(await p.evaluate(() => JSON.parse(localStorage.getItem('aven.coach') || '[]').length), 0, 'New chat clears it');
   // (the old messages fade out first, ~280 ms plus a frame: wait for them to be gone rather than for a fixed time)
   await p.waitForFunction(() => !document.querySelector('.coach-body [data-mid]'), null, { timeout: 3000 });
-  const fresh = await p.locator('.coach-body').evaluate((el) => ({ range: el.scrollHeight - el.clientHeight, mask: getComputedStyle(el).maskImage }));
+  const fresh = await p.locator('.coach-body').evaluate((el) => ({
+    range: el.scrollHeight - el.clientHeight, scrollable: el.hasAttribute('data-scrollable'),
+    tips: [...el.querySelectorAll('.tip')].map((tip) => tip.getBoundingClientRect().bottom),
+    bar: document.querySelector('.coach-composer').getBoundingClientRect().top,
+  }));
   assert.equal(fresh.range, 0, 'the new conversation fits without scrolling');
-  assert.equal(fresh.mask, 'none', 'clearing a long chat removes its stale scroll fade');
+  // Coach r8 deliberately keeps a fade under the floating controls, including in short chats. Fresh tips must sit above it.
+  assert.equal(fresh.scrollable, false, 'clearing a long chat removes its stale scroll state');
+  assert(fresh.tips.length > 0 && fresh.tips.every((bottom) => bottom < fresh.bar - 30), 'the fresh suggestions stay clear of the composer fade');
   await ask('What should I focus on next?');
   await p.getByLabel('Message the Coach').fill('A fresh question.');
   await p.getByRole('button', { name: 'New chat' }).click();
