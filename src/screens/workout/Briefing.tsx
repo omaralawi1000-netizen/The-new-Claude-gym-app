@@ -51,7 +51,7 @@ export function Briefing({ a, exMap }: { a: WorkoutSession; exMap: Map<string, E
     setTrim({ n: r.removed.length, undo: () => { const now = useStore.getState().active; if (now?.id === before.id) useStore.getState().mutateActive((x) => untrim(x, r.removed)); setTrim(null); } });
   };
   return (
-    <Collapse open={!hidden && !started} ms={460} className="wk-brief-wrap">
+    <Collapse open={!hidden && !started} ms={620} className="wk-brief-wrap">
       <div className="plinth wk-brief" aria-label={t('Today’s briefing')}>
         <div className="wk-brief-head">
           <span className="micro">{t('Today’s briefing')}</span>

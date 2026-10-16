@@ -116,8 +116,10 @@ export function Summary({ props }: { props: { sessionId: string } }) {
               const ex = exMap.get(x.exerciseId);
               return (
                 <div key={x.exerciseId} className="sum-next-row">
-                  <span className="grow sum-next-name">{ex ? exName(ex, lang) : ''}</span>
-                  {x.up && <span className="sum-next-up num">{t('{x} today', { x: moveText(x.up, u.weight, lang, t) })}</span>}
+                  <span className="sum-next-what">
+                    <span className="sum-next-name">{ex ? exName(ex, lang) : ''}</span>
+                    {x.up && <span className="xs num">{t('{x} today', { x: moveText(x.up, u.weight, lang, t) })}</span>}
+                  </span>
                   <span className="num sum-next-to">{x.kg !== undefined ? `${fmtNum(kgToDisplay(x.kg, u.weight), lang, 2)} ${u.weight} × ` : ''}{x.reps}</span>
                 </div>
               );
@@ -125,9 +127,11 @@ export function Summary({ props }: { props: { sessionId: string } }) {
           </div>
         )}
 
+        {/* how it felt: rises right after Next time, in the finish moment's own order */}
+        <div data-fm="after"><CheckInRows id={ses.id} value={ses.checkin} /></div>
+
         {/* the rest of the screen rises gently with the sheet, under the moment, never pulling the eye from it */}
         <div data-fm="rest">
-        <CheckInRows id={ses.id} value={ses.checkin} />
         <div className="micro" style={{ margin: '24px 0 8px' }}>{t('Planned vs done')}</div>
         <div className="list">
           {rows.map(({ e, ex }) => {
@@ -166,7 +170,7 @@ function CheckInRows({ id, value }: { id: string; value?: CheckIn }) {
   };
   return (
     <div className="sum-checkin">
-      <div className="micro" style={{ margin: '24px 0 4px' }}>{t('Quick check-in')}</div>
+      <div className="micro" style={{ margin: '20px 0 4px' }}>{t('Quick check-in')}</div>
       {CHECKIN.map((r) => (
         <div key={r.k} className="ci-row" role="group" aria-label={t(r.label)}>
           <span className="ci-label xs t2">{t(r.label)}</span>

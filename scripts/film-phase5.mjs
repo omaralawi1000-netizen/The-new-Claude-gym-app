@@ -31,7 +31,7 @@ const arm = (sel) => p.evaluate((sel) => {
     if (!el) return;
     mo.disconnect();
     window.__el = el;
-    const anims = document.getAnimations().filter((a) => { const t = a.effect?.target; return t && (el.contains(t) || t === el) && a.playState !== 'finished' && a.effect.getComputedTiming().iterations !== Infinity && (!a.timeline || a.timeline === document.timeline) && a.transitionProperty !== 'transform'; });
+    const anims = document.getAnimations().filter((a) => { const t = a.effect?.target; return t && (el.contains(t) || t === el) && a.playState !== 'finished' && a.effect.getComputedTiming().iterations !== Infinity && (!a.timeline || a.timeline === document.timeline) && !(a.transitionProperty === 'transform' && t.classList?.contains('press')); });
     window.__names = anims.map((a) => `${a.animationName ?? a.transitionProperty ?? 'waapi'}@${a.effect.target.className?.baseVal ?? a.effect.target.className}${a.effect.pseudoElement ?? ''}`.slice(0, 70));
     anims.forEach((a) => a.pause());
     window.__frozen = anims.length;
@@ -77,7 +77,7 @@ await p.getByRole('button', { name: /Start workout/ }).click(); await wait(p, 18
 await p.screenshot({ path: `${OUT}-0-brief.png` }).catch(() => {});
 await arm('.wk-brief-wrap:not(.on)');
 await p.getByRole('button', { name: 'Complete set' }).first().click();
-await film('1-brief-fold', 900, '.wk-block');
+await film('1-brief-fold', 1000, '.wk-block');
 await wait(p, 800);
 
 // 2. finish: the summary with Next time, then a check-in chip filling in
