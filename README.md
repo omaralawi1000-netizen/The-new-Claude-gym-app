@@ -2382,3 +2382,14 @@ Omar trains to failure whatever the day, so readiness only added suggestions he 
 - **Next time** says what went up "this time" in grey (in the accent it read like an instruction).
 - Judged twice (sliced fold fixed earlier; this round: the stall line read as a contradiction of the rows, a capsule row
   read as a search field, lines didn't share one alignment); tests and journey-workout5 rewritten.
+
+## Recipes find the food in kitchen words (16 Oct 2026, v0.1.140)
+
+Found on the phone: a mug cake left out plain flour, vegetable oil and chocolate chips ("Not found — left out") though the
+food list has Wheat flour, Rapeseed oil and Dark chocolate. The matcher took the extra words as required. Now, only when
+the words as written find nothing sure, `kitchenQuery` (foodText.ts) tries the kitchen's other way of saying it (plain /
+all-purpose / self-raising flour → wheat flour; vegetable / neutral / sunflower oil → rapeseed oil; chocolate chips → dark
+chocolate, milk chocolate chips → milk chocolate; caster / icing sugar → sugar; unsalted butter → butter; large eggs → egg;
+whole milk, rolled oats, Greek yoghurt), else the same words without filler (chopped, melted, fresh…). The food picked is
+the one shown on the card, so a swap is never hidden. Also: a spice only matches itself ("cinnamon" had matched Cinnamon
+roll). Tests in coach5.test.ts.

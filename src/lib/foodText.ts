@@ -227,14 +227,49 @@ export interface ResolvedRow extends ParsedFoodRow {
 
 const TIE = 0.06;
 
+/**
+ * Recipe wording → the food it means (a recipe says "plain flour", "vegetable oil", "chocolate chips"; the food list says
+ * Wheat flour, Rapeseed oil, Dark chocolate). Used only when the words as written don't find a food, and the food the app
+ * picked is always the one shown, so a swap is never hidden.
+ */
+const KITCHEN: [RegExp, string][] = [
+  [/\b(?:plain|all[- ]?purpose|white|self[- ]?rais(?:ing)?|self[- ]?rising|bread|cake|pastry|ap)\s+flour\b/, 'wheat flour'],
+  [/\b(?:vegetable|neutral|cooking|canola|frying|sunflower|corn)\s+oil\b|\bneutral olie\b|\bmadolie\b/, 'rapeseed oil'],
+  [/\bmilk\s+choc(?:olate)?\s+(?:chips|chunks|drops|buttons)\b/, 'milk chocolate'],
+  [/\b(?:(?:dark|semi[- ]?sweet|bitter[- ]?sweet|plain)\s+)?choc(?:olate)?\s+(?:chips|chunks|drops|buttons)\b|\bchokoladeknapper\b/, 'dark chocolate'],
+  [/\b(?:caster|castor|granulated|white|cane|superfine|icing|powdered|confectioners'?)\s+sugar\b|\b(?:strosukker|flormelis)\b/, 'sugar'],
+  [/\b(?:un)?salted\s+butter\b/, 'butter'],
+  [/\b(?:large|medium|small|whole|free[- ]?range|organic)\s+eggs?\b/, 'egg whole raw'],
+  [/\b(?:whole|full[- ]?fat)\s+milk\b/, 'milk whole'],
+  [/\b(?:rolled|porridge|old[- ]?fashioned|quick)\s+oats\b|\boat\s+flakes\b/, 'oats rolled'],
+  [/\bgreek\s+yog(?:h)?urt\b/, 'greek yoghurt'],
+];
+const KITCHEN_FILLER = /\b(?:fresh|chopped|melted|softened|room[- ]temperature|organic|finely|roughly|sifted|packed|heaped|level|extra[- ]virgin|good[- ]quality)\b/g;
+/** Spices and the like: only the thing itself, never a dish named after it ("cinnamon" is not a cinnamon roll). */
+const EXACT_ONLY = /^(?:ground\s+)?(?:cinnamon|salt|sea salt|pepper|black pepper|vanilla|vanilla extract|vanilla essence|ginger|nutmeg|cardamom|cloves?|paprika|cumin|turmeric|chili flakes|baking soda|bicarbonate of soda|yeast|water|ice|lemon zest)$/;
+const exactOnly = (q: string, f: Food) => { const n = fold(f.name); return n === q || n.startsWith(`${q} `) && /^(?:ground|powder|dried|raw)\b/.test(n.slice(q.length + 1)); };
+
+/** Another way to say the same food, or null. */
+export function kitchenQuery(q: string): string | null {
+  const s = fold(q);
+  for (const [re, to] of KITCHEN) if (re.test(s)) return to;
+  const bare = s.replace(KITCHEN_FILLER, ' ').replace(/\s+/g, ' ').trim();
+  return bare && bare !== s ? bare : null;
+}
+
 export function resolveRows(
   rows: ParsedFoodRow[], pool: Food[], choices: Record<string, string>, boost: (f: Food) => number = () => 0,
 ): ResolvedRow[] {
   return rows.map((r) => {
-    const candidates = searchFoods(r.query, pool, boost, 6);
+    let candidates = searchFoods(r.query, pool, boost, 6);
+    if (EXACT_ONLY.test(fold(r.query))) candidates = candidates.filter((c) => exactOnly(fold(r.query).replace(/^ground\s+/, ''), c.food));
     const remembered = choices[fold(r.query)];
     const rem = remembered ? pool.find((f) => f.id === remembered) : undefined;
     if (rem) return { ...r, candidates: [{ food: rem, score: 1 }, ...candidates.filter((c) => c.food.id !== rem.id)], status: 'resolved', choiceId: rem.id, remembered: true };
+    // the words as written found nothing sure: try the kitchen's other way of saying it ("plain flour" → wheat flour)
+    const alt = !candidates.length || candidates[0].score < 0.55 ? kitchenQuery(r.query) : null;
+    const altC = alt ? searchFoods(alt, pool, boost, 6) : [];
+    if (altC.length && altC[0].score >= 0.55 && (!candidates.length || altC[0].score > candidates[0].score)) return { ...r, candidates: altC, status: 'resolved', choiceId: altC[0].food.id };
     if (!candidates.length) return { ...r, candidates, status: 'unmatched' };
     const top = candidates[0].score;
     const tied = candidates.filter((c) => top - c.score <= TIE);
