@@ -159,3 +159,40 @@ describe('a recipe is never lost to the shape of the answer', () => {
     expect(lastRawAnswer()?.text).toContain('"propose_recipe"');
   });
 });
+
+describe('recipe wording finds the food (Omar’s mug cake: plain flour, vegetable oil and chocolate chips were left out)', () => {
+  it('plain flour, vegetable oil, chocolate chips, caster sugar, unsalted butter, large eggs → the foods in the list', async () => {
+    const { useStore, foodPool } = await import('../src/state/store');
+    const { defaultData } = await import('../src/state/defaults');
+    const { resolveRows, parseFoodText } = await import('../src/lib/foodText');
+    useStore.getState().replaceAll(defaultData('en'));
+    const st = useStore.getState();
+    const pool = foodPool(st.foods, st.recipes);
+    const got = (q: string) => { const r = resolveRows(parseFoodText(`50 g ${q}`), pool, {}, () => 0)[0]; return r.status === 'resolved' ? r.candidates.find((c) => c.food.id === r.choiceId)!.food.name : `(${r.status})`; };
+    expect(got('plain flour')).toBe('Wheat flour');
+    expect(got('all-purpose flour')).toBe('Wheat flour');
+    expect(got('vegetable oil')).toBe('Rapeseed oil');
+    expect(got('chocolate chips')).toBe('Dark chocolate, 70%');
+    expect(got('milk chocolate chips')).toBe('Milk chocolate');
+    expect(got('caster sugar')).toBe('Sugar');
+    expect(got('unsalted butter')).toBe('Butter');
+    expect(got('large eggs')).toBe('Egg, whole, raw');
+    expect(got('chopped walnuts')).not.toBe('(unmatched)'); // filler words dropped
+    expect(got('rapeseed oil')).toBe('Rapeseed oil'); // the words as written still win
+  });
+});
+
+describe('a spice is never a dish named after it', () => {
+  it('cinnamon is not a cinnamon roll; salt is not salty liquorice', async () => {
+    const { useStore, foodPool } = await import('../src/state/store');
+    const { defaultData } = await import('../src/state/defaults');
+    const { resolveRows, parseFoodText } = await import('../src/lib/foodText');
+    useStore.getState().replaceAll(defaultData('en'));
+    const st = useStore.getState();
+    const pool = foodPool(st.foods, st.recipes);
+    const r = (q: string) => resolveRows(parseFoodText(`2 g ${q}`), pool, {}, () => 0)[0];
+    expect(r('cinnamon').candidates.some((c) => /roll/i.test(c.food.name))).toBe(false);
+    expect(r('salt').candidates.some((c) => /liquorice|nuts/i.test(c.food.name))).toBe(false);
+    expect(r('butter').status).toBe('resolved'); // ordinary foods untouched
+  });
+});
