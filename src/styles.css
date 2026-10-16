@@ -1155,8 +1155,10 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* ── Coach cards, phase 2 (Coach 2.0): they settle out of the answer, a preview waits with one slow light across its glass,
    Apply seals it, Undo is drawn. Transform and opacity only; every entrance ends on the card exactly as it rests (no `to`
    keyframe), so the last moving frame and the first still one are the same picture. Restored cards stay still. ── */
-.coach-body .action-card.fresh { animation: acSettle 760ms var(--ease-spring) both; }
-@keyframes acSettle { from { opacity: 0; transform: translate3d(0, 12px, 0) scale(0.985); } }
+/* (a rise only, on the smooth curve: a spring's last overshoot or a scale left the text a sub-pixel off where it rests, and
+   the card visibly settled when the animation ended — 38/255 against the still card; this lands within 4/255 on one pixel) */
+.coach-body .action-card.fresh { animation: acSettle 780ms var(--ease-smooth) both; }
+@keyframes acSettle { from { opacity: 0; transform: translate3d(0, 12px, 0); } }
 /* the glass forms first, then what it says */
 .coach-body .action-card.fresh .ac-body, .coach-body .action-card.fresh .action-ic { animation: acContent 560ms var(--ease-smooth) 110ms both; }
 @keyframes acContent { from { opacity: 0; transform: translate3d(0, 4px, 0); } }
