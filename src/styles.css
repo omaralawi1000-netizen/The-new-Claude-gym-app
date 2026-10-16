@@ -1224,6 +1224,12 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* (in this order: old, crossed out, then new — the new wording waits for the strike) */
 .coach-body .action-card.fresh:has(.ac-was) .action-line { animation-delay: calc(760ms + var(--i, 1) * 55ms - 55ms) !important; } /* (over the inline delay each line carries) */
 .coach-body .action-card.fresh:has(.ac-was) .ac-actions:not(.ac-in-late):not(.ac-out) { animation-delay: 940ms; }
+/* a recipe's method: a quiet line that folds the steps open */
+.ac-method { margin-top: 8px; }
+.ac-method-btn { display: inline-flex; align-items: center; gap: 4px; padding: 4px 0; background: none; border: 0; color: var(--tx2); }
+.ac-steps { margin: 6px 0 2px; padding-left: 20px; display: grid; gap: 6px; color: var(--tx); }
+.ac-steps li::marker { color: var(--tx3); font-variant-numeric: tabular-nums; }
+.coach-body .action-card.fresh .ac-method { animation: acLine 520ms var(--ease-smooth) both; animation-delay: calc(190ms + var(--n, 0) * 55ms); }
 /* a replaced preview steps back quietly */
 .action-card.replaced { opacity: 0.6; transition: opacity 600ms var(--ease-smooth); }
 

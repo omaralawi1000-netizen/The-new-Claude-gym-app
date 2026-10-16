@@ -26,6 +26,7 @@ type RGB = [number, number, number];
  */
 /** The buttons the orb writes its voice level on (--voice): their style changes never move a slot. */
 const voiceEls = new WeakSet<Element>();
+const noVoice = (style: string | null) => (style ?? '').replace(/--voice:\s*[^;]*;?/, '').trim();
 let pressTarget = 0;
 let tapPending = 0;
 let whooshPending = 0;
@@ -385,13 +386,14 @@ export function SphereStage() {
         if (r.type === 'attributes' && r.target === appEl && r.attributeName === 'style') continue; // the stage's backdrop colour
         // (the voice level written on a slot's button, every frame while you speak, moves nothing: it re-measured the page
         // on every frame of a recording)
-        if (r.type === 'attributes' && r.attributeName === 'style' && voiceEls.has(r.target as Element)) continue;
+        // (only when the voice level is all that changed: the same element may also really move, e.g. with the keyboard)
+        if (r.type === 'attributes' && r.attributeName === 'style' && voiceEls.has(r.target as Element) && noVoice(r.oldValue) === noVoice((r.target as Element).getAttribute('style'))) continue;
         const t = (r.target.nodeType === 1 ? r.target : r.target.parentElement) as Element | null;
         if (t && (inWorkout(t) || inTallList(t))) continue;
         if (r.type !== 'attributes' || !(r.target as Element).matches?.(MOVING)) { dirty(); return; }
       }
     });
-    if (appEl) lmo.observe(appEl, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class', 'data-active', 'hidden'] });
+    if (appEl) lmo.observe(appEl, { childList: true, subtree: true, attributes: true, attributeOldValue: true, attributeFilter: ['style', 'class', 'data-active', 'hidden'] });
     const onScroll = (e: Event) => { const t = e.target as Element | null; if (t?.closest?.('.wk-sheet') || (t?.nodeType === 1 && noSlotIn(t))) return; dirty(); }; // (see inWorkout, noSlotIn)
     window.addEventListener('scroll', onScroll, { capture: true, passive: true });
     window.addEventListener('resize', dirty);

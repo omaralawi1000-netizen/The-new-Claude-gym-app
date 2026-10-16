@@ -16,6 +16,9 @@ import { useStore, allExercises } from '../src/state/store';
 import { useAi } from '../src/state/ai';
 import { defaultData } from '../src/state/defaults';
 import { makeT } from '../src/lib/i18n';
+import { runActions, validateAgent, type AgentResult } from '../src/lib/agent';
+import { calcRecipe } from '../src/lib/nutrition';
+import { dayKey } from '../src/lib/dates';
 
 const t = makeT('en') as any;
 const ask = (text: string) => decide(text, { lang: 'en', t, pool: allExercises(useStore.getState().exercises), history: [], where: 'Coach', signal: new AbortController().signal, surface: 'coach' });
@@ -58,5 +61,57 @@ describe('the web, with its sources', () => {
       expect(r.text).toBe('An answer.');
       expect(r.sources.map((s) => s.title)).toEqual(['a.example', 's0.example', 's1.example', 's2.example', 's3.example', 's4.example']);
     } finally { globalThis.fetch = orig; }
+  });
+});
+
+describe('recipes the app can stand behind', () => {
+  const today = dayKey(Date.now(), 0);
+  const make = async (a: Record<string, unknown>) => (await runActions(validateAgent({ reply: '', actions: [{ type: 'propose_recipe', ...a }] })!.actions, { t, lang: 'en', today, brain: null }))[0] as AgentResult;
+  beforeEach(() => { const d = defaultData('en'); d.settings.onboarded = true; d.settings.foodLookup = false; useStore.getState().replaceAll(d); });
+
+  it('the macros are the app\'s own; an ingredient it can\'t match is left out and said; nothing is saved before Apply', async () => {
+    const r = await make({ name: 'Protein mug cake', servings: 1, foods: [{ name: 'skyr', amount: 150, unit: 'g' }, { name: 'egg', amount: 1, unit: 'piece' }, { name: 'unicorn dust', amount: 10, unit: 'g' }], steps: ['Mix everything.', 'Microwave 90 s.'] });
+    expect(r.kind).toBe('recipe');
+    expect(r.pending).toBe(true);
+    expect(r.subtitle).toMatch(/^1 serving · per serving \d+ kcal · protein \d+ g · carbs [\d—]+.* · 1 left out$/);
+    expect(r.lines.find((l) => l.warn)?.text).toBe('unicorn dust');
+    expect(r.steps).toEqual(['Mix everything.', 'Microwave 90 s.']);
+    expect(useStore.getState().recipes).toHaveLength(0);
+    r.button!.run();
+    const saved = useStore.getState().recipes[0] as any;
+    expect(saved.name).toBe('Protein mug cake');
+    expect(saved.ingredients).toHaveLength(2);
+    expect(saved.steps).toHaveLength(2);
+    // the card's numbers are exactly the saved recipe's
+    expect(r.subtitle).toContain(`${Math.round(calcRecipe(saved).perServing.kcal!)} kcal`);
+    r.undo!();
+    expect(useStore.getState().recipes).toHaveLength(0);
+  });
+
+  it('Log a portion logs one serving of it now, with Undo', async () => {
+    const r = await make({ name: 'Skyr bowl', servings: 2, foods: [{ name: 'skyr', amount: 400, unit: 'g' }, { name: 'banana', amount: 2, unit: 'piece' }], steps: [] });
+    r.more!.find((b) => b.label === 'Log a portion')!.run();
+    const e = useStore.getState().entries;
+    expect(e).toHaveLength(1);
+    expect(e[0].snap.name).toBe('Skyr bowl');
+    expect(e[0].qty).toEqual({ amount: 1, unit: 'portion', portionId: 'serving' });
+  });
+
+  it('nothing it can match: an honest miss, no recipe', async () => {
+    const r = await make({ name: 'Mystery', servings: 1, foods: [{ name: 'unicorn dust', amount: 10, unit: 'g' }], steps: [] });
+    expect(r.kind).toBe('miss');
+  });
+});
+
+describe('a routine from a photo (or said) is a preview first', () => {
+  beforeEach(() => { const d = defaultData('en'); d.settings.onboarded = true; useStore.getState().replaceAll(d); });
+  it('nothing is saved before Apply; a newer version of the same routine replaces the preview', async () => {
+    const today = dayKey(Date.now(), 0);
+    const [r] = await runActions(validateAgent({ reply: '', actions: [{ type: 'create_routine', name: 'Coach Mike upper', add: [{ exercise: 'Barbell Bench Press', sets: 4, repMin: 6, repMax: 8 }] }] })!.actions, { t, lang: 'en', today, brain: null });
+    expect(r.pending).toBe(true);
+    expect(r.key).toBe('routine:coach mike upper');
+    expect(useStore.getState().routines.some((x) => x.name === 'Coach Mike upper')).toBe(false);
+    r.button!.run();
+    expect(useStore.getState().routines.some((x) => x.name === 'Coach Mike upper')).toBe(true);
   });
 });

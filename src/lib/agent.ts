@@ -17,13 +17,13 @@ import { noteEvent } from './ledger';
 import { defaultMealId, mealName } from './derive';
 import { fold, parseFoodText, pickOnline, resolveRows, rowQuantity, type ParsedFoodRow } from './foodText';
 import { matchExercises, parseWorkoutText } from './workoutText';
-import { entryFromSnapshot, quickEntry, snapshotOf, uid } from './nutrition';
+import { calcRecipe, entryFromSnapshot, quickEntry, recipeToFood, scale, snapshotOf, toBase, uid } from './nutrition';
 import { searchDanish, searchOnline } from './foodApi';
 import { type Brain } from './gemini';
 import { estimateFood } from './brain';
 import { ACTIVITY_KINDS, ACTIVITY_LABEL } from './activity';
 import { fmtNum, kgToDisplay } from './units';
-import type { ActivityKind, Equipment, Exercise, Food, FoodEntry, LogType, Meal, MeasureKind, MemoryKind, MemoryNote, MuscleGroup, Quantity, RoutineItem, SessionExercise, SetRecord, Settings } from './types';
+import type { ActivityKind, Equipment, Exercise, Food, FoodEntry, LogType, Meal, MeasureKind, MemoryKind, MemoryNote, MuscleGroup, Quantity, Recipe, RecipeIngredient, RoutineItem, SessionExercise, SetRecord, Settings } from './types';
 import { MEMORY_KINDS, MEMORY_MAX } from '../state/defaults';
 import { addExercises, adjustRest, moveExercise, patchExercise, replaceExercise, skipRest, startRest, toggleSuperset } from '../screens/workout/actions';
 import { EQUIP_LABEL, MUSCLE_LABEL } from '../screens/workout/common';
@@ -73,6 +73,7 @@ export type AgentAction =
   | { type: 'remember'; text: string; kind: MemoryKind; exercise?: string | null; /** the MEMORY number this replaces */ replaces?: number | null; /** last day it applies */ until?: string | null }
   | { type: 'forget'; memory?: number | null; target?: string | null }
   | { type: 'show_exercise'; exercise: string }
+  | { type: 'propose_recipe'; name: string; servings: number; foods: AgentFood[]; steps: string[] }
   | { type: 'suggest_food'; options: { label: string; foods: AgentFood[]; totals: NutriFix | null }[]; meal?: string | null }
   | { type: 'plan_day'; day: string; name?: string | null; focus: string[]; light: string[]; items: RoutineBit[] }
   | { type: 'edit_meals'; meal?: string | null; rename?: string | null; add?: string | null; remove?: string[]; order?: string[] }
@@ -137,6 +138,12 @@ export function validateAgent(raw: any): { reply: string; actions: AgentAction[]
       case 'log_food': {
         const foods = agentFoods(a.foods, 14);
         if (foods.length) out.push({ type: 'log_food', foods, meal: str(a.meal, 30) ?? null, day: dayArg(a.day) });
+        break;
+      }
+      case 'propose_recipe': {
+        const name = str(a.name, 60), foods = agentFoods(a.foods, 15);
+        const steps = (Array.isArray(a.steps) ? a.steps : []).map((x: unknown) => str(x, 220)).filter(Boolean).slice(0, 12) as string[];
+        if (name && foods.length) out.push({ type: 'propose_recipe', name, servings: Math.round(num(a.servings, 1, 20) ?? 1), foods, steps });
         break;
       }
       case 'suggest_food': {
@@ -310,7 +317,9 @@ export function validateAgent(raw: any): { reply: string; actions: AgentAction[]
 
 export interface AgentResult {
   id: string;
-  kind: 'food' | 'sets' | 'water' | 'weight' | 'activity' | 'workout' | 'routine' | 'nav' | 'setting' | 'memory' | 'miss';
+  kind: 'food' | 'recipe' | 'sets' | 'water' | 'weight' | 'activity' | 'workout' | 'routine' | 'nav' | 'setting' | 'memory' | 'miss';
+  /** a recipe's method, shown under its ingredients (folded away until opened) */
+  steps?: string[];
   title: string;
   lines: { text: string; sub?: string; warn?: boolean; /** the item's id (a food entry), so "move it" later means exactly this one */ ref?: string }[];
   /** reverses everything this card did */
@@ -376,6 +385,21 @@ function foodRow(f: AgentFood, i: number): ParsedFoodRow {
 
 const kcalOf = (e: FoodEntry) => (typeof e.nutrients.kcal === 'number' ? Math.round(e.nutrients.kcal) : undefined);
 
+/**
+ * The food a heard row means: a clear match in the bundled and own foods (or the best one when it is clearly ahead), else
+ * — unless lookups are off — the Danish products and the online databases (bounded). Never an AI estimate: logging adds
+ * that itself, clearly labelled; a recipe flags the miss instead.
+ */
+async function findFood(r: ReturnType<typeof resolveRows>[number], lookup: boolean): Promise<{ food?: Food; online?: Food }> {
+  let food: Food | undefined = r.status === 'resolved' ? r.candidates.find((c) => c.food.id === r.choiceId)?.food : undefined;
+  if (!food && r.status === 'ambiguous' && r.candidates[0] && r.candidates[0].score >= 0.5) food = r.candidates[0].food;
+  if (food || !lookup) return { food };
+  const timeout = (ms: number) => new Promise<undefined>((ok) => setTimeout(() => ok(undefined), ms));
+  const hit = await Promise.race([searchDanish(r.query).then((x) => pickOnline(r.query, x)), timeout(4000)]).catch(() => undefined)
+    ?? await Promise.race([searchOnline(r.query).then((x) => pickOnline(r.query, x.foods)), timeout(5000)]).catch(() => undefined);
+  return hit ? { food: hit, online: hit } : {};
+}
+
 async function doLogFood(a: Extract<AgentAction, { type: 'log_food' }>, ctx: AgentCtx): Promise<AgentResult> {
   const { t, lang } = ctx;
   const st = useStore.getState();
@@ -390,17 +414,9 @@ async function doLogFood(a: Extract<AgentAction, { type: 'log_food' }>, ctx: Age
   const toSave: Food[] = [];
 
   for (const r of rows) {
-    // the food: a clear match, or the best one when it is clearly ahead
-    let food: Food | undefined = r.status === 'resolved' ? r.candidates.find((c) => c.food.id === r.choiceId)?.food : undefined;
-    if (!food && r.status === 'ambiguous' && r.candidates[0] && r.candidates[0].score >= 0.5) food = r.candidates[0].food;
-    // nothing in the bundled/own foods: try the online databases (bounded), unless the user turned lookups off
-    if (!food && st.settings.foodLookup) {
-      // Danish products first (on the phone, instant), then the live worldwide search
-      const timeout = (ms: number) => new Promise<undefined>((ok) => setTimeout(() => ok(undefined), ms));
-      const hit = await Promise.race([searchDanish(r.query).then((x) => pickOnline(r.query, x)), timeout(4000)]).catch(() => undefined)
-        ?? await Promise.race([searchOnline(r.query).then((x) => pickOnline(r.query, x.foods)), timeout(5000)]).catch(() => undefined);
-      if (hit) { food = hit; toSave.push(hit); }
-    }
+    // the food: the bundled/own foods first, then (unless turned off) the online databases
+    const { food, online } = await findFood(r, st.settings.foodLookup);
+    if (online) toSave.push(online);
     if (food) {
       let q = rowQuantity(r, food);
       let guessed = false;
@@ -1314,14 +1330,102 @@ function doShowExercise(a: Extract<AgentAction, { type: 'show_exercise' }>, ctx:
 }
 
 /** "What should I eat?": each option is a card that waits for one tap to log it (then it says what was logged, with Undo). */
-function doSuggest(a: Extract<AgentAction, { type: 'suggest_food' }>, ctx: AgentCtx): AgentResult[] {
+/**
+ * A recipe the Coach thought of ("a protein mug cake", "low-calorie lasagne"): the app matches every ingredient to a real
+ * food and works out the macros itself — the model's own numbers are never used. An ingredient it can't match, or one with
+ * no amount, is flagged and left out of the numbers (said in the card). A preview: Save recipe keeps it (Undo), Log a portion
+ * logs one serving now, and Shopping list copies the ingredients.
+ */
+async function doProposeRecipe(a: Extract<AgentAction, { type: 'propose_recipe' }>, ctx: AgentCtx): Promise<AgentResult> {
   const { t, lang } = ctx;
-  return a.options.map((o) => {
-    const tot = o.totals;
+  const st = useStore.getState();
+  const pool = foodPool(st.foods, st.recipes);
+  const fav = new Set(st.favourites);
+  const rows = resolveRows(a.foods.map(foodRow), pool, st.choices, (f) => (fav.has(f.id) ? 0.05 : 0));
+  const ingredients: RecipeIngredient[] = [];
+  const lines: AgentResult['lines'] = [];
+  const found: Food[] = [];
+  let missed = 0;
+  for (const r of rows) {
+    const { food, online } = await findFood(r, st.settings.foodLookup);
+    const q = food ? rowQuantity(r, food) : null;
+    const snap = food ? snapshotOf(food) : null;
+    const b = snap && q?.qty ? toBase(snap, q.qty) : null;
+    if (!food || !snap || !q?.qty || !b?.ok) {
+      missed++;
+      lines.push({ text: r.raw, sub: !food ? t('Not found — left out') : t('No amount — left out'), warn: true });
+      continue;
+    }
+    if (online) found.push(online);
+    ingredients.push({ id: uid('i'), snap, qty: q.qty, base: b.base });
+    const kcal = scale(snap.per100, b.base).kcal;
+    const amt = q.qty.unit === 'portion' ? `${fmtNum(q.qty.amount, lang, 1)} × ${snap.portions.find((p) => p.id === q.qty!.portionId)?.label.replace(/^1\s+/, '') ?? t('serving')}` : `${fmtNum(q.qty.amount, lang, 0)} ${q.qty.unit}`;
+    lines.push({ text: lang === 'da' && food.nameDa ? food.nameDa : food.name, sub: `${amt}${kcal !== undefined ? ` · ${Math.round(kcal)} kcal` : ''}` });
+  }
+  if (!ingredients.length) return { id: uid('r'), kind: 'miss', title: t('Couldn’t work that recipe out'), lines };
+  const now = Date.now();
+  const recipe: Recipe & { steps?: string[] } = { id: uid('rc'), name: a.name, ingredients, servings: a.servings, createdAt: now, updatedAt: now, ...(a.steps.length ? { steps: a.steps } : {}) };
+  const c = calcRecipe(recipe);
+  const n = (k: 'kcal' | 'protein' | 'carbs' | 'fat') => (c.perServing[k] === undefined ? '—' : `${Math.round(c.perServing[k]!)}${k === 'kcal' ? ' kcal' : ' g'}`);
+  const per = `${n('kcal')} · ${t('protein')} ${n('protein')} · ${t('carbs')} ${n('carbs')} · ${t('fat')} ${n('fat')}`;
+  const serves = a.servings === 1 ? t('1 serving') : t('{n} servings', { n: a.servings });
+  const list = () => ingredients.map((i) => `- ${i.qty.unit === 'portion' ? `${fmtNum(i.qty.amount, lang, 1)} × ${i.snap.portions.find((p) => p.id === i.qty.portionId)?.label ?? ''}` : `${fmtNum(i.qty.amount, lang, 0)} ${i.qty.unit}`} ${i.snap.name}`).join('\n');
+  const result = preview({
+    id: uid('r'), kind: 'recipe', title: a.name, key: `recipe:${fold(a.name)}`,
+    subtitle: `${serves} · ${t('per serving')} ${per}${missed ? ` · ${t('{n} left out', { n: missed })}` : ''}`,
+    doneSubtitle: t('Saved to your recipes'),
+    lines, steps: a.steps.length ? a.steps : undefined,
+  }, t('Save recipe'), () => {
+    const s2 = useStore.getState();
+    found.forEach((f) => s2.saveFood(f));
+    s2.upsertRecipe(recipe);
+    return () => useStore.getState().deleteRecipe(recipe.id);
+  });
+  result.more = [
+    { label: t('Log a portion'), run: () => {
+      const food = recipeToFood(recipe);
+      const s2 = useStore.getState();
+      if (!food) { useUI.getState().toast(t('This recipe needs a weight before a portion can be logged'), { tone: 'bad' }); return; }
+      const mealId = ctx.mealId && s2.settings.meals.some((m) => m.id === ctx.mealId) ? ctx.mealId : defaultMealId(s2.settings.meals);
+      const one = entryFromSnapshot(snapshotOf(food), { amount: 1, unit: 'portion', portionId: 'serving' }, ctx.date ?? ctx.today, mealId, { id: uid('e') });
+      const [e] = one ? s2.logEntries([one]) : [];
+      if (e) useUI.getState().toast(t('Logged 1 serving of {name}', { name: a.name }), { tone: 'ok', actionLabel: t('Undo'), onAction: () => useStore.getState().removeEntry(e.id) });
+    } },
+    { label: t('Shopping list'), run: () => {
+      void navigator.clipboard?.writeText(`${a.name} (${serves})\n${list()}`).then(() => useUI.getState().toast(t('Shopping list copied'), { tone: 'ok' }), () => useUI.getState().toast(t('Couldn’t copy'), { tone: 'bad' }));
+    } },
+  ];
+  return result;
+}
+
+/** What an option adds up to, worked out by the app from the foods it knows (no network): null if any food is unknown. */
+async function appTotals(foods: AgentFood[]): Promise<{ kcal?: number; protein?: number } | null> {
+  const st = useStore.getState();
+  const rows = resolveRows(foods.map(foodRow), foodPool(st.foods, st.recipes), st.choices, () => 0);
+  let kcal = 0, protein = 0, kOk = true, pOk = true;
+  for (const r of rows) {
+    const { food } = await findFood(r, false);
+    const q = food ? rowQuantity(r, food) : null;
+    const snap = food ? snapshotOf(food) : null;
+    const b = snap && q?.qty ? toBase(snap, q.qty) : null;
+    if (!snap || !b?.ok) return null;
+    const n = scale(snap.per100, b.base);
+    if (n.kcal === undefined) kOk = false; else kcal += n.kcal;
+    if (n.protein === undefined) pOk = false; else protein += n.protein;
+  }
+  return { ...(kOk ? { kcal } : {}), ...(pOk ? { protein } : {}) };
+}
+
+async function doSuggest(a: Extract<AgentAction, { type: 'suggest_food' }>, ctx: AgentCtx): Promise<AgentResult[]> {
+  const { t, lang } = ctx;
+  // the totals are the app's own, from the foods it knows; the model's guess is never shown (unknown → no number)
+  const totals = await Promise.all(a.options.map((o) => appTotals(o.foods).catch(() => null)));
+  return a.options.map((o, oi) => {
+    const tot = totals[oi];
     const about = tot && (tot.kcal !== undefined || tot.protein !== undefined) ? [tot.kcal !== undefined ? `${Math.round(tot.kcal)} kcal` : '', tot.protein !== undefined ? `${Math.round(tot.protein)} g ${t('protein')}` : ''].filter(Boolean).join(' · ') : '';
     const amount = (f: AgentFood) => !f.amount ? undefined : f.unit === 'piece' || !f.unit ? `${fmtNum(f.amount, lang, 1)} ${f.amount === 1 ? t('piece') : t('pieces')}` : `${fmtNum(f.amount, lang, 1)} ${f.unit}`;
     return {
-      id: uid('r'), kind: 'food' as const, title: o.label, pending: true, offer: true, subtitle: about ? `≈ ${about}` : undefined,
+      id: uid('r'), kind: 'food' as const, title: o.label, pending: true, offer: true, subtitle: about || undefined,
       lines: o.foods.map((f) => ({ text: f.name, sub: amount(f) })),
       button: {
         label: t('Log this'),
@@ -1534,7 +1638,8 @@ export async function runActions(actions: AgentAction[], ctxIn: AgentCtx): Promi
         case 'remember': out.push(doRemember(a, ctx)); break;
         case 'forget': out.push(doForget(a, ctx)); break;
         case 'show_exercise': out.push(doShowExercise(a, ctx)); break;
-        case 'suggest_food': out.push(...doSuggest(a, ctx)); break;
+        case 'propose_recipe': out.push(await doProposeRecipe(a, ctx)); break;
+        case 'suggest_food': out.push(...(await doSuggest(a, ctx))); break;
         case 'plan_day': out.push(doPlanDay(a, ctx)); break;
         case 'edit_meals': out.push(doEditMeals(a, ctx)); break;
         case 'log_saved_meal': out.push(doLogSavedMeal(a, ctx)); break;

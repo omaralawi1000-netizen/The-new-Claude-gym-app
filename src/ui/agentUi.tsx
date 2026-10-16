@@ -1,6 +1,7 @@
 import { memo, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useLang, useT } from '../lib/i18n';
 import { Icon, type IconName } from './Icon';
+import { Collapse } from './kit';
 import { useStore } from '../state/store';
 import { dayKey, diffDays } from '../lib/dates';
 import { sumNutrients } from '../lib/nutrition';
@@ -132,7 +133,7 @@ export function RotatingHint() {
   return <span key={text} className="hint-rot">“{text}”</span>;
 }
 
-const KIND_ICON: Record<string, IconName> = { food: 'recipe', sets: 'dumbbell', water: 'drop', weight: 'scale', activity: 'wrestle', workout: 'dumbbell', routine: 'list', nav: 'info', setting: 'settings', memory: 'note', miss: 'info' };
+const KIND_ICON: Record<string, IconName> = { food: 'recipe', recipe: 'recipe', sets: 'dumbbell', water: 'drop', weight: 'scale', activity: 'wrestle', workout: 'dumbbell', routine: 'list', nav: 'info', setting: 'settings', memory: 'note', miss: 'info' };
 
 /** Pieces shared by the Coach chat and the orb screen: how the assistant's words and actions are shown. */
 
@@ -345,6 +346,8 @@ export function ActionCard({ r, undone, confirmed, onUndo, onConfirm, replaced =
               ))}
             </div>
           )}
+          {/* a recipe's method: folded away under its ingredients until opened */}
+          {r.steps && r.steps.length > 0 && <Method steps={r.steps} />}
           {/* The buttons live in one cell. On Apply the Apply row leaves in place while the Undo row fades in over it; once
               undone (or replaced) the row keeps its room and fades out, so the card never changes height in one frame. */}
           {(hadButtons || (confirmed && r.undo)) && (!gone || goneLive) && (
@@ -383,6 +386,24 @@ function WeekStrip({ week }: { week: NonNullable<AgentResult['week']> }) {
           <span className="ac-day-dot">{d.routine ? d.routine.slice(0, 1).toUpperCase() : ''}{d.wrestling && <i className="ac-day-w" />}</span>
         </div>
       ))}
+    </div>
+  );
+}
+
+
+/** A recipe's method on its card: one quiet line to open it; the steps fold open (and shut) smoothly. */
+function Method({ steps }: { steps: string[] }) {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="ac-method">
+      <button className="xs t2 ac-method-btn press" aria-expanded={open} onClick={() => setOpen((x) => !x)}>
+        <Icon name="chevD" size={14} style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 320ms var(--ease-smooth)' }} />
+        {open ? t('Hide method') : t('Method ({n} steps)', { n: steps.length })}
+      </button>
+      <Collapse open={open}>
+        <ol className="ac-steps small">{steps.map((x, i) => <li key={i}>{x}</li>)}</ol>
+      </Collapse>
     </div>
   );
 }
