@@ -26,6 +26,8 @@ await p.route('https://generativelanguage.googleapis.com/**', async (r) => {
 });
 await p.goto('http://127.0.0.1:5173/'); await wait(p, 900); await skipOnboarding(p); await loadDemo(p);
 await p.evaluate(() => localStorage.setItem('aven.keys', JSON.stringify({ gemini: 'AIzaTESTKEY' })));
+// Omar's look: the Aurora (teal) palette
+await p.evaluate(() => { const d = JSON.parse(localStorage.getItem('aven.v1') || '{}'); d.settings = { ...d.settings, palette: 'aurora' }; localStorage.setItem('aven.v1', JSON.stringify(d)); });
 await p.reload(); await wait(p, 1400);
 await p.getByLabel('Coach').click(); await wait(p, 1200);
 

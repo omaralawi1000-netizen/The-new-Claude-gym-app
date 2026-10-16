@@ -1148,8 +1148,10 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .action-line { animation: lineIn 560ms var(--ease-out) backwards; }
 @keyframes lineIn { from { opacity: 0; transform: translateX(-10px); } }
 .action-card.undone { opacity: 0.55; }
+.action-card.undone .action-ic { color: var(--tx3); }
 /* (Undo: the strike is drawn, below; a card restored already undone simply shows it) */
-.action-card .ac-text { position: relative; display: inline-block; max-width: 100%; } /* (as wide as its words: the strike ends where they do) */
+.action-card .ac-text { position: relative; display: inline-block; max-width: 100%; }
+.action-line.stack .ac-text { align-self: flex-start; } /* (as wide as its words: the strike ends where they do) */
 .action-card.undone .action-line .ac-text::after { content: ''; position: absolute; left: 0; right: 0; top: 52%; height: 1.5px; border-radius: 1px; background: currentColor; opacity: 0.7; transform-origin: 0 50%; }
 
 /* ── Coach cards, phase 2 (Coach 2.0): they settle out of the answer, a preview waits with one slow light across its glass,
@@ -1168,7 +1170,9 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .action-card .action-ic { position: relative; }
 .action-card .action-ic::after { content: ''; position: absolute; inset: 0; border-radius: 50%; box-shadow: 0 0 0 1.5px currentColor; opacity: 0; pointer-events: none; }
 .coach-body .action-card.fresh .action-ic::after { animation: acHalo 980ms var(--ease-out) 260ms both; }
-@keyframes acHalo { from { opacity: 0.45; transform: scale(0.85); } to { opacity: 0; transform: scale(1.9); } }
+@keyframes acHalo { 0% { opacity: 0; transform: scale(0.9); } 15% { opacity: 0.4; } 100% { opacity: 0; transform: scale(1.8); } }
+/* (the same ring again on Apply needs a keyframe of its own name: one the icon already ran does not replay) */
+@keyframes acHalo2 { 0% { opacity: 0; transform: scale(0.9); } 15% { opacity: 0.4; } 100% { opacity: 0; transform: scale(1.8); } }
 /* a preview waiting for its tap: one slow sheen passes across the glass, once */
 .ac-sheen { position: absolute; inset: 0; border-radius: inherit; overflow: hidden; pointer-events: none; z-index: 0; }
 .ac-sheen i { position: absolute; top: -20%; bottom: -20%; left: 0; width: 46%; background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.07) 45%, rgba(255, 255, 255, 0.11) 50%, rgba(255, 255, 255, 0.07) 55%, transparent); transform: translate3d(-120%, 0, 0) skewX(-12deg); animation: acSheen 1700ms var(--ease-io) 720ms both; }
@@ -1178,19 +1182,32 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* Apply: the icon settles into its done mark on a soft spring with its halo, the lines ripple once, the Undo row rises
    where the Apply button was, and the title rolls to "Done" */
 .action-card.sealing .action-ic svg { animation: acSeal 620ms var(--ease-smooth) both; } /* (a spring's last overshoot left the icon a hair off its rest: 39/255) */
-@keyframes acSeal { from { opacity: 0.35; transform: scale(0.6); } }
-.coach-body .action-card.sealing.sealing .action-ic::after, .action-card.sealing.sealing .action-ic::after { animation: acHalo 980ms var(--ease-out) 60ms both; }
+/* (a pulse from rest: the icon never dips the instant it is tapped) */
+@keyframes acSeal { 0%, 100% { opacity: 1; transform: none; } 35% { opacity: 0.6; transform: scale(0.86); } }
+.coach-body .action-card.sealing.sealing .action-ic::after, .action-card.sealing.sealing .action-ic::after { animation: acHalo2 980ms var(--ease-out) 60ms both; }
 .coach-body .action-card.sealing.sealing .action-line, .action-card.sealing.sealing .action-line { animation: acRipple 520ms var(--ease-smooth) both; animation-delay: calc(80ms + var(--i, 0) * 40ms); }
 /* (a pulse that starts and ends at rest: no line ever jumps on the tap) */
-@keyframes acRipple { 0%, 100% { opacity: 1; transform: none; } 38% { opacity: 0.7; transform: translate3d(0, -1.5px, 0); } }
+@keyframes acRipple { 0%, 100% { opacity: 1; transform: none; } 38% { opacity: 0.85; transform: translate3d(0, -1.5px, 0); } }
 .action-card .ac-actions { animation: acActions 460ms var(--ease-smooth) both; }
+.coach-body .action-card.fresh .ac-actions:not(.ac-in-late):not(.ac-out) { animation-delay: calc(190ms + var(--n, 0) * 55ms); } /* (after the last line) */
+/* the buttons live in one cell: on Apply the Apply row leaves in place while Undo fades in over it; undone or replaced, the
+   row fades but keeps its room, so the card never changes height in one frame */
+.ac-actions-cell { display: grid; margin-top: 10px; transition: opacity 300ms var(--ease-smooth); }
+.ac-actions-cell > * { grid-area: 1 / 1; }
+.ac-actions-cell.gone { opacity: 0; pointer-events: none; }
+.action-card .ac-actions.ac-out { animation: acOut 260ms var(--ease-smooth) both; pointer-events: none; }
+@keyframes acOut { to { opacity: 0; transform: scale(0.96); } }
+.action-card .ac-actions.ac-in-late { animation: acActions 460ms var(--ease-smooth) 160ms both; }
+.action-card .btn.primary { box-shadow: inset 0 1px 0 var(--hl), 0 6px 14px -8px rgba(0, 0, 0, 0.5); }
 .coach-body .action-card:not(.fresh):not(.sealing) .ac-actions { animation: none; }
 /* (a fade in place: rising, the Undo icon was drawn a touch differently and sharpened as it stopped — 34/255) */
 @keyframes acActions { from { opacity: 0; } }
-.ac-title { position: relative; overflow: hidden; }
-.ac-title .ac-roll { display: inline-block; animation: roll-up 460ms var(--ease-smooth) both; }
-.ac-title .ac-roll-out { position: absolute; left: 0; top: 0; white-space: nowrap; pointer-events: none; animation: acRollOut 360ms var(--ease-smooth) both; }
-@keyframes acRollOut { to { opacity: 0; transform: translate3d(0, -60%, 0); } }
+.ac-title { position: relative; overflow: hidden; padding-block: 2px; margin-block: -2px; }
+/* one after the other: the old title leaves upward, then the new one comes up from below (never two at once) */
+.ac-title .ac-roll { display: inline-block; animation: acRollIn 420ms var(--ease-smooth) 180ms both; }
+@keyframes acRollIn { from { opacity: 0; transform: translate3d(0, 40%, 0); } }
+.ac-title .ac-roll-out { position: absolute; left: 0; top: 2px; white-space: nowrap; pointer-events: none; animation: acRollOut 240ms var(--ease-smooth) both; }
+@keyframes acRollOut { to { opacity: 0; transform: translate3d(0, -40%, 0); } }
 /* Undo: the strike is drawn left to right, the card eases back */
 .action-card.undoing { transition: opacity 520ms var(--ease-smooth); }
 .action-card.undoing .action-line .ac-text::after { animation: acStrike 460ms var(--ease-io) both; animation-delay: calc(var(--i, 0) * 45ms); }
@@ -1209,13 +1226,13 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .ac-day-w { position: absolute; right: -2px; bottom: -2px; width: 10px; height: 10px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 2px var(--bg); }
 .coach-body .action-card.fresh .ac-day { animation: acLine 520ms var(--ease-smooth) both; animation-delay: calc(200ms + var(--i, 0) * 40ms); }
 .action-card.sealing .ac-day.changed .ac-day-dot { animation: acDay 680ms var(--ease-smooth) both; animation-delay: calc(60ms + var(--c, 0) * 70ms); }
-@keyframes acDay { from { transform: scale(0.82); opacity: 0.5; } }
+@keyframes acDay { 0%, 100% { transform: none; opacity: 1; } 40% { transform: scale(0.9); opacity: 0.75; } }
 @media (prefers-reduced-motion: reduce) {
   .action-card, .action-card *, .action-card *::after { animation: none !important; transition: none !important; }
 }
 :root[data-motion='reduce'] :is(.action-card, .action-card *, .action-card *::after) { animation: none !important; transition: none !important; }
-@media (prefers-reduced-motion: reduce) { .ac-title .ac-roll-out { display: none; } }
-:root[data-motion='reduce'] .ac-title .ac-roll-out { display: none; }
+@media (prefers-reduced-motion: reduce) { .ac-title .ac-roll-out, .action-card .ac-actions.ac-out { display: none; } }
+:root[data-motion='reduce'] :is(.ac-title .ac-roll-out, .action-card .ac-actions.ac-out) { display: none; }
 
 /* the Coach's mic: the ring around the orb swells with your voice (--voice is written by the sphere stage) */
 .voice-ring { position: absolute; inset: -2px; border-radius: 999px; pointer-events: none; border: 2px solid var(--ac); opacity: 0; box-shadow: 0 0 22px -4px var(--ac); transition: opacity .3s var(--ease-io, ease); }
