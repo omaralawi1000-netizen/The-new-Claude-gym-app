@@ -1149,7 +1149,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 @keyframes lineIn { from { opacity: 0; transform: translateX(-10px); } }
 .action-card.undone { opacity: 0.55; }
 /* (Undo: the strike is drawn, below; a card restored already undone simply shows it) */
-.action-card .ac-text { position: relative; }
+.action-card .ac-text { position: relative; display: inline-block; max-width: 100%; } /* (as wide as its words: the strike ends where they do) */
 .action-card.undone .action-line .ac-text::after { content: ''; position: absolute; left: 0; right: 0; top: 52%; height: 1.5px; border-radius: 1px; background: currentColor; opacity: 0.7; transform-origin: 0 50%; }
 
 /* ── Coach cards, phase 2 (Coach 2.0): they settle out of the answer, a preview waits with one slow light across its glass,

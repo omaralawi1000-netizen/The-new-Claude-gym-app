@@ -51,7 +51,7 @@ const film = async (name, sel, totalMs) => {
   console.log("filming", name, new Date().toISOString().slice(11, 19));
   await p.waitForFunction(() => window.__frozen !== null, null, { timeout: 15000 });
   const dir = `${OUT}/${name}`; fs.rmSync(dir, { recursive: true, force: true }); fs.mkdirSync(dir, { recursive: true });
-  const box = await p.evaluate(() => { const r = window.__el.getBoundingClientRect(); return { x: 0, y: Math.max(0, r.top - 70), width: innerWidth, height: Math.min(innerHeight - Math.max(0, r.top - 70), r.height + 140) }; }, sel);
+  const box = await p.evaluate(() => ({ x: 0, y: 0, width: innerWidth, height: innerHeight })); // the whole screen: the card moves as the chat follows it
   const step = 1000 / 30;
   let n = 0;
   for (let ms = 0; ms <= totalMs; ms += step) {
