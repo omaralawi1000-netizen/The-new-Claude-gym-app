@@ -55,13 +55,15 @@ const film = async (name, sel, totalMs) => {
     await p.waitForTimeout(30);
     await p.screenshot({ path: `${dir}/${String(n++).padStart(3, '0')}.png`, clip: box });
   }
-  // seamless settle: 1 ms before every animation ends vs all of them finished
+  // seamless settle: 1 ms before every animation ends vs all of them finished — the card alone (the answer above it keeps
+  // writing itself in, it isn't frozen)
+  const card = await p.evaluate((sel) => { const r = document.querySelector(sel).getBoundingClientRect(); return { x: Math.max(0, r.left - 4), y: Math.max(0, r.top - 4), width: Math.min(innerWidth, r.width + 8), height: r.height + 8 }; }, sel);
   await p.evaluate(() => window.__anims.forEach((a) => { const end = a.effect.getComputedTiming().endTime; a.currentTime = Math.max(0, end - 1); }));
   await p.waitForTimeout(40);
-  const before = (await p.screenshot({ clip: box })).toString('base64');
+  const before = (await p.screenshot({ clip: card })).toString('base64');
   await p.evaluate(() => window.__anims.forEach((a) => a.finish()));
   await p.waitForTimeout(80);
-  const after = (await p.screenshot({ clip: box })).toString('base64');
+  const after = (await p.screenshot({ clip: card })).toString('base64');
   const diff = await p.evaluate(async ([a, b]) => {
     const load = (s) => new Promise((ok) => { const i = new Image(); i.onload = () => ok(i); i.src = `data:image/png;base64,${s}`; });
     const [ia, ib] = await Promise.all([load(a), load(b)]);
