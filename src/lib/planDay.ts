@@ -4,8 +4,9 @@
  * the Coach shows it as a preview and only an Apply puts it in the plan (agent.ts → plan_day).
  */
 import type { AppData, Exercise, MuscleGroup, RoutineItem } from './types';
-import { addDays, weekdayOf } from './dates';
+import { addDays, dayKey, weekdayOf } from './dates';
 import { historyOf, incrementFor, suggestProgression } from './workout';
+import { readiness } from './readiness';
 
 export interface PlanPick { ex: Exercise; sets: number; repMin: number; repMax: number; restSec: number; target?: string; flagged?: string }
 export interface DayPlan { picks: PlanPick[]; warnings: string[] }
@@ -43,7 +44,8 @@ export function pickForMuscles(focus: { muscle: MuscleGroup; light?: boolean }[]
     u.n++; if (s.date > u.last) u.last = s.date;
     usage.set(e.exerciseId, u);
   }
-  const hurt = new Set(d.memory.filter((m) => m.kind === 'health').flatMap((m) => m.exerciseIds ?? []));
+  const today = dayKey(Date.now(), d.settings.dayStartHour);
+  const hurt = new Set(d.memory.filter((m) => m.kind === 'health' && !(m.until && m.until < today)).flatMap((m) => m.exerciseIds ?? []));
   const out: Exercise[] = [];
   focus.forEach((f, i) => {
     const n = f.light ? 1 : i === 0 ? 3 : 2;
@@ -58,17 +60,27 @@ export function pickForMuscles(focus: { muscle: MuscleGroup; light?: boolean }[]
 
 /** The full plan for a date: shapes, targets, and anything worth a warning (a hard leg day before wrestling, a hurt lift). */
 export function buildDayPlan(exercises: (Exercise & { sets?: number | null; repMin?: number | null; repMax?: number | null; restSec?: number | null })[], date: string, d: AppData): DayPlan {
-  const hurtNotes = d.memory.filter((m) => m.kind === 'health' && m.exerciseIds?.length);
+  const today = dayKey(Date.now(), d.settings.dayStartHour);
+  // a note that has ended ("sore this week") no longer flags a lift
+  const hurtNotes = d.memory.filter((m) => m.kind === 'health' && m.exerciseIds?.length && !(m.until && m.until < today));
+  // tired today (check-in, wrestling, a big week, RPE up): a day planned for today or tomorrow gets a set less per lift
+  // where the Coach didn't choose the sets itself (never under two)
+  const tired = date <= addDays(today, 1) && readiness(d, today).level === 'tired';
   const picks: PlanPick[] = exercises.map((ex) => {
     const base = shapeFor(ex, d);
     const repMin = ex.repMin ?? base.repMin, repMax = Math.max(repMin, ex.repMax ?? base.repMax);
     const flagged = hurtNotes.find((m) => m.exerciseIds!.includes(ex.id))?.text;
-    return { ex, sets: ex.sets ?? base.sets, repMin, repMax, restSec: ex.restSec ?? base.restSec, target: targetFor(ex, d, { min: repMin, max: repMax }), flagged };
+    const sets = ex.sets ?? (tired && base.sets >= 3 ? base.sets - 1 : base.sets);
+    return { ex, sets, repMin, repMax, restSec: ex.restSec ?? base.restSec, target: targetFor(ex, d, { min: repMin, max: repMax }), flagged };
   });
   const warnings: string[] = [];
   const next = addDays(date, 1);
   const wrestleNext = (d.schedule.activities?.[weekdayOf(next)] ?? []).includes('wrestling');
   const legSets = picks.filter((p) => LEGS.includes(p.ex.muscles[0])).reduce((n, p) => n + p.sets, 0);
   if (wrestleNext && legSets >= 6) warnings.push('wrestling-next-day');
+  // wrestling already logged the day before (hard, or a lot of rounds), not only the weekly plan
+  const matBefore = d.activities.some((a) => a.kind === 'wrestling' && a.date === addDays(date, -1) && ((a.intensity ?? 0) >= 2 || (a.rounds ?? 0) >= 6));
+  if (matBefore && legSets >= 6) warnings.push('wrestled-day-before');
+  if (tired) warnings.push('tired');
   return { picks, warnings };
 }

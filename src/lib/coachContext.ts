@@ -3,6 +3,7 @@ import { addDays, diffDays } from './dates';
 import { nutritionByDay, trendRate, weekStreak, weeklyTraining, weightTrend, average, setsPerMuscle, usualDays, stalledLifts, MUSCLES } from './stats';
 import { elapsedMs, historyOf, incrementFor, suggestProgression } from './workout';
 import { plannedFor, missedWorkouts } from '../state/store';
+import { readinessLine } from './readiness';
 import { SETTING_SPEC, settingsForPrompt } from './settingSpec';
 
 /**
@@ -319,9 +320,13 @@ export function buildAgentContext(d: AppData, today: string, exName: (id: string
     if (cur) { const q = cur.e.sets[cur.i]; const kg = q.weightKg ?? q.target?.weightKg, reps = q.reps ?? q.target?.repMax; L.push(`CURRENT SET (the one they are on now): ${exName(cur.e.exerciseId)} set ${cur.i + 1}${q.type === 'warmup' ? ' (warm-up)' : ''}, planned ${kg ? `${r1(kg)} kg × ` : ''}${reps ?? '?'} reps.`); }
     else L.push('CURRENT SET: none — every set is ticked.');
   } else L.push('No workout is running.');
+  const ready = readinessLine(d, today);
+  if (ready) L.push(ready);
   // the last finished workouts in full, so "make my last bench set 85" and "how did Tuesday go?" have something to read
   for (const ss of d.sessions.filter((x) => x.status === 'done').slice(-6).reverse()) {
-    L.push(`Workout ${ss.date} "${ss.name || 'Workout'}" (${Math.round(elapsedMs(ss) / 60000)} min): ${ss.exercises.map((e) => `${exName(e.exerciseId)}: ${e.sets.filter((q) => q.done).map(setTxt).join(', ')}`).join(' | ')}.`);
+    const c = ss.checkin;
+    const felt = c ? ` Check-in after: ${[c.energy && `energy ${['low', 'ok', 'great'][c.energy - 1]}`, c.soreness && `soreness ${['none', 'some', 'a lot'][c.soreness - 1]}`, c.sleep && `sleep ${['poor', 'ok', 'good'][c.sleep - 1]}`].filter(Boolean).join(', ')}.` : '';
+    L.push(`Workout ${ss.date} "${ss.name || 'Workout'}" (${Math.round(elapsedMs(ss) / 60000)} min): ${ss.exercises.map((e) => `${exName(e.exerciseId)}: ${e.sets.filter((q) => q.done).map(setTxt).join(', ')}`).join(' | ')}.${felt}`);
   }
   // personal bests for the lifts that come up most
   const freq = new Map<string, number>();
@@ -336,7 +341,7 @@ export function buildAgentContext(d: AppData, today: string, exName: (id: string
   const ws = [...d.weights].sort((x, y) => x.at - y.at).slice(-8);
   if (ws.length) L.push(`Recent weigh-ins: ${ws.map((w) => `${w.date} ${r1(w.kg)}kg`).join(', ')}.`);
   for (const r of d.routines.filter((x) => !x.oneOff).slice(0, 12)) L.push(`Routine "${r.name}": ${r.items.map((i) => `${exName(i.exerciseId)} ${i.workingSets}×${i.repMin}-${i.repMax}`).join(', ')}.`);
-  const recent = d.activities.slice(-5).reverse().map((a) => `${a.date} ${a.kind} ${Math.round(a.durationSec / 60)} min`);
+  const recent = d.activities.slice(-5).reverse().map((a) => `${a.date} ${a.kind} ${Math.round(a.durationSec / 60)} min${a.rounds ? `, ${a.rounds} rounds` : ''}${a.intensity ? `, ${['easy', 'hard', 'max'][a.intensity - 1]}` : ''}`);
   if (recent.length) L.push(`Recent activities: ${recent.join('; ')}.`);
   L.push(`Counts: ${d.favourites.length} favourite foods, ${d.savedMeals.length} saved meals, ${d.recipes.length} recipes, ${d.sessions.length} sessions.`);
   return L.join('\n').slice(0, 16000);
