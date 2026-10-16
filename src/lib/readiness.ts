@@ -79,7 +79,7 @@ export function readiness(d: Pick<AppData, 'sessions' | 'activities'>, today: st
   if (r.up >= 2 || (r.up >= 1 && r.checked <= 2)) add('The same weights feel harder (RPE up)', 1);
   // a few days off
   const last = done.map((s) => s.date).sort().at(-1);
-  const gap = last ? diffDays(last, today) : 0;
+  const gap = last ? diffDays(today, last) : 0;
   if (gap >= 3 && !mat.length) add('{n} days since your last workout', -1, { n: gap });
 
   const score = reasons.reduce((n, x) => n + x.weight, 0);

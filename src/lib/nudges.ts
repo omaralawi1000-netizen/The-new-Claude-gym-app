@@ -167,7 +167,7 @@ export function findNudges(d: AppData, today: string, hour: number, t: T, lang: 
     if (rate !== null && pct <= -1.1 && ws.length >= 6) add({ id: `fastloss:${today.slice(0, 7)}`, kind: 'warning', icon: 'scale', priority: 65,
       title: t('Losing weight fast'), body: t('About {r} a week. Faster than about 1% a week costs muscle and strength.', { r: `${fmtNum(kgToDisplay(-rate, u), lang, 1)} ${u}` }),
       action: { label: t('Ask the Coach'), run: { type: 'coach', prompt: t('I am losing about {r} a week. Is that too fast for keeping muscle? Adjust my calories if so.', { r: `${fmtNum(kgToDisplay(-rate, u), lang, 1)} ${u}` }) } } });
-    const gap = diffDays(lastW.date, today);
+    const gap = diffDays(today, lastW.date);
     if (gap >= 7 && gap < 60) add({ id: `weigh:${lastW.date}`, kind: 'reminder', icon: 'scale', priority: 30,
       title: t('{n} days since you weighed in', { n: gap }), body: t('One weigh-in a week keeps the trend honest.'),
       action: { label: t('Log weight'), run: { type: 'open', overlay: 'weight' } } });
