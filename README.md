@@ -2326,3 +2326,38 @@ All of it is transform and opacity, ends on the card exactly as it rests, and is
   a card ("Part of the answer couldn't be read"); ingredients are matched in parallel; and Settings → About → "Copy last
   answer" copies the AI's last raw answer (kept in memory only, no keys) for diagnosing the next odd answer.
   `journey-coach4` runs the plain-mode path end to end. Shipped as v0.1.137.
+
+## Coach 2.0, phase 5 part 1: the coach around the workout (16 Oct 2026, v0.1.138)
+
+All of it is the app's own numbers: instant, free, no AI.
+- **One way to tick a set** (`completeSet`, src/screens/workout/complete.ts): a tap, a set said to the orb or the Coach
+  (`log_current_set`) all find records and "beat last time", buzz, start the rest (not inside a superset, not after the last
+  set) and play the row's moment (the row listens with `onSetDone`). Before, a set logged by voice skipped all of that.
+- **Readiness** (src/lib/readiness.ts): fresh / normal / tired, from the last check-in (two days at most), wrestling logged
+  yesterday or earlier today (a hard one counts double), a week much bigger than usual, and the same weights at a higher
+  RPE. Every reason is kept so the app can say why. It only ever suggests; it never changes a plan by itself.
+- **The briefing** (Briefing.tsx, `briefing()` in src/lib/coachWorkout.ts) at the top of a workout started from a routine
+  or plan: today's targets for the first three lifts (the same numbers the rows hold, from `suggestProgression`) with what
+  moved since last time, a neutral flag box (tired with its reasons and "One set less per lift" with Undo; fresh; wrestling
+  tomorrow with heavy legs; a health note that isn't about one lift and hasn't ended), and one focus line. It folds away
+  (Collapse) on the first ticked set; ✕ hides it for that workout; reopened after a restart mid-workout it isn't drawn.
+- **The finish screen**: "Next time" for the main lifts (most volume first, at most two): what moved today and the next
+  target, in the finish choreography (`data-fm="after"`). A one-tap check-in (energy, soreness, sleep; each optional, a
+  second tap takes it back) saved as `checkin` on the workout (an added field, in backups).
+- **Smarter load**: day plans for today or tomorrow are a set lighter per lift when tired (not where the Coach chose the
+  sets) and warn after hard wrestling the day before (logged, not only planned); Today gets "Take it easier today" and
+  "<routine> after hard wrestling"; a lighter week is suggested sooner (a stalled lift plus RPE up or tired check-ins);
+  the weekly review gets a "tired after N of M workouts" priority, judged the week after. The Coach's DATA gets a
+  READINESS line, the check-ins and wrestling rounds and intensity.
+- **Fixes**: memory notes that have ended no longer flag a lift in the workout or keep it out of planned days. Swapped day
+  differences: the Coach's sets-per-muscle look-up showed four weeks of sets as one week's, and the weigh-in reminder
+  never fired.
+- **The web only when it makes sense**: the Coach searches for a fact that could be wrong or out of date (a number, a
+  study, a supplement, something recent), when asked to check, or for recipe ideas; never for everyday coaching it knows,
+  their data or the app.
+- **The app counts its own AI trouble** (src/lib/trouble.ts, on the phone only, no message text): an answer it couldn't
+  read, part of one dropped, Sol falling back, a web search failing, no answer. Settings → About: "How the Coach is doing"
+  with this week's count and Copy details (counts, the last five, the last raw answer).
+- `tests/coach6.test.ts`, `scripts/journey-workout5.mjs` (in run-all), `scripts/film-phase5.mjs` (settle: finish screen
+  1/255, chip 2/255; the fold's card is identical, only the background's slow breath differs). `journey-ai` now applies the
+  routine preview (phase 4).

@@ -12,6 +12,7 @@ import { exerciseMap, missedWorkouts, plannedFor } from '../state/store';
 import { addDays, diffDays, weekdayOf } from './dates';
 import { setsPerMuscle, stalledLifts, nutritionByDay, average, weightTrend, trendRate, weeklyTraining, MUSCLES } from './stats';
 import { lastBackup } from './persist';
+import { readiness, rpeCreep, tiredCheckins } from './readiness';
 import { fmtNum, kgToDisplay } from './units';
 import type { AppData, Lang, MuscleGroup } from './types';
 import type { IconName } from '../ui/Icon';
@@ -77,6 +78,26 @@ export function findNudges(d: AppData, today: string, hour: number, t: T, lang: 
     }
   }
 
+  // tired today (check-in, wrestling, a big week, the same weights feeling harder) with a workout still to do today
+  const todayPlan = d.active ? undefined : plannedFor(d, today, today);
+  const todayDone = d.sessions.some((x) => x.status === 'done' && x.date === today);
+  const ready = readiness(d, today);
+  if (todayPlan && !todayDone && ready.level === 'tired') {
+    const why = ready.reasons.map((x) => t(x.key, x.vars)).join(' · ');
+    add({ id: `tired:${today}`, kind: 'suggestion', icon: 'moon', priority: 75,
+      title: t('Take it easier today'), body: why,
+      action: { label: t('Ask the Coach'), run: { type: 'coach', prompt: t('I am tired today ({why}). Make today\'s workout lighter.', { why }) } } });
+  } else if (todayPlan && !todayDone) {
+    // hard wrestling logged yesterday, and today's plan is heavy on legs
+    const mat = d.activities.find((x) => x.kind === 'wrestling' && x.date === addDays(today, -1) && ((x.intensity ?? 0) >= 2 || (x.rounds ?? 0) >= 6));
+    const r = mat && d.routines.find((x) => x.id === todayPlan.routineId);
+    const legSets = r ? r.items.reduce((n, it) => n + (LEGS.includes(map.get(it.exerciseId)?.muscles?.[0] as MuscleGroup) ? it.workingSets : 0), 0) : 0;
+    if (r && legSets >= 6) add({ id: `legs-after-mat:${today}:${r.id}`, kind: 'suggestion', icon: 'wrestle', priority: 70,
+      title: t('{routine} after hard wrestling', { routine: r.name }),
+      body: t('{n} leg sets the day after the mat. Lighter legs today, or swap the day?', { n: legSets }),
+      action: { label: t('Ask the Coach'), run: { type: 'coach', prompt: t('I wrestled hard yesterday and today is {routine} with {n} leg sets. Make the legs lighter today, or move it.', { routine: r.name, n: legSets }) } } });
+  }
+
   // a lift that has stopped improving
   const stall = stalledLifts(done, today)[0];
   if (stall) {
@@ -104,9 +125,15 @@ export function findNudges(d: AppData, today: string, hour: number, t: T, lang: 
 
   // a long run of weeks without a lighter one (8+ weeks hitting the plan)
   const target = d.schedule.mode === 'rotation' ? d.schedule.rotation.perWeek : Object.values(d.schedule.weekly).filter(Boolean).length;
+  // (or sooner: a stalled lift while the same weights feel harder, or two tired check-ins in two weeks)
+  const worn = !!stall && (rpeCreep(done, today).up >= 1 || tiredCheckins(d, addDays(today, -13), today).tired >= 2);
   if (target) {
     const wk = weeklyTraining(done, today, 10, d.settings.weekStart).slice(0, -1);
     let run = 0; for (let i = wk.length - 1; i >= 0 && wk[i].sessions >= target; i--) run++;
+    if (run < 8 && worn) add({ id: `deload-worn:${wk[wk.length - 1]?.start ?? today}`, kind: 'suggestion', icon: 'moon', priority: 40,
+      title: t('Time for a lighter week?'),
+      body: t('A lift has stalled and training feels harder lately. A lighter week often gets things moving again.'),
+      action: { label: t('Ask the Coach'), run: { type: 'coach', prompt: t('A lift has stalled and my training feels harder lately. Should I deload next week? Plan it if so.') } } });
     if (run >= 8) add({ id: `deload:${wk[wk.length - 1].start}`, kind: 'suggestion', icon: 'moon', priority: 35,
       title: t('{n} hard weeks in a row', { n: run }),
       body: t('A lighter week now and then lets you come back stronger.'),
@@ -140,7 +167,7 @@ export function findNudges(d: AppData, today: string, hour: number, t: T, lang: 
     if (rate !== null && pct <= -1.1 && ws.length >= 6) add({ id: `fastloss:${today.slice(0, 7)}`, kind: 'warning', icon: 'scale', priority: 65,
       title: t('Losing weight fast'), body: t('About {r} a week. Faster than about 1% a week costs muscle and strength.', { r: `${fmtNum(kgToDisplay(-rate, u), lang, 1)} ${u}` }),
       action: { label: t('Ask the Coach'), run: { type: 'coach', prompt: t('I am losing about {r} a week. Is that too fast for keeping muscle? Adjust my calories if so.', { r: `${fmtNum(kgToDisplay(-rate, u), lang, 1)} ${u}` }) } } });
-    const gap = diffDays(lastW.date, today);
+    const gap = diffDays(today, lastW.date);
     if (gap >= 7 && gap < 60) add({ id: `weigh:${lastW.date}`, kind: 'reminder', icon: 'scale', priority: 30,
       title: t('{n} days since you weighed in', { n: gap }), body: t('One weigh-in a week keeps the trend honest.'),
       action: { label: t('Log weight'), run: { type: 'open', overlay: 'weight' } } });

@@ -46,7 +46,7 @@ The polish plan (`docs/polish-plan.md`) is paused while this runs.
   - **D. A photo of a program → a routine preview** (`create_routine` becomes Preview → Apply, like a planned day).
   - Dropped on the fresh look: multi-day meal plans (a plan that doesn't sync with what he logs is rarely followed;
     recipes + shopping list cover the real need).
-- [ ] **Phase 5: the coach around the workout**: a short briefing when today's workout starts; a Coach line on the Summary
+- [ ] **Phase 5: the coach around the workout** (part 1 shipped 16 Oct as v0.1.138: briefing, Next time, check-in, readiness, smarter load, search judgment, trouble counter; parts 2–3 next): a short briefing when today's workout starts; a Coach line on the Summary
   (what moved, next time's targets, computed locally); a one-tap check-in (energy, soreness, sleep) that makes the next plan
   lighter when needed; smarter deload and wrestling load; long-press anything ("Ask the Coach about this"); small charts in
   the chat; "Undo all", before/after for routine edits, choose which changes to apply, duplicate a routine.

@@ -193,7 +193,11 @@ export interface WorkoutSession {
   note?: string;
   rest?: { endsAt: number; total: number; exerciseId: string } | null;
   records?: PersonalRecord[];
+  /** how it felt, from the one-tap check-in after it (each optional): energy 1 low · 2 ok · 3 great; soreness 1 none ·
+   *  2 some · 3 a lot; sleep (the night before) 1 poor · 2 ok · 3 good */
+  checkin?: CheckIn;
 }
+export interface CheckIn { energy?: 1 | 2 | 3; soreness?: 1 | 2 | 3; sleep?: 1 | 2 | 3; at: number }
 
 export type RecordKind = 'weight' | 'e1rm' | 'volume' | 'reps' | 'duration' | 'distance';
 export interface PersonalRecord {

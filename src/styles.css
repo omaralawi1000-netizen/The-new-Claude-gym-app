@@ -1465,6 +1465,29 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* a note from Coach memory beside the exercise it is about, with a way out */
 .wk-flag { display: flex; align-items: flex-start; gap: 8px; margin-top: 8px; padding: 8px 8px 8px 10px; border-radius: 12px; color: var(--tx); background: color-mix(in srgb, var(--warn) 12%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warn) 24%, transparent); }
 .wk-flag .chip { flex: none; margin-top: -2px; }
+/* the briefing at the top of a planned workout (Briefing.tsx): neutral glass like the blocks under it; colour only on the
+   icons and the "+2.5 kg" that mean something. It folds away (Collapse) on the first ticked set. */
+.wk-brief { margin: 8px 0 2px; padding: 10px 14px 14px; border-radius: var(--r-md); transform-origin: 50% 0; transition: transform 300ms cubic-bezier(.4, 0, .2, 1); }
+/* folding away (judge, phase 5): the card fades and settles back first, then the space closes on a calm ease-in-out, so
+   nothing readable is ever sliced by the closing row and the list below glides up instead of lurching */
+.collapse.wk-brief-wrap { transition: grid-template-rows 520ms cubic-bezier(.45, 0, .2, 1) 90ms, opacity 220ms cubic-bezier(.4, 0, .2, 1); }
+.collapse.wk-brief-wrap:not(.on) .wk-brief { transform: translate3d(0, -6px, 0) scale(.97); }
+:root[data-motion='reduce'] .collapse.wk-brief-wrap { transition-delay: 0s !important; }
+.wk-brief-head { display: flex; align-items: center; justify-content: space-between; margin-right: -8px; min-height: 34px; }
+.wk-brief-x { color: var(--tx3); }
+.wk-brief-row { display: flex; align-items: baseline; gap: 10px; padding: 7px 0; font-size: 14.5px; }
+.wk-brief-row + .wk-brief-row { box-shadow: inset 0 1px 0 var(--line); }
+.wk-brief-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.wk-brief-num { flex: none; color: var(--tx2); font-weight: 600; }
+.wk-brief-up { flex: none; min-width: 52px; text-align: right; color: var(--ac-text); font-size: 12.5px; font-weight: 700; }
+.wk-brief-flag { display: flex; align-items: flex-start; gap: 9px; margin-top: 6px; padding: 11px 0 2px; box-shadow: inset 0 1px 0 var(--line); }
+.wk-brief-flag > svg { flex: none; margin-top: 2px; color: var(--tx2); }
+.wk-brief-flag.fresh > svg { color: var(--ok); }
+.wk-brief .chip { box-shadow: none; background: var(--s3); color: var(--tx); }
+.wk-brief-act { margin-top: 9px; }
+.wk-brief-done { gap: 6px; margin-top: 8px; color: var(--tx2); }
+.wk-brief-done > svg { color: var(--ok); }
+.wk-brief-focus { margin-top: 11px; }
 /* the Coach's camera: the chosen photo waits above the field; once sent it sits in your bubble */
 .coach-body { overflow-anchor: none; }
 .sheet-pane .coach-body.sheet-body:not([data-scrollable]) { -webkit-mask-image: none; mask-image: none; } /* (outranks the melt under sheet buttons) */
@@ -2133,8 +2156,8 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* the finish screen (Summary.tsx): the medal, the numbers' odometers and the line are moved by finishMoment.ts (Web
    Animations on transform and opacity, one timeline on the app's springs); here they only have their resting look. The
    medal's light is painted once and never re-drawn. */
-.sum-medal { --m: var(--ac); position: relative; width: 84px; height: 84px; margin: 6px auto 26px; display: grid; place-items: center; perspective: 640px; }
-.sum-medal.gold { --m: var(--gold); margin-top: 20px; }
+.sum-medal { --m: var(--ac); position: relative; width: 84px; height: 84px; margin: 6px auto 20px; display: grid; place-items: center; perspective: 640px; }
+.sum-medal.gold { --m: var(--gold); margin-top: 10px; }
 .sum-disc { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; }
 /* a coin with two faces: the front (glyph, sheen) and a plain back turned away, each hidden while it faces away, so the
    glyph is never seen mirrored while it turns */
@@ -2163,7 +2186,23 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .odo-s > span, .odo-k { height: 1.15em; line-height: 1.15em; }
 .odo-k { display: inline-block; white-space: pre; }
 .sum-word { display: inline-block; }
-.sum-line { margin: 18px 4px 0; text-align: center; font-size: 24px; line-height: 1.2; font-style: italic; text-wrap: balance; }
+.sum-line { margin: 14px 4px 0; text-align: center; font-size: 24px; line-height: 1.2; font-style: italic; text-wrap: balance; }
+/* the finish screen's coach: next time's targets for the main lifts (the "+2.5 kg" in the accent: it means something) */
+.sum-next { margin-top: 8px; padding: 10px 14px 6px; border-radius: var(--r-md); }
+.sum-next-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; font-size: 14.5px; }
+.sum-next-what { min-width: 0; flex: 1; }
+.sum-next-what .xs { display: block; margin-top: 1px; color: var(--ac-text); font-weight: 600; }
+.sum-next-row + .sum-next-row { box-shadow: inset 0 1px 0 var(--line); }
+.sum-next-name { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.sum-next-to { flex: none; color: var(--tx2); font-weight: 600; }
+/* the one-tap check-in: three quiet rows; a choice fills in (opacity of a layer, never a colour change) */
+.ci-row { display: grid; grid-template-columns: 1fr repeat(3, auto); align-items: center; gap: 6px; padding: 3px 0; }
+.ci-label { min-width: 0; }
+.ci-chip { position: relative; height: 34px; min-width: 64px; padding: 0 12px; border-radius: 999px; font-size: 13px; font-weight: 600; color: var(--tx); background: var(--s2); isolation: isolate; transition: transform 520ms var(--ease-spring); }
+.ci-chip::before { content: ''; position: absolute; inset: 0; border-radius: inherit; z-index: -1; background: var(--ac-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ac) 40%, transparent); opacity: 0; transition: opacity 360ms var(--ease-smooth); }
+.ci-chip.on::before { opacity: 1; }
+.ci-note { margin-top: 6px; opacity: 0; transition: opacity 420ms var(--ease-smooth); }
+.ci-note.on { opacity: 1; }
 
 /* the workout's living light (Breath in Active.tsx): the window's top light breathes in and out over ~11 s, in 80 tiny steps
    each way (~14 a second, each under half a percent of brightness, too small to see) instead of a redraw every frame; a warmer light fades in over the first

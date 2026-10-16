@@ -51,7 +51,7 @@ export function validateLookups(v: unknown): Lookup[] {
 function range(l: Lookup, env: LookupEnv, days: number): [string, string] {
   const to = l.to && l.to <= env.today ? l.to : env.today;
   let from = l.from ?? addDays(to, -(days - 1));
-  if (diffDays(from, to) > 800) from = addDays(to, -800);
+  if (diffDays(to, from) > 800) from = addDays(to, -800);
   return from <= to ? [from, to] : [to, from];
 }
 
@@ -189,7 +189,7 @@ function balance(d: AppData, l: Lookup, env: LookupEnv): string {
   const [from, to] = range(l, env, 28);
   const musclesOf = (id: string) => env.pool.find((e) => e.id === id)?.muscles;
   const per = setsPerMuscle(d.sessions, musclesOf, from, to);
-  const weeks = Math.max(1, (diffDays(from, to) + 1) / 7);
+  const weeks = Math.max(1, (diffDays(to, from) + 1) / 7);
   const wrestle = d.activities.filter((a) => a.kind === 'wrestling' && a.date >= from && a.date <= to).length;
   return `Hard working sets per muscle ${from}…${to} (primary muscle counts 1, secondary 0.5), per week: ${MUSCLES.map((m: MuscleGroup) => `${m} ${r1(per[m] / weeks)}`).join(', ')}. Wrestling sessions in that time: ${wrestle} (covers legs, hips, grip and conditioning).`;
 }

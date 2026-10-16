@@ -1,3 +1,4 @@
+import { troubleReport, troubleThisWeek } from '../lib/trouble';
 import { IS_BETA, requestCopyFromReal } from '../lib/beta';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
@@ -631,21 +632,27 @@ function StutterRecorder() {
   );
 }
 
-/** The Coach's last raw answer (kept in memory only, never saved, no keys), for when an answer did something odd. */
+/**
+ * How the Coach's AI has been doing: the app counts its own trouble (an answer it couldn't read, part of one dropped, a
+ * fallback, a failed search) on this phone, and copies the details plus the last raw answer (kept in memory only) for
+ * whoever is fixing the app. Nothing is sent anywhere; no keys, no messages.
+ */
 function CoachRawCopy() {
   const t = useT();
+  const [n] = useState(() => troubleThisWeek());
   const copy = async () => {
     const { lastRawAnswer } = await import('../lib/agentTurn');
     const r = lastRawAnswer();
-    if (!r) { useUI.getState().toast(t('Ask the Coach something first')); return; }
-    const text = `Aven ${__APP_VERSION__} · ${new Date(r.at).toISOString()} · ${r.by}${r.plain.length ? ` · plain JSON mode: ${r.plain.join(', ')}` : ''}\n${r.text}`;
+    const raw = r ? `Last answer · ${new Date(r.at).toISOString()} · ${r.by}${r.plain.length ? ` · plain JSON mode: ${r.plain.join(', ')}` : ''}\n${r.text}` : 'Last answer: none since the app was opened.';
+    const text = `Aven ${__APP_VERSION__}\n${troubleReport()}\n\n${raw}`;
     try { await navigator.clipboard.writeText(text); useUI.getState().toast(t('Copied'), { tone: 'ok' }); } catch { useUI.getState().toast(t('Couldn’t copy'), { tone: 'bad' }); }
   };
   return (
     <div style={{ marginTop: 14 }}>
-      <b>{t('The Coach’s last answer')}</b>
-      <div className="t2" style={{ marginTop: 4 }}>{t('If the Coach said it did something but nothing happened, copy its last answer exactly as the AI sent it and paste it to whoever is fixing the app. No keys, nothing else.')}</div>
-      <button className="btn sm press" style={{ marginTop: 10 }} onClick={copy}><Icon name="copy" size={15} /> {t('Copy last answer')}</button>
+      <b>{t('How the Coach is doing')}</b>
+      <div className="t2" style={{ marginTop: 4 }}>{n === 0 ? t('No AI trouble this week.') : n === 1 ? t('The Coach had trouble once this week.') : t('The Coach had trouble {n} times this week.', { n })}</div>
+      <div className="t3 xs" style={{ marginTop: 4 }}>{t('Counted on this phone only. If something seems off, copy the details and paste them to whoever is fixing the app. No keys, no messages.')}</div>
+      <button className="btn sm press" style={{ marginTop: 10 }} onClick={copy}><Icon name="copy" size={15} /> {t('Copy details')}</button>
     </div>
   );
 }
