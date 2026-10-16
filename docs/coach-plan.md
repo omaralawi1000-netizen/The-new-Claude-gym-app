@@ -38,13 +38,14 @@ The polish plan (`docs/polish-plan.md`) is paused while this runs.
     others): never always-on, it listens only after a tap anywhere on the workout (or the earbud button, if Chrome on his
     S26 allows it); it takes only set-shaped answers ("8 at 80", "same again", "skip", "done") and ignores the rest; a
     number far from last time is asked about, not logged; it says back what it logged with a few seconds to say "no".
-  - Injury mode: "my shoulder hurts" → the moves that load it are swapped for two weeks, then it switches back by itself
-    (phase 3's self-ending memory). Travel mode: "hotel gym, dumbbells until Sunday" → temporary routines, then back.
-  - Race your past self: last time's numbers beside the set you are on (check what the workout already shows first).
+
 - [ ] **Phase 6: programs and seasons**: multi-week blocks ("6 weeks to the tournament") with the weekly review as the
   checkpoint; wrestling weight class and competition dates with a safe make-weight plan (never dehydration or extreme cuts);
-  targets that follow his weight trend, as a preview with the reason; "review my program"; a monthly recap card (lifts,
-  records, wrestling, consistency) to keep or share.
+  targets that follow his weight trend, as a preview with the reason; "review my program".
+
+Parked (Omar, 16 Oct: of the new ideas, only the hands-free trial for now; these wait until he asks): injury mode
+(swap the moves that load a sore joint for two weeks, then back by itself), travel mode (temporary routines for a hotel
+gym), race your past self (last time's numbers beside the current set), a monthly recap card.
 
 Each phase's plan starts with a fresh look: ideas worth adding are added (and said), and anything that no longer pays off
 is dropped (and said).
