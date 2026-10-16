@@ -309,8 +309,10 @@ export function ActionCard({ r, undone, confirmed, onUndo, onConfirm, replaced =
   }, [confirmed, undone]);
   const waiting = !!r.pending && !confirmed && !undone && !replaced;
   const title = undone ? t('Undone') : confirmed ? t('Done') : replaced ? t('Replaced by the newer version below') : r.title;
-  const first = useRef(title);
-  const rolled = title !== first.current; // the title changed under the user's eyes: it rolls instead of swapping
+  // the title changed under the user's eyes: the old one rolls up and out while the new one rolls in (never a blank frame)
+  const shownTitle = useRef({ now: title, before: '' });
+  if (shownTitle.current.now !== title) shownTitle.current = { now: title, before: shownTitle.current.now };
+  const rolled = !!shownTitle.current.before;
   const cls = ['plinth', 'action-card', fresh ? 'fresh' : '', waiting ? 'waiting' : '', confirmed ? 'sealed' : '', sealing ? 'sealing' : '', undone ? 'undone' : '', undoing ? 'undoing' : '', miss ? 'miss' : '', replaced && !confirmed ? 'replaced' : ''].filter(Boolean).join(' ');
   return (
     <div className={cls} style={{ padding: '12px 14px 12px 12px' }}>
@@ -319,7 +321,10 @@ export function ActionCard({ r, undone, confirmed, onUndo, onConfirm, replaced =
       <div className="row-flex" style={{ gap: 10, alignItems: 'flex-start' }}>
         <span className="action-ic" aria-hidden><Icon key={confirmed ? 'done' : 'wait'} name={miss || (r.pending && !confirmed && !r.offer) ? 'info' : undone ? 'undo' : (KIND_ICON[r.kind] ?? 'check')} size={16} sw={2.2} /></span>
         <div className="grow ac-body">
-          <div className="small ac-title" style={{ fontWeight: 650 }}><span key={title} className={rolled ? 'ac-roll' : undefined}>{title}</span></div>
+          <div className="small ac-title" style={{ fontWeight: 650 }}>
+            {rolled && <span key={`o${shownTitle.current.before}`} className="ac-roll-out" aria-hidden>{shownTitle.current.before}</span>}
+            <span key={title} className={rolled ? 'ac-roll' : undefined}>{title}</span>
+          </div>
           {r.subtitle && !undone && <div className="xs t2 num ac-sub" style={{ marginTop: 2 }}>{r.subtitle}</div>}
           {r.week && <WeekStrip week={r.week} />}
           {r.lines.length > 0 && (
