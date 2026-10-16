@@ -26,6 +26,7 @@ import { fmtNum, kgToDisplay } from './units';
 import type { ActivityKind, Equipment, Exercise, Food, FoodEntry, LogType, Meal, MeasureKind, MemoryKind, MemoryNote, MuscleGroup, Quantity, Recipe, RecipeIngredient, RoutineItem, SessionExercise, SetRecord, Settings } from './types';
 import { MEMORY_KINDS, MEMORY_MAX } from '../state/defaults';
 import { addExercises, adjustRest, moveExercise, patchExercise, replaceExercise, skipRest, startRest, toggleSuperset } from '../screens/workout/actions';
+import { completeSet } from '../screens/workout/complete';
 import { EQUIP_LABEL, MUSCLE_LABEL } from '../screens/workout/common';
 import { muscleOf } from './agentLookup';
 import { buildDayPlan, pickForMuscles } from './planDay';
@@ -969,14 +970,15 @@ function doCurrentSet(a: Extract<AgentAction, { type: 'log_current_set' }>, ctx:
   }
   const h = hit as { se: SessionExercise; set: SetRecord; n: number };
   const set = h.set;
-  const weightKg = a.kg ?? set.weightKg ?? set.target?.weightKg;
-  const reps = a.reps ?? set.reps ?? set.target?.repMax;
-  const next: SetRecord = { ...set, weightKg, reps, ...(a.which === 'current' ? { done: true, completedAt: Date.now() } : {}) };
-  st.mutateActive((x) => ({ ...x, exercises: x.exercises.map((b) => (b.id === h.se.id ? { ...b, sets: b.sets.map((q) => (q.id === set.id ? next : q)) } : b)) }));
-  // a working set just done starts the rest, as ticking it would (not after the last set of the workout)
-  const after = useStore.getState().active;
-  if (a.which === 'current' && set.type === 'working' && after?.exercises.some((e) => e.sets.some((x) => !x.done))) {
-    startRest(h.se.restSec ?? st.settings.restDefaultSec, h.se.exerciseId);
+  let next: SetRecord;
+  if (a.which === 'current') {
+    // ticked exactly as a tap ticks it: records, the haptic, the rest and the row's moment
+    const over = { ...(a.kg != null ? { weightKg: a.kg } : {}), ...(a.reps != null ? { reps: a.reps } : {}) };
+    if (!completeSet(h.se.id, set.id, over)) return { id: uid('r'), kind: 'miss', title: t('Enter reps first'), lines: [] };
+    next = useStore.getState().active!.exercises.find((b) => b.id === h.se.id)!.sets.find((q) => q.id === set.id)!;
+  } else {
+    next = { ...set, weightKg: a.kg ?? set.weightKg ?? set.target?.weightKg, reps: a.reps ?? set.reps ?? set.target?.repMax };
+    st.mutateActive((x) => ({ ...x, exercises: x.exercises.map((b) => (b.id === h.se.id ? { ...b, sets: b.sets.map((q) => (q.id === set.id ? next : q)) } : b)) }));
   }
   const ex = exOf(h.se.exerciseId);
   const label = set.type === 'warmup' ? t('Warm-up') : `${t('Set')} ${h.se.sets.slice(0, h.n).filter((q) => q.type === 'working').length}`;
