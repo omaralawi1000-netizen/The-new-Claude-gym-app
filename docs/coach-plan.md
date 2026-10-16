@@ -12,14 +12,31 @@ The polish plan (`docs/polish-plan.md`) is paused while this runs.
   - `plan_day`: "chest and triceps with some shoulder tomorrow" → a preview from his exercises, Apply, Undo (`src/lib/planDay.ts`).
   - The newest GPT model on his key is used by itself; Settings → Voice & AI → Model pins one.
 - [x] **Phase 2, part A** (v0.1.134): done as below.
-- [ ] **Phase 2, part B**: the Coach's cards animate (arrival, preview sheen, Apply "seal", week strip, drawn Undo, rolling
-  setting values); ships after Omar's yes on a clip.
+- [x] **Phase 2, part B** (v0.1.135): the Coach's cards animate (arrival, preview sheen, Apply "seal", week strip, drawn
+  Undo).
 - Phase 2 as planned: **it can change anything he can tap**: capability audit of every store function and screen; all settings
   (profile, meals, reminders, Today cards, plate step, weight jumps, rest per exercise); custom exercises; recipes and saved
   meals; measurements; `set_split` for the whole week; Preview → Apply for every plan-sized change; the full app guide served
   by section, with a test that fails when a screen, setting or action is missing from it.
-- [ ] **Phase 3: memory that grows**: the conversation kept longer and searchable; a weekly digest stored as memory; a newer
-  fact replaces an older one; additive data change only (in backups).
-- [ ] **Phase 4: internet, recipes, recommendations**: web search (OpenAI web search tool / Gemini Google Search grounding)
-  with sources; recipes (high-protein / low-calorie) with macros computed by the app from real foods, Save as recipe / Log a
-  portion; recommendations grounded in look-ups, through the existing Coach pin.
+- [ ] **Phase 3: memory that grows**
+  - The whole conversation kept on the phone (IndexedDB `aven-chat`), searchable by the Coach and by him; older days load
+    when he scrolls up; in backups (additive).
+  - Memory v2: a newer fact replaces the older one (shown as "Updated", Undo); temporary things end by themselves
+    ("sick until Friday"); each note's age goes with it; up to 60 notes.
+  - It learns from what he applies, undoes and corrects (LEARNED, only after 2+ consistent signals, each one dismissable).
+  - The weekly review: the app computes the week (training, muscles vs his 4-week average, PRs, food on logged days, weight
+    trend, last week's priorities done or not); the Coach writes a short verdict and at most two priorities, each with one
+    Apply. Animated sheet (rolling numbers, bars growing, cards sealing).
+- [ ] **Phase 4: internet, recipes, meal plans**: web search with sources he can tap (consensus kept apart from early
+  findings); recipes (high-protein / low-calorie) with macros computed by the app from real foods, Save as recipe / Log a
+  portion; a 3–7 day meal plan from foods he eats, with a shopping list; a photo of a program → a routine preview.
+- [ ] **Phase 5: the coach around the workout**: a short briefing when today's workout starts; a Coach line on the Summary
+  (what moved, next time's targets, computed locally); a one-tap check-in (energy, soreness, sleep) that makes the next plan
+  lighter when needed; smarter deload and wrestling load; long-press anything ("Ask the Coach about this"); small charts in
+  the chat; "Undo all", before/after for routine edits, choose which changes to apply, duplicate a routine.
+- [ ] **Phase 6: programs and seasons**: multi-week blocks ("6 weeks to the tournament") with the weekly review as the
+  checkpoint; wrestling weight class and competition dates with a safe make-weight plan (never dehydration or extreme cuts);
+  targets that follow his weight trend, as a preview with the reason; "review my program".
+
+Not doing (worse for the Coach or not worth it): video form feedback (unreliable, false confidence), wearables and calendar
+sync (logins and upkeep), usage analytics (his feedback is the measure), a chat "style" setting, changing targets silently.
