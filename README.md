@@ -2445,3 +2445,16 @@ temporary debugging instrumentation; remove it once the phone's failure is diagn
 distinguishes it from browser frames, then reloads and copies the preserved report. It also checks chat/key markers stay
 out of the trace. Run it in both high-refresh modes, plus the focused Coach/orb checks above. Fault injection verifies the
 diagnostic; it does not establish that the phone's freeze has the same cause.
+
+## Folded recipe methods release the closing Coach and orb (17 Oct 2026, v0.1.144)
+
+The v0.1.143 phone report showed Coach fully offscreen with its scrim still mounted 2.4 seconds after closing; both browser
+and Motion frames were running. Reproduced with a saved recipe whose Method was folded. `Collapse` registers with its
+parent's AnimatePresence, but its completion effect depended only on `on`: already folded, that stays false when the
+parent leaves, so it never calls `safeToRemove` and the invisible scrim keeps catching Today taps. The effect now also
+depends on `isPresent`, using the existing completion logic and timing. The same case affects a new recipe on the orb.
+No animation curves, durations, glass, layouts, orb geometry or chat data changed.
+
+`scripts/journey-recipe-close.mjs` first reproduced one retained dialog and scrim after a normal close. It covers saved
+folded methods, expanded methods, closing during a fold, repeated Coach openings and a newly generated orb recipe (Gemini
+stubbed), with high refresh on/off and reduced motion. Focused verification remains limited to Coach/orb for this request.
