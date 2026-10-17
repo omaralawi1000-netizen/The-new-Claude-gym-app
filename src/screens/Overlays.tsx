@@ -18,6 +18,7 @@ import { ActivityLog, Reschedule, Schedule } from './workout/Schedule';
 import { MeasureSheet, PhotosSheet, WeightSheet } from './Body';
 import { deferred, preloadLater } from '../ui/lazy';
 import { tNow } from '../lib/i18n';
+import { installCoachTrace } from '../lib/coachTrace';
 
 // The biggest pop-ups are files of their own, loaded after the app has opened (ui/lazy.ts): the app starts with less to load
 // and run. They are fetched while the app is idle a few seconds after opening, so they open as quickly as before.
@@ -134,6 +135,7 @@ class OverlayBoundary extends Component<{ id: string; children: ReactNode }, { f
 /** Renders the overlay stack. Each overlay owns its presentation (sheet, morph, or full-screen). */
 export function Overlays() {
   const overlays = useUI((s) => s.overlays);
+  useEffect(installCoachTrace, []);
   return (
     <>
     <WorkoutHost />

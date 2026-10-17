@@ -32,6 +32,7 @@ import { startDragSort } from '../ui/dragSort';
 import { setFpsMeter, useFpsMeterOn } from '../ui/FpsMeter';
 import { BG_KINDS, BgBody, setBgPhoto, useBgPhoto, useSkyClock, type BgKind } from '../ui/Backdrop';
 import { startStutter, stopStutter, stutterReport, stutterState, subscribeStutter } from '../lib/stutter';
+import { coachTrace } from '../lib/coachTrace';
 import { lastRestLate } from './workout/rest';
 import { inAndroidApp, restCheck, showAppRest } from '../lib/androidApp';
 
@@ -625,7 +626,7 @@ function StutterRecorder() {
       <div className="t2" style={{ marginTop: 4 }}>{on ? t('Recording — use the app as normal. {m} left, {n} caught.', { m: fmtDuration(Math.ceil(left / 1000)), n: count }) : t('Notes every frame your phone had to wait for, for five minutes, so the next fix is aimed at what you felt. Only timings and screen names.')}</div>
       <div className="row-flex" style={{ gap: 8, marginTop: 10 }}>
         <button className={`btn sm press ${on ? '' : 'primary'}`} onClick={() => (on ? stopStutter() : startStutter())}>{on ? t('Stop') : t('Start recording')}</button>
-        {count > 0 && <button className="btn sm press" onClick={copy}><Icon name="copy" size={15} /> {t('Copy report')}</button>}
+        {(count > 0 || !!coachTrace()) && <button className="btn sm press" onClick={copy}><Icon name="copy" size={15} /> {t('Copy report')}</button>}
       </div>
       <CoachRawCopy />
     </div>

@@ -20,6 +20,7 @@ run keyboard node scripts/journey-keyboard.mjs
 run robust node scripts/robust.mjs
 run open-recovery node scripts/journey-open-recovery.mjs
 run coach-reopen node scripts/journey-coach-reopen.mjs
+run coach-freeze-report node scripts/journey-coach-freeze-report.mjs
 run interrupt node scripts/interrupt.mjs
 run orb node scripts/orb-motion.mjs
 run rest node scripts/journey-rest.mjs

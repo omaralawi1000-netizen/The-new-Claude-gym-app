@@ -2430,3 +2430,18 @@ offscreen. The fault-injection regression proves that recovery; the phone's exac
 Focused regression: `node scripts/journey-coach-reopen.mjs` covers repeat opens, overlapping exits, recording/permission
 isolation, closing mid-send and a one-shot interrupted orb read. Also run `node scripts/orb-motion.mjs` and
 `node scripts/journey-coach.mjs`. This request explicitly uses focused verification instead of the app-wide suite.
+
+## Capture the remaining Coach/orb freeze on the phone (17 Oct 2026, v0.1.143)
+
+The owner confirmed the second-open freeze persists in v0.1.142 with High refresh rate both on and off. Desktop touch,
+blur and throttled-CPU checks do not reproduce it. This release is diagnostic, not a claimed fix or an animation change.
+For 2.4 seconds after Coach/orb opens or closes, `lib/coachTrace.ts` compares browser frames with Motion frames, records
+surface positions and error locations, and keeps at most 32 events in this tab's sessionStorage. It never records error
+messages, chat, keys or app data; nothing is uploaded or added to backups. After a freeze and reload, Settings → About Aven
+→ Record stutters → Copy report includes that trace, even without manually starting the stutter recorder. The trace is
+temporary debugging instrumentation; remove it once the phone's failure is diagnosed.
+
+`scripts/journey-coach-freeze-report.mjs` deliberately stops the actual running Motion scheduler, checks the report
+distinguishes it from browser frames, then reloads and copies the preserved report. It also checks chat/key markers stay
+out of the trace. Run it in both high-refresh modes, plus the focused Coach/orb checks above. Fault injection verifies the
+diagnostic; it does not establish that the phone's freeze has the same cause.
