@@ -663,16 +663,17 @@ export function SphereStage() {
         sentV = vv;
       }
     };
-    // Measure before animation writes; render with this frame's progress and transform changes afterwards.
-    const loop = (d: { timestamp: number }) => tick(d.timestamp);
-    frame.read(measure, true);
+    // An interrupted browser animation/canvas read must never escape into Motion's shared scheduler and freeze every sheet.
+    const read = () => { try { measure(); } catch { dirty(); } };
+    const loop = (d: { timestamp: number }) => { try { tick(d.timestamp); } catch { dirty(); } };
+    frame.read(read, true);
     frame.postRender(loop, true);
     const onVis = () => {
-      if (document.hidden) { running = false; cancelFrame(measure); cancelFrame(loop); pause(); }
-      else if (!running) { running = true; dirty(); frame.read(measure, true); frame.postRender(loop, true); }
+      if (document.hidden) { running = false; cancelFrame(read); cancelFrame(loop); pause(); }
+      else if (!running) { running = true; dirty(); frame.read(read, true); frame.postRender(loop, true); }
     };
     document.addEventListener('visibilitychange', onVis);
-    return () => { running = false; cancelFrame(measure); cancelFrame(loop); worker?.terminate(); document.removeEventListener('visibilitychange', onVis); mo.disconnect(); lmo.disconnect(); ro.disconnect(); window.removeEventListener('scroll', onScroll, { capture: true }); window.removeEventListener('resize', dirty); window.visualViewport?.removeEventListener('resize', dirty); window.removeEventListener('pointermove', dirty); window.removeEventListener('pointerdown', dirty); offUi(); offKb(); document.fonts?.removeEventListener?.('loadingdone', dirty); window.removeEventListener('load', dirty, true); pAc.remove(); pAc2.remove(); pH1.remove(); };
+    return () => { running = false; cancelFrame(read); cancelFrame(loop); worker?.terminate(); document.removeEventListener('visibilitychange', onVis); mo.disconnect(); lmo.disconnect(); ro.disconnect(); window.removeEventListener('scroll', onScroll, { capture: true }); window.removeEventListener('resize', dirty); window.visualViewport?.removeEventListener('resize', dirty); window.removeEventListener('pointermove', dirty); window.removeEventListener('pointerdown', dirty); offUi(); offKb(); document.fonts?.removeEventListener?.('loadingdone', dirty); window.removeEventListener('load', dirty, true); pAc.remove(); pAc2.remove(); pH1.remove(); };
   }, [motionPref, hrr, gen]);
 
   return (

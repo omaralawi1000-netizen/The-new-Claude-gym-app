@@ -148,6 +148,7 @@ function OrbReply({ id, text, live, onGrow, onDone, after }: { id: string; text:
 
 export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; date?: string; mealId?: string } }) {
   const t = useT();
+  const present = useIsPresent();
   const lang = useLang();
   const z = useOverlayZ(65);
   // the content comes up a beat after the frost has started, and leaves a beat before it
@@ -166,7 +167,10 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   const contentO = useTransform(eng, contentAt);
   const exercises = useStore((s) => s.exercises);
   const pool = useMemo(() => allExercises(exercises), [exercises]);
-  const phase = useVoice((v) => v.phase);
+  const currentPhase = useVoice((v) => v.phase);
+  const lastPhase = useRef(currentPhase);
+  if (present) lastPhase.current = currentPhase;
+  const phase = present ? currentPhase : lastPhase.current; // the departing screen keeps its shape while the next session starts
   const hasGroq = useAi((a) => a.hasGroq);
   const engine: 'groq' | 'browser' | 'typed' = hasGroq && recorderOk() ? 'groq' : speechSupported() ? 'browser' : 'typed';
   const supported = engine !== 'typed';
@@ -209,17 +213,18 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   }, []);
 
   useEffect(() => {
+    if (!present) return;
     alive.current = true;
     const unsub = mic.subscribe(() => useVoice.getState().set({ micLive: mic.active }));
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !(e.target as HTMLElement)?.closest?.('textarea')) useUI.getState().pop(); };
     window.addEventListener('keydown', onKey);
     return () => { alive.current = false; unsub(); window.removeEventListener('keydown', onKey); ctl.current?.abort(); stopSpeaking(); teardown(); go('idle'); };
     // eslint-disable-next-line
-  }, [teardown]);
+  }, [teardown, present]);
 
   // ── listening ──
   const listen = useCallback(async () => {
-    if (busy.current) return;
+    if (!alive.current || busy.current) return;
     stopSpeaking();
     setErr(null); setFinal(''); setInterim(''); setCanRetry(false); blobRef.current = null; pinned.current = true;
     if (!supported) { go('idle'); setTyping(true); return; }
@@ -265,7 +270,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   // voice; your words appear, sent, the moment you stop. (Live words while speaking were tried — quick Groq looks every ~1.2 s —
   // and dropped: they arrived late and a one-second clip was often misheard, which read as broken.)
   useEffect(() => {
-    if (phase !== 'listening' || engine !== 'groq') return;
+    if (!present || phase !== 'listening' || engine !== 'groq') return;
     let heard = 0, quiet = 0; const t0 = performance.now();
     const id = setInterval(() => {
       const lv = mic.level();
@@ -273,7 +278,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
       if ((heard >= 240 && quiet >= 900) || performance.now() - t0 > 40000) { clearInterval(id); finishRef.current(); }
     }, 80);
     return () => clearInterval(id);
-  }, [phase, engine]);
+  }, [phase, engine, present]);
 
   /** Speech → text with Groq; a failure keeps the recording so a retry doesn't need you to speak again. */
   async function hear(blob: Blob | null): Promise<string | null> {
@@ -360,7 +365,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   };
 
   const finish = async () => {
-    if (busy.current) return;
+    if (!alive.current || busy.current) return;
     const p = useVoice.getState().phase;
     // still starting the microphone (Samsung Browser can take a second): a tap here is not "stop" — stopping a start that
     // hasn't finished used to end in "Didn't catch anything" followed by a false "microphone in use"
@@ -378,7 +383,9 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
       // the exchange opens at once (the orb steps up, thinking); what you said rises in as a sent bubble when it is transcribed
       const id = openTurn('');
       go('processing');
-      const blob = await mic.stopRecording(); mic.release('voice');
+      const blob = await mic.stopRecording();
+      if (!alive.current) return;
+      mic.release('voice');
       busy.current = false;
       const heard = await hear(blob);
       if (!alive.current) return;
@@ -425,7 +432,6 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   useEffect(() => (rootRef.current ? watchFocus(rootRef.current, (el) => el.closest<HTMLElement>('.hide-scroll')) : undefined), []);
   // (while the screen fades away it keeps its shape: the keyboard leaving used to re-flow it, and the answer jumped down
   // mid-fade)
-  const present = useIsPresent();
   const live = useRef(true); live.current = present;
   const padAt = useRef(0);
   const kbPad = useTransform(kb, (v) => (live.current ? (padAt.current = v > 1 ? v + 6 : 0) : padAt.current));

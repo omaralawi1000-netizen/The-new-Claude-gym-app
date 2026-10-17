@@ -2414,3 +2414,19 @@ Unresolvable keyframes now use the existing browser-sampled path; unresolvable i
 matrix and request a fresh measurement. The native animations, their timing and the orb's renderer are unchanged.
 `scripts/orb-motion.mjs` covers relative native and inline transforms, opening/closing Coach and continued keyboard motion
 in both high-refresh modes. The observed phone's exact offending transform has not been captured.
+
+## Coach and orb close/reopen isolation (17 Oct 2026, v0.1.142)
+
+An exiting screen stays mounted until its animation finishes. Its microphone, request callbacks and shared voice-phase
+cleanup used to remain active until that delayed unmount, so a fast reopen could lose the new microphone. Coach and
+Dictation now release their session work when closing starts, once; late stop/permission callbacks cannot release a newer
+session. Recorder chunks are captured per recording rather than looked up from the next recording's buffer.
+
+Coach's flying message copies lived directly under `.app`, outside the closing sheet. They and their animation/listener
+work are now removed on close, while ordinary sent-message motion keeps its existing curves and duration. Orb read/render
+callbacks are isolated from Motion's shared frame scheduler: an interrupted browser animation read cannot strand Coach
+offscreen. The fault-injection regression proves that recovery; the phone's exact browser error has not been captured.
+
+Focused regression: `node scripts/journey-coach-reopen.mjs` covers repeat opens, overlapping exits, recording/permission
+isolation, closing mid-send and a one-shot interrupted orb read. Also run `node scripts/orb-motion.mjs` and
+`node scripts/journey-coach.mjs`. This request explicitly uses focused verification instead of the app-wide suite.

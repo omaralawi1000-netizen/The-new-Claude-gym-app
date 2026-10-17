@@ -1,4 +1,5 @@
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type SetStateAction } from 'react';
+import { useIsPresent } from 'motion/react';
 import { useStore, allExercises } from '../state/store';
 import { useUI, haptic } from '../state/ui';
 import { useAi, anyBrain, solOn } from '../state/ai';
@@ -165,6 +166,7 @@ function CoachReply({ m }: { m: Extract<Msg, { role: 'user' | 'model' }> }) {
 
 export function Coach({ props }: { props: { listen?: boolean; date?: string; mealId?: string; /** the orb screen's conversation, carried over by "Continue in Coach" */ seed?: { said: string; reply: string }[]; /** a question to ask as soon as it opens (the weekly review's button) */ ask?: string } }) {
   const t = useT();
+  const present = useIsPresent();
   const lang = useLang();
   const pop = useUI((u) => u.pop);
   const push = useUI((u) => u.push);
@@ -189,14 +191,17 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   // the archive held the frames while the last words were still coming in; a pending save is made at once on close)
   const pendingSave = useRef<Msg[] | null>(null);
   useEffect(() => {
-    if (msgs.some((m) => m.role === 'model' && m.streaming)) return;
+    if (!present || msgs.some((m) => m.role === 'model' && m.streaming)) return;
     pendingSave.current = msgs;
     const idle = (window as any).requestIdleCallback ?? ((f: () => void) => setTimeout(f, 300));
     const cancel = (window as any).cancelIdleCallback ?? clearTimeout;
     const id = idle(() => { if (pendingSave.current) { saveThread(pendingSave.current); pendingSave.current = null; } }, { timeout: 2000 });
     return () => cancel(id);
-  }, [msgs]);
-  useEffect(() => () => { if (pendingSave.current) saveThread(pendingSave.current); }, []);
+  }, [msgs, present]);
+  useEffect(() => {
+    if (!present) return;
+    return () => { if (pendingSave.current) { saveThread(pendingSave.current); pendingSave.current = null; } };
+  }, [present]);
   // back to an old conversation after a break: the suggestions come back under it until something is sent
   const [resumed, setResumed] = useState(() => { const last = [...msgs].reverse().find((m) => 'at' in m && m.at) as { at?: number } | undefined; return msgs.length > 0 && !props.ask && !props.listen && (!last?.at || Date.now() - last.at > 30 * 60_000); });
   const [input, setInput] = useState('');
@@ -218,12 +223,19 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   const movedAt = useRef(0);
   const lastScroll = useRef(0);
   const alive = useRef(true);
+  const flights = useRef(new Set<() => void>());
   const msgsRef = useRef<Msg[]>([]); msgsRef.current = msgs;
   // the orb screen added to the conversation while the Coach is open underneath: show it (and never save over it)
   const busyRef = useRef(false); busyRef.current = busy;
-  useEffect(() => onThreadChange(() => { if (busyRef.current) return; const next = loadThread(); msgsRef.current = next; setMsgs(next); }), []);
+  useEffect(() => present ? onThreadChange(() => { if (busyRef.current) return; const next = loadThread(); msgsRef.current = next; setMsgs(next); }) : undefined, [present]);
 
-  useEffect(() => { alive.current = true; return () => { alive.current = false; clearing.current?.cancel(); stopSpeaking(); ctl.current?.abort(); mic.release('coach'); for (const m of msgsRef.current) if ('image' in m && m.image) URL.revokeObjectURL(m.image); }; }, []);
+  // Release this session when closing starts; its delayed unmount must not stop a newly opened Coach/orb session.
+  useEffect(() => {
+    if (!present) return;
+    alive.current = true;
+    return () => { alive.current = false; flights.current.forEach((cancel) => cancel()); clearing.current?.cancel(); stopSpeaking(); ctl.current?.abort(); mic.release('coach'); };
+  }, [present]);
+  useEffect(() => () => { for (const m of msgsRef.current) if ('image' in m && m.image) URL.revokeObjectURL(m.image); }, []);
   // The older messages are added above what you are looking at, and it stays exactly where it is.
   const placed = useRef(false);
   const fromBottom = useRef(-1);
@@ -352,7 +364,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   const flown = (id: string) => flew.current.has(id);
   useLayoutEffect(() => {
     const el = bodyRef.current;
-    if (!el || !flyFrom.current.size) return;
+    if (!present || !el || !flyFrom.current.size) return;
     // the emptied pill's room under the list goes on this frame (it moves the landing place, so it goes first); the pill
     // itself holds its shape under the copy coming up over it, then closes up as the copy lifts away (CLOSE); it stays
     // wide until "Ask the Coach" comes back
@@ -367,7 +379,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     // said words: the bar is hidden under the lifting pill (below) and closes up at once there, unseen (no slide of the
     // pill's edge, no camera coming in late); it fades back in whole once the bubble has gone
     // (once it has faded out under the pill, SAID_OUT: closed up while still showing, its edge and the camera jumped)
-    if (said && bar) setTimeout(() => { holdOpen.current = false; bar.classList.add('snap'); fit(CLOSE); requestAnimationFrame(() => requestAnimationFrame(() => bar.classList.remove('snap'))); }, SAID_OUT + 10);
+    if (said && bar) setTimeout(() => { if (!alive.current) return; holdOpen.current = false; bar.classList.add('snap'); fit(CLOSE); requestAnimationFrame(() => requestAnimationFrame(() => bar.classList.remove('snap'))); }, SAID_OUT + 10);
     for (const [id, from] of flyFrom.current) {
       flyFrom.current.delete(id);
       const bubble = el.querySelector<HTMLElement>(`[data-mid="${id}"] .said`);
@@ -468,7 +480,8 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       const rider = ride.current?.(copy); const top0 = B.top - (rider?.off ?? 0); copy.style.top = `${top0}px`;
       bubble.style.visibility = 'hidden';
       const at = document.timeline.currentTime;
-      const go = (a: Animation) => { if (at !== null) a.startTime = at; return a; };
+      const animations: Animation[] = [];
+      const go = (a: Animation) => { if (at !== null) a.startTime = at; animations.push(a); return a; };
       // the real button (stop, now) waits hidden under the shape until the shape has risen clear of it, then fades in
       // (shown at once, a sliver of it peeked out under the shape's rounded corner as it left)
       // (said words: the whole bar waits hidden, then comes back together: field, camera and the stop button)
@@ -552,13 +565,16 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       const field = inputRef.current; field?.classList.add('sent-away');
       const settle = () => { holdOpen.current = false; field?.classList.remove('sent-away'); fit(); };
       const back = setTimeout(from.fresh ? () => field?.classList.remove('sent-away') : settle, from.fresh ? SAID_BACK : 140);
-      const land = () => { rider?.unride(); el.removeEventListener('scroll', follow); if (listMoved.current === follow) listMoved.current = null; clearTimeout(back); if (holdOpen.current) settle(); bubble.style.visibility = ''; copy.remove(); };
+      let landed = false;
+      const cancel = () => { animations.forEach((a) => a.cancel()); stand?.remove(); land(); };
+      const land = () => { if (landed) return; landed = true; flights.current.delete(cancel); rider?.unride(); el.removeEventListener('scroll', follow); if (listMoved.current === follow) listMoved.current = null; clearTimeout(back); if (alive.current && holdOpen.current) settle(); bubble.style.visibility = ''; copy.remove(); };
+      flights.current.add(cancel);
       flight.finished.then(land, land);
     }
   });
   const begun = useRef(false);
   useEffect(() => {
-    if (!older || !placed.current) return;
+    if (!present || !older || !placed.current) return;
     let id = 0;
     const more = () => { const el = bodyRef.current; if (el) fromBottom.current = el.scrollHeight - el.scrollTop; setOlder((n) => Math.max(0, n - 2)); };
     const idle = 'requestIdleCallback' in window ? window.requestIdleCallback : null;
@@ -566,7 +582,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     const wait = setTimeout(() => { id = idle ? idle(more, { timeout: 400 }) : window.setTimeout(more, 16); }, begun.current ? 0 : 700);
     begun.current = true;
     return () => { clearTimeout(wait); if (idle) window.cancelIdleCallback(id); else clearTimeout(id); };
-  }, [older]);
+  }, [older, present]);
 
 
   const say = (m: Msg) => setMsgs((x) => [...x, m]);
@@ -598,7 +614,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     animation.onfinish = () => { if (alive.current) finishClear(); };
   };
   const orb = (p: 'idle' | 'listening' | 'processing' | 'confirmed' | 'error') => useVoice.getState().go(p);
-  useEffect(() => () => { if (useVoice.getState().phase !== 'idle') useVoice.getState().go('idle'); }, []);
+  useEffect(() => present ? () => { if (useVoice.getState().phase !== 'idle') useVoice.getState().go('idle'); } : undefined, [present]);
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const composerRef = useRef<HTMLDivElement>(null);
@@ -724,7 +740,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     });
     // green "Done" only when something was actually logged or changed
     const acted = d.wantsUndo || results.some((r) => r.kind !== 'miss' && r.kind !== 'nav');
-    if (acted) { haptic('success'); orb('confirmed'); setTimeout(() => { if (useVoice.getState().phase === 'confirmed') orb('idle'); }, 1200); } else orb('idle');
+    if (acted) { haptic('success'); orb('confirmed'); setTimeout(() => { if (alive.current && useVoice.getState().phase === 'confirmed') orb('idle'); }, 1200); } else orb('idle');
     if (said.trim()) prefetchAloud(said); // read aloud only when you tap play
     // said out loud from the orb and nothing to read: show the result for a moment, then step aside with an Undo toast
     const quick = results.length > 0 && results.every((r) => ['food', 'sets', 'water', 'weight', 'activity'].includes(r.kind) && !r.pending);
@@ -742,7 +758,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   const send = async (raw?: string, spoken = false) => {
     const text = (raw ?? input).trim();
     const pic = raw === undefined ? photo : null; // a suggestion chip or dictation sends words only
-    if ((!text && !pic) || busy) return;
+    if (!alive.current || (!text && !pic) || busy) return;
     if (clearing.current) finishClear();
     pinned.current = true; user.current = false;
     const id = uid('m');
@@ -780,7 +796,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
         const base = last && last.role === 'model' && last.streaming ? (last.text.trim() ? x.map((m, i) => (i === x.length - 1 ? { ...m, streaming: false } as Msg : m)) : x.slice(0, -1)) : x;
         return stopped ? base : [...base, { id: uid('m'), role: 'error', text: aiErrorText(e, t) }];
       });
-    } finally { if (alive.current) setBusy(false); if (['processing', 'listening'].includes(useVoice.getState().phase)) orb('idle'); }
+    } finally { if (alive.current) { setBusy(false); if (['processing', 'listening'].includes(useVoice.getState().phase)) orb('idle'); } }
   };
 
   // ── voice input through Groq (same single-owner mic as dictation) ──
@@ -797,11 +813,13 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     if (draft.current.trim()) { setInput(text); setTimeout(() => { if (alive.current) send(text, true); }, 260); } else send(text, true);
   };
   const toggleRec = async (mode: 'send' | 'edit' = 'send') => {
-    if (busy || hearing) return;
+    if (!alive.current || busy || hearing) return;
     if (recording) {
       setRecording(false); setHearing(true); orb(mode === 'edit' ? 'idle' : 'processing');
       const base = draft.current;
-      const blob = await mic.stopRecording(); mic.release('coach');
+      const blob = await mic.stopRecording();
+      if (!alive.current) return;
+      mic.release('coach');
       try {
         if (!blob) throw new SttError('failed');
         const st = useAi.getState();
@@ -816,6 +834,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     }
     stopSpeaking();
     const r = await mic.acquire('coach');
+    if (!alive.current) return;
     if (!r.ok || !mic.startRecording('coach')) { mic.release('coach'); say({ id: uid('m'), role: 'error', text: r.ok ? t('This browser can’t record audio.') : t('The microphone isn’t available. Check the permission, or type.') }); return; }
     draft.current = input;
     setRecording(true); orb('listening');
@@ -839,7 +858,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   }, []);
   // stop by itself once you have spoken and gone quiet for 0.9 s (it used to wait 1.4 s — a dead moment after your last word)
   useEffect(() => {
-    if (!recording) return;
+    if (!present || !recording) return;
     let heard = 0, quiet = 0; const t0 = performance.now();
     const id = setInterval(() => {
       const lv = mic.level();
@@ -847,7 +866,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       if ((heard >= 240 && quiet >= 900) || performance.now() - t0 > 40000) { clearInterval(id); recRef.current(); }
     }, 80);
     return () => clearInterval(id);
-  }, [recording]);
+  }, [recording, present]);
   const noKey = !anyBrain(ai);
   const tips = useCoachTips(3);
   // the "AI can be wrong" note: said once, on the first open (it also lives in Settings → Privacy)
