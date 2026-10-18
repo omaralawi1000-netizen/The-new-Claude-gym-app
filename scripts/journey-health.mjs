@@ -44,7 +44,8 @@ const before = await live();
 
 // ── opened by the app with the watch's numbers ──
 const h = await hash();
-await p.goto(`http://127.0.0.1:5173/#hc=${h}`); await wait(p, 1800);
+// (as the Android app really writes it: Android codes the "=" as %3D)
+await p.goto(`http://127.0.0.1:5173/#hc%3D${h}`); await wait(p, 1800);
 assert.equal(await p.evaluate(() => location.hash), '', 'out of the address');
 const a = await live();
 const watch = a.activities.filter((x) => x.source === 'watch');
