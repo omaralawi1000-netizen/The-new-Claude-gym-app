@@ -131,7 +131,7 @@ shade 4-real-rest-over
 # the website's back-up alert arrives a moment later (as on a phone where the page wasn't asleep): the app's alert must stay
 cdp overalert | grep -v '^pages' | tee -a shots/rest-real.txt
 sleep 4
-notes after-overalert >/dev/null; grep -c "android.title=Time for set 2" shots/after-overalert.txt | sed 's/^/alerts showing after the website'"'"'s back-up (want 1+): /' | tee -a shots/rest-real.txt
+notes after-overalert >/dev/null; grep -c "android.title=String (Time for set 2)" shots/after-overalert.txt | sed 's/^/alerts showing after the website'"'"'s back-up (want 1+): /' | tee -a shots/rest-real.txt
 # Done ✓ on the alert, tapped like a finger (on a watch it is this same button): it must reach the website's worker and page
 cdp listen | grep -v '^pages' | tee -a shots/rest-real.txt
 adb shell cmd statusbar expand-notifications; sleep 2
