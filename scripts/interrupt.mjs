@@ -28,7 +28,9 @@ for (const reduced of [false, true]) {
   await p.mouse.move(hdr.x + 40, hdr.y + 10, { steps: 8 }); await p.mouse.up(); await wait(p, 900);
   assert.equal(await dialogs(), 1, 'reversed drag keeps workout open');
   // 3. full drag down → minimised (pill visible)
-  await p.mouse.move(hdr.x + 40, hdr.y + 10); await p.mouse.down(); await p.mouse.move(hdr.x + 40, hdr.y + 420, { steps: 12 }); await p.mouse.up(); await wait(p, 1100);
+  await p.mouse.move(hdr.x + 40, hdr.y + 10); await p.mouse.down(); await p.mouse.move(hdr.x + 40, hdr.y + 420, { steps: 12 }); await p.mouse.up();
+  // (round 7: the window lands on its spring and the clock settles after it, ~1.2 s headless; wait for it, up to 2 s)
+  for (let n = 0; n < 40 && await dialogs(); n++) await wait(p, 50);
   assert.equal(await dialogs(), 0, 'flick down minimises');
   assert(await p.locator('button[aria-label="Resume workout"]').isVisible(), 'pill is visible');
   await p.screenshot({ path: `shots/int-${reduced ? 'reduced' : 'full'}.png` });
