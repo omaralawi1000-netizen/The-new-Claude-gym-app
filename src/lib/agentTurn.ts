@@ -39,7 +39,8 @@ export function brainFor(o: { big: boolean; surface: 'orb' | 'coach'; signal?: A
  * reps", "log a banana") answer at low effort, in a second or two; planning, analysis and advice ("build me a push day",
  * "why is my bench stuck?") get the effort set in Settings. It never thinks harder than that setting.
  */
-const DEEP = /\b(plan|program|programme|routine|split|periodi[sz]|deload|plateau|stall|stuck|why|should i|analy[sz]|review|compare|improve|advice|recommend|build|design|diet|cut|bulk|injur|pain|hurt|weak ?point|progress(ion)?)\w*|\b(hvorfor|skal jeg|analys|forbedr|anbefal|kost|skade|ondt|byg|lav en|program|rutine|plan)\w*/i;
+// (whole words with their endings only: "plank" is not "plan", "painting" not "pain", "cutlery" not "cut")
+const DEEP = /\b(?:plan(?:s|ned|ning)?|program(?:me)?s?|routines?|splits?|periodi[sz]\w*|deloads?|plateau\w*|stall(?:s|ed|ing)?|stuck|why|should i|analy[sz]\w*|review|compare|improve\w*|advice|recommend\w*|build|design|diet|cut(?:ting)?|bulk(?:ing)?|injur\w*|pain(?:s|ful)?|hurts?|hurting|weak ?points?|progress(?:ion)?)\b|\b(?:hvorfor|skal jeg|analys\w*|forbedr\w*|anbefal\w*|kost(?:en|plan)?|skade\w*|ondt|byg|lav en|programm?(?:et|er)?|rutine\w*|plan(?:en|er|lægning)?)\b/i;
 export function effortFor(text: string, setting: Effort, photo = false): Effort {
   const rank = { low: 0, medium: 1, high: 2 } as const;
   const cap = (e: Effort): Effort => (rank[e] <= rank[setting] ? e : setting);
@@ -60,6 +61,20 @@ async function webSearch(query: string, brain: Brain, lang: string): Promise<{ t
   }
   if (brain.sol?.key) return solSearch(query, { ...brain.sol, signal: brain.signal }, lang);
   throw new AiError('failed');
+}
+
+/** Run `fn` with a signal that also ends after `ms` (0 = no limit): that end is a timeout (Gemini then answers), never the
+ *  user's Stop, which still stops everything. */
+export async function withTimeout<T>(ms: number, outer: AbortSignal, fn: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  if (!ms) return fn(outer);
+  const c = new AbortController();
+  let late = false;
+  const stop = () => c.abort();
+  outer.addEventListener('abort', stop);
+  const timer = setTimeout(() => { late = true; c.abort(); }, ms);
+  try { return await fn(c.signal); }
+  catch (e) { if (late && !outer.aborted) throw new AiError('timeout', 0, { provider: 'openai' }); throw e; }
+  finally { clearTimeout(timer); outer.removeEventListener('abort', stop); }
 }
 
 /** Rounds per message: up to two rounds of look-ups, then the answer. */
@@ -113,7 +128,8 @@ export async function decide(text: string, o: { lang: Lang; t: (k: string, v?: R
       for (let round = 0; round < MAX_ROUNDS; round++) {
         const last = round === MAX_ROUNDS - 1;
         const sys = system + (found ? `\n\nLOOKUP RESULTS (you asked for these in this turn; answer from them, do not ask for them again):\n${found}` : '') + (last && round > 0 ? '\n\nNo more look-ups this turn: answer now with what you have, and say if something is still unknown.' : '');
-        const r = await solThenGemini(brain, (sol) => solAgent(sys, conv, { ...sol, signal: o.signal }, o.onReply, o.photo), () => { o.onReply?.(''); return gemini(sys); });
+        // Sol gets 45 s in the Coach (deep thinking on a slow line could run for minutes); then Gemini answers
+        const r = await solThenGemini(brain, (sol) => withTimeout(o.surface === 'coach' ? 45000 : 0, o.signal, (signal) => solAgent(sys, conv, { ...sol, signal }, o.onReply, o.photo)), () => { o.onReply?.(''); return gemini(sys); });
         if (r.fellBack) note = r.fellBack.code === 'quota' ? t('Your OpenAI account is out of credit, so Gemini answered.') : t('GPT-6.1 Sol wasn’t available, so Gemini answered.');
         if (r.fellBack) noteTrouble('fellBack', r.fellBack.code);
         raw = r.value;

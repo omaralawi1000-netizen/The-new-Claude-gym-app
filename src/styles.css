@@ -1397,6 +1397,11 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .coach-send .cs-stop, .coach-send.busy .cs-go { opacity: 0; transform: scale(0.6); }
 .coach-send.busy .cs-go { transform: scale(0.6); }
 .coach-send.busy .cs-stop { opacity: 1; transform: none; }
+.coach-send.queued .cs-go { opacity: .45; } /* (typed while it answers: waits, quieter, and goes when the answer is done) */
+.coach-err-acts { flex-wrap: wrap; }
+/* inside the row: a soft fill, no outline ring; the touch area reaches 44 px around the small chip */
+.coach-err .chip { position: relative; box-shadow: none; background: var(--s3); color: var(--tx); }
+.coach-err .chip::after { content: ''; position: absolute; inset: -8px -6px; }
 .meals-empty { padding: 6px 16px 6px 20px; }
 /* the empty day's card (or the meals) fading out before the other rises in, once the add sheet has gone (Food.tsx) */
 .subpage > .fading { animation: fade-away 220ms ease forwards; pointer-events: none; }

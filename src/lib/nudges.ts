@@ -171,6 +171,15 @@ export function findNudges(d: AppData, today: string, hour: number, t: T, lang: 
     title: t(last ? 'No backup in over two weeks' : 'Your data has no backup yet'), body: t('Everything lives on this phone. Turn on the free Google Drive backup, or save a file.'),
     action: { label: t('Back up'), run: { type: 'open', overlay: 'settings', props: { section: 'data' } } } });
 
+  // a health note from more than four weeks ago (no end date): asked about once. "It's better now" has the Coach forget it;
+  // ✕ means it still applies (never asked again)
+  const old = (d.memory ?? []).filter((m) => m.kind === 'health' && !m.until && Date.now() - (m.updatedAt ?? m.at) > 28 * 86400000).sort((a, b) => a.at - b.at)[0];
+  if (old) add({
+    id: `health-old:${old.id}`, kind: 'reminder', icon: 'info', priority: 40,
+    title: t('Still true? “{text}”', { text: old.text.length > 48 ? `${old.text.slice(0, 46)}…` : old.text }),
+    body: t('You told the Coach this {n} weeks ago. ✕ if it still applies.', { n: Math.floor((Date.now() - (old.updatedAt ?? old.at)) / (7 * 86400000)) }),
+    action: { label: t('It’s better now'), run: { type: 'coach', prompt: t('My note “{text}” doesn’t apply any more. Please forget it.', { text: old.text }) } },
+  });
   return out.sort((a, b) => b.priority - a.priority);
 }
 

@@ -1,4 +1,4 @@
-import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type SetStateAction } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type SetStateAction } from 'react';
 import { useIsPresent } from 'motion/react';
 import { useStore, allExercises } from '../state/store';
 import { useUI, haptic } from '../state/ui';
@@ -12,7 +12,8 @@ import { useVoice } from '../state/voice';
 import { mic } from '../lib/mic';
 import { getKey } from '../lib/keys';
 import { transcribe, buildPrompt, STT_MODEL, SttError } from '../lib/groq';
-import { aiErrorText, type Photo, type Turn } from '../lib/gemini';
+import { AiError, aiErrorText, type Photo, type Turn } from '../lib/gemini';
+import { sttNames } from '../lib/sttNames';
 import { stopSpeaking } from '../lib/tts';
 import { decide, brainFor } from '../lib/agentTurn';
 import { ActionCard, Rich, TypingDots, SpeakButton, prefetchAloud, replacedIds, sttMessage, useCoachTips, useWordReveal } from '../ui/agentUi';
@@ -74,8 +75,8 @@ const morphVars = { '--cf-x': `${CF_X}px`, '--cf-max': `${CF_MAX}px`, '--cf-ease
   '--cf-ease-c': MORPH_BACK.easing, '--cf-dur-c': `${MORPH_BACK.duration}ms`, '--cf-ease-k': CLOSE.easing, '--cf-dur-k': `${CLOSE.duration}ms`, '--cf-delay-k': `${CLOSE.delay}ms`, ...growVars } as React.CSSProperties;
 
 type Msg =
-  | { id: string; role: 'user' | 'model'; text: string; streaming?: boolean; /** while it looks something up in the data */ status?: string; seeded?: boolean; /** a quiet line under the answer (which AI answered, and why) */ note?: string; /** when it was said */ at?: number; /** a photo was sent with it (its picture stays only while the Coach is open) */ photo?: boolean; image?: string; /** typed: its lines as they wrapped in the field (the bubble keeps them) */ lines?: string[]; /** the pages a web search used */ sources?: { title: string; url: string }[] }
-  | { id: string; role: 'error'; text: string }
+  | { id: string; role: 'user' | 'model'; text: string; streaming?: boolean; /** while it looks something up in the data */ status?: string; seeded?: boolean; /** a quiet line under the answer (which AI answered, and why) */ note?: string; /** when it was said */ at?: number; /** a photo was sent with it (its picture stays only while the Coach is open) */ photo?: boolean; image?: string; /** it got no answer (left out of what the model sees until it is tried again) */ failed?: boolean; /** typed: its lines as they wrapped in the field (the bubble keeps them) */ lines?: string[]; /** the pages a web search used */ sources?: { title: string; url: string }[] }
+  | { id: string; role: 'error'; text: string; /** the message that failed: Try again sends it once more (from the same bubble) */ retry?: { userId: string; text: string }; /** a key problem: a chip opens Settings */ fix?: 'settings' }
   | { id: string; role: 'action'; results: AgentResult[]; undone: string[]; confirmed: string[]; /** arrived in this visit (it animates in; a restored one stays still) */ fresh?: boolean }
 
 /** How many of the newest saved messages are built on the tap that opens the Coach (the rest follow, see `older`). */
@@ -106,7 +107,7 @@ function endTop(el: HTMLElement) {
  * piece every few hundred ms) and while you type, the other 59 rows stay as they are. Every row used to be rebuilt each
  * time, saved answers and cards included.
  */
-const ChatRow = memo(function ChatRow({ m, sent, gone, setMsgs }: { m: Msg; /** sent just now, and not flown in */ sent: boolean; /** the ids of this message's previews that a newer one replaced */ gone: string; setMsgs: Dispatch<SetStateAction<Msg[]>> }) {
+const ChatRow = memo(function ChatRow({ m, sent, gone, setMsgs, onErr }: { m: Msg; /** sent just now, and not flown in */ sent: boolean; /** the ids of this message's previews that a newer one replaced */ gone: string; setMsgs: Dispatch<SetStateAction<Msg[]>>; /** an error row's chip: try the message again, or open Settings */ onErr: (m: Extract<Msg, { role: 'error' }>, what: 'retry' | 'settings') => void }) {
   const t = useT();
   const replaced = gone ? gone.split(',') : [];
   return (
@@ -128,7 +129,17 @@ const ChatRow = memo(function ChatRow({ m, sent, gone, setMsgs }: { m: Msg; /** 
           ))}
         </div>
       )}
-      {m.role === 'error' && <div className="plinth-2 small" role="alert" style={{ padding: '10px 14px', color: 'var(--bad)' }}>{m.text}</div>}
+      {m.role === 'error' && (
+        <div className="plinth-2 small coach-err" role="alert" style={{ padding: '10px 14px' }}>
+          <div style={{ color: 'var(--bad)' }}>{m.text}</div>
+          {(m.retry || m.fix) && (
+            <div className="row-flex coach-err-acts" style={{ gap: 8, marginTop: 10 }}>
+              {m.retry && <button className="chip sm press" onClick={() => onErr(m, 'retry')}><Icon name="repeat" size={13} />{t('Try again')}</button>}
+              {m.fix === 'settings' && <button className="chip sm press" onClick={() => onErr(m, 'settings')}><Icon name="settings" size={13} />{t('Open settings')}</button>}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 });
@@ -147,7 +158,9 @@ function CoachReply({ m }: { m: Extract<Msg, { role: 'user' | 'model' }> }) {
   // the typing dots don't vanish when the first word comes: they melt away over it (and are then taken out)
   const typed = useRef(!shown);
   const [dotsGone, setDotsGone] = useState(false);
-  if (!shown) return m.status ? <div className="coach-looking"><TypingDots /><div key={m.status} className="xs t3 coach-look">{m.status}</div></div> : <TypingDots />;
+  // no answer, only the quiet note (the built-in reader logged it): the note alone, never typing dots
+  if (!m.streaming && !m.text.trim() && m.note) return <div className={`xs t3 coach-after${m.seeded ? '' : ' fresh'}`}>{m.note}</div>;
+  if (!shown) return m.status ? <div className="coach-looking"><TypingDots /><div key={m.status} className="xs t2 coach-look">{m.status}</div></div> : <TypingDots />;
   return (
     <div className="coach-answer">
       {typed.current && !dotsGone && <div className="typing typing-out" aria-hidden onAnimationEnd={(e) => { if (e.target === e.currentTarget) setDotsGone(true); }}><i /><i /><i /></div>}
@@ -706,7 +719,8 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   const recRef = useRef<() => void>(() => {});
 
   /** The conversation so far as the model sees it (cards become a one-line note of what was done, with each item's id). */
-  const turnsFor = (): Turn[] => threadTurns(msgsRef.current as ThreadMsg[], useStore.getState().settings.dayStartHour);
+  // (the message being answered is sent on its own: it was in here too after a photo's wait, and went to the model twice)
+  const turnsFor = (skip?: string): Turn[] => threadTurns((msgsRef.current as ThreadMsg[]).filter((m) => m.id !== skip), useStore.getState().settings.dayStartHour);
 
   const undoLast = () => {
     for (let i = msgsRef.current.length - 1; i >= 0; i--) {
@@ -718,13 +732,19 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   };
 
   /** One turn: the model (or, without an AI key, the local reader) says what to do; we do it; the cards show it. */
-  const agentTurn = async (text: string, signal: AbortSignal, photo?: Photo) => {
+  const agentTurn = async (text: string, signal: AbortSignal, photo: Photo | undefined, userId: string) => {
     const st = useStore.getState();
     const today = dayKey(Date.now(), st.settings.dayStartHour);
     const placeholder = uid('m');
     say({ id: placeholder, role: 'model', text: '', streaming: true });
+    // a long wait is said, never a silent spinner: "Still thinking…" at 8 s, "Slow connection…" at 20 s (a look-up's own
+    // words are left alone)
+    const waits = [t('Still thinking…'), t('Slow connection…')];
+    const waitSay = (s: string) => { if (alive.current) setMsgs((all) => all.map((m) => (m.id === placeholder && m.role === 'model' && !m.text && (!m.status || waits.includes(m.status)) ? { ...m, status: s } : m))); };
+    const slow = [setTimeout(() => waitSay(waits[0]), 8000), setTimeout(() => waitSay(waits[1]), 20000)];
+    try {
     const where = props.mealId || props.date ? `The user opened this from the Food tab${props.date ? ` (day ${props.date})` : ''}${props.mealId ? `, meal ${props.mealId}` : ''}: foods go there unless they say otherwise.` : 'The user opened this from the main screen.';
-    const history = turnsFor(); // the conversation so far (the orb screen's turns included)
+    const history = turnsFor(userId); // the conversation so far (the orb screen's turns included)
     // the answer streams in as the model writes it, into the same message that then stays (nothing re-mounts or re-animates)
     const d = await decide(photo ? `[photo] ${text}` : text, { lang, t, pool, history, where, signal, surface: 'coach', photo, said: threadSaid(msgsRef.current as ThreadMsg[]), onStatus: (x) => { if (alive.current) setMsgs((all) => all.map((m) => (m.id === placeholder && m.role === 'model' ? { ...m, status: x || undefined } : m))); }, onReply: (r) => { if (alive.current) setMsgs((x) => x.map((m) => (m.id === placeholder && m.role === 'model' ? { ...m, text: r } : m))); } });
     let { reply } = d; const { note, actions } = d;
@@ -732,10 +752,11 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     const results = actions.length ? await runActions(actions, { t, lang, today, brain: brainFor({ big: false, surface: 'coach', signal }), date: props.date, mealId: props.mealId, photo: !!photo, onStatus: (x) => { if (alive.current) setMsgs((all) => all.map((m) => (m.id === placeholder && m.role === 'model' ? { ...m, status: x || undefined } : m))); } }) : [];
     if (d.dropped) results.push(droppedCard(t)); // (never silent: part of the answer was unreadable)
     if (!alive.current) return;
-    // the answer is the message; a note about who answered sits under it, quieter (and is never read aloud)
-    const said = reply || note;
+    // the answer is the message; a note about who answered sits under it, quieter. It is never the answer itself: never read
+    // aloud and never saved as something the Coach said (with no answer it stands alone, as that small grey line)
+    const said = reply;
     setMsgs((x) => {
-      const base = said ? x.map((m) => (m.id === placeholder ? { ...m, text: said, note: reply ? note || undefined : undefined, streaming: false, ...(d.sources.length && reply ? { sources: d.sources } : {}) } as Msg : m)) : x.filter((m) => m.id !== placeholder);
+      const base = said || note ? x.map((m) => (m.id === placeholder ? { ...m, text: said, note: note || undefined, streaming: false, status: undefined, ...(d.sources.length && reply ? { sources: d.sources } : {}) } as Msg : m)) : x.filter((m) => m.id !== placeholder);
       return results.length ? [...base, { id: uid('m'), role: 'action', results, undone: [], confirmed: [], fresh: true }] : base;
     });
     // green "Done" only when something was actually logged or changed
@@ -753,12 +774,58 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
         pop();
       }, 1700);
     } else autoClose.current = false;
+    } finally { slow.forEach(clearTimeout); }
   };
+
+  // ── when it fails: Try again (the same words, from the same bubble), Open settings (a key problem) ──
+  const runTurn = async (id: string, text: string, pic: { url: string; blob: Blob } | null) => {
+    setBusy(true); stopSpeaking(); orb('processing');
+    ctl.current = new AbortController();
+    const signal = ctl.current.signal;
+    try {
+      await agentTurn(text || t('What is this?'), signal, pic ? { mime: 'image/jpeg', data: await blobToBase64(pic.blob) } : undefined, id);
+      if (alive.current) setMsgs((x) => x.map((m) => (m.id === id && m.role === 'user' && m.failed ? { ...m, failed: undefined } : m)));
+    } catch (e: any) {
+      if (!alive.current) return;
+      const stopped = e?.code === 'aborted';
+      const key = e instanceof AiError && (e.code === 'badkey' || e.code === 'nokey');
+      setMsgs((x) => {
+        // a half-written answer that was cut off is taken away (it was not the answer), and the question is marked so the
+        // model doesn't read it as answered
+        const last = x[x.length - 1];
+        const base = last && last.role === 'model' && last.streaming ? (stopped && last.text.trim() ? x.map((m, i) => (i === x.length - 1 ? { ...m, streaming: false } as Msg : m)) : x.slice(0, -1)) : x;
+        if (stopped) return base;
+        // (the chip says Try again: the words don't say it a second time)
+        const why = key ? aiErrorText(e, t) : aiErrorText(e, t).replace(new RegExp(`\\s*${t('Try again')}\\.?$`), '');
+        return [...base.map((m) => (m.id === id && m.role === 'user' ? { ...m, failed: true } as Msg : m)), { id: uid('m'), role: 'error', text: why, ...(key ? { fix: 'settings' as const } : { retry: { userId: id, text } }) }];
+      });
+    } finally {
+      if (alive.current) {
+        setBusy(false); if (['processing', 'listening'].includes(useVoice.getState().phase)) orb('idle');
+        // typed while it was thinking: sent now
+        if (queued.current) { queued.current = false; setQueuedOn(false); setTimeout(() => { if (alive.current && inputRef.current?.value.trim()) sendRef.current(); }, 60); } // (the newest send: this one still sees it busy)
+      }
+    }
+  };
+  const onErrRef = useRef<(m: Extract<Msg, { role: 'error' }>, what: 'retry' | 'settings') => void>(() => {});
+  onErrRef.current = (m, what) => {
+    haptic('light');
+    if (what === 'settings') { push('settings', { section: 'ai' }); return; }
+    if (busy || !m.retry) return;
+    const { userId, text } = m.retry;
+    setMsgs((x) => x.filter((y) => y.id !== m.id));
+    void runTurn(userId, text, null);
+  };
+  const onErr = useCallback((m: Extract<Msg, { role: 'error' }>, what: 'retry' | 'settings') => onErrRef.current(m, what), []);
+  const queued = useRef(false);
+  const [queuedOn, setQueuedOn] = useState(false);
 
   const send = async (raw?: string, spoken = false) => {
     const text = (raw ?? input).trim();
     const pic = raw === undefined ? photo : null; // a suggestion chip or dictation sends words only
-    if (!alive.current || (!text && !pic) || busy) return;
+    if (!alive.current || (!text && !pic)) return;
+    // typed while it is still answering: kept in the field and sent the moment the answer is done
+    if (busy) { if (raw === undefined && text) { queued.current = true; setQueuedOn(true); haptic('light'); } return; }
     if (clearing.current) finishClear();
     pinned.current = true; user.current = false;
     const id = uid('m');
@@ -782,21 +849,9 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     }
     const reduceTips = still || leaving;
     if (!reduceTips && (msgsRef.current.length === 0 || resumed)) setTipsOut(msgsRef.current.length === 0 ? 'top' : 'resume');
-    setInput(''); setPhoto(null); setResumed(false); setBusy(true); stopSpeaking(); orb('processing');
+    setInput(''); setPhoto(null); setResumed(false);
     say({ id, role: 'user', text, at: Date.now(), ...(wrap ? { lines: wrap.lines } : {}), ...(pic ? { photo: true, image: pic.url } : {}) });
-    ctl.current = new AbortController();
-    const signal = ctl.current.signal;
-    try {
-      await agentTurn(text || t('What is this?'), signal, pic ? { mime: 'image/jpeg', data: await blobToBase64(pic.blob) } : undefined);
-    } catch (e: any) {
-      if (!alive.current) return;
-      const stopped = e?.code === 'aborted';
-      setMsgs((x) => {
-        const last = x[x.length - 1];
-        const base = last && last.role === 'model' && last.streaming ? (last.text.trim() ? x.map((m, i) => (i === x.length - 1 ? { ...m, streaming: false } as Msg : m)) : x.slice(0, -1)) : x;
-        return stopped ? base : [...base, { id: uid('m'), role: 'error', text: aiErrorText(e, t) }];
-      });
-    } finally { if (alive.current) { setBusy(false); if (['processing', 'listening'].includes(useVoice.getState().phase)) orb('idle'); } }
+    await runTurn(id, text, pic);
   };
 
   // ── voice input through Groq (same single-owner mic as dictation) ──
@@ -823,7 +878,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       try {
         if (!blob) throw new SttError('failed');
         const st = useAi.getState();
-        const words = (await transcribe(blob, { key: getKey('groq'), model: STT_MODEL[st.stt], language: st.voiceLang === 'auto' ? 'auto' : st.voiceLang, prompt: buildPrompt([]) })).trim();
+        const words = (await transcribe(blob, { key: getKey('groq'), model: STT_MODEL[st.stt], language: st.voiceLang === 'auto' ? 'auto' : st.voiceLang, prompt: buildPrompt(sttNames(pool)) })).trim();
         if (!alive.current) return;
         if (words) finishSaid(join(base, words), mode); else say({ id: uid('m'), role: 'error', text: t('Didn’t catch anything. Try again.') });
       } catch (e) {
@@ -924,8 +979,9 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
               <span className={`cf-status${recording ? ' on' : ''}`} aria-hidden="true">{t('Listening…')}</span>
               <span className={`cf-status${hearing ? ' on' : ''}`} aria-hidden="true">{t('Transcribing…')}</span></div>
             {/* Send is an arrow inside the field, there only when there is something to send (Stop while it works) */}
-            <button className={`coach-send press ${busy || input.trim() || photo || recording ? 'on' : ''} ${busy ? 'busy' : ''}`} onMouseDown={(e) => e.preventDefault() /* the field keeps the keyboard (it stays up after a send) */}
-              aria-label={busy ? t('Stop') : recording ? t('Stop and send') : t('Send')} tabIndex={busy || input.trim() || photo || recording ? 0 : -1} onClick={() => (busy ? ctl.current?.abort() : recording ? toggleRec('send') : hearing ? undefined : send())}>
+            {/* (while it answers: Stop when the field is empty; typed words wait, dimmed, and go when the answer is done) */}
+            <button className={`coach-send press ${busy || input.trim() || photo || recording ? 'on' : ''} ${busy && !input.trim() ? 'busy' : ''} ${busy && input.trim() && queuedOn ? 'queued' : ''}`} onMouseDown={(e) => e.preventDefault() /* the field keeps the keyboard (it stays up after a send) */}
+              aria-label={busy && !input.trim() ? t('Stop') : recording ? t('Stop and send') : t('Send')} tabIndex={busy || input.trim() || photo || recording ? 0 : -1} onClick={() => (busy && !input.trim() ? ctl.current?.abort() : recording ? toggleRec('send') : hearing ? undefined : send())}>
               {/* send turns into stop (and back) by a short cross-fade with a little turn, not a cut. While you speak it is the
                   arrow (stop and send); once you have stopped it steps aside while your words are heard (the orb thinks) */}
               <span className="cs-ico cs-go"><Icon name="arrowUp" size={18} sw={2.6} /></span>
@@ -944,7 +1000,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
           <>
             {shown.length === 0 ? tipsBlock : tipsOut === 'top' && <div className="coach-tips-out" inert onAnimationEnd={(e) => { if (e.target === e.currentTarget) setTipsOut(null); }}>{tipsBlock}</div>}
             <div className="stack coach-thread" style={{ gap: 16, marginTop: shown.length ? 0 : 16 }}>
-              {listed.map((m) => <ChatRow key={m.id} m={m} sent={m.role === 'user' && !m.seeded && !flown(m.id)} gone={m.role === 'action' ? m.results.filter((r) => replaced.has(r.id)).map((r) => r.id).join(',') : ''} setMsgs={setMsgs} />)}
+              {listed.map((m) => <ChatRow key={m.id} m={m} sent={m.role === 'user' && !m.seeded && !flown(m.id)} gone={m.role === 'action' ? m.results.filter((r) => replaced.has(r.id)).map((r) => r.id).join(',') : ''} setMsgs={setMsgs} onErr={onErr} />)}
             </div>
             {resumed && shown.length > 0 ? <div className="coach-resume">{resumeHead}{tipsBlock}</div>
               : tipsOut === 'resume' && <div className="coach-resume coach-tips-out" inert onAnimationEnd={(e) => { if (e.target === e.currentTarget) setTipsOut(null); }}>{resumeHead}{tipsBlock}</div>}
