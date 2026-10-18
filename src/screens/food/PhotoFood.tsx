@@ -1,12 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useStore } from '../../state/store';
 import { useUI, haptic } from '../../state/ui';
 import { useAi, anyBrain, solOn } from '../../state/ai';
-import { useVoice } from '../../state/voice';
 import { useT, useLang } from '../../lib/i18n';
 import { Sheet, SheetHead, SOFT } from '../../ui/Sheet';
-import { SphereSlot } from '../../ui/Sphere';
 import { Icon } from '../../ui/Icon';
 import { getKey } from '../../lib/keys';
 import { blobToBase64, cameraUsable, downscale } from '../../lib/photos';
@@ -21,6 +19,56 @@ import { fmtNum } from '../../lib/units';
 interface Item extends FoodEstimate { on: boolean; k: number }
 const PORTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
+
+const SCAN_WORDS = ['Looking at your plate', 'Spotting the ingredients', 'Estimating portions', 'Adding it up'];
+// PREVIEW ONLY: six looks for the wait, chosen with localStorage 'aven.scan' (A-F); Omar picks one, the rest are deleted
+export const scanVariant = () => { try { return localStorage.getItem('aven.scan') || 'A'; } catch { return 'A'; } };
+/** Which of the four steps the wait is at: it moves on every 1.9 s and stays on the last for as long as the answer takes. */
+function useStep() {
+  const [i, setI] = useState(0);
+  useEffect(() => { const id = setInterval(() => setI((n) => Math.min(n + 1, SCAN_WORDS.length - 1)), 1900); return () => clearInterval(id); }, []);
+  return i;
+}
+/** While the photo is read: no orb. Only transform and opacity move; the words and ticks change by fading. */
+function Scan({ v }: { v: string }) {
+  const t = useT();
+  const i = useStep();
+  const words = (
+    <div className="scan-words">
+      <AnimatePresence mode="popLayout" initial={false}>
+        <motion.span key={i} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.4 }}>{t(SCAN_WORDS[i])}</motion.span>
+      </AnimatePresence>
+    </div>
+  );
+  return (
+    <motion.div className={`scan scan-${v}`} aria-hidden initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.45 }}>
+      <i className="scan-film" />
+      {v === 'A' && <><i className="scan-band" /><i className="scan-c tl" /><i className="scan-c tr" /><i className="scan-c bl" /><i className="scan-c br" />{words}</>}
+      {v === 'B' && <><div className="aur-ring"><i /></div>{words}</>}
+      {v === 'C' && <><i className="son r0" /><i className="son r1" /><i className="son r2" /><i className="son-dot" />{words}</>}
+      {v === 'D' && <><div className="lock"><i className="scan-c tl" /><i className="scan-c tr" /><i className="scan-c bl" /><i className="scan-c br" /></div>{words}</>}
+      {v === 'E' && (
+        <div className="scan-words">
+          <div className="prog">
+            <span className="prog-dots">{SCAN_WORDS.map((w, k) => <motion.i key={w} initial={false} animate={{ opacity: k <= i ? 1 : 0.28, scale: k === i ? 1.25 : 1 }} transition={{ duration: 0.45 }} />)}</span>
+            <AnimatePresence mode="popLayout" initial={false}>
+              <motion.span key={i} className="prog-t" initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.4 }}>{t(SCAN_WORDS[i])}</motion.span>
+            </AnimatePresence>
+          </div>
+        </div>
+      )}
+      {v === 'F' && words}
+    </motion.div>
+  );
+}
+/** Option F: grey stand-ins where the items will land, the size of the real cards; they melt into them. */
+function Ghosts() {
+  return (
+    <motion.div className="ghosts stack gap8" aria-hidden initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.35 } }} transition={{ duration: 0.45 }} style={{ marginTop: 16 }}>
+      {[0, 1, 2].map((k) => <div key={k} className="ghost plinth"><i className="ghost-sh" style={{ animationDelay: `${k * 180}ms` }} /></div>)}
+    </motion.div>
+  );
+}
 
 /** Snap your plate: a photo → Gemini's per-item estimate → you adjust portions → logged as clearly labelled AI estimates. */
 export function PhotoFood({ props }: { props: { date: string; mealId: string; file?: File } }) {
@@ -43,11 +91,10 @@ export function PhotoFood({ props }: { props: { date: string; mealId: string; fi
   const openCam = () => { if (cameraUsable()) push('camera', { onShot: pick }); else cam.current?.click(); };
   const meal = meals.find((m) => m.id === props.mealId) ?? meals[0];
 
-  useEffect(() => () => { ctl.current?.abort(); if (useVoice.getState().phase === 'processing') useVoice.getState().go('idle'); if (img) URL.revokeObjectURL(img.url); }, []); // eslint-disable-line
+  useEffect(() => () => { ctl.current?.abort(); if (img) URL.revokeObjectURL(img.url); }, []); // eslint-disable-line
 
   const analyse = async (blob: Blob) => {
     setErr(null); setBusy(true); setItems([]);
-    useVoice.getState().go('processing'); // the sphere thinks along
     ctl.current?.abort(); ctl.current = new AbortController();
     const a = useAi.getState(), m = a.models;
     try {
@@ -55,10 +102,10 @@ export function PhotoFood({ props }: { props: { date: string; mealId: string; fi
       const brain = { key: a.hasGemini ? getKey('gemini') : '', models: [...new Set([m.fast || FALLBACK_MODELS.fast, m.brain || FALLBACK_MODELS.brain].filter(Boolean))], signal: ctl.current.signal, sol: solOn(a) && !overLimit(a.solLimitKr) ? { key: getKey('openai'), effort: a.effortOrb } : undefined };
       const r = await estimatePhoto({ mime: 'image/jpeg', data: await blobToBase64(blob) }, brain, lang, hint.trim());
       setItems(r.items.map((x) => ({ ...x, on: true, k: 1 }))); setAssume(r.assumptions);
-      haptic('light'); useVoice.getState().go('review');
+      haptic('light');
     } catch (e: any) {
-      setErr(e?.code === 'invalid' ? t('That doesn’t look like food. Try another photo.') : aiErrorText(e, t)); useVoice.getState().go('error');
-    } finally { setBusy(false); setTimeout(() => { if (['review', 'error'].includes(useVoice.getState().phase)) useVoice.getState().go('idle'); }, 1400); }
+      setErr(e?.code === 'invalid' ? t('That doesn’t look like food. Try another photo.') : aiErrorText(e, t));
+    } finally { setBusy(false); }
   };
   const pick = async (f?: File) => {
     if (!f) return;
@@ -72,6 +119,7 @@ export function PhotoFood({ props }: { props: { date: string; mealId: string; fi
 
   useEffect(() => { if (props.file) pick(props.file); }, []); // eslint-disable-line -- the camera hands its shot over (CameraSheet)
 
+  const sv = useMemo(scanVariant, []);
   const chosen = items.filter((x) => x.on);
   const total = chosen.reduce((n, x) => n + x.kcal * x.k, 0);
   const log = () => {
@@ -102,22 +150,14 @@ export function PhotoFood({ props }: { props: { date: string; mealId: string; fi
           <>
             <motion.div layout transition={SOFT} style={{ position: 'relative', borderRadius: 'var(--r-lg)', overflow: 'hidden', aspectRatio: img ? '4 / 3' : '4 / 3.2', background: 'var(--s1)', boxShadow: 'inset 0 1px 0 var(--hl), inset 0 0 0 1px var(--line)' }}>
               {img ? <motion.div key={img.url} initial={{ opacity: 0, scale: 1.04 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5 }} style={{ position: 'absolute', inset: 0 }}>
-                {/* while it is read, a still, softened copy fades in over the photo (the blur itself never animates) */}
-                <motion.img src={img.url} alt="" animate={{ opacity: busy ? 0.55 : 1 }} transition={{ duration: 0.5 }} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-                <motion.img src={img.url} alt="" aria-hidden initial={false} animate={{ opacity: busy ? 0.6 : 0 }} transition={{ duration: 0.5 }} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(2px) saturate(1.2)', pointerEvents: 'none' }} />
+                <img src={img.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
               </motion.div> : (
                 <button className="press" onClick={openCam} style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', alignContent: 'center', gap: 12 }} aria-label={t('Take a photo')}>
                   <span className="icon-btn acc" style={{ width: 74, height: 74 }}><Icon name="camera" size={30} /></span>
                   <span className="small t2">{t('Take a photo')}</span>
                 </button>
               )}
-              {busy && (
-                <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center' }}>
-                  {/* a light sweep across the photo while Gemini looks at it */}
-                  <motion.i aria-hidden initial={{ x: '-120%' }} animate={{ x: '120%' }} transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut' }} style={{ position: 'absolute', inset: 0, background: 'linear-gradient(100deg, transparent 30%, rgba(255,255,255,.22) 50%, transparent 70%)' }} />
-                  <SphereSlot id="photo" priority={10} style={{ width: 96, height: 96 }} />
-                </div>
-              )}
+              <AnimatePresence>{busy && <Scan key="scan" v={sv} />}</AnimatePresence>
             </motion.div>
             <div className="row-flex" style={{ gap: 8, marginTop: 12 }}>
               <button className="btn sm press grow" onClick={openCam}><Icon name="camera" size={16} /> {img ? t('Retake') : t('Camera')}</button>
@@ -128,6 +168,7 @@ export function PhotoFood({ props }: { props: { date: string; mealId: string; fi
               {img && <button className="icon-btn press" aria-label={t('Analyse again')} disabled={busy} onClick={() => analyse(img.blob)}><Icon name="repeat" /></button>}
             </div>
             {err && <div className="plinth-2 small" role="alert" style={{ padding: '12px 14px', marginTop: 12, color: 'var(--bad)' }}>{err}</div>}
+            <AnimatePresence>{busy && sv === 'F' && <Ghosts key="ghosts" />}</AnimatePresence>
             <AnimatePresence>
               {items.length > 0 && (
                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} style={{ marginTop: 16 }}>

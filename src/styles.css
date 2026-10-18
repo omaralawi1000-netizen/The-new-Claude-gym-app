@@ -2263,3 +2263,48 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 .dict-thread .dt-a { height: 2.4px; border-radius: 2px; background: linear-gradient(to right, transparent, var(--ac) 28%, var(--ac-2) 50%, var(--ac) 72%, transparent); }
 .dict-thread .dt-c { height: 1.6px; bottom: .4px; border-radius: 1px; background: linear-gradient(to right, transparent, #fff 50%, transparent); }
 :root[data-theme='light'] .dict-thread .dt-c { background: linear-gradient(to right, transparent, color-mix(in srgb, var(--ac) 40%, #fff) 50%, transparent); }
+
+/* ---- photo analysis (PhotoFood.tsx, Scan): no orb. A dim film, a soft band of light sweeping down once every 3.2 s with a rest
+   between (transform only, own layer), four viewfinder corners, and the status words fading in the pill. ---- */
+.scan { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.scan-film { position: absolute; inset: 0; background: rgba(0,0,0,.3); }
+.scan-band { position: absolute; left: 0; right: 0; top: 0; height: 46%; will-change: transform; transform: translateY(-100%); animation: scan-sweep 3200ms var(--ease-io) infinite;
+  background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--ac) 20%, transparent) 72%, color-mix(in srgb, #fff 46%, var(--ac)) 100%); }
+.scan-band::after { content: ''; position: absolute; left: 6%; right: 6%; bottom: 0; height: 2px; border-radius: 1px; background: linear-gradient(to right, transparent, rgba(255,255,255,.95), transparent); }
+@keyframes scan-sweep { 0% { transform: translateY(-100%); } 68%, 100% { transform: translateY(217%); } }
+.scan-c { position: absolute; width: 22px; height: 22px; border: 0 solid rgba(255,255,255,.88); }
+.scan-c.tl { left: 16px; top: 16px; border-width: 2.5px 0 0 2.5px; border-top-left-radius: 8px; }
+.scan-c.tr { right: 16px; top: 16px; border-width: 2.5px 2.5px 0 0; border-top-right-radius: 8px; }
+.scan-c.bl { left: 16px; bottom: 16px; border-width: 0 0 2.5px 2.5px; border-bottom-left-radius: 8px; }
+.scan-c.br { right: 16px; bottom: 16px; border-width: 0 2.5px 2.5px 0; border-bottom-right-radius: 8px; }
+.scan-words { position: absolute; left: 0; right: 0; bottom: 20px; display: grid; justify-items: center; }
+.scan-words span { grid-area: 1 / 1; padding: 7px 14px; border-radius: 999px; background: rgba(0,0,0,.5); color: #fff; font-size: 13px; font-weight: 560; letter-spacing: .01em; white-space: nowrap; }
+:root[data-motion='reduce'] .scan-band { animation: none; opacity: 0; }
+
+/* option B: aurora edge, a slow ring of colour around the photo's rim (the ring is a static mask; only the colour inside turns) */
+.aur-ring { position: absolute; inset: 0; padding: 5px; border-radius: inherit; overflow: hidden; -webkit-mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); }
+.aur-ring i { position: absolute; left: 50%; top: 50%; width: 170%; aspect-ratio: 1; margin: -85% 0 0 -85%; will-change: transform; animation: aur-turn 7s linear infinite;
+  background: conic-gradient(from 0deg, var(--ac), color-mix(in srgb, var(--ac) 55%, #ff3d6e), color-mix(in srgb, var(--ac) 60%, #fff), color-mix(in srgb, var(--ac) 50%, #ff7a2a), color-mix(in srgb, var(--ac) 70%, #b04bd6), var(--ac)); } /* the palette's own accent, turned a little warmer, rosier, lighter: no new colours */
+@keyframes aur-turn { to { transform: rotate(360deg); } }
+.scan-B .scan-film { background: rgba(0,0,0,.34); }
+/* option C: sonar, rings leaving the middle */
+.son { position: absolute; left: 50%; top: 50%; width: 46%; aspect-ratio: 1; margin: -23% 0 0 -23%; border-radius: 50%; border: 1.5px solid rgba(255,255,255,.75); opacity: 0; will-change: transform, opacity; animation: son-out 3600ms var(--ease-out) infinite; }
+.son.r1 { animation-delay: 1200ms; } .son.r2 { animation-delay: 2400ms; }
+.son-dot { position: absolute; left: 50%; top: 50%; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; background: #fff; opacity: .95; }
+@keyframes son-out { 0% { transform: scale(0.25); opacity: 0; } 12% { opacity: .85; } 100% { transform: scale(1.9); opacity: 0; } }
+/* option D: focus lock, the four corners close in on the plate, then look around */
+.lock { position: absolute; left: 14%; right: 14%; top: 16%; bottom: 22%; will-change: transform; animation: lock-in 900ms var(--ease-spring) both, lock-look 6.4s var(--ease-io) 900ms infinite; }
+.lock .scan-c { left: auto; right: auto; top: auto; bottom: auto; }
+.lock .tl { left: 0; top: 0; } .lock .tr { right: 0; top: 0; } .lock .bl { left: 0; bottom: 0; } .lock .br { right: 0; bottom: 0; }
+@keyframes lock-in { from { transform: scale(1.35); opacity: 0; } to { transform: none; } }
+@keyframes lock-look { 0%, 100% { transform: translate3d(0,0,0) scale(1); } 25% { transform: translate3d(-3%, -2%, 0) scale(1.03); } 55% { transform: translate3d(3.5%, 2.5%, 0) scale(.97); } 80% { transform: translate3d(-1.5%, 3%, 0) scale(1.01); } }
+/* option E: progress, four dots that fill as the steps pass, beside the words */
+.prog { grid-area: 1 / 1; display: flex; align-items: center; gap: 10px; padding: 8px 15px 8px 13px; border-radius: 999px; background: rgba(0,0,0,.5); color: #fff; font-size: 13px; font-weight: 560; }
+.prog-dots { display: flex; gap: 5px; }
+.prog-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--ac); will-change: transform, opacity; }
+.prog-t { display: block; white-space: nowrap; }
+/* option F: stand-in cards under the photo */
+.ghost { height: 118px; position: relative; overflow: hidden; }
+.ghost-sh { position: absolute; inset: 0; will-change: transform; animation: ghost-run 2200ms var(--ease-io) infinite; background: linear-gradient(100deg, transparent 30%, rgba(255,255,255,.1) 50%, transparent 70%); }
+@keyframes ghost-run { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+:root[data-motion='reduce'] :is(.aur-ring i, .son, .lock, .ghost-sh) { animation: none; }
