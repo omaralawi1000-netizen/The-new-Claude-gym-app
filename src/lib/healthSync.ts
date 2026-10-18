@@ -133,9 +133,20 @@ export function applyHcFromAddress(): void {
   const p = parseHc(location.hash);
   // (out of the address either way: a reload or a shared link must not carry it)
   try { history.replaceState(history.state, '', location.pathname + location.search); } catch { /* fine */ }
-  if (!p || !appOnPhone()) return;
+  // Connect watch / Sync now was tapped here a moment ago: this is its answer (the app reopens Aven at its start, so the
+  // Watch screen is opened again, with what came of it said once)
+  const ask = takeAsk();
+  if (!p || (!ask && !appOnPhone())) return;
   const synced = !!(p.days || p.ex);
   saveStatus(p, synced);
+  if (ask) {
+    const ui = useUI.getState();
+    setTimeout(() => {
+      ui.push('settings', { section: 'watch' });
+      // (a problem is said on the Watch screen itself, in words that say what to do)
+      if (ask !== 'off' && p.on && p.granted) ui.toast(tNow('Watch connected'), { tone: 'ok' });
+    }, 700);
+  }
   if (synced) {
     const st = useStore.getState();
     const r = mergeHc(p, { activities: st.activities, steps: st.steps ?? [] }, st.settings.dayStartHour);
@@ -144,6 +155,17 @@ export function applyHcFromAddress(): void {
     if (r.added) useUI.getState().toast(r.added === 1 ? tNow('1 workout from your watch') : tNow('{n} workouts from your watch', { n: r.added }), { tone: 'ok' });
   }
   window.dispatchEvent(new Event('aven-hc'));
+}
+
+const ASK = 'aven.hc.ask';
+/** Remember that Connect watch / Sync now / Disconnect was just tapped (the answer comes back in a fresh page). */
+export function noteAsk(what: 'connect' | 'sync' | 'off') { try { localStorage.setItem(ASK, JSON.stringify({ what, at: Date.now() })); } catch { /* fine */ } }
+function takeAsk(): 'connect' | 'sync' | 'off' | null {
+  try {
+    const v = JSON.parse(localStorage.getItem(ASK) || 'null');
+    localStorage.removeItem(ASK);
+    return v && Date.now() - v.at < 3 * 60_000 ? v.what : null;
+  } catch { return null; }
 }
 
 /** "Connect watch" and friends: the Android app's link (it opens Aven again at this page). Without the app the phone

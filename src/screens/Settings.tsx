@@ -35,7 +35,7 @@ import { startStutter, stopStutter, stutterReport, stutterState, subscribeStutte
 import { coachTrace } from '../lib/coachTrace';
 import { lastRestLate } from './workout/rest';
 import { appOnPhone, inAndroidApp, restCheck, showAppRest } from '../lib/androidApp';
-import { hcLink, hcStatus } from '../lib/healthSync';
+import { hcLink, hcStatus, noteAsk } from '../lib/healthSync';
 import { ACTIVITY_LABEL, INTENSITY_LABEL, activityIcon } from '../lib/activity';
 
 const EASE = [0.22, 1, 0.36, 1] as const;
@@ -552,6 +552,7 @@ function WatchSection() {
     haptic('light');
     setStuck(false);
     if (what !== 'off') setBusy(what);
+    noteAsk(what);
     location.href = hcLink(what);
   };
   const on = !!(h?.on && h.granted);
@@ -566,7 +567,7 @@ function WatchSection() {
   const perDay = counted.length ? Math.round(counted.reduce((n, x) => n + x.n, 0) / counted.length) : 0;
   const top = Math.max(1, ...days.map((x) => x.n));
   const recent = [...watchActs].sort((x, y) => (y.startAt ?? y.at) - (x.startAt ?? x.at)).slice(0, 3);
-  const state = !h ? null : h.note === 'unavailable' || !h.avail ? t('Health Connect needs Android 14 or newer.') : h.note === 'denied' || (h.on && !h.granted) ? t('Aven wasn’t allowed to read it. Tap Connect watch and allow all.') : h.note === 'slow' || h.note === 'failed' ? t('Health Connect didn’t answer in time. Try Sync now.') : null;
+  const state = !h ? null : h.note === 'unavailable' || !h.avail ? t('Health Connect needs Android 14 or newer.') : h.note === 'denied' || (h.on && !h.granted) ? t('Aven isn’t allowed to read your watch yet. In your phone’s Settings, search for Health Connect, open App permissions › Aven and allow all. Then tap Connect watch.') : h.note === 'slow' || h.note === 'failed' ? t('Health Connect didn’t answer in time. Try Sync now.') : null;
   const u = s.settings.units;
   return (
     <div className="stack gap16 watch">
