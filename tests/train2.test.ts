@@ -77,6 +77,10 @@ describe('the set you are on', () => {
     expect(r.lines.some((l) => l.text === 'heard 18 kg → logged 80 kg' && l.warn)).toBe(true);
     r.more![0].run();
     expect(done('a')[0].weightKg).toBe(18);
+    expect(r.lines[1].text).toBe('logged as heard: 18 kg');
+    expect(r.more![0].label).toBe('Use 80 kg'); // and back again
+    r.more![0].run();
+    expect(done('a')[0].weightKg).toBe(80);
   });
   it('the same set said twice in a row is logged once ("Already logged", Log again)', async () => {
     start([{ id: 'a', exerciseId: idOf('Barbell Bench Press'), sets: [set('a1'), set('a2'), set('a3')] }]);

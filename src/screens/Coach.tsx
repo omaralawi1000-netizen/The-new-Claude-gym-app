@@ -5,6 +5,7 @@ import { useUI, haptic } from '../state/ui';
 import { useAi, anyBrain, solOn } from '../state/ai';
 import { useT, useLang } from '../lib/i18n';
 import { Sheet, SheetHead } from '../ui/Sheet';
+import { Collapse } from '../ui/kit';
 import { Icon } from '../ui/Icon';
 import { kb } from '../ui/keyboard';
 import { SphereSlot } from '../ui/Sphere';
@@ -76,7 +77,7 @@ const morphVars = { '--cf-x': `${CF_X}px`, '--cf-max': `${CF_MAX}px`, '--cf-ease
 
 type Msg =
   | { id: string; role: 'user' | 'model'; text: string; streaming?: boolean; /** while it looks something up in the data */ status?: string; seeded?: boolean; /** a quiet line under the answer (which AI answered, and why) */ note?: string; /** when it was said */ at?: number; /** a photo was sent with it (its picture stays only while the Coach is open) */ photo?: boolean; image?: string; /** it got no answer (left out of what the model sees until it is tried again) */ failed?: boolean; /** typed: its lines as they wrapped in the field (the bubble keeps them) */ lines?: string[]; /** the pages a web search used */ sources?: { title: string; url: string }[] }
-  | { id: string; role: 'error'; text: string; /** the message that failed: Try again sends it once more (from the same bubble) */ retry?: { userId: string; text: string }; /** a key problem: a chip opens Settings */ fix?: 'settings' }
+  | { id: string; role: 'error'; text: string; /** folding away (Try again was tapped) */ leaving?: boolean; /** the message that failed: Try again sends it once more (from the same bubble) */ retry?: { userId: string; text: string }; /** a key problem: a chip opens Settings */ fix?: 'settings' }
   | { id: string; role: 'action'; results: AgentResult[]; undone: string[]; confirmed: string[]; /** arrived in this visit (it animates in; a restored one stays still) */ fresh?: boolean }
 
 /** How many of the newest saved messages are built on the tap that opens the Coach (the rest follow, see `older`). */
@@ -130,7 +131,8 @@ const ChatRow = memo(function ChatRow({ m, sent, gone, setMsgs, onErr }: { m: Ms
         </div>
       )}
       {m.role === 'error' && (
-        <div className="plinth-2 small coach-err" role="alert" style={{ padding: '10px 14px' }}>
+        <Collapse open={!m.leaving} ms={420}>
+        <div className={`plinth-2 small coach-err${m.leaving ? ' leaving' : ''}`} role="alert" style={{ padding: '10px 14px' }}>
           <div style={{ color: 'var(--bad)' }}>{m.text}</div>
           {(m.retry || m.fix) && (
             <div className="row-flex coach-err-acts" style={{ gap: 8, marginTop: 10 }}>
@@ -139,6 +141,7 @@ const ChatRow = memo(function ChatRow({ m, sent, gone, setMsgs, onErr }: { m: Ms
             </div>
           )}
         </div>
+        </Collapse>
       )}
     </div>
   );
@@ -158,12 +161,28 @@ function CoachReply({ m }: { m: Extract<Msg, { role: 'user' | 'model' }> }) {
   // the typing dots don't vanish when the first word comes: they melt away over it (and are then taken out)
   const typed = useRef(!shown);
   const [dotsGone, setDotsGone] = useState(false);
-  // no answer, only the quiet note (the built-in reader logged it): the note alone, never typing dots
+  // the words under the dots ("Looking at…", "Still thinking…"): the dots stay the same element the whole time (a new
+  // parent rebuilt them, and they blinked out and grew back); a new line rises in while the old one fades out over it
+  const said = useRef<{ now?: string; before?: string }>({});
+  if (said.current.now !== m.status) said.current = { now: m.status, before: said.current.now };
+  // (after every hook) no answer, only the quiet note (the built-in reader logged it): the note alone, never typing dots
   if (!m.streaming && !m.text.trim() && m.note) return <div className={`xs t3 coach-after${m.seeded ? '' : ' fresh'}`}>{m.note}</div>;
-  if (!shown) return m.status ? <div className="coach-looking"><TypingDots /><div key={m.status} className="xs t2 coach-look">{m.status}</div></div> : <TypingDots />;
+  if (!shown) return (
+    <div className="coach-looking">
+      <TypingDots />
+      {(said.current.now || said.current.before) && (
+        <div className="coach-look-cell">
+          {said.current.before && <div key={`o${said.current.before}`} className="xs t2 coach-look coach-look-out" aria-hidden>{said.current.before}</div>}
+          {said.current.now && <div key={said.current.now} className="xs t2 coach-look">{said.current.now}</div>}
+        </div>
+      )}
+    </div>
+  );
   return (
     <div className="coach-answer">
       {typed.current && !dotsGone && <div className="typing typing-out" aria-hidden onAnimationEnd={(e) => { if (e.target === e.currentTarget) setDotsGone(true); }}><i /><i /><i /></div>}
+      {/* (the last words under the dots fade with them, never cut) */}
+      {typed.current && !dotsGone && said.current.now && <div className="xs t2 coach-look coach-look-gone" aria-hidden>{said.current.now}</div>}
       <div className={`reply calm coach-reply${m.seeded ? ' still' : ''}`} aria-live="polite"><Rich text={shown} id={m.id} still={m.seeded} /></div>
       {done && m.note && <div className={`xs t3 coach-after${m.seeded ? '' : ' fresh'}`} style={{ marginTop: 8 }}>{m.note}</div>}
       {/* a web search's pages, as small chips under the answer (they open in the browser) */}
@@ -813,7 +832,9 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     if (what === 'settings') { push('settings', { section: 'ai' }); return; }
     if (busy || !m.retry) return;
     const { userId, text } = m.retry;
-    setMsgs((x) => x.filter((y) => y.id !== m.id));
+    // the row folds away (it never just vanishes) while the question is asked again
+    setMsgs((x) => x.map((y) => (y.id === m.id && y.role === 'error' ? { ...y, leaving: true } : y)));
+    setTimeout(() => { if (alive.current) setMsgs((x) => x.filter((y) => y.id !== m.id)); }, 480);
     void runTurn(userId, text, null);
   };
   const onErr = useCallback((m: Extract<Msg, { role: 'error' }>, what: 'retry' | 'settings') => onErrRef.current(m, what), []);

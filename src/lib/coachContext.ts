@@ -359,6 +359,12 @@ export function buildAgentContext(d: AppData, today: string, exName: (id: string
   for (const r of d.routines.filter((x) => !x.oneOff).slice(0, 12)) L.push(`Routine "${r.name}": ${r.items.map((i) => `${exName(i.exerciseId)} ${i.workingSets}×${i.repMin}-${i.repMax}`).join(', ')}.`);
   const recent = d.activities.slice(-5).reverse().map((a) => `${a.date} ${a.kind} ${Math.round(a.durationSec / 60)} min${a.rounds ? `, ${a.rounds} rounds` : ''}${a.intensity ? `, ${['easy', 'hard', 'max'][a.intensity - 1]}` : ''}`);
   if (recent.length) L.push(`Recent activities: ${recent.join('; ')}.`);
+  // the watch (Health Connect): their cardio and steps, for leg-day and wrestling clashes and recovery. The calories it
+  // counts are NOT to be eaten back: their food target stays as set
+  const cardio = d.activities.filter((a) => a.source === 'watch' && diffDays(today, a.date) < 7 && diffDays(today, a.date) >= 0).sort((a, b) => (a.startAt ?? a.at) - (b.startAt ?? b.at));
+  if (cardio.length) L.push(`WATCH CARDIO, last 7 days: ${cardio.map((a) => `${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][new Date(`${a.date}T12:00:00`).getDay()]} ${a.name || a.kind} ${Math.round(a.durationSec / 60)} min${a.avgHr ? `, avg ${a.avgHr} bpm` : ''}${a.intensity ? ` (${['easy', 'hard', 'max'][a.intensity - 1]})` : ''}${a.kcal ? `, ${a.kcal} kcal burned` : ''}`).join('; ')}. (Burned calories are information only: never tell them to eat them back or raise their target.)`);
+  const st7 = (d.steps ?? []).filter((x) => diffDays(today, x.date) < 7 && diffDays(today, x.date) >= 0);
+  if (st7.length) L.push(`Steps: about ${Math.round(st7.reduce((n, x) => n + x.count, 0) / st7.length / 100) * 100} a day over the last ${st7.length} days${st7.find((x) => x.date === today) ? `; ${st7.find((x) => x.date === today)!.count} today so far` : ''}.`);
   L.push(`Counts: ${d.favourites.length} favourite foods, ${d.savedMeals.length} saved meals, ${d.recipes.length} recipes, ${d.sessions.length} sessions.`);
   return L.join('\n').slice(0, 16000);
 }

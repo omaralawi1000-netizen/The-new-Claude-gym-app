@@ -299,6 +299,8 @@ export function cardsNote(results: AgentResult[], confirmed: string[], undone: s
 export function ActionCard({ r, undone, confirmed, onUndo, onConfirm, replaced = false, fresh = false }: { r: AgentResult; undone: boolean; confirmed: boolean; onUndo: () => void; onConfirm: () => void; /** a newer preview of the same thing came: this one can no longer be applied */ replaced?: boolean; /** it arrived just now (a restored card stays still) */ fresh?: boolean }) {
   const t = useT();
   const miss = r.kind === 'miss';
+  // a button that changes the card itself ("Use 18 kg"): drawn again with what it says now
+  const [, redraw] = useState(0);
   // Apply and Undo animate only when they happen here, not when a card comes back already applied or undone
   const was = useRef({ confirmed, undone, replaced });
   const [sealing, setSealing] = useState(false);
@@ -319,6 +321,11 @@ export function ActionCard({ r, undone, confirmed, onUndo, onConfirm, replaced =
   const shownTitle = useRef({ now: title, before: '' });
   if (shownTitle.current.now !== title) shownTitle.current = { now: title, before: shownTitle.current.now };
   const rolled = !!shownTitle.current.before;
+  // the line under it rolls the same way ("chicken breast · 200 g" → "Remembered for next time"); after Undo it goes back
+  const sub = confirmed && !undone && r.doneSubtitle ? r.doneSubtitle : r.subtitle;
+  const shownSub = useRef({ now: sub, before: '' as string | undefined });
+  if (shownSub.current.now !== sub) shownSub.current = { now: sub, before: shownSub.current.now };
+  const subRolled = !!shownSub.current.before;
   const cls = ['plinth', 'action-card', fresh ? 'fresh' : '', waiting ? 'waiting' : '', confirmed ? 'sealed' : '', sealing ? 'sealing' : '', undone ? 'undone' : '', undoing ? 'undoing' : '', miss ? 'miss' : '', replaced && !confirmed ? 'replaced' : ''].filter(Boolean).join(' ');
   return (
     <div className={cls} style={{ padding: '12px 14px 12px 12px', ['--n' as string]: r.lines.length }}>
@@ -332,7 +339,12 @@ export function ActionCard({ r, undone, confirmed, onUndo, onConfirm, replaced =
             <span key={title} className={rolled ? 'ac-roll' : undefined}>{title}</span>
           </div>
           {/* (kept when undone: taking it away collapsed the card in one frame) */}
-          {r.subtitle && <div className="xs t2 num ac-sub" style={{ marginTop: 2 }}>{confirmed && r.doneSubtitle ? r.doneSubtitle : r.subtitle}</div>}
+          {sub && (
+            <div className="xs t2 num ac-sub" style={{ marginTop: 2 }}>
+              {subRolled && <span key={`o${shownSub.current.before}`} className="ac-roll-out" aria-hidden>{shownSub.current.before}</span>}
+              <span key={sub} className={subRolled ? 'ac-roll' : undefined}>{sub}</span>
+            </div>
+          )}
           {r.week && <WeekStrip week={r.week} />}
           {/* a memory reworded: the old wording, struck through (drawn as the card arrives), above the new one */}
           {r.was && <div className="ac-was small" style={{ marginTop: 6 }}><span className="ac-was-t">{r.was}</span></div>}
@@ -374,7 +386,7 @@ export function ActionCard({ r, undone, confirmed, onUndo, onConfirm, replaced =
               {(!confirmed || sealing) && hadButtons && (
                 <div key="before" className={`row-flex ac-actions${confirmed ? ' ac-out' : ''}`} style={{ gap: 8, flexWrap: 'wrap' }} aria-hidden={confirmed || undefined} inert={confirmed ? true : undefined}>
                   {r.button && <button className={`btn sm press ${r.pending ? 'primary' : ''}`} onClick={r.pending ? onConfirm : r.button.run}>{r.button.label}</button>}
-                  {r.more?.map((b) => <button key={b.label} className={`btn sm press ${b.warn ? 'ac-warn-chip' : 'ghost'}`} onClick={() => { haptic('light'); b.run(); }}>{b.label}</button>)}
+                  {r.more?.map((b, i) => <button key={i} className={`btn sm press ${b.warn ? 'ac-warn-chip' : 'ghost'}`} onClick={() => { haptic('light'); b.run(); redraw((n) => n + 1); }}>{b.label}</button>)}
                   {r.undo && !r.pending && <button className="btn sm ghost press" onClick={onUndo}><Icon name="undo" size={15} /> {t('Undo')}</button>}
                 </div>
               )}
@@ -382,7 +394,7 @@ export function ActionCard({ r, undone, confirmed, onUndo, onConfirm, replaced =
                 <div key="after" className={`row-flex ac-actions${sealing ? ' ac-in-late' : ''}`} style={{ gap: 8, flexWrap: 'wrap' }}>
                   {/* (a saved recipe can still be logged or listed: its other buttons stay beside Undo) */}
                   {r.undo && <button className="btn sm ghost press" onClick={onUndo}><Icon name="undo" size={15} /> {t('Undo')}</button>}
-                  {r.more?.map((b) => <button key={b.label} className={`btn sm press ${b.warn ? 'ac-warn-chip' : 'ghost'}`} onClick={() => { haptic('light'); b.run(); }}>{b.label}</button>)}
+                  {r.more?.map((b, i) => <button key={i} className={`btn sm press ${b.warn ? 'ac-warn-chip' : 'ghost'}`} onClick={() => { haptic('light'); b.run(); redraw((n) => n + 1); }}>{b.label}</button>)}
                 </div>
               )}
             </div>

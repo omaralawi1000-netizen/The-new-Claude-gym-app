@@ -2528,3 +2528,33 @@ Tests: `tests/train2.test.ts`, `scripts/journey-workout6.mjs`. The agent tests a
 - **Nothing Omar-only.** The guide's "they train to failure whatever the day" became neutral ("how hard they train is theirs to say; their MEMORY may say more"). Omar tells the Coach once, and it lives in his memory.
 
 Tests: `tests/converse.test.ts`, `scripts/journey-coach5.mjs`.
+
+## Coach 2.0, phase 5b part D: your watch, automatic (18 Oct 2026, v0.1.148, Beta first)
+- **Path.** Galaxy Watch → Samsung Health → Health Connect → the Android app → the page.
+  - The Android app uses Android's own Health Connect (Android 14+): no new library.
+  - `HealthSync.java` reads, for the last 14 days: steps per local day (Health Connect's own total, so phone plus watch count once), and the workouts with their type, time, average and highest heart rate, active calories and distance.
+- **Handoff.** A TWA can't run code in the page, so the numbers travel in the address after `#hc=` (base64url JSON; never sent to any server).
+  - The launcher reads while the opening zoom plays (at most 650 ms). If it isn't done, the last reading goes instead.
+  - Settings → Watch drives `HealthActivity` through `intent://health/connect|sync|off`. It asks for read access, reads, and reopens the page it came from, so it works for Aven Beta too. Without the app installed, the link offers the APK download.
+  - `PrivacyActivity` is the rationale page Health Connect requires.
+- **The page** (`src/lib/healthSync.ts`) only believes an address the Android app opened (the referrer). It checks and caps everything, then takes it out of the address.
+  - Workouts become activities, merged by their Health Connect id: never twice, and your note is kept.
+  - A run you logged yourself the same day, as the same kind and about as long, becomes the watch's.
+  - Lifting from the watch is left out (Aven logs the gym itself). A new kind, `stairs`, was added.
+  - Intensity comes from heart rate: under 70% of your highest easy, to 85% hard, above that max. Your highest is never taken as below 185.
+  - Steps are kept per day (`AppData.steps`, an additive field, in backups).
+  - Calories are shown, never added to the food target. The Coach's DATA says so too ("never tell them to eat them back").
+- **Shown in:**
+  - Train → History (the watch's own name, e.g. "Stair climber", with bpm);
+  - Today's week line ("2 cardio · 11,800 steps a day");
+  - Settings → Watch (Connect watch / Sync now / Disconnect, last synced, this week's numbers);
+  - the Coach's WATCH CARDIO and Steps lines.
+  - People without the Android app or a watch see nothing new.
+
+### Polish audit fixes (same release)
+- "Use 18 kg" toggles: one tap logs what was heard, another puts the fix back, and the card says which it is now. Before, it changed the set but the card still showed the old numbers.
+- The thinking dots no longer blink when "Still thinking…" arrives. They stay one element; status lines cross-fade and fade out with the dots.
+- The error row rises in like the other rows. On Try again it folds away instead of vanishing.
+- Card subtitles roll like titles, and after Undo the "Remembered for next time" line goes back. The title roll no longer has a near-blank moment: the old words fade out for 360 ms, over the new one's start.
+- Finish from "Still training?" opens the finish screen, which also covers Today changing behind it.
+- **Memory leak.** Each switch to or from Today or Food kept the whole old tab alive: Chrome held the calorie ring's `<svg>` with its `<foreignObject>`. The ring now empties and detaches its svg when it goes. Over 60 switches, nodes went from 15.5k to 6.2k, and listeners now stay flat (they used to grow by 13 per switch).

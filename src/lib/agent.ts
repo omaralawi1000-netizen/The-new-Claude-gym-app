@@ -1185,18 +1185,28 @@ function doCurrentSet(a: Extract<AgentAction, { type: 'log_current_set' }>, ctx:
       exercises: x.exercises.map((b) => (b.id === se.id ? { ...b, sets: extra ? b.sets.filter((q) => q.id !== set.id) : b.sets.map((q) => (q.id === set.id ? set : q)) } : b)),
     }));
   };
-  // tapping "heard 18 → logged 80" puts back what was said
-  const asSaid = fixed.heard ? () => {
-    const v = { ...(fixed.heard!.kg !== undefined ? { weightKg: fixed.heard!.kg } : {}), ...(fixed.heard!.reps !== undefined ? { reps: fixed.heard!.reps } : {}) };
-    useStore.getState().mutateActive((x) => ({ ...x, exercises: x.exercises.map((b) => (b.id === se.id ? { ...b, sets: b.sets.map((q) => (q.id === set.id ? { ...q, ...v } : q)) } : b)) }));
-    useUI.getState().toast(t('Changed to {set}', { set: show({ ...next, ...v }) }), { tone: 'ok' });
-  } : undefined;
-  return {
+  const res: AgentResult = {
     id: uid('r'), kind: 'sets', title: a.which === 'last' ? t('Set corrected') : t('Set logged'),
     lines: [{ text: ex ? exLabel(ex, lang) : '', sub: `${label} · ${a.which === 'last' ? `${show(set)} → ` : ''}${show(next)}` }, ...(heard ? [{ text: heard, warn: true }] : [])],
-    ...(asSaid && fixed.heard ? { more: [{ label: t('Use {n}', { n: fixed.heard.kg !== undefined ? `${fmtNum(kgToDisplay(fixed.heard.kg, w), lang, 2)} ${w}` : `${fixed.heard.reps}` }), run: asSaid, warn: true }] } : {}),
     undo,
   };
+  // "heard 18 kg → logged 80 kg": one tap puts back what was heard, another the fix (the card says which it is now)
+  if (fixed.heard) {
+    const fix = { weightKg: next.weightKg, reps: next.reps };
+    const said = { ...fix, ...(fixed.heard.kg !== undefined ? { weightKg: fixed.heard.kg } : {}), ...(fixed.heard.reps !== undefined ? { reps: fixed.heard.reps } : {}) };
+    const word = (v: { weightKg?: number; reps?: number }) => (fixed.heard!.kg !== undefined ? `${fmtNum(kgToDisplay(v.weightKg ?? 0, w), lang, 2)} ${w}` : `${v.reps}`);
+    let asHeard = false;
+    const chip = { label: t('Use {n}', { n: word(said) }), warn: true, run: () => {} };
+    chip.run = () => {
+      asHeard = !asHeard;
+      const v = asHeard ? said : fix;
+      useStore.getState().mutateActive((x) => ({ ...x, exercises: x.exercises.map((b) => (b.id === se.id ? { ...b, sets: b.sets.map((q) => (q.id === set.id ? { ...q, ...v } : q)) } : b)) }));
+      res.lines = [{ ...res.lines[0], sub: `${label} · ${show({ ...next, ...v })}` }, { text: asHeard ? t('logged as heard: {a}', { a: word(said) }) : heard, warn: !asHeard }];
+      chip.label = t('Use {n}', { n: word(asHeard ? fix : said) });
+    };
+    res.more = [chip];
+  }
+  return res;
 }
 
 function doSchedule(a: Extract<AgentAction, { type: 'set_schedule' }>, ctx: AgentCtx): AgentResult {

@@ -258,7 +258,7 @@ export type MeasureKind = 'waist' | 'chest' | 'hips' | 'arm' | 'thigh' | 'neck';
 export interface Measurement { id: string; date: string; kind: MeasureKind; cm: number }
 export interface ProgressPhoto { id: string; date: string; note?: string }
 
-export type ActivityKind = 'wrestling' | 'run' | 'walk' | 'cycle' | 'swim' | 'row' | 'hike' | 'mobility' | 'warmup' | 'recovery' | 'other';
+export type ActivityKind = 'wrestling' | 'run' | 'walk' | 'cycle' | 'swim' | 'row' | 'stairs' | 'hike' | 'mobility' | 'warmup' | 'recovery' | 'other';
 export interface ActivityLog {
   id: string;
   date: string;
@@ -270,7 +270,20 @@ export interface ActivityLog {
   intensity?: 1 | 2 | 3;
   note?: string;
   at: number;
+  /** from the watch (Health Connect): its record id (never added twice), when it ran, and what the watch measured */
+  source?: 'watch';
+  hcId?: string;
+  startAt?: number;
+  avgHr?: number;
+  maxHr?: number;
+  /** active calories the watch counted: shown, never added to the food target */
+  kcal?: number;
+  /** the watch's own name for it ("Stair climber", "Elliptical"), for kinds Aven has no word for */
+  name?: string;
 }
+
+/** Steps of one day, from the watch and phone (Health Connect counts each step once). */
+export interface StepDay { date: string; count: number }
 
 // ── Settings ────────────────────────────────────────────────
 
@@ -367,5 +380,7 @@ export interface AppData {
   memory: MemoryNote[];
   /** the weekly reviews (the newest 26): the Coach's verdict and the priorities it set, so the next review can check them */
   reviews?: WeekReviewNote[];
+  /** steps per day from the watch (Health Connect), the newest 120 days */
+  steps: StepDay[];
   demo: boolean;
 }

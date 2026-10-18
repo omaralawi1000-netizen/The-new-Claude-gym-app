@@ -1215,9 +1215,12 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 @keyframes acActions { from { opacity: 0; } }
 .ac-title { position: relative; overflow: hidden; padding-block: 2px; margin-block: -2px; }
 /* one after the other: the old title leaves upward, then the new one comes up from below (never two at once) */
-.ac-title .ac-roll { display: inline-block; animation: acRollIn 420ms var(--ease-smooth) 180ms both; }
+.ac-title .ac-roll, .ac-sub .ac-roll { display: inline-block; animation: acRollIn 420ms var(--ease-smooth) 180ms both; }
+.ac-sub { position: relative; overflow: hidden; padding-block: 1px; margin-block: -1px; }
 @keyframes acRollIn { from { opacity: 0; transform: translate3d(0, 40%, 0); } }
-.ac-title .ac-roll-out { position: absolute; left: 0; top: 2px; white-space: nowrap; pointer-events: none; animation: acRollOut 240ms var(--ease-smooth) both; }
+/* (the old words fade out over the new one's start: never a moment with neither) */
+.ac-title .ac-roll-out, .ac-sub .ac-roll-out { position: absolute; left: 0; top: 2px; white-space: nowrap; pointer-events: none; animation: acRollOut 360ms var(--ease-smooth) both; }
+.ac-sub .ac-roll-out { top: 1px; }
 @keyframes acRollOut { to { opacity: 0; transform: translate3d(0, -40%, 0); } }
 /* Undo: the strike is drawn left to right, the card eases back */
 .action-card.undoing { transition: opacity 520ms var(--ease-smooth); }
@@ -1258,8 +1261,9 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
   .action-card, .action-card *, .action-card *::after { animation: none !important; transition: none !important; }
 }
 :root[data-motion='reduce'] :is(.action-card, .action-card *, .action-card *::after) { animation: none !important; transition: none !important; }
-@media (prefers-reduced-motion: reduce) { .ac-title .ac-roll-out, .action-card .ac-actions.ac-out { display: none; } }
-:root[data-motion='reduce'] :is(.ac-title .ac-roll-out, .action-card .ac-actions.ac-out) { display: none; }
+@media (prefers-reduced-motion: reduce) { .ac-title .ac-roll-out, .ac-sub .ac-roll-out, .action-card .ac-actions.ac-out { display: none; } }
+:root[data-motion='reduce'] :is(.ac-title .ac-roll-out, .ac-sub .ac-roll-out, .action-card .ac-actions.ac-out) { display: none; }
+.action-line .ac-text { transition: color 360ms var(--ease-smooth); }
 
 /* the Coach's mic: the ring around the orb swells with your voice (--voice is written by the sphere stage) */
 .voice-ring { position: absolute; inset: -2px; border-radius: 999px; pointer-events: none; border: 2px solid var(--ac); opacity: 0; box-shadow: 0 0 22px -4px var(--ac); transition: opacity .3s var(--ease-io, ease); }
@@ -1399,6 +1403,10 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .coach-send.busy .cs-stop { opacity: 1; transform: none; }
 .coach-send.queued .cs-go { opacity: .45; } /* (typed while it answers: waits, quieter, and goes when the answer is done) */
 .coach-err-acts { flex-wrap: wrap; }
+/* it rises in like the other rows (never just there), and fades as it folds away */
+.coach-err { animation: acSettle 560ms var(--ease-smooth) both; transition: opacity 300ms var(--ease-smooth); }
+.coach-err.leaving { opacity: 0; }
+:root[data-motion='reduce'] .coach-err { animation: none; }
 /* inside the row: a soft fill, no outline ring; the touch area reaches 44 px around the small chip */
 .coach-err .chip { position: relative; box-shadow: none; background: var(--s3); color: var(--tx); }
 .coach-err .chip::after { content: ''; position: absolute; inset: -8px -6px; }
@@ -2442,3 +2450,15 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 /* each new "Looking at…" rises gently into the place of the one before, so two look-ups read as one thought */
 @keyframes lookIn { from { opacity: 0; transform: translate3d(0, 3px, 0); } }
 @media (prefers-reduced-motion: reduce) { .coach-look { animation: none; } }
+.coach-look-cell { display: grid; }
+.coach-look-cell > * { grid-area: 1 / 1; }
+.coach-look.coach-look-out { animation: lookOut 420ms var(--ease-smooth) forwards; }
+@keyframes lookOut { to { opacity: 0; transform: translate3d(0, -3px, 0); } }
+/* when the answer starts: under the melting dots, gone with them */
+.coach-answer .coach-look-gone { position: absolute; left: 0; top: 39px; z-index: 1; pointer-events: none; animation: lookOut 360ms cubic-bezier(.4, 0, .6, 1) forwards; }
+@media (prefers-reduced-motion: reduce) { .coach-look.coach-look-out, .coach-answer .coach-look-gone { display: none; } }
+
+/* Settings → Watch: the round seat for the watch face, the two numbers under it */
+.watch-ic { width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center; flex: none; background: var(--s3); color: var(--tx); }
+.watch-stats { margin-top: 18px !important; }
+.watch-stats .num { font-weight: 300 !important; letter-spacing: -.01em; }

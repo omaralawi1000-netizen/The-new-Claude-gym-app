@@ -198,7 +198,7 @@ function HistoryTab() {
     ...s.activities.map((x) => ({ at: x.at, date: x.date, node: (
       <div key={x.id} className="li">
         <span style={{ width: 40, height: 40, borderRadius: 13, background: x.kind === 'wrestling' ? 'var(--ac-soft)' : 'var(--s2)', color: x.kind === 'wrestling' ? 'var(--ac-text)' : undefined, display: 'grid', placeItems: 'center', flex: 'none', boxShadow: 'inset 0 0 0 1px var(--line)' }}><Icon name={activityIcon(x.kind)} size={19} /></span>
-        <div className="grow" style={{ minWidth: 0 }}><div className="li-title">{t(ACTIVITY_LABEL[x.kind] === 'Other' ? 'Activity' : ACTIVITY_LABEL[x.kind])}</div><div className="li-sub num trunc">{fmtDate(x.date, lang, { weekday: 'short', day: 'numeric', month: 'short' })} · {activityLine(x, t, lang, u.distance)}{x.note ? ` · ${x.note}` : ''}</div></div>
+        <div className="grow" style={{ minWidth: 0 }}><div className="li-title">{x.name && x.source === 'watch' ? t(x.name) : t(ACTIVITY_LABEL[x.kind] === 'Other' ? 'Activity' : ACTIVITY_LABEL[x.kind])}</div><div className={`li-sub num${x.source === 'watch' ? '' : ' trunc'}`}>{fmtDate(x.date, lang, { weekday: 'short', day: 'numeric', month: 'short' })} · {activityLine(x, t, lang, u.distance)}{x.note ? ` · ${x.note}` : ''}</div></div>
         <button className="icon-btn flat sm press" aria-label={t('Delete')} onClick={() => { const a = s.removeActivity(x.id); if (a) useUI.getState().toast(t('Deleted'), { actionLabel: t('Undo'), onAction: () => s.restoreActivity(a) }); }}><Icon name="trash" size={16} /></button>
       </div>) })),
   ].sort((a, b) => b.at - a.at);
