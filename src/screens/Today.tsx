@@ -195,15 +195,15 @@ export function TodayScreen() {
               <button className="icon-btn acc press" style={{ width: 68, height: 68, flex: 'none' }} aria-label={t('Resume workout')} onClick={() => resumeWorkout(() => push('workout', { origin: 'hero' }))}><Icon name="play" size={26} /></button>
             </div>
           ) : routine && !(plannedDone && last) ? (
-            <div className="row-flex between" style={{ gap: 14 }}>
+            <div className="row-flex between" style={{ gap: 14, alignItems: 'stretch' }}>
               <div style={{ minWidth: 0 }}>
                 <div className="display" style={{ fontSize: 56, fontStyle: 'italic', lineHeight: 0.95 }}>{routine.name}</div>
                 <div className="small t2 num" style={{ marginTop: 8 }}>{t(routine.items.length === 1 ? '1 exercise' : '{n} exercises', { n: routine.items.length })} · ~{estMinutes(routine)} min{plan?.source === 'override' && plan.originDate ? ` · ${t('Rescheduled')}` : ''}</div>
                 <MuscleTags routine={routine} style={{ marginTop: 14 }} />
               </div>
-              <div className="stack" style={{ gap: 10, alignItems: 'center', flex: 'none' }}>
+              <div className="stack" style={{ gap: 10, alignItems: 'center', justifyContent: 'space-between', flex: 'none' }}>
                 <button className="icon-btn acc press" style={{ width: 68, height: 68 }} aria-label={doneToday.length ? t('Start again') : t('Start workout')} onClick={() => start(routine)}><Icon name="play" size={26} /></button>
-                <button className="icon-btn flat sm press" aria-label={t('Edit routine')} onClick={() => push('routine', { id: routine.id })}><Icon name="edit" size={17} /></button>
+                <button className="icon-btn flat sm press" style={{ marginBottom: -4 }} aria-label={t('Edit routine')} onClick={() => push('routine', { id: routine.id })}><Icon name="edit" size={17} /></button>
               </div>
             </div>
           ) : last ? (
