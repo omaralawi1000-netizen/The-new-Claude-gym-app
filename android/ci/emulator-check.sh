@@ -128,6 +128,24 @@ adb shell input keyevent KEYCODE_WAKEUP
 sleep 2
 notes real-over
 shade 4-real-rest-over
+# Done ✓ on the alert, tapped like a finger (on a watch it is this same button): it must reach the website's worker and page
+cdp listen | grep -v '^pages' | tee -a shots/rest-real.txt
+adb shell cmd statusbar expand-notifications; sleep 2
+timeout 15 adb shell uiautomator dump /sdcard/ui.xml >/dev/null; adb shell cat /sdcard/ui.xml > shots/ui-over.xml
+XY=$(python3 - <<'PY'
+import re
+x = open('shots/ui-over.xml').read()
+m = re.search(r'text="(?i:done)[^"]*"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', x)
+print(f"{(int(m[1])+int(m[3]))//2} {(int(m[2])+int(m[4]))//2}" if m else "")
+PY
+)
+echo "Done button at: ${XY:-not found}" | tee -a shots/rest-real.txt
+[ -n "$XY" ] && adb shell input tap $XY
+sleep 5
+adb exec-out screencap -p > shots/4b-after-done.png
+adb shell cmd statusbar collapse; sleep 1
+notes after-done
+cdp heard | grep -v '^pages' | tee -a shots/rest-real.txt
 # back in the app: the website takes its notification away, and the alert goes with it (by itself: "closed 0" below)
 cdp watch | grep -v '^pages' | tee -a shots/rest-real.txt
 adb shell am start -n app.aven.android/com.google.androidbrowserhelper.trusted.LauncherActivity

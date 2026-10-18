@@ -54,7 +54,7 @@ REST = """Promise.race([new Promise((ok) => setTimeout(() => ok('timed out at: '
   window.__step = 'show (permission ' + Notification.permission + ')';
   const now = Date.now(), endsAt = now + %d * 1000, s = now - %d * 1000;
   const words = { v: 1, s, x: 'Incline Smith Machine Press', l: 'Set 2 of 3 · 60 kg × 8', o: 'Time for set 2',
-    b: 'Incline Smith Machine Press · 60 kg × 8', p: '+30 s', k: 'Skip' };
+    b: 'Incline Smith Machine Press · 60 kg × 8', p: '+30 s', k: 'Skip', d: 'Done ✓ 60 kg × 8', y: 'Set 2 ✓ · 60 kg × 8' };
   for (const n of await reg.getNotifications()) n.close();
   await reg.showNotification('Back at ' + new Date(endsAt).toTimeString().slice(0, 5), {
     body: 'Incline Smith Machine Press · set 2 of 3 · 60 kg × 8', tag: 'aven-rest|' + JSON.stringify(words), silent: true,
@@ -88,6 +88,15 @@ if mode == 'watch':
     sys.exit(0)
 if mode == 'seen':
     print('seen:', run(page, "(window.__vis ? 'same page' : 'page was reloaded') + ', now ' + document.visibilityState + (document.hasFocus() ? '+focus' : '') + ', events:' + localStorage.getItem('ci.vis')"))
+    sys.exit(0)
+if mode == 'listen':
+    print('listen:', run(page, """(() => { localStorage.setItem('ci.msg', '');
+      navigator.serviceWorker.addEventListener('message', (e) => localStorage.setItem('ci.msg', localStorage.getItem('ci.msg') + ' ' + JSON.stringify(e.data)));
+      return 'listening, page ' + document.visibilityState; })()"""))
+    sys.exit(0)
+if mode == 'heard':
+    print('heard:', run(page, """(async () => { const c = await caches.open('aven-pending'); const l = await c.match('log'); const d = await c.match('done');
+      return 'messages:' + (localStorage.getItem('ci.msg') || ' none') + ' | log ' + (l ? await l.text() : 'none') + ' | pending ' + (d ? await d.text() : 'none'); })()"""))
     sys.exit(0)
 if mode == 'perm':
     print(run(page, "(async () => 'page sees ' + Notification.permission + ' (query: ' + (await navigator.permissions.query({name: 'notifications'})).state + ')')()"))
