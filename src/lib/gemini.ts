@@ -394,7 +394,8 @@ export async function aiAgentStream(system: string, contents: Turn[], brain: Bra
     done();
     let shown = '';
     const full = await readStream(res, brain.signal, (all) => { const r = partialReply(all); if (r !== shown) { shown = r; onReply(r); } }, { firstChunkTimeout: 30000, idleTimeout: 20000 });
-    try { return JSON.parse(full); } catch { throw new AiError('invalid'); }
+    // an answer cut off on the way (the line dropped mid-stream) is a connection problem, not a bad answer: Try again
+    try { return JSON.parse(full); } catch { throw new AiError(full.trimEnd().endsWith('}') ? 'invalid' : 'network'); }
   };
   return withFallback(brain.models, async (m) => {
     const think = !noThinking.has(m);
@@ -465,7 +466,15 @@ export async function streamChat({ key, model, system, contents, onText, signal,
 }
 
 /** Human-readable reason, for the UI (never a stack trace). */
-export function aiErrorText(e: unknown, t: (k: string) => string): string {
+/** When Gemini's free quota comes back, in the phone's own time (it resets at midnight in California): "09:00". */
+export function quotaBackAt(now = new Date()): string {
+  // midnight in Los Angeles is the next whole hour there that reads 00, found by stepping hour by hour (daylight saving safe)
+  const la = (d: Date) => Number(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', hourCycle: 'h23' }).format(d));
+  const d = new Date(now); d.setMinutes(0, 0, 0);
+  for (let i = 0; i < 26; i++) { d.setHours(d.getHours() + 1); if (la(d) === 0) break; }
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+}
+export function aiErrorText(e: unknown, t: (k: string, v?: Record<string, string | number>) => string): string {
   const code = e instanceof AiError ? e.code : 'failed';
   if (e instanceof AiError && e.extra.provider === 'openai') return ({
     offline: t('You’re offline.'), timeout: t('GPT-6.1 Sol took too long. Try again.'), network: t('Couldn’t reach OpenAI. Check your connection.'),
@@ -476,7 +485,7 @@ export function aiErrorText(e: unknown, t: (k: string) => string): string {
   return ({
     offline: t('You’re offline.'), timeout: t('Gemini took too long. Try again.'), network: t('Couldn’t reach Gemini. Check your connection.'),
     badkey: t('Gemini rejected the key. Check it in Settings → Voice & AI.'), badrequest: t('Gemini couldn’t handle that request.'), nomodel: t('That Gemini model isn’t available for your key.'),
-    busy: t('Gemini is busy right now. Try again in a moment.'), quota: t('Today’s free Gemini quota is used up. It resets at midnight Pacific time.'),
+    busy: t('Gemini is busy right now. Try again in a moment.'), quota: t('Today’s free Gemini quota is used up. It’s back at {time}.', { time: quotaBackAt() }),
     invalid: t('Gemini’s answer didn’t make sense, so it was ignored.'), empty: t('Gemini sent an empty answer. Try again.'), aborted: t('Stopped.'), nokey: t('Add a Gemini key in Settings → Voice & AI.'), failed: t('Gemini failed. Try again.'),
   } as Record<string, string>)[code] ?? t('Gemini failed. Try again.');
 }
@@ -497,7 +506,7 @@ export const INSIGHT_SYSTEM = (lang: string) =>
   'You are the coach inside a gym, food and wrestling tracker. Read the user\'s data below and find AT MOST 2 things worth telling them ' +
   'today that they did not ask about: something they may have forgotten, a pattern that is holding them back, a smart change to their plan, ' +
   'or a better way to use the app. Only say what the data clearly supports, with the number that shows it. Skip anything generic ' +
-  '("stay hydrated", "get enough sleep") and anything already obvious from the day\'s numbers. If nothing is worth saying, return an empty list. ' +
+  '("stay hydrated", "get enough sleep") and anything already obvious from the day\'s numbers. Respect their MEMORY (how they train, injuries, what they don\'t want) and never bring back anything they set aside. If nothing is worth saying, return an empty list. ' +
   `Write in ${lang === 'da' ? 'Danish' : 'English'}, plain and friendly, no emoji.`;
 export interface Insight { title: string; body: string; kind: 'reminder' | 'suggestion' | 'warning' | 'app'; ask: string }
 export async function aiInsights(context: string, brain: Brain, lang: string): Promise<Insight[]> {

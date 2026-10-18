@@ -1,4 +1,5 @@
 import { Fragment, type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { sttNames } from '../lib/sttNames';
 import { AnimatePresence, motion, useIsPresent, useReducedMotion, useTransform } from 'motion/react';
 import { useStore, allExercises } from '../state/store';
 import { useUI, haptic } from '../state/ui';
@@ -14,7 +15,7 @@ import { decide, brainFor } from '../lib/agentTurn';
 import { droppedCard, runActions, type AgentResult } from '../lib/agent';
 import { dayKey } from '../lib/dates';
 import { uid } from '../lib/nutrition';
-import { appendExchange, markInThread, readThread, threadSaid, threadTurns } from '../lib/thread';
+import { appendExchange, dropFailed, markInThread, readThread, threadSaid, threadTurns } from '../lib/thread';
 import { SphereSlot, mirrorOrb, orbPress, orbTap, holdOrbSize } from '../ui/Sphere';
 import { mirrorProgress, useEngage } from '../ui/engage';
 import { kb, watchFocus } from '../ui/keyboard';
@@ -181,6 +182,8 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   const [final, setFinal] = useState('');
   const [interim, setInterim] = useState('');
   const [err, setErr] = useState<string | null>(null);
+  /** the question that got no answer (slow line, an error): Try again asks it once more, in the same bubble */
+  const [ask, setAsk] = useState<{ text: string; id: string } | null>(null);
   const [canRetry, setCanRetry] = useState(false);
   const [turns, setTurns] = useState<Turn1[]>([]);
   const turnsRef = useRef<Turn1[]>([]); turnsRef.current = turns;
@@ -197,12 +200,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   const patch = (id: string, p: Partial<Turn1>) => setTurns((all) => all.map((x) => (x.id === id ? { ...x, ...p } : x)));
   const drop = (id: string) => setTurns((all) => all.filter((x) => x.id !== id));
   /** Names Whisper should expect (your lifts and recent foods): it hears them right more often. */
-  const sttPrompt = () => {
-    const st = useStore.getState();
-    const foods = [...new Set([...st.entries].sort((a, b) => b.at - a.at).map((e) => e.snap.name))].slice(0, 25);
-    const lifts = [...new Set(st.sessions.slice(-6).flatMap((x) => x.exercises.map((e) => pool.find((q) => q.id === e.exerciseId)?.name ?? '')))].filter(Boolean);
-    return buildPrompt([...lifts, ...foods].slice(0, 40));
-  };
+  const sttPrompt = () => buildPrompt(sttNames(pool));
   const go = (p: Parameters<ReturnType<typeof useVoice.getState>['go']>[0]) => useVoice.getState().go(p);
 
   const teardown = useCallback(() => {
@@ -307,10 +305,13 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   /** Understand what was said, do it, show it. */
   const act = async (text: string, id: string) => {
     busy.current = true;
-    setErr(null); go('processing');
+    setErr(null); setAsk(null); go('processing');
+    patch(id, { done: false });
     ctl.current = new AbortController();
     const signal = ctl.current.signal;
-    const kill = setTimeout(() => ctl.current?.abort(), 45_000); // a look-up in the data adds a round
+    // a slow line is not a Cancel: after 45 s (a look-up in the data adds a round) it says so, with Try again
+    let late = false;
+    const kill = setTimeout(() => { late = true; ctl.current?.abort(); }, 45_000);
     try {
       const where = props.mode === 'workout' && useStore.getState().active ? 'The user is in their running workout: sets go into it.'
         : props.mealId || props.date ? `The user came from the Food tab${props.date ? ` (day ${props.date})` : ''}${props.mealId ? `, meal ${props.mealId}` : ''}: foods go there unless they say otherwise.`
@@ -359,8 +360,13 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
       if (results.some((r) => r.kind === 'nav')) setTimeout(() => { if (alive.current) useUI.getState().pop(); }, 900);
     } catch (e: any) {
       if (!alive.current) return;
-      patch(id, { done: true });
-      if (e?.code !== 'aborted') { setErr(aiErrorText(e, t)); go('error'); } else go('idle');
+      patch(id, { done: true, reply: '' });
+      if (e?.code !== 'aborted' || late) {
+        setErr(late ? t('Slow connection. Try again, or find your question in the Coach.') : aiErrorText(e, t)); go('error');
+        setAsk({ text, id });
+        // the question is kept in the conversation (marked unanswered), so it is not lost when the orb closes
+        appendExchange({ said: text, reply: '', results: [], failed: late ? t('Slow connection.') : aiErrorText(e, t) });
+      } else go('idle');
     } finally { clearTimeout(kill); busy.current = false; setLooking(''); }
   };
 
@@ -520,7 +526,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
               </motion.div>
             )}
           </AnimatePresence>
-          {err && <div className="plinth-2 small" role="alert" style={{ padding: '12px 14px', marginTop: 16 }}>{err}{canRetry && <div style={{ marginTop: 10 }}><button className="btn sm press" onClick={retryHear}>{t('Retry transcription')}</button></div>}</div>}
+          {err && <div className="plinth-2 small" role="alert" style={{ padding: '12px 14px', marginTop: 16 }}>{err}{(canRetry || ask) && <div style={{ marginTop: 10 }}>{canRetry ? <button className="btn sm press" onClick={retryHear}>{t('Retry transcription')}</button> : <button className="btn sm press" onClick={() => { if (!ask || busy.current) return; haptic('light'); dropFailed(ask.text); act(ask.text, ask.id); }}><Icon name="repeat" size={14} /> {t('Try again')}</button>}</div>}</div>}
           <AnimatePresence initial={false} mode="popLayout">
           {typing && !thinking && !(showing && last.reply && written !== last.id) && (
             // (it fades in and out instead of appearing and vanishing in one frame; leaving, it stays where it was)

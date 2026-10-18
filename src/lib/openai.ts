@@ -182,7 +182,8 @@ export async function solAgent(system: string, turns: Turn[], sol: Sol, onReply?
   if (!onReply) return json(sol, o);
   let shown = '';
   const full = await stream(sol, o, (all) => { const r = partialReply(all); if (r !== shown) { shown = r; onReply(r); } });
-  try { return JSON.parse(full); } catch { throw fail('invalid'); }
+  // (cut off on the way: a connection problem, not a bad answer)
+  try { return JSON.parse(full); } catch { throw fail(full.trimEnd().endsWith('}') ? 'invalid' : 'network'); }
 }
 
 /** A rough estimate for a food that is in no database (shown as an ESTIMATE for review). */

@@ -40,10 +40,12 @@ export function onThreadChange(fn: () => void): () => void { listeners.add(fn); 
 const changed = () => listeners.forEach((fn) => { try { fn(); } catch { /* a listener's problem stays its own */ } });
 
 /** The orb screen finished a turn: what was said, the answer and its cards join the conversation. Returns the cards' id. */
-export function appendExchange(x: { said: string; reply: string; results: AgentResult[]; at?: number }): string | null {
+export function appendExchange(x: { said: string; reply: string; results: AgentResult[]; at?: number; /** it got no answer: why (the Coach shows it with Try again, and the model doesn't read it as answered) */ failed?: string }): string | null {
   const at = x.at ?? Date.now();
   const add: ThreadMsg[] = [];
-  if (x.said.trim()) add.push({ id: uid('m'), role: 'user', text: x.said, at });
+  const userId = uid('m');
+  if (x.said.trim()) add.push({ id: userId, role: 'user', text: x.said, at, ...(x.failed ? { failed: true } : {}) });
+  if (x.failed && x.said.trim()) add.push({ id: uid('m'), role: 'error', text: x.failed, retry: { userId, text: x.said } } as ThreadMsg);
   if (x.reply.trim()) add.push({ id: uid('m'), role: 'model', text: x.reply, at });
   const cardsId = x.results.length ? uid('m') : null;
   // a card's buttons and Undo are functions: only what it says is kept (the orb keeps the live ones while it is open)
@@ -52,6 +54,15 @@ export function appendExchange(x: { said: string; reply: string; results: AgentR
   writeThread([...readThread(), ...add]);
   changed();
   return cardsId;
+}
+
+/** Tried again at the orb: the unanswered copy kept for the Coach goes (the new try adds the question again). */
+export function dropFailed(said: string) {
+  const list = readThread();
+  const i = list.map((m) => m.role === 'user' && m.failed && m.text === said).lastIndexOf(true);
+  if (i < 0) return;
+  writeThread(list.filter((m, k) => k !== i && !(k === i + 1 && m.role === 'error')));
+  changed();
 }
 
 /** A card from the orb was undone or confirmed later: the conversation says so too (the model reads it). */
@@ -71,6 +82,9 @@ export function threadTurns(list: ThreadMsg[], dayStartHour: number, max = 14): 
   const push = (role: 'user' | 'model', t: string) => { if (!t.trim()) return; const last = out[out.length - 1]; if (last && last.role === role) last.parts[0].text += `\n${t}`; else out.push({ role, parts: [{ text: t }] }); };
   const today = dayKey(Date.now(), dayStartHour);
   for (const m of list) {
+    // a message that got no answer (it failed) is left out: the model would read it as answered, and a Try again would
+    // then send it twice
+    if (m.role === 'user' && m.failed) continue;
     // something said on an earlier day is marked so, so "today" in an old message isn't taken for today
     if (m.role === 'user' || m.role === 'model') {
       const old = m.role === 'user' && m.at && dayKey(m.at, dayStartHour) !== today ? `(said on ${dayKey(m.at, dayStartHour)}) ` : '';

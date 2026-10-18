@@ -2504,3 +2504,27 @@ Tests: `tests/food3.test.ts`, `scripts/journey-food3.mjs`. `journey-food` now an
   - Gym words map to catalog names: bench and bænkpres, RDL, pull-ups and chin-ups, squats, OHP, rows, curls, dødløft. A tie goes to the barbell lift, but a lift you log under another name four or more times still wins.
 
 Tests: `tests/train2.test.ts`, `scripts/journey-workout6.mjs`. The agent tests and `journey-ai` now start a workout first where they mean the running one.
+
+## Coach 2.0, phase 5b part C: never lose what you said (18 Oct 2026, v0.1.147)
+- **Try again.** A failed answer leaves an error row with a Try again chip. It asks once more from the same bubble; nothing is sent twice. The failed question is marked `failed` and left out of what the model reads until it is answered. A key problem gets an Open settings chip instead.
+- **A cut-off answer is a connection problem.** When a stream that drops mid-way leaves JSON that doesn't parse, it now counts as a network error, not "the answer didn't make sense". The half-written bubble is taken away.
+- **A slow line is not a Stop.**
+  - The orb's 45 s limit no longer passes as a silent Cancel. It says "Slow connection", with Try again, and the question is kept in the shared conversation (marked unanswered) so the Coach shows it too.
+  - Sol gets 45 s in the Coach (`withTimeout`), then Gemini answers. Stop still stops everything.
+  - Waits are said: "Still thinking…" at 8 s, "Slow connection…" at 20 s.
+- **Typing while it answers.** The arrow stays Send while there are words in the field (Stop only when it is empty). The words wait, the arrow dims, and they go by themselves when the answer is done.
+- **No tech talk as the answer.** "Gemini answered" style notes are only the small grey line. They are never the reply, never read aloud, and never saved as something the Coach said. The free Gemini quota's return is said in your own time ("back at 09:00").
+- **Smaller fixes.**
+  - A photo message is sent to the model once; the message being answered was in the history too.
+  - `DEEP` matches whole words ("plank" no longer makes Sol think hard).
+  - Coach dictation passes your lift and food names to speech-to-text, as the orb does (`sttNames`).
+- **Day start.**
+  - New installs start the day at 04:00; saved settings keep their own (a missing value is 0, as before).
+  - DATA explains the day boundary after midnight.
+- **No nagging.**
+  - Daily insights read the Coach memory.
+  - An insight set aside with ✕ is told to the model so it isn't raised again in new words.
+  - A health note older than four weeks is asked about once ("Still true?", with "It's better now" or ✕).
+- **Nothing Omar-only.** The guide's "they train to failure whatever the day" became neutral ("how hard they train is theirs to say; their MEMORY may say more"). Omar tells the Coach once, and it lives in his memory.
+
+Tests: `tests/converse.test.ts`, `scripts/journey-coach5.mjs`.

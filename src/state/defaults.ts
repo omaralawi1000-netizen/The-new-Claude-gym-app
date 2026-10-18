@@ -22,7 +22,7 @@ export function defaultSettings(lang: Lang = 'en'): Settings {
     motion: 'system',
     units: { weight: 'kg', distance: 'km', length: 'cm' },
     weekStart: 1,
-    dayStartHour: 0,
+    dayStartHour: 4, // (a new install: a late snack at 01:00 belongs to the evening before. Existing data keeps its own)
     goals: { waterMl: 2500 },
     meals: DEFAULT_MEALS.map((m) => ({ ...m })),
     waterQuick: [150, 250, 500],
@@ -70,7 +70,7 @@ export function normaliseData(raw: any, lang: Lang = 'en'): AppData {
   const arr = (k: keyof AppData) => (Array.isArray(raw[k]) ? raw[k] : (d as any)[k]);
   return {
     ...d,
-    settings: { ...d.settings, ...(raw.settings ?? {}), units: { ...d.settings.units, ...(raw.settings?.units ?? {}) }, goals: { ...d.settings.goals, ...(raw.settings?.goals ?? {}) }, profile: { ...d.settings.profile, ...(raw.settings?.profile ?? {}) }, widgets: { ...d.settings.widgets, ...(raw.settings?.widgets ?? {}) }, meals: Array.isArray(raw.settings?.meals) && raw.settings.meals.length ? raw.settings.meals : d.settings.meals },
+    settings: { ...d.settings, ...(raw.settings ?? {}), units: { ...d.settings.units, ...(raw.settings?.units ?? {}) }, goals: { ...d.settings.goals, ...(raw.settings?.goals ?? {}) }, profile: { ...d.settings.profile, ...(raw.settings?.profile ?? {}) }, widgets: { ...d.settings.widgets, ...(raw.settings?.widgets ?? {}) }, meals: Array.isArray(raw.settings?.meals) && raw.settings.meals.length ? raw.settings.meals : d.settings.meals, dayStartHour: typeof raw.settings?.dayStartHour === 'number' ? raw.settings.dayStartHour : raw.settings ? 0 : d.settings.dayStartHour },
     foods: arr('foods'), favourites: arr('favourites'), savedMeals: arr('savedMeals'), recipes: arr('recipes'), entries: arr('entries'), water: arr('water'),
     exercises: arr('exercises'), routines: arr('routines'),
     schedule: { ...d.schedule, ...(raw.schedule ?? {}), weekly: { ...d.schedule.weekly, ...(raw.schedule?.weekly ?? {}) }, rotation: { ...d.schedule.rotation, ...(raw.schedule?.rotation ?? {}) }, overrides: raw.schedule?.overrides ?? [], cleared: raw.schedule?.cleared ?? [], activities: cleanActivities(raw.schedule?.activities) },
