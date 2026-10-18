@@ -62,10 +62,11 @@ const FLY = asCurve(rampSpring(0.58, 0.09));
 const FLY_SHAPE = asCurve(rampSpring(0.42, 0.07));
 // …a long way up (sent under the suggestions, it lands where they were, ~230 px up): slower and softer off the pill, so it
 // glides there at the speed of a short flight instead of being thrown (judge 18 Oct: ~1100 px/s peak on the plain curve),
-// on a long soft start so its speed rises and falls evenly (a quick start and a long crawl read as a throw, judge round 3);
+// on a long, even ease that the spring follows closely: its speed rises and falls evenly, ~650 px/s at most, with no
+// crawl at the end (a quick middle and a long tail read as a throw, judge rounds 3 and 4);
 // its shape turns into the bubble on the same kind of curve, a little sooner, as it does on a short flight
-const FLY_FAR = asCurve(rampSpring(0.5, 0.5));
-const FLY_FAR_SHAPE = asCurve(rampSpring(0.4, 0.42));
+const FLY_FAR = asCurve(rampSpring(0.35, 0.72));
+const FLY_FAR_SHAPE = asCurve(rampSpring(0.3, 0.64));
 // said words (they were never in the field): the pill lifts into its bubble on the same motion, a touch slower, starting
 // softer (the words come up inside it on the way, so the move itself has to read: the pill peels off the bar)
 const FLY_SAID = asCurve(rampSpring(0.6, 0.11));

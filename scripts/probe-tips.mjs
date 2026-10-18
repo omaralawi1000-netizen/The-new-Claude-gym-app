@@ -32,7 +32,7 @@ await p.evaluate(() => {
   const loop = () => {
     const q = (s) => { const e = [...document.querySelectorAll(s)].pop(); return e ? Math.round(e.getBoundingClientRect().top * 10) / 10 : null; };
     const micro = [...document.querySelectorAll('.coach-resume .micro')].pop();
-    window.__log.push({ t: Math.round(performance.now() - t0), head: micro ? Math.round(micro.getBoundingClientRect().top) : null, yo: q('[data-mid="s2"]'), scroll: Math.round(document.querySelector('.coach-body').scrollTop), sh: document.querySelector('.coach-body').scrollHeight, fl: !!document.querySelector('.coach-tips-float'), rows: document.querySelector('.coach-thread').children.length, th: Math.round(document.querySelector('.coach-thread').offsetHeight), tr: getComputedStyle(document.querySelector('.coach-thread')).translate, tf: getComputedStyle(document.querySelector('.coach-thread')).transform.slice(0,40) });
+    window.__log.push({ t: Math.round(performance.now() - t0), fly: (() => { const f = document.querySelector('.fly-tone'); if (!f) return null; const r = [...f.children].reduce((a, c) => { const b = c.getBoundingClientRect(); return [Math.min(a[0], b.top), Math.max(a[1], b.bottom)]; }, [1e9, -1e9]); return Math.round((r[0] + r[1]) / 2); })(), head: micro ? Math.round(micro.getBoundingClientRect().top) : null, yo: q('[data-mid="s2"]'), scroll: Math.round(document.querySelector('.coach-body').scrollTop), sh: document.querySelector('.coach-body').scrollHeight, fl: !!document.querySelector('.coach-tips-float'), rows: document.querySelector('.coach-thread').children.length, th: Math.round(document.querySelector('.coach-thread').offsetHeight), tr: getComputedStyle(document.querySelector('.coach-thread')).translate, tf: getComputedStyle(document.querySelector('.coach-thread')).transform.slice(0,40) });
     if (performance.now() - t0 < (window.__ms || 2500)) requestAnimationFrame(loop);
   };
   requestAnimationFrame(loop);
@@ -43,6 +43,6 @@ await wait(p, Number(process.env.MS || 2500) + 200);
 const log = await p.evaluate(() => window.__log);
 let prev = null;
 for (const r of log) { if (prev) { const dy = r.yo != null && prev.yo != null ? r.yo - prev.yo : 0; const dh = r.head != null && prev.head != null ? r.head - prev.head : 0; if (Math.abs(dy) > 6 || Math.abs(dh) > 6) console.log('JUMP', JSON.stringify(r), 'dyo', dy.toFixed(1), 'dhead', dh); } prev = r; }
-if (process.env.EVERY) log.forEach((r, i) => { if (i % Number(process.env.EVERY) === 0) console.log(r.t, 'yo', r.yo, 'scroll', r.scroll, 'sh', r.sh, 'th', r.th, r.tf); });
+if (process.env.EVERY) log.forEach((r, i) => { if (i % Number(process.env.EVERY) === 0) console.log(r.t, 'fly', r.fly, 'yo', r.yo, 'scroll', r.scroll, 'sh', r.sh, 'th', r.th, r.tf); });
 console.log('first', JSON.stringify(log[0]), 'last', JSON.stringify(log.at(-1)), 'frames', log.length);
 await b.close();
