@@ -86,8 +86,9 @@ export function flyHero(host: HTMLElement, from: HTMLElement, to: HTMLElement, a
     const x = lerp(s.x, d.x, w <= 1 ? Math.pow(Math.max(0, w), 0.86) : w);
     const y = lerp(s.y, d.y, w);
     const f = Math.exp(lerp(Math.log(s.f * s.s), Math.log(d.f * d.s), wc)); // the drawn font size
-    // the crossing: while it is small (its first fifth), a quick fade over each other
-    const o1 = smooth((wc - 0.04) / 0.2), o0 = 1 - o1;
+    // the crossing: while it is still small, a quick fade over each other (short: the two clocks are different weights and
+    // widths, so a long crossing showed as a doubled clock)
+    const o1 = smooth((wc - 0.03) / 0.045), o0 = 1 - o1;
     const s1 = f / a1.f, s0 = f / a0.f;
     k1.push({ transform: `translate(${(x - a1.x).toFixed(2)}px, ${(y - a1.y).toFixed(2)}px) scale(${s1.toFixed(5)})`, opacity: String(Math.max(0.002, o1)) });
     if (gone0 < 0) {

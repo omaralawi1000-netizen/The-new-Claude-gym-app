@@ -37,11 +37,14 @@ const FADE_IN = { inside: [0.025, 0.08], skin: [0.06, 0.16], words: [0.002, 0.03
 // Round 7 (landing.ts): the window's page leaves early on the way down and comes in late on the way up, so it is never seen
 // as a shrunken page; the clock carries the eye. B lands on the card itself (no hold), so its fades are r6's, moved down.
 // (`views`: the list, which comes in after the header, once the clock has passed it)
-type Fades = typeof FADE_OUT & { views?: number[] };
+// (`mat`: the card's own look on the copy; `skin` is then the plain ground under it, which stands in for the window's light
+// from midway, so the window never shows as an empty patch of light: it is a plain surface carrying the clock, and the
+// card's look comes up on it at the end)
+type Fades = typeof FADE_OUT & { views?: number[]; mat?: number[] };
 const FADES: Record<Land, { out: Fades; in: Fades }> = {
-  A: { out: { ...FADE_OUT, inside: [0.86, 0.99] }, in: { ...FADE_IN, inside: [0.68, 0.94], views: [0.86, 0.995] } },
-  B: { out: { inside: [0.8, 0.97], skin: [0.089, 0.178], words: [0, 0.098], back: [0.006, 0.056], solid: [0.078, 0.089] }, in: { ...FADE_IN, inside: [0.62, 0.9], views: [0.8, 0.99] } },
-  C: { out: { ...FADE_OUT, inside: [0.88, 0.995] }, in: { ...FADE_IN, inside: [0.6, 0.9], views: [0.8, 0.99] } },
+  A: { out: { ...FADE_OUT, inside: [0.86, 0.99], skin: [0.42, 0.8], mat: FADE_OUT.skin }, in: { ...FADE_IN, inside: [0.68, 0.94], views: [0.86, 0.995], skin: [0.32, 0.66], mat: FADE_IN.skin } },
+  B: { out: { inside: [0.8, 0.97], skin: [0.38, 0.76], mat: [0.089, 0.178], words: [0, 0.098], back: [0.006, 0.056], solid: [0.078, 0.089] }, in: { ...FADE_IN, inside: [0.62, 0.9], views: [0.8, 0.99], skin: [0.3, 0.6], mat: FADE_IN.skin } },
+  C: { out: { ...FADE_OUT, inside: [0.88, 0.995], skin: [0.42, 0.8], mat: FADE_OUT.skin }, in: { ...FADE_IN, inside: [0.6, 0.9], views: [0.8, 0.99], skin: [0.32, 0.6], mat: FADE_IN.skin } },
 };
 // B: how much the card gives as it catches the window (per unit of the spring's overshoot past the card): it shrinks a
 // touch about its middle and dips, then springs back; the shape never changes, only its size and place
@@ -198,6 +201,8 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   // by frame, instead of running it itself)
   const skinO = (pp: number) => Math.max(0.002, 1 - ramp(pp, F().skin));
   const wordsO = (pp: number) => Math.max(0.002, 1 - ramp(pp, F().words));
+  const matR = () => F().mat ?? F().skin;
+  const matO = (pp: number) => (F().mat ? Math.max(0.002, 1 - ramp(pp, F().mat!)) : 1);
   const backO = (pp: number) => ramp(pp, F().back);
   // The page behind steps back while the window grows: it dims and sinks a touch (the sheets' own step back, v0.1.76:
   // contentTransform, to 95 %), the two in step. It starts as the window sets off (eased in, so it is still at rest on the
@@ -360,7 +365,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   const landedHome = () => {
     ((window as unknown as { __wk?: string[] }).__wk ??= []).push(`${Math.round(performance.now())} home`);
     const fg = src.current[1] ?? null, late = lateOf(fg);
-    if (late.length) arrive(late, ls.current === 'C' ? [0, 55, 120] : [45, 105]);
+    if (late.length) arrive(late, ls.current === 'C' ? [0, 40, 85] : [10, 55]);
   };
   // the clock has landed and the place it lands in is showing (checked each frame from then): hand over
   const settleHero = (h: Hero) => {
@@ -372,7 +377,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   const skinParts = useRef<{ back: HTMLElement; mat: HTMLElement; words: HTMLElement | null; watch: MutationObserver | null } | null>(null);
   const skinAt = (pp: number) => {
     const s = skinRef.current, k = skinParts.current; if (!s || !k) return;
-    s.style.opacity = String(skinO(pp)); k.back.style.opacity = String(backO(pp)); k.mat.style.transform = matAt(pp);
+    s.style.opacity = String(skinO(pp)); k.back.style.opacity = String(backO(pp)); k.mat.style.transform = matAt(pp); k.mat.style.opacity = String(matO(pp));
     if (k.words) k.words.style.opacity = String(wordsO(pp));
   };
   const dropSkin = () => {
@@ -484,7 +489,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
       const back = document.createElement('div');
       back.className = 'wk-skin-back';
       const mat = copyOf(g.bg); mat.classList.add('wk-skin-mat');
-      Object.assign(mat.style, { width: `${g.w}px`, height: `${g.h}px`, borderRadius: `${g.r}px`, willChange: 'transform' });
+      Object.assign(mat.style, { width: `${g.w}px`, height: `${g.h}px`, borderRadius: `${g.r}px`, willChange: 'transform, opacity' });
       // the resume bar's glass (unfrosted) is part of the ground that clears over its own frosted glass
       if (exact.current) s.replaceChildren(back, mat); else { back.append(mat); s.replaceChildren(back); }
       let words: HTMLElement | null = null, watch: MutationObserver | null = null;
@@ -555,7 +560,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
       morph ? go(solidRef.current, (pp) => ({ opacity: String(solid(pp)) }), F().solid) : null,
       morph && k ? go(skinRef.current, (pp) => ({ opacity: String(skinO(pp)) }), F().skin) : null,
       morph && k ? go(k.back, (pp) => ({ opacity: String(backO(pp)) }), F().back) : null,
-      morph && k ? go(k.mat, (pp) => ({ transform: matAt(Math.min(pp, F().skin[1])) }), [], true) : null,
+      morph && k ? go(k.mat, (pp) => ({ transform: matAt(Math.min(pp, matR()[1])), opacity: String(matO(pp)) }), [], true) : null,
       morph && k?.words ? go(k.words, (pp) => ({ opacity: String(wordsO(pp)) }), F().words) : null,
       morph ? go(dimRef.current, (pp) => ({ opacity: String(dim(pp)) }), ENVB) : null,
       morph ? go(stageEl(), (pp) => ({ transform: contentTransform(env(pp)) }), ENVB) : null,
