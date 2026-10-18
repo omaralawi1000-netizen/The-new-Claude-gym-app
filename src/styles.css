@@ -245,6 +245,9 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
 .aurora.in { -webkit-mask-image: linear-gradient(to bottom, transparent 0, transparent calc(var(--sat) + 2px), #000 calc(var(--sat) + 130px)); mask-image: linear-gradient(to bottom, transparent 0, transparent calc(var(--sat) + 2px), #000 calc(var(--sat) + 130px)); }
 /* paused while a pop-up is up (see useCalm in App.tsx) */
 .app[data-calm] .aurora i { animation-play-state: paused; }
+/* (the Coach pin's glow keeps stepping under a pop-up and made the whole screen, and the frost over it, redraw ~15 times a second
+   while the Coach sat idle; paused, it keeps its layer and picks up where it was: Coach idle redraws 45 -> 0 per 3 s) */
+.app[data-calm] .pin-mark::before, .app[data-calm] .pin-mark::after { animation-play-state: paused; }
 /* The page behind a pop-up recedes (scales) every frame, which makes every frosted card on it re-blur every frame — a dozen
    full-screen-sized blurs on top of the pop-up's own. Over a soft colour field the frost is all but invisible (measured: the
    two look the same), and the pop-up's dim and blur cover it anyway, so it is switched off while a pop-up is up. The dock keeps its.
