@@ -1,6 +1,8 @@
 // What a theme switch costs the page's main thread: every task from the switch until the circle reveal starts, at a 4× slower
 // CPU (a phone-like lab), for the first switch to each theme and a repeat. Run on two builds in one go to compare:
 //   URLS="http://127.0.0.1:5176/ http://127.0.0.1:5174/" AVEN_GPU=1 node scripts/theme-switch-cost.mjs
+// GAP= ms of quiet before each switch (4500), GCFIRST=1 the memory tidy-up first, RUNS= rounds (2), RATE= CPU slow-down (4),
+// EACH= page code run before each switch (an experiment)
 import { launch, wait, skipOnboarding, loadDemo } from './lib.mjs';
 const urls = (process.env.URLS || 'http://127.0.0.1:5173/').split(/\s+/).filter(Boolean);
 const RATE = Number(process.env.RATE || 4), RUNS = Number(process.env.RUNS || 2);
@@ -25,7 +27,11 @@ for (let run = 0; run < RUNS; run++) for (const url of urls) {
   await wait(p, 8000); // (idle work done at the slower speed too)
   const res = [];
   for (const [name, scheme] of [['first light', 'light'], ['first dark', 'dark'], ['again light', 'light'], ['again dark', 'dark']]) {
-    await wait(p, 4500); // (the idle work after the last switch, out of the way)
+    await wait(p, Number(process.env.GAP || 4500)); // (the idle work after the last switch, out of the way)
+    // GCFIRST=1: the browser's own memory tidy-up (it runs a few seconds after the page goes quiet) done first, on both builds
+    // alike, so it can't land in the switch by chance
+    if (process.env.EACH) { await p.evaluate(process.env.EACH); await wait(p, 300); } // (an experiment, before each switch)
+    if (process.env.GCFIRST) { await cdp.send('HeapProfiler.collectGarbage'); await wait(p, 300); }
     await b.startTracing(p, { categories: ['toplevel', 'devtools.timeline', 'disabled-by-default-devtools.timeline', 'blink.user_timing'] });
     await p.emulateMedia({ colorScheme: scheme });
     await wait(p, 2000);
