@@ -2575,6 +2575,10 @@ Omar trains with music in his earbuds and walks around the gym, so the phone is 
   - When Aven opens or wakes, it replays the taps oldest first. Each one ticks the set that was next and starts the rest from the tap's time. Taps for another workout are left alone (the real app and Beta share the cache).
   - The CI emulator does exactly this: it stops the app mid-rest and then taps Done ✓ twice in a row (`android/ci/emulator-check.sh`).
 - **Tap and say was tried and dropped (same day).** A tap on empty workout space listened for one phrase ("8 at 80") on the phone's mic. Omar's verdict: it needs the phone in his hand, and then the tick is just as fast and never mishears. It was removed before it shipped.
+- **Why it still failed on Omar's phone (18 Oct evening): the old Android app.** Every fix above lives partly in the Android app, and the APK he kept installing was an older download, not the new one. Every build was called "1.0", so nothing showed it.
+  - Now the Android app's version is the build number (`versionName "1.<run>"`): Settings › Apps › Aven shows which build is on the phone. With build 1.111 installed, Done ✓ ticked the set in Beta on the first try.
+  - The on-phone diagnostics used to find this (a rest log screen in the Android app, the "Last Done ✓" and worker-version lines in Settings › Training) were removed once it worked. The CI emulator still prints the rest log (`AvenRest`).
+  - From Chrome's own source: a notification button is a plain broadcast, and Chrome drops a tap whose notification it no longer has. So the page must never close the rest notification while a Done ✓ can still come through it.
 - Tests: `tests/done.test.ts`. Journey: `scripts/journey-done.mjs` covers Aven closed, and Aven asleep with the message lost.
 
 ## Coach polish: hold to ask, charts, Undo all, pick changes, copy a routine (18 Oct 2026, v0.1.148)

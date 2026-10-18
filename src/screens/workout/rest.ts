@@ -247,17 +247,16 @@ export function offerRestAlerts(toast: (text: string, o: { actionLabel: string; 
  * rest still count from the tap. Each rest's Done counts once (the message, the cache, a page that was asleep).
  */
 let doneFor = '';
-export function applyDone(at = Date.now(), via = 'message'): boolean {
+export function applyDone(at = Date.now()): boolean {
   const a = useStore.getState().active;
-  if (!a?.rest) return noteDone(at, via, 'no rest running');
+  if (!a?.rest) return false;
   const once = `${a.id}:${a.rest.endsAt}`;
   if (doneFor === once) return false; // (the other copy of a tap already applied: nothing to note)
   const nx = nextSetOf(a);
-  if (!nx) return noteDone(at, via, 'no set left');
+  if (!nx) return false;
   doneFor = once;
   const ok = !!completeSet(nx.se.id, nx.set.id);
-  if (!ok) return noteDone(at, via, 'the set has no reps to log');
-  noteDone(at, via, '');
+  if (!ok) return false;
   const late = Date.now() - at;
   if (late > 2000) {
     // heard late: the set was done at the tap, and the next rest started then (it may be over already: "Go")
@@ -268,28 +267,8 @@ export function applyDone(at = Date.now(), via = 'message'): boolean {
   return true;
 }
 
-/** The last Done ✓ that reached the page and what came of it (Settings › Training shows it: one screenshot says where a
- *  tap stopped). Returns false, for applyDone's "nothing ticked". */
-const DONE_LOG = 'aven.doneLog';
 // the keys the workers keep a Done ✓ under (public/rest-sw.js, android/site/…-rest/sw.js): whole paths, the same everywhere
-const PENDING_TAP = '/aven-pending/tap-', PENDING_LOG = '/aven-pending/log';
-function noteDone(at: number, via: string, why: string): false {
-  try { localStorage.setItem(DONE_LOG, JSON.stringify({ at, heard: Date.now(), via, why })); } catch { /* ignore */ }
-  return false;
-}
-export async function lastDone(): Promise<{ tap?: { at: number; sw: string; wins: number }; page?: { at: number; heard: number; via: string; why: string }; click?: { at: number; action: string; done: boolean; endsAt: number }; waiting: number }> {
-  let tap, page, click, waiting = 0;
-  try { page = JSON.parse(localStorage.getItem(DONE_LOG) ?? 'null') ?? undefined; } catch { /* ignore */ }
-  try {
-    if (typeof caches !== 'undefined') {
-      const c = await caches.open('aven-pending');
-      const r = await c.match(PENDING_LOG); tap = r ? await r.json() : undefined;
-      const k = await c.match('/aven-pending/click'); click = k ? await k.json() : undefined;
-      waiting = (await c.keys()).filter((q) => new URL(q.url).pathname.startsWith(PENDING_TAP)).length;
-    }
-  } catch { /* ignore */ }
-  return { tap, page, click, waiting };
-}
+const PENDING_TAP = '/aven-pending/tap-';
 
 /** Is this the rest a Done ✓ was tapped for (the website's key, or the Android app's)? */
 const isThisRest = (key: unknown) => {
@@ -325,8 +304,7 @@ export function applyPendingDone(): Promise<void> {
         if (!a || workoutOf(tp.key) !== a.id) { if (old > 30 * 60_000) await c.delete(tp.req); continue; }
         await c.delete(tp.req);
         tapSeen.add(tp.at);
-        if (a.rest && a.rest.endsAt - a.rest.total * 1000 <= tp.at + 2000) applyDone(tp.at, 'cache');
-        else noteDone(tp.at, 'cache', a.rest ? 'a different rest' : 'no rest running');
+        if (a.rest && a.rest.endsAt - a.rest.total * 1000 <= tp.at + 2000) applyDone(tp.at);
       }
     } catch { /* no cache storage: nothing waits */ }
   })().finally(() => { pendingRun = null; });
@@ -398,7 +376,7 @@ export function useRestCue() {
           void (async () => {
             await pendingRun; await applyPendingDone();
             const b = useStore.getState().active;
-            if (!tapSeen.has(at) && b?.rest && workoutOf(e.data.key) === b.id) applyDone(at, 'message');
+            if (!tapSeen.has(at) && b?.rest && workoutOf(e.data.key) === b.id) applyDone(at);
           })();
           return;
         }

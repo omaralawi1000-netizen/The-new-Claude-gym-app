@@ -101,15 +101,6 @@ export async function restCheck() {
   try {
     const r = await navigator.serviceWorker?.getRegistration(SCOPE);
     worker = r && !r.scope.endsWith(SCOPE) ? 'no' : r?.active ? 'yes' : r ? 'waiting' : 'no';
-    // which copy of the rest worker the phone has (an old one kept closing the watch's Done ✓ path)
-    if (r?.active) {
-      const v = await new Promise<number | null>((ok) => {
-        const ch = new MessageChannel(); const t = setTimeout(() => ok(null), 1200);
-        ch.port1.onmessage = (e) => { clearTimeout(t); ok(Number(e.data?.v) || null); };
-        r.active!.postMessage({ type: 'aven-rest-ping' }, [ch.port2]);
-      });
-      worker = v ? `v${v}` : 'old';
-    }
   } catch { worker = 'error'; }
   let err = '', seen = false;
   try { err = localStorage.getItem(ERR) ?? ''; seen = !!localStorage.getItem(SEEN); } catch { /* ignore */ }

@@ -11,7 +11,7 @@
 // notifications; and a notification can always be swiped away.
 // the keys of a Done ✓ kept for the page: whole paths, the same from every worker and page (a bare 'done' is read
 // against each one's own address, so the app's rest worker and the page each had their own 'done' and never met)
-const PENDING_TAP = '/aven-pending/tap-', PENDING_LOG = '/aven-pending/log';
+const PENDING_TAP = '/aven-pending/tap-';
 const REST_TAG = 'aven-rest'; // the quiet one, while resting (its timestamp is the end: the Android app counts down to it)
 const OVER_TAG = 'aven-rest-over'; // the alert when it ends
 const MAX_WAIT = 290000; // just under Chrome's 5-minute limit for one task
@@ -113,8 +113,6 @@ function restClick(e) {
       const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
       const c = await caches.open('aven-pending');
       await c.put(`${PENDING_TAP}${tap.at}`, new Response(JSON.stringify(tap)));
-      // (what Settings › Training shows as "Last Done ✓", so one screenshot says where it stopped)
-      await c.put(PENDING_LOG, new Response(JSON.stringify({ ...tap, sw: 'web', wins: wins.length })));
       wins.forEach((w) => w.postMessage({ type: 'aven-rest-action', action: 'done', ...tap }));
     })());
     return;

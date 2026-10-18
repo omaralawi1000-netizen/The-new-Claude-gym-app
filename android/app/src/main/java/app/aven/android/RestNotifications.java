@@ -131,14 +131,14 @@ final class RestNotifications {
         if (tag.contains("aven-rest-over")) {
             // the website's back-up alert: ours rings at the exact time already; if somehow it hasn't, ring now
             Rest r = load(c);
-            note(c, "website's back-up alert (" + (r == null ? "no rest" : r.chained ? "a rest Done started" : "rest over " + (now - r.endsAt) / 1000 + " s ago") + ")");
+            log("website's back-up alert (" + (r == null ? "no rest" : r.chained ? "a rest Done started" : "rest over " + (now - r.endsAt) / 1000 + " s ago") + ")");
             if (r != null && r.chained) return true; // a Done ✓ moved on from that rest here: it's ours to ring
             if (r == null || r.endsAt > now + 1000) return false;
             ring(c);
             return true;
         }
         Rest r = parse(tag, n);
-        note(c, "from Chrome: " + (r == null ? "not a rest" : "rest " + (r.endsAt - now) / 1000 + " s left, " + (n.actions == null ? 0 : n.actions.length) + " Chrome buttons, done " + (r.done.isEmpty() ? "no" : "yes") + ", next sets " + r.queue.length()));
+        log("from Chrome: " + (r == null ? "not a rest" : "rest " + (r.endsAt - now) / 1000 + " s left, " + (n.actions == null ? 0 : n.actions.length) + " Chrome buttons, done " + (r.done.isEmpty() ? "no" : "yes")));
         if (r == null) return false;
         if (r.endsAt <= now + 500) return true; // already over (a late update): the alarm has it
         ensureChannels(c);
@@ -147,10 +147,7 @@ final class RestNotifications {
         // +30 s tapped here a moment ago: the website's catching up, don't let a slower update pull the time back
         if (same && now - localChangeAt < 4000 && r.endsAt < old.endsAt) r.endsAt = old.endsAt;
         if (n.contentIntent != null) chromeTap = n.contentIntent;
-        if (n.actions != null && n.actions.length >= 2) {
-            chromeMore = n.actions[0].actionIntent; chromeSkip = n.actions[1].actionIntent;
-            if (chromeSkip != null) note(c, "  Chrome's Skip: " + RestActionReceiver.kind(chromeSkip));
-        }
+        if (n.actions != null && n.actions.length >= 2) { chromeMore = n.actions[0].actionIntent; chromeSkip = n.actions[1].actionIntent; }
         if (!same) {
             dismissed = false;
             c.getSystemService(NotificationManager.class).cancel(ID_OVER); // a new rest: the last alert has done its job
@@ -166,12 +163,12 @@ final class RestNotifications {
     static void chromeCancelled(Context c, String tag) {
         Rest r = load(c);
         boolean ours = r != null && tag != null && tag.equals(r.chromeTag);
-        note(c, "Chrome took its notification away" + (ours ? "" : " (an older one)"));
+        log("Chrome took its notification away" + (ours ? "" : " (an older one)"));
         if (!ours) return; // an older rest's (a newer one has taken over)
         // just after a Done ✓: an older rest worker closes Chrome's copy then. The rest Done ✓ started here goes on (it
         // stopped it on Omar's phone, 18 Oct: "Rest 3:00", then nothing), and its "Set 2 ✓" stays
         boolean justDone = System.currentTimeMillis() - doneAt < 5000;
-        if (justDone && r.chained) { note(c, "(an older worker closing Chrome's copy after Done ✓: the rest goes on)"); return; }
+        if (justDone && r.chained) { log("(an older worker closing Chrome's copy after Done ✓: the rest goes on)"); return; }
         stopAll(c, !justDone);
     }
 
@@ -371,7 +368,7 @@ final class RestNotifications {
         // alarm), the Done ✓ would tick on the watch and go nowhere: they're fetched from the alarm first, which rings
         if (recoverChrome(c)) return;
         recovering = false;
-        note(c, "ring: " + (r.overTitle.isEmpty() ? "rest over" : r.overTitle) + ", Done " + (r.done.isEmpty() ? "missing (no words)" : "shown") + ", Chrome's Skip " + (chromeSkip != null ? "here" : "MISSING"));
+        log("ring: " + (r.overTitle.isEmpty() ? "rest over" : r.overTitle) + ", Done " + (r.done.isEmpty() ? "missing (no words)" : "shown") + ", Chrome's Skip " + (chromeSkip != null ? "here" : "MISSING"));
         p.edit().putLong("rang", r.startedAt).apply();
         cancelAlarm(c);
         RestTimerService.stop(c);
@@ -415,7 +412,7 @@ final class RestNotifications {
         nm.cancel(ID_OVER);
         if (r == null) return;
         Rest nx = nextOf(r, doneAt);
-        note(c, "done: " + (nx == null ? "the last set" : "next rest " + (nx.endsAt - doneAt) / 1000 + " s, then " + nx.overTitle));
+        log("done: " + (nx == null ? "the last set" : "next rest " + (nx.endsAt - doneAt) / 1000 + " s, then " + nx.overTitle));
         if (nx != null) {
             save(c, nx);
             dismissed = false;
@@ -537,21 +534,6 @@ final class RestNotifications {
     /** What happened, in the phone's log under "AvenRest" (the emulator check prints it). */
     static void log(String what) { Log.i("AvenRest", what); }
 
-    /** A line for the phone's own log (Settings › Training › App log in Aven shows the last 80), and the system log. */
-    static void note(Context c, String what) {
-        log(what);
-        try {
-            SharedPreferences p = c.getSharedPreferences("aven_restlog", Context.MODE_PRIVATE);
-            String line = new java.text.SimpleDateFormat("HH:mm:ss", Locale.ROOT).format(new java.util.Date()) + "  " + what;
-            String all = p.getString("log", "") + line + "\n";
-            String[] lines = all.split("\n");
-            if (lines.length > 80) all = String.join("\n", java.util.Arrays.copyOfRange(lines, lines.length - 80, lines.length)) + "\n";
-            p.edit().putString("log", all).apply();
-        } catch (RuntimeException ignored) { /* the log is never in the way */ }
-    }
-
-    static String savedLog(Context c) { return c.getSharedPreferences("aven_restlog", Context.MODE_PRIVATE).getString("log", ""); }
-
     private static void call(Notification.Builder b, String name, Class<?> type, Object value) {
         try {
             Method m = Notification.Builder.class.getMethod(name, type);
@@ -594,11 +576,11 @@ final class RestNotifications {
         if (chromeSkip != null || recovering) return false;
         PendingIntent alarm = PendingIntent.getBroadcast(c, RestAlarmReceiver.ACTION_END.hashCode(),
             new Intent(RestAlarmReceiver.ACTION_END).setClass(c, RestAlarmReceiver.class), PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_NO_CREATE);
-        if (alarm == null) { note(c, "ring: no Chrome buttons, and no alarm to fetch them from"); return false; }
+        if (alarm == null) { log("ring: no Chrome buttons, and no alarm to fetch them from"); return false; }
         try {
             recovering = true;
             alarm.send();
-            note(c, "ring: fetching Chrome's buttons from the alarm");
+            log("ring: fetching Chrome's buttons from the alarm");
             return true;
         } catch (PendingIntent.CanceledException e) {
             recovering = false;
