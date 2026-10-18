@@ -2579,7 +2579,7 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 /* inside a card they stay clear: the card is their body */
 :root:not([data-theme='light']) .screen :is(.plinth, [data-wk='hero'] + div) :is(.icon-btn:not(.flat, .acc), button.chip:not(.on, .acc), .chip.acc, .meal-add), :root:not([data-theme='light']) .screen .plinth > button.press[style*='var(--ac-soft)'] { background-color: transparent !important; box-shadow: none !important; }
 :root:not([data-theme='light']) :is(.chip.acc, .icon-btn.acc-soft, .meal-add) { color: var(--ac-text) !important; }
-:root:not([data-theme='light']) :is(.btn:not(.primary, .ghost), button.chip:not(.on, .acc), .icon-btn:not(.flat, .acc))::after, :root:not([data-theme='light']) :is(.chip.acc, .icon-btn.acc-soft, .meal-add)::after, :root:not([data-theme='light']) .screen .plinth > button.press[style*='var(--ac-soft)']::after, :root:not([data-theme='light']) .screen .pin::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; padding: 1px; -webkit-mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); background: linear-gradient(145deg, color-mix(in srgb, color-mix(in srgb, var(--ac) 62%, #fff) 92%, transparent) 0%, color-mix(in srgb, color-mix(in srgb, var(--ac) 45%, #fff) 34%, transparent) 22%, rgba(255,255,255,.05) 50%, rgba(255,255,255,.10) 82%, rgba(255,255,255,.16) 100%); }
+:root:not([data-theme='light']) :is(.btn:not(.primary, .ghost), button.chip:not(.on, .acc), .icon-btn:not(.flat, .acc))::after, :root:not([data-theme='light']) :is(.chip.acc, .icon-btn.acc-soft, .meal-add)::after, :root:not([data-theme='light']) .screen .plinth > button.press[style*='var(--ac-soft)']::after, :root:not([data-theme='light']) .screen .pin::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; padding: 1px; -webkit-mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); background: linear-gradient(180deg, color-mix(in srgb, color-mix(in srgb, var(--ac) 62%, #fff) 92%, transparent) 0%, color-mix(in srgb, color-mix(in srgb, var(--ac) 45%, #fff) 34%, transparent) 30%, rgba(255,255,255,.05) 62%, rgba(255,255,255,.05) 100%); }
 /* tags are text, not buttons */
 /* muscle tags under a card's title: quiet glass bubbles, flatter than buttons (no rim, no shadow) so they read as labels */
 :root:not([data-theme='light']) span.chip:not(.on, .acc) { background: rgba(255,255,255,.06) !important; box-shadow: inset 0 0 0 1px rgba(255,255,255,.07), inset 0 1px 0 rgba(255,255,255,.05) !important; color: var(--tx2); }
@@ -2602,7 +2602,7 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 /* ---- AB mix (Omar 00:42: clear glass + lit rim, but not on the small buttons) ----
    Lit rim (B) stays on the big/primary ones: pills (.btn, Schedule/New routine), the secondary play, the selected week day,
    the sheet's Save. Small ones (round icons, chips, quick-adds) get A's clear glass with a faint neutral rim. */
-:root:not([data-theme='light']) :is(.icon-btn:not(.flat, .acc, .acc-soft), .chips > button.chip:not(.on, .acc), .screen :is(.plinth, [data-wk='hero'] + div) button.chip:not(.on, .acc), .meal-add, .chip.acc):not(#_)::after { background: linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.06) 35%, rgba(255,255,255,.03) 70%, rgba(255,255,255,.08)); }
+:root:not([data-theme='light']) :is(.icon-btn:not(.flat, .acc, .acc-soft), button.chip:not(.on), .screen :is(.plinth, [data-wk='hero'] + div) button.chip:not(.on, .acc), .meal-add, .chip.acc):not(#_)::after { background: linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.06) 35%, rgba(255,255,255,.03) 70%, rgba(255,255,255,.04)); }
 /* tab-bar band: no navy lift from the frost */
 :root:not([data-theme='light']) .tabbar-wrap.edge-fade::before { -webkit-backdrop-filter: blur(var(--edge-blur, 16px)) saturate(.15); backdrop-filter: blur(var(--edge-blur, 16px)) saturate(.15); }
 /* pressed: material answers too */
@@ -2611,8 +2611,8 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 :is(:root:not([data-theme='light']) .screen :is(.plinth, [data-wk='hero'] + div) :is(.icon-btn:not(.flat, .acc), button.chip:not(.on, .acc), .chip.acc, .meal-add))[data-pressed] { background-color: rgba(255,255,255,.09) !important; }
 :is(:root:not([data-theme='light']) :is(.btn:not(.primary, .ghost), button.chip:not(.on, .acc), .icon-btn:not(.flat, .acc)), :root:not([data-theme='light']) :is(.chip.acc, .icon-btn.acc-soft, .meal-add))[data-pressed]::after { opacity: .7 !important; }
 /* small bubbles outside cards: see-through clear glass (Omar 00:57 "at least a little clear"); big lit ones stay fuller */
-:root:not([data-theme='light']) :is(.icon-btn:not(.flat, .acc, .acc-soft), .chips > button.chip:not(.on, .acc)):not(.screen :is(.plinth, [data-wk='hero'] + div) *):not(#_) { background-color: rgba(255,255,255,.025) !important; }
-:root:not([data-theme='light']) :is(.icon-btn:not(.flat, .acc, .acc-soft), .chips > button.chip:not(.on, .acc)):not(.screen :is(.plinth, [data-wk='hero'] + div) *):not(#_)[data-pressed] { background-color: rgba(255,255,255,.12) !important; }
+:root:not([data-theme='light']) :is(.icon-btn:not(.flat, .acc, .acc-soft), button.chip:not(.on)):not(.screen :is(.plinth, [data-wk='hero'] + div) *):not(#_) { background-color: rgba(255,255,255,.025) !important; }
+:root:not([data-theme='light']) :is(.icon-btn:not(.flat, .acc, .acc-soft), button.chip:not(.on)):not(.screen :is(.plinth, [data-wk='hero'] + div) *):not(#_)[data-pressed] { background-color: rgba(255,255,255,.12) !important; }
 
 /* ==== Text and bubble polish (Omar 18 Oct: "polish it if it's off centre") ==== */
 /* sideways rows in sheets (food tools, look tiles) fade where more is hiding, like the chip rows, instead of a hard cut */
@@ -2630,8 +2630,23 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 :root:not([data-theme='light']) span.chip.sm:not(.on, .acc):not(:has(svg)) { padding-top: 1.5px; }
 /* a little lift on the small bubbles (Omar 18 Oct): a touch more glass and a soft contact shadow under them, so they sit
    just above their card instead of flat on it. Static shadows (never animated); the pressed fill still answers on top. */
-:root:not([data-theme='light']) :is(.icon-btn:not(.flat, .acc, .acc-soft), .chips > button.chip:not(.on, .acc)):not(.screen :is(.plinth, [data-wk='hero'] + div) *):not(#_):not([data-pressed]) { background-color: rgba(255,255,255,.032) !important; }
-:root:not([data-theme='light']) :is(.icon-btn:not(.flat, .acc, .acc-soft), .chips > button.chip:not(.on, .acc)):not(.screen :is(.plinth, [data-wk='hero'] + div) *):not(#_) { box-shadow: inset 0 1px 0 rgba(255,255,255,.07), 0 1px 1px rgba(0,0,0,.3), 0 2px 8px rgba(0,0,0,.22) !important; }
+:root:not([data-theme='light']) :is(.icon-btn:not(.flat, .acc, .acc-soft), button.chip:not(.on)):not(.screen :is(.plinth, [data-wk='hero'] + div) *):not(#_):not([data-pressed]) { background-color: rgba(255,255,255,.032) !important; }
+:root:not([data-theme='light']) :is(.icon-btn:not(.flat, .acc, .acc-soft), button.chip:not(.on)):not(.screen :is(.plinth, [data-wk='hero'] + div) *):not(#_) { box-shadow: inset 0 1px 0 rgba(255,255,255,.07), 0 1px 1px rgba(0,0,0,.3), 0 2px 8px rgba(0,0,0,.22) !important; }
 :root:not([data-theme='light']) .screen :is(.plinth, [data-wk='hero'] + div) :is(.icon-btn:not(.flat, .acc), button.chip:not(.on, .acc), .chip.acc, .meal-add):not(#_):not([data-pressed]) { background-color: rgba(255,255,255,.028) !important; }
 :root:not([data-theme='light']) .screen :is(.plinth, [data-wk='hero'] + div) :is(.icon-btn:not(.flat, .acc), button.chip:not(.on, .acc), .chip.acc, .meal-add):not(#_) { box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 1px 3px rgba(0,0,0,.18) !important; }
 :root:not([data-theme='light']) span.chip:not(.on, .acc):not(#_) { box-shadow: inset 0 0 0 1px rgba(255,255,255,.07), inset 0 1px 0 rgba(255,255,255,.06), 0 1px 0 rgba(0,0,0,.16) !important; }
+/* one family per size, one light (Omar 18 Oct 21:36: "same sized bubbles consistent", "the light is on top when it's not
+   on top"). Every rim is lit from straight above and fades away down the sides (no second light at the bottom).
+   - pills (.btn): the lit rim. Every chip button, any size, anywhere outside a card: clear glass with a faint rim and a little
+     lift, so Schedule / New routine / Customize Today match the quick-adds and filter chips beside them.
+   - labels (muscle tags, PR badges): flat quiet glass, no rim, no shadow; a PR badge keeps its colour only in its text. */
+:root:not([data-theme='light']) span.chip.acc:not(#_) { background: rgba(255,255,255,.06) !important; box-shadow: inset 0 0 0 1px rgba(255,255,255,.07), inset 0 1px 0 rgba(255,255,255,.06), 0 1px 0 rgba(0,0,0,.16) !important; }
+:root:not([data-theme='light']) span.chip.acc:not(#_)::after { content: none; }
+/* the switcher's thumb is the one raised piece: a neutral light on its top edge and a shade along its bottom, both drawn in
+   the thumb itself so they glide with it (no extra layer, no shadow to animate); the track around it stays flat */
+:root:not([data-theme='light']) .seg-lens { --lens-hl: rgba(255,255,255,.17); --lens-line: rgba(255,255,255,.05); --lens-lo: rgba(0,0,0,.34); --lens-fill: linear-gradient(180deg, #444448, #36363a); }
+:root:not([data-theme='light']) .seg-lens > :is(.lens-l, .lens-r) { box-shadow: inset 0 1px 0 var(--lens-hl), inset 0 -1px 0 var(--lens-lo), inset 0 0 0 1px var(--lens-line); }
+:root:not([data-theme='light']) .seg-lens > .lens-m { background: linear-gradient(to bottom, var(--lens-hl) 0 1px, transparent 1px calc(100% - 1px), var(--lens-lo) calc(100% - 1px)), linear-gradient(to bottom, var(--lens-line) 0 1px, transparent 1px calc(100% - 1px), var(--lens-line) calc(100% - 1px)), var(--lens-fill); }
+/* a destructive pill keeps its red and takes the neutral rim, so it never reads as the main action */
+:root:not([data-theme='light']) .btn.danger:not(#_) { color: var(--bad); }
+:root:not([data-theme='light']) .btn.danger:not(#_)::after { background: linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.06) 35%, rgba(255,255,255,.03) 70%, rgba(255,255,255,.04)); }
