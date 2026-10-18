@@ -28,10 +28,11 @@ await skipOnboarding(p); await loadDemo(p); await s.advance(120);
 await p.evaluate(() => { localStorage.setItem('aven.keys', JSON.stringify({ gemini: 'AIzaTESTKEY' })); localStorage.setItem('aven.coachNote', '1'); });
 await p.reload(); await wait(p, 1500); await s.advance(240);
 const press = async (loc) => { const b = await loc.boundingBox(); await p.touchscreen.tap(b.x + b.width / 2, b.y + b.height / 2); };
-await p.getByLabel('Photo').first().waitFor({ state: 'visible', timeout: 20000 }); await s.advance(180);
+await p.getByLabel('Photo').first().waitFor({ state: 'visible', timeout: 20000 }); await s.advance(Number(process.env.SETTLE || 3000)); // Today must be fully up before the tap
 let opener;
 if (which === 'coach') { await press(p.getByRole('button', { name: 'Coach', exact: true }).first()); opener = p.getByLabel('Send a photo'); await opener.waitFor({ state: 'visible', timeout: 20000 }); await s.advance(240); }
 else opener = p.getByLabel('Photo').first(); // one tap: Today's camera icon opens the camera itself
+await s.film(`camera-${tag}-lead`, async () => {}, 36); // Today at rest first, so the tap and the sheet rising are both seen
 await s.film(`camera-${tag}-open`, () => press(opener), 90);
 await s.advance(90); // the live picture settles in
 if (which === 'food' && theme === 'dark') { // the flip: the picture is held, then the other camera fades in over it (the fake camera shows the same plate, mirrored)
@@ -42,7 +43,7 @@ await s.advance(60);
 await s.film(`camera-${tag}-rest`, async () => {}, 12);
 await s.close();
 // one clip: the three films joined, real speed (60 fps)
-const dirs = (which === 'food' && theme === 'dark' ? ['open', 'flip', 'shot', 'rest'] : ['open', 'shot', 'rest']).map((k) => `shots/film/camera-${tag}-${k}`);
+const dirs = (which === 'food' && theme === 'dark' ? ['lead', 'open', 'flip', 'shot', 'rest'] : ['lead', 'open', 'shot', 'rest']).map((k) => `shots/film/camera-${tag}-${k}`);
 const list = dirs.map((d) => `file '${process.cwd()}/${d}/%03d.jpg'`);
 const inputs = dirs.flatMap((d) => ['-framerate', '60', '-i', `${d}/%03d.jpg`]);
 execFileSync('ffmpeg', ['-y', '-loglevel', 'error', ...inputs, '-filter_complex', `${dirs.map((_, i) => `[${i}:v]`).join('')}concat=n=${dirs.length}:v=1[v];[v]scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p[o]`, '-map', '[o]', '-c:v', 'libx264', '-crf', '20', `shots/camera-${tag}.mp4`]);

@@ -23,42 +23,47 @@ const PORTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 const SCAN_WORDS = ['Looking at your plate', 'Spotting the ingredients', 'Estimating portions', 'Adding it up'];
 // PREVIEW ONLY: six looks for the wait, chosen with localStorage 'aven.scan' (A-F); Omar picks one, the rest are deleted
 export const scanVariant = () => { try { return localStorage.getItem('aven.scan') || 'A'; } catch { return 'A'; } };
-/** Which of the four steps the wait is at: it moves on every 1.9 s and stays on the last for as long as the answer takes. */
+/** Which of the four steps the wait is at (rAF + performance.now, so it follows the real clock): it moves on every 1.9 s, and
+ *  "Adding it up" only comes after 7 s so a long wait never sits on the last words. */
+const STEP_AT = [0, 1900, 3800, 7000];
 function useStep() {
   const [i, setI] = useState(0);
-  useEffect(() => { const id = setInterval(() => setI((n) => Math.min(n + 1, SCAN_WORDS.length - 1)), 1900); return () => clearInterval(id); }, []);
+  useEffect(() => {
+    const t0 = performance.now(); let raf = 0;
+    const tick = () => {
+      const e = performance.now() - t0;
+      setI((n) => { const k = STEP_AT.reduce((m, at, j) => (e >= at ? j : m), 0); return k === n ? n : k; });
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
   return i;
 }
-/** While the photo is read: no orb. Only transform and opacity move; the words and ticks change by fading. */
+/** While the photo is read: no orb. Only transform and opacity move. The root never fades (a fading ancestor would drop the
+ *  frost of the words capsule); the film, band and corners fade as one layer and the capsule fades by itself. */
 function Scan({ v }: { v: string }) {
   const t = useT();
   const i = useStep();
+  const fade = { initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 }, transition: { duration: 0.45 } };
   const words = (
-    <div className="scan-words">
-      <AnimatePresence mode="popLayout" initial={false}>
-        <motion.span key={i} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.4 }}>{t(SCAN_WORDS[i])}</motion.span>
+    <motion.div className="scan-words" {...fade}>
+      <AnimatePresence initial={false}>
+        <motion.span key={i} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.4 }}>{t(SCAN_WORDS[i])}</motion.span>
       </AnimatePresence>
-    </div>
+    </motion.div>
   );
   return (
-    <motion.div className={`scan scan-${v}`} aria-hidden initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.45 }}>
-      <i className="scan-film" />
-      {v === 'A' && <><i className="scan-band" /><i className="scan-c tl" /><i className="scan-c tr" /><i className="scan-c bl" /><i className="scan-c br" />{words}</>}
-      {v === 'B' && <><div className="aur-ring"><i /></div>{words}</>}
-      {v === 'C' && <><i className="son r0" /><i className="son r1" /><i className="son r2" /><i className="son-dot" />{words}</>}
-      {v === 'D' && <><div className="lock"><i className="scan-c tl" /><i className="scan-c tr" /><i className="scan-c bl" /><i className="scan-c br" /></div>{words}</>}
-      {v === 'E' && (
-        <div className="scan-words">
-          <div className="prog">
-            <span className="prog-dots">{SCAN_WORDS.map((w, k) => <motion.i key={w} initial={false} animate={{ opacity: k <= i ? 1 : 0.28, scale: k === i ? 1.25 : 1 }} transition={{ duration: 0.45 }} />)}</span>
-            <AnimatePresence mode="popLayout" initial={false}>
-              <motion.span key={i} className="prog-t" initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.4 }}>{t(SCAN_WORDS[i])}</motion.span>
-            </AnimatePresence>
-          </div>
-        </div>
-      )}
-      {v === 'F' && words}
-    </motion.div>
+    <div className={`scan scan-${v}`} aria-hidden>
+      <motion.div className="scan-fx" {...fade}>
+        <i className="scan-film" />
+        {v === 'A' && <><i className="scan-band" /><i className="scan-c tl" /><i className="scan-c tr" /><i className="scan-c bl" /><i className="scan-c br" /></>}
+        {v === 'B' && <div className="aur-ring"><i /></div>}
+        {v === 'C' && <><i className="son r0" /><i className="son r1" /><i className="son r2" /><i className="son-dot" /></>}
+        {v === 'D' && <div className="lock"><i className="scan-c tl" /><i className="scan-c tr" /><i className="scan-c bl" /><i className="scan-c br" /></div>}
+      </motion.div>
+      {(v === 'A' || v === 'B' || v === 'C' || v === 'D' || v === 'F') && words}
+    </div>
   );
 }
 /** Option F: grey stand-ins where the items will land, the size of the real cards; they melt into them. */
@@ -136,7 +141,7 @@ export function PhotoFood({ props }: { props: { date: string; mealId: string; fi
 
   return (
     <Sheet onClose={pop} tall label={t('Photo')} z={100}
-      foot={items.length ? <button className="btn primary block press" disabled={!chosen.length} onClick={log}>{t(chosen.length === 1 ? 'Log 1 item' : 'Log {n} items', { n: chosen.length })} · {fmtNum(Math.round(total), lang, 0)} kcal</button> : undefined}>
+      foot={items.length ? <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.45, delay: 0.3 }}><button className="btn primary block press" disabled={!chosen.length} onClick={log}>{t(chosen.length === 1 ? 'Log 1 item' : 'Log {n} items', { n: chosen.length })} · {fmtNum(Math.round(total), lang, 0)} kcal</button></motion.div> : undefined}>
       <SheetHead title={t('Snap your plate')} sub={mealName(meal, lang)} onClose={pop} />
       <div className="sheet-body">
         <input ref={cam} type="file" accept="image/*" capture="environment" hidden onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ''; }} />
@@ -171,10 +176,10 @@ export function PhotoFood({ props }: { props: { date: string; mealId: string; fi
             <AnimatePresence>{busy && sv === 'F' && <Ghosts key="ghosts" />}</AnimatePresence>
             <AnimatePresence>
               {items.length > 0 && (
-                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} style={{ marginTop: 16 }}>
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.5 }} style={{ marginTop: 16 }}>
                   <div className="stack gap8">
                     {items.map((x, i) => (
-                      <motion.div key={i} initial={{ opacity: 0, y: 12 }} animate={{ opacity: x.on ? 1 : 0.45, y: 0 }} transition={{ ...SOFT, delay: i * 0.05 }} className="plinth" style={{ padding: '12px 14px' }}>
+                      <motion.div key={i} initial={{ opacity: 0 }} animate={{ opacity: x.on ? 1 : 0.45 }} transition={{ duration: 0.5, delay: i * 0.08 }} className="plinth" style={{ padding: '12px 14px' }}>
                         <div className="row-flex between">
                           <button className="row-flex press grow" style={{ gap: 10, textAlign: 'left', minWidth: 0 }} onClick={() => setItems((l) => l.map((y, j) => (j === i ? { ...y, on: !y.on } : y)))} aria-pressed={x.on}>
                             <span style={{ width: 22, height: 22, borderRadius: 7, display: 'grid', placeItems: 'center', flex: 'none', background: x.on ? 'var(--ac)' : 'transparent', color: 'var(--ac-ink)', boxShadow: x.on ? 'none' : 'inset 0 0 0 1.5px var(--line-2)' }}>{x.on && <Icon name="check" size={14} sw={3} />}</span>

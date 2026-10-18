@@ -2469,9 +2469,10 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 /* ---- photo analysis (PhotoFood.tsx, Scan): no orb. A dim film, a soft band of light sweeping down once every 3.2 s with a rest
    between (transform only, own layer), four viewfinder corners, and the status words fading in the pill. ---- */
 .scan { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
-.scan-film { position: absolute; inset: 0; background: rgba(0,0,0,.3); }
+.scan-fx { position: absolute; inset: 0; }
+.scan-film { position: absolute; inset: 0; background: rgba(0,0,0,.19); }
 .scan-band { position: absolute; left: 0; right: 0; top: 0; height: 46%; will-change: transform; transform: translateY(-100%); animation: scan-sweep 3200ms var(--ease-io) infinite;
-  background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--ac) 20%, transparent) 72%, color-mix(in srgb, #fff 46%, var(--ac)) 100%); }
+  background: linear-gradient(to bottom, transparent, rgba(255,255,255,.10) 72%, rgba(255,255,255,.28) 100%); }
 .scan-band::after { content: ''; position: absolute; left: 6%; right: 6%; bottom: 0; height: 2px; border-radius: 1px; background: linear-gradient(to right, transparent, rgba(255,255,255,.95), transparent); }
 @keyframes scan-sweep { 0% { transform: translateY(-100%); } 68%, 100% { transform: translateY(217%); } }
 .scan-c { position: absolute; width: 22px; height: 22px; border: 0 solid rgba(255,255,255,.88); }
@@ -2479,8 +2480,9 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 .scan-c.tr { right: 16px; top: 16px; border-width: 2.5px 2.5px 0 0; border-top-right-radius: 8px; }
 .scan-c.bl { left: 16px; bottom: 16px; border-width: 0 0 2.5px 2.5px; border-bottom-left-radius: 8px; }
 .scan-c.br { right: 16px; bottom: 16px; border-width: 0 2.5px 2.5px 0; border-bottom-right-radius: 8px; }
-.scan-words { position: absolute; left: 0; right: 0; bottom: 20px; display: grid; justify-items: center; }
-.scan-words span { grid-area: 1 / 1; padding: 7px 14px; border-radius: 999px; background: rgba(0,0,0,.5); color: #fff; font-size: 13px; font-weight: 560; letter-spacing: .01em; white-space: nowrap; }
+.scan-words { position: absolute; left: 50%; bottom: 20px; translate: -50% 0; display: grid; justify-items: center; min-width: 204px; padding: 7px 14px; border-radius: 999px;
+  background: rgba(0,0,0,.3); -webkit-backdrop-filter: blur(14px) saturate(1.2); backdrop-filter: blur(14px) saturate(1.2); box-shadow: inset 0 0 0 1px rgba(255,255,255,.14); }
+.scan-words span { grid-area: 1 / 1; color: #fff; font-size: 13px; font-weight: 560; letter-spacing: .01em; white-space: nowrap; }
 :root[data-motion='reduce'] .scan-band { animation: none; opacity: 0; }
 
 /* option B: aurora edge, a slow ring of colour around the photo's rim (the ring is a static mask; only the colour inside turns) */
