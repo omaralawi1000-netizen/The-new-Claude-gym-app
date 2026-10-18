@@ -130,9 +130,12 @@ export function mergeHc(p: HcPayload, cur: { activities: ActivityLog[]; steps: S
  */
 export function applyHcFromAddress(): void {
   if (!/(?:^#|&)hc=/.test(location.hash)) return;
+  const len = location.hash.length;
   const p = parseHc(location.hash);
   // (out of the address either way: a reload or a shared link must not carry it)
   try { history.replaceState(history.state, '', location.pathname + location.search); } catch { /* fine */ }
+  // what the Android app sent back last, as plain facts (the Watch screen shows them: one screenshot says where it stops)
+  try { localStorage.setItem(LAST, JSON.stringify({ at: Date.now(), len, ok: !!p, inApp: appOnPhone(), ...(p ? { avail: p.avail, on: p.on, granted: p.granted, note: p.note, days: p.days?.length, ex: p.ex?.length } : {}) })); } catch { /* fine */ }
   // Connect watch / Sync now was tapped here a moment ago: this is its answer (the app reopens Aven at its start, so the
   // Watch screen is opened again, with what came of it said once)
   const ask = takeAsk();
@@ -157,7 +160,19 @@ export function applyHcFromAddress(): void {
   window.dispatchEvent(new Event('aven-hc'));
 }
 
-const ASK = 'aven.hc.ask';
+const ASK = 'aven.hc.ask', LAST = 'aven.hc.last';
+/** The last answer from the Android app, in one short line (or what's missing). */
+export function hcLastLine(): string {
+  try {
+    const l = JSON.parse(localStorage.getItem(LAST) || 'null');
+    const a = JSON.parse(localStorage.getItem(ASK) || 'null');
+    const hm = (x: number) => new Date(x).toTimeString().slice(0, 5);
+    const ask = a ? `tapped ${a.what} ${hm(a.at)}, no answer yet` : '';
+    if (!l) return ask || 'no answer from the app yet';
+    const got = l.ok ? [l.avail ? 'HC yes' : 'HC no', l.granted ? 'allowed' : 'not allowed', l.on ? 'on' : 'off', l.note, l.days !== undefined ? `${l.days} days` : '', l.ex !== undefined ? `${l.ex} workouts` : ''].filter(Boolean).join(' · ') : `unreadable (${l.len} chars)`;
+    return `answer ${hm(l.at)}: ${got}${l.inApp ? '' : ' · app not seen'}${ask ? ` · ${ask}` : ''}`;
+  } catch { return ''; }
+}
 /** Remember that Connect watch / Sync now / Disconnect was just tapped (the answer comes back in a fresh page). */
 export function noteAsk(what: 'connect' | 'sync' | 'off') { try { localStorage.setItem(ASK, JSON.stringify({ what, at: Date.now() })); } catch { /* fine */ } }
 function takeAsk(): 'connect' | 'sync' | 'off' | null {
