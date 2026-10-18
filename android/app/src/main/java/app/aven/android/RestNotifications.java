@@ -164,7 +164,11 @@ final class RestNotifications {
         boolean ours = r != null && tag != null && tag.equals(r.chromeTag);
         log("Chrome took its notification away" + (ours ? "" : " (an older one)"));
         if (!ours) return; // an older rest's (a newer one has taken over)
-        stopAll(c, System.currentTimeMillis() - doneAt > 5000); // (just after Done ✓, its "Set 2 ✓" stays)
+        // just after a Done ✓: an older rest worker closes Chrome's copy then. The rest Done ✓ started here goes on (it
+        // stopped it on Omar's phone, 18 Oct: "Rest 3:00", then nothing), and its "Set 2 ✓" stays
+        boolean justDone = System.currentTimeMillis() - doneAt < 5000;
+        if (justDone && r.chained) { log("(an older worker closing Chrome's copy after Done ✓: the rest goes on)"); return; }
+        stopAll(c, !justDone);
     }
 
     static Rest parse(String tag, Notification n) {

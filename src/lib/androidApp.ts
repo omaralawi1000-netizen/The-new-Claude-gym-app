@@ -29,6 +29,9 @@ let reg: Promise<ServiceWorkerRegistration | null> | null = null;
 export function androidRest(): Promise<ServiceWorkerRegistration | null> {
   if (!hasAndroidApp()) return Promise.resolve(null);
   reg ??= navigator.serviceWorker.register(`${SCOPE}sw.js`, { scope: SCOPE }).then(async (r) => {
+    // checked for a newer worker every time Aven opens: the browser does that by itself only about once a day, and an old
+    // one on Omar's phone kept closing the watch's Done ✓ path (18 Oct). It takes over at once (skipWaiting in it)
+    r.update().catch(() => {});
     for (let i = 0; i < 50 && !r.active; i++) await new Promise((ok) => setTimeout(ok, 100));
     if (!r.active) fail('worker', 'not active after 5 s');
     return r.active ? r : null;
