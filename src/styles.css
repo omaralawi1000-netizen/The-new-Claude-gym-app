@@ -1663,7 +1663,8 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .coach-tips-float { position: absolute; left: 0; right: 0; height: auto; }
 /* (under a chat they keep their room and your message lands in it: they are gone a touch sooner, so it never passes over
    them while they can still be seen, judge 18 Oct) */
-.coach-tips-out.coach-tips-float { animation-duration: 170ms; animation-timing-function: cubic-bezier(0, 0, .2, 1); }
+.coach-tips-out.coach-tips-float { animation-duration: 220ms; animation-timing-function: cubic-bezier(.3, 0, .3, 1); }
+.coach-sent.coach-late { animation-delay: 110ms; } /* (a tapped one comes up where they were only once they have gone) */
 @keyframes coachTipsOut { from { opacity: 1; } to { opacity: 0; transform: translate3d(0, -4px, 0); } }
 .coach-body .coach-tips-out .tips .tip { animation: none; } /* (re-placed, they must not rise in again on their way out) */
 :root[data-motion='reduce'] .coach-tips-out { display: none; }

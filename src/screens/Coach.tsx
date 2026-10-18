@@ -61,8 +61,11 @@ const GROW = asCurve(rampSpring(0.52, 0.07)); // a line more or less
 const FLY = asCurve(rampSpring(0.58, 0.09));
 const FLY_SHAPE = asCurve(rampSpring(0.42, 0.07));
 // …a long way up (sent under the suggestions, it lands where they were, ~230 px up): slower and softer off the pill, so it
-// glides there at the speed of a short flight instead of being thrown (judge 18 Oct: ~1100 px/s peak on the plain curve)
-const FLY_FAR = asCurve(rampSpring(0.78, 0.16));
+// glides there at the speed of a short flight instead of being thrown (judge 18 Oct: ~1100 px/s peak on the plain curve),
+// on a long soft start so its speed rises and falls evenly (a quick start and a long crawl read as a throw, judge round 3);
+// its shape turns into the bubble on the same kind of curve, a little sooner, as it does on a short flight
+const FLY_FAR = asCurve(rampSpring(0.5, 0.5));
+const FLY_FAR_SHAPE = asCurve(rampSpring(0.4, 0.42));
 // said words (they were never in the field): the pill lifts into its bubble on the same motion, a touch slower, starting
 // softer (the words come up inside it on the way, so the move itself has to read: the pill peels off the bar)
 const FLY_SAID = asCurve(rampSpring(0.6, 0.11));
@@ -115,11 +118,11 @@ function endTop(el: HTMLElement) {
  * piece every few hundred ms) and while you type, the other 59 rows stay as they are. Every row used to be rebuilt each
  * time, saved answers and cards included.
  */
-const ChatRow = memo(function ChatRow({ m, sent, gone, setMsgs, onErr }: { m: Msg; /** sent just now, and not flown in */ sent: boolean; /** the ids of this message's previews that a newer one replaced */ gone: string; setMsgs: Dispatch<SetStateAction<Msg[]>>; /** an error row's chip: try the message again, or open Settings */ onErr: (m: Extract<Msg, { role: 'error' }>, what: 'retry' | 'settings') => void }) {
+const ChatRow = memo(function ChatRow({ m, sent, late, gone, setMsgs, onErr }: { m: Msg; /** sent just now, and not flown in */ sent: boolean; /** sent where the suggestions are leaving: it comes up once they have gone */ late?: boolean; /** the ids of this message's previews that a newer one replaced */ gone: string; setMsgs: Dispatch<SetStateAction<Msg[]>>; /** an error row's chip: try the message again, or open Settings */ onErr: (m: Extract<Msg, { role: 'error' }>, what: 'retry' | 'settings') => void }) {
   const t = useT();
   const replaced = gone ? gone.split(',') : [];
   return (
-    <div data-mid={m.id} className={[sent && 'coach-sent', m.role === 'user' && !m.seeded && 'live'].filter(Boolean).join(' ') || undefined}
+    <div data-mid={m.id} className={[sent && 'coach-sent', sent && late && 'coach-late', m.role === 'user' && !m.seeded && 'live'].filter(Boolean).join(' ') || undefined}
       style={m.role === 'user' ? USER_ROW : OTHER_ROW}>
       {m.role === 'user' && (
         <div className="stack" style={{ alignItems: 'flex-end', gap: 6, maxWidth: '100%' }}>
@@ -273,6 +276,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   const pinned = useRef(true); // the list stays at its end (see below)
   const listMoved = useRef<(() => void) | null>(null); // a message in flight keeps to its landing place as the list moves
   const ride = useRef<((rider: HTMLElement) => { off: number; unride: () => void }) | null>(null); // …and glides with the list (see glide)
+  const afterTips = useRef(new Set<string>()); // messages sent under the leaving suggestions (see ChatRow `late`)
   const pinRef = useRef<((smooth: boolean) => void) | null>(null); // the list to its end (see pin)
   const user = useRef(false); // a finger or a wheel is moving the list (or its fling is still running)
   const movedAt = useRef(0);
@@ -563,7 +567,8 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       } else if (btn) go(btn.animate([{ opacity: 0 }, { opacity: 0, offset: 0.74 }, { opacity: 1 }], { duration: 680, easing: 'linear' }));
       const fly = from.fresh ? FLY_SAID : Math.abs(dy) > 160 ? FLY_FAR : FLY;
       const opts = { duration: fly.duration, easing: fly.easing, fill: 'forwards' as const };
-      const shape = { duration: from.fresh ? FLY_SAID_SHAPE.duration : FLY_SHAPE.duration, easing: from.fresh ? FLY_SAID_SHAPE.easing : FLY_SHAPE.easing, fill: 'forwards' as const };
+      const form = from.fresh ? FLY_SAID_SHAPE : fly === FLY_FAR ? FLY_FAR_SHAPE : FLY_SHAPE;
+      const shape = { duration: form.duration, easing: form.easing, fill: 'forwards' as const };
       const fade = (ms: number, delay = 0) => ({ duration: ms, delay, easing: 'cubic-bezier(.3, 0, .2, 1)', fill: 'backwards' as const });
       const inked = (a: Animation) => { a.finished.then(() => { words.style.color = cs.color; a.cancel(); }, () => {}); return a; };
       const flight = go(copy.animate([{ transform: `translate(${dx}px, ${dy}px) scale(${k})` }, { transform: 'none' }], opts));
@@ -915,6 +920,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       // straight back up as the answer came; judge, 18 Oct). A short answer keeps it under it until the Coach closes (giving it
       // back while the answer was still writing in threw the list down and back up again, judge round 2).
       if (res && th && msgsRef.current.length) th.style.minHeight = `${res.offsetTop + res.offsetHeight - th.offsetTop}px`;
+      if (msgsRef.current.length) afterTips.current.add(id);
       setTipsOut(msgsRef.current.length === 0 ? 'top' : 'resume');
     }
     setInput(''); setPhoto(null); setResumed(false);
@@ -1087,7 +1093,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
                 so the list's end was chased mid-flight, a second glide and a jump; clipped, moves never change its size) */}
             <div className="coach-clip">
               <div className="stack coach-thread" style={{ gap: 16, marginTop: shown.length ? 0 : 16 }}>
-                {listed.map((m) => <ChatRow key={m.id} m={m} sent={m.role === 'user' && !m.seeded && !flown(m.id)} gone={m.role === 'action' ? m.results.filter((r) => replaced.has(r.id)).map((r) => r.id).join(',') : ''} setMsgs={setMsgs} onErr={onErr} />)}
+                {listed.map((m) => <ChatRow key={m.id} m={m} sent={m.role === 'user' && !m.seeded && !flown(m.id)} late={afterTips.current.has(m.id)} gone={m.role === 'action' ? m.results.filter((r) => replaced.has(r.id)).map((r) => r.id).join(',') : ''} setMsgs={setMsgs} onErr={onErr} />)}
                 {/* (inside the list, so they ride its glide as the conversation closes up over where they were) */}
                 {tipsOut === 'resume' && !(resumed && shown.length > 0) && <div className="coach-resume coach-tips-out coach-tips-float" inert style={{ top: tipsTop.current }} onAnimationEnd={(e) => { if (e.target === e.currentTarget) setTipsOut(null); }}>{resumeHead}{tipsBlock}</div>}
               </div>
