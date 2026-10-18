@@ -19,6 +19,7 @@ for (let run = 0; run < RUNS; run++) for (const url of urls) {
     };
   });
   await p.goto(url); await wait(p, 1500); await skipOnboarding(p); await loadDemo(p); await wait(p, 8000);
+  if (process.env.PRE) { await p.evaluate(process.env.PRE); await wait(p, 1000); } // (an experiment: something removed first)
   const cdp = await p.context().newCDPSession(p);
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: RATE });
   await wait(p, 8000); // (idle work done at the slower speed too)
@@ -62,7 +63,19 @@ for (let run = 0; run < RUNS; run++) for (const url of urls) {
         return { ms: Math.round(T.dur / 1000), in: Object.entries(by).sort((a, b) => b[1] - a[1]).slice(0, 14).map(([k, v]) => `${k} ${v.toFixed(1)}`) };
       });
     }
-    res.push({ name, detail, toReady: Math.round(span), cb: sw && sw.cb1 ? +(sw.cb1 - sw.cb0).toFixed(1) : null,
+    // AGG=1: what the page's main thread spent its time on in the window, by kind of work (direct children of its tasks)
+    let agg;
+    if (process.env.AGG && main) {
+      agg = {};
+      const top = tasks.filter((e) => (e.ts - t0) / 1000 + e.dur / 1000 >= a && (e.ts - t0) / 1000 <= z);
+      for (const T of top) for (const e of ev) if (e.ph === 'X' && e.pid === T.pid && e.tid === T.tid && e !== T && e.ts >= T.ts && e.ts + e.dur <= T.ts + T.dur && e.dur > 100 && !/^V8\.|^ThreadController/.test(e.name)) {
+        const k = e.name + (e.args?.data?.url ? '@' + String(e.args.data.url).split('/').pop().replace(/-[\w-]{8}\.js/, '') : '');
+        agg[k] = +((agg[k] || 0) + e.dur / 1000).toFixed(1);
+        if (e.name === 'UpdateLayoutTree' && e.dur > 5000) agg['#bigRecalc'] = (agg['#bigRecalc'] || 0) + 1;
+        if (e.name === 'UpdateLayoutTree') agg['#restyled'] = (agg['#restyled'] || 0) + (e.args?.elementCount ?? e.args?.data?.elementCount ?? 0);
+      }
+    }
+    res.push({ name, detail, agg, toReady: Math.round(span), cb: sw && sw.cb1 ? +(sw.cb1 - sw.cb0).toFixed(1) : null,
       busy: Math.round(win.reduce((a, x) => a + x.d, 0)), longest: +(Math.max(0, ...win.map((x) => x.d))).toFixed(1),
       over8: win.filter((x) => x.d > 8).map((x) => Math.round(x.d)) });
   }
