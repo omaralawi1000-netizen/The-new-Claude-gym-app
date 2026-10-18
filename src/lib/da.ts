@@ -1726,7 +1726,6 @@ export const da: Record<string, string> = {
  "no rest running": "ingen pause i gang",
  "no set left": "intet sæt tilbage",
  "the set has no reps to log": "sættet har ingen gentagelser at logge",
- "too old": "for gammelt",
  "a different rest": "en anden pause",
  "Set {n}": "Sæt {n}",
 };

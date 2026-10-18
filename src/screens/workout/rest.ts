@@ -227,6 +227,8 @@ export function applyDone(at = Date.now(), via = 'message'): boolean {
 /** The last Done ✓ that reached the page and what came of it (Settings › Training shows it: one screenshot says where a
  *  tap stopped). Returns false, for applyDone's "nothing ticked". */
 const DONE_LOG = 'aven.doneLog';
+// the keys the workers keep a Done ✓ under (public/rest-sw.js, android/site/…-rest/sw.js): whole paths, the same everywhere
+const PENDING_DONE = '/aven-pending/done', PENDING_LOG = '/aven-pending/log';
 function noteDone(at: number, via: string, why: string): false {
   try { localStorage.setItem(DONE_LOG, JSON.stringify({ at, heard: Date.now(), via, why })); } catch { /* ignore */ }
   return false;
@@ -234,7 +236,7 @@ function noteDone(at: number, via: string, why: string): false {
 export async function lastDone(): Promise<{ tap?: { at: number; sw: string; wins: number }; page?: { at: number; heard: number; via: string; why: string } }> {
   let tap, page;
   try { page = JSON.parse(localStorage.getItem(DONE_LOG) ?? 'null') ?? undefined; } catch { /* ignore */ }
-  try { const r = typeof caches !== 'undefined' ? await (await caches.open('aven-pending')).match('log') : undefined; tap = r ? await r.json() : undefined; } catch { /* ignore */ }
+  try { const r = typeof caches !== 'undefined' ? await (await caches.open('aven-pending')).match(PENDING_LOG) : undefined; tap = r ? await r.json() : undefined; } catch { /* ignore */ }
   return { tap, page };
 }
 
@@ -254,14 +256,14 @@ export function applyPendingDone(): Promise<void> {
     try {
       if (typeof caches === 'undefined') return;
       const c = await caches.open('aven-pending');
-      const res = await c.match('done');
+      const res = await c.match(PENDING_DONE);
       if (!res) return;
-      await c.delete('done');
       const p = await res.json() as { key?: string; at?: number };
-      if (!p.key || !p.at) return;
-      if (Date.now() - p.at > 30 * 60000) { noteDone(p.at, 'cache', 'too old'); return; }
-      if (isThisRest(p.key)) applyDone(p.at, 'cache');
-      else if (!doneFor) noteDone(p.at, 'cache', 'a different rest');
+      // (the real app and Aven Beta share this cache: another rest's tap is left for its own app, until it's old)
+      if (!p.key || !p.at || Date.now() - p.at > 30 * 60000) { await c.delete(PENDING_DONE); return; }
+      if (!isThisRest(p.key)) return;
+      await c.delete(PENDING_DONE);
+      applyDone(p.at, 'cache');
     } catch { /* no cache storage: nothing waits */ }
   })().finally(() => { pendingRun = null; });
   return pendingRun;

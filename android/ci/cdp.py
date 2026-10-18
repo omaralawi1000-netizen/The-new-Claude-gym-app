@@ -89,13 +89,21 @@ if mode == 'watch':
 if mode == 'seen':
     print('seen:', run(page, "(window.__vis ? 'same page' : 'page was reloaded') + ', now ' + document.visibilityState + (document.hasFocus() ? '+focus' : '') + ', events:' + localStorage.getItem('ci.vis')"))
     sys.exit(0)
+if mode == 'overalert':
+    # what the website's own back-up timer does at the end of a rest (src/lib/androidApp.ts overAppRest)
+    print('overalert:', run(page, """(async () => { const reg = await navigator.serviceWorker.getRegistration('/The-new-Claude-gym-app-rest/');
+      if (!reg) return 'no rest worker';
+      await reg.showNotification('Time for set 2', { body: 'Incline Smith Machine Press · 60 kg × 8', tag: 'aven-rest-over', renotify: true,
+        silent: false, requireInteraction: true, vibrate: [400, 120, 400, 120, 700], data: { kind: 'over', key: 'ci' } });
+      return 'shown'; })()"""))
+    sys.exit(0)
 if mode == 'listen':
     print('listen:', run(page, """(() => { localStorage.setItem('ci.msg', '');
       navigator.serviceWorker.addEventListener('message', (e) => localStorage.setItem('ci.msg', localStorage.getItem('ci.msg') + ' ' + JSON.stringify(e.data)));
       return 'listening, page ' + document.visibilityState; })()"""))
     sys.exit(0)
 if mode == 'heard':
-    print('heard:', run(page, """(async () => { const c = await caches.open('aven-pending'); const l = await c.match('log'); const d = await c.match('done');
+    print('heard:', run(page, """(async () => { const c = await caches.open('aven-pending'); const l = await c.match('/aven-pending/log'); const d = await c.match('/aven-pending/done');
       return 'messages:' + (localStorage.getItem('ci.msg') || ' none') + ' | log ' + (l ? await l.text() : 'none') + ' | pending ' + (d ? await d.text() : 'none'); })()"""))
     sys.exit(0)
 if mode == 'perm':

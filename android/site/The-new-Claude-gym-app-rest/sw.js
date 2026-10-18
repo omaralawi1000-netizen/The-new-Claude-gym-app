@@ -7,6 +7,9 @@
 // app's scope (/The-new-Claude-gym-app/). Notifications from this scope go to the Android app, which turns the rest
 // into a live countdown (android/app/.../RestNotifications.java). The website (src/lib/androidApp.ts) shows and clears
 // them; this worker only answers taps: +30 s and Skip go to the open app, and a tap opens the workout.
+// the keys of a Done ✓ kept for the page: whole paths, the same from every worker and page (a bare 'done' is read
+// against each one's own address, so the app's rest worker and the page each had their own 'done' and never met)
+const PENDING_DONE = '/aven-pending/done', PENDING_LOG = '/aven-pending/log';
 const APP = '/The-new-Claude-gym-app/';
 
 self.addEventListener('install', () => self.skipWaiting());
@@ -25,9 +28,9 @@ self.addEventListener('notificationclick', (e) => {
       const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
       if (done) {
         const c = await caches.open('aven-pending');
-        await c.put('done', new Response(JSON.stringify({ key: d.key, at })));
+        await c.put(PENDING_DONE, new Response(JSON.stringify({ key: d.key, at })));
         // (what Aven's Settings › Training shows as "Last Done ✓", so one screenshot says where it stopped)
-        await c.put('log', new Response(JSON.stringify({ key: d.key, at, sw: 'app', wins: wins.length })));
+        await c.put(PENDING_LOG, new Response(JSON.stringify({ key: d.key, at, sw: 'app', wins: wins.length })));
       }
       wins.forEach((w) => w.postMessage({ type: 'aven-rest-action', action: done ? 'done' : e.action, key: d.key, at }));
       if (e.action === 'skip') { n.close(); return; }
