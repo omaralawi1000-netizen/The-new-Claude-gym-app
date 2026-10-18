@@ -1322,6 +1322,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-skin { position: absolute; inset: 0; display: none; opacity: 0; pointer-events: none; will-change: opacity; }
 /* the ground under the card's copy: the window's own colour, opaque; it clears as the window comes down onto the card */
 .wk-skin-back { position: absolute; inset: 0; background: var(--bg); will-change: opacity; }
+.wk-skin-tone { position: absolute; inset: 0; background: var(--s1); opacity: 0.002; will-change: opacity; }
 /* the card itself while its copy is on the window: only its shadow on the page is left (Active.tsx `cardAt`) */
 .wk-hollow { background: none !important; }
 /* the clock's flight home (landing.ts): its copies ride above the window */

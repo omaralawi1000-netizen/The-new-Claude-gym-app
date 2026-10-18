@@ -43,7 +43,7 @@ const FADE_IN = { inside: [0.025, 0.08], skin: [0.06, 0.16], words: [0.002, 0.03
 type Fades = typeof FADE_OUT & { views?: number[]; mat?: number[] };
 const FADES: Record<Land, { out: Fades; in: Fades }> = {
   A: { out: { ...FADE_OUT, inside: [0.86, 0.99], skin: [0.42, 0.8], mat: FADE_OUT.skin }, in: { ...FADE_IN, inside: [0.68, 0.94], views: [0.86, 0.995], skin: [0.32, 0.66], mat: FADE_IN.skin } },
-  B: { out: { inside: [0.8, 0.97], skin: [0.38, 0.76], mat: [0.089, 0.178], words: [0, 0.098], back: [0.006, 0.056], solid: [0.078, 0.089] }, in: { ...FADE_IN, inside: [0.62, 0.9], views: [0.8, 0.99], skin: [0.3, 0.6], mat: FADE_IN.skin } },
+  B: { out: { inside: [0.5, 0.97], skin: [0.38, 0.76], mat: [0.089, 0.178], words: [0, 0.06], back: [0.006, 0.056], solid: [0.078, 0.089] }, in: { ...FADE_IN, inside: [0.62, 0.9], views: [0.8, 0.99], skin: [0.3, 0.6], mat: FADE_IN.skin } },
   C: { out: { ...FADE_OUT, inside: [0.88, 0.995], skin: [0.42, 0.8], mat: FADE_OUT.skin }, in: { ...FADE_IN, inside: [0.6, 0.9], views: [0.8, 0.99], skin: [0.32, 0.6], mat: FADE_IN.skin } },
 };
 // B: how much the card gives as it catches the window (per unit of the spring's overshoot past the card): it shrinks a
@@ -203,6 +203,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   const wordsO = (pp: number) => Math.max(0.002, 1 - ramp(pp, F().words));
   const matR = () => F().mat ?? F().skin;
   const matO = (pp: number) => (F().mat ? Math.max(0.002, 1 - ramp(pp, F().mat!)) : 1);
+  const toneO = (pp: number) => (F().mat ? Math.max(0.002, ramp(pp, F().mat!)) : 0.002);
   const backO = (pp: number) => ramp(pp, F().back);
   // The page behind steps back while the window grows: it dims and sinks a touch (the sheets' own step back, v0.1.76:
   // contentTransform, to 95 %), the two in step. It starts as the window sets off (eased in, so it is still at rest on the
@@ -374,10 +375,10 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
       step();
     });
   };
-  const skinParts = useRef<{ back: HTMLElement; mat: HTMLElement; words: HTMLElement | null; watch: MutationObserver | null } | null>(null);
+  const skinParts = useRef<{ back: HTMLElement; tone: HTMLElement; mat: HTMLElement; words: HTMLElement | null; watch: MutationObserver | null } | null>(null);
   const skinAt = (pp: number) => {
     const s = skinRef.current, k = skinParts.current; if (!s || !k) return;
-    s.style.opacity = String(skinO(pp)); k.back.style.opacity = String(backO(pp)); k.mat.style.transform = matAt(pp); k.mat.style.opacity = String(matO(pp));
+    s.style.opacity = String(skinO(pp)); k.back.style.opacity = String(backO(pp)); k.mat.style.transform = matAt(pp); k.mat.style.opacity = String(matO(pp)); k.tone.style.opacity = String(toneO(pp));
     if (k.words) k.words.style.opacity = String(wordsO(pp));
   };
   const dropSkin = () => {
@@ -488,6 +489,10 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
       s.dataset.hue = g.bg.closest<HTMLElement>('[data-hue]')?.dataset.hue ?? 'today';
       const back = document.createElement('div');
       back.className = 'wk-skin-back';
+      // the card's own tint on that ground while the card's look is not on it (it crosses with it), so the plain window
+      // is the card's colour, not the darker ground under it
+      const tone = document.createElement('div');
+      tone.className = 'wk-skin-tone'; back.append(tone);
       const mat = copyOf(g.bg); mat.classList.add('wk-skin-mat');
       Object.assign(mat.style, { width: `${g.w}px`, height: `${g.h}px`, borderRadius: `${g.r}px`, willChange: 'transform, opacity' });
       // the resume bar's glass (unfrosted) is part of the ground that clears over its own frosted glass
@@ -511,7 +516,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
         // (its clock ticks while the window travels: the copy keeps up)
         watch = new MutationObserver(place); watch.observe(fg, { subtree: true, childList: true, characterData: true });
       }
-      skinParts.current = { back, mat, words, watch };
+      skinParts.current = { back, tone, mat, words, watch };
       s.style.display = 'block';
     }
     src.current = [g.bg, ...(g.fg ? [g.fg] : [])];
@@ -561,6 +566,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
       morph && k ? go(skinRef.current, (pp) => ({ opacity: String(skinO(pp)) }), F().skin) : null,
       morph && k ? go(k.back, (pp) => ({ opacity: String(backO(pp)) }), F().back) : null,
       morph && k ? go(k.mat, (pp) => ({ transform: matAt(Math.min(pp, matR()[1])), opacity: String(matO(pp)) }), [], true) : null,
+      morph && k && F().mat ? go(k.tone, (pp) => ({ opacity: String(toneO(pp)) }), F().mat) : null,
       morph && k?.words ? go(k.words, (pp) => ({ opacity: String(wordsO(pp)) }), F().words) : null,
       morph ? go(dimRef.current, (pp) => ({ opacity: String(dim(pp)) }), ENVB) : null,
       morph ? go(stageEl(), (pp) => ({ transform: contentTransform(env(pp)) }), ENVB) : null,

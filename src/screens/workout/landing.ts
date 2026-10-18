@@ -23,18 +23,38 @@ export function landStyle(): Land {
 /** The springs of each way: the window's own (`win`, null: Active's usual one) and the clock's (`hero`, null: it rides the window). */
 export const LANDS: Record<Land, { closeWin: Spring | null; openWin: Spring | null; closeHero: Spring | null; openHero: Spring | null }> = {
   A: { closeWin: null, openWin: null, closeHero: apple(0.6, 0.14), openHero: apple(0.46, 0.08) },
-  B: { closeWin: apple(0.62, 0.26), openWin: apple(0.6, 0.22), closeHero: null, openHero: null },
+  B: { closeWin: apple(0.62, 0.26), openWin: apple(0.56, 0.1), closeHero: null, openHero: null },
   C: { closeWin: apple(0.8), openWin: null, closeHero: apple(0.38, 0.18), openHero: apple(0.34, 0.14) },
 };
 
 type Pt = { x: number; y: number };
-/** Where a clock's digits sit (their left edge and middle, on the screen) and its font size. */
+/**
+ * Where a clock's digits sit on the screen: the middle of their ink, and its height (in the clock's own px,
+ * whatever scale it is drawn at). The ink, not the text's box: the window's clock (bold, small) and the card's (thin,
+ * large) have different fonts' ascent and side bearings, so lined up by their boxes their digits sat a few px apart and
+ * showed as two clocks while they crossed; lined up by their ink they lie over each other.
+ */
 export type Anchor = Pt & { f: number };
+let pen: CanvasRenderingContext2D | null = null;
+function inkOf(cs: CSSStyleDeclaration, text: string) {
+  pen ??= document.createElement('canvas').getContext('2d');
+  if (!pen || !text) return null;
+  pen.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+  try { pen.letterSpacing = cs.letterSpacing === 'normal' ? '0px' : cs.letterSpacing; } catch { /* older engines */ }
+  const m = pen.measureText(text);
+  const a = m.actualBoundingBoxAscent, d = m.actualBoundingBoxDescent, fa = m.fontBoundingBoxAscent, fd = m.fontBoundingBoxDescent;
+  return a + d > 0 && fa + fd > 0 ? { l: m.actualBoundingBoxLeft, w: m.actualBoundingBoxLeft + m.actualBoundingBoxRight, a, d, fa, fd } : null;
+}
 export function anchorOf(el: Element): Anchor | null {
   const r = document.createRange(); r.selectNodeContents(el);
   const b = r.getBoundingClientRect();
   if (!b.width || !b.height) return null;
-  return { x: b.left, y: b.top + b.height / 2, f: parseFloat(getComputedStyle(el).fontSize) || 16 };
+  const cs = getComputedStyle(el), m = inkOf(cs, el.textContent ?? '');
+  if (!m) return { x: b.left, y: b.top + b.height / 2, f: parseFloat(cs.fontSize) || 16 };
+  // (the text's box is the font's ascent and descent tall: its baseline is that ascent down from its top, at the scale it is drawn)
+  const k = b.height / (m.fa + m.fd), base = b.top + m.fa * k;
+  // (the middle across too: the two clocks' digits are not equally wide, and lined up by the middle neither end sticks out far)
+  return { x: b.left + (m.w / 2 - m.l) * k, y: base - ((m.a - m.d) / 2) * k, f: m.a + m.d };
 }
 
 /** A copy of a clock, drawn exactly as it is at rest (its own font, colour and size), with its digits' anchor at `a`. */
@@ -77,6 +97,7 @@ export function flyHero(host: HTMLElement, from: HTMLElement, to: HTMLElement, a
   const look0 = copyClock(from, host, a0);
   const look1 = copyClock(to, host, a1);
   const n = fl.frames;
+  const crossLate = a0.f > a1.f; // it is flying from the big clock to the small one: it crosses as it arrives
   const k0: Keyframe[] = [], k1: Keyframe[] = [];
   let gone0 = -1;
   for (let i = 0; i <= n; i++) {
@@ -85,10 +106,10 @@ export function flyHero(host: HTMLElement, from: HTMLElement, to: HTMLElement, a
     // the path: a gentle arc (it leaves a touch sideways first, then drops), its size grows evenly to the eye (geometric)
     const x = lerp(s.x, d.x, w <= 1 ? Math.pow(Math.max(0, w), 0.86) : w);
     const y = lerp(s.y, d.y, w);
-    const f = Math.exp(lerp(Math.log(s.f * s.s), Math.log(d.f * d.s), wc)); // the drawn font size
-    // the crossing: while it is still small, a quick fade over each other (short: the two clocks are different weights and
-    // widths, so a long crossing showed as a doubled clock)
-    const o1 = smooth((wc - 0.03) / 0.045), o0 = 1 - o1;
+    const f = Math.exp(lerp(Math.log(s.f * s.s), Math.log(d.f * d.s), wc)); // the drawn size (of the ink)
+    // the crossing: at its small end (the window's clock), the two lined up by their ink over each other, so it reads as
+    // the digits changing weight, not as two clocks; closing that is as it sets off, opening as it arrives
+    const o1 = crossLate ? smooth((wc - 0.8) / 0.18) : smooth((wc - 0.02) / 0.18), o0 = 1 - o1;
     const s1 = f / a1.f, s0 = f / a0.f;
     k1.push({ transform: `translate(${(x - a1.x).toFixed(2)}px, ${(y - a1.y).toFixed(2)}px) scale(${s1.toFixed(5)})`, opacity: String(Math.max(0.002, o1)) });
     if (gone0 < 0) {
