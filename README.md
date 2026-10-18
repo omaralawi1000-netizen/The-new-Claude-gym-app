@@ -2566,6 +2566,14 @@ Omar trains with music in his earbuds and walks around the gym, so the phone is 
   - **Every tap is also kept** in Cache `aven-pending`, with its time. Behind the lock screen Chrome can pause the page or drop it, and the message is lost. That was Omar's first Beta test: the button showed, but the set didn't tick. The page picks the tap up when it opens and every time it becomes visible again (`rest.ts` `applyPendingDone`). Each rest's Done counts once, whether it arrives as the message, the cache copy, or both.
   - **Heard late, it still counts from the tap.** The set's time is the tap, and the next rest started then, so it may already be over ("Go").
   - The Android app's alert is no longer local-only, so it reaches the watch. Its "Set 2 ✓" line stays when Chrome takes its own copy away just after the tap.
+- **A whole workout from the wrist (18 Oct, after Omar's gym test).** On his watch, "Time for set 2" came with no Done ✓ at all (photo).
+  - The cause: Android had stopped the Aven app during the rest. The alert it then rang in a fresh start had lost its Done words (they weren't saved) and Chrome's buttons (they lived only in memory). Short test rests never showed it.
+  - Now every word is saved, and Chrome's buttons ride along inside the end-of-rest alarm, so a fresh start still has them.
+  - Done ✓ is also handled in the app itself. The next rest starts counting down from the tap, and its alert ("Time for set 3") rings with its own Done ✓. Each rest's notification tag carries the next set's words and its rest, plus the six sets after it (words `n`, `z`, `w`, from `rest.ts` `stepOf` / `stepsAfter`), so the app can carry on while Aven sleeps.
+  - On a rest the app started this way, +30 s and Skip stay in the app (Skip rings the next set at once). The website's Skip means something else.
+  - The rest worker keeps every Done tap as its own cache entry (`/aven-pending/tap-<time>`). It no longer closes Chrome's notification after a Done, so the next taps still reach it.
+  - When Aven opens or wakes, it replays the taps oldest first. Each one ticks the set that was next and starts the rest from the tap's time. Taps for another workout are left alone (the real app and Beta share the cache).
+  - The CI emulator does exactly this: it stops the app mid-rest and then taps Done ✓ twice in a row (`android/ci/emulator-check.sh`).
 - **Tap and say was tried and dropped (same day).** A tap on empty workout space listened for one phrase ("8 at 80") on the phone's mic. Omar's verdict: it needs the phone in his hand, and then the tick is just as fast and never mishears. It was removed before it shipped.
 - Tests: `tests/done.test.ts`. Journey: `scripts/journey-done.mjs` covers Aven closed, and Aven asleep with the message lost.
 
