@@ -50,7 +50,7 @@ The polish plan (`docs/polish-plan.md`) is paused while this runs.
   (what moved, next time's targets, computed locally); a one-tap check-in (energy, soreness, sleep) that makes the next plan
   lighter when needed; smarter deload and wrestling load; long-press anything ("Ask the Coach about this"); small charts in
   the chat; "Undo all", before/after for routine edits, choose which changes to apply, duplicate a routine.
-  - Hands-free sets (a trial on Beta first; Omar tried hands-free before and it misheard him and reacted to him talking to
+  - Hands-free sets — built 18 Oct, on Beta for Omar's trial: Done ✓ on the watch's rest notification + tap-and-say (README "Hands-free sets"). Original idea: (a trial on Beta first; Omar tried hands-free before and it misheard him and reacted to him talking to
     others): never always-on, it listens only after a tap anywhere on the workout (or the earbud button, if Chrome on his
     S26 allows it); it takes only set-shaped answers ("8 at 80", "same again", "skip", "done") and ignores the rest; a
     number far from last time is asked about, not logged; it says back what it logged with a few seconds to say "no".

@@ -2558,3 +2558,19 @@ Tests: `tests/converse.test.ts`, `scripts/journey-coach5.mjs`.
 - Card subtitles roll like titles, and after Undo the "Remembered for next time" line goes back. The title roll no longer has a near-blank moment: the old words fade out for 360 ms, over the new one's start.
 - Finish from "Still training?" opens the finish screen, which also covers Today changing behind it.
 - **Memory leak.** Each switch to or from Today or Food kept the whole old tab alive: Chrome held the calorie ring's `<svg>` with its `<foreignObject>`. The ring now empties and detaches its svg when it goes. Over 60 switches, nodes went from 15.5k to 6.2k, and listeners now stay flat (they used to grow by 13 per switch).
+
+## Hands-free sets (18 Oct 2026, Beta trial)
+Omar trains with music in his earbuds and walks around the gym, so the phone is often out of reach. The earbud button controls the music app, not Aven, so it can't be the trigger. Always-on listening was tried before: it misheard him and reacted to other people. That leaves two paths, and neither one listens by itself.
+- **Done ✓ on the watch (the main path).** When the rest is over, the "Time for set 2" notification (phone, lock screen, Galaxy Watch) gets a "Done ✓ 80 kg × 8" button. One tap ticks that set exactly as planned through `completeSet` (records, haptic, the next rest), and the notification becomes the next rest countdown ("Set 2 ✓ · rest 2:00").
+  - Chrome allows only two buttons on a web notification. So once the rest is over, the native alert's Done reuses the Skip slot, and the page treats a skip that arrives more than 1.5 s after the rest ended as Done.
+  - If no Aven window is open, the service worker keeps the Done in Cache `aven-pending`, and the page applies it once when Aven opens (`rest.ts` `applyPendingDone`).
+  - The native alert is no longer local-only, so it reaches the watch.
+- **Tap and say (when the phone is near).** Turn it on in Settings → Training → Hands-free sets (off by default). Then a tap on empty space in the running workout, List or Focus, listens for one phrase:
+  - What it understands: "8 at 80", "only 6", "same again", "done", "skip", "+30 seconds", and the Danish versions.
+  - Anything else is ignored silently. It stops on its own when you go quiet.
+  - It uses the phone's own mic, so the earbuds keep playing music instead of switching to call mode.
+  - It needs the Groq key, the same Whisper used for dictation.
+  - While it listens, the set it will log gets a soft breathing ring, and the bottom bar's top line cross-fades to "Listening…".
+  - The ring is the row's own edge: same box and radius, opacity only. The row's and the check box's own teal outlines step back meanwhile, so there is one teal edge. (A judge flagged three teal edges and a ring sticking out past the row; both are fixed.)
+- **Feedback that isn't annoying.** Normally it's silent: the set ticks as a tap would, with a small toast that has Undo. The phone speaks a short line (`speechSynthesis`, music dips for a moment) only when it fixed a number ("Logged 80, I heard 18") or didn't get the phrase. "Undo" said right after takes it back.
+- Tests: `tests/handsfree2.test.ts`. Journeys: `scripts/journey-done.mjs` (the notification's Done, including from a closed page) and `scripts/journey-handsfree.mjs`.

@@ -63,6 +63,8 @@ final class RestNotifications {
     static final String ACTION_MORE = "app.aven.android.REST_MORE";
     static final String ACTION_SKIP = "app.aven.android.REST_SKIP";
     static final String ACTION_GONE = "app.aven.android.REST_GONE";
+    /** Done ✓ on "Time for set 2" (phone, lock screen, watch): the website ticks the set that's next as planned */
+    static final String ACTION_DONE = "app.aven.android.REST_DONE";
     static final String EXTRA_CHROME = "chrome";
     private static final String PREFS = "aven_rest2";
 
@@ -71,6 +73,7 @@ final class RestNotifications {
         String chromeTag = "";
         long startedAt, endsAt;
         String exercise = "", line = "", overTitle = "", overBody = "", more = "+30 s", skip = "Skip";
+        String done = "", doneNote = ""; // "Done ✓ 80 kg × 8" and, once tapped, "Set 2 ✓ · 80 kg × 8"
         boolean sound = true; // Settings › Sound in the app
     }
 
@@ -173,6 +176,8 @@ final class RestNotifications {
             r.overBody = j.optString("b");
             r.more = j.optString("p", r.more);
             r.skip = j.optString("k", r.skip);
+            r.done = j.optString("d");
+            r.doneNote = j.optString("y");
             r.sound = j.optInt("q", 1) == 1;
             return r.endsAt > r.startedAt ? r : null;
         } catch (JSONException e) {
@@ -350,12 +355,37 @@ final class RestNotifications {
             .setContentText(r.overBody)
             .setCategory(Notification.CATEGORY_ALARM)
             .setVisibility(Notification.VISIBILITY_PUBLIC)
-            .setLocalOnly(true)
             .setAutoCancel(true)
             .setTimeoutAfter(15 * 60_000L) // left for a long time, it tidies itself away
             .setContentIntent(tap(c));
+        // Done ✓: the set that's next, ticked as planned, from the lock screen or the watch (this alert reaches the watch,
+        // the countdown doesn't). Chrome gives a website's notification two buttons; once the rest is over its Skip can
+        // mean nothing else, so that is how the tap reaches the website (src/screens/workout/rest.ts).
+        if (!r.done.isEmpty() && chromeSkip != null) {
+            b.addAction(new Notification.Action.Builder(null, ember(r.done, c.getColor(R.color.ember)), own(c, ACTION_DONE, chromeSkip)).build());
+        }
         nm.notify(ID_OVER, b.build());
         if (r.sound) clicks(c);
+    }
+
+    /** Done ✓ was tapped: the alert says so for a moment ("Set 2 ✓ · 80 kg × 8"), quietly, until the next rest replaces it. */
+    static void done(Context c) {
+        Rest r = load(c);
+        NotificationManager nm = c.getSystemService(NotificationManager.class);
+        nm.cancel(ID_OVER);
+        if (r == null || r.doneNote.isEmpty()) return;
+        Notification.Builder b = new Notification.Builder(c, CH_REST)
+            .setSmallIcon(R.drawable.ic_stat_aven)
+            .setColor(c.getColor(R.color.ember))
+            .setContentTitle(r.doneNote)
+            .setContentText(r.exercise)
+            .setLocalOnly(true) // (the watch has had its buzz)
+            .setOnlyAlertOnce(true)
+            .setVisibility(Notification.VISIBILITY_PUBLIC)
+            .setAutoCancel(true)
+            .setTimeoutAfter(90_000L)
+            .setContentIntent(tap(c));
+        nm.notify(ID_OVER, b.build());
     }
 
     private static MediaPlayer player; // kept until it has played (a player nobody holds can stop halfway)

@@ -6,7 +6,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
 
-/** +30 s and Skip on the countdown (and it being swiped away): done here at once, then passed on to the website. */
+/** +30 s and Skip on the countdown (and it being swiped away), Done ✓ on the alert: done here at once, then passed on to
+ *  the website. */
 public class RestActionReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context c, Intent intent) {
@@ -15,6 +16,7 @@ public class RestActionReceiver extends BroadcastReceiver {
         if (RestNotifications.ACTION_MORE.equals(a)) RestNotifications.more(c);
         else if (RestNotifications.ACTION_SKIP.equals(a)) RestNotifications.stopAll(c, true);
         else if (RestNotifications.ACTION_GONE.equals(a)) RestNotifications.swiped(c);
+        else if (RestNotifications.ACTION_DONE.equals(a)) RestNotifications.done(c);
         PendingIntent chrome = Build.VERSION.SDK_INT >= 33
             ? intent.getParcelableExtra(RestNotifications.EXTRA_CHROME, PendingIntent.class)
             : intent.getParcelableExtra(RestNotifications.EXTRA_CHROME);

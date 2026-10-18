@@ -2462,3 +2462,15 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 .watch-ic { width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center; flex: none; background: var(--s3); color: var(--tx); }
 .watch-stats { margin-top: 18px !important; }
 .watch-stats .num { font-weight: 300 !important; letter-spacing: -.01em; }
+
+/* hands-free: the set it will log breathes softly while it listens (opacity only; it stops the moment it has heard you) */
+/* the ring IS the row's edge (same box, same radius): the row's own teal outline and the check's step back while it
+   listens, so there is one teal edge, not three */
+[data-set].hf-listen > .wk-set { box-shadow: inset 0 0 0 1px transparent; }
+[data-set].hf-listen > .wk-set .wk-check { box-shadow: inset 0 0 0 1.75px var(--line-2); }
+[data-set].hf-listen > .wk-set::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 1;
+  box-shadow: inset 0 0 0 1.75px color-mix(in srgb, var(--ac) 85%, transparent), 0 0 10px color-mix(in srgb, var(--ac) 24%, transparent);
+  animation: hfBreath 1600ms cubic-bezier(.45, 0, .55, 1) 420ms infinite alternate both, hfIn 420ms var(--ease-smooth); }
+@keyframes hfBreath { from { opacity: 1; } to { opacity: .5; } }
+@keyframes hfIn { from { opacity: 0; } }
+:root[data-motion='reduce'] [data-set].hf-listen > .wk-set::after { animation: none; }

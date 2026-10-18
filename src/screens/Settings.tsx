@@ -279,6 +279,7 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
                 <ToggleRow label={t('Rest-timer sound')} on={st.sound} onChange={(v) => set({ sound: v })} />
                 <RestAlertRow />
                 <ToggleRow label={t('Haptic feedback')} on={st.haptics} onChange={(v) => set({ haptics: v })} />
+                <ToggleRow label={t('Hands-free sets')} hint={t('In a workout, tap any empty spot and say the set: “8 at 80”, “only 6”, “same again”. Anything else is ignored. Your music keeps playing.')} on={!!st.handsFree} onChange={(v) => set({ handsFree: v })} />
               </div>
             )}
             {sec === 'food' && <FoodSettings />}

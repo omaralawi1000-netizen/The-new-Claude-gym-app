@@ -7,6 +7,7 @@ import { fmtTime } from '../../lib/dates';
 import type { SessionExercise, SetRecord, WorkoutSession } from '../../lib/types';
 import { exName, fmtSet, isStrength } from './common';
 import { adjustRest, skipRest } from './actions';
+import { completeSet } from './complete';
 import { fmtNum, kgToDisplay } from '../../lib/units';
 import { androidRest, clearAppRest, inAndroidApp, noteAndroidApp, overAppRest, showAppRest } from '../../lib/androidApp';
 
@@ -134,6 +135,9 @@ function restPayload(ended = false) {
     icon: `${import.meta.env.BASE_URL}notif-icon.png`, badge: `${import.meta.env.BASE_URL}badge-96.png`,
     more: tNow('+30 s'), skip: tNow('Skip rest'), skipShort: tNow('Skip'),
     sound: st.settings.sound,
+    // the alert's Done ✓: the set that's next, as planned (one tap on the watch logs it; see applyDone)
+    done: w ? `${tNow('Done')} ✓${w.target ? ` ${w.target}` : ''}` : '',
+    doneNote: w ? `${(w.label === 'W' ? tNow('Warm-up') : tNow('Set {n}', { n: w.label }))} ✓${w.target ? ` · ${w.target}` : ''}` : '',
   };
 }
 type Payload = NonNullable<ReturnType<typeof restPayload>>;
@@ -192,6 +196,40 @@ export function offerRestAlerts(toast: (text: string, o: { actionLabel: string; 
   } catch { /* ignore */ }
 }
 
+/**
+ * Done ✓ from the rest-over alert: the set that's next (the one the alert named) is ticked as planned, exactly as a tap
+ * ticks it (records, the next rest), and if Aven is out of sight the next rest goes to the lock screen and watch at once.
+ * Each rest's Done counts once (the alert, a page that was asleep, a tap made while Aven was closed).
+ */
+let doneFor = '';
+export function applyDone(): boolean {
+  const a = useStore.getState().active;
+  if (!a?.rest) return false;
+  const once = `${a.id}:${a.rest.endsAt}`;
+  if (doneFor === once) return false;
+  const nx = nextSetOf(a);
+  if (!nx) return false;
+  doneFor = once;
+  const ok = !!completeSet(nx.se.id, nx.set.id);
+  if (ok && !onScreen()) { const r = restPayload(); if (r && notifyOn()) handOff(r); }
+  return ok;
+}
+
+/** A Done ✓ tapped while Aven was closed waits in the service worker's cache: done when Aven opens (if still that rest). */
+export async function applyPendingDone(): Promise<void> {
+  try {
+    const c = await caches.open('aven-pending');
+    const res = await c.match('done');
+    if (!res) return;
+    await c.delete('done');
+    const p = await res.json() as { key?: string; at?: number };
+    const a = useStore.getState().active;
+    if (!a?.rest || !p.key || !p.at || Date.now() - p.at > 30 * 60000) return;
+    const keys = [`${a.id}:${a.rest.endsAt}`, `${a.id}:${a.rest.endsAt - a.rest.total * 1000}`];
+    if (keys.includes(p.key)) applyDone();
+  } catch { /* no cache storage: nothing waits */ }
+}
+
 /** Bring the live workout to the front (from a notification tap or the ?do=workout link). */
 export function openWorkout() {
   if (!useStore.getState().active) return;
@@ -237,6 +275,7 @@ export function useRestCue() {
   useEffect(() => {
     noteAndroidApp();
     androidRest(); // ready before you ever leave mid-rest
+    void applyPendingDone(); // a Done ✓ tapped on the watch while Aven was closed
     if (!document.hidden) backInApp(); // opened again from the home screen: a notification left over has done its job
     const on = () => {
       if (!document.hidden) { backInApp(); return; }
@@ -252,6 +291,9 @@ export function useRestCue() {
         if (!a?.rest) return;
         const keys = [`${a.id}:${a.rest.endsAt}`, `${a.id}:${a.rest.endsAt - a.rest.total * 1000}`]; // website's / app's
         if (!keys.includes(e.data.key)) return;
+        // Done ✓ on the rest-over alert (phone, lock screen, watch): the app's alert has only Chrome's Skip to call the
+        // page with, and once the rest is over a Skip can mean nothing else. The website's own alert says 'done'.
+        if (e.data.action === 'done' || (e.data.action === 'skip' && a.rest.endsAt < Date.now() - 1500)) { applyDone(); return; }
         if (e.data.action === 'more') adjustRest(30); else skipRest();
         if (!onScreen()) { const r = restPayload(); if (r && notifyOn()) handOff(r); }
         return;

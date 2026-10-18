@@ -303,6 +303,8 @@ export interface Settings {
   background?: 'classic' | 'orb' | 'tabs' | 'sunrise' | 'mesh' | 'dots' | 'time' | 'night' | 'photo';
   /** which view a workout opens in; missing or 'last' = the one last used on this phone */
   workoutView?: 'last' | 'list' | 'focus';
+  /** hands-free sets: a tap on an empty part of the running workout listens for one set ("8 at 80", "same again") */
+  handsFree?: boolean;
   /** what Today shows; anything switched off is simply gone (and so is the water on the Food screen if `water` is off) */
   widgets: { water: boolean; quick: boolean; recents: boolean; week: boolean; weight: boolean; targets: boolean; muscles: boolean; records: boolean };
   /** the Coach's pin on Today: things it noticed (lib/nudges.ts); on unless switched off */

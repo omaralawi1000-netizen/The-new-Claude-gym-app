@@ -19,6 +19,12 @@ self.addEventListener('notificationclick', (e) => {
     e.waitUntil((async () => {
       const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
       wins.forEach((w) => w.postMessage({ type: 'aven-rest-action', action: e.action, key: d.key }));
+      // the app's rest-over alert has a Done ✓ that comes as this Skip once the rest is over (it can mean nothing else
+      // then); with Aven closed it waits in the cache until Aven opens and ticks the set
+      if (e.action === 'skip' && !wins.length && d.endsAt && Date.now() > d.endsAt + 1500) {
+        const c = await caches.open('aven-pending');
+        await c.put('done', new Response(JSON.stringify({ key: d.key, at: Date.now() })));
+      }
       if (e.action === 'skip') { n.close(); return; }
       // nobody to tell (the app was closed): move Chrome's copy along too, so it matches the countdown
       if (!wins.length && d.endsAt) {

@@ -68,6 +68,8 @@ async function restOver(r, by) {
   await self.registration.showNotification(r.overTitle, {
     body: r.overBody, tag: OVER_TAG, renotify: true, silent: false, requireInteraction: true, icon: r.icon, badge: r.badge,
     vibrate: [400, 120, 400, 120, 700],
+    // Done ✓: the set that's next, ticked as planned (from the lock screen or a watch)
+    ...(r.done ? { actions: [{ action: 'done', title: r.done }] } : {}),
     data: { kind: 'over', key: r.key, due: r.endsAt, firedAt: Date.now(), by },
   });
 }
@@ -95,6 +97,17 @@ function restClick(e) {
         const endsAt = r.endsAt + 30000;
         await startRest({ ...r, endsAt, key: `${r.id}:${endsAt}`, title: backAt(r, endsAt) });
       } // else: this worker was restarted and lost the rest; the app (if it's still running) sends the new one
+    })());
+    return;
+  }
+  // Done ✓ on the alert: the page ticks the set (it keeps its own idea of which one); with Aven closed it waits in the
+  // cache until Aven opens (src/screens/workout/rest.ts applyPendingDone)
+  if (e.action === 'done') {
+    n.close();
+    e.waitUntil((async () => {
+      const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      wins.forEach((w) => w.postMessage({ type: 'aven-rest-action', action: 'done', key: data.key }));
+      if (!wins.length) { const c = await caches.open('aven-pending'); await c.put('done', new Response(JSON.stringify({ key: data.key, at: Date.now() }))); }
     })());
     return;
   }
