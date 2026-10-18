@@ -2583,7 +2583,7 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 /* tags are text, not buttons */
 /* muscle tags under a card's title: quiet glass bubbles, flatter than buttons (no rim, no shadow) so they read as labels */
 :root:not([data-theme='light']) span.chip:not(.on, .acc) { background: rgba(255,255,255,.06) !important; box-shadow: inset 0 0 0 1px rgba(255,255,255,.07), inset 0 1px 0 rgba(255,255,255,.05) !important; color: var(--tx2); }
-:root:not([data-theme='light']) span.chip.sm:not(.on, .acc) { height: 26px; padding: 1.5px 10px 0; font-size: 12px; font-weight: 560; letter-spacing: .01em; }
+:root:not([data-theme='light']) span.chip.sm:not(.on, .acc) { height: 26px; padding: 0 10px; font-size: 12px; font-weight: 560; letter-spacing: .01em; }
 /* week strip: the day is glass, plan letters are plain letters, done stays a filled square */
 :root:not([data-theme='light']) .screen .plinth > button.press > span[style*='var(--s3)'], :root:not([data-theme='light']) .screen .plinth > button.press > span[style*='background: var(--ac-soft)'] { background: transparent !important; }
 /* the insight banner: card glass with the same rim, its icon keeps its colour */
@@ -2616,10 +2616,15 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 
 /* ==== Text and bubble polish (Omar 18 Oct: "polish it if it's off centre") ==== */
 /* sideways rows in sheets (food tools, look tiles) fade where more is hiding, like the chip rows, instead of a hard cut */
-:is(.tools, .pal).fade-x { --fl: 0px; --fr: 0px;
-  -webkit-mask-image: linear-gradient(to right, transparent, rgba(0,0,0,.14) calc(var(--fl) * .3), rgba(0,0,0,.5) calc(var(--fl) * .6), rgba(0,0,0,.86) calc(var(--fl) * .85), #000 var(--fl), #000 calc(100% - var(--fr)), rgba(0,0,0,.86) calc(100% - var(--fr) * .85), rgba(0,0,0,.5) calc(100% - var(--fr) * .6), rgba(0,0,0,.14) calc(100% - var(--fr) * .3), transparent);
-  mask-image: linear-gradient(to right, transparent, rgba(0,0,0,.14) calc(var(--fl) * .3), rgba(0,0,0,.5) calc(var(--fl) * .6), rgba(0,0,0,.86) calc(var(--fl) * .85), #000 var(--fl), #000 calc(100% - var(--fr)), rgba(0,0,0,.86) calc(100% - var(--fr) * .85), rgba(0,0,0,.5) calc(100% - var(--fr) * .6), rgba(0,0,0,.14) calc(100% - var(--fr) * .3), transparent); }
+:is(.tools, .pal).fade-x { --fl: 0px; --fr: 0px; --ml: var(--fl); --mr: var(--fr);
+  -webkit-mask-image: linear-gradient(to right, transparent, rgba(0,0,0,.14) calc(var(--ml) * .3), rgba(0,0,0,.5) calc(var(--ml) * .6), rgba(0,0,0,.86) calc(var(--ml) * .85), #000 var(--ml), #000 calc(100% - var(--mr)), rgba(0,0,0,.86) calc(100% - var(--mr) * .85), rgba(0,0,0,.5) calc(100% - var(--mr) * .6), rgba(0,0,0,.14) calc(100% - var(--mr) * .3), transparent);
+  mask-image: linear-gradient(to right, transparent, rgba(0,0,0,.14) calc(var(--ml) * .3), rgba(0,0,0,.5) calc(var(--ml) * .6), rgba(0,0,0,.86) calc(var(--ml) * .85), #000 var(--ml), #000 calc(100% - var(--mr)), rgba(0,0,0,.86) calc(100% - var(--mr) * .85), rgba(0,0,0,.5) calc(100% - var(--mr) * .6), rgba(0,0,0,.14) calc(100% - var(--mr) * .3), transparent); }
+/* the look tiles' row has 22 px of side room: the fade stays in it, so a whole tile is never dimmed */
+.pal.fade-x { --ml: min(var(--fl), 22px); --mr: min(var(--fr), 22px); }
 /* labels centred on their capitals, not on the font's line box (which sat them 1-1.5 px high in Geist): switchers, meal names */
 .seg button, .meal-row .meal-name { text-box: trim-both cap alphabetic; }
 /* a leading icon's own empty edge made icon + label sit ~1 px right of centre */
 :is(.chip, .btn) > svg:first-child { margin-left: -2px; }
+:is(.chip.sm, .btn.sm) > svg:first-child { margin-left: -1px; }
+/* muscle tags: text only, so the label alone moves down to its capitals' centre */
+:root:not([data-theme='light']) span.chip.sm:not(.on, .acc):not(:has(svg)) { padding-top: 1.5px; }
