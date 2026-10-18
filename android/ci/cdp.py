@@ -115,6 +115,10 @@ if mode == 'heard':
 if mode == 'perm':
     print(run(page, "(async () => 'page sees ' + Notification.permission + ' (query: ' + (await navigator.permissions.query({name: 'notifications'})).state + ')')()"))
     sys.exit(0)
+if mode == 'hclast':
+    # the watch's numbers that last reached the page (lib/healthSync.ts keeps a short note of each), and the address now
+    print('hclast:', run(page, "JSON.stringify({last: localStorage.getItem('aven.hc.last'), url: location.href.length})"))
+    sys.exit(0)
 if mode == 'clear':
     print('clear:', run(page, CLEAR))
     sys.exit(0)
