@@ -129,9 +129,13 @@ export function mergeHc(p: HcPayload, cur: { activities: ActivityLog[]; steps: S
  * starts and whenever the address changes (the app opening an Aven that is already running only changes the "#").
  */
 export function applyHcFromAddress(): void {
-  if (!/(?:^#|&)hc=/.test(location.hash)) return;
-  const len = location.hash.length;
-  const p = parseHc(location.hash);
+  // the Android app's address arrives as "#hc%3D…": Android writes the "=" in its coded form (Uri.Builder.fragment),
+  // and the page looked only for "hc=", so every answer was dropped (found on the CI emulator, 18 Oct)
+  let hash = location.hash;
+  try { hash = decodeURIComponent(hash); } catch { /* as it is */ }
+  if (!/(?:^#|&)hc=/.test(hash)) return;
+  const len = hash.length;
+  const p = parseHc(hash);
   // (out of the address either way: a reload or a shared link must not carry it)
   try { history.replaceState(history.state, '', location.pathname + location.search); } catch { /* fine */ }
   // what the Android app sent back last, as plain facts (the Watch screen shows them: one screenshot says where it stops)

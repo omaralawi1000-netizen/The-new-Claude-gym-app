@@ -194,6 +194,35 @@ cdp get | tee -a shots/carry-over.txt
 timeout 15 adb shell dumpsys activity activities | grep -m2 "ResumedActivity" | tee -a shots/carry-over.txt
 timeout 15 adb exec-out screencap -p > shots/6b-app.png
 
+# 3b. the watch's numbers come back in the address (HealthActivity → AvenLauncher → Chrome, "#hc=…") while Aven is
+# already open. Omar's phone: a short answer ("not allowed") got through, the full one never did. Which sizes arrive?
+hcsize() { python3 - "$1" <<'PY'
+import base64, json, sys, time
+n = int(sys.argv[1]); now = int(time.time() * 1000)
+ex = [{"id": "%036d" % i, "t": "walk", "s": now - (i + 1) * 3600000, "e": now - (i + 1) * 3600000 + 1800000, "src": "com.sec.android.app.shealth", "hr": 120, "hx": 150, "kc": 200, "m": 2000} for i in range(n)]
+o = {"v": 1, "avail": True, "on": True, "granted": True, "at": now, "days": [], "ex": ex}
+print(base64.urlsafe_b64encode(json.dumps(o).encode()).decode().rstrip("="))
+PY
+}
+for n in 0 5 20 60; do
+  P=$(hcsize $n)
+  adb shell "am start -n app.aven.android/.AvenLauncher --ez aven.fresh true -d '${SITE}#hc=$P'" >/dev/null
+  sleep 7
+  cdp hclast | grep -v '^pages' | sed "s/^/$n workouts (${#P} chars): /" | tee -a shots/hc-size.txt
+done
+
+# 3c. Connect watch for real, from the page in the app, with Health Connect access already given (Omar's phone: the
+# pop-up closed and no answer ever reached Aven)
+for x in READ_STEPS READ_EXERCISE READ_HEART_RATE READ_ACTIVE_CALORIES_BURNED READ_DISTANCE; do
+  adb shell pm grant app.aven.android android.permission.health.$x 2>&1 | head -1 | sed "s/^/grant $x: /" | tee -a shots/hc-connect.txt
+done
+adb logcat -c
+cdp connect | grep -v '^pages' | tee -a shots/hc-connect.txt
+sleep 14
+cdp hclast | grep -v '^pages' | sed "s/^/after connect: /" | tee -a shots/hc-connect.txt
+timeout 15 adb exec-out screencap -p > shots/7-after-connect.png
+timeout 20 adb logcat -d | grep -i "AvenHealth\|ActivityTaskManager: START\|Displayed app.aven\|HealthActivity\|AvenLauncher\|LauncherActivity\|ExternalNav\|cr_TWA\|Background activity\|BAL\|AndroidRuntime" | tail -60 | tee -a shots/hc-connect.txt
+
 # 4. Omar's path: the app's notifications off, then switched on in Settings later. When does the website see it?
 perm() { timeout 10 adb shell am start -n app.aven.android/com.google.androidbrowserhelper.trusted.LauncherActivity; sleep 8
   cdp perm | grep -v '^pages' | sed "s/^/$1: /" | tee -a shots/perm-path.txt; timeout 10 adb shell input keyevent KEYCODE_HOME; sleep 2; }

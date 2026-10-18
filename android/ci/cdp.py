@@ -23,10 +23,10 @@ def pages():
     return [t for t in tabs if t.get('type') == 'page' and SITE in t.get('url', '')]
 
 
-def run(page, expr):
+def run(page, expr, gesture=False):
     ws = websocket.create_connection(page['webSocketDebuggerUrl'], suppress_origin=True, timeout=30)
     ws.send(json.dumps({'id': 1, 'method': 'Runtime.evaluate',
-                        'params': {'expression': expr, 'returnByValue': True, 'awaitPromise': True}}))
+                        'params': {'expression': expr, 'returnByValue': True, 'awaitPromise': True, 'userGesture': gesture}}))
     while True:
         msg = json.loads(ws.recv())
         if msg.get('id') == 1:
@@ -114,6 +114,19 @@ if mode == 'heard':
     sys.exit(0)
 if mode == 'perm':
     print(run(page, "(async () => 'page sees ' + Notification.permission + ' (query: ' + (await navigator.permissions.query({name: 'notifications'})).state + ')')()"))
+    sys.exit(0)
+if mode == 'hclast':
+    # the watch's numbers that last reached the page (lib/healthSync.ts keeps a short note of each), and the address now
+    print('hclast:', run(page, "JSON.stringify({last: localStorage.getItem('aven.hc.last'), url: location.href.length})"))
+    sys.exit(0)
+if mode == 'connect':
+    # Settings › Watch › Connect watch, as a tap does it (lib/healthSync.ts noteAsk + hcLink)
+    print('connect:', run(page, """(() => {
+      localStorage.setItem('aven.hc.ask', JSON.stringify({ what: 'connect', at: Date.now() }));
+      const ret = encodeURIComponent(location.origin + location.pathname);
+      location.href = 'intent://health/connect?return=' + ret + '#Intent;scheme=aven;package=app.aven.android;end';
+      return 'tapped at ' + location.href.length;
+    })()""", gesture=True))
     sys.exit(0)
 if mode == 'clear':
     print('clear:', run(page, CLEAR))
