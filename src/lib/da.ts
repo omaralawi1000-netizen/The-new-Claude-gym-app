@@ -1761,5 +1761,6 @@ export const da: Record<string, string> = {
  "What should I do next time?": "Hvad skal jeg gøre næste gang?",
  "Last set done · open Aven to finish": "Sidste sæt klaret · åbn Aven for at afslutte",
  "Rest {time}": "Pause {time}",
+ "App log": "App-log",
  "Set {n}": "Sæt {n}",
 };

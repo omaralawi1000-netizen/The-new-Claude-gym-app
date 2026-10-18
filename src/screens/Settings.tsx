@@ -408,7 +408,13 @@ function RestAlertRow() {
         <div className="xs t2" style={{ marginTop: 2 }}>{perm === 'denied' ? (app ? t('Notifications are off for the Aven app. Turn them on in your phone’s Settings › Apps › Aven › Notifications, then force stop Chrome (Settings › Apps › Chrome) so it notices, and open Aven again.') : t('Notifications are blocked for Aven in your browser settings.')) : t('Shows when rest is over and buzzes, even in another app or with the screen off.')}</div>
         {android && line && <div className="xs t3" style={{ marginTop: 4, wordBreak: 'break-word' }}>{line}</div>}
         {android && doneLine && <div className="xs t3" style={{ marginTop: 2 }}>{doneLine}{clickLine && <> · {clickLine}</>}</div>}
-        {android && <button className="btn sm press" style={{ marginTop: 8 }} onClick={test}>{t('Send a test')}</button>}
+        {android && (
+          <div className="row-flex" style={{ gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+            <button className="btn sm press" onClick={test}>{t('Send a test')}</button>
+            {/* the Android app's own log of the rest timer (what it got from Chrome, what it rang, whether a Done ✓ reached Chrome) */}
+            {check?.seen && <a className="btn sm ghost press" href="intent://restlog#Intent;scheme=aven;package=app.aven.android;end">{t('App log')}</a>}
+          </div>
+        )}
         {late && <div className="xs t3" style={{ marginTop: 2 }}>{late.ms < 2000 ? t('Last alert came on time.') : t('Last alert came {n} s late.', { n: Math.round(late.ms / 1000) })}</div>}
       </div>
       <Toggle on={on} onChange={toggle} label={t('Rest timer on lock screen')} />
