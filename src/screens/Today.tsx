@@ -17,6 +17,7 @@ import { defaultQty } from './food/Detail';
 import { useCovered, useNow, useScreenStore } from '../lib/hooks';
 import type { AppData, Routine } from '../lib/types';
 import { exName } from './workout/common';
+import { MuscleTags } from './MuscleTags';
 import { cardOrder, NextTargets, MusclesWeek, RecentRecords } from './TodayCards';
 import { Roll } from '../ui/Roll';
 import { CoachPin } from '../ui/CoachPin';
@@ -198,6 +199,7 @@ export function TodayScreen() {
               <div style={{ minWidth: 0 }}>
                 <div className="display" style={{ fontSize: 56, fontStyle: 'italic', lineHeight: 0.95 }}>{routine.name}</div>
                 <div className="small t2 num" style={{ marginTop: 8 }}>{t(routine.items.length === 1 ? '1 exercise' : '{n} exercises', { n: routine.items.length })} · ~{estMinutes(routine)} min{plan?.source === 'override' && plan.originDate ? ` · ${t('Rescheduled')}` : ''}</div>
+                <MuscleTags routine={routine} style={{ marginTop: 14 }} />
               </div>
               <div className="stack" style={{ gap: 10, alignItems: 'center', flex: 'none' }}>
                 <button className="icon-btn acc press" style={{ width: 68, height: 68 }} aria-label={doneToday.length ? t('Start again') : t('Start workout')} onClick={() => start(routine)}><Icon name="play" size={26} /></button>
