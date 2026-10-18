@@ -1,3 +1,5 @@
+import { encodePng } from './glow';
+
 /**
  * The light dock's outer shadow (styles.css `.tabbar.glass`, 0 8px 24px -12px rgba(30, 40, 70, .25)) as a dithered picture.
  * The phone draws a blurred shadow in whole levels, which showed as faint coloured rings where it fades out at the dock's
@@ -71,9 +73,9 @@ export function installDockShadow() {
     const W = nav.offsetWidth, H = nav.offsetHeight, key = `${W}x${H}`;
     if (!W || !H || key === made) return;
     made = key;
-    const d = paint(W, H), c = new OffscreenCanvas(d.width, d.height), g = c.getContext('2d'); if (!g) return;
-    g.putImageData(d, 0, 0);
-    void c.convertToBlob({ type: 'image/png' }).then(async (b) => {
+    // (the file is made in the glow worker: made here it held the page up for over half a second after launch)
+    void encodePng(paint(W, H)).then(async (b) => {
+      if (!b) { made = ''; return; }
       const u = URL.createObjectURL(b), im = new Image(); im.src = u; await im.decode().catch(() => {});
       const root = document.documentElement;
       root.style.setProperty('--dock-shadow', `url(${u})`); root.classList.add('dock-shadow');

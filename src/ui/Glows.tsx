@@ -81,7 +81,7 @@ export function FieldGlow({ kind }: { kind: BgKind }) {
  * Paints the other tabs' fields ahead, while the page is idle, so a tab switch finds its picture ready (the new field then
  * shows it from its first frame instead of swapping the gradient for it after the cross-fade).
  */
-let prewarmAt = 0, prewarmIdle = 0;
+let prewarmAt = 0, prewarmIdle = 0, prewarmed = false;
 function prewarm(field: HTMLElement, kind: BgKind) {
   const run = () => {
     const parent = field.parentElement; if (!parent || !field.isConnected) return;
@@ -104,9 +104,11 @@ function prewarm(field: HTMLElement, kind: BgKind) {
       if (!recall(k, false)) void paintPlan(plan, true);
     }
   };
-  // (once the switch that brought this field has played: the worker's painting then can't take time from its animation)
+  // (once the switch that brought this field has played: the worker's painting then can't take time from its animation.
+  // After launch sooner, so a tab tapped right away finds its picture ready: the launch's own motion is over by then)
   clearTimeout(prewarmAt); unIdle(prewarmIdle);
-  prewarmAt = window.setTimeout(() => { prewarmIdle = whenIdle(run, 4000); }, 2500);
+  const first = !prewarmed; prewarmed = true;
+  prewarmAt = window.setTimeout(() => { prewarmIdle = whenIdle(run, first ? 1500 : 4000); }, first ? 600 : 2500);
 }
 
 /** the opacity `el` is headed for (its fade's end, not where the fade is now) */

@@ -246,8 +246,8 @@ function svgSize(url: string): [number, number] | null {
   return vb ? [+vb[1], +vb[2]] : null;
 }
 
-/** pictures decoded once, by address (the quick picture in glow.ts draws them at once, without waiting) */
-export const decoded = new Map<string, HTMLImageElement>();
+/** pictures decoded once, by address */
+const decoded = new Map<string, HTMLImageElement>();
 export async function decode(url: string): Promise<HTMLImageElement | null> {
   const had = decoded.get(url); if (had) return had;
   const el = new Image(); el.src = url;
@@ -292,20 +292,4 @@ export async function loadPictures(srcs: GlowSrc[], w: number, h: number): Promi
     src.img.bm = await createImageBitmap(c); src.img.x = 0; src.img.y = 0; src.img.w = w; src.img.h = h;
   }
   return true;
-}
-
-/** The pixels of each source's picture at a w × h canvas's size, drawn here and now (null where a source has none); null if
- * a picture isn't decoded yet (start one with `decode`) */
-export function picturesNow(srcs: GlowSrc[], w: number, h: number): (Uint8ClampedArray | null)[] | null {
-  const out: (Uint8ClampedArray | null)[] = [];
-  for (const src of srcs) {
-    const url = src.img?.url;
-    if (!url) { out.push(null); continue; }
-    const el = decoded.get(url); if (!el) return null;
-    const g = new OffscreenCanvas(w, h).getContext('2d', { willReadFrequently: true }); if (!g) return null;
-    g.setTransform(...inverse(src.m));
-    placePicture(g, src, el);
-    out.push(g.getImageData(0, 0, w, h).data);
-  }
-  return out;
 }

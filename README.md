@@ -1902,9 +1902,11 @@ the workout window: the phone draws CSS gradients and blur output in whole 8-bit
   everywhere, e.g. Today 50.8 → 47.3 MB, workout 54.4 → 48.1 MB, Train 57.0 → 45.2 MB, sheet open 69.8 → 62.6 MB.
   Page memory is about 30 MB higher (the kept pictures, capped at 48 MB).
 - Round 3 after the judge (same day):
-  - No quick picture any more: one painter (`src/ui/glowPaint.ts`) runs in the worker and, when a picture is needed at
-    once, on the page, so the two differ only in their noise (under half a step per 8 x 8 block, `tests/glowPaint.test.ts`).
-    The mid-switch frame shows the final dithered picture.
+  - No quick picture any more: one painter (`src/ui/glowPaint.ts`), in the worker only (painting a whole field on the
+    page, and making the background-image glows' and the dock shadow's PNG files there, froze the page for 0.5-1.3 s in
+    the first seconds after launch: files are now made in the worker too, `encodePng`). The other tabs' fields are
+    painted ahead 0.6 s after launch; a tab tapped before that shows the CSS field until its picture is ready (a few
+    hundred ms, while it fades in). The mid-switch frame shows the final dithered picture.
   - Theme switch: the other theme's pictures are painted ahead while idle, read from a hidden twin frame (the page's own
     styles with the other theme on its root), so a switch only looks each glow's plan up by state and draws it. Reading
     styles during the switch (the old way) made the browser redo the whole page's styles for each glow; so is anything
@@ -1917,7 +1919,8 @@ the workout window: the phone draws CSS gradients and blur output in whole 8-bit
   - Glows that move by themselves (`SelfGlow`: Orb light, orb screen halo, Sunrise sun, workout top) are background
     images now, like `ImgGlow`: no canvas, no layer (Orb light 64-66 layers on base → 63 on every run).
   - Field elements keep their CSS background colour (no layer change at the end of a theme switch).
-  - Grain in the pictures: fine, grey and as strong as the CSS grain (within 7%). Flat areas get no dither.
+  - Grain in the pictures: fine and grey; on average as strong as the CSS grain (per palette -12% to +20% against the
+    lab's CSS render, which itself varies by palette). Flat areas get no dither.
   - Dark orb screen veil: its tint is a dithered tile, so its colour lands within 0.15 of a step of the old look.
   - Light dock: its big outer shadow is a dithered picture (`src/ui/dockShadow.ts`) instead of a `box-shadow` blur.
   - Kept pictures: 48 MB cap (oldest first; the other tabs' fields painted ahead go first, so a switch back never has to

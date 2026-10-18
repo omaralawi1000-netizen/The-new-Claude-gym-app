@@ -1,7 +1,5 @@
 import { useLayoutEffect, type RefObject } from 'react';
 import { grainTile } from '../lib/grain';
-import { decode, picturesNow } from './glowCss';
-import { render } from './glowPaint';
 
 /**
  * Soft glows drawn as dithered pictures instead of CSS gradients (glowPaint.ts says why: on the phone a CSS gradient is
@@ -36,27 +34,41 @@ export interface GlowGrain { g: number; y0: number; s: number; f?: number; tile?
 export interface GlowJob { w: number; h: number; base: [number, number, number] | null; amp: number; grain?: GlowGrain; srcs: GlowSrc[]; top?: GlowSrc[]; sim?: boolean }
 
 let worker: Worker | null = null, broken = false, seq = 0;
-const waiting = new Map<number, (b: ImageData | null) => void>();
+type Reply = { id: number; px?: ImageData | null; blob?: Blob | null };
+const waiting = new Map<number, (r: Reply) => void>();
 
 export const glowCanvasOk = () => !broken && typeof Worker !== 'undefined' && typeof OffscreenCanvas !== 'undefined' && typeof createImageBitmap !== 'undefined';
 
-function paint(job: GlowJob): Promise<ImageData | null> {
-  if (!worker) {
+function glowWorker(): Worker | null {
+  if (!worker && !broken) {
     try {
       worker = new Worker(new URL('./glow.worker.ts', import.meta.url), { type: 'module' });
-      worker.onmessage = (e: MessageEvent<{ id: number; px: ImageData | null }>) => { waiting.get(e.data.id)?.(e.data.px); waiting.delete(e.data.id); };
-      worker.onerror = () => { broken = true; for (const f of waiting.values()) f(null); waiting.clear(); };
-    } catch { broken = true; return Promise.resolve(null); }
+      worker.onmessage = (e: MessageEvent<Reply>) => { waiting.get(e.data.id)?.(e.data); waiting.delete(e.data.id); };
+      worker.onerror = () => { broken = true; for (const [id, f] of waiting) f({ id }); waiting.clear(); };
+    } catch { broken = true; }
   }
+  return worker;
+}
+
+function paint(job: GlowJob): Promise<ImageData | null> {
+  const w = glowWorker(); if (!w) return Promise.resolve(null);
   const id = ++seq;
   // (checks only: window.__glowSim draws the pictures without the dither, as the phone drew the CSS)
   if ((window as { __glowSim?: boolean }).__glowSim) job = { ...job, sim: true };
   job = withGrain(job);
   const imgs = [...job.srcs, ...(job.top ?? [])].flatMap((s) => (s.img ? [s.img.bm] : []));
-  return new Promise((res) => { waiting.set(id, res); worker!.postMessage({ id, job }, imgs); });
+  return new Promise((res) => { waiting.set(id, (r) => res(r.px ?? null)); w.postMessage({ id, job }, imgs); });
 }
 
-/** the grain's tile goes along with a job that has grain in it (the worker and paintNow need it) */
+/** A picture as a PNG file, made in the worker (made on the page, the dock's shadow and the glows drawn as background
+ * images held the page up for 0.6-1.3 s after launch). Its pixels go to the worker: `d` can't be used after */
+export function encodePng(d: ImageData): Promise<Blob | null> {
+  const w = glowWorker(); if (!w) return Promise.resolve(null);
+  const id = ++seq;
+  return new Promise((res) => { waiting.set(id, (r) => res(r.blob ?? null)); w.postMessage({ id, png: d }, [d.data.buffer]); });
+}
+
+/** the grain's tile goes along with a job that has grain in it (the worker needs it) */
 function withGrain(job: GlowJob): GlowJob {
   const t = grainTile();
   return job.grain && t ? { ...job, grain: { ...job.grain, tile: t.a, n: t.n } } : job;
@@ -140,27 +152,6 @@ export function paintPlan(plan: GlowPlan, maybe = false): Promise<ImageData[] | 
   return p;
 }
 
-/** Paints a plan's pictures here and now, with the worker's own code (null if it shows a picture that has to be fetched
- * first: then the worker paints it) */
-let seedNow = 1 << 20;
-export function paintNow(plan: GlowPlan): ImageData[] | null {
-  if ((window as { __glowSim?: boolean }).__glowSim) return null;
-  try {
-    const imgs = plan.jobs.map((j) => {
-      const srcs = [...j.srcs, ...(j.top ?? [])];
-      if (!srcs.some((s) => s.img?.url)) return [];
-      const px = picturesNow(srcs, j.w, j.h);
-      // (not decoded yet: fetched now, painted by the worker)
-      if (!px) for (const s of srcs) if (s.img?.url) void decode(s.img.url);
-      return px;
-    });
-    if (imgs.some((x) => !x)) return null;
-    const pics = plan.jobs.map((j, i) => render(withGrain(j), imgs[i]!, ++seedNow));
-    keep(plan.key, pics);
-    return pics;
-  } catch { return null; }
-}
-
 /** Paints a plan's (one) picture as an image file, for a glow drawn as a background image: decoded before it is handed
  * over, so it shows from its first frame */
 const filing = new Map<string, Promise<string | null>>();
@@ -170,13 +161,13 @@ export function paintFile(plan: GlowPlan): Promise<string | null> {
   if (!p) {
     p = (async () => {
       const pics = await paintPlan(plan); if (!pics) return null;
-      const c = new OffscreenCanvas(pics[0].width, pics[0].height), g = c.getContext('2d'); if (!g) return null;
-      g.putImageData(pics[0], 0, 0);
       // (the pixels aren't needed again: the file is what is kept)
       kept.delete(plan.key);
-      const blob = await c.convertToBlob({ type: 'image/png' }), url = URL.createObjectURL(blob);
+      const { width, height } = pics[0];
+      const blob = await encodePng(pics[0]); if (!blob) return null;
+      const url = URL.createObjectURL(blob);
       const im = new Image(); im.src = url; await im.decode().catch(() => {});
-      files.set(plan.key, { url, bytes: blob.size + pics[0].width * pics[0].height * 4 });
+      files.set(plan.key, { url, bytes: blob.size + width * height * 4 });
       trim(plan.key);
       return url;
     })().catch(() => null).finally(() => filing.delete(plan.key));
@@ -405,10 +396,11 @@ export function useGlowCanvases(host: () => HTMLElement | null, refs: RefObject<
       if (p.key === real) return;
       // (not on screen, e.g. a minimised workout window: written once the page is idle, or as soon as it shows)
       if (known && !onScreen) { unIdle(defer); defer = whenIdle(() => now(false)); return; }
-      const hit = recall(p.key), pics = hit ?? paintNow(p);
-      stats[hit ? 'hit' : pics ? 'now' : 'later']++;
+      const pics = recall(p.key);
+      stats[pics ? 'hit' : 'later']++;
       if (pics) { put(p, pics); return; }
-      // (a picture it shows isn't fetched yet: the CSS shows, not the picture before, until the worker has painted it)
+      // (not painted ahead, e.g. a tab tapped right after launch: the CSS shows, not the picture before, until the worker
+      // has painted it. Never painted here: a whole field painted on the page froze it for 0.5-1.3 s)
       if (real) { real = ''; shown(false); }
       const q = p;
       void paintPlan(q).then((got) => { if (alive && !lost && got && want === q.key) put(q, got); });

@@ -74,9 +74,10 @@ browser smooths them, so **lab shots lie: judge from Omar's own screenshots.**
   - Never add or drop a layer at a tab switch or when an animation ends (v0.1.123 black frames). A glow canvas gets its
     size and a picture in the same frame it mounts, and again in the same task as a theme, palette or size change, so a
     switch's snapshot never shows the old picture.
-  - ONE painter (`src/ui/glowPaint.ts`) for the worker and the page: a picture painted at once on the page is the same
-    picture as the worker's (they differ only in their noise, under half a step per 8 x 8 block). Never show a quick
-    undithered stand-in: it bands, and the swap to the real one can pop.
+  - ONE painter (`src/ui/glowPaint.ts`), in the worker only. Never paint a picture or encode a PNG on the page: a whole
+    field painted there, or the PNG of a background-image glow or the dock shadow, froze the page for 0.5-1.3 s after
+    launch (`encodePng` in `glow.ts` makes files in the worker). A picture not painted ahead (a tab tapped in the first
+    seconds) shows the CSS until the worker has it. Never show a quick undithered stand-in: it bands, and the swap pops.
   - A theme switch or a tab switch reads NO styles (no `getComputedStyle`, no probe inserted or removed: either makes the
     browser work out the whole page's styles again, 100 ms a time on a slow phone). Each glow keeps its plan by state (the
     root's `data-*`, its own attributes, its size; `rootKey`/`hostKey`/`shareKey` in `glow.ts`); the other theme's plans

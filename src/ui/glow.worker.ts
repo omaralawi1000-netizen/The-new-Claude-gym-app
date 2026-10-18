@@ -11,8 +11,16 @@ import { render } from './glowPaint';
 declare const self: DedicatedWorkerGlobalScope;
 
 let seed = 1;
-self.onmessage = (e: MessageEvent<{ id: number; job: GlowJob }>) => {
-  const { id, job } = e.data;
+self.onmessage = (e: MessageEvent<{ id: number; job?: GlowJob; png?: ImageData }>) => {
+  const { id, job, png } = e.data;
+  // a picture made into a PNG file (for a background image): encoding it here keeps the page free
+  if (png) {
+    const c = new OffscreenCanvas(png.width, png.height);
+    c.getContext('2d')!.putImageData(png, 0, 0);
+    c.convertToBlob({ type: 'image/png' }).then((blob) => self.postMessage({ id, blob }), () => self.postMessage({ id, blob: null }));
+    return;
+  }
+  if (!job) return;
   try {
     // a picture (the photo, the stars, the dots) laid out by the page, drawn here at the canvas's size
     const pix = (s: GlowSrc) => {
