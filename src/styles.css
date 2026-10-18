@@ -2500,7 +2500,7 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 /* "Ask the Coach about this" (ui/askHold.ts): hold a food, a lift, a past workout or a chart. A soft accent ring settles
    around it and a small frosted pill rises above it (opacity and transform only, like a toast) */
 [data-ask] { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
-.ask-ring { position: fixed; z-index: 398; pointer-events: none; box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--ac) 72%, transparent), 0 0 18px color-mix(in srgb, var(--ac) 20%, transparent);
+.ask-ring { position: fixed; z-index: 398; pointer-events: none; box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ac) 72%, transparent), inset 0 0 14px color-mix(in srgb, var(--ac) 14%, transparent);
   opacity: 0; transform: scale(1.025); transition: opacity 320ms var(--ease-smooth), transform 560ms var(--ease-spring); }
 .ask-ring.on { opacity: 1; transform: none; }
 .ask-ring.off { opacity: 0; transition-duration: 260ms, 260ms; }

@@ -62,7 +62,8 @@ function fire(el: HTMLElement) {
   const dock = document.querySelector('.tabbar')?.getBoundingClientRect();
   // (a row in a list gets no room above and below: its neighbours sit right there; a card gets a little)
   const v = r.height < 100 ? 0 : 4;
-  const R = { l: r.left - 6, t: r.top - v, w: r.width + 12, h: r.height + v * 2 };
+  // (the ring is drawn inside its own box, so a fade at the dock can't cut it away: the box is 2 px bigger all round)
+  const R = { l: r.left - 8, t: r.top - v - 2, w: r.width + 16, h: r.height + v * 2 + 4 };
   const under = dock && dock.height ? Math.max(0, R.t + R.h - dock.top + 2) : 0;
   g.style.cssText = `${tint};left:${Math.round(R.l)}px;top:${Math.round(R.t)}px;width:${Math.round(R.w)}px;height:${Math.round(R.h)}px;border-radius:${Math.max(parseFloat(cs.borderTopLeftRadius) || 0, 12) + 6}px${under ? `;clip-path:inset(-24px -24px ${Math.round(under)}px -24px);-webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - ${Math.round(under) + 24}px),transparent calc(100% - ${Math.round(under)}px));mask-image:linear-gradient(to bottom,#000 calc(100% - ${Math.round(under) + 24}px),transparent calc(100% - ${Math.round(under)}px))` : ''}`;
   document.body.appendChild(g);
