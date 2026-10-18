@@ -6,6 +6,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 
 /**
  * What Aven's Settings asks for (aven://health/…, sent as an intent: link from the page):
@@ -26,6 +27,7 @@ public class HealthActivity extends Activity {
         Uri in = getIntent().getData();
         back = HealthSync.safeReturn(in != null ? in.getQueryParameter("return") : null);
         String what = in != null && in.getPath() != null ? in.getPath().replace("/", "") : "";
+        Log.i("AvenHealth", "asked: " + what + ", available " + HealthSync.available(this) + ", allowed " + HealthSync.granted(this) + ", back to " + back);
         if (!HealthSync.available(this)) { open(HealthSync.status(this, "unavailable")); return; }
         switch (what) {
             case "connect":
@@ -45,6 +47,7 @@ public class HealthActivity extends Activity {
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode != ASK) return;
+        Log.i("AvenHealth", "Health Connect answered: allowed " + HealthSync.granted(this));
         if (HealthSync.granted(this)) { HealthSync.setOn(this, true); sync(); }
         else open(HealthSync.status(this, "denied"));
     }
@@ -61,6 +64,7 @@ public class HealthActivity extends Activity {
         if (done) return;
         done = true;
         Uri url = payload != null ? back.buildUpon().fragment("hc=" + payload).build() : back;
+        Log.i("AvenHealth", "opening Aven again with " + (payload == null ? 0 : payload.length()) + " chars");
         Intent i = new Intent(this, AvenLauncher.class).setData(url).putExtra(AvenLauncher.FRESH, true)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         startActivity(i);
