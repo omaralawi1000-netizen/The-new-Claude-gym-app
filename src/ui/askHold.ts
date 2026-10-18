@@ -60,9 +60,11 @@ function fire(el: HTMLElement) {
   const g = document.createElement('div');
   g.className = 'ask-ring';
   const dock = document.querySelector('.tabbar')?.getBoundingClientRect();
-  const R = { l: r.left - 6, t: r.top - 4, w: r.width + 12, h: r.height + 8 };
+  // (a row in a list gets no room above and below: its neighbours sit right there; a card gets a little)
+  const v = r.height < 100 ? 0 : 4;
+  const R = { l: r.left - 6, t: r.top - v, w: r.width + 12, h: r.height + v * 2 };
   const under = dock && dock.height ? Math.max(0, R.t + R.h - dock.top + 2) : 0;
-  g.style.cssText = `${tint};left:${Math.round(R.l)}px;top:${Math.round(R.t)}px;width:${Math.round(R.w)}px;height:${Math.round(R.h)}px;border-radius:${Math.max(parseFloat(cs.borderTopLeftRadius) || 0, 12) + 6}px${under ? `;clip-path:inset(-24px -24px ${Math.round(under)}px -24px)` : ''}`;
+  g.style.cssText = `${tint};left:${Math.round(R.l)}px;top:${Math.round(R.t)}px;width:${Math.round(R.w)}px;height:${Math.round(R.h)}px;border-radius:${Math.max(parseFloat(cs.borderTopLeftRadius) || 0, 12) + 6}px${under ? `;clip-path:inset(-24px -24px ${Math.round(under)}px -24px);-webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - ${Math.round(under) + 24}px),transparent calc(100% - ${Math.round(under)}px));mask-image:linear-gradient(to bottom,#000 calc(100% - ${Math.round(under) + 24}px),transparent calc(100% - ${Math.round(under)}px))` : ''}`;
   document.body.appendChild(g);
   ring = g;
   const p = document.createElement('button');

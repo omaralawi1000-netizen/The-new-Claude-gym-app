@@ -381,8 +381,10 @@ export function ActionCard({ r, undone, confirmed, onUndo, onConfirm, replaced =
             <div style={{ marginTop: r.was ? 2 : 6 }}>
               {r.lines.map((l, i) => {
                 const off = !!r.off?.includes(i);
+                // a change whose name and detail won't share one line: the detail goes under the name (never a name cut to a few letters)
+                const stack = l.sub ? (l.pick ? l.text.length + l.sub.length > 40 : l.sub.length > 30) : false;
                 const line = (
-                  <div className={`action-line ${l.sub && l.sub.length > 30 ? 'stack' : 'row-flex between'}${l.pick ? ' ac-pickable' : ''}${off ? ' ac-off' : ''}`} style={{ gap: l.sub && l.sub.length > 30 ? 2 : 10, padding: '5px 0', borderTop: i ? '1px solid var(--line)' : 'none', animationDelay: `${120 + i * 70}ms`, ['--i' as string]: i + (r.was ? 1 : 0) }}>
+                  <div className={`action-line ${stack ? 'stack' : 'row-flex between'}${l.pick ? ' ac-pickable' : ''}${off ? ' ac-off' : ''}`} style={{ gap: stack ? 2 : 10, padding: '5px 0', borderTop: i ? '1px solid var(--line)' : 'none', animationDelay: `${120 + i * 70}ms`, ['--i' as string]: i + (r.was ? 1 : 0) }}>
                     {/* a change in a preview: its tick (tap the line or the tick), and its words dim and are struck while it's left out */}
                     {l.pick && (
                       <button className="ac-pick press" role="checkbox" aria-checked={!off} aria-label={l.text} disabled={!waiting} onClick={() => toggle(i)}>
@@ -390,7 +392,7 @@ export function ActionCard({ r, undone, confirmed, onUndo, onConfirm, replaced =
                       </button>
                     )}
                     <span className="small ac-text" style={{ color: l.warn ? 'var(--warn)' : 'var(--tx)', minWidth: 0, overflowWrap: 'anywhere' }} onClick={l.pick && waiting ? () => toggle(i) : undefined}>{l.text}</span>
-                    {l.sub && <span className="xs t2 num ac-line-sub" style={l.sub.length > 30 ? { display: 'block', marginTop: 1 } : { textAlign: 'right', flex: 'none', maxWidth: '62%' }}>{l.sub}</span>}
+                    {l.sub && <span className="xs t2 num ac-line-sub" style={stack ? { display: 'block', marginTop: 1 } : { textAlign: 'right', flex: 'none', maxWidth: '62%' }}>{l.sub}</span>}
                   </div>
                 );
                 // applied without it: the change that was left out folds away
