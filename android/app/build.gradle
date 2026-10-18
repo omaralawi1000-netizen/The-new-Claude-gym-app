@@ -15,7 +15,7 @@ android {
         minSdk 26
         targetSdk 36
         versionCode Integer.parseInt(System.getenv('AVEN_VERSION_CODE') ?: '1')
-        versionName '1.0'
+        versionName "1.${System.getenv('AVEN_VERSION_CODE') ?: '0'}" // (the build number: Settings › Apps › Aven shows which one is on the phone)
     }
 
     signingConfigs {

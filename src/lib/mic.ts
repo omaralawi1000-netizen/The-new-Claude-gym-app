@@ -59,7 +59,7 @@ class MicManager {
       this.emit();
       return { ok: true };
     } catch (e: any) {
-      if (this.owner === owner) this.owner = null;
+      if (this.owner === owner && my === this.token) this.owner = null;
       const n = e?.name;
       this.emit();
       if (n === 'NotAllowedError' || n === 'SecurityError' || n === 'PermissionDeniedError') return { ok: false, reason: 'denied' };
@@ -95,9 +95,9 @@ class MicManager {
     if (this.owner !== owner || !this.stream || typeof MediaRecorder === 'undefined') return false;
     const mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus'].find((m) => MediaRecorder.isTypeSupported?.(m)) ?? '';
     try {
-      this.chunks = [];
+      const chunks: Blob[] = []; this.chunks = chunks;
       this.recorder = new MediaRecorder(this.stream, mime ? { mimeType: mime, audioBitsPerSecond: 32000 } : undefined);
-      this.recorder.ondataavailable = (e) => { if (e.data?.size) this.chunks.push(e.data); };
+      this.recorder.ondataavailable = (e) => { if (e.data?.size) chunks.push(e.data); };
       this.recorder.start(250);
       return true;
     } catch { this.recorder = null; return false; }
@@ -106,9 +106,10 @@ class MicManager {
   stopRecording(): Promise<Blob | null> {
     const r = this.recorder;
     if (!r) return Promise.resolve(null);
+    const chunks = this.chunks;
     this.recorder = null;
     return new Promise((resolve) => {
-      const done = () => resolve(this.chunks.length ? new Blob(this.chunks, { type: r.mimeType || 'audio/webm' }) : null);
+      const done = () => resolve(chunks.length ? new Blob(chunks, { type: r.mimeType || 'audio/webm' }) : null);
       r.onstop = done;
       try { if (r.state !== 'inactive') r.stop(); else done(); } catch { done(); }
     });

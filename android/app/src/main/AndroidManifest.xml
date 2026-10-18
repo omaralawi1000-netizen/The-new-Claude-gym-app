@@ -17,6 +17,13 @@
     <!-- the countdown ticks every second while a rest runs (RestTimerService) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <!-- the watch, read only, through Health Connect (Settings → Watch in Aven; asked only when you tap Connect watch):
+         steps, workouts and their heart rate, calories and distance (HealthSync) -->
+    <uses-permission android:name="android.permission.health.READ_STEPS" />
+    <uses-permission android:name="android.permission.health.READ_EXERCISE" />
+    <uses-permission android:name="android.permission.health.READ_HEART_RATE" />
+    <uses-permission android:name="android.permission.health.READ_ACTIVE_CALORIES_BURNED" />
+    <uses-permission android:name="android.permission.health.READ_DISTANCE" />
 
     <queries>
         <intent>
@@ -77,6 +84,37 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https" android:host="omaralawi1000-netizen.github.io" android:pathPrefix="/The-new-Claude-gym-app" />
+            </intent-filter>
+        </activity-alias>
+
+        <!-- Connect watch / Sync now / Disconnect from Aven's Settings (aven://health/…): see-through, gone in a moment -->
+        <activity
+            android:name=".HealthActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="aven" android:host="health" />
+            </intent-filter>
+        </activity>
+        <!-- why Aven asks for health data (Health Connect requires this page, or it refuses the request) -->
+        <activity
+            android:name=".PrivacyActivity"
+            android:exported="false"
+            android:label="@string/health_privacy_title"
+            android:theme="@android:style/Theme.Material" />
+        <activity-alias
+            android:name=".ViewPermissionUsageActivity"
+            android:exported="true"
+            android:targetActivity=".PrivacyActivity"
+            android:permission="android.permission.START_VIEW_PERMISSION_USAGE">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
+                <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
             </intent-filter>
         </activity-alias>
 

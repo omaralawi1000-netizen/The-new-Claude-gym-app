@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import type {
-  ActivityLog, AppData, Exercise, Food, FoodEntry, Measurement, Meal, MemoryNote, PersonalRecord, Recipe, Routine, SavedMeal,
+import type { StepDay,
+  ActivityLog, AppData, Exercise, Food, FoodEntry, Measurement, Meal, MemoryNote, WeekReviewNote, PersonalRecord, Recipe, Routine, SavedMeal,
   SessionExercise, SetRecord, Settings, WeightLog, WorkoutSession, Nutrients,
 } from '../lib/types';
 import { SEED_EXERCISES } from '../data/exercises';
@@ -40,8 +40,8 @@ let saveTimer: ReturnType<typeof setTimeout> | null = null;
 export const persistStatus = { error: null as string | null, listeners: new Set<() => void>() };
 
 function pickData(s: Store): AppData {
-  const { settings, foods, favourites, savedMeals, recipes, entries, water, exercises, routines, schedule, sessions, active, weights, measurements, photos, activities, notes, demo, choices, increments, memory } = s;
-  return { v: DATA_VERSION, settings, foods, favourites, savedMeals, recipes, entries, water, exercises, routines, schedule, sessions, active, weights, measurements, photos, activities, notes, demo, choices, increments, memory };
+  const { settings, foods, favourites, savedMeals, recipes, entries, water, exercises, routines, schedule, sessions, active, weights, measurements, photos, activities, steps, notes, demo, choices, increments, memory, reviews } = s;
+  return { v: DATA_VERSION, settings, foods, favourites, savedMeals, recipes, entries, water, exercises, routines, schedule, sessions, active, weights, measurements, photos, activities, steps, notes, demo, choices, increments, memory, reviews };
 }
 
 export function flushSave() {
@@ -132,6 +132,8 @@ export interface Store extends AppData {
   addPhoto: (p: { id: string; date: string; note?: string }) => void;
   removePhoto: (id: string) => void;
   addActivity: (a: Omit<ActivityLog, 'id' | 'at'>) => ActivityLog;
+  /** the watch's numbers (lib/healthSync.ts): its workouts and steps, merged without doubles */
+  mergeHealth: (next: { activities: ActivityLog[]; steps: StepDay[] }) => void;
   removeActivity: (id: string) => ActivityLog | undefined;
   restoreActivity: (a: ActivityLog) => void;
   setNote: (date: string, patch: { training?: string; nutrition?: string }) => void;
@@ -140,6 +142,8 @@ export interface Store extends AppData {
   updateMemory: (id: string, patch: Partial<Omit<MemoryNote, 'id'>>) => void;
   removeMemory: (id: string) => MemoryNote | undefined;
   restoreMemory: (m: MemoryNote) => void;
+  /** keeps a weekly review (one per week: a newer one for the same week replaces it) */
+  saveReview: (r: WeekReviewNote) => void;
   // data
   /** Apply a partial state update AND persist it (use instead of setState for anything that must survive a reload). */
   patch: (p: Partial<AppData> | ((s: Store) => Partial<AppData>)) => void;
@@ -343,6 +347,7 @@ export const useStore = create<Store>((set, get) => {
     removeMeasurement: (id) => mutate((s) => ({ measurements: s.measurements.filter((m) => m.id !== id) })),
     addPhoto: (p) => mutate((s) => ({ photos: [...s.photos, p] })),
     removePhoto: (id) => mutate((s) => ({ photos: s.photos.filter((p) => p.id !== id) })),
+    mergeHealth: (next) => mutate(() => ({ activities: next.activities, steps: next.steps })),
     addActivity: (a) => {
       const log: ActivityLog = { ...a, id: uid('ac'), at: Date.now() };
       mutate((s) => ({ activities: [...s.activities, log] }));
@@ -372,6 +377,7 @@ export const useStore = create<Store>((set, get) => {
       if (m) mutate((s) => ({ memory: s.memory.filter((x) => x.id !== id) }));
       return m;
     },
+    saveReview: (r) => mutate((s) => ({ reviews: [...(s.reviews ?? []).filter((x) => x.week !== r.week), r].sort((a, b) => a.week.localeCompare(b.week)).slice(-26) })),
     restoreMemory: (m) => mutate((s) => ({ memory: s.memory.some((x) => x.id === m.id) ? s.memory : [...s.memory, m].sort((a, b) => a.at - b.at) })),
 
     // ── data

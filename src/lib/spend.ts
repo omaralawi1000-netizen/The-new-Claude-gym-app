@@ -32,6 +32,14 @@ export function recordUsage(u: any) {
   try { localStorage.setItem(KEY, JSON.stringify(next)); } catch { /* ignore */ }
   subs.forEach((f) => f());
 }
+/** A web search's own price (OpenAI charges per search, on top of the tokens). */
+export const WEB_SEARCH_USD = 0.01;
+export function recordFee(usd: number) {
+  if (!(usd > 0)) return;
+  const m = read();
+  try { localStorage.setItem(KEY, JSON.stringify({ month: m.month, usd: m.usd + usd, calls: m.calls })); } catch { /* ignore */ }
+  subs.forEach((f) => f());
+}
 /** This month so far, in kroner (estimate). A string snapshot for useSyncExternalStore: "kr|calls". */
 export const spendSnapshot = () => { const m = read(); return `${(m.usd * USD_TO_DKK).toFixed(2)}|${m.calls}`; };
 export const spentKr = () => read().usd * USD_TO_DKK;

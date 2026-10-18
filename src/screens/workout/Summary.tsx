@@ -12,25 +12,16 @@ import { backupAfterWorkout } from '../../lib/drive';
 import { displayToKg, fmtNum, kgToDisplay } from '../../lib/units';
 import type { RecordKind, WorkoutSession } from '../../lib/types';
 import { exName, fmtSet } from './common';
-import { odoCols, plan, play } from './finishMoment';
+import { plan, play } from './finishMoment';
+import { Odo } from '../../ui/Odo';
 import { saveWorkoutAsRoutine } from './actions';
+import { nextTime } from '../../lib/coachWorkout';
+import { moveText } from './Briefing';
 
 const REC_LABEL: Record<RecordKind, string> = { weight: 'Heaviest set', e1rm: 'Estimated 1RM', volume: 'Best set volume', reps: 'Most reps', duration: 'Longest hold', distance: 'Longest distance' };
 
 function Stat({ label, text, unit }: { label: string; text: string; unit?: string }) {
   return <div className="sum-stat" data-fm="tile"><div className="micro">{label}</div><div className="display display-md num" style={{ marginTop: 4 }}><Odo text={text} /><span className="t3 small" style={{ fontFamily: 'var(--f-ui)', fontStretch: '100%', fontWeight: 600 }}> {unit}</span></div></div>;
-}
-
-/** A number drawn as an odometer: each digit a column that rolls up to land on itself (finishMoment.ts plays it). At rest,
- * and with reduced motion, it simply shows the number. */
-function Odo({ text }: { text: string }) {
-  return (
-    <span className="odo" aria-label={text} role="text">
-      {odoCols(text).map((c, i) => c.travel > 0
-        ? <span key={i} className="odo-c" aria-hidden><span className="odo-s" data-travel={c.travel} style={{ transform: `translate3d(0, ${-c.travel * 1.15}em, 0)` }}>{Array.from({ length: c.travel + 1 }, (_, k) => <span key={k}>{k % 10}</span>)}</span></span>
-        : <span key={i} className="odo-k" aria-hidden>{c.ch}</span>)}
-    </span>
-  );
 }
 
 const celebrated = new Set<string>(); // a session's moment is felt once, not again when its summary is reopened
@@ -51,6 +42,8 @@ export function Summary({ props }: { props: { sessionId: string } }) {
   const recs = ses?.records ?? [];
   const rows = useMemo(() => (ses ? ses.exercises.map((e) => ({ e, ex: exMap.get(e.exerciseId) })) : []), [ses, exMap]);
   const headline = useMemo(() => (ses ? sessionHeadline(ses, s.sessions, (kg) => `${fmtNum(Math.round(kgToDisplay(kg, u.weight)), lang, 0)} ${u.weight}`) : null), [ses?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  // what moved on the main lifts and next time's target for them (the app's own progression, no AI)
+  const next = useMemo(() => (ses ? nextTime(ses, s.sessions, s, exMap) : []), [ses?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const texts = ses ? [fmtDuration(elapsedMs(ses) / 1000), fmtNum(Math.round(kgToDisplay(sessionVolume(ses.exercises), u.weight)), lang, 0), String(sessionSetCount(ses.exercises)), String(ses.exercises.length)] : [];
   const fm = useMemo(() => plan(texts), [texts.join('|')]); // eslint-disable-line react-hooks/exhaustive-deps
   // The choreography and its haptics start together the moment the sheet's contents are attached (they arrive a beat after
@@ -100,7 +93,7 @@ export function Summary({ props }: { props: { sessionId: string } }) {
         {line && <p className="sum-line display">{line.split(' ').map((w, i) => <Fragment key={i}><span data-fm="word" className="sum-word">{w}</span>{' '}</Fragment>)}</p>}
 
         {recs.length === 0 ? null : (
-          <div className="stack gap8" style={{ marginTop: 22 }}>
+          <div className="stack gap8" style={{ marginTop: 12 }}>
             {recs.map((r, i) => {
               const ex = exMap.get(r.exerciseId);
               const vset = r.kind === 'volume' ? ses.exercises.flatMap((e) => e.sets).find((q) => q.id === r.setId && q.reps) : undefined;
@@ -110,6 +103,24 @@ export function Summary({ props }: { props: { sessionId: string } }) {
                   <span style={{ width: 34, height: 34, borderRadius: 12, background: 'var(--gold)', color: '#3a2a05', display: 'grid', placeItems: 'center' }}><Icon name="bolt" size={18} /></span>
                   <div className="grow"><div className="li-title small">{ex ? exName(ex, lang) : ''}</div><div className="xs t2">{t(REC_LABEL[r.kind])}{r.kind === 'e1rm' ? ` · ${t('estimate')}` : ''}</div></div>
                   <div style={{ textAlign: 'right' }} className="num"><div style={{ fontWeight: 700 }}>{fv(r.value)}</div><div className="xs t3">{vset ? `${fmtNum(kgToDisplay(r.value, u.weight), lang, 0)} ${u.weight} · ${t('was')} ${fmtNum(kgToDisplay(r.previous!, u.weight), lang, 0)}` : `${t('was')} ${fv(r.previous!)}`}</div></div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {next.length > 0 && (
+          <div className="plinth sum-next" data-fm="after">
+            <div className="micro">{t('Next time')}</div>
+            {next.map((x) => {
+              const ex = exMap.get(x.exerciseId);
+              return (
+                <div key={x.exerciseId} className="sum-next-row">
+                  <span className="sum-next-what">
+                    <span className="sum-next-name">{ex ? exName(ex, lang) : ''}</span>
+                    {x.up && <span className="xs num">{t('{x} this time', { x: moveText(x.up, u.weight, lang, t) })}</span>}
+                  </span>
+                  <span className="num sum-next-to">{x.kg !== undefined ? `${fmtNum(kgToDisplay(x.kg, u.weight), lang, 2)} ${u.weight} × ` : ''}{x.reps}</span>
                 </div>
               );
             })}

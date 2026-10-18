@@ -25,6 +25,10 @@ const scen = [
   ['food search open', () => p.getByLabel(/^Add to /).first().click()],
   ['food search close', () => p.keyboard.press('Escape')],
   ['today tab', tab('Today')],
+  // the Coach (phase 4): open over Today, scroll its chat, close
+  ['coach open', async () => { await p.evaluate(() => { const l = []; for (let i = 0; i < 30; i++) l.push({ id: 's' + i, role: i % 2 ? 'model' : 'user', text: 'A message long enough to wrap onto two lines in the Coach, so the chat scrolls. '.repeat(i % 2 ? 3 : 1), at: Date.now() - 3600000 }); localStorage.setItem('aven.coach', JSON.stringify(l)); }); await p.getByRole('button', { name: 'Coach', exact: true }).first().click(); }],
+  ['coach scroll', () => p.locator('.coach-body').evaluate((el) => el.scrollBy({ top: -400 }))],
+  ['coach close', () => p.keyboard.press('Escape')],
 ].filter(([n]) => !only.length || only.some((o) => n.includes(o)));
 let total = 0;
 for (const [name, act] of scen) {

@@ -1,4 +1,5 @@
 import { useUI } from '../state/ui';
+import { coachTrace } from './coachTrace';
 
 /**
  * A stutter recorder for the real phone. Headless traces can't feel what a phone feels; this notes every long animation
@@ -55,6 +56,6 @@ export function stutterReport(): string {
   const worst = [...hitches].sort((a, b) => b.ms - a.ms);
   return JSON.stringify({
     app: 'Aven', when: new Date().toISOString(), ua: navigator.userAgent, screen: `${screen.width}x${screen.height}@${devicePixelRatio}`, cores: navigator.hardwareConcurrency,
-    hitches: hitches.length, over50ms: hitches.filter((h) => h.ms > 50).length, worst,
+    hitches: hitches.length, over50ms: hitches.filter((h) => h.ms > 50).length, worst, coachOrb: coachTrace(),
   }, null, 1);
 }

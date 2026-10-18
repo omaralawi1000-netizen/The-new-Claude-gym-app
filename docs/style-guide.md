@@ -26,6 +26,9 @@ Tokens live in `src/styles.css` (`:root` dark block and `:root[data-theme='light
 
 - **Page cards = `.plinth`** (radius `--r-md` 22 px; fill `--s1`; edge `inset 0 1px 0 var(--hl)` + `inset 0 0 0 1px var(--line)`;
   shadow `--sh-c`). Inner cells = `.plinth-2` (`--s2`, `--r-sm`). Floating bars and toasts = `.glass` (`--glass`, `--sh-a`).
+- **Tab-screen cards = Lit glass [Omar, 14 Oct, v0.1.130]:** clear untinted glass, a 4.5% white film (no navy or any tint, no grain, no blur), soft white
+  sheen at the top, rim bright along the top and fading down the sides, soft deep shadow. Chips and round buttons inside a
+  card are soft fills with **no outline** (outlines inside an outlined card read as clutter). No accent glow inside cards.
 - **Edge of light:** every glass surface has a 1 px white top line (`--hl`) and a hairline ring (`--line`). Do not add
   coloured rims. Shadows are deep and neutral (black / navy), never tinted.
 - **Shadow ladder:** `--sh-c` card, `--sh-a` floating, `--sh-f` sheet. Pick one; do not invent new ones. Shadows are static:
@@ -40,6 +43,10 @@ Tokens live in `src/styles.css` (`:root` dark block and `:root[data-theme='light
 - **Frosted controls (Coach bar etc.):** `.frost-ctl` (the control), `.frost-seat` (a seat a little bigger than the
   control), tokens `--fc-*`. Soft edges: `.edge-fade` (plain, tint only) and `.edge-fade.frosted` (adds a small blur; the
   tab bar uses `.tabbar-wrap.edge-fade`). Soft edges must not reach visible content (leave 48 px under the last card).
+- **Soft static shadows on the Coach [Omar, 14 Oct, Coach r8–r10]:** the Coach controls and chat bubbles sit on a soft,
+  static drop shadow painted with the element itself (`--bubble-sh` for bubbles): dark = deep and neutral, light = warm
+  and faint (`rgba(60, 30, 30, …)`, gone within ~18 px; a grey Material-card shadow was rejected as too heavy). Never
+  animated: a flying copy carries its own shadow and fades it.
 - **Neutral frost [Omar]:** glass tint is neutral grey (R=G=B or the navy `--sheet-tint`), so the colour field comes
   through. Never tint glass with the accent.
 - **Opaque fallback:** a dark card that needs to be neutral over a coloured field may be opaque charcoal, but Omar rejected
@@ -169,6 +176,10 @@ All of it: **slow, calm, Apple-like, never snappier unless Omar agrees.** The or
   A `.press` rule that sets its own `transition` must include `transform 520ms var(--ease-spring)` or the release snaps.
 - **Haptics:** `buzz()` from `src/state/ui.ts` (obeys Settings → Haptic feedback). Few, light, one system.
 - **Numbers that change roll** (`src/ui/Roll.tsx`), they never just swap.
+- **Seamless settle [Omar, 14 Oct: "seamless, not an animation, then a different look"]:** the last moving frame and the
+  first still frame must be the same picture (measure: hold every animation 1 ms before its end vs finished; within
+  ~3/255). A stand-in that hands over to the real element uses the real element's own colours (alpha and all, not a solid
+  colour under an opacity), and curves end on frames held exactly at their end (Coach `asCurve`).
 - **Reduced motion** is respected on every new animation.
 
 ## 5. Performance (every change must not make it worse)
@@ -244,6 +255,9 @@ All of it: **slow, calm, Apple-like, never snappier unless Omar agrees.** The or
 | Animated blur (blur-in on Coach text, blurred exits, soft focus via blur) | GPU cost; rule |
 | Tab-screen cards, chips or buttons with real backdrop blur | 36 fps on Train/Progress |
 | Rosé / Emerald or any new colour | Omar 14 Oct: no more colours |
+| Accent glow in a card corner (hero workout card) | read as a stain (14 Oct, removed in v0.1.129) |
+| Accent-tinted card glass ("colour glass") | Golden hour reads brown (14 Oct preview) |
+| Navy-filled "glass" cards (`rgb(30 33 52 / .58)`, v0.1.129) | Omar: "not see-through… this tint… very ugly" |
 | Font experiments in titles | back to v0.1.29 look in v0.1.34 |
 | Camera drift on figures | read as wobble |
 | Cross-fade / "melting" pop-up open | feels unnatural to him; a real moving frame is wanted |

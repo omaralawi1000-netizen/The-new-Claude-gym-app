@@ -13,7 +13,8 @@ export function deferred<P extends object>(load: () => Promise<ComponentType<P>>
     if (!p) {
       const q: Loading<ComponentType<P>> = load();
       // marked the way React reads it, so once loaded use() hands the screen over at once (no suspended frame)
-      q.then((c) => { q.status = 'fulfilled'; q.value = c; }, (e) => { q.status = 'rejected'; q.reason = e; if (p === q) p = null; /* tried again next time */ });
+      // Keep a rejected promise stable too: replacing it during Suspense retries hides the error behind new promises.
+      q.then((c) => { q.status = 'fulfilled'; q.value = c; }, (e) => { q.status = 'rejected'; q.reason = e; });
       p = q;
     }
     return p;

@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import { useStore } from '../state/store';
 import type { Lang } from './types';
+import { solLabel } from './openai';
 
 /**
  * The Danish strings (~90 KB) are a file of their own, so the app doesn't have to load them to open in English. In Danish
@@ -24,6 +25,8 @@ export function makeT(lang: Lang): TFn {
   return (key, vars) => {
     let s = (lang === 'da' ? da?.[key] : undefined) ?? key;
     if (vars) for (const k of Object.keys(vars)) s = s.split(`{${k}}`).join(String(vars[k]));
+    // the OpenAI brain is called by the model actually in use (a newer one is picked up by itself, lib/openai.ts)
+    if (s.includes('GPT-6.1 Sol')) { const m = solLabel(); if (m) s = s.split('GPT-6.1 Sol').join(m); }
     return s;
   };
 }

@@ -4,8 +4,9 @@ import { useScreenStore } from '../lib/hooks';
 import { useUI } from '../state/ui';
 import { useT, useLang } from '../lib/i18n';
 import { useToday } from '../lib/derive';
-import { addDays, fmtDate } from '../lib/dates';
+import { addDays, fmtDate, startOfWeek } from '../lib/dates';
 import { BarChart, ChartCard, LineChart, Sparkline } from '../ui/charts';
+import { askTag } from '../lib/askAbout';
 import { Icon } from '../ui/Icon';
 import { Empty, Section, Seg } from '../ui/kit';
 import { average, nutritionByDay, trendRate, weekStreak, weeklyTraining, weightTrend } from '../lib/stats';
@@ -27,6 +28,7 @@ export function ProgressScreen() {
   const u = s.settings.units;
   const from = addDays(today, -DAYS[range]);
   const exMap = exerciseMap(s.exercises);
+  const lastWeek = addDays(startOfWeek(today, s.settings.weekStart), -1);
 
   const weights = useMemo(() => s.weights.filter((w) => w.date >= from).sort((a, b) => a.date.localeCompare(b.date)), [s.weights, from]);
   const allTrend = useMemo(() => weightTrend(s.weights), [s.weights]);
@@ -86,14 +88,14 @@ export function ProgressScreen() {
       {empty ? <Empty icon="progress" title={t('Nothing to chart yet')} action={<button className="btn primary press" onClick={() => push('weight')}>{t('Log your weight')}</button>} /> : <>
 
       {/* consistency */}
-      <ChartCard title={<>{t('Training consistency')}</>} sub={<><span className="num">{wk[wk.length - 1]?.sessions ?? 0}</span><span className="t3 small" style={{ fontFamily: 'var(--f-ui)', fontStretch: '100%', fontWeight: 600 }}> / {target} {t('this week')}</span></>}
+      <ChartCard ask={askTag('chart', 'sessions')} title={<>{t('Training consistency')}</>} sub={<><span className="num">{wk[wk.length - 1]?.sessions ?? 0}</span><span className="t3 small" style={{ fontFamily: 'var(--f-ui)', fontStretch: '100%', fontWeight: 600 }}> / {target} {t('this week')}</span></>}
         table={{ head: [t('Week of'), t('Sessions'), t('Sets'), `${t('Volume')} (${u.weight})`], rows: wk.map((b) => [fmtDate(b.start, lang, { day: 'numeric', month: 'short' }), b.sessions, b.sets, fmtNum(Math.round(kgToDisplay(b.volume, u.weight)), lang, 0)]) }}>
         <BarChart whole label={t('Sessions per week')} bars={wk.map((b, i) => ({ label: fmtDate(b.start, lang, { day: 'numeric', month: 'numeric' }), value: b.sessions, sub: `${t('Week of')} ${fmtDate(b.start, lang, { day: 'numeric', month: 'short' })}`, emphasis: i === wk.length - 1 }))} fmt={(v) => fmtNum(Math.round(v * 10) / 10, lang, 0)} target={target} targetLabel={`${t('target')} ${target}`} />
         {streak > 0 && <div className="small t2" style={{ marginTop: 8 }}>{t(streak === 1 ? '1-week streak of hitting your target' : '{n}-week streak of hitting your target', { n: streak })}</div>}
       </ChartCard>
 
       {hasMat && (
-        <ChartCard title={<>{t('Wrestling')}</>} sub={<>{mat[mat.length - 1]?.min ?? 0}<span className="t3 small"> min {t('this week')}</span></>}
+        <ChartCard ask={askTag('chart', 'mat')} title={<>{t('Wrestling')}</>} sub={<>{mat[mat.length - 1]?.min ?? 0}<span className="t3 small"> min {t('this week')}</span></>}
           right={<button className="chip sm acc press" onClick={() => push('activity', { kind: 'wrestling' })}><Icon name="plus" size={14} /> {t('Log')}</button>}
           table={{ head: [t('Week of'), t('Sessions'), 'min'], rows: mat.map((b) => [fmtDate(b.start, lang, { day: 'numeric', month: 'short' }), b.n, b.min]) }}>
           <BarChart label={t('Mat time per week')} bars={mat.map((b, i) => ({ label: fmtDate(b.start, lang, { day: 'numeric', month: 'numeric' }), value: b.min, sub: `${b.n} × · ${t('Week of')} ${fmtDate(b.start, lang, { day: 'numeric', month: 'short' })}`, emphasis: i === mat.length - 1 }))} fmt={(v) => `${Math.round(v)}`} />
@@ -102,14 +104,14 @@ export function ProgressScreen() {
 
       {/* volume */}
       {s.sessions.length > 0 && (
-        <ChartCard title={<>{t('Weekly volume')}</>} sub={<>{fmtNum(Math.round(kgToDisplay(wk[wk.length - 1]?.volume ?? 0, u.weight)), lang, 0)}<span className="t3 small" style={{ fontFamily: 'var(--f-ui)', fontStretch: '100%', fontWeight: 600 }}> {u.weight}</span></>}
+        <ChartCard ask={askTag('chart', 'volume')} title={<>{t('Weekly volume')}</>} sub={<>{fmtNum(Math.round(kgToDisplay(wk[wk.length - 1]?.volume ?? 0, u.weight)), lang, 0)}<span className="t3 small" style={{ fontFamily: 'var(--f-ui)', fontStretch: '100%', fontWeight: 600 }}> {u.weight}</span></>}
           table={{ head: [t('Week of'), `${t('Volume')} (${u.weight})`], rows: wk.map((b) => [fmtDate(b.start, lang, { day: 'numeric', month: 'short' }), fmtNum(Math.round(kgToDisplay(b.volume, u.weight)), lang, 0)]) }}>
           <BarChart label={t('Weekly volume')} bars={wk.map((b, i) => ({ label: fmtDate(b.start, lang, { day: 'numeric', month: 'numeric' }), value: kgToDisplay(b.volume, u.weight), sub: `${t('Week of')} ${fmtDate(b.start, lang, { day: 'numeric', month: 'short' })}`, emphasis: i === wk.length - 1 }))} fmt={(v) => (v >= 1000 ? `${fmtNum(v / 1000, lang, 1)}k` : fmtNum(Math.round(v), lang, 0))} />
         </ChartCard>
       )}
 
       {/* bodyweight */}
-      <ChartCard title={<>{t('Bodyweight')}</>} sub={lastWeight ? <><span className="num">{fmtNum(kgToDisplay(lastWeight.kg, u.weight), lang, 1)}</span><span className="t3 small" style={{ fontFamily: 'var(--f-ui)', fontStretch: '100%', fontWeight: 600 }}> {u.weight}</span></> : '—'}
+      <ChartCard ask={askTag('chart', 'bodyweight')} title={<>{t('Bodyweight')}</>} sub={lastWeight ? <><span className="num">{fmtNum(kgToDisplay(lastWeight.kg, u.weight), lang, 1)}</span><span className="t3 small" style={{ fontFamily: 'var(--f-ui)', fontStretch: '100%', fontWeight: 600 }}> {u.weight}</span></> : '—'}
         right={<button className="chip sm acc press" onClick={() => push('weight')}><Icon name="plus" size={14} /> {t('Log')}</button>}
         table={weights.length ? { head: [t('Date'), `${t('Weight')} (${u.weight})`, `${t('Trend')} (${u.weight})`], rows: weights.map((w) => [fmtDate(w.date, lang), fmtNum(kgToDisplay(w.kg, u.weight), lang, 1), fmtNum(kgToDisplay(allTrend.find((p) => p.date === w.date)?.kg ?? w.kg, u.weight), lang, 1)]) } : undefined}>
         {weights.length >= 2 ? (
@@ -128,7 +130,7 @@ export function ProgressScreen() {
       </ChartCard>
 
       {/* nutrition */}
-      <ChartCard title={<>{t('Calories')}</>} sub={avgKcal !== null ? <><Roll className="num" text={fmtNum(Math.round(avgKcal), lang, 0)} /><span className="t3 small" style={{ fontFamily: 'var(--f-ui)', fontStretch: '100%', fontWeight: 600 }}> kcal {t('avg per logged day')}</span></> : '—'}
+      <ChartCard ask={askTag('chart', 'calories')} title={<>{t('Calories')}</>} sub={avgKcal !== null ? <><Roll className="num" text={fmtNum(Math.round(avgKcal), lang, 0)} /><span className="t3 small" style={{ fontFamily: 'var(--f-ui)', fontStretch: '100%', fontWeight: 600 }}> kcal {t('avg per logged day')}</span></> : '—'}
         table={{ head: [t('Date'), 'kcal', `${t('Protein')} g`], rows: nut.map((d) => [fmtDate(d.date, lang, { day: 'numeric', month: 'short' }), d.logged ? Math.round(d.kcal) : '—', d.logged ? Math.round(d.protein) : '—']) }}>
         <BarChart label={t('Calories per day')} bars={nut.map((d) => ({ label: String(Number(d.date.slice(8))), value: d.kcal, sub: `${fmtDate(d.date, lang, { weekday: 'short', day: 'numeric', month: 'short' })}${d.logged ? '' : ` · ${t('nothing logged')}`}`, dim: !d.logged, emphasis: d.date === today }))} fmt={(v) => fmtNum(Math.round(v), lang, 0)} target={s.settings.goals.kcal} targetLabel={s.settings.goals.kcal ? `${t('target')}` : undefined} />
         <div className="row-flex between small t2 num" style={{ marginTop: 8 }}>
@@ -154,9 +156,35 @@ export function ProgressScreen() {
         <Section title={t('Exercise trends')}>
           <div className="list">
             {exRows.map((r) => (
-              <button key={r.id} className="li press" onClick={() => push('exercise', { id: r.id })}>
+              <button key={r.id} className="li press" data-ask={askTag('lift', r.id)} onClick={() => push('exercise', { id: r.id })}>
                 <div className="grow" style={{ textAlign: 'left', minWidth: 0 }}><div className="li-title small trunc">{exName(r.ex, lang)}</div><div className="li-sub num">{r.n} {t('sessions')} · {r.best.e1rm > 0 ? `${t('est. 1RM')} ${fmtNum(kgToDisplay(r.best.e1rm, u.weight), lang, 0)} ${u.weight}` : r.best.reps > 0 ? `${r.best.reps} ${t('reps best')}` : ''}</div></div>
                 <Sparkline values={r.series} w={84} h={28} />
+              </button>
+            ))}
+          </div>
+        </Section>
+      )}
+      {/* the weekly reviews kept (newest first): each opens again, its numbers recomputed from the data */}
+      {/* last week is always there to open (the Today card shows it only around the week's turn); then the ones kept */}
+      {s.sessions.length > 0 && (
+        <Section title={t('Weekly reviews')}>
+          <div className="list">
+            {!(s.reviews ?? []).some((r) => r.week === lastWeek) && (
+              <button className="li press" onClick={() => push('weekReview', { end: lastWeek })}>
+                <div className="grow" style={{ textAlign: 'left', minWidth: 0 }}>
+                  <div className="li-title small">{t('Last week')}</div>
+                  <div className="li-sub">{fmtDate(addDays(lastWeek, -6), lang, { day: 'numeric', month: 'short' })} – {fmtDate(lastWeek, lang, { day: 'numeric', month: 'short' })}</div>
+                </div>
+                <Icon name="chevR" size={16} style={{ color: 'var(--tx3)' }} />
+              </button>
+            )}
+            {[...(s.reviews ?? [])].reverse().slice(0, 8).map((r) => (
+              <button key={r.week} className="li press" onClick={() => push('weekReview', { end: r.week })}>
+                <div className="grow" style={{ textAlign: 'left', minWidth: 0 }}>
+                  <div className="li-title small">{fmtDate(addDays(r.week, -6), lang, { day: 'numeric', month: 'short' })} – {fmtDate(r.week, lang, { day: 'numeric', month: 'short' })}</div>
+                  <div className="li-sub trunc">{r.priorities.map((p) => p.text).join(' · ') || r.verdict || ''}</div>
+                </div>
+                <Icon name="chevR" size={16} style={{ color: 'var(--tx3)' }} />
               </button>
             ))}
           </div>
