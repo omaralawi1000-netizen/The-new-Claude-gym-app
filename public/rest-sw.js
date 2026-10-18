@@ -107,8 +107,11 @@ function restClick(e) {
     n.close();
     e.waitUntil((async () => {
       const tap = { key: data.key, at: Date.now() };
-      const c = await caches.open('aven-pending'); await c.put('done', new Response(JSON.stringify(tap)));
       const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      const c = await caches.open('aven-pending');
+      await c.put('done', new Response(JSON.stringify(tap)));
+      // (what Settings › Training shows as "Last Done ✓", so one screenshot says where it stopped)
+      await c.put('log', new Response(JSON.stringify({ ...tap, sw: 'web', wins: wins.length })));
       wins.forEach((w) => w.postMessage({ type: 'aven-rest-action', action: 'done', ...tap }));
     })());
     return;

@@ -203,16 +203,17 @@ export function offerRestAlerts(toast: (text: string, o: { actionLabel: string; 
  * rest still count from the tap. Each rest's Done counts once (the message, the cache, a page that was asleep).
  */
 let doneFor = '';
-export function applyDone(at = Date.now()): boolean {
+export function applyDone(at = Date.now(), via = 'message'): boolean {
   const a = useStore.getState().active;
-  if (!a?.rest) return false;
+  if (!a?.rest) return noteDone(at, via, 'no rest running');
   const once = `${a.id}:${a.rest.endsAt}`;
-  if (doneFor === once) return false;
+  if (doneFor === once) return false; // (the other copy of a tap already applied: nothing to note)
   const nx = nextSetOf(a);
-  if (!nx) return false;
+  if (!nx) return noteDone(at, via, 'no set left');
   doneFor = once;
   const ok = !!completeSet(nx.se.id, nx.set.id);
-  if (!ok) return false;
+  if (!ok) return noteDone(at, via, 'the set has no reps to log');
+  noteDone(at, via, '');
   const late = Date.now() - at;
   if (late > 2000) {
     // heard late: the set was done at the tap, and the next rest started then (it may be over already: "Go")
@@ -221,6 +222,20 @@ export function applyDone(at = Date.now()): boolean {
   }
   if (!onScreen()) { const r = restPayload(); if (r && notifyOn()) handOff(r); }
   return true;
+}
+
+/** The last Done ✓ that reached the page and what came of it (Settings › Training shows it: one screenshot says where a
+ *  tap stopped). Returns false, for applyDone's "nothing ticked". */
+const DONE_LOG = 'aven.doneLog';
+function noteDone(at: number, via: string, why: string): false {
+  try { localStorage.setItem(DONE_LOG, JSON.stringify({ at, heard: Date.now(), via, why })); } catch { /* ignore */ }
+  return false;
+}
+export async function lastDone(): Promise<{ tap?: { at: number; sw: string; wins: number }; page?: { at: number; heard: number; via: string; why: string } }> {
+  let tap, page;
+  try { page = JSON.parse(localStorage.getItem(DONE_LOG) ?? 'null') ?? undefined; } catch { /* ignore */ }
+  try { const r = typeof caches !== 'undefined' ? await (await caches.open('aven-pending')).match('log') : undefined; tap = r ? await r.json() : undefined; } catch { /* ignore */ }
+  return { tap, page };
 }
 
 /** Is this the rest a Done ✓ was tapped for (the website's key, or the Android app's)? */
@@ -243,8 +258,10 @@ export function applyPendingDone(): Promise<void> {
       if (!res) return;
       await c.delete('done');
       const p = await res.json() as { key?: string; at?: number };
-      if (!p.key || !p.at || Date.now() - p.at > 30 * 60000) return;
-      if (isThisRest(p.key)) applyDone(p.at);
+      if (!p.key || !p.at) return;
+      if (Date.now() - p.at > 30 * 60000) { noteDone(p.at, 'cache', 'too old'); return; }
+      if (isThisRest(p.key)) applyDone(p.at, 'cache');
+      else if (!doneFor) noteDone(p.at, 'cache', 'a different rest');
     } catch { /* no cache storage: nothing waits */ }
   })().finally(() => { pendingRun = null; });
   return pendingRun;
@@ -308,7 +325,10 @@ export function useRestCue() {
       if (e.data?.type === 'aven-rest-action') {
         // +30 s or Skip rest from the notification: the service worker has already updated it; this keeps the app in step
         const a = useStore.getState().active;
-        if (!a?.rest || !isThisRest(e.data.key)) return;
+        if (!a?.rest || !isThisRest(e.data.key)) {
+          if (e.data.action === 'done') noteDone(typeof e.data.at === 'number' ? e.data.at : Date.now(), 'message', a?.rest ? 'a different rest' : 'no rest running');
+          return;
+        }
         // Done ✓ on the rest-over alert (phone, lock screen, watch). The workers decide it at the tap and say 'done'; an
         // older app worker still says 'skip' (once the rest is over, a Skip can mean nothing else: judged by the tap's time)
         const at = typeof e.data.at === 'number' ? e.data.at : Date.now();

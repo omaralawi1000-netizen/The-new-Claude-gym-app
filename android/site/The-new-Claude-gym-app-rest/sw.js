@@ -22,8 +22,13 @@ self.addEventListener('notificationclick', (e) => {
       // would look like one too. A Done is kept in the cache as well, with its time, for a page that misses the message.
       const done = e.action === 'skip' && d.endsAt && Date.now() > d.endsAt + 1500;
       const at = Date.now();
-      if (done) { const c = await caches.open('aven-pending'); await c.put('done', new Response(JSON.stringify({ key: d.key, at }))); }
       const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      if (done) {
+        const c = await caches.open('aven-pending');
+        await c.put('done', new Response(JSON.stringify({ key: d.key, at })));
+        // (what Aven's Settings › Training shows as "Last Done ✓", so one screenshot says where it stopped)
+        await c.put('log', new Response(JSON.stringify({ key: d.key, at, sw: 'app', wins: wins.length })));
+      }
       wins.forEach((w) => w.postMessage({ type: 'aven-rest-action', action: done ? 'done' : e.action, key: d.key, at }));
       if (e.action === 'skip') { n.close(); return; }
       // nobody to tell (the app was closed): move Chrome's copy along too, so it matches the countdown
