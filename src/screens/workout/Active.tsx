@@ -9,13 +9,15 @@ import { Collapse, NumInput, Stepper } from '../../ui/kit';
 import { Roll } from '../../ui/Roll';
 import { flip } from '../../ui/flip';
 import { Sheet, SheetHead, SOFT, useOverlayZ } from '../../ui/Sheet';
-import { beatLastTime, newBest, elapsedMs, historyOf, incrementFor, lastPerformance, repRange, sessionSetCount, sessionVolume, suggestProgression, countable } from '../../lib/workout';
-import { fmtDuration } from '../../lib/dates';
+import { elapsedMs, historyOf, incrementFor, lastPerformance, repRange, sessionSetCount, sessionVolume, suggestProgression, countable } from '../../lib/workout';
+import { dayKey, fmtDuration } from '../../lib/dates';
 import { displayToKg, kgToDisplay, fmtNum, displayToM, mToDisplay } from '../../lib/units';
 import { useNow } from '../../lib/hooks';
 import { dockTop, setWorkoutOpener, takeWorkoutFrom, wkSourceRect, type WkSource } from '../../ui/workoutOpen';
-import { nextSetOf, offerRestAlerts, prepareRestAudio, unlockRestAudio } from './rest';
-import { addSet, deleteSet, moveExercise, patchExercise, patchSet, removeExercise, startRest, adjustRest, skipRest, toggleSuperset } from './actions';
+import { nextSetOf, prepareRestAudio } from './rest';
+import { completeSet, onSetDone } from './complete';
+import { Briefing, LiftHints, useLiftHint } from './Briefing';
+import { addSet, deleteSet, moveExercise, patchExercise, patchSet, removeExercise, adjustRest, skipRest, toggleSuperset } from './actions';
 import { exName, fmtSet, MUSCLE_LABEL } from './common';
 import { SphereSlot, mirrorOrb, orbPress, orbTap } from '../../ui/Sphere';
 import { useSwipeDown } from '../../ui/swipe';
@@ -846,6 +848,8 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
             )}
             {/* plain blocks: an exercise added later (or brought back by Undo) unfolds, a removed one folds away (Collapse), so the
                 list below opens and closes around it instead of jumping — nothing re-measures the page */}
+            {/* before the first set: today's targets, anything worth knowing today, one focus (folds away on the first tick) */}
+            {a.exercises.length > 0 && a.id !== WK_GHOST && <Briefing key={a.id} a={a} exMap={exMap} />}
             <AnimatePresence initial={false}>
               {a.exercises.slice(0, shown).map((se, idx) => (
                 <Collapse key={se.id} appear={listSettled.current}>
@@ -1162,6 +1166,7 @@ export const ExerciseBlock = memo(function ExerciseBlock({ se, ex, linkedPrev, l
   const last = useMemo(() => lastPerformance(se.exerciseId, sessions), [se.exerciseId, sessions]);
   const lastWorking = last?.sets.filter(countable) ?? [];
   const increments = useStore((s) => s.increments);
+  const hint = useLiftHint(se, ex);
   const sugg = useMemo(() => (ex && ex.logType === 'weightReps' ? suggestProgression(ex, historyOf(se.exerciseId, sessions), repRange(se.sets), incrementFor(ex, increments, settings.plateStep)) : undefined),
     [ex, se.exerciseId, sessions, se.sets, increments, settings.plateStep]); // eslint-disable-line react-hooks/exhaustive-deps
   const u = settings.units;
@@ -1188,7 +1193,8 @@ export const ExerciseBlock = memo(function ExerciseBlock({ se, ex, linkedPrev, l
   useEffect(() => { if (complete && !was.current.complete && doneN > was.current.doneN) setSettle((n) => n + 1); was.current = { complete, doneN }; }, [complete, doneN]);
   // something you told the Coach about this exercise ("left shoulder hurts on overhead press"): shown beside it, with a swap.
   // A joined string, so ticking a set elsewhere doesn't redraw this block.
-  const flagged = useStore((s) => s.memory.filter((m) => m.exerciseIds?.includes(se.exerciseId)).map((m) => m.text).join('\n'));
+  // (a note with an end date stops showing once that day has passed: "sore this week" is not forever)
+  const flagged = useStore((s) => { const today = dayKey(Date.now(), s.settings.dayStartHour); return s.memory.filter((m) => m.exerciseIds?.includes(se.exerciseId) && !(m.until && m.until < today)).map((m) => m.text).join('\n'); });
 
   return (
     <section data-flip={se.id} className={`wk-block${appear ? ' in' : ''}${complete ? ' complete' : ''}`} style={{ position: 'relative', marginTop: linkedPrev ? 0 : 18, paddingLeft: se.supersetGroup ? 14 : 0 }}>
@@ -1212,8 +1218,11 @@ export const ExerciseBlock = memo(function ExerciseBlock({ se, ex, linkedPrev, l
             <button className="chip sm press" onClick={() => push('exercisePicker', { mode: 'replace', seId: se.id, forExercise: ex })}>{t('Swap')}</button>
           </div>
         )}
-        {sugg && reason && (
-          <div className="wk-reason num"><Icon name={REASON_ICON[sugg.kind]} size={13} style={{ flex: 'none' }} /><span>{reason}</span></div>
+        {/* what the rows don't show: a record within reach, a stalled lift's change, last time's note (Briefing.tsx) */}
+        <LiftHints se={se} h={hint} />
+        {/* (a stalled lift's change and a heaviest-yet line already say why: one line, not two) */}
+        {sugg && reason && sugg.kind !== 'stalled' && !hint.record && (
+          <div className="wk-reason num"><Icon name={REASON_ICON[sugg.kind]} size={14} style={{ flex: 'none' }} /><span>{reason}</span></div>
         )}
 
         <div className="set-head" style={{ display: 'grid', gridTemplateColumns: gridCols(ex, settings.effort), gap: 8, marginTop: 12 }}>
@@ -1280,6 +1289,7 @@ const SetRow = memo(function SetRow({ se, set, ex, label, prev, restDefault }: {
   const toast = useUI((u) => u.toast);
   const [open, setOpen] = useState(false);
   const [shake, setShake] = useState(0);
+  const bursts = useRef(0);
   const [burst, setBurst] = useState(0); // a ring that expands from the check each time a set is completed
   const [beat, setBeat] = useState<{ n: number; label: string } | null>(null); // you beat last time: gold burst + what you gained
   const [showGain, setShowGain] = useState(false);
@@ -1302,36 +1312,20 @@ const SetRow = memo(function SetRow({ se, set, ex, label, prev, restDefault }: {
     durationSec: set.durationSec ?? prev?.durationSec,
     distanceM: set.distanceM ?? prev?.distanceM,
   };
-  const valid = lt === 'duration' ? (eff.durationSec ?? 0) > 0 : lt === 'distance' ? (eff.distanceM ?? 0) > 0 || (eff.durationSec ?? 0) > 0 : (eff.reps ?? 0) > 0;
+
+  // a set ticked anywhere (a tap here, Done ✓ on the watch, logged by the Coach): the check pops, the row's light plays
+  useEffect(() => onSetDone(set.id, (d) => {
+    const k = ++bursts.current;
+    setBurst(k);
+    if (d.pr) setBest(k);
+    if (d.gain) setBeat((b) => ({ n: (b?.n ?? 0) + 1, label: d.gain! }));
+    // the next set comes into view if it is about to slip under the bar (never scrolls up, never jumps far)
+    requestAnimationFrame(() => { const nx = nextSetOf(useStore.getState().active); if (nx) revealSet(nx.set.id); });
+  }), [set.id]);
 
   const complete = () => {
     if (set.done) { patchSet(se.id, set.id, { done: false, completedAt: undefined }); skipRest(); return; }
-    if (!valid) { setShake((n) => n + 1); haptic('warn'); toast(t('Enter reps first'), { tone: 'bad', duration: 1800 }); return; }
-    const st = useStore.getState();
-    if (st.active?.pausedAt) st.resumeActive();
-    unlockRestAudio(); // a tap: the rest-over sound is allowed to play later
-    if (st.active?.rest && st.active.rest.endsAt <= Date.now()) skipRest(); // "Go" has done its job
-    // a new best beats everything before it (and is the bigger moment); otherwise beating last time gets its own small one
-    const earlier = (st.active?.exercises ?? []).filter((e) => e.exerciseId === se.exerciseId).flatMap((e) => e.sets).filter((x) => x.id !== set.id);
-    const pr = set.type === 'working' ? newBest(lt, eff, se.exerciseId, st.sessions, earlier) : null;
-    const gain = !pr && set.type === 'working' ? beatLastTime(lt, eff, prev, u.weight, lang, t) : null;
-    haptic(pr ? 'record' : gain ? 'gain' : 'set');
-    setBurst(burst + 1); // the check pops and the row's light plays (a tap or Enter on the reps)
-    if (pr) setBest(burst + 1);
-    if (gain) setBeat((b) => ({ n: (b?.n ?? 0) + 1, label: gain }));
-    patchSet(se.id, set.id, { ...eff, done: true, completedAt: Date.now() });
-    // the next set comes into view if it is about to slip under the bar (never scrolls up, never jumps far)
-    requestAnimationFrame(() => { const nx = nextSetOf(useStore.getState().active); if (nx) revealSet(nx.set.id); });
-    if (set.type === 'working') {
-      // supersets: rest only after the last exercise of the group has its turn
-      const all = st.active?.exercises ?? [];
-      const idx = all.findIndex((e) => e.id === se.id);
-      const linkedNext = se.supersetGroup && all.slice(idx + 1).some((e) => e.supersetGroup === se.supersetGroup && e.sets.some((x) => !x.done));
-      const lastOne = !(st.active?.exercises ?? []).some((e) => e.sets.some((x) => !x.done && x.id !== set.id));
-      if (lastOne) skipRest(); // the workout is done: no rest, no alarm
-      else if (!linkedNext) { startRest(se.restSec ?? restDefault, se.exerciseId); offerRestAlerts(useUI.getState().toast); }
-      else skipRest();
-    }
+    if (!completeSet(se.id, set.id, eff)) { setShake((n) => n + 1); haptic('warn'); toast(t('Enter reps first'), { tone: 'bad', duration: 1800 }); }
   };
 
   const remove = () => {

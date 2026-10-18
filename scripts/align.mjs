@@ -7,7 +7,13 @@ fs.mkdirSync('shots/align', { recursive: true });
 
 const scan = (p) => p.evaluate(() => {
   const vw = innerWidth, vh = innerHeight, out = [];
-  const visible = (el) => { const r = el.getBoundingClientRect(); if (r.width < 1 || r.height < 1 || r.bottom < 0 || r.top > vh) return false; const cs = getComputedStyle(el); return cs.visibility !== 'hidden' && cs.display !== 'none' && Number(cs.opacity) > 0.05; };
+  const visible = (el) => {
+    const r = el.getBoundingClientRect(); if (r.width < 1 || r.height < 1 || r.bottom < 0 || r.top > vh) return false;
+    const cs = getComputedStyle(el); let opacity = Number(cs.opacity);
+    // A leaving page's children still have opacity 1 after the page itself has faded away.
+    for (const a of ancestors(el)) { opacity *= Number(getComputedStyle(a).opacity); if (opacity <= 0.05) return false; }
+    return cs.visibility !== 'hidden' && cs.display !== 'none' && opacity > 0.05;
+  };
   const skip = (el) => el.closest('[aria-hidden="true"], .sphere-stage, .wk-off, .chips, .hide-scroll-x, svg, .lens, .toasts, .tab-pane:not([data-active]), .fields, [data-skip-align]')
     // inside a sideways scroller (a chip row): overflow is the point. A vertical scroller (a sheet's body) reads as
     // overflow-x auto too, so only rows that scroll sideways and not up/down count

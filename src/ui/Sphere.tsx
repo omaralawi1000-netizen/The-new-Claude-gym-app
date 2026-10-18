@@ -25,6 +25,9 @@ type Frame = { offset: number; css: string; m?: DOMMatrixReadOnly };
  * Touching the orb. While a finger is on it the whole sphere sinks in a touch and its light gathers; on release it springs
  * back, a flash of light runs through it, it spins up and two thin rings leave it. It never changes shape: only light moves.
  */
+/** The buttons the orb writes its voice level on (--voice): their style changes never move a slot. */
+const voiceEls = new WeakSet<Element>();
+const noVoice = (style: string | null) => (style ?? '').replace(/--voice:\s*[^;]*;?/, '').trim();
 let pressTarget = 0;
 let tapPending = 0;
 let whooshPending = 0;
@@ -387,12 +390,16 @@ export function SphereStage() {
     const lmo = new MutationObserver((recs) => {
       for (const r of recs) {
         if (r.type === 'attributes' && r.target === appEl && r.attributeName === 'style') continue; // the stage's backdrop colour
+        // (the voice level written on a slot's button, every frame while you speak, moves nothing: it re-measured the page
+        // on every frame of a recording)
+        // (only when the voice level is all that changed: the same element may also really move, e.g. with the keyboard)
+        if (r.type === 'attributes' && r.attributeName === 'style' && voiceEls.has(r.target as Element) && noVoice(r.oldValue) === noVoice((r.target as Element).getAttribute('style'))) continue;
         const t = (r.target.nodeType === 1 ? r.target : r.target.parentElement) as Element | null;
         if (t && (inWorkout(t) || inTallList(t))) continue;
         if (r.type !== 'attributes' || !(r.target as Element).matches?.(MOVING)) { dirty(); return; }
       }
     });
-    if (appEl) lmo.observe(appEl, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class', 'data-active', 'hidden'] });
+    if (appEl) lmo.observe(appEl, { childList: true, subtree: true, attributes: true, attributeOldValue: true, attributeFilter: ['style', 'class', 'data-active', 'hidden'] });
     const onScroll = (e: Event) => { const t = e.target as Element | null; if (t?.closest?.('.wk-sheet') || (t?.nodeType === 1 && noSlotIn(t))) return; dirty(); }; // (see inWorkout, noSlotIn)
     window.addEventListener('scroll', onScroll, { capture: true, passive: true });
     window.addEventListener('resize', dirty);
@@ -439,8 +446,12 @@ export function SphereStage() {
             if (!k || k.h !== h) {
               const own = mirrorKeys.get(animation);
               const keys = (own ?? (animation.effect as KeyframeEffect).getKeyframes()).filter(k => k.transform !== undefined);
-              const sampled = !own && (animation instanceof CSSAnimation || animation instanceof CSSTransition || keys.some(k => k.easing !== 'linear'));
-              k = { h, sampled, moving: keys.length > 1, frames: sampled ? [] : keys.map(k => ({ offset: Number(own ? k.offset : (k as ComputedKeyframe).computedOffset), css: String(k.transform) })) };
+              let sampled = !own && (animation instanceof CSSAnimation || animation instanceof CSSTransition || keys.some(k => k.easing !== 'linear'));
+              let frames: Frame[] = sampled ? [] : keys.map(k => ({ offset: Number(own ? k.offset : (k as ComputedKeyframe).computedOffset), css: String(k.transform) }));
+              // (the browser's own keyframes are parsed now: valid relative transforms need the browser's resolved matrix,
+              // not DOMMatrix's parser; a mirror's are plain pixels, parsed only when the orb is on them)
+              if (!sampled && !own) try { for (const f of frames) f.m = matrixOf(f.css, h); } catch { sampled = true; frames = []; }
+              k = { h, sampled, moving: keys.length > 1, frames };
               keyCache.set(animation, k);
             }
             if (k.sampled) sampledStates.set(animation, animation.playState);
@@ -462,7 +473,8 @@ export function SphereStage() {
         if (!t) continue;
         let m = currentTransforms.get(n);
         if (!m) {
-          m = n.style.transform ? matrixOf(n.style.transform, t.height) : t.css;
+          try { m = n.style.transform ? matrixOf(n.style.transform, t.height) : t.css; }
+          catch { m = t.matrix; dirty(); } // sample an unresolved inline transform in the next read phase; never break Motion's frame loop
           for (const a of t.animations) {
             const p = a.animation.effect?.getComputedTiming().progress;
             if (p == null || a.animation.playState === 'idle') continue;
@@ -657,20 +669,22 @@ export function SphereStage() {
       drawn = true;
       // the slot's button listens too: its ring swells with your voice (one CSS variable, written only when it moves)
       if (topSlot && top > 0 && (Math.abs(vv - sentV) > 0.015 || (vv < 0.004) !== (sentV < 0.004))) {
-        (topSlot.el.parentElement ?? topSlot.el).style.setProperty('--voice', vv < 0.004 ? '0' : vv.toFixed(3));
+        const vEl = topSlot.el.parentElement ?? topSlot.el; voiceEls.add(vEl);
+        vEl.style.setProperty('--voice', vv < 0.004 ? '0' : vv.toFixed(3));
         sentV = vv;
       }
     };
-    // Measure before animation writes; render with this frame's progress and transform changes afterwards.
-    const loop = (d: { timestamp: number }) => tick(d.timestamp);
-    frame.read(measure, true);
+    // An interrupted browser animation/canvas read must never escape into Motion's shared scheduler and freeze every sheet.
+    const read = () => { try { measure(); } catch { dirty(); } };
+    const loop = (d: { timestamp: number }) => { try { tick(d.timestamp); } catch { dirty(); } };
+    frame.read(read, true);
     frame.postRender(loop, true);
     const onVis = () => {
-      if (document.hidden) { running = false; cancelFrame(measure); cancelFrame(loop); pause(); }
-      else if (!running) { running = true; dirty(); frame.read(measure, true); frame.postRender(loop, true); }
+      if (document.hidden) { running = false; cancelFrame(read); cancelFrame(loop); pause(); }
+      else if (!running) { running = true; dirty(); frame.read(read, true); frame.postRender(loop, true); }
     };
     document.addEventListener('visibilitychange', onVis);
-    return () => { running = false; cancelFrame(measure); cancelFrame(loop); worker?.terminate(); document.removeEventListener('visibilitychange', onVis); mo.disconnect(); lmo.disconnect(); ro.disconnect(); window.removeEventListener('scroll', onScroll, { capture: true }); window.removeEventListener('resize', dirty); window.visualViewport?.removeEventListener('resize', dirty); window.removeEventListener('pointermove', dirty); window.removeEventListener('pointerdown', dirty); offUi(); offKb(); document.fonts?.removeEventListener?.('loadingdone', dirty); window.removeEventListener('load', dirty, true); pAc.remove(); pAc2.remove(); pH1.remove(); };
+    return () => { running = false; cancelFrame(read); cancelFrame(loop); worker?.terminate(); document.removeEventListener('visibilitychange', onVis); mo.disconnect(); lmo.disconnect(); ro.disconnect(); window.removeEventListener('scroll', onScroll, { capture: true }); window.removeEventListener('resize', dirty); window.visualViewport?.removeEventListener('resize', dirty); window.removeEventListener('pointermove', dirty); window.removeEventListener('pointerdown', dirty); offUi(); offKb(); document.fonts?.removeEventListener?.('loadingdone', dirty); window.removeEventListener('load', dirty, true); pAc.remove(); pAc2.remove(); pH1.remove(); };
   }, [motionPref, hrr, gen]);
 
   return (

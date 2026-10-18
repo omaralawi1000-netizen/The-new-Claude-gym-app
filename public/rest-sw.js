@@ -9,6 +9,9 @@
 // Limits a web app can't get around: Chrome stops a service-worker task after 5 minutes, so a longer rest left in the
 // background relies on the page's back-up timer only; the sound and vibration are the phone's own settings for Aven's
 // notifications; and a notification can always be swiped away.
+// the keys of a Done ✓ kept for the page: whole paths, the same from every worker and page (a bare 'done' is read
+// against each one's own address, so the app's rest worker and the page each had their own 'done' and never met)
+const PENDING_TAP = '/aven-pending/tap-';
 const REST_TAG = 'aven-rest'; // the quiet one, while resting (its timestamp is the end: the Android app counts down to it)
 const OVER_TAG = 'aven-rest-over'; // the alert when it ends
 const MAX_WAIT = 290000; // just under Chrome's 5-minute limit for one task
@@ -68,6 +71,8 @@ async function restOver(r, by) {
   await self.registration.showNotification(r.overTitle, {
     body: r.overBody, tag: OVER_TAG, renotify: true, silent: false, requireInteraction: true, icon: r.icon, badge: r.badge,
     vibrate: [400, 120, 400, 120, 700],
+    // Done ✓: the set that's next, ticked as planned (from the lock screen or a watch)
+    ...(r.done ? { actions: [{ action: 'done', title: r.done }] } : {}),
     data: { kind: 'over', key: r.key, due: r.endsAt, firedAt: Date.now(), by },
   });
 }
@@ -95,6 +100,20 @@ function restClick(e) {
         const endsAt = r.endsAt + 30000;
         await startRest({ ...r, endsAt, key: `${r.id}:${endsAt}`, title: backAt(r, endsAt) });
       } // else: this worker was restarted and lost the rest; the app (if it's still running) sends the new one
+    })());
+    return;
+  }
+  // Done ✓ on the alert: the page ticks the set (it keeps its own idea of which one). The tap is always kept in the cache
+  // too, with its time: a page asleep behind the lock screen can miss the message, and picks it up when it wakes
+  // (src/screens/workout/rest.ts applyPendingDone)
+  if (e.action === 'done') {
+    n.close();
+    e.waitUntil((async () => {
+      const tap = { key: data.key, at: Date.now() };
+      const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      const c = await caches.open('aven-pending');
+      await c.put(`${PENDING_TAP}${tap.at}`, new Response(JSON.stringify(tap)));
+      wins.forEach((w) => w.postMessage({ type: 'aven-rest-action', action: 'done', ...tap }));
     })());
     return;
   }

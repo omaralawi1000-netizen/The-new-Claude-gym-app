@@ -109,14 +109,21 @@ export function TodayScreen() {
     const target = s.schedule.mode === 'rotation' ? s.schedule.rotation.perWeek : Object.values(s.schedule.weekly).filter(Boolean).length;
     const doneN = week.filter((w) => w.done).length;
     const wrN = s.activities.filter((x) => x.kind === 'wrestling' && x.date >= weekStart && x.date <= addDays(weekStart, 6)).length;
+    // from the watch: the week's cardio and the steps a day (only once it is connected)
+    const inWeek = (d: string) => d >= weekStart && d <= addDays(weekStart, 6);
+    const cardioN = s.activities.filter((x) => x.source === 'watch' && x.kind !== 'wrestling' && inWeek(x.date)).length;
+    const stepDays = (s.steps ?? []).filter((x) => inWeek(x.date) && x.date <= today);
+    const stepsAvg = stepDays.length ? Math.round(stepDays.reduce((n, x) => n + x.count, 0) / stepDays.length / 100) * 100 : 0;
     const streak = target ? weekStreak(weeklyTraining(s.sessions, today, 26, settings.weekStart), target) : 0;
     const parts = [
       target ? t('{a} of {b} workouts', { a: doneN, b: target }) : doneN ? t(doneN === 1 ? '1 workout' : '{n} workouts', { n: doneN }) : '',
       streak >= 2 ? t('{n}-week streak', { n: streak }) : '',
       wrN ? t(wrN === 1 ? '1 wrestling session' : '{n} wrestling sessions', { n: wrN }) : '',
+      cardioN ? t(cardioN === 1 ? '1 cardio' : '{n} cardio', { n: cardioN }) : '',
+      stepsAvg ? t('{n} steps a day', { n: fmtNum(stepsAvg, lang, 0) }) : '',
     ].filter(Boolean);
     return parts.join(' · ');
-  }, [s.sessions, s.activities, s.schedule, weekStart, today, settings.weekStart, t]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [s.sessions, s.activities, s.steps, s.schedule, weekStart, today, settings.weekStart, t]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // While the workout overlay is open, keep the hero looking like it did when it was tapped: otherwise it flips to its
   // "in progress" layout (a different height) in the middle of the plate morph that grows out of it.
@@ -175,9 +182,7 @@ export function TodayScreen() {
       {/* ── workout ── */}
       <motion.section style={{ position: 'relative' }}>
         <div data-wk="hero" className="plinth"
-          style={{ position: 'absolute', inset: 0, borderRadius: 30, overflow: 'hidden' }}>
-          <div style={{ position: 'absolute', right: -60, top: -60, width: 220, height: 220, borderRadius: '50%', background: 'radial-gradient(closest-side, var(--ac-soft), transparent)' }} />
-        </div>
+          style={{ position: 'absolute', inset: 0, borderRadius: 30 }} />
         <div style={{ position: 'relative', padding: '22px 22px 22px 24px' }}>
           {active ? (
             <div className="row-flex between" style={{ gap: 14 }}>
@@ -418,8 +423,9 @@ function WeekReviewCard({ d, today }: { d: AppData; today: string }) {
       {stall && stallEx && (
         <div className="xs review-stall"><Icon name="info" size={14} style={{ flex: 'none', marginTop: 1 }} /><span>{t('{ex} has stalled: best {w} × {r} since {date}', { ex: exName(stallEx, lang), w: `${fmtNum(kgToDisplay(stall.best.kg, u), lang, 2)} ${u}`, r: stall.best.reps, date: fmtDate(stall.since, lang, { day: 'numeric', month: 'short' }) })}</span></div>
       )}
-      <button className="btn sm primary press" style={{ marginTop: 14 }} onClick={() => { push('coach', { ask: t('Review my week and give me the one thing to change next week.') }); }}>
-        <Icon name="sparkle" size={15} /> {t('Plan next week with the Coach')}
+      {/* the whole review: every number, the muscles, last week's focus and the Coach's priorities (screens/WeekReview.tsx) */}
+      <button className="btn sm primary press" style={{ marginTop: 14 }} onClick={() => { haptic('light'); push('weekReview', { end }); }}>
+        <Icon name="sparkle" size={15} /> {t('See your week')}
       </button>
     </section>
   );

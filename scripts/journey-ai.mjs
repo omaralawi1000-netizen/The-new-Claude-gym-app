@@ -94,6 +94,7 @@ await p.goto('http://127.0.0.1:5173/'); await wait(p, 900); await skipOnboarding
 
 // ── no keys: honest, still works ──
 await p.getByLabel('Coach').click(); await wait(p, 700);
+await p.getByText(/Add an AI key to chat/).waitFor({ state: 'visible', timeout: 3000 }); // the separate screen download can outlast the sheet's rise
 assert(await p.getByText(/Add an AI key to chat/).isVisible(), 'coach says what works without a key');
 await p.screenshot({ path: 'shots/ai-1-coach-nokey.png' });
 // simple logging still works through the built-in reader (no Gemini, no Groq)
@@ -164,10 +165,12 @@ groqMode = 'ok';
 
 // ── the Coach acts: sets, settings, navigation, undo, and answers about the app ──
 await p.getByLabel('Coach').click(); await wait(p, 700);
+// (at the gym, with a workout running: sets told after the gym become a finished workout instead, see journey-train2)
+await p.evaluate(async () => { const { useStore } = await import('/src/state/store.ts'); useStore.getState().startWorkout({ name: '' }); });
 await p.getByLabel('Message the Coach').fill('bench press 100 kilos for 8, 8 and 6'); await p.getByRole('button', { name: 'Send', exact: true }).click(); await wait(p, 2000);
 assert(await p.getByText('Logged 3 sets').isVisible(), 'sets logged from a sentence');
 const st1 = await p.evaluate(() => (() => { const d = JSON.parse(localStorage.getItem('aven.v1') || 'null'); const a = localStorage.getItem('aven.v1.active'); if (d && a) d.active = JSON.parse(a).active; return d; })()?.active);
-assert(st1 && st1.exercises.length === 1, 'a workout was started for them');
+assert(st1 && st1.exercises.length === 1, 'they went into the running workout');
 await p.getByLabel('Message the Coach').fill('make that last bench set 90'); await p.getByRole('button', { name: 'Send', exact: true }).click(); await wait(p, 1800);
 assert(await p.getByText('Set corrected').isVisible(), 'a set was corrected by voice');
 const st1b = await p.evaluate(() => (() => { const d = JSON.parse(localStorage.getItem('aven.v1') || 'null'); const a = localStorage.getItem('aven.v1.active'); if (d && a) d.active = JSON.parse(a).active; return d; })()?.active);
@@ -211,7 +214,10 @@ await p.getByRole('button', { name: 'How is my week going?' }).click(); await wa
 assert(await p.getByText('3 times').isVisible(), 'answer rendered');
 await p.screenshot({ path: 'shots/ai-9-coach.png' });
 await p.getByLabel('Message the Coach').fill('build a push day with 4 exercises'); await p.getByRole('button', { name: 'Send', exact: true }).click(); await wait(p, 2000);
-assert(await p.getByText('Routine created').isVisible(), 'the Coach built the routine and says so');
+// a new routine is a preview first (phase 4): Apply saves it
+const rcard = p.locator('.action-card').filter({ hasText: 'Push day' }).last();
+await rcard.getByRole('button', { name: 'Apply', exact: true }).click(); await wait(p, 900);
+assert(await rcard.getByText('Saved to your routines').isVisible(), 'the Coach built the routine and says so');
 assert(await p.getByText('Unicorn Curl').first().isVisible(), 'the unknown exercise is reported, not invented');
 await p.screenshot({ path: 'shots/ai-10-routine.png' });
 await p.keyboard.press('Escape'); await wait(p, 600);

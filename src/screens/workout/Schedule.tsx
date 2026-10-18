@@ -19,7 +19,7 @@ export function Schedule({ props }: { props: { focusDate?: string; routineId?: s
   const toast = useUI((u) => u.toast);
   const today = useToday();
   const sch = s.schedule;
-  const routines = s.routines;
+  const routines = s.routines.filter((r) => !r.oneOff); // (one-off days planned by the Coach aren't offered for the week)
   const order = [...Array(7)].map((_, i) => (s.settings.weekStart + i) % 7);
   const setDay = (wd: number, id: string | null) => { haptic('select'); s.setSchedule({ weekly: { ...sch.weekly, [wd]: id } }); };
   const fd = props.focusDate;

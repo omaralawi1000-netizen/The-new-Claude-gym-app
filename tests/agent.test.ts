@@ -66,15 +66,17 @@ describe('runActions: acts on the real store, and every action can be undone', (
     expect(useStore.getState().entries).toHaveLength(0);
   });
   it('logs sets into a started workout and undo takes it all back', async () => {
+    useStore.getState().startWorkout({ name: '' });
     const [r] = await runActions([{ type: 'log_sets', exercises: [{ exercise: 'Barbell Bench Press', sets: [{ kg: 100, reps: 8 }, { kg: 100, reps: 6 }] }] }], ctx());
     expect(r.kind).toBe('sets');
     const a = useStore.getState().active!;
     const done = a.exercises.flatMap((e) => e.sets.filter((q) => q.done));
     expect(done.map((q) => [q.weightKg, q.reps])).toEqual([[100, 8], [100, 6]]);
     r.undo!();
-    expect(useStore.getState().active).toBeNull();
+    expect(useStore.getState().active!.exercises.flatMap((e) => e.sets.filter((q) => q.done))).toHaveLength(0);
   });
   it('a second mention adds to the same exercise block', async () => {
+    useStore.getState().startWorkout({ name: '' });
     await runActions([{ type: 'log_sets', exercises: [{ exercise: 'Barbell Bench Press', sets: [{ kg: 80, reps: 8 }] }] }], ctx());
     await runActions([{ type: 'log_sets', exercises: [{ exercise: 'Barbell Bench Press', sets: [{ kg: 85, reps: 6 }] }] }], ctx());
     const a = useStore.getState().active!;
@@ -97,6 +99,7 @@ describe('runActions: acts on the real store, and every action can be undone', (
     expect(e.water).toHaveLength(0); expect(e.weights).toHaveLength(0); expect(e.activities).toHaveLength(0);
   });
   it('finishing a workout waits for a tap', async () => {
+    useStore.getState().startWorkout({ name: '' });
     await runActions([{ type: 'log_sets', exercises: [{ exercise: 'Barbell Bench Press', sets: [{ kg: 100, reps: 5 }] }] }], ctx());
     const [r] = await runActions([{ type: 'finish_workout' }], ctx());
     expect(r.pending).toBe(true);
@@ -139,7 +142,7 @@ describe('the whole app by voice: move, replace, copy, routines, sets, plan', ()
   const run = (actions: any[]) => runActions(validateAgent({ reply: 'x', actions })!.actions, ctx());
   const names = () => useStore.getState().entries.map((e) => `${e.snap.name}@${e.mealId}`);
   it('moves one food between meals and a whole meal between days, with Undo', async () => {
-    await runActions([{ type: 'log_food', foods: [{ name: 'chicken breast', amount: 200, unit: 'g' }, { name: 'rice', amount: 150, unit: 'g' }], meal: 'dinner', day: null }], ctx());
+    await runActions([{ type: 'log_food', foods: [{ name: 'chicken breast', amount: 200, unit: 'g', state: 'cooked' }, { name: 'rice', amount: 150, unit: 'g', state: 'cooked' }], meal: 'dinner', day: null }], ctx());
     expect(names().every((n) => n.endsWith('@dinner'))).toBe(true);
     const [m] = await run([{ type: 'move_food', target: 'chicken', meal_from: 'dinner', meal_to: 'lunch' }]);
     expect(names().filter((n) => n.endsWith('@lunch'))).toHaveLength(1);
@@ -152,7 +155,7 @@ describe('the whole app by voice: move, replace, copy, routines, sets, plan', ()
     expect(useStore.getState().entries.every((e) => e.date === '2026-10-01')).toBe(true);
   });
   it('copies, replaces (same amount) and clears a meal', async () => {
-    await runActions([{ type: 'log_food', foods: [{ name: 'rice', amount: 150, unit: 'g' }], meal: 'dinner', day: null }], ctx());
+    await runActions([{ type: 'log_food', foods: [{ name: 'rice', amount: 150, unit: 'g', state: 'cooked' }], meal: 'dinner', day: null }], ctx());
     await run([{ type: 'copy_food', meal_from: 'dinner', meal_to: 'lunch' }]);
     expect(useStore.getState().entries).toHaveLength(2);
     const [r] = await run([{ type: 'replace_food', target: 'rice', meal_from: 'lunch', with: { name: 'potato' } }]);
@@ -170,10 +173,16 @@ describe('the whole app by voice: move, replace, copy, routines, sets, plan', ()
   });
   it('builds, edits and deletes a routine, and puts it on a weekday', async () => {
     const [c] = await run([{ type: 'create_routine', name: 'Test push', add: [{ exercise: 'Barbell Bench Press', sets: 4, repMin: 6, repMax: 8 }, { exercise: 'Overhead Press', sets: 3, repMin: 8, repMax: 10 }, { exercise: 'Unicorn Curl', sets: 3 }] }]);
+    expect(c.pending).toBe(true); // a new routine is a preview first (phase 4): nothing saved before Apply
+    expect(useStore.getState().routines.some((x) => x.name === 'Test push')).toBe(false);
+    c.button!.run();
     const r = useStore.getState().routines.find((x) => x.name === 'Test push')!;
     expect(r.items).toHaveLength(2);
     expect(c.lines.some((l) => l.warn)).toBe(true); // the unknown exercise is reported, not invented
-    await run([{ type: 'edit_routine', routine: 'test push', add: [{ exercise: 'Dip', sets: 3, repMin: 8, repMax: 12 }], remove: ['overhead press'], change: [{ exercise: 'bench press', sets: 5 }] }]);
+    const [ed] = await run([{ type: 'edit_routine', routine: 'test push', add: [{ exercise: 'Dip', sets: 3, repMin: 8, repMax: 12 }], remove: ['overhead press'], change: [{ exercise: 'bench press', sets: 5 }] }]);
+    expect(ed.pending).toBe(true); // three changes at once: a preview first
+    expect(useStore.getState().routines.find((x) => x.id === r.id)!.items.some((i) => i.workingSets === 5)).toBe(false);
+    ed.button!.run();
     const r2 = useStore.getState().routines.find((x) => x.id === r.id)!;
     expect(r2.items).toHaveLength(2);
     expect(r2.items.find((i) => i.workingSets === 5)).toBeTruthy();
@@ -182,11 +191,15 @@ describe('the whole app by voice: move, replace, copy, routines, sets, plan', ()
     s.undo!();
     expect(useStore.getState().schedule.weekly[3] ?? null).not.toBe(r.id);
     const [d] = await run([{ type: 'delete_routine', routine: 'Test push' }]);
+    expect(d.pending).toBe(true); // deleting a routine waits for a tap
+    expect(useStore.getState().routines.find((x) => x.id === r.id)).toBeTruthy();
+    d.button!.run();
     expect(useStore.getState().routines.find((x) => x.id === r.id)).toBeUndefined();
     d.undo!();
     expect(useStore.getState().routines.find((x) => x.id === r.id)).toBeTruthy();
   });
   it('edits a set in the running workout, adds and swaps exercises, with Undo', async () => {
+    useStore.getState().startWorkout({ name: '' });
     await runActions([{ type: 'log_sets', exercises: [{ exercise: 'bench press', sets: [{ kg: 80, reps: 8 }, { kg: 80, reps: 8 }] }] }], ctx());
     const sets = () => useStore.getState().active!.exercises[0].sets.filter((q) => q.done);
     const [e] = await run([{ type: 'edit_set', exercise: 'bench', set_number: 2, kg: 85, reps: 6 }]);
