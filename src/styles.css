@@ -1581,7 +1581,6 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    while one played the list's end grew by the move, was scrolled to again and glided twice. Clipped, a move never changes
    the scroll area; the margin keeps what a move carries below the list drawn down into the fade over the bar, 14 Oct r11) */
 .coach-clip { overflow: clip; overflow-clip-margin: 100px; }
-.coach-clip:has(.coach-tips-float) { overflow-clip-margin: 20px; } /* (suggestions stepping away under the list: drawn whole) */
 .reply-foot.held { min-height: 32px; }
 /* the play button under each answer is a quiet glyph, not a filled circle (a column of circles down the chat read as noise);
    it keeps its 32 px tap area and lines up with the text, and takes its colour and ring only while it reads aloud */

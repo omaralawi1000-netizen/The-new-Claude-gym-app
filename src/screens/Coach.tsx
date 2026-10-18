@@ -650,6 +650,8 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
 
 
   const say = (m: Msg) => setMsgs((x) => [...x, m]);
+  // (the room the suggestions left, given back once the answer is done; a list that then got shorter glides down to its end)
+  useEffect(() => { if (busy) return; const th = bodyRef.current?.querySelector<HTMLElement>('.coach-thread'); if (th?.style.minHeight) th.style.minHeight = ''; }, [busy]);
   // the fade is let go only once the old messages are out of the page (letting it go first showed them again for a frame)
   const cleared$ = useRef<Animation | null>(null);
   const finishClear = () => {
@@ -668,6 +670,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     ctl.current?.abort(); stopSpeaking();
     // Clear the conversation now; only its visible text waits for the brief exit.
     msgsRef.current = []; setMsgs([]); saveThread([]); setResumed(false); setOlder(0); setCleared(true);
+    const th0 = bodyRef.current?.querySelector<HTMLElement>('.coach-thread'); if (th0) th0.style.minHeight = '';
     const thread = bodyRef.current?.querySelector<HTMLElement>('.coach-thread');
     const reduce = document.documentElement.dataset.motion === 'reduce' || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (!thread || reduce) return;
@@ -905,6 +908,10 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       const res = bodyRef.current?.querySelector<HTMLElement>('.coach-resume'), th = bodyRef.current?.querySelector<HTMLElement>('.coach-thread');
       const head = res?.firstElementChild as HTMLElement | null | undefined; // (its top margin: it doesn't collapse in the lifted copy)
       tipsTop.current = head && th ? head.offsetTop - th.offsetTop - (parseFloat(getComputedStyle(head).marginTop) || 0) : 0;
+      // the conversation keeps the room they took until the new lines have filled it: nothing above moves, your message
+      // lands where they were and the answer writes itself in below it (the list used to glide down to close the gap, then
+      // straight back up as the answer came; judge, 18 Oct). A short answer that doesn't fill it gives it back at the end.
+      if (res && th && msgsRef.current.length) th.style.minHeight = `${res.offsetTop + res.offsetHeight - th.offsetTop}px`;
       setTipsOut(msgsRef.current.length === 0 ? 'top' : 'resume');
     }
     setInput(''); setPhoto(null); setResumed(false);
