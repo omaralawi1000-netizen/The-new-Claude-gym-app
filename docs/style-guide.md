@@ -75,11 +75,14 @@ browser smooths them, so **lab shots lie: judge from Omar's own screenshots.**
     root's `data-*`, its own attributes, its size; `rootKey`/`hostKey`/`shareKey` in `glow.ts`); the other theme's plans
     and pictures are painted ahead while idle from a hidden twin frame (the page's styles with the other theme), the other
     tabs' fields from hidden copies. The switch only looks the plan up and draws; the page is read again once idle.
-  - Pictures go into a canvas with `putImageData` only. Never `drawImage` an ImageBitmap into a GPU canvas, not even one
-    drawn once and closed: the chip keeps copies (+20 MB after a few tab switches, measured). A canvas kept in memory
-    (`willReadFrequently`) is slower to write. Each new picture resets the canvas size first, so its old buffer is let go.
-  - Kept pictures (pixels and image files) share 48 MB, oldest first; a file still shown is never let go; all of it is let
-    go when the app goes to the background.
+  - Pictures go into a canvas with `putImageData`, or, for a switch back to the theme just left, from ONE spare canvas
+    per glow (an OffscreenCanvas written at idle, copied across with `drawImage`, reused each time, let go in the
+    background). Never `drawImage` an ImageBitmap into a GPU canvas, not even one drawn once and closed: the chip keeps
+    copies (+20 MB after a few tab switches, measured). A canvas kept in memory (`willReadFrequently`) is slower to write.
+    Each new picture resets the canvas size first, so its old buffer is let go.
+  - Kept pictures (pixels and image files) share 48 MB, oldest first, and pictures painted only on the chance they're
+    needed (other tabs' fields) go before those of the glows on the page; a file still shown is never let go; all of it is
+    let go when the app goes to the background.
   - A glow shown faint (Coach-open beam, a fade) needs a stronger dither in its picture: `ampFor(opacity)`.
   - GPU reset (`contextlost`): the CSS shows until `contextrestored`, then the picture is written again.
 - Frosted bars without brightness(2) (orb screen veil, dock, dock edge fade): the tint is corrected for the dither tile's

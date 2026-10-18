@@ -1906,8 +1906,9 @@ the workout window: the phone draws CSS gradients and blur output in whole 8-bit
     The mid-switch frame shows the final dithered picture.
   - Theme switch: the other theme's pictures are painted ahead while idle, read from a hidden twin frame (the page's own
     styles with the other theme on its root), so a switch only looks each glow's plan up by state and draws it. Reading
-    styles during the switch (the old way) made the browser redo the whole page's styles for each glow. Lab, 4x slower
-    CPU, base and branch in one run: busy 131 → 138 ms (medians), every switch a cache hit.
+    styles during the switch (the old way) made the browser redo the whole page's styles for each glow; so is anything
+    else read there (the field's sway is read once, at idle). The theme just left is written ahead into one spare canvas
+    per glow, so a switch back only copies it across on the chip. Our code in a switch: 1-8 ms at 4x slower CPU.
   - Tab switch: each tab brings a new field; its plan (painted ahead with the other tabs) is looked up without reading the
     page, and its kept picture written in. Lab at 4x: about 40 → 10-20 ms of glow work per tap (most of it the write).
     Bitmaps made ready ahead were quicker (3 ms) but left copies on the graphics chip (+20 MB after six switches), so
@@ -1918,7 +1919,8 @@ the workout window: the phone draws CSS gradients and blur output in whole 8-bit
   - Grain in the pictures: fine, grey and as strong as the CSS grain (within 7%). Flat areas get no dither.
   - Dark orb screen veil: its tint is a dithered tile, so its colour lands within 0.15 of a step of the old look.
   - Light dock: its big outer shadow is a dithered picture (`src/ui/dockShadow.ts`) instead of a `box-shadow` blur.
-  - Kept pictures: 48 MB cap (oldest first), all let go when the app goes to the background.
+  - Kept pictures: 48 MB cap (oldest first; the other tabs' fields painted ahead go first, so a switch back never has to
+    paint on the page), all let go when the app goes to the background.
   - Tools: `scripts/theme-switch-cost.mjs`, `scripts/tab-switch-trace.mjs`, `scripts/glow-midswitch.mjs`,
     `scripts/glow-gpu-reset.mjs`.
 - Tools: `scripts/banding-fields.mjs`, `scripts/perf-gpu.mjs`, `scripts/glow-layers.mjs`, `scripts/glow-theme-sync.mjs`.
