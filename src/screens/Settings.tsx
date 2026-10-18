@@ -35,7 +35,7 @@ import { startStutter, stopStutter, stutterReport, stutterState, subscribeStutte
 import { coachTrace } from '../lib/coachTrace';
 import { lastRestLate } from './workout/rest';
 import { appOnPhone, inAndroidApp, restCheck, showAppRest } from '../lib/androidApp';
-import { hcLink, hcStatus, noteAsk } from '../lib/healthSync';
+import { hcLastLine, hcLink, hcStatus, noteAsk } from '../lib/healthSync';
 import { ACTIVITY_LABEL, INTENSITY_LABEL, activityIcon } from '../lib/activity';
 
 const EASE = [0.22, 1, 0.36, 1] as const;
@@ -636,6 +636,8 @@ function WatchSection() {
         <div>{t('Syncs by itself every time you open Aven. Works with a Galaxy Watch, or any watch that saves to Health Connect.')}</div>
         <div>{t('Read only, and it stays on this phone. Calories a workout burned are shown, but never added to your food target.')}</div>
         {!appOnPhone() && <div>{t('Needs the Aven Android app. Without it, the button offers to download it.')}</div>}
+        {/* (until the watch is connected: what the Android app last sent back, for a screenshot) */}
+        {!on && <div style={{ opacity: 0.7 }}>{hcLastLine()}</div>}
       </div>
     </div>
   );
