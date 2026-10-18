@@ -57,6 +57,7 @@ REST = """Promise.race([new Promise((ok) => setTimeout(() => ok('timed out at: '
     b: 'Incline Smith Machine Press · 60 kg × 8', p: '+30 s', k: 'Skip', d: 'Done ✓ 60 kg × 8', y: 'Set 2 ✓ · 60 kg × 8', z: 'Rest 0:15', n: 15,
     w: [{ x: 'Incline Smith Machine Press', l: 'Set 3 of 3 · 60 kg × 8', o: 'Time for set 3', b: 'Incline Smith Machine Press · 60 kg × 8', d: 'Done ✓ 60 kg × 8', y: 'Set 3 ✓ · 60 kg × 8', z: 'Last set done · open Aven to finish', n: 0 }] };
   for (const n of await reg.getNotifications()) n.close();
+  localStorage.setItem('ci.endsAt', String(endsAt));
   await reg.showNotification('Back at ' + new Date(endsAt).toTimeString().slice(0, 5), {
     body: 'Incline Smith Machine Press · set 2 of 3 · 60 kg × 8', tag: 'aven-rest|' + JSON.stringify(words), silent: true,
     timestamp: endsAt, actions: [{ action: 'more', title: '+30 s' }, { action: 'skip', title: 'Skip' }],
@@ -97,6 +98,9 @@ if mode == 'overalert':
       await reg.showNotification('Time for set 2', { body: 'Incline Smith Machine Press · 60 kg × 8', tag: 'aven-rest-over', renotify: true,
         silent: false, requireInteraction: true, vibrate: [400, 120, 400, 120, 700], data: { kind: 'over', key: 'ci' } });
       return 'shown'; })()"""))
+    sys.exit(0)
+if mode == 'left':
+    print(run(page, "String(Number(localStorage.getItem('ci.endsAt')) - Date.now())"))
     sys.exit(0)
 if mode == 'listen':
     print('listen:', run(page, """(() => { localStorage.setItem('ci.msg', '');

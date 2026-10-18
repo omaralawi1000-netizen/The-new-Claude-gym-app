@@ -123,7 +123,13 @@ adb root >/dev/null 2>&1; sleep 3; adb wait-for-device
 adb shell "kill -9 \$(pidof app.aven.android)" 2>&1 | tee -a shots/rest-real.txt
 sleep 1
 echo "app after the kill: '$(adb shell pidof app.aven.android)' (empty = stopped)" | tee -a shots/rest-real.txt
-sleep 32
+# …and the website's back-up alert gets there just before the alarm (Omar's phone, 18 Oct: the alert was then built in
+# a fresh start without Chrome's buttons, and its Done ✓ went nowhere)
+LEFT=$(adb forward tcp:9222 localabstract:chrome_devtools_remote >/dev/null; timeout 30 python3 android/ci/cdp.py left | grep -v '^pages' | tail -1)
+echo "rest left: ${LEFT} ms" | tee -a shots/rest-real.txt
+python3 -c "import time,sys; time.sleep(max(0, (int(sys.argv[1]) - 700) / 1000))" "${LEFT:-0}"
+cdp overalert | grep -v '^pages' | sed 's/^/back-up first: /' | tee -a shots/rest-real.txt
+sleep 8
 timeout 20 adb shell dumpsys audio > shots/audio.txt
 grep -c "usage=USAGE_ALARM" shots/audio.txt | sed 's/^/alarm-volume sounds in the audio log (want 1+): /' | tee -a shots/rest-real.txt
 grep -m6 "USAGE_ALARM" shots/audio.txt | cut -c1-220 | tee -a shots/rest-real.txt

@@ -363,6 +363,10 @@ final class RestNotifications {
         if (r == null) return;
         SharedPreferences p = prefs(c);
         if (p.getLong("rang", 0) == r.startedAt) return;
+        // without Chrome's buttons (Android had stopped the app, and the website's back-up alert got here before the
+        // alarm), the Done ✓ would tick on the watch and go nowhere: they're fetched from the alarm first, which rings
+        if (recoverChrome(c)) return;
+        recovering = false;
         p.edit().putLong("rang", r.startedAt).apply();
         cancelAlarm(c);
         RestTimerService.stop(c);
@@ -558,6 +562,28 @@ final class RestNotifications {
     private static PendingIntent local(Context c, String action) {
         Intent i = new Intent(action).setClass(c, RestActionReceiver.class);
         return PendingIntent.getBroadcast(c, (action + ":local").hashCode(), i, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+    }
+
+    private static boolean recovering;
+
+    /**
+     * Chrome's buttons for the rest on show, when this process doesn't have them: the end-of-rest alarm carries them
+     * (schedule), so it is fired now; its ring() has them. False when there's nothing to fetch them from (ring on).
+     */
+    private static boolean recoverChrome(Context c) {
+        if (chromeSkip != null || recovering) return false;
+        PendingIntent alarm = PendingIntent.getBroadcast(c, RestAlarmReceiver.ACTION_END.hashCode(),
+            new Intent(RestAlarmReceiver.ACTION_END).setClass(c, RestAlarmReceiver.class), PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_NO_CREATE);
+        if (alarm == null) { log("ring: no Chrome buttons, and no alarm to fetch them from"); return false; }
+        try {
+            recovering = true;
+            alarm.send();
+            log("ring: fetching Chrome's buttons from the alarm");
+            return true;
+        } catch (PendingIntent.CanceledException e) {
+            recovering = false;
+            return false;
+        }
     }
 
     /** Chrome's tap and buttons ride along in the end-of-rest alarm: Android may stop the app during a rest, and the
