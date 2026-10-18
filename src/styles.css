@@ -2628,3 +2628,10 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 :is(.chip.sm, .btn.sm) > svg:first-child { margin-left: -1px; }
 /* muscle tags: text only, so the label alone moves down to its capitals' centre */
 :root:not([data-theme='light']) span.chip.sm:not(.on, .acc):not(:has(svg)) { padding-top: 1.5px; }
+/* a little lift on the small bubbles (Omar 18 Oct): a touch more glass and a soft contact shadow under them, so they sit
+   just above their card instead of flat on it. Static shadows (never animated); the pressed fill still answers on top. */
+:root:not([data-theme='light']) :is(.icon-btn:not(.flat, .acc, .acc-soft), .chips > button.chip:not(.on, .acc)):not(.screen :is(.plinth, [data-wk='hero'] + div) *):not(#_):not([data-pressed]) { background-color: rgba(255,255,255,.045) !important; }
+:root:not([data-theme='light']) :is(.icon-btn:not(.flat, .acc, .acc-soft), .chips > button.chip:not(.on, .acc)):not(.screen :is(.plinth, [data-wk='hero'] + div) *):not(#_) { box-shadow: 0 1px 2px rgba(0,0,0,.42), 0 10px 20px -10px rgba(0,0,0,.75) !important; }
+:root:not([data-theme='light']) .screen :is(.plinth, [data-wk='hero'] + div) :is(.icon-btn:not(.flat, .acc), button.chip:not(.on, .acc), .chip.acc, .meal-add):not(#_):not([data-pressed]) { background-color: rgba(255,255,255,.04) !important; }
+:root:not([data-theme='light']) .screen :is(.plinth, [data-wk='hero'] + div) :is(.icon-btn:not(.flat, .acc), button.chip:not(.on, .acc), .chip.acc, .meal-add):not(#_) { box-shadow: 0 1px 1.5px rgba(0,0,0,.32), 0 6px 14px -8px rgba(0,0,0,.6) !important; }
+:root:not([data-theme='light']) span.chip:not(.on, .acc):not(#_) { box-shadow: inset 0 0 0 1px rgba(255,255,255,.07), inset 0 1px 0 rgba(255,255,255,.06), 0 1px 1.5px rgba(0,0,0,.28) !important; }
