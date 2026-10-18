@@ -88,7 +88,8 @@ export function threadTurns(list: ThreadMsg[], dayStartHour: number, max = 14): 
     // something said on an earlier day is marked so, so "today" in an old message isn't taken for today
     if (m.role === 'user' || m.role === 'model') {
       const old = m.role === 'user' && m.at && dayKey(m.at, dayStartHour) !== today ? `(said on ${dayKey(m.at, dayStartHour)}) ` : '';
-      push(m.role, old + (m.role === 'user' && m.photo ? `[photo] ${m.text}` : m.text));
+      const about = m.role === 'user' && typeof m.about === 'string' ? `[about: ${m.about}] ` : '';
+      push(m.role, old + about + (m.role === 'user' && m.photo ? `[photo] ${m.text}` : m.text));
     } else if (m.role === 'action') push('model', cardsNote(m.results, m.confirmed, m.undone));
   }
   const tail = out.slice(-max);

@@ -2568,3 +2568,31 @@ Omar trains with music in his earbuds and walks around the gym, so the phone is 
   - The Android app's alert is no longer local-only, so it reaches the watch. Its "Set 2 ✓" line stays when Chrome takes its own copy away just after the tap.
 - **Tap and say was tried and dropped (same day).** A tap on empty workout space listened for one phrase ("8 at 80") on the phone's mic. Omar's verdict: it needs the phone in his hand, and then the tick is just as fast and never mishears. It was removed before it shipped.
 - Tests: `tests/done.test.ts`. Journey: `scripts/journey-done.mjs` covers Aven closed, and Aven asleep with the message lost.
+
+## Coach polish: hold to ask, charts, Undo all, pick changes, copy a routine (18 Oct 2026, v0.1.148)
+The last part of Coach 2.0, phase 5 (docs/coach-plan.md).
+- **Hold to ask the Coach.** Hold a logged food (Food tab), a past workout (Train → History), an exercise (Train → Library, Progress), or a chart (Progress, an exercise's progress) for about half a second.
+  - A soft ring settles around it and a small frosted pill rises above it: "✦ Ask the Coach". Tap the pill and the Coach opens about exactly that.
+  - In the Coach, a chip over the typing bar says what it's about (× takes it off), and three questions about it replace the usual suggestions.
+  - The model gets the item with the message as `[about: …]`: a food's numbers and its ref, a lift's history, a workout's sets, a chart's numbers. It stays with that message in the conversation.
+  - The bubble shows a quiet tag naming the item.
+  - One listener for the whole app (`src/ui/askHold.ts`) reads a `data-ask` tag (`lib/askAbout.ts`).
+    - A short tap still opens the item as before; the click that ends a hold is swallowed.
+    - A scroll or another tap puts the pill away, and it goes by itself after 6 s.
+    - The ring and pill live on `<body>` and carry the item's own accent. The ring is clipped where the dock starts.
+- **Charts in the chat** (`show_chart`): estimated 1RM per session for a lift, bodyweight with its trend, calories or protein per day (target line), weekly volume, sessions per week, minutes on the mat.
+  - Built from the app's own data (`lib/agentCharts.ts`) and stored on the card as plain numbers, so it's still there when the chat is opened again.
+  - Drawn by the Progress tab's charts, across the card's full width. The line draws in slower than on Progress, and a reopened card is drawn still.
+  - Nothing to draw is said plainly ("No sessions of Nordic curl to draw yet"), never an empty chart.
+- **Undo all.** When one answer made two or more changes, an "Undo all N" ghost button sits under its last card. It undoes newest first and folds away once nothing is left to undo. It's on the orb screen too.
+- **Keep only some changes.** A routine rewrite (three or more changes) is a preview with a tick beside each change.
+  - Untick one and its words dim and a strike draws across them; the button says "Apply 3 of 4".
+  - On Apply, the changes left out fold away and the card says "3 of 4 changes applied". What the model is told happened leaves them out.
+- **Copy a routine** (`duplicate_routine`): the same exercises, sets and rests, with their own ids so the two never share an edit. Named "Push copy", or whatever was said; a second copy gets numbered. It comes with Open and Undo.
+- **Judge round 1 fixes:**
+  - The ring and pill were coral on <body>; they now carry the tab's accent.
+  - The ring was too tight and ran under the dock.
+  - Change details wrapped mid-number.
+  - The ticks were too loud after Apply.
+  - The heading read "200 G".
+- Tests: `tests/coach7.test.ts`. Journey: `scripts/journey-coach6.mjs`.

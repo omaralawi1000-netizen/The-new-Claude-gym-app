@@ -13,6 +13,7 @@ import { bestsFor, countable, epley, historyOf, incrementFor, repRange, suggestP
 import { fmtDate } from '../../lib/dates';
 import { displayToKg, fmtNum, kgToDisplay } from '../../lib/units';
 import { LineChart } from '../../ui/charts';
+import { askTag } from '../../lib/askAbout';
 import { equipmentSet, substitutesFor } from './subs';
 import { addExercises } from './actions';
 import type { Exercise } from '../../lib/types';
@@ -120,7 +121,7 @@ export function ExerciseDetail({ props }: { props: { id: string } }) {
         {series.length >= 2 && (
           <>
             <Head icon="progress">{t('Progress')}</Head>
-            <div className="plinth exd-chart">
+            <div className="plinth exd-chart" data-ask={askTag('chart', `strength|${ex.id}`)}>
               <div className="small" style={{ fontWeight: 600 }}>{trend}</div>
               <LineChart points={series} height={150} fmtY={(v) => fmtNum(v, lang, 0)} seriesLabel={t('Estimated 1RM')} />
             </div>

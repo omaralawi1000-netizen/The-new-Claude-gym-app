@@ -35,6 +35,7 @@ import { detectRecords } from './workout';
 import { buildDayPlan, pickForMuscles } from './planDay';
 import { specOf } from './settingSpec';
 import { weekdayOf } from './dates';
+import { buildChart, CHART_METRICS, type ChartData, type ChartMetric } from './agentCharts';
 
 // ── what the model may ask for ──────────────────────────────
 
@@ -66,6 +67,8 @@ export type AgentAction =
   | { type: 'create_routine'; name: string; items: RoutineBit[] }
   | { type: 'edit_routine'; routine: string; rename?: string | null; add?: RoutineBit[]; remove?: string[]; change?: RoutineBit[] }
   | { type: 'delete_routine'; routine: string }
+  | { type: 'duplicate_routine'; routine: string; rename?: string | null }
+  | { type: 'show_chart'; metric: ChartMetric; exercise?: string | null; weeks?: number | null }
   | { type: 'delete_workout'; workout?: string | null }
   | { type: 'discard_workout' }
   | { type: 'set_schedule'; weekday: number; routine: string | null }
@@ -255,6 +258,8 @@ function validateOne(a: any, out: AgentAction[]) {
         break;
       }
       case 'delete_routine': { const routine = str(a.routine, 60); if (routine) out.push({ type: 'delete_routine', routine }); break; }
+      case 'duplicate_routine': { const routine = str(a.routine, 60); if (routine) out.push({ type: 'duplicate_routine', routine, rename: str(a.rename, 60) ?? null }); break; }
+      case 'show_chart': { if (CHART_METRICS.includes(a.metric)) out.push({ type: 'show_chart', metric: a.metric, exercise: str(a.exercise, 60) ?? null, weeks: num(a.weeks, 1, 104) ?? null }); break; }
       case 'delete_workout': out.push({ type: 'delete_workout', workout: str(a.workout, 30) ?? null }); break;
       case 'discard_workout': out.push({ type: 'discard_workout' }); break;
       case 'set_schedule': { const wd = num(a.weekday, 0, 6); if (wd !== undefined) out.push({ type: 'set_schedule', weekday: Math.round(wd), routine: str(a.routine, 60) ?? null }); break; }
@@ -351,11 +356,15 @@ function validateOne(a: any, out: AgentAction[]) {
 
 export interface AgentResult {
   id: string;
-  kind: 'food' | 'recipe' | 'sets' | 'water' | 'weight' | 'activity' | 'workout' | 'routine' | 'nav' | 'setting' | 'memory' | 'miss';
+  kind: 'food' | 'recipe' | 'sets' | 'water' | 'weight' | 'activity' | 'workout' | 'routine' | 'nav' | 'setting' | 'memory' | 'chart' | 'miss';
   /** a recipe's method, shown under its ingredients (folded away until opened) */
   steps?: string[];
   title: string;
-  lines: { text: string; sub?: string; warn?: boolean; /** the item's id (a food entry), so "move it" later means exactly this one */ ref?: string }[];
+  lines: { text: string; sub?: string; warn?: boolean; /** the item's id (a food entry), so "move it" later means exactly this one */ ref?: string; /** a change in a preview that can be left out (a tick beside it) */ pick?: boolean }[];
+  /** the preview's changes left out (indices into lines; the card's ticks write it, Apply reads it) */
+  off?: number[];
+  /** a small chart (show_chart): plain numbers, so it is still there when the chat is opened again */
+  chart?: ChartData;
   /** reverses everything this card did */
   undo?: () => void;
   /** a button on the card (open the workout, or confirm something that waits for a tap) */
@@ -986,26 +995,82 @@ function doEditRoutine(a: Extract<AgentAction, { type: 'edit_routine' }>, ctx: A
   if (!r) return { id: uid('r'), kind: 'miss', title: t('Couldn’t find that routine'), lines: [{ text: a.routine, sub: st.routines.map((x) => x.name).join(' · ').slice(0, 120), warn: true }] };
   const pool = allExercises(st.exercises);
   const nameOf = (id: string) => { const e = pool.find((x) => x.id === id); return e ? exLabel(e, lang) : id; };
-  let items = [...r.items];
-  const lines: AgentResult['lines'] = [];
-  const pick = (name: string) => { const c = matchExercises(name, items.map((i) => pool.find((e) => e.id === i.exerciseId)).filter(Boolean) as Exercise[], lang, 2); return c.length && c[0].score >= 0.5 ? items.find((i) => i.exerciseId === c[0].ex.id) : undefined; };
-  for (const n of a.remove ?? []) { const it = pick(n); if (it) { items = items.filter((i) => i !== it); lines.push({ text: nameOf(it.exerciseId), sub: t('removed') }); } else lines.push({ text: n, sub: t('not in this routine'), warn: true }); }
+  // each change is its own step, so a preview can leave any of them out (the card's ticks)
+  type Step = { name: string; items: RoutineItem[] };
+  const steps: { line: AgentResult['lines'][number]; run?: (x: Step) => Step }[] = [];
+  const have = r.items;
+  const pick = (name: string) => { const c = matchExercises(name, have.map((i) => pool.find((e) => e.id === i.exerciseId)).filter(Boolean) as Exercise[], lang, 2); return c.length && c[0].score >= 0.5 ? have.find((i) => i.exerciseId === c[0].ex.id) : undefined; };
+  if (a.rename) steps.push({ line: { text: r.name, sub: `→ ${a.rename}` }, run: (x) => ({ ...x, name: a.rename! }) });
+  for (const n of a.remove ?? []) {
+    const it = pick(n);
+    if (it) steps.push({ line: { text: nameOf(it.exerciseId), sub: t('removed') }, run: (x) => ({ ...x, items: x.items.filter((i) => i.id !== it.id) }) });
+    else steps.push({ line: { text: n, sub: t('not in this routine'), warn: true } });
+  }
   for (const b of a.change ?? []) {
     const it = pick(b.exercise);
-    if (!it) { lines.push({ text: b.exercise, sub: t('not in this routine'), warn: true }); continue; }
+    if (!it) { steps.push({ line: { text: b.exercise, sub: t('not in this routine'), warn: true } }); continue; }
     const repMin = b.repMin ?? it.repMin, repMax = Math.max(repMin, b.repMax ?? it.repMax);
     const nx = { ...it, workingSets: b.sets ?? it.workingSets, repMin, repMax, restSec: b.restSec ?? it.restSec, warmupSets: b.warmup ?? it.warmupSets };
-    items = items.map((i) => (i === it ? nx : i));
-    lines.push({ text: nameOf(it.exerciseId), sub: `${it.workingSets} × ${it.repMin}–${it.repMax} → ${nx.workingSets} × ${nx.repMin}–${nx.repMax}${nx.restSec !== it.restSec ? ` · ${fmtSec(nx.restSec)}` : ''}${nx.warmupSets !== it.warmupSets ? ` · ${nx.warmupSets} W` : ''}` });
+    steps.push({ line: { text: nameOf(it.exerciseId), sub: `${it.workingSets} × ${it.repMin}–${it.repMax} → ${nx.workingSets} × ${nx.repMin}–${nx.repMax}${nx.restSec !== it.restSec ? ` · ${fmtSec(nx.restSec)}` : ''}${nx.warmupSets !== it.warmupSets ? ` · ${nx.warmupSets} W` : ''}` }, run: (x) => ({ ...x, items: x.items.map((i) => (i.id === it.id ? { ...nx, id: i.id } : i)) }) });
   }
-  if (a.add?.length) { const m = itemsFrom(a.add, lang); items = [...items, ...m.items]; m.items.forEach((i) => lines.push({ text: nameOf(i.exerciseId), sub: `${t('added')} · ${i.workingSets} × ${i.repMin}–${i.repMax}` })); m.skipped.forEach((n) => lines.push({ text: n, sub: t('Not in your exercise library'), warn: true })); }
-  if (a.rename) lines.unshift({ text: r.name, sub: `→ ${a.rename}` });
-  if (!lines.length || lines.every((l) => l.warn)) return { id: uid('r'), kind: 'miss', title: t('Couldn’t change that routine'), lines };
-  const next = { ...r, name: a.rename ?? r.name, items, updatedAt: Date.now() };
-  const apply = () => { useStore.getState().upsertRoutine(next); return () => useStore.getState().upsertRoutine(r); };
-  // a rewrite (three or more changes) is a preview; a small edit happens at once
-  if (lines.filter((l) => !l.warn).length >= 3) return preview({ id: uid('r'), kind: 'routine', title: t('Change {name}?', { name: r.name }), key: `routine:${r.id}`, lines: [{ text: a.rename ?? r.name }, ...lines] }, t('Apply'), apply);
-  return { id: uid('r'), kind: 'routine', title: t('Routine updated'), lines: [{ text: a.rename ?? r.name }, ...lines], undo: apply() };
+  if (a.add?.length) {
+    const m = itemsFrom(a.add, lang);
+    m.items.forEach((it) => steps.push({ line: { text: nameOf(it.exerciseId), sub: `${t('added')} · ${it.workingSets} × ${it.repMin}–${it.repMax}` }, run: (x) => ({ ...x, items: [...x.items, it] }) }));
+    m.skipped.forEach((n) => steps.push({ line: { text: n, sub: t('Not in your exercise library'), warn: true } }));
+  }
+  const real = steps.filter((x) => x.run).length;
+  if (!real) return { id: uid('r'), kind: 'miss', title: t('Couldn’t change that routine'), lines: steps.map((x) => x.line) };
+  // the routine with the changes that are ticked (all of them, unless the preview's ticks left some out)
+  const build = (off: number[]) => {
+    let x: Step = { name: r.name, items: [...r.items] };
+    steps.forEach((p, i) => { if (p.run && !off.includes(i + 1)) x = p.run(x); });
+    return { ...r, name: x.name, items: x.items, updatedAt: Date.now() };
+  };
+  const put = (next: typeof r) => { useStore.getState().upsertRoutine(next); return () => useStore.getState().upsertRoutine(r); };
+  // (a preview names the routine as it is now: the rename is one of its changes, and may be left out)
+  const head = { text: r.name };
+  // a rewrite (three or more changes) is a preview: each change has a tick, and Apply does only the ticked ones
+  if (real >= 3) {
+    const card: AgentResult = preview({
+      id: uid('r'), kind: 'routine', title: t('Change {name}?', { name: r.name }), key: `routine:${r.id}`, off: [],
+      lines: [head, ...steps.map((x) => (x.run ? { ...x.line, pick: true } : x.line))],
+    }, t('Apply'), () => {
+      const off = card.off ?? [];
+      const left = off.filter((i) => steps[i - 1]?.run).length;
+      if (left) card.doneSubtitle = t('{n} of {m} changes applied', { n: real - left, m: real });
+      return put(build(off));
+    });
+    return card;
+  }
+  return { id: uid('r'), kind: 'routine', title: t('Routine updated'), lines: [{ text: a.rename ?? r.name }, ...steps.map((x) => x.line)], undo: put(build([])) };
+}
+
+/** "Make a copy of Push": the same exercises, sets and rests under a new name (its own ids, so the two never share an edit). */
+function doDuplicateRoutine(a: Extract<AgentAction, { type: 'duplicate_routine' }>, ctx: AgentCtx): AgentResult {
+  const { t } = ctx;
+  const st = useStore.getState();
+  const r = findRoutine(a.routine);
+  if (!r) return { id: uid('r'), kind: 'miss', title: t('Couldn’t find that routine'), lines: [{ text: a.routine, sub: st.routines.filter((x) => !x.oneOff).map((x) => x.name).join(' · ').slice(0, 120), warn: true }] };
+  const base = a.rename?.trim() || t('{name} copy', { name: r.name });
+  const taken = new Set(st.routines.map((x) => fold(x.name)));
+  let name = base;
+  for (let i = 2; taken.has(fold(name)) && i < 50; i++) name = `${base} ${i}`;
+  const now = Date.now();
+  const copy = { ...r, id: uid('r'), name, oneOff: undefined, items: r.items.map((i) => ({ ...i, id: uid('ri') })), createdAt: now, updatedAt: now };
+  st.upsertRoutine(copy);
+  return {
+    id: uid('r'), kind: 'routine', title: t('Routine duplicated'),
+    lines: [{ text: name, sub: `${copy.items.length} ${t('exercises')} · ${copy.items.reduce((n, i) => n + i.workingSets, 0)} ${t('sets')}` }],
+    button: { label: t('Open'), run: () => useUI.getState().push('routine', { id: copy.id }) },
+    undo: () => useStore.getState().deleteRoutine(copy.id),
+  };
+}
+
+/** A small chart in the chat: the model picks the metric, the numbers are the app's own (agentCharts.ts). */
+function doShowChart(a: Extract<AgentAction, { type: 'show_chart' }>, ctx: AgentCtx): AgentResult {
+  const b = buildChart(a.metric, { exercise: a.exercise, weeks: a.weeks, today: ctx.today, lang: ctx.lang, t: ctx.t });
+  if ('miss' in b) return { id: uid('r'), kind: 'miss', title: b.miss, lines: [] };
+  return { id: uid('r'), kind: 'chart', title: b.title, subtitle: b.subtitle, lines: [], chart: b.chart };
 }
 
 function doDeleteRoutine(a: Extract<AgentAction, { type: 'delete_routine' }>, ctx: AgentCtx): AgentResult {
@@ -1947,6 +2012,8 @@ export async function runActions(actions: AgentAction[], ctxIn: AgentCtx): Promi
         case 'create_routine': out.push(doCreateRoutine(a, ctx)); break;
         case 'edit_routine': out.push(doEditRoutine(a, ctx)); break;
         case 'delete_routine': out.push(doDeleteRoutine(a, ctx)); break;
+        case 'duplicate_routine': out.push(doDuplicateRoutine(a, ctx)); break;
+        case 'show_chart': out.push(doShowChart(a, ctx)); break;
         case 'delete_workout': out.push(doDeleteWorkout(a, ctx)); break;
         case 'discard_workout': out.push(doDiscardWorkout(ctx)); break;
         case 'set_schedule': out.push(doSchedule(a, ctx)); break;
