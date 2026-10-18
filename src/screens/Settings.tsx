@@ -1,3 +1,4 @@
+import { troubleReport, troubleThisWeek } from '../lib/trouble';
 import { IS_BETA, requestCopyFromReal } from '../lib/beta';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
@@ -17,10 +18,11 @@ import { defaultData } from '../state/defaults';
 import { buildDemo } from '../lib/demo';
 import { userHasData } from '../lib/stats';
 import { clearPhotos, loadPhoto, savePhoto } from '../lib/photos';
-import type { AppData, Meal, Settings } from '../lib/types';
+import { clearArchive, importArchive } from '../lib/archive';
+import type { AppData, Lang, Meal, Settings } from '../lib/types';
 import { uid, kcalOf, scaleMacros, suggestMacros } from '../lib/nutrition';
 import { mealName } from '../lib/derive';
-import { dayKey, fmtDate, fmtDuration } from '../lib/dates';
+import { addDays, dayKey, diffDays, fmtDate, fmtDuration } from '../lib/dates';
 import { useAi } from '../state/ai';
 import { clearKeys } from '../lib/keys';
 import { VoiceAiSettings } from './VoiceAi';
@@ -30,8 +32,11 @@ import { startDragSort } from '../ui/dragSort';
 import { setFpsMeter, useFpsMeterOn } from '../ui/FpsMeter';
 import { BG_KINDS, BgBody, setBgPhoto, useBgPhoto, useSkyClock, type BgKind } from '../ui/Backdrop';
 import { startStutter, stopStutter, stutterReport, stutterState, subscribeStutter } from '../lib/stutter';
+import { coachTrace } from '../lib/coachTrace';
 import { lastRestLate } from './workout/rest';
-import { inAndroidApp, restCheck, showAppRest } from '../lib/androidApp';
+import { appOnPhone, inAndroidApp, restCheck, showAppRest } from '../lib/androidApp';
+import { hcLastLine, hcLink, hcStatus, noteAsk } from '../lib/healthSync';
+import { ACTIVITY_LABEL, INTENSITY_LABEL, activityIcon } from '../lib/activity';
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 // Moving between Settings pages works like iOS: the page you leave steps aside and fades out quickly, then the next one glides
@@ -50,7 +55,7 @@ const TITLE = {
   exit: (d: number) => ({ opacity: 0, transform: `translateX(${d * -14}px)`, transition: { duration: 0.11, ease: [0.4, 0, 1, 1] as const } }),
 };
 
-type Section = null | 'today' | 'targets' | 'training' | 'food' | 'units' | 'look' | 'reminders' | 'data' | 'privacy' | 'ai' | 'memory' | 'about';
+type Section = null | 'today' | 'targets' | 'training' | 'food' | 'units' | 'look' | 'reminders' | 'data' | 'privacy' | 'ai' | 'memory' | 'watch' | 'about';
 
 function Row({ icon, title, sub, onClick, value }: { icon: any; title: string; sub?: string; onClick: () => void; value?: string }) {
   return (
@@ -230,7 +235,7 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
   const ai = useAi();
   const set = s.updateSettings;
   const st = s.settings;
-  const titles: Record<string, string> = { targets: t('Targets'), training: t('Training'), food: t('Food & water'), units: t('Units & locale'), look: t('Appearance'), today: t('Today'), reminders: t('Reminders'), data: t('Data & backup'), privacy: t('Privacy'), ai: t('Voice & AI'), memory: t('Coach memory'), about: t('About Aven') };
+  const titles: Record<string, string> = { targets: t('Targets'), training: t('Training'), food: t('Food & water'), units: t('Units & locale'), look: t('Appearance'), today: t('Today'), reminders: t('Reminders'), data: t('Data & backup'), privacy: t('Privacy'), ai: t('Voice & AI'), memory: t('Coach memory'), watch: t('Watch'), about: t('About Aven') };
   const goBack = () => (sec && !props.section ? setSec(null) : pop());
   const moved = useRef(false); if (sec !== (props.section ?? null)) moved.current = true; // once you've moved between pages, pages settle in
 
@@ -256,6 +261,7 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
                   <Row icon="today" title={t('Today')} sub={t('Choose what Today shows')} onClick={() => setSec('today')} />
                   <Row icon="sparkle" title={t('Voice & AI')} sub={ai.hasGroq || ai.hasGemini || ai.hasOpenai ? [ai.hasGroq ? 'Groq' : '', ai.hasOpenai && ai.solFirst ? 'GPT-6.1 Sol' : '', ai.hasGemini ? 'Gemini' : ''].filter(Boolean).join(' + ') : undefined} onClick={() => setSec('ai')} />
                   <Row icon="note" title={t('Coach memory')} sub={s.memory.length ? t(s.memory.length === 1 ? '1 thing the Coach knows about you' : '{n} things the Coach knows about you', { n: s.memory.length }) : t('What the Coach knows about you')} onClick={() => setSec('memory')} />
+                  {watchShown() && <Row icon="watch" title={t('Watch')} sub={watchSub(t, lang)} onClick={() => setSec('watch')} />}
                   <Row icon="bell" title={t('Reminders')} onClick={() => setSec('reminders')} />
                   <Row icon="download" title={t('Data & backup')} onClick={() => setSec('data')} />
                   <Row icon="shield" title={t('Privacy')} onClick={() => setSec('privacy')} />
@@ -309,6 +315,7 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
               </div>
             )}
             {sec === 'reminders' && <Reminders />}
+            {sec === 'watch' && <WatchSection />}
             {sec === 'data' && <DataSection />}
             {sec === 'ai' && <VoiceAiSettings />}
             {sec === 'memory' && <CoachMemory />}
@@ -496,6 +503,146 @@ function FoodSettings() {
   );
 }
 
+/** Settings shows the watch where it can work: in the Android app (or once it has been there), and in Aven Beta on Android. */
+function watchShown(): boolean {
+  if (!/Android/i.test(navigator.userAgent)) return false;
+  let seen = false; try { seen = !!localStorage.getItem('aven.androidApp'); } catch { /* fine */ }
+  return inAndroidApp() || seen || !!hcStatus() || IS_BETA;
+}
+function watchSub(t: ReturnType<typeof useT>, lang: Lang): string {
+  const h = hcStatus();
+  if (!h?.on) return t('Steps and workouts from your watch');
+  return h.lastSync ? t('Connected · synced {when}', { when: fmtWhen(h.lastSync, lang, t) }) : t('Connected');
+}
+const fmtWhen = (at: number, lang: Lang, t: ReturnType<typeof useT>) => {
+  const d = new Date(at), now = new Date();
+  const time = d.toLocaleTimeString(lang === 'da' ? 'da-DK' : 'en-GB', { hour: '2-digit', minute: '2-digit' });
+  return d.toDateString() === now.toDateString() ? `${t('today')} ${time}` : `${d.toLocaleDateString(lang === 'da' ? 'da-DK' : 'en-GB', { day: 'numeric', month: 'short' })}, ${time}`;
+};
+
+/**
+ * Settings → Watch: your watch's steps and workouts, automatic (Galaxy Watch → Samsung Health → Health Connect → the
+ * Android app, which hands them to this page whenever Aven opens). Read only; the burned calories are shown, never eaten
+ * back. Buttons go through the Android app (lib/healthSync.ts `hcLink`).
+ */
+function WatchSection() {
+  const t = useT();
+  const lang = useLang();
+  const s = useStore();
+  const [, bump] = useState(0);
+  // the button just tapped, while the Android app does its part (Health Connect's question, then the read); a few seconds
+  // with nothing back and still here: it didn't open, said plainly
+  const [busy, setBusy] = useState<'connect' | 'sync' | null>(null);
+  const [stuck, setStuck] = useState(false);
+  useEffect(() => {
+    const f = () => { setBusy(null); setStuck(false); bump((n) => n + 1); };
+    window.addEventListener('aven-hc', f);
+    return () => window.removeEventListener('aven-hc', f);
+  }, []);
+  useEffect(() => {
+    if (!busy) return;
+    let left = false;
+    const vis = () => { if (document.hidden) left = true; };
+    document.addEventListener('visibilitychange', vis);
+    const id = setTimeout(() => { setBusy(null); if (!left) setStuck(true); }, left ? 12000 : 7000);
+    return () => { clearTimeout(id); document.removeEventListener('visibilitychange', vis); };
+  }, [busy]);
+  const h = hcStatus();
+  const go = (what: 'connect' | 'sync' | 'off') => {
+    haptic('light');
+    setStuck(false);
+    if (what !== 'off') setBusy(what);
+    noteAsk(what);
+    location.href = hcLink(what);
+  };
+  const on = !!(h?.on && h.granted);
+  const today = dayKey(Date.now(), s.settings.dayStartHour);
+  const inWeek = (d: string) => diffDays(today, d) < 7 && diffDays(today, d) >= 0;
+  const watchActs = s.activities.filter((a) => a.source === 'watch');
+  const week = watchActs.filter((a) => inWeek(a.date));
+  const weekMin = Math.round(week.reduce((n, a) => n + a.durationSec, 0) / 60);
+  const stepsBy = new Map((s.steps ?? []).map((x) => [x.date, x.count]));
+  const days = Array.from({ length: 7 }, (_, i) => { const d = addDays(today, i - 6); return { d, n: stepsBy.get(d) ?? 0 }; });
+  const counted = days.filter((x) => x.n > 0);
+  const perDay = counted.length ? Math.round(counted.reduce((n, x) => n + x.n, 0) / counted.length) : 0;
+  const top = Math.max(1, ...days.map((x) => x.n));
+  const recent = [...watchActs].sort((x, y) => (y.startAt ?? y.at) - (x.startAt ?? x.at)).slice(0, 3);
+  const state = !h ? null : h.note === 'unavailable' || !h.avail ? t('Health Connect needs Android 14 or newer.') : h.note === 'denied' || (h.on && !h.granted) ? t('Aven isn’t allowed to read your watch yet. In your phone’s Settings, search for Health Connect, open App permissions › Aven and allow all. Then tap Connect watch.') : h.note === 'slow' || h.note === 'failed' ? t('Health Connect didn’t answer in time. Try Sync now.') : null;
+  const u = s.settings.units;
+  return (
+    <div className="stack gap16 watch">
+      <div className="plinth watch-hero">
+        <div className="row-flex" style={{ gap: 14, alignItems: 'center' }}>
+          <span className={`watch-ic${on ? ' on' : ''}`} aria-hidden><Icon name="watch" size={24} /></span>
+          <div className="grow" style={{ minWidth: 0 }}>
+            <div className="watch-state">{on && <i className="watch-dot" aria-hidden />}{on ? t('Connected') : t('Not connected')}</div>
+            <div className="xs t2" style={{ marginTop: 3 }}>{on ? (h?.lastSync ? t('Synced {when}', { when: fmtWhen(h.lastSync, lang, t) }) : t('Waiting for the first sync')) : t('Your watch’s workouts and steps, by themselves')}</div>
+          </div>
+        </div>
+        {on ? (
+          <>
+            <div className="watch-cap">{t('This week')}</div>
+            <div className="watch-stats">
+              <div><div className="num">{week.length}</div><div className="xs t2">{t(week.length === 1 ? 'workout' : 'workouts')}</div></div>
+              <div><div className="num">{weekMin}</div><div className="xs t2">{t('active min')}</div></div>
+              <div><div className="num">{perDay ? fmtNum(perDay, lang, 0) : '—'}</div><div className="xs t2">{t('steps a day')}</div></div>
+            </div>
+            <div className="watch-bars" aria-label={t('Steps, the last 7 days')}>
+              {days.map((x, i) => (
+                <div key={x.d} className={`watch-bar${x.d === today ? ' today' : ''}${x.n ? '' : ' none'}`}>
+                  <span><i style={{ transform: `scaleY(${(x.n ? Math.max(0.06, x.n / top) : 0.06).toFixed(3)})`, animationDelay: `${i * 40}ms` }} /></span>
+                  <b>{fmtDate(x.d, lang, { weekday: 'narrow' })}</b>
+                </div>
+              ))}
+            </div>
+          </>
+        ) : (
+          <div className="watch-flow" aria-hidden>
+            <span><Icon name="watch" size={17} /><b>{t('Your watch')}</b></span>
+            <i />
+            <span><Icon name="heart" size={17} /><b>Health Connect</b></span>
+            <i />
+            <span><Icon name="sparkle" size={17} /><b>Aven</b></span>
+          </div>
+        )}
+      </div>
+      {state && <div className="small" style={{ color: 'var(--warn)' }}>{state}</div>}
+      {stuck && <div className="small t2">{t('Nothing opened? Open Aven from its app icon on your home screen, then tap again.')}</div>}
+      {on && recent.length > 0 && (
+        <div className="plinth" style={{ padding: '6px 16px' }}>
+          <div className="list watch-recent">
+            {recent.map((x) => (
+              <div key={x.id} className="li">
+                <span className="watch-kind" aria-hidden><Icon name={activityIcon(x.kind)} size={18} /></span>
+                <div className="grow" style={{ minWidth: 0 }}>
+                  <div className="li-title trunc">{x.name ? t(x.name) : t(ACTIVITY_LABEL[x.kind] === 'Other' ? 'Activity' : ACTIVITY_LABEL[x.kind])}</div>
+                  <div className="li-sub num trunc">{fmtDate(x.date, lang, { weekday: 'short', day: 'numeric', month: 'short' })} · {Math.round(x.durationSec / 60)} min{x.avgHr ? ` · ${x.avgHr} bpm` : x.distanceM ? ` · ${fmtNum(u.distance === 'mi' ? x.distanceM / 1609.344 : x.distanceM / 1000, lang, 1)} ${u.distance}` : ''}</div>
+                </div>
+                {x.intensity && <span className="chip sm">{t(INTENSITY_LABEL[x.intensity])}</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {on ? (
+        <div className="row-flex" style={{ gap: 10 }}>
+          <button className="btn grow press" onClick={() => go('sync')} disabled={busy === 'sync'}><Icon name="repeat" size={17} className={busy === 'sync' ? 'spin-slow' : undefined} /> {busy === 'sync' ? t('Syncing…') : t('Sync now')}</button>
+          <button className="btn ghost press" onClick={() => go('off')}>{t('Disconnect')}</button>
+        </div>
+      ) : (
+        <button className="btn primary block press" onClick={() => go('connect')} disabled={busy === 'connect'}><Icon name="watch" size={18} /> {busy === 'connect' ? t('Opening Health Connect…') : t('Connect watch')}</button>
+      )}
+      <div className="xs t3 stack gap8" style={{ padding: '0 4px' }}>
+        <div>{t('Syncs by itself every time you open Aven. Works with a Galaxy Watch, or any watch that saves to Health Connect.')}</div>
+        <div>{t('Read only, and it stays on this phone. Calories a workout burned are shown, but never added to your food target.')}</div>
+        {!appOnPhone() && <div>{t('Needs the Aven Android app. Without it, the button offers to download it.')}</div>}
+        {/* (until the watch is connected: what the Android app last sent back, for a screenshot) */}
+        {!on && <div style={{ opacity: 0.7 }}>{hcLastLine()}</div>}
+      </div>
+    </div>
+  );
+}
+
 function Reminders() {
   const t = useT();
   const s = useStore();
@@ -526,7 +673,7 @@ function DataSection() {
   const push = useUI((u) => u.push);
   const file = useRef<HTMLInputElement>(null);
   const [withPhotos, setWithPhotos] = useState(false);
-  const [pending, setPending] = useState<{ data: AppData; photos?: Record<string, string> } | null>(null);
+  const [pending, setPending] = useState<{ data: AppData; photos?: Record<string, string>; chat?: unknown[] } | null>(null);
   const [confirmDel, setConfirmDel] = useState(false);
   const has = userHasData(s);
   const lang = useLang();
@@ -556,10 +703,11 @@ function DataSection() {
     const prev = snapshotData();
     before.replaceAll(pending.data);
     if (pending.photos) for (const [id, url] of Object.entries(pending.photos)) { try { await savePhoto(id, await (await fetch(url)).blob()); } catch { /* skip */ } }
+    importArchive(pending.chat); // the conversation: merged in, nothing here is lost
     setPending(null);
     toast(t('Backup restored'), { tone: 'ok', actionLabel: t('Undo'), onAction: () => useStore.getState().replaceAll(prev), duration: 10000 });
   };
-  const doDelete = async () => { resetDrive(); useStore.getState().resetAll(); await clearPhotos().catch(() => {}); try { Object.keys(localStorage).filter((k) => k.startsWith('aven')).forEach((k) => localStorage.removeItem(k)); } catch { /* ignore */ } clearKeys(); useAi.getState().patch({ stt: 'accurate', voiceLang: 'auto', voice: 'Achird', brain: true, solFirst: true, effortOrb: 'medium', effortCoach: 'high', models: { fast: '', brain: '', fastAlt: '', brainAlt: '', tts: '' } }); setConfirmDel(false); closeAll(); setTimeout(() => push('onboarding', {}), 80); };
+  const doDelete = async () => { resetDrive(); useStore.getState().resetAll(); await clearPhotos().catch(() => {}); await clearArchive(); try { Object.keys(localStorage).filter((k) => k.startsWith('aven')).forEach((k) => localStorage.removeItem(k)); } catch { /* ignore */ } clearKeys(); useAi.getState().patch({ stt: 'accurate', voiceLang: 'auto', voice: 'Achird', brain: true, solFirst: true, effortOrb: 'medium', effortCoach: 'high', models: { fast: '', brain: '', fastAlt: '', brainAlt: '', tts: '', sol: '', solAuto: '' }, solChecked: 0 }); setConfirmDel(false); closeAll(); setTimeout(() => push('onboarding', {}), 80); };
   const demo = () => { const d = buildDemo(s.settings); useStore.getState().patch(d); toast(t('Demo data loaded'), { tone: 'ok' }); };
   const removeDemo = () => { const lang = s.settings.language; const settings = s.settings; useStore.getState().replaceAll({ ...defaultData(lang), settings }); toast(t('Demo data removed'), { tone: 'ok' }); };
 
@@ -622,8 +770,34 @@ function StutterRecorder() {
       <div className="t2" style={{ marginTop: 4 }}>{on ? t('Recording — use the app as normal. {m} left, {n} caught.', { m: fmtDuration(Math.ceil(left / 1000)), n: count }) : t('Notes every frame your phone had to wait for, for five minutes, so the next fix is aimed at what you felt. Only timings and screen names.')}</div>
       <div className="row-flex" style={{ gap: 8, marginTop: 10 }}>
         <button className={`btn sm press ${on ? '' : 'primary'}`} onClick={() => (on ? stopStutter() : startStutter())}>{on ? t('Stop') : t('Start recording')}</button>
-        {count > 0 && <button className="btn sm press" onClick={copy}><Icon name="copy" size={15} /> {t('Copy report')}</button>}
+        {(count > 0 || !!coachTrace()) && <button className="btn sm press" onClick={copy}><Icon name="copy" size={15} /> {t('Copy report')}</button>}
       </div>
+      <CoachRawCopy />
+    </div>
+  );
+}
+
+/**
+ * How the Coach's AI has been doing: the app counts its own trouble (an answer it couldn't read, part of one dropped, a
+ * fallback, a failed search) on this phone, and copies the details plus the last raw answer (kept in memory only) for
+ * whoever is fixing the app. Nothing is sent anywhere; no keys, no messages.
+ */
+function CoachRawCopy() {
+  const t = useT();
+  const [n] = useState(() => troubleThisWeek());
+  const copy = async () => {
+    const { lastRawAnswer } = await import('../lib/agentTurn');
+    const r = lastRawAnswer();
+    const raw = r ? `Last answer · ${new Date(r.at).toISOString()} · ${r.by}${r.plain.length ? ` · plain JSON mode: ${r.plain.join(', ')}` : ''}\n${r.text}` : 'Last answer: none since the app was opened.';
+    const text = `Aven ${__APP_VERSION__}\n${troubleReport()}\n\n${raw}`;
+    try { await navigator.clipboard.writeText(text); useUI.getState().toast(t('Copied'), { tone: 'ok' }); } catch { useUI.getState().toast(t('Couldn’t copy'), { tone: 'bad' }); }
+  };
+  return (
+    <div style={{ marginTop: 14 }}>
+      <b>{t('How the Coach is doing')}</b>
+      <div className="t2" style={{ marginTop: 4 }}>{n === 0 ? t('No AI trouble this week.') : n === 1 ? t('The Coach had trouble once this week.') : t('The Coach had trouble {n} times this week.', { n })}</div>
+      <div className="t3 xs" style={{ marginTop: 4 }}>{t('Counted on this phone only. If something seems off, copy the details and paste them to whoever is fixing the app. No keys, no messages.')}</div>
+      <button className="btn sm press" style={{ marginTop: 10 }} onClick={copy}><Icon name="copy" size={15} /> {t('Copy details')}</button>
     </div>
   );
 }

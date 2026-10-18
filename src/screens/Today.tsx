@@ -20,6 +20,13 @@ import { exName } from './workout/common';
 import { cardOrder, NextTargets, MusclesWeek, RecentRecords } from './TodayCards';
 import { Roll } from '../ui/Roll';
 import { CoachPin } from '../ui/CoachPin';
+import { useEdgeFade } from '../ui/edgeFade';
+
+/** a sideways row of chips that fades only on the side with more to scroll to */
+function SoftChips({ style, children }: { style?: React.CSSProperties; children: React.ReactNode }) {
+  const ref = useEdgeFade<HTMLDivElement>();
+  return <div ref={ref} className="chips fade-x" style={style}>{children}</div>;
+}
 
 export function estMinutes(r: Routine): number {
   const sets = r.items.reduce((n, i) => n + i.warmupSets + i.workingSets, 0);
@@ -102,14 +109,21 @@ export function TodayScreen() {
     const target = s.schedule.mode === 'rotation' ? s.schedule.rotation.perWeek : Object.values(s.schedule.weekly).filter(Boolean).length;
     const doneN = week.filter((w) => w.done).length;
     const wrN = s.activities.filter((x) => x.kind === 'wrestling' && x.date >= weekStart && x.date <= addDays(weekStart, 6)).length;
+    // from the watch: the week's cardio and the steps a day (only once it is connected)
+    const inWeek = (d: string) => d >= weekStart && d <= addDays(weekStart, 6);
+    const cardioN = s.activities.filter((x) => x.source === 'watch' && x.kind !== 'wrestling' && inWeek(x.date)).length;
+    const stepDays = (s.steps ?? []).filter((x) => inWeek(x.date) && x.date <= today);
+    const stepsAvg = stepDays.length ? Math.round(stepDays.reduce((n, x) => n + x.count, 0) / stepDays.length / 100) * 100 : 0;
     const streak = target ? weekStreak(weeklyTraining(s.sessions, today, 26, settings.weekStart), target) : 0;
     const parts = [
       target ? t('{a} of {b} workouts', { a: doneN, b: target }) : doneN ? t(doneN === 1 ? '1 workout' : '{n} workouts', { n: doneN }) : '',
       streak >= 2 ? t('{n}-week streak', { n: streak }) : '',
       wrN ? t(wrN === 1 ? '1 wrestling session' : '{n} wrestling sessions', { n: wrN }) : '',
+      cardioN ? t(cardioN === 1 ? '1 cardio' : '{n} cardio', { n: cardioN }) : '',
+      stepsAvg ? t('{n} steps a day', { n: fmtNum(stepsAvg, lang, 0) }) : '',
     ].filter(Boolean);
     return parts.join(' · ');
-  }, [s.sessions, s.activities, s.schedule, weekStart, today, settings.weekStart, t]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [s.sessions, s.activities, s.steps, s.schedule, weekStart, today, settings.weekStart, t]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // While the workout overlay is open, keep the hero looking like it did when it was tapped: otherwise it flips to its
   // "in progress" layout (a different height) in the middle of the plate morph that grows out of it.
@@ -162,15 +176,13 @@ export function TodayScreen() {
             <Icon name="drop" size={18} style={{ color: 'var(--c-water)' }} /><span className="num small" style={{ fontWeight: 600, minWidth: '4ch', textAlign: 'center' }}><Roll text={fmtNum(water.ml, lang, 0)} /></span>
           </button>}
         </div>}
-        {wd.recents && recents.length > 0 && <div className="chips" style={{ marginTop: 14, justifyContent: 'safe center' }}>{recents.map((r) => <button key={r.id} className="chip press" onClick={() => quickLog(r.id, r.qty)} aria-label={`${t('Add')} ${r.name}`}>+ {r.name.split(',')[0]}</button>)}</div>}
+        {wd.recents && recents.length > 0 && <SoftChips style={{ marginTop: 14, justifyContent: 'safe center' }}>{recents.map((r) => <button key={r.id} className="chip press" onClick={() => quickLog(r.id, r.qty)} aria-label={`${t('Add')} ${r.name}`}>+ {r.name.split(',')[0]}</button>)}</SoftChips>}
       </section>
 
       {/* ── workout ── */}
       <motion.section style={{ position: 'relative' }}>
         <div data-wk="hero" className="plinth"
-          style={{ position: 'absolute', inset: 0, borderRadius: 30, overflow: 'hidden' }}>
-          <div style={{ position: 'absolute', right: -60, top: -60, width: 220, height: 220, borderRadius: '50%', background: 'radial-gradient(closest-side, var(--ac-soft), transparent)' }} />
-        </div>
+          style={{ position: 'absolute', inset: 0, borderRadius: 30 }} />
         <div style={{ position: 'relative', padding: '22px 22px 22px 24px' }}>
           {active ? (
             <div className="row-flex between" style={{ gap: 14 }}>
@@ -225,10 +237,10 @@ export function TodayScreen() {
                 <div className="display" style={{ fontSize: 46, fontStyle: 'italic', opacity: .85 }}>{t('Rest day')}</div>
                 <button className="icon-btn press" aria-label={t('Empty session')} onClick={() => start()}><Icon name="plus" /></button>
               </div>
-              <div className="chips" style={{ marginTop: 14 }}>
+              <SoftChips style={{ marginTop: 14 }}>
                 {s.routines.slice(0, 5).map((r) => <button key={r.id} className="chip press" onClick={() => start(r)}>{r.name}</button>)}
                 <button className="chip acc press" onClick={() => push('activity', { kind: 'wrestling' })}><Icon name="wrestle" size={15} /> {t('Wrestling')}</button>
-              </div>
+              </SoftChips>
             </div>
           )}
         </div>
@@ -274,8 +286,8 @@ export function TodayScreen() {
           return (
             <button key={w.d} className="press" onClick={() => setTab('train')} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }} aria-label={`${fmtDate(w.d, lang)}${r ? `: ${r.name}` : ''}${w.done ? `, ${t('done')}` : ''}`}>
               <span className="micro" style={{ color: isToday ? 'var(--ac-text)' : undefined }}>{fmtWeekdayShort(weekdayOf(w.d), lang, true)}</span>
-              <span style={{ width: 36, height: 36, borderRadius: '50%', display: 'grid', placeItems: 'center', background: w.done ? 'var(--ac)' : w.wr ? 'var(--ac-soft)' : r || isToday ? 'var(--s2)' : 'transparent', color: w.done ? 'var(--ac-ink)' : w.wr ? 'var(--ac-text)' : 'var(--tx2)', boxShadow: w.done ? '0 0 18px -2px var(--ac)' : isToday ? 'inset 0 0 0 1.5px var(--ac), 0 0 18px -6px var(--ac)' : r ? 'inset 0 0 0 1px var(--line)' : undefined, fontSize: 12, fontWeight: 700 }}>
-                {/* a rest day is just a quiet dot: circles only where something is planned or done */}
+              <span style={{ width: 36, height: 36, borderRadius: '50%', display: 'grid', placeItems: 'center', background: w.done || w.wr ? 'var(--ac)' : r || isToday ? 'var(--s2)' : 'transparent', color: w.done || w.wr ? 'var(--ac-ink)' : 'var(--tx2)', boxShadow: w.done || w.wr ? '0 0 18px -2px var(--ac)' : isToday ? 'inset 0 0 0 1.5px var(--ac), 0 0 18px -6px var(--ac)' : r ? 'inset 0 0 0 1px var(--line)' : undefined, fontSize: 12, fontWeight: 700 }}>
+                {/* filled = done (the glyph says what: a check for the gym, the wrestler for the mat); a rest day is just a quiet dot */}
                 {w.done ? <Icon name="check" size={17} sw={2.6} /> : w.wr ? <Icon name="wrestle" size={17} /> : r ? r.name.slice(0, 1).toUpperCase() : w.pw ? <Icon name="wrestle" size={16} style={{ opacity: 0.75 }} /> : <i aria-hidden style={{ width: 4, height: 4, borderRadius: 4, background: 'var(--tx3)', opacity: 0.6 }} />}
               </span>
               {/* under it: a missed workout (red), or wrestling planned beside the gym (accent) */}
@@ -411,8 +423,9 @@ function WeekReviewCard({ d, today }: { d: AppData; today: string }) {
       {stall && stallEx && (
         <div className="xs review-stall"><Icon name="info" size={14} style={{ flex: 'none', marginTop: 1 }} /><span>{t('{ex} has stalled: best {w} × {r} since {date}', { ex: exName(stallEx, lang), w: `${fmtNum(kgToDisplay(stall.best.kg, u), lang, 2)} ${u}`, r: stall.best.reps, date: fmtDate(stall.since, lang, { day: 'numeric', month: 'short' }) })}</span></div>
       )}
-      <button className="btn sm primary press" style={{ marginTop: 14 }} onClick={() => { push('coach', { ask: t('Review my week and give me the one thing to change next week.') }); }}>
-        <Icon name="sparkle" size={15} /> {t('Plan next week with the Coach')}
+      {/* the whole review: every number, the muscles, last week's focus and the Coach's priorities (screens/WeekReview.tsx) */}
+      <button className="btn sm primary press" style={{ marginTop: 14 }} onClick={() => { haptic('light'); push('weekReview', { end }); }}>
+        <Icon name="sparkle" size={15} /> {t('See your week')}
       </button>
     </section>
   );

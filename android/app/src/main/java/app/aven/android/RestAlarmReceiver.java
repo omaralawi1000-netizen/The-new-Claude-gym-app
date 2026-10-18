@@ -16,6 +16,7 @@ public class RestAlarmReceiver extends BroadcastReceiver {
         if (ACTION_TICK.equals(intent.getAction())) { RestTimerService.start(c); return; }
         // the end: kept awake a moment longer, so Android doesn't freeze the app while the clicks play
         PendingResult later = goAsync();
+        RestNotifications.restoreChrome(intent); // (Android may have stopped the app during the rest)
         RestNotifications.ring(c);
         new Handler(Looper.getMainLooper()).postDelayed(later::finish, 2500);
     }

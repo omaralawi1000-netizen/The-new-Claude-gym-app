@@ -6,21 +6,17 @@ import { tNow } from '../../lib/i18n';
 import { fmtTime } from '../../lib/dates';
 import type { SessionExercise, SetRecord, WorkoutSession } from '../../lib/types';
 import { exName, fmtSet, isStrength } from './common';
-import { adjustRest, skipRest } from './actions';
+import { adjustRest, patchSet, skipRest } from './actions';
+import { completeSet } from './complete';
 import { fmtNum, kgToDisplay } from '../../lib/units';
 import { androidRest, clearAppRest, inAndroidApp, noteAndroidApp, overAppRest, showAppRest } from '../../lib/androidApp';
 
-/** The set to do next: the first one not yet ticked, in the order of the list (with its label: "W" or the working-set number). */
+export { currentSetOf, focusPageNow, setFocusPage, subscribeFocusPage } from '../../lib/currentSet';
+import { currentSetOf } from '../../lib/currentSet';
+
+/** The set to do next (for the highlight and the bar): `currentSetOf`, warm-ups included. */
 export function nextSetOf(a: WorkoutSession | null | undefined): { se: SessionExercise; set: SetRecord; label: string } | null {
-  if (!a) return null;
-  for (const se of a.exercises) {
-    let n = 0;
-    for (const set of se.sets) {
-      if (set.type === 'working') n++;
-      if (!set.done) return { se, set, label: set.type === 'warmup' ? 'W' : String(n) };
-    }
-  }
-  return null;
+  return currentSetOf(a, 'include', false);
 }
 
 /** "Bench Press · set 3", for the alert and the bar. */
@@ -117,6 +113,50 @@ function nextSetWords(a: WorkoutSession) {
   return { name, which, target, label: nx.label };
 }
 
+/** "2:45" */
+const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.round(s) % 60).padStart(2, '0')}`;
+
+/**
+ * The rest-over alert for the set that's next, as the Android app shows it on the watch: its words, what Done ✓ says, and
+ * the rest that follows it (as a tap would start: none after a warm-up, inside a superset or after the last set).
+ */
+function stepOf(a: WorkoutSession) {
+  const st = useStore.getState();
+  const nx = nextSetOf(a);
+  const w = nextSetWords(a);
+  if (!nx || !w) return null;
+  const all = a.exercises;
+  const idx = all.findIndex((e) => e.id === nx.se.id);
+  const lastOne = !all.some((e) => e.sets.some((x) => !x.done && x.id !== nx.set.id));
+  const linked = !!nx.se.supersetGroup && all.slice(idx + 1).some((e) => e.supersetGroup === nx.se.supersetGroup && e.sets.some((x) => !x.done));
+  const n = nx.set.type !== 'working' || lastOne || linked ? 0 : (nx.se.restSec ?? st.settings.restDefaultSec);
+  return {
+    x: w.name,
+    l: [w.which.charAt(0).toUpperCase() + w.which.slice(1), w.target].filter(Boolean).join(' · '),
+    o: w.label === 'W' ? tNow('Time for your warm-up') : tNow('Time for set {n}', { n: w.label }),
+    b: [w.name, w.target].filter(Boolean).join(' · '),
+    d: `${tNow('Done')} ✓${w.target ? ` ${w.target}` : ''}`,
+    y: `${(w.label === 'W' ? tNow('Warm-up') : tNow('Set {n}', { n: w.label }))} ✓${w.target ? ` · ${w.target}` : ''}`,
+    // what the watch says once it's ticked: the rest that starts, or that the workout is done
+    z: n ? tNow('Rest {time}', { time: mmss(n) }) : lastOne ? tNow('Last set done · open Aven to finish') : '',
+    n,
+  };
+}
+
+/** The sets after the next one, a few ahead, each as the watch will need it (ticked one by one with Done ✓ while Aven is
+ *  asleep, the Android app carries on with these). */
+function stepsAfter(a: WorkoutSession, max = 6) {
+  const sim: WorkoutSession = JSON.parse(JSON.stringify(a));
+  const out: NonNullable<ReturnType<typeof stepOf>>[] = [];
+  for (let i = 0; i <= max; i++) {
+    const nx = nextSetOf(sim);
+    if (!nx) break;
+    if (i > 0) { const s = stepOf(sim); if (!s) break; out.push(s); }
+    nx.set.done = true;
+  }
+  return out;
+}
+
 /** What the notifications need for the rest that's running now, or null when there's nothing to show (`ended`: also once it's over). */
 function restPayload(ended = false) {
   const st = useStore.getState();
@@ -139,6 +179,9 @@ function restPayload(ended = false) {
     icon: `${import.meta.env.BASE_URL}notif-icon.png`, badge: `${import.meta.env.BASE_URL}badge-96.png`,
     more: tNow('+30 s'), skip: tNow('Skip rest'), skipShort: tNow('Skip'),
     sound: st.settings.sound,
+    // the alert's Done ✓: the set that's next, as planned (one tap on the watch logs it; see applyDone), the rest it starts,
+    // and the sets after it (so the Android app can carry on from the wrist while this page is asleep)
+    ...(() => { const s = stepOf(a); return s ? { done: s.d, doneNote: s.y, doneSay: s.z, next: s.n, queue: stepsAfter(a) } : { done: '', doneNote: '', doneSay: '', next: 0, queue: [] }; })(),
   };
 }
 type Payload = NonNullable<ReturnType<typeof restPayload>>;
@@ -197,6 +240,77 @@ export function offerRestAlerts(toast: (text: string, o: { actionLabel: string; 
   } catch { /* ignore */ }
 }
 
+/**
+ * Done ✓ from the rest-over alert: the set that's next (the one the alert named) is ticked as planned, exactly as a tap
+ * ticks it (records, the next rest), and if Aven is out of sight the next rest goes to the lock screen and watch at once.
+ * `at` is when it was tapped: a page that was asleep behind the lock screen hears of it later, and the set and the next
+ * rest still count from the tap. Each rest's Done counts once (the message, the cache, a page that was asleep).
+ */
+let doneFor = '';
+export function applyDone(at = Date.now()): boolean {
+  const a = useStore.getState().active;
+  if (!a?.rest) return false;
+  const once = `${a.id}:${a.rest.endsAt}`;
+  if (doneFor === once) return false; // (the other copy of a tap already applied: nothing to note)
+  const nx = nextSetOf(a);
+  if (!nx) return false;
+  doneFor = once;
+  const ok = !!completeSet(nx.se.id, nx.set.id);
+  if (!ok) return false;
+  const late = Date.now() - at;
+  if (late > 2000) {
+    // heard late: the set was done at the tap, and the next rest started then (it may be over already: "Go")
+    patchSet(nx.se.id, nx.set.id, { completedAt: at });
+    useStore.getState().mutateActive((x) => (x.rest ? { ...x, rest: { ...x.rest, endsAt: x.rest.endsAt - late } } : x));
+  }
+  if (!onScreen()) { const r = restPayload(); if (r && notifyOn()) handOff(r); }
+  return true;
+}
+
+// the keys the workers keep a Done ✓ under (public/rest-sw.js, android/site/…-rest/sw.js): whole paths, the same everywhere
+const PENDING_TAP = '/aven-pending/tap-';
+
+/** Is this the rest a Done ✓ was tapped for (the website's key, or the Android app's)? */
+const isThisRest = (key: unknown) => {
+  const a = useStore.getState().active;
+  return !!a?.rest && (key === `${a.id}:${a.rest.endsAt}` || key === `${a.id}:${a.rest.endsAt - a.rest.total * 1000}`);
+};
+
+/** The workout a tap was for (its key is "<workout id>:<when that rest started or ends>"). */
+const workoutOf = (key: unknown) => (typeof key === 'string' ? key.split(':')[0] : '');
+const tapSeen = new Set<number>();
+
+/**
+ * Every Done ✓ tap is kept in the workers' cache, one entry each (a whole workout can be done from the wrist while this
+ * page sleeps). Applied oldest first when Aven opens or wakes, each ticking the set that was next at that moment, from the
+ * time it was tapped. A tap for another workout (the real app and Aven Beta share this cache) is left for its own app.
+ */
+let pendingRun: Promise<void> | null = null;
+export function applyPendingDone(): Promise<void> {
+  pendingRun ??= (async () => {
+    try {
+      if (typeof caches === 'undefined') return;
+      const c = await caches.open('aven-pending');
+      const taps: { req: Request; key?: string; at: number }[] = [];
+      for (const req of await c.keys()) {
+        if (!new URL(req.url).pathname.startsWith(PENDING_TAP)) continue;
+        try { const p = await (await c.match(req))!.json(); taps.push({ req, key: p.key, at: Number(p.at) || 0 }); } catch { await c.delete(req); }
+      }
+      taps.sort((x, y) => x.at - y.at);
+      for (const tp of taps) {
+        const a = useStore.getState().active;
+        const old = Date.now() - tp.at;
+        if (old > 6 * 3600_000) { await c.delete(tp.req); continue; }
+        if (!a || workoutOf(tp.key) !== a.id) { if (old > 30 * 60_000) await c.delete(tp.req); continue; }
+        await c.delete(tp.req);
+        tapSeen.add(tp.at);
+        if (a.rest && a.rest.endsAt - a.rest.total * 1000 <= tp.at + 2000) applyDone(tp.at);
+      }
+    } catch { /* no cache storage: nothing waits */ }
+  })().finally(() => { pendingRun = null; });
+  return pendingRun;
+}
+
 /** Bring the live workout to the front (from a notification tap or the ?do=workout link). */
 export function openWorkout() {
   if (!useStore.getState().active) return;
@@ -242,9 +356,10 @@ export function useRestCue() {
   useEffect(() => {
     noteAndroidApp();
     androidRest(); // ready before you ever leave mid-rest
+    void applyPendingDone(); // a Done ✓ tapped on the watch while Aven was closed
     if (!document.hidden) backInApp(); // opened again from the home screen: a notification left over has done its job
     const on = () => {
-      if (!document.hidden) { backInApp(); return; }
+      if (!document.hidden) { void applyPendingDone(); backInApp(); return; }
       const r = restPayload();
       if (r && notifyOn()) handOff(r);
     };
@@ -252,11 +367,21 @@ export function useRestCue() {
     // tapping a notification: open the workout
     const msg = (e: MessageEvent) => {
       if (e.data?.type === 'aven-rest-action') {
-        // +30 s or Skip rest from the notification: the service worker has already updated it; this keeps the app in step
+        // Done ✓ on the rest-over alert (phone, lock screen, watch): the workers decide it at the tap, keep it, and say
+        // 'done' (an older app worker says 'skip': once the rest is over a Skip can mean nothing else, judged by the tap's
+        // time). The kept copy is the one applied; the message is the fallback for a worker that didn't keep it.
         const a = useStore.getState().active;
-        if (!a?.rest) return;
-        const keys = [`${a.id}:${a.rest.endsAt}`, `${a.id}:${a.rest.endsAt - a.rest.total * 1000}`]; // website's / app's
-        if (!keys.includes(e.data.key)) return;
+        const at = typeof e.data.at === 'number' ? e.data.at : Date.now();
+        if (e.data.action === 'done' || (e.data.action === 'skip' && a?.rest && a.rest.endsAt < at - 1500 && isThisRest(e.data.key))) {
+          void (async () => {
+            await pendingRun; await applyPendingDone();
+            const b = useStore.getState().active;
+            if (!tapSeen.has(at) && b?.rest && workoutOf(e.data.key) === b.id) applyDone(at);
+          })();
+          return;
+        }
+        // +30 s or Skip rest from the notification: the service worker has already updated it; this keeps the app in step
+        if (!a?.rest || !isThisRest(e.data.key)) return;
         if (e.data.action === 'more') adjustRest(30); else skipRest();
         if (!onScreen()) { const r = restPayload(); if (r && notifyOn()) handOff(r); }
         return;

@@ -13,9 +13,11 @@ export interface AiPrefs {
   effortOrb: 'medium' | 'high';      // how hard Sol thinks for the orb (speed matters: medium)
   effortCoach: 'medium' | 'high';    // …and in the Coach (depth matters: high)
   solLimitKr: number;                // Sol rests (Gemini answers) once this month's estimated spend reaches this; 0 = no limit
-  models: { fast: string; brain: string; fastAlt: string; brainAlt: string; tts: string };
+  /** sol: the OpenAI model chosen by hand ('' = the newest one the key can use, found by solAuto) */
+  models: { fast: string; brain: string; fastAlt: string; brainAlt: string; tts: string; sol: string; solAuto: string };
+  solChecked: number;                // when the newest OpenAI model was last looked up (once a day at most)
 }
-const DEFAULTS: AiPrefs = { stt: 'accurate', voiceLang: 'auto', mic: 'phone', voice: 'Achird', brain: true, solFirst: true, effortOrb: 'medium', effortCoach: 'high', solLimitKr: 100, models: { fast: '', brain: '', fastAlt: '', brainAlt: '', tts: '' } };
+const DEFAULTS: AiPrefs = { stt: 'accurate', voiceLang: 'auto', mic: 'phone', voice: 'Achird', brain: true, solFirst: true, effortOrb: 'medium', effortCoach: 'high', solLimitKr: 100, models: { fast: '', brain: '', fastAlt: '', brainAlt: '', tts: '', sol: '', solAuto: '' }, solChecked: 0 };
 
 function load(): AiPrefs {
   try { const v = JSON.parse(localStorage.getItem(KEY) || '{}'); return { ...DEFAULTS, ...v, models: { ...DEFAULTS.models, ...(v.models ?? {}) } }; } catch { return DEFAULTS; }
@@ -28,8 +30,8 @@ export const useAi = create<S>((set, get) => ({
   hasOpenai: !!getKey('openai'),
   patch: (p) => {
     set(p as Partial<S>);
-    const { stt, voiceLang, mic, voice, brain, solFirst, effortOrb, effortCoach, solLimitKr, models } = get();
-    try { localStorage.setItem(KEY, JSON.stringify({ stt, voiceLang, mic, voice, brain, solFirst, effortOrb, effortCoach, solLimitKr, models })); } catch { /* ignore */ }
+    const { stt, voiceLang, mic, voice, brain, solFirst, effortOrb, effortCoach, solLimitKr, models, solChecked } = get();
+    try { localStorage.setItem(KEY, JSON.stringify({ stt, voiceLang, mic, voice, brain, solFirst, effortOrb, effortCoach, solLimitKr, models, solChecked })); } catch { /* ignore */ }
   },
 }));
 onKeysChange(() => useAi.setState({ hasGroq: !!getKey('groq'), hasGemini: !!getKey('gemini'), hasOpenai: !!getKey('openai') }));

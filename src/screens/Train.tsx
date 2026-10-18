@@ -19,6 +19,7 @@ import { MUSCLES } from '../data/exercises';
 import type { MuscleGroup, Routine } from '../lib/types';
 import { SOFT } from '../ui/Sheet';
 import { Subpage } from '../ui/Subpage';
+import { askTag } from '../lib/askAbout';
 
 export function TrainScreen() {
   const t = useT();
@@ -47,6 +48,8 @@ function PlanTab() {
   const today = useToday();
   const exMap = exerciseMap(s.exercises);
   const weekStart = startOfWeek(today, s.settings.weekStart);
+  // a day the Coach planned once keeps its routine (the plan and history use it), but the list shows only the real ones
+  const listedRoutines = useMemo(() => s.routines.filter((r) => !r.oneOff), [s.routines]);
   const missed = useMemo(() => missedWorkouts(s, today), [s.schedule, s.routines, s.sessions, today]);
   const days = Array.from({ length: 7 }, (_, i) => {
     const d = addDays(weekStart, i);
@@ -99,11 +102,11 @@ function PlanTab() {
           <button className="chip press" onClick={() => push('schedule')}><Icon name="calendar" size={16} /> {t('Schedule')}</button>
           <button className="chip press" onClick={() => push('routine', {})}><Icon name="plus" size={16} /> {t('New routine')}</button>
         </div>
-        {s.routines.length === 0 ? (
+        {listedRoutines.length === 0 ? (
           <Empty icon="dumbbell" title={t('No routines yet')} action={<div className="row-flex" style={{ gap: 8, justifyContent: 'center' }}><button className="btn primary press" onClick={() => push('routine', {})}>{t('Build a routine')}</button><button className="btn press" onClick={() => push('onboarding', { starterOnly: true })}>{t('Starter plan')}</button></div>} />
         ) : (
           <div className="stack gap12">
-            {s.routines.map((r) => {
+            {listedRoutines.map((r) => {
               const muscles = [...new Set(r.items.map((i) => exMap.get(i.exerciseId)?.muscles[0]).filter(Boolean))] as MuscleGroup[];
               const last = [...s.sessions].reverse().find((x) => x.routineId === r.id);
               return (
@@ -169,7 +172,7 @@ function LibraryTab() {
       </div>
       <div className="list">
         {shown.map((e) => (
-          <button key={e.id} className="li press" onClick={() => push('exercise', { id: e.id })}>
+          <button key={e.id} className="li press" data-ask={askTag('lift', e.id)} onClick={() => push('exercise', { id: e.id })}>
             <div className="grow" style={{ textAlign: 'left', minWidth: 0 }}><div className="li-title trunc">{exName(e, lang)}{e.custom && <span className="chip sm acc" style={{ marginLeft: 8, height: 20 }}>{t('Custom')}</span>}</div><div className="li-sub trunc">{e.muscles.slice(0, 2).map((x) => t(MUSCLE_LABEL[x])).join(' · ')}</div></div><Icon name="chevR" size={16} style={{ color: 'var(--tx3)' }} />
           </button>
         ))}
@@ -189,14 +192,14 @@ function HistoryTab() {
   type Row = { at: number; date: string; node: React.ReactNode };
   const rows: Row[] = [
     ...s.sessions.map((x) => ({ at: x.endedAt ?? x.startedAt, date: x.date, node: (
-      <button key={x.id} className="li press" onClick={() => push('sessionDetail', { id: x.id })}>
+      <button key={x.id} className="li press" data-ask={askTag('workout', x.id)} onClick={() => push('sessionDetail', { id: x.id })}>
         <span style={{ width: 40, height: 40, borderRadius: 13, background: 'var(--s2)', display: 'grid', placeItems: 'center', flex: 'none', boxShadow: 'inset 0 0 0 1px var(--line)' }}><Icon name="dumbbell" size={19} /></span>
         <div className="grow" style={{ textAlign: 'left', minWidth: 0 }}><div className="li-title trunc">{x.name || t('Workout')}{x.records && x.records.length > 0 && <span className="chip sm acc" style={{ marginLeft: 8, height: 20 }}>{x.records.length} PR</span>}</div><div className="li-sub num">{fmtDate(x.date, lang, { weekday: 'short', day: 'numeric', month: 'short' })} · {fmtDurationLong(elapsedMs(x) / 1000, lang)} · {fmtNum(Math.round(kgToDisplay(sessionVolume(x.exercises), u.weight)), lang, 0)} {u.weight}</div></div><Icon name="chevR" size={16} style={{ color: 'var(--tx3)' }} />
       </button>) })),
     ...s.activities.map((x) => ({ at: x.at, date: x.date, node: (
       <div key={x.id} className="li">
         <span style={{ width: 40, height: 40, borderRadius: 13, background: x.kind === 'wrestling' ? 'var(--ac-soft)' : 'var(--s2)', color: x.kind === 'wrestling' ? 'var(--ac-text)' : undefined, display: 'grid', placeItems: 'center', flex: 'none', boxShadow: 'inset 0 0 0 1px var(--line)' }}><Icon name={activityIcon(x.kind)} size={19} /></span>
-        <div className="grow" style={{ minWidth: 0 }}><div className="li-title">{t(ACTIVITY_LABEL[x.kind] === 'Other' ? 'Activity' : ACTIVITY_LABEL[x.kind])}</div><div className="li-sub num trunc">{fmtDate(x.date, lang, { weekday: 'short', day: 'numeric', month: 'short' })} · {activityLine(x, t, lang, u.distance)}{x.note ? ` · ${x.note}` : ''}</div></div>
+        <div className="grow" style={{ minWidth: 0 }}><div className="li-title">{x.name && x.source === 'watch' ? t(x.name) : t(ACTIVITY_LABEL[x.kind] === 'Other' ? 'Activity' : ACTIVITY_LABEL[x.kind])}</div><div className={`li-sub num${x.source === 'watch' ? '' : ' trunc'}`}>{fmtDate(x.date, lang, { weekday: 'short', day: 'numeric', month: 'short' })} · {activityLine(x, t, lang, u.distance)}{x.note ? ` · ${x.note}` : ''}</div></div>
         <button className="icon-btn flat sm press" aria-label={t('Delete')} onClick={() => { const a = s.removeActivity(x.id); if (a) useUI.getState().toast(t('Deleted'), { actionLabel: t('Undo'), onAction: () => s.restoreActivity(a) }); }}><Icon name="trash" size={16} /></button>
       </div>) })),
   ].sort((a, b) => b.at - a.at);

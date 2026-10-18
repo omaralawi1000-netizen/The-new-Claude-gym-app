@@ -100,7 +100,7 @@ There are no separate food / workout voice modes any more. The orb opens its own
 - **How it works**: Gemini gets your sentence, the app's guide (every screen, setting and rule — so "how do I change the theme?" is simply answered) and a compact live summary computed on the device (settings, today's meals/water, a running workout, routines, targets, recent training). It answers with a reply and a short list of actions. The model never writes data itself: each action is validated (`src/lib/agent.ts` → `validateAgent`), then run by the same code the screens use (food matching/quantity rules, exercise matching, settings patching).
 - **Safety**: everything reversible is applied at once and shown as a card with **Undo**; spoken quick logs close the Coach and leave an Undo toast. Finishing a workout always needs a tap. Nothing deletes data. Unknown foods become a clearly labelled **AI estimate**; ambiguous names the Coach can't settle are shown on the card, not guessed silently.
 - **Without a Gemini key** (or if Gemini is down) a built-in reader still logs simple sentences (food, sets, water, weight); chat and settings changes need the key. Without a Groq key the mic falls back as before.
-- The Coach hears you with Groq Whisper: it listens, stops by itself when you finish speaking (or tap the orb), transcribes, then acts. Since 14 Oct your words also appear in the field as you speak (Chrome's own speech service, a cloud service; see the Coach dictation section); Whisper's words replace them when you stop.
+- The Coach hears you with Groq Whisper: it listens, stops by itself when you finish speaking (or tap the orb), transcribes, then acts. Live words in the field were tried on 14 Oct and removed the same day (they didn't work in the installed app): your words lift straight from the pill into the chat (see Coach r7).
 - Tested with stubbed Gemini/Groq (`tests/agent.test.ts`, `scripts/journey-ai.mjs`). Real-model quality and real-microphone behaviour are unverified until you try it.
 
 ### The orb listens to your voice
@@ -1767,13 +1767,14 @@ there was a version where you did it without the blur, it came out smooth". He a
   150 ms, which read as text being spat out.
 - **Three glass objects** (14 Oct, Omar: "each on its own… separated with frosted glass blur"; before that, 22:07, "the
   text bar on its own"): nothing sits behind the row as a whole, no band or tint; each control is its own frosted glass.
-  The conversation fades out softly just above them (from 28 px above the bar to gone before the controls start), so no
-  letters show between or through them (letters cut round each button read as a stencil, judge 14 Oct). At rest the last
-  message sits 30 px above the bar, clear of the fade. It rides with the keyboard (`--kb-now`, v0.1.98).
+  Since r7 (below) the words fade softly into them: full until 32 px above the controls, about a third at their top edge,
+  gone by their middle, so the frost softens what reaches under them and the gaps show a soft blend, never pieces of
+  letters (a first try at half strength right through them read as a stencil, judge 14 Oct). At rest the last message sits 30 px above the bar, clear of the fade. It rides with the keyboard (`--kb-now`).
 - **Each control on its own frosted glass** (Omar 22:10: "the text bar… the orb and the camera… its own circle that looks
   3D"): the field is a frosted pill, the camera a round frosted button, the orb rests in a frosted seat the field's
-  height (`.frost-ctl` / `.frost-seat`, shared, `--fc-*` tokens): neutral glass, a light top edge, a fine rim, a soft
-  shadow and a faint sheen on the top half. One small blur per control, never animated.
+  height (`.frost-ctl` / `.frost-seat`, shared, `--fc-*` tokens): neutral glass, a light top edge, a fine rim and a faint
+  sheen on the top half; since r7 no shadow, and a faint light along the bottom edge. One small blur per control, never
+  animated.
 - **Soft-edge bar** (Omar picked it, 13 Oct; removed 14 Oct for the three glass objects above): a plain grey fade behind
   the whole row (`.edge-fade`, still used by the dock).
 - **The pill opens while you type** (Omar 22:19, "expands when I type and compresses when I'm done, like iOS"): on focus
@@ -1980,6 +1981,8 @@ Orb light, Colour per tab, Sunrise, Mesh, Dot field, Time of day, Night sky and 
 
 ## Coach: dictation like iOS, calmer answer text (14 Oct 2026)
 
+(The live words and the wave below were removed in r7, same day: see the last section.)
+
 Omar: "when you say something to the coach… I want it to be easy and like Apple". And: "refine the animations of the text… ultra premium".
 - **Your words appear as you speak.** Tap the orb: the pill opens wide at once ("Listening…"), and what you say shows in
   it as you say it, growing a line at a time like typed words. The send button listens with you: a small live wave of
@@ -2001,3 +2004,617 @@ Omar: "when you say something to the coach… I want it to be easy and like Appl
 - Not verified on a phone: whether Chrome on Android lets its speech service and the recording share the mic (the
   fallbacks above cover either one failing), and live-word accuracy.
 
+
+## Food rings like Apple Fitness (14 Oct 2026, v0.1.127)
+Omar 15:06: "turn the rings like 3D with like inner shadows and like Apple's fitness". `ui/Dial.tsx`, tokens `--ring-*` in `styles.css`.
+- Each empty track is a deep (dark) or pale (light) version of its own ring's colour, mixed in OKLCH (`oklch(from …)`), carved in
+  with a soft inner shadow. Dark yellow/orange tracks hold less colour (L .275, C .037) so they never turn brown.
+- The fill is a conic gradient along the ring: no darker than the plain colour at its start, brighter and turned ~12° in hue at
+  its end (pink → magenta, lime → yellow-green, teal → cyan-blue; the direction is read once from the ring's real colour). It
+  never wraps, so the start's round cap keeps the start colour. A faint dither keeps it free of bands.
+- A full ring's end is drawn again over its start (same dither and tube shading) with a soft shade in its own darker hue just
+  ahead; short of full, a neutral shade falls on the track ahead of the end.
+- Light mode: no glow and a crisper edge; fat is a clean amber `#e6ad00` in every light palette (was mustard).
+- Cost: painted once; only the fill's mask length, the shade's position and the end's rotation move, on the same spring.
+- Judge rounds: r4 failed (brown smudge at 12 o'clock, brown tracks, dim fills, soft light edge); r5 passed after the yellow
+  track and end-disc fixes. Before/after page: https://claude.ai/artifact/GhMcA41DrV79hCh2tKwT63
+
+## Lit glass cards (14 Oct 2026, v0.1.129)
+Omar: the cards "just look off", live and on Beta. A design look at his Today screen (Golden hour, dark) found two causes:
+an accent glow trapped in the workout card's top-right corner read as a stain (orange in Golden hour, green in Forest),
+and outlines stacked inside outlines (card rim, every chip rim, the + button rim). He picked from six looks on one page
+(Calm, Clear frost, Lit glass, Liquid glass, Etched, Fade away): **Lit glass** for the real app, Liquid glass to try on Beta.
+- Tab-screen cards (dark): see-through navy `rgb(30 33 52 / .58)` with a soft white sheen at the top, the existing `::after`
+  rim now bright along the top edge and fading down the sides, a soft shadow `0 14px 40px rgba(0,0,0,.6)`. Over the
+  bright Sunrise and Time of day backgrounds the fill is darker (`rgb(22 25 40 / .74)`) so grey text keeps its contrast.
+- Light: 60% white with a top sheen, white top rim, soft neutral shadow.
+- Chips and round buttons inside a card are plain soft fills with no outline.
+- The workout card's corner glow is gone (`Today.tsx`).
+- Same cost as before: no blur, no grain, no tint, no new layers.
+- v0.1.130: Omar on v0.1.129: "They're not see-through. And why do they have this tint?" The navy fill (`rgb(30 33 52 / .58)`)
+  read as solid blue-grey slabs on his warm Golden hour field. Now the dark fill is a neutral 4.5% white film (the field
+  shows through, nothing is tinted); over Sunrise and Time of day a neutral dark film (`rgba(8,8,10,.42)`). Rim and shadow unchanged.
+## Coach r7: dictation without words in the field, controls truly on their own (14 Oct 2026)
+
+Omar, after trying v0.1.116 on his phone (two screen recordings): "It doesn't dictate live, so just remove it… Find an
+animation that can really be seamless when I dictate. The words don't have to come in the text box… Remove the speaking
+indicator because the orb already does that. And please have the icons by their own with blur under them. I don't want
+a shadow… make them a little 3D".
+- **Live words removed.** Chrome's speech service gave no words in his installed app (the recordings show only
+  "Listening…"), so it is gone from the Coach (`src/lib/speech.ts` stays for the orb screen). The wave in the send
+  button is gone too: the orb's ring already shows that it hears you.
+- **One seamless moment.** Tap the orb: the pill opens wide, "Ask the Coach" fades across into "Listening…" (180 ms, never
+  a swap) and the arrow is there to stop and send. When you stop (or go quiet) "Listening…" fades into "Transcribing…",
+  the arrow steps aside and the orb thinks. When Whisper's words arrive the pill itself lifts away into the chat as your
+  message (one shape, 560 ms on a soft-start ease, `FLY_SAID`, not the typed message's spring, whose quick start read
+  as a jump), "Transcribing…" fading out first (140 ms), then each line of words fading in only once the growing bubble has room
+  for it (from 150 ms; the line on the field's line first, the ones above as the bubble's top passes them), so nothing
+  is ever drawn over another or past the bubble's edge. The field's words cross the same way: the old fades out in
+  90 ms, then the new in over 150 ms. They never sit in the
+  field first. The bar under it is hidden at once and closes up there unseen (`.snap`), then comes back whole once the
+  bubble has left: field, camera and stop button fading in together (from 340 ms, over 300 ms): no empty pill, no slide. With a typed draft already in the field, the whole
+  message is shown there a moment and then leaves as typed words do. Tapping the field while you speak still stops and
+  leaves the words in it to fix.
+- **Each control on its own.** 14 px of clear space between orb, camera and pill (was 8–10). No shadow under any of them
+  (`--fc-sh` is none). A little 3D: a brighter light on the top edge, a faint light back up along the bottom edge, the top
+  half a touch brighter, a lighter, more see-through glass. The blur is 8 px (was 20; cheaper, and the softened words
+  behind stay visible instead of vanishing). The camera had no blur at all until now: the sheets' rule that takes blur off
+  their buttons (`.sheet :is(.btn, .icon-btn…)`) also took it off the camera; `.frost-ctl` now wins.
+
+## Coach r8: a soft shadow, words seen through the glass, an iOS landing (14 Oct 2026)
+
+Omar, after the r7 page: "I want a drop shadow so it looks 3D on the buttons, and… I want to see the words under the
+buttons, so that's how you know it's frosted glass", then "a more easing motion for the bubble when it suddenly stops…
+like iOS. And please polish everything".
+- **Shadow back.** Orb, camera and pill each get a soft, static drop shadow (`--fc-sh`: a tight 2 px one where it meets
+  the page and a wide 12/30 px one, neutral black; navy and lighter in the light theme). Never animated, and never on a
+  blurred layer: the pill's is its own piece (`.cf-sh`), the orb's is `.frost-seat::after` behind its glass disc, the
+  camera's is `.coach-cam-slot::before`, which fades with the button when the field opens.
+- **Words under the glass.** The list no longer fades out above the controls: it passes under them at about half (the
+  mask in `.coach-body` is 0.5 at the controls' top, 0.46 at their middle, gone 4 px below them, so nothing peeks out
+  under the orb), and the frost is lighter: `--fc-bd` = `blur(5px) brightness(1.5) saturate(1.4)` (was 8 px; light theme
+  without the brightness). Measured on a GPU still: words under a control about 80–85 of 255 as soft word shapes (8 px
+  melted them into a faint band at ~60), in the gaps about 110 (were ~165, crisp, read as a stencil). `--fly-under`
+  follows the lifted frost so the flying copy still matches the pill it starts as.
+- **iOS landing.** Said words now lift on a critically damped spring (0.52 s, no overshoot) that follows a target easing
+  up out of the bar over its first 100 ms (`SAID_XS` → `FLY_SAID`, sampled into linear()): the soft start stays, and the
+  end is the spring's long tail (90% at ~370 ms, its speed dying away over the last ~150 ms) instead of a bezier that
+  braked. A typed message's flight lost its small overshoot the same way (`apple(0.55)`, was `apple(0.6, 0.15)`).
+- **Handover and lines.** "Transcribing…" fades out in 60 ms from the moment the pill starts to change, and the words
+  fade in over 140 ms from 40 ms on (linear): the two are never both readable at once. The words are laid out at the
+  bubble's width from the first frame, all lines, in a window (`.fly-reveal`) whose top edge rides the shape's top while
+  the words inside are held still (window and words moved by the same amount, opposite, on the same curve), and whose
+  top is soft across the bubble's padding (a mask): the growing bubble uncovers the lines, the top one last, each coming
+  up inside the padding, never cut by an edge, never popping in.
+- **Camera frost.** The small camera disc gets a lighter tint (0.26) and a 3.5 px blur, so words under it show as soft
+  shapes like under the pill.
+
+## Food rings like Apple Fitness (14 Oct 2026, v0.1.127)
+Omar 15:06: "turn the rings like 3D with like inner shadows and like Apple's fitness". `ui/Dial.tsx`, tokens `--ring-*` in `styles.css`.
+- Each empty track is a deep (dark) or pale (light) version of its own ring's colour, mixed in OKLCH (`oklch(from …)`), carved in
+  with a soft inner shadow. Dark yellow/orange tracks hold less colour (L .275, C .037) so they never turn brown.
+- The fill is a conic gradient along the ring: no darker than the plain colour at its start, brighter and turned ~12° in hue at
+  its end (pink → magenta, lime → yellow-green, teal → cyan-blue; the direction is read once from the ring's real colour). It
+  never wraps, so the start's round cap keeps the start colour. A faint dither keeps it free of bands.
+- A full ring's end is drawn again over its start (same dither and tube shading) with a soft shade in its own darker hue just
+  ahead; short of full, a neutral shade falls on the track ahead of the end.
+- Light mode: no glow and a crisper edge; fat is a clean amber `#e6ad00` in every light palette (was mustard).
+- Cost: painted once; only the fill's mask length, the shade's position and the end's rotation move, on the same spring.
+- Judge rounds: r4 failed (brown smudge at 12 o'clock, brown tracks, dim fills, soft light edge); r5 passed after the yellow
+  track and end-disc fixes. Before/after page: https://claude.ai/artifact/GhMcA41DrV79hCh2tKwT63
+
+## Coach r9: no flicker at the bar, calmer said words (14 Oct 2026)
+Omar 19:46 on Beta: "the look is very, very good… a little polish with the text when I dictate… I noticed some flickers at
+the text bar… polish for the animations, not the look." Nothing in the look changed. Found by watching the compositor's
+layers (DevTools LayerTree) through opening, typing, sending and dictating at the phone's 3.75 pixel ratio:
+- **The pill's frost edge.** `.cf-glass` is cut to the pill by a rounded `clip-path` whose left and top edges glide
+  (`--cf-gl`, `--cf-gt`). On in-between pixel positions Chrome cut it with a mask layer, on others with its plain rounded
+  edge, and switched between the two about 7 times in every opening, closing and new line: a layer made and dropped
+  under the frost, the phone's one-frame flicker. The edges now land on quarter pixels (`round(nearest, …, 0.25px)`),
+  where it is the plain edge all the way: 0 switches measured (was 7–14 per move). A quarter pixel is under one of the
+  phone's pixels.
+- **The camera's frost.** When said words left, the camera faded back in on its slot (`.coach-cam-slot`). A fading
+  parent cuts a backdrop blur off from the page, so the camera showed no frost until the fade ended and then its frost
+  popped in. It now fades on its own glass, and its shadow on the slot's own `::before`.
+- **Layers made and dropped.** The camera's shadow (`.coach-cam-slot::before`) got a layer for each fade, the orb one
+  for each press, and the voice ring one when it faded out (it also redrew the orb's glow every frame while you spoke).
+  Each now keeps its own layer all the time (`will-change`). Measured: no layer comes or goes in the bar in any of
+  open, type, send, dictate (only the flying copy's own).
+- **Colour at the hand-over.** A typed message's flying copy is solid, drawn for an average page (`--fly-under`); with
+  the keyboard up the real pill's frost sits over the palette's glow and is warmer (Golden hour: 62,42,54 against the
+  copy's 40,46,68), so the pill turned navy in one frame as it left. The real pill now stays drawn and the copy's pill
+  comes up over it in its first 60 ms: measured the same colour on the first frame. (Said words leave with the keyboard
+  down, where the two already matched within 3 levels.)
+- **Said words, calmer.** "Transcribing…" fades out over 110 ms (from the field's own value), the words come in over
+  260 ms from 80 ms on an ease (were 60 ms and 140 ms, straight), and settle the last 4 px up into place over 560 ms.
+  The bar comes back after the bubble on an ease over 360 ms (was a straight 300 ms). "Ask the Coach", "Listening…" and
+  "Transcribing…" cross over in 140 ms out, 240 ms in from 120 ms (were 90 and 150 from 90).
+
+## Coach r10: one calm motion, bubbles on a shadow (14 Oct 2026)
+Omar 21:13: "still not polished enough… even calmer and more polished… smoothly easing… attention to detail", and 21:15:
+"the text bubbles on the coach screen to have a backdrop shadow so it looks very premium". Calm here means longer,
+softer easing and fewer moving things, not more effects; the look is unchanged except the bubbles' shadow.
+- **One motion for everything that moves in the bar** (`rampSpring` in Coach.tsx): a critically damped spring that starts
+  soft and dies away with no point where it brakes. The opening's 5 px overshoot and the growing's small bounce are gone
+  (they read as restless); opening and closing now match (0.62 s), a new line 0.52 s, a sent message's flight 0.58 s and
+  its shape 0.42 s, said words 0.6 s with the softest start. The list's glide to make room is a touch slower (W 8, was 10).
+- **Smaller things calmed:** the send/stop icon cross-fades (260/380 ms, the old one settles back as the new one comes
+  forward; it used to turn 45 degrees in 120 ms); the send button 280/460 ms (was 160/260); the camera tucks away and
+  comes back on a smooth ease instead of a spring (opacity 320 ms from 200 ms); the "typing" dots rise 3 px from 86 %
+  instead of popping from 70 %; a sent message, a reply, its buttons and the tips all come in more slowly (760, 420,
+  680, 640 ms); New chat fades the old chat over 280 ms (was 160); the voice ring breathes with your voice (each level
+  glides in over 180 ms, swells 11 % at most) instead of following every flicker.
+- **Bubbles on a shadow** (`--bubble-sh`): your messages sit on a tight contact shade, a short soft one and a wide, low
+  one, like the bar's controls, in both themes (the old one was too faint to see). Static, never animated; a sent
+  message's flying copy carries the same shadow, and for a typed message it fades in over 160 ms over the pill's own so
+  the two never double up for a frame.
+- **After a harsh review (r10b):** a typed message's copy now starts see-through and its paint comes up over the real pill
+  over 200 ms while the pill holds its shape (`CLOSE`: it closes up on the copy's own shape curve from 60 ms, as the copy
+  lifts away); the copy used to replace the pill's warm frost with its solid slate in one frame. The send arrow fades over
+  120 ms from the tap (it was cut off by the copy). Closing is quicker with no tail (`MORPH_BACK` 0.4 s, done within half a
+  pixel) and the camera starts back 80 ms in, so edge, camera and bar land together (the edge used to creep on ~14 px
+  for half a second). Said words: the bar fades out over 160 ms under the lifting pill (`SAID_OUT`) and only then closes up,
+  instead of vanishing. Light theme bubble shadow: warm and light, gone within ~18 px (it read as a grey Material card).
+- Still measured: no layer made or dropped in the bar when opening, typing, sending or dictating.
+- **Seamless settle (r10c, Omar 22:46: "seamless, not an animation, then a different look"):** every hand-over measured
+  as the last animated frame (each animation held 1 ms before its end) against the first settled frame. Three steps were
+  found and removed: (1) the flying copy's glass was a solid colour under an opacity and its ink an opaque colour under an
+  opacity, a level or three off the real bubble's alpha colours: it now uses the bubble's own colours, alpha and all; (2) a
+  moving, resizing copy can't draw letters on the page's pixel grid, so as the real bubble took over every letter edge
+  stepped (up to 133/255, one line up to two pixels): the fix (the landing bubble on a layer of its own, `will-change:
+  transform`, from the moment it is hidden, dropped 160 ms into the next send while the list moves) adds and drops a GPU
+  layer, so it goes to Beta first and is not in this release; (3) a move still a ten-thousandth short on its last frame is drawn a hair differently
+  from one at rest (the camera's rim stepped 51/255 as the pill closed): every Coach curve now ends on two frames held
+  exactly at its end (`asCurve`). With all three: sent and said landings, pill close, keyboard ride end and the reply's
+  words settling to plain text all within 3/255 (capture noise is 2/255).
+
+## Keyboard: the chat always lifts with it (14 Oct 2026)
+Sometimes the Coach chat stayed where it was when the keyboard came up, so a sent message landed under the bar. A sheet
+takes away the keyboard's room (`--kb-room`, ui/Sheet.tsx) once its keyboard value is back at 0, and the keyboard's very
+first frame on the way UP also reads 0: when that frame came right after the room was made, the room went again. The room
+now goes only when the keyboard is heading down (`keyboardGoal() === 0`). Slowed ride probe: up to 5 of 6 failed before,
+20 of 20 pass after.
+
+## Coach 2.0, phase 1: it knows everything and follows the conversation (15 Oct 2026, v0.1.133)
+
+Omar wants the Coach to be an agent over the whole app. The plan is in `docs/coach-plan.md`; this is phase 1.
+
+- **Look-ups** (`src/lib/agentLookup.ts`): every request still carries the short summary (a week of food, the last workouts,
+  top lifts), but the model can now ask for anything else and the phone answers at once from its own data: food on any day or
+  by name over months, daily nutrition, workouts in any range, the whole history of one lift (best set, e1RM per session,
+  what to do next), records and stalls, weigh-ins and measurements, wrestling and other activities, sets per muscle, the
+  whole plan and the next 14 days, routines in full, exercises by muscle (English or Danish words) or equipment with the ones
+  he does first, saved food, settings, memory, day notes and what he said before. `decide()` runs up to three rounds: look
+  up, look up again if needed, answer. While it looks, the Coach shows "Looking at your bench press history…" under the
+  typing dots; the orb shows it instead of "Thinking…". Each answer is capped at ~6,000 characters. Nothing extra leaves the
+  phone: the results go to the same AI as the rest of the turn, and API keys never appear in them.
+- **"It" is the exact item**: every food on a card and in today's DATA carries its id (`[ref e_…]`), the cards' notes in the
+  conversation keep it, and `edit_food` / `delete_food` / `move_food` / `copy_food` / `replace_food` take `ref`. "Log a
+  banana" → "move it to lunch" → "make it two" changes exactly that banana, even with another banana in breakfast. A ref
+  that is gone falls back to the name.
+- **One conversation** (`src/lib/thread.ts`): what is said at the orb screen joins the Coach's saved chat (and shows there);
+  both build what the model sees from it. Undo and Apply at the orb are written back. "Continue in Coach" no longer copies
+  the turns (they are already there).
+- **Plan a day** (`plan_day`, `src/lib/planDay.ts`): "chest and triceps with some shoulder tomorrow" → the model looks up his
+  exercises for those muscles and sends the day; without a list the app picks itself (the first muscle 3 exercises, the
+  others 2, "some" 1; most done, then most recent; anything memory says hurts is left out). Each exercise gets the sets and
+  reps from his routines and the progression target from his history. A preview card; Apply makes a routine for that day and
+  places it as a one-off (the weekly plan is untouched); Undo takes both back, also by voice. A hard leg day before a planned
+  wrestling day gets a warning line.
+- **Newest model by itself**: the OpenAI model is picked from the key's model list once a day (`pickSolModel`): the newest
+  `gpt-X.Y` or `gpt-X.Y-sol`, never mini/nano/pro/dated variants and never below GPT-6.1 Sol. Settings → Voice & AI → Model pins
+  one. Spending is still estimated at GPT-6.1 Sol prices.
+- Checks: `tests/coach2.test.ts` (17 tests), `scripts/journey-coach2.mjs` (stubbed Gemini: look-up round trip, orb → Coach
+  "move it to lunch", plan → Apply → Undo), `journey-sol` now also proves a newer model on the key is used.
+- Known, not from this change: `journey-coach` fails on the unchanged app too ("the copy hands over to the real bubble").
+
+## Coach 2.0, phase 2 part A: anything you can tap, by talking (16 Oct 2026, v0.1.134)
+
+- **Every setting is one table** (`src/lib/settingSpec.ts`): key, label, allowed values, what it changes. The schema's keys, the
+  validator, the prompt's list and the guide all read it. Beyond the old 16: colours, background, glow, length unit, when a new
+  day starts, fibre target, plate step, which view a workout opens in, the rest-over notification, every Today card on/off and
+  their order, Coach notes, reminders and their time, quick water sizes, name, goal, experience, equipment and training days.
+  `set_setting` takes several at once (`settings: [{key, value}]`): one card, one Undo; anything not in the table is dropped.
+- **New actions** (all with Undo): `edit_meals` (rename, add, reorder; a meal with food in it is never removed),
+  `log_saved_meal`, `delete_water`, `create_exercise`, `archive_exercise` (own exercises only), `set_increment`,
+  `log_measurement` / `delete_measurement`, `workout_control` (pause, resume, start/skip/±rest, an exercise's rest, superset,
+  move up/down, note, rename), `set_split` (the whole week incl. wrestling days, as a preview), `skip_day`, and
+  `start_workout` "planned" (today's planned workout). Routine edits can change rest and warm-up sets too. The prompt now also
+  teaches `undo_last` ("undo that"), which the schema had but the instructions never mentioned.
+- **Big changes are previews**: the whole week, a planned day, deleting a routine or a workout, clearing a meal or a day
+  (more than one food), and a routine edit with three or more changes. The card says what will happen; nothing changes until
+  Apply; after Apply it can still be undone (button or "undo that").
+- **A newer preview replaces the older one** (`replacedIds` in `ui/agentUi.tsx`): two versions of tomorrow can't both be
+  applied; the older card says "Replaced by the newer version below".
+- **The guide by section** (`guideSections` in `lib/coachContext.ts`, the `guide` look-up): the Settings section is built from
+  the settings table, so it can't fall behind. A test fails if any action, setting key or Settings page is missing.
+- **Fixes**: days the Coach plans once (`Routine.oneOff`, additive) no longer fill Train → Plan's routine list or the week
+  editor, but still work in the plan and history; the OpenAI brain is called by the model actually used ("GPT-6.5" when the key
+  has it) everywhere it is named; Gemini, if it ever turns the long schema down, is asked again in plain JSON mode with the
+  schema written into its instructions (remembered per model; answers are validated the same way); `journey-coach` was stale
+  (it matched a typed message's bubble by exact text, but the bubble now keeps the field's wrapped lines; and the calmer
+  flight lands at ~1.7 s, after its 1.4 s window) and passes again.
+- Checks: `tests/coach3.test.ts` (14), `journey-coach2` (+ week preview → Apply → Undo, several settings, a measurement),
+  `journey-sol`, `journey-ai`, `journey-coach`.
+
+## Coach 2.0, phase 2 part B: cards that settle, wait, seal and undo (16 Oct 2026)
+
+The Coach's cards used to appear with no motion at all (restored chats are kept still while the sheet opens, and that rule
+also stilled new cards). Now a card that arrives in this visit moves; a restored one stays still (`fresh` on the message).
+All of it is transform and opacity, ends on the card exactly as it rests, and is off with reduced motion.
+
+- **Arrival**: the card rises 12 px on the smooth curve (780 ms) while its glass fades in; what it says follows 110 ms later,
+  the lines in a 55 ms cascade, and a soft ring opens out from the icon once. (A spring, or a slight scale, left the text a
+  sub-pixel off its resting place, so the card visibly settled when the animation ended: 38/255 against the still card. The
+  plain rise lands within 2–3/255.)
+- **A preview waiting for its tap**: one slow light passes across its glass, once, 0.7 s after it lands. It never loops.
+- **Apply ("seal")**: one after the other, the old title leaves upward (240 ms) and "Done" comes up from below (420 ms,
+  180 ms later), so two titles never overlap. The icon pulses once from rest (it never dips the instant it is tapped) with the
+  ring once more (`acHalo2`: a keyframe the icon already ran does not replay), the lines breathe once (40 ms ripple), and
+  Apply fades out in place while Undo fades in over it, in one grid cell, so the card never changes height. A week card's
+  subtitle turns to "2 days changed".
+- **The week** (`set_split` previews): seven day dots under the title (routine initial, a green dot for wrestling, the days
+  that change outlined); on Apply the changed days settle in one after another, left to right.
+- **Undo**: the strike is drawn left to right through each line, as wide as its words, and the card eases back to 55 %. The
+  subtitle stays and the buttons fade out but keep their room (taking them away collapsed the card in one frame); a card
+  restored already undone simply has no buttons.
+- **"Looking at…"**: each new status rises 3 px into the place of the one before.
+- `scripts/film-cards.mjs`: films these moves frame by frame (animations frozen and stepped 1000/30 ms) and checks the
+  seamless settle (1 ms before the end vs finished, ≤ 3/255). `CLIPS=2,5` films only some.
+- A harsh-judge pass found the one-frame jumps above; after the fixes every clip settles within 0–3/255. Filmed in Aurora
+  (`AVEN_PALETTE`, default `aurora` in the film script). Shipped as v0.1.135 on Omar's "I would call it done".
+
+## Coach 2.0, phase 3: memory that grows (16 Oct 2026)
+
+- **The whole conversation, kept** (`src/lib/archive.ts`): the chat on screen still holds its last 60 messages, but every
+  message to the Coach or the orb is also kept on the phone (IndexedDB `aven-chat`, text only, each card as its one-line
+  note with its state). It is read once when the phone is idle after start and kept in memory, so the look-ups stay
+  synchronous. The `conversations` look-up searches all of it: Danish and English folded, words that carry no meaning
+  ignored, a word's start counts ("knæ" finds "knæet"), a date range, the best 12 hits each with the answer beside it.
+  Backups carry it as `chat` (additive: an old backup has none and restores as before; restoring merges, nothing is lost).
+  Settings → Coach memory → Conversation history: search it, or delete it (confirm). "Delete all data" clears it too.
+- **Memory v2**: `remember` takes `memory` (the number of the note it replaces: a correction rewords that note, its earlier
+  wordings kept, Undo puts it back) and `until` (a temporary thing: "sick until Friday" ends by itself; a date in the past or
+  over a year away is ignored). Each note goes to the model with its age; an ended one stays numbered but marked "ignore".
+  Up to 60 notes; when full, an ended note makes room. The card shows the old wording struck through (drawn as the card
+  arrives) above the new one. The memory page groups notes by kind, shows "Until …", "updated …", and earlier wording.
+- **It learns from what he does with its work** (`src/lib/ledger.ts`): a food moved to another meal, an exercise swapped
+  for another, a planned day applied or taken back, a setting changed back. Undoing a move or swap takes its moment back.
+  Two moments that agree make a rule (one never does); the rules go to the model as LEARNED (at most 6) and are listed in
+  Coach memory → Learned from you, where Forget drops one for good.
+- **The weekly review** (`src/lib/weekReview.ts`, `src/screens/WeekReview.tsx`): the Today card's button now opens a sheet
+  with every number of the week (workouts vs planned, working sets, protein on logged days, weight trend, records, streak),
+  sets per muscle against the usual week (the 4 weeks before), last week's focus checked against the data, and the Coach.
+  The app computes everything and offers the candidates (missed workouts, fast weight loss, a stalled lift, protein, a
+  muscle that dropped, food logging); the Coach (Gemini) writes a 2–3 line verdict and chooses at most two of them — an id
+  it was not offered is dropped. Without a key, the app's own verdict and its top two. Kept in `reviews` (one per week, the
+  newest 26, in backups); the Coach reads its last two reviews and whether their priorities happened the week after.
+  Progress → Weekly reviews opens them again (no second AI call).
+  - Motion: the numbers roll in like the workout summary's odometers, the muscles' glass rises, each bar grows from the
+    left (scaleX, 60 ms apart) and the usual-week mark fades in after it; then the verdict's words rise in and the
+    priorities settle like the Coach's cards. Once per week per visit; reopened, it is still. Off with reduced motion.
+- `scripts/journey-coach3.mjs` (in `run-all.sh`) and `scripts/film-review.mjs` (frame-stepped clips + seamless settle).
+
+## Coach 2.0, phase 4: smoother Coach, the web, recipes (16 Oct 2026)
+
+- **Smoothness** (measured with `scripts/audit-coach.mjs`, which now starts from a full 60-message chat and records the mic;
+  4× CPU, production build; averages of 2 runs before and 3 after, software Chromium is noisy):
+  - every chat row is its own memoised component (`ChatRow`): a streamed piece or a keystroke no longer rebuilds all 60
+    rows; the Coach reads only `exercises` from the store. Scroll, type, send, new chat: about 25–32 % less script;
+  - the orb re-measured the page on every frame while you speak (its voice level is a style write on the slot's button);
+    a style change that is only `--voice` is now ignored (anything else on that element still counts): mic about −16 %.
+    (A first version ignored every style change on that element and made the orb screen's answer measurably worse; fixed.)
+  - the chat is saved when the phone is idle (and at once on close), not in the frame the answer ends;
+  - the answer, sent message, quiet note and typing-dots entrances fill `both` with no end keyframe (style guide §4).
+  - An answer streaming in is about unchanged: its cost is the word-by-word fade (deliberate, v0.1.88).
+- **The web** (`geminiSearch` in gemini.ts, `solSearch` in openai.ts): a `web` look-up. Gemini's Google Search grounding
+  first (free within its daily allowance), OpenAI's search tool only without a Gemini key (its per-search fee is counted
+  in the monthly Sol limit, `recordFee`). The text goes back to the model as LOOKUP RESULTS; its pages (https only, no
+  duplicates, at most 6) are shown as chips under the answer and saved with it. A failed search is said, never made up.
+- **Recipes** (`propose_recipe`): the model names the ingredients with amounts and the method; the app matches each one to
+  a real food (`findFood`, shared with logging, but never an AI estimate), computes the macros (`calcRecipe`) and shows a
+  preview: per-serving kcal/protein/carbs/fat, every ingredient with its amount and kcal, misses flagged and left out, the
+  method folding open. Save recipe (Undo), Log a portion (one serving now, Undo), Shopping list (copied). After Save the
+  card keeps its name and its other buttons. `suggest_food` cards show the app's own totals (no number when a food is
+  unknown) instead of the model's.
+- **A routine from a photo or said** (`create_routine`) is a preview first, like a planned day.
+- `scripts/journey-coach4.mjs` (in run-all) and `tests/coach5.test.ts`.
+- **A recipe is never lost to the shape of the answer** (found on Beta: "I want cake" answered three times, no card). A model
+  that turns the full schema down answers in plain JSON mode; its format hint said only `foods: array`, so ingredients came
+  back as text and the whole action was silently dropped. Now: the hint writes every nested shape out; `agentFoods` reads
+  text ingredients ("30 g whey") and other keys (`ingredients`, `quantity`, `method`…); anything still unreadable is said in
+  a card ("Part of the answer couldn't be read"); ingredients are matched in parallel; and Settings → About → "Copy last
+  answer" copies the AI's last raw answer (kept in memory only, no keys) for diagnosing the next odd answer.
+  `journey-coach4` runs the plain-mode path end to end. Shipped as v0.1.137.
+
+## Coach 2.0, phase 5 part 1: the coach around the workout (16 Oct 2026, v0.1.138)
+
+All of it is the app's own numbers: instant, free, no AI.
+- **One way to tick a set** (`completeSet`, src/screens/workout/complete.ts): a tap, a set said to the orb or the Coach
+  (`log_current_set`) all find records and "beat last time", buzz, start the rest (not inside a superset, not after the last
+  set) and play the row's moment (the row listens with `onSetDone`). Before, a set logged by voice skipped all of that.
+- **Readiness** (src/lib/readiness.ts): fresh / normal / tired, from the last check-in (two days at most), wrestling logged
+  yesterday or earlier today (a hard one counts double), a week much bigger than usual, and the same weights at a higher
+  RPE. Every reason is kept so the app can say why. It only ever suggests; it never changes a plan by itself.
+- **The briefing** (Briefing.tsx, `briefing()` in src/lib/coachWorkout.ts) at the top of a workout started from a routine
+  or plan: today's targets for the first three lifts (the same numbers the rows hold, from `suggestProgression`) with what
+  moved since last time, a neutral flag box (tired with its reasons and "One set less per lift" with Undo; fresh; wrestling
+  tomorrow with heavy legs; a health note that isn't about one lift and hasn't ended), and one focus line. It folds away
+  (Collapse) on the first ticked set; ✕ hides it for that workout; reopened after a restart mid-workout it isn't drawn.
+- **The finish screen**: "Next time" for the main lifts (most volume first, at most two): what moved today and the next
+  target, in the finish choreography (`data-fm="after"`). A one-tap check-in (energy, soreness, sleep; each optional, a
+  second tap takes it back) saved as `checkin` on the workout (an added field, in backups).
+- **Smarter load**: day plans for today or tomorrow are a set lighter per lift when tired (not where the Coach chose the
+  sets) and warn after hard wrestling the day before (logged, not only planned); Today gets "Take it easier today" and
+  "<routine> after hard wrestling"; a lighter week is suggested sooner (a stalled lift plus RPE up or tired check-ins);
+  the weekly review gets a "tired after N of M workouts" priority, judged the week after. The Coach's DATA gets a
+  READINESS line, the check-ins and wrestling rounds and intensity.
+- **Fixes**: memory notes that have ended no longer flag a lift in the workout or keep it out of planned days. Swapped day
+  differences: the Coach's sets-per-muscle look-up showed four weeks of sets as one week's, and the weigh-in reminder
+  never fired.
+- **The web only when it makes sense**: the Coach searches for a fact that could be wrong or out of date (a number, a
+  study, a supplement, something recent), when asked to check, or for recipe ideas; never for everyday coaching it knows,
+  their data or the app.
+- **The app counts its own AI trouble** (src/lib/trouble.ts, on the phone only, no message text): an answer it couldn't
+  read, part of one dropped, Sol falling back, a web search failing, no answer. Settings → About: "How the Coach is doing"
+  with this week's count and Copy details (counts, the last five, the last raw answer).
+- `tests/coach6.test.ts`, `scripts/journey-workout5.mjs` (in run-all), `scripts/film-phase5.mjs` (settle: finish screen
+  1/255, chip 2/255; the fold's card is identical, only the background's slow breath differs). `journey-ai` now applies the
+  routine preview (phase 4).
+
+## Coach 2.0, phase 5 part 1b: a briefing that only says what matters (16 Oct 2026, v0.1.139)
+
+Omar trains to failure whatever the day, so readiness only added suggestions he would ignore. Redone:
+- **Gone:** readiness (fresh/normal/tired), "You look tired today", "One set less per lift", the after-workout check-in,
+  lighter day plans and the tired nudges, the earlier lighter-week nudge, the weekly review's fatigue priority, the
+  Coach's READINESS line. (Wrestling clashes stay: they protect his performance on the mat, not how he feels.)
+- **Each lift says only what its rows don't** (`liftHint` in src/lib/coachWorkout.ts, `LiftHints` in Briefing.tsx), on its
+  own card in List and Focus alike:
+  - "55 kg × 8 · your heaviest yet": only when set 1's planned weight is the heaviest ever on that lift (a rep best is
+    what the progression aims at almost every session, so it would show on nearly every card); it replaces the reason
+    line, not repeats it;
+  - a stalled lift: "Stuck at 60 kg × 8 · or reset to 57.5 kg × 12" (about 5 % lighter, top of the range) with Use it
+    (the accent chip, 44 px target), which fills its open sets, with Undo;
+  - "Last time: …", the note left on that lift last time.
+- **Today card** (List): only what is about the whole workout (a health note that isn't about one lift, wrestling
+  tomorrow on a heavy leg day), one compact row when there's one line; no card when nothing applies. In Focus those lines
+  are a caption above the first exercise.
+- **Next time** says what went up "this time" in grey (in the accent it read like an instruction).
+- Judged twice (sliced fold fixed earlier; this round: the stall line read as a contradiction of the rows, a capsule row
+  read as a search field, lines didn't share one alignment); tests and journey-workout5 rewritten.
+
+## Recipes find the food in kitchen words (16 Oct 2026, v0.1.140)
+
+Found on the phone: a mug cake left out plain flour, vegetable oil and chocolate chips ("Not found — left out") though the
+food list has Wheat flour, Rapeseed oil and Dark chocolate. The matcher took the extra words as required. Now, only when
+the words as written find nothing sure, `kitchenQuery` (foodText.ts) tries the kitchen's other way of saying it (plain /
+all-purpose / self-raising flour → wheat flour; vegetable / neutral / sunflower oil → rapeseed oil; chocolate chips → dark
+chocolate, milk chocolate chips → milk chocolate; caster / icing sugar → sugar; unsalted butter → butter; large eggs → egg;
+whole milk, rolled oats, Greek yoghurt), else the same words without filler (chopped, melted, fresh…). The food picked is
+the one shown on the card, so a swap is never hidden. Also: a spice only matches itself ("cinnamon" had matched Cinnamon
+roll). Tests in coach5.test.ts.
+
+## A failed screen download leaves the app usable
+
+Coach and the orb are loaded as separate screen files. If a download failed, the deferred loader replaced its rejected
+promise during React's retries, and the uncaught error could unmount the whole app. Rejected promises now stay stable,
+and each overlay has an error boundary: the failed overlay is dismissed and the existing toast offers Reload. Reloading
+fetches the current app; recovery does not clear workouts, food, chat or keys. Successful openings use the same components,
+styles and animation curves. `scripts/journey-open-recovery.mjs` blocks both screen downloads, checks the app and Settings
+remain usable, then unblocks them and verifies Coach and the orb open after reload. It is in `scripts/run-all.sh`.
+
+This reproduces a download-failure crash; the owner's exact intermittent phone freeze and GPU flicker still need device confirmation.
+
+## Relative orb transforms cannot stop the shared animation loop
+
+The orb's position reader parsed native keyframes with `DOMMatrixReadOnly`. Valid percentage forms such as
+`translate3d(0, 10%, 0)` need an element's dimensions, so that parser throws. Inside Motion's frame callback, the exception
+could stop the shared frame scheduler: Today stayed visible while Coach remained off screen and sheets stopped responding.
+Unresolvable keyframes now use the existing browser-sampled path; unresolvable inline transforms use the last resolved
+matrix and request a fresh measurement. The native animations, their timing and the orb's renderer are unchanged.
+`scripts/orb-motion.mjs` covers relative native and inline transforms, opening/closing Coach and continued keyboard motion
+in both high-refresh modes. The observed phone's exact offending transform has not been captured.
+
+## Coach and orb close/reopen isolation (17 Oct 2026, v0.1.142)
+
+An exiting screen stays mounted until its animation finishes. Its microphone, request callbacks and shared voice-phase
+cleanup used to remain active until that delayed unmount, so a fast reopen could lose the new microphone. Coach and
+Dictation now release their session work when closing starts, once; late stop/permission callbacks cannot release a newer
+session. Recorder chunks are captured per recording rather than looked up from the next recording's buffer.
+
+Coach's flying message copies lived directly under `.app`, outside the closing sheet. They and their animation/listener
+work are now removed on close, while ordinary sent-message motion keeps its existing curves and duration. Orb read/render
+callbacks are isolated from Motion's shared frame scheduler: an interrupted browser animation read cannot strand Coach
+offscreen. The fault-injection regression proves that recovery; the phone's exact browser error has not been captured.
+
+Focused regression: `node scripts/journey-coach-reopen.mjs` covers repeat opens, overlapping exits, recording/permission
+isolation, closing mid-send and a one-shot interrupted orb read. Also run `node scripts/orb-motion.mjs` and
+`node scripts/journey-coach.mjs`. This request explicitly uses focused verification instead of the app-wide suite.
+
+## Capture the remaining Coach/orb freeze on the phone (17 Oct 2026, v0.1.143)
+
+The owner confirmed the second-open freeze persists in v0.1.142 with High refresh rate both on and off. Desktop touch,
+blur and throttled-CPU checks do not reproduce it. This release is diagnostic, not a claimed fix or an animation change.
+For 2.4 seconds after Coach/orb opens or closes, `lib/coachTrace.ts` compares browser frames with Motion frames, records
+surface positions and error locations, and keeps at most 32 events in this tab's sessionStorage. It never records error
+messages, chat, keys or app data; nothing is uploaded or added to backups. After a freeze and reload, Settings → About Aven
+→ Record stutters → Copy report includes that trace, even without manually starting the stutter recorder. The trace is
+temporary debugging instrumentation; remove it once the phone's failure is diagnosed.
+
+`scripts/journey-coach-freeze-report.mjs` deliberately stops the actual running Motion scheduler, checks the report
+distinguishes it from browser frames, then reloads and copies the preserved report. It also checks chat/key markers stay
+out of the trace. Run it in both high-refresh modes, plus the focused Coach/orb checks above. Fault injection verifies the
+diagnostic; it does not establish that the phone's freeze has the same cause.
+
+## Folded recipe methods release the closing Coach and orb (17 Oct 2026, v0.1.144)
+
+The v0.1.143 phone report showed Coach fully offscreen with its scrim still mounted 2.4 seconds after closing; both browser
+and Motion frames were running. Reproduced with a saved recipe whose Method was folded. `Collapse` registers with its
+parent's AnimatePresence, but its completion effect depended only on `on`: already folded, that stays false when the
+parent leaves, so it never calls `safeToRemove` and the invisible scrim keeps catching Today taps. The effect now also
+depends on `isPresent`, using the existing completion logic and timing. The same case affects a new recipe on the orb.
+No animation curves, durations, glass, layouts, orb geometry or chat data changed.
+
+`scripts/journey-recipe-close.mjs` first reproduced one retained dialog and scrim after a normal close. It covers saved
+folded methods, expanded methods, closing during a fold, repeated Coach openings and a newly generated orb recipe (Gemini
+stubbed), with high refresh on/off and reduced motion. Focused verification remains limited to Coach/orb for this request.
+
+## Coach 2.0, phase 5b part A: food you can trust (18 Oct 2026, v0.1.145)
+Omar asked why "Power Potatoes" logged as a plain potato. There were five causes: the AI rewrote food words, Danish and English didn't cross-match, glued words ("powerkartofler") didn't match the spaced name, his own foods lost ties to generic ones, and a match on only some of the words stopped the online search. The fixes:
+- **Every word must match.** A local food counts as sure only if it covers every word said (cooking words don't count). Glued words match in any order ("vaniljeskyr" = "Skyr Vanilje"), in either language (about 80 Danish↔English food words, `FOOD_WORDS`). Otherwise the app searches the Danish list, then online, and uses a hit with every word. If there is none, the closest food is used and the card says "closest match".
+- **Your foods first.** Saved foods, favourites and how often you logged a food in the last 90 days break ties (`foodBoost`). The AI sees an OWN FOODS list to copy names from exactly, and a rule to keep food words as said.
+- **Habit first, otherwise ask once.** Tied foods can be far apart in calories: raw against cooked, or more than 35% apart. Then "Which one?" shows soft rows with kcal. One tap logs the food and `setChoice` remembers the pick. The rows fold away while the logged line and Undo unfold. White, brown and basmati rice (all cooked) are close enough: no question.
+- **The name is never cut.** `foodRow` no longer passes the AI's name through the dictation splitter ("Rice, white, raw" stays raw).
+- **Never guess a known food.**
+  - No amount: your usual amount ("your usual"), else one typical portion, else "How much? Say it in grams".
+  - Pieces of a food sold by weight: the AI gives only the weight; the food's own label still counts.
+  - Volumes on gram foods: a dl, tbsp or cup portion first, then a density table.
+  - Photo amounts are marked as estimates.
+  - AI estimates are stored per 100 g plus grams, so "it was 150 g" works.
+- **Corrections stick.**
+  - "Make it 2" on 150 g means two portions.
+  - A bare number that changes the kcal more than 5× waits for a tap ("Change it to this?").
+  - Label fixes are saved onto any saved food.
+  - A replace remembers the swap.
+- **Quick entries.** New `log_quick` action, plus a local parser for "quick entry 100 calories", "300 kcal 20 g protein" and "500 kalorier pizza til aftensmad".
+- **Speed and honesty.**
+  - Foods are looked up in parallel, with "Looking up 3 foods…" shown meanwhile.
+  - "Couldn’t reach the food database" is shown apart from "Not found".
+  - No day said means the day you are looking at; a copy goes there too.
+  - After midnight, before the day starts, a new food goes to Snacks.
+
+Tests: `tests/food3.test.ts`, `scripts/journey-food3.mjs`. `journey-food` now answers the oats question.
+
+## Coach 2.0, phase 5b part B: training logging you can trust (18 Oct 2026, v0.1.146)
+- **After the gym, or another day.** With no workout running, or for another day ("yesterday I squatted 100 for 5"), sets go into a *finished* "Logged workout" for that day. A live workout is never started. Later sets that day join it, and records are counted. Today's logged workout is linked to the planned routine when its lifts are in it, so the plan shows it done; a rotation moves on. Undo takes it back.
+- **One "current set"** (`src/lib/currentSet.ts`): the Focus page being looked at; else, after a superset exercise, the partner whose turn it is; else the exercise you last ticked in, while it has sets left; else the first open set. The list's highlight, the bar, the Coach's CURRENT SET and "8 reps" all use it. The Coach passes over unticked warm-ups unless "warm-up" is said.
+- **Misheard numbers are fixed, never asked about** (Omar's call), by `fixMisheard`:
+  - Only real speech slips count: a digit dropped or added (8 ↔ 80, 800 ↔ 80) and teen ↔ ty (18 ↔ 80). The fixed number must land within 10% of the plan or last time; a real lighter day is logged as said.
+  - The card says "heard 18 kg → logged 80 kg", with an amber "Use 18 kg" chip to put back what was said.
+- **Repeats, "same again", extra sets, Undo.**
+  - The same set said twice within 20 s is logged once ("Already logged", with Log again).
+  - "Same again" copies the last set of that exercise.
+  - Past the last planned set, one more is added.
+  - Undo takes back only that set, and clears the rest timer only if that set started it.
+- **A workout left open.** Opening the app with a workout idle for more than 6 hours asks once: "Still training?", with Finish. It is saved as of its last set, so its time is right.
+- **Kinds and names.**
+  - The prompt's catalog marks bodyweight (kg = added weight), assisted, timed and distance exercises.
+  - `log_current_set` takes seconds, same and warmup.
+  - Wrestling can be given in rounds without minutes (about 3 min a round), and intensity 1–3 is in the schema.
+  - Gym words map to catalog names: bench and bænkpres, RDL, pull-ups and chin-ups, squats, OHP, rows, curls, dødløft. A tie goes to the barbell lift, but a lift you log under another name four or more times still wins.
+
+Tests: `tests/train2.test.ts`, `scripts/journey-workout6.mjs`. The agent tests and `journey-ai` now start a workout first where they mean the running one.
+
+## Coach 2.0, phase 5b part C: never lose what you said (18 Oct 2026, v0.1.147)
+- **Try again.** A failed answer leaves an error row with a Try again chip. It asks once more from the same bubble; nothing is sent twice. The failed question is marked `failed` and left out of what the model reads until it is answered. A key problem gets an Open settings chip instead.
+- **A cut-off answer is a connection problem.** When a stream that drops mid-way leaves JSON that doesn't parse, it now counts as a network error, not "the answer didn't make sense". The half-written bubble is taken away.
+- **A slow line is not a Stop.**
+  - The orb's 45 s limit no longer passes as a silent Cancel. It says "Slow connection", with Try again, and the question is kept in the shared conversation (marked unanswered) so the Coach shows it too.
+  - Sol gets 45 s in the Coach (`withTimeout`), then Gemini answers. Stop still stops everything.
+  - Waits are said: "Still thinking…" at 8 s, "Slow connection…" at 20 s.
+- **Typing while it answers.** The arrow stays Send while there are words in the field (Stop only when it is empty). The words wait, the arrow dims, and they go by themselves when the answer is done.
+- **No tech talk as the answer.** "Gemini answered" style notes are only the small grey line. They are never the reply, never read aloud, and never saved as something the Coach said. The free Gemini quota's return is said in your own time ("back at 09:00").
+- **Smaller fixes.**
+  - A photo message is sent to the model once; the message being answered was in the history too.
+  - `DEEP` matches whole words ("plank" no longer makes Sol think hard).
+  - Coach dictation passes your lift and food names to speech-to-text, as the orb does (`sttNames`).
+- **Day start.**
+  - New installs start the day at 04:00; saved settings keep their own (a missing value is 0, as before).
+  - DATA explains the day boundary after midnight.
+- **No nagging.**
+  - Daily insights read the Coach memory.
+  - An insight set aside with ✕ is told to the model so it isn't raised again in new words.
+  - A health note older than four weeks is asked about once ("Still true?", with "It's better now" or ✕).
+- **Nothing Omar-only.** The guide's "they train to failure whatever the day" became neutral ("how hard they train is theirs to say; their MEMORY may say more"). Omar tells the Coach once, and it lives in his memory.
+
+Tests: `tests/converse.test.ts`, `scripts/journey-coach5.mjs`.
+
+## Coach 2.0, phase 5b part D: your watch, automatic (18 Oct 2026, v0.1.148, Beta first)
+- **Path.** Galaxy Watch → Samsung Health → Health Connect → the Android app → the page.
+  - The Android app uses Android's own Health Connect (Android 14+): no new library.
+  - `HealthSync.java` reads, for the last 14 days: steps per local day (Health Connect's own total, so phone plus watch count once), and the workouts with their type, time, average and highest heart rate, active calories and distance.
+- **Handoff.** A TWA can't run code in the page, so the numbers travel in the address after `#hc=` (base64url JSON; never sent to any server).
+  - The launcher reads while the opening zoom plays (at most 650 ms). If it isn't done, the last reading goes instead.
+  - Settings → Watch drives `HealthActivity` through `intent://health/connect|sync|off`. It asks for read access, reads, and reopens the page it came from, so it works for Aven Beta too. Without the app installed, the link offers the APK download.
+  - `PrivacyActivity` is the rationale page Health Connect requires.
+- **The page** (`src/lib/healthSync.ts`) only believes an address the Android app opened (the referrer). It checks and caps everything, then takes it out of the address.
+  - Workouts become activities, merged by their Health Connect id: never twice, and your note is kept.
+  - A run you logged yourself the same day, as the same kind and about as long, becomes the watch's.
+  - Lifting from the watch is left out (Aven logs the gym itself). A new kind, `stairs`, was added.
+  - Intensity comes from heart rate: under 70% of your highest easy, to 85% hard, above that max. Your highest is never taken as below 185.
+  - Steps are kept per day (`AppData.steps`, an additive field, in backups).
+  - Calories are shown, never added to the food target. The Coach's DATA says so too ("never tell them to eat them back").
+- **Shown in:**
+  - Train → History (the watch's own name, e.g. "Stair climber", with bpm);
+  - Today's week line ("2 cardio · 11,800 steps a day");
+  - Settings → Watch (Connect watch / Sync now / Disconnect, last synced, this week's numbers);
+  - the Coach's WATCH CARDIO and Steps lines.
+  - People without the Android app or a watch see nothing new.
+
+### Polish audit fixes (same release)
+- "Use 18 kg" toggles: one tap logs what was heard, another puts the fix back, and the card says which it is now. Before, it changed the set but the card still showed the old numbers.
+- The thinking dots no longer blink when "Still thinking…" arrives. They stay one element; status lines cross-fade and fade out with the dots.
+- The error row rises in like the other rows. On Try again it folds away instead of vanishing.
+- Card subtitles roll like titles, and after Undo the "Remembered for next time" line goes back. The title roll no longer has a near-blank moment: the old words fade out for 360 ms, over the new one's start.
+- Finish from "Still training?" opens the finish screen, which also covers Today changing behind it.
+- **Memory leak.** Each switch to or from Today or Food kept the whole old tab alive: Chrome held the calorie ring's `<svg>` with its `<foreignObject>`. The ring now empties and detaches its svg when it goes. Over 60 switches, nodes went from 15.5k to 6.2k, and listeners now stay flat (they used to grow by 13 per switch).
+
+## Done ✓ on the watch (18 Oct 2026, v0.1.148)
+Omar trains with music in his earbuds and walks around the gym, so the phone is often out of reach. The earbud button controls the music app, not Aven, so it can't be the trigger. Always-on listening was tried before: it misheard him and reacted to other people.
+- **Done ✓.** When the rest is over, the "Time for set 2" notification (phone, lock screen, Galaxy Watch) gets a "Done ✓ 80 kg × 8" button. One tap ticks that set exactly as planned through `completeSet` (records, haptic, the next rest). If Aven is awake, the notification becomes the next rest countdown.
+  - Chrome allows only two buttons on a web notification. So once the rest is over, the Android app's alert reuses the Skip slot for Done. The rest worker (`android/site/…-rest/sw.js`) decides at the tap whether it was a Done: the rest has been over for more than 1.5 s. It then tells the page "done", with the tap's time. Judging it later in the page went wrong: a page asleep behind the lock screen hears a real Skip late, and it would have looked like a Done.
+  - **Every tap is also kept** in Cache `aven-pending`, with its time. Behind the lock screen Chrome can pause the page or drop it, and the message is lost. That was Omar's first Beta test: the button showed, but the set didn't tick. The page picks the tap up when it opens and every time it becomes visible again (`rest.ts` `applyPendingDone`). Each rest's Done counts once, whether it arrives as the message, the cache copy, or both.
+  - **Heard late, it still counts from the tap.** The set's time is the tap, and the next rest started then, so it may already be over ("Go").
+  - The Android app's alert is no longer local-only, so it reaches the watch. Its "Set 2 ✓" line stays when Chrome takes its own copy away just after the tap.
+- **A whole workout from the wrist (18 Oct, after Omar's gym test).** On his watch, "Time for set 2" came with no Done ✓ at all (photo).
+  - The cause: Android had stopped the Aven app during the rest. The alert it then rang in a fresh start had lost its Done words (they weren't saved) and Chrome's buttons (they lived only in memory). Short test rests never showed it.
+  - Now every word is saved, and Chrome's buttons ride along inside the end-of-rest alarm, so a fresh start still has them.
+  - Done ✓ is also handled in the app itself. The next rest starts counting down from the tap, and its alert ("Time for set 3") rings with its own Done ✓. Each rest's notification tag carries the next set's words and its rest, plus the six sets after it (words `n`, `z`, `w`, from `rest.ts` `stepOf` / `stepsAfter`), so the app can carry on while Aven sleeps.
+  - On a rest the app started this way, +30 s and Skip stay in the app (Skip rings the next set at once). The website's Skip means something else.
+  - The rest worker keeps every Done tap as its own cache entry (`/aven-pending/tap-<time>`). It no longer closes Chrome's notification after a Done, so the next taps still reach it.
+  - When Aven opens or wakes, it replays the taps oldest first. Each one ticks the set that was next and starts the rest from the tap's time. Taps for another workout are left alone (the real app and Beta share the cache).
+  - The CI emulator does exactly this: it stops the app mid-rest and then taps Done ✓ twice in a row (`android/ci/emulator-check.sh`).
+- **Tap and say was tried and dropped (same day).** A tap on empty workout space listened for one phrase ("8 at 80") on the phone's mic. Omar's verdict: it needs the phone in his hand, and then the tick is just as fast and never mishears. It was removed before it shipped.
+- **Why it still failed on Omar's phone (18 Oct evening): the old Android app.** Every fix above lives partly in the Android app, and the APK he kept installing was an older download, not the new one. Every build was called "1.0", so nothing showed it.
+  - Now the Android app's version is the build number (`versionName "1.<run>"`): Settings › Apps › Aven shows which build is on the phone. With build 1.111 installed, Done ✓ ticked the set in Beta on the first try.
+  - The on-phone diagnostics used to find this (a rest log screen in the Android app, the "Last Done ✓" and worker-version lines in Settings › Training) were removed once it worked. The CI emulator still prints the rest log (`AvenRest`).
+  - From Chrome's own source: a notification button is a plain broadcast, and Chrome drops a tap whose notification it no longer has. So the page must never close the rest notification while a Done ✓ can still come through it.
+- Tests: `tests/done.test.ts`. Journey: `scripts/journey-done.mjs` covers Aven closed, and Aven asleep with the message lost.
+
+## Coach polish: hold to ask, charts, Undo all, pick changes, copy a routine (18 Oct 2026, v0.1.148)
+The last part of Coach 2.0, phase 5 (docs/coach-plan.md).
+- **Hold to ask the Coach.** Hold a logged food (Food tab), a past workout (Train → History), an exercise (Train → Library, Progress), or a chart (Progress, an exercise's progress) for about half a second.
+  - A soft ring settles around it and a small frosted pill rises above it: "✦ Ask the Coach". Tap the pill and the Coach opens about exactly that.
+  - In the Coach, a chip over the typing bar says what it's about (× takes it off), and three questions about it replace the usual suggestions.
+  - The model gets the item with the message as `[about: …]`: a food's numbers and its ref, a lift's history, a workout's sets, a chart's numbers. It stays with that message in the conversation.
+  - The bubble shows a quiet tag naming the item.
+  - One listener for the whole app (`src/ui/askHold.ts`) reads a `data-ask` tag (`lib/askAbout.ts`).
+    - A short tap still opens the item as before; the click that ends a hold is swallowed.
+    - A scroll or another tap puts the pill away, and it goes by itself after 6 s.
+    - The ring and pill live on `<body>` and carry the item's own accent. The ring is clipped where the dock starts.
+- **Charts in the chat** (`show_chart`): estimated 1RM per session for a lift, bodyweight with its trend, calories or protein per day (target line), weekly volume, sessions per week, minutes on the mat.
+  - Built from the app's own data (`lib/agentCharts.ts`) and stored on the card as plain numbers, so it's still there when the chat is opened again.
+  - Drawn by the Progress tab's charts, across the card's full width. The line draws in slower than on Progress, and a reopened card is drawn still.
+  - Nothing to draw is said plainly ("No sessions of Nordic curl to draw yet"), never an empty chart.
+- **Undo all.** When one answer made two or more changes, an "Undo all N" ghost button sits under its last card. It undoes newest first and folds away once nothing is left to undo. It's on the orb screen too.
+- **Keep only some changes.** A routine rewrite (three or more changes) is a preview with a tick beside each change.
+  - Untick one and its words dim and a strike draws across them; the button says "Apply 3 of 4".
+  - On Apply, the changes left out fold away and the card says "3 of 4 changes applied". What the model is told happened leaves them out.
+- **Copy a routine** (`duplicate_routine`): the same exercises, sets and rests, with their own ids so the two never share an edit. Named "Push copy", or whatever was said; a second copy gets numbered. It comes with Open and Undo.
+- **Judge round 1 fixes:**
+  - The ring and pill were coral on <body>; they now carry the tab's accent.
+  - The ring was too tight and ran under the dock.
+  - Change details wrapped mid-number.
+  - The ticks were too loud after Apply.
+  - The heading read "200 G".
+- Tests: `tests/coach7.test.ts`. Journey: `scripts/journey-coach6.mjs`.
+
+## Settings → Watch, fixed and redone (18 Oct 2026, v0.1.149)
+- **Connect watch did nothing in the real app.** The page only believed the watch's numbers (`#hc=…`) when Chrome said Aven was opened by the Android app. That mark is gone once Aven reloads itself for an update, so the numbers coming back from Health Connect were thrown away and the button looked dead (the screen even said "Needs the Aven Android app"). Now they're believed on any phone where the Android app has opened Aven before (`appOnPhone` in `lib/androidApp.ts`). A made-up link on a phone without the app still does nothing.
+- **The button never looks dead:** it says "Opening Health Connect…" / "Syncing…" while the Android app works, and if nothing came back after a few seconds: "Nothing opened? Open Aven from its app icon…".
+- **The screen:** a status card (the watch in an accent seat when connected, a small dot, when it last synced); this week's workouts, active minutes and steps a day as three thin numbers; the last seven days of steps as quiet bars (today in the accent, rising in once, transform only); the last three watch workouts with heart rate and Easy/Hard/Max. Before connecting, three steps show how it gets here (your watch → Health Connect → Aven). Neutral surfaces, colour only on the status and today.
+- Syncing is automatic: every time Aven opens from its icon, the Android app reads Health Connect first.
+
+- **v0.1.150: after Connect watch, back on the Watch screen with the answer.** Omar's video: "Opening Health Connect…", then Aven reloaded on Today, so nothing said whether it worked. The Android app reopens Aven at its start; the page now remembers the tap (`aven.hc.ask`, 3 min) and opens Settings → Watch again: "Watch connected", or on the screen itself what to do (for a refusal: search Health Connect in the phone's Settings → App permissions → Aven → allow all). The remembered tap also makes the answer count when Chrome's "opened by the app" mark is missing.
+- **v0.1.151: a readout while it isn't connected.** Under the Watch screen, one small line says what the Android app last sent back ("answer 21:05: HC yes · allowed · on · 14 days · 3 workouts", "unreadable (n chars)", or "tapped connect 21:04, no answer yet"). Omar's report: with access off, the "not allowed" message came; with access on, the pop-up closed and nothing showed. The line says which step drops it. Remove it once the watch connects.
+- **v0.1.152: the real cause.** Run on the CI emulator end to end (Connect watch tapped in the page in the app, access already given): the Android app answered at once, but its address reads `#hc%3D…` because Android's `Uri.Builder.fragment()` codes the "=". The page looked for `hc=` only, so every answer, from Connect watch and from every launch, was ignored. The page now decodes the address first. `journey-health` uses the coded form; it fails without the fix.

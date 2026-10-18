@@ -3,7 +3,7 @@ import { ACTIVITY_KINDS } from '../lib/activity';
 
 export const DATA_VERSION = 1;
 /** The Coach remembers at most this many things: each one is sent with every question, so the list stays short and sharp. */
-export const MEMORY_MAX = 40;
+export const MEMORY_MAX = 60;
 export const MEMORY_KINDS: MemoryKind[] = ['goal', 'preference', 'health', 'schedule', 'gear', 'food', 'other'];
 
 export function detectLang(): Lang {
@@ -22,7 +22,7 @@ export function defaultSettings(lang: Lang = 'en'): Settings {
     motion: 'system',
     units: { weight: 'kg', distance: 'km', length: 'cm' },
     weekStart: 1,
-    dayStartHour: 0,
+    dayStartHour: 4, // (a new install: a late snack at 01:00 belongs to the evening before. Existing data keeps its own)
     goals: { waterMl: 2500 },
     meals: DEFAULT_MEALS.map((m) => ({ ...m })),
     waterQuick: [150, 250, 500],
@@ -58,7 +58,7 @@ export function defaultData(lang: Lang = 'en'): AppData {
     settings: defaultSettings(lang),
     foods: [], favourites: [], savedMeals: [], recipes: [], entries: [], water: [],
     exercises: [], routines: [], schedule: defaultSchedule(), sessions: [], active: null,
-    weights: [], measurements: [], photos: [], activities: [], notes: [], choices: {}, increments: {}, memory: [],
+    weights: [], measurements: [], photos: [], activities: [], steps: [], notes: [], choices: {}, increments: {}, memory: [], reviews: [],
     demo: false,
   };
 }
@@ -70,17 +70,22 @@ export function normaliseData(raw: any, lang: Lang = 'en'): AppData {
   const arr = (k: keyof AppData) => (Array.isArray(raw[k]) ? raw[k] : (d as any)[k]);
   return {
     ...d,
-    settings: { ...d.settings, ...(raw.settings ?? {}), units: { ...d.settings.units, ...(raw.settings?.units ?? {}) }, goals: { ...d.settings.goals, ...(raw.settings?.goals ?? {}) }, profile: { ...d.settings.profile, ...(raw.settings?.profile ?? {}) }, widgets: { ...d.settings.widgets, ...(raw.settings?.widgets ?? {}) }, meals: Array.isArray(raw.settings?.meals) && raw.settings.meals.length ? raw.settings.meals : d.settings.meals },
+    settings: { ...d.settings, ...(raw.settings ?? {}), units: { ...d.settings.units, ...(raw.settings?.units ?? {}) }, goals: { ...d.settings.goals, ...(raw.settings?.goals ?? {}) }, profile: { ...d.settings.profile, ...(raw.settings?.profile ?? {}) }, widgets: { ...d.settings.widgets, ...(raw.settings?.widgets ?? {}) }, meals: Array.isArray(raw.settings?.meals) && raw.settings.meals.length ? raw.settings.meals : d.settings.meals, dayStartHour: typeof raw.settings?.dayStartHour === 'number' ? raw.settings.dayStartHour : raw.settings ? 0 : d.settings.dayStartHour },
     foods: arr('foods'), favourites: arr('favourites'), savedMeals: arr('savedMeals'), recipes: arr('recipes'), entries: arr('entries'), water: arr('water'),
     exercises: arr('exercises'), routines: arr('routines'),
     schedule: { ...d.schedule, ...(raw.schedule ?? {}), weekly: { ...d.schedule.weekly, ...(raw.schedule?.weekly ?? {}) }, rotation: { ...d.schedule.rotation, ...(raw.schedule?.rotation ?? {}) }, overrides: raw.schedule?.overrides ?? [], cleared: raw.schedule?.cleared ?? [], activities: cleanActivities(raw.schedule?.activities) },
     sessions: arr('sessions'), active: raw.active && typeof raw.active === 'object' ? raw.active : null,
-    weights: arr('weights'), measurements: arr('measurements'), photos: arr('photos'), activities: arr('activities'), notes: arr('notes'),
+    weights: arr('weights'), measurements: arr('measurements'), photos: arr('photos'), activities: arr('activities'), steps: arr('steps'), notes: arr('notes'),
     choices: raw.choices && typeof raw.choices === 'object' && !Array.isArray(raw.choices) ? raw.choices : {},
     increments: raw.increments && typeof raw.increments === 'object' && !Array.isArray(raw.increments) ? raw.increments : {},
     // a hand-edited or older backup: keep only notes that still make sense
+    reviews: (Array.isArray(raw.reviews) ? raw.reviews : []).filter((r: any) => r && typeof r.week === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(r.week) && Array.isArray(r.priorities)).slice(-26)
+      .map((r: any) => ({ week: r.week, at: typeof r.at === 'number' ? r.at : 0, ...(typeof r.verdict === 'string' && r.verdict.trim() ? { verdict: r.verdict.slice(0, 400) } : {}), priorities: r.priorities.filter((p: any) => p && typeof p.id === 'string' && typeof p.text === 'string').slice(0, 2).map((p: any) => ({ id: p.id.slice(0, 80), text: p.text.slice(0, 160) })) })),
     memory: (Array.isArray(raw.memory) ? raw.memory : []).filter((m: any) => m && typeof m.text === 'string' && m.text.trim() && typeof m.id === 'string').slice(0, MEMORY_MAX)
-      .map((m: any) => ({ id: m.id, text: m.text.trim().slice(0, 240), kind: MEMORY_KINDS.includes(m.kind) ? m.kind : 'other', at: typeof m.at === 'number' ? m.at : 0, ...(Array.isArray(m.exerciseIds) && m.exerciseIds.length ? { exerciseIds: m.exerciseIds.filter((x: unknown) => typeof x === 'string').slice(0, 6) } : {}) })),
+      .map((m: any) => ({ id: m.id, text: m.text.trim().slice(0, 240), kind: MEMORY_KINDS.includes(m.kind) ? m.kind : 'other', at: typeof m.at === 'number' ? m.at : 0, ...(Array.isArray(m.exerciseIds) && m.exerciseIds.length ? { exerciseIds: m.exerciseIds.filter((x: unknown) => typeof x === 'string').slice(0, 6) } : {}),
+        ...(typeof m.until === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(m.until) ? { until: m.until } : {}),
+        ...(typeof m.updatedAt === 'number' ? { updatedAt: m.updatedAt } : {}),
+        ...(Array.isArray(m.was) ? { was: m.was.filter((w: any) => w && typeof w.text === 'string' && typeof w.at === 'number').slice(0, 3).map((w: any) => ({ text: w.text.slice(0, 240), at: w.at })) } : {}) })),
     demo: !!raw.demo,
   };
 }

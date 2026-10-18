@@ -7,6 +7,8 @@ import { Toaster } from './ui/Toaster';
 import { SphereStage } from './ui/Sphere';
 import { Overlays } from './screens/Overlays';
 import { useRestCue, openWorkout } from './screens/workout/rest';
+import { useStaleWorkout } from './screens/workout/stale';
+import { applyHcFromAddress } from './lib/healthSync';
 import { useKeepStorage } from './lib/persist';
 import { useDriveAuto } from './screens/DriveBackup';
 import { TodayScreen } from './screens/Today';
@@ -300,6 +302,8 @@ function useCalm(app: React.RefObject<HTMLDivElement | null>) {
 export function App() {
   useTheme();
   useRestCue(); // the end of a rest, wherever you are in the app
+  useStaleWorkout(); // a workout left running for hours asks once whether to finish it
+  useEffect(() => { applyHcFromAddress(); window.addEventListener('hashchange', applyHcFromAddress); return () => window.removeEventListener('hashchange', applyHcFromAddress); }, []); // the watch's numbers (lib/healthSync.ts)
   useKeepStorage(); // asks the browser not to clear Aven's data on its own (lib/persist.ts)
   useDriveAuto(); // Google Drive backups while you use the app (lib/drive.ts)
   useKeyboard();

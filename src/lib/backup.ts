@@ -1,6 +1,7 @@
 import { useStore, flushSave } from '../state/store';
 import { DATA_VERSION, defaultData, normaliseData } from '../state/defaults';
 import type { AppData } from './types';
+import { archived, type ArchivedMsg } from './archive';
 
 /** Every field of the app's data, taken from the data shape itself, so a field added later is never left out of backups
  * (the hand-written list missed the Coach's memory and your per-exercise weight jumps). */
@@ -13,16 +14,18 @@ export function snapshotData(): AppData {
   return out as AppData;
 }
 
-/** Everything Aven keeps, as one backup object (photos are added separately by the file export). Keys never go in. */
-export function buildBackup(): { app: 'aven'; v: number; exportedAt: string; data: AppData; photos?: Record<string, string> } {
+/** Everything Aven keeps, as one backup object (photos are added separately by the file export). Keys never go in. The
+ *  whole Coach conversation rides along as `chat` (an older backup simply has none). */
+export function buildBackup(): { app: 'aven'; v: number; exportedAt: string; data: AppData; photos?: Record<string, string>; chat?: ArchivedMsg[] } {
   flushSave();
-  return { app: 'aven', v: DATA_VERSION, exportedAt: new Date().toISOString(), data: snapshotData() };
+  const chat = archived();
+  return { app: 'aven', v: DATA_VERSION, exportedAt: new Date().toISOString(), data: snapshotData(), ...(chat.length ? { chat: [...chat] } : {}) };
 }
 
 /** A backup file's text → data ready to restore. Throws 'format' or 'newer'. */
-export function parseBackup(text: string, lang: string): { data: AppData; photos?: Record<string, string> } {
+export function parseBackup(text: string, lang: string): { data: AppData; photos?: Record<string, string>; chat?: unknown[] } {
   const j = JSON.parse(text);
   if (j?.app !== 'aven' || !j.data) throw new Error('format');
   if (typeof j.v !== 'number' || j.v > DATA_VERSION) throw new Error('newer');
-  return { data: normaliseData(j.data, lang as any), photos: j.photos };
+  return { data: normaliseData(j.data, lang as any), photos: j.photos, chat: Array.isArray(j.chat) ? j.chat : undefined };
 }

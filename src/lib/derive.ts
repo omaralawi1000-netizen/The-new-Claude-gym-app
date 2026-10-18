@@ -48,8 +48,10 @@ export function mealName(m: Meal, lang: 'en' | 'da'): string {
 }
 
 /** Which meal is "now" (for default when adding food). */
-export function defaultMealId(meals: Meal[], at = new Date()): string {
+export function defaultMealId(meals: Meal[], at = new Date(), dayStartHour = 0): string {
   const h = at.getHours();
+  // after midnight but before the new day starts (a shake at 01:30 with the day starting at 04:00): a late snack
+  if (h < dayStartHour) return meals.some((m) => m.id === 'snacks') ? 'snacks' : meals[meals.length - 1]?.id ?? meals[0].id;
   const ids = meals.map((m) => m.id);
   const pick = h < 10.5 ? 'breakfast' : h < 15 ? 'lunch' : h < 20 ? 'dinner' : 'snacks';
   return ids.includes(pick) ? pick : ids[0];

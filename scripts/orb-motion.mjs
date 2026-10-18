@@ -45,12 +45,18 @@ for (const hrr of ['0','1']) {
   assert(samples.length>30,'sampled moving frames');
   const worst=Math.max(...samples.map(s=>s.gap));
   assert(worst<1.5,`${hrr} dock orb drift during sheet motion: ${worst.toFixed(2)}px`);
+  // DOMMatrix cannot resolve percentage translations in every valid CSS form. An exception here used to stop ALL Motion frames.
+  await p.evaluate(()=>document.querySelector('.tabbar-wrap').animate([{transform:'translate3d(0, 0%, 0)'},{transform:'translate3d(0, 10%, 0)'}],{duration:700,fill:'none'}));
   await p.getByRole('button',{name:'Coach',exact:true}).click();await settled('coach');
   await p.evaluate(async()=>{const {setKeyboard}=await import('/src/ui/keyboard.ts');setKeyboard(300);});await settled('coach');
   await p.evaluate(async()=>{const {setKeyboard}=await import('/src/ui/keyboard.ts');setKeyboard(0);});await settled('coach');
   await p.keyboard.press('Escape');await settled('tab');
   for(let i=0;i<3;i++){await p.getByRole('button',{name:'Coach',exact:true}).click();await p.waitForTimeout(90);await p.keyboard.press('Escape');await p.waitForTimeout(90);}
   await settled('tab');
+  await p.evaluate(()=>{document.querySelector('.tabbar-wrap').style.transform='translate3d(0, calc(0% + 0px), 0)';});
+  await p.getByRole('button',{name:'Coach',exact:true}).click();await settled('coach');
+  await p.keyboard.press('Escape');await settled('tab');
+  await p.evaluate(()=>{document.querySelector('.tabbar-wrap').style.transform='none';});
   assert.equal(await p.locator('.sphere-stage canvas').count(),1,'one orb canvas');
   assert.equal(errors.length,0,errors.join('\n'));
   console.log(`ORB OK hrr=${hrr}: ${idleReads} idle and ${motionReads} transition geometry reads, ${samples.length} moving frames, worst dock drift ${worst.toFixed(3)}px`);

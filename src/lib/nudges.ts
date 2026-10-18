@@ -77,6 +77,19 @@ export function findNudges(d: AppData, today: string, hour: number, t: T, lang: 
     }
   }
 
+  // hard wrestling logged yesterday, and today's plan is heavy on legs
+  const todayPlan = d.active ? undefined : plannedFor(d, today, today);
+  const todayDone = d.sessions.some((x) => x.status === 'done' && x.date === today);
+  if (todayPlan && !todayDone) {
+    const mat = d.activities.find((x) => x.kind === 'wrestling' && x.date === addDays(today, -1) && ((x.intensity ?? 0) >= 2 || (x.rounds ?? 0) >= 6));
+    const r = mat && d.routines.find((x) => x.id === todayPlan.routineId);
+    const legSets = r ? r.items.reduce((n, it) => n + (LEGS.includes(map.get(it.exerciseId)?.muscles?.[0] as MuscleGroup) ? it.workingSets : 0), 0) : 0;
+    if (r && legSets >= 6) add({ id: `legs-after-mat:${today}:${r.id}`, kind: 'suggestion', icon: 'wrestle', priority: 70,
+      title: t('{routine} after hard wrestling', { routine: r.name }),
+      body: t('{n} leg sets the day after the mat. Lighter legs today, or swap the day?', { n: legSets }),
+      action: { label: t('Ask the Coach'), run: { type: 'coach', prompt: t('I wrestled hard yesterday and today is {routine} with {n} leg sets. Make the legs lighter today, or move it.', { routine: r.name, n: legSets }) } } });
+  }
+
   // a lift that has stopped improving
   const stall = stalledLifts(done, today)[0];
   if (stall) {
@@ -140,7 +153,7 @@ export function findNudges(d: AppData, today: string, hour: number, t: T, lang: 
     if (rate !== null && pct <= -1.1 && ws.length >= 6) add({ id: `fastloss:${today.slice(0, 7)}`, kind: 'warning', icon: 'scale', priority: 65,
       title: t('Losing weight fast'), body: t('About {r} a week. Faster than about 1% a week costs muscle and strength.', { r: `${fmtNum(kgToDisplay(-rate, u), lang, 1)} ${u}` }),
       action: { label: t('Ask the Coach'), run: { type: 'coach', prompt: t('I am losing about {r} a week. Is that too fast for keeping muscle? Adjust my calories if so.', { r: `${fmtNum(kgToDisplay(-rate, u), lang, 1)} ${u}` }) } } });
-    const gap = diffDays(lastW.date, today);
+    const gap = diffDays(today, lastW.date);
     if (gap >= 7 && gap < 60) add({ id: `weigh:${lastW.date}`, kind: 'reminder', icon: 'scale', priority: 30,
       title: t('{n} days since you weighed in', { n: gap }), body: t('One weigh-in a week keeps the trend honest.'),
       action: { label: t('Log weight'), run: { type: 'open', overlay: 'weight' } } });
@@ -158,6 +171,15 @@ export function findNudges(d: AppData, today: string, hour: number, t: T, lang: 
     title: t(last ? 'No backup in over two weeks' : 'Your data has no backup yet'), body: t('Everything lives on this phone. Turn on the free Google Drive backup, or save a file.'),
     action: { label: t('Back up'), run: { type: 'open', overlay: 'settings', props: { section: 'data' } } } });
 
+  // a health note from more than four weeks ago (no end date): asked about once. "It's better now" has the Coach forget it;
+  // ✕ means it still applies (never asked again)
+  const old = (d.memory ?? []).filter((m) => m.kind === 'health' && !m.until && Date.now() - (m.updatedAt ?? m.at) > 28 * 86400000).sort((a, b) => a.at - b.at)[0];
+  if (old) add({
+    id: `health-old:${old.id}`, kind: 'reminder', icon: 'info', priority: 40,
+    title: t('Still true? “{text}”', { text: old.text.length > 48 ? `${old.text.slice(0, 46)}…` : old.text }),
+    body: t('You told the Coach this {n} weeks ago. ✕ if it still applies.', { n: Math.floor((Date.now() - (old.updatedAt ?? old.at)) / (7 * 86400000)) }),
+    action: { label: t('It’s better now'), run: { type: 'coach', prompt: t('My note “{text}” doesn’t apply any more. Please forget it.', { text: old.text }) } },
+  });
   return out.sort((a, b) => b.priority - a.priority);
 }
 
