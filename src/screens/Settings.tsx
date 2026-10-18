@@ -372,6 +372,8 @@ function RestAlertRow() {
     : done.page && (!done.tap || done.page.at >= done.tap.at - 1000)
       ? `${t('Last Done ✓: tapped {time}', { time: hhmm(done.page.at) })} · ${done.page.why ? t('not ticked ({why})', { why: t(done.page.why) }) : t('ticked at {time}', { time: hhmm(done.page.heard) })}`
       : `${t('Last Done ✓: tapped {time}', { time: hhmm(done.tap!.at) })} · ${t('Aven hasn’t picked it up')} (${done.tap!.sw}, ${done.tap!.wins})`;
+  // (for the rest worker: the last button it got and what it made of it, and taps still waiting for Aven)
+  const clickLine = done?.click ? `button ${done.click.action}${done.click.action === 'skip' ? (done.click.done ? '→done' : `→skip (${Math.round((done.click.at - done.click.endsAt) / 1000)} s)`) : ''} ${hhmm(done.click.at)}${done.waiting ? ` · waiting ${done.waiting}` : ''}` : done?.waiting ? `waiting ${done.waiting}` : '';
   const test = async () => {
     let p = Notification.permission;
     if (p === 'default') { p = await Notification.requestPermission().catch(() => 'default' as NotificationPermission); setPerm(p); }
@@ -405,7 +407,7 @@ function RestAlertRow() {
         <div>{t('Rest timer on lock screen')}</div>
         <div className="xs t2" style={{ marginTop: 2 }}>{perm === 'denied' ? (app ? t('Notifications are off for the Aven app. Turn them on in your phone’s Settings › Apps › Aven › Notifications, then force stop Chrome (Settings › Apps › Chrome) so it notices, and open Aven again.') : t('Notifications are blocked for Aven in your browser settings.')) : t('Shows when rest is over and buzzes, even in another app or with the screen off.')}</div>
         {android && line && <div className="xs t3" style={{ marginTop: 4, wordBreak: 'break-word' }}>{line}</div>}
-        {android && doneLine && <div className="xs t3" style={{ marginTop: 2 }}>{doneLine}</div>}
+        {android && doneLine && <div className="xs t3" style={{ marginTop: 2 }}>{doneLine}{clickLine && <> · {clickLine}</>}</div>}
         {android && <button className="btn sm press" style={{ marginTop: 8 }} onClick={test}>{t('Send a test')}</button>}
         {late && <div className="xs t3" style={{ marginTop: 2 }}>{late.ms < 2000 ? t('Last alert came on time.') : t('Last alert came {n} s late.', { n: Math.round(late.ms / 1000) })}</div>}
       </div>

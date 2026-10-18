@@ -277,11 +277,18 @@ function noteDone(at: number, via: string, why: string): false {
   try { localStorage.setItem(DONE_LOG, JSON.stringify({ at, heard: Date.now(), via, why })); } catch { /* ignore */ }
   return false;
 }
-export async function lastDone(): Promise<{ tap?: { at: number; sw: string; wins: number }; page?: { at: number; heard: number; via: string; why: string } }> {
-  let tap, page;
+export async function lastDone(): Promise<{ tap?: { at: number; sw: string; wins: number }; page?: { at: number; heard: number; via: string; why: string }; click?: { at: number; action: string; done: boolean; endsAt: number }; waiting: number }> {
+  let tap, page, click, waiting = 0;
   try { page = JSON.parse(localStorage.getItem(DONE_LOG) ?? 'null') ?? undefined; } catch { /* ignore */ }
-  try { const r = typeof caches !== 'undefined' ? await (await caches.open('aven-pending')).match(PENDING_LOG) : undefined; tap = r ? await r.json() : undefined; } catch { /* ignore */ }
-  return { tap, page };
+  try {
+    if (typeof caches !== 'undefined') {
+      const c = await caches.open('aven-pending');
+      const r = await c.match(PENDING_LOG); tap = r ? await r.json() : undefined;
+      const k = await c.match('/aven-pending/click'); click = k ? await k.json() : undefined;
+      waiting = (await c.keys()).filter((q) => new URL(q.url).pathname.startsWith(PENDING_TAP)).length;
+    }
+  } catch { /* ignore */ }
+  return { tap, page, click, waiting };
 }
 
 /** Is this the rest a Done ✓ was tapped for (the website's key, or the Android app's)? */

@@ -11,6 +11,9 @@
 // against each one's own address, so the app's rest worker and the page each had their own 'done' and never met)
 const PENDING_TAP = '/aven-pending/tap-', PENDING_LOG = '/aven-pending/log';
 const APP = '/The-new-Claude-gym-app/';
+// (Aven's Settings › Training asks for it: an old copy left on a phone was the trouble once)
+const VERSION = 5;
+self.addEventListener('message', (e) => { if (e.data && e.data.type === 'aven-rest-ping') e.ports?.[0]?.postMessage({ v: VERSION }); });
 
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
@@ -25,6 +28,8 @@ self.addEventListener('notificationclick', (e) => {
       // would look like one too. A Done is kept in the cache as well, with its time, for a page that misses the message.
       const done = e.action === 'skip' && d.endsAt && Date.now() > d.endsAt + 1500;
       const at = Date.now();
+      // the last button that reached this worker, and what it made of it (Settings › Training shows it)
+      try { await (await caches.open('aven-pending')).put('/aven-pending/click', new Response(JSON.stringify({ at, action: e.action, done: !!done, endsAt: d.endsAt || 0, v: VERSION }))); } catch (_) { /* fine */ }
       const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
       if (done) {
         // every tap kept on its own (a workout done from the wrist is several in a row, and Aven may sleep through them all)
