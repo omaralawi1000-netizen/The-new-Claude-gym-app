@@ -2608,3 +2608,10 @@ The last part of Coach 2.0, phase 5 (docs/coach-plan.md).
   - The ticks were too loud after Apply.
   - The heading read "200 G".
 - Tests: `tests/coach7.test.ts`. Journey: `scripts/journey-coach6.mjs`.
+
+## Settings → Watch, fixed and redone (18 Oct 2026, v0.1.149)
+- **Connect watch did nothing in the real app.** The page only believed the watch's numbers (`#hc=…`) when Chrome said Aven was opened by the Android app. That mark is gone once Aven reloads itself for an update, so the numbers coming back from Health Connect were thrown away and the button looked dead (the screen even said "Needs the Aven Android app"). Now they're believed on any phone where the Android app has opened Aven before (`appOnPhone` in `lib/androidApp.ts`). A made-up link on a phone without the app still does nothing.
+- **The button never looks dead:** it says "Opening Health Connect…" / "Syncing…" while the Android app works, and if nothing came back after a few seconds: "Nothing opened? Open Aven from its app icon…".
+- **The screen:** a status card (the watch in an accent seat when connected, a small dot, when it last synced); this week's workouts, active minutes and steps a day as three thin numbers; the last seven days of steps as quiet bars (today in the accent, rising in once, transform only); the last three watch workouts with heart rate and Easy/Hard/Max. Before connecting, three steps show how it gets here (your watch → Health Connect → Aven). Neutral surfaces, colour only on the status and today.
+- Syncing is automatic: every time Aven opens from its icon, the Android app reads Health Connect first.
+

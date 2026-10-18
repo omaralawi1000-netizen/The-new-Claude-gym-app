@@ -2459,9 +2459,38 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 @media (prefers-reduced-motion: reduce) { .coach-look.coach-look-out, .coach-answer .coach-look-gone { display: none; } }
 
 /* Settings → Watch: the round seat for the watch face, the two numbers under it */
-.watch-ic { width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center; flex: none; background: var(--s3); color: var(--tx); }
-.watch-stats { margin-top: 18px !important; }
-.watch-stats .num { font-weight: 300 !important; letter-spacing: -.01em; }
+.watch-hero { padding: 18px 18px 16px; }
+.watch-ic { width: 48px; height: 48px; border-radius: 16px; display: grid; place-items: center; flex: none; background: var(--s2); color: var(--tx2); box-shadow: inset 0 0 0 1px var(--line); }
+.watch-ic.on { background: var(--ac-soft); color: var(--ac-text); box-shadow: none; }
+.watch-state { display: flex; align-items: center; gap: 8px; font-weight: 650; font-size: 16.5px; }
+.watch-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ac); flex: none; }
+/* three numbers, thin and large, on hairlines between them */
+.watch-cap { margin-top: 20px; font-size: 11.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--tx3); }
+.watch-stats { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 8px; }
+.watch-stats .xs { white-space: nowrap; }
+.watch-stats > div { padding: 0 12px; box-shadow: inset 1px 0 0 var(--line); }
+.watch-stats > div:first-child { padding-left: 0; box-shadow: none; }
+.watch-stats .num { font-size: 26px; font-weight: 300; letter-spacing: -.01em; line-height: 1.1; }
+/* steps, the last seven days: one quiet bar a day, today in the accent; rise in once (transform only) */
+.watch-bars { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; margin-top: 20px; }
+.watch-bar { display: grid; justify-items: center; gap: 6px; }
+.watch-bar > span { width: 100%; max-width: 22px; height: 56px; display: flex; align-items: flex-end; }
+.watch-bar i { display: block; width: 100%; height: 100%; border-radius: 6px; background: var(--s4); transform-origin: 50% 100%; animation: watchBar 900ms var(--ease-smooth) both; }
+.watch-bar.none i { background: var(--s2); }
+.watch-bar.today i { background: var(--ac); }
+.watch-bar b { font-size: 11px; font-weight: 500; color: var(--tx3); }
+.watch-bar.today b { color: var(--ac-text); }
+@keyframes watchBar { from { transform: scaleY(0); } }
+/* not connected: how it gets here, in three quiet steps */
+.watch-flow { display: flex; align-items: center; gap: 8px; margin-top: 18px; }
+.watch-flow > span { flex: 1; min-width: 0; display: grid; justify-items: center; gap: 6px; padding: 12px 4px; border-radius: var(--r-sm); background: var(--s2); color: var(--tx2); }
+.watch-flow b { font-size: 11.5px; font-weight: 550; color: var(--tx2); white-space: nowrap; }
+.watch-flow > i { width: 10px; height: 1px; background: var(--line-2); flex: none; }
+.watch-kind { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; flex: none; background: var(--s2); box-shadow: inset 0 0 0 1px var(--line); }
+.watch-recent > .li:first-child { border-top: 0; }
+.spin-slow { animation: spinSlow 1.4s linear infinite; }
+@keyframes spinSlow { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .watch-bar i, .spin-slow { animation: none; } }
 
 /* "Undo all" under an answer's cards: a quiet ghost button at the right, risen in after the last card has settled (opacity
    and a small rise only), folded away once nothing is left to undo */

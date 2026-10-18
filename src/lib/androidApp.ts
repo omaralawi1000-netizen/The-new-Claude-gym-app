@@ -24,6 +24,10 @@ const hasAndroidApp = () => {
   try { return location.origin === SITE && 'serviceWorker' in navigator && !!localStorage.getItem(SEEN); } catch { return false; }
 };
 
+/** The Android app is on this phone: opened in it now, or seen opening the site before. (Inside the app the "came from
+ *  the app" mark can be gone, after Aven reloaded itself for an update: Omar's watch button did nothing, 18 Oct.) */
+export const appOnPhone = () => inAndroidApp() || hasAndroidApp();
+
 let reg: Promise<ServiceWorkerRegistration | null> | null = null;
 /** The rest worker, registered once, ready before you ever leave mid-rest (null: no app, or it couldn't be). */
 export function androidRest(): Promise<ServiceWorkerRegistration | null> {

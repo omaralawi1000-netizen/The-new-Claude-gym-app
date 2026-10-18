@@ -22,7 +22,7 @@ import { clearArchive, importArchive } from '../lib/archive';
 import type { AppData, Lang, Meal, Settings } from '../lib/types';
 import { uid, kcalOf, scaleMacros, suggestMacros } from '../lib/nutrition';
 import { mealName } from '../lib/derive';
-import { dayKey, diffDays, fmtDate, fmtDuration } from '../lib/dates';
+import { addDays, dayKey, diffDays, fmtDate, fmtDuration } from '../lib/dates';
 import { useAi } from '../state/ai';
 import { clearKeys } from '../lib/keys';
 import { VoiceAiSettings } from './VoiceAi';
@@ -34,8 +34,9 @@ import { BG_KINDS, BgBody, setBgPhoto, useBgPhoto, useSkyClock, type BgKind } fr
 import { startStutter, stopStutter, stutterReport, stutterState, subscribeStutter } from '../lib/stutter';
 import { coachTrace } from '../lib/coachTrace';
 import { lastRestLate } from './workout/rest';
-import { inAndroidApp, restCheck, showAppRest } from '../lib/androidApp';
+import { appOnPhone, inAndroidApp, restCheck, showAppRest } from '../lib/androidApp';
 import { hcLink, hcStatus } from '../lib/healthSync';
+import { ACTIVITY_LABEL, INTENSITY_LABEL, activityIcon } from '../lib/activity';
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 // Moving between Settings pages works like iOS: the page you leave steps aside and fades out quickly, then the next one glides
@@ -529,44 +530,111 @@ function WatchSection() {
   const lang = useLang();
   const s = useStore();
   const [, bump] = useState(0);
-  useEffect(() => { const f = () => bump((n) => n + 1); window.addEventListener('aven-hc', f); return () => window.removeEventListener('aven-hc', f); }, []);
+  // the button just tapped, while the Android app does its part (Health Connect's question, then the read); a few seconds
+  // with nothing back and still here: it didn't open, said plainly
+  const [busy, setBusy] = useState<'connect' | 'sync' | null>(null);
+  const [stuck, setStuck] = useState(false);
+  useEffect(() => {
+    const f = () => { setBusy(null); setStuck(false); bump((n) => n + 1); };
+    window.addEventListener('aven-hc', f);
+    return () => window.removeEventListener('aven-hc', f);
+  }, []);
+  useEffect(() => {
+    if (!busy) return;
+    let left = false;
+    const vis = () => { if (document.hidden) left = true; };
+    document.addEventListener('visibilitychange', vis);
+    const id = setTimeout(() => { setBusy(null); if (!left) setStuck(true); }, left ? 12000 : 7000);
+    return () => { clearTimeout(id); document.removeEventListener('visibilitychange', vis); };
+  }, [busy]);
   const h = hcStatus();
-  const go = (what: 'connect' | 'sync' | 'off') => { haptic('light'); location.href = hcLink(what); };
+  const go = (what: 'connect' | 'sync' | 'off') => {
+    haptic('light');
+    setStuck(false);
+    if (what !== 'off') setBusy(what);
+    location.href = hcLink(what);
+  };
+  const on = !!(h?.on && h.granted);
   const today = dayKey(Date.now(), s.settings.dayStartHour);
-  const week = s.activities.filter((a) => a.source === 'watch' && diffDays(today, a.date) < 7 && diffDays(today, a.date) >= 0);
-  const st7 = (s.steps ?? []).filter((x) => diffDays(today, x.date) < 7 && diffDays(today, x.date) >= 0);
-  const perDay = st7.length ? Math.round(st7.reduce((n, x) => n + x.count, 0) / st7.length) : 0;
+  const inWeek = (d: string) => diffDays(today, d) < 7 && diffDays(today, d) >= 0;
+  const watchActs = s.activities.filter((a) => a.source === 'watch');
+  const week = watchActs.filter((a) => inWeek(a.date));
+  const weekMin = Math.round(week.reduce((n, a) => n + a.durationSec, 0) / 60);
+  const stepsBy = new Map((s.steps ?? []).map((x) => [x.date, x.count]));
+  const days = Array.from({ length: 7 }, (_, i) => { const d = addDays(today, i - 6); return { d, n: stepsBy.get(d) ?? 0 }; });
+  const counted = days.filter((x) => x.n > 0);
+  const perDay = counted.length ? Math.round(counted.reduce((n, x) => n + x.n, 0) / counted.length) : 0;
+  const top = Math.max(1, ...days.map((x) => x.n));
+  const recent = [...watchActs].sort((x, y) => (y.startAt ?? y.at) - (x.startAt ?? x.at)).slice(0, 3);
   const state = !h ? null : h.note === 'unavailable' || !h.avail ? t('Health Connect needs Android 14 or newer.') : h.note === 'denied' || (h.on && !h.granted) ? t('Aven wasn’t allowed to read it. Tap Connect watch and allow all.') : h.note === 'slow' || h.note === 'failed' ? t('Health Connect didn’t answer in time. Try Sync now.') : null;
+  const u = s.settings.units;
   return (
-    <div className="stack gap16">
-      <div className="plinth-2 watch-hero" style={{ padding: 16 }}>
-        <div className="row-flex" style={{ gap: 12, alignItems: 'center' }}>
-          <span className="watch-ic" aria-hidden><Icon name="watch" size={22} /></span>
+    <div className="stack gap16 watch">
+      <div className="plinth watch-hero">
+        <div className="row-flex" style={{ gap: 14, alignItems: 'center' }}>
+          <span className={`watch-ic${on ? ' on' : ''}`} aria-hidden><Icon name="watch" size={24} /></span>
           <div className="grow" style={{ minWidth: 0 }}>
-            <div style={{ fontWeight: 650 }}>{h?.on && h.granted ? t('Connected') : t('Not connected')}</div>
-            <div className="xs t2" style={{ marginTop: 2 }}>{h?.on && h.lastSync ? t('Last synced {when}', { when: fmtWhen(h.lastSync, lang, t) }) : t('Your watch’s workouts and steps, by themselves')}</div>
+            <div className="watch-state">{on && <i className="watch-dot" aria-hidden />}{on ? t('Connected') : t('Not connected')}</div>
+            <div className="xs t2" style={{ marginTop: 3 }}>{on ? (h?.lastSync ? t('Synced {when}', { when: fmtWhen(h.lastSync, lang, t) }) : t('Waiting for the first sync')) : t('Your watch’s workouts and steps, by themselves')}</div>
           </div>
         </div>
-        {h?.on && h.granted && (week.length > 0 || perDay > 0) && (
-          <div className="row-flex watch-stats" style={{ gap: 10, marginTop: 14 }}>
-            <div className="grow"><div className="num" style={{ fontSize: 22, fontWeight: 650 }}>{week.length}</div><div className="xs t2">{t(week.length === 1 ? 'workout this week' : 'workouts this week')}</div></div>
-            <div className="grow"><div className="num" style={{ fontSize: 22, fontWeight: 650 }}>{perDay ? fmtNum(perDay, lang, 0) : '—'}</div><div className="xs t2">{t('steps a day')}</div></div>
+        {on ? (
+          <>
+            <div className="watch-cap">{t('This week')}</div>
+            <div className="watch-stats">
+              <div><div className="num">{week.length}</div><div className="xs t2">{t(week.length === 1 ? 'workout' : 'workouts')}</div></div>
+              <div><div className="num">{weekMin}</div><div className="xs t2">{t('active min')}</div></div>
+              <div><div className="num">{perDay ? fmtNum(perDay, lang, 0) : '—'}</div><div className="xs t2">{t('steps a day')}</div></div>
+            </div>
+            <div className="watch-bars" aria-label={t('Steps, the last 7 days')}>
+              {days.map((x, i) => (
+                <div key={x.d} className={`watch-bar${x.d === today ? ' today' : ''}${x.n ? '' : ' none'}`}>
+                  <span><i style={{ transform: `scaleY(${(x.n ? Math.max(0.06, x.n / top) : 0.06).toFixed(3)})`, animationDelay: `${i * 40}ms` }} /></span>
+                  <b>{fmtDate(x.d, lang, { weekday: 'narrow' })}</b>
+                </div>
+              ))}
+            </div>
+          </>
+        ) : (
+          <div className="watch-flow" aria-hidden>
+            <span><Icon name="watch" size={17} /><b>{t('Your watch')}</b></span>
+            <i />
+            <span><Icon name="heart" size={17} /><b>Health Connect</b></span>
+            <i />
+            <span><Icon name="sparkle" size={17} /><b>Aven</b></span>
           </div>
         )}
       </div>
       {state && <div className="small" style={{ color: 'var(--warn)' }}>{state}</div>}
-      {h?.on && h.granted ? (
-        <div className="row-flex" style={{ gap: 10, flexWrap: 'wrap' }}>
-          <button className="btn press" onClick={() => go('sync')}><Icon name="repeat" size={17} /> {t('Sync now')}</button>
-          <button className="btn press" onClick={() => go('off')}>{t('Disconnect')}</button>
+      {stuck && <div className="small t2">{t('Nothing opened? Open Aven from its app icon on your home screen, then tap again.')}</div>}
+      {on && recent.length > 0 && (
+        <div className="plinth" style={{ padding: '6px 16px' }}>
+          <div className="list watch-recent">
+            {recent.map((x) => (
+              <div key={x.id} className="li">
+                <span className="watch-kind" aria-hidden><Icon name={activityIcon(x.kind)} size={18} /></span>
+                <div className="grow" style={{ minWidth: 0 }}>
+                  <div className="li-title trunc">{x.name ? t(x.name) : t(ACTIVITY_LABEL[x.kind] === 'Other' ? 'Activity' : ACTIVITY_LABEL[x.kind])}</div>
+                  <div className="li-sub num trunc">{fmtDate(x.date, lang, { weekday: 'short', day: 'numeric', month: 'short' })} · {Math.round(x.durationSec / 60)} min{x.avgHr ? ` · ${x.avgHr} bpm` : x.distanceM ? ` · ${fmtNum(u.distance === 'mi' ? x.distanceM / 1609.344 : x.distanceM / 1000, lang, 1)} ${u.distance}` : ''}</div>
+                </div>
+                {x.intensity && <span className="chip sm">{t(INTENSITY_LABEL[x.intensity])}</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {on ? (
+        <div className="row-flex" style={{ gap: 10 }}>
+          <button className="btn grow press" onClick={() => go('sync')} disabled={busy === 'sync'}><Icon name="repeat" size={17} className={busy === 'sync' ? 'spin-slow' : undefined} /> {busy === 'sync' ? t('Syncing…') : t('Sync now')}</button>
+          <button className="btn ghost press" onClick={() => go('off')}>{t('Disconnect')}</button>
         </div>
       ) : (
-        <button className="btn primary block press" onClick={() => go('connect')}><Icon name="watch" size={18} /> {t('Connect watch')}</button>
+        <button className="btn primary block press" onClick={() => go('connect')} disabled={busy === 'connect'}><Icon name="watch" size={18} /> {busy === 'connect' ? t('Opening Health Connect…') : t('Connect watch')}</button>
       )}
-      <div className="small t2 stack gap8">
-        <div>{t('Works with a Galaxy Watch, or any watch that saves to Health Connect. New workouts show up by themselves each time Aven opens, with how hard they were from your heart rate.')}</div>
+      <div className="xs t3 stack gap8" style={{ padding: '0 4px' }}>
+        <div>{t('Syncs by itself every time you open Aven. Works with a Galaxy Watch, or any watch that saves to Health Connect.')}</div>
         <div>{t('Read only, and it stays on this phone. Calories a workout burned are shown, but never added to your food target.')}</div>
-        {!inAndroidApp() && <div className="xs t3">{t('Needs the Aven Android app. Without it, the button offers to download it.')}</div>}
+        {!appOnPhone() && <div>{t('Needs the Aven Android app. Without it, the button offers to download it.')}</div>}
       </div>
     </div>
   );

@@ -4,8 +4,10 @@
  * page reads them, keeps what is new — steps per day and the watch's workouts as activities — and takes them out of the
  * address again. Read only, never the other way.
  *
- * Only an address the Android app opened is believed (`inAndroidApp`: Chrome says so in the referrer); a link to the site
- * with a made-up "#hc=" does nothing. Everything is checked and capped: at most 60 workouts and 40 days, sane numbers.
+ * Only believed on a phone with the Android app (`appOnPhone`: opened in it, or seen there before). Inside the app Chrome's
+ * "came from the app" mark is lost once Aven reloads itself for an update, and then the watch's numbers were thrown away
+ * and Connect watch seemed to do nothing (Omar, 18 Oct). Everything is checked and capped: at most 60 workouts and 40
+ * days, sane numbers.
  *
  * Calories the watch counted are shown, never added to the food target (Omar: "I don't think it should count the calories
  * I burn so I can eat more").
@@ -13,7 +15,7 @@
 import type { ActivityKind, ActivityLog, StepDay } from './types';
 import { dayKey } from './dates';
 import { uid } from './nutrition';
-import { inAndroidApp } from './androidApp';
+import { appOnPhone } from './androidApp';
 import { useStore } from '../state/store';
 import { useUI } from '../state/ui';
 import { tNow } from './i18n';
@@ -131,7 +133,7 @@ export function applyHcFromAddress(): void {
   const p = parseHc(location.hash);
   // (out of the address either way: a reload or a shared link must not carry it)
   try { history.replaceState(history.state, '', location.pathname + location.search); } catch { /* fine */ }
-  if (!p || !inAndroidApp()) return;
+  if (!p || !appOnPhone()) return;
   const synced = !!(p.days || p.ex);
   saveStatus(p, synced);
   if (synced) {
