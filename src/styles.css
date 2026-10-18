@@ -1581,6 +1581,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    while one played the list's end grew by the move, was scrolled to again and glided twice. Clipped, a move never changes
    the scroll area; the margin keeps what a move carries below the list drawn down into the fade over the bar, 14 Oct r11) */
 .coach-clip { overflow: clip; overflow-clip-margin: 100px; }
+.coach-clip:has(.coach-tips-float) { overflow-clip-margin: 20px; } /* (suggestions stepping away under the list: drawn whole) */
 .reply-foot.held { min-height: 32px; }
 /* the play button under each answer is a quiet glyph, not a filled circle (a column of circles down the chat read as noise);
    it keeps its 32 px tap area and lines up with the text, and takes its colour and ring only while it reads aloud */
@@ -1659,6 +1660,8 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* sending: the suggestions step away the way the chat does on New chat (they used to vanish in one frame), on a soft
    300 ms curve; they take no room while they go, so your message rises where they were */
 .coach-tips-out { height: 0; pointer-events: none; animation: coachTipsOut 300ms cubic-bezier(.3, 0, .2, 1) forwards; }
+.coach-thread { position: relative; }
+.coach-tips-float { position: absolute; left: 0; right: 0; height: auto; }
 @keyframes coachTipsOut { from { opacity: 1; } to { opacity: 0; transform: translate3d(0, -4px, 0); } }
 .coach-body .coach-tips-out .tips .tip { animation: none; } /* (re-placed, they must not rise in again on their way out) */
 :root[data-motion='reduce'] .coach-tips-out { display: none; }
@@ -1675,8 +1678,10 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* (each of your bubbles is drawn on a layer of its own, for good: a sent message's flying copy is one, and its letters land
    on the bubble's exactly only when the bubble is drawn the same way (on the list's own layer they stepped by a pixel as it
    landed). Given one only while it landed and taken away at the next send, the answer under it was redrawn from nothing
-   while the list moved: it blanked for two frames on the phone, 14 Oct r11) */
-.coach-body .said { will-change: transform; }
+   while the list moved: it blanked for two frames on the phone, 14 Oct r11). Only the ones sent in this visit, which are
+   the only ones that land: a saved chat's bubbles, each a layer, also put every answer under them on a layer of its own
+   (their shadows overlap it), a dozen big layers of a chat nobody is sending in, 18 Oct) */
+.coach-body .live .said { will-change: transform; }
 /* The typing pill has its own surface; the orb and camera sit beside it. */
 .coach-foot { padding-bottom: 12px; }
 .coach-composer { display: flex; align-items: center; gap: 14px; }

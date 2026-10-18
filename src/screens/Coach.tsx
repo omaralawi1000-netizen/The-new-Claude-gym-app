@@ -116,7 +116,7 @@ const ChatRow = memo(function ChatRow({ m, sent, gone, setMsgs, onErr }: { m: Ms
   const t = useT();
   const replaced = gone ? gone.split(',') : [];
   return (
-    <div data-mid={m.id} className={sent ? 'coach-sent' : undefined}
+    <div data-mid={m.id} className={[sent && 'coach-sent', m.role === 'user' && !m.seeded && 'live'].filter(Boolean).join(' ') || undefined}
       style={m.role === 'user' ? USER_ROW : OTHER_ROW}>
       {m.role === 'user' && (
         <div className="stack" style={{ alignItems: 'flex-end', gap: 6, maxWidth: '100%' }}>
@@ -227,6 +227,10 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   // the suggestions step away when something is sent (they used to vanish in one frame): where they were, at the top of an
   // empty chat or under an old one
   const [tipsOut, setTipsOut] = useState<'top' | 'resume' | null>(null);
+  // (under an old chat they step away where they were: lifted out of the page at their place in the list, so the message
+  // you send can't push them down a line in one frame, and their going can't shorten the list in one frame either, which
+  // threw the whole chat down a line as they finished, 18 Oct recordings)
+  const tipsTop = useRef(0);
   // A long saved chat is not built all at once on the tap that opens the Coach (60 messages of word-by-word text held the
   // tap for ~90 ms on the phone): the newest ones are there from the first frame, scrolled to the bottom as always, and the
   // older ones are added above them a couple at a time once the sheet has risen, with the scroll kept exactly in place.
@@ -266,6 +270,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   const pinned = useRef(true); // the list stays at its end (see below)
   const listMoved = useRef<(() => void) | null>(null); // a message in flight keeps to its landing place as the list moves
   const ride = useRef<((rider: HTMLElement) => { off: number; unride: () => void }) | null>(null); // …and glides with the list (see glide)
+  const pinRef = useRef<((smooth: boolean) => void) | null>(null); // the list to its end (see pin)
   const user = useRef(false); // a finger or a wheel is moving the list (or its fling is still running)
   const movedAt = useRef(0);
   const lastScroll = useRef(0);
@@ -358,6 +363,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       lastScroll.current = el.scrollTop;
       if (smooth) glide(el.scrollTop - from);
     };
+    pinRef.current = pin;
     // your finger on the list: whatever is still gliding becomes the scroll position (what you see stays put)
     const hold = () => {
       if (!move) return;
@@ -433,7 +439,8 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       const app = document.querySelector<HTMLElement>('.app');
       if (!bubble || !app) continue;
       // the conversation goes to its end at once, then is played back up from where it was (one move, nothing jumps)
-      const before = el.scrollTop;
+      // (from where it was last drawn: the browser may already have pulled a list that got shorter to its new end)
+      const before = lastScroll.current;
       el.scrollTop = endTop(el); lastScroll.current = el.scrollTop;
       const lift = el.scrollTop - before;
       const B = bubble.getBoundingClientRect();
@@ -608,7 +615,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
         if (ly < from.win.t - 2 || ly + CF_LINE > from.win.b + 2) go((line as HTMLElement).animate([{ opacity: 0 }, { opacity: 1 }], fade(260, 60)));
       });
       const thread = el.querySelector<HTMLElement>('.coach-thread');
-      if (thread && lift > 0.5) go(thread.animate([{ transform: `translate3d(0, ${lift}px, 0)` }, { transform: 'none' }], { ...opts, fill: 'none' }));
+      if (thread && Math.abs(lift) > 0.5) go(thread.animate([{ transform: `translate3d(0, ${lift}px, 0)` }, { transform: 'none' }], { ...opts, fill: 'none' }));
       // anything that scrolls the conversation on the way (the answer arriving) moves the landing place with it
       const scroll0 = el.scrollTop;
       const follow = () => { copy.style.top = `${top0 - (el.scrollTop - scroll0)}px`; };
@@ -894,7 +901,12 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       });
     }
     const reduceTips = still || leaving;
-    if (!reduceTips && (msgsRef.current.length === 0 || resumed)) setTipsOut(msgsRef.current.length === 0 ? 'top' : 'resume');
+    if (!reduceTips && (msgsRef.current.length === 0 || resumed)) {
+      const res = bodyRef.current?.querySelector<HTMLElement>('.coach-resume'), th = bodyRef.current?.querySelector<HTMLElement>('.coach-thread');
+      const head = res?.firstElementChild as HTMLElement | null | undefined; // (its top margin: it doesn't collapse in the lifted copy)
+      tipsTop.current = head && th ? head.offsetTop - th.offsetTop - (parseFloat(getComputedStyle(head).marginTop) || 0) : 0;
+      setTipsOut(msgsRef.current.length === 0 ? 'top' : 'resume');
+    }
     setInput(''); setPhoto(null); setResumed(false);
     // about something that was held: the model gets what it is with the words; the bubble shows only its name
     const ab = about; setAbout(null);
@@ -1054,6 +1066,9 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       <div className="sheet-body coach-body" data-kb-own ref={bodyRef} style={growVars} onScroll={(e) => {
         const el = e.currentTarget;
         if (user.current) { movedAt.current = performance.now(); pinned.current = endTop(el) - el.scrollTop < 80; }
+        // the browser moved it by itself (the list got shorter and its end came down, measured early in the frame, before the
+        // resize could be seen): glided from where it was, like any move of its own (it jumped a line, 18 Oct recordings)
+        else if (pinned.current && placed.current && Math.abs(el.scrollTop - lastScroll.current) > 0.5 && pinRef.current) { pinRef.current(true); return; }
         lastScroll.current = el.scrollTop;
       }}>
           <>
@@ -1063,10 +1078,11 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
             <div className="coach-clip">
               <div className="stack coach-thread" style={{ gap: 16, marginTop: shown.length ? 0 : 16 }}>
                 {listed.map((m) => <ChatRow key={m.id} m={m} sent={m.role === 'user' && !m.seeded && !flown(m.id)} gone={m.role === 'action' ? m.results.filter((r) => replaced.has(r.id)).map((r) => r.id).join(',') : ''} setMsgs={setMsgs} onErr={onErr} />)}
+                {/* (inside the list, so they ride its glide as the conversation closes up over where they were) */}
+                {tipsOut === 'resume' && !(resumed && shown.length > 0) && <div className="coach-resume coach-tips-out coach-tips-float" inert style={{ top: tipsTop.current }} onAnimationEnd={(e) => { if (e.target === e.currentTarget) setTipsOut(null); }}>{resumeHead}{tipsBlock}</div>}
               </div>
             </div>
-            {resumed && shown.length > 0 ? <div className="coach-resume">{resumeHead}{tipsBlock}</div>
-              : tipsOut === 'resume' && <div className="coach-resume coach-tips-out" inert onAnimationEnd={(e) => { if (e.target === e.currentTarget) setTipsOut(null); }}>{resumeHead}{tipsBlock}</div>}
+            {resumed && shown.length > 0 && <div className="coach-resume">{resumeHead}{tipsBlock}</div>}
             {!noteSeen && shown.length === 0 && <div className={`xs t2${cleared ? ' coach-note-fresh' : ''}`} style={{ marginTop: 18 }}>{solOn(ai) ? t('AI can be wrong, and isn’t medical advice. Messages go to OpenAI (GPT-6.1 Sol).') : t('AI can be wrong, and isn’t medical advice. Messages go to Google Gemini.')}</div>}
           </>
       </div>
