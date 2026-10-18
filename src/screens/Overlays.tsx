@@ -1,4 +1,4 @@
-import { Suspense, startTransition, useEffect, useRef, useState } from 'react';
+import { Component, Suspense, startTransition, useEffect, useRef, useState, type ReactNode } from 'react';
 import { AnimatePresence } from 'motion/react';
 import { OverlayMeta, OverlayZ } from '../ui/Sheet';
 import { useUI, type Overlay } from '../state/ui';
@@ -17,6 +17,8 @@ import { RoutineEditor } from './workout/Routine';
 import { ActivityLog, Reschedule, Schedule } from './workout/Schedule';
 import { MeasureSheet, PhotosSheet, WeightSheet } from './Body';
 import { deferred, preloadLater } from '../ui/lazy';
+import { tNow } from '../lib/i18n';
+import { installCoachTrace } from '../lib/coachTrace';
 
 // The biggest pop-ups are files of their own, loaded after the app has opened (ui/lazy.ts): the app starts with less to load
 // and run. They are fetched while the app is idle a few seconds after opening, so they open as quickly as before.
@@ -27,7 +29,8 @@ const PhotoFood = deferred(() => import('./food/PhotoFood').then((m) => m.PhotoF
 const CameraSheet = deferred(() => import('./CameraSheet').then((m) => m.CameraSheet));
 const Scanner = deferred(() => import('./food/Scanner').then((m) => m.Scanner));
 const Onboarding = deferred(() => import('./Onboarding').then((m) => m.Onboarding));
-preloadLater(Coach, VoiceComposer, SettingsSheet, PhotoFood, Scanner, CameraSheet, Onboarding);
+const WeekReviewSheet = deferred(() => import('./WeekReview').then((m) => m.WeekReviewSheet));
+preloadLater(Coach, VoiceComposer, SettingsSheet, PhotoFood, Scanner, CameraSheet, Onboarding, WeekReviewSheet);
 
 // one stable object per overlay, so its consumers don't re-render on every change to the stack
 const metas = new Map<string, { id: string; page: boolean }>();
@@ -114,9 +117,26 @@ function useAhead(activeId: string | null, leaving: boolean): boolean {
   return ahead;
 }
 
+/** A missing screen file (for example after a deploy) must not unmount the app or leave an invisible overlay behind. */
+class OverlayBoundary extends Component<{ id: string; children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  componentDidCatch() {
+    const ui = useUI.getState();
+    const i = ui.overlays.findIndex((o) => o.id === this.props.id);
+    if (i < 0) return;
+    ui.popN(ui.overlays.length - i);
+    ui.toast(tNow('Couldn’t open this screen. Reload Aven and try again.'), {
+      tone: 'bad', duration: 10000, actionLabel: tNow('Reload'), onAction: () => location.reload(),
+    });
+  }
+  render() { return this.state.failed ? null : this.props.children; }
+}
+
 /** Renders the overlay stack. Each overlay owns its presentation (sheet, morph, or full-screen). */
 export function Overlays() {
   const overlays = useUI((s) => s.overlays);
+  useEffect(installCoachTrace, []);
   return (
     <>
     <WorkoutHost />
@@ -144,6 +164,7 @@ export function Overlays() {
           case 'exercisePicker': return <ExercisePicker key={o.id} props={p} />;
           case 'exerciseEditor': return <ExerciseEditor key={o.id} props={p} />;
           case 'summary': return <Summary key={o.id} props={p} />;
+          case 'weekReview': return <WeekReviewSheet key={o.id} props={p} />;
           case 'sessionDetail': return <SessionDetail key={o.id} props={p} />;
           case 'routine': return <RoutineEditor key={o.id} props={p} />;
           case 'schedule': return <Schedule key={o.id} props={p} />;
@@ -158,7 +179,7 @@ export function Overlays() {
           case 'onboarding': return <Onboarding key={o.id} props={p} />;
           default: return null;
         } })();
-        return <OverlayZ.Provider key={o.id} value={60 + idx * 10}><OverlayMeta.Provider value={meta(o.id, !!o.page)}><Suspense fallback={null}>{el}</Suspense></OverlayMeta.Provider></OverlayZ.Provider>;
+        return <OverlayZ.Provider key={o.id} value={60 + idx * 10}><OverlayMeta.Provider value={meta(o.id, !!o.page)}><OverlayBoundary id={o.id}><Suspense fallback={null}>{el}</Suspense></OverlayBoundary></OverlayMeta.Provider></OverlayZ.Provider>;
       })}
     </AnimatePresence>
     </>

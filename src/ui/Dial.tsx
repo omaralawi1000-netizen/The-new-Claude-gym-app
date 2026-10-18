@@ -17,9 +17,14 @@ export function Dial({ rings, size = 280, stroke = 13, gap = 9, children, label 
   const visit = useVisit();
   const c = size / 2;
   const ids = useId().replace(/:/g, '');
+  const svg = useRef<SVGSVGElement>(null);
+  // Chrome kept every ring that left the page (a <foreignObject> in an <svg> going away with it) and with it the whole tab
+  // it was on: ~240 nodes and 13 listeners per tab switch, for good. Emptied and taken out first, they are let go (React
+  // has already removed the old copy on a re-visit, so this only ever empties a node no longer shown).
+  useLayoutEffect(() => { const el = svg.current; return () => { el?.querySelectorAll('foreignObject').forEach((f) => f.replaceChildren()); el?.replaceChildren(); el?.remove(); }; }, [visit]);
   return (
     <div role="img" aria-label={label} data-fly="kcal" style={{ position: 'relative', width: size, height: size, margin: '0 auto' }}>
-      <svg key={visit} width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ position: 'absolute', inset: 0, overflow: 'visible' }} aria-hidden>
+      <svg ref={svg} key={visit} width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ position: 'absolute', inset: 0, overflow: 'visible' }} aria-hidden>
         {rings.map((r, i) => {
           const rad = c - stroke / 2 - i * (stroke + gap) - 2;
           return rad > 0 ? <Ring key={i} i={i} ring={r} c={c} rad={rad} stroke={stroke} size={size} id={`${ids}-${i}`} /> : null;

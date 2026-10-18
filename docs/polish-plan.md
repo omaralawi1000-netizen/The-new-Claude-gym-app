@@ -3,6 +3,8 @@
 Work one section per session. Each ends with: checks, pull request into `ccr-d1172cc7-1e03wh`, merge, deploy green.
 When a section is done, change `[ ]` to `[x]` here in the same pull request.
 
+**Paused 15 Oct 2026** while the Coach 2.0 plan (`docs/coach-plan.md`) runs, at Omar's request.
+
 - [ ] **1. Page transitions flicker** (top, middle, dock icons when switching tabs). Three attempts (11 Oct: start from
   first paint, faster fades, kept screens without card rise) were all reverted at Omar's request: he wants the original
   animations (slide, cards rising in, slow 0.8 s colour fade) and the flicker fixed without changing how they look.

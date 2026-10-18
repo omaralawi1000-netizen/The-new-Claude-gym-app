@@ -18,6 +18,10 @@ import type { AppData } from '../lib/types';
 const INSIGHTS = 'aven.insights';
 interface Cached { date: string; items: Insight[] }
 const readCache = (): Cached | null => { try { return JSON.parse(localStorage.getItem(INSIGHTS) || 'null'); } catch { return null; } };
+// the Coach's insights set aside with ✕: the model is told, so it doesn't bring the same thing back tomorrow in new words
+const DECLINED = 'aven.insightsNo';
+const declined = (): string[] => { try { const v = JSON.parse(localStorage.getItem(DECLINED) || '[]'); return Array.isArray(v) ? v.filter((x) => typeof x === 'string') : []; } catch { return []; } };
+const decline = (title: string) => { try { localStorage.setItem(DECLINED, JSON.stringify([...declined().filter((x) => x !== title), title].slice(-20))); } catch { /* fine */ } };
 let asking = false;
 /** Fetches today's insights once (a few seconds after opening, when the phone is idle) and returns them. */
 function useInsights(d: AppData, today: string): Insight[] {
@@ -31,10 +35,13 @@ function useInsights(d: AppData, today: string): Insight[] {
     const id = setTimeout(async () => {
       asking = true;
       // the Coach's code is loaded with the Coach (a file of its own), not when the app opens
-      const [{ aiInsights }, { agentModels }, { buildCoachContext }] = await Promise.all([import('../lib/gemini'), import('../lib/agentTurn'), import('../lib/coachContext')]).catch(() => { asking = false; return [null, null, null] as never; });
+      const [{ aiInsights }, { agentModels }, { buildCoachContext, memoryBlock }] = await Promise.all([import('../lib/gemini'), import('../lib/agentTurn'), import('../lib/coachContext')]).catch(() => { asking = false; return [null, null, null] as never; });
       if (!aiInsights) return;
       const map = exerciseMap(d.exercises);
-      const ctx = buildCoachContext(d, today, (x) => { const e = map.get(x); return e ? exName(e, lang) : x; }, (x) => map.get(x)?.muscles);
+      const name = (x: string) => { const e = map.get(x); return e ? exName(e, lang) : x; };
+      // what they told the Coach (an injury, how they train, what they don't want) and what they already turned down
+      const no = declined();
+      const ctx = `${buildCoachContext(d, today, name, (x) => map.get(x)?.muscles)}\n\n${memoryBlock(d, name)}${no.length ? `\n\nTHEY SET THESE ASIDE (never suggest them again, in any wording): ${no.map((x) => `"${x}"`).join('; ')}.` : ''}`;
       const app = `\nApp setup: Today shows ${Object.entries(d.settings.widgets).filter(([, v]) => v).map(([k]) => k).join(', ')}; hidden: ${Object.entries(d.settings.widgets).filter(([, v]) => !v).map(([k]) => k).join(', ') || 'none'}.`;
       aiInsights(ctx + app, { key: getKey('gemini'), models: agentModels(false) }, lang)
         .then((items) => { const c = { date: today, items }; try { localStorage.setItem(INSIGHTS, JSON.stringify(c)); } catch { /* ignore */ } setCache(c); })
@@ -65,7 +72,7 @@ export function useNudges(d: AppData): { list: Nudge[]; hide: (id: string, forGo
     return visibleNudges([...own, ...ai].sort((a, b) => b.priority - a.priority)).slice(0, 4);
     // eslint-disable-next-line
   }, [d.sessions, d.entries, d.weights, d.schedule, d.routines, d.active, d.settings, d.exercises, today, hour, insights, v, lang]);
-  return { list, hide: (id, forGood) => { hideNudge(id, forGood); bump(); } };
+  return { list, hide: (id, forGood) => { if (forGood && id.startsWith('ai:')) { const n = list.find((x) => x.id === id); if (n) decline(n.title); } hideNudge(id, forGood); bump(); } };
 }
 
 export function runNudge(a: NudgeAction, today: string) {

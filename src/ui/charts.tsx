@@ -143,12 +143,12 @@ export function Sparkline({ values, w = 96, h = 32 }: { values: number[]; w?: nu
 }
 
 /** A card that can flip to an accessible table of exactly what's plotted. */
-export function ChartCard({ title, sub, right, children, table }: { title: ReactNode; sub?: ReactNode; right?: ReactNode; children: ReactNode; table?: { head: string[]; rows: (string | number)[][] } }) {
+export function ChartCard({ title, sub, right, children, table, ask }: { title: ReactNode; sub?: ReactNode; right?: ReactNode; children: ReactNode; table?: { head: string[]; rows: (string | number)[][] }; /** hold it to ask the Coach about it (lib/askAbout.ts) */ ask?: string }) {
   const t = useT();
   const [showTable, setShowTable] = useState(false);
   const rows = useMemo(() => table?.rows ?? [], [table]);
   return (
-    <div className="plinth" style={{ padding: '16px 14px 14px', borderRadius: 'var(--r-lg)' }}>
+    <div className="plinth" data-ask={ask} style={{ padding: '16px 14px 14px', borderRadius: 'var(--r-lg)' }}>
       <div className="row-flex between" style={{ padding: '0 4px', marginBottom: 10, alignItems: 'flex-start' }}>
         <div><div className="micro">{title}</div>{sub && <div className="display display-md num" style={{ marginTop: 4 }}>{sub}</div>}</div>
         <div className="row-flex" style={{ gap: 4 }}>{right}{table && <button className="icon-btn flat sm press" aria-label={showTable ? t('Show chart') : t('Show as table')} aria-pressed={showTable} onClick={() => setShowTable((v) => !v)}><Icon name={showTable ? 'progress' : 'list'} size={18} /></button>}</div>

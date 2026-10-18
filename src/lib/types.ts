@@ -193,7 +193,14 @@ export interface WorkoutSession {
   note?: string;
   rest?: { endsAt: number; total: number; exerciseId: string } | null;
   records?: PersonalRecord[];
+  /** how it felt, from the one-tap check-in after it (each optional): energy 1 low · 2 ok · 3 great; soreness 1 none ·
+   *  2 some · 3 a lot; sleep (the night before) 1 poor · 2 ok · 3 good */
+  checkin?: CheckIn;
+  /** made from sets told to the Coach with no workout running (after the gym, or for another day): later sets that day
+   *  join it */
+  logged?: boolean;
 }
+export interface CheckIn { energy?: 1 | 2 | 3; soreness?: 1 | 2 | 3; sleep?: 1 | 2 | 3; at: number }
 
 export type RecordKind = 'weight' | 'e1rm' | 'volume' | 'reps' | 'duration' | 'distance';
 export interface PersonalRecord {
@@ -224,6 +231,9 @@ export interface Routine {
   name: string;
   items: RoutineItem[];
   note?: string;
+  /** made for one day only (the Coach's "chest and triceps tomorrow"): it works in the plan and the history, but the
+   *  routine lists leave it out so they don't fill up with one-off days */
+  oneOff?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -248,7 +258,7 @@ export type MeasureKind = 'waist' | 'chest' | 'hips' | 'arm' | 'thigh' | 'neck';
 export interface Measurement { id: string; date: string; kind: MeasureKind; cm: number }
 export interface ProgressPhoto { id: string; date: string; note?: string }
 
-export type ActivityKind = 'wrestling' | 'run' | 'walk' | 'cycle' | 'swim' | 'row' | 'hike' | 'mobility' | 'warmup' | 'recovery' | 'other';
+export type ActivityKind = 'wrestling' | 'run' | 'walk' | 'cycle' | 'swim' | 'row' | 'stairs' | 'hike' | 'mobility' | 'warmup' | 'recovery' | 'other';
 export interface ActivityLog {
   id: string;
   date: string;
@@ -260,7 +270,20 @@ export interface ActivityLog {
   intensity?: 1 | 2 | 3;
   note?: string;
   at: number;
+  /** from the watch (Health Connect): its record id (never added twice), when it ran, and what the watch measured */
+  source?: 'watch';
+  hcId?: string;
+  startAt?: number;
+  avgHr?: number;
+  maxHr?: number;
+  /** active calories the watch counted: shown, never added to the food target */
+  kcal?: number;
+  /** the watch's own name for it ("Stair climber", "Elliptical"), for kinds Aven has no word for */
+  name?: string;
 }
+
+/** Steps of one day, from the watch and phone (Health Connect counts each step once). */
+export interface StepDay { date: string; count: number }
 
 // ── Settings ────────────────────────────────────────────────
 
@@ -319,7 +342,16 @@ export interface MemoryNote {
   at: number;
   /** the exercises it is about (a sore shoulder on overhead press): the workout shows it beside them */
   exerciseIds?: string[];
+  /** a temporary thing ("sick until Friday"): the last day it applies (YYYY-MM-DD). After it, the Coach no longer reads it */
+  until?: string;
+  /** when it was last reworded (a newer fact replaced the older one) */
+  updatedAt?: number;
+  /** its earlier wordings, newest first (up to 3) */
+  was?: { text: string; at: number }[];
 }
+
+/** One weekly review as kept: the week's last day, the Coach's verdict and up to two priorities (ids from lib/weekReview). */
+export interface WeekReviewNote { week: string; at: number; verdict?: string; priorities: { id: string; text: string }[] }
 
 export interface AppData {
   v: number;
@@ -346,5 +378,9 @@ export interface AppData {
   increments: Record<string, number>;
   /** what the Coach remembers about you */
   memory: MemoryNote[];
+  /** the weekly reviews (the newest 26): the Coach's verdict and the priorities it set, so the next review can check them */
+  reviews?: WeekReviewNote[];
+  /** steps per day from the watch (Health Connect), the newest 120 days */
+  steps: StepDay[];
   demo: boolean;
 }

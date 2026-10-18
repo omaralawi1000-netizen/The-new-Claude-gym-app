@@ -175,7 +175,7 @@ export function Collapse({ open = true, appear: appearProp = false, children, cl
     const t = setTimeout(() => done(), (reduce ? 0 : ms) + 60);
     return () => { el.removeEventListener('transitionend', done); clearTimeout(t); };
     // eslint-disable-next-line
-  }, [on]);
+  }, [on, isPresent]); // an already folded section must still release its parent's exit
   return (
     <div ref={ref} className={`collapse${appear && !settled ? ' appear' : ''}${on ? ' on' : ''}${on && settled ? ' settled' : ''}${className ? ` ${className}` : ''}`} style={{ ['--collapse-ms' as string]: `${reduce ? 0 : ms}ms`, ...style }}>
       <div className="collapse-in">{children}</div>

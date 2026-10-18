@@ -52,9 +52,10 @@ if (process.env.MUT) await ctx.addInitScript(() => { window.__mutOn = true; }); 
 await p.goto(URL); await wait(p, 1500);
 await skipOnboarding(p); await loadDemo(p); await wait(p, 800);
 const long = 'At 18, 175 cm and hovering around 97.6 kg, you carry serious density and move real weight, putting up 100 kg on bench, 140 kg on hack squats, and 85 kg rows.\n\nWhat separates your routine from standard bodybuilding is the sheer physical engine behind it: pairing failure-intensity lifting with 40 minutes of hard daily cardio, 12k+ steps, and regular mat time in wrestling.';
-const older = Array.from({ length: 5 }, (_, i) => [['user', `Question ${i + 1}: give me something about myself.`], ['model', long]]).flat()
+// SEED=n: how many saved messages the chat starts with (a phone keeps up to 60; 10 under-measured a full chat)
+const older = Array.from({ length: Math.ceil(Number(process.env.SEED ?? 60) / 2) }, (_, i) => [['user', `Question ${i + 1}: give me something about myself.`], ['model', long]]).flat()
   .map(([role, text], i) => ({ id: 'seed' + i, role, text, at: Date.now() - 60000 }));
-await p.evaluate((older) => { localStorage.setItem('aven.keys', JSON.stringify({ gemini: 'AIzaTESTKEY' })); localStorage.setItem('aven.coach', JSON.stringify(older)); localStorage.setItem('aven.coachNote', '1'); }, older);
+await p.evaluate((older) => { localStorage.setItem('aven.keys', JSON.stringify({ gemini: 'AIzaTESTKEY', groq: 'gsk_TESTKEY' })); /* (a Groq key: the mic records) */ localStorage.setItem('aven.coach', JSON.stringify(older)); localStorage.setItem('aven.coachNote', '1'); }, older);
 await p.reload(); await wait(p, 2200);
 
 // ── layer drops (see audit-workout.mjs) ──
@@ -188,6 +189,9 @@ await act('coach: play (read aloud)', () => sheet().getByRole('button', { name: 
 await act('coach: new chat', () => sheet().getByRole('button', { name: 'New chat' }).tap(), 1500);
 await act('coach: tap a suggestion', () => sheet().locator('.tip').first().tap(), 1700);
 await act('coach: suggestion answer', async () => {}, 5500);
+// the mic: the orb listens and its ring follows the voice (a fake microphone) — then stop (the upload fails: no real key)
+await act('coach: mic recording', () => sheet().getByRole('button', { name: 'Speak' }).tap(), 2500);
+await act('coach: mic stop', () => sheet().locator('.coach-orb').tap(), 1500);
 await act('coach: close', () => sheet().getByRole('button', { name: 'Close' }).last().tap(), 1500);
 // the orb answer screen
 await act('orb: open', () => p.locator('.tabbar').getByRole('button').nth(2).tap(), 1800);

@@ -7,7 +7,13 @@
 // app's scope (/The-new-Claude-gym-app/). Notifications from this scope go to the Android app, which turns the rest
 // into a live countdown (android/app/.../RestNotifications.java). The website (src/lib/androidApp.ts) shows and clears
 // them; this worker only answers taps: +30 s and Skip go to the open app, and a tap opens the workout.
+// the keys of a Done ✓ kept for the page: whole paths, the same from every worker and page (a bare 'done' is read
+// against each one's own address, so the app's rest worker and the page each had their own 'done' and never met)
+const PENDING_TAP = '/aven-pending/tap-', PENDING_LOG = '/aven-pending/log';
 const APP = '/The-new-Claude-gym-app/';
+// (Aven's Settings › Training asks for it: an old copy left on a phone was the trouble once)
+const VERSION = 5;
+self.addEventListener('message', (e) => { if (e.data && e.data.type === 'aven-rest-ping') e.ports?.[0]?.postMessage({ v: VERSION }); });
 
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
@@ -17,9 +23,24 @@ self.addEventListener('notificationclick', (e) => {
   const d = n.data || {};
   if (e.action === 'more' || e.action === 'skip') {
     e.waitUntil((async () => {
+      // the app's rest-over alert has a Done ✓ that comes as this Skip once the rest is over (it can mean nothing else
+      // then). Decided here, at the tap: a page asleep behind the lock screen gets the message late, when a real Skip
+      // would look like one too. A Done is kept in the cache as well, with its time, for a page that misses the message.
+      const done = e.action === 'skip' && d.endsAt && Date.now() > d.endsAt + 1500;
+      const at = Date.now();
+      // the last button that reached this worker, and what it made of it (Settings › Training shows it)
+      try { await (await caches.open('aven-pending')).put('/aven-pending/click', new Response(JSON.stringify({ at, action: e.action, done: !!done, endsAt: d.endsAt || 0, v: VERSION }))); } catch (_) { /* fine */ }
       const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-      wins.forEach((w) => w.postMessage({ type: 'aven-rest-action', action: e.action, key: d.key }));
-      if (e.action === 'skip') { n.close(); return; }
+      if (done) {
+        // every tap kept on its own (a workout done from the wrist is several in a row, and Aven may sleep through them all)
+        const c = await caches.open('aven-pending');
+        await c.put(`${PENDING_TAP}${at}`, new Response(JSON.stringify({ key: d.key, at })));
+        // (what Aven's Settings › Training shows as "Last Done ✓", so one screenshot says where it stopped)
+        await c.put(PENDING_LOG, new Response(JSON.stringify({ key: d.key, at, sw: 'app', wins: wins.length })));
+      }
+      wins.forEach((w) => w.postMessage({ type: 'aven-rest-action', action: done ? 'done' : e.action, key: d.key, at }));
+      // (a Done keeps Chrome's notification: the app's next Done ✓ comes through its buttons too)
+      if (e.action === 'skip') { if (!done) n.close(); return; }
       // nobody to tell (the app was closed): move Chrome's copy along too, so it matches the countdown
       if (!wins.length && d.endsAt) {
         const endsAt = d.endsAt + 30000;

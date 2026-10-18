@@ -10,22 +10,32 @@
  *  - Logging uses the same food/exercise matching as the rest of the app, and says plainly what it matched.
  *  - Without a Gemini key (or when Gemini is down) simple commands still work through the local parsers.
  */
-import { useStore, foodPool, allExercises } from '../state/store';
+import { useStore, foodPool, allExercises, plannedFor } from '../state/store';
 import { useUI } from '../state/ui';
-import { addDays } from './dates';
+import { addDays, fmtDate } from './dates';
+import { noteEvent } from './ledger';
 import { defaultMealId, mealName } from './derive';
-import { fold, parseFoodText, pickOnline, resolveRows, rowQuantity, type ParsedFoodRow } from './foodText';
+import { coversQuery, fold, parseFoodText, pickOnline, resolveRows, rowQuantity, type ParsedFoodRow } from './foodText';
 import { matchExercises, parseWorkoutText } from './workoutText';
-import { entryFromSnapshot, quickEntry, snapshotOf, uid } from './nutrition';
+import { calcRecipe, entryFromSnapshot, quickEntry, recipeToFood, scale, snapshotOf, toBase, uid } from './nutrition';
 import { searchDanish, searchOnline } from './foodApi';
 import { type Brain } from './gemini';
 import { estimateFood } from './brain';
 import { ACTIVITY_KINDS, ACTIVITY_LABEL } from './activity';
 import { fmtNum, kgToDisplay } from './units';
-import type { ActivityKind, Exercise, Food, FoodEntry, Meal, MemoryKind, MemoryNote, Quantity, RoutineItem, SessionExercise, SetRecord, Settings } from './types';
+import type { ActivityKind, Equipment, Exercise, Food, FoodEntry, Lang, LogType, Meal, MeasureKind, MemoryKind, MemoryNote, MuscleGroup, Quantity, Recipe, RecipeIngredient, RoutineItem, SessionExercise, SetRecord, Settings, WorkoutSession } from './types';
 import { MEMORY_KINDS, MEMORY_MAX } from '../state/defaults';
-import { addExercises, replaceExercise, startRest } from '../screens/workout/actions';
+import { addExercises, addSet, adjustRest, moveExercise, patchExercise, replaceExercise, skipRest, startRest, toggleSuperset } from '../screens/workout/actions';
+import { completeSet } from '../screens/workout/complete';
+import { currentSetOf } from './currentSet';
+import { fixMisheard } from './setCommand';
 import { EQUIP_LABEL, MUSCLE_LABEL } from '../screens/workout/common';
+import { muscleOf } from './agentLookup';
+import { detectRecords } from './workout';
+import { buildDayPlan, pickForMuscles } from './planDay';
+import { specOf } from './settingSpec';
+import { weekdayOf } from './dates';
+import { buildChart, CHART_METRICS, type ChartData, type ChartMetric } from './agentCharts';
 
 // ── what the model may ask for ──────────────────────────────
 
@@ -34,18 +44,19 @@ export interface AgentSet { kg?: number | null; reps?: number | null; durationSe
 export type AgentAction =
   | { type: 'log_food'; foods: AgentFood[]; meal?: string | null; day?: string | null }
   | { type: 'log_water'; ml: number; day?: string | null }
+  | { type: 'log_quick'; totals: NutriFix; name?: string | null; meal?: string | null; day?: string | null }
   | { type: 'log_weight'; kg: number; day?: string | null }
-  | { type: 'log_sets'; exercises: { exercise: string; sets: AgentSet[] }[] }
+  | { type: 'log_sets'; exercises: { exercise: string; sets: AgentSet[] }[]; day?: string | null }
   | { type: 'log_activity'; kind: ActivityKind; minutes: number; rounds?: number; intensity?: 1 | 2 | 3; note?: string; day?: string | null }
   | { type: 'start_workout'; routine?: string | null }
   | { type: 'finish_workout' }
   | { type: 'navigate'; screen: 'today' | 'train' | 'food' | 'progress' | 'settings' | 'coach'; section?: string | null }
-  | { type: 'set_setting'; key: SettingKey; value: string }
-  | { type: 'edit_food'; target: string; day?: string | null; meal_from?: string | null; amount?: number | null; unit?: string | null; meal?: string | null; per100?: NutriFix | null; totals?: NutriFix | null }
-  | { type: 'delete_food'; target?: string | null; day?: string | null; meal?: string | null }
-  | { type: 'move_food'; target?: string | null; meal_from?: string | null; day?: string | null; meal_to?: string | null; day_to?: string | null }
-  | { type: 'copy_food'; target?: string | null; meal_from?: string | null; day?: string | null; meal_to?: string | null; day_to?: string | null }
-  | { type: 'replace_food'; target: string; meal_from?: string | null; day?: string | null; with: AgentFood }
+  | { type: 'set_setting'; key?: string; value?: string; pairs?: { key: string; value: string }[] }
+  | { type: 'edit_food'; target: string; ref?: string | null; day?: string | null; meal_from?: string | null; amount?: number | null; unit?: string | null; meal?: string | null; per100?: NutriFix | null; totals?: NutriFix | null }
+  | { type: 'delete_food'; target?: string | null; ref?: string | null; day?: string | null; meal?: string | null }
+  | { type: 'move_food'; target?: string | null; ref?: string | null; meal_from?: string | null; day?: string | null; meal_to?: string | null; day_to?: string | null }
+  | { type: 'copy_food'; target?: string | null; ref?: string | null; meal_from?: string | null; day?: string | null; meal_to?: string | null; day_to?: string | null }
+  | { type: 'replace_food'; target: string; ref?: string | null; meal_from?: string | null; day?: string | null; with: AgentFood }
   | { type: 'create_food'; name: string; basis: 'g' | 'ml'; per100: NutriFix & { fibre?: number }; amount?: number | null; unit?: string | null; meal?: string | null; day?: string | null }
   | { type: 'favourite_food'; name: string; on: boolean }
   | { type: 'save_meal'; name: string; meal: string; day?: string | null }
@@ -56,26 +67,49 @@ export type AgentAction =
   | { type: 'create_routine'; name: string; items: RoutineBit[] }
   | { type: 'edit_routine'; routine: string; rename?: string | null; add?: RoutineBit[]; remove?: string[]; change?: RoutineBit[] }
   | { type: 'delete_routine'; routine: string }
+  | { type: 'duplicate_routine'; routine: string; rename?: string | null }
+  | { type: 'show_chart'; metric: ChartMetric; exercise?: string | null; weeks?: number | null }
   | { type: 'delete_workout'; workout?: string | null }
   | { type: 'discard_workout' }
   | { type: 'set_schedule'; weekday: number; routine: string | null }
   | { type: 'move_workout'; routine?: string | null; from_weekday?: number | null; to_weekday: number; once: boolean }
   | { type: 'plan_activity'; weekday: number; kind: ActivityKind; on: boolean }
-  | { type: 'log_current_set'; kg?: number | null; reps?: number | null; which: 'current' | 'last' }
+  | { type: 'log_current_set'; kg?: number | null; reps?: number | null; which: 'current' | 'last'; durationSec?: number | null; same?: boolean; warmup?: boolean }
   | { type: 'delete_activity'; kind?: string | null; day?: string | null }
   | { type: 'delete_weight'; day?: string | null }
   | { type: 'add_note'; text: string; kind: 'training' | 'nutrition'; day?: string | null }
-  | { type: 'remember'; text: string; kind: MemoryKind; exercise?: string | null }
+  | { type: 'remember'; text: string; kind: MemoryKind; exercise?: string | null; /** the MEMORY number this replaces */ replaces?: number | null; /** last day it applies */ until?: string | null }
   | { type: 'forget'; memory?: number | null; target?: string | null }
   | { type: 'show_exercise'; exercise: string }
+  | { type: 'propose_recipe'; name: string; servings: number; foods: AgentFood[]; steps: string[] }
   | { type: 'suggest_food'; options: { label: string; foods: AgentFood[]; totals: NutriFix | null }[]; meal?: string | null }
+  | { type: 'plan_day'; day: string; name?: string | null; focus: string[]; light: string[]; items: RoutineBit[] }
+  | { type: 'edit_meals'; meal?: string | null; rename?: string | null; add?: string | null; remove?: string[]; order?: string[] }
+  | { type: 'log_saved_meal'; name: string; meal?: string | null; day?: string | null }
+  | { type: 'delete_water'; day?: string | null; ml?: number | null }
+  | { type: 'create_exercise'; name: string; muscles: MuscleGroup[]; equipment: Equipment; logType: LogType }
+  | { type: 'archive_exercise'; exercise: string; on: boolean }
+  | { type: 'set_increment'; exercise: string; kg: number | null }
+  | { type: 'log_measurement'; kind: MeasureKind; cm: number; day?: string | null }
+  | { type: 'delete_measurement'; kind?: MeasureKind | null; day?: string | null }
+  | { type: 'workout_control'; op: WorkoutOp; exercise?: string | null; seconds?: number | null; text?: string | null }
+  | { type: 'set_split'; days: { weekday: number; /** undefined = leave the gym day as it is, null = rest day */ routine?: string | null; wrestling: boolean | null }[] }
+  | { type: 'skip_day'; day: string }
   | { type: 'undo_last' };
 
-export interface RoutineBit { exercise: string; sets?: number | null; repMin?: number | null; repMax?: number | null; restSec?: number | null }
+/** what a split day says when it becomes a rest day (null / missing = leave the gym day as it is) */
+const REST_WORDS = /^\s*(rest|rest day|none|off|hvile|hviledag|fri)\s*$/i;
+export const WORKOUT_OPS = ['pause', 'resume', 'rest_start', 'rest_skip', 'rest_add', 'rest_set', 'superset', 'move_up', 'move_down', 'note', 'rename'] as const;
+export type WorkoutOp = (typeof WORKOUT_OPS)[number];
+const MEASURE_KINDS: MeasureKind[] = ['waist', 'chest', 'hips', 'arm', 'thigh', 'neck'];
+const EQUIPMENT: Equipment[] = ['barbell', 'dumbbell', 'machine', 'smith', 'cable', 'bodyweight', 'kettlebell', 'band', 'bench', 'other'];
+const LOG_TYPES: LogType[] = ['weightReps', 'bodyweightReps', 'assisted', 'duration', 'distance'];
+
+export interface RoutineBit { exercise: string; sets?: number | null; repMin?: number | null; repMax?: number | null; restSec?: number | null; warmup?: number | null }
 /** "today" | "yesterday" | YYYY-MM-DD, anything else is "not said". */
 const dayArg = (v: unknown): string | null => (v === 'yesterday' ? 'yesterday' : v === 'today' ? 'today' : typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
 const resolveDay = (d: string | null | undefined, today: string): string | undefined => (d === 'yesterday' ? addDays(today, -1) : d === 'today' ? today : d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : undefined);
-const routineBit = (b: any): RoutineBit | null => { const exercise = str(b?.exercise, 60); return exercise ? { exercise, sets: num(b?.sets, 1, 10) ?? null, repMin: num(b?.repMin, 1, 100) ?? null, repMax: num(b?.repMax, 1, 100) ?? null, restSec: num(b?.restSec, 15, 600) ?? null } : null; };
+const routineBit = (b: any): RoutineBit | null => { const exercise = str(b?.exercise, 60); return exercise ? { exercise, sets: num(b?.sets, 1, 10) ?? null, repMin: num(b?.repMin, 1, 100) ?? null, repMax: num(b?.repMax, 1, 100) ?? null, restSec: num(b?.restSec, 15, 600) ?? null, warmup: num(b?.warmup, 0, 5) ?? null } : null; };
 const bits = (v: unknown, n = 12): RoutineBit[] => (Array.isArray(v) ? v : []).slice(0, n).map(routineBit).filter(Boolean) as RoutineBit[];
 
 /** Corrected nutrition values: per 100 g/ml (a food's label) or the entry's own totals (a quick entry). */
@@ -88,29 +122,64 @@ const nutriFix = (v: any, per100: boolean): NutriFix | null => {
   return Object.keys(o).length ? o : null;
 };
 
-export const SETTING_KEYS = ['theme', 'language', 'weightUnit', 'distanceUnit', 'motion', 'sound', 'haptics', 'restSeconds', 'kcalGoal', 'proteinGoal', 'carbsGoal', 'fatGoal', 'waterGoal', 'weekStart', 'foodLookup', 'effort'] as const;
-export type SettingKey = (typeof SETTING_KEYS)[number];
-const SETTINGS_SECTIONS = ['targets', 'training', 'food', 'units', 'look', 'reminders', 'data', 'privacy', 'ai', 'about'];
+export { SETTING_KEYS } from './settingSpec';
+export const SETTINGS_SECTIONS = ['today', 'targets', 'training', 'food', 'units', 'look', 'reminders', 'data', 'privacy', 'ai', 'memory', 'about'];
 
+/** An item's id as a card showed it ("e_k3x9…"): letters, digits, _ and - only. */
+const refArg = (v: unknown): string | null => (typeof v === 'string' && /^[\w-]{3,40}$/.test(v.trim()) ? v.trim() : null);
 const num = (v: unknown, min: number, max: number): number | undefined => (typeof v === 'number' && Number.isFinite(v) && v >= min && v <= max ? v : undefined);
 const str = (v: unknown, max = 80): string | undefined => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : undefined);
 
+/**
+ * The foods the model named. Forgiving about the shape (read-side only): a plain string ("30 g whey protein", "2 eggs") is
+ * read by the app's own food parser, and `ingredient` / `item` / `food` count as the name, `quantity` / `qty` as the amount.
+ */
 const agentFoods = (v: unknown, n: number): AgentFood[] => (Array.isArray(v) ? v : []).slice(0, n).map((f: any): AgentFood | null => {
-  const name = str(f?.name, 60); if (!name) return null;
-  return { name, brand: str(f?.brand, 40) ?? null, amount: num(f?.amount, 0.01, 20000) ?? null, unit: str(f?.unit, 12) ?? null, state: ['raw', 'cooked', 'dry'].includes(f?.state) ? f.state : null };
+  if (typeof f === 'string') {
+    const row = parseFoodText(f)[0];
+    const name = str(row?.query ?? f, 60); if (!name) return null;
+    const unit = row?.dim === 'g' ? 'g' : row?.dim === 'ml' ? 'ml' : row?.amount !== undefined ? 'piece' : null;
+    return { name, brand: null, amount: num(row?.amount, 0.01, 20000) ?? null, unit, state: null };
+  }
+  const name = str(f?.name ?? f?.ingredient ?? f?.item ?? f?.food, 60); if (!name) return null;
+  const amount = f?.amount ?? f?.quantity ?? f?.qty;
+  const n2 = typeof amount === 'string' ? Number(amount.replace(',', '.')) : amount;
+  return { name, brand: str(f?.brand, 40) ?? null, amount: num(n2, 0.01, 20000) ?? null, unit: str(f?.unit, 12) ?? null, state: ['raw', 'cooked', 'dry'].includes(f?.state) ? f.state : null };
 }).filter(Boolean) as AgentFood[];
 
+/** Something in the answer couldn't be read (it was dropped): said in a card, never silent. */
+export const droppedCard = (t: AgentCtx['t']): AgentResult => ({ id: uid('r'), kind: 'miss', title: t('Part of the answer couldn’t be read'), lines: [{ text: t('Nothing was changed for it. Ask again — or copy the raw answer in Settings → About.') }] });
+
 /** Whatever came back from the model → a safe list of actions (anything odd is dropped, numbers are clamped). */
-export function validateAgent(raw: any): { reply: string; actions: AgentAction[] } | null {
+export function validateAgent(raw: any): { reply: string; actions: AgentAction[]; /** actions it had to drop (unreadable): said, never silent */ dropped: number } | null {
   if (!raw || typeof raw !== 'object') return null;
   const reply = str(raw.reply, 1800) ?? '';
   const out: AgentAction[] = [];
+  let dropped = 0;
   for (const a of (Array.isArray(raw.actions) ? raw.actions : []).slice(0, 12)) {
-    if (!a || typeof a !== 'object') continue;
+    if (!a || typeof a !== 'object') { dropped++; continue; }
+    const before = out.length;
+    validateOne(a, out);
+    if (out.length === before) dropped++;
+  }
+  if (!reply && !out.length && !dropped) return null;
+  return { reply, actions: out, dropped };
+}
+
+function validateOne(a: any, out: AgentAction[]) {
     switch (a.type) {
       case 'log_food': {
         const foods = agentFoods(a.foods, 14);
         if (foods.length) out.push({ type: 'log_food', foods, meal: str(a.meal, 30) ?? null, day: dayArg(a.day) });
+        break;
+      }
+      case 'propose_recipe': {
+        // (forgiving: ingredients / items for the foods, method / instructions for the steps, a step list as one text)
+        const name = str(a.name ?? a.title, 60), foods = agentFoods(a.foods ?? a.ingredients ?? a.items, 15);
+        const rawSteps = a.steps ?? a.method ?? a.instructions;
+        const steps = (Array.isArray(rawSteps) ? rawSteps : typeof rawSteps === 'string' ? rawSteps.split(/\n+|(?<=\.)\s+(?=\d+[.)]\s)/) : []).map((x: unknown) => str(typeof x === 'string' ? x.replace(/^\s*\d+[.)]\s*/, '') : x, 220)).filter(Boolean).slice(0, 12) as string[];
+        const servings = typeof a.servings === 'string' ? Number(a.servings) : a.servings;
+        if (name && foods.length) out.push({ type: 'propose_recipe', name, servings: Math.round(num(servings, 1, 20) ?? 1), foods, steps });
         break;
       }
       case 'suggest_food': {
@@ -121,6 +190,7 @@ export function validateAgent(raw: any): { reply: string; actions: AgentAction[]
         if (options.length) out.push({ type: 'suggest_food', options, meal: str(a.meal, 30) ?? null });
         break;
       }
+      case 'log_quick': { const totals = nutriFix(a.totals ?? { kcal: a.kcal, protein: a.protein, carbs: a.carbs, fat: a.fat }, false); if (totals?.kcal !== undefined || totals?.protein !== undefined) out.push({ type: 'log_quick', totals: totals!, name: str(a.name, 60) ?? null, meal: str(a.meal, 30) ?? null, day: dayArg(a.day) }); break; }
       case 'log_water': { const ml = num(a.ml, 10, 5000); if (ml) out.push({ type: 'log_water', ml: Math.round(ml), day: dayArg(a.day) }); break; }
       case 'log_weight': { const kg = num(a.kg, 25, 400); if (kg) out.push({ type: 'log_weight', kg: Math.round(kg * 10) / 10, day: dayArg(a.day) }); break; }
       case 'log_sets': {
@@ -131,12 +201,14 @@ export function validateAgent(raw: any): { reply: string; actions: AgentAction[]
           })).filter((s: AgentSet) => s.reps || s.durationSec || s.distanceKm || s.kg);
           return sets.length ? { exercise, sets } : null;
         }).filter(Boolean) as { exercise: string; sets: AgentSet[] }[];
-        if (exercises.length) out.push({ type: 'log_sets', exercises });
+        if (exercises.length) out.push({ type: 'log_sets', exercises, day: dayArg(a.day) });
         break;
       }
       case 'log_activity': {
         const kind = ACTIVITY_KINDS.includes(a.kind) ? (a.kind as ActivityKind) : (ACTIVITY_KINDS.find((k) => fold(String(a.kind ?? '')).includes(k)) ?? 'other');
-        const minutes = num(a.minutes, 1, 600); if (!minutes) break;
+        // rounds without minutes ("5 rounds of wrestling"): about 3 minutes a round (said on the card)
+        const rounds = num(a.rounds, 1, 99);
+        const minutes = num(a.minutes, 1, 600) ?? (rounds ? rounds * 3 : undefined); if (!minutes) break;
         out.push({ type: 'log_activity', kind, minutes: Math.round(minutes), rounds: num(a.rounds, 1, 99), intensity: [1, 2, 3].includes(a.intensity) ? a.intensity : undefined, note: str(a.note, 200), day: dayArg(a.day) });
         break;
       }
@@ -144,20 +216,20 @@ export function validateAgent(raw: any): { reply: string; actions: AgentAction[]
       case 'finish_workout': out.push({ type: 'finish_workout' }); break;
       case 'undo_last': out.push({ type: 'undo_last' }); break;
       case 'edit_food': {
-        const target = str(a.target, 60); if (!target) break;
-        const e: AgentAction = { type: 'edit_food', target, day: dayArg(a.day), meal_from: str(a.meal_from, 30) ?? null, amount: num(a.amount, 0.01, 20000) ?? null, unit: str(a.unit, 12) ?? null, meal: str(a.meal, 30) ?? null, per100: nutriFix(a.per100, true), totals: nutriFix(a.totals, false) };
+        const ref = refArg(a.ref), target = str(a.target, 60) ?? ''; if (!target && !ref) break;
+        const e: AgentAction = { type: 'edit_food', target, ref, day: dayArg(a.day), meal_from: str(a.meal_from, 30) ?? null, amount: num(a.amount, 0.01, 20000) ?? null, unit: str(a.unit, 12) ?? null, meal: str(a.meal, 30) ?? null, per100: nutriFix(a.per100, true), totals: nutriFix(a.totals, false) };
         if (e.amount || e.meal || e.per100 || e.totals) out.push(e);
         break;
       }
-      case 'delete_food': { const target = str(a.target, 60) ?? null, meal = str(a.meal, 30) ?? null; if (target || meal) out.push({ type: 'delete_food', target, meal, day: dayArg(a.day) }); break; }
+      case 'delete_food': { const target = str(a.target, 60) ?? null, meal = str(a.meal, 30) ?? null, ref = refArg(a.ref); if (target || meal || ref) out.push({ type: 'delete_food', target, ref, meal, day: dayArg(a.day) }); break; }
       case 'move_food': case 'copy_food': {
-        const target = str(a.target, 60) ?? null, meal_from = str(a.meal_from, 30) ?? null, meal_to = str(a.meal_to, 30) ?? null, day_to = dayArg(a.day_to);
-        if ((target || meal_from) && (meal_to || day_to)) out.push({ type: a.type, target, meal_from, day: dayArg(a.day), meal_to, day_to });
+        const target = str(a.target, 60) ?? null, ref = refArg(a.ref), meal_from = str(a.meal_from, 30) ?? null, meal_to = str(a.meal_to, 30) ?? null, day_to = dayArg(a.day_to);
+        if ((target || ref || meal_from) && (meal_to || day_to)) out.push({ type: a.type, target, ref, meal_from, day: dayArg(a.day), meal_to, day_to });
         break;
       }
       case 'replace_food': {
-        const target = str(a.target, 60), w = a.with, name = str(w?.name, 60); if (!target || !name) break;
-        out.push({ type: 'replace_food', target, meal_from: str(a.meal_from, 30) ?? null, day: dayArg(a.day), with: { name, brand: str(w?.brand, 40) ?? null, amount: num(w?.amount, 0.01, 20000) ?? null, unit: str(w?.unit, 12) ?? null, state: ['raw', 'cooked', 'dry'].includes(w?.state) ? w.state : null } });
+        const ref = refArg(a.ref), target = str(a.target, 60) ?? '', w = a.with, name = str(w?.name, 60); if ((!target && !ref) || !name) break;
+        out.push({ type: 'replace_food', target, ref, meal_from: str(a.meal_from, 30) ?? null, day: dayArg(a.day), with: { name, brand: str(w?.brand, 40) ?? null, amount: num(w?.amount, 0.01, 20000) ?? null, unit: str(w?.unit, 12) ?? null, state: ['raw', 'cooked', 'dry'].includes(w?.state) ? w.state : null } });
         break;
       }
       case 'create_food': {
@@ -186,6 +258,8 @@ export function validateAgent(raw: any): { reply: string; actions: AgentAction[]
         break;
       }
       case 'delete_routine': { const routine = str(a.routine, 60); if (routine) out.push({ type: 'delete_routine', routine }); break; }
+      case 'duplicate_routine': { const routine = str(a.routine, 60); if (routine) out.push({ type: 'duplicate_routine', routine, rename: str(a.rename, 60) ?? null }); break; }
+      case 'show_chart': { if (CHART_METRICS.includes(a.metric)) out.push({ type: 'show_chart', metric: a.metric, exercise: str(a.exercise, 60) ?? null, weeks: num(a.weeks, 1, 104) ?? null }); break; }
       case 'delete_workout': out.push({ type: 'delete_workout', workout: str(a.workout, 30) ?? null }); break;
       case 'discard_workout': out.push({ type: 'discard_workout' }); break;
       case 'set_schedule': { const wd = num(a.weekday, 0, 6); if (wd !== undefined) out.push({ type: 'set_schedule', weekday: Math.round(wd), routine: str(a.routine, 60) ?? null }); break; }
@@ -203,18 +277,63 @@ export function validateAgent(raw: any): { reply: string; actions: AgentAction[]
       }
       case 'log_current_set': {
         const kg = num(a.kg, 0, 600), reps = num(a.reps, 0, 200);
-        out.push({ type: 'log_current_set', kg: kg ?? null, reps: reps !== undefined ? Math.round(reps) : null, which: a.which === 'last' ? 'last' : 'current' });
+        const sec = num(a.seconds ?? a.durationSec, 1, 36000);
+        out.push({ type: 'log_current_set', kg: kg ?? null, reps: reps !== undefined ? Math.round(reps) : null, which: a.which === 'last' ? 'last' : 'current', ...(sec ? { durationSec: Math.round(sec) } : {}), ...(a.same === true ? { same: true } : {}), ...(a.warmup === true ? { warmup: true } : {}) });
         break;
       }
       case 'delete_activity': out.push({ type: 'delete_activity', kind: str(a.kind, 20) ?? null, day: dayArg(a.day) }); break;
       case 'delete_weight': out.push({ type: 'delete_weight', day: dayArg(a.day) }); break;
       case 'add_note': { const text = str(a.text, 400); if (text) out.push({ type: 'add_note', text, kind: a.kind === 'nutrition' ? 'nutrition' : 'training', day: dayArg(a.day) }); break; }
-      case 'remember': { const text = str(a.text, 200); if (text) out.push({ type: 'remember', text, kind: MEMORY_KINDS.includes(a.kind) ? a.kind : 'other', exercise: str(a.exercise, 60) ?? null }); break; }
+      case 'remember': {
+        const text = str(a.text, 200);
+        const n = typeof a.memory === 'number' ? a.memory : typeof a.memory === 'string' && /^\d{1,3}$/.test(a.memory.trim()) ? Number(a.memory.trim()) : null;
+        const until = typeof a.until === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(a.until.trim()) ? a.until.trim() : null;
+        if (text) out.push({ type: 'remember', text, kind: MEMORY_KINDS.includes(a.kind) ? a.kind : 'other', exercise: str(a.exercise, 60) ?? null, replaces: n, until });
+        break;
+      }
       case 'show_exercise': { const exercise = str(a.exercise, 60); if (exercise) out.push({ type: 'show_exercise', exercise }); break; }
       case 'forget': {
         const n = typeof a.memory === 'number' ? a.memory : typeof a.memory === 'string' && /^\d{1,3}$/.test(a.memory.trim()) ? Number(a.memory.trim()) : undefined;
         const target = str(a.target, 120) ?? str(a.text, 120) ?? null;
         if (n || target) out.push({ type: 'forget', memory: n ?? null, target });
+        break;
+      }
+      case 'edit_meals': {
+        const words = (v: unknown) => (Array.isArray(v) ? v : []).slice(0, 8).map((x: any) => str(x, 30)).filter(Boolean) as string[];
+        const e = { type: 'edit_meals' as const, meal: str(a.meal, 30) ?? null, rename: str(a.rename, 30) ?? null, add: str(a.name, 30) ?? null, remove: words(a.remove), order: words(a.order) };
+        if ((e.meal && e.rename) || e.add || e.remove.length || e.order.length) out.push(e);
+        break;
+      }
+      case 'log_saved_meal': { const name = str(a.name, 40); if (name) out.push({ type: 'log_saved_meal', name, meal: str(a.meal, 30) ?? null, day: dayArg(a.day) }); break; }
+      case 'delete_water': out.push({ type: 'delete_water', day: dayArg(a.day), ml: num(a.ml, 10, 5000) ?? null }); break;
+      case 'create_exercise': {
+        const name = str(a.name, 50);
+        const muscles = [...new Set((Array.isArray(a.focus) ? a.focus : []).map((m: any) => muscleOf(String(m ?? ''))).filter(Boolean))].slice(0, 3) as MuscleGroup[];
+        const equipment = EQUIPMENT.find((x) => x === fold(String(a.equipment ?? ''))) ?? 'other';
+        const logType = LOG_TYPES.find((x) => x === a.log_type) ?? 'weightReps';
+        if (name && muscles.length) out.push({ type: 'create_exercise', name, muscles, equipment, logType });
+        break;
+      }
+      case 'archive_exercise': { const exercise = str(a.exercise, 60); if (exercise) out.push({ type: 'archive_exercise', exercise, on: a.on !== false }); break; }
+      case 'set_increment': { const exercise = str(a.exercise, 60); if (exercise) out.push({ type: 'set_increment', exercise, kg: num(a.kg, 0.25, 20) ?? null }); break; }
+      case 'log_measurement': { const kind = MEASURE_KINDS.find((k) => k === fold(String(a.kind ?? ''))); const cm = num(a.cm, 10, 250); if (kind && cm) out.push({ type: 'log_measurement', kind, cm: Math.round(cm * 10) / 10, day: dayArg(a.day) }); break; }
+      case 'delete_measurement': out.push({ type: 'delete_measurement', kind: MEASURE_KINDS.find((k) => k === fold(String(a.kind ?? ''))) ?? null, day: dayArg(a.day) }); break;
+      case 'workout_control': {
+        const op = WORKOUT_OPS.find((x) => x === a.op);
+        if (op) out.push({ type: 'workout_control', op, exercise: str(a.exercise, 60) ?? null, seconds: num(a.seconds, -600, 600) ?? null, text: str(a.text, 200) ?? null });
+        break;
+      }
+      case 'set_split': {
+        const days = (Array.isArray(a.days) ? a.days : []).slice(0, 7).map((x: any) => { const wd = num(x?.weekday, 0, 6); return wd === undefined ? null : { weekday: Math.round(wd), routine: REST_WORDS.test(String(x?.routine ?? '')) ? null : str(x?.routine, 60) ?? undefined, wrestling: typeof x?.wrestling === 'boolean' ? x.wrestling : null }; }).filter(Boolean) as { weekday: number; routine?: string | null; wrestling: boolean | null }[];
+        if (days.length) out.push({ type: 'set_split', days: [...new Map(days.map((d) => [d.weekday, d])).values()] });
+        break;
+      }
+      case 'skip_day': { const day = a.day === 'tomorrow' ? 'tomorrow' : dayArg(a.day) ?? 'today'; out.push({ type: 'skip_day', day }); break; }
+      case 'plan_day': {
+        const day = a.day === 'tomorrow' ? 'tomorrow' : dayArg(a.day);
+        const words = (v: unknown) => (Array.isArray(v) ? v : []).slice(0, 6).map((x: any) => str(x, 20)).filter(Boolean) as string[];
+        const items = bits(a.add, 10), focus = words(a.focus), light = words(a.light);
+        if (day && (items.length || focus.length)) out.push({ type: 'plan_day', day, name: str(a.name, 50) ?? null, focus, light, items });
         break;
       }
       case 'navigate': {
@@ -223,36 +342,54 @@ export function validateAgent(raw: any): { reply: string; actions: AgentAction[]
         break;
       }
       case 'set_setting': {
-        if (!(SETTING_KEYS as readonly string[]).includes(a.key)) break;
-        const value = str(a.value, 20); if (value === undefined) break;
-        out.push({ type: 'set_setting', key: a.key, value });
+        // one setting (key, value) or several at once (settings: [{ key, value }]): all checked against the table, undone together
+        const pairs = [...(a.key ? [{ key: a.key, value: a.value }] : []), ...(Array.isArray(a.settings) ? a.settings : [])].slice(0, 12)
+          .map((x: any) => ({ key: str(x?.key, 30), value: typeof x?.value === 'number' || typeof x?.value === 'boolean' ? String(x.value) : str(x?.value, 80) }))
+          .filter((x): x is { key: string; value: string } => !!x.key && x.value !== undefined && !!specOf(x.key));
+        if (pairs.length) out.push({ type: 'set_setting', pairs });
         break;
       }
     }
-  }
-  if (!reply && !out.length) return null;
-  return { reply, actions: out };
 }
 
 // ── results: what the Coach shows after acting ─────────────
 
 export interface AgentResult {
   id: string;
-  kind: 'food' | 'sets' | 'water' | 'weight' | 'activity' | 'workout' | 'routine' | 'nav' | 'setting' | 'memory' | 'miss';
+  kind: 'food' | 'recipe' | 'sets' | 'water' | 'weight' | 'activity' | 'workout' | 'routine' | 'nav' | 'setting' | 'memory' | 'chart' | 'miss';
+  /** a recipe's method, shown under its ingredients (folded away until opened) */
+  steps?: string[];
   title: string;
-  lines: { text: string; sub?: string; warn?: boolean }[];
+  lines: { text: string; sub?: string; warn?: boolean; /** the item's id (a food entry), so "move it" later means exactly this one */ ref?: string; /** a change in a preview that can be left out (a tick beside it) */ pick?: boolean }[];
+  /** the preview's changes left out (indices into lines; the card's ticks write it, Apply reads it) */
+  off?: number[];
+  /** a small chart (show_chart): plain numbers, so it is still there when the chat is opened again */
+  chart?: ChartData;
   /** reverses everything this card did */
   undo?: () => void;
   /** a button on the card (open the workout, or confirm something that waits for a tap) */
   button?: { label: string; run: () => void };
   /** quieter buttons beside it (an exercise card: Add to workout) */
-  more?: { label: string; run: () => void }[];
+  /** `warn`: the button answers the card's warning line ("Use 18 kg"): a soft amber chip, not a plain one */
+  more?: { label: string; run: () => void; warn?: boolean }[];
+  /** "Which one?": options, one tap each (it then counts as applied: the chosen run fills in the card's lines and Undo) */
+  choose?: { label: string; sub?: string; run: () => void }[];
   /** a quiet line under the title ("≈ 280 kcal · 34 g protein") */
   subtitle?: string;
   /** an offer, not a question: it keeps its own icon while it waits for the tap */
   offer?: boolean;
   /** the card is a question: nothing happened yet */
   pending?: boolean;
+  /** a preview of one thing ("plan:2026-10-16", "split"): a newer preview with the same key replaces it (no applying both) */
+  key?: string;
+  /** a memory reworded: what it said before (shown struck through above the new wording) */
+  was?: string;
+  /** the title once a preview is applied, when "Done" would lose what it was (a recipe's, a routine's name) */
+  doneTitle?: string;
+  /** the subtitle once a preview is applied ("2 days changed") */
+  doneSubtitle?: string;
+  /** a week shown as seven days (a split preview), Monday first: routine initials and wrestling */
+  week?: { label: string; routine: string | null; wrestling: boolean; changed: boolean }[];
 }
 
 export interface AgentCtx {
@@ -263,6 +400,10 @@ export interface AgentCtx {
   brain: Brain | null;
   /** where the user opened the Coach from (the Food tab's day / a meal's + button): the default for foods */
   date?: string; mealId?: string;
+  /** the message came with a photo: amounts read off a plate are estimates */
+  photo?: boolean;
+  /** a few words while it works ("Looking up 3 foods…"); '' when done */
+  onStatus?: (s: string) => void;
   /** the memory list as the model saw it (numbered), so "forget 2" means the same note even after another forget */
   memAtStart?: MemoryNote[];
 }
@@ -278,89 +419,200 @@ function resolveMeal(word: string | null | undefined, meals: Meal[], lang: 'en' 
 }
 
 const VOLUME_ML: Record<string, number> = { ml: 1, cl: 10, dl: 100, l: 1000, tsp: 5, tbsp: 15, cup: 240, glass: 200 };
-/** One thing the model heard, as the text the app's own food parser understands ("200 g skyr", "1 banana"). */
+/**
+ * One thing the model heard, as a row the app's food matcher understands. The amount and unit go through the parser; the
+ * NAME never does: the dictation splitter cuts at commas and "and"/"og", and a clean name like "Rice, white, raw (dry)"
+ * came out as just "rice" (and the cooked one was logged).
+ */
 function foodRow(f: AgentFood, i: number): ParsedFoodRow {
-  const name = f.brand ? `${f.brand} ${f.name}` : f.name;
+  const name = (f.brand ? `${f.brand} ${f.name}` : f.name).trim();
   const unit = (f.unit || '').toLowerCase();
   const amount = f.amount ?? undefined;
-  let text = name;
+  let qty = '';
   if (amount !== undefined) {
-    if (unit === 'kg') text = `${amount * 1000} g ${name}`;
-    else if (unit === 'g') text = `${amount} g ${name}`;
-    else if (VOLUME_ML[unit]) text = `${amount * VOLUME_ML[unit]} ml ${name}`;
-    else text = `${amount} ${unit && unit !== 'piece' && unit !== 'serving' ? `${unit} ` : ''}${name}`;
+    if (unit === 'kg') qty = `${amount * 1000} g`;
+    else if (unit === 'g') qty = `${amount} g`;
+    else if (VOLUME_ML[unit]) qty = `${amount * VOLUME_ML[unit]} ml`;
+    else qty = `${amount}${unit && unit !== 'piece' && unit !== 'serving' ? ` ${unit}` : ''}`;
   }
-  const row = parseFoodText(text)[0] ?? { id: `a${i}`, raw: name, query: name, dim: 'count' as const };
-  return { ...row, id: `a${i}`, raw: name, query: f.state ? `${name} ${f.state}` : row.query };
+  // the quantity alone, parsed with a stand-in name ("200 g x", "2 slice x")
+  const q = qty ? parseFoodText(`${qty} x`)[0] : undefined;
+  const query = f.state ? `${name} ${f.state}` : name;
+  return { id: `a${i}`, raw: name, query, dim: q?.dim ?? 'count', countWord: q?.countWord, amount: q?.amount };
 }
 
 const kcalOf = (e: FoodEntry) => (typeof e.nutrients.kcal === 'number' ? Math.round(e.nutrients.kcal) : undefined);
 
-async function doLogFood(a: Extract<AgentAction, { type: 'log_food' }>, ctx: AgentCtx): Promise<AgentResult> {
+/**
+ * The food a heard row means: a clear match in the bundled and own foods (or the best one when it is clearly ahead), else
+ * — unless lookups are off — the Danish products and the online databases (bounded). Never an AI estimate: logging adds
+ * that itself, clearly labelled; a recipe flags the miss instead.
+ */
+async function findFood(r: ReturnType<typeof resolveRows>[number], lookup: boolean, signal?: AbortSignal): Promise<{ food?: Food; online?: Food; closest?: boolean; unreachable?: boolean }> {
+  let food: Food | undefined = r.status === 'resolved' ? r.candidates.find((c) => c.food.id === r.choiceId)?.food : undefined;
+  if (!food && r.status === 'ambiguous' && r.candidates[0] && r.candidates[0].score >= 0.5) food = r.candidates[0].food;
+  // a sure local match (every word you said is in it) is used at once, and offline
+  if (food && !r.partial) return { food };
+  if (!lookup) return food ? { food, closest: true } : {};
+  // a specific name the local list only half knows ("power potatoes" → Potato), or nothing local: the Danish products, then
+  // the online databases; a hit that has every word wins, else the closest local food (said so on the card)
+  const timeout = (ms: number) => new Promise<'timeout'>((ok) => setTimeout(() => ok('timeout'), ms));
+  let unreachable = false;
+  const dk = await Promise.race([searchDanish(r.query), timeout(4000)]).catch(() => 'timeout' as const);
+  let hit = dk === 'timeout' ? undefined : pickOnline(r.query, dk);
+  if (dk === 'timeout') unreachable = true;
+  if (!hit || !coversQuery(hit, r.query)) {
+    const on = signal?.aborted ? 'timeout' : await Promise.race([searchOnline(r.query, signal), timeout(5000)]).catch(() => 'timeout' as const);
+    if (on === 'timeout' || on.status !== 'ok') unreachable = true;
+    const h2 = on !== 'timeout' && on.status === 'ok' ? pickOnline(r.query, on.foods) : undefined;
+    if (h2 && (!hit || coversQuery(h2, r.query))) hit = h2;
+  }
+  if (hit && (coversQuery(hit, r.query) || !food)) return { food: hit, online: hit, closest: !coversQuery(hit, r.query) };
+  return food ? { food, closest: true } : { unreachable };
+}
+
+/**
+ * How sure a food is for this user: their own foods, and the ones they log most, come first (the 90-day count), so a saved
+ * "Power Potatoes" beats the generic potato and their usual milk wins without asking.
+ */
+function foodBoost(st: ReturnType<typeof useStore.getState>): (f: Food) => number {
+  const own = new Set(st.foods.map((f) => f.id));
+  const fav = new Set(st.favourites);
+  const since = Date.now() - 90 * 86_400_000;
+  const n = new Map<string, number>();
+  for (const e of st.entries) if (!e.quick && e.at >= since && e.snap.foodId) n.set(e.snap.foodId, (n.get(e.snap.foodId) ?? 0) + 1);
+  return (f) => (own.has(f.id) ? 0.08 : 0) + (fav.has(f.id) ? 0.05 : 0) + Math.min(0.1, (n.get(f.id) ?? 0) * 0.03);
+}
+
+/** The last amount this food was logged with (their usual), for "log my Power Potatoes" with no amount. */
+function usualQty(st: ReturnType<typeof useStore.getState>, food: Food): Quantity | null {
+  const last = [...st.entries].reverse().find((e) => !e.quick && e.snap.foodId === food.id);
+  return last ? { ...last.qty } : null;
+}
+
+const lineLabel = (food: Food, qty: Quantity, ctx: AgentCtx) => qty.unit === 'portion'
+  ? `${fmtNum(qty.amount, ctx.lang, 1)} × ${food.portions.find((p) => p.id === qty.portionId)?.label.replace(/^1\s+/, '') ?? ctx.t('serving')}`
+  : `${fmtNum(qty.amount, ctx.lang, 0)} ${qty.unit}`;
+const foodLabel = (food: Food, lang: Lang) => (lang === 'da' && food.nameDa ? food.nameDa : food.name);
+
+async function doLogFood(a: Extract<AgentAction, { type: 'log_food' }>, ctx: AgentCtx): Promise<AgentResult[]> {
   const { t, lang } = ctx;
   const st = useStore.getState();
   const pool = foodPool(st.foods, st.recipes);
-  const fav = new Set(st.favourites);
   const date = resolveDay(a.day, ctx.today) ?? ctx.date ?? ctx.today;
-  const mealId = resolveMeal(a.meal, st.settings.meals, lang) ?? (ctx.mealId && st.settings.meals.some((m) => m.id === ctx.mealId) ? ctx.mealId : defaultMealId(st.settings.meals));
+  const mealId = resolveMeal(a.meal, st.settings.meals, lang) ?? (ctx.mealId && st.settings.meals.some((m) => m.id === ctx.mealId) ? ctx.mealId : defaultMealId(st.settings.meals, new Date(), st.settings.dayStartHour));
   const meal = st.settings.meals.find((m) => m.id === mealId);
-  const rows = resolveRows(a.foods.map(foodRow), pool, st.choices, (f) => (fav.has(f.id) ? 0.05 : 0));
+  const rows = resolveRows(a.foods.map(foodRow), pool, st.choices, foodBoost(st));
   const entries: FoodEntry[] = [];
   const lines: AgentResult['lines'] = [];
   const toSave: Food[] = [];
+  const asks: AgentResult[] = [];
+  let unreachable = false;
 
-  for (const r of rows) {
-    // the food: a clear match, or the best one when it is clearly ahead
-    let food: Food | undefined = r.status === 'resolved' ? r.candidates.find((c) => c.food.id === r.choiceId)?.food : undefined;
-    if (!food && r.status === 'ambiguous' && r.candidates[0] && r.candidates[0].score >= 0.5) food = r.candidates[0].food;
-    // nothing in the bundled/own foods: try the online databases (bounded), unless the user turned lookups off
-    if (!food && st.settings.foodLookup) {
-      // Danish products first (on the phone, instant), then the live worldwide search
-      const timeout = (ms: number) => new Promise<undefined>((ok) => setTimeout(() => ok(undefined), ms));
-      const hit = await Promise.race([searchDanish(r.query).then((x) => pickOnline(r.query, x)), timeout(4000)]).catch(() => undefined)
-        ?? await Promise.race([searchOnline(r.query).then((x) => pickOnline(r.query, x.foods)), timeout(5000)]).catch(() => undefined);
-      if (hit) { food = hit; toSave.push(hit); }
-    }
+  // every food is looked up at once (a list of four used to wait for each one in turn)
+  const looking = st.settings.foodLookup ? rows.filter((r) => !r.ask && (r.partial || (r.status !== 'resolved' && !(r.status === 'ambiguous' && (r.candidates[0]?.score ?? 0) >= 0.5)))) : [];
+  if (looking.length) ctx.onStatus?.(looking.length === 1 ? t('Looking up {name}…', { name: looking[0].raw }) : t('Looking up {n} foods…', { n: looking.length }));
+  const found = await Promise.all(rows.map((r) => (r.ask ? Promise.resolve({} as Awaited<ReturnType<typeof findFood>>) : findFood(r, st.settings.foodLookup, ctx.brain?.signal).catch(() => ({} as Awaited<ReturnType<typeof findFood>>)))));
+  ctx.onStatus?.('');
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    // tied foods far apart in calories, and no habit to choose by: ask once (the answer is remembered for next time)
+    if (r.ask) { asks.push(askWhich(r, r.ask, date, mealId, ctx)); continue; }
+    const { food, online, closest } = found[i];
+    if (found[i].unreachable) unreachable = true;
+    if (online) toSave.push(online);
     if (food) {
       let q = rowQuantity(r, food);
-      let guessed = false;
-      if (!q.qty && q.problem === 'noAmount') { // "log a banana" with no amount: one typical portion, flagged as an assumption
+      let note = '';
+      if (!q.qty && q.problem === 'noAmount') {
+        // no amount said: the amount they usually log; else one typical portion (flagged); a food with neither asks
+        const usual = usualQty(st, food);
         const p = food.portions[0];
-        q = { qty: p ? { amount: 1, unit: 'portion', portionId: p.id } : ({ amount: 100, unit: food.basis } as Quantity), estimated: true };
-        guessed = true;
+        if (usual) { q = { qty: usual, estimated: false }; note = t('your usual'); }
+        else if (p) { q = { qty: { amount: 1, unit: 'portion', portionId: p.id }, estimated: true }; note = t('typical portion'); }
       }
+      // "2 pieces" of a food weighed only in grams: the AI says how heavy they are; the food's own label still counts
+      if (!q.qty && q.problem === 'needsGrams' && ctx.brain && r.amount !== undefined) {
+        const est = await estimateFood(`${r.amount} ${r.dim === 'count' ? (r.countWord ?? '') : r.dim} ${r.query}`.replace(/\s+/g, ' '), ctx.brain, lang).catch(() => null);
+        if (est?.grams) { q = { qty: { amount: Math.round(est.grams), unit: food.basis }, estimated: true }; note = t('estimated weight'); }
+      }
+      if (q.qty && ctx.photo) { q = { ...q, estimated: true }; note = note || t('estimated from the photo'); }
       const entry = q.qty ? entryFromSnapshot(snapshotOf(food), q.qty, date, mealId, { id: uid('e') }) : null;
       if (entry) {
-        if (guessed) entry.estimated = true;
+        if (q.estimated) entry.estimated = true;
         entries.push(entry);
-        const label = q.qty!.unit === 'portion' ? `${fmtNum(q.qty!.amount, lang, 1)} × ${food.portions.find((p) => p.id === q.qty!.portionId)?.label.replace(/^1\s+/, '') ?? t('serving')}` : `${fmtNum(q.qty!.amount, lang, 0)} ${q.qty!.unit}`;
-        lines.push({ text: lang === 'da' && food.nameDa ? food.nameDa : food.name, sub: `${label}${kcalOf(entry) !== undefined ? ` · ${kcalOf(entry)} kcal` : ''}${guessed ? ` · ${t('typical portion')}` : ''}`, warn: false });
+        const tags = [note, closest ? t('closest match') : ''].filter(Boolean).join(' · ');
+        lines.push({ text: foodLabel(food, lang), sub: `${lineLabel(food, q.qty!, ctx)}${kcalOf(entry) !== undefined ? ` · ${kcalOf(entry)} kcal` : ''}${tags ? ` · ${tags}` : ''}`, warn: !!closest, ref: entry.id });
         continue;
       }
+      // a food it knows is never swapped for a guess: it asks for the amount instead
+      if (q.problem === 'noAmount' || q.problem === 'needsGrams') { lines.push({ text: foodLabel(food, lang), sub: t('How much? Say it in grams'), warn: true }); continue; }
     }
-    // still nothing (or no usable quantity): an AI estimate, clearly labelled — or an honest miss
+    // a food nobody knows (or no usable amount): an AI estimate, clearly labelled, kept per 100 g so "it was 150 g" works
     if (ctx.brain) {
       try {
         const est = await estimateFood(r.amount !== undefined ? `${r.amount} ${r.dim === 'count' ? (r.countWord ?? '') : r.dim} ${r.query}`.trim() : r.query, ctx.brain, lang);
-        const q = quickEntry(`${est.name} (${t('AI estimate')})`, { kcal: est.kcal, protein: est.protein, carbs: est.carbs, fat: est.fat }, date, mealId);
-        entries.push({ ...q, estimated: true, note: est.assumptions || undefined });
-        lines.push({ text: est.name, sub: `${Math.round(est.kcal)} kcal · ${t('AI estimate')}`, warn: true });
+        const label = `${est.name} (${t('AI estimate')})`;
+        const e = est.grams
+          ? entryFromSnapshot({ name: label, source: 'quick', basis: 'g', per100: { kcal: est.kcal / est.grams * 100, protein: est.protein / est.grams * 100, carbs: est.carbs / est.grams * 100, fat: est.fat / est.grams * 100 }, portions: [] }, { amount: est.grams, unit: 'g' }, date, mealId, { id: uid('e'), note: est.assumptions || undefined })
+          : null;
+        const q = e ?? { ...quickEntry(label, { kcal: est.kcal, protein: est.protein, carbs: est.carbs, fat: est.fat }, date, mealId), note: est.assumptions || undefined };
+        entries.push({ ...q, estimated: true });
+        lines.push({ text: est.name, sub: `${est.grams ? `${Math.round(est.grams)} g · ` : ''}${Math.round(est.kcal)} kcal · ${t('AI estimate')}`, warn: true, ref: q.id });
         continue;
       } catch { /* fall through to the honest miss */ }
     }
-    lines.push({ text: r.raw, sub: t('Not found — add it from the Food tab'), warn: true });
+    lines.push({ text: r.raw, sub: found[i].unreachable ? t('Couldn’t reach the food database') : t('Not found — add it from the Food tab'), warn: true });
   }
 
-  if (!entries.length) return { id: uid('r'), kind: 'miss', title: t('Couldn’t log that'), lines };
-  toSave.forEach((f) => st.saveFood(f));
-  const added = st.logEntries(entries);
-  const total = added.reduce((n, e) => n + (e.nutrients.kcal ?? 0), 0);
-  return {
-    id: uid('r'), kind: 'food',
-    title: t('Logged to {meal}', { meal: meal ? mealName(meal, lang) : t('Today') }) + (date !== ctx.today ? ` · ${date === addDays(ctx.today, -1) ? t('Yesterday') : date}` : ''),
-    lines: [...lines, ...(added.length > 1 ? [{ text: t('Total'), sub: `${Math.round(total)} kcal` }] : [])],
-    undo: () => added.forEach((e) => useStore.getState().removeEntry(e.id)),
+  const out: AgentResult[] = [];
+  if (entries.length) {
+    toSave.forEach((f) => st.saveFood(f));
+    const added = st.logEntries(entries);
+    const total = added.reduce((n, e) => n + (e.nutrients.kcal ?? 0), 0);
+    out.push({
+      id: uid('r'), kind: 'food',
+      title: t('Logged to {meal}', { meal: meal ? mealName(meal, lang) : t('Today') }) + (date !== ctx.today ? ` · ${date === addDays(ctx.today, -1) ? t('Yesterday') : date}` : ''),
+      lines: [...lines, ...(added.length > 1 ? [{ text: t('Total'), sub: `${Math.round(total)} kcal` }] : [])],
+      undo: () => added.forEach((e) => useStore.getState().removeEntry(e.id)),
+    });
+  } else if (lines.length) {
+    out.push({ id: uid('r'), kind: 'miss', title: unreachable ? t('Couldn’t reach the food database') : t('Couldn’t log that'), lines, ...(unreachable ? { subtitle: t('Check your connection and ask again.') } : {}) });
+  }
+  return [...out, ...asks];
+}
+
+/** "Which one?": tied foods far apart in calories. One tap logs it and remembers the choice, so it is asked only once. */
+function askWhich(r: ReturnType<typeof resolveRows>[number], options: Food[], date: string, mealId: string, ctx: AgentCtx): AgentResult {
+  const { t, lang } = ctx;
+  const res: AgentResult = {
+    id: uid('r'), kind: 'food', pending: true, offer: true,
+    // (what was said is the subtitle; once picked it says it is remembered, and the line logged unfolds)
+    title: t('Which one?'), subtitle: [r.raw, r.amount !== undefined && r.dim !== 'count' ? `${fmtNum(r.amount, lang, 0)} ${r.dim}` : ''].filter(Boolean).join(' · '), lines: [],
+    doneTitle: t('Logged'),
+    choose: options.map((food) => {
+      const q = rowQuantity(r, food);
+      const qty = q.qty ?? (food.portions[0] ? { amount: 1, unit: 'portion' as const, portionId: food.portions[0].id } : null);
+      const preview = qty ? entryFromSnapshot(snapshotOf(food), qty, date, mealId, {}) : null;
+      return {
+        label: foodLabel(food, lang),
+        sub: preview && kcalOf(preview) !== undefined ? `${kcalOf(preview)} kcal` : undefined,
+        run: () => {
+          const st = useStore.getState();
+          st.setChoice(fold(r.query), food.id);
+          const e = qty ? entryFromSnapshot(snapshotOf(food), qty, date, mealId, { id: uid('e') }) : null;
+          if (!e) return;
+          const [added] = st.logEntries([e]);
+          res.lines = [{ text: foodLabel(food, lang), sub: `${lineLabel(food, qty!, ctx)}${kcalOf(added ?? e) !== undefined ? ` · ${kcalOf(added ?? e)} kcal` : ''}`, ref: (added ?? e).id }];
+          res.doneSubtitle = t('Remembered for next time');
+          const meal = st.settings.meals.find((m) => m.id === mealId);
+          res.doneTitle = t('Logged to {meal}', { meal: meal ? mealName(meal, lang) : t('Today') }) + (date !== ctx.today ? ` · ${date === addDays(ctx.today, -1) ? t('Yesterday') : date}` : '');
+          res.undo = () => { const s2 = useStore.getState(); s2.removeEntry((added ?? e).id); const c = { ...s2.choices }; delete c[fold(r.query)]; useStore.setState({ choices: c }); };
+        },
+      };
+    }),
   };
+  return res;
 }
 
 // ── editing what is already logged: find the item, then correct / move / copy / replace / remove it ──
@@ -394,9 +646,24 @@ function findEntry(target: string, days: string[], mealId?: string): FoodEntry |
   return undefined;
 }
 
+/** The item a card showed (its id), else the one the name points at. */
+function pickEntry(ref: string | null | undefined, target: string | null | undefined, days: string[], mealId?: string): FoodEntry | undefined {
+  if (ref) { const e = useStore.getState().entries.find((x) => x.id === ref); if (e) return e; }
+  return target ? findEntry(target, days, mealId) : undefined;
+}
+
 /** Everything in a meal on a day (or the whole day). */
 function mealItems(date: string, mealId: string | undefined) {
   return useStore.getState().entries.filter((e) => e.date === date && (!mealId || e.mealId === mealId));
+}
+
+/**
+ * A big change as a preview: the card says what will happen and nothing changes until Apply; after Apply it can be undone.
+ * `apply` makes the change and returns how to take it back.
+ */
+function preview(r: Omit<AgentResult, 'pending' | 'button' | 'undo'>, label: string, apply: () => () => void): AgentResult {
+  const out: AgentResult = { ...r, pending: true, offer: true, button: { label, run: () => { out.undo = apply(); } } };
+  return out;
 }
 
 const kcalStr = (e: FoodEntry) => (kcalOf(e) !== undefined ? `${kcalOf(e)} kcal` : '— kcal');
@@ -405,8 +672,8 @@ const notFound = (ctx: AgentCtx, what: string): AgentResult => ({ id: uid('r'), 
 function doEditFood(a: Extract<AgentAction, { type: 'edit_food' }>, ctx: AgentCtx): AgentResult {
   const { t, lang } = ctx;
   const st = useStore.getState();
-  const prev = findEntry(a.target, searchDays(a.day, ctx), mealIdOf(a.meal_from, ctx));
-  if (!prev) return notFound(ctx, a.target);
+  const prev = pickEntry(a.ref, a.target, searchDays(a.day, ctx), mealIdOf(a.meal_from, ctx));
+  if (!prev) return notFound(ctx, a.target || a.ref || '');
   let next: FoodEntry = prev;
   const changed: string[] = [];
   // new label values: recompute the entry from the corrected food (a quick entry has no label, its totals are set instead)
@@ -423,6 +690,8 @@ function doEditFood(a: Extract<AgentAction, { type: 'edit_food' }>, ctx: AgentCt
       u === 'g' || u === 'ml' ? { amount: a.amount, unit: u } :
       u === 'l' || u === 'dl' || u === 'cl' ? { amount: a.amount * VOLUME_ML[u], unit: 'ml' } :
       (u === 'piece' || u === 'portion' || u === 'serving') && next.snap.portions[0] ? { amount: a.amount, unit: 'portion', portionId: next.snap.portions[0].id } :
+      // no unit: "make it 2" on 150 g is two of what was there (its portion if it has one), not 2 g
+      !u && (next.qty.unit === 'g' || next.qty.unit === 'ml') && a.amount <= 12 ? (next.snap.portions[0] ? { amount: a.amount, unit: 'portion', portionId: next.snap.portions[0].id } : { amount: next.qty.amount * a.amount, unit: next.qty.unit }) :
       !u ? { ...next.qty, amount: a.amount } : null;
     const r = qty && !next.quick ? entryFromSnapshot(next.snap, qty, next.date, next.mealId, { id: next.id, at: next.at, note: next.note }) : null;
     if (r) { next = { ...r, estimated: false }; changed.push(qty!.unit === 'portion' ? `${fmtNum(qty!.amount, lang, 1)} ×` : `${fmtNum(qty!.amount, lang, 0)} ${qty!.unit}`); }
@@ -430,21 +699,25 @@ function doEditFood(a: Extract<AgentAction, { type: 'edit_food' }>, ctx: AgentCt
   const mealId = mealIdOf(a.meal, ctx);
   if (mealId && mealId !== next.mealId) { next = { ...next, mealId }; changed.push(mealLabelOf(mealId, ctx)); }
   if (next === prev) return { id: uid('r'), kind: 'miss', title: t('Couldn’t change that'), lines: [{ text: prev.snap.name, warn: true }] };
-  st.updateEntry(prev.id, next);
-  // a food of your own with a wrong label: fix the food too, so the next time you log it is right
-  const own = a.per100 && prev.snap.foodId ? st.foods.find((f) => f.id === prev.snap.foodId && f.source === 'custom') : undefined;
-  if (own) st.saveFood({ ...own, per100: { ...own.per100, ...a.per100 } });
-  return {
-    id: uid('r'), kind: 'food', title: t('Corrected'),
-    lines: [{ text: prev.snap.name, sub: `${kcalStr(prev)} → ${kcalStr(next)} · ${changed.join(' · ')}` }],
-    undo: () => { const s = useStore.getState(); s.updateEntry(prev.id, prev); if (own) s.saveFood(own); },
+  // a saved food with a wrong label: fix the food too, so the next time you log it is right
+  const own = a.per100 && prev.snap.foodId ? st.foods.find((f) => f.id === prev.snap.foodId) : undefined;
+  const line = { text: prev.snap.name, sub: `${kcalStr(prev)} → ${kcalStr(next)} · ${changed.join(' · ')}`, ref: prev.id };
+  const apply = () => {
+    const s = useStore.getState();
+    s.updateEntry(prev.id, next);
+    if (own) s.saveFood({ ...own, per100: { ...own.per100, ...a.per100 } });
+    return () => { const s2 = useStore.getState(); s2.updateEntry(prev.id, prev); if (own) s2.saveFood(own); };
   };
+  // a bare number that changes the calories more than five times over (a misheard "200" on a tub) waits for a tap
+  const k0 = kcalOf(prev), k1 = kcalOf(next);
+  if (a.amount && !a.unit && k0 && k1 !== undefined && (k1 > k0 * 5 || k1 < k0 / 5)) return preview({ id: uid('r'), kind: 'food', title: t('Change it to this?'), key: `edit:${prev.id}`, lines: [line], doneTitle: t('Corrected') }, t('Change'), apply);
+  return { id: uid('r'), kind: 'food', title: t('Corrected'), lines: [line], undo: apply() };
 }
 
 function doDeleteFood(a: Extract<AgentAction, { type: 'delete_food' }>, ctx: AgentCtx): AgentResult {
   const { t } = ctx;
   let list: FoodEntry[];
-  if (a.target) { const e = findEntry(a.target, searchDays(a.day, ctx), mealIdOf(a.meal, ctx)); if (!e) return notFound(ctx, a.target); list = [e]; }
+  if (a.target || a.ref) { const e = pickEntry(a.ref, a.target, searchDays(a.day, ctx), mealIdOf(a.meal, ctx)); if (!e) return notFound(ctx, a.target || a.ref || ''); list = [e]; }
   else {
     const date = resolveDay(a.day, ctx.today) ?? ctx.date ?? ctx.today;
     const all = fold(a.meal ?? '') === 'all' || fold(a.meal ?? '') === 'day';
@@ -453,13 +726,12 @@ function doDeleteFood(a: Extract<AgentAction, { type: 'delete_food' }>, ctx: Age
     list = mealItems(date, mid);
     if (!list.length) return { id: uid('r'), kind: 'miss', title: t('Nothing to remove'), lines: [{ text: `${mid ? mealLabelOf(mid, ctx) : t('Today')} · ${dayLabel(date, ctx)}` }] };
   }
-  list.forEach((e) => useStore.getState().removeEntry(e.id));
   const total = list.reduce((n, e) => n + (e.nutrients.kcal ?? 0), 0);
-  return {
-    id: uid('r'), kind: 'food', title: t('Removed'),
-    lines: [...list.slice(0, 8).map((e) => ({ text: e.snap.name, sub: kcalStr(e) })), ...(list.length > 1 ? [{ text: t('Total'), sub: `${Math.round(total)} kcal` }] : [])],
-    undo: () => useStore.getState().restoreEntries(list),
-  };
+  const lines = [...list.slice(0, 8).map((e) => ({ text: e.snap.name, sub: kcalStr(e), ref: e.id })), ...(list.length > 8 ? [{ text: t('{n} more', { n: list.length - 8 }) }] : []), ...(list.length > 1 ? [{ text: t('Total'), sub: `${Math.round(total)} kcal` }] : [])];
+  const remove = () => { list.forEach((e) => useStore.getState().removeEntry(e.id)); return () => useStore.getState().restoreEntries(list); };
+  // a whole meal or day waits for a tap; one item goes at once (with Undo)
+  if (list.length > 1) return preview({ id: uid('r'), kind: 'food', title: t('Remove {n} items?', { n: list.length }), key: `del:${list.map((e) => e.id).join(',')}`, lines }, t('Remove'), remove);
+  return { id: uid('r'), kind: 'food', title: t('Removed'), lines, undo: remove() };
 }
 
 /** Move or copy: one item, or a whole meal, to another meal and/or day. */
@@ -468,7 +740,7 @@ function doMoveCopy(a: Extract<AgentAction, { type: 'move_food' | 'copy_food' }>
   const copy = a.type === 'copy_food';
   const fromMeal = mealIdOf(a.meal_from, ctx);
   let list: FoodEntry[];
-  if (a.target) { const e = findEntry(a.target, searchDays(a.day, ctx), fromMeal); if (!e) return notFound(ctx, a.target); list = [e]; }
+  if (a.target || a.ref) { const e = pickEntry(a.ref, a.target, searchDays(a.day, ctx), fromMeal); if (!e) return notFound(ctx, a.target || a.ref || ''); list = [e]; }
   else {
     const date = resolveDay(a.day, ctx.today) ?? ctx.date ?? ctx.today;
     if (!fromMeal) return notFound(ctx, a.meal_from ?? '');
@@ -476,36 +748,48 @@ function doMoveCopy(a: Extract<AgentAction, { type: 'move_food' | 'copy_food' }>
     if (!list.length) return { id: uid('r'), kind: 'miss', title: t('Nothing to move'), lines: [{ text: `${mealLabelOf(fromMeal, ctx)} · ${dayLabel(date, ctx)}`, warn: true }] };
   }
   const toMeal = mealIdOf(a.meal_to, ctx);
-  const toDate = resolveDay(a.day_to, ctx.today);
+  // (a copy with no day said goes to the day being looked at: "copy yesterday's breakfast" while on today)
+  const toDate = resolveDay(a.day_to, ctx.today) ?? (copy ? ctx.date ?? ctx.today : undefined);
   if (a.meal_to && !toMeal) return notFound(ctx, a.meal_to);
   const st = useStore.getState();
   const dest = [toMeal ? mealLabelOf(toMeal, ctx) : '', toDate ? dayLabel(toDate, ctx) : ''].filter(Boolean).join(' · ');
   if (copy) {
     const copies = list.map((e) => ({ ...e, id: uid('e'), date: toDate ?? e.date, mealId: toMeal ?? e.mealId, at: Date.now() }));
     st.logEntries(copies);
-    return { id: uid('r'), kind: 'food', title: t('Copied to {where}', { where: dest }), lines: list.slice(0, 8).map((e) => ({ text: e.snap.name, sub: kcalStr(e) })), undo: () => copies.forEach((e) => useStore.getState().removeEntry(e.id)) };
+    return { id: uid('r'), kind: 'food', title: t('Copied to {where}', { where: dest }), lines: copies.slice(0, 8).map((e) => ({ text: e.snap.name, sub: kcalStr(e), ref: e.id })), undo: () => copies.forEach((e) => useStore.getState().removeEntry(e.id)) };
   }
   list = list.filter((e) => (toMeal && e.mealId !== toMeal) || (toDate && e.date !== toDate));
   if (!list.length) return { id: uid('r'), kind: 'miss', title: t('Already there'), lines: [{ text: dest }] };
   list.forEach((e) => st.moveEntry(e.id, { date: toDate, mealId: toMeal }));
+  // one food moved to another meal: the Coach learns where it goes (lib/ledger.ts), unless this is undone
+  const unlearn = list.length === 1 && toMeal && (a.target || a.ref) ? noteEvent({ k: 'move', food: list[0].snap.name, meal: toMeal }) : () => {};
   return {
-    id: uid('r'), kind: 'food', title: t('Moved to {where}', { where: dest }), lines: list.slice(0, 8).map((e) => ({ text: e.snap.name, sub: `${mealLabelOf(e.mealId, ctx)} → ${dest}` })),
-    undo: () => list.forEach((e) => useStore.getState().moveEntry(e.id, { date: e.date, mealId: e.mealId })),
+    id: uid('r'), kind: 'food', title: t('Moved to {where}', { where: dest }), lines: list.slice(0, 8).map((e) => ({ text: e.snap.name, sub: `${mealLabelOf(e.mealId, ctx)} → ${dest}`, ref: e.id })),
+    undo: () => { list.forEach((e) => useStore.getState().moveEntry(e.id, { date: e.date, mealId: e.mealId })); unlearn(); },
   };
 }
 
 /** Swap a logged food for another one: same meal, same day, and — unless a new amount was said — the same amount. */
 async function doReplaceFood(a: Extract<AgentAction, { type: 'replace_food' }>, ctx: AgentCtx): Promise<AgentResult> {
   const { t } = ctx;
-  const old = findEntry(a.target, searchDays(a.day, ctx), mealIdOf(a.meal_from, ctx));
-  if (!old) return notFound(ctx, a.target);
+  const old = pickEntry(a.ref, a.target, searchDays(a.day, ctx), mealIdOf(a.meal_from, ctx));
+  if (!old) return notFound(ctx, a.target || a.ref || '');
   const w = { ...a.with };
   if (w.amount == null && !old.quick) { // keep the old amount (a count stays a count only when it was a portion: then a typical portion)
     if (old.qty.unit === 'portion') { w.amount = old.qty.amount; w.unit = 'piece'; } else { w.amount = Math.round(old.base); w.unit = old.snap.basis; }
   }
-  const r = await doLogFood({ type: 'log_food', foods: [w], meal: old.mealId, day: old.date }, ctx);
+  const [r] = await doLogFood({ type: 'log_food', foods: [w], meal: old.mealId, day: old.date }, ctx);
+  if (!r) return notFound(ctx, w.name);
+  // "Which one?" for the new food: the choice also takes the old one out (and Undo puts it back)
+  if (r.choose) {
+    r.choose = r.choose.map((c) => ({ ...c, run: () => { c.run(); useStore.getState().removeEntry(old.id); const u = r.undo; r.undo = () => { u?.(); useStore.getState().restoreEntries([old]); }; } }));
+    return r;
+  }
   if (r.kind !== 'food') return { ...r, title: t('Couldn’t replace that') };
   useStore.getState().removeEntry(old.id);
+  // a correction is remembered: next time these words mean this food
+  const nowId = useStore.getState().entries.find((e) => e.id === r.lines[0]?.ref)?.snap.foodId;
+  if (nowId) useStore.getState().setChoice(fold(w.name), nowId);
   const undoNew = r.undo;
   return {
     id: uid('r'), kind: 'food', title: t('Replaced'),
@@ -524,7 +808,7 @@ function doCreateFood(a: Extract<AgentAction, { type: 'create_food' }>, ctx: Age
   const lines = [{ text: a.name, sub: `${Math.round(food.per100.kcal ?? 0)} kcal / 100 ${a.basis}` }];
   const undoFood = () => useStore.getState().deleteFood(id);
   if (a.amount == null) return { id: uid('r'), kind: 'food', title: t('Food saved'), lines, undo: undoFood };
-  return doLogFood({ type: 'log_food', foods: [{ name: a.name, amount: a.amount, unit: a.unit ?? a.basis }], meal: a.meal, day: a.day }, ctx).then((r) => ({ ...r, title: t('Saved and logged'), lines: [...lines, ...r.lines], undo: () => { r.undo?.(); undoFood(); } }));
+  return doLogFood({ type: 'log_food', foods: [{ name: a.name, amount: a.amount, unit: a.unit ?? a.basis }], meal: a.meal, day: a.day }, ctx).then(([r]) => (r ? { ...r, title: t('Saved and logged'), lines: [...lines, ...r.lines], undo: () => { r.undo?.(); undoFood(); } } : { id: uid('r'), kind: 'food' as const, title: t('Food saved'), lines, undo: undoFood }));
 }
 
 function doFavourite(a: Extract<AgentAction, { type: 'favourite_food' }>, ctx: AgentCtx): AgentResult {
@@ -657,7 +941,8 @@ function doReplaceExercise(a: Extract<AgentAction, { type: 'replace_exercise' }>
     const item = c.length && c[0].score >= 0.5 ? r.items.find((i) => i.exerciseId === c[0].ex.id) : undefined;
     if (!item) return { id: uid('r'), kind: 'miss', title: t('Couldn’t find that exercise in the routine'), lines: [{ text: a.from, warn: true }] };
     st.upsertRoutine({ ...r, items: r.items.map((i) => (i === item ? { ...i, exerciseId: to.id } : i)) });
-    return { id: uid('r'), kind: 'routine', title: t('Routine updated'), lines: [{ text: r.name, sub: `${nameOf(item.exerciseId)} → ${exLabel(to, lang)}` }], undo: () => useStore.getState().upsertRoutine(r) };
+    const unlearn = item.exerciseId !== to.id ? noteEvent({ k: 'swap', from: item.exerciseId, to: to.id }) : () => {};
+    return { id: uid('r'), kind: 'routine', title: t('Routine updated'), lines: [{ text: r.name, sub: `${nameOf(item.exerciseId)} → ${exLabel(to, lang)}` }], undo: () => { useStore.getState().upsertRoutine(r); unlearn(); } };
   }
   // in the running workout
   if (!st.active) return { id: uid('r'), kind: 'miss', title: t('No workout is running'), lines: [{ text: t('Say which routine to change, or start a workout first.') }] };
@@ -665,10 +950,11 @@ function doReplaceExercise(a: Extract<AgentAction, { type: 'replace_exercise' }>
   if (!hit) return { id: uid('r'), kind: 'miss', title: t('Couldn’t find that exercise in the workout'), lines: [{ text: a.from, warn: true }] };
   const prev = st.active.exercises;
   replaceExercise(hit.block.id, to.id);
+  const unlearn = hit.ex.id !== to.id ? noteEvent({ k: 'swap', from: hit.ex.id, to: to.id }) : () => {};
   return {
     id: uid('r'), kind: 'workout', title: t('Exercise swapped'), lines: [{ text: exLabel(hit.ex, lang), sub: `→ ${exLabel(to, lang)}` }],
     button: { label: t('Open workout'), run: () => useUI.getState().push('workout', { origin: 'none' }) },
-    undo: () => useStore.getState().mutateActive((x) => ({ ...x, exercises: prev })),
+    undo: () => { useStore.getState().mutateActive((x) => ({ ...x, exercises: prev })); unlearn(); },
   };
 }
 
@@ -679,7 +965,7 @@ function itemsFrom(list: RoutineBit[], lang: 'en' | 'da') {
     if (!ex) { skipped.push(b.exercise); continue; }
     const timed = ex.logType === 'duration' || ex.logType === 'distance';
     const repMin = b.repMin ?? 8, repMax = Math.max(repMin, b.repMax ?? Math.max(repMin, 12));
-    items.push({ id: uid('ri'), exerciseId: ex.id, warmupSets: 0, workingSets: timed ? 1 : b.sets ?? 3, repMin, repMax, restSec: b.restSec ?? 90 });
+    items.push({ id: uid('ri'), exerciseId: ex.id, warmupSets: b.warmup ?? 0, workingSets: timed ? 1 : b.sets ?? 3, repMin, repMax, restSec: b.restSec ?? 90 });
   }
   return { items, skipped };
 }
@@ -688,15 +974,18 @@ function doCreateRoutine(a: Extract<AgentAction, { type: 'create_routine' }>, ct
   const { t } = ctx;
   const { items, skipped } = itemsFrom(a.items, ctx.lang);
   if (!items.length) return { id: uid('r'), kind: 'miss', title: t('Couldn’t build that routine'), lines: skipped.map((n) => ({ text: n, sub: t('Not in your exercise library'), warn: true })) };
-  const now = Date.now();
-  const r = { id: uid('r'), name: a.name, items, createdAt: now, updatedAt: now };
-  useStore.getState().upsertRoutine(r);
   const pool = allExercises(useStore.getState().exercises);
-  return {
-    id: uid('r'), kind: 'routine', title: t('Routine created'),
-    lines: [{ text: a.name, sub: `${items.length} ${t('exercises')}` }, ...items.map((i) => ({ text: exLabel(pool.find((e) => e.id === i.exerciseId)!, ctx.lang), sub: `${i.workingSets} × ${i.repMin}–${i.repMax}` })), ...skipped.map((n) => ({ text: n, sub: t('Not in your exercise library'), warn: true }))],
-    undo: () => useStore.getState().deleteRoutine(r.id),
-  };
+  // a preview first (from a photo of a program, or said): nothing is saved until Apply, and a newer version replaces it
+  return preview({
+    id: uid('r'), kind: 'routine', title: a.name, subtitle: `${items.length} ${t('exercises')} · ${items.reduce((n, i) => n + i.workingSets, 0)} ${t('sets')}`, key: `routine:${fold(a.name)}`,
+    doneTitle: a.name, doneSubtitle: t('Saved to your routines'),
+    lines: [...items.map((i) => ({ text: exLabel(pool.find((e) => e.id === i.exerciseId)!, ctx.lang), sub: `${i.workingSets} × ${i.repMin}–${i.repMax}` })), ...skipped.map((n) => ({ text: n, sub: t('Not in your exercise library'), warn: true }))],
+  }, t('Apply'), () => {
+    const now = Date.now();
+    const r = { id: uid('r'), name: a.name, items, createdAt: now, updatedAt: now };
+    useStore.getState().upsertRoutine(r);
+    return () => useStore.getState().deleteRoutine(r.id);
+  });
 }
 
 function doEditRoutine(a: Extract<AgentAction, { type: 'edit_routine' }>, ctx: AgentCtx): AgentResult {
@@ -706,32 +995,92 @@ function doEditRoutine(a: Extract<AgentAction, { type: 'edit_routine' }>, ctx: A
   if (!r) return { id: uid('r'), kind: 'miss', title: t('Couldn’t find that routine'), lines: [{ text: a.routine, sub: st.routines.map((x) => x.name).join(' · ').slice(0, 120), warn: true }] };
   const pool = allExercises(st.exercises);
   const nameOf = (id: string) => { const e = pool.find((x) => x.id === id); return e ? exLabel(e, lang) : id; };
-  let items = [...r.items];
-  const lines: AgentResult['lines'] = [];
-  const pick = (name: string) => { const c = matchExercises(name, items.map((i) => pool.find((e) => e.id === i.exerciseId)).filter(Boolean) as Exercise[], lang, 2); return c.length && c[0].score >= 0.5 ? items.find((i) => i.exerciseId === c[0].ex.id) : undefined; };
-  for (const n of a.remove ?? []) { const it = pick(n); if (it) { items = items.filter((i) => i !== it); lines.push({ text: nameOf(it.exerciseId), sub: t('removed') }); } else lines.push({ text: n, sub: t('not in this routine'), warn: true }); }
+  // each change is its own step, so a preview can leave any of them out (the card's ticks)
+  type Step = { name: string; items: RoutineItem[] };
+  const steps: { line: AgentResult['lines'][number]; run?: (x: Step) => Step }[] = [];
+  const have = r.items;
+  const pick = (name: string) => { const c = matchExercises(name, have.map((i) => pool.find((e) => e.id === i.exerciseId)).filter(Boolean) as Exercise[], lang, 2); return c.length && c[0].score >= 0.5 ? have.find((i) => i.exerciseId === c[0].ex.id) : undefined; };
+  if (a.rename) steps.push({ line: { text: r.name, sub: `→ ${a.rename}` }, run: (x) => ({ ...x, name: a.rename! }) });
+  for (const n of a.remove ?? []) {
+    const it = pick(n);
+    if (it) steps.push({ line: { text: nameOf(it.exerciseId), sub: t('removed') }, run: (x) => ({ ...x, items: x.items.filter((i) => i.id !== it.id) }) });
+    else steps.push({ line: { text: n, sub: t('not in this routine'), warn: true } });
+  }
   for (const b of a.change ?? []) {
     const it = pick(b.exercise);
-    if (!it) { lines.push({ text: b.exercise, sub: t('not in this routine'), warn: true }); continue; }
+    if (!it) { steps.push({ line: { text: b.exercise, sub: t('not in this routine'), warn: true } }); continue; }
     const repMin = b.repMin ?? it.repMin, repMax = Math.max(repMin, b.repMax ?? it.repMax);
-    const nx = { ...it, workingSets: b.sets ?? it.workingSets, repMin, repMax, restSec: b.restSec ?? it.restSec };
-    items = items.map((i) => (i === it ? nx : i));
-    lines.push({ text: nameOf(it.exerciseId), sub: `${it.workingSets} × ${it.repMin}–${it.repMax} → ${nx.workingSets} × ${nx.repMin}–${nx.repMax}` });
+    const nx = { ...it, workingSets: b.sets ?? it.workingSets, repMin, repMax, restSec: b.restSec ?? it.restSec, warmupSets: b.warmup ?? it.warmupSets };
+    steps.push({ line: { text: nameOf(it.exerciseId), sub: `${it.workingSets} × ${it.repMin}–${it.repMax} → ${nx.workingSets} × ${nx.repMin}–${nx.repMax}${nx.restSec !== it.restSec ? ` · ${fmtSec(nx.restSec)}` : ''}${nx.warmupSets !== it.warmupSets ? ` · ${nx.warmupSets} W` : ''}` }, run: (x) => ({ ...x, items: x.items.map((i) => (i.id === it.id ? { ...nx, id: i.id } : i)) }) });
   }
-  if (a.add?.length) { const m = itemsFrom(a.add, lang); items = [...items, ...m.items]; m.items.forEach((i) => lines.push({ text: nameOf(i.exerciseId), sub: `${t('added')} · ${i.workingSets} × ${i.repMin}–${i.repMax}` })); m.skipped.forEach((n) => lines.push({ text: n, sub: t('Not in your exercise library'), warn: true })); }
-  if (a.rename) lines.unshift({ text: r.name, sub: `→ ${a.rename}` });
-  if (!lines.length || lines.every((l) => l.warn)) return { id: uid('r'), kind: 'miss', title: t('Couldn’t change that routine'), lines };
-  st.upsertRoutine({ ...r, name: a.rename ?? r.name, items });
-  return { id: uid('r'), kind: 'routine', title: t('Routine updated'), lines: [{ text: a.rename ?? r.name }, ...lines], undo: () => useStore.getState().upsertRoutine(r) };
+  if (a.add?.length) {
+    const m = itemsFrom(a.add, lang);
+    m.items.forEach((it) => steps.push({ line: { text: nameOf(it.exerciseId), sub: `${t('added')} · ${it.workingSets} × ${it.repMin}–${it.repMax}` }, run: (x) => ({ ...x, items: [...x.items, it] }) }));
+    m.skipped.forEach((n) => steps.push({ line: { text: n, sub: t('Not in your exercise library'), warn: true } }));
+  }
+  const real = steps.filter((x) => x.run).length;
+  if (!real) return { id: uid('r'), kind: 'miss', title: t('Couldn’t change that routine'), lines: steps.map((x) => x.line) };
+  // the routine with the changes that are ticked (all of them, unless the preview's ticks left some out)
+  const build = (off: number[]) => {
+    let x: Step = { name: r.name, items: [...r.items] };
+    steps.forEach((p, i) => { if (p.run && !off.includes(i + 1)) x = p.run(x); });
+    return { ...r, name: x.name, items: x.items, updatedAt: Date.now() };
+  };
+  const put = (next: typeof r) => { useStore.getState().upsertRoutine(next); return () => useStore.getState().upsertRoutine(r); };
+  // (a preview names the routine as it is now: the rename is one of its changes, and may be left out)
+  const head = { text: r.name };
+  // a rewrite (three or more changes) is a preview: each change has a tick, and Apply does only the ticked ones
+  if (real >= 3) {
+    const card: AgentResult = preview({
+      id: uid('r'), kind: 'routine', title: t('Change {name}?', { name: r.name }), key: `routine:${r.id}`, off: [],
+      lines: [head, ...steps.map((x) => (x.run ? { ...x.line, pick: true } : x.line))],
+    }, t('Apply'), () => {
+      const off = card.off ?? [];
+      const left = off.filter((i) => steps[i - 1]?.run).length;
+      if (left) card.doneSubtitle = t('{n} of {m} changes applied', { n: real - left, m: real });
+      return put(build(off));
+    });
+    return card;
+  }
+  return { id: uid('r'), kind: 'routine', title: t('Routine updated'), lines: [{ text: a.rename ?? r.name }, ...steps.map((x) => x.line)], undo: put(build([])) };
+}
+
+/** "Make a copy of Push": the same exercises, sets and rests under a new name (its own ids, so the two never share an edit). */
+function doDuplicateRoutine(a: Extract<AgentAction, { type: 'duplicate_routine' }>, ctx: AgentCtx): AgentResult {
+  const { t } = ctx;
+  const st = useStore.getState();
+  const r = findRoutine(a.routine);
+  if (!r) return { id: uid('r'), kind: 'miss', title: t('Couldn’t find that routine'), lines: [{ text: a.routine, sub: st.routines.filter((x) => !x.oneOff).map((x) => x.name).join(' · ').slice(0, 120), warn: true }] };
+  const base = a.rename?.trim() || t('{name} copy', { name: r.name });
+  const taken = new Set(st.routines.map((x) => fold(x.name)));
+  let name = base;
+  for (let i = 2; taken.has(fold(name)) && i < 50; i++) name = `${base} ${i}`;
+  const now = Date.now();
+  const copy = { ...r, id: uid('r'), name, oneOff: undefined, items: r.items.map((i) => ({ ...i, id: uid('ri') })), createdAt: now, updatedAt: now };
+  st.upsertRoutine(copy);
+  return {
+    id: uid('r'), kind: 'routine', title: t('Routine duplicated'),
+    lines: [{ text: name, sub: `${copy.items.length} ${t('exercises')} · ${copy.items.reduce((n, i) => n + i.workingSets, 0)} ${t('sets')}` }],
+    button: { label: t('Open'), run: () => useUI.getState().push('routine', { id: copy.id }) },
+    undo: () => useStore.getState().deleteRoutine(copy.id),
+  };
+}
+
+/** A small chart in the chat: the model picks the metric, the numbers are the app's own (agentCharts.ts). */
+function doShowChart(a: Extract<AgentAction, { type: 'show_chart' }>, ctx: AgentCtx): AgentResult {
+  const b = buildChart(a.metric, { exercise: a.exercise, weeks: a.weeks, today: ctx.today, lang: ctx.lang, t: ctx.t });
+  if ('miss' in b) return { id: uid('r'), kind: 'miss', title: b.miss, lines: [] };
+  return { id: uid('r'), kind: 'chart', title: b.title, subtitle: b.subtitle, lines: [], chart: b.chart };
 }
 
 function doDeleteRoutine(a: Extract<AgentAction, { type: 'delete_routine' }>, ctx: AgentCtx): AgentResult {
   const r = findRoutine(a.routine);
   if (!r) return { id: uid('r'), kind: 'miss', title: ctx.t('Couldn’t find that routine'), lines: [{ text: a.routine, warn: true }] };
-  const st = useStore.getState();
-  const sch = st.schedule;
-  st.deleteRoutine(r.id);
-  return { id: uid('r'), kind: 'routine', title: ctx.t('Routine deleted'), lines: [{ text: r.name, sub: `${r.items.length} ${ctx.t('exercises')}` }], undo: () => { const s = useStore.getState(); s.restoreRoutine(r); s.setSchedule(sch); } };
+  return preview({ id: uid('r'), kind: 'routine', title: ctx.t('Delete {name}?', { name: r.name }), key: `delroutine:${r.id}`, lines: [{ text: r.name, sub: `${r.items.length} ${ctx.t('exercises')}` }, { text: ctx.t('Past workouts stay in your history') }] }, ctx.t('Delete'), () => {
+    const st = useStore.getState(); const sch = st.schedule;
+    st.deleteRoutine(r.id);
+    return () => { const s = useStore.getState(); s.restoreRoutine(r); s.setSchedule(sch); };
+  });
 }
 
 function doDeleteWorkout(a: Extract<AgentAction, { type: 'delete_workout' }>, ctx: AgentCtx): AgentResult {
@@ -740,8 +1089,11 @@ function doDeleteWorkout(a: Extract<AgentAction, { type: 'delete_workout' }>, ct
   const w = a.workout ? fold(a.workout) : '';
   const ses = !w || w === 'last' ? done[done.length - 1] : [...done].reverse().find((s) => s.date === a.workout || fold(s.name).includes(w));
   if (!ses) return { id: uid('r'), kind: 'miss', title: t('Couldn’t find that workout'), lines: a.workout ? [{ text: a.workout, warn: true }] : [] };
-  useStore.getState().deleteSession(ses.id);
-  return { id: uid('r'), kind: 'workout', title: t('Workout deleted'), lines: [{ text: ses.name || t('Workout'), sub: `${ses.date} · ${ses.exercises.length} ${t('exercises')}` }], undo: () => useStore.getState().restoreSession(ses) };
+  const sets = ses.exercises.reduce((n, e) => n + e.sets.filter((x) => x.done).length, 0);
+  return preview({ id: uid('r'), kind: 'workout', title: t('Delete this workout?'), key: `delworkout:${ses.id}`, lines: [{ text: ses.name || t('Workout'), sub: `${ses.date} · ${ses.exercises.length} ${t('exercises')} · ${sets} ${t('sets')}` }] }, t('Delete'), () => {
+    useStore.getState().deleteSession(ses.id);
+    return () => useStore.getState().restoreSession(ses);
+  });
 }
 
 function doDiscardWorkout(ctx: AgentCtx): AgentResult {
@@ -797,43 +1149,129 @@ function doPlanActivity(a: Extract<AgentAction, { type: 'plan_activity' }>, ctx:
   return { id: uid('r'), kind: 'routine', title: a.on ? t('Added to your plan') : t('Taken off your plan'), lines: [{ text: t(ACTIVITY_LABEL[a.kind]), sub: t(WEEKDAYS[a.weekday]) }], undo: () => useStore.getState().setSchedule(prev) };
 }
 
+/** The weight and reps an exercise was last done with (this workout first, then the latest session): what a misheard number
+ *  is checked against, and what "same again" copies. */
+function lastDoneOf(exerciseId: string, skipSetId?: string): SetRecord | undefined {
+  const st = useStore.getState();
+  let best: SetRecord | undefined;
+  for (const se of st.active?.exercises ?? []) if (se.exerciseId === exerciseId) for (const x of se.sets) if (x.done && x.type === 'working' && x.id !== skipSetId && (!best || (x.completedAt ?? 0) > (best.completedAt ?? 0))) best = x;
+  if (best) return best;
+  for (let i = st.sessions.length - 1; i >= 0; i--) {
+    const sets = st.sessions[i].exercises.filter((e) => e.exerciseId === exerciseId).flatMap((e) => e.sets).filter((x) => x.done && x.type === 'working');
+    if (sets.length) return sets.reduce((a, b) => ((b.weightKg ?? 0) > (a.weightKg ?? 0) ? b : a));
+  }
+  return undefined;
+}
+
+/** "heard 18 → logged 80", for the card. */
+const heardText = (heard: { kg?: number; reps?: number } | undefined, logged: { kg?: number; reps?: number }, ctx: AgentCtx, unit: 'kg' | 'lb') =>
+  !heard ? '' : [heard.kg !== undefined ? ctx.t('heard {a} → logged {b}', { a: `${fmtNum(kgToDisplay(heard.kg, unit), ctx.lang, 2)} ${unit}`, b: `${fmtNum(kgToDisplay(logged.kg ?? 0, unit), ctx.lang, 2)} ${unit}` }) : '', heard.reps !== undefined ? ctx.t('heard {a} → logged {b}', { a: `${heard.reps} ${ctx.t('reps')}`, b: `${logged.reps} ${ctx.t('reps')}` }) : ''].filter(Boolean).join(' · ');
+
 /** In a workout, "only 9 reps" / "67 kilos, same reps": the set you're on (ticked, with the rest started) — or the one
- * you just finished ("the last one was 7"). Unsaid numbers stay as the set already shows them. */
-function doCurrentSet(a: Extract<AgentAction, { type: 'log_current_set' }>, ctx: AgentCtx): AgentResult {
+ * you just finished ("the last one was 7"). Unsaid numbers stay as the set already shows them. The set you're on is the
+ * one on screen (`currentSetOf`: the Focus page, a superset partner's turn, where you are); unticked warm-ups are passed
+ * over unless a warm-up is said. Past the last planned set, one more is added. */
+function doCurrentSet(a: Extract<AgentAction, { type: 'log_current_set' }>, ctx: AgentCtx, again = false): AgentResult {
   const { t, lang } = ctx;
   const st = useStore.getState();
   const act = st.active;
   if (!act) return { id: uid('r'), kind: 'miss', title: t('No workout is running'), lines: [] };
   const w = st.settings.units.weight;
-  const show = (s: Pick<SetRecord, 'weightKg' | 'reps'>) => `${s.weightKg ? `${fmtNum(kgToDisplay(s.weightKg, w), lang, 2)} ${w} × ` : ''}${s.reps ?? '—'}`;
-  const before = act;
+  const show = (s: Pick<SetRecord, 'weightKg' | 'reps' | 'durationSec'>) => s.durationSec && !s.reps ? `${s.durationSec}s` : `${s.weightKg ? `${fmtNum(kgToDisplay(s.weightKg, w), lang, 2)} ${w} × ` : ''}${s.reps ?? '—'}`;
   const exOf = (id: string) => allExercises(st.exercises).find((e) => e.id === id);
-  let hit: { se: SessionExercise; set: SetRecord; n: number } | null = null;
+  const latest = () => { let hit: { se: SessionExercise; set: SetRecord } | null = null; for (const se of useStore.getState().active?.exercises ?? []) for (const x of se.sets) if (x.done && (!hit || (x.completedAt ?? 0) >= (hit.set.completedAt ?? 0))) hit = { se, set: x }; return hit as { se: SessionExercise; set: SetRecord } | null; };
+  let hit: { se: SessionExercise; set: SetRecord } | null = null;
+  let extra = false;
   if (a.which === 'last') {
-    for (const se of act.exercises) se.sets.forEach((s, i) => { if (s.done && (!hit || (s.completedAt ?? 0) >= (hit.set.completedAt ?? 0))) hit = { se, set: s, n: i + 1 }; });
+    hit = latest();
     if (!hit) return { id: uid('r'), kind: 'miss', title: t('No finished set yet'), lines: [] };
   } else {
-    for (const se of act.exercises) { const i = se.sets.findIndex((s) => !s.done); if (i >= 0) { hit = { se, set: se.sets[i], n: i + 1 }; break; } }
-    if (!hit) return { id: uid('r'), kind: 'miss', title: t('Every set is done'), lines: [] };
+    const cur = currentSetOf(act, a.warmup ? 'only' : 'skip');
+    if (cur) hit = { se: cur.se, set: cur.set };
+    else {
+      // every planned set is done: one more of the exercise you were on
+      const last = latest();
+      if (!last || a.warmup) return { id: uid('r'), kind: 'miss', title: t('Every set is done'), lines: [] };
+      addSet(last.se.id);
+      const se = useStore.getState().active!.exercises.find((e) => e.id === last.se.id)!;
+      hit = { se, set: se.sets[se.sets.length - 1] };
+      extra = true;
+    }
   }
-  const h = hit as { se: SessionExercise; set: SetRecord; n: number };
-  const set = h.set;
-  const weightKg = a.kg ?? set.weightKg ?? set.target?.weightKg;
-  const reps = a.reps ?? set.reps ?? set.target?.repMax;
-  const next: SetRecord = { ...set, weightKg, reps, ...(a.which === 'current' ? { done: true, completedAt: Date.now() } : {}) };
-  st.mutateActive((x) => ({ ...x, exercises: x.exercises.map((b) => (b.id === h.se.id ? { ...b, sets: b.sets.map((q) => (q.id === set.id ? next : q)) } : b)) }));
-  // a working set just done starts the rest, as ticking it would (not after the last set of the workout)
-  const after = useStore.getState().active;
-  if (a.which === 'current' && set.type === 'working' && after?.exercises.some((e) => e.sets.some((x) => !x.done))) {
-    startRest(h.se.restSec ?? st.settings.restDefaultSec, h.se.exerciseId);
-  }
-  const ex = exOf(h.se.exerciseId);
-  const label = set.type === 'warmup' ? t('Warm-up') : `${t('Set')} ${h.se.sets.slice(0, h.n).filter((q) => q.type === 'working').length}`;
-  return {
-    id: uid('r'), kind: 'sets', title: a.which === 'last' ? t('Set corrected') : t('Set logged'),
-    lines: [{ text: ex ? exLabel(ex, lang) : '', sub: `${label} · ${a.which === 'last' ? `${show(set)} → ` : ''}${show(next)}` }],
-    undo: () => useStore.getState().mutateActive(() => before),
+  const { se, set } = hit;
+  // "same again": the numbers of the last set done of this exercise
+  const same = a.same ? lastDoneOf(se.exerciseId, set.id) : undefined;
+  const planned = { kg: set.weightKg ?? set.target?.weightKg ?? lastDoneOf(se.exerciseId, set.id)?.weightKg, reps: set.target?.repMax ?? set.reps };
+  // a number speech got wrong (18 for 80) is fixed, and the card says so; anything else is logged as said
+  const fixed = fixMisheard({ kg: a.kg ?? undefined, reps: a.reps ?? undefined }, planned);
+  const over = {
+    ...(same ? { weightKg: same.weightKg, reps: same.reps, durationSec: same.durationSec } : {}),
+    ...(fixed.kg !== undefined ? { weightKg: fixed.kg } : {}), ...(fixed.reps !== undefined ? { reps: fixed.reps } : {}),
+    ...(a.durationSec != null ? { durationSec: a.durationSec } : {}),
   };
+  // the same set said twice (a repeated message, a retry): logged once
+  const prevDone = latest();
+  if (a.which === 'current' && !again && prevDone && Date.now() - (prevDone.set.completedAt ?? 0) < 20000 && prevDone.se.exerciseId === se.exerciseId
+    && (over.weightKg === undefined || over.weightKg === prevDone.set.weightKg) && over.reps !== undefined && over.reps === prevDone.set.reps && !a.same) {
+    if (extra) useStore.getState().mutateActive((x) => ({ ...x, exercises: x.exercises.map((b) => (b.id === se.id ? { ...b, sets: b.sets.filter((q) => q.id !== set.id) } : b)) }));
+    const ex = exOf(se.exerciseId);
+    return {
+      id: uid('r'), kind: 'sets', pending: true, offer: true, title: t('Already logged'), lines: [{ text: ex ? exLabel(ex, lang) : '', sub: show(prevDone.set) }],
+      doneTitle: t('Set logged'),
+      button: { label: t('Log again'), run: () => { doCurrentSet(a, ctx, true); } },
+    };
+  }
+  const restBefore = useStore.getState().active?.rest ?? null;
+  let next: SetRecord;
+  if (a.which === 'current') {
+    // ticked exactly as a tap ticks it: records, the haptic, the rest and the row's moment
+    if (!completeSet(se.id, set.id, over)) {
+      if (extra) useStore.getState().mutateActive((x) => ({ ...x, exercises: x.exercises.map((b) => (b.id === se.id ? { ...b, sets: b.sets.filter((q) => q.id !== set.id) } : b)) }));
+      return { id: uid('r'), kind: 'miss', title: t('Enter reps first'), lines: [] };
+    }
+    next = useStore.getState().active!.exercises.find((b) => b.id === se.id)!.sets.find((q) => q.id === set.id)!;
+  } else {
+    next = { ...set, weightKg: over.weightKg ?? set.weightKg ?? set.target?.weightKg, reps: over.reps ?? set.reps ?? set.target?.repMax, ...(over.durationSec !== undefined ? { durationSec: over.durationSec } : {}) };
+    st.mutateActive((x) => ({ ...x, exercises: x.exercises.map((b) => (b.id === se.id ? { ...b, sets: b.sets.map((q) => (q.id === set.id ? next : q)) } : b)) }));
+  }
+  const restAfter = useStore.getState().active?.rest ?? null;
+  const ex = exOf(se.exerciseId);
+  const seNow = useStore.getState().active!.exercises.find((b) => b.id === se.id)!;
+  const n = seNow.sets.findIndex((q) => q.id === set.id) + 1;
+  const label = set.type === 'warmup' ? t('Warm-up') : `${t('Set')} ${seNow.sets.slice(0, n).filter((q) => q.type === 'working').length}`;
+  const heard = heardText(fixed.heard, { kg: next.weightKg, reps: next.reps }, ctx, w);
+  // Undo takes back this set only (later sets stay), and the rest only if this set started it
+  const undo = () => {
+    const s2 = useStore.getState();
+    if (!s2.active) return;
+    s2.mutateActive((x) => ({
+      ...x,
+      rest: restAfter && x.rest && x.rest.endsAt === restAfter.endsAt && restAfter !== restBefore ? restBefore : x.rest,
+      exercises: x.exercises.map((b) => (b.id === se.id ? { ...b, sets: extra ? b.sets.filter((q) => q.id !== set.id) : b.sets.map((q) => (q.id === set.id ? set : q)) } : b)),
+    }));
+  };
+  const res: AgentResult = {
+    id: uid('r'), kind: 'sets', title: a.which === 'last' ? t('Set corrected') : t('Set logged'),
+    lines: [{ text: ex ? exLabel(ex, lang) : '', sub: `${label} · ${a.which === 'last' ? `${show(set)} → ` : ''}${show(next)}` }, ...(heard ? [{ text: heard, warn: true }] : [])],
+    undo,
+  };
+  // "heard 18 kg → logged 80 kg": one tap puts back what was heard, another the fix (the card says which it is now)
+  if (fixed.heard) {
+    const fix = { weightKg: next.weightKg, reps: next.reps };
+    const said = { ...fix, ...(fixed.heard.kg !== undefined ? { weightKg: fixed.heard.kg } : {}), ...(fixed.heard.reps !== undefined ? { reps: fixed.heard.reps } : {}) };
+    const word = (v: { weightKg?: number; reps?: number }) => (fixed.heard!.kg !== undefined ? `${fmtNum(kgToDisplay(v.weightKg ?? 0, w), lang, 2)} ${w}` : `${v.reps}`);
+    let asHeard = false;
+    const chip = { label: t('Use {n}', { n: word(said) }), warn: true, run: () => {} };
+    chip.run = () => {
+      asHeard = !asHeard;
+      const v = asHeard ? said : fix;
+      useStore.getState().mutateActive((x) => ({ ...x, exercises: x.exercises.map((b) => (b.id === se.id ? { ...b, sets: b.sets.map((q) => (q.id === set.id ? { ...q, ...v } : q)) } : b)) }));
+      res.lines = [{ ...res.lines[0], sub: `${label} · ${show({ ...next, ...v })}` }, { text: asHeard ? t('logged as heard: {a}', { a: word(said) }) : heard, warn: !asHeard }];
+      chip.label = t('Use {n}', { n: word(asHeard ? fix : said) });
+    };
+    res.more = [chip];
+  }
+  return res;
 }
 
 function doSchedule(a: Extract<AgentAction, { type: 'set_schedule' }>, ctx: AgentCtx): AgentResult {
@@ -894,17 +1332,30 @@ function doRemember(a: Extract<AgentAction, { type: 'remember' }>, ctx: AgentCtx
   const { t, lang } = ctx;
   const st = useStore.getState();
   const ex = a.exercise ? findExercise(a.exercise, lang) : undefined;
+  // a temporary thing ends on its own (a date in the past or years away is not one)
+  const until = a.until && a.until >= ctx.today && a.until <= addDays(ctx.today, 366) ? a.until : undefined;
   const fields = { text: a.text, kind: a.kind, ...(ex ? { exerciseIds: [ex.id] } : {}) };
-  const twin = st.memory.find((m) => sameNote(m.text, a.text));
   const more = { label: t('See all'), run: openMemory };
-  if (twin) {
-    const before = { ...twin };
-    st.updateMemory(twin.id, fields);
-    return { id: uid('r'), kind: 'memory', title: t('Memory updated'), lines: [{ text: a.text, sub: ex ? exLabel(ex, lang) : undefined }], button: more, undo: () => useStore.getState().updateMemory(before.id, before) };
+  const untilSub = until ? t('until {date}', { date: fmtDate(until, lang, { weekday: 'short', day: 'numeric', month: 'short' }) }) : undefined;
+  // the newer fact replaces the older one: the note the Coach named (its MEMORY number), else the same note said again
+  const seen = a.replaces ? (ctx.memAtStart ?? st.memory)[a.replaces - 1] : undefined;
+  const old = (seen && st.memory.find((m) => m.id === seen.id)) || st.memory.find((m) => sameNote(m.text, a.text));
+  if (old) {
+    const before = { ...old };
+    const same = fold(old.text) === fold(a.text);
+    const was = same ? old.was : [{ text: old.text, at: old.updatedAt ?? old.at }, ...(old.was ?? [])].slice(0, 3);
+    // (an exercise or end date the new wording doesn't carry goes with the old one)
+    st.updateMemory(old.id, { ...fields, exerciseIds: ex ? [ex.id] : undefined, until, updatedAt: Date.now(), was });
+    return { id: uid('r'), kind: 'memory', title: t('Memory updated'), was: same ? undefined : old.text, lines: [{ text: a.text, sub: untilSub ?? (ex ? exLabel(ex, lang) : undefined) }], button: more, undo: () => useStore.getState().updateMemory(before.id, { ...before, until: before.until, updatedAt: before.updatedAt, was: before.was, exerciseIds: before.exerciseIds }) };
   }
-  if (st.memory.length >= MEMORY_MAX) return { id: uid('r'), kind: 'miss', title: t('Memory is full'), lines: [{ text: a.text, sub: t('Remove something in Settings → Coach memory first'), warn: true }], button: more };
-  const note = st.addMemory(fields);
-  return { id: uid('r'), kind: 'memory', title: t('Remembered'), lines: [{ text: note.text, sub: ex ? exLabel(ex, lang) : undefined }], button: more, undo: () => useStore.getState().removeMemory(note.id) };
+  // full: a temporary note that has ended makes room first (its time is over), else the Coach says so
+  if (st.memory.length >= MEMORY_MAX) {
+    const ended = st.memory.filter((m) => m.until && m.until < ctx.today).sort((x, y) => x.until!.localeCompare(y.until!))[0];
+    if (!ended) return { id: uid('r'), kind: 'miss', title: t('Memory is full'), lines: [{ text: a.text, sub: t('Remove something in Settings → Coach memory first'), warn: true }], button: more };
+    st.removeMemory(ended.id);
+  }
+  const note = st.addMemory({ ...fields, ...(until ? { until } : {}) });
+  return { id: uid('r'), kind: 'memory', title: t('Remembered'), lines: [{ text: note.text, sub: untilSub ?? (ex ? exLabel(ex, lang) : undefined) }], button: more, undo: () => useStore.getState().removeMemory(note.id) };
 }
 
 function doForget(a: Extract<AgentAction, { type: 'forget' }>, ctx: AgentCtx): AgentResult {
@@ -917,6 +1368,258 @@ function doForget(a: Extract<AgentAction, { type: 'forget' }>, ctx: AgentCtx): A
   if (!hit) return { id: uid('r'), kind: 'miss', title: t('Nothing like that in memory'), lines: a.target ? [{ text: a.target, warn: true }] : [], button: { label: t('See all'), run: openMemory } };
   st.removeMemory(hit.id);
   return { id: uid('r'), kind: 'memory', title: t('Forgotten'), lines: [{ text: hit.text }], undo: () => useStore.getState().restoreMemory(hit) };
+}
+
+/**
+ * "Chest and triceps with some shoulder tomorrow": the day's workout from their own exercises, as a preview. Apply puts it
+ * in the plan for that date (a routine of its own, placed as a one-off: the weekly plan is untouched), with Undo.
+ */
+function doPlanDay(a: Extract<AgentAction, { type: 'plan_day' }>, ctx: AgentCtx): AgentResult {
+  const { t, lang } = ctx;
+  const st = useStore.getState();
+  const date = a.day === 'tomorrow' ? addDays(ctx.today, 1) : resolveDay(a.day, ctx.today);
+  if (!date) return { id: uid('r'), kind: 'miss', title: t('Which day?'), lines: [] };
+  const pool = allExercises(st.exercises);
+  // the exercises: the ones the Coach chose (from their history), else the app picks for the muscles named
+  let chosen: (Exercise & { sets?: number | null; repMin?: number | null; repMax?: number | null; restSec?: number | null })[] = [];
+  const missing: string[] = [];
+  if (a.items.length) {
+    for (const b of a.items) { const ex = findExercise(b.exercise, lang); if (ex && !chosen.some((c) => c.id === ex.id)) chosen.push({ ...ex, sets: b.sets, repMin: b.repMin, repMax: b.repMax, restSec: b.restSec }); else if (!ex) missing.push(b.exercise); }
+  } else {
+    const light = new Set(a.light.map(muscleOf).filter(Boolean));
+    const focus = [...new Set([...a.focus, ...a.light].map(muscleOf).filter(Boolean) as MuscleGroup[])].map((m) => ({ muscle: m, light: light.has(m) }));
+    chosen = pickForMuscles(focus, st, pool);
+  }
+  if (!chosen.length) return { id: uid('r'), kind: 'miss', title: t('Couldn’t build that workout'), lines: missing.map((n) => ({ text: n, sub: t('Not in your exercise library'), warn: true })) };
+  const plan = buildDayPlan(chosen, date, st);
+  const muscles = [...new Set(plan.picks.map((p) => p.ex.muscles[0]))];
+  const name = a.name || muscles.slice(0, 3).map((m) => t(MUSCLE_LABEL[m])).join(' + ');
+  const when = date === ctx.today ? t('Today') : date === addDays(ctx.today, 1) ? t('Tomorrow') : `${t(WEEKDAYS[weekdayOf(date)])} ${date.slice(8)}/${date.slice(5, 7)}`;
+  const was = (() => { const ov = st.schedule.overrides.find((o) => o.date === date); const id = ov?.routineId ?? (st.schedule.mode === 'weekly' && !st.schedule.cleared.includes(date) ? st.schedule.weekly[weekdayOf(date)] : null); return id ? st.routines.find((r) => r.id === id) : undefined; })();
+  const lines: AgentResult['lines'] = plan.picks.map((p) => ({ text: exLabel(p.ex, lang), sub: `${p.sets} × ${p.repMin === p.repMax ? p.repMin : `${p.repMin}–${p.repMax}`}${p.target ? ` · ${p.target}` : ''}`, warn: !!p.flagged }));
+  plan.picks.filter((p) => p.flagged).forEach((p) => lines.push({ text: exLabel(p.ex, lang), sub: `${t('You told me')}: ${p.flagged}`, warn: true }));
+  if (plan.warnings.includes('wrestling-next-day')) lines.push({ text: t('Wrestling the next day'), sub: t('A lot of leg work the day before — keep it lighter?'), warn: true });
+  if (plan.warnings.includes('wrestled-day-before')) lines.push({ text: t('Wrestling the day before'), sub: t('Your legs may still be tired from the mat — keep the leg work lighter?'), warn: true });
+  missing.forEach((n) => lines.push({ text: n, sub: t('Not in your exercise library'), warn: true }));
+  const result: AgentResult = {
+    id: uid('r'), kind: 'routine', pending: true, offer: true, key: `plan:${date}`,
+    title: `${when}: ${name}`,
+    subtitle: [`${plan.picks.length} ${t('exercises')} · ${plan.picks.reduce((n, p) => n + p.sets, 0)} ${t('sets')}`, was ? `${t('instead of')} ${was.name}` : ''].filter(Boolean).join(' · '),
+    lines,
+    button: {
+      label: t('Apply'),
+      run: () => {
+        const s = useStore.getState();
+        const prevSchedule = s.schedule;
+        const now = Date.now();
+        const items: RoutineItem[] = plan.picks.map((p) => ({ id: uid('ri'), exerciseId: p.ex.id, warmupSets: 0, workingSets: p.sets, repMin: p.repMin, repMax: p.repMax, restSec: p.restSec }));
+        const routine = { id: uid('rt'), name, items, note: t('Planned by the Coach for {date}', { date }), oneOff: date, createdAt: now, updatedAt: now };
+        s.upsertRoutine(routine);
+        s.setSchedule({ overrides: [...s.schedule.overrides.filter((o) => o.date !== date), { date, routineId: routine.id }], cleared: s.schedule.cleared.filter((c) => c !== date) });
+        // kept or taken back: the Coach learns which exercises he doesn't want planned (lib/ledger.ts)
+        const exercises = items.map((i) => i.exerciseId);
+        const unkeep = noteEvent({ k: 'plan', ok: true, exercises });
+        result.undo = () => { const u = useStore.getState(); u.deleteRoutine(routine.id); u.patch({ schedule: prevSchedule }); unkeep(); noteEvent({ k: 'plan', ok: false, exercises }); };
+      },
+    },
+  };
+  return result;
+}
+
+// ── meals, saved meals, water, own exercises, measurements ──
+
+function doEditMeals(a: Extract<AgentAction, { type: 'edit_meals' }>, ctx: AgentCtx): AgentResult {
+  const { t, lang } = ctx;
+  const st = useStore.getState();
+  const before = st.settings.meals;
+  let meals = before.map((m) => ({ ...m }));
+  const lines: AgentResult['lines'] = [];
+  const find = (w: string) => { const id = mealIdOf(w, ctx); return meals.find((m) => m.id === id); };
+  if (a.meal && a.rename) { const m = find(a.meal); if (m) { lines.push({ text: mealName(m, lang), sub: `→ ${a.rename}` }); m.name = a.rename; } else lines.push({ text: a.meal, sub: t('No meal with that name'), warn: true }); }
+  if (a.add && !meals.some((m) => fold(mealName(m, lang)) === fold(a.add!))) { meals.push({ id: uid('meal'), name: a.add }); lines.push({ text: a.add, sub: t('added') }); }
+  for (const w of a.remove ?? []) {
+    const m = find(w);
+    if (!m) { lines.push({ text: w, sub: t('No meal with that name'), warn: true }); continue; }
+    if (st.entries.some((e) => e.mealId === m.id)) { lines.push({ text: mealName(m, lang), sub: t('Has food logged in it, so it stays'), warn: true }); continue; }
+    if (meals.length <= 1) continue;
+    meals = meals.filter((x) => x !== m); lines.push({ text: mealName(m, lang), sub: t('removed') });
+  }
+  if (a.order?.length) {
+    const picked = a.order.map((w) => find(w)).filter(Boolean) as Meal[];
+    if (picked.length) { meals = [...new Set([...picked, ...meals])]; lines.push({ text: t('Order'), sub: meals.map((m) => mealName(m, lang)).join(' · ') }); }
+  }
+  if (!lines.some((l) => !l.warn)) return { id: uid('r'), kind: 'miss', title: t('Couldn’t change the meals'), lines };
+  st.setMeals(meals);
+  return { id: uid('r'), kind: 'setting', title: t('Meals updated'), lines, undo: () => useStore.getState().setMeals(before) };
+}
+
+function doLogSavedMeal(a: Extract<AgentAction, { type: 'log_saved_meal' }>, ctx: AgentCtx): AgentResult {
+  const { t } = ctx;
+  const st = useStore.getState();
+  const w = fold(a.name);
+  const m = st.savedMeals.find((x) => fold(x.name) === w) ?? st.savedMeals.find((x) => fold(x.name).includes(w) || w.includes(fold(x.name)));
+  if (!m) return { id: uid('r'), kind: 'miss', title: t('No saved meal with that name'), lines: [{ text: a.name, sub: st.savedMeals.map((x) => x.name).join(' · ').slice(0, 120), warn: true }] };
+  const date = resolveDay(a.day, ctx.today) ?? ctx.date ?? ctx.today;
+  const mealId = mealIdOf(a.meal, ctx) ?? ctx.mealId ?? defaultMealId(st.settings.meals);
+  const entries = m.items.map((it) => entryFromSnapshot(it.snap, it.qty, date, mealId, { id: uid('e') })).filter(Boolean) as FoodEntry[];
+  const added = st.logEntries(entries);
+  const total = added.reduce((n, e) => n + (e.nutrients.kcal ?? 0), 0);
+  return {
+    id: uid('r'), kind: 'food', title: t('Logged to {meal}', { meal: mealLabelOf(mealId, ctx) }) + (date !== ctx.today ? ` · ${dayLabel(date, ctx)}` : ''),
+    lines: [...added.map((e) => ({ text: e.snap.name, sub: kcalStr(e), ref: e.id })), { text: m.name, sub: `${Math.round(total)} kcal` }],
+    undo: () => added.forEach((e) => useStore.getState().removeEntry(e.id)),
+  };
+}
+
+function doDeleteWater(a: Extract<AgentAction, { type: 'delete_water' }>, ctx: AgentCtx): AgentResult {
+  const { t, lang } = ctx;
+  const date = resolveDay(a.day, ctx.today) ?? ctx.today;
+  const list = useStore.getState().water.filter((w) => w.date === date && (!a.ml || Math.abs(w.ml - a.ml) < 1));
+  const w = list[list.length - 1];
+  if (!w) return { id: uid('r'), kind: 'miss', title: t('No water to remove'), lines: [{ text: dayLabel(date, ctx) }] };
+  useStore.getState().removeWater(w.id);
+  return { id: uid('r'), kind: 'water', title: t('Water removed'), lines: [{ text: `${fmtNum(w.ml, lang, 0)} ml`, sub: dayLabel(date, ctx) }], undo: () => useStore.getState().patch((s) => ({ water: [...s.water, w] })) };
+}
+
+function doCreateExercise(a: Extract<AgentAction, { type: 'create_exercise' }>, ctx: AgentCtx): AgentResult {
+  const { t, lang } = ctx;
+  const st = useStore.getState();
+  const same = allExercises(st.exercises).find((e) => fold(e.name) === fold(a.name));
+  if (same) return { id: uid('r'), kind: 'miss', title: t('That exercise already exists'), lines: [{ text: exLabel(same, lang) }] };
+  const ex: Exercise = { id: uid('ex'), name: a.name, muscles: a.muscles, equipment: [a.equipment], movement: 'isolation', logType: a.logType, instructions: [], custom: true };
+  st.upsertExercise(ex);
+  return {
+    id: uid('r'), kind: 'workout', title: t('Exercise created'),
+    lines: [{ text: a.name, sub: [...a.muscles.map((m) => t(MUSCLE_LABEL[m])), t(EQUIP_LABEL[a.equipment])].join(' · ') }],
+    undo: () => useStore.getState().patch((s) => ({ exercises: s.exercises.filter((e) => e.id !== ex.id) })),
+  };
+}
+
+function doArchiveExercise(a: Extract<AgentAction, { type: 'archive_exercise' }>, ctx: AgentCtx): AgentResult {
+  const { t, lang } = ctx;
+  const st = useStore.getState();
+  const c = matchExercises(a.exercise, st.exercises, lang, 2);
+  const ex = c.length && c[0].score >= 0.6 ? c[0].ex : undefined;
+  if (!ex) return { id: uid('r'), kind: 'miss', title: t('Only your own exercises can be hidden'), lines: [{ text: a.exercise, warn: true }] };
+  const before = ex;
+  st.upsertExercise({ ...ex, archived: a.on });
+  return { id: uid('r'), kind: 'workout', title: a.on ? t('Exercise hidden') : t('Exercise back'), lines: [{ text: exLabel(ex, lang) }], undo: () => useStore.getState().upsertExercise(before) };
+}
+
+function doSetIncrement(a: Extract<AgentAction, { type: 'set_increment' }>, ctx: AgentCtx): AgentResult {
+  const { t, lang } = ctx;
+  const st = useStore.getState();
+  const ex = findExercise(a.exercise, lang);
+  if (!ex) return { id: uid('r'), kind: 'miss', title: t('Couldn’t find that exercise'), lines: [{ text: a.exercise, warn: true }] };
+  const before = st.increments[ex.id];
+  st.setIncrement(ex.id, a.kg ?? undefined);
+  return { id: uid('r'), kind: 'setting', title: t('Weight jump set'), lines: [{ text: exLabel(ex, lang), sub: a.kg ? `${fmtNum(a.kg, lang, 2)} kg` : t('Default') }], undo: () => useStore.getState().setIncrement(ex.id, before) };
+}
+
+function doMeasurement(a: Extract<AgentAction, { type: 'log_measurement' }>, ctx: AgentCtx): AgentResult {
+  const { t, lang } = ctx;
+  const st = useStore.getState();
+  const date = resolveDay(a.day, ctx.today) ?? ctx.today;
+  const before = new Set(st.measurements.map((m) => m.id));
+  st.addMeasurement({ date, kind: a.kind, cm: a.cm });
+  const made = useStore.getState().measurements.find((m) => !before.has(m.id));
+  return { id: uid('r'), kind: 'weight', title: t('Measurement logged'), lines: [{ text: t(MEASURE_LABEL[a.kind]), sub: `${fmtNum(a.cm, lang, 1)} cm · ${dayLabel(date, ctx)}` }], undo: () => { if (made) useStore.getState().removeMeasurement(made.id); } };
+}
+
+function doDeleteMeasurement(a: Extract<AgentAction, { type: 'delete_measurement' }>, ctx: AgentCtx): AgentResult {
+  const { t, lang } = ctx;
+  const date = resolveDay(a.day, ctx.today);
+  const list = useStore.getState().measurements.filter((m) => (!a.kind || m.kind === a.kind) && (!date || m.date === date));
+  const m = list[list.length - 1];
+  if (!m) return { id: uid('r'), kind: 'miss', title: t('No measurement to remove'), lines: [] };
+  useStore.getState().removeMeasurement(m.id);
+  return { id: uid('r'), kind: 'weight', title: t('Measurement removed'), lines: [{ text: t(MEASURE_LABEL[m.kind]), sub: `${fmtNum(m.cm, lang, 1)} cm · ${m.date}` }], undo: () => useStore.getState().patch((s) => ({ measurements: [...s.measurements, m] })) };
+}
+const MEASURE_LABEL: Record<MeasureKind, string> = { waist: 'Waist', chest: 'Chest', hips: 'Hips', arm: 'Arm', thigh: 'Thigh', neck: 'Neck' };
+
+// ── the running workout: pause, rest timer, supersets, order, notes, name ──
+
+function doWorkoutControl(a: Extract<AgentAction, { type: 'workout_control' }>, ctx: AgentCtx): AgentResult {
+  const { t, lang } = ctx;
+  const st = useStore.getState();
+  const act = st.active;
+  if (!act) return { id: uid('r'), kind: 'miss', title: t('No workout is running'), lines: [] };
+  const before = act;
+  const back = () => useStore.getState().mutateActive(() => before);
+  const ok = (title: string, lines: AgentResult['lines'] = [], undo: (() => void) | undefined = back): AgentResult => ({ id: uid('r'), kind: 'workout', title, lines, undo });
+  const block = a.exercise ? findBlock(a.exercise, act, lang) : null;
+  const cur = act.exercises.find((e) => e.sets.some((x) => !x.done)) ?? act.exercises[act.exercises.length - 1];
+  const target = block?.block ?? cur;
+  const exOf = (id?: string) => allExercises(st.exercises).find((e) => e.id === id);
+  const name = target ? exLabel(exOf(target.exerciseId) ?? { name: '' }, lang) : '';
+  if (a.exercise && !block && ['superset', 'move_up', 'move_down', 'note', 'rest_set'].includes(a.op)) return { id: uid('r'), kind: 'miss', title: t('Couldn’t find that exercise in the workout'), lines: [{ text: a.exercise, warn: true }] };
+  switch (a.op) {
+    case 'pause': if (act.pausedAt) return ok(t('Already paused'), [], undefined); st.pauseActive(); return ok(t('Workout paused'), [], () => useStore.getState().resumeActive());
+    case 'resume': if (!act.pausedAt) return ok(t('Workout is running'), [], undefined); st.resumeActive(); return ok(t('Workout resumed'), [], () => useStore.getState().pauseActive());
+    case 'rest_start': { const sec = Math.max(15, Math.abs(a.seconds ?? target?.restSec ?? st.settings.restDefaultSec)); startRest(sec, target?.exerciseId ?? ''); return ok(t('Rest started'), [{ text: fmtSec(sec) }]); }
+    case 'rest_skip': if (!act.rest) return ok(t('No rest is running'), [], undefined); skipRest(); return ok(t('Rest skipped'));
+    case 'rest_add': if (!act.rest) return ok(t('No rest is running'), [], undefined); adjustRest(a.seconds ?? 15); return ok((a.seconds ?? 15) < 0 ? t('Rest shortened') : t('Rest extended'), [{ text: `${(a.seconds ?? 15) > 0 ? '+' : '−'}${Math.abs(a.seconds ?? 15)} s` }]);
+    case 'rest_set': { if (!target) return ok(t('No exercise'), [], undefined); const sec = Math.min(600, Math.max(15, Math.abs(a.seconds ?? 90))); patchExercise(target.id, { restSec: sec }); return ok(t('Rest changed'), [{ text: name, sub: fmtSec(sec) }]); }
+    case 'superset': { if (!target) return ok(t('No exercise'), [], undefined); toggleSuperset(target.id); return ok(t('Superset changed'), [{ text: name }]); }
+    case 'move_up': case 'move_down': { if (!target) return ok(t('No exercise'), [], undefined); moveExercise(target.id, a.op === 'move_up' ? -1 : 1); return ok(t('Order changed'), [{ text: name, sub: a.op === 'move_up' ? t('up') : t('down') }]); }
+    case 'note': { if (!target || !a.text) return ok(t('No note'), [], undefined); patchExercise(target.id, { note: a.text }); return ok(t('Note added'), [{ text: name, sub: a.text }]); }
+    case 'rename': { if (!a.text) return ok(t('No name'), [], undefined); st.mutateActive((x) => ({ ...x, name: a.text! })); return ok(t('Workout renamed'), [{ text: a.text }]); }
+  }
+}
+const fmtSec = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, '0')}`;
+
+// ── the plan: a whole week at once, skipping a day ──
+
+/** "Legs on Friday, wrestling Tuesday and Thursday, the rest rest days": the week as a preview; Apply sets it (weekly plan). */
+function doSetSplit(a: Extract<AgentAction, { type: 'set_split' }>, ctx: AgentCtx): AgentResult {
+  const { t } = ctx;
+  const st = useStore.getState();
+  const prev = st.schedule;
+  const weekly: Record<number, string | null> = { ...(prev.mode === 'weekly' ? prev.weekly : {}) };
+  const acts: Record<number, ActivityKind[]> = Object.fromEntries(Object.entries(prev.activities ?? {}).map(([k, v]) => [k, [...(v ?? [])]]));
+  const missing: string[] = [];
+  const changed = new Set<number>();
+  for (const d of a.days) {
+    if (d.routine !== undefined) {
+      const r = d.routine ? findRoutine(d.routine) : null;
+      if (d.routine && !r) { missing.push(d.routine); continue; }
+      if ((weekly[d.weekday] ?? null) !== (r?.id ?? null)) changed.add(d.weekday);
+      weekly[d.weekday] = r?.id ?? null;
+    }
+    if (d.wrestling !== null) {
+      const has = (acts[d.weekday] ?? []).includes('wrestling');
+      if (has !== d.wrestling) changed.add(d.weekday);
+      acts[d.weekday] = d.wrestling ? [...new Set([...(acts[d.weekday] ?? []), 'wrestling' as ActivityKind])] : (acts[d.weekday] ?? []).filter((k) => k !== 'wrestling');
+      if (!acts[d.weekday].length) delete acts[d.weekday];
+    }
+  }
+  if (missing.length && !changed.size) return { id: uid('r'), kind: 'miss', title: t('Couldn’t find that routine'), lines: missing.map((n) => ({ text: n, sub: st.routines.map((x) => x.name).join(' · ').slice(0, 120), warn: true })) };
+  const order = st.settings.weekStart === 1 ? [1, 2, 3, 4, 5, 6, 0] : [0, 1, 2, 3, 4, 5, 6];
+  const nameOf = (id: string | null | undefined) => (id ? st.routines.find((r) => r.id === id)?.name ?? null : null);
+  const week = order.map((wd) => ({ label: t(WEEKDAYS[wd]).slice(0, 3), routine: nameOf(weekly[wd]), wrestling: (acts[wd] ?? []).includes('wrestling'), changed: changed.has(wd) }));
+  const lines: AgentResult['lines'] = order.filter((wd) => changed.has(wd)).map((wd) => ({
+    text: t(WEEKDAYS[wd]),
+    sub: [nameOf(weekly[wd]) ?? t('Rest day'), (acts[wd] ?? []).includes('wrestling') ? t(ACTIVITY_LABEL.wrestling) : ''].filter(Boolean).join(' + '),
+  }));
+  missing.forEach((n) => lines.push({ text: n, sub: t('Couldn’t find that routine'), warn: true }));
+  if (!changed.size) return { id: uid('r'), kind: 'routine', title: t('Your week is already like that'), lines: [], week };
+  const result: AgentResult = {
+    id: uid('r'), kind: 'routine', pending: true, offer: true, key: 'split',
+    title: t('Your week'), subtitle: t(changed.size === 1 ? '1 day changes' : '{n} days change', { n: changed.size }), doneSubtitle: t(changed.size === 1 ? '1 day changed' : '{n} days changed', { n: changed.size }), lines, week,
+    button: { label: t('Apply'), run: () => { useStore.getState().setSchedule({ mode: 'weekly', weekly, activities: acts }); result.undo = () => useStore.getState().patch({ schedule: prev }); } },
+  };
+  return result;
+}
+
+function doSkipDay(a: Extract<AgentAction, { type: 'skip_day' }>, ctx: AgentCtx): AgentResult {
+  const { t } = ctx;
+  const st = useStore.getState();
+  const date = a.day === 'tomorrow' ? addDays(ctx.today, 1) : resolveDay(a.day, ctx.today) ?? ctx.today;
+  const p = plannedFor(st, date, ctx.today);
+  if (!p) return { id: uid('r'), kind: 'miss', title: t('Nothing planned that day'), lines: [{ text: dayLabel(date, ctx) }] };
+  const prev = st.schedule;
+  st.skipPlanned(date);
+  return { id: uid('r'), kind: 'routine', title: t('Skipped'), lines: [{ text: st.routines.find((r) => r.id === p.routineId)?.name ?? '', sub: date === addDays(ctx.today, 1) ? t('Tomorrow') : dayLabel(date, ctx) }], undo: () => useStore.getState().patch({ schedule: prev }) };
 }
 
 /** "That's a seated leg curl": the catalog exercise as a card, with its how-to and a way to add it to today's workout. */
@@ -942,20 +1645,114 @@ function doShowExercise(a: Extract<AgentAction, { type: 'show_exercise' }>, ctx:
 }
 
 /** "What should I eat?": each option is a card that waits for one tap to log it (then it says what was logged, with Undo). */
-function doSuggest(a: Extract<AgentAction, { type: 'suggest_food' }>, ctx: AgentCtx): AgentResult[] {
+/**
+ * A recipe the Coach thought of ("a protein mug cake", "low-calorie lasagne"): the app matches every ingredient to a real
+ * food and works out the macros itself — the model's own numbers are never used. An ingredient it can't match, or one with
+ * no amount, is flagged and left out of the numbers (said in the card). A preview: Save recipe keeps it (Undo), Log a portion
+ * logs one serving now, and Shopping list copies the ingredients.
+ */
+async function doProposeRecipe(a: Extract<AgentAction, { type: 'propose_recipe' }>, ctx: AgentCtx): Promise<AgentResult> {
   const { t, lang } = ctx;
-  return a.options.map((o) => {
-    const tot = o.totals;
+  const st = useStore.getState();
+  const pool = foodPool(st.foods, st.recipes);
+  const fav = new Set(st.favourites);
+  const rows = resolveRows(a.foods.map(foodRow), pool, st.choices, (f) => (fav.has(f.id) ? 0.05 : 0));
+  const ingredients: RecipeIngredient[] = [];
+  const lines: AgentResult['lines'] = [];
+  const found: Food[] = [];
+  let missed = 0;
+  // every ingredient looked up at once (one at a time, a cake with six online lookups could take most of a minute)
+  const hits = await Promise.all(rows.map((r) => findFood(r, st.settings.foodLookup).catch(() => ({} as { food?: Food; online?: Food }))));
+  for (const [ri, r] of rows.entries()) {
+    const { food, online } = hits[ri];
+    const q = food ? rowQuantity(r, food) : null;
+    const snap = food ? snapshotOf(food) : null;
+    const b = snap && q?.qty ? toBase(snap, q.qty) : null;
+    if (!food || !snap || !q?.qty || !b?.ok) {
+      missed++;
+      lines.push({ text: r.raw, sub: !food ? t('Not found — left out') : t('No amount — left out'), warn: true });
+      continue;
+    }
+    if (online) found.push(online);
+    ingredients.push({ id: uid('i'), snap, qty: q.qty, base: b.base });
+    const kcal = scale(snap.per100, b.base).kcal;
+    const amt = q.qty.unit === 'portion' ? `${fmtNum(q.qty.amount, lang, 1)} × ${snap.portions.find((p) => p.id === q.qty!.portionId)?.label.replace(/^1\s+/, '') ?? t('serving')}` : `${fmtNum(q.qty.amount, lang, 0)} ${q.qty.unit}`;
+    lines.push({ text: lang === 'da' && food.nameDa ? food.nameDa : food.name, sub: `${amt}${kcal !== undefined ? ` · ${Math.round(kcal)} kcal` : ''}` });
+  }
+  if (!ingredients.length) return { id: uid('r'), kind: 'miss', title: t('Couldn’t work that recipe out'), lines };
+  const now = Date.now();
+  const recipe: Recipe & { steps?: string[] } = { id: uid('rc'), name: a.name, ingredients, servings: a.servings, createdAt: now, updatedAt: now, ...(a.steps.length ? { steps: a.steps } : {}) };
+  const c = calcRecipe(recipe);
+  const n = (k: 'kcal' | 'protein' | 'carbs' | 'fat') => (c.perServing[k] === undefined ? '—' : `${Math.round(c.perServing[k]!)}${k === 'kcal' ? ' kcal' : ' g'}`);
+  const per = `${n('kcal')} · ${t('protein')} ${n('protein')} · ${t('carbs')} ${n('carbs')} · ${t('fat')} ${n('fat')}`;
+  const serves = a.servings === 1 ? t('1 serving') : t('{n} servings', { n: a.servings });
+  const list = () => ingredients.map((i) => `- ${i.qty.unit === 'portion' ? `${fmtNum(i.qty.amount, lang, 1)} × ${i.snap.portions.find((p) => p.id === i.qty.portionId)?.label ?? ''}` : `${fmtNum(i.qty.amount, lang, 0)} ${i.qty.unit}`} ${i.snap.name}`).join('\n');
+  const result = preview({
+    id: uid('r'), kind: 'recipe', title: a.name, key: `recipe:${fold(a.name)}`,
+    subtitle: `${serves} · ${t('per serving')} ${per}${missed ? ` · ${t('{n} left out', { n: missed })}` : ''}`,
+    doneTitle: a.name, doneSubtitle: t('Saved to your recipes'),
+    lines, steps: a.steps.length ? a.steps : undefined,
+  }, t('Save recipe'), () => {
+    const s2 = useStore.getState();
+    found.forEach((f) => s2.saveFood(f));
+    s2.upsertRecipe(recipe);
+    return () => useStore.getState().deleteRecipe(recipe.id);
+  });
+  result.more = [
+    { label: t('Log a portion'), run: () => {
+      const food = recipeToFood(recipe);
+      const s2 = useStore.getState();
+      if (!food) { useUI.getState().toast(t('This recipe needs a weight before a portion can be logged'), { tone: 'bad' }); return; }
+      const mealId = ctx.mealId && s2.settings.meals.some((m) => m.id === ctx.mealId) ? ctx.mealId : defaultMealId(s2.settings.meals);
+      const one = entryFromSnapshot(snapshotOf(food), { amount: 1, unit: 'portion', portionId: 'serving' }, ctx.date ?? ctx.today, mealId, { id: uid('e') });
+      const [e] = one ? s2.logEntries([one]) : [];
+      if (e) useUI.getState().toast(t('Logged 1 serving of {name}', { name: a.name }), { tone: 'ok', actionLabel: t('Undo'), onAction: () => useStore.getState().removeEntry(e.id) });
+    } },
+    { label: t('Shopping list'), run: () => {
+      void navigator.clipboard?.writeText(`${a.name} (${serves})\n${list()}`).then(() => useUI.getState().toast(t('Shopping list copied'), { tone: 'ok' }), () => useUI.getState().toast(t('Couldn’t copy'), { tone: 'bad' }));
+    } },
+  ];
+  return result;
+}
+
+/** What an option adds up to, worked out by the app from the foods it knows (no network): null if any food is unknown. */
+async function appTotals(foods: AgentFood[]): Promise<{ kcal?: number; protein?: number } | null> {
+  const st = useStore.getState();
+  const rows = resolveRows(foods.map(foodRow), foodPool(st.foods, st.recipes), st.choices, () => 0);
+  let kcal = 0, protein = 0, kOk = true, pOk = true;
+  for (const r of rows) {
+    const { food } = await findFood(r, false);
+    const q = food ? rowQuantity(r, food) : null;
+    const snap = food ? snapshotOf(food) : null;
+    const b = snap && q?.qty ? toBase(snap, q.qty) : null;
+    if (!snap || !b?.ok) return null;
+    const n = scale(snap.per100, b.base);
+    if (n.kcal === undefined) kOk = false; else kcal += n.kcal;
+    if (n.protein === undefined) pOk = false; else protein += n.protein;
+  }
+  return { ...(kOk ? { kcal } : {}), ...(pOk ? { protein } : {}) };
+}
+
+async function doSuggest(a: Extract<AgentAction, { type: 'suggest_food' }>, ctx: AgentCtx): Promise<AgentResult[]> {
+  const { t, lang } = ctx;
+  // the totals are the app's own, from the foods it knows; the model's guess is never shown (unknown → no number)
+  const totals = await Promise.all(a.options.map((o) => appTotals(o.foods).catch(() => null)));
+  return a.options.map((o, oi) => {
+    const tot = totals[oi];
     const about = tot && (tot.kcal !== undefined || tot.protein !== undefined) ? [tot.kcal !== undefined ? `${Math.round(tot.kcal)} kcal` : '', tot.protein !== undefined ? `${Math.round(tot.protein)} g ${t('protein')}` : ''].filter(Boolean).join(' · ') : '';
     const amount = (f: AgentFood) => !f.amount ? undefined : f.unit === 'piece' || !f.unit ? `${fmtNum(f.amount, lang, 1)} ${f.amount === 1 ? t('piece') : t('pieces')}` : `${fmtNum(f.amount, lang, 1)} ${f.unit}`;
     return {
-      id: uid('r'), kind: 'food' as const, title: o.label, pending: true, offer: true, subtitle: about ? `≈ ${about}` : undefined,
+      id: uid('r'), kind: 'food' as const, title: o.label, pending: true, offer: true, subtitle: about || undefined,
       lines: o.foods.map((f) => ({ text: f.name, sub: amount(f) })),
       button: {
         label: t('Log this'),
         run: () => {
-          void doLogFood({ type: 'log_food', foods: o.foods, meal: a.meal ?? null, day: null }, ctx).then((r) => {
-            useUI.getState().toast(r.title, { tone: r.kind === 'miss' ? 'bad' : 'ok', actionLabel: r.undo ? t('Undo') : undefined, onAction: r.undo });
+          void doLogFood({ type: 'log_food', foods: o.foods, meal: a.meal ?? null, day: null }, ctx).then((rs) => {
+            // (a suggestion names its foods already: an unclear one takes the closest, without remembering it as a choice)
+            rs.forEach((r) => { if (r.choose?.length) { const prev = useStore.getState().choices; r.choose[0].run(); useStore.setState({ choices: prev }); } });
+            const undos = rs.map((r) => r.undo).filter((u): u is () => void => !!u);
+            const miss = rs.find((r) => r.kind === 'miss');
+            useUI.getState().toast(miss && !undos.length ? miss.title : t('Logged'), { tone: miss && !undos.length ? 'bad' : 'ok', actionLabel: undos.length ? t('Undo') : undefined, onAction: undos.length ? () => undos.forEach((u) => u()) : undefined });
           });
         },
       },
@@ -963,16 +1760,18 @@ function doSuggest(a: Extract<AgentAction, { type: 'suggest_food' }>, ctx: Agent
   });
 }
 
-function doLogSets(a: Extract<AgentAction, { type: 'log_sets' }>, ctx: AgentCtx): AgentResult {
+function doLogSets(a: Extract<AgentAction, { type: 'log_sets' }>, ctx: AgentCtx, again = false): AgentResult {
   const { t, lang } = ctx;
   const st = useStore.getState();
   const pool = allExercises(st.exercises);
   const usage = new Map<string, number>();
   for (const ses of st.sessions) for (const e of ses.exercises) usage.set(e.exerciseId, (usage.get(e.exerciseId) ?? 0) + 1);
   const w = st.settings.units.weight;
+  const date = resolveDay(a.day, ctx.today) ?? ctx.today;
+  // sets for another day, or with no workout running (told after the gym): a finished workout, never a live one
+  const live = !!st.active && date === ctx.today;
   const lines: AgentResult['lines'] = [];
-  const hadActive = !!st.active;
-  const added: { seId: string; filled: string[]; appended: string[]; created: boolean }[] = [];
+  const found: { ex: Exercise; sets: SetRecord[]; tied: boolean; said: string; heard: string[] }[] = [];
 
   for (const item of a.exercises) {
     const c = matchExercises(item.exercise, pool, lang, 5, (e) => Math.min(0.12, (usage.get(e.id) ?? 0) * 0.02));
@@ -980,20 +1779,72 @@ function doLogSets(a: Extract<AgentAction, { type: 'log_sets' }>, ctx: AgentCtx)
     const ok = c.length > 0 && top >= 0.6; // a tie goes to the best (most used, then shortest name); the card says what it matched
     if (!ok) { lines.push({ text: item.exercise, sub: c.length ? `${t('Which one?')} ${c.slice(0, 3).map((x) => x.ex.name).join(' · ')}` : t('Not in your exercise library'), warn: true }); continue; }
     const ex = c[0].ex;
-    if (!useStore.getState().active) useStore.getState().startWorkout({ name: '' });
-    // reuse the exercise block if it is already in the session (a second "bench" adds to the same one)
-    const existing = [...useStore.getState().active!.exercises].reverse().find((e) => e.exerciseId === ex.id);
+    // a number speech got wrong (18 for the 80 you always do) is fixed and said on the card
+    const usual = lastDoneOf(ex.id);
+    const heard: string[] = [];
+    const sets: SetRecord[] = item.sets.map((x, i) => {
+      const f = fixMisheard({ kg: x.kg ?? undefined, reps: x.reps ?? undefined }, { kg: usual?.weightKg, reps: usual?.reps });
+      const h = heardText(f.heard, f, ctx, w); if (h) heard.push(h);
+      return { id: uid('s'), type: 'working', weightKg: f.kg, reps: f.reps, durationSec: x.durationSec ?? undefined, distanceM: x.distanceKm ? x.distanceKm * 1000 : undefined, done: true, completedAt: Date.now() + i };
+    });
+    found.push({ ex, sets, tied: c.length > 1 && top - c[1].score < 0.06, said: item.exercise, heard });
+  }
+  if (!found.length) return { id: uid('r'), kind: 'miss', title: t('Couldn’t log that'), lines };
+
+  // the same sets said twice within 20 s (a repeated message): logged once
+  const recent = (live ? st.active!.exercises : st.sessions.filter((x) => x.date === date).flatMap((x) => x.exercises));
+  const isDup = !again && found.every((f) => f.sets.every((x) => recent.some((e) => e.exerciseId === f.ex.id && e.sets.some((q) => q.done && Date.now() - (q.completedAt ?? 0) < 20000 && q.weightKg === x.weightKg && q.reps === x.reps))));
+  const setText = (x: SetRecord) => `${x.weightKg ? `${fmtNum(kgToDisplay(x.weightKg, w), lang, 2)} ${w} × ` : ''}${x.reps ?? (x.durationSec ? `${x.durationSec}s` : x.distanceM ? `${x.distanceM / 1000} km` : '?')}`;
+  for (const f of found) {
+    lines.push({ text: lang === 'da' && f.ex.nameDa ? f.ex.nameDa : f.ex.name, sub: `${f.sets.map(setText).join('  ·  ')}${f.tied ? ` · ${t('best match for')} “${f.said}”` : ''}` });
+    for (const h of f.heard) lines.push({ text: h, warn: true });
+  }
+  if (isDup) return { id: uid('r'), kind: 'sets', pending: true, offer: true, title: t('Already logged'), lines, doneTitle: t('Logged'), button: { label: t('Log again'), run: () => { doLogSets(a, ctx, true); } } };
+  const nSets = found.reduce((n, f) => n + f.sets.length, 0);
+  const title = (nSets === 1 ? t('Logged 1 set') : t('Logged {n} sets', { n: nSets })) + (date !== ctx.today ? ` · ${date === addDays(ctx.today, -1) ? t('Yesterday') : date}` : '');
+
+  if (!live) {
+    // into that day's logged workout (made now if there is none): finished, with its records; today's is linked to the
+    // planned routine when its exercises are in it, so the plan counts it as done
+    const prev = useStore.getState().sessions.find((x) => x.date === date && x.logged);
+    const at = date === ctx.today ? Date.now() : new Date(`${date}T18:00:00`).getTime();
+    const planned = date === ctx.today ? plannedFor(st, date, ctx.today) : null;
+    const routine = planned ? st.routines.find((r) => r.id === planned.routineId) : undefined;
+    const linked = routine && !st.sessions.some((x) => x.date === date && x.routineId === routine.id && !x.logged) && found.some((f) => routine.items.some((it) => it.exerciseId === f.ex.id)) ? routine : undefined;
+    const base: WorkoutSession = prev ?? { id: uid('w'), name: linked?.name ?? t('Logged workout'), date, startedAt: at, endedAt: at, pausedMs: 0, status: 'done', exercises: [], logged: true, ...(linked ? { routineId: linked.id, plannedDate: date } : {}) };
+    const exs = base.exercises.map((e) => ({ ...e, sets: [...e.sets] }));
+    for (const f of found) {
+      const sets = f.sets.map((x, i) => ({ ...x, completedAt: date === ctx.today ? x.completedAt : at + i }));
+      const into = exs.find((e) => e.exerciseId === f.ex.id);
+      if (into) into.sets.push(...sets); else exs.push({ id: uid('se'), exerciseId: f.ex.id, sets });
+    }
+    const next: WorkoutSession = { ...base, exercises: exs, endedAt: Math.max(base.endedAt ?? at, date === ctx.today ? Date.now() : at) };
+    const exMap = new Map(allExercises(st.exercises).map((e) => [e.id, e]));
+    next.records = detectRecords(next, st.sessions.filter((x) => x.id !== next.id && x.date <= date), (id) => exMap.get(id));
+    const schedule = st.schedule;
+    if (prev) st.mutateSession(prev.id, () => next); else st.restoreSession(next);
+    // a rotation moves on to its next routine, as finishing it in the app does
+    if (!prev && linked && planned?.source === 'rotation') st.setSchedule({ rotation: { ...schedule.rotation, pointer: (schedule.rotation.pointer + 1) % Math.max(1, schedule.rotation.order.length) } });
+    return {
+      id: uid('r'), kind: 'sets', title, lines,
+      undo: () => { const s2 = useStore.getState(); if (prev) s2.mutateSession(prev.id, () => prev); else s2.deleteSession(next.id); if (!prev && linked && planned?.source === 'rotation') s2.setSchedule({ rotation: schedule.rotation }); },
+    };
+  }
+
+  // into the running workout: planned, unfinished sets (a routine's blanks) are filled first, the rest are appended
+  const added: { seId: string; filled: string[]; appended: string[]; created: boolean }[] = [];
+  for (const f of found) {
+    const existing = [...useStore.getState().active!.exercises].reverse().find((e) => e.exerciseId === f.ex.id);
     const created = !existing;
-    if (created) addExercises([ex.id]);
+    if (created) addExercises([f.ex.id]);
     const filled: string[] = []; const appended: string[] = [];
     let seId = '';
     useStore.getState().mutateActive((s) => {
       const exs = s.exercises.map((e) => ({ ...e }));
-      const tgt = [...exs].reverse().find((e) => e.exerciseId === ex.id);
+      const tgt = [...exs].reverse().find((e) => e.exerciseId === f.ex.id);
       if (!tgt) return s;
       seId = tgt.id;
-      const fresh: SetRecord[] = item.sets.map((x) => ({ id: uid('s'), type: 'working', weightKg: x.kg ?? undefined, reps: x.reps ?? undefined, durationSec: x.durationSec ?? undefined, distanceM: x.distanceKm ? x.distanceKm * 1000 : undefined, done: true, completedAt: Date.now() }));
-      // planned, unfinished sets (a routine's blanks) are filled first, the rest are appended
+      const fresh = [...f.sets];
       const out = tgt.sets.map((q) => {
         if (!q.done && q.type !== 'warmup' && fresh.length) { const s0 = fresh.shift()!; filled.push(q.id); return { ...s0, id: q.id, target: q.target } as SetRecord; }
         return q;
@@ -1003,16 +1854,9 @@ function doLogSets(a: Extract<AgentAction, { type: 'log_sets' }>, ctx: AgentCtx)
       return { ...s, exercises: exs };
     });
     added.push({ seId, filled, appended, created });
-    const line = item.sets.map((x) => `${x.kg ? `${fmtNum(kgToDisplay(x.kg, w), lang, 2)} ${w} × ` : ''}${x.reps ?? (x.durationSec ? `${x.durationSec}s` : x.distanceKm ? `${x.distanceKm} km` : '?')}`).join('  ·  ');
-    const tied = c.length > 1 && top - c[1].score < 0.06;
-    lines.push({ text: lang === 'da' && ex.nameDa ? ex.nameDa : ex.name, sub: `${line}${tied ? ` · ${t('best match for')} “${item.exercise}”` : ''}` });
   }
-
-  if (!added.length) return { id: uid('r'), kind: 'miss', title: t('Couldn’t log that'), lines };
-  const startedHere = !hadActive;
-  const nSets = added.reduce((n, x) => n + x.filled.length + x.appended.length, 0);
   return {
-    id: uid('r'), kind: 'sets', title: nSets === 1 ? t('Logged 1 set') : t('Logged {n} sets', { n: nSets }), lines,
+    id: uid('r'), kind: 'sets', title, lines,
     button: { label: t('Open workout'), run: () => useUI.getState().push('workout', { origin: 'none' }) },
     undo: () => {
       const s = useStore.getState();
@@ -1026,8 +1870,6 @@ function doLogSets(a: Extract<AgentAction, { type: 'log_sets' }>, ctx: AgentCtx)
           .map((e) => ({ ...e, sets: e.sets.filter((q) => !appended.has(q.id)).map((q) => (filled.has(q.id) ? { ...q, done: false, weightKg: undefined, reps: undefined, durationSec: undefined, distanceM: undefined, completedAt: undefined } : q)) }))
           .filter((e) => !(made.has(e.id) && e.sets.every((q) => !q.done))),
       }));
-      const after = useStore.getState().active;
-      if (startedHere && after && after.exercises.every((e) => e.sets.every((q) => !q.done))) useStore.getState().discardActive();
     },
   };
 }
@@ -1036,7 +1878,12 @@ function doStartWorkout(a: Extract<AgentAction, { type: 'start_workout' }>, ctx:
   const { t } = ctx;
   const st = useStore.getState();
   if (st.active) return { id: uid('r'), kind: 'workout', title: t('A workout is already running'), lines: [{ text: st.active.name || t('Workout') }], button: { label: t('Open workout'), run: () => useUI.getState().push('workout', { origin: 'none' }) } };
-  const w = a.routine ? fold(a.routine) : '';
+  // "start today's workout": whatever the plan has today
+  const askedPlan = /^(planned|today|todays?|plan|dagens|i ?dag)$/.test(fold(a.routine ?? '').replace(/\s+(workout|traening)$/, ''));
+  const today = askedPlan ? plannedFor(st, ctx.today, ctx.today) : null;
+  const w = askedPlan ? '' : a.routine ? fold(a.routine) : '';
+  if (today) { const r = st.routines.find((x) => x.id === today.routineId)!; const ses = st.startWorkout({ routine: r, plannedDate: ctx.today }); if (ses) return { id: uid('r'), kind: 'workout', title: t('Workout started'), lines: [{ text: r.name, sub: `${r.items.length} ${t('exercises')}` }], button: { label: t('Open workout'), run: () => useUI.getState().push('workout', { origin: 'none' }) }, undo: () => { const s2 = useStore.getState(); if (s2.active && s2.active.id === ses.id && s2.active.exercises.every((e) => e.sets.every((q) => !q.done))) s2.discardActive(); } }; }
+  if (askedPlan && !today) return { id: uid('r'), kind: 'miss', title: t('Nothing planned today'), lines: [] };
   const routine = w ? st.routines.find((r) => fold(r.name) === w) ?? st.routines.find((r) => fold(r.name).includes(w) || w.includes(fold(r.name))) : undefined;
   if (a.routine && !routine) return { id: uid('r'), kind: 'miss', title: t('Couldn’t start that'), lines: [{ text: a.routine, sub: `${t('No routine with that name')} · ${st.routines.map((r) => r.name).join(' · ')}`.slice(0, 160), warn: true }] };
   const ses = st.startWorkout(routine ? { routine } : { name: '' });
@@ -1056,6 +1903,25 @@ function doFinishWorkout(ctx: AgentCtx): AgentResult {
   return {
     id: uid('r'), kind: 'workout', pending: true, title: t('Finish this workout?'), lines: [{ text: st.active.name || t('Workout'), sub: t(done === 1 ? '1 set done' : '{n} sets done', { n: done }) }],
     button: { label: t('Finish and save'), run: () => { const r = useStore.getState().finishActive(); if (r) { useUI.getState().push('summary', { sessionId: r.id }); } } },
+  };
+}
+
+/** "Quick entry 100 calories": just the numbers, in the meal said (or the one for this time of day), with Undo. */
+function doQuick(a: Extract<AgentAction, { type: 'log_quick' }>, ctx: AgentCtx): AgentResult {
+  const { t, lang } = ctx;
+  const st = useStore.getState();
+  const date = resolveDay(a.day, ctx.today) ?? ctx.date ?? ctx.today;
+  const mealId = resolveMeal(a.meal, st.settings.meals, lang) ?? (ctx.mealId && st.settings.meals.some((m) => m.id === ctx.mealId) ? ctx.mealId : defaultMealId(st.settings.meals, new Date(), st.settings.dayStartHour));
+  const meal = st.settings.meals.find((m) => m.id === mealId);
+  const q = quickEntry(a.name || t('Quick entry'), a.totals, date, mealId);
+  const e = st.logEntries([q])[0] ?? q;
+  const n = e.nutrients;
+  const sub = [n.kcal !== undefined ? `${Math.round(n.kcal)} kcal` : '', ...(['protein', 'carbs', 'fat'] as const).filter((k) => n[k] !== undefined).map((k) => `${fmtNum(n[k]!, lang, 0)} g ${t(k)}`)].filter(Boolean).join(' · ');
+  return {
+    id: uid('r'), kind: 'food',
+    title: t('Logged to {meal}', { meal: meal ? mealName(meal, lang) : t('Today') }) + (date !== ctx.today ? ` · ${date === addDays(ctx.today, -1) ? t('Yesterday') : date}` : ''),
+    lines: [{ text: a.name || t('Quick entry'), sub, ref: e.id }],
+    undo: () => useStore.getState().removeEntry(e.id),
   };
 }
 
@@ -1090,39 +1956,29 @@ function doNavigate(a: Extract<AgentAction, { type: 'navigate' }>, ctx: AgentCtx
   return { id: uid('r'), kind: 'nav', title: t('Opening {screen}', { screen: names[a.screen] }), lines: [] };
 }
 
-// settings the Coach may change: all reversible, all with Undo
-const BOOL = (v: string) => (/^(on|true|yes|1|enable|enabled|til|ja)$/i.test(v) ? true : /^(off|false|no|0|disable|disabled|fra|nej)$/i.test(v) ? false : undefined);
-function settingPatch(key: SettingKey, value: string, cur: Settings): { patch: Partial<Settings>; label: string; show: string } | null {
-  const v = value.toLowerCase();
-  const n = Number(value.replace(',', '.'));
-  switch (key) {
-    case 'theme': return ['light', 'dark', 'system'].includes(v) ? { patch: { theme: v as Settings['theme'] }, label: 'Theme', show: v } : null;
-    case 'language': return v === 'da' || v === 'en' ? { patch: { language: v as Settings['language'] }, label: 'Language', show: v === 'da' ? 'Dansk' : 'English' } : null;
-    case 'weightUnit': return v === 'kg' || v === 'lb' ? { patch: { units: { ...cur.units, weight: v } }, label: 'Weight unit', show: v } : null;
-    case 'distanceUnit': return v === 'km' || v === 'mi' ? { patch: { units: { ...cur.units, distance: v } }, label: 'Distance unit', show: v } : null;
-    case 'motion': return ['system', 'reduce', 'full'].includes(v) ? { patch: { motion: v as Settings['motion'] }, label: 'Motion', show: v } : null;
-    case 'sound': { const b = BOOL(v); return b === undefined ? null : { patch: { sound: b }, label: 'Sound', show: b ? 'on' : 'off' }; }
-    case 'haptics': { const b = BOOL(v); return b === undefined ? null : { patch: { haptics: b }, label: 'Haptics', show: b ? 'on' : 'off' }; }
-    case 'foodLookup': { const b = BOOL(v); return b === undefined ? null : { patch: { foodLookup: b }, label: 'Online food lookup', show: b ? 'on' : 'off' }; }
-    case 'restSeconds': return Number.isFinite(n) && n >= 15 && n <= 600 ? { patch: { restDefaultSec: Math.round(n) }, label: 'Default rest', show: `${Math.round(n)} s` } : null;
-    case 'kcalGoal': return Number.isFinite(n) && n >= 800 && n <= 8000 ? { patch: { goals: { ...cur.goals, kcal: Math.round(n) } }, label: 'Calorie target', show: `${Math.round(n)} kcal` } : null;
-    case 'proteinGoal': return Number.isFinite(n) && n >= 10 && n <= 500 ? { patch: { goals: { ...cur.goals, protein: Math.round(n) } }, label: 'Protein target', show: `${Math.round(n)} g` } : null;
-    case 'carbsGoal': return Number.isFinite(n) && n >= 10 && n <= 1000 ? { patch: { goals: { ...cur.goals, carbs: Math.round(n) } }, label: 'Carb target', show: `${Math.round(n)} g` } : null;
-    case 'fatGoal': return Number.isFinite(n) && n >= 10 && n <= 500 ? { patch: { goals: { ...cur.goals, fat: Math.round(n) } }, label: 'Fat target', show: `${Math.round(n)} g` } : null;
-    case 'waterGoal': return Number.isFinite(n) && n >= 500 && n <= 10000 ? { patch: { goals: { ...cur.goals, waterMl: Math.round(n) } }, label: 'Water target', show: `${Math.round(n)} ml` } : null;
-    case 'weekStart': return v === 'monday' || v === 'sunday' ? { patch: { weekStart: v === 'monday' ? 1 : 0 }, label: 'Week starts on', show: v } : null;
-    case 'effort': return ['off', 'rpe', 'rir'].includes(v) ? { patch: { effort: v as Settings['effort'] }, label: 'Effort scale', show: v } : null;
-  }
-}
-
+/** Settings (one or several at once): each checked against SETTING_SPEC; the card shows every change and undoes them together. */
 function doSetting(a: Extract<AgentAction, { type: 'set_setting' }>, ctx: AgentCtx): AgentResult {
   const st = useStore.getState();
-  const r = settingPatch(a.key, a.value, st.settings);
-  if (!r) return { id: uid('r'), kind: 'miss', title: ctx.t('Couldn’t change that setting'), lines: [{ text: `${a.key} = ${a.value}`, warn: true }] };
+  const pairs = a.pairs ?? (a.key && a.value !== undefined ? [{ key: a.key, value: a.value }] : []);
+  let cur = st.settings;
+  const lines: AgentResult['lines'] = []; const bad: string[] = [];
+  const patch: Partial<Settings> = {};
+  for (const p of pairs) {
+    const spec = specOf(p.key); const r = spec?.parse(p.value, cur);
+    if (!spec || !r) { bad.push(`${p.key} = ${p.value}`); continue; }
+    Object.assign(patch, r.patch); cur = { ...cur, ...r.patch };
+    lines.push({ text: ctx.t(spec.label), sub: r.show });
+  }
+  if (!lines.length) return { id: uid('r'), kind: 'miss', title: ctx.t('Couldn’t change that setting'), lines: bad.map((b) => ({ text: b, warn: true })) };
   const prev: Partial<Settings> = {};
-  for (const k of Object.keys(r.patch) as (keyof Settings)[]) (prev as any)[k] = (st.settings as any)[k];
-  st.updateSettings(r.patch);
-  return { id: uid('r'), kind: 'setting', title: ctx.t('Setting changed'), lines: [{ text: ctx.t(r.label), sub: r.show }], undo: () => useStore.getState().updateSettings(prev) };
+  for (const k of Object.keys(patch) as (keyof Settings)[]) (prev as any)[k] = (st.settings as any)[k];
+  st.updateSettings(patch);
+  return {
+    id: uid('r'), kind: 'setting', title: lines.length > 1 ? ctx.t('Settings changed') : ctx.t('Setting changed'),
+    lines: [...lines, ...bad.map((b) => ({ text: b, sub: ctx.t('not changed'), warn: true }))],
+    // (changed back: the Coach learns which settings to leave alone, lib/ledger.ts)
+    undo: () => { useStore.getState().updateSettings(prev); pairs.filter((p) => specOf(p.key)).forEach((p) => noteEvent({ k: 'setting', key: p.key })); },
+  };
 }
 
 /** Carry out what the model asked for, in order. Each result is one card in the chat. */
@@ -1132,9 +1988,10 @@ export async function runActions(actions: AgentAction[], ctxIn: AgentCtx): Promi
   for (const a of actions) {
     try {
       switch (a.type) {
-        case 'log_food': out.push(await doLogFood(a, ctx)); break;
+        case 'log_food': out.push(...await doLogFood(a, ctx)); break;
         case 'log_sets': out.push(doLogSets(a, ctx)); break;
         case 'log_water': out.push(doWater(a, ctx)); break;
+        case 'log_quick': out.push(doQuick(a, ctx)); break;
         case 'log_weight': out.push(doWeight(a, ctx)); break;
         case 'log_activity': out.push(doActivity(a, ctx)); break;
         case 'start_workout': out.push(doStartWorkout(a, ctx)); break;
@@ -1155,6 +2012,8 @@ export async function runActions(actions: AgentAction[], ctxIn: AgentCtx): Promi
         case 'create_routine': out.push(doCreateRoutine(a, ctx)); break;
         case 'edit_routine': out.push(doEditRoutine(a, ctx)); break;
         case 'delete_routine': out.push(doDeleteRoutine(a, ctx)); break;
+        case 'duplicate_routine': out.push(doDuplicateRoutine(a, ctx)); break;
+        case 'show_chart': out.push(doShowChart(a, ctx)); break;
         case 'delete_workout': out.push(doDeleteWorkout(a, ctx)); break;
         case 'discard_workout': out.push(doDiscardWorkout(ctx)); break;
         case 'set_schedule': out.push(doSchedule(a, ctx)); break;
@@ -1167,7 +2026,20 @@ export async function runActions(actions: AgentAction[], ctxIn: AgentCtx): Promi
         case 'remember': out.push(doRemember(a, ctx)); break;
         case 'forget': out.push(doForget(a, ctx)); break;
         case 'show_exercise': out.push(doShowExercise(a, ctx)); break;
-        case 'suggest_food': out.push(...doSuggest(a, ctx)); break;
+        case 'propose_recipe': out.push(await doProposeRecipe(a, ctx)); break;
+        case 'suggest_food': out.push(...(await doSuggest(a, ctx))); break;
+        case 'plan_day': out.push(doPlanDay(a, ctx)); break;
+        case 'edit_meals': out.push(doEditMeals(a, ctx)); break;
+        case 'log_saved_meal': out.push(doLogSavedMeal(a, ctx)); break;
+        case 'delete_water': out.push(doDeleteWater(a, ctx)); break;
+        case 'create_exercise': out.push(doCreateExercise(a, ctx)); break;
+        case 'archive_exercise': out.push(doArchiveExercise(a, ctx)); break;
+        case 'set_increment': out.push(doSetIncrement(a, ctx)); break;
+        case 'log_measurement': out.push(doMeasurement(a, ctx)); break;
+        case 'delete_measurement': out.push(doDeleteMeasurement(a, ctx)); break;
+        case 'workout_control': out.push(doWorkoutControl(a, ctx)); break;
+        case 'set_split': out.push(doSetSplit(a, ctx)); break;
+        case 'skip_day': out.push(doSkipDay(a, ctx)); break;
         case 'undo_last': break; // handled by the Coach (it knows its own cards)
       }
     } catch {
@@ -1190,6 +2062,20 @@ export function localActions(text: string): AgentAction[] | null {
     const ml = a * ({ ml: 1, cl: 10, dl: 100, l: 1000, liter: 1000, litre: 1000 } as Record<string, number>)[unit];
     if (Number.isFinite(ml) && ml > 0) return [{ type: 'log_water', ml: Math.round(ml) }];
   }
+  // "quick entry 100 calories", "300 kcal 20 g protein", "500 kalorier pizza til aftensmad"
+  const kcal = raw.match(/(\d+(?:[.,]\d+)?)\s*(?:kcal|kalorier|calories|calorie|cals?|kal)\b/i);
+  if (kcal) {
+    const n = (re: RegExp) => { const m = raw.match(re); return m ? Number(m[1].replace(',', '.')) : undefined; };
+    const totals: NutriFix = { kcal: Number(kcal[1].replace(',', '.')) };
+    const p = n(/(\d+(?:[.,]\d+)?)\s*g?\s*(?:protein)\b/i), c = n(/(\d+(?:[.,]\d+)?)\s*g?\s*(?:carbs?|kulhydrat(?:er)?)\b/i), f = n(/(\d+(?:[.,]\d+)?)\s*g?\s*(?:fat|fedt)\b/i);
+    if (p !== undefined) totals.protein = p; if (c !== undefined) totals.carbs = c; if (f !== undefined) totals.fat = f;
+    const mealWord = raw.match(/\b(breakfast|lunch|dinner|supper|snacks?|morgenmad|frokost|aftensmad|mellemm(?:a|å)ltid)\b/i)?.[1] ?? null;
+    // whatever is left once the numbers and filler words are gone is its name ("pizza")
+    const name = raw.replace(kcal[0], ' ').replace(/(\d+(?:[.,]\d+)?)\s*g?\s*(?:protein|carbs?|kulhydrat(?:er)?|fat|fedt)\b/gi, ' ')
+      .replace(/\b(?:quick\s*(?:entry|add)|hurtig\s*(?:post|tilføjelse)|log|add|tilføj|please|i\s+had|ate|spiste|for|til|to|and|og|with|med|of|af|breakfast|lunch|dinner|supper|snacks?|morgenmad|frokost|aftensmad|mellemm(?:a|å)ltid)\b/gi, ' ')
+      .replace(/[,.:;]+/g, ' ').replace(/\s+/g, ' ').trim();
+    if (totals.kcal! > 0 && totals.kcal! <= 10000) return [{ type: 'log_quick', totals, name: name.length > 1 && name.length <= 40 ? name : null, meal: mealWord, day: null }];
+  }
   const weight = raw.match(/\b(?:i weigh|weigh(?:ed)?|weight|vejer|vægt|vaegt)\b\D{0,14}(\d{2,3}(?:[.,]\d+)?)\s*(?:kg|kilo)?/i);
   if (weight) { const kg = Number(weight[1].replace(',', '.')); if (kg >= 25 && kg <= 400) return [{ type: 'log_weight', kg }]; }
   const wr = parseWorkoutText(raw).filter((r) => r.sets.some((s) => s.reps || s.weightKg || s.durationSec || s.distanceM));
@@ -1197,7 +2083,7 @@ export function localActions(text: string): AgentAction[] | null {
   const stripped = raw.replace(/^\s*(?:please\s+)?(?:log|add|i\s+(?:ate|had|drank)|ate|had|spiste|jeg\s+(?:spiste|drak|har\s+spist)|logge?)\s+/i, '');
   if (stripped !== raw || /^\d/.test(raw)) {
     const rows = parseFoodText(stripped);
-    if (rows.length) return [{ type: 'log_food', foods: rows.map((r) => ({ name: r.query, amount: r.amount ?? null, unit: r.dim === 'count' ? (r.countWord ?? 'piece') : r.dim })), meal: null, day: 'today' }];
+    if (rows.length) return [{ type: 'log_food', foods: rows.map((r) => ({ name: r.query, amount: r.amount ?? null, unit: r.dim === 'count' ? (r.countWord ?? 'piece') : r.dim })), meal: null, day: null }];
   }
   return null;
 }

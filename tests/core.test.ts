@@ -134,8 +134,15 @@ describe('dictation: food', () => {
   it('count → estimated portion; volume without density asks for grams', () => {
     const b = rowQuantity(parseFoodText('one banana')[0], banana);
     expect(b.qty).toEqual({ amount: 1, unit: 'portion', portionId: 'p0' }); expect(b.estimated).toBe(true);
+    // a volume on a food weighed in grams: its own dl portion…
     const s = rowQuantity(parseFoodText('2 dl skyr')[0], skyr);
-    expect(s.problem).toBe('needsGrams');
+    expect(s.qty).toEqual({ amount: 2, unit: 'portion', portionId: skyr.portions.find((p) => p.label.startsWith('1 dl'))!.id });
+    // …else how heavy it is per ml (skyr ≈ 1.03 g/ml), flagged as an estimate
+    const s2 = rowQuantity(parseFoodText('2 dl skyr')[0], { ...skyr, portions: [] });
+    expect(s2.qty).toEqual({ amount: 206, unit: 'g' }); expect(s2.estimated).toBe(true);
+    // …and a food nobody knows the weight of per ml asks for grams
+    const m = rowQuantity(parseFoodText('2 dl skyr')[0], { ...skyr, name: 'Mystery spread', portions: [] });
+    expect(m.problem).toBe('needsGrams');
   });
   it('decimal commas and Danish', () => {
     const rows = parseFoodText('1,5 dl mælk og 2 skiver rugbrød');

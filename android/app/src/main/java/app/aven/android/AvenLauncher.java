@@ -4,8 +4,11 @@ import android.Manifest;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 
 import com.google.androidbrowserhelper.trusted.LauncherActivity;
 
@@ -19,8 +22,14 @@ public class AvenLauncher extends LauncherActivity {
     private static final int ASK = 7;
     private static final String ASKED = "askedNotifications";
     private static final long ZOOM_AT_MOST = 800; // ms; in case Android never says the opening zoom has finished
-    private boolean zoomed, opening, started, left, finishLater;
+    /** Opened by HealthActivity with the watch's numbers already in the address: open it as it is. */
+    static final String FRESH = "aven.fresh";
+    /** How long a fresh read of the watch may take before the page opens with the last numbers instead (the opening zoom
+     *  is about this long, so the wait is never seen). */
+    private static final long READ_AT_MOST = 650;
+    private boolean zoomed, opening, started, left, finishLater, launching;
     private Runnable held;
+    private String watch; // the watch's numbers for the page (#hc=…), when Health Connect is on
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -31,19 +40,50 @@ public class AvenLauncher extends LauncherActivity {
 
     @Override
     protected boolean shouldLaunchImmediately() {
-        if (Build.VERSION.SDK_INT < 33) return true;
-        if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) return true;
-        SharedPreferences p = getSharedPreferences("aven_launch", MODE_PRIVATE);
-        if (p.getBoolean(ASKED, false)) return true;
-        p.edit().putBoolean(ASKED, true).apply();
-        requestPermissions(new String[] {Manifest.permission.POST_NOTIFICATIONS}, ASK);
-        return false;
+        if (needsNotificationsAsk()) {
+            getSharedPreferences("aven_launch", MODE_PRIVATE).edit().putBoolean(ASKED, true).apply();
+            requestPermissions(new String[] {Manifest.permission.POST_NOTIFICATIONS}, ASK);
+            return false;
+        }
+        return !readWatchThenLaunch();
+    }
+
+    private boolean needsNotificationsAsk() {
+        if (Build.VERSION.SDK_INT < 33) return false;
+        if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) return false;
+        return !getSharedPreferences("aven_launch", MODE_PRIVATE).getBoolean(ASKED, false);
+    }
+
+    /**
+     * The watch connected (Settings → Watch in Aven): its newest steps and workouts go into the page's address, read while
+     * the opening zoom plays. If Health Connect is slow, the last numbers read go instead (the page keeps what it has).
+     * Returns false when there is nothing to read (open at once, as before).
+     */
+    private boolean readWatchThenLaunch() {
+        if (getIntent().getBooleanExtra(FRESH, false) || !HealthSync.on(this)) return false;
+        Handler main = new Handler(Looper.getMainLooper());
+        main.postDelayed(() -> launchWith(HealthSync.lastPayload(this)), READ_AT_MOST);
+        HealthSync.read(this, payload -> main.post(() -> launchWith(payload != null ? payload : HealthSync.lastPayload(this))));
+        return true;
+    }
+
+    private void launchWith(String payload) {
+        if (launching) return;
+        launching = true;
+        watch = payload;
+        launchTwa();
+    }
+
+    @Override
+    protected Uri getLaunchingUrl() {
+        Uri url = super.getLaunchingUrl();
+        return watch == null ? url : url.buildUpon().fragment("hc=" + watch).build();
     }
 
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == ASK) launchTwa();
+        if (requestCode == ASK && !readWatchThenLaunch()) launchTwa();
     }
 
     @Override

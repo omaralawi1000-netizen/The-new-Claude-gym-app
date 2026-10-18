@@ -497,6 +497,7 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
   background: var(--s3); color: var(--tx); box-shadow: inset 0 1px 0 var(--hl), inset 0 0 0 1px var(--line);
   -webkit-backdrop-filter: blur(16px) saturate(1.5); backdrop-filter: blur(16px) saturate(1.5);
 }
+.btn > svg { flex: none; } /* (a long label squeezed its icon to a 3 px sliver) */
 .btn.primary {
   background: linear-gradient(180deg, color-mix(in srgb, var(--ac) 78%, #fff) 0%, var(--ac) 100%); color: var(--ac-ink);
   box-shadow: inset 0 1px 0 rgba(255,255,255,.55), inset 0 -1px 0 rgba(0,0,0,.14), 0 14px 34px -10px color-mix(in srgb, var(--ac) 75%, transparent), 0 0 0 1px color-mix(in srgb, var(--ac) 60%, transparent);
@@ -1147,8 +1148,122 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 @keyframes icPop { from { transform: scale(0.2) rotate(-40deg); opacity: 0; } }
 .action-line { animation: lineIn 560ms var(--ease-out) backwards; }
 @keyframes lineIn { from { opacity: 0; transform: translateX(-10px); } }
-.action-card.undone { opacity: 0.5; }
-.action-card.undone .action-line span { text-decoration: line-through; }
+.action-card.undone { opacity: 0.55; }
+.action-card.undone .action-ic { color: var(--tx3); }
+/* (Undo: the strike is drawn, below; a card restored already undone simply shows it) */
+.action-card .ac-text { position: relative; display: inline-block; max-width: 100%; }
+.action-line.stack .ac-text { align-self: flex-start; } /* (as wide as its words: the strike ends where they do) */
+.action-card.undone .action-line .ac-text::after { content: ''; position: absolute; left: 0; right: 0; top: 52%; height: 1.5px; border-radius: 1px; background: currentColor; opacity: 0.7; transform-origin: 0 50%; }
+
+/* ── Coach cards, phase 2 (Coach 2.0): they settle out of the answer, a preview waits with one slow light across its glass,
+   Apply seals it, Undo is drawn. Transform and opacity only; every entrance ends on the card exactly as it rests (no `to`
+   keyframe), so the last moving frame and the first still one are the same picture. Restored cards stay still. ── */
+/* (a rise only, on the smooth curve: a spring's last overshoot or a scale left the text a sub-pixel off where it rests, and
+   the card visibly settled when the animation ended — 38/255 against the still card; this lands within 4/255 on one pixel) */
+.coach-body .action-card.fresh { animation: acSettle 780ms var(--ease-smooth) both; }
+@keyframes acSettle { from { opacity: 0; transform: translate3d(0, 12px, 0); } }
+/* the glass forms first, then what it says */
+.coach-body .action-card.fresh .ac-body, .coach-body .action-card.fresh .action-ic { animation: acContent 560ms var(--ease-smooth) 60ms both; }
+@keyframes acContent { from { opacity: 0; transform: translate3d(0, 4px, 0); } }
+.coach-body .action-card.fresh .action-line { animation: acLine 520ms var(--ease-smooth) both; animation-delay: calc(190ms + var(--i, 0) * 55ms); }
+@keyframes acLine { from { opacity: 0; transform: translate3d(0, 4px, 0); } }
+/* the icon's halo: one soft ring opening out as the card arrives (and again on Apply) */
+.action-card .action-ic { position: relative; }
+.action-card .action-ic::after { content: ''; position: absolute; inset: 0; border-radius: 50%; box-shadow: 0 0 0 1.5px currentColor; opacity: 0; pointer-events: none; }
+.coach-body .action-card.fresh .action-ic::after { animation: acHalo 700ms var(--ease-out) 240ms both; }
+@keyframes acHalo { 0% { opacity: 0; transform: scale(0.95); } 15% { opacity: 0.35; } 100% { opacity: 0; transform: scale(1.35); } } /* (at 1.8 it ran past the card's edge and under the title) */
+/* (the same ring again on Apply needs a keyframe of its own name: one the icon already ran does not replay) */
+@keyframes acHalo2 { 0% { opacity: 0; transform: scale(0.95); } 15% { opacity: 0.35; } 100% { opacity: 0; transform: scale(1.35); } }
+/* a preview waiting for its tap: one slow sheen passes across the glass, once */
+.ac-sheen { position: absolute; inset: 0; border-radius: inherit; overflow: hidden; pointer-events: none; z-index: 0; }
+.ac-sheen i { position: absolute; top: -20%; bottom: -20%; left: 0; width: 46%; background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.07) 45%, rgba(255, 255, 255, 0.11) 50%, rgba(255, 255, 255, 0.07) 55%, transparent); transform: translate3d(-120%, 0, 0) skewX(-12deg); animation: acSheen 1700ms var(--ease-io) 720ms both; }
+:root[data-theme='light'] .ac-sheen i { background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.45) 45%, rgba(255, 255, 255, 0.7) 50%, rgba(255, 255, 255, 0.45) 55%, transparent); }
+@keyframes acSheen { from { transform: translate3d(-120%, 0, 0) skewX(-12deg); } to { transform: translate3d(330%, 0, 0) skewX(-12deg); } }
+.action-card > .row-flex { position: relative; z-index: 1; }
+/* Apply: the icon settles into its done mark on a soft spring with its halo, the lines ripple once, the Undo row rises
+   where the Apply button was, and the title rolls to "Done" */
+.action-card.sealing .action-ic svg { animation: acSeal 620ms var(--ease-smooth) both; } /* (a spring's last overshoot left the icon a hair off its rest: 39/255) */
+/* (a pulse from rest: the icon never dips the instant it is tapped) */
+@keyframes acSeal { 0%, 100% { opacity: 1; transform: none; } 35% { opacity: 0.6; transform: scale(0.86); } }
+.coach-body .action-card.sealing.sealing .action-ic::after, .action-card.sealing.sealing .action-ic::after { animation: acHalo2 700ms var(--ease-out) 60ms both; }
+.coach-body .action-card.sealing.sealing .action-line, .action-card.sealing.sealing .action-line { animation: acRipple 520ms var(--ease-smooth) both; animation-delay: calc(80ms + var(--i, 0) * 40ms); }
+/* (a pulse that starts and ends at rest: no line ever jumps on the tap) */
+@keyframes acRipple { 0%, 100% { opacity: 1; transform: none; } 38% { opacity: 0.85; transform: translate3d(0, -1.5px, 0); } }
+.action-card .ac-actions { animation: acActions 460ms var(--ease-smooth) both; }
+.coach-body .action-card.fresh .ac-actions:not(.ac-in-late):not(.ac-out) { animation-delay: calc(190ms + var(--n, 0) * 55ms); } /* (after the last line) */
+/* the buttons live in one cell: on Apply the Apply row leaves in place while Undo fades in over it; undone or replaced, the
+   row fades but keeps its room, so the card never changes height in one frame */
+.ac-actions-cell { display: grid; margin-top: 10px; }
+/* "Which one?": soft filled rows (no outline: not a search field; no accent: not the main button), the food first and its
+   kcal a step quieter */
+/* a button answering the card's amber line ("Use 18 kg"): the same soft amber, quieter than the main button */
+.action-card .ac-warn-chip { background: color-mix(in srgb, var(--warn) 14%, transparent); color: var(--warn); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warn) 22%, transparent); }
+.ac-choices { display: flex; flex-direction: column; gap: 6px; padding-top: 10px; }
+.ac-choice { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 44px; padding: 8px 14px; border-radius: var(--r-sm); background: var(--s2); color: var(--tx); text-align: left; font-size: 14px; font-weight: 500; }
+.ac-choice-t { min-width: 0; overflow-wrap: anywhere; }
+.ac-choice-k { flex: none; color: var(--tx3); font-weight: 400; font-size: 13px; font-variant-numeric: tabular-nums; }
+.collapse.ac-choose-wrap { transition: grid-template-rows 520ms cubic-bezier(.45, 0, .2, 1), opacity 300ms cubic-bezier(.4, 0, .2, 1); }
+.ac-actions-cell > * { grid-area: 1 / 1; }
+.ac-actions-cell.gone { opacity: 0; animation: acGone 300ms var(--ease-smooth) both; pointer-events: none; } /* (only rendered when it went away here; still hidden with motion off) */
+@keyframes acGone { from { opacity: 1; } to { opacity: 0; } }
+.action-card .ac-actions.ac-out { animation: acOut 260ms var(--ease-smooth) both; pointer-events: none; }
+@keyframes acOut { to { opacity: 0; transform: scale(0.96); } }
+.action-card .ac-actions.ac-in-late { animation: acActions 460ms var(--ease-smooth) 160ms both; }
+.action-card .btn.primary { box-shadow: inset 0 1px 0 var(--hl), 0 6px 14px -8px rgba(0, 0, 0, 0.5); }
+.coach-body .action-card:not(.fresh):not(.sealing) .ac-actions { animation: none; }
+/* (a fade in place: rising, the Undo icon was drawn a touch differently and sharpened as it stopped — 34/255) */
+@keyframes acActions { from { opacity: 0; } }
+.ac-title { position: relative; overflow: hidden; padding-block: 2px; margin-block: -2px; }
+/* one after the other: the old title leaves upward, then the new one comes up from below (never two at once) */
+.ac-title .ac-roll, .ac-sub .ac-roll { display: inline-block; animation: acRollIn 420ms var(--ease-smooth) 180ms both; }
+.ac-sub { position: relative; overflow: hidden; padding-block: 1px; margin-block: -1px; }
+@keyframes acRollIn { from { opacity: 0; transform: translate3d(0, 40%, 0); } }
+/* (the old words fade out over the new one's start: never a moment with neither) */
+.ac-title .ac-roll-out, .ac-sub .ac-roll-out { position: absolute; left: 0; top: 2px; white-space: nowrap; pointer-events: none; animation: acRollOut 360ms var(--ease-smooth) both; }
+.ac-sub .ac-roll-out { top: 1px; }
+@keyframes acRollOut { to { opacity: 0; transform: translate3d(0, -40%, 0); } }
+/* Undo: the strike is drawn left to right, the card eases back */
+.action-card.undoing { transition: opacity 520ms var(--ease-smooth); }
+.action-card.undoing .action-line .ac-text::after { animation: acStrike 460ms var(--ease-io) both; animation-delay: calc(var(--i, 0) * 45ms); }
+@keyframes acStrike { from { transform: scaleX(0); } }
+/* a memory reworded: the old wording sits above the new one, struck through; on arrival it comes in first, then the line is
+   drawn through it while the new wording rises in under it */
+.ac-was { color: var(--tx2); opacity: 0.72; }
+.ac-was-t { position: relative; display: inline-block; max-width: 100%; overflow-wrap: anywhere; }
+.ac-was-t::after { content: ''; position: absolute; left: 0; right: 0; top: 52%; height: 1.5px; border-radius: 1px; background: currentColor; opacity: 0.8; transform-origin: 0 50%; }
+.coach-body .action-card.fresh .ac-was { animation: acLine 520ms var(--ease-smooth) 130ms both; }
+.coach-body .action-card.fresh .ac-was-t::after { animation: acStrike 450ms var(--ease-io) 380ms both; }
+/* (in this order: old, crossed out, then new — the new wording waits for the strike) */
+.coach-body .action-card.fresh:has(.ac-was) .action-line { animation-delay: calc(760ms + var(--i, 1) * 55ms - 55ms) !important; } /* (over the inline delay each line carries) */
+.coach-body .action-card.fresh:has(.ac-was) .ac-actions:not(.ac-in-late):not(.ac-out) { animation-delay: 940ms; }
+/* a recipe's method: a quiet line that folds the steps open */
+.ac-method { margin-top: 8px; }
+.ac-method-btn { display: inline-flex; align-items: center; gap: 4px; padding: 4px 0; background: none; border: 0; color: var(--tx2); }
+.ac-steps { margin: 6px 0 2px; padding-left: 20px; display: grid; gap: 6px; color: var(--tx); }
+.ac-steps li::marker { color: var(--tx3); font-variant-numeric: tabular-nums; }
+.coach-body .action-card.fresh .ac-method { animation: acLine 520ms var(--ease-smooth) both; animation-delay: calc(190ms + var(--n, 0) * 55ms); }
+/* a replaced preview steps back quietly */
+.action-card.replaced { opacity: 0.6; transition: opacity 600ms var(--ease-smooth); }
+
+/* the week a split preview would set: seven days, the changed ones outlined; on Apply they settle in left to right */
+.ac-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; margin-top: 10px; }
+.ac-day { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+.ac-day-l { font-size: 10.5px; font-weight: 600; letter-spacing: 0.02em; color: var(--tx3); text-transform: uppercase; }
+.ac-day-dot { position: relative; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; font-weight: 650; color: var(--tx2); background: var(--s2); box-shadow: inset 0 0 0 1px var(--line); }
+.ac-day.gym .ac-day-dot { color: var(--tx); }
+.ac-day.changed .ac-day-l { color: var(--tx2); }
+.ac-day.changed .ac-day-dot { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ac) 70%, transparent); }
+.ac-day-w { position: absolute; right: -2px; bottom: -2px; width: 10px; height: 10px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 2px var(--bg); }
+.coach-body .action-card.fresh .ac-day { animation: acLine 520ms var(--ease-smooth) both; animation-delay: calc(200ms + var(--i, 0) * 40ms); }
+.action-card.sealing .ac-day.changed .ac-day-dot { animation: acDay 680ms var(--ease-smooth) both; animation-delay: calc(60ms + var(--c, 0) * 70ms); }
+@keyframes acDay { 0%, 100% { transform: none; opacity: 1; } 40% { transform: scale(0.9); opacity: 0.75; } }
+@media (prefers-reduced-motion: reduce) {
+  .action-card, .action-card *, .action-card *::after { animation: none !important; transition: none !important; }
+}
+:root[data-motion='reduce'] :is(.action-card, .action-card *, .action-card *::after) { animation: none !important; transition: none !important; }
+@media (prefers-reduced-motion: reduce) { .ac-title .ac-roll-out, .ac-sub .ac-roll-out, .action-card .ac-actions.ac-out { display: none; } }
+:root[data-motion='reduce'] :is(.ac-title .ac-roll-out, .ac-sub .ac-roll-out, .action-card .ac-actions.ac-out) { display: none; }
+.action-line .ac-text { transition: color 360ms var(--ease-smooth); }
 
 /* the Coach's mic: the ring around the orb swells with your voice (--voice is written by the sphere stage) */
 .voice-ring { position: absolute; inset: -2px; border-radius: 999px; pointer-events: none; border: 2px solid var(--ac); opacity: 0; box-shadow: 0 0 22px -4px var(--ac); transition: opacity .3s var(--ease-io, ease); }
@@ -1286,6 +1401,15 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .coach-send .cs-stop, .coach-send.busy .cs-go { opacity: 0; transform: scale(0.6); }
 .coach-send.busy .cs-go { transform: scale(0.6); }
 .coach-send.busy .cs-stop { opacity: 1; transform: none; }
+.coach-send.queued .cs-go { opacity: .45; } /* (typed while it answers: waits, quieter, and goes when the answer is done) */
+.coach-err-acts { flex-wrap: wrap; }
+/* it rises in like the other rows (never just there), and fades as it folds away */
+.coach-err { animation: acSettle 560ms var(--ease-smooth) both; transition: opacity 300ms var(--ease-smooth); }
+.coach-err.leaving { opacity: 0; }
+:root[data-motion='reduce'] .coach-err { animation: none; }
+/* inside the row: a soft fill, no outline ring; the touch area reaches 44 px around the small chip */
+.coach-err .chip { position: relative; box-shadow: none; background: var(--s3); color: var(--tx); }
+.coach-err .chip::after { content: ''; position: absolute; inset: -8px -6px; }
 .meals-empty { padding: 6px 16px 6px 20px; }
 /* the empty day's card (or the meals) fading out before the other rises in, once the add sheet has gone (Food.tsx) */
 .subpage > .fading { animation: fade-away 220ms ease forwards; pointer-events: none; }
@@ -1352,12 +1476,46 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 
 /* ── Settings → Coach memory: one quiet row per thing the Coach knows; tap the words to reword them */
 .mem-row { display: flex; align-items: flex-start; gap: 8px; padding: 12px 8px 12px 14px; }
+.chat-hit { padding: 10px 14px; }
+.mem-group { margin-top: 4px; }
+.mem-row.ended { opacity: 0.6; }
+.mem-hist-btn { display: inline-block; margin-top: 6px; padding: 2px 0; background: none; border: 0; color: var(--tx3); text-decoration: underline; text-underline-offset: 2px; }
+.mem-hist { padding-top: 6px; }
 .mem-text { display: block; width: 100%; text-align: left; font-size: 15px; line-height: 1.4; color: var(--tx); overflow-wrap: anywhere; }
 .mem-edit { width: 100%; min-height: 64px; font-size: 15px; line-height: 1.4; resize: none; }
 .reply.still .w, .reply.still .w-in, .reply.still .soft-in > .soft-s, .reply.still .soft-in::before, .reply.still .soft-in::after { animation: none; }
 /* a note from Coach memory beside the exercise it is about, with a way out */
 .wk-flag { display: flex; align-items: flex-start; gap: 8px; margin-top: 8px; padding: 8px 8px 8px 10px; border-radius: 12px; color: var(--tx); background: color-mix(in srgb, var(--warn) 12%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warn) 24%, transparent); }
 .wk-flag .chip { flex: none; margin-top: -2px; }
+/* the briefing at the top of a planned workout (Briefing.tsx): neutral glass like the blocks under it; colour only on the
+   icons and the "+2.5 kg" that mean something. It folds away (Collapse) on the first ticked set. */
+.wk-brief { margin: 8px 0 2px; padding: 10px 12px 12px; border-radius: var(--r-md); transform-origin: 50% 0; transition: transform 300ms cubic-bezier(.4, 0, .2, 1); }
+/* folding away (judge, phase 5): the card fades and settles back first, then the space closes on a calm ease-in-out, so
+   nothing readable is ever sliced by the closing row and the list below glides up instead of lurching */
+.collapse.wk-brief-wrap { transition: grid-template-rows 520ms cubic-bezier(.45, 0, .2, 1) 90ms, opacity 220ms cubic-bezier(.4, 0, .2, 1); }
+.collapse.wk-brief-wrap:not(.on) .wk-brief { transform: translate3d(0, -6px, 0) scale(.97); }
+:root[data-motion='reduce'] .collapse.wk-brief-wrap { transition-delay: 0s !important; }
+.wk-brief-head { display: flex; align-items: center; justify-content: space-between; margin-right: -8px; min-height: 34px; }
+.wk-brief-x { color: var(--tx3); }
+.wk-brief-line { display: flex; align-items: flex-start; gap: 8px; padding: 7px 0; font-size: 14px; line-height: 1.35; color: var(--tx2); }
+.wk-brief-line + .wk-brief-line { box-shadow: inset 0 1px 0 var(--line); }
+.wk-brief-line > svg { flex: none; margin-top: 2px; color: var(--tx3); }
+.wk-brief-line b { color: var(--tx); font-weight: 600; }
+/* a lift's own line on its card (List and Focus): quiet text, colour only on the record's bolt (gold, as records are) */
+.wk-hints { display: grid; gap: 6px; margin-top: 8px; }
+.wk-hint { display: flex; align-items: flex-start; gap: 7px; font-size: 13px; font-weight: 550; line-height: 1.35; color: var(--tx2); }
+.wk-hint > svg { flex: none; margin-top: 1px; color: var(--tx3); }
+.wk-hint.record > svg { color: var(--gold); }
+.wk-hint > span { min-width: 0; overflow-wrap: anywhere; }
+.wk-hint-act { position: relative; flex: none; margin: -5px 0 -5px 4px; }
+.wk-hint-act::after { content: ''; position: absolute; inset: -8px -6px; } /* a 44 px finger target around the small chip */
+.wk-hints + .wk-reason { margin-top: 6px; }
+/* one line in the Today card: one compact row, its ✕ at the end */
+.wk-brief.one { padding: 4px 4px 4px 12px; border-radius: var(--r-sm); } /* a card's corner, not a capsule (that read as a search field) */
+.wk-brief.one .wk-brief-line { align-items: center; padding: 0; }
+.wk-brief.one .wk-brief-line > svg { margin-top: 0; }
+/* Focus: what is about the whole workout, as a caption between the first page's figure and its card */
+.wk-page-note { display: grid; gap: 6px; margin: 0 12px 8px; } /* its icon lines up with the card's text below */
 /* the Coach's camera: the chosen photo waits above the field; once sent it sits in your bubble */
 .coach-body { overflow-anchor: none; }
 .sheet-pane .coach-body.sheet-body:not([data-scrollable]) { -webkit-mask-image: none; mask-image: none; } /* (outranks the melt under sheet buttons) */
@@ -1404,27 +1562,26 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .edge-fade.frosted::before, .tabbar-wrap.edge-fade::before { -webkit-backdrop-filter: blur(var(--edge-blur, 16px)) saturate(1.35); backdrop-filter: blur(var(--edge-blur, 16px)) saturate(1.35);
   -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--edge-ramp, 26px)); mask-image: linear-gradient(to bottom, transparent, #000 var(--edge-ramp, 26px)); }
 :root[data-theme='light'] .edge-fade { --edge-tint: var(--sheet-solid); --edge-a: 40%; } /* (light: a pale neutral, or it read as a white strip) */
-.coach-sent { animation: coachSend 760ms cubic-bezier(.2, .7, .2, 1) backwards; }
+.coach-sent { animation: coachSend 760ms cubic-bezier(.2, .7, .2, 1) both; }
 @keyframes coachSend {
   from { opacity: 0; transform: translate3d(0, 28px, 0) scale(.975); }
   45% { opacity: 1; }
-  to { opacity: 1; transform: none; }
-}
+} /* (both, no `to`: an end keyframe with backwards fill dropped the layer as it ended — the one-frame flicker; style guide §4) */
 /* the Coach's answers write themselves in word by word at a steady pace (useWordReveal), each word fading up (.calm .w
    above). The list glides on a layer of its own (Coach.tsx), so following the answer redraws nothing. Under the answer the
    play button's row is held open while it writes, and the button (and the quiet note) fade in where the room already is. */
-.coach-reply:not(.still) { animation: coachReply 420ms var(--ease-out) backwards; }
+.coach-reply:not(.still) { animation: coachReply 420ms var(--ease-out) both; }
 .coach-thread { will-change: transform; }
 .reply-foot.held { min-height: 32px; }
 /* the play button under each answer is a quiet glyph, not a filled circle (a column of circles down the chat read as noise);
    it keeps its 32 px tap area and lines up with the text, and takes its colour and ring only while it reads aloud */
 .coach-body .reply-foot { margin-left: -9px; }
 .coach-body .speak-btn:not(.playing, .loading) { background: transparent; border-color: transparent; color: var(--tx3); }
-.coach-after.fresh, .coach-after.fresh .speak-btn { animation: coachAfter 680ms var(--ease-out) backwards; }
+.coach-after.fresh, .coach-after.fresh .speak-btn { animation: coachAfter 680ms var(--ease-out) both; }
 .reply-foot.coach-after.fresh { animation: none; }
 /* The typing dots come a beat after your message has risen (not under the typing bar while the list makes room), growing
    out of their corner like a bubble; when the first word arrives they melt away over it instead of being swapped out. */
-.coach-thread .typing { transform-origin: 0% 100%; animation: typingIn 680ms cubic-bezier(.2, .7, .2, 1) 340ms backwards; }
+.coach-thread .typing { transform-origin: 0% 100%; animation: typingIn 680ms cubic-bezier(.2, .7, .2, 1) 340ms both; }
 @keyframes typingIn { from { opacity: 0; transform: translate3d(0, 3px, 0) scale(.86); } } /* (calm: grew from .7, a pop) */
 .coach-answer { position: relative; }
 .coach-thread .typing.typing-out { position: absolute; left: 0; top: 0; z-index: 1; pointer-events: none; animation: typingOut 520ms cubic-bezier(.4, 0, .6, 1) forwards; }
@@ -1432,7 +1589,14 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 :root[data-motion='reduce'] .coach-thread .typing { animation: none; }
 :root[data-motion='reduce'] .coach-thread .typing.typing-out { display: none; }
 @keyframes coachAfter { from { opacity: 0; transform: translate3d(0, 4px, 0); } }
-@keyframes coachReply { from { opacity: .65; transform: translate3d(0, 3px, 0); } to { opacity: 1; transform: none; } }
+/* a web search's sources: small chips under the answer, rising in one after another once it has finished writing */
+.coach-sources { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.src-chip { gap: 5px; max-width: 100%; height: 26px; padding: 0 10px; font-size: 12px; color: var(--tx2); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.src-chip svg { flex: none; color: var(--tx3); }
+.coach-sources.fresh .src-chip { animation: coachAfter 560ms var(--ease-smooth) both; animation-delay: calc(120ms + var(--i, 0) * 60ms); }
+:root[data-motion='reduce'] .coach-sources .src-chip { animation: none; }
+@media (prefers-reduced-motion: reduce) { .coach-sources .src-chip { animation: none; } }
+@keyframes coachReply { from { opacity: .65; transform: translate3d(0, 3px, 0); } }
 /* a sent message in flight (Coach.tsx): a copy of the bubble above everything. Its shape is eight pieces (four corners
    that scale evenly, four straight pieces between them), moved together on one spring so they always make one outline:
    it starts as the whole pill and becomes the bubble. The pill's colours (.fly-pill: its tint, top sheen and rim as they
@@ -1647,6 +1811,36 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .review-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 12px; margin-top: 14px; }
 .review-num { font-size: 24px; font-weight: 300; letter-spacing: -0.03em; line-height: 1.1; }
 .review-stall { display: flex; gap: 8px; align-items: flex-start; margin-top: 14px; padding: 9px 10px; border-radius: 12px; color: var(--tx); background: color-mix(in srgb, var(--warn) 12%, transparent); }
+/* the week in review (screens/WeekReview.tsx): numbers that roll in, muscle bars that grow from the left, the Coach's words */
+.rv-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 12px; }
+.rv-tile { min-width: 0; }
+.rv-num { line-height: 1.05; margin-bottom: 4px; }
+.rv-unit { font-family: var(--f-ui); font-stretch: 100%; font-weight: 600; }
+.rv-muscles { padding: 14px 14px 12px; display: grid; gap: 9px; }
+.rv-key { display: inline-flex; align-items: center; gap: 6px; }
+.rv-key-mark { display: inline-block; width: 2px; height: 10px; border-radius: 1px; background: var(--tx2); }
+.rv-bar { display: grid; grid-template-columns: 78px minmax(0, 1fr) 32px; align-items: center; gap: 10px; }
+.rv-bar-l { color: var(--tx2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rv-bar-n { text-align: right; color: var(--tx); }
+.rv-bar-track { position: relative; height: 8px; border-radius: 4px; background: var(--s2); }
+.rv-bar-clip { position: absolute; inset: 0; border-radius: 4px; overflow: hidden; }
+.rv-bar-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; background: var(--ac); }
+.rv-tile .odo-c { -webkit-mask-image: linear-gradient(transparent, #000 18%, #000 82%, transparent); mask-image: linear-gradient(transparent, #000 18%, #000 82%, transparent); }
+.rv-bar-fill.low { background: color-mix(in srgb, var(--warn) 80%, var(--ac)); }
+.rv-bar-mark { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; border-radius: 1px; background: var(--tx2); opacity: 0.85; }
+.rv-ok { flex: none; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; background: var(--s2); color: var(--tx3); }
+.rv-ok.yes { background: color-mix(in srgb, var(--ok) 22%, transparent); color: var(--ok); }
+.rv-ok.no { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+.rv-coach { display: grid; gap: 10px; }
+.rv-verdict { margin: 0; font-size: 16px; line-height: 1.45; color: var(--tx); }
+.rv-thinking { animation: lookIn 520ms var(--ease-smooth) both; }
+.rv-w { display: inline-block; animation: rvWord 560ms var(--ease-smooth) both; animation-delay: calc(var(--rv-base, 0ms) + var(--w, 0) * 22ms); }
+@keyframes rvWord { from { opacity: 0; transform: translate3d(0, 4px, 0); } }
+.rv-pri { display: flex; align-items: center; gap: 12px; padding: 10px 10px 10px 12px; animation: acSettle 720ms var(--ease-smooth) both; animation-delay: calc(var(--rv-base, 0ms) + var(--rv-words, 0) * 22ms + 160ms + var(--i, 0) * 90ms); }
+.rv-pri-n { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; font-weight: 650; color: var(--ac-text); background: var(--ac-soft); }
+.rv.still :is(.rv-w, .rv-pri, .rv-thinking) { animation: none; }
+@media (prefers-reduced-motion: reduce) { .rv :is(.rv-w, .rv-pri, .rv-thinking) { animation: none !important; } }
+:root[data-motion='reduce'] .rv :is(.rv-w, .rv-pri, .rv-thinking) { animation: none !important; }
 
 /* ── live workout, compact header: name and the clock line beside the minimise button; pause and Finish on the right ── */
 .wk-head-wrap { position: relative; z-index: 2; padding: 0 16px 10px; }
@@ -1681,7 +1875,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-block .plinth { transition: box-shadow 500ms var(--ease-out); }
 .wk-block.complete .plinth { box-shadow: inset 0 1px 0 var(--hl), inset 0 0 0 1px color-mix(in srgb, var(--ac) 32%, transparent), var(--sh-c); }
 .wk-muscles { margin-top: 3px; font-size: 13px; font-weight: 500; color: var(--tx2); }
-.wk-reason { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 13px; font-weight: 550; color: var(--tx2); }
+.wk-reason { display: flex; align-items: center; gap: 7px; margin-top: 8px; font-size: 13px; font-weight: 550; color: var(--tx2); }
 .wk-reason svg { color: var(--tx3); }
 /* the column titles: readable at a glance under gym lights */
 .set-head { padding: 0 6px; }
@@ -1990,8 +2184,8 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* the finish screen (Summary.tsx): the medal, the numbers' odometers and the line are moved by finishMoment.ts (Web
    Animations on transform and opacity, one timeline on the app's springs); here they only have their resting look. The
    medal's light is painted once and never re-drawn. */
-.sum-medal { --m: var(--ac); position: relative; width: 84px; height: 84px; margin: 6px auto 26px; display: grid; place-items: center; perspective: 640px; }
-.sum-medal.gold { --m: var(--gold); margin-top: 20px; }
+.sum-medal { --m: var(--ac); position: relative; width: 84px; height: 84px; margin: 6px auto 20px; display: grid; place-items: center; perspective: 640px; }
+.sum-medal.gold { --m: var(--gold); margin-top: 10px; }
 .sum-disc { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; }
 /* a coin with two faces: the front (glyph, sheen) and a plain back turned away, each hidden while it faces away, so the
    glyph is never seen mirrored while it turns */
@@ -2020,7 +2214,15 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .odo-s > span, .odo-k { height: 1.15em; line-height: 1.15em; }
 .odo-k { display: inline-block; white-space: pre; }
 .sum-word { display: inline-block; }
-.sum-line { margin: 18px 4px 0; text-align: center; font-size: 24px; line-height: 1.2; font-style: italic; text-wrap: balance; }
+.sum-line { margin: 14px 4px 0; text-align: center; font-size: 24px; line-height: 1.2; font-style: italic; text-wrap: balance; }
+/* the finish screen's coach: next time's targets for the main lifts (the "+2.5 kg" in the accent: it means something) */
+.sum-next { margin-top: 8px; padding: 10px 14px 6px; border-radius: var(--r-md); }
+.sum-next-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; font-size: 14.5px; }
+.sum-next-what { min-width: 0; flex: 1; }
+.sum-next-what .xs { display: block; margin-top: 1px; color: var(--tx3); font-weight: 600; }
+.sum-next-row + .sum-next-row { box-shadow: inset 0 1px 0 var(--line); }
+.sum-next-name { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.sum-next-to { flex: none; color: var(--tx2); font-weight: 600; }
 
 /* the workout's living light (Breath in Active.tsx): the window's top light breathes in and out over ~11 s, in 80 tiny steps
    each way (~14 a second, each under half a percent of brightness, too small to see) instead of a redraw every frame; a warmer light fades in over the first
@@ -2308,3 +2510,119 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 .ghost-sh { position: absolute; inset: 0; will-change: transform; animation: ghost-run 2200ms var(--ease-io) infinite; background: linear-gradient(100deg, transparent 30%, rgba(255,255,255,.1) 50%, transparent 70%); }
 @keyframes ghost-run { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
 :root[data-motion='reduce'] :is(.aur-ring i, .son, .lock, .ghost-sh) { animation: none; }
+/* the Coach looking something up in the data: a quiet line under the typing dots, fading in calmly */
+.coach-looking { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.coach-look { padding-left: 4px; animation: lookIn 620ms var(--ease-smooth) both; }
+/* each new "Looking at…" rises gently into the place of the one before, so two look-ups read as one thought */
+@keyframes lookIn { from { opacity: 0; transform: translate3d(0, 3px, 0); } }
+@media (prefers-reduced-motion: reduce) { .coach-look { animation: none; } }
+.coach-look-cell { display: grid; }
+.coach-look-cell > * { grid-area: 1 / 1; }
+.coach-look.coach-look-out { animation: lookOut 420ms var(--ease-smooth) forwards; }
+@keyframes lookOut { to { opacity: 0; transform: translate3d(0, -3px, 0); } }
+/* when the answer starts: under the melting dots, gone with them */
+.coach-answer .coach-look-gone { position: absolute; left: 0; top: 39px; z-index: 1; pointer-events: none; animation: lookOut 360ms cubic-bezier(.4, 0, .6, 1) forwards; }
+@media (prefers-reduced-motion: reduce) { .coach-look.coach-look-out, .coach-answer .coach-look-gone { display: none; } }
+
+/* Settings → Watch: the round seat for the watch face, the two numbers under it */
+.watch-hero { padding: 18px 18px 16px; }
+.watch-ic { width: 48px; height: 48px; border-radius: 16px; display: grid; place-items: center; flex: none; background: var(--s2); color: var(--tx2); box-shadow: inset 0 0 0 1px var(--line); }
+.watch-ic.on { background: var(--ac-soft); color: var(--ac-text); box-shadow: none; }
+.watch-state { display: flex; align-items: center; gap: 8px; font-weight: 650; font-size: 16.5px; }
+.watch-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ac); flex: none; }
+/* three numbers, thin and large, on hairlines between them */
+.watch-cap { margin-top: 20px; font-size: 11.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--tx3); }
+.watch-stats { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 8px; }
+.watch-stats .xs { white-space: nowrap; }
+.watch-stats > div { padding: 0 12px; box-shadow: inset 1px 0 0 var(--line); }
+.watch-stats > div:first-child { padding-left: 0; box-shadow: none; }
+.watch-stats .num { font-size: 26px; font-weight: 300; letter-spacing: -.01em; line-height: 1.1; }
+/* steps, the last seven days: one quiet bar a day, today in the accent; rise in once (transform only) */
+.watch-bars { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; margin-top: 20px; }
+.watch-bar { display: grid; justify-items: center; gap: 6px; }
+.watch-bar > span { width: 100%; max-width: 22px; height: 56px; display: flex; align-items: flex-end; }
+.watch-bar i { display: block; width: 100%; height: 100%; border-radius: 6px; background: var(--s4); transform-origin: 50% 100%; animation: watchBar 900ms var(--ease-smooth) both; }
+.watch-bar.none i { background: var(--s2); }
+.watch-bar.today i { background: var(--ac); }
+.watch-bar b { font-size: 11px; font-weight: 500; color: var(--tx3); }
+.watch-bar.today b { color: var(--ac-text); }
+@keyframes watchBar { from { transform: scaleY(0); } }
+/* not connected: how it gets here, in three quiet steps */
+.watch-flow { display: flex; align-items: center; gap: 8px; margin-top: 18px; }
+.watch-flow > span { flex: 1; min-width: 0; display: grid; justify-items: center; gap: 6px; padding: 12px 4px; border-radius: var(--r-sm); background: var(--s2); color: var(--tx2); }
+.watch-flow b { font-size: 11.5px; font-weight: 550; color: var(--tx2); white-space: nowrap; }
+.watch-flow > i { width: 10px; height: 1px; background: var(--line-2); flex: none; }
+.watch-kind { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; flex: none; background: var(--s2); box-shadow: inset 0 0 0 1px var(--line); }
+.watch-recent > .li:first-child { border-top: 0; }
+.spin-slow { animation: spinSlow 1.4s linear infinite; }
+@keyframes spinSlow { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .watch-bar i, .spin-slow { animation: none; } }
+
+/* "Undo all" under an answer's cards: a quiet ghost button at the right, risen in after the last card has settled (opacity
+   and a small rise only), folded away once nothing is left to undo */
+.ac-undo-all { display: flex; justify-content: flex-end; padding-top: 2px; }
+.coach-body .ac-undo-all.fresh, .ac-undo-all.fresh { animation: acSettle 620ms var(--ease-smooth) both; animation-delay: calc(420ms + var(--n, 1) * 90ms); }
+.collapse.ac-undo-all-wrap { transition: grid-template-rows 420ms cubic-bezier(.45, 0, .2, 1), opacity 260ms cubic-bezier(.4, 0, .2, 1); }
+
+/* a preview's changes, each with a tick (edit_routine): untick one and Apply leaves it out. The tick fills and empties
+   (opacity and scale), the words dim and a strike draws across them (transform); once applied, a change left out folds
+   away and the ticked ones keep their quiet check */
+.action-line.ac-pickable { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; column-gap: 10px; align-items: center; justify-content: stretch; }
+.action-line.ac-pickable.stack { grid-template-columns: 22px minmax(0, 1fr); }
+.action-line.ac-pickable.stack .ac-line-sub { grid-column: 2; }
+.action-line.ac-pickable .ac-text { justify-self: start; cursor: pointer; }
+.ac-pick { position: relative; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--ac-ink); flex: none; }
+.ac-pick::before { content: ''; position: absolute; inset: -11px; } /* (a 44 px target) */
+.ac-pick:disabled { opacity: 1; cursor: default; }
+.ac-pick-ring, .ac-pick-fill { position: absolute; inset: 0; border-radius: 50%; }
+.ac-pick-ring { box-shadow: inset 0 0 0 1.5px var(--line-2); }
+.ac-pick-fill { display: grid; place-items: center; background: var(--ac); transition: opacity 260ms var(--ease-smooth), transform 420ms var(--ease-spring); }
+.ac-off .ac-pick-fill { opacity: 0; transform: scale(0.55); }
+.action-line.ac-pickable .ac-text, .action-line.ac-pickable .ac-line-sub { transition: opacity 320ms var(--ease-smooth); }
+.action-line.ac-off .ac-text, .action-line.ac-off .ac-line-sub { opacity: 0.42; }
+.action-line.ac-pickable .ac-text::after { content: ''; position: absolute; left: 0; right: 0; top: 52%; height: 1.5px; border-radius: 1px; background: currentColor; opacity: 0.7; transform: scaleX(0); transform-origin: 0 50%; transition: transform 340ms var(--ease-smooth); }
+.action-line.ac-off .ac-text::after { transform: scaleX(1); }
+.collapse.ac-pick-wrap { transition: grid-template-rows 480ms cubic-bezier(.45, 0, .2, 1), opacity 280ms cubic-bezier(.4, 0, .2, 1); }
+
+/* a chart on a Coach card: it fades up after the title, then the line draws itself in (slower than on Progress: it arrives
+   in a conversation, not on a page you opened to look at numbers); a card opened again later is still */
+.ac-chart { margin: 10px -2px 0; }
+.coach-body .action-card.fresh .ac-chart { animation: acLine 600ms var(--ease-smooth) 200ms both; }
+.ac-chart .line-in { animation-duration: 1200ms; animation-delay: 360ms; animation-timing-function: cubic-bezier(.45, 0, .2, 1); }
+.ac-chart .bar-in { animation-duration: 640ms; }
+.coach-body .action-card:not(.fresh) .ac-chart .line-in, .coach-body .action-card:not(.fresh) .ac-chart .bar-in { animation: none; }
+
+/* "Ask the Coach about this" (ui/askHold.ts): hold a food, a lift, a past workout or a chart. A soft accent ring settles
+   around it and a small frosted pill rises above it (opacity and transform only, like a toast) */
+[data-ask] { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.ask-ring { position: fixed; z-index: 398; pointer-events: none; box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ac) 72%, transparent), inset 0 0 14px color-mix(in srgb, var(--ac) 14%, transparent);
+  opacity: 0; transform: scale(1.025); transition: opacity 320ms var(--ease-smooth), transform 560ms var(--ease-spring); }
+.ask-ring.on { opacity: 1; transform: none; }
+.ask-ring.off { opacity: 0; transition-duration: 260ms, 260ms; }
+.ask-pill.glass { position: fixed; z-index: 400; display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 18px 0 15px; border: 0; border-radius: 999px;
+  font: inherit; font-size: 14.5px; font-weight: 600; color: var(--tx); white-space: nowrap; cursor: pointer;
+  opacity: 0; transform: translate3d(0, var(--from, 8px), 0) scale(0.94); transition: opacity 280ms var(--ease-smooth), transform 560ms var(--ease-spring); }
+.ask-pill svg { color: var(--ac-text); flex: none; }
+.ask-pill.on { opacity: 1; transform: none; }
+.ask-pill.off { opacity: 0; transform: scale(0.96); transition-duration: 220ms, 280ms; pointer-events: none; }
+:root[data-motion='reduce'] .ask-pill, :root[data-motion='reduce'] .ask-ring { transition-duration: 1ms; }
+
+/* asked about something that was held: its name over the typing bar (like a photo waiting to be sent), and a quiet tag
+   over the message it went with */
+.collapse.coach-about-wrap { transition: grid-template-rows 420ms cubic-bezier(.45, 0, .2, 1), opacity 260ms cubic-bezier(.4, 0, .2, 1); }
+.coach-about { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; padding: 6px 6px 6px 8px; border-radius: 16px; background: var(--s2); box-shadow: inset 0 0 0 1px var(--line); animation: rise-soft 420ms var(--ease-out) backwards; }
+.coach-about-ic { width: 32px; height: 32px; border-radius: 11px; display: grid; place-items: center; flex: none; background: var(--ac-soft); color: var(--ac-text); }
+.coach-about-t { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.said-about { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; padding: 0 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.said-about svg { color: var(--ac-text); flex: none; }
+/* (judge, round 1) a change's words keep together: the name gives way with an ellipsis, its detail never wraps mid-number */
+.action-line.ac-pickable .ac-line-sub { white-space: nowrap; }
+.action-line.ac-pickable .ac-text { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.action-line.ac-pickable.stack .ac-text { white-space: normal; }
+/* applied: the filled disc steps back to a quiet accent check (opacity only: two checks, one fades over the other) */
+.ac-pick-done { position: absolute; inset: 0; display: grid; place-items: center; color: var(--ac-text); opacity: 0; transition: opacity 420ms var(--ease-smooth); }
+.action-card.sealed:not(.undone) .ac-pick-fill { opacity: 0; transform: none; }
+.action-card.sealed:not(.undone) .ac-pick-ring { opacity: 0; transition: opacity 420ms var(--ease-smooth); }
+.action-card.sealed:not(.undone) .action-line:not(.ac-off) .ac-pick-done { opacity: 0.8; }
+/* the chart uses the card's whole inner width (under the icon too) */
+.ac-chart { margin-left: -36px; }

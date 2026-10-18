@@ -1,9 +1,11 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type SetStateAction } from 'react';
+import { useIsPresent } from 'motion/react';
 import { useStore, allExercises } from '../state/store';
 import { useUI, haptic } from '../state/ui';
 import { useAi, anyBrain, solOn } from '../state/ai';
 import { useT, useLang } from '../lib/i18n';
 import { Sheet, SheetHead } from '../ui/Sheet';
+import { Collapse } from '../ui/kit';
 import { Icon } from '../ui/Icon';
 import { kb } from '../ui/keyboard';
 import { SphereSlot } from '../ui/Sphere';
@@ -11,13 +13,16 @@ import { useVoice } from '../state/voice';
 import { mic } from '../lib/mic';
 import { getKey } from '../lib/keys';
 import { transcribe, buildPrompt, STT_MODEL, SttError } from '../lib/groq';
-import { aiErrorText, type Photo, type Turn } from '../lib/gemini';
+import { AiError, aiErrorText, type Photo, type Turn } from '../lib/gemini';
+import { sttNames } from '../lib/sttNames';
 import { stopSpeaking } from '../lib/tts';
 import { decide, brainFor } from '../lib/agentTurn';
-import { ActionCard, Rich, TypingDots, SpeakButton, prefetchAloud, sttMessage, useCoachTips, cardsNote, useWordReveal } from '../ui/agentUi';
-import { runActions, type AgentResult } from '../lib/agent';
+import { ActionCard, UndoAll, Rich, TypingDots, SpeakButton, prefetchAloud, replacedIds, sttMessage, useCoachTips, useWordReveal } from '../ui/agentUi';
+import { droppedCard, runActions, type AgentResult } from '../lib/agent';
 import { uid } from '../lib/nutrition';
+import { onThreadChange, readThread, threadSaid, threadTurns, writeThread, type ThreadMsg } from '../lib/thread';
 import { dayKey } from '../lib/dates';
+import type { About } from '../lib/askAbout';
 import { blobToBase64, cameraUsable, downscale } from '../lib/photos';
 
 /* The typing bar opens wide while you type (Omar, 13 Oct: "expands when I type on it and compresses when I'm done"): the
@@ -72,26 +77,22 @@ const morphVars = { '--cf-x': `${CF_X}px`, '--cf-max': `${CF_MAX}px`, '--cf-ease
   '--cf-ease-c': MORPH_BACK.easing, '--cf-dur-c': `${MORPH_BACK.duration}ms`, '--cf-ease-k': CLOSE.easing, '--cf-dur-k': `${CLOSE.duration}ms`, '--cf-delay-k': `${CLOSE.delay}ms`, ...growVars } as React.CSSProperties;
 
 type Msg =
-  | { id: string; role: 'user' | 'model'; text: string; streaming?: boolean; seeded?: boolean; /** a quiet line under the answer (which AI answered, and why) */ note?: string; /** when it was said */ at?: number; /** a photo was sent with it (its picture stays only while the Coach is open) */ photo?: boolean; image?: string; /** typed: its lines as they wrapped in the field (the bubble keeps them) */ lines?: string[] }
-  | { id: string; role: 'error'; text: string }
-  | { id: string; role: 'action'; results: AgentResult[]; undone: string[]; confirmed: string[] }
+  | { id: string; role: 'user' | 'model'; text: string; /** asked about something that was held (what the model got with it, and its name on the bubble) */ about?: string; aboutLabel?: string; streaming?: boolean; /** while it looks something up in the data */ status?: string; seeded?: boolean; /** a quiet line under the answer (which AI answered, and why) */ note?: string; /** when it was said */ at?: number; /** a photo was sent with it (its picture stays only while the Coach is open) */ photo?: boolean; image?: string; /** it got no answer (left out of what the model sees until it is tried again) */ failed?: boolean; /** typed: its lines as they wrapped in the field (the bubble keeps them) */ lines?: string[]; /** the pages a web search used */ sources?: { title: string; url: string }[] }
+  | { id: string; role: 'error'; text: string; /** folding away (Try again was tapped) */ leaving?: boolean; /** the message that failed: Try again sends it once more (from the same bubble) */ retry?: { userId: string; text: string }; /** a key problem: a chip opens Settings */ fix?: 'settings' }
+  | { id: string; role: 'action'; results: AgentResult[]; undone: string[]; confirmed: string[]; /** arrived in this visit (it animates in; a restored one stays still) */ fresh?: boolean }
 
-const THREAD = 'aven.coach';
 /** How many of the newest saved messages are built on the tap that opens the Coach (the rest follow, see `older`). */
 const TAIL = 6;
 /** The Coach conversation as it was left (cards come back without their Undo: that only works right after the change). */
 function loadThread(): Msg[] {
   try {
-    const v = JSON.parse(localStorage.getItem(THREAD) || '[]');
-    return (Array.isArray(v) ? v : []).filter((m: any) => m && typeof m.id === 'string' && ['user', 'model', 'action', 'error'].includes(m.role))
+    return (readThread() as any[])
       .map((m: any) => (m.role === 'user' || m.role === 'model' ? { ...m, seeded: true, streaming: false, lines: Array.isArray(m.lines) && m.lines.every((l: unknown) => typeof l === 'string') ? m.lines : undefined }
         // a card's buttons were functions: they don't survive the trip, so a restored card has none (no dead buttons)
-        : m.role === 'action' ? { ...m, results: (Array.isArray(m.results) ? m.results : []).map((r: any) => ({ ...r, button: undefined, more: undefined, undo: undefined })) } : m));
+        : m.role === 'action' ? { ...m, fresh: false, results: (Array.isArray(m.results) ? m.results : []).map((r: any) => ({ ...r, button: undefined, more: undefined, undo: undefined })) } : m));
   } catch { return []; }
 }
-function saveThread(list: Msg[]) {
-  try { localStorage.setItem(THREAD, JSON.stringify(list.slice(-60).map((m) => ('image' in m && m.image ? { ...m, image: undefined } : m)))); } catch { /* storage full: the chat just won't come back */ }
-}
+const saveThread = (list: Msg[]) => writeThread(list as ThreadMsg[]);
 
 /**
  * Where the list rests at its end: its last line just above the typing bar, wherever the keyboard is. While the keyboard
@@ -104,35 +105,110 @@ function endTop(el: HTMLElement) {
 }
 
 /**
+ * One message of the chat. A row is drawn again only when its own message changes: while an answer streams in (a new
+ * piece every few hundred ms) and while you type, the other 59 rows stay as they are. Every row used to be rebuilt each
+ * time, saved answers and cards included.
+ */
+const ChatRow = memo(function ChatRow({ m, sent, gone, setMsgs, onErr }: { m: Msg; /** sent just now, and not flown in */ sent: boolean; /** the ids of this message's previews that a newer one replaced */ gone: string; setMsgs: Dispatch<SetStateAction<Msg[]>>; /** an error row's chip: try the message again, or open Settings */ onErr: (m: Extract<Msg, { role: 'error' }>, what: 'retry' | 'settings') => void }) {
+  const t = useT();
+  const replaced = gone ? gone.split(',') : [];
+  return (
+    <div data-mid={m.id} className={sent ? 'coach-sent' : undefined}
+      style={m.role === 'user' ? USER_ROW : OTHER_ROW}>
+      {m.role === 'user' && (
+        <div className="stack" style={{ alignItems: 'flex-end', gap: 6, maxWidth: '100%' }}>
+          {m.photo && (m.image ? <img className="said-photo" src={m.image} alt={t('Your photo')} /> : <div className="said xs t2"><Icon name="camera" size={13} style={{ verticalAlign: '-2px', marginRight: 4 }} />{t('Photo')}</div>)}
+          {m.aboutLabel && <div className="xs t3 said-about"><Icon name="sparkle" size={12} />{m.aboutLabel}</div>}
+          {m.text && <div className="said" style={{ maxWidth: '100%' }}>{m.lines ? m.lines.map((l, i) => <span key={i} className="said-l">{l || '\u200b'}</span>) : m.text}</div>}
+        </div>
+      )}
+      {m.role === 'model' && <CoachReply m={m} />}
+      {m.role === 'action' && (
+        <div className="stack gap8">
+          {m.results.map((r) => (
+            <ActionCard key={r.id} r={r} undone={m.undone.includes(r.id)} confirmed={m.confirmed.includes(r.id)} replaced={replaced.includes(r.id)} fresh={!!m.fresh}
+              onUndo={() => { r.undo?.(); haptic('light'); setMsgs((x) => x.map((y) => (y.id === m.id && y.role === 'action' ? { ...y, undone: [...y.undone, r.id] } : y))); }}
+              onConfirm={() => { r.button?.run(); haptic('confirm'); setMsgs((x) => x.map((y) => (y.id === m.id && y.role === 'action' ? { ...y, confirmed: [...y.confirmed, r.id] } : y))); }} />
+          ))}
+          <UndoAll results={m.results} undone={m.undone} confirmed={m.confirmed} fresh={!!m.fresh}
+            onUndo={(ids) => { for (const id of ids) m.results.find((r) => r.id === id)?.undo?.(); setMsgs((x) => x.map((y) => (y.id === m.id && y.role === 'action' ? { ...y, undone: [...y.undone, ...ids] } : y))); }} />
+        </div>
+      )}
+      {m.role === 'error' && (
+        <Collapse open={!m.leaving} ms={420}>
+        <div className={`plinth-2 small coach-err${m.leaving ? ' leaving' : ''}`} role="alert" style={{ padding: '10px 14px' }}>
+          <div style={{ color: 'var(--bad)' }}>{m.text}</div>
+          {(m.retry || m.fix) && (
+            <div className="row-flex coach-err-acts" style={{ gap: 8, marginTop: 10 }}>
+              {m.retry && <button className="chip sm press" onClick={() => onErr(m, 'retry')}><Icon name="repeat" size={13} />{t('Try again')}</button>}
+              {m.fix === 'settings' && <button className="chip sm press" onClick={() => onErr(m, 'settings')}><Icon name="settings" size={13} />{t('Open settings')}</button>}
+            </div>
+          )}
+        </div>
+        </Collapse>
+      )}
+    </div>
+  );
+});
+const USER_ROW: CSSProperties = { transformOrigin: '100% 100%', alignSelf: 'flex-end', maxWidth: '84%', display: 'flex' };
+const OTHER_ROW: CSSProperties = { transformOrigin: '0% 0%', alignSelf: 'stretch', maxWidth: '100%' };
+
+/**
  * One of the Coach's answers. It writes itself in a word at a time at a calm, steady pace (however the network delivers it),
  * each word fading up into place; the text is laid out as it will stay, so no word ever moves once shown. Below it, the
  * play button's row is held open from the first word, so the button fades in where room was already made and nothing is
  * pushed when the answer ends.
  */
 function CoachReply({ m }: { m: Extract<Msg, { role: 'user' | 'model' }> }) {
+  const t = useT();
   const { shown, done } = useWordReveal(m.text, !!m.streaming, !!m.seeded);
   // the typing dots don't vanish when the first word comes: they melt away over it (and are then taken out)
   const typed = useRef(!shown);
   const [dotsGone, setDotsGone] = useState(false);
-  if (!shown) return <TypingDots />;
+  // the words under the dots ("Looking at…", "Still thinking…"): the dots stay the same element the whole time (a new
+  // parent rebuilt them, and they blinked out and grew back); a new line rises in while the old one fades out over it
+  const said = useRef<{ now?: string; before?: string }>({});
+  if (said.current.now !== m.status) said.current = { now: m.status, before: said.current.now };
+  // (after every hook) no answer, only the quiet note (the built-in reader logged it): the note alone, never typing dots
+  if (!m.streaming && !m.text.trim() && m.note) return <div className={`xs t3 coach-after${m.seeded ? '' : ' fresh'}`}>{m.note}</div>;
+  if (!shown) return (
+    <div className="coach-looking">
+      <TypingDots />
+      {(said.current.now || said.current.before) && (
+        <div className="coach-look-cell">
+          {said.current.before && <div key={`o${said.current.before}`} className="xs t2 coach-look coach-look-out" aria-hidden>{said.current.before}</div>}
+          {said.current.now && <div key={said.current.now} className="xs t2 coach-look">{said.current.now}</div>}
+        </div>
+      )}
+    </div>
+  );
   return (
     <div className="coach-answer">
       {typed.current && !dotsGone && <div className="typing typing-out" aria-hidden onAnimationEnd={(e) => { if (e.target === e.currentTarget) setDotsGone(true); }}><i /><i /><i /></div>}
+      {/* (the last words under the dots fade with them, never cut) */}
+      {typed.current && !dotsGone && said.current.now && <div className="xs t2 coach-look coach-look-gone" aria-hidden>{said.current.now}</div>}
       <div className={`reply calm coach-reply${m.seeded ? ' still' : ''}`} aria-live="polite"><Rich text={shown} id={m.id} still={m.seeded} /></div>
       {done && m.note && <div className={`xs t3 coach-after${m.seeded ? '' : ' fresh'}`} style={{ marginTop: 8 }}>{m.note}</div>}
+      {/* a web search's pages, as small chips under the answer (they open in the browser) */}
+      {done && !!m.sources?.length && (
+        <div className={`coach-sources${m.seeded ? '' : ' fresh'}`} aria-label={t('Sources')}>
+          {m.sources.map((x, i) => <a key={x.url} className="chip sm press src-chip" href={x.url} target="_blank" rel="noopener noreferrer" style={{ ['--i' as string]: i }}><Icon name="globe" size={12} />{x.title}</a>)}
+        </div>
+      )}
       <div className={`reply-foot coach-after${done ? '' : ' held'}${m.seeded ? '' : ' fresh'}`}>{done && <SpeakButton id={m.id} text={m.text} />}</div>
     </div>
   );
 }
 
-export function Coach({ props }: { props: { listen?: boolean; date?: string; mealId?: string; /** the orb screen's conversation, carried over by "Continue in Coach" */ seed?: { said: string; reply: string }[]; /** a question to ask as soon as it opens (the weekly review's button) */ ask?: string } }) {
+export function Coach({ props }: { props: { listen?: boolean; date?: string; mealId?: string; /** the orb screen's conversation, carried over by "Continue in Coach" */ seed?: { said: string; reply: string }[]; /** a question to ask as soon as it opens (the weekly review's button) */ ask?: string; /** opened by holding something ("Ask the Coach about this", ui/askHold.ts) */ about?: About } }) {
   const t = useT();
+  const present = useIsPresent();
   const lang = useLang();
   const pop = useUI((u) => u.pop);
   const push = useUI((u) => u.push);
   const ai = useAi();
-  const s = useStore();
-  const pool = useMemo(() => allExercises(s.exercises), [s.exercises]);
+  const exercises = useStore((x) => x.exercises); // (only these: the whole store re-drew the chat on any change)
+  const pool = useMemo(() => allExercises(exercises), [exercises]);
   // the conversation carries on where you left it (kept on this device); the orb screen's turns join the end of it
   const [msgs, setMsgs] = useState<Msg[]>(() => [...loadThread(), ...(props.seed ?? []).flatMap((x) => [
     ...(x.said ? [{ id: uid('m'), role: 'user' as const, text: x.said, seeded: true, at: Date.now() }] : []),
@@ -147,9 +223,26 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   // tap for ~90 ms on the phone): the newest ones are there from the first frame, scrolled to the bottom as always, and the
   // older ones are added above them a couple at a time once the sheet has risen, with the scroll kept exactly in place.
   const [older, setOlder] = useState(() => Math.max(0, msgs.length - TAIL));
-  useEffect(() => { if (!msgs.some((m) => m.role === 'model' && m.streaming)) saveThread(msgs); }, [msgs]);
+  // (saved when the phone is idle, not in the frame the answer ends: turning 60 messages into JSON, writing it and adding to
+  // the archive held the frames while the last words were still coming in; a pending save is made at once on close)
+  const pendingSave = useRef<Msg[] | null>(null);
+  useEffect(() => {
+    if (!present || msgs.some((m) => m.role === 'model' && m.streaming)) return;
+    pendingSave.current = msgs;
+    const idle = (window as any).requestIdleCallback ?? ((f: () => void) => setTimeout(f, 300));
+    const cancel = (window as any).cancelIdleCallback ?? clearTimeout;
+    const id = idle(() => { if (pendingSave.current) { saveThread(pendingSave.current); pendingSave.current = null; } }, { timeout: 2000 });
+    return () => cancel(id);
+  }, [msgs, present]);
+  useEffect(() => {
+    if (!present) return;
+    return () => { if (pendingSave.current) { saveThread(pendingSave.current); pendingSave.current = null; } };
+  }, [present]);
   // back to an old conversation after a break: the suggestions come back under it until something is sent
-  const [resumed, setResumed] = useState(() => { const last = [...msgs].reverse().find((m) => 'at' in m && m.at) as { at?: number } | undefined; return msgs.length > 0 && !props.ask && !props.listen && (!last?.at || Date.now() - last.at > 30 * 60_000); });
+  const [resumed, setResumed] = useState(() => { const last = [...msgs].reverse().find((m) => 'at' in m && m.at) as { at?: number } | undefined; return msgs.length > 0 && !props.ask && !props.listen && (!!props.about || !last?.at || Date.now() - last.at > 30 * 60_000); });
+  // what was held to open it: a chip over the typing bar until something is sent (× takes it off), its questions as the suggestions
+  const [about, setAbout] = useState<About | null>(props.about ?? null);
+  const aboutShown = useRef(about); if (about) aboutShown.current = about;
   const [input, setInput] = useState('');
   const [photo, setPhoto] = useState<{ url: string; blob: Blob } | null>(null);
   const camRef = useRef<HTMLInputElement>(null);
@@ -169,9 +262,19 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   const movedAt = useRef(0);
   const lastScroll = useRef(0);
   const alive = useRef(true);
+  const flights = useRef(new Set<() => void>());
   const msgsRef = useRef<Msg[]>([]); msgsRef.current = msgs;
+  // the orb screen added to the conversation while the Coach is open underneath: show it (and never save over it)
+  const busyRef = useRef(false); busyRef.current = busy;
+  useEffect(() => present ? onThreadChange(() => { if (busyRef.current) return; const next = loadThread(); msgsRef.current = next; setMsgs(next); }) : undefined, [present]);
 
-  useEffect(() => { alive.current = true; return () => { alive.current = false; clearing.current?.cancel(); stopSpeaking(); ctl.current?.abort(); mic.release('coach'); for (const m of msgsRef.current) if ('image' in m && m.image) URL.revokeObjectURL(m.image); }; }, []);
+  // Release this session when closing starts; its delayed unmount must not stop a newly opened Coach/orb session.
+  useEffect(() => {
+    if (!present) return;
+    alive.current = true;
+    return () => { alive.current = false; flights.current.forEach((cancel) => cancel()); clearing.current?.cancel(); stopSpeaking(); ctl.current?.abort(); mic.release('coach'); };
+  }, [present]);
+  useEffect(() => () => { for (const m of msgsRef.current) if ('image' in m && m.image) URL.revokeObjectURL(m.image); }, []);
   // The older messages are added above what you are looking at, and it stays exactly where it is.
   const placed = useRef(false);
   const fromBottom = useRef(-1);
@@ -300,7 +403,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   const flown = (id: string) => flew.current.has(id);
   useLayoutEffect(() => {
     const el = bodyRef.current;
-    if (!el || !flyFrom.current.size) return;
+    if (!present || !el || !flyFrom.current.size) return;
     // the emptied pill's room under the list goes on this frame (it moves the landing place, so it goes first); the pill
     // itself holds its shape under the copy coming up over it, then closes up as the copy lifts away (CLOSE); it stays
     // wide until "Ask the Coach" comes back
@@ -315,7 +418,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     // said words: the bar is hidden under the lifting pill (below) and closes up at once there, unseen (no slide of the
     // pill's edge, no camera coming in late); it fades back in whole once the bubble has gone
     // (once it has faded out under the pill, SAID_OUT: closed up while still showing, its edge and the camera jumped)
-    if (said && bar) setTimeout(() => { holdOpen.current = false; bar.classList.add('snap'); fit(CLOSE); requestAnimationFrame(() => requestAnimationFrame(() => bar.classList.remove('snap'))); }, SAID_OUT + 10);
+    if (said && bar) setTimeout(() => { if (!alive.current) return; holdOpen.current = false; bar.classList.add('snap'); fit(CLOSE); requestAnimationFrame(() => requestAnimationFrame(() => bar.classList.remove('snap'))); }, SAID_OUT + 10);
     for (const [id, from] of flyFrom.current) {
       flyFrom.current.delete(id);
       const bubble = el.querySelector<HTMLElement>(`[data-mid="${id}"] .said`);
@@ -416,7 +519,8 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       const rider = ride.current?.(copy); const top0 = B.top - (rider?.off ?? 0); copy.style.top = `${top0}px`;
       bubble.style.visibility = 'hidden';
       const at = document.timeline.currentTime;
-      const go = (a: Animation) => { if (at !== null) a.startTime = at; return a; };
+      const animations: Animation[] = [];
+      const go = (a: Animation) => { if (at !== null) a.startTime = at; animations.push(a); return a; };
       // the real button (stop, now) waits hidden under the shape until the shape has risen clear of it, then fades in
       // (shown at once, a sliver of it peeked out under the shape's rounded corner as it left)
       // (said words: the whole bar waits hidden, then comes back together: field, camera and the stop button)
@@ -500,13 +604,16 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       const field = inputRef.current; field?.classList.add('sent-away');
       const settle = () => { holdOpen.current = false; field?.classList.remove('sent-away'); fit(); };
       const back = setTimeout(from.fresh ? () => field?.classList.remove('sent-away') : settle, from.fresh ? SAID_BACK : 140);
-      const land = () => { rider?.unride(); el.removeEventListener('scroll', follow); if (listMoved.current === follow) listMoved.current = null; clearTimeout(back); if (holdOpen.current) settle(); bubble.style.visibility = ''; copy.remove(); };
+      let landed = false;
+      const cancel = () => { animations.forEach((a) => a.cancel()); stand?.remove(); land(); };
+      const land = () => { if (landed) return; landed = true; flights.current.delete(cancel); rider?.unride(); el.removeEventListener('scroll', follow); if (listMoved.current === follow) listMoved.current = null; clearTimeout(back); if (alive.current && holdOpen.current) settle(); bubble.style.visibility = ''; copy.remove(); };
+      flights.current.add(cancel);
       flight.finished.then(land, land);
     }
   });
   const begun = useRef(false);
   useEffect(() => {
-    if (!older || !placed.current) return;
+    if (!present || !older || !placed.current) return;
     let id = 0;
     const more = () => { const el = bodyRef.current; if (el) fromBottom.current = el.scrollHeight - el.scrollTop; setOlder((n) => Math.max(0, n - 2)); };
     const idle = 'requestIdleCallback' in window ? window.requestIdleCallback : null;
@@ -514,7 +621,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     const wait = setTimeout(() => { id = idle ? idle(more, { timeout: 400 }) : window.setTimeout(more, 16); }, begun.current ? 0 : 700);
     begun.current = true;
     return () => { clearTimeout(wait); if (idle) window.cancelIdleCallback(id); else clearTimeout(id); };
-  }, [older]);
+  }, [older, present]);
 
 
   const say = (m: Msg) => setMsgs((x) => [...x, m]);
@@ -546,7 +653,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     animation.onfinish = () => { if (alive.current) finishClear(); };
   };
   const orb = (p: 'idle' | 'listening' | 'processing' | 'confirmed' | 'error') => useVoice.getState().go(p);
-  useEffect(() => () => { if (useVoice.getState().phase !== 'idle') useVoice.getState().go('idle'); }, []);
+  useEffect(() => present ? () => { if (useVoice.getState().phase !== 'idle') useVoice.getState().go('idle'); } : undefined, [present]);
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const composerRef = useRef<HTMLDivElement>(null);
@@ -637,54 +744,50 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   const autoClose = useRef(!!props.listen); // a command spoken from the orb slips away once it has been done
   const recRef = useRef<() => void>(() => {});
 
-  /** The conversation so far as the model sees it (cards become a one-line note of what was done). */
-  const turnsFor = (text: string): Turn[] => {
-    const out: Turn[] = [];
-    const push = (role: 'user' | 'model', t: string) => { if (!t.trim()) return; const last = out[out.length - 1]; if (last && last.role === role) last.parts[0].text += `\n${t}`; else out.push({ role, parts: [{ text: t }] }); };
-    const today = dayKey(Date.now(), useStore.getState().settings.dayStartHour);
-    for (const m of msgsRef.current) {
-      // something said on an earlier day is marked so, so "today" in an old message isn't taken for today
-      const old = m.role === 'user' && m.at && dayKey(m.at, useStore.getState().settings.dayStartHour) !== today ? `(said on ${dayKey(m.at, useStore.getState().settings.dayStartHour)}) ` : '';
-      if (m.role === 'user' || m.role === 'model') push(m.role, old + (m.role === 'user' && m.photo ? `[photo] ${m.text}` : m.text));
-      else if (m.role === 'action') push('model', cardsNote(m.results, m.confirmed, m.undone));
-    }
-    push('user', text);
-    const tail = out.slice(-14);
-    return tail[0]?.role === 'model' ? tail.slice(1) : tail;
-  };
+  /** The conversation so far as the model sees it (cards become a one-line note of what was done, with each item's id). */
+  // (the message being answered is sent on its own: it was in here too after a photo's wait, and went to the model twice)
+  const turnsFor = (skip?: string): Turn[] => threadTurns((msgsRef.current as ThreadMsg[]).filter((m) => m.id !== skip), useStore.getState().settings.dayStartHour);
 
   const undoLast = () => {
     for (let i = msgsRef.current.length - 1; i >= 0; i--) {
       const m = msgsRef.current[i];
       if (m.role !== 'action') continue;
-      const r = [...m.results].reverse().find((x) => x.undo && !m.undone.includes(x.id) && !x.pending);
+      const r = [...m.results].reverse().find((x) => x.undo && !m.undone.includes(x.id) && (!x.pending || m.confirmed.includes(x.id)));
       if (r) { r.undo!(); setMsgs((x) => x.map((y) => (y.id === m.id && y.role === 'action' ? { ...y, undone: [...y.undone, r.id] } : y))); return; }
     }
   };
 
   /** One turn: the model (or, without an AI key, the local reader) says what to do; we do it; the cards show it. */
-  const agentTurn = async (text: string, signal: AbortSignal, photo?: Photo) => {
+  const agentTurn = async (text: string, signal: AbortSignal, photo: Photo | undefined, userId: string) => {
     const st = useStore.getState();
     const today = dayKey(Date.now(), st.settings.dayStartHour);
     const placeholder = uid('m');
     say({ id: placeholder, role: 'model', text: '', streaming: true });
+    // a long wait is said, never a silent spinner: "Still thinking…" at 8 s, "Slow connection…" at 20 s (a look-up's own
+    // words are left alone)
+    const waits = [t('Still thinking…'), t('Slow connection…')];
+    const waitSay = (s: string) => { if (alive.current) setMsgs((all) => all.map((m) => (m.id === placeholder && m.role === 'model' && !m.text && (!m.status || waits.includes(m.status)) ? { ...m, status: s } : m))); };
+    const slow = [setTimeout(() => waitSay(waits[0]), 8000), setTimeout(() => waitSay(waits[1]), 20000)];
+    try {
     const where = props.mealId || props.date ? `The user opened this from the Food tab${props.date ? ` (day ${props.date})` : ''}${props.mealId ? `, meal ${props.mealId}` : ''}: foods go there unless they say otherwise.` : 'The user opened this from the main screen.';
-    const history = turnsFor(''); // the conversation so far (an empty text adds no turn)
+    const history = turnsFor(userId); // the conversation so far (the orb screen's turns included)
     // the answer streams in as the model writes it, into the same message that then stays (nothing re-mounts or re-animates)
-    const d = await decide(photo ? `[photo] ${text}` : text, { lang, t, pool, history, where, signal, surface: 'coach', photo, onReply: (r) => { if (alive.current) setMsgs((x) => x.map((m) => (m.id === placeholder && m.role === 'model' ? { ...m, text: r } : m))); } });
+    const d = await decide(photo ? `[photo] ${text}` : text, { lang, t, pool, history, where, signal, surface: 'coach', photo, said: threadSaid(msgsRef.current as ThreadMsg[]), onStatus: (x) => { if (alive.current) setMsgs((all) => all.map((m) => (m.id === placeholder && m.role === 'model' ? { ...m, status: x || undefined } : m))); }, onReply: (r) => { if (alive.current) setMsgs((x) => x.map((m) => (m.id === placeholder && m.role === 'model' ? { ...m, text: r } : m))); } });
     let { reply } = d; const { note, actions } = d;
     if (d.wantsUndo) { undoLast(); if (!actions.length && !reply) reply = t('Undone.'); }
-    const results = actions.length ? await runActions(actions, { t, lang, today, brain: brainFor({ big: false, surface: 'coach', signal }), date: props.date, mealId: props.mealId }) : [];
+    const results = actions.length ? await runActions(actions, { t, lang, today, brain: brainFor({ big: false, surface: 'coach', signal }), date: props.date, mealId: props.mealId, photo: !!photo, onStatus: (x) => { if (alive.current) setMsgs((all) => all.map((m) => (m.id === placeholder && m.role === 'model' ? { ...m, status: x || undefined } : m))); } }) : [];
+    if (d.dropped) results.push(droppedCard(t)); // (never silent: part of the answer was unreadable)
     if (!alive.current) return;
-    // the answer is the message; a note about who answered sits under it, quieter (and is never read aloud)
-    const said = reply || note;
+    // the answer is the message; a note about who answered sits under it, quieter. It is never the answer itself: never read
+    // aloud and never saved as something the Coach said (with no answer it stands alone, as that small grey line)
+    const said = reply;
     setMsgs((x) => {
-      const base = said ? x.map((m) => (m.id === placeholder ? { ...m, text: said, note: reply ? note || undefined : undefined, streaming: false } as Msg : m)) : x.filter((m) => m.id !== placeholder);
-      return results.length ? [...base, { id: uid('m'), role: 'action', results, undone: [], confirmed: [] }] : base;
+      const base = said || note ? x.map((m) => (m.id === placeholder ? { ...m, text: said, note: note || undefined, streaming: false, status: undefined, ...(d.sources.length && reply ? { sources: d.sources } : {}) } as Msg : m)) : x.filter((m) => m.id !== placeholder);
+      return results.length ? [...base, { id: uid('m'), role: 'action', results, undone: [], confirmed: [], fresh: true }] : base;
     });
     // green "Done" only when something was actually logged or changed
     const acted = d.wantsUndo || results.some((r) => r.kind !== 'miss' && r.kind !== 'nav');
-    if (acted) { haptic('success'); orb('confirmed'); setTimeout(() => { if (useVoice.getState().phase === 'confirmed') orb('idle'); }, 1200); } else orb('idle');
+    if (acted) { haptic('success'); orb('confirmed'); setTimeout(() => { if (alive.current && useVoice.getState().phase === 'confirmed') orb('idle'); }, 1200); } else orb('idle');
     if (said.trim()) prefetchAloud(said); // read aloud only when you tap play
     // said out loud from the orb and nothing to read: show the result for a moment, then step aside with an Undo toast
     const quick = results.length > 0 && results.every((r) => ['food', 'sets', 'water', 'weight', 'activity'].includes(r.kind) && !r.pending);
@@ -697,12 +800,60 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
         pop();
       }, 1700);
     } else autoClose.current = false;
+    } finally { slow.forEach(clearTimeout); }
   };
+
+  // ── when it fails: Try again (the same words, from the same bubble), Open settings (a key problem) ──
+  const runTurn = async (id: string, text: string, pic: { url: string; blob: Blob } | null) => {
+    setBusy(true); stopSpeaking(); orb('processing');
+    ctl.current = new AbortController();
+    const signal = ctl.current.signal;
+    try {
+      await agentTurn(text || t('What is this?'), signal, pic ? { mime: 'image/jpeg', data: await blobToBase64(pic.blob) } : undefined, id);
+      if (alive.current) setMsgs((x) => x.map((m) => (m.id === id && m.role === 'user' && m.failed ? { ...m, failed: undefined } : m)));
+    } catch (e: any) {
+      if (!alive.current) return;
+      const stopped = e?.code === 'aborted';
+      const key = e instanceof AiError && (e.code === 'badkey' || e.code === 'nokey');
+      setMsgs((x) => {
+        // a half-written answer that was cut off is taken away (it was not the answer), and the question is marked so the
+        // model doesn't read it as answered
+        const last = x[x.length - 1];
+        const base = last && last.role === 'model' && last.streaming ? (stopped && last.text.trim() ? x.map((m, i) => (i === x.length - 1 ? { ...m, streaming: false } as Msg : m)) : x.slice(0, -1)) : x;
+        if (stopped) return base;
+        // (the chip says Try again: the words don't say it a second time)
+        const why = key ? aiErrorText(e, t) : aiErrorText(e, t).replace(new RegExp(`\\s*${t('Try again')}\\.?$`), '');
+        return [...base.map((m) => (m.id === id && m.role === 'user' ? { ...m, failed: true } as Msg : m)), { id: uid('m'), role: 'error', text: why, ...(key ? { fix: 'settings' as const } : { retry: { userId: id, text } }) }];
+      });
+    } finally {
+      if (alive.current) {
+        setBusy(false); if (['processing', 'listening'].includes(useVoice.getState().phase)) orb('idle');
+        // typed while it was thinking: sent now
+        if (queued.current) { queued.current = false; setQueuedOn(false); setTimeout(() => { if (alive.current && inputRef.current?.value.trim()) sendRef.current(); }, 60); } // (the newest send: this one still sees it busy)
+      }
+    }
+  };
+  const onErrRef = useRef<(m: Extract<Msg, { role: 'error' }>, what: 'retry' | 'settings') => void>(() => {});
+  onErrRef.current = (m, what) => {
+    haptic('light');
+    if (what === 'settings') { push('settings', { section: 'ai' }); return; }
+    if (busy || !m.retry) return;
+    const { userId, text } = m.retry;
+    // the row folds away (it never just vanishes) while the question is asked again
+    setMsgs((x) => x.map((y) => (y.id === m.id && y.role === 'error' ? { ...y, leaving: true } : y)));
+    setTimeout(() => { if (alive.current) setMsgs((x) => x.filter((y) => y.id !== m.id)); }, 480);
+    void runTurn(userId, text, null);
+  };
+  const onErr = useCallback((m: Extract<Msg, { role: 'error' }>, what: 'retry' | 'settings') => onErrRef.current(m, what), []);
+  const queued = useRef(false);
+  const [queuedOn, setQueuedOn] = useState(false);
 
   const send = async (raw?: string, spoken = false) => {
     const text = (raw ?? input).trim();
     const pic = raw === undefined ? photo : null; // a suggestion chip or dictation sends words only
-    if ((!text && !pic) || busy) return;
+    if (!alive.current || (!text && !pic)) return;
+    // typed while it is still answering: kept in the field and sent the moment the answer is done
+    if (busy) { if (raw === undefined && text) { queued.current = true; setQueuedOn(true); haptic('light'); } return; }
     if (clearing.current) finishClear();
     pinned.current = true; user.current = false;
     const id = uid('m');
@@ -726,21 +877,11 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     }
     const reduceTips = still || leaving;
     if (!reduceTips && (msgsRef.current.length === 0 || resumed)) setTipsOut(msgsRef.current.length === 0 ? 'top' : 'resume');
-    setInput(''); setPhoto(null); setResumed(false); setBusy(true); stopSpeaking(); orb('processing');
-    say({ id, role: 'user', text, at: Date.now(), ...(wrap ? { lines: wrap.lines } : {}), ...(pic ? { photo: true, image: pic.url } : {}) });
-    ctl.current = new AbortController();
-    const signal = ctl.current.signal;
-    try {
-      await agentTurn(text || t('What is this?'), signal, pic ? { mime: 'image/jpeg', data: await blobToBase64(pic.blob) } : undefined);
-    } catch (e: any) {
-      if (!alive.current) return;
-      const stopped = e?.code === 'aborted';
-      setMsgs((x) => {
-        const last = x[x.length - 1];
-        const base = last && last.role === 'model' && last.streaming ? (last.text.trim() ? x.map((m, i) => (i === x.length - 1 ? { ...m, streaming: false } as Msg : m)) : x.slice(0, -1)) : x;
-        return stopped ? base : [...base, { id: uid('m'), role: 'error', text: aiErrorText(e, t) }];
-      });
-    } finally { if (alive.current) setBusy(false); if (['processing', 'listening'].includes(useVoice.getState().phase)) orb('idle'); }
+    setInput(''); setPhoto(null); setResumed(false);
+    // about something that was held: the model gets what it is with the words; the bubble shows only its name
+    const ab = about; setAbout(null);
+    say({ id, role: 'user', text, at: Date.now(), ...(wrap ? { lines: wrap.lines } : {}), ...(pic ? { photo: true, image: pic.url } : {}), ...(ab ? { about: ab.detail, aboutLabel: ab.label } : {}) });
+    await runTurn(id, ab ? `[about: ${ab.detail}] ${text}` : text, pic);
   };
 
   // ── voice input through Groq (same single-owner mic as dictation) ──
@@ -757,15 +898,17 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     if (draft.current.trim()) { setInput(text); setTimeout(() => { if (alive.current) send(text, true); }, 260); } else send(text, true);
   };
   const toggleRec = async (mode: 'send' | 'edit' = 'send') => {
-    if (busy || hearing) return;
+    if (!alive.current || busy || hearing) return;
     if (recording) {
       setRecording(false); setHearing(true); orb(mode === 'edit' ? 'idle' : 'processing');
       const base = draft.current;
-      const blob = await mic.stopRecording(); mic.release('coach');
+      const blob = await mic.stopRecording();
+      if (!alive.current) return;
+      mic.release('coach');
       try {
         if (!blob) throw new SttError('failed');
         const st = useAi.getState();
-        const words = (await transcribe(blob, { key: getKey('groq'), model: STT_MODEL[st.stt], language: st.voiceLang === 'auto' ? 'auto' : st.voiceLang, prompt: buildPrompt([]) })).trim();
+        const words = (await transcribe(blob, { key: getKey('groq'), model: STT_MODEL[st.stt], language: st.voiceLang === 'auto' ? 'auto' : st.voiceLang, prompt: buildPrompt(sttNames(pool)) })).trim();
         if (!alive.current) return;
         if (words) finishSaid(join(base, words), mode); else say({ id: uid('m'), role: 'error', text: t('Didn’t catch anything. Try again.') });
       } catch (e) {
@@ -776,6 +919,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     }
     stopSpeaking();
     const r = await mic.acquire('coach');
+    if (!alive.current) return;
     if (!r.ok || !mic.startRecording('coach')) { mic.release('coach'); say({ id: uid('m'), role: 'error', text: r.ok ? t('This browser can’t record audio.') : t('The microphone isn’t available. Check the permission, or type.') }); return; }
     draft.current = input;
     setRecording(true); orb('listening');
@@ -799,7 +943,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   }, []);
   // stop by itself once you have spoken and gone quiet for 0.9 s (it used to wait 1.4 s — a dead moment after your last word)
   useEffect(() => {
-    if (!recording) return;
+    if (!present || !recording) return;
     let heard = 0, quiet = 0; const t0 = performance.now();
     const id = setInterval(() => {
       const lv = mic.level();
@@ -807,9 +951,10 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       if ((heard >= 240 && quiet >= 900) || performance.now() - t0 > 40000) { clearInterval(id); recRef.current(); }
     }, 80);
     return () => clearInterval(id);
-  }, [recording]);
+  }, [recording, present]);
   const noKey = !anyBrain(ai);
-  const tips = useCoachTips(3);
+  const coachTips = useCoachTips(3);
+  const tips = about ? about.asks.map((a) => ({ icon: about.icon, label: a, prompt: a })) : coachTips;
   // the "AI can be wrong" note: said once, on the first open (it also lives in Settings → Privacy)
   const [noteSeen] = useState(() => { try { return localStorage.getItem('aven.coachNote') === '1'; } catch { return true; } });
   useEffect(() => { if (msgs.length) try { localStorage.setItem('aven.coachNote', '1'); } catch { /* ignore */ } }, [msgs.length]);
@@ -817,7 +962,9 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   // the suggestions: on an empty chat at the top; when you come back to an old chat, under it (until you send something)
   const shown = leaving ?? msgs;
   const listed = older ? shown.slice(older) : shown;
-  const resumeHead = <div className="micro" style={{ margin: '22px 0 10px' }}>{t('Today')}</div>;
+  // a newer preview of the same thing (tomorrow's plan, the week) replaces the older one: only the newest can be applied
+  const replaced = useMemo(() => replacedIds(msgs.filter((m): m is Extract<Msg, { role: 'action' }> => m.role === 'action')), [msgs]);
+  const resumeHead = <div className="micro trunc" style={{ margin: '22px 0 10px' }}>{about ? t('About {x}', { x: about.title }) : t('Today')}</div>;
   const tipsBlock = (
               <div className="stack gap12">
                 {noKey && <div className="small" style={{ color: 'var(--nokey, var(--warn))' }}>{t('Add an AI key to chat.')} <button className="chip sm acc press" style={{ marginLeft: 6 }} onClick={() => push('settings', { section: 'ai' })}>{t('Add a key')}</button></div>}
@@ -840,6 +987,16 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
             <button className="icon-btn flat sm press" aria-label={t('Remove photo')} onClick={() => { URL.revokeObjectURL(photo.url); setPhoto(null); }}><Icon name="close" size={16} /></button>
           </div>
         )}
+        {/* asked about something that was held: its name over the typing bar (× takes it off); it folds away when sent */}
+        <Collapse open={!!about} ms={420} className="coach-about-wrap">
+          {aboutShown.current && (
+            <div className="coach-about">
+              <span className="coach-about-ic"><Icon name={aboutShown.current.icon} size={16} /></span>
+              <span className="grow coach-about-t"><span className="xs t3">{t('Asking about')}</span><span className="small trunc">{aboutShown.current.label}</span></span>
+              <button className="icon-btn flat sm press" aria-label={t('Remove')} onClick={() => { haptic('light'); setAbout(null); }}><Icon name="close" size={16} /></button>
+            </div>
+          )}
+        </Collapse>
         <input ref={camRef} type="file" accept="image/*" hidden onChange={(e) => { pickPhoto(e.target.files?.[0]); e.target.value = ''; }} />
         <div className="coach-composer" ref={composerRef} style={morphVars}>
           {/* the orb is the Coach's microphone: it flies in from the tab bar, listens to you, thinks while it answers */}
@@ -863,8 +1020,9 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
               <span className={`cf-status${recording ? ' on' : ''}`} aria-hidden="true">{t('Listening…')}</span>
               <span className={`cf-status${hearing ? ' on' : ''}`} aria-hidden="true">{t('Transcribing…')}</span></div>
             {/* Send is an arrow inside the field, there only when there is something to send (Stop while it works) */}
-            <button className={`coach-send press ${busy || input.trim() || photo || recording ? 'on' : ''} ${busy ? 'busy' : ''}`} onMouseDown={(e) => e.preventDefault() /* the field keeps the keyboard (it stays up after a send) */}
-              aria-label={busy ? t('Stop') : recording ? t('Stop and send') : t('Send')} tabIndex={busy || input.trim() || photo || recording ? 0 : -1} onClick={() => (busy ? ctl.current?.abort() : recording ? toggleRec('send') : hearing ? undefined : send())}>
+            {/* (while it answers: Stop when the field is empty; typed words wait, dimmed, and go when the answer is done) */}
+            <button className={`coach-send press ${busy || input.trim() || photo || recording ? 'on' : ''} ${busy && !input.trim() ? 'busy' : ''} ${busy && input.trim() && queuedOn ? 'queued' : ''}`} onMouseDown={(e) => e.preventDefault() /* the field keeps the keyboard (it stays up after a send) */}
+              aria-label={busy && !input.trim() ? t('Stop') : recording ? t('Stop and send') : t('Send')} tabIndex={busy || input.trim() || photo || recording ? 0 : -1} onClick={() => (busy && !input.trim() ? ctl.current?.abort() : recording ? toggleRec('send') : hearing ? undefined : send())}>
               {/* send turns into stop (and back) by a short cross-fade with a little turn, not a cut. While you speak it is the
                   arrow (stop and send); once you have stopped it steps aside while your words are heard (the orb thinks) */}
               <span className="cs-ico cs-go"><Icon name="arrowUp" size={18} sw={2.6} /></span>
@@ -883,28 +1041,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
           <>
             {shown.length === 0 ? tipsBlock : tipsOut === 'top' && <div className="coach-tips-out" inert onAnimationEnd={(e) => { if (e.target === e.currentTarget) setTipsOut(null); }}>{tipsBlock}</div>}
             <div className="stack coach-thread" style={{ gap: 16, marginTop: shown.length ? 0 : 16 }}>
-              {listed.map((m) => (
-                <div key={m.id} data-mid={m.id} className={m.role === 'user' && !m.seeded && !flown(m.id) ? 'coach-sent' : undefined}
-                  style={{ transformOrigin: m.role === 'user' ? '100% 100%' : '0% 0%', alignSelf: m.role === 'user' ? 'flex-end' : 'stretch', maxWidth: m.role === 'user' ? '84%' : '100%', display: m.role === 'user' ? 'flex' : undefined }}>
-                  {m.role === 'user' && (
-                    <div className="stack" style={{ alignItems: 'flex-end', gap: 6, maxWidth: '100%' }}>
-                      {m.photo && (m.image ? <img className="said-photo" src={m.image} alt={t('Your photo')} /> : <div className="said xs t2"><Icon name="camera" size={13} style={{ verticalAlign: '-2px', marginRight: 4 }} />{t('Photo')}</div>)}
-                      {m.text && <div className="said" style={{ maxWidth: '100%' }}>{m.lines ? m.lines.map((l, i) => <span key={i} className="said-l">{l || '\u200b'}</span>) : m.text}</div>}
-                    </div>
-                  )}
-                  {m.role === 'model' && <CoachReply m={m} />}
-                  {m.role === 'action' && (
-                    <div className="stack gap8">
-                      {m.results.map((r) => (
-                        <ActionCard key={r.id} r={r} undone={m.undone.includes(r.id)} confirmed={m.confirmed.includes(r.id)}
-                          onUndo={() => { r.undo?.(); haptic('light'); setMsgs((x) => x.map((y) => (y.id === m.id && y.role === 'action' ? { ...y, undone: [...y.undone, r.id] } : y))); }}
-                          onConfirm={() => { r.button?.run(); haptic('confirm'); setMsgs((x) => x.map((y) => (y.id === m.id && y.role === 'action' ? { ...y, confirmed: [...y.confirmed, r.id] } : y))); }} />
-                      ))}
-                    </div>
-                  )}
-                  {m.role === 'error' && <div className="plinth-2 small" role="alert" style={{ padding: '10px 14px', color: 'var(--bad)' }}>{m.text}</div>}
-                </div>
-              ))}
+              {listed.map((m) => <ChatRow key={m.id} m={m} sent={m.role === 'user' && !m.seeded && !flown(m.id)} gone={m.role === 'action' ? m.results.filter((r) => replaced.has(r.id)).map((r) => r.id).join(',') : ''} setMsgs={setMsgs} onErr={onErr} />)}
             </div>
             {resumed && shown.length > 0 ? <div className="coach-resume">{resumeHead}{tipsBlock}</div>
               : tipsOut === 'resume' && <div className="coach-resume coach-tips-out" inert onAnimationEnd={(e) => { if (e.target === e.currentTarget) setTipsOut(null); }}>{resumeHead}{tipsBlock}</div>}
