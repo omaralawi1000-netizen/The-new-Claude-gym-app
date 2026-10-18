@@ -33,7 +33,7 @@ import { LANDS, anchorOf, arrive, flyHero, landStyle, samples, type Anchor, type
 
 // the morph's fades, in progress (see `F` in Active)
 const FADE_OUT = { inside: [0.167, 0.28], skin: [0.18, 0.26], words: [0.1, 0.188], back: [0.105, 0.15], solid: [0.17, 0.18] };
-const FADE_IN = { inside: [0.025, 0.08], skin: [0.06, 0.16], words: [0.002, 0.03], back: [0, 0.03], solid: [0, 0.03] };
+const FADE_IN = { inside: [0.025, 0.08], skin: [0.06, 0.16], words: [0.002, 0.03], back: [0, 0.03], solid: [0.018, 0.04] };
 // Round 7 (landing.ts): the window's page leaves early on the way down and comes in late on the way up, so it is never seen
 // as a shrunken page; the clock carries the eye. B lands on the card itself (no hold), so its fades are r6's, moved down.
 // (`views`: the list, which comes in after the header, once the clock has passed it)
@@ -625,8 +625,9 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     const frames = Math.max(fs.length, (hs?.length ?? 0) + wait) - 1;
     const B = ls.current === 'B';
     const restHead = headerAt(1);
+    // (B opening: the clock is home in its slot a little ahead of the window, before the header's words beside it come in)
     const flight = opening
-      ? { frames, src: (i: number) => (B ? skinAt(ppAt(i)) : cardRest), dst: (i: number) => headerAt(ppAt(i)), w: (i: number) => (B ? Math.min(1, qAt(ppAt(i))) : hw(i)) }
+      ? { frames, src: (i: number) => (B ? skinAt(ppAt(i)) : cardRest), dst: (i: number) => headerAt(ppAt(i)), w: (i: number) => (B ? 1 - Math.pow(1 - Math.min(1, qAt(ppAt(i))), 3) : hw(i)) }
       : { frames, src: (i: number) => headerAt(ppAt(i)), dst: (i: number) => (B ? skinAt(ppAt(i)) : cardRest), w: (i: number) => (B ? Math.pow(Math.max(0, 1 - qAt(ppAt(i))), 1.5) : hw(i)) };
     const a0 = opening ? cardA : headNow, a1 = opening ? { x: restHead.x, y: restHead.y, f: restHead.f } : cardA;
     const fromEl = opening ? cardClock : headClock, toEl = opening ? headClock : cardClock;
