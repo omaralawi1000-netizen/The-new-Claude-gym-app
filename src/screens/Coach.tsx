@@ -60,6 +60,9 @@ const GROW = asCurve(rampSpring(0.52, 0.07)); // a line more or less
 // far from the field); both start soft, so the copy is seen to lift off the pill rather than be thrown
 const FLY = asCurve(rampSpring(0.58, 0.09));
 const FLY_SHAPE = asCurve(rampSpring(0.42, 0.07));
+// …a long way up (sent under the suggestions, it lands where they were, ~230 px up): slower and softer off the pill, so it
+// glides there at the speed of a short flight instead of being thrown (judge 18 Oct: ~1100 px/s peak on the plain curve)
+const FLY_FAR = asCurve(rampSpring(0.78, 0.16));
 // said words (they were never in the field): the pill lifts into its bubble on the same motion, a touch slower, starting
 // softer (the words come up inside it on the way, so the move itself has to read: the pill peels off the bar)
 const FLY_SAID = asCurve(rampSpring(0.6, 0.11));
@@ -558,7 +561,8 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
         const slot = composerRef.current?.querySelector<HTMLElement>('.coach-cam-slot');
         if (slot) go(slot.animate(hold(1), { duration: T, easing: 'linear', pseudoElement: '::before' }));
       } else if (btn) go(btn.animate([{ opacity: 0 }, { opacity: 0, offset: 0.74 }, { opacity: 1 }], { duration: 680, easing: 'linear' }));
-      const opts = { duration: from.fresh ? FLY_SAID.duration : FLY.duration, easing: from.fresh ? FLY_SAID.easing : FLY.easing, fill: 'forwards' as const };
+      const fly = from.fresh ? FLY_SAID : Math.abs(dy) > 160 ? FLY_FAR : FLY;
+      const opts = { duration: fly.duration, easing: fly.easing, fill: 'forwards' as const };
       const shape = { duration: from.fresh ? FLY_SAID_SHAPE.duration : FLY_SHAPE.duration, easing: from.fresh ? FLY_SAID_SHAPE.easing : FLY_SHAPE.easing, fill: 'forwards' as const };
       const fade = (ms: number, delay = 0) => ({ duration: ms, delay, easing: 'cubic-bezier(.3, 0, .2, 1)', fill: 'backwards' as const });
       const inked = (a: Animation) => { a.finished.then(() => { words.style.color = cs.color; a.cancel(); }, () => {}); return a; };
@@ -650,8 +654,6 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
 
 
   const say = (m: Msg) => setMsgs((x) => [...x, m]);
-  // (the room the suggestions left, given back once the answer is done; a list that then got shorter glides down to its end)
-  useEffect(() => { if (busy) return; const th = bodyRef.current?.querySelector<HTMLElement>('.coach-thread'); if (th?.style.minHeight) th.style.minHeight = ''; }, [busy]);
   // the fade is let go only once the old messages are out of the page (letting it go first showed them again for a frame)
   const cleared$ = useRef<Animation | null>(null);
   const finishClear = () => {
@@ -910,7 +912,8 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       tipsTop.current = head && th ? head.offsetTop - th.offsetTop - (parseFloat(getComputedStyle(head).marginTop) || 0) : 0;
       // the conversation keeps the room they took until the new lines have filled it: nothing above moves, your message
       // lands where they were and the answer writes itself in below it (the list used to glide down to close the gap, then
-      // straight back up as the answer came; judge, 18 Oct). A short answer that doesn't fill it gives it back at the end.
+      // straight back up as the answer came; judge, 18 Oct). A short answer keeps it under it until the Coach closes (giving it
+      // back while the answer was still writing in threw the list down and back up again, judge round 2).
       if (res && th && msgsRef.current.length) th.style.minHeight = `${res.offsetTop + res.offsetHeight - th.offsetTop}px`;
       setTipsOut(msgsRef.current.length === 0 ? 'top' : 'resume');
     }
