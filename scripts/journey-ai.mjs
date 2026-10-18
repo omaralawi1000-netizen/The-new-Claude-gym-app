@@ -165,10 +165,12 @@ groqMode = 'ok';
 
 // ── the Coach acts: sets, settings, navigation, undo, and answers about the app ──
 await p.getByLabel('Coach').click(); await wait(p, 700);
+// (at the gym, with a workout running: sets told after the gym become a finished workout instead, see journey-train2)
+await p.evaluate(async () => { const { useStore } = await import('/src/state/store.ts'); useStore.getState().startWorkout({ name: '' }); });
 await p.getByLabel('Message the Coach').fill('bench press 100 kilos for 8, 8 and 6'); await p.getByRole('button', { name: 'Send', exact: true }).click(); await wait(p, 2000);
 assert(await p.getByText('Logged 3 sets').isVisible(), 'sets logged from a sentence');
 const st1 = await p.evaluate(() => (() => { const d = JSON.parse(localStorage.getItem('aven.v1') || 'null'); const a = localStorage.getItem('aven.v1.active'); if (d && a) d.active = JSON.parse(a).active; return d; })()?.active);
-assert(st1 && st1.exercises.length === 1, 'a workout was started for them');
+assert(st1 && st1.exercises.length === 1, 'they went into the running workout');
 await p.getByLabel('Message the Coach').fill('make that last bench set 90'); await p.getByRole('button', { name: 'Send', exact: true }).click(); await wait(p, 1800);
 assert(await p.getByText('Set corrected').isVisible(), 'a set was corrected by voice');
 const st1b = await p.evaluate(() => (() => { const d = JSON.parse(localStorage.getItem('aven.v1') || 'null'); const a = localStorage.getItem('aven.v1.active'); if (d && a) d.active = JSON.parse(a).active; return d; })()?.active);

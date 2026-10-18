@@ -66,15 +66,17 @@ describe('runActions: acts on the real store, and every action can be undone', (
     expect(useStore.getState().entries).toHaveLength(0);
   });
   it('logs sets into a started workout and undo takes it all back', async () => {
+    useStore.getState().startWorkout({ name: '' });
     const [r] = await runActions([{ type: 'log_sets', exercises: [{ exercise: 'Barbell Bench Press', sets: [{ kg: 100, reps: 8 }, { kg: 100, reps: 6 }] }] }], ctx());
     expect(r.kind).toBe('sets');
     const a = useStore.getState().active!;
     const done = a.exercises.flatMap((e) => e.sets.filter((q) => q.done));
     expect(done.map((q) => [q.weightKg, q.reps])).toEqual([[100, 8], [100, 6]]);
     r.undo!();
-    expect(useStore.getState().active).toBeNull();
+    expect(useStore.getState().active!.exercises.flatMap((e) => e.sets.filter((q) => q.done))).toHaveLength(0);
   });
   it('a second mention adds to the same exercise block', async () => {
+    useStore.getState().startWorkout({ name: '' });
     await runActions([{ type: 'log_sets', exercises: [{ exercise: 'Barbell Bench Press', sets: [{ kg: 80, reps: 8 }] }] }], ctx());
     await runActions([{ type: 'log_sets', exercises: [{ exercise: 'Barbell Bench Press', sets: [{ kg: 85, reps: 6 }] }] }], ctx());
     const a = useStore.getState().active!;
@@ -97,6 +99,7 @@ describe('runActions: acts on the real store, and every action can be undone', (
     expect(e.water).toHaveLength(0); expect(e.weights).toHaveLength(0); expect(e.activities).toHaveLength(0);
   });
   it('finishing a workout waits for a tap', async () => {
+    useStore.getState().startWorkout({ name: '' });
     await runActions([{ type: 'log_sets', exercises: [{ exercise: 'Barbell Bench Press', sets: [{ kg: 100, reps: 5 }] }] }], ctx());
     const [r] = await runActions([{ type: 'finish_workout' }], ctx());
     expect(r.pending).toBe(true);
@@ -196,6 +199,7 @@ describe('the whole app by voice: move, replace, copy, routines, sets, plan', ()
     expect(useStore.getState().routines.find((x) => x.id === r.id)).toBeTruthy();
   });
   it('edits a set in the running workout, adds and swaps exercises, with Undo', async () => {
+    useStore.getState().startWorkout({ name: '' });
     await runActions([{ type: 'log_sets', exercises: [{ exercise: 'bench press', sets: [{ kg: 80, reps: 8 }, { kg: 80, reps: 8 }] }] }], ctx());
     const sets = () => useStore.getState().active!.exercises[0].sets.filter((q) => q.done);
     const [e] = await run([{ type: 'edit_set', exercise: 'bench', set_number: 2, kg: 85, reps: 6 }]);

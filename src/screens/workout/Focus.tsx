@@ -7,7 +7,7 @@ import { usePager } from '../../ui/pager';
 import { MuscleMap } from './MuscleMap';
 import { Figure, figureFor } from './Figure';
 import { exName } from './common';
-import { nextSetOf } from './rest';
+import { focusPageNow, nextSetOf, setFocusPage, subscribeFocusPage } from './rest';
 import { ExerciseBlock, useActive } from './Active';
 import { WorkoutNote } from './Briefing';
 
@@ -45,12 +45,9 @@ export function upNextOf(a: WorkoutSession | null | undefined, seId: string): { 
   return null;
 }
 
-// Which exercise the Focus view shows, for the bar. A tiny store of its own: only the bar listens, so turning a page
-// re-renders nothing else.
-let shownId: string | null = null;
-const shownSubs = new Set<() => void>();
-const setShown = (id: string | null) => { if (id === shownId) return; shownId = id; shownSubs.forEach((f) => f()); };
-export const useFocusPage = () => useSyncExternalStore((f) => { shownSubs.add(f); return () => { shownSubs.delete(f); }; }, () => shownId);
+// Which exercise the Focus view shows, for the bar (and for the Coach's "current set"): its tiny store lives in rest.ts.
+const setShown = setFocusPage;
+export const useFocusPage = () => useSyncExternalStore(subscribeFocusPage, focusPageNow);
 
 export type FocusApi = { jumpToSet: (setId: string) => void };
 

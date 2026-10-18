@@ -1,3 +1,4 @@
+import { currentSetOf } from './currentSet';
 import type { AppData, Exercise, MuscleGroup } from './types';
 import { addDays, diffDays } from './dates';
 import { nutritionByDay, trendRate, weekStreak, weeklyTraining, weightTrend, average, setsPerMuscle, usualDays, stalledLifts, MUSCLES } from './stats';
@@ -143,7 +144,9 @@ export function buildTodayContext(d: AppData, today: string, now: Date, exOf: (i
   return L.join('\n');
 }
 
-export const exerciseNames = (list: Exercise[]) => list.filter((e) => !e.archived).map((e) => e.name);
+// (how each is logged, when it isn't weight × reps: the tag is not part of the name)
+const LOG_TAG: Partial<Record<string, string>> = { bodyweightReps: ' [bodyweight: kg = added weight]', assisted: ' [assisted: kg = assistance]', duration: ' [timed: seconds]', distance: ' [distance: km]' };
+export const exerciseNames = (list: Exercise[]) => list.filter((e) => !e.archived).map((e) => `${e.name}${LOG_TAG[e.logType ?? ''] ?? ''}`);
 
 /** What the user told the Coach before, oldest first and numbered (the numbers are what `forget` points at). */
 export function memoryBlock(d: Pick<AppData, 'memory'>, exName: (id: string) => string, now = Date.now()): string {
@@ -239,6 +242,7 @@ export const AGENT_SYSTEM = (lang: 'en' | 'da') =>
   'You are the assistant inside Aven, a personal gym and food-logging app: its coach AND its hands. You can see the user\'s data (the DATA block) and know how the whole app works (the GUIDE). ' +
   'The user talks or types short natural commands. Decide what they want:\n' +
   '1. They TELL you what they ate, drank, weighed, lifted or did ("log a banana", "two eggs and rye bread for breakfast", "bench 100 for 8, 8, 6", "30 minutes of wrestling, hard") → log_food / log_water / log_weight / log_sets / log_activity. Do not ask for permission and do not repeat the list in your reply (the app shows what was logged). ' +
+  'Sets told with no workout running ("I did bench 80 for 8, 8, 6 today") or for another day ("yesterday I squatted 100 for 5") → log_sets with day when said: the app saves them as a finished workout (it never starts a live one). For an exercise marked [bodyweight], kg is only the added weight (none = null); [timed] uses durationSec. Wrestling or other sports → log_activity: minutes (or rounds), intensity 1 easy, 2 hard, 3 max when they say how it felt. ' +
   'Copy quantities exactly as said; NEVER invent an amount you were not given (amount null is fine: the app uses their usual amount). "a banana" = amount 1, unit piece. Weights are kilograms (convert pounds). One log_food action can hold several foods. Use meal only if they named one. day only when they said one (yesterday / today / a date YYYY-MM-DD, worked out from Today and its weekday); otherwise null = the day they are looking at. ' +
   'FOOD NAMES: keep the food words exactly as said, in the language said — never translate, simplify or swap them for a generic food ("power potatoes" stays "power potatoes", not "potatoes"); when it is one of OWN FOODS or FREQUENT FOODS, copy that name exactly. Raw, cooked or dry goes in state only when said. ' +
   'A bare calorie number with no food to look up ("quick entry 100 calories", "300 kcal 20 g protein", "500 kalorier pizza") → log_quick with totals (kcal and any macros said), name only if they named it. ' +
@@ -246,7 +250,7 @@ export const AGENT_SYSTEM = (lang: 'en' | 'da') =>
   '2. They ask you to DO something in the app → the matching action: navigate, set_setting, start_workout, finish_workout, discard_workout, set_schedule ("Pull day on Wednesdays", "Friday is a rest day": weekday 0=Sunday…6=Saturday, routine null = rest). ' +
   'PLAN A DAY: "chest and triceps with some shoulder tomorrow", "give me a pull day on Friday", "what should I train today? put it in" → plan_day: day (today / tomorrow / YYYY-MM-DD), focus = the muscles (most important first), light = the ones they want only a little of, add = the exercises: look up exercises for those muscles first and choose from the ones THEY do (most done and most recent first; skip any MEMORY says hurts), usually 5–7 exercises, sets and reps as they usually do them. The app shows it as a preview with their targets and an Apply button; nothing changes until they tap it. To change a preview ("swap the flyes for dips", "one less exercise"), send plan_day again with the new list. Keep the reply to one line. ' +
   'PLAN: "put wrestling on Tuesday" / "I wrestle Tuesdays and Thursdays" → plan_activity (kind wrestling, weekday, on true; one action per day; on false to take it off). "Move Push to Thursday" / "swap leg day to Friday" → move_workout (routine, weekday = the new day, from_weekday if they said it; once true when it is only this week — "this week", "tomorrow", "today" — otherwise false = the weekly plan). Swapping two days = two move_workout actions. If you are not sure which routine/exercise they mean, ask in the reply instead of guessing.\n' +
-  'DURING A WORKOUT (RUNNING WORKOUT in DATA): short set talk is about the CURRENT SET listed there. "Only 9 reps", "8", "67 kilos same reps", "done, 10 reps" → log_current_set (which current; only the numbers they said — an unsaid weight or reps stays as planned; it ticks the set and starts the rest). "The last one was actually 7", "make that 70 kg" right after a set → log_current_set with which last. Name another exercise or set number → edit_set instead. Keep the reply to a few words or empty.\n' +
+  'DURING A WORKOUT (RUNNING WORKOUT in DATA): short set talk is about the CURRENT SET listed there. "Only 9 reps", "8", "67 kilos same reps", "done, 10 reps" → log_current_set (which current; only the numbers they said — an unsaid weight or reps stays as planned; it ticks the set and starts the rest; past the last planned set it adds one more). "Same again", "samme igen" → log_current_set with same true (it copies their last set of that exercise). "Warm-up 40 for 10" → log_current_set with warmup true (unticked warm-ups are otherwise passed over). A timed set ("held it 60 seconds") → seconds. Give the numbers exactly as heard: the app itself fixes a number speech got wrong (18 heard for their usual 80) and shows it. "The last one was actually 7", "make that 70 kg" right after a set → log_current_set with which last. Name another exercise or set number → edit_set instead. Keep the reply to a few words or empty.\n' +
   '3. They CHANGE what is already logged. Always put it in actions — never say you cannot, you can do all of these: ' +
   'edit_food (fix label values per100, amount+unit, or meal; totals only for a quick entry); delete_food (target = an item, or meal = a meal name / "all" to clear it); move_food and copy_food ("move the chicken from dinner to lunch": target chicken, meal_from dinner, meal_to lunch; with no target a whole meal moves; day_to for another day); replace_food ("replace the rice with potatoes": target rice, with potatoes — the amount is kept unless they say a new one); create_food (their own food: name, basis, per100; add amount to log it as well); favourite_food; save_meal. ' +
   'target = the item\'s name as in DATA; meal_from narrows it when the same food is in two meals; day when it is not today. ' +
@@ -326,8 +330,11 @@ export function buildAgentContext(d: AppData, today: string, exName: (id: string
     const a = d.active;
     L.push(`RUNNING WORKOUT "${a.name || 'Workout'}"${a.pausedAt ? ' (paused)' : ''} (✓ = finished set; set numbers are for edit_set): ${a.exercises.map((e) => `${exName(e.exerciseId)}: ${e.sets.map(setTxt).join(', ')}`).join(' | ')}.`);
     // the set they are on: what "only 9 reps" means
-    const cur = a.exercises.map((e) => ({ e, i: e.sets.findIndex((q) => !q.done) })).find((x) => x.i >= 0);
-    if (cur) { const q = cur.e.sets[cur.i]; const kg = q.weightKg ?? q.target?.weightKg, reps = q.reps ?? q.target?.repMax; L.push(`CURRENT SET (the one they are on now): ${exName(cur.e.exerciseId)} set ${cur.i + 1}${q.type === 'warmup' ? ' (warm-up)' : ''}, planned ${kg ? `${r1(kg)} kg × ` : ''}${reps ?? '?'} reps.`); }
+    // (the same answer the screen and log_current_set use: the Focus page, a superset partner's turn, where they are;
+    // unticked warm-ups are passed over — say "warm-up" to log one)
+    const c0 = currentSetOf(a, 'skip');
+    const cur = c0 ? { e: c0.se, i: c0.se.sets.indexOf(c0.set) } : null;
+    if (cur) { const q = cur.e.sets[cur.i]; const kg = q.weightKg ?? q.target?.weightKg, reps = q.reps ?? q.target?.repMax; L.push(`CURRENT SET (the one they are on now): ${exName(cur.e.exerciseId)} set ${cur.i + 1}, planned ${kg ? `${r1(kg)} kg × ` : ''}${reps ?? '?'} reps.`); }
     else L.push('CURRENT SET: none — every set is ticked.');
   } else L.push('No workout is running.');
   // the last finished workouts in full, so "make my last bench set 85" and "how did Tuesday go?" have something to read

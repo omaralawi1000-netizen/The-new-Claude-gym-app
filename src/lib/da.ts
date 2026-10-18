@@ -1669,4 +1669,11 @@ export const da: Record<string, string> = {
  "Looking up {n} foods…": "Slår {n} fødevarer op…",
  "estimated from the photo": "anslået ud fra billedet",
  "estimated weight": "anslået vægt",
+ "Already logged": "Allerede logget",
+ "Changed to {set}": "Ændret til {set}",
+ "Log again": "Log igen",
+ "Logged workout": "Logget træning",
+ "Still training? Your workout from {time} is open": "Træner du stadig? Din træning fra {time} er åben",
+ "Use {n}": "Brug {n}",
+ "heard {a} → logged {b}": "hørte {a} → loggede {b}",
 };

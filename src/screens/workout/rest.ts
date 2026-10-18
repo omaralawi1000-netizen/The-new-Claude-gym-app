@@ -10,17 +10,12 @@ import { adjustRest, skipRest } from './actions';
 import { fmtNum, kgToDisplay } from '../../lib/units';
 import { androidRest, clearAppRest, inAndroidApp, noteAndroidApp, overAppRest, showAppRest } from '../../lib/androidApp';
 
-/** The set to do next: the first one not yet ticked, in the order of the list (with its label: "W" or the working-set number). */
+export { currentSetOf, focusPageNow, setFocusPage, subscribeFocusPage } from '../../lib/currentSet';
+import { currentSetOf } from '../../lib/currentSet';
+
+/** The set to do next (for the highlight and the bar): `currentSetOf`, warm-ups included. */
 export function nextSetOf(a: WorkoutSession | null | undefined): { se: SessionExercise; set: SetRecord; label: string } | null {
-  if (!a) return null;
-  for (const se of a.exercises) {
-    let n = 0;
-    for (const set of se.sets) {
-      if (set.type === 'working') n++;
-      if (!set.done) return { se, set, label: set.type === 'warmup' ? 'W' : String(n) };
-    }
-  }
-  return null;
+  return currentSetOf(a, 'include', false);
 }
 
 /** "Bench Press · set 3", for the alert and the bar. */

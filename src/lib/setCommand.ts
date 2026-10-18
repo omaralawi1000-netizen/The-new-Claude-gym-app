@@ -88,3 +88,29 @@ export function guardSet(cmd: { kg?: number; reps?: number }, planned: { kg?: nu
   if (cmd.reps !== undefined && (cmd.reps > 30 || cmd.reps < 1)) out.reps = [cmd.reps, planned.reps ?? Math.min(30, Math.round(cmd.reps / 10))];
   return out.kg || out.reps ? out : null;
 }
+
+/**
+ * A number speech got wrong, fixed instead of asked about (Omar: "if it mishears 18 and knows I always lift 80, it just
+ * logs 80"). Only the slips speech really makes count — a digit dropped or added (8 ↔ 80, 800 ↔ 80) and teen ↔ ty
+ * (18 ↔ 80, 14 ↔ 40) — and only when the fixed number lands within 10 % of what was planned or done last time. Anything
+ * else is logged as said (a real deload is not "corrected"). Returns what to log and what was heard, when it changed.
+ */
+export function fixMisheard(said: { kg?: number; reps?: number }, usual: { kg?: number; reps?: number }): { kg?: number; reps?: number; heard?: { kg?: number; reps?: number } } {
+  const out: { kg?: number; reps?: number; heard?: { kg?: number; reps?: number } } = { kg: said.kg, reps: said.reps };
+  const slips = (x: number) => {
+    const c = [x * 10, x / 10];
+    if (Number.isInteger(x) && x >= 13 && x <= 19) c.push((x - 10) * 10); // eighteen → eighty
+    if (Number.isInteger(x) && x >= 30 && x <= 90 && x % 10 === 0) c.push(x / 10 + 10); // eighty → eighteen
+    return c;
+  };
+  if (said.kg !== undefined && usual.kg) {
+    const off = Math.abs(said.kg - usual.kg) / usual.kg;
+    const fix = off > 0.25 ? slips(said.kg).find((x) => Math.abs(x - usual.kg!) / usual.kg! <= 0.1) : undefined;
+    if (fix !== undefined) { out.kg = Math.round(fix * 4) / 4; out.heard = { ...out.heard, kg: said.kg }; }
+  }
+  if (said.reps !== undefined && said.reps > 30) {
+    const fix = slips(said.reps).find((x) => Number.isInteger(x) && x >= 1 && x <= 30 && (!usual.reps || Math.abs(x - usual.reps) <= Math.max(3, usual.reps * 0.5)));
+    if (fix !== undefined) { out.reps = fix; out.heard = { ...out.heard, reps: said.reps }; }
+  }
+  return out;
+}
