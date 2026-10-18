@@ -374,7 +374,7 @@ export function ActionCard({ r, undone, confirmed, onUndo, onConfirm, replaced =
               {(!confirmed || sealing) && hadButtons && (
                 <div key="before" className={`row-flex ac-actions${confirmed ? ' ac-out' : ''}`} style={{ gap: 8, flexWrap: 'wrap' }} aria-hidden={confirmed || undefined} inert={confirmed ? true : undefined}>
                   {r.button && <button className={`btn sm press ${r.pending ? 'primary' : ''}`} onClick={r.pending ? onConfirm : r.button.run}>{r.button.label}</button>}
-                  {r.more?.map((b) => <button key={b.label} className="btn sm ghost press" onClick={() => { haptic('light'); b.run(); }}>{b.label}</button>)}
+                  {r.more?.map((b) => <button key={b.label} className={`btn sm press ${b.warn ? 'ac-warn-chip' : 'ghost'}`} onClick={() => { haptic('light'); b.run(); }}>{b.label}</button>)}
                   {r.undo && !r.pending && <button className="btn sm ghost press" onClick={onUndo}><Icon name="undo" size={15} /> {t('Undo')}</button>}
                 </div>
               )}
@@ -382,7 +382,7 @@ export function ActionCard({ r, undone, confirmed, onUndo, onConfirm, replaced =
                 <div key="after" className={`row-flex ac-actions${sealing ? ' ac-in-late' : ''}`} style={{ gap: 8, flexWrap: 'wrap' }}>
                   {/* (a saved recipe can still be logged or listed: its other buttons stay beside Undo) */}
                   {r.undo && <button className="btn sm ghost press" onClick={onUndo}><Icon name="undo" size={15} /> {t('Undo')}</button>}
-                  {r.more?.map((b) => <button key={b.label} className="btn sm ghost press" onClick={() => { haptic('light'); b.run(); }}>{b.label}</button>)}
+                  {r.more?.map((b) => <button key={b.label} className={`btn sm press ${b.warn ? 'ac-warn-chip' : 'ghost'}`} onClick={() => { haptic('light'); b.run(); }}>{b.label}</button>)}
                 </div>
               )}
             </div>

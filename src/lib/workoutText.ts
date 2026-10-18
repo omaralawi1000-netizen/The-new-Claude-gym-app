@@ -100,18 +100,38 @@ export function parseWorkoutText(text: string): ParsedWorkoutRow[] {
   return splitExerciseSegments(text).map((s, i) => parseWorkoutSegment(s, i)).filter(Boolean) as ParsedWorkoutRow[];
 }
 
+// what people call a lift at the gym → its name in the catalog (folded, hyphens and plurals as said). Scored a little above
+// a plain tie, so a lift you actually log under another name (four times or more) still wins.
+const LIFT_ALIASES: Record<string, string> = {
+  bench: 'barbell bench press', 'bench press': 'barbell bench press', baenkpres: 'barbell bench press', baenk: 'barbell bench press', 'flat bench': 'barbell bench press',
+  rdl: 'romanian deadlift', rdls: 'romanian deadlift', 'romanian deadlifts': 'romanian deadlift', 'rumaensk dodloft': 'romanian deadlift',
+  'pull up': 'pull-up', 'pull ups': 'pull-up', pullup: 'pull-up', pullups: 'pull-up', 'pull-ups': 'pull-up', pullop: 'pull-up', pullops: 'pull-up',
+  'chin up': 'chin-up', 'chin ups': 'chin-up', chinup: 'chin-up', chinups: 'chin-up', 'chin-ups': 'chin-up',
+  squat: 'back squat', squats: 'back squat', 'barbell squat': 'back squat', knaeboj: 'back squat',
+  ohp: 'overhead press', 'military press': 'overhead press', 'shoulder press': 'overhead press', skulderpres: 'overhead press',
+  row: 'barbell row', rows: 'barbell row', 'bent over row': 'barbell row', 'bent over rows': 'barbell row', roning: 'barbell row',
+  curl: 'barbell curl', curls: 'barbell curl', 'bicep curl': 'barbell curl', 'bicep curls': 'barbell curl', 'biceps curl': 'barbell curl', 'biceps curls': 'barbell curl',
+  'skull crusher': 'skullcrusher', 'skull crushers': 'skullcrusher', skullcrushers: 'skullcrusher',
+  dodloft: 'deadlift', 'dead lift': 'deadlift', deadlifts: 'deadlift',
+};
+const aliasOf = (q: string) => LIFT_ALIASES[fold(q).replace(/\s+/g, ' ').trim()];
+const isBarbell = (e: Exercise) => (Array.isArray(e.equipment) ? e.equipment[0] : e.equipment) === 'barbell';
+
 export function matchExercises(query: string, pool: Exercise[], lang: Lang, limit = 5, boost: (e: Exercise) => number = () => 0): { ex: Exercise; score: number }[] {
   const q = tokens(query);
   if (!q.length) return [];
+  const alias = aliasOf(query);
+  // "ups" is "up" ("pull-ups" said, "Pull-up" in the catalog)
+  const same = (x: string, t: string) => x === t || x + 's' === t || t + 's' === x;
   const out: { ex: Exercise; score: number }[] = [];
   for (const ex of pool) {
     const names = [ex.name, ex.nameDa ?? '', ...(ex.aka ?? [])];
-    let best = 0;
+    let best = alias && fold(ex.name) === fold(alias) ? 0.86 : 0;
     for (const n of names) {
       if (!n) continue;
       const nt = tokens(n);
       if (fold(n) === fold(query)) best = Math.max(best, 1);
-      else if (q.every((t) => nt.includes(t))) best = Math.max(best, 0.85 - Math.min(0.3, (nt.length - q.length) * 0.05));
+      else if (q.every((t) => nt.some((x) => same(x, t)))) best = Math.max(best, 0.85 - Math.min(0.3, (nt.length - q.length) * 0.05));
       else {
         const hit = q.filter((t) => nt.some((x) => x.startsWith(t) || t.startsWith(x))).length;
         if (hit) best = Math.max(best, (hit / q.length) * 0.55);
@@ -119,5 +139,6 @@ export function matchExercises(query: string, pool: Exercise[], lang: Lang, limi
     }
     if (best >= 0.3) out.push({ ex, score: best + boost(ex) });
   }
-  return out.sort((a, b) => b.score - a.score || a.ex.name.length - b.ex.name.length).slice(0, limit);
+  // a tie goes to the barbell lift (the one people mean by "bench" or "squat"), then the shorter name
+  return out.sort((a, b) => b.score - a.score || Number(isBarbell(b.ex)) - Number(isBarbell(a.ex)) || a.ex.name.length - b.ex.name.length).slice(0, limit);
 }

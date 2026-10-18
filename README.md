@@ -2484,3 +2484,23 @@ Omar asked why "Power Potatoes" logged as a plain potato. There were five causes
   - After midnight, before the day starts, a new food goes to Snacks.
 
 Tests: `tests/food3.test.ts`, `scripts/journey-food3.mjs`. `journey-food` now answers the oats question.
+
+## Coach 2.0, phase 5b part B: training logging you can trust (18 Oct 2026, v0.1.146)
+- **After the gym, or another day.** With no workout running, or for another day ("yesterday I squatted 100 for 5"), sets go into a *finished* "Logged workout" for that day. A live workout is never started. Later sets that day join it, and records are counted. Today's logged workout is linked to the planned routine when its lifts are in it, so the plan shows it done; a rotation moves on. Undo takes it back.
+- **One "current set"** (`src/lib/currentSet.ts`): the Focus page being looked at; else, after a superset exercise, the partner whose turn it is; else the exercise you last ticked in, while it has sets left; else the first open set. The list's highlight, the bar, the Coach's CURRENT SET and "8 reps" all use it. The Coach passes over unticked warm-ups unless "warm-up" is said.
+- **Misheard numbers are fixed, never asked about** (Omar's call), by `fixMisheard`:
+  - Only real speech slips count: a digit dropped or added (8 ↔ 80, 800 ↔ 80) and teen ↔ ty (18 ↔ 80). The fixed number must land within 10% of the plan or last time; a real lighter day is logged as said.
+  - The card says "heard 18 kg → logged 80 kg", with an amber "Use 18 kg" chip to put back what was said.
+- **Repeats, "same again", extra sets, Undo.**
+  - The same set said twice within 20 s is logged once ("Already logged", with Log again).
+  - "Same again" copies the last set of that exercise.
+  - Past the last planned set, one more is added.
+  - Undo takes back only that set, and clears the rest timer only if that set started it.
+- **A workout left open.** Opening the app with a workout idle for more than 6 hours asks once: "Still training?", with Finish. It is saved as of its last set, so its time is right.
+- **Kinds and names.**
+  - The prompt's catalog marks bodyweight (kg = added weight), assisted, timed and distance exercises.
+  - `log_current_set` takes seconds, same and warmup.
+  - Wrestling can be given in rounds without minutes (about 3 min a round), and intensity 1–3 is in the schema.
+  - Gym words map to catalog names: bench and bænkpres, RDL, pull-ups and chin-ups, squats, OHP, rows, curls, dødløft. A tie goes to the barbell lift, but a lift you log under another name four or more times still wins.
+
+Tests: `tests/train2.test.ts`, `scripts/journey-workout6.mjs`. The agent tests and `journey-ai` now start a workout first where they mean the running one.

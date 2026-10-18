@@ -23,12 +23,15 @@ import { type Brain } from './gemini';
 import { estimateFood } from './brain';
 import { ACTIVITY_KINDS, ACTIVITY_LABEL } from './activity';
 import { fmtNum, kgToDisplay } from './units';
-import type { ActivityKind, Equipment, Exercise, Food, FoodEntry, Lang, LogType, Meal, MeasureKind, MemoryKind, MemoryNote, MuscleGroup, Quantity, Recipe, RecipeIngredient, RoutineItem, SessionExercise, SetRecord, Settings } from './types';
+import type { ActivityKind, Equipment, Exercise, Food, FoodEntry, Lang, LogType, Meal, MeasureKind, MemoryKind, MemoryNote, MuscleGroup, Quantity, Recipe, RecipeIngredient, RoutineItem, SessionExercise, SetRecord, Settings, WorkoutSession } from './types';
 import { MEMORY_KINDS, MEMORY_MAX } from '../state/defaults';
-import { addExercises, adjustRest, moveExercise, patchExercise, replaceExercise, skipRest, startRest, toggleSuperset } from '../screens/workout/actions';
+import { addExercises, addSet, adjustRest, moveExercise, patchExercise, replaceExercise, skipRest, startRest, toggleSuperset } from '../screens/workout/actions';
 import { completeSet } from '../screens/workout/complete';
+import { currentSetOf } from './currentSet';
+import { fixMisheard } from './setCommand';
 import { EQUIP_LABEL, MUSCLE_LABEL } from '../screens/workout/common';
 import { muscleOf } from './agentLookup';
+import { detectRecords } from './workout';
 import { buildDayPlan, pickForMuscles } from './planDay';
 import { specOf } from './settingSpec';
 import { weekdayOf } from './dates';
@@ -42,7 +45,7 @@ export type AgentAction =
   | { type: 'log_water'; ml: number; day?: string | null }
   | { type: 'log_quick'; totals: NutriFix; name?: string | null; meal?: string | null; day?: string | null }
   | { type: 'log_weight'; kg: number; day?: string | null }
-  | { type: 'log_sets'; exercises: { exercise: string; sets: AgentSet[] }[] }
+  | { type: 'log_sets'; exercises: { exercise: string; sets: AgentSet[] }[]; day?: string | null }
   | { type: 'log_activity'; kind: ActivityKind; minutes: number; rounds?: number; intensity?: 1 | 2 | 3; note?: string; day?: string | null }
   | { type: 'start_workout'; routine?: string | null }
   | { type: 'finish_workout' }
@@ -68,7 +71,7 @@ export type AgentAction =
   | { type: 'set_schedule'; weekday: number; routine: string | null }
   | { type: 'move_workout'; routine?: string | null; from_weekday?: number | null; to_weekday: number; once: boolean }
   | { type: 'plan_activity'; weekday: number; kind: ActivityKind; on: boolean }
-  | { type: 'log_current_set'; kg?: number | null; reps?: number | null; which: 'current' | 'last' }
+  | { type: 'log_current_set'; kg?: number | null; reps?: number | null; which: 'current' | 'last'; durationSec?: number | null; same?: boolean; warmup?: boolean }
   | { type: 'delete_activity'; kind?: string | null; day?: string | null }
   | { type: 'delete_weight'; day?: string | null }
   | { type: 'add_note'; text: string; kind: 'training' | 'nutrition'; day?: string | null }
@@ -195,12 +198,14 @@ function validateOne(a: any, out: AgentAction[]) {
           })).filter((s: AgentSet) => s.reps || s.durationSec || s.distanceKm || s.kg);
           return sets.length ? { exercise, sets } : null;
         }).filter(Boolean) as { exercise: string; sets: AgentSet[] }[];
-        if (exercises.length) out.push({ type: 'log_sets', exercises });
+        if (exercises.length) out.push({ type: 'log_sets', exercises, day: dayArg(a.day) });
         break;
       }
       case 'log_activity': {
         const kind = ACTIVITY_KINDS.includes(a.kind) ? (a.kind as ActivityKind) : (ACTIVITY_KINDS.find((k) => fold(String(a.kind ?? '')).includes(k)) ?? 'other');
-        const minutes = num(a.minutes, 1, 600); if (!minutes) break;
+        // rounds without minutes ("5 rounds of wrestling"): about 3 minutes a round (said on the card)
+        const rounds = num(a.rounds, 1, 99);
+        const minutes = num(a.minutes, 1, 600) ?? (rounds ? rounds * 3 : undefined); if (!minutes) break;
         out.push({ type: 'log_activity', kind, minutes: Math.round(minutes), rounds: num(a.rounds, 1, 99), intensity: [1, 2, 3].includes(a.intensity) ? a.intensity : undefined, note: str(a.note, 200), day: dayArg(a.day) });
         break;
       }
@@ -267,7 +272,8 @@ function validateOne(a: any, out: AgentAction[]) {
       }
       case 'log_current_set': {
         const kg = num(a.kg, 0, 600), reps = num(a.reps, 0, 200);
-        out.push({ type: 'log_current_set', kg: kg ?? null, reps: reps !== undefined ? Math.round(reps) : null, which: a.which === 'last' ? 'last' : 'current' });
+        const sec = num(a.seconds ?? a.durationSec, 1, 36000);
+        out.push({ type: 'log_current_set', kg: kg ?? null, reps: reps !== undefined ? Math.round(reps) : null, which: a.which === 'last' ? 'last' : 'current', ...(sec ? { durationSec: Math.round(sec) } : {}), ...(a.same === true ? { same: true } : {}), ...(a.warmup === true ? { warmup: true } : {}) });
         break;
       }
       case 'delete_activity': out.push({ type: 'delete_activity', kind: str(a.kind, 20) ?? null, day: dayArg(a.day) }); break;
@@ -355,7 +361,8 @@ export interface AgentResult {
   /** a button on the card (open the workout, or confirm something that waits for a tap) */
   button?: { label: string; run: () => void };
   /** quieter buttons beside it (an exercise card: Add to workout) */
-  more?: { label: string; run: () => void }[];
+  /** `warn`: the button answers the card's warning line ("Use 18 kg"): a soft amber chip, not a plain one */
+  more?: { label: string; run: () => void; warn?: boolean }[];
   /** "Which one?": options, one tap each (it then counts as applied: the chosen run fills in the card's lines and Undo) */
   choose?: { label: string; sub?: string; run: () => void }[];
   /** a quiet line under the title ("≈ 280 kcal · 34 g protein") */
@@ -1077,43 +1084,118 @@ function doPlanActivity(a: Extract<AgentAction, { type: 'plan_activity' }>, ctx:
   return { id: uid('r'), kind: 'routine', title: a.on ? t('Added to your plan') : t('Taken off your plan'), lines: [{ text: t(ACTIVITY_LABEL[a.kind]), sub: t(WEEKDAYS[a.weekday]) }], undo: () => useStore.getState().setSchedule(prev) };
 }
 
+/** The weight and reps an exercise was last done with (this workout first, then the latest session): what a misheard number
+ *  is checked against, and what "same again" copies. */
+function lastDoneOf(exerciseId: string, skipSetId?: string): SetRecord | undefined {
+  const st = useStore.getState();
+  let best: SetRecord | undefined;
+  for (const se of st.active?.exercises ?? []) if (se.exerciseId === exerciseId) for (const x of se.sets) if (x.done && x.type === 'working' && x.id !== skipSetId && (!best || (x.completedAt ?? 0) > (best.completedAt ?? 0))) best = x;
+  if (best) return best;
+  for (let i = st.sessions.length - 1; i >= 0; i--) {
+    const sets = st.sessions[i].exercises.filter((e) => e.exerciseId === exerciseId).flatMap((e) => e.sets).filter((x) => x.done && x.type === 'working');
+    if (sets.length) return sets.reduce((a, b) => ((b.weightKg ?? 0) > (a.weightKg ?? 0) ? b : a));
+  }
+  return undefined;
+}
+
+/** "heard 18 → logged 80", for the card. */
+const heardText = (heard: { kg?: number; reps?: number } | undefined, logged: { kg?: number; reps?: number }, ctx: AgentCtx, unit: 'kg' | 'lb') =>
+  !heard ? '' : [heard.kg !== undefined ? ctx.t('heard {a} → logged {b}', { a: `${fmtNum(kgToDisplay(heard.kg, unit), ctx.lang, 2)} ${unit}`, b: `${fmtNum(kgToDisplay(logged.kg ?? 0, unit), ctx.lang, 2)} ${unit}` }) : '', heard.reps !== undefined ? ctx.t('heard {a} → logged {b}', { a: `${heard.reps} ${ctx.t('reps')}`, b: `${logged.reps} ${ctx.t('reps')}` }) : ''].filter(Boolean).join(' · ');
+
 /** In a workout, "only 9 reps" / "67 kilos, same reps": the set you're on (ticked, with the rest started) — or the one
- * you just finished ("the last one was 7"). Unsaid numbers stay as the set already shows them. */
-function doCurrentSet(a: Extract<AgentAction, { type: 'log_current_set' }>, ctx: AgentCtx): AgentResult {
+ * you just finished ("the last one was 7"). Unsaid numbers stay as the set already shows them. The set you're on is the
+ * one on screen (`currentSetOf`: the Focus page, a superset partner's turn, where you are); unticked warm-ups are passed
+ * over unless a warm-up is said. Past the last planned set, one more is added. */
+function doCurrentSet(a: Extract<AgentAction, { type: 'log_current_set' }>, ctx: AgentCtx, again = false): AgentResult {
   const { t, lang } = ctx;
   const st = useStore.getState();
   const act = st.active;
   if (!act) return { id: uid('r'), kind: 'miss', title: t('No workout is running'), lines: [] };
   const w = st.settings.units.weight;
-  const show = (s: Pick<SetRecord, 'weightKg' | 'reps'>) => `${s.weightKg ? `${fmtNum(kgToDisplay(s.weightKg, w), lang, 2)} ${w} × ` : ''}${s.reps ?? '—'}`;
-  const before = act;
+  const show = (s: Pick<SetRecord, 'weightKg' | 'reps' | 'durationSec'>) => s.durationSec && !s.reps ? `${s.durationSec}s` : `${s.weightKg ? `${fmtNum(kgToDisplay(s.weightKg, w), lang, 2)} ${w} × ` : ''}${s.reps ?? '—'}`;
   const exOf = (id: string) => allExercises(st.exercises).find((e) => e.id === id);
-  let hit: { se: SessionExercise; set: SetRecord; n: number } | null = null;
+  const latest = () => { let hit: { se: SessionExercise; set: SetRecord } | null = null; for (const se of useStore.getState().active?.exercises ?? []) for (const x of se.sets) if (x.done && (!hit || (x.completedAt ?? 0) >= (hit.set.completedAt ?? 0))) hit = { se, set: x }; return hit as { se: SessionExercise; set: SetRecord } | null; };
+  let hit: { se: SessionExercise; set: SetRecord } | null = null;
+  let extra = false;
   if (a.which === 'last') {
-    for (const se of act.exercises) se.sets.forEach((s, i) => { if (s.done && (!hit || (s.completedAt ?? 0) >= (hit.set.completedAt ?? 0))) hit = { se, set: s, n: i + 1 }; });
+    hit = latest();
     if (!hit) return { id: uid('r'), kind: 'miss', title: t('No finished set yet'), lines: [] };
   } else {
-    for (const se of act.exercises) { const i = se.sets.findIndex((s) => !s.done); if (i >= 0) { hit = { se, set: se.sets[i], n: i + 1 }; break; } }
-    if (!hit) return { id: uid('r'), kind: 'miss', title: t('Every set is done'), lines: [] };
+    const cur = currentSetOf(act, a.warmup ? 'only' : 'skip');
+    if (cur) hit = { se: cur.se, set: cur.set };
+    else {
+      // every planned set is done: one more of the exercise you were on
+      const last = latest();
+      if (!last || a.warmup) return { id: uid('r'), kind: 'miss', title: t('Every set is done'), lines: [] };
+      addSet(last.se.id);
+      const se = useStore.getState().active!.exercises.find((e) => e.id === last.se.id)!;
+      hit = { se, set: se.sets[se.sets.length - 1] };
+      extra = true;
+    }
   }
-  const h = hit as { se: SessionExercise; set: SetRecord; n: number };
-  const set = h.set;
+  const { se, set } = hit;
+  // "same again": the numbers of the last set done of this exercise
+  const same = a.same ? lastDoneOf(se.exerciseId, set.id) : undefined;
+  const planned = { kg: set.weightKg ?? set.target?.weightKg ?? lastDoneOf(se.exerciseId, set.id)?.weightKg, reps: set.target?.repMax ?? set.reps };
+  // a number speech got wrong (18 for 80) is fixed, and the card says so; anything else is logged as said
+  const fixed = fixMisheard({ kg: a.kg ?? undefined, reps: a.reps ?? undefined }, planned);
+  const over = {
+    ...(same ? { weightKg: same.weightKg, reps: same.reps, durationSec: same.durationSec } : {}),
+    ...(fixed.kg !== undefined ? { weightKg: fixed.kg } : {}), ...(fixed.reps !== undefined ? { reps: fixed.reps } : {}),
+    ...(a.durationSec != null ? { durationSec: a.durationSec } : {}),
+  };
+  // the same set said twice (a repeated message, a retry): logged once
+  const prevDone = latest();
+  if (a.which === 'current' && !again && prevDone && Date.now() - (prevDone.set.completedAt ?? 0) < 20000 && prevDone.se.exerciseId === se.exerciseId
+    && (over.weightKg === undefined || over.weightKg === prevDone.set.weightKg) && over.reps !== undefined && over.reps === prevDone.set.reps && !a.same) {
+    if (extra) useStore.getState().mutateActive((x) => ({ ...x, exercises: x.exercises.map((b) => (b.id === se.id ? { ...b, sets: b.sets.filter((q) => q.id !== set.id) } : b)) }));
+    const ex = exOf(se.exerciseId);
+    return {
+      id: uid('r'), kind: 'sets', pending: true, offer: true, title: t('Already logged'), lines: [{ text: ex ? exLabel(ex, lang) : '', sub: show(prevDone.set) }],
+      doneTitle: t('Set logged'),
+      button: { label: t('Log again'), run: () => { doCurrentSet(a, ctx, true); } },
+    };
+  }
+  const restBefore = useStore.getState().active?.rest ?? null;
   let next: SetRecord;
   if (a.which === 'current') {
     // ticked exactly as a tap ticks it: records, the haptic, the rest and the row's moment
-    const over = { ...(a.kg != null ? { weightKg: a.kg } : {}), ...(a.reps != null ? { reps: a.reps } : {}) };
-    if (!completeSet(h.se.id, set.id, over)) return { id: uid('r'), kind: 'miss', title: t('Enter reps first'), lines: [] };
-    next = useStore.getState().active!.exercises.find((b) => b.id === h.se.id)!.sets.find((q) => q.id === set.id)!;
+    if (!completeSet(se.id, set.id, over)) {
+      if (extra) useStore.getState().mutateActive((x) => ({ ...x, exercises: x.exercises.map((b) => (b.id === se.id ? { ...b, sets: b.sets.filter((q) => q.id !== set.id) } : b)) }));
+      return { id: uid('r'), kind: 'miss', title: t('Enter reps first'), lines: [] };
+    }
+    next = useStore.getState().active!.exercises.find((b) => b.id === se.id)!.sets.find((q) => q.id === set.id)!;
   } else {
-    next = { ...set, weightKg: a.kg ?? set.weightKg ?? set.target?.weightKg, reps: a.reps ?? set.reps ?? set.target?.repMax };
-    st.mutateActive((x) => ({ ...x, exercises: x.exercises.map((b) => (b.id === h.se.id ? { ...b, sets: b.sets.map((q) => (q.id === set.id ? next : q)) } : b)) }));
+    next = { ...set, weightKg: over.weightKg ?? set.weightKg ?? set.target?.weightKg, reps: over.reps ?? set.reps ?? set.target?.repMax, ...(over.durationSec !== undefined ? { durationSec: over.durationSec } : {}) };
+    st.mutateActive((x) => ({ ...x, exercises: x.exercises.map((b) => (b.id === se.id ? { ...b, sets: b.sets.map((q) => (q.id === set.id ? next : q)) } : b)) }));
   }
-  const ex = exOf(h.se.exerciseId);
-  const label = set.type === 'warmup' ? t('Warm-up') : `${t('Set')} ${h.se.sets.slice(0, h.n).filter((q) => q.type === 'working').length}`;
+  const restAfter = useStore.getState().active?.rest ?? null;
+  const ex = exOf(se.exerciseId);
+  const seNow = useStore.getState().active!.exercises.find((b) => b.id === se.id)!;
+  const n = seNow.sets.findIndex((q) => q.id === set.id) + 1;
+  const label = set.type === 'warmup' ? t('Warm-up') : `${t('Set')} ${seNow.sets.slice(0, n).filter((q) => q.type === 'working').length}`;
+  const heard = heardText(fixed.heard, { kg: next.weightKg, reps: next.reps }, ctx, w);
+  // Undo takes back this set only (later sets stay), and the rest only if this set started it
+  const undo = () => {
+    const s2 = useStore.getState();
+    if (!s2.active) return;
+    s2.mutateActive((x) => ({
+      ...x,
+      rest: restAfter && x.rest && x.rest.endsAt === restAfter.endsAt && restAfter !== restBefore ? restBefore : x.rest,
+      exercises: x.exercises.map((b) => (b.id === se.id ? { ...b, sets: extra ? b.sets.filter((q) => q.id !== set.id) : b.sets.map((q) => (q.id === set.id ? set : q)) } : b)),
+    }));
+  };
+  // tapping "heard 18 → logged 80" puts back what was said
+  const asSaid = fixed.heard ? () => {
+    const v = { ...(fixed.heard!.kg !== undefined ? { weightKg: fixed.heard!.kg } : {}), ...(fixed.heard!.reps !== undefined ? { reps: fixed.heard!.reps } : {}) };
+    useStore.getState().mutateActive((x) => ({ ...x, exercises: x.exercises.map((b) => (b.id === se.id ? { ...b, sets: b.sets.map((q) => (q.id === set.id ? { ...q, ...v } : q)) } : b)) }));
+    useUI.getState().toast(t('Changed to {set}', { set: show({ ...next, ...v }) }), { tone: 'ok' });
+  } : undefined;
   return {
     id: uid('r'), kind: 'sets', title: a.which === 'last' ? t('Set corrected') : t('Set logged'),
-    lines: [{ text: ex ? exLabel(ex, lang) : '', sub: `${label} · ${a.which === 'last' ? `${show(set)} → ` : ''}${show(next)}` }],
-    undo: () => useStore.getState().mutateActive(() => before),
+    lines: [{ text: ex ? exLabel(ex, lang) : '', sub: `${label} · ${a.which === 'last' ? `${show(set)} → ` : ''}${show(next)}` }, ...(heard ? [{ text: heard, warn: true }] : [])],
+    ...(asSaid && fixed.heard ? { more: [{ label: t('Use {n}', { n: fixed.heard.kg !== undefined ? `${fmtNum(kgToDisplay(fixed.heard.kg, w), lang, 2)} ${w}` : `${fixed.heard.reps}` }), run: asSaid, warn: true }] } : {}),
+    undo,
   };
 }
 
@@ -1603,16 +1685,18 @@ async function doSuggest(a: Extract<AgentAction, { type: 'suggest_food' }>, ctx:
   });
 }
 
-function doLogSets(a: Extract<AgentAction, { type: 'log_sets' }>, ctx: AgentCtx): AgentResult {
+function doLogSets(a: Extract<AgentAction, { type: 'log_sets' }>, ctx: AgentCtx, again = false): AgentResult {
   const { t, lang } = ctx;
   const st = useStore.getState();
   const pool = allExercises(st.exercises);
   const usage = new Map<string, number>();
   for (const ses of st.sessions) for (const e of ses.exercises) usage.set(e.exerciseId, (usage.get(e.exerciseId) ?? 0) + 1);
   const w = st.settings.units.weight;
+  const date = resolveDay(a.day, ctx.today) ?? ctx.today;
+  // sets for another day, or with no workout running (told after the gym): a finished workout, never a live one
+  const live = !!st.active && date === ctx.today;
   const lines: AgentResult['lines'] = [];
-  const hadActive = !!st.active;
-  const added: { seId: string; filled: string[]; appended: string[]; created: boolean }[] = [];
+  const found: { ex: Exercise; sets: SetRecord[]; tied: boolean; said: string; heard: string[] }[] = [];
 
   for (const item of a.exercises) {
     const c = matchExercises(item.exercise, pool, lang, 5, (e) => Math.min(0.12, (usage.get(e.id) ?? 0) * 0.02));
@@ -1620,20 +1704,72 @@ function doLogSets(a: Extract<AgentAction, { type: 'log_sets' }>, ctx: AgentCtx)
     const ok = c.length > 0 && top >= 0.6; // a tie goes to the best (most used, then shortest name); the card says what it matched
     if (!ok) { lines.push({ text: item.exercise, sub: c.length ? `${t('Which one?')} ${c.slice(0, 3).map((x) => x.ex.name).join(' · ')}` : t('Not in your exercise library'), warn: true }); continue; }
     const ex = c[0].ex;
-    if (!useStore.getState().active) useStore.getState().startWorkout({ name: '' });
-    // reuse the exercise block if it is already in the session (a second "bench" adds to the same one)
-    const existing = [...useStore.getState().active!.exercises].reverse().find((e) => e.exerciseId === ex.id);
+    // a number speech got wrong (18 for the 80 you always do) is fixed and said on the card
+    const usual = lastDoneOf(ex.id);
+    const heard: string[] = [];
+    const sets: SetRecord[] = item.sets.map((x, i) => {
+      const f = fixMisheard({ kg: x.kg ?? undefined, reps: x.reps ?? undefined }, { kg: usual?.weightKg, reps: usual?.reps });
+      const h = heardText(f.heard, f, ctx, w); if (h) heard.push(h);
+      return { id: uid('s'), type: 'working', weightKg: f.kg, reps: f.reps, durationSec: x.durationSec ?? undefined, distanceM: x.distanceKm ? x.distanceKm * 1000 : undefined, done: true, completedAt: Date.now() + i };
+    });
+    found.push({ ex, sets, tied: c.length > 1 && top - c[1].score < 0.06, said: item.exercise, heard });
+  }
+  if (!found.length) return { id: uid('r'), kind: 'miss', title: t('Couldn’t log that'), lines };
+
+  // the same sets said twice within 20 s (a repeated message): logged once
+  const recent = (live ? st.active!.exercises : st.sessions.filter((x) => x.date === date).flatMap((x) => x.exercises));
+  const isDup = !again && found.every((f) => f.sets.every((x) => recent.some((e) => e.exerciseId === f.ex.id && e.sets.some((q) => q.done && Date.now() - (q.completedAt ?? 0) < 20000 && q.weightKg === x.weightKg && q.reps === x.reps))));
+  const setText = (x: SetRecord) => `${x.weightKg ? `${fmtNum(kgToDisplay(x.weightKg, w), lang, 2)} ${w} × ` : ''}${x.reps ?? (x.durationSec ? `${x.durationSec}s` : x.distanceM ? `${x.distanceM / 1000} km` : '?')}`;
+  for (const f of found) {
+    lines.push({ text: lang === 'da' && f.ex.nameDa ? f.ex.nameDa : f.ex.name, sub: `${f.sets.map(setText).join('  ·  ')}${f.tied ? ` · ${t('best match for')} “${f.said}”` : ''}` });
+    for (const h of f.heard) lines.push({ text: h, warn: true });
+  }
+  if (isDup) return { id: uid('r'), kind: 'sets', pending: true, offer: true, title: t('Already logged'), lines, doneTitle: t('Logged'), button: { label: t('Log again'), run: () => { doLogSets(a, ctx, true); } } };
+  const nSets = found.reduce((n, f) => n + f.sets.length, 0);
+  const title = (nSets === 1 ? t('Logged 1 set') : t('Logged {n} sets', { n: nSets })) + (date !== ctx.today ? ` · ${date === addDays(ctx.today, -1) ? t('Yesterday') : date}` : '');
+
+  if (!live) {
+    // into that day's logged workout (made now if there is none): finished, with its records; today's is linked to the
+    // planned routine when its exercises are in it, so the plan counts it as done
+    const prev = useStore.getState().sessions.find((x) => x.date === date && x.logged);
+    const at = date === ctx.today ? Date.now() : new Date(`${date}T18:00:00`).getTime();
+    const planned = date === ctx.today ? plannedFor(st, date, ctx.today) : null;
+    const routine = planned ? st.routines.find((r) => r.id === planned.routineId) : undefined;
+    const linked = routine && !st.sessions.some((x) => x.date === date && x.routineId === routine.id && !x.logged) && found.some((f) => routine.items.some((it) => it.exerciseId === f.ex.id)) ? routine : undefined;
+    const base: WorkoutSession = prev ?? { id: uid('w'), name: linked?.name ?? t('Logged workout'), date, startedAt: at, endedAt: at, pausedMs: 0, status: 'done', exercises: [], logged: true, ...(linked ? { routineId: linked.id, plannedDate: date } : {}) };
+    const exs = base.exercises.map((e) => ({ ...e, sets: [...e.sets] }));
+    for (const f of found) {
+      const sets = f.sets.map((x, i) => ({ ...x, completedAt: date === ctx.today ? x.completedAt : at + i }));
+      const into = exs.find((e) => e.exerciseId === f.ex.id);
+      if (into) into.sets.push(...sets); else exs.push({ id: uid('se'), exerciseId: f.ex.id, sets });
+    }
+    const next: WorkoutSession = { ...base, exercises: exs, endedAt: Math.max(base.endedAt ?? at, date === ctx.today ? Date.now() : at) };
+    const exMap = new Map(allExercises(st.exercises).map((e) => [e.id, e]));
+    next.records = detectRecords(next, st.sessions.filter((x) => x.id !== next.id && x.date <= date), (id) => exMap.get(id));
+    const schedule = st.schedule;
+    if (prev) st.mutateSession(prev.id, () => next); else st.restoreSession(next);
+    // a rotation moves on to its next routine, as finishing it in the app does
+    if (!prev && linked && planned?.source === 'rotation') st.setSchedule({ rotation: { ...schedule.rotation, pointer: (schedule.rotation.pointer + 1) % Math.max(1, schedule.rotation.order.length) } });
+    return {
+      id: uid('r'), kind: 'sets', title, lines,
+      undo: () => { const s2 = useStore.getState(); if (prev) s2.mutateSession(prev.id, () => prev); else s2.deleteSession(next.id); if (!prev && linked && planned?.source === 'rotation') s2.setSchedule({ rotation: schedule.rotation }); },
+    };
+  }
+
+  // into the running workout: planned, unfinished sets (a routine's blanks) are filled first, the rest are appended
+  const added: { seId: string; filled: string[]; appended: string[]; created: boolean }[] = [];
+  for (const f of found) {
+    const existing = [...useStore.getState().active!.exercises].reverse().find((e) => e.exerciseId === f.ex.id);
     const created = !existing;
-    if (created) addExercises([ex.id]);
+    if (created) addExercises([f.ex.id]);
     const filled: string[] = []; const appended: string[] = [];
     let seId = '';
     useStore.getState().mutateActive((s) => {
       const exs = s.exercises.map((e) => ({ ...e }));
-      const tgt = [...exs].reverse().find((e) => e.exerciseId === ex.id);
+      const tgt = [...exs].reverse().find((e) => e.exerciseId === f.ex.id);
       if (!tgt) return s;
       seId = tgt.id;
-      const fresh: SetRecord[] = item.sets.map((x) => ({ id: uid('s'), type: 'working', weightKg: x.kg ?? undefined, reps: x.reps ?? undefined, durationSec: x.durationSec ?? undefined, distanceM: x.distanceKm ? x.distanceKm * 1000 : undefined, done: true, completedAt: Date.now() }));
-      // planned, unfinished sets (a routine's blanks) are filled first, the rest are appended
+      const fresh = [...f.sets];
       const out = tgt.sets.map((q) => {
         if (!q.done && q.type !== 'warmup' && fresh.length) { const s0 = fresh.shift()!; filled.push(q.id); return { ...s0, id: q.id, target: q.target } as SetRecord; }
         return q;
@@ -1643,16 +1779,9 @@ function doLogSets(a: Extract<AgentAction, { type: 'log_sets' }>, ctx: AgentCtx)
       return { ...s, exercises: exs };
     });
     added.push({ seId, filled, appended, created });
-    const line = item.sets.map((x) => `${x.kg ? `${fmtNum(kgToDisplay(x.kg, w), lang, 2)} ${w} × ` : ''}${x.reps ?? (x.durationSec ? `${x.durationSec}s` : x.distanceKm ? `${x.distanceKm} km` : '?')}`).join('  ·  ');
-    const tied = c.length > 1 && top - c[1].score < 0.06;
-    lines.push({ text: lang === 'da' && ex.nameDa ? ex.nameDa : ex.name, sub: `${line}${tied ? ` · ${t('best match for')} “${item.exercise}”` : ''}` });
   }
-
-  if (!added.length) return { id: uid('r'), kind: 'miss', title: t('Couldn’t log that'), lines };
-  const startedHere = !hadActive;
-  const nSets = added.reduce((n, x) => n + x.filled.length + x.appended.length, 0);
   return {
-    id: uid('r'), kind: 'sets', title: nSets === 1 ? t('Logged 1 set') : t('Logged {n} sets', { n: nSets }), lines,
+    id: uid('r'), kind: 'sets', title, lines,
     button: { label: t('Open workout'), run: () => useUI.getState().push('workout', { origin: 'none' }) },
     undo: () => {
       const s = useStore.getState();
@@ -1666,8 +1795,6 @@ function doLogSets(a: Extract<AgentAction, { type: 'log_sets' }>, ctx: AgentCtx)
           .map((e) => ({ ...e, sets: e.sets.filter((q) => !appended.has(q.id)).map((q) => (filled.has(q.id) ? { ...q, done: false, weightKg: undefined, reps: undefined, durationSec: undefined, distanceM: undefined, completedAt: undefined } : q)) }))
           .filter((e) => !(made.has(e.id) && e.sets.every((q) => !q.done))),
       }));
-      const after = useStore.getState().active;
-      if (startedHere && after && after.exercises.every((e) => e.sets.every((q) => !q.done))) useStore.getState().discardActive();
     },
   };
 }
