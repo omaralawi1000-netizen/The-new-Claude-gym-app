@@ -48,9 +48,9 @@ The polish plan (`docs/polish-plan.md`) is paused while this runs.
     recipes + shopping list cover the real need).
 - [ ] **Phase 5: the coach around the workout** (part 1 shipped 16 Oct as v0.1.138, briefing redone without readiness as v0.1.139: briefing, Next time, check-in, readiness, smarter load, search judgment, trouble counter; parts 2–3 next): a short briefing when today's workout starts; a Coach line on the Summary
   (what moved, next time's targets, computed locally); a one-tap check-in (energy, soreness, sleep) that makes the next plan
-  lighter when needed; smarter deload and wrestling load; long-press anything ("Ask the Coach about this"); small charts in
+  lighter when needed; smarter deload and wrestling load; [done 18 Oct, v0.1.148: hold to ask, charts in the chat, Undo all, pick which changes, copy a routine — README "Coach polish"] long-press anything ("Ask the Coach about this"); small charts in
   the chat; "Undo all", before/after for routine edits, choose which changes to apply, duplicate a routine.
-  - Hands-free sets (a trial on Beta first; Omar tried hands-free before and it misheard him and reacted to him talking to
+  - Hands-free sets — 18 Oct: Done ✓ on the watch's rest notification (README "Done ✓ on the watch"); tap-and-say was tried and dropped (it needs the phone in hand). Original idea: (a trial on Beta first; Omar tried hands-free before and it misheard him and reacted to him talking to
     others): never always-on, it listens only after a tap anywhere on the workout (or the earbud button, if Chrome on his
     S26 allows it); it takes only set-shaped answers ("8 at 80", "same again", "skip", "done") and ignores the rest; a
     number far from last time is asked about, not logged; it says back what it logged with a few seconds to say "no".

@@ -5,6 +5,7 @@ import { fmtNutrient, qtyLabel } from '../../lib/format';
 import { Icon } from '../../ui/Icon';
 import { SOFT } from '../../ui/Sheet';
 import { haptic } from '../../state/ui';
+import { askTag } from '../../lib/askAbout';
 
 /**
  * A logged food inside its meal card: tap to edit, swipe left to delete (with undo).
@@ -23,7 +24,7 @@ export function EntryRow({ e, onOpen, onDelete, fresh }: { e: FoodEntry; onOpen:
   const state = st && ![st, t(st)].some((w) => e.snap.name.toLowerCase().includes(w.toLowerCase())) ? t(st) : null;
   return (
     <motion.div initial={fresh ? { opacity: 0, y: -8 } : false} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, height: 0, transition: { duration: 0.22 } }} transition={SOFT}
-      className={`entry ${fresh ? 'settle' : ''}`}>
+      className={`entry ${fresh ? 'settle' : ''}`} data-ask={askTag('food', e.id)}>
       <motion.div className="entry-del" style={{ clipPath: clip }} aria-hidden>
         <motion.span style={{ opacity: iconO }}><Icon name="trash" size={20} /></motion.span>
       </motion.div>

@@ -54,8 +54,10 @@ REST = """Promise.race([new Promise((ok) => setTimeout(() => ok('timed out at: '
   window.__step = 'show (permission ' + Notification.permission + ')';
   const now = Date.now(), endsAt = now + %d * 1000, s = now - %d * 1000;
   const words = { v: 1, s, x: 'Incline Smith Machine Press', l: 'Set 2 of 3 · 60 kg × 8', o: 'Time for set 2',
-    b: 'Incline Smith Machine Press · 60 kg × 8', p: '+30 s', k: 'Skip' };
+    b: 'Incline Smith Machine Press · 60 kg × 8', p: '+30 s', k: 'Skip', d: 'Done ✓ 60 kg × 8', y: 'Set 2 ✓ · 60 kg × 8', z: 'Rest 0:15', n: 15,
+    w: [{ x: 'Incline Smith Machine Press', l: 'Set 3 of 3 · 60 kg × 8', o: 'Time for set 3', b: 'Incline Smith Machine Press · 60 kg × 8', d: 'Done ✓ 60 kg × 8', y: 'Set 3 ✓ · 60 kg × 8', z: 'Last set done · open Aven to finish', n: 0 }] };
   for (const n of await reg.getNotifications()) n.close();
+  localStorage.setItem('ci.endsAt', String(endsAt));
   await reg.showNotification('Back at ' + new Date(endsAt).toTimeString().slice(0, 5), {
     body: 'Incline Smith Machine Press · set 2 of 3 · 60 kg × 8', tag: 'aven-rest|' + JSON.stringify(words), silent: true,
     timestamp: endsAt, actions: [{ action: 'more', title: '+30 s' }, { action: 'skip', title: 'Skip' }],
@@ -88,6 +90,27 @@ if mode == 'watch':
     sys.exit(0)
 if mode == 'seen':
     print('seen:', run(page, "(window.__vis ? 'same page' : 'page was reloaded') + ', now ' + document.visibilityState + (document.hasFocus() ? '+focus' : '') + ', events:' + localStorage.getItem('ci.vis')"))
+    sys.exit(0)
+if mode == 'overalert':
+    # what the website's own back-up timer does at the end of a rest (src/lib/androidApp.ts overAppRest)
+    print('overalert:', run(page, """(async () => { const reg = await navigator.serviceWorker.getRegistration('/The-new-Claude-gym-app-rest/');
+      if (!reg) return 'no rest worker';
+      await reg.showNotification('Time for set 2', { body: 'Incline Smith Machine Press · 60 kg × 8', tag: 'aven-rest-over', renotify: true,
+        silent: false, requireInteraction: true, vibrate: [400, 120, 400, 120, 700], data: { kind: 'over', key: 'ci' } });
+      return 'shown'; })()"""))
+    sys.exit(0)
+if mode == 'left':
+    print(run(page, "String(Number(localStorage.getItem('ci.endsAt')) - Date.now())"))
+    sys.exit(0)
+if mode == 'listen':
+    print('listen:', run(page, """(() => { localStorage.setItem('ci.msg', '');
+      navigator.serviceWorker.addEventListener('message', (e) => localStorage.setItem('ci.msg', localStorage.getItem('ci.msg') + ' ' + JSON.stringify(e.data)));
+      return 'listening, page ' + document.visibilityState; })()"""))
+    sys.exit(0)
+if mode == 'heard':
+    print('heard:', run(page, """(async () => { const c = await caches.open('aven-pending'); const l = await c.match('/aven-pending/log');
+      const taps = (await c.keys()).filter((r) => new URL(r.url).pathname.startsWith('/aven-pending/tap-')).length;
+      return 'messages:' + (localStorage.getItem('ci.msg') || ' none') + ' | log ' + (l ? await l.text() : 'none') + ' | taps kept ' + taps; })()"""))
     sys.exit(0)
 if mode == 'perm':
     print(run(page, "(async () => 'page sees ' + Notification.permission + ' (query: ' + (await navigator.permissions.query({name: 'notifications'})).state + ')')()"))

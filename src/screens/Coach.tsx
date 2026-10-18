@@ -5,6 +5,7 @@ import { useUI, haptic } from '../state/ui';
 import { useAi, anyBrain, solOn } from '../state/ai';
 import { useT, useLang } from '../lib/i18n';
 import { Sheet, SheetHead } from '../ui/Sheet';
+import { Collapse } from '../ui/kit';
 import { Icon } from '../ui/Icon';
 import { kb } from '../ui/keyboard';
 import { SphereSlot } from '../ui/Sphere';
@@ -16,11 +17,12 @@ import { AiError, aiErrorText, type Photo, type Turn } from '../lib/gemini';
 import { sttNames } from '../lib/sttNames';
 import { stopSpeaking } from '../lib/tts';
 import { decide, brainFor } from '../lib/agentTurn';
-import { ActionCard, Rich, TypingDots, SpeakButton, prefetchAloud, replacedIds, sttMessage, useCoachTips, useWordReveal } from '../ui/agentUi';
+import { ActionCard, UndoAll, Rich, TypingDots, SpeakButton, prefetchAloud, replacedIds, sttMessage, useCoachTips, useWordReveal } from '../ui/agentUi';
 import { droppedCard, runActions, type AgentResult } from '../lib/agent';
 import { uid } from '../lib/nutrition';
 import { onThreadChange, readThread, threadSaid, threadTurns, writeThread, type ThreadMsg } from '../lib/thread';
 import { dayKey } from '../lib/dates';
+import type { About } from '../lib/askAbout';
 import { blobToBase64, downscale } from '../lib/photos';
 
 /* The typing bar opens wide while you type (Omar, 13 Oct: "expands when I type on it and compresses when I'm done"): the
@@ -75,8 +77,8 @@ const morphVars = { '--cf-x': `${CF_X}px`, '--cf-max': `${CF_MAX}px`, '--cf-ease
   '--cf-ease-c': MORPH_BACK.easing, '--cf-dur-c': `${MORPH_BACK.duration}ms`, '--cf-ease-k': CLOSE.easing, '--cf-dur-k': `${CLOSE.duration}ms`, '--cf-delay-k': `${CLOSE.delay}ms`, ...growVars } as React.CSSProperties;
 
 type Msg =
-  | { id: string; role: 'user' | 'model'; text: string; streaming?: boolean; /** while it looks something up in the data */ status?: string; seeded?: boolean; /** a quiet line under the answer (which AI answered, and why) */ note?: string; /** when it was said */ at?: number; /** a photo was sent with it (its picture stays only while the Coach is open) */ photo?: boolean; image?: string; /** it got no answer (left out of what the model sees until it is tried again) */ failed?: boolean; /** typed: its lines as they wrapped in the field (the bubble keeps them) */ lines?: string[]; /** the pages a web search used */ sources?: { title: string; url: string }[] }
-  | { id: string; role: 'error'; text: string; /** the message that failed: Try again sends it once more (from the same bubble) */ retry?: { userId: string; text: string }; /** a key problem: a chip opens Settings */ fix?: 'settings' }
+  | { id: string; role: 'user' | 'model'; text: string; /** asked about something that was held (what the model got with it, and its name on the bubble) */ about?: string; aboutLabel?: string; streaming?: boolean; /** while it looks something up in the data */ status?: string; seeded?: boolean; /** a quiet line under the answer (which AI answered, and why) */ note?: string; /** when it was said */ at?: number; /** a photo was sent with it (its picture stays only while the Coach is open) */ photo?: boolean; image?: string; /** it got no answer (left out of what the model sees until it is tried again) */ failed?: boolean; /** typed: its lines as they wrapped in the field (the bubble keeps them) */ lines?: string[]; /** the pages a web search used */ sources?: { title: string; url: string }[] }
+  | { id: string; role: 'error'; text: string; /** folding away (Try again was tapped) */ leaving?: boolean; /** the message that failed: Try again sends it once more (from the same bubble) */ retry?: { userId: string; text: string }; /** a key problem: a chip opens Settings */ fix?: 'settings' }
   | { id: string; role: 'action'; results: AgentResult[]; undone: string[]; confirmed: string[]; /** arrived in this visit (it animates in; a restored one stays still) */ fresh?: boolean }
 
 /** How many of the newest saved messages are built on the tap that opens the Coach (the rest follow, see `older`). */
@@ -116,6 +118,7 @@ const ChatRow = memo(function ChatRow({ m, sent, gone, setMsgs, onErr }: { m: Ms
       {m.role === 'user' && (
         <div className="stack" style={{ alignItems: 'flex-end', gap: 6, maxWidth: '100%' }}>
           {m.photo && (m.image ? <img className="said-photo" src={m.image} alt={t('Your photo')} /> : <div className="said xs t2"><Icon name="camera" size={13} style={{ verticalAlign: '-2px', marginRight: 4 }} />{t('Photo')}</div>)}
+          {m.aboutLabel && <div className="xs t3 said-about"><Icon name="sparkle" size={12} />{m.aboutLabel}</div>}
           {m.text && <div className="said" style={{ maxWidth: '100%' }}>{m.lines ? m.lines.map((l, i) => <span key={i} className="said-l">{l || '\u200b'}</span>) : m.text}</div>}
         </div>
       )}
@@ -127,10 +130,13 @@ const ChatRow = memo(function ChatRow({ m, sent, gone, setMsgs, onErr }: { m: Ms
               onUndo={() => { r.undo?.(); haptic('light'); setMsgs((x) => x.map((y) => (y.id === m.id && y.role === 'action' ? { ...y, undone: [...y.undone, r.id] } : y))); }}
               onConfirm={() => { r.button?.run(); haptic('confirm'); setMsgs((x) => x.map((y) => (y.id === m.id && y.role === 'action' ? { ...y, confirmed: [...y.confirmed, r.id] } : y))); }} />
           ))}
+          <UndoAll results={m.results} undone={m.undone} confirmed={m.confirmed} fresh={!!m.fresh}
+            onUndo={(ids) => { for (const id of ids) m.results.find((r) => r.id === id)?.undo?.(); setMsgs((x) => x.map((y) => (y.id === m.id && y.role === 'action' ? { ...y, undone: [...y.undone, ...ids] } : y))); }} />
         </div>
       )}
       {m.role === 'error' && (
-        <div className="plinth-2 small coach-err" role="alert" style={{ padding: '10px 14px' }}>
+        <Collapse open={!m.leaving} ms={420}>
+        <div className={`plinth-2 small coach-err${m.leaving ? ' leaving' : ''}`} role="alert" style={{ padding: '10px 14px' }}>
           <div style={{ color: 'var(--bad)' }}>{m.text}</div>
           {(m.retry || m.fix) && (
             <div className="row-flex coach-err-acts" style={{ gap: 8, marginTop: 10 }}>
@@ -139,6 +145,7 @@ const ChatRow = memo(function ChatRow({ m, sent, gone, setMsgs, onErr }: { m: Ms
             </div>
           )}
         </div>
+        </Collapse>
       )}
     </div>
   );
@@ -158,12 +165,28 @@ function CoachReply({ m }: { m: Extract<Msg, { role: 'user' | 'model' }> }) {
   // the typing dots don't vanish when the first word comes: they melt away over it (and are then taken out)
   const typed = useRef(!shown);
   const [dotsGone, setDotsGone] = useState(false);
-  // no answer, only the quiet note (the built-in reader logged it): the note alone, never typing dots
+  // the words under the dots ("Looking at…", "Still thinking…"): the dots stay the same element the whole time (a new
+  // parent rebuilt them, and they blinked out and grew back); a new line rises in while the old one fades out over it
+  const said = useRef<{ now?: string; before?: string }>({});
+  if (said.current.now !== m.status) said.current = { now: m.status, before: said.current.now };
+  // (after every hook) no answer, only the quiet note (the built-in reader logged it): the note alone, never typing dots
   if (!m.streaming && !m.text.trim() && m.note) return <div className={`xs t3 coach-after${m.seeded ? '' : ' fresh'}`}>{m.note}</div>;
-  if (!shown) return m.status ? <div className="coach-looking"><TypingDots /><div key={m.status} className="xs t2 coach-look">{m.status}</div></div> : <TypingDots />;
+  if (!shown) return (
+    <div className="coach-looking">
+      <TypingDots />
+      {(said.current.now || said.current.before) && (
+        <div className="coach-look-cell">
+          {said.current.before && <div key={`o${said.current.before}`} className="xs t2 coach-look coach-look-out" aria-hidden>{said.current.before}</div>}
+          {said.current.now && <div key={said.current.now} className="xs t2 coach-look">{said.current.now}</div>}
+        </div>
+      )}
+    </div>
+  );
   return (
     <div className="coach-answer">
       {typed.current && !dotsGone && <div className="typing typing-out" aria-hidden onAnimationEnd={(e) => { if (e.target === e.currentTarget) setDotsGone(true); }}><i /><i /><i /></div>}
+      {/* (the last words under the dots fade with them, never cut) */}
+      {typed.current && !dotsGone && said.current.now && <div className="xs t2 coach-look coach-look-gone" aria-hidden>{said.current.now}</div>}
       <div className={`reply calm coach-reply${m.seeded ? ' still' : ''}`} aria-live="polite"><Rich text={shown} id={m.id} still={m.seeded} /></div>
       {done && m.note && <div className={`xs t3 coach-after${m.seeded ? '' : ' fresh'}`} style={{ marginTop: 8 }}>{m.note}</div>}
       {/* a web search's pages, as small chips under the answer (they open in the browser) */}
@@ -177,7 +200,7 @@ function CoachReply({ m }: { m: Extract<Msg, { role: 'user' | 'model' }> }) {
   );
 }
 
-export function Coach({ props }: { props: { listen?: boolean; date?: string; mealId?: string; /** the orb screen's conversation, carried over by "Continue in Coach" */ seed?: { said: string; reply: string }[]; /** a question to ask as soon as it opens (the weekly review's button) */ ask?: string } }) {
+export function Coach({ props }: { props: { listen?: boolean; date?: string; mealId?: string; /** the orb screen's conversation, carried over by "Continue in Coach" */ seed?: { said: string; reply: string }[]; /** a question to ask as soon as it opens (the weekly review's button) */ ask?: string; /** opened by holding something ("Ask the Coach about this", ui/askHold.ts) */ about?: About } }) {
   const t = useT();
   const present = useIsPresent();
   const lang = useLang();
@@ -216,7 +239,10 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     return () => { if (pendingSave.current) { saveThread(pendingSave.current); pendingSave.current = null; } };
   }, [present]);
   // back to an old conversation after a break: the suggestions come back under it until something is sent
-  const [resumed, setResumed] = useState(() => { const last = [...msgs].reverse().find((m) => 'at' in m && m.at) as { at?: number } | undefined; return msgs.length > 0 && !props.ask && !props.listen && (!last?.at || Date.now() - last.at > 30 * 60_000); });
+  const [resumed, setResumed] = useState(() => { const last = [...msgs].reverse().find((m) => 'at' in m && m.at) as { at?: number } | undefined; return msgs.length > 0 && !props.ask && !props.listen && (!!props.about || !last?.at || Date.now() - last.at > 30 * 60_000); });
+  // what was held to open it: a chip over the typing bar until something is sent (× takes it off), its questions as the suggestions
+  const [about, setAbout] = useState<About | null>(props.about ?? null);
+  const aboutShown = useRef(about); if (about) aboutShown.current = about;
   const [input, setInput] = useState('');
   const [photo, setPhoto] = useState<{ url: string; blob: Blob } | null>(null);
   const camRef = useRef<HTMLInputElement>(null);
@@ -813,7 +839,9 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     if (what === 'settings') { push('settings', { section: 'ai' }); return; }
     if (busy || !m.retry) return;
     const { userId, text } = m.retry;
-    setMsgs((x) => x.filter((y) => y.id !== m.id));
+    // the row folds away (it never just vanishes) while the question is asked again
+    setMsgs((x) => x.map((y) => (y.id === m.id && y.role === 'error' ? { ...y, leaving: true } : y)));
+    setTimeout(() => { if (alive.current) setMsgs((x) => x.filter((y) => y.id !== m.id)); }, 480);
     void runTurn(userId, text, null);
   };
   const onErr = useCallback((m: Extract<Msg, { role: 'error' }>, what: 'retry' | 'settings') => onErrRef.current(m, what), []);
@@ -850,8 +878,10 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     const reduceTips = still || leaving;
     if (!reduceTips && (msgsRef.current.length === 0 || resumed)) setTipsOut(msgsRef.current.length === 0 ? 'top' : 'resume');
     setInput(''); setPhoto(null); setResumed(false);
-    say({ id, role: 'user', text, at: Date.now(), ...(wrap ? { lines: wrap.lines } : {}), ...(pic ? { photo: true, image: pic.url } : {}) });
-    await runTurn(id, text, pic);
+    // about something that was held: the model gets what it is with the words; the bubble shows only its name
+    const ab = about; setAbout(null);
+    say({ id, role: 'user', text, at: Date.now(), ...(wrap ? { lines: wrap.lines } : {}), ...(pic ? { photo: true, image: pic.url } : {}), ...(ab ? { about: ab.detail, aboutLabel: ab.label } : {}) });
+    await runTurn(id, ab ? `[about: ${ab.detail}] ${text}` : text, pic);
   };
 
   // ── voice input through Groq (same single-owner mic as dictation) ──
@@ -923,7 +953,8 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     return () => clearInterval(id);
   }, [recording, present]);
   const noKey = !anyBrain(ai);
-  const tips = useCoachTips(3);
+  const coachTips = useCoachTips(3);
+  const tips = about ? about.asks.map((a) => ({ icon: about.icon, label: a, prompt: a })) : coachTips;
   // the "AI can be wrong" note: said once, on the first open (it also lives in Settings → Privacy)
   const [noteSeen] = useState(() => { try { return localStorage.getItem('aven.coachNote') === '1'; } catch { return true; } });
   useEffect(() => { if (msgs.length) try { localStorage.setItem('aven.coachNote', '1'); } catch { /* ignore */ } }, [msgs.length]);
@@ -933,7 +964,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   const listed = older ? shown.slice(older) : shown;
   // a newer preview of the same thing (tomorrow's plan, the week) replaces the older one: only the newest can be applied
   const replaced = useMemo(() => replacedIds(msgs.filter((m): m is Extract<Msg, { role: 'action' }> => m.role === 'action')), [msgs]);
-  const resumeHead = <div className="micro" style={{ margin: '22px 0 10px' }}>{t('Today')}</div>;
+  const resumeHead = <div className="micro trunc" style={{ margin: '22px 0 10px' }}>{about ? t('About {x}', { x: about.title }) : t('Today')}</div>;
   const tipsBlock = (
               <div className="stack gap12">
                 {noKey && <div className="small" style={{ color: 'var(--nokey, var(--warn))' }}>{t('Add an AI key to chat.')} <button className="chip sm acc press" style={{ marginLeft: 6 }} onClick={() => push('settings', { section: 'ai' })}>{t('Add a key')}</button></div>}
@@ -956,6 +987,16 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
             <button className="icon-btn flat sm press" aria-label={t('Remove photo')} onClick={() => { URL.revokeObjectURL(photo.url); setPhoto(null); }}><Icon name="close" size={16} /></button>
           </div>
         )}
+        {/* asked about something that was held: its name over the typing bar (× takes it off); it folds away when sent */}
+        <Collapse open={!!about} ms={420} className="coach-about-wrap">
+          {aboutShown.current && (
+            <div className="coach-about">
+              <span className="coach-about-ic"><Icon name={aboutShown.current.icon} size={16} /></span>
+              <span className="grow coach-about-t"><span className="xs t3">{t('Asking about')}</span><span className="small trunc">{aboutShown.current.label}</span></span>
+              <button className="icon-btn flat sm press" aria-label={t('Remove')} onClick={() => { haptic('light'); setAbout(null); }}><Icon name="close" size={16} /></button>
+            </div>
+          )}
+        </Collapse>
         <input ref={camRef} type="file" accept="image/*" hidden onChange={(e) => { pickPhoto(e.target.files?.[0]); e.target.value = ''; }} />
         <div className="coach-composer" ref={composerRef} style={morphVars}>
           {/* the orb is the Coach's microphone: it flies in from the tab bar, listens to you, thinks while it answers */}

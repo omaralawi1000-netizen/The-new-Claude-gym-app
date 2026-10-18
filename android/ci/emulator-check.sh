@@ -116,7 +116,20 @@ sleep 2
 adb shell dumpsys deviceidle force-idle | sed 's/^/doze: /' | tee -a shots/rest-real.txt
 timeout 20 adb shell dumpsys audio | grep -A2 "Ringer mode" | tr -s ' \n' ' ' | sed 's/^/sound: /' | tee -a shots/rest-real.txt; echo
 adb shell dumpsys power | grep -m1 "mWakefulness=" | sed 's/^ */screen: /' | tee -a shots/rest-real.txt
-sleep 40
+# Android stops the app during a long rest (Omar's phone, 18 Oct: the alert then came without its Done ✓): do it here too
+sleep 8
+echo "app before: $(adb shell pidof app.aven.android)" | tee -a shots/rest-real.txt
+adb root >/dev/null 2>&1; sleep 3; adb wait-for-device
+adb shell "kill -9 \$(pidof app.aven.android)" 2>&1 | tee -a shots/rest-real.txt
+sleep 1
+echo "app after the kill: '$(adb shell pidof app.aven.android)' (empty = stopped)" | tee -a shots/rest-real.txt
+# …and the website's back-up alert gets there just before the alarm (Omar's phone, 18 Oct: the alert was then built in
+# a fresh start without Chrome's buttons, and its Done ✓ went nowhere)
+LEFT=$(adb forward tcp:9222 localabstract:chrome_devtools_remote >/dev/null; timeout 30 python3 android/ci/cdp.py left | grep -v '^pages' | tail -1)
+echo "rest left: ${LEFT} ms" | tee -a shots/rest-real.txt
+python3 -c "import time,sys; time.sleep(max(0, (int(sys.argv[1]) - 700) / 1000))" "${LEFT:-0}"
+cdp overalert | grep -v '^pages' | sed 's/^/back-up first: /' | tee -a shots/rest-real.txt
+sleep 8
 timeout 20 adb shell dumpsys audio > shots/audio.txt
 grep -c "usage=USAGE_ALARM" shots/audio.txt | sed 's/^/alarm-volume sounds in the audio log (want 1+): /' | tee -a shots/rest-real.txt
 grep -m6 "USAGE_ALARM" shots/audio.txt | cut -c1-220 | tee -a shots/rest-real.txt
@@ -128,6 +141,38 @@ adb shell input keyevent KEYCODE_WAKEUP
 sleep 2
 notes real-over
 shade 4-real-rest-over
+# the website's back-up alert arrives a moment later (as on a phone where the page wasn't asleep): the app's alert must stay
+cdp overalert | grep -v '^pages' | tee -a shots/rest-real.txt
+sleep 4
+notes after-overalert >/dev/null; grep -c "android.title=String (Time for set 2)" shots/after-overalert.txt | sed 's/^/alerts showing after the website'"'"'s back-up (want 1+): /' | tee -a shots/rest-real.txt
+# Done ✓ on the alert, tapped like a finger (on a watch it is this same button): it must reach the website's worker and page
+cdp listen | grep -v '^pages' | tee -a shots/rest-real.txt
+tapDone() {
+  adb shell cmd statusbar expand-notifications; sleep 2
+  timeout 15 adb shell uiautomator dump /sdcard/ui.xml >/dev/null; adb shell cat /sdcard/ui.xml > shots/ui-$1.xml
+  XY=$(python3 - "shots/ui-$1.xml" <<'PY'
+import re, sys
+x = open(sys.argv[1]).read()
+m = re.search(r'text="(?i:done)[^"]*"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', x)
+print(f"{(int(m[1])+int(m[3]))//2} {(int(m[2])+int(m[4]))//2}" if m else "")
+PY
+)
+  echo "Done button ($1) at: ${XY:-not found}" | tee -a shots/rest-real.txt
+  [ -n "$XY" ] && adb shell input tap $XY
+  sleep 5
+}
+tapDone over
+adb exec-out screencap -p > shots/4b-after-done.png
+adb shell cmd statusbar collapse; sleep 1
+notes after-done
+cdp heard | grep -v '^pages' | tee -a shots/rest-real.txt
+# the app carries on by itself: the next rest counts down (set 3), and its alert rings with its own Done ✓
+grep -c "Set 3 of 3\|Rest 0:15" shots/after-done.txt | sed 's/^/next rest counting down after Done (want 1+): /' | tee -a shots/rest-real.txt
+sleep 16
+notes over-3 >/dev/null; grep -c "android.title=String (Time for set 3)" shots/over-3.txt | sed 's/^/"Time for set 3" rang by itself (want 1+): /' | tee -a shots/rest-real.txt
+shade 4c-set-3
+tapDone over-3
+cdp heard | grep -v '^pages' | tee -a shots/rest-real.txt
 # back in the app: the website takes its notification away, and the alert goes with it (by itself: "closed 0" below)
 cdp watch | grep -v '^pages' | tee -a shots/rest-real.txt
 adb shell am start -n app.aven.android/com.google.androidbrowserhelper.trusted.LauncherActivity

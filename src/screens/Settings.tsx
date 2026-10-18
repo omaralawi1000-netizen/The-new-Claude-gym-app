@@ -19,10 +19,10 @@ import { buildDemo } from '../lib/demo';
 import { userHasData } from '../lib/stats';
 import { clearPhotos, loadPhoto, savePhoto } from '../lib/photos';
 import { clearArchive, importArchive } from '../lib/archive';
-import type { AppData, Meal, Settings } from '../lib/types';
+import type { AppData, Lang, Meal, Settings } from '../lib/types';
 import { uid, kcalOf, scaleMacros, suggestMacros } from '../lib/nutrition';
 import { mealName } from '../lib/derive';
-import { dayKey, fmtDate, fmtDuration } from '../lib/dates';
+import { dayKey, diffDays, fmtDate, fmtDuration } from '../lib/dates';
 import { useAi } from '../state/ai';
 import { clearKeys } from '../lib/keys';
 import { VoiceAiSettings } from './VoiceAi';
@@ -35,6 +35,7 @@ import { startStutter, stopStutter, stutterReport, stutterState, subscribeStutte
 import { coachTrace } from '../lib/coachTrace';
 import { lastRestLate } from './workout/rest';
 import { inAndroidApp, restCheck, showAppRest } from '../lib/androidApp';
+import { hcLink, hcStatus } from '../lib/healthSync';
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 // Moving between Settings pages works like iOS: the page you leave steps aside and fades out quickly, then the next one glides
@@ -53,7 +54,7 @@ const TITLE = {
   exit: (d: number) => ({ opacity: 0, transform: `translateX(${d * -14}px)`, transition: { duration: 0.11, ease: [0.4, 0, 1, 1] as const } }),
 };
 
-type Section = null | 'today' | 'targets' | 'training' | 'food' | 'units' | 'look' | 'reminders' | 'data' | 'privacy' | 'ai' | 'memory' | 'about';
+type Section = null | 'today' | 'targets' | 'training' | 'food' | 'units' | 'look' | 'reminders' | 'data' | 'privacy' | 'ai' | 'memory' | 'watch' | 'about';
 
 function Row({ icon, title, sub, onClick, value }: { icon: any; title: string; sub?: string; onClick: () => void; value?: string }) {
   return (
@@ -233,7 +234,7 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
   const ai = useAi();
   const set = s.updateSettings;
   const st = s.settings;
-  const titles: Record<string, string> = { targets: t('Targets'), training: t('Training'), food: t('Food & water'), units: t('Units & locale'), look: t('Appearance'), today: t('Today'), reminders: t('Reminders'), data: t('Data & backup'), privacy: t('Privacy'), ai: t('Voice & AI'), memory: t('Coach memory'), about: t('About Aven') };
+  const titles: Record<string, string> = { targets: t('Targets'), training: t('Training'), food: t('Food & water'), units: t('Units & locale'), look: t('Appearance'), today: t('Today'), reminders: t('Reminders'), data: t('Data & backup'), privacy: t('Privacy'), ai: t('Voice & AI'), memory: t('Coach memory'), watch: t('Watch'), about: t('About Aven') };
   const goBack = () => (sec && !props.section ? setSec(null) : pop());
   const moved = useRef(false); if (sec !== (props.section ?? null)) moved.current = true; // once you've moved between pages, pages settle in
 
@@ -259,6 +260,7 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
                   <Row icon="today" title={t('Today')} sub={t('Choose what Today shows')} onClick={() => setSec('today')} />
                   <Row icon="sparkle" title={t('Voice & AI')} sub={ai.hasGroq || ai.hasGemini || ai.hasOpenai ? [ai.hasGroq ? 'Groq' : '', ai.hasOpenai && ai.solFirst ? 'GPT-6.1 Sol' : '', ai.hasGemini ? 'Gemini' : ''].filter(Boolean).join(' + ') : undefined} onClick={() => setSec('ai')} />
                   <Row icon="note" title={t('Coach memory')} sub={s.memory.length ? t(s.memory.length === 1 ? '1 thing the Coach knows about you' : '{n} things the Coach knows about you', { n: s.memory.length }) : t('What the Coach knows about you')} onClick={() => setSec('memory')} />
+                  {watchShown() && <Row icon="watch" title={t('Watch')} sub={watchSub(t, lang)} onClick={() => setSec('watch')} />}
                   <Row icon="bell" title={t('Reminders')} onClick={() => setSec('reminders')} />
                   <Row icon="download" title={t('Data & backup')} onClick={() => setSec('data')} />
                   <Row icon="shield" title={t('Privacy')} onClick={() => setSec('privacy')} />
@@ -312,6 +314,7 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
               </div>
             )}
             {sec === 'reminders' && <Reminders />}
+            {sec === 'watch' && <WatchSection />}
             {sec === 'data' && <DataSection />}
             {sec === 'ai' && <VoiceAiSettings />}
             {sec === 'memory' && <CoachMemory />}
@@ -494,6 +497,76 @@ function FoodSettings() {
       <div className="row-flex between" style={{ alignItems: 'flex-start', gap: 14 }}>
         <div><div style={{ fontWeight: 600 }}>{t('Online food lookup')}</div></div>
         <Toggle on={st.foodLookup} onChange={(v) => s.updateSettings({ foodLookup: v })} label={t('Online food lookup')} />
+      </div>
+    </div>
+  );
+}
+
+/** Settings shows the watch where it can work: in the Android app (or once it has been there), and in Aven Beta on Android. */
+function watchShown(): boolean {
+  if (!/Android/i.test(navigator.userAgent)) return false;
+  let seen = false; try { seen = !!localStorage.getItem('aven.androidApp'); } catch { /* fine */ }
+  return inAndroidApp() || seen || !!hcStatus() || IS_BETA;
+}
+function watchSub(t: ReturnType<typeof useT>, lang: Lang): string {
+  const h = hcStatus();
+  if (!h?.on) return t('Steps and workouts from your watch');
+  return h.lastSync ? t('Connected · synced {when}', { when: fmtWhen(h.lastSync, lang, t) }) : t('Connected');
+}
+const fmtWhen = (at: number, lang: Lang, t: ReturnType<typeof useT>) => {
+  const d = new Date(at), now = new Date();
+  const time = d.toLocaleTimeString(lang === 'da' ? 'da-DK' : 'en-GB', { hour: '2-digit', minute: '2-digit' });
+  return d.toDateString() === now.toDateString() ? `${t('today')} ${time}` : `${d.toLocaleDateString(lang === 'da' ? 'da-DK' : 'en-GB', { day: 'numeric', month: 'short' })}, ${time}`;
+};
+
+/**
+ * Settings → Watch: your watch's steps and workouts, automatic (Galaxy Watch → Samsung Health → Health Connect → the
+ * Android app, which hands them to this page whenever Aven opens). Read only; the burned calories are shown, never eaten
+ * back. Buttons go through the Android app (lib/healthSync.ts `hcLink`).
+ */
+function WatchSection() {
+  const t = useT();
+  const lang = useLang();
+  const s = useStore();
+  const [, bump] = useState(0);
+  useEffect(() => { const f = () => bump((n) => n + 1); window.addEventListener('aven-hc', f); return () => window.removeEventListener('aven-hc', f); }, []);
+  const h = hcStatus();
+  const go = (what: 'connect' | 'sync' | 'off') => { haptic('light'); location.href = hcLink(what); };
+  const today = dayKey(Date.now(), s.settings.dayStartHour);
+  const week = s.activities.filter((a) => a.source === 'watch' && diffDays(today, a.date) < 7 && diffDays(today, a.date) >= 0);
+  const st7 = (s.steps ?? []).filter((x) => diffDays(today, x.date) < 7 && diffDays(today, x.date) >= 0);
+  const perDay = st7.length ? Math.round(st7.reduce((n, x) => n + x.count, 0) / st7.length) : 0;
+  const state = !h ? null : h.note === 'unavailable' || !h.avail ? t('Health Connect needs Android 14 or newer.') : h.note === 'denied' || (h.on && !h.granted) ? t('Aven wasn’t allowed to read it. Tap Connect watch and allow all.') : h.note === 'slow' || h.note === 'failed' ? t('Health Connect didn’t answer in time. Try Sync now.') : null;
+  return (
+    <div className="stack gap16">
+      <div className="plinth-2 watch-hero" style={{ padding: 16 }}>
+        <div className="row-flex" style={{ gap: 12, alignItems: 'center' }}>
+          <span className="watch-ic" aria-hidden><Icon name="watch" size={22} /></span>
+          <div className="grow" style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 650 }}>{h?.on && h.granted ? t('Connected') : t('Not connected')}</div>
+            <div className="xs t2" style={{ marginTop: 2 }}>{h?.on && h.lastSync ? t('Last synced {when}', { when: fmtWhen(h.lastSync, lang, t) }) : t('Your watch’s workouts and steps, by themselves')}</div>
+          </div>
+        </div>
+        {h?.on && h.granted && (week.length > 0 || perDay > 0) && (
+          <div className="row-flex watch-stats" style={{ gap: 10, marginTop: 14 }}>
+            <div className="grow"><div className="num" style={{ fontSize: 22, fontWeight: 650 }}>{week.length}</div><div className="xs t2">{t(week.length === 1 ? 'workout this week' : 'workouts this week')}</div></div>
+            <div className="grow"><div className="num" style={{ fontSize: 22, fontWeight: 650 }}>{perDay ? fmtNum(perDay, lang, 0) : '—'}</div><div className="xs t2">{t('steps a day')}</div></div>
+          </div>
+        )}
+      </div>
+      {state && <div className="small" style={{ color: 'var(--warn)' }}>{state}</div>}
+      {h?.on && h.granted ? (
+        <div className="row-flex" style={{ gap: 10, flexWrap: 'wrap' }}>
+          <button className="btn press" onClick={() => go('sync')}><Icon name="repeat" size={17} /> {t('Sync now')}</button>
+          <button className="btn press" onClick={() => go('off')}>{t('Disconnect')}</button>
+        </div>
+      ) : (
+        <button className="btn primary block press" onClick={() => go('connect')}><Icon name="watch" size={18} /> {t('Connect watch')}</button>
+      )}
+      <div className="small t2 stack gap8">
+        <div>{t('Works with a Galaxy Watch, or any watch that saves to Health Connect. New workouts show up by themselves each time Aven opens, with how hard they were from your heart rate.')}</div>
+        <div>{t('Read only, and it stays on this phone. Calories a workout burned are shown, but never added to your food target.')}</div>
+        {!inAndroidApp() && <div className="xs t3">{t('Needs the Aven Android app. Without it, the button offers to download it.')}</div>}
       </div>
     </div>
   );

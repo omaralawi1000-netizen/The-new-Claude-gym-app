@@ -29,6 +29,9 @@ let reg: Promise<ServiceWorkerRegistration | null> | null = null;
 export function androidRest(): Promise<ServiceWorkerRegistration | null> {
   if (!hasAndroidApp()) return Promise.resolve(null);
   reg ??= navigator.serviceWorker.register(`${SCOPE}sw.js`, { scope: SCOPE }).then(async (r) => {
+    // checked for a newer worker every time Aven opens: the browser does that by itself only about once a day, and an old
+    // one on Omar's phone kept closing the watch's Done ✓ path (18 Oct). It takes over at once (skipWaiting in it)
+    r.update().catch(() => {});
     for (let i = 0; i < 50 && !r.active; i++) await new Promise((ok) => setTimeout(ok, 100));
     if (!r.active) fail('worker', 'not active after 5 s');
     return r.active ? r : null;
@@ -40,13 +43,18 @@ export interface AppRest {
   key: string; startedAt: number; endsAt: number; title: string; body: string;
   exercise: string; line: string; overTitle: string; overBody: string; more: string; skip: string; icon: string; badge: string;
   sound: boolean; // Settings › Sound: the app plays the rest-over clicks itself
+  /** the rest-over alert's button ("Done ✓ 80 kg × 8": the set that's next, ticked as planned, from the lock screen or the
+   *  watch) and what the alert says once it is ("Set 2 ✓ · 80 kg × 8") */
+  done?: string; doneNote?: string;
+  /** what the watch says once it's ticked ("Rest 2:45"), the rest after this set, and the sets after it */
+  doneSay?: string; next?: number; queue?: { x: string; l: string; o: string; b: string; d: string; y: string; z: string; n: number }[];
 }
 
 /** The rest, for the app's countdown. False when the app can't be reached this way (the website's own one is used then). */
 export async function showAppRest(r: AppRest): Promise<boolean> {
   const sw = await androidRest();
   if (!sw) return false;
-  const words = { v: 1, s: r.startedAt, x: r.exercise, l: r.line, o: r.overTitle, b: r.overBody, p: r.more, k: r.skip, q: r.sound ? 1 : 0 };
+  const words = { v: 1, s: r.startedAt, x: r.exercise, l: r.line, o: r.overTitle, b: r.overBody, p: r.more, k: r.skip, q: r.sound ? 1 : 0, ...(r.done ? { d: r.done, y: r.doneNote ?? '', z: r.doneSay ?? '', n: r.next ?? 0, w: r.queue ?? [] } : {}) };
   const tag = `aven-rest|${JSON.stringify(words)}`;
   try {
     for (const n of await sw.getNotifications()) if (n.tag !== tag) n.close(); // an earlier rest's, or its alert
@@ -90,7 +98,10 @@ export async function restCheck() {
   const brand = (ua?.brands as { brand: string; version: string }[] | undefined)?.find((b) => !/Not.?A.?Brand|Chromium/i.test(b.brand));
   const browser = /SamsungBrowser\/(\d+)/.exec(navigator.userAgent)?.[0].replace('/', ' ') ?? (brand ? `${brand.brand} ${brand.version}` : /Chrome\/(\d+)/.exec(navigator.userAgent)?.[0].replace('/', ' ') ?? '?');
   let worker = 'no';
-  try { const r = await navigator.serviceWorker?.getRegistration(SCOPE); worker = r && !r.scope.endsWith(SCOPE) ? 'no' : r?.active ? 'yes' : r ? 'waiting' : 'no'; } catch { worker = 'error'; }
+  try {
+    const r = await navigator.serviceWorker?.getRegistration(SCOPE);
+    worker = r && !r.scope.endsWith(SCOPE) ? 'no' : r?.active ? 'yes' : r ? 'waiting' : 'no';
+  } catch { worker = 'error'; }
   let err = '', seen = false;
   try { err = localStorage.getItem(ERR) ?? ''; seen = !!localStorage.getItem(SEEN); } catch { /* ignore */ }
   return {

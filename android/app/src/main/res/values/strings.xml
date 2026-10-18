@@ -14,4 +14,6 @@
     <string name="channel_over">Rest over</string>
     <string name="channel_over_about">Rings when your rest is over.</string>
     <string name="rest_over">Rest over</string>
+    <string name="health_privacy_title">Aven and your health data</string>
+    <string name="health_privacy">Aven reads your steps and the workouts your watch records (their type, time, heart rate, active calories and distance) so they show beside your training and the Coach can take your cardio into account.\n\nAven only reads. It never writes to Health Connect, and the numbers never leave your phone: they go straight into Aven\'s own page on this phone. Aven has no account and no server that sees them.\n\nYou can turn this off in Aven (Settings → Watch) or take the access back in Health Connect at any time.</string>
 </resources>

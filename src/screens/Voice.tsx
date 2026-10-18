@@ -23,7 +23,7 @@ import { Veil, VOICE_VEIL, mirrorVeil } from '../ui/Veil';
 import { refreshBar, setBarFrost } from '../ui/statusBar';
 import { Icon } from '../ui/Icon';
 import { useOverlayZ } from '../ui/Sheet';
-import { ActionCard, RotatingHint, Rich, Words, SpeakButton, prefetchAloud, sttMessage, useWordReveal } from '../ui/agentUi';
+import { ActionCard, UndoAll, RotatingHint, Rich, Words, SpeakButton, prefetchAloud, sttMessage, useWordReveal } from '../ui/agentUi';
 import { stopSpeaking } from '../lib/tts';
 import { flyLogged } from '../ui/fly';
 import { apple, springCurve } from '../ui/motion';
@@ -506,6 +506,8 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
                           onConfirm={() => { r.button?.run(); haptic('confirm'); markInThread(last.threadId, r.id, 'confirmed'); setTurns((all) => all.map((x) => (x.id === last.id ? { ...x, confirmed: [...x.confirmed, r.id] } : x))); }} />
                       </motion.div>
                     ))}
+                    <UndoAll results={last.results} undone={last.undone} confirmed={last.confirmed} fresh
+                      onUndo={(ids) => { for (const id of ids) { last.results.find((r) => r.id === id)?.undo?.(); markInThread(last.threadId, id, 'undone'); } setTurns((all) => all.map((x) => (x.id === last.id ? { ...x, undone: [...x.undone, ...ids] } : x))); }} />
                   </div>
                   );
                   // the answer waits until your words have settled into their bubble, then writes in below

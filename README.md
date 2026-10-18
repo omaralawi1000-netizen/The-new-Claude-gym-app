@@ -2528,3 +2528,83 @@ Tests: `tests/train2.test.ts`, `scripts/journey-workout6.mjs`. The agent tests a
 - **Nothing Omar-only.** The guide's "they train to failure whatever the day" became neutral ("how hard they train is theirs to say; their MEMORY may say more"). Omar tells the Coach once, and it lives in his memory.
 
 Tests: `tests/converse.test.ts`, `scripts/journey-coach5.mjs`.
+
+## Coach 2.0, phase 5b part D: your watch, automatic (18 Oct 2026, v0.1.148, Beta first)
+- **Path.** Galaxy Watch → Samsung Health → Health Connect → the Android app → the page.
+  - The Android app uses Android's own Health Connect (Android 14+): no new library.
+  - `HealthSync.java` reads, for the last 14 days: steps per local day (Health Connect's own total, so phone plus watch count once), and the workouts with their type, time, average and highest heart rate, active calories and distance.
+- **Handoff.** A TWA can't run code in the page, so the numbers travel in the address after `#hc=` (base64url JSON; never sent to any server).
+  - The launcher reads while the opening zoom plays (at most 650 ms). If it isn't done, the last reading goes instead.
+  - Settings → Watch drives `HealthActivity` through `intent://health/connect|sync|off`. It asks for read access, reads, and reopens the page it came from, so it works for Aven Beta too. Without the app installed, the link offers the APK download.
+  - `PrivacyActivity` is the rationale page Health Connect requires.
+- **The page** (`src/lib/healthSync.ts`) only believes an address the Android app opened (the referrer). It checks and caps everything, then takes it out of the address.
+  - Workouts become activities, merged by their Health Connect id: never twice, and your note is kept.
+  - A run you logged yourself the same day, as the same kind and about as long, becomes the watch's.
+  - Lifting from the watch is left out (Aven logs the gym itself). A new kind, `stairs`, was added.
+  - Intensity comes from heart rate: under 70% of your highest easy, to 85% hard, above that max. Your highest is never taken as below 185.
+  - Steps are kept per day (`AppData.steps`, an additive field, in backups).
+  - Calories are shown, never added to the food target. The Coach's DATA says so too ("never tell them to eat them back").
+- **Shown in:**
+  - Train → History (the watch's own name, e.g. "Stair climber", with bpm);
+  - Today's week line ("2 cardio · 11,800 steps a day");
+  - Settings → Watch (Connect watch / Sync now / Disconnect, last synced, this week's numbers);
+  - the Coach's WATCH CARDIO and Steps lines.
+  - People without the Android app or a watch see nothing new.
+
+### Polish audit fixes (same release)
+- "Use 18 kg" toggles: one tap logs what was heard, another puts the fix back, and the card says which it is now. Before, it changed the set but the card still showed the old numbers.
+- The thinking dots no longer blink when "Still thinking…" arrives. They stay one element; status lines cross-fade and fade out with the dots.
+- The error row rises in like the other rows. On Try again it folds away instead of vanishing.
+- Card subtitles roll like titles, and after Undo the "Remembered for next time" line goes back. The title roll no longer has a near-blank moment: the old words fade out for 360 ms, over the new one's start.
+- Finish from "Still training?" opens the finish screen, which also covers Today changing behind it.
+- **Memory leak.** Each switch to or from Today or Food kept the whole old tab alive: Chrome held the calorie ring's `<svg>` with its `<foreignObject>`. The ring now empties and detaches its svg when it goes. Over 60 switches, nodes went from 15.5k to 6.2k, and listeners now stay flat (they used to grow by 13 per switch).
+
+## Done ✓ on the watch (18 Oct 2026, v0.1.148)
+Omar trains with music in his earbuds and walks around the gym, so the phone is often out of reach. The earbud button controls the music app, not Aven, so it can't be the trigger. Always-on listening was tried before: it misheard him and reacted to other people.
+- **Done ✓.** When the rest is over, the "Time for set 2" notification (phone, lock screen, Galaxy Watch) gets a "Done ✓ 80 kg × 8" button. One tap ticks that set exactly as planned through `completeSet` (records, haptic, the next rest). If Aven is awake, the notification becomes the next rest countdown.
+  - Chrome allows only two buttons on a web notification. So once the rest is over, the Android app's alert reuses the Skip slot for Done. The rest worker (`android/site/…-rest/sw.js`) decides at the tap whether it was a Done: the rest has been over for more than 1.5 s. It then tells the page "done", with the tap's time. Judging it later in the page went wrong: a page asleep behind the lock screen hears a real Skip late, and it would have looked like a Done.
+  - **Every tap is also kept** in Cache `aven-pending`, with its time. Behind the lock screen Chrome can pause the page or drop it, and the message is lost. That was Omar's first Beta test: the button showed, but the set didn't tick. The page picks the tap up when it opens and every time it becomes visible again (`rest.ts` `applyPendingDone`). Each rest's Done counts once, whether it arrives as the message, the cache copy, or both.
+  - **Heard late, it still counts from the tap.** The set's time is the tap, and the next rest started then, so it may already be over ("Go").
+  - The Android app's alert is no longer local-only, so it reaches the watch. Its "Set 2 ✓" line stays when Chrome takes its own copy away just after the tap.
+- **A whole workout from the wrist (18 Oct, after Omar's gym test).** On his watch, "Time for set 2" came with no Done ✓ at all (photo).
+  - The cause: Android had stopped the Aven app during the rest. The alert it then rang in a fresh start had lost its Done words (they weren't saved) and Chrome's buttons (they lived only in memory). Short test rests never showed it.
+  - Now every word is saved, and Chrome's buttons ride along inside the end-of-rest alarm, so a fresh start still has them.
+  - Done ✓ is also handled in the app itself. The next rest starts counting down from the tap, and its alert ("Time for set 3") rings with its own Done ✓. Each rest's notification tag carries the next set's words and its rest, plus the six sets after it (words `n`, `z`, `w`, from `rest.ts` `stepOf` / `stepsAfter`), so the app can carry on while Aven sleeps.
+  - On a rest the app started this way, +30 s and Skip stay in the app (Skip rings the next set at once). The website's Skip means something else.
+  - The rest worker keeps every Done tap as its own cache entry (`/aven-pending/tap-<time>`). It no longer closes Chrome's notification after a Done, so the next taps still reach it.
+  - When Aven opens or wakes, it replays the taps oldest first. Each one ticks the set that was next and starts the rest from the tap's time. Taps for another workout are left alone (the real app and Beta share the cache).
+  - The CI emulator does exactly this: it stops the app mid-rest and then taps Done ✓ twice in a row (`android/ci/emulator-check.sh`).
+- **Tap and say was tried and dropped (same day).** A tap on empty workout space listened for one phrase ("8 at 80") on the phone's mic. Omar's verdict: it needs the phone in his hand, and then the tick is just as fast and never mishears. It was removed before it shipped.
+- **Why it still failed on Omar's phone (18 Oct evening): the old Android app.** Every fix above lives partly in the Android app, and the APK he kept installing was an older download, not the new one. Every build was called "1.0", so nothing showed it.
+  - Now the Android app's version is the build number (`versionName "1.<run>"`): Settings › Apps › Aven shows which build is on the phone. With build 1.111 installed, Done ✓ ticked the set in Beta on the first try.
+  - The on-phone diagnostics used to find this (a rest log screen in the Android app, the "Last Done ✓" and worker-version lines in Settings › Training) were removed once it worked. The CI emulator still prints the rest log (`AvenRest`).
+  - From Chrome's own source: a notification button is a plain broadcast, and Chrome drops a tap whose notification it no longer has. So the page must never close the rest notification while a Done ✓ can still come through it.
+- Tests: `tests/done.test.ts`. Journey: `scripts/journey-done.mjs` covers Aven closed, and Aven asleep with the message lost.
+
+## Coach polish: hold to ask, charts, Undo all, pick changes, copy a routine (18 Oct 2026, v0.1.148)
+The last part of Coach 2.0, phase 5 (docs/coach-plan.md).
+- **Hold to ask the Coach.** Hold a logged food (Food tab), a past workout (Train → History), an exercise (Train → Library, Progress), or a chart (Progress, an exercise's progress) for about half a second.
+  - A soft ring settles around it and a small frosted pill rises above it: "✦ Ask the Coach". Tap the pill and the Coach opens about exactly that.
+  - In the Coach, a chip over the typing bar says what it's about (× takes it off), and three questions about it replace the usual suggestions.
+  - The model gets the item with the message as `[about: …]`: a food's numbers and its ref, a lift's history, a workout's sets, a chart's numbers. It stays with that message in the conversation.
+  - The bubble shows a quiet tag naming the item.
+  - One listener for the whole app (`src/ui/askHold.ts`) reads a `data-ask` tag (`lib/askAbout.ts`).
+    - A short tap still opens the item as before; the click that ends a hold is swallowed.
+    - A scroll or another tap puts the pill away, and it goes by itself after 6 s.
+    - The ring and pill live on `<body>` and carry the item's own accent. The ring is clipped where the dock starts.
+- **Charts in the chat** (`show_chart`): estimated 1RM per session for a lift, bodyweight with its trend, calories or protein per day (target line), weekly volume, sessions per week, minutes on the mat.
+  - Built from the app's own data (`lib/agentCharts.ts`) and stored on the card as plain numbers, so it's still there when the chat is opened again.
+  - Drawn by the Progress tab's charts, across the card's full width. The line draws in slower than on Progress, and a reopened card is drawn still.
+  - Nothing to draw is said plainly ("No sessions of Nordic curl to draw yet"), never an empty chart.
+- **Undo all.** When one answer made two or more changes, an "Undo all N" ghost button sits under its last card. It undoes newest first and folds away once nothing is left to undo. It's on the orb screen too.
+- **Keep only some changes.** A routine rewrite (three or more changes) is a preview with a tick beside each change.
+  - Untick one and its words dim and a strike draws across them; the button says "Apply 3 of 4".
+  - On Apply, the changes left out fold away and the card says "3 of 4 changes applied". What the model is told happened leaves them out.
+- **Copy a routine** (`duplicate_routine`): the same exercises, sets and rests, with their own ids so the two never share an edit. Named "Push copy", or whatever was said; a second copy gets numbered. It comes with Open and Undo.
+- **Judge round 1 fixes:**
+  - The ring and pill were coral on <body>; they now carry the tab's accent.
+  - The ring was too tight and ran under the dock.
+  - Change details wrapped mid-number.
+  - The ticks were too loud after Apply.
+  - The heading read "200 G".
+- Tests: `tests/coach7.test.ts`. Journey: `scripts/journey-coach6.mjs`.

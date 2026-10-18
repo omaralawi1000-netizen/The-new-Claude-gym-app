@@ -1215,9 +1215,12 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 @keyframes acActions { from { opacity: 0; } }
 .ac-title { position: relative; overflow: hidden; padding-block: 2px; margin-block: -2px; }
 /* one after the other: the old title leaves upward, then the new one comes up from below (never two at once) */
-.ac-title .ac-roll { display: inline-block; animation: acRollIn 420ms var(--ease-smooth) 180ms both; }
+.ac-title .ac-roll, .ac-sub .ac-roll { display: inline-block; animation: acRollIn 420ms var(--ease-smooth) 180ms both; }
+.ac-sub { position: relative; overflow: hidden; padding-block: 1px; margin-block: -1px; }
 @keyframes acRollIn { from { opacity: 0; transform: translate3d(0, 40%, 0); } }
-.ac-title .ac-roll-out { position: absolute; left: 0; top: 2px; white-space: nowrap; pointer-events: none; animation: acRollOut 240ms var(--ease-smooth) both; }
+/* (the old words fade out over the new one's start: never a moment with neither) */
+.ac-title .ac-roll-out, .ac-sub .ac-roll-out { position: absolute; left: 0; top: 2px; white-space: nowrap; pointer-events: none; animation: acRollOut 360ms var(--ease-smooth) both; }
+.ac-sub .ac-roll-out { top: 1px; }
 @keyframes acRollOut { to { opacity: 0; transform: translate3d(0, -40%, 0); } }
 /* Undo: the strike is drawn left to right, the card eases back */
 .action-card.undoing { transition: opacity 520ms var(--ease-smooth); }
@@ -1258,8 +1261,9 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
   .action-card, .action-card *, .action-card *::after { animation: none !important; transition: none !important; }
 }
 :root[data-motion='reduce'] :is(.action-card, .action-card *, .action-card *::after) { animation: none !important; transition: none !important; }
-@media (prefers-reduced-motion: reduce) { .ac-title .ac-roll-out, .action-card .ac-actions.ac-out { display: none; } }
-:root[data-motion='reduce'] :is(.ac-title .ac-roll-out, .action-card .ac-actions.ac-out) { display: none; }
+@media (prefers-reduced-motion: reduce) { .ac-title .ac-roll-out, .ac-sub .ac-roll-out, .action-card .ac-actions.ac-out { display: none; } }
+:root[data-motion='reduce'] :is(.ac-title .ac-roll-out, .ac-sub .ac-roll-out, .action-card .ac-actions.ac-out) { display: none; }
+.action-line .ac-text { transition: color 360ms var(--ease-smooth); }
 
 /* the Coach's mic: the ring around the orb swells with your voice (--voice is written by the sphere stage) */
 .voice-ring { position: absolute; inset: -2px; border-radius: 999px; pointer-events: none; border: 2px solid var(--ac); opacity: 0; box-shadow: 0 0 22px -4px var(--ac); transition: opacity .3s var(--ease-io, ease); }
@@ -1399,6 +1403,10 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .coach-send.busy .cs-stop { opacity: 1; transform: none; }
 .coach-send.queued .cs-go { opacity: .45; } /* (typed while it answers: waits, quieter, and goes when the answer is done) */
 .coach-err-acts { flex-wrap: wrap; }
+/* it rises in like the other rows (never just there), and fades as it folds away */
+.coach-err { animation: acSettle 560ms var(--ease-smooth) both; transition: opacity 300ms var(--ease-smooth); }
+.coach-err.leaving { opacity: 0; }
+:root[data-motion='reduce'] .coach-err { animation: none; }
 /* inside the row: a soft fill, no outline ring; the touch area reaches 44 px around the small chip */
 .coach-err .chip { position: relative; box-shadow: none; background: var(--s3); color: var(--tx); }
 .coach-err .chip::after { content: ''; position: absolute; inset: -8px -6px; }
@@ -2442,3 +2450,84 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 /* each new "Looking at…" rises gently into the place of the one before, so two look-ups read as one thought */
 @keyframes lookIn { from { opacity: 0; transform: translate3d(0, 3px, 0); } }
 @media (prefers-reduced-motion: reduce) { .coach-look { animation: none; } }
+.coach-look-cell { display: grid; }
+.coach-look-cell > * { grid-area: 1 / 1; }
+.coach-look.coach-look-out { animation: lookOut 420ms var(--ease-smooth) forwards; }
+@keyframes lookOut { to { opacity: 0; transform: translate3d(0, -3px, 0); } }
+/* when the answer starts: under the melting dots, gone with them */
+.coach-answer .coach-look-gone { position: absolute; left: 0; top: 39px; z-index: 1; pointer-events: none; animation: lookOut 360ms cubic-bezier(.4, 0, .6, 1) forwards; }
+@media (prefers-reduced-motion: reduce) { .coach-look.coach-look-out, .coach-answer .coach-look-gone { display: none; } }
+
+/* Settings → Watch: the round seat for the watch face, the two numbers under it */
+.watch-ic { width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center; flex: none; background: var(--s3); color: var(--tx); }
+.watch-stats { margin-top: 18px !important; }
+.watch-stats .num { font-weight: 300 !important; letter-spacing: -.01em; }
+
+/* "Undo all" under an answer's cards: a quiet ghost button at the right, risen in after the last card has settled (opacity
+   and a small rise only), folded away once nothing is left to undo */
+.ac-undo-all { display: flex; justify-content: flex-end; padding-top: 2px; }
+.coach-body .ac-undo-all.fresh, .ac-undo-all.fresh { animation: acSettle 620ms var(--ease-smooth) both; animation-delay: calc(420ms + var(--n, 1) * 90ms); }
+.collapse.ac-undo-all-wrap { transition: grid-template-rows 420ms cubic-bezier(.45, 0, .2, 1), opacity 260ms cubic-bezier(.4, 0, .2, 1); }
+
+/* a preview's changes, each with a tick (edit_routine): untick one and Apply leaves it out. The tick fills and empties
+   (opacity and scale), the words dim and a strike draws across them (transform); once applied, a change left out folds
+   away and the ticked ones keep their quiet check */
+.action-line.ac-pickable { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; column-gap: 10px; align-items: center; justify-content: stretch; }
+.action-line.ac-pickable.stack { grid-template-columns: 22px minmax(0, 1fr); }
+.action-line.ac-pickable.stack .ac-line-sub { grid-column: 2; }
+.action-line.ac-pickable .ac-text { justify-self: start; cursor: pointer; }
+.ac-pick { position: relative; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--ac-ink); flex: none; }
+.ac-pick::before { content: ''; position: absolute; inset: -11px; } /* (a 44 px target) */
+.ac-pick:disabled { opacity: 1; cursor: default; }
+.ac-pick-ring, .ac-pick-fill { position: absolute; inset: 0; border-radius: 50%; }
+.ac-pick-ring { box-shadow: inset 0 0 0 1.5px var(--line-2); }
+.ac-pick-fill { display: grid; place-items: center; background: var(--ac); transition: opacity 260ms var(--ease-smooth), transform 420ms var(--ease-spring); }
+.ac-off .ac-pick-fill { opacity: 0; transform: scale(0.55); }
+.action-line.ac-pickable .ac-text, .action-line.ac-pickable .ac-line-sub { transition: opacity 320ms var(--ease-smooth); }
+.action-line.ac-off .ac-text, .action-line.ac-off .ac-line-sub { opacity: 0.42; }
+.action-line.ac-pickable .ac-text::after { content: ''; position: absolute; left: 0; right: 0; top: 52%; height: 1.5px; border-radius: 1px; background: currentColor; opacity: 0.7; transform: scaleX(0); transform-origin: 0 50%; transition: transform 340ms var(--ease-smooth); }
+.action-line.ac-off .ac-text::after { transform: scaleX(1); }
+.collapse.ac-pick-wrap { transition: grid-template-rows 480ms cubic-bezier(.45, 0, .2, 1), opacity 280ms cubic-bezier(.4, 0, .2, 1); }
+
+/* a chart on a Coach card: it fades up after the title, then the line draws itself in (slower than on Progress: it arrives
+   in a conversation, not on a page you opened to look at numbers); a card opened again later is still */
+.ac-chart { margin: 10px -2px 0; }
+.coach-body .action-card.fresh .ac-chart { animation: acLine 600ms var(--ease-smooth) 200ms both; }
+.ac-chart .line-in { animation-duration: 1200ms; animation-delay: 360ms; animation-timing-function: cubic-bezier(.45, 0, .2, 1); }
+.ac-chart .bar-in { animation-duration: 640ms; }
+.coach-body .action-card:not(.fresh) .ac-chart .line-in, .coach-body .action-card:not(.fresh) .ac-chart .bar-in { animation: none; }
+
+/* "Ask the Coach about this" (ui/askHold.ts): hold a food, a lift, a past workout or a chart. A soft accent ring settles
+   around it and a small frosted pill rises above it (opacity and transform only, like a toast) */
+[data-ask] { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.ask-ring { position: fixed; z-index: 398; pointer-events: none; box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ac) 72%, transparent), inset 0 0 14px color-mix(in srgb, var(--ac) 14%, transparent);
+  opacity: 0; transform: scale(1.025); transition: opacity 320ms var(--ease-smooth), transform 560ms var(--ease-spring); }
+.ask-ring.on { opacity: 1; transform: none; }
+.ask-ring.off { opacity: 0; transition-duration: 260ms, 260ms; }
+.ask-pill.glass { position: fixed; z-index: 400; display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 18px 0 15px; border: 0; border-radius: 999px;
+  font: inherit; font-size: 14.5px; font-weight: 600; color: var(--tx); white-space: nowrap; cursor: pointer;
+  opacity: 0; transform: translate3d(0, var(--from, 8px), 0) scale(0.94); transition: opacity 280ms var(--ease-smooth), transform 560ms var(--ease-spring); }
+.ask-pill svg { color: var(--ac-text); flex: none; }
+.ask-pill.on { opacity: 1; transform: none; }
+.ask-pill.off { opacity: 0; transform: scale(0.96); transition-duration: 220ms, 280ms; pointer-events: none; }
+:root[data-motion='reduce'] .ask-pill, :root[data-motion='reduce'] .ask-ring { transition-duration: 1ms; }
+
+/* asked about something that was held: its name over the typing bar (like a photo waiting to be sent), and a quiet tag
+   over the message it went with */
+.collapse.coach-about-wrap { transition: grid-template-rows 420ms cubic-bezier(.45, 0, .2, 1), opacity 260ms cubic-bezier(.4, 0, .2, 1); }
+.coach-about { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; padding: 6px 6px 6px 8px; border-radius: 16px; background: var(--s2); box-shadow: inset 0 0 0 1px var(--line); animation: rise-soft 420ms var(--ease-out) backwards; }
+.coach-about-ic { width: 32px; height: 32px; border-radius: 11px; display: grid; place-items: center; flex: none; background: var(--ac-soft); color: var(--ac-text); }
+.coach-about-t { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.said-about { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; padding: 0 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.said-about svg { color: var(--ac-text); flex: none; }
+/* (judge, round 1) a change's words keep together: the name gives way with an ellipsis, its detail never wraps mid-number */
+.action-line.ac-pickable .ac-line-sub { white-space: nowrap; }
+.action-line.ac-pickable .ac-text { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.action-line.ac-pickable.stack .ac-text { white-space: normal; }
+/* applied: the filled disc steps back to a quiet accent check (opacity only: two checks, one fades over the other) */
+.ac-pick-done { position: absolute; inset: 0; display: grid; place-items: center; color: var(--ac-text); opacity: 0; transition: opacity 420ms var(--ease-smooth); }
+.action-card.sealed:not(.undone) .ac-pick-fill { opacity: 0; transform: none; }
+.action-card.sealed:not(.undone) .ac-pick-ring { opacity: 0; transition: opacity 420ms var(--ease-smooth); }
+.action-card.sealed:not(.undone) .action-line:not(.ac-off) .ac-pick-done { opacity: 0.8; }
+/* the chart uses the card's whole inner width (under the icon too) */
+.ac-chart { margin-left: -36px; }

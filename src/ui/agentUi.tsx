@@ -2,6 +2,9 @@ import { memo, useEffect, useMemo, useRef, useState, useSyncExternalStore } from
 import { useLang, useT } from '../lib/i18n';
 import { Icon, type IconName } from './Icon';
 import { Collapse } from './kit';
+import { BarChart, LineChart } from './charts';
+import { fmtNum } from '../lib/units';
+import type { ChartData } from '../lib/agentCharts';
 import { useStore } from '../state/store';
 import { dayKey, diffDays } from '../lib/dates';
 import { sumNutrients } from '../lib/nutrition';
@@ -133,7 +136,7 @@ export function RotatingHint() {
   return <span key={text} className="hint-rot">“{text}”</span>;
 }
 
-const KIND_ICON: Record<string, IconName> = { food: 'recipe', recipe: 'recipe', sets: 'dumbbell', water: 'drop', weight: 'scale', activity: 'wrestle', workout: 'dumbbell', routine: 'list', nav: 'info', setting: 'settings', memory: 'note', miss: 'info' };
+const KIND_ICON: Record<string, IconName> = { chart: 'progress', food: 'recipe', recipe: 'recipe', sets: 'dumbbell', water: 'drop', weight: 'scale', activity: 'wrestle', workout: 'dumbbell', routine: 'list', nav: 'info', setting: 'settings', memory: 'note', miss: 'info' };
 
 /** Pieces shared by the Coach chat and the orb screen: how the assistant's words and actions are shown. */
 
@@ -291,7 +294,9 @@ export function cardsNote(results: AgentResult[], confirmed: string[], undone: s
   return `(${results.map((r) => {
     const state = undone.includes(r.id) ? 'undone' : r.pending && !confirmed.includes(r.id) ? (r.key ? 'preview, not applied' : 'offered, not taken') : 'done';
     // each item keeps its id ([ref e_…]), so "move it to lunch" / "make that two" can name exactly this one
-    const what = r.lines.length && (detail || r.lines.some((l) => l.ref)) ? ` — ${r.lines.map((l) => `${l.text}${detail && l.sub ? ` ${l.sub}` : ''}${l.ref ? ` [ref ${l.ref}]` : ''}`).join(', ')}` : '';
+    // (a preview's changes that were left out of Apply are not what happened)
+    const lines = r.lines.filter((_, i) => !r.off?.includes(i));
+    const what = lines.length && (detail || lines.some((l) => l.ref)) ? ` — ${lines.map((l) => `${l.text}${detail && l.sub ? ` ${l.sub}` : ''}${l.ref ? ` [ref ${l.ref}]` : ''}`).join(', ')}` : r.chart ? ` — ${r.subtitle ?? ''}` : '';
     return `${state}: ${r.title}${what}`;
   }).join(' | ')})`;
 }
@@ -299,6 +304,12 @@ export function cardsNote(results: AgentResult[], confirmed: string[], undone: s
 export function ActionCard({ r, undone, confirmed, onUndo, onConfirm, replaced = false, fresh = false }: { r: AgentResult; undone: boolean; confirmed: boolean; onUndo: () => void; onConfirm: () => void; /** a newer preview of the same thing came: this one can no longer be applied */ replaced?: boolean; /** it arrived just now (a restored card stays still) */ fresh?: boolean }) {
   const t = useT();
   const miss = r.kind === 'miss';
+  // a button that changes the card itself ("Use 18 kg"): drawn again with what it says now
+  const [, redraw] = useState(0);
+  // a preview's changes, each with a tick: untick one and Apply leaves it out (the card's own list, read by Apply)
+  const picks = r.lines.reduce((n, l) => n + (l.pick ? 1 : 0), 0);
+  const offN = r.off?.length ?? 0;
+  const toggle = (i: number) => { const o = r.off ?? (r.off = []); const k = o.indexOf(i); if (k >= 0) o.splice(k, 1); else o.push(i); haptic('light'); redraw((n) => n + 1); };
   // Apply and Undo animate only when they happen here, not when a card comes back already applied or undone
   const was = useRef({ confirmed, undone, replaced });
   const [sealing, setSealing] = useState(false);
@@ -319,6 +330,11 @@ export function ActionCard({ r, undone, confirmed, onUndo, onConfirm, replaced =
   const shownTitle = useRef({ now: title, before: '' });
   if (shownTitle.current.now !== title) shownTitle.current = { now: title, before: shownTitle.current.now };
   const rolled = !!shownTitle.current.before;
+  // the line under it rolls the same way ("chicken breast · 200 g" → "Remembered for next time"); after Undo it goes back
+  const sub = confirmed && !undone && r.doneSubtitle ? r.doneSubtitle : r.subtitle;
+  const shownSub = useRef({ now: sub, before: '' as string | undefined });
+  if (shownSub.current.now !== sub) shownSub.current = { now: sub, before: shownSub.current.now };
+  const subRolled = !!shownSub.current.before;
   const cls = ['plinth', 'action-card', fresh ? 'fresh' : '', waiting ? 'waiting' : '', confirmed ? 'sealed' : '', sealing ? 'sealing' : '', undone ? 'undone' : '', undoing ? 'undoing' : '', miss ? 'miss' : '', replaced && !confirmed ? 'replaced' : ''].filter(Boolean).join(' ');
   return (
     <div className={cls} style={{ padding: '12px 14px 12px 12px', ['--n' as string]: r.lines.length }}>
@@ -332,7 +348,12 @@ export function ActionCard({ r, undone, confirmed, onUndo, onConfirm, replaced =
             <span key={title} className={rolled ? 'ac-roll' : undefined}>{title}</span>
           </div>
           {/* (kept when undone: taking it away collapsed the card in one frame) */}
-          {r.subtitle && <div className="xs t2 num ac-sub" style={{ marginTop: 2 }}>{confirmed && r.doneSubtitle ? r.doneSubtitle : r.subtitle}</div>}
+          {sub && (
+            <div className="xs t2 num ac-sub" style={{ marginTop: 2 }}>
+              {subRolled && <span key={`o${shownSub.current.before}`} className="ac-roll-out" aria-hidden>{shownSub.current.before}</span>}
+              <span key={sub} className={subRolled ? 'ac-roll' : undefined}>{sub}</span>
+            </div>
+          )}
           {r.week && <WeekStrip week={r.week} />}
           {/* a memory reworded: the old wording, struck through (drawn as the card arrives), above the new one */}
           {r.was && <div className="ac-was small" style={{ marginTop: 6 }}><span className="ac-was-t">{r.was}</span></div>}
@@ -355,14 +376,28 @@ export function ActionCard({ r, undone, confirmed, onUndo, onConfirm, replaced =
               {r.undo && <div className={`ac-actions-cell${undone ? ' gone' : ''}`} inert={undone || undefined}><div className="row-flex ac-actions"><button className="btn sm ghost press" onClick={onUndo}><Icon name="undo" size={15} /> {t('Undo')}</button></div></div>}
             </Collapse>
           )}
+          {r.chart && <CardChart c={r.chart} />}
           {!r.choose && r.lines.length > 0 && (
             <div style={{ marginTop: r.was ? 2 : 6 }}>
-              {r.lines.map((l, i) => (
-                <div key={i} className={`action-line ${l.sub && l.sub.length > 30 ? 'stack' : 'row-flex between'}`} style={{ gap: l.sub && l.sub.length > 30 ? 2 : 10, padding: '5px 0', borderTop: i ? '1px solid var(--line)' : 'none', animationDelay: `${120 + i * 70}ms`, ['--i' as string]: i + (r.was ? 1 : 0) }}>
-                  <span className="small ac-text" style={{ color: l.warn ? 'var(--warn)' : 'var(--tx)', minWidth: 0, overflowWrap: 'anywhere' }}>{l.text}</span>
-                  {l.sub && <span className="xs t2 num" style={l.sub.length > 30 ? { display: 'block', marginTop: 1 } : { textAlign: 'right', flex: 'none', maxWidth: '62%' }}>{l.sub}</span>}
-                </div>
-              ))}
+              {r.lines.map((l, i) => {
+                const off = !!r.off?.includes(i);
+                // a change whose name and detail won't share one line: the detail goes under the name (never a name cut to a few letters)
+                const stack = l.sub ? (l.pick ? l.text.length + l.sub.length > 40 : l.sub.length > 30) : false;
+                const line = (
+                  <div className={`action-line ${stack ? 'stack' : 'row-flex between'}${l.pick ? ' ac-pickable' : ''}${off ? ' ac-off' : ''}`} style={{ gap: stack ? 2 : 10, padding: '5px 0', borderTop: i ? '1px solid var(--line)' : 'none', animationDelay: `${120 + i * 70}ms`, ['--i' as string]: i + (r.was ? 1 : 0) }}>
+                    {/* a change in a preview: its tick (tap the line or the tick), and its words dim and are struck while it's left out */}
+                    {l.pick && (
+                      <button className="ac-pick press" role="checkbox" aria-checked={!off} aria-label={l.text} disabled={!waiting} onClick={() => toggle(i)}>
+                        <i className="ac-pick-ring" /><i className="ac-pick-fill"><Icon name="check" size={12} sw={3} /></i><i className="ac-pick-done"><Icon name="check" size={14} sw={2.4} /></i>
+                      </button>
+                    )}
+                    <span className="small ac-text" style={{ color: l.warn ? 'var(--warn)' : 'var(--tx)', minWidth: 0, overflowWrap: 'anywhere' }} onClick={l.pick && waiting ? () => toggle(i) : undefined}>{l.text}</span>
+                    {l.sub && <span className="xs t2 num ac-line-sub" style={stack ? { display: 'block', marginTop: 1 } : { textAlign: 'right', flex: 'none', maxWidth: '62%' }}>{l.sub}</span>}
+                  </div>
+                );
+                // applied without it: the change that was left out folds away
+                return l.pick ? <Collapse key={i} open={!(off && confirmed)} ms={480} className="ac-pick-wrap">{line}</Collapse> : <div key={i}>{line}</div>;
+              })}
             </div>
           )}
           {/* a recipe's method: folded away under its ingredients until opened */}
@@ -373,8 +408,8 @@ export function ActionCard({ r, undone, confirmed, onUndo, onConfirm, replaced =
             <div className={`ac-actions-cell${gone ? ' gone' : ''}`} inert={gone || undefined}>
               {(!confirmed || sealing) && hadButtons && (
                 <div key="before" className={`row-flex ac-actions${confirmed ? ' ac-out' : ''}`} style={{ gap: 8, flexWrap: 'wrap' }} aria-hidden={confirmed || undefined} inert={confirmed ? true : undefined}>
-                  {r.button && <button className={`btn sm press ${r.pending ? 'primary' : ''}`} onClick={r.pending ? onConfirm : r.button.run}>{r.button.label}</button>}
-                  {r.more?.map((b) => <button key={b.label} className={`btn sm press ${b.warn ? 'ac-warn-chip' : 'ghost'}`} onClick={() => { haptic('light'); b.run(); }}>{b.label}</button>)}
+                  {r.button && <button className={`btn sm press ${r.pending ? 'primary' : ''}`} disabled={!!picks && offN >= picks} onClick={r.pending ? onConfirm : r.button.run}>{picks && offN ? t('Apply {n} of {m}', { n: picks - offN, m: picks }) : r.button.label}</button>}
+                  {r.more?.map((b, i) => <button key={i} className={`btn sm press ${b.warn ? 'ac-warn-chip' : 'ghost'}`} onClick={() => { haptic('light'); b.run(); redraw((n) => n + 1); }}>{b.label}</button>)}
                   {r.undo && !r.pending && <button className="btn sm ghost press" onClick={onUndo}><Icon name="undo" size={15} /> {t('Undo')}</button>}
                 </div>
               )}
@@ -382,7 +417,7 @@ export function ActionCard({ r, undone, confirmed, onUndo, onConfirm, replaced =
                 <div key="after" className={`row-flex ac-actions${sealing ? ' ac-in-late' : ''}`} style={{ gap: 8, flexWrap: 'wrap' }}>
                   {/* (a saved recipe can still be logged or listed: its other buttons stay beside Undo) */}
                   {r.undo && <button className="btn sm ghost press" onClick={onUndo}><Icon name="undo" size={15} /> {t('Undo')}</button>}
-                  {r.more?.map((b) => <button key={b.label} className={`btn sm press ${b.warn ? 'ac-warn-chip' : 'ghost'}`} onClick={() => { haptic('light'); b.run(); }}>{b.label}</button>)}
+                  {r.more?.map((b, i) => <button key={i} className={`btn sm press ${b.warn ? 'ac-warn-chip' : 'ghost'}`} onClick={() => { haptic('light'); b.run(); redraw((n) => n + 1); }}>{b.label}</button>)}
                 </div>
               )}
             </div>
@@ -390,6 +425,48 @@ export function ActionCard({ r, undone, confirmed, onUndo, onConfirm, replaced =
         </div>
       </div>
     </div>
+  );
+}
+
+/** A chart on a Coach card (show_chart): the Progress tab's own charts, a size smaller. The line draws itself in and the bars
+ *  grow once, as the card arrives; a card opened again later is drawn still. */
+function CardChart({ c }: { c: ChartData }) {
+  const lang = useLang();
+  const fmt = (v: number) => `${fmtNum(c.digits ? Math.round(v * 10 ** c.digits) / 10 ** c.digits : Math.round(v), lang, c.digits)}`;
+  return (
+    <div className="ac-chart" aria-label={c.series}>
+      {c.type === 'line'
+        ? <LineChart points={c.points} trend={c.trend} height={136} fmtY={fmt} seriesLabel={c.series} trendLabel={c.trendLabel} />
+        : <BarChart bars={c.points.map((p) => ({ label: p.label, value: p.y, sub: p.sub, dim: p.dim, emphasis: p.emphasis }))} height={128} fmt={fmt} target={c.target} targetLabel={c.targetLabel} label={c.series} whole={c.digits === 0 && c.points.every((p) => p.y <= 10)} />}
+    </div>
+  );
+}
+
+/** The cards of one answer that can still be undone: done (or applied), not undone yet, and with an Undo of their own. */
+export const undoableIds = (results: AgentResult[], undone: string[], confirmed: string[]) =>
+  results.filter((r) => r.undo && !undone.includes(r.id) && (!r.pending || confirmed.includes(r.id))).map((r) => r.id);
+
+/**
+ * "Undo all": one answer made two or more changes (a meal of five foods, a routine and its schedule) and one tap takes
+ * them all back, newest first. It sits under the last card, rises in after the cards have settled, and folds away once
+ * there is nothing left to undo (a card undone on its own counts too).
+ */
+export function UndoAll({ results, undone, confirmed, onUndo, fresh }: { results: AgentResult[]; undone: string[]; confirmed: string[]; onUndo: (ids: string[]) => void; fresh?: boolean }) {
+  const t = useT();
+  const ids = undoableIds(results, undone, confirmed);
+  // (it shows only once two changes were made; once shown it stays until nothing is left, then folds away)
+  const [shown, setShown] = useState(ids.length >= 2);
+  useEffect(() => { if (ids.length >= 2) setShown(true); }, [ids.length]);
+  const n = useRef(ids.length); if (ids.length) n.current = ids.length;
+  if (!shown) return null;
+  return (
+    <Collapse open={ids.length > 0} ms={420} className="ac-undo-all-wrap">
+      <div className={`ac-undo-all${fresh ? ' fresh' : ''}`} style={{ ['--n' as string]: results.length }} inert={!ids.length || undefined}>
+        <button className="btn sm ghost press" disabled={!ids.length} onClick={() => { haptic('light'); onUndo([...ids].reverse()); }}>
+          <Icon name="undo" size={15} /> {t('Undo all {n}', { n: n.current })}
+        </button>
+      </div>
+    </Collapse>
   );
 }
 

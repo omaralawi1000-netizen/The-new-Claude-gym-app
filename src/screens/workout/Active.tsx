@@ -919,7 +919,7 @@ const SetRow = memo(function SetRow({ se, set, ex, label, prev, restDefault }: {
     distanceM: set.distanceM ?? prev?.distanceM,
   };
 
-  // a set ticked anywhere (a tap here, said hands-free, logged by the Coach): the check pops, the row's light plays
+  // a set ticked anywhere (a tap here, Done ✓ on the watch, logged by the Coach): the check pops, the row's light plays
   useEffect(() => onSetDone(set.id, (d) => {
     const k = ++bursts.current;
     setBurst(k);
