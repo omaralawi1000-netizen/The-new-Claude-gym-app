@@ -1194,6 +1194,13 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* the buttons live in one cell: on Apply the Apply row leaves in place while Undo fades in over it; undone or replaced, the
    row fades but keeps its room, so the card never changes height in one frame */
 .ac-actions-cell { display: grid; margin-top: 10px; }
+/* "Which one?": soft filled rows (no outline: not a search field; no accent: not the main button), the food first and its
+   kcal a step quieter */
+.ac-choices { display: flex; flex-direction: column; gap: 6px; padding-top: 10px; }
+.ac-choice { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 44px; padding: 8px 14px; border-radius: var(--r-sm); background: var(--s2); color: var(--tx); text-align: left; font-size: 14px; font-weight: 500; }
+.ac-choice-t { min-width: 0; overflow-wrap: anywhere; }
+.ac-choice-k { flex: none; color: var(--tx3); font-weight: 400; font-size: 13px; font-variant-numeric: tabular-nums; }
+.collapse.ac-choose-wrap { transition: grid-template-rows 520ms cubic-bezier(.45, 0, .2, 1), opacity 300ms cubic-bezier(.4, 0, .2, 1); }
 .ac-actions-cell > * { grid-area: 1 / 1; }
 .ac-actions-cell.gone { opacity: 0; animation: acGone 300ms var(--ease-smooth) both; pointer-events: none; } /* (only rendered when it went away here; still hidden with motion off) */
 @keyframes acGone { from { opacity: 1; } to { opacity: 0; } }

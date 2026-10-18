@@ -139,7 +139,7 @@ describe('the whole app by voice: move, replace, copy, routines, sets, plan', ()
   const run = (actions: any[]) => runActions(validateAgent({ reply: 'x', actions })!.actions, ctx());
   const names = () => useStore.getState().entries.map((e) => `${e.snap.name}@${e.mealId}`);
   it('moves one food between meals and a whole meal between days, with Undo', async () => {
-    await runActions([{ type: 'log_food', foods: [{ name: 'chicken breast', amount: 200, unit: 'g' }, { name: 'rice', amount: 150, unit: 'g' }], meal: 'dinner', day: null }], ctx());
+    await runActions([{ type: 'log_food', foods: [{ name: 'chicken breast', amount: 200, unit: 'g', state: 'cooked' }, { name: 'rice', amount: 150, unit: 'g', state: 'cooked' }], meal: 'dinner', day: null }], ctx());
     expect(names().every((n) => n.endsWith('@dinner'))).toBe(true);
     const [m] = await run([{ type: 'move_food', target: 'chicken', meal_from: 'dinner', meal_to: 'lunch' }]);
     expect(names().filter((n) => n.endsWith('@lunch'))).toHaveLength(1);
@@ -152,7 +152,7 @@ describe('the whole app by voice: move, replace, copy, routines, sets, plan', ()
     expect(useStore.getState().entries.every((e) => e.date === '2026-10-01')).toBe(true);
   });
   it('copies, replaces (same amount) and clears a meal', async () => {
-    await runActions([{ type: 'log_food', foods: [{ name: 'rice', amount: 150, unit: 'g' }], meal: 'dinner', day: null }], ctx());
+    await runActions([{ type: 'log_food', foods: [{ name: 'rice', amount: 150, unit: 'g', state: 'cooked' }], meal: 'dinner', day: null }], ctx());
     await run([{ type: 'copy_food', meal_from: 'dinner', meal_to: 'lunch' }]);
     expect(useStore.getState().entries).toHaveLength(2);
     const [r] = await run([{ type: 'replace_food', target: 'rice', meal_from: 'lunch', with: { name: 'potato' } }]);

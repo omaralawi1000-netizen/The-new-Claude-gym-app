@@ -328,7 +328,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
       }
       const st = useStore.getState();
       const today = dayKey(Date.now(), st.settings.dayStartHour);
-      const results = d.actions.length ? await runActions(d.actions, { t, lang, today, brain: brainFor({ big: false, surface: 'orb', signal }), date: props.date, mealId: props.mealId }) : [];
+      const results = d.actions.length ? await runActions(d.actions, { t, lang, today, brain: brainFor({ big: false, surface: 'orb', signal }), date: props.date, mealId: props.mealId, onStatus: (x) => { if (alive.current) setLooking(x); } }) : [];
       if (d.dropped) results.push(droppedCard(t)); // (never silent: part of the answer was unreadable)
       if (!alive.current) return;
       const said = [reply, d.note].filter(Boolean).join('\n\n');
