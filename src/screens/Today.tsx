@@ -45,6 +45,9 @@ export function TodayScreen() {
   const today = useToday();
   const { sum } = useDaySummary(today);
   const water = useWaterOn(today);
+  const waterText = fmtNum(water.ml, lang, 0);
+  // half the room in the water pill the number doesn't use (digits are 1ch, separators about .4ch)
+  const waterShift = Math.max(0, 4.4 - [...waterText].reduce((n, c) => n + (/\d/.test(c) ? 1 : 0.4), 0)) / 2;
   const plan = plannedFor(s, today, today);
   const routine = plan ? s.routines.find((r) => r.id === plan.routineId) : undefined;
   const doneToday = s.sessions.filter((x) => x.date === today);
@@ -174,7 +177,10 @@ export function TodayScreen() {
           <button className="icon-btn press" aria-label={t('Photo')} onClick={() => push('photoFood', { date: today, mealId })}><Icon name="camera" /></button>
           </>}
           {wd.water && <button className="icon-btn press" aria-label={`+${settings.waterQuick[1] ?? 250} ml`} onClick={addWater} style={{ width: 'auto', padding: '0 16px', gap: 6, display: 'inline-flex', alignItems: 'center' }}>
-            <Icon name="drop" size={18} style={{ color: 'var(--c-water)' }} /><span className="num small" style={{ fontWeight: 600, minWidth: '4ch', textAlign: 'center' }}><Roll text={fmtNum(water.ml, lang, 0)} /></span>
+            {/* the pill keeps one width (room for "2,500") so the row never jumps; the drop and number glide to stay centred in it */}
+            <span className="small" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, transform: `translateX(${waterShift}ch)`, transition: 'transform 420ms var(--ease-smooth)' }}>
+              <Icon name="drop" size={18} style={{ color: 'var(--c-water)' }} /><span className="num small" style={{ fontWeight: 600, minWidth: '4.4ch', textAlign: 'left' }}><Roll text={waterText} /></span>
+            </span>
           </button>}
         </div>}
         {wd.recents && recents.length > 0 && <SoftChips style={{ marginTop: 14, justifyContent: 'safe center' }}>{recents.map((r) => <button key={r.id} className="chip press" onClick={() => quickLog(r.id, r.qty)} aria-label={`${t('Add')} ${r.name}`}>+ {r.name.split(',')[0]}</button>)}</SoftChips>}

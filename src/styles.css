@@ -2583,7 +2583,7 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 /* tags are text, not buttons */
 /* muscle tags under a card's title: quiet glass bubbles, flatter than buttons (no rim, no shadow) so they read as labels */
 :root:not([data-theme='light']) span.chip:not(.on, .acc) { background: rgba(255,255,255,.06) !important; box-shadow: inset 0 0 0 1px rgba(255,255,255,.07), inset 0 1px 0 rgba(255,255,255,.05) !important; color: var(--tx2); }
-:root:not([data-theme='light']) span.chip.sm:not(.on, .acc) { height: 26px; padding: 0 10px; font-size: 12px; font-weight: 560; letter-spacing: .01em; }
+:root:not([data-theme='light']) span.chip.sm:not(.on, .acc) { height: 26px; padding: 1.5px 10px 0; font-size: 12px; font-weight: 560; letter-spacing: .01em; }
 /* week strip: the day is glass, plan letters are plain letters, done stays a filled square */
 :root:not([data-theme='light']) .screen .plinth > button.press > span[style*='var(--s3)'], :root:not([data-theme='light']) .screen .plinth > button.press > span[style*='background: var(--ac-soft)'] { background: transparent !important; }
 /* the insight banner: card glass with the same rim, its icon keeps its colour */
@@ -2614,3 +2614,12 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 :root:not([data-theme='light']) :is(.icon-btn:not(.flat, .acc, .acc-soft), .chips > button.chip:not(.on, .acc)):not(.screen :is(.plinth, [data-wk='hero'] + div) *):not(#_) { background-color: rgba(255,255,255,.025) !important; }
 :root:not([data-theme='light']) :is(.icon-btn:not(.flat, .acc, .acc-soft), .chips > button.chip:not(.on, .acc)):not(.screen :is(.plinth, [data-wk='hero'] + div) *):not(#_)[data-pressed] { background-color: rgba(255,255,255,.12) !important; }
 
+/* ==== Text and bubble polish (Omar 18 Oct: "polish it if it's off centre") ==== */
+/* sideways rows in sheets (food tools, look tiles) fade where more is hiding, like the chip rows, instead of a hard cut */
+:is(.tools, .pal).fade-x { --fl: 0px; --fr: 0px;
+  -webkit-mask-image: linear-gradient(to right, transparent, rgba(0,0,0,.14) calc(var(--fl) * .3), rgba(0,0,0,.5) calc(var(--fl) * .6), rgba(0,0,0,.86) calc(var(--fl) * .85), #000 var(--fl), #000 calc(100% - var(--fr)), rgba(0,0,0,.86) calc(100% - var(--fr) * .85), rgba(0,0,0,.5) calc(100% - var(--fr) * .6), rgba(0,0,0,.14) calc(100% - var(--fr) * .3), transparent);
+  mask-image: linear-gradient(to right, transparent, rgba(0,0,0,.14) calc(var(--fl) * .3), rgba(0,0,0,.5) calc(var(--fl) * .6), rgba(0,0,0,.86) calc(var(--fl) * .85), #000 var(--fl), #000 calc(100% - var(--fr)), rgba(0,0,0,.86) calc(100% - var(--fr) * .85), rgba(0,0,0,.5) calc(100% - var(--fr) * .6), rgba(0,0,0,.14) calc(100% - var(--fr) * .3), transparent); }
+/* labels centred on their capitals, not on the font's line box (which sat them 1-1.5 px high in Geist): switchers, meal names */
+.seg button, .meal-row .meal-name { text-box: trim-both cap alphabetic; }
+/* a leading icon's own empty edge made icon + label sit ~1 px right of centre */
+:is(.chip, .btn) > svg:first-child { margin-left: -2px; }
