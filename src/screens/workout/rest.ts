@@ -6,7 +6,7 @@ import { tNow } from '../../lib/i18n';
 import { fmtTime } from '../../lib/dates';
 import type { SessionExercise, SetRecord, WorkoutSession } from '../../lib/types';
 import { exName, fmtSet, isStrength } from './common';
-import { adjustRest, skipRest } from './actions';
+import { adjustRest, patchSet, skipRest } from './actions';
 import { completeSet } from './complete';
 import { fmtNum, kgToDisplay } from '../../lib/units';
 import { androidRest, clearAppRest, inAndroidApp, noteAndroidApp, overAppRest, showAppRest } from '../../lib/androidApp';
@@ -199,10 +199,11 @@ export function offerRestAlerts(toast: (text: string, o: { actionLabel: string; 
 /**
  * Done ✓ from the rest-over alert: the set that's next (the one the alert named) is ticked as planned, exactly as a tap
  * ticks it (records, the next rest), and if Aven is out of sight the next rest goes to the lock screen and watch at once.
- * Each rest's Done counts once (the alert, a page that was asleep, a tap made while Aven was closed).
+ * `at` is when it was tapped: a page that was asleep behind the lock screen hears of it later, and the set and the next
+ * rest still count from the tap. Each rest's Done counts once (the message, the cache, a page that was asleep).
  */
 let doneFor = '';
-export function applyDone(): boolean {
+export function applyDone(at = Date.now()): boolean {
   const a = useStore.getState().active;
   if (!a?.rest) return false;
   const once = `${a.id}:${a.rest.endsAt}`;
@@ -211,23 +212,42 @@ export function applyDone(): boolean {
   if (!nx) return false;
   doneFor = once;
   const ok = !!completeSet(nx.se.id, nx.set.id);
-  if (ok && !onScreen()) { const r = restPayload(); if (r && notifyOn()) handOff(r); }
-  return ok;
+  if (!ok) return false;
+  const late = Date.now() - at;
+  if (late > 2000) {
+    // heard late: the set was done at the tap, and the next rest started then (it may be over already: "Go")
+    patchSet(nx.se.id, nx.set.id, { completedAt: at });
+    useStore.getState().mutateActive((x) => (x.rest ? { ...x, rest: { ...x.rest, endsAt: x.rest.endsAt - late } } : x));
+  }
+  if (!onScreen()) { const r = restPayload(); if (r && notifyOn()) handOff(r); }
+  return true;
 }
 
-/** A Done ✓ tapped while Aven was closed waits in the service worker's cache: done when Aven opens (if still that rest). */
-export async function applyPendingDone(): Promise<void> {
-  try {
-    const c = await caches.open('aven-pending');
-    const res = await c.match('done');
-    if (!res) return;
-    await c.delete('done');
-    const p = await res.json() as { key?: string; at?: number };
-    const a = useStore.getState().active;
-    if (!a?.rest || !p.key || !p.at || Date.now() - p.at > 30 * 60000) return;
-    const keys = [`${a.id}:${a.rest.endsAt}`, `${a.id}:${a.rest.endsAt - a.rest.total * 1000}`];
-    if (keys.includes(p.key)) applyDone();
-  } catch { /* no cache storage: nothing waits */ }
+/** Is this the rest a Done ✓ was tapped for (the website's key, or the Android app's)? */
+const isThisRest = (key: unknown) => {
+  const a = useStore.getState().active;
+  return !!a?.rest && (key === `${a.id}:${a.rest.endsAt}` || key === `${a.id}:${a.rest.endsAt - a.rest.total * 1000}`);
+};
+
+/**
+ * Every Done ✓ tap is also kept in the service worker's cache (a page asleep behind the lock screen can miss the message,
+ * and a closed one never gets it): applied when Aven opens or wakes, if it's still that rest.
+ */
+let pendingRun: Promise<void> | null = null;
+export function applyPendingDone(): Promise<void> {
+  pendingRun ??= (async () => {
+    try {
+      if (typeof caches === 'undefined') return;
+      const c = await caches.open('aven-pending');
+      const res = await c.match('done');
+      if (!res) return;
+      await c.delete('done');
+      const p = await res.json() as { key?: string; at?: number };
+      if (!p.key || !p.at || Date.now() - p.at > 30 * 60000) return;
+      if (isThisRest(p.key)) applyDone(p.at);
+    } catch { /* no cache storage: nothing waits */ }
+  })().finally(() => { pendingRun = null; });
+  return pendingRun;
 }
 
 /** Bring the live workout to the front (from a notification tap or the ?do=workout link). */
@@ -278,7 +298,7 @@ export function useRestCue() {
     void applyPendingDone(); // a Done ✓ tapped on the watch while Aven was closed
     if (!document.hidden) backInApp(); // opened again from the home screen: a notification left over has done its job
     const on = () => {
-      if (!document.hidden) { backInApp(); return; }
+      if (!document.hidden) { void applyPendingDone(); backInApp(); return; }
       const r = restPayload();
       if (r && notifyOn()) handOff(r);
     };
@@ -288,12 +308,15 @@ export function useRestCue() {
       if (e.data?.type === 'aven-rest-action') {
         // +30 s or Skip rest from the notification: the service worker has already updated it; this keeps the app in step
         const a = useStore.getState().active;
-        if (!a?.rest) return;
-        const keys = [`${a.id}:${a.rest.endsAt}`, `${a.id}:${a.rest.endsAt - a.rest.total * 1000}`]; // website's / app's
-        if (!keys.includes(e.data.key)) return;
-        // Done ✓ on the rest-over alert (phone, lock screen, watch): the app's alert has only Chrome's Skip to call the
-        // page with, and once the rest is over a Skip can mean nothing else. The website's own alert says 'done'.
-        if (e.data.action === 'done' || (e.data.action === 'skip' && a.rest.endsAt < Date.now() - 1500)) { applyDone(); return; }
+        if (!a?.rest || !isThisRest(e.data.key)) return;
+        // Done ✓ on the rest-over alert (phone, lock screen, watch). The workers decide it at the tap and say 'done'; an
+        // older app worker still says 'skip' (once the rest is over, a Skip can mean nothing else: judged by the tap's time)
+        const at = typeof e.data.at === 'number' ? e.data.at : Date.now();
+        if (e.data.action === 'done' || (e.data.action === 'skip' && a.rest.endsAt < at - 1500)) {
+          applyDone(at);
+          void applyPendingDone(); // (the cache's copy of this tap: done now, so it only clears it)
+          return;
+        }
         if (e.data.action === 'more') adjustRest(30); else skipRest();
         if (!onScreen()) { const r = restPayload(); if (r && notifyOn()) handOff(r); }
         return;

@@ -1,5 +1,4 @@
-import { createContext, memo, startTransition, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { isEmptyTap, listenOnce, handsFreeState, subscribeHandsFree } from '../../lib/handsFree';
+import { createContext, memo, startTransition, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, animate, motion, useMotionValue, useReducedMotion, useTransform } from 'motion/react';
 import { useStore, exerciseMap } from '../../state/store';
 import { useUI, haptic } from '../../state/ui';
@@ -195,7 +194,6 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   useEffect(() => { if (confirm !== 'finish') return; warmStage(true); return () => { if (!closing.current && !finishing.current) warmStage(false); }; }, [confirm]); // eslint-disable-line react-hooks/exhaustive-deps
   const finishBtn = useRef<HTMLButtonElement>(null);
   const pointToFinish = () => { const b = finishBtn.current; if (!b) return; b.classList.remove('nudge'); void b.offsetWidth; b.classList.add('nudge'); };
-  const handsFree = useStore((s) => !!s.settings.handsFree);
   const [renaming, setRenaming] = useState(false);
   // List or Focus (one exercise per page, Focus.tsx). Remembered on this phone. Focus is built when you go to it and kept
   // until it has faded out, so leaving it is the same calm crossfade as arriving.
@@ -445,8 +443,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
           </div>
 
           {/* body: the list, and Focus over it when chosen (the list stays, faded out, so switching back keeps your place) */}
-          {/* hands-free (Settings → Training): a tap on empty space listens for one set ("8 at 80", "same again") */}
-          <div className="wk-views" onClick={handsFree ? (e) => { if (isEmptyTap(e.target)) void listenOnce(); } : undefined}>
+          <div className="wk-views">
           <motion.div ref={body} style={{ flex: 1, overflowY: 'auto', padding: '4px 16px 0', paddingBottom: bodyPad, overscrollBehavior: 'contain' }} className={`hide-scroll wk-list${a.exercises.length === 0 ? ' is-empty' : ''}${view === 'focus' && a.exercises.length > 0 && (focusIn || shared !== 'in') ? ' wk-away' : ''}${shared === 'back' ? ' back' : ''}`}>
             {a.exercises.length === 0 && (
               // nothing yet: one calm, centred moment (a soft mark, the line, then the button) instead of a top-heavy
@@ -576,8 +573,6 @@ function WorkoutBar({ engage, exMap, focus, onDone, onJump }: { engage: Engage; 
   const resting = !!a?.rest;
   useEffect(() => { if (!resting) setPanel(false); }, [resting]);
   const page = useFocusPage();
-  // hands-free listening: the bar's top line says so (the set it will log has the ring)
-  const hf = useSyncExternalStore(subscribeHandsFree, handsFreeState) !== 'idle';
   if (!a) return null;
   const nx = nextSetOf(a);
   // In Focus, when the next set is on the page you're looking at, that row is already highlighted there: the bar tells you
@@ -606,8 +601,7 @@ function WorkoutBar({ engage, exMap, focus, onDone, onJump }: { engage: Engage; 
     else if (shown) onJump(shown.set.id);
   };
   const ofN = nx ? nx.se.sets.filter((x) => x.type === 'working').length : 0;
-  const top = hf && (state === 'next' || state === 'go' || state === 'rest') ? t('Listening…')
-    : state === 'next' ? (after ? t('Up next') : `${t('Next set')} · ${nx!.label === 'W' ? t('Warm-up') : t('{n} of {m}', { n: nx!.label, m: ofN })}`)
+  const top = state === 'next' ? (after ? t('Up next') : `${t('Next set')} · ${nx!.label === 'W' ? t('Warm-up') : t('{n} of {m}', { n: nx!.label, m: ofN })}`)
     : state === 'rest' ? (panel ? (a.pausedAt ? `${t('Rest')} · ${t('Paused')}` : t('Rest')) : nx ? `${t('Rest')} · ${t('Next')}: ${name}` : t('Rest'))
     : state === 'go' ? `${t('Rest over')}${nx ? ` · ${setWord}` : ''}`
     : state === 'empty' ? `“${t('Bench press 80 kg for 8, 8, 6')}”`
@@ -628,7 +622,7 @@ function WorkoutBar({ engage, exMap, focus, onDone, onJump }: { engage: Engage; 
         <span className="wk-bar-clip" aria-hidden><RestFill state={state} endsAt={rest?.endsAt} total={rest?.total} paused={!!a.pausedAt} /></span>
         <button className="wk-bar-main press" onClick={tap} aria-expanded={state === 'rest' ? panel : undefined}
           aria-label={state === 'rest' ? `${t('Rest')} ${fmtDuration(Math.ceil(left))}` : `${top}. ${big}${(state === 'next' || state === 'go') && target ? `, ${target}` : ''}`}>
-          <SwapText k={`${state}${after ? after.se.id : ''}${hf ? 'hf' : ''}`} tone={state}>
+          <SwapText k={`${state}${after ? after.se.id : ''}`} tone={state}>
             <span className="wk-bar-top">{top}</span>
             <span className="wk-bar-big num">{state === 'next' || (state === 'go' && nx) ? <><Fit className="wk-bar-name" text={name} />{target && <span className="wk-bar-tgt">{target}</span>}</>
               : state === 'rest' ? (!a.pausedAt && left <= 3
@@ -925,7 +919,7 @@ const SetRow = memo(function SetRow({ se, set, ex, label, prev, restDefault }: {
     distanceM: set.distanceM ?? prev?.distanceM,
   };
 
-  // a set ticked anywhere (a tap here, said hands-free, logged by the Coach): the check pops, the row's light plays
+  // a set ticked anywhere (a tap here, Done ✓ on the watch, logged by the Coach): the check pops, the row's light plays
   useEffect(() => onSetDone(set.id, (d) => {
     const k = ++bursts.current;
     setBurst(k);

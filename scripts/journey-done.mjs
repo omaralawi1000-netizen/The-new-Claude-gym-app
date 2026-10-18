@@ -56,6 +56,31 @@ const after = await doneSets();
 assert.equal(after.length, before + 1, 'opening Aven ticks the set Done ✓ named');
 await p.reload(); await wait(p, 2000);
 assert.equal((await doneSets()).length, before + 1, 'and only once');
+// ── the page asleep behind the lock screen missed the message: the cache's copy is applied when it wakes, from the tap ──
+await p.locator('button[aria-label="Resume workout"]').first().click(); await wait(p, 1400);
+await cut(9000); await wait(p, 700);
+const due2 = (await rest()).endsAt;
+const before2 = (await doneSets()).length;
+await setHidden(p, true);
+await new Promise((r) => setTimeout(r, due2 - Date.now() + 2500));
+const sw2 = ctx.serviceWorkers()[0];
+const key2 = await p.evaluate(() => { const a = JSON.parse(localStorage.getItem('aven.v1')).active; return `${a.id}:${a.rest.endsAt}`; });
+const tapAt = await sw2.evaluate(async (key) => {
+  // (the headless page only pretends to be hidden, so the worker sees it on screen and doesn't ring: ring here)
+  await self.registration.showNotification('Time for set 3', { tag: 'aven-rest-over', actions: [{ action: 'done', title: 'Done ✓' }], data: { kind: 'over', key } });
+  const [n] = await self.registration.getNotifications({ tag: 'aven-rest-over' });
+  // the tap, with every window's message lost (as with a frozen page): only the cache has it
+  const real = self.clients.matchAll.bind(self.clients); self.clients.matchAll = async () => [];
+  const jobs = []; self.__avenRestClick({ notification: n, action: 'done', waitUntil: (x) => jobs.push(x) });
+  await Promise.all(jobs); self.clients.matchAll = real;
+  return Date.now();
+}, key2);
+await wait(p, 3000);
+assert.equal((await doneSets()).length, before2, 'nothing yet while it sleeps');
+await setHidden(p, false); await wait(p, 1200);
+assert.equal((await doneSets()).length, before2 + 1, 'waking ticks it');
+const ticked = await p.evaluate(() => JSON.parse(localStorage.getItem('aven.v1')).active.exercises.flatMap((e) => e.sets).filter((s) => s.done).sort((a, b) => b.completedAt - a.completedAt)[0]);
+assert(Math.abs(ticked.completedAt - tapAt) < 1500, `done at the tap, not at waking (${ticked.completedAt - tapAt} ms)`);
 console.log('errors', errors.length);
 assert.equal(errors.filter((e) => !/Failed to load resource/.test(e)).length, 0, errors.join('\n'));
 console.log('DONE OK');

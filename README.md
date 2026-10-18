@@ -2559,18 +2559,12 @@ Tests: `tests/converse.test.ts`, `scripts/journey-coach5.mjs`.
 - Finish from "Still training?" opens the finish screen, which also covers Today changing behind it.
 - **Memory leak.** Each switch to or from Today or Food kept the whole old tab alive: Chrome held the calorie ring's `<svg>` with its `<foreignObject>`. The ring now empties and detaches its svg when it goes. Over 60 switches, nodes went from 15.5k to 6.2k, and listeners now stay flat (they used to grow by 13 per switch).
 
-## Hands-free sets (18 Oct 2026, Beta trial)
-Omar trains with music in his earbuds and walks around the gym, so the phone is often out of reach. The earbud button controls the music app, not Aven, so it can't be the trigger. Always-on listening was tried before: it misheard him and reacted to other people. That leaves two paths, and neither one listens by itself.
-- **Done ✓ on the watch (the main path).** When the rest is over, the "Time for set 2" notification (phone, lock screen, Galaxy Watch) gets a "Done ✓ 80 kg × 8" button. One tap ticks that set exactly as planned through `completeSet` (records, haptic, the next rest), and the notification becomes the next rest countdown ("Set 2 ✓ · rest 2:00").
-  - Chrome allows only two buttons on a web notification. So once the rest is over, the native alert's Done reuses the Skip slot, and the page treats a skip that arrives more than 1.5 s after the rest ended as Done.
-  - If no Aven window is open, the service worker keeps the Done in Cache `aven-pending`, and the page applies it once when Aven opens (`rest.ts` `applyPendingDone`).
-  - The native alert is no longer local-only, so it reaches the watch.
-- **Tap and say (when the phone is near).** Turn it on in Settings → Training → Hands-free sets (off by default). Then a tap on empty space in the running workout, List or Focus, listens for one phrase:
-  - What it understands: "8 at 80", "only 6", "same again", "done", "skip", "+30 seconds", and the Danish versions.
-  - Anything else is ignored silently. It stops on its own when you go quiet.
-  - It uses the phone's own mic, so the earbuds keep playing music instead of switching to call mode.
-  - It needs the Groq key, the same Whisper used for dictation.
-  - While it listens, the set it will log gets a soft breathing ring, and the bottom bar's top line cross-fades to "Listening…".
-  - The ring is the row's own edge: same box and radius, opacity only. The row's and the check box's own teal outlines step back meanwhile, so there is one teal edge. (A judge flagged three teal edges and a ring sticking out past the row; both are fixed.)
-- **Feedback that isn't annoying.** Normally it's silent: the set ticks as a tap would, with a small toast that has Undo. The phone speaks a short line (`speechSynthesis`, music dips for a moment) only when it fixed a number ("Logged 80, I heard 18") or didn't get the phrase. "Undo" said right after takes it back.
-- Tests: `tests/handsfree2.test.ts`. Journeys: `scripts/journey-done.mjs` (the notification's Done, including from a closed page) and `scripts/journey-handsfree.mjs`.
+## Done ✓ on the watch (18 Oct 2026, v0.1.148)
+Omar trains with music in his earbuds and walks around the gym, so the phone is often out of reach. The earbud button controls the music app, not Aven, so it can't be the trigger. Always-on listening was tried before: it misheard him and reacted to other people.
+- **Done ✓.** When the rest is over, the "Time for set 2" notification (phone, lock screen, Galaxy Watch) gets a "Done ✓ 80 kg × 8" button. One tap ticks that set exactly as planned through `completeSet` (records, haptic, the next rest). If Aven is awake, the notification becomes the next rest countdown.
+  - Chrome allows only two buttons on a web notification. So once the rest is over, the Android app's alert reuses the Skip slot for Done. The rest worker (`android/site/…-rest/sw.js`) decides at the tap whether it was a Done: the rest has been over for more than 1.5 s. It then tells the page "done", with the tap's time. Judging it later in the page went wrong: a page asleep behind the lock screen hears a real Skip late, and it would have looked like a Done.
+  - **Every tap is also kept** in Cache `aven-pending`, with its time. Behind the lock screen Chrome can pause the page or drop it, and the message is lost. That was Omar's first Beta test: the button showed, but the set didn't tick. The page picks the tap up when it opens and every time it becomes visible again (`rest.ts` `applyPendingDone`). Each rest's Done counts once, whether it arrives as the message, the cache copy, or both.
+  - **Heard late, it still counts from the tap.** The set's time is the tap, and the next rest started then, so it may already be over ("Go").
+  - The Android app's alert is no longer local-only, so it reaches the watch. Its "Set 2 ✓" line stays when Chrome takes its own copy away just after the tap.
+- **Tap and say was tried and dropped (same day).** A tap on empty workout space listened for one phrase ("8 at 80") on the phone's mic. Omar's verdict: it needs the phone in his hand, and then the tick is just as fast and never mishears. It was removed before it shipped.
+- Tests: `tests/done.test.ts`. Journey: `scripts/journey-done.mjs` covers Aven closed, and Aven asleep with the message lost.

@@ -28,8 +28,7 @@ class MicManager {
   subscribe(fn: () => void) { this.listeners.add(fn); return () => { this.listeners.delete(fn); }; }
   private emit() { this.listeners.forEach((l) => l()); }
 
-  /** `phone`: always the phone's own microphone (hands-free: earbuds keep playing music instead of switching to a call). */
-  async acquire(owner: string, o: { phone?: boolean } = {}): Promise<MicResult> {
+  async acquire(owner: string): Promise<MicResult> {
     if (!this.supported) return { ok: false, reason: 'unsupported' };
     if (this.owner && this.owner !== owner) return { ok: false, reason: 'busy' };
     if (this.owner === owner && this.active) return { ok: true };
@@ -37,7 +36,7 @@ class MicManager {
     const my = ++this.token;
     try {
       const base = { channelCount: 1, echoCancellation: false, noiseSuppression: true, autoGainControl: true };
-      const phone = o.phone || useAi.getState().mic === 'phone' ? await phoneMic() : null;
+      const phone = useAi.getState().mic === 'phone' ? await phoneMic() : null;
       let stream: MediaStream;
       try { stream = await navigator.mediaDevices.getUserMedia({ audio: phone ? { ...base, deviceId: { exact: phone } } : base }); }
       catch (e: any) { if (!phone || e?.name === 'NotAllowedError') throw e; stream = await navigator.mediaDevices.getUserMedia({ audio: base }); }

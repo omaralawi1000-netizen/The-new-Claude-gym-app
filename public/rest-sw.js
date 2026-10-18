@@ -100,14 +100,16 @@ function restClick(e) {
     })());
     return;
   }
-  // Done ✓ on the alert: the page ticks the set (it keeps its own idea of which one); with Aven closed it waits in the
-  // cache until Aven opens (src/screens/workout/rest.ts applyPendingDone)
+  // Done ✓ on the alert: the page ticks the set (it keeps its own idea of which one). The tap is always kept in the cache
+  // too, with its time: a page asleep behind the lock screen can miss the message, and picks it up when it wakes
+  // (src/screens/workout/rest.ts applyPendingDone)
   if (e.action === 'done') {
     n.close();
     e.waitUntil((async () => {
+      const tap = { key: data.key, at: Date.now() };
+      const c = await caches.open('aven-pending'); await c.put('done', new Response(JSON.stringify(tap)));
       const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-      wins.forEach((w) => w.postMessage({ type: 'aven-rest-action', action: 'done', key: data.key }));
-      if (!wins.length) { const c = await caches.open('aven-pending'); await c.put('done', new Response(JSON.stringify({ key: data.key, at: Date.now() }))); }
+      wins.forEach((w) => w.postMessage({ type: 'aven-rest-action', action: 'done', ...tap }));
     })());
     return;
   }

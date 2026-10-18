@@ -158,7 +158,7 @@ final class RestNotifications {
         boolean ours = r != null && tag != null && tag.equals(r.chromeTag);
         log("Chrome took its notification away" + (ours ? "" : " (an older one)"));
         if (!ours) return; // an older rest's (a newer one has taken over)
-        stopAll(c, true);
+        stopAll(c, System.currentTimeMillis() - doneAt > 5000); // (just after Done ✓, its "Set 2 ✓" stays)
     }
 
     static Rest parse(String tag, Notification n) {
@@ -369,7 +369,10 @@ final class RestNotifications {
     }
 
     /** Done ✓ was tapped: the alert says so for a moment ("Set 2 ✓ · 80 kg × 8"), quietly, until the next rest replaces it. */
+    private static long doneAt; // when Done ✓ was last tapped (Chrome then takes its own copy away: that mustn't take "Set 2 ✓")
+
     static void done(Context c) {
+        doneAt = System.currentTimeMillis();
         Rest r = load(c);
         NotificationManager nm = c.getSystemService(NotificationManager.class);
         nm.cancel(ID_OVER);

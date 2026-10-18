@@ -36,7 +36,7 @@ function normal(text: string): string {
   s = s.replace(/(\d+)\s+(?:and a half|og en halv|komma fem)\b/g, '$1.5');
   // "to" / "en" are also ordinary words: a digit only beside a set word ("to gange", "en rep")
   s = s.replace(/\b(to|en|et)\s+(gange|gentagelser|rep|reps)\b/g, (_, w, r) => `${WORDS[w]} ${r}`);
-  s = s.replace(/\b(?:uh+|um+|øh+|okay|ok|so|then|that was|that's|det var|så|well|right|yeah|ja|just|lige|only|i got|got|kun|bare|jeg fik|fik)\b/g, ' ');
+  s = s.replace(/\b(?:uh+|um+|øh+|okay|ok|so|then|that was|that's|det var|så|well|right|yeah|ja|just|lige)\b/g, ' ');
   return s.replace(/[,]/g, ' ').replace(/\s+/g, ' ').trim();
 }
 const n = (x: string) => Number(x.replace(',', '.'));

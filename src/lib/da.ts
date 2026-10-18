@@ -1718,10 +1718,5 @@ export const da: Record<string, string> = {
  "1 cardio": "1 cardio",
  "{n} cardio": "{n} cardio",
  "logged as heard: {a}": "logget som hørt: {a}",
- "Didn’t catch that": "Det fangede jeg ikke",
- "Hands-free needs a Groq key (Settings → Voice & AI).": "Håndfri kræver en Groq-nøgle (Indstillinger → Stemme & AI).",
- "Hands-free sets": "Håndfri sæt",
- "In a workout, tap any empty spot and say the set: “8 at 80”, “only 6”, “same again”. Anything else is ignored. Your music keeps playing.": "Tryk på et tomt sted i træningen, og sig sættet: “8 på 80”, “kun 6”, “samme igen”. Alt andet ignoreres. Din musik bliver ved med at spille.",
- "No connection": "Ingen forbindelse",
  "Set {n}": "Sæt {n}",
 };
