@@ -147,7 +147,10 @@ final class RestNotifications {
         // +30 s tapped here a moment ago: the website's catching up, don't let a slower update pull the time back
         if (same && now - localChangeAt < 4000 && r.endsAt < old.endsAt) r.endsAt = old.endsAt;
         if (n.contentIntent != null) chromeTap = n.contentIntent;
-        if (n.actions != null && n.actions.length >= 2) { chromeMore = n.actions[0].actionIntent; chromeSkip = n.actions[1].actionIntent; }
+        if (n.actions != null && n.actions.length >= 2) {
+            chromeMore = n.actions[0].actionIntent; chromeSkip = n.actions[1].actionIntent;
+            if (chromeSkip != null) note(c, "  Chrome's Skip: " + RestActionReceiver.kind(chromeSkip));
+        }
         if (!same) {
             dismissed = false;
             c.getSystemService(NotificationManager.class).cancel(ID_OVER); // a new rest: the last alert has done its job
