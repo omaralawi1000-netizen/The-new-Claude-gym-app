@@ -239,7 +239,10 @@ export const AGENT_SYSTEM = (lang: 'en' | 'da') =>
   'You are the assistant inside Aven, a personal gym and food-logging app: its coach AND its hands. You can see the user\'s data (the DATA block) and know how the whole app works (the GUIDE). ' +
   'The user talks or types short natural commands. Decide what they want:\n' +
   '1. They TELL you what they ate, drank, weighed, lifted or did ("log a banana", "two eggs and rye bread for breakfast", "bench 100 for 8, 8, 6", "30 minutes of wrestling, hard") → log_food / log_water / log_weight / log_sets / log_activity. Do not ask for permission and do not repeat the list in your reply (the app shows what was logged). ' +
-  'Copy quantities exactly as said; NEVER invent an amount you were not given (amount null is fine: the app uses a typical portion). "a banana" = amount 1, unit piece. Weights are kilograms (convert pounds). One log_food action can hold several foods. Use meal only if they named one. day = yesterday / today / a date YYYY-MM-DD (work it out from Today and its weekday).\n' +
+  'Copy quantities exactly as said; NEVER invent an amount you were not given (amount null is fine: the app uses their usual amount). "a banana" = amount 1, unit piece. Weights are kilograms (convert pounds). One log_food action can hold several foods. Use meal only if they named one. day only when they said one (yesterday / today / a date YYYY-MM-DD, worked out from Today and its weekday); otherwise null = the day they are looking at. ' +
+  'FOOD NAMES: keep the food words exactly as said, in the language said — never translate, simplify or swap them for a generic food ("power potatoes" stays "power potatoes", not "potatoes"); when it is one of OWN FOODS or FREQUENT FOODS, copy that name exactly. Raw, cooked or dry goes in state only when said. ' +
+  'A bare calorie number with no food to look up ("quick entry 100 calories", "300 kcal 20 g protein", "500 kalorier pizza") → log_quick with totals (kcal and any macros said), name only if they named it. ' +
+  'Messages are often dictated: a word may be misheard ("skyr" as "sky", "rugbrød" as "rug brood"); read for what they meant, using DATA.\n' +
   '2. They ask you to DO something in the app → the matching action: navigate, set_setting, start_workout, finish_workout, discard_workout, set_schedule ("Pull day on Wednesdays", "Friday is a rest day": weekday 0=Sunday…6=Saturday, routine null = rest). ' +
   'PLAN A DAY: "chest and triceps with some shoulder tomorrow", "give me a pull day on Friday", "what should I train today? put it in" → plan_day: day (today / tomorrow / YYYY-MM-DD), focus = the muscles (most important first), light = the ones they want only a little of, add = the exercises: look up exercises for those muscles first and choose from the ones THEY do (most done and most recent first; skip any MEMORY says hurts), usually 5–7 exercises, sets and reps as they usually do them. The app shows it as a preview with their targets and an Apply button; nothing changes until they tap it. To change a preview ("swap the flyes for dips", "one less exercise"), send plan_day again with the new list. Keep the reply to one line. ' +
   'PLAN: "put wrestling on Tuesday" / "I wrestle Tuesdays and Thursdays" → plan_activity (kind wrestling, weekday, on true; one action per day; on false to take it off). "Move Push to Thursday" / "swap leg day to Friday" → move_workout (routine, weekday = the new day, from_weekday if they said it; once true when it is only this week — "this week", "tomorrow", "today" — otherwise false = the weekly plan). Swapping two days = two move_workout actions. If you are not sure which routine/exercise they mean, ask in the reply instead of guessing.\n' +
@@ -296,7 +299,7 @@ export function buildAgentContext(d: AppData, today: string, exName: (id: string
     for (const e of list) { const mk = mealLabel(e.mealId); (by.get(mk) ?? by.set(mk, []).get(mk)!).push(k < 2 ? item(e) : `"${e.snap.name}" ${e.nutrients.kcal !== undefined ? `${r0(e.nutrients.kcal)} kcal` : ''}`.trim()); }
     L.push(`Logged ${label} by meal: ${[...by].map(([m, xs]) => `${m}: ${xs.slice(0, 12).join('; ')}`).join(' | ')}.`);
   }
-  if (d.favourites.length || d.savedMeals.length || d.recipes.length) L.push(`Saved: ${d.savedMeals.length ? `meals ${d.savedMeals.slice(0, 8).map((m) => `"${m.name}"`).join(', ')}; ` : ''}${d.recipes.length ? `recipes ${d.recipes.slice(0, 8).map((m) => `"${m.name}"`).join(', ')}; ` : ''}${d.foods.filter((f) => f.source === 'custom').length ? `own foods ${d.foods.filter((f) => f.source === 'custom').slice(0, 10).map((f) => `"${f.name}"`).join(', ')}` : ''}`);
+  if (d.favourites.length || d.savedMeals.length || d.recipes.length) L.push(`Saved: ${d.savedMeals.length ? `meals ${d.savedMeals.slice(0, 8).map((m) => `"${m.name}"`).join(', ')}; ` : ''}${d.recipes.length ? `recipes ${d.recipes.slice(0, 8).map((m) => `"${m.name}"`).join(', ')}` : ''}`);
   // the foods they actually eat (last 30 days), with a typical amount: what "what should I eat?" is built from
   const usual = new Map<string, { name: string; n: number; amts: number[]; unit: string; kcal: number[]; prot: number[] }>();
   for (const e of d.entries) {
@@ -309,6 +312,12 @@ export function buildAgentContext(d: AppData, today: string, exName: (id: string
   }
   const mid = (xs: number[]) => { const v = [...xs].sort((a, b) => a - b); return v.length ? v[Math.floor(v.length / 2)] : undefined; };
   const top = [...usual.values()].sort((a, b) => b.n - a.n).slice(0, 15);
+  // the foods they saved (their own, and ones kept from a search), most logged first: names to copy exactly
+  const logged = new Map<string, number>();
+  for (const e of d.entries) if (e.snap.foodId) logged.set(e.snap.foodId, (logged.get(e.snap.foodId) ?? 0) + 1);
+  const inTop = new Set(top.map((u) => u.name.toLowerCase()));
+  const own = d.foods.filter((f) => !inTop.has(f.name.toLowerCase())).sort((a, b) => (logged.get(b.id) ?? 0) - (logged.get(a.id) ?? 0)).slice(0, 40);
+  if (own.length) L.push(`OWN FOODS (saved in the app; when they name one of these, copy its name exactly): ${own.map((f) => `"${f.brand ? `${f.brand} ` : ''}${f.name}"`).join(', ')}.`);
   if (top.length) L.push(`FREQUENT FOODS (last 30 days, typical amount): ${top.map((u) => { const k = mid(u.kcal), p = mid(u.prot); return `"${u.name}" ${r0(mid(u.amts) ?? 0)} ${u.unit}${k !== undefined ? ` ≈ ${r0(k)} kcal` : ''}${p !== undefined ? `, ${r0(p)} g protein` : ''} (${u.n}×)`; }).join('; ')}.`);
   const water = d.water.filter((w) => w.date === today).reduce((n, w) => n + w.ml, 0);
   L.push(`Water today: ${water} ml (target ${d.settings.goals.waterMl} ml).`);

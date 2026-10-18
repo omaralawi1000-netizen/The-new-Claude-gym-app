@@ -336,7 +336,26 @@ export function ActionCard({ r, undone, confirmed, onUndo, onConfirm, replaced =
           {r.week && <WeekStrip week={r.week} />}
           {/* a memory reworded: the old wording, struck through (drawn as the card arrives), above the new one */}
           {r.was && <div className="ac-was small" style={{ marginTop: 6 }}><span className="ac-was-t">{r.was}</span></div>}
-          {r.lines.length > 0 && (
+          {/* "Which one?": the choices fold away as the pick (and its Undo) unfolds in their place, one calm height change */}
+          {r.choose && (
+            <Collapse open={!confirmed && !gone} ms={520} className="ac-choose-wrap">
+              <div className="ac-choices" inert={confirmed || gone || undefined}>
+                {r.choose.map((c) => <button key={c.label} className="ac-choice press" onClick={() => { c.run(); onConfirm(); }}><span className="ac-choice-t">{c.label}</span>{c.sub && <span className="num ac-choice-k">{c.sub}</span>}</button>)}
+              </div>
+            </Collapse>
+          )}
+          {r.choose && (
+            <Collapse open={confirmed} ms={520} className="ac-choose-wrap">
+              {r.lines.map((l, i) => (
+                <div key={i} className="action-line row-flex between" style={{ gap: 10, padding: '5px 0', marginTop: 6 }}>
+                  <span className="small ac-text" style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{l.text}</span>
+                  {l.sub && <span className="xs t2 num" style={{ textAlign: 'right', flex: 'none', maxWidth: '62%' }}>{l.sub}</span>}
+                </div>
+              ))}
+              {r.undo && <div className={`ac-actions-cell${undone ? ' gone' : ''}`} inert={undone || undefined}><div className="row-flex ac-actions"><button className="btn sm ghost press" onClick={onUndo}><Icon name="undo" size={15} /> {t('Undo')}</button></div></div>}
+            </Collapse>
+          )}
+          {!r.choose && r.lines.length > 0 && (
             <div style={{ marginTop: r.was ? 2 : 6 }}>
               {r.lines.map((l, i) => (
                 <div key={i} className={`action-line ${l.sub && l.sub.length > 30 ? 'stack' : 'row-flex between'}`} style={{ gap: l.sub && l.sub.length > 30 ? 2 : 10, padding: '5px 0', borderTop: i ? '1px solid var(--line)' : 'none', animationDelay: `${120 + i * 70}ms`, ['--i' as string]: i + (r.was ? 1 : 0) }}>
@@ -350,7 +369,7 @@ export function ActionCard({ r, undone, confirmed, onUndo, onConfirm, replaced =
           {r.steps && r.steps.length > 0 && <Method steps={r.steps} />}
           {/* The buttons live in one cell. On Apply the Apply row leaves in place while the Undo row fades in over it; once
               undone (or replaced) the row keeps its room and fades out, so the card never changes height in one frame. */}
-          {(hadButtons || (confirmed && (r.undo || r.more?.length))) && (!gone || goneLive) && (
+          {!r.choose && (hadButtons || (confirmed && (r.undo || r.more?.length))) && (!gone || goneLive) && (
             <div className={`ac-actions-cell${gone ? ' gone' : ''}`} inert={gone || undefined}>
               {(!confirmed || sealing) && hadButtons && (
                 <div key="before" className={`row-flex ac-actions${confirmed ? ' ac-out' : ''}`} style={{ gap: 8, flexWrap: 'wrap' }} aria-hidden={confirmed || undefined} inert={confirmed ? true : undefined}>

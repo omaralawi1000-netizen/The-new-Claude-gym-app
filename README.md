@@ -2458,3 +2458,29 @@ No animation curves, durations, glass, layouts, orb geometry or chat data change
 `scripts/journey-recipe-close.mjs` first reproduced one retained dialog and scrim after a normal close. It covers saved
 folded methods, expanded methods, closing during a fold, repeated Coach openings and a newly generated orb recipe (Gemini
 stubbed), with high refresh on/off and reduced motion. Focused verification remains limited to Coach/orb for this request.
+
+## Coach 2.0, phase 5b part A: food you can trust (18 Oct 2026, v0.1.145)
+Omar asked why "Power Potatoes" logged as a plain potato. There were five causes: the AI rewrote food words, Danish and English didn't cross-match, glued words ("powerkartofler") didn't match the spaced name, his own foods lost ties to generic ones, and a match on only some of the words stopped the online search. The fixes:
+- **Every word must match.** A local food counts as sure only if it covers every word said (cooking words don't count). Glued words match in any order ("vaniljeskyr" = "Skyr Vanilje"), in either language (about 80 Danish↔English food words, `FOOD_WORDS`). Otherwise the app searches the Danish list, then online, and uses a hit with every word. If there is none, the closest food is used and the card says "closest match".
+- **Your foods first.** Saved foods, favourites and how often you logged a food in the last 90 days break ties (`foodBoost`). The AI sees an OWN FOODS list to copy names from exactly, and a rule to keep food words as said.
+- **Habit first, otherwise ask once.** Tied foods can be far apart in calories: raw against cooked, or more than 35% apart. Then "Which one?" shows soft rows with kcal. One tap logs the food and `setChoice` remembers the pick. The rows fold away while the logged line and Undo unfold. White, brown and basmati rice (all cooked) are close enough: no question.
+- **The name is never cut.** `foodRow` no longer passes the AI's name through the dictation splitter ("Rice, white, raw" stays raw).
+- **Never guess a known food.**
+  - No amount: your usual amount ("your usual"), else one typical portion, else "How much? Say it in grams".
+  - Pieces of a food sold by weight: the AI gives only the weight; the food's own label still counts.
+  - Volumes on gram foods: a dl, tbsp or cup portion first, then a density table.
+  - Photo amounts are marked as estimates.
+  - AI estimates are stored per 100 g plus grams, so "it was 150 g" works.
+- **Corrections stick.**
+  - "Make it 2" on 150 g means two portions.
+  - A bare number that changes the kcal more than 5× waits for a tap ("Change it to this?").
+  - Label fixes are saved onto any saved food.
+  - A replace remembers the swap.
+- **Quick entries.** New `log_quick` action, plus a local parser for "quick entry 100 calories", "300 kcal 20 g protein" and "500 kalorier pizza til aftensmad".
+- **Speed and honesty.**
+  - Foods are looked up in parallel, with "Looking up 3 foods…" shown meanwhile.
+  - "Couldn’t reach the food database" is shown apart from "Not found".
+  - No day said means the day you are looking at; a copy goes there too.
+  - After midnight, before the day starts, a new food goes to Snacks.
+
+Tests: `tests/food3.test.ts`, `scripts/journey-food3.mjs`. `journey-food` now answers the oats question.

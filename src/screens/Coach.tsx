@@ -729,7 +729,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     const d = await decide(photo ? `[photo] ${text}` : text, { lang, t, pool, history, where, signal, surface: 'coach', photo, said: threadSaid(msgsRef.current as ThreadMsg[]), onStatus: (x) => { if (alive.current) setMsgs((all) => all.map((m) => (m.id === placeholder && m.role === 'model' ? { ...m, status: x || undefined } : m))); }, onReply: (r) => { if (alive.current) setMsgs((x) => x.map((m) => (m.id === placeholder && m.role === 'model' ? { ...m, text: r } : m))); } });
     let { reply } = d; const { note, actions } = d;
     if (d.wantsUndo) { undoLast(); if (!actions.length && !reply) reply = t('Undone.'); }
-    const results = actions.length ? await runActions(actions, { t, lang, today, brain: brainFor({ big: false, surface: 'coach', signal }), date: props.date, mealId: props.mealId }) : [];
+    const results = actions.length ? await runActions(actions, { t, lang, today, brain: brainFor({ big: false, surface: 'coach', signal }), date: props.date, mealId: props.mealId, photo: !!photo, onStatus: (x) => { if (alive.current) setMsgs((all) => all.map((m) => (m.id === placeholder && m.role === 'model' ? { ...m, status: x || undefined } : m))); } }) : [];
     if (d.dropped) results.push(droppedCard(t)); // (never silent: part of the answer was unreadable)
     if (!alive.current) return;
     // the answer is the message; a note about who answered sits under it, quieter (and is never read aloud)

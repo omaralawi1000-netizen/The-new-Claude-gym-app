@@ -42,8 +42,13 @@ await p.screenshot({ path: 'shots/fd-6-voice.png' });
 assert(await p.getByRole('dialog', { name: 'Dictation' }).isVisible(), 'the orb screen opens');
 await sayTyped(p, '200 grams of skyr, one banana and 60 grams of oats'); await wait(p, 2600);
 await p.screenshot({ path: 'shots/fd-9-logged.png' });
+// oats could be dry or cooked (five times apart): asked once, and one tap logs it
+await wait(p, 800); // (the card settles first)
+await p.locator('.action-card').filter({ hasText: 'Which one?' }).locator('.ac-choice', { hasText: /dry/i }).first().click(); await wait(p, 1200);
 // 189 + skyr 126 + banana 105 + oats 223 = 643 (the Coach picks the clear best match; the card says what it matched)
 const k = Number(await ledgerKcal()); console.log('ledger after saying it', k); assert(k >= 600 && k <= 700, 'logged all three');
+// (a question was asked, so the orb stayed open for the answer: close it)
+if (await p.getByRole('dialog', { name: 'Dictation' }).count()) { await p.getByRole('dialog', { name: 'Dictation' }).getByRole('button', { name: 'Close' }).click(); await wait(p, 1200); }
 // 5. recipe → log a serving
 await p.getByRole('button', { name: /Add to Dinner/ }).click(); await wait(p, 700);
 await p.getByRole('button', { name: 'Recipes' }).click(); await wait(p, 600);
