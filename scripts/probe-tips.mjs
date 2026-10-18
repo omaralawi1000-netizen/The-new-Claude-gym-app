@@ -28,7 +28,7 @@ await p.evaluate((ms) => { document.documentElement.dataset.ms = ms; }, String(p
 await p.evaluate(() => {
   const A = Element.prototype.animate; Element.prototype.animate = function (k, o) { if (this.classList?.contains('coach-thread')) console.log('ANIM', performance.now()|0, JSON.stringify(k).slice(0, 120)); return A.call(this, k, o); };
   const ro = document.querySelector('.coach-body'); new MutationObserver(() => {}).observe(ro, {childList: true});
-  window.__ms = Number(document.documentElement.dataset.ms || 2500); window.__log = []; const t0 = performance.now();
+  window.__ms = Number(document.documentElement.dataset.ms || 2500); window.__log = []; window.__lt = []; try { new PerformanceObserver((l) => l.getEntries().forEach((e) => window.__lt.push([Math.round(e.startTime - t0g), Math.round(e.duration)]))).observe({ type: 'longtask' }); } catch {} const t0g = performance.now(); const t0 = performance.now();
   const loop = () => {
     const q = (s) => { const e = [...document.querySelectorAll(s)].pop(); return e ? Math.round(e.getBoundingClientRect().top * 10) / 10 : null; };
     const micro = [...document.querySelectorAll('.coach-resume .micro')].pop();
@@ -41,6 +41,7 @@ if (mode === 'tip') await p.locator('.coach-resume .tip').first().tap();
 else { await p.getByLabel('Message the Coach').fill('How is my week going?'); await p.getByRole('dialog', { name: 'Coach' }).getByRole('button', { name: 'Send', exact: true }).tap(); }
 await wait(p, Number(process.env.MS || 2500) + 200);
 const log = await p.evaluate(() => window.__log);
+console.log('LONGTASKS', JSON.stringify(await p.evaluate(() => window.__lt)));
 let prev = null;
 for (const r of log) { if (prev) { const dy = r.yo != null && prev.yo != null ? r.yo - prev.yo : 0; const dh = r.head != null && prev.head != null ? r.head - prev.head : 0; if (Math.abs(dy) > 6 || Math.abs(dh) > 6) console.log('JUMP', JSON.stringify(r), 'dyo', dy.toFixed(1), 'dhead', dh); } prev = r; }
 if (process.env.EVERY) log.forEach((r, i) => { if (i % Number(process.env.EVERY) === 0) console.log(r.t, 'fly', r.fly, 'yo', r.yo, 'scroll', r.scroll, 'sh', r.sh, 'th', r.th, r.tf); });
