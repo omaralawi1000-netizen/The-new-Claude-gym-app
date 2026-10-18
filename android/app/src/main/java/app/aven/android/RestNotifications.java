@@ -28,6 +28,7 @@ import android.text.style.RelativeSizeSpan;
 import android.view.View;
 import android.widget.RemoteViews;
 
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -74,6 +75,10 @@ final class RestNotifications {
         long startedAt, endsAt;
         String exercise = "", line = "", overTitle = "", overBody = "", more = "+30 s", skip = "Skip";
         String done = "", doneNote = ""; // "Done ✓ 80 kg × 8" and, once tapped, "Set 2 ✓ · 80 kg × 8"
+        String doneSay = ""; // under it: "Rest 2:45 · then set 3"
+        long next; // seconds of rest after the set this alert names (0: none, the next set comes straight away)
+        String queue = "[]"; // the sets after it, each with its own words and rest (the website's plan, a few ahead)
+        boolean chained; // started here by a Done ✓ (the website was asleep): its buttons stay here, never sent on
         boolean sound = true; // Settings › Sound in the app
     }
 
@@ -126,6 +131,7 @@ final class RestNotifications {
         if (tag.contains("aven-rest-over")) {
             // the website's back-up alert: ours rings at the exact time already; if somehow it hasn't, ring now
             Rest r = load(c);
+            if (r != null && r.chained) return true; // a Done ✓ moved on from that rest here: it's ours to ring
             if (r == null || r.endsAt > now + 1000) return false;
             ring(c);
             return true;
@@ -178,6 +184,10 @@ final class RestNotifications {
             r.skip = j.optString("k", r.skip);
             r.done = j.optString("d");
             r.doneNote = j.optString("y");
+            r.doneSay = j.optString("z");
+            r.next = Math.max(0, j.optLong("n", 0));
+            JSONArray q = j.optJSONArray("w");
+            r.queue = q != null ? q.toString() : "[]";
             r.sound = j.optInt("q", 1) == 1;
             return r.endsAt > r.startedAt ? r : null;
         } catch (JSONException e) {
@@ -195,6 +205,13 @@ final class RestNotifications {
         save(c, r);
         schedule(c, r.endsAt);
         show(c, true);
+    }
+
+    /** Skip: a rest Done ✓ started here goes straight to "Time for set 3"; the website's own rest ends (it's told). */
+    static void skip(Context c) {
+        Rest r = load(c);
+        if (r != null && r.chained) { ring(c); return; }
+        stopAll(c, true);
     }
 
     static void swiped(Context c) {
@@ -277,8 +294,8 @@ final class RestNotifications {
                     .setWhen(r.endsAt).setShowWhen(true).setUsesChronometer(true).setChronometerCountDown(true);
             }
             // Android's own buttons here, in Aven's colour where the phone keeps it
-            b.addAction(new Notification.Action.Builder(null, ember(r.more, ember), own(c, ACTION_MORE, chromeMore)).build())
-                .addAction(new Notification.Action.Builder(null, ember(r.skip, ember), own(c, ACTION_SKIP, chromeSkip)).build());
+            b.addAction(new Notification.Action.Builder(null, ember(r.more, ember), r.chained ? local(c, ACTION_MORE) : own(c, ACTION_MORE, chromeMore)).build())
+                .addAction(new Notification.Action.Builder(null, ember(r.skip, ember), r.chained ? local(c, ACTION_SKIP) : own(c, ACTION_SKIP, chromeSkip)).build());
             if (Build.VERSION.SDK_INT >= 36) {
                 b.setStyle(new Notification.ProgressStyle()
                     .setProgressSegments(Collections.singletonList(new Notification.ProgressStyle.Segment(max).setColor(ember)))
@@ -297,8 +314,8 @@ final class RestNotifications {
             big.setProgressBar(R.id.bar, max, at, false);
             big.setTextViewText(R.id.more, r.more);
             big.setTextViewText(R.id.skip, r.skip);
-            big.setOnClickPendingIntent(R.id.more, own(c, ACTION_MORE, chromeMore));
-            big.setOnClickPendingIntent(R.id.skip, own(c, ACTION_SKIP, chromeSkip));
+            big.setOnClickPendingIntent(R.id.more, r.chained ? local(c, ACTION_MORE) : own(c, ACTION_MORE, chromeMore));
+            big.setOnClickPendingIntent(R.id.skip, r.chained ? local(c, ACTION_SKIP) : own(c, ACTION_SKIP, chromeSkip));
             b.setStyle(new Notification.DecoratedCustomViewStyle()).setCustomContentView(small).setCustomBigContentView(big)
                 .setSubText(r.exercise).setShowWhen(false);
         }
@@ -358,17 +375,24 @@ final class RestNotifications {
             .setAutoCancel(true)
             .setTimeoutAfter(15 * 60_000L) // left for a long time, it tidies itself away
             .setContentIntent(tap(c));
-        // Done ✓: the set that's next, ticked as planned, from the lock screen or the watch (this alert reaches the watch,
-        // the countdown doesn't). Chrome gives a website's notification two buttons; once the rest is over its Skip can
-        // mean nothing else, so that is how the tap reaches the website (src/screens/workout/rest.ts).
-        if (!r.done.isEmpty() && chromeSkip != null) {
+        // Done ✓: the set this alert names, ticked as planned, from the lock screen or the watch (this alert reaches the
+        // watch, the countdown doesn't). It always shows: it was missing whenever Android had paused the app during the
+        // rest (the words weren't saved, and Chrome's button lived only in memory). The tap is handled here (the next rest
+        // starts at once) and passed on to the website through Chrome's Skip: once the rest is over a Skip can mean
+        // nothing else, and the website's rest worker says "done" (src/screens/workout/rest.ts).
+        if (!r.done.isEmpty()) {
             b.addAction(new Notification.Action.Builder(null, ember(r.done, c.getColor(R.color.ember)), own(c, ACTION_DONE, chromeSkip)).build());
         }
         nm.notify(ID_OVER, b.build());
         if (r.sound) clicks(c);
     }
 
-    /** Done ✓ was tapped: the alert says so for a moment ("Set 2 ✓ · 80 kg × 8"), quietly, until the next rest replaces it. */
+    /**
+     * Done ✓ was tapped (on the phone, the lock screen or the watch). The set is done; the website hears it through
+     * Chrome (now if it's awake, from its rest worker's cache when it wakes). Here, at once: the next rest starts counting
+     * down from this tap, and when it's over "Time for set 3" rings with its own Done ✓, so a whole workout can be done
+     * from the wrist with the phone asleep. A short quiet note says what happened ("Set 2 ✓ · 50 kg × 8", "Rest 2:45").
+     */
     private static long doneAt; // when Done ✓ was last tapped (Chrome then takes its own copy away: that mustn't take "Set 2 ✓")
 
     static void done(Context c) {
@@ -376,19 +400,55 @@ final class RestNotifications {
         Rest r = load(c);
         NotificationManager nm = c.getSystemService(NotificationManager.class);
         nm.cancel(ID_OVER);
-        if (r == null || r.doneNote.isEmpty()) return;
+        if (r == null) return;
+        Rest nx = nextOf(r, doneAt);
+        log("done: " + (nx == null ? "the last set" : "next rest " + (nx.endsAt - doneAt) / 1000 + " s"));
+        if (nx != null) {
+            save(c, nx);
+            dismissed = false;
+            if (nx.endsAt <= doneAt + 500) { ring(c); return; } // no rest after it (a superset, a warm-up): the next set now
+            schedule(c, nx.endsAt);
+            show(c, true);
+            RestTimerService.start(c);
+        } else {
+            stopAll(c, false);
+        }
+        if (r.doneNote.isEmpty()) return;
         Notification.Builder b = new Notification.Builder(c, CH_REST)
             .setSmallIcon(R.drawable.ic_stat_aven)
             .setColor(c.getColor(R.color.ember))
             .setContentTitle(r.doneNote)
-            .setContentText(r.exercise)
-            .setLocalOnly(true) // (the watch has had its buzz)
+            .setContentText(r.doneSay.isEmpty() ? r.exercise : r.doneSay)
             .setOnlyAlertOnce(true)
             .setVisibility(Notification.VISIBILITY_PUBLIC)
             .setAutoCancel(true)
-            .setTimeoutAfter(90_000L)
+            .setTimeoutAfter(12_000L) // (a moment on the watch, then the countdown on the phone is the one to look at)
             .setContentIntent(tap(c));
         nm.notify(ID_OVER, b.build());
+    }
+
+    /** The rest after the set just done, from the website's plan: its words for the set after it, timed from now. */
+    static Rest nextOf(Rest r, long now) {
+        try {
+            JSONArray q = new JSONArray(r.queue);
+            if (q.length() == 0) return null;
+            JSONObject s = q.getJSONObject(0);
+            Rest nx = new Rest();
+            nx.chromeTag = r.chromeTag; nx.sound = r.sound; nx.more = r.more; nx.skip = r.skip;
+            nx.startedAt = now;
+            nx.endsAt = now + r.next * 1000;
+            nx.exercise = s.optString("x"); nx.line = s.optString("l");
+            nx.overTitle = s.optString("o"); nx.overBody = s.optString("b");
+            nx.done = s.optString("d"); nx.doneNote = s.optString("y"); nx.doneSay = s.optString("z");
+            nx.next = Math.max(0, s.optLong("n", 0));
+            JSONArray rest = new JSONArray();
+            for (int i = 1; i < q.length(); i++) rest.put(q.get(i));
+            nx.queue = rest.toString();
+            nx.chained = true;
+            return nx;
+        } catch (JSONException e) {
+            return null;
+        }
     }
 
     private static MediaPlayer player; // kept until it has played (a player nobody holds can stop halfway)
@@ -490,9 +550,38 @@ final class RestNotifications {
         return PendingIntent.getBroadcast(c, action.hashCode(), i, flags);
     }
 
+    /** A button handled here only (a rest Done ✓ started: the website isn't told about its +30 s or Skip). */
+    private static PendingIntent local(Context c, String action) {
+        Intent i = new Intent(action).setClass(c, RestActionReceiver.class);
+        return PendingIntent.getBroadcast(c, (action + ":local").hashCode(), i, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+    }
+
+    /** Chrome's tap and buttons ride along in the end-of-rest alarm: Android may stop the app during a rest, and the
+     *  alert it then rings in a fresh start still has them (they were lost, and with them the watch's Done ✓). */
+    static void restoreChrome(Intent i) {
+        if (i == null) return;
+        try {
+            PendingIntent t = i.getParcelableExtra("chromeTap"), m = i.getParcelableExtra("chromeMore"), s = i.getParcelableExtra("chromeSkip");
+            if (chromeTap == null && t != null) chromeTap = t;
+            if (chromeMore == null && m != null) chromeMore = m;
+            if (chromeSkip == null && s != null) chromeSkip = s;
+        } catch (RuntimeException ignored) { /* nothing carried */ }
+    }
+
+    /** A button's own copy of Chrome's (see own()), for this process when it was started fresh by the tap. */
+    static void restoreChrome(String action, PendingIntent chrome) {
+        if (chrome == null) return;
+        if (ACTION_MORE.equals(action)) { if (chromeMore == null) chromeMore = chrome; }
+        else if (chromeSkip == null) chromeSkip = chrome;
+    }
+
     private static void schedule(Context c, long at) {
         AlarmManager am = c.getSystemService(AlarmManager.class);
-        PendingIntent pi = alarmIntent(c, RestAlarmReceiver.ACTION_END);
+        Intent end = new Intent(RestAlarmReceiver.ACTION_END).setClass(c, RestAlarmReceiver.class);
+        if (chromeTap != null) end.putExtra("chromeTap", chromeTap);
+        if (chromeMore != null) end.putExtra("chromeMore", chromeMore);
+        if (chromeSkip != null) end.putExtra("chromeSkip", chromeSkip);
+        PendingIntent pi = PendingIntent.getBroadcast(c, RestAlarmReceiver.ACTION_END.hashCode(), end, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
         if (Build.VERSION.SDK_INT >= 31 && !am.canScheduleExactAlarms()) am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi);
         else am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi);
     }
@@ -525,6 +614,12 @@ final class RestNotifications {
         r.overBody = p.getString("overBody", "");
         r.more = p.getString("more", r.more);
         r.skip = p.getString("skip", r.skip);
+        r.done = p.getString("done", "");
+        r.doneNote = p.getString("doneNote", "");
+        r.doneSay = p.getString("doneSay", "");
+        r.next = p.getLong("next", 0);
+        r.queue = p.getString("queue", "[]");
+        r.chained = p.getBoolean("chained", false);
         r.sound = p.getBoolean("sound", true);
         current = r;
         return r;
@@ -537,6 +632,9 @@ final class RestNotifications {
             .putString("exercise", r.exercise).putString("line", r.line)
             .putString("overTitle", r.overTitle).putString("overBody", r.overBody)
             .putString("more", r.more).putString("skip", r.skip).putBoolean("sound", r.sound)
+            // (all of it: after Android had stopped the app mid-rest, the alert came back without its Done ✓ words)
+            .putString("done", r.done).putString("doneNote", r.doneNote).putString("doneSay", r.doneSay)
+            .putLong("next", r.next).putString("queue", r.queue).putBoolean("chained", r.chained)
             .apply();
     }
 

@@ -43,13 +43,15 @@ export interface AppRest {
   /** the rest-over alert's button ("Done ✓ 80 kg × 8": the set that's next, ticked as planned, from the lock screen or the
    *  watch) and what the alert says once it is ("Set 2 ✓ · 80 kg × 8") */
   done?: string; doneNote?: string;
+  /** what the watch says once it's ticked ("Rest 2:45"), the rest after this set, and the sets after it */
+  doneSay?: string; next?: number; queue?: { x: string; l: string; o: string; b: string; d: string; y: string; z: string; n: number }[];
 }
 
 /** The rest, for the app's countdown. False when the app can't be reached this way (the website's own one is used then). */
 export async function showAppRest(r: AppRest): Promise<boolean> {
   const sw = await androidRest();
   if (!sw) return false;
-  const words = { v: 1, s: r.startedAt, x: r.exercise, l: r.line, o: r.overTitle, b: r.overBody, p: r.more, k: r.skip, q: r.sound ? 1 : 0, ...(r.done ? { d: r.done, y: r.doneNote ?? '' } : {}) };
+  const words = { v: 1, s: r.startedAt, x: r.exercise, l: r.line, o: r.overTitle, b: r.overBody, p: r.more, k: r.skip, q: r.sound ? 1 : 0, ...(r.done ? { d: r.done, y: r.doneNote ?? '', z: r.doneSay ?? '', n: r.next ?? 0, w: r.queue ?? [] } : {}) };
   const tag = `aven-rest|${JSON.stringify(words)}`;
   try {
     for (const n of await sw.getNotifications()) if (n.tag !== tag) n.close(); // an earlier rest's, or its alert

@@ -9,7 +9,7 @@
 // them; this worker only answers taps: +30 s and Skip go to the open app, and a tap opens the workout.
 // the keys of a Done ✓ kept for the page: whole paths, the same from every worker and page (a bare 'done' is read
 // against each one's own address, so the app's rest worker and the page each had their own 'done' and never met)
-const PENDING_DONE = '/aven-pending/done', PENDING_LOG = '/aven-pending/log';
+const PENDING_TAP = '/aven-pending/tap-', PENDING_LOG = '/aven-pending/log';
 const APP = '/The-new-Claude-gym-app/';
 
 self.addEventListener('install', () => self.skipWaiting());
@@ -27,13 +27,15 @@ self.addEventListener('notificationclick', (e) => {
       const at = Date.now();
       const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
       if (done) {
+        // every tap kept on its own (a workout done from the wrist is several in a row, and Aven may sleep through them all)
         const c = await caches.open('aven-pending');
-        await c.put(PENDING_DONE, new Response(JSON.stringify({ key: d.key, at })));
+        await c.put(`${PENDING_TAP}${at}`, new Response(JSON.stringify({ key: d.key, at })));
         // (what Aven's Settings › Training shows as "Last Done ✓", so one screenshot says where it stopped)
         await c.put(PENDING_LOG, new Response(JSON.stringify({ key: d.key, at, sw: 'app', wins: wins.length })));
       }
       wins.forEach((w) => w.postMessage({ type: 'aven-rest-action', action: done ? 'done' : e.action, key: d.key, at }));
-      if (e.action === 'skip') { n.close(); return; }
+      // (a Done keeps Chrome's notification: the app's next Done ✓ comes through its buttons too)
+      if (e.action === 'skip') { if (!done) n.close(); return; }
       // nobody to tell (the app was closed): move Chrome's copy along too, so it matches the countdown
       if (!wins.length && d.endsAt) {
         const endsAt = d.endsAt + 30000;

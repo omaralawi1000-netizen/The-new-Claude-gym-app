@@ -54,7 +54,8 @@ REST = """Promise.race([new Promise((ok) => setTimeout(() => ok('timed out at: '
   window.__step = 'show (permission ' + Notification.permission + ')';
   const now = Date.now(), endsAt = now + %d * 1000, s = now - %d * 1000;
   const words = { v: 1, s, x: 'Incline Smith Machine Press', l: 'Set 2 of 3 · 60 kg × 8', o: 'Time for set 2',
-    b: 'Incline Smith Machine Press · 60 kg × 8', p: '+30 s', k: 'Skip', d: 'Done ✓ 60 kg × 8', y: 'Set 2 ✓ · 60 kg × 8' };
+    b: 'Incline Smith Machine Press · 60 kg × 8', p: '+30 s', k: 'Skip', d: 'Done ✓ 60 kg × 8', y: 'Set 2 ✓ · 60 kg × 8', z: 'Rest 0:15', n: 15,
+    w: [{ x: 'Incline Smith Machine Press', l: 'Set 3 of 3 · 60 kg × 8', o: 'Time for set 3', b: 'Incline Smith Machine Press · 60 kg × 8', d: 'Done ✓ 60 kg × 8', y: 'Set 3 ✓ · 60 kg × 8', z: 'Last set done · open Aven to finish', n: 0 }] };
   for (const n of await reg.getNotifications()) n.close();
   await reg.showNotification('Back at ' + new Date(endsAt).toTimeString().slice(0, 5), {
     body: 'Incline Smith Machine Press · set 2 of 3 · 60 kg × 8', tag: 'aven-rest|' + JSON.stringify(words), silent: true,
@@ -103,8 +104,9 @@ if mode == 'listen':
       return 'listening, page ' + document.visibilityState; })()"""))
     sys.exit(0)
 if mode == 'heard':
-    print('heard:', run(page, """(async () => { const c = await caches.open('aven-pending'); const l = await c.match('/aven-pending/log'); const d = await c.match('/aven-pending/done');
-      return 'messages:' + (localStorage.getItem('ci.msg') || ' none') + ' | log ' + (l ? await l.text() : 'none') + ' | pending ' + (d ? await d.text() : 'none'); })()"""))
+    print('heard:', run(page, """(async () => { const c = await caches.open('aven-pending'); const l = await c.match('/aven-pending/log');
+      const taps = (await c.keys()).filter((r) => new URL(r.url).pathname.startsWith('/aven-pending/tap-')).length;
+      return 'messages:' + (localStorage.getItem('ci.msg') || ' none') + ' | log ' + (l ? await l.text() : 'none') + ' | taps kept ' + taps; })()"""))
     sys.exit(0)
 if mode == 'perm':
     print(run(page, "(async () => 'page sees ' + Notification.permission + ' (query: ' + (await navigator.permissions.query({name: 'notifications'})).state + ')')()"))

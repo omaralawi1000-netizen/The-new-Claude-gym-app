@@ -13,13 +13,15 @@ public class RestActionReceiver extends BroadcastReceiver {
     public void onReceive(Context c, Intent intent) {
         String a = intent.getAction();
         RestNotifications.log("button: " + a);
-        if (RestNotifications.ACTION_MORE.equals(a)) RestNotifications.more(c);
-        else if (RestNotifications.ACTION_SKIP.equals(a)) RestNotifications.stopAll(c, true);
-        else if (RestNotifications.ACTION_GONE.equals(a)) RestNotifications.swiped(c);
-        else if (RestNotifications.ACTION_DONE.equals(a)) RestNotifications.done(c);
-        PendingIntent chrome = Build.VERSION.SDK_INT >= 33
+        PendingIntent carried = Build.VERSION.SDK_INT >= 33
             ? intent.getParcelableExtra(RestNotifications.EXTRA_CHROME, PendingIntent.class)
             : intent.getParcelableExtra(RestNotifications.EXTRA_CHROME);
+        RestNotifications.restoreChrome(a, carried); // (a fresh start of the app: what comes next uses Chrome's buttons too)
+        if (RestNotifications.ACTION_MORE.equals(a)) RestNotifications.more(c);
+        else if (RestNotifications.ACTION_SKIP.equals(a)) RestNotifications.skip(c);
+        else if (RestNotifications.ACTION_GONE.equals(a)) RestNotifications.swiped(c);
+        else if (RestNotifications.ACTION_DONE.equals(a)) RestNotifications.done(c);
+        PendingIntent chrome = carried;
         if (chrome == null) return;
         try {
             chrome.send(); // the website keeps its workout in step (and Chrome's copy of the notification)
