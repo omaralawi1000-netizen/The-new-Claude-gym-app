@@ -553,8 +553,10 @@ export function SphereStage() {
         else if (!leaveFrom.has(sl.el)) leaveFrom.set(sl.el, kb.get() > 1 && Number.isFinite(orbNow.X) ? { k: Math.max(0.001, e), P: { ...orbNow } } : null);
         const lf = leaving ? leaveFrom.get(sl.el) : null;
         if (lf) {
-          const f = Math.min(1, e / lf.k);
-          X += (lf.P.X - X) * f; Y += (lf.P.Y - Y) * f; S += (lf.P.S - S) * f; flight = f;
+          // it rides its button (on the bar, never over the words) and is handed home on the sheet's own progress; the
+          // button falling past the dock line no longer lets go of it at once (and it never goes below the dock)
+          const f = Math.min(1, e / lf.k), ry = Math.min(y, Y);
+          X += (x - X) * f; Y += (ry - Y) * f; S += (z - S) * f; flight = f;
         } else if (sl.engage?.shift) {
           const restY = y - sl.engage.shift.get();
           const c = carry({ X, Y, S }, x, y, z, restY, e);
