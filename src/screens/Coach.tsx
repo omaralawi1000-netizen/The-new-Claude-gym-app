@@ -23,7 +23,7 @@ import { uid } from '../lib/nutrition';
 import { onThreadChange, readThread, threadSaid, threadTurns, writeThread, type ThreadMsg } from '../lib/thread';
 import { dayKey } from '../lib/dates';
 import type { About } from '../lib/askAbout';
-import { blobToBase64, downscale } from '../lib/photos';
+import { blobToBase64, cameraUsable, downscale } from '../lib/photos';
 
 /* The typing bar opens wide while you type (Omar, 13 Oct: "expands when I type on it and compresses when I'm done"): the
    camera tucks away and the pill's left edge glides over its place, then glides back when the keyboard goes. It grows a
@@ -1006,7 +1006,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
             <SphereSlot id="coach" priority={5} style={{ position: 'absolute', inset: -4 }} />
           </button>
           {/* the camera: a label, a machine, a program screenshot — anything to ask about */}
-          <span className="coach-cam-slot"><button className="icon-btn press coach-cam frost-ctl" aria-label={t('Send a photo')} disabled={busy || recording || hearing} onClick={() => camRef.current?.click()}><Icon name="camera" size={21} /></button></span>
+          <span className="coach-cam-slot"><button className="icon-btn press coach-cam frost-ctl" aria-label={t('Send a photo')} disabled={busy || recording || hearing} onClick={() => { if (cameraUsable()) useUI.getState().push('camera', { onShot: pickPhoto }); else camRef.current?.click(); }}><Icon name="camera" size={21} /></button></span>
           <div className="grow coach-field" ref={fieldRef}>
             {/* the pill: one frost that never moves (only its outline does), a tint drawn in two halves that slide over each
                 other, and a shadow that stretches — so opening it is moves only */}
