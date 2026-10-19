@@ -20,6 +20,7 @@ import { exName } from './workout/common';
 import { MuscleTags } from './MuscleTags';
 import { cardOrder, NextTargets, MusclesWeek, RecentRecords } from './TodayCards';
 import { Roll } from '../ui/Roll';
+import { openFoodPhoto } from '../lib/photoOpen';
 import { CoachPin } from '../ui/CoachPin';
 import { useEdgeFade } from '../ui/edgeFade';
 
@@ -174,7 +175,7 @@ export function TodayScreen() {
           {wd.quick && <>
           <button className="icon-btn press" aria-label={t('Log food')} onClick={() => push('foodSearch', { date: today, mealId })}><Icon name="plus" /></button>
           <button className="icon-btn press" aria-label={t('Scan')} onClick={() => push('scanner', { date: today, mealId })}><Icon name="barcode" /></button>
-          <button className="icon-btn press" aria-label={t('Photo')} onClick={() => push('photoFood', { date: today, mealId })}><Icon name="camera" /></button>
+          <button className="icon-btn press" aria-label={t('Photo')} onClick={() => openFoodPhoto(today, mealId)}><Icon name="camera" /></button>
           </>}
           {wd.water && <button className="icon-btn press" aria-label={`+${settings.waterQuick[1] ?? 250} ml`} onClick={addWater} style={{ width: 'auto', padding: '0 16px', gap: 6, display: 'inline-flex', alignItems: 'center' }}>
             {/* the pill keeps one width (room for "2,500") so the row never jumps; the drop and number glide to stay centred in it */}
