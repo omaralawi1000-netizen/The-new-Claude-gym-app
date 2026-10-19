@@ -156,6 +156,8 @@ export class Mirror {
   private anims: Animation[] = [];
   add(...a: (Animation | null)[]) { for (const x of a) if (x) this.anims.push(x); }
   get size() { return this.anims.length; }
+  /** The browser-run part moving this element, if there is one. */
+  of(el: Element | null | undefined) { return el ? this.anims.find((a) => (a.effect as KeyframeEffect | null)?.target === el) : undefined; }
   cancel() { for (const a of this.anims) { try { a.cancel(); } catch { /* ignore */ } } this.anims = []; }
   /** Settles when every browser-run part has finished (or been cancelled). */
   settled(): Promise<void> { return Promise.all(this.anims.map((a) => a.finished.catch(() => null))).then(() => undefined); }

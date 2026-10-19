@@ -427,6 +427,20 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     if (kinds.includes('title') && hd.querySelector('[data-wk-fly="title"]')?.textContent?.trim() !== name) return [];
     return kinds.map((kd) => [fg.querySelector<HTMLElement>(`[data-wk-fly="${kd}"]`)!, hd.querySelector<HTMLElement>(`[data-wk-fly="${kd}"]`)]).filter((x): x is [HTMLElement, HTMLElement] => !!x[1]);
   };
+  // what is flying now (launchHero), so not on the card's copy: hidden there in the frame its flight sets off, not before
+  // (a name waiting a frame for the header showed a card without its name, r2)
+  const flyHide = useRef(new Set<string>());
+  const hideFlown = () => {
+    const k = skinParts.current; if (!k) return;
+    for (const box of [k.words, k.pop?.el]) box?.querySelectorAll<HTMLElement>('[data-wk-fly]').forEach((n) => { if (flyHide.current.has(n.dataset.wkFly ?? '') && (box === k.words || n.closest('[data-wk-in="pop"]') === null)) n.style.visibility = 'hidden'; });
+  };
+  // the flights on the window's own clock: started in the same frame as the browser-run window (runMirror), whenever they
+  // were set off (a flight set going a frame ahead of the window led it by that frame: 50 px early in the fast part, r2)
+  const syncHero = () => {
+    const ref = mirror.current?.of(sheetRef.current); if (!ref) return;
+    const hs = hero.current;
+    void ref.ready.then(() => { if (hero.current !== hs || ref.startTime === null) return; for (const x of hs) for (const a of x.h.anims) { a.effect?.updateTiming({ delay: 0 }); a.startTime = ref.startTime; } }, () => {});
+  };
   const skinParts = useRef<{ k: number; back: HTMLElement; tone: HTMLElement; mat: HTMLElement; words: HTMLElement | null; pop: { el: HTMLElement; k: number } | null; watch: MutationObserver | null } | null>(null);
   const skinAt = (pp: number) => {
     const s = skinRef.current, k = skinParts.current; if (!s || !k) return;
@@ -580,7 +594,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
         }
         const L0 = parseFloat(w.style.left), T0 = parseFloat(w.style.top);
         // (what flies on its own is not on the copy: launchHero)
-        const flyK = new Set(flyKinds(fg, g.bg)); if (g.bg.dataset.wk === 'hero') flyK.add('clock');
+        const flyK = flyHide.current; flyK.clear(); if (g.bg.dataset.wk === 'hero' && ls.current !== 'D') flyK.add('clock');
         const place = () => {
           const c = copyOf(fg);
           c.querySelectorAll<HTMLElement>('[data-wk-fly]').forEach((n) => { if (flyK.has(n.dataset.wkFly ?? '')) n.style.visibility = 'hidden'; });
@@ -705,7 +719,8 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     const hw = (i: number) => (hs ? hs[Math.max(0, Math.min(i - wait, hs.length - 1))] : 1);
     const frames = Math.max(fs.length, (hs?.length ?? 0) + wait) - 1;
     // (D opening: the card's big name and clock are the header's size by the time the header is in round them, a sixth of
-    // the way: shrinking with the window, the big name lay over the header's clock and tally for six frames, r2)
+    // the way: shrinking with the window, the big name lay over the header's clock and tally for six frames, r2. Counted
+    // from where the window is when the flight sets off: a workout just started reaches the header a frame or two late.)
     const B = catches(ls.current), live = ls.current === 'D', skip = Math.round(((performance.now() - t0) * 120) / 1000);
     const made = pairs.flatMap(([cardEl, headEl]) => {
       const cardNow = anchorOf(cardEl), headNow = anchorOf(headEl);
@@ -725,7 +740,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
       const restHead = headerAt(1);
       // (B opening: the clock is home in its slot a little ahead of the window, before the header's words beside it come in)
       const flight = opening
-        ? { frames, src: (i: number) => (B ? skinAt(ppAt(i)) : cardRest), dst: (i: number) => headerAt(ppAt(i)), w: (i: number) => (live ? 1 - Math.pow(1 - Math.min(1, ppAt(i) / 0.3), 2) : B ? 1 - Math.pow(1 - Math.min(1, qAt(ppAt(i))), 3) : hw(i)) }
+        ? { frames, src: (i: number) => (B ? skinAt(ppAt(i)) : cardRest), dst: (i: number) => headerAt(ppAt(i)), w: (i: number) => (live ? 1 - Math.pow(1 - Math.min(1, Math.max(0, ppAt(i) - ppAt(skip)) / 0.3), 2) : B ? 1 - Math.pow(1 - Math.min(1, qAt(ppAt(i))), 3) : hw(i)) }
         : { frames, src: (i: number) => headerAt(ppAt(i)), dst: (i: number) => (B ? skinAt(ppAt(i)) : cardRest), w: (i: number) => (B ? Math.pow(Math.max(0, 1 - qAt(ppAt(i))), 1.5) : hw(i)) };
       const a0 = opening ? cardA : headNow, a1 = opening ? { x: restHead.x, y: restHead.y, f: restHead.f } : cardA;
       const fromEl = opening ? cardEl : headEl, toEl = opening ? headEl : cardEl;
@@ -737,6 +752,8 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
       return [{ h, watch, hide: [fromEl, toEl] }];
     });
     hero.current = made;
+    for (const [c] of pairs) flyHide.current.add(c.dataset.wkFly ?? '');
+    hideFlown(); syncHero();
     heroOk.current = opening ? () => Math.abs(p.get() - 1) < 0.002 && !closing.current : () => wasHome.current;
     settleHero(made);
   };
@@ -762,7 +779,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     const lw = LANDS[ls.current].closeWin;
     const sp = g ? (lw ? { ...lw, restDelta: 0.001 } : WINDOW_CLOSE) : SURFACE_EXIT;
     launchHero(false, e0, 0, sp, vel);
-    runMirror(e0, 0, sp, vel);
+    runMirror(e0, 0, sp, vel); syncHero();
     // under the finish sheet: no slide, just a soft crossfade of what still shows above the sheet into the page behind. The
     // page is drawn again first (warmStage; behind a full cover it is not drawn at all, and fading over it showed black,
     // then the page cut in), two frames before the fade starts, then the window is put away.
@@ -886,7 +903,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     opening.current?.stop();
     const o = animate(p, 1, reduce ? { duration: 0.01 } : sp);
     opening.current = o;
-    runMirror(p0, 1, sp, 0);
+    runMirror(p0, 1, sp, 0); syncHero();
     setMoving(true);
     const m = mirror.current!;
     void Promise.all([o.then(() => undefined), m.settled()]).then(() => { if (opening.current === o && !closing.current) { releaseCard(); dropSkin(); if (dragY.get() <= 0) setMoving(false); } });
