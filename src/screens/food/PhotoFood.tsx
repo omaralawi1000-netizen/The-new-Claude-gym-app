@@ -41,24 +41,25 @@ function useStep() {
 /** While the photo is read (Siri-style): a wave of light climbs the frozen photo and the objects it passes light up (a brighter copy of the photo shown
  *  through a soft band, aligned 1:1 by moving the band up and the copy down by the same amount). Only transform and opacity move; the root never fades
  *  (a fading ancestor would drop the frost of the words capsule), the film and lights fade as one layer and the capsule fades by itself. */
+const scanLook = () => (typeof localStorage !== 'undefined' && localStorage.getItem('aven.scan')) || 'A';
 function Scan({ src }: { src: string }) {
   const t = useT();
   const i = useStep();
-  const v = (typeof localStorage !== 'undefined' && localStorage.getItem('aven.scan')) || 'A';
-  const dots = v === 'B';
+  const v = scanLook();
+  const dots = v === 'B' || v === 'C';
   const present = useIsPresent();
   const fade = { initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 }, transition: { duration: 0.45 } };
   const words = (
     <motion.div className="scan-words" {...fade}>
       {dots && <span className="scan-orbit"><i /><i /><i /><i /><i /><i /></span>}
-      <AnimatePresence mode="wait" initial={false}>
-        <motion.span key={i} initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { duration: 0.24, delay: 0.04, ease: [0.22, 1, 0.36, 1] } }} exit={{ opacity: 0, transition: { duration: 0.16, ease: [0.4, 0, 1, 1] } }}>{t(SCAN_WORDS[i])}</motion.span>
+      <AnimatePresence initial={false}>
+        <motion.span key={i} initial={{ opacity: 0, y: 3 }} animate={{ opacity: 1, y: 0, transition: { duration: 0.42, delay: 0.14, ease: [0.22, 1, 0.36, 1] } }} exit={{ opacity: 0, y: -3, transition: { duration: 0.26, ease: [0.4, 0, 1, 1] } }}>{t(SCAN_WORDS[i])}</motion.span>
       </AnimatePresence>
     </motion.div>
   );
   return (
     <div className={`scan scan-${v}${dots ? ' with-dots' : ''}${present ? '' : ' leaving'}`} aria-hidden>
-      <motion.div className="scan-fx" {...fade}>
+      <motion.div className="scan-fx" initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { duration: 0.45 } }} exit={{ opacity: 0, transition: { duration: 0.6 } }}>
         <i className="scan-film" />
         <div className="scan-lit"><div className="scan-lit-in"><img src={src} alt="" /><i className="scan-warm" /></div></div>
       </motion.div>
@@ -78,6 +79,7 @@ export function PhotoFood({ props }: { props: { date: string; mealId: string; fi
   const meals = useStore((s) => s.settings.meals);
   const [img, setImg] = useState<{ url: string; blob: Blob } | null>(null);
   const [busy, setBusy] = useState(false);
+  const depth = scanLook() === 'C';
   const [err, setErr] = useState<string | null>(null);
   const [items, setItems] = useState<Item[]>([]);
   const [assume, setAssume] = useState('');
@@ -146,6 +148,10 @@ export function PhotoFood({ props }: { props: { date: string; mealId: string; fi
           </div>
         ) : (
           <>
+            <motion.div className="scan-stage" style={depth ? { transformPerspective: 900, transformOrigin: '50% 70%' } : undefined}
+              animate={depth ? (busy ? { rotateX: [0, 7, 0], scale: [1, 1.025, 1] } : { rotateX: 0, scale: 1 }) : undefined}
+              transition={depth ? (busy ? { duration: 3.7, times: [0, 0.5, 1], ease: [0.45, 0.05, 0.55, 0.95], delay: 0.45, repeat: Infinity, repeatDelay: 0.5 } : { duration: 0.5, ease: [0.22, 1, 0.36, 1] }) : undefined}>
+            {depth && <motion.i className="scan-contact" animate={busy ? { opacity: [0, 0.55, 0] } : { opacity: 0 }} transition={busy ? { duration: 3.7, times: [0, 0.5, 1], ease: [0.45, 0.05, 0.55, 0.95], delay: 0.45, repeat: Infinity, repeatDelay: 0.5 } : { duration: 0.5 }} />}
             <motion.div layout transition={SOFT} style={{ position: 'relative', borderRadius: 'var(--r-lg)', overflow: 'hidden', aspectRatio: img ? '4 / 3' : '4 / 3.2', background: 'var(--s1)', boxShadow: 'inset 0 1px 0 var(--hl), inset 0 0 0 1px var(--line)' }}>
               {img ? <motion.div key={img.url} initial={fromCam.current ? false : { opacity: 0, scale: 1.04 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5 }} style={{ position: 'absolute', inset: 0 }}>
                 <img src={img.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
@@ -156,6 +162,7 @@ export function PhotoFood({ props }: { props: { date: string; mealId: string; fi
                 </button>
               )}
               <AnimatePresence>{busy && img && <Scan key="scan" src={img.url} />}</AnimatePresence>
+            </motion.div>
             </motion.div>
             <div className="row-flex" style={{ gap: 8, marginTop: 12 }}>
               <button className="btn sm press grow" onClick={openCam}><Icon name="camera" size={16} /> {img ? t('Retake') : t('Camera')}</button>
