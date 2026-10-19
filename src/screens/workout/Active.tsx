@@ -845,7 +845,7 @@ export const ExerciseBlock = memo(function ExerciseBlock({ se, ex, linkedPrev, l
         </AnimatePresence>
         <div className="row-flex" style={{ gap: 8, marginTop: 10 }}>
           <button className="btn sm press grow wk-add-set" onClick={() => { haptic('light'); addSet(se.id); }}><Icon name="plus" size={16} /> {t('Set')}</button>
-          {(!ex || ex.logType === 'weightReps' || ex.logType === 'bodyweightReps' || ex.logType === 'assisted') && <button className="btn sm quiet press" onClick={() => addSet(se.id, 'warmup')}>{t('+ Warm-up')}</button>}
+          {(!ex || ex.logType === 'weightReps' || ex.logType === 'bodyweightReps' || ex.logType === 'assisted') && <button className="btn sm quiet press wk-add-warm" onClick={() => addSet(se.id, 'warmup')}><Icon name="plus" size={16} /> {t('Warm-up')}</button>}
         </div>
       </div>
       {/* laid over the card, not inside it: the card's frosted glass then never has to be redrawn while the glow plays */}

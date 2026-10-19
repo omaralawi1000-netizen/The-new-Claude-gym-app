@@ -2682,3 +2682,7 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
    white film over them, which made them about twice as bright and grey and hid the colour behind them (card-transparency
    check, 19 Oct). The Coach's controls keep their own frost. */
 :root:not([data-theme='light']) :is(.icon-btn:not(.flat, .acc), button.chip:not(.on), .icon-btn.acc-soft, .meal-add):not(.frost-ctl, [aria-label='Coach'] *):not(#_) { background-image: linear-gradient(180deg, rgba(255,255,255,.075), rgba(255,255,255,0) 60%) !important; }
+/* "+ Warm-up", the quieter twin of "+ Set": the same pill as an outline only, in dark (a clear fill over the card's glow
+   lifted it into a rosé-brown block next to the charcoal "+ Set", batch 1 judge); inside it is just the card */
+:root:not([data-theme='light']) :is(.wk-card, .ex-card, .plinth) .btn.wk-add-warm:not(#_):not(#_):not([data-pressed]) { background: transparent !important; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12) !important; }
+:root:not([data-theme='light']) .btn.wk-add-warm:not(#_)::after { content: none; }
