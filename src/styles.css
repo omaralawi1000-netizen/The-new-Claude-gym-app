@@ -868,10 +868,10 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    the main source of scroll stutter inside sheets. (Classes only inside :has(): with an attribute such as [role] in it,
    the browser re-checked it on every element added anywhere in the app and restyled every <i> each time, a word at a
    time while the Coach writes. Full-screen overlays that are not sheets carry .ovl.) */
-.app:has(.sheet, .voice, .ovl) .aurora i { animation-play-state: paused; }
+.app[data-calm] .aurora i { animation-play-state: paused; } /* (data-calm, App.tsx useCalm: the :has() here made every DOM change anywhere, a keystroke's measure included, restyle every <i> in the app, 19 Oct) */
 /* same for the looping pulse dots. (Targeted by class on purpose: a `.screen *` selector here made the browser
    restyle every element of the app each time a popup opened or closed — a long frame right as it starts moving.) */
-.app:has(.sheet, .voice, .ovl) .pulse-dot::before { animation-play-state: paused !important; }
+.app[data-calm] .pulse-dot::before { animation-play-state: paused !important; }
 
 /* iOS-style: while a popup is up the page's content (screen and dock) sinks back, under the dim, while its background stays
    put edge to edge. The transform is written by script (useStageDepth in App.tsx) from the popups' own progress, so it
@@ -1242,8 +1242,8 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .coach-body .action-card.fresh .ac-was { animation: acLine 520ms var(--ease-smooth) 130ms both; }
 .coach-body .action-card.fresh .ac-was-t::after { animation: acStrike 450ms var(--ease-io) 380ms both; }
 /* (in this order: old, crossed out, then new — the new wording waits for the strike) */
-.coach-body .action-card.fresh:has(.ac-was) .action-line { animation-delay: calc(760ms + var(--i, 1) * 55ms - 55ms) !important; } /* (over the inline delay each line carries) */
-.coach-body .action-card.fresh:has(.ac-was) .ac-actions:not(.ac-in-late):not(.ac-out) { animation-delay: 940ms; }
+.coach-body .action-card.fresh.has-was .action-line { animation-delay: calc(760ms + var(--i, 1) * 55ms - 55ms) !important; } /* (over the inline delay each line carries) */
+.coach-body .action-card.fresh.has-was .ac-actions:not(.ac-in-late):not(.ac-out) { animation-delay: 940ms; }
 /* a recipe's method: a quiet line that folds the steps open */
 .ac-method { margin-top: 8px; }
 .ac-method-btn { display: inline-flex; align-items: center; gap: 4px; padding: 4px 0; background: none; border: 0; color: var(--tx2); }
@@ -1539,6 +1539,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 @property --kb-now { syntax: '<length>'; inherits: false; initial-value: 0px; }
 @property --cf-gt { syntax: '<length>'; inherits: false; initial-value: 0px; } /* (the pill's frost outline: its top and its left edge) */
 @property --cf-gl { syntax: '<length>'; inherits: false; initial-value: 0px; }
+@property --grow-pad { syntax: '<length>'; inherits: false; initial-value: 0px; } /* (read only on the list itself: inherited, each write restyled ~900 elements under it, 19 Oct) */
 @property --grow { syntax: '<length>'; inherits: false; initial-value: 0px; } /* (the typing pill's extra lines: the end of the conversation rises with it) */
 @property --melt { syntax: '<length-percentage>'; inherits: false; initial-value: 100%; } /* (not handed down to every word: it changes as you scroll) */
 @supports (animation-timeline: scroll()) {
@@ -2719,7 +2720,7 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
   -webkit-mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
   background: linear-gradient(180deg, color-mix(in srgb, color-mix(in srgb, var(--ac) 60%, #fff) 90%, transparent), rgba(255,255,255,.14) 45%, rgba(255,255,255,.08)); }
 /* today's plan letter takes the day's colour */
-:root:not([data-theme='light']) .screen .plinth > button.press[style*='var(--ac-soft)'] > span[style*='var(--s3)'] { color: var(--ac-text) !important; }
+:root:not([data-theme='light']) .screen .plinth > button.press.wk-today > span[style*='var(--s3)'] { color: var(--ac-text) !important; } /* (a class, not [style*=] on the button: an attribute test left of a combinator made every inline-style write anywhere restyle all 448 styled elements under it, 6 ms a sheet frame, 19 Oct) */
 /* ---- AB mix (Omar 00:42: clear glass + lit rim, but not on the small buttons) ----
    Lit rim (B) stays on the big/primary ones: pills (.btn, Schedule/New routine), the secondary play, the selected week day,
    the sheet's Save. Small ones (round icons, chips, quick-adds) get A's clear glass with a faint neutral rim. */

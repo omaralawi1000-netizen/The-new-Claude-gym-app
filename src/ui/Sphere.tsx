@@ -400,6 +400,7 @@ export function SphereStage() {
         if (r.type === 'attributes' && r.attributeName === 'style' && voiceEls.has(r.target as Element) && noVoice(r.oldValue) === noVoice((r.target as Element).getAttribute('style'))) continue;
         const t = (r.target.nodeType === 1 ? r.target : r.target.parentElement) as Element | null;
         if (t && (inWorkout(t) || inTallList(t))) continue;
+        if (t?.closest?.('.cf-measure')) continue; // (the Coach's hidden copy of your words, rewritten on every key: it moves nothing)
         if (r.type !== 'attributes' || !(r.target as Element).matches?.(MOVING)) { dirty(); return; }
       }
     });

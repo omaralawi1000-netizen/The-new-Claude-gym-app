@@ -40,6 +40,29 @@ async function window_(label, fn, ms) {
 }
 await window_('open', async () => { await p.getByRole('button', { name: 'Coach', exact: true }).first().tap(); }, 1500);
 if (process.env.CSS) await p.addStyleTag({ content: process.env.CSS });
+if (process.env.STYLEW) { // which elements get their inline style written, how often, per transition (each write restyles
+  // every descendant that has a style attribute while the [style*=] rules are in the sheet)
+  await wait(p, 7000);
+  const watch = async (label, fn, ms) => {
+    await p.evaluate(() => { window.__sw = {}; window.__swo = new MutationObserver((rs) => { for (const r of rs) { const e = r.target; const k = e.tagName.toLowerCase() + '.' + String(e.className?.baseVal ?? e.className).trim().split(/\s+/).slice(0, 2).join('.') + ' (style-attr descendants ' + e.querySelectorAll('[style]').length + ')'; window.__sw[k] = (window.__sw[k] || 0) + 1; } }); window.__swo.observe(document.body, { attributes: true, attributeFilter: ['style'], subtree: true }); });
+    await fn(); await wait(p, ms);
+    const r = await p.evaluate(() => { window.__swo.disconnect(); return window.__sw; });
+    console.log('\n== ' + label); Object.entries(r).sort((a, b) => b[1] - a[1]).slice(0, 8).forEach(([k, v]) => console.log('  ', v, k));
+  };
+  await watch('kb rise', async () => { await p.getByLabel('Message the Coach').focus(); await p.evaluate(() => window.__setKb(300)); }, 1200);
+  await watch('typing', async () => { await p.keyboard.type('How is my week going?', { delay: 110 }); }, 300);
+  await watch('typed send + stream', async () => { await p.getByRole('dialog', { name: 'Coach' }).getByRole('button', { name: 'Send', exact: true }).tap(); }, 5000);
+  await watch('kb drop', async () => { await p.evaluate(() => { document.activeElement?.blur(); window.__setKb(0); }); }, 1200);
+  await watch('close', async () => { await p.keyboard.press('Escape'); }, 1500);
+  await b.close(); process.exit(0);
+}
+if (process.env.LIST) { // every compositor layer while the Coach rests open, by element (what each frame's commit carries)
+  await wait(p, 7000); const g = {}; let mem = 0;
+  for (const l of layers) { const nm = await name(l); const k = nm.replace(/\.(w|w-in)$/, '') ; g[k] = g[k] || { n: 0, px: 0, draws: 0 }; g[k].n++; g[k].px += l.width * l.height; if (l.drawsContent) g[k].draws++; mem += l.drawsContent ? l.width * l.height * 3.75 * 3.75 * 4 : 0; }
+  console.log('layers', layers.length, 'drawing', layers.filter((l) => l.drawsContent).length, '~MB if fully rastered', (mem / 1e6).toFixed(0));
+  Object.entries(g).sort((a, b) => b[1].n - a[1].n).slice(0, 30).forEach(([k, v]) => console.log(String(v.n).padStart(4), String(v.draws).padStart(4), String(Math.round(v.px / 1000) + 'k').padStart(8), k));
+  await b.close(); process.exit(0);
+}
 if (process.env.SPLIT) { // what repaints the list's mask: the list scrolling, or the list growing?
   await wait(p, 6000);
   await window_('scroll only (script)', async () => { await p.evaluate(async () => { const el = document.querySelector('.coach-body'); for (let i = 0; i < 30; i++) { el.scrollTop -= 15; await new Promise((r) => setTimeout(r, 50)); } }); }, 300);

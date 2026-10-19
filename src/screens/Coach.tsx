@@ -694,10 +694,10 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     // (never while your finger or a fling is moving the list: the list put back in place under a moving scroll stepped
     // it, a flicker every ~0.4 s while you scrolled up through a long chat, Omar 18 Oct; they wait until it rests)
     let later: ReturnType<typeof setTimeout> | undefined;
-    const more = () => { const el = bodyRef.current; if (user.current) { later = setTimeout(more, 250); return; } const row = el?.querySelector<HTMLElement>('.coach-thread')?.lastElementChild as HTMLElement | null; if (row) grewFrom.current = { el: row, top: row.getBoundingClientRect().top }; setOlder((n) => Math.max(0, n - 2)); };
+    const more = () => { const el = bodyRef.current; if (user.current || busyRef.current || flights.current.size || kb.isAnimating()) { later = setTimeout(more, 300); return; } /* (nor while it answers, a message flies or the keyboard moves: each batch is a layout and a repaint of the whole list) */ const row = el?.querySelector<HTMLElement>('.coach-thread')?.lastElementChild as HTMLElement | null; if (row) grewFrom.current = { el: row, top: row.getBoundingClientRect().top }; setOlder((n) => Math.max(0, n - 6)); }; // (six at a time: about 26 passes for a long chat after every open was 8 s of repaints)
     const idle = 'requestIdleCallback' in window ? window.requestIdleCallback : null;
     // the first ones wait until the sheet has risen; then two at a time, whenever the phone has a moment
-    const wait = setTimeout(() => { id = idle ? idle(more, { timeout: 400 }) : window.setTimeout(more, 16); }, begun.current ? 0 : 700);
+    const wait = setTimeout(() => { id = idle ? idle(more, { timeout: 1200 }) : window.setTimeout(more, 16); }, begun.current ? 0 : 700);
     begun.current = true;
     return () => { clearTimeout(wait); clearTimeout(later); if (idle) window.cancelIdleCallback(id); else clearTimeout(id); };
   }, [older, present]);
@@ -761,7 +761,9 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     fitKey.current = key;
     const cs = getComputedStyle(ta);
     m.style.width = `${ta.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)}px`;
-    m.textContent = `${val || ta.placeholder}\u200b`;
+    // (the text node's own data, not textContent: a new node at every key made the browser re-check the whole app's styles)
+    const txt = `${val || ta.placeholder}\u200b`;
+    if (m.firstChild?.nodeType === 3 && m.childNodes.length === 1) (m.firstChild as Text).data = txt; else m.textContent = txt;
     const all = Math.max(1, Math.round(m.offsetHeight / CF_LINE)), lines = Math.min(CF_LINES, all);
     bar.classList.toggle('cf-full', all > CF_LINES); // (only then can it scroll: a scroller of its own otherwise came and went with the keyboard)
     const mid = (lines - 1) * CF_LINE;

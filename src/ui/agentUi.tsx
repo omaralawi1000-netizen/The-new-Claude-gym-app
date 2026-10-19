@@ -349,7 +349,7 @@ export function ActionCard({ r, undone, confirmed, onUndo, onConfirm, replaced =
   const shownSub = useRef({ now: sub, before: '' as string | undefined });
   if (shownSub.current.now !== sub) shownSub.current = { now: sub, before: shownSub.current.now };
   const subRolled = !!shownSub.current.before;
-  const cls = ['plinth', 'action-card', fresh ? 'fresh' : '', waiting ? 'waiting' : '', confirmed ? 'sealed' : '', sealing ? 'sealing' : '', undone ? 'undone' : '', undoing ? 'undoing' : '', miss ? 'miss' : '', replaced && !confirmed ? 'replaced' : ''].filter(Boolean).join(' ');
+  const cls = ['plinth', 'action-card', fresh ? 'fresh' : '', r.was ? 'has-was' : '', waiting ? 'waiting' : '', confirmed ? 'sealed' : '', sealing ? 'sealing' : '', undone ? 'undone' : '', undoing ? 'undoing' : '', miss ? 'miss' : '', replaced && !confirmed ? 'replaced' : ''].filter(Boolean).join(' ');
   return (
     <div className={cls} style={{ padding: '12px 14px 12px 12px', ['--n' as string]: r.lines.length }}>
       {/* a preview waiting for its tap: one slow light passes over the glass, once (it never loops) */}

@@ -85,6 +85,8 @@ await p.evaluate((N) => {
 }, Number(process.env.N || 30));
 await p.reload(); await wait(p, 2500);
 if (process.env.CSS) await p.addStyleTag({ content: process.env.CSS }); // (A/B: try a change)
+// FIX=1: the candidate fix, live: the [style*=…] rules whose left part is an attribute match (styles.css ~2709/2722) taken out
+if (process.env.FIX) log('rules removed', await p.evaluate(() => { let n = 0; for (const s of document.styleSheets) { let rules; try { rules = s.cssRules; } catch { continue; } for (let i = rules.length - 1; i >= 0; i--) { const t = rules[i].selectorText || ''; if (/\[style\*=[^\]]*\][^,{]*\s*>\s*span\[style/.test(t) || /button\.press\[style\*=/.test(t)) { s.deleteRule(i); n++; } } } return n; }));
 const cdp = await ctx.newCDPSession(p);
 await cdp.send('DOM.enable');
 await cdp.send('Emulation.setCPUThrottlingRate', { rate: Number(process.env.RATE || 4) });
@@ -193,6 +195,8 @@ async function analyse(events, profile) {
   if (process.env.INV) { // why styles were recalculated: invalidations by reason and node (the first ones of the phase)
     const inv = {}; for (const e of events) if (/StyleRecalcInvalidationTracking|StyleInvalidatorInvalidationTracking|ScheduleStyleInvalidationTracking/.test(e.name)) { const d = e.args?.data || {}; const k = `${e.name.replace('InvalidationTracking', '')} ${d.reason || d.invalidationList?.[0]?.classes?.join('.') || d.changedClass || d.changedAttribute || d.changedId || d.changedPseudo || d.extraData || ''} ${String(d.nodeName || '').slice(0, 60)}`; inv[k] = (inv[k] || 0) + 1; }
     Object.entries(inv).sort((a, b) => b[1] - a[1]).slice(0, 25).forEach(([k, v]) => console.log('  inv', v, k));
+    const sched = {}; for (const e of events) if (e.name === 'ScheduleStyleInvalidationTracking') { const d = e.args?.data || {}; const k = JSON.stringify({ n: String(d.nodeName || '').slice(0, 50), a: d.changedAttribute, c: d.changedClass, id: d.changedId, p: d.changedPseudo, set: (d.invalidationSet || d.invalidationList || []).map?.((x) => JSON.stringify(x).slice(0, 160)) }); sched[k] = (sched[k] || 0) + 1; }
+    Object.entries(sched).sort((a, b) => b[1] - a[1]).slice(0, 12).forEach(([k, v]) => console.log('  sched', v, k.slice(0, 400)));
   }
   // the biggest style and layout passes: how many elements / objects each touched
   const bigStyle = events.filter((e) => onMain(e) && e.name === 'UpdateLayoutTree' && e.dur).sort((a, b) => b.dur - a.dur).slice(0, 5).map((e) => `${(e.dur / 1000).toFixed(1)}ms/${e.args?.elementCount ?? e.args?.data?.elementCount ?? '?'}el`);
@@ -222,6 +226,7 @@ const ta = () => p.getByLabel('Message the Coach');
 // ── the transitions ──
 await phase('idle-today', async () => {}, 1500);
 await phase('open', async () => { await p.getByRole('button', { name: 'Coach', exact: true }).first().tap(); }, 1800);
+if (process.env.CSS2) await p.addStyleTag({ content: process.env.CSS2 }); // (A/B applied once the Coach is open)
 await phase('idle-coach', async () => { await wait(p, 1200); }, 2500); // (older rows build on idle here)
 await phase('fling-up', async () => { for (let k = 0; k < 5; k++) { await swipe(320); await wait(p, 350); } }, 4000);
 await phase('fling-down', async () => { for (let k = 0; k < 6; k++) { await swipe(-360); await wait(p, 300); } }, 3500);
