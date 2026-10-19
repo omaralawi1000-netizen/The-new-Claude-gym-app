@@ -96,7 +96,7 @@ html:root[data-glow='off'] .aurora, html:root[data-glow='off'] .aurora-lite { di
 html:root[data-palette='golden'] { --c-kcal: #ff7a2f; --c-protein: #e8365e; --c-carbs: #a8b4ff; --c-fat: #ffd060; --c-water: #ffb547; }
 :root[data-palette='golden'] .bg-sun { --sun-mid: #ff7a2f; --sun-wide: #c8401a; --sun-h2: #8a2410; --sun-h1: #5a1a0e; }
 :root[data-palette='golden'] .bg-sun-sky { --h1: #5a1a0e; }
-:root[data-palette='golden'] .icon-btn.acc { background: linear-gradient(180deg, #ffc65a, #ff7a2f); box-shadow: inset 0 1px 0 rgba(255,255,255,.55), 0 14px 34px -10px rgb(255 74 26 / .7); }
+:root[data-palette='golden'] .icon-btn.acc { background: linear-gradient(180deg, #ffc65a, #ff7a2f); box-shadow: inset 0 1px 0 rgba(255,255,255,.55), 0 14px 34px -10px rgb(255 74 26 / .7), var(--lift-main); }
 /* Midnight: deep blue light with an ice-blue accent; quiet, cool, one family. Macros: coral, ice, pale gold. */
 :root[data-palette='midnight'] [data-hue='today'] { --ac: #9cc4ff; --h1: #1d3fa8; --h2: #4a7dff; --h3: #2a2f8f; }
 :root[data-palette='midnight'] [data-hue='train'] { --ac: #8ab4ff; --h1: #2348c4; --h2: #5b6cff; --h3: #1a6a9e; }
@@ -506,7 +506,7 @@ html:root[data-glow='off']:not([data-bg='photo']) .fields::before { content: '';
 .btn > svg { flex: none; } /* (a long label squeezed its icon to a 3 px sliver) */
 .btn.primary {
   background: linear-gradient(180deg, color-mix(in srgb, var(--ac) 78%, #fff) 0%, var(--ac) 100%); color: var(--ac-ink);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.55), inset 0 -1px 0 rgba(0,0,0,.14), 0 14px 34px -10px color-mix(in srgb, var(--ac) 75%, transparent), 0 0 0 1px color-mix(in srgb, var(--ac) 60%, transparent);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.55), inset 0 -1px 0 rgba(0,0,0,.14), 0 14px 34px -10px color-mix(in srgb, var(--ac) 75%, transparent), 0 0 0 1px color-mix(in srgb, var(--ac) 60%, transparent), var(--lift-main);
   -webkit-backdrop-filter: none; backdrop-filter: none;
 }
 .btn.ghost { background: transparent; box-shadow: none; color: var(--tx2); -webkit-backdrop-filter: none; backdrop-filter: none; }
@@ -527,7 +527,7 @@ html:root[data-glow='off']:not([data-bg='photo']) .fields::before { content: '';
 .icon-btn.flat { background: transparent; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; width: 40px; height: 40px; color: var(--tx2); }
 .icon-btn.sm { width: 34px; height: 34px; }
 .icon-btn.acc-soft { color: var(--ac-text); }
-.icon-btn.acc { background: linear-gradient(180deg, color-mix(in srgb, var(--ac) 78%, #fff), var(--ac)); color: var(--ac-ink); box-shadow: inset 0 1px 0 rgba(255,255,255,.55), 0 14px 34px -10px color-mix(in srgb, var(--ac) 75%, transparent); -webkit-backdrop-filter: none; backdrop-filter: none; }
+.icon-btn.acc { background: linear-gradient(180deg, color-mix(in srgb, var(--ac) 78%, #fff), var(--ac)); color: var(--ac-ink); box-shadow: inset 0 1px 0 rgba(255,255,255,.55), 0 14px 34px -10px color-mix(in srgb, var(--ac) 75%, transparent), var(--lift-main); -webkit-backdrop-filter: none; backdrop-filter: none; }
 .chip {
   display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 15px; border-radius: 999px; font-size: 13.5px; font-weight: 550; white-space: nowrap;
   background: var(--s2); color: var(--tx2); box-shadow: inset 0 1px 0 color-mix(in srgb, var(--hl) 50%, transparent), inset 0 0 0 1px var(--line);
@@ -2926,3 +2926,8 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 .wk-window .wk-add-set + .btn.ghost { background: color-mix(in srgb, var(--s3) 100%, var(--bg) 18%); box-shadow: inset 0 1px 0 var(--hl), inset 0 0 0 1px var(--line); }
 :root:not([data-theme='light']) .wk-add-set + .btn.ghost { background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.02) 60%), rgba(255,255,255,.045); box-shadow: 0 1px 2px rgba(0,0,0,.22); }
 :root:not([data-theme='light']) .wk-add-set + .btn.ghost::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; padding: 1px; -webkit-mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); background: linear-gradient(180deg, rgba(255,255,255,.2), rgba(255,255,255,.08) 30%, rgba(255,255,255,.035) 62%, rgba(255,255,255,.05)); }
+/* depth follows importance (Omar 19 Oct): the main buttons (play, the orange pills) sit a touch higher than the small ones
+   (chips, round icons, tags), with a soft neutral contact shadow under their colour glow. Cards keep their own level.
+   Static (never animated). */
+:root { --lift-main: 0 1.5px 2px rgba(0,0,0,.38), 0 10px 20px -8px rgba(0,0,0,.62); }
+:root[data-theme='light'] { --lift-main: 0 1px 2px rgba(60,30,30,.14), 0 6px 14px -8px rgba(60,30,30,.22); }
