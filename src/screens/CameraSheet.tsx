@@ -50,7 +50,7 @@ export function CameraSheet({ props }: { props: Props }) {
 
   const food = props.food;
   const meals = useStore((s) => s.settings.meals);
-  const look = useStore((s) => s.settings.scanLook) ?? 'C';
+  const look = 'C' as const; // the Depth look: the whole picture leans back with the wave (the A/B looks were a Beta test)
   const meal = food ? meals.find((m) => m.id === food.mealId) ?? meals[0] : undefined;
   const [phase, setPhase] = useState<Phase>('live');
   const [snap, setSnap] = useState<string | null>(null); // the shot, for the light wave's brighter copy

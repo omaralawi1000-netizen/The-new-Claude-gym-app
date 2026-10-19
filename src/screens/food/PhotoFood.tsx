@@ -26,7 +26,7 @@ export function PhotoFood({ props }: { props: { date: string; mealId: string; fi
   const meals = useStore((s) => s.settings.meals);
   const [img, setImg] = useState<{ url: string; blob: Blob } | null>(null);
   const [busy, setBusy] = useState(false);
-  const look = useStore((s) => s.settings.scanLook) ?? 'C';
+  const look = 'C' as const; // the Depth look: the whole picture leans back with the wave (the A/B looks were a Beta test)
   const depth = look === 'C';
   const [err, setErr] = useState<string | null>(null);
   const [items, setItems] = useState<Item[]>([]);
