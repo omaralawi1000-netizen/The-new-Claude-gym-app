@@ -18,8 +18,20 @@ export const useIsPage = () => !!useContext(OverlayMeta)?.page;
 interface Host { el: HTMLDivElement; y: MotionValue<number>; swipeV: { current: number }; engage: Engage; gone: Set<() => void>; /** run when it is caught on its way out */ back: Set<() => void>; small?: boolean; rise: MotionValue<number> }
 const hosts = new Map<string, Host>();
 /** where and when the last finger or click went down (a sheet closed by it guards that spot, see HostSheet's exit) */
-let lastDown: { x: number; y: number; t: number } | null = null;
-if (typeof window !== 'undefined') window.addEventListener('pointerdown', (e) => { lastDown = { x: e.clientX, y: e.clientY, t: performance.now() }; }, { capture: true, passive: true });
+let lastDown: { x: number; y: number; t: number; moved: boolean } | null = null;
+if (typeof window !== 'undefined') {
+  window.addEventListener('pointerdown', (e) => { lastDown = { x: e.clientX, y: e.clientY, t: performance.now(), moved: false }; }, { capture: true, passive: true });
+  window.addEventListener('pointermove', (e) => { const d = lastDown; if (d && !d.moved && Math.hypot(e.clientX - d.x, e.clientY - d.y) > 10) d.moved = true; }, { capture: true, passive: true });
+}
+/** This touch presses nothing, wherever it lifts (a finger lifts over whatever a leaving sheet has uncovered by then): its
+ * click is eaten. Let go of if the touch ends without one. */
+function eatTap(pointerId: number) {
+  const eat = (c: MouseEvent) => { c.preventDefault(); c.stopPropagation(); off(); };
+  const up = (e: PointerEvent) => { if (e.pointerId === pointerId) setTimeout(off, e.type === 'pointercancel' ? 0 : 60); };
+  const off = () => { clearTimeout(tm); window.removeEventListener('click', eat, true); window.removeEventListener('pointerup', up, true); window.removeEventListener('pointercancel', up, true); };
+  window.addEventListener('click', eat, true); window.addEventListener('pointerup', up, true); window.addEventListener('pointercancel', up, true);
+  const tm = setTimeout(off, 1500);
+}
 /** Overlays that sit together on one sheet: this one, the pages directly above it, and the sheet they open in. */
 function group(ov: { id: string; page?: boolean }[], i: number) {
   let lo = i; while (lo > 0 && ov[lo].page) lo--;
@@ -422,10 +434,11 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
     ref.current?.setAttribute('data-leaving', '');
     // closed by a tap (its ✕, the dim): the second tap of a double tap on that same spot must not press what the sheet has
     // just uncovered there (Log food's ✕ sits over Today's Settings button)
+    // (a touch that comes down there within 450 ms, Android's double-tap gap plus a finger's time down; a swipe isn't a tap)
     const dt = lastDown;
-    if (dt && performance.now() - dt.t < 600) {
-      const eat = (c: MouseEvent) => { if (Math.hypot(c.clientX - dt.x, c.clientY - dt.y) < 28) { c.preventDefault(); c.stopPropagation(); } };
-      window.addEventListener('click', eat, true); setTimeout(() => window.removeEventListener('click', eat, true), 320);
+    if (dt && !dt.moved && performance.now() - dt.t < 600) {
+      const down = (e: PointerEvent) => { if (Math.hypot(e.clientX - dt.x, e.clientY - dt.y) < 28) eatTap(e.pointerId); };
+      window.addEventListener('pointerdown', down, true); setTimeout(() => window.removeEventListener('pointerdown', down, true), 450);
     }
     opening.current?.stop(); opening.current = null;
     if (ref.current?.contains(document.activeElement)) dropKeyboard(EXIT_SPRING); // the keyboard goes down with it, not after it
@@ -451,7 +464,8 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
   useEffect(() => () => { if (mine.current) sheetGone(mine.current.id); }, []);
   // a leaving sheet swallows taps: they press nothing inside it and nothing behind it
   const swallow = (ev: React.MouseEvent) => { if (leaving.current) { ev.preventDefault(); ev.stopPropagation(); } };
-  const hush = (ev: React.PointerEvent) => { if (leaving.current) ev.preventDefault(); }; // and focus nothing (no keyboard)
+  // and a touch that starts on it presses nothing anywhere and focuses nothing (no keyboard)
+  const hush = (ev: React.PointerEvent) => { if (leaving.current) { ev.preventDefault(); eatTap(ev.pointerId); } };
   useEffect(() => {
     const onKey = (ev: KeyboardEvent) => { if (ev.key === 'Escape' && !behindRef.current) onClose(); };
     window.addEventListener('keydown', onKey);
