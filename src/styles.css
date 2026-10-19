@@ -2370,16 +2370,19 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
      the CSS for good when the picture can't be made) in .field-tint, under the canvas, in the field's own layer.
    - Classic's field sways: its .field-tint lies over the picture and moves exactly back by the sway (sway-back, on the
      same clock), so it holds still against the status bar. Its own layer; it takes the strip's place.
-   - A field with parts that move (Orb light, Sunrise) has it over them, under the grain.
+   - A field with parts that move (Orb light, Sunrise) has it over them and over the grain: the grain over it lifted the
+     top edge to 37 % brighter and greyer than the status bar, all the time (judge round 7).
    The colour is the field's own (FieldGlow, barColor), the one the status bar settles on. The strip itself is only for
    Background glow off (no field); otherwise it rests at 0.002 (not 0: at 0 the chip stops drawing its layer, so it would
-   leave the drawn layers as a fade ends; at 0.002 it is a fifth of a level at most). */
-.fields > .fields-top { transition: opacity 1.2s var(--ease-io); }
+   leave the drawn layers as a fade ends; at 0.002 it is a fifth of a level at most). Glow on/off hands over between the
+   two as a cut, in the same frame as the field's own tint: a 1.2 s fade of the strip left the top edge blue-black for
+   most of a second going off, and 2.5 levels dark going on (judge round 7). */
+.fields > .fields-top { transition: none; }
 :root:not([data-glow='off']) .fields:has(> div[data-k]) > .fields-top { opacity: 0.002; }
 .field-tint { position: absolute; left: 0; right: 0; top: 0; height: calc(var(--sat) + 130px); z-index: 1; pointer-events: none;
   visibility: hidden; background: linear-gradient(to bottom, var(--tint) calc(var(--sat) + 2px), transparent); }
 :root:not([data-glow='off']) .fields > [data-k]:not([data-tint][data-dith]) > .field-tint { visibility: visible; }
-.fields > .bgx:not([data-tint]) > .field-tint { z-index: 2147483000; } /* (over the moving parts; the grain, ::after, after it) */
+.fields > .bgx:not([data-tint]) > .field-tint { z-index: 2147483001; } /* (over the moving parts and the grain, ::after) */
 /* (Classic: as big as the field, 3 % past each edge of the screen, so the sway's own percentages fit it; the tint starts at
    the screen's top, 3/106 of the way down) */
 .fields > .aurora > .field-tint { inset: 0; height: auto; z-index: 2; will-change: transform;

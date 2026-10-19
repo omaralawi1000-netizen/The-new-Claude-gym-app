@@ -103,9 +103,11 @@ browser smooths them, so **lab shots lie: judge from Omar's own screenshots.**
     lifted 11-13 levels in Golden hour, judge rounds 5 and 6). A still field has it baked into its picture, and until the
     picture is in (or for good, if it can't be made) in `.field-tint` under the canvas; Classic's `.field-tint` lies over
     its picture and moves exactly back by its sway (`sway-back`), so it holds still; Orb light and Sunrise have it over
-    their moving parts. Every switch and every fade-in is then a plain cross-fade of two tinted images. The strip
-    (`.fields-top`) is only for Background glow off; otherwise it rests at opacity 0.002 (not 0, so it stays a drawn
-    layer). In a still field the canvas lies over the CSS, the grain and the tint (they stay under it while it waits, and
+    their moving parts and over the grain (the grain over it left the top edge lighter and greyer than the status bar).
+    Every switch and every fade-in is then a plain cross-fade of two tinted images. The strip (`.fields-top`) is only
+    for Background glow off; otherwise it rests at opacity 0.002 (not 0, so it stays a drawn layer). Glow on/off hands
+    over between strip and field tint as a cut, never a fade (a fade of one against the other's cut left the top
+    blue-black for most of a second). In a still field the canvas lies over the CSS, the grain and the tint (they stay under it while it waits, and
     go when it settles); in a field with moving parts it lies under the grain and those parts. It is there from the
     field's first frame, so no layer is added or dropped. Never show the field plain while it waits: it went dark, then
     lit.

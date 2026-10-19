@@ -1911,9 +1911,10 @@ the workout window: the phone draws CSS gradients and blur output in whole 8-bit
     that fade has finished. Every field carries the status bar's colour at its top itself, so every switch and every
     fade-in is a plain cross-fade: a still field in its picture (and in `.field-tint` under the canvas until the picture
     is in, or for good when it can't be made), Classic in a `.field-tint` that moves exactly back by its sway, Orb light
-    and Sunrise over their moving parts. (One strip over all fields, faded against a picture with the tint in it, lifted
+    and Sunrise over their moving parts and their grain. (One strip over all fields, faded against a picture with the tint in it, lifted
     the top-left edge 11-13 levels in Golden hour for half a second, judge rounds 5 and 6, on a fade-in and between
-    Classic and a painted still field; the strip is now only for glow off.) The grain stays, under the canvas, while a field waits. (Showing the plain
+    Classic and a painted still field; the strip is now only for glow off, and glow on/off swaps strip and field tint
+    in one frame: a 1.2 s fade of the strip left the top blue-black for most of a second, judge round 7.) The grain stays, under the canvas, while a field waits. (Showing the plain
     colour while waiting, tried first, made the field go dark and then light up; ending the fade on a timer hid the CSS
     early on a busy page.) After a palette,
     glow or motion change the picture before fades out (0.6 s) instead of going at once. The mid-switch frame shows the
