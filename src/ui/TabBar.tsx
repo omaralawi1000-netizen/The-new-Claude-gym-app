@@ -69,7 +69,7 @@ function LivePill() {
           <span className="trunc" style={{ display: 'block', fontWeight: 650, fontSize: 14 }}>{name || t('Workout')}</span>
           <span className="small t2 num" style={{ display: 'block' }}><PillStatus /></span>
         </span>
-        <span className="icon-btn acc" style={{ width: 40, height: 40, position: 'relative' }}><Icon name="play" size={18} /></span>
+        <span className="icon-btn acc" data-wk-in="pop" style={{ width: 40, height: 40, position: 'relative' }}><Icon name="play" size={18} /></span>
       </motion.span>
     </motion.button>
   );

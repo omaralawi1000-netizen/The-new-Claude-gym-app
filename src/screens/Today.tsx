@@ -208,7 +208,7 @@ export function TodayScreen() {
                 <MuscleTags routine={routine} style={{ marginTop: 14 }} />
               </div>
               <div className="stack" style={{ gap: 10, alignItems: 'center', justifyContent: 'space-between', flex: 'none' }}>
-                <button className="icon-btn acc press" style={{ width: 68, height: 68 }} aria-label={doneToday.length ? t('Start again') : t('Start workout')} onClick={() => start(routine)}><Icon name="play" size={26} /></button>
+                <button className="icon-btn acc press" data-wk-in="pop" style={{ width: 68, height: 68 }} aria-label={doneToday.length ? t('Start again') : t('Start workout')} onClick={() => start(routine)}><Icon name="play" size={26} /></button>
                 <button className="icon-btn flat sm press" style={{ marginBottom: -4 }} aria-label={t('Edit routine')} onClick={() => push('routine', { id: routine.id })}><Icon name="edit" size={17} /></button>
               </div>
             </div>
@@ -235,7 +235,7 @@ export function TodayScreen() {
             <div className="row-flex between" style={{ gap: 14 }}>
               <div className="display" style={{ fontSize: 46, fontStyle: 'italic' }}>{t('First session')}</div>
               <div className="stack" style={{ gap: 10, alignItems: 'center', flex: 'none' }}>
-                <button className="icon-btn acc press" style={{ width: 68, height: 68 }} aria-label={t('Empty session')} onClick={() => start()}><Icon name="plus" size={26} /></button>
+                <button className="icon-btn acc press" data-wk-in="pop" style={{ width: 68, height: 68 }} aria-label={t('Empty session')} onClick={() => start()}><Icon name="plus" size={26} /></button>
                 <button className="icon-btn flat sm press" aria-label={t('Build routine')} onClick={() => push('routine', {})}><Icon name="list" size={17} /></button>
               </div>
             </div>

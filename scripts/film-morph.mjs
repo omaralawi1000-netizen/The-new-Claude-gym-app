@@ -41,4 +41,25 @@ await p.getByRole('button', { name: 'Train', exact: true }).first().tap(); await
 await film('pill-resume', () => p.getByLabel('Resume workout').first().tap(), 150);
 await s.advance(200);
 await film('pill-min', () => p.getByRole('button', { name: 'Minimise workout' }).tap(), 150);
+// a finger pulling the window down from its header and letting go (SWIPE=1): on the resume bar's tab, then on Today
+const touch = await s.ctx.newCDPSession(p);
+const swipe = async () => {
+  const h = await p.getByRole('dialog', { name: 'Active workout' }).locator('.wk-meta').first().boundingBox();
+  const x = h.x + 60, y = h.y + 10, at = (dy) => [{ x, y: y + dy, id: 1 }];
+  const nextFrame = () => p.evaluate(() => new Promise((r) => requestAnimationFrame(() => r())));
+  // a real finger (touch events), one step a drawn frame (the film itself draws them): 16 px a frame at 120 Hz, then let go
+  await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: at(0) }); await nextFrame();
+  for (let i = 1; i <= 14; i++) { await touch.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: at(16 * i) }); await nextFrame(); }
+  console.log('drag at release:', await p.evaluate(() => getComputedStyle(document.querySelector('.wk-card')).transform));
+  await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+};
+if (process.env.SWIPE) {
+  await s.advance(200);
+  await p.getByLabel('Resume workout').first().tap(); await s.advance(240);
+  await film('pill-swipe', swipe, 170);
+  await s.advance(200);
+  await p.getByRole('button', { name: 'Today', exact: true }).first().tap(); await s.advance(240);
+  await p.getByLabel('Resume workout').first().tap(); await s.advance(240);
+  await film('swipe-min', swipe, 170);
+}
 await s.close();

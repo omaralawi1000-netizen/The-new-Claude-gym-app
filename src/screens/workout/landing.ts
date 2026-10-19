@@ -99,7 +99,7 @@ export type Hero = { look0: HTMLElement; look1: HTMLElement; anims: Animation[];
  * Two copies fly the same path: the clock it leaves (look0, its own font) and the clock it becomes (look1), crossing over
  * while still small. Each is drawn from its own resting size, so the one that lands is at scale 1.
  */
-export function flyHero(host: HTMLElement, from: HTMLElement, to: HTMLElement, a0: Anchor, a1: Anchor, fl: Flight, skip = 0): Hero {
+export function flyHero(host: HTMLElement, from: HTMLElement, to: HTMLElement, a0: Anchor, a1: Anchor, fl: Flight, skip = 0, cut = false): Hero {
   const look0 = copyClock(from, host, a0);
   const look1 = copyClock(to, host, a1);
   const n = fl.frames;
@@ -116,7 +116,8 @@ export function flyHero(host: HTMLElement, from: HTMLElement, to: HTMLElement, a
     // the crossing: near its small end (the window's clock), the two lined up by their ink over each other, so it reads
     // as the digits changing weight, not as two clocks; closing as it sets off; opening once it is about 1.2x the header's
     // and before the header's other words come in (the card's clock is wider: still on it then, it ran into the "sets")
-    const o1 = crossLate ? smooth((wc - 0.78) / 0.12) : smooth((wc - 0.02) / 0.18), o0 = 1 - o1;
+    // (`cut`: the clock it becomes takes over in the first frame it moves, so the two are never seen together)
+    const o1 = cut ? (i > 0 ? 1 : 0) : crossLate ? smooth((wc - 0.78) / 0.12) : smooth((wc - 0.02) / 0.18), o0 = 1 - o1;
     const s1 = f / a1.f, s0 = f / a0.f;
     k1.push({ transform: `translate(${(x - a1.x).toFixed(2)}px, ${(y - a1.y).toFixed(2)}px) scale(${s1.toFixed(5)})`, opacity: String(Math.max(0.002, o1)) });
     if (gone0 < 0) {

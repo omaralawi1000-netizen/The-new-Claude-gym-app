@@ -42,19 +42,24 @@ const FADE_IN = { inside: [0.025, 0.08], skin: [0.06, 0.16], words: [0.002, 0.03
 // card's look comes up on it at the end)
 // (`pop`, `popS`: the card's play button on a layer of its own, so it never shows half see-through: it comes up quickly over
 // `pop` while it is still a touch small, and grows the last bit into its place over `popS`; leaving, the reverse)
-type Fades = typeof FADE_OUT & { views?: number[]; mat?: number[]; pop?: number[]; popS?: number[] };
+type Fades = typeof FADE_OUT & { views?: number[]; mat?: number[]; pop?: number[]; popS?: number[]; /** the play button's size at the far end of popS (0.88) */ popTo?: number };
 const FADES: Record<Land, { out: Fades; in: Fades }> = {
   A: { out: { ...FADE_OUT, inside: [0.86, 0.99], skin: [0.42, 0.8], mat: FADE_OUT.skin }, in: { ...FADE_IN, inside: [0.68, 0.94], views: [0.86, 0.995], skin: [0.32, 0.66], mat: FADE_IN.skin } },
   B: { out: { inside: [0.5, 0.97], skin: [0.38, 0.76], mat: [0.089, 0.178], words: [0, 0.06], back: [0.006, 0.056], solid: [0.078, 0.089], pop: [0.07, 0.1], popS: [0, 0.1] }, in: { ...FADE_IN, words: [0.002, 0.07], pop: [0.002, 0.025], popS: [0.002, 0.05], inside: [0.62, 0.9], views: [0.8, 0.99], skin: [0.6, 0.88], mat: FADE_IN.skin } },
-  // D (design A): the page is in the window the whole way. Opening, the card's words and look go in the first few percent
-  // and the page is there under them at once (no plain slab in between); closing, the page stays until the window is
-  // under half its way home, the list a touch before the header, then the card's look comes back over it.
-  D: { out: { inside: [0.22, 0.44], views: [0.26, 0.48], skin: [0.16, 0.38], mat: [0.089, 0.178], words: [0.06, 0.2], back: [0.006, 0.056], solid: [0.078, 0.089], pop: [0.07, 0.1], popS: [0, 0.1] }, in: { ...FADE_IN, words: [0.002, 0.07], pop: [0.002, 0.025], popS: [0.002, 0.05], inside: [0.03, 0.18], views: [0.05, 0.24], skin: [0.04, 0.2], mat: FADE_IN.skin } },
+  // D (design A): the page is in the window the whole way. Opening, the card's words go in the first 7 % and the page
+  // comes in just after them (never both at once: no doubled words), with no plain slab in between; closing, the page
+  // stays until the window is within 10-20 % of home, then the card's look comes back over it and its words after that.
+  // The play button is never half see-through (brown over the dark): opening, it shrinks away whole into its middle and
+  // is cut once small; closing, it is cut in at the card and grows its last 12 %. (Opening's start is slow in progress:
+  // a fade there spanned five frames.)
+  D: { out: { inside: [0.1, 0.2], views: [0.12, 0.22], skin: [0.1, 0.2], mat: [0.089, 0.178], words: [0.035, 0.1], back: [0.006, 0.056], solid: [0.078, 0.089], pop: [0.085, 0.09], popS: [0, 0.1] }, in: { ...FADE_IN, words: [0.002, 0.07], pop: [0.03, 0.031], popS: [0.0004, 0.032], popTo: 0.15, inside: [0.075, 0.2], views: [0.09, 0.26], skin: [0.06, 0.2], mat: FADE_IN.skin } },
   C: { out: { ...FADE_OUT, inside: [0.88, 0.995], skin: [0.42, 0.8], mat: FADE_OUT.skin }, in: { ...FADE_IN, inside: [0.6, 0.9], views: [0.8, 0.99], skin: [0.32, 0.6], mat: FADE_IN.skin } },
 };
 // B: how much the card gives as it catches the window (per unit of the spring's overshoot past the card): it shrinks a
 // touch about its middle and dips, then springs back; the shape never changes, only its size and place
 const CATCH_K = 0.4, CATCH_D = 200;
+// the card the fades are set for: any place this tall or taller lands on them as they are (`fk`)
+const FK_REF = 150;
 // C: how far the list sinks as it packs away (and rises from as it comes in)
 const PACK = 40;
 const tintMemo = new Map<string, { tab: number[]; wk: number[] }>();
@@ -199,7 +204,12 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   //   back   the ground under the copy (the window's own, opaque): it hides what the window covers, and clears at the card
   //   words  the card's words on the copy
   const F = () => (leaving.current ? FADES[ls.current].out : FADES[ls.current].in);
-  const ramp = (pp: number, [a, b]: number[]) => clamp01((pp - a) / (b - a));
+  // The fades are set for Today's card. A smaller place to land (the resume bar, 56 px tall) is reached in the same
+  // progress but is a far smaller target: at 10 % from home the window is still twice its height. So there every fade
+  // runs on progress stretched by how much bigger the window is than its target, against the card (`fk`, 1 for the card),
+  // and each part changes when the window has the same share of its size left to lose as it does over the card.
+  const fk = useRef(1);
+  const ramp = (pp: number, [a, b]: number[]) => clamp01((pp * fk.current - a) / (b - a));
   const solid = (pp: number) => (from.current ? ramp(pp, F().solid) : 1);
   const inside = (pp: number) => (from.current ? ramp(pp, F().inside) : 1);
   const insideV = (pp: number) => (from.current ? ramp(pp, F().views ?? F().inside) : 1);
@@ -208,7 +218,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   const skinO = (pp: number) => Math.max(0.002, 1 - ramp(pp, F().skin));
   const wordsO = (pp: number) => Math.max(0.002, 1 - ramp(pp, F().words));
   const popO = (pp: number) => Math.max(0.002, 1 - ramp(pp, F().pop ?? F().words));
-  const popAt = (pp: number) => `scale(${((skinParts.current?.pop?.k ?? 1) * (1 - 0.12 * ramp(pp, F().popS ?? F().words))).toFixed(5)})`;
+  const popAt = (pp: number) => `scale(${((skinParts.current?.pop?.k ?? 1) * (1 - (1 - (F().popTo ?? 0.88)) * ramp(pp, F().popS ?? F().words))).toFixed(5)})`;
   const matR = () => F().mat ?? F().skin;
   const matO = (pp: number) => (F().mat ? Math.max(0.002, 1 - ramp(pp, F().mat!)) : 1);
   const toneO = (pp: number) => (F().mat ? Math.max(0.002, ramp(pp, F().mat!)) : 0.002);
@@ -346,7 +356,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     const home = leaving.current && (catching() ? caught.current : pp <= hold() + 1e-4);
     if (home && !wasHome.current) landedHome();
     wasHome.current = home;
-    const bgOn = home || (!exact.current && (leaving.current ? pp <= 0.2 : pp < 0.03));
+    const bgOn = home || (!exact.current && (leaving.current ? pp * fk.current <= 0.2 : pp * fk.current < 0.03));
     const key = `${home}|${bgOn}`; if (key === cardKey.current) return; cardKey.current = key;
     if (fg) fg.style.opacity = home ? '' : '0';
     if (exact.current) bg.classList.toggle('wk-hollow', !home); else bg.style.opacity = bgOn ? '' : '0';
@@ -465,7 +475,10 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   };
   const measure = (g: WkSource | null) => {
     const d = dialogRef.current, a0 = sheetRef.current;
-    const box = d?.getBoundingClientRect();
+    // where the window rests: a finger may still hold it pulled down (`dragT`), and everything here is measured from its
+    // place at rest (measured from where the finger left it, the landing aimed that far below the card and never met it)
+    const dy = dragT.get(), raw = d?.getBoundingClientRect();
+    const box = raw && new DOMRect(raw.x, raw.y - dy, raw.width, raw.height);
     releaseCard(); dropSkin(); dropHero();
     ls.current = landStyle(); caught.current = false;
     if (!d || !a0 || !box) { from.current = null; return; }
@@ -474,7 +487,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     const slot = a0.querySelector<HTMLElement>('[data-orb-slot]');
     if (slot) {
       const r = slot.getBoundingClientRect(), now = geo(p.get());
-      const top = (r.top - box.top - now.y) / now.s - LEAD;
+      const top = (r.top - dy - box.top - now.y) / now.s - LEAD;
       slotTop.current = top;
       slotRest.current = { left: (r.left - box.left - now.x) / now.s + box.left, top: top + box.top, width: r.width / now.s, height: r.height / now.s };
     }
@@ -483,6 +496,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     const ok = !!g && g.w > 40 && g.b - g.t > 30;
     from.current = ok ? { l: g.l - box.left, t: g.t - box.top, w: g.w, b: g.b - box.top, h: g.h } : null;
     const s0 = ok ? g.w / box.width : 1;
+    fk.current = ok ? Math.min(4, Math.max(1, ((box.height - g.h) / g.h) / ((box.height - FK_REF) / FK_REF))) : 1;
     radius.current = ok ? g.r / s0 : screenR();
     radiusB.current = '';
     if (!ok || !g) { freeDock(); return; }
@@ -520,7 +534,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
         // down, the card may not show the button yet: its middle is found when it does, `place`, and only the layer's
         // origin and place, not its moving parts, depend on it.)
         if (FADES[ls.current].out.pop && !lateNow.includes('pop')) {
-          const el = document.createElement('div');
+          const el = document.createElement('div'); el.className = 'wk-skin-pop';
           Object.assign(el.style, { position: 'absolute', left: w.style.left, top: w.style.top, width: w.style.width, height: w.style.height, transformOrigin: '0 0', transform: `scale(${(1 / s0).toFixed(5)})`, willChange: 'transform, opacity' });
           pop = { el, k: 1 / s0 };
           s.append(el);
@@ -597,7 +611,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
       morph ? go(solidRef.current, (pp) => ({ opacity: String(solid(pp)) }), F().solid) : null,
       morph && k ? go(skinRef.current, (pp) => ({ opacity: String(skinO(pp)) }), F().skin) : null,
       morph && k ? go(k.back, (pp) => ({ opacity: String(backO(pp)) }), F().back) : null,
-      morph && k ? go(k.mat, (pp) => ({ transform: matAt(Math.min(pp, matR()[1])), opacity: String(matO(pp)) }), [], true) : null,
+      morph && k ? go(k.mat, (pp) => ({ transform: matAt(Math.min(pp, matR()[1] / fk.current)), opacity: String(matO(pp)) }), [], true) : null,
       morph && k && F().mat ? go(k.tone, (pp) => ({ opacity: String(toneO(pp)) }), F().mat) : null,
       morph && k?.words ? go(k.words, (pp) => ({ opacity: String(wordsO(pp)) }), F().words) : null,
       morph && k?.pop ? go(k.pop.el, (pp) => ({ opacity: String(popO(pp)), transform: popAt(pp) }), [], true) : null,
@@ -613,7 +627,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     const id = run.current; frozen.current = true;
     void m.settled().then(() => { if (run.current === id) thaw(); });
   };
-  useEffect(() => { const off = dragY.on('change', (v) => { thaw(); orbM.current!.cancel(); if (v > 0) setMoving(true, screenR()); else if (!closing.current) setMoving(false); }); return () => { off(); thaw(); orbM.current!.cancel(); }; }, [dragY]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { const off = dragY.on('change', (v) => { thaw(); orbM.current!.cancel(); if (v > 0) setMoving(true, screenR()); else if (!closing.current && !leaving.current) setMoving(false); }); return () => { off(); thaw(); orbM.current!.cancel(); }; }, [dragY]); // eslint-disable-line react-hooks/exhaustive-deps
   // Closing starts the very moment you let go: the window's own animation is set going first (on the compositor), and only
   // after the next frame has been drawn is the app told the workout is closed — re-rendering the page behind, the tab bar
   // and the resume bar takes a phone a good while, and before, nothing moved until it was done (the pause after a tap).
@@ -664,7 +678,8 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
       : { frames, src: (i: number) => headerAt(ppAt(i)), dst: (i: number) => (B ? skinAt(ppAt(i)) : cardRest), w: (i: number) => (B ? Math.pow(Math.max(0, 1 - qAt(ppAt(i))), 1.5) : hw(i)) };
     const a0 = opening ? cardA : headNow, a1 = opening ? { x: restHead.x, y: restHead.y, f: restHead.f } : cardA;
     const fromEl = opening ? cardClock : headClock, toEl = opening ? headClock : cardClock;
-    const h = flyHero(host, fromEl, toEl, a0, a1, flight, Math.round(((performance.now() - t0) * 120) / 1000));
+    // (D closing: the clock changes weight in one frame as it sets off, not in a crossing of two clocks side by side)
+    const h = flyHero(host, fromEl, toEl, a0, a1, flight, Math.round(((performance.now() - t0) * 120) / 1000), !opening && ls.current === 'D');
     hero.current = h;
     // it shows what the clock it is flying to shows (that one starts ticking again as the window sets off)
     const watch = new MutationObserver(() => h.text(toEl.textContent ?? '')); watch.observe(toEl, { subtree: true, childList: true, characterData: true });
@@ -686,6 +701,8 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     const reach = g ? g.t + LEAD : H;
     const e0 = g ? Math.min(1, Math.max(0, p.get() - Math.max(0, d) / reach)) : eFinger.get();
     p.set(e0); dragY.set(0);
+    // (drawn back at rest now, not on Motion's next frame: the clock's flight below measures the window where it rests)
+    if (dialogRef.current) dialogRef.current.style.transform = 'none';
     thaw(); pv.set(e0); flush(); cardAt(e0);
     const vel = -v / reach;
     const lw = LANDS[ls.current].closeWin;

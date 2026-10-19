@@ -1954,20 +1954,22 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
   background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--ac) 22%, transparent) 36%, color-mix(in srgb, #fff 18%, var(--ac) 18%) 50%, color-mix(in srgb, var(--ac) 22%, transparent) 64%, transparent);
   transform: translateX(-110%); animation: settleSheen 1250ms 80ms cubic-bezier(0.45, 0, 0.25, 1) both; }
 @keyframes settleSheen { to { transform: translateX(200%); } }
-.wk-set.current { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ac) 55%, transparent); background: color-mix(in srgb, var(--ac) 5%, transparent); }
+.wk-set.current { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ac) 55%, transparent); }
 .wk-set.done { background: color-mix(in srgb, var(--ac) 13%, transparent); }
 .wk-set .input { transition: color 300ms, background-color 420ms var(--ease-out), box-shadow 420ms var(--ease-out); }
 .wk-set.todo .input { color: var(--tx2); }
 .wk-set.done .input { background: transparent; box-shadow: none; }
 .wk-set-n { height: 38px; border-radius: 10px; font-weight: 700; font-size: 14px; background: var(--s2); color: var(--tx2); box-shadow: inset 0 0 0 1px var(--line); transition: color 300ms, background-color 300ms, transform 520ms var(--ease-spring); }
-.wk-set.warm .wk-set-n { background: var(--ac-soft); color: var(--ac-text); }
-.wk-set.current .wk-set-n { color: var(--ac-text); }
+/* the row's outline is the one accent on the set you are on; the warm-up's W is a plain clear tile with an orange letter */
+.wk-set.warm .wk-set-n { background: color-mix(in srgb, var(--tx) 7%, transparent); color: var(--ac-text); }
+.wk-set.current .wk-set-n { color: var(--tx); }
+.wk-set.warm.current .wk-set-n { color: var(--ac-text); }
 .wk-set.done .wk-set-n { background: transparent; box-shadow: none; color: var(--tx); }
 .wk-prev { min-width: 0; text-align: left; line-height: 1.15; font-size: 13px; font-weight: 500; color: var(--tx2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wk-prev:disabled { color: var(--tx3); }
 .wk-check { position: relative; height: 44px; border-radius: 14px; display: grid; place-items: center; background: transparent; color: var(--ac-ink);
   box-shadow: inset 0 0 0 1.75px var(--line-2); transition: background-color 220ms var(--ease-out), box-shadow 220ms var(--ease-out), transform 520ms var(--ease-spring); }
-.wk-set.current .wk-check { box-shadow: inset 0 0 0 1.75px color-mix(in srgb, var(--ac) 70%, transparent); }
+.wk-set.current .wk-check { box-shadow: inset 0 0 0 1.75px color-mix(in srgb, var(--tx) 35%, transparent); }
 .wk-check.on { background: var(--ac); box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--ac) 75%, transparent), inset 0 1px 0 rgba(255,255,255,.45); }
 /* just ticked: the button gives a small spring and the check draws itself in */
 .wk-check.fresh { animation: chkPop var(--beat) var(--ease-spring) both; }
