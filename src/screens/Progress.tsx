@@ -88,7 +88,7 @@ export function ProgressScreen() {
       {empty ? <Empty icon="progress" title={t('Nothing to chart yet')} action={<button className="btn primary press" onClick={() => push('weight')}>{t('Log your weight')}</button>} /> : <>
 
       {/* consistency */}
-      <ChartCard ask={askTag('chart', 'sessions')} title={<>{t('Training consistency')}</>} sub={<><span className="num">{wk[wk.length - 1]?.sessions ?? 0}</span><span className="t3 small" style={{ fontFamily: 'var(--f-ui)', fontStretch: '100%', fontWeight: 600 }}> / {target} {t('this week')}</span></>}
+      <ChartCard ask={askTag('chart', 'sessions')} title={<>{t('Training consistency')}</>} sub={<><span className="num">{wk[wk.length - 1]?.sessions ?? 0}</span><span className="t3 small" style={{ fontFamily: 'var(--f-ui)', fontStretch: '100%', fontWeight: 500 }}> / {target} {t('this week')}</span></>}
         table={{ head: [t('Week of'), t('Sessions'), t('Sets'), `${t('Volume')} (${u.weight})`], rows: wk.map((b) => [fmtDate(b.start, lang, { day: 'numeric', month: 'short' }), b.sessions, b.sets, fmtNum(Math.round(kgToDisplay(b.volume, u.weight)), lang, 0)]) }}>
         <BarChart whole label={t('Sessions per week')} bars={wk.map((b, i) => ({ label: fmtDate(b.start, lang, { day: 'numeric', month: 'numeric' }), value: b.sessions, sub: `${t('Week of')} ${fmtDate(b.start, lang, { day: 'numeric', month: 'short' })}`, emphasis: i === wk.length - 1 }))} fmt={(v) => fmtNum(Math.round(v * 10) / 10, lang, 0)} target={target} targetLabel={`${t('target')} ${target}`} />
         {streak > 0 && <div className="small t2" style={{ marginTop: 8 }}>{t(streak === 1 ? '1-week streak of hitting your target' : '{n}-week streak of hitting your target', { n: streak })}</div>}
@@ -104,14 +104,14 @@ export function ProgressScreen() {
 
       {/* volume */}
       {s.sessions.length > 0 && (
-        <ChartCard ask={askTag('chart', 'volume')} title={<>{t('Weekly volume')}</>} sub={<>{fmtNum(Math.round(kgToDisplay(wk[wk.length - 1]?.volume ?? 0, u.weight)), lang, 0)}<span className="t3 small" style={{ fontFamily: 'var(--f-ui)', fontStretch: '100%', fontWeight: 600 }}> {u.weight}</span></>}
+        <ChartCard ask={askTag('chart', 'volume')} title={<>{t('Weekly volume')}</>} sub={<>{fmtNum(Math.round(kgToDisplay(wk[wk.length - 1]?.volume ?? 0, u.weight)), lang, 0)}<span className="t3 small" style={{ fontFamily: 'var(--f-ui)', fontStretch: '100%', fontWeight: 500 }}> {u.weight}</span></>}
           table={{ head: [t('Week of'), `${t('Volume')} (${u.weight})`], rows: wk.map((b) => [fmtDate(b.start, lang, { day: 'numeric', month: 'short' }), fmtNum(Math.round(kgToDisplay(b.volume, u.weight)), lang, 0)]) }}>
           <BarChart label={t('Weekly volume')} bars={wk.map((b, i) => ({ label: fmtDate(b.start, lang, { day: 'numeric', month: 'numeric' }), value: kgToDisplay(b.volume, u.weight), sub: `${t('Week of')} ${fmtDate(b.start, lang, { day: 'numeric', month: 'short' })}`, emphasis: i === wk.length - 1 }))} fmt={(v) => (v >= 1000 ? `${fmtNum(v / 1000, lang, 1)}k` : fmtNum(Math.round(v), lang, 0))} />
         </ChartCard>
       )}
 
       {/* bodyweight */}
-      <ChartCard ask={askTag('chart', 'bodyweight')} title={<>{t('Bodyweight')}</>} sub={lastWeight ? <><span className="num">{fmtNum(kgToDisplay(lastWeight.kg, u.weight), lang, 1)}</span><span className="t3 small" style={{ fontFamily: 'var(--f-ui)', fontStretch: '100%', fontWeight: 600 }}> {u.weight}</span></> : '—'}
+      <ChartCard ask={askTag('chart', 'bodyweight')} title={<>{t('Bodyweight')}</>} sub={lastWeight ? <><span className="num">{fmtNum(kgToDisplay(lastWeight.kg, u.weight), lang, 1)}</span><span className="t3 small" style={{ fontFamily: 'var(--f-ui)', fontStretch: '100%', fontWeight: 500 }}> {u.weight}</span></> : '—'}
         right={<button className="chip sm acc press" onClick={() => push('weight')}><Icon name="plus" size={14} /> {t('Log')}</button>}
         table={weights.length ? { head: [t('Date'), `${t('Weight')} (${u.weight})`, `${t('Trend')} (${u.weight})`], rows: weights.map((w) => [fmtDate(w.date, lang), fmtNum(kgToDisplay(w.kg, u.weight), lang, 1), fmtNum(kgToDisplay(allTrend.find((p) => p.date === w.date)?.kg ?? w.kg, u.weight), lang, 1)]) } : undefined}>
         {weights.length >= 2 ? (
@@ -130,7 +130,7 @@ export function ProgressScreen() {
       </ChartCard>
 
       {/* nutrition */}
-      <ChartCard ask={askTag('chart', 'calories')} title={<>{t('Calories')}</>} sub={avgKcal !== null ? <><Roll className="num" text={fmtNum(Math.round(avgKcal), lang, 0)} /><span className="t3 small" style={{ fontFamily: 'var(--f-ui)', fontStretch: '100%', fontWeight: 600 }}> kcal {t('avg per logged day')}</span></> : '—'}
+      <ChartCard ask={askTag('chart', 'calories')} title={<>{t('Calories')}</>} sub={avgKcal !== null ? <><Roll className="num" text={fmtNum(Math.round(avgKcal), lang, 0)} /><span className="t3 small" style={{ fontFamily: 'var(--f-ui)', fontStretch: '100%', fontWeight: 500 }}> kcal {t('avg per logged day')}</span></> : '—'}
         table={{ head: [t('Date'), 'kcal', `${t('Protein')} g`], rows: nut.map((d) => [fmtDate(d.date, lang, { day: 'numeric', month: 'short' }), d.logged ? Math.round(d.kcal) : '—', d.logged ? Math.round(d.protein) : '—']) }}>
         <BarChart label={t('Calories per day')} bars={nut.map((d) => ({ label: String(Number(d.date.slice(8))), value: d.kcal, sub: `${fmtDate(d.date, lang, { weekday: 'short', day: 'numeric', month: 'short' })}${d.logged ? '' : ` · ${t('nothing logged')}`}`, dim: !d.logged, emphasis: d.date === today }))} fmt={(v) => fmtNum(Math.round(v), lang, 0)} target={s.settings.goals.kcal} targetLabel={s.settings.goals.kcal ? `${t('target')}` : undefined} />
         <div className="row-flex between small t2 num" style={{ marginTop: 8 }}>

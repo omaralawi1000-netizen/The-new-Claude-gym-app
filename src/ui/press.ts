@@ -65,6 +65,9 @@ function down(e: PointerEvent) {
   if (held && held !== t) letGo();
   else if (held) { clearTimeout(upT); upT = 0; held = null; } // the same control again: it simply stays down
   if (!t || (t as HTMLButtonElement).disabled || t.getAttribute('aria-disabled') === 'true') return;
+  // a part of a pressable card that does its own thing (a meal's food rows swipe and open) doesn't push the card
+  const own = (e.target as Element).closest('[data-no-press]');
+  if (own && t.contains(own)) return;
   el = t; pid = e.pointerId; x0 = e.clientX; y0 = e.clientY;
   // a mouse or pen shows at once; a finger waits a moment in case it is the start of a scroll
   if (e.pointerType === 'touch' && !t.hasAttribute('data-pressed')) showT = window.setTimeout(() => { showT = 0; if (el) show(el); }, WAIT);

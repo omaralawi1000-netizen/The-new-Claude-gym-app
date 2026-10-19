@@ -18,12 +18,16 @@ const onDanish = (f: () => void) => { daListeners.add(f); return () => { daListe
 const danishReady = () => da !== null;
 useStore.subscribe((s, prev) => { if (s.settings.language === 'da' && prev.settings.language !== 'da') void loadDanish(); });
 
-/** English strings are the keys. Missing Danish entries fall back to English (checked by scripts/i18n-check.mjs). */
+/**
+ * English strings are the keys. Missing Danish entries fall back to English (checked by scripts/i18n-check.mjs).
+ * A key may end in "@context" where one English word needs two Danish ones ("Back@muscle" = Ryg, "Back" = Tilbage);
+ * English shows it without the suffix.
+ */
 export type TFn = (key: string, vars?: Record<string, string | number>) => string;
 
 export function makeT(lang: Lang): TFn {
   return (key, vars) => {
-    let s = (lang === 'da' ? da?.[key] : undefined) ?? key;
+    let s = (lang === 'da' ? da?.[key] : undefined) ?? key.replace(/@[a-z]+$/, '');
     if (vars) for (const k of Object.keys(vars)) s = s.split(`{${k}}`).join(String(vars[k]));
     // the OpenAI brain is called by the model actually in use (a newer one is picked up by itself, lib/openai.ts)
     if (s.includes('GPT-6.1 Sol')) { const m = solLabel(); if (m) s = s.split('GPT-6.1 Sol').join(m); }
