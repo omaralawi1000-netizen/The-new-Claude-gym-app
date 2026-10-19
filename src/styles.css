@@ -508,9 +508,9 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
 .btn.sm { min-height: 40px; padding: 0 16px; font-size: 14px; }
 .btn.block { width: 100%; }
 .btn[disabled] { pointer-events: none; color: var(--tx3); box-shadow: inset 0 0 0 1px var(--line); }
-/* the main action that isn't available yet: a faint wash of its colour with a quiet label — it reads as "this, once you've
-   filled it in", not as a muddy, see-through version of the real button */
-.btn.primary[disabled] { background: color-mix(in srgb, var(--ac) 14%, var(--s2)); color: color-mix(in srgb, var(--ac-text) 50%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ac) 24%, transparent); }
+/* the main action that isn't available yet is the plain grey pill with a faded label: colour only once it can be tapped
+   (its colour wash read as a flat brown-orange smear in dark and a peach one in light, look audit 19 Oct) */
+.btn.primary[disabled] { background: var(--s3); color: var(--tx3); box-shadow: inset 0 1px 0 var(--hl), inset 0 0 0 1px var(--line); }
 .btn.danger[disabled] { color: color-mix(in srgb, var(--bad) 45%, transparent); }
 .icon-btn {
   width: 46px; height: 46px; border-radius: 999px; display: inline-grid; place-items: center; color: var(--tx); position: relative;
@@ -2660,3 +2660,11 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
    through (ported as is from polish r2, bb0d8ba) */
 :root:not([data-theme='light']) { --sheet-tint: rgba(24, 21, 19, 0.64); --sheet-tint-short: rgba(21, 19, 17, 0.61); --sheet-solid: #181614; --sheet-glass: rgba(32, 29, 27, 0.46);
   --sheet-frost: brightness(2) blur(44px) saturate(1.7); --sheet-frost-short: brightness(2) blur(44px) saturate(1.75); }
+/* a main button that can't be pressed yet wears the plain pill of dark mode (the same glass, light from above and neutral
+   rim as "Type instead" or "Details") with a faded label; inside a card the clear pill on the card. The bottom button of
+   a sheet keeps its own see-through look (it floats over the list). No blur. */
+:root:not([data-theme='light']) .btn.primary[disabled]:not(.sheet-foot *):not(#_) { background: linear-gradient(180deg, rgba(255,255,255,.075), rgba(255,255,255,0) 60%), linear-gradient(rgba(255,255,255,.06), rgba(255,255,255,.06)) rgba(16,16,17,.95); box-shadow: 0 1px 1px rgba(0,0,0,.35), 0 8px 16px -10px rgba(0,0,0,.7); color: var(--tx3); }
+:root:not([data-theme='light']) :is(.plinth, .screen [data-wk='hero'] + div, .wk-card, .ex-card) .btn.primary[disabled]:not(.sheet-foot *):not(#_) { background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.02) 60%), rgba(255,255,255,.045); box-shadow: 0 1px 2px rgba(0,0,0,.22); }
+:root:not([data-theme='light']) .btn.primary[disabled]:not(.sheet-foot *)::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; padding: 1px;
+  -webkit-mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  background: linear-gradient(180deg, rgba(255,255,255,.2), rgba(255,255,255,.08) 30%, rgba(255,255,255,.035) 62%, rgba(255,255,255,.05)); }
