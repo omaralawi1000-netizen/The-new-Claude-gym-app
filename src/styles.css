@@ -2731,8 +2731,8 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 .day-dots button.on:not(#_), .day-pill.on { background: var(--sel-fill); color: var(--tx); box-shadow: var(--sel-edge); }
 /* (judge r1: in dark a picked setup day read the same as an unpicked one over the glow, and in light the unpicked ones went
    salmon or blue-grey: the unpicked ones step back instead) */
-:root:not([data-theme='light']) .day-pill:not(.on) { background: rgba(0, 0, 0, 0.28); color: var(--tx3); }
-:root[data-theme='light'] .day-pill:not(.on) { background: rgba(255, 255, 255, 0.5); color: var(--tx3); }
+:root:not([data-theme='light']) .day-pill:not(.on) { background: rgba(0, 0, 0, 0.28); }
+:root[data-theme='light'] .day-pill:not(.on) { background: rgba(255, 255, 255, 0.5); }
 :root[data-theme='light'] .day-dots button:not(.on):not(#_) { background: rgba(198, 195, 184, 0.35); }
 /* in a row where one chip is chosen, the others' labels are the softer grey (like a switch's other options), so the quiet
    pill still reads at a glance; no weight change, so nothing shifts when you pick */
