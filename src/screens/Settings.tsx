@@ -508,10 +508,7 @@ function FoodSettings() {
       <Field label={t('Water quick amounts (ml)')}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>{st.waterQuick.map((v, i) => <NumInput key={i} value={v} max={0} unit="ml" onChange={(n) => n && n > 0 && s.updateSettings({ waterQuick: st.waterQuick.map((x, j) => (j === i ? n : x)) })} />)}</div>
       </Field>
-      <div className="row-flex between" style={{ alignItems: 'flex-start', gap: 14 }}>
-        <div><div style={{ fontWeight: 600 }}>{t('Online food lookup')}</div></div>
-        <Toggle on={st.foodLookup} onChange={(v) => s.updateSettings({ foodLookup: v })} label={t('Online food lookup')} />
-      </div>
+      <ToggleRow label={t('Online food lookup')} on={st.foodLookup} onChange={(v) => s.updateSettings({ foodLookup: v })} />
     </div>
   );
 }
