@@ -7,7 +7,7 @@ import { useT, useLang } from '../lib/i18n';
 import { Sheet, SheetHead } from '../ui/Sheet';
 import { Collapse } from '../ui/kit';
 import { Icon } from '../ui/Icon';
-import { kb, onKeyboardGoal } from '../ui/keyboard';
+import { kb, keyboardGoal, onKeyboardGoal } from '../ui/keyboard';
 import { SphereSlot } from '../ui/Sphere';
 import { useVoice } from '../state/voice';
 import { mic } from '../lib/mic';
@@ -405,7 +405,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     // will cover goes blank the moment it starts up, so the fade waiting there is never seen; going down the list rides
     // down at its end, so only the empty room is under the bar)
     const melt = (px: number) => el.style.setProperty('--kb-now', `${Math.round(px * 10) / 10}px`);
-    melt(kb.get());
+    melt(keyboardGoal());
     const offGoal = onKeyboardGoal(melt);
     const offKb = kb.on('change', () => {
       if (user.current) return;
