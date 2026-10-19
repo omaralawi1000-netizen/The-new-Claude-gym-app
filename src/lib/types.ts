@@ -442,5 +442,7 @@ export interface AppData {
   catchUps?: CatchUp[];
   /** when the calorie target changed (lib/eating.ts `targetOn`), so a day is judged against the target it had */
   targets?: TargetChange[];
+  /** watch workouts deleted by hand (their Health Connect ids, the newest 500): never brought back by a sync */
+  hcGone?: string[];
   demo: boolean;
 }

@@ -1343,7 +1343,8 @@ function doDeleteActivity(a: Extract<AgentAction, { type: 'delete_activity' }>, 
   const date = resolveDay(a.day, ctx.today);
   const k = a.kind ? fold(a.kind) : '';
   const list = useStore.getState().activities.filter((x) => (!date || x.date === date) && (!k || fold(x.kind).includes(k) || fold(t(ACTIVITY_LABEL[x.kind])).includes(k)));
-  const act = list[list.length - 1];
+  // (the newest by day, whatever the list's order)
+  const act = [...list].sort((x, y) => x.date.localeCompare(y.date) || (x.startAt ?? x.at) - (y.startAt ?? y.at))[list.length - 1];
   if (!act) return { id: uid('r'), kind: 'miss', title: t('Couldn’t find that activity'), lines: a.kind ? [{ text: a.kind, warn: true }] : [] };
   useStore.getState().removeActivity(act.id);
   return { id: uid('r'), kind: 'activity', title: t('Activity removed'), lines: [{ text: t(ACTIVITY_LABEL[act.kind]), sub: `${act.date} · ${Math.round(act.durationSec / 60)} min` }], undo: () => useStore.getState().restoreActivity(act) };
@@ -1825,11 +1826,19 @@ function doLogSets(a: Extract<AgentAction, { type: 'log_sets' }>, ctx: AgentCtx,
   // which workout they go into. The running one (today, or "current"); else the finished workout they named ("last",
   // a date, or its name), else that day's workout, whichever it was (Omar's "I did calves too, put it in" had made a
   // second workout beside today's Legs & shoulders, 18 Oct); a new "Logged workout" only when the day has none
-  const done = st.sessions.filter((x) => x.status === 'done');
+  // newest first by day, then by when it ended (the list's own order is not trusted: a restored backup keeps any order)
+  const done = st.sessions.filter((x) => x.status === 'done').sort((p, q) => q.date.localeCompare(p.date) || (q.endedAt ?? q.startedAt ?? 0) - (p.endedAt ?? p.startedAt ?? 0));
   const wk = a.workout ?? null;
-  const named = wk && wk !== 'current' && wk !== 'last' && !/^\d{4}-\d{2}-\d{2}$/.test(wk)
-    ? [...done].reverse().find((x) => x.name && (fold(x.name) === fold(wk) || fold(x.name).includes(fold(wk)) || fold(wk).includes(fold(x.name)))) : undefined;
-  const chosen = wk === 'last' ? done[done.length - 1] : wk && /^\d{4}-\d{2}-\d{2}$/.test(wk) ? [...done].reverse().find((x) => x.date === wk) : named;
+  const isDate = !!wk && /^\d{4}-\d{2}-\d{2}$/.test(wk);
+  const isName = !!wk && wk !== 'current' && wk !== 'last' && !isDate;
+  // a name: the running workout when it is that one (it carries its routine's name), else an exact name, else the
+  // closest name that contains it or is contained in it (newest when equally close)
+  const nameHit = (x: string | undefined) => !!x && !!wk && (fold(x) === fold(wk) || fold(x).includes(fold(wk)) || fold(wk).includes(fold(x)));
+  const liveNamed = isName && !!st.active && nameHit(st.active.name);
+  const named = isName && !liveNamed
+    ? done.find((x) => x.name && fold(x.name) === fold(wk!)) ?? done.filter((x) => nameHit(x.name)).sort((p, q) => Math.abs(p.name.length - wk!.length) - Math.abs(q.name.length - wk!.length))[0] : undefined;
+  if (isName && !liveNamed && !named) return { id: uid('r'), kind: 'miss', title: t('No workout called “{name}”', { name: wk! }), lines: done.slice(0, 3).map((x) => ({ text: x.name || t('Workout'), sub: x.date === ctx.today ? t('Today') : x.date })) };
+  const chosen = wk === 'last' ? done[0] : isDate ? done.find((x) => x.date === wk) : named;
   if (chosen) date = chosen.date;
   // sets for another day, or with no workout running (told after the gym): a finished workout, never a live one
   const live = !!st.active && date === ctx.today && !chosen;
@@ -1877,25 +1886,45 @@ function doLogSets(a: Extract<AgentAction, { type: 'log_sets' }>, ctx: AgentCtx,
     const base: WorkoutSession = prev ?? { id: uid('w'), name: linked?.name ?? t('Logged workout'), date, startedAt: at, endedAt: at, pausedMs: 0, status: 'done', exercises: [], logged: true, ...(linked ? { routineId: linked.id, plannedDate: date } : {}) };
     const exs = base.exercises.map((e) => ({ ...e, sets: [...e.sets] }));
     // "put it after leg press": new exercises go in right after that one, in the order said
-    let pos = a.after ? (() => { const h = findBlock(a.after, base, lang); return h ? exs.findIndex((e) => e.id === h.block.id) + 1 : -1; })() : -1;
-    if (a.after && pos > 0) lines.push({ text: t('After {name}', { name: exLabel(findBlock(a.after, base, lang)!.ex, lang) }) });
+    const afterHit = a.after ? findBlock(a.after, base, lang) : undefined;
+    let pos = afterHit ? exs.findIndex((e) => e.id === afterHit.block.id) + 1 : -1;
+    // (what Undo takes back: exactly these, so anything changed by hand afterwards stays)
+    const madeBlocks = new Set<string>(); const madeSets = new Set<string>();
     for (const f of found) {
       const sets = f.sets.map((x, i) => ({ ...x, completedAt: date === ctx.today ? x.completedAt : at + i }));
+      sets.forEach((x) => madeSets.add(x.id));
       const into = exs.find((e) => e.exerciseId === f.ex.id);
-      if (into) into.sets.push(...sets);
-      else if (pos > 0) exs.splice(pos++, 0, { id: uid('se'), exerciseId: f.ex.id, sets });
-      else exs.push({ id: uid('se'), exerciseId: f.ex.id, sets });
+      if (into) { into.sets.push(...sets); continue; }
+      const block = { id: uid('se'), exerciseId: f.ex.id, sets };
+      madeBlocks.add(block.id);
+      if (pos > 0) exs.splice(pos++, 0, block); else exs.push(block);
     }
-    const next: WorkoutSession = { ...base, exercises: exs, endedAt: Math.max(base.endedAt ?? at, date === ctx.today ? Date.now() : at) };
+    if (a.after && madeBlocks.size) lines.push(afterHit ? { text: t('After {name}', { name: exLabel(afterHit.ex, lang) }) } : { text: t('No {name} in that workout: added at the end', { name: a.after }), warn: true });
+    // a workout of theirs keeps its own length; one the Coach made grows with what is logged into it
+    const ended = base.logged ? Math.max(base.endedAt ?? at, date === ctx.today ? Date.now() : at) : base.endedAt ?? at;
+    const next: WorkoutSession = { ...base, exercises: exs, endedAt: ended };
     const exMap = new Map(allExercises(st.exercises).map((e) => [e.id, e]));
-    next.records = detectRecords(next, st.sessions.filter((x) => x.id !== next.id && x.date <= date), (id) => exMap.get(id));
+    const recordsOf = (x: WorkoutSession) => detectRecords(x, useStore.getState().sessions.filter((y) => y.id !== x.id && y.date <= x.date), (id) => exMap.get(id));
+    next.records = recordsOf(next);
     const schedule = st.schedule;
     if (prev) st.mutateSession(prev.id, () => next); else st.restoreSession(next);
     // a rotation moves on to its next routine, as finishing it in the app does
     if (!prev && linked && planned?.source === 'rotation') st.setSchedule({ rotation: { ...schedule.rotation, pointer: (schedule.rotation.pointer + 1) % Math.max(1, schedule.rotation.order.length) } });
     return {
       id: uid('r'), kind: 'sets', title: prev && !prev.logged && prev.name ? `${title} · ${prev.name}` : title, lines,
-      undo: () => { const s2 = useStore.getState(); if (prev) s2.mutateSession(prev.id, () => prev); else s2.deleteSession(next.id); if (!prev && linked && planned?.source === 'rotation') s2.setSchedule({ rotation: schedule.rotation }); },
+      undo: () => {
+        const s2 = useStore.getState();
+        const cur = s2.sessions.find((x) => x.id === next.id);
+        if (!cur) return;
+        const exercises = cur.exercises.map((e) => ({ ...e, sets: e.sets.filter((q) => !madeSets.has(q.id)) })).filter((e) => !(madeBlocks.has(e.id) && !e.sets.length));
+        if (!prev && !exercises.some((e) => e.sets.length)) s2.deleteSession(next.id);
+        else {
+          const { records: _was, ...back } = { ...cur, exercises, endedAt: cur.endedAt === next.endedAt ? base.endedAt ?? cur.endedAt : cur.endedAt };
+          const records = recordsOf(back);
+          s2.mutateSession(next.id, () => (records.length || base.records ? { ...back, records } : back));
+        }
+        if (!prev && linked && planned?.source === 'rotation') s2.setSchedule({ rotation: schedule.rotation });
+      },
     };
   }
 
@@ -1903,7 +1932,8 @@ function doLogSets(a: Extract<AgentAction, { type: 'log_sets' }>, ctx: AgentCtx,
   const added: { seId: string; filled: string[]; appended: string[]; created: boolean }[] = [];
   const afterHit = a.after ? findBlock(a.after, useStore.getState().active!, lang) : undefined;
   let livePos = afterHit ? useStore.getState().active!.exercises.findIndex((e) => e.id === afterHit.block.id) + 1 : -1;
-  if (afterHit) lines.push({ text: t('After {name}', { name: exLabel(afterHit.ex, lang) }) });
+  const anyNew = found.some((f) => !useStore.getState().active!.exercises.some((e) => e.exerciseId === f.ex.id));
+  if (a.after && anyNew) lines.push(afterHit ? { text: t('After {name}', { name: exLabel(afterHit.ex, lang) }) } : { text: t('No {name} in that workout: added at the end', { name: a.after }), warn: true });
   for (const f of found) {
     const existing = [...useStore.getState().active!.exercises].reverse().find((e) => e.exerciseId === f.ex.id);
     const created = !existing;

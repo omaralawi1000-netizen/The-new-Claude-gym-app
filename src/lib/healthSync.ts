@@ -114,11 +114,14 @@ export function intensityOf(avgHr: number | undefined, highest: number): 1 | 2 |
  * is updated in place (your note stays); one you logged yourself the same day as the same kind, about as long, becomes
  * the watch's (your note and rounds stay); steps for a day are the watch's. Returns what changed.
  */
-export function mergeHc(p: HcPayload, cur: { activities: ActivityLog[]; steps: StepDay[]; health?: HealthDay[] }, dayStartHour: number): { activities: ActivityLog[]; steps: StepDay[]; health: HealthDay[]; added: number } {
+export function mergeHc(p: HcPayload, cur: { activities: ActivityLog[]; steps: StepDay[]; health?: HealthDay[]; gone?: string[] }, dayStartHour: number, now = Date.now()): { activities: ActivityLog[]; steps: StepDay[]; health: HealthDay[]; added: number; fresh: number } {
   const acts = [...cur.activities];
-  let added = 0;
+  const gone = new Set(cur.gone ?? []);
+  let added = 0, fresh = 0;
   const highest = Math.max(0, ...acts.map((a) => a.maxHr ?? 0), ...(p.ex ?? []).map((w) => w.hx ?? 0));
   for (const w of p.ex ?? []) {
+    // (one they deleted stays deleted: the walk back through the history would bring it back every time)
+    if (gone.has(w.id)) continue;
     const kind = KIND[w.t] ?? (w.t in KIND ? null : 'other');
     if (!kind) continue;
     const date = dayKey(w.s, dayStartHour);
@@ -134,21 +137,26 @@ export function mergeHc(p: HcPayload, cur: { activities: ActivityLog[]; steps: S
     if (mine >= 0) { acts[mine] = { ...acts[mine], ...watch, intensity: acts[mine].intensity ?? watch.intensity, note: acts[mine].note, rounds: acts[mine].rounds }; continue; }
     acts.push({ id: uid('ac'), at: w.e, ...watch } as ActivityLog);
     added++;
+    if (now - w.e < 2 * 86400000) fresh++;
   }
+  // (in date order: two years of history arrive oldest last, and "the last wrestling" and the Coach's recent list read it
+  // from the end)
+  if (added) acts.sort((a, b) => a.date.localeCompare(b.date) || (a.startAt ?? a.at) - (b.startAt ?? b.at));
   let steps = cur.steps;
   if (p.days?.length) {
     const by = new Map(cur.steps.map((d) => [d.date, d.count]));
     for (const [date, count] of p.days) by.set(date, count);
     steps = [...by].map(([date, count]) => ({ date, count })).sort((a, b) => a.date.localeCompare(b.date)).slice(-760);
   }
-  // the rest per day: the newest reading of a day replaces that day (a day read again is complete again)
+  // the rest per day: the newest reading of a day goes over the stored one, field by field (a read that failed or timed
+  // out on the phone sends a day without that field, and must not wipe it)
   let health = cur.health ?? [];
   if (p.hd?.length) {
     const by = new Map(health.map((d) => [d.date, d]));
-    for (const d of p.hd) by.set(d.date, d);
+    for (const d of p.hd) by.set(d.date, { ...by.get(d.date), ...d });
     health = [...by.values()].sort((a, b) => a.date.localeCompare(b.date)).slice(-760);
   }
-  return { activities: acts, steps, health, added };
+  return { activities: acts, steps, health, added, fresh };
 }
 
 /**
@@ -183,10 +191,10 @@ export function applyHcFromAddress(): void {
   }
   if (synced) {
     const st = useStore.getState();
-    const r = mergeHc(p, { activities: st.activities, steps: st.steps ?? [], health: st.health ?? [] }, st.settings.dayStartHour);
+    const r = mergeHc(p, { activities: st.activities, steps: st.steps ?? [], health: st.health ?? [], gone: st.hcGone }, st.settings.dayStartHour);
     if (JSON.stringify(r.activities) !== JSON.stringify(st.activities) || JSON.stringify(r.steps) !== JSON.stringify(st.steps ?? []) || JSON.stringify(r.health) !== JSON.stringify(st.health ?? [])) st.mergeHealth(r);
-    // a new workout from the watch is said once, quietly
-    if (r.added) useUI.getState().toast(r.added === 1 ? tNow('1 workout from your watch') : tNow('{n} workouts from your watch', { n: r.added }), { tone: 'ok' });
+    // a new workout from the watch is said once, quietly (not the old ones the walk through the history finds)
+    if (r.fresh) useUI.getState().toast(r.fresh === 1 ? tNow('1 workout from your watch') : tNow('{n} workouts from your watch', { n: r.fresh }), { tone: 'ok' });
   }
   window.dispatchEvent(new Event('aven-hc'));
 }

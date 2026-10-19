@@ -8,8 +8,10 @@ import type { HealthDay } from './types';
 import { diffDays } from './dates';
 
 const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const hm = (min: number) => `${Math.floor(min / 60)}h${String(Math.round(min % 60)).padStart(2, '0')}`;
+const hm = (min: number) => { const m = Math.round(min); return `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}`; }; // (6h60 was possible)
 const median = (xs: number[]) => { if (!xs.length) return undefined; const s = [...xs].sort((a, b) => a - b); const m = Math.floor(s.length / 2); return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+/** "Usual" needs a few days to mean anything (a watch connected yesterday has one reading). */
+const usual = (xs: number[]) => (xs.length >= 3 ? median(xs) : undefined);
 const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : undefined);
 
 /** Clearly off (thresholds Omar agreed to): under 5 h of sleep, resting HR 7+ over usual, HRV 25 %+ under usual. */
@@ -22,10 +24,10 @@ export function recoveryOff(health: HealthDay[], today: string): OffSignal[] {
   const base = health.filter((d) => diffDays(today, d.date) >= 1 && diffDays(today, d.date) <= 30);
   if (night?.sleepMin !== undefined && night.sleepMin < 300) out.push({ kind: 'sleep', text: `slept ${hm(night.sleepMin)} last night` });
   const rh = by.get(today)?.restHr ?? by.get(addDay(today, -1))?.restHr;
-  const rhUsual = median(base.map((d) => d.restHr).filter((x): x is number => x !== undefined));
+  const rhUsual = usual(base.map((d) => d.restHr).filter((x): x is number => x !== undefined));
   if (rh !== undefined && rhUsual !== undefined && rh - rhUsual >= 7) out.push({ kind: 'restHr', text: `resting heart rate ${rh}, ${Math.round(rh - rhUsual)} over usual (${Math.round(rhUsual)})` });
   const hv = by.get(today)?.hrv ?? by.get(addDay(today, -1))?.hrv;
-  const hvUsual = median(base.map((d) => d.hrv).filter((x): x is number => x !== undefined));
+  const hvUsual = usual(base.map((d) => d.hrv).filter((x): x is number => x !== undefined));
   if (hv !== undefined && hvUsual !== undefined && hv <= hvUsual * 0.75) out.push({ kind: 'hrv', text: `HRV ${hv} ms, ${Math.round((1 - hv / hvUsual) * 100)}% under usual (${Math.round(hvUsual)})` });
   return out;
 }

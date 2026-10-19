@@ -58,7 +58,7 @@ export function defaultData(lang: Lang = 'en'): AppData {
     settings: defaultSettings(lang),
     foods: [], favourites: [], savedMeals: [], recipes: [], entries: [], water: [],
     exercises: [], routines: [], schedule: defaultSchedule(), sessions: [], active: null,
-    weights: [], measurements: [], photos: [], activities: [], steps: [], health: [], catchUps: [], targets: [], notes: [], choices: {}, increments: {}, memory: [], reviews: [],
+    weights: [], measurements: [], photos: [], activities: [], steps: [], health: [], hcGone: [], catchUps: [], targets: [], notes: [], choices: {}, increments: {}, memory: [], reviews: [],
     demo: false,
   };
 }
@@ -78,6 +78,7 @@ export function normaliseData(raw: any, lang: Lang = 'en'): AppData {
     weights: arr('weights'), measurements: arr('measurements'), photos: arr('photos'), activities: arr('activities'), steps: arr('steps'), health: arr('health'), catchUps: arr('catchUps'), notes: arr('notes'),
     targets: (Array.isArray(raw.targets) ? raw.targets : []).filter((x: any) => x && typeof x.from === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(x.from)).slice(-60)
       .map((x: any) => ({ from: x.from, ...(typeof x.kcal === 'number' ? { kcal: x.kcal } : {}), ...(typeof x.prev === 'number' ? { prev: x.prev } : {}) })),
+    hcGone: (Array.isArray(raw.hcGone) ? raw.hcGone : []).filter((x: unknown) => typeof x === 'string').slice(-500),
     choices: raw.choices && typeof raw.choices === 'object' && !Array.isArray(raw.choices) ? raw.choices : {},
     increments: raw.increments && typeof raw.increments === 'object' && !Array.isArray(raw.increments) ? raw.increments : {},
     // a hand-edited or older backup: keep only notes that still make sense

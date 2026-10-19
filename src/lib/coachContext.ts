@@ -377,7 +377,7 @@ export function buildAgentContext(d: AppData, today: string, exName: (id: string
   const ws = [...d.weights].sort((x, y) => x.at - y.at).slice(-8);
   if (ws.length) opt(2, `Recent weigh-ins: ${ws.map((w) => `${w.date} ${r1(w.kg)}kg`).join(', ')}.`);
   for (const r of d.routines.filter((x) => !x.oneOff).slice(0, 12)) opt(3, `Routine "${r.name}": ${r.items.map((i) => `${exName(i.exerciseId)} ${i.workingSets}×${i.repMin}-${i.repMax}`).join(', ')}.`);
-  const recent = d.activities.slice(-5).reverse().map((a) => `${a.date} ${a.kind} ${Math.round(a.durationSec / 60)} min${a.rounds ? `, ${a.rounds} rounds` : ''}${a.intensity ? `, ${['easy', 'hard', 'max'][a.intensity - 1]}` : ''}`);
+  const recent = [...d.activities].sort((x, y) => y.date.localeCompare(x.date) || (y.startAt ?? y.at) - (x.startAt ?? x.at)).slice(0, 5).map((a) => `${a.date} ${a.kind} ${Math.round(a.durationSec / 60)} min${a.rounds ? `, ${a.rounds} rounds` : ''}${a.intensity ? `, ${['easy', 'hard', 'max'][a.intensity - 1]}` : ''}`);
   if (recent.length) opt(6, `Recent activities: ${recent.join('; ')}.`);
   // the watch (Health Connect): their cardio and steps, for leg-day and wrestling clashes and recovery. The calories it
   // counts are NOT to be eaten back: their food target stays as set
