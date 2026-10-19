@@ -7,7 +7,7 @@ export const exName = (e: Exercise, lang: Lang) => (lang === 'da' && e.nameDa ? 
 export const exSteps = (e: Exercise, lang: Lang) => (lang === 'da' && e.instructionsDa?.length ? e.instructionsDa : e.instructions);
 
 export const MUSCLE_LABEL: Record<MuscleGroup, string> = {
-  chest: 'Chest', back: 'Back', shoulders: 'Shoulders', biceps: 'Biceps', triceps: 'Triceps', forearms: 'Forearms', quads: 'Quads',
+  chest: 'Chest', back: 'Back@muscle', shoulders: 'Shoulders', biceps: 'Biceps', triceps: 'Triceps', forearms: 'Forearms', quads: 'Quads',
   hamstrings: 'Hamstrings', glutes: 'Glutes', calves: 'Calves', core: 'Core', cardio: 'Cardio',
 };
 export const EQUIP_LABEL: Record<Equipment, string> = {

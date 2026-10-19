@@ -129,6 +129,7 @@ export const da: Record<string, string> = {
  "Aven doesn’t prescribe targets. If you’re unsure, a dietitian or coach can help you choose.": "Aven foreskriver ikke mål. Er du i tvivl, kan en diætist eller træner hjælpe dig med at vælge.",
  "Aven has no account and no analytics. Your workouts, meals, weight and photos are stored in this browser’s local storage and IndexedDB.": "Aven har ingen konto og ingen analytics. Dine træninger, måltider, vægt og fotos gemmes i denne browsers lokale lager og IndexedDB.",
  "Back": "Tilbage",
+ "Back@muscle": "Ryg",
  "Backup downloaded": "Sikkerhedskopi hentet",
  "Backup restored": "Sikkerhedskopi gendannet",
  "Barbell": "Stang",

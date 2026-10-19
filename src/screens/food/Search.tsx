@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { openFoodPhoto } from '../../lib/photoOpen';
 import { AnimatePresence, motion } from 'motion/react';
 import { useStore, foodPool } from '../../state/store';
@@ -19,6 +19,7 @@ import { getKey } from '../../lib/keys';
 import { useAi } from '../../state/ai';
 import { sttMessage } from '../../ui/agentUi';
 import { voiceThread } from '../../ui/voiceThread';
+import { useEdgeFade } from '../../ui/edgeFade';
 
 type Filter = 'all' | 'recent' | 'fav' | 'mine';
 
@@ -176,9 +177,9 @@ export function FoodSearch({ props }: { props: { date: string; mealId: string } 
           <button className="dict-mic press" aria-label={dict === 'listen' ? t('Stop and transcribe') : t('Dictate')} aria-pressed={dict === 'listen'} disabled={dict === 'proc'} onClick={toggleDict}><span className="dict-ring" /><Icon name="mic" size={18} /></button>
           <div className="dict-thread" aria-hidden="true"><i className="dt-a" ref={aRef as any} /><i className="dt-c" ref={coreRef as any} /></div>
         </div>
-        <div className="tools">
+        <ToolRow>
           {actions.map((a) => <button key={a.label} className="tool press" onClick={a.run}><Icon name={a.icon} size={17} /><span>{a.label}</span></button>)}
-        </div>
+        </ToolRow>
       </div>
       <div className="sheet-body" style={{ paddingTop: 4 }}>
         <div className="chips" style={{ marginBottom: 8 }}>
@@ -236,6 +237,12 @@ export function FoodSearch({ props }: { props: { date: string; mealId: string } 
       </div>
     </Sheet>
   );
+}
+
+/** The Scan / Photo / Quick add row: fades on the side that has more, instead of being cut by the sheet edge. */
+function ToolRow({ children }: { children: ReactNode }) {
+  const ref = useEdgeFade<HTMLDivElement>();
+  return <div ref={ref} className="tools fade-x">{children}</div>;
 }
 
 function FoodResult({ food, open, add }: { food: Food; open: () => void; add: () => void }) {

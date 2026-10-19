@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { resumeWorkout } from '../ui/workoutOpen';
 import { motion } from 'motion/react';
-import { exerciseMap, allExercises, plannedFor, missedWorkouts } from '../state/store';
+import { allExercises, plannedFor, missedWorkouts } from '../state/store';
 import { useUI, haptic } from '../state/ui';
 import { useT, useLang } from '../lib/i18n';
 import { addDays, fmtDate, fmtDurationLong, fmtWeekdayShort, startOfWeek, weekdayOf } from '../lib/dates';
@@ -11,6 +11,7 @@ import { Empty, Seg } from '../ui/kit';
 import { elapsedMs, sessionVolume } from '../lib/workout';
 import { fmtNum, kgToDisplay } from '../lib/units';
 import { exName, MUSCLE_LABEL } from './workout/common';
+import { MuscleTags } from './MuscleTags';
 import { estMinutes } from './Today';
 import { ACTIVITY_LABEL, activityIcon, activityLine } from '../lib/activity';
 import { matchExercises } from '../lib/workoutText';
@@ -46,7 +47,6 @@ function PlanTab() {
   const push = useUI((u) => u.push);
   const toast = useUI((u) => u.toast);
   const today = useToday();
-  const exMap = exerciseMap(s.exercises);
   const weekStart = startOfWeek(today, s.settings.weekStart);
   // a day the Coach planned once keeps its routine (the plan and history use it), but the list shows only the real ones
   const listedRoutines = useMemo(() => s.routines.filter((r) => !r.oneOff), [s.routines]);
@@ -56,7 +56,7 @@ function PlanTab() {
     return { d, p: plannedFor(s, d, today), done: s.sessions.some((x) => x.date === d), wr: s.activities.some((x) => x.date === d && x.kind === 'wrestling'), pw: !!s.schedule.activities?.[weekdayOf(d)]?.includes('wrestling') };
   });
   const start = (r: Routine) => {
-    if (s.active) { resumeWorkout(() => push('workout', { origin: 'pill' })); return; }
+    if (s.active) { resumeWorkout(() => push('workout', { origin: 'pill' }), 'pill'); return; }
     haptic('confirm');
     resumeWorkout(() => {
       s.startWorkout({ routine: r, plannedDate: plannedFor(s, today, today)?.routineId === r.id ? today : undefined });
@@ -107,7 +107,6 @@ function PlanTab() {
         ) : (
           <div className="stack gap12">
             {listedRoutines.map((r) => {
-              const muscles = [...new Set(r.items.map((i) => exMap.get(i.exerciseId)?.muscles[0]).filter(Boolean))] as MuscleGroup[];
               const last = [...s.sessions].reverse().find((x) => x.routineId === r.id);
               return (
                 <div key={r.id} className="plinth" style={{ padding: 16, borderRadius: 'var(--r-lg)' }}>
@@ -119,7 +118,7 @@ function PlanTab() {
                     <button className="icon-btn flat press" aria-label={t('Duplicate')} onClick={() => dup(r)}><Icon name="copy" size={19} /></button>
                   </div>
                   <div className="row-flex between" style={{ marginTop: 14 }}>
-                    <div className="chips" style={{ margin: 0, padding: 0, gap: 6, flexWrap: 'nowrap', overflow: 'hidden', minWidth: 0, flex: 1 }}>{muscles.slice(0, 2).map((m) => <span key={m} className="chip sm" style={{ flex: 'none' }}>{t(MUSCLE_LABEL[m])}</span>)}{muscles.length > 2 && <span className="chip sm num" style={{ flex: 'none' }}>+{muscles.length - 2}</span>}</div>
+                    <MuscleTags routine={r} style={{ flex: 1 }} />
                     <div className="row-flex" style={{ gap: 8, flex: 'none' }}>
                       <button className="icon-btn press" aria-label={t('Schedule')} onClick={() => push('schedule', { routineId: r.id })}><Icon name="calendar" /></button>
                       <button className={`icon-btn ${r.id === hero ? 'acc' : 'acc-soft'} press`} style={{ width: 54, height: 54 }} aria-label={s.active ? t('Resume current') : t('Start')} onClick={() => start(r)}><Icon name="play" size={22} /></button>
