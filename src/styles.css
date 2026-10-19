@@ -2567,9 +2567,7 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
    palette colour. Small (round icons, quick-adds, in-card chips): plain clear glass, faint neutral rim. */
 /* B3 (re-check fixes): Lit rim, judge fixes S-1..S-5, SH-1/2, B-1, R-1 */
 /* no navy anywhere: screen tokens, round-button glass, lenses (one material, with the rim light on top), sheets */
-:root:not([data-theme='light']) { --glass: rgba(22, 22, 25, .46); --glass-2: rgba(30, 30, 34, .62); --lens-fill: linear-gradient(180deg, #3e3e42, #333336); --lens-line: rgba(255,255,255,.13);
-  --sheet-glass: rgba(22, 22, 24, .5); --sheet-solid: #151517; --sheet-tint: rgba(19, 19, 20, .84); --sheet-tint-short: rgba(17, 17, 18, .8); --sheet-frost: brightness(1.5) blur(44px) saturate(.9); --sheet-frost-short: brightness(1.5) blur(44px) saturate(.9); }
-:root:not([data-theme='light']) .screen { --s1: rgb(17 17 19 / .72); --s2: rgb(24 24 27 / .76); --s3: rgb(38 38 42 / .8); --bg-2: rgb(4 4 6 / .5); }
+:root:not([data-theme='light']) { --lens-fill: linear-gradient(180deg, #3e3e42, #333336); --lens-line: rgba(255,255,255,.13); }
 :root:not([data-theme='light']) .seg-lens { --lens-fill: linear-gradient(180deg, #3e3e42, #333336); }
 :root:not([data-theme='light']) .sheet .sheet-foot .btn.btn { background: color-mix(in srgb, color-mix(in srgb, var(--tx) 10%, #161618) 58%, transparent); }
 /* buttons: clear glass on a little neutral body (outside cards it hides the stars and the night's cool cast) */
@@ -2604,7 +2602,6 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
    the sheet's Save. Small ones (round icons, chips, quick-adds) get A's clear glass with a faint neutral rim. */
 :root:not([data-theme='light']) :is(.icon-btn:not(.flat, .acc, .acc-soft), button.chip:not(.on), .screen :is(.plinth, [data-wk='hero'] + div) button.chip:not(.on, .acc), .meal-add, .chip.acc):not(#_)::after { background: linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.06) 35%, rgba(255,255,255,.03) 70%, rgba(255,255,255,.04)); }
 /* tab-bar band: no navy lift from the frost */
-:root:not([data-theme='light']) .tabbar-wrap.edge-fade::before { -webkit-backdrop-filter: blur(var(--edge-blur, 16px)) saturate(.15); backdrop-filter: blur(var(--edge-blur, 16px)) saturate(.15); }
 /* pressed: material answers too */
 :is(:root:not([data-theme='light']) :is(.btn:not(.primary, .ghost), button.chip:not(.on, .acc), .icon-btn:not(.flat, .acc)), :root:not([data-theme='light']) :is(.chip.acc, .icon-btn.acc-soft, .meal-add), :root:not([data-theme='light']) .screen .plinth > button.press[style*='var(--ac-soft)'])::after { transition: opacity 200ms; }
 :is(:root:not([data-theme='light']) :is(.btn:not(.primary, .ghost), button.chip:not(.on, .acc), .icon-btn:not(.flat, .acc)), :root:not([data-theme='light']) :is(.chip.acc, .icon-btn.acc-soft, .meal-add))[data-pressed] { background-color: rgba(40,40,44,.96) !important; }
@@ -2650,3 +2647,10 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 /* a destructive pill keeps its red and takes the neutral rim, so it never reads as the main action */
 :root:not([data-theme='light']) .btn.danger:not(#_) { color: var(--bad); }
 :root:not([data-theme='light']) .btn.danger:not(#_)::after { background: linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.06) 35%, rgba(255,255,255,.03) 70%, rgba(255,255,255,.04)); }
+/* ==== Rims read clear, not gold (Omar 19 Oct "this looks off": on his OLED the palette-lit top edge read as a bronze
+   outline on + Set, Finish, Camera / From gallery and the insight banner). One neutral light from above on every pill,
+   the same light the switcher thumb carries; colour stays in icons, text and the filled main buttons only. ==== */
+:root:not([data-theme='light']) :is(.btn:not(.primary, .ghost), button.chip:not(.on, .acc), .icon-btn:not(.flat, .acc))::after, :root:not([data-theme='light']) :is(.chip.acc, .icon-btn.acc-soft, .meal-add)::after, :root:not([data-theme='light']) .screen .plinth > button.press[style*='var(--ac-soft)']::after, :root:not([data-theme='light']) .screen .pin::after { background: linear-gradient(180deg, rgba(255,255,255,.2), rgba(255,255,255,.08) 30%, rgba(255,255,255,.035) 62%, rgba(255,255,255,.05)); }
+:root:not([data-theme='light']) .sheet .sheet-foot .btn.btn.primary:not([disabled])::after { background: linear-gradient(180deg, rgba(255,255,255,.26), rgba(255,255,255,.1) 45%, rgba(255,255,255,.06)); }
+/* a pill inside a card is glass on the card (like v0.1.130's clear cards), not a dark block sitting on it */
+:root:not([data-theme='light']) :is(.plinth, .screen [data-wk='hero'] + div, .wk-card, .ex-card) .btn:not(.primary, .ghost, .danger):not(#_):not([data-pressed]) { background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.02) 60%), rgba(255,255,255,.045) !important; box-shadow: 0 1px 2px rgba(0,0,0,.22) !important; }
