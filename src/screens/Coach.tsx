@@ -110,7 +110,7 @@ const saveThread = (list: Msg[]) => writeThread(list as ThreadMsg[]);
  * keyboard; only the part the keyboard has covered so far is scrolled into.
  */
 function endTop(el: HTMLElement) {
-  const room = parseFloat(el.closest<HTMLElement>('.sheet')?.style.getPropertyValue('--kb-room') || '0') || 0;
+  const room = parseFloat(el.style.getPropertyValue('--kb-room') || '0') || 0; // (set on the list itself, ui/Sheet.tsx setKbRoom)
   return Math.max(0, el.scrollHeight - el.clientHeight - Math.max(0, room - kb.get()));
 }
 

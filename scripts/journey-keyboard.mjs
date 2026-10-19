@@ -21,11 +21,11 @@ const top = async () => p.evaluate(() => Math.round([...document.querySelectorAl
 const top0 = await top();
 await p.evaluate(() => window.__setKb(300)); await wait(p, 1000);
 assert(Math.abs(await bottom()) <= 1 && Math.abs((await top()) - top0) <= 1, 'a full-height sheet stays put under the keyboard');
-const room = await p.evaluate(() => [...document.querySelectorAll('.sheet')].pop().style.getPropertyValue('--kb-room'));
+const room = await p.evaluate(() => [...document.querySelectorAll('.sheet')].pop().querySelector('.sheet-body').style.getPropertyValue('--kb-room'));
 assert.equal(room, '300px', 'its list gets the covered part as room');
 await p.evaluate(() => window.__setKb(0)); await wait(p, 1000);
 assert(Math.abs(await bottom()) <= 1, 'sheet still on the bottom');
-assert.equal(await p.evaluate(() => [...document.querySelectorAll('.sheet')].pop().style.getPropertyValue('--kb-room')), '', 'the room goes with the keyboard');
+assert.equal(await p.evaluate(() => [...document.querySelectorAll('.sheet')].pop().querySelector('.sheet-body').style.getPropertyValue('--kb-room')), '', 'the room goes with the keyboard');
 console.log('keyboard ok', errors);
 assert.equal(errors.length, 0);
 await b.close();

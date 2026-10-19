@@ -1539,6 +1539,8 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 @property --kb-now { syntax: '<length>'; inherits: false; initial-value: 0px; }
 @property --cf-gt { syntax: '<length>'; inherits: false; initial-value: 0px; } /* (the pill's frost outline: its top and its left edge) */
 @property --cf-gl { syntax: '<length>'; inherits: false; initial-value: 0px; }
+@property --kb-room { syntax: '<length>'; inherits: false; initial-value: 0px; } /* (both set on the lists themselves, ui/Sheet.tsx: inherited, each change restyled ~1000 elements) */
+@property --foot-h { syntax: '*'; inherits: false; }
 @property --grow-pad { syntax: '<length>'; inherits: false; initial-value: 0px; } /* (read only on the list itself: inherited, each write restyled ~900 elements under it, 19 Oct) */
 @property --grow { syntax: '<length>'; inherits: false; initial-value: 0px; } /* (the typing pill's extra lines: the end of the conversation rises with it) */
 @property --melt { syntax: '<length-percentage>'; inherits: false; initial-value: 100%; } /* (not handed down to every word: it changes as you scroll) */
