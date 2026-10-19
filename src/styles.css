@@ -2688,3 +2688,10 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 /* a destructive pill keeps its red and takes the neutral rim, so it never reads as the main action */
 :root:not([data-theme='light']) .btn.danger:not(#_) { color: var(--bad); }
 :root:not([data-theme='light']) .btn.danger:not(#_)::after { background: linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.06) 35%, rgba(255,255,255,.03) 70%, rgba(255,255,255,.04)); }
+
+/* Aven Beta's stutter recorder (lib/stutter.ts noteMove): while recording, each move of the workout window is drawn one of
+   these ways in turn, each leaving out one suspect drawing cost, so the phone's own report says which one the lag is */
+:root[data-perf='nomask'] :is(.screen, .wk-list, .fade-top, .chips) { -webkit-mask-image: none !important; mask-image: none !important; }
+:root[data-perf='noround'] :is(.wk-sheet, .wk-bclip) { border-radius: 0 !important; }
+:root[data-perf='noblur'] * { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+:root[data-perf='nopage'] .stage { visibility: hidden !important; }

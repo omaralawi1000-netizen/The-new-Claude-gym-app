@@ -21,6 +21,7 @@ import { addSet, deleteSet, moveExercise, patchExercise, patchSet, removeExercis
 import { exName, fmtSet, MUSCLE_LABEL } from './common';
 import { SphereSlot, mirrorOrb, orbPress, orbTap } from '../../ui/Sphere';
 import { useSwipeDown } from '../../ui/swipe';
+import { noteMove } from '../../lib/stutter';
 import { Mirror, contentTransform, mirrorProgress, trackCover, warmStage, type Engage } from '../../ui/engage';
 import { readRGB, setBarTint } from '../../ui/statusBar';
 import { kb, keyboardGoal, onKeyboardGoal, rideFocus } from '../../ui/keyboard';
@@ -560,7 +561,10 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
         };
         place();
         // (its clock ticks while the window travels: the copy keeps up)
-        watch = new MutationObserver(place); watch.observe(fg, { subtree: true, childList: true, characterData: true });
+        // (only for what the copy shows: the card's own clock is hidden on it (it flies), so its tick re-copied, and redrew,
+        // the whole card every second of the move for nothing)
+        const shown = (m: MutationRecord) => !(m.target instanceof Element ? m.target : m.target.parentElement)?.closest('[data-wk-clock]');
+        watch = new MutationObserver((ms) => { if (g.bg.dataset.wk !== 'hero' || ms.some(shown)) place(); }); watch.observe(fg, { subtree: true, childList: true, characterData: true });
       }
       skinParts.current = { back, tone, mat, words, pop, watch };
       s.style.display = 'block';
@@ -695,6 +699,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     const d = dragT.get();
     leaving.current = true;
     measure(wkSourceRect(kind));
+    noteMove(`close ${from.current ? kind : 'slide'}${v ? ' swipe' : ''}`);
     // the finger's offset becomes progress, then it carries on at the finger's speed — the window's top stays where the
     // finger left it
     const g = from.current;
@@ -823,6 +828,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     // out of the card or bar that was tapped (none: it rises from the bottom edge)
     leaving.current = false;
     measure(wkSourceRect(takeWorkoutFrom()));
+    noteMove(`open ${src.current[0]?.dataset.wk ?? 'slide'}`);
     const p0 = p.get();
     thaw(); pv.set(p0); flush(); cardAt(p0);
     const lw = LANDS[ls.current].openWin;

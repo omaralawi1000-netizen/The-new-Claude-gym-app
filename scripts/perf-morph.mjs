@@ -4,7 +4,7 @@
 // thread's long tasks (> 50 ms), script / style / layout time, and in mid-move the layers the compositor draws (count,
 // how much screen they cover, as screens' worth of pixels: the overdraw).
 // Needs `npx vite build && npx vite preview --port 4173 --host 127.0.0.1`.
-//   AVEN_GPU=1 LAND=D node scripts/perf-morph.mjs     CPU=6 the slow-down; PROFILE=open also prints the busiest functions
+//   AVEN_GPU=1 LAND=D node scripts/perf-morph.mjs     CPU=6 the slow-down; PROFILE=open,minimise also prints the busiest functions
 import { launch, wait, skipOnboarding, loadDemo } from './lib.mjs';
 const { b, ctx, p } = await launch({ size: { width: 384, height: 832 }, dsf: 3.75 });
 const cdp = await ctx.newCDPSession(p);
@@ -19,7 +19,7 @@ async function measure(name, act, ms = 1600) {
     const loop = (t) => { window.__f.push(t - last); last = t; if (window.__on) requestAnimationFrame(loop); }; requestAnimationFrame(loop);
     window.__po?.disconnect(); window.__po = new PerformanceObserver((l) => l.getEntries().forEach((e) => window.__lt.push(Math.round(e.duration)))); window.__po.observe({ type: 'longtask' });
   });
-  const profiling = prof && name.startsWith(prof);
+  const profiling = prof && prof.split(',').includes(name);
   if (profiling) { await cdp.send('Profiler.enable'); await cdp.send('Profiler.setSamplingInterval', { interval: 200 }); await cdp.send('Profiler.start'); }
   const a = await m();
   await cdp.send('LayerTree.enable');
