@@ -2730,3 +2730,7 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 /* in a row where one chip is chosen, the others' labels are the softer grey (like a switch's other options), so the quiet
    pill still reads at a glance; no weight change, so nothing shifts when you pick */
 div:has(> .chip.on) > .chip:not(.on, .acc):not(#_):not(#_) { color: var(--tx2); }
+/* light mode: the plain pill (Sync now, Details, Speak instead, a main button that can't be tapped yet) was a blue-grey film
+   over the already blue-grey light sheet (B-R about +10). A faint warm-grey film evens it out to a neutral light grey
+   (measured B-R about 0 over the sheet). The bottom button of a sheet keeps its own white glass. */
+:root[data-theme='light'] :is(.btn:not(.primary, .ghost), .btn.primary[disabled]) { background-color: rgba(198, 195, 184, 0.35); }
