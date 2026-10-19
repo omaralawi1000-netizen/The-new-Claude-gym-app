@@ -129,7 +129,7 @@ async function ask(q: Question, contest: string | undefined, n: number): Promise
       const last = round === 2;
       const sys = system + (plain ? schemaHintForTest() : '') + (found ? `\n\nLOOKUP RESULTS (you asked for these in this turn; answer from them, do not ask for them again):\n${found}` : '') + (last && round > 0 ? '\n\nNo more look-ups this turn: answer now with what you have, and say if something is still unknown.' : '');
       let r;
-      try { r = await call(model, effort, [{ role: 'system', content: sys }, ...history, { role: 'user', content: q.q }], plain); }
+      try { r = await call(model, effort, [{ role: 'system', content: sys }, ...history, { role: 'user', content: q.dictated && 'mentionsHeavy' in turn ? `[dictated] ${q.q}` : q.q }], plain); }
       catch (e: any) { if (!plain && /400|schema|response_format|structured/i.test(String(e.message))) { plain = true; round--; rounds--; continue; } throw e; }
       cost += r.cost; for (const k of Object.keys(usage) as (keyof Usage)[]) usage[k] += r.usage[k];
       try { raw = JSON.parse(r.text.replace(/^```(?:json)?\s*|\s*```$/g, '').trim()); }

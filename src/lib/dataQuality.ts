@@ -104,9 +104,9 @@ export function oddWeighIns(d: Pick<AppData, 'weights' | 'health'>, today: strin
 export function dataTrustLines(d: Data, today: string, mealLabel: (id: string) => string = (x) => x): string[] {
   const L: string[] = [];
   const un = unfinishedDays(d, today);
-  if (un.length) L.push(`Probably unfinished days (a meal they nearly always log is missing and the day is clearly short), last 4 weeks: ${un.length} — ${un.slice(-8).map((x) => `${x.date} ${x.kcal} kcal, no ${x.missing.map(mealLabel).join('/')}`).join('; ')}. These are left out of averages and TRUE MAINTENANCE. Treat them as unknown, never as what they ate.`);
+  if (un.length) L.push(`Probably unfinished days (a meal they nearly always log is missing and the day is clearly short), last 4 weeks: ${un.length} — ${un.slice(-8).map((x) => `${x.date} ${x.kcal} kcal, no ${x.missing.map(mealLabel).join('/')}`).join('; ')}. These are left out of averages and TRUE MAINTENANCE: what they really ate those days is unknown.`);
   const odd = oddEntries(d, today);
-  if (odd.length) L.push(`Entries that may be a slip (ask about one only if it matters to the answer): ${odd.slice(0, 5).map((o) => `"${o.entry.snap.name}" on ${o.entry.date}: ${o.why} [ref ${o.entry.id}]`).join('; ')}.`);
+  if (odd.length) L.push(`Entries that may be a slip: ${odd.slice(0, 5).map((o) => `"${o.entry.snap.name}" on ${o.entry.date}: ${o.why} [ref ${o.entry.id}]`).join('; ')}.`);
   const ow = oddWeighIns(d, today);
   if (ow.length) L.push(`Weigh-ins far off their neighbours (maybe a typo): ${ow.map((w) => `${w.date} ${w.kg} kg (around ${w.around})`).join('; ')}.`);
   return L.length ? ['DATA TRUST:', ...L] : [];

@@ -268,7 +268,7 @@ export const AGENT_SCHEMA = {
       from: { type: 'STRING', nullable: true, description: 'first day YYYY-MM-DD' }, to: { type: 'STRING', nullable: true, description: 'last day YYYY-MM-DD' },
       meal: { type: 'STRING', nullable: true, description: 'food: only this meal' },
     }, required: ['kind'] } },
-    reply: { type: 'STRING', description: 'what to say to the user: short, natural, in their language. Never claim something was done unless you put it in actions.' },
+    reply: { type: 'STRING', description: 'what to say to them, in their language; as long as the message needs (a log: a few words or none). Never claim something was done unless you put it in actions.' },
     actions: { type: 'ARRAY', items: { type: 'OBJECT', properties: {
       type: { type: 'STRING', enum: ACTION_TYPES },
       foods: { type: 'ARRAY', nullable: true, items: AGENT_FOOD },
@@ -352,7 +352,7 @@ export async function aiAgent(system: string, contents: Turn[], brain: Brain, ph
     const plain = noSchema.has(model);
     const { res, done } = await post(`models/${encodeURIComponent(model)}:generateContent`, brain.key, {
       systemInstruction: { parts: [{ text: plain ? system + schemaHint() : system }] }, contents: withPhoto(contents, photo),
-      generationConfig: { temperature: 0.3, responseMimeType: 'application/json', ...(plain ? {} : { responseSchema: AGENT_SCHEMA }), maxOutputTokens: 3072, ...(think ? { thinkingConfig: { thinkingBudget: 512 } } : {}) },
+      generationConfig: { temperature: 0.3, responseMimeType: 'application/json', ...(plain ? {} : { responseSchema: AGENT_SCHEMA }), maxOutputTokens: 6144, ...(think ? { thinkingConfig: { thinkingBudget: 1024 } } : {}) },
     }, { timeout: 30000, signal: brain.signal });
     try { const data = await res.json(); try { return JSON.parse(textOf(data)); } catch { throw new AiError('invalid'); } } finally { done(); }
   };
@@ -396,7 +396,7 @@ export async function aiAgentStream(system: string, contents: Turn[], brain: Bra
     const plain = noSchema.has(model);
     const { res, done } = await post(`models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`, brain.key, {
       systemInstruction: { parts: [{ text: plain ? system + schemaHint() : system }] }, contents: withPhoto(contents, photo),
-      generationConfig: { temperature: 0.3, responseMimeType: 'application/json', ...(plain ? {} : { responseSchema: AGENT_SCHEMA_STREAM }), maxOutputTokens: 3072, ...(think ? { thinkingConfig: { thinkingBudget: 512 } } : {}) },
+      generationConfig: { temperature: 0.3, responseMimeType: 'application/json', ...(plain ? {} : { responseSchema: AGENT_SCHEMA_STREAM }), maxOutputTokens: 6144, ...(think ? { thinkingConfig: { thinkingBudget: 1024 } } : {}) },
     }, { timeout: 30000, signal: brain.signal });
     done();
     let shown = '';

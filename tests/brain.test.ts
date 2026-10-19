@@ -96,10 +96,10 @@ describe('the heavy-day verdict', () => {
 });
 
 describe('the rules every message carries', () => {
-  it('handbook, how to think, how to talk — and nothing assumed about one user', () => {
+  it('handbook, how to coach, how to talk — and nothing assumed about one user', () => {
     const sys = AGENT_SYSTEM('en');
     expect(sys).toContain("COACH'S HANDBOOK");
-    expect(sys).toContain('HOW TO THINK');
+    expect(sys).toContain('HOW YOU COACH');
     expect(sys).toContain('HOW TO TALK');
     expect(sys).not.toContain('they tend to overeat in the evening');
     expect(sys).not.toContain('they train hard whatever the day');

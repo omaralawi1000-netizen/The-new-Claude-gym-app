@@ -156,7 +156,7 @@ export const droppedCard = (t: AgentCtx['t']): AgentResult => ({ id: uid('r'), k
 /** Whatever came back from the model → a safe list of actions (anything odd is dropped, numbers are clamped). */
 export function validateAgent(raw: any): { reply: string; actions: AgentAction[]; /** actions it had to drop (unreadable): said, never silent */ dropped: number } | null {
   if (!raw || typeof raw !== 'object') return null;
-  const reply = str(raw.reply, 1800) ?? '';
+  const reply = str(raw.reply, 4000) ?? '';
   const out: AgentAction[] = [];
   let dropped = 0;
   for (const a of (Array.isArray(raw.actions) ? raw.actions : []).slice(0, 12)) {

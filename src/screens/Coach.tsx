@@ -775,7 +775,8 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     const where = props.mealId || props.date ? `The user opened this from the Food tab${props.date ? ` (day ${props.date})` : ''}${props.mealId ? `, meal ${props.mealId}` : ''}: foods go there unless they say otherwise.` : 'The user opened this from the main screen.';
     const history = turnsFor(userId); // the conversation so far (the orb screen's turns included)
     // the answer streams in as the model writes it, into the same message that then stays (nothing re-mounts or re-animates)
-    const d = await decide(photo ? `[photo] ${text}` : text, { lang, t, pool, history, where, signal, surface: 'coach', photo, said: threadSaid(msgsRef.current as ThreadMsg[]), onStatus: (x) => { if (alive.current) setMsgs((all) => all.map((m) => (m.id === placeholder && m.role === 'model' ? { ...m, status: x || undefined } : m))); }, onReply: (r) => { if (alive.current) setMsgs((x) => x.map((m) => (m.id === placeholder && m.role === 'model' ? { ...m, text: r } : m))); } });
+    const asked = msgsRef.current.find((m) => m.id === userId) as { text?: string; dictated?: boolean } | undefined;
+    const d = await decide(photo ? `[photo] ${text}` : text, { lang, t, pool, history, where, signal, surface: 'coach', photo, dictated: !!asked?.dictated, words: asked?.text, said: threadSaid(msgsRef.current as ThreadMsg[]), onStatus: (x) => { if (alive.current) setMsgs((all) => all.map((m) => (m.id === placeholder && m.role === 'model' ? { ...m, status: x || undefined } : m))); }, onReply: (r) => { if (alive.current) setMsgs((x) => x.map((m) => (m.id === placeholder && m.role === 'model' ? { ...m, text: r } : m))); } });
     let { reply } = d; const { note, actions } = d;
     if (d.wantsUndo) { undoLast(); if (!actions.length && !reply) reply = t('Undone.'); }
     const results = actions.length ? await runActions(actions, { t, lang, today, brain: brainFor({ big: false, surface: 'coach', signal }), date: props.date, mealId: props.mealId, photo: !!photo, onStatus: (x) => { if (alive.current) setMsgs((all) => all.map((m) => (m.id === placeholder && m.role === 'model' ? { ...m, status: x || undefined } : m))); } }) : [];
@@ -890,7 +891,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     setInput(''); setPhoto(null); setResumed(false);
     // about something that was held: the model gets what it is with the words; the bubble shows only its name
     const ab = about; setAbout(null);
-    say({ id, role: 'user', text, at: Date.now(), ...(wrap ? { lines: wrap.lines } : {}), ...(pic ? { photo: true, image: pic.url } : {}), ...(ab ? { about: ab.detail, aboutLabel: ab.label } : {}) });
+    say({ id, role: 'user', text, at: Date.now(), ...(spoken ? { dictated: true } : {}), ...(wrap ? { lines: wrap.lines } : {}), ...(pic ? { photo: true, image: pic.url } : {}), ...(ab ? { about: ab.detail, aboutLabel: ab.label } : {}) });
     await runTurn(id, ab ? `[about: ${ab.detail}] ${text}` : text, pic);
   };
 

@@ -82,8 +82,8 @@ describe('nothing starts a workout by itself', () => {
     expect(sys).toContain('put it after leg press');
     expect(sys).toContain('never a second workout');
     expect(sys).toContain('skip true');
-    expect(sys).toContain('ask ONE short question');
-    expect(sys).toContain('CLEARLY OFF TODAY');
+    expect(sys).toContain('ask instead of guessing');
+    expect(sys).toContain('How hard they train is their call');
   });
 });
 
@@ -106,7 +106,7 @@ describe('sleep and recovery from the watch', () => {
     expect(lines).toMatch(/Sleep, last 7 nights.*4h10 \(deep 0h40, REM 0h55\)/);
     expect(lines).toContain('usual 50');
     expect(lines).toContain('weight 82.4 kg');
-    expect(lines).toContain('CLEARLY OFF TODAY');
+    expect(lines).toContain('Clearly off today');
     expect(recoveryLines([], today)).toEqual([]);
   });
 });

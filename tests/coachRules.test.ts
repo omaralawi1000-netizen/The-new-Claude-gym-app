@@ -19,38 +19,36 @@ const data = (o: Partial<AppData> = {}): AppData => { const d = defaultData(); d
 describe('talking steers the Coach', () => {
   const sys = AGENT_SYSTEM('en');
   it('plans, goal changes, age and dissatisfaction are remembered and followed', () => {
-    expect(sys).toContain('TALKING STEERS YOU');
+    expect(sys).toMatch(/Plans ahead.*remember with until/);
     expect(sys).toContain('"Age: N (as of YYYY-MM-DD)"');
     expect(sys).toMatch(/NOT SATISFIED.*remember the preference/);
-    expect(sys).toMatch(/unhappy without saying why → ask ONE short question/);
     expect(sys).toMatch(/a change of goal now → also offer set_setting goal/);
   });
   it('heavy-day talk: off and quiet by words, a catch-up only when asked, help once, eating-disorder signals', () => {
     expect(sys).toMatch(/"No catch-ups ever".*set_setting heavyDays off/);
     expect(sys).toMatch(/A catch-up only when they ask for one/);
-    expect(sys).toMatch(/never in a reply that only logs something/);
     expect(sys).toMatch(/remember \(kind health; a remember, never only a note\) a line starting "Eating-disorder signal:"/);
-    expect(sys).toMatch(/illness or an injury mentioned in this conversation or today, or someone under 18/);
-    expect(sys).toMatch(/NUMBER FIRST/);
-    expect(sys).toMatch(/BEFORE the web/);
+    expect(sys).toMatch(/they mention illness or an injury now, or they are under 18/);
+    expect(sys).toMatch(/Without such signs, don't send them to one/);
   });
   it('the age in DATA: unknown and not asked, asked, a teen', () => {
-    expect(buildCoachContext(data(), today, String)).toMatch(/age unknown \(not asked yet\)/);
-    expect(buildCoachContext(data({ marks: { ageAsked: '2026-10-10' } }), today, String)).toMatch(/age unknown \(asked on 2026-10-10: don't ask again\)/);
-    expect(buildCoachContext(data({ memory: [{ id: 'a', text: 'Age: 16 (as of 2026-09-01)', kind: 'other', at: 0 }] }), today, String)).toMatch(/age 16 \(UNDER 18: teen rules\)/);
+    expect(buildCoachContext(data(), today, String)).toMatch(/age unknown\./);
+    expect(buildCoachContext(data({ marks: { ageAsked: '2026-10-10' } }), today, String)).toMatch(/age unknown \(asked on 2026-10-10, not answered\)/);
+    expect(buildCoachContext(data({ memory: [{ id: 'a', text: 'Age: 16 (as of 2026-09-01)', kind: 'other', at: 0 }] }), today, String)).toMatch(/age 16 \(under 18\)/);
   });
 });
 
 describe('frequent heavy days', () => {
-  it('3+ a week two weeks running: said once, then not again', () => {
+  it('3+ a week two weeks running: a fact (and when help was suggested), never an order to say something', () => {
     const entries: FoodEntry[] = [];
     for (let i = 1; i <= 14; i++) entries.push(food(addDays(today, -i), i % 2 ? 3300 : 2300));
     const L = eatingLines(data({ entries }), today).join('\n');
-    expect(L).toMatch(/FREQUENT heavy days: \d in the last 7 days and \d in the 7 before\. Say once/);
-    expect(eatingLines(data({ entries, marks: { helpSaid: '2026-10-12' } }), today).join('\n')).toMatch(/Help was mentioned on 2026-10-12: don't repeat it/);
+    expect(L).toMatch(/Frequent heavy days: \d in the last 7 days and \d in the 7 before\.$/m);
+    expect(L).not.toMatch(/doctor|dietitian/);
+    expect(eatingLines(data({ entries, marks: { helpSaid: '2026-10-12' } }), today).join('\n')).toMatch(/was suggested to them on 2026-10-12/);
     // notices off: nothing about heavy days at all
     const off = data({ entries }); off.settings.heavyDays = 'off';
-    expect(eatingLines(off, today).join('\n')).not.toMatch(/FREQUENT|Heavy days, last 4 weeks/);
+    expect(eatingLines(off, today).join('\n')).not.toMatch(/Frequent|Heavy days, last 4 weeks/);
   });
 });
 
@@ -80,5 +78,24 @@ describe('the handbook', () => {
     expect(both).toMatch(/CUTTING:/);
     expect(handbookTopic('weight class')).toMatch(/MAKING WEIGHT/);
     expect(handbookTopic('teen')).toMatch(/TEENS/);
+  });
+});
+
+describe('DATA is facts, never orders (Coach 2.1, 20 Oct: a "say once" line put a doctor into an unrelated answer)', () => {
+  const ORDER = /\b(say|mention|tell them|bring it up|ask (them|about)|offer it|don'?t repeat|never bring)\b/i;
+  it('the eating lines in every mode only state what is so', () => {
+    const entries: FoodEntry[] = [];
+    for (let i = 1; i <= 14; i++) entries.push(food(addDays(today, -i), i % 2 ? 3300 : 2300));
+    for (const mode of [undefined, 'quiet', 'off'] as const) {
+      const d = data({ entries, marks: mode ? {} : { helpSaid: '2026-10-12' } }); d.settings.heavyDays = mode;
+      for (const line of eatingLines(d, today)) expect(line, line).not.toMatch(ORDER);
+    }
+  });
+  it('a heavy day counts as talked about only when the reply talked about it', async () => {
+    const { mentionsHeavy } = await import('../src/lib/agentTurn');
+    expect(mentionsHeavy('Yesterday was +2,000 kcal: mostly water.', 2000)).toBe(true);
+    expect(mentionsHeavy('I går var 2.000 kcal over.', 2000)).toBe(true);
+    expect(mentionsHeavy('The catch-up is small.', 2000)).toBe(true);
+    expect(mentionsHeavy('Logged 2 eggs. Bench looks strong this week.', 2000)).toBe(false);
   });
 });

@@ -92,6 +92,17 @@ async function webSearch(query: string, brain: Brain, lang: string): Promise<{ t
   throw new AiError('failed');
 }
 
+/** What the orb screen adds to where they are: it is spoken to, often mid-workout, and may be read aloud (the Coach chat
+ *  keeps longer answers). */
+export const ORB_BRIEF = ' They are speaking to the orb screen, often mid-workout, and the answer may be read aloud: keep it short and clear, plain text, no lists or headings. If the question really needs more (a plan, a breakdown), give the short answer: a “Continue in Coach” button sits under it, so never tell them to open the Coach.';
+
+/** Whether a reply talked about a heavy day: its kcal over (2000, 2,000, 2.000, 2 000) or the words for it. */
+export function mentionsHeavy(reply: string, over: number): boolean {
+  const n = String(Math.round(over));
+  const forms = [n, n.replace(/\B(?=(\d{3})+$)/g, ','), n.replace(/\B(?=(\d{3})+$)/g, '.'), n.replace(/\B(?=(\d{3})+$)/g, ' '), n.replace(/\B(?=(\d{3})+$)/g, '\u00a0')];
+  return forms.some((f) => reply.includes(f)) || /catch-?up|indhent|heavy (day|evening)|big (day|evening)|tung(e)? (dag|aften)|stor(e)? (dag|aften)|ate a lot|spiste meget|spist meget|trim/i.test(reply);
+}
+
 /** Run `fn` with a signal that also ends after `ms` (0 = no limit) unless its first words arrive before (`seen`): that end
  *  is a timeout (Gemini then answers), never the user's Stop, which still stops everything. Once words flow, the stream's
  *  own rule applies (lib/openai.ts: 25 s without a word). */
@@ -140,15 +151,17 @@ export const lastRawAnswer = () => lastRaw;
  */
 export async function decide(text: string, o: { lang: Lang; t: (k: string, v?: Record<string, string | number>) => string; pool: Exercise[]; history: Turn[]; where: string; signal: AbortSignal; /** the orb thinks fast (medium), the Coach deeper (high) */ surface: 'orb' | 'coach'; /** the reply so far, while the model is still writing it (the orb screen streams it in) */ onReply?: (partial: string) => void; /** a photo sent with this message (the Coach's camera) */ photo?: Photo;
   /** a few words while it looks something up in the data ("Looking at your bench press history…"); '' when done */ onStatus?: (s: string) => void;
-  /** the whole saved conversation, for the `conversations` look-up (what they said before) */ said?: SaidLine[] }): Promise<Decision> {
+  /** the whole saved conversation, for the `conversations` look-up (what they said before) */ said?: SaidLine[];
+  /** spoken into the app's microphone (may be misheard); `words` = only what they said (without an [about: …] detail) */ dictated?: boolean; words?: string }): Promise<Decision> {
   const st = useStore.getState();
   const g = useAi.getState();
   const { t, lang } = o;
   // (what EATING PATTERNS tells this turn it has just noticed; whether it may bring up the invisible calories)
   const day0 = dayKey(Date.now(), st.settings.dayStartHour);
-  const noticed = justNoticed(st, day0).map((c) => c.id);
+  const noticedList = justNoticed(st, day0);
   const invisible = !st.marks?.invisibleSaid && !!trueMaintenance(st, day0)?.invisible;
-  // (help for eating counts as said only when this turn was told about frequent heavy days or a health signal)
+  // (help for eating is recorded as suggested when it came up while there were frequent heavy days or a health signal:
+  // DATA then says when, as a fact)
   const helpDue = !st.marks?.helpSaid && (frequentHeavy(st, day0) || edFromMemory(st.memory));
   let reply = '', note = '';
   let fromAi = false; // (a canned reply — no key, over the limit — never said what EATING PATTERNS holds)
@@ -159,7 +172,7 @@ export async function decide(text: string, o: { lang: Lang; t: (k: string, v?: R
   // think only as hard as the message needs, with the right model (see route): everyday messages to the quick model,
   // decisions, risky questions and photos to the main one (the Coach exam, 19 Oct: the quick one is nearly as good day to
   // day at ~1/16 of the price; the main one thinks the big calls through)
-  const way = brain0?.sol ? route(text, brain0.sol.effort, !!o.photo) : null;
+  const way = brain0?.sol ? route(o.words ?? text, brain0.sol.effort, !!o.photo) : null;
   const brain = brain0?.sol && way ? { ...brain0, sol: { ...brain0.sol, effort: way.effort, model: way.main ? undefined : quickFor() } } : brain0;
   const capped = solOn(g) && overLimit(g.solLimitKr);
   if (capped && brain) note = t('This month’s GPT-6.1 Sol limit is reached, so Gemini answered.');
@@ -167,7 +180,7 @@ export async function decide(text: string, o: { lang: Lang; t: (k: string, v?: R
   if (brain) {
     try {
       const { system, today, mealLabel } = agentSystem(st, { lang, pool: o.pool, where: o.where });
-      const conv: Turn[] = [...o.history, { role: 'user', parts: [{ text }] }];
+      const conv: Turn[] = [...o.history, { role: 'user', parts: [{ text: o.dictated ? `[dictated] ${text}` : text }] }];
       // streamed when someone is watching the words arrive; a request the API refuses to stream is asked again the plain way
       const gemini = (sys: string) => (o.onReply
         ? aiAgentStream(sys, conv, brain, o.onReply, o.photo).catch((e) => { if (e?.code === 'badrequest') return aiAgent(sys, conv, brain, o.photo); throw e; })
@@ -233,7 +246,9 @@ export async function decide(text: string, o: { lang: Lang; t: (k: string, v?: R
   // is told to leave it for the next real conversation)
   // (logging-only: every action logs something and the reply is just a short confirmation)
   const logging = actions.length > 0 && actions.every((a) => /^log_/.test(a.type)) && reply.trim().length <= 80;
-  if (fromAi && reply && noticed.length && !logging) markCoachTold(useStore.getState(), useStore.getState().setCatchUps, noticed);
+  // (a heavy day counts as talked about only when the reply really talked about it: its number, or the words for it)
+  const talked = noticedList.filter((c) => mentionsHeavy(reply, c.over)).map((c) => c.id);
+  if (fromAi && reply && talked.length && !logging) markCoachTold(useStore.getState(), useStore.getState().setCatchUps, talked);
   // (and what is said once: the invisible calories, help for eating, asking their age)
   if (fromAi && reply && !logging) {
     const said: Record<string, string> = {};

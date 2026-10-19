@@ -12,7 +12,7 @@
  */
 import type { AppData, CatchUp } from './types';
 import { addDays } from './dates';
-import { HANDBOOK_CORE, HOW_TO_TALK, handbookTopic } from './handbook';
+import { HANDBOOK_CORE, TASK_STYLE as HOW_TO_TALK, handbookTopic } from './handbook';
 import { dayKcal, eatingLines, heavyDays, heavyWeeks, maxTrim, targetOn } from './eating';
 import { trueMaintenance } from './maintenance';
 import { dataTrustLines } from './dataQuality';

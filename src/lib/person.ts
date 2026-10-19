@@ -28,7 +28,7 @@ export function personLines(d: Data, today: string, mealLabel: (id: string) => s
       if (dayKey(e.at, d.settings.dayStartHour) > e.date || isEvening(e.at, d.settings.dayStartHour)) evening += k;
     }
     const share = pct(evening, total);
-    L.push(`Eating rhythm: ${share}% of their logged calories are eaten after 20:00 or logged the morning after${share >= 35 ? ' (a lot: evenings are where their day is decided)' : share <= 15 ? ' (little: they eat mostly earlier in the day)' : ''}.`);
+    L.push(`Eating rhythm: ${share}% of their logged calories are eaten after 20:00 or logged the morning after.`);
     // heavier weekdays, against their own average
     const byDay = new Map<string, number>();
     for (const e of entries) byDay.set(e.date, (byDay.get(e.date) ?? 0) + (e.nutrients.kcal ?? 0));

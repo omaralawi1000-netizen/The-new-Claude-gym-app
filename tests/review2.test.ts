@@ -112,7 +112,7 @@ describe('maintenance and the quick model', () => {
     const weights = [0, 5, 10, 15].map((k, i) => ({ id: `w${i}`, date: addDays(today, -16 + k), kg: 82 - i * 0.1, at: 0 }));
     const d = { ...data(), entries, weights };
     expect(trueMaintenance(d, today)!.confidence).toBe('low');
-    expect(eatingLines(d, today, 'fatloss').join('\n')).toMatch(/Too unsure to suggest a new target/);
+    expect(eatingLines(d, today, 'fatloss').join('\n')).toMatch(/Too unsure yet to base a new target on/);
   });
   it('a quick model name fixed in Settings is tried again', () => {
     useAi.getState().patch({ noQuick: true });

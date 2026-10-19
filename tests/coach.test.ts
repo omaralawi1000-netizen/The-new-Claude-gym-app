@@ -189,6 +189,6 @@ describe('how\'s today', () => {
     expect(rest).toMatch(/Wrestling: planned today, not logged yet/);
   });
   it('tells the model how to answer it', () => {
-    expect(AGENT_SYSTEM('en')).toMatch(/how\'s today\?.*TODAY AT A GLANCE/);
+    expect(AGENT_SYSTEM('en')).toMatch(/How\'s today\?.*TODAY AT A GLANCE/);
   });
 });

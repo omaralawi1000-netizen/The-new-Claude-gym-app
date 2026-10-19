@@ -289,12 +289,12 @@ describe('8 · recovery.ts', () => {
     expect(off[1].text).toContain('8 over usual (50)');
     expect(off[2].text).toContain('30% under usual (60)');
     const L = recoveryLines(hs, today).join('\n');
-    expect(L).toContain('CLEARLY OFF TODAY: slept 4h30 last night; resting heart rate 58');
+    expect(L).toContain('Clearly off today against their own usual: slept 4h30 last night; resting heart rate 58');
   });
   it('today normal, one extreme day 10 days ago → nothing "off" today', () => {
     const hs = [...usual.map((d) => (d.date === addDays(today, -10) ? { ...d, sleepMin: 120, restHr: 95, hrv: 8 } : d)), day(0, { sleepMin: 440, restHr: 51, hrv: 59 })];
     expect(recoveryOff(hs, today)).toEqual([]);
-    expect(recoveryLines(hs, today).join('\n')).not.toContain('CLEARLY OFF');
+    expect(recoveryLines(hs, today).join('\n')).not.toContain('Clearly off');
   });
   it('missing fields: no crash, no NaN / undefined / Infinity in the text', () => {
     const hs: HealthDay[] = [

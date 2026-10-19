@@ -87,7 +87,7 @@ export function recoveryLines(health: HealthDay[] | undefined, today: string): s
     L.push(`Activity, last 7 days (a day): ${[a !== undefined && `${Math.round(a)} active kcal burned (information only, never eaten back)`, km !== undefined && `${(km / 1000).toFixed(1)} km`].filter(Boolean).join(', ')}.`);
   }
   const off = recoveryOff(hs, today);
-  if (off.length) L.push(`CLEARLY OFF TODAY: ${off.map((o) => o.text).join('; ')}. Mention this once, in one short line, when it is relevant to what they ask (training, energy, how today looks); never tell them to train lighter unless they ask.`);
+  if (off.length) L.push(`Clearly off today against their own usual: ${off.map((o) => o.text).join('; ')}.`);
   const first = hs[0]?.date;
   if (first) L.push(`(Watch history goes back to ${first}; older days by lookup health.)`);
   return L.length ? ['BODY & RECOVERY (from the watch):', ...L] : [];

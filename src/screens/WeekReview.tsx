@@ -91,7 +91,7 @@ export function WeekReviewSheet({ props }: { props: { end?: string } }) {
     const ac = new AbortController();
     const limit = setTimeout(() => ac.abort(), 90_000);
     (async () => {
-      const [{ REVIEW_SYSTEM, REVIEW_SCHEMA, readReview }, { brainFor }, { buildCoachContext, memoryBlock }, { learnedBlock }, { thinkJson }, { HANDBOOK_CORE, HOW_TO_TALK }] = await Promise.all([import('../lib/gemini'), import('../lib/agentTurn'), import('../lib/coachContext'), import('../lib/ledger'), import('../lib/brain'), import('../lib/handbook')]);
+      const [{ REVIEW_SYSTEM, REVIEW_SCHEMA, readReview }, { brainFor }, { buildCoachContext, memoryBlock }, { learnedBlock }, { thinkJson }, { HANDBOOK_CORE, TASK_STYLE: HOW_TO_TALK }] = await Promise.all([import('../lib/gemini'), import('../lib/agentTurn'), import('../lib/coachContext'), import('../lib/ledger'), import('../lib/brain'), import('../lib/handbook')]);
       const muscles = n.muscles.map((x) => `${x.m} ${x.sets} (usually ${x.avg})`).join(', ');
       const week = [
         `WEEK ${n.from}…${n.to}: ${n.sessions} workouts (week before ${n.prevSessions}), ${n.planned} planned, ${n.missed} planned missed, ${n.wrestling} wrestling, ${n.sets} working sets, ${n.records} records, streak ${n.streak} weeks with 2+ workouts.`,

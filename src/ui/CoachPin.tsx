@@ -39,7 +39,7 @@ function useInsights(d: AppData, today: string): Insight[] {
       asking = true;
       try {
         // the Coach's code is loaded with the Coach (a file of its own), not when the app opens
-        const [{ INSIGHT_SYSTEM, INSIGHT_SCHEMA, readInsights }, { brainFor }, { buildCoachContext, memoryBlock }, { thinkJson }, { HANDBOOK_CORE, HOW_TO_TALK }, { personLines }, { dataTrustLines }] = await Promise.all([import('../lib/gemini'), import('../lib/agentTurn'), import('../lib/coachContext'), import('../lib/brain'), import('../lib/handbook'), import('../lib/person'), import('../lib/dataQuality')]);
+        const [{ INSIGHT_SYSTEM, INSIGHT_SCHEMA, readInsights }, { brainFor }, { buildCoachContext, memoryBlock }, { thinkJson }, { HANDBOOK_CORE, TASK_STYLE: HOW_TO_TALK }, { personLines }, { dataTrustLines }] = await Promise.all([import('../lib/gemini'), import('../lib/agentTurn'), import('../lib/coachContext'), import('../lib/brain'), import('../lib/handbook'), import('../lib/person'), import('../lib/dataQuality')]);
         const brain = brainFor({ big: true, surface: 'coach' });
         if (!brain) return;
         markTried(today);
