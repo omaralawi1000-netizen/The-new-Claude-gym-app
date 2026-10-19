@@ -4,9 +4,16 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { useStore } from '../src/state/store';
 import { defaultData, normaliseData } from '../src/state/defaults';
-import { heavyDays, heavyNow, noteTarget, targetOn } from '../src/lib/eating';
+import { catchUpOn, heavyDays, heavyMode, heavyNow, kcalTargetFor, noteTarget, targetOn, TRIM_CAP } from '../src/lib/eating';
+import { ageFromMemory, clampVerdict, edFromMemory, trimAllowed, trimLimits, verdictLine } from '../src/lib/verdict';
+import { validateAgent, runActions } from '../src/lib/agent';
+import { makeT } from '../src/lib/i18n';
 import { addDays } from '../src/lib/dates';
-import type { AppData, FoodEntry } from '../src/lib/types';
+import type { AppData, CatchUp, FoodEntry } from '../src/lib/types';
+
+const t = makeT('en') as any;
+const cu = (o: Partial<CatchUp>): CatchUp => ({ id: `c${n++}`, date: addDays(today, -1), over: 1500, days: [today], perDay: 200, floor: 1800, trigger: 'late', at: 0, ...o });
+const mem = (text: string, kind: any = 'other') => ({ id: `m${n++}`, text, kind, at: 0 });
 
 const today = '2026-10-19';
 const NOON = new Date(2026, 9, 19, 12, 0).getTime();
@@ -74,5 +81,111 @@ describe('the target each day had', () => {
     const b = noteTarget(a, 2800, 2500, today);
     expect(b).toEqual([{ from: today, kcal: 2500, prev: 3000 }]);
     expect(noteTarget(b, 2500, 2400, addDays(today, 1))).toHaveLength(2);
+  });
+});
+
+describe('heavy-day notices: on, quiet, off', () => {
+  it('unset follows the goal; an explicit choice sticks', () => {
+    expect(heavyMode({ profile: { goal: 'fatloss' } } as any)).toBe('on');
+    expect(heavyMode({ profile: { goal: 'muscle' } } as any)).toBe('quiet');
+    expect(heavyMode({ profile: { goal: 'fatloss' }, heavyDays: 'off' } as any)).toBe('off');
+  });
+  it('turning on (by hand, or the goal becoming fat loss) remembers the day, so the past is never judged', () => {
+    const s = useStore.getState();
+    s.updateSettings({ profile: { ...s.settings.profile, goal: 'muscle' } });
+    expect(data().settings.heavyOnSince).toBeUndefined();
+    useStore.getState().updateSettings({ profile: { ...data().settings.profile, goal: 'fatloss' } });
+    expect(data().settings.heavyOnSince).toBe(today);
+    useStore.getState().updateSettings({ heavyDays: 'off', heavyOnSince: undefined });
+    vi.setSystemTime(new Date(2026, 9, 21, 12));
+    useStore.getState().updateSettings({ heavyDays: 'on' });
+    expect(data().settings.heavyOnSince).toBe('2026-10-21');
+  });
+  it('quiet and off never change the target; on does, within the limits', () => {
+    const d = { settings: { goals: { kcal: 2500 }, profile: { goal: 'fatloss' } }, catchUps: [cu({ perDay: 200 })] } as any;
+    expect(kcalTargetFor(d, today)).toBe(2300);
+    expect(catchUpOn(d, today)?.perDay).toBe(200);
+    expect(kcalTargetFor({ ...d, settings: { ...d.settings, heavyDays: 'quiet' } }, today)).toBe(2500);
+    expect(kcalTargetFor({ ...d, settings: { ...d.settings, heavyDays: 'off' } }, today)).toBe(2500);
+    expect(catchUpOn({ ...d, settings: { ...d.settings, heavyDays: 'off' } }, today)).toBeNull();
+  });
+  it('two catch-ups on the same day never take more than 250 together; a target lowered under the floor is never raised', () => {
+    const d = { settings: { goals: { kcal: 2600 }, profile: { goal: 'fatloss' } }, catchUps: [cu({ perDay: 250 }), cu({ perDay: 250 })] } as any;
+    expect(kcalTargetFor(d, today)).toBe(2350);
+    expect(catchUpOn(d, today)?.perDay).toBe(250); // the line shows what really applies
+    const low = { ...d, settings: { ...d.settings, goals: { kcal: 1700 } } };
+    expect(kcalTargetFor(low, today)).toBe(1700);
+    expect(catchUpOn(low, today)).toBeNull(); // no "−0"
+  });
+  it('random catch-ups: always floor ≤ target ≤ their own, never more than 250 off; off = their own', () => {
+    let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    for (let i = 0; i < 500; i++) {
+      const base = 1200 + Math.round(rnd() * 3000);
+      const cs = Array.from({ length: Math.floor(rnd() * 4) }, () => cu({ perDay: Math.round(rnd() * 900), floor: 1200 + Math.round(rnd() * 1500), days: rnd() < 0.8 ? [today] : [], off: rnd() < 0.2 }));
+      const d = { settings: { goals: { kcal: base }, profile: { goal: 'fatloss' } }, catchUps: cs } as any;
+      const k = kcalTargetFor(d, today)!;
+      const floors = cs.filter((c) => !c.off && c.perDay > 0 && c.days.includes(today)).map((c) => c.floor);
+      expect(k).toBeLessThanOrEqual(base);
+      expect(base - k).toBeLessThanOrEqual(TRIM_CAP);
+      if (floors.length) expect(k).toBeGreaterThanOrEqual(Math.min(base, Math.min(...floors)));
+      expect(kcalTargetFor({ ...d, settings: { ...d.settings, heavyDays: 'off' } }, today)).toBe(base);
+    }
+  });
+});
+
+describe('who may get a trim at all', () => {
+  const who = (goal: string, memory: any[] = [mem('Age: 22 (as of 2026-01-01)')], heavyDays?: string) => trimAllowed({ settings: { profile: { goal }, heavyDays }, memory } as any, today);
+  it('an adult (age known) on a fat-loss goal with notices on; nobody else', () => {
+    expect(who('fatloss')).toBeNull();
+    expect(who('muscle')).toBe('goal');
+    expect(who('fatloss', [], undefined)).toBe('age');
+    expect(who('fatloss', [mem('Age: 16 (as of 2026-09-01)')])).toBe('minor');
+    expect(who('fatloss', undefined, 'quiet')).toBe('mode');
+    expect(who('fatloss', [mem('Age: 22 (as of 2026-01-01)'), mem('Made himself throw up after a binge in September', 'health')])).toBe('health');
+  });
+  it('age: the stored form counts the years since; other wordings; no false hits', () => {
+    expect(ageFromMemory([mem('Age: 17 (as of 2025-06-01)')], today)).toBe(18);
+    expect(ageFromMemory([mem('He is 19 years old')], today)).toBe(19);
+    expect(ageFromMemory([mem('16-årig bryder')], today)).toBe(16);
+    expect(ageFromMemory([mem('Har trænet i 2 år'), mem('Trains 5 days a week')], today)).toBeUndefined();
+  });
+  it('eating-disorder notes, English and Danish; ordinary notes are not', () => {
+    for (const x of ['Uses laxatives after big days', 'Kastede op efter aftensmaden', 'Feels loss of control in the evening', 'Skips meals to compensate', 'Eating-disorder signal: purging']) expect(edFromMemory([mem(x)])).toBe(true);
+    for (const x of ['Overeats in the evening', 'Wrestles Tue/Thu', 'Prefers savoury snacks', 'Max 150 a day for catch-ups']) expect(edFromMemory([mem(x)])).toBe(false);
+  });
+});
+
+describe('the most a catch-up may take', () => {
+  it('half of the real surplus: over true maintenance when that is known well, else over the target', () => {
+    const d = data();
+    d.settings.goals.kcal = 2500; d.settings.profile.goal = 'fatloss';
+    const c = cu({ over: 1000, floor: 1800 });
+    expect(trimLimits(d, c, today)).toEqual({ perDay: 250, total: 500, days: 4 });
+    // another catch-up already running takes its share of the 250
+    expect(trimLimits({ ...d, catchUps: [cu({ date: addDays(today, -3), perDay: 150, days: [today, addDays(today, 1)] })] }, c, today).perDay).toBe(100);
+  });
+  it('a clamped plan gets a line that says what really happens', () => {
+    const c = cu({ over: 1600 });
+    const v = clampVerdict({ plan: 'trim', perDay: 500, days: 4, line: '−500 a day for 4 days', why: '' }, { perDay: 250, total: 800, days: 4 })!;
+    expect(v).toMatchObject({ perDay: 250, days: 3, clamped: true });
+    expect(verdictLine(c, v, today, t, String)).toBe('+1600 kcal over. Mostly water on the scale. A small trim: −250 kcal a day for 3 days, protein stays.');
+  });
+  it('the Coach asked for a catch-up: the same limits; a missing "on" is never a cut', async () => {
+    useStore.getState().updateSettings({ goals: { ...data().settings.goals, kcal: 2500 }, profile: { ...data().settings.profile, goal: 'fatloss' } });
+    useStore.setState({ memory: [mem('Age: 25 (as of 2026-01-01)')] as any, entries: [entry(addDays(today, -1), 4000)] });
+    expect(validateAgent({ reply: '', actions: [{ type: 'catch_up', on: null }] })!.actions).toEqual([]);
+    const ctx = { t, lang: 'en', today, brain: null } as any;
+    const [r] = await runActions(validateAgent({ reply: '', actions: [{ type: 'catch_up', on: true, day: 'yesterday' }] })!.actions, ctx);
+    expect(r.title).toBe('Catch-up set');
+    const c = data().catchUps!.at(-1)!;
+    expect(c.perDay).toBeLessThanOrEqual(250);
+    expect(c.days.length).toBeLessThanOrEqual(4);
+    expect(c.perDay * c.days.length).toBeLessThanOrEqual(750);
+    expect(c.byHand).toBe(true);
+    // a teen asking: no
+    useStore.setState({ memory: [mem('Age: 16 (as of 2026-01-01)')] as any, catchUps: [] });
+    const [r2] = await runActions(validateAgent({ reply: '', actions: [{ type: 'catch_up', on: true, day: 'yesterday' }] })!.actions, ctx);
+    expect(r2).toMatchObject({ kind: 'miss', title: 'No catch-up' });
+    expect(data().catchUps).toEqual([]);
   });
 });

@@ -9,6 +9,7 @@ import { useT, useLang } from '../lib/i18n';
 import { Sheet, SheetHead } from '../ui/Sheet';
 import { Icon } from '../ui/Icon';
 import { NumInput, Seg, Stepper, Toggle } from '../ui/kit';
+import { heavyMode } from '../lib/eating';
 import { fmtNum, fmtPct } from '../lib/units';
 import { lastBackup, markBackup, useStorageKept } from '../lib/persist';
 import { buildBackup, parseBackup, snapshotData } from '../lib/backup';
@@ -468,6 +469,9 @@ function Targets() {
       ) : null}
       <Field label={t('Fibre')}><NumInput label={t('Fibre')} value={g.fibre} onChange={set('fibre')} unit="g" max={0} placeholder="—" /></Field>
       <Field label={t('Water')}><NumInput label={t('Water')} value={g.waterMl} onChange={(v) => v && set('waterMl')(v)} unit="ml" max={0} /></Field>
+      <Field label={t('Heavy-day notices')} hint={t('After a day clearly over target. On: noticed, and the Coach decides if a small trim helps (Undo always). Quiet: only the Coach knows. Off: not noticed.')}>
+        <Seg value={heavyMode(s.settings)} onChange={(v) => s.updateSettings({ heavyDays: v })} options={[{ value: 'on', label: t('On') }, { value: 'quiet', label: t('Quiet') }, { value: 'off', label: t('Off') }]} />
+      </Field>
       <button className="btn ghost press" onClick={() => { anchor.current = null; s.updateSettings({ goals: { waterMl: g.waterMl } }); }}>{t('Clear nutrition targets')}</button>
     </div>
   );

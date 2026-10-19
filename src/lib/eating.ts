@@ -8,7 +8,7 @@
  * evening), each day's target lowered by the same amount, never under a floor (80 % of true maintenance or of the target,
  * and never under 1,800 kcal). Protein targets stay. Said straight, once; Undo takes it back.
  */
-import type { AppData, CatchUp, TargetChange } from './types';
+import type { AppData, CatchUp, Settings, TargetChange } from './types';
 import { addDays, dayKey, diffDays } from './dates';
 import { suggestedTarget, trueMaintenance } from './maintenance';
 import { uid } from './nutrition';
@@ -72,21 +72,51 @@ export function planCatchUp(over: number, target: number, floor: number): { n: n
   return { n, perDay: Math.min(perDay, Math.floor(room / 10) * 10) };
 }
 
-/** The calorie target for a day, with any catch-up running on it (undefined = no target set). */
+/** Heavy-day notices: on (noticed, decided, maybe a small trim), quiet (noticed, the Coach knows, nothing changes) or off.
+ *  Unset follows the goal: fat loss on, any other goal quiet. */
+export type HeavyMode = 'on' | 'quiet' | 'off';
+export const heavyMode = (s: Pick<Settings, 'heavyDays' | 'profile'>): HeavyMode => s.heavyDays ?? (s.profile?.goal === 'fatloss' ? 'on' : 'quiet');
+
+/** The most a catch-up may take off a day, all running catch-ups together: 250 kcal, 15 % of the target, and the room
+ *  above the floor. */
+export const TRIM_CAP = 250;
+export const maxTrim = (target: number, floor: number) => Math.max(0, Math.min(TRIM_CAP, Math.round(target * 0.15 / 10) * 10, Math.floor((target - floor) / 10) * 10));
+
+const runningOn = (d: Pick<AppData, 'catchUps'>, date: string) => (d.catchUps ?? []).filter((c) => !c.off && c.perDay > 0 && c.days.includes(date));
+
+/** The calorie target for a day, with any catch-up running on it (undefined = no target set). Never above their own
+ *  target, never under the floor, never more than `maxTrim` lower however many catch-ups overlap; notices off or quiet
+ *  leave it alone. */
 export function kcalTargetFor(d: Pick<AppData, 'settings' | 'catchUps'>, date: string): number | undefined {
   const base = d.settings.goals.kcal;
   if (!base) return undefined;
-  const on = (d.catchUps ?? []).filter((c) => !c.off && c.days.includes(date));
+  if (heavyMode(d.settings) !== 'on') return base;
+  const on = runningOn(d, date);
   if (!on.length) return base;
-  const cut = on.reduce((n, c) => n + c.perDay, 0);
-  return Math.max(Math.min(...on.map((c) => c.floor)), base - cut);
+  const floor = Math.min(...on.map((c) => c.floor));
+  const cut = Math.min(maxTrim(base, floor), on.reduce((n, c) => n + c.perDay, 0));
+  return Math.min(base, Math.max(floor, base - cut));
 }
 
-/** The catch-up running on a day, for the line under the ring ("−500 catch-up · 3 days left"). */
-export function catchUpOn(d: Pick<AppData, 'catchUps'>, date: string): { perDay: number; left: number; from: CatchUp } | null {
-  const c = [...(d.catchUps ?? [])].reverse().find((x) => !x.off && x.days.includes(date));
-  return c ? { perDay: c.perDay, left: c.days.filter((x) => x >= date).length, from: c } : null;
+/** The catch-up running on a day, for the line under the ring ("−200 catch-up · 3 days left"): the cut that really applies. */
+export function catchUpOn(d: Pick<AppData, 'catchUps' | 'settings'>, date: string): { perDay: number; left: number; from: CatchUp } | null {
+  const base = d.settings.goals.kcal;
+  const target = kcalTargetFor(d, date);
+  if (!base || target === undefined || target >= base) return null;
+  const c = [...runningOn(d, date)].reverse()[0];
+  return c ? { perDay: base - target, left: c.days.filter((x) => x >= date).length, from: c } : null;
 }
+
+/** Heavy days in the 7 days up to and including today (today counts once it is clearly over), and the 7 before. */
+export function heavyWeeks(d: Data, today: string): [number, number] {
+  const t = targetOn(d, today);
+  const now = t && dayKcal(d, today) - t >= heavyLine(t) ? 1 : 0;
+  const past = heavyDays(d, today, 13).map((h) => diffDays(today, h.date));
+  return [now + past.filter((n) => n <= 6).length, past.filter((n) => n >= 7).length];
+}
+/** Frequent: 3 or more heavy days a week, two weeks running. Information for the judgement (structure usually helps more
+ *  than cutting), and the moment to mention help once. */
+export const frequentHeavy = (d: Data, today: string) => { const [a, b] = heavyWeeks(d, today); return a >= 3 && b >= 3; };
 
 /** The heavy days to catch up now: today after 20:00 (live), and the last 3 days when they end clearly over. */
 export function heavyNow(d: Data, now = Date.now()): { date: string; over: number; trigger: 'live' | 'late' }[] {

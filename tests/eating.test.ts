@@ -27,6 +27,8 @@ const set = (entries: FoodEntry[]) => useStore.setState({ entries });
 beforeEach(() => {
   localStorage.clear();
   const d = defaultData(); d.settings.onboarded = true; d.settings.dayStartHour = 0; d.settings.goals.kcal = 2500; d.settings.goals.protein = 180;
+  // (an adult on a fat-loss goal: the only one a catch-up may trim for, lib/verdict.ts)
+  d.settings.profile.goal = 'fatloss'; d.memory = [{ id: 'age', text: 'Age: 24 (as of 2026-01-01)', kind: 'other', at: 0 }];
   useStore.getState().replaceAll(d);
 });
 
@@ -40,9 +42,10 @@ describe('the morning after', () => {
     expect(c).toMatchObject({ date: yesterday, over: 2000, trigger: 'late', perDay: 500 });
     expect(c.days).toEqual([today, '2026-10-20', '2026-10-21', '2026-10-22']);
     useStore.getState().setCatchUps(r.list);
-    expect(kcalTargetFor(data(), today)).toBe(2000);
+    // (never more than 250 off a day, whatever the plan said)
+    expect(kcalTargetFor(data(), today)).toBe(2250);
     expect(kcalTargetFor(data(), '2026-10-23')).toBe(2500);
-    expect(catchUpOn(data(), today)).toMatchObject({ perDay: 500, left: 4 });
+    expect(catchUpOn(data(), today)).toMatchObject({ perDay: 250, left: 4 });
     expect(data().settings.goals.protein).toBe(180);
     expect(reconcileCatchUps(data(), MORNING)).toBeNull(); // (once)
   });
@@ -136,13 +139,13 @@ describe('the Coach', () => {
     set([entry(yesterday, 2500, new Date(2026, 9, 18, 12).getTime())]);
     const [on] = await runActions(validateAgent({ reply: '', actions: [{ type: 'catch_up', on: true, kcal: 1500, day: 'yesterday' }] })!.actions, ctx);
     expect(on.title).toBe('Catch-up set');
-    // never more than a small trim a day (15 % of 2,500 ≈ 380), spread instead
-    expect(kcalTargetFor(data(), today)).toBe(2120);
-    expect(catchUpOn(data(), today)!.left).toBe(4);
+    // never more than 250 a day and half of it back in all, spread instead
+    expect(kcalTargetFor(data(), today)).toBe(2250);
+    expect(catchUpOn(data(), today)!.left).toBe(3);
     const [off] = await runActions(validateAgent({ reply: '', actions: [{ type: 'catch_up', on: false }] })!.actions, ctx);
     expect(off.title).toBe('Catch-up taken off');
     expect(kcalTargetFor(data(), today)).toBe(2500);
     off.undo!();
-    expect(kcalTargetFor(data(), today)).toBe(2120);
+    expect(kcalTargetFor(data(), today)).toBe(2250);
   });
 });

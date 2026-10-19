@@ -279,6 +279,8 @@ export interface CatchUp {
   off?: boolean;
   /** the plan as decided after a look at everything (lib/verdict.ts): the pop-up's line and the reasoning behind it */
   line?: string; why?: string;
+  /** decided once (an older record with a `line` counts as decided); set by hand through the Coach (never re-planned) */
+  decided?: boolean; byHand?: boolean;
 }
 export type MeasureKind = 'waist' | 'chest' | 'hips' | 'arm' | 'thigh' | 'neck';
 export interface Measurement { id: string; date: string; kind: MeasureKind; cm: number }
@@ -375,6 +377,11 @@ export interface Settings {
   profile: { goal: Goal; experience: Experience; equipment: EquipmentAccess; days: number[] };
   plateStep: number;
   foodLookup: boolean;
+  /** heavy-day notices (lib/eating.ts `heavyMode`): on = noticed, decided, maybe a small trim; quiet = noticed only, the
+   *  Coach knows; off = not noticed. Missing = by goal (fat loss on, other goals quiet) */
+  heavyDays?: 'on' | 'quiet' | 'off';
+  /** the day notices last turned on: days before it are never judged (no pop-ups about the past) */
+  heavyOnSince?: string;
 }
 
 export interface DailyNote { date: string; training?: string; nutrition?: string }

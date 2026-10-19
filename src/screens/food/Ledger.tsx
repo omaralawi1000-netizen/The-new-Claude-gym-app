@@ -27,7 +27,8 @@ export function Ledger({ sum, compact, date }: { sum: Sum; compact?: boolean; /*
   // (after a heavy day the next few days' target is lower: lib/eating.ts)
   const goal = useStore((s) => kcalTargetFor(s, day));
   const catchUps = useStore((s) => s.catchUps);
-  const catchUp = useMemo(() => catchUpOn({ catchUps }, day), [catchUps, day]);
+  const settings = useStore((s) => s.settings);
+  const catchUp = useMemo(() => catchUpOn({ catchUps, settings }, day), [catchUps, settings, day]);
   const kcal = sum.totals.kcal ?? 0;
   const remaining = goal ? goal - kcal : undefined;
   const over = remaining !== undefined && remaining < 0;
@@ -48,7 +49,7 @@ export function Ledger({ sum, compact, date }: { sum: Sum; compact?: boolean; /*
               <Count value={goal ? Math.abs(remaining!) : kcal} format={(n) => fmtNum(Math.round(n), lang, 0)} />
             </div>
             <div className="micro" style={{ marginTop: 6 }}>{goal ? (over ? t('Over') : t('kcal left')) : t('kcal')}</div>
-            {catchUp && <div className="micro t3" style={{ marginTop: 4 }}>{t('−{n} catch-up · {d} days left', { n: fmtNum(catchUp.perDay, lang, 0), d: catchUp.left })}</div>}
+            {catchUp && <div className="micro t3" style={{ marginTop: 4 }}>{catchUp.left === 1 ? t('−{n} catch-up · last day', { n: fmtNum(catchUp.perDay, lang, 0) }) : t('−{n} catch-up · {d} days left', { n: fmtNum(catchUp.perDay, lang, 0), d: catchUp.left })}</div>}
           </div>
         </Dial>
       </div>

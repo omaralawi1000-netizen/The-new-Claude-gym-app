@@ -9,7 +9,7 @@ import { dayKey, addDays, weekdayOf } from '../lib/dates';
 import { detectRecords, lastPerformance, planSets, setsFromItem } from '../lib/workout';
 import { entryFromSnapshot, recipeToFood, requantify, snapshotOf, uid } from '../lib/nutrition';
 import { DATA_VERSION, defaultData, detectLang, normaliseData } from './defaults';
-import { noteTarget } from '../lib/eating';
+import { heavyMode, noteTarget } from '../lib/eating';
 
 const KEY = 'aven.v1';
 /** The running workout on its own: written at once on every change (a few KB), while the whole app's data is written a moment
@@ -157,12 +157,16 @@ export interface Store extends AppData {
 const dayOf = (s: Settings, t = Date.now()) => dayKey(t, s.dayStartHour);
 
 /** A change of the calorie target is recorded with its day (lib/eating.ts `noteTarget`), unless the change brings its own
- *  history (demo, restore: `replaceAll` never records). */
+ *  history (demo, restore: `replaceAll` never records). Heavy-day notices turning on (by hand, or because the goal became
+ *  fat loss) remember the day, so days before it are never judged. */
 function withTarget(s: Store, next: Partial<Store>): Partial<Store> {
-  if (!next.settings || 'targets' in next) return next;
+  if (!next.settings) return next;
+  let out = next;
+  if (heavyMode(next.settings) === 'on' && heavyMode(s.settings) !== 'on' && next.settings.heavyOnSince === s.settings.heavyOnSince) out = { ...out, settings: { ...next.settings, heavyOnSince: dayOf(next.settings) } };
+  if ('targets' in next) return out;
   const was = s.settings.goals.kcal, now = next.settings.goals?.kcal;
-  if (was === now) return next;
-  return { ...next, targets: noteTarget(s.targets, was, now, dayOf(next.settings)) };
+  if (was === now) return out;
+  return { ...out, targets: noteTarget(s.targets, was, now, dayOf(next.settings)) };
 }
 
 const initial = loadPersisted();

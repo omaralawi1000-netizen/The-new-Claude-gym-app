@@ -70,17 +70,21 @@ describe('who they are', () => {
 });
 
 describe('the heavy-day verdict', () => {
-  it('whatever the brain says: never more than 15 % (and 400) a day, never under the floor, at most 7 days', () => {
-    expect(maxTrim(2500, 1800)).toBe(380);
+  it('whatever the brain says: never more than 250 (and 15 %, and the room above the floor) a day, 4 days, half the surplus', () => {
+    expect(maxTrim(2500, 1800)).toBe(250);
     expect(maxTrim(2000, 1900)).toBe(100);
-    expect(clampVerdict({ plan: 'trim', perDay: 900, days: 12, line: 'x', why: 'y' }, 2500, 1800)).toMatchObject({ perDay: 380, days: 7 });
-    expect(clampVerdict({ plan: 'trim', perDay: 30, days: 3, line: 'x', why: '' }, 2500, 1800)).toMatchObject({ plan: 'none', perDay: 0, days: 0 });
-    expect(clampVerdict({ plan: 'cut' as any, perDay: 300, days: 3, line: 'x', why: '' }, 2500, 1800)).toBeNull();
+    expect(maxTrim(1500, 1400)).toBe(100);
+    const lim = { perDay: 250, total: 1000, days: 4 };
+    expect(clampVerdict({ plan: 'trim', perDay: 900, days: 12, line: 'x', why: 'y' }, lim)).toMatchObject({ perDay: 250, days: 4, clamped: true });
+    expect(clampVerdict({ plan: 'trim', perDay: 200, days: 3, line: 'x', why: 'y' }, lim)).toMatchObject({ perDay: 200, days: 3, clamped: false });
+    expect(clampVerdict({ plan: 'trim', perDay: 250, days: 4, line: 'x', why: '' }, { ...lim, total: 500 })).toMatchObject({ perDay: 250, days: 2, clamped: true });
+    expect(clampVerdict({ plan: 'trim', perDay: 30, days: 3, line: 'x', why: '' }, lim)).toMatchObject({ plan: 'none', perDay: 0, days: 0 });
+    expect(clampVerdict({ plan: 'cut' as any, perDay: 300, days: 3, line: 'x', why: '' }, lim)).toBeNull();
   });
-  it('without a brain: no cut on a bulk; otherwise at most half back, ≤250 a day, ≤4 days', () => {
+  it('without a brain: never a cut, just what it was', () => {
     const c = { id: 'c', date: '2026-10-18', over: 2000, days: [], perDay: 0, trigger: 'late' as const, at: 0, floor: 1800 };
-    expect(defaultVerdict(c, 'muscle', 2500, t, String)).toMatchObject({ plan: 'none' });
-    expect(defaultVerdict(c, 'fatloss', 2500, t, String)).toMatchObject({ plan: 'trim', perDay: 250, days: 4 });
+    expect(defaultVerdict(c, today, t, String)).toMatchObject({ plan: 'none', perDay: 0, line: '+2000 kcal over. Mostly water on the scale — back to normal today, no cut.' });
+    expect(defaultVerdict({ ...c, date: today }, today, t, String).line).toMatch(/back to normal tomorrow/);
     expect(applyVerdict(c, { plan: 'trim', perDay: 200, days: 3, line: 'l', why: 'w' }, today).days).toEqual([today, '2026-10-20', '2026-10-21']);
   });
   it('a heavy day is noticed even with a low target and no room to trim (it used to be missed)', () => {

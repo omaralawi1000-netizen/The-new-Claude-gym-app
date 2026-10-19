@@ -54,6 +54,7 @@ export const SETTING_SPEC: SettingSpec[] = [
   number('fatGoal', 'Fat target', 'Targets', 10, 500, 'g', (n, c) => ({ goals: { ...c.goals, fat: n } })),
   number('fibreGoal', 'Fibre target', 'Targets', 5, 100, 'g', (n, c) => ({ goals: { ...c.goals, fibre: n } })),
   number('waterGoal', 'Water target', 'Targets', 500, 10000, 'ml', (n, c) => ({ goals: { ...c.goals, waterMl: n } })),
+  choice('heavyDays', 'Heavy-day notices', 'Targets', ['on', 'quiet', 'off'] as const, (v) => ({ heavyDays: v })),
   // training
   number('restSeconds', 'Default rest', 'Training', 15, 600, 's', (n) => ({ restDefaultSec: n }), 5),
   choice('effort', 'Effort scale', 'Training', ['off', 'rpe', 'rir'] as const, (v) => ({ effort: v })),

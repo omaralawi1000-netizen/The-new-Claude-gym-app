@@ -133,7 +133,7 @@ Progress (ticked as done):
 - [x] Step 0 baseline (stack merged up to the latest main app, 362 tests green)
 - [ ] Step A PR #173 reviewed and fixed, merged up
 - [x] Step 1 target history
-- [ ] Step 2 modes, eligibility, limits
+- [x] Step 2 modes, eligibility, limits
 - [ ] Step 3 the watcher
 - [ ] Step 4 true maintenance
 - [ ] Step 5 routing and time limits
