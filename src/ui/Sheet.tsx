@@ -183,6 +183,7 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
   const ref = useRef<HTMLDivElement>(null);
   const behindRef = useRef(behind); behindRef.current = behind || covered;
   const dist = useRef(viewportH + 40); // how far it travels to be fully off screen
+  const opening = useRef<ReturnType<typeof animate> | null>(null); // the opening spring, while it runs
   const p = useMotionValue(0);   // opening progress (a spring)
   const y = useMotionValue(0);   // the finger
   const bs = useMotionValue(0);  // stepped back behind another sheet
@@ -292,7 +293,17 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
     const el = ref.current; if (!el) return;
     // short sheets are thinner glass (more of the colour comes through), full-height ones denser for long reading
     // (not while the keyboard is up: a tall sheet squeezed above it used to count as short and change its glass mid-ride)
-    const measure = () => { const h = el.offsetHeight; dist.current = h + 40; seenOf.current = inView(el); if (kb.get() > 1 || el.dataset.held) return; natural.current = h; const short = h < window.innerHeight * 0.62; if ((el.dataset.size === 'short') !== short) el.dataset.size = short ? 'short' : 'full'; };
+    const measure = () => {
+      const h = el.offsetHeight, was = dist.current; dist.current = h + 40; seenOf.current = inView(el);
+      // contents that grow while it is still opening (a list that arrives a frame late): it carries on from where it is, so
+      // its top edge never jumps (it starts at the screen's edge now, so a jump would be seen)
+      const run = opening.current;
+      if (run && was !== dist.current && !reduce) {
+        const from = (1 - p.get()) * was, np = clamp01(1 - from / dist.current), v = (p.getVelocity() * was) / dist.current;
+        run.stop(); p.set(np);
+        opening.current = animate(p, 1, { ...SPRING, velocity: v }); opening.current.then(() => { opening.current = null; });
+        runMirror(np, 1, SPRING, v);
+      } if (kb.get() > 1 || el.dataset.held) return; natural.current = h; const short = h < window.innerHeight * 0.62; if ((el.dataset.size === 'short') !== short) el.dataset.size = short ? 'short' : 'full'; };
     measure();
     const ro = new ResizeObserver(measure); ro.observe(el);
     return () => ro.disconnect();
@@ -324,12 +335,13 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
     const p0 = reduce ? 0 : (seenOf.current.knee ?? 0);
     p.set(p0);
     const c = animate(p, 1, reduce ? { duration: 0.01 } : SPRING);
+    opening.current = c; c.then(() => { if (opening.current === c) opening.current = null; });
     // A popup opens without the keyboard, as on iOS: a field that asked for focus is let go before the first paint, so the
     // sheet arrives calmly; tapping a field then brings the keyboard and the sheet rises to meet it.
     const f = document.activeElement as HTMLElement | null;
     if (f && ref.current?.contains(f) && /^(INPUT|TEXTAREA)$/.test(f.tagName)) f.blur();
     runMirror(p0, 1, SPRING, 0);
-    return () => c.stop();
+    return () => { opening.current?.stop(); opening.current = null; };
     // eslint-disable-next-line
   }, []);
   // Stepping back behind a sheet that opens on top is not an animation of its own: it follows THAT sheet's progress, frame
@@ -364,6 +376,7 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
   useEffect(() => {
     if (present || leaving.current) return;
     leaving.current = true;
+    opening.current?.stop(); opening.current = null;
     if (ref.current?.contains(document.activeElement)) dropKeyboard(EXIT_SPRING); // the keyboard goes down with it, not after it
     const vy = swipeV.current || y.getVelocity();
     p.set(e.get()); y.set(0);
