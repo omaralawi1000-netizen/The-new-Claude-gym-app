@@ -141,6 +141,11 @@ final class HealthSync {
     /** Connect watch again: the history is walked from the start (newly allowed data comes in). */
     static void restartHistory(Context c) { prefs(c).edit().remove(BACK_TO).remove(EMPTY).apply(); }
 
+    /** The extra data (sleep, HRV…) came after many had connected their watch: asked for once on a sync, never again. */
+    static boolean askedMore(Context c) { return prefs(c).getBoolean(ASKED_MORE, false); }
+    static void markAskedMore(Context c) { prefs(c).edit().putBoolean(ASKED_MORE, true).apply(); }
+    private static final String ASKED_MORE = "askedMore";
+
     private static SharedPreferences prefs(Context c) { return c.getSharedPreferences(PREFS, Context.MODE_PRIVATE); }
 
     /** The last numbers read (used when a fresh read isn't ready in time). */
@@ -278,23 +283,33 @@ final class HealthSync {
         }
         for (Map.Entry<String, double[]> h : hrv.entrySet()) put(days, h.getKey(), "hv", Math.round(h.getValue()[0] / h.getValue()[1]));
 
-        // sleep, counted on the morning it ended: total, deep, REM, light, awake; when it started and ended
+        // sleep, counted on the morning it ended: total, deep, REM, light, awake; when it started and ended. Stages are
+        // added up in seconds and rounded once (whole minutes per stage lost up to ~25 min a night), and a session that
+        // overlaps one already counted (the same night written by two apps) is skipped
+        List<long[]> slept = new ArrayList<>();
         for (SleepSessionRecord r : records(hc, SleepSessionRecord.class, ia.minusSeconds(12 * 3600), iz, back)) {
             String d = dateOf(r.getEndTime(), zone);
             if (d.compareTo(from.toString()) < 0 || d.compareTo(to.toString()) > 0) continue;
+            long s0 = r.getStartTime().toEpochMilli(), e0 = r.getEndTime().toEpochMilli();
+            boolean twice = false;
+            for (long[] x : slept) if (s0 < x[1] && e0 > x[0]) { twice = true; break; }
+            if (twice) continue;
+            slept.add(new long[] { s0, e0 });
             long deep = 0, rem = 0, light = 0, awake = 0, asleep = 0;
             for (SleepSessionRecord.Stage st : r.getStages()) {
-                long min = Duration.between(st.getStartTime(), st.getEndTime()).toMinutes();
+                long sec = Duration.between(st.getStartTime(), st.getEndTime()).getSeconds();
                 // 1 awake, 2 sleeping, 3 out of bed, 4 light, 5 deep, 6 REM, 7 awake in bed
                 switch (st.getType()) {
-                    case 5: deep += min; asleep += min; break;
-                    case 6: rem += min; asleep += min; break;
-                    case 4: light += min; asleep += min; break;
-                    case 2: asleep += min; break;
-                    case 1: case 3: case 7: awake += min; break;
+                    case 5: deep += sec; asleep += sec; break;
+                    case 6: rem += sec; asleep += sec; break;
+                    case 4: light += sec; asleep += sec; break;
+                    case 2: asleep += sec; break;
+                    case 1: case 3: case 7: awake += sec; break;
                     default: break;
                 }
             }
+            // (seconds → minutes, once)
+            deep = Math.round(deep / 60.0); rem = Math.round(rem / 60.0); light = Math.round(light / 60.0); awake = Math.round(awake / 60.0); asleep = Math.round(asleep / 60.0);
             long total = r.getStages().isEmpty() ? Duration.between(r.getStartTime(), r.getEndTime()).toMinutes() : asleep;
             JSONObject day = dayOf(days, d);
             try {

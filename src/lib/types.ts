@@ -429,5 +429,7 @@ export interface AppData {
   health?: HealthDay[];
   /** heavy days being caught up (lib/eating.ts), the newest 30 */
   catchUps?: CatchUp[];
+  /** watch workouts deleted by hand (their Health Connect ids, the newest 500): never brought back by a sync */
+  hcGone?: string[];
   demo: boolean;
 }

@@ -1740,6 +1740,8 @@ export const da: Record<string, string> = {
  "About {n} sets a week logged over the last month, while most muscles get 8 or more.": "Cirka {n} sæt om ugen logget den seneste måned, mens de fleste muskler får 8 eller flere.",
  "Aven shows few {m} sets logged lately. Ask me first whether I train them without logging; if not, add an exercise for them to one of my routines.": "Aven viser få logførte sæt for {m} på det seneste. Spørg mig først, om jeg træner dem uden at logge; hvis ikke, så tilføj en øvelse for dem til en af mine rutiner.",
  "After {name}": "Efter {name}",
+ "No workout called “{name}”": "Ingen træning hedder “{name}”",
+ "No {name} in that workout: added at the end": "Ingen {name} i den træning: lagt til sidst",
  "Set skipped": "Sæt sprunget over",
  "Say the sets you did and I’ll log them": "Sig de sæt, du lavede, så logger jeg dem",
  "Give me three easy ways to get more protein: from what I usually eat, or simple new ideas.": "Giv mig tre nemme måder at få mere protein på: fra det, jeg plejer at spise, eller enkle nye idéer.",
