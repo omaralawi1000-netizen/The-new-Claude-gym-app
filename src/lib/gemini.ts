@@ -510,10 +510,10 @@ const INSIGHT_SCHEMA = {
   required: ['insights'],
 };
 export const INSIGHT_SYSTEM = (lang: string) =>
-  'You are the coach inside a gym, food and wrestling tracker. Read the user\'s data below and find AT MOST 2 things worth telling them ' +
+  'You are the coach inside a training and food app. Read the user\'s data below and find AT MOST 2 things worth telling them ' +
   'today that they did not ask about: something they may have forgotten, a pattern that is holding them back, a smart change to their plan, ' +
   'or a better way to use the app. Only say what the data clearly supports, with the number that shows it. Skip anything generic ' +
-  '("stay hydrated", "get enough sleep") and anything already obvious from the day\'s numbers. Respect their MEMORY (how they train, injuries, what they don\'t want) and never bring back anything they set aside. If nothing is worth saying, return an empty list. ' +
+  '("stay hydrated", "get enough sleep") and anything already obvious from the day\'s numbers. Respect their MEMORY (how they train, injuries, what they don\'t want) and never bring back anything they set aside. Never bring up heavy days, overeating or catch-ups here (the app and the Coach handle those when it matters). If nothing is worth saying, return an empty list. ' +
   `Write in ${lang === 'da' ? 'Danish' : 'English'}, plain and friendly, no emoji.`;
 export interface Insight { title: string; body: string; kind: 'reminder' | 'suggestion' | 'warning' | 'app'; ask: string }
 export async function aiInsights(context: string, brain: Brain, lang: string): Promise<Insight[]> {
@@ -541,11 +541,11 @@ const REVIEW_SCHEMA = {
   required: ['verdict', 'priorities'],
 };
 export const REVIEW_SYSTEM = (lang: string) =>
-  'You are the coach inside a gym, food and wrestling tracker, writing the user\'s weekly review. The app has computed the week (WEEK) and ' +
+  'You are the coach inside a training and food app, writing the user\'s weekly review. The app has computed the week (WEEK) and ' +
   'the things worth working on (CANDIDATES, most important first). Write a short verdict on the week, then pick AT MOST 2 candidates as next ' +
   'week\'s priorities (fewer if the week was good: one is fine, none if nothing needs changing) and phrase each as one action. Never invent a ' +
   'number or a priority that is not a candidate. If LAST WEEK says a priority was not done, say so kindly and keep it only if it still matters; ' +
-  'if it was done, say that. Wrestling counts as hard training. Respect MEMORY (injuries, temporary things). ' +
+  'if it was done, say that. Sport sessions (wrestling, matches, team practice) count as hard training. Respect MEMORY (injuries, temporary things). ' +
   `Write in ${lang === 'da' ? 'Danish' : 'English'}, plain and friendly, no emoji.`;
 export async function aiWeekReview(context: string, brain: Brain, lang: string, ids: string[]): Promise<{ verdict: string; priorities: { id: string; text: string }[] } | null> {
   const raw = await withFallback(brain.models, (m) => generateJson(brain.key, m, { system: REVIEW_SYSTEM(lang), prompt: context, schema: REVIEW_SCHEMA, temperature: 0.3, signal: brain.signal, timeout: 20000, maxOutputTokens: 600 }));

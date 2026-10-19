@@ -223,7 +223,13 @@ export async function decide(text: string, o: { lang: Lang; t: (k: string, v?: R
   // is told to leave it for the next real conversation)
   const logging = actions.length > 0 && actions.every((a) => /^log_/.test(a.type));
   if (reply && noticed.length && !logging) markCoachTold(useStore.getState(), useStore.getState().setCatchUps, noticed);
-  // (and the invisible calories, once it has talked about them)
-  if (invisible && !logging && /watch|uret|unlogged|not logged|isn'?t logged|ikke logget|ikke er logget|invisible|usynlig/i.test(reply)) useStore.getState().patch((s) => ({ marks: { ...s.marks, invisibleSaid: day0 } }));
+  // (and what is said once: the invisible calories, help for eating, asking their age)
+  if (reply && !logging) {
+    const said: Record<string, string> = {};
+    if (invisible && /watch|uret|unlogged|not logged|isn'?t logged|ikke logget|ikke er logget|invisible|usynlig/i.test(reply)) said.invisibleSaid = day0;
+    if (!st.marks?.helpSaid && /doctor|dietitian|dietician|læge|diætist/i.test(reply)) said.helpSaid = day0;
+    if (!st.marks?.ageAsked && /how old are you|your age|hvor gammel er du|din alder/i.test(reply)) said.ageAsked = day0;
+    if (Object.keys(said).length) useStore.getState().patch((s) => ({ marks: { ...s.marks, ...said } }));
+  }
   return { reply, note, actions: actions.filter((a) => a.type !== 'undo_last'), wantsUndo, sources: dedupeSources(sources), dropped };
 }

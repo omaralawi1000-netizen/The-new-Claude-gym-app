@@ -137,7 +137,7 @@ Progress (ticked as done):
 - [x] Step 3 the watcher
 - [x] Step 4 true maintenance
 - [x] Step 5 routing and time limits
-- [ ] Step 6 prompt, handbook, leftovers
+- [x] Step 6 prompt, handbook, leftovers
 - [ ] Step 7 small fixes (droppable)
 - [ ] Step 8 exam
 - [ ] Step 9 final gate, reviews, docs, PRs ready, Beta

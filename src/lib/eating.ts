@@ -203,6 +203,8 @@ export function eatingLines(d: Data, today: string, goal?: string): string[] {
   const heavy = mode === 'off' ? [] : heavyDays(d, today);
   if (heavy.length) L.push(`Heavy days, last 4 weeks (clearly over that day's target): ${heavy.map((h) => `${WD[new Date(`${h.date}T12:00:00`).getDay()]} ${h.date} +${h.over} kcal${h.late ? ', logged the day after' : ''}${h.evening ? `, ${h.evening} kcal of it in the evening` : ''}`).join('; ')}. ${heavy.length} in 4 weeks.`);
   if (mode === 'off') L.push('Heavy-day notices are OFF (their choice): never bring up heavy days or catch-ups unless they do.');
+  const [w1, w2] = mode === 'off' ? [0, 0] : heavyWeeks(d, today);
+  if (w1 >= 3 && w2 >= 3) L.push(`FREQUENT heavy days: ${w1} in the last 7 days and ${w2} in the 7 before. ${d.marks?.helpSaid ? `Help was mentioned on ${d.marks.helpSaid}: don't repeat it unless they bring it up.` : 'Say once, gently, that a doctor or dietitian can help with this.'}`);
   const on = catchUpOn(d, today);
   if (on) L.push(`CATCH-UP running: ${on.from.date} was +${on.from.over} over, so the target is ${on.perDay} lower for ${on.left} more day${on.left === 1 ? '' : 's'} including today (today's target ${kcalTargetFor(d, today)} kcal instead of ${d.settings.goals.kcal}; protein unchanged). "Don't cut my calories" → catch_up with on false.`);
   const recent = (d.catchUps ?? []).filter((c) => !c.off && isDecided(c) && diffDays(today, c.date) <= 3);
