@@ -1,8 +1,8 @@
 // Heavy days (review round 1, 19 Oct), in the real app:
 //  1. no AI key: 2,000 kcal logged this morning for yesterday is noticed once, with no cut (and no catch-up line on Food);
 //  2. with a brain (Gemini STUBBED) that asks for far too much (−600 a day for 6 days): the limits hold (−250 for 4 days),
-//     the toast says what really happens, Food shows the line; deleting the big entry takes it away; logged again, decided
-//     again; Undo takes it back;
+//     the toast says what really happens, Food shows the line; deleting the big entry takes it away; logged again, not
+//     asked again (decided once); a fresh one, Undo takes it back;
 //  3. Settings → Targets → Heavy-day notices Off: nothing noticed.
 process.env.AVEN_TODAY ||= '2026-10-01T09:00:00+02:00';
 import { launch, wait, skipOnboarding, loadDemo } from './lib.mjs';
@@ -57,8 +57,12 @@ await p.evaluate(async () => { const { useStore } = await import('/src/state/sto
 await wait(p, 2600);
 assert.equal(await p.getByText(/catch-up ·/).count(), 0, 'deleting the entry takes the catch-up away');
 assert(await p.getByText('Your normal calorie target is back').isVisible(), 'and says so');
-// logged again: a new decision; Undo takes it back
+// logged again: the day was already decided, so no second question and no cut comes back by itself
 await logBig(); await wait(p, 3500);
+assert.equal(verdicts, 1, 'a day is decided once, even when logged again');
+assert.equal(await p.getByText(/catch-up ·/).count(), 0, 'no cut comes back by itself');
+// a fresh heavy day: decided; Undo takes it back
+await setup(); await logBig(); await wait(p, 3500);
 assert.equal(verdicts, 2, 'a new heavy day, decided once');
 await p.getByRole('button', { name: 'Undo' }).last().click(); await wait(p, 800);
 assert.equal(await p.getByText(/catch-up ·/).count(), 0, 'Undo takes it back');
