@@ -45,8 +45,8 @@ function Scan({ src }: { src: string }) {
   const t = useT();
   const i = useStep();
   const v = (typeof localStorage !== 'undefined' && localStorage.getItem('aven.scan')) || 'A';
-  const edge = v === 'B' || v === 'F';
-  const dots = v === 'C' || v === 'F';
+  const edge = v === 'B' || v === 'D';
+  const dots = v === 'C' || v === 'D';
   const fade = { initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 }, transition: { duration: 0.45 } };
   const words = (
     <motion.div className="scan-words" {...fade}>
@@ -60,9 +60,8 @@ function Scan({ src }: { src: string }) {
     <div className={`scan scan-${v}${dots ? ' with-dots' : ''}`} aria-hidden>
       <motion.div className="scan-fx" {...fade}>
         <i className="scan-film" />
-        <div className="scan-lit"><div className="scan-lit-in"><img src={src} alt="" /><i className="scan-warm" /></div><i className="scan-core" /></div>
-        {v === 'D' && <><i className="scan-ring" /><i className="scan-ring r2" /></>}
-        {edge && <><i className="scan-edge soft"><b /></i><i className="scan-edge"><b /></i></>}
+        <div className="scan-lit"><div className="scan-lit-in"><img src={src} alt="" /><i className="scan-warm" /></div></div>
+        {edge && <i className="scan-edge"><b /></i>}
       </motion.div>
       {words}
     </div>
