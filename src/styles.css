@@ -514,9 +514,10 @@ html:root[data-glow='off']:not([data-bg='photo']) .fields::before { content: '';
 .btn.sm { min-height: 40px; padding: 0 16px; font-size: 14px; }
 .btn.block { width: 100%; }
 .btn[disabled] { pointer-events: none; color: var(--tx3); box-shadow: inset 0 0 0 1px var(--line); }
-/* the main action that isn't available yet: a faint wash of its colour with a quiet label — it reads as "this, once you've
-   filled it in", not as a muddy, see-through version of the real button */
-.btn.primary[disabled] { background: color-mix(in srgb, var(--ac) 14%, var(--s2)); color: color-mix(in srgb, var(--ac-text) 50%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ac) 24%, transparent); }
+/* the main action that isn't available yet: the same button drawn as an outline in its own colour, with its label in
+   that colour. It reads as "this, once you've filled it in" and fills in when it can be pressed (the faint wash it had
+   read as a flat brown smear on dark, peach on light) */
+.btn.primary[disabled] { background: transparent; color: color-mix(in srgb, var(--ac-text) 78%, transparent); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ac) 46%, transparent); }
 .btn.danger[disabled] { color: color-mix(in srgb, var(--bad) 45%, transparent); }
 .icon-btn {
   width: 46px; height: 46px; border-radius: 999px; display: inline-grid; place-items: center; color: var(--tx); position: relative;
