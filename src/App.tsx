@@ -1,4 +1,5 @@
 import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { openFoodPhoto } from './lib/photoOpen';
 import { AnimatePresence, MotionConfig, motion, type TargetAndTransition } from 'motion/react';
 import { useStore } from './state/store';
 import { useUI } from './state/ui';
@@ -338,7 +339,7 @@ export function App() {
     setTimeout(() => {
       if (doIt === 'food') push('foodSearch', { date: today, mealId });
       else if (doIt === 'voice') push('voice', { mode: 'food', date: today, mealId });
-      else if (doIt === 'photo') push('photoFood', { date: today, mealId });
+      else if (doIt === 'photo') openFoodPhoto(today, mealId);
       else if (doIt === 'wrestling') push('activity', { kind: 'wrestling' });
       else if (doIt === 'workout') openWorkout();
     }, 350);

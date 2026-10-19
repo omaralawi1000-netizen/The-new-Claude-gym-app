@@ -37,6 +37,7 @@ import { lastRestLate } from './workout/rest';
 import { appOnPhone, inAndroidApp, restCheck, showAppRest } from '../lib/androidApp';
 import { hcLastLine, hcLink, hcStatus, noteAsk } from '../lib/healthSync';
 import { ACTIVITY_LABEL, INTENSITY_LABEL, activityIcon } from '../lib/activity';
+import { useEdgeFade } from '../ui/edgeFade';
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 // Moving between Settings pages works like iOS: the page you leave steps aside and fades out quickly, then the next one glides
@@ -103,6 +104,12 @@ const BG_NAMES: Record<BgKind, string> = { classic: 'Classic', orb: 'Orb light',
  * Settings → Appearance → Background: each one shown small, as the real layer under a sketch of Today. Picking one while
  * Background glow is Off turns the glow back on (Off would hide it). Your photo asks for a picture the first time.
  */
+/** A sideways row of look tiles that fades out on the side that has more, instead of being cut by the sheet edge. */
+function PalRow({ label, children }: { label: string; children: React.ReactNode }) {
+  const ref = useEdgeFade<HTMLDivElement>();
+  return <div ref={ref} className="pal fade-x" role="radiogroup" aria-label={label}>{children}</div>;
+}
+
 function BackgroundPicker() {
   const t = useT();
   const st = useStore((x) => x.settings);
@@ -125,7 +132,7 @@ function BackgroundPicker() {
   };
   return (
     <>
-      <div className="pal" role="radiogroup" aria-label={t('Background')}>
+      <PalRow label={t('Background')}>
         {BG_KINDS.map((k) => (
           <button key={k} role="radio" aria-checked={cur === k} className={`pal-card press ${cur === k ? 'on' : ''}`} onClick={() => pick(k)}>
             <div className="look-pv bg-pv" aria-hidden style={{ ['--p-ac' as string]: 'var(--ac)' }}>
@@ -138,7 +145,7 @@ function BackgroundPicker() {
             <div className="small" style={{ marginTop: 8, fontWeight: 600 }}>{t(BG_NAMES[k])}</div>
           </button>
         ))}
-      </div>
+      </PalRow>
       <input ref={file} type="file" accept="image/*" hidden onChange={(e) => { onFile(e.target.files?.[0]); e.target.value = ''; }} />
       {cur === 'photo' && photo && <button className="btn sm press" style={{ marginTop: 10 }} onClick={() => file.current?.click()} disabled={busy}><Icon name="camera" size={16} />{t('Change photo')}</button>}
     </>
@@ -297,14 +304,14 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
             {sec === 'look' && (
               <div className="stack gap16">
                 <Field label={t('Colours')}>
-                  <div className="pal" role="radiogroup" aria-label={t('Colours')}>
+                  <PalRow label={t('Colours')}>
                     {PALETTES.map((p) => (
                       <button key={p.id} role="radio" aria-checked={st.palette === p.id} className={`pal-card press ${st.palette === p.id ? 'on' : ''}`} onClick={() => { haptic('select'); set({ palette: p.id }); }}>
                         <LookPreview p={p} />
                         <div className="small" style={{ marginTop: 8, fontWeight: 600 }}>{t(p.name)}</div>
                       </button>
                     ))}
-                  </div>
+                  </PalRow>
                 </Field>
                 <Field label={t('Background')} hint={t('Only Classic keeps drifting. The others hold still while you scroll.')}><BackgroundPicker /></Field>
                 <Field label={t('Background glow')} hint={t('How strong the background is. Off leaves it plain.')}><Seg value={st.glow ?? 'full'} onChange={(v) => set({ glow: v })} options={[{ value: 'full', label: t('Full') }, { value: 'soft', label: t('Soft') }, { value: 'off', label: t('Off') }]} /></Field>

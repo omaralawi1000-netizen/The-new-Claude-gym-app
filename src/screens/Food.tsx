@@ -119,7 +119,9 @@ export function FoodScreen() {
         // the meal's calories split by macro, as one thin bar
         const pk = (ms.protein ?? 0) * 4, ck = (ms.carbs ?? 0) * 4, fk = (ms.fat ?? 0) * 9, tk = Math.max(1, pk + ck + fk);
         return (
-          <section key={m.id} className={`plinth meal${items.length ? '' : ' bare'}${fade}`} aria-label={mealName(m, lang)}>
+          // the whole card logs to this meal too, not only its +; the food rows keep their own tap and swipe
+          <section key={m.id} className={`plinth meal press${items.length ? '' : ' bare'}${fade}`} aria-label={mealName(m, lang)}
+            onClick={(ev) => { if (!(ev.target as Element).closest('button, [data-no-press]')) add(m.id); }}>
             <div className="meal-head">
               <div className="grow" style={{ minWidth: 0 }}>
                 <div className="meal-name display">{mealName(m, lang)}</div>
@@ -139,7 +141,7 @@ export function FoodScreen() {
                   <i style={{ flexGrow: ck / tk, background: 'var(--c-carbs)' }} />
                   <i style={{ flexGrow: fk / tk, background: 'var(--c-fat)' }} />
                 </div>
-                <div className="meal-list">
+                <div className="meal-list" data-no-press>
                   <AnimatePresence initial={false}>
                     {items.map((e) => <EntryRow key={e.id} e={e} fresh={fresh.current.has(e.id)} onOpen={() => push('foodDetail', { entryId: e.id, date: e.date, mealId: e.mealId })} onDelete={() => del(e)} />)}
                   </AnimatePresence>
