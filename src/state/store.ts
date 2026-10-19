@@ -40,8 +40,8 @@ let saveTimer: ReturnType<typeof setTimeout> | null = null;
 export const persistStatus = { error: null as string | null, listeners: new Set<() => void>() };
 
 function pickData(s: Store): AppData {
-  const { settings, foods, favourites, savedMeals, recipes, entries, water, exercises, routines, schedule, sessions, active, weights, measurements, photos, activities, steps, health, notes, demo, choices, increments, memory, reviews } = s;
-  return { v: DATA_VERSION, settings, foods, favourites, savedMeals, recipes, entries, water, exercises, routines, schedule, sessions, active, weights, measurements, photos, activities, steps, health, notes, demo, choices, increments, memory, reviews };
+  const { settings, foods, favourites, savedMeals, recipes, entries, water, exercises, routines, schedule, sessions, active, weights, measurements, photos, activities, steps, health, hcGone, notes, demo, choices, increments, memory, reviews } = s;
+  return { v: DATA_VERSION, settings, foods, favourites, savedMeals, recipes, entries, water, exercises, routines, schedule, sessions, active, weights, measurements, photos, activities, steps, health, hcGone, notes, demo, choices, increments, memory, reviews };
 }
 
 export function flushSave() {
@@ -355,10 +355,10 @@ export const useStore = create<Store>((set, get) => {
     },
     removeActivity: (id) => {
       const a = get().activities.find((x) => x.id === id);
-      if (a) mutate((s) => ({ activities: s.activities.filter((x) => x.id !== id) }));
+      if (a) mutate((s) => ({ activities: s.activities.filter((x) => x.id !== id), ...(a.hcId ? { hcGone: [...(s.hcGone ?? []), a.hcId].slice(-500) } : {}) }));
       return a;
     },
-    restoreActivity: (a) => mutate((s) => ({ activities: s.activities.some((x) => x.id === a.id) ? s.activities : [...s.activities, a] })),
+    restoreActivity: (a) => mutate((s) => ({ activities: s.activities.some((x) => x.id === a.id) ? s.activities : [...s.activities, a], ...(a.hcId ? { hcGone: (s.hcGone ?? []).filter((x) => x !== a.hcId) } : {}) })),
     setNote: (date, patch) => mutate((s) => {
       const cur = s.notes.find((n) => n.date === date);
       const next = { ...(cur ?? { date }), ...patch };

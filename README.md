@@ -2663,6 +2663,23 @@ Omar: the Coach should feel like talking to a person who knows him and all his d
 - **No double send.** The Coach asks an opening question once per opening, and the same words within 2 s are asked once.
 - **The little-work card says what is logged:** "No calf sets logged in the last 4 weeks", never "about 0 sets". Its Ask the Coach question asks first whether he trains them without logging.
 
+### Review fixes (19 Oct, two reviewers, every finding reproduced in `tests/review173.test.ts`)
+- **Undo on a Coach card takes back only what that card added.** It used to put back a copy of the whole workout, so a set
+  changed by hand afterwards, or a second card's exercise, was lost with it.
+- **Which workout:** the running one when it is the one named (it carries its routine's name); else an exact name, else the
+  closest; the newest by date, whatever the list's order. A name that matches nothing says so instead of guessing.
+- A finished workout keeps its own length when the Coach adds to it later (it used to stretch to "now"). "After leg press"
+  when there is no leg press says it went at the end.
+- **The same words twice** are dropped only while the first is still being answered; typed words never.
+- **Watch:** a later sync adds to a day field by field (a read that failed on the phone no longer wipes sleep or weight);
+  workouts are kept in date order; one deleted by hand never comes back (`hcGone`); only workouts from the last two days
+  are announced. On the phone, the new kinds (sleep, HRV…) are asked for once on a sync when the watch was connected
+  before they existed; sleep stages are added up in seconds (whole minutes per stage lost up to ~25 min a night) and a
+  night written by two apps is counted once.
+- **Recovery:** "usual" needs 3 days; a sleep time can no longer show as "6h60".
+- Not changed (reasoned in the PR): the 160k cap (real payloads are ~45k), two same-kind sessions on one day merging into
+  the watch's, storage growth (~0.5 MB for two years), the history pointer moving on before the page has the data.
+
 ### Checks
 - `tests/coach8.test.ts` (8) and `tests/health.test.ts` (+3).
 - `scripts/journey-coach7.mjs`: calves after leg press in today's workout, the pizza in yesterday's dinner, a question back, BODY & RECOVERY with what is off.

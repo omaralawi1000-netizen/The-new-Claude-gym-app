@@ -405,5 +405,7 @@ export interface AppData {
   steps: StepDay[];
   /** the rest of what the watch measured, per day (newest ~2 years) */
   health?: HealthDay[];
+  /** watch workouts deleted by hand (their Health Connect ids, the newest 500): never brought back by a sync */
+  hcGone?: string[];
   demo: boolean;
 }

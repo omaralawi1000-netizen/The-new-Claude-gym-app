@@ -42,7 +42,12 @@ public class HealthActivity extends Activity {
                 open(HealthSync.status(this, "off"));
                 break;
             default:
-                sync();
+                // connected before sleep, HRV and the rest were added: asked for once here (the whole history again then)
+                if (HealthSync.on(this) && HealthSync.missingAny(this) && !HealthSync.askedMore(this)) {
+                    HealthSync.markAskedMore(this);
+                    HealthSync.restartHistory(this);
+                    requestPermissions(HealthSync.all(), ASK);
+                } else sync();
         }
     }
 
