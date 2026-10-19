@@ -41,6 +41,15 @@ describe('glow pictures', () => {
     for (let i = 0; i < a.data.length; i += 4) { da += a.data[i + 1]; db += b.data[i + 1]; }
     expect(Math.abs(da - db) / (a.data.length / 4)).toBeLessThan(0.05);
   });
+  it('a source clipped to the field reaches its right and bottom edges (no seam towards the base colour)', () => {
+    const W = 192, H = 416, w = 360, h = 780, k = W / w;
+    const job: GlowJob = { w, h, base: [11, 12, 20], amp: 0, srcs: [{ op: 1, m: [k, 0, 0, k, 0, 0], w: W, h: H, clip: true, bg: null,
+      layers: [{ k: 'r', g: [W / 2, H / 2, W * 2, W * 2], stops: [{ c: [120, 60, 200, 1], p: 0 }, { c: [120, 60, 200, 1], p: 1 }] }] }] };
+    const d = render(job, [], 6).data;
+    const at = (x: number, y: number) => d[(y * w + x) * 4];
+    for (const y of [10, 400, h - 1]) expect(Math.abs(at(w - 1, y) - at(w - 20, y))).toBeLessThanOrEqual(1);
+    for (const x of [10, 180, w - 1]) expect(Math.abs(at(x, h - 1) - at(x, h - 20))).toBeLessThanOrEqual(1);
+  });
   it('adds no noise where the picture is one flat level', () => {
     const flat: GlowJob = { w: 64, h: 64, base: [233, 236, 244], amp: 2, srcs: [] };
     const d = render(flat, [], 4).data;
