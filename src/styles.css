@@ -2051,8 +2051,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .tc-row + .tc-row { border-top: 1px solid var(--line); }
 .tc-row > .trunc { min-width: 0; }
 .tc-val { flex: none; font-weight: 650; display: inline-flex; align-items: baseline; gap: 8px; }
-.tc-up { font-size: 12px; font-weight: 650; color: var(--ok); }
-.tc-up.gold { color: var(--gold); }
+.tc-up { font-size: 12px; font-weight: 650; color: var(--ac-text); } /* "more than last time": one colour in Up next and Recent records */
 .tc-muscles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 18px; margin-top: 12px; }
 .tc-m { color: var(--tx3); }
 .tc-m.some, .tc-m.hit { color: var(--tx2); }
