@@ -96,8 +96,9 @@ browser smooths them, so **lab shots lie: judge from Omar's own screenshots.**
     picture), the rest is let go.
   - A field whose picture isn't ready (right after launch, a tab tapped before it was painted ahead) is painted first by
     the worker (a queue in front of it; image files are made in a second worker), shows its CSS meanwhile under the
-    see-through canvas, and the picture fades in over it (1.2 s, `--ease-io`, opacity only); the CSS goes once the picture
-    covers it. The canvas lies over the field's CSS and under its grain and moving parts, and is there from the field's
+    see-through canvas, and the picture fades in over it (1.2 s, `--ease-io`, opacity only); the CSS goes only once the
+    canvas's own fade has finished (never on a timer: on a busy page the fade starts late). The status-bar strip keeps its
+    tint while the field waits and fades out with it (resting at opacity 0.002, not 0, so it stays a drawn layer). The canvas lies over the field's CSS and under its grain and moving parts, and is there from the field's
     first frame, so no layer is added or dropped. Never show the field plain while it waits: it went dark, then lit.
     After a palette, glow or motion change the picture before fades out (0.6 s); if the worker can't paint, the CSS stays.
   - A glow shown faint (Coach-open beam, a fade) needs a stronger dither in its picture: `ampFor(opacity)`.

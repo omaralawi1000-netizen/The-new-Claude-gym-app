@@ -1907,8 +1907,10 @@ the workout window: the phone draws CSS gradients and blur output in whole 8-bit
     the first seconds after launch: files are now made in the worker too, `encodePng`). The other tabs' fields are
     painted ahead 0.6 s after launch; a tab tapped before that shows its CSS field until its picture is ready (painted
     before anything else the worker has queued), and the picture then fades in over it (1.2 s, eased in and out). The
-    canvas is there, see-through, from the field's first frame, so no layer is added later. (Showing the plain colour
-    while waiting, tried first, made the field go dark and then light up.) After a palette,
+    canvas is there, see-through, from the field's first frame, so no layer is added later, and the CSS goes only once
+    that fade has finished; the status-bar strip keeps its tint meanwhile and fades out with it. (Showing the plain
+    colour while waiting, tried first, made the field go dark and then light up; ending the fade on a timer hid the CSS
+    early on a busy page.) After a palette,
     glow or motion change the picture before fades out (0.6 s) instead of going at once. The mid-switch frame shows the
     final dithered picture.
   - Theme switch: the other theme's pictures are painted ahead while idle, read from a hidden twin frame (the page's own
