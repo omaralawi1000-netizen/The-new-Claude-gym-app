@@ -316,13 +316,19 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
     if (f && ref.current?.contains(f) && /^(INPUT|TEXTAREA)$/.test(f.tagName)) f.blur();
   }, [ready]);
   // started before the first paint, so the browser-run half is already going while the sheet's content finishes setting up
+  // It starts with its top edge right at the bottom of the screen, not 40 px below it: the extra room is only there so a
+  // closing sheet's shadow has left the screen before it is let go. Started down there, the spring's first, slowest frames
+  // were spent out of sight and the dim waited for them too, so for 3–4 frames after the tap nothing moved (the "delay").
+  // Same spring, same timing: it simply begins where it can be seen.
   useLayoutEffect(() => {
+    const p0 = reduce ? 0 : (seenOf.current.knee ?? 0);
+    p.set(p0);
     const c = animate(p, 1, reduce ? { duration: 0.01 } : SPRING);
     // A popup opens without the keyboard, as on iOS: a field that asked for focus is let go before the first paint, so the
     // sheet arrives calmly; tapping a field then brings the keyboard and the sheet rises to meet it.
     const f = document.activeElement as HTMLElement | null;
     if (f && ref.current?.contains(f) && /^(INPUT|TEXTAREA)$/.test(f.tagName)) f.blur();
-    runMirror(0, 1, SPRING, 0);
+    runMirror(p0, 1, SPRING, 0);
     return () => c.stop();
     // eslint-disable-next-line
   }, []);

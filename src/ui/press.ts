@@ -5,7 +5,8 @@
 // wide card, so both read as the same gentle push). Only `data-pressed` and `--press` are written, on the control itself.
 
 const SEL = '.press:not(.tab)'; // the dock's tabs keep plain CSS :active (see styles.css)
-const WAIT = 100;    // ms before a resting finger shows the press (Android's own tap timeout): a scroll cancels it first
+const WAIT = 50;     // ms before a resting finger shows the press: a scroll has moved past SLOP by then and cancels it first.
+                     // (100, Android's own tap timeout, meant a normal tap showed nothing until the finger lifted: it felt late)
 const HOLD = 120;    // ms a press stays down at least, so a quick tap still reads
 const SLOP = 6;      // px a finger may drift before it counts as a scroll, not a press
 
