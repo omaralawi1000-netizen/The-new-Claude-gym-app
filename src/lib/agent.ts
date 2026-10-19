@@ -25,7 +25,7 @@ import { ACTIVITY_KINDS, ACTIVITY_LABEL } from './activity';
 import { fmtNum, kgToDisplay } from './units';
 import type { ActivityKind, Equipment, Exercise, Food, FoodEntry, Lang, LogType, Meal, MeasureKind, MemoryKind, MemoryNote, MuscleGroup, Quantity, Recipe, RecipeIngredient, RoutineItem, SessionExercise, SetRecord, Settings, WorkoutSession } from './types';
 import { MEMORY_KINDS, MEMORY_MAX } from '../state/defaults';
-import { addExercises, addSet, adjustRest, moveExercise, patchExercise, replaceExercise, skipRest, startRest, toggleSuperset } from '../screens/workout/actions';
+import { addExercises, addSet, adjustRest, deleteSet, moveExercise, patchExercise, replaceExercise, skipRest, startRest, toggleSuperset } from '../screens/workout/actions';
 import { completeSet } from '../screens/workout/complete';
 import { currentSetOf } from './currentSet';
 import { fixMisheard } from './setCommand';
@@ -46,7 +46,7 @@ export type AgentAction =
   | { type: 'log_water'; ml: number; day?: string | null }
   | { type: 'log_quick'; totals: NutriFix; name?: string | null; meal?: string | null; day?: string | null }
   | { type: 'log_weight'; kg: number; day?: string | null }
-  | { type: 'log_sets'; exercises: { exercise: string; sets: AgentSet[] }[]; day?: string | null }
+  | { type: 'log_sets'; exercises: { exercise: string; sets: AgentSet[] }[]; day?: string | null; workout?: string | null; after?: string | null }
   | { type: 'log_activity'; kind: ActivityKind; minutes: number; rounds?: number; intensity?: 1 | 2 | 3; note?: string; day?: string | null }
   | { type: 'start_workout'; routine?: string | null }
   | { type: 'finish_workout' }
@@ -61,7 +61,7 @@ export type AgentAction =
   | { type: 'favourite_food'; name: string; on: boolean }
   | { type: 'save_meal'; name: string; meal: string; day?: string | null }
   | { type: 'edit_set'; exercise: string; workout?: string | null; set_number?: number | null; kg?: number | null; reps?: number | null; remove?: boolean }
-  | { type: 'add_exercise'; exercises: string[] }
+  | { type: 'add_exercise'; exercises: string[]; start?: boolean }
   | { type: 'remove_exercise'; exercise: string }
   | { type: 'replace_exercise'; from: string; to: string; routine?: string | null }
   | { type: 'create_routine'; name: string; items: RoutineBit[] }
@@ -74,7 +74,7 @@ export type AgentAction =
   | { type: 'set_schedule'; weekday: number; routine: string | null }
   | { type: 'move_workout'; routine?: string | null; from_weekday?: number | null; to_weekday: number; once: boolean }
   | { type: 'plan_activity'; weekday: number; kind: ActivityKind; on: boolean }
-  | { type: 'log_current_set'; kg?: number | null; reps?: number | null; which: 'current' | 'last'; durationSec?: number | null; same?: boolean; warmup?: boolean }
+  | { type: 'log_current_set'; kg?: number | null; reps?: number | null; which: 'current' | 'last'; durationSec?: number | null; same?: boolean; warmup?: boolean; skip?: boolean }
   | { type: 'delete_activity'; kind?: string | null; day?: string | null }
   | { type: 'delete_weight'; day?: string | null }
   | { type: 'add_note'; text: string; kind: 'training' | 'nutrition'; day?: string | null }
@@ -201,7 +201,7 @@ function validateOne(a: any, out: AgentAction[]) {
           })).filter((s: AgentSet) => s.reps || s.durationSec || s.distanceKm || s.kg);
           return sets.length ? { exercise, sets } : null;
         }).filter(Boolean) as { exercise: string; sets: AgentSet[] }[];
-        if (exercises.length) out.push({ type: 'log_sets', exercises, day: dayArg(a.day) });
+        if (exercises.length) out.push({ type: 'log_sets', exercises, day: dayArg(a.day), ...(str(a.workout, 60) ? { workout: str(a.workout, 60) } : {}), ...(str(a.after, 60) ? { after: str(a.after, 60) } : {}) });
         break;
       }
       case 'log_activity': {
@@ -247,7 +247,7 @@ function validateOne(a: any, out: AgentAction[]) {
         out.push({ type: 'edit_set', exercise, workout: str(a.workout, 12) ?? null, set_number: n ? Math.round(n) : null, kg: kg ?? null, reps: reps ? Math.round(reps) : null, remove: a.delete_set === true });
         break;
       }
-      case 'add_exercise': { const exercises = (Array.isArray(a.exercises) ? a.exercises : []).slice(0, 8).map((x: any) => str(x, 60)).filter(Boolean) as string[]; if (exercises.length) out.push({ type: 'add_exercise', exercises }); break; }
+      case 'add_exercise': { const exercises = (Array.isArray(a.exercises) ? a.exercises : []).slice(0, 8).map((x: any) => str(x, 60)).filter(Boolean) as string[]; if (exercises.length) out.push({ type: 'add_exercise', exercises, ...(a.start === true ? { start: true } : {}) }); break; }
       case 'remove_exercise': { const exercise = str(a.exercise, 60); if (exercise) out.push({ type: 'remove_exercise', exercise }); break; }
       case 'replace_exercise': { const from = str(a.from, 60), to = str(a.to, 60); if (from && to) out.push({ type: 'replace_exercise', from, to, routine: str(a.routine, 60) ?? null }); break; }
       case 'create_routine': { const name = str(a.name, 60), items = bits(a.add); if (name && items.length) out.push({ type: 'create_routine', name, items }); break; }
@@ -278,7 +278,7 @@ function validateOne(a: any, out: AgentAction[]) {
       case 'log_current_set': {
         const kg = num(a.kg, 0, 600), reps = num(a.reps, 0, 200);
         const sec = num(a.seconds ?? a.durationSec, 1, 36000);
-        out.push({ type: 'log_current_set', kg: kg ?? null, reps: reps !== undefined ? Math.round(reps) : null, which: a.which === 'last' ? 'last' : 'current', ...(sec ? { durationSec: Math.round(sec) } : {}), ...(a.same === true ? { same: true } : {}), ...(a.warmup === true ? { warmup: true } : {}) });
+        out.push({ type: 'log_current_set', kg: kg ?? null, reps: reps !== undefined ? Math.round(reps) : null, which: a.which === 'last' ? 'last' : 'current', ...(sec ? { durationSec: Math.round(sec) } : {}), ...(a.same === true ? { same: true } : {}), ...(a.warmup === true ? { warmup: true } : {}), ...(a.skip === true ? { skip: true } : {}) });
         break;
       }
       case 'delete_activity': out.push({ type: 'delete_activity', kind: str(a.kind, 20) ?? null, day: dayArg(a.day) }); break;
@@ -897,6 +897,8 @@ function doAddExercise(a: Extract<AgentAction, { type: 'add_exercise' }>, ctx: A
   const miss = found.filter((x) => !x.ex).map((x) => x.n);
   if (!ok.length) return { id: uid('r'), kind: 'miss', title: t('Couldn’t add that'), lines: miss.map((n) => ({ text: n, sub: t('Not in your exercise library'), warn: true })) };
   const st = useStore.getState();
+  // nothing running: never a workout started silently (the "I did calves" mix-up, 18 Oct); only when asked to start
+  if (!st.active && !a.start) return { id: uid('r'), kind: 'miss', title: t('No workout is running'), lines: [...ok.map((e) => ({ text: exLabel(e, lang), sub: t('Say the sets you did and I’ll log them') }))] };
   const started = !st.active;
   if (started) st.startWorkout({ name: '' });
   const before = new Set(useStore.getState().active!.exercises.map((b) => b.id));
@@ -1187,6 +1189,13 @@ function doCurrentSet(a: Extract<AgentAction, { type: 'log_current_set' }>, ctx:
     if (!hit) return { id: uid('r'), kind: 'miss', title: t('No finished set yet'), lines: [] };
   } else {
     const cur = currentSetOf(act, a.warmup ? 'only' : 'skip');
+    // "skip it" / "skip this set": the planned set is taken out and the next one is up (Undo puts it back)
+    if (a.skip) {
+      if (!cur) return { id: uid('r'), kind: 'miss', title: t('Every set is done'), lines: [] };
+      const ex = exOf(cur.se.exerciseId);
+      const { restore } = deleteSet(cur.se.id, cur.set.id);
+      return { id: uid('r'), kind: 'sets', title: t('Set skipped'), lines: [{ text: ex ? exLabel(ex, lang) : '', sub: `${t('Set')} ${cur.label}` }], undo: restore };
+    }
     if (cur) hit = { se: cur.se, set: cur.set };
     else {
       // every planned set is done: one more of the exercise you were on
@@ -1767,9 +1776,18 @@ function doLogSets(a: Extract<AgentAction, { type: 'log_sets' }>, ctx: AgentCtx,
   const usage = new Map<string, number>();
   for (const ses of st.sessions) for (const e of ses.exercises) usage.set(e.exerciseId, (usage.get(e.exerciseId) ?? 0) + 1);
   const w = st.settings.units.weight;
-  const date = resolveDay(a.day, ctx.today) ?? ctx.today;
+  let date = resolveDay(a.day, ctx.today) ?? ctx.today;
+  // which workout they go into. The running one (today, or "current"); else the finished workout they named ("last",
+  // a date, or its name), else that day's workout, whichever it was (Omar's "I did calves too, put it in" had made a
+  // second workout beside today's Legs & shoulders, 18 Oct); a new "Logged workout" only when the day has none
+  const done = st.sessions.filter((x) => x.status === 'done');
+  const wk = a.workout ?? null;
+  const named = wk && wk !== 'current' && wk !== 'last' && !/^\d{4}-\d{2}-\d{2}$/.test(wk)
+    ? [...done].reverse().find((x) => x.name && (fold(x.name) === fold(wk) || fold(x.name).includes(fold(wk)) || fold(wk).includes(fold(x.name)))) : undefined;
+  const chosen = wk === 'last' ? done[done.length - 1] : wk && /^\d{4}-\d{2}-\d{2}$/.test(wk) ? [...done].reverse().find((x) => x.date === wk) : named;
+  if (chosen) date = chosen.date;
   // sets for another day, or with no workout running (told after the gym): a finished workout, never a live one
-  const live = !!st.active && date === ctx.today;
+  const live = !!st.active && date === ctx.today && !chosen;
   const lines: AgentResult['lines'] = [];
   const found: { ex: Exercise; sets: SetRecord[]; tied: boolean; said: string; heard: string[] }[] = [];
 
@@ -1806,17 +1824,22 @@ function doLogSets(a: Extract<AgentAction, { type: 'log_sets' }>, ctx: AgentCtx,
   if (!live) {
     // into that day's logged workout (made now if there is none): finished, with its records; today's is linked to the
     // planned routine when its exercises are in it, so the plan counts it as done
-    const prev = useStore.getState().sessions.find((x) => x.date === date && x.logged);
+    const prev = chosen ?? [...useStore.getState().sessions].reverse().find((x) => x.date === date && x.status === 'done');
     const at = date === ctx.today ? Date.now() : new Date(`${date}T18:00:00`).getTime();
     const planned = date === ctx.today ? plannedFor(st, date, ctx.today) : null;
     const routine = planned ? st.routines.find((r) => r.id === planned.routineId) : undefined;
     const linked = routine && !st.sessions.some((x) => x.date === date && x.routineId === routine.id && !x.logged) && found.some((f) => routine.items.some((it) => it.exerciseId === f.ex.id)) ? routine : undefined;
     const base: WorkoutSession = prev ?? { id: uid('w'), name: linked?.name ?? t('Logged workout'), date, startedAt: at, endedAt: at, pausedMs: 0, status: 'done', exercises: [], logged: true, ...(linked ? { routineId: linked.id, plannedDate: date } : {}) };
     const exs = base.exercises.map((e) => ({ ...e, sets: [...e.sets] }));
+    // "put it after leg press": new exercises go in right after that one, in the order said
+    let pos = a.after ? (() => { const h = findBlock(a.after, base, lang); return h ? exs.findIndex((e) => e.id === h.block.id) + 1 : -1; })() : -1;
+    if (a.after && pos > 0) lines.push({ text: t('After {name}', { name: exLabel(findBlock(a.after, base, lang)!.ex, lang) }) });
     for (const f of found) {
       const sets = f.sets.map((x, i) => ({ ...x, completedAt: date === ctx.today ? x.completedAt : at + i }));
       const into = exs.find((e) => e.exerciseId === f.ex.id);
-      if (into) into.sets.push(...sets); else exs.push({ id: uid('se'), exerciseId: f.ex.id, sets });
+      if (into) into.sets.push(...sets);
+      else if (pos > 0) exs.splice(pos++, 0, { id: uid('se'), exerciseId: f.ex.id, sets });
+      else exs.push({ id: uid('se'), exerciseId: f.ex.id, sets });
     }
     const next: WorkoutSession = { ...base, exercises: exs, endedAt: Math.max(base.endedAt ?? at, date === ctx.today ? Date.now() : at) };
     const exMap = new Map(allExercises(st.exercises).map((e) => [e.id, e]));
@@ -1826,17 +1849,20 @@ function doLogSets(a: Extract<AgentAction, { type: 'log_sets' }>, ctx: AgentCtx,
     // a rotation moves on to its next routine, as finishing it in the app does
     if (!prev && linked && planned?.source === 'rotation') st.setSchedule({ rotation: { ...schedule.rotation, pointer: (schedule.rotation.pointer + 1) % Math.max(1, schedule.rotation.order.length) } });
     return {
-      id: uid('r'), kind: 'sets', title, lines,
+      id: uid('r'), kind: 'sets', title: prev && !prev.logged && prev.name ? `${title} · ${prev.name}` : title, lines,
       undo: () => { const s2 = useStore.getState(); if (prev) s2.mutateSession(prev.id, () => prev); else s2.deleteSession(next.id); if (!prev && linked && planned?.source === 'rotation') s2.setSchedule({ rotation: schedule.rotation }); },
     };
   }
 
   // into the running workout: planned, unfinished sets (a routine's blanks) are filled first, the rest are appended
   const added: { seId: string; filled: string[]; appended: string[]; created: boolean }[] = [];
+  const afterHit = a.after ? findBlock(a.after, useStore.getState().active!, lang) : undefined;
+  let livePos = afterHit ? useStore.getState().active!.exercises.findIndex((e) => e.id === afterHit.block.id) + 1 : -1;
+  if (afterHit) lines.push({ text: t('After {name}', { name: exLabel(afterHit.ex, lang) }) });
   for (const f of found) {
     const existing = [...useStore.getState().active!.exercises].reverse().find((e) => e.exerciseId === f.ex.id);
     const created = !existing;
-    if (created) addExercises([f.ex.id]);
+    if (created) addExercises([f.ex.id], livePos > 0 ? livePos++ : undefined);
     const filled: string[] = []; const appended: string[] = [];
     let seId = '';
     useStore.getState().mutateActive((s) => {
