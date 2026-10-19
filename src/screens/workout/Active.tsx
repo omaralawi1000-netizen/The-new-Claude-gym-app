@@ -262,8 +262,9 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   // the tab bar went, then nothing at the bottom for 19 frames, then the bar rose: two moves with a hole between). It is
   // tucked under that edge while the window is card-sized (it would lie over the card's words) and rises out of it as the
   // window grows (moved, never faded: a fade on the bar's ancestor turns its frost off until the fade ends).
-  const BAR_TUCK = 96;
-  const barBy = (pp: number) => (from.current && ls.current === 'D' && F().bar ? geo(pp).by + BAR_TUCK * (1 - ramp(pp, F().bar!)) : 0);
+  // (how far: from the bar's top to the window's edge at rest, which is that far below the screen, measured as it sets off)
+  const barTuck = useRef(160);
+  const barBy = (pp: number) => (from.current && ls.current === 'D' && F().bar ? geo(pp).by + barTuck.current * (1 - ramp(pp, F().bar!)) : 0);
   const barRef = useRef<HTMLDivElement>(null);
   const lastBar = useRef({ by: 0 });
   const barT = (by: number) => (by ? `translateY(${by.toFixed(2)}px)` : 'none');
@@ -560,6 +561,8 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     }
     const rb = parseFloat(getComputedStyle(d).getPropertyValue('--wk-rb')) || 0;
     dims.current = { W: box.width, hA: a0.offsetHeight, RB: rb + 2 };
+    const bw = barRef.current?.querySelector<HTMLElement>('.wk-bar-wrap');
+    if (bw) barTuck.current = bw.offsetHeight + (parseFloat(getComputedStyle(bw).bottom) || 0) + rb + 8;
     const ok = !!g && g.w > 40 && g.b - g.t > 30;
     from.current = ok ? { l: g.l - box.left, t: g.t - box.top, w: g.w, b: g.b - box.top, h: g.h } : null;
     const s0 = ok ? g.w / box.width : 1;
