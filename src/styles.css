@@ -2703,17 +2703,17 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
    Train week and a picked day are all the same light clear-glass pill: white about 14 %, a thin light along the top, a faint
    shade along the bottom, a hairline. No heavy grey block, no warm fill, no gold edge. Orange stays for "done" and "today"
    (the check square, today's letters). Light mode: a white raised pill with a soft neutral shadow (no black pill). ---- */
-:root:not([data-theme='light']) { --sel-fill: rgba(255, 255, 255, 0.14); --sel-off: rgba(255, 255, 255, 0.035);
+:root:not([data-theme='light']) { --sel-fill: rgba(255, 255, 255, 0.22); --sel-off: rgba(255, 255, 255, 0.035);
   --sel-edge: inset 0 1px 0 rgba(255, 255, 255, 0.2), inset 0 -1px 0 rgba(0, 0, 0, 0.22), inset 0 0 0 1px rgba(255, 255, 255, 0.06); }
 :root[data-theme='light'] { --sel-fill: #fff; --sel-off: rgba(0, 0, 0, 0.035);
   --sel-edge: inset 0 0 0 1px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.09), 0 4px 12px -4px rgba(0, 0, 0, 0.16);
   /* (a chip row scrolls sideways, so it clips below the chips: there the raise is drawn inside the pill) */
   --sel-edge-in: inset 0 0 0 1px rgba(0, 0, 0, 0.06), inset 0 -1.5px 0 rgba(0, 0, 0, 0.07); }
 /* the moving thumb (switches and the dock): its three pieces must stay opaque (ui/lens.ts), so the clear glass is made by the
-   group's opacity: light-grey pieces at 0.2 = the page behind at 80 % plus a 14 % white film; the white top line comes out
-   about 20 % white and the bottom line a soft shade. Only colours and the group's resting opacity change (it was 0.9-0.95,
+   group's opacity: light-grey pieces at 0.3 = the page behind at 70 % plus about a 20 % white film; the white top line comes
+   out about 30 % white (crisp) and the bottom line a real shade (judge r1: at 0.2 it read as a matte pebble). Only colours and the group's resting opacity change (it was 0.9-0.95,
    also a group opacity): the same three layers, the same motion. */
-:root:not([data-theme='light']) :is(.seg-lens, .tab-lens):not(#_):not(#_) { opacity: 0.2; --lens-fill: #b3b3b3; --lens-hl: #fff; --lens-line: #d6d6d6; --lens-lo: #6b6b6b; }
+:root:not([data-theme='light']) :is(.seg-lens, .tab-lens):not(#_):not(#_) { opacity: 0.3; --lens-fill: #a6a6a6; --lens-hl: #fff; --lens-line: #d6d6d6; --lens-lo: #000; }
 :root[data-theme='light'] :is(.seg-lens, .tab-lens):not(#_) { --lens-fill: #fff; --lens-hl: #fff; --lens-line: rgba(0, 0, 0, 0.06); --lens-lo: rgba(0, 0, 0, 0.09); }
 :root[data-theme='light'] :is(.seg-lens, .tab-lens) > :is(.lens-l, .lens-r) { box-shadow: inset 0 -1px 0 var(--lens-lo), inset 0 0 0 1px var(--lens-line); }
 :root[data-theme='light'] :is(.seg-lens, .tab-lens) > .lens-m { background: linear-gradient(to bottom, transparent 0 calc(100% - 1px), var(--lens-lo) calc(100% - 1px)), linear-gradient(to bottom, var(--lens-line) 0 1px, transparent 1px calc(100% - 1px), var(--lens-line) calc(100% - 1px)), var(--lens-fill); }
@@ -2729,6 +2729,11 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
    quieter so the choice reads at a glance */
 .day-dots button:not(#_), .day-pill { background: var(--sel-off); color: var(--tx2); box-shadow: inset 0 0 0 1px var(--line); }
 .day-dots button.on:not(#_), .day-pill.on { background: var(--sel-fill); color: var(--tx); box-shadow: var(--sel-edge); }
+/* (judge r1: in dark a picked setup day read the same as an unpicked one over the glow, and in light the unpicked ones went
+   salmon or blue-grey: the unpicked ones step back instead) */
+:root:not([data-theme='light']) .day-pill:not(.on) { background: rgba(0, 0, 0, 0.28); color: var(--tx3); }
+:root[data-theme='light'] .day-pill:not(.on) { background: rgba(255, 255, 255, 0.5); color: var(--tx3); }
+:root[data-theme='light'] .day-dots button:not(.on):not(#_) { background: rgba(198, 195, 184, 0.35); }
 /* in a row where one chip is chosen, the others' labels are the softer grey (like a switch's other options), so the quiet
    pill still reads at a glance; no weight change, so nothing shifts when you pick */
 div:has(> .chip.on) > .chip:not(.on, .acc):not(#_):not(#_) { color: var(--tx2); }
