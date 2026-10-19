@@ -6,7 +6,7 @@ import { useAi } from '../state/ai';
 import { getKey, setKey, mask } from '../lib/keys';
 import { testGroqKey } from '../lib/groq';
 import { listModels, pickTextModels } from '../lib/gemini';
-import { OPENAI_MODEL, solLabel, testOpenaiKey } from '../lib/openai';
+import { OPENAI_MODEL, QUICK_MODEL, solLabel, testOpenaiKey } from '../lib/openai';
 import { spendSnapshot, subscribeSpend } from '../lib/spend';
 import { fmtNum } from '../lib/units';
 import { VOICES, VOICE_STYLE, FALLBACK_TTS, play } from '../lib/tts';
@@ -87,6 +87,11 @@ export function VoiceAiSettings() {
                 <input id="sol-model" className="input" autoCapitalize="off" autoCorrect="off" spellCheck={false} value={ai.models.sol} placeholder={ai.models.solAuto || OPENAI_MODEL}
                   onChange={(e) => ai.patch({ models: { ...ai.models, sol: e.target.value.trim() } })} />
                 <div className="xs t2" style={{ marginTop: 6 }}>{t('Empty = the newest GPT model your key can use (now {m}). Spending is estimated from the built-in price list.', { m: ai.models.solAuto || OPENAI_MODEL })}</div></div>
+              {/* everyday messages go to a cheaper model; decisions, photos and "think about it properly" to the one above */}
+              <div className="field"><label htmlFor="quick-model">{t('Quick model')}</label>
+                <input id="quick-model" className="input" autoCapitalize="off" autoCorrect="off" spellCheck={false} value={ai.models.quick} placeholder={QUICK_MODEL}
+                  onChange={(e) => ai.patch({ models: { ...ai.models, quick: e.target.value.trim() } })} />
+                <div className="xs t2" style={{ marginTop: 6 }}>{t('For everyday messages: logging, changes and normal questions. Empty = {m}. Decisions, photos and “think about it properly” use the model above.', { m: QUICK_MODEL })}</div></div>
               <div className="field"><label>{t('Thinking — orb')}</label>
                 <Seg value={ai.effortOrb} onChange={(v) => ai.patch({ effortOrb: v })} options={[{ value: 'medium', label: t('Medium') }, { value: 'high', label: t('High') }]} /></div>
               <div className="field"><label>{t('Thinking — Coach')}</label>

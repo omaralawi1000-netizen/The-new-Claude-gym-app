@@ -143,4 +143,12 @@ describe('Sol thinks only as hard as the message needs', () => {
     expect(effortFor('hvorfor går min bænk ikke op?', 'high')).toBe('high');
     expect(effortFor('what is this machine', 'medium', true)).toBe('medium'); // a photo needs care
   });
+  it('decisions and "think about it properly" get high, whatever the setting', () => {
+    expect(effortFor("what's my maintenance?", 'medium')).toBe('high');
+    expect(effortFor('how many calories should I eat to bulk?', 'medium')).toBe('high');
+    expect(effortFor('Why am I not losing weight?', 'medium')).toBe('high');
+    expect(effortFor('think about it properly: is my split good?', 'medium')).toBe('high');
+    expect(effortFor('tænk dig grundigt om', 'medium')).toBe('high');
+    expect(effortFor('log 200 g skyr', 'medium')).toBe('low');
+  });
 });

@@ -5,9 +5,10 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useStore } from '../src/state/store';
 import { defaultData } from '../src/state/defaults';
-import { catchUpOn, eatingLines, heavyDays, kcalTargetFor, markCoachTold, planCatchUp, reconcileCatchUps } from '../src/lib/eating';
+import { catchUpOn, eatingLines, heavyDays, kcalTargetFor, markCoachTold, reconcileCatchUps } from '../src/lib/eating';
 import { suggestedTarget, trueMaintenance } from '../src/lib/maintenance';
 import { validateAgent, runActions } from '../src/lib/agent';
+import { applyVerdict } from '../src/lib/verdict';
 import { makeT } from '../src/lib/i18n';
 import { addDays } from '../src/lib/dates';
 import type { AppData, FoodEntry } from '../src/lib/types';
@@ -26,22 +27,24 @@ const set = (entries: FoodEntry[]) => useStore.setState({ entries });
 beforeEach(() => {
   localStorage.clear();
   const d = defaultData(); d.settings.onboarded = true; d.settings.dayStartHour = 0; d.settings.goals.kcal = 2500; d.settings.goals.protein = 180;
+  // (an adult on a fat-loss goal: the only one a catch-up may trim for, lib/verdict.ts)
+  d.settings.profile.goal = 'fatloss'; d.memory = [{ id: 'age', text: 'Age: 24 (as of 2026-01-01)', kind: 'other', at: 0 }];
   useStore.getState().replaceAll(d);
 });
 
 describe('the morning after', () => {
-  it('2,000 kcal logged today for yesterday: noticed, caught up from today over 4 days, protein untouched', () => {
+  it('2,000 kcal logged today for yesterday: noticed (undecided, no cut yet); a decided trim runs from today, protein untouched', () => {
     const y = new Date(2026, 9, 18, 13, 0).getTime();
     set([entry(yesterday, 1300, y, 'lunch'), entry(yesterday, 1200, y + 3600e3, 'snacks'), entry(yesterday, 2000, MORNING - 3600e3)]);
     const r = reconcileCatchUps(data(), MORNING)!;
     expect(r.fresh).toHaveLength(1);
     const c = r.fresh[0];
-    expect(c).toMatchObject({ date: yesterday, over: 2000, trigger: 'late', perDay: 500 });
-    expect(c.days).toEqual([today, '2026-10-20', '2026-10-21', '2026-10-22']);
-    useStore.getState().setCatchUps(r.list);
-    expect(kcalTargetFor(data(), today)).toBe(2000);
+    expect(c).toMatchObject({ date: yesterday, over: 2000, trigger: 'late', perDay: 0, days: [], decided: false });
+    useStore.getState().setCatchUps([{ ...applyVerdict(c, { plan: 'trim', perDay: 250, days: 4, line: 'l', why: '' }, today), decided: true }]);
+    expect(data().catchUps![0].days).toEqual([today, '2026-10-20', '2026-10-21', '2026-10-22']);
+    expect(kcalTargetFor(data(), today)).toBe(2250);
     expect(kcalTargetFor(data(), '2026-10-23')).toBe(2500);
-    expect(catchUpOn(data(), today)).toMatchObject({ perDay: 500, left: 4 });
+    expect(catchUpOn(data(), today)).toMatchObject({ perDay: 250, left: 4 });
     expect(data().settings.goals.protein).toBe(180);
     expect(reconcileCatchUps(data(), MORNING)).toBeNull(); // (once)
   });
@@ -50,14 +53,16 @@ describe('the morning after', () => {
     set([entry(yesterday, 1300, y, 'lunch'), entry(yesterday, 600, y), entry(yesterday, 800, MORNING - 3600e3)]); // 2,700: +200
     expect(reconcileCatchUps(data(), MORNING)).toBeNull();
   });
-  it('more logged for the same day later raises it; taken back, it is never set again', () => {
+  it('more logged for the same day later updates the amount (never decided again); taken back, it is never set again', () => {
     set([entry(yesterday, 2500, new Date(2026, 9, 18, 12).getTime()), entry(yesterday, 1000, MORNING)]);
-    useStore.getState().setCatchUps(reconcileCatchUps(data(), MORNING)!.list);
+    useStore.getState().setCatchUps(reconcileCatchUps(data(), MORNING)!.list.map((c) => ({ ...c, decided: true })));
     expect(data().catchUps![0].over).toBe(1000);
     set([...data().entries, entry(yesterday, 800, MORNING + 60e3)]);
-    useStore.getState().setCatchUps(reconcileCatchUps(data(), MORNING + 120e3)!.list);
+    const r = reconcileCatchUps(data(), MORNING + 120e3)!;
+    expect(r.fresh).toEqual([]);
+    useStore.getState().setCatchUps(r.list);
     expect(data().catchUps).toHaveLength(1);
-    expect(data().catchUps![0].over).toBe(1800);
+    expect(data().catchUps![0]).toMatchObject({ over: 1800, decided: true });
     useStore.getState().setCatchUps(data().catchUps!.map((c) => ({ ...c, off: true })));
     expect(kcalTargetFor(data(), today)).toBe(2500);
     set([...data().entries, entry(yesterday, 900, MORNING + 180e3)]);
@@ -66,22 +71,13 @@ describe('the morning after', () => {
 });
 
 describe('the same evening', () => {
-  it('after 20:00 a day clearly over is caught up from tomorrow; before 20:00 nothing yet', () => {
+  it('in the evening a day clearly over is noticed; before 20:00 nothing yet; a trim starts tomorrow', () => {
     const noon = new Date(2026, 9, 19, 12).getTime();
     set([entry(today, 2500, noon), entry(today, 1000, noon + 3600e3)]);
     expect(reconcileCatchUps(data(), new Date(2026, 9, 19, 18).getTime())).toBeNull();
     const r = reconcileCatchUps(data(), new Date(2026, 9, 19, 21, 30).getTime())!;
-    expect(r.fresh[0]).toMatchObject({ date: today, over: 1000, trigger: 'live', perDay: 330 });
-    expect(r.fresh[0].days).toEqual(['2026-10-20', '2026-10-21', '2026-10-22']);
-  });
-});
-
-describe('the floor', () => {
-  it('a low target spreads it over more days and never goes under 1,800', () => {
-    expect(planCatchUp(2000, 2500, 1800)).toEqual({ n: 4, perDay: 500 });
-    expect(planCatchUp(1000, 2000, 1800)).toEqual({ n: 5, perDay: 200 });
-    expect(planCatchUp(3000, 2000, 1800)!.perDay).toBe(200);
-    expect(planCatchUp(800, 1820, 1800)).toBeNull();
+    expect(r.fresh[0]).toMatchObject({ date: today, over: 1000, trigger: 'live', perDay: 0 });
+    expect(applyVerdict(r.fresh[0], { plan: 'trim', perDay: 200, days: 2, line: 'l', why: '' }, today).days).toEqual(['2026-10-20', '2026-10-21']);
   });
 });
 
@@ -121,10 +117,13 @@ describe('true maintenance', () => {
 describe('the Coach', () => {
   it('is told once (JUST NOTICED), then it is not said again; heavy days are listed with "logged the day after"', () => {
     set([entry(yesterday, 2500, new Date(2026, 9, 18, 12).getTime()), entry(yesterday, 2000, MORNING)]);
-    useStore.getState().setCatchUps(reconcileCatchUps(data(), MORNING)!.list);
-    expect(eatingLines(data(), today).join('\n')).toMatch(/JUST NOTICED.*\+2000 kcal over.*\(logged the day after\).*−500 kcal a day for 4 days/);
+    // noticed, then decided (lib/verdict.ts): here a small trim with its line and reasoning
+    const c = reconcileCatchUps(data(), MORNING)!.list[0];
+    useStore.getState().setCatchUps([{ ...applyVerdict(c, { plan: 'trim', perDay: 250, days: 3, line: 'Yesterday: +2,000. Mostly water. −250 a day for 3 days.', why: 'Third heavy day this month.' }, today), decided: true, told: true }]);
+    expect(eatingLines(data(), today).join('\n')).toMatch(/JUST NOTICED.*\+2000 kcal over.*\(logged the day after\).*−250 kcal a day for 3 days.*Mostly water/);
+    expect(eatingLines(data(), today).join('\n')).toMatch(/LAST HEAVY-DAY DECISION.*Third heavy day/);
     expect(heavyDays(data(), today)[0]).toMatchObject({ date: yesterday, over: 2000, late: true });
-    markCoachTold(data(), useStore.getState().setCatchUps);
+    markCoachTold(data(), useStore.getState().setCatchUps, [c.id]);
     expect(eatingLines(data(), today).join('\n')).not.toContain('JUST NOTICED');
     expect(eatingLines(data(), today).join('\n')).toContain('CATCH-UP running');
   });
@@ -133,11 +132,13 @@ describe('the Coach', () => {
     set([entry(yesterday, 2500, new Date(2026, 9, 18, 12).getTime())]);
     const [on] = await runActions(validateAgent({ reply: '', actions: [{ type: 'catch_up', on: true, kcal: 1500, day: 'yesterday' }] })!.actions, ctx);
     expect(on.title).toBe('Catch-up set');
-    expect(kcalTargetFor(data(), today)).toBe(2000);
+    // never more than 250 a day and half of it back in all, spread instead
+    expect(kcalTargetFor(data(), today)).toBe(2250);
+    expect(catchUpOn(data(), today)!.left).toBe(3);
     const [off] = await runActions(validateAgent({ reply: '', actions: [{ type: 'catch_up', on: false }] })!.actions, ctx);
     expect(off.title).toBe('Catch-up taken off');
     expect(kcalTargetFor(data(), today)).toBe(2500);
     off.undo!();
-    expect(kcalTargetFor(data(), today)).toBe(2000);
+    expect(kcalTargetFor(data(), today)).toBe(2250);
   });
 });

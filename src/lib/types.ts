@@ -260,6 +260,8 @@ export interface WeightLog { id: string; date: string; kg: number; at: number }
  * Omar asked for it (19 Oct): an evening that got out of hand (often logged the morning after) is paid back over 3–4 days,
  * never in one brutal day, protein kept, never under a safe floor.
  */
+/** The calorie target changed on `from` (to `kcal`, from `prev`; either undefined = no target). One record a day. */
+export interface TargetChange { from: string; kcal?: number; prev?: number }
 export interface CatchUp {
   id: string;
   /** the heavy day, and how far over its target it went */
@@ -275,6 +277,13 @@ export interface CatchUp {
   told?: boolean; coachTold?: boolean;
   /** taken back (Undo, or "don't cut my calories"): kept so the same day is never caught up again */
   off?: boolean;
+  /** the plan as decided after a look at everything (lib/verdict.ts): the pop-up's line and the reasoning behind it */
+  line?: string; why?: string;
+  /** decided once (an older record with a `line` counts as decided); set by hand through the Coach (never re-planned) */
+  decided?: boolean; byHand?: boolean;
+  /** its day stopped being heavy after it was decided (an entry deleted or fixed): kept with no cut, so a re-log of the
+   *  same evening is never decided or said again */
+  gone?: boolean;
 }
 export type MeasureKind = 'waist' | 'chest' | 'hips' | 'arm' | 'thigh' | 'neck';
 export interface Measurement { id: string; date: string; kind: MeasureKind; cm: number }
@@ -371,6 +380,11 @@ export interface Settings {
   profile: { goal: Goal; experience: Experience; equipment: EquipmentAccess; days: number[] };
   plateStep: number;
   foodLookup: boolean;
+  /** heavy-day notices (lib/eating.ts `heavyMode`): on = noticed, decided, maybe a small trim; quiet = noticed only, the
+   *  Coach knows; off = not noticed. Missing = by goal (fat loss on, other goals quiet) */
+  heavyDays?: 'on' | 'quiet' | 'off';
+  /** the day notices last turned on: days before it are never judged (no pop-ups about the past) */
+  heavyOnSince?: string;
 }
 
 export interface DailyNote { date: string; training?: string; nutrition?: string }
@@ -429,6 +443,11 @@ export interface AppData {
   health?: HealthDay[];
   /** heavy days being caught up (lib/eating.ts), the newest 30 */
   catchUps?: CatchUp[];
+  /** when the calorie target changed (lib/eating.ts `targetOn`), so a day is judged against the target it had */
+  targets?: TargetChange[];
+  /** things done or said once, with the day (heavySeen: heavy days already there were marked seen; invisibleSaid,
+   *  helpSaid, ageAsked: the Coach brought it up) */
+  marks?: Record<string, string>;
   /** watch workouts deleted by hand (their Health Connect ids, the newest 500): never brought back by a sync */
   hcGone?: string[];
   demo: boolean;

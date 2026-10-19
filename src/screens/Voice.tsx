@@ -312,7 +312,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
     const signal = ctl.current.signal;
     // a slow line is not a Cancel: after 45 s (a look-up in the data adds a round) it says so, with Try again
     let late = false;
-    const kill = setTimeout(() => { late = true; ctl.current?.abort(); }, 45_000);
+    const kill = setTimeout(() => { late = true; ctl.current?.abort(); }, 60_000);
     try {
       const where = props.mode === 'workout' && useStore.getState().active ? 'The user is in their running workout: sets go into it.'
         : props.mealId || props.date ? `The user came from the Food tab${props.date ? ` (day ${props.date})` : ''}${props.mealId ? `, meal ${props.mealId}` : ''}: foods go there unless they say otherwise.`
