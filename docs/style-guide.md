@@ -60,10 +60,73 @@ browser smooths them, so **lab shots lie: judge from Omar's own screenshots.**
   rounding only hides the rings' edges. Full recipe and the maths: the "Dither" comment in `styles.css`; noise tile is
   installed by `src/lib/grain.ts` (`installDither`).
 - Never put a picture inside a blurring layer (extra full-screen pass: frames halved).
-- Glows in the live workout window are painted by `src/ui/glow.ts` + `glow.worker.ts` (TPDF dither into half-res canvases,
-  `[data-dith]` swaps the CSS gradient out). Any new large soft glow should use it. Open: tab-screen Classic glow
-  (`.aurora i`) and `.bgx` backgrounds still use CSS gradients.
-- Light theme: plain blur and tint, no dither (a doubled bright page would clip to white).
+- Large soft glows are painted by `src/ui/glow.ts` + `glow.worker.ts` (TPDF dither into half-res canvases; the CSS
+  gradient shows until the picture is ready, then `[data-dith]` swaps it out). The picture is read from the element's own
+  computed CSS (`src/ui/glowCss.ts`), so changing a gradient in `styles.css` changes the picture too.
+  - Tab fields (Classic and every `.bgx` background): `FieldGlow` (`src/ui/Glows.tsx`) bakes everything that holds still
+    (parts marked `data-bake`, Classic's `i`), plus grain and the status-bar tint, into ONE picture: the field stays one
+    standing layer. Never lay new content over a field canvas (it becomes an extra full-screen layer).
+  - A glow that moves or fades by itself (orb screen halo, Orb light, Sunrise sun, workout top): `<SelfGlow />` inside it.
+    Like `ImgGlow`, its picture becomes the element's own background image (`[data-dith-img]`): no canvas, no layer.
+  - Workout window: `screens/workout/wkGlow.tsx`.
+  - A small glow inside a page (Today card corner glow, exercise stage pools): `<ImgGlow />` inside it; its picture
+    becomes the element's own background image, so it adds no layer.
+  - Never add or drop a layer at a tab switch or when an animation ends (v0.1.123 black frames). A glow canvas gets its
+    size in the same frame it mounts (its picture too when one is ready; a tab's field's canvas otherwise shows
+    see-through over its CSS, below), and its new picture in the same task as a theme, palette or size change, so a switch's
+    snapshot never shows the old picture.
+  - ONE painter (`src/ui/glowPaint.ts`), in the worker only. Never paint a picture or encode a PNG on the page: a whole
+    field painted there, or the PNG of a background-image glow or the dock shadow, froze the page for 0.5-1.3 s after
+    launch (`encodePng` in `glow.ts` makes files in the worker). A picture not painted ahead (a tab tapped in the first
+    seconds) shows the CSS until the worker has it (a tab's field: see below). Never show a quick undithered stand-in: it
+    bands, and the swap pops.
+  - A theme switch or a tab switch reads NO styles (no `getComputedStyle`, no probe inserted or removed: either makes the
+    browser work out the whole page's styles again, 100 ms a time on a slow phone). Each glow keeps its plan by state (the
+    root's `data-*`, its own attributes, its size; `rootKey`/`hostKey`/`shareKey` in `glow.ts`); the other theme's plans
+    and pictures are painted ahead while idle from a hidden twin frame (the page's styles with the other theme), the other
+    tabs' fields from hidden copies. The switch only looks the plan up and draws; the page is read again once idle.
+  - Pictures go into a canvas with `putImageData`, or, for a switch back to the theme just left, from ONE spare canvas
+    per glow (an OffscreenCanvas written at idle, copied across with `drawImage`, reused each time, let go in the
+    background). Never `drawImage` an ImageBitmap into a GPU canvas, not even one drawn once and closed: the chip keeps
+    copies (+20 MB after a few tab switches, measured). A canvas kept in memory (`willReadFrequently`) is slower to write.
+    Each new picture resets the canvas size first, so its old buffer is let go.
+  - Kept pictures (pixels and image files) share 64 MB, oldest first, and pictures painted only on the chance they're
+    needed (other tabs' fields) go before those of the glows on the page; a file still shown is never let go. In the
+    background only the pictures in a canvas and the other tabs' fields stay (so a tab tapped after unlocking finds its
+    picture), the rest is let go.
+  - A field whose picture isn't ready (right after launch, a tab tapped before it was painted ahead) is painted first by
+    the worker (a queue in front of it; image files are made in a second worker), shows its CSS meanwhile under the
+    see-through canvas, and the picture fades in over it (1.2 s, `--ease-io`, opacity only); the CSS goes only once the
+    canvas's own fade has finished (never on a timer: on a busy page the fade starts late). The status bar's colour at the top of
+    the page belongs to each field, never to one strip laid over all of them: a strip faded against a picture with the
+    tint already in it darkened the top twice over, and no one strip opacity was right for every row (the top-left edge
+    lifted 11-13 levels in Golden hour, judge rounds 5 and 6). A still field has it baked into its picture, and until the
+    picture is in (or for good, if it can't be made) in `.field-tint` under the canvas; Classic's `.field-tint` lies over
+    its picture and moves exactly back by its sway (`sway-back`), so it holds still; Orb light and Sunrise have it over
+    their moving parts and over the grain (the grain over it left the top edge lighter and greyer than the status bar).
+    Every switch and every fade-in is then a plain cross-fade of two tinted images. The strip (`.fields-top`) is only
+    for Background glow off; otherwise it rests at opacity 0.002 (not 0, so it stays a drawn layer). Glow on/off hands
+    over between strip and field tint as a cut, never a fade (a fade of one against the other's cut left the top
+    blue-black for most of a second). In a still field the canvas lies over the CSS, the grain and the tint (they stay under it while it waits, and
+    go when it settles); in a field with moving parts it lies under the grain and those parts. It is there from the
+    field's first frame, so no layer is added or dropped. Never show the field plain while it waits: it went dark, then
+    lit.
+    After a palette, glow or motion change the picture before fades out (0.6 s); if the worker can't paint, the CSS stays.
+  - A glow shown faint (Coach-open beam, a fade) needs a stronger dither in its picture: `ampFor(opacity)`.
+  - GPU reset (`contextlost`): the CSS shows until `contextrestored`, then the picture is written again.
+- Frosted bars without brightness(2) (orb screen veil, dock, dock edge fade): the tint is corrected for the dither tile's
+  darkening instead (maths in the `styles.css` Dither comment). The corrected tint is aimed at the old look's mean as the
+  chip rounded it, so the darks don't lift. The dark orb screen veil's tint is itself a dithered tile (`--veil-tint-dark`,
+  `src/lib/grain.ts`): its mean sits between whole steps, so each colour lands within 0.15 of a step of the old look.
+- Big soft shadows band too: the light dock's outer shadow is a dithered picture (`src/ui/dockShadow.ts`, on
+  `.tabbar.glass::before`), not a `box-shadow` blur.
+- Light theme: the same bars carry a white dither (`--dither-light`) with the tint corrected for its lightening; the edge
+  fade darkens its backdrop by the same first (`brightness(0.92728) contrast(1.17021)`).
+- Proof tools: `scripts/banding-fields.mjs` (`SIM=1` = how the phone drew it before), `scripts/perf-gpu.mjs` (use the
+  `chip` number: all graphics memory, counted once), `scripts/glow-layers.mjs` (layer life per step),
+  `scripts/glow-theme-sync.mjs` (picture changes in the same task as the theme).
+- Still CSS (small or seen once): onboarding's drifting aurora (6 more layers for one screen), button glows, Settings
+  previews.
 
 ## 2. Colour
 
@@ -131,7 +194,16 @@ All of it: **slow, calm, Apple-like, never snappier unless Omar agrees.** The or
   moves). A sheet over a sheet takes the **subtle** step-back (scale 0.965, lift 8 px, same curve as the dim). No card edge
   on the page behind [rejected]. Close mirrors open.
 - **Sheets glide in whole device pixels** (`snapPx`), keyboard slides *over* sheets and only the floating button rides it.
-- **Press feel:** every tappable thing uses `.press` (`src/ui/press.ts`: 100 ms wait, 6 px slop, 120 ms minimum hold).
+- **Press feel:** every tappable thing uses `.press` (`src/ui/press.ts`: 50 ms wait, 6 px slop, 120 ms minimum hold). **Instant tap [Omar, 19 Oct]:** a tap must show on the
+  very next frames: the dip under a finger that stays put at 50 ms (one that creeps waits until 100 ms, a slow scroll), and a pop-up starts with its top edge at the screen's edge (its
+  first frames are never spent out of sight). Never wait on a timer before opening; keep the open's first frame light. The extra
+  40 px below the screen exist only on close (so the shadow has left before the sheet goes); otherwise close mirrors open.
+- **Never locked by motion [Omar, 19 Oct: "non-linear animations"]:** anything moving can be caught. A leaving pop-up lets taps through to the
+  page at once; tapping what opened it turns it round from where it is drawn (the leaving sheet itself presses nothing, and the spot of
+  the tap that closed it is guarded 320 ms against a double tap), carrying its speed, on the
+  open spring. Closed while opening, it turns round with the opening's speed. A tab tapped back mid-switch turns round on the next frame
+  (no 50 ms wait: it is already built). Interrupt from the drawn position (`onScreen()` in Sheet.tsx), never the script's value, and start the turn's browser
+  animations on this frame's clock (`Mirror.startNow`) or they hold still for a frame or two.
   A `.press` rule that sets its own `transition` must include `transform 520ms var(--ease-spring)` or the release snaps.
 - **Haptics:** `buzz()` from `src/state/ui.ts` (obeys Settings → Haptic feedback). Few, light, one system.
 - **Numbers that change roll** (`src/ui/Roll.tsx`), they never just swap.

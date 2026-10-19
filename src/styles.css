@@ -261,12 +261,15 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
 .aurora i:nth-child(1) { width: 120%; aspect-ratio: 1; left: -35%; top: -30%; background: radial-gradient(closest-side, var(--h1), transparent); animation: drift1 38s ease-in-out 0.3 alternate both; }
 .aurora i:nth-child(2) { width: 105%; aspect-ratio: 1; right: -40%; top: 18%; background: radial-gradient(closest-side, var(--h2), transparent); animation: drift2 46s ease-in-out 0.3 alternate both; }
 .aurora i:nth-child(3) { width: 130%; aspect-ratio: 1; left: -20%; bottom: -55%; background: radial-gradient(closest-side, var(--h3), transparent); animation: drift3 54s ease-in-out 0.3 alternate both; opacity: calc(var(--aurora-a) * .8); }
-/* The tab screens' colour fields share ONE grain, laid over all of them (.fields::before), instead of one per field: while
-   tabs are switched quickly several fields are cross-fading at once, and each grain was another full-screen layer for the
-   graphics chip to blend on every frame. At rest it is the same grain over the same single field. */
-.fields > .aurora::after { content: none; }
-.fields::before { content: ''; position: absolute; inset: 0; z-index: 2147482999; pointer-events: none; opacity: calc(var(--grain) * 1.25); background-image: var(--grain-url, url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")); background-size: var(--grain-size, auto); }
-.aurora::after { content: ''; position: absolute; inset: 0; opacity: calc(var(--grain) * 1.25); /* the grain is what dithers the soft colour gradients; without it they band. No blend mode: 'overlay' made the browser blend a full-screen layer on every frame (the main cause of idle and scroll lag on the tab screens), and the colour field is its own transparent group, so overlay showed the same as a plain layer anyway (measured: within 2 of 255 levels) */ background-image: var(--grain-url, url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")); background-size: var(--grain-size, auto); }
+/* Each tab colour field carries its own grain, painted INTO the field's own layer (.fields > .aurora/.bgx::after below), so
+   the grain costs no layer at all. One grain laid over all the fields (.fields::before) sat over a layer, so Chrome had to
+   make it a full-screen layer of its own (an "overlap" layer) that the phone blended at full resolution on every frame:
+   the main reason glow on felt heavier than glow off. The fields and their cross-fade are unchanged (each keeps its
+   standing layer, so a tab switch never repaints the page). With Background glow off there is no field, and the shared
+   grain lies over the plain page as before. */
+.fields::before { content: none; }
+html:root[data-glow='off']:not([data-bg='photo']) .fields::before { content: ''; position: absolute; inset: 0; z-index: 2147482999; pointer-events: none; opacity: calc(var(--grain) * 1.25); background-image: var(--grain-url, url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")); background-size: var(--grain-size, auto); }
+.aurora::after, .fields > .bgx::after { content: ''; position: absolute; inset: 0; z-index: 2147483000; pointer-events: none; opacity: calc(var(--grain) * 1.25); /* the grain is what dithers the soft colour gradients; without it they band. No blend mode: 'overlay' made the browser blend a full-screen layer on every frame (the main cause of idle and scroll lag on the tab screens), and the colour field is its own transparent group, so overlay showed the same as a plain layer anyway (measured: within 2 of 255 levels) */ background-image: var(--grain-url, url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")); background-size: var(--grain-size, auto); }
 /* Dither: why soft glows banded behind frosted glass, and the recipe that keeps them smooth (any blurred layer can use it).
    The phone keeps a blur's result in whole steps of colour (0-255). Behind a sheet the page is dimmed, so a glow there
    spans only a few dozen steps, and the grain that hides them on the page is averaged away by the blur: the glow came back
@@ -282,7 +285,10 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
    Recipe for a frosted layer with alpha a and colour c over `blur(r) saturate(s)`, dark theme, the dither's mean m = 0.0784:
    blurring layer: backdrop-filter: brightness(2) blur(r) saturate(s), no background; a layer of its own right over it:
    background: var(--dither), rgba(c * a / (1 - m) / a', a') with a' = 1 - (1 - a) / (2 * (1 - m)), image-rendering:
-   pixelated. (--sheet-tint is that, worked out for the sheets; .sheet::before/::after are the example.) */
+   pixelated. (--sheet-tint is that, worked out for the sheets; .sheet::before/::after are the example.)
+   Where the tint sits on the blurring layer itself (no brightness(2): the orb screen's veil, the dock, the dock's edge
+   fade), the tile's darkening is undone instead: a' = 1 - (1 - a) / (1 - m) and colour c * a / ((1 - m) * a'), or
+   brightness(1 / (1 - m)) = 1.0851 before the blur with the tint's colours and sheen worked out to match. */
 /* The workout window's colour field: ONE layer (three gradients) instead of three big layers + blend + mask, so it
    costs a single cheap raster when the window opens; it still drifts slowly. Same lights as .aurora, same positions. */
 .aurora-lite { position: absolute; inset: 0; overflow: hidden; pointer-events: none; container-type: size; }
@@ -679,6 +685,19 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .veil-blur-b { -webkit-backdrop-filter: blur(9px) saturate(1.15); backdrop-filter: blur(9px) saturate(1.15); }
 .veil-blur-v2 { -webkit-backdrop-filter: blur(26px) saturate(1.4); backdrop-filter: blur(26px) saturate(1.4); }
 .veil-tint { background: color-mix(in srgb, var(--bg) 74%, transparent); }
+/* (dark) the orb screen's frost carries the dither (see "Dither"): its 26 px blur is kept in whole steps of colour, which
+   showed as coloured contours all over the screen. The tint is the same --bg at 74 %, worked out for the dither's mean
+   darkening (m = 0.0784): a' = 1 - 0.26 / (1 - m), colour = --bg * 0.74 / ((1 - m) * a'). No brightness(2) here: the frost
+   fades in with the screen, and a doubled blur would read brighter half-way. The tint's own layer keeps it in whole steps
+   (premultiplied: 4, 4, 8 of 255 at alpha 189 before), so the numbers are picked to land on that old mean, not the exact
+   one: the frost's darks stay as they were (lab, within 0.2 of a step; the old values read 0.6 of a step greener).
+   (Round 3: --veil-tint-dark, lib/grain.ts, is the same tint as a tile whose pixels are the two whole levels around the
+   exact value, so the mean lands within a sixth of a level of the old look, not a third.) */
+:root:not([data-theme='light']) .veil-tint { background: var(--dither), var(--veil-tint-dark, rgba(6, 6, 12.5, 0.7176)); image-rendering: pixelated; }
+/* (light) the same with a white dither (lib/grain.ts installDither, mean m the same): it lightens instead, so the tint takes
+   more alpha, a' = 1 - (1 - a) / (1 - m), and a darker colour, (c * a - 255 * m) / ((1 - m) * a'), for the same mean. */
+:root[data-theme='light'] .veil-tint { image-rendering: pixelated;
+  background: var(--dither-light, none), rgb(from var(--bg) calc(r * 1.1185 - 30.23) calc(g * 1.1185 - 30.23) calc(b * 1.1185 - 30.23) / 0.71788); }
 .sheet {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; max-height: calc(100dvh - var(--sat) - 46px); display: flex; flex-direction: column;
   border-radius: var(--r-xl) var(--r-xl) 0 0; will-change: transform;
@@ -883,6 +902,47 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    ends (see rise-move). A handful of big layers, created once; the motion itself is unchanged. */
 .tab-pane, .settings-page, .sheet-pane, .sheet-page, .sheet-head > .icon-btn, .tab, .tab svg, .tab > span.lab, .sphere-slot, .tabbar.glass::after { will-change: transform; }
 .fields > .aurora { will-change: opacity; }
+/* Classic on the tab screens: the lights are painted once into the field's own layer (a drifting light was a big layer of
+   its own, three of them, and they pushed the grain over them onto a layer too), and it is that one layer that drifts
+   (sway): the lights and their grain move together, slowly, a few pixels over 40 s, and nothing new is drawn. It is
+   opaque, like every other background, so a tab switch lays the new field over the old one (no dip in the light), and
+   slightly larger than the screen so its edge never shows. The new field takes over the old one's place in the sway
+   (Field in App.tsx), so the lights carry on through a switch. Stepped (~8 a second, each step about a quarter of a phone
+   pixel at most) so the phone redraws 8 times a second instead of every frame (measured: no main-thread work at all). (The onboarding's field still drifts its lights.) */
+.fields > .aurora { inset: -3%; background-color: var(--bg); animation: sway 40s infinite alternate both; animation-delay: var(--drift-t, 0s); }
+.app[data-calm] .fields > .aurora, .app:has(.sheet, .voice, .ovl) .fields > .aurora { animation-play-state: paused; }
+:root[data-motion='reduce'] .fields > .aurora { animation: none; }
+@keyframes sway {
+  0% { transform: translate(-1.800%, 0.000%) scale(1.0000); animation-timing-function: steps(14, jump-none); }
+  4.167% { transform: translate(-1.785%, 0.193%) scale(1.0001); animation-timing-function: steps(14, jump-none); }
+  8.333% { transform: translate(-1.739%, 0.378%) scale(1.0004); animation-timing-function: steps(14, jump-none); }
+  12.5% { transform: translate(-1.663%, 0.551%) scale(1.0010); animation-timing-function: steps(14, jump-none); }
+  16.67% { transform: translate(-1.559%, 0.710%) scale(1.0017); animation-timing-function: steps(14, jump-none); }
+  20.83% { transform: translate(-1.428%, 0.851%) scale(1.0026); animation-timing-function: steps(14, jump-none); }
+  25% { transform: translate(-1.273%, 0.973%) scale(1.0037); animation-timing-function: steps(14, jump-none); }
+  29.17% { transform: translate(-1.096%, 1.073%) scale(1.0049); animation-timing-function: steps(14, jump-none); }
+  33.33% { transform: translate(-0.900%, 1.149%) scale(1.0063); animation-timing-function: steps(14, jump-none); }
+  37.5% { transform: translate(-0.689%, 1.201%) scale(1.0077); animation-timing-function: steps(14, jump-none); }
+  41.67% { transform: translate(-0.466%, 1.227%) scale(1.0093); animation-timing-function: steps(14, jump-none); }
+  45.83% { transform: translate(-0.235%, 1.226%) scale(1.0109); animation-timing-function: steps(14, jump-none); }
+  50% { transform: translate(-0.000%, 1.200%) scale(1.0125); animation-timing-function: steps(14, jump-none); }
+  54.17% { transform: translate(0.235%, 1.148%) scale(1.0141); animation-timing-function: steps(14, jump-none); }
+  58.33% { transform: translate(0.466%, 1.071%) scale(1.0157); animation-timing-function: steps(14, jump-none); }
+  62.5% { transform: translate(0.689%, 0.971%) scale(1.0173); animation-timing-function: steps(14, jump-none); }
+  66.67% { transform: translate(0.900%, 0.849%) scale(1.0188); animation-timing-function: steps(14, jump-none); }
+  70.83% { transform: translate(1.096%, 0.707%) scale(1.0201); animation-timing-function: steps(14, jump-none); }
+  75% { transform: translate(1.273%, 0.549%) scale(1.0213); animation-timing-function: steps(14, jump-none); }
+  79.17% { transform: translate(1.428%, 0.375%) scale(1.0224); animation-timing-function: steps(14, jump-none); }
+  83.33% { transform: translate(1.559%, 0.190%) scale(1.0233); animation-timing-function: steps(14, jump-none); }
+  87.5% { transform: translate(1.663%, -0.003%) scale(1.0240); animation-timing-function: steps(14, jump-none); }
+  91.67% { transform: translate(1.739%, -0.202%) scale(1.0246); animation-timing-function: steps(14, jump-none); }
+  95.83% { transform: translate(1.785%, -0.402%) scale(1.0249); animation-timing-function: steps(14, jump-none); }
+  100% { transform: translate(1.800%, -0.600%) scale(1.0250); }
+}
+.fields > .aurora i { animation: none; }
+.fields > .aurora i:nth-child(1) { transform: translate(3.350%, 2.605%) scale(1.0223) rotate(4.467deg); }
+.fields > .aurora i:nth-child(2) { transform: translate(-4.113%, -1.869%) scale(0.9850) rotate(-5.608deg); }
+.fields > .aurora i:nth-child(3) { transform: translate(2.625%, -3.000%) scale(1.0188) rotate(3.375deg); }
 
 /* Coach replies: each new word inks in — blurred and lifted, glowing in the accent, then settling into the text colour.
    Only new words mount, so nothing already read re-animates; words that arrive together cascade. */
@@ -2091,6 +2151,30 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), inset 0 0 0 1px rgba(255, 255, 255, 0.06), 0 10px 26px -12px rgba(0, 0, 0, 0.6); }
 :root[data-theme='light'] .tabbar.glass { background: linear-gradient(180deg, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.3) 60%), rgba(255, 255, 255, 0.2);
   box-shadow: inset 0 1px 0 #fff, inset 0 0 0 1px rgba(16, 20, 34, 0.06), 0 8px 24px -12px rgba(30, 40, 70, 0.25); }
+/* (dark) the dock and the soft edge above it carry the dither too (see "Dither"): their blurs are kept in whole steps of
+   colour, which showed as faint contours in the field passing under them. The dither's mean darkening (1 - m = 0.9216) is
+   made up for by a brightness of 1 / 0.9216 before the blur and by the tints' colours / 0.9216 (the sheen's alpha: white
+   can't go brighter), so on average the glass shows exactly what it did. Both are small, so the dither costs next to nothing. */
+:root:not([data-theme='light']) .tabbar.glass { image-rendering: pixelated;
+  background: var(--dither), linear-gradient(180deg, rgba(255, 255, 255, 0.07596), rgba(255, 255, 255, 0) 60%), rgba(49.91, 49.91, 49.91, 0.2);
+  -webkit-backdrop-filter: brightness(1.0851) blur(20px) saturate(1.4); backdrop-filter: brightness(1.0851) blur(20px) saturate(1.4); }
+:root:not([data-theme='light']) .tabbar-wrap.edge-fade::before { image-rendering: pixelated; --edge-tint: rgb(36.89, 36.89, 36.89);
+  background: var(--dither), linear-gradient(to bottom, transparent 16px, color-mix(in srgb, var(--edge-tint) 12%, transparent) 30px, color-mix(in srgb, var(--edge-tint) 35%, transparent) 56px);
+  -webkit-backdrop-filter: brightness(1.0851) blur(var(--edge-blur, 16px)) saturate(1.35); backdrop-filter: brightness(1.0851) blur(var(--edge-blur, 16px)) saturate(1.35); }
+/* (light) a white dither (lib/grain.ts), which lightens by m: the dock's tint takes a little less alpha and nearly the same
+   white, (c * a - 255 * m) / ((1 - m) * a') with a' = 1 - (1 - a) / (1 - m), the same mean wherever its sheen is. The edge
+   fade is clear at its top, where no tint can make up for it: its backdrop is darkened by the same instead,
+   brightness(0.92728) contrast(1.17021) = (x - m) / (1 - m) before the blur, and its tint's colour is (c - 255 * m) / (1 - m). */
+:root[data-theme='light'] .tabbar.glass { image-rendering: pixelated;
+  background: var(--dither-light, none), linear-gradient(180deg, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.3) 60%), rgba(254.94, 254.94, 254.94, 0.13194); }
+/* (light) the dock's outer shadow is a dithered picture once it is made (ui/dockShadow.ts: the blurred shadow showed as faint
+   coloured rings at the dock's corners), under the dock, outside it only; the inner lines stay */
+:root[data-theme='light'].dock-shadow .tabbar.glass { box-shadow: inset 0 1px 0 #fff, inset 0 0 0 1px rgba(16, 20, 34, 0.06); }
+:root[data-theme='light'].dock-shadow .tabbar.glass::before { content: ''; position: absolute; inset: -30px -30px -40px; z-index: -1; pointer-events: none;
+  background: var(--dock-shadow) 0 0 / 100% 100% no-repeat; image-rendering: auto; }
+:root[data-theme='light'] .tabbar-wrap.edge-fade::before { image-rendering: pixelated; --edge-tint: rgb(240.89, 240.89, 240.89);
+  background: var(--dither-light, none), linear-gradient(to bottom, transparent 16px, color-mix(in srgb, var(--edge-tint) 12%, transparent) 30px, color-mix(in srgb, var(--edge-tint) 35%, transparent) 56px);
+  -webkit-backdrop-filter: brightness(0.92728) contrast(1.17021) blur(var(--edge-blur, 16px)) saturate(1.35); backdrop-filter: brightness(0.92728) contrast(1.17021) blur(var(--edge-blur, 16px)) saturate(1.35); }
 
 /* Top fade for scrollers that are neither a page nor a sheet (the orb's talk list, onboarding). */
 @supports (animation-timeline: scroll()) {
@@ -2271,19 +2355,107 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* The same lights as dithered pictures (screens/workout/wkGlow.tsx): the phone draws a CSS gradient in whole colour steps,
    which showed as coloured rings in the dim glow. Each picture replaces its gradient once it is ready ([data-dith], an
    attribute React leaves alone), drawn at half the screen's pixels (the screen smooths it back up); they hold still, so
-   nothing is redrawn while the window is open. */
+   nothing is redrawn while the window is open. The field's picture has the grain in it as well (::after goes): a grain
+   laid over the canvas had to be a full-screen layer of its own whenever the window was open. */
 .glow-cv { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; visibility: hidden; }
 .aurora-lite > .wk-field-cv { top: calc(16px - var(--wk-lead)); height: calc(100% + var(--wk-lead) - 16px); }
-.aurora-lite[data-dith]::before, .wk-breath[data-dith] > b::before, .wk-breath[data-dith] > b::after { content: none; }
+.aurora-lite[data-dith]::before, .aurora-lite[data-dith]::after, .wk-breath[data-dith] > b::before, .wk-breath[data-dith] > b::after { content: none; }
 .aurora-lite[data-dith] > .glow-cv, .wk-breath[data-dith] .glow-cv { visibility: visible; }
 .wk-breath[data-dith] { opacity: 1; } /* the picture has the glow's strength in it */
 .wk-breath .glow-cv.warm { opacity: var(--warm, 0); transition: opacity 6s ease-in-out; }
+/* The tab screens' colour fields and the glows that move by themselves, as dithered pictures too (ui/Glows.tsx). A field's
+   picture holds everything in it that keeps still (Classic's lights, a background's gradients and pictures: data-bake),
+   and, when nothing in the field moves, the grain and (where the field itself holds still, not Classic's sway) the status
+   bar's colour fading in at the top (data-tint): so the
+   field is still ONE standing layer (the picture), with nothing laid over it that would need a layer of its own, and a
+   tab switch still only cross-fades two of them. Until a picture is ready (or where one can't be made) the CSS shows,
+   the picture fading in over it (below). */
+/* (the canvas lies over the field's CSS, under its grain and the parts that move: so the picture can fade in over the CSS
+   with nothing over it needing a layer of its own) */
+.glow-field { z-index: 1; }
+.fields > .bgx > .bg-sun, .fields > .bgx > .bg-orb-all { z-index: 2; }
+.fields > [data-dith] > .glow-field { visibility: visible; }
+/* Until its picture comes (right after launch, a tab tapped before it was painted ahead), the field shows its CSS under
+   the see-through canvas, and the picture fades in over it, slowly (1.2 s, eased in and out), when the worker has painted
+   it (first, before anything else it has to do); the CSS goes once the picture covers it. The canvas is there all along,
+   so its layer is there from the field's first frame (never added in the middle of a launch or a tab's cross-fade). Only
+   opacity moves. */
+.fields > * > .glow-field { transition: opacity 1.2s var(--ease-io); }
+.fields > [data-wait] > .glow-field { visibility: visible; opacity: 0; transition: none; }
+.fields > [data-fade] > .glow-field { visibility: visible; }
+/* (after a change of palette, glow or motion the picture before fades out, not cut: glow.ts 'soft') */
+.fields > [data-wait='soft'] > .glow-field { transition: opacity 0.6s var(--ease-io); }
+.fields > [data-dith] [data-bake], .fields > .aurora[data-dith] > i { visibility: hidden; }
+/* (the field keeps its own plain colour under the picture: a layer of one colour costs the chip nothing, and a field that
+   drew nothing of its own was given content for the length of a theme switch and lost it again after) */
+.fields > [data-still][data-dith]::after { content: none; }
+/* (while a still field's picture is painted and fades in, its grain stays, under the canvas: over the canvas it would need
+   a layer of its own, and without it the CSS showed its bands for that second or two) */
+.fields > [data-still]::after { z-index: 0; }
+/* The status bar's colour fading in at the top: every field carries its own, so a switch between any two fields, and a
+   picture fading in over its CSS, is a plain cross-fade of two tinted images. (One strip laid over all the fields could
+   only be right for one of them: against a picture with the tint already in it, the two tints darkened the top together,
+   and no one strip opacity was right for every row. Fading it, the top-left edge against the status bar lifted 11-13
+   levels in Golden hour for half a second, judge rounds 5 and 6.)
+   - A field that holds still has it in its picture once that is in (data-tint), and until then (painting, fading in, or
+     the CSS for good when the picture can't be made) in .field-tint, under the canvas, in the field's own layer.
+   - Classic's field sways: its .field-tint lies over the picture and moves exactly back by the sway (sway-back, on the
+     same clock), so it holds still against the status bar. Its own layer; it takes the strip's place.
+   - A field with parts that move (Orb light, Sunrise) has it over them and over the grain: the grain over it lifted the
+     top edge to 37 % brighter and greyer than the status bar, all the time (judge round 7).
+   The colour is the field's own (FieldGlow, barColor), the one the status bar settles on. The strip itself is only for
+   Background glow off (no field); otherwise it rests at 0.002 (not 0: at 0 the chip stops drawing its layer, so it would
+   leave the drawn layers as a fade ends; at 0.002 it is a fifth of a level at most). Glow on/off hands over between the
+   two as a cut, in the same frame as the field's own tint: a 1.2 s fade of the strip left the top edge blue-black for
+   most of a second going off, and 2.5 levels dark going on (judge round 7). */
+.fields > .fields-top { transition: none; }
+:root:not([data-glow='off']) .fields:has(> div[data-k]) > .fields-top { opacity: 0.002; }
+.field-tint { position: absolute; left: 0; right: 0; top: 0; height: calc(var(--sat) + 130px); z-index: 1; pointer-events: none;
+  visibility: hidden; background: linear-gradient(to bottom, var(--tint) calc(var(--sat) + 2px), transparent); }
+:root:not([data-glow='off']) .fields > [data-k]:not([data-tint][data-dith]) > .field-tint { visibility: visible; }
+.fields > .bgx:not([data-tint]) > .field-tint { z-index: 2147483001; } /* (over the moving parts and the grain, ::after) */
+/* (Classic: as big as the field, 3 % past each edge of the screen, so the sway's own percentages fit it; the tint starts at
+   the screen's top, 3/106 of the way down) */
+.fields > .aurora > .field-tint { inset: 0; height: auto; z-index: 2; will-change: transform;
+  background: linear-gradient(to bottom, var(--tint) calc(2.8302% + var(--sat) + 2px), transparent calc(2.8302% + var(--sat) + 130px));
+  animation: sway-back 40s infinite alternate both; animation-delay: var(--drift-t, 0s); animation-play-state: inherit; }
+:root[data-motion='reduce'] .fields > .aurora > .field-tint { animation: none; }
+@keyframes sway-back {
+  0% { transform: scale(1.000000) translate(1.800%, -0.000%); animation-timing-function: steps(14, jump-none); }
+  4.167% { transform: scale(0.999900) translate(1.785%, -0.193%); animation-timing-function: steps(14, jump-none); }
+  8.333% { transform: scale(0.999600) translate(1.739%, -0.378%); animation-timing-function: steps(14, jump-none); }
+  12.5% { transform: scale(0.999001) translate(1.663%, -0.551%); animation-timing-function: steps(14, jump-none); }
+  16.67% { transform: scale(0.998303) translate(1.559%, -0.710%); animation-timing-function: steps(14, jump-none); }
+  20.83% { transform: scale(0.997407) translate(1.428%, -0.851%); animation-timing-function: steps(14, jump-none); }
+  25% { transform: scale(0.996314) translate(1.273%, -0.973%); animation-timing-function: steps(14, jump-none); }
+  29.17% { transform: scale(0.995124) translate(1.096%, -1.073%); animation-timing-function: steps(14, jump-none); }
+  33.33% { transform: scale(0.993739) translate(0.900%, -1.149%); animation-timing-function: steps(14, jump-none); }
+  37.5% { transform: scale(0.992359) translate(0.689%, -1.201%); animation-timing-function: steps(14, jump-none); }
+  41.67% { transform: scale(0.990786) translate(0.466%, -1.227%); animation-timing-function: steps(14, jump-none); }
+  45.83% { transform: scale(0.989218) translate(0.235%, -1.226%); animation-timing-function: steps(14, jump-none); }
+  50% { transform: scale(0.987654) translate(0.000%, -1.200%); animation-timing-function: steps(14, jump-none); }
+  54.17% { transform: scale(0.986096) translate(-0.235%, -1.148%); animation-timing-function: steps(14, jump-none); }
+  58.33% { transform: scale(0.984543) translate(-0.466%, -1.071%); animation-timing-function: steps(14, jump-none); }
+  62.5% { transform: scale(0.982994) translate(-0.689%, -0.971%); animation-timing-function: steps(14, jump-none); }
+  66.67% { transform: scale(0.981547) translate(-0.900%, -0.849%); animation-timing-function: steps(14, jump-none); }
+  70.83% { transform: scale(0.980296) translate(-1.096%, -0.707%); animation-timing-function: steps(14, jump-none); }
+  75% { transform: scale(0.979144) translate(-1.273%, -0.549%); animation-timing-function: steps(14, jump-none); }
+  79.17% { transform: scale(0.978091) translate(-1.428%, -0.375%); animation-timing-function: steps(14, jump-none); }
+  83.33% { transform: scale(0.977231) translate(-1.559%, -0.190%); animation-timing-function: steps(14, jump-none); }
+  87.5% { transform: scale(0.976562) translate(-1.663%, 0.003%); animation-timing-function: steps(14, jump-none); }
+  91.67% { transform: scale(0.975991) translate(-1.739%, 0.202%); animation-timing-function: steps(14, jump-none); }
+  95.83% { transform: scale(0.975705) translate(-1.785%, 0.402%); animation-timing-function: steps(14, jump-none); }
+  100% { transform: scale(0.975610) translate(-1.800%, 0.600%); }
+}
+/* a glow that moves or fades by itself, or a small one in a page, carries its picture as its own background image
+   (SelfGlow, ImgGlow): drawn where its gradient was, on its own layer, so it adds none */
+[data-dith-img] { background: var(--glow-img) 0 0 / 100% 100% no-repeat !important; }
 
 /* ── Backgrounds (Settings → Appearance → Background; ui/Backdrop.tsx) ──────────────────────────────────────────────
    Every one but Classic holds still: a few gradients (or one small, already-blurred photo) painted once, so the frosted
    tab bar, sheets and Coach bar over them never re-blur a moving field. Strength follows Background glow (--aurora-a:
    Full / Soft); Off leaves a plain background (Your photo stays: it is your picture, not a glow). The page's grain
-   (.fields::before) lies over all of them, which is what keeps their soft gradients from banding. Sized in % of their
+   (each field's own ::after) lies over them, which is what keeps their soft gradients from banding. Sized in % of their
    box, so the small previews in Settings are the same picture. */
 .bgx { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; contain: strict; --bgk: calc(var(--aurora-a) * 1.8); }
 .fields > .bgx { will-change: opacity; background-color: var(--bg); } /* opaque, so a change lays the new one over the old (App.tsx FIELD) */
