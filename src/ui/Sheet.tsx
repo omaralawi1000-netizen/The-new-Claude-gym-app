@@ -91,10 +91,10 @@ function useCovered(ref: React.RefObject<HTMLElement | null>, covered: boolean, 
 }
 import { Icon } from './Icon';
 import { mirrorOrb } from './Sphere';
-import { useUI } from '../state/ui';
+import { sheetGone, sheetLeaving, useUI, type Overlay } from '../state/ui';
 import { useSwipeDown } from './swipe';
 
-import { SMOOTH, SURFACE, SURFACE_EXIT, TAP, apple, snapPx, springCurve } from './motion';
+import { SMOOTH, SURFACE, SURFACE_EXIT, TAP, apple, snapPx, springCurve, springSamples } from './motion';
 // older names for the motion language (ui/motion.ts)
 export const SPRING = { ...SURFACE, restDelta: 0.00005, restSpeed: 0.001 }; // comes to rest within 0.05 px, a screen pixel at a time (snapPx), not with a last little hop
 export const SOFT = SMOOTH;
@@ -273,12 +273,24 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
   // drawn at the screen's full rate (see mirrorSpring). A finger or a sheet stacking on top hands control straight back.
   const scrimRef = useRef<HTMLDivElement>(null);
   const mirror = useRef<Mirror | null>(null); if (!mirror.current) mirror.current = new Mirror();
+  // where the browser is drawing the sheet right now, and how fast it moves: the browser's run starts a frame or two after
+  // the script's, so a turn taken from the script's value (a close while it was still opening) jumped ahead
+  const drawn = useRef<{ a: Animation; p0: number; span: number; xs: number[] } | null>(null);
+  const onScreen = () => {
+    const d = drawn.current, t = d && d.a.playState === 'running' ? Number(d.a.currentTime) : NaN;
+    if (!d || !(t >= 0)) return { at: p.get(), v: p.getVelocity() };
+    const f = (t / 1000) * 60, i = Math.min(d.xs.length - 2, Math.floor(f)), r = Math.min(1, f - i);
+    const x = d.xs[i] + (d.xs[i + 1] - d.xs[i]) * r;
+    return { at: d.p0 + d.span * x, v: d.span * (d.xs[i + 1] - d.xs[i]) * 60 };
+  };
   const runMirror = (p0: number, p1: number, sp: { stiffness: number; damping: number; mass?: number }, vel: number) => {
     const m = mirror.current!; m.cancel();
     if (reduce) return;
     const b = bs.get();
     const k = liftOf(kbHere.get());
-    m.add(mirrorProgress(ref.current, p0, p1, sp, vel, (pp) => ({ transform: `translate3d(0, ${snapPx((1 - pp) * dist.current - k) - STACK_LIFT * b}px, 0) scale(${1 - STACK_SCALE * b})` }), [], true));
+    const a = mirrorProgress(ref.current, p0, p1, sp, vel, (pp) => ({ transform: `translate3d(0, ${snapPx((1 - pp) * dist.current - k) - STACK_LIFT * b}px, 0) scale(${1 - STACK_SCALE * b})` }), [], true);
+    drawn.current = a ? { a, p0, span: p1 - p0, xs: springSamples(sp, Math.max(-40, Math.min(40, vel / (p1 - p0))), true).xs } : null;
+    m.add(a);
     m.add(...mirrorVeil(scrimRef.current, p0, p1, sp, vel, undefined, seenOf.current), small ? null : mirrorStage(id, p0, p1, sp, vel, seenOf.current), mirrorOrb(ref.current, p0, p1, sp, vel, (pp) => (1 - pp) * dist.current));
   };
   useEffect(() => {
@@ -376,18 +388,63 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
   // leaving: whatever the finger left behind becomes progress, and the exit spring carries on at the finger's speed
   const [present, safeToRemove] = usePresence();
   const leaving = useRef(false);
+  const exit = useRef<{ stop: () => void } | null>(null);
+  // the overlay this sheet shows, kept so a tap that opens it again while it is still leaving can catch it (state/ui.ts)
+  const mine = useRef<Overlay | null>(null), mineAt = useRef(-1);
+  if (present && i >= 0) { mine.current = ov[i]; mineAt.current = i; }
   useEffect(() => {
-    if (present || leaving.current) return;
+    if (present) {
+      if (!leaving.current) return;
+      // Caught on its way out (opened again before it had gone): it turns round where it is, carrying its speed, on the
+      // same spring it opens with, like a UIKit spring that is given a new target. Nothing restarts and nothing is rebuilt.
+      leaving.current = false;
+      exit.current?.stop(); exit.current = null;
+      if (scrimRef.current) scrimRef.current.style.pointerEvents = '';
+      swipeV.current = 0; // the swipe that sent it away is spent
+      const { at, v } = onScreen();
+      p.set(at);
+      runMirror(at, 1, SPRING, v);
+      const r = animate(p, 1, reduce ? { duration: 0.01 } : { ...SPRING, velocity: v });
+      opening.current = r; r.then(() => { if (opening.current === r) opening.current = null; });
+      return;
+    }
+    if (leaving.current) return;
     leaving.current = true;
+    // the dim no longer holds the screen: a tap on the page lands at once (on the button that opened it, it catches it)
+    if (scrimRef.current) scrimRef.current.style.pointerEvents = 'none';
     opening.current?.stop(); opening.current = null;
     if (ref.current?.contains(document.activeElement)) dropKeyboard(EXIT_SPRING); // the keyboard goes down with it, not after it
+    // a finger that let go hands over its speed; closed by a tap while it was still opening, it carries the opening's own
+    // speed into the turn (it used to stop dead and start down from rest)
     const vy = swipeV.current || y.getVelocity();
-    p.set(e.get()); y.set(0);
-    runMirror(p.get(), 0, EXIT_SPRING, -vy / dist.current);
-    const c = animate(p, 0, reduce ? { duration: 0.01 } : { ...EXIT_SPRING, velocity: -vy / dist.current });
-    c.then(() => { gone.current.forEach((f) => f()); safeToRemove?.(); });
+    const seen = y.get() ? null : onScreen(); // under a finger the script draws it; otherwise take it from where it is drawn
+    const moving = seen ? seen.v : p.getVelocity();
+    p.set(seen ? seen.at : e.get()); y.set(0);
+    const v = vy ? -vy / dist.current : moving;
+    runMirror(p.get(), 0, EXIT_SPRING, v);
+    const c = animate(p, 0, reduce ? { duration: 0.01 } : { ...EXIT_SPRING, velocity: v });
+    exit.current = c;
+    if (mine.current) sheetLeaving(mine.current, mineAt.current);
+    c.then(() => {
+      if (exit.current !== c || !leaving.current) return; // caught and turned round: it stays
+      exit.current = null;
+      if (mine.current) sheetGone(mine.current.id);
+      gone.current.forEach((f) => f()); safeToRemove?.();
+    });
     // eslint-disable-next-line
   }, [present]);
+  useEffect(() => () => { if (mine.current) sheetGone(mine.current.id); }, []);
+  // a finger on the sheet itself while it is leaving grabs it back. That touch only catches it: its click (wherever the finger
+  // is when it lifts, the sheet having moved up under it) presses nothing and closes nothing
+  const grab = (ev: React.PointerEvent) => {
+    if (!leaving.current || !mine.current) return;
+    ev.stopPropagation();
+    const eat = (c: MouseEvent) => { c.preventDefault(); c.stopPropagation(); off(); };
+    const off = () => { window.removeEventListener('click', eat, true); clearTimeout(tm); };
+    window.addEventListener('click', eat, true);
+    const tm = setTimeout(off, 800);
+    useUI.getState().push(mine.current.type, mine.current.props);
+  };
   useEffect(() => {
     const onKey = (ev: KeyboardEvent) => { if (ev.key === 'Escape' && !behindRef.current) onClose(); };
     window.addEventListener('keydown', onKey);
@@ -401,6 +458,7 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
         className={`sheet sz-${sz} ${tall ? 'tall' : ''} ${behind ? 'behind' : ''} ${behind && deep ? 'deep' : ''} ${cam ? 'sheet-cam' : ''}`}
         style={{ zIndex: z, transformOrigin: '50% 0%', transform, maxHeight: room, ...(tall ? { height: room } : {}) }}
         role="dialog" aria-modal="true" aria-label={label}
+        onPointerDownCapture={grab}
       >
         <div className="sheet-grab" />
         <div className={`sheet-pane ${tall && !instant ? 'late' : ''}`} ref={paneRef}>

@@ -20,6 +20,26 @@ export interface Overlay { id: string; type: OverlayType; props?: any; page?: bo
 const PAGE_HOSTS = new Set<OverlayType>(['foodSearch', 'foodDetail', 'customFood', 'recipes', 'recipe', 'savedMeals', 'exercise', 'exercisePicker', 'exerciseEditor', 'sessionDetail', 'routine', 'summary', 'settings', 'coach']);
 const PAGE_TYPES = new Set<OverlayType>(['foodDetail', 'customFood', 'recipes', 'recipe', 'savedMeals', 'exercise', 'exercisePicker', 'exerciseEditor', 'sessionDetail', 'settings']);
 const asPage = (below: Overlay | undefined, type: OverlayType) => !!below && PAGE_HOSTS.has(below.type) && PAGE_TYPES.has(type);
+/**
+ * Sheets on their way out. Opening the same thing again before it has gone (closing Settings, then tapping Settings) gives it
+ * back its own id, so the sheet that is leaving is caught and turns round where it is instead of a new one rising behind it.
+ * Only the same kind, with the same props, at the same place in the stack.
+ */
+const leavingSheets = new Map<string, { o: Overlay; at: number }>();
+export function sheetLeaving(o: Overlay, at: number) { leavingSheets.set(o.id, { o, at }); }
+export function sheetGone(id: string) { leavingSheets.delete(id); }
+const sameProps = (a: any, b: any) => {
+  if (a === b) return true;
+  if (!a || !b || typeof a !== 'object' || typeof b !== 'object') return !a && !b;
+  const ka = Object.keys(a), kb = Object.keys(b);
+  return ka.length === kb.length && ka.every((k) => a[k] === b[k]);
+};
+function caught(type: OverlayType, props: any, at: number): string | null {
+  for (const [id, l] of leavingSheets) {
+    if (l.o.type === type && l.at === at && sameProps(l.o.props, props)) { leavingSheets.delete(id); return id; }
+  }
+  return null;
+}
 export interface Toast { id: string; text: string; tone?: 'ok' | 'bad' | 'info'; actionLabel?: string; onAction?: () => void; duration: number }
 
 interface UI {
@@ -50,9 +70,11 @@ interface UI {
  * not yet unwound — tracking it locally means rapid double-closes can never walk back out of the app.
  */
 let histDepth = 0;
+/** our own history.go() steps still on their way (the browser runs them later): their popstate is not a Back press */
+let ownSteps = 0;
 function unwindTo(len: number) {
   const extra = histDepth - len;
-  if (extra > 0) { histDepth -= extra; try { history.go(-extra); } catch { /* ignore */ } }
+  if (extra > 0) { histDepth -= extra; ownSteps += 1; try { history.go(-extra); } catch { ownSteps -= 1; } }
 }
 
 export const useUI = create<UI>((set, get) => ({
@@ -68,7 +90,7 @@ export const useUI = create<UI>((set, get) => ({
   push: (type, props) => {
     const top = get().overlays[get().overlays.length - 1];
     if ((type === 'coach' || type === 'voice') && top?.type === type) return top.id;
-    const id = uid('ov');
+    const id = caught(type, props, get().overlays.length) ?? uid('ov');
     histDepth += 1;
     try { history.pushState({ aven: histDepth }, ''); } catch { /* ignore */ }
     set((s) => ({ overlays: [...s.overlays, { id, type, props, page: asPage(top, type) }] }));
@@ -119,8 +141,16 @@ if (typeof window !== 'undefined') {
   // hardware / browser back: trim overlays to the history depth the browser landed on
   window.addEventListener('popstate', (e) => {
     const depth = (e.state && e.state.aven) || 0;
-    histDepth = depth;
     const ov = useUI.getState().overlays;
+    if (ownSteps > 0) {
+      // the step back we asked for when something closed. Something opened again before it landed (closing Settings, then
+      // tapping Settings at once): that one stays, and gets its history entry back so Back still closes it.
+      ownSteps -= 1;
+      histDepth = depth;
+      while (histDepth < ov.length) { histDepth += 1; try { history.pushState({ aven: histDepth }, ''); } catch { /* ignore */ } }
+      return;
+    }
+    histDepth = depth;
     if (ov.length > depth) useUI.setState({ overlays: ov.slice(0, depth) });
   });
   // a reload must not strand us on a history entry that has no overlay behind it
