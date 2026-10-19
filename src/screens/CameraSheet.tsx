@@ -194,7 +194,7 @@ export function CameraSheet({ props }: { props: Props }) {
       <div ref={wrap} className="cam-wrap" data-phase={phase}>
         <ScanStage depth={!!food && look === 'C'} busy={phase === 'reading'} fill>
           <div ref={panel} className="cam-panel">
-            <motion.div className="cam-photo" style={{ transformOrigin: '0 0' }} animate={photoTo} transition={{ type: 'spring', stiffness: 170, damping: 26, delay: done ? 0.24 : 0, opacity: { duration: 0.2, delay: done ? 1.05 : 0 } }}>
+            <motion.div className="cam-photo" style={{ transformOrigin: '0 0' }} animate={photoTo} transition={{ type: 'spring', stiffness: 100, damping: 20, delay: done ? 0.24 : 0, opacity: { duration: 0.22, delay: done ? 1.22 : 0 } }}>
               {!failed && <video ref={video} playsInline muted className="cam-video" style={{ opacity: shown ? 1 : 0, transition: shown ? (flipping.current ? 'opacity 160ms var(--ease-out) 100ms' : 'opacity 420ms var(--ease-out) 180ms') : 'none' }} />}
               <canvas ref={still} className="cam-still" aria-hidden style={{ opacity: 0 }} />
             </motion.div>
@@ -205,8 +205,8 @@ export function CameraSheet({ props }: { props: Props }) {
             </div>
             <AnimatePresence>{phase === 'reading' && snap && <Scan key="scan" src={snap} v={look} />}</AnimatePresence>
             <AnimatePresence>
-              {done && snap && <motion.img key="thumb" className="cam-thumb" src={snap} alt="" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3, delay: 0.85 }} />}
-              {done && <motion.div key="res" className="cam-res" exit={{ opacity: 0, transition: { duration: 0.3 } }}><CamResults items={items} setItems={setItems} assume={assume} base={0.62} /></motion.div>}
+              {done && snap && <motion.img key="thumb" className="cam-thumb" src={snap} alt="" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.16, delay: 1.04 }} />}
+              {done && <motion.div key="res" className="cam-res" exit={{ opacity: 0, transition: { duration: 0.3 } }}><CamResults items={items} setItems={setItems} assume={assume} base={0.8} /></motion.div>}
             </AnimatePresence>
             {phase === 'error' && <div className="small cam-err" role="alert">{err}</div>}
             <button className="cam-btn cam-x press" aria-label={t('Close')} onClick={pop}><Icon name="close" size={20} /></button>

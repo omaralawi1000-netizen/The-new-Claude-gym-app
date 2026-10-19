@@ -2500,9 +2500,9 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 .cam-msg { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 6px; padding: 0 28px; text-align: center; color: #fff; pointer-events: none; transition: opacity 180ms linear; }
 .cam-why { color: var(--tx2); }
 .cam-bar { flex: none; position: relative; height: 84px; }
-.cam-bar-live, .cam-bar-res { position: absolute; inset: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 14px; transition: opacity 420ms var(--ease-out); }
-.cam-bar-res { gap: 12px; opacity: 0; pointer-events: none; }
-.cam-wrap[data-phase='result'] .cam-bar-res, .cam-wrap[data-phase='error'] .cam-bar-res { opacity: 1; pointer-events: auto; transition-delay: 200ms; }
+.cam-bar-live, .cam-bar-res { position: absolute; inset: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 14px; transition: opacity 420ms cubic-bezier(.33,0,.2,1), transform 420ms cubic-bezier(.33,0,.2,1); }
+.cam-bar-res { gap: 12px; opacity: 0; transform: translateY(8px); pointer-events: none; }
+.cam-wrap[data-phase='result'] .cam-bar-res, .cam-wrap[data-phase='error'] .cam-bar-res { opacity: 1; transform: none; pointer-events: auto; transition-delay: 800ms; }
 .cam-wrap:not([data-phase='live']) .cam-bar-live { opacity: 0; pointer-events: none; }
 .cam-wrap[data-phase='reading'] .cam-bar-live { opacity: .3; }
 .cam-err { position: absolute; left: 50%; bottom: 18px; translate: -50% 0; max-width: calc(100% - 36px); padding: 10px 16px; border-radius: 18px; text-align: center; color: #fff; background: rgba(0,0,0,.5); box-shadow: inset 0 0 0 1px rgba(255,255,255,.14); }
