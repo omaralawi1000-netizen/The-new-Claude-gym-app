@@ -5,6 +5,7 @@ import { buildStarter, assignWeek } from '../../src/lib/starter';
 import { SEED_EXERCISES } from '../../src/data/exercises';
 import { addDays } from '../../src/lib/dates';
 import { reconcileCatchUps } from '../../src/lib/eating';
+import { applyVerdict } from '../../src/lib/verdict';
 import type { AppData, FoodEntry, HealthDay, WorkoutSession, Goal } from '../../src/lib/types';
 
 export const NOW = new Date(2026, 9, 19, 9, 30);
@@ -58,8 +59,12 @@ function omar(): AppData {
   d.entries.push(food(TODAY, 'breakfast', 'Skyr with oats', 350, 110, 9, at(TODAY, 8, 30)));
   // the watch: 4 weeks of nights around 7 h, last night short
   d.health = Array.from({ length: 28 }, (_, i) => health(i, { sleepMin: i === 0 ? 290 : 410 + ((i * 13) % 50), restHr: i === 0 ? 58 : 51, hrv: i === 0 ? 44 : 62, totalKcal: 3300, activeKcal: 900 }));
-  d.memory = [mem('Trains to failure whatever the day; does not want to be told to train lighter unless he asks.', 'preference'), mem('Wrestling on Tuesdays and Thursdays is his main leg and conditioning work.', 'schedule')];
-  d.catchUps = reconcileCatchUps(d, NOW.getTime())?.list ?? [];
+  d.memory = [mem('Age: 20 (as of 2026-09-01)'), mem('Trains to failure whatever the day; does not want to be told to train lighter unless he asks.', 'preference'), mem('Wrestling on Tuesdays and Thursdays is his main leg and conditioning work.', 'schedule')];
+  // last night noticed this morning and decided as the app would (lib/eatingWatch.ts): a small trim, the pop-up shown
+  d.marks = { heavySeen: '2026-09-01' };
+  d.catchUps = (reconcileCatchUps(d, NOW.getTime())?.list ?? []).map((c) => (c.date === addDays(TODAY, -1)
+    ? { ...applyVerdict(c, { plan: 'trim', perDay: 200, days: 3, line: 'Yesterday: +2,000 kcal over. Mostly water on the scale. A small trim: −200 kcal a day for 3 days, protein stays.', why: 'Third heavy evening in three weeks and the trend has slowed; a small trim keeps the week on track without a hard day.' }, TODAY), decided: true, told: true }
+    : { ...c, decided: true, told: true, coachTold: true }));
   return d;
 }
 
@@ -107,4 +112,39 @@ function fresh(): AppData {
   return d;
 }
 
-export const PERSONAS: Record<string, () => AppData> = { omar, sara, mads, ali, fresh };
+/** A teen wrestler whose age the app doesn't know: trying to make a weight class this week. */
+function noah(): AppData {
+  const d = base('fatloss', 2200, 130, [1, 3, 5], 'new');
+  d.settings.name = 'Noah';
+  for (let i = 14; i >= 1; i--) d.entries.push(...day(addDays(TODAY, -i), 2300 + ((i * 31) % 200)));
+  for (const i of [13, 9, 5, 2, 1]) d.weights.push({ id: `wt${i}`, date: addDays(TODAY, -i), kg: 63.2 - (13 - i) * 0.02, at: at(addDays(TODAY, -i), 7) });
+  d.memory = [mem('Wrestles; competes in a tournament on Saturday.', 'schedule'), mem('In 9th grade.', 'other')];
+  return d;
+}
+
+/** An adult cutting who overeats in the evening 3–4 times a week, two weeks running; weight flat. */
+function lea(): AppData {
+  const d = base('fatloss', 1900, 120, [1, 4], 'some');
+  d.settings.name = 'Lea';
+  for (let i = 21; i >= 1; i--) {
+    const date = addDays(TODAY, -i); const wd = new Date(`${date}T12:00:00`).getDay();
+    d.entries.push(...day(date, 1800 + ((i * 23) % 120)));
+    if ([0, 2, 4, 5].includes(wd)) d.entries.push(food(date, 'snacks', 'Chocolate and crisps', 300, 530, 6, at(date, 21, 30)));
+  }
+  for (let i = 21; i >= 1; i -= 2) d.weights.push({ id: `wt${i}`, date: addDays(TODAY, -i), kg: 74.6 + ((i * 11) % 5) / 10, at: at(addDays(TODAY, -i), 7) });
+  d.memory = [mem('Age: 31 (as of 2026-03-01)'), mem('Works late; dinner is often at 20:00.', 'schedule')];
+  d.marks = { heavySeen: '2026-09-01' };
+  return d;
+}
+
+/** A Danish user, cutting, writes in Danish. */
+function freja(): AppData {
+  const d = base('fatloss', 1900, 130, [1, 3, 5]);
+  d.settings.name = 'Freja'; d.settings.language = 'da';
+  for (let i = 24; i >= 1; i--) d.entries.push(...day(addDays(TODAY, -i), 1950 + ((i * 17) % 120)));
+  for (let i = 24; i >= 1; i -= 2) d.weights.push({ id: `wt${i}`, date: addDays(TODAY, -i), kg: 68.4 + ((i * 7) % 4) / 10, at: at(addDays(TODAY, -i), 7) });
+  d.memory = [mem('Age: 26 (as of 2026-01-15)')];
+  return d;
+}
+
+export const PERSONAS: Record<string, () => AppData> = { omar, sara, mads, ali, fresh, noah, lea, freja };
