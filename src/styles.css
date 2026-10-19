@@ -2694,3 +2694,8 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 /* the workout's Next-set / rest bar took only 72 % of that tint, so the window's blue-black behind it still won (it measured
    (19,21,30), B-R +11): in dark it takes the whole floating tint, the same as a toast (still see-through frost) */
 :root:not([data-theme='light']) .wk-bar-surface.glass { background: var(--glass); }
+/* the dock's active tab is the same raised glass as the switcher thumb: neutral light on top, shade below (no gold edge)
+   (ported from polish r2, bb0d8ba; only the dock part. :not(#_) so it beats the older warm v2 dock rule) */
+:root:not([data-theme='light']) :is(.seg-lens, .tab-lens):not(#_) { --lens-hl: rgba(255,255,255,.17); --lens-line: rgba(255,255,255,.05); --lens-lo: rgba(0,0,0,.34); --lens-fill: linear-gradient(180deg, #444448, #36363a); }
+:root:not([data-theme='light']) .tab-lens > :is(.lens-l, .lens-r) { box-shadow: inset 0 1px 0 var(--lens-hl), inset 0 -1px 0 var(--lens-lo), inset 0 0 0 1px var(--lens-line); }
+:root:not([data-theme='light']) .tab-lens > .lens-m { background: linear-gradient(to bottom, var(--lens-hl) 0 1px, transparent 1px calc(100% - 1px), var(--lens-lo) calc(100% - 1px)), linear-gradient(to bottom, var(--lens-line) 0 1px, transparent 1px calc(100% - 1px), var(--lens-line) calc(100% - 1px)), var(--lens-fill); }
