@@ -2502,10 +2502,20 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 .cam-bar { flex: none; position: relative; height: 84px; }
 .cam-bar-live, .cam-bar-res { position: absolute; inset: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 14px; transition: opacity 420ms cubic-bezier(.33,0,.2,1), transform 420ms cubic-bezier(.33,0,.2,1); }
 .cam-bar-res { gap: 12px; opacity: 0; transform: translateY(8px); pointer-events: none; }
-.cam-wrap[data-phase='result'] .cam-bar-res, .cam-wrap[data-phase='error'] .cam-bar-res { opacity: 1; transform: none; pointer-events: auto; transition-delay: 800ms; }
+.cam-wrap[data-phase='result'] .cam-bar-res, .cam-wrap[data-phase='error'] .cam-bar-res { opacity: 1; transform: none; pointer-events: auto; transition-delay: 400ms; }
+.cam-wrap[data-phase='error'] .cam-bar-res { transition-delay: 240ms; }
 .cam-wrap:not([data-phase='live']) .cam-bar-live { opacity: 0; pointer-events: none; }
 .cam-wrap[data-phase='reading'] .cam-bar-live { opacity: .3; }
-.cam-err { position: absolute; left: 50%; bottom: 18px; translate: -50% 0; max-width: calc(100% - 36px); padding: 10px 16px; border-radius: 18px; text-align: center; color: #fff; background: rgba(0,0,0,.5); box-shadow: inset 0 0 0 1px rgba(255,255,255,.14); }
+.cam-dim { position: absolute; inset: 0; background: rgba(0,0,0,.5); opacity: 0; pointer-events: none; transition: opacity 420ms var(--ease-out); }
+.cam-wrap[data-phase='error'] .cam-dim { opacity: 1; }
+/* floating surface: see-through frost over the dimmed photo; one small fixed layer, the blur itself never animates */
+.cam-err { position: absolute; left: 16px; right: 16px; bottom: 18px; display: grid; justify-items: center; gap: 6px; padding: 22px 20px 18px; border-radius: 26px; text-align: center; color: #fff; background: rgba(20,14,10,.26); -webkit-backdrop-filter: blur(26px) saturate(1.5); backdrop-filter: blur(26px) saturate(1.5); box-shadow: inset 0 0 0 1px rgba(255,255,255,.16), inset 0 1px 0 rgba(255,255,255,.14); will-change: transform, opacity; }
+.cam-err-ic { display: grid; place-items: center; width: 52px; height: 52px; margin-bottom: 4px; border-radius: 50%; background: rgba(255,255,255,.12); box-shadow: inset 0 0 0 1px rgba(255,255,255,.16); }
+.cam-err-t { font-size: 20px; font-weight: 650; letter-spacing: -.01em; }
+.cam-err-s { font-size: 14px; line-height: 1.35; color: rgba(255,255,255,.72); max-width: 30ch; }
+.cam-err-tips { margin-top: 8px; font-size: 12.5px; color: rgba(255,255,255,.6); }
+.cam-try { height: 52px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: 999px; color: #fff; font-weight: 600; font-size: 16px; background: rgba(255,255,255,.12); -webkit-backdrop-filter: blur(24px) saturate(1.4); backdrop-filter: blur(24px) saturate(1.4); box-shadow: inset 0 0 0 1px rgba(255,255,255,.16), inset 0 1px 0 rgba(255,255,255,.12); }
+.cam-err-tips i { font-style: normal; font-size: 12.5px; padding: 6px 12px; border-radius: 999px; background: rgba(255,255,255,.1); box-shadow: inset 0 0 0 1px rgba(255,255,255,.12); color: rgba(255,255,255,.85); }
 /* the result, on the camera's own surface (CamResults.tsx): black and white only, as the camera is in both themes */
 .cam-res { position: absolute; inset: 0; color: #fff; }
 .cam-res .cam-res-head { position: absolute; left: calc(22% + 32px); top: 64px; right: 16px; height: 22%; display: flex; flex-direction: column; justify-content: center; }

@@ -57,6 +57,7 @@ export function CameraSheet({ props }: { props: Props }) {
   const [items, setItems] = useState<ReadItem[]>([]);
   const [assume, setAssume] = useState('');
   const [err, setErr] = useState<string | null>(null);
+  const [noFood, setNoFood] = useState(false); // the AI looked and found no food: a helpful empty state, not an error line
 
   // false the moment the pop-up starts to leave (Back, a swipe, the phone's back gesture), though it stays on screen while it slides away
   const present = useIsPresent();
@@ -107,7 +108,7 @@ export function CameraSheet({ props }: { props: Props }) {
 
   /** Food: read the shot here. The wait is the light wave; an answer turns into the result, an error stays on the photo. */
   const startRead = async (raw: Blob) => {
-    setErr(null); setItems([]);
+    setErr(null); setNoFood(false); setItems([]);
     setSnap(URL.createObjectURL(raw));
     setPhase('reading');
     ctl.current?.abort(); const c = ctl.current = new AbortController();
@@ -121,6 +122,7 @@ export function CameraSheet({ props }: { props: Props }) {
       stream.current?.getTracks().forEach((x) => x.stop()); // the camera light goes off while the result is shown
     } catch (e: any) {
       if (c.signal.aborted || !alive.current) return;
+      setNoFood(e?.code === 'invalid');
       setErr(e?.code === 'invalid' ? t('That doesn’t look like food. Try another photo.') : aiErrorText(e, t));
       setPhase('error');
     }
@@ -178,7 +180,7 @@ export function CameraSheet({ props }: { props: Props }) {
   /** back to the camera: the photo glides back out, the camera starts again under it */
   const retake = () => {
     ctl.current?.abort(); taken.current = false; flipping.current = true;
-    setItems([]); setErr(null); setShown(false); setPhase('live');
+    setItems([]); setErr(null); setNoFood(false); setShown(false); setPhase('live');
     setEpoch((e) => e + 1);
   };
 
@@ -194,7 +196,8 @@ export function CameraSheet({ props }: { props: Props }) {
       <div ref={wrap} className="cam-wrap" data-phase={phase}>
         <ScanStage depth={!!food && look === 'C'} busy={phase === 'reading'} fill>
           <div ref={panel} className="cam-panel">
-            <motion.div className="cam-photo" style={{ transformOrigin: '0 0' }} animate={photoTo} transition={{ type: 'spring', stiffness: 100, damping: 20, delay: done ? 0.24 : 0, opacity: { duration: 0.22, delay: done ? 1.22 : 0 } }}>
+            <AnimatePresence>{done && snap && <motion.img key="thumb" className="cam-thumb" src={snap} alt="" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.16, delay: 0.4 }} />}</AnimatePresence>
+            <motion.div className="cam-photo" style={{ transformOrigin: '0 0' }} animate={photoTo} transition={{ type: 'spring', stiffness: 220, damping: 28, delay: done ? 0.08 : 0, opacity: { duration: 0.16, delay: done ? 0.54 : 0 } }}>
               {!failed && <video ref={video} playsInline muted className="cam-video" style={{ opacity: shown ? 1 : 0, transition: shown ? (flipping.current ? 'opacity 160ms var(--ease-out) 100ms' : 'opacity 420ms var(--ease-out) 180ms') : 'none' }} />}
               <canvas ref={still} className="cam-still" aria-hidden style={{ opacity: 0 }} />
             </motion.div>
@@ -205,10 +208,17 @@ export function CameraSheet({ props }: { props: Props }) {
             </div>
             <AnimatePresence>{phase === 'reading' && snap && <Scan key="scan" src={snap} v={look} />}</AnimatePresence>
             <AnimatePresence>
-              {done && snap && <motion.img key="thumb" className="cam-thumb" src={snap} alt="" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.16, delay: 1.04 }} />}
-              {done && <motion.div key="res" className="cam-res" exit={{ opacity: 0, transition: { duration: 0.3 } }}><CamResults items={items} setItems={setItems} assume={assume} base={0.8} /></motion.div>}
+              {done && <motion.div key="res" className="cam-res" exit={{ opacity: 0, transition: { duration: 0.3 } }}><CamResults items={items} setItems={setItems} assume={assume} base={0.32} /></motion.div>}
             </AnimatePresence>
-            {phase === 'error' && <div className="small cam-err" role="alert">{err}</div>}
+            <div className="cam-dim" aria-hidden />
+            <AnimatePresence>
+              {phase === 'error' && <motion.div key="err" className="cam-err" role="alert" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8, transition: { duration: 0.2 } }} transition={{ type: 'spring', stiffness: 220, damping: 28, delay: 0.12 }}>
+                <span className="cam-err-ic"><Icon name="scan" size={24} /></span>
+                <b className="cam-err-t">{noFood ? t('No food found') : t('Couldn’t read that')}</b>
+                <span className="cam-err-s">{noFood ? t('Point at a plate, a bowl or a snack and keep it in the frame.') : err}</span>
+                {noFood && <span className="cam-err-tips">{t('Fill the frame')} · {t('Good light')} · {t('One plate')}</span>}
+              </motion.div>}
+            </AnimatePresence>
             <button className="cam-btn cam-x press" aria-label={t('Close')} onClick={pop}><Icon name="close" size={20} /></button>
           </div>
         </ScanStage>
@@ -222,7 +232,10 @@ export function CameraSheet({ props }: { props: Props }) {
           </div>
           {food && (
             <div className="cam-bar-res">
-              <button className="cam-btn press" aria-label={t('Retake')} onClick={retake}><Icon name="camera" size={22} /></button>
+              {phase === 'error'
+                ? <><button className="cam-btn press" aria-label={t('Choose a photo')} onClick={() => lib.current?.click()}><Icon name="upload" size={22} /></button>
+                  <button className="cam-try press grow" onClick={retake}><Icon name="camera" size={18} /> {t('Try again')}</button></>
+                : <button className="cam-btn press" aria-label={t('Retake')} onClick={retake}><Icon name="camera" size={22} /></button>}
               {phase === 'result' && meal && <button className="btn primary block press grow" disabled={!chosen.length} onClick={() => logReadItems(items, assume, food.date, meal, lang, t)}>{t(chosen.length === 1 ? 'Log 1 item' : 'Log {n} items', { n: chosen.length })} · {fmtNum(Math.round(total), lang, 0)} kcal</button>}
             </div>
           )}
