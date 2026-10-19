@@ -25,7 +25,7 @@ await p.evaluate(() => {
 await p.getByRole('button', { name: 'Coach', exact: true }).first().tap({ force: true });
 await wait(p, 6500);
 const log = await p.evaluate(() => window.__log);
-let prev = null;
+let prev = null; if (process.env.ALL) for (const r of log) if (r.t > 0) console.log(r.t, (r.top - r.sheet).toFixed(3), r.st, r.shH, r.thH.toFixed(3), r.sheet.toFixed(2));
 for (const r of log) {
   if (prev && prev.rows !== r.rows) console.log(`t=${r.t} rows ${prev.rows}->${r.rows}  msg top ${prev.top.toFixed(3)} -> ${r.top.toFixed(3)} (sheet ${prev.sheet.toFixed(2)} -> ${r.sheet.toFixed(2)}; on screen vs sheet ${(r.top - r.sheet - (prev.top - prev.sheet)).toFixed(3)} px)  scrollTop ${prev.st} -> ${r.st}  scrollHeight ${prev.shH}->${r.shH} thread h ${prev.thH.toFixed(3)}->${r.thH.toFixed(3)}`);
   prev = r;

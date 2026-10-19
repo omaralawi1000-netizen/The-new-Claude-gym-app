@@ -337,9 +337,10 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   // a row on screen and where it was just before older messages were added above (it is put back exactly there; the
   // list's whole-pixel height ticked the view by up to 0.6 px at every batch, 19 Oct)
   const grewFrom = useRef<{ el: HTMLElement; top: number } | null>(null);
-  // where that row was meant to be after the last batch (the scroll lands on whole device pixels: measuring afresh each
-  // time let the rounding add up, 1.2 px over a long chat, judge 19 Oct); used while nothing has scrolled since
-  const heldAt = useRef<{ el: HTMLElement; top: number; scroll: number } | null>(null);
+  // a sub-pixel shim above the thread (0–1 px): the rows' heights are fractions of a pixel but the scroll lands on whole
+  // pixels, so each batch left the view up to a pixel off and it added up into a 0.9 px snap every few batches (judge 19 Oct).
+  // The shim takes the fraction, so every batch adds whole pixels and the scroll keeps the view exactly still
+  const shim = useRef(0);
   useLayoutEffect(() => {
     const el = bodyRef.current; if (!el) return;
     if (!placed.current) {
@@ -352,7 +353,16 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       // moved on by exactly what was added above (it used to be put back where it was when they were asked for: a
       // scroll in between was undone, the list jumping back by it)
       const { el: row, top } = grewFrom.current; grewFrom.current = null;
-      if (row.isConnected) { el.scrollTop += rowTop(row, el) - top; heldAt.current = { el: row, top, scroll: el.scrollTop }; }
+      if (row.isConnected) {
+        let d = rowTop(row, el) - top; const f = d - Math.round(d);
+        const thread = row.parentElement;
+        if (thread && Math.abs(f) > 0.002) {
+          shim.current = (((shim.current - f) % 1) + 1) % 1;
+          thread.style.paddingTop = shim.current > 0.002 ? `${shim.current.toFixed(4)}px` : '';
+          d = rowTop(row, el) - top;
+        }
+        el.scrollTop += Math.round(d);
+      }
     }
     lastScroll.current = el.scrollTop;
     el.toggleAttribute('data-scrollable', el.scrollHeight > el.clientHeight + 1);
@@ -700,7 +710,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     // (never while your finger or a fling is moving the list: the list put back in place under a moving scroll stepped
     // it, a flicker every ~0.4 s while you scrolled up through a long chat, Omar 18 Oct; they wait until it rests)
     let later: ReturnType<typeof setTimeout> | undefined;
-    const more = () => { const el = bodyRef.current; if (user.current || busyRef.current || flights.current.size || kb.isAnimating()) { later = setTimeout(more, 300); return; } /* (nor while it answers, a message flies or the keyboard moves: each batch is a layout and a repaint of the whole list) */ const row = el?.querySelector<HTMLElement>('.coach-thread')?.lastElementChild as HTMLElement | null; if (row && el) { const h = heldAt.current; grewFrom.current = { el: row, top: h && h.el === row && h.scroll === el.scrollTop ? h.top : rowTop(row, el) }; } setOlder((n) => Math.max(0, n - 6)); }; // (six at a time: about 26 passes for a long chat after every open was 8 s of repaints)
+    const more = () => { const el = bodyRef.current; if (user.current || busyRef.current || flights.current.size || kb.isAnimating()) { later = setTimeout(more, 300); return; } /* (nor while it answers, a message flies or the keyboard moves: each batch is a layout and a repaint of the whole list) */ const row = el?.querySelector<HTMLElement>('.coach-thread')?.lastElementChild as HTMLElement | null; if (row && el) grewFrom.current = { el: row, top: rowTop(row, el) }; setOlder((n) => Math.max(0, n - 6)); }; // (six at a time: about 26 passes for a long chat after every open was 8 s of repaints)
     const idle = 'requestIdleCallback' in window ? window.requestIdleCallback : null;
     // the first ones wait until the sheet has risen; then two at a time, whenever the phone has a moment
     const wait = setTimeout(() => { id = idle ? idle(more, { timeout: 1200 }) : window.setTimeout(more, 16); }, begun.current ? 0 : 700);

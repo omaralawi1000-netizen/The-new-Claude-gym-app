@@ -555,7 +555,7 @@ export function SphereStage() {
         if (lf) {
           // it rides its button (on the bar, never over the words) and is handed home on the sheet's own progress; the
           // button falling past the dock line no longer lets go of it at once (and it never goes below the dock)
-          const f = Math.min(1, e / lf.k), ry = Math.min(y, Y);
+          const f = Math.min(1, e / lf.k), ry = softmin(y, Y, PICK); // (soft: it eases onto the dock line instead of stopping dead on it)
           X += (x - X) * f; Y += (ry - Y) * f; S += (z - S) * f; flight = f;
         } else if (sl.engage?.shift) {
           const restY = y - sl.engage.shift.get();
