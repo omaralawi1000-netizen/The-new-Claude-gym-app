@@ -3,13 +3,12 @@ import { heavyDays } from '../lib/eating';
 import { trueMaintenance } from '../lib/maintenance';
 import { useStore, exerciseMap, allExercises } from '../state/store';
 import { useUI, haptic } from '../state/ui';
-import { useAi } from '../state/ai';
+import { useAi, solOn } from '../state/ai';
 import { useT, useLang } from '../lib/i18n';
 import { addDays, dayKey, fmtDate, startOfWeek } from '../lib/dates';
 import { reviewWeekEnd } from '../lib/stats';
 import { candidates, localVerdict, met, reviewNumbers, storedReview, type Candidate, type ReviewNumbers } from '../lib/weekReview';
 import { fmtNum, fmtSigned, kgToDisplay } from '../lib/units';
-import { getKey } from '../lib/keys';
 import { Sheet, SheetHead } from '../ui/Sheet';
 import { Icon } from '../ui/Icon';
 import { Odo } from '../ui/Odo';
@@ -64,7 +63,8 @@ export function WeekReviewSheet({ props }: { props: { end?: string } }) {
   const d = useStore() as AppData & ReturnType<typeof useStore.getState>;
   const closeAll = useUI((u) => u.closeAll);
   const push = useUI((u) => u.push);
-  const hasGemini = useAi((a) => a.hasGemini);
+  // (any brain writes the verdict: the main one first, thinking hard — lib/brain.ts thinkJson)
+  const hasGemini = useAi((a) => a.hasGemini || solOn(a));
   const today = dayKey(Date.now(), d.settings.dayStartHour);
   const end = props.end ?? reviewEndFor(today, d.settings.weekStart);
   const pool = useMemo(() => allExercises(d.exercises), [d.exercises]);
@@ -83,7 +83,7 @@ export function WeekReviewSheet({ props }: { props: { end?: string } }) {
     let live = true;
     const ac = new AbortController();
     (async () => {
-      const [{ aiWeekReview }, { agentModels }, { buildCoachContext, memoryBlock }, { learnedBlock }] = await Promise.all([import('../lib/gemini'), import('../lib/agentTurn'), import('../lib/coachContext'), import('../lib/ledger')]);
+      const [{ REVIEW_SYSTEM, REVIEW_SCHEMA, readReview }, { brainFor }, { buildCoachContext, memoryBlock }, { learnedBlock }, { thinkJson }, { HANDBOOK_CORE, HOW_TO_TALK }] = await Promise.all([import('../lib/gemini'), import('../lib/agentTurn'), import('../lib/coachContext'), import('../lib/ledger'), import('../lib/brain'), import('../lib/handbook')]);
       const muscles = n.muscles.map((x) => `${x.m} ${x.sets} (usually ${x.avg})`).join(', ');
       const week = [
         `WEEK ${n.from}…${n.to}: ${n.sessions} workouts (week before ${n.prevSessions}), ${n.planned} planned, ${n.missed} planned missed, ${n.wrestling} wrestling, ${n.sets} working sets, ${n.records} records, streak ${n.streak} weeks with 2+ workouts.`,
@@ -96,7 +96,8 @@ export function WeekReviewSheet({ props }: { props: { end?: string } }) {
       const cand = `CANDIDATES (id — what it is):\n${cands.map((c) => `${c.id} — ${t(c.key, c.vars as Record<string, string | number>)}`).join('\n') || '(none: the week went well)'}`;
       const last = prev ? `LAST WEEK'S PRIORITIES: ${prev.priorities.map((p) => { const ok = met(p.id, n, d.settings.goals.protein); return `${p.text} → ${ok === null ? 'unknown' : ok ? 'done' : 'not done'}`; }).join('; ') || 'none'}` : 'LAST WEEK: no review.';
       const ctx = `${week}\n\n${cand}\n\n${last}\n\n${memoryBlock(d, name)}\n\n${learnedBlock(name, (id) => id)}\n\nDATA:\n${buildCoachContext(d, today, name, musclesOf)}`;
-      const r = await aiWeekReview(ctx, { key: getKey('gemini'), models: agentModels(true), signal: ac.signal }, lang, cands.map((c) => c.id)).catch(() => null);
+      const b0 = brainFor({ big: true, surface: 'coach', signal: ac.signal });
+      const r = b0 ? await thinkJson({ ...b0, sol: b0.sol ? { ...b0.sol, effort: 'high' } : undefined }, { system: `${REVIEW_SYSTEM(lang)}\n\n${HOW_TO_TALK}\n\n${HANDBOOK_CORE}`, prompt: ctx, schema: REVIEW_SCHEMA, name: 'week_review' }).then((raw) => readReview(raw, cands.map((c) => c.id))).catch(() => null) : null;
       if (!live) return;
       // what the Coach chose, kept for the week (no answer: the app's own verdict and its top two)
       const picks = r ? r.priorities : cands.filter((c) => c.id !== 'keep').slice(0, 2).map((c) => ({ id: c.id, text: fill(c) }));

@@ -8,6 +8,7 @@ import { defaultData } from '../src/state/defaults';
 import { catchUpOn, eatingLines, heavyDays, kcalTargetFor, markCoachTold, planCatchUp, reconcileCatchUps } from '../src/lib/eating';
 import { suggestedTarget, trueMaintenance } from '../src/lib/maintenance';
 import { validateAgent, runActions } from '../src/lib/agent';
+import { applyVerdict } from '../src/lib/verdict';
 import { makeT } from '../src/lib/i18n';
 import { addDays } from '../src/lib/dates';
 import type { AppData, FoodEntry } from '../src/lib/types';
@@ -121,8 +122,10 @@ describe('true maintenance', () => {
 describe('the Coach', () => {
   it('is told once (JUST NOTICED), then it is not said again; heavy days are listed with "logged the day after"', () => {
     set([entry(yesterday, 2500, new Date(2026, 9, 18, 12).getTime()), entry(yesterday, 2000, MORNING)]);
-    useStore.getState().setCatchUps(reconcileCatchUps(data(), MORNING)!.list);
-    expect(eatingLines(data(), today).join('\n')).toMatch(/JUST NOTICED.*\+2000 kcal over.*\(logged the day after\).*−500 kcal a day for 4 days/);
+    // noticed, then decided (lib/verdict.ts): here a small trim with its line and reasoning
+    const c = reconcileCatchUps(data(), MORNING)!.list[0];
+    useStore.getState().setCatchUps([applyVerdict(c, { plan: 'trim', perDay: 250, days: 3, line: 'Yesterday: +2,000. Mostly water. −250 a day for 3 days.', why: 'Third heavy day this month.' }, today)]);
+    expect(eatingLines(data(), today).join('\n')).toMatch(/JUST NOTICED.*\+2000 kcal over.*\(logged the day after\).*−250 kcal a day for 3 days.*Mostly water.*Third heavy day/);
     expect(heavyDays(data(), today)[0]).toMatchObject({ date: yesterday, over: 2000, late: true });
     markCoachTold(data(), useStore.getState().setCatchUps);
     expect(eatingLines(data(), today).join('\n')).not.toContain('JUST NOTICED');
@@ -133,11 +136,13 @@ describe('the Coach', () => {
     set([entry(yesterday, 2500, new Date(2026, 9, 18, 12).getTime())]);
     const [on] = await runActions(validateAgent({ reply: '', actions: [{ type: 'catch_up', on: true, kcal: 1500, day: 'yesterday' }] })!.actions, ctx);
     expect(on.title).toBe('Catch-up set');
-    expect(kcalTargetFor(data(), today)).toBe(2000);
+    // never more than a small trim a day (15 % of 2,500 ≈ 380), spread instead
+    expect(kcalTargetFor(data(), today)).toBe(2120);
+    expect(catchUpOn(data(), today)!.left).toBe(4);
     const [off] = await runActions(validateAgent({ reply: '', actions: [{ type: 'catch_up', on: false }] })!.actions, ctx);
     expect(off.title).toBe('Catch-up taken off');
     expect(kcalTargetFor(data(), today)).toBe(2500);
     off.undo!();
-    expect(kcalTargetFor(data(), today)).toBe(2000);
+    expect(kcalTargetFor(data(), today)).toBe(2120);
   });
 });

@@ -119,6 +119,11 @@ async function generateJson(key: string, model: string, { system, prompt, schema
   } finally { done(); }
 }
 
+/** One structured answer from Gemini (the strong model first, the runner-ups after): for the app's own judgement calls. */
+export async function geminiJson(brain: Pick<Brain, 'key' | 'models' | 'signal'>, o: { system: string; prompt: string; schema: unknown; maxOutputTokens?: number; timeout?: number }): Promise<any> {
+  return withFallback(brain.models, (m) => generateJson(brain.key, m, { ...o, temperature: 0.2, signal: brain.signal, maxOutputTokens: o.maxOutputTokens ?? 1500, timeout: o.timeout ?? 30000 }));
+}
+
 /** Who to ask. `sol`: GPT-6.1 Sol goes first (lib/brain.ts), Gemini (`key`, may be empty) is the fallback. */
 export interface Brain { key: string; models: string[]; signal?: AbortSignal; sol?: { key: string; effort: 'low' | 'medium' | 'high' } }
 
@@ -513,6 +518,11 @@ export const INSIGHT_SYSTEM = (lang: string) =>
 export interface Insight { title: string; body: string; kind: 'reminder' | 'suggestion' | 'warning' | 'app'; ask: string }
 export async function aiInsights(context: string, brain: Brain, lang: string): Promise<Insight[]> {
   const raw = await withFallback(brain.models, (m) => generateJson(brain.key, m, { system: INSIGHT_SYSTEM(lang), prompt: context, schema: INSIGHT_SCHEMA, temperature: 0.3, signal: brain.signal, timeout: 20000, maxOutputTokens: 800 }));
+  return readInsights(raw);
+}
+export { INSIGHT_SCHEMA };
+/** At most two, each complete (the rest is dropped). */
+export function readInsights(raw: any): Insight[] {
   const list = Array.isArray(raw?.insights) ? raw.insights : [];
   return list.filter((x: any) => typeof x?.title === 'string' && typeof x?.body === 'string' && typeof x?.ask === 'string' && x.title.trim())
     .slice(0, 2).map((x: any) => ({ title: x.title.trim().slice(0, 80), body: x.body.trim().slice(0, 220), kind: ['reminder', 'suggestion', 'warning', 'app'].includes(x.kind) ? x.kind : 'suggestion', ask: x.ask.trim().slice(0, 300) }));
@@ -539,6 +549,11 @@ export const REVIEW_SYSTEM = (lang: string) =>
   `Write in ${lang === 'da' ? 'Danish' : 'English'}, plain and friendly, no emoji.`;
 export async function aiWeekReview(context: string, brain: Brain, lang: string, ids: string[]): Promise<{ verdict: string; priorities: { id: string; text: string }[] } | null> {
   const raw = await withFallback(brain.models, (m) => generateJson(brain.key, m, { system: REVIEW_SYSTEM(lang), prompt: context, schema: REVIEW_SCHEMA, temperature: 0.3, signal: brain.signal, timeout: 20000, maxOutputTokens: 600 }));
+  return readReview(raw, ids);
+}
+export { REVIEW_SCHEMA };
+/** The review as the app keeps it: a verdict, and at most two of the candidates (never one it made up). */
+export function readReview(raw: any, ids: string[]): { verdict: string; priorities: { id: string; text: string }[] } | null {
   const verdict = typeof raw?.verdict === 'string' ? raw.verdict.trim().slice(0, 400) : '';
   if (!verdict) return null;
   const seen = new Set<string>();

@@ -2,12 +2,11 @@ import { useEffect, useMemo, useReducer, useState } from 'react';
 import { AnimatePresence } from 'motion/react';
 import { useStore, exerciseMap } from '../state/store';
 import { useUI, haptic } from '../state/ui';
-import { useAi } from '../state/ai';
+import { useAi, solOn } from '../state/ai';
 import { useT, useLang } from '../lib/i18n';
 import { dayKey } from '../lib/dates';
 import { findNudges, hideNudge, visibleNudges, type Nudge, type NudgeAction } from '../lib/nudges';
 import type { Insight } from '../lib/gemini';
-import { getKey } from '../lib/keys';
 import { userHasData } from '../lib/stats';
 import { Icon, type IconName } from './Icon';
 import { Collapse } from './kit';
@@ -25,7 +24,7 @@ const decline = (title: string) => { try { localStorage.setItem(DECLINED, JSON.s
 let asking = false;
 /** Fetches today's insights once (a few seconds after opening, when the phone is idle) and returns them. */
 function useInsights(d: AppData, today: string): Insight[] {
-  const hasGemini = useAi((a) => a.hasGemini);
+  const hasGemini = useAi((a) => a.hasGemini || solOn(a));
   const lang = useLang();
   const [cache, setCache] = useState<Cached | null>(readCache);
   const on = d.settings.coachPins !== false;
@@ -35,15 +34,18 @@ function useInsights(d: AppData, today: string): Insight[] {
     const id = setTimeout(async () => {
       asking = true;
       // the Coach's code is loaded with the Coach (a file of its own), not when the app opens
-      const [{ aiInsights }, { agentModels }, { buildCoachContext, memoryBlock }] = await Promise.all([import('../lib/gemini'), import('../lib/agentTurn'), import('../lib/coachContext')]).catch(() => { asking = false; return [null, null, null] as never; });
-      if (!aiInsights) return;
+      const [{ INSIGHT_SYSTEM, INSIGHT_SCHEMA, readInsights }, { brainFor }, { buildCoachContext, memoryBlock }, { thinkJson }, { HANDBOOK_CORE }, { personLines }, { dataTrustLines }] = await Promise.all([import('../lib/gemini'), import('../lib/agentTurn'), import('../lib/coachContext'), import('../lib/brain'), import('../lib/handbook'), import('../lib/person'), import('../lib/dataQuality')]).catch(() => { asking = false; return [null, null, null, null, null, null, null] as never; });
+      if (!readInsights) return;
+      const brain = brainFor({ big: true, surface: 'coach' });
+      if (!brain) { asking = false; return; }
       const map = exerciseMap(d.exercises);
       const name = (x: string) => { const e = map.get(x); return e ? exName(e, lang) : x; };
       // what they told the Coach (an injury, how they train, what they don't want) and what they already turned down
       const no = declined();
-      const ctx = `${buildCoachContext(d, today, name, (x) => map.get(x)?.muscles)}\n\n${memoryBlock(d, name)}${no.length ? `\n\nTHEY SET THESE ASIDE (never suggest them again, in any wording): ${no.map((x) => `"${x}"`).join('; ')}.` : ''}`;
+      const ctx = `${buildCoachContext(d, today, name, (x) => map.get(x)?.muscles)}\n${[...personLines(d, today), ...dataTrustLines(d, today)].join('\n')}\n\n${memoryBlock(d, name)}${no.length ? `\n\nTHEY SET THESE ASIDE (never suggest them again, in any wording): ${no.map((x) => `"${x}"`).join('; ')}.` : ''}`;
       const app = `\nApp setup: Today shows ${Object.entries(d.settings.widgets).filter(([, v]) => v).map(([k]) => k).join(', ')}; hidden: ${Object.entries(d.settings.widgets).filter(([, v]) => !v).map(([k]) => k).join(', ') || 'none'}.`;
-      aiInsights(ctx + app, { key: getKey('gemini'), models: agentModels(false) }, lang)
+      // (once a day, on the main brain: what a good coach would bring up unasked)
+      thinkJson({ ...brain, sol: brain.sol ? { ...brain.sol, effort: 'medium' } : undefined }, { system: `${INSIGHT_SYSTEM(lang)}\n\n${HANDBOOK_CORE}`, prompt: ctx + app, schema: INSIGHT_SCHEMA, name: 'insights' }).then(readInsights)
         .then((items) => { const c = { date: today, items }; try { localStorage.setItem(INSIGHTS, JSON.stringify(c)); } catch { /* ignore */ } setCache(c); })
         .catch(() => { /* quiet: tried again next time the app opens */ })
         .finally(() => { asking = false; });

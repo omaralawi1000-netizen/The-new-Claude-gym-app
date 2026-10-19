@@ -5,6 +5,7 @@
  *
  * Pure: data in, text out (easy to test). Each answer is capped so a look-up can never flood the request.
  */
+import { handbookTopic } from './handbook';
 import type { AppData, Exercise, MuscleGroup } from './types';
 import { addDays, diffDays, weekdayOf } from './dates';
 import { fold } from './foodText';
@@ -337,6 +338,7 @@ export function runLookups(d: AppData, list: Lookup[], env: LookupEnv): string {
         case 'memory': out = memory(d, l); break;
         case 'notes': out = notes(d, l, env); break;
         case 'conversations': out = conversations(l, env); break;
+        case 'handbook': out = handbookTopic(l.query); break;
         case 'web': out = '(answered by the web search)'; break; // (agentTurn.ts runs it: it is not on the phone)
         case 'guide': { const g = guideSections(); const k = fold(l.query ?? ''); const hit = Object.keys(g).find((x) => k.includes(x) || x.includes(k)); out = k && hit ? g[hit] : `Sections: ${Object.keys(g).join(', ')}.\n${g.coach}`; break; }
         default: out = 'Unknown look-up.';
@@ -354,7 +356,7 @@ export function lookupStatus(list: Lookup[], t: (k: string, v?: Record<string, s
   const what: Record<LookupKind, string> = {
     food: 'your food log', nutrition: 'your nutrition', workouts: 'your workouts', exercise_history: 'your history', records: 'your records',
     body: 'your weight', activities: 'your activities', health: 'your watch data', training_balance: 'your training balance', schedule: 'your plan', routines: 'your routines',
-    exercises: 'your exercises', saved_food: 'your saved food', settings: 'your settings', memory: 'what you told me', notes: 'your notes', conversations: 'what you said', guide: 'the app', web: 'the web',
+    exercises: 'your exercises', saved_food: 'your saved food', settings: 'your settings', memory: 'what you told me', notes: 'your notes', conversations: 'what you said', guide: 'the app', handbook: 'the handbook', web: 'the web',
   };
   if (l.kind === 'exercise_history' && l.query) return t('Looking at your {x} history…', { x: l.query });
   if (l.kind === 'web') return t('Searching the web…');

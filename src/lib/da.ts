@@ -1730,6 +1730,8 @@ export const da: Record<string, string> = {
  "your watch data": "dine urdata",
  "{when}: +{over} kcal over. Next {n} days: −{per} kcal a day.": "{when}: +{over} kcal over. De næste {n} dage: −{per} kcal om dagen.",
  "−{n} catch-up · {d} days left": "−{n} indhentning · {d} dage tilbage",
+ "+{over} kcal over. Mostly water on the scale — back to normal today, no cut.": "+{over} kcal over. Mest vand på vægten — tilbage til normalen i dag, ingen nedskæring.",
+ "+{over} kcal over. Mostly water on the scale. A small trim: −{per} kcal a day for {n} days, protein stays.": "+{over} kcal over. Mest vand på vægten. En lille justering: −{per} kcal om dagen i {n} dage, proteinet bliver.",
  "No catch-up is running": "Der kører ingen indhentning",
  "Catch-up taken off": "Indhentning fjernet",
  "Your normal calorie target is back": "Dit normale kaloriemål er tilbage",

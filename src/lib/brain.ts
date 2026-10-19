@@ -3,8 +3,8 @@
  * credit, busy, a bad answer — Gemini takes over when there is a Gemini key, and the caller is told so. Without an OpenAI
  * key this is just Gemini, exactly as before.
  */
-import { AiError, aiEstimateFood, aiEstimatePhoto, type Brain } from './gemini';
-import { solEstimateFood, solEstimatePhoto } from './openai';
+import { AiError, aiEstimateFood, aiEstimatePhoto, geminiJson, type Brain } from './gemini';
+import { solEstimateFood, solEstimatePhoto, solJson } from './openai';
 import type { FoodEstimate } from './aiValidate';
 
 /** Sol first, Gemini second. `fellBack` is the Sol error that made Gemini answer (null when Sol answered). */
@@ -23,4 +23,9 @@ export async function estimateFood(description: string, brain: Brain, lang: stri
 
 export async function estimatePhoto(image: { mime: string; data: string }, brain: Brain, lang: string, hint = '') {
   return (await solThenGemini(brain, (s) => solEstimatePhoto(image, { ...s, signal: brain.signal }, lang, hint), () => aiEstimatePhoto(image, brain, lang, hint))).value;
+}
+
+/** A judgement call in JSON from the main brain (Sol first, Gemini after): `schema` is Gemini-style (OBJECT/STRING…). */
+export async function thinkJson(brain: Brain, o: { system: string; prompt: string; schema: Record<string, unknown>; name: string }): Promise<any> {
+  return (await solThenGemini(brain, (s) => solJson({ ...s, signal: brain.signal }, o), () => geminiJson(brain, { system: o.system, prompt: o.prompt, schema: o.schema }))).value;
 }

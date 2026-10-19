@@ -14,7 +14,7 @@ import { lookupStatus, runLookups, validateLookups, type SaidLine } from './agen
 import { mealName } from './derive';
 import { dayKey } from './dates';
 import { noteTrouble } from './trouble';
-import type { Exercise, Lang } from './types';
+import type { AppData, Exercise, Lang } from './types';
 
 /** Gemini models to try, best first: the strong one for understanding, the fast one for small jobs (estimates). */
 export function agentModels(brain: boolean): string[] {
@@ -38,13 +38,19 @@ export function brainFor(o: { big: boolean; surface: 'orb' | 'coach'; signal?: A
 /**
  * How hard Sol should think about THIS message. Small talk, logging and quick questions ("yo, how's my week?", "only 9
  * reps", "log a banana") answer at low effort, in a second or two; planning, analysis and advice ("build me a push day",
- * "why is my bench stuck?") get the effort set in Settings. It never thinks harder than that setting.
+ * "why is my bench stuck?") get the effort set in Settings; decisions (targets, maintenance, cut or bulk, a new program)
+ * and "think about it properly" get high.
  */
 // (whole words with their endings only: "plank" is not "plan", "painting" not "pain", "cutlery" not "cut")
 const DEEP = /\b(?:plan(?:s|ned|ning)?|program(?:me)?s?|routines?|splits?|periodi[sz]\w*|deloads?|plateau\w*|stall(?:s|ed|ing)?|stuck|why|should i|analy[sz]\w*|review|compare|improve\w*|advice|recommend\w*|build|design|diet|cut(?:ting)?|bulk(?:ing)?|injur\w*|pain(?:s|ful)?|hurts?|hurting|weak ?points?|progress(?:ion)?)\b|\b(?:hvorfor|skal jeg|analys\w*|forbedr\w*|anbefal\w*|kost(?:en|plan)?|skade\w*|ondt|byg|lav en|programm?(?:et|er)?|rutine\w*|plan(?:en|er|lægning)?)\b/i;
+// Decisions that change their plan or numbers (a calorie target, maintenance, cut or bulk, a program) and "think about it
+// properly" get the deepest thinking whatever the setting (Omar, 19 Oct: think hard where it matters, cheap elsewhere)
+const DECIDE = /\b(?:maintenance|calorie target|how many calories|my (?:calories|macros|targets?)|should i (?:cut|bulk|diet)|new (?:program|plan|split)|plateau\w*|not losing|not gaining)\b|\b(?:vedligehold\w*|kaloriemål|hvor mange kalorier|tab(?:er)? mig ikke)\b/i;
+const THINK_HARD = /\b(?:think (?:about it |it through |this through )?(?:properly|carefully|hard(?:er)?)|take your time|think deeply)\b|\b(?:tænk (?:dig )?(?:godt )?(?:om|grundigt|over det)|tænk grundigt)\b/i;
 export function effortFor(text: string, setting: Effort, photo = false): Effort {
   const rank = { low: 0, medium: 1, high: 2 } as const;
   const cap = (e: Effort): Effort => (rank[e] <= rank[setting] ? e : setting);
+  if (THINK_HARD.test(text) || DECIDE.test(text)) return 'high';
   if (photo) return setting; // reading a label or a machine needs care
   const words = text.trim().split(/\s+/).length;
   if (DEEP.test(text)) return setting;
@@ -76,6 +82,23 @@ export async function withTimeout<T>(ms: number, outer: AbortSignal, fn: (signal
   try { return await fn(c.signal); }
   catch (e) { if (late && !outer.aborted) throw new AiError('timeout', 0, { provider: 'openai' }); throw e; }
   finally { clearTimeout(timer); outer.removeEventListener('abort', stop); }
+}
+
+/**
+ * The Coach's whole instruction text for one message: the rules, the guide, the catalog, memory, and the live DATA. What
+ * never changes comes first and the live data last, so repeated requests share a cached beginning (cheaper). Shared by
+ * decide() and the Coach exam (scripts/exam), which runs it on fake people.
+ */
+export function agentSystem(st: AppData, o: { lang: Lang; pool: Exercise[]; where: string; now?: Date }) {
+  const now = o.now ?? new Date();
+  const today = dayKey(now.getTime(), st.settings.dayStartHour);
+  const names = new Map(o.pool.map((e) => [e.id, e.name]));
+  const muscles = new Map(o.pool.map((e) => [e.id, e.muscles]));
+  const byId = new Map(o.pool.map((e) => [e.id, e]));
+  const mealLabel = (id: string) => { const m = st.settings.meals.find((x) => x.id === id); return m ? mealName(m, o.lang) : id; };
+  const learned = [learnedBlock((id) => names.get(id) ?? id, mealLabel), reviewsBlock(st, (id) => muscles.get(id))].filter(Boolean).join('\n\n');
+  const system = `${AGENT_SYSTEM(o.lang)}\n\nGUIDE:\n${APP_GUIDE}\n\nEXERCISE CATALOG (use these exact names): ${exerciseNames(o.pool).join(', ')}\n\n${memoryBlock(st, (id) => names.get(id) ?? id)}${learned ? `\n\n${learned}` : ''}\n\nWHERE THE USER IS: ${o.where}\n\nDATA (computed on this device just now):\n${buildTodayContext(st, today, now, (id) => byId.get(id), (id) => names.get(id) ?? id)}\n\n${buildAgentContext(st, today, (id) => names.get(id) ?? id, mealLabel, (id) => muscles.get(id))}`;
+  return { system, today, mealLabel };
 }
 
 /** Rounds per message: up to two rounds of look-ups, then the answer. */
@@ -110,14 +133,7 @@ export async function decide(text: string, o: { lang: Lang; t: (k: string, v?: R
   if (capped && !brain) reply = t('This month’s GPT-6.1 Sol limit is reached. Raise it in Settings → Voice & AI, or add a free Gemini key.');
   if (brain) {
     try {
-      const today = dayKey(Date.now(), st.settings.dayStartHour);
-      const names = new Map(o.pool.map((e) => [e.id, e.name]));
-      const muscles = new Map(o.pool.map((e) => [e.id, e.muscles]));
-      const byId = new Map(o.pool.map((e) => [e.id, e]));
-      const mealLabel = (id: string) => { const m = st.settings.meals.find((x) => x.id === id); return m ? mealName(m, lang) : id; };
-      const learned = [learnedBlock((id) => names.get(id) ?? id, mealLabel), reviewsBlock(st, (id) => muscles.get(id))].filter(Boolean).join('\n\n');
-      // what never changes comes first and the live data last: repeated requests then share a cached beginning (cheaper with OpenAI)
-      const system = `${AGENT_SYSTEM(lang)}\n\nGUIDE:\n${APP_GUIDE}\n\nEXERCISE CATALOG (use these exact names): ${exerciseNames(o.pool).join(', ')}\n\n${memoryBlock(st, (id) => names.get(id) ?? id)}${learned ? `\n\n${learned}` : ''}\n\nWHERE THE USER IS: ${o.where}\n\nDATA (computed on this device just now):\n${buildTodayContext(st, today, new Date(), (id) => byId.get(id), (id) => names.get(id) ?? id)}\n\n${buildAgentContext(st, today, (id) => names.get(id) ?? id, mealLabel, (id) => muscles.get(id))}`;
+      const { system, today, mealLabel } = agentSystem(st, { lang, pool: o.pool, where: o.where });
       const conv: Turn[] = [...o.history, { role: 'user', parts: [{ text }] }];
       // streamed when someone is watching the words arrive; a request the API refuses to stream is asked again the plain way
       const gemini = (sys: string) => (o.onReply

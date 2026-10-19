@@ -96,8 +96,8 @@ export function reconcileCatchUps(d: Data, now = Date.now()): { list: CatchUp[];
     if (prev?.off) continue;
     if (prev && h.over - prev.over < 200) continue; // (already caught up; a little more is not worth a new plan)
     const floor = catchUpFloor(d, today);
-    const plan = planCatchUp(h.over, target, floor);
-    if (!plan) continue;
+    // (noticed even when there is no room to trim: what to do about it is decided afterwards, lib/verdict.ts)
+    const plan = planCatchUp(h.over, target, floor) ?? { n: 0, perDay: 0 };
     const start = prev?.days[0] ?? (addDays(h.date, 1) > today ? addDays(h.date, 1) : today);
     const days = Array.from({ length: plan.n }, (_, k) => addDays(start, k));
     const next: CatchUp = { id: prev?.id ?? uid('cu'), date: h.date, over: h.over, days, perDay: plan.perDay, floor, trigger: prev?.trigger ?? h.trigger, at: now, ...(prev ? { told: prev.told, coachTold: false } : {}) };
@@ -143,8 +143,9 @@ export function eatingLines(d: Data, today: string, goal?: string): string[] {
   if (heavy.length) L.push(`Heavy days, last 4 weeks (clearly over target): ${heavy.map((h) => `${WD[new Date(`${h.date}T12:00:00`).getDay()]} ${h.date} +${h.over} kcal${h.late ? ', logged the day after' : ''}${h.evening ? `, ${h.evening} kcal of it in the evening` : ''}`).join('; ')}. ${heavy.length} in 4 weeks.`);
   const on = catchUpOn(d, today);
   if (on) L.push(`CATCH-UP running: ${on.from.date} was +${on.from.over} over, so the target is ${on.perDay} lower for ${on.left} more day${on.left === 1 ? '' : 's'} including today (today's target ${kcalTargetFor(d, today)} kcal instead of ${d.settings.goals.kcal}; protein unchanged). "Don't cut my calories" → catch_up with on false.`);
-  const fresh = (d.catchUps ?? []).filter((c) => !c.off && !c.coachTold && c.days.some((x) => x >= today));
-  for (const c of fresh) L.push(`JUST NOTICED (say it once in your first reply, straight and calm, with the numbers, then the plan; no lecture, no guilt): ${c.date === today ? 'today' : c.date} was +${c.over} kcal over its target${c.trigger === 'late' ? ' (logged the day after)' : ' (this evening)'}; catch-up set: −${c.perDay} kcal a day for ${c.days.length} days, protein unchanged.`);
+  if (on?.from.why) L.push(`Why that catch-up: ${on.from.why}`);
+  const fresh = (d.catchUps ?? []).filter((c) => !c.off && !c.coachTold && c.line && diffDays(today, c.date) <= 3);
+  for (const c of fresh) L.push(`JUST NOTICED (say it once in your first reply, straight and calm, with the numbers, then the plan; no lecture, no guilt): ${c.date === today ? 'today' : c.date} was +${c.over} kcal over its target${c.trigger === 'late' ? ' (logged the day after)' : ' (this evening)'}; ${c.perDay ? `decided: −${c.perDay} kcal a day for ${c.days.length} days, protein unchanged` : 'decided: no cut, back to the normal target'}. The pop-up told them: "${c.line}"${c.why ? ` Reasoning: ${c.why}` : ''}`);
   return L.length ? ['EATING PATTERNS:', ...L] : [];
 }
 

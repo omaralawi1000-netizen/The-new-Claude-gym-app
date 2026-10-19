@@ -275,6 +275,8 @@ export interface CatchUp {
   told?: boolean; coachTold?: boolean;
   /** taken back (Undo, or "don't cut my calories"): kept so the same day is never caught up again */
   off?: boolean;
+  /** the plan as decided after a look at everything (lib/verdict.ts): the pop-up's line and the reasoning behind it */
+  line?: string; why?: string;
 }
 export type MeasureKind = 'waist' | 'chest' | 'hips' | 'arm' | 'thigh' | 'neck';
 export interface Measurement { id: string; date: string; kind: MeasureKind; cm: number }

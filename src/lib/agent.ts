@@ -11,6 +11,7 @@
  *  - Without a Gemini key (or when Gemini is down) simple commands still work through the local parsers.
  */
 import { catchUpFloor, catchUpWords, dayKcal, planCatchUp } from './eating';
+import { maxTrim } from './verdict';
 import { useStore, foodPool, allExercises, plannedFor } from '../state/store';
 import { useUI } from '../state/ui';
 import { addDays, fmtDate } from './dates';
@@ -912,9 +913,13 @@ function doCatchUp(a: Extract<AgentAction, { type: 'catch_up' }>, ctx: AgentCtx)
   const plan = over >= 100 ? planCatchUp(over, target, floor) : null;
   if (!plan) return { id: uid('r'), kind: 'miss', title: t('Nothing to catch up'), lines: [] };
   const start = addDays(date, 1) > ctx.today ? addDays(date, 1) : ctx.today;
-  const c: CatchUp = { id: uid('cu'), date, over, days: Array.from({ length: plan.n }, (_, k) => addDays(start, k)), perDay: plan.perDay, floor, trigger: 'late', at: Date.now(), told: true, coachTold: true };
+  // (never more than a small trim a day, whatever was asked: lib/verdict.ts)
+  const perDay = Math.min(plan.perDay, maxTrim(target, floor));
+  if (perDay < 50) return { id: uid('r'), kind: 'miss', title: t('Nothing to catch up'), lines: [] };
+  const c0: CatchUp = { id: uid('cu'), date, over, days: Array.from({ length: Math.min(7, Math.max(plan.n, Math.ceil(over / perDay))) }, (_, k) => addDays(start, k)), perDay, floor, trigger: 'late', at: Date.now(), told: true, coachTold: true };
+  const c = { ...c0, line: catchUpWords(c0, ctx.today, t, (n) => fmtNum(n, lang, 0)) };
   st.setCatchUps([...prev.filter((x) => x.date !== date), c]);
-  return { id: uid('r'), kind: 'setting', title: t('Catch-up set'), lines: [{ text: catchUpWords(c, ctx.today, t, (n) => fmtNum(n, lang, 0)) }], undo: () => useStore.getState().setCatchUps(prev) };
+  return { id: uid('r'), kind: 'setting', title: t('Catch-up set'), lines: [{ text: c.line }], undo: () => useStore.getState().setCatchUps(prev) };
 }
 
 function doAddExercise(a: Extract<AgentAction, { type: 'add_exercise' }>, ctx: AgentCtx): AgentResult {

@@ -186,6 +186,11 @@ export async function solAgent(system: string, turns: Turn[], sol: Sol, onReply?
   try { return JSON.parse(full); } catch { throw fail(full.trimEnd().endsWith('}') ? 'invalid' : 'network'); }
 }
 
+/** One structured answer from Sol (the app's own judgement calls, e.g. what to do after a heavy day). */
+export async function solJson(sol: Sol, o: { system: string; prompt: string; schema: object; name: string }): Promise<any> {
+  return json(sol, { system: o.system, input: [{ role: 'user', content: o.prompt }], schema: o.schema, name: o.name, cacheKey: `aven-${o.name}` });
+}
+
 /** A rough estimate for a food that is in no database (shown as an ESTIMATE for review). */
 export async function solEstimateFood(description: string, sol: Sol, lang: string): Promise<FoodEstimate> {
   const raw = await json(sol, { system: ESTIMATE_SYSTEM(lang), input: [{ role: 'user', content: `Food: "${description}"` }], schema: ESTIMATE_SCHEMA, name: 'food_estimate', cacheKey: 'aven-estimate' });

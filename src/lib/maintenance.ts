@@ -7,6 +7,7 @@
  */
 import type { AppData } from './types';
 import { addDays, diffDays } from './dates';
+import { unfinishedDays } from './dataQuality';
 
 export interface Maintenance {
   kcal: number;
@@ -51,6 +52,8 @@ function slopePerDay(pts: { date: string; kg: number }[]): number {
 export function trueMaintenance(d: Pick<AppData, 'entries' | 'weights' | 'health'>, today: string, days = 28): Maintenance | null {
   const from = addDays(today, -days), to = addDays(today, -1);
   const intake = intakeByDay(d, from, to);
+  // a day with its usual dinner missing is a log that wasn't finished, not a day they ate little (lib/dataQuality.ts)
+  for (const u of unfinishedDays(d, today, days)) intake.delete(u.date);
   if (intake.size < 10) return null;
   const pts = weighIns(d).filter((w) => w.date >= from && w.date <= today);
   if (pts.length < 4 || diffDays(pts[pts.length - 1].date, pts[0].date) < 14) return null;
