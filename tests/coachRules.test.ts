@@ -29,7 +29,7 @@ describe('talking steers the Coach', () => {
     expect(sys).toMatch(/"No catch-ups ever".*set_setting heavyDays off/);
     expect(sys).toMatch(/A catch-up only when they ask for one/);
     expect(sys).toMatch(/never in a reply that only logs something/);
-    expect(sys).toMatch(/Eating-disorder signal:/);
+    expect(sys).toMatch(/remember \(kind health; a remember, never only a note\) a line starting "Eating-disorder signal:"/);
     expect(sys).toMatch(/illness or an injury mentioned in this conversation or today, or someone under 18/);
     expect(sys).toMatch(/NUMBER FIRST/);
     expect(sys).toMatch(/BEFORE the web/);
