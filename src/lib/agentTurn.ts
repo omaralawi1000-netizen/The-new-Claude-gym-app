@@ -4,7 +4,7 @@ import { trueMaintenance } from './maintenance';
 import { useStore } from '../state/store';
 import { getKey } from './keys';
 import { AiError, FALLBACK_MODELS, aiAgent, aiAgentStream, dedupeSources, geminiSearch, plainModels, type Brain, type Photo, type Turn, type WebSource } from './gemini';
-import { quickFor, refreshSolModel, solAgent, solModel, solSearch, type Effort } from './openai';
+import { quickFor, refreshSolModel, solAgent, solJson, solModel, solSearch, type Effort } from './openai';
 import { solThenGemini } from './brain';
 import { overLimit } from './spend';
 import { AGENT_SYSTEM, APP_GUIDE, buildAgentContext, buildTodayContext, exerciseNames, memoryBlock } from './coachContext';
@@ -92,6 +92,49 @@ async function webSearch(query: string, brain: Brain, lang: string): Promise<{ t
   throw new AiError('failed');
 }
 
+/**
+ * Which model answers (Coach 2.1, 20 Oct). Omar: not the strong model for everything (too expensive), the right one for each
+ * message. Obvious cases are decided here at once: a photo → the main model; risky or decision phrases (route's lists) →
+ * the main model thinking hard; plain logging and quick facts → the quick model at low. Everything else is read by the quick
+ * model in one tiny call (with the conversation just before, and whether it was dictated, so a misheard word or a "why?"
+ * after a big answer is placed right), and goes where it says. A chooser that fails or is slow falls back to the lists.
+ */
+export type Tier = 'quick' | 'quick_think' | 'main' | 'main_high';
+export const TIER_ROUTE: Record<Tier, Route> = { quick: { effort: 'low', main: false }, quick_think: { effort: 'medium', main: false }, main: { effort: 'medium', main: true }, main_high: { effort: 'high', main: true } };
+export const ROUTER_SCHEMA = { type: 'OBJECT', properties: { tier: { type: 'STRING', enum: ['quick', 'quick_think', 'main', 'main_high'] } }, required: ['tier'] };
+export const ROUTER_SYSTEM = `You pick which AI answers a message in a training and food coach app. Reply with JSON only: {"tier": "…"}.
+- quick: logging food, sets, weight or activities; app commands and settings; a short fact; thanks, ok, small talk.
+- quick_think: an everyday question that needs a little reasoning but no real decision (a meal idea, what an exercise does, a simple how-to, a question about one logged item).
+- main: anything that needs judgement on their own data or where a weak answer costs them: why something isn't working (weight, strength, hunger), targets and calories, maintenance, plans and programs, progress and trends, overeating, sleep and recovery, what to change, comparing options.
+- main_high: health or safety (pain, injury, illness, eating problems, purging, fainting), cutting weight fast or making weight, anyone under 18 with a body question, supplements, or a hard decision with many parts.
+A follow-up ("why?", "and tomorrow?", "ok but what if…") continues the conversation before it: give it at least the tier that conversation needed. Messages may be dictated and misheard: judge by what they most likely meant.`;
+
+/** The decisions that need no chooser: a photo, the risky and decision phrases, plain logging and quick facts. */
+export function fastRoute(text: string, setting: Effort, photo = false): (Route & { tier: Tier }) | null {
+  if (photo) return { effort: setting, main: true, tier: 'main' };
+  const r = route(text, setting);
+  if (r.main && r.effort === 'high') return { ...r, tier: 'main_high' };
+  const words = text.trim().split(/\s+/).length;
+  const logging = LOG_REQ.test(text) || (/\d/.test(text) && !/\?/.test(text) && !ASKING.test(text) && words <= 12);
+  if (logging || FACT.test(text)) return { effort: 'low', main: false, tier: 'quick' };
+  return null;
+}
+
+export async function chooseModel(text: string, o: { setting: Effort; photo?: boolean; prev?: { role: string; text: string }[]; dictated?: boolean; timeoutMs?: number;
+  /** one call to the quick model: (system, message) → its answer (JSON, or the text of it) */ ask: (system: string, user: string) => Promise<unknown> }): Promise<Route & { tier: Tier | 'fallback' }> {
+  const fast = fastRoute(text, o.setting, o.photo);
+  if (fast) return fast;
+  const before = (o.prev ?? []).slice(-2).map((h) => `${h.role === 'model' ? 'Coach' : 'Them'}: ${h.text.replace(/\s+/g, ' ').slice(0, 300)}`).join('\n');
+  const user = `${before ? `Just before:\n${before}\n\n` : ''}Message${o.dictated ? ' (dictated)' : ''}: ${text.slice(0, 600)}`;
+  try {
+    const raw = await Promise.race([o.ask(ROUTER_SYSTEM, user), new Promise((_, no) => setTimeout(() => no(new Error('slow')), o.timeoutMs ?? 2500))]);
+    const v: any = typeof raw === 'string' ? JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1)) : raw;
+    const tier = v?.tier as Tier;
+    if (tier in TIER_ROUTE) return { ...TIER_ROUTE[tier], tier };
+  } catch { /* the lists decide */ }
+  return { ...route(text, o.setting), tier: 'fallback' };
+}
+
 /** What the orb screen adds to where they are: it is spoken to, often mid-workout, and may be read aloud (the Coach chat
  *  keeps longer answers). */
 export const ORB_BRIEF = ' They are speaking to the orb screen, often mid-workout, and the answer may be read aloud: keep it short and clear, plain text, no lists or headings. If the question really needs more (a plan, a breakdown), give the short answer: a “Continue in Coach” button sits under it, so never tell them to open the Coach.';
@@ -172,7 +215,11 @@ export async function decide(text: string, o: { lang: Lang; t: (k: string, v?: R
   // think only as hard as the message needs, with the right model (see route): everyday messages to the quick model,
   // decisions, risky questions and photos to the main one (the Coach exam, 19 Oct: the quick one is nearly as good day to
   // day at ~1/16 of the price; the main one thinks the big calls through)
-  const way = brain0?.sol ? route(o.words ?? text, brain0.sol.effort, !!o.photo) : null;
+  const way = brain0?.sol ? await chooseModel(o.words ?? text, {
+    setting: brain0.sol.effort, photo: !!o.photo, dictated: o.dictated,
+    prev: o.history.map((h) => ({ role: h.role, text: h.parts.map((p) => p.text).join('') })),
+    ask: (system, prompt) => solJson({ key: brain0.sol!.key, effort: 'low', model: quickFor(), signal: o.signal }, { system, prompt, schema: ROUTER_SCHEMA, name: 'route' }),
+  }) : null;
   const brain = brain0?.sol && way ? { ...brain0, sol: { ...brain0.sol, effort: way.effort, model: way.main ? undefined : quickFor() } } : brain0;
   const capped = solOn(g) && overLimit(g.solLimitKr);
   if (capped && brain) note = t('This month’s GPT-6.1 Sol limit is reached, so Gemini answered.');

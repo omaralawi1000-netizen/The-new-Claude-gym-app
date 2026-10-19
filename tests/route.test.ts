@@ -81,3 +81,26 @@ describe('found by the final reviews (19 Oct)', () => {
     expect(route('lav en plan for næste uge', 'medium').main).toBe(route('plan my next week', 'medium').main);
   });
 });
+
+describe('the model chooser (Coach 2.1, 20 Oct): obvious cases at once, the rest read by the quick model', async () => {
+  const { fastRoute, chooseModel } = await import('../src/lib/agentTurn');
+  it('logging and quick facts: quick, no call; risky and decision phrases: main thinking hard, no call; a photo: main', () => {
+    for (const s of ['log 2 eggs', 'only 9 reps', '67 kilos same reps', 'bench 100 for 8, 8, 6', 'how many calories in a banana']) expect(fastRoute(s, 'high')?.tier, s).toBe('quick');
+    for (const s of ['I threw up after dinner', 'Hvorfor taber jeg mig ikke?', 'should I cut or bulk']) expect(fastRoute(s, 'high')?.tier, s).toBe('main_high');
+    expect(fastRoute('what is this', 'high', true)?.tier).toBe('main');
+    for (const s of ['why?', 'Hvorfor tager I mig jer mig ikke?', 'and tomorrow?', 'what should I eat tonight']) expect(fastRoute(s, 'high'), s).toBeNull();
+  });
+  it('the rest goes where the quick model says; it sees the conversation before and that it was dictated', async () => {
+    let seen = '';
+    const r = await chooseModel('Hvorfor tager I mig jer mig ikke?', { setting: 'high', dictated: true, prev: [{ role: 'user', text: 'morning' }, { role: 'model', text: 'Morning! Yesterday ended +1,890 kcal.' }], ask: async (_s, u) => { seen = u; return { tier: 'main' }; } });
+    expect(r).toMatchObject({ main: true, tier: 'main' });
+    expect(seen).toMatch(/Message \(dictated\): Hvorfor tager/);
+    expect(seen).toMatch(/Coach: Morning! Yesterday ended/);
+    expect(await chooseModel('why?', { setting: 'high', ask: async () => '{"tier":"quick_think"}' })).toMatchObject({ main: false, effort: 'medium' });
+  });
+  it('a chooser that fails, answers nonsense or is slow: the phrase lists decide', async () => {
+    expect((await chooseModel('why is my bench stuck?', { setting: 'medium', ask: async () => { throw new Error('offline'); } })).tier).toBe('fallback');
+    expect((await chooseModel('why is my bench stuck?', { setting: 'medium', ask: async () => ({ tier: 'genius' }) })).tier).toBe('fallback');
+    expect((await chooseModel('why is my bench stuck?', { setting: 'medium', timeoutMs: 20, ask: () => new Promise((ok) => setTimeout(() => ok({ tier: 'main' }), 200)) })).tier).toBe('fallback');
+  });
+});

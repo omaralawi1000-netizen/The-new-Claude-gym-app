@@ -118,6 +118,17 @@ export const QUESTIONS: Question[] = [
     good: 'Asks ONE short question: what should change (the foods, the amounts, the calories?). No new plan yet.' },
 ];
 
+// Coach 2.1 (20 Oct): dictated and misheard, follow-ups, the voice orb, Danish
+QUESTIONS.push(
+  { id: 'garbled-why', persona: 'omar', kind: 'think', lang: 'da', dictated: true, set: 'dev', q: 'Hvorfor tager I mig jer mig ikke?', good: 'Reads it as "why am I not losing weight?"; answers it directly from the weight trend, true maintenance and the logs; one clear next step.' },
+  { id: 'followup-tomorrow', persona: 'omar', kind: 'think', set: 'dev', q: 'and tomorrow?', history: [{ role: 'user', text: 'what should I eat today to hit protein?' }, { role: 'model', text: 'You have about 1,100 kcal and 95 g protein left: chicken rice bowl for lunch, skyr with berries as a snack, and a big protein dinner.' }], good: 'Understands it means food for tomorrow (a wrestling day): a short plan for tomorrow fitted to it.' },
+  { id: 'orb-protein', persona: 'sara', kind: 'think', orb: true, dictated: true, set: 'dev', q: 'how much protein do I have left today', good: 'The number, short and spoken-friendly, maybe one easy idea.' },
+  { id: 'orb-today', persona: 'omar', kind: 'think', orb: true, dictated: true, lang: 'da', set: 'held', q: 'hvordan ser dagen ud', good: 'Short spoken overview: the workout or rest, food left, in Danish.' },
+  { id: 'da-plateau', persona: 'freja', kind: 'think', lang: 'da', set: 'held', q: 'jeg har ikke tabt mig de sidste to uger selvom jeg spiser 1900, hvad gør jeg', good: 'From her logs and weigh-ins: whether it is really a stall, what is likely going on, one concrete change; Danish.' },
+  { id: 'followup-why-maint', persona: 'ali', kind: 'think', set: 'held', q: 'why so low?', history: [{ role: 'user', text: "what's my maintenance?" }, { role: 'model', text: 'About 1,990 kcal a day, medium confidence.' }], good: 'Explains from his data (half the days look unfinished, flat weight) why it reads low and what would make it reliable.' },
+  { id: 'garbled-log', persona: 'omar', kind: 'easy', lang: 'da', dictated: true, set: 'mech', q: 'to æg og rug brood til morgen mad', check: (a) => (has(a, 'log_food').length ? null : 'did not log'), good: 'Logs 2 eggs and rugbrød for breakfast.' },
+);
+
 // which part each question is in: logging → mech; the rest split, about half kept back for the final proof
 const HELD = new Set(['today', 'scale-up', 'bulk-kcal', 'broken-metabolism', 'creatine', 'why-catchup', 'frequent', 'steer-bulk-january', 'steer-vague', 'teen-sauna']);
 const HEALTH = new Set(['overate', 'fast-cut', 'creatine', 'purged', 'teen-sauna', 'frequent', 'broken-metabolism', 'sweet-protein']);
