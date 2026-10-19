@@ -2706,7 +2706,9 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 :root:not([data-theme='light']) { --sel-fill: rgba(255, 255, 255, 0.14); --sel-off: rgba(255, 255, 255, 0.035);
   --sel-edge: inset 0 1px 0 rgba(255, 255, 255, 0.2), inset 0 -1px 0 rgba(0, 0, 0, 0.22), inset 0 0 0 1px rgba(255, 255, 255, 0.06); }
 :root[data-theme='light'] { --sel-fill: #fff; --sel-off: rgba(0, 0, 0, 0.035);
-  --sel-edge: inset 0 0 0 1px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.09), 0 4px 12px -4px rgba(0, 0, 0, 0.16); }
+  --sel-edge: inset 0 0 0 1px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.09), 0 4px 12px -4px rgba(0, 0, 0, 0.16);
+  /* (a chip row scrolls sideways, so it clips below the chips: there the raise is drawn inside the pill) */
+  --sel-edge-in: inset 0 0 0 1px rgba(0, 0, 0, 0.06), inset 0 -1.5px 0 rgba(0, 0, 0, 0.07); }
 /* the moving thumb (switches and the dock): its three pieces must stay opaque (ui/lens.ts), so the clear glass is made by the
    group's opacity: light-grey pieces at 0.2 = the page behind at 80 % plus a 14 % white film; the white top line comes out
    about 20 % white and the bottom line a soft shade. Only colours and the group's resting opacity change (it was 0.9-0.95,
@@ -2718,7 +2720,7 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 /* the light switch's track: neutral grey, not the blue-grey film */
 :root[data-theme='light'] .seg { background: rgba(0, 0, 0, 0.05); }
 /* chosen chips (was a solid white pill in dark and a black one in light) */
-:root:not([data-theme='light']) .chip.on:not(#_), :root[data-theme='light'] .chip.on:not(#_) { background: var(--sel-fill); color: var(--tx); box-shadow: var(--sel-edge); }
+:root:not([data-theme='light']) .chip.on:not(#_), :root[data-theme='light'] .chip.on:not(#_) { background: var(--sel-fill); color: var(--tx); box-shadow: var(--sel-edge-in, var(--sel-edge)); }
 /* today on the Train week strip (was a grey button box in dark and a peach box in light): the same pill; today stays told by
    its orange letters */
 :root .screen .plinth > button.press[style*='var(--ac-soft)']:not(#_):not(#_) { background: var(--sel-fill) !important; box-shadow: var(--sel-edge) !important; }
