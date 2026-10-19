@@ -58,36 +58,35 @@ function describeField(host: HTMLElement, kind: BgKind): GlowPlan | null {
  * browser work the page's styles out in the middle of the tap) */
 const swaysBy = new Map<string, boolean>();
 export function FieldGlow({ kind }: { kind: BgKind }) {
-  const cv = useRef<HTMLCanvasElement>(null), faded = useRef(false);
+  const cv = useRef<HTMLCanvasElement>(null), tint = useRef<HTMLElement>(null), faded = useRef(false);
   const host = () => cv.current?.parentElement ?? null;
   useGlowCanvases(host, [cv], (el) => describeField(el, kind), (on, wait) => {
     const el = host(); if (!el) return;
-    // (while its picture is painted, and as it fades in over the CSS, the grain it will carry already goes: over the canvas
-    // it would need a layer of its own, gone again when the picture came. The top tint is its own layer: it stays while the
-    // field waits, and fades out as the picture, which carries it, fades in)
+    // (while its picture is painted, and as it fades in over the CSS, the field keeps its grain, under the canvas. Where the
+    // picture carries the status bar's tint too (data-tint), the field carries it as well meanwhile, under the canvas
+    // (.field-tint), so the picture's fade is a plain cross-fade between two tinted images: the strip over all fields and
+    // the tint in the picture darkened the top twice over, and no one opacity of the strip was right for every row)
     const still = (on || !!wait) && !el.querySelector(MOVING), lit = on || wait === 'fade';
     el.toggleAttribute('data-dith', on); el.toggleAttribute('data-still', still);
     // (read once the page is idle, never in the middle of a switch: there it made the browser work the page's styles out
     // twice. Only Classic's field sways)
     const r = document.documentElement.dataset, sk = `${kind}§${r.motion}§${r.glow}`;
     if (kind !== 'classic') swaysBy.set(sk, false);
+    // (its own colour, the one painted into its picture, written only now: never on each frame of the bar's blends)
+    const tinted = (t: boolean) => { if (t) tint.current?.style.setProperty('--tint', barColor(el, kind)); el.toggleAttribute('data-tint', t); };
     if (still && !swaysBy.has(sk)) whenIdle(() => {
       if (!el.isConnected || !el.hasAttribute('data-still')) return;
       swaysBy.set(sk, getComputedStyle(el).animationName !== 'none');
+      tinted(!swaysBy.get(sk));
       el.toggleAttribute('data-top', !swaysBy.get(sk) && el.matches('[data-dith], [data-fade]'));
     });
+    tinted(still && swaysBy.get(sk) === false);
     el.toggleAttribute('data-top', still && lit && swaysBy.get(sk) === false);
-    // (a theme switch's picture not painted yet: the status bar's tint comes back at once, with the rest of the switch,
-    // not fading up from nothing as the reveal starts)
-    const fs = el.parentElement;
-    if (wait === 'wait' && el.getAttribute('data-wait') === 'cut' && fs) {
-      fs.setAttribute('data-snap', ''); requestAnimationFrame(() => requestAnimationFrame(() => fs.removeAttribute('data-snap')));
-    }
     // (the other tabs painted ahead as soon as this one's picture is in: not again, later, once it has faded in)
     if (lit && PER_TAB[kind] && !(on && faded.current)) prewarm(el, kind);
     faded.current = wait === 'fade';
   }, (el) => el.parentElement ?? el, (el) => `field§${kind}§${el.dataset.hue}`);
-  return <canvas ref={cv} className="glow-cv glow-field" aria-hidden />;
+  return <><span ref={tint} className="field-tint" aria-hidden /><canvas ref={cv} className="glow-cv glow-field" aria-hidden /></>;
 }
 
 /**

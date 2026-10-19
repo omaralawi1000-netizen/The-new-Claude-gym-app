@@ -467,8 +467,6 @@ export function useGlowCanvases(host: () => HTMLElement | null, refs: RefObject<
       // goes at once, so the switch's snapshot never holds the old theme)
       if (pending === p.key) return; // (already waiting for it: the same commit asked again)
       const soft = softly && !!real && p.jobs.every((job, i) => refs[i]?.current?.width === job.w && refs[i]?.current?.height === job.h);
-      // ('cut': a theme change, the picture before gone at once; the field's status-bar tint comes back at once too)
-      const cut = known && !soft && !!real;
       show('');
       if (!soft) p.jobs.forEach((job, i) => {
         const cv = refs[i]?.current; if (!cv) return;
@@ -476,7 +474,7 @@ export function useGlowCanvases(host: () => HTMLElement | null, refs: RefObject<
         const g = cv.getContext('2d', { alpha: !job.base }) as CanvasRenderingContext2D | null; if (!g) return;
         if (job.base) { g.fillStyle = `rgb(${job.base.join(' ')})`; g.fillRect(0, 0, job.w, job.h); } else g.clearRect(0, 0, job.w, job.h);
       });
-      cancelAnimationFrame(fading); el.removeAttribute('data-fade'); el.setAttribute('data-wait', soft ? 'soft' : cut ? 'cut' : '');
+      cancelAnimationFrame(fading); el.removeAttribute('data-fade'); el.setAttribute('data-wait', soft ? 'soft' : '');
       shown(false, 'wait');
       const q = p; pending = q.key;
       // (if the worker can't paint it, the CSS after all)

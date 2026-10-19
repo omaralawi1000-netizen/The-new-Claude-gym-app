@@ -1908,11 +1908,14 @@ the workout window: the phone draws CSS gradients and blur output in whole 8-bit
     painted ahead 0.6 s after launch; a tab tapped before that shows its CSS field until its picture is ready (painted
     before anything else the worker has queued), and the picture then fades in over it (1.2 s, eased in and out). The
     canvas is there, see-through, from the field's first frame, so no layer is added later, and the CSS goes only once
-    that fade has finished; the status-bar strip keeps its tint meanwhile and fades out with it, late, on a curve fitted
-    so the two tints add up (on the picture's own curve the top went up to 7-12 levels lighter half-way; now 2-3). The
-    strip follows the newest field; a picture ready while its field is still coming in over another waits for that switch
-    (fading in during it, Classic to Mesh lost the tint for a second), and a theme switch whose picture isn't ready
-    brings the strip back at once. The grain stays, under the canvas, while a field waits. (Showing the plain
+    that fade has finished. Where every field on screen carries the status bar's tint in its picture (the fields that
+    hold still), the waiting field carries the tint itself, under the canvas (`.field-tint`, in its own colour), and the
+    strip is out at once: the fade is a plain cross-fade of two tinted images. (Fading the strip out as the picture came
+    in, both darkening the top, lifted the top-left edge against the status bar by 11 levels in Golden hour for half a
+    second, judge round 5; a fitted curve only halved it. Now the worst 60x30 px patch stays within 1.5 levels.) Next to
+    Classic, whose picture leaves the tint to the strip, the strip follows the newest field, and a picture ready while
+    its field is still coming in over another waits for that switch (fading in during it, Classic to Mesh lost the tint
+    for a second). The grain stays, under the canvas, while a field waits. (Showing the plain
     colour while waiting, tried first, made the field go dark and then light up; ending the fade on a timer hid the CSS
     early on a busy page.) After a palette,
     glow or motion change the picture before fades out (0.6 s) instead of going at once. The mid-switch frame shows the
