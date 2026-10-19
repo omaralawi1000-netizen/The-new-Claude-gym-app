@@ -2686,3 +2686,11 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
    lifted it into a rosé-brown block next to the charcoal "+ Set", batch 1 judge); inside it is just the card */
 :root:not([data-theme='light']) :is(.wk-card, .ex-card, .plinth) .btn.wk-add-warm:not(#_):not(#_):not([data-pressed]) { background: transparent !important; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12) !important; }
 :root:not([data-theme='light']) .btn.wk-add-warm:not(#_)::after { content: none; }
+/* ==== Look batch 2 (audit 19 Oct) ==== */
+/* floating glass (rest / Next-set bar, toasts, the workout pill in the dock, chart labels, the base of round buttons) is the
+   same warm-neutral family as the sheets (batch 1), so floating surfaces and sheets read as one glass: no navy cast. Only the
+   tint's colour changes; the blur, its size and the layers are as before. */
+:root:not([data-theme='light']) { --glass: rgba(32, 29, 27, 0.46); --glass-2: rgba(36, 33, 31, 0.62); }
+/* the workout's Next-set / rest bar took only 72 % of that tint, so the window's blue-black behind it still won (it measured
+   (19,21,30), B-R +11): in dark it takes the whole floating tint, the same as a toast (still see-through frost) */
+:root:not([data-theme='light']) .wk-bar-surface.glass { background: var(--glass); }
