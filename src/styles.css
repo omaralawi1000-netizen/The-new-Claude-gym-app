@@ -2435,7 +2435,7 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 .cam-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 4px 10px calc(var(--sab) + 12px); gap: 14px; color: #fff; --tx2: rgba(255,255,255,.64); }
 .cam-panel { position: relative; flex: 1; min-height: 0; border-radius: var(--r-lg); overflow: hidden; background: #000; box-shadow: inset 0 0 0 1px rgba(255,255,255,.06); }
 .cam-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.cam-still { position: absolute; inset: 0; width: 100%; height: 100%; transition: opacity 420ms var(--ease-out); pointer-events: none; }
+.cam-still { position: absolute; inset: 0; width: 100%; height: 100%; transition: opacity 140ms ease-out; pointer-events: none; }
 .cam-flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
 .cam-msg { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 6px; padding: 0 28px; text-align: center; color: #fff; pointer-events: none; transition: opacity 180ms linear; }
 .cam-why { color: var(--tx2); }
@@ -2480,9 +2480,12 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 .scan-c.tr { right: 16px; top: 16px; border-width: 2.5px 2.5px 0 0; border-top-right-radius: 8px; }
 .scan-c.bl { left: 16px; bottom: 16px; border-width: 0 0 2.5px 2.5px; border-bottom-left-radius: 8px; }
 .scan-c.br { right: 16px; bottom: 16px; border-width: 0 2.5px 2.5px 0; border-bottom-right-radius: 8px; }
-.scan-words { position: absolute; left: 50%; bottom: 20px; translate: -50% 0; display: grid; justify-items: center; min-width: 204px; padding: 7px 14px; border-radius: 999px;
-  background: rgba(0,0,0,.3); -webkit-backdrop-filter: blur(14px) saturate(1.2); backdrop-filter: blur(14px) saturate(1.2); box-shadow: inset 0 0 0 1px rgba(255,255,255,.14); }
-.scan-words span { grid-area: 1 / 1; color: #fff; font-size: 13px; font-weight: 560; letter-spacing: .01em; white-space: nowrap; }
+.scan-words { position: absolute; left: 50%; bottom: 20px; translate: -50% 0; display: grid; justify-items: center; min-width: 176px; padding: 7px 16px; border-radius: 999px;
+  background: linear-gradient(180deg, rgba(255,255,255,.07), transparent 60%), rgba(0,0,0,.46); -webkit-backdrop-filter: blur(16px) saturate(1.2); backdrop-filter: blur(16px) saturate(1.2); box-shadow: inset 0 0 0 1px rgba(255,255,255,.14); }
+.scan-words span { grid-area: 1 / 1; color: #fff; font-size: 13px; font-weight: 600; letter-spacing: .01em; white-space: nowrap; text-shadow: 0 1px 2px rgba(0,0,0,.25); }
+.scan-A .scan-c { animation: scan-breathe 2400ms ease-in-out infinite alternate; }
+@keyframes scan-breathe { from { opacity: .62; } to { opacity: .92; } }
+:root[data-motion='reduce'] .scan-A .scan-c { animation: none; }
 :root[data-motion='reduce'] .scan-band { animation: none; opacity: 0; }
 
 /* option B: aurora edge, a slow ring of colour around the photo's rim (the ring is a static mask; only the colour inside turns) */

@@ -29,14 +29,15 @@ await skipOnboarding(p); await loadDemo(p); await s.advance(120);
 await p.evaluate(() => { localStorage.setItem('aven.keys', JSON.stringify({ gemini: 'AIzaTESTKEY' })); localStorage.setItem('aven.coachNote', '1'); });
 await p.reload(); await wait(p, 1500); await s.advance(240);
 const press = async (loc) => { const b = await loc.boundingBox(); await p.touchscreen.tap(b.x + b.width / 2, b.y + b.height / 2); };
-await p.getByLabel('Photo').first().waitFor({ state: 'visible', timeout: 20000 }); await s.advance(180);
+await p.getByLabel('Photo').first().waitFor({ state: 'visible', timeout: 20000 }); await s.advance(Number(process.env.SETTLE || 3000)); // Today fully up
+await s.film(`camera-${tag}-lead`, async () => {}, 36);
 // the old way (main before the camera pop-up): the camera icon opens "Snap your plate", and a second tap on its big button asks the
 // phone's own picker (which is not part of the app, so nothing more can be filmed)
 await s.film(`camera-${tag}-a`, () => press(p.getByLabel('Photo').first()), 100);
 await s.advance(60);
 await s.film(`camera-${tag}-b`, () => press(p.getByRole('button', { name: 'Take a photo' }).first()), 40);
 await s.close();
-const dirs = ['a', 'b'].map((k) => `shots/film/camera-${tag}-${k}`);
+const dirs = ['lead', 'a', 'b'].map((k) => `shots/film/camera-${tag}-${k}`);
 const inputs = dirs.flatMap((d) => ['-framerate', '60', '-i', `${d}/%03d.jpg`]);
-execFileSync('ffmpeg', ['-y', '-loglevel', 'error', ...inputs, '-filter_complex', '[0:v][1:v]concat=n=2:v=1[v];[v]scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p[o]', '-map', '[o]', '-c:v', 'libx264', '-crf', '20', `shots/camera-${tag}.mp4`]);
+execFileSync('ffmpeg', ['-y', '-loglevel', 'error', ...inputs, '-filter_complex', '[0:v][1:v][2:v]concat=n=3:v=1[v];[v]scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p[o]', '-map', '[o]', '-c:v', 'libx264', '-crf', '16', '-x264-params', 'keyint=2000:min-keyint=2000', `shots/camera-${tag}.mp4`]);
 console.log(`→ shots/camera-${tag}.mp4`);

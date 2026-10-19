@@ -46,5 +46,5 @@ await s.close();
 const dirs = (which === 'food' && theme === 'dark' ? ['lead', 'open', 'flip', 'shot', 'rest'] : ['lead', 'open', 'shot', 'rest']).map((k) => `shots/film/camera-${tag}-${k}`);
 const list = dirs.map((d) => `file '${process.cwd()}/${d}/%03d.jpg'`);
 const inputs = dirs.flatMap((d) => ['-framerate', '60', '-i', `${d}/%03d.jpg`]);
-execFileSync('ffmpeg', ['-y', '-loglevel', 'error', ...inputs, '-filter_complex', `${dirs.map((_, i) => `[${i}:v]`).join('')}concat=n=${dirs.length}:v=1[v];[v]scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p[o]`, '-map', '[o]', '-c:v', 'libx264', '-crf', '20', `shots/camera-${tag}.mp4`]);
+execFileSync('ffmpeg', ['-y', '-loglevel', 'error', ...inputs, '-filter_complex', `${dirs.map((_, i) => `[${i}:v]`).join('')}concat=n=${dirs.length}:v=1[v];[v]scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p[o]`, '-map', '[o]', '-c:v', 'libx264', '-crf', '16', '-x264-params', 'keyint=2000:min-keyint=2000', `shots/camera-${tag}.mp4`]);
 console.log(`→ shots/camera-${tag}.mp4`);

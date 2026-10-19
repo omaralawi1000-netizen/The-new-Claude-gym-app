@@ -20,7 +20,7 @@ interface Item extends FoodEstimate { on: boolean; k: number }
 const PORTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
 
-const SCAN_WORDS = ['Looking at your plate', 'Spotting the ingredients', 'Estimating portions', 'Adding it up'];
+const SCAN_WORDS = ['Reading your plate', 'Finding ingredients', 'Estimating portions', 'Adding it all up'];
 // PREVIEW ONLY: six looks for the wait, chosen with localStorage 'aven.scan' (A-F); Omar picks one, the rest are deleted
 export const scanVariant = () => { try { return localStorage.getItem('aven.scan') || 'A'; } catch { return 'A'; } };
 /** Which of the four steps the wait is at (rAF + performance.now, so it follows the real clock): it moves on every 1.9 s, and
@@ -48,8 +48,8 @@ function Scan({ v }: { v: string }) {
   const fade = { initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 }, transition: { duration: 0.45 } };
   const words = (
     <motion.div className="scan-words" {...fade}>
-      <AnimatePresence initial={false}>
-        <motion.span key={i} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.4 }}>{t(SCAN_WORDS[i])}</motion.span>
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.span key={i} initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { duration: 0.24, delay: 0.04, ease: [0.22, 1, 0.36, 1] } }} exit={{ opacity: 0, transition: { duration: 0.16, ease: [0.4, 0, 1, 1] } }}>{t(SCAN_WORDS[i])}</motion.span>
       </AnimatePresence>
     </motion.div>
   );
@@ -125,6 +125,8 @@ export function PhotoFood({ props }: { props: { date: string; mealId: string; fi
   useEffect(() => { if (props.file) pick(props.file); }, []); // eslint-disable-line -- the camera hands its shot over (CameraSheet)
 
   const sv = useMemo(scanVariant, []);
+  const fromCam = useRef(!!props.file); // the camera's photo is the one constant of the hand-over: it is there from the first frame, not faded in
+  useEffect(() => { if (img) fromCam.current = false; }, [img]);
   const chosen = items.filter((x) => x.on);
   const total = chosen.reduce((n, x) => n + x.kcal * x.k, 0);
   const log = () => {
@@ -141,7 +143,7 @@ export function PhotoFood({ props }: { props: { date: string; mealId: string; fi
 
   return (
     <Sheet onClose={pop} tall label={t('Photo')} z={100}
-      foot={items.length ? <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.45, delay: 0.3 }}><button className="btn primary block press" disabled={!chosen.length} onClick={log}>{t(chosen.length === 1 ? 'Log 1 item' : 'Log {n} items', { n: chosen.length })} · {fmtNum(Math.round(total), lang, 0)} kcal</button></motion.div> : undefined}>
+      foot={items.length ? <motion.button className="btn primary block press" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.45, delay: 0.3 }} disabled={!chosen.length} onClick={log}>{t(chosen.length === 1 ? 'Log 1 item' : 'Log {n} items', { n: chosen.length })} · {fmtNum(Math.round(total), lang, 0)} kcal</motion.button> : undefined}>
       <SheetHead title={t('Snap your plate')} sub={mealName(meal, lang)} onClose={pop} />
       <div className="sheet-body">
         <input ref={cam} type="file" accept="image/*" capture="environment" hidden onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ''; }} />
@@ -154,7 +156,7 @@ export function PhotoFood({ props }: { props: { date: string; mealId: string; fi
         ) : (
           <>
             <motion.div layout transition={SOFT} style={{ position: 'relative', borderRadius: 'var(--r-lg)', overflow: 'hidden', aspectRatio: img ? '4 / 3' : '4 / 3.2', background: 'var(--s1)', boxShadow: 'inset 0 1px 0 var(--hl), inset 0 0 0 1px var(--line)' }}>
-              {img ? <motion.div key={img.url} initial={{ opacity: 0, scale: 1.04 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5 }} style={{ position: 'absolute', inset: 0 }}>
+              {img ? <motion.div key={img.url} initial={fromCam.current ? false : { opacity: 0, scale: 1.04 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5 }} style={{ position: 'absolute', inset: 0 }}>
                 <img src={img.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
               </motion.div> : (
                 <button className="press" onClick={openCam} style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', alignContent: 'center', gap: 12 }} aria-label={t('Take a photo')}>

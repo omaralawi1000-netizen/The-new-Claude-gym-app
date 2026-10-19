@@ -34,7 +34,9 @@ await press(p.getByLabel('Photo').first()); await p.locator('.cam-shutter').wait
 await s.film(`analyze-${tag}`, () => press(p.locator('.cam-shutter')), frames);
 await s.advance(120);
 await s.film(`analyze-${tag}-settled`, async () => {}, 2);
+await p.evaluate(() => { const b = document.querySelector('.sheet-body'); if (b) b.scrollTop = b.scrollHeight; }); await s.advance(60);
+await p.screenshot({ path: `shots/analyze-${tag}-scrolled.png` }); // the list scrolled to its end: the last card clears the Log bar
 await s.close();
 const d = `shots/film/analyze-${tag}`;
-execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-framerate', '60', '-i', `${d}/%03d.jpg`, '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p', '-c:v', 'libx264', '-crf', '20', `shots/analyze-${tag}.mp4`]);
+execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-framerate', '60', '-i', `${d}/%03d.jpg`, '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p', '-c:v', 'libx264', '-crf', '16', '-x264-params', 'keyint=2000:min-keyint=2000', `shots/analyze-${tag}.mp4`]);
 console.log(`→ shots/analyze-${tag}.mp4`);
