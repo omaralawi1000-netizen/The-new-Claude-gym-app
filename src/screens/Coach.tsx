@@ -7,7 +7,7 @@ import { useT, useLang } from '../lib/i18n';
 import { Sheet, SheetHead } from '../ui/Sheet';
 import { Collapse } from '../ui/kit';
 import { Icon } from '../ui/Icon';
-import { kb } from '../ui/keyboard';
+import { kb, onKeyboardGoal } from '../ui/keyboard';
 import { SphereSlot } from '../ui/Sphere';
 import { useVoice } from '../state/voice';
 import { mic } from '../lib/mic';
@@ -298,7 +298,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   useEffect(() => () => { for (const m of msgsRef.current) if ('image' in m && m.image) URL.revokeObjectURL(m.image); }, []);
   // The older messages are added above what you are looking at, and it stays exactly where it is.
   const placed = useRef(false);
-  const fromBottom = useRef(-1);
+  const grewFrom = useRef(-1); // the list's height just before older messages were added above
   useLayoutEffect(() => {
     const el = bodyRef.current; if (!el) return;
     if (!placed.current) {
@@ -307,8 +307,10 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       if (older > 0 && el.scrollHeight <= el.clientHeight + 1) { setOlder((n) => Math.max(0, n - TAIL)); return; }
       placed.current = true;
       el.scrollTop = el.scrollHeight;
-    } else if (fromBottom.current >= 0) {
-      el.scrollTop = el.scrollHeight - fromBottom.current; fromBottom.current = -1;
+    } else if (grewFrom.current >= 0) {
+      // moved on by exactly what was added above (it used to be put back where it was when they were asked for: a
+      // scroll in between was undone, the list jumping back by it)
+      el.scrollTop += el.scrollHeight - grewFrom.current; grewFrom.current = -1;
     }
     lastScroll.current = el.scrollTop;
     el.toggleAttribute('data-scrollable', el.scrollHeight > el.clientHeight + 1);
@@ -398,18 +400,21 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     // The keyboard slides over the sheet and the bar rides up on it (ui/Sheet.tsx). A list at its end rides up with it,
     // frame for frame, so its last line stays just above the bar, and comes back down with it when it leaves. Scrolled up
     // to read, it is left where it is (only the room the keyboard leaves behind goes with it).
-    // (the melt above the bar, styles.css, rides with the bar too: it is told where the keyboard is each frame)
-    const melt = () => el.style.setProperty('--kb-now', `${Math.round(kb.get() * 10) / 10}px`);
-    melt();
+    // (the melt above the bar, styles.css, goes to where the keyboard is going, once per change: told every frame it re-drew
+    // the list's fade, and with it the whole list, on every frame of the ride, 19 Oct. On the phone the strip the keyboard
+    // will cover goes blank the moment it starts up, so the fade waiting there is never seen; going down the list rides
+    // down at its end, so only the empty room is under the bar)
+    const melt = (px: number) => el.style.setProperty('--kb-now', `${Math.round(px * 10) / 10}px`);
+    melt(kb.get());
+    const offGoal = onKeyboardGoal(melt);
     const offKb = kb.on('change', () => {
-      melt();
       if (user.current) return;
       if (pinned.current) { pin(false); return; }
       const to = endTop(el);
       if (el.scrollTop > to + 0.5) { el.scrollTop = to; lastScroll.current = el.scrollTop; listMoved.current?.(); }
     });
     return () => {
-      ro.disconnect(); offKb(); stop(); clearTimeout(quiet);
+      ro.disconnect(); offKb(); offGoal(); stop(); clearTimeout(quiet);
       el.removeEventListener('touchstart', down); el.removeEventListener('touchend', restSoon); el.removeEventListener('touchcancel', restSoon);
       el.removeEventListener('wheel', wheel); el.removeEventListener('scrollend', rest);
     };
@@ -650,12 +655,15 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   useEffect(() => {
     if (!present || !older || !placed.current) return;
     let id = 0;
-    const more = () => { const el = bodyRef.current; if (el) fromBottom.current = el.scrollHeight - el.scrollTop; setOlder((n) => Math.max(0, n - 2)); };
+    // (never while your finger or a fling is moving the list: the list put back in place under a moving scroll stepped
+    // it, a flicker every ~0.4 s while you scrolled up through a long chat, Omar 18 Oct; they wait until it rests)
+    let later: ReturnType<typeof setTimeout> | undefined;
+    const more = () => { const el = bodyRef.current; if (user.current) { later = setTimeout(more, 250); return; } if (el) grewFrom.current = el.scrollHeight; setOlder((n) => Math.max(0, n - 2)); };
     const idle = 'requestIdleCallback' in window ? window.requestIdleCallback : null;
     // the first ones wait until the sheet has risen; then two at a time, whenever the phone has a moment
     const wait = setTimeout(() => { id = idle ? idle(more, { timeout: 400 }) : window.setTimeout(more, 16); }, begun.current ? 0 : 700);
     begun.current = true;
-    return () => { clearTimeout(wait); if (idle) window.cancelIdleCallback(id); else clearTimeout(id); };
+    return () => { clearTimeout(wait); clearTimeout(later); if (idle) window.cancelIdleCallback(id); else clearTimeout(id); };
   }, [older, present]);
 
 
