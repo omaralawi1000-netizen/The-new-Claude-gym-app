@@ -43,7 +43,7 @@ const FADE_IN = { inside: [0.025, 0.08], skin: [0.06, 0.16], words: [0.002, 0.03
 type Fades = typeof FADE_OUT & { views?: number[]; mat?: number[] };
 const FADES: Record<Land, { out: Fades; in: Fades }> = {
   A: { out: { ...FADE_OUT, inside: [0.86, 0.99], skin: [0.42, 0.8], mat: FADE_OUT.skin }, in: { ...FADE_IN, inside: [0.68, 0.94], views: [0.86, 0.995], skin: [0.32, 0.66], mat: FADE_IN.skin } },
-  B: { out: { inside: [0.5, 0.97], skin: [0.38, 0.76], mat: [0.089, 0.178], words: [0, 0.06], back: [0.006, 0.056], solid: [0.078, 0.089] }, in: { ...FADE_IN, inside: [0.62, 0.9], views: [0.8, 0.99], skin: [0.3, 0.6], mat: FADE_IN.skin } },
+  B: { out: { inside: [0.5, 0.97], skin: [0.38, 0.76], mat: [0.089, 0.178], words: [0, 0.06], back: [0.006, 0.056], solid: [0.078, 0.089] }, in: { ...FADE_IN, words: [0.002, 0.07], inside: [0.62, 0.9], views: [0.8, 0.99], skin: [0.6, 0.88], mat: FADE_IN.skin } },
   C: { out: { ...FADE_OUT, inside: [0.88, 0.995], skin: [0.42, 0.8], mat: FADE_OUT.skin }, in: { ...FADE_IN, inside: [0.6, 0.9], views: [0.8, 0.99], skin: [0.32, 0.6], mat: FADE_IN.skin } },
 };
 // B: how much the card gives as it catches the window (per unit of the spring's overshoot past the card): it shrinks a

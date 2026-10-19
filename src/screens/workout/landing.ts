@@ -107,10 +107,10 @@ export function flyHero(host: HTMLElement, from: HTMLElement, to: HTMLElement, a
     const x = lerp(s.x, d.x, w <= 1 ? Math.pow(Math.max(0, w), 0.86) : w);
     const y = lerp(s.y, d.y, w);
     const f = Math.exp(lerp(Math.log(s.f * s.s), Math.log(d.f * d.s), wc)); // the drawn size (of the ink)
-    // the crossing: towards its small end (the window's clock), the two lined up by their ink over each other, so it reads
-    // as the digits changing weight, not as two clocks; closing as it sets off; opening halfway, before the header's other
-    // words come in (the card's clock is wider: still on it by then, it ran into the "sets" beside it)
-    const o1 = crossLate ? smooth((wc - 0.48) / 0.14) : smooth((wc - 0.02) / 0.18), o0 = 1 - o1;
+    // the crossing: near its small end (the window's clock), the two lined up by their ink over each other, so it reads
+    // as the digits changing weight, not as two clocks; closing as it sets off; opening once it is about 1.2x the header's
+    // and before the header's other words come in (the card's clock is wider: still on it then, it ran into the "sets")
+    const o1 = crossLate ? smooth((wc - 0.78) / 0.12) : smooth((wc - 0.02) / 0.18), o0 = 1 - o1;
     const s1 = f / a1.f, s0 = f / a0.f;
     k1.push({ transform: `translate(${(x - a1.x).toFixed(2)}px, ${(y - a1.y).toFixed(2)}px) scale(${s1.toFixed(5)})`, opacity: String(Math.max(0.002, o1)) });
     if (gone0 < 0) {
