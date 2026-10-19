@@ -53,11 +53,13 @@ function LivePill() {
     <motion.button
       key="pill" className="press"
       style={{ position: 'relative', borderRadius: 999, height: 56, width: '100%', maxWidth: 420, display: 'flex', alignItems: 'center', gap: 12, padding: '0 8px 0 18px', marginBottom: 10, pointerEvents: workoutOpen ? 'none' : 'auto' }}
-      initial="hide" animate={workoutOpen ? 'hide' : 'show'} exit="hide" variants={PILL} transition={SOFT}
-      onClick={() => resumeWorkout(() => push('workout', { origin: 'pill' }))}
+      initial="hide" animate="show" exit="hide" variants={PILL} transition={SOFT}
+      onClick={() => resumeWorkout(() => push('workout', { origin: 'pill' }), 'pill')}
       aria-label={t('Resume workout')}
     >
-      {/* The pill's surface is a separate layer; the workout window opens from its rectangle (data-wk). It fades on its OWN
+      {/* It stays where it is while the workout is up (in the dock, out of sight): the window grows out of it and lands back in
+          it, and hides and hands back its surface and words itself (Active.tsx), so the bar never slides or fades on its own.
+          The pill's surface is a separate layer; the workout window opens from its rectangle (data-wk). It fades on its OWN
           layers: fading the button (their parent) switches the frosted blur off until the fade ends — the "clear bar that
           suddenly frosts" flicker. */}
       <motion.span data-wk="pill" className="glass" variants={FADE} transition={SOFT} style={{ position: 'absolute', inset: 0, borderRadius: 28 }} />
@@ -92,7 +94,13 @@ export function TabBar() {
   const setTab = useUI((s) => s.setTab);
   const push = useUI((s) => s.push);
   // derived booleans, not the overlay list: opening a sheet must not re-render (and re-measure) the tab bar
-  const hidden = useUI((s) => s.overlays.some((o) => o.type === 'workout' || o.type === 'voice' || o.type === 'onboarding'));
+  const covered = useUI((s) => s.overlays.some((o) => o.type === 'voice' || o.type === 'onboarding'));
+  // the live workout: the bar steps aside as the window sets off, so the window's bottom edge, growing down, never crosses
+  // it (waiting a beat, the bar stood still while that edge ran across it, and looked laid over the window). Out of Today's
+  // card or the resume bar it doesn't slide on its own: the window's bottom edge carries it down, and back up behind it
+  // (Active.tsx `dock`), and the resume bar stays where it is, under the window, for it to land in again.
+  const wk = useUI((s) => s.overlays.some((o) => o.type === 'workout' && o.props?.origin !== 'hero' && o.props?.origin !== 'pill'));
+  const hidden = covered || wk;
   const t = useT();
   const nav = useRef<HTMLElement>(null);
   useDock(nav, tab);

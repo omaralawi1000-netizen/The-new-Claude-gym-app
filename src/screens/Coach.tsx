@@ -7,7 +7,7 @@ import { useT, useLang } from '../lib/i18n';
 import { Sheet, SheetHead } from '../ui/Sheet';
 import { Collapse } from '../ui/kit';
 import { Icon } from '../ui/Icon';
-import { kb } from '../ui/keyboard';
+import { kb, keyboardGoal, onKeyboardGoal } from '../ui/keyboard';
 import { SphereSlot } from '../ui/Sphere';
 import { useVoice } from '../state/voice';
 import { mic } from '../lib/mic';
@@ -60,9 +60,19 @@ const GROW = asCurve(rampSpring(0.52, 0.07)); // a line more or less
 // far from the field); both start soft, so the copy is seen to lift off the pill rather than be thrown
 const FLY = asCurve(rampSpring(0.58, 0.09));
 const FLY_SHAPE = asCurve(rampSpring(0.42, 0.07));
+// …a long way up (sent under the suggestions, it lands where they were, ~230 px up): slower and softer off the pill, so it
+// glides there at the speed of a short flight instead of being thrown (judge 18 Oct: ~1100 px/s peak on the plain curve),
+// on a long, even ease that the spring follows closely: its speed rises and falls evenly, ~650 px/s at most, with no
+// crawl at the end (a quick middle and a long tail read as a throw, judge rounds 3 and 4);
+// its shape turns into the bubble on the same kind of curve, a little sooner, as it does on a short flight
+const FLY_FAR = asCurve(rampSpring(0.35, 0.72));
+const FLY_FAR_SHAPE = asCurve(rampSpring(0.3, 0.64));
 // said words (they were never in the field): the pill lifts into its bubble on the same motion, a touch slower, starting
 // softer (the words come up inside it on the way, so the move itself has to read: the pill peels off the bar)
 const FLY_SAID = asCurve(rampSpring(0.6, 0.11));
+// …and its shape turns from the pill into the bubble a little sooner than it arrives, so it is the bubble's own glass for the
+// last of the way (a resting bubble's picture, only moving: no colour or edge changes as it lands)
+const FLY_SAID_SHAPE = asCurve(rampSpring(0.46, 0.11));
 const SAID_INK = 620; // the said words' ink: full while the pill is still the pill, the bubble's own by then
 const SAID_BACK = 390; // …and the bar comes back, fresh, only once the bubble has left it…
 const SAID_IN = 360; // …faded in over this, eased (a straight fade read as switched on)
@@ -109,11 +119,11 @@ function endTop(el: HTMLElement) {
  * piece every few hundred ms) and while you type, the other 59 rows stay as they are. Every row used to be rebuilt each
  * time, saved answers and cards included.
  */
-const ChatRow = memo(function ChatRow({ m, sent, gone, setMsgs, onErr }: { m: Msg; /** sent just now, and not flown in */ sent: boolean; /** the ids of this message's previews that a newer one replaced */ gone: string; setMsgs: Dispatch<SetStateAction<Msg[]>>; /** an error row's chip: try the message again, or open Settings */ onErr: (m: Extract<Msg, { role: 'error' }>, what: 'retry' | 'settings') => void }) {
+const ChatRow = memo(function ChatRow({ m, sent, late, gone, setMsgs, onErr }: { m: Msg; /** sent just now, and not flown in */ sent: boolean; /** sent where the suggestions are leaving: it comes up once they have gone */ late?: boolean; /** the ids of this message's previews that a newer one replaced */ gone: string; setMsgs: Dispatch<SetStateAction<Msg[]>>; /** an error row's chip: try the message again, or open Settings */ onErr: (m: Extract<Msg, { role: 'error' }>, what: 'retry' | 'settings') => void }) {
   const t = useT();
   const replaced = gone ? gone.split(',') : [];
   return (
-    <div data-mid={m.id} className={sent ? 'coach-sent' : undefined}
+    <div data-mid={m.id} className={[sent && 'coach-sent', sent && late && 'coach-late', m.role === 'user' && !m.seeded && 'live'].filter(Boolean).join(' ') || undefined}
       style={m.role === 'user' ? USER_ROW : OTHER_ROW}>
       {m.role === 'user' && (
         <div className="stack" style={{ alignItems: 'flex-end', gap: 6, maxWidth: '100%' }}>
@@ -162,6 +172,11 @@ const OTHER_ROW: CSSProperties = { transformOrigin: '0% 0%', alignSelf: 'stretch
 function CoachReply({ m }: { m: Extract<Msg, { role: 'user' | 'model' }> }) {
   const t = useT();
   const { shown, done } = useWordReveal(m.text, !!m.streaming, !!m.seeded);
+  // every word keeps its layer while the answer writes itself in (.writing, styles.css), and all of them are let go together
+  // once the last one is in (each word's own drop redrew the tiles under it while the next ones came in: the conversation
+  // stood still for three frames in four on the phone, 14 Oct r11)
+  const [settled, setSettled] = useState(!!m.seeded);
+  useEffect(() => { if (!done || settled) return; const id = setTimeout(() => setSettled(true), 1500); return () => clearTimeout(id); }, [done, settled]); // (the last word is in by then: born up to 520 ms late, 900 to come in)
   // the typing dots don't vanish when the first word comes: they melt away over it (and are then taken out)
   const typed = useRef(!shown);
   const [dotsGone, setDotsGone] = useState(false);
@@ -187,7 +202,7 @@ function CoachReply({ m }: { m: Extract<Msg, { role: 'user' | 'model' }> }) {
       {typed.current && !dotsGone && <div className="typing typing-out" aria-hidden onAnimationEnd={(e) => { if (e.target === e.currentTarget) setDotsGone(true); }}><i /><i /><i /></div>}
       {/* (the last words under the dots fade with them, never cut) */}
       {typed.current && !dotsGone && said.current.now && <div className="xs t2 coach-look coach-look-gone" aria-hidden>{said.current.now}</div>}
-      <div className={`reply calm coach-reply${m.seeded ? ' still' : ''}`} aria-live="polite"><Rich text={shown} id={m.id} still={m.seeded} /></div>
+      <div className={`reply calm coach-reply${m.seeded ? ' still' : ''}${settled ? '' : ' writing'}`} aria-live="polite"><Rich text={shown} id={m.id} still={m.seeded} hold={!settled} /></div>
       {done && m.note && <div className={`xs t3 coach-after${m.seeded ? '' : ' fresh'}`} style={{ marginTop: 8 }}>{m.note}</div>}
       {/* a web search's pages, as small chips under the answer (they open in the browser) */}
       {done && !!m.sources?.length && (
@@ -219,6 +234,10 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   // the suggestions step away when something is sent (they used to vanish in one frame): where they were, at the top of an
   // empty chat or under an old one
   const [tipsOut, setTipsOut] = useState<'top' | 'resume' | null>(null);
+  // (under an old chat they step away where they were: lifted out of the page at their place in the list, so the message
+  // you send can't push them down a line in one frame, and their going can't shorten the list in one frame either, which
+  // threw the whole chat down a line as they finished, 18 Oct recordings)
+  const tipsTop = useRef(0);
   // A long saved chat is not built all at once on the tap that opens the Coach (60 messages of word-by-word text held the
   // tap for ~90 ms on the phone): the newest ones are there from the first frame, scrolled to the bottom as always, and the
   // older ones are added above them a couple at a time once the sheet has risen, with the scroll kept exactly in place.
@@ -258,6 +277,8 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   const pinned = useRef(true); // the list stays at its end (see below)
   const listMoved = useRef<(() => void) | null>(null); // a message in flight keeps to its landing place as the list moves
   const ride = useRef<((rider: HTMLElement) => { off: number; unride: () => void }) | null>(null); // …and glides with the list (see glide)
+  const afterTips = useRef(new Set<string>()); // messages sent under the leaving suggestions (see ChatRow `late`)
+  const pinRef = useRef<((smooth: boolean) => void) | null>(null); // the list to its end (see pin)
   const user = useRef(false); // a finger or a wheel is moving the list (or its fling is still running)
   const movedAt = useRef(0);
   const lastScroll = useRef(0);
@@ -277,7 +298,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   useEffect(() => () => { for (const m of msgsRef.current) if ('image' in m && m.image) URL.revokeObjectURL(m.image); }, []);
   // The older messages are added above what you are looking at, and it stays exactly where it is.
   const placed = useRef(false);
-  const fromBottom = useRef(-1);
+  const grewFrom = useRef(-1); // the list's height just before older messages were added above
   useLayoutEffect(() => {
     const el = bodyRef.current; if (!el) return;
     if (!placed.current) {
@@ -286,8 +307,10 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       if (older > 0 && el.scrollHeight <= el.clientHeight + 1) { setOlder((n) => Math.max(0, n - TAIL)); return; }
       placed.current = true;
       el.scrollTop = el.scrollHeight;
-    } else if (fromBottom.current >= 0) {
-      el.scrollTop = el.scrollHeight - fromBottom.current; fromBottom.current = -1;
+    } else if (grewFrom.current >= 0) {
+      // moved on by exactly what was added above (it used to be put back where it was when they were asked for: a
+      // scroll in between was undone, the list jumping back by it)
+      el.scrollTop += el.scrollHeight - grewFrom.current; grewFrom.current = -1;
     }
     lastScroll.current = el.scrollTop;
     el.toggleAttribute('data-scrollable', el.scrollHeight > el.clientHeight + 1);
@@ -350,6 +373,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       lastScroll.current = el.scrollTop;
       if (smooth) glide(el.scrollTop - from);
     };
+    pinRef.current = pin;
     // your finger on the list: whatever is still gliding becomes the scroll position (what you see stays put)
     const hold = () => {
       if (!move) return;
@@ -376,18 +400,21 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     // The keyboard slides over the sheet and the bar rides up on it (ui/Sheet.tsx). A list at its end rides up with it,
     // frame for frame, so its last line stays just above the bar, and comes back down with it when it leaves. Scrolled up
     // to read, it is left where it is (only the room the keyboard leaves behind goes with it).
-    // (the melt above the bar, styles.css, rides with the bar too: it is told where the keyboard is each frame)
-    const melt = () => el.style.setProperty('--kb-now', `${Math.round(kb.get() * 10) / 10}px`);
-    melt();
+    // (the melt above the bar, styles.css, goes to where the keyboard is going, once per change: told every frame it re-drew
+    // the list's fade, and with it the whole list, on every frame of the ride, 19 Oct. On the phone the strip the keyboard
+    // will cover goes blank the moment it starts up, so the fade waiting there is never seen; going down the list rides
+    // down at its end, so only the empty room is under the bar)
+    const melt = (px: number) => el.style.setProperty('--kb-now', `${Math.round(px * 10) / 10}px`);
+    melt(keyboardGoal());
+    const offGoal = onKeyboardGoal(melt);
     const offKb = kb.on('change', () => {
-      melt();
       if (user.current) return;
       if (pinned.current) { pin(false); return; }
       const to = endTop(el);
       if (el.scrollTop > to + 0.5) { el.scrollTop = to; lastScroll.current = el.scrollTop; listMoved.current?.(); }
     });
     return () => {
-      ro.disconnect(); offKb(); stop(); clearTimeout(quiet);
+      ro.disconnect(); offKb(); offGoal(); stop(); clearTimeout(quiet);
       el.removeEventListener('touchstart', down); el.removeEventListener('touchend', restSoon); el.removeEventListener('touchcancel', restSoon);
       el.removeEventListener('wheel', wheel); el.removeEventListener('scrollend', rest);
     };
@@ -425,7 +452,8 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       const app = document.querySelector<HTMLElement>('.app');
       if (!bubble || !app) continue;
       // the conversation goes to its end at once, then is played back up from where it was (one move, nothing jumps)
-      const before = el.scrollTop;
+      // (from where it was last drawn: the browser may already have pulled a list that got shorter to its new end)
+      const before = lastScroll.current;
       el.scrollTop = endTop(el); lastScroll.current = el.scrollTop;
       const lift = el.scrollTop - before;
       const B = bubble.getBoundingClientRect();
@@ -475,7 +503,11 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
         return group;
       };
       const pill = pieces('fly-pill'), tone = pieces('fly-tone');
-      tone.style.setProperty('--fly-fill', `color-mix(in srgb, ${fill} ${(fillA * 100).toFixed(1)}%, var(--fly-under))`); // (the bubble as it looks, solid)
+      // (the bubble's colour as it looks over the page: its own colour, solid, under one opacity that is its alpha, so the
+      // eight pieces blend with whatever is behind exactly as the bubble does and never overlap at a seam. It used to be the
+      // colour mixed onto a fixed navy, which is how it looks over no page in particular: it came up slate and drifted to
+      // the bubble's colour on the way, 14 Oct r11)
+      tone.style.setProperty('--fly-fill', fill);
       const words = document.createElement('div'); words.className = 'fly-words'; words.style.color = ink;
       bubble.childNodes.forEach((n) => words.appendChild(n.cloneNode(true)));
       // (and, as it settles in its place with only the page behind it, the bubble's own see-through glass, so the real
@@ -500,7 +532,9 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
         Object.assign(words.style, { position: 'absolute', left: `calc(40px + ${cs.paddingLeft})`, top: cs.paddingTop, width: `${W - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)}px` });
         reveal.appendChild(words);
       }
-      copy.append(sh, glass, pill, tone, reveal ?? words, ...(ghost ? [ghost] : []));
+      // (said words: no pill of its own. The bar under it fades as the bubble's colour comes up in its shape, so the pill
+      // dissolves into the bubble; a solid copy of the pill, cut away at 250 ms, was a second colour step on the way)
+      copy.append(sh, glass, ...(from.fresh ? [] : [pill]), tone, reveal ?? words, ...(ghost ? [ghost] : []));
       app.appendChild(copy);
       // the send button as it was (the arrow) stays on top for a moment and fades as the shape starts to leave: the bar,
       // stop button and all, is then under the shape and shows where it has left (the shape is never cut by the button)
@@ -528,39 +562,45 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
         // (it fades out under the lifting pill rather than vanishing, and comes back whole once the bubble has gone)
         const T = SAID_BACK + SAID_IN;
         const hold = (o: string | number, from: string | number = o): Keyframe[] => [{ opacity: from, easing: 'cubic-bezier(.4, 0, .6, 1)' }, { opacity: 0, offset: SAID_OUT / T }, { opacity: 0, offset: SAID_BACK / T, easing: 'cubic-bezier(.25, 0, .25, 1)' }, { opacity: o }];
-        const back = (e: Element | null | undefined, o = e ? getComputedStyle(e).opacity : '1') => { if (!e) return; go((e as HTMLElement).animate(hold(o), { duration: T, easing: 'linear' })); };
+        // (each comes back to how it is on the closed bar: the camera is hidden on the open one, and coming back to that it
+        // stayed hidden until the hold ended, an empty seat for a quarter of a second)
+        const back = (e: Element | null | undefined) => { if (!e) return; const now = getComputedStyle(e).opacity; go((e as HTMLElement).animate(hold(e.classList.contains('coach-cam') ? 1 : now, now), { duration: T, easing: 'linear' })); };
         // (the camera fades on its own glass, never on its slot: a fading slot cut the camera's frost off from the page
         // until the fade ended, then the frost popped back in; its shadow fades on the slot's own ::before)
         composerRef.current?.querySelectorAll('.cf-tint, .cf-sh, .cf-glass, .cf-text, .coach-cam').forEach((e) => back(e)); if (btn) go(btn.animate(hold(1, getComputedStyle(btn).opacity), { duration: T, easing: 'linear' })); // (the button was fading in from hidden: its own value now is not where it ends)
         const slot = composerRef.current?.querySelector<HTMLElement>('.coach-cam-slot');
         if (slot) go(slot.animate(hold(1), { duration: T, easing: 'linear', pseudoElement: '::before' }));
       } else if (btn) go(btn.animate([{ opacity: 0 }, { opacity: 0, offset: 0.74 }, { opacity: 1 }], { duration: 680, easing: 'linear' }));
-      const opts = { duration: from.fresh ? FLY_SAID.duration : FLY.duration, easing: from.fresh ? FLY_SAID.easing : FLY.easing, fill: 'forwards' as const };
-      const shape = { duration: from.fresh ? FLY_SAID.duration : FLY_SHAPE.duration, easing: from.fresh ? FLY_SAID.easing : FLY_SHAPE.easing, fill: 'forwards' as const };
+      const fly = from.fresh ? FLY_SAID : Math.abs(dy) > 160 ? FLY_FAR : FLY;
+      const opts = { duration: fly.duration, easing: fly.easing, fill: 'forwards' as const };
+      const form = from.fresh ? FLY_SAID_SHAPE : fly === FLY_FAR ? FLY_FAR_SHAPE : FLY_SHAPE;
+      const shape = { duration: form.duration, easing: form.easing, fill: 'forwards' as const };
       const fade = (ms: number, delay = 0) => ({ duration: ms, delay, easing: 'cubic-bezier(.3, 0, .2, 1)', fill: 'backwards' as const });
       const inked = (a: Animation) => { a.finished.then(() => { words.style.color = cs.color; a.cancel(); }, () => {}); return a; };
       const flight = go(copy.animate([{ transform: `translate(${dx}px, ${dy}px) scale(${k})` }, { transform: 'none' }], opts));
       const place = (c: number[], i: number) => `translate(${c[0]}px, ${c[1]}px) scale(${c[2] / base[i][0]}, ${c[3] / base[i][1]})`;
-      for (const group of [pill, tone]) [...group.children].forEach((p, i) => go((p as HTMLElement).animate([{ transform: place(c0[i], i) }, { transform: place(c1[i], i) }], shape)));
+      for (const group of from.fresh ? [tone] : [pill, tone]) [...group.children].forEach((p, i) => go((p as HTMLElement).animate([{ transform: place(c0[i], i) }, { transform: place(c1[i], i) }], shape)));
       const sx = (x1 - x0) / W, sy = (y1 - y0) / H;
       [
-        // its colour turns from the pill's into the bubble's as it leaves the pill: the bubble's solid colour comes up over
-        // the pill's (solid under it the whole way, so the shape is never see-through), which then goes
-        go(tone.animate([{ opacity: 0 }, { opacity: 1 }], { ...fade(200, 40), fill: 'both' })),
+        // its colour turns from the pill's into the bubble's as it leaves the pill: the bubble's colour comes up in the shape
+        // (to its own alpha: see --fly-fill) as the pill under it goes
+        go(tone.animate([{ opacity: 0 }, { opacity: fillA }], from.fresh ? { duration: 240, easing: 'cubic-bezier(.3, 0, .2, 1)', fill: 'both' } : { ...fade(200, 40), fill: 'both' })),
         // (typed: the copy's solid pill comes up over the real one, which holds its shape meanwhile (CLOSE), over 200 ms
         // rather than replacing it: the real pill's frost takes the colour of whatever is behind it, warm over the
         // palette's glow with the keyboard up, and the solid copy, drawn for an average page, turned it slate in one frame,
-        // a flash at the bar; 60 ms was still a step on the phone's frames)
-        from.fresh
-          ? go(pill.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 40, delay: 250, fill: 'both' }))
-          : go(pill.animate([{ opacity: 0, easing: 'cubic-bezier(.4, 0, .2, 1)' }, { opacity: 1, offset: 200 / 290 }, { opacity: 1, offset: 250 / 290 }, { opacity: 0 }], { duration: 290, easing: 'linear', fill: 'forwards' })),
-        // (said words: settled sooner, the lift being shorter; done before it lands)
-        go(glass.animate([{ opacity: 1 }, { opacity: 1 }], { duration: 1, delay: from.fresh ? 360 : 420, fill: 'forwards' })),
-        go(tone.animate([{ opacity: 1 }, { opacity: 0 }], { ...fade(200, from.fresh ? 360 : 420), fill: 'forwards' })),
+        // a flash at the bar; 60 ms was still a step on the phone's frames. It goes under the bubble's colour over 200 ms:
+        // cut in 40 ms it was a step under a see-through bubble)
+        ...(from.fresh ? [] : [go(pill.animate([{ opacity: 0, easing: 'cubic-bezier(.4, 0, .2, 1)' }, { opacity: 1, offset: 200 / 450 }, { opacity: 1, offset: 250 / 450, easing: 'cubic-bezier(.4, 0, .6, 1)' }, { opacity: 0 }], { duration: 450, easing: 'linear', fill: 'forwards' }))]),
+        // once it has the bubble's shape (its corners and size done, two frames held there), the eight pieces give way to the
+        // bubble's own glass in one frame: the same colour over the same page, so nothing changes but the edges, drawn as the
+        // resting bubble draws them (a 200 ms cross-fade of the two was a double layer of tint, a colour drift on the way)
+        go(glass.animate([{ opacity: 1 }, { opacity: 1 }], { duration: 1, delay: shape.duration, fill: 'forwards' })),
+        go(tone.animate([{ opacity: 0 }, { opacity: 0 }], { duration: 1, delay: shape.duration, fill: 'forwards' })),
         // (typed: the emptied bar stays drawn under it the whole way: the shape starts as the pill, over the pill)
         go(sh.animate([{ transform: `translate(${x0}px, ${y0}px) scale(${sx}, ${sy})` }, { transform: 'none' }], shape)),
-        // (typed: its shadow comes in with it, over the real pill's own, rather than doubling it on the first frame)
-        ...(from.fresh ? [] : [go(sh.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: 'cubic-bezier(.4, 0, .2, 1)', fill: 'backwards' }))]),
+        // its shadow comes in with it, over the real pill's own, rather than doubling it on the first frame (said words: as
+        // the shape becomes the bubble, so the bubble's shadow never shows round an outline that isn't there yet)
+        go(sh.animate([{ opacity: 0 }, { opacity: 1 }], from.fresh ? { duration: 420, easing: 'cubic-bezier(.4, 0, .2, 1)', fill: 'backwards' } : { duration: 200, easing: 'cubic-bezier(.4, 0, .2, 1)', fill: 'backwards' })),
         // the field's bright ink settles to the bubble's softer one; said words (never in the field) come up inside the
         // pill as it lifts, softly, while it is still the pill, and are the bubble's ink by the time it is the bubble
         // (once there, the ink becomes the bubble's own colour, alpha and all, under no opacity, as the real bubble draws it:
@@ -590,7 +630,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
         if (ly < from.win.t - 2 || ly + CF_LINE > from.win.b + 2) go((line as HTMLElement).animate([{ opacity: 0 }, { opacity: 1 }], fade(260, 60)));
       });
       const thread = el.querySelector<HTMLElement>('.coach-thread');
-      if (thread && lift > 0.5) go(thread.animate([{ transform: `translate3d(0, ${lift}px, 0)` }, { transform: 'none' }], { ...opts, fill: 'none' }));
+      if (thread && Math.abs(lift) > 0.5) go(thread.animate([{ transform: `translate3d(0, ${lift}px, 0)` }, { transform: 'none' }], { ...opts, fill: 'none' }));
       // anything that scrolls the conversation on the way (the answer arriving) moves the landing place with it
       const scroll0 = el.scrollTop;
       const follow = () => { copy.style.top = `${top0 - (el.scrollTop - scroll0)}px`; };
@@ -603,7 +643,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       // camera returns in the same move.
       const field = inputRef.current; field?.classList.add('sent-away');
       const settle = () => { holdOpen.current = false; field?.classList.remove('sent-away'); fit(); };
-      const back = setTimeout(from.fresh ? () => field?.classList.remove('sent-away') : settle, from.fresh ? SAID_BACK : 140);
+      const back = setTimeout(from.fresh ? () => field?.classList.remove('sent-away') : settle, from.fresh ? SAID_OUT + 10 : 140);
       let landed = false;
       const cancel = () => { animations.forEach((a) => a.cancel()); stand?.remove(); land(); };
       const land = () => { if (landed) return; landed = true; flights.current.delete(cancel); rider?.unride(); el.removeEventListener('scroll', follow); if (listMoved.current === follow) listMoved.current = null; clearTimeout(back); if (alive.current && holdOpen.current) settle(); bubble.style.visibility = ''; copy.remove(); };
@@ -615,12 +655,15 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   useEffect(() => {
     if (!present || !older || !placed.current) return;
     let id = 0;
-    const more = () => { const el = bodyRef.current; if (el) fromBottom.current = el.scrollHeight - el.scrollTop; setOlder((n) => Math.max(0, n - 2)); };
+    // (never while your finger or a fling is moving the list: the list put back in place under a moving scroll stepped
+    // it, a flicker every ~0.4 s while you scrolled up through a long chat, Omar 18 Oct; they wait until it rests)
+    let later: ReturnType<typeof setTimeout> | undefined;
+    const more = () => { const el = bodyRef.current; if (user.current) { later = setTimeout(more, 250); return; } if (el) grewFrom.current = el.scrollHeight; setOlder((n) => Math.max(0, n - 2)); };
     const idle = 'requestIdleCallback' in window ? window.requestIdleCallback : null;
     // the first ones wait until the sheet has risen; then two at a time, whenever the phone has a moment
     const wait = setTimeout(() => { id = idle ? idle(more, { timeout: 400 }) : window.setTimeout(more, 16); }, begun.current ? 0 : 700);
     begun.current = true;
-    return () => { clearTimeout(wait); if (idle) window.cancelIdleCallback(id); else clearTimeout(id); };
+    return () => { clearTimeout(wait); clearTimeout(later); if (idle) window.cancelIdleCallback(id); else clearTimeout(id); };
   }, [older, present]);
 
 
@@ -643,6 +686,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     ctl.current?.abort(); stopSpeaking();
     // Clear the conversation now; only its visible text waits for the brief exit.
     msgsRef.current = []; setMsgs([]); saveThread([]); setResumed(false); setOlder(0); setCleared(true);
+    const th0 = bodyRef.current?.querySelector<HTMLElement>('.coach-thread'); if (th0) th0.style.minHeight = '';
     const thread = bodyRef.current?.querySelector<HTMLElement>('.coach-thread');
     const reduce = document.documentElement.dataset.motion === 'reduce' || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (!thread || reduce) return;
@@ -876,7 +920,18 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       });
     }
     const reduceTips = still || leaving;
-    if (!reduceTips && (msgsRef.current.length === 0 || resumed)) setTipsOut(msgsRef.current.length === 0 ? 'top' : 'resume');
+    if (!reduceTips && (msgsRef.current.length === 0 || resumed)) {
+      const res = bodyRef.current?.querySelector<HTMLElement>('.coach-resume'), th = bodyRef.current?.querySelector<HTMLElement>('.coach-thread');
+      const head = res?.firstElementChild as HTMLElement | null | undefined; // (its top margin: it doesn't collapse in the lifted copy)
+      tipsTop.current = head && th ? head.offsetTop - th.offsetTop - (parseFloat(getComputedStyle(head).marginTop) || 0) : 0;
+      // the conversation keeps the room they took until the new lines have filled it: nothing above moves, your message
+      // lands where they were and the answer writes itself in below it (the list used to glide down to close the gap, then
+      // straight back up as the answer came; judge, 18 Oct). A short answer keeps it under it until the Coach closes (giving it
+      // back while the answer was still writing in threw the list down and back up again, judge round 2).
+      if (res && th && msgsRef.current.length) th.style.minHeight = `${res.offsetTop + res.offsetHeight - th.offsetTop}px`;
+      if (msgsRef.current.length) afterTips.current.add(id);
+      setTipsOut(msgsRef.current.length === 0 ? 'top' : 'resume');
+    }
     setInput(''); setPhoto(null); setResumed(false);
     // about something that was held: the model gets what it is with the words; the bubble shows only its name
     const ab = about; setAbout(null);
@@ -1036,15 +1091,23 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       <div className="sheet-body coach-body" data-kb-own ref={bodyRef} style={growVars} onScroll={(e) => {
         const el = e.currentTarget;
         if (user.current) { movedAt.current = performance.now(); pinned.current = endTop(el) - el.scrollTop < 80; }
+        // the browser moved it by itself (the list got shorter and its end came down, measured early in the frame, before the
+        // resize could be seen): glided from where it was, like any move of its own (it jumped a line, 18 Oct recordings)
+        else if (pinned.current && placed.current && Math.abs(el.scrollTop - lastScroll.current) > 0.5 && pinRef.current) { pinRef.current(true); return; }
         lastScroll.current = el.scrollTop;
       }}>
           <>
             {shown.length === 0 ? tipsBlock : tipsOut === 'top' && <div className="coach-tips-out" inert onAnimationEnd={(e) => { if (e.target === e.currentTarget) setTipsOut(null); }}>{tipsBlock}</div>}
-            <div className="stack coach-thread" style={{ gap: 16, marginTop: shown.length ? 0 : 16 }}>
-              {listed.map((m) => <ChatRow key={m.id} m={m} sent={m.role === 'user' && !m.seeded && !flown(m.id)} gone={m.role === 'action' ? m.results.filter((r) => replaced.has(r.id)).map((r) => r.id).join(',') : ''} setMsgs={setMsgs} onErr={onErr} />)}
+            {/* (in a clip: the list's glides are drawn as moves, and a moved list made the scroll area taller while it moved,
+                so the list's end was chased mid-flight, a second glide and a jump; clipped, moves never change its size) */}
+            <div className="coach-clip">
+              <div className="stack coach-thread" style={{ gap: 16, marginTop: shown.length ? 0 : 16 }}>
+                {listed.map((m) => <ChatRow key={m.id} m={m} sent={m.role === 'user' && !m.seeded && !flown(m.id)} late={afterTips.current.has(m.id)} gone={m.role === 'action' ? m.results.filter((r) => replaced.has(r.id)).map((r) => r.id).join(',') : ''} setMsgs={setMsgs} onErr={onErr} />)}
+                {/* (inside the list, so they ride its glide as the conversation closes up over where they were) */}
+                {tipsOut === 'resume' && !(resumed && shown.length > 0) && <div className="coach-resume coach-tips-out coach-tips-float" inert style={{ top: tipsTop.current }} onAnimationEnd={(e) => { if (e.target === e.currentTarget) setTipsOut(null); }}>{resumeHead}{tipsBlock}</div>}
+              </div>
             </div>
-            {resumed && shown.length > 0 ? <div className="coach-resume">{resumeHead}{tipsBlock}</div>
-              : tipsOut === 'resume' && <div className="coach-resume coach-tips-out" inert onAnimationEnd={(e) => { if (e.target === e.currentTarget) setTipsOut(null); }}>{resumeHead}{tipsBlock}</div>}
+            {resumed && shown.length > 0 && <div className="coach-resume">{resumeHead}{tipsBlock}</div>}
             {!noteSeen && shown.length === 0 && <div className={`xs t2${cleared ? ' coach-note-fresh' : ''}`} style={{ marginTop: 18 }}>{solOn(ai) ? t('AI can be wrong, and isn’t medical advice. Messages go to OpenAI (GPT-6.1 Sol).') : t('AI can be wrong, and isn’t medical advice. Messages go to Google Gemini.')}</div>}
           </>
       </div>

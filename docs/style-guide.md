@@ -194,7 +194,10 @@ All of it: **slow, calm, Apple-like, never snappier unless Omar agrees.** The or
   moves). A sheet over a sheet takes the **subtle** step-back (scale 0.965, lift 8 px, same curve as the dim). No card edge
   on the page behind [rejected]. Close mirrors open.
 - **Sheets glide in whole device pixels** (`snapPx`), keyboard slides *over* sheets and only the floating button rides it.
-- **Press feel:** every tappable thing uses `.press` (`src/ui/press.ts`: 100 ms wait, 6 px slop, 120 ms minimum hold).
+- **Press feel:** every tappable thing uses `.press` (`src/ui/press.ts`: 50 ms wait, 6 px slop, 120 ms minimum hold). **Instant tap [Omar, 19 Oct]:** a tap must show on the
+  very next frames: the dip under a finger that stays put at 50 ms (one that creeps waits until 100 ms, a slow scroll), and a pop-up starts with its top edge at the screen's edge (its
+  first frames are never spent out of sight). Never wait on a timer before opening; keep the open's first frame light. The extra
+  40 px below the screen exist only on close (so the shadow has left before the sheet goes); otherwise close mirrors open.
   A `.press` rule that sets its own `transition` must include `transform 520ms var(--ease-spring)` or the release snaps.
 - **Haptics:** `buzz()` from `src/state/ui.ts` (obeys Settings → Haptic feedback). Few, light, one system.
 - **Numbers that change roll** (`src/ui/Roll.tsx`), they never just swap.

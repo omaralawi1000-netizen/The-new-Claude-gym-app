@@ -20,7 +20,7 @@ for (let r = 0; r < runs; r++) {
     }, dir);
     await act(); await wait(p, ms);
     const { f, lt, first } = await p.evaluate(() => { window.__on = false; return { f: window.__f.slice(1), lt: window.__lt, first: window.__first }; });
-    out[name].push({ first: Math.round(first), frames: f.length, late: f.filter((x) => x > 20).length, worst: Math.round(Math.max(0, ...f)), long: lt });
+    out[name].push({ first: Math.round(first), frames: f.length, late: f.filter((x) => x > 20).length, worst: Math.round(Math.max(0, ...f)), long: lt }); if (process.env.SEQ) console.log(name, f.slice(0, 70).map((x) => Math.round(x)).join(" "));
   };
   await measure('start', () => p.getByRole('button', { name: /Start workout/ }).first().tap(), 1);
   await wait(p, 600);

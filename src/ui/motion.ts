@@ -23,6 +23,12 @@ export const SMOOTH = apple(0.36);                // content settling (Apple .sm
 export const SURFACE = { ...apple(0.45), restDelta: 0.001 }; // a sheet / card arriving: Apple's .smooth, a hair quicker than the 0.5 s default
 export const SURFACE_EXIT = { ...apple(0.38), restDelta: 0.002 }; // leaving is a touch quicker than arriving
 export const WINDOW = SURFACE;
+// the live workout growing out of its card, and back: its own, slower spring, critically damped both ways (no bounce: it
+// never goes past and comes back; opening, its tail is eased to a stop, Active.tsx `landed`, so it never creeps). Closing
+// is the mirror of opening: the window is back in the card at 5 % of the spring (Active.tsx `hold`), so its spring is
+// longer to take the same time to get there (0.5 s, where 0.5 s took it there in 0.38 s, quicker than it came out).
+export const WINDOW_OPEN = { ...apple(0.56), restDelta: 0.0005 };
+export const WINDOW_CLOSE = { ...apple(0.68), restDelta: 0.01 }; // (still from 5 % down: done once nothing more changes)
 export const BOUNCY = apple(0.5, 0.3);            // Apple .bouncy: a record, a gain, a sent message
 export const GENTLE = { type: 'spring', stiffness: 60, damping: 18 } as const;
 export const KEYBOARD = { type: 'spring', stiffness: 760, damping: 54, mass: 1, restDelta: 0.5 } as const; // ~0.25 s: keeps up with Android's keyboard instead of trailing it
@@ -33,14 +39,15 @@ export const KEYBOARD = { type: 'spring', stiffness: 760, damping: 54, mass: 1, 
 // screen's full rate. `springCurve` turns a spring into a CSS linear() easing + duration by simulating it, so a browser-run
 // animation follows exactly the curve the script spring follows (same physics, same start velocity).
 
-type Spring = { stiffness: number; damping: number; mass?: number };
+export type Spring = { stiffness: number; damping: number; mass?: number };
 const curveCache = new Map<string, { easing: string; duration: number }>();
 const sampleCache = new Map<string, { xs: number[]; duration: number }>();
-/** A spring going 0 → 1 with initial velocity v0 (in progress units per second), sampled every 1/60 s: its positions (the
- * last one exactly 1) and how long it runs in ms. `fine`: run it until it is within 0.05 px of a full-height sheet's travel
- * (for a sheet moving in whole screen pixels, which then lands one pixel at a time instead of a last hop of two). */
-export function springSamples(sp: Spring, v0 = 0, fine = false): { xs: number[]; duration: number } {
-  const key = `${sp.stiffness}|${sp.damping}|${sp.mass ?? 1}|${v0.toFixed(2)}|${fine}`;
+/** A spring going 0 → 1 with initial velocity v0 (in progress units per second), sampled `hz` times a second (60 or 120):
+ * its positions (the last one exactly 1) and how long it runs in ms. `fine`: run it until it is within 0.05 px of a
+ * full-height sheet's travel (for a sheet moving in whole screen pixels, which then lands one pixel at a time instead of a
+ * last hop of two). At 120 a 120 Hz screen gets a new speed every frame (at 60 it moved in equal pairs of frames). */
+export function springSamples(sp: Spring, v0 = 0, fine = false, hz = 60): { xs: number[]; duration: number } {
+  const key = `${sp.stiffness}|${sp.damping}|${sp.mass ?? 1}|${v0.toFixed(2)}|${fine}|${hz}`;
   const hit = sampleCache.get(key); if (hit) return hit;
   const m = sp.mass ?? 1, dt = 1 / 600;
   let x = 0, v = v0, t = 0;
@@ -48,7 +55,7 @@ export function springSamples(sp: Spring, v0 = 0, fine = false): { xs: number[];
   while (t < 3) {
     // semi-implicit Euler at 600 Hz: indistinguishable from the analytic spring at this step
     v += ((sp.stiffness * (1 - x) - sp.damping * v) / m) * dt; x += v * dt; t += dt;
-    if (Math.round(t * 600) % 10 === 0) xs.push(x);       // a sample every 1/60 s
+    if (Math.round(t * 600) % (600 / hz) === 0) xs.push(x); // a sample every 1/hz s
     if (t > 0.1 && (fine ? Math.abs(1 - x) < 0.00005 && Math.abs(v) < 0.002 : Math.abs(1 - x) < 0.0008 && Math.abs(v) < 0.02)) break;
   }
   xs[xs.length - 1] = 1;
@@ -58,10 +65,10 @@ export function springSamples(sp: Spring, v0 = 0, fine = false): { xs: number[];
 }
 /** linear() easing for a spring going 0 → 1 with initial velocity v0 (in progress units per second). `fine`: run it until it
  * is still to a hundredth of a percent (for a long move handed over to something else at its end, which would jump). */
-export function springCurve(sp: Spring, v0 = 0, fine = false): { easing: string; duration: number } {
-  const key = `${sp.stiffness}|${sp.damping}|${sp.mass ?? 1}|${v0.toFixed(2)}|${fine}`;
+export function springCurve(sp: Spring, v0 = 0, fine = false, hz = 60): { easing: string; duration: number } {
+  const key = `${sp.stiffness}|${sp.damping}|${sp.mass ?? 1}|${v0.toFixed(2)}|${fine}|${hz}`;
   const hit = curveCache.get(key); if (hit) return hit;
-  const { xs, duration } = springSamples(sp, v0, fine);
+  const { xs, duration } = springSamples(sp, v0, fine, hz);
   const out = { easing: `linear(${xs.map((v2) => +v2.toFixed(4)).join(', ')})`, duration };
   curveCache.set(key, out);
   return out;
@@ -77,6 +84,9 @@ export function setHighRefresh(on: boolean) { try { localStorage.setItem('aven.h
 const hrrListeners = new Set<() => void>();
 export const onHighRefresh = (fn: () => void) => { hrrListeners.add(fn); return () => { hrrListeners.delete(fn); }; };
 
+/** `fill: 'forwards'` holds the last frame until whoever started it lets go (its inline style is not kept up meanwhile);
+ * `hz`: how finely the spring is sampled (springSamples). */
+export type MirrorOpts = { fill?: FillMode; hz?: number; trim?: boolean };
 /**
  * Let the browser draw an element's part of a spring at full refresh rate. The script spring keeps running (it drives the
  * orb and anything else that reads the progress), and the element keeps getting its inline style from it — but while this
@@ -84,8 +94,8 @@ export const onHighRefresh = (fn: () => void) => { hrrListeners.add(fn); return 
  * ends the inline style is already at the same final value. `frames` are keyframes at progress 0 and 1 (and optional
  * offsets in between); `from`/`to` are the progress values the spring runs between.
  */
-export function mirrorSpring(el: Element | null | undefined, frames: Keyframe[], sp: Spring, velocity = 0): Animation | null {
+export function mirrorSpring(el: Element | null | undefined, frames: Keyframe[], sp: Spring, velocity = 0, opts: MirrorOpts = {}): Animation | null {
   if (!el || typeof (el as HTMLElement).animate !== 'function' || !highRefresh()) return null;
-  const c = springCurve(sp, velocity);
-  try { return (el as HTMLElement).animate(frames, { duration: c.duration, easing: c.easing, fill: 'none' }); } catch { return null; }
+  const c = springCurve(sp, velocity, false, opts.hz ?? 60);
+  try { return (el as HTMLElement).animate(frames, { duration: c.duration, easing: c.easing, fill: opts.fill ?? 'none' }); } catch { return null; }
 }
