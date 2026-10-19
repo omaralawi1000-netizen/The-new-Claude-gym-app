@@ -6,3 +6,6 @@ shots
 *.log
 dev-dist
 beta-dist
+
+# temporary copies of the repo made by Claude Code helpers (never committed)
+.claude/worktrees/
