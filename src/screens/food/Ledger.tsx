@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import type { Sum } from '../../lib/nutrition';
 import { pct } from '../../lib/nutrition';
@@ -12,16 +12,23 @@ import { fmtNum } from '../../lib/units';
 import { fmtSum } from '../../lib/format';
 import { useUI } from '../../state/ui';
 import { SOFT } from '../../ui/Sheet';
+import { catchUpOn, kcalTargetFor } from '../../lib/eating';
+import { useToday } from '../../lib/derive';
 
 /** The day "ledger": a drafting-ruler calorie gauge, macro rules and optional nutrients. */
-export function Ledger({ sum, compact }: { sum: Sum; compact?: boolean }) {
+export function Ledger({ sum, compact, date }: { sum: Sum; compact?: boolean; /** the day shown (default today): a catch-up lowers its target */ date?: string }) {
   const t = useT();
   const lang = useLang();
   const goals = useStore((s) => s.settings.goals);
   const push = useUI((s) => s.push);
   const [more, setMore] = useState(false);
+  const today = useToday();
+  const day = date ?? today;
+  // (after a heavy day the next few days' target is lower: lib/eating.ts)
+  const goal = useStore((s) => kcalTargetFor(s, day));
+  const catchUps = useStore((s) => s.catchUps);
+  const catchUp = useMemo(() => catchUpOn({ catchUps }, day), [catchUps, day]);
   const kcal = sum.totals.kcal ?? 0;
-  const goal = goals.kcal;
   const remaining = goal ? goal - kcal : undefined;
   const over = remaining !== undefined && remaining < 0;
   const macros = [
@@ -41,6 +48,7 @@ export function Ledger({ sum, compact }: { sum: Sum; compact?: boolean }) {
               <Count value={goal ? Math.abs(remaining!) : kcal} format={(n) => fmtNum(Math.round(n), lang, 0)} />
             </div>
             <div className="micro" style={{ marginTop: 6 }}>{goal ? (over ? t('Over') : t('kcal left')) : t('kcal')}</div>
+            {catchUp && <div className="micro t3" style={{ marginTop: 4 }}>{t('−{n} catch-up · {d} days left', { n: fmtNum(catchUp.perDay, lang, 0), d: catchUp.left })}</div>}
           </div>
         </Dial>
       </div>

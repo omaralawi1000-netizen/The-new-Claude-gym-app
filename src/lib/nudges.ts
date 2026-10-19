@@ -8,6 +8,7 @@
  *    its own (see useInsights in ui/CoachPin.tsx).
  * Each nudge says why in one line, and offers one thing to do about it. "Not now" hides it until tomorrow; ✕ for good.
  */
+import { weighIns } from './maintenance';
 import { exerciseMap, missedWorkouts, plannedFor } from '../state/store';
 import { addDays, diffDays, weekdayOf } from './dates';
 import { setsPerMuscle, stalledLifts, nutritionByDay, average, weightTrend, trendRate, weeklyTraining, MUSCLES } from './stats';
@@ -160,6 +161,12 @@ export function findNudges(d: AppData, today: string, hour: number, t: T, lang: 
     const gap = diffDays(today, lastW.date);
     if (gap >= 7 && gap < 60) add({ id: `weigh:${lastW.date}`, kind: 'reminder', icon: 'scale', priority: 30,
       title: t('{n} days since you weighed in', { n: gap }), body: t('One weigh-in a week keeps the trend honest.'),
+      action: { label: t('Log weight'), run: { type: 'open', overlay: 'weight' } } });
+    // true maintenance needs the scale a few times a week (lib/maintenance.ts): a quiet reminder in the morning after 3 days
+    // without a weigh-in (the watch's scale counts too); from 7 days the card above takes over
+    const last = weighIns(d).at(-1);
+    if (last && diffDays(today, last.date) >= 3 && diffDays(today, last.date) < 7 && new Date().getHours() < 12) add({ id: `weigh:${today}`, kind: 'suggestion', icon: 'scale', priority: 25,
+      title: t('Step on the scale?'), body: t('A few weigh-ins a week keep your true maintenance calories accurate.'),
       action: { label: t('Log weight'), run: { type: 'open', overlay: 'weight' } } });
     // weighs often, but the weight card is off on Today
     if (!d.settings.widgets.weight && ws.filter((w) => w.date >= addDays(today, -14)).length >= 4) add({ id: 'app:weight-card', kind: 'app', icon: 'today', priority: 20,

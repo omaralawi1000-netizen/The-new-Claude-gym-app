@@ -58,7 +58,7 @@ export function defaultData(lang: Lang = 'en'): AppData {
     settings: defaultSettings(lang),
     foods: [], favourites: [], savedMeals: [], recipes: [], entries: [], water: [],
     exercises: [], routines: [], schedule: defaultSchedule(), sessions: [], active: null,
-    weights: [], measurements: [], photos: [], activities: [], steps: [], health: [], hcGone: [], notes: [], choices: {}, increments: {}, memory: [], reviews: [],
+    weights: [], measurements: [], photos: [], activities: [], steps: [], health: [], hcGone: [], catchUps: [], notes: [], choices: {}, increments: {}, memory: [], reviews: [],
     demo: false,
   };
 }
@@ -75,7 +75,7 @@ export function normaliseData(raw: any, lang: Lang = 'en'): AppData {
     exercises: arr('exercises'), routines: arr('routines'),
     schedule: { ...d.schedule, ...(raw.schedule ?? {}), weekly: { ...d.schedule.weekly, ...(raw.schedule?.weekly ?? {}) }, rotation: { ...d.schedule.rotation, ...(raw.schedule?.rotation ?? {}) }, overrides: raw.schedule?.overrides ?? [], cleared: raw.schedule?.cleared ?? [], activities: cleanActivities(raw.schedule?.activities) },
     sessions: arr('sessions'), active: raw.active && typeof raw.active === 'object' ? raw.active : null,
-    weights: arr('weights'), measurements: arr('measurements'), photos: arr('photos'), activities: arr('activities'), steps: arr('steps'), health: arr('health'), notes: arr('notes'),
+    weights: arr('weights'), measurements: arr('measurements'), photos: arr('photos'), activities: arr('activities'), steps: arr('steps'), health: arr('health'), catchUps: arr('catchUps'), notes: arr('notes'),
     hcGone: (Array.isArray(raw.hcGone) ? raw.hcGone : []).filter((x: unknown) => typeof x === 'string').slice(-500),
     choices: raw.choices && typeof raw.choices === 'object' && !Array.isArray(raw.choices) ? raw.choices : {},
     increments: raw.increments && typeof raw.increments === 'object' && !Array.isArray(raw.increments) ? raw.increments : {},

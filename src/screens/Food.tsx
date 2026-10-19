@@ -99,7 +99,7 @@ export function FoodScreen() {
       </header>
 
       <Subpage id={date}>
-      <Ledger sum={sum} />
+      <Ledger sum={sum} date={date} />
 
       {shown && (
         // an empty day is one calm card: the meals as rows, each with its own +

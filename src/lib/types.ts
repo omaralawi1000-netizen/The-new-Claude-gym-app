@@ -254,6 +254,28 @@ export interface Schedule {
 // ── Body & activity ─────────────────────────────────────────
 
 export interface WeightLog { id: string; date: string; kg: number; at: number }
+
+/**
+ * A heavy day caught up over the next few (lib/eating.ts): what it was over by, and the lower targets that make up for it.
+ * Omar asked for it (19 Oct): an evening that got out of hand (often logged the morning after) is paid back over 3–4 days,
+ * never in one brutal day, protein kept, never under a safe floor.
+ */
+export interface CatchUp {
+  id: string;
+  /** the heavy day, and how far over its target it went */
+  date: string; over: number;
+  /** the days with a lower target, and how much lower each */
+  days: string[]; perDay: number;
+  /** noticed the same evening (live) or from a log made afterwards (late) */
+  trigger: 'live' | 'late';
+  at: number;
+  /** the lowest a day's target may go because of it */
+  floor: number;
+  /** said to them already: the toast, and the Coach's first line */
+  told?: boolean; coachTold?: boolean;
+  /** taken back (Undo, or "don't cut my calories"): kept so the same day is never caught up again */
+  off?: boolean;
+}
 export type MeasureKind = 'waist' | 'chest' | 'hips' | 'arm' | 'thigh' | 'neck';
 export interface Measurement { id: string; date: string; kind: MeasureKind; cm: number }
 export interface ProgressPhoto { id: string; date: string; note?: string }
@@ -405,6 +427,8 @@ export interface AppData {
   steps: StepDay[];
   /** the rest of what the watch measured, per day (newest ~2 years) */
   health?: HealthDay[];
+  /** heavy days being caught up (lib/eating.ts), the newest 30 */
+  catchUps?: CatchUp[];
   /** watch workouts deleted by hand (their Health Connect ids, the newest 500): never brought back by a sync */
   hcGone?: string[];
   demo: boolean;

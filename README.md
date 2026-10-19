@@ -2765,3 +2765,39 @@ Omar: the Coach should feel like talking to a person who knows him and all his d
 - `journey-health`, `journey-workout6`, `journey-coach6`, `journey-sol`, `journey-ai`.
 - The CI emulator grants the new permissions in its Connect watch run.
 - **The new data needs the new Android app** (an APK publish after review). The web part works with the old app: it just gets steps and workouts, as before.
+
+## Heavy days and catching up, true maintenance (19 Oct 2026, PR, no version bump)
+Omar: he overeats mostly in the evening and often logs it the morning after, as one big addition to yesterday. He asked his
+coach to decide the tone. Chosen: direct, not soft and not harsh. The number is said straight, then the plan. Step 1 of 3
+(step 2: learning why and stepping in early; step 3: experiments).
+
+### Noticing a heavy day (`src/lib/eating.ts`)
+- **Clearly over** = at least 600 kcal and 25 % over the target. Forgetting dinner and logging it the next morning is not a heavy day.
+- **Two ways:**
+  - **the same evening:** after 20:00, today goes clearly over;
+  - **the morning after:** a log for yesterday (or up to 3 days back) made later, and that day ends clearly over ("logged the day after").
+- `src/lib/eatingWatch.ts` checks 1.5 s after any food change and shows one toast: "Yesterday: +2,000 kcal over. Next 4 days: −500 kcal a day." with Undo.
+
+### Catching up
+- The overage is spread over the next days, the same amount each day: 2 days up to 900 kcal, 3 up to 1,500, else 4 (up to 6 when the floor is close). Never one brutal day: that sets up the next evening.
+- A late log starts today; an evening one starts tomorrow.
+- **Floor:** never under 80 % of true maintenance (or of the target while maintenance is unsure), and never under 1,800 kcal. Protein targets stay.
+- Stored in `catchUps` (additive; backups carry it). Today's ring, the day fill and the Coach's "kcal left" all use the lowered target (`kcalTargetFor`). Under "kcal left": "−500 catch-up · 3 days left".
+- More logged for the same day raises the plan (by 200+ kcal). Taken back (Undo, or "don't cut my calories" to the Coach) it is never set again for that day.
+- The Coach can set one too ("I ate about 1,500 extra yesterday"): action `catch_up`.
+
+### True maintenance (`src/lib/maintenance.ts`)
+- From the last 4 weeks: average logged intake minus what the weight trend says (7,700 kcal a kilo, least squares so one odd weigh-in doesn't swing it). Weigh-ins come from Aven and from the scale through the watch.
+- Needs about 10 logged days and 4 weigh-ins two weeks apart; until then the Coach says "not enough yet". Confidence low/medium/high from the days and weigh-ins; low is called an estimate.
+- Relative to what he logs, so a target built on it works even if some evenings go unlogged. The Coach offers a target for his goal (fat loss −500, muscle +250) and never changes it unasked.
+- **Invisible calories:** when the watch's total burn is 300+ kcal above it, roughly that much a day is probably not logged. Said once, without blame.
+- **Weigh-in nudge:** in the morning, when the last weigh-in was 3–6 days ago, a quiet "Step on the scale?" card.
+
+### The Coach
+- DATA gets EATING PATTERNS: true maintenance, invisible calories, heavy days in the last 4 weeks (late or evening), the catch-up running, and JUST NOTICED (said once in its next reply, then marked told).
+- 3+ heavy days a week for 2 weeks: it mentions once, gently, that a doctor or dietitian can help.
+- The week review counts heavy days this week against the 3 before, and gives true maintenance.
+
+### Checks
+- `tests/eating.test.ts` (10): the 2,000 kcal morning-after log, forgotten dinner not flagged, growing and taking back, the evening case, the floor, maintenance for a known deficit, invisible calories, not enough data, told once, the `catch_up` action with Undo.
+- `scripts/journey-eating.mjs`: the morning-after toast, the "−500 catch-up · 4 days left" line on Food, Undo. (It caught a render loop in the Food screen that the unit tests could not.)
