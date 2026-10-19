@@ -69,6 +69,7 @@ function down(e: PointerEvent) {
   if (held && held !== t) letGo();
   else if (held) { clearTimeout(upT); upT = 0; held = null; } // the same control again: it simply stays down
   if (!t || (t as HTMLButtonElement).disabled || t.getAttribute('aria-disabled') === 'true') return;
+  if (t.closest('[data-leaving]')) return; // a pop-up on its way out presses nothing (Sheet.tsx)
   // a part of a pressable card that does its own thing (a meal's food rows swipe and open) doesn't push the card
   const own = (e.target as Element).closest('[data-no-press]');
   if (own && t.contains(own)) return;

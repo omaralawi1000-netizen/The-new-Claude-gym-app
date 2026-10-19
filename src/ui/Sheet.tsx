@@ -15,8 +15,11 @@ export { OverlayMeta };
 export const useIsPage = () => !!useContext(OverlayMeta)?.page;
 
 /** A sheet that pages can open inside: where they go, and what they share with it (the drag, the progress, the exit). */
-interface Host { el: HTMLDivElement; y: MotionValue<number>; swipeV: { current: number }; engage: Engage; gone: Set<() => void>; small?: boolean; rise: MotionValue<number> }
+interface Host { el: HTMLDivElement; y: MotionValue<number>; swipeV: { current: number }; engage: Engage; gone: Set<() => void>; /** run when it is caught on its way out */ back: Set<() => void>; small?: boolean; rise: MotionValue<number> }
 const hosts = new Map<string, Host>();
+/** where and when the last finger or click went down (a sheet closed by it guards that spot, see HostSheet's exit) */
+let lastDown: { x: number; y: number; t: number } | null = null;
+if (typeof window !== 'undefined') window.addEventListener('pointerdown', (e) => { lastDown = { x: e.clientX, y: e.clientY, t: performance.now() }; }, { capture: true, passive: true });
 /** Overlays that sit together on one sheet: this one, the pages directly above it, and the sheet they open in. */
 function group(ov: { id: string; page?: boolean }[], i: number) {
   let lo = i; while (lo > 0 && ov[lo].page) lo--;
@@ -261,10 +264,10 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
     const cur = useUI.getState().overlays, at = meta ? cur.findIndex((o) => o.id === meta.id) : -1;
     if (at >= 0 && cur[at + 1]?.page) useUI.getState().popN(group(cur, at).hi - at + 1); else onClose();
   }, { enabled: !behind });
-  const gone = useRef(new Set<() => void>());
+  const gone = useRef(new Set<() => void>()), backs = useRef(new Set<() => void>());
   useLayoutEffect(() => {
     if (nested || !meta || !ref.current) return;
-    hosts.set(meta.id, { el: ref.current, y, swipeV, engage, gone: gone.current, small, rise });
+    hosts.set(meta.id, { el: ref.current, y, swipeV, engage, gone: gone.current, back: backs.current, small, rise });
     return () => { hosts.delete(meta.id); };
     // eslint-disable-next-line
   }, []);
@@ -283,7 +286,7 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
     const x = d.xs[i] + (d.xs[i + 1] - d.xs[i]) * r;
     return { at: d.p0 + d.span * x, v: d.span * (d.xs[i + 1] - d.xs[i]) * 60 };
   };
-  const runMirror = (p0: number, p1: number, sp: { stiffness: number; damping: number; mass?: number }, vel: number) => {
+  const runMirror = (p0: number, p1: number, sp: { stiffness: number; damping: number; mass?: number }, vel: number, now = false) => {
     const m = mirror.current!; m.cancel();
     if (reduce) return;
     const b = bs.get();
@@ -292,6 +295,7 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
     drawn.current = a ? { a, p0, span: p1 - p0, xs: springSamples(sp, Math.max(-40, Math.min(40, vel / (p1 - p0))), true).xs } : null;
     m.add(a);
     m.add(...mirrorVeil(scrimRef.current, p0, p1, sp, vel, undefined, seenOf.current), small ? null : mirrorStage(id, p0, p1, sp, vel, seenOf.current), mirrorOrb(ref.current, p0, p1, sp, vel, (pp) => (1 - pp) * dist.current));
+    if (now) m.startNow();
   };
   useEffect(() => {
     const stop = () => mirror.current!.cancel();
@@ -400,18 +404,29 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
       leaving.current = false;
       exit.current?.stop(); exit.current = null;
       if (scrimRef.current) scrimRef.current.style.pointerEvents = '';
+      ref.current?.removeAttribute('data-leaving');
       swipeV.current = 0; // the swipe that sent it away is spent
       const { at, v } = onScreen();
       p.set(at);
-      runMirror(at, 1, SPRING, v);
+      runMirror(at, 1, SPRING, v, true);
+      backs.current.forEach((f) => f()); backs.current.clear(); // a page that was going down with it slides away instead
       const r = animate(p, 1, reduce ? { duration: 0.01 } : { ...SPRING, velocity: v });
       opening.current = r; r.then(() => { if (opening.current === r) opening.current = null; });
       return;
     }
     if (leaving.current) return;
     leaving.current = true;
-    // the dim no longer holds the screen: a tap on the page lands at once (on the button that opened it, it catches it)
+    // the dim no longer holds the screen: a tap on the page lands at once (on the button that opened it, it catches it).
+    // The sheet itself takes taps but does nothing with them (a second tap on its ✕ must not press what is under it)
     if (scrimRef.current) scrimRef.current.style.pointerEvents = 'none';
+    ref.current?.setAttribute('data-leaving', '');
+    // closed by a tap (its ✕, the dim): the second tap of a double tap on that same spot must not press what the sheet has
+    // just uncovered there (Log food's ✕ sits over Today's Settings button)
+    const dt = lastDown;
+    if (dt && performance.now() - dt.t < 600) {
+      const eat = (c: MouseEvent) => { if (Math.hypot(c.clientX - dt.x, c.clientY - dt.y) < 28) { c.preventDefault(); c.stopPropagation(); } };
+      window.addEventListener('click', eat, true); setTimeout(() => window.removeEventListener('click', eat, true), 320);
+    }
     opening.current?.stop(); opening.current = null;
     if (ref.current?.contains(document.activeElement)) dropKeyboard(EXIT_SPRING); // the keyboard goes down with it, not after it
     // a finger that let go hands over its speed; closed by a tap while it was still opening, it carries the opening's own
@@ -421,7 +436,7 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
     const moving = seen ? seen.v : p.getVelocity();
     p.set(seen ? seen.at : e.get()); y.set(0);
     const v = vy ? -vy / dist.current : moving;
-    runMirror(p.get(), 0, EXIT_SPRING, v);
+    runMirror(p.get(), 0, EXIT_SPRING, v, !!seen && Math.abs(v) > 0.05); // turning round mid-move: no wait to start
     const c = animate(p, 0, reduce ? { duration: 0.01 } : { ...EXIT_SPRING, velocity: v });
     exit.current = c;
     if (mine.current) sheetLeaving(mine.current, mineAt.current);
@@ -434,17 +449,9 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
     // eslint-disable-next-line
   }, [present]);
   useEffect(() => () => { if (mine.current) sheetGone(mine.current.id); }, []);
-  // a finger on the sheet itself while it is leaving grabs it back. That touch only catches it: its click (wherever the finger
-  // is when it lifts, the sheet having moved up under it) presses nothing and closes nothing
-  const grab = (ev: React.PointerEvent) => {
-    if (!leaving.current || !mine.current) return;
-    ev.stopPropagation();
-    const eat = (c: MouseEvent) => { c.preventDefault(); c.stopPropagation(); off(); };
-    const off = () => { window.removeEventListener('click', eat, true); clearTimeout(tm); };
-    window.addEventListener('click', eat, true);
-    const tm = setTimeout(off, 800);
-    useUI.getState().push(mine.current.type, mine.current.props);
-  };
+  // a leaving sheet swallows taps: they press nothing inside it and nothing behind it
+  const swallow = (ev: React.MouseEvent) => { if (leaving.current) { ev.preventDefault(); ev.stopPropagation(); } };
+  const hush = (ev: React.PointerEvent) => { if (leaving.current) ev.preventDefault(); }; // and focus nothing (no keyboard)
   useEffect(() => {
     const onKey = (ev: KeyboardEvent) => { if (ev.key === 'Escape' && !behindRef.current) onClose(); };
     window.addEventListener('keydown', onKey);
@@ -458,7 +465,7 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
         className={`sheet sz-${sz} ${tall ? 'tall' : ''} ${behind ? 'behind' : ''} ${behind && deep ? 'deep' : ''} ${cam ? 'sheet-cam' : ''}`}
         style={{ zIndex: z, transformOrigin: '50% 0%', transform, maxHeight: room, ...(tall ? { height: room } : {}) }}
         role="dialog" aria-modal="true" aria-label={label}
-        onPointerDownCapture={grab}
+        onPointerDownCapture={hush} onClickCapture={swallow}
       >
         <div className="sheet-grab" />
         <div className={`sheet-pane ${tall && !instant ? 'late' : ''}`} ref={paneRef}>
@@ -519,7 +526,15 @@ function PageSheet({ children, onClose, tall, label, foot, id }: SheetProps & { 
     const el = ref.current;
     if (el?.contains(document.activeElement)) dropKeyboard(EXIT_SPRING);
     const hostStays = useUI.getState().overlays.some((o) => o.id === hostId);
-    if (!hostStays && host) { host.gone.add(() => safeToRemove?.()); const tm = setTimeout(() => safeToRemove?.(), 1500); return () => clearTimeout(tm); }
+    if (!hostStays && host) {
+      if (el) el.inert = true;
+      const fin = () => safeToRemove?.();
+      host.gone.add(fin); let tm = setTimeout(fin, 1500);
+      // the sheet was caught and stays: this page slides away as Back would take it
+      const back = () => { host.gone.delete(fin); clearTimeout(tm); if (!el || reduce) { fin(); return; } el.getAnimations().forEach((a) => a.cancel()); const a = pageOut(el, 40); a.onfinish = fin; tm = setTimeout(fin, 1500); };
+      host.back.add(back);
+      return () => { clearTimeout(tm); host.gone.delete(fin); host.back.delete(back); };
+    }
     if (!el || reduce) { safeToRemove?.(); return; }
     el.getAnimations().forEach((a) => a.cancel());
     el.inert = true;

@@ -137,4 +137,7 @@ export class Mirror {
   private anims: Animation[] = [];
   add(...a: (Animation | null)[]) { for (const x of a) if (x) this.anims.push(x); }
   cancel() { for (const a of this.anims) { try { a.cancel(); } catch { /* ignore */ } } this.anims = []; }
+  /** start now, on this frame's clock, instead of when the browser gets round to it: a turn taken mid-move (Sheet.tsx) must
+   * not hold still for the frame or two a new animation waits before it starts */
+  startNow() { const t = document.timeline.currentTime; if (t == null) return; for (const a of this.anims) { try { a.startTime = t; } catch { /* ignore */ } } }
 }

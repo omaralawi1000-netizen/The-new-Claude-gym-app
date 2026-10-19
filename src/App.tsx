@@ -166,7 +166,7 @@ function TabPane({ hue, dir, children }: { hue: string; dir: number; children: R
   const left = useRef(false), back = useRef(false), moved = useRef(0);
   if (!moved.current) moved.current = performance.now();
   // turned round, or still arriving when another tab is tapped: it moves from where it is at once (see `back`, `exitNow`)
-  const busy = back.current || performance.now() - moved.current < 450;
+  const busy = performance.now() - moved.current < 450;
   if (!present) left.current = true;
   else if (left.current) { left.current = false; back.current = true; moved.current = performance.now(); }
   return (
