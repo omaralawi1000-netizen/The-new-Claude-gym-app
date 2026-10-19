@@ -4,7 +4,7 @@
  * card's big clock; opening, it flies back up into the header. The window around it grows or shrinks as before (Active.tsx),
  * and the card's other words arrive after it, one after another.
  *
- * Three ways to do it, picked with localStorage `aven.wkLand` while Omar chooses (A is the default):
+ * Three ways to do it, picked with localStorage `aven.wkLand` (B, Catch, is the default: the one Omar's phone runs):
  *   A  Glide  the window lands, then the clock settles into its place a beat later, then the card's details arrive.
  *   B  Catch  the window comes down with its speed and the card catches it: a small dip and rebound, the clock riding it.
  *   C  Lead   the clock goes first and waits in its place; the window follows it home and closes round it.
@@ -17,7 +17,7 @@ import { apple, BOUNCY, SMOOTH, springCurve, springSamples, type Spring } from '
 
 export type Land = 'A' | 'B' | 'C';
 export function landStyle(): Land {
-  try { const v = localStorage.getItem('aven.wkLand'); return v === 'B' || v === 'C' ? v : 'A'; } catch { return 'A'; }
+  try { const v = localStorage.getItem('aven.wkLand'); return v === 'A' || v === 'C' ? v : 'B'; } catch { return 'B'; }
 }
 
 /** The springs of each way: the window's own (`win`, null: Active's usual one) and the clock's (`hero`, null: it rides the window). */
