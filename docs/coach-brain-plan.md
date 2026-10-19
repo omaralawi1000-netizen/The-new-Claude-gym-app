@@ -131,7 +131,7 @@ A new session continues with "continue the Coach plan": read this section, tick 
 Progress (ticked as done):
 - [x] Step −1 plan saved
 - [x] Step 0 baseline (stack merged up to the latest main app, 362 tests green)
-- [ ] Step A PR #173 reviewed and fixed, merged up
+- [x] Step A PR #173 reviewed and fixed, merged up (tests/review173.test.ts)
 - [x] Step 1 target history
 - [x] Step 2 modes, eligibility, limits
 - [ ] Step 3 the watcher
