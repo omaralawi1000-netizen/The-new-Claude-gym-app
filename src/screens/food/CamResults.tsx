@@ -22,6 +22,7 @@ export function CamResults({ items, setItems, assume, base }: { items: ReadItem[
         <div className="cam-res-total num">~{fmtNum(Math.round(total), lang, 0)}<span> kcal</span></div>
         <div className="cam-res-sub num">P {sum('protein')} · C {sum('carbs')} · F {sum('fat')} g</div>
         <div className="cam-res-sub">{t('AI estimate')} · {items.length}</div>
+        {assume && <div className="cam-res-note">~ {assume}</div>}
       </motion.div>
       <div className="cam-res-list">
         {items.map((x, i) => (
@@ -37,7 +38,6 @@ export function CamResults({ items, setItems, assume, base }: { items: ReadItem[
             <div className="cam-chips">{PORTIONS.map((k) => <button key={k} className={`cam-chip press${x.k === k ? ' on' : ''}`} onClick={() => setItems((l) => l.map((y, j) => (j === i ? { ...y, k } : y)))}>×{fmtNum(k, lang, 2)}</button>)}</div>
           </motion.div>
         ))}
-        {assume && <motion.div className="cam-res-note" {...rise(items.length + 1, base)}>~ {assume}</motion.div>}
       </div>
     </>
   );

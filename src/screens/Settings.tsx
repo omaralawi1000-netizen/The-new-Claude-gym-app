@@ -311,7 +311,6 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
                 <Field label={t('Theme')}><Seg value={st.theme} onChange={(v) => set({ theme: v })} options={[{ value: 'system', label: t('System') }, { value: 'light', label: t('Light') }, { value: 'dark', label: t('Dark') }]} /></Field>
                 <Field label={t('Motion')}><Seg value={st.motion} onChange={(v) => set({ motion: v })} options={[{ value: 'system', label: t('System') }, { value: 'full', label: t('Full') }, { value: 'reduce', label: t('Reduced') }]} /></Field>
                 <Field label={t('Photo analysis')} hint={t('How the wait looks while a food photo is read.')}><Seg value={st.scanLook ?? 'C'} onChange={(v) => set({ scanLook: v })} options={[{ value: 'A', label: t('Wave') }, { value: 'B', label: t('Wave + dots') }, { value: 'C', label: t('Depth') }]} /></Field>
-                <Field label={t('Photo result')} hint={t('How the camera turns into the result.')}><Seg value={st.camResult ?? 'A'} onChange={(v) => set({ camResult: v })} options={[{ value: 'A', label: t('Shrink') }, { value: 'B', label: t('Rise') }]} /></Field>
                 <HrrField />
                 <FpsField />
               </div>

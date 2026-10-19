@@ -28,18 +28,17 @@ export function Scan({ src, v }: { src: string; v: 'A' | 'B' | 'C' }) {
   const i = useStep();
   const dots = v === 'B' || v === 'C';
   const present = useIsPresent();
-  const fade = { initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 }, transition: { duration: 0.45 } };
   const words = (
-    <motion.div className="scan-words" {...fade}>
+    <motion.div className="scan-words" initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { duration: 0.45 } }} exit={{ opacity: 0, transition: { duration: 0.18 } }}>
       {dots && <span className="scan-orbit"><i /><i /><i /><i /><i /><i /></span>}
-      <AnimatePresence initial={false}>
-        <motion.span key={i} initial={{ opacity: 0, y: 3 }} animate={{ opacity: 1, y: 0, transition: { duration: 0.42, delay: 0.14, ease: [0.22, 1, 0.36, 1] } }} exit={{ opacity: 0, y: -3, transition: { duration: 0.26, ease: [0.4, 0, 1, 1] } }}>{t(SCAN_WORDS[i])}</motion.span>
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.span key={i} initial={{ opacity: 0, y: 3 }} animate={{ opacity: 1, y: 0, transition: { duration: 0.42, delay: 0.02, ease: [0.22, 1, 0.36, 1] } }} exit={{ opacity: 0, y: -3, transition: { duration: 0.22, ease: [0.4, 0, 1, 1] } }}>{t(SCAN_WORDS[i])}</motion.span>
       </AnimatePresence>
     </motion.div>
   );
   return (
     <div className={`scan scan-${v}${dots ? ' with-dots' : ''}${present ? '' : ' leaving'}`} aria-hidden>
-      <motion.div className="scan-fx" initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { duration: 0.45 } }} exit={{ opacity: 0, transition: { duration: 0.6 } }}>
+      <motion.div className="scan-fx" initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { duration: 0.45 } }} exit={{ opacity: 0, transition: { duration: 0.18 } }}>
         <i className="scan-film" />
         <div className="scan-lit"><div className="scan-lit-in"><img src={src} alt="" /><i className="scan-warm" /></div></div>
       </motion.div>
@@ -55,7 +54,7 @@ export function ScanStage({ depth, busy, fill, children }: { depth: boolean; bus
   const loop = { duration: 3.7, times: [0, 0.5, 1], ease: [0.45, 0.05, 0.55, 0.95] as [number, number, number, number], delay: 0.45, repeat: Infinity, repeatDelay: 0.5 };
   return (
     <motion.div className={`scan-stage${fill ? ' fill' : ''}`} style={depth ? { transformPerspective: 900, transformOrigin: '50% 70%' } : undefined}
-      animate={depth ? (busy ? { rotateX: [0, 7, 0], scale: [1, 1.025, 1] } : { rotateX: 0, scale: 1 }) : undefined}
+      animate={depth ? (busy ? { rotateX: [0, 3, 0], scale: [1, 1.02, 1] } : { rotateX: 0, scale: 1 }) : undefined}
       transition={depth ? (busy ? loop : { duration: 0.5, ease: [0.22, 1, 0.36, 1] }) : undefined}>
       {depth && <motion.i className="scan-contact" animate={busy ? { opacity: [0, 0.55, 0] } : { opacity: 0 }} transition={busy ? loop : { duration: 0.5 }} />}
       {children}
