@@ -1,11 +1,11 @@
 // Films the photo-analysis wait as Omar sees it: camera → shutter → hand-off → the wait → the result, at the app's 60 fps
 // (film-steady.mjs), dark, in his palette. A fake Gemini answers after DELAY ms (the wait), so short and long waits can be filmed.
-// usage: AVEN_PALETTE=golden AVEN_GPU=1 DELAY=2600 node scripts/film-analyze.mjs <A-F> [--light] [--frames N]
+// usage: AVEN_PALETTE=golden AVEN_GPU=1 DELAY=1500 [SCAN=A|B|C] node scripts/film-analyze.mjs <A|B> [--light] [--frames N]  (A|B = how the camera turns into the result)
 // → shots/film/analyze-<v>-<theme>-<DELAY>/*.jpg, shots/analyze-<v>-<theme>-<DELAY>.mp4, and prints the settle difference
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import { steady } from './film-steady.mjs';
-import { wait, skipOnboarding, loadDemo } from './lib.mjs';
+import { wait, skipOnboarding, loadDemo, applySettings } from './lib.mjs';
 const v = process.argv[2] || 'A';
 const theme = process.argv.includes('--light') ? 'light' : 'dark';
 const delay = Number(process.env.DELAY || 2600);
@@ -26,7 +26,8 @@ await s.ctx.addInitScript(([d]) => {
 }, [delay]);
 await p.goto(process.env.URL || 'http://127.0.0.1:4173/'); await wait(p, 1500);
 await skipOnboarding(p); await loadDemo(p); await s.advance(120);
-await p.evaluate(() => { localStorage.setItem('aven.keys', JSON.stringify({ gemini: 'AIzaTESTKEY' })); }); // the look is the Settings choice (default C)
+await applySettings(p, { camResult: v, scanLook: process.env.SCAN || 'C' }); // <A|B> = how the camera turns into the result; SCAN = the wave look
+await p.evaluate(() => { localStorage.setItem('aven.keys', JSON.stringify({ gemini: 'AIzaTESTKEY' })); });
 await p.reload(); await wait(p, 1500); await s.advance(240);
 const press = async (loc) => { const b = await loc.boundingBox(); await p.touchscreen.tap(b.x + b.width / 2, b.y + b.height / 2); };
 await p.getByLabel('Photo').first().waitFor({ state: 'visible', timeout: 20000 }); await s.advance(Number(process.env.SETTLE || 3000)); // Today must be fully up before the tap

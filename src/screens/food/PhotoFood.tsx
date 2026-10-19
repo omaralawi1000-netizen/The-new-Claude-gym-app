@@ -1,70 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
-import { AnimatePresence, motion, useIsPresent } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 import { useStore } from '../../state/store';
 import { useUI, haptic } from '../../state/ui';
-import { useAi, anyBrain, solOn } from '../../state/ai';
 import { useT, useLang } from '../../lib/i18n';
 import { Sheet, SheetHead, SOFT } from '../../ui/Sheet';
 import { Icon } from '../../ui/Icon';
-import { getKey } from '../../lib/keys';
-import { blobToBase64, cameraUsable, downscale } from '../../lib/photos';
-import { aiErrorText, FALLBACK_MODELS } from '../../lib/gemini';
-import { estimatePhoto } from '../../lib/brain';
-import { overLimit } from '../../lib/spend';
-import type { FoodEstimate } from '../../lib/aiValidate';
-import { quickEntry } from '../../lib/nutrition';
+import { useAi, anyBrain } from '../../state/ai';
+import { cameraUsable, downscale } from '../../lib/photos';
+import { aiErrorText } from '../../lib/gemini';
+import { Scan, ScanStage } from './PhotoScan';
+import { readPhoto, logReadItems, PORTIONS, type ReadItem } from './photoRead';
 import { mealName } from '../../lib/derive';
 import { fmtNum } from '../../lib/units';
 
-interface Item extends FoodEstimate { on: boolean; k: number }
-const PORTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2];
+type Item = ReadItem;
 
-
-const SCAN_WORDS = ['Reading your plate', 'Finding ingredients', 'Estimating portions', 'Adding it all up'];
-/** Which of the four steps the wait is at (rAF + performance.now, so it follows the real clock): it moves in the rest of every sweep, and
- *  "Adding it all up" only comes after 8.9 s so a long wait never sits on the last words. */
-const STEP_AT = [0, 2500, 5700, 8900]; // changes land in the rest between two sweeps (3.2 s cycle, still from 2.2 s on)
-function useStep() {
-  const [i, setI] = useState(0);
-  useEffect(() => {
-    const t0 = performance.now(); let raf = 0;
-    const tick = () => {
-      const e = performance.now() - t0;
-      setI((n) => { const k = STEP_AT.reduce((m, at, j) => (e >= at ? j : m), 0); return k === n ? n : k; });
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-  return i;
-}
-/** While the photo is read (Siri-style): a wave of light climbs the frozen photo and the objects it passes light up (a brighter copy of the photo shown
- *  through a soft band, aligned 1:1 by moving the band up and the copy down by the same amount). Only transform and opacity move; the root never fades
- *  (a fading ancestor would drop the frost of the words capsule), the film and lights fade as one layer and the capsule fades by itself. */
-function Scan({ src, v }: { src: string; v: 'A' | 'B' | 'C' }) {
-  const t = useT();
-  const i = useStep();
-  const dots = v === 'B' || v === 'C';
-  const present = useIsPresent();
-  const fade = { initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 }, transition: { duration: 0.45 } };
-  const words = (
-    <motion.div className="scan-words" {...fade}>
-      {dots && <span className="scan-orbit"><i /><i /><i /><i /><i /><i /></span>}
-      <AnimatePresence initial={false}>
-        <motion.span key={i} initial={{ opacity: 0, y: 3 }} animate={{ opacity: 1, y: 0, transition: { duration: 0.42, delay: 0.14, ease: [0.22, 1, 0.36, 1] } }} exit={{ opacity: 0, y: -3, transition: { duration: 0.26, ease: [0.4, 0, 1, 1] } }}>{t(SCAN_WORDS[i])}</motion.span>
-      </AnimatePresence>
-    </motion.div>
-  );
-  return (
-    <div className={`scan scan-${v}${dots ? ' with-dots' : ''}${present ? '' : ' leaving'}`} aria-hidden>
-      <motion.div className="scan-fx" initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { duration: 0.45 } }} exit={{ opacity: 0, transition: { duration: 0.6 } }}>
-        <i className="scan-film" />
-        <div className="scan-lit"><div className="scan-lit-in"><img src={src} alt="" /><i className="scan-warm" /></div></div>
-      </motion.div>
-      {words}
-    </div>
-  );
-}
 
 /** Snap your plate: a photo → Gemini's per-item estimate → you adjust portions → logged as clearly labelled AI estimates. */
 export function PhotoFood({ props }: { props: { date: string; mealId: string; file?: File } }) {
@@ -72,7 +22,6 @@ export function PhotoFood({ props }: { props: { date: string; mealId: string; fi
   const lang = useLang();
   const pop = useUI((u) => u.pop);
   const push = useUI((u) => u.push);
-  const toast = useUI((u) => u.toast);
   const hasAi = useAi((a) => anyBrain(a));
   const meals = useStore((s) => s.settings.meals);
   const [img, setImg] = useState<{ url: string; blob: Blob } | null>(null);
@@ -94,12 +43,10 @@ export function PhotoFood({ props }: { props: { date: string; mealId: string; fi
   const analyse = async (blob: Blob) => {
     setErr(null); setBusy(true); setItems([]);
     ctl.current?.abort(); ctl.current = new AbortController();
-    const a = useAi.getState(), m = a.models;
     try {
-      // GPT-6.1 Sol (medium) when it is on, Gemini otherwise or if Sol can't answer
-      const brain = { key: a.hasGemini ? getKey('gemini') : '', models: [...new Set([m.fast || FALLBACK_MODELS.fast, m.brain || FALLBACK_MODELS.brain].filter(Boolean))], signal: ctl.current.signal, sol: solOn(a) && !overLimit(a.solLimitKr) ? { key: getKey('openai'), effort: a.effortOrb } : undefined };
-      const r = await estimatePhoto({ mime: 'image/jpeg', data: await blobToBase64(blob) }, brain, lang, hint.trim());
-      setItems(r.items.map((x) => ({ ...x, on: true, k: 1 }))); setAssume(r.assumptions);
+      const r = await readPhoto(blob, lang, hint, ctl.current.signal);
+      if (ctl.current.signal.aborted) return;
+      setItems(r.items); setAssume(r.assume);
       haptic('light');
     } catch (e: any) {
       setErr(e?.code === 'invalid' ? t('That doesn’t look like food. Try another photo.') : aiErrorText(e, t));
@@ -121,17 +68,7 @@ export function PhotoFood({ props }: { props: { date: string; mealId: string; fi
   useEffect(() => { if (img) fromCam.current = false; }, [img]);
   const chosen = items.filter((x) => x.on);
   const total = chosen.reduce((n, x) => n + x.kcal * x.k, 0);
-  const log = () => {
-    if (!chosen.length) return;
-    const entries = chosen.map((x) => {
-      const q = quickEntry(`${x.name} (${t('AI estimate')})`, { kcal: x.kcal * x.k, protein: x.protein * x.k, carbs: x.carbs * x.k, fat: x.fat * x.k }, props.date, meal.id);
-      return { ...q, estimated: true, note: [x.grams ? `~${Math.round(x.grams * x.k)} g` : '', assume].filter(Boolean).join(' · ') || undefined };
-    });
-    const added = useStore.getState().logEntries(entries);
-    haptic('saved');
-    useUI.getState().closeAll();
-    toast(t(added.length === 1 ? 'Added 1 item to {meal}' : 'Added {n} items to {meal}', { n: added.length, meal: mealName(meal, lang) }), { tone: 'ok', actionLabel: t('Undo'), onAction: () => added.forEach((e) => useStore.getState().removeEntry(e.id)) });
-  };
+  const log = () => logReadItems(items, assume, props.date, meal, lang, t);
 
   return (
     <Sheet onClose={pop} tall label={t('Photo')} z={100}
@@ -147,10 +84,7 @@ export function PhotoFood({ props }: { props: { date: string; mealId: string; fi
           </div>
         ) : (
           <>
-            <motion.div className="scan-stage" style={depth ? { transformPerspective: 900, transformOrigin: '50% 70%' } : undefined}
-              animate={depth ? (busy ? { rotateX: [0, 7, 0], scale: [1, 1.025, 1] } : { rotateX: 0, scale: 1 }) : undefined}
-              transition={depth ? (busy ? { duration: 3.7, times: [0, 0.5, 1], ease: [0.45, 0.05, 0.55, 0.95], delay: 0.45, repeat: Infinity, repeatDelay: 0.5 } : { duration: 0.5, ease: [0.22, 1, 0.36, 1] }) : undefined}>
-            {depth && <motion.i className="scan-contact" animate={busy ? { opacity: [0, 0.55, 0] } : { opacity: 0 }} transition={busy ? { duration: 3.7, times: [0, 0.5, 1], ease: [0.45, 0.05, 0.55, 0.95], delay: 0.45, repeat: Infinity, repeatDelay: 0.5 } : { duration: 0.5 }} />}
+            <ScanStage depth={depth} busy={busy}>
             <motion.div layout transition={SOFT} style={{ position: 'relative', borderRadius: 'var(--r-lg)', overflow: 'hidden', aspectRatio: img ? '4 / 3' : '4 / 3.2', background: 'var(--s1)', boxShadow: 'inset 0 1px 0 var(--hl), inset 0 0 0 1px var(--line)' }}>
               {img ? <motion.div key={img.url} initial={fromCam.current ? false : { opacity: 0, scale: 1.04 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5 }} style={{ position: 'absolute', inset: 0 }}>
                 <img src={img.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
@@ -162,7 +96,7 @@ export function PhotoFood({ props }: { props: { date: string; mealId: string; fi
               )}
               <AnimatePresence>{busy && img && <Scan key="scan" src={img.url} v={look} />}</AnimatePresence>
             </motion.div>
-            </motion.div>
+            </ScanStage>
             <div className="row-flex" style={{ gap: 8, marginTop: 12 }}>
               <button className="btn sm press grow" onClick={openCam}><Icon name="camera" size={16} /> {img ? t('Retake') : t('Camera')}</button>
               <button className="btn sm press grow" onClick={() => lib.current?.click()}><Icon name="upload" size={16} /> {t('From gallery')}</button>
