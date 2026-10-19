@@ -260,14 +260,24 @@ export function SpeakButton({ id, text }: { id: string; text: string }) {
   return (
     <button className={`speak-btn press ${st}`} aria-label={st === 'idle' ? t('Read aloud') : t('Stop reading')} aria-pressed={st !== 'idle'}
       onClick={() => { if (st === 'idle') readAloud(id, text, t); else stopSpeaking(); }}>
-      <Icon name={st === 'idle' ? 'play' : 'stop'} size={13} sw={st === 'idle' ? 2 : 0} style={st === 'idle' ? { fill: 'currentColor', marginLeft: 1 } : { fill: 'currentColor' }} />
+      {/* play and stop are both there and cross-fade, as the send button's arrow and X do (the glyph was swapped in one frame) */}
+      <span className={`sp-ico${st === 'idle' ? ' on' : ''}`}><Icon name="play" size={13} sw={2} style={{ fill: 'currentColor', marginLeft: 1 }} /></span>
+      <span className={`sp-ico${st === 'idle' ? '' : ' on'}`}><Icon name="stop" size={13} sw={0} style={{ fill: 'currentColor' }} /></span>
     </button>
   );
 }
 
 /** While the Coach thinks: three soft dots, like someone typing. */
 export function TypingDots() {
-  return <div className="typing" aria-label="…"><i /><i /><i /></div>;
+  return <div className="typing" aria-label="…" ref={dotPhase}><i /><i /><i /></div>;
+}
+
+/** The dots breathe on the page's clock, so a new set of dots (the ones that melt as the first word lands) carries on
+ *  exactly where the waiting ones were, never restarting. Set once as the dots mount (before their first frame). */
+export function dotPhase(el: HTMLElement | null) {
+  if (!el || el.style.getPropertyValue('--ph')) return;
+  const now = Number(document.timeline?.currentTime ?? performance.now());
+  el.style.setProperty('--ph', `${-Math.round(now % 1200)}ms`);
 }
 
 /** Why speech-to-text failed, in words (never a stack trace). */

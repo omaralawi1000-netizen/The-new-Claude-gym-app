@@ -119,6 +119,8 @@ const orbLock = { bucket: 0 };
 const orbHold = { bucket: 0, until: 0 };
 export function holdOrbSize(px: number, ms: number) { orbHold.bucket = Math.ceil(px / 24) * 24; orbHold.until = performance.now() + ms; }
 let orbAnim: Animation | null = null;
+/** the pane covered by a page, while the orb in it fades with it (see the tick) */
+let coverPane: HTMLElement | null = null;
 const PICK = 30; // px: how softly the dock hands the orb over to a rising slot (a soft minimum, so its speed never jumps)
 const smooth01 = (x: number) => { const t = Math.min(1, Math.max(0, x)); return t * t * (3 - 2 * t); };
 const softmin = (a: number, b: number, k: number) => { const m = Math.min(a, b); return m - k * Math.log(Math.exp(-(a - m) / k) + Math.exp(-(b - m) / k)); };
@@ -162,6 +164,11 @@ const isLeaving = (s: Slot) => !!s.ov && !openIds().has(s.ov);
 let handoff: { el: HTMLElement; from: { X: number; Y: number; S: number }; back?: { k: number; P: { X: number; Y: number; S: number } } } | null = null;
 /** slots that have handed the orb over: on their way out they no longer pull it back */
 const gaveUp = new WeakSet<HTMLElement>();
+/** A sheet closing while the keyboard is up: its slot rests far above the dock and falls past it with the keyboard while
+ *  the sheet is still on screen, so riding with it let go of the orb in one frame (a 174 px leap to the dock, then a step
+ *  back, 19 Oct). It glides straight home instead, from where it was as the sheet began to leave, on the sheet's progress.
+ *  `null`: an ordinary close (it rides with its slot as before). */
+const leaveFrom = new WeakMap<HTMLElement, { k: number; P: { X: number; Y: number; S: number } } | null>();
 function claim(el: HTMLElement) {
   if (handoff?.el === el || !Number.isFinite(orbNow.X)) return;
   for (const s of slots.values()) {
@@ -181,6 +188,7 @@ export function mirrorOrb(container: Element | null, p0: number, p1: number, sp:
   const slotEl = container?.querySelector<HTMLElement>('[data-orb-slot]');
   if (!el || !slotEl || !slotEl.isConnected) return null;
   if (handoff && handoff.el !== slotEl && p1 < p0) return null; // it has handed the orb over: leaving takes nothing with it
+  if (p1 < p0 && kb.get() > 1) return null; // closing over the keyboard: the script glides it home (see leaveFrom)
   if (handoff?.el === slotEl && p1 < p0) { orbAnim?.cancel(); orbAnim = null; return null; } // closed before it arrived: the script brings it back
   if (p1 > p0) claim(slotEl);
   const mine = handoff?.el === slotEl;
@@ -540,7 +548,13 @@ export function SphereStage() {
         // A sliding popup's slot (a sheet, the live workout): the orb heads for where the slot comes to REST, on the very
         // same progress as the popup. Both start together and land together, so the orb never trails the sheet or crosses its
         // buttons on the way; while the popup is opening it is simply a shared element flying to its place.
-        if (sl.engage?.shift) {
+        if (!leaving) leaveFrom.delete(sl.el);
+        else if (!leaveFrom.has(sl.el)) leaveFrom.set(sl.el, kb.get() > 1 && Number.isFinite(orbNow.X) ? { k: Math.max(0.001, e), P: { ...orbNow } } : null);
+        const lf = leaving ? leaveFrom.get(sl.el) : null;
+        if (lf) {
+          const f = Math.min(1, e / lf.k);
+          X += (lf.P.X - X) * f; Y += (lf.P.Y - Y) * f; S += (lf.P.S - S) * f; flight = f;
+        } else if (sl.engage?.shift) {
           const restY = y - sl.engage.shift.get();
           const c = carry({ X, Y, S }, x, y, z, restY, e);
           X = c.X; Y = c.Y; S = c.S; flight = c.t;
@@ -578,7 +592,20 @@ export function SphereStage() {
       // every frame of a flight reallocated its buffer and re-laid it out each frame — a stutter source.
       const natural = Math.ceil(size / 24) * 24;
       const bucket = orbLock.bucket || (top > 0 && performance.now() < orbHold.until ? Math.max(orbHold.bucket, natural) : natural);
-      if (el.style.opacity !== '1') el.style.opacity = '1';
+      // a page opened over the orb's pop-up (Settings from the Coach): the page under it fades and steps aside, and the orb,
+      // its own layer, goes and comes back with it as one piece (it stayed lit, half off the edge, over Settings, 19 Oct)
+      let op = 1;
+      if (topSlot && top > 0) {
+        const pane = topSlot.el.closest<HTMLElement>('[inert]');
+        if (pane) coverPane = pane;
+        if (coverPane && (!coverPane.isConnected || !coverPane.contains(topSlot.el))) coverPane = null;
+        if (coverPane) {
+          op = coverPane.style.visibility === 'hidden' ? 0 : Number(getComputedStyle(coverPane).opacity) || 0;
+          if (!pane && op >= 0.999) coverPane = null;
+        }
+      } else coverPane = null;
+      const ops = op >= 0.999 ? '1' : op.toFixed(3);
+      if (el.style.opacity !== ops) el.style.opacity = ops;
       if (el.style.width !== `${bucket}px`) el.style.width = el.style.height = `${bucket}px`;
       const tf = `translate3d(${X}px, ${Y}px, 0) scale(${size / bucket})`;
       if (glideReq || glide) {

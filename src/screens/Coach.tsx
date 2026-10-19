@@ -17,7 +17,7 @@ import { AiError, aiErrorText, type Photo, type Turn } from '../lib/gemini';
 import { sttNames } from '../lib/sttNames';
 import { stopSpeaking } from '../lib/tts';
 import { decide, brainFor } from '../lib/agentTurn';
-import { ActionCard, UndoAll, Rich, TypingDots, SpeakButton, prefetchAloud, replacedIds, sttMessage, useCoachTips, useWordReveal } from '../ui/agentUi';
+import { ActionCard, UndoAll, Rich, TypingDots, dotPhase, SpeakButton, prefetchAloud, replacedIds, sttMessage, useCoachTips, useWordReveal } from '../ui/agentUi';
 import { droppedCard, runActions, type AgentResult } from '../lib/agent';
 import { uid } from '../lib/nutrition';
 import { onThreadChange, readThread, threadSaid, threadTurns, writeThread, type ThreadMsg } from '../lib/thread';
@@ -169,9 +169,12 @@ const OTHER_ROW: CSSProperties = { transformOrigin: '0% 0%', alignSelf: 'stretch
  * play button's row is held open from the first word, so the button fades in where room was already made and nothing is
  * pushed when the answer ends.
  */
+/** The open Coach hears when an answer has finished writing itself in (its Stop stays until then, 19 Oct). */
+let replyWritten: ((id: string) => void) | null = null;
 function CoachReply({ m }: { m: Extract<Msg, { role: 'user' | 'model' }> }) {
   const t = useT();
   const { shown, done } = useWordReveal(m.text, !!m.streaming, !!m.seeded);
+  useEffect(() => { if (done) replyWritten?.(m.id); }, [done, m.id]);
   // every word keeps its layer while the answer writes itself in (.writing, styles.css), and all of them are let go together
   // once the last one is in (each word's own drop redrew the tiles under it while the next ones came in: the conversation
   // stood still for three frames in four on the phone, 14 Oct r11)
@@ -199,7 +202,7 @@ function CoachReply({ m }: { m: Extract<Msg, { role: 'user' | 'model' }> }) {
   );
   return (
     <div className="coach-answer">
-      {typed.current && !dotsGone && <div className="typing typing-out" aria-hidden onAnimationEnd={(e) => { if (e.target === e.currentTarget) setDotsGone(true); }}><i /><i /><i /></div>}
+      {typed.current && !dotsGone && <div className="typing typing-out" aria-hidden ref={dotPhase} onAnimationEnd={(e) => { if (e.target === e.currentTarget) setDotsGone(true); }}><i /><i /><i /></div>}
       {/* (the last words under the dots fade with them, never cut) */}
       {typed.current && !dotsGone && said.current.now && <div className="xs t2 coach-look coach-look-gone" aria-hidden>{said.current.now}</div>}
       <div className={`reply calm coach-reply${m.seeded ? ' still' : ''}${settled ? '' : ' writing'}`} aria-live="polite"><Rich text={shown} id={m.id} still={m.seeded} hold={!settled} /></div>
@@ -264,9 +267,17 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   const aboutShown = useRef(about); if (about) aboutShown.current = about;
   const [input, setInput] = useState('');
   const [photo, setPhoto] = useState<{ url: string; blob: Blob } | null>(null);
+  const photoShown = useRef(photo); if (photo) photoShown.current = photo; // (still drawn while it folds away)
   const camRef = useRef<HTMLInputElement>(null);
   const pickPhoto = async (f?: File) => { if (!f) return; try { const blob = await downscale(f, 1280); setPhoto({ url: URL.createObjectURL(blob), blob }); haptic('light'); } catch { say({ id: uid('m'), role: 'error', text: t('Couldn’t read that image.') }); } };
   const [busy, setBusy] = useState(false);
+  // the answer still writing itself in after the network is done: Stop stays until the last word is in, so the X never
+  // leaves while words still come (the play button arrives in the same beat), 19 Oct
+  const [written, setWritten] = useState(() => new Set<string>());
+  useEffect(() => { replyWritten = (id) => setWritten((w) => (w.has(id) ? w : new Set(w).add(id))); return () => { replyWritten = null; }; }, []);
+  // (and never longer than a long answer can take to write itself in, whatever happens to it)
+  const writingId = !busy && msgs[msgs.length - 1]?.role === 'model' ? msgs[msgs.length - 1].id : '';
+  useEffect(() => { if (!writingId) return; const id = setTimeout(() => setWritten((w) => (w.has(writingId) ? w : new Set(w).add(writingId))), 8000); return () => clearTimeout(id); }, [writingId]);
   const [recording, setRecording] = useState(false);
   const [hearing, setHearing] = useState(false);
   const listening = useRef(false); listening.current = recording || hearing;
@@ -298,7 +309,9 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   useEffect(() => () => { for (const m of msgsRef.current) if ('image' in m && m.image) URL.revokeObjectURL(m.image); }, []);
   // The older messages are added above what you are looking at, and it stays exactly where it is.
   const placed = useRef(false);
-  const grewFrom = useRef(-1); // the list's height just before older messages were added above
+  // a row on screen and where it was just before older messages were added above (it is put back exactly there; the
+  // list's whole-pixel height ticked the view by up to 0.6 px at every batch, 19 Oct)
+  const grewFrom = useRef<{ el: HTMLElement; top: number } | null>(null);
   useLayoutEffect(() => {
     const el = bodyRef.current; if (!el) return;
     if (!placed.current) {
@@ -307,10 +320,11 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       if (older > 0 && el.scrollHeight <= el.clientHeight + 1) { setOlder((n) => Math.max(0, n - TAIL)); return; }
       placed.current = true;
       el.scrollTop = el.scrollHeight;
-    } else if (grewFrom.current >= 0) {
+    } else if (grewFrom.current) {
       // moved on by exactly what was added above (it used to be put back where it was when they were asked for: a
       // scroll in between was undone, the list jumping back by it)
-      el.scrollTop += el.scrollHeight - grewFrom.current; grewFrom.current = -1;
+      const { el: row, top } = grewFrom.current; grewFrom.current = null;
+      if (row.isConnected) el.scrollTop += row.getBoundingClientRect().top - top;
     }
     lastScroll.current = el.scrollTop;
     el.toggleAttribute('data-scrollable', el.scrollHeight > el.clientHeight + 1);
@@ -658,7 +672,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     // (never while your finger or a fling is moving the list: the list put back in place under a moving scroll stepped
     // it, a flicker every ~0.4 s while you scrolled up through a long chat, Omar 18 Oct; they wait until it rests)
     let later: ReturnType<typeof setTimeout> | undefined;
-    const more = () => { const el = bodyRef.current; if (user.current) { later = setTimeout(more, 250); return; } if (el) grewFrom.current = el.scrollHeight; setOlder((n) => Math.max(0, n - 2)); };
+    const more = () => { const el = bodyRef.current; if (user.current) { later = setTimeout(more, 250); return; } const row = el?.querySelector<HTMLElement>('.coach-thread')?.lastElementChild as HTMLElement | null; if (row) grewFrom.current = { el: row, top: row.getBoundingClientRect().top }; setOlder((n) => Math.max(0, n - 2)); };
     const idle = 'requestIdleCallback' in window ? window.requestIdleCallback : null;
     // the first ones wait until the sheet has risen; then two at a time, whenever the phone has a moment
     const wait = setTimeout(() => { id = idle ? idle(more, { timeout: 400 }) : window.setTimeout(more, 16); }, begun.current ? 0 : 700);
@@ -1032,16 +1046,21 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
                 ))}</div>
               </div>
   );
+  const lastMsg = msgs[msgs.length - 1];
+  const working = busy || (lastMsg?.role === 'model' && !lastMsg.seeded && !!lastMsg.text.trim() && !written.has(lastMsg.id));
   return (
     <Sheet onClose={pop} size="full" instant label={t('Coach')} z={100} foot={(
       <div className="coach-foot">
-        {photo && (
-          <div className="coach-photo">
-            <img src={photo.url} alt="" />
-            <span className="xs t2 grow">{t('Ask about this photo, or just send it')}</span>
-            <button className="icon-btn flat sm press" aria-label={t('Remove photo')} onClick={() => { URL.revokeObjectURL(photo.url); setPhoto(null); }}><Icon name="close" size={16} /></button>
-          </div>
-        )}
+        {/* the photo to send: it folds away when sent or taken off, like the About chip (it went in one frame, 19 Oct) */}
+        <Collapse open={!!photo} ms={420} className="coach-about-wrap">
+          {photoShown.current && (
+            <div className="coach-photo">
+              <img src={photoShown.current.url} alt="" />
+              <span className="xs t2 grow">{t('Ask about this photo, or just send it')}</span>
+              <button className="icon-btn flat sm press" aria-label={t('Remove photo')} tabIndex={photo ? 0 : -1} onClick={() => { if (!photo) return; const u = photo.url; setPhoto(null); setTimeout(() => URL.revokeObjectURL(u), 600); /* (after it has folded away) */ }}><Icon name="close" size={16} /></button>
+            </div>
+          )}
+        </Collapse>
         {/* asked about something that was held: its name over the typing bar (× takes it off); it folds away when sent */}
         <Collapse open={!!about} ms={420} className="coach-about-wrap">
           {aboutShown.current && (
@@ -1076,8 +1095,8 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
               <span className={`cf-status${hearing ? ' on' : ''}`} aria-hidden="true">{t('Transcribing…')}</span></div>
             {/* Send is an arrow inside the field, there only when there is something to send (Stop while it works) */}
             {/* (while it answers: Stop when the field is empty; typed words wait, dimmed, and go when the answer is done) */}
-            <button className={`coach-send press ${busy || input.trim() || photo || recording ? 'on' : ''} ${busy && !input.trim() ? 'busy' : ''} ${busy && input.trim() && queuedOn ? 'queued' : ''}`} onMouseDown={(e) => e.preventDefault() /* the field keeps the keyboard (it stays up after a send) */}
-              aria-label={busy && !input.trim() ? t('Stop') : recording ? t('Stop and send') : t('Send')} tabIndex={busy || input.trim() || photo || recording ? 0 : -1} onClick={() => (busy && !input.trim() ? ctl.current?.abort() : recording ? toggleRec('send') : hearing ? undefined : send())}>
+            <button className={`coach-send press ${working || input.trim() || photo || recording || hearing ? 'on' : ''} ${working && !input.trim() ? 'busy' : ''} ${(busy && input.trim() && queuedOn) || (hearing && !busy) ? 'queued' : ''}`} onMouseDown={(e) => e.preventDefault() /* the field keeps the keyboard (it stays up after a send) */}
+              aria-label={working && !input.trim() ? t('Stop') : recording ? t('Stop and send') : t('Send')} tabIndex={working || input.trim() || photo || recording ? 0 : -1} onClick={() => (busy && !input.trim() ? ctl.current?.abort() : working && !input.trim() ? setWritten((w) => new Set(w).add(lastMsg!.id)) : recording ? toggleRec('send') : hearing ? undefined : send())}>
               {/* send turns into stop (and back) by a short cross-fade with a little turn, not a cut. While you speak it is the
                   arrow (stop and send); once you have stopped it steps aside while your words are heard (the orb thinks) */}
               <span className="cs-ico cs-go"><Icon name="arrowUp" size={18} sw={2.6} /></span>
