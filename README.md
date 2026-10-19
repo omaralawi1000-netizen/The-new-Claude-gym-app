@@ -2809,7 +2809,8 @@ the Coach steers it, like a real coach". The plan and its ticks: `docs/coach-bra
   Quiet: noticed, nothing said or changed, the Coach knows. Off: nothing recorded. Turning On never judges the days
   before (`heavyOnSince`). "No catch-ups ever" to the Coach turns it Off.
 - **Decided once**: a heavy day is recorded, then the main model decides once (more food that day updates the amount but
-  never asks or pops up again). A day changed while it was thinking gets a plan fitted to the day as it is.
+  never asks or pops up again; deleted and logged again, or undone, it is never asked again either). A day changed while
+  it was thinking gets a plan fitted to the day as it is.
 - **Hard limits in code, whatever the AI or anyone says**: a trim only for an adult (age known) on a fat-loss goal with
   notices On, never with an eating-disorder note in memory; at most 250 kcal a day for all catch-ups together, at most 4
   days, at most half of the real surplus (over true maintenance when it is known well), never under the floor, never
@@ -2867,12 +2868,34 @@ the sauna, and steering: "max 150", a tournament date, "bulking from January", a
   verdicts it chose one small trim (−200 × 4, inside the limits) for a stalled adult with a +2,500 day, none otherwise.
 - Danish food estimates, Luna at low vs Sol: median 5 % off for both (Luna 14/15 within 20 %, Sol 13/15), Luna ~37× cheaper.
 
+### Final reviews (round 2, 19 Oct)
+Two fresh reviewers (code and behaviour) went over the whole stack after the fixes. Every finding was reproduced with a
+test first (`tests/behaviour2.test.ts`, `tests/review2.test.ts`, new rows in `tests/route.test.ts`), then fixed:
+- The hard limits are checked where the target is worked out, not only when a cut is decided: a cut stops at once when
+  a health note or a younger age is learned, the goal changes, or notices go Off.
+- "Don't cut my calories" while a heavy day is still being decided: no cut lands afterwards. Undo of "catch-up off"
+  brings back only what it took off. Two heavy days decided together: the pop-ups add up to what really applies (≤250).
+- Dictated risky lines went to the quick model ("jeg har spist alt for meget i aften", "I want to drop to 74 for the
+  tournament", "I'm going to skip dinner because I ate too much", "I feel dizzy after cutting water", "is it ok to
+  train with a sore shoulder") → main model now; "log my weigh in 84.5", "I binge watched netflix", "pre-workout meal" →
+  quick. Danish letters at word edges (JavaScript's `\b` misses "ædt", "øm").
+- The age is only taken from a note about the person ("his dad, who is 45" is not his age). A health note always fits in
+  memory, even when it is full (the oldest ordinary note makes room).
+- A typo weigh-in that is the newest one is caught against all weigh-ins; "high" maintenance needs 3 weeks of weigh-ins;
+  a maintenance that is only a guess never suggests a new target.
+- A quick-model name fixed in Settings is tried again; the weekly review never runs twice at once.
+- Exam rerun of the 14 questions these touch, plus the verdicts ($0.76): all good on reading. Purging → help, a doctor
+  today, no fasting, health note, catch-up off; teens → no sauna or water cut, parent and coach involved, age asked once;
+  "no catch-ups ever" → off, Settings Off, remembered; "max 150" → off and remembered. Verdicts: no cut in 4 of 5, one
+  −150 × 3 for a stalled adult (inside the limits); teen and health note blocked in code.
+
 ### Checks
 - New tests: `tests/heavy.test.ts`, `tests/heavyWatch.test.ts` (with a stand-in brain, incl. 25 random sequences of
   adding, deleting and changing the target), `tests/maintenance.test.ts`, `tests/route.test.ts`, `tests/coachRules.test.ts`,
-  `tests/review173.test.ts`. `npm run verify` green; Danish 0 missing.
+  `tests/review173.test.ts`, `tests/behaviour2.test.ts`, `tests/review2.test.ts`. `npm run verify` green (481 tests);
+  Danish 0 missing.
 - Journeys: `journey-eating` (rewritten: no key → no cut; a brain that asks for −600 × 6 → −250 × 4 and the pop-up says
-  so; deleting the entry takes it away; Undo; Off records nothing), coach, coach7, food, health, sol, ai, today.
+  so; deleting the entry takes it away; logged again, not asked again; Undo; Off records nothing), coach, coach7, food, health, sol, ai, today.
 - Speed: the Coach's whole context with 2 years of watch data and a year of food builds in ~60 ms (desktop); the target
   shown on screen takes ~0.004 ms.
 - Known limits: on the day the target changes a real heavy day isn't judged; maintenance numbers shift a little with the

@@ -139,8 +139,9 @@ Progress (ticked as done):
 - [x] Step 5 routing and time limits
 - [x] Step 6 prompt, handbook, leftovers
 - [x] Step 7 small fixes
-- [ ] Step 8 exam
-- [ ] Step 9 final gate, reviews, docs, PRs ready, Beta
+- [x] Step 8 exam (README: "The exam, run the way the app works")
+- [x] Step 9 final gate, reviews, docs, PRs ready (README: "Final reviews (round 2)")
+- [ ] Beta trial: waits for Omar's ask and the coordinator's yes
 
 ### In plain words (for Omar)
 - **Why:** reviews found real problems in the last three PRs, and I re-ran the main ones on the real code. Examples:
