@@ -22,6 +22,8 @@ await p.locator('.sheet [aria-label=Back]').first().click(); await s.advance(150
 await p.keyboard.press('Escape'); await s.advance(240);
 // the colour field holds still, so frame differences are the motion
 await p.evaluate(() => { for (const a of document.getAnimations()) { const t = a.effect?.target; if (t && t.closest?.('.aurora, .aurora-lite')) { a.pause(); a.currentTime = 9000; } } });
+// LAND=B|D…: which way home (landing.ts aven.wkLand; unset: the app's default)
+if (process.env.LAND) await p.evaluate((l) => localStorage.setItem('aven.wkLand', l), process.env.LAND);
 const film = async (name, fn, n) => { if (!want.length || want.includes(name)) await s.film(`${tag}-${name}`, fn, n); else { await fn(); await s.advance(n); } };
 const start = p.getByRole('button', { name: /Start workout/ }).first();
 await start.scrollIntoViewIfNeeded().catch(() => {}); await s.advance(60);

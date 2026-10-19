@@ -29,7 +29,7 @@ import { BOUNCY, SMOOTH, SURFACE, SURFACE_EXIT, WINDOW_CLOSE, WINDOW_OPEN, mirro
 import { FocusView, fadeOutPage, upNextOf, useFocusPage, type FocusApi } from './Focus';
 import { morphBack, morphLand, morphStart, type Morph } from './morph';
 import { WkBreathGlow, WkFieldGlow } from './wkGlow';
-import { LANDS, anchorOf, arrive, flyHero, landStyle, samples, type Anchor, type Hero, type Land } from './landing';
+import { LANDS, anchorOf, arrive, catches, flyHero, landStyle, samples, type Anchor, type Hero, type Land } from './landing';
 
 // the morph's fades, in progress (see `F` in Active)
 const FADE_OUT = { inside: [0.167, 0.28], skin: [0.18, 0.26], words: [0.1, 0.188], back: [0.105, 0.15], solid: [0.17, 0.18] };
@@ -46,6 +46,10 @@ type Fades = typeof FADE_OUT & { views?: number[]; mat?: number[]; pop?: number[
 const FADES: Record<Land, { out: Fades; in: Fades }> = {
   A: { out: { ...FADE_OUT, inside: [0.86, 0.99], skin: [0.42, 0.8], mat: FADE_OUT.skin }, in: { ...FADE_IN, inside: [0.68, 0.94], views: [0.86, 0.995], skin: [0.32, 0.66], mat: FADE_IN.skin } },
   B: { out: { inside: [0.5, 0.97], skin: [0.38, 0.76], mat: [0.089, 0.178], words: [0, 0.06], back: [0.006, 0.056], solid: [0.078, 0.089], pop: [0.07, 0.1], popS: [0, 0.1] }, in: { ...FADE_IN, words: [0.002, 0.07], pop: [0.002, 0.025], popS: [0.002, 0.05], inside: [0.62, 0.9], views: [0.8, 0.99], skin: [0.6, 0.88], mat: FADE_IN.skin } },
+  // D (design A): the page is in the window the whole way. Opening, the card's words and look go in the first few percent
+  // and the page is there under them at once (no plain slab in between); closing, the page stays until the window is
+  // under half its way home, the list a touch before the header, then the card's look comes back over it.
+  D: { out: { inside: [0.22, 0.44], views: [0.26, 0.48], skin: [0.16, 0.38], mat: [0.089, 0.178], words: [0.06, 0.2], back: [0.006, 0.056], solid: [0.078, 0.089], pop: [0.07, 0.1], popS: [0, 0.1] }, in: { ...FADE_IN, words: [0.002, 0.07], pop: [0.002, 0.025], popS: [0.002, 0.05], inside: [0.03, 0.18], views: [0.05, 0.24], skin: [0.04, 0.2], mat: FADE_IN.skin } },
   C: { out: { ...FADE_OUT, inside: [0.88, 0.995], skin: [0.42, 0.8], mat: FADE_OUT.skin }, in: { ...FADE_IN, inside: [0.6, 0.9], views: [0.8, 0.99], skin: [0.32, 0.6], mat: FADE_IN.skin } },
 };
 // B: how much the card gives as it catches the window (per unit of the spring's overshoot past the card): it shrinks a
@@ -121,7 +125,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   // the card's (or bar's) exact outline at 10 % of the spring, eased in to no speed, where the card takes over in the same
   // frame (r5 faded the window out short of the card while the card's own outline was already back under it: two outlines).
   const ls = useRef<Land>('A');
-  const catching = () => leaving.current && ls.current === 'B' && !!from.current;
+  const catching = () => leaving.current && catches(ls.current) && !!from.current;
   const hold = () => (leaving.current && !catching() ? 0.1 : 0);
   // (B comes down at its own speed onto the card: no easing in at the end)
   const ease = () => (catching() ? 0 : 0.15);
@@ -133,7 +137,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   const LAND = 0.015, LAND_AT = 0.005;
   const G = (v: number) => (v >= 2 * LAND ? v - LAND : (v * v) / (4 * LAND));
   const landed = (pp: number) => {
-    if (!from.current || leaving.current || ls.current === 'B') return pp; // (B opens past the top and settles back)
+    if (!from.current || leaving.current || catches(ls.current)) return pp; // (B opens past the top and settles back)
     return 1 - G(Math.max(0, 1 - pp - LAND_AT)) / G(1 - LAND_AT);
   };
   // how far the window has grown (0 = the card, 1 = the screen), eased in from the hold
@@ -362,7 +366,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     for (const el of e?.hide ?? []) el.style.visibility = '';
   };
   // the card's details (data-wk-in, Today.tsx) that come after the clock instead of riding the window down
-  const lateKinds = () => (ls.current === 'B' ? [] : ls.current === 'C' ? ['label', 'sub', 'pop'] : ['sub', 'pop']);
+  const lateKinds = () => (catches(ls.current) ? [] : ls.current === 'C' ? ['label', 'sub', 'pop'] : ['sub', 'pop']);
   const lateOf = (fg: HTMLElement | null): HTMLElement[] => {
     const k = lateKinds();
     return fg ? [...fg.querySelectorAll<HTMLElement>('[data-wk-in]')].filter((el) => k.includes(el.dataset.wkIn ?? '')) : [];
@@ -652,7 +656,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     const wait = opening ? 0 : ls.current === 'C' ? 6 : 9;
     const hw = (i: number) => (hs ? hs[Math.max(0, Math.min(i - wait, hs.length - 1))] : 1);
     const frames = Math.max(fs.length, (hs?.length ?? 0) + wait) - 1;
-    const B = ls.current === 'B';
+    const B = catches(ls.current);
     const restHead = headerAt(1);
     // (B opening: the clock is home in its slot a little ahead of the window, before the header's words beside it come in)
     const flight = opening

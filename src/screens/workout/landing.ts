@@ -8,6 +8,9 @@
  *   A  Glide  the window lands, then the clock settles into its place a beat later, then the card's details arrive.
  *   B  Catch  the window comes down with its speed and the card catches it: a small dip and rebound, the clock riding it.
  *   C  Lead   the clock goes first and waits in its place; the window follows it home and closes round it.
+ *   D  Live   Catch, with the workout's own page in the window all the way (design A, 19 Oct): the card's words go
+ *             at once and the page is there under them, its header riding the top edge and the list uncovered by the
+ *             bottom one; closing, the page stays until the window is nearly home, then the card's look comes back.
  *
  * Everything here is transform and opacity on small layers, sampled at 120 Hz and run by the browser. The clock's copies
  * are drawn at their largest size (the card's clock at scale 1), so the copy that lands is sharp and is the card's clock
@@ -15,9 +18,11 @@
  */
 import { apple, BOUNCY, SMOOTH, springCurve, springSamples, type Spring } from '../../ui/motion';
 
-export type Land = 'A' | 'B' | 'C';
+export type Land = 'A' | 'B' | 'C' | 'D';
+/** B and D land the same way (the card catches the window); D shows the workout's page through the whole flight. */
+export const catches = (l: Land) => l === 'B' || l === 'D';
 export function landStyle(): Land {
-  try { const v = localStorage.getItem('aven.wkLand'); return v === 'A' || v === 'C' ? v : 'B'; } catch { return 'B'; }
+  try { const v = localStorage.getItem('aven.wkLand'); return v === 'A' || v === 'C' || v === 'D' ? v : 'B'; } catch { return 'B'; }
 }
 
 /** The springs of each way: the window's own (`win`, null: Active's usual one) and the clock's (`hero`, null: it rides the window). */
@@ -25,6 +30,7 @@ export const LANDS: Record<Land, { closeWin: Spring | null; openWin: Spring | nu
   A: { closeWin: null, openWin: null, closeHero: apple(0.6, 0.14), openHero: apple(0.46, 0.08) },
   B: { closeWin: apple(0.62, 0.26), openWin: apple(0.56, 0.1), closeHero: null, openHero: null },
   C: { closeWin: apple(0.8), openWin: null, closeHero: apple(0.38, 0.18), openHero: apple(0.34, 0.14) },
+  D: { closeWin: apple(0.62, 0.26), openWin: apple(0.56, 0.1), closeHero: null, openHero: null },
 };
 
 type Pt = { x: number; y: number };
