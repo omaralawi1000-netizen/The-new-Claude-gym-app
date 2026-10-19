@@ -87,8 +87,12 @@ export function weighIns(d: Pick<AppData, 'weights' | 'health'>): { date: string
 export function oddWeighIns(d: Pick<AppData, 'weights' | 'health'>, today: string, window = 28): { date: string; kg: number; around: number }[] {
   const ws = weighIns(d).filter((w) => w.date >= addDays(today, -window) && w.date <= today);
   const out: { date: string; kg: number; around: number }[] = [];
+  // (first the impossible ones against all of them — 7.9 for 79 — so they can't drag the neighbours of good ones)
+  const all = median(ws.map((w) => w.kg));
+  const wild = new Set(ws.filter((w) => ws.length >= 3 && Math.abs(w.kg - all) > Math.max(5, all * 0.1)));
   for (const w of ws) {
-    const near = ws.filter((x) => x !== w && Math.abs(new Date(x.date).getTime() - new Date(w.date).getTime()) <= 7 * 86_400_000).map((x) => x.kg);
+    if (wild.has(w)) { out.push({ date: w.date, kg: w.kg, around: Math.round(all * 10) / 10 }); continue; }
+    const near = ws.filter((x) => x !== w && !wild.has(x) && Math.abs(new Date(x.date).getTime() - new Date(w.date).getTime()) <= 7 * 86_400_000).map((x) => x.kg);
     if (near.length < 2) continue;
     const m = median(near);
     if (Math.abs(w.kg - m) > 2.5) out.push({ date: w.date, kg: w.kg, around: Math.round(m * 10) / 10 });

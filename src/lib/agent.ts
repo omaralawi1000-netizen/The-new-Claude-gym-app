@@ -10,11 +10,11 @@
  *  - Logging uses the same food/exercise matching as the rest of the app, and says plainly what it matched.
  *  - Without a Gemini key (or when Gemini is down) simple commands still work through the local parsers.
  */
-import { catchUpFloor, catchUpWords, dayKcal, targetOn } from './eating';
+import { catchUpFloor, catchUpWords, dayKcal, isDecided, targetOn } from './eating';
 import { clampVerdict, trimAllowed, trimLimits, type NoTrim } from './verdict';
 import { useStore, foodPool, allExercises, plannedFor } from '../state/store';
 import { useUI } from '../state/ui';
-import { addDays, fmtDate } from './dates';
+import { addDays, diffDays, fmtDate } from './dates';
 import { noteEvent } from './ledger';
 import { defaultMealId, mealName } from './derive';
 import { coversQuery, fold, parseFoodText, pickOnline, resolveRows, rowQuantity, type ParsedFoodRow } from './foodText';
@@ -909,11 +909,15 @@ function doCatchUp(a: Extract<AgentAction, { type: 'catch_up' }>, ctx: AgentCtx)
   const { t, lang } = ctx;
   const st = useStore.getState();
   const prev = st.catchUps ?? [];
-  const running = prev.filter((c) => !c.off && c.perDay > 0 && c.days.some((x) => x >= ctx.today));
+  // running, or still being decided (so "don't cut" said while it thinks is never overruled by the answer)
+  const running = prev.filter((c) => !c.off && ((c.perDay > 0 && c.days.some((x) => x >= ctx.today)) || (!isDecided(c) && diffDays(ctx.today, c.date) <= 3)));
+  // (Undo touches only the records this card changed: anything decided since stays as it is)
+  const setOff = (ids: Set<string>, off: boolean) => { const s2 = useStore.getState(); s2.setCatchUps((s2.catchUps ?? []).map((c) => (ids.has(c.id) ? { ...c, off } : c))); };
   if (!a.on) {
     if (!running.length) return { id: uid('r'), kind: 'miss', title: t('No catch-up is running'), lines: [] };
-    st.setCatchUps(prev.map((c) => (running.includes(c) ? { ...c, off: true } : c)));
-    return { id: uid('r'), kind: 'setting', title: t('Catch-up taken off'), lines: [{ text: t('Your normal calorie target is back') }], undo: () => useStore.getState().setCatchUps(prev) };
+    const ids = new Set(running.map((c) => c.id));
+    setOff(ids, true);
+    return { id: uid('r'), kind: 'setting', title: t('Catch-up taken off'), lines: [{ text: t('Your normal calorie target is back') }], undo: () => setOff(ids, false) };
   }
   const target = st.settings.goals.kcal;
   if (!target) return { id: uid('r'), kind: 'miss', title: t('Set a calorie target first'), lines: [] };
@@ -932,7 +936,8 @@ function doCatchUp(a: Extract<AgentAction, { type: 'catch_up' }>, ctx: AgentCtx)
   const c1: CatchUp = { ...c0, perDay: v.perDay, days: Array.from({ length: v.days }, (_, k) => addDays(start, k)) };
   const c = { ...c1, line: catchUpWords(c1, ctx.today, t, (x) => fmtNum(x, lang, 0)) };
   st.setCatchUps([...prev.filter((x) => x.date !== date), c]);
-  return { id: uid('r'), kind: 'setting', title: t('Catch-up set'), lines: [{ text: c.line }], undo: () => useStore.getState().setCatchUps(prev) };
+  // (Undo: the day goes back to what it was, or stays recorded with no cut, so the app never decides it again)
+  return { id: uid('r'), kind: 'setting', title: t('Catch-up set'), lines: [{ text: c.line }], undo: () => { const s2 = useStore.getState(); s2.setCatchUps([...(s2.catchUps ?? []).filter((x) => x.id !== c.id), was ?? { ...c, off: true }]); } };
 }
 
 function doAddExercise(a: Extract<AgentAction, { type: 'add_exercise' }>, ctx: AgentCtx): AgentResult {
@@ -1405,7 +1410,9 @@ function doRemember(a: Extract<AgentAction, { type: 'remember' }>, ctx: AgentCtx
   }
   // full: a temporary note that has ended makes room first (its time is over), else the Coach says so
   if (st.memory.length >= MEMORY_MAX) {
-    const ended = st.memory.filter((m) => m.until && m.until < ctx.today).sort((x, y) => x.until!.localeCompare(y.until!))[0];
+    // (a health note always fits: it is what keeps a cut away from someone it could hurt; the oldest other note makes room)
+    const ended = st.memory.filter((m) => m.until && m.until < ctx.today).sort((x, y) => x.until!.localeCompare(y.until!))[0]
+      ?? (a.kind === 'health' ? st.memory.filter((m) => m.kind !== 'health').sort((x, y) => (x.updatedAt ?? x.at) - (y.updatedAt ?? y.at))[0] : undefined);
     if (!ended) return { id: uid('r'), kind: 'miss', title: t('Memory is full'), lines: [{ text: a.text, sub: t('Remove something in Settings → Coach memory first'), warn: true }], button: more };
     st.removeMemory(ended.id);
   }
@@ -1839,7 +1846,7 @@ function doLogSets(a: Extract<AgentAction, { type: 'log_sets' }>, ctx: AgentCtx,
     ? done.find((x) => x.name && fold(x.name) === fold(wk!)) ?? done.filter((x) => nameHit(x.name)).sort((p, q) => Math.abs(p.name.length - wk!.length) - Math.abs(q.name.length - wk!.length))[0] : undefined;
   if (isName && !liveNamed && !named) return { id: uid('r'), kind: 'miss', title: t('No workout called “{name}”', { name: wk! }), lines: done.slice(0, 3).map((x) => ({ text: x.name || t('Workout'), sub: x.date === ctx.today ? t('Today') : x.date })) };
   const chosen = wk === 'last' ? done[0] : isDate ? done.find((x) => x.date === wk) : named;
-  if (chosen) date = chosen.date;
+  if (chosen) date = chosen.date; else if (isDate) date = wk!;
   // sets for another day, or with no workout running (told after the gym): a finished workout, never a live one
   const live = !!st.active && date === ctx.today && !chosen;
   const lines: AgentResult['lines'] = [];

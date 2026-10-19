@@ -9,7 +9,7 @@
  * catch-ups together, never under the floor, never above their own target, protein untouched, Undo. Notices can be On,
  * Quiet or Off (Settings → Targets).
  */
-import type { AppData, CatchUp, Settings, TargetChange } from './types';
+import type { AppData, CatchUp, MemoryNote, Settings, TargetChange } from './types';
 import { addDays, dayKey, diffDays } from './dates';
 import { suggestedTarget, trueMaintenance } from './maintenance';
 import { uid } from './nutrition';
@@ -76,15 +76,54 @@ export const heavyMode = (s: Pick<Settings, 'heavyDays' | 'profile'>): HeavyMode
 export const TRIM_CAP = 250;
 export const maxTrim = (target: number, floor: number) => Math.max(0, Math.min(TRIM_CAP, Math.round(target * 0.15 / 10) * 10, Math.floor((target - floor) / 10) * 10));
 
+/** Their age, from what the Coach remembered: "Age: 17 (as of 2026-10-19)" first (the form the Coach is told to use),
+ *  then "17 years old" / "17-årig" / "alder 17"; the newest line wins (an age corrected later). Undefined = not known. */
+export function ageFromMemory(memory0: (Pick<MemoryNote, 'text'> & Partial<Pick<MemoryNote, 'at' | 'updatedAt'>>)[], today: string): number | undefined {
+  // (newest first; on a tie the one added later, which sits further down the list)
+  const memory = memory0.map((m, i) => ({ m, i })).sort((a, b) => (b.m.updatedAt ?? b.m.at ?? 0) - (a.m.updatedAt ?? a.m.at ?? 0) || b.i - a.i).map((x) => x.m);
+  for (const m of memory) {
+    const x = /\bage:\s*(\d{1,2})\s*\(as of (\d{4}-\d{2}-\d{2})\)/i.exec(m.text);
+    if (x) return Number(x[1]) + Math.max(0, Math.floor(diffDays(today, x[2]) / 365.25));
+  }
+  // (other wordings only when the note starts with their own age: "He is 16 years old", "16-årig bryder" — not "trains
+  // with his dad, who is 45 years old")
+  for (const m of memory) {
+    const x = /^\s*(?:(?:he|she|they|i)(?:'s|'m| is| am| are)\s+|(?:jeg|han|hun|de) er\s+)?(\d{1,2})[- ]?(?:years?[- ]old|yrs? old|år gammel|årig)\b/i.exec(m.text) ?? /^\s*(?:age|alder)\s*:?\s*(\d{1,2})\b/i.exec(m.text);
+    if (x) return Number(x[1]);
+  }
+  return undefined;
+}
+
+/** A note in MEMORY that points to disordered eating (purging, laxatives, not eating to make up for it, loss of control):
+ *  then never a cut, whatever else is true. Clear signs only: a wrestler "starving after practice" or who "threw up after
+ *  a hard session" is not one (the Coach writes "Eating-disorder signal: …" when it sees one). */
+const ED = /eating[- ]disorder|spiseforstyrr\w*|purg\w*|laxative|afføringsmid\w*|anorexi|anoreksi|bulimi|self[- ]induced|make (?:my|them|him|her)sel(?:f|ves) (?:sick|throw up|vomit)|made (?:my|him|her|them)sel(?:f|ves) (?:sick|throw up|vomit)|(?:kast\w*|brækk\w*) (?:op |mig |sig )?med vilje|fremprovoker\w*|starv(?:e|es|ed|ing) (?:my|him|her|them)sel(?:f|ves)|sult(?:e|er|ede)? (?:mig|sig) |not eating to (?:compensate|make up)|skip(?:ping|s)? meals? to (?:compensate|make up)|loss of control|los(?:e|ing) control|can'?t stop eating|miste(?:r|de)? kontrol\w*/i;
+export const edFromMemory = (memory: Pick<MemoryNote, 'text'>[]) => memory.some((m) => ED.test(m.text));
+
+/** Why a trim is not allowed for them now (null = allowed): notices not on, not a fat-loss goal, age unknown or under
+ *  18, or an eating-disorder note. */
+export type NoTrim = 'mode' | 'goal' | 'age' | 'minor' | 'health';
+export function trimAllowed(d: Pick<AppData, 'settings' | 'memory'>, today: string): NoTrim | null {
+  if (d.settings.profile.goal !== 'fatloss') return 'goal';
+  if (heavyMode(d.settings) !== 'on') return 'mode';
+  if (edFromMemory(d.memory)) return 'health';
+  const age = ageFromMemory(d.memory, today);
+  if (age === undefined) return 'age';
+  if (age < 18) return 'minor';
+  return null;
+}
+
 const runningOn = (d: Pick<AppData, 'catchUps'>, date: string) => (d.catchUps ?? []).filter((c) => !c.off && c.perDay > 0 && c.days.includes(date));
 
 /** The calorie target for a day, with any catch-up running on it (undefined = no target set). Never above their own
  *  target, never under the floor, never more than `maxTrim` lower however many catch-ups overlap; notices off or quiet
  *  leave it alone. */
-export function kcalTargetFor(d: Pick<AppData, 'settings' | 'catchUps'>, date: string): number | undefined {
+export function kcalTargetFor(d: Pick<AppData, 'settings' | 'catchUps'> & { memory?: AppData['memory'] }, date: string): number | undefined {
   const base = d.settings.goals.kcal;
   if (!base) return undefined;
-  if (heavyMode(d.settings) !== 'on') return base;
+  // (a hard limit checked where the target is used: an eating-disorder note, an age under 18, a goal that isn't fat loss
+  // or notices not on stop a running cut at once, whatever was decided before)
+  if (trimAllowed({ settings: d.settings, memory: d.memory ?? [] }, date)) return base;
   const on = runningOn(d, date);
   if (!on.length) return base;
   const floor = Math.min(...on.map((c) => c.floor));
@@ -93,7 +132,7 @@ export function kcalTargetFor(d: Pick<AppData, 'settings' | 'catchUps'>, date: s
 }
 
 /** The catch-up running on a day, for the line under the ring ("−200 catch-up · 3 days left"): the cut that really applies. */
-export function catchUpOn(d: Pick<AppData, 'catchUps' | 'settings'>, date: string): { perDay: number; left: number; from: CatchUp } | null {
+export function catchUpOn(d: Pick<AppData, 'catchUps' | 'settings'> & { memory?: AppData['memory'] }, date: string): { perDay: number; left: number; from: CatchUp } | null {
   const base = d.settings.goals.kcal;
   const target = kcalTargetFor(d, date);
   if (!base || target === undefined || target >= base) return null;
@@ -150,14 +189,16 @@ export function reconcileCatchUps(d: Data, now = Date.now()): { list: CatchUp[];
   const since = d.settings.heavyOnSince;
   let list = [...(d.catchUps ?? [])];
   const fresh: CatchUp[] = [], gone: CatchUp[] = [], changed: CatchUp[] = [];
-  // the ones recorded in the last week follow the log
+  // the ones recorded in the last week follow the log. One already decided stays recorded when its day stops being
+  // heavy (deleted, fixed), with no cut: logged again a minute later it is the same evening, never asked or said twice
   for (const c of list) {
     if (c.off || c.byHand || diffDays(today, c.date) > 7) continue;
     const o = overOn(d, c.date);
+    if (c.gone) { if (o?.heavy) changed.push({ ...c, gone: false, over: o.over, at: now }); continue; }
     if (!o?.heavy) { gone.push(c); continue; }
     if (Math.abs(o.over - c.over) >= 100) changed.push({ ...c, over: o.over, at: now });
   }
-  if (gone.length) list = list.filter((c) => !gone.includes(c));
+  if (gone.length) list = list.flatMap((c) => (!gone.includes(c) ? [c] : isDecided(c) ? [{ ...c, gone: true, perDay: 0, days: c.days.filter((x) => x < today), line: undefined, why: undefined }] : []));
   for (const x of changed) list = list.map((c) => (c.id === x.id ? x : c));
   for (const h of heavyNow(d, now)) {
     if (since && h.date < since) continue; // (switched on later: never about the days before)
@@ -196,7 +237,7 @@ export function eatingLines(d: Data, today: string, goal?: string): string[] {
   const L: string[] = [];
   const m = trueMaintenance(d, today);
   if (m) {
-    L.push(`True maintenance: about ${m.kcal} kcal a day (${m.confidence} confidence${m.confidence === 'low' ? ', an ESTIMATE' : ''}: ${m.loggedDays} logged days and ${m.weighIns} weigh-ins in 4 weeks; logged average ${m.avgIntake} kcal, weight ${m.kgPerWeek >= 0 ? '+' : ''}${m.kgPerWeek} kg a week). It is relative to what they log, so targets built on it work. Suggested target for their goal: ${suggestedTarget(m, goal)} kcal (offer it with set_setting kcalGoal; never change it unasked).`);
+    L.push(`True maintenance: about ${m.kcal} kcal a day (${m.confidence} confidence${m.confidence === 'low' ? ', an ESTIMATE' : ''}: ${m.loggedDays} logged days and ${m.weighIns} weigh-ins in 4 weeks; logged average ${m.avgIntake} kcal, weight ${m.kgPerWeek >= 0 ? '+' : ''}${m.kgPerWeek} kg a week). It is relative to what they log, so targets built on it work.${m.confidence === 'low' ? ' Too unsure to suggest a new target from yet.' : ` Suggested target for their goal: ${suggestedTarget(m, goal)} kcal (offer it with set_setting kcalGoal; never change it unasked).`}`);
     if (m.invisible) { const said = d.marks?.invisibleSaid; L.push(`Invisible calories: the watch says they burn about ${m.watchBurn} kcal a day, ${m.invisible} more than their logs and the scale add up to. Either the watch overestimates (common) or some food isn't logged, most likely a bit of both. ${said ? `Already brought up on ${said}: only again if they ask.` : 'Bring it up at most once, when it fits what they asked.'}`); }
   } else L.push('True maintenance: not enough yet (needs about 10 logged days and 4 weigh-ins two weeks apart in the last 4 weeks).');
   const mode = heavyMode(d.settings);
@@ -207,8 +248,8 @@ export function eatingLines(d: Data, today: string, goal?: string): string[] {
   if (w1 >= 3 && w2 >= 3) L.push(`FREQUENT heavy days: ${w1} in the last 7 days and ${w2} in the 7 before. ${d.marks?.helpSaid ? `Help was mentioned on ${d.marks.helpSaid}: don't repeat it unless they bring it up.` : 'Say once, gently, that a doctor or dietitian can help with this.'}`);
   const on = catchUpOn(d, today);
   if (on) L.push(`CATCH-UP running: ${on.from.date} was +${on.from.over} over, so the target is ${on.perDay} lower for ${on.left} more day${on.left === 1 ? '' : 's'} including today (today's target ${kcalTargetFor(d, today)} kcal instead of ${d.settings.goals.kcal}; protein unchanged). "Don't cut my calories" → catch_up with on false.`);
-  const recent = (d.catchUps ?? []).filter((c) => !c.off && isDecided(c) && diffDays(today, c.date) <= 3);
-  if (mode === 'quiet') for (const c of recent) L.push(`Heavy day noticed (heavy-day notices are on Quiet, so nothing was changed or said): ${c.date === today ? 'today' : c.date} +${c.over} kcal over its target. Mention it only if they ask.`);
+  const recent = (d.catchUps ?? []).filter((c) => !c.off && !c.gone && isDecided(c) && diffDays(today, c.date) <= 3);
+  if (mode === 'quiet') for (const c of recent) L.push(`Heavy day noticed: ${c.date === today ? 'today' : c.date} +${c.over} kcal over its target (heavy-day notices are on Quiet now: nothing changes). Mention it only if they ask.`);
   if (mode === 'on') {
     for (const c of justNoticed(d, today)) L.push(`JUST NOTICED (say it once, straight and calm, with the numbers, then the plan; no lecture, no guilt; answer what they asked first): ${c.date === today ? 'today' : c.date} was +${c.over} kcal over its target${c.trigger === 'late' ? ' (logged the day after)' : ' (this evening)'}; ${c.perDay ? `decided: −${c.perDay} kcal a day for ${c.days.length} days, protein unchanged` : 'decided: no cut, back to the normal target'}. The pop-up told them: "${c.line}"`);
     const last = recent.filter((c) => c.told).sort((a, b) => b.at - a.at)[0];
@@ -222,7 +263,7 @@ const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 /** What the Coach is told it just noticed and hasn't said yet (notices on, decided, the pop-up shown). */
 export function justNoticed(d: Pick<AppData, 'catchUps' | 'settings'>, today: string): CatchUp[] {
   if (heavyMode(d.settings) !== 'on') return [];
-  return (d.catchUps ?? []).filter((c) => !c.off && isDecided(c) && c.told && !c.coachTold && c.line && diffDays(today, c.date) <= 3);
+  return (d.catchUps ?? []).filter((c) => !c.off && !c.gone && isDecided(c) && c.told && !c.coachTold && c.line && diffDays(today, c.date) <= 3);
 }
 
 /** The Coach has said what it was told it just noticed (`ids`, from the turn that had it): not said again. */

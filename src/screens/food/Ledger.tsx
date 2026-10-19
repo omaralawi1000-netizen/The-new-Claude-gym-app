@@ -28,7 +28,8 @@ export function Ledger({ sum, compact, date }: { sum: Sum; compact?: boolean; /*
   const goal = useStore((s) => kcalTargetFor(s, day));
   const catchUps = useStore((s) => s.catchUps);
   const settings = useStore((s) => s.settings);
-  const catchUp = useMemo(() => catchUpOn({ catchUps, settings }, day), [catchUps, settings, day]);
+  const memory = useStore((s) => s.memory);
+  const catchUp = useMemo(() => catchUpOn({ catchUps, settings, memory }, day), [catchUps, settings, memory, day]);
   const kcal = sum.totals.kcal ?? 0;
   const remaining = goal ? goal - kcal : undefined;
   const over = remaining !== undefined && remaining < 0;

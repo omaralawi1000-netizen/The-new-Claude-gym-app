@@ -57,6 +57,8 @@ function play(root: HTMLElement): () => void {
   return () => all.forEach((a) => a.cancel());
 }
 
+const reviewing = new Set<string>();
+
 export function WeekReviewSheet({ props }: { props: { end?: string } }) {
   const t = useT();
   const lang = useLang();
@@ -81,7 +83,9 @@ export function WeekReviewSheet({ props }: { props: { end?: string } }) {
   const [asking, setAsking] = useState(!saved && hasGemini && !triedToday);
   const fill = (c: Candidate) => t(c.key, Object.fromEntries(Object.entries(c.vars).map(([k, v]) => [k, k === 'date' && typeof v === 'string' ? fmtDate(v, lang, { day: 'numeric', month: 'short' }) : v])));
   useEffect(() => {
-    if (saved || !hasGemini || triedToday) return;
+    // (one request per week at a time: reopening the sheet while it is still thinking doesn't ask again)
+    if (saved || !hasGemini || triedToday || reviewing.has(end)) return;
+    reviewing.add(end);
     let live = true;
     // (it keeps thinking when the sheet is closed, and is kept when it's done; ~90 s at most)
     const ac = new AbortController();
@@ -114,7 +118,7 @@ export function WeekReviewSheet({ props }: { props: { end?: string } }) {
       if (r) useStore.getState().saveReview(storedReview(end, r.verdict ?? null, r.priorities));
       else useStore.getState().patch((x) => ({ marks: { ...x.marks, [`review:${end}`]: today } }));
       if (live) setAsking(false);
-    })();
+    })().finally(() => reviewing.delete(end));
     return () => { live = false; };
   }, [end]); // eslint-disable-line react-hooks/exhaustive-deps
   const verdict = saved?.verdict ?? (asking ? null : localVerdict(n, t));

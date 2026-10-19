@@ -63,3 +63,21 @@ describe('found by the exam (19 Oct)', () => {
     ["I eat 1500 a day and I don't lose anything. my metabolism is broken", 'that cut was too much. max 150 a day for catch-ups', 'jeg taber ikke noget', 'min forbrænding er i stykker', 'ingen indhentning mere'].forEach(main);
   });
 });
+
+describe('found by the final reviews (19 Oct)', () => {
+  it('dictated risky lines: the main model', () => {
+    ['jeg har spist alt for meget i aften hvad gør jeg', 'I ate way too much tonight what should I do', 'jeg har ædt alt for meget i går hvad skal jeg gøre',
+      'I want to drop to 74 for the tournament', 'jeg vil gerne tabe 5 kilo inden turneringen', 'hvordan taber jeg 3 kg på en uge', 'Jeg skal tabe 3 kg på en uge',
+      'ondt i knæet efter squat skal jeg stoppe', 'my knee hurts when I squat should I stop', "I'm going to skip dinner because I ate too much at lunch",
+      'jeg springer aftensmaden over fordi jeg spiste for meget til frokost', 'jeg springer måltider over for at kompensere', 'I feel dizzy after cutting water',
+      'how do I cut weight for my match on Saturday', 'I need to lose 4 kilos by Saturday', 'should I fast tomorrow to make up for last night?',
+      'I feel out of control around food', 'jeg skal ned 3 kg til stævnet', 'is it ok to train with a sore shoulder'].forEach(main);
+  });
+  it('logging and everyday words: the quick model', () => {
+    ['kan du logge 5 g kreatin', 'can you log 5g creatine', 'kan du logge sauna 20 min', "I'm starving, log 2 eggs", 'morning weigh in 81.2', 'log my weigh in 84.5',
+      'hvad nu hvis jeg spiser pizza i morgen', 'I binge watched netflix and had pizza', "what's a good pre-workout meal", 'how many calories in a scoop of pre-workout'].forEach(quick);
+  });
+  it('Danish and English plans alike', () => {
+    expect(route('lav en plan for næste uge', 'medium').main).toBe(route('plan my next week', 'medium').main);
+  });
+});

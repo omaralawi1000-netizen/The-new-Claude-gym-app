@@ -102,7 +102,7 @@ describe('heavy-day notices: on, quiet, off', () => {
     expect(data().settings.heavyOnSince).toBe('2026-10-21');
   });
   it('quiet and off never change the target; on does, within the limits', () => {
-    const d = { settings: { goals: { kcal: 2500 }, profile: { goal: 'fatloss' } }, catchUps: [cu({ perDay: 200 })] } as any;
+    const d = { settings: { goals: { kcal: 2500 }, profile: { goal: 'fatloss' } }, memory: [mem('Age: 30 (as of 2026-01-01)')], catchUps: [cu({ perDay: 200 })] } as any;
     expect(kcalTargetFor(d, today)).toBe(2300);
     expect(catchUpOn(d, today)?.perDay).toBe(200);
     expect(kcalTargetFor({ ...d, settings: { ...d.settings, heavyDays: 'quiet' } }, today)).toBe(2500);
@@ -110,7 +110,7 @@ describe('heavy-day notices: on, quiet, off', () => {
     expect(catchUpOn({ ...d, settings: { ...d.settings, heavyDays: 'off' } }, today)).toBeNull();
   });
   it('two catch-ups on the same day never take more than 250 together; a target lowered under the floor is never raised', () => {
-    const d = { settings: { goals: { kcal: 2600 }, profile: { goal: 'fatloss' } }, catchUps: [cu({ perDay: 250 }), cu({ perDay: 250 })] } as any;
+    const d = { settings: { goals: { kcal: 2600 }, profile: { goal: 'fatloss' } }, memory: [mem('Age: 30 (as of 2026-01-01)')], catchUps: [cu({ perDay: 250 }), cu({ perDay: 250 })] } as any;
     expect(kcalTargetFor(d, today)).toBe(2350);
     expect(catchUpOn(d, today)?.perDay).toBe(250); // the line shows what really applies
     const low = { ...d, settings: { ...d.settings, goals: { kcal: 1700 } } };
@@ -122,7 +122,7 @@ describe('heavy-day notices: on, quiet, off', () => {
     for (let i = 0; i < 500; i++) {
       const base = 1200 + Math.round(rnd() * 3000);
       const cs = Array.from({ length: Math.floor(rnd() * 4) }, () => cu({ perDay: Math.round(rnd() * 900), floor: 1200 + Math.round(rnd() * 1500), days: rnd() < 0.8 ? [today] : [], off: rnd() < 0.2 }));
-      const d = { settings: { goals: { kcal: base }, profile: { goal: 'fatloss' } }, catchUps: cs } as any;
+      const d = { settings: { goals: { kcal: base }, profile: { goal: 'fatloss' } }, memory: [mem('Age: 30 (as of 2026-01-01)')], catchUps: cs } as any;
       const k = kcalTargetFor(d, today)!;
       const floors = cs.filter((c) => !c.off && c.perDay > 0 && c.days.includes(today)).map((c) => c.floor);
       expect(k).toBeLessThanOrEqual(base);
@@ -150,8 +150,9 @@ describe('who may get a trim at all', () => {
     expect(ageFromMemory([mem('Har trænet i 2 år'), mem('Trains 5 days a week')], today)).toBeUndefined();
   });
   it('eating-disorder notes, English and Danish; ordinary notes are not', () => {
-    for (const x of ['Uses laxatives after big days', 'Kastede op efter aftensmaden', 'Feels loss of control in the evening', 'Skips meals to compensate', 'Eating-disorder signal: purging']) expect(edFromMemory([mem(x)])).toBe(true);
-    for (const x of ['Overeats in the evening', 'Wrestles Tue/Thu', 'Prefers savoury snacks', 'Max 150 a day for catch-ups']) expect(edFromMemory([mem(x)])).toBe(false);
+    for (const x of ['Uses laxatives after big days', 'Kaster op med vilje efter store aftener', 'Feels loss of control in the evening', 'Skips meals to compensate', 'Eating-disorder signal: purging', 'Made herself throw up after dinner']) expect(edFromMemory([mem(x)])).toBe(true);
+    // (clear signs only: a wrestler starving after practice, or sick after a hard session, is not one)
+    for (const x of ['Overeats in the evening', 'Wrestles Tue/Thu', 'Prefers savoury snacks', 'Max 150 a day for catch-ups', 'Always starving after wrestling', 'Threw up after a hard practice once']) expect(edFromMemory([mem(x)])).toBe(false);
   });
 });
 

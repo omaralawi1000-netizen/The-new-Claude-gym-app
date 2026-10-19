@@ -58,7 +58,7 @@ export async function refreshSolModel(key: string, force = false): Promise<strin
 }
 export type Effort = 'low' | 'medium' | 'high';
 /** `model`: which OpenAI model answers (default: the main one, solModel). */
-export interface Sol { key: string; effort: Effort; signal?: AbortSignal; model?: string }
+export interface Sol { key: string; effort: Effort; signal?: AbortSignal; model?: string; /** any part of the answer has arrived (the reply text may come after a long list of actions) */ onAny?: () => void }
 
 // ── schema: Gemini's OpenAPI-style schema → a strict JSON schema ──
 /**
@@ -188,7 +188,7 @@ export async function solAgent(system: string, turns: Turn[], sol: Sol, onReply?
   const o = { system, input: toInput(turns, photo), schema: AGENT_SCHEMA, name: 'agent_turn', cacheKey: 'aven-agent' };
   if (!onReply) return json(sol, o);
   let shown = '';
-  const full = await stream(sol, o, (all) => { const r = partialReply(all); if (r !== shown) { shown = r; onReply(r); } });
+  const full = await stream(sol, o, (all) => { sol.onAny?.(); const r = partialReply(all); if (r !== shown) { shown = r; onReply(r); } });
   // (cut off on the way: a connection problem, not a bad answer)
   try { return JSON.parse(full); } catch { throw fail(full.trimEnd().endsWith('}') ? 'invalid' : 'network'); }
 }

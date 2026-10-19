@@ -100,9 +100,15 @@ describe('corrections', () => {
     checkEating(MORNING); await settle();
     useStore.setState((s) => ({ entries: s.entries.filter((e) => e.id !== 'big') }));
     checkEating(MORNING + 60e3); await settle();
-    expect(data().catchUps).toEqual([]);
+    // (kept with no cut, so logging it again a minute later is the same evening: never asked or said twice)
+    expect(data().catchUps).toMatchObject([{ gone: true, perDay: 0 }]);
     expect(kcalTargetFor(data(), today)).toBe(2500);
     expect(toasts().at(-1)).toBe('Your normal calorie target is back');
+    useStore.setState((s) => ({ entries: [...s.entries, entry(yesterday, 2000, MORNING + 120e3, 'big2')] }));
+    checkEating(MORNING + 180e3); await settle();
+    expect(calls).toBe(1);
+    expect(toasts().filter((x) => x !== 'Your normal calorie target is back')).toHaveLength(1);
+    expect(kcalTargetFor(data(), today)).toBe(2500);
   });
   it('a smaller day: the trim shrinks to fit, without a new pop-up', async () => {
     answer = { plan: 'trim', perDay: 250, days: 4, line: 'x', why: '' };

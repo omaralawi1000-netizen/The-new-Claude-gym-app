@@ -31,6 +31,8 @@ export const useAi = create<S>((set, get) => ({
   hasGemini: !!getKey('gemini'),
   hasOpenai: !!getKey('openai'),
   patch: (p) => {
+    // (a new quick model name may work where the old one didn't)
+    if (p.models && p.models.quick !== get().models.quick && get().noQuick && p.noQuick === undefined) p = { ...p, noQuick: false };
     set(p as Partial<S>);
     const { stt, voiceLang, mic, voice, brain, solFirst, effortOrb, effortCoach, solLimitKr, models, solChecked, noQuick } = get();
     try { localStorage.setItem(KEY, JSON.stringify({ stt, voiceLang, mic, voice, brain, solFirst, effortOrb, effortCoach, solLimitKr, models, solChecked, noQuick })); } catch { /* ignore */ }

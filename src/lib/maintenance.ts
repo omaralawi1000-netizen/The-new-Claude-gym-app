@@ -72,7 +72,9 @@ export function trueMaintenance(d: Pick<AppData, 'entries' | 'weights' | 'health
   const kcal = Math.round(Math.max(1200, Math.min(6000, exact)) / 10) * 10;
   const clamped = slope !== raw || Math.abs(kcal - exact) > 10;
   const steep = Math.abs(slope * 7) > 1;
-  const confidence = clamped || steep ? 'low' : intake.size >= 20 && pts.length >= 10 ? 'high' : intake.size >= 14 && pts.length >= 6 ? 'medium' : 'low';
+  // (high needs the weigh-ins spread over 3 weeks: two weeks of daily weigh-ins are still mostly water swings)
+  const span = diffDays(pts[pts.length - 1].date, pts[0].date);
+  const confidence = clamped || steep ? 'low' : intake.size >= 20 && pts.length >= 10 && span >= 21 ? 'high' : intake.size >= 14 && pts.length >= 6 ? 'medium' : 'low';
   const out: Maintenance = { kcal, confidence, loggedDays: intake.size, weighIns: pts.length, kgPerWeek: Math.round(slope * 7 * 100) / 100, avgIntake: Math.round(avgIntake) };
   // the watch's total burn, where it has 10 days: a clear gap above what the logs say
   const burn = (d.health ?? []).filter((h) => h.date >= from && h.date <= to && h.totalKcal).map((h) => h.totalKcal!);

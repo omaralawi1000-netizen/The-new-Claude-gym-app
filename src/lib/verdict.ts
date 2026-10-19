@@ -10,10 +10,10 @@
  * at most 4 days, at most half of the real surplus, never under the floor or above their own target, protein untouched,
  * Undo. Without a brain (no key, offline, over the limit) there is no cut at all, just the note that it was noticed.
  */
-import type { AppData, CatchUp, MemoryNote } from './types';
-import { addDays, diffDays } from './dates';
+import type { AppData, CatchUp } from './types';
+import { addDays } from './dates';
 import { HANDBOOK_CORE, HOW_TO_TALK, handbookTopic } from './handbook';
-import { dayKcal, eatingLines, heavyDays, heavyMode, heavyWeeks, maxTrim, targetOn } from './eating';
+import { dayKcal, eatingLines, heavyDays, heavyWeeks, maxTrim, targetOn } from './eating';
 import { trueMaintenance } from './maintenance';
 import { dataTrustLines } from './dataQuality';
 import { personLines } from './person';
@@ -36,37 +36,8 @@ export const VERDICT_SCHEMA = {
   required: ['plan', 'perDay', 'days', 'line', 'why'],
 };
 
-/** Their age, from what the Coach remembered: "Age: 17 (as of 2026-10-19)" first (the form the Coach is told to use),
- *  then "17 years old" / "17-årig" / "alder 17". Undefined = not known. */
-export function ageFromMemory(memory: Pick<MemoryNote, 'text'>[], today: string): number | undefined {
-  for (const m of memory) {
-    const x = /\bage:\s*(\d{1,2})\s*\(as of (\d{4}-\d{2}-\d{2})\)/i.exec(m.text);
-    if (x) return Number(x[1]) + Math.max(0, Math.floor(diffDays(today, x[2]) / 365.25));
-  }
-  for (const m of memory) {
-    const x = /\b(\d{1,2})[- ]?(?:years?[- ]old|yrs? old|år gammel|årig)\b/i.exec(m.text) ?? /\b(?:age|alder)\s*:?\s*(\d{1,2})\b/i.exec(m.text);
-    if (x) return Number(x[1]);
-  }
-  return undefined;
-}
-
-/** A note in MEMORY that points to disordered eating (purging, laxatives, not eating to make up for it, loss of control):
- *  then never a cut, whatever else is true. */
-const ED = /eating[- ]disorder|spiseforstyrrelse|purg|vomit|throw(?:ing|s)? up|threw up|make (?:my|them|him|her)sel(?:f|ves) sick|laxative|afføringsmiddel|kast(?:e|er|ede|et) op|brække|anorexi|anoreksi|bulimi|starv|sult(?:e|er|ede)\b|not eating to (?:compensate|make up)|skip(?:ping|s)? meals to (?:compensate|make up)|loss of control|lose control|can'?t stop eating|miste(?:r|de)? kontrol/i;
-export const edFromMemory = (memory: Pick<MemoryNote, 'text'>[]) => memory.some((m) => ED.test(m.text));
-
-/** Why a trim is not allowed for them now (null = allowed): notices not on, not a fat-loss goal, age unknown or under
- *  18, or an eating-disorder note. */
-export type NoTrim = 'mode' | 'goal' | 'age' | 'minor' | 'health';
-export function trimAllowed(d: Pick<AppData, 'settings' | 'memory'>, today: string): NoTrim | null {
-  if (d.settings.profile.goal !== 'fatloss') return 'goal';
-  if (heavyMode(d.settings) !== 'on') return 'mode';
-  if (edFromMemory(d.memory)) return 'health';
-  const age = ageFromMemory(d.memory, today);
-  if (age === undefined) return 'age';
-  if (age < 18) return 'minor';
-  return null;
-}
+// (who may get a trim at all lives in lib/eating.ts, beside the target it guards)
+export { ageFromMemory, edFromMemory, trimAllowed, type NoTrim } from './eating';
 
 /** How much this catch-up may take, at most: per day (250 for all running catch-ups together, 15 % of the target, the
  *  room above the floor), in total (half of the real surplus: over the target, and over true maintenance when that is

@@ -43,7 +43,9 @@ async function askBrain(c: CatchUp, today: string): Promise<Verdict | null> {
  *  the day itself changed (the brain's line would carry the old number). */
 function fit(c: CatchUp, v: Verdict, today: string, stale = false): Verdict {
   const st = useStore.getState();
-  const w = !v.perDay ? { ...v, clamped: false } : trimAllowed(st, today) ? null : clampVerdict(v, trimLimits(st, c, today));
+  // (no cut: its own words, unless the day changed under it)
+  if (!v.perDay) return stale ? { ...defaultVerdict(c, today, tNow, fmt()), why: v.why } : v;
+  const w = trimAllowed(st, today) ? null : clampVerdict(v, trimLimits(st, c, today));
   if (!w || !w.perDay) return { ...defaultVerdict(c, today, tNow, fmt()), why: v.why };
   return { plan: w.plan, perDay: w.perDay, days: w.days, why: w.why, line: w.clamped || stale ? verdictLine(c, w, today, tNow, fmt()) : w.line };
 }
@@ -63,8 +65,9 @@ async function decide(c: CatchUp, today: string) {
     const cur = (now.catchUps ?? []).find((x) => x.id === c.id);
     // taken back, gone (the log was fixed), decided elsewhere, or notices switched off while it was thinking
     if (!cur || cur.off || isDecided(cur) || heavyMode(now.settings) !== 'on') return;
-    // (the day changed while it was thinking: the plan is fitted to the day as it is now)
-    const v = cur.at === c.at ? v0 : fit(cur, v0, today, true);
+    // (always fitted to things as they are now: the day may have changed, another heavy day may have been decided, or an
+    // age or a health note learned while it was thinking; a changed day also gets a line without the old number)
+    const v = fit(cur, v0, today, cur.at !== c.at);
     const next = { ...applyVerdict(cur, v, today), told: true, decided: true };
     now.setCatchUps((now.catchUps ?? []).map((x) => (x.id === c.id ? next : x)));
     useUI.getState().toast(v.line, {

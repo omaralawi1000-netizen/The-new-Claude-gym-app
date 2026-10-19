@@ -1,5 +1,5 @@
 import { useAi, solOn } from '../state/ai';
-import { justNoticed, markCoachTold } from './eating';
+import { edFromMemory, frequentHeavy, justNoticed, markCoachTold } from './eating';
 import { trueMaintenance } from './maintenance';
 import { useStore } from '../state/store';
 import { getKey } from './keys';
@@ -49,13 +49,18 @@ export function brainFor(o: { big: boolean; surface: 'orb' | 'coach'; signal?: A
 // thought about at the setting)
 const DEEP = /\b(?:plan(?:s|ned|ning)?|program(?:me)?s?|routines?|splits?|periodi[sz]\w*|deloads?|plateau\w*|stall(?:s|ed|ing)?|stuck|why|should i|analy[sz]\w*|review|compare|improve\w*|advice|recommend\w*|build|design|weak ?points?|progress(?:ion)?|injur\w*|pain(?:s|ful)?|hurts?|hurting)\b|\b(?:hvorfor|skal jeg|analys\w*|forbedr\w*|anbefal\w*|byg|lav en|programm?(?:et|er)?|rutine\w*|plan(?:en|er|lægning)?|skade\w*|ondt)\b/i;
 // decisions that change their plan or numbers
-const DECIDE = /\b(?:maintenance|calorie target|(?:how many|what) calories (?:should|do) i|my (?:calories|macros|targets?) (?:should|need|be)|should i (?:cut|bulk|diet|lose|gain|eat less|eat more)|new (?:program|plan|split)|plan my (?:next |)(?:week|month|days?)|plateau\w*|(?:not|don'?t|doesn'?t|can'?t|won'?t) (?:los(?:e|ing)|gain(?:ing)?)|stopped losing|metabolism|what now|now what|catch-?ups?)\b|\b(?:vedligehold\w*|kaloriemål|hvor mange kalorier skal jeg|tab(?:er)?(?: jeg)? mig ikke|tager ikke af|taber ikke noget|forbrænding\w*|skal jeg (?:cutte|bulke|tabe|tage på|spise mindre|spise mere)|nyt program|ny plan|planlæg min|hvad nu|indhentning\w*)\b/i;
+const DECIDE = /\b(?:maintenance|calorie target|(?:how many|what) calories (?:should|do) i|my (?:calories|macros|targets?) (?:should|need|be)|should i (?:cut|bulk|diet|lose|gain|eat less|eat more)|new (?:program|plan|split)|plan my (?:next |)(?:week|month|days?)|plateau\w*|(?:not|don'?t|doesn'?t|can'?t|won'?t) (?:los(?:e|ing)|gain(?:ing)?)|stopped losing|metabolism|what now|now what|catch-?ups?)\b|\b(?:vedligehold\w*|kaloriemål|hvor mange kalorier skal jeg|tab(?:er)?(?: jeg)? mig ikke|tager ikke af|taber ikke noget|forbrænding\w*|skal jeg (?:cutte|bulke|tabe|tage på|spise mindre|spise mere)|nyt program|ny plan|planlæg min|lav(?:e)? en (?:ny )?plan for (?:næste|den kommende) (?:uge|måned)|hvad nu(?! hvis)|indhentning\w*)\b/i;
 const THINK_HARD = /\b(?:think (?:about it |it through |this through )?(?:properly|carefully|hard(?:er)?)|take your time|think deeply)\b|\b(?:tænk (?:dig )?(?:godt )?(?:om|grundigt|over det)|tænk grundigt)\b/i;
-// where a wrong answer could hurt: always the main model, thinking hard
-const SAFETY = /\b(?:binge?\w*|purg\w*|throw(?:ing|s)? up|threw up|vomit\w*|make (?:my)?self sick|laxative\w*|starv\w*|eating disorder|anorexi\w*|bulimi\w*|(?:fast(?:ing)?|skip(?:ping)? meals?) to (?:compensate|make up)|(?:drop|lose|cut) \d+(?:[.,]\d+)? ?(?:kg|kilos?|lbs?|pounds?) (?:in|by|within) (?:\d+|a|one|two) ?(?:days?|weeks?)|make weight|making weight|weigh[- ]in|weight class|dehydrat\w*|water cut|sauna suit|chest pains?|faint\w*|pass(?:ed)? out|missed (?:my )?period)\b|\b(?:overspis\w*|trøstespis\w*|kast(?:e|er|ede|et) op|brækk(?:e|er|ede) mig|afføringsmid\w*|sult(?:e|er|ede) mig|spiseforstyrr\w*|springe? måltider over for|faste for at|(?:tabe|smide|tage af) \d+(?:[.,]\d+)? ?(?:kg|kilo) (?:på|inden for|på bare) \d+ ?(?:dage|uger)|indvejning\w*|vægtklasse\w*|dehydr\w*|brystsmert\w*|ondt i brystet|besvim\w*|udebl\w* menstruation|mistet (?:min )?menstruation)\b/i;
-// …and these only when asked about (a question or advice), not when logged ("5 g kreatin")
-const SAFETY_ASK = /\b(?:creatine|kreatin|supplements?|kosttilskud|sauna|pre-?workout|caffeine|koffein|pain(?:s|ful)?|hurts?|hurting|injur\w*|ondt|skade\w*|smert\w*)\b/i;
-const ASKING = /\?|^\s*(?:should|can|could|is|are|do|does|what|how|why|when|which|any|skal|kan|bør|er|hvad|hvordan|hvorfor|hvornår|hvilke?n?)\b|\b(?:safe|ok to|okay to|good idea|sikkert|i orden|en god idé)\b/i;
+// where a wrong answer could hurt: always the main model, thinking hard (the second final review, 19 Oct, added the
+// dictated forms: "jeg har spist alt for meget i aften hvad gør jeg", "drop to 74 for the tournament", "dizzy")
+const SAFETY = /\b(?:binge(?![- ]?watch)\w*|binging|ate (?:way |far |so )?too much|overate|overeat\w*|purg\w*|throw(?:ing|s)? up|threw up|vomit\w*|make (?:my)?self sick|laxative\w*|starv(?:e|ing) (?:my|me|him|her)self|eating disorder|out of control|anorexi\w*|bulimi\w*|(?:fast(?:ing)?|skip(?:ping)? meals?) to (?:compensate|make up)|(?:fast|skip)\w* .{0,30}to (?:make up for|compensate)|cut(?:ting)? weight|skip(?:ping)? (?:breakfast|lunch|dinner|a meal|meals|eating) (?:because|since|to)|(?:drop|lose|cut) \d+(?:[.,]\d+)? ?(?:kg|kilos?|lbs?|pounds?)|(?:drop|get down|go down|come down) to \d{2,3}|before (?:the |my )?(?:tournament|match|weigh-?in|competition|meet)|make weight|making weight|weight class|dehydrat\w*|water cut|cutting water|sauna suit|chest pains?|faint\w*|dizz\w*|light-?headed|pass(?:ed)? out|missed (?:my )?period)\b|(?<![A-Za-zÆØÅæøå])(?:overspis\w*|trøstespis\w*|(?:spist|spiste|ædt|åd) (?:alt |så |helt |virkelig )?for meget|kast(?:e|er|ede|et) op|brækk(?:e|er|ede) mig|afføringsmid\w*|sult(?:e|er|ede) mig|spiseforstyrr\w*|spring\w* (?:\S+ )?over (?:fordi|for at)|ud af kontrol|ukontrolleret|(?:skal|vil|må) ned (?:på |til )?\d+(?:[.,]\d+)? ?(?:kg|kilo)|faste for at|(?:tabe|taber|tab|smide|tage af|komme ned på|ned på|ned til)(?: jeg)? \d+(?:[.,]\d+)? ?(?:kg|kilo)|(?:inden|før) (?:turnering\w*|kamp\w*|stævne\w*|indvejning\w*)|vægtklasse\w*|dehydr\w*|svimmel|brystsmert\w*|ondt i brystet|besvim\w*|udebl\w* menstruation|mistet (?:min )?menstruation)(?![A-Za-zÆØÅæøå])/i;
+// …a weigh-in or a weight class talked about (not "log my weigh-in 84.5")
+const WEIGH_TALK = /\b(?:weigh[- ]in|indvejning\w*)\b(?!\s*:?\s*\d)/i;
+// …and these only when asked about (a question or advice), not when logged ("5 g kreatin", "kan du logge 5 g kreatin")
+const SAFETY_ASK = /(?<![A-Za-zÆØÅæøå])(?:creatine|kreatin|supplements?|kosttilskud|sauna|pre-?workout(?! (?:meal|snack|food|måltid))|caffeine|koffein|pain(?:s|ful)?|hurts?|hurting|sore|øm(?:me)?|injur\w*|ondt|skade\w*|smert\w*)(?![A-Za-zÆØÅæøå])/i;
+const ASKING = /\?|^\s*(?:should|can|could|is|are|do|does|what|how|why|when|which|any|skal|kan|bør|er|hvad|hvordan|hvorfor|hvornår|hvilke?n?)\b|\b(?:should i|can i|could i|is it (?:ok|okay|safe|bad|fine)|safe|ok to|okay to|good idea|skal jeg|bør jeg|kan jeg|er det (?:ok|okay|sikkert|farligt|skidt)|sikkert|i orden|en god idé)\b/i;
+// "log …", "kan du logge …", "can you add …": a logging request, never a question
+const LOG_REQ = /^\s*(?:(?:can|could|will) you |kan du |vil du )?(?:please |lige )?(?:log|logge?|add|tilføj\w*|put|registrer\w*)\b/i;
 // a quick fact about a food: the quick model
 const FACT = /\bhow (?:many|much) (?:calories|kcal|protein|carbs?|fat)(?: are| is| does)?(?: there)? in\b|\bhvor (?:mange|meget) (?:kalorier|kcal|protein|kulhydrat\w*|fedt)(?: er der)? i\b/i;
 
@@ -63,9 +68,11 @@ export type Route = { effort: Effort; main: boolean };
 export function route(text: string, setting: Effort, photo = false): Route {
   const rank = { low: 0, medium: 1, high: 2 } as const;
   const cap = (e: Effort): Effort => (rank[e] <= rank[setting] ? e : setting);
-  if (THINK_HARD.test(text) || SAFETY.test(text) || (SAFETY_ASK.test(text) && ASKING.test(text))) return { effort: 'high', main: true };
+  const logging = LOG_REQ.test(text);
+  if (THINK_HARD.test(text) || SAFETY.test(text) || (!logging && WEIGH_TALK.test(text))) return { effort: 'high', main: true };
   if (photo) return { effort: setting, main: true }; // reading a label or a machine needs care
   if (FACT.test(text)) return { effort: 'low', main: false };
+  if (!logging && SAFETY_ASK.test(text) && ASKING.test(text)) return { effort: 'high', main: true };
   if (DECIDE.test(text)) return { effort: 'high', main: true };
   if (DEEP.test(text)) return { effort: setting, main: false };
   return { effort: text.trim().split(/\s+/).length > 40 ? cap('medium') : 'low', main: false };
@@ -141,7 +148,10 @@ export async function decide(text: string, o: { lang: Lang; t: (k: string, v?: R
   const day0 = dayKey(Date.now(), st.settings.dayStartHour);
   const noticed = justNoticed(st, day0).map((c) => c.id);
   const invisible = !st.marks?.invisibleSaid && !!trueMaintenance(st, day0)?.invisible;
+  // (help for eating counts as said only when this turn was told about frequent heavy days or a health signal)
+  const helpDue = !st.marks?.helpSaid && (frequentHeavy(st, day0) || edFromMemory(st.memory));
   let reply = '', note = '';
+  let fromAi = false; // (a canned reply — no key, over the limit — never said what EATING PATTERNS holds)
   let actions: AgentAction[] = [];
   const sources: WebSource[] = [];
   let dropped = 0;
@@ -174,9 +184,9 @@ export async function decide(text: string, o: { lang: Lang; t: (k: string, v?: R
         const limit = !brain.key ? 0 : o.surface === 'coach' ? 45000 : 20000;
         const r = await solThenGemini(brain, (sol) => withTimeout(limit, o.signal, (signal, seen) => {
           const onReply = (x: string) => { if (x) seen(); o.onReply?.(x); };
-          return solAgent(sys, conv, { ...sol, signal }, onReply, o.photo)
+          return solAgent(sys, conv, { ...sol, signal, onAny: seen }, onReply, o.photo)
             // (a key without the quick model: the main one answers, from now on)
-            .catch((e) => { if (sol.model && e?.code === 'nomodel') { useAi.getState().patch({ noQuick: true }); return solAgent(sys, conv, { ...sol, model: undefined, signal }, onReply, o.photo); } throw e; });
+            .catch((e) => { if (sol.model && e?.code === 'nomodel') { useAi.getState().patch({ noQuick: true }); return solAgent(sys, conv, { ...sol, model: undefined, signal, onAny: seen }, onReply, o.photo); } throw e; });
         }), () => { o.onReply?.(''); return gemini(sys); });
         if (r.fellBack) note = r.fellBack.code === 'quota' ? t('Your OpenAI account is out of credit, so Gemini answered.') : t('GPT-6.1 Sol wasn’t available, so Gemini answered.');
         if (r.fellBack) noteTrouble('fellBack', r.fellBack.code);
@@ -199,7 +209,7 @@ export async function decide(text: string, o: { lang: Lang; t: (k: string, v?: R
       lastRaw = { at: Date.now(), by: brain.sol?.key && !note ? `OpenAI ${brain.sol.model ?? solModel()}` : `Gemini (${brain.models.join(', ')})`, plain: plainModels(), text: (() => { try { return JSON.stringify(raw, null, 1).slice(0, 20000); } catch { return String(raw).slice(0, 20000); } })() };
       const v = validateAgent(raw);
       if (!v) { noteTrouble('invalid', lastRaw.by); throw new AiError('invalid'); }
-      reply = v.reply; actions = v.actions; dropped = v.dropped;
+      reply = v.reply; actions = v.actions; dropped = v.dropped; fromAi = true;
       if (dropped) noteTrouble('dropped', `${dropped} action${dropped > 1 ? 's' : ''} · ${lastRaw.by}`);
     } catch (e: any) {
       if (e?.code === 'aborted') throw e;
@@ -221,13 +231,14 @@ export async function decide(text: string, o: { lang: Lang; t: (k: string, v?: R
   const wantsUndo = actions.some((a) => a.type === 'undo_last');
   // (what EATING PATTERNS said it had just noticed has now been said; not by a reply that only logged something, which
   // is told to leave it for the next real conversation)
-  const logging = actions.length > 0 && actions.every((a) => /^log_/.test(a.type));
-  if (reply && noticed.length && !logging) markCoachTold(useStore.getState(), useStore.getState().setCatchUps, noticed);
+  // (logging-only: every action logs something and the reply is just a short confirmation)
+  const logging = actions.length > 0 && actions.every((a) => /^log_/.test(a.type)) && reply.trim().length <= 80;
+  if (fromAi && reply && noticed.length && !logging) markCoachTold(useStore.getState(), useStore.getState().setCatchUps, noticed);
   // (and what is said once: the invisible calories, help for eating, asking their age)
-  if (reply && !logging) {
+  if (fromAi && reply && !logging) {
     const said: Record<string, string> = {};
-    if (invisible && /watch|uret|unlogged|not logged|isn'?t logged|ikke logget|ikke er logget|invisible|usynlig/i.test(reply)) said.invisibleSaid = day0;
-    if (!st.marks?.helpSaid && /doctor|dietitian|dietician|læge|diætist/i.test(reply)) said.helpSaid = day0;
+    if (invisible && /overestimat\w*|unlogged|not logged|isn'?t logged|aren'?t logged|ikke logget|ikke er logget|invisible|usynlig|overvurder\w*/i.test(reply)) said.invisibleSaid = day0;
+    if (helpDue && /dietitian|dietician|diætist|doctor|læge/i.test(reply)) said.helpSaid = day0;
     if (!st.marks?.ageAsked && /how old are you|your age|hvor gammel er du|din alder/i.test(reply)) said.ageAsked = day0;
     if (Object.keys(said).length) useStore.getState().patch((s) => ({ marks: { ...s.marks, ...said } }));
   }

@@ -75,8 +75,12 @@ export function normaliseData(raw: any, lang: Lang = 'en'): AppData {
     exercises: arr('exercises'), routines: arr('routines'),
     schedule: { ...d.schedule, ...(raw.schedule ?? {}), weekly: { ...d.schedule.weekly, ...(raw.schedule?.weekly ?? {}) }, rotation: { ...d.schedule.rotation, ...(raw.schedule?.rotation ?? {}) }, overrides: raw.schedule?.overrides ?? [], cleared: raw.schedule?.cleared ?? [], activities: cleanActivities(raw.schedule?.activities) },
     sessions: arr('sessions'), active: raw.active && typeof raw.active === 'object' ? raw.active : null,
-    weights: arr('weights'), measurements: arr('measurements'), photos: arr('photos'), activities: arr('activities'), steps: arr('steps'), health: arr('health'), catchUps: arr('catchUps'), notes: arr('notes'),
-    targets: (Array.isArray(raw.targets) ? raw.targets : []).filter((x: any) => x && typeof x.from === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(x.from)).slice(-60)
+    weights: arr('weights'), measurements: arr('measurements'), photos: arr('photos'), activities: arr('activities'), steps: arr('steps'), health: arr('health'), notes: arr('notes'),
+    // (a hand-edited or broken backup: only catch-ups that make sense, so the Food screen never trips over one)
+    catchUps: (Array.isArray(raw.catchUps) ? raw.catchUps : []).filter((c: any) => c && typeof c.id === 'string' && typeof c.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(c.date)
+      && Array.isArray(c.days) && c.days.every((x: unknown) => typeof x === 'string') && [c.perDay, c.floor, c.over].every((x) => typeof x === 'number' && Number.isFinite(x))).slice(-30)
+      .map((c: any) => ({ ...c, trigger: c.trigger === 'live' ? 'live' : 'late', at: typeof c.at === 'number' ? c.at : 0 })),
+    targets: (Array.isArray(raw.targets) ? raw.targets : []).filter((x: any) => x && typeof x.from === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(x.from)).sort((a: any, b: any) => a.from.localeCompare(b.from)).slice(-60)
       .map((x: any) => ({ from: x.from, ...(typeof x.kcal === 'number' ? { kcal: x.kcal } : {}), ...(typeof x.prev === 'number' ? { prev: x.prev } : {}) })),
     hcGone: (Array.isArray(raw.hcGone) ? raw.hcGone : []).filter((x: unknown) => typeof x === 'string').slice(-500),
     choices: raw.choices && typeof raw.choices === 'object' && !Array.isArray(raw.choices) ? raw.choices : {},

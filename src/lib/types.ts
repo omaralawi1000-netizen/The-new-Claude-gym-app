@@ -281,6 +281,9 @@ export interface CatchUp {
   line?: string; why?: string;
   /** decided once (an older record with a `line` counts as decided); set by hand through the Coach (never re-planned) */
   decided?: boolean; byHand?: boolean;
+  /** its day stopped being heavy after it was decided (an entry deleted or fixed): kept with no cut, so a re-log of the
+   *  same evening is never decided or said again */
+  gone?: boolean;
 }
 export type MeasureKind = 'waist' | 'chest' | 'hips' | 'arm' | 'thigh' | 'neck';
 export interface Measurement { id: string; date: string; kind: MeasureKind; cm: number }
