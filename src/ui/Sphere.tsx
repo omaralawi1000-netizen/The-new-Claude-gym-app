@@ -174,7 +174,7 @@ interface LeaveFrom { k: number; P: { X: number; Y: number; S: number }; py?: nu
 const leaveFrom = new WeakMap<HTMLElement, LeaveFrom | null>();
 // a closing sheet opened again on its way down: the orb goes on from where it is drawn (it used to blend toward the button,
 // still far below, and dived under the dock, then jumped back; judge 19 Oct)
-const turnFrom = new Map<string, { k: number; P: { X: number; Y: number; S: number }; v: { x: number; y: number }; t: number; falling: boolean }>(), wasLeaving = new Set<string>(); // (by the slot's id: the reopened sheet's slot is a new element)
+const turnFrom = new Map<string, { k: number; P: { X: number; Y: number; S: number }; v: { x: number; y: number }; t: number; falling: boolean; L: number }>(), wasLeaving = new Set<string>(); // (by the slot's id: the reopened sheet's slot is a new element)
 const LAND = 160; // px: how far above the dock line the orb lets go of its falling button and eases onto the line
 function claim(el: HTMLElement) {
   if (handoff?.el === el || !Number.isFinite(orbNow.X)) return;
@@ -558,7 +558,7 @@ export function SphereStage() {
         // same progress as the popup. Both start together and land together, so the orb never trails the sheet or crosses its
         // buttons on the way; while the popup is opening it is simply a shared element flying to its place.
         if (!leaving) {
-          if (wasLeaving.delete(sl.id) && e < 0.98 && Number.isFinite(orbNow.X)) turnFrom.set(sl.id, { k: e, P: { ...orbNow }, v: { ...orbVel }, t: now, falling: true });
+          if (wasLeaving.delete(sl.id) && e < 0.98 && Number.isFinite(orbNow.X)) turnFrom.set(sl.id, { k: e, P: { ...orbNow }, v: { ...orbVel }, t: now, falling: true, L: Y });
           leaveFrom.delete(sl.el);
         } else { wasLeaving.add(sl.id); turnFrom.delete(sl.id); if (!leaveFrom.has(sl.el)) leaveFrom.set(sl.el, kb.get() > 1 && Number.isFinite(orbNow.X) ? { k: Math.max(0.001, e), P: { ...orbNow } } : null); }
         const lf = leaving ? leaveFrom.get(sl.el) : null;
@@ -577,7 +577,7 @@ export function SphereStage() {
           }
           const u = tf.falling ? 0 : Math.min(1, Math.max(0, (e - tf.k) / Math.max(0.001, 1 - tf.k)));
           const ty = tf.P.Y + (y - tf.P.Y) * u;
-          X = tf.P.X + (x - tf.P.X) * u; Y = Math.min(ty, Math.max(tf.P.Y, Y)); S = tf.P.S + (z - tf.P.S) * u; flight = u;
+          X = tf.P.X + (x - tf.P.X) * u; Y = Math.min(ty, Math.max(tf.P.Y, Y, tf.L)); // (tf.L: the dock line it was landing on; the dock sinking back as the sheet rose held it a few px above its button, then it dropped there at the end) S = tf.P.S + (z - tf.P.S) * u; flight = u;
         } else if (lf) {
           // it rides its button exactly (on the bar, never over the words) until the button passes LAND px above the dock line.
           // There it lets go at the button's own speed and settles onto the line on a critically damped spring (stiff enough
