@@ -2705,3 +2705,61 @@ coach to decide the tone. Chosen: direct, not soft and not harsh. The number is 
 ### Checks
 - `tests/eating.test.ts` (10): the 2,000 kcal morning-after log, forgotten dinner not flagged, growing and taking back, the evening case, the floor, maintenance for a known deficit, invisible calories, not enough data, told once, the `catch_up` action with Undo.
 - `scripts/journey-eating.mjs`: the morning-after toast, the "−500 catch-up · 4 days left" line on Food, Undo. (It caught a render loop in the Food screen that the unit tests could not.)
+
+## The Coach's brain, and the model contest (19 Oct 2026, PR, no version bump)
+Omar: "as good as it can get with the thinking and the communication… and if my friends try the app with their own data."
+He can't judge AI quality himself, so quality is measured: a Coach exam on fake people, run on real models.
+
+### What the review of the old Coach found
+- Its instructions were almost all about actions; next to no coaching knowledge or reasoning discipline.
+- Two facts about Omar were hard-coded for every user ("they overeat in the evening", "they train hard whatever the day").
+- DATA was cut at a fixed length from the end, and the end was BODY & RECOVERY and EATING PATTERNS.
+- Half-logged days counted as real: in the exam every model told "Ali" (dinner unlogged every other day) his maintenance
+  was 1,470 kcal "with high confidence".
+- A heavy day with a target of 1,800 or less was never noticed (detection needed room to trim).
+- The weekly review and Today's notes ran on the cheapest Gemini only.
+
+### What changed
+- **Handbook** (`src/lib/handbook.ts`): the core of good coaching in every message (trend over weigh-ins, what one
+  heavy day really is, no punishment after overeating, rates, protein, sleep, plateaus, teens, making weight, red flags),
+  topics in depth by a `handbook` look-up. **HOW TO THINK** (numbers → trust → context → one choice, then a self-check)
+  and **HOW TO TALK** (answer first, one recommendation with its reason and trade-off, numbers and how sure, short, no
+  lecture or guilt, one question at most; MEMORY on tone wins).
+- **WHO THEY ARE** (`src/lib/person.ts`): each person's own patterns with counts: evening share, heavier weekdays, heavy
+  days after short nights or sport, what they log, weigh-ins, training rhythm. Replaces the hard-coded lines.
+- **DATA TRUST** (`src/lib/dataQuality.ts`): unfinished days (a meal logged on half their days or more is missing and the
+  day is under 75 % of a complete one) are left out of averages and true maintenance; slips (one item over 1,500 kcal,
+  5× the usual amount, the same item twice in 2 min) and weigh-ins 2.5 kg off their neighbours are flagged for one
+  question when it matters.
+- DATA is built by priority: the important blocks always go in; history fills the rest up to 20,000 characters.
+- **Thinking**: decisions (maintenance, targets, cut or bulk, not losing) and "think about it properly" / "tænk dig
+  grundigt om" get high effort.
+- **Heavy-day verdict** (`src/lib/verdict.ts`): detection stays rule-based; the main brain, thinking hard, decides none
+  or a small trim from the goal, true maintenance, how often heavy days happen, sleep, the next days and age. Code limits
+  whatever it says: at most 15 % of the target (and 400 kcal) a day, 7 days, never under the floor, protein untouched,
+  Undo. Without a brain, a gentle default (no cut on a bulk; else at most half back, ≤250 a day, ≤4 days). The toast
+  shows its line; the Coach is told the reasoning (asked "why?", it explains). A catch-up set by the Coach is capped the
+  same way.
+- The weekly review and Today's notes run on the main brain (review on high), with the handbook.
+- **Two models** (Settings → Voice & AI → Quick model): everyday messages go to GPT-6 Luna, decisions, photos and
+  "think about it properly" to GPT-6.1 Sol; a key without Luna falls back to Sol. Spending is priced per model.
+
+### The model contest (`scripts/exam`)
+Five fake people (someone like Omar; a woman cutting with a noisy scale; a 16-year-old bulking in a weight class; one
+who logs only half his dinners; a brand-new user) × 20 questions (logging and editing with exact checks; thinking
+questions read by hand), the real Coach prompt and look-ups, through OpenRouter.
+- Round 1 (old Coach, 12 models): Sol 11/11 on the exact checks; Luna, Argon, Gemini 3.8 Flash 10/11; DeepSeek V4 Pro
+  9/11 but slow; the cheap DeepSeek Flash, GLM and Qwen Flash failed logging (out); Claude models ignored the app's
+  answer format through OpenRouter (out without extra work).
+- Round 2 (new Coach): Sol 0 fails, Luna 1 (asked instead of acting: rule added; final run 0), DeepSeek V4 Pro 3.
+  Reading the answers, Luna on the new Coach is close to Sol day to day; Sol is richer on the hard questions.
+- Cost for the same 20 questions: Sol $0.90, Luna $0.055 (about 16× cheaper).
+- Heavy-day verdicts (Omar-like, a one-off for a consistent cutter, a 16-year-old bulking): every model chose no cut,
+  with the right reasons.
+- Run it: `EXAM_MODELS=openai/gpt-6-luna npx vitest run --config scripts/exam/vitest.config.ts` (an OpenRouter key from the
+  environment; costs money; `EXAM_VERDICT=1` adds the verdicts). Results go to `/tmp/claude-0/exam`.
+
+### Checks
+- `tests/brain.test.ts` (9): unfinished days and Ali's maintenance (~2,050, not 1,470), slips and odd weigh-ins, who they
+  are, the verdict's limits and default, low-target detection, the rules every message carries, DATA by priority.
+- `tests/eating.test.ts` and `tests/openai.test.ts` updated (verdict line, the trim cap, effort for decisions).

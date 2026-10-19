@@ -71,3 +71,9 @@ Optional age/sex/height/weight in setup (day-one estimate, labelled, until true 
 catch-ups, mild deficits only; women: cycle water swings, under-eating risk; a style choice (Direct / Gentle / Strict —
 same advice, different words; Omar's earlier "no style setting" was for him alone, back on the table for friends:
 ask him); a decision log so the Coach follows up on what it advised. Friends need their own AI key (or Omar's).
+
+## Done in PR "brain" (19 Oct)
+1–7 above, plus the contest (README "The Coach's brain, and the model contest"). Outcome: the winners are both OpenAI
+models, so no OpenRouter connection is needed in the app for now: Quick model GPT-6 Luna for everyday messages, main
+model GPT-6.1 Sol for decisions, photos, the verdict and the weekly review. OpenRouter stays the testing tool; rerun the
+exam when a new model comes out. Next: eating part 2 (learning why), then friends & follow-up.

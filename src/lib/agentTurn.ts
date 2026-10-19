@@ -3,7 +3,7 @@ import { markCoachTold } from './eating';
 import { useStore } from '../state/store';
 import { getKey } from './keys';
 import { AiError, FALLBACK_MODELS, aiAgent, aiAgentStream, dedupeSources, geminiSearch, plainModels, type Brain, type Photo, type Turn, type WebSource } from './gemini';
-import { refreshSolModel, solAgent, solModel, solSearch, type Effort } from './openai';
+import { quickModel, refreshSolModel, solAgent, solModel, solSearch, type Effort } from './openai';
 import { solThenGemini } from './brain';
 import { overLimit } from './spend';
 import { AGENT_SYSTEM, APP_GUIDE, buildAgentContext, buildTodayContext, exerciseNames, memoryBlock } from './coachContext';
@@ -127,7 +127,10 @@ export async function decide(text: string, o: { lang: Lang; t: (k: string, v?: R
   let dropped = 0;
   const brain0 = brainFor({ big: true, surface: o.surface, signal: o.signal });
   // think only as hard as the message needs (see effortFor)
-  const brain = brain0?.sol ? { ...brain0, sol: { ...brain0.sol, effort: effortFor(text, brain0.sol.effort, !!o.photo) } } : brain0;
+  // …and with the right model: everyday messages to the quick model, decisions and photos to the main one (the Coach exam,
+  // 19 Oct: the quick one is nearly as good day to day at ~1/16 of the price; the main one thinks the big calls through)
+  const effort = brain0?.sol ? effortFor(text, brain0.sol.effort, !!o.photo) : 'medium';
+  const brain = brain0?.sol ? { ...brain0, sol: { ...brain0.sol, effort, model: effort === 'high' || o.photo ? undefined : quickModel() } } : brain0;
   const capped = solOn(g) && overLimit(g.solLimitKr);
   if (capped && brain) note = t('This month’s GPT-6.1 Sol limit is reached, so Gemini answered.');
   if (capped && !brain) reply = t('This month’s GPT-6.1 Sol limit is reached. Raise it in Settings → Voice & AI, or add a free Gemini key.');
@@ -146,7 +149,9 @@ export async function decide(text: string, o: { lang: Lang; t: (k: string, v?: R
         const last = round === MAX_ROUNDS - 1;
         const sys = system + (found ? `\n\nLOOKUP RESULTS (you asked for these in this turn; answer from them, do not ask for them again):\n${found}` : '') + (last && round > 0 ? '\n\nNo more look-ups this turn: answer now with what you have, and say if something is still unknown.' : '');
         // Sol gets 45 s in the Coach (deep thinking on a slow line could run for minutes); then Gemini answers
-        const r = await solThenGemini(brain, (sol) => withTimeout(o.surface === 'coach' ? 45000 : 0, o.signal, (signal) => solAgent(sys, conv, { ...sol, signal }, o.onReply, o.photo)), () => { o.onReply?.(''); return gemini(sys); });
+        const r = await solThenGemini(brain, (sol) => withTimeout(o.surface === 'coach' ? 45000 : 0, o.signal, (signal) => solAgent(sys, conv, { ...sol, signal }, o.onReply, o.photo)
+          // (a key without the quick model: the main one answers)
+          .catch((e) => { if (sol.model && e?.code === 'nomodel') return solAgent(sys, conv, { ...sol, model: undefined, signal }, o.onReply, o.photo); throw e; })), () => { o.onReply?.(''); return gemini(sys); });
         if (r.fellBack) note = r.fellBack.code === 'quota' ? t('Your OpenAI account is out of credit, so Gemini answered.') : t('GPT-6.1 Sol wasn’t available, so Gemini answered.');
         if (r.fellBack) noteTrouble('fellBack', r.fellBack.code);
         raw = r.value;
@@ -165,7 +170,7 @@ export async function decide(text: string, o: { lang: Lang; t: (k: string, v?: R
         }
       }
       o.onStatus?.('');
-      lastRaw = { at: Date.now(), by: brain.sol?.key && !note ? `OpenAI ${solModel()}` : `Gemini (${brain.models.join(', ')})`, plain: plainModels(), text: (() => { try { return JSON.stringify(raw, null, 1).slice(0, 20000); } catch { return String(raw).slice(0, 20000); } })() };
+      lastRaw = { at: Date.now(), by: brain.sol?.key && !note ? `OpenAI ${brain.sol.model ?? solModel()}` : `Gemini (${brain.models.join(', ')})`, plain: plainModels(), text: (() => { try { return JSON.stringify(raw, null, 1).slice(0, 20000); } catch { return String(raw).slice(0, 20000); } })() };
       const v = validateAgent(raw);
       if (!v) { noteTrouble('invalid', lastRaw.by); throw new AiError('invalid'); }
       reply = v.reply; actions = v.actions; dropped = v.dropped;

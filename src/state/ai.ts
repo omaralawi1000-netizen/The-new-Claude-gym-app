@@ -14,10 +14,11 @@ export interface AiPrefs {
   effortCoach: 'medium' | 'high';    // …and in the Coach (depth matters: high)
   solLimitKr: number;                // Sol rests (Gemini answers) once this month's estimated spend reaches this; 0 = no limit
   /** sol: the OpenAI model chosen by hand ('' = the newest one the key can use, found by solAuto) */
-  models: { fast: string; brain: string; fastAlt: string; brainAlt: string; tts: string; sol: string; solAuto: string };
+  /** quick: the OpenAI model for everyday messages ('' = gpt-6-luna) */
+  models: { fast: string; brain: string; fastAlt: string; brainAlt: string; tts: string; sol: string; solAuto: string; quick: string };
   solChecked: number;                // when the newest OpenAI model was last looked up (once a day at most)
 }
-const DEFAULTS: AiPrefs = { stt: 'accurate', voiceLang: 'auto', mic: 'phone', voice: 'Achird', brain: true, solFirst: true, effortOrb: 'medium', effortCoach: 'high', solLimitKr: 100, models: { fast: '', brain: '', fastAlt: '', brainAlt: '', tts: '', sol: '', solAuto: '' }, solChecked: 0 };
+const DEFAULTS: AiPrefs = { stt: 'accurate', voiceLang: 'auto', mic: 'phone', voice: 'Achird', brain: true, solFirst: true, effortOrb: 'medium', effortCoach: 'high', solLimitKr: 100, models: { fast: '', brain: '', fastAlt: '', brainAlt: '', tts: '', sol: '', solAuto: '', quick: '' }, solChecked: 0 };
 
 function load(): AiPrefs {
   try { const v = JSON.parse(localStorage.getItem(KEY) || '{}'); return { ...DEFAULTS, ...v, models: { ...DEFAULTS.models, ...(v.models ?? {}) } }; } catch { return DEFAULTS; }
