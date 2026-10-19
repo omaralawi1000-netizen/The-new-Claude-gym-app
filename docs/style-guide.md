@@ -98,8 +98,13 @@ browser smooths them, so **lab shots lie: judge from Omar's own screenshots.**
     the worker (a queue in front of it; image files are made in a second worker), shows its CSS meanwhile under the
     see-through canvas, and the picture fades in over it (1.2 s, `--ease-io`, opacity only); the CSS goes only once the
     canvas's own fade has finished (never on a timer: on a busy page the fade starts late). The status-bar strip keeps its
-    tint while the field waits and fades out with it (resting at opacity 0.002, not 0, so it stays a drawn layer). The canvas lies over the field's CSS and under its grain and moving parts, and is there from the field's
-    first frame, so no layer is added or dropped. Never show the field plain while it waits: it went dark, then lit.
+    tint while the field waits and fades out with it (resting at opacity 0.002, not 0, so it stays a drawn layer). The
+    strip and the picture both darken the top, so the strip goes late and comes back early (fitted curves in styles.css;
+    on one shared curve the top went a quarter lighter half-way). The strip follows the newest field only, and a picture
+    ready while its field is still coming in over another waits until that switch ends. A theme switch whose picture
+    isn't ready brings the strip back at once. The canvas lies over the field's CSS and under its grain (the grain stays
+    while it waits) and moving parts, and is there from the field's first frame, so no layer is added or dropped. Never
+    show the field plain while it waits: it went dark, then lit.
     After a palette, glow or motion change the picture before fades out (0.6 s); if the worker can't paint, the CSS stays.
   - A glow shown faint (Coach-open beam, a fade) needs a stronger dither in its picture: `ampFor(opacity)`.
   - GPU reset (`contextlost`): the CSS shows until `contextrestored`, then the picture is written again.

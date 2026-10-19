@@ -2347,22 +2347,37 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* Until its picture comes (right after launch, a tab tapped before it was painted ahead), the field shows its CSS under
    the see-through canvas, and the picture fades in over it, slowly (1.2 s, eased in and out), when the worker has painted
    it (first, before anything else it has to do); the CSS goes once the picture covers it. The canvas is there all along,
-   so its layer is there from the field's first frame (never added in the middle of a launch or a tab's cross-fade). The
-   grain goes while it waits where the picture will carry it: over the canvas it would need a layer. Only opacity moves. */
+   so its layer is there from the field's first frame (never added in the middle of a launch or a tab's cross-fade). Only
+   opacity moves. */
 .fields > * > .glow-field { transition: opacity 1.2s var(--ease-io); }
 .fields > [data-wait] > .glow-field { visibility: visible; opacity: 0; transition: none; }
 .fields > [data-fade] > .glow-field { visibility: visible; }
 /* (after a change of palette, glow or motion the picture before fades out, not cut: glow.ts 'soft') */
 .fields > [data-wait='soft'] > .glow-field { transition: opacity 0.6s var(--ease-io); }
+/* (a picture ready while its field is still coming in over the one before waits for that switch to end, then fades in: the
+   status-bar strip, laid over every field, can only follow one of them, and the field's picture and the strip then trade
+   the tint on the same 1.2 s curve. Fading in during the switch, the tint was missing from the field still showing under
+   it: the top of the screen went lighter for a second) */
+.fields:has(> div[data-k] ~ div[data-k]) > div[data-k][data-fade]:last-of-type > .glow-field { opacity: 0; }
 .fields > [data-dith] [data-bake], .fields > .aurora[data-dith] > i { visibility: hidden; }
 /* (the field keeps its own plain colour under the picture: a layer of one colour costs the chip nothing, and a field that
    drew nothing of its own was given content for the length of a theme switch and lost it again after) */
-.fields > [data-still]::after { content: none; }
+.fields > [data-still][data-dith]::after { content: none; }
+/* (while a still field's picture is painted and fades in, its grain stays, under the canvas: over the canvas it would need
+   a layer of its own, and without it the CSS showed its bands for that second or two) */
+.fields > [data-still]::after { z-index: 0; }
 /* (the top tint is in the picture then: the strip stays, faded out, so it never leaves or joins the layers) */
-.fields:not(:has(> [data-k]:not([data-top]))) > .fields-top { opacity: 0.002; } /* (not 0: at 0 the chip stops drawing the
+.fields:has(> div[data-k][data-top]:last-of-type):not(:has(> div[data-k] ~ div[data-k][data-fade]:last-of-type)) > .fields-top {
+  opacity: 0.002; transition-timing-function: cubic-bezier(0.9, 0, 0.45, 0.8); } /* (not 0: at 0 the chip stops drawing the
    layer, so it would leave the drawn layers just as its fade ends; at 0.002 it is a fifth of a level at most) */
-/* (it fades out as a waiting field's picture, which carries the tint, fades in over it: both 1.2 s, --ease-io) */
-.fields > .fields-top { transition: opacity 1.2s var(--ease-io); }
+/* (it fades out as a waiting field's picture, which carries the tint, fades in over it, 1.2 s. Both darken the top, so
+   the strip goes late (the curve above): on the picture's own curve the two half-tints let the top go up to a quarter
+   lighter half-way. Coming back, as a field without the tint is laid over one with it, it comes early (the curve here);
+   both curves fitted to keep the top within a tenth of its tint all the way. It follows the newest field, the one laid
+   over the rest: following every field, a Classic field leaving under a new Mesh field kept the strip on over Mesh's own
+   tint, twice as dark for a second. A theme switch whose picture isn't painted yet brings it back at once, data-snap) */
+.fields > .fields-top { transition: opacity 1.2s cubic-bezier(0.35, 0.6, 0.35, 1); }
+.fields[data-snap] > .fields-top { transition: none; }
 /* a glow that moves or fades by itself, or a small one in a page, carries its picture as its own background image
    (SelfGlow, ImgGlow): drawn where its gradient was, on its own layer, so it adds none */
 [data-dith-img] { background: var(--glow-img) 0 0 / 100% 100% no-repeat !important; }

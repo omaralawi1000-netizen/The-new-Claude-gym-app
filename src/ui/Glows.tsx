@@ -77,6 +77,12 @@ export function FieldGlow({ kind }: { kind: BgKind }) {
       el.toggleAttribute('data-top', !swaysBy.get(sk) && el.matches('[data-dith], [data-fade]'));
     });
     el.toggleAttribute('data-top', still && lit && swaysBy.get(sk) === false);
+    // (a theme switch's picture not painted yet: the status bar's tint comes back at once, with the rest of the switch,
+    // not fading up from nothing as the reveal starts)
+    const fs = el.parentElement;
+    if (wait === 'wait' && el.getAttribute('data-wait') === 'cut' && fs) {
+      fs.setAttribute('data-snap', ''); requestAnimationFrame(() => requestAnimationFrame(() => fs.removeAttribute('data-snap')));
+    }
     // (the other tabs painted ahead as soon as this one's picture is in: not again, later, once it has faded in)
     if (lit && PER_TAB[kind] && !(on && faded.current)) prewarm(el, kind);
     faded.current = wait === 'fade';
