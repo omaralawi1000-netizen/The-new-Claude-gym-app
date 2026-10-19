@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { kcalTargetFor } from '../lib/eating';
 import { useStore } from '../state/store';
 import { useUI } from '../state/ui';
 import { useVoice } from '../state/voice';
@@ -116,8 +117,9 @@ export function useDayFill(): number {
   const today = useToday();
   const { sum } = useDaySummary(today);
   const goals = useStore((s) => s.settings.goals);
+  const kcalGoal = useStore((s) => kcalTargetFor(s, today));
   const parts: number[] = [];
-  if (goals.kcal) parts.push(Math.min(1, (sum.totals.kcal ?? 0) / goals.kcal));
+  if (kcalGoal) parts.push(Math.min(1, (sum.totals.kcal ?? 0) / kcalGoal));
   if (goals.protein) parts.push(Math.min(1, (sum.totals.protein ?? 0) / goals.protein));
   if (!parts.length) parts.push(Math.min(1, (sum.totals.kcal ?? 0) / 2400));
   return Math.round((parts.reduce((a, b) => a + b, 0) / parts.length) * 100) / 100;

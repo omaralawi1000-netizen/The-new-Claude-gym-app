@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { heavyDays } from '../lib/eating';
+import { trueMaintenance } from '../lib/maintenance';
 import { useStore, exerciseMap, allExercises } from '../state/store';
 import { useUI, haptic } from '../state/ui';
 import { useAi } from '../state/ai';
@@ -88,6 +90,8 @@ export function WeekReviewSheet({ props }: { props: { end?: string } }) {
         `Sets per muscle (usual week in brackets): ${muscles || 'none'}.`,
         `Food: logged on ${n.loggedDays} of 7 days${n.proteinAvg !== null ? `; on logged days ${Math.round(n.kcalAvg ?? 0)} kcal and ${Math.round(n.proteinAvg)} g protein a day (targets ${d.settings.goals.kcal} kcal, ${d.settings.goals.protein} g)` : ''}. Days not logged are unknown, not zero.`,
         `Weight: ${n.weightPct === null ? 'not enough weigh-ins' : `${n.weightPct > 0 ? '+' : ''}${n.weightPct}% a week (trend)`}.`,
+        // heavy days this week against the 3 before, and true maintenance (lib/eating.ts, lib/maintenance.ts)
+        (() => { const h = heavyDays(d, addDays(n.to, 1), 28); const wk = h.filter((x) => x.date >= n.from).length; const m = trueMaintenance(d, addDays(n.to, 1)); return `Heavy days (clearly over target, often evenings logged the day after): ${wk} this week, ${h.length - wk} in the 3 weeks before. True maintenance: ${m ? `about ${m.kcal} kcal (${m.confidence} confidence)` : 'not enough data yet'}.`; })(),
       ].join('\n');
       const cand = `CANDIDATES (id — what it is):\n${cands.map((c) => `${c.id} — ${t(c.key, c.vars as Record<string, string | number>)}`).join('\n') || '(none: the week went well)'}`;
       const last = prev ? `LAST WEEK'S PRIORITIES: ${prev.priorities.map((p) => { const ok = met(p.id, n, d.settings.goals.protein); return `${p.text} → ${ok === null ? 'unknown' : ok ? 'done' : 'not done'}`; }).join('; ') || 'none'}` : 'LAST WEEK: no review.';

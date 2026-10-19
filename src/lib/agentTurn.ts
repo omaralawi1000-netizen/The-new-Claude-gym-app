@@ -1,4 +1,5 @@
 import { useAi, solOn } from '../state/ai';
+import { markCoachTold } from './eating';
 import { useStore } from '../state/store';
 import { getKey } from './keys';
 import { AiError, FALLBACK_MODELS, aiAgent, aiAgentStream, dedupeSources, geminiSearch, plainModels, type Brain, type Photo, type Turn, type WebSource } from './gemini';
@@ -171,5 +172,7 @@ export async function decide(text: string, o: { lang: Lang; t: (k: string, v?: R
     else reply = t('To chat or ask about the app I need an AI key (Settings → Voice & AI). I can still log what you tell me, like “200 g skyr” or “bench 80 for 8”.');
   }
   const wantsUndo = actions.some((a) => a.type === 'undo_last');
+  // (what EATING PATTERNS said it had just noticed has now been said)
+  if (reply) markCoachTold(useStore.getState(), useStore.getState().setCatchUps);
   return { reply, note, actions: actions.filter((a) => a.type !== 'undo_last'), wantsUndo, sources: dedupeSources(sources), dropped };
 }

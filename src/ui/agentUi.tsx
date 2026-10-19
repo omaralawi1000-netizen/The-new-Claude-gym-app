@@ -1,4 +1,5 @@
 import { memo, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { kcalTargetFor } from '../lib/eating';
 import { useLang, useT } from '../lib/i18n';
 import { Icon, type IconName } from './Icon';
 import { Collapse } from './kit';
@@ -104,8 +105,9 @@ export function useCoachTips(max = 3): Tip[] {
       const left = Math.round(g.protein - (tot.protein ?? 0));
       if (left >= 20) add({ icon: 'bolt', label: t('{n} g short on protein', { n: left }), prompt: t('I am {n} g short on protein today. What should I eat?', { n: left }) });
     }
-    if (g.kcal && mine.length > 0 && hour >= 17) {
-      const left = Math.round(g.kcal - (tot.kcal ?? 0));
+    const kGoal = kcalTargetFor(s, today);
+    if (kGoal && mine.length > 0 && hour >= 17) {
+      const left = Math.round(kGoal - (tot.kcal ?? 0));
       if (left > 300) add({ icon: 'food', label: t('{n} kcal left today', { n: left }), prompt: t('I have {n} kcal left today. What should I eat?', { n: left }) });
       else if (left < -150) add({ icon: 'info', label: t('{n} kcal over today', { n: -left }), prompt: t('I am {n} kcal over today. Should I change anything tomorrow?', { n: -left }) });
     }

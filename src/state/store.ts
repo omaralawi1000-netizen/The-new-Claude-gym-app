@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { StepDay, HealthDay,
+import type { StepDay, HealthDay, CatchUp,
   ActivityLog, AppData, Exercise, Food, FoodEntry, Measurement, Meal, MemoryNote, WeekReviewNote, PersonalRecord, Recipe, Routine, SavedMeal,
   SessionExercise, SetRecord, Settings, WeightLog, WorkoutSession, Nutrients,
 } from '../lib/types';
@@ -40,8 +40,8 @@ let saveTimer: ReturnType<typeof setTimeout> | null = null;
 export const persistStatus = { error: null as string | null, listeners: new Set<() => void>() };
 
 function pickData(s: Store): AppData {
-  const { settings, foods, favourites, savedMeals, recipes, entries, water, exercises, routines, schedule, sessions, active, weights, measurements, photos, activities, steps, health, notes, demo, choices, increments, memory, reviews } = s;
-  return { v: DATA_VERSION, settings, foods, favourites, savedMeals, recipes, entries, water, exercises, routines, schedule, sessions, active, weights, measurements, photos, activities, steps, health, notes, demo, choices, increments, memory, reviews };
+  const { settings, foods, favourites, savedMeals, recipes, entries, water, exercises, routines, schedule, sessions, active, weights, measurements, photos, activities, steps, health, catchUps, notes, demo, choices, increments, memory, reviews } = s;
+  return { v: DATA_VERSION, settings, foods, favourites, savedMeals, recipes, entries, water, exercises, routines, schedule, sessions, active, weights, measurements, photos, activities, steps, health, catchUps, notes, demo, choices, increments, memory, reviews };
 }
 
 export function flushSave() {
@@ -134,6 +134,8 @@ export interface Store extends AppData {
   addActivity: (a: Omit<ActivityLog, 'id' | 'at'>) => ActivityLog;
   /** the watch's numbers (lib/healthSync.ts): its workouts and steps, merged without doubles */
   mergeHealth: (next: { activities: ActivityLog[]; steps: StepDay[]; health?: HealthDay[] }) => void;
+  /** heavy days being caught up (lib/eating.ts) */
+  setCatchUps: (next: CatchUp[]) => void;
   removeActivity: (id: string) => ActivityLog | undefined;
   restoreActivity: (a: ActivityLog) => void;
   setNote: (date: string, patch: { training?: string; nutrition?: string }) => void;
@@ -348,6 +350,7 @@ export const useStore = create<Store>((set, get) => {
     addPhoto: (p) => mutate((s) => ({ photos: [...s.photos, p] })),
     removePhoto: (id) => mutate((s) => ({ photos: s.photos.filter((p) => p.id !== id) })),
     mergeHealth: (next) => mutate(() => ({ activities: next.activities, steps: next.steps, ...(next.health ? { health: next.health } : {}) })),
+    setCatchUps: (next) => mutate(() => ({ catchUps: next.slice(-30) })),
     addActivity: (a) => {
       const log: ActivityLog = { ...a, id: uid('ac'), at: Date.now() };
       mutate((s) => ({ activities: [...s.activities, log] }));

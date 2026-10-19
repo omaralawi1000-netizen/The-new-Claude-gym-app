@@ -9,6 +9,7 @@ import { App } from './App';
 import { installDither, installGrain } from './lib/grain';
 import { installPress } from './ui/press';
 import { installAskHold } from './ui/askHold';
+import { installEatingWatch } from './lib/eatingWatch';
 import { noteAndroidApp } from './lib/androidApp';
 import { useStore } from './state/store';
 import { loadDanish } from './lib/i18n';
@@ -20,6 +21,7 @@ installGrain();
 installDither();
 installPress();
 installAskHold();
+installEatingWatch();
 
 noteAndroidApp(); // opened from the Android app: remembered at once, before any reload can drop the referrer
 const start = () => {

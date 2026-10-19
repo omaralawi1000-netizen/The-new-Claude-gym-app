@@ -10,6 +10,7 @@
  *  - Logging uses the same food/exercise matching as the rest of the app, and says plainly what it matched.
  *  - Without a Gemini key (or when Gemini is down) simple commands still work through the local parsers.
  */
+import { catchUpFloor, catchUpWords, dayKcal, planCatchUp } from './eating';
 import { useStore, foodPool, allExercises, plannedFor } from '../state/store';
 import { useUI } from '../state/ui';
 import { addDays, fmtDate } from './dates';
@@ -23,7 +24,7 @@ import { type Brain } from './gemini';
 import { estimateFood } from './brain';
 import { ACTIVITY_KINDS, ACTIVITY_LABEL } from './activity';
 import { fmtNum, kgToDisplay } from './units';
-import type { ActivityKind, Equipment, Exercise, Food, FoodEntry, Lang, LogType, Meal, MeasureKind, MemoryKind, MemoryNote, MuscleGroup, Quantity, Recipe, RecipeIngredient, RoutineItem, SessionExercise, SetRecord, Settings, WorkoutSession } from './types';
+import type { ActivityKind, CatchUp, Equipment, Exercise, Food, FoodEntry, Lang, LogType, Meal, MeasureKind, MemoryKind, MemoryNote, MuscleGroup, Quantity, Recipe, RecipeIngredient, RoutineItem, SessionExercise, SetRecord, Settings, WorkoutSession } from './types';
 import { MEMORY_KINDS, MEMORY_MAX } from '../state/defaults';
 import { addExercises, addSet, adjustRest, deleteSet, moveExercise, patchExercise, replaceExercise, skipRest, startRest, toggleSuperset } from '../screens/workout/actions';
 import { completeSet } from '../screens/workout/complete';
@@ -62,6 +63,7 @@ export type AgentAction =
   | { type: 'save_meal'; name: string; meal: string; day?: string | null }
   | { type: 'edit_set'; exercise: string; workout?: string | null; set_number?: number | null; kg?: number | null; reps?: number | null; remove?: boolean }
   | { type: 'add_exercise'; exercises: string[]; start?: boolean }
+  | { type: 'catch_up'; on: boolean; over?: number | null; day?: string | null }
   | { type: 'remove_exercise'; exercise: string }
   | { type: 'replace_exercise'; from: string; to: string; routine?: string | null }
   | { type: 'create_routine'; name: string; items: RoutineBit[] }
@@ -247,6 +249,7 @@ function validateOne(a: any, out: AgentAction[]) {
         out.push({ type: 'edit_set', exercise, workout: str(a.workout, 12) ?? null, set_number: n ? Math.round(n) : null, kg: kg ?? null, reps: reps ? Math.round(reps) : null, remove: a.delete_set === true });
         break;
       }
+      case 'catch_up': { const over = num(a.kcal ?? a.over, 100, 10000); out.push({ type: 'catch_up', on: a.on !== false, over: over ? Math.round(over) : null, day: dayArg(a.day) }); break; }
       case 'add_exercise': { const exercises = (Array.isArray(a.exercises) ? a.exercises : []).slice(0, 8).map((x: any) => str(x, 60)).filter(Boolean) as string[]; if (exercises.length) out.push({ type: 'add_exercise', exercises, ...(a.start === true ? { start: true } : {}) }); break; }
       case 'remove_exercise': { const exercise = str(a.exercise, 60); if (exercise) out.push({ type: 'remove_exercise', exercise }); break; }
       case 'replace_exercise': { const from = str(a.from, 60), to = str(a.to, 60); if (from && to) out.push({ type: 'replace_exercise', from, to, routine: str(a.routine, 60) ?? null }); break; }
@@ -888,6 +891,30 @@ function doEditSet(a: Extract<AgentAction, { type: 'edit_set' }>, ctx: AgentCtx)
   const next: SetRecord = { ...set, ...(a.kg != null ? { weightKg: a.kg } : {}), ...(a.reps != null ? { reps: a.reps } : {}) };
   apply((b) => ({ ...b, sets: b.sets.map((q) => (q.id === set.id ? next : q)) }));
   return { id: uid('r'), kind: 'sets', title: t('Set corrected'), lines: [{ text: exLabel(hit.ex, lang), sub: `${t('Set')} ${idx + 1} · ${show(set)} → ${show(next)}` }], undo: () => apply((b) => ({ ...b, sets: prevBlock.sets })) };
+}
+
+/** "Don't cut my calories" (the catch-up after a heavy day comes off) or "I ate about 1,500 extra yesterday" (one set). */
+function doCatchUp(a: Extract<AgentAction, { type: 'catch_up' }>, ctx: AgentCtx): AgentResult {
+  const { t, lang } = ctx;
+  const st = useStore.getState();
+  const prev = st.catchUps ?? [];
+  const running = prev.filter((c) => !c.off && c.days.some((x) => x >= ctx.today));
+  if (!a.on) {
+    if (!running.length) return { id: uid('r'), kind: 'miss', title: t('No catch-up is running'), lines: [] };
+    st.setCatchUps(prev.map((c) => (running.includes(c) ? { ...c, off: true } : c)));
+    return { id: uid('r'), kind: 'setting', title: t('Catch-up taken off'), lines: [{ text: t('Your normal calorie target is back') }], undo: () => useStore.getState().setCatchUps(prev) };
+  }
+  const target = st.settings.goals.kcal;
+  if (!target) return { id: uid('r'), kind: 'miss', title: t('Set a calorie target first'), lines: [] };
+  const date = resolveDay(a.day, ctx.today) ?? addDays(ctx.today, -1);
+  const over = a.over ?? Math.round(dayKcal(st, date) - target);
+  const floor = catchUpFloor(st, ctx.today);
+  const plan = over >= 100 ? planCatchUp(over, target, floor) : null;
+  if (!plan) return { id: uid('r'), kind: 'miss', title: t('Nothing to catch up'), lines: [] };
+  const start = addDays(date, 1) > ctx.today ? addDays(date, 1) : ctx.today;
+  const c: CatchUp = { id: uid('cu'), date, over, days: Array.from({ length: plan.n }, (_, k) => addDays(start, k)), perDay: plan.perDay, floor, trigger: 'late', at: Date.now(), told: true, coachTold: true };
+  st.setCatchUps([...prev.filter((x) => x.date !== date), c]);
+  return { id: uid('r'), kind: 'setting', title: t('Catch-up set'), lines: [{ text: catchUpWords(c, ctx.today, t, (n) => fmtNum(n, lang, 0)) }], undo: () => useStore.getState().setCatchUps(prev) };
 }
 
 function doAddExercise(a: Extract<AgentAction, { type: 'add_exercise' }>, ctx: AgentCtx): AgentResult {
@@ -2033,6 +2060,7 @@ export async function runActions(actions: AgentAction[], ctxIn: AgentCtx): Promi
         case 'save_meal': out.push(doSaveMeal(a, ctx)); break;
         case 'edit_set': out.push(doEditSet(a, ctx)); break;
         case 'add_exercise': out.push(doAddExercise(a, ctx)); break;
+        case 'catch_up': out.push(doCatchUp(a, ctx)); break;
         case 'remove_exercise': out.push(doRemoveExercise(a, ctx)); break;
         case 'replace_exercise': out.push(doReplaceExercise(a, ctx)); break;
         case 'create_routine': out.push(doCreateRoutine(a, ctx)); break;
