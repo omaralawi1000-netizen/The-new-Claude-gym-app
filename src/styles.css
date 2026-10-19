@@ -2358,8 +2358,11 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* (the field keeps its own plain colour under the picture: a layer of one colour costs the chip nothing, and a field that
    drew nothing of its own was given content for the length of a theme switch and lost it again after) */
 .fields > [data-still]::after { content: none; }
-/* (the top tint is in the picture then: the strip stays, painted clear, so it never leaves or joins the layers) */
-.fields:not(:has(> [data-k]:not([data-top]))) > .fields-top { background: none; }
+/* (the top tint is in the picture then: the strip stays, faded out, so it never leaves or joins the layers) */
+.fields:not(:has(> [data-k]:not([data-top]))) > .fields-top { opacity: 0.002; } /* (not 0: at 0 the chip stops drawing the
+   layer, so it would leave the drawn layers just as its fade ends; at 0.002 it is a fifth of a level at most) */
+/* (it fades out as a waiting field's picture, which carries the tint, fades in over it: both 1.2 s, --ease-io) */
+.fields > .fields-top { transition: opacity 1.2s var(--ease-io); }
 /* a glow that moves or fades by itself, or a small one in a page, carries its picture as its own background image
    (SelfGlow, ImgGlow): drawn where its gradient was, on its own layer, so it adds none */
 [data-dith-img] { background: var(--glow-img) 0 0 / 100% 100% no-repeat !important; }

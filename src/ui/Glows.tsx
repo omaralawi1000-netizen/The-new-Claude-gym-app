@@ -58,13 +58,14 @@ function describeField(host: HTMLElement, kind: BgKind): GlowPlan | null {
  * browser work the page's styles out in the middle of the tap) */
 const swaysBy = new Map<string, boolean>();
 export function FieldGlow({ kind }: { kind: BgKind }) {
-  const cv = useRef<HTMLCanvasElement>(null);
+  const cv = useRef<HTMLCanvasElement>(null), faded = useRef(false);
   const host = () => cv.current?.parentElement ?? null;
   useGlowCanvases(host, [cv], (el) => describeField(el, kind), (on, wait) => {
     const el = host(); if (!el) return;
-    // (while its picture is painted, and as it fades in over the CSS, what the picture will carry already goes: the grain,
-    // the top tint; over the canvas they'd need layers of their own, gone again when it came)
-    const still = (on || !!wait) && !el.querySelector(MOVING);
+    // (while its picture is painted, and as it fades in over the CSS, the grain it will carry already goes: over the canvas
+    // it would need a layer of its own, gone again when the picture came. The top tint is its own layer: it stays while the
+    // field waits, and fades out as the picture, which carries it, fades in)
+    const still = (on || !!wait) && !el.querySelector(MOVING), lit = on || wait === 'fade';
     el.toggleAttribute('data-dith', on); el.toggleAttribute('data-still', still);
     // (read once the page is idle, never in the middle of a switch: there it made the browser work the page's styles out
     // twice. Only Classic's field sways)
@@ -73,10 +74,12 @@ export function FieldGlow({ kind }: { kind: BgKind }) {
     if (still && !swaysBy.has(sk)) whenIdle(() => {
       if (!el.isConnected || !el.hasAttribute('data-still')) return;
       swaysBy.set(sk, getComputedStyle(el).animationName !== 'none');
-      el.toggleAttribute('data-top', !swaysBy.get(sk));
+      el.toggleAttribute('data-top', !swaysBy.get(sk) && el.matches('[data-dith], [data-fade]'));
     });
-    el.toggleAttribute('data-top', still && swaysBy.get(sk) === false);
-    if (on && PER_TAB[kind]) prewarm(el, kind);
+    el.toggleAttribute('data-top', still && lit && swaysBy.get(sk) === false);
+    // (the other tabs painted ahead as soon as this one's picture is in: not again, later, once it has faded in)
+    if (lit && PER_TAB[kind] && !(on && faded.current)) prewarm(el, kind);
+    faded.current = wait === 'fade';
   }, (el) => el.parentElement ?? el, (el) => `field§${kind}§${el.dataset.hue}`);
   return <canvas ref={cv} className="glow-cv glow-field" aria-hidden />;
 }

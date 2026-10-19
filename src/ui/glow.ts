@@ -111,8 +111,6 @@ const kept = new Map<string, ImageData[]>();
 /** image files by plan: their address and size (an address still shown on screen is never let go) */
 const files = new Map<string, { url: string; bytes: number }>();
 const shownUrls = new Map<string, number>();
-/** a waiting field's picture fading in over its CSS (styles.css .glow-field transition) */
-const FADE_MS = 1200;
 const KEEP_BYTES = 64 << 20; // (Sunrise's on-screen glows and both themes take ~42 MB: at 48 the other tabs' fields were let go)
 const sizeOf = (v: ImageData[]) => v.reduce((n, b) => n + b.width * b.height * 4, 0);
 const keptBytes = () => {
@@ -366,7 +364,7 @@ export const shareKey = (el: HTMLElement, id: string, rk = rootKey(), size = `${
   `${id}§${[...el.querySelectorAll('*')].filter((e) => e.localName !== 'canvas' && e.localName !== 'glow-probe').map(hostKey).join('|')}§${rk}§${size}`;
 
 /** `share`: what this glow is, for glows that come and go (their plans are kept for the next one, see shareKey) */
-export function useGlowCanvases(host: () => HTMLElement | null, refs: RefObject<HTMLCanvasElement | null>[], describe: (host: HTMLElement) => GlowPlan | null, shown: (on: boolean, wait?: boolean) => void, whole: (el: HTMLElement) => HTMLElement = (e) => e, share?: (el: HTMLElement) => string) {
+export function useGlowCanvases(host: () => HTMLElement | null, refs: RefObject<HTMLCanvasElement | null>[], describe: (host: HTMLElement) => GlowPlan | null, shown: (on: boolean, wait?: 'wait' | 'fade') => void, whole: (el: HTMLElement) => HTMLElement = (e) => e, share?: (el: HTMLElement) => string) {
   useLayoutEffect(() => {
     const el = host();
     if (!el || !glowCanvasOk()) return;
@@ -389,12 +387,23 @@ export function useGlowCanvases(host: () => HTMLElement | null, refs: RefObject<
       });
       const left = real; pending = '';
       show(plan.key);
-      // (a tab's field that was waiting: its picture fades in over its CSS, which goes once the picture covers it)
-      clearTimeout(fading);
-      if (el.hasAttribute('data-wait') && refs[0]?.current?.classList.contains('glow-field')) {
-        el.removeAttribute('data-wait'); el.setAttribute('data-fade', '');
+      // (a tab's field that was waiting, or is still fading in, or fell back to its CSS: its picture fades in over its CSS,
+      // which goes once the picture really covers it)
+      cancelAnimationFrame(fading);
+      const cv0 = refs[0]?.current;
+      if (cv0?.classList.contains('glow-field') && (el.hasAttribute('data-wait') || el.hasAttribute('data-fade') || fellBack)) {
+        fellBack = false;
+        el.removeAttribute('data-wait'); el.setAttribute('data-fade', ''); shown(false, 'fade');
         const k = plan.key;
-        fading = window.setTimeout(() => { if (alive && real === k) { el.removeAttribute('data-fade'); shown(true); } }, FADE_MS + 50);
+        // (not on a timer: the fade starts only when the page next draws, which on a busy page is late, and the CSS went
+        // while the canvas was still see-through. The CSS goes once the canvas's own fade has finished)
+        const settle = () => {
+          if (!alive || real !== k || !el.hasAttribute('data-fade')) return;
+          if (parseFloat(getComputedStyle(cv0).opacity) >= 0.995) { el.removeAttribute('data-fade'); shown(true); return; }
+          const a = cv0.getAnimations().find((x) => (x as CSSTransition).transitionProperty === 'opacity');
+          if (a) void a.finished.then(settle, settle); else fading = requestAnimationFrame(settle);
+        };
+        fading = requestAnimationFrame(settle);
       } else { el.removeAttribute('data-wait'); el.removeAttribute('data-fade'); shown(true); }
       // (the picture just left is written into the spare, for a switch back)
       if (left && left !== real) { const k = left; unIdle(prepping); prepping = whenIdle(() => prep(k), 3000); }
@@ -430,7 +439,7 @@ export function useGlowCanvases(host: () => HTMLElement | null, refs: RefObject<
     /** `known`: a theme (or palette…) change: the plan for the new state is looked up (painted ahead), and checked against
      * the page once it is idle. A glow that comes and goes looks its plan up when it comes, too (checked a little later,
      * once the switch that brought it has played). `read`: read from the page */
-    let softly = false, stuck = 0, pending = '', fading = 0;
+    let softly = false, stuck = 0, pending = '', fading = 0, fellBack = false;
     const now = (known: boolean, read = false) => {
       if (!alive || lost) return;
       const st = state(), sk = shared();
@@ -458,17 +467,17 @@ export function useGlowCanvases(host: () => HTMLElement | null, refs: RefObject<
       // goes at once, so the switch's snapshot never holds the old theme)
       if (pending === p.key) return; // (already waiting for it: the same commit asked again)
       const soft = softly && !!real && p.jobs.every((job, i) => refs[i]?.current?.width === job.w && refs[i]?.current?.height === job.h);
-      show(''); shown(false, true);
+      show(''); shown(false, 'wait');
       if (!soft) p.jobs.forEach((job, i) => {
         const cv = refs[i]?.current; if (!cv) return;
         if (cv.width !== job.w || cv.height !== job.h) { cv.width = job.w; cv.height = job.h; }
         const g = cv.getContext('2d', { alpha: !job.base }) as CanvasRenderingContext2D | null; if (!g) return;
         if (job.base) { g.fillStyle = `rgb(${job.base.join(' ')})`; g.fillRect(0, 0, job.w, job.h); } else g.clearRect(0, 0, job.w, job.h);
       });
-      clearTimeout(fading); el.removeAttribute('data-fade'); el.setAttribute('data-wait', soft ? 'soft' : '');
+      cancelAnimationFrame(fading); el.removeAttribute('data-fade'); el.setAttribute('data-wait', soft ? 'soft' : '');
       const q = p; pending = q.key;
       // (if the worker can't paint it, the CSS after all)
-      const fail = () => { if (pending === q.key) pending = ''; if (alive && !lost && want === q.key && !real && el.hasAttribute('data-wait')) { el.removeAttribute('data-wait'); shown(false); } };
+      const fail = () => { if (pending === q.key) pending = ''; if (alive && !lost && want === q.key && !real && el.hasAttribute('data-wait')) { el.removeAttribute('data-wait'); fellBack = true; shown(false); } };
       clearTimeout(stuck); stuck = window.setTimeout(fail, 6000);
       void paintPlan(q, false, true).then((got) => { if (alive && !lost && got && want === q.key) { clearTimeout(stuck); put(q, got); } else if (!got) fail(); });
     };
@@ -486,14 +495,14 @@ export function useGlowCanvases(host: () => HTMLElement | null, refs: RefObject<
       void paintPlan(p).then((got) => { if (got && onScreen) { unIdle(prepping); prepping = whenIdle(() => prep(p.key), 3000); } });
     } });
     // the graphics chip lost the canvas (a GPU reset): the CSS shows until it is back, then it is drawn again
-    const onLost = () => { lost = true; pending = ''; clearTimeout(fading); show(''); shown(false); dropSpare(); el.removeAttribute('data-wait'); el.removeAttribute('data-fade'); }; // (not cancelled: that would stop the restore)
+    const onLost = () => { lost = true; pending = ''; cancelAnimationFrame(fading); show(''); shown(false); dropSpare(); el.removeAttribute('data-wait'); el.removeAttribute('data-fade'); }; // (not cancelled: that would stop the restore)
     const onBack = () => { lost = false; pending = ''; show(''); now(false); };
     const check = () => { if (document.hidden) dropSpare(); if (!document.hidden && [...drawn].some((c) => (c.getContext('2d') as CanvasRenderingContext2D | null)?.isContextLost?.())) onLost(); };
     const cvs = refs.map((r) => r.current).filter((c): c is HTMLCanvasElement => !!c);
     for (const c of cvs) { c.addEventListener('contextlost', onLost); c.addEventListener('contextrestored', onBack); }
     document.addEventListener('visibilitychange', check);
     return () => {
-      alive = false; show(''); ro.disconnect(); mo.disconnect(); io.disconnect(); untwin(); unIdle(verify); unIdle(defer); clearTimeout(late); unIdle(prepping); dropSpare(); clearTimeout(stuck); clearTimeout(fading);
+      alive = false; show(''); ro.disconnect(); mo.disconnect(); io.disconnect(); untwin(); unIdle(verify); unIdle(defer); clearTimeout(late); unIdle(prepping); dropSpare(); clearTimeout(stuck); cancelAnimationFrame(fading);
       for (const c of cvs) { c.removeEventListener('contextlost', onLost); c.removeEventListener('contextrestored', onBack); }
       document.removeEventListener('visibilitychange', check);
     };
