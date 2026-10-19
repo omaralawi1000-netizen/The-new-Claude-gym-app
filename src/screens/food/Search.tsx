@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { openFoodPhoto } from '../../lib/photoOpen';
 import { AnimatePresence, motion } from 'motion/react';
 import { useStore, foodPool } from '../../state/store';
 import { useUI, haptic } from '../../state/ui';
@@ -155,7 +156,7 @@ export function FoodSearch({ props }: { props: { date: string; mealId: string } 
   const actions: { icon: any; label: string; run: () => void }[] = [
     // what you'd reach for first, then your own library; talking is the orb's job (it's always in the dock)
     { icon: 'barcode', label: t('Scan'), run: () => push('scanner', { date: props.date, mealId: props.mealId }) },
-    { icon: 'camera', label: t('Photo'), run: () => push('photoFood', { date: props.date, mealId: props.mealId }) },
+    { icon: 'camera', label: t('Photo'), run: () => openFoodPhoto(props.date, props.mealId) },
     { icon: 'bolt', label: t('Quick add'), run: () => push('quickAdd', { date: props.date, mealId: props.mealId }) },
     { icon: 'edit', label: t('New food'), run: () => push('customFood', { afterSave: 'openDetail', date: props.date, mealId: props.mealId }) },
     { icon: 'recipe', label: t('Recipes'), run: () => push('recipes', { date: props.date, mealId: props.mealId }) },
