@@ -920,6 +920,7 @@ export const da: Record<string, string> = {
  "Walk": "Gåtur",
  "Cycle": "Cykling",
  "Swim": "Svømning",
+ "Row": "Roning",
  "Hike": "Vandretur",
  "Mobility": "Mobilitet",
  "Warm-up": "Opvarmning",
