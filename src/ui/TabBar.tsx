@@ -32,8 +32,10 @@ function PillStatus() {
   const total = active.exercises.reduce((n, e) => n + e.sets.length, 0);
   const done = active.exercises.reduce((n, e) => n + e.sets.filter((s) => s.done).length, 0);
   // rest over while you're elsewhere in the app: the pill says so, in green, until the next set is ticked
-  if (active.rest && !active.pausedAt && rest === 0) return <><span style={{ color: 'var(--ac-text)', fontWeight: 700 }}>{t('Rest over')} · {t('Go')}</span> · {fmtDuration(elapsedMs(active) / 1000)}</>;
-  return <>{active.pausedAt ? t('Paused') : rest > 0 ? `${t('Rest')} ${fmtDuration(rest)}` : `${done}/${total}`} · {fmtDuration(elapsedMs(active) / 1000)}</>;
+  // (the workout's time on its own: it flies into the window's clock, Active.tsx data-wk-fly)
+  const clock = <span data-wk-fly="clock">{fmtDuration(elapsedMs(active) / 1000)}</span>;
+  if (active.rest && !active.pausedAt && rest === 0) return <><span style={{ color: 'var(--ac-text)', fontWeight: 700 }}>{t('Rest over')} · {t('Go')}</span> · {clock}</>;
+  return <>{active.pausedAt ? t('Paused') : rest > 0 ? `${t('Rest')} ${fmtDuration(rest)}` : `${done}/${total}`} · {clock}</>;
 }
 
 const PILL = { hide: { y: 18, scale: 0.95 }, show: { y: 0, scale: 1 } };
@@ -66,7 +68,7 @@ function LivePill() {
       <motion.span variants={FADE} transition={SOFT} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
         <span className={paused ? 'pulse-dot still' : 'pulse-dot'} />
         <span className="grow" style={{ textAlign: 'left', minWidth: 0, position: 'relative' }}>
-          <span className="trunc" style={{ display: 'block', fontWeight: 650, fontSize: 14 }}>{name || t('Workout')}</span>
+          <span className="trunc" data-wk-fly="title" style={{ display: 'block', fontWeight: 650, fontSize: 14 }}>{name || t('Workout')}</span>
           <span className="small t2 num" style={{ display: 'block' }}><PillStatus /></span>
         </span>
         <span className="icon-btn acc" data-wk-in="pop" style={{ width: 40, height: 40, position: 'relative' }}><Icon name="play" size={18} /></span>

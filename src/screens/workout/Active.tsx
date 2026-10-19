@@ -43,22 +43,28 @@ const FADE_IN = { inside: [0.025, 0.08], skin: [0.06, 0.16], words: [0.002, 0.03
 // card's look comes up on it at the end)
 // (`pop`, `popS`: the card's play button on a layer of its own, so it never shows half see-through: it comes up quickly over
 // `pop` while it is still a touch small, and grows the last bit into its place over `popS`; leaving, the reverse)
-type Fades = typeof FADE_OUT & { views?: number[]; mat?: number[]; pop?: number[]; popS?: number[]; /** the play button's size at the far end of popS (0.88) */ popTo?: number };
+type Fades = typeof FADE_OUT & { views?: number[]; mat?: number[]; pop?: number[]; popS?: number[]; /** the play button's size at the far end of popS (0.88) */ popTo?: number; veil?: number[]; meta?: number[] };
 const FADES: Record<Land, { out: Fades; in: Fades }> = {
   A: { out: { ...FADE_OUT, inside: [0.86, 0.99], skin: [0.42, 0.8], mat: FADE_OUT.skin }, in: { ...FADE_IN, inside: [0.68, 0.94], views: [0.86, 0.995], skin: [0.32, 0.66], mat: FADE_IN.skin } },
   B: { out: { inside: [0.5, 0.97], skin: [0.38, 0.76], mat: [0.089, 0.178], words: [0, 0.06], back: [0.006, 0.056], solid: [0.078, 0.089], pop: [0.07, 0.1], popS: [0, 0.1] }, in: { ...FADE_IN, words: [0.002, 0.07], pop: [0.002, 0.025], popS: [0.002, 0.05], inside: [0.62, 0.9], views: [0.8, 0.99], skin: [0.6, 0.88], mat: FADE_IN.skin } },
-  // D (design A): the page is in the window the whole way. Opening, the card's words go in the first 7 % and the page
-  // comes in just after them (never both at once: no doubled words), with no plain slab in between; closing, the page
-  // stays until the window is within 10-20 % of home, then the card's look comes back over it and its words after that.
-  // The play button is never half see-through (brown over the dark): opening, it shrinks away whole into its middle and
-  // is cut once small; closing, it is cut in at the card and grows its last 12 %. (Opening's start is slow in progress:
-  // a fade there spanned five frames.)
-  D: { out: { inside: [0.1, 0.2], views: [0.12, 0.22], skin: [0.1, 0.2], mat: [0.089, 0.178], words: [0.035, 0.1], back: [0.006, 0.056], solid: [0.078, 0.089], pop: [0.085, 0.09], popS: [0, 0.1] }, in: { ...FADE_IN, words: [0.002, 0.07], pop: [0.03, 0.031], popS: [0.0004, 0.032], popTo: 0.15, inside: [0.075, 0.2], views: [0.09, 0.26], skin: [0.06, 0.2], mat: FADE_IN.skin } },
+  // D (design A): the page is in the window the whole way. What the card and the header both show (the name, the clock)
+  // flies as one piece (launchHero); everything else hands over with an overlap of a few frames, never one after the other
+  // (r1 showed an empty card or pill for 1-3 frames at every hand-over), and never on top of its twin. Opening, the card's
+  // words go over 0-9 % and the header comes in over 7-18 %, the list after it; closing, the page goes over 22-10 % and the
+  // card's words come in over 15-6 %. The play button is never half see-through over the dark for more than a few frames
+  // (brown): opening, it shrinks to a quarter and fades over its last frames; closing, it fades in at 0.6 of its size and
+  // grows into its place as the card lands. `veil`: the card's plain ground stays over the window's own light until the
+  // window is a good part of the screen (r1: the light squeezed into a card or bar read as a flat red-orange slab); it is
+  // set on plain progress, as `meta` is: the header's tally and progress bar, which leave in the first frames of a close
+  // (the clock flies down through where they are) and come back once it has flown up.
+  D: { out: { inside: [0.1, 0.2], views: [0.12, 0.22], skin: [0.1, 0.2], veil: [0.25, 0.45], meta: [0.88, 0.96], mat: [0.089, 0.178], words: [0.06, 0.15], back: [0.006, 0.056], solid: [0.078, 0.089], pop: [0.07, 0.12], popS: [0, 0.12], popTo: 0.6 }, in: { ...FADE_IN, words: [0.002, 0.09], pop: [0.03, 0.06], popS: [0, 0.06], popTo: 0.25, inside: [0.07, 0.18], views: [0.09, 0.22], skin: [0.06, 0.2], veil: [0.25, 0.45], meta: [0.25, 0.45], mat: FADE_IN.skin } },
   C: { out: { ...FADE_OUT, inside: [0.88, 0.995], skin: [0.42, 0.8], mat: FADE_OUT.skin }, in: { ...FADE_IN, inside: [0.6, 0.9], views: [0.8, 0.99], skin: [0.32, 0.6], mat: FADE_IN.skin } },
 };
 // B: how much the card gives as it catches the window (per unit of the spring's overshoot past the card): it shrinks a
 // touch about its middle and dips, then springs back; the shape never changes, only its size and place
 const CATCH_K = 0.4, CATCH_D = 200;
+// D: no give in size, and a shallower dip (r1: 6 px, still creeping a tenth of a pixel at 0.8 s; now about 3 px)
+const CATCH_KD = 0, CATCH_DD = 110;
 // the card the fades are set for: any place this tall or taller lands on them as they are (`fk`)
 const FK_REF = 150;
 // C: how far the list sinks as it packs away (and rises from as it comes in)
@@ -159,7 +165,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   const gAt = (pp: number) => {
     const g = from.current;
     if (!g || pp >= 0 || !catching()) return g;
-    const c = 1 + pp * CATCH_K, dy = -pp * CATCH_D, cx = g.l + g.w / 2, cy = (g.t + g.b) / 2, hh = ((g.b - g.t) / 2) * c;
+    const live = ls.current === 'D', c = 1 + pp * (live ? CATCH_KD : CATCH_K), dy = -pp * (live ? CATCH_DD : CATCH_D), cx = g.l + g.w / 2, cy = (g.t + g.b) / 2, hh = ((g.b - g.t) / 2) * c;
     return { l: cx - (g.w / 2) * c, t: cy - hh + dy, w: g.w * c, b: cy + hh + dy, h: g.h * c };
   };
   const geo = (pp: number) => {
@@ -216,14 +222,26 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   const insideV = (pp: number) => (from.current ? ramp(pp, F().views ?? F().inside) : 1);
   // (never quite 0 while it is there: the browser leaves what lies inside a fully clear layer to the page to animate, frame
   // by frame, instead of running it itself)
-  const skinO = (pp: number) => Math.max(0.002, 1 - ramp(pp, F().skin));
+  const skinO = (pp: number) => { const v = F().veil; return Math.max(0.002, 1 - (v ? clamp01((pp - v[0]) / (v[1] - v[0])) : ramp(pp, F().skin))); };
+  const metaO = (pp: number) => { const v = F().meta; return from.current && v ? clamp01((pp - v[0]) / (v[1] - v[0])) : 1; };
   const wordsO = (pp: number) => Math.max(0.002, 1 - ramp(pp, F().words));
   const popO = (pp: number) => Math.max(0.002, 1 - ramp(pp, F().pop ?? F().words));
-  const popAt = (pp: number) => `scale(${((skinParts.current?.pop?.k ?? 1) * (1 - (1 - (F().popTo ?? 0.88)) * ramp(pp, F().popS ?? F().words))).toFixed(5)})`;
+  // D closing: the card's words ride the middle of the window while it is still taller than the card (r1: they sat at its
+  // top over an empty lower third as it landed); what flies to them (launchHero) aims there too
+  const wordsDy = (pp: number) => {
+    const g = from.current, { W, hA, RB } = dims.current;
+    if (!g || !W || ls.current !== 'D' || !leaving.current) return 0;
+    const v = (hA + RB + geo(pp).by - (g.b - g.t) / (g.w / W)) / 2;
+    return v > 0.05 ? v : 0;
+  };
+  const wordsAt = (pp: number) => { const dy = wordsDy(pp), k = skinParts.current?.k ?? 1; return `${dy ? `translateY(${dy.toFixed(2)}px) ` : ''}scale(${k.toFixed(5)})`; };
+  const popAt = (pp: number) => `${wordsDy(pp) ? `translateY(${wordsDy(pp).toFixed(2)}px) ` : ''}scale(${((skinParts.current?.pop?.k ?? 1) * (1 - (1 - (F().popTo ?? 0.88)) * ramp(pp, F().popS ?? F().words))).toFixed(5)})`;
   const matR = () => F().mat ?? F().skin;
   const matO = (pp: number) => (F().mat ? Math.max(0.002, 1 - ramp(pp, F().mat!)) : 1);
   const toneO = (pp: number) => (F().mat ? Math.max(0.002, ramp(pp, F().mat!)) : 0.002);
-  const backO = (pp: number) => ramp(pp, F().back);
+  // (the resume bar's own glass is frosted and see-through without its blur: the window's ground is under its copy from the
+  // tap, so nothing behind the bar shows through it, r1 pill-resume)
+  const backO = (pp: number) => (!exact.current && !leaving.current && from.current ? 1 : ramp(pp, F().back));
   // The page behind steps back while the window grows: it dims and sinks a touch (the sheets' own step back, v0.1.76:
   // contentTransform, to 95 %), the two in step. It starts as the window sets off (eased in, so it is still at rest on the
   // frame the window lands in the card on the way down: the card, and the tab bar on it, stop exactly there); at the top it
@@ -367,14 +385,14 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   const caught = useRef(false); // B: the spring has come to rest on the card
   const wasHome = useRef(false);
   // The clock in flight (landing.ts) and the two clocks it joins: the header's and the card's. The one it is flying to is
-  // hidden until it lands there; then that one shows again in the same frame and the copy goes.
+  // hidden until it lands there; then that one shows again in the same frame and the copy goes. (D: the workout's name
+  // flies the same way, beside it: whatever the card and the window both show travels as one thing, data-wk-fly.)
   const heroHost = useRef<HTMLDivElement>(null);
-  const hero = useRef<Hero | null>(null);
-  const heroEnds = useRef<{ to: HTMLElement; ok: () => boolean; watch: MutationObserver; hide: HTMLElement[] } | null>(null);
+  const hero = useRef<{ h: Hero; watch: MutationObserver; hide: HTMLElement[] }[]>([]);
+  const heroOk = useRef<(() => boolean) | null>(null);
   const dropHero = () => {
-    const h = hero.current, e = heroEnds.current; hero.current = null; heroEnds.current = null;
-    h?.drop(); e?.watch.disconnect();
-    for (const el of e?.hide ?? []) el.style.visibility = '';
+    const hs = hero.current; hero.current = []; heroOk.current = null;
+    for (const x of hs) { x.h.drop(); x.watch.disconnect(); for (const el of x.hide) el.style.visibility = ''; }
   };
   // the card's details (data-wk-in, Today.tsx) that come after the clock instead of riding the window down
   const lateKinds = () => (catches(ls.current) ? [] : ls.current === 'C' ? ['label', 'sub', 'pop'] : ['sub', 'pop']);
@@ -387,18 +405,33 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     const fg = src.current[1] ?? null, late = lateOf(fg);
     if (late.length) arrive(late, ls.current === 'C' ? [0, 40, 85] : [10, 55]);
   };
-  // the clock has landed and the place it lands in is showing (checked each frame from then): hand over
-  const settleHero = (h: Hero) => {
-    void h.done.then(() => {
-      const step = () => { if (hero.current !== h) return; if (heroEnds.current?.ok()) dropHero(); else requestAnimationFrame(step); };
+  // the flights have landed and the places they land in are showing (checked each frame from then): hand over
+  const settleHero = (hs: typeof hero.current) => {
+    void Promise.all(hs.map((x) => x.h.done)).then(() => {
+      const step = () => { if (hero.current !== hs) return; if (heroOk.current?.()) dropHero(); else requestAnimationFrame(step); };
       step();
     });
   };
-  const skinParts = useRef<{ back: HTMLElement; tone: HTMLElement; mat: HTMLElement; words: HTMLElement | null; pop: { el: HTMLElement; k: number } | null; watch: MutationObserver | null } | null>(null);
+  // what flies between the card and the window's header (data-wk-fly, landing.ts): the clock of Today's running card, and
+  // in D the workout's name too, from any card or the resume bar (not the card's "Paused", which the header never shows)
+  const flyKinds = (fg: HTMLElement | null | undefined, bg: HTMLElement | null | undefined) => {
+    if (!fg || !bg) return [];
+    const kinds = ls.current === 'D' ? ['clock', 'title'] : bg.dataset.wk === 'hero' ? ['clock'] : [];
+    return kinds.filter((kd) => { const c = fg.querySelector<HTMLElement>(`[data-wk-fly="${kd}"]`); return c && (kd === 'clock' || c.textContent?.trim() !== t('Paused')); });
+  };
+  // ...and the header's twin of each, once the header shows the same name (a workout just started is drawn there a frame or
+  // two after the tap). (The header's own: the window also carries copies of the card, which have the same marks.)
+  const flyPairs = (fg: HTMLElement | null | undefined, bg: HTMLElement | null | undefined): [HTMLElement, HTMLElement][] => {
+    const hd = headRef.current; if (!fg || !hd) return [];
+    const kinds = flyKinds(fg, bg), name = fg.querySelector('[data-wk-fly="title"]')?.textContent?.trim();
+    if (kinds.includes('title') && hd.querySelector('[data-wk-fly="title"]')?.textContent?.trim() !== name) return [];
+    return kinds.map((kd) => [fg.querySelector<HTMLElement>(`[data-wk-fly="${kd}"]`)!, hd.querySelector<HTMLElement>(`[data-wk-fly="${kd}"]`)]).filter((x): x is [HTMLElement, HTMLElement] => !!x[1]);
+  };
+  const skinParts = useRef<{ k: number; back: HTMLElement; tone: HTMLElement; mat: HTMLElement; words: HTMLElement | null; pop: { el: HTMLElement; k: number } | null; watch: MutationObserver | null } | null>(null);
   const skinAt = (pp: number) => {
     const s = skinRef.current, k = skinParts.current; if (!s || !k) return;
     s.style.opacity = String(skinO(pp)); k.back.style.opacity = String(backO(pp)); k.mat.style.transform = matAt(pp); k.mat.style.opacity = String(matO(pp)); k.tone.style.opacity = String(toneO(pp));
-    if (k.words) k.words.style.opacity = String(wordsO(pp));
+    if (k.words) { k.words.style.opacity = String(wordsO(pp)); k.words.style.transform = wordsAt(pp); }
     if (k.pop) { k.pop.el.style.opacity = String(popO(pp)); k.pop.el.style.transform = popAt(pp); }
   };
   const dropSkin = () => {
@@ -440,8 +473,13 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     if (!reduce) mirrorSpring(el, [{ transform: t0 }, { transform: 'none' }], SMOOTH);
   };
   // the page's styles at progress pp (whatever the browser isn't running itself)
+  // the header's tally and progress bar (`meta`)
+  const metaEls = () => [...(headRef.current?.querySelectorAll<HTMLElement>('.wk-meta-rest, .wk-paused, .wk-progress') ?? [])];
+  const lastMeta = useRef('');
+  const metaAt = (pp: number) => { const v = String(metaO(pp)); if (v === lastMeta.current) return; lastMeta.current = v; for (const el of metaEls()) el.style.opacity = v === '1' ? '' : v; };
   const paintAt = (pp: number) => {
     if (!reduce) sink(env(pp));
+    metaAt(pp);
     if (dockAt.current !== null) setDock(pp);
     skinAt(pp);
   };
@@ -541,9 +579,11 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
           s.append(el);
         }
         const L0 = parseFloat(w.style.left), T0 = parseFloat(w.style.top);
+        // (what flies on its own is not on the copy: launchHero)
+        const flyK = new Set(flyKinds(fg, g.bg)); if (g.bg.dataset.wk === 'hero') flyK.add('clock');
         const place = () => {
           const c = copyOf(fg);
-          if (g.bg.dataset.wk === 'hero') c.querySelectorAll<HTMLElement>('[data-wk-clock]').forEach((n) => { n.style.visibility = 'hidden'; });
+          c.querySelectorAll<HTMLElement>('[data-wk-fly]').forEach((n) => { if (flyK.has(n.dataset.wkFly ?? '')) n.style.visibility = 'hidden'; });
           c.querySelectorAll<HTMLElement>('[data-wk-in]').forEach((n) => { if (lateNow.includes(n.dataset.wkIn ?? '') || (pop && n.dataset.wkIn === 'pop')) n.style.visibility = 'hidden'; });
           w.replaceChildren(c); sync(fg, c);
           if (pop) {
@@ -563,10 +603,10 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
         // (its clock ticks while the window travels: the copy keeps up)
         // (only for what the copy shows: the card's own clock is hidden on it (it flies), so its tick re-copied, and redrew,
         // the whole card every second of the move for nothing)
-        const shown = (m: MutationRecord) => !(m.target instanceof Element ? m.target : m.target.parentElement)?.closest('[data-wk-clock]');
-        watch = new MutationObserver((ms) => { if (g.bg.dataset.wk !== 'hero' || ms.some(shown)) place(); }); watch.observe(fg, { subtree: true, childList: true, characterData: true });
+        const shown = (m: MutationRecord) => !(m.target instanceof Element ? m.target : m.target.parentElement)?.closest('[data-wk-fly="clock"]');
+        watch = new MutationObserver((ms) => { if (!flyK.has('clock') || ms.some(shown)) place(); }); watch.observe(fg, { subtree: true, childList: true, characterData: true });
       }
-      skinParts.current = { back, tone, mat, words, pop, watch };
+      skinParts.current = { k: 1 / s0, back, tone, mat, words, pop, watch };
       s.style.display = 'block';
     }
     src.current = [g.bg, ...(g.fg ? [g.fg] : [])];
@@ -617,8 +657,9 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
       morph && k ? go(k.back, (pp) => ({ opacity: String(backO(pp)) }), F().back) : null,
       morph && k ? go(k.mat, (pp) => ({ transform: matAt(Math.min(pp, matR()[1] / fk.current)), opacity: String(matO(pp)) }), [], true) : null,
       morph && k && F().mat ? go(k.tone, (pp) => ({ opacity: String(toneO(pp)) }), F().mat) : null,
-      morph && k?.words ? go(k.words, (pp) => ({ opacity: String(wordsO(pp)) }), F().words) : null,
+      morph && k?.words ? go(k.words, (pp) => ({ opacity: String(wordsO(pp)), transform: wordsAt(pp) }), [], true) : null,
       morph && k?.pop ? go(k.pop.el, (pp) => ({ opacity: String(popO(pp)), transform: popAt(pp) }), [], true) : null,
+      ...(morph && F().meta ? metaEls().map((el) => go(el, (pp) => ({ opacity: String(metaO(pp)) }), [], true)) : []),
       morph ? go(dimRef.current, (pp) => ({ opacity: String(dim(pp)) }), ENVB) : null,
       morph ? go(stageEl(), (pp) => ({ transform: contentTransform(env(pp)) }), ENVB) : null,
       morph && dockAt.current !== null ? go(navEl(), (pp) => ({ transform: dockT(pp) }), [], true) : null,
@@ -637,35 +678,24 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   // and the resume bar takes a phone a good while, and before, nothing moved until it was done (the pause after a tap).
   const closing = useRef<Promise<void> | null>(null);
   // The clock's flight (landing.ts), built from the window's own spring frame by frame, so its two ends are where the
-  // header's clock and the card's are in every frame (the header's moves with the window, the card's holds still).
+  // header's clock and the card's are in every frame (the header's moves with the window, the card's holds still). D flies
+  // the workout's name the same way, so nothing the card and the header share ever fades out on one and in on the other.
   const heroTry = useRef(0);
   const launchHero = (opening: boolean, p0: number, p1: number, sp: { stiffness: number; damping: number; mass?: number }, vel: number, t0 = performance.now(), tries = 0) => {
     if (!tries) { cancelAnimationFrame(heroTry.current); dropHero(); }
     const dbg = (m: string) => { ((window as unknown as { __wk?: string[] }).__wk ??= []).push(`${Math.round(performance.now())} ${m}`); };
     const host = heroHost.current, d = dialogRef.current, sh = sheetRef.current, fg = src.current[1], bg = src.current[0], g0 = from.current;
-    if (reduce || !host || !d || !sh || !g0 || !fg || bg?.dataset.wk !== 'hero') { dbg(`no hero ${!!reduce} ${!!host} ${!!d} ${!!sh} ${!!g0} ${!!fg} ${bg?.dataset.wk}`); return; }
-    const cardClock = fg.querySelector<HTMLElement>('[data-wk-clock]'), headClock = sh.querySelector<HTMLElement>('.wk-clock');
-    // (the card behind may not show the running workout yet: it is drawn again as the window uncovers it. The flight then
-    // sets off from where the window has got to by then.)
-    if (!cardClock && !opening && tries < 24) { heroTry.current = requestAnimationFrame(() => launchHero(opening, p0, p1, sp, vel, t0, tries + 1)); return; }
-    if (!cardClock || !headClock) { dbg(`no clocks ${!!cardClock} ${!!headClock}`); return; }
-    const box = d.getBoundingClientRect(), cardNow = anchorOf(cardClock), headNow = anchorOf(headClock);
+    if (reduce || !host || !d || !sh || !g0 || !fg || !bg) { dbg(`no hero ${!!reduce} ${!!host} ${!!d} ${!!sh} ${!!g0} ${!!fg}`); return; }
+    const pairs = flyPairs(fg, bg), want = flyKinds(fg, bg).length;
+    // (the card behind may not show the running workout yet: it is drawn again as the window uncovers it; and a workout just
+    // started is in the header a frame or two after the tap. The flight then sets off from where the window has got to.)
+    const short = pairs.length < want || (bg.dataset.wk === 'hero' && !opening && !pairs.some(([c]) => c.dataset.wkFly === 'clock'));
+    if (short && tries < 24) { heroTry.current = requestAnimationFrame(() => launchHero(opening, p0, p1, sp, vel, t0, tries + 1)); return; }
+    if (!pairs.length) { dbg('nothing flies'); return; }
+    const box = d.getBoundingClientRect();
     // the card where it rests (the page behind may be stepped back a touch right now: its scale about its middle undone)
     const stg = stageEl(), sr = stg?.getBoundingClientRect(), k = stg && sr && stg.offsetWidth ? sr.width / stg.offsetWidth : 1;
-    const cardA = cardNow && sr && Math.abs(k - 1) > 1e-4 ? { ...cardNow, x: sr.left + sr.width / 2 + (cardNow.x - sr.left - sr.width / 2) / k, y: sr.top + sr.height / 2 + (cardNow.y - sr.top - sr.height / 2) / k } : cardNow;
-    if (!cardA || !headNow) { dbg(`no anchors ${JSON.stringify(cardA)} ${JSON.stringify(headNow)}`); return; }
-    // the header's clock in the window's own px, as laid out (its place at rest, whatever the window is doing now)
-    let lx = 0, ly = 0, n: HTMLElement | null = headClock;
-    while (n && n !== sh) { lx += n.offsetLeft; ly += n.offsetTop; n = n.offsetParent as HTMLElement | null; }
-    if (n !== sh) { dbg('not in sheet'); return; }
-    const hr = headClock.getBoundingClientRect(), sc = hr.width / (headClock.offsetWidth || 1);
-    lx += (headNow.x - hr.left) / sc; ly += (headNow.y - hr.top) / sc;
     const { W } = dims.current, s0 = g0.w / W;
-    const headerAt = (pp: number): Anchor & { s: number } => { const G = geo(pp); return { x: box.left + G.x + G.s * lx, y: box.top + G.y + G.s * (ly + headOff(pp, pp)), f: headNow.f, s: G.s }; };
-    // the card's clock on the copy of the card the window carries (B: it rides the window, and the card's give)
-    const rx = cardA.x - box.left - g0.l, ry = cardA.y - box.top - g0.t;
-    const skinAt = (pp: number): Anchor & { s: number } => { const G = geo(pp); return { x: box.left + G.x + (G.s * rx) / s0, y: box.top + G.y + (G.s * ry) / s0, f: cardA.f, s: G.s / s0 }; };
-    const cardRest = { ...cardA, s: 1 };
     const span = p1 - p0, v0 = Math.max(-40, Math.min(40, span ? vel / span : 0));
     const fs = samples(sp, v0), L = LANDS[ls.current], hsp = opening ? L.openHero : L.closeHero, hs = hsp ? samples(hsp) : null;
     const ppAt = (i: number) => p0 + span * fs[Math.min(i, fs.length - 1)];
@@ -674,22 +704,41 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     const wait = opening ? 0 : ls.current === 'C' ? 6 : 9;
     const hw = (i: number) => (hs ? hs[Math.max(0, Math.min(i - wait, hs.length - 1))] : 1);
     const frames = Math.max(fs.length, (hs?.length ?? 0) + wait) - 1;
-    const B = catches(ls.current);
-    const restHead = headerAt(1);
-    // (B opening: the clock is home in its slot a little ahead of the window, before the header's words beside it come in)
-    const flight = opening
-      ? { frames, src: (i: number) => (B ? skinAt(ppAt(i)) : cardRest), dst: (i: number) => headerAt(ppAt(i)), w: (i: number) => (B ? 1 - Math.pow(1 - Math.min(1, qAt(ppAt(i))), 3) : hw(i)) }
-      : { frames, src: (i: number) => headerAt(ppAt(i)), dst: (i: number) => (B ? skinAt(ppAt(i)) : cardRest), w: (i: number) => (B ? Math.pow(Math.max(0, 1 - qAt(ppAt(i))), 1.5) : hw(i)) };
-    const a0 = opening ? cardA : headNow, a1 = opening ? { x: restHead.x, y: restHead.y, f: restHead.f } : cardA;
-    const fromEl = opening ? cardClock : headClock, toEl = opening ? headClock : cardClock;
-    // (D closing: the clock changes weight in one frame as it sets off, not in a crossing of two clocks side by side)
-    const h = flyHero(host, fromEl, toEl, a0, a1, flight, Math.round(((performance.now() - t0) * 120) / 1000), !opening && ls.current === 'D');
-    hero.current = h;
-    // it shows what the clock it is flying to shows (that one starts ticking again as the window sets off)
-    const watch = new MutationObserver(() => h.text(toEl.textContent ?? '')); watch.observe(toEl, { subtree: true, childList: true, characterData: true });
-    fromEl.style.visibility = 'hidden'; toEl.style.visibility = 'hidden';
-    heroEnds.current = { to: toEl, watch, hide: [fromEl, toEl], ok: opening ? () => Math.abs(p.get() - 1) < 0.002 && !closing.current : () => wasHome.current };
-    settleHero(h); dbg(`hero ${opening} ${frames} a0=${JSON.stringify(a0)} a1=${JSON.stringify(a1)}`);
+    // (D opening: the card's big name and clock are the header's size by the time the header is in round them, a sixth of
+    // the way: shrinking with the window, the big name lay over the header's clock and tally for six frames, r2)
+    const B = catches(ls.current), live = ls.current === 'D', skip = Math.round(((performance.now() - t0) * 120) / 1000);
+    const made = pairs.flatMap(([cardEl, headEl]) => {
+      const cardNow = anchorOf(cardEl), headNow = anchorOf(headEl);
+      const cardA = cardNow && sr && Math.abs(k - 1) > 1e-4 ? { ...cardNow, x: sr.left + sr.width / 2 + (cardNow.x - sr.left - sr.width / 2) / k, y: sr.top + sr.height / 2 + (cardNow.y - sr.top - sr.height / 2) / k } : cardNow;
+      if (!cardA || !headNow) { dbg(`no anchors ${cardEl.dataset.wkFly}`); return []; }
+      // the header's one in the window's own px, as laid out (its place at rest, whatever the window is doing now)
+      let lx = 0, ly = 0, n: HTMLElement | null = headEl;
+      while (n && n !== sh) { lx += n.offsetLeft; ly += n.offsetTop; n = n.offsetParent as HTMLElement | null; }
+      if (n !== sh) { dbg('not in sheet'); return []; }
+      const hr = headEl.getBoundingClientRect(), sc = hr.width / (headEl.offsetWidth || 1);
+      lx += (headNow.x - hr.left) / sc; ly += (headNow.y - hr.top) / sc;
+      const headerAt = (pp: number): Anchor & { s: number } => { const G = geo(pp); return { x: box.left + G.x + G.s * lx, y: box.top + G.y + G.s * (ly + headOff(pp, pp)), f: headNow.f, s: G.s }; };
+      // the card's one on the copy of the card the window carries (B: it rides the window, and the card's give)
+      const rx = cardA.x - box.left - g0.l, ry = cardA.y - box.top - g0.t;
+      const skinAt = (pp: number): Anchor & { s: number } => { const G = geo(pp); return { x: box.left + G.x + (G.s * rx) / s0, y: box.top + G.y + G.s * (ry / s0 + wordsDy(pp)), f: cardA.f, s: G.s / s0 }; };
+      const cardRest = { ...cardA, s: 1 };
+      const restHead = headerAt(1);
+      // (B opening: the clock is home in its slot a little ahead of the window, before the header's words beside it come in)
+      const flight = opening
+        ? { frames, src: (i: number) => (B ? skinAt(ppAt(i)) : cardRest), dst: (i: number) => headerAt(ppAt(i)), w: (i: number) => (live ? 1 - Math.pow(1 - Math.min(1, ppAt(i) / 0.3), 2) : B ? 1 - Math.pow(1 - Math.min(1, qAt(ppAt(i))), 3) : hw(i)) }
+        : { frames, src: (i: number) => headerAt(ppAt(i)), dst: (i: number) => (B ? skinAt(ppAt(i)) : cardRest), w: (i: number) => (B ? Math.pow(Math.max(0, 1 - qAt(ppAt(i))), 1.5) : hw(i)) };
+      const a0 = opening ? cardA : headNow, a1 = opening ? { x: restHead.x, y: restHead.y, f: restHead.f } : cardA;
+      const fromEl = opening ? cardEl : headEl, toEl = opening ? headEl : cardEl;
+      const h = flyHero(host, fromEl, toEl, a0, a1, flight, skip);
+      // it shows what the one it is flying to shows (a clock starts ticking again as the window sets off)
+      const watch = new MutationObserver(() => h.text(toEl.textContent ?? '')); watch.observe(toEl, { subtree: true, childList: true, characterData: true });
+      fromEl.style.visibility = 'hidden'; toEl.style.visibility = 'hidden';
+      dbg(`hero ${cardEl.dataset.wkFly} ${opening} ${frames} a0=${JSON.stringify(a0)} a1=${JSON.stringify(a1)}`);
+      return [{ h, watch, hide: [fromEl, toEl] }];
+    });
+    hero.current = made;
+    heroOk.current = opening ? () => Math.abs(p.get() - 1) < 0.002 && !closing.current : () => wasHome.current;
+    settleHero(made);
   };
   const startClose = (v = 0): Promise<void> => {
     if (closing.current) return closing.current;
@@ -736,7 +785,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     const cc = catching() && mirror.current!.size ? Promise.all([c, mirror.current!.settled()]).then(() => undefined) : c;
     closing.current = new Promise<void>((done) => { cc.then(() => { done(); if (fade) requestAnimationFrame(() => fade?.cancel()); }, () => done()); });
     // landed: the card is itself again (its words already back), and the copy of it goes
-    void closing.current.then(() => { caught.current = true; cardAt(p.get()); warmStage(false); releaseCard(); dropSkin(); if (hero.current) dropHero(); });
+    void closing.current.then(() => { caught.current = true; cardAt(p.get()); warmStage(false); releaseCard(); dropSkin(); if (hero.current.length) dropHero(); });
     return closing.current;
   };
   // a press on Minimise that never became a tap lets the page behind rest again
@@ -1008,11 +1057,11 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
                 {renaming ? (
                   <input className="input" autoFocus style={{ minHeight: 34, padding: '4px 10px' }} defaultValue={a.name} onBlur={(e) => { useStore.getState().mutateActive((x) => ({ ...x, name: e.target.value.trim() })); setRenaming(false); }} onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} aria-label={t('Workout name')} />
                 ) : (
-                  <button className="wk-title display press" onClick={() => setRenaming(true)}>{a.name || t('Workout')}</button>
+                  <button className="wk-title display press" data-wk-fly="title" onClick={() => setRenaming(true)}>{a.name || t('Workout')}</button>
                 )}
                 {/* the clock and the tally on one line: time, sets, volume */}
                 <div className="wk-meta num">
-                  <span className={`wk-clock${paused ? ' paused' : ''}`}><Clock /></span>
+                  <span className={`wk-clock${paused ? ' paused' : ''}`} data-wk-fly="clock"><Clock /></span>
                   <span className="wk-meta-rest">{total ? <><Roll text={String(done)} />/{total} {t('sets')}{done > 0 && <> · <Roll text={fmtNum(Math.round(kgToDisplay(sessionVolume(a.exercises), weightUnit)), lang, 0)} /> {weightUnit}</>}</> : t('No sets yet')}</span>
                   {paused && <span className="wk-paused">{t('Paused')}</span>}
                   {typing && a.rest && <RestInline />}
