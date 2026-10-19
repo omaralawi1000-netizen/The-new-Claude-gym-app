@@ -2929,5 +2929,5 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 /* depth follows importance (Omar 19 Oct): the main buttons (play, the orange pills) sit a touch higher than the small ones
    (chips, round icons, tags), with a soft neutral contact shadow under their colour glow. Cards keep their own level.
    Static (never animated). */
-:root { --lift-main: 0 1.5px 2px rgba(0,0,0,.38), 0 10px 20px -8px rgba(0,0,0,.62); }
+:root { --lift-main: 0 1px 1px rgba(0,0,0,.32), 0 3px 7px -2px rgba(0,0,0,.42); }
 :root[data-theme='light'] { --lift-main: 0 1px 2px rgba(60,30,30,.14), 0 6px 14px -8px rgba(60,30,30,.22); }
