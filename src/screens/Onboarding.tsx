@@ -92,7 +92,7 @@ export function Onboarding({ props }: { props: { rerun?: boolean; starterOnly?: 
     <div key="2">
       <div className="display display-lg"><SoftText text={tt('Which days can you train?')} /></div>
       <div className="row-flex" style={{ gap: 6, marginTop: 22, justifyContent: 'space-between' }}>
-        {[1, 2, 3, 4, 5, 6, 0].map((wd) => { const on = days.includes(wd); return <button key={wd} className={`day-pill press${on ? ' on' : ''}`} aria-pressed={on} onClick={() => setDays(on ? days.filter((x) => x !== wd) : [...days, wd])} style={{ flex: 1, height: 64, borderRadius: 16, fontWeight: 700 }}>{fmtWeekdayShort(wd, lang2, true)}</button>; })}
+        {[1, 2, 3, 4, 5, 6, 0].map((wd) => { const on = days.includes(wd); return <button key={wd} className="press" aria-pressed={on} onClick={() => setDays(on ? days.filter((x) => x !== wd) : [...days, wd])} style={{ flex: 1, height: 64, borderRadius: 16, background: on ? 'var(--ac)' : 'var(--s2)', color: on ? 'var(--ac-ink)' : 'var(--tx2)', fontWeight: 700, boxShadow: on ? '0 8px 18px -8px color-mix(in srgb, var(--ac) 70%, transparent)' : 'inset 0 0 0 1px var(--line)' }}>{fmtWeekdayShort(wd, lang2, true)}</button>; })}
       </div>
       <div className="small t2 num" style={{ marginTop: 14 }}>{days.length} {tt('days a week')}</div>
     </div>,

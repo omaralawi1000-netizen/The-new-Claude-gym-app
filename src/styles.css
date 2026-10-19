@@ -2710,10 +2710,7 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
   /* (a chip row scrolls sideways, so it clips below the chips: there the raise is drawn inside the pill) */
   --sel-edge-in: inset 0 0 0 1px rgba(0, 0, 0, 0.06), inset 0 -1.5px 0 rgba(0, 0, 0, 0.07); }
 /* the moving thumb (switches and the dock): its three pieces must stay opaque (ui/lens.ts), so the clear glass is made by the
-   group's opacity: light-grey pieces at 0.3 = the page behind at 70 % plus about a 20 % white film; the white top line comes
-   out about 30 % white (crisp) and the bottom line a real shade (judge r1: at 0.2 it read as a matte pebble). Only colours and the group's resting opacity change (it was 0.9-0.95,
-   also a group opacity): the same three layers, the same motion. */
-:root:not([data-theme='light']) :is(.seg-lens, .tab-lens):not(#_):not(#_) { opacity: 0.3; --lens-fill: #a6a6a6; --lens-hl: #fff; --lens-line: #d6d6d6; --lens-lo: #000; }
+   group's opacity. Light mode below; dark keeps the raised graphite (r3, end of file). */
 :root[data-theme='light'] :is(.seg-lens, .tab-lens):not(#_) { --lens-fill: #fff; --lens-hl: #fff; --lens-line: rgba(0, 0, 0, 0.06); --lens-lo: rgba(0, 0, 0, 0.09); }
 :root[data-theme='light'] :is(.seg-lens, .tab-lens) > :is(.lens-l, .lens-r) { box-shadow: inset 0 -1px 0 var(--lens-lo), inset 0 0 0 1px var(--lens-line); }
 :root[data-theme='light'] :is(.seg-lens, .tab-lens) > .lens-m { background: linear-gradient(to bottom, transparent 0 calc(100% - 1px), var(--lens-lo) calc(100% - 1px)), linear-gradient(to bottom, var(--lens-line) 0 1px, transparent 1px calc(100% - 1px), var(--lens-line) calc(100% - 1px)), var(--lens-fill); }
@@ -2725,14 +2722,12 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
    its orange letters */
 :root .screen .plinth > button.press[style*='var(--ac-soft)']:not(#_):not(#_) { background: var(--sel-fill) !important; box-shadow: var(--sel-edge) !important; }
 :root .screen .plinth > button.press[style*='var(--ac-soft)']:not(#_):not(#_)::after { content: none; }
-/* picked days (Schedule's wrestling days, setup's training days): the pill, not solid orange; the days not picked are
+/* picked days (Schedule's wrestling days): the pill, not solid orange; the days not picked are
    quieter so the choice reads at a glance */
-.day-dots button:not(#_), .day-pill { background: var(--sel-off); color: var(--tx2); box-shadow: inset 0 0 0 1px var(--line); }
-.day-dots button.on:not(#_), .day-pill.on { background: var(--sel-fill); color: var(--tx); box-shadow: var(--sel-edge); }
-/* (judge r1: in dark a picked setup day read the same as an unpicked one over the glow, and in light the unpicked ones went
-   salmon or blue-grey: the unpicked ones step back instead) */
-:root:not([data-theme='light']) .day-pill:not(.on) { background: rgba(0, 0, 0, 0.28); }
-:root[data-theme='light'] .day-pill:not(.on) { background: rgba(255, 255, 255, 0.5); }
+.day-dots button:not(#_) { background: var(--sel-off); color: var(--tx2); box-shadow: inset 0 0 0 1px var(--line); }
+.day-dots button.on:not(#_) { background: var(--sel-fill); color: var(--tx); box-shadow: var(--sel-edge); }
+/* (judge r1: in light the unpicked wrestling days went blue-grey; setup's days keep their orange, r3: a first-run moment,
+   with the orange progress and Continue around them, where grey pills read dull) */
 :root[data-theme='light'] .day-dots button:not(.on):not(#_) { background: rgba(198, 195, 184, 0.35); }
 /* in a row where one chip is chosen, the others' labels are the softer grey (like a switch's other options), so the quiet
    pill still reads at a glance; no weight change, so nothing shifts when you pick */
@@ -2741,3 +2736,10 @@ div:has(> .chip.on) > .chip:not(.on, .acc):not(#_):not(#_) { color: var(--tx2); 
    over the already blue-grey light sheet (B-R about +10). A faint warm-grey film evens it out to a neutral light grey
    (measured B-R about 0 over the sheet). The bottom button of a sheet keeps its own white glass. */
 :root[data-theme='light'] :is(.btn:not(.primary, .ghost), .btn.primary[disabled]) { background-color: rgba(198, 195, 184, 0.35); }
+
+/* ---- Look batch 2 r3 (Omar 19 Oct "it just looks a little flat"): in dark, "selected" is the raised graphite pill the
+   switches already had (light along the top, shade along the bottom, a soft lift under it), not a see-through film; the
+   thumb and the dock tab keep their own resting opacity, and chosen chips, today on the week strip and picked days take
+   the same raised pill. Opaque, so it never picks up the glow as brown. Cards are not touched. ---- */
+:root:not([data-theme='light']) { --sel-fill: linear-gradient(180deg, #48484c, #38383b);
+  --sel-edge: inset 0 1px 0 rgba(255, 255, 255, 0.17), inset 0 -1px 0 rgba(0, 0, 0, 0.34), inset 0 0 0 1px rgba(255, 255, 255, 0.05), 0 2px 6px -1px rgba(0, 0, 0, 0.45); }
