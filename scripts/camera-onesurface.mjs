@@ -38,7 +38,7 @@ ok(await p.locator('.cam-still').evaluate((e) => e.style.opacity === '0'), 'the 
 mode = 'bad';
 await tap(p.locator('.cam-shutter'));
 await p.locator('.cam-err').waitFor({ timeout: 20000 }); ok(true, 'an AI error shows on the photo, in the same pop-up');
-await tap(p.getByLabel('Retake'));
+await tap(p.getByRole('button', { name: 'Try again' }));
 await p.locator('.cam-shutter:not(.wait)').waitFor({ timeout: 20000 }); await wait(p, 1200);
 // the good answer again, then Log
 mode = 'ok';
