@@ -72,12 +72,14 @@ browser smooths them, so **lab shots lie: judge from Omar's own screenshots.**
   - A small glow inside a page (Today card corner glow, exercise stage pools): `<ImgGlow />` inside it; its picture
     becomes the element's own background image, so it adds no layer.
   - Never add or drop a layer at a tab switch or when an animation ends (v0.1.123 black frames). A glow canvas gets its
-    size and a picture in the same frame it mounts, and again in the same task as a theme, palette or size change, so a
-    switch's snapshot never shows the old picture.
+    size in the same frame it mounts (its picture too when one is ready; a tab's field otherwise shows see-through over
+    its plain colour, below), and its new picture in the same task as a theme, palette or size change, so a switch's
+    snapshot never shows the old picture.
   - ONE painter (`src/ui/glowPaint.ts`), in the worker only. Never paint a picture or encode a PNG on the page: a whole
     field painted there, or the PNG of a background-image glow or the dock shadow, froze the page for 0.5-1.3 s after
     launch (`encodePng` in `glow.ts` makes files in the worker). A picture not painted ahead (a tab tapped in the first
-    seconds) shows the CSS until the worker has it. Never show a quick undithered stand-in: it bands, and the swap pops.
+    seconds) waits for the worker (a tab's field shows its plain colour, a window's glow its CSS). Never show a quick
+    undithered stand-in: it bands, and the swap pops.
   - A theme switch or a tab switch reads NO styles (no `getComputedStyle`, no probe inserted or removed: either makes the
     browser work out the whole page's styles again, 100 ms a time on a slow phone). Each glow keeps its plan by state (the
     root's `data-*`, its own attributes, its size; `rootKey`/`hostKey`/`shareKey` in `glow.ts`); the other theme's plans
@@ -88,9 +90,13 @@ browser smooths them, so **lab shots lie: judge from Omar's own screenshots.**
     background). Never `drawImage` an ImageBitmap into a GPU canvas, not even one drawn once and closed: the chip keeps
     copies (+20 MB after a few tab switches, measured). A canvas kept in memory (`willReadFrequently`) is slower to write.
     Each new picture resets the canvas size first, so its old buffer is let go.
-  - Kept pictures (pixels and image files) share 48 MB, oldest first, and pictures painted only on the chance they're
-    needed (other tabs' fields) go before those of the glows on the page; a file still shown is never let go; all of it is
-    let go when the app goes to the background.
+  - Kept pictures (pixels and image files) share 64 MB, oldest first, and pictures painted only on the chance they're
+    needed (other tabs' fields) go before those of the glows on the page; a file still shown is never let go. In the
+    background only the pictures in a canvas and the other tabs' fields stay (so a tab tapped after unlocking finds its
+    picture), the rest is let go.
+  - A field whose picture isn't ready (right after launch, a tab tapped before it was painted ahead) shows its plain colour,
+    never its CSS, and the picture fades in over it (0.9 s, opacity only); the canvas is there, see-through, from the
+    field's first frame, so no layer is added or dropped when it comes.
   - A glow shown faint (Coach-open beam, a fade) needs a stronger dither in its picture: `ampFor(opacity)`.
   - GPU reset (`contextlost`): the CSS shows until `contextrestored`, then the picture is written again.
 - Frosted bars without brightness(2) (orb screen veil, dock, dock edge fade): the tint is corrected for the dither tile's

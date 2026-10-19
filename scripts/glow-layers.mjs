@@ -1,4 +1,5 @@
-// Layer changes AFTER a transition: launch, tab switches, theme and palette changes, the orb screen, the Coach. The glow
+// Layer changes AFTER a transition: launch, tab switches, theme and palette changes, the orb screen, the Coach, a tab tapped
+// right after launch, and coming back from the background. The glow
 // pictures must not add or drop a layer once a motion is under way or has ended (v0.1.123's black frames). Prints, per
 // step, every layer that appears or goes between `from` ms after the action and the end, with its element.
 //   AVEN_GPU=1 AVEN_BG=classic AVEN_PALETTE=forest URL=http://127.0.0.1:5174/ node scripts/glow-layers.mjs [from=300]
@@ -27,6 +28,28 @@ const steps = [
   ['theme → light', () => p.emulateMedia({ colorScheme: 'light' }), 4000], ['theme → dark', () => p.emulateMedia({ colorScheme: 'dark' }), 4000],
   ['orb screen open', () => p.locator('.tabbar .sphere-slot').first().click(), 4500], ['orb screen close', () => p.keyboard.press('Escape'), 3000],
   ['Coach open', () => p.getByRole('button', { name: 'Coach', exact: true }).first().click(), 4000], ['Coach close', () => p.keyboard.press('Escape'), 3500],
+  // a tab tapped before the other tabs' pictures are painted ahead (their canvases must still be layers from their first frame)
+  ['launch, Food at 0.3 s', async () => { await p.reload(); await wait(p, 300); await tab('Food')(); }, 5000],
+  ['launch, Progress at 1.2 s', async () => { await p.reload(); await wait(p, 1200); await tab('Progress')(); }, 5000],
+  // the app in the background a while (another tab in front: the page is hidden) and back, then a tab it hadn't shown
+  ['background, back, Train', async () => {
+    // (headless keeps a page in the background "visible": then the page is told it is hidden, and visible again, as the
+    // phone does on unlock)
+    const flip = (h) => p.evaluate((h) => {
+      for (const k of ['visibilityState', 'hidden']) Object.defineProperty(document, k, { configurable: true, get: () => (k === 'hidden' ? h : h ? 'hidden' : 'visible') });
+      document.dispatchEvent(new Event('visibilitychange'));
+    }, h);
+    const other = await ctx.newPage(); await other.bringToFront(); await wait(p, 300);
+    const real = (await p.evaluate(() => document.visibilityState)) === 'hidden';
+    if (!real) await flip(true);
+    await wait(p, 1500);
+    console.log('  (hidden:', await p.evaluate(() => document.visibilityState), real ? '' : '(told)', ')');
+    await p.bringToFront(); await other.close(); if (!real) await flip(false); await wait(p, 500);
+    const s0 = await p.evaluate(() => ({ ...window.__glowStats }));
+    await tab('Train')(); await wait(p, 2000);
+    const s1 = await p.evaluate(() => ({ ...window.__glowStats }));
+    console.log('  (Train after coming back: pictures ready', (s1.hit ?? 0) - (s0.hit ?? 0), 'not ready', (s1.later ?? 0) - (s0.later ?? 0), ')');
+  }, 1500],
 ];
 // the glow's own layers: by element (Chrome renumbers layers when it rebuilds the tree, so they are tracked by element)
 const GLOW = /glow|fields|aurora|bgx|bg-|veil|wk-top|wk-field|wk-breath|wk-stage|exd-stage/;

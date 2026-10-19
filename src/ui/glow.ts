@@ -10,10 +10,10 @@ import { grainTile } from '../lib/grain';
  *
  * Pictures are painted ahead, in a worker, while the page is idle: the other tabs' fields (Glows.tsx prewarm) and every
  * glow on screen in the other theme (warmTwins, below), so a tab or theme switch only writes a finished picture into its
- * canvas. Where none is ready (the first frame after launch, a new palette, a new size) the page paints it at once with the
- * same code: the same picture, so nothing is swapped later. The canvas gets its size and picture in the same frame its
- * element first shows, so it is a layer from its first frame to its last, never added or dropped later. If the graphics
- * chip loses the canvas, the CSS shows until it is drawn again.
+ * canvas. Where none is ready (the first moments after launch, a new palette, a new size) the CSS shows until the worker
+ * has painted it: never painted on the page (a whole field painted there froze it for up to a second). The canvas gets its
+ * size in the same frame its element first shows, so it is a layer from its first frame to its last, never added or
+ * dropped later (a tab's field shows its plain colour until then, and its picture fades in over it). If the graphics chip loses the canvas, the CSS shows until it is drawn again.
  */
 /** a colour stop: straight colour 0-255 and alpha 0-1, at `p` along the gradient's line (0-1, may reach past either end) */
 export interface GlowStop { c: [number, number, number, number]; p: number }
@@ -77,14 +77,15 @@ function withGrain(job: GlowJob): GlowJob {
 /**
  * The pictures painted lately, by what they show, so a window or a tab's colour field that comes back (or one painted ahead
  * while the page was idle) shows at once: as pixels (canvases) or as image files (glows drawn as a background image,
- * Glows.tsx). Kept in memory, not on the graphics chip; together they never pass 48 MB (the oldest go first), and all of it
- * is let go while the app is in the background (painted again ahead when it comes back).
+ * Glows.tsx). Kept in memory, not on the graphics chip; together they never pass 64 MB (the oldest go first), and all but
+ * the pictures in a canvas now and the other tabs' fields are let go while the app is in the background (the rest painted
+ * again ahead when it comes back).
  */
 const kept = new Map<string, ImageData[]>();
 /** image files by plan: their address and size (an address still shown on screen is never let go) */
 const files = new Map<string, { url: string; bytes: number }>();
 const shownUrls = new Map<string, number>();
-const KEEP_BYTES = 48 << 20;
+const KEEP_BYTES = 64 << 20; // (Sunrise's on-screen glows and both themes take ~42 MB: at 48 the other tabs' fields were let go)
 const sizeOf = (v: ImageData[]) => v.reduce((n, b) => n + b.width * b.height * 4, 0);
 const keptBytes = () => {
   let bytes = 0;
@@ -120,9 +121,16 @@ export function fileShown(url: string, on: boolean) {
   const n = (shownUrls.get(url) ?? 0) + (on ? 1 : -1);
   if (n > 0) shownUrls.set(url, n); else shownUrls.delete(url);
 }
+/** the pictures in a canvas now: kept while the app is in the background, so it comes back without a canvas waiting */
+const inUse = new Map<string, number>();
+const useKey = (k: string, d: number) => { if (!k) return; const n = (inUse.get(k) ?? 0) + d; if (n > 0) inUse.set(k, n); else inUse.delete(k); };
+/** the other tabs' fields painted ahead for the field on screen (Glows.tsx prewarm): kept too, so a tab tapped right after
+ * coming back finds its picture ready (about 14 MB) */
+const held = new Set<string>();
+export function holdForReturn(keys: string[]) { held.clear(); for (const k of keys) held.add(k); }
 if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'hidden') { scheduleTwins(); return; }
-  kept.clear();
+  for (const k of [...kept.keys()]) if (!inUse.has(k) && !held.has(k)) { kept.delete(k); ahead.delete(k); }
   for (const [k, f] of files) if (!shownUrls.get(f.url)) { URL.revokeObjectURL(f.url); files.delete(k); }
 });
 
@@ -325,13 +333,14 @@ export const shareKey = (el: HTMLElement, id: string, rk = rootKey(), size = `${
   `${id}§${[...el.querySelectorAll('*')].filter((e) => e.localName !== 'canvas' && e.localName !== 'glow-probe').map(hostKey).join('|')}§${rk}§${size}`;
 
 /** `share`: what this glow is, for glows that come and go (their plans are kept for the next one, see shareKey) */
-export function useGlowCanvases(host: () => HTMLElement | null, refs: RefObject<HTMLCanvasElement | null>[], describe: (host: HTMLElement) => GlowPlan | null, shown: (on: boolean) => void, whole: (el: HTMLElement) => HTMLElement = (e) => e, share?: (el: HTMLElement) => string) {
+export function useGlowCanvases(host: () => HTMLElement | null, refs: RefObject<HTMLCanvasElement | null>[], describe: (host: HTMLElement) => GlowPlan | null, shown: (on: boolean, wait?: boolean) => void, whole: (el: HTMLElement) => HTMLElement = (e) => e, share?: (el: HTMLElement) => string) {
   useLayoutEffect(() => {
     const el = host();
     if (!el || !glowCanvasOk()) return;
     let alive = true, lost = false;
     /** what the canvases hold, and what they should */
     let real = '', want = '';
+    const show = (k: string) => { useKey(real, -1); real = k; useKey(real, 1); };
     const drawn = new Set<HTMLCanvasElement>();
     /** Writes a picture's pixels into its canvas (straight in: no copy of it is kept on the graphics chip for drawing). Each
      * new picture starts the canvas afresh (its size set anew), so the buffer of the picture before is let go, not kept to
@@ -346,8 +355,8 @@ export function useGlowCanvases(host: () => HTMLElement | null, refs: RefObject<
         drawn.add(cv);
       });
       const left = real;
-      real = plan.key;
-      shown(true);
+      show(plan.key);
+      shown(true); el.removeAttribute('data-wait');
       // (the picture just left is written into the spare, for a switch back)
       if (left && left !== real) { const k = left; unIdle(prepping); prepping = whenIdle(() => prep(k), 3000); }
     };
@@ -401,7 +410,18 @@ export function useGlowCanvases(host: () => HTMLElement | null, refs: RefObject<
       if (pics) { put(p, pics); return; }
       // (not painted ahead, e.g. a tab tapped right after launch: the CSS shows, not the picture before, until the worker
       // has painted it. Never painted here: a whole field painted on the page froze it for 0.5-1.3 s)
-      if (real) { real = ''; shown(false); }
+      show(''); shown(false, true);
+      // (the canvas is there all the same, sized and filled with the field's own plain colour: its layer is there from the
+      // glow's first frame to its last, as when the picture is ready, never added part-way through a launch or a tab's
+      // cross-fade. A tab's field shows that plain colour, not its CSS, and its picture fades in over it when it comes:
+      // styles.css [data-wait]; so the CSS never shows its bands, and nothing over the canvas needs a layer of its own)
+      p.jobs.forEach((job, i) => {
+        const cv = refs[i]?.current; if (!cv) return;
+        if (cv.width !== job.w || cv.height !== job.h) { cv.width = job.w; cv.height = job.h; }
+        const g = cv.getContext('2d', { alpha: !job.base }) as CanvasRenderingContext2D | null; if (!g) return;
+        if (job.base) { g.fillStyle = `rgb(${job.base.join(' ')})`; g.fillRect(0, 0, job.w, job.h); } else g.clearRect(0, 0, job.w, job.h);
+      });
+      el.toggleAttribute('data-wait', true);
       const q = p;
       void paintPlan(q).then((got) => { if (alive && !lost && got && want === q.key) put(q, got); });
     };
@@ -417,14 +437,14 @@ export function useGlowCanvases(host: () => HTMLElement | null, refs: RefObject<
       void paintPlan(p).then((got) => { if (got && onScreen) { unIdle(prepping); prepping = whenIdle(() => prep(p.key), 3000); } });
     } });
     // the graphics chip lost the canvas (a GPU reset): the CSS shows until it is back, then it is drawn again
-    const onLost = () => { lost = true; real = ''; shown(false); dropSpare(); }; // (not cancelled: that would stop the restore)
-    const onBack = () => { lost = false; real = ''; now(false); };
+    const onLost = () => { lost = true; show(''); shown(false); dropSpare(); el.removeAttribute('data-wait'); }; // (not cancelled: that would stop the restore)
+    const onBack = () => { lost = false; show(''); now(false); };
     const check = () => { if (document.hidden) dropSpare(); if (!document.hidden && [...drawn].some((c) => (c.getContext('2d') as CanvasRenderingContext2D | null)?.isContextLost?.())) onLost(); };
     const cvs = refs.map((r) => r.current).filter((c): c is HTMLCanvasElement => !!c);
     for (const c of cvs) { c.addEventListener('contextlost', onLost); c.addEventListener('contextrestored', onBack); }
     document.addEventListener('visibilitychange', check);
     return () => {
-      alive = false; ro.disconnect(); mo.disconnect(); io.disconnect(); untwin(); unIdle(verify); unIdle(defer); clearTimeout(late); unIdle(prepping); dropSpare();
+      alive = false; show(''); ro.disconnect(); mo.disconnect(); io.disconnect(); untwin(); unIdle(verify); unIdle(defer); clearTimeout(late); unIdle(prepping); dropSpare();
       for (const c of cvs) { c.removeEventListener('contextlost', onLost); c.removeEventListener('contextrestored', onBack); }
       document.removeEventListener('visibilitychange', check);
     };

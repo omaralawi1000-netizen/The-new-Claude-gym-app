@@ -2,9 +2,8 @@ import type { GlowJob, GlowLayer, GlowSrc } from './glow';
 import { N, table } from './glowMath';
 
 /**
- * Paints one glow picture with a dither: the worker (glow.worker.ts) paints with this ahead of time, and the page paints
- * with the very same code when it needs a picture at once and none is ready, so a picture painted either way is the same
- * picture (only the noise differs) and nothing ever changes on screen when one replaces the other.
+ * Paints one glow picture with a dither, in the worker (glow.worker.ts) only: painted on the page, a whole field held it up
+ * for up to a second.
  *
  * The soft parts (the gradients) are worked out exactly at every 4th pixel each way and mixed in between, which is all a
  * soft glow needs and sixteen times less work; a picture a source shows (a photo, the stars) is mixed in pixel by pixel.
@@ -113,7 +112,9 @@ export function render(job: GlowJob, imgs: (Uint8ClampedArray | null)[] = [], se
       const G = new Float32Array(gw * gh * 4);
       for (let j = 0; j < gh; j++) for (let i = 0; i < gw; i++) {
         acc[0] = acc[1] = acc[2] = acc[3] = 0;
-        for (const R of run) over(R.s, R.tabs, null, 0, i * Q, j * Q, acc);
+        // (the last row and column of the grid lie on or past the picture's edge: sampled just inside it, or a source clipped
+        // to its box missed them and the edge faded towards the background, a dark seam 2 px wide)
+        for (const R of run) over(R.s, R.tabs, null, 0, Math.min(i * Q, w - 0.5), Math.min(j * Q, h - 0.5), acc);
         G.set(acc, (j * gw + i) * 4);
       }
       out.push({ grid: G }); run = [];
@@ -164,8 +165,9 @@ export function render(job: GlowJob, imgs: (Uint8ClampedArray | null)[] = [], se
           if (Math.round(lo) !== Math.round(hi)) flat = false;
         }
         if (flat) continue;
-        // the grain's own spread here, in levels (it lightens towards white: stronger over a dark colour)
-        const sg = gr && j * Q >= y0 ? gr.sd * (255 * V[p * 4 + 3] - (V[p * 4] + V[p * 4 + 1] + V[p * 4 + 2]) / 3) : 0;
+        // the grain's own spread here, in levels (it lightens towards white: stronger over a dark colour), for the brightest
+        // channel, where it is weakest (by the mean, a near-white green got no dither at all)
+        const sg = gr && j * Q >= y0 ? gr.sd * (255 * V[p * 4 + 3] - Math.max(V[p * 4], V[p * 4 + 1], V[p * 4 + 2])) : 0;
         A[p] = sg >= need ? 0 : Math.sqrt(need * need - sg * sg) * Math.sqrt(6);
       }
     }

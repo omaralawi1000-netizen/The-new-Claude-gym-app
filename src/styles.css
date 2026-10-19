@@ -2340,6 +2340,14 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    tab switch still only cross-fades two of them. Until a picture is ready (or where one can't be made) the CSS shows. */
 .glow-field { z-index: -1; }
 .fields > [data-dith] > .glow-field { visibility: visible; }
+/* Until its picture comes (right after launch, a tab tapped before it was painted ahead), the field shows its plain colour,
+   not its CSS (which the phone draws in bands), and the picture fades in over it, slowly, when the worker has painted it.
+   The canvas is there all along, only see-through, so its layer is there from the field's first frame (never added in the
+   middle of a launch or a tab's cross-fade), and nothing in the field lies over it to need a layer of its own (the CSS
+   lights did, and went again when the picture came). Only opacity moves. */
+.fields > * > .glow-field { transition: opacity 0.9s var(--ease-out, ease-out); }
+.fields > [data-wait] > .glow-field { visibility: visible; opacity: 0; transition: none; }
+.fields > [data-wait] [data-bake], .fields > .aurora[data-wait] > i { visibility: hidden; }
 .fields > [data-dith] [data-bake], .fields > .aurora[data-dith] > i { visibility: hidden; }
 /* (the field keeps its own plain colour under the picture: a layer of one colour costs the chip nothing, and a field that
    drew nothing of its own was given content for the length of a theme switch and lost it again after) */

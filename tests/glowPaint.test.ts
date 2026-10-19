@@ -27,7 +27,7 @@ function blockDiff(a: Uint8ClampedArray, b: Uint8ClampedArray, w: number, h: num
 }
 
 describe('glow pictures', () => {
-  it('a picture painted on the page and one painted in the worker differ only in their noise (≤ 0.5 level per 8 × 8 block)', () => {
+  it('two paintings of a picture differ only in their noise (≤ 0.5 level per 8 × 8 block)', () => {
     const job = field([5, 6, 11]);
     const a = render(job, [], 1), b = render(job, [], 2);
     expect(blockDiff(a.data, b.data, job.w, job.h)).toBeLessThanOrEqual(0.5);

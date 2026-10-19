@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef } from 'react';
-import { addTwin, ampFor, recall, shareKey, sharedPlan, setSharedPlan, cssColor, fileShown, glowCanvasOk, glowScale, paintFile, paintPlan, planKey, recallFile, rootKey, hostKey, Plans, whenIdle, unIdle, stats, useGlowCanvases, type GlowJob, type GlowPlan, type GlowSrc } from './glow';
+import { addTwin, ampFor, holdForReturn, recall, shareKey, sharedPlan, setSharedPlan, cssColor, fileShown, glowCanvasOk, glowScale, paintFile, paintPlan, planKey, recallFile, rootKey, hostKey, Plans, whenIdle, unIdle, stats, useGlowCanvases, type GlowJob, type GlowPlan, type GlowSrc } from './glow';
 import { gradient, loadPictures, readSrc } from './glowCss';
 import { barColor, PER_TAB, type BgKind } from './Backdrop';
 
@@ -60,12 +60,16 @@ const swaysBy = new Map<string, boolean>();
 export function FieldGlow({ kind }: { kind: BgKind }) {
   const cv = useRef<HTMLCanvasElement>(null);
   const host = () => cv.current?.parentElement ?? null;
-  useGlowCanvases(host, [cv], (el) => describeField(el, kind), (on) => {
+  useGlowCanvases(host, [cv], (el) => describeField(el, kind), (on, wait) => {
     const el = host(); if (!el) return;
-    const still = on && !el.querySelector(MOVING);
+    // (while its picture is painted the field shows its plain colour, and what the picture will carry already goes: the
+    // grain, the top tint; so nothing more goes when it fades in)
+    const still = (on || !!wait) && !el.querySelector(MOVING);
     el.toggleAttribute('data-dith', on); el.toggleAttribute('data-still', still);
-    // (read once the page is idle, never in the middle of a switch: there it made the browser work the page's styles out twice)
+    // (read once the page is idle, never in the middle of a switch: there it made the browser work the page's styles out
+    // twice. Only Classic's field sways)
     const r = document.documentElement.dataset, sk = `${kind}§${r.motion}§${r.glow}`;
+    if (kind !== 'classic') swaysBy.set(sk, false);
     if (still && !swaysBy.has(sk)) whenIdle(() => {
       if (!el.isConnected || !el.hasAttribute('data-still')) return;
       swaysBy.set(sk, getComputedStyle(el).animationName !== 'none');
@@ -81,10 +85,19 @@ export function FieldGlow({ kind }: { kind: BgKind }) {
  * Paints the other tabs' fields ahead, while the page is idle, so a tab switch finds its picture ready (the new field then
  * shows it from its first frame instead of swapping the gradient for it after the cross-fade).
  */
-let prewarmAt = 0, prewarmIdle = 0, prewarmed = false;
+let prewarmAt = 0, prewarmIdle = 0, prewarmed = false, prewarmLast: { field: HTMLElement; kind: BgKind } | null = null;
+// (kept in the background, glow.ts holdForReturn; painted again ahead when the app comes back all the same, in case they
+// were let go for room)
+if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => {
+  clearTimeout(prewarmAt); unIdle(prewarmIdle);
+  if (document.visibilityState === 'hidden') { prewarmed = false; return; }
+  if (prewarmLast?.field.isConnected) prewarm(prewarmLast.field, prewarmLast.kind);
+});
 function prewarm(field: HTMLElement, kind: BgKind) {
+  prewarmLast = { field, kind };
   const run = () => {
     const parent = field.parentElement; if (!parent || !field.isConnected) return;
+    const keys: string[] = [];
     for (const hue of ['today', 'train', 'food', 'progress']) {
       if (hue === field.dataset.hue) continue;
       // (its plan, for the field that tab brings, kept so that field needn't read the page when it comes)
@@ -99,10 +112,11 @@ function prewarm(field: HTMLElement, kind: BgKind) {
         if (plan) setSharedPlan(sk, plan);
       }
       if (!plan) continue;
-      const k = plan.key;
+      const k = plan.key; keys.push(k);
       // (and its picture, painted by the worker, off the page)
       if (!recall(k, false)) void paintPlan(plan, true);
     }
+    holdForReturn(keys);
   };
   // (once the switch that brought this field has played: the worker's painting then can't take time from its animation.
   // After launch sooner, so a tab tapped right away finds its picture ready: the launch's own motion is over by then)
@@ -169,7 +183,12 @@ function useGlowImage(at: React.RefObject<HTMLElement | null>, describe: (el: HT
       if ((p.op ?? 1) < op - 0.01 && url) {
         const fades = el.getAnimations().filter((a) => (a as CSSTransition).transitionProperty === 'opacity');
         if (fades.length) {
-          void Promise.all(fades.map((a) => a.finished)).catch(() => {}).then(() => { if (alive && want === p.key) set(recallFile(p.key) ?? u, p); });
+          // (decoded again just before the swap: decoded only when it was painted, seconds before, the browser had let the
+          // pixels go, and the glow drew nothing for a tenth of a second while it decoded them anew)
+          void Promise.all(fades.map((a) => a.finished)).catch(() => {}).then(async () => {
+            const v = recallFile(p.key) ?? u, im = new Image(); im.src = v; await im.decode().catch(() => {});
+            if (alive && want === p.key) set(v, p);
+          });
           return;
         }
       }
