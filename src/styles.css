@@ -2654,3 +2654,9 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 :root:not([data-theme='light']) .sheet .sheet-foot .btn.btn.primary:not([disabled])::after { background: linear-gradient(180deg, rgba(255,255,255,.26), rgba(255,255,255,.1) 45%, rgba(255,255,255,.06)); }
 /* a pill inside a card is glass on the card (like v0.1.130's clear cards), not a dark block sitting on it */
 :root:not([data-theme='light']) :is(.plinth, .screen [data-wk='hero'] + div, .wk-card, .ex-card) .btn:not(.primary, .ghost, .danger):not(#_):not([data-pressed]) { background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.02) 60%), rgba(255,255,255,.045) !important; box-shadow: 0 1px 2px rgba(0,0,0,.22) !important; }
+/* ==== Look batch 1 (audit 19 Oct) ==== */
+/* sheets: the frost keeps the page's colour, but the tint over it is warm-neutral instead of navy, so the sky's blue no
+   longer wins (mean sheet colour ~(26,24,29) instead of (22,24,38)); a little less tint and boost lets more of the warm glow
+   through (ported as is from polish r2, bb0d8ba) */
+:root:not([data-theme='light']) { --sheet-tint: rgba(24, 21, 19, 0.64); --sheet-tint-short: rgba(21, 19, 17, 0.61); --sheet-solid: #181614; --sheet-glass: rgba(32, 29, 27, 0.46);
+  --sheet-frost: brightness(2) blur(44px) saturate(1.7); --sheet-frost-short: brightness(2) blur(44px) saturate(1.75); }
