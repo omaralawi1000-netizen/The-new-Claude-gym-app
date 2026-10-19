@@ -110,8 +110,12 @@ export function findNudges(d: AppData, today: string, hour: number, t: T, lang: 
     if (weak && strong >= 3) {
       add({ id: `weak:${weak}:${today.slice(0, 7)}`, kind: 'suggestion', icon: 'body', priority: 50,
         title: t('{m} get little work', { m: t(LABEL[weak]) }),
-        body: t('About {n} sets a week over the last month, while most muscles get 8 or more.', { n: fmtNum(weekly(weak), lang, 1) }),
-        action: { label: t('Ask the Coach'), run: { type: 'coach', prompt: t('My {m} only get about {n} sets a week. Add an exercise for them to one of my routines.', { m: t(LABEL[weak]).toLowerCase(), n: fmtNum(weekly(weak), lang, 1) }) } } });
+        // what is LOGGED, said as such (never "about 0 sets": Omar trains them and just hadn't logged them, 18 Oct); the
+        // question asks before changing a routine
+        body: weekly(weak) < 0.25
+          ? t('No {m} sets logged in the last 4 weeks, while most muscles get 8 or more.', { m: t(LABEL[weak]).toLowerCase() })
+          : t('About {n} sets a week logged over the last month, while most muscles get 8 or more.', { n: fmtNum(weekly(weak), lang, 1) }),
+        action: { label: t('Ask the Coach'), run: { type: 'coach', prompt: t('Aven shows few {m} sets logged lately. Ask me first whether I train them without logging; if not, add an exercise for them to one of my routines.', { m: t(LABEL[weak]).toLowerCase() }) } } });
     }
   }
 

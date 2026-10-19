@@ -200,6 +200,9 @@ function CoachReply({ m }: { m: Extract<Msg, { role: 'user' | 'model' }> }) {
   );
 }
 
+/** The openings whose question was already asked (by their props object, which stays the same while the sheet is open). */
+const askedOpenings = new WeakSet<object>();
+
 export function Coach({ props }: { props: { listen?: boolean; date?: string; mealId?: string; /** the orb screen's conversation, carried over by "Continue in Coach" */ seed?: { said: string; reply: string }[]; /** a question to ask as soon as it opens (the weekly review's button) */ ask?: string; /** opened by holding something ("Ask the Coach about this", ui/askHold.ts) */ about?: About } }) {
   const t = useT();
   const present = useIsPresent();
@@ -848,13 +851,18 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   const queued = useRef(false);
   const [queuedOn, setQueuedOn] = useState(false);
 
+  const lastSent = useRef({ text: '', at: 0 });
   const send = async (raw?: string, spoken = false) => {
     const text = (raw ?? input).trim();
     const pic = raw === undefined ? photo : null; // a suggestion chip or dictation sends words only
     if (!alive.current || (!text && !pic)) return;
+    // the same words sent twice within 2 s (a chip or an opening question fired twice before the screen caught up):
+    // asked once (Omar's chat showed one question twice, 18 Oct)
+    if (text && !pic && lastSent.current.text === text && Date.now() - lastSent.current.at < 2000) return;
     // typed while it is still answering: kept in the field and sent the moment the answer is done
     if (busy) { if (raw === undefined && text) { queued.current = true; setQueuedOn(true); haptic('light'); } return; }
     if (clearing.current) finishClear();
+    if (text) lastSent.current = { text, at: Date.now() };
     pinned.current = true; user.current = false;
     const id = uid('m');
     const field = inputRef.current;
@@ -929,8 +937,9 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   const sendRef = useRef<(raw?: string) => void>(() => {});
   sendRef.current = send;
   useEffect(() => {
-    if (!props.ask) return;
-    const id = setTimeout(() => { if (alive.current) sendRef.current(props.ask); }, 380);
+    // (once per opening: the Coach can mount again with the same props, and the question is in the chat already)
+    if (!props.ask || askedOpenings.has(props)) return;
+    const id = setTimeout(() => { if (alive.current && !askedOpenings.has(props)) { askedOpenings.add(props); sendRef.current(props.ask); } }, 380);
     return () => clearTimeout(id);
     // eslint-disable-next-line
   }, []);
