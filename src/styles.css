@@ -2678,3 +2678,7 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 /* the less important button of a pair: the same pill, a softer label (was bare text next to a pill) */
 .btn.quiet { color: var(--tx2); }
 :root:not([data-theme='light']) .btn.quiet:not(#_) { color: var(--tx2); }
+/* small buttons (round icons, chips, quick-adds, meal +): only the soft light from above stays. v0.1.155 also laid a flat 6 %
+   white film over them, which made them about twice as bright and grey and hid the colour behind them (card-transparency
+   check, 19 Oct). The Coach's controls keep their own frost. */
+:root:not([data-theme='light']) :is(.icon-btn:not(.flat, .acc), button.chip:not(.on), .icon-btn.acc-soft, .meal-add):not(.frost-ctl, [aria-label='Coach'] *):not(#_) { background-image: linear-gradient(180deg, rgba(255,255,255,.075), rgba(255,255,255,0) 60%) !important; }
