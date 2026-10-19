@@ -2560,3 +2560,93 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 .action-card.sealed:not(.undone) .action-line:not(.ac-off) .ac-pick-done { opacity: 0.8; }
 /* the chart uses the card's whole inner width (under the icon too) */
 .ac-chart { margin-left: -36px; }
+
+
+/* ==== Buttons: clear glass, lit rim only on the big ones (Omar 15-18 Oct). Dark only; light mode keeps its look. ====
+   Big/primary (pills, Schedule/New routine, secondary play, chosen day, sheet Save): clear glass with a rim lit in the
+   palette colour. Small (round icons, quick-adds, in-card chips): plain clear glass, faint neutral rim. */
+/* B3 (re-check fixes): Lit rim, judge fixes S-1..S-5, SH-1/2, B-1, R-1 */
+/* no navy anywhere: screen tokens, round-button glass, lenses (one material, with the rim light on top), sheets */
+:root:not([data-theme='light']) { --glass: rgba(22, 22, 25, .46); --glass-2: rgba(30, 30, 34, .62); --lens-fill: linear-gradient(180deg, #3e3e42, #333336); --lens-line: rgba(255,255,255,.13);
+  --sheet-glass: rgba(22, 22, 24, .5); --sheet-solid: #151517; --sheet-tint: rgba(19, 19, 20, .84); --sheet-tint-short: rgba(17, 17, 18, .8); --sheet-frost: brightness(1.5) blur(44px) saturate(.9); --sheet-frost-short: brightness(1.5) blur(44px) saturate(.9); }
+:root:not([data-theme='light']) .screen { --s1: rgb(17 17 19 / .72); --s2: rgb(24 24 27 / .76); --s3: rgb(38 38 42 / .8); --bg-2: rgb(4 4 6 / .5); }
+:root:not([data-theme='light']) .seg-lens { --lens-fill: linear-gradient(180deg, #3e3e42, #333336); }
+:root:not([data-theme='light']) .sheet .sheet-foot .btn.btn { background: color-mix(in srgb, color-mix(in srgb, var(--tx) 10%, #161618) 58%, transparent); }
+/* buttons: clear glass on a little neutral body (outside cards it hides the stars and the night's cool cast) */
+:root:not([data-theme='light']) :is(.btn:not(.primary, .ghost), button.chip:not(.on, .acc), .icon-btn:not(.flat, .acc)), :root:not([data-theme='light']) :is(.chip.acc, .icon-btn.acc-soft, .meal-add), :root:not([data-theme='light']) .screen .plinth > button.press[style*='var(--ac-soft)'] { position: relative;
+  background: linear-gradient(180deg, rgba(255,255,255,.075), rgba(255,255,255,0) 60%), linear-gradient(rgba(255,255,255,.06), rgba(255,255,255,.06)) rgba(16,16,17,.95) !important;
+  color: var(--tx); box-shadow: 0 1px 1px rgba(0,0,0,.35), 0 8px 16px -10px rgba(0,0,0,.7) !important; }
+/* inside a card they stay clear: the card is their body */
+:root:not([data-theme='light']) .screen :is(.plinth, [data-wk='hero'] + div) :is(.icon-btn:not(.flat, .acc), button.chip:not(.on, .acc), .chip.acc, .meal-add), :root:not([data-theme='light']) .screen .plinth > button.press[style*='var(--ac-soft)'] { background-color: transparent !important; box-shadow: none !important; }
+:root:not([data-theme='light']) :is(.chip.acc, .icon-btn.acc-soft, .meal-add) { color: var(--ac-text) !important; }
+:root:not([data-theme='light']) :is(.btn:not(.primary, .ghost), button.chip:not(.on, .acc), .icon-btn:not(.flat, .acc))::after, :root:not([data-theme='light']) :is(.chip.acc, .icon-btn.acc-soft, .meal-add)::after, :root:not([data-theme='light']) .screen .plinth > button.press[style*='var(--ac-soft)']::after, :root:not([data-theme='light']) .screen .pin::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; padding: 1px; -webkit-mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); background: linear-gradient(180deg, color-mix(in srgb, color-mix(in srgb, var(--ac) 62%, #fff) 92%, transparent) 0%, color-mix(in srgb, color-mix(in srgb, var(--ac) 45%, #fff) 34%, transparent) 30%, rgba(255,255,255,.05) 62%, rgba(255,255,255,.05) 100%); }
+/* tags are text, not buttons */
+/* muscle tags under a card's title: quiet glass bubbles, flatter than buttons (no rim, no shadow) so they read as labels */
+:root:not([data-theme='light']) span.chip:not(.on, .acc) { background: rgba(255,255,255,.06) !important; box-shadow: inset 0 0 0 1px rgba(255,255,255,.07), inset 0 1px 0 rgba(255,255,255,.05) !important; color: var(--tx2); }
+:root:not([data-theme='light']) span.chip.sm:not(.on, .acc) { height: 26px; padding: 0 10px; font-size: 12px; font-weight: 560; letter-spacing: .01em; }
+/* week strip: the day is glass, plan letters are plain letters, done stays a filled square */
+:root:not([data-theme='light']) .screen .plinth > button.press > span[style*='var(--s3)'], :root:not([data-theme='light']) .screen .plinth > button.press > span[style*='background: var(--ac-soft)'] { background: transparent !important; }
+/* the insight banner: card glass with the same rim, its icon keeps its colour */
+:root:not([data-theme='light']) .screen .pin { position: relative; background: rgba(255,255,255,.045) linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,0) 55%) !important; box-shadow: 0 1px 1px rgba(0,0,0,.35), 0 10px 24px -12px rgba(0,0,0,.6) !important; }
+/* the lens highlight is set where the tab's colour is set, so it is each palette's own light */
+:root:not([data-theme='light']) :is(.app, [data-hue]) { --lens-hl: color-mix(in srgb, color-mix(in srgb, var(--ac) 45%, #fff) 80%, transparent); }
+/* the sheet's main action, once it can be pressed: brighter glass, a clear rim in your colour, bolder label */
+:root:not([data-theme='light']) .sheet .sheet-foot .btn.btn.primary:not([disabled]) { position: relative; color: var(--tx) !important; font-weight: 700;
+  background: linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,.05) 60%), rgba(30,30,32,.62) !important;
+  box-shadow: 0 1px 1px rgba(0,0,0,.4), 0 16px 32px -14px rgba(0,0,0,.85) !important; }
+:root:not([data-theme='light']) .sheet .sheet-foot .btn.btn.primary:not([disabled])::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; padding: 1.5px;
+  -webkit-mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  background: linear-gradient(180deg, color-mix(in srgb, color-mix(in srgb, var(--ac) 60%, #fff) 90%, transparent), rgba(255,255,255,.14) 45%, rgba(255,255,255,.08)); }
+/* today's plan letter takes the day's colour */
+:root:not([data-theme='light']) .screen .plinth > button.press[style*='var(--ac-soft)'] > span[style*='var(--s3)'] { color: var(--ac-text) !important; }
+/* ---- AB mix (Omar 00:42: clear glass + lit rim, but not on the small buttons) ----
+   Lit rim (B) stays on the big/primary ones: pills (.btn, Schedule/New routine), the secondary play, the selected week day,
+   the sheet's Save. Small ones (round icons, chips, quick-adds) get A's clear glass with a faint neutral rim. */
+:root:not([data-theme='light']) :is(.icon-btn:not(.flat, .acc, .acc-soft), button.chip:not(.on), .screen :is(.plinth, [data-wk='hero'] + div) button.chip:not(.on, .acc), .meal-add, .chip.acc):not(#_)::after { background: linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.06) 35%, rgba(255,255,255,.03) 70%, rgba(255,255,255,.04)); }
+/* tab-bar band: no navy lift from the frost */
+:root:not([data-theme='light']) .tabbar-wrap.edge-fade::before { -webkit-backdrop-filter: blur(var(--edge-blur, 16px)) saturate(.15); backdrop-filter: blur(var(--edge-blur, 16px)) saturate(.15); }
+/* pressed: material answers too */
+:is(:root:not([data-theme='light']) :is(.btn:not(.primary, .ghost), button.chip:not(.on, .acc), .icon-btn:not(.flat, .acc)), :root:not([data-theme='light']) :is(.chip.acc, .icon-btn.acc-soft, .meal-add), :root:not([data-theme='light']) .screen .plinth > button.press[style*='var(--ac-soft)'])::after { transition: opacity 200ms; }
+:is(:root:not([data-theme='light']) :is(.btn:not(.primary, .ghost), button.chip:not(.on, .acc), .icon-btn:not(.flat, .acc)), :root:not([data-theme='light']) :is(.chip.acc, .icon-btn.acc-soft, .meal-add))[data-pressed] { background-color: rgba(40,40,44,.96) !important; }
+:is(:root:not([data-theme='light']) .screen :is(.plinth, [data-wk='hero'] + div) :is(.icon-btn:not(.flat, .acc), button.chip:not(.on, .acc), .chip.acc, .meal-add))[data-pressed] { background-color: rgba(255,255,255,.09) !important; }
+:is(:root:not([data-theme='light']) :is(.btn:not(.primary, .ghost), button.chip:not(.on, .acc), .icon-btn:not(.flat, .acc)), :root:not([data-theme='light']) :is(.chip.acc, .icon-btn.acc-soft, .meal-add))[data-pressed]::after { opacity: .7 !important; }
+/* small bubbles outside cards: see-through clear glass (Omar 00:57 "at least a little clear"); big lit ones stay fuller */
+:root:not([data-theme='light']) :is(.icon-btn:not(.flat, .acc, .acc-soft), button.chip:not(.on)):not(.screen :is(.plinth, [data-wk='hero'] + div) *):not(#_) { background-color: rgba(255,255,255,.025) !important; }
+:root:not([data-theme='light']) :is(.icon-btn:not(.flat, .acc, .acc-soft), button.chip:not(.on)):not(.screen :is(.plinth, [data-wk='hero'] + div) *):not(#_)[data-pressed] { background-color: rgba(255,255,255,.12) !important; }
+
+/* ==== Text and bubble polish (Omar 18 Oct: "polish it if it's off centre") ==== */
+/* sideways rows in sheets (food tools, look tiles) fade where more is hiding, like the chip rows, instead of a hard cut */
+:is(.tools, .pal).fade-x { --fl: 0px; --fr: 0px; --ml: var(--fl); --mr: var(--fr);
+  -webkit-mask-image: linear-gradient(to right, transparent, rgba(0,0,0,.14) calc(var(--ml) * .3), rgba(0,0,0,.5) calc(var(--ml) * .6), rgba(0,0,0,.86) calc(var(--ml) * .85), #000 var(--ml), #000 calc(100% - var(--mr)), rgba(0,0,0,.86) calc(100% - var(--mr) * .85), rgba(0,0,0,.5) calc(100% - var(--mr) * .6), rgba(0,0,0,.14) calc(100% - var(--mr) * .3), transparent);
+  mask-image: linear-gradient(to right, transparent, rgba(0,0,0,.14) calc(var(--ml) * .3), rgba(0,0,0,.5) calc(var(--ml) * .6), rgba(0,0,0,.86) calc(var(--ml) * .85), #000 var(--ml), #000 calc(100% - var(--mr)), rgba(0,0,0,.86) calc(100% - var(--mr) * .85), rgba(0,0,0,.5) calc(100% - var(--mr) * .6), rgba(0,0,0,.14) calc(100% - var(--mr) * .3), transparent); }
+/* the look tiles' row has 22 px of side room: the fade stays in it, so a whole tile is never dimmed */
+.pal.fade-x { --ml: min(var(--fl), 22px); --mr: min(var(--fr), 22px); }
+/* labels centred on their capitals, not on the font's line box (which sat them 1-1.5 px high in Geist): switchers, meal names */
+.seg button, .meal-row .meal-name { text-box: trim-both cap alphabetic; }
+/* a leading icon's own empty edge made icon + label sit ~1 px right of centre */
+:is(.chip, .btn) > svg:first-child { margin-left: -2px; }
+:is(.chip.sm, .btn.sm) > svg:first-child { margin-left: -1px; }
+/* muscle tags: text only, so the label alone moves down to its capitals' centre */
+:root:not([data-theme='light']) span.chip.sm:not(.on, .acc):not(:has(svg)) { padding-top: 1.5px; }
+/* a little lift on the small bubbles (Omar 18 Oct): a touch more glass and a soft contact shadow under them, so they sit
+   just above their card instead of flat on it. Static shadows (never animated); the pressed fill still answers on top. */
+:root:not([data-theme='light']) :is(.icon-btn:not(.flat, .acc, .acc-soft), button.chip:not(.on)):not(.screen :is(.plinth, [data-wk='hero'] + div) *):not(#_):not([data-pressed]) { background-color: rgba(255,255,255,.032) !important; }
+:root:not([data-theme='light']) :is(.icon-btn:not(.flat, .acc, .acc-soft), button.chip:not(.on)):not(.screen :is(.plinth, [data-wk='hero'] + div) *):not(#_) { box-shadow: inset 0 1px 0 rgba(255,255,255,.07), 0 1px 1px rgba(0,0,0,.3), 0 2px 8px rgba(0,0,0,.22) !important; }
+:root:not([data-theme='light']) .screen :is(.plinth, [data-wk='hero'] + div) :is(.icon-btn:not(.flat, .acc), button.chip:not(.on, .acc), .chip.acc, .meal-add):not(#_):not([data-pressed]) { background-color: rgba(255,255,255,.028) !important; }
+:root:not([data-theme='light']) .screen :is(.plinth, [data-wk='hero'] + div) :is(.icon-btn:not(.flat, .acc), button.chip:not(.on, .acc), .chip.acc, .meal-add):not(#_) { box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 1px 3px rgba(0,0,0,.18) !important; }
+:root:not([data-theme='light']) span.chip:not(.on, .acc):not(#_) { box-shadow: inset 0 0 0 1px rgba(255,255,255,.07), inset 0 1px 0 rgba(255,255,255,.06), 0 1px 0 rgba(0,0,0,.16) !important; }
+/* one family per size, one light (Omar 18 Oct 21:36: "same sized bubbles consistent", "the light is on top when it's not
+   on top"). Every rim is lit from straight above and fades away down the sides (no second light at the bottom).
+   - pills (.btn): the lit rim. Every chip button, any size, anywhere outside a card: clear glass with a faint rim and a little
+     lift, so Schedule / New routine / Customize Today match the quick-adds and filter chips beside them.
+   - labels (muscle tags, PR badges): flat quiet glass, no rim, no shadow; a PR badge keeps its colour only in its text. */
+:root:not([data-theme='light']) span.chip.acc:not(#_) { background: rgba(255,255,255,.06) !important; box-shadow: inset 0 0 0 1px rgba(255,255,255,.07), inset 0 1px 0 rgba(255,255,255,.06), 0 1px 0 rgba(0,0,0,.16) !important; }
+:root:not([data-theme='light']) span.chip.acc:not(#_)::after { content: none; }
+/* the switcher's thumb is the one raised piece: a neutral light on its top edge and a shade along its bottom, both drawn in
+   the thumb itself so they glide with it (no extra layer, no shadow to animate); the track around it stays flat */
+:root:not([data-theme='light']) .seg-lens { --lens-hl: rgba(255,255,255,.17); --lens-line: rgba(255,255,255,.05); --lens-lo: rgba(0,0,0,.34); --lens-fill: linear-gradient(180deg, #444448, #36363a); }
+:root:not([data-theme='light']) .seg-lens > :is(.lens-l, .lens-r) { box-shadow: inset 0 1px 0 var(--lens-hl), inset 0 -1px 0 var(--lens-lo), inset 0 0 0 1px var(--lens-line); }
+:root:not([data-theme='light']) .seg-lens > .lens-m { background: linear-gradient(to bottom, var(--lens-hl) 0 1px, transparent 1px calc(100% - 1px), var(--lens-lo) calc(100% - 1px)), linear-gradient(to bottom, var(--lens-line) 0 1px, transparent 1px calc(100% - 1px), var(--lens-line) calc(100% - 1px)), var(--lens-fill); }
+/* a destructive pill keeps its red and takes the neutral rim, so it never reads as the main action */
+:root:not([data-theme='light']) .btn.danger:not(#_) { color: var(--bad); }
+:root:not([data-theme='light']) .btn.danger:not(#_)::after { background: linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.06) 35%, rgba(255,255,255,.03) 70%, rgba(255,255,255,.04)); }

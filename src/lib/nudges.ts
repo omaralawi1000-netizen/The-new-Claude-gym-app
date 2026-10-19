@@ -35,7 +35,7 @@ export interface Nudge {
 type T = (k: string, v?: Record<string, string | number>) => string;
 
 const LEGS: MuscleGroup[] = ['quads', 'hamstrings', 'glutes'];
-const LABEL: Record<string, string> = { chest: 'Chest', back: 'Back', shoulders: 'Shoulders', biceps: 'Biceps', triceps: 'Triceps', forearms: 'Forearms', quads: 'Quads', hamstrings: 'Hamstrings', glutes: 'Glutes', calves: 'Calves', core: 'Core' };
+const LABEL: Record<string, string> = { chest: 'Chest', back: 'Back@muscle', shoulders: 'Shoulders', biceps: 'Biceps', triceps: 'Triceps', forearms: 'Forearms', quads: 'Quads', hamstrings: 'Hamstrings', glutes: 'Glutes', calves: 'Calves', core: 'Core' };
 
 export function findNudges(d: AppData, today: string, hour: number, t: T, lang: Lang, exName: (id: string) => string): Nudge[] {
   const out: Nudge[] = [];
