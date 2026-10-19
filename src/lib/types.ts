@@ -301,6 +301,8 @@ export interface Settings {
   glow?: 'full' | 'soft' | 'off';
   /** the look of the wait while a food photo is read (screens/food/PhotoFood.tsx Scan): A light wave, B wave + dots, C wave + depth; missing = C */
   scanLook?: 'A' | 'B' | 'C';
+  /** how the camera pop-up turns into the result (CameraSheet): A the photo shrinks to a corner, B a card rises over it; missing = A */
+  camResult?: 'A' | 'B';
   /** what is drawn behind the app (ui/Backdrop.tsx, styles.css `.bgx`); missing = classic (the drifting colour field) */
   background?: 'classic' | 'orb' | 'tabs' | 'sunrise' | 'mesh' | 'dots' | 'time' | 'night' | 'photo';
   /** which view a workout opens in; missing or 'last' = the one last used on this phone */
