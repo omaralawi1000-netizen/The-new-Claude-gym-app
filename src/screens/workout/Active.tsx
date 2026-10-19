@@ -51,13 +51,13 @@ const FADES: Record<Land, { out: Fades; in: Fades }> = {
   // flies as one piece (launchHero); everything else hands over with an overlap of a few frames, never one after the other
   // (r1 showed an empty card or pill for 1-3 frames at every hand-over), and never on top of its twin. Opening, the card's
   // words go over 0-9 % and the header comes in over 7-18 %, the list after it; closing, the page goes over 22-10 % and the
-  // card's words come in over 15-6 %. The play button is never half see-through over the dark for more than a few frames
-  // (brown): opening, it shrinks to a quarter and fades over its last frames; closing, it fades in at 0.6 of its size and
-  // grows into its place as the card lands. `veil`: the card's plain ground stays over the window's own light until the
+  // card's words come in over 15-6 %. The play button is never half see-through over the dark (brown): it is whole the
+  // whole time and grows out of (or shrinks into) a dot at its middle, a disc opening, over the last 12 % (the first 6 %
+  // opening); only the dot, at 15 % of its size, appears or goes in a frame. `veil`: the card's plain ground stays over the window's own light until the
   // window is a good part of the screen (r1: the light squeezed into a card or bar read as a flat red-orange slab); it is
   // set on plain progress, as `meta` is: the header's tally and progress bar, which leave in the first frames of a close
   // (the clock flies down through where they are) and come back once it has flown up.
-  D: { out: { inside: [0.1, 0.2], views: [0.12, 0.22], skin: [0.1, 0.2], veil: [0.25, 0.45], meta: [0.88, 0.96], mat: [0.089, 0.178], words: [0.06, 0.15], back: [0.006, 0.056], solid: [0.078, 0.089], pop: [0.07, 0.12], popS: [0, 0.12], popTo: 0.6 }, in: { ...FADE_IN, words: [0.002, 0.09], pop: [0.03, 0.06], popS: [0, 0.06], popTo: 0.25, inside: [0.07, 0.18], views: [0.09, 0.22], skin: [0.06, 0.2], veil: [0.25, 0.45], meta: [0.25, 0.45], mat: FADE_IN.skin } },
+  D: { out: { inside: [0.1, 0.2], views: [0.12, 0.22], skin: [0.1, 0.2], veil: [0.25, 0.45], meta: [0.88, 0.96], mat: [0.089, 0.178], words: [0.06, 0.15], back: [0.006, 0.056], solid: [0.078, 0.089], pop: [0.115, 0.12], popS: [0, 0.12], popTo: 0.15 }, in: { ...FADE_IN, words: [0.002, 0.09], pop: [0.055, 0.06], popS: [0, 0.06], popTo: 0.15, inside: [0.07, 0.18], views: [0.09, 0.22], skin: [0.06, 0.2], veil: [0.25, 0.45], meta: [0.25, 0.45], mat: FADE_IN.skin } },
   C: { out: { ...FADE_OUT, inside: [0.88, 0.995], skin: [0.42, 0.8], mat: FADE_OUT.skin }, in: { ...FADE_IN, inside: [0.6, 0.9], views: [0.8, 0.99], skin: [0.32, 0.6], mat: FADE_IN.skin } },
 };
 // B: how much the card gives as it catches the window (per unit of the spring's overshoot past the card): it shrinks a
@@ -487,8 +487,8 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     if (!reduce) mirrorSpring(el, [{ transform: t0 }, { transform: 'none' }], SMOOTH);
   };
   // the page's styles at progress pp (whatever the browser isn't running itself)
-  // the header's tally and progress bar (`meta`)
-  const metaEls = () => [...(headRef.current?.querySelectorAll<HTMLElement>('.wk-meta-rest, .wk-paused, .wk-progress') ?? [])];
+  // the header's clock (when it is not flying), tally and progress bar (`meta`)
+  const metaEls = () => [...(headRef.current?.querySelectorAll<HTMLElement>('.wk-clock, .wk-meta-rest, .wk-paused, .wk-progress') ?? [])];
   const lastMeta = useRef('');
   const metaAt = (pp: number) => { const v = String(metaO(pp)); if (v === lastMeta.current) return; lastMeta.current = v; for (const el of metaEls()) el.style.opacity = v === '1' ? '' : v; };
   const paintAt = (pp: number) => {
@@ -718,12 +718,14 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     const wait = opening ? 0 : ls.current === 'C' ? 6 : 9;
     const hw = (i: number) => (hs ? hs[Math.max(0, Math.min(i - wait, hs.length - 1))] : 1);
     const frames = Math.max(fs.length, (hs?.length ?? 0) + wait) - 1;
+    // (D closing: they ride the header while the page round them is there (r2: the growing clock ran over the list's first
+    // card) and set off as it fades, a fifth of the way from home.)
     // (D opening: the card's big name and clock are the header's size by the time the header is in round them, a sixth of
     // the way: shrinking with the window, the big name lay over the header's clock and tally for six frames, r2. Counted
     // from where the window is when the flight sets off: a workout just started reaches the header a frame or two late.)
     const B = catches(ls.current), live = ls.current === 'D', skip = Math.round(((performance.now() - t0) * 120) / 1000);
     const made = pairs.flatMap(([cardEl, headEl]) => {
-      const cardNow = anchorOf(cardEl), headNow = anchorOf(headEl);
+      const byLeft = cardEl.dataset.wkFly === 'title', cardNow = anchorOf(cardEl, byLeft), headNow = anchorOf(headEl, byLeft);
       const cardA = cardNow && sr && Math.abs(k - 1) > 1e-4 ? { ...cardNow, x: sr.left + sr.width / 2 + (cardNow.x - sr.left - sr.width / 2) / k, y: sr.top + sr.height / 2 + (cardNow.y - sr.top - sr.height / 2) / k } : cardNow;
       if (!cardA || !headNow) { dbg(`no anchors ${cardEl.dataset.wkFly}`); return []; }
       // the header's one in the window's own px, as laid out (its place at rest, whatever the window is doing now)
@@ -741,10 +743,12 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
       // (B opening: the clock is home in its slot a little ahead of the window, before the header's words beside it come in)
       const flight = opening
         ? { frames, src: (i: number) => (B ? skinAt(ppAt(i)) : cardRest), dst: (i: number) => headerAt(ppAt(i)), w: (i: number) => (live ? 1 - Math.pow(1 - Math.min(1, Math.max(0, ppAt(i) - ppAt(skip)) / 0.3), 2) : B ? 1 - Math.pow(1 - Math.min(1, qAt(ppAt(i))), 3) : hw(i)) }
-        : { frames, src: (i: number) => headerAt(ppAt(i)), dst: (i: number) => (B ? skinAt(ppAt(i)) : cardRest), w: (i: number) => (B ? Math.pow(Math.max(0, 1 - qAt(ppAt(i))), 1.5) : hw(i)) };
+        : { frames, src: (i: number) => headerAt(ppAt(i)), dst: (i: number) => (B ? skinAt(ppAt(i)) : cardRest), w: (i: number) => (live ? Math.pow(Math.min(1, Math.max(0, (0.2 - ppAt(i)) / 0.2)), 1.5) : B ? Math.pow(Math.max(0, 1 - qAt(ppAt(i))), 1.5) : hw(i)) };
       const a0 = opening ? cardA : headNow, a1 = opening ? { x: restHead.x, y: restHead.y, f: restHead.f } : cardA;
       const fromEl = opening ? cardEl : headEl, toEl = opening ? headEl : cardEl;
-      const h = flyHero(host, fromEl, toEl, a0, a1, flight, skip);
+      // (D: the two looks cross over five or six frames: the name near its small end, the clock as it sets off)
+      const cross: [number, number] | undefined = !live ? undefined : opening ? [0.45, 0.95] : cardEl.dataset.wkFly === 'title' ? [0.55, 0.95] : [0.02, 0.35];
+      const h = flyHero(host, fromEl, toEl, a0, a1, flight, skip, false, cross, byLeft);
       // it shows what the one it is flying to shows (a clock starts ticking again as the window sets off)
       const watch = new MutationObserver(() => h.text(toEl.textContent ?? '')); watch.observe(toEl, { subtree: true, childList: true, characterData: true });
       fromEl.style.visibility = 'hidden'; toEl.style.visibility = 'hidden';

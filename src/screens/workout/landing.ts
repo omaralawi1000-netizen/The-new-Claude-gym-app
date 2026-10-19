@@ -51,7 +51,9 @@ function inkOf(cs: CSSStyleDeclaration, text: string) {
   const a = m.actualBoundingBoxAscent, d = m.actualBoundingBoxDescent, fa = m.fontBoundingBoxAscent, fd = m.fontBoundingBoxDescent;
   return a + d > 0 && fa + fd > 0 ? { l: m.actualBoundingBoxLeft, w: m.actualBoundingBoxLeft + m.actualBoundingBoxRight, a, d, fa, fd } : null;
 }
-export function anchorOf(el: Element): Anchor | null {
+/** (`left`: lined up by the ink's left edge instead of its middle: a name, left-aligned in both places, set in two fonts of
+ * different widths, crosses without either end sticking out on the left) */
+export function anchorOf(el: Element, left = false): Anchor | null {
   const r = document.createRange(); r.selectNodeContents(el);
   const b = r.getBoundingClientRect();
   if (!b.width || !b.height) return null;
@@ -60,14 +62,14 @@ export function anchorOf(el: Element): Anchor | null {
   // (the text's box is the font's ascent and descent tall: its baseline is that ascent down from its top, at the scale it is drawn)
   const k = b.height / (m.fa + m.fd), base = b.top + m.fa * k;
   // (the middle across too: the two clocks' digits are not equally wide, and lined up by the middle neither end sticks out far)
-  return { x: b.left + (m.w / 2 - m.l) * k, y: base - ((m.a - m.d) / 2) * k, f: m.a + m.d };
+  return { x: b.left + ((left ? 0 : m.w / 2) - m.l) * k, y: base - ((m.a - m.d) / 2) * k, f: m.a + m.d };
 }
 
 /** A copy of a clock, drawn exactly as it is at rest (its own font, colour and size), with its digits' anchor at `a`. */
-function copyClock(el: HTMLElement, host: HTMLElement, a: Anchor) {
+function copyClock(el: HTMLElement, host: HTMLElement, a: Anchor, left = false) {
   const cs = getComputedStyle(el);
   // where its digits sit inside it, in its own px (it may be drawn scaled right now: the window is small)
-  const r = el.getBoundingClientRect(), now = anchorOf(el), h = host.getBoundingClientRect();
+  const r = el.getBoundingClientRect(), now = anchorOf(el, left), h = host.getBoundingClientRect();
   const w0 = el.offsetWidth || r.width, h0 = el.offsetHeight || r.height, sc = r.width ? r.width / w0 : 1;
   const ox = now ? (now.x - r.left) / sc : 0, oy = now ? (now.y - r.top) / sc : h0 / 2;
   const c = document.createElement('div');
@@ -99,9 +101,9 @@ export type Hero = { look0: HTMLElement; look1: HTMLElement; anims: Animation[];
  * Two copies fly the same path: the clock it leaves (look0, its own font) and the clock it becomes (look1), crossing over
  * while still small. Each is drawn from its own resting size, so the one that lands is at scale 1.
  */
-export function flyHero(host: HTMLElement, from: HTMLElement, to: HTMLElement, a0: Anchor, a1: Anchor, fl: Flight, skip = 0, cut = false): Hero {
-  const look0 = copyClock(from, host, a0);
-  const look1 = copyClock(to, host, a1);
+export function flyHero(host: HTMLElement, from: HTMLElement, to: HTMLElement, a0: Anchor, a1: Anchor, fl: Flight, skip = 0, cut = false, cross?: [number, number], left = false): Hero {
+  const look0 = copyClock(from, host, a0, left);
+  const look1 = copyClock(to, host, a1, left);
   const n = fl.frames;
   const crossLate = a0.f > a1.f; // it is flying from the big clock to the small one: it crosses as it arrives
   const k0: Keyframe[] = [], k1: Keyframe[] = [];
@@ -117,7 +119,8 @@ export function flyHero(host: HTMLElement, from: HTMLElement, to: HTMLElement, a
     // as the digits changing weight, not as two clocks; closing as it sets off; opening once it is about 1.2x the header's
     // and before the header's other words come in (the card's clock is wider: still on it then, it ran into the "sets")
     // (`cut`: the clock it becomes takes over in the first frame it moves, so the two are never seen together)
-    const o1 = cut ? (i > 0 ? 1 : 0) : crossLate ? smooth((wc - 0.78) / 0.12) : smooth((wc - 0.02) / 0.18), o0 = 1 - o1;
+    // (`cross`: where along the flight the two cross, when the caller sets it: over five or six frames, never one or two)
+    const o1 = cut ? (i > 0 ? 1 : 0) : cross ? smooth((wc - cross[0]) / (cross[1] - cross[0])) : crossLate ? smooth((wc - 0.78) / 0.12) : smooth((wc - 0.02) / 0.18), o0 = 1 - o1;
     const s1 = f / a1.f, s0 = f / a0.f;
     k1.push({ transform: `translate(${(x - a1.x).toFixed(2)}px, ${(y - a1.y).toFixed(2)}px) scale(${s1.toFixed(5)})`, opacity: String(Math.max(0.002, o1)) });
     if (gone0 < 0) {
