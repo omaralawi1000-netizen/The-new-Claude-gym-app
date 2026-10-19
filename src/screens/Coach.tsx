@@ -109,6 +109,9 @@ const saveThread = (list: Msg[]) => writeThread(list as ThreadMsg[]);
  * is up (or on its way) the sheet gives the list extra room at its end (--kb-room, ui/Sheet.tsx) the size of the whole
  * keyboard; only the part the keyboard has covered so far is scrolled into.
  */
+/** A row's top within its list's window (the sheet may be moving: measured on the page, a batch that landed while it still
+ *  rose was put back by the sheet's own travel, 19 Oct). */
+const rowTop = (row: HTMLElement, list: HTMLElement) => row.getBoundingClientRect().top - list.getBoundingClientRect().top;
 function endTop(el: HTMLElement) {
   const room = parseFloat(el.style.getPropertyValue('--kb-room') || '0') || 0; // (set on the list itself, ui/Sheet.tsx setKbRoom)
   return Math.max(0, el.scrollHeight - el.clientHeight - Math.max(0, room - kb.get()));
@@ -349,7 +352,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       // moved on by exactly what was added above (it used to be put back where it was when they were asked for: a
       // scroll in between was undone, the list jumping back by it)
       const { el: row, top } = grewFrom.current; grewFrom.current = null;
-      if (row.isConnected) { el.scrollTop += row.getBoundingClientRect().top - top; heldAt.current = { el: row, top, scroll: el.scrollTop }; }
+      if (row.isConnected) { el.scrollTop += rowTop(row, el) - top; heldAt.current = { el: row, top, scroll: el.scrollTop }; }
     }
     lastScroll.current = el.scrollTop;
     el.toggleAttribute('data-scrollable', el.scrollHeight > el.clientHeight + 1);
@@ -697,7 +700,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     // (never while your finger or a fling is moving the list: the list put back in place under a moving scroll stepped
     // it, a flicker every ~0.4 s while you scrolled up through a long chat, Omar 18 Oct; they wait until it rests)
     let later: ReturnType<typeof setTimeout> | undefined;
-    const more = () => { const el = bodyRef.current; if (user.current || busyRef.current || flights.current.size || kb.isAnimating()) { later = setTimeout(more, 300); return; } /* (nor while it answers, a message flies or the keyboard moves: each batch is a layout and a repaint of the whole list) */ const row = el?.querySelector<HTMLElement>('.coach-thread')?.lastElementChild as HTMLElement | null; if (row && el) { const h = heldAt.current; grewFrom.current = { el: row, top: h && h.el === row && h.scroll === el.scrollTop ? h.top : row.getBoundingClientRect().top }; } setOlder((n) => Math.max(0, n - 6)); }; // (six at a time: about 26 passes for a long chat after every open was 8 s of repaints)
+    const more = () => { const el = bodyRef.current; if (user.current || busyRef.current || flights.current.size || kb.isAnimating()) { later = setTimeout(more, 300); return; } /* (nor while it answers, a message flies or the keyboard moves: each batch is a layout and a repaint of the whole list) */ const row = el?.querySelector<HTMLElement>('.coach-thread')?.lastElementChild as HTMLElement | null; if (row && el) { const h = heldAt.current; grewFrom.current = { el: row, top: h && h.el === row && h.scroll === el.scrollTop ? h.top : rowTop(row, el) }; } setOlder((n) => Math.max(0, n - 6)); }; // (six at a time: about 26 passes for a long chat after every open was 8 s of repaints)
     const idle = 'requestIdleCallback' in window ? window.requestIdleCallback : null;
     // the first ones wait until the sheet has risen; then two at a time, whenever the phone has a moment
     const wait = setTimeout(() => { id = idle ? idle(more, { timeout: 1200 }) : window.setTimeout(more, 16); }, begun.current ? 0 : 700);
