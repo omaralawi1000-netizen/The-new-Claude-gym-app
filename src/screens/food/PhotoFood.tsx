@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useStore } from '../../state/store';
 import { useUI, haptic } from '../../state/ui';
@@ -21,8 +21,6 @@ const PORTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
 
 const SCAN_WORDS = ['Reading your plate', 'Finding ingredients', 'Estimating portions', 'Adding it all up'];
-// PREVIEW ONLY: six looks for the wait, chosen with localStorage 'aven.scan' (A-F); Omar picks one, the rest are deleted
-export const scanVariant = () => { try { return localStorage.getItem('aven.scan') || 'A'; } catch { return 'A'; } };
 /** Which of the four steps the wait is at (rAF + performance.now, so it follows the real clock): it moves in the rest of every sweep, and
  *  "Adding it all up" only comes after 8.9 s so a long wait never sits on the last words. */
 const STEP_AT = [0, 2500, 5700, 8900]; // changes land in the rest between two sweeps (3.2 s cycle, still from 2.2 s on)
@@ -40,9 +38,9 @@ function useStep() {
   }, []);
   return i;
 }
-/** While the photo is read: no orb. Only transform and opacity move. The root never fades (a fading ancestor would drop the
+/** While the photo is read (Omar picked the sweep): no orb. Only transform and opacity move. The root never fades (a fading ancestor would drop the
  *  frost of the words capsule); the film, band and corners fade as one layer and the capsule fades by itself. */
-function Scan({ v }: { v: string }) {
+function Scan() {
   const t = useT();
   const i = useStep();
   const fade = { initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 }, transition: { duration: 0.45 } };
@@ -54,24 +52,13 @@ function Scan({ v }: { v: string }) {
     </motion.div>
   );
   return (
-    <div className={`scan scan-${v}`} aria-hidden>
+    <div className="scan scan-A" aria-hidden>
       <motion.div className="scan-fx" {...fade}>
         <i className="scan-film" />
-        {v === 'A' && <><i className="scan-band" /><i className="scan-c tl" /><i className="scan-c tr" /><i className="scan-c bl" /><i className="scan-c br" /></>}
-        {v === 'B' && <div className="aur-ring"><i /></div>}
-        {v === 'C' && <><i className="son r0" /><i className="son r1" /><i className="son r2" /><i className="son-dot" /></>}
-        {v === 'D' && <div className="lock"><i className="scan-c tl" /><i className="scan-c tr" /><i className="scan-c bl" /><i className="scan-c br" /></div>}
+        <i className="scan-band" /><i className="scan-c tl" /><i className="scan-c tr" /><i className="scan-c bl" /><i className="scan-c br" />
       </motion.div>
-      {(v === 'A' || v === 'B' || v === 'C' || v === 'D' || v === 'F') && words}
+      {words}
     </div>
-  );
-}
-/** Option F: grey stand-ins where the items will land, the size of the real cards; they melt into them. */
-function Ghosts() {
-  return (
-    <motion.div className="ghosts stack gap8" aria-hidden initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.35 } }} transition={{ duration: 0.45 }} style={{ marginTop: 16 }}>
-      {[0, 1, 2].map((k) => <div key={k} className="ghost plinth"><i className="ghost-sh" style={{ animationDelay: `${k * 180}ms` }} /></div>)}
-    </motion.div>
   );
 }
 
@@ -124,7 +111,6 @@ export function PhotoFood({ props }: { props: { date: string; mealId: string; fi
 
   useEffect(() => { if (props.file) pick(props.file); }, []); // eslint-disable-line -- the camera hands its shot over (CameraSheet)
 
-  const sv = useMemo(scanVariant, []);
   const fromCam = useRef(!!props.file); // the camera's photo is the one constant of the hand-over: it is there from the first frame, not faded in
   useEffect(() => { if (img) fromCam.current = false; }, [img]);
   const chosen = items.filter((x) => x.on);
@@ -164,7 +150,7 @@ export function PhotoFood({ props }: { props: { date: string; mealId: string; fi
                   <span className="small t2">{t('Take a photo')}</span>
                 </button>
               )}
-              <AnimatePresence>{busy && <Scan key="scan" v={sv} />}</AnimatePresence>
+              <AnimatePresence>{busy && <Scan key="scan" />}</AnimatePresence>
             </motion.div>
             <div className="row-flex" style={{ gap: 8, marginTop: 12 }}>
               <button className="btn sm press grow" onClick={openCam}><Icon name="camera" size={16} /> {img ? t('Retake') : t('Camera')}</button>
@@ -175,7 +161,6 @@ export function PhotoFood({ props }: { props: { date: string; mealId: string; fi
               {img && <button className="icon-btn press" aria-label={t('Analyse again')} disabled={busy} onClick={() => analyse(img.blob)}><Icon name="repeat" /></button>}
             </div>
             {err && <div className="plinth-2 small" role="alert" style={{ padding: '12px 14px', marginTop: 12, color: 'var(--bad)' }}>{err}</div>}
-            <AnimatePresence>{busy && sv === 'F' && <Ghosts key="ghosts" />}</AnimatePresence>
             <AnimatePresence>
               {items.length > 0 && (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.5 }} style={{ marginTop: 16 }}>
