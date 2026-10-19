@@ -14,7 +14,7 @@ import { addDays, dayKey, diffDays } from './dates';
 import { suggestedTarget, trueMaintenance } from './maintenance';
 import { uid } from './nutrition';
 
-type Data = Pick<AppData, 'entries' | 'settings' | 'weights' | 'health' | 'catchUps' | 'targets'>;
+type Data = Pick<AppData, 'entries' | 'settings' | 'weights' | 'health' | 'catchUps' | 'targets' | 'marks'>;
 
 /**
  * A change of the calorie target, recorded (store `updateSettings` / `patch`) so past days are judged against the target
@@ -197,7 +197,7 @@ export function eatingLines(d: Data, today: string, goal?: string): string[] {
   const m = trueMaintenance(d, today);
   if (m) {
     L.push(`True maintenance: about ${m.kcal} kcal a day (${m.confidence} confidence${m.confidence === 'low' ? ', an ESTIMATE' : ''}: ${m.loggedDays} logged days and ${m.weighIns} weigh-ins in 4 weeks; logged average ${m.avgIntake} kcal, weight ${m.kgPerWeek >= 0 ? '+' : ''}${m.kgPerWeek} kg a week). It is relative to what they log, so targets built on it work. Suggested target for their goal: ${suggestedTarget(m, goal)} kcal (offer it with set_setting kcalGoal; never change it unasked).`);
-    if (m.invisible) L.push(`Invisible calories: the watch says they burn about ${m.watchBurn} kcal a day, ${m.invisible} more than their logs and the scale add up to, so roughly ${m.invisible} kcal a day are probably not logged (most likely evenings; watch burn estimates are rough).`);
+    if (m.invisible) { const said = d.marks?.invisibleSaid; L.push(`Invisible calories: the watch says they burn about ${m.watchBurn} kcal a day, ${m.invisible} more than their logs and the scale add up to. Either the watch overestimates (common) or some food isn't logged, most likely a bit of both. ${said ? `Already brought up on ${said}: only again if they ask.` : 'Bring it up at most once, when it fits what they asked.'}`); }
   } else L.push('True maintenance: not enough yet (needs about 10 logged days and 4 weigh-ins two weeks apart in the last 4 weeks).');
   const mode = heavyMode(d.settings);
   const heavy = mode === 'off' ? [] : heavyDays(d, today);

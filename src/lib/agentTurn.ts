@@ -1,5 +1,6 @@
 import { useAi, solOn } from '../state/ai';
 import { justNoticed, markCoachTold } from './eating';
+import { trueMaintenance } from './maintenance';
 import { useStore } from '../state/store';
 import { getKey } from './keys';
 import { AiError, FALLBACK_MODELS, aiAgent, aiAgentStream, dedupeSources, geminiSearch, plainModels, type Brain, type Photo, type Turn, type WebSource } from './gemini';
@@ -121,8 +122,10 @@ export async function decide(text: string, o: { lang: Lang; t: (k: string, v?: R
   const st = useStore.getState();
   const g = useAi.getState();
   const { t, lang } = o;
-  // (what EATING PATTERNS tells this turn it has just noticed)
-  const noticed = justNoticed(st, dayKey(Date.now(), st.settings.dayStartHour)).map((c) => c.id);
+  // (what EATING PATTERNS tells this turn it has just noticed; whether it may bring up the invisible calories)
+  const day0 = dayKey(Date.now(), st.settings.dayStartHour);
+  const noticed = justNoticed(st, day0).map((c) => c.id);
+  const invisible = !st.marks?.invisibleSaid && !!trueMaintenance(st, day0)?.invisible;
   let reply = '', note = '';
   let actions: AgentAction[] = [];
   const sources: WebSource[] = [];
@@ -199,5 +202,7 @@ export async function decide(text: string, o: { lang: Lang; t: (k: string, v?: R
   // is told to leave it for the next real conversation)
   const logging = actions.length > 0 && actions.every((a) => /^log_/.test(a.type));
   if (reply && noticed.length && !logging) markCoachTold(useStore.getState(), useStore.getState().setCatchUps, noticed);
+  // (and the invisible calories, once it has talked about them)
+  if (invisible && !logging && /watch|uret|unlogged|not logged|isn'?t logged|ikke logget|ikke er logget|invisible|usynlig/i.test(reply)) useStore.getState().patch((s) => ({ marks: { ...s.marks, invisibleSaid: day0 } }));
   return { reply, note, actions: actions.filter((a) => a.type !== 'undo_last'), wantsUndo, sources: dedupeSources(sources), dropped };
 }

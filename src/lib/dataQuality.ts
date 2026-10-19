@@ -11,7 +11,7 @@
 import type { AppData, FoodEntry } from './types';
 import { addDays } from './dates';
 
-type Data = Pick<AppData, 'entries' | 'weights'>;
+type Data = Pick<AppData, 'entries' | 'weights' | 'health'>;
 const median = (xs: number[]) => { if (!xs.length) return 0; const s = [...xs].sort((a, b) => a - b); const m = Math.floor(s.length / 2); return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
 
 /** Per logged day in [from, to]: its kcal and the meals in it. */
@@ -74,9 +74,18 @@ export function oddEntries(d: Pick<AppData, 'entries'>, today: string, window = 
   return out;
 }
 
-/** Weigh-ins more than 2.5 kg away from the median of the others within a week either side (a typo or a scale glitch). */
-export function oddWeighIns(d: Pick<AppData, 'weights'>, today: string, window = 28): { date: string; kg: number; around: number }[] {
-  const ws = d.weights.filter((w) => w.date >= addDays(today, -window) && w.date <= today);
+/** Every weigh-in: the ones typed into Aven, and the scale's through the watch (Aven's own wins on the same day). */
+export function weighIns(d: Pick<AppData, 'weights' | 'health'>): { date: string; kg: number }[] {
+  const by = new Map<string, number>();
+  for (const h of d.health ?? []) if (h.weightKg) by.set(h.date, h.weightKg);
+  for (const w of d.weights) by.set(w.date, w.kg);
+  return [...by].map(([date, kg]) => ({ date, kg })).sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/** Weigh-ins (Aven's and the watch's) more than 2.5 kg away from the median of the others within a week either side (a
+ *  typo or a scale glitch). */
+export function oddWeighIns(d: Pick<AppData, 'weights' | 'health'>, today: string, window = 28): { date: string; kg: number; around: number }[] {
+  const ws = weighIns(d).filter((w) => w.date >= addDays(today, -window) && w.date <= today);
   const out: { date: string; kg: number; around: number }[] = [];
   for (const w of ws) {
     const near = ws.filter((x) => x !== w && Math.abs(new Date(x.date).getTime() - new Date(w.date).getTime()) <= 7 * 86_400_000).map((x) => x.kg);
