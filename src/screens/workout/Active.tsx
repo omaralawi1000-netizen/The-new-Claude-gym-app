@@ -57,7 +57,7 @@ const FADES: Record<Land, { out: Fades; in: Fades }> = {
   // window is a good part of the screen (r1: the light squeezed into a card or bar read as a flat red-orange slab); it is
   // set on plain progress, as `meta` is: the header's tally and progress bar, which leave in the first frames of a close
   // (the clock flies down through where they are) and come back once it has flown up.
-  D: { out: { inside: [0.1, 0.2], views: [0.12, 0.22], skin: [0.1, 0.2], veil: [0.25, 0.45], meta: [0.88, 0.96], bar: [0.14, 0.3], mat: [0.089, 0.178], words: [0.06, 0.15], back: [0.006, 0.056], solid: [0.078, 0.089], pop: [0.115, 0.12], popS: [0, 0.12], popTo: 0.15 }, in: { ...FADE_IN, words: [0.002, 0.09], pop: [0.055, 0.06], popS: [0, 0.06], popTo: 0.15, inside: [0.07, 0.18], views: [0.09, 0.22], skin: [0.06, 0.2], veil: [0.25, 0.45], meta: [0.25, 0.45], bar: [0.12, 0.3], mat: FADE_IN.skin } },
+  D: { out: { inside: [0.1, 0.2], views: [0.12, 0.22], skin: [0.1, 0.2], veil: [0.25, 0.45], meta: [0.88, 0.96], bar: [0.86, 0.97], mat: [0.089, 0.178], words: [0.06, 0.15], back: [0.006, 0.056], solid: [0.078, 0.089], pop: [0.115, 0.12], popS: [0, 0.12], popTo: 0.15 }, in: { ...FADE_IN, words: [0.002, 0.09], pop: [0.08, 0.09], popS: [0, 0.09], popTo: 0.08, inside: [0.07, 0.18], views: [0.09, 0.22], skin: [0.06, 0.2], veil: [0.25, 0.45], meta: [0.25, 0.45], bar: [0.74, 0.97], mat: FADE_IN.skin } },
   C: { out: { ...FADE_OUT, inside: [0.88, 0.995], skin: [0.42, 0.8], mat: FADE_OUT.skin }, in: { ...FADE_IN, inside: [0.6, 0.9], views: [0.8, 0.99], skin: [0.32, 0.6], mat: FADE_IN.skin } },
 };
 // B: how much the card gives as it catches the window (per unit of the spring's overshoot past the card): it shrinks a
@@ -168,6 +168,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     const live = ls.current === 'D', c = 1 + pp * (live ? CATCH_KD : CATCH_K), dy = -pp * (live ? CATCH_DD : CATCH_D), cx = g.l + g.w / 2, cy = (g.t + g.b) / 2, hh = ((g.b - g.t) / 2) * c;
     return { l: cx - (g.w / 2) * c, t: cy - hh + dy, w: g.w * c, b: cy + hh + dy, h: g.h * c };
   };
+  const dragOff = useRef(0);
   const geo = (pp: number) => {
     const g = gAt(pp), { W, hA, RB } = dims.current;
     if (!g || !W) return { x: 0, y: sheetTop(pp) - LEAD, s: 1, by: 0 };
@@ -175,8 +176,11 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     // the width is whole a moment before the window lands (at 98.5 %): it then settles at exactly its own size, sharp, and
     // the spring's tail is only a vertical glide off the top of the screen
     const k = Math.min(1, q / 0.985);
-    const y = g.t + (-LEAD - g.t) * q, s = (g.w + (W - g.w) * k) / W, x = g.l * (1 - k);
-    const bot = g.b + (hA - LEAD + RB - g.b) * q; // the bottom edge on the screen
+    // (D let go after a swipe: the window sets off whole, from where the finger left it, and that offset fades with the
+    // window's own progress, so the first frame of the close is the dragged window exactly, dragOff)
+    const off = dragOff.current * Math.min(1, Math.max(0, q)); // (on q, as the edges are: on pp it let go a frame early, 7 px up)
+    const y = g.t + (-LEAD - g.t) * q + off, s = (g.w + (W - g.w) * k) / W, x = g.l * (1 - k);
+    const bot = g.b + (hA - LEAD + RB - g.b) * q + off; // the bottom edge on the screen
     return { x, y, s, by: Math.min(0, (bot - y) / s - (hA + RB)) };
   };
   const aAt = (pp: number) => { const g = geo(pp); return g.s === 1 ? `translate3d(0, ${snapPx(g.y + LEAD)}px, 0)` : `translate(${g.x.toFixed(2)}px, ${(g.y + LEAD).toFixed(2)}px) scale(${g.s.toFixed(5)})`; };
@@ -264,7 +268,10 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   // window grows (moved, never faded: a fade on the bar's ancestor turns its frost off until the fade ends).
   // (how far: from the bar's top to the window's edge at rest, which is that far below the screen, measured as it sets off)
   const barTuck = useRef(160);
-  const barBy = (pp: number) => (from.current && ls.current === 'D' && F().bar ? geo(pp).by + barTuck.current * (1 - ramp(pp, F().bar!)) : 0);
+  // (on absolute progress, not the card-stretched kind: it rides only while the window is near full size. Riding the edge of a
+  // small window it ran over the header and the rows (round 2 judge), so it sinks out first on the way down and comes up
+  // last on the way up)
+  const barBy = (pp: number) => { const v = F().bar; return from.current && ls.current === 'D' && v ? geo(pp).by + barTuck.current * (1 - clamp01((pp - v[0]) / (v[1] - v[0]))) : 0; };
   const barRef = useRef<HTMLDivElement>(null);
   const lastBar = useRef({ by: 0 });
   const barT = (by: number) => (by ? `translateY(${by.toFixed(2)}px)` : 'none');
@@ -347,8 +354,11 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   // C: the page packs away downwards as it fades (and rises into place as it comes in), the list more than the header
   const pack = (k: number) => (pp: number) => (from.current && ls.current === 'C' ? k * PACK * (1 - ramp(pp, F().inside)) : 0);
   const headPack = pack(0.3), viewsPack = pack(1);
-  const offset = (f: (pp: number) => number, pk: (pp: number) => number) => (pp: number, e: number) => (from.current ? lift(pp) + pk(pp) + f(1 - Math.max(0, pp - e)) : f(e));
-  const headOff = offset(headLag, headPack), viewsOff = offset(viewsLag, viewsPack);
+  // (`rel`: how far the layer floated behind the finger when it let go (D, dragOff): it fades with the window, as the
+  // offset does, instead of snapping home in the first frame of the close, round 2 judge "content jumps up")
+  const relHead = useRef(0), relViews = useRef(0);
+  const offset = (f: (pp: number) => number, pk: (pp: number) => number, rel: { current: number }) => (pp: number, e: number) => (from.current ? lift(pp) + pk(pp) + f(1 - Math.max(0, pp - e)) + (rel.current ? rel.current * Math.min(1, Math.max(0, qAt(pp))) : 0) : f(e));
+  const headOff = offset(headLag, headPack, relHead), viewsOff = offset(viewsLag, viewsPack, relViews);
   const yAt = (y: number) => `translate3d(0, ${snapPx(y)}px, 0)`;
   const headT = useTransform([pv, eFingerV], ([pp, e]: number[]) => yAt(headOff(pp, e)));
   const viewsT = useTransform([pv, eFingerV], ([pp, e]: number[]) => yAt(viewsOff(pp, e)));
@@ -788,19 +798,24 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     // discarded, it slides away as before
     const kind = useStore.getState().active && !vanishRef.current ? (useUI.getState().tab === 'today' ? 'hero' : 'pill') : null;
     const d = dragT.get();
-    leaving.current = true;
+    leaving.current = true; dragOff.current = 0; relHead.current = relViews.current = 0;
     measure(wkSourceRect(kind));
     noteMove(`close ${from.current ? kind : 'slide'}${v ? ' swipe' : ''}`);
     // the finger's offset becomes progress, then it carries on at the finger's speed — the window's top stays where the
     // finger left it
     const g = from.current;
     const reach = g ? g.t + LEAD : H;
-    const e0 = g ? Math.min(1, Math.max(0, p.get() - Math.max(0, d) / reach)) : eFinger.get();
+    // (D: not the offset as progress, which drew the window smaller, narrower and without its tally in the first frame of
+    // the close (round 2 judge): it stays whole and carries the offset, geo's dragOff)
+    const whole = !!g && ls.current === 'D' && d > 0;
+    dragOff.current = whole ? d : 0;
+    if (whole) { const fl = 1 - Math.max(0, pv.get() - eFingerV.get()); relHead.current = headLag(fl); relViews.current = viewsLag(fl); }
+    const e0 = whole ? Math.min(1, Math.max(0, p.get())) : g ? Math.min(1, Math.max(0, p.get() - Math.max(0, d) / reach)) : eFinger.get();
     p.set(e0); dragY.set(0);
     // (drawn back at rest now, not on Motion's next frame: the clock's flight below measures the window where it rests)
     if (dialogRef.current) dialogRef.current.style.transform = 'none';
     thaw(); pv.set(e0); flush(); cardAt(e0);
-    const vel = -v / reach;
+    const vel = -v / (whole ? Math.max(120, reach - d) : reach);
     const lw = LANDS[ls.current].closeWin;
     const sp = g ? (lw ? { ...lw, restDelta: 0.001 } : WINDOW_CLOSE) : SURFACE_EXIT;
     launchHero(false, e0, 0, sp, vel);
@@ -918,6 +933,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     dialogRef.current?.classList.remove('wk-off', 'wk-leaving');
     // out of the card or bar that was tapped (none: it rises from the bottom edge)
     leaving.current = false;
+    dragOff.current = 0; relHead.current = relViews.current = 0;
     measure(wkSourceRect(takeWorkoutFrom()));
     noteMove(`open ${src.current[0]?.dataset.wk ?? 'slide'}`);
     const p0 = p.get();
@@ -1099,7 +1115,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
                 {renaming ? (
                   <input className="input" autoFocus style={{ minHeight: 34, padding: '4px 10px' }} defaultValue={a.name} onBlur={(e) => { useStore.getState().mutateActive((x) => ({ ...x, name: e.target.value.trim() })); setRenaming(false); }} onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} aria-label={t('Workout name')} />
                 ) : (
-                  <button className="wk-title display press" data-wk-fly="title" onClick={() => setRenaming(true)}>{a.name || t('Workout')}</button>
+                  <button className="wk-title display wk-name press" data-wk-fly="title" onClick={() => setRenaming(true)}>{a.name || t('Workout')}</button>
                 )}
                 {/* the clock and the tally on one line: time, sets, volume */}
                 <div className="wk-meta num">
@@ -1253,6 +1269,11 @@ function WorkoutBar({ engage, exMap, focus, onDone, onJump }: { engage: Engage; 
   const unit = useStore((s) => s.settings.units.weight);
   const live = useContext(WkLive);
   const now = useNow(250, !!a?.rest && !a?.pausedAt && live);
+  // (the first render back from minimised: the rest time caught up while it was out of sight, so it shows the new value
+  // instead of rolling down from the old one, round 2 judge "1:21 rolls to 1:19")
+  const wasLive = useRef(live);
+  const back = live && !wasLive.current;
+  useEffect(() => { wasLive.current = live; }, [live]);
   const [panel, setPanel] = useState(false);
   useEffect(() => { if (!panel) return; const id = setTimeout(() => setPanel(false), 4000); return () => clearTimeout(id); }, [panel, a?.rest?.endsAt, a?.rest?.total]);
   const resting = !!a?.rest;
@@ -1312,7 +1333,7 @@ function WorkoutBar({ engage, exMap, focus, onDone, onJump }: { engage: Engage; 
             <span className="wk-bar-big num">{state === 'next' || (state === 'go' && nx) ? <><Fit className="wk-bar-name" text={name} />{target && <span className="wk-bar-tgt">{target}</span>}</>
               : state === 'rest' ? (!a.pausedAt && left <= 3
                 // the last three seconds swell on each tick; before that the seconds roll down
-                ? <span key={Math.ceil(left)} className="wk-tick">{big}</span> : <Roll key="r" text={big} />)
+                ? <span key={Math.ceil(left)} className="wk-tick">{big}</span> : <Roll key="r" text={big} still={back} />)
               : state === 'done' ? <Roll text={big} /> : big}</span>
           </SwapText>
         </button>

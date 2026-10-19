@@ -11,13 +11,14 @@ const reduced = () => document.documentElement.dataset.motion === 'reduce'
   || (document.documentElement.dataset.motion !== 'full' && matchMedia('(prefers-reduced-motion: reduce)').matches);
 const digits = (s: string) => Number(s.replace(/[^\d]/g, '')) || 0;
 
-export function Roll({ text, className, style }: { text: string; className?: string; style?: CSSProperties }) {
+/** (`still`: this change is a catch-up, not a tick (the number was not on screen while it changed): it just shows the new value) */
+export function Roll({ text, className, style, still = false }: { text: string; className?: string; style?: CSSProperties; still?: boolean }) {
   const ref = useRef<HTMLSpanElement>(null);
   const prev = useRef(text);
   useLayoutEffect(() => {
     const was = prev.current; prev.current = text;
     const root = ref.current;
-    if (!root || was === text || reduced()) return;
+    if (!root || was === text || still || reduced()) return;
     const up = digits(text) >= digits(was);
     const c = springCurve(SMOOTH);
     const opts = { duration: Math.max(420, c.duration), easing: c.easing };

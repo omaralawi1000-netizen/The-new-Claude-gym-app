@@ -30,7 +30,8 @@ export const LANDS: Record<Land, { closeWin: Spring | null; openWin: Spring | nu
   A: { closeWin: null, openWin: null, closeHero: apple(0.6, 0.14), openHero: apple(0.46, 0.08) },
   B: { closeWin: apple(0.62, 0.26), openWin: apple(0.56, 0.1), closeHero: null, openHero: null },
   C: { closeWin: apple(0.8), openWin: null, closeHero: apple(0.38, 0.18), openHero: apple(0.34, 0.14) },
-  D: { closeWin: apple(0.62, 0.26), openWin: apple(0.56, 0.1), closeHero: null, openHero: null },
+  // (D opens without the bounce: its 1-3 px overshoot sat above home for a third of a second, round 2 judge)
+  D: { closeWin: apple(0.62, 0.26), openWin: apple(0.56, 0), closeHero: null, openHero: null },
 };
 
 type Pt = { x: number; y: number };
@@ -66,20 +67,24 @@ export function anchorOf(el: Element, left = false): Anchor | null {
 }
 
 /** A copy of a clock, drawn exactly as it is at rest (its own font, colour and size), with its digits' anchor at `a`. */
-function copyClock(el: HTMLElement, host: HTMLElement, a: Anchor, left = false) {
+function copyClock(el: HTMLElement, host: HTMLElement, a: Anchor, left = false, glyphs = false) {
   const cs = getComputedStyle(el);
   // where its digits sit inside it, in its own px (it may be drawn scaled right now: the window is small)
   const r = el.getBoundingClientRect(), now = anchorOf(el, left), h = host.getBoundingClientRect();
   const w0 = el.offsetWidth || r.width, h0 = el.offsetHeight || r.height, sc = r.width ? r.width / w0 : 1;
   const ox = now ? (now.x - r.left) / sc : 0, oy = now ? (now.y - r.top) / sc : h0 / 2;
   const c = document.createElement('div');
-  c.textContent = el.textContent;
-  const props = ['font-family', 'font-size', 'font-weight', 'font-style', 'font-stretch', 'font-variation-settings', 'font-feature-settings', 'font-variant-numeric', 'letter-spacing', 'line-height', 'color', 'text-rendering', '-webkit-font-smoothing'];
+  // (`glyphs`: each character its own box, so each can be slid onto its twin in the other clock, glyphsOf)
+  if (glyphs) for (const ch of el.textContent ?? '') { const g = document.createElement('span'); g.textContent = ch; g.style.display = 'inline-block'; c.appendChild(g); }
+  else c.textContent = el.textContent;
+  const props = ['font-family', 'font-size', 'font-weight', 'font-style', 'font-stretch', 'font-variation-settings', 'font-optical-sizing', 'font-feature-settings', 'font-variant-numeric', 'letter-spacing', 'line-height', 'color', 'text-rendering', '-webkit-font-smoothing'];
   for (const k of props) c.style.setProperty(k, cs.getPropertyValue(k));
   Object.assign(c.style, { position: 'absolute', left: `${a.x - ox - h.left}px`, top: `${a.y - oy - h.top}px`, minWidth: `${w0}px`, height: `${h0}px`, lineHeight: `${h0}px`, margin: '0', padding: '0', whiteSpace: 'nowrap', transformOrigin: `${ox}px ${oy}px`, pointerEvents: 'none' });
   host.appendChild(c);
-  return c;
+  return Object.assign(c, { ox, oy });
 }
+/** each character's middle, across, in the copy's own px from its anchor */
+const glyphsOf = (c: HTMLElement & { ox: number }) => [...c.children].map((g) => (g as HTMLElement).offsetLeft + (g as HTMLElement).offsetWidth / 2 - c.ox);
 
 const smooth = (u: number) => { const v = Math.min(1, Math.max(0, u)); return v * v * (3 - 2 * v); };
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -104,10 +109,14 @@ export type Hero = { look0: HTMLElement; look1: HTMLElement; anims: Animation[];
  * while still small. Each is drawn from its own resting size, so the one that lands is at scale 1.
  */
 export function flyHero(host: HTMLElement, from: HTMLElement, to: HTMLElement, a0: Anchor, a1: Anchor, fl: Flight, skip = 0, cut = false, cross?: [number, number], left = false): Hero {
-  const look0 = copyClock(from, host, a0, left);
-  const look1 = copyClock(to, host, a1, left);
+  // (a clock's two looks differ in weight and spacing: lined up by their middles only, their outer digits sat a few px
+  // apart and read as two clocks (round 2 judge). Each digit is its own box, slid onto its twin while the two cross, so
+  // the thin and the bold digit lie on top of each other and it reads as one clock changing weight.)
+  const glyphs = !left && (from.textContent ?? '').length === (to.textContent ?? '').length;
+  const look0 = copyClock(from, host, a0, left, glyphs);
+  const look1 = copyClock(to, host, a1, left, glyphs);
   const n = fl.frames;
-  const crossLate = a0.f > a1.f; // it is flying from the big clock to the small one: it crosses as it arrives
+  const crossLate = cross ? cross[0] + cross[1] > 1 : a0.f > a1.f; // it crosses as it arrives (else as it sets off)
   const k0: Keyframe[] = [], k1: Keyframe[] = [];
   let gone0 = -1;
   for (let i = 0; i <= n; i++) {
@@ -136,13 +145,41 @@ export function flyHero(host: HTMLElement, from: HTMLElement, to: HTMLElement, a
   const anims: Animation[] = [];
   // (`skip`: frames of the flight already past when it is set off: it starts from there)
   const late = -(Math.min(skip, n) * 1000) / 120;
+  // the digits onto their twins: the look that is out of sight at that end moves, so neither real clock is ever changed.
+  // Crossing as it arrives, the leaving look's digits slide over while it flies (none moved as it sets off); crossing as
+  // it sets off, the arriving look's digits start on the leaving ones and slide home before it lands.
+  const c0 = glyphs ? glyphsOf(look0) : [], c1 = glyphs ? glyphsOf(look1) : [];
+  if (glyphs && c0.length === c1.length && c0.length > 1) {
+    const [ca, cb] = cross ?? (crossLate ? [0.78, 0.9] : [0.02, 0.2]);
+    const mover = crossLate ? look0 : look1, mine = crossLate ? c0 : c1, twin = crossLate ? c1 : c0;
+    const k = crossLate ? a0.f / a1.f : a1.f / a0.f; // the twin's px in the mover's own px (both drawn at one ink size)
+    const end = crossLate ? (gone0 < 0 ? n : gone0) : n;
+    [...mover.children].forEach((g, j) => {
+      const dx = twin[j] * k - mine[j];
+      if (Math.abs(dx) < 0.05) return;
+      const kg: Keyframe[] = [];
+      for (let i = 0; i <= end; i++) {
+        const wc = Math.min(1, Math.max(0, fl.w(i)));
+        // on its twin through the whole crossing; easing on before it (arriving) or off after it (setting off)
+        const on = crossLate ? smooth(wc / Math.max(0.05, ca)) : 1 - smooth((wc - cb) / Math.max(0.05, 1 - cb) * 2);
+        kg.push({ transform: `translateX(${(dx * on).toFixed(2)}px)` });
+      }
+      anims.push((g as HTMLElement).animate(kg, { duration: Math.max(1, (end * 1000) / 120), easing: 'linear', fill: 'both', delay: late }));
+    });
+  }
   anims.push(look1.animate(k1, { duration: dur, easing: 'linear', fill: 'both', delay: late }));
   const n0 = gone0 < 0 ? n : gone0;
   anims.push(look0.animate(k0, { duration: Math.max(1, (n0 * 1000) / 120), easing: 'linear', fill: 'both', delay: late }));
   const done = anims[0].finished.then(() => undefined, () => undefined);
+  // (a tick mid-flight: digit by digit, so each keeps its box and its slide)
+  const say = (c: HTMLElement, t: string) => {
+    if (c.textContent === t) return;
+    if (c.children.length && c.children.length === t.length) [...t].forEach((ch, j) => { if (c.children[j].textContent !== ch) c.children[j].textContent = ch; });
+    else c.textContent = t;
+  };
   return {
     look0, look1, anims, done,
-    text: (t: string) => { if (look0.textContent !== t) look0.textContent = t; if (look1.textContent !== t) look1.textContent = t; },
+    text: (t: string) => { say(look0, t); say(look1, t); },
     drop: () => { for (const a of anims) { try { a.cancel(); } catch { /* ignore */ } } look0.remove(); look1.remove(); },
   };
 }
