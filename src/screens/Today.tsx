@@ -13,6 +13,7 @@ import { Count } from '../ui/kit';
 import { elapsedMs, sessionSetCount, sessionVolume } from '../lib/workout';
 import { fmtNum, fmtPct, fmtSigned, kgToDisplay } from '../lib/units';
 import { entryFromSnapshot, snapshotOf, uid } from '../lib/nutrition';
+import { watchWalk } from '../lib/activity';
 import { defaultQty } from './food/Detail';
 import { useCovered, useNow, useScreenStore } from '../lib/hooks';
 import type { AppData, Routine } from '../lib/types';
@@ -116,7 +117,7 @@ export function TodayScreen() {
     const wrN = s.activities.filter((x) => x.kind === 'wrestling' && x.date >= weekStart && x.date <= addDays(weekStart, 6)).length;
     // from the watch: the week's cardio and the steps a day (only once it is connected)
     const inWeek = (d: string) => d >= weekStart && d <= addDays(weekStart, 6);
-    const cardioN = s.activities.filter((x) => x.source === 'watch' && x.kind !== 'wrestling' && inWeek(x.date)).length;
+    const cardioN = s.activities.filter((x) => x.source === 'watch' && x.kind !== 'wrestling' && !watchWalk(x) && inWeek(x.date)).length;
     const stepDays = (s.steps ?? []).filter((x) => inWeek(x.date) && x.date <= today);
     const stepsAvg = stepDays.length ? Math.round(stepDays.reduce((n, x) => n + x.count, 0) / stepDays.length / 100) * 100 : 0;
     const streak = target ? weekStreak(weeklyTraining(s.sessions, today, 26, settings.weekStart), target) : 0;
