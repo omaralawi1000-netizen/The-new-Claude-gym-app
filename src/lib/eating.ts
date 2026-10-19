@@ -8,12 +8,39 @@
  * evening), each day's target lowered by the same amount, never under a floor (80 % of true maintenance or of the target,
  * and never under 1,800 kcal). Protein targets stay. Said straight, once; Undo takes it back.
  */
-import type { AppData, CatchUp } from './types';
+import type { AppData, CatchUp, TargetChange } from './types';
 import { addDays, dayKey, diffDays } from './dates';
 import { suggestedTarget, trueMaintenance } from './maintenance';
 import { uid } from './nutrition';
 
-type Data = Pick<AppData, 'entries' | 'settings' | 'weights' | 'health' | 'catchUps'>;
+type Data = Pick<AppData, 'entries' | 'settings' | 'weights' | 'health' | 'catchUps' | 'targets'>;
+
+/**
+ * A change of the calorie target, recorded (store `updateSettings` / `patch`) so past days are judged against the target
+ * they had: lowering it from 3,200 to 2,200 must not turn last week's normal days into heavy ones. One record a day keeps
+ * that day's first `prev`; going back to it the same day (typing, Undo) leaves no trace.
+ */
+export function noteTarget(list: TargetChange[] | undefined, prev: number | undefined, next: number | undefined, today: string): TargetChange[] {
+  const xs = (list ?? []).filter((x) => x.from !== today);
+  const same = (list ?? []).find((x) => x.from === today);
+  const first = same ? same.prev : prev;
+  if (first === next) return same ? xs : list ?? [];
+  return [...xs, { from: today, ...(next !== undefined ? { kcal: next } : {}), ...(first !== undefined ? { prev: first } : {}) }].sort((a, b) => a.from.localeCompare(b.from)).slice(-60);
+}
+
+/**
+ * The calorie target a day had (undefined = none, so it is not judged). No records: today's. After the last change: today's
+ * (also safe after a restore or import). Before a change: what it was changed from. The day it changed: the higher of the
+ * two, so a change never makes that day look heavy.
+ */
+export function targetOn(d: Pick<AppData, 'settings' | 'targets'>, date: string): number | undefined {
+  const cur = d.settings.goals.kcal;
+  const xs = d.targets ?? [];
+  if (!xs.length || date > xs[xs.length - 1].from) return cur;
+  const on = xs.find((x) => x.from === date);
+  if (on) return on.prev === undefined ? undefined : Math.max(on.prev, on.kcal ?? 0);
+  return xs.find((x) => x.from > date)!.prev;
+}
 
 /** How far over its target a day has to go to count as heavy. */
 export const heavyLine = (target: number) => Math.max(600, Math.round(target * 0.25));
@@ -63,15 +90,15 @@ export function catchUpOn(d: Pick<AppData, 'catchUps'>, date: string): { perDay:
 
 /** The heavy days to catch up now: today after 20:00 (live), and the last 3 days when they end clearly over. */
 export function heavyNow(d: Data, now = Date.now()): { date: string; over: number; trigger: 'live' | 'late' }[] {
-  const target = d.settings.goals.kcal;
-  if (!target) return [];
+  if (!d.settings.goals.kcal) return [];
   const today = dayKey(now, d.settings.dayStartHour);
   const out: { date: string; over: number; trigger: 'live' | 'late' }[] = [];
-  const line = heavyLine(target);
   for (let i = 3; i >= 0; i--) {
     const date = addDays(today, -i);
+    const target = targetOn(d, date);
+    if (!target) continue;
     const over = Math.round(dayKcal(d, date) - target);
-    if (over < line) continue;
+    if (over < heavyLine(target)) continue;
     if (i === 0 && new Date(now).getHours() < 20) continue; // (today only once it is evening)
     out.push({ date, over, trigger: i > 0 && lateKcal(d, date) >= 600 ? 'late' : 'live' });
   }
@@ -110,11 +137,12 @@ export function reconcileCatchUps(d: Data, now = Date.now()): { list: CatchUp[];
 
 /** The heavy days in the last weeks (for the Coach and the weekly review): how much over, and whether logged late. */
 export function heavyDays(d: Data, today: string, days = 28): { date: string; over: number; late: boolean; evening: number }[] {
-  const target = d.settings.goals.kcal;
-  if (!target) return [];
+  if (!d.settings.goals.kcal) return [];
   const out: { date: string; over: number; late: boolean; evening: number }[] = [];
   for (let i = days; i >= 1; i--) {
     const date = addDays(today, -i);
+    const target = targetOn(d, date);
+    if (!target) continue;
     const over = Math.round(dayKcal(d, date) - target);
     if (over < heavyLine(target)) continue;
     // what was eaten (or logged) from 20:00 on, that day or late

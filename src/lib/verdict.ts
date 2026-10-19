@@ -9,7 +9,7 @@
 import type { AppData, CatchUp } from './types';
 import { addDays } from './dates';
 import { HANDBOOK_CORE, HOW_TO_TALK, handbookTopic } from './handbook';
-import { eatingLines, heavyDays } from './eating';
+import { eatingLines, heavyDays, targetOn } from './eating';
 import { personLines } from './person';
 import { recoveryLines } from './recovery';
 import { plannedFor } from '../state/store';
@@ -64,7 +64,7 @@ export function verdictPrompt(d: AppData, c: CatchUp, today: string, lang: strin
   const system = `You are the coach inside a training and food app, deciding what to do after a heavy day. ${HANDBOOK_CORE}\n\n${handbookTopic('overeating')}\n\n${HOW_TO_TALK}\n\nDecide: plan none (back to the normal target) or trim (lower the next days a little). Never a day that punishes; protein stays as it is. A trim is worth it only when heavy days are frequent and the goal is fat loss; a rare one is just a normal next day. Limits the app enforces anyway: at most ${maxTrim(target, c.floor)} kcal a day, at most 7 days, never under ${c.floor} kcal. "line" is what the pop-up shows: straight, calm, the number, what it means, the plan. Write in ${lang === 'da' ? 'Danish' : 'English'}.`;
   const heavy = heavyDays(d, today);
   const prompt = [
-    `Heavy day: ${c.date}${c.date === today ? ' (today, this evening)' : ''}, +${c.over} kcal over the target of ${target}${c.trigger === 'late' ? ' (logged the morning after)' : ''}.`,
+    `Heavy day: ${c.date}${c.date === today ? ' (today, this evening)' : ''}, +${c.over} kcal over that day's target of ${targetOn(d, c.date) ?? target}${c.trigger === 'late' ? ' (logged the morning after)' : ''}. Today's target: ${target}.`,
     `Goal: ${d.settings.profile.goal}. Protein target: ${d.settings.goals.protein ?? 'none'} g.`,
     `Heavy days in the last 4 weeks: ${heavy.length}${heavy.length ? ` (${heavy.map((h) => `${h.date} +${h.over}`).join(', ')})` : ''}.`,
     `The next days: ${next}.`,

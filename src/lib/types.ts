@@ -260,6 +260,8 @@ export interface WeightLog { id: string; date: string; kg: number; at: number }
  * Omar asked for it (19 Oct): an evening that got out of hand (often logged the morning after) is paid back over 3–4 days,
  * never in one brutal day, protein kept, never under a safe floor.
  */
+/** The calorie target changed on `from` (to `kcal`, from `prev`; either undefined = no target). One record a day. */
+export interface TargetChange { from: string; kcal?: number; prev?: number }
 export interface CatchUp {
   id: string;
   /** the heavy day, and how far over its target it went */
@@ -431,5 +433,7 @@ export interface AppData {
   health?: HealthDay[];
   /** heavy days being caught up (lib/eating.ts), the newest 30 */
   catchUps?: CatchUp[];
+  /** when the calorie target changed (lib/eating.ts `targetOn`), so a day is judged against the target it had */
+  targets?: TargetChange[];
   demo: boolean;
 }

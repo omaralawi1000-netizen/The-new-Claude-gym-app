@@ -9,6 +9,7 @@ import { dayKey, addDays, weekdayOf } from '../lib/dates';
 import { detectRecords, lastPerformance, planSets, setsFromItem } from '../lib/workout';
 import { entryFromSnapshot, recipeToFood, requantify, snapshotOf, uid } from '../lib/nutrition';
 import { DATA_VERSION, defaultData, detectLang, normaliseData } from './defaults';
+import { noteTarget } from '../lib/eating';
 
 const KEY = 'aven.v1';
 /** The running workout on its own: written at once on every change (a few KB), while the whole app's data is written a moment
@@ -40,8 +41,8 @@ let saveTimer: ReturnType<typeof setTimeout> | null = null;
 export const persistStatus = { error: null as string | null, listeners: new Set<() => void>() };
 
 function pickData(s: Store): AppData {
-  const { settings, foods, favourites, savedMeals, recipes, entries, water, exercises, routines, schedule, sessions, active, weights, measurements, photos, activities, steps, health, catchUps, notes, demo, choices, increments, memory, reviews } = s;
-  return { v: DATA_VERSION, settings, foods, favourites, savedMeals, recipes, entries, water, exercises, routines, schedule, sessions, active, weights, measurements, photos, activities, steps, health, catchUps, notes, demo, choices, increments, memory, reviews };
+  const { settings, foods, favourites, savedMeals, recipes, entries, water, exercises, routines, schedule, sessions, active, weights, measurements, photos, activities, steps, health, catchUps, targets, notes, demo, choices, increments, memory, reviews } = s;
+  return { v: DATA_VERSION, settings, foods, favourites, savedMeals, recipes, entries, water, exercises, routines, schedule, sessions, active, weights, measurements, photos, activities, steps, health, catchUps, targets, notes, demo, choices, increments, memory, reviews };
 }
 
 export function flushSave() {
@@ -155,6 +156,15 @@ export interface Store extends AppData {
 
 const dayOf = (s: Settings, t = Date.now()) => dayKey(t, s.dayStartHour);
 
+/** A change of the calorie target is recorded with its day (lib/eating.ts `noteTarget`), unless the change brings its own
+ *  history (demo, restore: `replaceAll` never records). */
+function withTarget(s: Store, next: Partial<Store>): Partial<Store> {
+  if (!next.settings || 'targets' in next) return next;
+  const was = s.settings.goals.kcal, now = next.settings.goals?.kcal;
+  if (was === now) return next;
+  return { ...next, targets: noteTarget(s.targets, was, now, dayOf(next.settings)) };
+}
+
 const initial = loadPersisted();
 
 export const useStore = create<Store>((set, get) => {
@@ -165,7 +175,7 @@ export const useStore = create<Store>((set, get) => {
   return {
     ...initial,
 
-    updateSettings: (patch) => mutate((s) => ({ settings: { ...s.settings, ...patch } })),
+    updateSettings: (patch) => mutate((s) => withTarget(s, { settings: { ...s.settings, ...patch } })),
 
     // ── food
     logEntries: (list) => {
@@ -384,7 +394,7 @@ export const useStore = create<Store>((set, get) => {
     restoreMemory: (m) => mutate((s) => ({ memory: s.memory.some((x) => x.id === m.id) ? s.memory : [...s.memory, m].sort((a, b) => a.at - b.at) })),
 
     // ── data
-    patch: (p) => mutate((s) => (typeof p === 'function' ? p(s) : p) as Partial<Store>, true),
+    patch: (p) => mutate((s) => withTarget(s, (typeof p === 'function' ? p(s) : p) as Partial<Store>), true),
     replaceAll: (d) => { set({ ...d }); flushSave(); },
     resetAll: () => { const lang = get().settings.language; set({ ...defaultData(lang) }); flushSave(); },
   };

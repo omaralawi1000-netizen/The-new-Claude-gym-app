@@ -58,7 +58,7 @@ export function defaultData(lang: Lang = 'en'): AppData {
     settings: defaultSettings(lang),
     foods: [], favourites: [], savedMeals: [], recipes: [], entries: [], water: [],
     exercises: [], routines: [], schedule: defaultSchedule(), sessions: [], active: null,
-    weights: [], measurements: [], photos: [], activities: [], steps: [], health: [], catchUps: [], notes: [], choices: {}, increments: {}, memory: [], reviews: [],
+    weights: [], measurements: [], photos: [], activities: [], steps: [], health: [], catchUps: [], targets: [], notes: [], choices: {}, increments: {}, memory: [], reviews: [],
     demo: false,
   };
 }
@@ -76,6 +76,8 @@ export function normaliseData(raw: any, lang: Lang = 'en'): AppData {
     schedule: { ...d.schedule, ...(raw.schedule ?? {}), weekly: { ...d.schedule.weekly, ...(raw.schedule?.weekly ?? {}) }, rotation: { ...d.schedule.rotation, ...(raw.schedule?.rotation ?? {}) }, overrides: raw.schedule?.overrides ?? [], cleared: raw.schedule?.cleared ?? [], activities: cleanActivities(raw.schedule?.activities) },
     sessions: arr('sessions'), active: raw.active && typeof raw.active === 'object' ? raw.active : null,
     weights: arr('weights'), measurements: arr('measurements'), photos: arr('photos'), activities: arr('activities'), steps: arr('steps'), health: arr('health'), catchUps: arr('catchUps'), notes: arr('notes'),
+    targets: (Array.isArray(raw.targets) ? raw.targets : []).filter((x: any) => x && typeof x.from === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(x.from)).slice(-60)
+      .map((x: any) => ({ from: x.from, ...(typeof x.kcal === 'number' ? { kcal: x.kcal } : {}), ...(typeof x.prev === 'number' ? { prev: x.prev } : {}) })),
     choices: raw.choices && typeof raw.choices === 'object' && !Array.isArray(raw.choices) ? raw.choices : {},
     increments: raw.increments && typeof raw.increments === 'object' && !Array.isArray(raw.increments) ? raw.increments : {},
     // a hand-edited or older backup: keep only notes that still make sense

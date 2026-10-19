@@ -10,7 +10,7 @@
  *  - Logging uses the same food/exercise matching as the rest of the app, and says plainly what it matched.
  *  - Without a Gemini key (or when Gemini is down) simple commands still work through the local parsers.
  */
-import { catchUpFloor, catchUpWords, dayKcal, planCatchUp } from './eating';
+import { catchUpFloor, catchUpWords, dayKcal, planCatchUp, targetOn } from './eating';
 import { maxTrim } from './verdict';
 import { useStore, foodPool, allExercises, plannedFor } from '../state/store';
 import { useUI } from '../state/ui';
@@ -908,7 +908,7 @@ function doCatchUp(a: Extract<AgentAction, { type: 'catch_up' }>, ctx: AgentCtx)
   const target = st.settings.goals.kcal;
   if (!target) return { id: uid('r'), kind: 'miss', title: t('Set a calorie target first'), lines: [] };
   const date = resolveDay(a.day, ctx.today) ?? addDays(ctx.today, -1);
-  const over = a.over ?? Math.round(dayKcal(st, date) - target);
+  const over = a.over ?? Math.round(dayKcal(st, date) - (targetOn(st, date) ?? target));
   const floor = catchUpFloor(st, ctx.today);
   const plan = over >= 100 ? planCatchUp(over, target, floor) : null;
   if (!plan) return { id: uid('r'), kind: 'miss', title: t('Nothing to catch up'), lines: [] };
