@@ -1,6 +1,6 @@
 import { troubleReport, troubleThisWeek } from '../lib/trouble';
 import { IS_BETA, requestCopyFromReal } from '../lib/beta';
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useStore, persistStatus } from '../state/store';
 import { useUI, haptic } from '../state/ui';
@@ -245,6 +245,20 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
   const titles: Record<string, string> = { targets: t('Targets'), training: t('Training'), food: t('Food & water'), units: t('Units & locale'), look: t('Appearance'), today: t('Today'), reminders: t('Reminders'), data: t('Data & backup'), privacy: t('Privacy'), ai: t('Voice & AI'), memory: t('Coach memory'), watch: t('Watch'), about: t('About Aven') };
   const goBack = () => (sec && !props.section ? setSec(null) : pop());
   const moved = useRef(false); if (sec !== (props.section ?? null)) moved.current = true; // once you've moved between pages, pages settle in
+  // Every page opens at its top, and back returns the list to where you left it (the shared scroll used to carry over, so a
+  // page reached from far down the list opened half-way down). The page leaving keeps its place while it fades out.
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const shown = useRef<Section>(sec); const listY = useRef(0);
+  useLayoutEffect(() => {
+    const el = bodyRef.current; if (!el || shown.current === sec) return;
+    const from = el.scrollTop;
+    if (shown.current === null) listY.current = from;
+    shown.current = sec;
+    const to = sec === null ? listY.current : 0;
+    if (Math.abs(to - from) < 1) return;
+    for (const pg of el.querySelectorAll<HTMLElement>(':scope > .settings-page')) if (pg.dataset.sec !== (sec ?? 'root')) pg.style.translate = `0 ${Math.round(to - from)}px`;
+    el.scrollTop = to;
+  }, [sec]);
 
   return (
     <Sheet onClose={pop} tall instant label={t('Settings')} z={100}>
@@ -252,10 +266,10 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
         <AnimatePresence mode="popLayout" initial={false} custom={dir}>
           <motion.span key={sec ?? 'root'} custom={dir} variants={TITLE} initial="enter" animate="center" exit="exit" style={{ display: 'inline-block', willChange: 'transform' }}>{sec ? titles[sec] : t('Settings')}</motion.span>
         </AnimatePresence>} onClose={sec ? goBack : pop} back={!!sec && !props.section} />
-      <div className="sheet-body" style={{ position: 'relative', overflowX: 'hidden' }}>
+      <div ref={bodyRef} className="sheet-body" style={{ position: 'relative', overflowX: 'hidden' }}>
         {/* both pages move at once (no blank gap): the new one slides in sharpening from blur, the old one drifts out */}
         <AnimatePresence mode="popLayout" initial={false} custom={dir}>
-          <motion.div key={sec ?? 'root'} className={`no-rise settings-page ${moved.current ? '' : 'still'}`} custom={dir} variants={PAGE} initial="enter" animate="center" exit="exit" style={{ width: '100%' }}>
+          <motion.div key={sec ?? 'root'} data-sec={sec ?? 'root'} className={`no-rise settings-page ${moved.current ? '' : 'still'}`} custom={dir} variants={PAGE} initial="enter" animate="center" exit="exit" style={{ width: '100%' }}>
             {!sec && (
               <>
                 <div className="field"><label htmlFor="s-name">{t('Your name')}</label><input id="s-name" className="input" value={st.name} onChange={(e) => set({ name: e.target.value })} placeholder={t('Optional')} /></div>
