@@ -378,16 +378,13 @@ function RestAlertRow() {
   if (!supported) return null;
   const late = on ? lastRestLate() : null;
   const app = inAndroidApp();
-  // on Android: one small line saying which link of the chain works (browser, phone, permission, app, rest worker, last
-  // error), and a test that goes the same way a real rest does, so one screenshot of this row tells us what's wrong
+  // on Android: a test that goes the same way a real rest does (the line saying which link of the chain works lives in
+  // About Aven, next to Copy details: it is for whoever is fixing the app, not for this row)
   const android = /Android/i.test(navigator.userAgent);
-  const [check, setCheck] = useState<Awaited<ReturnType<typeof restCheck>> | null>(null);
-  const recheck = () => { restCheck().then(setCheck).catch(() => {}); };
-  useEffect(() => { if (android) recheck(); }, [android, perm]);
   const test = async () => {
     let p = Notification.permission;
     if (p === 'default') { p = await Notification.requestPermission().catch(() => 'default' as NotificationPermission); setPerm(p); }
-    if (p !== 'granted') { toast(t('Notifications aren’t allowed, so nothing can show.'), { tone: 'bad' }); recheck(); return; }
+    if (p !== 'granted') { toast(t('Notifications aren’t allowed, so nothing can show.'), { tone: 'bad' }); return; }
     const now = Date.now();
     const words = {
       title: t('Rest timer test'), body: t('Pull down to see the countdown'), icon: `${import.meta.env.BASE_URL}notif-icon.png`,
@@ -406,17 +403,12 @@ function RestAlertRow() {
       } catch (e: any) { try { localStorage.setItem('aven.androidApp.err', `web: ${e?.message ?? e}`); } catch { /* ignore */ } }
     }
     toast(via ? t('Test sent ({via}): pull down from the top of the screen.', { via }) : t('The test couldn’t be shown.'), { tone: via ? 'ok' : 'bad' });
-    recheck();
   };
-  const line = check && [check.browser, [check.model, check.android && `Android ${check.android}`].filter(Boolean).join(' '),
-    `${t('notifications')} ${check.permission}`, `app ${check.inApp ? 'yes' : check.seen ? 'seen' : 'no'}`, `worker ${check.worker}`,
-    check.err && `err ${check.err}`].filter(Boolean).join(' · ');
   return (
     <div className="row-flex between" style={{ alignItems: 'flex-start', gap: 14 }}>
       <div>
         <div>{t('Rest timer on lock screen')}</div>
         <div className="xs t2" style={{ marginTop: 2 }}>{perm === 'denied' ? (app ? t('Notifications are off for the Aven app. Turn them on in your phone’s Settings › Apps › Aven › Notifications, then force stop Chrome (Settings › Apps › Chrome) so it notices, and open Aven again.') : t('Notifications are blocked for Aven in your browser settings.')) : t('Shows when rest is over and buzzes, even in another app or with the screen off.')}</div>
-        {android && line && <div className="xs t3" style={{ marginTop: 4, wordBreak: 'break-word' }}>{line}</div>}
         {android && <button className="btn sm press" style={{ marginTop: 8 }} onClick={test}>{t('Send a test')}</button>}
         {late && <div className="xs t3" style={{ marginTop: 2 }}>{late.ms < 2000 ? t('Last alert came on time.') : t('Last alert came {n} s late.', { n: Math.round(late.ms / 1000) })}</div>}
       </div>
@@ -798,6 +790,17 @@ function StutterRecorder() {
   );
 }
 
+/** Which link of the lock-screen rest chain works (browser, phone, permission, app, rest worker, last error): Android only. */
+function useRestLine() {
+  const t = useT();
+  const android = /Android/i.test(navigator.userAgent) && typeof Notification !== 'undefined';
+  const [check, setCheck] = useState<Awaited<ReturnType<typeof restCheck>> | null>(null);
+  useEffect(() => { if (android) restCheck().then(setCheck).catch(() => {}); }, [android]);
+  return check && [check.browser, [check.model, check.android && `Android ${check.android}`].filter(Boolean).join(' '),
+    `${t('notifications')} ${check.permission}`, `app ${check.inApp ? 'yes' : check.seen ? 'seen' : 'no'}`, `worker ${check.worker}`,
+    check.err && `err ${check.err}`].filter(Boolean).join(' · ');
+}
+
 /**
  * How the Coach's AI has been doing: the app counts its own trouble (an answer it couldn't read, part of one dropped, a
  * fallback, a failed search) on this phone, and copies the details plus the last raw answer (kept in memory only) for
@@ -806,11 +809,12 @@ function StutterRecorder() {
 function CoachRawCopy() {
   const t = useT();
   const [n] = useState(() => troubleThisWeek());
+  const rest = useRestLine();
   const copy = async () => {
     const { lastRawAnswer } = await import('../lib/agentTurn');
     const r = lastRawAnswer();
     const raw = r ? `Last answer · ${new Date(r.at).toISOString()} · ${r.by}${r.plain.length ? ` · plain JSON mode: ${r.plain.join(', ')}` : ''}\n${r.text}` : 'Last answer: none since the app was opened.';
-    const text = `Aven ${__APP_VERSION__}\n${troubleReport()}\n\n${raw}`;
+    const text = `Aven ${__APP_VERSION__}\n${rest ? `Rest timer: ${rest}\n` : ''}${troubleReport()}\n\n${raw}`;
     try { await navigator.clipboard.writeText(text); useUI.getState().toast(t('Copied'), { tone: 'ok' }); } catch { useUI.getState().toast(t('Couldn’t copy'), { tone: 'bad' }); }
   };
   return (
@@ -819,6 +823,7 @@ function CoachRawCopy() {
       <div className="t2" style={{ marginTop: 4 }}>{n === 0 ? t('No AI trouble this week.') : n === 1 ? t('The Coach had trouble once this week.') : t('The Coach had trouble {n} times this week.', { n })}</div>
       <div className="t3 xs" style={{ marginTop: 4 }}>{t('Counted on this phone only. If something seems off, copy the details and paste them to whoever is fixing the app. No keys, no messages.')}</div>
       <button className="btn sm press" style={{ marginTop: 10 }} onClick={copy}><Icon name="copy" size={15} /> {t('Copy details')}</button>
+      {rest && <div className="xs t3" style={{ marginTop: 8, wordBreak: 'break-word' }}>{t('Rest timer on lock screen')}: {rest}</div>}
     </div>
   );
 }
