@@ -1867,6 +1867,82 @@ a coloured fringe ("chromatic aberration / colour banding, looks cheap"). Reprod
 - Tools: `scripts/banding-shots.mjs` (Settings, Today, Coach, Scan at phone size, field held still) and
   `scripts/banding-probe.mjs` (CSS variants on one open sheet).
 
+## No banding anywhere: tab fields, backgrounds, orb screen, dock (14 Oct 2026)
+
+Omar (14 Oct, on the orb screen in Forest): "There's still banding here. Remove banding on all of the app." Same cause as
+the workout window: the phone draws CSS gradients and blur output in whole 8-bit steps with no dither.
+- Every tab field (Classic's three lights and all nine `.bgx` backgrounds) is painted dithered by `FieldGlow`
+  (`src/ui/Glows.tsx`): the gradients, pictures (stars, dots, photo), the grain and the status-bar tint that hold still go
+  into ONE picture read straight from the computed CSS (`src/ui/glowCss.ts`: radial/linear, sRGB and Oklab mixing,
+  transforms, opacity). Matches the CSS within about a third of a step. Other tabs' fields are painted ahead while idle.
+- Moving glows (orb screen halo, Orb light's beam and halo, Sunrise's sun, workout top) use `SelfGlow` inside themselves
+  (Orb light at quarter res).
+- Orb screen veil, dock and dock edge fade: dither tile in the tint, with the tint corrected for its darkening.
+- The workout grain is folded into the workout field picture (was its own full-screen layer).
+- Rules kept from v0.1.123: no layer added or dropped at tab switches or animation ends; each field one standing layer.
+- The exercise stage pools (workout Focus view, exercise page) use `ImgGlow` (Today's card corner glow was removed in v0.1.129): the dithered
+  picture becomes the element's own background image, no extra layer. Onboarding's aurora stays CSS (6 more layers for a
+  screen seen once).
+- Light theme too: dock, orb screen veil and dock edge fade carry a white dither with corrected tints.
+- Round 2 after the judge (same day):
+  - Theme or palette switch: every glow canvas gets the new picture in the same task as the switch (the kept dithered
+    picture, or a quick undithered one drawn at once and replaced when idle; within about one step of it), so the circle
+    reveal never shows the old field. Lab: 85 ms with a kept picture, about 230 ms the first time per theme (software
+    GPU; the phone is faster).
+  - GPU reset: the CSS shows while the chip is gone and the picture comes back after (tested with a forced GPU crash).
+  - Canvases get their size and picture at mount; the top tint strip stays (painted clear) instead of hiding.
+  - Faint glows (Coach-open beam, fades) get a stronger dither for their opacity.
+  - Darks: the darkest fifth now matches the old look within 0.25 of a step (was 0.6-0.8 lighter); the grain in the
+    pictures matches the CSS grain's size and strength.
+  - Pictures are written with `putImageData`: drawing kept bitmaps into GPU canvases made the chip keep a copy of each
+    (round 3: even one drawn once and closed straight after does).
+- Classic's field (Glow round 2: opaque, swaying) is painted opaque too; its top tint stays the CSS strip, since the
+  field moves under it.
+- Cost against Glow round 2 (software GPU, his screen; `chip` = all graphics memory counted once): equal or less
+  everywhere, e.g. Today 50.8 → 47.3 MB, workout 54.4 → 48.1 MB, Train 57.0 → 45.2 MB, sheet open 69.8 → 62.6 MB.
+  Page memory is about 30 MB higher (the kept pictures, capped at 64 MB since round 3).
+- Round 3 after the judge (same day):
+  - No quick picture any more: one painter (`src/ui/glowPaint.ts`), in the worker only (painting a whole field on the
+    page, and making the background-image glows' and the dock shadow's PNG files there, froze the page for 0.5-1.3 s in
+    the first seconds after launch: files are now made in the worker too, `encodePng`). The other tabs' fields are
+    painted ahead 0.6 s after launch; a tab tapped before that shows its CSS field until its picture is ready (painted
+    before anything else the worker has queued), and the picture then fades in over it (1.2 s, eased in and out). The
+    canvas is there, see-through, from the field's first frame, so no layer is added later, and the CSS goes only once
+    that fade has finished. Every field carries the status bar's colour at its top itself, so every switch and every
+    fade-in is a plain cross-fade: a still field in its picture (and in `.field-tint` under the canvas until the picture
+    is in, or for good when it can't be made), Classic in a `.field-tint` that moves exactly back by its sway, Orb light
+    and Sunrise over their moving parts and their grain. (One strip over all fields, faded against a picture with the tint in it, lifted
+    the top-left edge 11-13 levels in Golden hour for half a second, judge rounds 5 and 6, on a fade-in and between
+    Classic and a painted still field; the strip is now only for glow off, and glow on/off swaps strip and field tint
+    in one frame: a 1.2 s fade of the strip left the top blue-black for most of a second, judge round 7.) The grain stays, under the canvas, while a field waits. (Showing the plain
+    colour while waiting, tried first, made the field go dark and then light up; ending the fade on a timer hid the CSS
+    early on a busy page.) After a palette,
+    glow or motion change the picture before fades out (0.6 s) instead of going at once. The mid-switch frame shows the
+    final dithered picture.
+  - Theme switch: the other theme's pictures are painted ahead while idle, read from a hidden twin frame (the page's own
+    styles with the other theme on its root), so a switch only looks each glow's plan up by state and draws it. Reading
+    styles during the switch (the old way) made the browser redo the whole page's styles for each glow; so is anything
+    else read there (the field's sway is read once, at idle). The theme just left is written ahead into one spare canvas
+    per glow, so a switch back only copies it across on the chip. Our code in a switch: 1-8 ms at 4x slower CPU.
+  - Tab switch: each tab brings a new field; its plan (painted ahead with the other tabs) is looked up without reading the
+    page, and its kept picture written in. Lab at 4x: about 40 → 10-20 ms of glow work per tap (most of it the write).
+    Bitmaps made ready ahead were quicker (3 ms) but left copies on the graphics chip (+20 MB after six switches), so
+    they are not used. The switch's animations end at the same time as on base.
+  - Glows that move by themselves (`SelfGlow`: Orb light, orb screen halo, Sunrise sun, workout top) are background
+    images now, like `ImgGlow`: no canvas, no layer (Orb light 64-66 layers on base → 63 on every run).
+  - Field elements keep their CSS background colour (no layer change at the end of a theme switch).
+  - Grain in the pictures: fine and grey; on average as strong as the CSS grain (per palette -12% to +20% against the
+    lab's CSS render, which itself varies by palette). Flat areas get no dither.
+  - Dark orb screen veil: its tint is a dithered tile, so its colour lands within 0.15 of a step of the old look.
+  - Light dock: its big outer shadow is a dithered picture (`src/ui/dockShadow.ts`) instead of a `box-shadow` blur.
+  - Kept pictures: 64 MB cap (oldest first; the other tabs' fields painted ahead go first). In the background only the
+    pictures in a canvas and the other tabs' fields stay (about 14 MB more page memory there), so a tab tapped after
+    unlocking finds its picture; the rest is let go and painted ahead again on return.
+  - Tools: `scripts/theme-switch-cost.mjs`, `scripts/tab-switch-trace.mjs`, `scripts/glow-midswitch.mjs`,
+    `scripts/glow-gpu-reset.mjs`.
+- Tools: `scripts/banding-fields.mjs`, `scripts/perf-gpu.mjs`, `scripts/glow-layers.mjs`, `scripts/glow-theme-sync.mjs`.
+  Way back: branch backup/pre-allbanding-8cb066f.
+
 ## Smooth glows in the live workout window: no more rings (14 Oct 2026, v0.1.121)
 
 Omar saw stepped, slightly coloured rings in the workout window's glow (the gold light behind the exercise card and the
