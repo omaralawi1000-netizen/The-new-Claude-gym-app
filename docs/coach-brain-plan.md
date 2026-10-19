@@ -134,7 +134,7 @@ Progress (ticked as done):
 - [x] Step A PR #173 reviewed and fixed, merged up (tests/review173.test.ts)
 - [x] Step 1 target history
 - [x] Step 2 modes, eligibility, limits
-- [ ] Step 3 the watcher
+- [x] Step 3 the watcher
 - [ ] Step 4 true maintenance
 - [ ] Step 5 routing and time limits
 - [ ] Step 6 prompt, handbook, leftovers

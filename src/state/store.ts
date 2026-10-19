@@ -41,8 +41,8 @@ let saveTimer: ReturnType<typeof setTimeout> | null = null;
 export const persistStatus = { error: null as string | null, listeners: new Set<() => void>() };
 
 function pickData(s: Store): AppData {
-  const { settings, foods, favourites, savedMeals, recipes, entries, water, exercises, routines, schedule, sessions, active, weights, measurements, photos, activities, steps, health, hcGone, catchUps, targets, notes, demo, choices, increments, memory, reviews } = s;
-  return { v: DATA_VERSION, settings, foods, favourites, savedMeals, recipes, entries, water, exercises, routines, schedule, sessions, active, weights, measurements, photos, activities, steps, health, hcGone, catchUps, targets, notes, demo, choices, increments, memory, reviews };
+  const { settings, foods, favourites, savedMeals, recipes, entries, water, exercises, routines, schedule, sessions, active, weights, measurements, photos, activities, steps, health, hcGone, catchUps, targets, marks, notes, demo, choices, increments, memory, reviews } = s;
+  return { v: DATA_VERSION, settings, foods, favourites, savedMeals, recipes, entries, water, exercises, routines, schedule, sessions, active, weights, measurements, photos, activities, steps, health, hcGone, catchUps, targets, marks, notes, demo, choices, increments, memory, reviews };
 }
 
 export function flushSave() {

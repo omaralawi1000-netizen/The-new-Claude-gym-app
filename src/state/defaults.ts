@@ -58,7 +58,7 @@ export function defaultData(lang: Lang = 'en'): AppData {
     settings: defaultSettings(lang),
     foods: [], favourites: [], savedMeals: [], recipes: [], entries: [], water: [],
     exercises: [], routines: [], schedule: defaultSchedule(), sessions: [], active: null,
-    weights: [], measurements: [], photos: [], activities: [], steps: [], health: [], hcGone: [], catchUps: [], targets: [], notes: [], choices: {}, increments: {}, memory: [], reviews: [],
+    weights: [], measurements: [], photos: [], activities: [], steps: [], health: [], hcGone: [], catchUps: [], targets: [], marks: {}, notes: [], choices: {}, increments: {}, memory: [], reviews: [],
     demo: false,
   };
 }
@@ -81,6 +81,7 @@ export function normaliseData(raw: any, lang: Lang = 'en'): AppData {
     hcGone: (Array.isArray(raw.hcGone) ? raw.hcGone : []).filter((x: unknown) => typeof x === 'string').slice(-500),
     choices: raw.choices && typeof raw.choices === 'object' && !Array.isArray(raw.choices) ? raw.choices : {},
     increments: raw.increments && typeof raw.increments === 'object' && !Array.isArray(raw.increments) ? raw.increments : {},
+    marks: raw.marks && typeof raw.marks === 'object' && !Array.isArray(raw.marks) ? Object.fromEntries(Object.entries(raw.marks).filter(([, v]) => typeof v === 'string')) as Record<string, string> : {},
     // a hand-edited or older backup: keep only notes that still make sense
     reviews: (Array.isArray(raw.reviews) ? raw.reviews : []).filter((r: any) => r && typeof r.week === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(r.week) && Array.isArray(r.priorities)).slice(-26)
       .map((r: any) => ({ week: r.week, at: typeof r.at === 'number' ? r.at : 0, ...(typeof r.verdict === 'string' && r.verdict.trim() ? { verdict: r.verdict.slice(0, 400) } : {}), priorities: r.priorities.filter((p: any) => p && typeof p.id === 'string' && typeof p.text === 'string').slice(0, 2).map((p: any) => ({ id: p.id.slice(0, 80), text: p.text.slice(0, 160) })) })),

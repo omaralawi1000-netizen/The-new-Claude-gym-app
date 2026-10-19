@@ -5,7 +5,7 @@
  */
 import type { AppData } from './types';
 import { addDays, dayKey } from './dates';
-import { heavyDays } from './eating';
+import { heavyDays, heavyMode, isEvening } from './eating';
 import { unfinishedDays, usualMeals } from './dataQuality';
 
 type Data = Pick<AppData, 'entries' | 'settings' | 'weights' | 'health' | 'catchUps' | 'sessions' | 'activities'>;
@@ -25,7 +25,7 @@ export function personLines(d: Data, today: string, mealLabel: (id: string) => s
     let total = 0, evening = 0;
     for (const e of entries) {
       const k = e.nutrients.kcal ?? 0; total += k;
-      if (dayKey(e.at, d.settings.dayStartHour) > e.date || new Date(e.at).getHours() >= 20) evening += k;
+      if (dayKey(e.at, d.settings.dayStartHour) > e.date || isEvening(e.at, d.settings.dayStartHour)) evening += k;
     }
     const share = pct(evening, total);
     L.push(`Eating rhythm: ${share}% of their logged calories are eaten after 20:00 or logged the morning after${share >= 35 ? ' (a lot: evenings are where their day is decided)' : share <= 15 ? ' (little: they eat mostly earlier in the day)' : ''}.`);
@@ -39,8 +39,8 @@ export function personLines(d: Data, today: string, mealLabel: (id: string) => s
     if (heavyWd.length) L.push(`Heavier weekdays than their average: ${heavyWd.join(', ')}.`);
   }
 
-  // heavy days and what came before them (only with enough heavy days to mean anything)
-  const heavy = d.settings.goals.kcal ? heavyDays(d, today) : [];
+  // heavy days and what came before them (only with enough heavy days to mean anything; never with notices off)
+  const heavy = d.settings.goals.kcal && heavyMode(d.settings) !== 'off' ? heavyDays(d, today) : [];
   if (heavy.length >= 3) {
     const sleep = new Map((d.health ?? []).filter((h) => h.sleepMin !== undefined).map((h) => [h.date, h.sleepMin!]));
     const short = (date: string) => { const s = sleep.get(date); return s !== undefined && s < 360; }; // the night before ends on that date's morning

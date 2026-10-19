@@ -126,7 +126,7 @@ export function useCoachTips(max = 3): Tip[] {
     const week = all.find((x) => x.prompt === t('How is my week going?'));
     return week ? [...all.filter((x) => x !== week).slice(0, max - 1), week] : all.slice(0, max);
     // eslint-disable-next-line
-  }, [s.entries, s.sessions, s.routines, s.schedule, s.weights, s.water, s.active, s.settings, lang, t, max]);
+  }, [s.entries, s.sessions, s.routines, s.schedule, s.weights, s.water, s.active, s.settings, s.catchUps, lang, t, max]);
 }
 
 /** One example at a time, softly replacing each other — the orb screen's "what can I say". */

@@ -1,12 +1,13 @@
 /**
  * Heavy days, and catching up after them (Omar, 19 Oct). He overeats mostly in the evening and often logs it the morning
  * after, into yesterday. Aven notices both ways:
- *  - live: the same evening (after 20:00) the day goes clearly over its target;
+ *  - live: the same evening the day goes clearly over the target it had;
  *  - late: today, a big log lands on yesterday (or a day before) and that day ends clearly over.
- * "Clearly over" = at least 600 kcal and 25 % over the target, so forgetting dinner and logging it the next morning is not
- * a heavy day. Then the overage is paid back over the next 2–4 days (never one brutal day: that is what sets up the next
- * evening), each day's target lowered by the same amount, never under a floor (80 % of true maintenance or of the target,
- * and never under 1,800 kcal). Protein targets stay. Said straight, once; Undo takes it back.
+ * "Clearly over" = at least 600 kcal and 25 % over that day's target (target changes are remembered, `targetOn`), so
+ * forgetting dinner and logging it the next morning is not a heavy day. What to do about it is decided once per day by the
+ * main brain (lib/verdict.ts, lib/eatingWatch.ts), within limits that always hold here: at most 250 kcal off a day for all
+ * catch-ups together, never under the floor, never above their own target, protein untouched, Undo. Notices can be On,
+ * Quiet or Off (Settings → Targets).
  */
 import type { AppData, CatchUp, Settings, TargetChange } from './types';
 import { addDays, dayKey, diffDays } from './dates';
@@ -42,6 +43,9 @@ export function targetOn(d: Pick<AppData, 'settings' | 'targets'>, date: string)
   return xs.find((x) => x.from > date)!.prev;
 }
 
+/** Evening: from 20:00 until the new day starts (01:00 with the day starting at 04:00 is still that evening). */
+export const isEvening = (at: number, dayStartHour: number) => { const h = new Date(at).getHours(); return h >= 20 || h < dayStartHour; };
+
 /** How far over its target a day has to go to count as heavy. */
 export const heavyLine = (target: number) => Math.max(600, Math.round(target * 0.25));
 
@@ -60,16 +64,6 @@ export function catchUpFloor(d: Data, today: string): number {
   const m = trueMaintenance(d, today);
   const ref = m && m.confidence !== 'low' ? m.kcal : base;
   return Math.min(base, Math.max(1800, Math.round(ref * 0.8 / 10) * 10));
-}
-
-/** How to pay an overage back: 2–4 days (up to 6 when the floor is close), the same amount each day. */
-export function planCatchUp(over: number, target: number, floor: number): { n: number; perDay: number } | null {
-  const room = target - floor;
-  if (room < 50) return null;
-  let n = over <= 900 ? 2 : over <= 1500 ? 3 : 4;
-  let perDay = Math.round(over / n / 10) * 10;
-  while (perDay > room && n < 6) { n++; perDay = Math.round(over / n / 10) * 10; }
-  return { n, perDay: Math.min(perDay, Math.floor(room / 10) * 10) };
 }
 
 /** Heavy-day notices: on (noticed, decided, maybe a small trim), quiet (noticed, the Coach knows, nothing changes) or off.
@@ -118,51 +112,61 @@ export function heavyWeeks(d: Data, today: string): [number, number] {
  *  than cutting), and the moment to mention help once. */
 export const frequentHeavy = (d: Data, today: string) => { const [a, b] = heavyWeeks(d, today); return a >= 3 && b >= 3; };
 
-/** The heavy days to catch up now: today after 20:00 (live), and the last 3 days when they end clearly over. */
+/** How far over its own target a day ended (null: no target that day, so not judged). */
+export function overOn(d: Data, date: string): { over: number; heavy: boolean } | null {
+  const target = targetOn(d, date);
+  if (!target) return null;
+  const over = Math.round(dayKcal(d, date) - target);
+  return { over, heavy: over >= heavyLine(target) };
+}
+
+/** The heavy days to catch up now: today once it is evening (live), and the last 3 days when they end clearly over. */
 export function heavyNow(d: Data, now = Date.now()): { date: string; over: number; trigger: 'live' | 'late' }[] {
   if (!d.settings.goals.kcal) return [];
   const today = dayKey(now, d.settings.dayStartHour);
   const out: { date: string; over: number; trigger: 'live' | 'late' }[] = [];
   for (let i = 3; i >= 0; i--) {
     const date = addDays(today, -i);
-    const target = targetOn(d, date);
-    if (!target) continue;
-    const over = Math.round(dayKcal(d, date) - target);
-    if (over < heavyLine(target)) continue;
-    if (i === 0 && new Date(now).getHours() < 20) continue; // (today only once it is evening)
-    out.push({ date, over, trigger: i > 0 && lateKcal(d, date) >= 600 ? 'late' : 'live' });
+    const o = overOn(d, date);
+    if (!o?.heavy) continue;
+    if (i === 0 && !isEvening(now, d.settings.dayStartHour)) continue; // (today only once it is evening)
+    out.push({ date, over: o.over, trigger: i > 0 && lateKcal(d, date) >= 600 ? 'late' : 'live' });
   }
   return out;
 }
 
+/** Decided once (an older record that already has its line counts as decided). */
+export const isDecided = (c: CatchUp) => c.decided ?? !!c.line;
+
 /**
- * The catch-ups after a change in the food log: a new heavy day gets one (starting the day after it, or today when it was
- * logged late); a day that grew heavier gets its amount raised; a day caught up and then taken back is left alone. Returns
- * null when nothing changes.
+ * The catch-ups after a change in the food log or the target (notices off: nothing is recorded). A new heavy day is
+ * recorded undecided, with no cut yet (decided once, lib/eatingWatch.ts). One already recorded follows the log: no longer
+ * heavy (an entry deleted or fixed) → gone; the amount changed by 100 or more → updated, never decided again. One taken
+ * back, or set by hand through the Coach, is left alone. Null when nothing changes.
  */
-export function reconcileCatchUps(d: Data, now = Date.now()): { list: CatchUp[]; fresh: CatchUp[] } | null {
-  const target = d.settings.goals.kcal;
-  if (!target) return null;
+export function reconcileCatchUps(d: Data, now = Date.now()): { list: CatchUp[]; fresh: CatchUp[]; gone: CatchUp[]; changed: CatchUp[] } | null {
+  if (!d.settings.goals.kcal || heavyMode(d.settings) === 'off') return null;
   const today = dayKey(now, d.settings.dayStartHour);
-  const list = [...(d.catchUps ?? [])];
-  const fresh: CatchUp[] = [];
-  let changed = false;
-  for (const h of heavyNow(d, now)) {
-    const i = list.findIndex((c) => c.date === h.date);
-    const prev = i >= 0 ? list[i] : undefined;
-    if (prev?.off) continue;
-    if (prev && h.over - prev.over < 200) continue; // (already caught up; a little more is not worth a new plan)
-    const floor = catchUpFloor(d, today);
-    // (noticed even when there is no room to trim: what to do about it is decided afterwards, lib/verdict.ts)
-    const plan = planCatchUp(h.over, target, floor) ?? { n: 0, perDay: 0 };
-    const start = prev?.days[0] ?? (addDays(h.date, 1) > today ? addDays(h.date, 1) : today);
-    const days = Array.from({ length: plan.n }, (_, k) => addDays(start, k));
-    const next: CatchUp = { id: prev?.id ?? uid('cu'), date: h.date, over: h.over, days, perDay: plan.perDay, floor, trigger: prev?.trigger ?? h.trigger, at: now, ...(prev ? { told: prev.told, coachTold: false } : {}) };
-    if (prev) list[i] = next; else list.push(next);
-    fresh.push(next);
-    changed = true;
+  const since = d.settings.heavyOnSince;
+  let list = [...(d.catchUps ?? [])];
+  const fresh: CatchUp[] = [], gone: CatchUp[] = [], changed: CatchUp[] = [];
+  // the ones recorded in the last week follow the log
+  for (const c of list) {
+    if (c.off || c.byHand || diffDays(today, c.date) > 7) continue;
+    const o = overOn(d, c.date);
+    if (!o?.heavy) { gone.push(c); continue; }
+    if (Math.abs(o.over - c.over) >= 100) changed.push({ ...c, over: o.over, at: now });
   }
-  return changed ? { list: list.slice(-30), fresh } : null;
+  if (gone.length) list = list.filter((c) => !gone.includes(c));
+  for (const x of changed) list = list.map((c) => (c.id === x.id ? x : c));
+  for (const h of heavyNow(d, now)) {
+    if (since && h.date < since) continue; // (switched on later: never about the days before)
+    if (list.some((c) => c.date === h.date)) continue;
+    const next: CatchUp = { id: uid('cu'), date: h.date, over: h.over, days: [], perDay: 0, floor: catchUpFloor(d, today), trigger: h.trigger, at: now, decided: false };
+    list.push(next);
+    fresh.push(next);
+  }
+  return fresh.length || gone.length || changed.length ? { list: list.slice(-30), fresh, gone, changed } : null;
 }
 
 /** The heavy days in the last weeks (for the Coach and the weekly review): how much over, and whether logged late. */
@@ -171,13 +175,11 @@ export function heavyDays(d: Data, today: string, days = 28): { date: string; ov
   const out: { date: string; over: number; late: boolean; evening: number }[] = [];
   for (let i = days; i >= 1; i--) {
     const date = addDays(today, -i);
-    const target = targetOn(d, date);
-    if (!target) continue;
-    const over = Math.round(dayKcal(d, date) - target);
-    if (over < heavyLine(target)) continue;
-    // what was eaten (or logged) from 20:00 on, that day or late
-    const evening = d.entries.reduce((n, e) => n + (e.date === date && (dayKey(e.at, d.settings.dayStartHour) > date || new Date(e.at).getHours() >= 20) ? e.nutrients.kcal ?? 0 : 0), 0);
-    out.push({ date, over, late: lateKcal(d, date) >= 600, evening: Math.round(evening) });
+    const o = overOn(d, date);
+    if (!o?.heavy) continue;
+    // what was eaten (or logged) in the evening, that day or late
+    const evening = d.entries.reduce((n, e) => n + (e.date === date && (dayKey(e.at, d.settings.dayStartHour) > date || isEvening(e.at, d.settings.dayStartHour)) ? e.nutrients.kcal ?? 0 : 0), 0);
+    out.push({ date, over: o.over, late: lateKcal(d, date) >= 600, evening: Math.round(evening) });
   }
   return out;
 }
@@ -197,20 +199,32 @@ export function eatingLines(d: Data, today: string, goal?: string): string[] {
     L.push(`True maintenance: about ${m.kcal} kcal a day (${m.confidence} confidence${m.confidence === 'low' ? ', an ESTIMATE' : ''}: ${m.loggedDays} logged days and ${m.weighIns} weigh-ins in 4 weeks; logged average ${m.avgIntake} kcal, weight ${m.kgPerWeek >= 0 ? '+' : ''}${m.kgPerWeek} kg a week). It is relative to what they log, so targets built on it work. Suggested target for their goal: ${suggestedTarget(m, goal)} kcal (offer it with set_setting kcalGoal; never change it unasked).`);
     if (m.invisible) L.push(`Invisible calories: the watch says they burn about ${m.watchBurn} kcal a day, ${m.invisible} more than their logs and the scale add up to, so roughly ${m.invisible} kcal a day are probably not logged (most likely evenings; watch burn estimates are rough).`);
   } else L.push('True maintenance: not enough yet (needs about 10 logged days and 4 weigh-ins two weeks apart in the last 4 weeks).');
-  const heavy = heavyDays(d, today);
-  if (heavy.length) L.push(`Heavy days, last 4 weeks (clearly over target): ${heavy.map((h) => `${WD[new Date(`${h.date}T12:00:00`).getDay()]} ${h.date} +${h.over} kcal${h.late ? ', logged the day after' : ''}${h.evening ? `, ${h.evening} kcal of it in the evening` : ''}`).join('; ')}. ${heavy.length} in 4 weeks.`);
+  const mode = heavyMode(d.settings);
+  const heavy = mode === 'off' ? [] : heavyDays(d, today);
+  if (heavy.length) L.push(`Heavy days, last 4 weeks (clearly over that day's target): ${heavy.map((h) => `${WD[new Date(`${h.date}T12:00:00`).getDay()]} ${h.date} +${h.over} kcal${h.late ? ', logged the day after' : ''}${h.evening ? `, ${h.evening} kcal of it in the evening` : ''}`).join('; ')}. ${heavy.length} in 4 weeks.`);
+  if (mode === 'off') L.push('Heavy-day notices are OFF (their choice): never bring up heavy days or catch-ups unless they do.');
   const on = catchUpOn(d, today);
   if (on) L.push(`CATCH-UP running: ${on.from.date} was +${on.from.over} over, so the target is ${on.perDay} lower for ${on.left} more day${on.left === 1 ? '' : 's'} including today (today's target ${kcalTargetFor(d, today)} kcal instead of ${d.settings.goals.kcal}; protein unchanged). "Don't cut my calories" → catch_up with on false.`);
-  if (on?.from.why) L.push(`Why that catch-up: ${on.from.why}`);
-  const fresh = (d.catchUps ?? []).filter((c) => !c.off && !c.coachTold && c.line && diffDays(today, c.date) <= 3);
-  for (const c of fresh) L.push(`JUST NOTICED (say it once in your first reply, straight and calm, with the numbers, then the plan; no lecture, no guilt): ${c.date === today ? 'today' : c.date} was +${c.over} kcal over its target${c.trigger === 'late' ? ' (logged the day after)' : ' (this evening)'}; ${c.perDay ? `decided: −${c.perDay} kcal a day for ${c.days.length} days, protein unchanged` : 'decided: no cut, back to the normal target'}. The pop-up told them: "${c.line}"${c.why ? ` Reasoning: ${c.why}` : ''}`);
+  const recent = (d.catchUps ?? []).filter((c) => !c.off && isDecided(c) && diffDays(today, c.date) <= 3);
+  if (mode === 'quiet') for (const c of recent) L.push(`Heavy day noticed (heavy-day notices are on Quiet, so nothing was changed or said): ${c.date === today ? 'today' : c.date} +${c.over} kcal over its target. Mention it only if they ask.`);
+  if (mode === 'on') {
+    for (const c of justNoticed(d, today)) L.push(`JUST NOTICED (say it once, straight and calm, with the numbers, then the plan; no lecture, no guilt; answer what they asked first): ${c.date === today ? 'today' : c.date} was +${c.over} kcal over its target${c.trigger === 'late' ? ' (logged the day after)' : ' (this evening)'}; ${c.perDay ? `decided: −${c.perDay} kcal a day for ${c.days.length} days, protein unchanged` : 'decided: no cut, back to the normal target'}. The pop-up told them: "${c.line}"`);
+    const last = recent.filter((c) => c.told).sort((a, b) => b.at - a.at)[0];
+    if (last) L.push(`LAST HEAVY-DAY DECISION (for "why?"): ${last.date} +${last.over} kcal; ${last.perDay ? `−${last.perDay} kcal a day for ${last.days.length} day${last.days.length === 1 ? '' : 's'}` : 'no cut'}${last.byHand ? ' (they asked for it)' : ''}. Line: "${last.line ?? ''}"${last.why ? `. Reasoning: ${last.why}` : ''}`);
+  }
   return L.length ? ['EATING PATTERNS:', ...L] : [];
 }
 
 const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-/** The Coach has said what it just noticed (its first reply after it): not said again. */
-export function markCoachTold(d: Pick<AppData, 'catchUps'>, set: (next: CatchUp[]) => void) {
+/** What the Coach is told it just noticed and hasn't said yet (notices on, decided, the pop-up shown). */
+export function justNoticed(d: Pick<AppData, 'catchUps' | 'settings'>, today: string): CatchUp[] {
+  if (heavyMode(d.settings) !== 'on') return [];
+  return (d.catchUps ?? []).filter((c) => !c.off && isDecided(c) && c.told && !c.coachTold && c.line && diffDays(today, c.date) <= 3);
+}
+
+/** The Coach has said what it was told it just noticed (`ids`, from the turn that had it): not said again. */
+export function markCoachTold(d: Pick<AppData, 'catchUps'>, set: (next: CatchUp[]) => void, ids: string[]) {
   const list = d.catchUps ?? [];
-  if (list.some((c) => !c.coachTold && !c.off)) set(list.map((c) => (c.off ? c : { ...c, coachTold: true })));
+  if (ids.length && list.some((c) => ids.includes(c.id) && !c.coachTold)) set(list.map((c) => (ids.includes(c.id) ? { ...c, coachTold: true } : c)));
 }
