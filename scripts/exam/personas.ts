@@ -5,7 +5,7 @@ import { buildStarter, assignWeek } from '../../src/lib/starter';
 import { SEED_EXERCISES } from '../../src/data/exercises';
 import { addDays } from '../../src/lib/dates';
 import { reconcileCatchUps } from '../../src/lib/eating';
-import { applyVerdict } from '../../src/lib/verdict';
+import { applyVerdict, clampVerdict, trimLimits, verdictLine } from '../../src/lib/verdict';
 import type { AppData, FoodEntry, HealthDay, WorkoutSession, Goal } from '../../src/lib/types';
 
 export const NOW = new Date(2026, 9, 19, 9, 30);
@@ -62,9 +62,14 @@ function omar(): AppData {
   d.memory = [mem('Age: 20 (as of 2026-09-01)'), mem('Trains to failure whatever the day; does not want to be told to train lighter unless he asks.', 'preference'), mem('Wrestling on Tuesdays and Thursdays is his main leg and conditioning work.', 'schedule')];
   // last night noticed this morning and decided as the app would (lib/eatingWatch.ts): a small trim, the pop-up shown
   d.marks = { heavySeen: '2026-09-01' };
-  d.catchUps = (reconcileCatchUps(d, NOW.getTime())?.list ?? []).map((c) => (c.date === addDays(TODAY, -1)
-    ? { ...applyVerdict(c, { plan: 'trim', perDay: 200, days: 3, line: 'Yesterday: +2,000 kcal over. Mostly water on the scale. A small trim: −200 kcal a day for 3 days, protein stays.', why: 'Third heavy evening in three weeks and the trend has slowed; a small trim keeps the week on track without a hard day.' }, TODAY), decided: true, told: true }
-    : { ...c, decided: true, told: true, coachTold: true }));
+  // (through the same limits as the app: here the floor, 80 % of his true maintenance, leaves room for a small trim only)
+  const list = reconcileCatchUps(d, NOW.getTime())?.list ?? [];
+  d.catchUps = list.map((c) => {
+    if (c.date !== addDays(TODAY, -1)) return { ...c, decided: true, told: true, coachTold: true };
+    const v = clampVerdict({ plan: 'trim', perDay: 200, days: 3, line: '-', why: 'Third heavy evening in three weeks and the trend has slowed; a small trim keeps the week on track without a hard day.' }, trimLimits({ ...d, catchUps: list }, c, TODAY))!;
+    const t = (k: string, x?: Record<string, string | number>) => k.replace(/\{(\w+)\}/g, (_, n) => String(x?.[n] ?? ''));
+    return { ...applyVerdict(c, { ...v, line: verdictLine(c, v, TODAY, t, (x) => x.toLocaleString('en-US')) }, TODAY), decided: true, told: true };
+  });
   return d;
 }
 

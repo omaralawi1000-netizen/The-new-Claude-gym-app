@@ -57,3 +57,9 @@ describe('the time limit is only for starting to answer', () => {
     await expect(withTimeout(0, outer, slow(null, 50))).resolves.toBe('done'); // (no Gemini to hand over to: it waits)
   });
 });
+
+describe('found by the exam (19 Oct)', () => {
+  it('"I don\'t lose anything, my metabolism is broken" and catch-up complaints: the main model', () => {
+    ["I eat 1500 a day and I don't lose anything. my metabolism is broken", 'that cut was too much. max 150 a day for catch-ups', 'jeg taber ikke noget', 'min forbrænding er i stykker', 'ingen indhentning mere'].forEach(main);
+  });
+});

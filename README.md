@@ -2688,6 +2688,7 @@ Omar: the Coach should feel like talking to a person who knows him and all his d
 - **The new data needs the new Android app** (an APK publish after review). The web part works with the old app: it just gets steps and workouts, as before.
 
 ## Heavy days and catching up, true maintenance (19 Oct 2026, PR, no version bump)
+(Superseded in parts by "Review round 1 fixes" below: the −500 × 4 formula, the 15 %/400 cap and the gentle default are gone.)
 Omar: he overeats mostly in the evening and often logs it the morning after, as one big addition to yesterday. He asked his
 coach to decide the tone. Chosen: direct, not soft and not harsh. The number is said straight, then the plan. Step 1 of 3
 (step 2: learning why and stepping in early; step 3: experiments).
@@ -2724,6 +2725,7 @@ coach to decide the tone. Chosen: direct, not soft and not harsh. The number is 
 - `scripts/journey-eating.mjs`: the morning-after toast, the "−500 catch-up · 4 days left" line on Food, Undo. (It caught a render loop in the Food screen that the unit tests could not.)
 
 ## The Coach's brain, and the model contest (19 Oct 2026, PR, no version bump)
+(The verdict's limits, the no-key default and the routing were changed by "Review round 1 fixes" below.)
 Omar: "as good as it can get with the thinking and the communication… and if my friends try the app with their own data."
 He can't judge AI quality himself, so quality is measured: a Coach exam on fake people, run on real models.
 
@@ -2780,3 +2782,86 @@ questions read by hand), the real Coach prompt and look-ups, through OpenRouter.
 - `tests/brain.test.ts` (9): unfinished days and Ali's maintenance (~2,050, not 1,470), slips and odd weigh-ins, who they
   are, the verdict's limits and default, low-target detection, the rules every message carries, DATA by priority.
 - `tests/eating.test.ts` and `tests/openai.test.ts` updated (verdict line, the trim cap, effort for decisions).
+
+## Review round 1 fixes (19 Oct 2026, PRs #173 + #174 + #177, ship together, no version bump)
+Two reviewers went over the last three PRs and I re-ran their findings on the real code: changing the calorie target made
+fake heavy days, a typo fix left the cut in place, one bad weigh-in broke true maintenance (6,910 kcal "high"), risky
+messages went to the cheap model, and the heavy-day system leaned toward eating less. A third reviewer went over the fix
+plan itself and found 20 more holes. Omar's answers shaped it: losing fat now (maybe something else later), frequent
+heavy days decided by the AI case by case inside hard limits, a Beta trial with a copy of his real data, and "talking to
+the Coach steers it, like a real coach". The plan and its ticks: `docs/coach-brain-plan.md`.
+
+### PR #173 (natural logging, watch history), reviewed for the first time
+- Undo on a Coach card takes back only what that card added (it put back a copy of the whole workout, losing a set
+  changed by hand afterwards or another card's exercise).
+- Which workout: the running one when named; else an exact name, else the closest; newest by date whatever the list's
+  order; a name that matches nothing says so. A finished workout keeps its own length. "After X" not found is said.
+- The same words twice are dropped only while the first is still being answered; typed words never.
+- Watch: a later sync adds to a day field by field; workouts in date order; one deleted never comes back (`hcGone`); only
+  workouts from the last two days are announced. The phone asks once for the new kinds (sleep, HRV…) on a sync; sleep
+  stages added up in seconds; a night written by two apps counted once. Recovery's "usual" needs 3 days; no "6h60".
+- Every finding has its test: `tests/review173.test.ts`. Android build and emulator green.
+
+### Heavy days, fair and safe
+- **The target each day had** (`targets`, `targetOn`): changing the target never makes past days heavy; the day it changes
+  is judged against the higher of the two.
+- **Heavy-day notices** in Settings → Targets: On / Quiet / Off. Unset follows the goal (fat loss On, others Quiet).
+  Quiet: noticed, nothing said or changed, the Coach knows. Off: nothing recorded. Turning On never judges the days
+  before (`heavyOnSince`). "No catch-ups ever" to the Coach turns it Off.
+- **Decided once**: a heavy day is recorded, then the main model decides once (more food that day updates the amount but
+  never asks or pops up again). A day changed while it was thinking gets a plan fitted to the day as it is.
+- **Hard limits in code, whatever the AI or anyone says**: a trim only for an adult (age known) on a fat-loss goal with
+  notices On, never with an eating-disorder note in memory; at most 250 kcal a day for all catch-ups together, at most 4
+  days, at most half of the real surplus (over true maintenance when it is known well), never under the floor, never
+  above their own target, protein untouched, Undo. No AI key, or a trim not allowed: no cut and no paid call, just
+  "+2,000 kcal over. Mostly water on the scale — back to normal today, no cut." A plan the limits cut down gets a pop-up
+  line that says what really happens.
+- **Corrections**: the big entry deleted or fixed → the catch-up is gone ("Your normal calorie target is back"); a
+  smaller day shrinks it, quietly.
+- **The first launch** marks what is already there as seen: no pop-ups about the past.
+- The evening runs until the new day starts (01:00 with a 04:00 day start counts). The Coach is marked as having said
+  JUST NOTICED only when it was told it, and not by a reply that only logged something.
+
+### True maintenance that one bad number can't break
+Weigh-ins far off their neighbours (Aven's and the watch's) are left out, and so are the two mornings after a big day
+while 6 or more remain; the trend is the median of slopes between weigh-ins a week or more apart (Theil–Sen), clamped to
+1.5 kg a week, the result to 1,200–6,000, and anything clamped or steep is low confidence. Invisible calories only at
+500+ kcal and 20 %+, worded "the watch may overestimate, or some food isn't logged", brought up once.
+
+### Which model answers what (`route` in `src/lib/agentTurn.ts`)
+- Main model, thinking hard: decisions (targets, maintenance, cut or bulk, a new plan, "not losing", "what now"), "think
+  about it properly", and anything where a wrong answer could hurt: overeating and purging, fast weight cuts, making
+  weight, dehydration, warning signs, and supplements, sauna or pain when asked about. Photos: main, at the setting.
+- Quick model: logging, small talk, quick food facts ("how many calories in a banana"), planning at the setting.
+- English and Danish, both ways: `tests/route.test.ts` (e.g. "jeg kastede op", "tabe 4 kg på 10 dage" → main; "5 g
+  kreatin", "faste måltider", "plank" → quick).
+- The time limit (Coach 45 s, orb 20 s) is only for starting to answer; once words flow they are never cut; without a
+  Gemini key there is nothing to hand over to, so it waits. A key without the quick model is remembered until the key
+  changes. Food estimates on the quick model.
+
+### The Coach's rules
+- **Talking steers it**: plans ahead remembered with their date; a goal change offers to switch the goal; the age kept as
+  "Age: N (as of date)"; "that cut was too much / max 150" → fixed now and remembered as a preference that later
+  decisions follow (a preference can only shrink a trim); vague unhappiness → one short question.
+- Frequent heavy days or eating-disorder signals → help mentioned once, gently; no numbers for eating less; a health note
+  so no catch-up is ever set. Training lighter only for illness or injury mentioned now, or under 18.
+- Number first, conservative when the age is unknown; the age asked once.
+- Handbook before the web; science fixes (cycle 0.5–1.5 kg, teens sleep 8–10 h and caffeine ≤ 2.5 mg/kg, making weight
+  at normal hydration, surplus over true maintenance, protein per kg goal weight with high body fat, activity from ×1.2).
+- Nothing about one person written in for everyone (no "most likely evenings", no "wrestling tracker").
+- Weekly review: keeps thinking when the sheet closes, never saves an empty answer, retries once a day; heavy days only
+  with notices On. Coach notes: one try a day, never bring up heavy days.
+
+### Checks
+- New tests: `tests/heavy.test.ts`, `tests/heavyWatch.test.ts` (with a stand-in brain, incl. 25 random sequences of
+  adding, deleting and changing the target), `tests/maintenance.test.ts`, `tests/route.test.ts`, `tests/coachRules.test.ts`,
+  `tests/review173.test.ts`. `npm run verify` green; Danish 0 missing.
+- Journeys: `journey-eating` (rewritten: no key → no cut; a brain that asks for −600 × 6 → −250 × 4 and the pop-up says
+  so; deleting the entry takes it away; Undo; Off records nothing), coach7, health, sol, ai, today.
+- Speed: the Coach's whole context with 2 years of watch data and a year of food builds in ~60 ms (desktop); the target
+  shown on screen takes ~0.004 ms.
+- Known limits: on the day the target changes a real heavy day isn't judged; maintenance numbers shift a little with the
+  steadier method; phrase lists can miss dictated wordings (the tables cover the known ones); the AI's trim judgement can
+  vary between runs (the limits cap it); the age is only known once told to the Coach until setup asks for it; no AI key
+  means no cuts at all. The in-app spending counter is an estimate: the real guard is the budget set at OpenAI.
+
