@@ -159,4 +159,7 @@ export class Mirror {
   cancel() { for (const a of this.anims) { try { a.cancel(); } catch { /* ignore */ } } this.anims = []; }
   /** Settles when every browser-run part has finished (or been cancelled). */
   settled(): Promise<void> { return Promise.all(this.anims.map((a) => a.finished.catch(() => null))).then(() => undefined); }
+  /** start now, on this frame's clock, instead of when the browser gets round to it: a turn taken mid-move (Sheet.tsx) must
+   * not hold still for the frame or two a new animation waits before it starts */
+  startNow() { const t = document.timeline.currentTime; if (t == null) return; for (const a of this.anims) { try { a.startTime = t; } catch { /* ignore */ } } }
 }

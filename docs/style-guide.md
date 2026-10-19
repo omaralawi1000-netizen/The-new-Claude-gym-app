@@ -198,6 +198,12 @@ All of it: **slow, calm, Apple-like, never snappier unless Omar agrees.** The or
   very next frames: the dip under a finger that stays put at 50 ms (one that creeps waits until 100 ms, a slow scroll), and a pop-up starts with its top edge at the screen's edge (its
   first frames are never spent out of sight). Never wait on a timer before opening; keep the open's first frame light. The extra
   40 px below the screen exist only on close (so the shadow has left before the sheet goes); otherwise close mirrors open.
+- **Never locked by motion [Omar, 19 Oct: "non-linear animations"]:** anything moving can be caught. A leaving pop-up lets taps through to the
+  page at once; tapping what opened it turns it round from where it is drawn (the leaving sheet itself presses nothing, and the spot of
+  the tap that closed it is guarded 320 ms against a double tap), carrying its speed, on the
+  open spring. Closed while opening, it turns round with the opening's speed. A tab tapped back mid-switch turns round on the next frame
+  (no 50 ms wait: it is already built). Interrupt from the drawn position (`onScreen()` in Sheet.tsx), never the script's value, and start the turn's browser
+  animations on this frame's clock (`Mirror.startNow`) or they hold still for a frame or two.
   A `.press` rule that sets its own `transition` must include `transform 520ms var(--ease-spring)` or the release snaps.
 - **Haptics:** `buzz()` from `src/state/ui.ts` (obeys Settings → Haptic feedback). Few, light, one system.
 - **Numbers that change roll** (`src/ui/Roll.tsx`), they never just swap.
