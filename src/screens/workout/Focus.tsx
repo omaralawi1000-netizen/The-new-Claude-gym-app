@@ -9,6 +9,7 @@ import { Figure, figureFor } from './Figure';
 import { exName } from './common';
 import { focusPageNow, nextSetOf, setFocusPage, subscribeFocusPage } from './rest';
 import { ExerciseBlock, useActive } from './Active';
+import { ImgGlow } from '../../ui/Glows';
 import { WorkoutNote } from './Briefing';
 
 const GAP = 16; // between pages, as in the iOS photo viewer: you see the edge of the next one only while you swipe
@@ -205,7 +206,7 @@ const Page = memo(function Page({ se, ex, full, cur, onMenu, pad, first }: { se:
   return (
     <motion.div className={`wk-page hide-scroll${cur ? ' cur' : ''}`} style={{ paddingBottom: pad }} aria-hidden={!cur || undefined} inert={!cur || undefined}>
       {/* the movement's stage: a figure doing it (Figure.tsx), or the muscles it works where there is no figure yet */}
-      <div className="wk-stage" aria-hidden>{(() => { const k = figureFor(ex); return k ? <Figure ex={ex} kind={k} active={cur} /> : ex && <MuscleMap muscles={ex.muscles} size={104} />; })()}</div>
+      <div className="wk-stage" aria-hidden><ImgGlow />{(() => { const k = figureFor(ex); return k ? <Figure ex={ex} kind={k} active={cur} /> : ex && <MuscleMap muscles={ex.muscles} size={104} />; })()}</div>
       {full
         ? <>{first && <WorkoutNote />}<ExerciseBlock se={se} ex={ex} onMenu={onMenu} linkedPrev={false} linkedNext={false} /></>
         : <div className="wk-page-ghost"><div className="plinth"><div className="display display-sm wk-ex-title">{ex ? exName(ex, lang) : t('Unknown exercise')}</div></div></div>}

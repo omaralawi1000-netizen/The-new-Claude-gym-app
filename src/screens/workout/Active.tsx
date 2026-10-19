@@ -29,6 +29,7 @@ import { BOUNCY, SURFACE, SURFACE_EXIT } from '../../ui/motion';
 import { FocusView, fadeOutPage, upNextOf, useFocusPage, type FocusApi } from './Focus';
 import { morphBack, morphLand, morphStart, type Morph } from './morph';
 import { WkBreathGlow, WkFieldGlow } from './wkGlow';
+import { SelfGlow } from '../../ui/Glows';
 
 /** False while the workout is minimised (kept alive but hidden): its clocks stop ticking. */
 const WkLive = createContext(true);
@@ -403,7 +404,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
         <WkLive.Provider value={!hidden}>
         <motion.div ref={shadeRef} className="wk-shade" aria-hidden style={{ transform: sheetT, opacity: shadeO }} />
         <motion.div ref={sheetRef} className="wk-sheet" style={{ transform: sheetT }}>
-          <div className="wk-solid" aria-hidden><div className="aurora-lite"><WkFieldGlow /><Breath hold={paused || covered} /></div><i ref={topRef} className="wk-top" /></div>
+          <div className="wk-solid" aria-hidden><div className="aurora-lite"><WkFieldGlow /><Breath hold={paused || covered} /></div><i ref={topRef} className="wk-top"><SelfGlow /></i></div>
         <div className="wk-window" style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column' }}>
           <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, paddingTop: 'var(--sat)' }}>
           {/* header */}
