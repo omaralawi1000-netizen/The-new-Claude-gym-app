@@ -150,7 +150,7 @@ async function ask(q: Question, contest: string | undefined, n: number): Promise
   }
 }
 
-it.runIf(process.env.EXAM_VERDICT !== 'only' && !process.env.EXAM_FOOD)('runs the Coach exam', async () => {
+it.runIf(process.env.EXAM_VERDICT !== 'only' && !process.env.EXAM_FOOD && !process.env.EXAM_ROUTER)('runs the Coach exam', async () => {
   vi.useFakeTimers({ toFake: ['Date'] });
   const SET = process.env.EXAM_SET;
   const all = [...QUESTIONS, ...meQuestions()];
@@ -241,4 +241,26 @@ it.runIf(!!process.env.EXAM_FOOD)('estimates Danish foods', async () => {
   }
   mkdirSync(OUT, { recursive: true });
   writeFileSync(`${OUT}/${TAG}-food.json`, JSON.stringify(out, null, 1));
+}, 3_600_000);
+
+// The model chooser on labelled messages (EXAM_ROUTER=1; EXAM_ROUTER_EFFORT=low|minimal|none): how often it picks what a
+// good coach would, the misses that matter (a main question sent to the quick model), and how long it takes.
+it.runIf(!!process.env.EXAM_ROUTER)('checks the model chooser', async () => {
+  const { LABELS } = await import('./router-labels');
+  const choose = (turn as any).chooseModel; if (!choose) return;
+  const rank = { quick: 0, quick_think: 1, main: 2, main_high: 3 } as const;
+  const effort = process.env.EXAM_ROUTER_EFFORT ?? 'low';
+  const out: any[] = [];
+  const one = async (l: any) => {
+    const t0 = performance.now();
+    const r = await choose(l.text, { setting: 'high', dictated: l.dictated, prev: l.prev, timeoutMs: 60_000, ask: async (system: string, user: string) => (await call(QUICK, effort, [{ role: 'system', content: system }, { role: 'user', content: user }], false, null)).text });
+    const got = r.tier as keyof typeof rank | 'fallback';
+    out.push({ text: l.text, want: l.want, got, ms: Math.round(performance.now() - t0), ok: got !== 'fallback' && rank[got] >= rank[l.want] && rank[got] - rank[l.want] <= 1, miss: got !== 'fallback' && rank[l.want] >= 2 && rank[got] < 2 });
+  };
+  // (one at a time, as on the phone, so the times are real)
+  for (const l of LABELS) await one(l);
+  const ms = out.map((o) => o.ms).sort((a, b) => a - b);
+  const summary = { effort, ok: out.filter((o) => o.ok).length, of: out.length, missesMain: out.filter((o) => o.miss).map((o) => o.text), p50: ms[Math.floor(ms.length / 2)], p90: ms[Math.floor(ms.length * 0.9)], spent };
+  mkdirSync(OUT, { recursive: true });
+  writeFileSync(`${OUT}/${TAG}-router.json`, JSON.stringify({ summary, out }, null, 1));
 }, 3_600_000);

@@ -107,7 +107,7 @@ export const ROUTER_SYSTEM = `You pick which AI answers a message in a training 
 - quick_think: an everyday question that needs a little reasoning but no real decision (a meal idea, what an exercise does, a simple how-to, a question about one logged item).
 - main: anything that needs judgement on their own data or where a weak answer costs them: why something isn't working (weight, strength, hunger), targets and calories, maintenance, plans and programs, progress and trends, overeating, sleep and recovery, what to change, comparing options.
 - main_high: health or safety (pain, injury, illness, eating problems, purging, fainting), cutting weight fast or making weight, anyone under 18 with a body question, supplements, or a hard decision with many parts.
-A follow-up ("why?", "and tomorrow?", "ok but what if…") continues the conversation before it: give it at least the tier that conversation needed. Messages may be dictated and misheard: judge by what they most likely meant.`;
+A follow-up ("why?", "and tomorrow?", "ok but what if…") continues the conversation before it: give it at least the tier that conversation needed. Messages may be dictated and misheard: judge by what they most likely meant; a garbled message that looks like a question about their weight, body, food or training is main. Unsure between two tiers: the higher one.`;
 
 /** The decisions that need no chooser: a photo, the risky and decision phrases, plain logging and quick facts. */
 export function fastRoute(text: string, setting: Effort, photo = false): (Route & { tier: Tier }) | null {
@@ -116,7 +116,10 @@ export function fastRoute(text: string, setting: Effort, photo = false): (Route 
   if (r.main && r.effort === 'high') return { ...r, tier: 'main_high' };
   const words = text.trim().split(/\s+/).length;
   const logging = LOG_REQ.test(text) || (/\d/.test(text) && !/\?/.test(text) && !ASKING.test(text) && words <= 12);
-  if (logging || FACT.test(text)) return { effort: 'low', main: false, tier: 'quick' };
+  // (a short command or reply that asks nothing — "dark mode please", "move it to lunch", "thanks" — needs no chooser:
+  // only questions wait for it)
+  const command = !ASKING.test(text) && !DEEP.test(text) && words <= 8;
+  if (logging || command || FACT.test(text)) return { effort: 'low', main: false, tier: 'quick' };
   return null;
 }
 
@@ -127,7 +130,7 @@ export async function chooseModel(text: string, o: { setting: Effort; photo?: bo
   const before = (o.prev ?? []).slice(-2).map((h) => `${h.role === 'model' ? 'Coach' : 'Them'}: ${h.text.replace(/\s+/g, ' ').slice(0, 300)}`).join('\n');
   const user = `${before ? `Just before:\n${before}\n\n` : ''}Message${o.dictated ? ' (dictated)' : ''}: ${text.slice(0, 600)}`;
   try {
-    const raw = await Promise.race([o.ask(ROUTER_SYSTEM, user), new Promise((_, no) => setTimeout(() => no(new Error('slow')), o.timeoutMs ?? 2500))]);
+    const raw = await Promise.race([o.ask(ROUTER_SYSTEM, user), new Promise((_, no) => setTimeout(() => no(new Error('slow')), o.timeoutMs ?? 4000))]);
     const v: any = typeof raw === 'string' ? JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1)) : raw;
     const tier = v?.tier as Tier;
     if (tier in TIER_ROUTE) return { ...TIER_ROUTE[tier], tier };
