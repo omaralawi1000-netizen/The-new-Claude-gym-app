@@ -2654,3 +2654,16 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 :root:not([data-theme='light']) .sheet .sheet-foot .btn.btn.primary:not([disabled])::after { background: linear-gradient(180deg, rgba(255,255,255,.26), rgba(255,255,255,.1) 45%, rgba(255,255,255,.06)); }
 /* a pill inside a card is glass on the card (like v0.1.130's clear cards), not a dark block sitting on it */
 :root:not([data-theme='light']) :is(.plinth, .screen [data-wk='hero'] + div, .wk-card, .ex-card) .btn:not(.primary, .ghost, .danger):not(#_):not([data-pressed]) { background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.02) 60%), rgba(255,255,255,.045) !important; box-shadow: 0 1px 2px rgba(0,0,0,.22) !important; }
+/* ==== Second look (Omar 19 Oct "inspect again"; judged) ==== */
+/* the dock's active tab is the same raised glass as the switcher thumb: neutral light on top, shade below (no gold edge) */
+:root:not([data-theme='light']) :is(.seg-lens, .tab-lens) { --lens-hl: rgba(255,255,255,.17); --lens-line: rgba(255,255,255,.05); --lens-lo: rgba(0,0,0,.34); --lens-fill: linear-gradient(180deg, #444448, #36363a); }
+:root:not([data-theme='light']) .tab-lens > :is(.lens-l, .lens-r) { box-shadow: inset 0 1px 0 var(--lens-hl), inset 0 -1px 0 var(--lens-lo), inset 0 0 0 1px var(--lens-line); }
+:root:not([data-theme='light']) .tab-lens > .lens-m { background: linear-gradient(to bottom, var(--lens-hl) 0 1px, transparent 1px calc(100% - 1px), var(--lens-lo) calc(100% - 1px)), linear-gradient(to bottom, var(--lens-line) 0 1px, transparent 1px calc(100% - 1px), var(--lens-line) calc(100% - 1px)), var(--lens-fill); }
+/* small bubbles outside cards: the lift stays, the grey film halves, so they stay glass and quieter than the rings */
+:root:not([data-theme='light']) :is(.icon-btn:not(.flat, .acc, .acc-soft), button.chip:not(.on)):not(.screen :is(.plinth, [data-wk='hero'] + div) *):not(#_):not(#_) { background-image: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,0) 60%) !important; }
+/* sheets: the frost keeps the page's colour, but the tint over it is warm-neutral instead of navy, so the sky's blue no
+   longer wins (mean sheet colour ~(26,24,29) instead of (22,24,38)); a little less tint and boost lets more of the warm glow through */
+:root:not([data-theme='light']) { --sheet-tint: rgba(24, 21, 19, 0.64); --sheet-tint-short: rgba(21, 19, 17, 0.61); --sheet-solid: #181614; --sheet-glass: rgba(32, 29, 27, 0.46);
+  --sheet-frost: brightness(2) blur(44px) saturate(1.7); --sheet-frost-short: brightness(2) blur(44px) saturate(1.75); }
+/* the small bubbles' edge a touch clearer against the night sky, now their film is lighter */
+:root:not([data-theme='light']) :is(.icon-btn:not(.flat, .acc, .acc-soft), button.chip:not(.on)):not(.screen :is(.plinth, [data-wk='hero'] + div) *):not(#_):not(#_)::after { background: linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,.09) 35%, rgba(255,255,255,.06) 70%, rgba(255,255,255,.07)); }
