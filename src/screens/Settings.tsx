@@ -628,7 +628,7 @@ function WatchSection() {
                   <div className="li-title trunc">{x.name ? t(x.name) : t(ACTIVITY_LABEL[x.kind] === 'Other' ? 'Activity' : ACTIVITY_LABEL[x.kind])}</div>
                   <div className="li-sub num trunc">{fmtDate(x.date, lang, { weekday: 'short', day: 'numeric', month: 'short' })} · {Math.round(x.durationSec / 60)} min{x.avgHr ? ` · ${x.avgHr} bpm` : x.distanceM ? ` · ${fmtNum(u.distance === 'mi' ? x.distanceM / 1609.344 : x.distanceM / 1000, lang, 1)} ${u.distance}` : ''}</div>
                 </div>
-                {x.intensity && <span className="chip sm">{t(INTENSITY_LABEL[x.intensity])}</span>}
+                {x.intensity && <span className="chip sm" style={x.intensity > 1 ? { color: 'var(--ac-text)' } : undefined}>{t(INTENSITY_LABEL[x.intensity])}</span>}
               </div>
             ))}
           </div>
