@@ -2448,6 +2448,68 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 .bg-pv .bg-dots { top: 2px; background-size: 260% auto; }
 .bg-pv-empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--tx3); z-index: 1; }
 
+/* ---- in-app camera pop-up (CameraSheet.tsx): live preview in a rounded panel, Gallery / shutter / Flip under it, Close on the picture.
+   Black in light and dark (a camera is neutral, no navy tint, no white glass under white icons). Nothing blurs over the live picture
+   (it changes every frame): the round buttons are a dark film, as on the scanner. ---- */
+.sheet.sheet-cam::before { -webkit-backdrop-filter: none; backdrop-filter: none; }
+.sheet.sheet-cam::after { background: #000; image-rendering: auto; box-shadow: inset 0 1px 0 rgba(255,255,255,.1); transition: none; }
+.sheet.sheet-cam .sheet-grab::after { background: rgba(255,255,255,.3); }
+.cam-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 4px 10px calc(var(--sab) + 12px); gap: 14px; color: #fff; --tx2: rgba(255,255,255,.64); }
+.cam-panel { position: relative; flex: 1; min-height: 0; border-radius: 30px; overflow: hidden; background: #000; box-shadow: inset 0 0 0 1px rgba(255,255,255,.06); }
+.cam-photo { position: absolute; inset: 0; border-radius: 30px; overflow: hidden; will-change: transform; background: #000; }
+.scan-stage.fill { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.cam-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.cam-still { position: absolute; inset: 0; width: 100%; height: 100%; transition: opacity 140ms ease-out; pointer-events: none; }
+.cam-flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+.cam-msg { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 6px; padding: 0 28px; text-align: center; color: #fff; pointer-events: none; transition: opacity 180ms linear; }
+.cam-why { color: var(--tx2); }
+.cam-bar { flex: none; position: relative; height: 84px; }
+.cam-bar-live, .cam-bar-res { position: absolute; inset: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 14px; transition: opacity 420ms cubic-bezier(.33,0,.2,1), transform 420ms cubic-bezier(.33,0,.2,1); }
+.cam-bar-res { gap: 12px; opacity: 0; transform: translateY(8px); pointer-events: none; }
+.cam-wrap[data-phase='result'] .cam-bar-res, .cam-wrap[data-phase='error'] .cam-bar-res { opacity: 1; transform: none; pointer-events: auto; transition-delay: 320ms; }
+.cam-wrap[data-phase='error'] .cam-bar-res { transition-delay: 240ms; }
+.cam-wrap:not([data-phase='live']) .cam-bar-live { opacity: 0; pointer-events: none; }
+.cam-wrap[data-phase='reading'] .cam-bar-live { opacity: .3; }
+.cam-dim { position: absolute; inset: 0; background: rgba(0,0,0,.5); opacity: 0; pointer-events: none; transition: opacity 420ms var(--ease-out); }
+.cam-wrap[data-phase='error'] .cam-dim { opacity: 1; }
+/* floating surface: see-through frost over the dimmed photo; one small fixed layer, the blur itself never animates */
+.cam-err { position: absolute; left: 16px; right: 16px; bottom: 18px; display: grid; justify-items: center; gap: 6px; padding: 22px 20px 18px; border-radius: 26px; text-align: center; color: #fff; background: rgba(20,14,10,.26); -webkit-backdrop-filter: blur(26px) saturate(1.5); backdrop-filter: blur(26px) saturate(1.5); box-shadow: inset 0 0 0 1px rgba(255,255,255,.16), inset 0 1px 0 rgba(255,255,255,.14); will-change: transform, opacity; }
+.cam-err-ic { display: grid; place-items: center; width: 52px; height: 52px; margin-bottom: 4px; border-radius: 50%; background: rgba(255,255,255,.12); box-shadow: inset 0 0 0 1px rgba(255,255,255,.16); }
+.cam-err-t { font-size: 20px; font-weight: 650; letter-spacing: -.01em; }
+.cam-err-s { font-size: 14px; line-height: 1.35; color: rgba(255,255,255,.72); max-width: 30ch; }
+.cam-bar-res .btn.primary { box-shadow: inset 0 1px 0 rgba(255,255,255,.55), 0 12px 30px -12px color-mix(in srgb, var(--ac) 55%, transparent); }
+.cam-err-tips { margin-top: 8px; font-size: 12.5px; color: rgba(255,255,255,.6); }
+.cam-try { height: 52px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: 999px; color: #fff; font-weight: 600; font-size: 16px; background: rgba(255,255,255,.12); -webkit-backdrop-filter: blur(24px) saturate(1.4); backdrop-filter: blur(24px) saturate(1.4); box-shadow: inset 0 0 0 1px rgba(255,255,255,.16), inset 0 1px 0 rgba(255,255,255,.12); }
+.cam-err-tips i { font-style: normal; font-size: 12.5px; padding: 6px 12px; border-radius: 999px; background: rgba(255,255,255,.1); box-shadow: inset 0 0 0 1px rgba(255,255,255,.12); color: rgba(255,255,255,.85); }
+/* the result, on the camera's own surface (CamResults.tsx): black and white only, as the camera is in both themes */
+.cam-res { position: absolute; inset: 0; color: #fff; }
+.cam-res .cam-res-head { position: absolute; left: calc(22% + 32px); top: 64px; right: 16px; height: 22%; display: flex; flex-direction: column; justify-content: center; }
+.cam-res .cam-res-list { position: absolute; left: 10px; right: 10px; top: calc(80px + 22%); bottom: 0; overflow-y: auto; padding: 4px 0 14px; display: grid; gap: 8px; align-content: start; }
+.cam-frost { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+.cam-thumb { position: absolute; left: 16px; top: 64px; width: 22%; height: 22%; object-fit: cover; border-radius: 6.6px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.08); pointer-events: none; }
+.cam-res-total { font-size: 34px; line-height: 1.05; font-weight: 700; letter-spacing: -.01em; }
+.cam-res-total span, .cam-row-kcal span { font-size: 13px; font-weight: 600; color: rgba(255,255,255,.76); }
+.cam-res-sub { margin-top: 4px; font-size: 13px; color: rgba(255,255,255,.76); }
+.cam-res-note { margin-top: 6px; font-size: 12px; line-height: 1.3; color: rgba(255,255,255,.76); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.cam-row { padding: 12px 14px; border-radius: 18px; background: rgba(255,255,255,.08); box-shadow: inset 0 0 0 1px rgba(255,255,255,.07); transition: opacity 300ms var(--ease-out); }
+.cam-row[data-off] { opacity: .5; }
+.cam-row-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.cam-row-name { display: flex; align-items: center; gap: 10px; min-width: 0; text-align: left; color: #fff; font-weight: 600; }
+.cam-row-kcal { font-weight: 650; white-space: nowrap; }
+.cam-tick { width: 22px; height: 22px; border-radius: 7px; flex: none; display: grid; place-items: center; box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.38); color: var(--ac-ink); }
+.cam-tick.on { background: var(--ac); box-shadow: none; }
+.cam-row-macros { margin: 6px 0 8px 32px; font-size: 12px; color: rgba(255,255,255,.76); }
+.cam-chips { margin-left: 32px; display: flex; flex-wrap: wrap; gap: 6px; }
+.cam-chip { padding: 5px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; color: rgba(255,255,255,.92); background: rgba(255,255,255,.1); }
+.cam-chip.on { color: var(--ac-ink); background: var(--ac); }
+.cam-btn, .cam-btn-gap { width: 52px; height: 52px; flex: none; }
+.cam-btn { border-radius: 50%; display: grid; place-items: center; color: #fff; background: rgba(255,255,255,.14); box-shadow: inset 0 1px 0 rgba(255,255,255,.12); transition: opacity 300ms var(--ease-out), transform 520ms var(--ease-spring); }
+.cam-x { position: absolute; top: 12px; left: 12px; width: 44px; height: 44px; background: rgba(0,0,0,.3); box-shadow: inset 0 0 0 1px rgba(255,255,255,.12); }
+.cam-shutter { --press: 1; width: 80px; height: 80px; border-radius: 50%; display: grid; place-items: center; box-shadow: inset 0 0 0 4px rgba(255,255,255,.92); transition: opacity 300ms var(--ease-out); }
+.cam-shutter i { width: 62px; height: 62px; border-radius: 50%; background: #fff; display: block; transition: transform 520ms var(--ease-spring); }
+.cam-shutter[data-pressed], .cam-shutter[data-press-off] { transform: none; } /* only the inner disc gives (press.ts scales the whole control otherwise) */
+.cam-shutter[data-pressed] i { transform: scale(0.86); transition: transform 110ms var(--ease-out); }
+.cam-shutter.wait { opacity: 0.45; }
 /* Dictation in the Add food field (Whisper): a thread of light on the field's bottom edge (src/ui/voiceThread.ts moves it).
    Both thread layers and both labels exist from load; only transform and opacity ever change. */
 .dict-mic { position: absolute; right: 7px; top: 7px; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: var(--s2); color: var(--tx2); transition: color 260ms var(--ease-out), transform 520ms var(--ease-spring); }
@@ -2465,6 +2527,39 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 .dict-thread .dt-a { height: 2.4px; border-radius: 2px; background: linear-gradient(to right, transparent, var(--ac) 28%, var(--ac-2) 50%, var(--ac) 72%, transparent); }
 .dict-thread .dt-c { height: 1.6px; bottom: .4px; border-radius: 1px; background: linear-gradient(to right, transparent, #fff 50%, transparent); }
 :root[data-theme='light'] .dict-thread .dt-c { background: linear-gradient(to right, transparent, color-mix(in srgb, var(--ac) 40%, #fff) 50%, transparent); }
+
+/* ---- photo analysis (PhotoFood.tsx, Scan): Siri-style. A dim film over the frozen photo, a wave of light climbing it (a brighter copy of the photo seen through a
+   soft band: the band moves up, the copy moves down by the same amount, so the objects light up in place), optional edge light, orbiting dots and ripples.
+   Transform and opacity only; static masks and filters; the words capsule frosts the photo. ---- */
+.scan { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.scan-fx { position: absolute; inset: 0; }
+.scan-film { position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 46%, rgba(0,0,0,0), rgba(0,0,0,.15)); }
+.scan-lit { position: absolute; top: 0; bottom: 0; left: 0; right: 0; will-change: transform; transform: translateY(70%); animation: scan-up 4200ms cubic-bezier(.45,.05,.55,.95) 450ms infinite;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 16%, rgba(0,0,0,.35) 24%, rgba(0,0,0,.8) 30%, #000 34%, rgba(0,0,0,.85) 39%, rgba(0,0,0,.55) 50%, rgba(0,0,0,.25) 63%, rgba(0,0,0,.07) 76%, transparent 88%);
+  mask-image: linear-gradient(to bottom, transparent 16%, rgba(0,0,0,.35) 24%, rgba(0,0,0,.8) 30%, #000 34%, rgba(0,0,0,.85) 39%, rgba(0,0,0,.55) 50%, rgba(0,0,0,.25) 63%, rgba(0,0,0,.07) 76%, transparent 88%); }
+.scan-lit-in { position: absolute; inset: 0; will-change: transform; transform: translateY(-70%); animation: scan-down 4200ms cubic-bezier(.45,.05,.55,.95) 450ms infinite; }
+.scan-lit-in img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; filter: brightness(1.26) contrast(.97) saturate(.88); }
+.scan-warm { position: absolute; inset: 0; background: rgba(255,240,220,.12); }
+@keyframes scan-up { 0% { transform: translateY(70%); } 88%, 100% { transform: translateY(-90%); } }
+@keyframes scan-down { 0% { transform: translateY(-70%); } 88%, 100% { transform: translateY(90%); } }
+.scan-orbit { position: absolute; left: 13px; top: 50%; width: 20px; height: 20px; margin-top: -10px; animation: scan-spin 3200ms linear infinite; will-change: transform; }
+.scan-orbit i { position: absolute; left: 50%; top: 50%; width: 3.4px; height: 3.4px; margin: -1.7px; border-radius: 50%; background: #fff; animation: scan-twinkle 1600ms ease-in-out infinite alternate; }
+.scan-orbit i:nth-child(1) { transform: rotate(0deg) translateY(-8px); }
+.scan-orbit i:nth-child(2) { transform: rotate(60deg) translateY(-8px); animation-delay: -200ms; }
+.scan-orbit i:nth-child(3) { transform: rotate(120deg) translateY(-8px); animation-delay: -500ms; }
+.scan-orbit i:nth-child(4) { transform: rotate(180deg) translateY(-8px); animation-delay: -800ms; }
+.scan-orbit i:nth-child(5) { transform: rotate(240deg) translateY(-8px); animation-delay: -1000ms; }
+.scan-orbit i:nth-child(6) { transform: rotate(300deg) translateY(-8px); animation-delay: -1200ms; }
+@keyframes scan-twinkle { from { opacity: .3; } to { opacity: 1; } }
+.scan.with-dots .scan-words { padding-left: 38px; }
+.scan-stage { position: relative; }
+.scan-contact { position: absolute; inset: -10px -8px -14px; pointer-events: none; opacity: 0; background: radial-gradient(ellipse at 50% 55%, rgba(255,196,130,.30), transparent 70%); }
+.scan.leaving .scan-lit, .scan.leaving .scan-lit-in { animation-play-state: paused; }
+.scan-words { position: absolute; left: 50%; bottom: 20px; translate: -50% 0; display: grid; justify-items: center; min-width: 176px; padding: 7px 16px; border-radius: 999px;
+  background: linear-gradient(180deg, rgba(255,255,255,.07), transparent 60%), rgba(0,0,0,.36); -webkit-backdrop-filter: blur(16px) saturate(1.2); backdrop-filter: blur(16px) saturate(1.2); box-shadow: inset 0 0 0 1px rgba(255,255,255,.14); }
+.scan-words > span:not(.scan-orbit) { grid-area: 1 / 1; will-change: opacity; color: #fff; font-size: 13px; font-weight: 600; letter-spacing: .01em; white-space: nowrap; text-shadow: 0 1px 2px rgba(0,0,0,.25); }
+:root[data-motion='reduce'] .scan-lit, :root[data-motion='reduce'] .scan-lit-in, :root[data-motion='reduce'] .scan-orbit { animation: none; }
+:root[data-motion='reduce'] .scan-lit { opacity: 0; }
 
 /* the Coach looking something up in the data: a quiet line under the typing dots, fading in calmly */
 .coach-looking { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
@@ -2582,3 +2677,97 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 .action-card.sealed:not(.undone) .action-line:not(.ac-off) .ac-pick-done { opacity: 0.8; }
 /* the chart uses the card's whole inner width (under the icon too) */
 .ac-chart { margin-left: -36px; }
+
+
+/* ==== Buttons: clear glass, lit rim only on the big ones (Omar 15-18 Oct). Dark only; light mode keeps its look. ====
+   Big/primary (pills, Schedule/New routine, secondary play, chosen day, sheet Save): clear glass with a rim lit in the
+   palette colour. Small (round icons, quick-adds, in-card chips): plain clear glass, faint neutral rim. */
+/* B3 (re-check fixes): Lit rim, judge fixes S-1..S-5, SH-1/2, B-1, R-1 */
+/* no navy anywhere: screen tokens, round-button glass, lenses (one material, with the rim light on top), sheets */
+:root:not([data-theme='light']) { --lens-fill: linear-gradient(180deg, #3e3e42, #333336); --lens-line: rgba(255,255,255,.13); }
+:root:not([data-theme='light']) .seg-lens { --lens-fill: linear-gradient(180deg, #3e3e42, #333336); }
+:root:not([data-theme='light']) .sheet .sheet-foot .btn.btn { background: color-mix(in srgb, color-mix(in srgb, var(--tx) 10%, #161618) 58%, transparent); }
+/* buttons: clear glass on a little neutral body (outside cards it hides the stars and the night's cool cast) */
+:root:not([data-theme='light']) :is(.btn:not(.primary, .ghost), button.chip:not(.on, .acc), .icon-btn:not(.flat, .acc)), :root:not([data-theme='light']) :is(.chip.acc, .icon-btn.acc-soft, .meal-add), :root:not([data-theme='light']) .screen .plinth > button.press[style*='var(--ac-soft)'] { position: relative;
+  background: linear-gradient(180deg, rgba(255,255,255,.075), rgba(255,255,255,0) 60%), linear-gradient(rgba(255,255,255,.06), rgba(255,255,255,.06)) rgba(16,16,17,.95) !important;
+  color: var(--tx); box-shadow: 0 1px 1px rgba(0,0,0,.35), 0 8px 16px -10px rgba(0,0,0,.7) !important; }
+/* inside a card they stay clear: the card is their body */
+:root:not([data-theme='light']) .screen :is(.plinth, [data-wk='hero'] + div) :is(.icon-btn:not(.flat, .acc), button.chip:not(.on, .acc), .chip.acc, .meal-add), :root:not([data-theme='light']) .screen .plinth > button.press[style*='var(--ac-soft)'] { background-color: transparent !important; box-shadow: none !important; }
+:root:not([data-theme='light']) :is(.chip.acc, .icon-btn.acc-soft, .meal-add) { color: var(--ac-text) !important; }
+:root:not([data-theme='light']) :is(.btn:not(.primary, .ghost), button.chip:not(.on, .acc), .icon-btn:not(.flat, .acc))::after, :root:not([data-theme='light']) :is(.chip.acc, .icon-btn.acc-soft, .meal-add)::after, :root:not([data-theme='light']) .screen .plinth > button.press[style*='var(--ac-soft)']::after, :root:not([data-theme='light']) .screen .pin::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; padding: 1px; -webkit-mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); background: linear-gradient(180deg, color-mix(in srgb, color-mix(in srgb, var(--ac) 62%, #fff) 92%, transparent) 0%, color-mix(in srgb, color-mix(in srgb, var(--ac) 45%, #fff) 34%, transparent) 30%, rgba(255,255,255,.05) 62%, rgba(255,255,255,.05) 100%); }
+/* tags are text, not buttons */
+/* muscle tags under a card's title: quiet glass bubbles, flatter than buttons (no rim, no shadow) so they read as labels */
+:root:not([data-theme='light']) span.chip:not(.on, .acc) { background: rgba(255,255,255,.06) !important; box-shadow: inset 0 0 0 1px rgba(255,255,255,.07), inset 0 1px 0 rgba(255,255,255,.05) !important; color: var(--tx2); }
+:root:not([data-theme='light']) span.chip.sm:not(.on, .acc) { height: 26px; padding: 0 10px; font-size: 12px; font-weight: 560; letter-spacing: .01em; }
+/* week strip: the day is glass, plan letters are plain letters, done stays a filled square */
+:root:not([data-theme='light']) .screen .plinth > button.press > span[style*='var(--s3)'], :root:not([data-theme='light']) .screen .plinth > button.press > span[style*='background: var(--ac-soft)'] { background: transparent !important; }
+/* the insight banner: card glass with the same rim, its icon keeps its colour */
+:root:not([data-theme='light']) .screen .pin { position: relative; background: rgba(255,255,255,.045) linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,0) 55%) !important; box-shadow: 0 1px 1px rgba(0,0,0,.35), 0 10px 24px -12px rgba(0,0,0,.6) !important; }
+/* the lens highlight is set where the tab's colour is set, so it is each palette's own light */
+:root:not([data-theme='light']) :is(.app, [data-hue]) { --lens-hl: color-mix(in srgb, color-mix(in srgb, var(--ac) 45%, #fff) 80%, transparent); }
+/* the sheet's main action, once it can be pressed: brighter glass, a clear rim in your colour, bolder label */
+:root:not([data-theme='light']) .sheet .sheet-foot .btn.btn.primary:not([disabled]) { position: relative; color: var(--tx) !important; font-weight: 700;
+  background: linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,.05) 60%), rgba(30,30,32,.62) !important;
+  box-shadow: 0 1px 1px rgba(0,0,0,.4), 0 16px 32px -14px rgba(0,0,0,.85) !important; }
+:root:not([data-theme='light']) .sheet .sheet-foot .btn.btn.primary:not([disabled])::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; padding: 1.5px;
+  -webkit-mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  background: linear-gradient(180deg, color-mix(in srgb, color-mix(in srgb, var(--ac) 60%, #fff) 90%, transparent), rgba(255,255,255,.14) 45%, rgba(255,255,255,.08)); }
+/* today's plan letter takes the day's colour */
+:root:not([data-theme='light']) .screen .plinth > button.press[style*='var(--ac-soft)'] > span[style*='var(--s3)'] { color: var(--ac-text) !important; }
+/* ---- AB mix (Omar 00:42: clear glass + lit rim, but not on the small buttons) ----
+   Lit rim (B) stays on the big/primary ones: pills (.btn, Schedule/New routine), the secondary play, the selected week day,
+   the sheet's Save. Small ones (round icons, chips, quick-adds) get A's clear glass with a faint neutral rim. */
+:root:not([data-theme='light']) :is(.icon-btn:not(.flat, .acc, .acc-soft), button.chip:not(.on), .screen :is(.plinth, [data-wk='hero'] + div) button.chip:not(.on, .acc), .meal-add, .chip.acc):not(#_)::after { background: linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.06) 35%, rgba(255,255,255,.03) 70%, rgba(255,255,255,.04)); }
+/* tab-bar band: no navy lift from the frost */
+/* pressed: material answers too */
+:is(:root:not([data-theme='light']) :is(.btn:not(.primary, .ghost), button.chip:not(.on, .acc), .icon-btn:not(.flat, .acc)), :root:not([data-theme='light']) :is(.chip.acc, .icon-btn.acc-soft, .meal-add), :root:not([data-theme='light']) .screen .plinth > button.press[style*='var(--ac-soft)'])::after { transition: opacity 200ms; }
+:is(:root:not([data-theme='light']) :is(.btn:not(.primary, .ghost), button.chip:not(.on, .acc), .icon-btn:not(.flat, .acc)), :root:not([data-theme='light']) :is(.chip.acc, .icon-btn.acc-soft, .meal-add))[data-pressed] { background-color: rgba(40,40,44,.96) !important; }
+:is(:root:not([data-theme='light']) .screen :is(.plinth, [data-wk='hero'] + div) :is(.icon-btn:not(.flat, .acc), button.chip:not(.on, .acc), .chip.acc, .meal-add))[data-pressed] { background-color: rgba(255,255,255,.09) !important; }
+:is(:root:not([data-theme='light']) :is(.btn:not(.primary, .ghost), button.chip:not(.on, .acc), .icon-btn:not(.flat, .acc)), :root:not([data-theme='light']) :is(.chip.acc, .icon-btn.acc-soft, .meal-add))[data-pressed]::after { opacity: .7 !important; }
+/* small bubbles outside cards: see-through clear glass (Omar 00:57 "at least a little clear"); big lit ones stay fuller */
+:root:not([data-theme='light']) :is(.icon-btn:not(.flat, .acc, .acc-soft), button.chip:not(.on)):not(.screen :is(.plinth, [data-wk='hero'] + div) *):not(#_) { background-color: rgba(255,255,255,.025) !important; }
+:root:not([data-theme='light']) :is(.icon-btn:not(.flat, .acc, .acc-soft), button.chip:not(.on)):not(.screen :is(.plinth, [data-wk='hero'] + div) *):not(#_)[data-pressed] { background-color: rgba(255,255,255,.12) !important; }
+
+/* ==== Text and bubble polish (Omar 18 Oct: "polish it if it's off centre") ==== */
+/* sideways rows in sheets (food tools, look tiles) fade where more is hiding, like the chip rows, instead of a hard cut */
+:is(.tools, .pal).fade-x { --fl: 0px; --fr: 0px; --ml: var(--fl); --mr: var(--fr);
+  -webkit-mask-image: linear-gradient(to right, transparent, rgba(0,0,0,.14) calc(var(--ml) * .3), rgba(0,0,0,.5) calc(var(--ml) * .6), rgba(0,0,0,.86) calc(var(--ml) * .85), #000 var(--ml), #000 calc(100% - var(--mr)), rgba(0,0,0,.86) calc(100% - var(--mr) * .85), rgba(0,0,0,.5) calc(100% - var(--mr) * .6), rgba(0,0,0,.14) calc(100% - var(--mr) * .3), transparent);
+  mask-image: linear-gradient(to right, transparent, rgba(0,0,0,.14) calc(var(--ml) * .3), rgba(0,0,0,.5) calc(var(--ml) * .6), rgba(0,0,0,.86) calc(var(--ml) * .85), #000 var(--ml), #000 calc(100% - var(--mr)), rgba(0,0,0,.86) calc(100% - var(--mr) * .85), rgba(0,0,0,.5) calc(100% - var(--mr) * .6), rgba(0,0,0,.14) calc(100% - var(--mr) * .3), transparent); }
+/* the look tiles' row has 22 px of side room: the fade stays in it, so a whole tile is never dimmed */
+.pal.fade-x { --ml: min(var(--fl), 22px); --mr: min(var(--fr), 22px); }
+/* labels centred on their capitals, not on the font's line box (which sat them 1-1.5 px high in Geist): switchers, meal names */
+.seg button, .meal-row .meal-name { text-box: trim-both cap alphabetic; }
+/* a leading icon's own empty edge made icon + label sit ~1 px right of centre */
+:is(.chip, .btn) > svg:first-child { margin-left: -2px; }
+:is(.chip.sm, .btn.sm) > svg:first-child { margin-left: -1px; }
+/* muscle tags: text only, so the label alone moves down to its capitals' centre */
+:root:not([data-theme='light']) span.chip.sm:not(.on, .acc):not(:has(svg)) { padding-top: 1.5px; }
+/* a little lift on the small bubbles (Omar 18 Oct): a touch more glass and a soft contact shadow under them, so they sit
+   just above their card instead of flat on it. Static shadows (never animated); the pressed fill still answers on top. */
+:root:not([data-theme='light']) :is(.icon-btn:not(.flat, .acc, .acc-soft), button.chip:not(.on)):not(.screen :is(.plinth, [data-wk='hero'] + div) *):not(#_):not([data-pressed]) { background-color: rgba(255,255,255,.032) !important; }
+:root:not([data-theme='light']) :is(.icon-btn:not(.flat, .acc, .acc-soft), button.chip:not(.on)):not(.screen :is(.plinth, [data-wk='hero'] + div) *):not(#_) { box-shadow: inset 0 1px 0 rgba(255,255,255,.07), 0 1px 1px rgba(0,0,0,.3), 0 2px 8px rgba(0,0,0,.22) !important; }
+:root:not([data-theme='light']) .screen :is(.plinth, [data-wk='hero'] + div) :is(.icon-btn:not(.flat, .acc), button.chip:not(.on, .acc), .chip.acc, .meal-add):not(#_):not([data-pressed]) { background-color: rgba(255,255,255,.028) !important; }
+:root:not([data-theme='light']) .screen :is(.plinth, [data-wk='hero'] + div) :is(.icon-btn:not(.flat, .acc), button.chip:not(.on, .acc), .chip.acc, .meal-add):not(#_) { box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 1px 3px rgba(0,0,0,.18) !important; }
+:root:not([data-theme='light']) span.chip:not(.on, .acc):not(#_) { box-shadow: inset 0 0 0 1px rgba(255,255,255,.07), inset 0 1px 0 rgba(255,255,255,.06), 0 1px 0 rgba(0,0,0,.16) !important; }
+/* one family per size, one light (Omar 18 Oct 21:36: "same sized bubbles consistent", "the light is on top when it's not
+   on top"). Every rim is lit from straight above and fades away down the sides (no second light at the bottom).
+   - pills (.btn): the lit rim. Every chip button, any size, anywhere outside a card: clear glass with a faint rim and a little
+     lift, so Schedule / New routine / Customize Today match the quick-adds and filter chips beside them.
+   - labels (muscle tags, PR badges): flat quiet glass, no rim, no shadow; a PR badge keeps its colour only in its text. */
+:root:not([data-theme='light']) span.chip.acc:not(#_) { background: rgba(255,255,255,.06) !important; box-shadow: inset 0 0 0 1px rgba(255,255,255,.07), inset 0 1px 0 rgba(255,255,255,.06), 0 1px 0 rgba(0,0,0,.16) !important; }
+:root:not([data-theme='light']) span.chip.acc:not(#_)::after { content: none; }
+/* the switcher's thumb is the one raised piece: a neutral light on its top edge and a shade along its bottom, both drawn in
+   the thumb itself so they glide with it (no extra layer, no shadow to animate); the track around it stays flat */
+:root:not([data-theme='light']) .seg-lens { --lens-hl: rgba(255,255,255,.17); --lens-line: rgba(255,255,255,.05); --lens-lo: rgba(0,0,0,.34); --lens-fill: linear-gradient(180deg, #444448, #36363a); }
+:root:not([data-theme='light']) .seg-lens > :is(.lens-l, .lens-r) { box-shadow: inset 0 1px 0 var(--lens-hl), inset 0 -1px 0 var(--lens-lo), inset 0 0 0 1px var(--lens-line); }
+:root:not([data-theme='light']) .seg-lens > .lens-m { background: linear-gradient(to bottom, var(--lens-hl) 0 1px, transparent 1px calc(100% - 1px), var(--lens-lo) calc(100% - 1px)), linear-gradient(to bottom, var(--lens-line) 0 1px, transparent 1px calc(100% - 1px), var(--lens-line) calc(100% - 1px)), var(--lens-fill); }
+/* a destructive pill keeps its red and takes the neutral rim, so it never reads as the main action */
+:root:not([data-theme='light']) .btn.danger:not(#_) { color: var(--bad); }
+:root:not([data-theme='light']) .btn.danger:not(#_)::after { background: linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.06) 35%, rgba(255,255,255,.03) 70%, rgba(255,255,255,.04)); }
+/* ==== Rims read clear, not gold (Omar 19 Oct "this looks off": on his OLED the palette-lit top edge read as a bronze
+   outline on + Set, Finish, Camera / From gallery and the insight banner). One neutral light from above on every pill,
+   the same light the switcher thumb carries; colour stays in icons, text and the filled main buttons only. ==== */
+:root:not([data-theme='light']) :is(.btn:not(.primary, .ghost), button.chip:not(.on, .acc), .icon-btn:not(.flat, .acc))::after, :root:not([data-theme='light']) :is(.chip.acc, .icon-btn.acc-soft, .meal-add)::after, :root:not([data-theme='light']) .screen .plinth > button.press[style*='var(--ac-soft)']::after, :root:not([data-theme='light']) .screen .pin::after { background: linear-gradient(180deg, rgba(255,255,255,.2), rgba(255,255,255,.08) 30%, rgba(255,255,255,.035) 62%, rgba(255,255,255,.05)); }
+:root:not([data-theme='light']) .sheet .sheet-foot .btn.btn.primary:not([disabled])::after { background: linear-gradient(180deg, rgba(255,255,255,.26), rgba(255,255,255,.1) 45%, rgba(255,255,255,.06)); }
+/* a pill inside a card is glass on the card (like v0.1.130's clear cards), not a dark block sitting on it */
+:root:not([data-theme='light']) :is(.plinth, .screen [data-wk='hero'] + div, .wk-card, .ex-card) .btn:not(.primary, .ghost, .danger):not(#_):not([data-pressed]) { background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.02) 60%), rgba(255,255,255,.045) !important; box-shadow: 0 1px 2px rgba(0,0,0,.22) !important; }
