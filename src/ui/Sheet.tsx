@@ -299,9 +299,12 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
       // its top edge never jumps (it starts at the screen's edge now, so a jump would be seen)
       const run = opening.current;
       if (run && was !== dist.current && !reduce) {
-        const from = (1 - p.get()) * was, np = clamp01(1 - from / dist.current), v = (p.getVelocity() * was) / dist.current;
-        run.stop(); p.set(np);
-        opening.current = animate(p, 1, { ...SPRING, velocity: v }); opening.current.then(() => { opening.current = null; });
+        // (it sits on the screen's bottom, so a taller sheet's resting top is higher by as much as it grew: the slide left
+        // to go grows by that too, which keeps the edge where it is)
+        const np = clamp01((p.get() * was) / dist.current), v = (p.getVelocity() * was) / dist.current;
+        run.stop(); p.set(np); el.style.transform = transform.get(); // this same frame (motion would draw it a frame late)
+        const r = animate(p, 1, { ...SPRING, velocity: v });
+        opening.current = r; r.then(() => { if (opening.current === r) opening.current = null; });
         runMirror(np, 1, SPRING, v);
       } if (kb.get() > 1 || el.dataset.held) return; natural.current = h; const short = h < window.innerHeight * 0.62; if ((el.dataset.size === 'short') !== short) el.dataset.size = short ? 'short' : 'full'; };
     measure();
