@@ -2675,3 +2675,6 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 .ic-tile { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; flex: none; background: rgba(255, 255, 255, 0.085); color: var(--tx); box-shadow: inset 0 0 0 1px var(--line); }
 :root[data-theme='light'] .ic-tile { background: rgba(255, 255, 255, 0.7); }
 .ic-tile.acc { color: var(--ac-text); }
+/* the less important button of a pair: the same pill, a softer label (was bare text next to a pill) */
+.btn.quiet { color: var(--tx2); }
+:root:not([data-theme='light']) .btn.quiet:not(#_) { color: var(--tx2); }

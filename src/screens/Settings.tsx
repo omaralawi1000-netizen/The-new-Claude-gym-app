@@ -634,7 +634,7 @@ function WatchSection() {
       {on ? (
         <div className="row-flex" style={{ gap: 10 }}>
           <button className="btn grow press" onClick={() => go('sync')} disabled={busy === 'sync'}><Icon name="repeat" size={17} className={busy === 'sync' ? 'spin-slow' : undefined} /> {busy === 'sync' ? t('Syncing…') : t('Sync now')}</button>
-          <button className="btn ghost press" onClick={() => go('off')}>{t('Disconnect')}</button>
+          <button className="btn quiet grow press" onClick={() => go('off')}>{t('Disconnect')}</button>
         </div>
       ) : (
         <button className="btn primary block press" onClick={() => go('connect')} disabled={busy === 'connect'}><Icon name="watch" size={18} /> {busy === 'connect' ? t('Opening Health Connect…') : t('Connect watch')}</button>
@@ -740,7 +740,7 @@ function DataSection() {
           <div className="plinth-2 small" style={{ padding: 12, marginTop: 12 }}>
             <b>{t('Ready to restore')}</b>
             <div className="t2 num" style={{ marginTop: 4 }}>{pending.data.sessions.length} {t('workouts')} · {pending.data.entries.length} {t('food entries')} · {pending.data.routines.length} {t('routines')} · {pending.data.weights.length} {t('weigh-ins')}</div>
-            <div className="row-flex" style={{ gap: 8, marginTop: 10 }}><button className="btn sm primary press" onClick={doImport}>{t('Replace my data')}</button><button className="btn sm ghost press" onClick={() => setPending(null)}>{t('Cancel')}</button></div>
+            <div className="row-flex" style={{ gap: 8, marginTop: 10 }}><button className="btn sm primary press" onClick={doImport}>{t('Replace my data')}</button><button className="btn sm quiet press" onClick={() => setPending(null)}>{t('Cancel')}</button></div>
           </div>
         )}
       </div>
