@@ -17,7 +17,7 @@ import { AiError, aiErrorText, type Photo, type Turn } from '../lib/gemini';
 import { sttNames } from '../lib/sttNames';
 import { stopSpeaking } from '../lib/tts';
 import { decide, brainFor } from '../lib/agentTurn';
-import { ActionCard, UndoAll, Rich, TypingDots, dotPhase, SpeakButton, prefetchAloud, replacedIds, sttMessage, useCoachTips, useWordReveal } from '../ui/agentUi';
+import { ActionCard, UndoAll, Rich, dotPhase, SpeakButton, prefetchAloud, replacedIds, sttMessage, useCoachTips, useWordReveal } from '../ui/agentUi';
 import { droppedCard, runActions, type AgentResult } from '../lib/agent';
 import { uid } from '../lib/nutrition';
 import { onThreadChange, readThread, threadSaid, threadTurns, writeThread, type ThreadMsg } from '../lib/thread';
@@ -179,7 +179,20 @@ function CoachReply({ m }: { m: Extract<Msg, { role: 'user' | 'model' }> }) {
   // once the last one is in (each word's own drop redrew the tiles under it while the next ones came in: the conversation
   // stood still for three frames in four on the phone, 14 Oct r11)
   const [settled, setSettled] = useState(!!m.seeded);
-  useEffect(() => { if (!done || settled) return; const id = setTimeout(() => setSettled(true), 1500); return () => clearTimeout(id); }, [done, settled]); // (the last word is in by then: born up to 520 ms late, 900 to come in)
+  // ...and only once the answer is off screen (or the Coach closes): letting 40 words go at once while you read them was
+  // a one-frame flicker "out of nowhere", 1.5 s after the last word, 19 Oct
+  const rowRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!done || settled) return;
+    let io: IntersectionObserver | undefined;
+    const id = setTimeout(() => { // (the last word is in by then: born up to 520 ms late, 900 to come in)
+      const el = rowRef.current;
+      if (!el || typeof IntersectionObserver === 'undefined') { setSettled(true); return; }
+      io = new IntersectionObserver((es) => { if (es.some((x) => !x.isIntersecting)) { io?.disconnect(); setSettled(true); } }, { root: el.closest('.coach-body'), rootMargin: '40px 0px' });
+      io.observe(el);
+    }, 1500);
+    return () => { clearTimeout(id); io?.disconnect(); };
+  }, [done, settled]);
   // the typing dots don't vanish when the first word comes: they melt away over it (and are then taken out)
   const typed = useRef(!shown);
   const [dotsGone, setDotsGone] = useState(false);
@@ -189,22 +202,22 @@ function CoachReply({ m }: { m: Extract<Msg, { role: 'user' | 'model' }> }) {
   if (said.current.now !== m.status) said.current = { now: m.status, before: said.current.now };
   // (after every hook) no answer, only the quiet note (the built-in reader logged it): the note alone, never typing dots
   if (!m.streaming && !m.text.trim() && m.note) return <div className={`xs t3 coach-after${m.seeded ? '' : ' fresh'}`}>{m.note}</div>;
-  if (!shown) return (
-    <div className="coach-looking">
-      <TypingDots />
-      {(said.current.now || said.current.before) && (
-        <div className="coach-look-cell">
+  // one tree for "thinking" and "answering": the dots are the same element all the way (they were thrown away and made
+  // anew as the first word came, a new layer and their breathing from the start, 19 Oct); they just start to melt
+  const dots = !shown || (typed.current && !dotsGone);
+  return (
+    <div ref={rowRef} className={shown ? 'coach-answer' : 'coach-looking'}>
+      {dots && <div key="dots" className={`typing${shown ? ' typing-out' : ''}`} ref={dotPhase} aria-hidden={shown ? true : undefined} aria-label={shown ? undefined : '…'}
+        onAnimationEnd={(e) => { if (e.target === e.currentTarget && e.animationName === 'typingOut') setDotsGone(true); }}><i /><i /><i /></div>}
+      {!shown && (said.current.now || said.current.before) && (
+        <div key="look" className="coach-look-cell">
           {said.current.before && <div key={`o${said.current.before}`} className="xs t2 coach-look coach-look-out" aria-hidden>{said.current.before}</div>}
           {said.current.now && <div key={said.current.now} className="xs t2 coach-look">{said.current.now}</div>}
         </div>
       )}
-    </div>
-  );
-  return (
-    <div className="coach-answer">
-      {typed.current && !dotsGone && <div className="typing typing-out" aria-hidden ref={dotPhase} onAnimationEnd={(e) => { if (e.target === e.currentTarget) setDotsGone(true); }}><i /><i /><i /></div>}
       {/* (the last words under the dots fade with them, never cut) */}
-      {typed.current && !dotsGone && said.current.now && <div className="xs t2 coach-look coach-look-gone" aria-hidden>{said.current.now}</div>}
+      {shown && typed.current && !dotsGone && said.current.now && <div key="gone" className="xs t2 coach-look coach-look-gone" aria-hidden>{said.current.now}</div>}
+      {shown && <>
       <div className={`reply calm coach-reply${m.seeded ? ' still' : ''}${settled ? '' : ' writing'}`} aria-live="polite"><Rich text={shown} id={m.id} still={m.seeded} hold={!settled} /></div>
       {done && m.note && <div className={`xs t3 coach-after${m.seeded ? '' : ' fresh'}`} style={{ marginTop: 8 }}>{m.note}</div>}
       {/* a web search's pages, as small chips under the answer (they open in the browser) */}
@@ -214,6 +227,7 @@ function CoachReply({ m }: { m: Extract<Msg, { role: 'user' | 'model' }> }) {
         </div>
       )}
       <div className={`reply-foot coach-after${done ? '' : ' held'}${m.seeded ? '' : ' fresh'}`}>{done && <SpeakButton id={m.id} text={m.text} />}</div>
+      </>}
     </div>
   );
 }
@@ -237,6 +251,14 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   // the suggestions step away when something is sent (they used to vanish in one frame): where they were, at the top of an
   // empty chat or under an old one
   const [tipsOut, setTipsOut] = useState<'top' | 'resume' | null>(null);
+  const tipPress = useRef<{ i: number; press: string } | null>(null);
+  const keepPress = useCallback((el: HTMLElement | null) => {
+    const p = tipPress.current; if (!el || !p) return; tipPress.current = null;
+    const tip = el.querySelectorAll<HTMLElement>('.tip')[p.i]; if (!tip) return;
+    if (p.press) tip.style.setProperty('--press', p.press);
+    tip.setAttribute('data-pressed', '');
+    setTimeout(() => tip.removeAttribute('data-pressed'), 120);
+  }, []);
   // (under an old chat they step away where they were: lifted out of the page at their place in the list, so the message
   // you send can't push them down a line in one frame, and their going can't shorten the list in one frame either, which
   // threw the whole chat down a line as they finished, 18 Oct recordings)
@@ -565,7 +587,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       }
       // it joins a glide the list is still finishing, so its place is where the bubble will be once that is done
       const rider = ride.current?.(copy); const top0 = B.top - (rider?.off ?? 0); copy.style.top = `${top0}px`;
-      bubble.style.visibility = 'hidden';
+      bubble.style.opacity = '0'; // (opacity, not visibility: it keeps its layer, made now with the copy's, never in the landing frame)
       const at = document.timeline.currentTime;
       const animations: Animation[] = [];
       const go = (a: Animation) => { if (at !== null) a.startTime = at; animations.push(a); return a; };
@@ -660,7 +682,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       const back = setTimeout(from.fresh ? () => field?.classList.remove('sent-away') : settle, from.fresh ? SAID_OUT + 10 : 140);
       let landed = false;
       const cancel = () => { animations.forEach((a) => a.cancel()); stand?.remove(); land(); };
-      const land = () => { if (landed) return; landed = true; flights.current.delete(cancel); rider?.unride(); el.removeEventListener('scroll', follow); if (listMoved.current === follow) listMoved.current = null; clearTimeout(back); if (alive.current && holdOpen.current) settle(); bubble.style.visibility = ''; copy.remove(); };
+      const land = () => { if (landed) return; landed = true; flights.current.delete(cancel); rider?.unride(); el.removeEventListener('scroll', follow); if (listMoved.current === follow) listMoved.current = null; clearTimeout(back); if (alive.current && holdOpen.current) settle(); bubble.style.opacity = ''; copy.remove(); };
       flights.current.add(cancel);
       flight.finished.then(land, land);
     }
@@ -944,6 +966,9 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
       // back while the answer was still writing in threw the list down and back up again, judge round 2).
       if (res && th && msgsRef.current.length) th.style.minHeight = `${res.offsetTop + res.offsetHeight - th.offsetTop}px`;
       if (msgsRef.current.length) afterTips.current.add(id);
+      // the tapped suggestion stays pressed in the leaving copy and lets go there (it snapped back up as the copy was made)
+      const pt = bodyRef.current?.querySelector<HTMLElement>('.tips > .tip[data-pressed]');
+      tipPress.current = pt?.parentElement ? { i: Array.prototype.indexOf.call(pt.parentElement.children, pt), press: pt.style.getPropertyValue('--press') } : null;
       setTipsOut(msgsRef.current.length === 0 ? 'top' : 'resume');
     }
     setInput(''); setPhoto(null); setResumed(false);
@@ -1116,14 +1141,14 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
         lastScroll.current = el.scrollTop;
       }}>
           <>
-            {shown.length === 0 ? tipsBlock : tipsOut === 'top' && <div className="coach-tips-out" inert onAnimationEnd={(e) => { if (e.target === e.currentTarget) setTipsOut(null); }}>{tipsBlock}</div>}
+            {shown.length === 0 ? tipsBlock : tipsOut === 'top' && <div className="coach-tips-out" inert ref={keepPress} onAnimationEnd={(e) => { if (e.target === e.currentTarget) setTipsOut(null); }}>{tipsBlock}</div>}
             {/* (in a clip: the list's glides are drawn as moves, and a moved list made the scroll area taller while it moved,
                 so the list's end was chased mid-flight, a second glide and a jump; clipped, moves never change its size) */}
             <div className="coach-clip">
               <div className="stack coach-thread" style={{ gap: 16, marginTop: shown.length ? 0 : 16 }}>
                 {listed.map((m) => <ChatRow key={m.id} m={m} sent={m.role === 'user' && !m.seeded && !flown(m.id)} late={afterTips.current.has(m.id)} gone={m.role === 'action' ? m.results.filter((r) => replaced.has(r.id)).map((r) => r.id).join(',') : ''} setMsgs={setMsgs} onErr={onErr} />)}
                 {/* (inside the list, so they ride its glide as the conversation closes up over where they were) */}
-                {tipsOut === 'resume' && !(resumed && shown.length > 0) && <div className="coach-resume coach-tips-out coach-tips-float" inert style={{ top: tipsTop.current }} onAnimationEnd={(e) => { if (e.target === e.currentTarget) setTipsOut(null); }}>{resumeHead}{tipsBlock}</div>}
+                {tipsOut === 'resume' && !(resumed && shown.length > 0) && <div className="coach-resume coach-tips-out coach-tips-float" inert ref={keepPress} style={{ top: tipsTop.current }} onAnimationEnd={(e) => { if (e.target === e.currentTarget) setTipsOut(null); }}>{resumeHead}{tipsBlock}</div>}
               </div>
             </div>
             {resumed && shown.length > 0 && <div className="coach-resume">{resumeHead}{tipsBlock}</div>}

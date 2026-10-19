@@ -1785,6 +1785,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .coach-composer.closing .cf-text { transition: translate var(--cf-dur) var(--cf-ease) 60ms, clip-path var(--cf-dur-k) var(--cf-ease-k) var(--cf-delay-k, 0ms); }
 .cf-tint > i, .cf-sh, .cf-text, .coach-field textarea.input, .coach-cam-slot, .coach-field { will-change: transform; }
 .coach-cam.frost-ctl { will-change: opacity; }
+.coach-cam.frost-ctl::after { will-change: opacity; } /* (its pressed rim kept making and dropping a layer over its own frost) */
 :root[data-motion='reduce'] :is(.cf-glass, .cf-tint > i, .cf-sh, .cf-text, .coach-cam-slot) { transition: none !important; }
 @media (prefers-reduced-motion: reduce) { :is(.cf-glass, .cf-tint > i, .cf-sh, .cf-text, .coach-cam-slot) { transition: none !important; } }
 .coach-orb { margin-right: 2px; isolation: isolate; will-change: transform; } /* (its own layer all the time: a tap made one for the press and dropped it, under its frost) */
