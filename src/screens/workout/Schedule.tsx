@@ -10,6 +10,13 @@ import { useToday } from '../../lib/derive';
 import type { ActivityKind } from '../../lib/types';
 import { displayToM } from '../../lib/units';
 import { ACTIVITY_KINDS as KINDS, ACTIVITY_LABEL as KIND_LABEL, INTENSITY_LABEL } from '../../lib/activity';
+import { useEdgeFade } from '../../ui/edgeFade';
+
+/** a sideways row of chips that reaches the sheet's edge and fades only on the side with more to scroll to (never sliced) */
+function SoftChips({ style, children }: { style?: React.CSSProperties; children: React.ReactNode }) {
+  const ref = useEdgeFade<HTMLDivElement>();
+  return <div ref={ref} className="chips fade-x" style={style}>{children}</div>;
+}
 
 export function Schedule({ props }: { props: { focusDate?: string; routineId?: string } }) {
   const t = useT();
@@ -156,17 +163,17 @@ export function ActivityLog({ props }: { props: { kind?: ActivityKind } }) {
         {wrestling ? (
           <>
             <div className="field" style={{ marginTop: 20 }}><label>{t('Mat time')}</label>
-              <div className="chips" style={{ margin: '0 0 8px', padding: 0 }}>{[30, 45, 60, 90, 120].map((m) => <button key={m} className={`chip sm press ${min === m ? 'on' : ''}`} onClick={() => setMin(m)}>{m} min</button>)}</div>
+              <SoftChips style={{ marginBottom: 8 }}>{[30, 45, 60, 90, 120].map((m) => <button key={m} className={`chip sm press ${min === m ? 'on' : ''}`} onClick={() => setMin(m)}>{m} min</button>)}</SoftChips>
               <NumInput value={min} onChange={setMin} unit="min" max={0} label={t('Mat time')} /></div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 12, marginTop: 14 }}>
-              <div className="field"><label>{t('Rounds')}</label><NumInput value={rounds} onChange={setRounds} unit="" max={0} placeholder={t('optional')} label={t('Rounds')} /></div>
+              <div className="field"><label>{t('Rounds')}</label><NumInput value={rounds} onChange={setRounds} unit="" max={0} placeholder={t('Optional')} label={t('Rounds')} /></div>
               <div className="field"><label>{t('Intensity')}</label><Seg value={intensity} onChange={setIntensity} options={([1, 2, 3] as const).map((v) => ({ value: v, label: t(INTENSITY_LABEL[v]) }))} /></div>
             </div>
           </>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: cardio ? '1fr 1fr' : '1fr', gap: 12, marginTop: 18 }}>
             <div className="field"><label>{t('Duration')}</label><NumInput value={min} onChange={setMin} unit="min" max={0} /></div>
-            {cardio && <div className="field"><label>{t('Distance')}</label><NumInput value={dist} onChange={setDist} unit={u} max={2} placeholder={t('optional')} /></div>}
+            {cardio && <div className="field"><label>{t('Distance')}</label><NumInput value={dist} onChange={setDist} unit={u} max={2} placeholder={t('Optional')} /></div>}
           </div>
         )}
         <div className="field" style={{ marginTop: 14 }}><label>{t('Note')}</label><input className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder={wrestling ? t('What you drilled, who you rolled with…') : t('Optional')} /></div>

@@ -132,7 +132,7 @@ export function RecipeEditor({ props }: { props: { id?: string; date: string; me
         <div className="field"><label htmlFor="r-name">{t('Name')}</label><input id="r-name" className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('e.g. Overnight oats')} /></div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 14 }}>
           <div className="field"><label>{t('Servings')}</label><NumInput value={servings} onChange={setServings} max={2} min={0.25} unit="×" label={t('Servings')} /></div>
-          <div className="field"><label>{t('Prepared weight')}</label><NumInput value={weight} onChange={setWeight} max={0} unit="g" placeholder={c.weightIsSum && c.weightG ? String(Math.round(c.weightG)) : t('optional')} label={t('Prepared weight')} /></div>
+          <div className="field"><label>{t('Prepared weight')}</label><NumInput value={weight} onChange={setWeight} max={0} unit="g" placeholder={c.weightIsSum && c.weightG ? String(Math.round(c.weightG)) : t('Optional')} label={t('Prepared weight')} /></div>
         </div>
 
         <div className="lbl" style={{ margin: '20px 0 6px' }}>{t('Ingredients')}</div>
