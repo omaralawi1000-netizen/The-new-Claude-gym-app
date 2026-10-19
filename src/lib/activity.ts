@@ -5,6 +5,9 @@ export const ACTIVITY_KINDS: ActivityKind[] = ['wrestling', 'run', 'walk', 'cycl
 export const ACTIVITY_LABEL: Record<ActivityKind, string> = { wrestling: 'Wrestling', run: 'Run', walk: 'Walk', cycle: 'Cycle', swim: 'Swim', row: 'Row', stairs: 'Stairs', hike: 'Hike', mobility: 'Mobility', warmup: 'Warm-up', recovery: 'Recovery', other: 'Other' };
 export const INTENSITY_LABEL = { 1: 'Easy', 2: 'Hard', 3: 'Max' } as const;
 export const activityIcon = (k: ActivityKind) => (k === 'wrestling' ? 'wrestle' : 'run');
+/** A walk the watch picked up by itself (auto-detected, no note): counted in the steps, not listed as a workout. One logged by
+ *  hand, or with a note, is still listed. */
+export const watchWalk = (a: Pick<ActivityLog, 'source' | 'kind' | 'note'>) => a.source === 'watch' && a.kind === 'walk' && !a.note;
 
 /** "60 min · 6 rounds · Hard" — the facts of one activity, translated. */
 export function activityLine(a: ActivityLog, t: (k: string) => string, lang: Lang, distanceUnit: 'km' | 'mi'): string {

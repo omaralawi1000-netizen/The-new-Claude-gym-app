@@ -119,3 +119,16 @@ describe('everything else the watch measures (19 Oct)', () => {
     expect(mergeHc({ ...payload([]), hd: [{ date: '2026-10-18', sleepMin: 420, hrv: 60 }] }, again, 0).health).toEqual(again.health); // idempotent
   });
 });
+
+describe('the watch\'s own walks (Omar, 19 Oct: History was full of them)', () => {
+  it('a walk the watch picked up is kept but not listed; one logged by hand, with a note, or any other kind is', async () => {
+    const { watchWalk } = await import('../src/lib/activity');
+    const walk = { id: 'hc-w', t: 'walk', s: now - 2 * H, e: now - 2 * H + 33 * 60000, hr: 103, m: 2810 };
+    const r = mergeHc(payload([walk, stairs]), { activities: [], steps: [] }, 0);
+    expect(r.activities.map((a) => a.kind).sort()).toEqual(['stairs', 'walk']); // nothing thrown away
+    expect(r.activities.filter((a) => !watchWalk(a)).map((a) => a.kind)).toEqual(['stairs']);
+    expect(watchWalk({ kind: 'walk' })).toBe(false); // logged by hand
+    expect(watchWalk({ kind: 'walk', source: 'watch', note: 'with Ali to the gym' })).toBe(false);
+    expect(watchWalk({ kind: 'run', source: 'watch' })).toBe(false);
+  });
+});

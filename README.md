@@ -2753,6 +2753,9 @@ Omar: the Coach should feel like talking to a person who knows him and all his d
   before they existed; sleep stages are added up in seconds (whole minutes per stage lost up to ~25 min a night) and a
   night written by two apps is counted once.
 - **Recovery:** "usual" needs 3 days; a sleep time can no longer show as "6h60".
+- **The watch's own walks** (auto-detected, no note) are kept and counted in the steps, but not listed in Train → History or
+  counted as cardio on Today: with two years of history they buried the workouts (Omar, 19 Oct). A walk logged by hand,
+  or with a note, is still listed.
 - Not changed (reasoned in the PR): the 160k cap (real payloads are ~45k), two same-kind sessions on one day merging into
   the watch's, storage growth (~0.5 MB for two years), the history pointer moving on before the page has the data.
 
