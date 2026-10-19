@@ -1469,7 +1469,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .coach-send .cs-stop, .coach-send.busy .cs-go { opacity: 0; transform: scale(0.6); }
 .coach-send.busy .cs-go { transform: scale(0.6); }
 .coach-send.busy .cs-stop { opacity: 1; transform: none; }
-.coach-send.queued .cs-go { opacity: .45; } /* (typed while it answers: waits, quieter, and goes when the answer is done) */
+.coach-send.on.queued { opacity: .5; } /* (typed while it answers, or said words waiting: the whole button waits, quieter, and goes when the answer is done; only its arrow dimmed, the orange disc still read as ready, judge 19 Oct) */
 .coach-err-acts { flex-wrap: wrap; }
 /* it rises in like the other rows (never just there), and fades as it folds away */
 .coach-err { animation: acSettle 560ms var(--ease-smooth) both; transition: opacity 300ms var(--ease-smooth); }

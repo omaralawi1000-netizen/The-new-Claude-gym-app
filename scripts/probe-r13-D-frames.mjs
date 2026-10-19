@@ -65,7 +65,7 @@ await p.evaluate(() => {
     const rows = document.querySelectorAll('.coach-thread > [data-mid]'); const last = rows[rows.length - 1];
     if (last) { const r = last.getBoundingClientRect(); row.last = { id: last.dataset.mid, y: r1(r.top), b: r1(r.bottom), n: rows.length, vis: getComputedStyle(last.querySelector('.said') || last).visibility }; }
     const ty = [...document.querySelectorAll('.coach-thread .typing')].pop(); if (ty) row.dotI = [...ty.children].map((i) => +parseFloat(getComputedStyle(i).opacity).toFixed(2)).join('/') + (ty.classList.contains('typing-out') ? ' out' : '');
-    row.kb = document.querySelector('.sheet.sz-full')?.style.getPropertyValue('--kb-room') || '';
+    row.kb = document.querySelector('.sheet.sz-full')?.dataset.kbRoom || '';
     window.__log.push(row);
     requestAnimationFrame(loop);
   };

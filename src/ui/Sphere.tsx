@@ -168,7 +168,12 @@ const gaveUp = new WeakSet<HTMLElement>();
  *  the sheet is still on screen, so riding with it let go of the orb in one frame (a 174 px leap to the dock, then a step
  *  back, 19 Oct). It glides straight home instead, from where it was as the sheet began to leave, on the sheet's progress.
  *  `null`: an ordinary close (it rides with its slot as before). */
-const leaveFrom = new WeakMap<HTMLElement, { k: number; P: { X: number; Y: number; S: number } } | null>();
+interface LeaveFrom { k: number; P: { X: number; Y: number; S: number }; py?: number; pt?: number; land?: { t0: number; y0: number; v0: number; W: number; k: number } }
+const leaveFrom = new WeakMap<HTMLElement, LeaveFrom | null>();
+// a closing sheet opened again on its way down: the orb goes on from where it is drawn (it used to blend toward the button,
+// still far below, and dived under the dock, then jumped back; judge 19 Oct)
+const turnFrom = new Map<string, { k: number; P: { X: number; Y: number; S: number } }>(), wasLeaving = new Set<string>(); // (by the slot's id: the reopened sheet's slot is a new element)
+const LAND = 160; // px: how far above the dock line the orb lets go of its falling button and eases onto the line
 function claim(el: HTMLElement) {
   if (handoff?.el === el || !Number.isFinite(orbNow.X)) return;
   for (const s of slots.values()) {
@@ -549,14 +554,38 @@ export function SphereStage() {
         // A sliding popup's slot (a sheet, the live workout): the orb heads for where the slot comes to REST, on the very
         // same progress as the popup. Both start together and land together, so the orb never trails the sheet or crosses its
         // buttons on the way; while the popup is opening it is simply a shared element flying to its place.
-        if (!leaving) leaveFrom.delete(sl.el);
-        else if (!leaveFrom.has(sl.el)) leaveFrom.set(sl.el, kb.get() > 1 && Number.isFinite(orbNow.X) ? { k: Math.max(0.001, e), P: { ...orbNow } } : null);
+        if (!leaving) {
+          if (wasLeaving.delete(sl.id) && e < 0.98 && Number.isFinite(orbNow.X)) turnFrom.set(sl.id, { k: e, P: { ...orbNow } });
+          leaveFrom.delete(sl.el);
+        } else { wasLeaving.add(sl.id); turnFrom.delete(sl.id); if (!leaveFrom.has(sl.el)) leaveFrom.set(sl.el, kb.get() > 1 && Number.isFinite(orbNow.X) ? { k: Math.max(0.001, e), P: { ...orbNow } } : null); }
         const lf = leaving ? leaveFrom.get(sl.el) : null;
-        if (lf) {
-          // it rides its button (on the bar, never over the words) and is handed home on the sheet's own progress; the
-          // button falling past the dock line no longer lets go of it at once (and it never goes below the dock)
-          const f = Math.min(1, e / lf.k), ry = softmin(y, Y, PICK); // (soft: it eases onto the dock line instead of stopping dead on it)
-          X += (x - X) * f; Y += (ry - Y) * f; S += (z - S) * f; flight = f;
+        const tf = leaving ? undefined : turnFrom.get(sl.id);
+        if (tf && e >= 0.999) turnFrom.delete(sl.id);
+        if (tf) {
+          // straight on from where it was to its button, on the rest of the sheet's progress, never below the dock line
+          const u = Math.min(1, Math.max(0, (e - tf.k) / Math.max(0.001, 1 - tf.k)));
+          const ty = tf.P.Y + (y - tf.P.Y) * u;
+          X = tf.P.X + (x - tf.P.X) * u; Y = Math.min(ty, Math.max(tf.P.Y, Y)); S = tf.P.S + (z - tf.P.S) * u; flight = u;
+        } else if (lf) {
+          // it rides its button exactly (on the bar, never over the words) until the button passes LAND px above the dock line.
+          // There it lets go at the button's own speed and settles onto the line on a critically damped spring (stiff enough
+          // never to overshoot below it), and moves across home on the rest of the sheet's progress, from rest, landing
+          // exactly as the sheet does (it used to blend toward the dock from the first frame, off its seat, and stopped dead
+          // on the line, judge 19 Oct)
+          const line = Y - LAND;
+          if (!lf.land && y > line && lf.py !== undefined && lf.pt !== undefined) {
+            const v0 = Math.max(0, ((y - lf.py) / Math.max(1, now - lf.pt)) * 1000);
+            lf.land = { t0: lf.pt, y0: lf.py, v0, W: Math.max(18, (1.2 * v0) / Math.max(1, Y - lf.py)), k: Math.max(0.001, e) };
+          }
+          let ry = y, wx = 1;
+          if (lf.land) {
+            const { t0, y0, v0, W, k } = lf.land, t = Math.max(0, now - t0) / 1000, x0 = y0 - Y;
+            ry = Math.min(Y, Y + (x0 + (v0 + W * x0) * t) * Math.exp(-W * t));
+            wx = smooth01(e / k);
+          } else if (y > line) { ry = line; lf.py = line; lf.pt = now; } // (no speed yet: the first frame already past the line)
+          else { lf.py = y; lf.pt = now; }
+          const f = smooth01(e / lf.k / 0.3);
+          X += (x - X) * wx; Y += (ry - Y) * f; S += (z - S) * wx; flight = wx;
         } else if (sl.engage?.shift) {
           const restY = y - sl.engage.shift.get();
           const c = carry({ X, Y, S }, x, y, z, restY, e);

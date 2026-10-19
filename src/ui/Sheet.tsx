@@ -598,7 +598,7 @@ function SheetFoot({ children, rise }: { children: ReactNode; rise: MotionValue<
     const set = () => { const h = Math.round(el.offsetHeight); if (h !== last) { last = h; put(); } };
     set();
     const ro = new ResizeObserver(set); ro.observe(el);
-    const mo = new MutationObserver((recs) => { if (recs.some((r) => [...r.addedNodes].some((n) => n instanceof HTMLElement && (n.matches('.sheet-body') || !!n.querySelector('.sheet-body'))))) put(); }); mo.observe(host, { childList: true, subtree: true }); // (a list put in later gets it too)
+    const mo = new MutationObserver((recs) => { if (recs.some((r) => [...r.addedNodes].some((n) => n instanceof HTMLElement && (n.matches('.sheet-body') || !!n.querySelector('.sheet-body'))))) { put(); const k = host.closest<HTMLElement>('[data-kb-room]'); if (k) setKbRoom(k, Number(k.dataset.kbRoom)); } }); mo.observe(host, { childList: true, subtree: true }); // (a list put in later gets it too, and the keyboard's room if it is up)
     return () => { ro.disconnect(); mo.disconnect(); bodies().forEach((b) => b.style.removeProperty('--foot-h')); };
   }, []);
   return <motion.div className="sheet-foot" ref={ref} style={{ transform: lift }}>{children}</motion.div>;

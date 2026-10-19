@@ -357,7 +357,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
         let d = rowTop(row, el) - top; const f = d - Math.round(d);
         const thread = row.parentElement;
         if (thread && Math.abs(f) > 0.002) {
-          shim.current = (((shim.current - f) % 1) + 1) % 1;
+          shim.current = ((Math.round((shim.current - f) * 64) % 64) + 64) % 64 / 64; // (in layout's own 1/64 px steps)
           thread.style.paddingTop = shim.current > 0.002 ? `${shim.current.toFixed(4)}px` : '';
           d = rowTop(row, el) - top;
         }
