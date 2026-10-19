@@ -41,11 +41,9 @@ function useStep() {
 /** While the photo is read (Siri-style): a wave of light climbs the frozen photo and the objects it passes light up (a brighter copy of the photo shown
  *  through a soft band, aligned 1:1 by moving the band up and the copy down by the same amount). Only transform and opacity move; the root never fades
  *  (a fading ancestor would drop the frost of the words capsule), the film and lights fade as one layer and the capsule fades by itself. */
-const scanLook = () => (typeof localStorage !== 'undefined' && localStorage.getItem('aven.scan')) || 'A';
-function Scan({ src }: { src: string }) {
+function Scan({ src, v }: { src: string; v: 'A' | 'B' | 'C' }) {
   const t = useT();
   const i = useStep();
-  const v = scanLook();
   const dots = v === 'B' || v === 'C';
   const present = useIsPresent();
   const fade = { initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 }, transition: { duration: 0.45 } };
@@ -79,7 +77,8 @@ export function PhotoFood({ props }: { props: { date: string; mealId: string; fi
   const meals = useStore((s) => s.settings.meals);
   const [img, setImg] = useState<{ url: string; blob: Blob } | null>(null);
   const [busy, setBusy] = useState(false);
-  const depth = scanLook() === 'C';
+  const look = useStore((s) => s.settings.scanLook) ?? 'C';
+  const depth = look === 'C';
   const [err, setErr] = useState<string | null>(null);
   const [items, setItems] = useState<Item[]>([]);
   const [assume, setAssume] = useState('');
@@ -161,7 +160,7 @@ export function PhotoFood({ props }: { props: { date: string; mealId: string; fi
                   <span className="small t2">{t('Take a photo')}</span>
                 </button>
               )}
-              <AnimatePresence>{busy && img && <Scan key="scan" src={img.url} />}</AnimatePresence>
+              <AnimatePresence>{busy && img && <Scan key="scan" src={img.url} v={look} />}</AnimatePresence>
             </motion.div>
             </motion.div>
             <div className="row-flex" style={{ gap: 8, marginTop: 12 }}>
