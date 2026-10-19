@@ -107,6 +107,14 @@ const BG_NAMES: Record<BgKind, string> = { classic: 'Classic', orb: 'Orb light',
 /** A sideways row of look tiles that fades out on the side that has more, instead of being cut by the sheet edge. */
 function PalRow({ label, children }: { label: string; children: React.ReactNode }) {
   const ref = useEdgeFade<HTMLDivElement>();
+  // opens with the chosen tile in view (Golden hour sat off to the right, so the page opened without showing your pick)
+  useLayoutEffect(() => {
+    const el = ref.current, on = el?.querySelector<HTMLElement>('[aria-checked="true"]');
+    if (!el || !on) return;
+    const a = el.getBoundingClientRect(), r = on.getBoundingClientRect();
+    if (r.left >= a.left && r.right <= a.right) return;
+    el.scrollLeft = Math.max(0, Math.round(el.scrollLeft + r.left - a.left - (a.width - r.width) / 2));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   return <div ref={ref} className="pal fade-x" role="radiogroup" aria-label={label}>{children}</div>;
 }
 
