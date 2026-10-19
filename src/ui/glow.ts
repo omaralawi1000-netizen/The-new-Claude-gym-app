@@ -10,10 +10,11 @@ import { grainTile } from '../lib/grain';
  *
  * Pictures are painted ahead, in a worker, while the page is idle: the other tabs' fields (Glows.tsx prewarm) and every
  * glow on screen in the other theme (warmTwins, below), so a tab or theme switch only writes a finished picture into its
- * canvas. Where none is ready (the first moments after launch, a new palette, a new size) the CSS shows until the worker
- * has painted it: never painted on the page (a whole field painted there froze it for up to a second). The canvas gets its
- * size in the same frame its element first shows, so it is a layer from its first frame to its last, never added or
- * dropped later (a tab's field shows its plain colour until then, and its picture fades in over it). If the graphics chip loses the canvas, the CSS shows until it is drawn again.
+ * canvas. Where none is ready (the first moments after launch, a new palette, a new size) the worker paints it before
+ * anything else it has to do: never painted on the page (a whole field painted there froze it for up to a second). Until
+ * then the CSS shows, and a tab's field's picture fades in over it. The
+ * canvas gets its size in the same frame its element first shows, so it is a layer from its first frame to its last, never
+ * added or dropped later. If the graphics chip loses the canvas, or the worker can't paint, the CSS shows instead.
  */
 /** a colour stop: straight colour 0-255 and alpha 0-1, at `p` along the gradient's line (0-1, may reach past either end) */
 export interface GlowStop { c: [number, number, number, number]; p: number }
@@ -36,6 +37,22 @@ export interface GlowJob { w: number; h: number; base: [number, number, number] 
 let worker: Worker | null = null, broken = false, seq = 0;
 type Reply = { id: number; px?: ImageData | null; blob?: Blob | null };
 const waiting = new Map<number, (r: Reply) => void>();
+/** How soon a job is wanted: `now` set (also later, while it waits) for a picture a field on screen is waiting for */
+type Haste = { now: boolean };
+/** The worker's jobs, handed over one at a time, so a picture a field on screen waits for goes before the ones painted on
+ * the chance they're needed (the other theme, the other tabs, the glows drawn as image files): queued behind those, a tab
+ * tapped right after launch waited 1.3 s for its picture */
+const queue: { id: number; msg: unknown; send: Transferable[]; haste: Haste }[] = [];
+let busy = 0;
+function pump() {
+  if (busy || !queue.length || !worker) return;
+  const i = Math.max(0, queue.findIndex((q) => q.haste.now));
+  const [q] = queue.splice(i, 1);
+  busy = q.id; worker.postMessage(q.msg, q.send);
+}
+function post(id: number, msg: unknown, send: Transferable[], haste: Haste, done: (r: Reply) => void) {
+  waiting.set(id, done); queue.push({ id, msg, send, haste }); pump();
+}
 
 export const glowCanvasOk = () => !broken && typeof Worker !== 'undefined' && typeof OffscreenCanvas !== 'undefined' && typeof createImageBitmap !== 'undefined';
 
@@ -43,28 +60,37 @@ function glowWorker(): Worker | null {
   if (!worker && !broken) {
     try {
       worker = new Worker(new URL('./glow.worker.ts', import.meta.url), { type: 'module' });
-      worker.onmessage = (e: MessageEvent<Reply>) => { waiting.get(e.data.id)?.(e.data); waiting.delete(e.data.id); };
-      worker.onerror = () => { broken = true; for (const [id, f] of waiting) f({ id }); waiting.clear(); };
+      worker.onmessage = (e: MessageEvent<Reply>) => { if (e.data.id === busy) busy = 0; waiting.get(e.data.id)?.(e.data); waiting.delete(e.data.id); pump(); };
+      worker.onerror = () => { broken = true; queue.length = 0; busy = 0; for (const [id, f] of waiting) f({ id }); waiting.clear(); };
     } catch { broken = true; }
   }
   return worker;
 }
 
-function paint(job: GlowJob): Promise<ImageData | null> {
+function paint(job: GlowJob, haste: Haste = { now: false }): Promise<ImageData | null> {
   const w = glowWorker(); if (!w) return Promise.resolve(null);
   const id = ++seq;
   // (checks only: window.__glowSim draws the pictures without the dither, as the phone drew the CSS)
   if ((window as { __glowSim?: boolean }).__glowSim) job = { ...job, sim: true };
   job = withGrain(job);
   const imgs = [...job.srcs, ...(job.top ?? [])].flatMap((s) => (s.img ? [s.img.bm] : []));
-  return new Promise((res) => { waiting.set(id, (r) => res(r.px ?? null)); w.postMessage({ id, job }, imgs); });
+  return new Promise((res) => post(id, { id, job }, imgs, haste, (r) => res(r.px ?? null)));
 }
 
-/** A picture as a PNG file, made in the worker (made on the page, the dock's shadow and the glows drawn as background
- * images held the page up for 0.6-1.3 s after launch). Its pixels go to the worker: `d` can't be used after */
+/** A picture as a PNG file, made in a worker of its own (made on the page, the dock's shadow and the glows drawn as
+ * background images held the page up for 0.6-1.3 s after launch; made in the painting worker, one took it 1.3 s, and a
+ * field waiting for its picture waited for that too). Its pixels go to the worker: `d` can't be used after */
+let pngWorker: Worker | null = null;
 export function encodePng(d: ImageData): Promise<Blob | null> {
-  const w = glowWorker(); if (!w) return Promise.resolve(null);
-  const id = ++seq;
+  if (!glowWorker()) return Promise.resolve(null);
+  try {
+    if (!pngWorker) {
+      pngWorker = new Worker(new URL('./glow.worker.ts', import.meta.url), { type: 'module' });
+      pngWorker.onmessage = (e: MessageEvent<Reply>) => { waiting.get(e.data.id)?.(e.data); waiting.delete(e.data.id); };
+      pngWorker.onerror = () => { pngWorker = null; };
+    }
+  } catch { return Promise.resolve(null); }
+  const id = ++seq, w = pngWorker;
   return new Promise((res) => { waiting.set(id, (r) => res(r.blob ?? null)); w.postMessage({ id, png: d }, [d.data.buffer]); });
 }
 
@@ -85,6 +111,8 @@ const kept = new Map<string, ImageData[]>();
 /** image files by plan: their address and size (an address still shown on screen is never let go) */
 const files = new Map<string, { url: string; bytes: number }>();
 const shownUrls = new Map<string, number>();
+/** a waiting field's picture fading in over its CSS (styles.css .glow-field transition) */
+const FADE_MS = 1200;
 const KEEP_BYTES = 64 << 20; // (Sunrise's on-screen glows and both themes take ~42 MB: at 48 the other tabs' fields were let go)
 const sizeOf = (v: ImageData[]) => v.reduce((n, b) => n + b.width * b.height * 4, 0);
 const keptBytes = () => {
@@ -142,19 +170,24 @@ export const planKey = (jobs: GlowJob[], extra = '') => JSON.stringify(jobs, (k,
 
 /** Paints a plan's pictures in the worker (once; later calls with the same key get the same pictures) */
 const painting = new Map<string, Promise<ImageData[] | null>>();
-/** `maybe`: painted on the chance it's needed (see `ahead`) */
-export function paintPlan(plan: GlowPlan, maybe = false): Promise<ImageData[] | null> {
+const hastes = new Map<string, Haste>();
+/** `maybe`: painted on the chance it's needed (see `ahead`); `now`: a glow on screen is waiting for it (painted first, even
+ * if it was already waiting its turn) */
+export function paintPlan(plan: GlowPlan, maybe = false, now = false): Promise<ImageData[] | null> {
   const hit = recall(plan.key, !maybe); if (hit) return Promise.resolve(hit);
   let p = painting.get(plan.key);
-  if (!p) {
+  if (p) { if (now) hastes.get(plan.key)!.now = true; return p; }
+  {
+    const haste: Haste = { now };
+    hastes.set(plan.key, haste);
     p = (async () => {
       const jobs = plan.load ? await plan.load() : plan.jobs;
       if (!jobs) return null;
-      const pics = await Promise.all(jobs.map(paint));
+      const pics = await Promise.all(jobs.map((j) => paint(j, haste)));
       if (pics.some((b) => !b)) return null;
       keep(plan.key, pics as ImageData[], maybe);
       return pics as ImageData[];
-    })().catch(() => null).finally(() => painting.delete(plan.key));
+    })().catch(() => null).finally(() => { painting.delete(plan.key); hastes.delete(plan.key); });
     painting.set(plan.key, p);
   }
   return p;
@@ -354,9 +387,15 @@ export function useGlowCanvases(host: () => HTMLElement | null, refs: RefObject<
         if (sp?.cvs[i]) g.drawImage(sp.cvs[i], 0, 0); else g.putImageData(pics[i], 0, 0);
         drawn.add(cv);
       });
-      const left = real;
+      const left = real; pending = '';
       show(plan.key);
-      shown(true); el.removeAttribute('data-wait');
+      // (a tab's field that was waiting: its picture fades in over its CSS, which goes once the picture covers it)
+      clearTimeout(fading);
+      if (el.hasAttribute('data-wait') && refs[0]?.current?.classList.contains('glow-field')) {
+        el.removeAttribute('data-wait'); el.setAttribute('data-fade', '');
+        const k = plan.key;
+        fading = window.setTimeout(() => { if (alive && real === k) { el.removeAttribute('data-fade'); shown(true); } }, FADE_MS + 50);
+      } else { el.removeAttribute('data-wait'); el.removeAttribute('data-fade'); shown(true); }
       // (the picture just left is written into the spare, for a switch back)
       if (left && left !== real) { const k = left; unIdle(prepping); prepping = whenIdle(() => prep(k), 3000); }
     };
@@ -391,6 +430,7 @@ export function useGlowCanvases(host: () => HTMLElement | null, refs: RefObject<
     /** `known`: a theme (or palette…) change: the plan for the new state is looked up (painted ahead), and checked against
      * the page once it is idle. A glow that comes and goes looks its plan up when it comes, too (checked a little later,
      * once the switch that brought it has played). `read`: read from the page */
+    let softly = false, stuck = 0, pending = '', fading = 0;
     const now = (known: boolean, read = false) => {
       if (!alive || lost) return;
       const st = state(), sk = shared();
@@ -408,27 +448,36 @@ export function useGlowCanvases(host: () => HTMLElement | null, refs: RefObject<
       const pics = recall(p.key);
       stats[pics ? 'hit' : 'later']++;
       if (pics) { put(p, pics); return; }
-      // (not painted ahead, e.g. a tab tapped right after launch: the CSS shows, not the picture before, until the worker
-      // has painted it. Never painted here: a whole field painted on the page froze it for 0.5-1.3 s)
+      // (not painted ahead, e.g. a tab tapped right after launch: painted by the worker before anything else it has to do.
+      // Never painted here: a whole field painted on the page froze it for 0.5-1.3 s)
+      // (the canvas is there all the same, sized and see-through: its layer is there from the glow's first frame to its
+      // last, as when the picture is ready, never added part-way through a launch or a tab's cross-fade. A tab's field shows
+      // its CSS meanwhile, under the canvas, and the picture fades in over it when it comes (styles.css [data-wait],
+      // [data-fade]): never dark first, and nothing lies over the canvas that would need a layer of its own. After a change
+      // of palette, glow or motion the picture before fades out instead of going at once ('soft'); after a theme change it
+      // goes at once, so the switch's snapshot never holds the old theme)
+      if (pending === p.key) return; // (already waiting for it: the same commit asked again)
+      const soft = softly && !!real && p.jobs.every((job, i) => refs[i]?.current?.width === job.w && refs[i]?.current?.height === job.h);
       show(''); shown(false, true);
-      // (the canvas is there all the same, sized and filled with the field's own plain colour: its layer is there from the
-      // glow's first frame to its last, as when the picture is ready, never added part-way through a launch or a tab's
-      // cross-fade. A tab's field shows that plain colour, not its CSS, and its picture fades in over it when it comes:
-      // styles.css [data-wait]; so the CSS never shows its bands, and nothing over the canvas needs a layer of its own)
-      p.jobs.forEach((job, i) => {
+      if (!soft) p.jobs.forEach((job, i) => {
         const cv = refs[i]?.current; if (!cv) return;
         if (cv.width !== job.w || cv.height !== job.h) { cv.width = job.w; cv.height = job.h; }
         const g = cv.getContext('2d', { alpha: !job.base }) as CanvasRenderingContext2D | null; if (!g) return;
         if (job.base) { g.fillStyle = `rgb(${job.base.join(' ')})`; g.fillRect(0, 0, job.w, job.h); } else g.clearRect(0, 0, job.w, job.h);
       });
-      el.toggleAttribute('data-wait', true);
-      const q = p;
-      void paintPlan(q).then((got) => { if (alive && !lost && got && want === q.key) put(q, got); });
+      clearTimeout(fading); el.removeAttribute('data-fade'); el.setAttribute('data-wait', soft ? 'soft' : '');
+      const q = p; pending = q.key;
+      // (if the worker can't paint it, the CSS after all)
+      const fail = () => { if (pending === q.key) pending = ''; if (alive && !lost && want === q.key && !real && el.hasAttribute('data-wait')) { el.removeAttribute('data-wait'); shown(false); } };
+      clearTimeout(stuck); stuck = window.setTimeout(fail, 6000);
+      void paintPlan(q, false, true).then((got) => { if (alive && !lost && got && want === q.key) { clearTimeout(stuck); put(q, got); } else if (!got) fail(); });
     };
-    now(false);
+    // (first once the page's root has its theme, palette… for this commit: they are set after the glows mount, and a
+    // picture painted for the state before was thrown away, 0.4 s of the worker's time right at launch)
+    queueMicrotask(() => now(false));
     const ro = new ResizeObserver(() => { const s2 = `${el.clientWidth}x${el.clientHeight}`; if (s2 !== size) { size = s2; now(false); scheduleTwins(); } }); ro.observe(el);
     // (a microtask after the change, before the next frame: a theme switch's snapshot already holds the new picture)
-    const mo = new MutationObserver(() => { now(true); scheduleTwins(); });
+    const mo = new MutationObserver((recs) => { softly = recs.every((r) => r.attributeName !== 'data-theme'); now(true); softly = false; scheduleTwins(); });
     mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-palette', 'data-glow', 'data-motion'] });
     const untwin = addTwin({ el: host, whole, warm: (copy, rk) => {
       const p = plan(copy); if (!p) return;
@@ -437,14 +486,14 @@ export function useGlowCanvases(host: () => HTMLElement | null, refs: RefObject<
       void paintPlan(p).then((got) => { if (got && onScreen) { unIdle(prepping); prepping = whenIdle(() => prep(p.key), 3000); } });
     } });
     // the graphics chip lost the canvas (a GPU reset): the CSS shows until it is back, then it is drawn again
-    const onLost = () => { lost = true; show(''); shown(false); dropSpare(); el.removeAttribute('data-wait'); }; // (not cancelled: that would stop the restore)
-    const onBack = () => { lost = false; show(''); now(false); };
+    const onLost = () => { lost = true; pending = ''; clearTimeout(fading); show(''); shown(false); dropSpare(); el.removeAttribute('data-wait'); el.removeAttribute('data-fade'); }; // (not cancelled: that would stop the restore)
+    const onBack = () => { lost = false; pending = ''; show(''); now(false); };
     const check = () => { if (document.hidden) dropSpare(); if (!document.hidden && [...drawn].some((c) => (c.getContext('2d') as CanvasRenderingContext2D | null)?.isContextLost?.())) onLost(); };
     const cvs = refs.map((r) => r.current).filter((c): c is HTMLCanvasElement => !!c);
     for (const c of cvs) { c.addEventListener('contextlost', onLost); c.addEventListener('contextrestored', onBack); }
     document.addEventListener('visibilitychange', check);
     return () => {
-      alive = false; show(''); ro.disconnect(); mo.disconnect(); io.disconnect(); untwin(); unIdle(verify); unIdle(defer); clearTimeout(late); unIdle(prepping); dropSpare();
+      alive = false; show(''); ro.disconnect(); mo.disconnect(); io.disconnect(); untwin(); unIdle(verify); unIdle(defer); clearTimeout(late); unIdle(prepping); dropSpare(); clearTimeout(stuck); clearTimeout(fading);
       for (const c of cvs) { c.removeEventListener('contextlost', onLost); c.removeEventListener('contextrestored', onBack); }
       document.removeEventListener('visibilitychange', check);
     };

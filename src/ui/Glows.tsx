@@ -62,8 +62,8 @@ export function FieldGlow({ kind }: { kind: BgKind }) {
   const host = () => cv.current?.parentElement ?? null;
   useGlowCanvases(host, [cv], (el) => describeField(el, kind), (on, wait) => {
     const el = host(); if (!el) return;
-    // (while its picture is painted the field shows its plain colour, and what the picture will carry already goes: the
-    // grain, the top tint; so nothing more goes when it fades in)
+    // (while its picture is painted, and as it fades in over the CSS, what the picture will carry already goes: the grain,
+    // the top tint; over the canvas they'd need layers of their own, gone again when it came)
     const still = (on || !!wait) && !el.querySelector(MOVING);
     el.toggleAttribute('data-dith', on); el.toggleAttribute('data-still', still);
     // (read once the page is idle, never in the middle of a switch: there it made the browser work the page's styles out

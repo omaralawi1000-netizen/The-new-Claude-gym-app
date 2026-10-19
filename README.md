@@ -1900,13 +1900,17 @@ the workout window: the phone draws CSS gradients and blur output in whole 8-bit
   field moves under it.
 - Cost against Glow round 2 (software GPU, his screen; `chip` = all graphics memory counted once): equal or less
   everywhere, e.g. Today 50.8 → 47.3 MB, workout 54.4 → 48.1 MB, Train 57.0 → 45.2 MB, sheet open 69.8 → 62.6 MB.
-  Page memory is about 30 MB higher (the kept pictures, capped at 48 MB).
+  Page memory is about 30 MB higher (the kept pictures, capped at 64 MB since round 3).
 - Round 3 after the judge (same day):
   - No quick picture any more: one painter (`src/ui/glowPaint.ts`), in the worker only (painting a whole field on the
     page, and making the background-image glows' and the dock shadow's PNG files there, froze the page for 0.5-1.3 s in
     the first seconds after launch: files are now made in the worker too, `encodePng`). The other tabs' fields are
-    painted ahead 0.6 s after launch; a tab tapped before that shows the CSS field until its picture is ready (a few
-    hundred ms, while it fades in). The mid-switch frame shows the final dithered picture.
+    painted ahead 0.6 s after launch; a tab tapped before that shows its CSS field until its picture is ready (painted
+    before anything else the worker has queued), and the picture then fades in over it (1.2 s, eased in and out). The
+    canvas is there, see-through, from the field's first frame, so no layer is added later. (Showing the plain colour
+    while waiting, tried first, made the field go dark and then light up.) After a palette,
+    glow or motion change the picture before fades out (0.6 s) instead of going at once. The mid-switch frame shows the
+    final dithered picture.
   - Theme switch: the other theme's pictures are painted ahead while idle, read from a hidden twin frame (the page's own
     styles with the other theme on its root), so a switch only looks each glow's plan up by state and draws it. Reading
     styles during the switch (the old way) made the browser redo the whole page's styles for each glow; so is anything
@@ -1923,8 +1927,9 @@ the workout window: the phone draws CSS gradients and blur output in whole 8-bit
     lab's CSS render, which itself varies by palette). Flat areas get no dither.
   - Dark orb screen veil: its tint is a dithered tile, so its colour lands within 0.15 of a step of the old look.
   - Light dock: its big outer shadow is a dithered picture (`src/ui/dockShadow.ts`) instead of a `box-shadow` blur.
-  - Kept pictures: 48 MB cap (oldest first; the other tabs' fields painted ahead go first, so a switch back never has to
-    paint on the page), all let go when the app goes to the background.
+  - Kept pictures: 64 MB cap (oldest first; the other tabs' fields painted ahead go first). In the background only the
+    pictures in a canvas and the other tabs' fields stay (about 14 MB more page memory there), so a tab tapped after
+    unlocking finds its picture; the rest is let go and painted ahead again on return.
   - Tools: `scripts/theme-switch-cost.mjs`, `scripts/tab-switch-trace.mjs`, `scripts/glow-midswitch.mjs`,
     `scripts/glow-gpu-reset.mjs`.
 - Tools: `scripts/banding-fields.mjs`, `scripts/perf-gpu.mjs`, `scripts/glow-layers.mjs`, `scripts/glow-theme-sync.mjs`.

@@ -2337,17 +2337,23 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    and, when nothing in the field moves, the grain and (where the field itself holds still, not Classic's sway) the status
    bar's colour fading in at the top (.fields-top, data-top): so the
    field is still ONE standing layer (the picture), with nothing laid over it that would need a layer of its own, and a
-   tab switch still only cross-fades two of them. Until a picture is ready (or where one can't be made) the CSS shows. */
-.glow-field { z-index: -1; }
+   tab switch still only cross-fades two of them. Until a picture is ready (or where one can't be made) the CSS shows,
+   the picture fading in over it (below). */
+/* (the canvas lies over the field's CSS, under its grain and the parts that move: so the picture can fade in over the CSS
+   with nothing over it needing a layer of its own) */
+.glow-field { z-index: 1; }
+.fields > .bgx > .bg-sun, .fields > .bgx > .bg-orb-all { z-index: 2; }
 .fields > [data-dith] > .glow-field { visibility: visible; }
-/* Until its picture comes (right after launch, a tab tapped before it was painted ahead), the field shows its plain colour,
-   not its CSS (which the phone draws in bands), and the picture fades in over it, slowly, when the worker has painted it.
-   The canvas is there all along, only see-through, so its layer is there from the field's first frame (never added in the
-   middle of a launch or a tab's cross-fade), and nothing in the field lies over it to need a layer of its own (the CSS
-   lights did, and went again when the picture came). Only opacity moves. */
-.fields > * > .glow-field { transition: opacity 0.9s var(--ease-out, ease-out); }
+/* Until its picture comes (right after launch, a tab tapped before it was painted ahead), the field shows its CSS under
+   the see-through canvas, and the picture fades in over it, slowly (1.2 s, eased in and out), when the worker has painted
+   it (first, before anything else it has to do); the CSS goes once the picture covers it. The canvas is there all along,
+   so its layer is there from the field's first frame (never added in the middle of a launch or a tab's cross-fade). The
+   grain goes while it waits where the picture will carry it: over the canvas it would need a layer. Only opacity moves. */
+.fields > * > .glow-field { transition: opacity 1.2s var(--ease-io); }
 .fields > [data-wait] > .glow-field { visibility: visible; opacity: 0; transition: none; }
-.fields > [data-wait] [data-bake], .fields > .aurora[data-wait] > i { visibility: hidden; }
+.fields > [data-fade] > .glow-field { visibility: visible; }
+/* (after a change of palette, glow or motion the picture before fades out, not cut: glow.ts 'soft') */
+.fields > [data-wait='soft'] > .glow-field { transition: opacity 0.6s var(--ease-io); }
 .fields > [data-dith] [data-bake], .fields > .aurora[data-dith] > i { visibility: hidden; }
 /* (the field keeps its own plain colour under the picture: a layer of one colour costs the chip nothing, and a field that
    drew nothing of its own was given content for the length of a theme switch and lost it again after) */
