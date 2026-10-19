@@ -4,7 +4,8 @@
  * key this is just Gemini, exactly as before.
  */
 import { AiError, aiEstimateFood, aiEstimatePhoto, geminiJson, type Brain } from './gemini';
-import { solEstimateFood, solEstimatePhoto, solJson } from './openai';
+import { quickFor, solEstimateFood, solEstimatePhoto, solJson } from './openai';
+import { useAi } from '../state/ai';
 import type { FoodEstimate } from './aiValidate';
 
 /** Sol first, Gemini second. `fellBack` is the Sol error that made Gemini answer (null when Sol answered). */
@@ -17,8 +18,13 @@ export async function solThenGemini<T>(brain: Brain, sol: (s: NonNullable<Brain[
   }
 }
 
+/** A food's numbers from a description: the quick model, thinking little (it knows foods well; the exam, 19 Oct). */
 export async function estimateFood(description: string, brain: Brain, lang: string): Promise<FoodEstimate> {
-  return (await solThenGemini(brain, (s) => solEstimateFood(description, { ...s, signal: brain.signal }, lang), () => aiEstimateFood(description, brain, lang))).value;
+  return (await solThenGemini(brain, (s) => {
+    const quick = quickFor();
+    return solEstimateFood(description, { ...s, signal: brain.signal, effort: 'low', model: quick }, lang)
+      .catch((e) => { if (quick && e?.code === 'nomodel') { useAi.getState().patch({ noQuick: true }); return solEstimateFood(description, { ...s, signal: brain.signal }, lang); } throw e; });
+  }, () => aiEstimateFood(description, brain, lang))).value;
 }
 
 export async function estimatePhoto(image: { mime: string; data: string }, brain: Brain, lang: string, hint = '') {

@@ -136,7 +136,7 @@ Progress (ticked as done):
 - [x] Step 2 modes, eligibility, limits
 - [x] Step 3 the watcher
 - [x] Step 4 true maintenance
-- [ ] Step 5 routing and time limits
+- [x] Step 5 routing and time limits
 - [ ] Step 6 prompt, handbook, leftovers
 - [ ] Step 7 small fixes (droppable)
 - [ ] Step 8 exam

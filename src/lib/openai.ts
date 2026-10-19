@@ -22,6 +22,8 @@ export const solModel = (): string => { const m = useAi.getState().models; retur
  *  Chosen by the Coach exam (19 Oct, scripts/exam): nearly as good on everyday answers at about 1/16 of the price. */
 export const QUICK_MODEL = 'gpt-6-luna';
 export const quickModel = (): string => useAi.getState().models.quick || QUICK_MODEL;
+/** The quick model, unless this key turned out not to have it (then the main one answers everything). */
+export const quickFor = (): string | undefined => (useAi.getState().noQuick ? undefined : quickModel());
 export const solLabel = (): string | null => { const m = solModel(); return m === OPENAI_MODEL ? null : m.replace(/^gpt-/i, 'GPT-'); };
 
 /**

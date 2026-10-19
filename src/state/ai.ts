@@ -17,8 +17,9 @@ export interface AiPrefs {
   /** quick: the OpenAI model for everyday messages ('' = gpt-6-luna) */
   models: { fast: string; brain: string; fastAlt: string; brainAlt: string; tts: string; sol: string; solAuto: string; quick: string };
   solChecked: number;                // when the newest OpenAI model was last looked up (once a day at most)
+  noQuick: boolean;                  // this OpenAI key can't use the quick model: the main one answers everything (until the key changes)
 }
-const DEFAULTS: AiPrefs = { stt: 'accurate', voiceLang: 'auto', mic: 'phone', voice: 'Achird', brain: true, solFirst: true, effortOrb: 'medium', effortCoach: 'high', solLimitKr: 100, models: { fast: '', brain: '', fastAlt: '', brainAlt: '', tts: '', sol: '', solAuto: '', quick: '' }, solChecked: 0 };
+const DEFAULTS: AiPrefs = { stt: 'accurate', voiceLang: 'auto', mic: 'phone', voice: 'Achird', brain: true, solFirst: true, effortOrb: 'medium', effortCoach: 'high', solLimitKr: 100, models: { fast: '', brain: '', fastAlt: '', brainAlt: '', tts: '', sol: '', solAuto: '', quick: '' }, solChecked: 0, noQuick: false };
 
 function load(): AiPrefs {
   try { const v = JSON.parse(localStorage.getItem(KEY) || '{}'); return { ...DEFAULTS, ...v, models: { ...DEFAULTS.models, ...(v.models ?? {}) } }; } catch { return DEFAULTS; }
@@ -31,11 +32,16 @@ export const useAi = create<S>((set, get) => ({
   hasOpenai: !!getKey('openai'),
   patch: (p) => {
     set(p as Partial<S>);
-    const { stt, voiceLang, mic, voice, brain, solFirst, effortOrb, effortCoach, solLimitKr, models, solChecked } = get();
-    try { localStorage.setItem(KEY, JSON.stringify({ stt, voiceLang, mic, voice, brain, solFirst, effortOrb, effortCoach, solLimitKr, models, solChecked })); } catch { /* ignore */ }
+    const { stt, voiceLang, mic, voice, brain, solFirst, effortOrb, effortCoach, solLimitKr, models, solChecked, noQuick } = get();
+    try { localStorage.setItem(KEY, JSON.stringify({ stt, voiceLang, mic, voice, brain, solFirst, effortOrb, effortCoach, solLimitKr, models, solChecked, noQuick })); } catch { /* ignore */ }
   },
 }));
-onKeysChange(() => useAi.setState({ hasGroq: !!getKey('groq'), hasGemini: !!getKey('gemini'), hasOpenai: !!getKey('openai') }));
+let openaiKey = getKey('openai');
+onKeysChange(() => {
+  useAi.setState({ hasGroq: !!getKey('groq'), hasGemini: !!getKey('gemini'), hasOpenai: !!getKey('openai') });
+  // (a new OpenAI key may have the quick model)
+  if (getKey('openai') !== openaiKey) { openaiKey = getKey('openai'); if (useAi.getState().noQuick) useAi.getState().patch({ noQuick: false }); }
+});
 /** GPT-6.1 Sol is the brain right now: there is an OpenAI key and it hasn't been switched to Gemini. */
 export const solOn = (a: Pick<S, 'hasOpenai' | 'solFirst'> = useAi.getState()) => a.hasOpenai && a.solFirst;
 /** Any brain at all (Sol or Gemini) to talk to. */

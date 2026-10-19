@@ -4,7 +4,7 @@ import { trueMaintenance } from './maintenance';
 import { useStore } from '../state/store';
 import { getKey } from './keys';
 import { AiError, FALLBACK_MODELS, aiAgent, aiAgentStream, dedupeSources, geminiSearch, plainModels, type Brain, type Photo, type Turn, type WebSource } from './gemini';
-import { quickModel, refreshSolModel, solAgent, solModel, solSearch, type Effort } from './openai';
+import { quickFor, refreshSolModel, solAgent, solModel, solSearch, type Effort } from './openai';
 import { solThenGemini } from './brain';
 import { overLimit } from './spend';
 import { AGENT_SYSTEM, APP_GUIDE, buildAgentContext, buildTodayContext, exerciseNames, memoryBlock } from './coachContext';
@@ -37,26 +37,40 @@ export function brainFor(o: { big: boolean; surface: 'orb' | 'coach'; signal?: A
 }
 
 /**
- * How hard Sol should think about THIS message. Small talk, logging and quick questions ("yo, how's my week?", "only 9
- * reps", "log a banana") answer at low effort, in a second or two; planning, analysis and advice ("build me a push day",
- * "why is my bench stuck?") get the effort set in Settings; decisions (targets, maintenance, cut or bulk, a new program)
- * and "think about it properly" get high.
+ * Which model answers THIS message, and how hard it thinks (review round 1, 19 Oct). Everyday messages — logging, small
+ * talk, quick facts ("how many calories in a banana") — go to the quick model at low effort, in a second or two; planning
+ * and analysis ("build me a push day", "why is my bench stuck?") to the quick model at the effort set in Settings. The
+ * main model, thinking hard, gets decisions (targets, maintenance, cut or bulk, a new plan, "not losing", "what now"),
+ * "think about it properly", and anything where a wrong answer could hurt: overeating and purging, fast weight cuts,
+ * making weight, dehydration, warning signs of the body, and supplements, sauna or pain asked about (not logged: "5 g
+ * kreatin" is logging). Photos: the main model at the setting. Tested both ways, English and Danish (tests/route.test.ts).
  */
-// (whole words with their endings only: "plank" is not "plan", "painting" not "pain", "cutlery" not "cut")
-const DEEP = /\b(?:plan(?:s|ned|ning)?|program(?:me)?s?|routines?|splits?|periodi[sz]\w*|deloads?|plateau\w*|stall(?:s|ed|ing)?|stuck|why|should i|analy[sz]\w*|review|compare|improve\w*|advice|recommend\w*|build|design|diet|cut(?:ting)?|bulk(?:ing)?|injur\w*|pain(?:s|ful)?|hurts?|hurting|weak ?points?|progress(?:ion)?)\b|\b(?:hvorfor|skal jeg|analys\w*|forbedr\w*|anbefal\w*|kost(?:en|plan)?|skade\w*|ondt|byg|lav en|programm?(?:et|er)?|rutine\w*|plan(?:en|er|lægning)?)\b/i;
-// Decisions that change their plan or numbers (a calorie target, maintenance, cut or bulk, a program) and "think about it
-// properly" get the deepest thinking whatever the setting (Omar, 19 Oct: think hard where it matters, cheap elsewhere)
-const DECIDE = /\b(?:maintenance|calorie target|how many calories|my (?:calories|macros|targets?)|should i (?:cut|bulk|diet)|new (?:program|plan|split)|plateau\w*|not losing|not gaining)\b|\b(?:vedligehold\w*|kaloriemål|hvor mange kalorier|tab(?:er)? mig ikke)\b/i;
+// (whole words with their endings only: "plank" is not "plan", "painting" not "pain"; pain said, not asked about, is
+// thought about at the setting)
+const DEEP = /\b(?:plan(?:s|ned|ning)?|program(?:me)?s?|routines?|splits?|periodi[sz]\w*|deloads?|plateau\w*|stall(?:s|ed|ing)?|stuck|why|should i|analy[sz]\w*|review|compare|improve\w*|advice|recommend\w*|build|design|weak ?points?|progress(?:ion)?|injur\w*|pain(?:s|ful)?|hurts?|hurting)\b|\b(?:hvorfor|skal jeg|analys\w*|forbedr\w*|anbefal\w*|byg|lav en|programm?(?:et|er)?|rutine\w*|plan(?:en|er|lægning)?|skade\w*|ondt)\b/i;
+// decisions that change their plan or numbers
+const DECIDE = /\b(?:maintenance|calorie target|(?:how many|what) calories (?:should|do) i|my (?:calories|macros|targets?) (?:should|need|be)|should i (?:cut|bulk|diet|lose|gain|eat less|eat more)|new (?:program|plan|split)|plan my (?:next |)(?:week|month|days?)|plateau\w*|not losing|not gaining|stopped losing|what now|now what)\b|\b(?:vedligehold\w*|kaloriemål|hvor mange kalorier skal jeg|tab(?:er)?(?: jeg)? mig ikke|tager ikke af|skal jeg (?:cutte|bulke|tabe|tage på|spise mindre|spise mere)|nyt program|ny plan|planlæg min|hvad nu)\b/i;
 const THINK_HARD = /\b(?:think (?:about it |it through |this through )?(?:properly|carefully|hard(?:er)?)|take your time|think deeply)\b|\b(?:tænk (?:dig )?(?:godt )?(?:om|grundigt|over det)|tænk grundigt)\b/i;
-export function effortFor(text: string, setting: Effort, photo = false): Effort {
+// where a wrong answer could hurt: always the main model, thinking hard
+const SAFETY = /\b(?:binge?\w*|purg\w*|throw(?:ing|s)? up|threw up|vomit\w*|make (?:my)?self sick|laxative\w*|starv\w*|eating disorder|anorexi\w*|bulimi\w*|(?:fast(?:ing)?|skip(?:ping)? meals?) to (?:compensate|make up)|(?:drop|lose|cut) \d+(?:[.,]\d+)? ?(?:kg|kilos?|lbs?|pounds?) (?:in|by|within) (?:\d+|a|one|two) ?(?:days?|weeks?)|make weight|making weight|weigh[- ]in|weight class|dehydrat\w*|water cut|sauna suit|chest pains?|faint\w*|pass(?:ed)? out|missed (?:my )?period)\b|\b(?:overspis\w*|trøstespis\w*|kast(?:e|er|ede|et) op|brækk(?:e|er|ede) mig|afføringsmid\w*|sult(?:e|er|ede) mig|spiseforstyrr\w*|springe? måltider over for|faste for at|(?:tabe|smide|tage af) \d+(?:[.,]\d+)? ?(?:kg|kilo) (?:på|inden for|på bare) \d+ ?(?:dage|uger)|indvejning\w*|vægtklasse\w*|dehydr\w*|brystsmert\w*|ondt i brystet|besvim\w*|udebl\w* menstruation|mistet (?:min )?menstruation)\b/i;
+// …and these only when asked about (a question or advice), not when logged ("5 g kreatin")
+const SAFETY_ASK = /\b(?:creatine|kreatin|supplements?|kosttilskud|sauna|pre-?workout|caffeine|koffein|pain(?:s|ful)?|hurts?|hurting|injur\w*|ondt|skade\w*|smert\w*)\b/i;
+const ASKING = /\?|^\s*(?:should|can|could|is|are|do|does|what|how|why|when|which|any|skal|kan|bør|er|hvad|hvordan|hvorfor|hvornår|hvilke?n?)\b|\b(?:safe|ok to|okay to|good idea|sikkert|i orden|en god idé)\b/i;
+// a quick fact about a food: the quick model
+const FACT = /\bhow (?:many|much) (?:calories|kcal|protein|carbs?|fat)(?: are| is| does)?(?: there)? in\b|\bhvor (?:mange|meget) (?:kalorier|kcal|protein|kulhydrat\w*|fedt)(?: er der)? i\b/i;
+
+export type Route = { effort: Effort; main: boolean };
+export function route(text: string, setting: Effort, photo = false): Route {
   const rank = { low: 0, medium: 1, high: 2 } as const;
   const cap = (e: Effort): Effort => (rank[e] <= rank[setting] ? e : setting);
-  if (THINK_HARD.test(text) || DECIDE.test(text)) return 'high';
-  if (photo) return setting; // reading a label or a machine needs care
-  const words = text.trim().split(/\s+/).length;
-  if (DEEP.test(text)) return setting;
-  return words > 40 ? cap('medium') : 'low';
+  if (THINK_HARD.test(text) || SAFETY.test(text) || (SAFETY_ASK.test(text) && ASKING.test(text))) return { effort: 'high', main: true };
+  if (photo) return { effort: setting, main: true }; // reading a label or a machine needs care
+  if (FACT.test(text)) return { effort: 'low', main: false };
+  if (DECIDE.test(text)) return { effort: 'high', main: true };
+  if (DEEP.test(text)) return { effort: setting, main: false };
+  return { effort: text.trim().split(/\s+/).length > 40 ? cap('medium') : 'low', main: false };
 }
+export const effortFor = (text: string, setting: Effort, photo = false): Effort => route(text, setting, photo).effort;
 
 /**
  * One web search for the Coach: Gemini's Google Search grounding when there is a Gemini key (free within its daily
@@ -71,16 +85,17 @@ async function webSearch(query: string, brain: Brain, lang: string): Promise<{ t
   throw new AiError('failed');
 }
 
-/** Run `fn` with a signal that also ends after `ms` (0 = no limit): that end is a timeout (Gemini then answers), never the
- *  user's Stop, which still stops everything. */
-export async function withTimeout<T>(ms: number, outer: AbortSignal, fn: (signal: AbortSignal) => Promise<T>): Promise<T> {
-  if (!ms) return fn(outer);
+/** Run `fn` with a signal that also ends after `ms` (0 = no limit) unless its first words arrive before (`seen`): that end
+ *  is a timeout (Gemini then answers), never the user's Stop, which still stops everything. Once words flow, the stream's
+ *  own rule applies (lib/openai.ts: 25 s without a word). */
+export async function withTimeout<T>(ms: number, outer: AbortSignal, fn: (signal: AbortSignal, seen: () => void) => Promise<T>): Promise<T> {
+  if (!ms) return fn(outer, () => {});
   const c = new AbortController();
   let late = false;
   const stop = () => c.abort();
   outer.addEventListener('abort', stop);
   const timer = setTimeout(() => { late = true; c.abort(); }, ms);
-  try { return await fn(c.signal); }
+  try { return await fn(c.signal, () => clearTimeout(timer)); }
   catch (e) { if (late && !outer.aborted) throw new AiError('timeout', 0, { provider: 'openai' }); throw e; }
   finally { clearTimeout(timer); outer.removeEventListener('abort', stop); }
 }
@@ -131,11 +146,11 @@ export async function decide(text: string, o: { lang: Lang; t: (k: string, v?: R
   const sources: WebSource[] = [];
   let dropped = 0;
   const brain0 = brainFor({ big: true, surface: o.surface, signal: o.signal });
-  // think only as hard as the message needs (see effortFor)
-  // …and with the right model: everyday messages to the quick model, decisions and photos to the main one (the Coach exam,
-  // 19 Oct: the quick one is nearly as good day to day at ~1/16 of the price; the main one thinks the big calls through)
-  const effort = brain0?.sol ? effortFor(text, brain0.sol.effort, !!o.photo) : 'medium';
-  const brain = brain0?.sol ? { ...brain0, sol: { ...brain0.sol, effort, model: effort === 'high' || o.photo ? undefined : quickModel() } } : brain0;
+  // think only as hard as the message needs, with the right model (see route): everyday messages to the quick model,
+  // decisions, risky questions and photos to the main one (the Coach exam, 19 Oct: the quick one is nearly as good day to
+  // day at ~1/16 of the price; the main one thinks the big calls through)
+  const way = brain0?.sol ? route(text, brain0.sol.effort, !!o.photo) : null;
+  const brain = brain0?.sol && way ? { ...brain0, sol: { ...brain0.sol, effort: way.effort, model: way.main ? undefined : quickFor() } } : brain0;
   const capped = solOn(g) && overLimit(g.solLimitKr);
   if (capped && brain) note = t('This month’s GPT-6.1 Sol limit is reached, so Gemini answered.');
   if (capped && !brain) reply = t('This month’s GPT-6.1 Sol limit is reached. Raise it in Settings → Voice & AI, or add a free Gemini key.');
@@ -153,10 +168,16 @@ export async function decide(text: string, o: { lang: Lang; t: (k: string, v?: R
       for (let round = 0; round < MAX_ROUNDS; round++) {
         const last = round === MAX_ROUNDS - 1;
         const sys = system + (found ? `\n\nLOOKUP RESULTS (you asked for these in this turn; answer from them, do not ask for them again):\n${found}` : '') + (last && round > 0 ? '\n\nNo more look-ups this turn: answer now with what you have, and say if something is still unknown.' : '');
-        // Sol gets 45 s in the Coach (deep thinking on a slow line could run for minutes); then Gemini answers
-        const r = await solThenGemini(brain, (sol) => withTimeout(o.surface === 'coach' ? 45000 : 0, o.signal, (signal) => solAgent(sys, conv, { ...sol, signal }, o.onReply, o.photo)
-          // (a key without the quick model: the main one answers)
-          .catch((e) => { if (sol.model && e?.code === 'nomodel') return solAgent(sys, conv, { ...sol, model: undefined, signal }, o.onReply, o.photo); throw e; })), () => { o.onReply?.(''); return gemini(sys); });
+        // Sol gets 45 s in the Coach and 20 s on the orb to start answering (deep thinking on a slow line could run for
+        // minutes), then Gemini answers; once its words flow they are never cut. Without a Gemini key there is nothing
+        // to hand over to, so it waits
+        const limit = !brain.key ? 0 : o.surface === 'coach' ? 45000 : 20000;
+        const r = await solThenGemini(brain, (sol) => withTimeout(limit, o.signal, (signal, seen) => {
+          const onReply = (x: string) => { if (x) seen(); o.onReply?.(x); };
+          return solAgent(sys, conv, { ...sol, signal }, onReply, o.photo)
+            // (a key without the quick model: the main one answers, from now on)
+            .catch((e) => { if (sol.model && e?.code === 'nomodel') { useAi.getState().patch({ noQuick: true }); return solAgent(sys, conv, { ...sol, model: undefined, signal }, onReply, o.photo); } throw e; });
+        }), () => { o.onReply?.(''); return gemini(sys); });
         if (r.fellBack) note = r.fellBack.code === 'quota' ? t('Your OpenAI account is out of credit, so Gemini answered.') : t('GPT-6.1 Sol wasn’t available, so Gemini answered.');
         if (r.fellBack) noteTrouble('fellBack', r.fellBack.code);
         raw = r.value;

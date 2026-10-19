@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { heavyDays } from '../lib/eating';
+import { heavyDays, heavyMode } from '../lib/eating';
 import { trueMaintenance } from '../lib/maintenance';
 import { useStore, exerciseMap, allExercises } from '../state/store';
 import { useUI, haptic } from '../state/ui';
@@ -75,13 +75,17 @@ export function WeekReviewSheet({ props }: { props: { end?: string } }) {
   const cands = useMemo(() => candidates(d, n, name, muscle), [n, name, muscle, d.settings.goals]); // eslint-disable-line react-hooks/exhaustive-deps
   const saved = (d.reviews ?? []).find((r) => r.week === end);
   const prev = (d.reviews ?? []).find((r) => r.week === addDays(end, -7));
-  // the Coach's verdict: kept once written; asked for once per week (and only with a key)
-  const [asking, setAsking] = useState(!saved && hasGemini);
+  // the Coach's verdict: kept once written; asked for once per week (and only with a key). One that failed is not kept,
+  // and asked again on the next open, at most once a day
+  const triedToday = d.marks?.[`review:${end}`] === today;
+  const [asking, setAsking] = useState(!saved && hasGemini && !triedToday);
   const fill = (c: Candidate) => t(c.key, Object.fromEntries(Object.entries(c.vars).map(([k, v]) => [k, k === 'date' && typeof v === 'string' ? fmtDate(v, lang, { day: 'numeric', month: 'short' }) : v])));
   useEffect(() => {
-    if (saved || !hasGemini) return;
+    if (saved || !hasGemini || triedToday) return;
     let live = true;
+    // (it keeps thinking when the sheet is closed, and is kept when it's done; ~90 s at most)
     const ac = new AbortController();
+    const limit = setTimeout(() => ac.abort(), 90_000);
     (async () => {
       const [{ REVIEW_SYSTEM, REVIEW_SCHEMA, readReview }, { brainFor }, { buildCoachContext, memoryBlock }, { learnedBlock }, { thinkJson }, { HANDBOOK_CORE, HOW_TO_TALK }] = await Promise.all([import('../lib/gemini'), import('../lib/agentTurn'), import('../lib/coachContext'), import('../lib/ledger'), import('../lib/brain'), import('../lib/handbook')]);
       const muscles = n.muscles.map((x) => `${x.m} ${x.sets} (usually ${x.avg})`).join(', ');
@@ -91,20 +95,27 @@ export function WeekReviewSheet({ props }: { props: { end?: string } }) {
         `Food: logged on ${n.loggedDays} of 7 days${n.proteinAvg !== null ? `; on logged days ${Math.round(n.kcalAvg ?? 0)} kcal and ${Math.round(n.proteinAvg)} g protein a day (targets ${d.settings.goals.kcal} kcal, ${d.settings.goals.protein} g)` : ''}. Days not logged are unknown, not zero.`,
         `Weight: ${n.weightPct === null ? 'not enough weigh-ins' : `${n.weightPct > 0 ? '+' : ''}${n.weightPct}% a week (trend)`}.`,
         // heavy days this week against the 3 before, and true maintenance (lib/eating.ts, lib/maintenance.ts)
-        (() => { const h = heavyDays(d, addDays(n.to, 1), 28); const wk = h.filter((x) => x.date >= n.from).length; const m = trueMaintenance(d, addDays(n.to, 1)); return `Heavy days (clearly over target, often evenings logged the day after): ${wk} this week, ${h.length - wk} in the 3 weeks before. True maintenance: ${m ? `about ${m.kcal} kcal (${m.confidence} confidence)` : 'not enough data yet'}.`; })(),
+        (() => {
+          const m = trueMaintenance(d, addDays(n.to, 1));
+          const tm = `True maintenance: ${m ? `about ${m.kcal} kcal (${m.confidence} confidence)` : 'not enough data yet'}.`;
+          if (heavyMode(d.settings) !== 'on') return tm; // (their choice: heavy days are not brought up)
+          const h = heavyDays(d, addDays(n.to, 1), 28); const wk = h.filter((x) => x.date >= n.from);
+          return `Heavy days (clearly over that day's target): ${wk.length} this week${wk.length ? ` (${wk.filter((x) => x.late).length} logged the day after, ${wk.filter((x) => x.evening >= x.over / 2).length} mostly in the evening)` : ''}, ${h.length - wk.length} in the 3 weeks before. ${tm}`;
+        })(),
       ].join('\n');
       const cand = `CANDIDATES (id — what it is):\n${cands.map((c) => `${c.id} — ${t(c.key, c.vars as Record<string, string | number>)}`).join('\n') || '(none: the week went well)'}`;
       const last = prev ? `LAST WEEK'S PRIORITIES: ${prev.priorities.map((p) => { const ok = met(p.id, n, d.settings.goals.protein); return `${p.text} → ${ok === null ? 'unknown' : ok ? 'done' : 'not done'}`; }).join('; ') || 'none'}` : 'LAST WEEK: no review.';
       const ctx = `${week}\n\n${cand}\n\n${last}\n\n${memoryBlock(d, name)}\n\n${learnedBlock(name, (id) => id)}\n\nDATA:\n${buildCoachContext(d, today, name, musclesOf)}`;
       const b0 = brainFor({ big: true, surface: 'coach', signal: ac.signal });
       const r = b0 ? await thinkJson({ ...b0, sol: b0.sol ? { ...b0.sol, effort: 'high' } : undefined }, { system: `${REVIEW_SYSTEM(lang)}\n\n${HOW_TO_TALK}\n\n${HANDBOOK_CORE}`, prompt: ctx, schema: REVIEW_SCHEMA, name: 'week_review' }).then((raw) => readReview(raw, cands.map((c) => c.id))).catch(() => null) : null;
-      if (!live) return;
-      // what the Coach chose, kept for the week (no answer: the app's own verdict and its top two)
-      const picks = r ? r.priorities : cands.filter((c) => c.id !== 'keep').slice(0, 2).map((c) => ({ id: c.id, text: fill(c) }));
-      useStore.getState().saveReview(storedReview(end, r?.verdict ?? null, picks));
-      setAsking(false);
+      clearTimeout(limit);
+      // what the Coach chose, kept for the week; no answer: nothing kept (the app's own verdict shows), tried again
+      // tomorrow at the earliest
+      if (r) useStore.getState().saveReview(storedReview(end, r.verdict ?? null, r.priorities));
+      else useStore.getState().patch((x) => ({ marks: { ...x.marks, [`review:${end}`]: today } }));
+      if (live) setAsking(false);
     })();
-    return () => { live = false; ac.abort(); };
+    return () => { live = false; };
   }, [end]); // eslint-disable-line react-hooks/exhaustive-deps
   const verdict = saved?.verdict ?? (asking ? null : localVerdict(n, t));
   const priorities: { id: string; text: string; ask?: string }[] = saved
