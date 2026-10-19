@@ -1,6 +1,6 @@
 import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { openFoodPhoto } from './lib/photoOpen';
-import { AnimatePresence, MotionConfig, motion, type TargetAndTransition } from 'motion/react';
+import { AnimatePresence, MotionConfig, motion, useIsPresent, type TargetAndTransition } from 'motion/react';
 import { useStore } from './state/store';
 import { useUI } from './state/ui';
 import { TabBar } from './ui/TabBar';
@@ -161,13 +161,25 @@ const PAGE = {
   // Both start 50 ms after the tap: building the new screen takes a frame or two on a phone, and an animation that started
   // during that work showed up already part-way through — the old and new pages jumped (the flicker at the top).
   center: { opacity: 1, transform: 'translateX(0px)', transitionEnd: { transform: 'none' }, transition: { duration: 0.38, ease: EASE, delay: 0.05 } },
-  // no blur on the way out: filtering a whole screen every frame of a page switch cost more than anything else in it
+  // Tapped back before it had gone: the screen is already built, so it turns round where it is on the very next frame. A wait
+  // there froze it mid-slide for a beat
+  back: { opacity: 1, transform: 'translateX(0px)', transitionEnd: { transform: 'none' }, transition: { duration: 0.38, ease: EASE } },
+  // no blur on the way out: filtering a whole screen every frame of a page switch cost more than anything else in it. A screen
+  // that is still on its way in when another tab is tapped leaves at once, from where it is, for the same reason
   exit: (d: number) => ({ opacity: 0, transform: `translateX(${-d * 36}px)`, transition: { duration: 0.34, ease: EASE, delay: 0.05 } }),
+  exitNow: (d: number) => ({ opacity: 0, transform: `translateX(${-d * 36}px)`, transition: { duration: 0.34, ease: EASE } }),
 };
 // `custom` is the direction; AnimatePresence hands the leaving screen the NEW direction too (it was removed with the old one)
 function TabPane({ hue, dir, children }: { hue: string; dir: number; children: React.ReactNode }) {
+  const present = useIsPresent();
+  const left = useRef(false), back = useRef(false), moved = useRef(0);
+  if (!moved.current) moved.current = performance.now();
+  // turned round, or still arriving when another tab is tapped: it moves from where it is at once (see `back`, `exitNow`)
+  const busy = performance.now() - moved.current < 450;
+  if (!present) left.current = true;
+  else if (left.current) { left.current = false; back.current = true; moved.current = performance.now(); }
   return (
-    <motion.div className="tab-pane" data-active data-hue={hue} custom={dir} variants={PAGE} initial="enter" animate="center" exit="exit" style={{ position: 'absolute', inset: 0 }}>
+    <motion.div className="tab-pane" data-active data-hue={hue} custom={dir} variants={PAGE} initial="enter" animate={back.current ? 'back' : 'center'} exit={busy ? 'exitNow' : 'exit'} style={{ position: 'absolute', inset: 0 }}>
       {children}
     </motion.div>
   );

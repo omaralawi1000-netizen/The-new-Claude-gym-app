@@ -5,13 +5,16 @@
 // wide card, so both read as the same gentle push). Only `data-pressed` and `--press` are written, on the control itself.
 
 const SEL = '.press:not(.tab)'; // the dock's tabs keep plain CSS :active (see styles.css)
-const WAIT = 100;    // ms before a resting finger shows the press (Android's own tap timeout): a scroll cancels it first
+const WAIT = 50;     // ms before a finger that has stayed put shows the press (100, Android's tap timeout, showed nothing on a
+                     // normal tap until the finger lifted: it felt late)
+const LATE = 100;    // a finger that has crept a little by then may be a slow scroll starting: it waits until here, as before
+const STILL = 2;     // px it may have moved by WAIT and still count as resting
 const HOLD = 120;    // ms a press stays down at least, so a quick tap still reads
 const SLOP = 6;      // px a finger may drift before it counts as a scroll, not a press
 
 let el: HTMLElement | null = null;       // the control under the finger
 let held: HTMLElement | null = null;     // a control that was let go, still finishing its dip
-let pid = -1, x0 = 0, y0 = 0, shownAt = 0;
+let pid = -1, x0 = 0, y0 = 0, shownAt = 0, drift = 0;
 let showT = 0, upT = 0;
 
 function show(t: HTMLElement) {
@@ -42,7 +45,7 @@ function end(tap: boolean) {
   window.removeEventListener('pointercancel', cancel, true);
   const t = el; el = null; pid = -1;
   const waiting = !!showT;
-  if (showT) { clearTimeout(showT); showT = 0; }
+  if (showT) { cancelAnimationFrame(showT); showT = 0; }
   if (!t) return;
   if (!tap) { if (!waiting) settle(t); return; }
   if (waiting) show(t);                  // a tap quicker than the wait: dip now, so it still reads
@@ -53,6 +56,7 @@ function end(tap: boolean) {
 
 function move(e: PointerEvent) {
   if (e.pointerId !== pid) return;
+  drift = Math.max(drift, Math.abs(e.clientX - x0), Math.abs(e.clientY - y0));
   if (Math.abs(e.clientX - x0) > SLOP || Math.abs(e.clientY - y0) > SLOP) end(false);
 }
 function up(e: PointerEvent) { if (e.pointerId === pid) end(true); }
@@ -65,13 +69,24 @@ function down(e: PointerEvent) {
   if (held && held !== t) letGo();
   else if (held) { clearTimeout(upT); upT = 0; held = null; } // the same control again: it simply stays down
   if (!t || (t as HTMLButtonElement).disabled || t.getAttribute('aria-disabled') === 'true') return;
+  if (t.closest('[data-leaving]')) return; // a pop-up on its way out presses nothing (Sheet.tsx)
   // a part of a pressable card that does its own thing (a meal's food rows swipe and open) doesn't push the card
   const own = (e.target as Element).closest('[data-no-press]');
   if (own && t.contains(own)) return;
-  el = t; pid = e.pointerId; x0 = e.clientX; y0 = e.clientY;
+  el = t; pid = e.pointerId; x0 = e.clientX; y0 = e.clientY; drift = 0;
   // a mouse or pen shows at once; a finger waits a moment in case it is the start of a scroll
-  if (e.pointerType === 'touch' && !t.hasAttribute('data-pressed')) showT = window.setTimeout(() => { showT = 0; if (el) show(el); }, WAIT);
-  else show(t);
+  // Counted in frames, not a timer: while a touch is new and hasn't moved, Chrome holds timers back until it knows whether
+  // it is a scroll (~100 ms), so a 50 ms timer fired at 100 anyway. Frames keep coming.
+  if (e.pointerType === 'touch' && !t.hasAttribute('data-pressed')) {
+    const t0 = performance.now();
+    const tick = () => {
+      showT = 0; if (!el) return;
+      const d = performance.now() - t0;
+      if ((d >= WAIT - 4 && drift <= STILL) || d >= LATE - 4) show(el); // (4 ms early: the frame it is drawn in comes after)
+      else showT = requestAnimationFrame(tick);
+    };
+    showT = requestAnimationFrame(tick);
+  } else show(t);
   window.addEventListener('pointermove', move, true);
   window.addEventListener('pointerup', up, true);
   window.addEventListener('pointercancel', cancel, true);
