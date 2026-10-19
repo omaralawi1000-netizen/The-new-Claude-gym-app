@@ -1885,8 +1885,9 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-head-mid { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .wk-title { align-self: flex-start; max-width: 100%; font-size: 22px; line-height: 1.1; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wk-meta { display: flex; align-items: baseline; gap: 8px; min-width: 0; font-size: 13px; color: var(--tx2); white-space: nowrap; overflow: hidden; }
-/* a workout's name, wherever it shows (Today's card, the window's header, the resume pill): one face, italic serif at one
-   optical size, so the name that flies between them only changes size and never shows as two different words crossing */
+/* a workout's name on Today's cards: italic serif at the big title's optical size (the running card's small name too, so it
+   reads as the same routine card). The window's header keeps its upright serif and the resume bar its bold sans; the
+   name that flies between them crosses letter by letter (landing.ts flyHero), so it reads as one word changing style */
 .wk-name { font-family: var(--f-display); font-style: italic; font-weight: 440; letter-spacing: -0.022em; font-variation-settings: 'opsz' 56; font-optical-sizing: none; }
 .wk-clock { font-size: 15px; font-weight: 650; color: var(--tx); letter-spacing: 0.01em; font-variant-numeric: tabular-nums; transition: color 300ms; }
 .wk-clock.paused { color: var(--tx3); }

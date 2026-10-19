@@ -83,6 +83,9 @@ function copyClock(el: HTMLElement, host: HTMLElement, a: Anchor, left = false, 
   host.appendChild(c);
   return Object.assign(c, { ox, oy });
 }
+/** how far an italic leans (Newsreader's italic: its caret slope, 611 over 2000, in degrees) */
+const LEAN = 17;
+
 /** each character's middle, across, in the copy's own px from its anchor */
 const glyphsOf = (c: HTMLElement & { ox: number }) => [...c.children].map((g) => (g as HTMLElement).offsetLeft + (g as HTMLElement).offsetWidth / 2 - c.ox);
 
@@ -112,11 +115,24 @@ export function flyHero(host: HTMLElement, from: HTMLElement, to: HTMLElement, a
   // (a clock's two looks differ in weight and spacing: lined up by their middles only, their outer digits sat a few px
   // apart and read as two clocks (round 2 judge). Each digit is its own box, slid onto its twin while the two cross, so
   // the thin and the bold digit lie on top of each other and it reads as one clock changing weight.)
-  const glyphs = !left && (from.textContent ?? '').length === (to.textContent ?? '').length;
+  // (a name too: each letter slides onto its twin in the other style)
+  const glyphs = (from.textContent ?? '').length === (to.textContent ?? '').length;
   const look0 = copyClock(from, host, a0, left, glyphs);
   const look1 = copyClock(to, host, a1, left, glyphs);
   const n = fl.frames;
   const crossLate = cross ? cross[0] + cross[1] > 1 : a0.f > a1.f; // it crosses as it arrives (else as it sets off)
+  // the crossing in frames: wherever `cross` puts it along the flight, never fewer than twelve (a twelfth of a second at
+  // 120 Hz); fast through the middle of a flight, a window in `w` alone came out two frames, a flash of two names (r18)
+  const at = (t: number) => { let i = 0; while (i < n && Math.min(1, fl.w(i)) < t) i++; return i; };
+  const [wa, wb] = cross ?? (crossLate ? [0.78, 0.9] : [0.02, 0.2]);
+  let ia = at(wa), ib = at(wb);
+  if (ib - ia < 12) { const mid = (ia + ib) / 2; ia = Math.round(mid - 6); ib = ia + 12; }
+  if (ib > n) { ia -= ib - n; ib = n; }
+  if (ia < 0) { ib = Math.min(n, ib - ia); ia = 0; }
+  // an italic and an upright look lean apart and never lie on each other: the one out of sight leans like its twin while
+  // they cross, so the letters read as one name straightening up (or leaning over), not as two names
+  const lean = (el: HTMLElement) => (getComputedStyle(el).fontStyle === 'italic' ? -LEAN : 0);
+  const sk = glyphs ? (crossLate ? lean(to) - lean(from) : lean(from) - lean(to)) : 0;
   const k0: Keyframe[] = [], k1: Keyframe[] = [];
   let gone0 = -1;
   for (let i = 0; i <= n; i++) {
@@ -131,7 +147,7 @@ export function flyHero(host: HTMLElement, from: HTMLElement, to: HTMLElement, a
     // and before the header's other words come in (the card's clock is wider: still on it then, it ran into the "sets")
     // (`cut`: the clock it becomes takes over in the first frame it moves, so the two are never seen together)
     // (`cross`: where along the flight the two cross, when the caller sets it: over five or six frames, never one or two)
-    const o1 = cut ? (i > 0 ? 1 : 0) : cross ? smooth((wc - cross[0]) / (cross[1] - cross[0])) : crossLate ? smooth((wc - 0.78) / 0.12) : smooth((wc - 0.02) / 0.18), o0 = 1 - o1;
+    const o1 = cut ? (i > 0 ? 1 : 0) : smooth((i - ia) / Math.max(1, ib - ia)), o0 = 1 - o1;
     const s1 = f / a1.f, s0 = f / a0.f;
     k1.push({ transform: `translate(${(x - a1.x).toFixed(2)}px, ${(y - a1.y).toFixed(2)}px) scale(${s1.toFixed(5)})`, opacity: String(Math.max(0.002, o1)) });
     if (gone0 < 0) {
@@ -150,19 +166,17 @@ export function flyHero(host: HTMLElement, from: HTMLElement, to: HTMLElement, a
   // it sets off, the arriving look's digits start on the leaving ones and slide home before it lands.
   const c0 = glyphs ? glyphsOf(look0) : [], c1 = glyphs ? glyphsOf(look1) : [];
   if (glyphs && c0.length === c1.length && c0.length > 1) {
-    const [ca, cb] = cross ?? (crossLate ? [0.78, 0.9] : [0.02, 0.2]);
     const mover = crossLate ? look0 : look1, mine = crossLate ? c0 : c1, twin = crossLate ? c1 : c0;
     const k = crossLate ? a0.f / a1.f : a1.f / a0.f; // the twin's px in the mover's own px (both drawn at one ink size)
     const end = crossLate ? (gone0 < 0 ? n : gone0) : n;
     [...mover.children].forEach((g, j) => {
       const dx = twin[j] * k - mine[j];
-      if (Math.abs(dx) < 0.05) return;
+      if (Math.abs(dx) < 0.05 && !sk) return;
       const kg: Keyframe[] = [];
       for (let i = 0; i <= end; i++) {
-        const wc = Math.min(1, Math.max(0, fl.w(i)));
         // on its twin through the whole crossing; easing on before it (arriving) or off after it (setting off)
-        const on = crossLate ? smooth(wc / Math.max(0.05, ca)) : 1 - smooth((wc - cb) / Math.max(0.05, 1 - cb) * 2);
-        kg.push({ transform: `translateX(${(dx * on).toFixed(2)}px)` });
+        const on = crossLate ? smooth(i / Math.max(1, ia)) : 1 - smooth((i - ib) / Math.max(1, n - ib));
+        kg.push({ transform: `translateX(${(dx * on).toFixed(2)}px) skewX(${(sk * on).toFixed(2)}deg)` });
       }
       anims.push((g as HTMLElement).animate(kg, { duration: Math.max(1, (end * 1000) / 120), easing: 'linear', fill: 'both', delay: late }));
     });

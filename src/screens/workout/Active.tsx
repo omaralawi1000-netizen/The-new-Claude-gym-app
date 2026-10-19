@@ -1115,7 +1115,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
                 {renaming ? (
                   <input className="input" autoFocus style={{ minHeight: 34, padding: '4px 10px' }} defaultValue={a.name} onBlur={(e) => { useStore.getState().mutateActive((x) => ({ ...x, name: e.target.value.trim() })); setRenaming(false); }} onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} aria-label={t('Workout name')} />
                 ) : (
-                  <button className="wk-title display wk-name press" data-wk-fly="title" onClick={() => setRenaming(true)}>{a.name || t('Workout')}</button>
+                  <button className="wk-title display press" data-wk-fly="title" onClick={() => setRenaming(true)}>{a.name || t('Workout')}</button>
                 )}
                 {/* the clock and the tally on one line: time, sets, volume */}
                 <div className="wk-meta num">
