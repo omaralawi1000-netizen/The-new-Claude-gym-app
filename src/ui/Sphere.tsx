@@ -6,7 +6,7 @@ import { useVoice } from '../state/voice';
 import { speakingLevel } from '../lib/voiceOut';
 import { useStore } from '../state/store';
 import { useUI, haptic } from '../state/ui';
-import { kb } from './keyboard';
+import { kb, onKeyboardGoal } from './keyboard';
 import { highRefresh, onHighRefresh, springCurve } from './motion';
 
 /**
@@ -377,7 +377,9 @@ export function SphereStage() {
     // frame. Its transform is applied below; decorative layers don't change layout. (.stage-content, the page sinking back
     // behind a pop-up, was missing: every frame of opening and closing the workout measured the whole orb path afresh; so
     // was the tab bar, which the workout window carries down and back up.)
-    const MOVING = '.sheet, .sheet-pane, .sheet-page, .scrim, .scrim > i, .stage, .stage-content, .tabbar, .wk-card, .wk-sheet, .wk-bclip, .wk-bshift, .wk-follow, .wk-dim, .wk-solid, [data-wk], [data-wk] + *, .fields, .aurora, .sphere-stage, .lens, .lens > i';
+    // (.sheet-foot: a pop-up's bottom bar rides the keyboard by its transform alone; re-measuring the page on every frame of
+    // that ride was most of the work in each frame of it, 19 Oct)
+    const MOVING = '.sheet, .sheet-pane, .sheet-page, .sheet-foot, .scrim, .scrim > i, .stage, .stage-content, .tabbar, .wk-card, .wk-sheet, .wk-bclip, .wk-bshift, .wk-follow, .wk-dim, .wk-solid, [data-wk], [data-wk] + *, .fields, .aurora, .sphere-stage, .lens, .lens > i';
     // Inside the live workout's window nothing but the bar's own box can move its slot (the bar is pinned to the window's
     // foot): the list, Focus, the header and the bar's words changing used to force a fresh measure of the whole page on
     // every frame they changed (a set ticked, a page turned, the clock rolling), the biggest part of a tick's cost.
@@ -407,7 +409,10 @@ export function SphereStage() {
     window.addEventListener('pointermove', dirty, { passive: true });
     window.addEventListener('pointerdown', dirty, { passive: true });
     const offUi = useUI.subscribe((a, b) => { if (a.tab !== b.tab) dirty(); else if (a.overlays !== b.overlays) { lastOverlayChange = performance.now(); dirty(); } });
-    const offKb = kb.on('change', dirty);
+    // the keyboard: measured as it sets off and once it has landed; on the way, what it moves by layout is seen by the
+    // observer above, and what it moves by transform (a bar riding on it) is applied from that transform
+    const offKbGo = onKeyboardGoal(dirty), offKbEnd = kb.on('animationComplete', dirty);
+    const offKb = () => { offKbGo(); offKbEnd(); };
     document.fonts?.addEventListener?.('loadingdone', dirty); // a web font arriving re-flows text
     window.addEventListener('load', dirty, true);              // an image arriving can too
     const observed = new Set<HTMLElement>();
