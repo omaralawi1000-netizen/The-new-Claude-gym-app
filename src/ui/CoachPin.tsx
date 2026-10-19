@@ -22,6 +22,9 @@ const DECLINED = 'aven.insightsNo';
 const declined = (): string[] => { try { const v = JSON.parse(localStorage.getItem(DECLINED) || '[]'); return Array.isArray(v) ? v.filter((x) => typeof x === 'string') : []; } catch { return []; } };
 const decline = (title: string) => { try { localStorage.setItem(DECLINED, JSON.stringify([...declined().filter((x) => x !== title), title].slice(-20))); } catch { /* fine */ } };
 let asking = false;
+const TRIED = 'aven.insights.tried';
+const tried = () => { try { return localStorage.getItem(TRIED); } catch { return null; } };
+const markTried = (day: string) => { try { localStorage.setItem(TRIED, day); } catch { /* fine */ } };
 /** Fetches today's insights once (a few seconds after opening, when the phone is idle) and returns them. */
 function useInsights(d: AppData, today: string): Insight[] {
   const hasGemini = useAi((a) => a.hasGemini || solOn(a));
@@ -30,25 +33,28 @@ function useInsights(d: AppData, today: string): Insight[] {
   const on = d.settings.coachPins !== false;
   const has = userHasData(d) && !(d as { demo?: boolean }).demo;
   useEffect(() => {
-    if (!on || !hasGemini || asking || cache?.date === today || !has) return;
+    // (one try a day: a failed one is not tried again on every opening)
+    if (!on || !hasGemini || asking || cache?.date === today || !has || tried() === today) return;
     const id = setTimeout(async () => {
       asking = true;
-      // the Coach's code is loaded with the Coach (a file of its own), not when the app opens
-      const [{ INSIGHT_SYSTEM, INSIGHT_SCHEMA, readInsights }, { brainFor }, { buildCoachContext, memoryBlock }, { thinkJson }, { HANDBOOK_CORE }, { personLines }, { dataTrustLines }] = await Promise.all([import('../lib/gemini'), import('../lib/agentTurn'), import('../lib/coachContext'), import('../lib/brain'), import('../lib/handbook'), import('../lib/person'), import('../lib/dataQuality')]).catch(() => { asking = false; return [null, null, null, null, null, null, null] as never; });
-      if (!readInsights) return;
-      const brain = brainFor({ big: true, surface: 'coach' });
-      if (!brain) { asking = false; return; }
-      const map = exerciseMap(d.exercises);
-      const name = (x: string) => { const e = map.get(x); return e ? exName(e, lang) : x; };
-      // what they told the Coach (an injury, how they train, what they don't want) and what they already turned down
-      const no = declined();
-      const ctx = `${buildCoachContext(d, today, name, (x) => map.get(x)?.muscles)}\n${[...personLines(d, today), ...dataTrustLines(d, today)].join('\n')}\n\n${memoryBlock(d, name)}${no.length ? `\n\nTHEY SET THESE ASIDE (never suggest them again, in any wording): ${no.map((x) => `"${x}"`).join('; ')}.` : ''}`;
-      const app = `\nApp setup: Today shows ${Object.entries(d.settings.widgets).filter(([, v]) => v).map(([k]) => k).join(', ')}; hidden: ${Object.entries(d.settings.widgets).filter(([, v]) => !v).map(([k]) => k).join(', ') || 'none'}.`;
-      // (once a day, on the main brain: what a good coach would bring up unasked)
-      thinkJson({ ...brain, sol: brain.sol ? { ...brain.sol, effort: 'medium' } : undefined }, { system: `${INSIGHT_SYSTEM(lang)}\n\n${HANDBOOK_CORE}`, prompt: ctx + app, schema: INSIGHT_SCHEMA, name: 'insights' }).then(readInsights)
-        .then((items) => { const c = { date: today, items }; try { localStorage.setItem(INSIGHTS, JSON.stringify(c)); } catch { /* ignore */ } setCache(c); })
-        .catch(() => { /* quiet: tried again next time the app opens */ })
-        .finally(() => { asking = false; });
+      try {
+        // the Coach's code is loaded with the Coach (a file of its own), not when the app opens
+        const [{ INSIGHT_SYSTEM, INSIGHT_SCHEMA, readInsights }, { brainFor }, { buildCoachContext, memoryBlock }, { thinkJson }, { HANDBOOK_CORE, HOW_TO_TALK }, { personLines }, { dataTrustLines }] = await Promise.all([import('../lib/gemini'), import('../lib/agentTurn'), import('../lib/coachContext'), import('../lib/brain'), import('../lib/handbook'), import('../lib/person'), import('../lib/dataQuality')]);
+        const brain = brainFor({ big: true, surface: 'coach' });
+        if (!brain) return;
+        markTried(today);
+        const map = exerciseMap(d.exercises);
+        const name = (x: string) => { const e = map.get(x); return e ? exName(e, lang) : x; };
+        // what they told the Coach (an injury, how they train, what they don't want) and what they already turned down
+        const no = declined();
+        const ctx = `${buildCoachContext(d, today, name, (x) => map.get(x)?.muscles)}\n${[...personLines(d, today), ...dataTrustLines(d, today)].join('\n')}\n\n${memoryBlock(d, name)}${no.length ? `\n\nTHEY SET THESE ASIDE (never suggest them again, in any wording): ${no.map((x) => `"${x}"`).join('; ')}.` : ''}`;
+        const app = `\nApp setup: Today shows ${Object.entries(d.settings.widgets).filter(([, v]) => v).map(([k]) => k).join(', ')}; hidden: ${Object.entries(d.settings.widgets).filter(([, v]) => !v).map(([k]) => k).join(', ') || 'none'}.`;
+        // (once a day, on the main brain: what a good coach would bring up unasked)
+        const items = readInsights(await thinkJson({ ...brain, sol: brain.sol ? { ...brain.sol, effort: 'medium' } : undefined }, { system: `${INSIGHT_SYSTEM(lang)}\n\n${HOW_TO_TALK}\n\n${HANDBOOK_CORE}`, prompt: ctx + app, schema: INSIGHT_SCHEMA, name: 'insights' }));
+        const c = { date: today, items };
+        try { localStorage.setItem(INSIGHTS, JSON.stringify(c)); } catch { /* ignore */ }
+        setCache(c);
+      } catch { /* quiet: tried again tomorrow */ } finally { asking = false; }
     }, 4000);
     return () => clearTimeout(id);
     // eslint-disable-next-line

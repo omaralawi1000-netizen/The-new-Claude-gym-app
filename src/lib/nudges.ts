@@ -150,7 +150,8 @@ export function findNudges(d: AppData, today: string, hour: number, t: T, lang: 
   }
 
   // ── body ───────────────────────────────────────────────────
-  const ws = d.weights.slice().sort((a, b) => a.date.localeCompare(b.date));
+  // (Aven's weigh-ins and the watch's scale)
+  const ws = weighIns(d);
   const lastW = ws[ws.length - 1];
   if (lastW) {
     const rate = trendRate(weightTrend(ws));
@@ -164,8 +165,7 @@ export function findNudges(d: AppData, today: string, hour: number, t: T, lang: 
       action: { label: t('Log weight'), run: { type: 'open', overlay: 'weight' } } });
     // true maintenance needs the scale a few times a week (lib/maintenance.ts): a quiet reminder in the morning after 3 days
     // without a weigh-in (the watch's scale counts too); from 7 days the card above takes over
-    const last = weighIns(d).at(-1);
-    if (last && diffDays(today, last.date) >= 3 && diffDays(today, last.date) < 7 && new Date().getHours() < 12) add({ id: `weigh:${today}`, kind: 'suggestion', icon: 'scale', priority: 25,
+    if (gap >= 3 && gap < 7 && hour < 12) add({ id: `weigh:soon:${lastW.date}`, kind: 'suggestion', icon: 'scale', priority: 25,
       title: t('Step on the scale?'), body: t('A few weigh-ins a week keep your true maintenance calories accurate.'),
       action: { label: t('Log weight'), run: { type: 'open', overlay: 'weight' } } });
     // weighs often, but the weight card is off on Today

@@ -138,7 +138,7 @@ Progress (ticked as done):
 - [x] Step 4 true maintenance
 - [x] Step 5 routing and time limits
 - [x] Step 6 prompt, handbook, leftovers
-- [ ] Step 7 small fixes (droppable)
+- [x] Step 7 small fixes
 - [ ] Step 8 exam
 - [ ] Step 9 final gate, reviews, docs, PRs ready, Beta
 
