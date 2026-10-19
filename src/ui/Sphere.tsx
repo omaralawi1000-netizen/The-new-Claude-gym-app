@@ -145,6 +145,8 @@ function carry(O: { X: number; Y: number; S: number }, x: number, y: number, z: 
 let lastOverlayChange = 0;
 /** Where the stage last put the orb (its box's top-left within the app, and its size). */
 let orbNow = { X: NaN, Y: NaN, S: NaN };
+/** how fast it was moving on the last frame (px/s), and when that frame was */
+let orbVel = { x: 0, y: 0 }, orbAt = 0;
 
 /** The ids of the pop-ups that are open (not on their way out), cached per change of the stack. */
 let idsFor: unknown = null, idsSet = new Set<string>();
@@ -172,7 +174,7 @@ interface LeaveFrom { k: number; P: { X: number; Y: number; S: number }; py?: nu
 const leaveFrom = new WeakMap<HTMLElement, LeaveFrom | null>();
 // a closing sheet opened again on its way down: the orb goes on from where it is drawn (it used to blend toward the button,
 // still far below, and dived under the dock, then jumped back; judge 19 Oct)
-const turnFrom = new Map<string, { k: number; P: { X: number; Y: number; S: number } }>(), wasLeaving = new Set<string>(); // (by the slot's id: the reopened sheet's slot is a new element)
+const turnFrom = new Map<string, { k: number; P: { X: number; Y: number; S: number }; v: { x: number; y: number }; t: number; falling: boolean }>(), wasLeaving = new Set<string>(); // (by the slot's id: the reopened sheet's slot is a new element)
 const LAND = 160; // px: how far above the dock line the orb lets go of its falling button and eases onto the line
 function claim(el: HTMLElement) {
   if (handoff?.el === el || !Number.isFinite(orbNow.X)) return;
@@ -523,6 +525,7 @@ export function SphereStage() {
         // a pop-up that has handed the orb over to the one arriving no longer pulls it back on its way out
         if (leaving && !mine && (handoff || gaveUp.has(sl.el))) { gaveUp.add(sl.el); continue; }
         const e = sl.engage ? Math.min(1, Math.max(0, sl.engage.e.get())) : 1;
+        if (e <= 0.001) wasLeaving.delete(sl.id); // (closed all the way: nothing to turn round)
         if (have && e <= 0.001 && !mine) continue;
         const r = rects.get(sl.el);
         if (!r) { dirty(); continue; }
@@ -555,15 +558,24 @@ export function SphereStage() {
         // same progress as the popup. Both start together and land together, so the orb never trails the sheet or crosses its
         // buttons on the way; while the popup is opening it is simply a shared element flying to its place.
         if (!leaving) {
-          if (wasLeaving.delete(sl.id) && e < 0.98 && Number.isFinite(orbNow.X)) turnFrom.set(sl.id, { k: e, P: { ...orbNow } });
+          if (wasLeaving.delete(sl.id) && e < 0.98 && Number.isFinite(orbNow.X)) turnFrom.set(sl.id, { k: e, P: { ...orbNow }, v: { ...orbVel }, t: now, falling: true });
           leaveFrom.delete(sl.el);
         } else { wasLeaving.add(sl.id); turnFrom.delete(sl.id); if (!leaveFrom.has(sl.el)) leaveFrom.set(sl.el, kb.get() > 1 && Number.isFinite(orbNow.X) ? { k: Math.max(0.001, e), P: { ...orbNow } } : null); }
         const lf = leaving ? leaveFrom.get(sl.el) : null;
         const tf = leaving ? undefined : turnFrom.get(sl.id);
         if (tf && e >= 0.999) turnFrom.delete(sl.id);
         if (tf) {
-          // straight on from where it was to its button, on the rest of the sheet's progress, never below the dock line
-          const u = Math.min(1, Math.max(0, (e - tf.k) / Math.max(0.001, 1 - tf.k)));
+          // while the sheet's spring still carries it down, the orb coasts on and slows (it stopped dead at the tap, judge 19
+          // Oct); once the sheet comes back up it goes straight on from there to its button, on the rest of the sheet's
+          // progress, never below the dock line
+          if (tf.falling && e > tf.k + 0.001) tf.falling = false;
+          if (tf.falling) {
+            const dt = Math.min(0.05, Math.max(0, now - tf.t) / 1000), d = Math.exp(-25 * dt);
+            tf.t = now; tf.k = Math.min(tf.k, e);
+            tf.P = { X: tf.P.X + tf.v.x * dt, Y: Math.min(Math.max(tf.P.Y, Y), tf.P.Y + tf.v.y * dt), S: tf.P.S };
+            tf.v = { x: tf.v.x * d, y: tf.v.y * d };
+          }
+          const u = tf.falling ? 0 : Math.min(1, Math.max(0, (e - tf.k) / Math.max(0.001, 1 - tf.k)));
           const ty = tf.P.Y + (y - tf.P.Y) * u;
           X = tf.P.X + (x - tf.P.X) * u; Y = Math.min(ty, Math.max(tf.P.Y, Y)); S = tf.P.S + (z - tf.P.S) * u; flight = u;
         } else if (lf) {
@@ -596,6 +608,8 @@ export function SphereStage() {
         if (e > 0.02) { top = Math.max(top, sl.priority); topSlot = sl; }
       }
       if (!have) { el.style.opacity = '0'; pause(); return; }
+      if (orbAt && now > orbAt && Number.isFinite(orbNow.X)) { const dt = (now - orbAt) / 1000; orbVel = { x: (X - orbNow.X) / dt, y: (Y - orbNow.Y) / dt }; }
+      orbAt = now;
       orbNow = { X, Y, S };
       // In the tab bar it sits under every popup; in a popup it sits just above that popup — and so under anything
       // opened over it (an exercise menu over the live workout), never floating on top of everything.
