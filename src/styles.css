@@ -518,6 +518,10 @@ html:root[data-glow='off']:not([data-bg='photo']) .fields::before { content: '';
    that colour. It reads as "this, once you've filled it in" and fills in when it can be pressed (the faint wash it had
    read as a flat brown smear on dark, peach on light) */
 .btn.primary[disabled] { background: transparent; color: color-mix(in srgb, var(--ac-text) 78%, transparent); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ac) 46%, transparent); }
+/* (on dark, the accent itself: its paler text mix, see-through, read as tan, the bronze Omar dislikes) */
+:root:not([data-theme='light']) .btn.primary[disabled] { color: var(--ac); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ac) 72%, transparent); }
+/* a hard session's chip (Watch): its label in the accent */
+.chip.hot { color: var(--ac-text); }
 .btn.danger[disabled] { color: color-mix(in srgb, var(--bad) 45%, transparent); }
 .icon-btn {
   width: 46px; height: 46px; border-radius: 999px; display: inline-grid; place-items: center; color: var(--tx); position: relative;
@@ -2931,3 +2935,5 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
    Static (never animated). */
 :root { --lift-main: 0 1px 1px rgba(0,0,0,.32), 0 3px 7px -2px rgba(0,0,0,.42); }
 :root[data-theme='light'] { --lift-main: 0 1px 2px rgba(60,30,30,.14), 0 6px 14px -8px rgba(60,30,30,.22); }
+/* (after the dark chip rule above, which would make it grey again) */
+:root:not([data-theme='light']) span.chip.hot { color: var(--ac); }
