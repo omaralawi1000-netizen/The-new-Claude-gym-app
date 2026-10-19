@@ -43,7 +43,7 @@ const FADE_IN = { inside: [0.025, 0.08], skin: [0.06, 0.16], words: [0.002, 0.03
 // card's look comes up on it at the end)
 // (`pop`, `popS`: the card's play button on a layer of its own, so it never shows half see-through: it comes up quickly over
 // `pop` while it is still a touch small, and grows the last bit into its place over `popS`; leaving, the reverse)
-type Fades = typeof FADE_OUT & { views?: number[]; mat?: number[]; pop?: number[]; popS?: number[]; /** the play button's size at the far end of popS (0.88) */ popTo?: number; veil?: number[]; meta?: number[] };
+type Fades = typeof FADE_OUT & { views?: number[]; mat?: number[]; pop?: number[]; popS?: number[]; /** the play button's size at the far end of popS (0.88) */ popTo?: number; veil?: number[]; meta?: number[]; bar?: number[] };
 const FADES: Record<Land, { out: Fades; in: Fades }> = {
   A: { out: { ...FADE_OUT, inside: [0.86, 0.99], skin: [0.42, 0.8], mat: FADE_OUT.skin }, in: { ...FADE_IN, inside: [0.68, 0.94], views: [0.86, 0.995], skin: [0.32, 0.66], mat: FADE_IN.skin } },
   B: { out: { inside: [0.5, 0.97], skin: [0.38, 0.76], mat: [0.089, 0.178], words: [0, 0.06], back: [0.006, 0.056], solid: [0.078, 0.089], pop: [0.07, 0.1], popS: [0, 0.1] }, in: { ...FADE_IN, words: [0.002, 0.07], pop: [0.002, 0.025], popS: [0.002, 0.05], inside: [0.62, 0.9], views: [0.8, 0.99], skin: [0.6, 0.88], mat: FADE_IN.skin } },
@@ -57,7 +57,7 @@ const FADES: Record<Land, { out: Fades; in: Fades }> = {
   // window is a good part of the screen (r1: the light squeezed into a card or bar read as a flat red-orange slab); it is
   // set on plain progress, as `meta` is: the header's tally and progress bar, which leave in the first frames of a close
   // (the clock flies down through where they are) and come back once it has flown up.
-  D: { out: { inside: [0.1, 0.2], views: [0.12, 0.22], skin: [0.1, 0.2], veil: [0.25, 0.45], meta: [0.88, 0.96], mat: [0.089, 0.178], words: [0.06, 0.15], back: [0.006, 0.056], solid: [0.078, 0.089], pop: [0.115, 0.12], popS: [0, 0.12], popTo: 0.15 }, in: { ...FADE_IN, words: [0.002, 0.09], pop: [0.055, 0.06], popS: [0, 0.06], popTo: 0.15, inside: [0.07, 0.18], views: [0.09, 0.22], skin: [0.06, 0.2], veil: [0.25, 0.45], meta: [0.25, 0.45], mat: FADE_IN.skin } },
+  D: { out: { inside: [0.1, 0.2], views: [0.12, 0.22], skin: [0.1, 0.2], veil: [0.25, 0.45], meta: [0.88, 0.96], bar: [0.14, 0.3], mat: [0.089, 0.178], words: [0.06, 0.15], back: [0.006, 0.056], solid: [0.078, 0.089], pop: [0.115, 0.12], popS: [0, 0.12], popTo: 0.15 }, in: { ...FADE_IN, words: [0.002, 0.09], pop: [0.055, 0.06], popS: [0, 0.06], popTo: 0.15, inside: [0.07, 0.18], views: [0.09, 0.22], skin: [0.06, 0.2], veil: [0.25, 0.45], meta: [0.25, 0.45], bar: [0.12, 0.3], mat: FADE_IN.skin } },
   C: { out: { ...FADE_OUT, inside: [0.88, 0.995], skin: [0.42, 0.8], mat: FADE_OUT.skin }, in: { ...FADE_IN, inside: [0.6, 0.9], views: [0.8, 0.99], skin: [0.32, 0.6], mat: FADE_IN.skin } },
 };
 // B: how much the card gives as it catches the window (per unit of the spring's overshoot past the card): it shrinks a
@@ -258,7 +258,21 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   const dimO = useTransform(pv, dim);
   // the orb's slot in the bar: where it is at rest, and how far the window has moved it at progress pp (its top edge, scaled)
   const slotTop = useRef(0);
-  const slotShift = (pp: number) => { const g = geo(pp); return g.y + g.s * (slotTop.current + LEAD) - slotTop.current; };
+  // D: the workout's bar rides the window's bottom edge the whole way, just above the tab bar that edge carries down (r1:
+  // the tab bar went, then nothing at the bottom for 19 frames, then the bar rose: two moves with a hole between). It is
+  // tucked under that edge while the window is card-sized (it would lie over the card's words) and rises out of it as the
+  // window grows (moved, never faded: a fade on the bar's ancestor turns its frost off until the fade ends).
+  const BAR_TUCK = 96;
+  const barBy = (pp: number) => (from.current && ls.current === 'D' && F().bar ? geo(pp).by + BAR_TUCK * (1 - ramp(pp, F().bar!)) : 0);
+  const barRef = useRef<HTMLDivElement>(null);
+  const lastBar = useRef({ by: 0 });
+  const barT = (by: number) => (by ? `translateY(${by.toFixed(2)}px)` : 'none');
+  const barAt = (pp: number) => {
+    const el = barRef.current; if (!el) return;
+    const by = barBy(pp); if (by === lastBar.current.by) return; lastBar.current = { by };
+    el.style.transform = by ? barT(by) : '';
+  };
+  const slotShift = (pp: number) => { const g = geo(pp); return g.y + g.s * (slotTop.current + LEAD + barBy(pp)) - slotTop.current; };
   const dragT = useTransform(dragY, (d) => Math.max(0, d) + Math.min(0, d) * 0.15);
   const dialogY = useTransform([p, dragY], ([pp, d]: number[]) => slotShift(pp) + Math.max(0, d) + Math.min(0, d) * 0.15); // how far the content is displaced (for the orb)
   const eFinger = useTransform([p, dragY], ([pp, d]: number[]) => Math.min(1, Math.max(0, pp - Math.max(0, d) / H)));
@@ -493,7 +507,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   const metaAt = (pp: number) => { const v = String(metaO(pp)); if (v === lastMeta.current) return; lastMeta.current = v; for (const el of metaEls()) el.style.opacity = v === '1' ? '' : v; };
   const paintAt = (pp: number) => {
     if (!reduce) sink(env(pp));
-    metaAt(pp);
+    metaAt(pp); barAt(pp);
     if (dockAt.current !== null) setDock(pp);
     skinAt(pp);
   };
@@ -540,7 +554,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     const slot = a0.querySelector<HTMLElement>('[data-orb-slot]');
     if (slot) {
       const r = slot.getBoundingClientRect(), now = geo(p.get());
-      const top = (r.top - dy - box.top - now.y) / now.s - LEAD;
+      const top = (r.top - dy - box.top - now.y) / now.s - LEAD - lastBar.current.by;
       slotTop.current = top;
       slotRest.current = { left: (r.left - box.left - now.x) / now.s + box.left, top: top + box.top, width: r.width / now.s, height: r.height / now.s };
     }
@@ -673,6 +687,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
       morph && k && F().mat ? go(k.tone, (pp) => ({ opacity: String(toneO(pp)) }), F().mat) : null,
       morph && k?.words ? go(k.words, (pp) => ({ opacity: String(wordsO(pp)), transform: wordsAt(pp) }), [], true) : null,
       morph && k?.pop ? go(k.pop.el, (pp) => ({ opacity: String(popO(pp)), transform: popAt(pp) }), [], true) : null,
+      morph && ls.current === 'D' ? go(barRef.current, (pp) => ({ transform: barT(barBy(pp)) }), [], true) : null,
       ...(morph && F().meta ? metaEls().map((el) => go(el, (pp) => ({ opacity: String(metaO(pp)) }), [], true)) : []),
       morph ? go(dimRef.current, (pp) => ({ opacity: String(dim(pp)) }), ENVB) : null,
       morph ? go(stageEl(), (pp) => ({ transform: contentTransform(env(pp)) }), ENVB) : null,
@@ -744,6 +759,9 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
       const flight = opening
         ? { frames, src: (i: number) => (B ? skinAt(ppAt(i)) : cardRest), dst: (i: number) => headerAt(ppAt(i)), w: (i: number) => (live ? 1 - Math.pow(1 - Math.min(1, Math.max(0, ppAt(i) - ppAt(skip)) / 0.3), 2) : B ? 1 - Math.pow(1 - Math.min(1, qAt(ppAt(i))), 3) : hw(i)) }
         : { frames, src: (i: number) => headerAt(ppAt(i)), dst: (i: number) => (B ? skinAt(ppAt(i)) : cardRest), w: (i: number) => (live ? Math.pow(Math.min(1, Math.max(0, (0.2 - ppAt(i)) / 0.2)), 1.5) : B ? Math.pow(Math.max(0, 1 - qAt(ppAt(i))), 1.5) : hw(i)) };
+      // (D, into the resume bar: the clock goes sideways first and drops into its place last, so it never runs along its
+      // line over the words before it, r2)
+      if (live && !opening && bg.dataset.wk === 'pill') { const w0 = flight.w; Object.assign(flight, { wx: (i: number) => Math.min(1, Math.sqrt(Math.max(0, w0(i)))) }); }
       const a0 = opening ? cardA : headNow, a1 = opening ? { x: restHead.x, y: restHead.y, f: restHead.f } : cardA;
       const fromEl = opening ? cardEl : headEl, toEl = opening ? headEl : cardEl;
       // (D: the two looks cross over five or six frames: the name near its small end, the clock as it sets off)
@@ -1143,7 +1161,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
           </motion.div>
 
           {/* the workout's own dock, where the tab bar sits: what's next, the rest timer, and the orb */}
-          <WorkoutBar engage={engage} exMap={exMap} focus={view === 'focus'} onDone={pointToFinish} onJump={jumpTo} />
+          <div ref={barRef} className="wk-bar-ride"><WorkoutBar engage={engage} exMap={exMap} focus={view === 'focus'} onDone={pointToFinish} onJump={jumpTo} /></div>
           </div>
         </div>
         </motion.div>

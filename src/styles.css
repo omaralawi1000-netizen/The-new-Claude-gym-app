@@ -1015,6 +1015,8 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* The workout bar: the workout's own dock, exactly where the tab bar sits. While resting, its fill grows with the rest
    (a transform, re-aimed four times a second with a matching linear transition, so it moves continuously); at the end it
    turns green with one soft glow and stays green until the next set is ticked. It slides away while you type. */
+/* (the bar's own layer: D carries it on the window's moving bottom edge, Active.tsx barAt) */
+.wk-bar-ride { position: absolute; inset: 0; z-index: 5; pointer-events: none; }
 .wk-bar-wrap { position: absolute; left: 0; right: 0; bottom: calc(var(--sab) + 14px); padding: 0 16px; display: flex; flex-direction: column; align-items: center; z-index: 5; pointer-events: none; }
 .wk-bar { pointer-events: auto; position: relative; width: 100%; max-width: 420px; height: 60px; border-radius: 999px; display: flex; align-items: center; gap: 8px; padding: 0 7px 0 22px; }
 /* The frost, its tint and rim are a layer of their own under the words, the fill and the orb's button: none of them sits inside

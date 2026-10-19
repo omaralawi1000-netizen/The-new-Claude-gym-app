@@ -92,6 +92,8 @@ const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 export type Flight = {
   frames: number;
   w: (i: number) => number;
+  /** how far along it is sideways (default: a touch ahead of `w`, a gentle arc) */
+  wx?: (i: number) => number;
   src: (i: number) => Anchor & { s: number };
   dst: (i: number) => Anchor & { s: number };
 };
@@ -112,7 +114,7 @@ export function flyHero(host: HTMLElement, from: HTMLElement, to: HTMLElement, a
     const w = fl.w(i), wc = Math.min(1, Math.max(0, w));
     const s = fl.src(i), d = fl.dst(i);
     // the path: a gentle arc (it leaves a touch sideways first, then drops), its size grows evenly to the eye (geometric)
-    const x = lerp(s.x, d.x, w <= 1 ? Math.pow(Math.max(0, w), 0.86) : w);
+    const x = lerp(s.x, d.x, fl.wx ? fl.wx(i) : w <= 1 ? Math.pow(Math.max(0, w), 0.86) : w);
     const y = lerp(s.y, d.y, w);
     const f = Math.exp(lerp(Math.log(s.f * s.s), Math.log(d.f * d.s), wc)); // the drawn size (of the ink)
     // the crossing: near its small end (the window's clock), the two lined up by their ink over each other, so it reads
