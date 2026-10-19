@@ -34,6 +34,7 @@ await press(p.getByLabel('Photo').first()); await p.locator('.cam-shutter').wait
 await s.film(`analyze-${tag}`, () => press(p.locator('.cam-shutter')), frames);
 await s.advance(120);
 await s.film(`analyze-${tag}-settled`, async () => {}, 2);
+await p.screenshot({ path: `shots/analyze-${tag}-rest.png` }); // the settled result as it rests: nothing shows behind or below the Log bar
 await p.evaluate(() => { const b = document.querySelector('.sheet-body'); if (b) b.scrollTop = b.scrollHeight; }); await s.advance(60);
 await p.screenshot({ path: `shots/analyze-${tag}-scrolled.png` }); // the list scrolled to its end: the last card clears the Log bar
 await s.close();

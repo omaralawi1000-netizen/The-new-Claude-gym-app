@@ -32,6 +32,8 @@ export function CameraSheet({ props }: { props: Props }) {
   const taken = useRef(false);
   const [cam, setCam] = useState<Cam>(cameraSupported() ? 'starting' : 'unsupported');
   const [shown, setShown] = useState(false);
+  const wrap = useRef<HTMLDivElement>(null);
+  const flipping = useRef(false); // a flip: the held frame dips to the sheet's black, then the new picture comes in
   const [facing, setFacing] = useState<'environment' | 'user'>('environment');
 
   // false the moment the pop-up starts to leave (Back, a swipe, the phone's back gesture), though it stays on screen while it slides away
@@ -55,7 +57,8 @@ export function CameraSheet({ props }: { props: Props }) {
         const ready = () => {
           if (stopped) return;
           setShown(true);
-          const s = still.current; if (s && s.dataset.on === '1') { s.dataset.on = '0'; s.style.opacity = '0'; } // the held frame fades away over the new picture
+          const s = still.current; if (s) s.dataset.on = '0';
+          window.setTimeout(() => { flipping.current = false; }, 400);
         };
         const rvfc = (v as HTMLVideoElement & { requestVideoFrameCallback?: (cb: () => void) => number }).requestVideoFrameCallback;
         if (rvfc) rvfc.call(v, ready);
@@ -78,6 +81,7 @@ export function CameraSheet({ props }: { props: Props }) {
 
   const hand = (f: File) => {
     if (!alive.current) return; // Back or a swipe came first: nothing is handed over, nothing underneath is closed
+    wrap.current?.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 120, easing: 'cubic-bezier(0.4, 0, 1, 1)', fill: 'forwards' }); // only the captured photo is ever seen as the next sheet rises
     if (props.open) { const [type, p] = props.open(f); useUI.getState().swap(1, type, p); }
     else { pop(); props.onShot?.(f); }
   };
@@ -102,7 +106,8 @@ export function CameraSheet({ props }: { props: Props }) {
     const c = cut(v, p, 1000); // hold the current picture, then the new one fades in over it (never a cut to black)
     s.width = c.width; s.height = c.height; s.getContext('2d')!.drawImage(c, 0, 0);
     s.style.transition = 'none'; s.style.opacity = '1'; s.dataset.on = '1';
-    void s.offsetWidth; s.style.transition = '';
+    void s.offsetWidth; s.style.transition = 'opacity 100ms cubic-bezier(0.4, 0, 1, 1)'; s.style.opacity = '0'; // the held frame dips to the sheet's black; the two pictures are never seen together
+    flipping.current = true; setShown(false);
     setFacing((f) => (f === 'environment' ? 'user' : 'environment'));
   };
 
@@ -111,12 +116,12 @@ export function CameraSheet({ props }: { props: Props }) {
 
   return (
     <Sheet onClose={pop} size="full" label={t('Camera')} z={110} cam>
-      <div className="cam-wrap">
+      <div ref={wrap} className="cam-wrap">
         <div ref={panel} className="cam-panel">
-          {!failed && <video ref={video} playsInline muted className="cam-video" style={{ opacity: shown ? 1 : 0, transition: shown ? 'opacity 420ms var(--ease-out) 180ms' : 'none' }} />}
+          {!failed && <video ref={video} playsInline muted className="cam-video" style={{ opacity: shown ? 1 : 0, transition: shown ? (flipping.current ? 'opacity 160ms var(--ease-out) 100ms' : 'opacity 420ms var(--ease-out) 180ms') : 'none' }} />}
           <canvas ref={still} className="cam-still" aria-hidden style={{ opacity: 0 }} />
           <div ref={flash} className="cam-flash" aria-hidden />
-          <div className="small cam-msg" aria-hidden={shown || failed || undefined} style={{ opacity: !failed && shown ? 0 : 1 }}>
+          <div className="small cam-msg" aria-hidden={shown || failed || undefined} style={{ opacity: !failed && (shown || flipping.current) ? 0 : 1 }}>
             {failed ? <><b>{cam === 'denied' ? t('Camera permission was denied.') : cam === 'error' ? t('Couldn’t start the camera.') : t('The camera isn’t available here.')}</b>
               <span className="cam-why">{cam === 'denied' ? t('Give Aven camera access in your phone’s settings, or pick a photo instead.') : cam === 'error' ? t('Another app may be using the camera. Use the phone’s camera or pick a photo.') : ''}</span></> : t('Starting camera…')}
           </div>

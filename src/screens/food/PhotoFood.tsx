@@ -23,9 +23,9 @@ const PORTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 const SCAN_WORDS = ['Reading your plate', 'Finding ingredients', 'Estimating portions', 'Adding it all up'];
 // PREVIEW ONLY: six looks for the wait, chosen with localStorage 'aven.scan' (A-F); Omar picks one, the rest are deleted
 export const scanVariant = () => { try { return localStorage.getItem('aven.scan') || 'A'; } catch { return 'A'; } };
-/** Which of the four steps the wait is at (rAF + performance.now, so it follows the real clock): it moves on every 1.9 s, and
- *  "Adding it up" only comes after 7 s so a long wait never sits on the last words. */
-const STEP_AT = [0, 1900, 3800, 7000];
+/** Which of the four steps the wait is at (rAF + performance.now, so it follows the real clock): it moves in the rest of every sweep, and
+ *  "Adding it all up" only comes after 8.9 s so a long wait never sits on the last words. */
+const STEP_AT = [0, 2500, 5700, 8900]; // changes land in the rest between two sweeps (3.2 s cycle, still from 2.2 s on)
 function useStep() {
   const [i, setI] = useState(0);
   useEffect(() => {
@@ -145,7 +145,7 @@ export function PhotoFood({ props }: { props: { date: string; mealId: string; fi
     <Sheet onClose={pop} tall label={t('Photo')} z={100}
       foot={items.length ? <motion.button className="btn primary block press" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.45, delay: 0.3 }} disabled={!chosen.length} onClick={log}>{t(chosen.length === 1 ? 'Log 1 item' : 'Log {n} items', { n: chosen.length })} · {fmtNum(Math.round(total), lang, 0)} kcal</motion.button> : undefined}>
       <SheetHead title={t('Snap your plate')} sub={mealName(meal, lang)} onClose={pop} />
-      <div className="sheet-body">
+      <div className="sheet-body melt-foot">
         <input ref={cam} type="file" accept="image/*" capture="environment" hidden onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ''; }} />
         <input ref={lib} type="file" accept="image/*" hidden onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ''; }} />
         {!hasAi ? (
