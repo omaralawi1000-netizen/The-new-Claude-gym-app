@@ -93,3 +93,29 @@ describe('from the address into the app', () => {
     expect(location.hash).toBe('');
   });
 });
+
+describe('everything else the watch measures (19 Oct)', () => {
+  const hd = [
+    { d: '2026-10-18', s: 9000, ak: 640, tk: 2900, m: 7200, fl: 12, rh: 51, hv: 63, sl: 431, dp: 72, rm: 95, lt: 240, aw: 24, sb: now - 10 * H, se: now - 3 * H, w: 82.43, bf: 14.26, vo: 47.9, o2: 96.4, rr: 14.2 },
+    { d: '2026-10-17', rh: 400, hv: -3, sl: 5000, w: 3, junk: 'x' },
+  ];
+  it('sleep, recovery and body numbers are read, checked and rounded; nonsense is dropped', () => {
+    const p = parseHc(`#hc=${enc({ ...payload([]), hd })}`)!;
+    expect(p.hd).toHaveLength(1); // the second day has nothing believable
+    expect(p.hd![0]).toMatchObject({ date: '2026-10-18', activeKcal: 640, totalKcal: 2900, restHr: 51, hrv: 63, sleepMin: 431, deepMin: 72, remMin: 95, weightKg: 82.4, bodyFat: 14.3, vo2max: 47.9, spo2: 96.4, respRate: 14.2, floors: 12 });
+    expect(p.hd![0].sleepEnd! > p.hd![0].sleepStart!).toBe(true);
+  });
+  it('an older payload (no hd) still reads exactly as before', () => {
+    const p = parseHc(`#hc=${enc(payload([stairs], [['2026-10-18', 12100]]))}`)!;
+    expect(p.hd).toBeUndefined();
+    expect(p.ex).toHaveLength(1);
+  });
+  it('history: workouts up to two years back are kept; a day read again replaces that day', () => {
+    const old = { ...stairs, id: 'hc-old', s: now - 400 * 24 * H, e: now - 400 * 24 * H + 40 * 60000 };
+    expect(parseHc(`#hc=${enc(payload([old]))}`)!.ex).toHaveLength(1);
+    const first = mergeHc({ ...payload([]), hd: [{ date: '2026-10-18', sleepMin: 300 }, { date: '2026-10-17', restHr: 50 }] }, { activities: [], steps: [], health: [] }, 0);
+    const again = mergeHc({ ...payload([]), hd: [{ date: '2026-10-18', sleepMin: 420, hrv: 60 }] }, first, 0);
+    expect(again.health).toEqual([{ date: '2026-10-17', restHr: 50 }, { date: '2026-10-18', sleepMin: 420, hrv: 60 }]);
+    expect(mergeHc({ ...payload([]), hd: [{ date: '2026-10-18', sleepMin: 420, hrv: 60 }] }, again, 0).health).toEqual(again.health); // idempotent
+  });
+});

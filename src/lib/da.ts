@@ -1727,6 +1727,7 @@ export const da: Record<string, string> = {
  "Set skipped": "Sæt sprunget over",
  "Say the sets you did and I’ll log them": "Sig de sæt, du lavede, så logger jeg dem",
  "Give me three easy ways to get more protein: from what I usually eat, or simple new ideas.": "Giv mig tre nemme måder at få mere protein på: fra det, jeg plejer at spise, eller enkle nye idéer.",
+ "your watch data": "dine urdata",
  "Your watch’s workouts and steps, by themselves": "Dit urs træninger og skridt, helt af sig selv",
  "steps a day": "skridt om dagen",
  "{n} steps a day": "{n} skridt om dagen",

@@ -285,6 +285,27 @@ export interface ActivityLog {
 /** Steps of one day, from the watch and phone (Health Connect counts each step once). */
 export interface StepDay { date: string; count: number }
 
+/**
+ * Everything else the watch measured on one day (Health Connect, read only): calories, distance, floors, resting heart
+ * rate, HRV, the night's sleep (counted on the morning it ended) with its stages, and body numbers. Missing = not measured
+ * or not allowed.
+ */
+export interface HealthDay {
+  date: string;
+  /** active and total calories burned (shown, never added to the food target) */
+  activeKcal?: number; totalKcal?: number;
+  distanceM?: number; floors?: number;
+  /** resting heart rate (bpm) and heart rate variability (RMSSD, ms) */
+  restHr?: number; hrv?: number;
+  /** sleep in minutes, and its stages */
+  sleepMin?: number; deepMin?: number; remMin?: number; lightMin?: number; awakeMin?: number;
+  /** when the night's sleep started and ended (ms) */
+  sleepStart?: number; sleepEnd?: number;
+  weightKg?: number; bodyFat?: number; vo2max?: number;
+  /** blood oxygen (%) and breathing rate (per minute), the day's average */
+  spo2?: number; respRate?: number;
+}
+
 // ── Settings ────────────────────────────────────────────────
 
 export type Goal = 'strength' | 'muscle' | 'fatloss' | 'endurance' | 'general';
@@ -380,7 +401,9 @@ export interface AppData {
   memory: MemoryNote[];
   /** the weekly reviews (the newest 26): the Coach's verdict and the priorities it set, so the next review can check them */
   reviews?: WeekReviewNote[];
-  /** steps per day from the watch (Health Connect), the newest 120 days */
+  /** steps per day from the watch (Health Connect), the newest ~2 years */
   steps: StepDay[];
+  /** the rest of what the watch measured, per day (newest ~2 years) */
+  health?: HealthDay[];
   demo: boolean;
 }

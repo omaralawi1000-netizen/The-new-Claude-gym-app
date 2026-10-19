@@ -1,18 +1,19 @@
 /**
  * The watch, automatically (Coach 2.0 phase 5b, part D). Galaxy Watch → Samsung Health → Health Connect → the Android app
  * (android/…/HealthSync.java), which opens this page with the numbers in its address after "#hc=" (base64url JSON). The
- * page reads them, keeps what is new — steps per day and the watch's workouts as activities — and takes them out of the
- * address again. Read only, never the other way.
+ * page reads them, keeps what is new — steps per day, the watch's workouts as activities, and the rest of each day (sleep and
+ * its stages, resting heart rate, HRV, calories, body numbers) — and takes them out of the address again. The app sends the
+ * last 14 days plus one older 30-day stretch each time, so about two years arrive over a few openings. Read only.
  *
  * Only believed on a phone with the Android app (`appOnPhone`: opened in it, or seen there before). Inside the app Chrome's
  * "came from the app" mark is lost once Aven reloads itself for an update, and then the watch's numbers were thrown away
- * and Connect watch seemed to do nothing (Omar, 18 Oct). Everything is checked and capped: at most 60 workouts and 40
- * days, sane numbers.
+ * and Connect watch seemed to do nothing (Omar, 18 Oct). Everything is checked and capped: at most 150 workouts and 140
+ * days a time, sane numbers, about two years kept.
  *
  * Calories the watch counted are shown, never added to the food target (Omar: "I don't think it should count the calories
  * I burn so I can eat more").
  */
-import type { ActivityKind, ActivityLog, StepDay } from './types';
+import type { ActivityKind, ActivityLog, HealthDay, StepDay } from './types';
 import { dayKey } from './dates';
 import { uid } from './nutrition';
 import { appOnPhone } from './androidApp';
@@ -27,6 +28,8 @@ export interface HcPayload {
   note?: string;
   days?: [string, number][];
   ex?: HcWorkout[];
+  /** everything else per day (sleep, resting heart rate, HRV, body…) */
+  hd?: HealthDay[];
 }
 
 /** How it stands, for Settings (no numbers): kept on the phone. */
@@ -43,7 +46,7 @@ const num = (v: unknown, lo: number, hi: number) => (typeof v === 'number' && Nu
 
 /** "#hc=…" → the checked numbers, or null. */
 export function parseHc(hash: string): HcPayload | null {
-  const m = /(?:^#|&)hc=([A-Za-z0-9_-]{8,60000})/.exec(hash);
+  const m = /(?:^#|&)hc=([A-Za-z0-9_-]{8,160000})/.exec(hash);
   if (!m) return null;
   let raw: any;
   try {
@@ -54,18 +57,35 @@ export function parseHc(hash: string): HcPayload | null {
   if (!raw || raw.v !== 1) return null;
   const now = Date.now();
   const at = num(raw.at, now - 30 * 86400000, now + 86400000) ?? now;
-  const days = (Array.isArray(raw.days) ? raw.days : []).slice(0, 40)
+  // (the last 14 days plus one older 30-day stretch of the history each time: about two years back)
+  const OLD = now - 800 * 86400000;
+  const days = (Array.isArray(raw.days) ? raw.days : []).slice(0, 140)
     .filter((d: any) => Array.isArray(d) && typeof d[0] === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d[0]) && num(d[1], 1, 150000) !== undefined)
     .map((d: any) => [d[0], Math.round(d[1])] as [string, number]);
-  const ex: HcWorkout[] = (Array.isArray(raw.ex) ? raw.ex : []).slice(0, 60).flatMap((w: any): HcWorkout[] => {
-    const s = num(w?.s, now - 60 * 86400000, now + 3600000), e = num(w?.e, now - 60 * 86400000, now + 3600000);
+  const ex: HcWorkout[] = (Array.isArray(raw.ex) ? raw.ex : []).slice(0, 150).flatMap((w: any): HcWorkout[] => {
+    const s = num(w?.s, OLD, now + 3600000), e = num(w?.e, OLD, now + 3600000);
     if (typeof w?.id !== 'string' || !w.id || w.id.length > 120 || s === undefined || e === undefined || e <= s || e - s > 12 * 3600000) return [];
     return [{
       id: w.id, t: typeof w.t === 'string' ? w.t.slice(0, 24) : 'other', n: typeof w.n === 'string' ? w.n.slice(0, 40) : undefined, s, e,
       hr: num(w.hr, 30, 230), hx: num(w.hx, 30, 240), kc: num(w.kc, 1, 5000), m: num(w.m, 1, 300000), src: typeof w.src === 'string' ? w.src.slice(0, 80) : undefined,
     }];
   });
-  return { v: 1, avail: !!raw.avail, on: !!raw.on, granted: !!raw.granted, at, note: typeof raw.note === 'string' ? raw.note.slice(0, 20) : undefined, ...(Array.isArray(raw.days) ? { days } : {}), ...(Array.isArray(raw.ex) ? { ex } : {}) };
+  const r1 = (v: unknown, lo: number, hi: number) => { const x = num(v, lo, hi); return x === undefined ? undefined : Math.round(x * 10) / 10; };
+  const ri = (v: unknown, lo: number, hi: number) => { const x = num(v, lo, hi); return x === undefined ? undefined : Math.round(x); };
+  const hd: HealthDay[] = (Array.isArray(raw.hd) ? raw.hd : []).slice(0, 140).flatMap((d: any): HealthDay[] => {
+    if (typeof d?.d !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(d.d)) return [];
+    const sb = num(d.sb, OLD, now + 86400000), se = num(d.se, OLD, now + 86400000);
+    const day: HealthDay = {
+      date: d.d, activeKcal: ri(d.ak, 1, 10000), totalKcal: ri(d.tk, 300, 15000), distanceM: ri(d.m, 1, 300000), floors: ri(d.fl, 1, 2000),
+      restHr: ri(d.rh, 25, 150), hrv: ri(d.hv, 3, 300),
+      sleepMin: ri(d.sl, 10, 1440), deepMin: ri(d.dp, 1, 1000), remMin: ri(d.rm, 1, 1000), lightMin: ri(d.lt, 1, 1440), awakeMin: ri(d.aw, 1, 1000),
+      ...(sb !== undefined && se !== undefined && se > sb ? { sleepStart: sb, sleepEnd: se } : {}),
+      weightKg: r1(d.w, 25, 400), bodyFat: r1(d.bf, 2, 70), vo2max: r1(d.vo, 10, 95), spo2: r1(d.o2, 70, 100), respRate: r1(d.rr, 4, 60),
+    };
+    for (const k of Object.keys(day) as (keyof HealthDay)[]) if (day[k] === undefined) delete day[k];
+    return Object.keys(day).length > 1 ? [day] : [];
+  });
+  return { v: 1, avail: !!raw.avail, on: !!raw.on, granted: !!raw.granted, at, note: typeof raw.note === 'string' ? raw.note.slice(0, 20) : undefined, ...(Array.isArray(raw.days) ? { days } : {}), ...(Array.isArray(raw.ex) ? { ex } : {}), ...(hd.length ? { hd } : {}) };
 }
 
 /** Health Connect's workout types in Aven's kinds (lifting is left out: Aven logs the gym itself). */
@@ -94,7 +114,7 @@ export function intensityOf(avgHr: number | undefined, highest: number): 1 | 2 |
  * is updated in place (your note stays); one you logged yourself the same day as the same kind, about as long, becomes
  * the watch's (your note and rounds stay); steps for a day are the watch's. Returns what changed.
  */
-export function mergeHc(p: HcPayload, cur: { activities: ActivityLog[]; steps: StepDay[] }, dayStartHour: number): { activities: ActivityLog[]; steps: StepDay[]; added: number } {
+export function mergeHc(p: HcPayload, cur: { activities: ActivityLog[]; steps: StepDay[]; health?: HealthDay[] }, dayStartHour: number): { activities: ActivityLog[]; steps: StepDay[]; health: HealthDay[]; added: number } {
   const acts = [...cur.activities];
   let added = 0;
   const highest = Math.max(0, ...acts.map((a) => a.maxHr ?? 0), ...(p.ex ?? []).map((w) => w.hx ?? 0));
@@ -119,9 +139,16 @@ export function mergeHc(p: HcPayload, cur: { activities: ActivityLog[]; steps: S
   if (p.days?.length) {
     const by = new Map(cur.steps.map((d) => [d.date, d.count]));
     for (const [date, count] of p.days) by.set(date, count);
-    steps = [...by].map(([date, count]) => ({ date, count })).sort((a, b) => a.date.localeCompare(b.date)).slice(-120);
+    steps = [...by].map(([date, count]) => ({ date, count })).sort((a, b) => a.date.localeCompare(b.date)).slice(-760);
   }
-  return { activities: acts, steps, added };
+  // the rest per day: the newest reading of a day replaces that day (a day read again is complete again)
+  let health = cur.health ?? [];
+  if (p.hd?.length) {
+    const by = new Map(health.map((d) => [d.date, d]));
+    for (const d of p.hd) by.set(d.date, d);
+    health = [...by.values()].sort((a, b) => a.date.localeCompare(b.date)).slice(-760);
+  }
+  return { activities: acts, steps, health, added };
 }
 
 /**
@@ -139,7 +166,7 @@ export function applyHcFromAddress(): void {
   // (out of the address either way: a reload or a shared link must not carry it)
   try { history.replaceState(history.state, '', location.pathname + location.search); } catch { /* fine */ }
   // what the Android app sent back last, as plain facts (the Watch screen shows them: one screenshot says where it stops)
-  try { localStorage.setItem(LAST, JSON.stringify({ at: Date.now(), len, ok: !!p, inApp: appOnPhone(), ...(p ? { avail: p.avail, on: p.on, granted: p.granted, note: p.note, days: p.days?.length, ex: p.ex?.length } : {}) })); } catch { /* fine */ }
+  try { localStorage.setItem(LAST, JSON.stringify({ at: Date.now(), len, ok: !!p, inApp: appOnPhone(), ...(p ? { avail: p.avail, on: p.on, granted: p.granted, note: p.note, days: p.days?.length, ex: p.ex?.length, hd: p.hd?.length } : {}) })); } catch { /* fine */ }
   // Connect watch / Sync now was tapped here a moment ago: this is its answer (the app reopens Aven at its start, so the
   // Watch screen is opened again, with what came of it said once)
   const ask = takeAsk();
@@ -156,8 +183,8 @@ export function applyHcFromAddress(): void {
   }
   if (synced) {
     const st = useStore.getState();
-    const r = mergeHc(p, { activities: st.activities, steps: st.steps ?? [] }, st.settings.dayStartHour);
-    if (JSON.stringify(r.activities) !== JSON.stringify(st.activities) || JSON.stringify(r.steps) !== JSON.stringify(st.steps ?? [])) st.mergeHealth(r);
+    const r = mergeHc(p, { activities: st.activities, steps: st.steps ?? [], health: st.health ?? [] }, st.settings.dayStartHour);
+    if (JSON.stringify(r.activities) !== JSON.stringify(st.activities) || JSON.stringify(r.steps) !== JSON.stringify(st.steps ?? []) || JSON.stringify(r.health) !== JSON.stringify(st.health ?? [])) st.mergeHealth(r);
     // a new workout from the watch is said once, quietly
     if (r.added) useUI.getState().toast(r.added === 1 ? tNow('1 workout from your watch') : tNow('{n} workouts from your watch', { n: r.added }), { tone: 'ok' });
   }
