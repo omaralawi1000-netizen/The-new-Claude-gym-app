@@ -10,7 +10,7 @@ const v = process.argv[2] || 'A';
 const theme = process.argv.includes('--light') ? 'light' : 'dark';
 const delay = Number(process.env.DELAY || 2600);
 const fi = process.argv.indexOf('--frames'); const frames = fi > 0 ? Number(process.argv[fi + 1]) : Math.round(((delay + 3200) / 1000) * 60);
-const tag = `${v}-${theme}-${delay}${process.env.NOFOOD ? '-nofood' : ''}`;
+const tag = `${v}-${theme}-${delay}${process.env.NOFOOD ? '-nofood' : ''}${process.env.DA ? '-da' : ''}${process.env.GALLERY ? '-gallery' : ''}`;
 const s = await steady({ theme, size: { width: 412, height: 892 } });
 const p = s.p;
 await s.ctx.addInitScript(([d, nf]) => {
@@ -27,13 +27,13 @@ await s.ctx.addInitScript(([d, nf]) => {
 }, [delay, !!process.env.NOFOOD]);
 await p.goto(process.env.URL || 'http://127.0.0.1:4173/'); await wait(p, 1500);
 await skipOnboarding(p); await loadDemo(p); await s.advance(120);
-await applySettings(p, {});
+await applySettings(p, { ...(process.env.DA ? { language: 'da' } : {}) });
 await p.evaluate(() => { localStorage.setItem('aven.keys', JSON.stringify({ gemini: 'AIzaTESTKEY' })); });
 await p.reload(); await wait(p, 1500); await s.advance(240);
 const press = async (loc) => { const b = await loc.boundingBox(); await p.touchscreen.tap(b.x + b.width / 2, b.y + b.height / 2); };
-await p.getByLabel('Photo').first().waitFor({ state: 'visible', timeout: 20000 }); await s.advance(Number(process.env.SETTLE || 3000)); // Today must be fully up before the tap
-await press(p.getByLabel('Photo').first()); await p.locator('.cam-shutter').waitFor({ state: 'visible', timeout: 20000 }); await s.advance(150);
-await s.film(`analyze-${tag}`, () => press(p.locator('.cam-shutter')), frames);
+await p.getByLabel(process.env.DA ? 'Foto' : 'Photo', { exact: true }).first().waitFor({ state: 'visible', timeout: 20000 }); await s.advance(Number(process.env.SETTLE || 3000)); // Today must be fully up before the tap
+await press(p.getByLabel(process.env.DA ? 'Foto' : 'Photo', { exact: true }).first()); await p.locator('.cam-shutter').waitFor({ state: 'visible', timeout: 20000 }); await s.advance(150);
+await s.film(`analyze-${tag}`, () => (process.env.GALLERY ? p.locator('input[type=file]:not([capture])').setInputFiles(process.env.GALLERY) : press(p.locator('.cam-shutter'))), frames); // GALLERY=<jpg>: a photo picked from the phone instead of the shutter
 await s.advance(120);
 await s.film(`analyze-${tag}-settled`, async () => {}, 2);
 await p.screenshot({ path: `shots/analyze-${tag}-rest.png` }); // the settled result as it rests: nothing shows behind or below the Log bar

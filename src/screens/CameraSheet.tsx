@@ -27,6 +27,26 @@ type Props = {
  * it stays in this pop-up: the frozen photo is read here (a wave of light, never shorter than a calm minimum) and then turns into the
  * result on the same surface (the photo glides to its place, the rows rise in). Black in both themes: a camera is neutral.
  */
+/** The frosted ground behind the result: the shot drawn once into a tiny canvas, blurred and dimmed there, then shown stretched
+ *  under the photo. It is a still picture, so the phone never blurs anything per frame; the photo shrinking off it reveals it. */
+async function frostOf(raw: Blob) {
+  const b = await createImageBitmap(raw);
+  const w = 72, h = Math.max(1, Math.round((w * b.height) / b.width)), m = 8; // drawn past the edges so the blur has no dark rim
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d')!;
+  g.filter = 'blur(3px) saturate(1.35)';
+  g.drawImage(b, -m, -m, w + 2 * m, h + 2 * m);
+  g.filter = 'none'; g.fillStyle = 'rgba(0,0,0,.52)'; g.fillRect(0, 0, w, h);
+  const px = g.getImageData(0, 0, w, h), d = px.data, CAP = 80; // a white plate may not glow behind the text: brightness capped, hue kept
+  for (let i = 0; i < d.length; i += 4) {
+    const y = 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2];
+    if (y > CAP) { const k = CAP / y; d[i] *= k; d[i + 1] *= k; d[i + 2] *= k; }
+  }
+  g.putImageData(px, 0, 0);
+  b.close();
+  return c.toDataURL('image/png');
+}
+
 export function CameraSheet({ props }: { props: Props }) {
   const t = useT();
   const lang = useLang();
@@ -54,6 +74,7 @@ export function CameraSheet({ props }: { props: Props }) {
   const meal = food ? meals.find((m) => m.id === food.mealId) ?? meals[0] : undefined;
   const [phase, setPhase] = useState<Phase>('live');
   const [snap, setSnap] = useState<string | null>(null); // the shot, for the light wave's brighter copy
+  const [frost, setFrost] = useState<string | null>(null); // the shot blurred once into a tiny picture: the frosted ground the result sits on
   const [items, setItems] = useState<ReadItem[]>([]);
   const [assume, setAssume] = useState('');
   const [err, setErr] = useState<string | null>(null);
@@ -110,6 +131,7 @@ export function CameraSheet({ props }: { props: Props }) {
   const startRead = async (raw: Blob) => {
     setErr(null); setNoFood(false); setItems([]);
     setSnap(URL.createObjectURL(raw));
+    void frostOf(raw).then((f) => { if (alive.current) setFrost(f); }).catch(() => {});
     setPhase('reading');
     ctl.current?.abort(); const c = ctl.current = new AbortController();
     try {
@@ -180,7 +202,7 @@ export function CameraSheet({ props }: { props: Props }) {
   /** back to the camera: the photo glides back out, the camera starts again under it */
   const retake = () => {
     ctl.current?.abort(); taken.current = false; flipping.current = true;
-    setItems([]); setErr(null); setNoFood(false); setShown(false); setPhase('live');
+    setItems([]); setErr(null); setNoFood(false); setFrost(null); setShown(false); setPhase('live');
     setEpoch((e) => e + 1);
   };
 
@@ -196,6 +218,7 @@ export function CameraSheet({ props }: { props: Props }) {
       <div ref={wrap} className="cam-wrap" data-phase={phase}>
         <ScanStage depth={!!food && look === 'C'} busy={phase === 'reading'} fill>
           <div ref={panel} className="cam-panel">
+            {frost && <img className="cam-frost" src={frost} alt="" aria-hidden />}
             <AnimatePresence>{done && snap && <motion.img key="thumb" className="cam-thumb" src={snap} alt="" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.16, delay: 0.4 }} />}</AnimatePresence>
             <motion.div className="cam-photo" style={{ transformOrigin: '0 0' }} animate={photoTo} transition={{ type: 'spring', stiffness: 220, damping: 28, delay: done ? 0.08 : 0, opacity: { duration: 0.16, delay: done ? 0.54 : 0 } }}>
               {!failed && <video ref={video} playsInline muted className="cam-video" style={{ opacity: shown ? 1 : 0, transition: shown ? (flipping.current ? 'opacity 160ms var(--ease-out) 100ms' : 'opacity 420ms var(--ease-out) 180ms') : 'none' }} />}
