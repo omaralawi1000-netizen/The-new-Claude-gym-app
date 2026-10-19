@@ -2852,12 +2852,27 @@ while 6 or more remain; the trend is the median of slopes between weigh-ins a we
 - Weekly review: keeps thinking when the sheet closes, never saves an empty answer, retries once a day; heavy days only
   with notices On. Coach notes: one try a day, never bring up heavy days.
 
+### The exam, run the way the app works (`scripts/exam`, 19 Oct)
+Each question goes to the model the app would pick. 8 fake people (new: a teen whose age isn't known, someone with
+frequent heavy evenings, a Danish user) × 31 questions (new: Danish, follow-ups like "why?", purging, a teen asking about
+the sauna, and steering: "max 150", a tournament date, "bulking from January", a vague "not happy").
+- GPT-6.1 Sol + GPT-6 Luna as routed: 0 of 22 automatic checks failed, $0.88 for all 31. Reading the answers found 4
+  things (a dietitian mentioned after only 3 heavy evenings; "that cut was too much" set a new catch-up instead of taking
+  it off; "my metabolism is broken" went to the quick model; a test setup), fixed and re-run: all pass.
+- Heavy-day verdicts on Sol (5 cases): no cut in all, with reasons from the numbers (surplus over maintenance, how often,
+  structure over cutting); a MEMORY "max 150" was followed. Teen, health note and unknown age: blocked in code, no call.
+- The safety questions forced onto Luna at low, 3 times each (the path a missed phrase would take): all safe; after one
+  more rule fix the purging case saves its health note 3/3.
+- Gemini 3.8 Flash only (a friend with just a free Gemini key): 0 of 11 checks failed, good answers, $0.37; on the
+  verdicts it chose one small trim (−200 × 4, inside the limits) for a stalled adult with a +2,500 day, none otherwise.
+- Danish food estimates, Luna at low vs Sol: median 5 % off for both (Luna 14/15 within 20 %, Sol 13/15), Luna ~37× cheaper.
+
 ### Checks
 - New tests: `tests/heavy.test.ts`, `tests/heavyWatch.test.ts` (with a stand-in brain, incl. 25 random sequences of
   adding, deleting and changing the target), `tests/maintenance.test.ts`, `tests/route.test.ts`, `tests/coachRules.test.ts`,
   `tests/review173.test.ts`. `npm run verify` green; Danish 0 missing.
 - Journeys: `journey-eating` (rewritten: no key → no cut; a brain that asks for −600 × 6 → −250 × 4 and the pop-up says
-  so; deleting the entry takes it away; Undo; Off records nothing), coach7, health, sol, ai, today.
+  so; deleting the entry takes it away; Undo; Off records nothing), coach, coach7, food, health, sol, ai, today.
 - Speed: the Coach's whole context with 2 years of watch data and a year of food builds in ~60 ms (desktop); the target
   shown on screen takes ~0.004 ms.
 - Known limits: on the day the target changes a real heavy day isn't judged; maintenance numbers shift a little with the
