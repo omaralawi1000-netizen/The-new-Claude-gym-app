@@ -10,20 +10,21 @@ const v = process.argv[2] || 'A';
 const theme = process.argv.includes('--light') ? 'light' : 'dark';
 const delay = Number(process.env.DELAY || 2600);
 const fi = process.argv.indexOf('--frames'); const frames = fi > 0 ? Number(process.argv[fi + 1]) : Math.round(((delay + 3200) / 1000) * 60);
-const tag = `${v}-${theme}-${delay}`;
+const tag = `${v}-${theme}-${delay}${process.env.NOFOOD ? '-nofood' : ''}`;
 const s = await steady({ theme, size: { width: 412, height: 892 } });
 const p = s.p;
-await s.ctx.addInitScript(([d]) => {
+await s.ctx.addInitScript(([d, nf]) => {
   const real = window.fetch;
   window.fetch = async (url, init) => {
     const u = String(url);
     if (!u.includes('generativelanguage')) return real(url, init);
     if (u.includes('/models?')) return new Response(JSON.stringify({ models: [] }), { headers: { 'content-type': 'application/json' } });
-    const txt = JSON.stringify({ items: [{ name: 'Grilled chicken', grams: 140, kcal: 231, protein: 43, carbs: 0, fat: 5 }, { name: 'Rice', grams: 150, kcal: 195, protein: 4, carbs: 42, fat: 0.5 }, { name: 'Greens', grams: 80, kcal: 30, protein: 2, carbs: 4, fat: 0.5 }], assumptions: 'Plate of about 370 g.' });
+    let txt = JSON.stringify({ items: [{ name: 'Grilled chicken', grams: 140, kcal: 231, protein: 43, carbs: 0, fat: 5 }, { name: 'Rice', grams: 150, kcal: 195, protein: 4, carbs: 42, fat: 0.5 }, { name: 'Greens', grams: 80, kcal: 30, protein: 2, carbs: 4, fat: 0.5 }], assumptions: 'Plate of about 370 g.' });
+    if (nf) txt = '{"items":[],"notFood":true}'; // NOFOOD=1: the AI finds nothing, so the camera shows its empty state
     await new Promise((r) => { const t0 = performance.now(); const tick = () => (performance.now() - t0 >= d ? r() : requestAnimationFrame(tick)); tick(); }); // the wait follows the film's clock, not this machine's
     return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: txt }] } }] }), { headers: { 'content-type': 'application/json' } });
   };
-}, [delay]);
+}, [delay, !!process.env.NOFOOD]);
 await p.goto(process.env.URL || 'http://127.0.0.1:4173/'); await wait(p, 1500);
 await skipOnboarding(p); await loadDemo(p); await s.advance(120);
 await applySettings(p, { scanLook: process.env.SCAN || 'C' }); // SCAN = the wave look (A|B|C); the first argument is only the film's name
