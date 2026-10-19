@@ -77,3 +77,40 @@ ask him); a decision log so the Coach follows up on what it advised. Friends nee
 models, so no OpenRouter connection is needed in the app for now: Quick model GPT-6 Luna for everyday messages, main
 model GPT-6.1 Sol for decisions, photos, the verdict and the weekly review. OpenRouter stays the testing tool; rerun the
 exam when a new model comes out. Next: eating part 2 (learning why), then friends & follow-up.
+
+## Review round 1 (19 Oct, after PR #177): what must be fixed before any of #174/#177 ships
+Two independent reviews (code, behaviour) + checked by running them on the real code. Fix PR on top of #177:
+1. Heavy days judged against today's target: changing the target makes past normal days "heavy" (verified: 3 fake
+   heavy days after 3,200 → 2,200). Record when the target changed; never judge days before it.
+2. A catch-up never shrinks or goes away when the log is corrected (verified); no way to cancel without a key → reconcile
+   removes/re-plans it, tap the Food line to cancel, DATA TRUST lines go into the verdict prompt.
+3. True maintenance broken by one bad weigh-in (verified: 6,910 kcal "high") → drop odd weigh-ins and the 2 days after
+   a heavy day, clamp to a sane range, lower confidence on extreme slopes.
+4. Every +200 kcal re-decides (paid call + new toast); a stale verdict can land on a re-planned amount; the old plan
+   vanishes while re-deciding → decide once per heavy day, stale-guard by `at`, keep the old plan meanwhile, run once
+   on start.
+5. Limits leak: overlapping catch-ups sum past 15 % (verified 20 %); target can end above the user's own (verified);
+   the toast keeps the AI's numbers after clamping (verified) → cap the sum, min(base), rebuild the line.
+6. Leans to restriction: the Coach's catch_up action pays back up to 400×7; frequent heavy days → trim before help; the
+   no-key default trims a first heavy day; no off switch → trims only for adults, fat-loss goal, occasional heavy days
+   (≤ half back, ≤250/day, ≤4 days); frequent → structure + one gentle mention of help; no key → no cut; catch_up
+   through the same rules; "Heavy-day notices" On (fat loss) / Quiet (other goals) / Off; "no catch-ups ever" → Off.
+7. Routing: DECIDE catches "how many calories in a banana" (Sol-high; orb has no timeout); risky messages ("I ate 2000
+   extra, what now?", "drop 4 kg in 10 days", "I keep bingeing", Danish) go to Luna-low (verified) → Luna by default,
+   a tested EN+DA list of decision AND safety phrases → main model; orb timeout; food estimates on Luna; remember a
+   key without Luna.
+8. Prompt: answer-first vs JUST NOTICED-first; ask-instead-of-act (new user and teen got no number); JUST NOTICED on
+   pure logging; handbook before web; handbook look-up matches several topics; invisible calories only at ≥20 % and
+   500 kcal, worded "watch may overestimate or food not logged", said once (stored); science fixes (cycle 0.5–1.5 kg,
+   surplus vs maintenance, protein by goal weight when body fat is high, teen sleep 8–10 h, teen caffeine, making-weight
+   wording, sedentary multiplier); Omar leftovers ("most likely evenings", "wrestling tracker", week review "often
+   evenings", "never do less because tired" without exceptions for illness/injury/teens).
+9. Small: "why?" keeps the last decision 3 days; markCoachTold only for what JUST NOTICED actually showed; weigh-in card
+   id per last weigh-in; times before dayStartHour count as evening/today; catch_up `on: null` is not "on"; Coach notes
+   get HOW_TO_TALK and no unasked eating-pattern nags, retry once a day max; week review 45 s limit; spend counted on
+   abort.
+10. Exam matches the app: real effortFor routing and model, personas with real verdict lines, Danish, multi-turn
+    ("why?", "no catch-ups"), eating-disorder signals, teen with unknown age, Gemini-only, a case that SHOULD trim.
+Then: review PR #173 the same way (never reviewed); two fresh reviews of everything after the fixes; exam again;
+note on #174/#177 that they ship only together with the fix PR. Friends PR (age/sex in setup, teen limits in code)
+and eating part 2 after that.
