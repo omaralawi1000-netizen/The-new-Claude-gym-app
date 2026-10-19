@@ -2056,7 +2056,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .tc-m { color: var(--tx3); }
 .tc-m.some, .tc-m.hit { color: var(--tx2); }
 .tc-bar { position: relative; height: 4px; border-radius: 4px; background: var(--s2); margin-top: 5px; overflow: hidden; }
-.tc-bar > i { position: absolute; inset: 0; transform-origin: 0 50%; border-radius: inherit; background: color-mix(in srgb, var(--ac) 45%, transparent); transition: transform 600ms var(--ease-out); }
+.tc-bar > i { position: absolute; inset: 0; transform-origin: 0 50%; border-radius: inherit; background: var(--ac); transition: transform 600ms var(--ease-out); } /* clean solid orange, as in Your week (half-see-through read bronze on the card) */
 .tc-m.hit .tc-bar > i { background: var(--ac); box-shadow: 0 0 10px -2px var(--ac); }
 .tc-bar > b { position: absolute; top: 0; bottom: 0; width: 1.5px; background: var(--line-2); }
 /* Settings → Today: the cards as a reorderable list */
