@@ -204,7 +204,7 @@ export function TodayScreen() {
           ) : routine && !(plannedDone && last) ? (
             <div className="row-flex between" style={{ gap: 14, alignItems: 'stretch' }}>
               <div style={{ minWidth: 0 }}>
-                <div className="display" style={{ fontSize: 56, fontStyle: 'italic', lineHeight: 0.95 }}>{routine.name}</div>
+                <div className="display" style={{ fontSize: 56, fontStyle: 'italic', lineHeight: 0.95, textWrap: 'balance' }}>{routine.name}</div>
                 <div className="small t2 num" style={{ marginTop: 8 }}>{t(routine.items.length === 1 ? '1 exercise' : '{n} exercises', { n: routine.items.length })} · ~{estMinutes(routine)} min{plan?.source === 'override' && plan.originDate ? ` · ${t('Rescheduled')}` : ''}</div>
                 <MuscleTags routine={routine} style={{ marginTop: 14 }} />
               </div>
