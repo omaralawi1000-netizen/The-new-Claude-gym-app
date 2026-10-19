@@ -17,6 +17,7 @@ import { askTag } from '../../lib/askAbout';
 import { equipmentSet, substitutesFor } from './subs';
 import { addExercises } from './actions';
 import type { Exercise } from '../../lib/types';
+import { ImgGlow } from '../../ui/Glows';
 
 type IconName = string;
 
@@ -87,7 +88,7 @@ export function ExerciseDetail({ props }: { props: { id: string } }) {
       <SheetHead title={exName(ex, lang)} sub={[...ex.equipment.map((q) => t(EQUIP_LABEL[q])), t(MOVE_LABEL[ex.movement])].join(' · ')} onClose={pop} right={ex.custom ? <button className="icon-btn flat press" aria-label={t('Edit')} onClick={() => push('exerciseEditor', { id: ex.id })}><Icon name="edit" /></button> : undefined} />
       <div className="sheet-body">
         {/* the movement: the rendered clip, else the figure doing it, or the muscles it works where there's neither yet */}
-        <div className={`exd-stage${clip ? ' clip' : kind ? '' : ' map'}`} aria-hidden>{clip ? <Clip src={clip} /> : kind ? <Figure ex={ex} kind={kind} active /> : <MuscleMap muscles={ex.muscles} size={124} />}</div>
+        <div className={`exd-stage${clip ? ' clip' : kind ? '' : ' map'}`} aria-hidden>{!clip && <ImgGlow />}{clip ? <Clip src={clip} /> : kind ? <Figure ex={ex} kind={kind} active /> : <MuscleMap muscles={ex.muscles} size={124} />}</div>
         <div className="exd-works" aria-label={t('Works')}>
           {ex.muscles.map((m, i) => <span key={m} className={`chip sm${i === 0 ? ' acc' : ''}`}>{t(MUSCLE_LABEL[m])}</span>)}
         </div>
