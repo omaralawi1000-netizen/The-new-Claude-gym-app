@@ -32,7 +32,7 @@ export function Scan({ src, v }: { src: string; v: 'A' | 'B' | 'C' }) {
     <motion.div className="scan-words" initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { duration: 0.45 } }} exit={{ opacity: 0, transition: { duration: 0.18 } }}>
       {dots && <span className="scan-orbit"><i /><i /><i /><i /><i /><i /></span>}
       <AnimatePresence mode="wait" initial={false}>
-        <motion.span key={i} initial={{ opacity: 0, y: 3 }} animate={{ opacity: 1, y: 0, transition: { duration: 0.42, delay: 0.02, ease: [0.22, 1, 0.36, 1] } }} exit={{ opacity: 0, y: -3, transition: { duration: 0.22, ease: [0.4, 0, 1, 1] } }}>{t(SCAN_WORDS[i])}</motion.span>
+        <motion.span key={i} initial={{ opacity: 0, y: 3 }} animate={{ opacity: 1, y: 0, transition: { duration: 0.42, delay: 0, ease: [0.22, 1, 0.36, 1] } }} exit={{ opacity: 0, y: -3, transition: { duration: 0.12, ease: [0.4, 0, 1, 1] } }}>{t(SCAN_WORDS[i])}</motion.span>
       </AnimatePresence>
     </motion.div>
   );
