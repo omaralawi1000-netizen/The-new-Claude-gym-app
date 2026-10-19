@@ -6,6 +6,8 @@ import { SEED_EXERCISES } from '../../src/data/exercises';
 import { addDays } from '../../src/lib/dates';
 import { reconcileCatchUps } from '../../src/lib/eating';
 import { applyVerdict, clampVerdict, trimLimits, verdictLine } from '../../src/lib/verdict';
+import { normaliseData } from '../../src/state/defaults';
+import { readFileSync } from 'node:fs';
 import type { AppData, FoodEntry, HealthDay, WorkoutSession, Goal } from '../../src/lib/types';
 
 export const NOW = new Date(2026, 9, 19, 9, 30);
@@ -152,4 +154,12 @@ function freja(): AppData {
   return d;
 }
 
-export const PERSONAS: Record<string, () => AppData> = { omar, sara, mads, ali, fresh, noah, lea, freja };
+/** The real person (EXAM_BACKUP: an Aven backup file kept outside the repo, never committed): their data as it was when
+ *  they exported it, and "now" = that moment. */
+let backup: { exportedAt?: string; data: unknown } | null = null;
+const readBackup = () => (backup ??= JSON.parse(readFileSync(process.env.EXAM_BACKUP!, 'utf8')));
+function me(): AppData { return normaliseData(structuredClone(readBackup().data), 'en'); }
+/** The "now" a person's questions are asked at. */
+export const baseNow = (persona: string) => (persona === 'me' && process.env.EXAM_BACKUP && readBackup().exportedAt ? new Date(readBackup().exportedAt!) : NOW);
+
+export const PERSONAS: Record<string, () => AppData> = { omar, sara, mads, ali, fresh, noah, lea, freja, me };

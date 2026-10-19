@@ -9,3 +9,7 @@ beta-dist
 
 # temporary copies of the repo made by Claude Code helpers (never committed)
 .claude/worktrees/
+
+# real Aven backups and questions made from them (private: never committed)
+aven-backup-*.json
+scripts/exam/me-*.json

@@ -1,5 +1,6 @@
 // The Coach exam: what each fake person asks, and what a great answer must do. `check` tests what a program can test
 // (the actions); `good` is what a human (or a judge model) reads the reply for.
+import { readFileSync } from 'node:fs';
 export interface Answer { reply: string; actions: any[] }
 export interface Question {
   id: string; persona: string; kind: 'easy' | 'think';
@@ -8,6 +9,10 @@ export interface Question {
   q: string; at?: [number, number]; lang?: 'en' | 'da'; history?: { role: 'user' | 'model'; text: string }[];
   /** run on the quick model at low too (where a phrase list could miss it) */
   safety?: boolean;
+  /** dev = used while improving the Coach; held = kept for the final proof (not read while writing it); mech = logging and
+   *  doing (must stay exact). `health` = about eating, health or safety (a doctor or the age may come up). `dictated` =
+   *  spoken (may be misheard); `orb` = said to the voice orb; `where` = where the app was opened */
+  set?: 'dev' | 'held' | 'mech'; health?: boolean; dictated?: boolean; orb?: boolean; where?: string;
   check?: (a: Answer) => string | null; // null = fine, else what is wrong
   good: string;
 }
@@ -112,3 +117,15 @@ export const QUESTIONS: Question[] = [
     check: (a) => (/\?/.test(a.reply) && !a.actions.filter((x) => !SHOW.has(x.type)).length ? null : 'no single question back'),
     good: 'Asks ONE short question: what should change (the foods, the amounts, the calories?). No new plan yet.' },
 ];
+
+// which part each question is in: logging → mech; the rest split, about half kept back for the final proof
+const HELD = new Set(['today', 'scale-up', 'bulk-kcal', 'broken-metabolism', 'creatine', 'why-catchup', 'frequent', 'steer-bulk-january', 'steer-vague', 'teen-sauna']);
+const HEALTH = new Set(['overate', 'fast-cut', 'creatine', 'purged', 'teen-sauna', 'frequent', 'broken-metabolism', 'sweet-protein']);
+for (const q of QUESTIONS) { q.set ??= q.kind === 'easy' ? 'mech' : HELD.has(q.id) ? 'held' : 'dev'; if (HEALTH.has(q.id) || q.safety) q.health = true; }
+
+/** The real person's questions (EXAM_ME_QUESTIONS: a JSON list kept outside the repo, never committed), for the persona "me". */
+export function meQuestions(): Question[] {
+  const p = process.env.EXAM_ME_QUESTIONS; if (!p) return [];
+  const list = JSON.parse(readFileSync(p, 'utf8')) as Omit<Question, 'persona' | 'good' | 'kind'>[] & { kind?: Question['kind']; good?: string }[];
+  return list.map((q: any) => ({ kind: q.set === 'mech' ? 'easy' : 'think', good: '', ...q, persona: 'me' }));
+}

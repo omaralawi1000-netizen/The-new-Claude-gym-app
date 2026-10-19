@@ -6,19 +6,25 @@
 //   npx vitest run --config scripts/exam/vitest.config.ts
 // Options:
 //   EXAM_MAIN / EXAM_QUICK   the two models (default openai/gpt-6.1-sol and openai/gpt-6-luna)
-//   EXAM_SETTING             the thinking set in Settings (default medium)
+//   EXAM_SETTING             the thinking set in Settings (default high, as the app)
 //   EXAM_MODELS=a,b          contest mode: these models answer every question (EXAM_EFFORT or the route's effort)
-//   EXAM_FORCE=quick-low     every question on the quick model at low (what happens when a phrase list misses)
+//   EXAM_FORCE=quick-low|quick-medium|main-medium|main-high   every question on that model and effort
 //   EXAM_ONLY=id,id  EXAM_SAFETY=1 (only the safety questions)  EXAM_REPEAT=n  EXAM_OUT=dir  EXAM_TAG=name
 //   EXAM_VERDICT=1|only      the heavy-day verdicts too / only;  EXAM_FOOD=1  Danish food estimates
-//   EXAM_MAX_USD             a hard stop on spending (default 2.5)
+//   EXAM_SET=dev|held|mech|safety   only that part of the questions (quality work runs on dev; held is for the final proof)
+//   EXAM_BACKUP=path         a real Aven backup (kept outside the repo): the persona "me"; EXAM_ME_QUESTIONS=path its questions
+//   EXAM_MAX_USD             a hard stop on spending for this run (default 2.5); EXAM_BUDGET + EXAM_LEDGER: a stop for the
+//                            whole project, counted across runs in a ledger file
+//   EXAM_TAG also names the variant; each answer records its tokens (cached too), length and the fact sheet the judge reads
 // The key is never in the code: OPENROUTER_API_KEY from the environment, or added by the network's secret proxy.
 import { it, vi } from 'vitest';
-import { writeFileSync, mkdirSync } from 'node:fs';
-import { PERSONAS, NOW } from './personas';
-import { QUESTIONS, type Question } from './questions';
+import { writeFileSync, mkdirSync, readFileSync, existsSync } from 'node:fs';
+import { PERSONAS, NOW, baseNow } from './personas';
+import { QUESTIONS, meQuestions, type Question } from './questions';
+import { threadTurns, type ThreadMsg } from '../../src/lib/thread';
 import { SEED_EXERCISES } from '../../src/data/exercises';
-import { agentSystem, route } from '../../src/lib/agentTurn';
+import * as turn from '../../src/lib/agentTurn';
+const { agentSystem, route } = turn;
 import { AGENT_SCHEMA, ESTIMATE_SCHEMA, ESTIMATE_SYSTEM, schemaHintForTest } from '../../src/lib/gemini';
 import { toStrictSchema } from '../../src/lib/openai';
 import { validateAgent } from '../../src/lib/agent';
@@ -30,57 +36,93 @@ const dispatcher = process.env.HTTPS_PROXY || process.env.https_proxy ? new EnvH
 
 const MAIN = process.env.EXAM_MAIN ?? 'openai/gpt-6.1-sol';
 const QUICK = process.env.EXAM_QUICK ?? 'openai/gpt-6-luna';
-const SETTING = (process.env.EXAM_SETTING ?? 'medium') as 'low' | 'medium' | 'high';
+const SETTING = (process.env.EXAM_SETTING ?? 'high') as 'low' | 'medium' | 'high';
 const CONTEST = process.env.EXAM_MODELS?.split(',').map((s) => s.trim()).filter(Boolean);
 const FORCE = process.env.EXAM_FORCE;
 const ONLY = process.env.EXAM_ONLY?.split(',').map((s) => s.trim());
 const REPEAT = Number(process.env.EXAM_REPEAT ?? 1);
 const OUT = process.env.EXAM_OUT ?? '/tmp/claude-0/exam';
 const TAG = process.env.EXAM_TAG ?? 'run';
-const MAX_USD = Number(process.env.EXAM_MAX_USD ?? 2.5);
+const LEDGER = process.env.EXAM_LEDGER ?? `${OUT}/spent.json`;
+const BUDGET = process.env.EXAM_BUDGET ? Number(process.env.EXAM_BUDGET) : undefined;
+const ledger = (): { total: number; runs: Record<string, number> } => { try { return JSON.parse(readFileSync(LEDGER, 'utf8')); } catch { return { total: 0, runs: {} }; } };
+// (the whole project's stop: what is left of EXAM_BUDGET after every earlier run)
+const MAX_USD = Math.min(Number(process.env.EXAM_MAX_USD ?? 2.5), BUDGET !== undefined ? BUDGET - ledger().total : Infinity);
 const SCHEMA = toStrictSchema(AGENT_SCHEMA);
 let spent = 0;
+function book(cost: number) {
+  spent += cost;
+  if (BUDGET === undefined) return;
+  const l = ledger(); l.total = Math.round((l.total + cost) * 1e6) / 1e6; l.runs[TAG] = Math.round(((l.runs[TAG] ?? 0) + cost) * 1e6) / 1e6;
+  mkdirSync(OUT, { recursive: true }); writeFileSync(LEDGER, JSON.stringify(l, null, 1));
+}
 
-interface Result { id: string; persona: string; kind: string; model: string; effort: string; ok: string | null; reply: string; actions: any[]; lookups: string[]; cost: number; ms: number; error?: string; rounds: number; try?: number }
+interface Usage { inTok: number; cachedTok: number; outTok: number; reasonTok: number }
+interface Result { id: string; persona: string; kind: string; q: string; history?: { role: string; text: string }[]; set?: string; variant: string; model: string; effort: string; tier?: string; ok: string | null; unprompted?: string | null; reply: string; actions: any[]; lookups: string[]; cost: number; usage: Usage; ms: number; error?: string; rounds: number; try?: number }
+const noUse = (): Usage => ({ inTok: 0, cachedTok: 0, outTok: 0, reasonTok: 0 });
 
-async function call(model: string, effort: string, messages: any[], plain: boolean, schema: object = SCHEMA, name = 'agent_turn'): Promise<{ text: string; cost: number }> {
+async function call(model: string, effort: string, messages: any[], plain: boolean, schema: object | null = SCHEMA, name = 'agent_turn'): Promise<{ text: string; cost: number; usage: Usage }> {
   if (spent >= MAX_USD) throw new Error(`budget: stopped at $${spent.toFixed(2)} (EXAM_MAX_USD ${MAX_USD})`);
   const key = process.env.OPENROUTER_API_KEY;
   const body: any = { model, messages, max_tokens: 16000, reasoning: { effort }, usage: { include: true },
-    response_format: plain ? { type: 'json_object' } : { type: 'json_schema', json_schema: { name, strict: true, schema } } };
+    // (OpenAI's own servers for OpenAI models, as the app: prices and caching as on the phone)
+    ...(model.startsWith('openai/') ? { provider: { order: ['openai'], allow_fallbacks: false } } : {}),
+    ...(schema ? { response_format: plain ? { type: 'json_object' } : { type: 'json_schema', json_schema: { name, strict: true, schema } } } : {}) };
   for (let attempt = 0; attempt < 3; attempt++) {
     const res: any = await proxyFetch('https://openrouter.ai/api/v1/chat/completions', { dispatcher, method: 'POST', headers: { 'Content-Type': 'application/json', ...(key ? { Authorization: `Bearer ${key}` } : {}) }, body: JSON.stringify(body) });
     const data: any = await res.json().catch(() => ({}));
     if (res.status === 429 || res.status >= 500) { await new Promise((r) => setTimeout(r, 3000 * (attempt + 1))); continue; }
     if (!res.ok) throw new Error(`${res.status} ${JSON.stringify(data?.error ?? data).slice(0, 300)}`);
     const cost = Number(data?.usage?.cost) || 0;
-    spent += cost;
-    return { text: data?.choices?.[0]?.message?.content ?? '', cost };
+    book(cost);
+    const u = data?.usage ?? {};
+    const usage = { inTok: u.prompt_tokens ?? 0, cachedTok: u.prompt_tokens_details?.cached_tokens ?? 0, outTok: u.completion_tokens ?? 0, reasonTok: u.completion_tokens_details?.reasoning_tokens ?? 0 };
+    return { text: data?.choices?.[0]?.message?.content ?? '', cost, usage };
   }
   throw new Error('busy');
 }
 
-/** The model and effort the app would use for this question (or the contest's / forced one). */
-function pick(q: Question, contest?: string): { model: string; effort: string } {
-  if (FORCE === 'quick-low') return { model: QUICK, effort: 'low' };
-  const r = route(q.q, SETTING);
+/** The model and effort the app would use for this question (or the contest's / forced one). A version of the app with a
+ *  model chooser (`chooseModel`) is asked the way the app asks it; an older one uses its phrase lists (`route`). */
+async function pick(q: Question, history: { role: string; text: string }[], contest?: string): Promise<{ model: string; effort: string; tier?: string }> {
+  const f = FORCE?.match(/^(quick|main)-(low|medium|high)$/);
+  if (f) return { model: f[1] === 'main' ? MAIN : QUICK, effort: f[2] };
+  const choose = (turn as any).chooseModel as undefined | ((text: string, o: any) => Promise<{ main: boolean; effort: string; tier?: string }>);
+  const r = choose
+    ? await choose(q.q, { setting: SETTING, prev: history, dictated: !!q.dictated, ask: async (system: string, user: string) => (await call(QUICK, 'low', [{ role: 'system', content: system }, { role: 'user', content: user }], false, null)).text })
+    : route(q.q, SETTING);
   if (contest) return { model: contest, effort: process.env.EXAM_EFFORT ?? r.effort };
-  return { model: r.main ? MAIN : QUICK, effort: r.effort };
+  return { model: r.main ? MAIN : QUICK, effort: r.effort, tier: (r as any).tier };
 }
 
 /** "now" for a question: its own time of day, else 09:30. Set BEFORE its person is built (they read the clock). */
-const nowFor = (q: Question) => { const now = new Date(NOW); if (q.at) now.setHours(q.at[0], q.at[1]); return now; };
+const nowFor = (q: Question) => { const now = new Date(baseNow(q.persona)); if (q.at) now.setHours(q.at[0], q.at[1]); return now; };
+/** The conversation before the question, built the way the app builds it (lib/thread.ts: plain text, earlier days marked). */
+function historyFor(q: Question, now: Date, dayStartHour: number) {
+  const list: ThreadMsg[] = (q.history ?? []).map((h, i) => ({ id: `h${i}`, role: h.role, text: h.text, at: now.getTime() - ((q.history!.length - i) * 60_000) }));
+  return threadTurns(list, dayStartHour, 14).map((t) => ({ role: t.role === 'model' ? 'assistant' : 'user', content: t.parts.map((p) => p.text).join('') }));
+}
+const VARIANT = process.env.EXAM_TAG ?? 'run';
+// a reply to something that isn't about eating, health or safety that sends them to a doctor or asks their age: unprompted
+const UNPROMPTED = /\b(doctor|dietitian|physician|læge|diætist|how old are you|your age|hvor gammel|din alder)/i;
+const facts = new Map<string, string>();
+// (the orb's answer-length note, as screens/Voice.tsx adds it)
+const ORB_BRIEF: string = (turn as any).ORB_BRIEF ?? ' They are speaking to the orb screen, probably mid-workout: answer in 1–2 short sentences (about 35 words), plain text, no bullet lists or headings — this overrides the usual reply length. If the question really needs more (a plan, a breakdown), give just the short answer: a “Continue in Coach” button sits under it, so never tell them to open the Coach.';
 
 async function ask(q: Question, contest: string | undefined, n: number): Promise<Result> {
-  const { model, effort } = pick(q, contest);
   const now = nowFor(q);
   const d = PERSONAS[q.persona]();
   const lang = q.lang ?? (d.settings.language === 'da' ? 'da' : 'en');
-  const { system, today, mealLabel } = agentSystem(d, { lang, pool: SEED_EXERCISES, where: 'the Coach chat', now });
-  const history = (q.history ?? []).map((h) => ({ role: h.role === 'model' ? 'assistant' : 'user', content: h.role === 'model' ? JSON.stringify({ reply: h.text, actions: [] }) : h.text }));
-  const t0 = performance.now(); let cost = 0, found = '', raw: any = null, rounds = 0; const lookups: string[] = [];
+  const where = q.orb ? `${q.where ?? 'the main screen'}${ORB_BRIEF}` : (q.where ?? 'the Coach chat');
+  const { system, today, mealLabel } = agentSystem(d, { lang, pool: SEED_EXERCISES, where, now });
+  const at = system.search(/\nMEMORY|\nDATA \(computed/);
+  facts.set(`${q.persona}:${q.id}`, system.slice(at >= 0 ? at : 0));
+  const history = historyFor(q, now, d.settings.dayStartHour);
+  const t0 = performance.now(); let cost = 0, found = '', raw: any = null, rounds = 0; const lookups: string[] = []; const usage = noUse();
   let plain = false;
-  const base = { id: q.id, persona: q.persona, kind: q.kind, model, effort, try: n };
+  const chose = await pick(q, (q.history ?? []), contest).catch((e) => ({ model: QUICK, effort: 'low', tier: `router failed: ${e?.message ?? e}` }));
+  const { model, effort } = chose;
+  const base = { id: q.id, persona: q.persona, kind: q.kind, q: q.q, history: q.history, set: q.set, variant: VARIANT, model, effort, tier: chose.tier, try: n };
   try {
     for (let round = 0; round < 3; round++) {
       rounds++;
@@ -89,7 +131,7 @@ async function ask(q: Question, contest: string | undefined, n: number): Promise
       let r;
       try { r = await call(model, effort, [{ role: 'system', content: sys }, ...history, { role: 'user', content: q.q }], plain); }
       catch (e: any) { if (!plain && /400|schema|response_format|structured/i.test(String(e.message))) { plain = true; round--; rounds--; continue; } throw e; }
-      cost += r.cost;
+      cost += r.cost; for (const k of Object.keys(usage) as (keyof Usage)[]) usage[k] += r.usage[k];
       try { raw = JSON.parse(r.text.replace(/^```(?:json)?\s*|\s*```$/g, '').trim()); }
       catch (e) { if (plain) throw e; plain = true; round--; rounds--; continue; } // (it ignored the format: ask again the plain way, as the app does)
       const look = last ? [] : validateLookups(raw?.lookups);
@@ -100,16 +142,19 @@ async function ask(q: Question, contest: string | undefined, n: number): Promise
       if (look.some((l) => l.kind === 'web')) found += '\n\n### web\nThe web search is not available in this test: answer from what you know.';
     }
     const v = validateAgent(raw);
-    if (!v) return { ...base, ok: 'invalid answer', reply: JSON.stringify(raw).slice(0, 500), actions: [], lookups, cost, ms: Math.round(performance.now() - t0), rounds };
-    return { ...base, ok: q.check?.({ reply: v.reply, actions: v.actions }) ?? null, reply: v.reply, actions: v.actions, lookups, cost, ms: Math.round(performance.now() - t0), rounds };
+    if (!v) return { ...base, ok: 'invalid answer', reply: JSON.stringify(raw).slice(0, 500), actions: [], lookups, cost, usage, ms: Math.round(performance.now() - t0), rounds };
+    const unprompted = !q.health && UNPROMPTED.test(v.reply) ? (v.reply.match(UNPROMPTED)?.[0] ?? '') : null;
+    return { ...base, ok: q.check?.({ reply: v.reply, actions: v.actions }) ?? null, unprompted, reply: v.reply, actions: v.actions, lookups, cost, usage, ms: Math.round(performance.now() - t0), rounds };
   } catch (e: any) {
-    return { ...base, ok: 'error', reply: '', actions: [], lookups, cost, ms: Math.round(performance.now() - t0), error: String(e?.message ?? e).slice(0, 300), rounds };
+    return { ...base, ok: 'error', reply: '', actions: [], lookups, cost, usage, ms: Math.round(performance.now() - t0), error: String(e?.message ?? e).slice(0, 300), rounds };
   }
 }
 
 it.runIf(process.env.EXAM_VERDICT !== 'only' && !process.env.EXAM_FOOD)('runs the Coach exam', async () => {
   vi.useFakeTimers({ toFake: ['Date'] });
-  const qs = QUESTIONS.filter((q) => (!ONLY || ONLY.includes(q.id)) && (!process.env.EXAM_SAFETY || q.safety));
+  const SET = process.env.EXAM_SET;
+  const all = [...QUESTIONS, ...meQuestions()];
+  const qs = all.filter((q) => (!ONLY || ONLY.includes(q.id)) && (!process.env.EXAM_SAFETY || q.safety) && (!SET || q.set === SET || (SET === 'safety' && q.safety)));
   const results: Result[] = [];
   // one time of day at a time (the clock is shared), a few questions at once within it
   const times = [...new Set(qs.map((q) => nowFor(q).getTime()))];
@@ -120,11 +165,14 @@ it.runIf(process.env.EXAM_VERDICT !== 'only' && !process.env.EXAM_FOOD)('runs th
   }
   mkdirSync(OUT, { recursive: true });
   writeFileSync(`${OUT}/${TAG}.json`, JSON.stringify(results, null, 1));
+  // what the judge reads for each question: the person's MEMORY and DATA as the model saw them (never the instructions)
+  mkdirSync(`${OUT}/facts`, { recursive: true });
+  for (const [k, v] of facts) writeFileSync(`${OUT}/facts/${k.replace(/[^a-z0-9:-]/gi, '_').replace(':', '__')}.txt`, v);
   const lines: string[] = [];
   for (const m of [...new Set(results.map((r) => r.model))]) {
     const rs = results.filter((r) => r.model === m);
     const auto = rs.filter((r) => QUESTIONS.find((q) => q.id === r.id)?.check);
-    lines.push(`${m}: ${rs.length} answers, auto checks failed ${auto.filter((r) => r.ok).length}/${auto.length}, errors ${rs.filter((r) => r.ok === 'error' || r.ok === 'invalid answer').length}, cost $${rs.reduce((n, r) => n + r.cost, 0).toFixed(4)}, avg ${Math.round(rs.reduce((n, r) => n + r.ms, 0) / Math.max(1, rs.length) / 100) / 10}s`);
+    lines.push(`${m}: ${rs.length} answers, auto checks failed ${auto.filter((r) => r.ok).length}/${auto.length}, unprompted ${rs.filter((r) => r.unprompted).length}, errors ${rs.filter((r) => r.ok === 'error' || r.ok === 'invalid answer').length}, cost $${rs.reduce((n, r) => n + r.cost, 0).toFixed(4)}, avg ${Math.round(rs.reduce((n, r) => n + r.ms, 0) / Math.max(1, rs.length) / 100) / 10}s`);
   }
   lines.push(`spent $${spent.toFixed(4)}`);
   writeFileSync(`${OUT}/${TAG}.log`, lines.join('\n'));
