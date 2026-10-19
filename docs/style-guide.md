@@ -97,16 +97,18 @@ browser smooths them, so **lab shots lie: judge from Omar's own screenshots.**
   - A field whose picture isn't ready (right after launch, a tab tapped before it was painted ahead) is painted first by
     the worker (a queue in front of it; image files are made in a second worker), shows its CSS meanwhile under the
     see-through canvas, and the picture fades in over it (1.2 s, `--ease-io`, opacity only); the CSS goes only once the
-    canvas's own fade has finished (never on a timer: on a busy page the fade starts late). The status-bar strip, when it is
-    out, rests at opacity 0.002 (not 0, so it stays a drawn layer). Never fade the strip against
-    a picture that has the tint baked in: both darken the top, and no one strip opacity is right for every row (the
-    top-left edge lifted 11 levels in Golden hour). Where every field on screen bakes the tint, the waiting field carries
-    the tint itself under the canvas (`.field-tint`) and the strip is out at once, so the fade is a plain cross-fade.
-    Next to Classic (no baked tint) the strip follows the newest field, and a picture ready while its field is still
-    coming in over another waits until that switch ends. In a still field the canvas lies over the CSS, the grain and the
-    tint (they stay under it while it waits, and go when it settles); in a field with moving parts it lies under the grain
-    and those parts. It is there from the field's first frame, so no layer is added or dropped. Never show the field
-    plain while it waits: it went dark, then lit.
+    canvas's own fade has finished (never on a timer: on a busy page the fade starts late). The status bar's colour at the top of
+    the page belongs to each field, never to one strip laid over all of them: a strip faded against a picture with the
+    tint already in it darkened the top twice over, and no one strip opacity was right for every row (the top-left edge
+    lifted 11-13 levels in Golden hour, judge rounds 5 and 6). A still field has it baked into its picture, and until the
+    picture is in (or for good, if it can't be made) in `.field-tint` under the canvas; Classic's `.field-tint` lies over
+    its picture and moves exactly back by its sway (`sway-back`), so it holds still; Orb light and Sunrise have it over
+    their moving parts. Every switch and every fade-in is then a plain cross-fade of two tinted images. The strip
+    (`.fields-top`) is only for Background glow off; otherwise it rests at opacity 0.002 (not 0, so it stays a drawn
+    layer). In a still field the canvas lies over the CSS, the grain and the tint (they stay under it while it waits, and
+    go when it settles); in a field with moving parts it lies under the grain and those parts. It is there from the
+    field's first frame, so no layer is added or dropped. Never show the field plain while it waits: it went dark, then
+    lit.
     After a palette, glow or motion change the picture before fades out (0.6 s); if the worker can't paint, the CSS stays.
   - A glow shown faint (Coach-open beam, a fade) needs a stronger dither in its picture: `ampFor(opacity)`.
   - GPU reset (`contextlost`): the CSS shows until `contextrestored`, then the picture is written again.

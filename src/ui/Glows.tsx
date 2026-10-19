@@ -54,34 +54,32 @@ function describeField(host: HTMLElement, kind: BgKind): GlowPlan | null {
   };
 }
 
-/** whether a kind of field moves itself (read once per look: a tab switch brings a new field, and reading it then made the
- * browser work the page's styles out in the middle of the tap) */
-const swaysBy = new Map<string, boolean>();
+/** whether a field sways (only Classic's, and not with reduced motion: styles.css), read from the settings, not the page's
+ * styles (reading those in the middle of a tab switch made the browser work them out twice) */
+const sways = (kind: BgKind) => kind === 'classic' && document.documentElement.dataset.motion !== 'reduce';
 export function FieldGlow({ kind }: { kind: BgKind }) {
   const cv = useRef<HTMLCanvasElement>(null), tint = useRef<HTMLElement>(null), faded = useRef(false);
   const host = () => cv.current?.parentElement ?? null;
+  // The status bar's colour at the top of the field (.field-tint, styles.css), the field's own: the one painted into its
+  // picture, and the one the bar settles on. Written at mount and with each new picture (theme, palette), never on each
+  // frame of the bar's blends. data-tint: the picture carries it (a field that holds still and doesn't sway), so the
+  // field's own tint is needed only until that picture is in; decided by the kind of field, not by whether its picture
+  // came (a field left with its CSS, when the picture can't be made, keeps its tint)
+  // (data-still too, by the kind: a still field's grain stays under the canvas and the tint whatever its picture does; a
+  // field left with its CSS had it over them, a layer of its own and the top 4 levels lighter)
+  const tinted = (el: HTMLElement) => {
+    const still = !el.querySelector(MOVING);
+    tint.current?.style.setProperty('--tint', barColor(el, kind));
+    el.toggleAttribute('data-tint', still && !sways(kind)); el.toggleAttribute('data-still', still);
+  };
+  useLayoutEffect(() => { const el = host(); if (el) tinted(el); }, [kind]); // eslint-disable-line react-hooks/exhaustive-deps
   useGlowCanvases(host, [cv], (el) => describeField(el, kind), (on, wait) => {
     const el = host(); if (!el) return;
-    // (while its picture is painted, and as it fades in over the CSS, the field keeps its grain, under the canvas. Where the
-    // picture carries the status bar's tint too (data-tint), the field carries it as well meanwhile, under the canvas
-    // (.field-tint), so the picture's fade is a plain cross-fade between two tinted images: the strip over all fields and
-    // the tint in the picture darkened the top twice over, and no one opacity of the strip was right for every row)
-    const still = (on || !!wait) && !el.querySelector(MOVING), lit = on || wait === 'fade';
-    el.toggleAttribute('data-dith', on); el.toggleAttribute('data-still', still);
-    // (read once the page is idle, never in the middle of a switch: there it made the browser work the page's styles out
-    // twice. Only Classic's field sways)
-    const r = document.documentElement.dataset, sk = `${kind}§${r.motion}§${r.glow}`;
-    if (kind !== 'classic') swaysBy.set(sk, false);
-    // (its own colour, the one painted into its picture, written only now: never on each frame of the bar's blends)
-    const tinted = (t: boolean) => { if (t) tint.current?.style.setProperty('--tint', barColor(el, kind)); el.toggleAttribute('data-tint', t); };
-    if (still && !swaysBy.has(sk)) whenIdle(() => {
-      if (!el.isConnected || !el.hasAttribute('data-still')) return;
-      swaysBy.set(sk, getComputedStyle(el).animationName !== 'none');
-      tinted(!swaysBy.get(sk));
-      el.toggleAttribute('data-top', !swaysBy.get(sk) && el.matches('[data-dith], [data-fade]'));
-    });
-    tinted(still && swaysBy.get(sk) === false);
-    el.toggleAttribute('data-top', still && lit && swaysBy.get(sk) === false);
+    // (while its picture is painted, and as it fades in over the CSS, the field keeps its grain and its tint, under the
+    // canvas: the picture then fades in over the same image)
+    const lit = on || wait === 'fade';
+    el.toggleAttribute('data-dith', on);
+    tinted(el);
     // (the other tabs painted ahead as soon as this one's picture is in: not again, later, once it has faded in)
     if (lit && PER_TAB[kind] && !(on && faded.current)) prewarm(el, kind);
     faded.current = wait === 'fade';

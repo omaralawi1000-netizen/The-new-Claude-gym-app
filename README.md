@@ -1908,14 +1908,12 @@ the workout window: the phone draws CSS gradients and blur output in whole 8-bit
     painted ahead 0.6 s after launch; a tab tapped before that shows its CSS field until its picture is ready (painted
     before anything else the worker has queued), and the picture then fades in over it (1.2 s, eased in and out). The
     canvas is there, see-through, from the field's first frame, so no layer is added later, and the CSS goes only once
-    that fade has finished. Where every field on screen carries the status bar's tint in its picture (the fields that
-    hold still), the waiting field carries the tint itself, under the canvas (`.field-tint`, in its own colour), and the
-    strip is out at once: the fade is a plain cross-fade of two tinted images. (Fading the strip out as the picture came
-    in, both darkening the top, lifted the top-left edge against the status bar by 11 levels in Golden hour for half a
-    second, judge round 5; a fitted curve only halved it. Now the worst 60x30 px patch stays within 1.5 levels.) Next to
-    Classic, whose picture leaves the tint to the strip, the strip follows the newest field, and a picture ready while
-    its field is still coming in over another waits for that switch (fading in during it, Classic to Mesh lost the tint
-    for a second). The grain stays, under the canvas, while a field waits. (Showing the plain
+    that fade has finished. Every field carries the status bar's colour at its top itself, so every switch and every
+    fade-in is a plain cross-fade: a still field in its picture (and in `.field-tint` under the canvas until the picture
+    is in, or for good when it can't be made), Classic in a `.field-tint` that moves exactly back by its sway, Orb light
+    and Sunrise over their moving parts. (One strip over all fields, faded against a picture with the tint in it, lifted
+    the top-left edge 11-13 levels in Golden hour for half a second, judge rounds 5 and 6, on a fade-in and between
+    Classic and a painted still field; the strip is now only for glow off.) The grain stays, under the canvas, while a field waits. (Showing the plain
     colour while waiting, tried first, made the field go dark and then light up; ending the fade on a timer hid the CSS
     early on a busy page.) After a palette,
     glow or motion change the picture before fades out (0.6 s) instead of going at once. The mid-switch frame shows the
