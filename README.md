@@ -2618,3 +2618,54 @@ The last part of Coach 2.0, phase 5 (docs/coach-plan.md).
 - **v0.1.150: after Connect watch, back on the Watch screen with the answer.** Omar's video: "Opening Health Connect…", then Aven reloaded on Today, so nothing said whether it worked. The Android app reopens Aven at its start; the page now remembers the tap (`aven.hc.ask`, 3 min) and opens Settings → Watch again: "Watch connected", or on the screen itself what to do (for a refusal: search Health Connect in the phone's Settings → App permissions → Aven → allow all). The remembered tap also makes the answer count when Chrome's "opened by the app" mark is missing.
 - **v0.1.151: a readout while it isn't connected.** Under the Watch screen, one small line says what the Android app last sent back ("answer 21:05: HC yes · allowed · on · 14 days · 3 workouts", "unreadable (n chars)", or "tapped connect 21:04, no answer yet"). Omar's report: with access off, the "not allowed" message came; with access on, the pop-up closed and nothing showed. The line says which step drops it. Remove it once the watch connects.
 - **v0.1.152: the real cause.** Run on the CI emulator end to end (Connect watch tapped in the page in the app, access already given): the Android app answered at once, but its address reads `#hc%3D…` because Android's `Uri.Builder.fragment()` codes the "=". The page looked for `hc=` only, so every answer, from Connect watch and from every launch, was ignored. The page now decodes the address first. `journey-health` uses the coded form; it fails without the fix.
+
+## The Coach as a person who knows you (19 Oct 2026, PR, no version bump)
+Omar: the Coach should feel like talking to a person who knows him and all his data. His screenshots showed what didn't:
+- "I did calves, put it in" made a second "Logged workout" beside today's Legs & shoulders.
+- Asking to move it logged the sets again.
+- A question was sent twice.
+- Protein ideas came only from his own foods.
+- "Calves: about 0 sets a week" when he trains them (he just hadn't logged them).
+
+### Natural logging
+- **Sets told afterwards go into that day's workout.** `log_sets` joins any finished workout of that day, not only the ones the Coach made. A second "Logged workout" is made only when the day has none.
+  - `workout` (last / a date / its name) picks another one.
+  - `after` puts a new exercise right after the one named ("I also did hip abduction, put it after leg press").
+  - The card names the workout, and Undo takes it all back.
+- **No silent workouts.** `add_exercise` with nothing running says so, and starts one only with `start: true`. That silent start is what made the screenshot's mix-up.
+- **Skip by voice.** "Skip this set" means `log_current_set` with `skip`. It takes the planned set out, and Undo puts it back.
+- **New rules for the Coach:**
+  - past tense is never a live workout;
+  - a wrong log is fixed with undo + log again (never twice);
+  - kg/reps not said means last time's;
+  - talk like a person: "I forgot the pizza last night" → yesterday's dinner, "same breakfast as Monday" → copy, "half of that" → edit.
+  - Food ideas: at most one or two from his usual foods, the rest useful new ones (Danish supermarket staples, simple dishes). An open request ("700 kcal, something") gets one short question first ("Sweet or savoury?").
+
+### All the watch data, two years back
+- **The Android app reads** (`HealthSync.java`) per day:
+  - steps, active and total calories, distance, floors;
+  - resting heart rate, HRV (RMSSD);
+  - sleep, counted on the morning it ended: total, deep, REM, light, awake, bed and wake times;
+  - weight, body fat, VO2 max, blood oxygen, breathing rate;
+  - and the workouts.
+- **Permissions:** each extra kind is optional (`MORE`). Only steps and workouts are needed for "connected". Connect watch asks for all of them, and history access only on Android 15+.
+- **History:** the last 14 days every time, plus one older 30-day stretch, walking back about two years over the next openings, then from the top. A stretch that never reached the page comes again. A workout's heart rate, calories and distance are worked out once and remembered.
+- **The page** (`healthSync.ts`) keeps it per day in `health` (additive; backups carry it). A day read again replaces that day.
+- **The Coach** gets BODY & RECOVERY in DATA (`src/lib/recovery.ts`):
+  - the last 7 nights with stages;
+  - resting HR and HRV against his usual (30-day median);
+  - the last 2 weeks against the 2 before;
+  - weight, body fat, VO2 max.
+  - A `health` lookup covers any range ("how did I sleep in September?"). Watch workouts in lookups carry bpm, kcal and km.
+- **Recovery is mentioned only when clearly off** (Omar's choice): under 5 h of sleep, resting HR 7+ over usual, or HRV 25 %+ under. One short line where it fits, and never "train lighter" unless he asks.
+
+### Fixes
+- **No double send.** The Coach asks an opening question once per opening, and the same words within 2 s are asked once.
+- **The little-work card says what is logged:** "No calf sets logged in the last 4 weeks", never "about 0 sets". Its Ask the Coach question asks first whether he trains them without logging.
+
+### Checks
+- `tests/coach8.test.ts` (8) and `tests/health.test.ts` (+3).
+- `scripts/journey-coach7.mjs`: calves after leg press in today's workout, the pizza in yesterday's dinner, a question back, BODY & RECOVERY with what is off.
+- `journey-health`, `journey-workout6`, `journey-coach6`, `journey-sol`, `journey-ai`.
+- The CI emulator grants the new permissions in its Connect watch run.
+- **The new data needs the new Android app** (an APK publish after review). The web part works with the old app: it just gets steps and workouts, as before.
