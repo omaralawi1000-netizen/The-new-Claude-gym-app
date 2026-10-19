@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence, motion, useIsPresent } from 'motion/react';
 import { useStore } from '../../state/store';
 import { useUI, haptic } from '../../state/ui';
 import { useAi, anyBrain, solOn } from '../../state/ai';
@@ -45,8 +45,8 @@ function Scan({ src }: { src: string }) {
   const t = useT();
   const i = useStep();
   const v = (typeof localStorage !== 'undefined' && localStorage.getItem('aven.scan')) || 'A';
-  const edge = v === 'B' || v === 'D';
-  const dots = v === 'C' || v === 'D';
+  const dots = v === 'B';
+  const present = useIsPresent();
   const fade = { initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 }, transition: { duration: 0.45 } };
   const words = (
     <motion.div className="scan-words" {...fade}>
@@ -57,11 +57,10 @@ function Scan({ src }: { src: string }) {
     </motion.div>
   );
   return (
-    <div className={`scan scan-${v}${dots ? ' with-dots' : ''}`} aria-hidden>
+    <div className={`scan scan-${v}${dots ? ' with-dots' : ''}${present ? '' : ' leaving'}`} aria-hidden>
       <motion.div className="scan-fx" {...fade}>
         <i className="scan-film" />
         <div className="scan-lit"><div className="scan-lit-in"><img src={src} alt="" /><i className="scan-warm" /></div></div>
-        {edge && <i className="scan-edge"><b /></i>}
       </motion.div>
       {words}
     </div>
