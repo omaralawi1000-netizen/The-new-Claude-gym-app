@@ -40,10 +40,12 @@ const FADE_IN = { inside: [0.025, 0.08], skin: [0.06, 0.16], words: [0.002, 0.03
 // (`mat`: the card's own look on the copy; `skin` is then the plain ground under it, which stands in for the window's light
 // from midway, so the window never shows as an empty patch of light: it is a plain surface carrying the clock, and the
 // card's look comes up on it at the end)
-type Fades = typeof FADE_OUT & { views?: number[]; mat?: number[] };
+// (`pop`, `popS`: the card's play button on a layer of its own, so it never shows half see-through: it comes up quickly over
+// `pop` while it is still a touch small, and grows the last bit into its place over `popS`; leaving, the reverse)
+type Fades = typeof FADE_OUT & { views?: number[]; mat?: number[]; pop?: number[]; popS?: number[] };
 const FADES: Record<Land, { out: Fades; in: Fades }> = {
   A: { out: { ...FADE_OUT, inside: [0.86, 0.99], skin: [0.42, 0.8], mat: FADE_OUT.skin }, in: { ...FADE_IN, inside: [0.68, 0.94], views: [0.86, 0.995], skin: [0.32, 0.66], mat: FADE_IN.skin } },
-  B: { out: { inside: [0.5, 0.97], skin: [0.38, 0.76], mat: [0.089, 0.178], words: [0, 0.06], back: [0.006, 0.056], solid: [0.078, 0.089] }, in: { ...FADE_IN, words: [0.002, 0.07], inside: [0.62, 0.9], views: [0.8, 0.99], skin: [0.6, 0.88], mat: FADE_IN.skin } },
+  B: { out: { inside: [0.5, 0.97], skin: [0.38, 0.76], mat: [0.089, 0.178], words: [0, 0.06], back: [0.006, 0.056], solid: [0.078, 0.089], pop: [0.07, 0.1], popS: [0, 0.1] }, in: { ...FADE_IN, words: [0.002, 0.07], pop: [0.002, 0.025], popS: [0.002, 0.05], inside: [0.62, 0.9], views: [0.8, 0.99], skin: [0.6, 0.88], mat: FADE_IN.skin } },
   C: { out: { ...FADE_OUT, inside: [0.88, 0.995], skin: [0.42, 0.8], mat: FADE_OUT.skin }, in: { ...FADE_IN, inside: [0.6, 0.9], views: [0.8, 0.99], skin: [0.32, 0.6], mat: FADE_IN.skin } },
 };
 // B: how much the card gives as it catches the window (per unit of the spring's overshoot past the card): it shrinks a
@@ -201,6 +203,8 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   // by frame, instead of running it itself)
   const skinO = (pp: number) => Math.max(0.002, 1 - ramp(pp, F().skin));
   const wordsO = (pp: number) => Math.max(0.002, 1 - ramp(pp, F().words));
+  const popO = (pp: number) => Math.max(0.002, 1 - ramp(pp, F().pop ?? F().words));
+  const popAt = (pp: number) => `scale(${((skinParts.current?.pop?.k ?? 1) * (1 - 0.12 * ramp(pp, F().popS ?? F().words))).toFixed(5)})`;
   const matR = () => F().mat ?? F().skin;
   const matO = (pp: number) => (F().mat ? Math.max(0.002, 1 - ramp(pp, F().mat!)) : 1);
   const toneO = (pp: number) => (F().mat ? Math.max(0.002, ramp(pp, F().mat!)) : 0.002);
@@ -375,11 +379,12 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
       step();
     });
   };
-  const skinParts = useRef<{ back: HTMLElement; tone: HTMLElement; mat: HTMLElement; words: HTMLElement | null; watch: MutationObserver | null } | null>(null);
+  const skinParts = useRef<{ back: HTMLElement; tone: HTMLElement; mat: HTMLElement; words: HTMLElement | null; pop: { el: HTMLElement; k: number } | null; watch: MutationObserver | null } | null>(null);
   const skinAt = (pp: number) => {
     const s = skinRef.current, k = skinParts.current; if (!s || !k) return;
     s.style.opacity = String(skinO(pp)); k.back.style.opacity = String(backO(pp)); k.mat.style.transform = matAt(pp); k.mat.style.opacity = String(matO(pp)); k.tone.style.opacity = String(toneO(pp));
     if (k.words) k.words.style.opacity = String(wordsO(pp));
+    if (k.pop) { k.pop.el.style.opacity = String(popO(pp)); k.pop.el.style.transform = popAt(pp); }
   };
   const dropSkin = () => {
     const s = skinRef.current; skinParts.current?.watch?.disconnect(); skinParts.current = null;
@@ -497,7 +502,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
       Object.assign(mat.style, { width: `${g.w}px`, height: `${g.h}px`, borderRadius: `${g.r}px`, willChange: 'transform, opacity' });
       // the resume bar's glass (unfrosted) is part of the ground that clears over its own frosted glass
       if (exact.current) s.replaceChildren(back, mat); else { back.append(mat); s.replaceChildren(back); }
-      let words: HTMLElement | null = null, watch: MutationObserver | null = null;
+      let words: HTMLElement | null = null, pop: { el: HTMLElement; k: number } | null = null, watch: MutationObserver | null = null;
       const fg = g.fg;
       if (fg) {
         // the card's words at the card's own size wherever the window is (its scale undone), so they land exactly on the card's
@@ -506,17 +511,40 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
         s.append(w); words = w;
         // (the clock flies on its own, landing.ts; what arrives after it is not on the copy either)
         const lateNow = leaving.current ? lateKinds() : [];
+        // the play button, where the way has its own timing for it: the same copy of the card on a layer of its own, all
+        // but the button hidden (so it sits exactly where it does on the card), sized about the button's middle. (Going
+        // down, the card may not show the button yet: its middle is found when it does, `place`, and only the layer's
+        // origin and place, not its moving parts, depend on it.)
+        if (FADES[ls.current].out.pop && !lateNow.includes('pop')) {
+          const el = document.createElement('div');
+          Object.assign(el.style, { position: 'absolute', left: w.style.left, top: w.style.top, width: w.style.width, height: w.style.height, transformOrigin: '0 0', transform: `scale(${(1 / s0).toFixed(5)})`, willChange: 'transform, opacity' });
+          pop = { el, k: 1 / s0 };
+          s.append(el);
+        }
+        const L0 = parseFloat(w.style.left), T0 = parseFloat(w.style.top);
         const place = () => {
           const c = copyOf(fg);
           if (g.bg.dataset.wk === 'hero') c.querySelectorAll<HTMLElement>('[data-wk-clock]').forEach((n) => { n.style.visibility = 'hidden'; });
-          c.querySelectorAll<HTMLElement>('[data-wk-in]').forEach((n) => { if (lateNow.includes(n.dataset.wkIn ?? '')) n.style.visibility = 'hidden'; });
+          c.querySelectorAll<HTMLElement>('[data-wk-in]').forEach((n) => { if (lateNow.includes(n.dataset.wkIn ?? '') || (pop && n.dataset.wkIn === 'pop')) n.style.visibility = 'hidden'; });
           w.replaceChildren(c); sync(fg, c);
+          if (pop) {
+            const c2 = copyOf(fg); c2.style.visibility = 'hidden';
+            const b2 = c2.querySelector<HTMLElement>('[data-wk-in="pop"]'); if (b2) b2.style.visibility = 'visible';
+            pop.el.replaceChildren(c2);
+            const pb = fg.querySelector<HTMLElement>('[data-wk-in="pop"]');
+            if (pb && !pop.el.dataset.at) {
+              const fr = fg.getBoundingClientRect(), br = pb.getBoundingClientRect(), q = fr.width / (fg.offsetWidth || 1) || 1;
+              const cx = (br.left - fr.left + br.width / 2) / q, cy = (br.top - fr.top + br.height / 2) / q, k = pop.k;
+              Object.assign(pop.el.style, { transformOrigin: `${cx.toFixed(3)}px ${cy.toFixed(3)}px`, left: `${(L0 + (k - 1) * cx).toFixed(3)}px`, top: `${(T0 + (k - 1) * cy).toFixed(3)}px` });
+              pop.el.dataset.at = '1';
+            }
+          }
         };
         place();
         // (its clock ticks while the window travels: the copy keeps up)
         watch = new MutationObserver(place); watch.observe(fg, { subtree: true, childList: true, characterData: true });
       }
-      skinParts.current = { back, tone, mat, words, watch };
+      skinParts.current = { back, tone, mat, words, pop, watch };
       s.style.display = 'block';
     }
     src.current = [g.bg, ...(g.fg ? [g.fg] : [])];
@@ -568,6 +596,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
       morph && k ? go(k.mat, (pp) => ({ transform: matAt(Math.min(pp, matR()[1])), opacity: String(matO(pp)) }), [], true) : null,
       morph && k && F().mat ? go(k.tone, (pp) => ({ opacity: String(toneO(pp)) }), F().mat) : null,
       morph && k?.words ? go(k.words, (pp) => ({ opacity: String(wordsO(pp)) }), F().words) : null,
+      morph && k?.pop ? go(k.pop.el, (pp) => ({ opacity: String(popO(pp)), transform: popAt(pp) }), [], true) : null,
       morph ? go(dimRef.current, (pp) => ({ opacity: String(dim(pp)) }), ENVB) : null,
       morph ? go(stageEl(), (pp) => ({ transform: contentTransform(env(pp)) }), ENVB) : null,
       morph && dockAt.current !== null ? go(navEl(), (pp) => ({ transform: dockT(pp) }), [], true) : null,
