@@ -9,7 +9,8 @@ import type { Exercise } from '../../lib/types';
  */
 // The take is in the file name (`<id>.r15`), so a re-rendered clip is a new file: phones fetch it instead of the old cached one.
 const CLIPS: Record<string, string> = {
-  'barbell-curl': 'figures/barbell-curl.r15',
+  'barbell-curl': 'figures/barbell-curl.r18',   // hands locked on the bar (they slid 8 cm in r15), anti-aliased glow edge
+  'ez-bar-curl': 'figures/ez-bar-curl.r1',   // starts mid-lift (f30 of the render) so the poster shows the W of the bar
 };
 
 export function clipFor(ex: Exercise | undefined): string | null {
