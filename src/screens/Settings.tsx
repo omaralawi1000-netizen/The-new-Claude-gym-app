@@ -61,7 +61,7 @@ type Section = null | 'today' | 'targets' | 'training' | 'food' | 'units' | 'loo
 function Row({ icon, title, sub, onClick, value }: { icon: any; title: string; sub?: string; onClick: () => void; value?: string }) {
   return (
     <button className="li press" onClick={onClick}>
-      <span style={{ width: 38, height: 38, borderRadius: 12, background: 'var(--s2)', display: 'grid', placeItems: 'center', boxShadow: 'inset 0 0 0 1px var(--line)', flex: 'none' }}><Icon name={icon} size={19} /></span>
+      <span className="ic-tile"><Icon name={icon} size={19} /></span>
       <div className="grow" style={{ textAlign: 'left', minWidth: 0 }}><div className="li-title">{title}</div>{sub && <div className="li-sub trunc">{sub}</div>}</div>
       {value && <span className="small t2">{value}</span>}<Icon name="chevR" size={16} style={{ color: 'var(--tx3)' }} />
     </button>

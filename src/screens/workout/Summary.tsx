@@ -100,7 +100,7 @@ export function Summary({ props }: { props: { sessionId: string } }) {
               const fv = (v: number) => vset && v === r.value ? `${fmtNum(kgToDisplay(vset.weightKg ?? 0, u.weight), lang, 2)} ${u.weight} × ${vset.reps}` : r.kind === 'reps' ? String(v) : r.kind === 'duration' ? `${v}s` : r.kind === 'distance' ? `${fmtNum(v / 1000, lang, 2)} km` : `${fmtNum(kgToDisplay(v, u.weight), lang, r.kind === 'e1rm' ? 1 : 2)} ${u.weight}`;
               return (
                 <div key={i} data-fm="after" className="plinth" style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <span style={{ width: 34, height: 34, borderRadius: 12, background: 'var(--gold)', color: '#3a2a05', display: 'grid', placeItems: 'center' }}><Icon name="bolt" size={18} /></span>
+                  <span className="ic-tile acc" style={{ width: 34, height: 34 }}><Icon name="bolt" size={18} /></span>
                   <div className="grow"><div className="li-title small">{ex ? exName(ex, lang) : ''}</div><div className="xs t2">{t(REC_LABEL[r.kind])}{r.kind === 'e1rm' ? ` · ${t('estimate')}` : ''}</div></div>
                   <div style={{ textAlign: 'right' }} className="num"><div style={{ fontWeight: 700 }}>{fv(r.value)}</div><div className="xs t3">{vset ? `${fmtNum(kgToDisplay(r.value, u.weight), lang, 0)} ${u.weight} · ${t('was')} ${fmtNum(kgToDisplay(r.previous!, u.weight), lang, 0)}` : `${t('was')} ${fv(r.previous!)}`}</div></div>
                 </div>

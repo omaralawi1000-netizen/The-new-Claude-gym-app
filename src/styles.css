@@ -2137,7 +2137,8 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .exd-steps { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 12px; }
 .exd-steps li { display: flex; gap: 12px; align-items: flex-start; line-height: 1.42; }
 .exd-n { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 650;
-  color: var(--ac-text); background: var(--ac-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ac) 30%, transparent); margin-top: -1px; }
+  color: var(--tx); background: rgba(255, 255, 255, 0.085); box-shadow: inset 0 0 0 1px var(--line); margin-top: -1px; }
+:root[data-theme='light'] .exd-n { background: rgba(255, 255, 255, 0.7); }
 .exd-chart { padding: 14px 14px 6px; border-radius: var(--r-lg); }
 
 /* ── moving figures (screens/workout/Figure.tsx): a sculpted body nested at its joints; each joint turns on a browser-run
@@ -2461,7 +2462,7 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 /* Settings → Watch: the round seat for the watch face, the two numbers under it */
 .watch-hero { padding: 18px 18px 16px; }
 .watch-ic { width: 48px; height: 48px; border-radius: 16px; display: grid; place-items: center; flex: none; background: var(--s2); color: var(--tx2); box-shadow: inset 0 0 0 1px var(--line); }
-.watch-ic.on { background: var(--ac-soft); color: var(--ac-text); box-shadow: none; }
+.watch-ic.on { color: var(--ac-text); } /* (the same neutral tile, the icon in your colour: no bronze fill) */
 .watch-state { display: flex; align-items: center; gap: 8px; font-weight: 650; font-size: 16.5px; }
 .watch-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ac); flex: none; }
 /* three numbers, thin and large, on hairlines between them */
@@ -2668,3 +2669,9 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 :root:not([data-theme='light']) .btn.primary[disabled]:not(.sheet-foot *)::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; padding: 1px;
   -webkit-mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
   background: linear-gradient(180deg, rgba(255,255,255,.2), rgba(255,255,255,.08) 30%, rgba(255,255,255,.035) 62%, rgba(255,255,255,.05)); }
+/* one icon tile everywhere: the Settings row's (neutral glass, thin edge), the icon white, or in your colour where it means
+   something (records, wrestling, a connected watch). Corners: 12 px up to 40 px tiles, 16 px at 48 px. (Its own fill, not
+   --s2: on tab screens --s2 is navy.) */
+.ic-tile { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; flex: none; background: rgba(255, 255, 255, 0.085); color: var(--tx); box-shadow: inset 0 0 0 1px var(--line); }
+:root[data-theme='light'] .ic-tile { background: rgba(255, 255, 255, 0.7); }
+.ic-tile.acc { color: var(--ac-text); }
