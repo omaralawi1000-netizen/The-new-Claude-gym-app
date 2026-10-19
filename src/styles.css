@@ -2466,27 +2466,47 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 .dict-thread .dt-c { height: 1.6px; bottom: .4px; border-radius: 1px; background: linear-gradient(to right, transparent, #fff 50%, transparent); }
 :root[data-theme='light'] .dict-thread .dt-c { background: linear-gradient(to right, transparent, color-mix(in srgb, var(--ac) 40%, #fff) 50%, transparent); }
 
-/* ---- photo analysis (PhotoFood.tsx, Scan): no orb. A dim film, a soft band of light sweeping down once every 3.2 s with a rest
-   between (transform only, own layer), four viewfinder corners, and the status words fading in the pill. ---- */
-.scan { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+/* ---- photo analysis (PhotoFood.tsx, Scan): Siri-style. A dim film over the frozen photo, a wave of light climbing it (a brighter copy of the photo seen through a
+   soft band: the band moves up, the copy moves down by the same amount, so the objects light up in place), optional edge light, orbiting dots and ripples.
+   Transform and opacity only; static masks and filters; the words capsule frosts the photo. ---- */
+.scan { position: absolute; inset: 0; pointer-events: none; overflow: hidden; --lit-ang: 0deg; }
 .scan-fx { position: absolute; inset: 0; }
 .scan-film { position: absolute; inset: 0; background: rgba(0,0,0,.19); }
-.scan-band { position: absolute; left: 0; right: 0; top: 0; height: 46%; will-change: transform; transform: translateY(-100%); animation: scan-sweep 3200ms var(--ease-io) infinite;
-  background: linear-gradient(to bottom, transparent, rgba(255,255,255,.10) 72%, rgba(255,255,255,.28) 100%); }
-.scan-band::after { content: ''; position: absolute; left: 6%; right: 6%; bottom: 0; height: 2px; border-radius: 1px; background: linear-gradient(to right, transparent, rgba(255,255,255,.95), transparent); }
-@keyframes scan-sweep { 0% { transform: translateY(-100%); } 68%, 100% { transform: translateY(217%); } }
-.scan-c { position: absolute; width: 22px; height: 22px; border: 0 solid rgba(255,255,255,.88); }
-.scan-c.tl { left: 16px; top: 16px; border-width: 2.5px 0 0 2.5px; border-top-left-radius: 8px; }
-.scan-c.tr { right: 16px; top: 16px; border-width: 2.5px 2.5px 0 0; border-top-right-radius: 8px; }
-.scan-c.bl { left: 16px; bottom: 16px; border-width: 0 0 2.5px 2.5px; border-bottom-left-radius: 8px; }
-.scan-c.br { right: 16px; bottom: 16px; border-width: 0 2.5px 2.5px 0; border-bottom-right-radius: 8px; }
+.scan-E { --lit-ang: -10deg; }
+.scan-lit { position: absolute; top: 0; bottom: 0; left: -30%; right: -30%; will-change: transform; transform: translateY(90%) rotate(var(--lit-ang)); animation: scan-up 3400ms var(--ease-io) infinite;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 20%, rgba(0,0,0,.16) 31%, rgba(0,0,0,.62) 43%, #000 52%, rgba(0,0,0,.5) 61%, rgba(0,0,0,.1) 71%, transparent 80%);
+  mask-image: linear-gradient(to bottom, transparent 20%, rgba(0,0,0,.16) 31%, rgba(0,0,0,.62) 43%, #000 52%, rgba(0,0,0,.5) 61%, rgba(0,0,0,.1) 71%, transparent 80%); }
+.scan-lit-in { position: absolute; top: 0; bottom: 0; left: 18.75%; right: 18.75%; will-change: transform; transform: translateY(-90%) rotate(calc(-1 * var(--lit-ang))); animation: scan-down 3400ms var(--ease-io) infinite; }
+.scan-lit-in img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; filter: brightness(1.95) saturate(1.08) contrast(.96); }
+.scan-warm { position: absolute; inset: 0; background: color-mix(in srgb, var(--ac) 22%, transparent); }
+.scan-core { position: absolute; left: 0; right: 0; top: 47%; height: 10%; background: linear-gradient(to bottom, transparent, rgba(255,246,228,.30), transparent); }
+@keyframes scan-up { 0% { transform: translateY(90%) rotate(var(--lit-ang)); } 72%, 100% { transform: translateY(-90%) rotate(var(--lit-ang)); } }
+@keyframes scan-down { 0% { transform: translateY(-90%) rotate(calc(-1 * var(--lit-ang))); } 72%, 100% { transform: translateY(90%) rotate(calc(-1 * var(--lit-ang))); } }
+.scan-edge { position: absolute; inset: 0; padding: 2px; border-radius: var(--r-lg); overflow: hidden;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); }
+.scan-edge.soft { padding: 9px; opacity: .38; }
+.scan-edge b { position: absolute; left: 50%; top: 50%; width: 150%; aspect-ratio: 1; translate: -50% -50%; will-change: transform; animation: scan-spin 3600ms linear infinite;
+  background: conic-gradient(from 0deg, transparent 0 52%, color-mix(in srgb, var(--ac) 70%, #fff) 80%, #fff 92%, transparent 100%); }
+@keyframes scan-spin { to { transform: rotate(360deg); } }
+.scan-ring { position: absolute; left: 50%; top: 50%; width: 80%; aspect-ratio: 1; translate: -50% -50%; border-radius: 50%; will-change: transform, opacity; opacity: 0; animation: scan-ripple 2800ms var(--ease-out) infinite;
+  background: radial-gradient(circle, transparent 60%, rgba(255,240,214,.5) 68%, transparent 75%); }
+.scan-ring.r2 { animation-delay: 1400ms; }
+@keyframes scan-ripple { 0% { transform: scale(.2); opacity: .9; } 100% { transform: scale(1.7); opacity: 0; } }
+.scan-orbit { position: absolute; left: 13px; top: 50%; width: 20px; height: 20px; margin-top: -10px; animation: scan-spin 2600ms linear infinite; will-change: transform; }
+.scan-orbit i { position: absolute; left: 50%; top: 50%; width: 3.4px; height: 3.4px; margin: -1.7px; border-radius: 50%; background: #fff; animation: scan-twinkle 1300ms ease-in-out infinite alternate; }
+.scan-orbit i:nth-child(1) { transform: rotate(0deg) translateY(-8px); }
+.scan-orbit i:nth-child(2) { transform: rotate(60deg) translateY(-8px); animation-delay: -200ms; }
+.scan-orbit i:nth-child(3) { transform: rotate(120deg) translateY(-8px); animation-delay: -500ms; }
+.scan-orbit i:nth-child(4) { transform: rotate(180deg) translateY(-8px); animation-delay: -800ms; }
+.scan-orbit i:nth-child(5) { transform: rotate(240deg) translateY(-8px); animation-delay: -1000ms; }
+.scan-orbit i:nth-child(6) { transform: rotate(300deg) translateY(-8px); animation-delay: -1200ms; }
+@keyframes scan-twinkle { from { opacity: .3; } to { opacity: 1; } }
+.scan.with-dots .scan-words { padding-left: 38px; }
 .scan-words { position: absolute; left: 50%; bottom: 20px; translate: -50% 0; display: grid; justify-items: center; min-width: 176px; padding: 7px 16px; border-radius: 999px;
   background: linear-gradient(180deg, rgba(255,255,255,.07), transparent 60%), rgba(0,0,0,.46); -webkit-backdrop-filter: blur(16px) saturate(1.2); backdrop-filter: blur(16px) saturate(1.2); box-shadow: inset 0 0 0 1px rgba(255,255,255,.14); }
 .scan-words span { grid-area: 1 / 1; will-change: opacity; color: #fff; font-size: 13px; font-weight: 600; letter-spacing: .01em; white-space: nowrap; text-shadow: 0 1px 2px rgba(0,0,0,.25); }
-.scan-A .scan-c { animation: scan-breathe 2400ms ease-in-out infinite alternate; }
-@keyframes scan-breathe { from { opacity: .62; } to { opacity: .92; } }
-:root[data-motion='reduce'] .scan-A .scan-c { animation: none; }
-:root[data-motion='reduce'] .scan-band { animation: none; opacity: 0; }
+:root[data-motion='reduce'] .scan-lit, :root[data-motion='reduce'] .scan-lit-in, :root[data-motion='reduce'] .scan-edge b, :root[data-motion='reduce'] .scan-ring, :root[data-motion='reduce'] .scan-orbit { animation: none; }
+:root[data-motion='reduce'] .scan-lit, :root[data-motion='reduce'] .scan-ring, :root[data-motion='reduce'] .scan-edge { opacity: 0; }
 
 /* the Coach looking something up in the data: a quiet line under the typing dots, fading in calmly */
 .coach-looking { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }

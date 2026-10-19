@@ -38,24 +38,31 @@ function useStep() {
   }, []);
   return i;
 }
-/** While the photo is read (Omar picked the sweep): no orb. Only transform and opacity move. The root never fades (a fading ancestor would drop the
- *  frost of the words capsule); the film, band and corners fade as one layer and the capsule fades by itself. */
-function Scan() {
+/** While the photo is read (Siri-style): a wave of light climbs the frozen photo and the objects it passes light up (a brighter copy of the photo shown
+ *  through a soft band, aligned 1:1 by moving the band up and the copy down by the same amount). Only transform and opacity move; the root never fades
+ *  (a fading ancestor would drop the frost of the words capsule), the film and lights fade as one layer and the capsule fades by itself. */
+function Scan({ src }: { src: string }) {
   const t = useT();
   const i = useStep();
+  const v = (typeof localStorage !== 'undefined' && localStorage.getItem('aven.scan')) || 'A';
+  const edge = v === 'B' || v === 'F';
+  const dots = v === 'C' || v === 'F';
   const fade = { initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 }, transition: { duration: 0.45 } };
   const words = (
     <motion.div className="scan-words" {...fade}>
+      {dots && <span className="scan-orbit"><i /><i /><i /><i /><i /><i /></span>}
       <AnimatePresence mode="wait" initial={false}>
         <motion.span key={i} initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { duration: 0.24, delay: 0.04, ease: [0.22, 1, 0.36, 1] } }} exit={{ opacity: 0, transition: { duration: 0.16, ease: [0.4, 0, 1, 1] } }}>{t(SCAN_WORDS[i])}</motion.span>
       </AnimatePresence>
     </motion.div>
   );
   return (
-    <div className="scan scan-A" aria-hidden>
+    <div className={`scan scan-${v}${dots ? ' with-dots' : ''}`} aria-hidden>
       <motion.div className="scan-fx" {...fade}>
         <i className="scan-film" />
-        <i className="scan-band" /><i className="scan-c tl" /><i className="scan-c tr" /><i className="scan-c bl" /><i className="scan-c br" />
+        <div className="scan-lit"><div className="scan-lit-in"><img src={src} alt="" /><i className="scan-warm" /></div><i className="scan-core" /></div>
+        {v === 'D' && <><i className="scan-ring" /><i className="scan-ring r2" /></>}
+        {edge && <><i className="scan-edge soft"><b /></i><i className="scan-edge"><b /></i></>}
       </motion.div>
       {words}
     </div>
@@ -150,7 +157,7 @@ export function PhotoFood({ props }: { props: { date: string; mealId: string; fi
                   <span className="small t2">{t('Take a photo')}</span>
                 </button>
               )}
-              <AnimatePresence>{busy && <Scan key="scan" />}</AnimatePresence>
+              <AnimatePresence>{busy && img && <Scan key="scan" src={img.url} />}</AnimatePresence>
             </motion.div>
             <div className="row-flex" style={{ gap: 8, marginTop: 12 }}>
               <button className="btn sm press grow" onClick={openCam}><Icon name="camera" size={16} /> {img ? t('Retake') : t('Camera')}</button>

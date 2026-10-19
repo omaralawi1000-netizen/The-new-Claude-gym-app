@@ -26,7 +26,7 @@ await s.ctx.addInitScript(([d]) => {
 }, [delay]);
 await p.goto(process.env.URL || 'http://127.0.0.1:4173/'); await wait(p, 1500);
 await skipOnboarding(p); await loadDemo(p); await s.advance(120);
-await p.evaluate(() => { localStorage.setItem('aven.keys', JSON.stringify({ gemini: 'AIzaTESTKEY' })); });
+await p.evaluate((v) => { localStorage.setItem('aven.keys', JSON.stringify({ gemini: 'AIzaTESTKEY' })); localStorage.setItem('aven.scan', v); }, v);
 await p.reload(); await wait(p, 1500); await s.advance(240);
 const press = async (loc) => { const b = await loc.boundingBox(); await p.touchscreen.tap(b.x + b.width / 2, b.y + b.height / 2); };
 await p.getByLabel('Photo').first().waitFor({ state: 'visible', timeout: 20000 }); await s.advance(Number(process.env.SETTLE || 3000)); // Today must be fully up before the tap
