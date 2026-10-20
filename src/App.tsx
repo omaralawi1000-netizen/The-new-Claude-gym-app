@@ -92,6 +92,8 @@ function useTheme() {
   useLayoutEffect(() => { document.documentElement.dataset.palette = palette; }, [palette]);
   const glow = useStore((x) => x.settings.glow ?? 'full');
   useLayoutEffect(() => { document.documentElement.dataset.glow = glow; }, [glow]);
+  const surface = useStore((x) => x.settings.surface ?? 'black');
+  useLayoutEffect(() => { document.documentElement.dataset.surface = surface; }, [surface]);
   const bg = useStore((x) => x.settings.background ?? 'classic');
   useLayoutEffect(() => { document.documentElement.dataset.bg = bg; }, [bg]);
   useEffect(() => { document.documentElement.lang = lang; }, [lang]);
