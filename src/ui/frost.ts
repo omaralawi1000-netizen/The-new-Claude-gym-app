@@ -26,6 +26,8 @@ const dark = () => root().dataset.theme !== 'light';
 const look = () => root().dataset.look ?? 'a';
 // the frost each look bakes into the copy (the card's own see-through fill lies over it, surfaces.css): A today's clear
 // glass with a little frost, B and C let more of the colour through
+// (busy-background options on trial, `data-cards` on the root: f = the copy with no colour boost, what a live blur shows)
+const recipe = () => (root().dataset.cards === 'f' && look() === 'a' ? 'blur(4px)' : RECIPE[look()]);
 const RECIPE: Record<string, string> = { a: 'blur(4px) saturate(1.35)', b: 'blur(4px) saturate(1.9) brightness(0.94)', c: 'blur(4px) saturate(1.9) brightness(0.94)' };
 
 function paint(cv: HTMLCanvasElement) {
@@ -76,12 +78,14 @@ function showHue() {
   st.setProperty('--bh-h', v.h.toFixed(1)); st.setProperty('--bh-sl', v.sl.toFixed(3)); st.setProperty('--bh-sc', v.sc.toFixed(3));
 }
 
+/** the colours a picture was copied under: a new palette, background, glow or theme makes every tab's picture stale */
+const stamp = () => { const d = root().dataset; return `${d.palette}|${d.bg}|${d.glow}|${d.theme}|${d.look}`; };
 let lastField: HTMLElement | null = null;
 const fields = new Map<string, HTMLElement>(); // tab → its field, to copy again for a new look
 const watched = new WeakSet<HTMLElement>();
 let againAt = 0;
 /** Copy a field's picture (and its moving glows where they are now) into its tab's frost picture and colour. */
-export function frostFromField(field: HTMLElement) {
+export function frostFromField(field: HTMLElement, everyTab = false) {
   const hue = field.dataset.hue ?? '';
   if (!hue) return;
   const cv = field.querySelector<HTMLCanvasElement>('canvas.glow-field');
@@ -109,14 +113,83 @@ export function frostFromField(field: HTMLElement) {
   const c = sample(g, w, h); if (c) { hues.set(hue, c); showHue(); }
   // Classic sways and Orb light's glows move: their cards keep the plain glass (a still copy would slide off them)
   const moves = root().dataset.motion !== 'reduce' && (field.classList.contains('aurora') || root().dataset.bg === 'orb');
-  const rec = RECIPE[look()];
+  const rec = recipe();
   if (moves || !rec) { pics.delete(hue); repaint(hue); return; }
   const out = pics.get(hue) ?? document.createElement('canvas');
   out.width = w; out.height = h;
   const o = out.getContext('2d'); if (!o) return;
-  o.filter = rec; o.drawImage(raw, 0, 0); o.filter = 'none';
+  o.filter = rec; o.drawImage(raw, 0, 0); o.filter = 'none'; tame(o, w, h);
   pics.set(hue, out);
   repaint(hue);
+  // (a background that is the same on every tab: the other tabs get the same picture now, not when they are opened)
+  if (everyTab) for (const t of TABS) if (t !== hue) { pics.set(t, out); if (c) hues.set(t, c); repaint(t); }
+}
+
+const TABS = ['today', 'train', 'food', 'progress'];
+/** A tab not on show, from its field's picture painted ahead (Glows.tsx prewarm): its cards' copy is ready before the tab
+ * is opened, so they never show the last background's colours and then change. (`at`: the stamp it was painted under) */
+export function frostAhead(hue: string, pic: ImageData, at: string) {
+  if (!dark() || at !== stamp() || !pic.width) return;
+  const f = lastField; if (!f?.isConnected) return;
+  const { w, h } = size();
+  const src = document.createElement('canvas'); src.width = pic.width; src.height = pic.height;
+  src.getContext('2d')?.putImageData(pic, 0, 0);
+  const raw = document.createElement('canvas'); raw.width = w; raw.height = h;
+  const g = raw.getContext('2d', { willReadFrequently: true }); if (!g) return;
+  const r = f.getBoundingClientRect(); // (every tab's field covers the same place)
+  g.drawImage(src, r.left / SC, r.top / SC, r.width / SC, r.height / SC);
+  const c = sample(g, w, h); if (c) hues.set(hue, c);
+  const moves = root().dataset.motion !== 'reduce' && (f.classList.contains('aurora') || root().dataset.bg === 'orb');
+  const rec = recipe();
+  if (moves || !rec) return;
+  const out = document.createElement('canvas'); out.width = w; out.height = h;
+  const o = out.getContext('2d'); if (!o) return;
+  o.filter = rec; o.drawImage(raw, 0, 0); o.filter = 'none'; tame(o, w, h);
+  pics.set(hue, out); repaint(hue);
+}
+export const frostStamp = stamp;
+
+
+// ---- busy and solid backgrounds (options on trial, `data-cards`): the copy tamed where it is too much, left alone where it
+// is calm (Champagne on Mesh, the dark backgrounds), in OKLab
+const toLin = (v: number) => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+const toSrgb = (v: number) => Math.round(255 * Math.min(1, Math.max(0, v <= 0.0031308 ? v * 12.92 : 1.055 * v ** (1 / 2.4) - 0.055)));
+function lab(r: number, g: number, b: number): [number, number, number] {
+  const R = toLin(r), G = toLin(g), B = toLin(b);
+  const l = Math.cbrt(0.4122214708 * R + 0.5363325363 * G + 0.0514459929 * B), m = Math.cbrt(0.2119034982 * R + 0.6806995451 * G + 0.1073969566 * B), s = Math.cbrt(0.0883024619 * R + 0.2817188376 * G + 0.6299787005 * B);
+  return [0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s, 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s, 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s];
+}
+function rgb(L: number, A: number, B: number): [number, number, number] {
+  const l = (L + 0.3963377774 * A + 0.2158037573 * B) ** 3, m = (L - 0.1055613458 * A - 0.0638541728 * B) ** 3, s = (L - 0.0894841775 * A - 1.291485548 * B) ** 3;
+  return [toSrgb(4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s), toSrgb(-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s), toSrgb(-0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s)];
+}
+/** above `k`, only `s` of the rest goes through (a soft ceiling) */
+const knee = (x: number, k: number, s: number) => (x <= k ? x : k + (x - k) * s);
+function tame(o: CanvasRenderingContext2D, w: number, h: number) {
+  const mode = root().dataset.cards ?? '';
+  if (!'bcdeh'.includes(mode) || !mode || look() !== 'a') return;
+  let im: ImageData; try { im = o.getImageData(0, 0, w, h); } catch { return; }
+  const d = im.data, n = d.length / 4;
+  const px = new Float32Array(n * 3);
+  let sL = 0, sC = 0, hx = 0, hy = 0;
+  for (let i = 0; i < n; i++) {
+    const [L, A, B] = lab(d[i * 4], d[i * 4 + 1], d[i * 4 + 2]); px[i * 3] = L; px[i * 3 + 1] = A; px[i * 3 + 2] = B;
+    const C = Math.hypot(A, B); sL += L; sC += C; hx += A * C; hy += B * C;
+  }
+  const mL = sL / n, mC = sC / n, dom = Math.atan2(hy, hx);
+  const busy = mC > 0.05; // (h: only a picture this colourful gets darker)
+  for (let i = 0; i < n; i++) {
+    let L = px[i * 3], A = px[i * 3 + 1], B = px[i * 3 + 2];
+    let C = Math.hypot(A, B), H = Math.atan2(B, A);
+    if (mode === 'b') { C = knee(C, 0.07, 0.4); L = knee(L, 0.45, 0.5); }
+    else if (mode === 'c') { C = knee(C, 0.05, 0.25); L = knee(L, 0.4, 0.4); }
+    else if (mode === 'd') { const f = Math.min(1, L / (mL * 1.25)) ** 2.5; L *= f; C *= f; } // even areas sink, glows stay
+    else if (mode === 'e') { let dh = dom - H; dh = Math.atan2(Math.sin(dh), Math.cos(dh)); H += dh * 0.7; C = knee(C, 0.07, 0.4); }
+    else if (mode === 'h' && busy) { L *= 0.72; C *= 0.72; }
+    A = C * Math.cos(H); B = C * Math.sin(H);
+    const [r, g, b] = rgb(L, A, B); d[i * 4] = r; d[i * 4 + 1] = g; d[i * 4 + 2] = b;
+  }
+  o.putImageData(im, 0, 0);
 }
 
 function repaint(hue: string) { for (const cv of live) { if (!cv.isConnected) { live.delete(cv); continue; } if (hueOf(cv) === hue) paint(cv); } }
@@ -176,4 +249,13 @@ export function startFrost() {
   // a new look: copy each field again with its frost (their pictures are painted again too, for the grain, and copied once more)
   new MutationObserver(() => { for (const f of fields.values()) if (f.isConnected) frostFromField(f); })
     .observe(r, { attributes: true, attributeFilter: ['data-look'] });
+  // a new palette, background, glow or theme: every tab's picture is of the old colours, so they all go now (the cards fade
+  // to their plain glass with the old background) and come back, faded in, from the new field as it comes in (the tab on
+  // show) or is painted ahead (the others). Opening a tab then never shows the last colours first.
+  let was = stamp();
+  new MutationObserver(() => {
+    const now = stamp(); if (now === was) return; was = now;
+    pics.clear(); hues.clear(); fields.clear();
+    for (const cv of live) { if (cv.isConnected) paint(cv); else live.delete(cv); }
+  }).observe(r, { attributes: true, attributeFilter: ['data-palette', 'data-bg', 'data-glow', 'data-theme'] });
 }
