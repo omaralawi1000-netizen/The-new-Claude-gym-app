@@ -2,7 +2,7 @@
  * Backups to your own Google Drive, straight from the phone (no server).
  *
  * Sign-in is Google's own (Google Identity Services, the "token" flow). Aven asks only for `drive.file`: it can see and
- * change the files IT created, nothing else in your Drive. It keeps one file, "Aven backup.json", and overwrites it
+ * change the files IT created, nothing else in your Drive. It keeps one file, "Aven backup.json" ("Aven Beta backup.json" in Aven Beta), and overwrites it
  * each time; Drive itself keeps earlier versions of a file for 30 days (File → Manage versions), so a bad backup
  * doesn't wipe a good one.
  *
@@ -17,14 +17,17 @@ import { buildBackup, parseBackup } from './backup';
 import { useStore } from '../state/store';
 import { userHasData } from './stats';
 import type { AppData } from './types';
+import { IS_BETA } from './beta';
 
 const STORE = 'aven.drive';
 const GIS = 'https://accounts.google.com/gsi/client';
 const API = 'https://www.googleapis.com';
 const SCOPE = 'https://www.googleapis.com/auth/drive.file';
-export const DRIVE_FILE = 'Aven backup.json';
+/** Aven Beta keeps its own file, so a test can never overwrite the real app's backup. */
+export const driveFileName = (beta: boolean) => (beta ? 'Aven Beta backup.json' : 'Aven backup.json');
+export const DRIVE_FILE = driveFileName(IS_BETA);
 
-export interface DriveState { clientId?: string; fileId?: string; connected?: boolean; auto?: boolean; lastAt?: number; error?: string; errorDetail?: string }
+export interface DriveState { clientId?: string; fileId?: string; /** the file name `fileId` belongs to */ fileName?: string; connected?: boolean; auto?: boolean; lastAt?: number; error?: string; errorDetail?: string }
 
 // ── state (on the phone) ────────────────────────────────────
 let cache: DriveState | null = null;
@@ -140,6 +143,9 @@ export async function connectDrive(): Promise<void> {
   } catch (e: any) { patch({ error: e?.message || 'signin', errorDetail: e?.detail }); throw e; }
 }
 
+/** The remembered file, only if it is this app's file (a Beta that backed up before it had its own name remembers the real one). */
+const knownFile = () => { const d = driveState(); return d.fileName === DRIVE_FILE ? d.fileId : undefined; };
+
 let busy: Promise<void> | null = null;
 /** Writes the backup file (creating it the first time). `interactive`: may ask Google for a new pass (needs a tap). */
 export function backupToDrive(interactive: boolean): Promise<void> {
@@ -149,7 +155,7 @@ export function backupToDrive(interactive: boolean): Promise<void> {
   busy = (async () => {
     try {
       const body = JSON.stringify(buildBackup());
-      let id = driveState().fileId || (await findFile(interactive))?.id;
+      let id = knownFile() || (await findFile(interactive))?.id;
       let res: Response | null = null;
       if (id) {
         res = await call(`/upload/drive/v3/files/${id}?uploadType=media&fields=id`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body }, interactive);
@@ -163,7 +169,7 @@ export function backupToDrive(interactive: boolean): Promise<void> {
       }
       if (!res || !res.ok) throw res ? await driveError(res) : new Error('drive');
       const j = await res.json().catch(() => ({}));
-      patch({ fileId: j.id || id, lastAt: Date.now(), error: undefined, errorDetail: undefined, connected: true });
+      patch({ fileId: j.id || id, fileName: DRIVE_FILE, lastAt: Date.now(), error: undefined, errorDetail: undefined, connected: true });
     } catch (e: any) {
       if (e?.message !== 'signin' || interactive) patch({ error: e?.message === 'Failed to fetch' ? 'offline' : e?.message || 'drive', errorDetail: e?.detail });
       throw e;
@@ -181,7 +187,7 @@ async function readDrive(lang: string): Promise<{ data: AppData; photos?: Record
   if (!f) throw new Error('nofile');
   const res = await call(`/drive/v3/files/${f.id}?alt=media`, { method: 'GET' }, true);
   if (!res.ok) throw await driveError(res);
-  patch({ fileId: f.id, connected: true, error: undefined });
+  patch({ fileId: f.id, fileName: DRIVE_FILE, connected: true, error: undefined });
   return { ...parseBackup(await res.text(), lang), at: f.modifiedTime };
 }
 

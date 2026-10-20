@@ -1,12 +1,12 @@
 import { create } from 'zustand';
-import type { StepDay,
+import type { StepDay, Schedule,
   ActivityLog, AppData, Exercise, Food, FoodEntry, Measurement, Meal, MemoryNote, WeekReviewNote, PersonalRecord, Recipe, Routine, SavedMeal,
   SessionExercise, SetRecord, Settings, WeightLog, WorkoutSession, Nutrients,
 } from '../lib/types';
 import { SEED_EXERCISES } from '../data/exercises';
 import { REFERENCE_FOODS } from '../data/foods';
 import { dayKey, addDays, weekdayOf } from '../lib/dates';
-import { detectRecords, lastPerformance, planSets, setsFromItem } from '../lib/workout';
+import { countable, detectRecords, lastPerformance, planSets, setsFromItem } from '../lib/workout';
 import { entryFromSnapshot, recipeToFood, requantify, snapshotOf, uid } from '../lib/nutrition';
 import { DATA_VERSION, defaultData, detectLang, normaliseData } from './defaults';
 
@@ -107,7 +107,8 @@ export interface Store extends AppData {
   mutateActive: (fn: (s: WorkoutSession) => WorkoutSession) => void;
   pauseActive: () => void;
   resumeActive: () => void;
-  finishActive: (note?: string) => WorkoutSession | null;
+  /** `endAt`: finish as of this moment instead of now (a forgotten workout); a pause is only counted up to it */
+  finishActive: (note?: string, endAt?: number) => WorkoutSession | null;
   discardActive: () => WorkoutSession | null;
   restoreActive: (s: WorkoutSession) => void;
   mutateSession: (id: string, fn: (s: WorkoutSession) => WorkoutSession) => void;
@@ -115,8 +116,10 @@ export interface Store extends AppData {
   restoreSession: (s: WorkoutSession) => void;
   // plans
   upsertRoutine: (r: Routine) => void;
-  deleteRoutine: (id: string) => Routine | undefined;
-  restoreRoutine: (r: Routine) => void;
+  /** also takes it off the plan; what it took off comes back with it, so Undo can put it back where it was */
+  deleteRoutine: (id: string) => RemovedRoutine | undefined;
+  /** puts a routine back, and (with `slots` from deleteRoutine) its weekdays, one-off days and rotation places */
+  restoreRoutine: (r: Routine, slots?: RemovedRoutine['slots']) => void;
   setSchedule: (patch: Partial<AppData['schedule']>) => void;
   rescheduleMissed: (originDate: string, routineId: string, newDate: string) => void;
   skipPlanned: (date: string) => void;
@@ -129,6 +132,7 @@ export interface Store extends AppData {
   restoreWeight: (w: WeightLog) => void;
   addMeasurement: (m: Omit<Measurement, 'id'>) => void;
   removeMeasurement: (id: string) => void;
+  restoreMeasurement: (m: Measurement) => void;
   addPhoto: (p: { id: string; date: string; note?: string }) => void;
   removePhoto: (id: string) => void;
   addActivity: (a: Omit<ActivityLog, 'id' | 'at'>) => ActivityLog;
@@ -152,6 +156,93 @@ export interface Store extends AppData {
 }
 
 const dayOf = (s: Settings, t = Date.now()) => dayKey(t, s.dayStartHour);
+
+/**
+ * After a finished workout's sets change: its records are detected again against the workouts before it, and so are those
+ * of later workouts with any of the same exercises (a best they beat may have changed).
+ */
+export function refreshRecords(sessions: WorkoutSession[], edited: WorkoutSession, before: WorkoutSession, exMap: Map<string, Exercise>): WorkoutSession[] {
+  const ids = new Set([...edited.exercises, ...before.exercises].map((e) => e.exerciseId));
+  const end = edited.endedAt ?? 0;
+  const lookup = (id: string) => exMap.get(id);
+  // in order, so a later workout measures against already refreshed ones
+  const order = sessions.map((x, i) => ({ x, i })).sort((p, q) => (p.x.endedAt ?? 0) - (q.x.endedAt ?? 0));
+  const out = [...sessions];
+  for (const { x, i } of order) {
+    if (x.status !== 'done') continue;
+    const self = x.id === edited.id;
+    if (!self && ((x.endedAt ?? 0) < end || !x.exercises.some((e) => ids.has(e.exerciseId)))) continue;
+    const records = detectRecords(x, out.filter((y) => y.status === 'done'), lookup);
+    out[i] = { ...x, records };
+  }
+  return out;
+}
+
+type Rotation = Schedule['rotation'];
+/** The rotation after a routine in it was done: next is the one after it (its nearest place from "next" on, if it is in twice). */
+export function rotationAfter(rot: Rotation, routineId: string): Rotation {
+  const n = rot.order.length;
+  if (!n) return rot;
+  const p = rot.pointer % n;
+  for (let k = 0; k < n; k++) if (rot.order[(p + k) % n] === routineId) return { ...rot, pointer: (p + k + 1) % n };
+  return rot;
+}
+/** The rotation without the routines at these places, still pointing at the same next routine (or the one after a removed one). */
+export function rotationWithout(rot: Rotation, drop: (id: string, i: number) => boolean): Rotation {
+  const n = rot.order.length;
+  const p = n ? rot.pointer % n : 0;
+  const order = rot.order.filter((id, i) => !drop(id, i));
+  const before = rot.order.slice(0, p).filter((id, i) => drop(id, i)).length;
+  return { ...rot, order, pointer: order.length ? (p - before) % order.length : 0 };
+}
+
+/** Notes the day each weekday's plan changed (switching to weekdays changes them all), so older days are not "missed". */
+export function withWeeklySince(prev: Schedule, next: Schedule, today: string): Schedule {
+  if (next.mode !== 'weekly' || next.weeklySince !== prev.weeklySince) return next; // an Undo brings its own back
+  const since = { ...(next.weeklySince ?? {}) };
+  let changed = false;
+  for (let wd = 0; wd < 7; wd++) {
+    if (prev.mode !== 'weekly' || (prev.weekly[wd] ?? null) !== (next.weekly[wd] ?? null)) { since[wd] = today; changed = true; }
+  }
+  return changed ? { ...next, weeklySince: since } : next;
+}
+
+/** A deleted routine and the places on the plan it was taken off. */
+export interface RemovedRoutine {
+  routine: Routine;
+  slots: { weekdays: number[]; overrides: Schedule['overrides']; rotation: { order: string[]; pointer: number; indexes: number[] } };
+}
+
+/** The plan without a routine, and where it was on it. */
+export function scheduleWithout(sch: Schedule, id: string): { schedule: Schedule; slots: RemovedRoutine['slots'] } {
+  const weekly = { ...sch.weekly };
+  const weekdays: number[] = [];
+  for (const k of Object.keys(weekly)) if (weekly[+k] === id) { weekly[+k] = null; weekdays.push(+k); }
+  const indexes = sch.rotation.order.flatMap((x, i) => (x === id ? [i] : []));
+  return {
+    schedule: { ...sch, weekly, overrides: sch.overrides.filter((o) => o.routineId !== id), rotation: rotationWithout(sch.rotation, (x) => x === id) },
+    slots: { weekdays, overrides: sch.overrides.filter((o) => o.routineId === id), rotation: { order: sch.rotation.order, pointer: sch.rotation.pointer, indexes } },
+  };
+}
+
+/** Puts a routine back on the places scheduleWithout took it off (only where nothing else has been put since). */
+export function scheduleWith(sch: Schedule, id: string, slots: RemovedRoutine['slots']): Schedule {
+  const weekly = { ...sch.weekly };
+  for (const wd of slots.weekdays) if (!weekly[wd]) weekly[wd] = id;
+  const overrides = [...sch.overrides, ...slots.overrides.filter((o) => !sch.overrides.some((x) => x.date === o.date))];
+  const { order: before, pointer, indexes } = slots.rotation;
+  const untouched = sch.rotation.order.length === before.length - indexes.length && sch.rotation.order.every((x, i) => x === before.filter((_, j) => !indexes.includes(j))[i]);
+  let rotation = sch.rotation;
+  if (untouched) rotation = { ...sch.rotation, order: before, pointer };
+  else if (indexes.length) {
+    // put back at its old places; "next" stays on the same routine (shifted by what goes in before it)
+    const order = [...sch.rotation.order];
+    let pointer = order.length ? sch.rotation.pointer % order.length : 0;
+    for (const i of indexes) { const at = Math.min(i, order.length); order.splice(at, 0, id); if (at <= pointer && order.length > 1) pointer++; }
+    rotation = { ...sch.rotation, order, pointer };
+  }
+  return { ...sch, weekly, overrides, rotation };
+}
 
 const initial = loadPersisted();
 
@@ -235,7 +326,7 @@ export const useStore = create<Store>((set, get) => {
           if (ex && (ex.logType === 'duration' || ex.logType === 'distance')) {
             sets = sets.filter((x) => x.type === 'working').map((x) => ({ ...x, target: { ...x.target } }));
           }
-          sets = planSets(ex, sets, s.sessions, s.increments, s.settings.plateStep);
+          sets = planSets(ex, sets, s.sessions, s.increments, s.settings.plateStep, s.settings.units.weight);
           return { id: uid('se'), exerciseId: it.exerciseId, restSec: it.restSec, supersetGroup: it.supersetGroup, note: it.note, sets };
         });
       } else if (fromSession) {
@@ -244,7 +335,7 @@ export const useStore = create<Store>((set, get) => {
         exercises = fromSession.exercises.map((e) => {
           const item = routineOf?.items.find((i) => i.exerciseId === e.exerciseId);
           const sets: SetRecord[] = e.sets.map((x) => ({ id: uid('s'), type: x.type, done: false, target: { repMin: item?.repMin ?? 8, repMax: item?.repMax ?? 12, weightKg: x.weightKg } }));
-          return { id: uid('se'), exerciseId: e.exerciseId, restSec: e.restSec, supersetGroup: e.supersetGroup, note: e.note, sets: planSets(exMap.get(e.exerciseId), sets, s.sessions, s.increments, s.settings.plateStep) };
+          return { id: uid('se'), exerciseId: e.exerciseId, restSec: e.restSec, supersetGroup: e.supersetGroup, note: e.note, sets: planSets(exMap.get(e.exerciseId), sets, s.sessions, s.increments, s.settings.plateStep, s.settings.units.weight) };
         });
       }
       const session: WorkoutSession = {
@@ -271,27 +362,27 @@ export const useStore = create<Store>((set, get) => {
       // while paused, rest.endsAt holds the REMAINING ms
       mutate(() => ({ active: { ...a, pausedMs: a.pausedMs + (now - a.pausedAt!), pausedAt: undefined, rest: a.rest ? { ...a.rest, endsAt: now + a.rest.endsAt } : null } }), true);
     },
-    finishActive: (note) => {
+    finishActive: (note, endAt) => {
       const s = get();
       const a = s.active;
-      if (!a) return null;
-      const now = Date.now();
-      const pausedMs = a.pausedMs + (a.pausedAt ? now - a.pausedAt : 0);
+      // only warm-ups ticked is not a workout: nothing is saved (the screens offer Discard instead)
+      if (!a || !a.exercises.some((e) => e.sets.some(countable))) return null;
+      const now = endAt !== undefined ? Math.max(a.startedAt, Math.min(Date.now(), endAt)) : Date.now();
+      const pausedMs = Math.min(a.pausedMs + (a.pausedAt ? Math.max(0, now - a.pausedAt) : 0), now - a.startedAt);
       // drop sets that were never completed and exercises left empty
       const exercises = a.exercises
         .map((e) => ({ ...e, plannedSets: e.sets.filter((x) => x.type === 'working').length, sets: e.sets.filter((x) => x.done) }))
         .filter((e) => e.sets.length > 0);
       const done: WorkoutSession = {
         ...a, exercises, status: 'done', endedAt: now, pausedMs, pausedAt: undefined, rest: null, note: note ?? a.note,
-        name: a.name || 'Workout',
+        name: a.name ?? '', // unnamed stays empty: shown as "Workout" in the app's language (workoutName)
       };
       const exMap = exerciseMap(s.exercises);
       done.records = detectRecords(done, s.sessions, (id) => exMap.get(id));
       const sessions = [...s.sessions, done].sort((x, y) => (x.endedAt ?? 0) - (y.endedAt ?? 0));
       const schedule = { ...s.schedule };
-      if (schedule.mode === 'rotation' && a.routineId && schedule.rotation.order[schedule.rotation.pointer % Math.max(1, schedule.rotation.order.length)] === a.routineId) {
-        schedule.rotation = { ...schedule.rotation, pointer: (schedule.rotation.pointer + 1) % Math.max(1, schedule.rotation.order.length) };
-      }
+      // a rotation goes on from whatever was done: next is the routine after it
+      if (schedule.mode === 'rotation' && a.routineId) schedule.rotation = rotationAfter(schedule.rotation, a.routineId);
       mutate(() => ({ sessions, active: null, schedule }), true);
       return done;
     },
@@ -301,7 +392,14 @@ export const useStore = create<Store>((set, get) => {
       return a;
     },
     restoreActive: (a) => { if (!get().active) mutate(() => ({ active: a }), true); },
-    mutateSession: (id, fn) => mutate((s) => ({ sessions: s.sessions.map((x) => (x.id === id ? fn(x) : x)) })),
+    mutateSession: (id, fn) => mutate((s) => {
+      const old = s.sessions.find((x) => x.id === id);
+      if (!old) return {};
+      const next = fn(old);
+      const sessions = s.sessions.map((x) => (x.id === id ? next : x));
+      // sets edited or deleted after the workout: its records (and later ones that measured against it) are found again
+      return { sessions: next.exercises !== old.exercises ? refreshRecords(sessions, next, old, exerciseMap(s.exercises)) : sessions };
+    }),
     deleteSession: (id) => {
       const x = get().sessions.find((y) => y.id === id);
       if (x) mutate((s) => ({ sessions: s.sessions.filter((y) => y.id !== id) }));
@@ -314,18 +412,15 @@ export const useStore = create<Store>((set, get) => {
     deleteRoutine: (id) => {
       const r = get().routines.find((x) => x.id === id);
       if (!r) return undefined;
-      mutate((s) => {
-        const weekly = { ...s.schedule.weekly };
-        for (const k of Object.keys(weekly)) if (weekly[+k] === id) weekly[+k] = null;
-        return {
-          routines: s.routines.filter((x) => x.id !== id),
-          schedule: { ...s.schedule, weekly, overrides: s.schedule.overrides.filter((o) => o.routineId !== id), rotation: { ...s.schedule.rotation, order: s.schedule.rotation.order.filter((x) => x !== id) } },
-        };
-      });
-      return r;
+      const { schedule, slots } = scheduleWithout(get().schedule, id);
+      mutate((s) => ({ routines: s.routines.filter((x) => x.id !== id), schedule }));
+      return { routine: r, slots };
     },
-    restoreRoutine: (r) => mutate((s) => ({ routines: s.routines.some((x) => x.id === r.id) ? s.routines : [...s.routines, r] })),
-    setSchedule: (patch) => mutate((s) => ({ schedule: { ...s.schedule, ...patch } })),
+    restoreRoutine: (r, slots) => mutate((s) => {
+      if (s.routines.some((x) => x.id === r.id)) return {};
+      return { routines: [...s.routines, r], ...(slots ? { schedule: scheduleWith(s.schedule, r.id, slots) } : {}) };
+    }),
+    setSchedule: (patch) => mutate((s) => ({ schedule: withWeeklySince(s.schedule, { ...s.schedule, ...patch }, dayOf(s.settings)) })),
     rescheduleMissed: (originDate, routineId, newDate) => mutate((s) => {
       const cleared = s.schedule.cleared.includes(originDate) ? s.schedule.cleared : [...s.schedule.cleared, originDate];
       const overrides = [...s.schedule.overrides.filter((o) => !(o.date === newDate) && !(o.date === originDate)), { date: newDate, routineId, originDate }];
@@ -345,6 +440,7 @@ export const useStore = create<Store>((set, get) => {
     restoreWeight: (w) => mutate((s) => ({ weights: s.weights.some((x) => x.id === w.id) ? s.weights : [...s.weights, w] })),
     addMeasurement: (m) => mutate((s) => ({ measurements: [...s.measurements, { ...m, id: uid('ms') }] })),
     removeMeasurement: (id) => mutate((s) => ({ measurements: s.measurements.filter((m) => m.id !== id) })),
+    restoreMeasurement: (m) => mutate((s) => ({ measurements: s.measurements.some((x) => x.id === m.id) ? s.measurements : [...s.measurements, m] })),
     addPhoto: (p) => mutate((s) => ({ photos: [...s.photos, p] })),
     removePhoto: (id) => mutate((s) => ({ photos: s.photos.filter((p) => p.id !== id) })),
     mergeHealth: (next) => mutate(() => ({ activities: next.activities, steps: next.steps })),
@@ -450,6 +546,9 @@ export function missedWorkouts(d: Pick<AppData, 'schedule' | 'routines' | 'sessi
     const date = addDays(today, -i);
     const p = plannedFor(d, date, today);
     if (!p) continue;
+    const since = d.schedule.weeklySince?.[weekdayOf(date)];
+    if (p.source === 'weekly' && since && date < since) continue; // planned only after that day
+
     const done = d.sessions.some((s) => s.plannedDate === date || (s.date === date && s.routineId === p.routineId));
     if (!done) out.push({ date, routineId: p.routineId });
   }

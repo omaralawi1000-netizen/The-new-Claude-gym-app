@@ -347,7 +347,7 @@ export function App() {
     try { history.replaceState(history.state, '', location.pathname); } catch { /* ignore */ }
     const st = useStore.getState();
     const today = dayKey(Date.now(), st.settings.dayStartHour);
-    const mealId = defaultMealId(st.settings.meals);
+    const mealId = defaultMealId(st.settings.meals, new Date(), st.settings.dayStartHour);
     setTimeout(() => {
       if (doIt === 'food') push('foodSearch', { date: today, mealId });
       else if (doIt === 'voice') push('voice', { mode: 'food', date: today, mealId });

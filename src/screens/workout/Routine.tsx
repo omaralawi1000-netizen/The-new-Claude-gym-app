@@ -55,7 +55,7 @@ export function RoutineEditor({ props }: { props: { id?: string } }) {
     toast(t('Routine saved'), { tone: 'ok' });
     pop();
   };
-  const del = () => { if (!existing) return; const st = useStore.getState(); const r = st.deleteRoutine(existing.id); pop(); if (r) toast(t('Routine deleted'), { actionLabel: t('Undo'), onAction: () => useStore.getState().restoreRoutine(r) }); };
+  const del = () => { if (!existing) return; const st = useStore.getState(); const r = st.deleteRoutine(existing.id); pop(); if (r) toast(t('Routine deleted'), { actionLabel: t('Undo'), onAction: () => useStore.getState().restoreRoutine(r.routine, r.slots) }); };
   return (
     <Sheet onClose={pop} tall label={t('Routine')} z={100} foot={<button className="btn primary block press" disabled={!valid} onClick={save}>{t('Save routine')}</button>}>
       <SheetHead title={existing ? t('Edit routine') : t('New routine')} onClose={pop} />

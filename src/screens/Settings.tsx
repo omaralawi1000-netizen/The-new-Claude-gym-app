@@ -9,7 +9,8 @@ import { useT, useLang } from '../lib/i18n';
 import { Sheet, SheetHead } from '../ui/Sheet';
 import { Icon } from '../ui/Icon';
 import { NumInput, Seg, Stepper, Toggle } from '../ui/kit';
-import { fmtNum, fmtPct } from '../lib/units';
+import { fmtNum, fmtPct, KG_PER_LB } from '../lib/units';
+import { LB_STEPS, lbStepKg } from '../lib/workout';
 import { lastBackup, markBackup, useStorageKept } from '../lib/persist';
 import { buildBackup, parseBackup, snapshotData } from '../lib/backup';
 import { DriveCard } from './DriveBackup';
@@ -21,7 +22,7 @@ import { clearPhotos, loadPhoto, savePhoto } from '../lib/photos';
 import { clearArchive, importArchive } from '../lib/archive';
 import type { AppData, Lang, Meal, Settings } from '../lib/types';
 import { uid, kcalOf, scaleMacros, suggestMacros } from '../lib/nutrition';
-import { mealName } from '../lib/derive';
+import { mealName, removeMeal, restoreMeal } from '../lib/derive';
 import { addDays, dayKey, diffDays, fmtDate, fmtDuration } from '../lib/dates';
 import { useAi } from '../state/ai';
 import { clearKeys } from '../lib/keys';
@@ -282,7 +283,10 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
               <div className="stack gap16">
                 <Field label={t('Default rest between sets')}><div><Stepper compact label={t('Default rest between sets')} value={st.restDefaultSec} min={15} max={600} step={15} fmt={(v) => fmtDuration(v)} onChange={(v) => set({ restDefaultSec: v })} /></div></Field>
                 <Field label={t('Effort tracking')}><Seg value={st.effort} onChange={(v) => set({ effort: v })} options={[{ value: 'off', label: t('Off') }, { value: 'rpe', label: 'RPE' }, { value: 'rir', label: 'RIR' }]} /></Field>
-                <Field label={t('Smallest weight jump')}><div className="chips" style={{ margin: 0, padding: 0 }}>{[1, 1.25, 2.5, 5].map((v) => <button key={v} className={`chip press ${st.plateStep === v ? 'on' : ''}`} onClick={() => set({ plateStep: v })}>{v} kg</button>)}</div></Field>
+                <Field label={t('Smallest weight jump')}><div className="chips" style={{ margin: 0, padding: 0 }}>{st.units.weight === 'lb'
+                  // in pounds: pound steps (kept in kg, as every weight is), so progression lands on real plates
+                  ? LB_STEPS.slice(0, 4).map((v) => <button key={v} className={`chip press ${Math.abs(lbStepKg(st.plateStep) - v * KG_PER_LB) < 1e-6 ? 'on' : ''}`} onClick={() => set({ plateStep: v * KG_PER_LB })}>{v} lb</button>)
+                  : [1, 1.25, 2.5, 5].map((v) => <button key={v} className={`chip press ${st.plateStep === v ? 'on' : ''}`} onClick={() => set({ plateStep: v })}>{v} kg</button>)}</div></Field>
                 <Field label={t('Workout opens in')} hint={t('Focus shows one exercise at a time. Last used remembers how you left it.')}><Seg value={st.workoutView ?? 'last'} onChange={(v) => set({ workoutView: v })} options={[{ value: 'last', label: t('Last used') }, { value: 'list', label: t('List') }, { value: 'focus', label: t('Focus') }]} /></Field>
                 <ToggleRow label={t('Rest-timer sound')} on={st.sound} onChange={(v) => set({ sound: v })} />
                 <RestAlertRow />
@@ -293,7 +297,7 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
             {sec === 'units' && (
               <div className="stack gap16">
                 <Field label={t('Language')}><Seg value={st.language} onChange={(v) => set({ language: v })} options={[{ value: 'en', label: 'English' }, { value: 'da', label: 'Dansk' }]} /></Field>
-                <Field label={t('Weight')}><Seg value={st.units.weight} onChange={(v) => set({ units: { ...st.units, weight: v } })} options={[{ value: 'kg', label: 'kg' }, { value: 'lb', label: 'lb' }]} /></Field>
+                <Field label={t('Weight')}><Seg value={st.units.weight} onChange={(v) => set({ units: { ...st.units, weight: v }, ...(v === 'kg' && ![1, 1.25, 2.5, 5].includes(st.plateStep) ? { plateStep: [1, 1.25, 2.5, 5].reduce((b, x) => (Math.abs(x - st.plateStep) < Math.abs(b - st.plateStep) ? x : b)) } : {}) })} options={[{ value: 'kg', label: 'kg' }, { value: 'lb', label: 'lb' }]} /></Field>
                 <Field label={t('Distance')}><Seg value={st.units.distance} onChange={(v) => set({ units: { ...st.units, distance: v } })} options={[{ value: 'km', label: 'km' }, { value: 'mi', label: 'mi' }]} /></Field>
                 <Field label={t('Body measurements')}><Seg value={st.units.length} onChange={(v) => set({ units: { ...st.units, length: v } })} options={[{ value: 'cm', label: 'cm' }, { value: 'in', label: 'in' }]} /></Field>
                 <Field label={t('Week starts on')}><Seg value={st.weekStart} onChange={(v) => set({ weekStart: v })} options={[{ value: 1, label: t('Monday') }, { value: 0, label: t('Sunday') }]} /></Field>
@@ -480,19 +484,37 @@ function FoodSettings() {
   const st = s.settings;
   const toast = useUI((u) => u.toast);
   const [meals, setMeals] = useState<Meal[]>(st.meals);
+  useEffect(() => setMeals(st.meals), [st.meals]); // an Undo puts a removed meal back from outside
   const save = (m: Meal[]) => { setMeals(m); s.setMeals(m); };
+  // the field being typed in shows exactly what is typed (even nothing); the default name comes back only when you leave it
+  const [editing, setEditing] = useState<{ id: string; text: string; was: string } | null>(null);
   return (
     <div className="stack gap16">
       <Field label={t('Meals')}>
         <div className="stack gap8">
           {meals.map((m, i) => (
             <div key={m.id} className="row-flex" style={{ gap: 8 }}>
-              <input className="input" value={m.name || mealName(m, lang)} onChange={(e) => save(meals.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} aria-label={`${t('Meal')} ${i + 1}`} />
+              <input className="input" value={editing?.id === m.id ? editing.text : mealName(m, lang)} aria-label={`${t('Meal')} ${i + 1}`}
+                onFocus={() => setEditing({ id: m.id, text: mealName(m, lang), was: m.name })}
+                onChange={(e) => { const text = e.target.value; setEditing((x) => (x ? { ...x, text } : x)); save(meals.map((x, j) => (j === i ? { ...x, name: text.trim() ? text : '' } : x))); }}
+                onBlur={() => {
+                  // left empty: a built-in meal shows its default name again; your own meal (no default) keeps the name it had
+                  if (editing?.id === m.id && !editing.text.trim() && mealName({ ...m, name: '' }, lang) === m.id) save(meals.map((x) => (x.id === m.id ? { ...x, name: editing.was } : x)));
+                  setEditing(null);
+                }} />
               <button className="icon-btn flat press" aria-label={t('Remove')} disabled={meals.length <= 1} style={{ opacity: meals.length <= 1 ? 0.3 : 1 }} onClick={() => {
-                const target = meals.find((_, j) => j !== i)!;
-                useStore.getState().patch((x) => ({ entries: x.entries.map((e) => (e.mealId === m.id ? { ...e, mealId: target.id } : e)) }));
-                save(meals.filter((_, j) => j !== i));
-                toast(t('Entries moved to {meal}', { meal: target.name || mealName(target, lang) }));
+                const st0 = useStore.getState();
+                const r = removeMeal(meals, st0.entries, m.id);
+                if (!r) return;
+                st0.patch({ entries: r.entries });
+                save(r.meals);
+                const undo = () => {
+                  const x = useStore.getState();
+                  const back = restoreMeal(x.settings.meals, x.entries, r.removed);
+                  x.patch({ entries: back.entries });
+                  x.setMeals(back.meals);
+                };
+                toast(t('Entries moved to {meal}', { meal: mealName(r.removed.target, lang) }), { actionLabel: t('Undo'), onAction: undo });
               }}><Icon name="close" size={18} /></button>
             </div>
           ))}
@@ -839,7 +861,7 @@ function About() {
       <div className="plinth dots" style={{ padding: 18 }}><div className="display display-lg">{IS_BETA ? 'Aven Beta' : 'Aven'}</div><div className="t2" style={{ marginTop: 4 }}>{t('Training, food and progress in one place.')} · v{__APP_VERSION__}{IS_BETA ? ' beta' : ''}</div></div>
       <div><b>{t('Food data')}</b><div className="t2" style={{ marginTop: 4 }}>{t('Bundled foods are approximate reference values. Online results come from Open Food Facts (© contributors, ODbL — open database licence) and USDA FoodData Central (public domain, CC0).')}</div></div>
       <div><b>{t('Exercise clips')}</b><div className="t2" style={{ marginTop: 4 }}>{t('The muscle figure is Aven’s own render, built on the Z-Anatomy model (CC BY-SA 4.0).')}</div></div>
-      <div><b>{t('What’s simulated or not built')}</b><div className="t2" style={{ marginTop: 4 }}>{t('No cloud sync or accounts. No photo-based food estimation. The Coach only advises and never changes your data. Background reminders need a push server.')}</div></div>
+      <div><b>{t('What’s simulated or not built')}</b><div className="t2" style={{ marginTop: 4 }}>{t('No accounts or cloud sync (Google Drive is only used for backups). Photo food estimates are AI guesses: check them before you log. The Coach can log and change your data when you ask it to. Background reminders need a push server.')}</div></div>
     </div>
   );
 }
