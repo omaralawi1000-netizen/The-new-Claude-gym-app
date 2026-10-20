@@ -3076,7 +3076,7 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
    frame). --frost-x lines it up with the field beside the card; it fades in, never pops. */
 @keyframes frost-hold { from { transform: translate3d(0, calc(-1 * var(--frost-sh, 100vh)), 0); } to { transform: translate3d(0, 100%, 0); } }
 .frost { display: none; position: absolute; inset: 0; z-index: -1; border-radius: inherit; overflow: hidden; pointer-events: none; view-timeline: --frost block; }
-:root:is([data-look='a'], [data-look='b'], [data-look='c']):not([data-theme='light']) .frost { display: block; }
+:root:is([data-look='a'], [data-look='b']):not([data-theme='light']) .frost { display: block; } /* (C blurs live instead: surfaces.css) */
 .frost > i { position: absolute; inset: 0; will-change: transform; animation: frost-hold linear both; animation-timeline: --frost; }
 .frost canvas { position: absolute; top: 0; left: var(--frost-x, 0px); width: 100vw; height: var(--frost-sh, 100vh); opacity: 0; transition: opacity 900ms var(--ease-smooth, ease); }
 .frost canvas[data-on='1'] { opacity: 1; }

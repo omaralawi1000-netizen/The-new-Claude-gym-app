@@ -25,8 +25,8 @@ const root = () => document.documentElement;
 const dark = () => root().dataset.theme !== 'light';
 const look = () => root().dataset.look ?? 'a';
 // the frost each look bakes into the copy (the card's own see-through fill lies over it, surfaces.css): A today's clear
-// glass with a little frost, B and C let more of the colour through
-const RECIPE: Record<string, string> = { a: 'blur(4px) saturate(1.35)', b: 'blur(4px) saturate(1.9) brightness(0.94)', c: 'blur(4px) saturate(1.9) brightness(0.94)' };
+// glass with a little frost, B lets more of the colour through. C has none: its cards blur what is behind them live
+const RECIPE: Record<string, string> = { a: 'blur(4px) saturate(1.35)', b: 'blur(4px) saturate(1.9) brightness(0.94)' };
 
 function paint(cv: HTMLCanvasElement) {
   const src = RECIPE[look()] ? pics.get(hueOf(cv)) : undefined;
