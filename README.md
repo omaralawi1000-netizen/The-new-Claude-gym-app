@@ -2982,3 +2982,27 @@ test first (`tests/behaviour2.test.ts`, `tests/review2.test.ts`, new rows in `te
   vary between runs (the limits cap it); the age is only known once told to the Coach until setup asks for it; no AI key
   means no cuts at all. The in-app spending counter is an estimate: the real guard is the budget set at OpenAI.
 
+
+## Coach 2.1: a coach, not a script (20 Oct 2026, branch claude/coach-quality, on top of #177)
+Omar on Beta: a dictated "Hvorfor taber jeg mig ikke?" (heard as "Hvorfor tager I mig jer mig ikke?") went to the quick model
+and came back hedged, with "a doctor or dietitian can help" from nowhere. His point: the model is capable; the rules and the
+model choice wasted it, and he wants "a dynamic coach, like a real coach".
+- **Principles instead of scripts** (`AGENT_SYSTEM`, `COACH_STYLE`): answer what they asked from their own numbers; a clear
+  recommendation; uncertainty only when it changes the advice; a conversation, not a report; misheard words worked out
+  ("I hear it as…"); an ambiguous "my week" answered the useful way; evidence named when it decides a question. Overeating
+  and binges are coached (proportion, the trigger, a practical plan), never sent to a doctor; real warning signs (throwing
+  up, laxatives, fasting for days, fainting, chest pain) still are. Line counts, "say how sure you are", templates and six
+  doctor lines removed. The app's mechanics (logging, actions, previews, look-ups) kept; foods for two meals are now one
+  log per meal (a lunch-and-dinner message logged dinner twice).
+- **DATA is facts, never orders**: frequent heavy days, just noticed, age, "clearly off", learned habits; a heavy day counts
+  as talked about only when the reply mentions it; "User is 18 years old" is read as an age.
+- **The right model per message** (`chooseModel`): logging, commands and quick facts → quick model at once; risky and
+  decision phrases → main model thinking hard; any other question → one tiny quick-model call that sees the conversation
+  before and whether it was dictated (31/31 on labelled messages; ~2 s; falls back to the phrase lists).
+- **Longer when needed**: replies up to 4,000 characters; Gemini may write 6k tokens and think 1k; spoken orb answers short.
+- **The test bench** (`scripts/exam`): old vs new from two checkouts, Omar's real backup as a persona (kept out of the repo),
+  blind pairs for the chat (`pairs.mjs`), a judge model both ways round (`judge.mjs`), a $10 project ledger.
+  Results: Omar's 10 blind pairs on his own questions — new 4, old 0, the rest equal or both weak (his feedback fixed and
+  re-checked); the judge model 13–1 for new (it favours longer answers, so Omar's picks count). Logging 0/10 failures old
+  and new; safety 5/5 (purging → a doctor, teens → no sauna or fast cut). Spent ≈ $4.6 of $10.
+- Next: Omar talks to it on Aven Beta for 2–3 days — the real test of a dynamic coach.

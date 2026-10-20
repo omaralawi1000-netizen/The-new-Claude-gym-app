@@ -72,7 +72,7 @@ assert(/Sweet or savoury/.test(await p.locator('.coach-reply').last().textConten
 // ── the Coach saw the watch's recovery ──
 const sys = systems.at(-1);
 assert(/BODY & RECOVERY/.test(sys), 'BODY & RECOVERY in DATA');
-assert(/CLEARLY OFF TODAY: slept 4h10 last night; resting heart rate 58, 8 over usual/.test(sys), 'and what is off today');
+assert(/Clearly off today against their own usual: slept 4h10 last night; resting heart rate 58, 8 over usual/.test(sys), 'and what is off today');
 await p.screenshot({ path: 'shots/coach7-2-done.png' });
 
 console.log('errors', errors.length);
