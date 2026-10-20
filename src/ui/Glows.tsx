@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef } from 'react';
 import { addTwin, ampFor, holdForReturn, recall, shareKey, sharedPlan, setSharedPlan, cssColor, fileShown, glowCanvasOk, glowScale, paintFile, paintPlan, planKey, recallFile, rootKey, hostKey, Plans, whenIdle, unIdle, stats, useGlowCanvases, type GlowJob, type GlowPlan, type GlowSrc } from './glow';
 import { gradient, loadPictures, readSrc } from './glowCss';
 import { barColor, PER_TAB, type BgKind } from './Backdrop';
-import { frostFromField } from './frost';
+import { frostAhead, frostFromField, frostStamp } from './frost';
 
 /**
  * The app's soft glows as dithered pictures (glow.ts), so they are one smooth fade on the phone instead of coloured rings.
@@ -87,7 +87,8 @@ export function FieldGlow({ kind }: { kind: BgKind }) {
     // the cards' frost copies this picture (ui/frost.ts): when it is in, and again once a moving glow (Sunrise's sun) has
     // settled where it rests; with no picture they show the plain glass
     clearTimeout(frostAt.current);
-    if (on) { frostFromField(el); frostAt.current = window.setTimeout(() => { if (el.isConnected) frostFromField(el); }, 1600); } else frostFromField(el);
+    const all = !PER_TAB[kind];
+    if (on) { frostFromField(el, all); frostAt.current = window.setTimeout(() => { if (el.isConnected) frostFromField(el, all); }, 1600); } else frostFromField(el);
   }, (el) => el.parentElement ?? el, (el) => `field§${kind}§${el.dataset.hue}`);
   return <><span ref={tint} className="field-tint" aria-hidden /><canvas ref={cv} className="glow-cv glow-field" aria-hidden /></>;
 }
@@ -124,8 +125,10 @@ function prewarm(field: HTMLElement, kind: BgKind) {
       }
       if (!plan) continue;
       const k = plan.key; keys.push(k);
-      // (and its picture, painted by the worker, off the page)
-      if (!recall(k, false)) void paintPlan(plan, true);
+      // (and its picture, painted by the worker, off the page; the cards' frost of that tab is copied from it, ui/frost.ts)
+      const at = frostStamp();
+      const hit = recall(k, false);
+      void (hit ? Promise.resolve(hit) : paintPlan(plan, true)).then((pics) => { if (pics?.[0]) frostAhead(hue, pics[0], at); });
     }
     holdForReturn(keys);
   };
