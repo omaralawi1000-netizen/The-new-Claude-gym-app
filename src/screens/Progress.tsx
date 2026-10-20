@@ -12,6 +12,7 @@ import { Empty, Section, Seg } from '../ui/kit';
 import { average, nutritionByDay, trendRate, weekStreak, weeklyTraining, weightTrend } from '../lib/stats';
 import { fmtNum, fmtSigned, kgToDisplay } from '../lib/units';
 import { bestsFor, countable, epley } from '../lib/workout';
+import type { SetRecord } from '../lib/types';
 import { exName } from './workout/common';
 import { Roll } from '../ui/Roll';
 
@@ -50,7 +51,12 @@ export function ProgressScreen() {
     return [...ids].map((id) => {
       const ex = exMap.get(id)!;
       const hist = s.sessions.filter((x) => x.exercises.some((e) => e.exerciseId === id));
-      const series = hist.map((h) => h.exercises.filter((e) => e.exerciseId === id).flatMap((e) => e.sets).filter(countable).reduce((m, x) => Math.max(m, x.weightKg && x.reps && x.reps <= 12 ? epley(x.weightKg, x.reps) : x.reps ?? 0), 0));
+      // one measure per line (an estimated 1RM in kg and a count of reps never share one): an estimated 1RM for weights, else reps, seconds or metres
+      const sets = hist.map((h) => h.exercises.filter((e) => e.exerciseId === id).flatMap((e) => e.sets).filter(countable));
+      const top = (f: (x: SetRecord) => number | undefined) => sets.map((xs) => xs.reduce((m, x) => Math.max(m, f(x) ?? 0), 0)).filter((v) => v > 0);
+      const lt = ex?.logType;
+      const e1rm = lt !== 'weightReps' ? [] : top((x) => (x.weightKg && x.reps && x.reps <= 12 ? epley(x.weightKg, x.reps) : 0));
+      const series = lt === 'duration' ? top((x) => x.durationSec) : lt === 'distance' ? top((x) => x.distanceM) : e1rm.length ? e1rm : top((x) => x.reps);
       return { id, ex, best: bestsFor(id, s.sessions), series, n: hist.length };
     }).filter((r) => r.ex).sort((a, b) => b.n - a.n).slice(0, 8);
   }, [s.sessions, exMap]);
