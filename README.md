@@ -3016,4 +3016,8 @@ model choice wasted it, and he wants "a dynamic coach, like a real coach".
   pain. Omar's calls: a long binge pattern (3+ weeks, "couldn't stop"/"feel awful") → the coach keeps coaching and once
   mentions a GP who knows binge eating; trims after frequent heavy days stay the verdict's judgement; the coach may delete
   memory notes when asked; the default monthly AI limit is 200 kr (a realistic month is ~85–145 kr).
-- Next: Omar talks to it on Aven Beta for 2–3 days — the real test of a dynamic coach.
+- **Before shipping (v0.1.163, 20 Oct):** an amount that doesn't fit them ("2000 g rice" when they eat 200 g, or a never-logged
+  food at a kilo and 1,500+ kcal) is asked — "Did you mean 200 g?" — never logged as heard; the last 7 days day by day are in
+  DATA, so "how's my week?" is answered in one round (~16 s, was 19–29 s with a look-up round).
+- Shipped to the real app with #173, #174 and #177 as v0.1.163 (Omar, 20 Oct: "I can only really test it on main").
+  Next: the coach's notebook (what it advised, when to check), follow-ups and a weekly check-in.

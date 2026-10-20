@@ -19,7 +19,7 @@ import { noteEvent } from './ledger';
 import { defaultMealId, mealName } from './derive';
 import { coversQuery, fold, parseFoodText, pickOnline, resolveRows, rowQuantity, type ParsedFoodRow } from './foodText';
 import { matchExercises, parseWorkoutText } from './workoutText';
-import { calcRecipe, entryFromSnapshot, quickEntry, recipeToFood, scale, snapshotOf, toBase, uid } from './nutrition';
+import { calcRecipe, entryFromSavedItem, entryFromSnapshot, quickEntry, recipeToFood, scale, snapshotOf, toBase, uid } from './nutrition';
 import { searchDanish, searchOnline } from './foodApi';
 import { type Brain } from './gemini';
 import { estimateFood } from './brain';
@@ -33,7 +33,7 @@ import { currentSetOf } from './currentSet';
 import { fixMisheard } from './setCommand';
 import { EQUIP_LABEL, MUSCLE_LABEL } from '../screens/workout/common';
 import { muscleOf } from './agentLookup';
-import { detectRecords } from './workout';
+import { detectRecords, workoutName, workoutSearchName } from './workout';
 import { buildDayPlan, pickForMuscles } from './planDay';
 import { specOf } from './settingSpec';
 import { weekdayOf } from './dates';
@@ -1185,10 +1185,10 @@ function doDeleteWorkout(a: Extract<AgentAction, { type: 'delete_workout' }>, ct
   const { t } = ctx;
   const done = useStore.getState().sessions.filter((s) => s.status === 'done');
   const w = a.workout ? fold(a.workout) : '';
-  const ses = !w || w === 'last' ? done[done.length - 1] : [...done].reverse().find((s) => s.date === a.workout || fold(s.name).includes(w));
+  const ses = !w || w === 'last' ? done[done.length - 1] : [...done].reverse().find((s) => s.date === a.workout || fold(workoutSearchName(s.name)).includes(w));
   if (!ses) return { id: uid('r'), kind: 'miss', title: t('Couldn’t find that workout'), lines: a.workout ? [{ text: a.workout, warn: true }] : [] };
   const sets = ses.exercises.reduce((n, e) => n + e.sets.filter((x) => x.done).length, 0);
-  return preview({ id: uid('r'), kind: 'workout', title: t('Delete this workout?'), key: `delworkout:${ses.id}`, lines: [{ text: ses.name || t('Workout'), sub: `${ses.date} · ${ses.exercises.length} ${t('exercises')} · ${sets} ${t('sets')}` }] }, t('Delete'), () => {
+  return preview({ id: uid('r'), kind: 'workout', title: t('Delete this workout?'), key: `delworkout:${ses.id}`, lines: [{ text: workoutName(ses.name, t), sub: `${ses.date} · ${ses.exercises.length} ${t('exercises')} · ${sets} ${t('sets')}` }] }, t('Delete'), () => {
     useStore.getState().deleteSession(ses.id);
     return () => useStore.getState().restoreSession(ses);
   });
@@ -1198,7 +1198,7 @@ function doDiscardWorkout(ctx: AgentCtx): AgentResult {
   const { t } = ctx;
   const st = useStore.getState();
   if (!st.active) return { id: uid('r'), kind: 'miss', title: t('No workout is running'), lines: [] };
-  const done = st.active.exercises.reduce((n, e) => n + e.sets.filter((s) => s.done).length, 0);
+  const done = st.active.exercises.reduce((n, e) => n + e.sets.filter((s) => s.done && s.type === 'working').length, 0);
   return {
     id: uid('r'), kind: 'workout', pending: true, title: t('Discard this workout?'), lines: [{ text: st.active.name || t('Workout'), sub: t(done === 1 ? '1 set done' : '{n} sets done', { n: done }) }],
     button: { label: t('Discard'), run: () => { useStore.getState().discardActive(); } },
@@ -1568,8 +1568,8 @@ function doLogSavedMeal(a: Extract<AgentAction, { type: 'log_saved_meal' }>, ctx
   const m = st.savedMeals.find((x) => fold(x.name) === w) ?? st.savedMeals.find((x) => fold(x.name).includes(w) || w.includes(fold(x.name)));
   if (!m) return { id: uid('r'), kind: 'miss', title: t('No saved meal with that name'), lines: [{ text: a.name, sub: st.savedMeals.map((x) => x.name).join(' · ').slice(0, 120), warn: true }] };
   const date = resolveDay(a.day, ctx.today) ?? ctx.date ?? ctx.today;
-  const mealId = mealIdOf(a.meal, ctx) ?? ctx.mealId ?? defaultMealId(st.settings.meals);
-  const entries = m.items.map((it) => entryFromSnapshot(it.snap, it.qty, date, mealId, { id: uid('e') })).filter(Boolean) as FoodEntry[];
+  const mealId = mealIdOf(a.meal, ctx) ?? ctx.mealId ?? defaultMealId(st.settings.meals, new Date(), st.settings.dayStartHour);
+  const entries = m.items.map((it) => entryFromSavedItem(it, date, mealId, { id: uid('e') })).filter(Boolean) as FoodEntry[];
   const added = st.logEntries(entries);
   const total = added.reduce((n, e) => n + (e.nutrients.kcal ?? 0), 0);
   return {
@@ -1811,7 +1811,7 @@ async function doProposeRecipe(a: Extract<AgentAction, { type: 'propose_recipe' 
       const food = recipeToFood(recipe);
       const s2 = useStore.getState();
       if (!food) { useUI.getState().toast(t('This recipe needs a weight before a portion can be logged'), { tone: 'bad' }); return; }
-      const mealId = ctx.mealId && s2.settings.meals.some((m) => m.id === ctx.mealId) ? ctx.mealId : defaultMealId(s2.settings.meals);
+      const mealId = ctx.mealId && s2.settings.meals.some((m) => m.id === ctx.mealId) ? ctx.mealId : defaultMealId(s2.settings.meals, new Date(), s2.settings.dayStartHour);
       const one = entryFromSnapshot(snapshotOf(food), { amount: 1, unit: 'portion', portionId: 'serving' }, ctx.date ?? ctx.today, mealId, { id: uid('e') });
       const [e] = one ? s2.logEntries([one]) : [];
       if (e) useUI.getState().toast(t('Logged 1 serving of {name}', { name: a.name }), { tone: 'ok', actionLabel: t('Undo'), onAction: () => useStore.getState().removeEntry(e.id) });
@@ -2053,7 +2053,8 @@ function doFinishWorkout(ctx: AgentCtx): AgentResult {
   const { t } = ctx;
   const st = useStore.getState();
   if (!st.active) return { id: uid('r'), kind: 'miss', title: t('No workout is running'), lines: [] };
-  const done = st.active.exercises.reduce((n, e) => n + e.sets.filter((s) => s.done).length, 0);
+  const done = st.active.exercises.reduce((n, e) => n + e.sets.filter((s) => s.done && s.type === 'working').length, 0);
+  if (!done) return { id: uid('r'), kind: 'miss', title: t('No sets yet'), lines: [{ text: st.active.name || t('Workout') }] }; // warm-ups alone are not saved
   return {
     id: uid('r'), kind: 'workout', pending: true, title: t('Finish this workout?'), lines: [{ text: st.active.name || t('Workout'), sub: t(done === 1 ? '1 set done' : '{n} sets done', { n: done }) }],
     button: { label: t('Finish and save'), run: () => { const r = useStore.getState().finishActive(); if (r) { useUI.getState().push('summary', { sessionId: r.id }); } } },

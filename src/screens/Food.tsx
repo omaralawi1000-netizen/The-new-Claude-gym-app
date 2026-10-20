@@ -6,7 +6,7 @@ import { useUI } from '../state/ui';
 import { useT, useLang } from '../lib/i18n';
 import { useDaySummary, useToday, mealName, perMeal } from '../lib/derive';
 import { addDays, fmtDate, relativeDay } from '../lib/dates';
-import { sumNutrients } from '../lib/nutrition';
+import { entryEditor, sumNutrients } from '../lib/nutrition';
 import { Icon } from '../ui/Icon';
 import { Subpage } from '../ui/Subpage';
 import { Ledger } from './food/Ledger';
@@ -143,7 +143,7 @@ export function FoodScreen() {
                 </div>
                 <div className="meal-list" data-no-press>
                   <AnimatePresence initial={false}>
-                    {items.map((e) => <EntryRow key={e.id} e={e} fresh={fresh.current.has(e.id)} onOpen={() => push('foodDetail', { entryId: e.id, date: e.date, mealId: e.mealId })} onDelete={() => del(e)} />)}
+                    {items.map((e) => <EntryRow key={e.id} e={e} fresh={fresh.current.has(e.id)} onOpen={() => { const ed = entryEditor(e); push(ed.type, ed.props); }} onDelete={() => del(e)} />)}
                   </AnimatePresence>
                 </div>
               </>

@@ -124,7 +124,7 @@ export function buildTodayContext(d: AppData, today: string, now: Date, exOf: (i
       const range = `${item.workingSets}×${item.repMin}-${item.repMax}`;
       if (ex.logType !== 'weightReps') return `${exName(ex.id)} ${range}`;
       const hist = historyOf(ex.id, d.sessions);
-      const sug = suggestProgression(ex, hist, { min: item.repMin, max: item.repMax }, incrementFor(ex, d.increments, d.settings.plateStep));
+      const sug = suggestProgression(ex, hist, { min: item.repMin, max: item.repMax }, incrementFor(ex, d.increments, d.settings.plateStep, d.settings.units.weight));
       const s1 = sug.sets?.[0];
       const last = hist[0]?.sets.filter((q) => q.done && q.type === 'working') ?? [];
       const lastTxt = last.length ? `; last time ${last.map((q) => `${q.weightKg ? `${r1(q.weightKg)}kg×` : ''}${q.reps ?? '?'}`).join(', ')}` : '';

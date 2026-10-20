@@ -57,6 +57,29 @@ export function defaultMealId(meals: Meal[], at = new Date(), dayStartHour = 0):
   return ids.includes(pick) ? pick : ids[0];
 }
 
+/** What Undo needs to put a removed meal back: the meal, where it was, and exactly the entries that moved out of it. */
+export interface RemovedMeal { meal: Meal; index: number; target: Meal; moved: string[] }
+
+/** Remove a meal; its entries move to another meal (the first other one). Null when it is the only meal or not found. */
+export function removeMeal(meals: Meal[], entries: FoodEntry[], id: string): { meals: Meal[]; entries: FoodEntry[]; removed: RemovedMeal } | null {
+  const index = meals.findIndex((m) => m.id === id);
+  const target = meals.find((m) => m.id !== id);
+  if (index < 0 || !target) return null;
+  const moved = entries.filter((e) => e.mealId === id).map((e) => e.id);
+  return {
+    meals: meals.filter((m) => m.id !== id),
+    entries: entries.map((e) => (e.mealId === id ? { ...e, mealId: target.id } : e)),
+    removed: { meal: meals[index], index, target, moved },
+  };
+}
+
+/** Undo of removeMeal: the meal back at its place, and the entries it moved back in (only those, and only if still in the target). */
+export function restoreMeal(meals: Meal[], entries: FoodEntry[], r: RemovedMeal): { meals: Meal[]; entries: FoodEntry[] } {
+  const back = meals.some((m) => m.id === r.meal.id) ? meals : [...meals.slice(0, r.index), r.meal, ...meals.slice(r.index)];
+  const ids = new Set(r.moved);
+  return { meals: back, entries: entries.map((e) => (ids.has(e.id) && e.mealId === r.target.id ? { ...e, mealId: r.meal.id } : e)) };
+}
+
 export function perMeal(entries: FoodEntry[], mealId: string): FoodEntry[] {
   return entries.filter((e) => e.mealId === mealId);
 }

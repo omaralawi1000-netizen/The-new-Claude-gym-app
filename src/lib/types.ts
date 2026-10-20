@@ -92,6 +92,8 @@ export interface Meal {
 export interface SavedMealItem {
   snap: FoodSnapshot;
   qty: Quantity;
+  /** a quick, photo or Coach entry (totals only): logged again with exactly these totals */
+  nutrients?: Nutrients;
 }
 export interface SavedMeal {
   id: string;
@@ -191,7 +193,8 @@ export interface WorkoutSession {
   status: 'active' | 'done';
   exercises: SessionExercise[];
   note?: string;
-  rest?: { endsAt: number; total: number; exerciseId: string } | null;
+  /** setId: the set whose tick started it (unticking that set stops it); '' = started by hand; absent = saved by an older version */
+  rest?: { endsAt: number; total: number; exerciseId: string; setId?: string } | null;
   records?: PersonalRecord[];
   /** how it felt, from the one-tap check-in after it (each optional): energy 1 low · 2 ok · 3 great; soreness 1 none ·
    *  2 some · 3 a lot; sleep (the night before) 1 poor · 2 ok · 3 good */
@@ -249,6 +252,8 @@ export interface Schedule {
   cleared: string[];
   /** activities planned on a weekday besides the gym (0 = Sunday … 6 = Saturday), e.g. wrestling on Tuesdays */
   activities?: Record<number, ActivityKind[]>;
+  /** the day (YYYY-MM-DD) each weekday's plan last changed (0 = Sunday … 6 = Saturday): days before it are never "missed" */
+  weeklySince?: Record<number, string>;
 }
 
 // ── Body & activity ─────────────────────────────────────────
@@ -343,6 +348,9 @@ export type Goal = 'strength' | 'muscle' | 'fatloss' | 'endurance' | 'general';
 export type Experience = 'new' | 'some' | 'experienced';
 export type EquipmentAccess = 'fullGym' | 'homeDumbbells' | 'bodyweight' | 'barbellHome';
 
+/** the sheet surface in Settings; anything unknown (an option tried on Beta and since dropped) reads as Glass */
+export const surfaceOf = (v: unknown): NonNullable<Settings['surface']> => (v === 'now' || v === 'deep' ? v : 'glass');
+
 export interface Settings {
   name: string;
   language: Lang;
@@ -351,6 +359,8 @@ export interface Settings {
   palette: 'ember' | 'aurora' | 'mono' | 'sunset' | 'forest' | 'golden' | 'midnight' | 'champagne';
   /** how strong the colour light behind the app is (styles.css `data-glow`); missing = full */
   glow?: 'full' | 'soft' | 'off';
+  /** the colour of the sheets, fields and bar tracks on dark (look.css `data-surface`); missing = glass */
+  surface?: 'now' | 'glass' | 'deep';
   /** what is drawn behind the app (ui/Backdrop.tsx, styles.css `.bgx`); missing = classic (the drifting colour field) */
   background?: 'classic' | 'orb' | 'tabs' | 'sunrise' | 'mesh' | 'dots' | 'time' | 'night' | 'photo';
   /** which view a workout opens in; missing or 'last' = the one last used on this phone */

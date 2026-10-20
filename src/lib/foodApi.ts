@@ -95,6 +95,15 @@ export async function searchDanish(q: string, limit = 24): Promise<Food[]> {
   return out.slice(0, limit).map((x) => x.food);
 }
 
+/** A Danish product from the packed list by its barcode (leading zeros don't matter: EAN-13 vs UPC-A). */
+export async function findDanishBarcode(code: string): Promise<Food | undefined> {
+  const want = code.replace(/^0+/, '');
+  if (!want) return undefined;
+  const { rows } = await loadDk();
+  const r = rows.find((x) => typeof x[0] === 'string' && x[0].replace(/^0+/, '') === want);
+  return r ? dkFood(r) : undefined;
+}
+
 async function searchDirect(q: string, signal?: AbortSignal): Promise<LookupResult> {
   if (Date.now() < coolUntil) return { foods: [], status: 'rate' };
   if (!(await directSlot(signal))) return { foods: [], status: signal?.aborted ? 'unavailable' : 'rate' };
@@ -151,6 +160,9 @@ async function searchLive(q: string, signal?: AbortSignal): Promise<LookupResult
 }
 
 export async function lookupBarcode(code: string): Promise<{ food?: Food; status: LookupStatus | 'notfound' }> {
+  // the packed Danish list first: instant, and it works offline (the same list the text search uses)
+  const dk = await findDanishBarcode(code).catch(() => undefined);
+  if (dk) return { food: dk, status: 'ok' };
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return { status: 'offline' };
   if (serverAlive()) {
     try {

@@ -65,26 +65,29 @@ export class Lens {
     this.lp.style.transform = f.l; this.mp.style.transform = f.m; this.rp.style.transform = f.r;
     this.box = b;
   }
-  /** Glide to a new box. `lead` drives the edge in front, `trail` the edge behind. */
-  glide(to: LensBox, lead: Spring, trail: Spring) {
+  /** Glide to a new box. `lead` drives the edge in front, `trail` the edge behind. Returns where the drop is on every
+   *  1/120 s frame (and how long it runs), so other things can move in step with it. */
+  glide(to: LensBox, lead: Spring, trail: Spring): { boxes: LensBox[]; duration: number } | null {
     const from = this.visual();
-    if (!from || typeof this.lp.animate !== 'function') { this.place(to); return; }
+    if (!from || typeof this.lp.animate !== 'function') { this.place(to); return null; }
     this.place(to); // final state underneath (and cancels whatever was running)
-    if (Math.abs(from.l - to.l) < 0.5 && Math.abs(from.r - to.r) < 0.5) return;
+    if (Math.abs(from.l - to.l) < 0.5 && Math.abs(from.r - to.r) < 0.5) return null;
     const right = to.l + to.r > from.l + from.r;
     const sL = sampled(right ? trail : lead), sR = sampled(right ? lead : trail);
     const n = Math.max(sL.length, sR.length);
     const R = this.radius();
-    const fl: Keyframe[] = [], fm: Keyframe[] = [], fr: Keyframe[] = [];
+    const fl: Keyframe[] = [], fm: Keyframe[] = [], fr: Keyframe[] = [], boxes: LensBox[] = [];
     for (let i = 0; i < n; i++) {
       const a = sL[Math.min(i, sL.length - 1)], c = sR[Math.min(i, sR.length - 1)];
       let l = from.l + (to.l - from.l) * a, r = from.r + (to.r - from.r) * c;
       if (r - l < 2 * R) { const mid = (l + r) / 2; l = mid - R; r = mid + R; }
       const f = this.frame({ l, r }), offset = i / (n - 1);
+      boxes.push({ l, r });
       fl.push({ transform: f.l, offset }); fm.push({ transform: f.m, offset }); fr.push({ transform: f.r, offset });
     }
     const opts = { duration: Math.round(((n - 1) / 120) * 1000), easing: 'linear' };
     this.lp.animate(fl, opts); this.mp.animate(fm, opts); this.rp.animate(fr, opts);
+    return { boxes, duration: opts.duration };
   }
 }
 

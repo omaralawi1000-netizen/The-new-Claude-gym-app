@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useIsPresent } from 'motion/react';
 import { useStore, foodPool } from '../../state/store';
 import { useUI } from '../../state/ui';
 import { useT } from '../../lib/i18n';
@@ -26,19 +27,29 @@ export function Scanner({ props }: { props: { date: string; mealId: string } }) 
   const [msg, setMsg] = useState<{ kind: 'info' | 'bad'; text: string; create?: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const last = useRef({ code: '', at: 0 });
+  // false the moment the scanner starts to leave (Back, a swipe): a lookup still on its way then opens nothing
+  const alive = useRef(true);
+  // codes this scanner has already answered (not found, offline…): the camera doesn't ask again every few seconds
+  const answered = useRef(new Set<string>());
+  const present = useIsPresent();
+  useEffect(() => { alive.current = present; return () => { alive.current = false; }; }, [present]);
   const supported = typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia; // camera needed; the reader itself is bundled
 
-  const handle = async (raw: string) => {
+  const handle = async (raw: string, typed = false) => {
     const c = extractCode(raw) ?? raw.replace(/\D/g, '');
     if (c.length < 6 || busy) return;
-    if (last.current.code === c && Date.now() - last.current.at < 4000) return;
+    if (!typed && answered.current.has(c)) return; // "Look up" still asks again
+    if (!typed && last.current.code === c && Date.now() - last.current.at < 4000) return;
     last.current = { code: c, at: Date.now() };
-    setBusy(true); setMsg(null);
+    setBusy(true); setMsg((m) => (m?.create === c ? m : null)); // the same code again keeps its answer on screen
     const local = pool.find((f) => f.barcode === c);
     if (local) { swap(1, 'foodDetail', { foodId: local.id, date: props.date, mealId: props.mealId }); return; }
     const r = await lookupBarcode(c);
+    if (!alive.current) return;
     setBusy(false);
     if (r.food) { swap(1, 'foodDetail', { food: r.food, date: props.date, mealId: props.mealId }); return; }
+    answered.current.add(c);
+    if (r.status !== 'notfound') setCode(c); // a lookup that failed can be tried again with one tap on "Look up"
     if (r.status === 'notfound') setMsg({ kind: 'info', text: t('No product found for {c}. You can add it yourself.', { c }), create: c });
     else setMsg({ kind: 'bad', text: r.status === 'offline' ? t('You’re offline — barcode lookup needs a connection. You can still add it yourself.') : r.status === 'rate' ? t('Lookup is rate-limited — try again shortly.') : t('Barcode lookup isn’t available right now. You can add this product yourself.'), create: c });
   };
@@ -96,8 +107,8 @@ export function Scanner({ props }: { props: { date: string; mealId: string } }) 
         <div className="field" style={{ marginTop: 18 }}>
           <label htmlFor="bc">{t('Barcode number')}</label>
           <div className="row-flex" style={{ gap: 8 }}>
-            <input id="bc" className="input" inputMode="numeric" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} placeholder="5701234567890" onKeyDown={(e) => { if (e.key === 'Enter') handle(code); }} />
-            <button className="btn primary press" disabled={code.length < 6 || busy} onClick={() => handle(code)}>{busy ? '…' : t('Look up')}</button>
+            <input id="bc" className="input" inputMode="numeric" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} placeholder="5701234567890" onKeyDown={(e) => { if (e.key === 'Enter') handle(code, true); }} />
+            <button className="btn primary press" disabled={code.length < 6 || busy} onClick={() => handle(code, true)}>{busy ? '…' : t('Look up')}</button>
           </div>
         </div>
         {msg && (

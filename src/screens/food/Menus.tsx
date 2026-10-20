@@ -7,7 +7,7 @@ import { Icon } from '../../ui/Icon';
 import { NumInput } from '../../ui/kit';
 import { Sheet, SheetHead } from '../../ui/Sheet';
 import { mealName, useToday } from '../../lib/derive';
-import { uid } from '../../lib/nutrition';
+import { savedItemOf, uid } from '../../lib/nutrition';
 import { fmtNum } from '../../lib/units';
 import { AnimatePresence, motion } from 'motion/react';
 
@@ -80,7 +80,7 @@ export function EntryMenu({ props }: { props: { kind: 'day' | 'meal'; date: stri
   items.push({ icon: 'copy', label: props.kind === 'meal' ? t('Copy meal to…') : t('Copy day to…'), run: () => swap(1, 'mealCopy', { from: { date: props.date, mealId: props.mealId } }) }); // a menu hands over to what you picked rather than staying underneath it
   if (props.kind === 'meal') items.push({ icon: 'star', label: t('Save as meal'), sub: t('Reuse these foods in one tap'), run: () => {
     const name = `${meal ? mealName(meal, lang) : t('Meal')} · ${fmtDate(props.date, lang, { day: 'numeric', month: 'short' })}`;
-    s.saveMeal({ id: uid('sm'), name, items: entries.filter((e) => !e.quick).map((e) => ({ snap: e.snap, qty: e.qty })), createdAt: Date.now() });
+    s.saveMeal({ id: uid('sm'), name, items: entries.map(savedItemOf), createdAt: Date.now() });
     pop(); toast(t('Saved “{name}”', { name }), { tone: 'ok' });
   } });
   if (props.kind === 'day') items.push({ icon: 'note', label: t('Notes'), run: () => swap(1, 'dayNotes', { date: props.date }) });
@@ -151,6 +151,7 @@ export function WaterSheet({ props }: { props: { date: string } }) {
   const lang = useLang();
   const s = useStore();
   const pop = useUI((u) => u.pop);
+  const today = useToday();
   const list = s.water.filter((w) => w.date === props.date).sort((a, b) => b.at - a.at);
   const q = s.settings.waterQuick;
   return (
@@ -163,7 +164,7 @@ export function WaterSheet({ props }: { props: { date: string } }) {
         </div>
         <div className="field" style={{ marginTop: 16 }}><label>{t('Daily goal')}</label><NumInput value={s.settings.goals.waterMl} max={0} unit="ml" onChange={(n) => n && n > 0 && s.updateSettings({ goals: { ...s.settings.goals, waterMl: n } })} /></div>
         <div className="lbl" style={{ margin: '22px 0 6px' }}>{t('Logged')}</div>
-        {list.length === 0 ? <div className="small t2">{t('Nothing yet today.')}</div> : (
+        {list.length === 0 ? <div className="small t2">{props.date === today ? t('Nothing yet today.') : t('Nothing logged')}</div> : (
           <div className="list">{list.map((w) => (
             <div key={w.id} className="li" style={{ minHeight: 48 }}>
               <Icon name="drop" size={18} style={{ color: 'var(--c-water)' }} /><div className="grow num">{fmtNum(w.ml, lang, 0)} ml</div>

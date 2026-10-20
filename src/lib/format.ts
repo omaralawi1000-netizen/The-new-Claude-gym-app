@@ -2,6 +2,7 @@ import type { Lang, NutrientKey, Quantity, FoodSnapshot } from './types';
 import { fmtNum } from './units';
 import { roundNutrient, type Sum } from './nutrition';
 import type { TFn } from './i18n';
+import { REFERENCE_BY_ID } from '../data/foods';
 
 export const NUTRIENT_LABEL: Record<NutrientKey, string> = {
   kcal: 'Calories', protein: 'Protein', carbs: 'Carbs', fat: 'Fat', fibre: 'Fibre', sugar: 'Sugars', satFat: 'Saturated fat', sodium: 'Sodium',
@@ -37,4 +38,15 @@ export function qtyLabel(e: { qty: Quantity; snap: FoodSnapshot; base: number },
 
 export function sourceLabel(src: string, t: TFn): string {
   return ({ reference: t('Reference (approximate)'), off: 'Open Food Facts', usda: 'USDA FoodData Central', custom: t('Your food'), recipe: t('Your recipe'), quick: t('Quick entry') } as Record<string, string>)[src] ?? src;
+}
+
+/** A food's name in the app's language (built-in foods also have a Danish name). Search still matches both names. */
+export function foodName(f: { name: string; nameDa?: string }, lang: Lang): string {
+  return lang === 'da' && f.nameDa ? f.nameDa : f.name;
+}
+
+/** A logged entry's name in the app's language: a built-in food shows its Danish name, anything else the name it was logged with. */
+export function entryName(snap: FoodSnapshot, lang: Lang): string {
+  const ref = lang === 'da' && snap.foodId ? REFERENCE_BY_ID[snap.foodId] : undefined;
+  return ref?.nameDa || snap.name;
 }
