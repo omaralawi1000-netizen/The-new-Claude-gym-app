@@ -389,6 +389,12 @@ function densityOf(food: Food): number | undefined {
   return DENSITY.find(([re]) => re.test(n))?.[1];
 }
 
+/** A portion that only stands for "100 g of it" (a database's default serving), not a piece someone would count. */
+export function placeholderPortion(p: { label: string; amount: number }, basis: string): boolean {
+  const l = fold(p.label);
+  return p.amount === 100 && (/^(1\s*)?(serving|portion|servering|serv\.?)\b/.test(l) || l.replace(/\s+/g, '') === `100${basis}`);
+}
+
 export function rowQuantity(row: ParsedFoodRow, food: Food): RowQuantity {
   if (row.amount === undefined || row.amount <= 0) return { qty: null, estimated: false, problem: 'noAmount' };
   const units = allowedUnits(food);
@@ -406,7 +412,11 @@ export function rowQuantity(row: ParsedFoodRow, food: Food): RowQuantity {
   // count: pick a portion, preferring one whose label mentions the counted word
   if (!food.portions.length) return { qty: null, estimated: false, problem: 'needsGrams' };
   const w = row.countWord;
-  const p = (w && food.portions.find((x) => fold(x.label).includes(w))) || food.portions[0];
+  const named = w ? food.portions.find((x) => fold(x.label).includes(w)) : undefined;
+  const p = named || food.portions[0];
+  // a food database's stand-in "serving (100 g)" is not one of the thing: "10 corn cakes" logged as 10 × 100 g = 4200 kcal
+  // (Omar, 20 Oct). Then how heavy one is gets worked out instead (needsGrams → the AI's estimate)
+  if (!named && placeholderPortion(p, food.basis)) return { qty: null, estimated: false, problem: 'needsGrams' };
   return { qty: { amount: row.amount, unit: 'portion', portionId: p.id }, estimated: !p.verified };
 }
 

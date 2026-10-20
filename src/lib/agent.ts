@@ -129,7 +129,13 @@ export { SETTING_KEYS } from './settingSpec';
 export const SETTINGS_SECTIONS = ['today', 'targets', 'training', 'food', 'units', 'look', 'reminders', 'data', 'privacy', 'ai', 'memory', 'about'];
 
 /** An item's id as a card showed it ("e_k3x9…"): letters, digits, _ and - only. */
-const refArg = (v: unknown): string | null => (typeof v === 'string' && /^[\w-]{3,40}$/.test(v.trim()) ? v.trim() : null);
+/** A card's [ref …]; copied with its brackets or cut short ("e_mvgpz3edi7…") it is still read (the whole fix used to be
+ *  dropped without a word). */
+const refArg = (v: unknown): string | null => {
+  if (typeof v !== 'string') return null;
+  const x = v.trim().replace(/^\[?\s*ref\s+/i, '').replace(/(?:…|\.{3})?\s*\]?$/, '').trim();
+  return /^[\w-]{3,40}$/.test(x) ? x : null;
+};
 const num = (v: unknown, min: number, max: number): number | undefined => (typeof v === 'number' && Number.isFinite(v) && v >= min && v <= max ? v : undefined);
 const str = (v: unknown, max = 80): string | undefined => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : undefined);
 
@@ -697,10 +703,20 @@ function findEntry(target: string, days: string[], mealId?: string): FoodEntry |
   return undefined;
 }
 
-/** The item a card showed (its id), else the one the name points at. */
+/**
+ * The item a card showed (its id), else the one the name points at. A meal or day that doesn't hold it (the AI remembered
+ * where it was first logged, before it was moved: "Couldn't find that in the log" for food logged a minute earlier, Omar,
+ * 20 Oct) doesn't stop it: then any meal that day. (A day asked for stays that day: "remove the eggs from Monday" never
+ * takes today's.)
+ */
 function pickEntry(ref: string | null | undefined, target: string | null | undefined, days: string[], mealId?: string): FoodEntry | undefined {
-  if (ref) { const e = useStore.getState().entries.find((x) => x.id === ref); if (e) return e; }
-  return target ? findEntry(target, days, mealId) : undefined;
+  const all = useStore.getState().entries;
+  if (ref) {
+    const e = all.find((x) => x.id === ref) ?? (ref.length >= 8 ? all.find((x) => x.id.startsWith(ref)) : undefined);
+    if (e) return e;
+  }
+  if (!target) return undefined;
+  return findEntry(target, days, mealId) ?? (mealId ? findEntry(target, days) : undefined);
 }
 
 /** Everything in a meal on a day (or the whole day). */
