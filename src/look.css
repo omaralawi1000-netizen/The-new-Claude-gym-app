@@ -128,15 +128,13 @@ html:root:not([data-theme='light']) .toggle-knob:not(#_) {
 }
 /* switcher thumb (Plan / Library, 4 weeks / 12 weeks, Full / Soft / Off...): a raised white bead with dark text, the same
    as a picked chip and the switch knob, and the same as the light theme. Warm see-through glass read as brown mud and
-   grey glass read dead (Omar, 20 Oct). The labels change colour exactly as the bead covers them (kit.tsx inkFollow), so
-   no label is ever light on white or dark on dark mid-glide. Pieces stay opaque so the joins never show. */
-html:root:not([data-theme='light']) .seg:not(#_) { --seg-ink: var(--tx2); --seg-ink-on: #17120e; }
-html:root:not([data-theme='light']) .seg > button:not(#_) { color: var(--seg-ink); }
-html:root:not([data-theme='light']) .seg > button.on:not(#_) { color: var(--seg-ink-on); }
+   grey glass read dead (Omar, 20 Oct). A little under pure white so it doesn't glare on OLED at night. The bead sits over
+   the light labels and a dark copy of them is drawn exactly inside it (kit.tsx SegInk), so every letter is dark where
+   it is on white, mid-glide too. Pieces stay opaque so the joins never show. */
 html:root:not([data-theme='light']) .seg-lens:not(#_) {
-  opacity: 1 !important;
-  --lens-fill: linear-gradient(180deg, #fbfaf9, #f1efed 55%, #e6e3e0);
-  --lens-hl: #ffffff; --lens-line: rgba(255,255,255,0); --lens-lo: rgba(60,30,14,.16);
+  opacity: 1 !important; z-index: 1;
+  --lens-fill: linear-gradient(180deg, #eeedeb, #e5e3e1 55%, #dbd9d6);
+  --lens-hl: rgba(255,255,255,.9); --lens-line: rgba(255,255,255,0); --lens-lo: rgba(40,24,16,.18);
 }
 html:root:not([data-theme='light']) .seg-lens > :is(.lens-l, .lens-r):not(#_) {
   background: var(--lens-fill);
@@ -145,9 +143,12 @@ html:root:not([data-theme='light']) .seg-lens > :is(.lens-l, .lens-r):not(#_) {
 html:root:not([data-theme='light']) .seg-lens > .lens-m:not(#_) {
   background: linear-gradient(to bottom, var(--lens-hl) 0 1px, transparent 1px calc(100% - 1px), var(--lens-lo) calc(100% - 1px)), var(--lens-fill);
 }
+html:root:not([data-theme='light']) .seg > button:not(#_) { z-index: 0; color: var(--tx2); } /* the picked one is under the bead; its light copy must not brighten mid-glide */
+html:root:not([data-theme='light']) .seg-ink:not(#_) { display: block; }
+html:root:not([data-theme='light']) .seg-ink i:not(#_) { color: #17120e; }
 /* picked chip (2.5 kg): a raised white bead */
 html:root:not([data-theme='light']) .chip.on:not(#_) {
-  background: linear-gradient(180deg, #ffffff 0%, #ffffff 45%, #f3f0ee 100%) !important;
+  background: linear-gradient(180deg, #eeedeb, #e5e3e1 55%, #dbd9d6) !important;
   box-shadow: inset 0 -1px 0 rgba(40,14,4,.22), 0 1px 1px rgba(30,9,2,.45), 0 3px 5px -1px rgba(36,11,3,.45), 0 8px 12px -6px rgba(40,12,4,.55) !important;
 }
 

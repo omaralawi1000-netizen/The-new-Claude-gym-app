@@ -557,6 +557,11 @@ html:root[data-glow='off']:not([data-bg='photo']) .fields::before { content: '';
 /* five choices in one row (Sheets, New day starts at) fit at a size smaller */
 .seg:has(> button:nth-of-type(5)) > button { font-size: 13px; min-width: 0; }
 .seg-lens { top: 4px; bottom: 4px; --lens-r: 19px; opacity: .95; --lens-fill: linear-gradient(180deg, #4a4d57, #3b3e48); }
+/* the labels drawn dark inside the drop (ui/kit.tsx SegInk); off unless a theme shows it (look.css) */
+.seg-ink { display: none; position: absolute; top: 4px; bottom: 4px; left: 0; overflow: hidden; pointer-events: none; z-index: 2; will-change: transform; }
+.seg-ink span { position: absolute; top: 0; left: 0; height: 100%; will-change: transform; }
+.seg-ink > span > span { overflow: hidden; }
+.seg-ink i { position: absolute; top: 0; left: 0; font-style: normal; white-space: nowrap; }
 :root[data-theme='light'] .seg-lens { --lens-fill: #fff; }
 /* ── Aven glass: the material of every neutral rounded surface (cards, pills, chips, round buttons) ───────────────
    Live: index.html sets <html data-glass="v2">. The rules stay behind that attribute so scripts/glass-shots.mjs can
