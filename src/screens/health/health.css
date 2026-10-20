@@ -62,11 +62,9 @@
 .hx-detail.live { opacity: 1; transform: none; }
 .hx-L { position: absolute; inset: 0; overflow: hidden; will-change: transform; }
 /* the window's moving edges are rounded like a card (a fixed radius, never animated; at rest they sit in the screen's own corners) */
-.hx-rnd { border-radius: 26px; }
+.hx-rnd { border-radius: 22px; }
 .hx-edge { position: absolute; left: 0; right: 0; top: 0; height: 16px; pointer-events: none; opacity: 0; z-index: 2; background: linear-gradient(rgba(0, 0, 0, .18), transparent); }
 .hx-mat { position: absolute; inset: 0; background: color-mix(in srgb, var(--bg) 58%, transparent); }
-/* behind the window: the page's material without rounded corners, only there once the page has landed (fills the corners) */
-.hx-fill { position: absolute; inset: 0; opacity: 0; background: color-mix(in srgb, var(--bg) 58%, transparent); }
 /* the page keeps the screen's warm background (home steps back underneath), with a soft glow of the section's colour */
 .hx-mat::after { content: ""; position: absolute; inset: 0; background: radial-gradient(120% 55% at 15% -5%, color-mix(in srgb, var(--c) 12%, transparent), transparent 70%); }
 .hx-dsc { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; padding: calc(var(--sat) + 12px) 20px calc(var(--bar-h) + var(--sab) + 44px); scrollbar-width: none; }

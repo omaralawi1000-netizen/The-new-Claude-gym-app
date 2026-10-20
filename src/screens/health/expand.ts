@@ -16,7 +16,7 @@
  */
 import { springCurve, SMOOTH, SURFACE } from '../../ui/motion';
 
-export interface Els { root: HTMLElement; scr: HTMLElement; det: HTMLElement; L: [HTMLElement, HTMLElement, HTMLElement]; mat: HTMLElement; fill: HTMLElement; dsc: HTMLElement; fly: HTMLElement; edge: HTMLElement }
+export interface Els { root: HTMLElement; scr: HTMLElement; det: HTMLElement; L: [HTMLElement, HTMLElement, HTMLElement]; mat: HTMLElement; dsc: HTMLElement; fly: HTMLElement; edge: HTMLElement }
 interface Flight { c: HTMLElement; a: HTMLElement; b: HTMLElement; from?: string; tint?: HTMLElement }
 interface State { k: string; src: HTMLElement; anims: Animation[]; fl: Flight[]; dim: HTMLElement[]; closing?: boolean; next?: { k: string; src: HTMLElement } | null; out?: Animation[] | null; page?: { e: HTMLElement }[]; done?: (next: { k: string; src: HTMLElement } | null) => void }
 
@@ -94,21 +94,20 @@ export class Expander {
     L.forEach((l, i) => st.anims.push(this.anim(l, [{ transform: wf[i] }, { transform: 'none' }], { duration: D, easing: E })));
     st.anims.push(this.anim(mat, [{ opacity: 0 }, { opacity: 1 }], { duration: 90, easing: 'linear' }));
     // home steps back as the page grows: nothing of it shows through the page, the background's warmth does
-    st.anims.push(this.anim(this.e.scr, [{ opacity: 1 }, { opacity: 0 }], { duration: D * 0.25, easing: 'cubic-bezier(.3,0,.6,1)' }));
-    st.anims.push(this.anim(this.e.fill, [{ opacity: 0 }, { opacity: 0, offset: 0.75 }, { opacity: 1 }], { duration: D, easing: 'linear' }));
+    st.anims.push(this.anim(this.e.scr, [{ opacity: 1 }, { opacity: 0 }], { duration: D * 0.18, easing: 'cubic-bezier(.3,0,.6,1)' }));
     st.anims.push(this.anim(edge, [{ opacity: 0 }, { opacity: 1, offset: 0.12 }, { opacity: 1, offset: 0.7 }, { opacity: 0 }], { duration: D, easing: 'linear' }));
     // the page's words settle in once the flying number and chart have passed them (so nothing is drawn over anything)
     const sm = this.sm();
     $$('.hx-dhead,.hx-chips,.hx-lab,.hx-sub,.hx-rise', dsc).filter((x) => !x.closest('[data-share]')).forEach((x, i) => {
-      const delay = D * 0.22 + Math.min(i, 3) * 40;
+      const delay = D * 0.12 + Math.min(i, 3) * 40;
       st.anims.push(this.anim(x, [{ opacity: 0 }, { opacity: 1 }], { duration: 280, delay, easing: 'linear' }));
       st.anims.push(this.anim(x, [{ transform: 'translateY(10px)' }, { transform: 'none' }], { duration: sm.duration, delay, easing: sm.easing }));
     });
     const paired = new Set(st.fl.map((o) => o.b));
-    $$('[data-share]', dsc).filter((b) => !paired.has(b)).forEach((b) => st.anims.push(this.anim(b, [{ opacity: 0 }, { opacity: 1 }], { duration: 280, delay: D * 0.22, easing: 'linear' })));
+    $$('[data-share]', dsc).filter((b) => !paired.has(b)).forEach((b) => st.anims.push(this.anim(b, [{ opacity: 0 }, { opacity: 1 }], { duration: 280, delay: D * 0.12, easing: 'linear' })));
     st.dim = this.dimOf(src);
-    st.dim.forEach((x) => { x.getAnimations().forEach((a) => a.cancel()); x.style.opacity = '0'; x.animate([{ opacity: 1 }, { opacity: 0 }], { duration: reduced() ? 1 : 80, easing: 'linear' }); });
-    this.playPage(Math.round(D * 0.45));
+    st.dim.forEach((x) => { x.getAnimations().forEach((a) => a.cancel()); x.style.opacity = '0'; x.animate([{ opacity: 1 }, { opacity: 0 }], { duration: reduced() ? 1 : 40, easing: 'linear' }); });
+    this.playPage(Math.round(D * 0.25));
     // landed: the page's own number and chart take over from the copies
     Promise.all(st.anims.slice(0, st.fl.length + 3).map((a) => a.finished)).then(() => {
       if (this.st !== st || st.closing) return;
@@ -139,7 +138,7 @@ export class Expander {
     st.closing = true; st.next = null; st.done = done;
     const { L, mat, edge, dsc } = this.e;
     const { duration: D, easing: E } = this.win();
-    const fromL = L.map(curT), matO = getComputedStyle(mat).opacity, edgeO = getComputedStyle(edge).opacity, scrO = getComputedStyle(this.e.scr).opacity, fillO = getComputedStyle(this.e.fill).opacity;
+    const fromL = L.map(curT), matO = getComputedStyle(mat).opacity, edgeO = getComputedStyle(edge).opacity, scrO = getComputedStyle(this.e.scr).opacity;
     // flying copies: keep the ones still in flight (from where they are now), else lift the page's own copies
     let fl: Flight[] = st.fl.map((o) => ({ ...o, from: curT(o.c) }));
     fl.forEach((o) => { o.tint?.remove(); o.tint = undefined; });
@@ -148,29 +147,27 @@ export class Expander {
     st.anims.forEach((a) => a.cancel());
     fl.forEach((o) => o.b.getAnimations().forEach((a) => a.cancel()));
     fl.forEach((o) => { o.c.style.transform = o.from ?? 'none'; });
-    page.forEach(({ e: x, o, t }) => { x.getAnimations().forEach((a) => a.cancel()); x.style.transform = t === 'none' ? '' : t; this.anim(x, [{ opacity: o }, { opacity: 0 }], { duration: Math.max(140, D * 0.2), easing: 'linear' }); });
+    page.forEach(({ e: x, o, t }) => { x.getAnimations().forEach((a) => a.cancel()); x.style.transform = t === 'none' ? '' : t; this.anim(x, [{ opacity: o }, { opacity: 0 }], { duration: 110, easing: 'linear' }); });
     (st.out ?? []).forEach((a) => a.cancel());
     const wf = this.frames(st.src);
     const out: Animation[] = [];
     const dimO = st.dim.map((x) => getComputedStyle(x).opacity);
     st.dim.forEach((x, i) => { x.getAnimations().forEach((a) => a.cancel()); x.style.opacity = '0'; out.push(x.animate([{ opacity: dimO[i] }, { opacity: dimO[i], offset: 0.35 }, { opacity: 1, offset: 0.85 }, { opacity: 1 }], { duration: reduced() ? 1 : D, easing: 'linear' })); });
-    L.forEach((l, i) => out.unshift(this.anim(l, [{ transform: fromL[i] }, { transform: wf[i] }], { duration: D, easing: E })));
+    L.forEach((l, i) => out.unshift(this.anim(l, [{ transform: fromL[i] }, { transform: wf[i] }], { duration: D, delay: 70, easing: E })));
     // the material clears between 25 % and 80 %: the section is already back underneath, so close ends on the settled screen
-    out.push(this.anim(mat, [{ opacity: matO }, { opacity: matO, offset: 0.4 }, { opacity: 0, offset: 0.9 }, { opacity: 0 }], { duration: D, easing: 'linear' }));
+    out.push(this.anim(mat, [{ opacity: matO }, { opacity: matO, offset: 0.25 }, { opacity: 0, offset: 0.7 }, { opacity: 0 }], { duration: D, easing: 'linear' }));
     this.e.scr.getAnimations().forEach((a) => a.cancel());
-    out.push(this.anim(this.e.scr, [{ opacity: scrO }, { opacity: scrO, offset: 0.45 }, { opacity: 1, offset: 0.9 }, { opacity: 1 }], { duration: D, easing: 'linear' }));
-    this.e.fill.getAnimations().forEach((a) => a.cancel());
-    out.push(this.anim(this.e.fill, [{ opacity: fillO }, { opacity: 0, offset: 0.12 }, { opacity: 0 }], { duration: D, easing: 'linear' }));
+    out.push(this.anim(this.e.scr, [{ opacity: scrO }, { opacity: scrO, offset: 0.2, easing: 'cubic-bezier(.3,0,.25,1)' }, { opacity: 1, offset: 0.6 }, { opacity: 1 }], { duration: D, easing: 'linear' }));
     out.push(this.anim(edge, [{ opacity: edgeO }, { opacity: 1, offset: 0.25 }, { opacity: 1, offset: 0.8 }, { opacity: 0 }], { duration: D, easing: 'linear' }));
     fl.forEach(({ c, a }) => {
       const ra = this.box(a), rb = { x: parseFloat(c.style.left), y: parseFloat(c.style.top), w: parseFloat(c.style.width), h: parseFloat(c.style.height) };
       const s = this.scale(a, ra, rb);
-      out.push(this.anim(c, [{ transform: c.style.transform || 'none' }, { transform: `translate(${ra.x - rb.x}px,${ra.y - rb.y}px) scale(${s})` }], { duration: D, easing: E }));
+      out.push(this.anim(c, [{ transform: c.style.transform || 'none' }, { transform: `translate(${ra.x - rb.x}px,${ra.y - rb.y}px) scale(${s})` }], { duration: D, delay: 70, easing: E }));
       // a pill's number takes its colour back as it lands
       const tn = this.tint(st.src, a, c);
       if (tn) {
         const o = fl.find((x) => x.c === c); if (o) o.tint = tn;
-        out.push(this.anim(tn, [{ transform: c.style.transform || 'none' }, { transform: `translate(${ra.x - rb.x}px,${ra.y - rb.y}px) scale(${s})` }], { duration: D, easing: E }));
+        out.push(this.anim(tn, [{ transform: c.style.transform || 'none' }, { transform: `translate(${ra.x - rb.x}px,${ra.y - rb.y}px) scale(${s})` }], { duration: D, delay: 70, easing: E }));
         out.push(this.anim(tn, [{ opacity: 0 }, { opacity: 0, offset: 0.4 }, { opacity: 1, offset: 0.9 }, { opacity: 1 }], { duration: D, easing: 'linear' }));
       }
     });
@@ -187,7 +184,7 @@ export class Expander {
       // tapped again mid-close: back on the page
       fl.forEach(({ c, b, tint }) => { b.style.opacity = ''; c.remove(); tint?.remove(); });
       st.fl = []; st.out = null;
-      this.e.scr.getAnimations().forEach((a) => a.cancel()); this.anim(this.e.scr, [{ opacity: 0 }, { opacity: 0 }], { duration: 1 }); this.anim(this.e.fill, [{ opacity: 1 }, { opacity: 1 }], { duration: 1 });
+      this.e.scr.getAnimations().forEach((a) => a.cancel()); this.anim(this.e.scr, [{ opacity: 0 }, { opacity: 0 }], { duration: 1 });
       const lt = L.map(curT);
       out.forEach((a) => a.cancel());
       st.dim.forEach((x) => { x.style.opacity = '0'; });
@@ -217,7 +214,7 @@ export class Expander {
     fly.replaceChildren();
     this.st?.dim.forEach((x) => { x.getAnimations().forEach((a) => a.cancel()); x.style.opacity = ''; });
     det.classList.remove('live');
-    [...L, mat, this.e.scr, this.e.fill].forEach((x) => x.getAnimations().forEach((a) => a.cancel()));
+    [...L, mat, this.e.scr].forEach((x) => x.getAnimations().forEach((a) => a.cancel()));
     $$('[data-share]', root).forEach((x) => { x.style.opacity = ''; });
     $$('*', dsc).forEach((x) => { x.getAnimations().forEach((a) => a.cancel()); x.style.transform = ''; x.style.opacity = ''; });
     this.st = null;

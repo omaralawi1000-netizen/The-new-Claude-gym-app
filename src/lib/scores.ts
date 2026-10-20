@@ -109,7 +109,7 @@ export function sleepScore(x: SleepInput): Score | null {
   // caps, so the number always means what it says: short sleep can't look great however tidy it was
   const cap = asleep < 300 ? 59 : asleep < 360 ? 74 : asleep < 430 ? 84 : asleep < 460 ? 92 : 100;
   const score = Math.round(Math.min(c.score, cap));
-  return { score, band: score >= 85 ? 'Great' : score >= 70 ? 'Good' : score >= 55 ? 'Fair' : 'Poor', parts, low: c.low ?? (cap < 100 && c.score > cap ? 'duration' : undefined), cap: c.score - cap >= 3 ? cap : undefined, capMin: c.score - cap >= 3 ? (cap === 59 ? 300 : cap === 74 ? 360 : cap === 84 ? 430 : 460) : undefined };
+  return { score, band: score >= 85 ? 'Great' : score >= 70 ? 'Good' : score >= 55 ? 'Fair' : 'Poor', parts, low: c.low ?? (cap < 100 && c.score > cap ? 'duration' : undefined), cap: c.score - cap >= 1 ? cap : undefined, capMin: c.score - cap >= 1 ? (cap === 59 ? 300 : cap === 74 ? 360 : cap === 84 ? 430 : 460) : undefined };
 }
 
 // ── Training load ────────────────────────────────────────────

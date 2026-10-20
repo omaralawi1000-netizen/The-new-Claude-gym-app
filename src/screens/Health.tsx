@@ -46,7 +46,7 @@ export function HealthScreen() {
 
   const root = useRef<HTMLDivElement>(null), scr = useRef<HTMLDivElement>(null), det = useRef<HTMLDivElement>(null);
   const L1 = useRef<HTMLDivElement>(null), L2 = useRef<HTMLDivElement>(null), L3 = useRef<HTMLDivElement>(null);
-  const fill = useRef<HTMLDivElement>(null), mat = useRef<HTMLDivElement>(null), dsc = useRef<HTMLDivElement>(null), fly = useRef<HTMLDivElement>(null), edge = useRef<HTMLDivElement>(null);
+  const mat = useRef<HTMLDivElement>(null), dsc = useRef<HTMLDivElement>(null), fly = useRef<HTMLDivElement>(null), edge = useRef<HTMLDivElement>(null);
   const eng = useRef<Expander | null>(null);
   const [openK, setOpenK] = useState<K | null>(null);
   const pending = useRef<HTMLElement | null>(null);
@@ -55,7 +55,7 @@ export function HealthScreen() {
   const chips = useRef<HTMLDivElement>(null), chipFrom = useRef<{ x: number; w: number } | null>(null);
 
   useLayoutEffect(() => {
-    eng.current = new Expander({ root: root.current!, scr: scr.current!, det: det.current!, L: [L1.current!, L2.current!, L3.current!], mat: mat.current!, fill: fill.current!, dsc: dsc.current!, fly: fly.current!, edge: edge.current! });
+    eng.current = new Expander({ root: root.current!, scr: scr.current!, det: det.current!, L: [L1.current!, L2.current!, L3.current!], mat: mat.current!, dsc: dsc.current!, fly: fly.current!, edge: edge.current! });
     return () => eng.current?.closeNow();
   }, []);
 
@@ -122,7 +122,7 @@ export function HealthScreen() {
         {!v.hasWatch && <p className="hx-note">{t('Connect your watch in Settings → Watch, and sleep, heart and steps fill in here.')}</p>}
       </div>
       <div ref={det} className="hx-detail" style={{ ['--c' as string]: openK ? COL[openK] : C.sleep }} onClick={passTap}>
-        <div ref={fill} className="hx-fill" /><div ref={L1} className="hx-L hx-rnd"><div ref={L2} className="hx-L hx-rnd"><div ref={L3} className="hx-L">
+        <div ref={L1} className="hx-L hx-rnd"><div ref={L2} className="hx-L hx-rnd"><div ref={L3} className="hx-L">
           <div ref={mat} className="hx-mat" />
           <div ref={dsc} className="hx-dsc">
             {openK && (
@@ -206,7 +206,7 @@ function useIntro(scr: React.RefObject<HTMLDivElement | null>, v: HealthView) {
       const inner = c?.firstElementChild;
       if (c && inner) { c.animate([{ transform: 'translateX(-100%)', offset: 0 }], { duration: 1000, delay: 120, easing: EO, fill: 'both' }); inner.animate([{ transform: 'translateX(100%)', offset: 0 }], { duration: 1000, delay: 120, easing: EO, fill: 'both' }); }
     }), { root: el, threshold: 0.35 });
-    const id = setTimeout(() => fresh.forEach((x) => io.observe(x)), 420);
+    const id = setTimeout(() => fresh.forEach((x) => io.observe(x)), played.current && !seen.current.size ? 1100 : 420); // the first ones after the ribbon's sweep
     return () => { clearTimeout(id); io.disconnect(); fresh.forEach((x) => { if (!seen.current.has(x.dataset.k!)) { x.style.opacity = ''; seen.current.add(x.dataset.k!); } }); };
   });
 }
@@ -313,7 +313,7 @@ const READY_WHY: Record<string, string> = {
   temp: 'Your skin was warmer than normal last night. Often the first sign of getting ill.',
 };
 function readyLine(r: Score, t: TFn) { return r.low && READY_WHY[r.low] ? t(READY_WHY[r.low]) : t('Everything is inside your normal range.'); }
-const PART: Record<string, string> = { duration: 'Length', deep: 'Deep sleep', rem: 'REM sleep', rest: 'Restfulness', timing: 'Timing', heart: 'Heart rate', hrv: 'HRV', restHr: 'Resting heart rate', sleep: 'Sleep', load: 'Training load' };
+const PART: Record<string, string> = { duration: 'Length', deep: 'Deep sleep', rem: 'REM sleep', rest: 'Restfulness', timing: 'Timing', heart: 'Heart rate', hrv: 'HRV', restHr: 'Resting heart rate', sleep: 'Sleep', load: 'Recovered from training' };
 
 function Parts({ s, t }: { s: Score; t: TFn }) {
   return (
@@ -352,7 +352,7 @@ function Page({ k, v, t, lang }: { k: K; v: HealthView; t: TFn; lang: Lang }) {
   } else if (k === 'sleep' && v.night) {
     const n = v.night, sc = n.score;
     const st: [string, number, string][] = [[t('Deep'), n.stages.deep, '#7d6bff'], [t('REM'), n.stages.rem, '#c7b8ff'], [t('Light'), n.stages.light, '#a8b4ff'], [t('Awake'), n.stages.awake, '#ff9a7a']];
-    const mx = Math.max(1, ...st.map((x) => x[1]));
+    const mx = Math.max(1, st.reduce((a, x) => a + x[1], 0)); // each stage as a share of the night
     const head = !sc ? t('Last night') : t(({ Great: 'A great night', Good: 'A good night', Fair: 'A fair night', Poor: 'A short or broken night' } as Record<string, string>)[sc.band]);
     const diff = n.usual ? n.asleep - n.usual : undefined;
     const nights = n.last14.concat([{ date: v.today, min: n.asleep }]);

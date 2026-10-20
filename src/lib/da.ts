@@ -1144,6 +1144,7 @@ export const da: Record<string, string> = {
  "Burns at rest": "Forbrænder i hvile",
  "Your skin was warmer than normal last night. Often the first sign of getting ill.": "Din hud var varmere end normalt i nat. Ofte det første tegn på, at du er ved at blive syg.",
  "Climbed {n} m": "{n} m stigning",
+ "Recovered from training": "Restitueret fra træning",
  "Under {h} of sleep it stays at most {n}.": "Med under {h} søvn bliver den højst {n}.",
  "Weight, last 30 days": "Vægt, sidste 30 dage",
  "What it is made of (100 is best)": "Hvad den består af (100 er bedst)",
