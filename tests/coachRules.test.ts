@@ -43,7 +43,7 @@ describe('frequent heavy days', () => {
     const entries: FoodEntry[] = [];
     for (let i = 1; i <= 14; i++) entries.push(food(addDays(today, -i), i % 2 ? 3300 : 2300));
     const L = eatingLines(data({ entries }), today).join('\n');
-    expect(L).toMatch(/Frequent heavy days: \d in the last 7 days and \d in the 7 before\.$/m);
+    expect(L).toMatch(/Frequent heavy days: \d in the last 7 days and \d in the 7 before; \d weeks running\.$/m);
     expect(L).not.toMatch(/doctor|dietitian/);
     expect(eatingLines(data({ entries, marks: { helpSaid: '2026-10-12' } }), today).join('\n')).toMatch(/was suggested to them on 2026-10-12/);
     // notices off: nothing about heavy days at all

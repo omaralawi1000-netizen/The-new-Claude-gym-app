@@ -761,7 +761,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   };
 
   /** One turn: the model (or, without an AI key, the local reader) says what to do; we do it; the cards show it. */
-  const agentTurn = async (text: string, signal: AbortSignal, photo: Photo | undefined, userId: string) => {
+  const agentTurn = async (text: string, signal: AbortSignal, photo: Photo | undefined, userId: string, meta?: { dictated?: boolean; words?: string }) => {
     const st = useStore.getState();
     const today = dayKey(Date.now(), st.settings.dayStartHour);
     const placeholder = uid('m');
@@ -775,8 +775,10 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     const where = props.mealId || props.date ? `The user opened this from the Food tab${props.date ? ` (day ${props.date})` : ''}${props.mealId ? `, meal ${props.mealId}` : ''}: foods go there unless they say otherwise.` : 'The user opened this from the main screen.';
     const history = turnsFor(userId); // the conversation so far (the orb screen's turns included)
     // the answer streams in as the model writes it, into the same message that then stays (nothing re-mounts or re-animates)
+    // (said or typed, and only their own words: from send, or from the saved message on Try again — the message isn't in
+    // msgsRef yet when send calls straight through)
     const asked = msgsRef.current.find((m) => m.id === userId) as { text?: string; dictated?: boolean } | undefined;
-    const d = await decide(photo ? `[photo] ${text}` : text, { lang, t, pool, history, where, signal, surface: 'coach', photo, dictated: !!asked?.dictated, words: asked?.text, said: threadSaid(msgsRef.current as ThreadMsg[]), onStatus: (x) => { if (alive.current) setMsgs((all) => all.map((m) => (m.id === placeholder && m.role === 'model' ? { ...m, status: x || undefined } : m))); }, onReply: (r) => { if (alive.current) setMsgs((x) => x.map((m) => (m.id === placeholder && m.role === 'model' ? { ...m, text: r } : m))); } });
+    const d = await decide(photo ? `[photo] ${text}` : text, { lang, t, pool, history, where, signal, surface: 'coach', photo, dictated: meta?.dictated ?? !!asked?.dictated, words: meta?.words ?? asked?.text, said: threadSaid(msgsRef.current as ThreadMsg[]), onStatus: (x) => { if (alive.current) setMsgs((all) => all.map((m) => (m.id === placeholder && m.role === 'model' ? { ...m, status: x || undefined } : m))); }, onReply: (r) => { if (alive.current) setMsgs((x) => x.map((m) => (m.id === placeholder && m.role === 'model' ? { ...m, text: r } : m))); } });
     let { reply } = d; const { note, actions } = d;
     if (d.wantsUndo) { undoLast(); if (!actions.length && !reply) reply = t('Undone.'); }
     const results = actions.length ? await runActions(actions, { t, lang, today, brain: brainFor({ big: false, surface: 'coach', signal }), date: props.date, mealId: props.mealId, photo: !!photo, onStatus: (x) => { if (alive.current) setMsgs((all) => all.map((m) => (m.id === placeholder && m.role === 'model' ? { ...m, status: x || undefined } : m))); } }) : [];
@@ -808,12 +810,12 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   };
 
   // ── when it fails: Try again (the same words, from the same bubble), Open settings (a key problem) ──
-  const runTurn = async (id: string, text: string, pic: { url: string; blob: Blob } | null) => {
+  const runTurn = async (id: string, text: string, pic: { url: string; blob: Blob } | null, meta?: { dictated?: boolean; words?: string }) => {
     setBusy(true); stopSpeaking(); orb('processing');
     ctl.current = new AbortController();
     const signal = ctl.current.signal;
     try {
-      await agentTurn(text || t('What is this?'), signal, pic ? { mime: 'image/jpeg', data: await blobToBase64(pic.blob) } : undefined, id);
+      await agentTurn(text || t('What is this?'), signal, pic ? { mime: 'image/jpeg', data: await blobToBase64(pic.blob) } : undefined, id, meta);
       if (alive.current) setMsgs((x) => x.map((m) => (m.id === id && m.role === 'user' && m.failed ? { ...m, failed: undefined } : m)));
     } catch (e: any) {
       if (!alive.current) return;
@@ -892,7 +894,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     // about something that was held: the model gets what it is with the words; the bubble shows only its name
     const ab = about; setAbout(null);
     say({ id, role: 'user', text, at: Date.now(), ...(spoken ? { dictated: true } : {}), ...(wrap ? { lines: wrap.lines } : {}), ...(pic ? { photo: true, image: pic.url } : {}), ...(ab ? { about: ab.detail, aboutLabel: ab.label } : {}) });
-    await runTurn(id, ab ? `[about: ${ab.detail}] ${text}` : text, pic);
+    await runTurn(id, ab ? `[about: ${ab.detail}] ${text}` : text, pic, { dictated: spoken, words: text });
   };
 
   // ── voice input through Groq (same single-owner mic as dictation) ──

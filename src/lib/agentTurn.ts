@@ -106,8 +106,11 @@ export const ROUTER_SYSTEM = `You pick which AI answers a message in a training 
 - quick: logging food, sets, weight or activities; app commands and settings; a short fact; thanks, ok, small talk.
 - quick_think: an everyday question that needs a little reasoning but no real decision (a meal idea, what an exercise does, a simple how-to, a question about one logged item).
 - main: anything that needs judgement on their own data or where a weak answer costs them: why something isn't working (weight, strength, hunger), targets and calories, maintenance, plans and programs, progress and trends, overeating, sleep and recovery, what to change, comparing options.
-- main_high: health or safety (pain, injury, illness, eating problems, purging, fainting), cutting weight fast or making weight, anyone under 18 with a body question, supplements, or a hard decision with many parts.
+- main_high: health or safety (pain, injury, illness, eating problems, purging, fainting), cutting weight fast or making weight, anyone under 18 with a body question, supplements, or a hard decision with many parts. Statements count too, not only questions: not eating or fasting, only water, sauna or sweating to drop weight, pills, pain, pregnancy, saying they are under 18, hating their body.
 A follow-up ("why?", "and tomorrow?", "ok but what if…") continues the conversation before it: give it at least the tier that conversation needed. Messages may be dictated and misheard: judge by what they most likely meant; a garbled message that looks like a question about their weight, body, food or training is main. Unsure between two tiers: the higher one.`;
+
+const BODY_RISK = /(?<![A-Za-zÆØÅæøå])(?:not eat\w*|won'?t eat|didn'?t eat|haven'?t eaten|no food|skip\w* (?:meals?|food|breakfast|lunch|dinner)|fast(?:ing|ed)?\b|only water|just water|water cut|sauna|sweat\w*|burn (?:it|that) off|make up|spit|throw\w* up|vomit\w*|purg\w*|laxative\w*|dulcolax|diuretic\w*|pills?|hate my body|disgust\w*|couldn'?t stop|can'?t stop|out of control|pain\w*|hurt\w*|headache|dizz\w*|faint\w*|chest|period|pregnan\w*|caffeine|energy drinks?|tore|torn|injur\w*|i'?m (?:1[0-7]|[5-9])\b|(?:1[0-7]|[5-9]) years? old|to drop weight|need to be \d+|spiser ikke|ikke spist|faste\w*|kun vand|svede|piller|afføring\w*|vanddrivende|kast\w* op|ondt|hovedpine|svimmel|besvim\w*|gravid|menstruation|hader min krop|jeg er (?:1[0-7]|[5-9])\b|skal veje|skal ned|tabe mig hurtigt)/i;
+const COMMAND = /^\s*(?:please |pls |kan du |can you )?(?:log|add|move|delete|remove|clear|start|finish|end|stop|pause|resume|undo|switch|change|set|put|show|open|go to|turn|make|skip|copy|replace|rename|swap|dark|light|thanks|thank you|thx|ok|okay|yes|yeah|yep|no|nope|cool|nice|great|perfect|yo|hi|hey|hello|tak|ja|nej|fedt|super|fortryd|flyt|slet|tilføj|start|stop|skift|sæt|vis|åbn|lav|byt|log)\b/i;
 
 /** The decisions that need no chooser: a photo, the risky and decision phrases, plain logging and quick facts. */
 export function fastRoute(text: string, setting: Effort, photo = false): (Route & { tier: Tier }) | null {
@@ -115,26 +118,42 @@ export function fastRoute(text: string, setting: Effort, photo = false): (Route 
   const r = route(text, setting);
   if (r.main && r.effort === 'high') return { ...r, tier: 'main_high' };
   const words = text.trim().split(/\s+/).length;
+  // (anything about the body, not eating, weight, pills or pain is read by the chooser even when it looks like a log or a
+  // short statement: "fasting tomorrow to make up", "only water until friday", "Im 16 btw" — the review, 20 Oct)
+  if (BODY_RISK.test(text)) return null;
   const logging = LOG_REQ.test(text) || (/\d/.test(text) && !/\?/.test(text) && !ASKING.test(text) && words <= 12);
-  // (a short command or reply that asks nothing — "dark mode please", "move it to lunch", "thanks" — needs no chooser:
-  // only questions wait for it)
-  const command = !ASKING.test(text) && !DEEP.test(text) && words <= 8;
+  // (a short app command or a reply that asks nothing — "dark mode please", "move it to lunch", "thanks", "ok" — needs no
+  // chooser; a statement about how they feel or are doing does)
+  const command = !ASKING.test(text) && !DEEP.test(text) && words <= 8 && (COMMAND.test(text) || words <= 2);
   if (logging || command || FACT.test(text)) return { effort: 'low', main: false, tier: 'quick' };
   return null;
 }
 
 export async function chooseModel(text: string, o: { setting: Effort; photo?: boolean; prev?: { role: string; text: string }[]; dictated?: boolean; timeoutMs?: number;
-  /** one call to the quick model: (system, message) → its answer (JSON, or the text of it) */ ask: (system: string, user: string) => Promise<unknown> }): Promise<Route & { tier: Tier | 'fallback' }> {
+  /** one call to the quick model: (system, message, its own stop signal) → its answer (JSON, or the text of it); none =
+   *  no quick model on the key, so the phrase lists decide (never the main model just to choose) */ ask?: (system: string, user: string, signal: AbortSignal) => Promise<unknown>;
+  /** the user's Stop: ends the choosing at once (it is never swallowed as a fallback) */ signal?: AbortSignal }): Promise<Route & { tier: Tier | 'fallback' }> {
   const fast = fastRoute(text, o.setting, o.photo);
   if (fast) return fast;
+  if (!o.ask) return { ...route(text, o.setting), tier: 'fallback' };
   const before = (o.prev ?? []).slice(-2).map((h) => `${h.role === 'model' ? 'Coach' : 'Them'}: ${h.text.replace(/\s+/g, ' ').slice(0, 300)}`).join('\n');
   const user = `${before ? `Just before:\n${before}\n\n` : ''}Message${o.dictated ? ' (dictated)' : ''}: ${text.slice(0, 600)}`;
+  // (its own stop: the user's Stop, or too slow — then the request itself is ended, not left running)
+  const c = new AbortController();
+  const stop = () => c.abort();
+  o.signal?.addEventListener('abort', stop);
+  if (o.signal?.aborted) c.abort();
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    const raw = await Promise.race([o.ask(ROUTER_SYSTEM, user), new Promise((_, no) => setTimeout(() => no(new Error('slow')), o.timeoutMs ?? 4000))]);
+    const raw = await Promise.race([o.ask(ROUTER_SYSTEM, user, c.signal), new Promise((_, no) => { timer = setTimeout(() => { c.abort(); no(new Error('slow')); }, o.timeoutMs ?? 4000); })]);
     const v: any = typeof raw === 'string' ? JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1)) : raw;
     const tier = v?.tier as Tier;
-    if (tier in TIER_ROUTE) return { ...TIER_ROUTE[tier], tier };
-  } catch { /* the lists decide */ }
+    if (Object.prototype.hasOwnProperty.call(TIER_ROUTE, tier)) return { ...TIER_ROUTE[tier], tier };
+  } catch (e: any) {
+    if (o.signal?.aborted) throw new AiError('aborted', 0, { provider: 'openai' });
+    // (the key has no quick model: remembered, so later messages don't try it again)
+    if (e?.code === 'nomodel') useAi.getState().patch({ noQuick: true });
+  } finally { clearTimeout(timer); o.signal?.removeEventListener('abort', stop); }
   return { ...route(text, o.setting), tier: 'fallback' };
 }
 
@@ -144,9 +163,11 @@ export const ORB_BRIEF = ' They are speaking to the orb screen, often mid-workou
 
 /** Whether a reply talked about a heavy day: its kcal over (2000, 2,000, 2.000, 2 000) or the words for it. */
 export function mentionsHeavy(reply: string, over: number): boolean {
-  const n = String(Math.round(over));
-  const forms = [n, n.replace(/\B(?=(\d{3})+$)/g, ','), n.replace(/\B(?=(\d{3})+$)/g, '.'), n.replace(/\B(?=(\d{3})+$)/g, ' '), n.replace(/\B(?=(\d{3})+$)/g, '\u00a0')];
-  return forms.some((f) => reply.includes(f)) || /catch-?up|indhent|heavy (day|evening)|big (day|evening)|tung(e)? (dag|aften)|stor(e)? (dag|aften)|ate a lot|spiste meget|spist meget|trim/i.test(reply);
+  // every number in the reply, read as a whole ("2,300" is 2300, never "300"); within 10 % of the day's kcal over counts
+  // (it may be rounded: "about 1,200 over" for 1,187)
+  const nums = [...reply.matchAll(/(?<![\d.,])\d{1,3}(?:[ ,.\u00a0]\d{3})+(?![\d])|(?<![\d.,])\d+(?![\d])/g)].map((m) => Number(m[0].replace(/[ ,.\u00a0]/g, '')));
+  if (over >= 300 && nums.some((x) => Math.abs(x - over) <= over * 0.1)) return true;
+  return /catch-?up|indhent\w*|heavy (?:day|evening)|big (?:day|evening)|tung(?:e)? (?:dag|aften)|stor(?:e)? (?:dag|aften)|ate a lot|over ?ate|overeat\w*|overspis\w*|went over|over (?:your|the) target|over målet|spiste meget|spist meget|spiste en del|\btrim(?:med|s)?\b(?=[^.]*(?:kcal|calor|kalori|day|dag))/i.test(reply);
 }
 
 /** Run `fn` with a signal that also ends after `ms` (0 = no limit) unless its first words arrive before (`seen`): that end
@@ -158,6 +179,7 @@ export async function withTimeout<T>(ms: number, outer: AbortSignal, fn: (signal
   let late = false;
   const stop = () => c.abort();
   outer.addEventListener('abort', stop);
+  if (outer.aborted) c.abort();
   const timer = setTimeout(() => { late = true; c.abort(); }, ms);
   try { return await fn(c.signal, () => clearTimeout(timer)); }
   catch (e) { if (late && !outer.aborted) throw new AiError('timeout', 0, { provider: 'openai' }); throw e; }
@@ -218,11 +240,13 @@ export async function decide(text: string, o: { lang: Lang; t: (k: string, v?: R
   // think only as hard as the message needs, with the right model (see route): everyday messages to the quick model,
   // decisions, risky questions and photos to the main one (the Coach exam, 19 Oct: the quick one is nearly as good day to
   // day at ~1/16 of the price; the main one thinks the big calls through)
+  const quick = quickFor();
   const way = brain0?.sol ? await chooseModel(o.words ?? text, {
-    setting: brain0.sol.effort, photo: !!o.photo, dictated: o.dictated,
+    setting: brain0.sol.effort, photo: !!o.photo, dictated: o.dictated, signal: o.signal, timeoutMs: o.surface === 'orb' ? 2500 : 4000,
     prev: o.history.map((h) => ({ role: h.role, text: h.parts.map((p) => p.text).join('') })),
-    ask: (system, prompt) => solJson({ key: brain0.sol!.key, effort: 'low', model: quickFor(), signal: o.signal }, { system, prompt, schema: ROUTER_SCHEMA, name: 'route' }),
+    ask: quick ? (system, prompt, signal) => solJson({ key: brain0.sol!.key, effort: 'low', model: quick, signal }, { system, prompt, schema: ROUTER_SCHEMA, name: 'route' }) : undefined,
   }) : null;
+  if (o.signal.aborted) throw new AiError('aborted', 0, { provider: 'openai' });
   const brain = brain0?.sol && way ? { ...brain0, sol: { ...brain0.sol, effort: way.effort, model: way.main ? undefined : quickFor() } } : brain0;
   const capped = solOn(g) && overLimit(g.solLimitKr);
   if (capped && brain) note = t('This month’s GPT-6.1 Sol limit is reached, so Gemini answered.');

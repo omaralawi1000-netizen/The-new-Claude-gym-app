@@ -246,7 +246,13 @@ export function eatingLines(d: Data, today: string, goal?: string): string[] {
   if (heavy.length) L.push(`Heavy days, last 4 weeks (clearly over that day's target): ${heavy.map((h) => `${WD[new Date(`${h.date}T12:00:00`).getDay()]} ${h.date} +${h.over} kcal${h.late ? ', logged the day after' : ''}${h.evening ? `, ${h.evening} kcal of it in the evening` : ''}`).join('; ')}. ${heavy.length} in 4 weeks.`);
   if (mode === 'off') L.push('Heavy-day notices are OFF: they chose not to hear about heavy days or catch-ups unless they bring them up.');
   const [w1, w2] = mode === 'off' ? [0, 0] : heavyWeeks(d, today);
-  if (w1 >= 3 && w2 >= 3) L.push(`Frequent heavy days: ${w1} in the last 7 days and ${w2} in the 7 before.${d.marks?.helpSaid ? ` Getting help with it (a doctor or dietitian) was suggested to them on ${d.marks.helpSaid}.` : ''}`);
+  if (w1 >= 3 && w2 >= 3) {
+    // (how many weeks in a row, up to 4: a long pattern is different from a rough fortnight)
+    let run = 2; // (this week and the one before, as counted above)
+    const inWeek = (k: number) => heavy.filter((h) => { const a = diffDays(today, h.date); return a >= 7 * k && a < 7 * k + 7; }).length;
+    while (run < 4 && inWeek(run) >= 3) run++;
+    L.push(`Frequent heavy days: ${w1} in the last 7 days and ${w2} in the 7 before; ${run} weeks running.${d.marks?.helpSaid ? ` Getting help with it (a GP or dietitian) was suggested to them on ${d.marks.helpSaid}.` : ''}`);
+  }
   const on = catchUpOn(d, today);
   if (on) L.push(`CATCH-UP running: ${on.from.date} was +${on.from.over} over, so the target is ${on.perDay} lower for ${on.left} more day${on.left === 1 ? '' : 's'} including today (today's target ${kcalTargetFor(d, today)} kcal instead of ${d.settings.goals.kcal}; protein unchanged).`);
   const recent = (d.catchUps ?? []).filter((c) => !c.off && !c.gone && isDecided(c) && diffDays(today, c.date) <= 3);

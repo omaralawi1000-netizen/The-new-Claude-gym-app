@@ -3005,4 +3005,15 @@ model choice wasted it, and he wants "a dynamic coach, like a real coach".
   Results: Omar's 10 blind pairs on his own questions — new 4, old 0, the rest equal or both weak (his feedback fixed and
   re-checked); the judge model 13–1 for new (it favours longer answers, so Omar's picks count). Logging 0/10 failures old
   and new; safety 5/5 (purging → a doctor, teens → no sauna or fast cut). Spent ≈ $4.1 of $10.
+- **Review round (two reviewers, 20 Oct), fixed with tests:** Stop during the model choice now stops the turn (it answered
+  anyway); the voice flag reaches the Coach chat (it never did) and survives the orb's Try again; short statements about not
+  eating, fasting, water only, sauna, pills, pain, pregnancy or being under 18 always reach the chooser (they went straight to
+  the quick model at low), and the chooser treats them as health questions (38/38 labelled); no quick model → no choosing call
+  (never the main model just to choose), a slow choice is cancelled; "talked about" reads whole numbers (2,300 ≠ 300) and
+  real words. Restored as knowledge: plan around wrestling, judge balance from set counts, conservative numbers when the age
+  is unknown (asked once), ESTIMATE labels, pregnancy/medication/injury → a doctor okays changes. Added: concussion,
+  rhabdomyolysis and heat red flags; no preference unlocks water cuts, saunas, fasting days, purging or training through sharp
+  pain. Omar's calls: a long binge pattern (3+ weeks, "couldn't stop"/"feel awful") → the coach keeps coaching and once
+  mentions a GP who knows binge eating; trims after frequent heavy days stay the verdict's judgement; the coach may delete
+  memory notes when asked; the default monthly AI limit is 200 kr (a realistic month is ~85–145 kr).
 - Next: Omar talks to it on Aven Beta for 2–3 days — the real test of a dynamic coach.

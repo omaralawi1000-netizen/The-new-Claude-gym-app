@@ -184,7 +184,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   const [interim, setInterim] = useState('');
   const [err, setErr] = useState<string | null>(null);
   /** the question that got no answer (slow line, an error): Try again asks it once more, in the same bubble */
-  const [ask, setAsk] = useState<{ text: string; id: string } | null>(null);
+  const [ask, setAsk] = useState<{ text: string; id: string; spoken?: boolean } | null>(null);
   const [canRetry, setCanRetry] = useState(false);
   const [turns, setTurns] = useState<Turn1[]>([]);
   const turnsRef = useRef<Turn1[]>([]); turnsRef.current = turns;
@@ -363,7 +363,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
       patch(id, { done: true, reply: '' });
       if (e?.code !== 'aborted' || late) {
         setErr(late ? t('Slow connection. Try again, or find your question in the Coach.') : aiErrorText(e, t)); go('error');
-        setAsk({ text, id });
+        setAsk({ text, id, spoken });
         // the question is kept in the conversation (marked unanswered), so it is not lost when the orb closes
         appendExchange({ said: text, reply: '', results: [], failed: late ? t('Slow connection.') : aiErrorText(e, t) });
       } else go('idle');
@@ -528,7 +528,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
               </motion.div>
             )}
           </AnimatePresence>
-          {err && <div className="plinth-2 small" role="alert" style={{ padding: '12px 14px', marginTop: 16 }}>{err}{(canRetry || ask) && <div style={{ marginTop: 10 }}>{canRetry ? <button className="btn sm press" onClick={retryHear}>{t('Retry transcription')}</button> : <button className="btn sm press" onClick={() => { if (!ask || busy.current) return; haptic('light'); dropFailed(ask.text); act(ask.text, ask.id); }}><Icon name="repeat" size={14} /> {t('Try again')}</button>}</div>}</div>}
+          {err && <div className="plinth-2 small" role="alert" style={{ padding: '12px 14px', marginTop: 16 }}>{err}{(canRetry || ask) && <div style={{ marginTop: 10 }}>{canRetry ? <button className="btn sm press" onClick={retryHear}>{t('Retry transcription')}</button> : <button className="btn sm press" onClick={() => { if (!ask || busy.current) return; haptic('light'); dropFailed(ask.text); act(ask.text, ask.id, ask.spoken); }}><Icon name="repeat" size={14} /> {t('Try again')}</button>}</div>}</div>}
           <AnimatePresence initial={false} mode="popLayout">
           {typing && !thinking && !(showing && last.reply && written !== last.id) && (
             // (it fades in and out instead of appearing and vanishing in one frame; leaving, it stays where it was)

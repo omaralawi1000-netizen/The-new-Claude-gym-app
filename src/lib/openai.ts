@@ -103,6 +103,8 @@ export function openaiError(status: number, body: string): AiError {
 
 async function request(key: string, body: unknown, { timeout, signal }: { timeout: number; signal?: AbortSignal }) {
   if (navigator.onLine === false) throw fail('offline');
+  // (stopped before it started: never sent)
+  if (signal?.aborted) throw fail('aborted');
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), timeout);
   const onAbort = () => ctl.abort();

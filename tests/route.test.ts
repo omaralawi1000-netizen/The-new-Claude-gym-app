@@ -104,3 +104,34 @@ describe('the model chooser (Coach 2.1, 20 Oct): obvious cases at once, the rest
     expect((await chooseModel('why is my bench stuck?', { setting: 'medium', timeoutMs: 20, ask: () => new Promise((ok) => setTimeout(() => ok({ tier: 'main' }), 200)) })).tier).toBe('fallback');
   });
 });
+
+describe('found by the Coach 2.1 review (20 Oct)', async () => {
+  const { fastRoute, chooseModel, mentionsHeavy, withTimeout } = await import('../src/lib/agentTurn');
+  it('short statements about not eating, weight, pills, pain or age are read by the chooser, never sent straight to the quick model', () => {
+    for (const s of ['fasting tomorrow to make up', "I'm not eating tomorrow", 'jeg spiser ikke noget i morgen', 'ate 4000 kcal last night, fasting tomorrow', 'only water until friday', 'sauna tonight to drop weight', '2 hours cardio tomorrow to burn it off', 'took some dulcolax', 'jeg tog afføringspiller', 'I hate my body', 'need to be 74 by saturday', 'jeg skal veje 74 på lørdag', 'headache since practice', 'Im 16 btw', "I haven't eaten in 2 days", 'I feel fat and disgusting', 'I am pregnant', 'I keep gaining weight', 'I am always hungry'])
+      expect(fastRoute(s, 'high'), s).not.toMatchObject({ tier: 'quick' });
+  });
+  it('real commands, thanks and plain logs still skip it', () => {
+    for (const s of ['dark mode please', 'move it to lunch', 'thanks!', 'ok', 'undo that', 'start my workout', 'delete the banana', 'log 2 eggs', '200 g chicken for lunch', 'I weighed in this morning at 97.3 kg', 'samme igen', 'only 9 reps'])
+      expect(fastRoute(s, 'high')?.tier, s).toBe('quick');
+  });
+  it('Stop while it is choosing stops the turn (it used to fall back and answer anyway)', async () => {
+    const c = new AbortController();
+    const p = chooseModel('why is my bench stuck?', { setting: 'high', signal: c.signal, ask: (_s, _u, signal) => new Promise((_, no) => signal.addEventListener('abort', () => no(Object.assign(new Error('aborted'), { code: 'aborted' })))) });
+    setTimeout(() => c.abort(), 10);
+    await expect(p).rejects.toMatchObject({ code: 'aborted' });
+    // and a request started after Stop is stopped too
+    await expect(withTimeout(5000, c.signal, (signal) => new Promise((ok, no) => { if (signal.aborted) no(new Error('stopped')); else ok('ran'); }))).rejects.toThrow('stopped');
+  });
+  it('no quick model on the key: no choosing call at all (never the main model just to choose)', async () => {
+    expect((await chooseModel('why is my bench stuck?', { setting: 'medium' })).tier).toBe('fallback');
+  });
+  it('a heavy day counts as talked about by its own number (rounded is fine), never by a number inside another', () => {
+    expect(mentionsHeavy('Your target is 2,300 today.', 300)).toBe(false);
+    expect(mentionsHeavy('12000 steps today, nice.', 1200)).toBe(false);
+    expect(mentionsHeavy('Trim the fat off the chicken before cooking.', 1400)).toBe(false);
+    expect(mentionsHeavy('Yesterday went about 1,200 over.', 1187)).toBe(true);
+    expect(mentionsHeavy('You overate a bit yesterday, no stress.', 1500)).toBe(true);
+    expect(mentionsHeavy('I går var 2.000 kcal over.', 2000)).toBe(true);
+  });
+});
