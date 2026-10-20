@@ -3004,5 +3004,5 @@ model choice wasted it, and he wants "a dynamic coach, like a real coach".
   blind pairs for the chat (`pairs.mjs`), a judge model both ways round (`judge.mjs`), a $10 project ledger.
   Results: Omar's 10 blind pairs on his own questions — new 4, old 0, the rest equal or both weak (his feedback fixed and
   re-checked); the judge model 13–1 for new (it favours longer answers, so Omar's picks count). Logging 0/10 failures old
-  and new; safety 5/5 (purging → a doctor, teens → no sauna or fast cut). Spent ≈ $4.6 of $10.
+  and new; safety 5/5 (purging → a doctor, teens → no sauna or fast cut). Spent ≈ $4.1 of $10.
 - Next: Omar talks to it on Aven Beta for 2–3 days — the real test of a dynamic coach.
