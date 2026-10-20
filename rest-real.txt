@@ -1,0 +1,87 @@
+com.android.permissioncontroller:id/permission_allow_button at: 540 1042
+notification permission: android.permission.POST_NOTIFICATIONS
+pages: [('page', 'https://omaralawi1000-netizen.github.io/The-new-Claude-gym-app/'), ('service_worker', 'https://omaralawi1000-netizen.github.io/The-new-Claude-gym-app/sw.js'), ('service_worker', 'https://omaralawi1000-netizen.github.io/The-new-Claude-gym-app-rest/sw.js'), ('worker', ''), ('worker', ''), ('worker', '')]
+rest: shown, permission granted, 1 in Chrome; referrer android-app://app.aven.android/, app flag 1792508727051
++30 s button at: not found
+watch: ok, now hidden
+seen: same page, now visible, events: visible@60466
+aven notifications after dark mode (want 1+): 2
+pages: [('page', 'chrome-native://newtab/'), ('page', 'https://omaralawi1000-netizen.github.io/The-new-Claude-gym-app/'), ('service_worker', 'https://omaralawi1000-netizen.github.io/The-new-Claude-gym-app/sw.js'), ('worker', ''), ('worker', ''), ('worker', '')]
+rest: shown, permission granted, 1 in Chrome; referrer android-app://app.aven.android/, app flag 1792508727051
+doze: Now forced in to deep idle mode
+sound: Ringer mode: - mode (internal) = VIBRATE - mode (external) = VIBRATE screen: mWakefulness=Asleep
+app before: 3892
+app after the kill: '' (empty = stopped)
+rest left: 12424 ms
+back-up first: overalert: shown
+alarm-volume sounds in the audio log (want 1+): 2
+10-20 15:06:52:809 player piid:143 new AudioAttributes:AudioAttributes: usage=USAGE_ALARM content=CONTENT_TYPE_SONIFICATION flags=0x800 tags= bundle=null
+	AudioAttributes: usage=USAGE_ALARM content=CONTENT_TYPE_UNKNOWN flags=0x800 tags= bundle=null forVolume: true stream: STREAM_ALARM(4)
+overalert: shown
+alerts showing after the website's back-up (want 1+): 1
+listen: listening, page hidden
+Done button (over) at: 338 945
+heard: messages: {"type":"aven-rest-action","action":"done","key":"ci:1792508723381","at":1792508834387} | log {"key":"ci:1792508723381","at":1792508834387,"sw":"app","wins":1} | taps kept 1
+next rest counting down after Done (want 1+): 1
+"Time for set 3" rang by itself (want 1+): 1
+Done button (over-3) at: 338 945
+heard: messages: {"type":"aven-rest-action","action":"done","key":"ci:1792508723381","at":1792508834387} {"type":"aven-rest-action","action":"done","key":"ci:1792508723381","at":1792508863856} | log {"key":"ci:1792508723381","at":1792508863856,"sw":"app","wins":1} | taps kept 2
+watch: ok, now hidden
+seen: same page, now visible+focus, events: visible@69013 visible@69013 focus@69021 focus@69021
+pages: [('page', 'https://omaralawi1000-netizen.github.io/The-new-Claude-gym-app/'), ('page', 'chrome-native://newtab/'), ('service_worker', 'https://omaralawi1000-netizen.github.io/The-new-Claude-gym-app-rest/sw.js'), ('service_worker', 'https://omaralawi1000-netizen.github.io/The-new-Claude-gym-app/sw.js'), ('worker', ''), ('worker', ''), ('worker', '')]
+clear: closed 0
+aven notifications left after clear: 2
+--------- beginning of main
+10-20 15:04:47.234  2291  2291 I AvenRest: from Chrome: rest 94 s left, 2 Chrome buttons, done no
+10-20 15:05:32.985  3892  4334 I AvenRest: from Chrome: rest 94 s left, 2 Chrome buttons, done yes
+10-20 15:06:20.411  3892  4334 I AvenRest: Chrome took its notification away
+10-20 15:06:20.411  3892  4334 I AvenRest: stop all, alert too
+10-20 15:06:20.420  3892  3892 I AvenRest: ticking stopped
+10-20 15:06:23.394  3892  3951 I AvenRest: from Chrome: rest 29 s left, 2 Chrome buttons, done yes
+10-20 15:06:52.802  5482  5491 I AvenRest: website's back-up alert (rest over 0 s ago)
+10-20 15:06:52.803  5482  5491 I AvenRest: ring: fetching Chrome's buttons from the alarm
+10-20 15:06:52.803  5482  5482 I AvenRest: ring: Time for set 2, Done shown, Chrome's Skip here
+10-20 15:06:52.841  5482  5482 I AvenRest: clicks: alarm volume 6 of 7, ringer mode 1
+10-20 15:06:53.489  5482  5482 I AvenRest: clicks played
+10-20 15:07:06.204  5482  5491 I AvenRest: website's back-up alert (rest over 12 s ago)
+10-20 15:07:14.340  5482  5482 I AvenRest: button: app.aven.android.REST_DONE
+10-20 15:07:14.340  5482  5482 I AvenRest: done: next rest 15 s, then Time for set 3
+10-20 15:07:29.341  5482  5482 I AvenRest: ring: Time for set 3, Done shown, Chrome's Skip here
+10-20 15:07:29.355  5482  5482 I AvenRest: clicks: alarm volume 6 of 7, ringer mode 2
+10-20 15:07:29.355  5482  5482 I AvenRest: ticking stopped
+10-20 15:07:29.993  5482  5482 I AvenRest: clicks played
+10-20 15:07:43.836  5482  5482 I AvenRest: button: app.aven.android.REST_DONE
+10-20 15:07:43.837  5482  5482 I AvenRest: done: the last set
+10-20 15:07:43.837  5482  5482 I AvenRest: stop all
+10-20 15:07:49.066  5482  5491 I AvenRest: Chrome took its notification away (an older one)
+10-20 15:07:49.066  5482  5491 I AvenRest: Chrome took its notification away (an older one)
+10-20 15:06:39.887   663   663 I notification_canceled: [0|app.aven.android|71|null|10217,8,19460,14486,0,-1,-1,NULL]
+10-20 15:06:52.806   663   663 I notification_enqueue: [10217,5482,app.aven.android,72,NULL,0,Notification(channel=aven_rest_end shortcut=null contentView=null vibrate=null sound=null defaults=0 flags=AUTO_CANCEL color=0xffe8743b category=alarm actions=1 vis=PUBLIC),0,1]
+10-20 15:07:14.342   663   663 I notification_canceled: [0|app.aven.android|72|null|10217,8,21536,21536,3519,-1,-1,NULL]
+10-20 15:07:14.344   663   663 I notification_enqueue: [10217,5482,app.aven.android,71,NULL,0,Notification(channel=aven_rest_live shortcut=null contentView=null vibrate=null sound=null defaults=0 flags=ONGOING_EVENT|ONLY_ALERT_ONCE|LOCAL_ONLY color=0xffe8743b category=stopwatch actions=2 vis=PUBLIC),0,1]
+10-20 15:07:14.346   663   663 I notification_enqueue: [10217,5482,app.aven.android,72,NULL,0,Notification(channel=aven_rest_live shortcut=null contentView=null vibrate=null sound=null defaults=0 flags=ONLY_ALERT_ONCE|AUTO_CANCEL color=0xffe8743b vis=PUBLIC),0,1]
+10-20 15:07:14.353   663   663 I notification_enqueue: [10217,5482,app.aven.android,71,NULL,0,Notification(channel=aven_rest_live shortcut=null contentView=null vibrate=null sound=null defaults=0 flags=ONGOING_EVENT|ONLY_ALERT_ONCE|FOREGROUND_SERVICE|LOCAL_ONLY color=0xffe8743b category=stopwatch actions=2 vis=PUBLIC),0,1]
+10-20 15:07:14.355   663   663 I notification_enqueue: [10217,5482,app.aven.android,71,NULL,0,Notification(channel=aven_rest_live shortcut=null contentView=null vibrate=null sound=null defaults=0 flags=ONGOING_EVENT|ONLY_ALERT_ONCE|FOREGROUND_SERVICE|LOCAL_ONLY color=0xffe8743b category=stopwatch actions=2 vis=PUBLIC),0,1]
+10-20 15:07:14.357   663   663 I notification_enqueue: [10217,5482,app.aven.android,71,NULL,0,Notification(channel=aven_rest_live shortcut=null contentView=app.aven.android/0x7f0b0028 vibrate=null sound=null defaults=0 flags=ONGOING_EVENT|ONLY_ALERT_ONCE|FOREGROUND_SERVICE|LOCAL_ONLY color=0xffe8743b category=stopwatch vis=PUBLIC),0,1]
+10-20 15:07:14.554   663   663 I notification_enqueue: [10217,5482,app.aven.android,0,0|app.aven.android|g:Aggregate_AlertingSection,0,Notification(channel=aven_rest_live shortcut=null contentView=null vibrate=null sound=null defaults=0 flags=ONGOING_EVENT|LOCAL_ONLY|GROUP_SUMMARY|AUTOGROUP_SUMMARY color=0xffe8743b groupKey=0|app.aven.android|g:Aggregate_AlertingSection vis=PUBLIC),0,0]
+10-20 15:07:15.362   663   663 I notification_enqueue: [10217,5482,app.aven.android,71,NULL,0,Notification(channel=aven_rest_live shortcut=null contentView=app.aven.android/0x7f0b0028 vibrate=null sound=null defaults=0 flags=ONGOING_EVENT|ONLY_ALERT_ONCE|FOREGROUND_SERVICE|LOCAL_ONLY color=0xffe8743b category=stopwatch vis=PUBLIC),1,1]
+10-20 15:07:16.359   663   663 I notification_enqueue: [10217,5482,app.aven.android,71,NULL,0,Notification(channel=aven_rest_live shortcut=null contentView=app.aven.android/0x7f0b0028 vibrate=null sound=null defaults=0 flags=ONGOING_EVENT|ONLY_ALERT_ONCE|FOREGROUND_SERVICE|LOCAL_ONLY color=0xffe8743b category=stopwatch vis=PUBLIC),1,1]
+10-20 15:07:17.359   663   663 I notification_enqueue: [10217,5482,app.aven.android,71,NULL,0,Notification(channel=aven_rest_live shortcut=null contentView=app.aven.android/0x7f0b0028 vibrate=null sound=null defaults=0 flags=ONGOING_EVENT|ONLY_ALERT_ONCE|FOREGROUND_SERVICE|LOCAL_ONLY color=0xffe8743b category=stopwatch vis=PUBLIC),1,1]
+10-20 15:07:18.359   663   663 I notification_enqueue: [10217,5482,app.aven.android,71,NULL,0,Notification(channel=aven_rest_live shortcut=null contentView=app.aven.android/0x7f0b0028 vibrate=null sound=null defaults=0 flags=ONGOING_EVENT|ONLY_ALERT_ONCE|FOREGROUND_SERVICE|LOCAL_ONLY color=0xffe8743b category=stopwatch vis=PUBLIC),1,1]
+10-20 15:07:19.362   663   663 I notification_enqueue: [10217,5482,app.aven.android,71,NULL,0,Notification(channel=aven_rest_live shortcut=null contentView=app.aven.android/0x7f0b0028 vibrate=null sound=null defaults=0 flags=ONGOING_EVENT|ONLY_ALERT_ONCE|FOREGROUND_SERVICE|LOCAL_ONLY color=0xffe8743b category=stopwatch vis=PUBLIC),1,1]
+10-20 15:07:20.362   663   663 I notification_enqueue: [10217,5482,app.aven.android,71,NULL,0,Notification(channel=aven_rest_live shortcut=null contentView=app.aven.android/0x7f0b0028 vibrate=null sound=null defaults=0 flags=ONGOING_EVENT|ONLY_ALERT_ONCE|FOREGROUND_SERVICE|LOCAL_ONLY color=0xffe8743b category=stopwatch vis=PUBLIC),1,1]
+10-20 15:07:21.359   663   663 I notification_enqueue: [10217,5482,app.aven.android,71,NULL,0,Notification(channel=aven_rest_live shortcut=null contentView=app.aven.android/0x7f0b0028 vibrate=null sound=null defaults=0 flags=ONGOING_EVENT|ONLY_ALERT_ONCE|FOREGROUND_SERVICE|LOCAL_ONLY color=0xffe8743b category=stopwatch vis=PUBLIC),1,1]
+10-20 15:07:22.360   663   663 I notification_enqueue: [10217,5482,app.aven.android,71,NULL,0,Notification(channel=aven_rest_live shortcut=null contentView=app.aven.android/0x7f0b0028 vibrate=null sound=null defaults=0 flags=ONGOING_EVENT|ONLY_ALERT_ONCE|FOREGROUND_SERVICE|LOCAL_ONLY color=0xffe8743b category=stopwatch vis=PUBLIC),1,1]
+10-20 15:07:23.359   663   663 I notification_enqueue: [10217,5482,app.aven.android,71,NULL,0,Notification(channel=aven_rest_live shortcut=null contentView=app.aven.android/0x7f0b0028 vibrate=null sound=null defaults=0 flags=ONGOING_EVENT|ONLY_ALERT_ONCE|FOREGROUND_SERVICE|LOCAL_ONLY color=0xffe8743b category=stopwatch vis=PUBLIC),1,1]
+10-20 15:07:24.359   663   663 I notification_enqueue: [10217,5482,app.aven.android,71,NULL,0,Notification(channel=aven_rest_live shortcut=null contentView=app.aven.android/0x7f0b0028 vibrate=null sound=null defaults=0 flags=ONGOING_EVENT|ONLY_ALERT_ONCE|FOREGROUND_SERVICE|LOCAL_ONLY color=0xffe8743b category=stopwatch vis=PUBLIC),1,1]
+10-20 15:07:25.359   663   663 I notification_enqueue: [10217,5482,app.aven.android,71,NULL,0,Notification(channel=aven_rest_live shortcut=null contentView=app.aven.android/0x7f0b0028 vibrate=null sound=null defaults=0 flags=ONGOING_EVENT|ONLY_ALERT_ONCE|FOREGROUND_SERVICE|LOCAL_ONLY color=0xffe8743b category=stopwatch vis=PUBLIC),1,1]
+10-20 15:07:26.351   663   663 I notification_canceled: [0|app.aven.android|72|null|10217,19,12005,12005,0,-1,-1,NULL]
+10-20 15:07:26.353   663   663 I notification_enqueue: [10217,5482,app.aven.android,0,0|app.aven.android|g:Aggregate_AlertingSection,0,Notification(channel=aven_rest_live shortcut=null contentView=null vibrate=null sound=null defaults=0 flags=ONGOING_EVENT|NO_CLEAR|LOCAL_ONLY|GROUP_SUMMARY|AUTOGROUP_SUMMARY color=0xffe8743b groupKey=0|app.aven.android|g:Aggregate_AlertingSection vis=PUBLIC),1,0]
+10-20 15:07:26.359   663   663 I notification_enqueue: [10217,5482,app.aven.android,71,NULL,0,Notification(channel=aven_rest_live shortcut=null contentView=app.aven.android/0x7f0b0028 vibrate=null sound=null defaults=0 flags=ONGOING_EVENT|ONLY_ALERT_ONCE|FOREGROUND_SERVICE|LOCAL_ONLY color=0xffe8743b category=stopwatch vis=PUBLIC),1,1]
+10-20 15:07:27.360   663   663 I notification_enqueue: [10217,5482,app.aven.android,71,NULL,0,Notification(channel=aven_rest_live shortcut=null contentView=app.aven.android/0x7f0b0028 vibrate=null sound=null defaults=0 flags=ONGOING_EVENT|ONLY_ALERT_ONCE|FOREGROUND_SERVICE|LOCAL_ONLY color=0xffe8743b category=stopwatch vis=PUBLIC),1,1]
+10-20 15:07:28.359   663   663 I notification_enqueue: [10217,5482,app.aven.android,71,NULL,0,Notification(channel=aven_rest_live shortcut=null contentView=app.aven.android/0x7f0b0028 vibrate=null sound=null defaults=0 flags=ONGOING_EVENT|ONLY_ALERT_ONCE|FOREGROUND_SERVICE|LOCAL_ONLY color=0xffe8743b category=stopwatch vis=PUBLIC),1,1]
+10-20 15:07:29.341   663   663 I notification_canceled: [0|app.aven.android|71|null|10217,8,14984,982,14504,-1,-1,NULL]
+10-20 15:07:29.342   663   663 I notification_canceled: [0|app.aven.android|0|0|app.aven.android|g:Aggregate_AlertingSection|10217|0|app.aven.android|g:Aggregate_AlertingSection,16,14795,14795,0,-1,-1,NULL]
+10-20 15:07:29.344   663   663 I notification_enqueue: [10217,5482,app.aven.android,72,NULL,0,Notification(channel=aven_rest_end shortcut=null contentView=null vibrate=null sound=null defaults=0 flags=AUTO_CANCEL color=0xffe8743b category=alarm actions=1 vis=PUBLIC),0,1]
+10-20 15:07:43.839   663   663 I notification_canceled: [0|app.aven.android|72|null|10217,8,14495,14495,3497,-1,-1,NULL]
+10-20 15:07:43.843   663   663 I notification_enqueue: [10217,5482,app.aven.android,72,NULL,0,Notification(channel=aven_rest_live shortcut=null contentView=null vibrate=null sound=null defaults=0 flags=ONLY_ALERT_ONCE|AUTO_CANCEL color=0xffe8743b vis=PUBLIC),0,1]
