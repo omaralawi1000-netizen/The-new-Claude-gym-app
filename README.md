@@ -3086,3 +3086,20 @@ Omar: "add all the data, GPS also, skin temperature and body composition, the on
 The Coach's watch look-up includes the new numbers. Left out on purpose: water and food logged in other apps (Aven has its
 own), blood pressure and glucose (no device), cycle tracking, speed/power/cadence (pace comes from distance and time).
 Already-connected phones are asked once for the new permissions (round 4).
+
+## Corrections, done on the spot (20 Oct 2026, v0.1.169)
+Omar's lunch, in four messages: "10 corn cakes" became 10 × a database's "serving (100 g)" = 4,200 kcal (to dinner, at
+15:27); "majskiks, move it to lunch" → the same mistake again (paprika ones, 4,170 kcal); "the plain ones, 8 of them" →
+only repeated back, plus a question about the brand; "about 75 kcal per 100 g" → "Couldn't find that in the log" twice for
+food it had just logged. His words: the first one is understandable, but when I explain, it should understand me like a
+real coach.
+- **Counted things are pieces** (`foodText.placeholderPortion`): a database's stand-in portion ("serving (100 g)",
+  "1 portion (100 g)", "100 g") is never taken as one of a counted thing unless they named it; how heavy one is gets
+  estimated instead. The Coach is told the same ("10 corn cakes" = 10 pieces of about 8 g).
+- **A fix finds the food wherever it went** (`pickEntry`): a meal that no longer holds it (the AI remembered dinner after
+  it was moved to lunch) falls back to any meal that day; a ref copied with its brackets or cut short ("e_mvgpz3edi7…")
+  is still read (it used to drop the whole fix without a word). A day asked for stays strict.
+- **HOW YOU COACH**: a correction is an instruction: change it in the same answer with their numbers and a best estimate
+  for the rest, say what changed; no repeating back, no asking for a brand.
+- Exam: `fix-pieces` and `fix-kcal` replay his thread (orb, Danish, dictated) with the items in the log: 4/4 fixed both
+  items, none asked about the brand ($0.01).

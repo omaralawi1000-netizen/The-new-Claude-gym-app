@@ -112,6 +112,7 @@ const ORB_BRIEF: string = (turn as any).ORB_BRIEF ?? ' They are speaking to the 
 async function ask(q: Question, contest: string | undefined, n: number): Promise<Result> {
   const now = nowFor(q);
   const d = PERSONAS[q.persona]();
+  q.tweak?.(d);
   const lang = q.lang ?? (d.settings.language === 'da' ? 'da' : 'en');
   const where = q.orb ? `${q.where ?? 'the main screen'}${ORB_BRIEF}` : (q.where ?? 'the Coach chat');
   const { system, today, mealLabel } = agentSystem(d, { lang, pool: SEED_EXERCISES, where, now });
