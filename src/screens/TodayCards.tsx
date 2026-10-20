@@ -5,7 +5,7 @@ import { useT, useLang } from '../lib/i18n';
 import { addDays, diffDays, fmtDate, startOfWeek } from '../lib/dates';
 import { MUSCLES, setsPerMuscle } from '../lib/stats';
 import { historyOf, incrementFor, suggestProgression } from '../lib/workout';
-import { fmtNum, kgToDisplay } from '../lib/units';
+import { fmtNum, kgToDisplay, mToDisplay } from '../lib/units';
 import { Icon } from '../ui/Icon';
 import type { AppData, MuscleGroup, PersonalRecord, RecordKind, Routine } from '../lib/types';
 import { exName, MUSCLE_LABEL } from './workout/common';
@@ -49,7 +49,7 @@ export function NextTargets({ d, today }: { d: AppData; today: string }) {
       const ex = map.get(item.exerciseId);
       if (!ex) return null;
       if (ex.logType !== 'weightReps') return { id: item.id, name: exName(ex, lang), main: `${item.workingSets} × ${item.repMin}–${item.repMax}`, up: null as string | null, first: false };
-      const inc = incrementFor(ex, d.increments, d.settings.plateStep);
+      const inc = incrementFor(ex, d.increments, d.settings.plateStep, d.settings.units.weight);
       const sug = suggestProgression(ex, historyOf(ex.id, d.sessions), { min: item.repMin, max: item.repMax }, inc);
       const s1 = sug.sets?.[0];
       if (sug.kind === 'first' || !s1 || s1.weightKg === undefined) return { id: item.id, name: exName(ex, lang), main: `${item.workingSets} × ${item.repMin}–${item.repMax}`, up: null, first: true };
@@ -153,7 +153,7 @@ export function RecentRecords({ d, today }: { d: AppData; today: string }) {
   const map = exerciseMap(d.exercises);
   // a best-set-volume record is shown as the set itself (80 kg × 8), not as a total that reads like a weight
   const setOf = (r: PersonalRecord, sid: string) => d.sessions.find((x) => x.id === sid)?.exercises.flatMap((e) => e.sets).find((x) => x.id === r.setId);
-  const val = (r: PersonalRecord, v: number) => r.kind === 'reps' ? `${v} ${t('reps')}` : r.kind === 'duration' ? `${v} s` : r.kind === 'distance' ? `${fmtNum(v / 1000, lang, 2)} km` : `${fmtNum(kgToDisplay(v, u), lang, r.kind === 'e1rm' ? 1 : 2)} ${u}`;
+  const val = (r: PersonalRecord, v: number) => r.kind === 'reps' ? `${v} ${t('reps')}` : r.kind === 'duration' ? `${v} s` : r.kind === 'distance' ? `${fmtNum(mToDisplay(v, d.settings.units.distance), lang, 2)} ${d.settings.units.distance}` : `${fmtNum(kgToDisplay(v, u), lang, r.kind === 'e1rm' ? 1 : 2)} ${u}`;
   const ago = (date: string) => { const n = diffDays(date, today); return n === 0 ? t('Today') : n === 1 ? t('Yesterday') : n < 7 ? fmtDate(date, lang, { weekday: 'short' }) : fmtDate(date, lang, { day: 'numeric', month: 'short' }); };
   return (
     <section className="plinth tc-card" aria-label={t('Recent records')}>

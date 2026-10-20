@@ -33,7 +33,8 @@ describe('newBest', () => {
     const as = [ses([set(30, 8)], 'apu')];
     expect(newBest('assisted', { weightKg: 30, reps: 9 }, 'apu', as)).toMatchObject({ kind: 'reps' });
     expect(newBest('assisted', { weightKg: 40, reps: 8 }, 'apu', as)).toBeNull(); // more help, same reps: not a best
-    expect(newBest('assisted', { weightKg: 20, reps: 5 }, 'apu', as)).toMatchObject({ kind: 'weight' }); // less help than ever
+    expect(newBest('assisted', { weightKg: 20, reps: 5 }, 'apu', as)).toBeNull(); // less help, fewer reps: not a record either (detectRecords counts reps)
+    expect(newBest('assisted', { weightKg: 20, reps: 9 }, 'apu', as)).toMatchObject({ kind: 'reps' });
     const pl = [ses([{ id: 'p', type: 'working', done: true, durationSec: 60 }], 'plank')];
     expect(newBest('duration', { durationSec: 75 }, 'plank', pl)).toMatchObject({ kind: 'duration' });
     expect(newBest('duration', { durationSec: 60 }, 'plank', pl)).toBeNull();

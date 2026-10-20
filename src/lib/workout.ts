@@ -1,6 +1,6 @@
 import type { Exercise, PersonalRecord, RecordKind, SetRecord, SessionExercise, WorkoutSession, Routine } from './types';
 import { uid } from './nutrition';
-import { fmtNum, kgToDisplay } from './units';
+import { fmtNum, kgToDisplay, KG_PER_LB } from './units';
 
 export const epley = (w: number, reps: number) => (reps <= 1 ? w : w * (1 + reps / 30));
 export const setVolume = (s: SetRecord) => (s.weightKg ?? 0) * (s.reps ?? 0);
@@ -14,12 +14,21 @@ export function sessionVolume(ex: SessionExercise[]): number {
   for (const e of ex) for (const s of e.sets) if (countable(s)) v += setVolume(s);
   return v;
 }
+/** Working sets (done, or all planned): warm-ups never count, as gyms and the weekly charts count sets. */
 export function sessionSetCount(ex: SessionExercise[], doneOnly = true): number {
   let n = 0;
-  for (const e of ex) for (const s of e.sets) if (!doneOnly || s.done) n++;
+  for (const e of ex) for (const s of e.sets) if (isWorking(s) && (!doneOnly || s.done)) n++;
   return n;
 }
 /** Active time = elapsed minus paused time. */
+/** A workout's name to show: an unnamed one (and one saved as the old English "Workout") reads "Workout" in the app's language. */
+export function workoutName(name: string | undefined, t: (k: string) => string): string {
+  const n = (name ?? '').trim();
+  return !n || n === 'Workout' ? t('Workout') : n;
+}
+/** Names compared for "same workout as last time": unnamed and the old saved "Workout" are the same. */
+const nameKey = (name: string | undefined) => (name ?? '').trim().toLowerCase() || 'workout';
+
 export function elapsedMs(s: WorkoutSession, now = Date.now()): number {
   const end = s.endedAt ?? now;
   const paused = s.pausedMs + (s.pausedAt && !s.endedAt ? now - s.pausedAt : 0);
@@ -119,11 +128,24 @@ export interface Suggestion {
   reasonVars: Record<string, string | number>;
 }
 
-/** How much one step of progression adds: the exercise's own setting, else 2 kg for dumbbells, else the default step. */
-export function incrementFor(ex: Pick<Exercise, 'id' | 'equipment'>, overrides: Record<string, number> = {}, step = 2.5): number {
+/** The jumps pound plates come in: a kg step is read as the nearest of these for someone training in lb. */
+export const LB_STEPS = [1, 2.5, 5, 10, 20];
+/** A step in kg as a whole-plate pound step (in kg again): 2.5 kg → 5 lb, 2 kg → 5 lb, 1.25 kg → 2.5 lb. */
+export function lbStepKg(kg: number): number {
+  const lb = kg / KG_PER_LB;
+  const near = LB_STEPS.reduce((b, x) => (Math.abs(x - lb) < Math.abs(b - lb) ? x : b), LB_STEPS[0]);
+  return near * KG_PER_LB;
+}
+
+/**
+ * How much one step of progression adds (in kg): the exercise's own setting, else 2 kg for dumbbells, else the default step.
+ * In pounds the default is a pound step (5 lb, not 2.5 kg = 5.5 lb), so 225 lb goes to 230, not 230.5.
+ */
+export function incrementFor(ex: Pick<Exercise, 'id' | 'equipment'>, overrides: Record<string, number> = {}, step = 2.5, unit: 'kg' | 'lb' = 'kg'): number {
   const own = overrides[ex.id];
   if (own && own > 0) return own;
-  return ex.equipment.includes('dumbbell') ? 2 : step;
+  const kg = ex.equipment.includes('dumbbell') ? 2 : step;
+  return unit === 'lb' ? lbStepKg(kg) : kg;
 }
 
 /** Every past performance of an exercise in finished sessions, newest first. */
@@ -206,9 +228,9 @@ export function repRange(sets: SetRecord[]): { min: number; max: number } {
 }
 
 /** A new workout's sets for one exercise, with this session's progression filled in (weight × reps exercises only). */
-export function planSets(ex: Exercise | undefined, sets: SetRecord[], sessions: WorkoutSession[], increments: Record<string, number>, step: number): SetRecord[] {
+export function planSets(ex: Exercise | undefined, sets: SetRecord[], sessions: WorkoutSession[], increments: Record<string, number>, step: number, unit: 'kg' | 'lb' = 'kg'): SetRecord[] {
   if (!ex || ex.logType !== 'weightReps') return sets;
-  const sug = suggestProgression(ex, historyOf(ex.id, sessions), repRange(sets), incrementFor(ex, increments, step));
+  const sug = suggestProgression(ex, historyOf(ex.id, sessions), repRange(sets), incrementFor(ex, increments, step, unit));
   return fillPlan(sets, sug.sets);
 }
 
@@ -251,10 +273,9 @@ export function newBest(lt: string, now: { weightKg?: number; reps?: number; dur
   const w = now.weightKg ?? 0, r = now.reps ?? 0;
   if (!r) return null;
   if (lt === 'assisted') {
-    // less help is harder: a best is more reps than ever with this much help or less
-    const same = prior.filter((p) => (p.weightKg ?? 0) <= w + 1e-6 && p.reps);
-    if (same.length) return r > Math.max(...same.map((p) => p.reps ?? 0)) ? { kind: 'reps', weightKg: w, reps: r } : null;
-    return prior.some((p) => p.reps) ? { kind: 'weight', weightKg: w, reps: r } : null; // less help than ever
+    // as the saved records count it (detectRecords): more reps than ever
+    const most = Math.max(0, ...prior.map((p) => p.reps ?? 0));
+    return most > 0 && r > most ? { kind: 'reps', weightKg: w, reps: r } : null;
   }
   const atLeast = prior.filter((p) => (p.weightKg ?? 0) >= w - 1e-6 && p.reps);
   if (atLeast.length) return r > Math.max(...atLeast.map((p) => p.reps ?? 0)) ? { kind: 'reps', weightKg: w, reps: r } : null;
@@ -281,7 +302,7 @@ export function sessionHeadline(ses: WorkoutSession, history: WorkoutSession[], 
   }
   const prior = history.filter((h) => h.id !== ses.id && h.status === 'done' && (h.endedAt ?? 0) < (ses.endedAt ?? Date.now()));
   const vol = sessionVolume(ses.exercises);
-  const same = prior.filter((h) => (ses.routineId ? h.routineId === ses.routineId : h.name.trim().toLowerCase() === ses.name.trim().toLowerCase()))
+  const same = prior.filter((h) => (ses.routineId ? h.routineId === ses.routineId : nameKey(h.name) === nameKey(ses.name)))
     .sort((a, b) => (b.endedAt ?? 0) - (a.endedAt ?? 0));
   if (vol > 0 && same.length) {
     if (same.length >= 2 && same.every((h) => vol > sessionVolume(h.exercises))) return { key: 'Your biggest {name} session yet', vars: { name: ses.name } };

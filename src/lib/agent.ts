@@ -31,7 +31,7 @@ import { currentSetOf } from './currentSet';
 import { fixMisheard } from './setCommand';
 import { EQUIP_LABEL, MUSCLE_LABEL } from '../screens/workout/common';
 import { muscleOf } from './agentLookup';
-import { detectRecords } from './workout';
+import { detectRecords, workoutName } from './workout';
 import { buildDayPlan, pickForMuscles } from './planDay';
 import { specOf } from './settingSpec';
 import { weekdayOf } from './dates';
@@ -1090,7 +1090,7 @@ function doDeleteWorkout(a: Extract<AgentAction, { type: 'delete_workout' }>, ct
   const ses = !w || w === 'last' ? done[done.length - 1] : [...done].reverse().find((s) => s.date === a.workout || fold(s.name).includes(w));
   if (!ses) return { id: uid('r'), kind: 'miss', title: t('Couldn’t find that workout'), lines: a.workout ? [{ text: a.workout, warn: true }] : [] };
   const sets = ses.exercises.reduce((n, e) => n + e.sets.filter((x) => x.done).length, 0);
-  return preview({ id: uid('r'), kind: 'workout', title: t('Delete this workout?'), key: `delworkout:${ses.id}`, lines: [{ text: ses.name || t('Workout'), sub: `${ses.date} · ${ses.exercises.length} ${t('exercises')} · ${sets} ${t('sets')}` }] }, t('Delete'), () => {
+  return preview({ id: uid('r'), kind: 'workout', title: t('Delete this workout?'), key: `delworkout:${ses.id}`, lines: [{ text: workoutName(ses.name, t), sub: `${ses.date} · ${ses.exercises.length} ${t('exercises')} · ${sets} ${t('sets')}` }] }, t('Delete'), () => {
     useStore.getState().deleteSession(ses.id);
     return () => useStore.getState().restoreSession(ses);
   });
@@ -1100,7 +1100,7 @@ function doDiscardWorkout(ctx: AgentCtx): AgentResult {
   const { t } = ctx;
   const st = useStore.getState();
   if (!st.active) return { id: uid('r'), kind: 'miss', title: t('No workout is running'), lines: [] };
-  const done = st.active.exercises.reduce((n, e) => n + e.sets.filter((s) => s.done).length, 0);
+  const done = st.active.exercises.reduce((n, e) => n + e.sets.filter((s) => s.done && s.type === 'working').length, 0);
   return {
     id: uid('r'), kind: 'workout', pending: true, title: t('Discard this workout?'), lines: [{ text: st.active.name || t('Workout'), sub: t(done === 1 ? '1 set done' : '{n} sets done', { n: done }) }],
     button: { label: t('Discard'), run: () => { useStore.getState().discardActive(); } },
@@ -1899,7 +1899,8 @@ function doFinishWorkout(ctx: AgentCtx): AgentResult {
   const { t } = ctx;
   const st = useStore.getState();
   if (!st.active) return { id: uid('r'), kind: 'miss', title: t('No workout is running'), lines: [] };
-  const done = st.active.exercises.reduce((n, e) => n + e.sets.filter((s) => s.done).length, 0);
+  const done = st.active.exercises.reduce((n, e) => n + e.sets.filter((s) => s.done && s.type === 'working').length, 0);
+  if (!done) return { id: uid('r'), kind: 'miss', title: t('No sets yet'), lines: [{ text: st.active.name || t('Workout') }] }; // warm-ups alone are not saved
   return {
     id: uid('r'), kind: 'workout', pending: true, title: t('Finish this workout?'), lines: [{ text: st.active.name || t('Workout'), sub: t(done === 1 ? '1 set done' : '{n} sets done', { n: done }) }],
     button: { label: t('Finish and save'), run: () => { const r = useStore.getState().finishActive(); if (r) { useUI.getState().push('summary', { sessionId: r.id }); } } },

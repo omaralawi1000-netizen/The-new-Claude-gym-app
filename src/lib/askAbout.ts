@@ -12,6 +12,7 @@ import { mealName } from './derive';
 import { runLookups } from './agentLookup';
 import { buildChart, type ChartMetric } from './agentCharts';
 import { tNow } from './i18n';
+import { workoutName } from './workout';
 
 export type AskKind = 'food' | 'lift' | 'workout' | 'chart';
 /** What the Coach is asked about: a chip in the Coach (icon + label), the words the model gets, the questions offered. */
@@ -68,7 +69,7 @@ export function aboutFrom(tag: string): About | null {
     const mins = ses.endedAt ? Math.round((ses.endedAt - ses.startedAt - (ses.pausedMs ?? 0)) / 60000) : undefined;
     const when = fmtDate(ses.date, lang, { weekday: 'short', day: 'numeric', month: 'short' });
     return {
-      kind: k, icon: 'clock', label: `${ses.name || t('Workout')} · ${when}`, title: ses.name || t('Workout'),
+      kind: k, icon: 'clock', label: `${workoutName(ses.name, t)} · ${when}`, title: workoutName(ses.name, t),
       detail: `a finished workout: ${ses.name || 'Workout'} on ${ses.date}${mins ? `, ${mins} min` : ''} (weights in kg; they see ${unit}).\n${cap(lines.join('\n'))}`,
       asks: [t('How did this workout go?'), t('What should I change next time?'), t('Compare it with the time before')],
     };

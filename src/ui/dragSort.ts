@@ -50,6 +50,8 @@ export function startDragSort(e: React.PointerEvent, root: HTMLElement | null, i
   // near the top or bottom edge of the list's scroller, it scrolls by itself (faster the closer you are)
   const tick = () => {
     if (done) return;
+    // the list went away mid-drag (the sheet closed): let go, so nothing stays lifted or keeps running
+    if (!grip.isConnected || !root.isConnected) { end(); return; }
     const box = scroller.getBoundingClientRect();
     const edge = 72;
     const v = lastY < box.top + edge ? -(box.top + edge - lastY) / edge : lastY > box.bottom - edge ? (lastY - (box.bottom - edge)) / edge : 0;
@@ -59,17 +61,19 @@ export function startDragSort(e: React.PointerEvent, root: HTMLElement | null, i
   raf = requestAnimationFrame(tick);
 
   const onMove = (ev: PointerEvent) => { if (ev.pointerId !== e.pointerId) return; lastY = ev.clientY; place(); };
-  const finish = (ev: PointerEvent) => {
-    if (ev.pointerId !== e.pointerId || done) return;
+  const finish = (ev: PointerEvent) => { if (ev.pointerId === e.pointerId) end(); };
+  const end = () => {
+    if (done) return;
     done = true;
     cancelAnimationFrame(raf);
     grip.removeEventListener('pointermove', onMove);
     grip.removeEventListener('pointerup', finish);
     grip.removeEventListener('pointercancel', finish);
+    grip.removeEventListener('lostpointercapture', finish);
     // where each card is drawn now (lifted, or stepped aside)…
     const was = new Map(cards.map((c) => [c.dataset.flip!, c.getBoundingClientRect().top]));
     cards.forEach((c) => { c.style.transform = ''; c.classList.remove('drag-sib'); });
-    if (to !== from) { flushSync(() => move(from, to)); haptic('saved'); }
+    if (to !== from && root.isConnected) { flushSync(() => move(from, to)); haptic('saved'); }
     // …and where it belongs now: each one glides the difference; the lifted one settles back to its size as it lands
     for (const c of root.querySelectorAll<HTMLElement>('[data-flip]')) {
       const before = was.get(c.dataset.flip!);
@@ -87,4 +91,6 @@ export function startDragSort(e: React.PointerEvent, root: HTMLElement | null, i
   grip.addEventListener('pointermove', onMove);
   grip.addEventListener('pointerup', finish);
   grip.addEventListener('pointercancel', finish);
+  // the browser took the pointer away (a system gesture, the grip re-rendered): the same as letting go
+  grip.addEventListener('lostpointercapture', finish);
 }
