@@ -21,6 +21,7 @@ import { useStore } from '../state/store';
 import { useUI } from '../state/ui';
 import { tNow } from './i18n';
 import { parseDetail, saveWatchDetail, type WatchDetail } from './watchDetail';
+import { settleWrites } from './hcWrite';
 
 export interface HcWorkout { id: string; t: string; n?: string; s: number; e: number; hr?: number; hx?: number; kc?: number; m?: number; src?: string }
 export interface HcPayload {
@@ -197,6 +198,9 @@ export function applyHcFromAddress(): void {
   let hash = location.hash;
   try { hash = decodeURIComponent(hash); } catch { /* as it is */ }
   if (!/(?:^#|&)hc=/.test(hash)) return;
+  // how writing the weigh-ins and food handed along went (lib/hcWrite.ts)
+  const hw = /(?:^#|&)hw=([a-z0-9]{1,12})/.exec(hash);
+  if (hw) settleWrites(hw[1]);
   // (out of the address either way: a reload or a shared link must not carry it)
   try { history.replaceState(history.state, '', location.pathname + location.search); } catch { /* fine */ }
   // a squeezed answer (the usual one now) is unpacked first: a moment later
@@ -258,8 +262,8 @@ function takeAsk(): 'connect' | 'sync' | 'off' | null {
 
 /** "Connect watch" and friends: the Android app's link (it opens Aven again at this page). Without the app the phone
  *  offers the app's download instead. */
-export function hcLink(what: 'connect' | 'sync' | 'off'): string {
-  const ret = encodeURIComponent(location.origin + location.pathname);
+export function hcLink(what: 'connect' | 'sync' | 'off', writes?: string | null): string {
+  const ret = encodeURIComponent(location.origin + location.pathname) + (writes ? `&w=${writes}` : '');
   const fallback = encodeURIComponent('https://github.com/omaralawi1000-netizen/The-new-Claude-gym-app/releases/download/android-latest/aven.apk');
   return `intent://health/${what}?return=${ret}#Intent;scheme=aven;package=app.aven.android;S.browser_fallback_url=${fallback};end`;
 }
