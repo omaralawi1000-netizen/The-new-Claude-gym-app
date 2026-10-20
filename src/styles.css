@@ -864,8 +864,93 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .pulse-dot.sm::before { animation-name: pulseSm; }
 .pulse-dot.still { background: var(--tx3); }
 .pulse-dot.still::before { animation: none; }
-@keyframes pulse { 0% { opacity: .6; transform: scale(.3077); } 70% { opacity: 0; transform: scale(1); } 100% { opacity: 0; transform: scale(.3077); } }
-@keyframes pulseSm { 0% { opacity: .6; transform: scale(.25); } 70% { opacity: 0; transform: scale(1); } 100% { opacity: 0; transform: scale(.25); } }
+/* The ring is drawn 30 times a second, not every frame: a smooth one kept the whole screen redrawing at 120 Hz for as long
+   as a workout ran (the dot sits on Today and in the dock). Same ease, sampled (scratchpad generator: 1.26 s visible part,
+   38 steps); the invisible tail is one jump. */
+@keyframes pulse {
+  0% { opacity: 0.6000; transform: scale(0.3077); animation-timing-function: steps(1, end); }
+  1.8421% { opacity: 0.5916; transform: scale(0.3174); animation-timing-function: steps(1, end); }
+  3.6842% { opacity: 0.5787; transform: scale(0.3322); animation-timing-function: steps(1, end); }
+  5.5263% { opacity: 0.5610; transform: scale(0.3527); animation-timing-function: steps(1, end); }
+  7.3684% { opacity: 0.5382; transform: scale(0.3791); animation-timing-function: steps(1, end); }
+  9.2105% { opacity: 0.5105; transform: scale(0.4109); animation-timing-function: steps(1, end); }
+  11.0526% { opacity: 0.4789; transform: scale(0.4475); animation-timing-function: steps(1, end); }
+  12.8947% { opacity: 0.4443; transform: scale(0.4873); animation-timing-function: steps(1, end); }
+  14.7368% { opacity: 0.4084; transform: scale(0.5288); animation-timing-function: steps(1, end); }
+  16.5789% { opacity: 0.3725; transform: scale(0.5702); animation-timing-function: steps(1, end); }
+  18.4211% { opacity: 0.3377; transform: scale(0.6104); animation-timing-function: steps(1, end); }
+  20.2632% { opacity: 0.3046; transform: scale(0.6485); animation-timing-function: steps(1, end); }
+  22.1053% { opacity: 0.2738; transform: scale(0.6841); animation-timing-function: steps(1, end); }
+  23.9474% { opacity: 0.2452; transform: scale(0.7170); animation-timing-function: steps(1, end); }
+  25.7895% { opacity: 0.2190; transform: scale(0.7473); animation-timing-function: steps(1, end); }
+  27.6316% { opacity: 0.1950; transform: scale(0.7750); animation-timing-function: steps(1, end); }
+  29.4737% { opacity: 0.1731; transform: scale(0.8002); animation-timing-function: steps(1, end); }
+  31.3158% { opacity: 0.1532; transform: scale(0.8233); animation-timing-function: steps(1, end); }
+  33.1579% { opacity: 0.1350; transform: scale(0.8442); animation-timing-function: steps(1, end); }
+  35% { opacity: 0.1186; transform: scale(0.8632); animation-timing-function: steps(1, end); }
+  36.8421% { opacity: 0.1036; transform: scale(0.8805); animation-timing-function: steps(1, end); }
+  38.6842% { opacity: 0.0901; transform: scale(0.8961); animation-timing-function: steps(1, end); }
+  40.5263% { opacity: 0.0778; transform: scale(0.9102); animation-timing-function: steps(1, end); }
+  42.3684% { opacity: 0.0667; transform: scale(0.9230); animation-timing-function: steps(1, end); }
+  44.2105% { opacity: 0.0568; transform: scale(0.9345); animation-timing-function: steps(1, end); }
+  46.0526% { opacity: 0.0479; transform: scale(0.9448); animation-timing-function: steps(1, end); }
+  47.8947% { opacity: 0.0399; transform: scale(0.9540); animation-timing-function: steps(1, end); }
+  49.7368% { opacity: 0.0328; transform: scale(0.9621); animation-timing-function: steps(1, end); }
+  51.5789% { opacity: 0.0266; transform: scale(0.9694); animation-timing-function: steps(1, end); }
+  53.4211% { opacity: 0.0211; transform: scale(0.9757); animation-timing-function: steps(1, end); }
+  55.2632% { opacity: 0.0163; transform: scale(0.9812); animation-timing-function: steps(1, end); }
+  57.1053% { opacity: 0.0123; transform: scale(0.9858); animation-timing-function: steps(1, end); }
+  58.9474% { opacity: 0.0088; transform: scale(0.9898); animation-timing-function: steps(1, end); }
+  60.7895% { opacity: 0.0060; transform: scale(0.9930); animation-timing-function: steps(1, end); }
+  62.6316% { opacity: 0.0038; transform: scale(0.9956); animation-timing-function: steps(1, end); }
+  64.4737% { opacity: 0.0021; transform: scale(0.9976); animation-timing-function: steps(1, end); }
+  66.3158% { opacity: 0.0009; transform: scale(0.9989); animation-timing-function: steps(1, end); }
+  68.1579% { opacity: 0.0002; transform: scale(0.9997); animation-timing-function: steps(1, end); }
+  70% { opacity: 0.0000; transform: scale(1.0000); animation-timing-function: steps(1, end); }
+  100% { opacity: 0; transform: scale(0.3077); }
+}
+@keyframes pulseSm {
+  0% { opacity: 0.6000; transform: scale(0.2500); animation-timing-function: steps(1, end); }
+  1.8421% { opacity: 0.5916; transform: scale(0.2605); animation-timing-function: steps(1, end); }
+  3.6842% { opacity: 0.5787; transform: scale(0.2766); animation-timing-function: steps(1, end); }
+  5.5263% { opacity: 0.5610; transform: scale(0.2988); animation-timing-function: steps(1, end); }
+  7.3684% { opacity: 0.5382; transform: scale(0.3273); animation-timing-function: steps(1, end); }
+  9.2105% { opacity: 0.5105; transform: scale(0.3618); animation-timing-function: steps(1, end); }
+  11.0526% { opacity: 0.4789; transform: scale(0.4014); animation-timing-function: steps(1, end); }
+  12.8947% { opacity: 0.4443; transform: scale(0.4446); animation-timing-function: steps(1, end); }
+  14.7368% { opacity: 0.4084; transform: scale(0.4895); animation-timing-function: steps(1, end); }
+  16.5789% { opacity: 0.3725; transform: scale(0.5344); animation-timing-function: steps(1, end); }
+  18.4211% { opacity: 0.3377; transform: scale(0.5779); animation-timing-function: steps(1, end); }
+  20.2632% { opacity: 0.3046; transform: scale(0.6192); animation-timing-function: steps(1, end); }
+  22.1053% { opacity: 0.2738; transform: scale(0.6578); animation-timing-function: steps(1, end); }
+  23.9474% { opacity: 0.2452; transform: scale(0.6935); animation-timing-function: steps(1, end); }
+  25.7895% { opacity: 0.2190; transform: scale(0.7262); animation-timing-function: steps(1, end); }
+  27.6316% { opacity: 0.1950; transform: scale(0.7562); animation-timing-function: steps(1, end); }
+  29.4737% { opacity: 0.1731; transform: scale(0.7836); animation-timing-function: steps(1, end); }
+  31.3158% { opacity: 0.1532; transform: scale(0.8085); animation-timing-function: steps(1, end); }
+  33.1579% { opacity: 0.1350; transform: scale(0.8312); animation-timing-function: steps(1, end); }
+  35% { opacity: 0.1186; transform: scale(0.8518); animation-timing-function: steps(1, end); }
+  36.8421% { opacity: 0.1036; transform: scale(0.8705); animation-timing-function: steps(1, end); }
+  38.6842% { opacity: 0.0901; transform: scale(0.8874); animation-timing-function: steps(1, end); }
+  40.5263% { opacity: 0.0778; transform: scale(0.9027); animation-timing-function: steps(1, end); }
+  42.3684% { opacity: 0.0667; transform: scale(0.9166); animation-timing-function: steps(1, end); }
+  44.2105% { opacity: 0.0568; transform: scale(0.9290); animation-timing-function: steps(1, end); }
+  46.0526% { opacity: 0.0479; transform: scale(0.9402); animation-timing-function: steps(1, end); }
+  47.8947% { opacity: 0.0399; transform: scale(0.9501); animation-timing-function: steps(1, end); }
+  49.7368% { opacity: 0.0328; transform: scale(0.9590); animation-timing-function: steps(1, end); }
+  51.5789% { opacity: 0.0266; transform: scale(0.9668); animation-timing-function: steps(1, end); }
+  53.4211% { opacity: 0.0211; transform: scale(0.9737); animation-timing-function: steps(1, end); }
+  55.2632% { opacity: 0.0163; transform: scale(0.9796); animation-timing-function: steps(1, end); }
+  57.1053% { opacity: 0.0123; transform: scale(0.9847); animation-timing-function: steps(1, end); }
+  58.9474% { opacity: 0.0088; transform: scale(0.9889); animation-timing-function: steps(1, end); }
+  60.7895% { opacity: 0.0060; transform: scale(0.9925); animation-timing-function: steps(1, end); }
+  62.6316% { opacity: 0.0038; transform: scale(0.9953); animation-timing-function: steps(1, end); }
+  64.4737% { opacity: 0.0021; transform: scale(0.9974); animation-timing-function: steps(1, end); }
+  66.3158% { opacity: 0.0009; transform: scale(0.9989); animation-timing-function: steps(1, end); }
+  68.1579% { opacity: 0.0002; transform: scale(0.9997); animation-timing-function: steps(1, end); }
+  70% { opacity: 0.0000; transform: scale(1.0000); animation-timing-function: steps(1, end); }
+  100% { opacity: 0; transform: scale(0.25); }
+}
 @keyframes settle { 0% { background-color: var(--ac-soft); } 100% { background-color: transparent; } }
 .settle { animation: settle 1400ms var(--ease-out) both; border-radius: var(--r-sm); }
 .empty { text-align: center; padding: 34px 20px; color: var(--tx2); }
@@ -1136,9 +1221,15 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-bar.rest .wk-bar-orb::before { opacity: .75; }
 .wk-bar.go .wk-bar-orb::before { opacity: 1; }
 /* the one Finish: once every set is ticked it glows softly; tapping the bar's "all done" nudges it */
-.wk-finish.ready { animation: finishGlow 2.4s ease-in-out infinite; }
-@keyframes finishGlow { 0%, 100% { box-shadow: 0 6px 18px -8px color-mix(in srgb, var(--ac) 70%, transparent); } 50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--ac) 22%, transparent), 0 8px 28px -6px var(--ac); } }
-.wk-finish.nudge { animation: finishNudge 700ms var(--ease-spring) 1, finishGlow 2.4s ease-in-out 700ms infinite; }
+/* (The glow is a still shadow plus a fading copy of the bright one: an animated box-shadow repainted the page on the main
+   thread every frame, for as long as the button waited, even with the workout minimised.) */
+.wk-finish.ready { box-shadow: 0 6px 18px -8px color-mix(in srgb, var(--ac) 70%, transparent); }
+.wk-finish.ready::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--ac) 22%, transparent), 0 8px 28px -6px var(--ac); animation: finishGlow 2.4s ease-in-out infinite; }
+@keyframes finishGlow { 0%, 100% { opacity: 0; } 50% { opacity: 1; } }
+.wk-finish.nudge { animation: finishNudge 700ms var(--ease-spring) 1; }
+.wk-finish.nudge::after { animation-delay: 700ms; }
+.wk-off .wk-finish.ready::after { animation-play-state: paused; }
 @keyframes finishNudge { 0% { transform: scale(1); } 35% { transform: scale(1.12); } 100% { transform: scale(1); } }
 /* end-of-workout sheet: three calm tiles, a line, then the choice — each settling in after the one before */
 .wk-end-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
@@ -1148,7 +1239,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-end-note { margin: 14px 2px 16px; animation: endIn 520ms 140ms var(--ease-out) both; }
 .wk-end-btn { animation: endIn 560ms calc(180ms + var(--i, 0) * 60ms) var(--ease-out) both; }
 @keyframes endIn { from { opacity: 0; transform: translateY(10px); } }
-@media (prefers-reduced-motion: reduce) { .wk-finish.ready, .wk-finish.nudge, .wk-end-stats > div, .wk-end-note, .wk-end-btn { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .wk-finish.ready, .wk-finish.nudge, .wk-finish.ready::after, .wk-end-stats > div, .wk-end-note, .wk-end-btn { animation: none; } }
 /* the bar's "next set": the row it scrolled to glows once */
 .wk-flash { animation: wkFlash 1.4s var(--ease-out) 1; border-radius: 12px; }
 @keyframes wkFlash { 0%, 30% { background: color-mix(in srgb, var(--ac) 22%, transparent); } 100% { background: transparent; } }
