@@ -6,6 +6,7 @@ import { addDays, dayKey, weekdayOf } from '../src/lib/dates';
 import { defaultData } from '../src/state/defaults';
 import type { Routine, WorkoutSession } from '../src/lib/types';
 import { workoutName } from '../src/lib/workout';
+import { setValues, DEFAULT_HOLD_SEC } from '../src/screens/workout/complete';
 import { makeT, loadDanish } from '../src/lib/i18n';
 
 const routine = (id: string, name = id): Routine => ({ id, name, items: [], createdAt: 0, updatedAt: 0 } as unknown as Routine);
@@ -121,5 +122,14 @@ describe('rotation', () => {
     expect(rotationWithout(rot(['A', 'B', 'C'], 1), (_, i) => i === 1)).toMatchObject({ order: ['A', 'C'], pointer: 1 }); // the next one removed: the one after it
     expect(rotationWithout(rot(['A', 'B', 'C'], 2), (_, i) => i === 2)).toMatchObject({ order: ['A', 'B'], pointer: 0 });
     expect(rotationWithout(rot(['A'], 0), () => true)).toMatchObject({ order: [], pointer: 0 });
+  });
+});
+
+describe('a hold never logged before', () => {
+  it('is ticked with the seconds its placeholder shows', () => {
+    useStore.setState({ active: { id: 'w', name: '', date: '2026-10-20', startedAt: Date.now(), pausedMs: 0, status: 'active', exercises: [{ id: 'e', exerciseId: 'wall-sit', sets: [{ id: 's', type: 'working', done: false }] }] } as WorkoutSession });
+    const r = setValues('e', 's')!;
+    expect(r.valid).toBe(true);
+    expect(r.values.durationSec).toBe(DEFAULT_HOLD_SEC);
   });
 });

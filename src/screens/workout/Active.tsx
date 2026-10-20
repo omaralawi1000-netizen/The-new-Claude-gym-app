@@ -15,7 +15,7 @@ import { displayToKg, kgToDisplay, fmtNum, displayToM, mToDisplay } from '../../
 import { useNow } from '../../lib/hooks';
 import { setWorkoutOpener } from '../../ui/workoutOpen';
 import { nextSetOf, prepareRestAudio } from './rest';
-import { completeSet, onSetDone } from './complete';
+import { completeSet, onSetDone, DEFAULT_HOLD_SEC } from './complete';
 import { Briefing, LiftHints, useLiftHint } from './Briefing';
 import { addSet, deleteSet, moveExercise, patchExercise, patchSet, removeExercise, adjustRest, skipRest, toggleSuperset } from './actions';
 import { exName, fmtSet, MUSCLE_LABEL } from './common';
@@ -916,7 +916,7 @@ const SetRow = memo(function SetRow({ se, set, ex, label, prev, restDefault }: {
   const eff = {
     weightKg: set.weightKg ?? target?.weightKg ?? prev?.weightKg,
     reps: set.reps ?? (target?.repMax ?? prev?.reps),
-    durationSec: set.durationSec ?? prev?.durationSec,
+    durationSec: set.durationSec ?? prev?.durationSec ?? (lt === 'duration' ? DEFAULT_HOLD_SEC : undefined), // as its grey placeholder shows
     distanceM: set.distanceM ?? prev?.distanceM,
   };
 
@@ -936,7 +936,7 @@ const SetRow = memo(function SetRow({ se, set, ex, label, prev, restDefault }: {
       if (useStore.getState().active?.rest?.setId === set.id) skipRest(); // only the rest this set's tick started
       return;
     }
-    if (!completeSet(se.id, set.id, eff)) { setShake((n) => n + 1); haptic('warn'); toast(t('Enter reps first'), { tone: 'bad', duration: 1800 }); }
+    if (!completeSet(se.id, set.id, eff)) { setShake((n) => n + 1); haptic('warn'); toast(t(lt === 'duration' ? 'Enter a time first' : lt === 'distance' ? 'Enter a distance or time first' : 'Enter reps first'), { tone: 'bad', duration: 1800 }); }
   };
 
   const remove = () => {
@@ -965,7 +965,7 @@ const SetRow = memo(function SetRow({ se, set, ex, label, prev, restDefault }: {
           {/* a hold reads in the column's own unit ("66s" over SECONDS, not "1:06" beside a 66), as the records write it */}
           {prev ? (lt === 'duration' ? (prev.durationSec ? `${prev.durationSec}s` : '—') : fmtSet(prev, ex, u, lang, t).replace(/ (kg|lb)/, '')) : '—'}
         </button>
-        {lt === 'duration' && field(set.durationSec, prev?.durationSec ?? 45, (v) => patchSet(se.id, set.id, { durationSec: v }), 0, t('Seconds'), complete)}
+        {lt === 'duration' && field(set.durationSec, prev?.durationSec ?? DEFAULT_HOLD_SEC, (v) => patchSet(se.id, set.id, { durationSec: v }), 0, t('Seconds'), complete)}
         {lt === 'distance' && <>
           {field(set.distanceM === undefined ? undefined : Math.round(mToDisplay(set.distanceM, u.distance) * 100) / 100, prev?.distanceM ? mToDisplay(prev.distanceM, u.distance) : undefined, (v) => patchSet(se.id, set.id, { distanceM: v === undefined ? undefined : displayToM(v, u.distance) }), 2, t('Distance'))}
           {field(set.durationSec === undefined ? undefined : Math.round((set.durationSec / 60) * 10) / 10, prev?.durationSec ? prev.durationSec / 60 : undefined, (v) => patchSet(se.id, set.id, { durationSec: v === undefined ? undefined : Math.round(v * 60) }), 1, t('Minutes'), complete)}

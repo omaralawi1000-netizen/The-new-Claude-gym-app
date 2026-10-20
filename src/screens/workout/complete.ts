@@ -16,6 +16,9 @@ export function onSetDone(setId: string, fn: (d: SetDone) => void): () => void {
   return () => { if (listeners.get(setId) === fn) listeners.delete(setId); };
 }
 
+/** A hold never logged before shows (and is ticked with) this many seconds. */
+export const DEFAULT_HOLD_SEC = 45;
+
 type Values = Partial<Pick<SetRecord, 'weightKg' | 'reps' | 'durationSec' | 'distanceM'>>;
 
 /** The numbers a set is done with: what was said or typed, else what the row shows (its plan, else last time). */
@@ -35,7 +38,7 @@ export function setValues(seId: string, setId: string, over: Values = {}): { val
   const values: Values = {
     weightKg: over.weightKg ?? set.weightKg ?? set.target?.weightKg ?? prev?.weightKg,
     reps: over.reps ?? set.reps ?? set.target?.repMax ?? prev?.reps,
-    durationSec: over.durationSec ?? set.durationSec ?? prev?.durationSec,
+    durationSec: over.durationSec ?? set.durationSec ?? prev?.durationSec ?? (lt === 'duration' ? DEFAULT_HOLD_SEC : undefined),
     distanceM: over.distanceM ?? set.distanceM ?? prev?.distanceM,
   };
   const valid = lt === 'duration' ? (values.durationSec ?? 0) > 0 : lt === 'distance' ? (values.distanceM ?? 0) > 0 || (values.durationSec ?? 0) > 0 : (values.reps ?? 0) > 0;

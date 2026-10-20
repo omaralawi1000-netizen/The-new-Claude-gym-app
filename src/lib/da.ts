@@ -266,6 +266,8 @@ export const da: Record<string, string> = {
  "Empty session": "Tom træning",
  "Endurance": "Udholdenhed",
  "English": "English",
+ "Enter a distance or time first": "Skriv en distance eller tid først",
+ "Enter a time first": "Skriv en tid først",
  "Enter reps first": "Skriv reps først",
  "Entries moved to {meal}": "Poster flyttet til {meal}",
  "Epley: weight × (1 + reps ÷ 30), sets of up to 12 reps — an estimate, not a tested max": "Epley: vægt × (1 + reps ÷ 30), sæt på op til 12 reps — et estimat, ikke et testet maks",
