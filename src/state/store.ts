@@ -129,6 +129,7 @@ export interface Store extends AppData {
   restoreWeight: (w: WeightLog) => void;
   addMeasurement: (m: Omit<Measurement, 'id'>) => void;
   removeMeasurement: (id: string) => void;
+  restoreMeasurement: (m: Measurement) => void;
   addPhoto: (p: { id: string; date: string; note?: string }) => void;
   removePhoto: (id: string) => void;
   addActivity: (a: Omit<ActivityLog, 'id' | 'at'>) => ActivityLog;
@@ -345,6 +346,7 @@ export const useStore = create<Store>((set, get) => {
     restoreWeight: (w) => mutate((s) => ({ weights: s.weights.some((x) => x.id === w.id) ? s.weights : [...s.weights, w] })),
     addMeasurement: (m) => mutate((s) => ({ measurements: [...s.measurements, { ...m, id: uid('ms') }] })),
     removeMeasurement: (id) => mutate((s) => ({ measurements: s.measurements.filter((m) => m.id !== id) })),
+    restoreMeasurement: (m) => mutate((s) => ({ measurements: s.measurements.some((x) => x.id === m.id) ? s.measurements : [...s.measurements, m] })),
     addPhoto: (p) => mutate((s) => ({ photos: [...s.photos, p] })),
     removePhoto: (id) => mutate((s) => ({ photos: s.photos.filter((p) => p.id !== id) })),
     mergeHealth: (next) => mutate(() => ({ activities: next.activities, steps: next.steps })),
