@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 // Fixes from the v0.1.160 workout audit: the plan, records and set counting stay right after edits.
 import { describe, it, expect, beforeEach } from 'vitest';
-import { useStore } from '../src/state/store';
+import { useStore, missedWorkouts } from '../src/state/store';
+import { addDays, dayKey, weekdayOf } from '../src/lib/dates';
 import { defaultData } from '../src/state/defaults';
 import type { Routine, WorkoutSession } from '../src/lib/types';
 import { workoutName } from '../src/lib/workout';
@@ -77,5 +78,23 @@ describe('editing sets after a workout', () => {
     useStore.getState().mutateSession('b', (x) => ({ ...x, exercises: [] }));
     expect(useStore.getState().sessions.find((x) => x.id === 'b')!.records).toEqual([]);
     expect(useStore.getState().sessions.find((x) => x.id === 'c')!.records!.some((r) => r.kind === 'weight' && r.previous === 60)).toBe(true);
+  });
+});
+
+describe('changing the weekly plan mid-week', () => {
+  it('does not turn the days before the change into missed workouts', () => {
+    const today = dayKey(Date.now(), useStore.getState().settings.dayStartHour);
+    const wdAgo = (n: number) => weekdayOf(addDays(today, -n));
+    useStore.getState().patch({ routines: [routine('A'), routine('B')] });
+    // an old plan: A three days ago (missed honestly)
+    useStore.setState({ schedule: { ...useStore.getState().schedule, mode: 'weekly', weekly: { 0: null, 1: null, 2: null, 3: null, 4: null, 5: null, 6: null, [wdAgo(3)]: 'A' } } });
+    expect(missedWorkouts(useStore.getState(), today).map((m) => m.routineId)).toEqual(['A']);
+    // today B is put on two days ago: that day was not planned then, so it is not missed; A's day did not change
+    useStore.getState().setSchedule({ weekly: { ...useStore.getState().schedule.weekly, [wdAgo(2)]: 'B' } });
+    expect(missedWorkouts(useStore.getState(), today).map((m) => m.routineId)).toEqual(['A']);
+    // saved data from before (no weeklySince) still works as before
+    const sch = { ...useStore.getState().schedule }; delete sch.weeklySince;
+    useStore.setState({ schedule: sch });
+    expect(missedWorkouts(useStore.getState(), today).map((m) => m.routineId).sort()).toEqual(['A', 'B']);
   });
 });

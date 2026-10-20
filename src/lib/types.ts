@@ -249,6 +249,8 @@ export interface Schedule {
   cleared: string[];
   /** activities planned on a weekday besides the gym (0 = Sunday … 6 = Saturday), e.g. wrestling on Tuesdays */
   activities?: Record<number, ActivityKind[]>;
+  /** the day (YYYY-MM-DD) each weekday's plan last changed (0 = Sunday … 6 = Saturday): days before it are never "missed" */
+  weeklySince?: Record<number, string>;
 }
 
 // ── Body & activity ─────────────────────────────────────────

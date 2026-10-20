@@ -177,6 +177,17 @@ export function refreshRecords(sessions: WorkoutSession[], edited: WorkoutSessio
   return out;
 }
 
+/** Notes the day each weekday's plan changed (switching to weekdays changes them all), so older days are not "missed". */
+export function withWeeklySince(prev: Schedule, next: Schedule, today: string): Schedule {
+  if (next.mode !== 'weekly' || next.weeklySince !== prev.weeklySince) return next; // an Undo brings its own back
+  const since = { ...(next.weeklySince ?? {}) };
+  let changed = false;
+  for (let wd = 0; wd < 7; wd++) {
+    if (prev.mode !== 'weekly' || (prev.weekly[wd] ?? null) !== (next.weekly[wd] ?? null)) { since[wd] = today; changed = true; }
+  }
+  return changed ? { ...next, weeklySince: since } : next;
+}
+
 /** A deleted routine and the places on the plan it was taken off. */
 export interface RemovedRoutine {
   routine: Routine;
@@ -388,7 +399,7 @@ export const useStore = create<Store>((set, get) => {
       if (s.routines.some((x) => x.id === r.id)) return {};
       return { routines: [...s.routines, r], ...(slots ? { schedule: scheduleWith(s.schedule, r.id, slots) } : {}) };
     }),
-    setSchedule: (patch) => mutate((s) => ({ schedule: { ...s.schedule, ...patch } })),
+    setSchedule: (patch) => mutate((s) => ({ schedule: withWeeklySince(s.schedule, { ...s.schedule, ...patch }, dayOf(s.settings)) })),
     rescheduleMissed: (originDate, routineId, newDate) => mutate((s) => {
       const cleared = s.schedule.cleared.includes(originDate) ? s.schedule.cleared : [...s.schedule.cleared, originDate];
       const overrides = [...s.schedule.overrides.filter((o) => !(o.date === newDate) && !(o.date === originDate)), { date: newDate, routineId, originDate }];
@@ -513,6 +524,9 @@ export function missedWorkouts(d: Pick<AppData, 'schedule' | 'routines' | 'sessi
     const date = addDays(today, -i);
     const p = plannedFor(d, date, today);
     if (!p) continue;
+    const since = d.schedule.weeklySince?.[weekdayOf(date)];
+    if (p.source === 'weekly' && since && date < since) continue; // planned only after that day
+
     const done = d.sessions.some((s) => s.plannedDate === date || (s.date === date && s.routineId === p.routineId));
     if (!done) out.push({ date, routineId: p.routineId });
   }
