@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef } from 'react';
 import { addTwin, ampFor, holdForReturn, recall, shareKey, sharedPlan, setSharedPlan, cssColor, fileShown, glowCanvasOk, glowScale, paintFile, paintPlan, planKey, recallFile, rootKey, hostKey, Plans, whenIdle, unIdle, stats, useGlowCanvases, type GlowJob, type GlowPlan, type GlowSrc } from './glow';
 import { gradient, loadPictures, readSrc } from './glowCss';
 import { barColor, PER_TAB, type BgKind } from './Backdrop';
+import { frostFromField } from './frost';
 
 /**
  * The app's soft glows as dithered pictures (glow.ts), so they are one smooth fade on the phone instead of coloured rings.
@@ -58,7 +59,7 @@ function describeField(host: HTMLElement, kind: BgKind): GlowPlan | null {
  * styles (reading those in the middle of a tab switch made the browser work them out twice) */
 const sways = (kind: BgKind) => kind === 'classic' && document.documentElement.dataset.motion !== 'reduce';
 export function FieldGlow({ kind }: { kind: BgKind }) {
-  const cv = useRef<HTMLCanvasElement>(null), tint = useRef<HTMLElement>(null), faded = useRef(false);
+  const cv = useRef<HTMLCanvasElement>(null), tint = useRef<HTMLElement>(null), faded = useRef(false), frostAt = useRef(0);
   const host = () => cv.current?.parentElement ?? null;
   // The status bar's colour at the top of the field (.field-tint, styles.css), the field's own: the one painted into its
   // picture, and the one the bar settles on. Written at mount and with each new picture (theme, palette), never on each
@@ -83,6 +84,10 @@ export function FieldGlow({ kind }: { kind: BgKind }) {
     // (the other tabs painted ahead as soon as this one's picture is in: not again, later, once it has faded in)
     if (lit && PER_TAB[kind] && !(on && faded.current)) prewarm(el, kind);
     faded.current = wait === 'fade';
+    // the cards' frost copies this picture (ui/frost.ts): when it is in, and again once a moving glow (Sunrise's sun) has
+    // settled where it rests; with no picture they show the plain glass
+    clearTimeout(frostAt.current);
+    if (on) { frostFromField(el); frostAt.current = window.setTimeout(() => { if (el.isConnected) frostFromField(el); }, 1600); } else frostFromField(el);
   }, (el) => el.parentElement ?? el, (el) => `field§${kind}§${el.dataset.hue}`);
   return <><span ref={tint} className="field-tint" aria-hidden /><canvas ref={cv} className="glow-cv glow-field" aria-hidden /></>;
 }

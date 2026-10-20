@@ -350,6 +350,8 @@ export type EquipmentAccess = 'fullGym' | 'homeDumbbells' | 'bodyweight' | 'barb
 
 /** the sheet surface in Settings; anything unknown (an option tried on Beta and since dropped) reads as Glass */
 export const surfaceOf = (v: unknown): NonNullable<Settings['surface']> => (v === 'now' || v === 'deep' ? v : 'glass');
+/** the surface look on trial (Settings > Appearance > Surfaces, surfaces.css `data-look`); missing = A, the pick */
+export const lookOf = (v: unknown): NonNullable<Settings['look']> => (v === 'before' || v === 'b' || v === 'c' ? v : 'a');
 
 export interface Settings {
   name: string;
@@ -361,6 +363,8 @@ export interface Settings {
   glow?: 'full' | 'soft' | 'off';
   /** the colour of the sheets, fields and bar tracks on dark (look.css `data-surface`); missing = glass */
   surface?: 'now' | 'glass' | 'deep';
+  /** cards, buttons and sheets on dark (surfaces.css `data-look`): Before = as shipped, A/B/C the three options; missing = A */
+  look?: 'before' | 'a' | 'b' | 'c';
   /** what is drawn behind the app (ui/Backdrop.tsx, styles.css `.bgx`); missing = classic (the drifting colour field) */
   background?: 'classic' | 'orb' | 'tabs' | 'sunrise' | 'mesh' | 'dots' | 'time' | 'night' | 'photo';
   /** which view a workout opens in; missing or 'last' = the one last used on this phone */
