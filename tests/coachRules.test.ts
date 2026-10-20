@@ -29,7 +29,7 @@ describe('talking steers the Coach', () => {
     expect(sys).toMatch(/A catch-up only when they ask for one/);
     expect(sys).toMatch(/remember \(kind health; a remember, never only a note\) a line starting "Eating-disorder signal:"/);
     expect(sys).toMatch(/they mention illness or an injury now, or they are under 18/);
-    expect(sys).toMatch(/Without such signs, don't send them to one/);
+    expect(sys).toMatch(/Don't send them to a doctor or dietitian for it/);
   });
   it('the age in DATA: unknown and not asked, asked, a teen', () => {
     expect(buildCoachContext(data(), today, String)).toMatch(/age unknown\./);
