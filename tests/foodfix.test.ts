@@ -6,6 +6,7 @@ import { defaultMealId, removeMeal, restoreMeal } from '../src/lib/derive';
 import todaySrc from '../src/screens/Today.tsx?raw';
 import appSrc from '../src/App.tsx?raw';
 import agentSrc from '../src/lib/agent.ts?raw';
+import { DRIVE_FILE, driveFileName } from '../src/lib/drive';
 
 describe('a logged entry opens in the sheet that can edit it', () => {
   it('quick, photo and Coach totals open the quick-entry editor', () => {
@@ -70,6 +71,14 @@ describe('food logged after midnight, before the new day starts, goes to the lat
       const calls = src.match(/defaultMealId\([^\n]*/g) ?? [];
       for (const c of calls) expect(c, `${f}: ${c}`).toMatch(/dayStartHour/);
     }
+  });
+});
+
+describe('Aven Beta has its own Drive backup file', () => {
+  it('Beta never writes to the real app’s "Aven backup.json"', () => {
+    expect(driveFileName(false)).toBe('Aven backup.json');
+    expect(driveFileName(true)).not.toBe(driveFileName(false));
+    expect(DRIVE_FILE).toBe('Aven backup.json'); // the tests run as the real app
   });
 });
 
