@@ -70,13 +70,16 @@ export function TodayScreen() {
     const title = t('Time to train');
     const opts: NotificationOptions = { body: routine?.name, icon: `${import.meta.env.BASE_URL}icon-192.png`, tag: 'aven-train' };
     // Chrome on Android only shows notifications through the service worker (`new Notification` throws there)
+    let live = true; // no longer due (a workout started, reminders off) before the worker was ready: nothing is shown
     void (async () => {
       try {
         const reg = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : undefined;
-        if (reg) { await (await navigator.serviceWorker.ready).showNotification(title, opts); shown(); return; }
+        if (reg) { const ready = await navigator.serviceWorker.ready; if (!live) return; await ready.showNotification(title, opts); shown(); return; }
       } catch { /* try the plain way */ }
+      if (!live) return;
       try { new Notification(title, opts); shown(); } catch { /* ignore */ }
     })();
+    return () => { live = false; };
   }, [dueNudge, today, routine?.name, t]);
 
   const start = (r?: Routine) => {
