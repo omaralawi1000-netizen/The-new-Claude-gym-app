@@ -2,7 +2,6 @@
 // The watch in detail: heart rate and steps a minute at a time and every sleep stage, sent by the Android app in "dt"
 // (HealthSync.java), checked, and kept on the phone apart from the app's data (lib/watchDetail.ts).
 import { describe, it, expect, beforeEach } from 'vitest';
-import { deflateRawSync } from 'node:zlib';
 import { applyHcFromAddress, hcLastLine, hcStatus, parseHc } from '../src/lib/healthSync';
 import { clearWatchDetail, minutes, parseDetail, saveWatchDetail, watchDetail, watchDetailCount } from '../src/lib/watchDetail';
 import { useStore } from '../src/state/store';
@@ -90,7 +89,12 @@ describe('through the address', () => {
   it('squeezed by the Android app (the usual way now): unpacked, about 4× smaller', async () => {
     const dt = Array.from({ length: 7 }, (_, i) => ({ d: new Date(now - i * 86400000).toISOString().slice(0, 10), hm: pack(hr), sm: pack(steps), sp: [night] }));
     const json = JSON.stringify({ v: 1, avail: true, on: true, granted: true, at: now, days: [[day, 9000]], ex: [], dt });
-    const z = deflateRawSync(Buffer.from(json), { level: 9 }).toString('base64url');
+    // (squeezed the way the Android app does: raw deflate, then base64url)
+    const zs = new Response(new TextEncoder().encode(json)).body!.pipeThrough(new CompressionStream('deflate-raw'));
+    const zb = new Uint8Array(await new Response(zs).arrayBuffer());
+    let bin = '';
+    for (let i = 0; i < zb.length; i += 8192) bin += String.fromCharCode(...zb.subarray(i, i + 8192));
+    const z = btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
     expect(z.length * 3).toBeLessThan(enc(JSON.parse(json)).length);
     const hash = `#hc=z~${z}`;
     expect(parseHc(hash)).toBeNull(); // (needs the unpacking)
