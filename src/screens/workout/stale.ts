@@ -21,9 +21,8 @@ export function finishAsOfLastSet(): void {
   const a = st.active;
   if (!a) return;
   const end = lastTouched(a) + 60_000;
-  const done = st.finishActive();
+  const done = st.finishActive(undefined, end); // a pause counts only up to that end, not up to now
   if (!done) return;
-  useStore.getState().mutateSession(done.id, (x) => ({ ...x, endedAt: Math.min(x.endedAt ?? end, end) }));
   // the finish screen, as a finish from the workout shows it (it also covers Today changing its card behind it)
   useUI.getState().push('summary', { sessionId: done.id });
 }

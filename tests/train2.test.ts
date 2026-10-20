@@ -146,4 +146,14 @@ describe('a workout left running', () => {
     expect(s.endedAt).toBe(at + 1200000 + 60000);
     expect(useStore.getState().active).toBeNull();
   });
+  it('a paused one counts its pause only up to that end, so its time is not zero', () => {
+    const at = Date.now() - 8 * 3600000;
+    // 20 min in, last set; paused 5 min later and never resumed
+    useStore.setState({ active: { id: 'w8', name: 'Pull', date: today, startedAt: at, pausedMs: 60000, pausedAt: at + 1500000, status: 'active', exercises: [{ id: 'a', exerciseId: idOf('Barbell Row'), sets: [set('a1', { done: true, weightKg: 60, reps: 8, completedAt: at + 1200000 })] }] } });
+    finishAsOfLastSet();
+    const s = useStore.getState().sessions.at(-1)!;
+    expect(s.endedAt).toBe(at + 1260000);
+    expect(s.pausedMs).toBe(60000);
+    expect(s.endedAt! - s.startedAt - s.pausedMs).toBe(1200000);
+  });
 });

@@ -107,7 +107,8 @@ export interface Store extends AppData {
   mutateActive: (fn: (s: WorkoutSession) => WorkoutSession) => void;
   pauseActive: () => void;
   resumeActive: () => void;
-  finishActive: (note?: string) => WorkoutSession | null;
+  /** `endAt`: finish as of this moment instead of now (a forgotten workout); a pause is only counted up to it */
+  finishActive: (note?: string, endAt?: number) => WorkoutSession | null;
   discardActive: () => WorkoutSession | null;
   restoreActive: (s: WorkoutSession) => void;
   mutateSession: (id: string, fn: (s: WorkoutSession) => WorkoutSession) => void;
@@ -271,12 +272,12 @@ export const useStore = create<Store>((set, get) => {
       // while paused, rest.endsAt holds the REMAINING ms
       mutate(() => ({ active: { ...a, pausedMs: a.pausedMs + (now - a.pausedAt!), pausedAt: undefined, rest: a.rest ? { ...a.rest, endsAt: now + a.rest.endsAt } : null } }), true);
     },
-    finishActive: (note) => {
+    finishActive: (note, endAt) => {
       const s = get();
       const a = s.active;
       if (!a) return null;
-      const now = Date.now();
-      const pausedMs = a.pausedMs + (a.pausedAt ? now - a.pausedAt : 0);
+      const now = endAt !== undefined ? Math.max(a.startedAt, Math.min(Date.now(), endAt)) : Date.now();
+      const pausedMs = Math.min(a.pausedMs + (a.pausedAt ? Math.max(0, now - a.pausedAt) : 0), now - a.startedAt);
       // drop sets that were never completed and exercises left empty
       const exercises = a.exercises
         .map((e) => ({ ...e, plannedSets: e.sets.filter((x) => x.type === 'working').length, sets: e.sets.filter((x) => x.done) }))
