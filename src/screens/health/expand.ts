@@ -30,15 +30,15 @@ const SHARE = ['num', 'unit', 'chart'];
 /** a spring whose last bit is eased out to rest: the sampled spring stops a fraction short and then lands, which over a
  * whole screen width is a visible half-pixel jump at the end. Its remaining distance is faded to 0 over the last 30 %. */
 const softEnd = (easing: string) => { const v = easing.slice(7, -1).split(',').map(Number), n = v.length - 1; return `linear(${v.map((x, i) => +(1 - (1 - x) * Math.min(1, (n - i) / (0.3 * n))).toFixed(5)).join(', ')})`; };
-type Box = { x: number; y: number; w: number; h: number };
+type Box = { x: number; y: number; w: number; h: number; full?: boolean };
 /** the spring's progress at time p (0–1), read off its linear() samples */
 const curve = (easing: string) => { const v = easing.slice(7, -1).split(',').map(Number), n = v.length - 1; return (p: number) => { if (p <= 0) return v[0]; if (p >= 1) return v[n]; const f = p * n, i = Math.floor(f); return v[i] + (v[i + 1] - v[i]) * (f - i); }; };
-const mix = (a: Box, b: Box, e: number): Box => ({ x: a.x + (b.x - a.x) * e, y: a.y + (b.y - a.y) * e, w: a.w + (b.w - a.w) * e, h: a.h + (b.h - a.h) * e });
+const mix = (a: Box, b: Box, e: number): Box => ({ full: a.full, x: a.x + (b.x - a.x) * e, y: a.y + (b.y - a.y) * e, w: a.w + (b.w - a.w) * e, h: a.h + (b.h - a.h) * e });
 /** overlap of a word with a flying copy, by their letters: a line's box is padded above and below its letters, so a label
- * sitting right on its number would always "touch" it */
-const ink = (b: Box): Box => ({ x: b.x, y: b.y + b.h * 0.18, w: b.w, h: b.h * 0.64 });
-const hits = (a: Box, b: Box, m = 1) => { a = ink(a); b = ink(b); return a.x < b.x + b.w + m && b.x < a.x + a.w + m && a.y < b.y + b.h + m && b.y < a.y + a.h + m; };
-const near = (a: Box, b: Box) => Math.abs(a.x - b.x) < 2 && Math.abs(a.y - b.y) < 2 && Math.abs(a.w - b.w) < 2;
+ * sitting right on its number would always "touch" it (a chart's box is drawn edge to edge, so it counts whole) */
+const ink = (b: Box): Box => b.full ? b : ({ x: b.x, y: b.y + b.h * 0.18, w: b.w, h: b.h * 0.64 }); // a chart is all ink
+const hits = (a: Box, b: Box, m = 0) => { a = ink(a); b = ink(b); return a.x < b.x + b.w + m && b.x < a.x + a.w + m && a.y < b.y + b.h + m && b.y < a.y + a.h + m; };
+const near = (a: Box, b: Box) => Math.abs(a.x - b.x) < 6 && Math.abs(a.y - b.y) < 6 && Math.abs(a.w - b.w) < 6;
 /** when (0–1 of the move) a word is clear for good: no flying copy over it any more (one within 2 px of its place counts as
  * landed), and (on open) the window's edges past it */
 const clearAfter = (r: Box, paths: [Box, Box][], at: (p: number) => number, win?: (e: number) => [number, number]) => {
@@ -110,7 +110,8 @@ export class Expander {
       const tn = this.tint(src, a, c);
       st.fl.push({ c, a, b, tint: tn });
       const from = `translate(${ra.x - rb.x}px,${ra.y - rb.y}px) scale(${s})`;
-      paths.push([{ x: ra.x, y: ra.y, w: rb.w * s, h: rb.h * s }, rb]);
+      const full = b.dataset.share === 'chart';
+      paths.push([{ x: ra.x, y: ra.y, w: rb.w * s, h: rb.h * s, full }, { ...rb, full }]);
       st.anims.push(this.anim(c, [{ transform: from }, { transform: 'none' }], { duration: D, easing: E }));
       if (tn) { this.anim(tn, [{ transform: from }, { transform: 'none' }], { duration: D, easing: E }); this.anim(tn, [{ opacity: 1 }, { opacity: 1, offset: 0.1 }, { opacity: 0, offset: 0.6 }, { opacity: 0 }], { duration: D, easing: 'linear' }); }
     }
@@ -127,16 +128,21 @@ export class Expander {
     const at = curve(E), sr = this.box(src), h = this.e.root.clientHeight;
     const wt = Math.max(0, Math.min(h - 1, sr.y)), wb = Math.max(wt + 1, Math.min(h, sr.y + sr.h));
     const win = (e: number): [number, number] => [wt * (1 - e), h + (wb - h) * (1 - e)];
-    // in reading order: a line never starts before the one above it (the X leads), and none later than 45 % of the move
-    let prev = 0;
-    const when = (x: HTMLElement) => { prev = Math.max(prev, D * Math.min(0.45, Math.max(0.1, clearAfter(this.box(x), paths, at, win)))); return prev; };
+    // in reading order, in two chains: the X, chips and label wait for the window's top edge (the X leads); a body line starts
+    // once the flight has passed it but never before the line above it; none later than 40 % of the move
+    let prev = 0, prevTop = 0;
+    // a word starts its 280 ms fade a little before it is clear, so it is still faint while the flight leaves it
+    const clear = (x: HTMLElement) => Math.max(D * 0.1, Math.min(D * 0.4, D * clearAfter(this.box(x), paths, at, win) - 110));
+    const when = (x: HTMLElement) => (prev = Math.max(prev, clear(x)));
     $$('.hx-dhead,.hx-chips,.hx-lab,.hx-sub,.hx-rise', dsc).filter((x) => !x.closest('[data-share]')).forEach((x) => {
-      const delay = when(x);
+      // a line sitting right against a landing number or chart (its unit line, a chart's date ends) lands with it, outside the chain
+      const r = this.box(x), attached = paths.some(([, b]) => r.y < b.y + b.h + 12 && b.y < r.y + r.h + 12);
+      const delay = x.matches('.hx-dhead,.hx-chips,.hx-lab') ? (prevTop = Math.max(prevTop, clear(x))) : attached ? clear(x) : when(x);
       st.anims.push(this.anim(x, [{ opacity: 0 }, { opacity: 1 }], { duration: 280, delay, easing: 'linear' }));
       st.anims.push(this.anim(x, [{ transform: 'translateY(10px)' }, { transform: 'none' }], { duration: sm.duration, delay, easing: sm.easing }));
     });
     const paired = new Set(st.fl.map((o) => o.b));
-    $$('[data-share]', dsc).filter((b) => !paired.has(b)).forEach((b) => { prev = 0; st.anims.push(this.anim(b, [{ opacity: 0 }, { opacity: 1 }], { duration: 280, delay: when(b), easing: 'linear' })); });
+    $$('[data-share]', dsc).filter((b) => !paired.has(b)).forEach((b) => st.anims.push(this.anim(b, [{ opacity: 0 }, { opacity: 1 }], { duration: 280, delay: Math.max(D * 0.1, clear(b) - D * 0.05), easing: 'linear' }))); // a unit starts in its number's last bit of travel
     st.dim = this.dimOf(src);
     st.dim.forEach((x) => { x.getAnimations().forEach((a) => a.cancel()); x.style.opacity = '0'; x.animate([{ opacity: 1 }, { opacity: 0 }], { duration: reduced() ? 1 : 40, easing: 'linear' }); });
     this.playPage(Math.round(D * 0.2));
@@ -194,7 +200,8 @@ export class Expander {
     const at = curve(E), paths: [Box, Box][] = fl.map(({ c, a }) => {
       const rb = { x: parseFloat(c.style.left), y: parseFloat(c.style.top), w: parseFloat(c.style.width), h: parseFloat(c.style.height) };
       const m = new DOMMatrix(c.style.transform && c.style.transform !== 'none' ? c.style.transform : undefined), ra = this.box(a), s = this.scale(a, ra, rb);
-      return [{ x: rb.x + m.e, y: rb.y + m.f, w: rb.w * m.a, h: rb.h * m.d }, { x: ra.x, y: ra.y, w: rb.w * s, h: rb.h * s }];
+      const full = a.dataset.share === 'chart';
+      return [{ x: rb.x + m.e, y: rb.y + m.f, w: rb.w * m.a, h: rb.h * m.d, full }, { x: ra.x, y: ra.y, w: rb.w * s, h: rb.h * s, full }];
     });
     const dimO = st.dim.map((x) => getComputedStyle(x).opacity);
     st.dim.forEach((x, i) => {
