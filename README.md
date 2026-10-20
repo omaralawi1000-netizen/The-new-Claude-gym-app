@@ -3063,3 +3063,43 @@ every sleep stage, steps.
 - **Kept apart** in IndexedDB `aven-watch` (`lib/watchDetail.ts`, the last 365 days), not in the app data (every save would
   carry it) and not in backups (Health Connect has it). `watchDetails(from, to)`, `minutes(packed)` and `onWatchDetail` are
   the way in for anything that draws it. Delete all data clears it; Beta has its own.
+
+## Weight and food into Health Connect (20 Oct 2026)
+Omar: "weight and nutrition, from Aven". Aven now also *writes* two things into Health Connect, so Samsung Health and other
+apps see them: each weigh-in (the last of a day) and each day's food totals (calories, protein, carbs, fat), as one record
+per day each, named by date (`aven-w-<date>`, `aven-n-<date>`), so a day sent again replaces itself. Deleted here = taken
+out there. A web page can't hand data to the Android app by itself, so they ride along when Sync now or Connect watch is
+tapped (`w=` in the link, `lib/hcWrite.ts` → `HealthWrite.java`), only what changed in the last 90 days. They count as sent
+only once the app answers `&hw=<n>`; "denied" (Write weight / Nutrition not allowed in Health Connect) sends them again
+next time and Settings → Watch says where to allow it. Aven's own weigh-ins are skipped when reading the watch's back.
+Not written: workouts and anything else (they'd come back as "watch workouts").
+
+## More from the watch (20 Oct 2026, v0.1.168)
+Omar: "add all the data, GPS also, skin temperature and body composition, the ones that make sense". Now also read:
+- **Body composition** (the watch's scans): lean mass, body water, bone mass, basal metabolic rate (kcal a day); the day's
+  last value, in `HealthDay` (`leanKg`, `bodyWaterKg`, `boneKg`, `bmr`).
+- **Temperature**: body temperature, and skin temperature at night as the night's average off the watch's own normal
+  (`skinDelta`, `skinBase`; Android 15 and up), an early sign of getting ill or under-recovered.
+- **Climbing** per workout (`elevationM`) and the **GPS route** of the newest workouts (last 14 days, at most 8 per answer,
+  thinned to 300 points, Google's encoded polyline), kept by the workout's Health Connect id in IndexedDB `aven-watch`
+  (`routes`; `routeOf`, `routePoints`). Routes need "Exercise routes" allowed in Health Connect.
+The Coach's watch look-up includes the new numbers. Left out on purpose: water and food logged in other apps (Aven has its
+own), blood pressure and glucose (no device), cycle tracking, speed/power/cadence (pace comes from distance and time).
+Already-connected phones are asked once for the new permissions (round 4).
+
+## Corrections, done on the spot (20 Oct 2026, v0.1.169)
+Omar's lunch, in four messages: "10 corn cakes" became 10 × a database's "serving (100 g)" = 4,200 kcal (to dinner, at
+15:27); "majskiks, move it to lunch" → the same mistake again (paprika ones, 4,170 kcal); "the plain ones, 8 of them" →
+only repeated back, plus a question about the brand; "about 75 kcal per 100 g" → "Couldn't find that in the log" twice for
+food it had just logged. His words: the first one is understandable, but when I explain, it should understand me like a
+real coach.
+- **Counted things are pieces** (`foodText.placeholderPortion`): a database's stand-in portion ("serving (100 g)",
+  "1 portion (100 g)", "100 g") is never taken as one of a counted thing unless they named it; how heavy one is gets
+  estimated instead. The Coach is told the same ("10 corn cakes" = 10 pieces of about 8 g).
+- **A fix finds the food wherever it went** (`pickEntry`): a meal that no longer holds it (the AI remembered dinner after
+  it was moved to lunch) falls back to any meal that day; a ref copied with its brackets or cut short ("e_mvgpz3edi7…")
+  is still read (it used to drop the whole fix without a word). A day asked for stays strict.
+- **HOW YOU COACH**: a correction is an instruction: change it in the same answer with their numbers and a best estimate
+  for the rest, say what changed; no repeating back, no asking for a brand.
+- Exam: `fix-pieces` and `fix-kcal` replay his thread (orb, Danish, dictated) with the items in the log: 4/4 fixed both
+  items, none asked about the brand ($0.01).

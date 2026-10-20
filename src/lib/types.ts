@@ -301,6 +301,8 @@ export interface ActivityLog {
   kind: ActivityKind;
   durationSec: number;
   distanceM?: number;
+  /** metres climbed (the watch) */
+  elevationM?: number;
   /** wrestling: rounds/goes on the mat, and how hard it felt (1 easy · 2 hard · 3 max) */
   rounds?: number;
   intensity?: 1 | 2 | 3;
@@ -340,6 +342,10 @@ export interface HealthDay {
   weightKg?: number; bodyFat?: number; vo2max?: number;
   /** blood oxygen (%) and breathing rate (per minute), the day's average */
   spo2?: number; respRate?: number;
+  /** body composition (the watch's last scan that day, kg) and basal metabolic rate (kcal a day) */
+  leanKg?: number; bodyWaterKg?: number; boneKg?: number; bmr?: number;
+  /** body temperature (°C); skin temperature at night: the night's average off the watch's own normal (°C), and that normal */
+  bodyTemp?: number; skinDelta?: number; skinBase?: number;
 }
 
 // ── Settings ────────────────────────────────────────────────
