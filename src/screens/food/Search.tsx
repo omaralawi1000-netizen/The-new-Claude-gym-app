@@ -7,7 +7,7 @@ import { useT, useLang } from '../../lib/i18n';
 import type { Food, Quantity } from '../../lib/types';
 import { searchFoods } from '../../lib/foodText';
 import { entryFromSnapshot, snapshotOf, uid } from '../../lib/nutrition';
-import { fmtNutrient, sourceLabel } from '../../lib/format';
+import { fmtNutrient, foodName, sourceLabel } from '../../lib/format';
 import { Icon } from '../../ui/Icon';
 import { Sheet, SheetHead, SOFT } from '../../ui/Sheet';
 import { mealName } from '../../lib/derive';
@@ -253,11 +253,11 @@ function FoodResult({ food, open, add }: { food: Food; open: () => void; add: ()
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={SOFT} className="li" style={{ position: 'relative', padding: 0 }}>
       <button className="press grow" onClick={open} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 6px', textAlign: 'left', minWidth: 0, position: 'relative', minHeight: 62, borderRadius: 14 }}>
         <div className="grow" style={{ position: 'relative', minWidth: 0 }}>
-          <div className="li-title trunc">{food.name}{favs.includes(food.id) && <Icon name="star" size={13} style={{ fill: 'var(--ac-text)', color: 'var(--ac-text)', marginLeft: 6, verticalAlign: '-1px' }} />}</div>
+          <div className="li-title trunc">{foodName(food, lang)}{favs.includes(food.id) && <Icon name="star" size={13} style={{ fill: 'var(--ac-text)', color: 'var(--ac-text)', marginLeft: 6, verticalAlign: '-1px' }} />}</div>
           <div className="li-sub trunc num">{food.brand ? `${food.brand} · ` : ''}{food.per100.kcal === undefined ? t('no calorie data') : `${fmtNutrient('kcal', food.per100.kcal, lang)} kcal`} / 100 {food.basis}{' · '}<span className="t3">{sourceLabel(food.source, t)}</span></div>
         </div>
       </button>
-      <button className="icon-btn press" aria-label={`${t('Quick add')} ${food.name}`} onClick={add} style={{ flex: 'none' }}><Icon name="plus" /></button>
+      <button className="icon-btn press" aria-label={`${t('Quick add')} ${foodName(food, lang)}`} onClick={add} style={{ flex: 'none' }}><Icon name="plus" /></button>
     </motion.div>
   );
 }

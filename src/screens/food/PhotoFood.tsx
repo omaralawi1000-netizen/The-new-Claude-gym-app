@@ -42,24 +42,29 @@ export function PhotoFood({ props }: { props: { date: string; mealId: string; fi
 
   const analyse = async (blob: Blob) => {
     setErr(null); setBusy(true); setItems([]);
-    ctl.current?.abort(); ctl.current = new AbortController();
+    ctl.current?.abort();
+    const c = new AbortController(); ctl.current = c;
     try {
-      const r = await readPhoto(blob, lang, hint, ctl.current.signal);
-      if (ctl.current.signal.aborted) return;
+      const r = await readPhoto(blob, lang, hint, c.signal);
+      if (c.signal.aborted) return;
       setItems(r.items); setAssume(r.assume);
       haptic('light');
     } catch (e: any) {
+      if (c.signal.aborted) return; // a newer photo replaced this one: its read is the one that answers
       setErr(e?.code === 'invalid' ? t('That doesn’t look like food. Try another photo.') : aiErrorText(e, t));
-    } finally { setBusy(false); }
+    } finally { if (ctl.current === c) setBusy(false); }
   };
+  const picks = useRef(0);
   const pick = async (f?: File) => {
     if (!f) return;
+    const n = ++picks.current;
     try {
       const small = await downscale(f, 1024);
+      if (n !== picks.current) return; // a newer photo was picked while this one was being read
       if (img) URL.revokeObjectURL(img.url);
       setImg({ url: URL.createObjectURL(small), blob: small });
       analyse(small);
-    } catch { setErr(t('Couldn’t read that image.')); }
+    } catch { if (n === picks.current) setErr(t('Couldn’t read that image.')); }
   };
 
   useEffect(() => { if (props.file) pick(props.file); }, []); // eslint-disable-line -- the camera hands its shot over (CameraSheet)

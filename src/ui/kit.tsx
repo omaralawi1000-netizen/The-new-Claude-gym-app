@@ -104,14 +104,29 @@ export function Stepper({ value, onChange, step = 1, min = 0, max = 9999, unit, 
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const val = useRef(value);
   val.current = value;
-  const bump = (dir: 1 | -1) => { const n = Math.round((val.current + dir * step) * 1000) / 1000; onChange(Math.min(max, Math.max(min, n))); };
+  /** one step; false once the limit is reached (a disabled button never hears the finger lift, so the repeat stops itself) */
+  const bump = (dir: 1 | -1) => {
+    const n = Math.min(max, Math.max(min, Math.round((val.current + dir * step) * 1000) / 1000));
+    if (n !== val.current) onChange(n);
+    val.current = n;
+    return dir > 0 ? n < max : n > min;
+  };
   const start = (dir: 1 | -1) => {
-    bump(dir);
+    stop();
+    if (!bump(dir)) return;
+    // the finger lifting anywhere ends it too (the button may have turned disabled under it)
+    window.addEventListener('pointerup', stop, { once: true });
+    window.addEventListener('pointercancel', stop, { once: true });
     let delay = 380;
-    const loop = () => { timer.current = setTimeout(() => { bump(dir); delay = Math.max(60, delay * 0.8); loop(); }, delay); };
+    const loop = () => { timer.current = setTimeout(() => { if (!bump(dir)) { stop(); return; } delay = Math.max(60, delay * 0.8); loop(); }, delay); };
     loop();
   };
-  const stop = () => clearTimeout(timer.current);
+  function stop() {
+    clearTimeout(timer.current);
+    timer.current = undefined;
+    window.removeEventListener('pointerup', stop);
+    window.removeEventListener('pointercancel', stop);
+  }
   useEffect(() => stop, []);
   // the number rolls the way it moved (up on +, down on −); nothing moves on the first draw
   const prev = useRef(value);

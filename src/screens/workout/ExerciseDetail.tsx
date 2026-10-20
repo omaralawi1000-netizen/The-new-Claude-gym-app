@@ -52,7 +52,7 @@ export function ExerciseDetail({ props }: { props: { id: string } }) {
   const lastSession = [...history].reverse().find((h) => h.exercises.some((e) => e.exerciseId === props.id && e.sets.some(countable)));
   const lastSet = past[0]?.sets.filter(countable)[0];
   const reps = ex.logType === 'weightReps' || ex.logType === 'bodyweightReps' || ex.logType === 'assisted';
-  const sugg = reps ? suggestProgression(ex, past, repRange(inWorkout?.sets ?? past[0]?.sets ?? []), incrementFor(ex, s.increments, s.settings.plateStep)) : undefined;
+  const sugg = reps ? suggestProgression(ex, past, repRange(inWorkout?.sets ?? past[0]?.sets ?? []), incrementFor(ex, s.increments, s.settings.plateStep, s.settings.units.weight)) : undefined;
   const target = sugg?.sets?.[0];
   const rv = sugg?.reasonVars ?? {};
   const reason = !sugg ? '' : sugg.kind === 'add-weight' ? t('+{inc} · set 1 hit {max}', { inc: kgTxt(Number(rv.inc)), max: rv.max ?? '' })
@@ -161,8 +161,8 @@ function WeightJump({ ex }: { ex: Exercise }) {
   const t = useT();
   const s = useStore();
   const u = s.settings.units.weight;
-  const def = incrementFor(ex, {}, s.settings.plateStep);
-  const kg = incrementFor(ex, s.increments, s.settings.plateStep);
+  const def = incrementFor(ex, {}, s.settings.plateStep, s.settings.units.weight);
+  const kg = incrementFor(ex, s.increments, s.settings.plateStep, s.settings.units.weight);
   const step = 0.5;
   const shown = Math.round(kgToDisplay(kg, u) / step) * step;
   return (

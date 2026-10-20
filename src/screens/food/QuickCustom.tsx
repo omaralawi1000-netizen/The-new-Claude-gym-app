@@ -33,7 +33,7 @@ export function QuickAdd({ props }: { props: { date: string; mealId: string; ent
     const fresh = quickEntry(label.trim() || t('Quick entry'), n, existing?.date ?? props.date, mealId);
     if (existing) {
       const before = existing;
-      s.updateEntry(existing.id, { ...fresh, id: existing.id, at: existing.at });
+      s.updateEntry(existing.id, { ...fresh, id: existing.id, at: existing.at, note: existing.note, estimated: existing.estimated });
       toast(t('Saved changes'), { tone: 'ok', actionLabel: t('Undo'), onAction: () => s.updateEntry(before.id, before) });
       pop();
     } else {
@@ -45,7 +45,7 @@ export function QuickAdd({ props }: { props: { date: string; mealId: string; ent
   const del = () => { if (!existing) return; const e = existing; s.removeEntry(e.id); pop(); toast(t('{name} removed', { name: e.snap.name }), { actionLabel: t('Undo'), onAction: () => s.restoreEntries([e]) }); };
   return (
     <Sheet onClose={pop} label={t('Quick add')} foot={<button className="btn primary block press" disabled={!ok} onClick={save}>{existing ? t('Save changes') : t('Add')}</button>}>
-      <SheetHead title={t('Quick add')} sub={t('Log calories and macros without picking a food.')} onClose={pop} />
+      <SheetHead title={existing ? t('Edit entry') : t('Quick add')} sub={existing ? undefined : t('Log calories and macros without picking a food.')} onClose={pop} />
       <div className="sheet-body">
         <div className="field"><label htmlFor="q-label">{t('Label')}</label><input id="q-label" className="input" value={label} onChange={(e) => setLabel(e.target.value)} placeholder={t('e.g. Restaurant pasta')} /></div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 14 }}>
@@ -65,7 +65,7 @@ export function QuickAdd({ props }: { props: { date: string; mealId: string; ent
 }
 
 /** Create or correct a personal food. Copies keep nothing from the source except the values you see. */
-export function CustomFood({ props }: { props: { from?: Food; name?: string; barcode?: string; afterSave?: 'replaceDetail' | 'openDetail'; date?: string; mealId?: string } }) {
+export function CustomFood({ props }: { props: { from?: Food; name?: string; barcode?: string; afterSave?: 'replaceDetail' | 'openDetail'; date?: string; mealId?: string; entryId?: string } }) {
   const t = useT();
   const s = useStore();
   const pop = useUI((u) => u.pop);
@@ -104,7 +104,7 @@ export function CustomFood({ props }: { props: { from?: Food; name?: string; bar
     };
     s.saveFood(food);
     toast(editingOwn ? t('Food updated — past entries keep their old values') : t('Saved “{name}”', { name: food.name }), { tone: 'ok' });
-    if (props.afterSave === 'replaceDetail' && props.date && props.mealId) useUI.getState().swap(2, 'foodDetail', { food, date: props.date, mealId: props.mealId });
+    if (props.afterSave === 'replaceDetail' && props.date && props.mealId) useUI.getState().swap(2, 'foodDetail', { food, entryId: props.entryId, date: props.date, mealId: props.mealId }); // a logged entry is updated, not logged twice
     else if (props.afterSave === 'openDetail' && props.date && props.mealId) useUI.getState().swap(1, 'foodDetail', { food, date: props.date, mealId: props.mealId });
     else pop();
   };

@@ -21,9 +21,8 @@ export function finishAsOfLastSet(): void {
   const a = st.active;
   if (!a) return;
   const end = lastTouched(a) + 60_000;
-  const done = st.finishActive();
+  const done = st.finishActive(undefined, end); // a pause counts only up to that end, not up to now
   if (!done) return;
-  useStore.getState().mutateSession(done.id, (x) => ({ ...x, endedAt: Math.min(x.endedAt ?? end, end) }));
   // the finish screen, as a finish from the workout shows it (it also covers Today changing its card behind it)
   useUI.getState().push('summary', { sessionId: done.id });
 }
@@ -39,7 +38,7 @@ export function useStaleWorkout() {
       const a = useStore.getState().active;
       if (!a || Date.now() - lastTouched(a) < IDLE_MS) return;
       try { if (localStorage.getItem(KEY) === a.id) return; localStorage.setItem(KEY, a.id); } catch { /* still ask */ }
-      const hasSets = a.exercises.some((e) => e.sets.some((s) => s.done));
+      const hasSets = a.exercises.some((e) => e.sets.some((s) => s.done && s.type === 'working')); // warm-ups alone are not a workout
       useUI.getState().toast(tNow('Still training? Your workout from {time} is open', { time: fmtTime(a.startedAt, useStore.getState().settings.language) }), {
         actionLabel: hasSets ? tNow('Finish') : tNow('Discard'), duration: 12000,
         onAction: () => { if (hasSets) finishAsOfLastSet(); else useStore.getState().discardActive(); },
