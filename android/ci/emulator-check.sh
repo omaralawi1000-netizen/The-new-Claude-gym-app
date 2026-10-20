@@ -196,23 +196,29 @@ timeout 15 adb exec-out screencap -p > shots/6b-app.png
 
 # 3b. the watch's numbers come back in the address (HealthActivity → AvenLauncher → Chrome, "#hc=…") while Aven is
 # already open. Omar's phone: a short answer ("not allowed") got through, the full one never did. Which sizes arrive?
-hcsize() { python3 - "$1" <<'PY'
+hcsize() { python3 - "$1" "$2" <<'PY'
 import base64, json, sys, time
-n = int(sys.argv[1]); now = int(time.time() * 1000)
+n = int(sys.argv[1]); k = int(sys.argv[2]); now = int(time.time() * 1000)
 ex = [{"id": "%036d" % i, "t": "walk", "s": now - (i + 1) * 3600000, "e": now - (i + 1) * 3600000 + 1800000, "src": "com.sec.android.app.shealth", "hr": 120, "hx": 150, "kc": 200, "m": 2000} for i in range(n)]
+# k days of minute-by-minute detail (heart rate and steps every minute, a night of stages)
 ABC = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
 full = "".join(ABC[x >> 6] + ABC[x & 63] for x in (60 + (i % 120) for i in range(1440)))
-# with 60 workouts: also a week of minute-by-minute detail (heart rate and steps every minute, a night of stages)
-dt = [{"d": time.strftime("%Y-%m-%d", time.localtime(now / 1000 - i * 86400)), "hm": full, "sm": full, "sp": [[now - 9 * 3600000, now - 3600000] + [1, 0, 20, 2, 20, 45, 3, 65, 25] * 10]} for i in range(7 if n >= 60 else 0)]
+dt = [{"d": time.strftime("%Y-%m-%d", time.localtime(now / 1000 - i * 86400)), "hm": full, "sm": full, "sp": [[now - 9 * 3600000, now - 3600000, 1, 0, 20, 2, 20, 45, 3, 65, 25]]} for i in range(k)]
 o = {"v": 1, "avail": True, "on": True, "granted": True, "at": now, "days": [], "ex": ex, "dt": dt}
 print(base64.urlsafe_b64encode(json.dumps(o).encode()).decode().rstrip("="))
 PY
 }
-for n in 0 5 20 60 120; do
-  P=$(hcsize $n)
-  adb shell "am start -n app.aven.android/.AvenLauncher --ez aven.fresh true -d '${SITE}#hc=$P'" >/dev/null
+# (the address is written to a file on the phone and read there: adb's own command line has a length limit of its own)
+for nk in "0 0" "5 0" "20 0" "60 0" "120 0" "20 1" "20 2" "20 3" "20 4" "20 5" "20 7"; do
+  set -- $nk
+  P=$(hcsize $1 $2)
+  printf '%s' "${SITE}#hc=$P" > /tmp/hc-url.txt
+  adb push /tmp/hc-url.txt /data/local/tmp/hc-url.txt >/dev/null
+  adb logcat -c
+  adb shell 'am start -n app.aven.android/.AvenLauncher --ez aven.fresh true -d "$(cat /data/local/tmp/hc-url.txt)"' 2>&1 | tail -1 | sed "s/^/am: /" | tee -a shots/hc-size.txt
   sleep 7
-  cdp hclast | grep -v '^pages' | sed "s/^/$n workouts (${#P} chars): /" | tee -a shots/hc-size.txt
+  cdp hclast | grep -v '^pages' | sed "s/^/$1 workouts + $2 detail days (${#P} chars): /" | tee -a shots/hc-size.txt
+  timeout 10 adb logcat -d | grep -i "TransactionTooLarge\|AndroidRuntime\|aven\|cr_" | tail -4 | sed 's/^/  log: /' | tee -a shots/hc-size.txt
 done
 
 # 3c. Connect watch for real, from the page in the app, with Health Connect access already given (Omar's phone: the
