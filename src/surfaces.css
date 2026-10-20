@@ -1,0 +1,73 @@
+/* ==== Surfaces A / B / C (Omar, 20 Oct: "the sheet's colour, the background and the main thing don't fit when I change
+   the theme; the grain is too much; some buttons still aren't consistent") ====
+   On trial in Settings > Appearance > Surfaces (data-look; Before = the look as shipped, which nothing here touches).
+   Dark theme only. Judged on his themes at phone size (/mnt/project-files/inspiration/surfaces-oct20/judge.md):
+   - the sheets take their colour from the background actually behind them (ui/frost.ts measures it: --bh-h, --bh-sl,
+     --bh-sc), not from the palette: Golden hour on a blue morning sky had brown sheets over blue;
+   - cards: a soft still copy of the field behind them (ui/frost.ts, no live blur) under their own see-through fill;
+   - one control glass for every secondary button, round button, chip and icon tile; neutral wells; grain at half.
+   No blur is added or animated. The `:not(#_)` pieces only raise a rule above the live one it replaces (look.css and the
+   later polish rules in styles.css carry !important). Fold into look.css once Omar has picked. */
+
+/* ---------- shared by A, B and C ---------- */
+html:root:is([data-look='a'], [data-look='b'], [data-look='c']):not([data-theme='light']):not(#_):not(#_) { --grain: 0.025; }
+
+/* one control glass: a white film, a rim lit from above, a short neutral shadow */
+html:root:is([data-look='a'], [data-look='b'], [data-look='c']):not([data-theme='light']) :is(.btn:not(.primary, .ghost, .danger), .icon-btn:not(.flat, .acc, .acc-soft, .speak-btn), button.chip:not(.on, .acc), .chip.acc:not(span), .icon-btn.acc-soft):not(#_):not(#_):not(#_):not(#_):not([data-pressed]) {
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+html:root:is([data-look='a'], [data-look='b'], [data-look='c']):not([data-theme='light']) :is(.btn:not(.primary, .ghost, .danger), .icon-btn:not(.flat, .acc, .acc-soft, .speak-btn), button.chip:not(.on, .acc), .chip.acc:not(span), .icon-btn.acc-soft):not(#_):not(#_):not(#_):not(#_)[data-pressed] {
+  background: rgba(255, 255, 255, 0.16) !important;
+}
+html:root:is([data-look='a'], [data-look='b'], [data-look='c']):not([data-theme='light']) :is(.btn:not(.primary, .ghost, .danger), .icon-btn:not(.flat, .acc, .acc-soft, .speak-btn), button.chip:not(.on, .acc), .chip.acc:not(span), .icon-btn.acc-soft):not(#_):not(#_):not(#_):not(#_) {
+  color: var(--tx); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 1px 1px rgba(0, 0, 0, 0.28), 0 6px 14px -8px rgba(0, 0, 0, 0.55) !important;
+}
+html:root:is([data-look='a'], [data-look='b'], [data-look='c']):not([data-theme='light']) :is(.btn:not(.primary, .ghost, .danger), .icon-btn:not(.flat, .acc, .acc-soft, .speak-btn), button.chip:not(.on, .acc), .chip.acc:not(span), .icon-btn.acc-soft):not(#_):not(#_):not(#_):not(#_)::after {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.10) 30%, rgba(255, 255, 255, 0.04) 65%, rgba(255, 255, 255, 0.07)) !important; opacity: 1 !important;
+}
+/* on a card the same glass a little clearer (the card is lighter than the page), so the orange words keep their contrast */
+html:root:is([data-look='a'], [data-look='b'], [data-look='c']):not([data-theme='light']) .plinth :is(.icon-btn:not(.flat, .acc, .acc-soft, .speak-btn), button.chip:not(.on, .acc), .chip.acc:not(span), .icon-btn.acc-soft):not(#_):not(#_):not(#_):not(#_):not([data-pressed]) {
+  background: rgba(255, 255, 255, 0.05) !important;
+}
+/* the orange words on them a touch lighter (#ffb073 on Golden hour): 4.5:1 or more on every card */
+html:root:is([data-look='a'], [data-look='b'], [data-look='c']):not([data-theme='light']) :is(.chip.acc, .icon-btn.acc-soft):not(#_):not(#_):not(#_):not(#_) { color: color-mix(in srgb, var(--of, var(--ac)) 68%, #fff) !important; }
+/* icon tiles (Train history, Settings rows): the same glass, flat */
+html:root:is([data-look='a'], [data-look='b'], [data-look='c']):not([data-theme='light']) :is(span[style*='width: 40px'][style*='var(--s2)'], span[style*='width: 38px'][style*='var(--s2)'], span[style*='width: 40px'][style*='var(--ac-soft)']):not(#_):not(#_):not(#_):not(#_) {
+  background: rgba(255, 255, 255, 0.08) !important; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.09), inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
+}
+/* wells (switch tracks, text fields): a neutral dip, not a tinted one */
+html:root:is([data-look='a'], [data-look='b'], [data-look='c']):not([data-theme='light']) :is(.seg, .input):not(#_):not(#_):not(#_):not(#_) { background-color: rgba(0, 0, 0, 0.18) !important; }
+
+/* page cards: their see-through fill over the frost copy (ui/frost.ts); a soft rim lit from above */
+html:root:is([data-look='a'], [data-look='b'], [data-look='c']):not([data-theme='light']) :is(.screen .plinth:not(.plinth .plinth), .screen .pin):not(#_):not(#_):not(#_):not(#_) {
+  background: rgba(8, 8, 12, 0.12) !important; box-shadow: 0 1px 1px rgba(0, 0, 0, 0.22), 0 12px 28px -16px rgba(0, 0, 0, 0.55) !important;
+}
+html:root[data-look='a']:not([data-theme='light']) :is(.screen .plinth:not(.plinth .plinth), .screen .pin):not(#_):not(#_):not(#_):not(#_) {
+  background: rgba(8, 8, 10, 0.20) !important; box-shadow: 0 1px 1px rgba(0, 0, 0, 0.25), 0 12px 28px -16px rgba(0, 0, 0, 0.6) !important;
+}
+html:root:is([data-look='a'], [data-look='b'], [data-look='c']):not([data-theme='light']) .screen .plinth:not(.plinth .plinth):not(#_):not(#_):not(#_):not(#_)::after {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.05) 40%, rgba(255, 255, 255, 0.03)) !important; opacity: 1 !important;
+}
+
+/* ---------- sheets ---------- */
+/* A and B: tinted glass in the colour behind them (the accent's hue until the field has been measured) */
+html:root:is([data-look='a'], [data-look='b']):not([data-theme='light']) .sheet:not(#_):not(#_):not(#_):not(#_)::before {
+  -webkit-backdrop-filter: blur(44px) saturate(1.4) !important; backdrop-filter: blur(44px) saturate(1.4) !important;
+}
+html:root:is([data-look='a'], [data-look='b']):not([data-theme='light']) .sheet:not(#_):not(#_):not(#_):not(#_)::after {
+  background: var(--dither), oklch(from var(--ac) var(--bh-sl, 0.205) var(--bh-sc, 0.034) var(--bh-h, h) / 0.58) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), inset 0 0 0 1px rgba(255, 255, 255, 0.06) !important;
+}
+/* C: no colour of its own: the frost deepens and enriches what is behind */
+html:root[data-look='c']:not([data-theme='light']) .sheet:not(#_):not(#_):not(#_):not(#_)::before {
+  -webkit-backdrop-filter: blur(44px) saturate(2) brightness(0.84) !important; backdrop-filter: blur(44px) saturate(2) brightness(0.84) !important;
+}
+html:root[data-look='c']:not([data-theme='light']) .sheet:not(#_):not(#_):not(#_):not(#_)::after {
+  background: var(--dither), rgba(6, 6, 9, 0.34) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10), inset 0 0 0 1px rgba(255, 255, 255, 0.06) !important;
+}
+html:root:is([data-look='a'], [data-look='b'], [data-look='c']):not([data-theme='light']) .sheet :is(.plinth, .plinth-2):not(#_):not(#_):not(#_):not(#_) { background-color: rgba(255, 255, 255, 0.055) !important; }
+
+/* Food's week chart: an empty day a faint white nub (was a navy pill), a logged day a soft peach of the accent */
+html:root:is([data-look='a'], [data-look='b'], [data-look='c']):not([data-theme='light']) .week-bars i:not(.logged, .on):not(#_):not(#_) { background: rgb(255 255 255 / 0.10); }
+html:root:is([data-look='a'], [data-look='b'], [data-look='c']):not([data-theme='light']) .week-bars i.logged:not(.on):not(#_):not(#_) { background: linear-gradient(180deg, oklch(from var(--of, var(--ac)) 0.80 0.11 calc(h + 2)), oklch(from var(--of, var(--ac)) 0.73 0.13 h)); box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.3); }

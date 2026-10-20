@@ -3070,3 +3070,13 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 :root[data-theme='light'] { --lift-main: 0 1px 2px rgba(60,30,30,.14), 0 6px 14px -8px rgba(60,30,30,.22); }
 /* (after the dark chip rule above, which would make it grey again) */
 :root:not([data-theme='light']) span.chip.hot { color: var(--ac); }
+
+/* Frosted cards (ui/frost.ts, Surfaces A/B/C only): under a page card's own see-through fill, a soft copy of the field
+   that stays put on the screen while the card scrolls (a scroll-driven transform the compositor runs; nothing blurs per
+   frame). --frost-x lines it up with the field beside the card; it fades in, never pops. */
+@keyframes frost-hold { from { transform: translate3d(0, calc(-1 * var(--frost-sh, 100vh)), 0); } to { transform: translate3d(0, 100%, 0); } }
+.frost { display: none; position: absolute; inset: 0; z-index: -1; border-radius: inherit; overflow: hidden; pointer-events: none; view-timeline: --frost block; }
+:root:is([data-look='a'], [data-look='b'], [data-look='c']):not([data-theme='light']) .frost { display: block; }
+.frost > i { position: absolute; inset: 0; will-change: transform; animation: frost-hold linear both; animation-timeline: --frost; }
+.frost canvas { position: absolute; top: 0; left: var(--frost-x, 0px); width: 100vw; height: var(--frost-sh, 100vh); opacity: 0; transition: opacity 900ms var(--ease-smooth, ease); }
+.frost canvas[data-on='1'] { opacity: 1; }
