@@ -56,8 +56,9 @@ Tokens live in `src/styles.css` (`:root` dark block and `:root[data-theme='light
 - **Main buttons and switch pills [Omar, 20 Oct]:** a main pill is quiet glass; when it becomes ready the orange grows out
   from the middle (`clip-path` on the registered `--k`, label colour on the same number). An opacity fade over dark glass
   read as brown mud. The selected pill in a switch (`.seg-lens`) is a raised white bead with dark text, like a picked chip
-  and the switch knob; warm glass read as brown, grey glass as dead. Labels change colour in step with the sliding bead
-  (`inkFollow` in `ui/kit.tsx`).
+  and the switch knob, a little under pure white; warm glass read as brown, grey glass as dead. A dark copy of the labels
+  is drawn exactly inside the bead (`SegInk` in `ui/kit.tsx`, two nested clips moved by transform on the bead's frames),
+  so every letter is dark where it sits on white, mid-glide too.
 - **Opaque fallback:** a dark card that needs to be neutral over a coloured field may be opaque charcoal, but Omar rejected
   "clean look with depth" (v0.1.102) as a whole: only do this where asked.
 
