@@ -187,6 +187,8 @@ function useIntro(scr: React.RefObject<HTMLDivElement | null>, v: HealthView) {
     // one slow sweep through the day, left to right, every layer together (the day in time order); the labels and now settle after
     layer('axis')?.animate([{ opacity: 0, offset: 0 }], { duration: 600, delay: 200, easing: 'linear', fill: 'both' });
     for (const k of ['sleep', 'heart', 'steps', 'moves']) wipe(k, 320, 1700);
+    // the steps label fades in once the sweep has drawn its hill (a wipe would cut it letter by letter)
+    layer('slab')?.animate([{ opacity: 0, offset: 0 }], { duration: 400, delay: 950, easing: 'linear', fill: 'both' });
     layer('now')?.animate([{ opacity: 0, transform: 'translateY(-6px)', offset: 0 }], { duration: 450, delay: 1050, easing: EO, fill: 'both' });
   });
 
@@ -275,14 +277,14 @@ function Section({ k, v, t, lang, onTap }: { k: K; v: HealthView; t: TFn; lang: 
   } else if (k === 'heart') {
     const h = v.heart;
     body = <>
-      <div><span className="hx-n hx-n64" data-share="num"><Roll text={h.rest !== undefined ? String(h.rest) : '—'} /></span><span className="hx-sub hx-unit">{t('bpm resting')}</span></div>
+      <div><span className="hx-n hx-n64" data-share="num"><Roll text={h.rest !== undefined ? String(h.rest) : '—'} /></span><span className="hx-sub hx-unit" data-share="unit">{t('bpm resting')}</span></div>
       <div className="hx-bleed hx-wipe" data-share="chart" style={{ marginTop: 4 }}><div><Trace values={h.trace} band={h.restRange} w={W} usualLabel={t('your usual')} /></div></div>
       {h.hrv !== undefined && <div className="hx-sub" style={{ marginTop: 8 }}>{h.hrvRange && h.hrv >= h.hrvRange[0] && h.hrv <= h.hrvRange[1] ? t('HRV {n} ms, inside your usual range', { n: Math.round(h.hrv) }) : h.hrvRange && h.hrv < h.hrvRange[0] ? t('HRV {n} ms, under your usual range', { n: Math.round(h.hrv) }) : t('HRV {n} ms', { n: Math.round(h.hrv) })}</div>}
     </>;
   } else if (k === 'move') {
     const st = v.steps;
     body = <>
-      <div><span className="hx-n hx-n34" data-share="num"><Roll text={fmtNum(st.today ?? 0, lang, 0)} /></span>{st.usual ? <span className="hx-sub hx-unit">{t('of your usual {n}', { n: fmtNum(Math.round(st.usual / 100) * 100, lang, 0) })}</span> : null}</div>
+      <div><span className="hx-n hx-n34" data-share="num"><Roll text={fmtNum(st.today ?? 0, lang, 0)} /></span>{st.usual ? <span className="hx-sub hx-unit" data-share="unit">{t('of your usual {n}', { n: fmtNum(Math.round(st.usual / 100) * 100, lang, 0) })}</span> : null}</div>
       {st.curve.length > 1 && <div className="hx-bleed hx-wipe" data-share="chart" style={{ marginTop: 8 }}><div><StepsDay today={st.curve} usual={st.usualCurve} w={W} h={48} /></div></div>}
     </>;
   } else if (k === 'week') {
@@ -392,7 +394,7 @@ function Page({ k, v, t, lang }: { k: K; v: HealthView; t: TFn; lang: Lang }) {
     const hrvLow = h.hrv !== undefined && !!h.hrvRange && h.hrv < h.hrvRange[0];
     out = <>
       <div className="hx-lab"><i />{t('Resting heart rate')}</div>
-      <div><span className="hx-n hx-n64" data-share="num">{h.rest ?? '—'}</span><span className="hx-sub hx-unit">{t('bpm resting')}</span></div>
+      <div><span className="hx-n hx-n64" data-share="num">{h.rest ?? '—'}</span><span className="hx-sub hx-unit" data-share="unit">{t('bpm resting')}</span></div>
       <div className="hx-bleed" data-share="chart" style={{ marginTop: 4 }}><Trace values={h.trace} band={h.restRange} w={W} usualLabel={t('your usual')} /></div>
       {h.trace.length > 1 && <div className="hx-ends hx-rise" style={{ marginTop: 0 }}><span className="hx-ax3">{fmtDate(addDays(v.today, 1 - h.trace.length), lang, { day: 'numeric', month: 'short' })}</span><span className="hx-ax3">{t('Today')}</span></div>}
       <h3 className="hx-dt hx-rise">{!calm ? t('Your heart is working a little harder') : hrvLow ? t('A calm pulse, with HRV a little low') : t('Your heart is calm')}</h3>
@@ -411,7 +413,7 @@ function Page({ k, v, t, lang }: { k: K; v: HealthView; t: TFn; lang: Lang }) {
     const top = Math.max(1, ...st.week.map((x) => x.count ?? 0));
     out = <>
       <div className="hx-lab"><i />{t('Steps today')}</div>
-      <div><span className="hx-n hx-n52" data-share="num">{fmtNum(st.today ?? 0, lang, 0)}</span>{st.usual ? <span className="hx-sub hx-unit">{t('of your usual {n}', { n: fmtNum(Math.round(st.usual / 100) * 100, lang, 0) })}</span> : null}</div>
+      <div><span className="hx-n hx-n52" data-share="num">{fmtNum(st.today ?? 0, lang, 0)}</span>{st.usual ? <span className="hx-sub hx-unit" data-share="unit">{t('of your usual {n}', { n: fmtNum(Math.round(st.usual / 100) * 100, lang, 0) })}</span> : null}</div>
       {st.curve.length > 1 && <div className="hx-bleed" data-share="chart" style={{ marginTop: 8 }}><StepsDay today={st.curve} usual={st.usualCurve} w={W} h={48} /></div>}
       <h3 className="hx-dt hx-rise">{ahead === undefined ? t('Today so far') : Math.abs(ahead) < 800 ? t('On your usual pace') : ahead > 0 ? t('Ahead of your usual day') : t('Behind your usual day')}</h3>
       {ahead !== undefined && st.usual && <p className="hx-dsub hx-rise">{t('The dotted line is your usual day. You tend to finish around {n}.', { n: fmtNum(Math.round(st.usual / 100) * 100, lang, 0) })}</p>}

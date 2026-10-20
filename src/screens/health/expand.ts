@@ -14,7 +14,7 @@
  * Only DOM work here; React renders the page's content into `dsc` and calls in at the right moments. Nothing React owns is
  * ever moved: flying copies and the swap's leaving page are clones.
  */
-import { springCurve, SMOOTH, SURFACE } from '../../ui/motion';
+import { springCurve, SMOOTH, SURFACE, snapPx } from '../../ui/motion';
 
 export interface Els { root: HTMLElement; scr: HTMLElement; det: HTMLElement; L: [HTMLElement, HTMLElement, HTMLElement]; mat: HTMLElement; dsc: HTMLElement; fly: HTMLElement; edge: HTMLElement }
 interface Flight { c: HTMLElement; a: HTMLElement; b: HTMLElement; from?: string; tint?: HTMLElement }
@@ -26,7 +26,10 @@ const reduced = () => {
 };
 const $$ = (s: string, r: ParentNode) => [...r.querySelectorAll<HTMLElement>(s)];
 const curT = (el: Element) => { const s = getComputedStyle(el).transform; return s === 'none' ? 'none' : s; };
-const SHARE = ['num', 'chart'];
+const SHARE = ['num', 'unit', 'chart'];
+/** a spring over `w` px whose tail moves in whole screen pixels: a slide that crept its last fraction of a pixel and then
+ * landed would jump by one at the end */
+const snapEase = (easing: string, w: number) => `linear(${easing.slice(7, -1).split(',').map((v) => +(1 - snapPx(w * (1 - Number(v))) / w).toFixed(5)).join(', ')})`;
 
 export class Expander {
   st: State | null = null;
@@ -94,24 +97,21 @@ export class Expander {
     L.forEach((l, i) => st.anims.push(this.anim(l, [{ transform: wf[i] }, { transform: 'none' }], { duration: D, easing: E })));
     st.anims.push(this.anim(mat, [{ opacity: 0 }, { opacity: 1 }], { duration: 90, easing: 'linear' }));
     // home steps back at once as the page grows (no flight crosses its words): nothing of it shows through the page, the background's warmth does
-    st.anims.push(this.anim(this.e.scr, [{ opacity: 1 }, { opacity: 0 }], { duration: D * 0.1, easing: 'cubic-bezier(.2,0,.4,1)' }));
+    st.anims.push(this.anim(this.e.scr, [{ opacity: 1 }, { opacity: 0 }], { duration: D * 0.07, easing: 'cubic-bezier(.2,0,.4,1)' }));
     st.anims.push(this.anim(edge, [{ opacity: 0 }, { opacity: 1, offset: 0.12 }, { opacity: 1, offset: 0.7 }, { opacity: 0 }], { duration: D, easing: 'linear' }));
     // the page's words settle in once the flying number and chart have passed them (so nothing is drawn over anything)
     const sm = this.sm();
-    // the X, chips and label wait until the window's top edge has passed them (never cut in half); the unit, headline and
-    // first row come with the number; only the words under the flying chart wait for it to pass
-    const chart = st.fl.find((o) => o.b.dataset.share === 'chart')?.b;
-    const y0 = dsc.getBoundingClientRect().top, under = chart ? chart.getBoundingClientRect().bottom - y0 : Infinity;
+    // the X, chips and label wait until the window's top edge has passed them (never cut in half); the other words come in
+    // as the flying number and chart (and the unit, which flies with its number) reach their places, never under them
     let n = 0;
     $$('.hx-dhead,.hx-chips,.hx-lab,.hx-sub,.hx-rise', dsc).filter((x) => !x.closest('[data-share]')).forEach((x, i) => {
       const top = x.classList.contains('hx-dhead') || x.classList.contains('hx-chips') || x.classList.contains('hx-lab');
-      const below = x.getBoundingClientRect().top - y0 >= under - 1;
-      const delay = top ? D * 0.3 + i * 30 : below ? D * 0.36 + Math.min(n++, 4) * 30 : D * 0.2;
+      const delay = top ? D * 0.33 + i * 30 : D * 0.3 + Math.min(n++, 4) * 30;
       st.anims.push(this.anim(x, [{ opacity: 0 }, { opacity: 1 }], { duration: 280, delay, easing: 'linear' }));
       st.anims.push(this.anim(x, [{ transform: 'translateY(10px)' }, { transform: 'none' }], { duration: sm.duration, delay, easing: sm.easing }));
     });
     const paired = new Set(st.fl.map((o) => o.b));
-    $$('[data-share]', dsc).filter((b) => !paired.has(b)).forEach((b) => st.anims.push(this.anim(b, [{ opacity: 0 }, { opacity: 1 }], { duration: 280, delay: D * 0.12, easing: 'linear' })));
+    $$('[data-share]', dsc).filter((b) => !paired.has(b)).forEach((b) => st.anims.push(this.anim(b, [{ opacity: 0 }, { opacity: 1 }], { duration: 280, delay: D * 0.2, easing: 'linear' })));
     st.dim = this.dimOf(src);
     st.dim.forEach((x) => { x.getAnimations().forEach((a) => a.cancel()); x.style.opacity = '0'; x.animate([{ opacity: 1 }, { opacity: 0 }], { duration: reduced() ? 1 : 40, easing: 'linear' }); });
     this.playPage(Math.round(D * 0.2));
@@ -259,7 +259,7 @@ export class Expander {
     L[2].appendChild(ghost);
     // pages sit side by side in chip order: the old one slides out as the new one slides in, on one spring
     const sm = this.sm(), W = dsc.clientWidth + 48; // a gap between the two pages
-    ghost.animate([{ transform: 'none' }, { transform: `translateX(${-dir * W}px)` }], { duration: reduced() ? 1 : sm.duration + 160, fill: 'both', easing: sm.easing }).finished.then(() => ghost.remove()).catch(() => ghost.remove());
+    ghost.animate([{ transform: 'none' }, { transform: `translateX(${-dir * W}px)` }], { duration: reduced() ? 1 : sm.duration + 160, fill: 'both', easing: snapEase(sm.easing, W) }).finished.then(() => ghost.remove()).catch(() => ghost.remove());
     return dir;
   }
   /** React has rendered the new page: it arrives from the side the chip sits on */
@@ -269,6 +269,6 @@ export class Expander {
     this.playPage(160, false);
     const W = dsc.clientWidth + 48;
     // the body moves as one layer that stays a layer (dropping it at the end would snap the text by a pixel)
-    $$(':scope > .hx-page > .hx-body', dsc).forEach((x) => this.anim(x, [{ transform: `translateX(${dir * W}px)` }, { transform: 'none' }], { duration: sm.duration + 160, easing: sm.easing }));
+    $$(':scope > .hx-page > .hx-body', dsc).forEach((x) => this.anim(x, [{ transform: `translateX(${dir * W}px)` }, { transform: 'none' }], { duration: sm.duration + 160, easing: snapEase(sm.easing, W) }));
   }
 }

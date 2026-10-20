@@ -170,8 +170,8 @@ export function Ribbon({ r, w, labels, axis }: { r: DayRibbon; w: number; labels
       {layer('steps', <>
         <path d={`${smoothPath(P)} L${px(r.to)} ${base} L${pad} ${base} Z`} fill={C.move} opacity={0.2} />
         <path d={smoothPath(P)} fill="none" stroke={C.move} strokeWidth={1.6} />
-        {(() => { let k = 0; r.steps.forEach((v, i) => { if (v > r.steps[k]) k = i; }); return r.steps[k] > 300 ? <text className="hx-ax" x={P[k][0]} y={P[k][1] - 8} textAnchor="middle" style={{ fill: '#ffb08a' }}>{labels.steps}</text> : null; })()}
       </>)}
+      {layer('slab', (() => { let k = 0; r.steps.forEach((v, i) => { if (v > r.steps[k]) k = i; }); return r.steps[k] > 300 ? <text className="hx-ax" x={P[k][0]} y={P[k][1] - 8} textAnchor="middle" style={{ fill: '#ffb08a' }}>{labels.steps}</text> : null; })())}
       {layer('sleep', <>
         {sleep.map((b, i) => <rect key={i} x={px(b.from)} y={top + lane[b.stage]} width={Math.max(1.5, px(b.to) - px(b.from))} height={6} rx={1.5} fill={STAGE[b.stage]} />)}
         {firstSleep && labels.sleep && <text className="hx-ax" x={Math.max(pad, px(firstSleep.from))} y={top - 8} style={{ fill: '#c7cfff' }}>{labels.sleep}</text>}
