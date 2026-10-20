@@ -187,12 +187,12 @@ function useIntro(scr: React.RefObject<HTMLDivElement | null>, v: HealthView) {
     // one slow sweep through the day, left to right, every layer together (the day in time order); the labels and now settle after
     layer('axis')?.animate([{ opacity: 0, offset: 0 }], { duration: 600, delay: 200, easing: 'linear', fill: 'both' });
     for (const k of ['sleep', 'heart', 'steps', 'moves']) wipe(k, 320, 1700);
-    layer('now')?.animate([{ opacity: 0, transform: 'translateY(-6px)', offset: 0 }], { duration: 700, delay: 1700, easing: EO, fill: 'both' });
+    layer('now')?.animate([{ opacity: 0, transform: 'translateY(-6px)', offset: 0 }], { duration: 450, delay: 1050, easing: EO, fill: 'both' });
   });
 
-  // sections rise when they come into view (not all at once below the fold, where nobody sees it); the first ones wait for
-  // the ribbon's sweep. One observer for the screen's life: a re-render (data arriving) must not cut a rise short.
-  const io = useRef<IntersectionObserver | null>(null), t0 = useRef(0);
+  // sections rise when they come into view (not all at once below the fold, where nobody sees it); the first ones come in
+  // order during the last part of the ribbon's sweep. One observer for the screen's life: a re-render (data arriving) must not cut a rise short.
+  const io = useRef<IntersectionObserver | null>(null), t0 = useRef(0), order = useRef(0);
   useLayoutEffect(() => {
     const el = scr.current; if (!el) return;
     const fresh = [...el.querySelectorAll<HTMLElement>('.hx-sec')].filter((x) => !seen.current.has(x.dataset.k!));
@@ -204,7 +204,7 @@ function useIntro(scr: React.RefObject<HTMLDivElement | null>, v: HealthView) {
       io.current = new IntersectionObserver((es) => es.forEach((e) => {
         if (!e.isIntersecting) return;
         const x = e.target as HTMLElement; io.current?.unobserve(x);
-        const late = Math.max(0, 1500 - (performance.now() - t0.current));
+        const late = Math.max(0, 720 + order.current++ * 110 - (performance.now() - t0.current));
         x.style.opacity = '';
         x.animate([{ opacity: 0, transform: 'translateY(12px)', offset: 0 }], { duration: 520, delay: late, easing: 'cubic-bezier(.25,1,.5,1)', fill: 'both' });
         const c = x.querySelector<HTMLElement>('.hx-wipe');
@@ -370,7 +370,7 @@ function Page({ k, v, t, lang }: { k: K; v: HealthView; t: TFn; lang: Lang }) {
       <div className="hx-bleed hx-hyp" data-share="chart"><Hypnogram night={n.session} w={W} /></div>
       <h3 className="hx-dt hx-rise">{head}</h3>
       {diff !== undefined && <p className="hx-dsub hx-rise">{Math.abs(diff) < 15 ? t('About your usual {u}.', { u: hm(n.usual!, lang) }) : t(diff > 0 ? '{d} more than your usual {u}.' : '{d} less than your usual {u}.', { d: hm(Math.abs(diff), lang), u: hm(n.usual!, lang) })}</p>}
-      {sc && <div className="hx-panel hx-rise"><div className="hx-rowc"><div><div className="hx-ptitle" style={{ margin: 0 }}>{t('Sleep score')}</div><div className="hx-n" style={{ fontSize: 40, fontWeight: 300, marginTop: 4 }}>{sc.score}<small>/100 · {t(sc.band)}</small></div>{sc.cap && sc.capMin && <div className="hx-sub" style={{ marginTop: 4, textWrap: 'balance' }}>{t('Under {h} of sleep it stays at most {n}.', { h: hm(sc.capMin, lang), n: sc.cap })}</div>}</div><ScoreRing value={sc.score} color={C.sleep} /></div><div style={{ marginTop: 14 }}><Parts s={sc} t={t} /></div><div className="hx-sub" style={{ marginTop: 10 }}>{t('Length counts for 30 %, each of the others 10 to 15 %.')}</div></div>}
+      {sc && <div className="hx-panel hx-rise"><div className="hx-rowc"><div><div className="hx-ptitle" style={{ margin: 0 }}>{t('Sleep score')}</div><div className="hx-n" style={{ fontSize: 40, fontWeight: 300, marginTop: 4 }}>{sc.score}<small>/100 · {t(sc.band)}</small></div>{sc.cap && sc.capMin && <div className="hx-sub" style={{ marginTop: 4, textWrap: 'balance' }}>{t('Under {h} of sleep it stays at most {n}.', { h: hm(sc.capMin, lang), n: sc.cap })}</div>}</div><ScoreRing value={sc.score} color={C.sleep} /></div><div style={{ marginTop: 14 }}><Parts s={sc} t={t} /></div><div className="hx-sub" style={{ marginTop: 10 }}>{t('Length counts for 30%, each of the others 10–15%.')}</div></div>}
       <div className="hx-panel hx-rise"><div className="hx-stages">{st.map(([name, m, c]) => <div key={name} className="hx-strow"><b style={{ color: c }}>{name}</b><div className="hx-sbar"><span className="hx-sb" style={{ ['--sc' as string]: c, width: `${Math.round((m / mx) * 100)}%` }} /></div><span>{hm(m, lang)}</span></div>)}</div></div>
       <div className="hx-panel hx-rise"><div className="hx-ptitle">{n.usual ? t('The last 14 nights · usual {u}', { u: hm(n.usual, lang) }) : t('The last 14 nights')}</div>
         <svg viewBox={`0 0 ${w} 112`} width={w} height={112} style={{ display: 'block', overflow: 'visible' }} aria-hidden>

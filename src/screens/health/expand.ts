@@ -93,14 +93,20 @@ export class Expander {
     const wf = this.frames(src);
     L.forEach((l, i) => st.anims.push(this.anim(l, [{ transform: wf[i] }, { transform: 'none' }], { duration: D, easing: E })));
     st.anims.push(this.anim(mat, [{ opacity: 0 }, { opacity: 1 }], { duration: 90, easing: 'linear' }));
-    // home steps back as the page grows: nothing of it shows through the page, the background's warmth does
-    st.anims.push(this.anim(this.e.scr, [{ opacity: 1 }, { opacity: 0 }], { duration: D * 0.18, easing: 'cubic-bezier(.3,0,.6,1)' }));
+    // home steps back at once as the page grows (no flight crosses its words): nothing of it shows through the page, the background's warmth does
+    st.anims.push(this.anim(this.e.scr, [{ opacity: 1 }, { opacity: 0 }], { duration: D * 0.1, easing: 'cubic-bezier(.2,0,.4,1)' }));
     st.anims.push(this.anim(edge, [{ opacity: 0 }, { opacity: 1, offset: 0.12 }, { opacity: 1, offset: 0.7 }, { opacity: 0 }], { duration: D, easing: 'linear' }));
     // the page's words settle in once the flying number and chart have passed them (so nothing is drawn over anything)
     const sm = this.sm();
+    // the X, chips and label wait until the window's top edge has passed them (never cut in half); the unit, headline and
+    // first row come with the number; only the words under the flying chart wait for it to pass
+    const chart = st.fl.find((o) => o.b.dataset.share === 'chart')?.b;
+    const y0 = dsc.getBoundingClientRect().top, under = chart ? chart.getBoundingClientRect().bottom - y0 : Infinity;
+    let n = 0;
     $$('.hx-dhead,.hx-chips,.hx-lab,.hx-sub,.hx-rise', dsc).filter((x) => !x.closest('[data-share]')).forEach((x, i) => {
       const top = x.classList.contains('hx-dhead') || x.classList.contains('hx-chips') || x.classList.contains('hx-lab');
-      const delay = top ? D * 0.12 + i * 40 : D * 0.36 + Math.min(i, 4) * 30;
+      const below = x.getBoundingClientRect().top - y0 >= under - 1;
+      const delay = top ? D * 0.3 + i * 30 : below ? D * 0.36 + Math.min(n++, 4) * 30 : D * 0.2;
       st.anims.push(this.anim(x, [{ opacity: 0 }, { opacity: 1 }], { duration: 280, delay, easing: 'linear' }));
       st.anims.push(this.anim(x, [{ transform: 'translateY(10px)' }, { transform: 'none' }], { duration: sm.duration, delay, easing: sm.easing }));
     });
@@ -160,7 +166,7 @@ export class Expander {
     const wf = this.frames(st.src);
     const out: Animation[] = [];
     const dimO = st.dim.map((x) => getComputedStyle(x).opacity);
-    st.dim.forEach((x, i) => { x.getAnimations().forEach((a) => a.cancel()); x.style.opacity = '0'; out.push(this.anim(x, [{ opacity: dimO[i] }, { opacity: dimO[i], offset: 0.35 }, { opacity: 1, offset: 0.85 }, { opacity: 1 }], { duration: D, delay: 70, easing: 'linear' })); });
+    st.dim.forEach((x, i) => { x.getAnimations().forEach((a) => a.cancel()); x.style.opacity = '0'; out.push(this.anim(x, [{ opacity: dimO[i] }, { opacity: dimO[i], offset: 0.2 }, { opacity: 1, offset: 0.55 }, { opacity: 1 }], { duration: D, delay: 70, easing: 'linear' })); });
     L.forEach((l, i) => out.unshift(this.anim(l, [{ transform: fromL[i] }, { transform: wf[i] }], { duration: D, delay: 70, easing: E })));
     // the material clears between 25 % and 80 %: the section is already back underneath, so close ends on the settled screen
     out.push(this.anim(mat, [{ opacity: matO }, { opacity: matO, offset: 0.2 }, { opacity: 0, offset: 0.55 }, { opacity: 0 }], { duration: D, easing: 'linear' }));
@@ -262,6 +268,7 @@ export class Expander {
     const sm = this.sm();
     this.playPage(160, false);
     const W = dsc.clientWidth + 48;
-    $$(':scope > .hx-page > .hx-body > *', dsc).forEach((x) => this.anim(x, [{ transform: `translateX(${dir * W}px)` }, { transform: 'none' }], { duration: sm.duration + 160, easing: sm.easing }));
+    // the body moves as one layer that stays a layer (dropping it at the end would snap the text by a pixel)
+    $$(':scope > .hx-page > .hx-body', dsc).forEach((x) => this.anim(x, [{ transform: `translateX(${dir * W}px)` }, { transform: 'none' }], { duration: sm.duration + 160, easing: sm.easing }));
   }
 }
