@@ -200,6 +200,9 @@ function CoachReply({ m }: { m: Extract<Msg, { role: 'user' | 'model' }> }) {
   );
 }
 
+/** The openings whose question was already asked (by their props object, which stays the same while the sheet is open). */
+const askedOpenings = new WeakSet<object>();
+
 export function Coach({ props }: { props: { listen?: boolean; date?: string; mealId?: string; /** the orb screen's conversation, carried over by "Continue in Coach" */ seed?: { said: string; reply: string }[]; /** a question to ask as soon as it opens (the weekly review's button) */ ask?: string; /** opened by holding something ("Ask the Coach about this", ui/askHold.ts) */ about?: About } }) {
   const t = useT();
   const present = useIsPresent();
@@ -758,7 +761,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   };
 
   /** One turn: the model (or, without an AI key, the local reader) says what to do; we do it; the cards show it. */
-  const agentTurn = async (text: string, signal: AbortSignal, photo: Photo | undefined, userId: string) => {
+  const agentTurn = async (text: string, signal: AbortSignal, photo: Photo | undefined, userId: string, meta?: { dictated?: boolean; words?: string }) => {
     const st = useStore.getState();
     const today = dayKey(Date.now(), st.settings.dayStartHour);
     const placeholder = uid('m');
@@ -772,7 +775,10 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     const where = props.mealId || props.date ? `The user opened this from the Food tab${props.date ? ` (day ${props.date})` : ''}${props.mealId ? `, meal ${props.mealId}` : ''}: foods go there unless they say otherwise.` : 'The user opened this from the main screen.';
     const history = turnsFor(userId); // the conversation so far (the orb screen's turns included)
     // the answer streams in as the model writes it, into the same message that then stays (nothing re-mounts or re-animates)
-    const d = await decide(photo ? `[photo] ${text}` : text, { lang, t, pool, history, where, signal, surface: 'coach', photo, said: threadSaid(msgsRef.current as ThreadMsg[]), onStatus: (x) => { if (alive.current) setMsgs((all) => all.map((m) => (m.id === placeholder && m.role === 'model' ? { ...m, status: x || undefined } : m))); }, onReply: (r) => { if (alive.current) setMsgs((x) => x.map((m) => (m.id === placeholder && m.role === 'model' ? { ...m, text: r } : m))); } });
+    // (said or typed, and only their own words: from send, or from the saved message on Try again — the message isn't in
+    // msgsRef yet when send calls straight through)
+    const asked = msgsRef.current.find((m) => m.id === userId) as { text?: string; dictated?: boolean } | undefined;
+    const d = await decide(photo ? `[photo] ${text}` : text, { lang, t, pool, history, where, signal, surface: 'coach', photo, dictated: meta?.dictated ?? !!asked?.dictated, words: meta?.words ?? asked?.text, said: threadSaid(msgsRef.current as ThreadMsg[]), onStatus: (x) => { if (alive.current) setMsgs((all) => all.map((m) => (m.id === placeholder && m.role === 'model' ? { ...m, status: x || undefined } : m))); }, onReply: (r) => { if (alive.current) setMsgs((x) => x.map((m) => (m.id === placeholder && m.role === 'model' ? { ...m, text: r } : m))); } });
     let { reply } = d; const { note, actions } = d;
     if (d.wantsUndo) { undoLast(); if (!actions.length && !reply) reply = t('Undone.'); }
     const results = actions.length ? await runActions(actions, { t, lang, today, brain: brainFor({ big: false, surface: 'coach', signal }), date: props.date, mealId: props.mealId, photo: !!photo, onStatus: (x) => { if (alive.current) setMsgs((all) => all.map((m) => (m.id === placeholder && m.role === 'model' ? { ...m, status: x || undefined } : m))); } }) : [];
@@ -804,12 +810,12 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   };
 
   // ── when it fails: Try again (the same words, from the same bubble), Open settings (a key problem) ──
-  const runTurn = async (id: string, text: string, pic: { url: string; blob: Blob } | null) => {
+  const runTurn = async (id: string, text: string, pic: { url: string; blob: Blob } | null, meta?: { dictated?: boolean; words?: string }) => {
     setBusy(true); stopSpeaking(); orb('processing');
     ctl.current = new AbortController();
     const signal = ctl.current.signal;
     try {
-      await agentTurn(text || t('What is this?'), signal, pic ? { mime: 'image/jpeg', data: await blobToBase64(pic.blob) } : undefined, id);
+      await agentTurn(text || t('What is this?'), signal, pic ? { mime: 'image/jpeg', data: await blobToBase64(pic.blob) } : undefined, id, meta);
       if (alive.current) setMsgs((x) => x.map((m) => (m.id === id && m.role === 'user' && m.failed ? { ...m, failed: undefined } : m)));
     } catch (e: any) {
       if (!alive.current) return;
@@ -848,13 +854,20 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   const queued = useRef(false);
   const [queuedOn, setQueuedOn] = useState(false);
 
+  const lastSent = useRef({ text: '', at: 0 });
+  // (only while that one is still being answered: once it is, the same words again are a new answer, like a second "8")
+  useEffect(() => { if (!busy) lastSent.current = { text: '', at: 0 }; }, [busy]);
   const send = async (raw?: string, spoken = false) => {
     const text = (raw ?? input).trim();
     const pic = raw === undefined ? photo : null; // a suggestion chip or dictation sends words only
     if (!alive.current || (!text && !pic)) return;
+    // the same words sent twice within 2 s (a chip or an opening question fired twice before the screen caught up):
+    // asked once (Omar's chat showed one question twice, 18 Oct). Typed words are never dropped (queued below instead)
+    if (raw !== undefined && text && !pic && lastSent.current.text === text && Date.now() - lastSent.current.at < 2000) return;
     // typed while it is still answering: kept in the field and sent the moment the answer is done
     if (busy) { if (raw === undefined && text) { queued.current = true; setQueuedOn(true); haptic('light'); } return; }
     if (clearing.current) finishClear();
+    if (text) lastSent.current = { text, at: Date.now() };
     pinned.current = true; user.current = false;
     const id = uid('m');
     const field = inputRef.current;
@@ -880,8 +893,8 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
     setInput(''); setPhoto(null); setResumed(false);
     // about something that was held: the model gets what it is with the words; the bubble shows only its name
     const ab = about; setAbout(null);
-    say({ id, role: 'user', text, at: Date.now(), ...(wrap ? { lines: wrap.lines } : {}), ...(pic ? { photo: true, image: pic.url } : {}), ...(ab ? { about: ab.detail, aboutLabel: ab.label } : {}) });
-    await runTurn(id, ab ? `[about: ${ab.detail}] ${text}` : text, pic);
+    say({ id, role: 'user', text, at: Date.now(), ...(spoken ? { dictated: true } : {}), ...(wrap ? { lines: wrap.lines } : {}), ...(pic ? { photo: true, image: pic.url } : {}), ...(ab ? { about: ab.detail, aboutLabel: ab.label } : {}) });
+    await runTurn(id, ab ? `[about: ${ab.detail}] ${text}` : text, pic, { dictated: spoken, words: text });
   };
 
   // ── voice input through Groq (same single-owner mic as dictation) ──
@@ -929,8 +942,9 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
   const sendRef = useRef<(raw?: string) => void>(() => {});
   sendRef.current = send;
   useEffect(() => {
-    if (!props.ask) return;
-    const id = setTimeout(() => { if (alive.current) sendRef.current(props.ask); }, 380);
+    // (once per opening: the Coach can mount again with the same props, and the question is in the chat already)
+    if (!props.ask || askedOpenings.has(props)) return;
+    const id = setTimeout(() => { if (alive.current && !askedOpenings.has(props)) { askedOpenings.add(props); sendRef.current(props.ask); } }, 380);
     return () => clearTimeout(id);
     // eslint-disable-next-line
   }, []);

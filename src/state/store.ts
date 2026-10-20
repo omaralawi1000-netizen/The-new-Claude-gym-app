@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { StepDay, Schedule,
+import type { StepDay, HealthDay, CatchUp, Schedule,
   ActivityLog, AppData, Exercise, Food, FoodEntry, Measurement, Meal, MemoryNote, WeekReviewNote, PersonalRecord, Recipe, Routine, SavedMeal,
   SessionExercise, SetRecord, Settings, WeightLog, WorkoutSession, Nutrients,
 } from '../lib/types';
@@ -9,6 +9,7 @@ import { dayKey, addDays, weekdayOf } from '../lib/dates';
 import { countable, detectRecords, lastPerformance, planSets, setsFromItem } from '../lib/workout';
 import { entryFromSnapshot, recipeToFood, requantify, snapshotOf, uid } from '../lib/nutrition';
 import { DATA_VERSION, defaultData, detectLang, normaliseData } from './defaults';
+import { heavyMode, noteTarget } from '../lib/eating';
 
 const KEY = 'aven.v1';
 /** The running workout on its own: written at once on every change (a few KB), while the whole app's data is written a moment
@@ -40,8 +41,8 @@ let saveTimer: ReturnType<typeof setTimeout> | null = null;
 export const persistStatus = { error: null as string | null, listeners: new Set<() => void>() };
 
 function pickData(s: Store): AppData {
-  const { settings, foods, favourites, savedMeals, recipes, entries, water, exercises, routines, schedule, sessions, active, weights, measurements, photos, activities, steps, notes, demo, choices, increments, memory, reviews } = s;
-  return { v: DATA_VERSION, settings, foods, favourites, savedMeals, recipes, entries, water, exercises, routines, schedule, sessions, active, weights, measurements, photos, activities, steps, notes, demo, choices, increments, memory, reviews };
+  const { settings, foods, favourites, savedMeals, recipes, entries, water, exercises, routines, schedule, sessions, active, weights, measurements, photos, activities, steps, health, hcGone, catchUps, targets, marks, notes, demo, choices, increments, memory, reviews } = s;
+  return { v: DATA_VERSION, settings, foods, favourites, savedMeals, recipes, entries, water, exercises, routines, schedule, sessions, active, weights, measurements, photos, activities, steps, health, hcGone, catchUps, targets, marks, notes, demo, choices, increments, memory, reviews };
 }
 
 export function flushSave() {
@@ -137,7 +138,9 @@ export interface Store extends AppData {
   removePhoto: (id: string) => void;
   addActivity: (a: Omit<ActivityLog, 'id' | 'at'>) => ActivityLog;
   /** the watch's numbers (lib/healthSync.ts): its workouts and steps, merged without doubles */
-  mergeHealth: (next: { activities: ActivityLog[]; steps: StepDay[] }) => void;
+  mergeHealth: (next: { activities: ActivityLog[]; steps: StepDay[]; health?: HealthDay[] }) => void;
+  /** heavy days being caught up (lib/eating.ts) */
+  setCatchUps: (next: CatchUp[]) => void;
   removeActivity: (id: string) => ActivityLog | undefined;
   restoreActivity: (a: ActivityLog) => void;
   setNote: (date: string, patch: { training?: string; nutrition?: string }) => void;
@@ -156,6 +159,19 @@ export interface Store extends AppData {
 }
 
 const dayOf = (s: Settings, t = Date.now()) => dayKey(t, s.dayStartHour);
+
+/** A change of the calorie target is recorded with its day (lib/eating.ts `noteTarget`), unless the change brings its own
+ *  history (demo, restore: `replaceAll` never records). Heavy-day notices turning on (by hand, or because the goal became
+ *  fat loss) remember the day, so days before it are never judged. */
+function withTarget(s: Store, next: Partial<Store>): Partial<Store> {
+  if (!next.settings) return next;
+  let out = next;
+  if (heavyMode(next.settings) === 'on' && heavyMode(s.settings) !== 'on' && next.settings.heavyOnSince === s.settings.heavyOnSince) out = { ...out, settings: { ...next.settings, heavyOnSince: dayOf(next.settings) } };
+  if ('targets' in next) return out;
+  const was = s.settings.goals.kcal, now = next.settings.goals?.kcal;
+  if (was === now) return out;
+  return { ...out, targets: noteTarget(s.targets, was, now, dayOf(next.settings)) };
+}
 
 /**
  * After a finished workout's sets change: its records are detected again against the workouts before it, and so are those
@@ -254,7 +270,7 @@ export const useStore = create<Store>((set, get) => {
   return {
     ...initial,
 
-    updateSettings: (patch) => mutate((s) => ({ settings: { ...s.settings, ...patch } })),
+    updateSettings: (patch) => mutate((s) => withTarget(s, { settings: { ...s.settings, ...patch } })),
 
     // ── food
     logEntries: (list) => {
@@ -443,7 +459,8 @@ export const useStore = create<Store>((set, get) => {
     restoreMeasurement: (m) => mutate((s) => ({ measurements: s.measurements.some((x) => x.id === m.id) ? s.measurements : [...s.measurements, m] })),
     addPhoto: (p) => mutate((s) => ({ photos: [...s.photos, p] })),
     removePhoto: (id) => mutate((s) => ({ photos: s.photos.filter((p) => p.id !== id) })),
-    mergeHealth: (next) => mutate(() => ({ activities: next.activities, steps: next.steps })),
+    mergeHealth: (next) => mutate(() => ({ activities: next.activities, steps: next.steps, ...(next.health ? { health: next.health } : {}) })),
+    setCatchUps: (next) => mutate(() => ({ catchUps: next.slice(-30) })),
     addActivity: (a) => {
       const log: ActivityLog = { ...a, id: uid('ac'), at: Date.now() };
       mutate((s) => ({ activities: [...s.activities, log] }));
@@ -451,10 +468,10 @@ export const useStore = create<Store>((set, get) => {
     },
     removeActivity: (id) => {
       const a = get().activities.find((x) => x.id === id);
-      if (a) mutate((s) => ({ activities: s.activities.filter((x) => x.id !== id) }));
+      if (a) mutate((s) => ({ activities: s.activities.filter((x) => x.id !== id), ...(a.hcId ? { hcGone: [...(s.hcGone ?? []), a.hcId].slice(-500) } : {}) }));
       return a;
     },
-    restoreActivity: (a) => mutate((s) => ({ activities: s.activities.some((x) => x.id === a.id) ? s.activities : [...s.activities, a] })),
+    restoreActivity: (a) => mutate((s) => ({ activities: s.activities.some((x) => x.id === a.id) ? s.activities : [...s.activities, a], ...(a.hcId ? { hcGone: (s.hcGone ?? []).filter((x) => x !== a.hcId) } : {}) })),
     setNote: (date, patch) => mutate((s) => {
       const cur = s.notes.find((n) => n.date === date);
       const next = { ...(cur ?? { date }), ...patch };
@@ -477,7 +494,7 @@ export const useStore = create<Store>((set, get) => {
     restoreMemory: (m) => mutate((s) => ({ memory: s.memory.some((x) => x.id === m.id) ? s.memory : [...s.memory, m].sort((a, b) => a.at - b.at) })),
 
     // ── data
-    patch: (p) => mutate((s) => (typeof p === 'function' ? p(s) : p) as Partial<Store>, true),
+    patch: (p) => mutate((s) => withTarget(s, (typeof p === 'function' ? p(s) : p) as Partial<Store>), true),
     replaceAll: (d) => { set({ ...d }); flushSave(); },
     resetAll: () => { const lang = get().settings.language; set({ ...defaultData(lang) }); flushSave(); },
   };

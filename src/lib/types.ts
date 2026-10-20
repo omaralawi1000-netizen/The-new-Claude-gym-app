@@ -259,6 +259,37 @@ export interface Schedule {
 // ── Body & activity ─────────────────────────────────────────
 
 export interface WeightLog { id: string; date: string; kg: number; at: number }
+
+/**
+ * A heavy day caught up over the next few (lib/eating.ts): what it was over by, and the lower targets that make up for it.
+ * Omar asked for it (19 Oct): an evening that got out of hand (often logged the morning after) is paid back over 3–4 days,
+ * never in one brutal day, protein kept, never under a safe floor.
+ */
+/** The calorie target changed on `from` (to `kcal`, from `prev`; either undefined = no target). One record a day. */
+export interface TargetChange { from: string; kcal?: number; prev?: number }
+export interface CatchUp {
+  id: string;
+  /** the heavy day, and how far over its target it went */
+  date: string; over: number;
+  /** the days with a lower target, and how much lower each */
+  days: string[]; perDay: number;
+  /** noticed the same evening (live) or from a log made afterwards (late) */
+  trigger: 'live' | 'late';
+  at: number;
+  /** the lowest a day's target may go because of it */
+  floor: number;
+  /** said to them already: the toast, and the Coach's first line */
+  told?: boolean; coachTold?: boolean;
+  /** taken back (Undo, or "don't cut my calories"): kept so the same day is never caught up again */
+  off?: boolean;
+  /** the plan as decided after a look at everything (lib/verdict.ts): the pop-up's line and the reasoning behind it */
+  line?: string; why?: string;
+  /** decided once (an older record with a `line` counts as decided); set by hand through the Coach (never re-planned) */
+  decided?: boolean; byHand?: boolean;
+  /** its day stopped being heavy after it was decided (an entry deleted or fixed): kept with no cut, so a re-log of the
+   *  same evening is never decided or said again */
+  gone?: boolean;
+}
 export type MeasureKind = 'waist' | 'chest' | 'hips' | 'arm' | 'thigh' | 'neck';
 export interface Measurement { id: string; date: string; kind: MeasureKind; cm: number }
 export interface ProgressPhoto { id: string; date: string; note?: string }
@@ -289,6 +320,27 @@ export interface ActivityLog {
 
 /** Steps of one day, from the watch and phone (Health Connect counts each step once). */
 export interface StepDay { date: string; count: number }
+
+/**
+ * Everything else the watch measured on one day (Health Connect, read only): calories, distance, floors, resting heart
+ * rate, HRV, the night's sleep (counted on the morning it ended) with its stages, and body numbers. Missing = not measured
+ * or not allowed.
+ */
+export interface HealthDay {
+  date: string;
+  /** active and total calories burned (shown, never added to the food target) */
+  activeKcal?: number; totalKcal?: number;
+  distanceM?: number; floors?: number;
+  /** resting heart rate (bpm) and heart rate variability (RMSSD, ms) */
+  restHr?: number; hrv?: number;
+  /** sleep in minutes, and its stages */
+  sleepMin?: number; deepMin?: number; remMin?: number; lightMin?: number; awakeMin?: number;
+  /** when the night's sleep started and ended (ms) */
+  sleepStart?: number; sleepEnd?: number;
+  weightKg?: number; bodyFat?: number; vo2max?: number;
+  /** blood oxygen (%) and breathing rate (per minute), the day's average */
+  spo2?: number; respRate?: number;
+}
 
 // ── Settings ────────────────────────────────────────────────
 
@@ -338,6 +390,11 @@ export interface Settings {
   profile: { goal: Goal; experience: Experience; equipment: EquipmentAccess; days: number[] };
   plateStep: number;
   foodLookup: boolean;
+  /** heavy-day notices (lib/eating.ts `heavyMode`): on = noticed, decided, maybe a small trim; quiet = noticed only, the
+   *  Coach knows; off = not noticed. Missing = by goal (fat loss on, other goals quiet) */
+  heavyDays?: 'on' | 'quiet' | 'off';
+  /** the day notices last turned on: days before it are never judged (no pop-ups about the past) */
+  heavyOnSince?: string;
 }
 
 export interface DailyNote { date: string; training?: string; nutrition?: string }
@@ -390,7 +447,18 @@ export interface AppData {
   memory: MemoryNote[];
   /** the weekly reviews (the newest 26): the Coach's verdict and the priorities it set, so the next review can check them */
   reviews?: WeekReviewNote[];
-  /** steps per day from the watch (Health Connect), the newest 120 days */
+  /** steps per day from the watch (Health Connect), the newest ~2 years */
   steps: StepDay[];
+  /** the rest of what the watch measured, per day (newest ~2 years) */
+  health?: HealthDay[];
+  /** heavy days being caught up (lib/eating.ts), the newest 30 */
+  catchUps?: CatchUp[];
+  /** when the calorie target changed (lib/eating.ts `targetOn`), so a day is judged against the target it had */
+  targets?: TargetChange[];
+  /** things done or said once, with the day (heavySeen: heavy days already there were marked seen; invisibleSaid,
+   *  helpSaid, ageAsked: the Coach brought it up) */
+  marks?: Record<string, string>;
+  /** watch workouts deleted by hand (their Health Connect ids, the newest 500): never brought back by a sync */
+  hcGone?: string[];
   demo: boolean;
 }

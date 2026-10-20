@@ -31,15 +31,23 @@ public class HealthActivity extends Activity {
         if (!HealthSync.available(this)) { open(HealthSync.status(this, "unavailable")); return; }
         switch (what) {
             case "connect":
-                if (HealthSync.granted(this)) { HealthSync.setOn(this, true); sync(); }
-                else requestPermissions(HealthSync.PERMS, ASK);
+                // the whole history again from the top (newly allowed data comes in); everything is asked for, and
+                // Health Connect shows only what isn't allowed yet (sleep, heart rate variability… added later)
+                HealthSync.restartHistory(this);
+                if (HealthSync.missingAny(this)) requestPermissions(HealthSync.all(), ASK);
+                else { HealthSync.setOn(this, true); sync(); }
                 break;
             case "off":
                 HealthSync.setOn(this, false);
                 open(HealthSync.status(this, "off"));
                 break;
             default:
-                sync();
+                // connected before sleep, HRV and the rest were added: asked for once here (the whole history again then)
+                if (HealthSync.on(this) && HealthSync.missingAny(this) && !HealthSync.askedMore(this)) {
+                    HealthSync.markAskedMore(this);
+                    HealthSync.restartHistory(this);
+                    requestPermissions(HealthSync.all(), ASK);
+                } else sync();
         }
     }
 
@@ -55,8 +63,9 @@ public class HealthActivity extends Activity {
     private void sync() {
         if (!HealthSync.on(this)) { open(HealthSync.status(this, "denied")); return; }
         Handler main = new Handler(Looper.getMainLooper());
-        // (a slow Health Connect never holds the page back for long: after 6 s it opens with what it has)
-        main.postDelayed(() -> open(HealthSync.status(this, "slow")), 6000);
+        // (a slow Health Connect never holds the page back for long: after 15 s it opens with what it has; the first read
+        // with history can take a while)
+        main.postDelayed(() -> open(HealthSync.status(this, "slow")), 15000);
         HealthSync.read(this, payload -> main.post(() -> open(payload != null ? payload : HealthSync.status(this, "failed"))));
     }
 

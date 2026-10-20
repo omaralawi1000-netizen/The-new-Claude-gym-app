@@ -13,7 +13,7 @@ import { fmtNum, kgToDisplay } from '../lib/units';
 import { exName, MUSCLE_LABEL } from './workout/common';
 import { MuscleTags } from './MuscleTags';
 import { estMinutes } from './Today';
-import { ACTIVITY_LABEL, activityIcon, activityLine } from '../lib/activity';
+import { ACTIVITY_LABEL, activityIcon, activityLine, watchWalk } from '../lib/activity';
 import { matchExercises } from '../lib/workoutText';
 import { useProgressive, useScreenStore } from '../lib/hooks';
 import { MUSCLES } from '../data/exercises';
@@ -195,7 +195,8 @@ function HistoryTab() {
         <span style={{ width: 40, height: 40, borderRadius: 13, background: 'var(--s2)', display: 'grid', placeItems: 'center', flex: 'none', boxShadow: 'inset 0 0 0 1px var(--line)' }}><Icon name="dumbbell" size={19} /></span>
         <div className="grow" style={{ textAlign: 'left', minWidth: 0 }}><div className="li-title trunc">{workoutName(x.name, t)}{x.records && x.records.length > 0 && <span className="chip sm acc" style={{ marginLeft: 8, height: 20 }}>{x.records.length} PR</span>}</div><div className="li-sub num">{fmtDate(x.date, lang, { weekday: 'short', day: 'numeric', month: 'short' })} · {fmtDurationLong(elapsedMs(x) / 1000, lang)} · {fmtNum(Math.round(kgToDisplay(sessionVolume(x.exercises), u.weight)), lang, 0)} {u.weight}</div></div><Icon name="chevR" size={16} style={{ color: 'var(--tx3)' }} />
       </button>) })),
-    ...s.activities.map((x) => ({ at: x.at, date: x.date, node: (
+    // (the watch's own walks are in the steps; listed, two years of them buried the workouts)
+    ...s.activities.filter((x) => !watchWalk(x)).map((x) => ({ at: x.at, date: x.date, node: (
       <div key={x.id} className="li">
         <span style={{ width: 40, height: 40, borderRadius: 13, background: x.kind === 'wrestling' ? 'var(--ac-soft)' : 'var(--s2)', color: x.kind === 'wrestling' ? 'var(--ac-text)' : undefined, display: 'grid', placeItems: 'center', flex: 'none', boxShadow: 'inset 0 0 0 1px var(--line)' }}><Icon name={activityIcon(x.kind)} size={19} /></span>
         <div className="grow" style={{ minWidth: 0 }}><div className="li-title">{x.name && x.source === 'watch' ? t(x.name) : t(ACTIVITY_LABEL[x.kind] === 'Other' ? 'Activity' : ACTIVITY_LABEL[x.kind])}</div><div className={`li-sub num${x.source === 'watch' ? '' : ' trunc'}`}>{fmtDate(x.date, lang, { weekday: 'short', day: 'numeric', month: 'short' })} · {activityLine(x, t, lang, u.distance)}{x.note ? ` · ${x.note}` : ''}</div></div>

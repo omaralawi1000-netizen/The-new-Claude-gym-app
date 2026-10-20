@@ -9,6 +9,7 @@ import { useT, useLang } from '../lib/i18n';
 import { Sheet, SheetHead } from '../ui/Sheet';
 import { Icon } from '../ui/Icon';
 import { NumInput, Seg, Stepper, Toggle } from '../ui/kit';
+import { heavyMode } from '../lib/eating';
 import { fmtNum, fmtPct, KG_PER_LB } from '../lib/units';
 import { LB_STEPS, lbStepKg } from '../lib/workout';
 import { lastBackup, markBackup, useStorageKept } from '../lib/persist';
@@ -488,6 +489,9 @@ function Targets() {
       ) : null}
       <Field label={t('Fibre')}><NumInput label={t('Fibre')} value={g.fibre} onChange={set('fibre')} unit="g" max={0} placeholder="—" /></Field>
       <Field label={t('Water')}><NumInput label={t('Water')} value={g.waterMl} onChange={(v) => v && set('waterMl')(v)} unit="ml" max={0} /></Field>
+      <Field label={t('Heavy-day notices')} hint={t('After a day clearly over target. On: noticed, and the Coach decides if a small trim helps (Undo always). Quiet: only the Coach knows. Off: not noticed.')}>
+        <Seg value={heavyMode(s.settings)} onChange={(v) => s.updateSettings({ heavyDays: v })} options={[{ value: 'on', label: t('On') }, { value: 'quiet', label: t('Quiet') }, { value: 'off', label: t('Off') }]} />
+      </Field>
       <button className="btn ghost press" onClick={() => { anchor.current = null; s.updateSettings({ goals: { waterMl: g.waterMl } }); }}>{t('Clear nutrition targets')}</button>
     </div>
   );
@@ -749,7 +753,7 @@ function DataSection() {
     setPending(null);
     toast(t('Backup restored'), { tone: 'ok', actionLabel: t('Undo'), onAction: () => useStore.getState().replaceAll(prev), duration: 10000 });
   };
-  const doDelete = async () => { resetDrive(); useStore.getState().resetAll(); await clearPhotos().catch(() => {}); await clearArchive(); try { Object.keys(localStorage).filter((k) => k.startsWith('aven')).forEach((k) => localStorage.removeItem(k)); } catch { /* ignore */ } clearKeys(); useAi.getState().patch({ stt: 'accurate', voiceLang: 'auto', voice: 'Achird', brain: true, solFirst: true, effortOrb: 'medium', effortCoach: 'high', models: { fast: '', brain: '', fastAlt: '', brainAlt: '', tts: '', sol: '', solAuto: '' }, solChecked: 0 }); setConfirmDel(false); closeAll(); setTimeout(() => push('onboarding', {}), 80); };
+  const doDelete = async () => { resetDrive(); useStore.getState().resetAll(); await clearPhotos().catch(() => {}); await clearArchive(); try { Object.keys(localStorage).filter((k) => k.startsWith('aven')).forEach((k) => localStorage.removeItem(k)); } catch { /* ignore */ } clearKeys(); useAi.getState().patch({ stt: 'accurate', voiceLang: 'auto', voice: 'Achird', brain: true, solFirst: true, effortOrb: 'medium', effortCoach: 'high', models: { fast: '', brain: '', fastAlt: '', brainAlt: '', tts: '', sol: '', solAuto: '', quick: '' }, solChecked: 0, noQuick: false }); setConfirmDel(false); closeAll(); setTimeout(() => push('onboarding', {}), 80); };
   const demo = () => { const d = buildDemo(s.settings); useStore.getState().patch(d); toast(t('Demo data loaded'), { tone: 'ok' }); };
   const removeDemo = () => { const lang = s.settings.language; const settings = s.settings; useStore.getState().replaceAll({ ...defaultData(lang), settings }); toast(t('Demo data removed'), { tone: 'ok' }); };
 
