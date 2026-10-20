@@ -192,10 +192,11 @@ html:root[data-palette='champagne'][data-surface='glass']:not([data-theme='light
 html:root[data-palette='champagne'][data-surface='deep']:not([data-theme='light']) { --sheet-tint: rgba(14.85, 7.45, 2.29, 0.8372); --sheet-tint-short: rgba(14.35, 7.20, 2.21, 0.8145); --sheet-solid: rgb(9 4 1); --sf-lean: rgb(54 43 33); --scrim: rgb(3 1 1 / .5); } /* glass rgb(16,8,3) at 0.7 */
 html:root:not([data-surface='now']):not([data-theme='light']) .sheet { --tx2: rgba(242, 240, 238, 0.64); --tx3: rgba(242, 240, 238, 0.4); }
 html:root:not([data-surface='now']):not([data-theme='light']) .sheet :is(.plinth, .plinth-2):not(#_) { background-color: rgba(255, 255, 255, 0.055); }
-/* empty tracks: their own tab's colour (or the palette's, in sheets) mixed toward black, like Apple's ring tracks: a
-   dim version of the bar, never a white film (over a dark card that read taupe) */
-html:root:not([data-surface='now']):not([data-theme='light']) :is(.tc-bar, .rv-bar-track, .water-bar, .bar):not(#_) { background: color-mix(in oklab, var(--ac) 24%, rgb(0 0 0 / .40)); }
-html:root:not([data-surface='now']):not([data-theme='light']) .week-bars i:not(.logged, .on):not(#_) { background: color-mix(in oklab, var(--ac) 24%, rgb(0 0 0 / .40)); }
-html:root:not([data-surface='now']):not([data-theme='light']) .sheet .bar:not(#_):not(#_) { background: color-mix(in oklab, var(--ac) 20%, rgb(0 0 0 / .40)); }
-html:root:not([data-surface='now']):not([data-theme='light']) .input:not(.coach-field *):not(.wk-set.done .input):not(:focus):not(#_) { background-color: color-mix(in srgb, var(--sf-lean) 20%, transparent); box-shadow: inset 0 1px 2px rgba(0,0,0,.22), inset 0 0 0 1px rgba(255, 255, 255, 0.07); }
-html:root:not([data-surface='now']):not([data-theme='light']) .seg:not(#_) { background-color: color-mix(in srgb, var(--sf-lean) 20%, transparent); box-shadow: inset 0 1px 2px rgba(0,0,0,.22), inset 0 0 0 1px rgba(255, 255, 255, 0.07); }
+/* empty tracks: a dim, opaque version of their own bar's colour, like Apple's ring tracks (one orange's for the
+   muscle and week bars, water's for water, each macro's own in Food detail); never a film over the card (taupe) */
+html:root:not([data-surface='now']):not([data-theme='light']) :is(.tc-bar, .rv-bar-track, .bar):not(#_) { background: oklch(from var(--fill, var(--of, var(--ac))) 0.30 0.075 calc(h - 4)); }
+html:root:not([data-surface='now']):not([data-theme='light']) .water-bar:not(#_) { background: oklch(from var(--c-water) 0.30 0.06 h); }
+html:root:not([data-surface='now']):not([data-theme='light']) .week-bars i:not(.logged, .on):not(#_) { background: oklch(from var(--of, var(--ac)) 0.30 0.075 calc(h - 4)); }
+html:root:not([data-surface='now']):not([data-theme='light']) .sheet .bar:not(#_):not(#_) { background: oklch(from var(--fill, var(--of, var(--ac))) 0.28 0.06 h); }
+html:root:not([data-surface='now']):not([data-theme='light']) .input:not(.coach-field *):not(.wk-set.done .input):not(:focus):not(#_) { background-color: color-mix(in srgb, var(--sf-lean) 15%, transparent); box-shadow: inset 0 1px 2px rgba(0,0,0,.22), inset 0 0 0 1px rgba(255, 255, 255, 0.07); }
+html:root:not([data-surface='now']):not([data-theme='light']) .seg:not(#_) { background-color: color-mix(in srgb, var(--sf-lean) 15%, transparent); box-shadow: inset 0 1px 2px rgba(0,0,0,.22), inset 0 0 0 1px rgba(255, 255, 255, 0.07); }
