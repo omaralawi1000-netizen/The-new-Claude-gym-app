@@ -291,6 +291,9 @@ export type Goal = 'strength' | 'muscle' | 'fatloss' | 'endurance' | 'general';
 export type Experience = 'new' | 'some' | 'experienced';
 export type EquipmentAccess = 'fullGym' | 'homeDumbbells' | 'bodyweight' | 'barbellHome';
 
+/** the sheet surface in Settings; anything unknown (an option tried on Beta and since dropped) reads as Clear */
+export const surfaceOf = (v: unknown): NonNullable<Settings['surface']> => (v === 'now' || v === 'tinted' || v === 'deep' ? v : 'clear');
+
 export interface Settings {
   name: string;
   language: Lang;
