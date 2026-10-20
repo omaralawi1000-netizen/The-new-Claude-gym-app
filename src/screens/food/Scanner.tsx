@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useIsPresent } from 'motion/react';
 import { useStore, foodPool } from '../../state/store';
 import { useUI } from '../../state/ui';
 import { useT } from '../../lib/i18n';
@@ -26,6 +27,10 @@ export function Scanner({ props }: { props: { date: string; mealId: string } }) 
   const [msg, setMsg] = useState<{ kind: 'info' | 'bad'; text: string; create?: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const last = useRef({ code: '', at: 0 });
+  // false the moment the scanner starts to leave (Back, a swipe): a lookup still on its way then opens nothing
+  const alive = useRef(true);
+  const present = useIsPresent();
+  useEffect(() => { alive.current = present; return () => { alive.current = false; }; }, [present]);
   const supported = typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia; // camera needed; the reader itself is bundled
 
   const handle = async (raw: string) => {
@@ -37,6 +42,7 @@ export function Scanner({ props }: { props: { date: string; mealId: string } }) 
     const local = pool.find((f) => f.barcode === c);
     if (local) { swap(1, 'foodDetail', { foodId: local.id, date: props.date, mealId: props.mealId }); return; }
     const r = await lookupBarcode(c);
+    if (!alive.current) return;
     setBusy(false);
     if (r.food) { swap(1, 'foodDetail', { food: r.food, date: props.date, mealId: props.mealId }); return; }
     if (r.status === 'notfound') setMsg({ kind: 'info', text: t('No product found for {c}. You can add it yourself.', { c }), create: c });
