@@ -21,7 +21,7 @@ import { clearPhotos, loadPhoto, savePhoto } from '../lib/photos';
 import { clearArchive, importArchive } from '../lib/archive';
 import type { AppData, Lang, Meal, Settings } from '../lib/types';
 import { uid, kcalOf, scaleMacros, suggestMacros } from '../lib/nutrition';
-import { mealName } from '../lib/derive';
+import { mealName, removeMeal, restoreMeal } from '../lib/derive';
 import { addDays, dayKey, diffDays, fmtDate, fmtDuration } from '../lib/dates';
 import { useAi } from '../state/ai';
 import { clearKeys } from '../lib/keys';
@@ -480,19 +480,37 @@ function FoodSettings() {
   const st = s.settings;
   const toast = useUI((u) => u.toast);
   const [meals, setMeals] = useState<Meal[]>(st.meals);
+  useEffect(() => setMeals(st.meals), [st.meals]); // an Undo puts a removed meal back from outside
   const save = (m: Meal[]) => { setMeals(m); s.setMeals(m); };
+  // the field being typed in shows exactly what is typed (even nothing); the default name comes back only when you leave it
+  const [editing, setEditing] = useState<{ id: string; text: string; was: string } | null>(null);
   return (
     <div className="stack gap16">
       <Field label={t('Meals')}>
         <div className="stack gap8">
           {meals.map((m, i) => (
             <div key={m.id} className="row-flex" style={{ gap: 8 }}>
-              <input className="input" value={m.name || mealName(m, lang)} onChange={(e) => save(meals.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} aria-label={`${t('Meal')} ${i + 1}`} />
+              <input className="input" value={editing?.id === m.id ? editing.text : mealName(m, lang)} aria-label={`${t('Meal')} ${i + 1}`}
+                onFocus={() => setEditing({ id: m.id, text: mealName(m, lang), was: m.name })}
+                onChange={(e) => { const text = e.target.value; setEditing((x) => (x ? { ...x, text } : x)); save(meals.map((x, j) => (j === i ? { ...x, name: text.trim() ? text : '' } : x))); }}
+                onBlur={() => {
+                  // left empty: a built-in meal shows its default name again; your own meal (no default) keeps the name it had
+                  if (editing?.id === m.id && !editing.text.trim() && mealName({ ...m, name: '' }, lang) === m.id) save(meals.map((x) => (x.id === m.id ? { ...x, name: editing.was } : x)));
+                  setEditing(null);
+                }} />
               <button className="icon-btn flat press" aria-label={t('Remove')} disabled={meals.length <= 1} style={{ opacity: meals.length <= 1 ? 0.3 : 1 }} onClick={() => {
-                const target = meals.find((_, j) => j !== i)!;
-                useStore.getState().patch((x) => ({ entries: x.entries.map((e) => (e.mealId === m.id ? { ...e, mealId: target.id } : e)) }));
-                save(meals.filter((_, j) => j !== i));
-                toast(t('Entries moved to {meal}', { meal: target.name || mealName(target, lang) }));
+                const st0 = useStore.getState();
+                const r = removeMeal(meals, st0.entries, m.id);
+                if (!r) return;
+                st0.patch({ entries: r.entries });
+                save(r.meals);
+                const undo = () => {
+                  const x = useStore.getState();
+                  const back = restoreMeal(x.settings.meals, x.entries, r.removed);
+                  x.patch({ entries: back.entries });
+                  x.setMeals(back.meals);
+                };
+                toast(t('Entries moved to {meal}', { meal: mealName(r.removed.target, lang) }), { actionLabel: t('Undo'), onAction: undo });
               }}><Icon name="close" size={18} /></button>
             </div>
           ))}
