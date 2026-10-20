@@ -10,7 +10,7 @@ import { Sheet, SheetHead } from '../ui/Sheet';
 import { Icon } from '../ui/Icon';
 import { NumInput, Seg, Stepper, Toggle } from '../ui/kit';
 import { heavyMode } from '../lib/eating';
-import { fmtNum, fmtPct, KG_PER_LB } from '../lib/units';
+import { cmToDisplay, displayToCm, displayToKg, fmtNum, fmtPct, kgToDisplay, KG_PER_LB } from '../lib/units';
 import { LB_STEPS, lbStepKg } from '../lib/workout';
 import { lastBackup, markBackup, useStorageKept } from '../lib/persist';
 import { buildBackup, parseBackup, snapshotData } from '../lib/backup';
@@ -60,7 +60,7 @@ const TITLE = {
   exit: (d: number) => ({ opacity: 0, transform: `translateX(${d * -14}px)`, transition: { duration: 0.11, ease: [0.4, 0, 1, 1] as const } }),
 };
 
-type Section = null | 'today' | 'targets' | 'training' | 'food' | 'units' | 'look' | 'reminders' | 'data' | 'privacy' | 'ai' | 'memory' | 'watch' | 'about';
+type Section = null | 'profile' | 'today' | 'targets' | 'training' | 'food' | 'units' | 'look' | 'reminders' | 'data' | 'privacy' | 'ai' | 'memory' | 'watch' | 'about';
 
 function Row({ icon, title, sub, onClick, value }: { icon: any; title: string; sub?: string; onClick: () => void; value?: string }) {
   return (
@@ -254,8 +254,10 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
   const ai = useAi();
   const set = s.updateSettings;
   const st = s.settings;
-  const titles: Record<string, string> = { targets: t('Targets'), training: t('Training'), food: t('Food & water'), units: t('Units & locale'), look: t('Appearance'), today: t('Today'), reminders: t('Reminders'), data: t('Data & backup'), privacy: t('Privacy'), ai: t('Voice & AI'), memory: t('Coach memory'), watch: t('Watch'), about: t('About Aven') };
-  const goBack = () => (sec && !props.section ? setSec(null) : pop());
+  const titles: Record<string, string> = { profile: t('Profile'), targets: t('Targets'), training: t('Training'), food: t('Food & water'), units: t('Units & locale'), look: t('Appearance'), today: t('Today'), reminders: t('Reminders'), data: t('Data & backup'), privacy: t('Privacy'), ai: t('Voice & AI'), memory: t('Coach memory'), watch: t('Watch'), about: t('About Aven') };
+  // Adjust calories / macros in Profile open Targets; back from there returns to Profile
+  const fromProfile = useRef(false);
+  const goBack = () => (sec && !props.section ? (setSec(sec === 'targets' && fromProfile.current ? 'profile' : null), fromProfile.current = false) : pop());
   const moved = useRef(false); if (sec !== (props.section ?? null)) moved.current = true; // once you've moved between pages, pages settle in
   // Every page opens at its top, and back returns the list to where you left it (the shared scroll used to carry over, so a
   // page reached from far down the list opened half-way down). The page leaving keeps its place while it fades out.
@@ -284,8 +286,8 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
           <motion.div key={sec ?? 'root'} data-sec={sec ?? 'root'} className={`no-rise settings-page ${moved.current ? '' : 'still'}`} custom={dir} variants={PAGE} initial="enter" animate="center" exit="exit" style={{ width: '100%' }}>
             {!sec && (
               <>
-                <div className="field"><label htmlFor="s-name">{t('Your name')}</label><input id="s-name" className="input" value={st.name} onChange={(e) => set({ name: e.target.value })} placeholder={t('Optional')} /></div>
-                <div className="list" style={{ marginTop: 14 }}>
+                <div className="list">
+                  <Row icon="body" title={st.name.trim() || t('Profile')} sub={profileSub(st, t, lang)} onClick={() => setSec('profile')} />
                   <Row icon="bolt" title={t('Targets')} sub={st.goals.kcal ? `${fmtNum(st.goals.kcal, lang, 0)} kcal${st.goals.protein ? ` · ${fmtNum(st.goals.protein, lang, 0)} g ${t('protein')}` : ''}` : t('Calories, macros, water — optional')} onClick={() => setSec('targets')} />
                   <Row icon="dumbbell" title={t('Training')} sub={`${t('Rest')} ${fmtDuration(st.restDefaultSec)} · ${st.effort === 'off' ? t('no RPE/RIR') : st.effort.toUpperCase()}`} onClick={() => setSec('training')} />
                   <Row icon="food" title={t('Food & water')} onClick={() => setSec('food')} />
@@ -303,6 +305,7 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
                 <button className="btn block press" style={{ marginTop: 20 }} onClick={() => { useUI.getState().closeAll(); setTimeout(() => push('onboarding', { rerun: true }), 60); }}><Icon name="sparkle" size={18} /> {t('Redo setup')}</button>
               </>
             )}
+            {sec === 'profile' && <Profile onAdjust={() => { fromProfile.current = true; setSec('targets'); }} />}
             {sec === 'targets' && <Targets />}
             {sec === 'training' && (
               <div className="stack gap16">
@@ -428,6 +431,82 @@ function RestAlertRow() {
         {late && <div className="xs t3" style={{ marginTop: 2 }}>{late.ms < 2000 ? t('Last alert came on time.') : t('Last alert came {n} s late.', { n: Math.round(late.ms / 1000) })}</div>}
       </div>
       <Toggle on={on} onChange={toggle} label={t('Rest timer on lock screen')} />
+    </div>
+  );
+}
+
+function BirthYear({ value, onChange }: { value: number | undefined; onChange: (v: number | undefined) => void }) {
+  const t = useT();
+  const [txt, setTxt] = useState(value ? String(value) : '');
+  const year = new Date().getFullYear();
+  return <input className="input num" inputMode="numeric" aria-label={t('Birth year')} placeholder="—" value={txt} maxLength={4} onChange={(e) => {
+    const d = e.target.value.replace(/\D/g, '').slice(0, 4); setTxt(d);
+    const n = Number(d);
+    if (!d) onChange(undefined); else if (d.length === 4 && n >= 1900 && n <= year) onChange(n);
+  }} onBlur={() => setTxt(value ? String(value) : '')} />;
+}
+
+const GOALS: { v: Settings['profile']['goal']; l: string }[] = [
+  { v: 'strength', l: 'Get stronger' }, { v: 'muscle', l: 'Build muscle' }, { v: 'fatloss', l: 'Lose fat' }, { v: 'endurance', l: 'Endurance' }, { v: 'general', l: 'General fitness' },
+];
+const ageOf = (birthYear: number | undefined) => (birthYear ? new Date().getFullYear() - birthYear : undefined);
+function profileSub(st: Settings, t: ReturnType<typeof useT>, lang: Lang): string {
+  const b = st.body ?? {};
+  const age = ageOf(b.birthYear);
+  const h = b.heightCm ? (st.units.length === 'in' ? `${fmtNum(cmToDisplay(b.heightCm, 'in'), lang, 0)} in` : `${fmtNum(b.heightCm, lang, 0)} cm`) : '';
+  const goal = GOALS.find((g) => g.v === st.profile.goal);
+  return [age !== undefined ? t('{n} years', { n: age }) : '', h, goal ? t(goal.l) : ''].filter(Boolean).join(' · ') || t('Your details and goal');
+}
+
+/**
+ * Your details and goal, like Lifesum's profile: who you are (age, sex and height feed the health scores), your goal and
+ * goal weight next to your latest weigh-in, and the way into your calorie and macro targets. Everything is optional.
+ */
+function Profile({ onAdjust }: { onAdjust: () => void }) {
+  const t = useT();
+  const lang = useLang();
+  const s = useStore();
+  const st = s.settings;
+  const b = st.body ?? {};
+  const setBody = (patch: Partial<NonNullable<Settings['body']>>) => s.updateSettings({ body: { ...b, ...patch } });
+  const wu = st.units.weight;
+  const latest = s.weights.slice().sort((a, b2) => b2.date.localeCompare(a.date))[0];
+  const year = new Date().getFullYear();
+  const g = st.goals;
+  const toGo = latest && b.goalWeightKg ? b.goalWeightKg - latest.kg : undefined;
+  return (
+    <div className="stack gap16">
+      <div className="field"><label htmlFor="s-name">{t('Your name')}</label><input id="s-name" className="input" value={st.name} onChange={(e) => s.updateSettings({ name: e.target.value })} placeholder={t('Optional')} /></div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        <Field label={t('Birth year')} hint={b.birthYear ? t('{n} years', { n: year - b.birthYear }) : undefined}>
+          {/* a plain field: a year is never written 2,006 */}
+          <BirthYear value={b.birthYear} onChange={(v) => setBody({ birthYear: v })} />
+        </Field>
+        <Field label={t('Height')}>
+          <NumInput label={t('Height')} value={b.heightCm ? Math.round(cmToDisplay(b.heightCm, st.units.length) * 10) / 10 : undefined} max={st.units.length === 'in' ? 1 : 0} unit={st.units.length} placeholder="—" onChange={(v) => setBody({ heightCm: v ? displayToCm(v, st.units.length) : undefined })} />
+        </Field>
+      </div>
+      <Field label={t('Sex')} hint={t('Used for your sleep need and heart-rate zones.')}>
+        <Seg value={b.sex ?? ''} onChange={(v) => setBody({ sex: v || undefined })} options={[{ value: 'male' as const, label: t('Male') }, { value: 'female' as const, label: t('Female') }, { value: '' as const, label: t('Not set') }]} />
+      </Field>
+      <Field label={t('Goal')}>
+        <div className="chips" style={{ margin: 0, padding: 0, flexWrap: 'wrap' }}>
+          {GOALS.map((x) => <button key={x.v} className={`chip press ${st.profile.goal === x.v ? 'on' : ''}`} onClick={() => s.updateSettings({ profile: { ...st.profile, goal: x.v } })}>{t(x.l)}</button>)}
+        </div>
+      </Field>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        <Field label={t('Current weight')} hint={latest ? fmtDate(latest.date, lang) : t('Log a weigh-in on Today')}>
+          <div className="input num" aria-readonly style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: latest ? 'var(--tx)' : 'var(--tx3)' }}>{latest ? fmtNum(kgToDisplay(latest.kg, wu), lang, 1) : '—'}<span className="t3" style={{ fontSize: '0.85em' }}>{wu}</span></div>
+        </Field>
+        <Field label={t('Goal weight')} hint={toGo !== undefined ? (Math.abs(toGo) < 0.05 ? t('Reached') : t('{n} to go', { n: `${fmtNum(kgToDisplay(Math.abs(toGo), wu), lang, 1)} ${wu}` })) : undefined}>
+          <NumInput label={t('Goal weight')} value={b.goalWeightKg ? Math.round(kgToDisplay(b.goalWeightKg, wu) * 10) / 10 : undefined} max={1} unit={wu} placeholder="—" onChange={(v) => setBody({ goalWeightKg: v ? displayToKg(v, wu) : undefined })} />
+        </Field>
+      </div>
+      <div className="list">
+        <Row icon="flame" title={t('Adjust calories')} value={g.kcal ? `${fmtNum(g.kcal, lang, 0)} kcal` : undefined} onClick={onAdjust} />
+        <Row icon="bolt" title={t('Adjust macros')} sub={g.protein !== undefined && g.carbs !== undefined && g.fat !== undefined ? `${fmtNum(g.protein, lang, 0)} g ${t('protein')} · ${fmtNum(g.carbs, lang, 0)} g ${t('carbs')} · ${fmtNum(g.fat, lang, 0)} g ${t('fat')}` : undefined} onClick={onAdjust} />
+      </div>
+      <div className="xs t3">{t('What your watch burns is shown on Food, never added to your target.')}</div>
     </div>
   );
 }
