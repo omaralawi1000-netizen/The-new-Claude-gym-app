@@ -1,0 +1,216 @@
+/* ==== Look A + C (Omar, 20 Oct): depth by importance, ONE orange, warm surfaces, grown-up details, the big buttons ====
+   Dark theme only; light keeps its look. Loaded after styles.css. The big tab-screen glass cards (.plinth on a screen)
+   and the dock are not touched here. No blur is added or animated; only static fills and shadows, and the big button's
+   colour layer fades by opacity. The `:not(#_)` pieces only raise a rule above the live one it replaces. */
+
+/* ---------- ONE orange: the fill every filled accent control uses ---------- */
+/* set where each tab's colour is set (and on the root, for sheets, which live outside the tabs), so var(--ac) is the
+   tab's own accent; every other palette keeps play = pill = bars in its own colour */
+html:root:not([data-theme='light']), html:root:not([data-theme='light']) :is(.app, [data-hue]) {
+  --of-top: color-mix(in srgb, var(--ac) 78%, #fff); --of: var(--ac); --of-bot: color-mix(in srgb, var(--ac) 94%, #000);
+  --of-deep: color-mix(in srgb, var(--ac) 86%, #000); --of-glow: color-mix(in srgb, var(--ac) 75%, transparent);
+  --of-text: color-mix(in srgb, var(--of) 80%, #fff);
+}
+/* Golden hour: its play button has its own orange; everything filled takes that one */
+html:root[data-palette='golden']:not([data-theme='light']), html:root[data-palette='golden']:not([data-theme='light']) :is(.app, [data-hue]) {
+  --of-top: #ffc65a; --of: #ff8a35; --of-bot: #f4742a; --of-deep: #e2661f; --of-glow: rgb(255 74 26 / .7);
+}
+
+/* ---------- most: the play button and the orange main pills ---------- */
+/* orange play: domed and lifted */
+html:root:not([data-theme='light']) .icon-btn.acc:not(#_):not(#_) {
+  background:
+    radial-gradient(46% 16% at 50% 9%, rgba(255,240,210,.42), rgba(255,240,210,0) 100%),
+    linear-gradient(180deg, var(--of-top) 0%, var(--of) 55%, var(--of-bot) 100%) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,246,228,.85),
+    inset 0 -8px 12px -8px var(--of-deep),
+    0 2px 2px rgba(30,9,2,.9),
+    0 4px 5px -1px rgba(30,9,2,.8),
+    0 7px 7px -4px rgba(30,9,2,.6),
+    0 14px 34px -10px var(--of-glow) !important;
+}
+
+/* Every main pill (.btn.primary): the button itself is a quiet warm glass pill; its orange is one layer (::before) on
+   top of that glass, faded in by opacity alone. So "not yet" and "ready" are the same pill: the orange fills in, slowly,
+   the moment it can be pressed, and the label turns dark with it. Nothing changes size, nothing else animates. */
+html:root:not([data-theme='light']) .btn.primary:not(#_):not(#_) {
+  isolation: isolate; font-weight: 650;
+  background: linear-gradient(180deg, rgba(255,244,234,.10), rgba(255,244,234,.025) 55%, rgba(20,8,3,.08)), rgb(44 30 23 / .5) !important;
+  box-shadow: inset 0 1px 0 rgba(255,244,234,.14), inset 0 0 0 1px rgba(255,236,222,.08), 0 1px 1px rgba(20,6,2,.45) !important;
+  color: #2a1206;
+  transition: color 520ms var(--ease-io), transform 520ms var(--ease-spring), opacity 200ms;
+}
+html:root:not([data-theme='light']) .btn.primary:not(#_):not(#_)::before {
+  content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none;
+  background:
+    radial-gradient(44% 26% at 50% 8%, rgba(255,240,210,.38), rgba(255,240,210,0) 100%),
+    linear-gradient(180deg, var(--of-top) 0%, var(--of) 55%, var(--of-bot) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255,246,228,.85),
+    inset 0 -8px 12px -8px var(--of-deep),
+    0 0 0 1px color-mix(in srgb, var(--of-bot) 60%, transparent),
+    0 2px 2px rgba(30,9,2,.85),
+    0 4px 5px -1px rgba(30,9,2,.7),
+    0 8px 16px -6px rgba(40,12,4,.6);
+  opacity: 1; transition: opacity 520ms var(--ease-io);
+}
+html:root:not([data-theme='light']) .btn.primary[disabled]:not(#_):not(#_) { color: rgba(255,240,228,.46); }
+html:root:not([data-theme='light']) .btn.primary[disabled]:not(#_):not(#_)::before { opacity: 0; }
+html:root:not([data-theme='light']) .btn.primary[disabled]:not(#_):not(#_)::after { opacity: 1; }
+/* its glass edge (only seen while it isn't ready): a lit warm-white top line fading down the sides */
+html:root:not([data-theme='light']) .btn.primary:not(#_):not(#_)::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; padding: 1px;
+  -webkit-mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  background: linear-gradient(180deg, rgba(255,246,236,.32), rgba(255,246,236,.08) 40%, rgba(255,246,236,.03) 70%, rgba(255,246,236,.05));
+  opacity: 0; transition: opacity 520ms var(--ease-io);
+}
+html:root:not([data-theme='light']) .btn.primary[data-pressed]:not(#_):not(#_) { transition: color 520ms var(--ease-io), transform 110ms var(--ease-out), opacity 200ms; }
+html:root:not([data-theme='light']) .btn.primary[data-press-off]:not(#_):not(#_) { transition: color 520ms var(--ease-io), transform 240ms var(--ease-out), opacity 200ms; }
+html:root[data-motion='reduce']:not([data-theme='light']) .btn.primary:not(#_):not(#_), html:root[data-motion='reduce']:not([data-theme='light']) .btn.primary:not(#_):not(#_)::before { transition-duration: 0s; }
+
+/* At the bottom of a sheet the pills float over the list as it scrolls: they keep their own small frost (live), so what
+   passes under them turns soft. The quiet one (Cancel, Details) is warm frost; the main one is the same orange pill as
+   everywhere, its orange laid over the frost a touch see-through. */
+html:root:not([data-theme='light']) .sheet .sheet-foot .btn.btn:not(.primary):not(#_) {
+  background: linear-gradient(180deg, rgba(255,244,234,.12), rgba(255,244,234,.03) 55%, rgba(20,8,3,.10)), rgb(40 27 21 / .58) !important;
+  box-shadow: inset 0 -1px 0 rgba(14,4,1,.5), 0 1px 1px rgba(20,6,2,.5), 0 12px 26px -14px rgba(20,6,2,.75) !important;
+}
+html:root:not([data-theme='light']) .sheet .sheet-foot .btn.btn.primary:not(#_):not(#_) {
+  font-weight: 700; color: #2a1206 !important;
+  background: linear-gradient(180deg, rgba(255,244,234,.12), rgba(255,244,234,.03) 55%, rgba(20,8,3,.10)), rgb(40 27 21 / .58) !important;
+  box-shadow: 0 1px 1px rgba(20,6,2,.5), 0 12px 26px -14px rgba(20,6,2,.75) !important;
+}
+html:root:not([data-theme='light']) .sheet .sheet-foot .btn.btn.primary:not(#_):not(#_)::before { opacity: .94; }
+html:root:not([data-theme='light']) .sheet .sheet-foot .btn.btn.primary[disabled]:not(#_):not(#_) { color: rgba(255,240,228,.46) !important; }
+html:root:not([data-theme='light']) .sheet .sheet-foot .btn.btn.primary[disabled]:not(#_):not(#_)::before { opacity: 0; }
+
+/* ---------- the same orange on the other filled marks (flat, no depth) ---------- */
+/* progress bars: Muscles this week (Today) and Your week (sheet). The food macro bars keep their own colours */
+html:root:not([data-theme='light']) :is(.tc-bar > i, .rv-bar-fill:not(.low)):not(#_) { background: var(--of) !important; }
+html:root:not([data-theme='light']) .tc-m.hit .tc-bar > i:not(#_) { box-shadow: 0 0 10px -2px var(--of) !important; }
+/* a done day in the week strips (Today, Train) and a switch that is on */
+html:root:not([data-theme='light']) .screen button.press > span[style*='background: var(--ac)']:not(#_) { background: var(--of) !important; }
+html:root:not([data-theme='light']) .screen button.press > span[style*='background: var(--ac)'][style*='18px -2px var(--ac)']:not(#_) { box-shadow: 0 0 18px -2px var(--of) !important; }
+html:root:not([data-theme='light']) .toggle[style*='background: var(--ac)']:not(#_) { background: var(--of) !important; }
+/* the accents beside them take the same hue (words in a lighter tint of it, for contrast): today's ring and day letter
+   in the week strips, the orange chips (Wrestling, + Food...), the Hard chip, the records bolt, Food's week chart */
+html:root:not([data-theme='light']) .screen button.press > span[style*='inset 0 0 0 1.5px var(--ac)']:not(#_) { box-shadow: inset 0 0 0 1.5px var(--of), 0 0 18px -6px var(--of) !important; }
+html:root:not([data-theme='light']) .screen button.press > span[style*='color: var(--ac-text)']:not(#_),
+html:root:not([data-theme='light']) .screen .plinth > button.press[style*='var(--ac-soft)'] > span[style*='var(--s3)']:not(#_) { color: var(--of-text) !important; }
+html:root:not([data-theme='light']) :is(.chip.acc, .icon-btn.acc-soft, .meal-add):not(#_):not(#_) { color: var(--of-text) !important; }
+html:root:not([data-theme='light']) span.chip.hot:not(#_):not(#_) { color: var(--of-text); }
+html:root:not([data-theme='light']) .tc-bolt:not(#_) { color: var(--of); }
+html:root:not([data-theme='light']) .week-bars i.on:not(#_) { background: linear-gradient(180deg, var(--of-top), var(--of)); box-shadow: 0 6px 22px -6px color-mix(in srgb, var(--of) 70%, transparent); }
+html:root:not([data-theme='light']) .week-days .on:not(#_) { color: var(--of-text); }
+
+/* ---------- middle: visibly raised ---------- */
+/* Schedule / New routine, grey pills, 46 px round buttons outside cards: each keeps its body colour; a lit top edge,
+   a 1 px darker lower edge, a short warm-dark shadow (not black) */
+html:root:not([data-theme='light']) .screen button.chip:not(.on, .acc):not(.chips > *):not(.plinth *, [data-wk='hero'] + div *):not(#_):not(#_):not([data-pressed]),
+html:root:not([data-theme='light']) .screen .icon-btn:not(.flat, .acc, .acc-soft, .sm):not(.plinth *, [data-wk='hero'] + div *):not(#_):not(#_):not([data-pressed]),
+html:root:not([data-theme='light']) .btn:not(.primary, .ghost, .danger):not(.plinth *, .sheet-foot *, [data-wk='hero'] + div *):not(#_):not(#_):not([data-pressed]) {
+  background-image: linear-gradient(180deg, rgba(255,250,244,.16), rgba(255,250,244,.03) 50%, rgba(20,6,2,.12)), linear-gradient(rgba(255,255,255,.06), rgba(255,255,255,.06)) !important;
+  box-shadow: inset 0 -1px 0 rgba(14,4,1,.7), 0 1px 1px rgba(30,9,2,.55), 0 3px 5px -1px rgba(36,11,3,.5), 0 8px 12px -6px rgba(40,12,4,.6) !important;
+}
+html:root:not([data-theme='light']) :is(.screen button.chip:not(.on, .acc):not(.chips > *), .screen .icon-btn:not(.flat, .acc, .acc-soft, .sm), .btn:not(.primary, .ghost, .danger)):not(.plinth *, .sheet-foot *, [data-wk='hero'] + div *):not(#_):not(#_)::after {
+  background: linear-gradient(180deg, rgba(255,250,244,.6), rgba(255,250,244,.16) 26%, rgba(255,255,255,.04) 58%, rgba(255,255,255,.03)) !important;
+}
+/* secondary play on a card: a soft ember of the one orange glowing inside, a bright top rim, a faint warm contact shadow */
+html:root:not([data-theme='light']) .screen .icon-btn.acc-soft:not(#_):not(#_):not(#_):not([data-pressed]) {
+  background-image: radial-gradient(circle at 50% 62%, color-mix(in srgb, var(--of) 26%, transparent), transparent 70%), linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,0) 45%), linear-gradient(rgba(255,255,255,.06), rgba(255,255,255,.06)) !important;
+  box-shadow: inset 0 9px 11px -9px rgba(255,255,255,.24), 0 1px 2px rgba(70,28,12,.25), 0 3px 5px -3px rgba(70,28,12,.28) !important;
+}
+html:root:not([data-theme='light']) .screen .icon-btn.acc-soft:not(#_):not(#_)::after { background: linear-gradient(180deg, color-mix(in srgb, var(--of) 30%, rgba(255,255,255,.6)), rgba(255,255,255,.18) 32%, rgba(255,255,255,.08) 66%, color-mix(in srgb, var(--of) 25%, rgba(255,255,255,.06))) !important; }
+/* switch knob: a raised white bead */
+html:root:not([data-theme='light']) .toggle-knob:not(#_) {
+  background: linear-gradient(180deg, #ffffff 0%, #ffffff 45%, #f3f0ee 100%);
+  box-shadow: inset 0 -1px 0 rgba(40,14,4,.2), 0 1px 1px rgba(36,11,3,.4), 0 3px 6px rgba(40,12,4,.35), 0 6px 10px -4px rgba(40,12,4,.45);
+}
+/* switcher thumb (Plan / Library, Off / RPE / RIR, Last used / List / Focus...): warm see-through glass, not grey or
+   mauve. Its pieces stay opaque (the group's opacity makes them glass, so the joins never show). A lit warm-white top
+   edge and a darker lower edge; no shadow (in a near-black track it can't show, and it drew seams at the joins). */
+html:root:not([data-theme='light']) .seg-lens:not(#_) {
+  opacity: .8 !important;
+  --lens-fill: linear-gradient(180deg, #6a594e, #5e4f46 55%, #54473f);
+  --lens-hl: rgba(255,246,236,.7); --lens-line: rgba(255,240,228,.16); --lens-lo: rgba(20,6,2,.62);
+}
+html:root:not([data-theme='light']) .seg-lens > :is(.lens-l, .lens-r):not(#_) {
+  background: linear-gradient(180deg, rgba(255,244,232,.14), rgba(255,244,232,0) 48%), var(--lens-fill);
+  box-shadow: inset 0 1px 0 var(--lens-hl), inset 0 -1px 0 var(--lens-lo), inset 0 0 0 1px var(--lens-line);
+}
+html:root:not([data-theme='light']) .seg-lens > .lens-m:not(#_) {
+  background:
+    linear-gradient(to bottom, var(--lens-hl) 0 1px, transparent 1px calc(100% - 1px), var(--lens-lo) calc(100% - 1px)),
+    linear-gradient(to bottom, var(--lens-line) 0 1px, transparent 1px calc(100% - 1px), var(--lens-line) calc(100% - 1px)),
+    linear-gradient(180deg, rgba(255,244,232,.14), rgba(255,244,232,0) 48%),
+    var(--lens-fill);
+}
+/* picked chip (2.5 kg): a raised white bead */
+html:root:not([data-theme='light']) .chip.on:not(#_) {
+  background: linear-gradient(180deg, #ffffff 0%, #ffffff 45%, #f3f0ee 100%) !important;
+  box-shadow: inset 0 -1px 0 rgba(40,14,4,.22), 0 1px 1px rgba(30,9,2,.45), 0 3px 5px -1px rgba(36,11,3,.45), 0 8px 12px -6px rgba(40,12,4,.55) !important;
+}
+
+/* ---------- grown-up details (Omar picked 2, 3 and 5) ---------- */
+/* Train's week strip: the done day's bright orange tile becomes clear glass with a warm-white hairline; the orange
+   stays on the tick */
+html:root:not([data-theme='light']) .screen .plinth button.press > span[style*="border-radius: 9px"][style*="background: var(--ac)"]:not(#_):not(#_) {
+  background: rgba(255, 240, 228, 0.05) !important; color: var(--of) !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 240, 228, 0.16) !important;
+}
+/* the Coach's note on Today: clear glass with a warm-white hairline and an orange sparkle; its slow breathing glow is
+   kept but warm-white and faint; "+1" is plain small text, not a bubble */
+html:root:not([data-theme='light']) .pin-mark:not(#_) { background: rgba(255, 240, 228, 0.05); color: var(--of); box-shadow: inset 0 0 0 1px rgba(255, 240, 228, 0.16); }
+html:root:not([data-theme='light']) .pin-mark:not(#_)::before { box-shadow: 0 0 12px -4px rgba(255, 236, 222, 0.28); }
+html:root:not([data-theme='light']) .pin-mark:not(#_)::after { box-shadow: 0 0 18px -4px rgba(255, 236, 222, 0.2); }
+html:root:not([data-theme='light']) .pin-count:not(#_) { background: none; padding: 2px 2px; color: var(--tx3); font-weight: 600; }
+/* Food detail's portion card: no dotted pattern behind the numbers */
+html:root:not([data-theme='light']) .sheet .plinth.dots:not(#_) { background-image: none; }
+
+/* ---------- surfaces: Settings > Appearance > Sheets (data-surface; missing = Warm black) ----------
+   Only the sheet glass (its tint, solid stand-in and the dim behind it), bar tracks, fields and switcher tracks, cards
+   inside sheets and the grey text inside sheets. The sheet tint keeps the dither recipe (styles.css "Dither").
+   "now" sets nothing: exactly what was live. */
+/* Warm black: like Apple's dark mode with a warm undertone; glass (18, 11, 8) at 0.68 */
+html:root:not([data-surface]):not([data-theme='light']), html:root[data-surface='black']:not([data-theme='light']) {
+  --sheet-tint: rgba(16.07, 9.82, 7.14, 0.8264); --sheet-tint-short: rgba(14.74, 9.01, 6.55, 0.7747);
+  --sheet-solid: #110c0a; --scrim: rgba(6, 3, 1, 0.6);
+  --sf-sheet-tx2: rgba(245, 237, 230, 0.64); --sf-sheet-tx3: rgba(245, 237, 230, 0.4); --sf-card: rgba(255, 232, 214, 0.05);
+  --sf-track: rgb(70 46 34 / .62); --sf-track-sheet: rgb(70 46 34 / .55);
+  --sf-field: rgb(48 33 25 / .45); --sf-field-edge: inset 0 1px 0 rgba(255, 236, 222, 0.05), inset 0 0 0 1px rgba(255, 230, 212, 0.06);
+}
+/* Espresso: coffee-brown glass at live's see-through level; glass (42, 30, 22) at 0.48 */
+html:root[data-surface='espresso']:not([data-theme='light']) {
+  --sheet-tint: rgba(30.47, 21.77, 15.96, 0.7179); --sheet-tint-short: rgba(27.61, 19.72, 14.46, 0.6814);
+  --sheet-solid: #1d1612; --scrim: rgba(10, 6, 3, 0.5);
+  --sf-sheet-tx2: rgba(246, 238, 230, 0.64); --sf-sheet-tx3: rgba(246, 238, 230, 0.4); --sf-card: rgba(255, 236, 220, 0.06);
+  --sf-track: rgb(30 20 14 / .62); --sf-track-sheet: rgb(30 20 14 / .55);
+  --sf-field: rgb(26 17 11 / .52); --sf-field-edge: inset 0 1px 2px rgba(0,0,0,.28), inset 0 0 0 1px rgba(255, 236, 220, 0.07);
+}
+/* Mulberry: wine plum-brown glass; empty tracks are a dim version of their own bar's colour */
+html:root[data-surface='mulberry']:not([data-theme='light']) {
+  --sheet-tint: rgba(30.47, 15.96, 20.31, 0.7179); --sheet-tint-short: rgba(27.61, 14.46, 18.41, 0.6814);
+  --sheet-solid: #1e1316; --scrim: rgba(10, 4, 6, 0.5);
+  --sf-sheet-tx2: rgba(246, 236, 238, 0.64); --sf-sheet-tx3: rgba(246, 236, 238, 0.4); --sf-card: rgba(255, 228, 236, 0.06);
+  --sf-track: color-mix(in srgb, var(--ac) 18%, rgb(34 16 22 / .72)); --sf-track-sheet: rgb(110 62 76 / .5);
+  --sf-field: rgb(30 13 19 / .5); --sf-field-edge: inset 0 1px 2px rgba(0,0,0,.26), inset 0 0 0 1px rgba(255, 225, 235, 0.07);
+}
+html:root[data-surface='mulberry']:not([data-theme='light']) :is(.app, [data-hue]) { --sf-track: color-mix(in srgb, var(--ac) 18%, rgb(34 16 22 / .72)); }
+html:root[data-surface='mulberry']:not([data-theme='light']) .water-bar:not(#_):not(#_) { background: color-mix(in srgb, var(--c-water) 18%, rgb(34 16 22 / .72)); }
+/* Smoked: a thinner, more see-through warm smoke; glass (17, 12, 8) at 0.62 */
+html:root[data-surface='smoked']:not([data-theme='light']) {
+  --sheet-tint: rgba(16.79, 11.55, 8.40, 0.6202); --sheet-tint-short: rgba(14.99, 10.31, 7.50, 0.5974);
+  --sheet-solid: #18130f; --scrim: rgba(20, 8, 2, 0.42);
+  --sf-sheet-tx2: rgba(248, 240, 232, 0.66); --sf-sheet-tx3: rgba(248, 240, 232, 0.42); --sf-card: rgba(255, 226, 205, 0.055);
+  --sf-track: rgb(255 196 150 / .11); --sf-track-sheet: rgb(255 196 150 / .10);
+  --sf-field: rgb(255 214 180 / .045); --sf-field-edge: inset 0 1px 0 rgba(255, 240, 228, 0.07), inset 0 0 0 1px rgba(255, 228, 205, 0.09);
+}
+/* where the chosen surface lands (nothing when "now": the variables are unset and each rule falls back to live) */
+html:root:not([data-surface='now']):not([data-theme='light']) .sheet { --tx2: var(--sf-sheet-tx2); --tx3: var(--sf-sheet-tx3); }
+html:root:not([data-surface='now']):not([data-theme='light']) .sheet :is(.plinth, .plinth-2):not(#_) { background-color: var(--sf-card); }
+html:root:not([data-surface='now']):not([data-theme='light']) :is(.tc-bar, .rv-bar-track, .water-bar, .bar):not(#_) { background: var(--sf-track); }
+html:root:not([data-surface='now']):not([data-theme='light']) .week-bars i:not(.logged, .on):not(#_) { background: var(--sf-track); }
+html:root:not([data-surface='now']):not([data-theme='light']) .sheet .bar:not(#_):not(#_) { background: var(--sf-track-sheet); }
+html:root:not([data-surface='now']):not([data-theme='light']) .input:not(.coach-field *):not(.wk-set.done .input):not(:focus):not(#_) { background-color: var(--sf-field); box-shadow: var(--sf-field-edge); }
+html:root:not([data-surface='now']):not([data-theme='light']) .seg:not(#_) { background-color: var(--sf-field); box-shadow: var(--sf-field-edge); }

@@ -299,6 +299,8 @@ export interface Settings {
   palette: 'ember' | 'aurora' | 'mono' | 'sunset' | 'forest' | 'golden' | 'midnight' | 'champagne';
   /** how strong the colour light behind the app is (styles.css `data-glow`); missing = full */
   glow?: 'full' | 'soft' | 'off';
+  /** the colour of the sheets, fields and bar tracks on dark (look.css `data-surface`); missing = warm black */
+  surface?: 'now' | 'black' | 'espresso' | 'mulberry' | 'smoked';
   /** what is drawn behind the app (ui/Backdrop.tsx, styles.css `.bgx`); missing = classic (the drifting colour field) */
   background?: 'classic' | 'orb' | 'tabs' | 'sunrise' | 'mesh' | 'dots' | 'time' | 'night' | 'photo';
   /** which view a workout opens in; missing or 'last' = the one last used on this phone */
