@@ -3016,4 +3016,50 @@ model choice wasted it, and he wants "a dynamic coach, like a real coach".
   pain. Omar's calls: a long binge pattern (3+ weeks, "couldn't stop"/"feel awful") → the coach keeps coaching and once
   mentions a GP who knows binge eating; trims after frequent heavy days stay the verdict's judgement; the coach may delete
   memory notes when asked; the default monthly AI limit is 200 kr (a realistic month is ~85–145 kr).
-- Next: Omar talks to it on Aven Beta for 2–3 days — the real test of a dynamic coach.
+- **Before shipping (v0.1.163, 20 Oct):** an amount that doesn't fit them ("2000 g rice" when they eat 200 g, or a never-logged
+  food at a kilo and 1,500+ kcal) is asked — "Did you mean 200 g?" — never logged as heard; the last 7 days day by day are in
+  DATA, so "how's my week?" is answered in one round (~16 s, was 19–29 s with a look-up round).
+- Shipped to the real app with #173, #174 and #177 as v0.1.163 (Omar, 20 Oct: "I can only really test it on main").
+  Next: the coach's notebook (what it advised, when to check), follow-ups and a weekly check-in.
+
+## Coach deep dive and smoothness (v0.1.165, 20 Oct)
+From Omar's 19 Oct recordings ("flickers, unpolished animations, stutters, icons disappearing"); strict judges 6/10 (live) → 9/10.
+Tried on Beta first; Omar's yes 20 Oct. Judge files in /mnt/project-files/coach-polish/r13-deep/.
+- Stutter: style writes that restyled the whole sheet are gone. No `[style*=]` test left of a combinator, no app-wide `:has()`,
+  and --kb-room / --foot-h / --grow-pad are registered `inherits: false` and written on `.sheet-body` (10-17 ms → 0.2-1 ms).
+- Flicker: an answer's word layers are kept until it scrolls off screen; the flying bubble hides by opacity (its layer is made
+  at flight start); Today's Coach/Settings buttons keep their press layers (3 drops when the Coach opened → 0).
+- Orb: closing with the keyboard up, it rides its button, then settles onto the dock line on a critically damped spring from
+  the button's own speed (it leapt 175 px). Reopened mid-close, it coasts on and turns round from where it is (slot is a new
+  element: keyed by id). It fades with the Coach when Settings opens over it.
+- Older messages: loaded in idle batches of 6, never while answering, flying or with the keyboard moving; a sub-pixel shim
+  on the thread makes each batch add whole pixels, so the view holds exactly still (scrollTop is whole CSS px).
+- Stop X stays until the last word; typing dots keep their phase; waiting send button dims as a whole; photo chip folds away.
+- Dock orb at rest: the script loop sleeps while the worker turns it; everything that can move or light it wakes it, plus a
+  250 ms check of the dock's rect (idle main thread 130 → 40 ms/s at 4x CPU). Unchanged state is no longer posted each frame.
+- Left as is: the typing bar's frost clip (no cheaper look-identical way: the blur is redone anyway as its parts move), a
+  ~0.3 s send-button fade during the voice lift, and Chrome's grey band under the keyboard as it opens (platform).
+
+## The watch in the background, and in detail (20 Oct 2026)
+Omar wanted the watch synced more often, also when Aven is closed, and "the most detailed possible": continuous heart rate,
+every sleep stage, steps.
+- **In the background.** With "access in the background" allowed in Health Connect (Android 15 and up), `HealthJob` reads every
+  half hour (Android picks the moment; not on low battery; again after a restart). Whatever opens Aven then finds numbers at
+  most half an hour old and opens with them at once (read in the last 5 min: no wait at all; Sync now: under 2 min old, at
+  once). The page itself can only receive them when Aven opens or Sync now is tapped: a web page can't be handed data while
+  it sits open. Settings → Watch says whether background reading is on, and where to allow it if not. Already connected
+  phones are asked for it once on the next sync.
+- **The walk through the history moves only when the page has had a stretch** (`delivered`). Half-hourly reads would
+  otherwise walk past two years in a day without the page ever seeing it. The older stretches are read once and kept until
+  delivered, so the background reads stay light (Health Connect limits background reads harder; its exact quotas aren't
+  published).
+- **Detail** ("dt"): heart rate a minute at a time (the average of every reading in that minute: every few minutes at rest,
+  every second in a workout, all the time with "measure continuously" on the watch), steps a minute at a time (Health
+  Connect's own count, phone and watch counted once), every sleep session (naps too) with each stage and its times. The last
+  3 days every time, older days 4 at a time back to 90 days. Minutes are packed two characters each and the whole answer is
+  squeezed (raw deflate, "hc=z~…", about 4× smaller), so a week with everything else is about 20,000 characters. The
+  emulator carried 60,000 without trouble (an earlier "too big" was only adb's own command-line limit: the test now reads
+  the address on the phone).
+- **Kept apart** in IndexedDB `aven-watch` (`lib/watchDetail.ts`, the last 365 days), not in the app data (every save would
+  carry it) and not in backups (Health Connect has it). `watchDetails(from, to)`, `minutes(packed)` and `onWatchDetail` are
+  the way in for anything that draws it. Delete all data clears it; Beta has its own.

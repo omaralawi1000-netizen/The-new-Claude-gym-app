@@ -197,7 +197,7 @@ export const Words = memo(function Words({ text, k, base = 0, on = -1, stagger, 
  * An answer as it should be on screen right now: its words come in one after another at a steady, calm pace, decoupled
  * from how the network delivers them (a model's stream lands in clumps; shown as it lands, words arrived in bursts and
  * then stalled). The pace follows what is waiting, so it keeps up with the stream without running dry between clumps.
- * `instant`: shown whole at once (a saved answer). `done` once the last word is out and nothing more is coming.
+ * `instant`: shown whole at once (a saved answer, or Stop tapped while it was writing itself in). `done` once the last word is out and nothing more is coming.
  */
 export function useWordReveal(text: string, live: boolean, instant = false): { shown: string; done: boolean } {
   const ends = useMemo(() => wordEnds(text, live), [text, live]);
@@ -219,6 +219,8 @@ export function useWordReveal(text: string, live: boolean, instant = false): { s
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
   }, [ends, live]);
+  // turned on later (Stop tapped while the words were still coming in): the rest comes in at once
+  useEffect(() => { if (instant && st.current.n < ends.length) { st.current.n = ends.length; setN(ends.length); } }, [instant, ends]);
   const n = Math.min(st.current.n, ends.length);
   return { shown: n >= ends.length && !live ? text : revealPrefix(text, ends, n), done: !live && n >= ends.length };
 }

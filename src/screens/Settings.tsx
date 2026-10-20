@@ -21,6 +21,7 @@ import { buildDemo } from '../lib/demo';
 import { userHasData } from '../lib/stats';
 import { clearPhotos, loadPhoto, savePhoto } from '../lib/photos';
 import { clearArchive, importArchive } from '../lib/archive';
+import { clearWatchDetail, onWatchDetail, watchDetailCount } from '../lib/watchDetail';
 import type { AppData, Lang, Meal, Settings } from '../lib/types';
 import { surfaceOf } from '../lib/types';
 import { uid, kcalOf, scaleMacros, suggestMacros } from '../lib/nutrition';
@@ -594,6 +595,15 @@ function WatchSection() {
     return () => { clearTimeout(id); document.removeEventListener('visibilitychange', vis); };
   }, [busy]);
   const h = hcStatus();
+  // how many days of minute-by-minute detail are on the phone (lib/watchDetail.ts)
+  const [detailDays, setDetailDays] = useState(0);
+  useEffect(() => {
+    let live = true;
+    const f = () => { void watchDetailCount().then((n) => { if (live) setDetailDays(n); }); };
+    f();
+    const off = onWatchDetail(f);
+    return () => { live = false; off(); };
+  }, []);
   const go = (what: 'connect' | 'sync' | 'off') => {
     haptic('light');
     setStuck(false);
@@ -680,6 +690,9 @@ function WatchSection() {
       )}
       <div className="xs t3 stack gap8" style={{ padding: '0 4px' }}>
         <div>{t('Syncs by itself every time you open Aven. Works with a Galaxy Watch, or any watch that saves to Health Connect.')}</div>
+        {on && h?.bg === true && <div>{t('Also reads your watch by itself every half hour while Aven is closed, so it opens up to date.')}</div>}
+        {on && h?.bg === false && <div>{t('To keep it up to date while Aven is closed too: in your phone’s Settings, search for Health Connect, open App permissions › Aven and allow access in the background.')}</div>}
+        {on && detailDays > 0 && <div>{t('Heart rate and steps minute by minute, and every sleep stage: {n} days on this phone.', { n: detailDays })}</div>}
         <div>{t('Read only, and it stays on this phone. Calories a workout burned are shown, but never added to your food target.')}</div>
         {!appOnPhone() && <div>{t('Needs the Aven Android app. Without it, the button offers to download it.')}</div>}
         {/* (until the watch is connected: what the Android app last sent back, for a screenshot) */}
@@ -753,7 +766,7 @@ function DataSection() {
     setPending(null);
     toast(t('Backup restored'), { tone: 'ok', actionLabel: t('Undo'), onAction: () => useStore.getState().replaceAll(prev), duration: 10000 });
   };
-  const doDelete = async () => { resetDrive(); useStore.getState().resetAll(); await clearPhotos().catch(() => {}); await clearArchive(); try { Object.keys(localStorage).filter((k) => k.startsWith('aven')).forEach((k) => localStorage.removeItem(k)); } catch { /* ignore */ } clearKeys(); useAi.getState().patch({ stt: 'accurate', voiceLang: 'auto', voice: 'Achird', brain: true, solFirst: true, effortOrb: 'medium', effortCoach: 'high', models: { fast: '', brain: '', fastAlt: '', brainAlt: '', tts: '', sol: '', solAuto: '', quick: '' }, solChecked: 0, noQuick: false }); setConfirmDel(false); closeAll(); setTimeout(() => push('onboarding', {}), 80); };
+  const doDelete = async () => { resetDrive(); useStore.getState().resetAll(); await clearPhotos().catch(() => {}); await clearArchive(); await clearWatchDetail(); try { Object.keys(localStorage).filter((k) => k.startsWith('aven')).forEach((k) => localStorage.removeItem(k)); } catch { /* ignore */ } clearKeys(); useAi.getState().patch({ stt: 'accurate', voiceLang: 'auto', voice: 'Achird', brain: true, solFirst: true, effortOrb: 'medium', effortCoach: 'high', models: { fast: '', brain: '', fastAlt: '', brainAlt: '', tts: '', sol: '', solAuto: '', quick: '' }, solChecked: 0, noQuick: false }); setConfirmDel(false); closeAll(); setTimeout(() => push('onboarding', {}), 80); };
   const demo = () => { const d = buildDemo(s.settings); useStore.getState().patch(d); toast(t('Demo data loaded'), { tone: 'ok' }); };
   const removeDemo = () => { const lang = s.settings.language; const settings = s.settings; useStore.getState().replaceAll({ ...defaultData(lang), settings }); toast(t('Demo data removed'), { tone: 'ok' }); };
 
@@ -861,11 +874,6 @@ function CoachRawCopy() {
   );
 }
 
-const kbDiag = () => {
-  const vk = (navigator as any).virtualKeyboard;
-  const mode = matchMedia('(display-mode: standalone)').matches ? 'installed' : 'browser';
-  return `kb: ${vk ? `api yes, overlays ${String(vk.overlaysContent)}, h ${Math.round(vk.boundingRect?.height ?? 0)}` : 'api no'} · ${mode} · ${inAndroidApp() ? 'apk' : 'web'} · ${innerWidth}×${innerHeight} vv ${Math.round(visualViewport?.height ?? 0)}`;
-};
 /** Aven Beta only: says so, and copies the real app's data in (one way; the real app is only read). */
 function BetaBox() {
   const t = useT();
@@ -874,8 +882,6 @@ function BetaBox() {
     <div className="plinth" style={{ padding: 18 }}>
       <div className="display display-md">{t('Aven Beta')}</div>
       <div className="t2" style={{ marginTop: 4 }}>{t('This is the test copy. Its workouts, food and settings are separate from your real Aven, and nothing you do here changes the real app.')}</div>
-      {/* (a test line for Claude, in the Beta only: does this Chrome let the keyboard slide over the page? 18 Oct, black band) */}
-      <div className="xs t3 num" style={{ marginTop: 8 }}>{kbDiag()}</div>
       {!ask ? <button className="btn block press" style={{ marginTop: 14 }} onClick={() => setAsk(true)}>{t('Copy my real Aven data in')}</button> : (
         <div style={{ marginTop: 14 }}>
           <div className="t2">{t('This replaces everything in the Beta with a copy of your real Aven (including your API keys), then restarts the Beta. Your real Aven is not touched.')}</div>

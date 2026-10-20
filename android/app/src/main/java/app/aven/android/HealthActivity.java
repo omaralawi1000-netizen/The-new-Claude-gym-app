@@ -39,6 +39,7 @@ public class HealthActivity extends Activity {
                 break;
             case "off":
                 HealthSync.setOn(this, false);
+                HealthJob.schedule(this); // (stops the half-hourly read)
                 open(HealthSync.status(this, "off"));
                 break;
             default:
@@ -56,17 +57,28 @@ public class HealthActivity extends Activity {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode != ASK) return;
         Log.i("AvenHealth", "Health Connect answered: allowed " + HealthSync.granted(this));
-        if (HealthSync.granted(this)) { HealthSync.setOn(this, true); sync(); }
+        if (HealthSync.granted(this)) { HealthSync.setOn(this, true); HealthJob.schedule(this); sync(); }
         else open(HealthSync.status(this, "denied"));
     }
 
     private void sync() {
         if (!HealthSync.on(this)) { open(HealthSync.status(this, "denied")); return; }
+        HealthJob.schedule(this);
+        // read in the background a moment ago: those at once
+        String fresh = HealthSync.freshPayload(this, 2 * 60_000L);
+        if (fresh != null) { openWith(fresh); return; }
         Handler main = new Handler(Looper.getMainLooper());
-        // (a slow Health Connect never holds the page back for long: after 15 s it opens with what it has; the first read
-        // with history can take a while)
-        main.postDelayed(() -> open(HealthSync.status(this, "slow")), 15000);
-        HealthSync.read(this, payload -> main.post(() -> open(payload != null ? payload : HealthSync.status(this, "failed"))));
+        // (a slow Health Connect never holds the page back for long: after 15 s it opens with the last numbers read, and
+        // the read carries on for next time; the first read with history can take a while)
+        main.postDelayed(() -> { String last = HealthSync.lastPayload(this); if (last != null) openWith(last); else open(HealthSync.status(this, "slow")); }, 15000);
+        HealthSync.read(this, payload -> main.post(() -> { if (payload != null) openWith(payload); else open(HealthSync.status(this, "failed")); }));
+    }
+
+    /** Opens Aven with numbers (not just how it went): the walks through the history move on. */
+    private void openWith(String payload) {
+        if (done) return;
+        HealthSync.delivered(this);
+        open(payload);
     }
 
     private void open(String payload) {

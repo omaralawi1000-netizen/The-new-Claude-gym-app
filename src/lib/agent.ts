@@ -543,6 +543,9 @@ async function doLogFood(a: Extract<AgentAction, { type: 'log_food' }>, ctx: Age
       }
       if (q.qty && ctx.photo) { q = { ...q, estimated: true }; note = note || t('estimated from the photo'); }
       const entry = q.qty ? entryFromSnapshot(snapshotOf(food), q.qty, date, mealId, { id: uid('e') }) : null;
+      // a number that doesn't make sense for them ("2000 g rice" when they eat 200 g): asked, never logged as heard
+      const alt = entry && q.qty ? oddAmount(st, food, q.qty, kcalOf(entry)) : null;
+      if (entry && alt) { asks.push(askAmount(food, q.qty!, alt, date, mealId, ctx)); continue; }
       if (entry) {
         if (q.estimated) entry.estimated = true;
         entries.push(entry);
@@ -585,6 +588,49 @@ async function doLogFood(a: Extract<AgentAction, { type: 'log_food' }>, ctx: Age
     out.push({ id: uid('r'), kind: 'miss', title: unreachable ? t('Couldn’t reach the food database') : t('Couldn’t log that'), lines, ...(unreachable ? { subtitle: t('Check your connection and ask again.') } : {}) });
   }
   return [...out, ...asks];
+}
+
+/**
+ * An amount that is probably misheard or mistyped (20 Oct, Omar: "it has to have logic if it misheard me"): grams or ml at
+ * least 5× what they usually log of that food, or, for a food they never logged, a single item of 1,500+ kcal and a kilo
+ * or more. The likely amount is a tenth of it (2000 → 200), else their usual.
+ */
+export function oddAmount(st: { entries: FoodEntry[] }, food: Food, qty: Quantity, kcal: number | undefined): Quantity | null {
+  if (qty.unit !== 'g' && qty.unit !== 'ml') return null;
+  const last = [...st.entries].reverse().find((e) => !e.quick && e.snap.foodId === food.id && e.qty.unit === qty.unit);
+  const usual = last?.qty.amount;
+  const odd = usual ? qty.amount >= usual * 5 && qty.amount >= 300 : (kcal ?? 0) >= 1500 && qty.amount >= 1000;
+  if (!odd) return null;
+  const tenth = qty.amount / 10;
+  return { amount: usual && Math.abs(tenth - usual) > usual ? usual : Math.round(tenth), unit: qty.unit };
+}
+
+/** "Did you mean 200 g?": one tap logs the likely amount, the other what was heard. */
+function askAmount(food: Food, heard: Quantity, likely: Quantity, date: string, mealId: string, ctx: AgentCtx): AgentResult {
+  const { t, lang } = ctx;
+  const res: AgentResult = {
+    id: uid('r'), kind: 'food', pending: true, offer: true,
+    title: t('Did you mean {amount}?', { amount: `${fmtNum(likely.amount, lang, 0)} ${likely.unit}` }), subtitle: foodLabel(food, lang), lines: [],
+    doneTitle: t('Logged'),
+    choose: [likely, heard].map((qty) => {
+      const preview = entryFromSnapshot(snapshotOf(food), qty, date, mealId, {});
+      return {
+        label: `${fmtNum(qty.amount, lang, 0)} ${qty.unit}`,
+        sub: preview && kcalOf(preview) !== undefined ? `${kcalOf(preview)} kcal` : undefined,
+        run: () => {
+          const st = useStore.getState();
+          const e = entryFromSnapshot(snapshotOf(food), qty, date, mealId, { id: uid('e') });
+          const added = e ? st.logEntries([e])[0] : undefined;
+          if (!added) return;
+          res.lines = [{ text: foodLabel(food, lang), sub: `${lineLabel(food, qty, ctx)}${kcalOf(added) !== undefined ? ` · ${kcalOf(added)} kcal` : ''}`, ref: added.id }];
+          const meal = st.settings.meals.find((m) => m.id === mealId);
+          res.doneTitle = t('Logged to {meal}', { meal: meal ? mealName(meal, lang) : t('Today') }) + (date !== ctx.today ? ` · ${date === addDays(ctx.today, -1) ? t('Yesterday') : date}` : '');
+          res.undo = () => useStore.getState().removeEntry(added.id);
+        },
+      };
+    }),
+  };
+  return res;
 }
 
 /** "Which one?": tied foods far apart in calories. One tap logs it and remembers the choice, so it is asked only once. */

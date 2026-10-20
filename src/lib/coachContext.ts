@@ -42,6 +42,14 @@ export function buildCoachContext(d: AppData, today: string, exName: (id: string
     const partial = logged.filter((x) => x.partial).length;
     L.push(`Nutrition (last 14 days): ${logged.length} days logged before today. Average on logged days: ${r0(k ?? 0)} kcal, ${r0(pr ?? 0)} g protein, ${r0(average(logged.map((x) => x.carbs)) ?? 0)} g carbs, ${r0(average(logged.map((x) => x.fat)) ?? 0)} g fat.${partial ? ` ${partial} of those days had items with unknown nutrition, so their totals are lower bounds.` : ''} ${unfinished.size ? ` ${[...unfinished].filter((x) => x >= addDays(today, -13)).length} probably unfinished days left out of this average (DATA TRUST).` : ''} Days not logged are unknown, not zero.`);
   } else L.push('Nutrition: no earlier days logged in the last 14 days.');
+  // the last 7 days one by one, so "how's my week?" is answered without looking anything up (it took a second round)
+  const wd = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  L.push(`Last 7 days, day by day (kcal / protein; workouts; weigh-ins): ${days.slice(-8, -1).map((x) => {
+    const gym = d.sessions.filter((s) => s.endedAt && s.date === x.date).map((s) => s.name || 'workout');
+    const mat = d.activities.filter((a) => a.date === x.date && a.kind === 'wrestling').length;
+    const kg = d.weights.find((w) => w.date === x.date)?.kg;
+    return `${wd[new Date(`${x.date}T12:00:00`).getDay()]} ${x.date.slice(5)}: ${x.logged ? `${r0(x.kcal)} / ${r0(x.protein)} g${unfinished.has(x.date) ? ' (unfinished)' : x.partial ? ' (some unknown)' : ''}` : 'not logged'}${gym.length ? `; ${gym.join(' + ')}` : ''}${mat ? '; wrestling' : ''}${kg ? `; ${r1(kg)} kg` : ''}`;
+  }).join(' | ')}.`);
   const t0 = days[days.length - 1];
   L.push(t0.logged ? `Today so far: ${r0(t0.kcal)} kcal, ${r0(t0.protein)} g protein${t0.partial ? ' (some items have unknown nutrition)' : ''}.` : 'Today so far: nothing logged.');
 

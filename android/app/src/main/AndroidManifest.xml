@@ -36,6 +36,10 @@
     <uses-permission android:name="android.permission.health.READ_TOTAL_CALORIES_BURNED" />
     <uses-permission android:name="android.permission.health.READ_FLOORS_CLIMBED" />
     <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_HISTORY" />
+    <!-- read the watch every half hour while Aven is closed (HealthJob), so it opens with fresh numbers; and again after
+         the phone restarts -->
+    <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <queries>
         <intent>
@@ -164,5 +168,10 @@
 
         <receiver android:name=".RestAlarmReceiver" android:exported="false" />
         <receiver android:name=".RestActionReceiver" android:exported="false" />
+        <!-- the half-hourly read of the watch (only when reading in the background is allowed) -->
+        <service
+            android:name=".HealthJob"
+            android:permission="android.permission.BIND_JOB_SERVICE"
+            android:exported="false" />
     </application>
 </manifest>
