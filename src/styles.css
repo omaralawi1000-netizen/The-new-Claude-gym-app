@@ -245,6 +245,9 @@ input, textarea, select { font-size: 16px; } /* prevents iOS zoom-on-focus */
 .aurora.in { -webkit-mask-image: linear-gradient(to bottom, transparent 0, transparent calc(var(--sat) + 2px), #000 calc(var(--sat) + 130px)); mask-image: linear-gradient(to bottom, transparent 0, transparent calc(var(--sat) + 2px), #000 calc(var(--sat) + 130px)); }
 /* paused while a pop-up is up (see useCalm in App.tsx) */
 .app[data-calm] .aurora i { animation-play-state: paused; }
+/* (the Coach pin's glow keeps stepping under a pop-up and made the whole screen, and the frost over it, redraw ~15 times a second
+   while the Coach sat idle; paused, it keeps its layer and picks up where it was: Coach idle redraws 45 -> 0 per 3 s) */
+.app[data-calm] .pin-mark::before, .app[data-calm] .pin-mark::after { animation-play-state: paused; }
 /* The page behind a pop-up recedes (scales) every frame, which makes every frosted card on it re-blur every frame — a dozen
    full-screen-sized blurs on top of the pop-up's own. Over a soft colour field the frost is all but invisible (measured: the
    two look the same), and the pop-up's dim and blur cover it anyway, so it is switched off while a pop-up is up. The dock keeps its.
@@ -884,10 +887,10 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    the main source of scroll stutter inside sheets. (Classes only inside :has(): with an attribute such as [role] in it,
    the browser re-checked it on every element added anywhere in the app and restyled every <i> each time, a word at a
    time while the Coach writes. Full-screen overlays that are not sheets carry .ovl.) */
-.app:has(.sheet, .voice, .ovl) .aurora i { animation-play-state: paused; }
+.app[data-calm] .aurora i { animation-play-state: paused; } /* (data-calm, App.tsx useCalm: the :has() here made every DOM change anywhere, a keystroke's measure included, restyle every <i> in the app, 19 Oct) */
 /* same for the looping pulse dots. (Targeted by class on purpose: a `.screen *` selector here made the browser
    restyle every element of the app each time a popup opened or closed — a long frame right as it starts moving.) */
-.app:has(.sheet, .voice, .ovl) .pulse-dot::before { animation-play-state: paused !important; }
+.app[data-calm] .pulse-dot::before { animation-play-state: paused !important; }
 
 /* iOS-style: while a popup is up the page's content (screen and dock) sinks back, under the dim, while its background stays
    put edge to edge. The transform is written by script (useStageDepth in App.tsx) from the popups' own progress, so it
@@ -1031,6 +1034,8 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    before the light does, so a word is in place while it is still brightening. (Still opacity and transform only.) */
 .coach-reply.calm .w-in { animation: wordLight 820ms cubic-bezier(0.33, 0.1, 0.25, 1) backwards, wordRise 700ms cubic-bezier(0.2, 0.75, 0.25, 1) backwards; }
 @keyframes wordRise { from { transform: translateY(0.14em); } to { transform: none; } }
+/* (while an answer writes itself in, every word that has come in keeps its layer, then all go at once: CoachReply) */
+.coach-reply.writing :is(.w-in, .rich-li > .w) { will-change: opacity; }
 :root[data-motion='reduce'] .w-in { animation: none !important; }
 @media (prefers-reduced-motion: reduce) { :is(.calm, .voice-live, :root) .w-in { animation: none; } }
 :root[data-motion='reduce'] :is(.soft-in > .soft-s, .soft-in::before, .soft-in::after) { animation: none; }
@@ -1043,6 +1048,8 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .reply-foot { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
 .speak-btn { position: relative; width: 32px; height: 32px; border-radius: 999px; display: grid; place-items: center; flex: none;
   color: var(--tx2); background: var(--s2); border: 1px solid var(--line); transition: color 200ms, background 200ms, border-color 200ms; }
+.speak-btn .sp-ico { grid-area: 1 / 1; display: grid; opacity: 0; transform: scale(0.6); transition: opacity 260ms cubic-bezier(.45, 0, .25, 1), transform 380ms var(--ease-smooth); }
+.speak-btn .sp-ico.on { opacity: 1; transform: none; }
 .speak-btn.playing, .speak-btn.loading { color: var(--ac-text); border-color: color-mix(in srgb, var(--ac) 45%, var(--line)); background: color-mix(in srgb, var(--ac) 14%, var(--s2)); }
 .speak-btn.loading::after { content: ''; position: absolute; inset: -3px; border-radius: inherit; border: 1.5px solid var(--ac); opacity: 0; animation: speakWait 1.1s ease-in-out infinite; }
 @keyframes speakWait { 0% { opacity: 0.55; transform: scale(0.92); } 100% { opacity: 0; transform: scale(1.25); } }
@@ -1050,8 +1057,9 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
   color: var(--tx2); background: var(--s2); border: 1px solid var(--line); }
 /* the Coach typing: three soft dots breathing one after another */
 .typing { display: inline-flex; gap: 5px; padding: 12px 14px; border-radius: 18px 18px 18px 6px; background: var(--s2); border: 1px solid var(--line); animation: thinkIn 0.4s var(--ease-out) backwards; }
-.typing i { width: 7px; height: 7px; border-radius: 50%; background: var(--tx2); animation: dot 1.2s ease-in-out infinite; }
-.typing i:nth-child(2) { animation-delay: 0.16s; } .typing i:nth-child(3) { animation-delay: 0.32s; }
+.typing i { width: 7px; height: 7px; border-radius: 50%; background: var(--tx2); animation: dot 1.2s ease-in-out var(--ph, 0ms) infinite backwards; }
+.typing i:nth-child(2) { animation-delay: calc(var(--ph, 0ms) + 0.16s); } .typing i:nth-child(3) { animation-delay: calc(var(--ph, 0ms) + 0.32s); }
+/* (on the page's clock, --ph, and filled backwards: a fresh set of dots never restarts or shows a bright dot, 19 Oct) */
 @keyframes dot { 0%, 60%, 100% { opacity: 0.3; transform: translateY(0); } 30% { opacity: 0.95; transform: translateY(-3px); } }
 @media (prefers-reduced-motion: reduce) { .typing i, .speak-btn.loading::after { animation: none; } }
 @keyframes sheen { from { background-position: 130% 0; } to { background-position: -130% 0; } }
@@ -1294,8 +1302,8 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .coach-body .action-card.fresh .ac-was { animation: acLine 520ms var(--ease-smooth) 130ms both; }
 .coach-body .action-card.fresh .ac-was-t::after { animation: acStrike 450ms var(--ease-io) 380ms both; }
 /* (in this order: old, crossed out, then new — the new wording waits for the strike) */
-.coach-body .action-card.fresh:has(.ac-was) .action-line { animation-delay: calc(760ms + var(--i, 1) * 55ms - 55ms) !important; } /* (over the inline delay each line carries) */
-.coach-body .action-card.fresh:has(.ac-was) .ac-actions:not(.ac-in-late):not(.ac-out) { animation-delay: 940ms; }
+.coach-body .action-card.fresh.has-was .action-line { animation-delay: calc(760ms + var(--i, 1) * 55ms - 55ms) !important; } /* (over the inline delay each line carries) */
+.coach-body .action-card.fresh.has-was .ac-actions:not(.ac-in-late):not(.ac-out) { animation-delay: 940ms; }
 /* a recipe's method: a quiet line that folds the steps open */
 .ac-method { margin-top: 8px; }
 .ac-method-btn { display: inline-flex; align-items: center; gap: 4px; padding: 4px 0; background: none; border: 0; color: var(--tx2); }
@@ -1461,7 +1469,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .coach-send .cs-stop, .coach-send.busy .cs-go { opacity: 0; transform: scale(0.6); }
 .coach-send.busy .cs-go { transform: scale(0.6); }
 .coach-send.busy .cs-stop { opacity: 1; transform: none; }
-.coach-send.queued .cs-go { opacity: .45; } /* (typed while it answers: waits, quieter, and goes when the answer is done) */
+.coach-send.on.queued { opacity: .5; } /* (typed while it answers, or said words waiting: the whole button waits, quieter, and goes when the answer is done; only its arrow dimmed, the orange disc still read as ready, judge 19 Oct) */
 .coach-err-acts { flex-wrap: wrap; }
 /* it rises in like the other rows (never just there), and fades as it folds away */
 .coach-err { animation: acSettle 560ms var(--ease-smooth) both; transition: opacity 300ms var(--ease-smooth); }
@@ -1591,6 +1599,9 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 @property --kb-now { syntax: '<length>'; inherits: false; initial-value: 0px; }
 @property --cf-gt { syntax: '<length>'; inherits: false; initial-value: 0px; } /* (the pill's frost outline: its top and its left edge) */
 @property --cf-gl { syntax: '<length>'; inherits: false; initial-value: 0px; }
+@property --kb-room { syntax: '<length>'; inherits: false; initial-value: 0px; } /* (both set on the lists themselves, ui/Sheet.tsx: inherited, each change restyled ~1000 elements) */
+@property --foot-h { syntax: '*'; inherits: false; }
+@property --grow-pad { syntax: '<length>'; inherits: false; initial-value: 0px; } /* (read only on the list itself: inherited, each write restyled ~900 elements under it, 19 Oct) */
 @property --grow { syntax: '<length>'; inherits: false; initial-value: 0px; } /* (the typing pill's extra lines: the end of the conversation rises with it) */
 @property --melt { syntax: '<length-percentage>'; inherits: false; initial-value: 100%; } /* (not handed down to every word: it changes as you scroll) */
 @supports (animation-timeline: scroll()) {
@@ -1632,6 +1643,10 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    play button's row is held open while it writes, and the button (and the quiet note) fade in where the room already is. */
 .coach-reply:not(.still) { animation: coachReply 420ms var(--ease-out) both; }
 .coach-thread { will-change: transform; }
+/* (the list's glides and a sent message's lift are moves of .coach-thread; a moved box counts towards the scroll area, so
+   while one played the list's end grew by the move, was scrolled to again and glided twice. Clipped, a move never changes
+   the scroll area; the margin keeps what a move carries below the list drawn down into the fade over the bar, 14 Oct r11) */
+.coach-clip { overflow: clip; overflow-clip-margin: 100px; }
 .reply-foot.held { min-height: 32px; }
 /* the play button under each answer is a quiet glyph, not a filled circle (a column of circles down the chat read as noise);
    it keeps its 32 px tap area and lines up with the text, and takes its colour and ring only while it reads aloud */
@@ -1710,6 +1725,12 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* sending: the suggestions step away the way the chat does on New chat (they used to vanish in one frame), on a soft
    300 ms curve; they take no room while they go, so your message rises where they were */
 .coach-tips-out { height: 0; pointer-events: none; animation: coachTipsOut 300ms cubic-bezier(.3, 0, .2, 1) forwards; }
+.coach-thread { position: relative; }
+.coach-tips-float { position: absolute; left: 0; right: 0; height: auto; }
+/* (under a chat they keep their room and your message lands in it: they are gone a touch sooner, so it never passes over
+   them while they can still be seen, judge 18 Oct) */
+.coach-tips-out.coach-tips-float { animation-duration: 220ms; animation-timing-function: cubic-bezier(.3, 0, .3, 1); }
+.coach-sent.coach-late { animation-delay: 150ms; } /* (a tapped one comes up where they were only once they have gone) */
 @keyframes coachTipsOut { from { opacity: 1; } to { opacity: 0; transform: translate3d(0, -4px, 0); } }
 .coach-body .coach-tips-out .tips .tip { animation: none; } /* (re-placed, they must not rise in again on their way out) */
 :root[data-motion='reduce'] .coach-tips-out { display: none; }
@@ -1723,6 +1744,13 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 /* (light: warm and light, gone within ~18 px, a shade of the page's own warmth: a grey-blue one read as a Material card) */
 :root[data-theme='light'] { --bubble-sh: 0 0.5px 1px rgba(60, 30, 30, 0.08), 0 2px 6px rgba(60, 30, 30, 0.06), 0 8px 20px rgba(60, 30, 30, 0.05); }
 .coach-body .said { background: color-mix(in srgb, var(--ac) 9%, var(--s2)); border: 0; box-shadow: var(--bubble-sh); }
+/* (each of your bubbles is drawn on a layer of its own, for good: a sent message's flying copy is one, and its letters land
+   on the bubble's exactly only when the bubble is drawn the same way (on the list's own layer they stepped by a pixel as it
+   landed). Given one only while it landed and taken away at the next send, the answer under it was redrawn from nothing
+   while the list moved: it blanked for two frames on the phone, 14 Oct r11). Only the ones sent in this visit, which are
+   the only ones that land: a saved chat's bubbles, each a layer, also put every answer under them on a layer of its own
+   (their shadows overlap it), a dozen big layers of a chat nobody is sending in, 18 Oct) */
+.coach-body .live .said { will-change: transform; }
 /* The typing pill has its own surface; the orb and camera sit beside it. */
 .coach-foot { padding-bottom: 12px; }
 .coach-composer { display: flex; align-items: center; gap: 14px; }
@@ -1820,6 +1848,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .coach-composer.closing .cf-text { transition: translate var(--cf-dur) var(--cf-ease) 60ms, clip-path var(--cf-dur-k) var(--cf-ease-k) var(--cf-delay-k, 0ms); }
 .cf-tint > i, .cf-sh, .cf-text, .coach-field textarea.input, .coach-cam-slot, .coach-field { will-change: transform; }
 .coach-cam.frost-ctl { will-change: opacity; }
+.coach-cam.frost-ctl::after { will-change: opacity; } /* (its pressed rim kept making and dropping a layer over its own frost) */
 :root[data-motion='reduce'] :is(.cf-glass, .cf-tint > i, .cf-sh, .cf-text, .coach-cam-slot) { transition: none !important; }
 @media (prefers-reduced-motion: reduce) { :is(.cf-glass, .cf-tint > i, .cf-sh, .cf-text, .coach-cam-slot) { transition: none !important; } }
 .coach-orb { margin-right: 2px; isolation: isolate; will-change: transform; } /* (its own layer all the time: a tap made one for the press and dropped it, under its frost) */
@@ -1862,6 +1891,8 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .coach-composer .input::placeholder { color: var(--tx2); opacity: 1; font-weight: 400; letter-spacing: 0; }
 .coach-composer .coach-send { transform: scale(.92); transition: opacity 280ms cubic-bezier(.4, 0, .2, 1), transform 460ms var(--ease-smooth); } /* (calm, 14 Oct 21:13: was 160 / 260 ms) */
 .coach-composer .coach-send.on { transform: none; }
+/* leaving, the button keeps its glyph (the X stays an X while it fades), and the glyph resets once it is gone */
+.coach-composer .coach-send:not(.on) .cs-ico { transition-delay: 300ms, 300ms; }
 .coach-cam { flex: none; width: 44px; height: 50px; color: var(--tx2); }
 .coach-photo { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; padding: 6px 6px 6px 6px; border-radius: 16px; background: var(--s2); box-shadow: inset 0 0 0 1px var(--line); animation: rise-soft 420ms var(--ease-out) backwards; }
 .coach-photo img { width: 48px; height: 48px; border-radius: 11px; object-fit: cover; flex: none; }
@@ -2863,7 +2894,7 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
   -webkit-mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
   background: linear-gradient(180deg, color-mix(in srgb, color-mix(in srgb, var(--ac) 60%, #fff) 90%, transparent), rgba(255,255,255,.14) 45%, rgba(255,255,255,.08)); }
 /* today's plan letter takes the day's colour */
-:root:not([data-theme='light']) .screen .plinth > button.press[style*='var(--ac-soft)'] > span[style*='var(--s3)'] { color: var(--ac-text) !important; }
+:root:not([data-theme='light']) .screen .plinth > button.press.wk-today > span[style*='var(--s3)'] { color: var(--ac-text) !important; } /* (a class, not [style*=] on the button: an attribute test left of a combinator made every inline-style write anywhere restyle all 448 styled elements under it, 6 ms a sheet frame, 19 Oct) */
 /* ---- AB mix (Omar 00:42: clear glass + lit rim, but not on the small buttons) ----
    Lit rim (B) stays on the big/primary ones: pills (.btn, Schedule/New routine), the secondary play, the selected week day,
    the sheet's Save. Small ones (round icons, chips, quick-adds) get A's clear glass with a faint neutral rim. */

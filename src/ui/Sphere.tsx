@@ -6,7 +6,7 @@ import { useVoice } from '../state/voice';
 import { speakingLevel } from '../lib/voiceOut';
 import { useStore } from '../state/store';
 import { useUI, haptic } from '../state/ui';
-import { kb } from './keyboard';
+import { kb, onKeyboardGoal } from './keyboard';
 import { highRefresh, onHighRefresh, springCurve } from './motion';
 
 /**
@@ -119,6 +119,8 @@ const orbLock = { bucket: 0 };
 const orbHold = { bucket: 0, until: 0 };
 export function holdOrbSize(px: number, ms: number) { orbHold.bucket = Math.ceil(px / 24) * 24; orbHold.until = performance.now() + ms; }
 let orbAnim: Animation | null = null;
+/** the pane covered by a page, while the orb in it fades with it (see the tick) */
+let coverPane: HTMLElement | null = null;
 const PICK = 30; // px: how softly the dock hands the orb over to a rising slot (a soft minimum, so its speed never jumps)
 const smooth01 = (x: number) => { const t = Math.min(1, Math.max(0, x)); return t * t * (3 - 2 * t); };
 const softmin = (a: number, b: number, k: number) => { const m = Math.min(a, b); return m - k * Math.log(Math.exp(-(a - m) / k) + Math.exp(-(b - m) / k)); };
@@ -143,6 +145,8 @@ function carry(O: { X: number; Y: number; S: number }, x: number, y: number, z: 
 let lastOverlayChange = 0;
 /** Where the stage last put the orb (its box's top-left within the app, and its size). */
 let orbNow = { X: NaN, Y: NaN, S: NaN };
+/** how fast it was moving on the last frame (px/s), and when that frame was */
+let orbVel = { x: 0, y: 0 }, orbAt = 0;
 
 /** The ids of the pop-ups that are open (not on their way out), cached per change of the stack. */
 let idsFor: unknown = null, idsSet = new Set<string>();
@@ -162,6 +166,16 @@ const isLeaving = (s: Slot) => !!s.ov && !openIds().has(s.ov);
 let handoff: { el: HTMLElement; from: { X: number; Y: number; S: number }; back?: { k: number; P: { X: number; Y: number; S: number } } } | null = null;
 /** slots that have handed the orb over: on their way out they no longer pull it back */
 const gaveUp = new WeakSet<HTMLElement>();
+/** A sheet closing while the keyboard is up: its slot rests far above the dock and falls past it with the keyboard while
+ *  the sheet is still on screen, so riding with it let go of the orb in one frame (a 174 px leap to the dock, then a step
+ *  back, 19 Oct). It glides straight home instead, from where it was as the sheet began to leave, on the sheet's progress.
+ *  `null`: an ordinary close (it rides with its slot as before). */
+interface LeaveFrom { k: number; P: { X: number; Y: number; S: number }; py?: number; pt?: number; land?: { t0: number; y0: number; v0: number; W: number; k: number } }
+const leaveFrom = new WeakMap<HTMLElement, LeaveFrom | null>();
+// a closing sheet opened again on its way down: the orb goes on from where it is drawn (it used to blend toward the button,
+// still far below, and dived under the dock, then jumped back; judge 19 Oct)
+const turnFrom = new Map<string, { k: number; P: { X: number; Y: number; S: number }; v: { x: number; y: number }; t: number; falling: boolean; L: number }>(), wasLeaving = new Set<string>(); // (by the slot's id: the reopened sheet's slot is a new element)
+const LAND = 160; // px: how far above the dock line the orb lets go of its falling button and eases onto the line
 function claim(el: HTMLElement) {
   if (handoff?.el === el || !Number.isFinite(orbNow.X)) return;
   for (const s of slots.values()) {
@@ -181,6 +195,7 @@ export function mirrorOrb(container: Element | null, p0: number, p1: number, sp:
   const slotEl = container?.querySelector<HTMLElement>('[data-orb-slot]');
   if (!el || !slotEl || !slotEl.isConnected) return null;
   if (handoff && handoff.el !== slotEl && p1 < p0) return null; // it has handed the orb over: leaving takes nothing with it
+  if (p1 < p0 && kb.get() > 1) return null; // closing over the keyboard: the script glides it home (see leaveFrom)
   if (handoff?.el === slotEl && p1 < p0) { orbAnim?.cancel(); orbAnim = null; return null; } // closed before it arrived: the script brings it back
   if (p1 > p0) claim(slotEl);
   const mine = handoff?.el === slotEl;
@@ -371,7 +386,9 @@ export function SphereStage() {
     // A popup's own motion (its transform, the dim and blur fading, the page stepping back) rewrites a style attribute every
     // frame. Its transform is applied below; decorative layers don't change layout. (.stage-content, the page sinking back
     // behind a pop-up, was missing: every frame of opening and closing the workout measured the whole orb path afresh.)
-    const MOVING = '.sheet, .sheet-pane, .sheet-page, .scrim, .scrim > i, .stage, .stage-content, .wk-card, .wk-sheet, .fields, .aurora, .sphere-stage, .lens, .lens > i';
+    // (.sheet-foot: a pop-up's bottom bar rides the keyboard by its transform alone; re-measuring the page on every frame of
+    // that ride was most of the work in each frame of it, 19 Oct)
+    const MOVING = '.sheet, .sheet-pane, .sheet-page, .sheet-foot, .scrim, .scrim > i, .stage, .stage-content, .wk-card, .wk-sheet, .fields, .aurora, .sphere-stage, .lens, .lens > i';
     // Inside the live workout's window nothing but the bar's own box can move its slot (the bar is pinned to the window's
     // foot): the list, Focus, the header and the bar's words changing used to force a fresh measure of the whole page on
     // every frame they changed (a set ticked, a page turned, the clock rolling), the biggest part of a tick's cost.
@@ -390,6 +407,7 @@ export function SphereStage() {
         if (r.type === 'attributes' && r.attributeName === 'style' && voiceEls.has(r.target as Element) && noVoice(r.oldValue) === noVoice((r.target as Element).getAttribute('style'))) continue;
         const t = (r.target.nodeType === 1 ? r.target : r.target.parentElement) as Element | null;
         if (t && (inWorkout(t) || inTallList(t))) continue;
+        if (t?.closest?.('.cf-measure')) continue; // (the Coach's hidden copy of your words, rewritten on every key: it moves nothing)
         if (r.type !== 'attributes' || !(r.target as Element).matches?.(MOVING)) { dirty(); return; }
       }
     });
@@ -401,7 +419,10 @@ export function SphereStage() {
     window.addEventListener('pointermove', dirty, { passive: true });
     window.addEventListener('pointerdown', dirty, { passive: true });
     const offUi = useUI.subscribe((a, b) => { if (a.tab !== b.tab) dirty(); else if (a.overlays !== b.overlays) { lastOverlayChange = performance.now(); dirty(); } });
-    const offKb = kb.on('change', dirty);
+    // the keyboard: measured as it sets off and once it has landed; on the way, what it moves by layout is seen by the
+    // observer above, and what it moves by transform (a bar riding on it) is applied from that transform
+    const offKbGo = onKeyboardGoal(dirty), offKbEnd = kb.on('animationComplete', dirty);
+    const offKb = () => { offKbGo(); offKbEnd(); };
     document.fonts?.addEventListener?.('loadingdone', dirty); // a web font arriving re-flows text
     window.addEventListener('load', dirty, true);              // an image arriving can too
     const observed = new Set<HTMLElement>();
@@ -504,6 +525,7 @@ export function SphereStage() {
         // a pop-up that has handed the orb over to the one arriving no longer pulls it back on its way out
         if (leaving && !mine && (handoff || gaveUp.has(sl.el))) { gaveUp.add(sl.el); continue; }
         const e = sl.engage ? Math.min(1, Math.max(0, sl.engage.e.get())) : 1;
+        if (e <= 0.001) wasLeaving.delete(sl.id); // (closed all the way: nothing to turn round)
         if (have && e <= 0.001 && !mine) continue;
         const r = rects.get(sl.el);
         if (!r) { dirty(); continue; }
@@ -535,7 +557,48 @@ export function SphereStage() {
         // A sliding popup's slot (a sheet, the live workout): the orb heads for where the slot comes to REST, on the very
         // same progress as the popup. Both start together and land together, so the orb never trails the sheet or crosses its
         // buttons on the way; while the popup is opening it is simply a shared element flying to its place.
-        if (sl.engage?.shift) {
+        if (!leaving) {
+          if (wasLeaving.delete(sl.id) && e < 0.98 && Number.isFinite(orbNow.X)) turnFrom.set(sl.id, { k: e, P: { ...orbNow }, v: { ...orbVel }, t: now, falling: true, L: Y });
+          leaveFrom.delete(sl.el);
+        } else { wasLeaving.add(sl.id); turnFrom.delete(sl.id); if (!leaveFrom.has(sl.el)) leaveFrom.set(sl.el, kb.get() > 1 && Number.isFinite(orbNow.X) ? { k: Math.max(0.001, e), P: { ...orbNow } } : null); }
+        const lf = leaving ? leaveFrom.get(sl.el) : null;
+        const tf = leaving ? undefined : turnFrom.get(sl.id);
+        if (tf && e >= 0.999) turnFrom.delete(sl.id);
+        if (tf) {
+          // while the sheet's spring still carries it down, the orb coasts on and slows (it stopped dead at the tap, judge 19
+          // Oct); once the sheet comes back up it goes straight on from there to its button, on the rest of the sheet's
+          // progress, never below the dock line
+          if (tf.falling && e > tf.k + 0.001) tf.falling = false;
+          if (tf.falling) {
+            const dt = Math.min(0.05, Math.max(0, now - tf.t) / 1000), d = Math.exp(-25 * dt);
+            tf.t = now; tf.k = Math.min(tf.k, e);
+            tf.P = { X: tf.P.X + tf.v.x * dt, Y: Math.min(Math.max(tf.P.Y, Y), tf.P.Y + tf.v.y * dt), S: tf.P.S };
+            tf.v = { x: tf.v.x * d, y: tf.v.y * d };
+          }
+          const u = tf.falling ? 0 : Math.min(1, Math.max(0, (e - tf.k) / Math.max(0.001, 1 - tf.k)));
+          const ty = tf.P.Y + (y - tf.P.Y) * u;
+          X = tf.P.X + (x - tf.P.X) * u; Y = Math.min(ty, Math.max(tf.P.Y, Y, tf.L)); // (tf.L: the dock line it was landing on; the dock sinking back as the sheet rose held it a few px above its button, then it dropped there at the end) S = tf.P.S + (z - tf.P.S) * u; flight = u;
+        } else if (lf) {
+          // it rides its button exactly (on the bar, never over the words) until the button passes LAND px above the dock line.
+          // There it lets go at the button's own speed and settles onto the line on a critically damped spring (stiff enough
+          // never to overshoot below it), and moves across home on the rest of the sheet's progress, from rest, landing
+          // exactly as the sheet does (it used to blend toward the dock from the first frame, off its seat, and stopped dead
+          // on the line, judge 19 Oct)
+          const line = Y - LAND;
+          if (!lf.land && y > line && lf.py !== undefined && lf.pt !== undefined) {
+            const v0 = Math.max(0, ((y - lf.py) / Math.max(1, now - lf.pt)) * 1000);
+            lf.land = { t0: lf.pt, y0: lf.py, v0, W: Math.max(18, (1.2 * v0) / Math.max(1, Y - lf.py)), k: Math.max(0.001, e) };
+          }
+          let ry = y, wx = 1;
+          if (lf.land) {
+            const { t0, y0, v0, W, k } = lf.land, t = Math.max(0, now - t0) / 1000, x0 = y0 - Y;
+            ry = Math.min(Y, Y + (x0 + (v0 + W * x0) * t) * Math.exp(-W * t));
+            wx = smooth01(e / k);
+          } else if (y > line) { ry = line; lf.py = line; lf.pt = now; } // (no speed yet: the first frame already past the line)
+          else { lf.py = y; lf.pt = now; }
+          const f = smooth01(e / lf.k / 0.3);
+          X += (x - X) * wx; Y += (ry - Y) * f; S += (z - S) * wx; flight = wx;
+        } else if (sl.engage?.shift) {
           const restY = y - sl.engage.shift.get();
           const c = carry({ X, Y, S }, x, y, z, restY, e);
           X = c.X; Y = c.Y; S = c.S; flight = c.t;
@@ -545,6 +608,8 @@ export function SphereStage() {
         if (e > 0.02) { top = Math.max(top, sl.priority); topSlot = sl; }
       }
       if (!have) { el.style.opacity = '0'; pause(); return; }
+      if (orbAt && now > orbAt && Number.isFinite(orbNow.X)) { const dt = (now - orbAt) / 1000; orbVel = { x: (X - orbNow.X) / dt, y: (Y - orbNow.Y) / dt }; }
+      orbAt = now;
       orbNow = { X, Y, S };
       // In the tab bar it sits under every popup; in a popup it sits just above that popup — and so under anything
       // opened over it (an exercise menu over the live workout), never floating on top of everything.
@@ -573,7 +638,20 @@ export function SphereStage() {
       // every frame of a flight reallocated its buffer and re-laid it out each frame — a stutter source.
       const natural = Math.ceil(size / 24) * 24;
       const bucket = orbLock.bucket || (top > 0 && performance.now() < orbHold.until ? Math.max(orbHold.bucket, natural) : natural);
-      if (el.style.opacity !== '1') el.style.opacity = '1';
+      // a page opened over the orb's pop-up (Settings from the Coach): the page under it fades and steps aside, and the orb,
+      // its own layer, goes and comes back with it as one piece (it stayed lit, half off the edge, over Settings, 19 Oct)
+      let op = 1;
+      if (topSlot && top > 0) {
+        const pane = topSlot.el.closest<HTMLElement>('[inert]');
+        if (pane) coverPane = pane;
+        if (coverPane && (!coverPane.isConnected || !coverPane.contains(topSlot.el))) coverPane = null;
+        if (coverPane) {
+          op = coverPane.style.visibility === 'hidden' ? 0 : Number(getComputedStyle(coverPane).opacity) || 0;
+          if (!pane && op >= 0.999) coverPane = null;
+        }
+      } else coverPane = null;
+      const ops = op >= 0.999 ? '1' : op.toFixed(3);
+      if (el.style.opacity !== ops) el.style.opacity = ops;
       if (el.style.width !== `${bucket}px`) el.style.width = el.style.height = `${bucket}px`;
       const tf = `translate3d(${X}px, ${Y}px, 0) scale(${size / bucket})`;
       if (glideReq || glide) {
