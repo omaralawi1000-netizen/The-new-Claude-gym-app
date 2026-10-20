@@ -813,6 +813,11 @@ function CoachRawCopy() {
   );
 }
 
+const kbDiag = () => {
+  const vk = (navigator as any).virtualKeyboard;
+  const mode = matchMedia('(display-mode: standalone)').matches ? 'installed' : 'browser';
+  return `kb: ${vk ? `api yes, overlays ${String(vk.overlaysContent)}, h ${Math.round(vk.boundingRect?.height ?? 0)}` : 'api no'} · ${mode} · ${inAndroidApp() ? 'apk' : 'web'} · ${innerWidth}×${innerHeight} vv ${Math.round(visualViewport?.height ?? 0)}`;
+};
 /** Aven Beta only: says so, and copies the real app's data in (one way; the real app is only read). */
 function BetaBox() {
   const t = useT();
@@ -821,6 +826,8 @@ function BetaBox() {
     <div className="plinth" style={{ padding: 18 }}>
       <div className="display display-md">{t('Aven Beta')}</div>
       <div className="t2" style={{ marginTop: 4 }}>{t('This is the test copy. Its workouts, food and settings are separate from your real Aven, and nothing you do here changes the real app.')}</div>
+      {/* (a test line for Claude, in the Beta only: does this Chrome let the keyboard slide over the page? 18 Oct, black band) */}
+      <div className="xs t3 num" style={{ marginTop: 8 }}>{kbDiag()}</div>
       {!ask ? <button className="btn block press" style={{ marginTop: 14 }} onClick={() => setAsk(true)}>{t('Copy my real Aven data in')}</button> : (
         <div style={{ marginTop: 14 }}>
           <div className="t2">{t('This replaces everything in the Beta with a copy of your real Aven (including your API keys), then restarts the Beta. Your real Aven is not touched.')}</div>
