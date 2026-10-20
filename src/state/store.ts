@@ -156,6 +156,27 @@ export interface Store extends AppData {
 
 const dayOf = (s: Settings, t = Date.now()) => dayKey(t, s.dayStartHour);
 
+/**
+ * After a finished workout's sets change: its records are detected again against the workouts before it, and so are those
+ * of later workouts with any of the same exercises (a best they beat may have changed).
+ */
+export function refreshRecords(sessions: WorkoutSession[], edited: WorkoutSession, before: WorkoutSession, exMap: Map<string, Exercise>): WorkoutSession[] {
+  const ids = new Set([...edited.exercises, ...before.exercises].map((e) => e.exerciseId));
+  const end = edited.endedAt ?? 0;
+  const lookup = (id: string) => exMap.get(id);
+  // in order, so a later workout measures against already refreshed ones
+  const order = sessions.map((x, i) => ({ x, i })).sort((p, q) => (p.x.endedAt ?? 0) - (q.x.endedAt ?? 0));
+  const out = [...sessions];
+  for (const { x, i } of order) {
+    if (x.status !== 'done') continue;
+    const self = x.id === edited.id;
+    if (!self && ((x.endedAt ?? 0) < end || !x.exercises.some((e) => ids.has(e.exerciseId)))) continue;
+    const records = detectRecords(x, out.filter((y) => y.status === 'done'), lookup);
+    out[i] = { ...x, records };
+  }
+  return out;
+}
+
 /** A deleted routine and the places on the plan it was taken off. */
 export interface RemovedRoutine {
   routine: Routine;
@@ -339,7 +360,14 @@ export const useStore = create<Store>((set, get) => {
       return a;
     },
     restoreActive: (a) => { if (!get().active) mutate(() => ({ active: a }), true); },
-    mutateSession: (id, fn) => mutate((s) => ({ sessions: s.sessions.map((x) => (x.id === id ? fn(x) : x)) })),
+    mutateSession: (id, fn) => mutate((s) => {
+      const old = s.sessions.find((x) => x.id === id);
+      if (!old) return {};
+      const next = fn(old);
+      const sessions = s.sessions.map((x) => (x.id === id ? next : x));
+      // sets edited or deleted after the workout: its records (and later ones that measured against it) are found again
+      return { sessions: next.exercises !== old.exercises ? refreshRecords(sessions, next, old, exerciseMap(s.exercises)) : sessions };
+    }),
     deleteSession: (id) => {
       const x = get().sessions.find((y) => y.id === id);
       if (x) mutate((s) => ({ sessions: s.sessions.filter((y) => y.id !== id) }));

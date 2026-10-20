@@ -58,3 +58,24 @@ describe('an unnamed workout', () => {
     expect(workoutName('Push day', da)).toBe('Push day');
   });
 });
+
+describe('editing sets after a workout', () => {
+  const ses = (id: string, endedAt: number, kg: number): WorkoutSession => ({ id, name: 'Push', date: '2026-10-01', startedAt: endedAt - 3600000, endedAt, pausedMs: 0, status: 'done',
+    exercises: [{ id: `${id}e`, exerciseId: 'bench-press', sets: [{ id: `${id}s`, type: 'working', done: true, weightKg: kg, reps: 5, completedAt: endedAt - 1000 }] }] });
+  it('finds its records again, and those of later workouts', () => {
+    const a = ses('a', 1_000_000, 60), b = ses('b', 2_000_000, 70), c = ses('c', 3_000_000, 75);
+    useStore.getState().patch({ sessions: [a, b, c] });
+    // as they were found when finished
+    useStore.getState().mutateSession('b', (x) => x); // nothing changed: nothing recomputed
+    expect(useStore.getState().sessions.find((x) => x.id === 'b')!.records).toBeUndefined();
+    // b's 70 typed in wrong: it was 80. Now b is a record over 60, and c (75) no longer beats the best before it
+    useStore.getState().mutateSession('b', (x) => ({ ...x, exercises: x.exercises.map((e) => ({ ...e, sets: e.sets.map((q) => ({ ...q, weightKg: 80 })) })) }));
+    const st = useStore.getState().sessions;
+    expect(st.find((x) => x.id === 'b')!.records!.some((r) => r.kind === 'weight' && r.value === 80 && r.previous === 60)).toBe(true);
+    expect(st.find((x) => x.id === 'c')!.records!.some((r) => r.kind === 'weight')).toBe(false);
+    // deleting the set takes its record away
+    useStore.getState().mutateSession('b', (x) => ({ ...x, exercises: [] }));
+    expect(useStore.getState().sessions.find((x) => x.id === 'b')!.records).toEqual([]);
+    expect(useStore.getState().sessions.find((x) => x.id === 'c')!.records!.some((r) => r.kind === 'weight' && r.previous === 60)).toBe(true);
+  });
+});
