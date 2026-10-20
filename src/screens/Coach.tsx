@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type SetStateAction } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type Dispatch, type SetStateAction } from 'react';
 import { useIsPresent } from 'motion/react';
 import { useStore, allExercises } from '../state/store';
 import { useUI, haptic } from '../state/ui';
@@ -174,9 +174,14 @@ const OTHER_ROW: CSSProperties = { transformOrigin: '0% 0%', alignSelf: 'stretch
  */
 /** The open Coach hears when an answer has finished writing itself in (its Stop stays until then, 19 Oct). */
 let replyWritten: ((id: string) => void) | null = null;
+/** Answers whose Stop was tapped after they had arrived but while their words were still coming in: the rest shows at once. */
+const revealCut = new Set<string>(), cutSubs = new Set<() => void>();
+const cutReveal = (id: string) => { revealCut.add(id); cutSubs.forEach((f) => f()); };
+const subscribeCut = (f: () => void) => { cutSubs.add(f); return () => { cutSubs.delete(f); }; };
 function CoachReply({ m }: { m: Extract<Msg, { role: 'user' | 'model' }> }) {
   const t = useT();
-  const { shown, done } = useWordReveal(m.text, !!m.streaming, !!m.seeded);
+  const cut = useSyncExternalStore(subscribeCut, () => revealCut.has(m.id));
+  const { shown, done } = useWordReveal(m.text, !!m.streaming, !!m.seeded || cut);
   useEffect(() => { if (done) replyWritten?.(m.id); }, [done, m.id]);
   // every word keeps its layer while the answer writes itself in (.writing, styles.css), and all of them are let go together
   // once the last one is in (each word's own drop redrew the tiles under it while the next ones came in: the conversation
@@ -1153,7 +1158,7 @@ export function Coach({ props }: { props: { listen?: boolean; date?: string; mea
             {/* Send is an arrow inside the field, there only when there is something to send (Stop while it works) */}
             {/* (while it answers: Stop when the field is empty; typed words wait, dimmed, and go when the answer is done) */}
             <button className={`coach-send press ${working || input.trim() || photo || recording || hearing ? 'on' : ''} ${working && !input.trim() ? 'busy' : ''} ${(busy && input.trim() && queuedOn) || (hearing && !busy) ? 'queued' : ''}`} onMouseDown={(e) => e.preventDefault() /* the field keeps the keyboard (it stays up after a send) */}
-              aria-label={working && !input.trim() ? t('Stop') : recording ? t('Stop and send') : t('Send')} tabIndex={working || input.trim() || photo || recording ? 0 : -1} onClick={() => (busy && !input.trim() ? ctl.current?.abort() : working && !input.trim() ? setWritten((w) => new Set(w).add(lastMsg!.id)) : recording ? toggleRec('send') : hearing ? undefined : send())}>
+              aria-label={working && !input.trim() ? t('Stop') : recording ? t('Stop and send') : t('Send')} tabIndex={working || input.trim() || photo || recording ? 0 : -1} onClick={() => (busy && !input.trim() ? ctl.current?.abort() : working && !input.trim() ? (cutReveal(lastMsg!.id), setWritten((w) => new Set(w).add(lastMsg!.id))) : recording ? toggleRec('send') : hearing ? undefined : send())}>
               {/* send turns into stop (and back) by a short cross-fade with a little turn, not a cut. While you speak it is the
                   arrow (stop and send); once you have stopped it steps aside while your words are heard (the orb thinks) */}
               <span className="cs-ico cs-go"><Icon name="arrowUp" size={18} sw={2.6} /></span>

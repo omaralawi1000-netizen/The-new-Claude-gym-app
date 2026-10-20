@@ -3,6 +3,8 @@
 import { launch, wait, skipOnboarding, loadDemo } from './lib.mjs';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 const { b, ctx, p } = await launch({ size: { width: 384, height: 832 }, dsf: 2, theme: 'dark' });
 await ctx.addInitScript(() => {
   const real = window.fetch;
@@ -32,7 +34,7 @@ if ((process.env.MODE || 'tip') === 'tip') await p.locator('.coach-resume .tip')
 else { await p.getByLabel('Message the Coach').fill('How is my week going?'); await p.getByRole('dialog', { name: 'Coach' }).getByRole('button', { name: 'Send', exact: true }).tap(); }
 await wait(p, Number(process.env.MS || 4200));
 await cdp.send('Page.stopScreencast');
-const dir = fs.mkdtempSync('/tmp/claude-0/film-'); let list = '';
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'film-')); let list = '';
 frames.forEach((f, i) => { const fn = `${dir}/${String(i).padStart(4, '0')}.jpg`; fs.writeFileSync(fn, Buffer.from(f.data, 'base64')); const d = i + 1 < frames.length ? frames[i + 1].t - f.t : 0.1; list += `file '${fn}'\nduration ${Math.max(0.001, d).toFixed(4)}\n`; });
 fs.writeFileSync(`${dir}/list.txt`, list);
 execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'concat', '-safe', '0', '-i', `${dir}/list.txt`, '-vf', 'fps=60,scale=768:-2,format=yuv420p', '-c:v', 'libx264', '-crf', '20', process.env.OUT || 'film.mp4']);
