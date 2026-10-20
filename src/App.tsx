@@ -15,7 +15,7 @@ import { useDriveAuto } from './screens/DriveBackup';
 import { TodayScreen } from './screens/Today';
 import { TrainScreen } from './screens/Train';
 import { FoodScreen } from './screens/Food';
-import { ProgressScreen } from './screens/Progress';
+import { HealthScreen } from './screens/Health';
 import { useT } from './lib/i18n';
 import { registerSW } from './pwa';
 import { dayKey } from './lib/dates';
@@ -265,7 +265,7 @@ function useKeyboard() {
   }, []);
 }
 
-const SCREENS = { today: TodayScreen, train: TrainScreen, food: FoodScreen, progress: ProgressScreen };
+const SCREENS = { today: TodayScreen, train: TrainScreen, food: FoodScreen, progress: HealthScreen };
 
 /**
  * While a pop-up is open (and for a moment after it has left) the app is "calm" (data-calm). The drifting colour field sits

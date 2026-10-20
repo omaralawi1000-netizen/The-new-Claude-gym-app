@@ -394,6 +394,9 @@ export interface Settings {
   reminderTime: string;
   onboarded: boolean;
   profile: { goal: Goal; experience: Experience; equipment: EquipmentAccess; days: number[] };
+  /** Settings → Profile (all optional): age, sex and height feed the health scores (sleep need, max heart rate); the goal
+   *  weight is shown against your weigh-ins. Weights in kg, height in cm, whatever the display units. */
+  body?: { birthYear?: number; sex?: 'male' | 'female'; heightCm?: number; goalWeightKg?: number };
   plateStep: number;
   foodLookup: boolean;
   /** heavy-day notices (lib/eating.ts `heavyMode`): on = noticed, decided, maybe a small trim; quiet = noticed only, the

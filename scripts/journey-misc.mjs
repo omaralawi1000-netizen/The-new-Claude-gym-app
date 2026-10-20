@@ -76,7 +76,7 @@ await p.getByLabel('Settings').click().catch(() => {});
 // log a weight 80 kg-equivalent: type 176.4 lb → 80.01 kg
 await p.keyboard.press('Escape'); await wait(p, 400);
 await p.evaluate(() => {});
-await p.locator('.tabbar').getByRole('button', { name: 'Progress', exact: true }).click(); await wait(p, 600);
+await p.locator('.tabbar').getByRole('button', { name: 'Health', exact: true }).click(); await wait(p, 600); { const tr = p.locator('.hx-sec[data-k="training"]'); await tr.scrollIntoViewIfNeeded(); await wait(p, 600); await tr.click({ position: { x: 30, y: 10 } }); await wait(p, 2500); }
 await p.getByRole('button', { name: 'Log' }).first().click(); await wait(p, 600);
 await p.getByRole('textbox', { name: 'Weight' }).fill('176,4'); await p.getByRole('button', { name: 'Save', exact: true }).click(); await wait(p, 700);
 s = await state(); const wlog = s.weights.at(-1); console.log('176.4 lb →', wlog.kg, 'kg');
