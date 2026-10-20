@@ -259,10 +259,9 @@ export function newBest(lt: string, now: { weightKg?: number; reps?: number; dur
   const w = now.weightKg ?? 0, r = now.reps ?? 0;
   if (!r) return null;
   if (lt === 'assisted') {
-    // less help is harder: a best is more reps than ever with this much help or less
-    const same = prior.filter((p) => (p.weightKg ?? 0) <= w + 1e-6 && p.reps);
-    if (same.length) return r > Math.max(...same.map((p) => p.reps ?? 0)) ? { kind: 'reps', weightKg: w, reps: r } : null;
-    return prior.some((p) => p.reps) ? { kind: 'weight', weightKg: w, reps: r } : null; // less help than ever
+    // as the saved records count it (detectRecords): more reps than ever
+    const most = Math.max(0, ...prior.map((p) => p.reps ?? 0));
+    return most > 0 && r > most ? { kind: 'reps', weightKg: w, reps: r } : null;
   }
   const atLeast = prior.filter((p) => (p.weightKg ?? 0) >= w - 1e-6 && p.reps);
   if (atLeast.length) return r > Math.max(...atLeast.map((p) => p.reps ?? 0)) ? { kind: 'reps', weightKg: w, reps: r } : null;
