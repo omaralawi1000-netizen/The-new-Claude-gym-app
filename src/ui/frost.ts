@@ -163,31 +163,41 @@ function rgb(L: number, A: number, B: number): [number, number, number] {
   const l = (L + 0.3963377774 * A + 0.2158037573 * B) ** 3, m = (L - 0.1055613458 * A - 0.0638541728 * B) ** 3, s = (L - 0.0894841775 * A - 1.291485548 * B) ** 3;
   return [toSrgb(4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s), toSrgb(-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s), toSrgb(-0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s)];
 }
-/** above `k`, only `s` of the rest goes through (a soft ceiling) */
-const knee = (x: number, k: number, s: number) => (x <= k ? x : k + (x - k) * s);
 function tame(o: CanvasRenderingContext2D, w: number, h: number) {
   const mode = root().dataset.cards ?? '';
-  if (!'bcdeh'.includes(mode) || !mode || look() !== 'a') return;
+  if (!mode || !'bcdeg'.includes(mode) || look() !== 'a') return;
   let im: ImageData; try { im = o.getImageData(0, 0, w, h); } catch { return; }
   const d = im.data, n = d.length / 4;
   const px = new Float32Array(n * 3);
-  let sL = 0, sC = 0, hx = 0, hy = 0;
+  let sL = 0, sL2 = 0, sC = 0, hx = 0, hy = 0, gx = 0, gy = 0, gw = 0;
   for (let i = 0; i < n; i++) {
     const [L, A, B] = lab(d[i * 4], d[i * 4 + 1], d[i * 4 + 2]); px[i * 3] = L; px[i * 3 + 1] = A; px[i * 3 + 2] = B;
-    const C = Math.hypot(A, B); sL += L; sC += C; hx += A * C; hy += B * C;
+    const C = Math.hypot(A, B); sL += L; sL2 += L * L; sC += C; hx += A * C; hy += B * C;
+    const wt = (L + C) ** 6; gx += (i % w) * wt; gy += Math.floor(i / w) * wt; gw += wt;
   }
-  const mL = sL / n, mC = sC / n, dom = Math.atan2(hy, hx);
-  const busy = mC > 0.05; // (h: only a picture this colourful gets darker)
+  const mL = sL / n, mC = sC / n, sd = Math.sqrt(Math.max(0, sL2 / n - mL * mL)), dom = Math.atan2(hy, hx);
+  // how much this background needs it: 0 for calm ones (Champagne on Mesh, the dots: mean chroma under .03), up to 1 for the
+  // loud ones (Mesh on Golden hour or Sunset, Colour per tab, Time of day) and for an even slab of colour (Night sky)
+  const clamp = (x: number) => Math.min(1, Math.max(0, x));
+  const g = Math.max(clamp((mC - 0.03) / 0.03), clamp((0.055 - sd) / 0.02) * clamp((mC - 0.025) / 0.01));
+  if (g <= 0) return;
+  const mix = (x: number, y: number) => x + (y - x) * g;
+  const cx = gx / gw, cy = gy / gw, R = Math.hypot(w, h) * 0.32; // the brightest glow, and how far its light reaches
   for (let i = 0; i < n; i++) {
     let L = px[i * 3], A = px[i * 3 + 1], B = px[i * 3 + 2];
     let C = Math.hypot(A, B), H = Math.atan2(B, A);
-    if (mode === 'b') { C = knee(C, 0.07, 0.4); L = knee(L, 0.45, 0.5); }
-    else if (mode === 'c') { C = knee(C, 0.05, 0.25); L = knee(L, 0.4, 0.4); }
-    else if (mode === 'd') { const f = Math.min(1, L / (mL * 1.25)) ** 2.5; L *= f; C *= f; } // even areas sink, glows stay
-    else if (mode === 'e') { let dh = dom - H; dh = Math.atan2(Math.sin(dh), Math.cos(dh)); H += dh * 0.7; C = knee(C, 0.07, 0.4); }
-    else if (mode === 'h' && busy) { L *= 0.72; C *= 0.72; }
+    const r = Math.hypot((i % w) - cx, Math.floor(i / w) - cy) / R, near = Math.exp(-r * r); // 1 at the glow, 0 far from it
+    const sink = (k: number) => { L *= mix(1, k); C *= mix(1, k); }; // darker, the colour kept in step (never greyer)
+    if (mode === 'b') { C = C <= 0.07 ? C : C * mix(1, (0.07 + (C - 0.07) * 0.35) / C); L *= mix(1, 0.92); } // only the loudest colour softened
+    else if (mode === 'c') sink(0.66); // smoked glass
+    else if (mode === 'd') sink(0.5 + 0.5 * near); // one glow, the rest sinks
+    else if (mode === 'e') { let dh = dom - H; dh = Math.atan2(Math.sin(dh), Math.cos(dh)); H += dh * 0.85 * g; sink(0.88); } // one colour
+    else if (mode === 'g') { // like Champagne on Mesh: dark glass, one soft glow coming through, the loudest colour softened
+      if (C > 0.08) C = C * mix(1, (0.08 + (C - 0.08) * 0.4) / C);
+      sink(Math.min(1, 0.24 / mL) * (0.62 + 0.38 * near));
+    }
     A = C * Math.cos(H); B = C * Math.sin(H);
-    const [r, g, b] = rgb(L, A, B); d[i * 4] = r; d[i * 4 + 1] = g; d[i * 4 + 2] = b;
+    const [rr, gg, bb] = rgb(L, A, B); d[i * 4] = rr; d[i * 4 + 1] = gg; d[i * 4 + 2] = bb;
   }
   o.putImageData(im, 0, 0);
 }
