@@ -4,7 +4,7 @@ import { useStore, foodPool } from '../../state/store';
 import { useUI, haptic } from '../../state/ui';
 import { useT, useLang } from '../../lib/i18n';
 import type { Food, FoodSnapshot, Quantity } from '../../lib/types';
-import { allowedUnits, entryFromSnapshot, hasPer100, scale, snapshotOf, toBase, uid, NUTRIENT_KEYS } from '../../lib/nutrition';
+import { allowedUnits, entryFromSnapshot, hasPer100, mergeFood, scale, snapshotOf, toBase, uid, NUTRIENT_KEYS } from '../../lib/nutrition';
 import { fmtNum } from '../../lib/units';
 import { fmtNutrient, NUTRIENT_LABEL, NUTRIENT_UNIT, sourceLabel } from '../../lib/format';
 import { Icon } from '../../ui/Icon';
@@ -98,7 +98,7 @@ export function FoodDetail({ props }: { props: { food?: Food; foodId?: string; e
     const make = (date: string) => entryFromSnapshot(snap, qty, date, mealId, { id: entryId.current, note: note.trim() || undefined, at: entry?.at });
     const e = make(date);
     if (!e) { saving.current = false; return; }
-    if (food.source === 'off' || food.source === 'usda') s.saveFood(food); // keep looked-up foods available offline
+    if (food.source === 'off' || food.source === 'usda') s.saveFood(mergeFood(s.foods.find((f) => f.id === food.id), food)); // keep looked-up foods available offline
     if (editing) {
       const before = entry!;
       s.updateEntry(entry!.id, { ...e, at: before.at });

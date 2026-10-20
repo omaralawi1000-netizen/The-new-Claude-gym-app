@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // Food fixes after the v0.1.160 audit: each block is one fix.
 import { describe, it, expect } from 'vitest';
-import { entryEditor, entryFromSavedItem, entryFromSnapshot, isQuickEntry, quickEntry, savedItemNutrients, savedItemOf } from '../src/lib/nutrition';
+import { entryEditor, entryFromSavedItem, entryFromSnapshot, isQuickEntry, mergeFood, quickEntry, savedItemNutrients, savedItemOf } from '../src/lib/nutrition';
 import { removeMeal, restoreMeal } from '../src/lib/derive';
 
 describe('a logged entry opens in the sheet that can edit it', () => {
@@ -52,5 +52,15 @@ describe('save as meal keeps quick, photo and Coach entries', () => {
       ['Skyr', 120, '2026-10-02', 'lunch', false],
     ]);
     expect(again[0].id).not.toBe(q.id);
+  });
+});
+
+describe('saving a looked-up food again merges instead of replacing', () => {
+  it('keeps barcode, created time, variants and aliases the snapshot does not carry', () => {
+    const saved = { id: 'off:1', name: 'Skyr', source: 'off' as const, barcode: '5701234567890', basis: 'g' as const, per100: { kcal: 60 }, portions: [], variantGroup: 'skyr', aliases: ['skyr naturel'], createdAt: 1000 };
+    const fromSnap = { id: 'off:1', name: 'Skyr naturel', brand: undefined, source: 'off' as const, basis: 'g' as const, per100: { kcal: 62, protein: 11 }, portions: [] };
+    const m = mergeFood(saved, fromSnap);
+    expect(m).toMatchObject({ name: 'Skyr naturel', barcode: '5701234567890', variantGroup: 'skyr', aliases: ['skyr naturel'], createdAt: 1000, per100: { kcal: 62, protein: 11 } });
+    expect(mergeFood(undefined, fromSnap)).toBe(fromSnap);
   });
 });

@@ -166,6 +166,16 @@ export function savedItemNutrients(it: SavedMealItem): Nutrients {
   return b.ok ? scale(it.snap.per100, b.base) : {};
 }
 
+/** A looked-up food saved again: what it brings replaces what is known, but nothing is lost (barcode, created time,
+ * variants, aliases… a food rebuilt from a logged snapshot doesn't carry those). */
+export function mergeFood(existing: Food | undefined, incoming: Food): Food {
+  if (!existing) return incoming;
+  const out: Food = { ...existing };
+  for (const [k, v] of Object.entries(incoming)) if (v !== undefined) (out as any)[k] = v;
+  out.createdAt = existing.createdAt ?? incoming.createdAt;
+  return out;
+}
+
 // ── Recipes ─────────────────────────────────────────────────
 
 export interface RecipeCalc {
