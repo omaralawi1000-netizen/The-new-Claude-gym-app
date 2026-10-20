@@ -65,7 +65,7 @@ export function QuickAdd({ props }: { props: { date: string; mealId: string; ent
 }
 
 /** Create or correct a personal food. Copies keep nothing from the source except the values you see. */
-export function CustomFood({ props }: { props: { from?: Food; name?: string; barcode?: string; afterSave?: 'replaceDetail' | 'openDetail'; date?: string; mealId?: string } }) {
+export function CustomFood({ props }: { props: { from?: Food; name?: string; barcode?: string; afterSave?: 'replaceDetail' | 'openDetail'; date?: string; mealId?: string; entryId?: string } }) {
   const t = useT();
   const s = useStore();
   const pop = useUI((u) => u.pop);
@@ -104,7 +104,7 @@ export function CustomFood({ props }: { props: { from?: Food; name?: string; bar
     };
     s.saveFood(food);
     toast(editingOwn ? t('Food updated — past entries keep their old values') : t('Saved “{name}”', { name: food.name }), { tone: 'ok' });
-    if (props.afterSave === 'replaceDetail' && props.date && props.mealId) useUI.getState().swap(2, 'foodDetail', { food, date: props.date, mealId: props.mealId });
+    if (props.afterSave === 'replaceDetail' && props.date && props.mealId) useUI.getState().swap(2, 'foodDetail', { food, entryId: props.entryId, date: props.date, mealId: props.mealId }); // a logged entry is updated, not logged twice
     else if (props.afterSave === 'openDetail' && props.date && props.mealId) useUI.getState().swap(1, 'foodDetail', { food, date: props.date, mealId: props.mealId });
     else pop();
   };

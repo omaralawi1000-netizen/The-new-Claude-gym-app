@@ -52,8 +52,8 @@ export function FoodDetail({ props }: { props: { food?: Food; foodId?: string; e
   if (live) kept.current = live;
   const entry = live ?? kept.current;
   const initialFood = useMemo<Food | undefined>(() => {
+    if (props.food) return props.food; // a corrected copy of a logged entry's food arrives with the entry
     if (entry) return snapToFood(entry.snap);
-    if (props.food) return props.food;
     return pool.find((f) => f.id === props.foodId);
     // eslint-disable-next-line
   }, []);
@@ -64,7 +64,7 @@ export function FoodDetail({ props }: { props: { food?: Food; foodId?: string; e
     return prev?.qty;
     // eslint-disable-next-line
   }, []);
-  const [qty, setQty] = useState<Quantity>(() => (entry ? entry.qty : initialFood ? defaultQty(initialFood, last) : { amount: 100, unit: 'g' }));
+  const [qty, setQty] = useState<Quantity>(() => (entry && !props.food ? entry.qty : initialFood ? defaultQty(initialFood, last) : { amount: 100, unit: 'g' }));
   const [mealId, setMealId] = useState(props.mealId);
   const [date, setDate] = useState(props.date);
   const [note, setNote] = useState(entry?.note ?? '');
@@ -224,7 +224,7 @@ export function FoodDetail({ props }: { props: { food?: Food; foodId?: string; e
         )}
 
         <div className="row-flex" style={{ marginTop: 22, gap: 8, flexWrap: 'wrap' }}>
-          <button className="btn sm press" onClick={() => push('customFood', { from: food, afterSave: 'replaceDetail', date, mealId })}><Icon name="edit" size={16} /> {food.source === 'custom' ? t('Edit food') : t('Correct → my copy')}</button>
+          <button className="btn sm press" onClick={() => push('customFood', { from: food, afterSave: 'replaceDetail', date, mealId, entryId: entry?.id })}><Icon name="edit" size={16} /> {food.source === 'custom' ? t('Edit food') : t('Correct → my copy')}</button>
           {editing && <button className="btn sm danger press" onClick={remove}><Icon name="trash" size={16} /> {t('Delete entry')}</button>}
         </div>
       </div>
