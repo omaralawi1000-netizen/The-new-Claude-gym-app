@@ -92,9 +92,9 @@ export function dismissRule(id: string) { const l = read(); if (!l.dismissed.inc
 export function learnedBlock(name: (exerciseId: string) => string, mealLabel: (mealId: string) => string, now = Date.now()): string {
   const rules = learnedRules(now);
   if (!rules.length) return '';
-  const line = (r: Rule) => r.kind === 'move' ? `They moved "${r.a}" to ${mealLabel(r.b!)} ${r.count}× → when they log it without saying a meal, put it in ${mealLabel(r.b!)}.`
-    : r.kind === 'swap' ? `They swapped ${name(r.a)} for ${name(r.b!)} ${r.count}× → prefer ${name(r.b!)}.`
-    : r.kind === 'avoid' ? `They took back ${r.count} planned days that had ${name(r.a)} → leave it out of planned days unless they ask for it.`
-    : `They changed the setting ${r.a} back ${r.count}× after you changed it → change it only when they ask plainly.`;
-  return `LEARNED (from what they kept, undid and corrected; follow it unless they say otherwise):\n${rules.map((r) => `- ${line(r)}`).join('\n')}`;
+  const line = (r: Rule) => r.kind === 'move' ? `They moved "${r.a}" to ${mealLabel(r.b!)} ${r.count}× after it was logged elsewhere (logged without a meal, it belongs in ${mealLabel(r.b!)}).`
+    : r.kind === 'swap' ? `They swapped ${name(r.a)} for ${name(r.b!)} ${r.count}× (they prefer ${name(r.b!)}).`
+    : r.kind === 'avoid' ? `They took back ${r.count} planned days that had ${name(r.a)} (they don't want it in planned days).`
+    : `They changed the setting ${r.a} back ${r.count}× after you changed it (they want it changed only when they ask plainly).`;
+  return `LEARNED (from what they kept, undid and corrected):\n${rules.map((r) => `- ${line(r)}`).join('\n')}`;
 }

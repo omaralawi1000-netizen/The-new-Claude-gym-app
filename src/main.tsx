@@ -5,11 +5,13 @@ import '@fontsource-variable/newsreader/opsz.css';
 import '@fontsource-variable/newsreader/opsz-italic.css';
 import '@fontsource-variable/geist/wght.css';
 import './styles.css';
+import './look.css';
 import { App } from './App';
 import { installDither, installGrain } from './lib/grain';
 import { installDockShadow } from './ui/dockShadow';
 import { installPress } from './ui/press';
 import { installAskHold } from './ui/askHold';
+import { installEatingWatch } from './lib/eatingWatch';
 import { noteAndroidApp } from './lib/androidApp';
 import { useStore } from './state/store';
 import { loadDanish } from './lib/i18n';
@@ -22,6 +24,7 @@ installDither();
 installDockShadow();
 installPress();
 installAskHold();
+installEatingWatch();
 
 noteAndroidApp(); // opened from the Android app: remembered at once, before any reload can drop the referrer
 const start = () => {

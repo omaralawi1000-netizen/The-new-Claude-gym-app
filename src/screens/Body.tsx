@@ -73,7 +73,7 @@ export function MeasureSheet() {
         {hist.length > 0 && <div className="list" style={{ marginTop: 18 }}>{hist.slice(0, 10).map((m, i) => {
           const prev = hist[i + 1];
           const d = prev ? cmToDisplay(m.cm, u) - cmToDisplay(prev.cm, u) : null;
-          return <div key={m.id} className="li" style={{ minHeight: 48 }}><div className="grow num"><b>{fmtNum(cmToDisplay(m.cm, u), lang, 1)}</b> {u}{d !== null && <span className="t3 small"> ({fmtSigned(d, lang)})</span>}</div><div className="small t2">{fmtDate(m.date, lang, { day: 'numeric', month: 'short' })}</div><button className="icon-btn flat sm press" aria-label={t('Delete')} onClick={() => s.removeMeasurement(m.id)}><Icon name="trash" size={16} /></button></div>;
+          return <div key={m.id} className="li" style={{ minHeight: 48 }}><div className="grow num"><b>{fmtNum(cmToDisplay(m.cm, u), lang, 1)}</b> {u}{d !== null && <span className="t3 small"> ({fmtSigned(d, lang)})</span>}</div><div className="small t2">{fmtDate(m.date, lang, { day: 'numeric', month: 'short' })}</div><button className="icon-btn flat sm press" aria-label={t('Delete')} onClick={() => { s.removeMeasurement(m.id); toast(t('Removed'), { actionLabel: t('Undo'), onAction: () => useStore.getState().restoreMeasurement(m) }); }}><Icon name="trash" size={16} /></button></div>;
         })}</div>}
       </div>
     </Sheet>
@@ -103,7 +103,14 @@ export function PhotosSheet() {
     try { const id = uid('ph'); await savePhoto(id, await downscale(f)); s.addPhoto({ id, date: today }); toast(t('Photo saved privately on this device'), { tone: 'ok' }); }
     catch { toast(t('Couldn’t save that photo'), { tone: 'bad' }); }
   };
-  const del = async (id: string) => { await deletePhoto(id).catch(() => {}); s.removePhoto(id); setView(null); toast(t('Photo deleted')); };
+  // the picture is kept in memory until the toast is gone, so Undo can put it back exactly as it was
+  const del = async (id: string) => {
+    const p = s.photos.find((x) => x.id === id);
+    const blob = await loadPhoto(id).catch(() => null);
+    await deletePhoto(id).catch(() => {}); s.removePhoto(id); setView(null);
+    const undo = p && blob ? async () => { try { await savePhoto(id, blob); useStore.getState().addPhoto(p); } catch { useUI.getState().toast(t('Couldn’t save that photo'), { tone: 'bad' }); } } : undefined;
+    toast(t('Photo deleted'), undo ? { actionLabel: t('Undo'), onAction: () => { void undo(); } } : undefined);
+  };
   const photos = [...s.photos].sort((a, b) => b.date.localeCompare(a.date));
   return (
     <Sheet onClose={pop} tall label={t('Progress photos')} z={100} foot={<><input ref={input} type="file" accept="image/*" capture="environment" hidden onChange={(e) => { add(e.target.files?.[0]); e.target.value = ''; }} /><button className="btn primary block press" onClick={() => input.current?.click()}><Icon name="camera" size={18} /> {t('Add photo')}</button></>}>

@@ -1,4 +1,6 @@
 import { memo, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { kcalTargetFor } from '../lib/eating';
+import { weighIns } from '../lib/dataQuality';
 import { useLang, useT } from '../lib/i18n';
 import { Icon, type IconName } from './Icon';
 import { Collapse } from './kit';
@@ -104,15 +106,16 @@ export function useCoachTips(max = 3): Tip[] {
       const left = Math.round(g.protein - (tot.protein ?? 0));
       if (left >= 20) add({ icon: 'bolt', label: t('{n} g short on protein', { n: left }), prompt: t('I am {n} g short on protein today. What should I eat?', { n: left }) });
     }
-    if (g.kcal && mine.length > 0 && hour >= 17) {
-      const left = Math.round(g.kcal - (tot.kcal ?? 0));
+    const kGoal = kcalTargetFor(s, today);
+    if (kGoal && mine.length > 0 && hour >= 17) {
+      const left = Math.round(kGoal - (tot.kcal ?? 0));
       if (left > 300) add({ icon: 'food', label: t('{n} kcal left today', { n: left }), prompt: t('I have {n} kcal left today. What should I eat?', { n: left }) });
       else if (left < -150) add({ icon: 'info', label: t('{n} kcal over today', { n: -left }), prompt: t('I am {n} kcal over today. Should I change anything tomorrow?', { n: -left }) });
     }
     if (s.settings.widgets.water && hour >= 11 && !s.water.some((w) => w.date === today)) add({ icon: 'drop', label: t('No water logged today'), prompt: t('Log 500 ml water') });
 
     // body
-    const lastW = s.weights.slice().sort((a, b) => b.date.localeCompare(a.date))[0];
+    const lastW = weighIns(s).at(-1); // (Aven's and the watch's scale)
     if (s.settings.widgets.weight && lastW && diffDays(today, lastW.date) >= 7) add({ icon: 'scale', label: t('{n} days since you weighed in', { n: diffDays(today, lastW.date) }), prompt: t('Log my weight') });
 
     // always something to ask
@@ -124,7 +127,7 @@ export function useCoachTips(max = 3): Tip[] {
     const week = all.find((x) => x.prompt === t('How is my week going?'));
     return week ? [...all.filter((x) => x !== week).slice(0, max - 1), week] : all.slice(0, max);
     // eslint-disable-next-line
-  }, [s.entries, s.sessions, s.routines, s.schedule, s.weights, s.water, s.active, s.settings, lang, t, max]);
+  }, [s.entries, s.sessions, s.routines, s.schedule, s.weights, s.health, s.water, s.active, s.settings, s.catchUps, lang, t, max]);
 }
 
 /** One example at a time, softly replacing each other — the orb screen's "what can I say". */

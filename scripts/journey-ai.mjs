@@ -128,7 +128,7 @@ await p.getByRole('button', { name: 'Stop and send' }).click(); await p.locator(
 assert.equal(calls.groq, 1, 'one transcription request');
 assert.equal(calls.groqLive, 0, 'no live-word previews while speaking');
 assert(calls.agentStream >= 1, 'the orb screen streamed the answer');
-assert(/1–2 short sentences/.test(calls.lastSystem), 'the orb screen asks for a short spoken answer');
+assert(/orb screen.*keep it short and clear/.test(calls.lastSystem), 'the orb screen asks for a short spoken answer');
 assert(!/open the Coach for detail/.test(calls.lastSystem), 'answers no longer tell you to open the Coach (there is a button)');
 assert(calls.agent >= 1, 'the Coach was asked once');
 assert(/GUIDE:/.test(calls.lastSystem) && /DATA \(computed on this device/.test(calls.lastSystem), 'the Coach is given the app guide and the live data');

@@ -213,7 +213,9 @@ done
 
 # 3c. Connect watch for real, from the page in the app, with Health Connect access already given (Omar's phone: the
 # pop-up closed and no answer ever reached Aven)
-for x in READ_STEPS READ_EXERCISE READ_HEART_RATE READ_ACTIVE_CALORIES_BURNED READ_DISTANCE; do
+for x in READ_STEPS READ_EXERCISE READ_HEART_RATE READ_ACTIVE_CALORIES_BURNED READ_DISTANCE READ_SLEEP READ_RESTING_HEART_RATE \
+    READ_HEART_RATE_VARIABILITY READ_WEIGHT READ_BODY_FAT READ_VO2_MAX READ_OXYGEN_SATURATION READ_RESPIRATORY_RATE \
+    READ_TOTAL_CALORIES_BURNED READ_FLOORS_CLIMBED READ_HEALTH_DATA_HISTORY; do
   adb shell pm grant app.aven.android android.permission.health.$x 2>&1 | head -1 | sed "s/^/grant $x: /" | tee -a shots/hc-connect.txt
 done
 adb logcat -c

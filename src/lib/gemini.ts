@@ -119,8 +119,13 @@ async function generateJson(key: string, model: string, { system, prompt, schema
   } finally { done(); }
 }
 
+/** One structured answer from Gemini (the strong model first, the runner-ups after): for the app's own judgement calls. */
+export async function geminiJson(brain: Pick<Brain, 'key' | 'models' | 'signal'>, o: { system: string; prompt: string; schema: unknown; maxOutputTokens?: number; timeout?: number }): Promise<any> {
+  return withFallback(brain.models, (m) => generateJson(brain.key, m, { ...o, temperature: 0.2, signal: brain.signal, maxOutputTokens: o.maxOutputTokens ?? 1500, timeout: o.timeout ?? 30000 }));
+}
+
 /** Who to ask. `sol`: GPT-6.1 Sol goes first (lib/brain.ts), Gemini (`key`, may be empty) is the fallback. */
-export interface Brain { key: string; models: string[]; signal?: AbortSignal; sol?: { key: string; effort: 'low' | 'medium' | 'high' } }
+export interface Brain { key: string; models: string[]; signal?: AbortSignal; sol?: { key: string; effort: 'low' | 'medium' | 'high'; model?: string } }
 
 const FOOD_UNITS = ['g', 'kg', 'ml', 'dl', 'cl', 'l', 'tsp', 'tbsp', 'cup', 'piece', 'slice', 'handful', 'glass', 'can', 'scoop', 'bowl', 'serving'];
 const FOOD_SCHEMA = {
@@ -244,7 +249,7 @@ export const schemaHintForTest = () => schemaHint();
 export interface Turn { role: 'user' | 'model'; parts: { text: string }[] }
 
 // ── the Coach as an agent: one answer = a short reply plus the actions to carry out ──
-export const ACTION_TYPES = ['log_food', 'log_water', 'log_weight', 'log_sets', 'log_activity', 'start_workout', 'finish_workout', 'navigate', 'set_setting', 'edit_food', 'delete_food', 'move_food', 'copy_food', 'replace_food', 'create_food', 'favourite_food', 'save_meal', 'edit_set', 'add_exercise', 'remove_exercise', 'replace_exercise', 'create_routine', 'edit_routine', 'delete_routine', 'delete_workout', 'discard_workout', 'set_schedule', 'move_workout', 'plan_activity', 'log_current_set', 'delete_activity', 'delete_weight', 'add_note', 'remember', 'forget', 'show_exercise', 'suggest_food', 'plan_day', 'edit_meals', 'log_saved_meal', 'delete_water', 'create_exercise', 'archive_exercise', 'set_increment', 'log_measurement', 'delete_measurement', 'workout_control', 'set_split', 'skip_day', 'propose_recipe', 'log_quick', 'duplicate_routine', 'show_chart', 'undo_last'];
+export const ACTION_TYPES = ['log_food', 'log_water', 'log_weight', 'log_sets', 'log_activity', 'start_workout', 'finish_workout', 'navigate', 'set_setting', 'edit_food', 'delete_food', 'move_food', 'copy_food', 'replace_food', 'create_food', 'favourite_food', 'save_meal', 'edit_set', 'add_exercise', 'remove_exercise', 'replace_exercise', 'create_routine', 'edit_routine', 'delete_routine', 'delete_workout', 'discard_workout', 'set_schedule', 'move_workout', 'plan_activity', 'log_current_set', 'delete_activity', 'delete_weight', 'add_note', 'remember', 'forget', 'show_exercise', 'suggest_food', 'plan_day', 'edit_meals', 'log_saved_meal', 'delete_water', 'create_exercise', 'archive_exercise', 'set_increment', 'log_measurement', 'delete_measurement', 'workout_control', 'set_split', 'skip_day', 'propose_recipe', 'log_quick', 'duplicate_routine', 'show_chart', 'undo_last', 'catch_up'];
 const BIT = { type: 'ARRAY', nullable: true, items: { type: 'OBJECT', properties: { exercise: { type: 'STRING' }, sets: { type: 'INTEGER', nullable: true }, repMin: { type: 'INTEGER', nullable: true }, repMax: { type: 'INTEGER', nullable: true }, restSec: { type: 'INTEGER', nullable: true }, warmup: { type: 'INTEGER', nullable: true } }, required: ['exercise'] } };
 const NUTRI = (d: string) => ({ type: 'OBJECT', nullable: true, description: d, properties: { kcal: { type: 'NUMBER', nullable: true }, protein: { type: 'NUMBER', nullable: true }, carbs: { type: 'NUMBER', nullable: true }, fat: { type: 'NUMBER', nullable: true } } });
 const AGENT_FOOD = { type: 'OBJECT', properties: {
@@ -263,7 +268,7 @@ export const AGENT_SCHEMA = {
       from: { type: 'STRING', nullable: true, description: 'first day YYYY-MM-DD' }, to: { type: 'STRING', nullable: true, description: 'last day YYYY-MM-DD' },
       meal: { type: 'STRING', nullable: true, description: 'food: only this meal' },
     }, required: ['kind'] } },
-    reply: { type: 'STRING', description: 'what to say to the user: short, natural, in their language. Never claim something was done unless you put it in actions.' },
+    reply: { type: 'STRING', description: 'what to say to them, in their language; as long as the message needs (a log: a few words or none). Never claim something was done unless you put it in actions.' },
     actions: { type: 'ARRAY', items: { type: 'OBJECT', properties: {
       type: { type: 'STRING', enum: ACTION_TYPES },
       foods: { type: 'ARRAY', nullable: true, items: AGENT_FOOD },
@@ -277,13 +282,13 @@ export const AGENT_SCHEMA = {
       day_to: { type: 'STRING', nullable: true, description: 'move_food/copy_food: destination day (today, yesterday or YYYY-MM-DD)' },
       meal_from: { type: 'STRING', nullable: true, description: 'the meal the item is in now (breakfast, lunch, dinner, snacks…)' },
       meal_to: { type: 'STRING', nullable: true, description: 'move_food/copy_food: destination meal' },
-      ml: { type: 'NUMBER', nullable: true }, kg: { type: 'NUMBER', nullable: true },
+      ml: { type: 'NUMBER', nullable: true }, kg: { type: 'NUMBER', nullable: true }, kcal: { type: 'NUMBER', nullable: true, description: 'catch_up: how many kcal over (only if they said; else worked out from the log)' },
       exercises: { type: 'ARRAY', nullable: true, items: { type: 'OBJECT', properties: {
         exercise: { type: 'STRING' },
         sets: { type: 'ARRAY', items: { type: 'OBJECT', properties: { kg: { type: 'NUMBER', nullable: true }, reps: { type: 'INTEGER', nullable: true }, durationSec: { type: 'INTEGER', nullable: true }, distanceKm: { type: 'NUMBER', nullable: true } } } },
       }, required: ['exercise', 'sets'] } },
       kind: { type: 'STRING', nullable: true, description: 'log_activity / plan_activity: the activity (wrestling, run…). remember: goal | preference | health | schedule | gear | food | other' }, minutes: { type: 'NUMBER', nullable: true }, rounds: { type: 'INTEGER', nullable: true }, intensity: { type: 'INTEGER', nullable: true, description: 'log_activity: 1 easy, 2 hard, 3 max (only if they said how hard)' }, note: { type: 'STRING', nullable: true },
-      same: { type: 'BOOLEAN', nullable: true, description: 'log_current_set: true for "same again" (copies their last set of that exercise)' }, warmup: { type: 'BOOLEAN', nullable: true, description: 'log_current_set: true when they say it was a warm-up set' },
+      same: { type: 'BOOLEAN', nullable: true, description: 'log_current_set: true for "same again" (copies their last set of that exercise)' }, warmup: { type: 'BOOLEAN', nullable: true, description: 'log_current_set: true when they say it was a warm-up set' }, skip: { type: 'BOOLEAN', nullable: true, description: 'log_current_set: true to skip the set they are on' }, start: { type: 'BOOLEAN', nullable: true, description: 'add_exercise: true only when they ask to start a workout with it' },
       routine: { type: 'STRING', nullable: true }, screen: { type: 'STRING', nullable: true }, section: { type: 'STRING', nullable: true },
       key: { type: 'STRING', nullable: true, description: 'set_setting: one setting key' }, value: { type: 'STRING', nullable: true, description: 'set_setting: its new value' },
       settings: { type: 'ARRAY', nullable: true, description: 'set_setting: several settings at once', items: { type: 'OBJECT', properties: { key: { type: 'STRING' }, value: { type: 'STRING' } }, required: ['key', 'value'] } },
@@ -298,8 +303,8 @@ export const AGENT_SCHEMA = {
       days: { type: 'ARRAY', nullable: true, description: 'set_split: the days that change (or all seven)', items: { type: 'OBJECT', properties: { weekday: { type: 'INTEGER' }, routine: { type: 'STRING', nullable: true, description: 'routine name, or "rest" for a rest day; null = leave the gym day as it is' }, wrestling: { type: 'BOOLEAN', nullable: true, description: 'true/false to set wrestling that day; null = leave as is' } }, required: ['weekday'] } },
       with: { type: 'OBJECT', nullable: true, description: 'replace_food: the food to put in its place', properties: { name: { type: 'STRING' }, brand: { type: 'STRING', nullable: true }, amount: { type: 'NUMBER', nullable: true }, unit: { type: 'STRING', nullable: true, enum: FOOD_UNITS }, state: { type: 'STRING', nullable: true, enum: ['raw', 'cooked', 'dry'] } }, required: ['name'] },
       name: { type: 'STRING', nullable: true, description: 'create_food / favourite_food / save_meal / propose_recipe: the name. log_quick: what it was, only if said' },
-      basis: { type: 'STRING', nullable: true, enum: ['g', 'ml'] }, on: { type: 'BOOLEAN', nullable: true, description: 'favourite_food: favourite or not. plan_activity: true = add to that day, false = take it off' },
-      exercise: { type: 'STRING', nullable: true, description: 'edit_set: the exercise. remember: the catalog exercise it is about, if any. show_exercise: the catalog exercise to show. show_chart strength: the lift' }, workout: { type: 'STRING', nullable: true, description: 'edit_set/delete_workout: current, last, a date YYYY-MM-DD, or a workout name' },
+      basis: { type: 'STRING', nullable: true, enum: ['g', 'ml'] }, on: { type: 'BOOLEAN', nullable: true, description: 'favourite_food: favourite or not. plan_activity: true = add to that day, false = take it off. catch_up: false = take the running catch-up off; true = set one (only when they ask for it)' },
+      exercise: { type: 'STRING', nullable: true, description: 'edit_set: the exercise. remember: the catalog exercise it is about, if any. show_exercise: the catalog exercise to show. show_chart strength: the lift' }, workout: { type: 'STRING', nullable: true, description: 'edit_set/delete_workout/log_sets: current, last, a date YYYY-MM-DD, or a workout name' }, after: { type: 'STRING', nullable: true, description: 'log_sets: put the new exercise right after this one ("put it after leg press")' },
       set_number: { type: 'INTEGER', nullable: true, description: '1-based set number as listed in DATA' }, reps: { type: 'INTEGER', nullable: true }, delete_set: { type: 'BOOLEAN', nullable: true, description: 'edit_set: true to delete that set' }, remove: { type: 'ARRAY', nullable: true, items: { type: 'STRING' }, description: 'edit_routine: exercise names to take out of the routine' },
       from: { type: 'STRING', nullable: true }, to: { type: 'STRING', nullable: true },
       add: { ...BIT, description: 'create_routine / edit_routine: exercises to add. plan_day: the exercises for that day, chosen from the ones they actually do (look up exercises for the muscles first)' }, change: BIT, rename: { type: 'STRING', nullable: true, description: 'edit_routine: new name. duplicate_routine: the copy\'s name' },
@@ -347,7 +352,7 @@ export async function aiAgent(system: string, contents: Turn[], brain: Brain, ph
     const plain = noSchema.has(model);
     const { res, done } = await post(`models/${encodeURIComponent(model)}:generateContent`, brain.key, {
       systemInstruction: { parts: [{ text: plain ? system + schemaHint() : system }] }, contents: withPhoto(contents, photo),
-      generationConfig: { temperature: 0.3, responseMimeType: 'application/json', ...(plain ? {} : { responseSchema: AGENT_SCHEMA }), maxOutputTokens: 3072, ...(think ? { thinkingConfig: { thinkingBudget: 512 } } : {}) },
+      generationConfig: { temperature: 0.3, responseMimeType: 'application/json', ...(plain ? {} : { responseSchema: AGENT_SCHEMA }), maxOutputTokens: 6144, ...(think ? { thinkingConfig: { thinkingBudget: 1024 } } : {}) },
     }, { timeout: 30000, signal: brain.signal });
     try { const data = await res.json(); try { return JSON.parse(textOf(data)); } catch { throw new AiError('invalid'); } } finally { done(); }
   };
@@ -391,7 +396,7 @@ export async function aiAgentStream(system: string, contents: Turn[], brain: Bra
     const plain = noSchema.has(model);
     const { res, done } = await post(`models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`, brain.key, {
       systemInstruction: { parts: [{ text: plain ? system + schemaHint() : system }] }, contents: withPhoto(contents, photo),
-      generationConfig: { temperature: 0.3, responseMimeType: 'application/json', ...(plain ? {} : { responseSchema: AGENT_SCHEMA_STREAM }), maxOutputTokens: 3072, ...(think ? { thinkingConfig: { thinkingBudget: 512 } } : {}) },
+      generationConfig: { temperature: 0.3, responseMimeType: 'application/json', ...(plain ? {} : { responseSchema: AGENT_SCHEMA_STREAM }), maxOutputTokens: 6144, ...(think ? { thinkingConfig: { thinkingBudget: 1024 } } : {}) },
     }, { timeout: 30000, signal: brain.signal });
     done();
     let shown = '';
@@ -505,14 +510,19 @@ const INSIGHT_SCHEMA = {
   required: ['insights'],
 };
 export const INSIGHT_SYSTEM = (lang: string) =>
-  'You are the coach inside a gym, food and wrestling tracker. Read the user\'s data below and find AT MOST 2 things worth telling them ' +
+  'You are the coach inside a training and food app. Read the user\'s data below and find AT MOST 2 things worth telling them ' +
   'today that they did not ask about: something they may have forgotten, a pattern that is holding them back, a smart change to their plan, ' +
   'or a better way to use the app. Only say what the data clearly supports, with the number that shows it. Skip anything generic ' +
-  '("stay hydrated", "get enough sleep") and anything already obvious from the day\'s numbers. Respect their MEMORY (how they train, injuries, what they don\'t want) and never bring back anything they set aside. If nothing is worth saying, return an empty list. ' +
+  '("stay hydrated", "get enough sleep") and anything already obvious from the day\'s numbers. Respect their MEMORY (how they train, injuries, what they don\'t want) and never bring back anything they set aside. Never bring up heavy days, overeating or catch-ups here (the app and the Coach handle those when it matters). If nothing is worth saying, return an empty list. ' +
   `Write in ${lang === 'da' ? 'Danish' : 'English'}, plain and friendly, no emoji.`;
 export interface Insight { title: string; body: string; kind: 'reminder' | 'suggestion' | 'warning' | 'app'; ask: string }
 export async function aiInsights(context: string, brain: Brain, lang: string): Promise<Insight[]> {
   const raw = await withFallback(brain.models, (m) => generateJson(brain.key, m, { system: INSIGHT_SYSTEM(lang), prompt: context, schema: INSIGHT_SCHEMA, temperature: 0.3, signal: brain.signal, timeout: 20000, maxOutputTokens: 800 }));
+  return readInsights(raw);
+}
+export { INSIGHT_SCHEMA };
+/** At most two, each complete (the rest is dropped). */
+export function readInsights(raw: any): Insight[] {
   const list = Array.isArray(raw?.insights) ? raw.insights : [];
   return list.filter((x: any) => typeof x?.title === 'string' && typeof x?.body === 'string' && typeof x?.ask === 'string' && x.title.trim())
     .slice(0, 2).map((x: any) => ({ title: x.title.trim().slice(0, 80), body: x.body.trim().slice(0, 220), kind: ['reminder', 'suggestion', 'warning', 'app'].includes(x.kind) ? x.kind : 'suggestion', ask: x.ask.trim().slice(0, 300) }));
@@ -531,14 +541,19 @@ const REVIEW_SCHEMA = {
   required: ['verdict', 'priorities'],
 };
 export const REVIEW_SYSTEM = (lang: string) =>
-  'You are the coach inside a gym, food and wrestling tracker, writing the user\'s weekly review. The app has computed the week (WEEK) and ' +
+  'You are the coach inside a training and food app, writing the user\'s weekly review. The app has computed the week (WEEK) and ' +
   'the things worth working on (CANDIDATES, most important first). Write a short verdict on the week, then pick AT MOST 2 candidates as next ' +
   'week\'s priorities (fewer if the week was good: one is fine, none if nothing needs changing) and phrase each as one action. Never invent a ' +
   'number or a priority that is not a candidate. If LAST WEEK says a priority was not done, say so kindly and keep it only if it still matters; ' +
-  'if it was done, say that. Wrestling counts as hard training. Respect MEMORY (injuries, temporary things). ' +
+  'if it was done, say that. Sport sessions (wrestling, matches, team practice) count as hard training. Respect MEMORY (injuries, temporary things). ' +
   `Write in ${lang === 'da' ? 'Danish' : 'English'}, plain and friendly, no emoji.`;
 export async function aiWeekReview(context: string, brain: Brain, lang: string, ids: string[]): Promise<{ verdict: string; priorities: { id: string; text: string }[] } | null> {
   const raw = await withFallback(brain.models, (m) => generateJson(brain.key, m, { system: REVIEW_SYSTEM(lang), prompt: context, schema: REVIEW_SCHEMA, temperature: 0.3, signal: brain.signal, timeout: 20000, maxOutputTokens: 600 }));
+  return readReview(raw, ids);
+}
+export { REVIEW_SCHEMA };
+/** The review as the app keeps it: a verdict, and at most two of the candidates (never one it made up). */
+export function readReview(raw: any, ids: string[]): { verdict: string; priorities: { id: string; text: string }[] } | null {
   const verdict = typeof raw?.verdict === 'string' ? raw.verdict.trim().slice(0, 400) : '';
   if (!verdict) return null;
   const seen = new Set<string>();

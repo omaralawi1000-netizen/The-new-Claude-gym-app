@@ -10,28 +10,30 @@
  *  - Logging uses the same food/exercise matching as the rest of the app, and says plainly what it matched.
  *  - Without a Gemini key (or when Gemini is down) simple commands still work through the local parsers.
  */
+import { catchUpFloor, catchUpWords, dayKcal, isDecided, targetOn } from './eating';
+import { clampVerdict, trimAllowed, trimLimits, type NoTrim } from './verdict';
 import { useStore, foodPool, allExercises, plannedFor } from '../state/store';
 import { useUI } from '../state/ui';
-import { addDays, fmtDate } from './dates';
+import { addDays, diffDays, fmtDate } from './dates';
 import { noteEvent } from './ledger';
 import { defaultMealId, mealName } from './derive';
 import { coversQuery, fold, parseFoodText, pickOnline, resolveRows, rowQuantity, type ParsedFoodRow } from './foodText';
 import { matchExercises, parseWorkoutText } from './workoutText';
-import { calcRecipe, entryFromSnapshot, quickEntry, recipeToFood, scale, snapshotOf, toBase, uid } from './nutrition';
+import { calcRecipe, entryFromSavedItem, entryFromSnapshot, quickEntry, recipeToFood, scale, snapshotOf, toBase, uid } from './nutrition';
 import { searchDanish, searchOnline } from './foodApi';
 import { type Brain } from './gemini';
 import { estimateFood } from './brain';
 import { ACTIVITY_KINDS, ACTIVITY_LABEL } from './activity';
 import { fmtNum, kgToDisplay } from './units';
-import type { ActivityKind, Equipment, Exercise, Food, FoodEntry, Lang, LogType, Meal, MeasureKind, MemoryKind, MemoryNote, MuscleGroup, Quantity, Recipe, RecipeIngredient, RoutineItem, SessionExercise, SetRecord, Settings, WorkoutSession } from './types';
+import type { ActivityKind, CatchUp, Equipment, Exercise, Food, FoodEntry, Lang, LogType, Meal, MeasureKind, MemoryKind, MemoryNote, MuscleGroup, Quantity, Recipe, RecipeIngredient, RoutineItem, SessionExercise, SetRecord, Settings, WorkoutSession } from './types';
 import { MEMORY_KINDS, MEMORY_MAX } from '../state/defaults';
-import { addExercises, addSet, adjustRest, moveExercise, patchExercise, replaceExercise, skipRest, startRest, toggleSuperset } from '../screens/workout/actions';
+import { addExercises, addSet, adjustRest, deleteSet, moveExercise, patchExercise, replaceExercise, skipRest, startRest, toggleSuperset } from '../screens/workout/actions';
 import { completeSet } from '../screens/workout/complete';
 import { currentSetOf } from './currentSet';
 import { fixMisheard } from './setCommand';
 import { EQUIP_LABEL, MUSCLE_LABEL } from '../screens/workout/common';
 import { muscleOf } from './agentLookup';
-import { detectRecords } from './workout';
+import { detectRecords, workoutName, workoutSearchName } from './workout';
 import { buildDayPlan, pickForMuscles } from './planDay';
 import { specOf } from './settingSpec';
 import { weekdayOf } from './dates';
@@ -46,7 +48,7 @@ export type AgentAction =
   | { type: 'log_water'; ml: number; day?: string | null }
   | { type: 'log_quick'; totals: NutriFix; name?: string | null; meal?: string | null; day?: string | null }
   | { type: 'log_weight'; kg: number; day?: string | null }
-  | { type: 'log_sets'; exercises: { exercise: string; sets: AgentSet[] }[]; day?: string | null }
+  | { type: 'log_sets'; exercises: { exercise: string; sets: AgentSet[] }[]; day?: string | null; workout?: string | null; after?: string | null }
   | { type: 'log_activity'; kind: ActivityKind; minutes: number; rounds?: number; intensity?: 1 | 2 | 3; note?: string; day?: string | null }
   | { type: 'start_workout'; routine?: string | null }
   | { type: 'finish_workout' }
@@ -61,7 +63,8 @@ export type AgentAction =
   | { type: 'favourite_food'; name: string; on: boolean }
   | { type: 'save_meal'; name: string; meal: string; day?: string | null }
   | { type: 'edit_set'; exercise: string; workout?: string | null; set_number?: number | null; kg?: number | null; reps?: number | null; remove?: boolean }
-  | { type: 'add_exercise'; exercises: string[] }
+  | { type: 'add_exercise'; exercises: string[]; start?: boolean }
+  | { type: 'catch_up'; on: boolean; over?: number | null; day?: string | null }
   | { type: 'remove_exercise'; exercise: string }
   | { type: 'replace_exercise'; from: string; to: string; routine?: string | null }
   | { type: 'create_routine'; name: string; items: RoutineBit[] }
@@ -74,7 +77,7 @@ export type AgentAction =
   | { type: 'set_schedule'; weekday: number; routine: string | null }
   | { type: 'move_workout'; routine?: string | null; from_weekday?: number | null; to_weekday: number; once: boolean }
   | { type: 'plan_activity'; weekday: number; kind: ActivityKind; on: boolean }
-  | { type: 'log_current_set'; kg?: number | null; reps?: number | null; which: 'current' | 'last'; durationSec?: number | null; same?: boolean; warmup?: boolean }
+  | { type: 'log_current_set'; kg?: number | null; reps?: number | null; which: 'current' | 'last'; durationSec?: number | null; same?: boolean; warmup?: boolean; skip?: boolean }
   | { type: 'delete_activity'; kind?: string | null; day?: string | null }
   | { type: 'delete_weight'; day?: string | null }
   | { type: 'add_note'; text: string; kind: 'training' | 'nutrition'; day?: string | null }
@@ -153,7 +156,7 @@ export const droppedCard = (t: AgentCtx['t']): AgentResult => ({ id: uid('r'), k
 /** Whatever came back from the model → a safe list of actions (anything odd is dropped, numbers are clamped). */
 export function validateAgent(raw: any): { reply: string; actions: AgentAction[]; /** actions it had to drop (unreadable): said, never silent */ dropped: number } | null {
   if (!raw || typeof raw !== 'object') return null;
-  const reply = str(raw.reply, 1800) ?? '';
+  const reply = str(raw.reply, 4000) ?? '';
   const out: AgentAction[] = [];
   let dropped = 0;
   for (const a of (Array.isArray(raw.actions) ? raw.actions : []).slice(0, 12)) {
@@ -201,7 +204,7 @@ function validateOne(a: any, out: AgentAction[]) {
           })).filter((s: AgentSet) => s.reps || s.durationSec || s.distanceKm || s.kg);
           return sets.length ? { exercise, sets } : null;
         }).filter(Boolean) as { exercise: string; sets: AgentSet[] }[];
-        if (exercises.length) out.push({ type: 'log_sets', exercises, day: dayArg(a.day) });
+        if (exercises.length) out.push({ type: 'log_sets', exercises, day: dayArg(a.day), ...(str(a.workout, 60) ? { workout: str(a.workout, 60) } : {}), ...(str(a.after, 60) ? { after: str(a.after, 60) } : {}) });
         break;
       }
       case 'log_activity': {
@@ -247,7 +250,9 @@ function validateOne(a: any, out: AgentAction[]) {
         out.push({ type: 'edit_set', exercise, workout: str(a.workout, 12) ?? null, set_number: n ? Math.round(n) : null, kg: kg ?? null, reps: reps ? Math.round(reps) : null, remove: a.delete_set === true });
         break;
       }
-      case 'add_exercise': { const exercises = (Array.isArray(a.exercises) ? a.exercises : []).slice(0, 8).map((x: any) => str(x, 60)).filter(Boolean) as string[]; if (exercises.length) out.push({ type: 'add_exercise', exercises }); break; }
+      // (on must be said: a missing or null `on` is not a request to cut)
+      case 'catch_up': { const over = num(a.kcal ?? a.over, 100, 10000); if (a.on === true || a.on === false) out.push({ type: 'catch_up', on: a.on, over: over ? Math.round(over) : null, day: dayArg(a.day) }); break; }
+      case 'add_exercise': { const exercises = (Array.isArray(a.exercises) ? a.exercises : []).slice(0, 8).map((x: any) => str(x, 60)).filter(Boolean) as string[]; if (exercises.length) out.push({ type: 'add_exercise', exercises, ...(a.start === true ? { start: true } : {}) }); break; }
       case 'remove_exercise': { const exercise = str(a.exercise, 60); if (exercise) out.push({ type: 'remove_exercise', exercise }); break; }
       case 'replace_exercise': { const from = str(a.from, 60), to = str(a.to, 60); if (from && to) out.push({ type: 'replace_exercise', from, to, routine: str(a.routine, 60) ?? null }); break; }
       case 'create_routine': { const name = str(a.name, 60), items = bits(a.add); if (name && items.length) out.push({ type: 'create_routine', name, items }); break; }
@@ -278,7 +283,7 @@ function validateOne(a: any, out: AgentAction[]) {
       case 'log_current_set': {
         const kg = num(a.kg, 0, 600), reps = num(a.reps, 0, 200);
         const sec = num(a.seconds ?? a.durationSec, 1, 36000);
-        out.push({ type: 'log_current_set', kg: kg ?? null, reps: reps !== undefined ? Math.round(reps) : null, which: a.which === 'last' ? 'last' : 'current', ...(sec ? { durationSec: Math.round(sec) } : {}), ...(a.same === true ? { same: true } : {}), ...(a.warmup === true ? { warmup: true } : {}) });
+        out.push({ type: 'log_current_set', kg: kg ?? null, reps: reps !== undefined ? Math.round(reps) : null, which: a.which === 'last' ? 'last' : 'current', ...(sec ? { durationSec: Math.round(sec) } : {}), ...(a.same === true ? { same: true } : {}), ...(a.warmup === true ? { warmup: true } : {}), ...(a.skip === true ? { skip: true } : {}) });
         break;
       }
       case 'delete_activity': out.push({ type: 'delete_activity', kind: str(a.kind, 20) ?? null, day: dayArg(a.day) }); break;
@@ -538,6 +543,9 @@ async function doLogFood(a: Extract<AgentAction, { type: 'log_food' }>, ctx: Age
       }
       if (q.qty && ctx.photo) { q = { ...q, estimated: true }; note = note || t('estimated from the photo'); }
       const entry = q.qty ? entryFromSnapshot(snapshotOf(food), q.qty, date, mealId, { id: uid('e') }) : null;
+      // a number that doesn't make sense for them ("2000 g rice" when they eat 200 g): asked, never logged as heard
+      const alt = entry && q.qty ? oddAmount(st, food, q.qty, kcalOf(entry)) : null;
+      if (entry && alt) { asks.push(askAmount(food, q.qty!, alt, date, mealId, ctx)); continue; }
       if (entry) {
         if (q.estimated) entry.estimated = true;
         entries.push(entry);
@@ -580,6 +588,49 @@ async function doLogFood(a: Extract<AgentAction, { type: 'log_food' }>, ctx: Age
     out.push({ id: uid('r'), kind: 'miss', title: unreachable ? t('Couldn’t reach the food database') : t('Couldn’t log that'), lines, ...(unreachable ? { subtitle: t('Check your connection and ask again.') } : {}) });
   }
   return [...out, ...asks];
+}
+
+/**
+ * An amount that is probably misheard or mistyped (20 Oct, Omar: "it has to have logic if it misheard me"): grams or ml at
+ * least 5× what they usually log of that food, or, for a food they never logged, a single item of 1,500+ kcal and a kilo
+ * or more. The likely amount is a tenth of it (2000 → 200), else their usual.
+ */
+export function oddAmount(st: { entries: FoodEntry[] }, food: Food, qty: Quantity, kcal: number | undefined): Quantity | null {
+  if (qty.unit !== 'g' && qty.unit !== 'ml') return null;
+  const last = [...st.entries].reverse().find((e) => !e.quick && e.snap.foodId === food.id && e.qty.unit === qty.unit);
+  const usual = last?.qty.amount;
+  const odd = usual ? qty.amount >= usual * 5 && qty.amount >= 300 : (kcal ?? 0) >= 1500 && qty.amount >= 1000;
+  if (!odd) return null;
+  const tenth = qty.amount / 10;
+  return { amount: usual && Math.abs(tenth - usual) > usual ? usual : Math.round(tenth), unit: qty.unit };
+}
+
+/** "Did you mean 200 g?": one tap logs the likely amount, the other what was heard. */
+function askAmount(food: Food, heard: Quantity, likely: Quantity, date: string, mealId: string, ctx: AgentCtx): AgentResult {
+  const { t, lang } = ctx;
+  const res: AgentResult = {
+    id: uid('r'), kind: 'food', pending: true, offer: true,
+    title: t('Did you mean {amount}?', { amount: `${fmtNum(likely.amount, lang, 0)} ${likely.unit}` }), subtitle: foodLabel(food, lang), lines: [],
+    doneTitle: t('Logged'),
+    choose: [likely, heard].map((qty) => {
+      const preview = entryFromSnapshot(snapshotOf(food), qty, date, mealId, {});
+      return {
+        label: `${fmtNum(qty.amount, lang, 0)} ${qty.unit}`,
+        sub: preview && kcalOf(preview) !== undefined ? `${kcalOf(preview)} kcal` : undefined,
+        run: () => {
+          const st = useStore.getState();
+          const e = entryFromSnapshot(snapshotOf(food), qty, date, mealId, { id: uid('e') });
+          const added = e ? st.logEntries([e])[0] : undefined;
+          if (!added) return;
+          res.lines = [{ text: foodLabel(food, lang), sub: `${lineLabel(food, qty, ctx)}${kcalOf(added) !== undefined ? ` · ${kcalOf(added)} kcal` : ''}`, ref: added.id }];
+          const meal = st.settings.meals.find((m) => m.id === mealId);
+          res.doneTitle = t('Logged to {meal}', { meal: meal ? mealName(meal, lang) : t('Today') }) + (date !== ctx.today ? ` · ${date === addDays(ctx.today, -1) ? t('Yesterday') : date}` : '');
+          res.undo = () => useStore.getState().removeEntry(added.id);
+        },
+      };
+    }),
+  };
+  return res;
 }
 
 /** "Which one?": tied foods far apart in calories. One tap logs it and remembers the choice, so it is asked only once. */
@@ -890,6 +941,51 @@ function doEditSet(a: Extract<AgentAction, { type: 'edit_set' }>, ctx: AgentCtx)
   return { id: uid('r'), kind: 'sets', title: t('Set corrected'), lines: [{ text: exLabel(hit.ex, lang), sub: `${t('Set')} ${idx + 1} · ${show(set)} → ${show(next)}` }], undo: () => apply((b) => ({ ...b, sets: prevBlock.sets })) };
 }
 
+/** "Don't cut my calories" (the catch-up after a heavy day comes off) or "I ate about 1,500 extra yesterday" (one set). */
+/** Why the Coach can't set a catch-up for them (lib/verdict.ts `trimAllowed`). */
+const NO_TRIM: Record<NoTrim, string> = {
+  mode: 'Heavy-day notices aren’t on (Settings → Targets)',
+  goal: 'Catch-ups are only for a fat-loss goal',
+  age: 'Tell me your age first: catch-ups are only for adults',
+  minor: 'No catch-ups under 18: eat normally and keep training',
+  health: 'No catch-up: eating less to make up for it isn’t good for you right now',
+};
+
+function doCatchUp(a: Extract<AgentAction, { type: 'catch_up' }>, ctx: AgentCtx): AgentResult {
+  const { t, lang } = ctx;
+  const st = useStore.getState();
+  const prev = st.catchUps ?? [];
+  // running, or still being decided (so "don't cut" said while it thinks is never overruled by the answer)
+  const running = prev.filter((c) => !c.off && ((c.perDay > 0 && c.days.some((x) => x >= ctx.today)) || (!isDecided(c) && diffDays(ctx.today, c.date) <= 3)));
+  // (Undo touches only the records this card changed: anything decided since stays as it is)
+  const setOff = (ids: Set<string>, off: boolean) => { const s2 = useStore.getState(); s2.setCatchUps((s2.catchUps ?? []).map((c) => (ids.has(c.id) ? { ...c, off } : c))); };
+  if (!a.on) {
+    if (!running.length) return { id: uid('r'), kind: 'miss', title: t('No catch-up is running'), lines: [] };
+    const ids = new Set(running.map((c) => c.id));
+    setOff(ids, true);
+    return { id: uid('r'), kind: 'setting', title: t('Catch-up taken off'), lines: [{ text: t('Your normal calorie target is back') }], undo: () => setOff(ids, false) };
+  }
+  const target = st.settings.goals.kcal;
+  if (!target) return { id: uid('r'), kind: 'miss', title: t('Set a calorie target first'), lines: [] };
+  // (asked for by name, still within the same limits as the app's own: lib/verdict.ts)
+  const no = trimAllowed(st, ctx.today);
+  if (no) return { id: uid('r'), kind: 'miss', title: t('No catch-up'), lines: [{ text: t(NO_TRIM[no]) }] };
+  const date = resolveDay(a.day, ctx.today) ?? addDays(ctx.today, -1);
+  const over = a.over ?? Math.round(dayKcal(st, date) - (targetOn(st, date) ?? target));
+  const was = prev.find((x) => x.date === date);
+  const c0: CatchUp = { id: was?.id ?? uid('cu'), date, over, days: [], perDay: 0, floor: catchUpFloor(st, ctx.today), trigger: was?.trigger ?? 'late', at: Date.now(), told: true, coachTold: true, decided: true, byHand: true };
+  const n = over <= 900 ? 2 : over <= 1500 ? 3 : 4;
+  const lim = trimLimits(st, c0, ctx.today);
+  const v = over >= 100 ? clampVerdict({ plan: 'trim', perDay: Math.min(lim.perDay, lim.total / n), days: n, line: '-', why: '' }, lim) : null;
+  if (!v || !v.perDay) return { id: uid('r'), kind: 'miss', title: t('Nothing to catch up'), lines: [] };
+  const start = addDays(date, 1) > ctx.today ? addDays(date, 1) : ctx.today;
+  const c1: CatchUp = { ...c0, perDay: v.perDay, days: Array.from({ length: v.days }, (_, k) => addDays(start, k)) };
+  const c = { ...c1, line: catchUpWords(c1, ctx.today, t, (x) => fmtNum(x, lang, 0)) };
+  st.setCatchUps([...prev.filter((x) => x.date !== date), c]);
+  // (Undo: the day goes back to what it was, or stays recorded with no cut, so the app never decides it again)
+  return { id: uid('r'), kind: 'setting', title: t('Catch-up set'), lines: [{ text: c.line }], undo: () => { const s2 = useStore.getState(); s2.setCatchUps([...(s2.catchUps ?? []).filter((x) => x.id !== c.id), was ?? { ...c, off: true }]); } };
+}
+
 function doAddExercise(a: Extract<AgentAction, { type: 'add_exercise' }>, ctx: AgentCtx): AgentResult {
   const { t, lang } = ctx;
   const found = a.exercises.map((n) => ({ n, ex: findExercise(n, lang) }));
@@ -897,6 +993,8 @@ function doAddExercise(a: Extract<AgentAction, { type: 'add_exercise' }>, ctx: A
   const miss = found.filter((x) => !x.ex).map((x) => x.n);
   if (!ok.length) return { id: uid('r'), kind: 'miss', title: t('Couldn’t add that'), lines: miss.map((n) => ({ text: n, sub: t('Not in your exercise library'), warn: true })) };
   const st = useStore.getState();
+  // nothing running: never a workout started silently (the "I did calves" mix-up, 18 Oct); only when asked to start
+  if (!st.active && !a.start) return { id: uid('r'), kind: 'miss', title: t('No workout is running'), lines: [...ok.map((e) => ({ text: exLabel(e, lang), sub: t('Say the sets you did and I’ll log them') }))] };
   const started = !st.active;
   if (started) st.startWorkout({ name: '' });
   const before = new Set(useStore.getState().active!.exercises.map((b) => b.id));
@@ -1087,10 +1185,10 @@ function doDeleteWorkout(a: Extract<AgentAction, { type: 'delete_workout' }>, ct
   const { t } = ctx;
   const done = useStore.getState().sessions.filter((s) => s.status === 'done');
   const w = a.workout ? fold(a.workout) : '';
-  const ses = !w || w === 'last' ? done[done.length - 1] : [...done].reverse().find((s) => s.date === a.workout || fold(s.name).includes(w));
+  const ses = !w || w === 'last' ? done[done.length - 1] : [...done].reverse().find((s) => s.date === a.workout || fold(workoutSearchName(s.name)).includes(w));
   if (!ses) return { id: uid('r'), kind: 'miss', title: t('Couldn’t find that workout'), lines: a.workout ? [{ text: a.workout, warn: true }] : [] };
   const sets = ses.exercises.reduce((n, e) => n + e.sets.filter((x) => x.done).length, 0);
-  return preview({ id: uid('r'), kind: 'workout', title: t('Delete this workout?'), key: `delworkout:${ses.id}`, lines: [{ text: ses.name || t('Workout'), sub: `${ses.date} · ${ses.exercises.length} ${t('exercises')} · ${sets} ${t('sets')}` }] }, t('Delete'), () => {
+  return preview({ id: uid('r'), kind: 'workout', title: t('Delete this workout?'), key: `delworkout:${ses.id}`, lines: [{ text: workoutName(ses.name, t), sub: `${ses.date} · ${ses.exercises.length} ${t('exercises')} · ${sets} ${t('sets')}` }] }, t('Delete'), () => {
     useStore.getState().deleteSession(ses.id);
     return () => useStore.getState().restoreSession(ses);
   });
@@ -1100,7 +1198,7 @@ function doDiscardWorkout(ctx: AgentCtx): AgentResult {
   const { t } = ctx;
   const st = useStore.getState();
   if (!st.active) return { id: uid('r'), kind: 'miss', title: t('No workout is running'), lines: [] };
-  const done = st.active.exercises.reduce((n, e) => n + e.sets.filter((s) => s.done).length, 0);
+  const done = st.active.exercises.reduce((n, e) => n + e.sets.filter((s) => s.done && s.type === 'working').length, 0);
   return {
     id: uid('r'), kind: 'workout', pending: true, title: t('Discard this workout?'), lines: [{ text: st.active.name || t('Workout'), sub: t(done === 1 ? '1 set done' : '{n} sets done', { n: done }) }],
     button: { label: t('Discard'), run: () => { useStore.getState().discardActive(); } },
@@ -1187,6 +1285,13 @@ function doCurrentSet(a: Extract<AgentAction, { type: 'log_current_set' }>, ctx:
     if (!hit) return { id: uid('r'), kind: 'miss', title: t('No finished set yet'), lines: [] };
   } else {
     const cur = currentSetOf(act, a.warmup ? 'only' : 'skip');
+    // "skip it" / "skip this set": the planned set is taken out and the next one is up (Undo puts it back)
+    if (a.skip) {
+      if (!cur) return { id: uid('r'), kind: 'miss', title: t('Every set is done'), lines: [] };
+      const ex = exOf(cur.se.exerciseId);
+      const { restore } = deleteSet(cur.se.id, cur.set.id);
+      return { id: uid('r'), kind: 'sets', title: t('Set skipped'), lines: [{ text: ex ? exLabel(ex, lang) : '', sub: `${t('Set')} ${cur.label}` }], undo: restore };
+    }
     if (cur) hit = { se: cur.se, set: cur.set };
     else {
       // every planned set is done: one more of the exercise you were on
@@ -1289,7 +1394,8 @@ function doDeleteActivity(a: Extract<AgentAction, { type: 'delete_activity' }>, 
   const date = resolveDay(a.day, ctx.today);
   const k = a.kind ? fold(a.kind) : '';
   const list = useStore.getState().activities.filter((x) => (!date || x.date === date) && (!k || fold(x.kind).includes(k) || fold(t(ACTIVITY_LABEL[x.kind])).includes(k)));
-  const act = list[list.length - 1];
+  // (the newest by day, whatever the list's order)
+  const act = [...list].sort((x, y) => x.date.localeCompare(y.date) || (x.startAt ?? x.at) - (y.startAt ?? y.at))[list.length - 1];
   if (!act) return { id: uid('r'), kind: 'miss', title: t('Couldn’t find that activity'), lines: a.kind ? [{ text: a.kind, warn: true }] : [] };
   useStore.getState().removeActivity(act.id);
   return { id: uid('r'), kind: 'activity', title: t('Activity removed'), lines: [{ text: t(ACTIVITY_LABEL[act.kind]), sub: `${act.date} · ${Math.round(act.durationSec / 60)} min` }], undo: () => useStore.getState().restoreActivity(act) };
@@ -1350,7 +1456,9 @@ function doRemember(a: Extract<AgentAction, { type: 'remember' }>, ctx: AgentCtx
   }
   // full: a temporary note that has ended makes room first (its time is over), else the Coach says so
   if (st.memory.length >= MEMORY_MAX) {
-    const ended = st.memory.filter((m) => m.until && m.until < ctx.today).sort((x, y) => x.until!.localeCompare(y.until!))[0];
+    // (a health note always fits: it is what keeps a cut away from someone it could hurt; the oldest other note makes room)
+    const ended = st.memory.filter((m) => m.until && m.until < ctx.today).sort((x, y) => x.until!.localeCompare(y.until!))[0]
+      ?? (a.kind === 'health' ? st.memory.filter((m) => m.kind !== 'health').sort((x, y) => (x.updatedAt ?? x.at) - (y.updatedAt ?? y.at))[0] : undefined);
     if (!ended) return { id: uid('r'), kind: 'miss', title: t('Memory is full'), lines: [{ text: a.text, sub: t('Remove something in Settings → Coach memory first'), warn: true }], button: more };
     st.removeMemory(ended.id);
   }
@@ -1460,8 +1568,8 @@ function doLogSavedMeal(a: Extract<AgentAction, { type: 'log_saved_meal' }>, ctx
   const m = st.savedMeals.find((x) => fold(x.name) === w) ?? st.savedMeals.find((x) => fold(x.name).includes(w) || w.includes(fold(x.name)));
   if (!m) return { id: uid('r'), kind: 'miss', title: t('No saved meal with that name'), lines: [{ text: a.name, sub: st.savedMeals.map((x) => x.name).join(' · ').slice(0, 120), warn: true }] };
   const date = resolveDay(a.day, ctx.today) ?? ctx.date ?? ctx.today;
-  const mealId = mealIdOf(a.meal, ctx) ?? ctx.mealId ?? defaultMealId(st.settings.meals);
-  const entries = m.items.map((it) => entryFromSnapshot(it.snap, it.qty, date, mealId, { id: uid('e') })).filter(Boolean) as FoodEntry[];
+  const mealId = mealIdOf(a.meal, ctx) ?? ctx.mealId ?? defaultMealId(st.settings.meals, new Date(), st.settings.dayStartHour);
+  const entries = m.items.map((it) => entryFromSavedItem(it, date, mealId, { id: uid('e') })).filter(Boolean) as FoodEntry[];
   const added = st.logEntries(entries);
   const total = added.reduce((n, e) => n + (e.nutrients.kcal ?? 0), 0);
   return {
@@ -1703,7 +1811,7 @@ async function doProposeRecipe(a: Extract<AgentAction, { type: 'propose_recipe' 
       const food = recipeToFood(recipe);
       const s2 = useStore.getState();
       if (!food) { useUI.getState().toast(t('This recipe needs a weight before a portion can be logged'), { tone: 'bad' }); return; }
-      const mealId = ctx.mealId && s2.settings.meals.some((m) => m.id === ctx.mealId) ? ctx.mealId : defaultMealId(s2.settings.meals);
+      const mealId = ctx.mealId && s2.settings.meals.some((m) => m.id === ctx.mealId) ? ctx.mealId : defaultMealId(s2.settings.meals, new Date(), s2.settings.dayStartHour);
       const one = entryFromSnapshot(snapshotOf(food), { amount: 1, unit: 'portion', portionId: 'serving' }, ctx.date ?? ctx.today, mealId, { id: uid('e') });
       const [e] = one ? s2.logEntries([one]) : [];
       if (e) useUI.getState().toast(t('Logged 1 serving of {name}', { name: a.name }), { tone: 'ok', actionLabel: t('Undo'), onAction: () => useStore.getState().removeEntry(e.id) });
@@ -1767,9 +1875,26 @@ function doLogSets(a: Extract<AgentAction, { type: 'log_sets' }>, ctx: AgentCtx,
   const usage = new Map<string, number>();
   for (const ses of st.sessions) for (const e of ses.exercises) usage.set(e.exerciseId, (usage.get(e.exerciseId) ?? 0) + 1);
   const w = st.settings.units.weight;
-  const date = resolveDay(a.day, ctx.today) ?? ctx.today;
+  let date = resolveDay(a.day, ctx.today) ?? ctx.today;
+  // which workout they go into. The running one (today, or "current"); else the finished workout they named ("last",
+  // a date, or its name), else that day's workout, whichever it was (Omar's "I did calves too, put it in" had made a
+  // second workout beside today's Legs & shoulders, 18 Oct); a new "Logged workout" only when the day has none
+  // newest first by day, then by when it ended (the list's own order is not trusted: a restored backup keeps any order)
+  const done = st.sessions.filter((x) => x.status === 'done').sort((p, q) => q.date.localeCompare(p.date) || (q.endedAt ?? q.startedAt ?? 0) - (p.endedAt ?? p.startedAt ?? 0));
+  const wk = a.workout ?? null;
+  const isDate = !!wk && /^\d{4}-\d{2}-\d{2}$/.test(wk);
+  const isName = !!wk && wk !== 'current' && wk !== 'last' && !isDate;
+  // a name: the running workout when it is that one (it carries its routine's name), else an exact name, else the
+  // closest name that contains it or is contained in it (newest when equally close)
+  const nameHit = (x: string | undefined) => !!x && !!wk && (fold(x) === fold(wk) || fold(x).includes(fold(wk)) || fold(wk).includes(fold(x)));
+  const liveNamed = isName && !!st.active && nameHit(st.active.name);
+  const named = isName && !liveNamed
+    ? done.find((x) => x.name && fold(x.name) === fold(wk!)) ?? done.filter((x) => nameHit(x.name)).sort((p, q) => Math.abs(p.name.length - wk!.length) - Math.abs(q.name.length - wk!.length))[0] : undefined;
+  if (isName && !liveNamed && !named) return { id: uid('r'), kind: 'miss', title: t('No workout called “{name}”', { name: wk! }), lines: done.slice(0, 3).map((x) => ({ text: x.name || t('Workout'), sub: x.date === ctx.today ? t('Today') : x.date })) };
+  const chosen = wk === 'last' ? done[0] : isDate ? done.find((x) => x.date === wk) : named;
+  if (chosen) date = chosen.date; else if (isDate) date = wk!;
   // sets for another day, or with no workout running (told after the gym): a finished workout, never a live one
-  const live = !!st.active && date === ctx.today;
+  const live = !!st.active && date === ctx.today && !chosen;
   const lines: AgentResult['lines'] = [];
   const found: { ex: Exercise; sets: SetRecord[]; tied: boolean; said: string; heard: string[] }[] = [];
 
@@ -1806,37 +1931,66 @@ function doLogSets(a: Extract<AgentAction, { type: 'log_sets' }>, ctx: AgentCtx,
   if (!live) {
     // into that day's logged workout (made now if there is none): finished, with its records; today's is linked to the
     // planned routine when its exercises are in it, so the plan counts it as done
-    const prev = useStore.getState().sessions.find((x) => x.date === date && x.logged);
+    const prev = chosen ?? [...useStore.getState().sessions].reverse().find((x) => x.date === date && x.status === 'done');
     const at = date === ctx.today ? Date.now() : new Date(`${date}T18:00:00`).getTime();
     const planned = date === ctx.today ? plannedFor(st, date, ctx.today) : null;
     const routine = planned ? st.routines.find((r) => r.id === planned.routineId) : undefined;
     const linked = routine && !st.sessions.some((x) => x.date === date && x.routineId === routine.id && !x.logged) && found.some((f) => routine.items.some((it) => it.exerciseId === f.ex.id)) ? routine : undefined;
     const base: WorkoutSession = prev ?? { id: uid('w'), name: linked?.name ?? t('Logged workout'), date, startedAt: at, endedAt: at, pausedMs: 0, status: 'done', exercises: [], logged: true, ...(linked ? { routineId: linked.id, plannedDate: date } : {}) };
     const exs = base.exercises.map((e) => ({ ...e, sets: [...e.sets] }));
+    // "put it after leg press": new exercises go in right after that one, in the order said
+    const afterHit = a.after ? findBlock(a.after, base, lang) : undefined;
+    let pos = afterHit ? exs.findIndex((e) => e.id === afterHit.block.id) + 1 : -1;
+    // (what Undo takes back: exactly these, so anything changed by hand afterwards stays)
+    const madeBlocks = new Set<string>(); const madeSets = new Set<string>();
     for (const f of found) {
       const sets = f.sets.map((x, i) => ({ ...x, completedAt: date === ctx.today ? x.completedAt : at + i }));
+      sets.forEach((x) => madeSets.add(x.id));
       const into = exs.find((e) => e.exerciseId === f.ex.id);
-      if (into) into.sets.push(...sets); else exs.push({ id: uid('se'), exerciseId: f.ex.id, sets });
+      if (into) { into.sets.push(...sets); continue; }
+      const block = { id: uid('se'), exerciseId: f.ex.id, sets };
+      madeBlocks.add(block.id);
+      if (pos > 0) exs.splice(pos++, 0, block); else exs.push(block);
     }
-    const next: WorkoutSession = { ...base, exercises: exs, endedAt: Math.max(base.endedAt ?? at, date === ctx.today ? Date.now() : at) };
+    if (a.after && madeBlocks.size) lines.push(afterHit ? { text: t('After {name}', { name: exLabel(afterHit.ex, lang) }) } : { text: t('No {name} in that workout: added at the end', { name: a.after }), warn: true });
+    // a workout of theirs keeps its own length; one the Coach made grows with what is logged into it
+    const ended = base.logged ? Math.max(base.endedAt ?? at, date === ctx.today ? Date.now() : at) : base.endedAt ?? at;
+    const next: WorkoutSession = { ...base, exercises: exs, endedAt: ended };
     const exMap = new Map(allExercises(st.exercises).map((e) => [e.id, e]));
-    next.records = detectRecords(next, st.sessions.filter((x) => x.id !== next.id && x.date <= date), (id) => exMap.get(id));
+    const recordsOf = (x: WorkoutSession) => detectRecords(x, useStore.getState().sessions.filter((y) => y.id !== x.id && y.date <= x.date), (id) => exMap.get(id));
+    next.records = recordsOf(next);
     const schedule = st.schedule;
     if (prev) st.mutateSession(prev.id, () => next); else st.restoreSession(next);
     // a rotation moves on to its next routine, as finishing it in the app does
     if (!prev && linked && planned?.source === 'rotation') st.setSchedule({ rotation: { ...schedule.rotation, pointer: (schedule.rotation.pointer + 1) % Math.max(1, schedule.rotation.order.length) } });
     return {
-      id: uid('r'), kind: 'sets', title, lines,
-      undo: () => { const s2 = useStore.getState(); if (prev) s2.mutateSession(prev.id, () => prev); else s2.deleteSession(next.id); if (!prev && linked && planned?.source === 'rotation') s2.setSchedule({ rotation: schedule.rotation }); },
+      id: uid('r'), kind: 'sets', title: prev && !prev.logged && prev.name ? `${title} · ${prev.name}` : title, lines,
+      undo: () => {
+        const s2 = useStore.getState();
+        const cur = s2.sessions.find((x) => x.id === next.id);
+        if (!cur) return;
+        const exercises = cur.exercises.map((e) => ({ ...e, sets: e.sets.filter((q) => !madeSets.has(q.id)) })).filter((e) => !(madeBlocks.has(e.id) && !e.sets.length));
+        if (!prev && !exercises.some((e) => e.sets.length)) s2.deleteSession(next.id);
+        else {
+          const { records: _was, ...back } = { ...cur, exercises, endedAt: cur.endedAt === next.endedAt ? base.endedAt ?? cur.endedAt : cur.endedAt };
+          const records = recordsOf(back);
+          s2.mutateSession(next.id, () => (records.length || base.records ? { ...back, records } : back));
+        }
+        if (!prev && linked && planned?.source === 'rotation') s2.setSchedule({ rotation: schedule.rotation });
+      },
     };
   }
 
   // into the running workout: planned, unfinished sets (a routine's blanks) are filled first, the rest are appended
   const added: { seId: string; filled: string[]; appended: string[]; created: boolean }[] = [];
+  const afterHit = a.after ? findBlock(a.after, useStore.getState().active!, lang) : undefined;
+  let livePos = afterHit ? useStore.getState().active!.exercises.findIndex((e) => e.id === afterHit.block.id) + 1 : -1;
+  const anyNew = found.some((f) => !useStore.getState().active!.exercises.some((e) => e.exerciseId === f.ex.id));
+  if (a.after && anyNew) lines.push(afterHit ? { text: t('After {name}', { name: exLabel(afterHit.ex, lang) }) } : { text: t('No {name} in that workout: added at the end', { name: a.after }), warn: true });
   for (const f of found) {
     const existing = [...useStore.getState().active!.exercises].reverse().find((e) => e.exerciseId === f.ex.id);
     const created = !existing;
-    if (created) addExercises([f.ex.id]);
+    if (created) addExercises([f.ex.id], livePos > 0 ? livePos++ : undefined);
     const filled: string[] = []; const appended: string[] = [];
     let seId = '';
     useStore.getState().mutateActive((s) => {
@@ -1899,7 +2053,8 @@ function doFinishWorkout(ctx: AgentCtx): AgentResult {
   const { t } = ctx;
   const st = useStore.getState();
   if (!st.active) return { id: uid('r'), kind: 'miss', title: t('No workout is running'), lines: [] };
-  const done = st.active.exercises.reduce((n, e) => n + e.sets.filter((s) => s.done).length, 0);
+  const done = st.active.exercises.reduce((n, e) => n + e.sets.filter((s) => s.done && s.type === 'working').length, 0);
+  if (!done) return { id: uid('r'), kind: 'miss', title: t('No sets yet'), lines: [{ text: st.active.name || t('Workout') }] }; // warm-ups alone are not saved
   return {
     id: uid('r'), kind: 'workout', pending: true, title: t('Finish this workout?'), lines: [{ text: st.active.name || t('Workout'), sub: t(done === 1 ? '1 set done' : '{n} sets done', { n: done }) }],
     button: { label: t('Finish and save'), run: () => { const r = useStore.getState().finishActive(); if (r) { useUI.getState().push('summary', { sessionId: r.id }); } } },
@@ -2007,6 +2162,7 @@ export async function runActions(actions: AgentAction[], ctxIn: AgentCtx): Promi
         case 'save_meal': out.push(doSaveMeal(a, ctx)); break;
         case 'edit_set': out.push(doEditSet(a, ctx)); break;
         case 'add_exercise': out.push(doAddExercise(a, ctx)); break;
+        case 'catch_up': out.push(doCatchUp(a, ctx)); break;
         case 'remove_exercise': out.push(doRemoveExercise(a, ctx)); break;
         case 'replace_exercise': out.push(doReplaceExercise(a, ctx)); break;
         case 'create_routine': out.push(doCreateRoutine(a, ctx)); break;

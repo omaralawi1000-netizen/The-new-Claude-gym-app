@@ -66,7 +66,7 @@ assert.equal((await live()).activities.length, a.activities.length, 'never twice
 
 // ── Train: the history rows ──
 await p.locator('.tabbar').getByRole('button', { name: 'Train', exact: true }).click(); await wait(p, 1200);
-await p.getByRole('button', { name: 'History', exact: true }).first().click().catch(() => p.getByText('History', { exact: true }).first().click()); await wait(p, 900);
+await p.getByRole('tab', { name: 'History', exact: true }).first().click().catch(() => p.getByRole('button', { name: 'History', exact: true }).first().click()); await wait(p, 900); // (Train's pills are tabs since v0.1.162)
 const row = p.getByText('Stair climber').first();
 await row.scrollIntoViewIfNeeded(); await wait(p, 500);
 assert(await row.isVisible(), 'the watch’s name for it');

@@ -18,6 +18,12 @@ export const OPENAI_MODEL = 'gpt-6.1-sol';
 /** The model to ask: chosen by hand in Settings, else the newest one found on the key, else OPENAI_MODEL. */
 export const solModel = (): string => { const m = useAi.getState().models; return m.sol || m.solAuto || OPENAI_MODEL; };
 /** What to call the OpenAI brain on screen when it is not GPT-6.1 Sol ("GPT-6.5"); null while it is. */
+/** The quick model for everyday messages (logging, edits, normal questions); the main model thinks the big ones through.
+ *  Chosen by the Coach exam (19 Oct, scripts/exam): nearly as good on everyday answers at about 1/16 of the price. */
+export const QUICK_MODEL = 'gpt-6-luna';
+export const quickModel = (): string => useAi.getState().models.quick || QUICK_MODEL;
+/** The quick model, unless this key turned out not to have it (then the main one answers everything). */
+export const quickFor = (): string | undefined => (useAi.getState().noQuick ? undefined : quickModel());
 export const solLabel = (): string | null => { const m = solModel(); return m === OPENAI_MODEL ? null : m.replace(/^gpt-/i, 'GPT-'); };
 
 /**
@@ -51,7 +57,8 @@ export async function refreshSolModel(key: string, force = false): Promise<strin
   } catch { return null; }
 }
 export type Effort = 'low' | 'medium' | 'high';
-export interface Sol { key: string; effort: Effort; signal?: AbortSignal }
+/** `model`: which OpenAI model answers (default: the main one, solModel). */
+export interface Sol { key: string; effort: Effort; signal?: AbortSignal; model?: string; /** any part of the answer has arrived (the reply text may come after a long list of actions) */ onAny?: () => void }
 
 // ── schema: Gemini's OpenAPI-style schema → a strict JSON schema ──
 /**
@@ -96,6 +103,8 @@ export function openaiError(status: number, body: string): AiError {
 
 async function request(key: string, body: unknown, { timeout, signal }: { timeout: number; signal?: AbortSignal }) {
   if (navigator.onLine === false) throw fail('offline');
+  // (stopped before it started: never sent)
+  if (signal?.aborted) throw fail('aborted');
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), timeout);
   const onAbort = () => ctl.abort();
@@ -122,8 +131,8 @@ const toInput = (turns: Turn[], photo?: Photo): Input => turns.map((x, i) => {
   if (photo && i === turns.length - 1 && x.role === 'user') return { role: 'user', content: [{ type: 'input_image', image_url: `data:${photo.mime};base64,${photo.data}` }, { type: 'input_text', text }] };
   return { role: x.role === 'model' ? 'assistant' : 'user', content: text };
 });
-const body = (o: { system: string; input: Input; schema: object; name: string; effort: Effort; stream?: boolean; maxTokens: number; cacheKey: string }) => ({
-  model: solModel(), instructions: o.system, input: o.input, stream: !!o.stream, store: false,
+const body = (o: { system: string; input: Input; schema: object; name: string; effort: Effort; stream?: boolean; maxTokens: number; cacheKey: string; model?: string }) => ({
+  model: o.model ?? solModel(), instructions: o.system, input: o.input, stream: !!o.stream, store: false,
   reasoning: { effort: o.effort },
   text: { format: { type: 'json_schema', name: o.name, schema: strict(o.schema), strict: true } },
   // reasoning tokens count toward this, so it has room to think before it writes
@@ -133,10 +142,10 @@ const body = (o: { system: string; input: Input; schema: object; name: string; e
 const firstWait = (effort: Effort) => (effort === 'high' ? 120_000 : effort === 'medium' ? 60_000 : 30_000);
 
 async function json(sol: Sol, o: { system: string; input: Input; schema: object; name: string; maxTokens?: number; cacheKey: string }): Promise<any> {
-  const { res, done } = await request(sol.key, body({ ...o, effort: sol.effort, maxTokens: o.maxTokens ?? (sol.effort === 'high' ? 24000 : 12000) }), { timeout: firstWait(sol.effort), signal: sol.signal });
+  const { res, done } = await request(sol.key, body({ ...o, effort: sol.effort, model: sol.model, maxTokens: o.maxTokens ?? (sol.effort === 'high' ? 24000 : 12000) }), { timeout: firstWait(sol.effort), signal: sol.signal });
   try {
     const data = await res.json();
-    recordUsage(data?.usage);
+    recordUsage(data?.usage, sol.model ?? solModel());
     if (data?.status === 'incomplete' && !outputText(data)) throw fail('empty');
     try { return JSON.parse(outputText(data)); } catch { throw fail('invalid'); }
   } finally { done(); }
@@ -147,13 +156,13 @@ async function json(sol: Sol, o: { system: string; input: Input; schema: object;
  * long; once words flow, a stream that goes quiet for 25 s with some text counts as finished.
  */
 async function stream(sol: Sol, o: { system: string; input: Input; schema: object; name: string; cacheKey: string }, onText: (t: string) => void): Promise<string> {
-  const { res, done, ctl } = await request(sol.key, body({ ...o, effort: sol.effort, stream: true, maxTokens: sol.effort === 'high' ? 24000 : 12000 }), { timeout: firstWait(sol.effort) + 60_000, signal: sol.signal });
+  const { res, done, ctl } = await request(sol.key, body({ ...o, effort: sol.effort, model: sol.model, stream: true, maxTokens: sol.effort === 'high' ? 24000 : 12000 }), { timeout: firstWait(sol.effort) + 60_000, signal: sol.signal });
   const reader = res.body!.getReader();
   const dec = new TextDecoder();
   let buf = '', full = '', failed: AiError | null = null, idle: ReturnType<typeof setTimeout> | undefined;
   const handle = (ev: any) => {
     if (ev?.type === 'response.output_text.delta' && typeof ev.delta === 'string') { full += ev.delta; onText(full); }
-    else if (ev?.type === 'response.completed' || ev?.type === 'response.incomplete') recordUsage(ev.response?.usage);
+    else if (ev?.type === 'response.completed' || ev?.type === 'response.incomplete') recordUsage(ev.response?.usage, sol.model ?? solModel());
     else if (ev?.type === 'response.failed' || ev?.type === 'error') failed = fail('failed');
     if (ev?.type === 'response.incomplete' && !full) failed = fail('empty');
   };
@@ -181,9 +190,14 @@ export async function solAgent(system: string, turns: Turn[], sol: Sol, onReply?
   const o = { system, input: toInput(turns, photo), schema: AGENT_SCHEMA, name: 'agent_turn', cacheKey: 'aven-agent' };
   if (!onReply) return json(sol, o);
   let shown = '';
-  const full = await stream(sol, o, (all) => { const r = partialReply(all); if (r !== shown) { shown = r; onReply(r); } });
+  const full = await stream(sol, o, (all) => { sol.onAny?.(); const r = partialReply(all); if (r !== shown) { shown = r; onReply(r); } });
   // (cut off on the way: a connection problem, not a bad answer)
   try { return JSON.parse(full); } catch { throw fail(full.trimEnd().endsWith('}') ? 'invalid' : 'network'); }
+}
+
+/** One structured answer from Sol (the app's own judgement calls, e.g. what to do after a heavy day). */
+export async function solJson(sol: Sol, o: { system: string; prompt: string; schema: object; name: string }): Promise<any> {
+  return json(sol, { system: o.system, input: [{ role: 'user', content: o.prompt }], schema: o.schema, name: o.name, cacheKey: `aven-${o.name}` });
 }
 
 /** A rough estimate for a food that is in no database (shown as an ESTIMATE for review). */
@@ -224,7 +238,7 @@ export async function solSearch(query: string, sol: Sol & { signal?: AbortSignal
     tools: [{ type: 'web_search' }], reasoning: { effort: 'low' }, max_output_tokens: 3000,
   }, { timeout: 60_000, signal: sol.signal });
   const data = await res.json(); done();
-  recordUsage(data?.usage); recordFee(WEB_SEARCH_USD);
+  recordUsage(data?.usage, solModel()); recordFee(WEB_SEARCH_USD);
   const text = outputText(data).trim();
   if (!text) throw fail('empty');
   const notes = (data?.output || []).filter((o: any) => o?.type === 'message').flatMap((o: any) => o.content || []).flatMap((c: any) => c?.annotations || []);

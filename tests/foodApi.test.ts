@@ -63,6 +63,18 @@ describe('online food lookup', () => {
     expect(lp.name).toBe('Leverpostej'); expect(lp.portions[0]).toMatchObject({ amount: 20, verified: true });
     expect(await searchDanish('chicken breast')).toEqual([]);
   });
+
+  it('a barcode in the packed Danish list is found offline, without asking the internet', async () => {
+    const urls: string[] = [];
+    const rows = [['05711953021470', 'Skyr Vanilje', 'Cheasy', 0, 55, 8.6, 4, 0.2, null, 4, 0.1, 40, null, null]];
+    vi.stubGlobal('navigator', { onLine: false });
+    vi.stubGlobal('fetch', async (u: string) => { urls.push(u); return u.includes('off-dk') ? reply(200, { rows }) : reply(500); });
+    const { lookupBarcode } = await import('../src/lib/foodApi');
+    const r = await lookupBarcode('5711953021470');
+    expect(r.status).toBe('ok'); expect(r.food?.name).toBe('Skyr Vanilje'); expect(r.food?.barcode).toBe('05711953021470');
+    expect(urls.every((u) => u.includes('off-dk'))).toBe(true);
+    expect((await lookupBarcode('4000000000000')).status).toBe('offline'); // not in the list: still the honest offline answer
+  });
 });
 
 import { searchQuery } from '../src/lib/foodText';

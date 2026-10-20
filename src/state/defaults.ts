@@ -58,7 +58,7 @@ export function defaultData(lang: Lang = 'en'): AppData {
     settings: defaultSettings(lang),
     foods: [], favourites: [], savedMeals: [], recipes: [], entries: [], water: [],
     exercises: [], routines: [], schedule: defaultSchedule(), sessions: [], active: null,
-    weights: [], measurements: [], photos: [], activities: [], steps: [], notes: [], choices: {}, increments: {}, memory: [], reviews: [],
+    weights: [], measurements: [], photos: [], activities: [], steps: [], health: [], hcGone: [], catchUps: [], targets: [], marks: {}, notes: [], choices: {}, increments: {}, memory: [], reviews: [],
     demo: false,
   };
 }
@@ -75,9 +75,17 @@ export function normaliseData(raw: any, lang: Lang = 'en'): AppData {
     exercises: arr('exercises'), routines: arr('routines'),
     schedule: { ...d.schedule, ...(raw.schedule ?? {}), weekly: { ...d.schedule.weekly, ...(raw.schedule?.weekly ?? {}) }, rotation: { ...d.schedule.rotation, ...(raw.schedule?.rotation ?? {}) }, overrides: raw.schedule?.overrides ?? [], cleared: raw.schedule?.cleared ?? [], activities: cleanActivities(raw.schedule?.activities) },
     sessions: arr('sessions'), active: raw.active && typeof raw.active === 'object' ? raw.active : null,
-    weights: arr('weights'), measurements: arr('measurements'), photos: arr('photos'), activities: arr('activities'), steps: arr('steps'), notes: arr('notes'),
+    weights: arr('weights'), measurements: arr('measurements'), photos: arr('photos'), activities: arr('activities'), steps: arr('steps'), health: arr('health'), notes: arr('notes'),
+    // (a hand-edited or broken backup: only catch-ups that make sense, so the Food screen never trips over one)
+    catchUps: (Array.isArray(raw.catchUps) ? raw.catchUps : []).filter((c: any) => c && typeof c.id === 'string' && typeof c.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(c.date)
+      && Array.isArray(c.days) && c.days.every((x: unknown) => typeof x === 'string') && [c.perDay, c.floor, c.over].every((x) => typeof x === 'number' && Number.isFinite(x))).slice(-30)
+      .map((c: any) => ({ ...c, trigger: c.trigger === 'live' ? 'live' : 'late', at: typeof c.at === 'number' ? c.at : 0 })),
+    targets: (Array.isArray(raw.targets) ? raw.targets : []).filter((x: any) => x && typeof x.from === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(x.from)).sort((a: any, b: any) => a.from.localeCompare(b.from)).slice(-60)
+      .map((x: any) => ({ from: x.from, ...(typeof x.kcal === 'number' ? { kcal: x.kcal } : {}), ...(typeof x.prev === 'number' ? { prev: x.prev } : {}) })),
+    hcGone: (Array.isArray(raw.hcGone) ? raw.hcGone : []).filter((x: unknown) => typeof x === 'string').slice(-500),
     choices: raw.choices && typeof raw.choices === 'object' && !Array.isArray(raw.choices) ? raw.choices : {},
     increments: raw.increments && typeof raw.increments === 'object' && !Array.isArray(raw.increments) ? raw.increments : {},
+    marks: raw.marks && typeof raw.marks === 'object' && !Array.isArray(raw.marks) ? Object.fromEntries(Object.entries(raw.marks).filter(([, v]) => typeof v === 'string')) as Record<string, string> : {},
     // a hand-edited or older backup: keep only notes that still make sense
     reviews: (Array.isArray(raw.reviews) ? raw.reviews : []).filter((r: any) => r && typeof r.week === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(r.week) && Array.isArray(r.priorities)).slice(-26)
       .map((r: any) => ({ week: r.week, at: typeof r.at === 'number' ? r.at : 0, ...(typeof r.verdict === 'string' && r.verdict.trim() ? { verdict: r.verdict.slice(0, 400) } : {}), priorities: r.priorities.filter((p: any) => p && typeof p.id === 'string' && typeof p.text === 'string').slice(0, 2).map((p: any) => ({ id: p.id.slice(0, 80), text: p.text.slice(0, 160) })) })),

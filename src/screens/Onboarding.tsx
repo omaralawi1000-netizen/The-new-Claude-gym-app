@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { useStore } from '../state/store';
+import { useStore, withWeeklySince } from '../state/store';
 import { useUI } from '../state/ui';
 import { useT, useLang } from '../lib/i18n';
 import { Icon } from '../ui/Icon';
@@ -13,7 +13,7 @@ import type { EquipmentAccess, Experience, Goal } from '../lib/types';
 import { SEED_EXERCISES } from '../data/exercises';
 import { assignWeek, buildStarter } from '../lib/starter';
 import { buildDemo } from '../lib/demo';
-import { fmtWeekdayShort } from '../lib/dates';
+import { dayKey, fmtWeekdayShort } from '../lib/dates';
 import { useOverlayZ } from '../ui/Sheet';
 import { SoftText } from '../ui/SoftText';
 import { SURFACE } from '../ui/motion';
@@ -65,7 +65,7 @@ export function Onboarding({ props }: { props: { rerun?: boolean; starterOnly?: 
       useStore.getState().patch({ settings });
       if (plan && days.length) {
         const routines = buildStarter({ days: days.length, goal, experience: exp, access: eq }, SEED_EXERCISES).filter((r) => r.items.length);
-        if (routines.length) { useStore.getState().patch((x) => ({ routines: [...x.routines, ...routines], schedule: { ...x.schedule, mode: 'weekly', weekly: assignWeek(days, routines) } })); toast(t('Starter plan created — edit it in Train'), { tone: 'ok' }); }
+        if (routines.length) { useStore.getState().patch((x) => ({ routines: [...x.routines, ...routines], schedule: withWeeklySince(x.schedule, { ...x.schedule, mode: 'weekly', weekly: assignWeek(days, routines) }, dayKey(Date.now(), x.settings.dayStartHour)) })); toast(t('Starter plan created — edit it in Train'), { tone: 'ok' }); }
       }
     }
     closeAll();

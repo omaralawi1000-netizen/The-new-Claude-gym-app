@@ -27,6 +27,7 @@ import { FpsMeter } from './ui/FpsMeter';
 import { useLaunch } from './ui/launch';
 import { BgBody, PER_TAB, barColor, useSkyClock, type BgKind } from './ui/Backdrop';
 import { FieldGlow } from './ui/Glows';
+import { surfaceOf } from './lib/types';
 
 /** Where the last tap landed — the theme switch spreads out from there. */
 const lastTap = { x: typeof window !== 'undefined' ? window.innerWidth / 2 : 0, y: 0 };
@@ -92,6 +93,8 @@ function useTheme() {
   useLayoutEffect(() => { document.documentElement.dataset.palette = palette; }, [palette]);
   const glow = useStore((x) => x.settings.glow ?? 'full');
   useLayoutEffect(() => { document.documentElement.dataset.glow = glow; }, [glow]);
+  const surface = useStore((x) => surfaceOf(x.settings.surface));
+  useLayoutEffect(() => { document.documentElement.dataset.surface = surface; }, [surface]);
   const bg = useStore((x) => x.settings.background ?? 'classic');
   useLayoutEffect(() => { document.documentElement.dataset.bg = bg; }, [bg]);
   useEffect(() => { document.documentElement.lang = lang; }, [lang]);
@@ -347,7 +350,7 @@ export function App() {
     try { history.replaceState(history.state, '', location.pathname); } catch { /* ignore */ }
     const st = useStore.getState();
     const today = dayKey(Date.now(), st.settings.dayStartHour);
-    const mealId = defaultMealId(st.settings.meals);
+    const mealId = defaultMealId(st.settings.meals, new Date(), st.settings.dayStartHour);
     setTimeout(() => {
       if (doIt === 'food') push('foodSearch', { date: today, mealId });
       else if (doIt === 'voice') push('voice', { mode: 'food', date: today, mealId });

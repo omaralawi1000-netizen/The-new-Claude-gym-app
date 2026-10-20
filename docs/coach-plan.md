@@ -55,6 +55,9 @@ The polish plan (`docs/polish-plan.md`) is paused while this runs.
     S26 allows it); it takes only set-shaped answers ("8 at 80", "same again", "skip", "done") and ignores the rest; a
     number far from last time is asked about, not logged; it says back what it logged with a few seconds to say "no".
 
+- [ ] **Coach brain (19 Oct, before eating part 2)**: handbook, person model, data trust, thinking, communication, AI
+  heavy-day verdict, Coach exam and a model contest via OpenRouter — full plan in `docs/coach-brain-plan.md`.
+
 - [ ] **Phase 6: programs and seasons**: multi-week blocks ("6 weeks to the tournament") with the weekly review as the
   checkpoint; wrestling weight class and competition dates with a safe make-weight plan (never dehydration or extreme cuts);
   targets that follow his weight trend, as a preview with the reason; "review my program".

@@ -6,10 +6,10 @@ import { useT, useLang } from '../../lib/i18n';
 import { Icon } from '../../ui/Icon';
 import { NumInput } from '../../ui/kit';
 import { Sheet, SheetHead, SOFT } from '../../ui/Sheet';
-import { elapsedMs, sessionSetCount, sessionVolume, sessionHeadline, countable } from '../../lib/workout';
+import { elapsedMs, sessionSetCount, sessionVolume, sessionHeadline, countable, workoutName } from '../../lib/workout';
 import { fmtDate, fmtDuration, fmtDurationLong } from '../../lib/dates';
 import { backupAfterWorkout } from '../../lib/drive';
-import { displayToKg, fmtNum, kgToDisplay } from '../../lib/units';
+import { displayToKg, fmtNum, kgToDisplay, mToDisplay } from '../../lib/units';
 import type { RecordKind, WorkoutSession } from '../../lib/types';
 import { exName, fmtSet } from './common';
 import { plan, play } from './finishMoment';
@@ -22,6 +22,24 @@ const REC_LABEL: Record<RecordKind, string> = { weight: 'Heaviest set', e1rm: 'E
 
 function Stat({ label, text, unit }: { label: string; text: string; unit?: string }) {
   return <div className="sum-stat" data-fm="tile"><div className="micro">{label}</div><div className="display display-md num" style={{ marginTop: 4 }}><Odo text={text} /><span className="t3 small" style={{ fontFamily: 'var(--f-ui)', fontStretch: '100%', fontWeight: 600 }}> {unit}</span></div></div>;
+}
+
+/** A session note saved as you type (a moment after you stop), on blur, and when the sheet closes, so Back never loses it. */
+function useNoteSave(id: string) {
+  const pending = useRef<string | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const flush = useCallback(() => {
+    clearTimeout(timer.current);
+    if (pending.current === null) return;
+    const note = pending.current.trim() || undefined;
+    pending.current = null;
+    useStore.getState().mutateSession(id, (x) => (x.note === note ? x : { ...x, note }));
+  }, [id]);
+  useEffect(() => flush, [flush]);
+  return {
+    onChange: (e: { target: { value: string } }) => { pending.current = e.target.value; clearTimeout(timer.current); timer.current = setTimeout(flush, 600); },
+    onBlur: flush,
+  };
 }
 
 const celebrated = new Set<string>(); // a session's moment is felt once, not again when its summary is reopened
@@ -62,16 +80,17 @@ export function Summary({ props }: { props: { sessionId: string } }) {
   useEffect(() => () => stop.current?.(), []);
   // the orb fades out while the summary is up (styles.css, :root[data-finish])
   useLayoutEffect(() => { const r = document.documentElement; r.dataset.finish = ''; return () => { delete r.dataset.finish; }; }, []);
+  const note = useNoteSave(props.sessionId);
   if (!ses) return null;
   const hEx = headline?.exerciseId ? exMap.get(headline.exerciseId) : undefined;
-  const line = headline ? t(headline.key, { ...headline.vars, exercise: hEx ? exName(hEx, lang) : '' }) : '';
+  const line = headline ? t(headline.key, { ...headline.vars, ...('name' in headline.vars ? { name: workoutName(String(headline.vars.name), t) } : {}), exercise: hEx ? exName(hEx, lang) : '' }) : '';
   const saveRoutine = () => {
-    const r = saveWorkoutAsRoutine(ses, { name: ses.name || t('Workout') });
+    const r = saveWorkoutAsRoutine(ses, { name: workoutName(ses.name, t) });
     haptic('saved'); toast(t('Saved as routine'), { tone: 'ok', actionLabel: t('Undo'), onAction: r.undo });
   };
   return (
     <Sheet onClose={closeAll} tall label={t('Workout summary')} z={60} foot={<div className="row-flex" style={{ gap: 10 }}><button className="btn grow press" onClick={() => push('sessionDetail', { id: ses.id })}>{t('Details')}</button><button className="btn primary grow press" onClick={() => { haptic('light'); backupAfterWorkout(); closeAll(); }}>{t('Done')}</button></div>}>
-      <SheetHead title={t('Nice work')} sub={`${ses.name || t('Workout')} · ${fmtDate(ses.date, lang)}`} onClose={closeAll} />
+      <SheetHead title={t('Nice work')} sub={`${workoutName(ses.name, t)} · ${fmtDate(ses.date, lang)}`} onClose={closeAll} />
       <div className="sheet-body melt-foot" ref={body}>
         {/* the medal turns in like a coin as the sheet rises; gold with the count when records fell (finishMoment.ts) */}
         <div className={`sum-medal${recs.length ? ' gold' : ''}`} data-fm="medal" aria-label={recs.length ? t(recs.length === 1 ? '1 new record' : '{n} new records', { n: recs.length }) : undefined}>
@@ -97,7 +116,7 @@ export function Summary({ props }: { props: { sessionId: string } }) {
             {recs.map((r, i) => {
               const ex = exMap.get(r.exerciseId);
               const vset = r.kind === 'volume' ? ses.exercises.flatMap((e) => e.sets).find((q) => q.id === r.setId && q.reps) : undefined;
-              const fv = (v: number) => vset && v === r.value ? `${fmtNum(kgToDisplay(vset.weightKg ?? 0, u.weight), lang, 2)} ${u.weight} × ${vset.reps}` : r.kind === 'reps' ? String(v) : r.kind === 'duration' ? `${v}s` : r.kind === 'distance' ? `${fmtNum(v / 1000, lang, 2)} km` : `${fmtNum(kgToDisplay(v, u.weight), lang, r.kind === 'e1rm' ? 1 : 2)} ${u.weight}`;
+              const fv = (v: number) => vset && v === r.value ? `${fmtNum(kgToDisplay(vset.weightKg ?? 0, u.weight), lang, 2)} ${u.weight} × ${vset.reps}` : r.kind === 'reps' ? String(v) : r.kind === 'duration' ? `${v}s` : r.kind === 'distance' ? `${fmtNum(mToDisplay(v, u.distance), lang, 2)} ${u.distance}` : `${fmtNum(kgToDisplay(v, u.weight), lang, r.kind === 'e1rm' ? 1 : 2)} ${u.weight}`;
               return (
                 <div key={i} data-fm="after" className="plinth" style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
                   <span style={{ width: 34, height: 34, borderRadius: 12, background: 'var(--gold)', color: '#3a2a05', display: 'grid', placeItems: 'center' }}><Icon name="bolt" size={18} /></span>
@@ -144,7 +163,7 @@ export function Summary({ props }: { props: { sessionId: string } }) {
             );
           })}
         </div>
-        <div className="field" style={{ marginTop: 20 }}><label htmlFor="s-note">{t('Session note')}</label><textarea id="s-note" className="input" defaultValue={ses.note ?? ''} placeholder={t('How did it feel?')} onBlur={(e) => s.mutateSession(ses.id, (x) => ({ ...x, note: e.target.value.trim() || undefined }))} /></div>
+        <div className="field" style={{ marginTop: 20 }}><label htmlFor="s-note">{t('Session note')}</label><textarea id="s-note" className="input" defaultValue={ses.note ?? ''} placeholder={t('How did it feel?')} {...note} /></div>
         {!ses.routineId && <button className="btn block press" style={{ marginTop: 14 }} onClick={saveRoutine}><Icon name="copy" size={18} /> {t('Save as routine')}</button>}
         </div>
       </div>
@@ -164,6 +183,7 @@ export function SessionDetail({ props }: { props: { id: string } }) {
   const exMap = exerciseMap(s.exercises);
   const u = s.settings.units;
   const [choosing, setChoosing] = useState(false);
+  const note = useNoteSave(props.id);
   if (!ses) return null;
   const patch = (seId: string, setId: string, p: Partial<WorkoutSession['exercises'][number]['sets'][number]>) =>
     s.mutateSession(ses.id, (x) => ({ ...x, exercises: x.exercises.map((e) => (e.id === seId ? { ...e, sets: e.sets.map((q) => (q.id === setId ? { ...q, ...p } : q)) } : e)) }));
@@ -181,7 +201,7 @@ export function SessionDetail({ props }: { props: { id: string } }) {
   const source = ses.routineId ? s.routines.find((r) => r.id === ses.routineId) : undefined;
   const saveAs = (into?: string) => {
     setChoosing(false);
-    const r = saveWorkoutAsRoutine(ses, { name: ses.name || t('Workout'), into });
+    const r = saveWorkoutAsRoutine(ses, { name: workoutName(ses.name, t), into });
     haptic('saved');
     toast(into ? t('Routine updated') : t('Saved as routine'), { tone: 'ok', actionLabel: t('Undo'), onAction: r.undo });
     push('routine', { id: r.id });
@@ -192,8 +212,8 @@ export function SessionDetail({ props }: { props: { id: string } }) {
     if (r) { useUI.getState().closeAll(); setTimeout(() => push('workout', { origin: 'none' }), 50); }
   };
   return (
-    <Sheet onClose={pop} tall label={ses.name} z={100}>
-      <SheetHead title={ses.name || t('Workout')} sub={`${fmtDate(ses.date, lang, { weekday: 'long', day: 'numeric', month: 'long' })} · ${fmtDurationLong(elapsedMs(ses) / 1000, lang)}`} onClose={pop} />
+    <Sheet onClose={pop} tall label={workoutName(ses.name, t)} z={100}>
+      <SheetHead title={workoutName(ses.name, t)} sub={`${fmtDate(ses.date, lang, { weekday: 'long', day: 'numeric', month: 'long' })} · ${fmtDurationLong(elapsedMs(ses) / 1000, lang)}`} onClose={pop} />
       <div className="sheet-body">
         <div className="row-flex" style={{ gap: 8, marginBottom: choosing ? 10 : 16 }}>
           <button className="btn sm press" onClick={repeat}><Icon name="repeat" size={16} /> {t('Repeat')}</button>
@@ -238,7 +258,7 @@ export function SessionDetail({ props }: { props: { id: string } }) {
             </div>
           );
         })}
-        <div className="field" style={{ marginTop: 10 }}><label htmlFor="sd-note">{t('Session note')}</label><textarea id="sd-note" className="input" defaultValue={ses.note ?? ''} onBlur={(e) => s.mutateSession(ses.id, (x) => ({ ...x, note: e.target.value.trim() || undefined }))} /></div>
+        <div className="field" style={{ marginTop: 10 }}><label htmlFor="sd-note">{t('Session note')}</label><textarea id="sd-note" className="input" defaultValue={ses.note ?? ''} {...note} /></div>
       </div>
     </Sheet>
   );

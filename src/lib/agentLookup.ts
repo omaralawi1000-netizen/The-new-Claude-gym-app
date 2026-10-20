@@ -5,12 +5,13 @@
  *
  * Pure: data in, text out (easy to test). Each answer is capped so a look-up can never flood the request.
  */
+import { handbookTopic } from './handbook';
 import type { AppData, Exercise, MuscleGroup } from './types';
 import { addDays, diffDays, weekdayOf } from './dates';
 import { fold } from './foodText';
 import { searchArchive } from './archive';
 import { matchExercises } from './workoutText';
-import { epley, historyOf, incrementFor, repRange, suggestProgression, elapsedMs } from './workout';
+import { epley, historyOf, incrementFor, repRange, suggestProgression, elapsedMs, workoutSearchName } from './workout';
 import { MUSCLES, nutritionByDay, setsPerMuscle, stalledLifts, trendRate, weightTrend, average } from './stats';
 import { plannedFor } from '../state/store';
 import { guideSections } from './coachContext';
@@ -113,7 +114,7 @@ function workouts(d: AppData, l: Lookup, env: LookupEnv): string {
   const byId = new Map(env.pool.map((e) => [e.id, e]));
   const q = l.query ? fold(l.query) : '';
   const routineName = (id?: string) => d.routines.find((r) => r.id === id)?.name ?? '';
-  const list = d.sessions.filter((s) => s.status === 'done' && s.date >= from && s.date <= to && (!q || fold(s.name).includes(q) || fold(routineName(s.routineId)).includes(q)));
+  const list = d.sessions.filter((s) => s.status === 'done' && s.date >= from && s.date <= to && (!q || fold(workoutSearchName(s.name)).includes(q) || fold(routineName(s.routineId)).includes(q)));
   if (!list.length) return `No finished workouts ${q ? `matching "${l.query}" ` : ''}between ${from} and ${to}.`;
   return cap([...list].reverse().map((s) => `${s.date} "${s.name || routineName(s.routineId) || 'Workout'}" (${Math.round(elapsedMs(s) / 60000)} min): ${s.exercises.map((e) => `${exLabel(byId.get(e.exerciseId), e.exerciseId)}: ${e.sets.filter((x) => x.done).map(setTxt).join(', ') || 'no sets done'}`).join(' | ')}`));
 }
@@ -138,7 +139,7 @@ function exerciseHistory(d: AppData, l: Lookup, env: LookupEnv): string {
     const top = Math.max(0, ...work.filter((x) => x.weightKg && x.reps).map((x) => epley(x.weightKg!, x.reps!)));
     lines.push(`${date}: ${work.map(setTxt).join(', ')}${top ? ` (best e1RM ${r1(top)} kg)` : ''}`);
   }
-  const sugg = ex.logType === 'weightReps' ? suggestProgression(ex, hist, repRange(hist[0].sets), incrementFor(ex, d.increments, d.settings.plateStep)) : null;
+  const sugg = ex.logType === 'weightReps' ? suggestProgression(ex, hist, repRange(hist[0].sets), incrementFor(ex, d.increments, d.settings.plateStep, d.settings.units.weight)) : null;
   const head = `${ex.name} (${ex.muscles.join(', ')}; ${ex.equipment.join(', ')}): ${hist.length} sessions.${best ? ` Best set ${r1(best.w)} kg × ${best.r} on ${best.date} (e1RM ${r1(best.e1)} kg).` : ''}${sugg ? ` Next time: ${sugg.kind}${sugg.sets?.length ? ` → ${sugg.sets.map((x) => `${x.weightKg ?? '—'}kg×${x.reps}`).join(', ')}` : ''}.` : ''}`;
   return cap([head, ...lines]);
 }
@@ -182,7 +183,30 @@ function activities(d: AppData, l: Lookup, env: LookupEnv): string {
   const q = l.query ? fold(l.query) : '';
   const list = d.activities.filter((a) => a.date >= from && a.date <= to && (!q || fold(a.kind).includes(q)));
   if (!list.length) return `No activities ${q ? `like "${l.query}" ` : ''}between ${from} and ${to}.`;
-  return cap([...list].sort((a, b) => (a.date < b.date ? 1 : -1)).map((a) => `${a.date} (${WEEKDAYS[weekdayOf(a.date)]}) ${a.kind} ${Math.round(a.durationSec / 60)} min${a.rounds ? `, ${a.rounds} rounds` : ''}${a.intensity ? `, ${['', 'easy', 'hard', 'max'][a.intensity]}` : ''}${a.note ? ` — ${a.note}` : ''}`));
+  return cap([...list].sort((a, b) => (a.date < b.date ? 1 : -1)).map((a) => `${a.date} (${WEEKDAYS[weekdayOf(a.date)]}) ${a.kind} ${Math.round(a.durationSec / 60)} min${a.rounds ? `, ${a.rounds} rounds` : ''}${a.intensity ? `, ${['', 'easy', 'hard', 'max'][a.intensity]}` : ''}${a.source === 'watch' ? `${a.name ? ` (${a.name})` : ''}${a.avgHr ? `, avg ${a.avgHr} bpm` : ''}${a.maxHr ? `, max ${a.maxHr}` : ''}${a.kcal ? `, ${a.kcal} kcal` : ''}${a.distanceM ? `, ${(a.distanceM / 1000).toFixed(1)} km` : ''}, from the watch` : ''}${a.note ? ` — ${a.note}` : ''}`));
+}
+
+/** Everything the watch measured per day over a range: sleep and its stages, resting HR, HRV, calories, steps, body. */
+function health(d: AppData, l: Lookup, env: LookupEnv): string {
+  const [from, to] = range(l, env, 30);
+  const steps = new Map((d.steps ?? []).map((x) => [x.date, x.count]));
+  const days = (d.health ?? []).filter((x) => x.date >= from && x.date <= to);
+  const dates = [...new Set([...days.map((x) => x.date), ...[...steps.keys()].filter((x) => x >= from && x <= to)])].sort().reverse();
+  if (!dates.length) return `No watch data between ${from} and ${to}${d.health?.length ? ` (it goes back to ${d.health[0].date})` : ''}.`;
+  const by = new Map(days.map((x) => [x.date, x]));
+  const hm = (m: number) => `${Math.floor(m / 60)}h${String(Math.round(m % 60)).padStart(2, '0')}`;
+  return cap(dates.map((date) => {
+    const x = by.get(date);
+    const p = [
+      steps.get(date) !== undefined && `${steps.get(date)} steps`,
+      x?.sleepMin !== undefined && `sleep ${hm(x.sleepMin)}${x.deepMin ? ` (deep ${hm(x.deepMin)}${x.remMin ? `, REM ${hm(x.remMin)}` : ''})` : ''}`,
+      x?.restHr !== undefined && `resting HR ${x.restHr}`, x?.hrv !== undefined && `HRV ${x.hrv} ms`,
+      x?.activeKcal !== undefined && `${x.activeKcal} active kcal`, x?.distanceM !== undefined && `${(x.distanceM / 1000).toFixed(1)} km`, x?.floors !== undefined && `${x.floors} floors`,
+      x?.weightKg !== undefined && `${x.weightKg} kg`, x?.bodyFat !== undefined && `body fat ${x.bodyFat}%`, x?.vo2max !== undefined && `VO2 max ${x.vo2max}`,
+      x?.spo2 !== undefined && `SpO2 ${x.spo2}%`, x?.respRate !== undefined && `breathing ${x.respRate}/min`,
+    ].filter(Boolean);
+    return `${date} (${WEEKDAYS[weekdayOf(date)]}): ${p.join(', ')}`;
+  }));
 }
 
 function balance(d: AppData, l: Lookup, env: LookupEnv): string {
@@ -304,6 +328,7 @@ export function runLookups(d: AppData, list: Lookup[], env: LookupEnv): string {
         case 'records': out = records(d, l, env); break;
         case 'body': out = body(d, l, env); break;
         case 'activities': out = activities(d, l, env); break;
+        case 'health': out = health(d, l, env); break;
         case 'training_balance': out = balance(d, l, env); break;
         case 'schedule': out = schedule(d, l, env); break;
         case 'routines': out = routines(d, l, env); break;
@@ -313,6 +338,7 @@ export function runLookups(d: AppData, list: Lookup[], env: LookupEnv): string {
         case 'memory': out = memory(d, l); break;
         case 'notes': out = notes(d, l, env); break;
         case 'conversations': out = conversations(l, env); break;
+        case 'handbook': out = handbookTopic(l.query); break;
         case 'web': out = '(answered by the web search)'; break; // (agentTurn.ts runs it: it is not on the phone)
         case 'guide': { const g = guideSections(); const k = fold(l.query ?? ''); const hit = Object.keys(g).find((x) => k.includes(x) || x.includes(k)); out = k && hit ? g[hit] : `Sections: ${Object.keys(g).join(', ')}.\n${g.coach}`; break; }
         default: out = 'Unknown look-up.';
@@ -329,8 +355,8 @@ export function lookupStatus(list: Lookup[], t: (k: string, v?: Record<string, s
   if (!l) return '';
   const what: Record<LookupKind, string> = {
     food: 'your food log', nutrition: 'your nutrition', workouts: 'your workouts', exercise_history: 'your history', records: 'your records',
-    body: 'your weight', activities: 'your activities', training_balance: 'your training balance', schedule: 'your plan', routines: 'your routines',
-    exercises: 'your exercises', saved_food: 'your saved food', settings: 'your settings', memory: 'what you told me', notes: 'your notes', conversations: 'what you said', guide: 'the app', web: 'the web',
+    body: 'your weight', activities: 'your activities', health: 'your watch data', training_balance: 'your training balance', schedule: 'your plan', routines: 'your routines',
+    exercises: 'your exercises', saved_food: 'your saved food', settings: 'your settings', memory: 'what you told me', notes: 'your notes', conversations: 'what you said', guide: 'the app', handbook: 'the handbook', web: 'the web',
   };
   if (l.kind === 'exercise_history' && l.query) return t('Looking at your {x} history…', { x: l.query });
   if (l.kind === 'web') return t('Searching the web…');

@@ -74,7 +74,7 @@ await ask('I don’t do leg day, wrestling covers my legs', true);
 assert(await p.locator('.action-card').getByText('Remembered').isVisible(), 'a Remembered card');
 await ask('what do you think of my routine?');
 assert(/MEMORY \(what the user has told you before[^]*1\. \[preference\] Doesn’t do a separate leg day/.test(seen.at(-1).system), 'the memory is in the next request');
-assert(/ASK, DON'T ASSUME/.test(seen.at(-1).system), 'and the rule to ask instead of assume');
+assert(/ask the one question that would change it/.test(seen.at(-1).system), 'and the rule to ask instead of assume');
 await p.screenshot({ path: 'shots/coach-2-memory.png' });
 
 // ── the chat stays when the Coach is closed; after a break the suggestions come back under it ──
