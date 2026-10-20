@@ -3039,3 +3039,27 @@ Tried on Beta first; Omar's yes 20 Oct. Judge files in /mnt/project-files/coach-
   250 ms check of the dock's rect (idle main thread 130 → 40 ms/s at 4x CPU). Unchanged state is no longer posted each frame.
 - Left as is: the typing bar's frost clip (no cheaper look-identical way: the blur is redone anyway as its parts move), a
   ~0.3 s send-button fade during the voice lift, and Chrome's grey band under the keyboard as it opens (platform).
+
+## The watch in the background, and in detail (20 Oct 2026)
+Omar wanted the watch synced more often, also when Aven is closed, and "the most detailed possible": continuous heart rate,
+every sleep stage, steps.
+- **In the background.** With "access in the background" allowed in Health Connect (Android 15 and up), `HealthJob` reads every
+  half hour (Android picks the moment; not on low battery; again after a restart). Whatever opens Aven then finds numbers at
+  most half an hour old and opens with them at once (read in the last 5 min: no wait at all; Sync now: under 2 min old, at
+  once). The page itself can only receive them when Aven opens or Sync now is tapped: a web page can't be handed data while
+  it sits open. Settings → Watch says whether background reading is on, and where to allow it if not. Already connected
+  phones are asked for it once on the next sync.
+- **The walk through the history moves only when the page has had a stretch** (`delivered`). Half-hourly reads would
+  otherwise walk past two years in a day without the page ever seeing it. The older stretches are read once and kept until
+  delivered, so the background reads stay light (Health Connect limits background reads harder; its exact quotas aren't
+  published).
+- **Detail** ("dt"): heart rate a minute at a time (the average of every reading in that minute: every few minutes at rest,
+  every second in a workout, all the time with "measure continuously" on the watch), steps a minute at a time (Health
+  Connect's own count, phone and watch counted once), every sleep session (naps too) with each stage and its times. The last
+  3 days every time, older days 4 at a time back to 90 days. Minutes are packed two characters each and the whole answer is
+  squeezed (raw deflate, "hc=z~…", about 4× smaller), so a week with everything else is about 20,000 characters. The
+  emulator carried 60,000 without trouble (an earlier "too big" was only adb's own command-line limit: the test now reads
+  the address on the phone).
+- **Kept apart** in IndexedDB `aven-watch` (`lib/watchDetail.ts`, the last 365 days), not in the app data (every save would
+  carry it) and not in backups (Health Connect has it). `watchDetails(from, to)`, `minutes(packed)` and `onWatchDetail` are
+  the way in for anything that draws it. Delete all data clears it; Beta has its own.
