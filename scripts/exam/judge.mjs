@@ -36,7 +36,7 @@ if (pickArg.startsWith('set:')) ids = ids.filter((id) => first(A, id).set === pi
 else if (pickArg) ids = pickArg.split(',').filter((id) => ids.includes(id));
 const SHOW = (x) => JSON.stringify(x);
 const ans = (r) => `Words: ${r.reply?.trim() || '(none)'}\nActions: ${r.actions?.length ? r.actions.map(SHOW).join('\n') : '(none)'}`;
-const factsFor = (r) => { const f = `${out}/facts/${r.persona}__${r.id}.txt`; return existsSync(f) ? readFileSync(f, 'utf8').slice(0, 40000) : '(no facts saved)'; };
+const factsFor = (r) => { const f = `${out}/facts/${r.persona}__${r.id}.txt`; return existsSync(f) ? readFileSync(f, 'utf8').slice(0, 20000) : '(no facts saved)'; };
 
 async function judge(r, x, y) {
   if (ledger().total >= BUDGET) throw new Error(`budget: stopped at $${ledger().total.toFixed(2)}`);
