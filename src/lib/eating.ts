@@ -85,10 +85,11 @@ export function ageFromMemory(memory0: (Pick<MemoryNote, 'text'> & Partial<Pick<
     const x = /\bage:\s*(\d{1,2})\s*\(as of (\d{4}-\d{2}-\d{2})\)/i.exec(m.text);
     if (x) return Number(x[1]) + Math.max(0, Math.floor(diffDays(today, x[2]) / 365.25));
   }
-  // (other wordings only when the note starts with their own age: "He is 16 years old", "16-årig bryder" — not "trains
+  // (other wordings only when the note starts with their own age: "He is 16 years old", "User is 18 years old" (how the
+  // Coach wrote Omar's), "16-årig bryder" — not "trains
   // with his dad, who is 45 years old")
   for (const m of memory) {
-    const x = /^\s*(?:(?:he|she|they|i)(?:'s|'m| is| am| are)\s+|(?:jeg|han|hun|de) er\s+)?(\d{1,2})[- ]?(?:years?[- ]old|yrs? old|år gammel|årig)\b/i.exec(m.text) ?? /^\s*(?:age|alder)\s*:?\s*(\d{1,2})\b/i.exec(m.text);
+    const x = /^\s*(?:(?:(?:the )?user|he|she|they|i)(?:'s|'m| is| am| are)\s+|(?:brugeren|jeg|han|hun|de) er\s+)?(\d{1,2})[- ]?(?:years?[- ]old|yrs? old|år gammel|årig)\b/i.exec(m.text) ?? /^\s*(?:age|alder)\s*:?\s*(\d{1,2})\b/i.exec(m.text);
     if (x) return Number(x[1]);
   }
   return undefined;

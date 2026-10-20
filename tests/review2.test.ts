@@ -88,6 +88,7 @@ describe('who they are', () => {
   it('someone else\'s age in a note is not theirs', () => {
     expect(ageFromMemory([{ text: 'Trains with his dad, who is 45 years old' }], today)).toBeUndefined();
     expect(ageFromMemory([{ text: 'He is 16 years old, 178 cm.' }], today)).toBe(16);
+    expect(ageFromMemory([{ text: 'User is 18 years old.' }], today)).toBe(18); // (Omar's real note, 20 Oct)
   });
   it('a health note always fits, even with memory full', async () => {
     useStore.setState({ memory: Array.from({ length: 60 }, (_, i) => ({ id: `m${i}`, text: `note ${i}`, kind: 'other' as const, at: i })) });
