@@ -3021,3 +3021,21 @@ model choice wasted it, and he wants "a dynamic coach, like a real coach".
   DATA, so "how's my week?" is answered in one round (~16 s, was 19–29 s with a look-up round).
 - Shipped to the real app with #173, #174 and #177 as v0.1.163 (Omar, 20 Oct: "I can only really test it on main").
   Next: the coach's notebook (what it advised, when to check), follow-ups and a weekly check-in.
+
+## Coach deep dive and smoothness (v0.1.164, 20 Oct)
+From Omar's 19 Oct recordings ("flickers, unpolished animations, stutters, icons disappearing"); strict judges 6/10 (live) → 9/10.
+Tried on Beta first; Omar's yes 20 Oct. Judge files in /mnt/project-files/coach-polish/r13-deep/.
+- Stutter: style writes that restyled the whole sheet are gone. No `[style*=]` test left of a combinator, no app-wide `:has()`,
+  and --kb-room / --foot-h / --grow-pad are registered `inherits: false` and written on `.sheet-body` (10-17 ms → 0.2-1 ms).
+- Flicker: an answer's word layers are kept until it scrolls off screen; the flying bubble hides by opacity (its layer is made
+  at flight start); Today's Coach/Settings buttons keep their press layers (3 drops when the Coach opened → 0).
+- Orb: closing with the keyboard up, it rides its button, then settles onto the dock line on a critically damped spring from
+  the button's own speed (it leapt 175 px). Reopened mid-close, it coasts on and turns round from where it is (slot is a new
+  element: keyed by id). It fades with the Coach when Settings opens over it.
+- Older messages: loaded in idle batches of 6, never while answering, flying or with the keyboard moving; a sub-pixel shim
+  on the thread makes each batch add whole pixels, so the view holds exactly still (scrollTop is whole CSS px).
+- Stop X stays until the last word; typing dots keep their phase; waiting send button dims as a whole; photo chip folds away.
+- Dock orb at rest: the script loop sleeps while the worker turns it; everything that can move or light it wakes it, plus a
+  250 ms check of the dock's rect (idle main thread 130 → 40 ms/s at 4x CPU). Unchanged state is no longer posted each frame.
+- Left as is: the typing bar's frost clip (no cheaper look-identical way: the blur is redone anyway as its parts move), a
+  ~0.3 s send-button fade during the voice lift, and Chrome's grey band under the keyboard as it opens (platform).
