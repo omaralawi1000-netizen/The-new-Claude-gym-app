@@ -277,7 +277,7 @@ export function SphereStage() {
     // page's frames. Position and size still come from here (the page's layout), the drawing itself from there.
     let renderer: SphereRenderer | null = null;
     let worker: Worker | null = null;
-    let workerVoice = 0, workerRunning = false;
+    let workerVoice = 0, workerRunning = false, sentKey = '';
     orbStats.fps = 0; orbStats.offThread = false;
     // a canvas handed to a worker can't be drawn on again; an effect re-run (StrictMode, a setting) needs a fresh one
     if (transferred.has(cv)) { setGen((g) => g + 1); return; }
@@ -722,7 +722,11 @@ export function SphereStage() {
       if (launchMix >= 0) { inp.colorsTo = to; inp.colorMix = launchMix; }
       let vv: number;
       if (worker) {
-        worker.postMessage({ state: { bucket, dpr, reduced, colors, inp, run: true } });
+        // (only what changed: idle in the dock the same state went over every frame; the worker keeps turning it on its own clock.
+        // A one-off kick or a live voice always goes)
+        const key = inp.tap || inp.whoosh || inp.ignite || inp.beat || inp.live ? '' : JSON.stringify([bucket, dpr, reduced, colors, { ...inp, phaseAge: inp.phase === 'confirmed' ? inp.phaseAge : 0 }]);
+        if (!workerRunning || !key || key !== sentKey) worker.postMessage({ state: { bucket, dpr, reduced, colors, inp, run: true } });
+        sentKey = key;
         workerRunning = true;
         vv = workerVoice;
       } else {

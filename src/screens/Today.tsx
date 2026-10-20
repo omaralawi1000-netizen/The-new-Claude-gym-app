@@ -160,8 +160,8 @@ export function TodayScreen() {
       <header className="row-flex between">
         <div className="small t2">{fmtDate(today, lang, { weekday: 'long', day: 'numeric', month: 'short' })}{settings.name ? <span className="t3"> · {settings.name}</span> : null}</div>
         <div className="row-flex" style={{ gap: 8 }}>
-          <button className="icon-btn press" aria-label={t('Coach')} onClick={() => push('coach')}><Icon name="sparkle" /></button>
-          <button className="icon-btn press" aria-label={t('Settings')} onClick={() => push('settings')}><Icon name="settings" /></button>
+          <button className="icon-btn press hd-keep" aria-label={t('Coach')} onClick={() => push('coach')}><Icon name="sparkle" /></button>
+          <button className="icon-btn press hd-keep" aria-label={t('Settings')} onClick={() => push('settings')}><Icon name="settings" /></button>
         </div>
       </header>
 
