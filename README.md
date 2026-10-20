@@ -3022,7 +3022,7 @@ model choice wasted it, and he wants "a dynamic coach, like a real coach".
 - Shipped to the real app with #173, #174 and #177 as v0.1.163 (Omar, 20 Oct: "I can only really test it on main").
   Next: the coach's notebook (what it advised, when to check), follow-ups and a weekly check-in.
 
-## Coach deep dive and smoothness (v0.1.164, 20 Oct)
+## Coach deep dive and smoothness (v0.1.165, 20 Oct)
 From Omar's 19 Oct recordings ("flickers, unpolished animations, stutters, icons disappearing"); strict judges 6/10 (live) → 9/10.
 Tried on Beta first; Omar's yes 20 Oct. Judge files in /mnt/project-files/coach-polish/r13-deep/.
 - Stutter: style writes that restyled the whole sheet are gone. No `[style*=]` test left of a combinator, no app-wide `:has()`,
