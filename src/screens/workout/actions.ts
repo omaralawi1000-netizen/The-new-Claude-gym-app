@@ -126,8 +126,8 @@ export function toggleSuperset(seId: string) {
   });
 }
 
-export function startRest(sec: number, exerciseId: string) {
-  useStore.getState().mutateActive((a) => ({ ...a, rest: { endsAt: Date.now() + sec * 1000, total: sec, exerciseId } }));
+export function startRest(sec: number, exerciseId: string, setId?: string) {
+  useStore.getState().mutateActive((a) => ({ ...a, rest: { endsAt: Date.now() + sec * 1000, total: sec, exerciseId, ...(setId ? { setId } : {}) } }));
 }
 export function adjustRest(deltaSec: number) {
   useStore.getState().mutateActive((a) => (a.rest ? { ...a, rest: { ...a.rest, endsAt: a.rest.endsAt + deltaSec * 1000, total: Math.max(5, a.rest.total + deltaSec) } } : a));

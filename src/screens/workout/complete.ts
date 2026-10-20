@@ -70,7 +70,7 @@ export function completeSet(seId: string, setId: string, over: Values = {}): Set
     const linkedNext = se.supersetGroup && all.slice(idx + 1).some((e) => e.supersetGroup === se.supersetGroup && e.sets.some((x) => !x.done));
     const lastOne = !all.some((e) => e.sets.some((x) => !x.done && x.id !== set.id));
     if (lastOne) skipRest(); // the workout is done: no rest, no alarm
-    else if (!linkedNext) { startRest(se.restSec ?? st.settings.restDefaultSec, se.exerciseId); offerRestAlerts(useUI.getState().toast); }
+    else if (!linkedNext) { startRest(se.restSec ?? st.settings.restDefaultSec, se.exerciseId, set.id); offerRestAlerts(useUI.getState().toast); }
     else skipRest();
   }
   const done: SetDone = { setId, pr, gain };

@@ -931,7 +931,11 @@ const SetRow = memo(function SetRow({ se, set, ex, label, prev, restDefault }: {
   }), [set.id]);
 
   const complete = () => {
-    if (set.done) { patchSet(se.id, set.id, { done: false, completedAt: undefined }); skipRest(); return; }
+    if (set.done) {
+      patchSet(se.id, set.id, { done: false, completedAt: undefined });
+      if (useStore.getState().active?.rest?.setId === set.id) skipRest(); // only the rest this set's tick started
+      return;
+    }
     if (!completeSet(se.id, set.id, eff)) { setShake((n) => n + 1); haptic('warn'); toast(t('Enter reps first'), { tone: 'bad', duration: 1800 }); }
   };
 
