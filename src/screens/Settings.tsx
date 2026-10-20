@@ -62,10 +62,13 @@ const TITLE = {
 
 type Section = null | 'profile' | 'today' | 'targets' | 'training' | 'food' | 'units' | 'look' | 'reminders' | 'data' | 'privacy' | 'ai' | 'memory' | 'watch' | 'about';
 
-function Row({ icon, title, sub, onClick, value }: { icon: any; title: string; sub?: string; onClick: () => void; value?: string }) {
+function Row({ icon, title, sub, onClick, value, initial }: { icon: any; title: string; sub?: string; onClick: () => void; value?: string; initial?: string }) {
   return (
     <button className="li press" onClick={onClick}>
-      <span style={{ width: 38, height: 38, borderRadius: 12, background: 'var(--s2)', display: 'grid', placeItems: 'center', boxShadow: 'inset 0 0 0 1px var(--line)', flex: 'none' }}><Icon name={icon} size={19} /></span>
+      {initial
+        // you: your initial in a round badge, a touch bigger than the icons below
+        ? <span style={{ width: 44, height: 44, margin: -3, borderRadius: '50%', background: 'var(--s2)', display: 'grid', placeItems: 'center', boxShadow: 'inset 0 0 0 1px var(--line)', flex: 'none', fontSize: 19, fontWeight: 600 }}>{initial}</span>
+        : <span style={{ width: 38, height: 38, borderRadius: 12, background: 'var(--s2)', display: 'grid', placeItems: 'center', boxShadow: 'inset 0 0 0 1px var(--line)', flex: 'none' }}><Icon name={icon} size={19} /></span>}
       <div className="grow" style={{ textAlign: 'left', minWidth: 0 }}><div className="li-title">{title}</div>{sub && <div className="li-sub trunc">{sub}</div>}</div>
       {value && <span className="small t2">{value}</span>}<Icon name="chevR" size={16} style={{ color: 'var(--tx3)' }} />
     </button>
@@ -287,7 +290,7 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
             {!sec && (
               <>
                 <div className="list">
-                  <Row icon="body" title={st.name.trim() || t('Profile')} sub={profileSub(st, t, lang)} onClick={() => setSec('profile')} />
+                  <Row icon="body" initial={st.name.trim()[0]?.toUpperCase()} title={st.name.trim() || t('Profile')} sub={profileSub(st, t, lang)} onClick={() => setSec('profile')} />
                   <Row icon="bolt" title={t('Targets')} sub={st.goals.kcal ? `${fmtNum(st.goals.kcal, lang, 0)} kcal${st.goals.protein ? ` · ${fmtNum(st.goals.protein, lang, 0)} g ${t('protein')}` : ''}` : t('Calories, macros, water — optional')} onClick={() => setSec('targets')} />
                   <Row icon="dumbbell" title={t('Training')} sub={`${t('Rest')} ${fmtDuration(st.restDefaultSec)} · ${st.effort === 'off' ? t('no RPE/RIR') : st.effort.toUpperCase()}`} onClick={() => setSec('training')} />
                   <Row icon="food" title={t('Food & water')} onClick={() => setSec('food')} />
@@ -496,14 +499,15 @@ function Profile({ onAdjust }: { onAdjust: () => void }) {
       </Field>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         <Field label={t('Current weight')} hint={latest ? fmtDate(latest.date, lang) : t('Log a weigh-in on Today')}>
-          <div className="input num" aria-readonly style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: latest ? 'var(--tx)' : 'var(--tx3)' }}>{latest ? fmtNum(kgToDisplay(latest.kg, wu), lang, 1) : '—'}<span className="t3" style={{ fontSize: '0.85em' }}>{wu}</span></div>
+          {/* drawn exactly like the goal weight next to it (same field, same unit), only not editable */}
+          <div className="input-unit has-unit"><input className="input" readOnly tabIndex={-1} aria-label={t('Current weight')} value={latest ? fmtNum(kgToDisplay(latest.kg, wu), lang, 1) : ''} placeholder="—" /><span className="unit">{wu}</span></div>
         </Field>
         <Field label={t('Goal weight')} hint={toGo !== undefined ? (Math.abs(toGo) < 0.05 ? t('Reached') : t('{n} to go', { n: `${fmtNum(kgToDisplay(Math.abs(toGo), wu), lang, 1)} ${wu}` })) : undefined}>
           <NumInput label={t('Goal weight')} value={b.goalWeightKg ? Math.round(kgToDisplay(b.goalWeightKg, wu) * 10) / 10 : undefined} max={1} unit={wu} placeholder="—" onChange={(v) => setBody({ goalWeightKg: v ? displayToKg(v, wu) : undefined })} />
         </Field>
       </div>
       <div className="list">
-        <Row icon="flame" title={t('Adjust calories')} value={g.kcal ? `${fmtNum(g.kcal, lang, 0)} kcal` : undefined} onClick={onAdjust} />
+        <Row icon="flame" title={t('Adjust calories')} sub={g.kcal ? `${fmtNum(g.kcal, lang, 0)} kcal` : undefined} onClick={onAdjust} />
         <Row icon="bolt" title={t('Adjust macros')} sub={g.protein !== undefined && g.carbs !== undefined && g.fat !== undefined ? `${fmtNum(g.protein, lang, 0)} g ${t('protein')} · ${fmtNum(g.carbs, lang, 0)} g ${t('carbs')} · ${fmtNum(g.fat, lang, 0)} g ${t('fat')}` : undefined} onClick={onAdjust} />
       </div>
       <div className="xs t3">{t('What your watch burns is shown on Food, never added to your target.')}</div>
