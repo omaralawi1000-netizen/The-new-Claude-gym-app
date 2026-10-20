@@ -11,7 +11,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNo
 import { useScreenStore } from '../lib/hooks';
 import { useT, useLang, type TFn } from '../lib/i18n';
 import { useToday } from '../lib/derive';
-import { fmtDate, fmtTime } from '../lib/dates';
+import { addDays, fmtDate, fmtTime } from '../lib/dates';
 import { fmtNum, fmtSigned, kgToDisplay } from '../lib/units';
 import { ACTIVITY_LABEL } from '../lib/activity';
 import type { ActivityLog, Lang } from '../lib/types';
@@ -21,6 +21,7 @@ import { C, Hypnogram, NightHeart, Ribbon, ScoreRing, Spark, StepsDay, Trace, We
 import { Expander } from './health/expand';
 import { ProgressBody } from './Progress';
 import { Roll } from '../ui/Roll';
+import { springCurve, SMOOTH } from '../ui/motion';
 import { Icon } from '../ui/Icon';
 import { useUI } from '../state/ui';
 import './health/health.css';
@@ -51,9 +52,10 @@ export function HealthScreen() {
   const pending = useRef<HTMLElement | null>(null);
   const swapDir = useRef(0);
   const inHist = useRef(false);
+  const chips = useRef<HTMLDivElement>(null), chipFrom = useRef<{ x: number; w: number } | null>(null);
 
   useLayoutEffect(() => {
-    eng.current = new Expander({ root: root.current!, det: det.current!, L: [L1.current!, L2.current!, L3.current!], mat: mat.current!, dsc: dsc.current!, fly: fly.current!, edge: edge.current! });
+    eng.current = new Expander({ root: root.current!, scr: scr.current!, det: det.current!, L: [L1.current!, L2.current!, L3.current!], mat: mat.current!, dsc: dsc.current!, fly: fly.current!, edge: edge.current! });
     return () => eng.current?.closeNow();
   }, []);
 
@@ -61,7 +63,7 @@ export function HealthScreen() {
   useLayoutEffect(() => {
     const e = eng.current; if (!e || !openK) return;
     if (!e.st && pending.current) { e.open(openK, pending.current); pending.current = null; }
-    else if (e.st && swapDir.current) { e.swapIn(swapDir.current); swapDir.current = 0; }
+    else if (e.st && swapDir.current) { e.swapIn(swapDir.current); swapDir.current = 0; slideCap(); }
   }, [openK]);
 
   const done = useCallback((next: { k: string; src: HTMLElement } | null) => {
@@ -83,8 +85,18 @@ export function HealthScreen() {
     window.addEventListener('popstate', onPop);
     return () => { window.removeEventListener('popstate', onPop); if (inHist.current) { inHist.current = false; try { history.back(); } catch { /* fine */ } } };
   }, [done]);
+  // the chip highlight is one capsule that slides to the chosen chip (FLIP on its ::before; the chip's text stays put)
+  const slideCap = () => {
+    const on = chips.current?.querySelector<HTMLElement>('button.on'), f = chipFrom.current; chipFrom.current = null;
+    if (!on || !f || reduced()) return;
+    const r = on.getBoundingClientRect();
+    on.animate([{ transform: `translateX(${f.x - r.left}px) scaleX(${f.w / r.width})` }, { transform: 'none' }], { pseudoElement: '::before', duration: 560, easing: springCurve(SMOOTH).easing, fill: 'both' });
+    const row = chips.current!, want = on.offsetLeft - (row.clientWidth - on.offsetWidth) / 2;
+    row.scrollTo({ left: Math.max(0, want), behavior: 'smooth' });
+  };
   const swap = (k: K) => {
     const e = eng.current, st = e?.st; if (!e || !st || st.closing || st.k === k) return;
+    const was = chips.current?.querySelector<HTMLElement>('button.on')?.getBoundingClientRect(); chipFrom.current = was ? { x: was.left, w: was.width } : null;
     const sec = scr.current?.querySelector<HTMLElement>(`.hx-sec[data-k="${k}"]`); if (!sec) return;
     swapDir.current = e.swapOut(k, sec, ORDER.indexOf(k) > ORDER.indexOf(st.k as K) ? 1 : -1, scr.current!) ?? 0;
     setOpenK(k);
@@ -110,13 +122,13 @@ export function HealthScreen() {
         {!v.hasWatch && <p className="hx-note">{t('Connect your watch in Settings → Watch, and sleep, heart and steps fill in here.')}</p>}
       </div>
       <div ref={det} className="hx-detail" style={{ ['--c' as string]: openK ? COL[openK] : C.sleep }} onClick={passTap}>
-        <div ref={L1} className="hx-L"><div ref={L2} className="hx-L"><div ref={L3} className="hx-L">
+        <div ref={L1} className="hx-L hx-rnd"><div ref={L2} className="hx-L hx-rnd"><div ref={L3} className="hx-L">
           <div ref={mat} className="hx-mat" />
           <div ref={dsc} className="hx-dsc">
             {openK && (
               <div className="hx-page">
                 <div className="hx-dhead"><button className="hx-x press" aria-label={t('Close')} onClick={close}>✕</button></div>
-                <div className="hx-chips">{shown.map((k) => <button key={k} className={k === openK ? 'on' : ''} style={{ ['--c' as string]: COL[k] }} onClick={() => swap(k)}><i />{t(NAME[k])}</button>)}</div>
+                <div className="hx-chips" ref={chips}>{shown.map((k) => <button key={k} className={k === openK ? 'on' : ''} style={{ ['--c' as string]: COL[k] }} onClick={() => swap(k)}><i />{t(NAME[k])}</button>)}</div>
                 <Page key={openK} k={openK} v={v} t={t} lang={lang} />
               </div>
             )}
@@ -154,7 +166,8 @@ function useIntro(scr: React.RefObject<HTMLDivElement | null>, v: HealthView) {
     // lines of the sentence: words grouped by the line they sit on (the house rhythm: 60 ms a step, at most 4)
     const words = [...el.querySelectorAll<HTMLElement>('.hx-w')];
     const lines: HTMLElement[][] = [];
-    for (const w of words) { const top = w.getBoundingClientRect().top; const l = lines.find((x) => Math.abs(x[0].getBoundingClientRect().top - top) < 12); if (l) l.push(w); else lines.push([w]); }
+    const mid = (x: HTMLElement) => { const r = x.getBoundingClientRect(); return r.top + r.height / 2; };
+    for (const w of words) { const m = mid(w); const l = lines.find((x) => Math.abs(mid(x[0]) - m) < 16); if (l) l.push(w); else lines.push([w]); }
     const steps = [[...el.querySelectorAll<HTMLElement>('.hx-ln')], ...lines];
     steps.forEach((g, i) => g.forEach((w) => rise(w, 60 + Math.min(i, 5) * 60)));
   }, [scr, v.hasWatch, hasRibbon, v.body.kg, v.ready]);
@@ -175,9 +188,9 @@ function useIntro(scr: React.RefObject<HTMLDivElement | null>, v: HealthView) {
     wipe('sleep', 380, 1100);
     layer('sleep')?.firstElementChild?.animate([{ opacity: 0.4, offset: 0 }], { duration: 900, delay: 380, easing: 'linear', fill: 'both' });
     wipe('heart', 560, 1300);
-    layer('steps')?.firstElementChild?.animate([{ transform: 'translateY(46px)', offset: 0 }], { duration: 1100, delay: 900, easing: EO, fill: 'both' });
+    layer('steps')?.firstElementChild?.animate([{ opacity: 0, transform: 'translateY(90px)', offset: 0 }, { opacity: 1, offset: 0.3 }], { duration: 1200, delay: 760, easing: EO, fill: 'both' });
     layer('moves')?.animate([{ opacity: 0, transform: 'translateY(6px)', offset: 0 }], { duration: 700, delay: 1300, easing: EO, fill: 'both' });
-    layer('now')?.animate([{ opacity: 0, transform: 'translateY(-10px)', offset: 0 }], { duration: 700, delay: 1650, easing: EO, fill: 'both' });
+    layer('now')?.animate([{ opacity: 0, transform: 'translateY(-10px)', offset: 0 }], { duration: 700, delay: 1300, easing: EO, fill: 'both' });
   });
 
   // sections rise when they come into view (not all at once below the fold, where nobody sees it)
@@ -297,7 +310,7 @@ const READY_WHY: Record<string, string> = {
   hrv: 'Your HRV is under your normal.',
   restHr: 'Your resting heart rate is above your usual.',
   sleep: "Last night's sleep is holding it back.",
-  load: 'You have trained a lot more than usual this week.',
+  load: 'Your last 7 days were harder than your usual weeks.',
   breathing: 'You are breathing faster than usual.',
   oxygen: 'Your blood oxygen was low last night.',
 };
@@ -310,7 +323,7 @@ function Parts({ s, t }: { s: Score; t: TFn }) {
       {s.parts.map((p) => (
         <div key={p.key} className="hx-strow">
           <b>{t(PART[p.key] ?? p.key)}</b>
-          <div className="hx-sbar"><span className="hx-sb" style={{ ['--sc' as string]: 'var(--c)', width: `calc(${Math.round(p.score)}% - 4px)` }} /></div>
+          <div className="hx-sbar"><span className="hx-sb" style={{ ['--sc' as string]: 'var(--c)', width: `${Math.round(p.score)}%` }} /></div>
           <span className="num">{Math.round(p.score)}</span>
         </div>
       ))}
@@ -353,8 +366,8 @@ function Page({ k, v, t, lang }: { k: K; v: HealthView; t: TFn; lang: Lang }) {
       <div className="hx-bleed hx-hyp" data-share="chart"><Hypnogram night={n.session} w={W} /></div>
       <h3 className="hx-dt hx-rise">{head}</h3>
       {diff !== undefined && <p className="hx-dsub hx-rise">{Math.abs(diff) < 15 ? t('About your usual {u}.', { u: hm(n.usual!, lang) }) : t(diff > 0 ? '{d} more than your usual {u}.' : '{d} less than your usual {u}.', { d: hm(Math.abs(diff), lang), u: hm(n.usual!, lang) })}</p>}
-      {sc && <div className="hx-panel hx-rise"><div className="hx-rowc"><div><div className="hx-ptitle" style={{ margin: 0 }}>{t('Sleep score')}</div><div className="hx-n" style={{ fontSize: 40, fontWeight: 300, marginTop: 4 }}>{sc.score}<small>/100 · {t(sc.band)}</small></div>{sc.cap && <div className="hx-sub" style={{ marginTop: 4 }}>{t('Under 7 h 40 of sleep it stays at most {n}.', { n: sc.cap })}</div>}</div><ScoreRing value={sc.score} color={C.sleep} /></div><div style={{ marginTop: 14 }}><Parts s={sc} t={t} /></div></div>}
-      <div className="hx-panel hx-rise"><div className="hx-stages">{st.map(([name, m, c]) => <div key={name} className="hx-strow"><b style={{ color: c }}>{name}</b><div className="hx-sbar"><span className="hx-sb" style={{ ['--sc' as string]: c, width: `calc(${Math.round((m / mx) * 100)}% - 4px)` }} /></div><span>{hm(m, lang)}</span></div>)}</div></div>
+      {sc && <div className="hx-panel hx-rise"><div className="hx-rowc"><div><div className="hx-ptitle" style={{ margin: 0 }}>{t('Sleep score')}</div><div className="hx-n" style={{ fontSize: 40, fontWeight: 300, marginTop: 4 }}>{sc.score}<small>/100 · {t(sc.band)}</small></div>{sc.cap && sc.capMin && <div className="hx-sub" style={{ marginTop: 4, textWrap: 'balance' }}>{t('Under {h} of sleep it stays at most {n}.', { h: hm(sc.capMin, lang), n: sc.cap })}</div>}</div><ScoreRing value={sc.score} color={C.sleep} /></div><div style={{ marginTop: 14 }}><Parts s={sc} t={t} /></div></div>}
+      <div className="hx-panel hx-rise"><div className="hx-stages">{st.map(([name, m, c]) => <div key={name} className="hx-strow"><b style={{ color: c }}>{name}</b><div className="hx-sbar"><span className="hx-sb" style={{ ['--sc' as string]: c, width: `${Math.round((m / mx) * 100)}%` }} /></div><span>{hm(m, lang)}</span></div>)}</div></div>
       <div className="hx-panel hx-rise"><div className="hx-ptitle">{n.usual ? t('The last 14 nights · usual {u}', { u: hm(n.usual, lang) }) : t('The last 14 nights')}</div>
         <svg viewBox={`0 0 ${w} 112`} width={w} height={112} style={{ display: 'block', overflow: 'visible' }} aria-hidden>
           <defs><clipPath id="hx14"><rect x="0" y="-10" width={w} height="106" /></clipPath></defs>
@@ -372,13 +385,14 @@ function Page({ k, v, t, lang }: { k: K; v: HealthView; t: TFn; lang: Lang }) {
     const h = v.heart;
     const vit: [string, number | undefined, [number, number] | undefined, string][] = [[t('Resting'), h.rest, h.restRange, ''], [t('HRV'), h.hrv, h.hrvRange, ' ms'], [t('Oxygen'), h.spo2, h.spo2Range, ' %'], [t('Breathing'), h.resp, h.respRange, '']];
     const calm = h.rest !== undefined && h.usual !== undefined && h.rest <= h.usual;
+    const hrvLow = h.hrv !== undefined && !!h.hrvRange && h.hrv < h.hrvRange[0];
     out = <>
       <div className="hx-lab"><i />{t('Resting heart rate')}</div>
       <div><span className="hx-n hx-n64" data-share="num">{h.rest ?? '—'}</span><span className="hx-sub hx-unit">{t('bpm resting')}</span></div>
-      <div className="hx-bleed" data-share="chart" style={{ marginTop: 4 }}><Trace values={h.trace} band={h.restRange} w={W} usualLabel={t('your usual')} /></div>
-      <h3 className="hx-dt hx-rise">{calm ? t('Your heart is calm') : t('Your heart is working a little harder')}</h3>
+      <div className="hx-bleed" data-share="chart" style={{ marginTop: 4 }}><Trace values={h.trace} band={h.restRange} w={W} usualLabel={t('your usual')} ends={[fmtDate(addDays(v.today, 1 - h.trace.length), lang, { day: 'numeric', month: 'short' }), t('Today')]} /></div>
+      <h3 className="hx-dt hx-rise">{!calm ? t('Your heart is working a little harder') : hrvLow ? t('A calm pulse, with HRV a little low') : t('Your heart is calm')}</h3>
       {h.rest !== undefined && h.usual !== undefined && <p className="hx-dsub hx-rise">{t('Resting at {n}, your usual is {u}.', { n: h.rest, u: Math.round(h.usual) })}</p>}
-      {h.overnight.length > 4 && <div className="hx-panel hx-rise"><div className="hx-ptitle">{t('Last night, minute by minute')}</div><div className="hx-bleed" style={{ marginTop: -6 }}><NightHeart points={h.overnight} w={W} lowLabel={(b) => t('low {n}', { n: b })} /></div></div>}
+      {h.overnight.length > 4 && <div className="hx-panel hx-rise"><div className="hx-ptitle">{t('Last night, minute by minute')}</div><div className="hx-bleed" style={{ marginTop: -6 }}><NightHeart points={h.overnight} w={W} lowLabel={(b) => t('low {n}', { n: b })} ends={[fmtTime(h.overnight[0].t, lang), fmtTime(h.overnight[h.overnight.length - 1].t, lang)]} /></div></div>}
       <div className="hx-panel hx-rise"><div className="hx-ptitle">{t('Overnight vitals')}</div><div className="hx-vit">{vit.filter((x) => x[1] !== undefined).map(([name, val, rg, unit]) => {
         const lo = rg ? rg[0] - (rg[1] - rg[0] + 1) : 0, hi = rg ? rg[1] + (rg[1] - rg[0] + 1) : 1, pos = (x: number) => Math.max(0, Math.min(100, ((x - lo) / (hi - lo)) * 100));
         return <div key={name} className="hx-vrow"><span>{name}</span><div className="hx-rg">{rg && <u style={{ left: `${pos(rg[0])}%`, width: `${pos(rg[1]) - pos(rg[0])}%` }} />}<i style={{ left: `${rg ? pos(val!) : 50}%` }} /></div><b>{fmtNum(val!, lang, 0)}{unit}</b></div>;
@@ -415,7 +429,7 @@ function Page({ k, v, t, lang }: { k: K; v: HealthView; t: TFn; lang: Lang }) {
       <div className="hx-lab"><i />{t('This week')}</div>
       <div className="hx-sub" style={{ marginTop: 2 }}><b className="hx-hi">{wk.cardioMin} min</b> {t('cardio')} · <b className="hx-hi">{t('{a} of {b}', { a: wk.workouts, b: wk.target })}</b> {t('workouts')}</div>
       <div data-share="chart" style={{ marginBottom: 28 }}><WeekStrip days={wk.days} today={v.today} letter={(d) => fmtDate(d, lang, { weekday: 'narrow' })} /></div>
-      {wk.sports.length > 0 && <div className="hx-panel hx-rise"><div className="hx-ptitle">{t('Minutes by sport')}</div>{wk.sports.map((x) => <div key={x.label} className="hx-sport"><span className="hx-sub">{x.label}</span><div className="hx-sbar"><span className="hx-sb" style={{ ['--sc' as string]: C.cardio, width: `calc(${Math.round((x.min / mx) * 100)}% - 4px)` }} /></div><span className="hx-sub" style={{ textAlign: 'right' }}>{x.min}</span></div>)}</div>}
+      {wk.sports.length > 0 && <div className="hx-panel hx-rise"><div className="hx-ptitle">{t('Minutes by sport')}</div>{wk.sports.map((x) => <div key={x.label} className="hx-sport"><span className="hx-sub">{x.label}</span><div className="hx-sbar"><span className="hx-sb" style={{ ['--sc' as string]: C.cardio, width: `${Math.round((x.min / mx) * 100)}%` }} /></div><span className="hx-sub" style={{ textAlign: 'right' }}>{x.min}</span></div>)}</div>}
       {wk.last && <div className="hx-panel hx-rise"><div className="hx-ptitle">{t('Last session')}</div><div className="hx-n" style={{ fontSize: 26, fontWeight: 300 }}>{wk.last.name || t(ACTIVITY_LABEL[wk.last.kind])} · {Math.round(wk.last.durationSec / 60)} min</div>
         <div className="hx-sub" style={{ marginTop: 6 }}>{[fmtDate(wk.last.date, lang), wk.last.avgHr ? t('avg {n} bpm', { n: Math.round(wk.last.avgHr) }) : '', wk.last.maxHr ? t('top {n}', { n: Math.round(wk.last.maxHr) }) : '', wk.last.kcal ? `${fmtNum(wk.last.kcal, lang, 0)} kcal` : ''].filter(Boolean).join(' · ')}</div></div>}
     </>;

@@ -12,7 +12,7 @@ import type { SleepSession } from './watchDetail';
 import type { ActivityLog, HealthDay, WorkoutSession } from './types';
 
 export interface Part { key: string; score: number; weight: number }
-export interface Score { score: number; band: string; parts: Part[]; /** the part that pulled it down most */ low?: string; cap?: number }
+export interface Score { score: number; band: string; parts: Part[]; /** the part that pulled it down most */ low?: string; /** short sleep held the score down to this (it bit) */ cap?: number; /** …because the night was under this many minutes */ capMin?: number }
 
 /** straight lines between points [x, y] (x rising); flat beyond both ends */
 export function curve(x: number, pts: [number, number][]): number {
@@ -109,7 +109,7 @@ export function sleepScore(x: SleepInput): Score | null {
   // caps, so the number always means what it says: short sleep can't look great however tidy it was
   const cap = asleep < 300 ? 59 : asleep < 360 ? 74 : asleep < 430 ? 84 : asleep < 460 ? 92 : 100;
   const score = Math.round(Math.min(c.score, cap));
-  return { score, band: score >= 85 ? 'Great' : score >= 70 ? 'Good' : score >= 55 ? 'Fair' : 'Poor', parts, low: c.low ?? (cap < 100 && c.score > cap ? 'duration' : undefined), cap: cap < 100 ? cap : undefined };
+  return { score, band: score >= 85 ? 'Great' : score >= 70 ? 'Good' : score >= 55 ? 'Fair' : 'Poor', parts, low: c.low ?? (cap < 100 && c.score > cap ? 'duration' : undefined), cap: c.score > cap ? cap : undefined, capMin: c.score > cap ? (cap === 59 ? 300 : cap === 74 ? 360 : cap === 84 ? 430 : 460) : undefined };
 }
 
 // ── Training load ────────────────────────────────────────────

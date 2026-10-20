@@ -64,14 +64,15 @@ export function Hypnogram({ night, w, h = 72, pad = 20 }: { night: SleepSession;
 }
 
 /** a line of daily values with your usual range as two hairlines; today a dot */
-export function Trace({ values, band, w, h = 40, pad = 20, color = C.heart, usualLabel }: { values: number[]; band?: [number, number]; w: number; h?: number; pad?: number; color?: string; usualLabel?: string }) {
+export function Trace({ values, band, w, h = 40, pad = 20, color = C.heart, usualLabel, ends }: { values: number[]; band?: [number, number]; w: number; h?: number; pad?: number; color?: string; usualLabel?: string; ends?: [string, string] }) {
   if (values.length < 2) return <div style={{ height: h + 12 }} />;
   const sm = avg(values, 1);
   const lo = Math.min(...sm, band?.[0] ?? Infinity) - 1, hi = Math.max(...sm, band?.[1] ?? -Infinity) + 1;
   const y = (v: number) => 12 + h - ((v - lo) / (hi - lo)) * h;
   const P = sm.map((v, i): [number, number] => [pad + (i / (sm.length - 1)) * (w - 2 * pad), y(v)]);
   return (
-    <Svg w={w} h={h + 14}>
+    <Svg w={w} h={h + 14 + (ends ? 18 : 0)}>
+      {ends && <><text className="hx-ax3" x={pad} y={h + 30}>{ends[0]}</text><text className="hx-ax3" x={w - pad} y={h + 30} textAnchor="end">{ends[1]}</text></>}
       {band && <>
         <rect x={pad} y={y(band[1])} width={w - 2 * pad} height={1} fill={color} opacity={0.28} />
         <rect x={pad} y={y(band[0])} width={w - 2 * pad} height={1} fill={color} opacity={0.28} />
@@ -105,7 +106,7 @@ export function StepsDay({ today, usual, w, h = 64, pad = 20, axis }: { today: n
 }
 
 /** last night's heart rate as one calm curve, its low point marked */
-export function NightHeart({ points, w, h = 90, pad = 20, lowLabel }: { points: { t: number; bpm: number }[]; w: number; h?: number; pad?: number; lowLabel: (bpm: number) => string }) {
+export function NightHeart({ points, w, h = 90, pad = 20, lowLabel, ends }: { points: { t: number; bpm: number }[]; w: number; h?: number; pad?: number; lowLabel: (bpm: number) => string; ends?: [string, string] }) {
   if (points.length < 4) return null;
   const sm = avg(avg(points.map((p) => p.bpm), 3), 3);
   const lo = Math.min(...sm) - 2, hi = Math.max(...sm) + 2;
@@ -118,6 +119,7 @@ export function NightHeart({ points, w, h = 90, pad = 20, lowLabel }: { points: 
       <path d={smoothPath(P)} fill="none" stroke={C.heart} strokeWidth={1.75} strokeLinecap="round" />
       <rect x={P[li][0] - 0.5} y={P[li][1] + 6} width={1} height={Math.max(0, y(lo) - P[li][1] - 2)} fill={C.heart} opacity={0.35} />
       <circle cx={P[li][0]} cy={P[li][1]} r={4.5} fill={C.heart} />
+      {ends && <><text className="hx-ax3" x={pad} y={h + 22}>{ends[0]}</text><text className="hx-ax3" x={w - pad} y={h + 22} textAnchor="end">{ends[1]}</text></>}
       <text className="hx-ax" x={P[li][0]} y={P[li][1] - 10} textAnchor="middle" style={{ fill: '#ff9aae' }}>{lowLabel(Math.round(sm[li]))}</text>
     </Svg>
   );
