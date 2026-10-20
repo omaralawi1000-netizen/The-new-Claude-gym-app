@@ -183,7 +183,7 @@ export function Ribbon({ r, w, labels, axis }: { r: DayRibbon; w: number; labels
         </g>
       )))}
       {layer('heart', HP.length > 1 ? <path d={smoothPath(HP)} fill="none" stroke={C.heart} strokeWidth={1} opacity={0.45} /> : null)}
-      {layer('now', <><rect x={px(r.to) - 0.75} y={6} width={1.5} height={base - 6} rx={0.75} fill="#fff" opacity={0.6} /><circle cx={px(r.to)} cy={6} r={3} fill="#fff" /></>)}
+      {layer('now', <><rect x={px(r.to) - 0.75} y={top - 6} width={1.5} height={base - top + 6} rx={0.75} fill="#fff" opacity={0.5} /><circle cx={px(r.to)} cy={top - 6} r={3} fill="#fff" /></>)}
     </div>
   );
 }

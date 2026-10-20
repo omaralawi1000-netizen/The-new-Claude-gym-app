@@ -46,7 +46,7 @@ export function HealthScreen() {
 
   const root = useRef<HTMLDivElement>(null), scr = useRef<HTMLDivElement>(null), det = useRef<HTMLDivElement>(null);
   const L1 = useRef<HTMLDivElement>(null), L2 = useRef<HTMLDivElement>(null), L3 = useRef<HTMLDivElement>(null);
-  const mat = useRef<HTMLDivElement>(null), dsc = useRef<HTMLDivElement>(null), fly = useRef<HTMLDivElement>(null), edge = useRef<HTMLDivElement>(null);
+  const fill = useRef<HTMLDivElement>(null), mat = useRef<HTMLDivElement>(null), dsc = useRef<HTMLDivElement>(null), fly = useRef<HTMLDivElement>(null), edge = useRef<HTMLDivElement>(null);
   const eng = useRef<Expander | null>(null);
   const [openK, setOpenK] = useState<K | null>(null);
   const pending = useRef<HTMLElement | null>(null);
@@ -55,7 +55,7 @@ export function HealthScreen() {
   const chips = useRef<HTMLDivElement>(null), chipFrom = useRef<{ x: number; w: number } | null>(null);
 
   useLayoutEffect(() => {
-    eng.current = new Expander({ root: root.current!, scr: scr.current!, det: det.current!, L: [L1.current!, L2.current!, L3.current!], mat: mat.current!, dsc: dsc.current!, fly: fly.current!, edge: edge.current! });
+    eng.current = new Expander({ root: root.current!, scr: scr.current!, det: det.current!, L: [L1.current!, L2.current!, L3.current!], mat: mat.current!, fill: fill.current!, dsc: dsc.current!, fly: fly.current!, edge: edge.current! });
     return () => eng.current?.closeNow();
   }, []);
 
@@ -122,7 +122,7 @@ export function HealthScreen() {
         {!v.hasWatch && <p className="hx-note">{t('Connect your watch in Settings → Watch, and sleep, heart and steps fill in here.')}</p>}
       </div>
       <div ref={det} className="hx-detail" style={{ ['--c' as string]: openK ? COL[openK] : C.sleep }} onClick={passTap}>
-        <div ref={L1} className="hx-L hx-rnd"><div ref={L2} className="hx-L hx-rnd"><div ref={L3} className="hx-L">
+        <div ref={fill} className="hx-fill" /><div ref={L1} className="hx-L hx-rnd"><div ref={L2} className="hx-L hx-rnd"><div ref={L3} className="hx-L">
           <div ref={mat} className="hx-mat" />
           <div ref={dsc} className="hx-dsc">
             {openK && (
@@ -164,7 +164,7 @@ function useIntro(scr: React.RefObject<HTMLDivElement | null>, v: HealthView) {
     const sm = { duration: 520, easing: 'cubic-bezier(.25,1,.5,1)' };
     const rise = (x: Element, delay: number) => x.animate([{ opacity: 0, transform: 'translateY(12px)', offset: 0 }], { ...sm, delay, fill: 'both' });
     // lines of the sentence: words grouped by the line they sit on (the house rhythm: 60 ms a step, at most 4)
-    const words = [...el.querySelectorAll<HTMLElement>('.hx-w')];
+    const words = [...el.querySelectorAll<HTMLElement>('.hx-w, .hx-pill')];
     const lines: HTMLElement[][] = [];
     const mid = (x: HTMLElement) => { const r = x.getBoundingClientRect(); return r.top + r.height / 2; };
     for (const w of words) { const m = mid(w); const l = lines.find((x) => Math.abs(mid(x[0]) - m) < 16); if (l) l.push(w); else lines.push([w]); }
@@ -184,13 +184,10 @@ function useIntro(scr: React.RefObject<HTMLDivElement | null>, v: HealthView) {
       o.animate([{ transform: 'translateX(-100%)', offset: 0 }], { duration, delay, easing: EO, fill: 'both' });
       i.animate([{ transform: 'translateX(100%)', offset: 0 }], { duration, delay, easing: EO, fill: 'both' });
     };
-    layer('axis')?.animate([{ opacity: 0, offset: 0 }], { duration: 600, delay: 300, easing: 'linear', fill: 'both' });
-    wipe('sleep', 380, 1100);
-    layer('sleep')?.firstElementChild?.animate([{ opacity: 0.4, offset: 0 }], { duration: 900, delay: 380, easing: 'linear', fill: 'both' });
-    wipe('heart', 560, 1300);
-    layer('steps')?.firstElementChild?.animate([{ opacity: 0, transform: 'translateY(90px)', offset: 0 }, { opacity: 1, offset: 0.3 }], { duration: 1200, delay: 760, easing: EO, fill: 'both' });
-    layer('moves')?.animate([{ opacity: 0, transform: 'translateY(6px)', offset: 0 }], { duration: 700, delay: 1300, easing: EO, fill: 'both' });
-    layer('now')?.animate([{ opacity: 0, transform: 'translateY(-10px)', offset: 0 }], { duration: 700, delay: 1300, easing: EO, fill: 'both' });
+    // one slow sweep through the day, left to right, every layer together (the day in time order); the labels and now settle after
+    layer('axis')?.animate([{ opacity: 0, offset: 0 }], { duration: 600, delay: 200, easing: 'linear', fill: 'both' });
+    for (const k of ['sleep', 'heart', 'steps', 'moves']) wipe(k, 320, 1700);
+    layer('now')?.animate([{ opacity: 0, transform: 'translateY(-6px)', offset: 0 }], { duration: 700, delay: 1700, easing: EO, fill: 'both' });
   });
 
   // sections rise when they come into view (not all at once below the fold, where nobody sees it)
@@ -349,8 +346,8 @@ function Page({ k, v, t, lang }: { k: K; v: HealthView; t: TFn; lang: Lang }) {
       <div className="hx-lab"><i />{t('Ready today')}</div>
       <div className="hx-rowc"><div><div className="hx-n hx-n56" data-share="num">{r.score}<small>{t(r.band)}</small></div></div><div data-share="chart"><ScoreRing value={r.score} color="#f6f7fb" size={88} /></div></div>
       <h3 className="hx-dt hx-rise">{readyLine(r, t)}</h3>
-      <p className="hx-dsub hx-rise">{t('Measured against your own last 60 days. It explains; what you do with it is your call.')}</p>
-      <div className="hx-panel hx-rise"><div className="hx-ptitle">{t('What it is made of')}</div><Parts s={r} t={t} /></div>
+      <p className="hx-dsub hx-rise">{t('Measured against your own last 60 days.')}</p>
+      <div className="hx-panel hx-rise"><div className="hx-ptitle">{t('What it is made of (100 is best)')}</div><Parts s={r} t={t} /></div>
     </>;
   } else if (k === 'sleep' && v.night) {
     const n = v.night, sc = n.score;
@@ -390,7 +387,8 @@ function Page({ k, v, t, lang }: { k: K; v: HealthView; t: TFn; lang: Lang }) {
     out = <>
       <div className="hx-lab"><i />{t('Resting heart rate')}</div>
       <div><span className="hx-n hx-n64" data-share="num">{h.rest ?? '—'}</span><span className="hx-sub hx-unit">{t('bpm resting')}</span></div>
-      <div className="hx-bleed" data-share="chart" style={{ marginTop: 4 }}><Trace values={h.trace} band={h.restRange} w={W} usualLabel={t('your usual')} ends={[fmtDate(addDays(v.today, 1 - h.trace.length), lang, { day: 'numeric', month: 'short' }), t('Today')]} /></div>
+      <div className="hx-bleed" data-share="chart" style={{ marginTop: 4 }}><Trace values={h.trace} band={h.restRange} w={W} usualLabel={t('your usual')} /></div>
+      {h.trace.length > 1 && <div className="hx-ends hx-rise" style={{ marginTop: 0 }}><span className="hx-ax3">{fmtDate(addDays(v.today, 1 - h.trace.length), lang, { day: 'numeric', month: 'short' })}</span><span className="hx-ax3">{t('Today')}</span></div>}
       <h3 className="hx-dt hx-rise">{!calm ? t('Your heart is working a little harder') : hrvLow ? t('A calm pulse, with HRV a little low') : t('Your heart is calm')}</h3>
       {h.rest !== undefined && h.usual !== undefined && <p className="hx-dsub hx-rise">{t('Resting at {n}, your usual is {u}.', { n: h.rest, u: Math.round(h.usual) })}</p>}
       {h.overnight.length > 4 && <div className="hx-panel hx-rise"><div className="hx-ptitle">{t('Last night, minute by minute')}</div><div className="hx-bleed" style={{ marginTop: -6 }}><NightHeart points={h.overnight} w={W} lowLabel={(b) => t('low {n}', { n: b })} ends={[fmtTime(h.overnight[0].t, lang), fmtTime(h.overnight[h.overnight.length - 1].t, lang)]} /></div></div>}
