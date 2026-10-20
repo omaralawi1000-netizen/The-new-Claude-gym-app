@@ -2,6 +2,7 @@
 // The watch in detail: heart rate and steps a minute at a time and every sleep stage, sent by the Android app in "dt"
 // (HealthSync.java), checked, and kept on the phone apart from the app's data (lib/watchDetail.ts).
 import { describe, it, expect, beforeEach } from 'vitest';
+import { deflateRawSync } from 'node:zlib';
 import { applyHcFromAddress, hcLastLine, hcStatus, parseHc } from '../src/lib/healthSync';
 import { clearWatchDetail, minutes, parseDetail, saveWatchDetail, watchDetail, watchDetailCount } from '../src/lib/watchDetail';
 import { useStore } from '../src/state/store';
@@ -85,6 +86,20 @@ describe('through the address', () => {
     expect(hcLastLine()).toContain('7 detail days');
     // (not in the app's data: every save would carry it)
     expect(JSON.stringify(useStore.getState())).not.toContain(pack(hr).slice(0, 200));
+  });
+  it('squeezed by the Android app (the usual way now): unpacked, about 4× smaller', async () => {
+    const dt = Array.from({ length: 7 }, (_, i) => ({ d: new Date(now - i * 86400000).toISOString().slice(0, 10), hm: pack(hr), sm: pack(steps), sp: [night] }));
+    const json = JSON.stringify({ v: 1, avail: true, on: true, granted: true, at: now, days: [[day, 9000]], ex: [], dt });
+    const z = deflateRawSync(Buffer.from(json), { level: 9 }).toString('base64url');
+    expect(z.length * 3).toBeLessThan(enc(JSON.parse(json)).length);
+    const hash = `#hc=z~${z}`;
+    expect(parseHc(hash)).toBeNull(); // (needs the unpacking)
+    location.hash = encodeURIComponent(hash.slice(1)); // (as Android writes it: "hc%3Dz~…")
+    applyHcFromAddress();
+    for (let i = 0; i < 50 && (await watchDetailCount()) < 7; i++) await new Promise((r) => setTimeout(r, 10));
+    expect(await watchDetailCount()).toBe(7);
+    expect(useStore.getState().steps.find((x) => x.date === day)?.count).toBe(9000);
+    expect(location.hash).toBe('');
   });
   it('a day that comes again without heart rate keeps the heart rate it had', async () => {
     await saveWatchDetail(parseDetail([{ d: day, hm: pack(hr) }], now));

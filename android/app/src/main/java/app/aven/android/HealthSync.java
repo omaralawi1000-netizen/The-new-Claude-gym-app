@@ -41,6 +41,7 @@ import android.util.Base64;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
@@ -60,6 +61,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.zip.Deflater;
 
 /**
  * The watch, through Health Connect (Galaxy Watch → Samsung Health → Health Connect → here). Read only, on this phone only.
@@ -224,6 +226,19 @@ final class HealthSync {
         return Base64.encodeToString(json.getBytes(StandardCharsets.UTF_8), Base64.URL_SAFE | Base64.NO_WRAP | Base64.NO_PADDING);
     }
 
+    /** The numbers squeezed first (raw deflate; "z~" in front says so): the minute-by-minute detail packs about 4× smaller,
+     *  and an address only carries so much. */
+    static String encodeSqueezed(String json) {
+        Deflater d = new Deflater(9, true);
+        d.setInput(json.getBytes(StandardCharsets.UTF_8));
+        d.finish();
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        byte[] buf = new byte[8192];
+        while (!d.finished()) out.write(buf, 0, d.deflate(buf));
+        d.end();
+        return "z~" + Base64.encodeToString(out.toByteArray(), Base64.URL_SAFE | Base64.NO_WRAP | Base64.NO_PADDING);
+    }
+
     /** Reads everything (on a thread of its own) and hands the packed numbers to `done` (null if it failed). */
     static void read(Context c, Consumer<String> done) {
         if (!on(c)) { done.accept(null); return; }
@@ -346,7 +361,7 @@ final class HealthSync {
 
         // kept as the last numbers read; where the walks will stand once the page has them (two empty stretches in a row:
         // nothing that old, or no history allowed = start over)
-        String out = encode(o.toString());
+        String out = encodeSqueezed(o.toString());
         int empties = emptyChunk ? p.getInt(EMPTY, 0) + 1 : 0;
         p.edit().putString(EX_CACHE, trim(cache).toString()).putString(CHUNK_CACHE, keptText).putString(DETAIL_CACHE, keptDetail.toString())
             .putString(LAST, out).putLong(LAST_AT, System.currentTimeMillis())

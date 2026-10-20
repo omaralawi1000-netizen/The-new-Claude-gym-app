@@ -51,16 +51,35 @@ function saveStatus(p: HcPayload, synced: boolean) {
 
 const num = (v: unknown, lo: number, hi: number) => (typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi ? v : undefined);
 
-/** "#hc=…" → the checked numbers, or null. */
+/** "hc=" and its numbers in the address; "z~" in front = squeezed (raw deflate) by the Android app. */
+const HC = /(?:^#|&)hc=(z~)?([A-Za-z0-9_-]{8,400000})/;
+const bytesOf = (b64url: string) => {
+  const b64 = b64url.replace(/-/g, '+').replace(/_/g, '/');
+  const bin = atob(b64 + '='.repeat((4 - (b64.length % 4)) % 4));
+  return Uint8Array.from(bin, (c) => c.charCodeAt(0));
+};
+
+/** "#hc=…" → the checked numbers, or null (a squeezed one needs `parseHcAsync`). */
 export function parseHc(hash: string): HcPayload | null {
-  const m = /(?:^#|&)hc=([A-Za-z0-9_-]{8,400000})/.exec(hash);
-  if (!m) return null;
+  const m = HC.exec(hash);
+  if (!m || m[1]) return null;
   let raw: any;
+  try { raw = JSON.parse(new TextDecoder().decode(bytesOf(m[2]))); } catch { return null; }
+  return checkHc(raw);
+}
+
+/** The same, squeezed or not. */
+export async function parseHcAsync(hash: string): Promise<HcPayload | null> {
+  const m = HC.exec(hash);
+  if (!m) return null;
+  if (!m[1]) return parseHc(hash);
   try {
-    const b64 = m[1].replace(/-/g, '+').replace(/_/g, '/');
-    const bin = atob(b64 + '='.repeat((4 - (b64.length % 4)) % 4));
-    raw = JSON.parse(new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0))));
+    const out = new Response(bytesOf(m[2])).body!.pipeThrough(new DecompressionStream('deflate-raw'));
+    return checkHc(JSON.parse(await new Response(out).text()));
   } catch { return null; }
+}
+
+function checkHc(raw: any): HcPayload | null {
   if (!raw || raw.v !== 1) return null;
   const now = Date.now();
   const at = num(raw.at, now - 30 * 86400000, now + 86400000) ?? now;
@@ -178,10 +197,14 @@ export function applyHcFromAddress(): void {
   let hash = location.hash;
   try { hash = decodeURIComponent(hash); } catch { /* as it is */ }
   if (!/(?:^#|&)hc=/.test(hash)) return;
-  const len = hash.length;
-  const p = parseHc(hash);
   // (out of the address either way: a reload or a shared link must not carry it)
   try { history.replaceState(history.state, '', location.pathname + location.search); } catch { /* fine */ }
+  // a squeezed answer (the usual one now) is unpacked first: a moment later
+  if (HC.exec(hash)?.[1]) void parseHcAsync(hash).then((p) => keepHc(p, hash.length));
+  else keepHc(parseHc(hash), hash.length);
+}
+
+function keepHc(p: HcPayload | null, len: number): void {
   // what the Android app sent back last, as plain facts (the Watch screen shows them: one screenshot says where it stops)
   try { localStorage.setItem(LAST, JSON.stringify({ at: Date.now(), len, ok: !!p, inApp: appOnPhone(), ...(p ? { avail: p.avail, on: p.on, granted: p.granted, note: p.note, days: p.days?.length, ex: p.ex?.length, hd: p.hd?.length, dt: p.dt?.length, bg: p.bg, ms: p.ms } : {}) })); } catch { /* fine */ }
   // Connect watch / Sync now was tapped here a moment ago: this is its answer (the app reopens Aven at its start, so the
