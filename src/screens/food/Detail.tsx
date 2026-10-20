@@ -4,7 +4,7 @@ import { useStore, foodPool } from '../../state/store';
 import { useUI, haptic } from '../../state/ui';
 import { useT, useLang } from '../../lib/i18n';
 import type { Food, FoodSnapshot, Quantity } from '../../lib/types';
-import { allowedUnits, entryFromSnapshot, scale, snapshotOf, toBase, uid, NUTRIENT_KEYS } from '../../lib/nutrition';
+import { allowedUnits, entryFromSnapshot, hasPer100, scale, snapshotOf, toBase, uid, NUTRIENT_KEYS } from '../../lib/nutrition';
 import { fmtNum } from '../../lib/units';
 import { fmtNutrient, NUTRIENT_LABEL, NUTRIENT_UNIT, sourceLabel } from '../../lib/format';
 import { Icon } from '../../ui/Icon';
@@ -82,6 +82,8 @@ export function FoodDetail({ props }: { props: { food?: Food; foodId?: string; e
   const fav = s.favourites.includes(food.id);
   const editing = !!entry;
   const meal = s.settings.meals.find((m) => m.id === mealId);
+  // a food with no per-100 values would save an entry with no nutrients at all (quick entries are edited in their own sheet)
+  const usable = hasPer100(food);
 
   const setUnit = (unit: 'g' | 'ml' | 'portion', portionId?: string) => {
     if (unit === 'portion') setQty({ amount: 1, unit, portionId });
@@ -89,7 +91,7 @@ export function FoodDetail({ props }: { props: { food?: Food; foodId?: string; e
   };
 
   const save = () => {
-    if (saving.current || !base.ok || qty.amount <= 0) return;
+    if (saving.current || !usable || !base.ok || qty.amount <= 0) return;
     saving.current = true;
     haptic('saved');
     const snap = snapshotOf(food);
@@ -230,7 +232,7 @@ export function FoodDetail({ props }: { props: { food?: Food; foodId?: string; e
   );
 
   const foot = (
-    <button className="btn primary block press" onClick={save} disabled={!base.ok || qty.amount <= 0}>
+    <button className="btn primary block press" onClick={save} disabled={!usable || !base.ok || qty.amount <= 0}>
       {editing ? t('Save changes') : t('Add to {meal}', { meal: meal ? mealName(meal, lang) : '' })}
       {n.kcal !== undefined && <span className="num" style={{ opacity: 0.7 }}> · {fmtNum(Math.round(n.kcal), lang, 0)} kcal</span>}
     </button>

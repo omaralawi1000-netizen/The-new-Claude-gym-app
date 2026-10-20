@@ -133,6 +133,21 @@ export function quickEntry(
   };
 }
 
+/** The snapshot has per-100 values to rescale from (quick, photo and many Coach logs have only totals). */
+export function hasPer100(snap: { per100: Nutrients }): boolean {
+  return NUTRIENT_KEYS.some((k) => typeof snap.per100?.[k] === 'number' && Number.isFinite(snap.per100[k]));
+}
+
+/** Logged as totals, not as an amount of a food: edited in the quick-entry sheet, never in the food detail. */
+export function isQuickEntry(e: FoodEntry): boolean {
+  return !!e.quick || !hasPer100(e.snap);
+}
+
+/** Which sheet edits a logged entry, and with what props. Every place that opens an entry goes through this. */
+export function entryEditor(e: FoodEntry): { type: 'quickAdd' | 'foodDetail'; props: { entryId: string; date: string; mealId: string } } {
+  return { type: isQuickEntry(e) ? 'quickAdd' : 'foodDetail', props: { entryId: e.id, date: e.date, mealId: e.mealId } };
+}
+
 // ── Recipes ─────────────────────────────────────────────────
 
 export interface RecipeCalc {
