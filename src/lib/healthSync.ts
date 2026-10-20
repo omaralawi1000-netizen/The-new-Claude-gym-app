@@ -20,6 +20,7 @@ import { appOnPhone } from './androidApp';
 import { useStore } from '../state/store';
 import { useUI } from '../state/ui';
 import { tNow } from './i18n';
+import { parseDetail, saveWatchDetail, type WatchDetail } from './watchDetail';
 
 export interface HcWorkout { id: string; t: string; n?: string; s: number; e: number; hr?: number; hx?: number; kc?: number; m?: number; src?: string }
 export interface HcPayload {
@@ -30,15 +31,21 @@ export interface HcPayload {
   ex?: HcWorkout[];
   /** everything else per day (sleep, resting heart rate, HRV, body…) */
   hd?: HealthDay[];
+  /** the detail: heart rate and steps a minute at a time, every sleep stage (lib/watchDetail.ts) */
+  dt?: WatchDetail[];
+  /** reading in the background is allowed (the app reads every half hour while Aven is closed) */
+  bg?: boolean;
+  /** how long the read took on the phone (ms) */
+  ms?: number;
 }
 
 /** How it stands, for Settings (no numbers): kept on the phone. */
-export interface HcStatus { avail: boolean; on: boolean; granted: boolean; at: number; note?: string; lastSync?: number }
+export interface HcStatus { avail: boolean; on: boolean; granted: boolean; at: number; note?: string; lastSync?: number; bg?: boolean }
 const STATUS = 'aven.hc';
 export function hcStatus(): HcStatus | null { try { const v = JSON.parse(localStorage.getItem(STATUS) || 'null'); return v && typeof v === 'object' ? v : null; } catch { return null; } }
 function saveStatus(p: HcPayload, synced: boolean) {
   const prev = hcStatus();
-  const s: HcStatus = { avail: p.avail, on: p.on, granted: p.granted, at: p.at, note: p.note, lastSync: synced ? p.at : prev?.lastSync };
+  const s: HcStatus = { avail: p.avail, on: p.on, granted: p.granted, at: p.at, note: p.note, lastSync: synced ? p.at : prev?.lastSync, bg: synced ? !!p.bg : prev?.bg };
   try { localStorage.setItem(STATUS, JSON.stringify(s)); } catch { /* fine */ }
 }
 
@@ -46,7 +53,7 @@ const num = (v: unknown, lo: number, hi: number) => (typeof v === 'number' && Nu
 
 /** "#hc=…" → the checked numbers, or null. */
 export function parseHc(hash: string): HcPayload | null {
-  const m = /(?:^#|&)hc=([A-Za-z0-9_-]{8,160000})/.exec(hash);
+  const m = /(?:^#|&)hc=([A-Za-z0-9_-]{8,400000})/.exec(hash);
   if (!m) return null;
   let raw: any;
   try {
@@ -85,7 +92,9 @@ export function parseHc(hash: string): HcPayload | null {
     for (const k of Object.keys(day) as (keyof HealthDay)[]) if (day[k] === undefined) delete day[k];
     return Object.keys(day).length > 1 ? [day] : [];
   });
-  return { v: 1, avail: !!raw.avail, on: !!raw.on, granted: !!raw.granted, at, note: typeof raw.note === 'string' ? raw.note.slice(0, 20) : undefined, ...(Array.isArray(raw.days) ? { days } : {}), ...(Array.isArray(raw.ex) ? { ex } : {}), ...(hd.length ? { hd } : {}) };
+  const dt = parseDetail(raw.dt, now);
+  return { v: 1, avail: !!raw.avail, on: !!raw.on, granted: !!raw.granted, at, note: typeof raw.note === 'string' ? raw.note.slice(0, 20) : undefined, ...(Array.isArray(raw.days) ? { days } : {}), ...(Array.isArray(raw.ex) ? { ex } : {}), ...(hd.length ? { hd } : {}),
+    ...(dt.length ? { dt } : {}), ...(typeof raw.bg === 'boolean' ? { bg: raw.bg } : {}), ...(num(raw.ms, 0, 600000) !== undefined ? { ms: Math.round(raw.ms) } : {}) };
 }
 
 /** Health Connect's workout types in Aven's kinds (lifting is left out: Aven logs the gym itself). */
@@ -174,7 +183,7 @@ export function applyHcFromAddress(): void {
   // (out of the address either way: a reload or a shared link must not carry it)
   try { history.replaceState(history.state, '', location.pathname + location.search); } catch { /* fine */ }
   // what the Android app sent back last, as plain facts (the Watch screen shows them: one screenshot says where it stops)
-  try { localStorage.setItem(LAST, JSON.stringify({ at: Date.now(), len, ok: !!p, inApp: appOnPhone(), ...(p ? { avail: p.avail, on: p.on, granted: p.granted, note: p.note, days: p.days?.length, ex: p.ex?.length, hd: p.hd?.length } : {}) })); } catch { /* fine */ }
+  try { localStorage.setItem(LAST, JSON.stringify({ at: Date.now(), len, ok: !!p, inApp: appOnPhone(), ...(p ? { avail: p.avail, on: p.on, granted: p.granted, note: p.note, days: p.days?.length, ex: p.ex?.length, hd: p.hd?.length, dt: p.dt?.length, bg: p.bg, ms: p.ms } : {}) })); } catch { /* fine */ }
   // Connect watch / Sync now was tapped here a moment ago: this is its answer (the app reopens Aven at its start, so the
   // Watch screen is opened again, with what came of it said once)
   const ask = takeAsk();
@@ -194,6 +203,8 @@ export function applyHcFromAddress(): void {
     const r = mergeHc(p, { activities: st.activities, steps: st.steps ?? [], health: st.health ?? [], gone: st.hcGone }, st.settings.dayStartHour);
     if (JSON.stringify(r.activities) !== JSON.stringify(st.activities) || JSON.stringify(r.steps) !== JSON.stringify(st.steps ?? []) || JSON.stringify(r.health) !== JSON.stringify(st.health ?? [])) st.mergeHealth(r);
     // a new workout from the watch is said once, quietly (not the old ones the walk through the history finds)
+    // the minute-by-minute detail goes to its own place on the phone (lib/watchDetail.ts)
+    if (p.dt?.length) void saveWatchDetail(p.dt);
     if (r.fresh) useUI.getState().toast(r.fresh === 1 ? tNow('1 workout from your watch') : tNow('{n} workouts from your watch', { n: r.fresh }), { tone: 'ok' });
   }
   window.dispatchEvent(new Event('aven-hc'));
@@ -208,7 +219,7 @@ export function hcLastLine(): string {
     const hm = (x: number) => new Date(x).toTimeString().slice(0, 5);
     const ask = a ? `tapped ${a.what} ${hm(a.at)}, no answer yet` : '';
     if (!l) return ask || 'no answer from the app yet';
-    const got = l.ok ? [l.avail ? 'HC yes' : 'HC no', l.granted ? 'allowed' : 'not allowed', l.on ? 'on' : 'off', l.note, l.days !== undefined ? `${l.days} days` : '', l.ex !== undefined ? `${l.ex} workouts` : ''].filter(Boolean).join(' · ') : `unreadable (${l.len} chars)`;
+    const got = l.ok ? [l.avail ? 'HC yes' : 'HC no', l.granted ? 'allowed' : 'not allowed', l.on ? 'on' : 'off', l.note, l.days !== undefined ? `${l.days} days` : '', l.ex !== undefined ? `${l.ex} workouts` : '', l.dt ? `${l.dt} detail days` : '', l.ms !== undefined ? `read ${(l.ms / 1000).toFixed(1)} s` : '', l.bg === true ? 'background on' : l.bg === false ? 'background off' : ''].filter(Boolean).join(' · ') : `unreadable (${l.len} chars)`;
     return `answer ${hm(l.at)}: ${got}${l.inApp ? '' : ' · app not seen'}${ask ? ` · ${ask}` : ''}`;
   } catch { return ''; }
 }

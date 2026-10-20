@@ -200,11 +200,15 @@ hcsize() { python3 - "$1" <<'PY'
 import base64, json, sys, time
 n = int(sys.argv[1]); now = int(time.time() * 1000)
 ex = [{"id": "%036d" % i, "t": "walk", "s": now - (i + 1) * 3600000, "e": now - (i + 1) * 3600000 + 1800000, "src": "com.sec.android.app.shealth", "hr": 120, "hx": 150, "kc": 200, "m": 2000} for i in range(n)]
-o = {"v": 1, "avail": True, "on": True, "granted": True, "at": now, "days": [], "ex": ex}
+ABC = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+full = "".join(ABC[x >> 6] + ABC[x & 63] for x in (60 + (i % 120) for i in range(1440)))
+# with 60 workouts: also a week of minute-by-minute detail (heart rate and steps every minute, a night of stages)
+dt = [{"d": time.strftime("%Y-%m-%d", time.localtime(now / 1000 - i * 86400)), "hm": full, "sm": full, "sp": [[now - 9 * 3600000, now - 3600000] + [1, 0, 20, 2, 20, 45, 3, 65, 25] * 10]} for i in range(7 if n >= 60 else 0)]
+o = {"v": 1, "avail": True, "on": True, "granted": True, "at": now, "days": [], "ex": ex, "dt": dt}
 print(base64.urlsafe_b64encode(json.dumps(o).encode()).decode().rstrip("="))
 PY
 }
-for n in 0 5 20 60; do
+for n in 0 5 20 60 120; do
   P=$(hcsize $n)
   adb shell "am start -n app.aven.android/.AvenLauncher --ez aven.fresh true -d '${SITE}#hc=$P'" >/dev/null
   sleep 7

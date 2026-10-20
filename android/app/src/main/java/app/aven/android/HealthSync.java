@@ -3,6 +3,7 @@ package app.aven.android;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.health.connect.AggregateRecordsGroupedByDurationResponse;
 import android.health.connect.AggregateRecordsGroupedByPeriodResponse;
 import android.health.connect.AggregateRecordsRequest;
 import android.health.connect.AggregateRecordsResponse;
@@ -45,6 +46,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.Period;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -65,7 +67,9 @@ import java.util.function.Consumer;
  * body fat, VO2 max, blood oxygen and breathing rate; and the workouts (type, start, end, average and highest heart rate,
  * active calories, distance). The last 14 days every time, plus one older 30-day stretch, walking back about two years over
  * the next openings (the address can only carry so much at once), then starting over (so a stretch that never reached the
- * page comes again). Nothing is written and nothing leaves the phone except into Aven's own page, which it opens
+ * page comes again). And the detail of the last 3 days (heart rate and steps a minute at a time, every sleep stage), plus 4
+ * older days walking back 90 days the same way. With "read in the background" allowed (Android 15 and up) HealthJob reads
+ * every half hour, so whatever opens Aven finds fresh numbers waiting; the walk only moves on once the page has had a stretch. Nothing is written and nothing leaves the phone except into Aven's own page, which it opens
  * with the numbers in its address (after "#", so not even the website's server sees them).
  *
  * Android's own Health Connect (Android 14 and up) is used: no extra library. On older phones the website simply never
@@ -96,14 +100,17 @@ final class HealthSync {
         "android.permission.health.READ_FLOORS_CLIMBED",
         // older than 30 days before the first "allow" (Android 15 and up; ignored where it doesn't exist)
         "android.permission.health.READ_HEALTH_DATA_HISTORY",
+        // read every half hour while Aven is closed (Android 15 and up), so it opens with fresh numbers
+        BACKGROUND,
     };
+    static final String BACKGROUND = "android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND";
 
     /** All of them, for Connect watch (Health Connect asks only for the ones not allowed yet). */
     static String[] all() {
         List<String> out = new ArrayList<>();
         java.util.Collections.addAll(out, PERMS);
         // (history only where Health Connect knows it: an unknown one could make it refuse the whole request)
-        for (String p : MORE) if (Build.VERSION.SDK_INT >= 35 || !p.endsWith("HISTORY")) out.add(p);
+        for (String p : MORE) if (Build.VERSION.SDK_INT >= 35 || !(p.endsWith("HISTORY") || p.equals(BACKGROUND))) out.add(p);
         return out.toArray(new String[0]);
     }
 
@@ -114,11 +121,16 @@ final class HealthSync {
     }
     private static final String PREFS = "aven_health";
     private static final String ON = "on";
-    private static final String LAST = "lastPayload";
+    private static final String LAST = "lastPayload", LAST_AT = "lastAt";
     private static final int DAYS = 14;
     /** The older stretch read each time, and how far back it walks before starting over. */
     private static final int CHUNK = 30, BACK = 730;
     private static final String BACK_TO = "backTo", EMPTY = "emptyChunks", EX_CACHE = "exCache";
+    /** Where the walks will stand once the page has the last numbers read; the older stretches already read (read once). */
+    private static final String PEND_BACK = "pendBack", PEND_EMPTY = "pendEmpty", PEND_DETAIL = "pendDetail", DETAIL_TO = "detailTo";
+    private static final String CHUNK_CACHE = "chunkCache", DETAIL_CACHE = "detailCache";
+    /** The detail: the last few days every time, and an older few walking back this far. */
+    private static final int DETAIL_RECENT = 3, DETAIL_CHUNK = 4, DETAIL_BACK = 90;
     /** The website's own address: a "return" anywhere else is ignored. */
     static final String SITE = "https://omaralawi1000-netizen.github.io/The-new-Claude-gym-app";
 
@@ -136,20 +148,52 @@ final class HealthSync {
         return available(c) && prefs(c).getBoolean(ON, false) && granted(c);
     }
 
+    /** Allowed to read while Aven is closed (HealthJob). */
+    static boolean background(Context c) {
+        return Build.VERSION.SDK_INT >= 35 && c.checkSelfPermission(BACKGROUND) == PackageManager.PERMISSION_GRANTED;
+    }
+
     static void setOn(Context c, boolean on) { prefs(c).edit().putBoolean(ON, on).apply(); }
 
     /** Connect watch again: the history is walked from the start (newly allowed data comes in). */
-    static void restartHistory(Context c) { prefs(c).edit().remove(BACK_TO).remove(EMPTY).apply(); }
+    static void restartHistory(Context c) {
+        prefs(c).edit().remove(BACK_TO).remove(EMPTY).remove(DETAIL_TO).remove(CHUNK_CACHE).remove(DETAIL_CACHE)
+            .remove(PEND_BACK).remove(PEND_EMPTY).remove(PEND_DETAIL).remove(LAST_AT).apply(); // (and a fresh read, not the last one)
+    }
 
-    /** The extra data (sleep, HRV…) came after many had connected their watch: asked for once on a sync, never again. */
-    static boolean askedMore(Context c) { return prefs(c).getBoolean(ASKED_MORE, false); }
-    static void markAskedMore(Context c) { prefs(c).edit().putBoolean(ASKED_MORE, true).apply(); }
-    private static final String ASKED_MORE = "askedMore";
+    /** The extra data (sleep, HRV…, then reading in the background) came after many had connected their watch: each
+     *  round of it asked for once on a sync, never again. */
+    static boolean askedMore(Context c) { return prefs(c).getInt(ASKED_V, prefs(c).getBoolean(ASKED_MORE, false) ? 1 : 0) >= MORE_V; }
+    static void markAskedMore(Context c) { prefs(c).edit().putBoolean(ASKED_MORE, true).putInt(ASKED_V, MORE_V).apply(); }
+    private static final String ASKED_MORE = "askedMore", ASKED_V = "askedMoreV";
+    /** 1: sleep, HRV and the rest; 2: reading in the background. */
+    private static final int MORE_V = 2;
 
     private static SharedPreferences prefs(Context c) { return c.getSharedPreferences(PREFS, Context.MODE_PRIVATE); }
 
     /** The last numbers read (used when a fresh read isn't ready in time). */
     static String lastPayload(Context c) { return prefs(c).getString(LAST, null); }
+
+    /** The last numbers read, if they are at most `ms` old (read in the background a moment ago: no need to wait for more). */
+    static String freshPayload(Context c, long ms) {
+        long at = prefs(c).getLong(LAST_AT, 0);
+        return System.currentTimeMillis() - at <= ms ? lastPayload(c) : null;
+    }
+
+    /**
+     * The page has been handed the last numbers read: the walks back through the history move on to the next stretch.
+     * (A read in the background doesn't move them: half-hourly reads would otherwise walk past stretches the page never got.)
+     */
+    static void delivered(Context c) {
+        SharedPreferences p = prefs(c);
+        if (!p.contains(PEND_BACK)) return;
+        SharedPreferences.Editor e = p.edit();
+        String back = p.getString(PEND_BACK, "");
+        if (back.isEmpty()) e.remove(BACK_TO); else e.putString(BACK_TO, back);
+        String detail = p.getString(PEND_DETAIL, "");
+        if (detail.isEmpty()) e.remove(DETAIL_TO); else e.putString(DETAIL_TO, detail);
+        e.putInt(EMPTY, p.getInt(PEND_EMPTY, 0)).remove(PEND_BACK).remove(PEND_DETAIL).remove(PEND_EMPTY).apply();
+    }
 
     /** Only ever Aven's own pages. */
     static Uri safeReturn(String ret) {
@@ -187,8 +231,7 @@ final class HealthSync {
         exec.execute(() -> {
             String out = null;
             try {
-                out = encode(collect(app, back).toString());
-                prefs(app).edit().putString(LAST, out).apply();
+                out = collect(app, back);
             } catch (Throwable t) {
                 out = null;
             } finally {
@@ -202,21 +245,34 @@ final class HealthSync {
     private interface Call<T> { void run(OutcomeReceiver<T, HealthConnectException> r); }
 
     /** One Health Connect call, waited for (at most 4 s). */
-    private static <T> T await(Call<T> call) throws Exception {
+    private static <T> T await(Call<T> call) throws Exception { return await(call, 4); }
+
+    /** …or longer (a whole day a minute at a time). */
+    private static <T> T await(Call<T> call, int seconds) throws Exception {
         CompletableFuture<T> f = new CompletableFuture<>();
         call.run(new OutcomeReceiver<T, HealthConnectException>() {
             @Override public void onResult(T result) { f.complete(result); }
             @Override public void onError(HealthConnectException error) { f.completeExceptionally(error); }
         });
-        return f.get(4, TimeUnit.SECONDS);
+        return f.get(seconds, TimeUnit.SECONDS);
     }
 
-    private static JSONObject collect(Context c, ExecutorService back) throws Exception {
+    /** One read at a time (the half-hourly one and an opening Aven can meet). */
+    private static final Object LOCK = new Object();
+
+    /** Reads everything, keeps it as the last numbers read, and returns it packed for the address. */
+    private static String collect(Context c, ExecutorService back) throws Exception {
+        synchronized (LOCK) { return collectLocked(c, back); }
+    }
+
+    private static String collectLocked(Context c, ExecutorService back) throws Exception {
+        long t0 = System.currentTimeMillis();
         HealthConnectManager hc = c.getSystemService(HealthConnectManager.class);
         ZoneId zone = ZoneId.systemDefault();
         LocalDate today = LocalDate.now(zone);
         LocalDate recentFrom = today.minusDays(DAYS - 1);
-        // the older stretch this time: the 30 days before the last one sent (back to about two years, then from the top)
+        // the older stretch this time: the 30 days before the last one the page received (back to about two years, then
+        // from the top)
         SharedPreferences p = prefs(c);
         String backTo = p.getString(BACK_TO, null);
         LocalDate chunkEnd = backTo == null ? recentFrom.minusDays(1) : LocalDate.parse(backTo).minusDays(1);
@@ -233,11 +289,27 @@ final class HealthSync {
         TreeMap<String, JSONObject> days = new TreeMap<>();
         JSONArray ex = new JSONArray();
         JSONObject cache = cacheOf(p);
-        int before = 0;
         collectRange(hc, zone, recentFrom, today, days, ex, cache, back, 60);
-        before = days.size() + ex.length();
-        collectRange(hc, zone, chunkStart, chunkEnd, days, ex, cache, back, 60);
-        boolean emptyChunk = days.size() + ex.length() == before;
+
+        // the older stretch is read once and kept until the page has had it (the half-hourly reads stay light)
+        TreeMap<String, JSONObject> old = new TreeMap<>();
+        JSONArray oldEx = new JSONArray();
+        JSONObject kept = jsonOf(p, CHUNK_CACHE);
+        JSONObject keptDays = kept.optJSONObject("days");
+        if (chunkStart.toString().equals(kept.optString("k")) && keptDays != null) {
+            for (Iterator<String> it = keptDays.keys(); it.hasNext(); ) { String k = it.next(); JSONObject v = keptDays.optJSONObject(k); if (v != null) old.put(k, v); }
+            JSONArray x = kept.optJSONArray("ex");
+            if (x != null) oldEx = x;
+        } else {
+            collectRange(hc, zone, chunkStart, chunkEnd, old, oldEx, cache, back, 60);
+            JSONObject d = new JSONObject();
+            for (Map.Entry<String, JSONObject> e : old.entrySet()) d.put(e.getKey(), e.getValue());
+            kept = new JSONObject().put("k", chunkStart.toString()).put("days", d).put("ex", oldEx);
+        }
+        String keptText = kept.toString(); // (before the days below get their date written into them)
+        boolean emptyChunk = old.isEmpty() && oldEx.length() == 0;
+        days.putAll(old);
+        for (int i = 0; i < oldEx.length(); i++) ex.put(oldEx.get(i));
 
         // steps the old way too ([date, steps]: what every version of the page reads)
         JSONArray steps = new JSONArray();
@@ -253,12 +325,177 @@ final class HealthSync {
         o.put("ex", ex);
         o.put("back", new JSONObject().put("from", chunkStart.toString()).put("to", chunkEnd.toString()));
 
-        // where the next stretch starts; two empty ones in a row (nothing that old, or no history allowed) = start over
+        // the detail: the last days every time (they still change), and an older few walking back (read once, like above)
+        String detailTo = p.getString(DETAIL_TO, null);
+        LocalDate dEnd = detailTo == null ? today.minusDays(DETAIL_RECENT) : LocalDate.parse(detailTo).minusDays(1);
+        if (dEnd.isBefore(today.minusDays(DETAIL_BACK))) dEnd = today.minusDays(DETAIL_RECENT);
+        LocalDate dStart = dEnd.minusDays(DETAIL_CHUNK - 1);
+        JSONArray dt = detail(hc, zone, today.minusDays(DETAIL_RECENT - 1), today, back);
+        JSONObject keptDetail = jsonOf(p, DETAIL_CACHE);
+        JSONArray oldDt = keptDetail.optJSONArray("dt");
+        if (!dStart.toString().equals(keptDetail.optString("k")) || oldDt == null) {
+            oldDt = detail(hc, zone, dStart, dEnd, back);
+            keptDetail = new JSONObject().put("k", dStart.toString()).put("dt", oldDt);
+        }
+        for (int i = 0; i < oldDt.length(); i++) dt.put(oldDt.get(i));
+        o.put("dt", dt);
+        o.put("ms", System.currentTimeMillis() - t0);
+        o.put("bg", background(c)); // (Settings → Watch says whether it also reads while Aven is closed)
+
+        // kept as the last numbers read; where the walks will stand once the page has them (two empty stretches in a row:
+        // nothing that old, or no history allowed = start over)
+        String out = encode(o.toString());
         int empties = emptyChunk ? p.getInt(EMPTY, 0) + 1 : 0;
-        SharedPreferences.Editor e = p.edit().putString(EX_CACHE, trim(cache).toString());
-        if (empties >= 2) e.remove(BACK_TO).putInt(EMPTY, 0); else e.putString(BACK_TO, chunkStart.toString()).putInt(EMPTY, empties);
-        e.apply();
-        return o;
+        p.edit().putString(EX_CACHE, trim(cache).toString()).putString(CHUNK_CACHE, keptText).putString(DETAIL_CACHE, keptDetail.toString())
+            .putString(LAST, out).putLong(LAST_AT, System.currentTimeMillis())
+            .putString(PEND_BACK, empties >= 2 ? "" : chunkStart.toString()).putInt(PEND_EMPTY, empties >= 2 ? 0 : empties)
+            .putString(PEND_DETAIL, dStart.toString())
+            .apply();
+        return out;
+    }
+
+    /**
+     * The detail of the days from..to: heart rate a minute at a time (the average of what the watch measured in that
+     * minute: every few minutes at rest, every second in a workout, or all the time with "measure continuously" on the
+     * watch), steps a minute at a time (Health Connect's own count, the phone and the watch counted once), and every sleep
+     * session that ended that day, each stage with its times.
+     */
+    private static JSONArray detail(HealthConnectManager hc, ZoneId zone, LocalDate from, LocalDate to, ExecutorService back) {
+        TreeMap<String, JSONObject> by = new TreeMap<>();
+        Instant now = Instant.now();
+        for (LocalDate d = from; !d.isAfter(to); d = d.plusDays(1)) {
+            Instant a = d.atStartOfDay(zone).toInstant();
+            Instant z = d.plusDays(1).atStartOfDay(zone).toInstant();
+            if (z.isAfter(now)) z = now;
+            if (!z.isAfter(a)) continue;
+            String hr = pack(heartByMinute(hc, zone, a, z, back)), st = pack(stepsByMinute(hc, zone, a, z, back));
+            try {
+                if (!hr.isEmpty()) dayOf(by, d.toString()).put("hm", hr);
+                if (!st.isEmpty()) dayOf(by, d.toString()).put("sm", st);
+            } catch (Exception ignored) { /* skip it */ }
+        }
+        // sleep, by the morning it ended (a session overlapping one already counted, the same night from two apps, is
+        // left out); naps too
+        List<long[]> slept = new ArrayList<>();
+        Instant ia = from.atStartOfDay(zone).toInstant(), iz = to.plusDays(1).atStartOfDay(zone).toInstant();
+        if (iz.isAfter(now)) iz = now;
+        for (SleepSessionRecord r : records(hc, SleepSessionRecord.class, ia.minusSeconds(12 * 3600), iz, back)) {
+            String d = dateOf(r.getEndTime(), zone);
+            if (d.compareTo(from.toString()) < 0 || d.compareTo(to.toString()) > 0) continue;
+            long s0 = r.getStartTime().toEpochMilli(), e0 = r.getEndTime().toEpochMilli();
+            boolean twice = false;
+            for (long[] x : slept) if (s0 < x[1] && e0 > x[0]) { twice = true; break; }
+            if (twice || e0 <= s0) continue;
+            slept.add(new long[] { s0, e0 });
+            try {
+                JSONObject day = dayOf(by, d);
+                JSONArray sp = day.optJSONArray("sp");
+                if (sp == null) { sp = new JSONArray(); day.put("sp", sp); }
+                sp.put(stagesOf(r));
+            } catch (Exception ignored) { /* skip it */ }
+        }
+        JSONArray out = new JSONArray();
+        for (Map.Entry<String, JSONObject> e : by.entrySet()) {
+            try { e.getValue().put("d", e.getKey()); } catch (Exception ignored) { /* skip it */ }
+            out.put(e.getValue());
+        }
+        return out;
+    }
+
+    /** Heart rate a minute at a time from a..z (one day): the average of every reading in that minute, 0 = none. */
+    private static long[] heartByMinute(HealthConnectManager hc, ZoneId zone, Instant a, Instant z, ExecutorService back) {
+        long[] sum = new long[1440], n = new long[1440];
+        for (HeartRateRecord r : records(hc, HeartRateRecord.class, a, z, back)) {
+            for (HeartRateRecord.HeartRateSample s : r.getSamples()) {
+                Instant t = s.getTime();
+                if (t.isBefore(a) || !t.isBefore(z)) continue;
+                int i = minuteOf(t, zone);
+                sum[i] += s.getBeatsPerMinute();
+                n[i]++;
+            }
+        }
+        long[] out = new long[1440];
+        for (int i = 0; i < 1440; i++) if (n[i] > 0) out[i] = Math.round((double) sum[i] / n[i]);
+        return out;
+    }
+
+    /** Steps a minute at a time from a..z (one day), Health Connect's own count; 0 = none. */
+    private static long[] stepsByMinute(HealthConnectManager hc, ZoneId zone, Instant a, Instant z, ExecutorService back) {
+        long[] out = new long[1440];
+        try {
+            AggregateRecordsRequest<Long> req = new AggregateRecordsRequest.Builder<Long>(new TimeInstantRangeFilter.Builder().setStartTime(a).setEndTime(z).build())
+                .addAggregationType(StepsRecord.STEPS_COUNT_TOTAL).build();
+            List<AggregateRecordsGroupedByDurationResponse<Long>> got = await(r -> hc.aggregateGroupByDuration(req, Duration.ofMinutes(1), back, r), 20);
+            for (AggregateRecordsGroupedByDurationResponse<Long> g : got) {
+                Long v = g.get(StepsRecord.STEPS_COUNT_TOTAL);
+                if (v != null && v > 0) out[minuteOf(g.getStartTime(), zone)] += v; // (the hour that repeats in October: added up)
+            }
+        } catch (Exception ignored) { /* not allowed, or nothing */ }
+        return out;
+    }
+
+    private static int minuteOf(Instant t, ZoneId zone) {
+        LocalTime lt = t.atZone(zone).toLocalTime();
+        return lt.getHour() * 60 + lt.getMinute();
+    }
+
+    /**
+     * One sleep session: [start, end (ms), then for each stage: stage, minute it began (counted from the start), minutes].
+     * Stages: 0 awake (or out of bed), 1 light, 2 deep, 3 REM, 4 asleep (no stage known); the same stage back to back is
+     * joined. A session without stages is just its start and end.
+     */
+    private static JSONArray stagesOf(SleepSessionRecord r) {
+        JSONArray out = new JSONArray().put(r.getStartTime().toEpochMilli()).put(r.getEndTime().toEpochMilli());
+        List<SleepSessionRecord.Stage> st = new ArrayList<>(r.getStages());
+        st.sort((x, y) -> x.getStartTime().compareTo(y.getStartTime()));
+        long t0 = r.getStartTime().getEpochSecond();
+        int code = -1, n = 0;
+        long s = 0, e = 0;
+        for (SleepSessionRecord.Stage x : st) {
+            int c = stageCode(x.getType());
+            long xs = Math.max(0, x.getStartTime().getEpochSecond() - t0), xe = x.getEndTime().getEpochSecond() - t0;
+            if (c < 0 || xe <= xs) continue;
+            if (c == code && xs <= e + 60) { e = Math.max(e, xe); continue; }
+            if (code >= 0 && n++ < 400) putStage(out, code, s, e);
+            code = c; s = xs; e = xe;
+        }
+        if (code >= 0 && n < 400) putStage(out, code, s, e);
+        return out;
+    }
+
+    private static void putStage(JSONArray out, int code, long s, long e) {
+        long m0 = Math.round(s / 60.0), m1 = Math.round(e / 60.0);
+        out.put(code).put(m0).put(Math.max(1, m1 - m0));
+    }
+
+    /** Health Connect's stages (1 awake, 2 sleeping, 3 out of bed, 4 light, 5 deep, 6 REM, 7 awake in bed) in Aven's. */
+    private static int stageCode(int t) {
+        switch (t) {
+            case 1: case 3: case 7: return 0;
+            case 4: return 1;
+            case 5: return 2;
+            case 6: return 3;
+            case 2: return 4;
+            default: return -1;
+        }
+    }
+
+    private static final char[] B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_".toCharArray();
+
+    /** A day's minutes as text, two characters a minute (0–4095; "AA" = nothing), the empty end of the day left off. */
+    static String pack(long[] v) {
+        int n = v.length;
+        while (n > 0 && v[n - 1] <= 0) n--;
+        StringBuilder sb = new StringBuilder(n * 2);
+        for (int i = 0; i < n; i++) {
+            int x = (int) Math.max(0, Math.min(4095, v[i]));
+            sb.append(B64[x >> 6]).append(B64[x & 63]);
+        }
+        return sb.toString();
+    }
+
+    private static JSONObject jsonOf(SharedPreferences p, String key) {
+        try { return new JSONObject(p.getString(key, "{}")); } catch (Exception e) { return new JSONObject(); }
     }
 
     /** Everything of the days from..to (inclusive) into `days` (one object per date) and the workouts into `ex`. */

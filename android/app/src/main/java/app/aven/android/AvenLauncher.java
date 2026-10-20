@@ -35,6 +35,7 @@ public class AvenLauncher extends LauncherActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         RestNotifications.ensureChannels(this); // so the phone's notification settings list the rest timer from the start
+        HealthJob.schedule(this); // (the half-hourly read of the watch: started or stopped to match Health Connect's answer)
         getWindow().getDecorView().postDelayed(this::zoomDone, ZOOM_AT_MOST);
     }
 
@@ -56,11 +57,15 @@ public class AvenLauncher extends LauncherActivity {
 
     /**
      * The watch connected (Settings → Watch in Aven): its newest steps and workouts go into the page's address, read while
-     * the opening zoom plays. If Health Connect is slow, the last numbers read go instead (the page keeps what it has).
+     * the opening zoom plays. If Health Connect is slow, the last numbers read go instead (the page keeps what it has; the
+     * read carries on and is waiting next time). Read in the background in the last 5 minutes: those, without waiting.
      * Returns false when there is nothing to read (open at once, as before).
      */
     private boolean readWatchThenLaunch() {
         if (getIntent().getBooleanExtra(FRESH, false) || !HealthSync.on(this)) return false;
+        // read in the background a moment ago: open at once with those
+        String fresh = HealthSync.freshPayload(this, 5 * 60_000L);
+        if (fresh != null) { watch = fresh; HealthSync.delivered(this); return false; }
         Handler main = new Handler(Looper.getMainLooper());
         main.postDelayed(() -> launchWith(HealthSync.lastPayload(this)), READ_AT_MOST);
         HealthSync.read(this, payload -> main.post(() -> launchWith(payload != null ? payload : HealthSync.lastPayload(this))));
@@ -71,6 +76,7 @@ public class AvenLauncher extends LauncherActivity {
         if (launching) return;
         launching = true;
         watch = payload;
+        if (payload != null) HealthSync.delivered(this);
         launchTwa();
     }
 
