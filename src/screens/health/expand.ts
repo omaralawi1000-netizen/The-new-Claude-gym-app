@@ -18,7 +18,7 @@ import { springCurve, SMOOTH, SURFACE } from '../../ui/motion';
 
 export interface Els { root: HTMLElement; scr: HTMLElement; det: HTMLElement; L: [HTMLElement, HTMLElement, HTMLElement]; mat: HTMLElement; dsc: HTMLElement; fly: HTMLElement; edge: HTMLElement }
 interface Flight { c: HTMLElement; a: HTMLElement; b: HTMLElement; from?: string; tint?: HTMLElement }
-interface State { k: string; src: HTMLElement; anims: Animation[]; fl: Flight[]; dim: HTMLElement[]; closing?: boolean; next?: { k: string; src: HTMLElement } | null; out?: Animation[] | null; page?: { e: HTMLElement }[]; done?: (next: { k: string; src: HTMLElement } | null) => void }
+interface State { k: string; src: HTMLElement; anims: Animation[]; fl: Flight[]; dim: HTMLElement[]; closing?: boolean; next?: { k: string; src: HTMLElement } | null; out?: Animation[] | null; held?: Animation[]; page?: { e: HTMLElement }[]; done?: (next: { k: string; src: HTMLElement } | null) => void }
 
 const reduced = () => {
   const m = document.documentElement.dataset.motion;
@@ -34,13 +34,18 @@ type Box = { x: number; y: number; w: number; h: number };
 /** the spring's progress at time p (0–1), read off its linear() samples */
 const curve = (easing: string) => { const v = easing.slice(7, -1).split(',').map(Number), n = v.length - 1; return (p: number) => { if (p <= 0) return v[0]; if (p >= 1) return v[n]; const f = p * n, i = Math.floor(f); return v[i] + (v[i + 1] - v[i]) * (f - i); }; };
 const mix = (a: Box, b: Box, e: number): Box => ({ x: a.x + (b.x - a.x) * e, y: a.y + (b.y - a.y) * e, w: a.w + (b.w - a.w) * e, h: a.h + (b.h - a.h) * e });
-const hits = (a: Box, b: Box, m = 4) => a.x < b.x + b.w + m && b.x < a.x + a.w + m && a.y < b.y + b.h + m && b.y < a.y + a.h + m;
-/** when (0–1 of the move) a word is clear for good: no flying copy over it any more, and (on open) the window's edges past it */
+/** overlap of a word with a flying copy, by their letters: a line's box is padded above and below its letters, so a label
+ * sitting right on its number would always "touch" it */
+const ink = (b: Box): Box => ({ x: b.x, y: b.y + b.h * 0.18, w: b.w, h: b.h * 0.64 });
+const hits = (a: Box, b: Box, m = 1) => { a = ink(a); b = ink(b); return a.x < b.x + b.w + m && b.x < a.x + a.w + m && a.y < b.y + b.h + m && b.y < a.y + a.h + m; };
+const near = (a: Box, b: Box) => Math.abs(a.x - b.x) < 2 && Math.abs(a.y - b.y) < 2 && Math.abs(a.w - b.w) < 2;
+/** when (0–1 of the move) a word is clear for good: no flying copy over it any more (one within 2 px of its place counts as
+ * landed), and (on open) the window's edges past it */
 const clearAfter = (r: Box, paths: [Box, Box][], at: (p: number) => number, win?: (e: number) => [number, number]) => {
   let last = -1;
   for (let i = 0; i <= 60; i++) {
     const p = i / 60, e = at(p), w = win?.(e);
-    if (paths.some(([a, b]) => hits(r, mix(a, b, e))) || (w && (r.y < w[0] || r.y + r.h > w[1]))) last = p;
+    if (paths.some(([a, b]) => { const f = mix(a, b, e); return !near(f, b) && hits(r, f); }) || (w && (r.y < w[0] || r.y + r.h > w[1]))) last = p;
   }
   return last < 0 ? 0 : Math.min(1, last + 1 / 60);
 };
@@ -122,14 +127,16 @@ export class Expander {
     const at = curve(E), sr = this.box(src), h = this.e.root.clientHeight;
     const wt = Math.max(0, Math.min(h - 1, sr.y)), wb = Math.max(wt + 1, Math.min(h, sr.y + sr.h));
     const win = (e: number): [number, number] => [wt * (1 - e), h + (wb - h) * (1 - e)];
-    const when = (x: HTMLElement) => D * Math.max(0.1, clearAfter(this.box(x), paths, at, win));
+    // in reading order: a line never starts before the one above it (the X leads), and none later than 45 % of the move
+    let prev = 0;
+    const when = (x: HTMLElement) => { prev = Math.max(prev, D * Math.min(0.45, Math.max(0.1, clearAfter(this.box(x), paths, at, win)))); return prev; };
     $$('.hx-dhead,.hx-chips,.hx-lab,.hx-sub,.hx-rise', dsc).filter((x) => !x.closest('[data-share]')).forEach((x) => {
       const delay = when(x);
       st.anims.push(this.anim(x, [{ opacity: 0 }, { opacity: 1 }], { duration: 280, delay, easing: 'linear' }));
       st.anims.push(this.anim(x, [{ transform: 'translateY(10px)' }, { transform: 'none' }], { duration: sm.duration, delay, easing: sm.easing }));
     });
     const paired = new Set(st.fl.map((o) => o.b));
-    $$('[data-share]', dsc).filter((b) => !paired.has(b)).forEach((b) => st.anims.push(this.anim(b, [{ opacity: 0 }, { opacity: 1 }], { duration: 280, delay: when(b), easing: 'linear' })));
+    $$('[data-share]', dsc).filter((b) => !paired.has(b)).forEach((b) => { prev = 0; st.anims.push(this.anim(b, [{ opacity: 0 }, { opacity: 1 }], { duration: 280, delay: when(b), easing: 'linear' })); });
     st.dim = this.dimOf(src);
     st.dim.forEach((x) => { x.getAnimations().forEach((a) => a.cancel()); x.style.opacity = '0'; x.animate([{ opacity: 1 }, { opacity: 0 }], { duration: reduced() ? 1 : 40, easing: 'linear' }); });
     this.playPage(Math.round(D * 0.2));
@@ -191,9 +198,15 @@ export class Expander {
     });
     const dimO = st.dim.map((x) => getComputedStyle(x).opacity);
     st.dim.forEach((x, i) => {
-      const p = x === st.src ? 0.2 : Math.min(0.75, Math.max(0.15, clearAfter(this.box(x), paths, at))); // a pill: its number lands inside it
+      const p = x === st.src ? 0.2 : Math.min(0.5, Math.max(0.15, clearAfter(this.box(x), paths, at))); // a pill: its number lands inside it
       x.getAnimations().forEach((a) => a.cancel()); x.style.opacity = '0';
       out.push(this.anim(x, [{ opacity: dimO[i] }, { opacity: dimO[i], offset: p }, { opacity: 1, offset: p + 0.25 }, { opacity: 1 }], { duration: D, delay: 70, easing: 'linear' }));
+    });
+    // other sections the landing copies pass over wait, unseen, until they have passed (home is only coming back then)
+    const own = st.src.closest('.hx-sec');
+    st.held = $$('.hx-sec', this.e.scr).filter((x) => x !== own).flatMap((x) => {
+      const p = clearAfter(this.box(x), paths, at); if (p <= 0) return [];
+      return [this.anim(x, [{ opacity: 0 }, { opacity: 0, offset: Math.min(0.6, p) }, { opacity: 1, offset: Math.min(0.85, p + 0.25) }, { opacity: 1 }], { duration: D, delay: 70, easing: 'linear' })];
     });
     L.forEach((l, i) => out.unshift(this.anim(l, [{ transform: fromL[i] }, { transform: wf[i] }], { duration: D, delay: 70, easing: E })));
     // the material clears between 25 % and 80 %: the section is already back underneath, so close ends on the settled screen
@@ -228,7 +241,7 @@ export class Expander {
       st.fl = []; st.out = null;
       this.e.scr.getAnimations().forEach((a) => a.cancel()); this.anim(this.e.scr, [{ opacity: 0 }, { opacity: 0 }], { duration: 1 });
       const lt = L.map(curT);
-      out.forEach((a) => a.cancel());
+      out.forEach((a) => a.cancel()); st.held?.forEach((a) => a.cancel()); st.held = [];
       st.dim.forEach((x) => { x.style.opacity = '0'; });
       fl.forEach(({ a }) => { a.style.opacity = '0'; });
       this.squareAt(st, 300);
@@ -256,6 +269,7 @@ export class Expander {
     const { det, fly, L, mat, dsc, root } = this.e;
     fly.replaceChildren();
     this.st?.dim.forEach((x) => { x.getAnimations().forEach((a) => a.cancel()); x.style.opacity = ''; });
+    this.st?.held?.forEach((a) => a.cancel());
     det.classList.remove('live', 'moving');
     [...L, mat, this.e.scr].forEach((x) => x.getAnimations().forEach((a) => a.cancel()));
     $$('[data-share]', root).forEach((x) => { x.style.opacity = ''; });
