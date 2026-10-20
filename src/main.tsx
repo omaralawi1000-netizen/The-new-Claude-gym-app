@@ -5,6 +5,7 @@ import '@fontsource-variable/newsreader/opsz.css';
 import '@fontsource-variable/newsreader/opsz-italic.css';
 import '@fontsource-variable/geist/wght.css';
 import './styles.css';
+import './look.css';
 import { App } from './App';
 import { installDither, installGrain } from './lib/grain';
 import { installDockShadow } from './ui/dockShadow';
