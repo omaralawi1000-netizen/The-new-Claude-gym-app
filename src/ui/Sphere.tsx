@@ -585,7 +585,8 @@ export function SphereStage() {
           }
           const u = tf.falling ? 0 : Math.min(1, Math.max(0, (e - tf.k) / Math.max(0.001, 1 - tf.k)));
           const ty = tf.P.Y + (y - tf.P.Y) * u;
-          X = tf.P.X + (x - tf.P.X) * u; Y = Math.min(ty, Math.max(tf.P.Y, Y, tf.L)); // (tf.L: the dock line it was landing on; the dock sinking back as the sheet rose held it a few px above its button, then it dropped there at the end) S = tf.P.S + (z - tf.P.S) * u; flight = u;
+          X = tf.P.X + (x - tf.P.X) * u; Y = Math.min(ty, Math.max(tf.P.Y, Y, tf.L)); S = tf.P.S + (z - tf.P.S) * u; flight = u;
+          // (tf.L: the dock line it was landing on; the dock sinking back as the sheet rose held it a few px above its button, then it dropped there at the end)
         } else if (lf) {
           // it rides its button exactly (on the bar, never over the words) until the button passes LAND px above the dock line.
           // There it lets go at the button's own speed and settles onto the line on a critically damped spring (stiff enough
