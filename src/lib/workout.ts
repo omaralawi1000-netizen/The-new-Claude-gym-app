@@ -26,6 +26,11 @@ export function workoutName(name: string | undefined, t: (k: string) => string):
   const n = (name ?? '').trim();
   return !n || n === 'Workout' ? t('Workout') : n;
 }
+/** A workout's name to search by (the Coach finding "the workout"): an unnamed one answers to the generic name in both languages. */
+export function workoutSearchName(name: string | undefined): string {
+  const n = (name ?? '').trim();
+  return !n || n === 'Workout' ? 'workout træning' : n;
+}
 /** Names compared for "same workout as last time": unnamed and the old saved "Workout" are the same. */
 const nameKey = (name: string | undefined) => (name ?? '').trim().toLowerCase() || 'workout';
 

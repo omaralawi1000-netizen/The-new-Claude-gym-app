@@ -934,7 +934,7 @@ const SetRow = memo(function SetRow({ se, set, ex, label, prev, restDefault }: {
     if (set.done) {
       const a = useStore.getState().active;
       // only the rest this set's tick started (a rest from before sets were remembered: the latest tick's)
-      const latest = a && !a.rest?.setId && set.completedAt != null && a.exercises.every((e) => e.sets.every((x) => !x.done || (x.completedAt ?? 0) <= set.completedAt!));
+      const latest = a && a.rest && a.rest.setId === undefined && set.completedAt != null && a.exercises.every((e) => e.sets.every((x) => !x.done || (x.completedAt ?? 0) <= set.completedAt!));
       patchSet(se.id, set.id, { done: false, completedAt: undefined });
       if (a?.rest && (a.rest.setId === set.id || latest)) skipRest();
       return;

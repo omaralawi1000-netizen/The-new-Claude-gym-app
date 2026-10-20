@@ -10,7 +10,7 @@ import { addDays, diffDays, weekdayOf } from './dates';
 import { fold } from './foodText';
 import { searchArchive } from './archive';
 import { matchExercises } from './workoutText';
-import { epley, historyOf, incrementFor, repRange, suggestProgression, elapsedMs } from './workout';
+import { epley, historyOf, incrementFor, repRange, suggestProgression, elapsedMs, workoutSearchName } from './workout';
 import { MUSCLES, nutritionByDay, setsPerMuscle, stalledLifts, trendRate, weightTrend, average } from './stats';
 import { plannedFor } from '../state/store';
 import { guideSections } from './coachContext';
@@ -113,7 +113,7 @@ function workouts(d: AppData, l: Lookup, env: LookupEnv): string {
   const byId = new Map(env.pool.map((e) => [e.id, e]));
   const q = l.query ? fold(l.query) : '';
   const routineName = (id?: string) => d.routines.find((r) => r.id === id)?.name ?? '';
-  const list = d.sessions.filter((s) => s.status === 'done' && s.date >= from && s.date <= to && (!q || fold(s.name).includes(q) || fold(routineName(s.routineId)).includes(q)));
+  const list = d.sessions.filter((s) => s.status === 'done' && s.date >= from && s.date <= to && (!q || fold(workoutSearchName(s.name)).includes(q) || fold(routineName(s.routineId)).includes(q)));
   if (!list.length) return `No finished workouts ${q ? `matching "${l.query}" ` : ''}between ${from} and ${to}.`;
   return cap([...list].reverse().map((s) => `${s.date} "${s.name || routineName(s.routineId) || 'Workout'}" (${Math.round(elapsedMs(s) / 60000)} min): ${s.exercises.map((e) => `${exLabel(byId.get(e.exerciseId), e.exerciseId)}: ${e.sets.filter((x) => x.done).map(setTxt).join(', ') || 'no sets done'}`).join(' | ')}`));
 }

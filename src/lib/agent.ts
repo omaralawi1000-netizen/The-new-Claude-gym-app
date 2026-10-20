@@ -31,7 +31,7 @@ import { currentSetOf } from './currentSet';
 import { fixMisheard } from './setCommand';
 import { EQUIP_LABEL, MUSCLE_LABEL } from '../screens/workout/common';
 import { muscleOf } from './agentLookup';
-import { detectRecords, workoutName } from './workout';
+import { detectRecords, workoutName, workoutSearchName } from './workout';
 import { buildDayPlan, pickForMuscles } from './planDay';
 import { specOf } from './settingSpec';
 import { weekdayOf } from './dates';
@@ -1087,7 +1087,7 @@ function doDeleteWorkout(a: Extract<AgentAction, { type: 'delete_workout' }>, ct
   const { t } = ctx;
   const done = useStore.getState().sessions.filter((s) => s.status === 'done');
   const w = a.workout ? fold(a.workout) : '';
-  const ses = !w || w === 'last' ? done[done.length - 1] : [...done].reverse().find((s) => s.date === a.workout || fold(s.name).includes(w));
+  const ses = !w || w === 'last' ? done[done.length - 1] : [...done].reverse().find((s) => s.date === a.workout || fold(workoutSearchName(s.name)).includes(w));
   if (!ses) return { id: uid('r'), kind: 'miss', title: t('Couldn’t find that workout'), lines: a.workout ? [{ text: a.workout, warn: true }] : [] };
   const sets = ses.exercises.reduce((n, e) => n + e.sets.filter((x) => x.done).length, 0);
   return preview({ id: uid('r'), kind: 'workout', title: t('Delete this workout?'), key: `delworkout:${ses.id}`, lines: [{ text: workoutName(ses.name, t), sub: `${ses.date} · ${ses.exercises.length} ${t('exercises')} · ${sets} ${t('sets')}` }] }, t('Delete'), () => {

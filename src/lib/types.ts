@@ -193,7 +193,7 @@ export interface WorkoutSession {
   status: 'active' | 'done';
   exercises: SessionExercise[];
   note?: string;
-  /** setId: the set whose tick started it (unticking that set stops it) */
+  /** setId: the set whose tick started it (unticking that set stops it); '' = started by hand; absent = saved by an older version */
   rest?: { endsAt: number; total: number; exerciseId: string; setId?: string } | null;
   records?: PersonalRecord[];
   /** how it felt, from the one-tap check-in after it (each optional): energy 1 low · 2 ok · 3 great; soreness 1 none ·

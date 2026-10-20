@@ -297,7 +297,7 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
             {sec === 'units' && (
               <div className="stack gap16">
                 <Field label={t('Language')}><Seg value={st.language} onChange={(v) => set({ language: v })} options={[{ value: 'en', label: 'English' }, { value: 'da', label: 'Dansk' }]} /></Field>
-                <Field label={t('Weight')}><Seg value={st.units.weight} onChange={(v) => set({ units: { ...st.units, weight: v } })} options={[{ value: 'kg', label: 'kg' }, { value: 'lb', label: 'lb' }]} /></Field>
+                <Field label={t('Weight')}><Seg value={st.units.weight} onChange={(v) => set({ units: { ...st.units, weight: v }, ...(v === 'kg' && ![1, 1.25, 2.5, 5].includes(st.plateStep) ? { plateStep: [1, 1.25, 2.5, 5].reduce((b, x) => (Math.abs(x - st.plateStep) < Math.abs(b - st.plateStep) ? x : b)) } : {}) })} options={[{ value: 'kg', label: 'kg' }, { value: 'lb', label: 'lb' }]} /></Field>
                 <Field label={t('Distance')}><Seg value={st.units.distance} onChange={(v) => set({ units: { ...st.units, distance: v } })} options={[{ value: 'km', label: 'km' }, { value: 'mi', label: 'mi' }]} /></Field>
                 <Field label={t('Body measurements')}><Seg value={st.units.length} onChange={(v) => set({ units: { ...st.units, length: v } })} options={[{ value: 'cm', label: 'cm' }, { value: 'in', label: 'in' }]} /></Field>
                 <Field label={t('Week starts on')}><Seg value={st.weekStart} onChange={(v) => set({ weekStart: v })} options={[{ value: 1, label: t('Monday') }, { value: 0, label: t('Sunday') }]} /></Field>

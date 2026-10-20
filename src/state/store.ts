@@ -235,9 +235,11 @@ export function scheduleWith(sch: Schedule, id: string, slots: RemovedRoutine['s
   let rotation = sch.rotation;
   if (untouched) rotation = { ...sch.rotation, order: before, pointer };
   else if (indexes.length) {
+    // put back at its old places; "next" stays on the same routine (shifted by what goes in before it)
     const order = [...sch.rotation.order];
-    for (const i of indexes) order.splice(Math.min(i, order.length), 0, id);
-    rotation = { ...sch.rotation, order };
+    let pointer = order.length ? sch.rotation.pointer % order.length : 0;
+    for (const i of indexes) { const at = Math.min(i, order.length); order.splice(at, 0, id); if (at <= pointer && order.length > 1) pointer++; }
+    rotation = { ...sch.rotation, order, pointer };
   }
   return { ...sch, weekly, overrides, rotation };
 }

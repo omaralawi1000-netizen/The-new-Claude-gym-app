@@ -166,3 +166,22 @@ describe('progression in pounds', () => {
     expect(sug.weightKg! / KG_PER_LB).toBeCloseTo(230, 1);
   });
 });
+
+describe('review round 2', () => {
+  it('Undo after the rotation changed keeps the same routine next', async () => {
+    const { scheduleWithout, scheduleWith } = await import('../src/state/store');
+    const base = { mode: 'rotation', weekly: {}, overrides: [], cleared: [], rotation: { order: ['A', 'B', 'C'], pointer: 2 } } as any;
+    const { schedule, slots } = scheduleWithout(base, 'A');
+    expect(schedule.rotation.order[schedule.rotation.pointer]).toBe('C');
+    const changed = { ...schedule, rotation: { ...schedule.rotation, order: [...schedule.rotation.order, 'D'] } };
+    const back = scheduleWith(changed, 'A', slots);
+    expect(back.rotation.order).toEqual(['A', 'B', 'C', 'D']);
+    expect(back.rotation.order[back.rotation.pointer]).toBe('C');
+  });
+  it('an unnamed workout answers to the generic name in both languages', async () => {
+    const { workoutSearchName } = await import('../src/lib/workout');
+    expect(workoutSearchName('')).toContain('workout');
+    expect(workoutSearchName(undefined)).toContain('træning');
+    expect(workoutSearchName('Push')).toBe('Push');
+  });
+});
