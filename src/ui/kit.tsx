@@ -1,7 +1,7 @@
 import { Roll } from './Roll';
 import { usePresence, useReducedMotion } from 'motion/react';
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { Lens } from './lens';
+import { Lens, type LensBox } from './lens';
 import { apple } from './motion';
 import { Icon, type IconName } from './Icon';
 import { parseNum, fmtNum } from '../lib/units';
@@ -9,6 +9,26 @@ import { useLang } from '../lib/i18n';
 import { haptic } from '../state/ui';
 
 // ── segmented control: a drop of glass flows between options (ui/lens.ts) ─────────
+/** When the drop and the track differ a lot (the dark theme's white drop), each label changes colour exactly as much as
+ *  the drop covers it, frame by frame, so no label is ever light on white or dark on dark mid-glide. The colours come from
+ *  `--seg-ink` / `--seg-ink-on` on the .seg; without them the labels keep their plain CSS fade. */
+function inkFollow(seg: HTMLElement, run: { boxes: LensBox[]; duration: number } | null): Animation[] {
+  if (!run) return [];
+  const cs = getComputedStyle(seg), off = cs.getPropertyValue('--seg-ink').trim(), on = cs.getPropertyValue('--seg-ink-on').trim();
+  if (!off || !on) return [];
+  const o = seg.getBoundingClientRect().left + seg.clientLeft;
+  const out: Animation[] = [];
+  for (const label of seg.querySelectorAll<HTMLElement>(':scope > button > span')) {
+    const r = label.getBoundingClientRect(), x0 = r.left - o, x1 = r.right - o;
+    if (x1 - x0 < 1) continue;
+    const cover = run.boxes.map((b) => { const f = Math.min(1, Math.max(0, (Math.min(b.r, x1) - Math.max(b.l, x0)) / (x1 - x0))); return f * f * (3 - 2 * f); });
+    if (cover.every((c) => c === cover[0])) continue;
+    const n = cover.length;
+    out.push(label.animate(cover.map((c, i) => ({ offset: i / (n - 1), color: `color-mix(in srgb, ${on} ${(c * 100).toFixed(1)}%, ${off})` })), { duration: run.duration, easing: 'linear' }));
+  }
+  return out;
+}
+
 const SEG_LEAD = apple(0.36, 0.1);
 const SEG_TRAIL = apple(0.52);
 export function Seg<T extends string | number>({ value, onChange, options, style }: { value: T; onChange: (v: T) => void; options: { value: T; label: ReactNode }[]; style?: CSSProperties }) {
@@ -24,8 +44,10 @@ export function Seg<T extends string | number>({ value, onChange, options, style
     holder.style.opacity = b ? '' : '0';
     if (!b || b.offsetWidth === 0) return;
     const box = { l: b.offsetLeft, r: b.offsetLeft + b.offsetWidth };
-    if (glide && !reduce) lens.current.glide(box, SEG_LEAD, SEG_TRAIL); else lens.current.place(box);
+    ink.current.forEach((a) => a.cancel()); ink.current = [];
+    if (glide && !reduce) ink.current = inkFollow(el, lens.current.glide(box, SEG_LEAD, SEG_TRAIL)); else lens.current.place(box);
   };
+  const ink = useRef<Animation[]>([]);
   const placed = useRef(false);
   useLayoutEffect(() => { place(placed.current); placed.current = true; }, [idx]); // eslint-disable-line
   useEffect(() => {
