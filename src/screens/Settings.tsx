@@ -1,6 +1,6 @@
 import { troubleReport, troubleThisWeek } from '../lib/trouble';
 import { IS_BETA, requestCopyFromReal } from '../lib/beta';
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useStore, persistStatus } from '../state/store';
 import { useUI, haptic } from '../state/ui';
@@ -21,6 +21,7 @@ import { userHasData } from '../lib/stats';
 import { clearPhotos, loadPhoto, savePhoto } from '../lib/photos';
 import { clearArchive, importArchive } from '../lib/archive';
 import type { AppData, Lang, Meal, Settings } from '../lib/types';
+import { surfaceOf } from '../lib/types';
 import { uid, kcalOf, scaleMacros, suggestMacros } from '../lib/nutrition';
 import { mealName, removeMeal, restoreMeal } from '../lib/derive';
 import { addDays, dayKey, diffDays, fmtDate, fmtDuration } from '../lib/dates';
@@ -108,6 +109,14 @@ const BG_NAMES: Record<BgKind, string> = { classic: 'Classic', orb: 'Orb light',
 /** A sideways row of look tiles that fades out on the side that has more, instead of being cut by the sheet edge. */
 function PalRow({ label, children }: { label: string; children: React.ReactNode }) {
   const ref = useEdgeFade<HTMLDivElement>();
+  // opens with the chosen tile in view (Golden hour sat off to the right, so the page opened without showing your pick)
+  useLayoutEffect(() => {
+    const el = ref.current, on = el?.querySelector<HTMLElement>('[aria-checked="true"]');
+    if (!el || !on) return;
+    const a = el.getBoundingClientRect(), r = on.getBoundingClientRect();
+    if (r.left >= a.left && r.right <= a.right) return;
+    el.scrollLeft = Math.max(0, Math.round(el.scrollLeft + r.left - a.left - (a.width - r.width) / 2));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   return <div ref={ref} className="pal fade-x" role="radiogroup" aria-label={label}>{children}</div>;
 }
 
@@ -246,6 +255,20 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
   const titles: Record<string, string> = { targets: t('Targets'), training: t('Training'), food: t('Food & water'), units: t('Units & locale'), look: t('Appearance'), today: t('Today'), reminders: t('Reminders'), data: t('Data & backup'), privacy: t('Privacy'), ai: t('Voice & AI'), memory: t('Coach memory'), watch: t('Watch'), about: t('About Aven') };
   const goBack = () => (sec && !props.section ? setSec(null) : pop());
   const moved = useRef(false); if (sec !== (props.section ?? null)) moved.current = true; // once you've moved between pages, pages settle in
+  // Every page opens at its top, and back returns the list to where you left it (the shared scroll used to carry over, so a
+  // page reached from far down the list opened half-way down). The page leaving keeps its place while it fades out.
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const shown = useRef<Section>(sec); const listY = useRef(0);
+  useLayoutEffect(() => {
+    const el = bodyRef.current; if (!el || shown.current === sec) return;
+    const from = el.scrollTop;
+    if (shown.current === null) listY.current = from;
+    shown.current = sec;
+    const to = sec === null ? listY.current : 0;
+    if (Math.abs(to - from) < 1) return;
+    for (const pg of el.querySelectorAll<HTMLElement>(':scope > .settings-page')) if (pg.dataset.sec !== (sec ?? 'root')) pg.style.translate = `0 ${Math.round(to - from)}px`;
+    el.scrollTop = to;
+  }, [sec]);
 
   return (
     <Sheet onClose={pop} tall instant label={t('Settings')} z={100}>
@@ -253,10 +276,10 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
         <AnimatePresence mode="popLayout" initial={false} custom={dir}>
           <motion.span key={sec ?? 'root'} custom={dir} variants={TITLE} initial="enter" animate="center" exit="exit" style={{ display: 'inline-block', willChange: 'transform' }}>{sec ? titles[sec] : t('Settings')}</motion.span>
         </AnimatePresence>} onClose={sec ? goBack : pop} back={!!sec && !props.section} />
-      <div className="sheet-body" style={{ position: 'relative', overflowX: 'hidden' }}>
+      <div ref={bodyRef} className="sheet-body" style={{ position: 'relative', overflowX: 'hidden' }}>
         {/* both pages move at once (no blank gap): the new one slides in sharpening from blur, the old one drifts out */}
         <AnimatePresence mode="popLayout" initial={false} custom={dir}>
-          <motion.div key={sec ?? 'root'} className={`no-rise settings-page ${moved.current ? '' : 'still'}`} custom={dir} variants={PAGE} initial="enter" animate="center" exit="exit" style={{ width: '100%' }}>
+          <motion.div key={sec ?? 'root'} data-sec={sec ?? 'root'} className={`no-rise settings-page ${moved.current ? '' : 'still'}`} custom={dir} variants={PAGE} initial="enter" animate="center" exit="exit" style={{ width: '100%' }}>
             {!sec && (
               <>
                 <div className="field"><label htmlFor="s-name">{t('Your name')}</label><input id="s-name" className="input" value={st.name} onChange={(e) => set({ name: e.target.value })} placeholder={t('Optional')} /></div>
@@ -286,7 +309,7 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
                 <Field label={t('Smallest weight jump')}><div className="chips" style={{ margin: 0, padding: 0 }}>{st.units.weight === 'lb'
                   // in pounds: pound steps (kept in kg, as every weight is), so progression lands on real plates
                   ? LB_STEPS.slice(0, 4).map((v) => <button key={v} className={`chip press ${Math.abs(lbStepKg(st.plateStep) - v * KG_PER_LB) < 1e-6 ? 'on' : ''}`} onClick={() => set({ plateStep: v * KG_PER_LB })}>{v} lb</button>)
-                  : [1, 1.25, 2.5, 5].map((v) => <button key={v} className={`chip press ${st.plateStep === v ? 'on' : ''}`} onClick={() => set({ plateStep: v })}>{v} kg</button>)}</div></Field>
+                  : [1, 1.25, 2.5, 5].map((v) => <button key={v} className={`chip press ${st.plateStep === v ? 'on' : ''}`} onClick={() => set({ plateStep: v })}>{fmtNum(v, lang, 2)} kg</button>)}</div></Field>
                 <Field label={t('Workout opens in')} hint={t('Focus shows one exercise at a time. Last used remembers how you left it.')}><Seg value={st.workoutView ?? 'last'} onChange={(v) => set({ workoutView: v })} options={[{ value: 'last', label: t('Last used') }, { value: 'list', label: t('List') }, { value: 'focus', label: t('Focus') }]} /></Field>
                 <ToggleRow label={t('Rest-timer sound')} on={st.sound} onChange={(v) => set({ sound: v })} />
                 <RestAlertRow />
@@ -319,6 +342,7 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
                 </Field>
                 <Field label={t('Background')} hint={t('Only Classic keeps drifting. The others hold still while you scroll.')}><BackgroundPicker /></Field>
                 <Field label={t('Background glow')} hint={t('How strong the background is. Off leaves it plain.')}><Seg value={st.glow ?? 'full'} onChange={(v) => set({ glow: v })} options={[{ value: 'full', label: t('Full') }, { value: 'soft', label: t('Soft') }, { value: 'off', label: t('Off') }]} /></Field>
+                <Field label={t('Sheets')} hint={t('How much of your colours the pop-ups, fields and bar tracks take in the dark theme.')}><Seg value={surfaceOf(st.surface)} onChange={(v) => set({ surface: v })} options={[{ value: 'now', label: t('Before') }, { value: 'glass', label: t('Glass') }, { value: 'deep', label: t('Deep') }]} /></Field>
                 <Field label={t('Theme')}><Seg value={st.theme} onChange={(v) => set({ theme: v })} options={[{ value: 'system', label: t('System') }, { value: 'light', label: t('Light') }, { value: 'dark', label: t('Dark') }]} /></Field>
                 <Field label={t('Motion')}><Seg value={st.motion} onChange={(v) => set({ motion: v })} options={[{ value: 'system', label: t('System') }, { value: 'full', label: t('Full') }, { value: 'reduce', label: t('Reduced') }]} /></Field>
                 <HrrField />
@@ -368,16 +392,13 @@ function RestAlertRow() {
   if (!supported) return null;
   const late = on ? lastRestLate() : null;
   const app = inAndroidApp();
-  // on Android: one small line saying which link of the chain works (browser, phone, permission, app, rest worker, last
-  // error), and a test that goes the same way a real rest does, so one screenshot of this row tells us what's wrong
+  // on Android: a test that goes the same way a real rest does (the line saying which link of the chain works lives in
+  // About Aven, next to Copy details: it is for whoever is fixing the app, not for this row)
   const android = /Android/i.test(navigator.userAgent);
-  const [check, setCheck] = useState<Awaited<ReturnType<typeof restCheck>> | null>(null);
-  const recheck = () => { restCheck().then(setCheck).catch(() => {}); };
-  useEffect(() => { if (android) recheck(); }, [android, perm]);
   const test = async () => {
     let p = Notification.permission;
     if (p === 'default') { p = await Notification.requestPermission().catch(() => 'default' as NotificationPermission); setPerm(p); }
-    if (p !== 'granted') { toast(t('Notifications aren’t allowed, so nothing can show.'), { tone: 'bad' }); recheck(); return; }
+    if (p !== 'granted') { toast(t('Notifications aren’t allowed, so nothing can show.'), { tone: 'bad' }); return; }
     const now = Date.now();
     const words = {
       title: t('Rest timer test'), body: t('Pull down to see the countdown'), icon: `${import.meta.env.BASE_URL}notif-icon.png`,
@@ -396,17 +417,12 @@ function RestAlertRow() {
       } catch (e: any) { try { localStorage.setItem('aven.androidApp.err', `web: ${e?.message ?? e}`); } catch { /* ignore */ } }
     }
     toast(via ? t('Test sent ({via}): pull down from the top of the screen.', { via }) : t('The test couldn’t be shown.'), { tone: via ? 'ok' : 'bad' });
-    recheck();
   };
-  const line = check && [check.browser, [check.model, check.android && `Android ${check.android}`].filter(Boolean).join(' '),
-    `${t('notifications')} ${check.permission}`, `app ${check.inApp ? 'yes' : check.seen ? 'seen' : 'no'}`, `worker ${check.worker}`,
-    check.err && `err ${check.err}`].filter(Boolean).join(' · ');
   return (
     <div className="row-flex between" style={{ alignItems: 'flex-start', gap: 14 }}>
       <div>
         <div>{t('Rest timer on lock screen')}</div>
         <div className="xs t2" style={{ marginTop: 2 }}>{perm === 'denied' ? (app ? t('Notifications are off for the Aven app. Turn them on in your phone’s Settings › Apps › Aven › Notifications, then force stop Chrome (Settings › Apps › Chrome) so it notices, and open Aven again.') : t('Notifications are blocked for Aven in your browser settings.')) : t('Shows when rest is over and buzzes, even in another app or with the screen off.')}</div>
-        {android && line && <div className="xs t3" style={{ marginTop: 4, wordBreak: 'break-word' }}>{line}</div>}
         {android && <button className="btn sm press" style={{ marginTop: 8 }} onClick={test}>{t('Send a test')}</button>}
         {late && <div className="xs t3" style={{ marginTop: 2 }}>{late.ms < 2000 ? t('Last alert came on time.') : t('Last alert came {n} s late.', { n: Math.round(late.ms / 1000) })}</div>}
       </div>
@@ -524,10 +540,7 @@ function FoodSettings() {
       <Field label={t('Water quick amounts (ml)')}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>{st.waterQuick.map((v, i) => <NumInput key={i} value={v} max={0} unit="ml" onChange={(n) => n && n > 0 && s.updateSettings({ waterQuick: st.waterQuick.map((x, j) => (j === i ? n : x)) })} />)}</div>
       </Field>
-      <div className="row-flex between" style={{ alignItems: 'flex-start', gap: 14 }}>
-        <div><div style={{ fontWeight: 600 }}>{t('Online food lookup')}</div></div>
-        <Toggle on={st.foodLookup} onChange={(v) => s.updateSettings({ foodLookup: v })} label={t('Online food lookup')} />
-      </div>
+      <ToggleRow label={t('Online food lookup')} on={st.foodLookup} onChange={(v) => s.updateSettings({ foodLookup: v })} />
     </div>
   );
 }
@@ -647,7 +660,7 @@ function WatchSection() {
                   <div className="li-title trunc">{x.name ? t(x.name) : t(ACTIVITY_LABEL[x.kind] === 'Other' ? 'Activity' : ACTIVITY_LABEL[x.kind])}</div>
                   <div className="li-sub num trunc">{fmtDate(x.date, lang, { weekday: 'short', day: 'numeric', month: 'short' })} · {Math.round(x.durationSec / 60)} min{x.avgHr ? ` · ${x.avgHr} bpm` : x.distanceM ? ` · ${fmtNum(u.distance === 'mi' ? x.distanceM / 1609.344 : x.distanceM / 1000, lang, 1)} ${u.distance}` : ''}</div>
                 </div>
-                {x.intensity && <span className="chip sm">{t(INTENSITY_LABEL[x.intensity])}</span>}
+                {x.intensity && <span className={x.intensity > 1 ? 'chip sm hot' : 'chip sm'}>{t(INTENSITY_LABEL[x.intensity])}</span>}
               </div>
             ))}
           </div>
@@ -656,7 +669,7 @@ function WatchSection() {
       {on ? (
         <div className="row-flex" style={{ gap: 10 }}>
           <button className="btn grow press" onClick={() => go('sync')} disabled={busy === 'sync'}><Icon name="repeat" size={17} className={busy === 'sync' ? 'spin-slow' : undefined} /> {busy === 'sync' ? t('Syncing…') : t('Sync now')}</button>
-          <button className="btn ghost press" onClick={() => go('off')}>{t('Disconnect')}</button>
+          <button className="btn press" style={{ color: 'var(--tx2)' }} onClick={() => go('off')}>{t('Disconnect')}</button>
         </div>
       ) : (
         <button className="btn primary block press" onClick={() => go('connect')} disabled={busy === 'connect'}><Icon name="watch" size={18} /> {busy === 'connect' ? t('Opening Health Connect…') : t('Connect watch')}</button>
@@ -762,7 +775,7 @@ function DataSection() {
           <div className="plinth-2 small" style={{ padding: 12, marginTop: 12 }}>
             <b>{t('Ready to restore')}</b>
             <div className="t2 num" style={{ marginTop: 4 }}>{pending.data.sessions.length} {t('workouts')} · {pending.data.entries.length} {t('food entries')} · {pending.data.routines.length} {t('routines')} · {pending.data.weights.length} {t('weigh-ins')}</div>
-            <div className="row-flex" style={{ gap: 8, marginTop: 10 }}><button className="btn sm primary press" onClick={doImport}>{t('Replace my data')}</button><button className="btn sm ghost press" onClick={() => setPending(null)}>{t('Cancel')}</button></div>
+            <div className="row-flex" style={{ gap: 8, marginTop: 10 }}><button className="btn sm primary press" onClick={doImport}>{t('Replace my data')}</button><button className="btn sm press" onClick={() => setPending(null)}>{t('Cancel')}</button></div>
           </div>
         )}
       </div>
@@ -806,6 +819,17 @@ function StutterRecorder() {
   );
 }
 
+/** Which link of the lock-screen rest chain works (browser, phone, permission, app, rest worker, last error): Android only. */
+function useRestLine() {
+  const t = useT();
+  const android = /Android/i.test(navigator.userAgent) && typeof Notification !== 'undefined';
+  const [check, setCheck] = useState<Awaited<ReturnType<typeof restCheck>> | null>(null);
+  useEffect(() => { if (android) restCheck().then(setCheck).catch(() => {}); }, [android]);
+  return check && [check.browser, [check.model, check.android && `Android ${check.android}`].filter(Boolean).join(' '),
+    `${t('notifications')} ${check.permission}`, `app ${check.inApp ? 'yes' : check.seen ? 'seen' : 'no'}`, `worker ${check.worker}`,
+    check.err && `err ${check.err}`].filter(Boolean).join(' · ');
+}
+
 /**
  * How the Coach's AI has been doing: the app counts its own trouble (an answer it couldn't read, part of one dropped, a
  * fallback, a failed search) on this phone, and copies the details plus the last raw answer (kept in memory only) for
@@ -814,11 +838,12 @@ function StutterRecorder() {
 function CoachRawCopy() {
   const t = useT();
   const [n] = useState(() => troubleThisWeek());
+  const rest = useRestLine();
   const copy = async () => {
     const { lastRawAnswer } = await import('../lib/agentTurn');
     const r = lastRawAnswer();
     const raw = r ? `Last answer · ${new Date(r.at).toISOString()} · ${r.by}${r.plain.length ? ` · plain JSON mode: ${r.plain.join(', ')}` : ''}\n${r.text}` : 'Last answer: none since the app was opened.';
-    const text = `Aven ${__APP_VERSION__}\n${troubleReport()}\n\n${raw}`;
+    const text = `Aven ${__APP_VERSION__}\n${rest ? `Rest timer: ${rest}\n` : ''}${troubleReport()}\n\n${raw}`;
     try { await navigator.clipboard.writeText(text); useUI.getState().toast(t('Copied'), { tone: 'ok' }); } catch { useUI.getState().toast(t('Couldn’t copy'), { tone: 'bad' }); }
   };
   return (
@@ -827,6 +852,7 @@ function CoachRawCopy() {
       <div className="t2" style={{ marginTop: 4 }}>{n === 0 ? t('No AI trouble this week.') : n === 1 ? t('The Coach had trouble once this week.') : t('The Coach had trouble {n} times this week.', { n })}</div>
       <div className="t3 xs" style={{ marginTop: 4 }}>{t('Counted on this phone only. If something seems off, copy the details and paste them to whoever is fixing the app. No keys, no messages.')}</div>
       <button className="btn sm press" style={{ marginTop: 10 }} onClick={copy}><Icon name="copy" size={15} /> {t('Copy details')}</button>
+      {rest && <div className="xs t3" style={{ marginTop: 8, wordBreak: 'break-word' }}>{t('Rest timer on lock screen')}: {rest}</div>}
     </div>
   );
 }

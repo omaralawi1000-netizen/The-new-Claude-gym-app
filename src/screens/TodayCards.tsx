@@ -157,7 +157,7 @@ export function RecentRecords({ d, today }: { d: AppData; today: string }) {
   const ago = (date: string) => { const n = diffDays(date, today); return n === 0 ? t('Today') : n === 1 ? t('Yesterday') : n < 7 ? fmtDate(date, lang, { weekday: 'short' }) : fmtDate(date, lang, { day: 'numeric', month: 'short' }); };
   return (
     <section className="plinth tc-card" aria-label={t('Recent records')}>
-      <div className="row-flex between"><div className="micro">{t('Recent records')}</div><Icon name="bolt" size={15} style={{ color: 'var(--gold)' }} /></div>
+      <div className="row-flex between"><div className="micro">{t('Recent records')}</div><Icon name="bolt" size={15} className="tc-bolt" /></div>
       <div className="tc-rows">
         {list.map(({ r, sessionId }) => {
           const ex = map.get(r.exerciseId);
@@ -167,7 +167,7 @@ export function RecentRecords({ d, today }: { d: AppData; today: string }) {
           return (
             <button key={r.exerciseId} className="tc-row press" onClick={() => push('sessionDetail', { id: sessionId })}>
               <span className="trunc">{ex ? exName(ex, lang) : '?'} <span className="t3 xs">· {ago(date)}</span></span>
-              <span className="num tc-val">{gain !== null && gain > 0 && <span className="tc-up gold">+{val(r, Math.round(gain * 100) / 100)}</span>}{vs ? `${fmtNum(kgToDisplay(vs.weightKg ?? 0, u), lang, 2)} ${u} × ${vs.reps}` : val(r, r.value)}{r.kind === 'e1rm' && <span className="xs t3" style={{ fontWeight: 500 }}>1RM</span>}</span>
+              <span className="num tc-val">{gain !== null && gain > 0 && <span className="tc-up">+{val(r, Math.round(gain * 100) / 100)}</span>}{vs ? `${fmtNum(kgToDisplay(vs.weightKg ?? 0, u), lang, 2)} ${u} × ${vs.reps}` : val(r, r.value)}{r.kind === 'e1rm' && <span className="xs t3" style={{ fontWeight: 500 }}>1RM</span>}</span>
             </button>
           );
         })}

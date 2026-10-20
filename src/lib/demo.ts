@@ -63,7 +63,7 @@ export function buildDemo(settings: Settings): Partial<AppData> {
   const weights = [] as AppData['weights'];
   for (let i = 56; i >= 0; i -= 2) { const d = addDays(today, -i); weights.push({ id: uid('wt'), date: d, kg: Math.round((83.4 - (56 - i) * 0.035 + (rnd() - 0.5) * 0.9) * 10) / 10, at: new Date(d + 'T07:30:00').getTime() }); }
 
-  const activities = [{ id: uid('ac'), date: addDays(today, -3), kind: 'run' as const, durationSec: 1680, distanceM: 5000, note: 'Easy pace', at: new Date(addDays(today, -3) + 'T08:00:00').getTime() }];
+  const activities = [{ id: uid('ac'), date: addDays(today, -3), kind: 'run' as const, durationSec: 1680, distanceM: 5000, note: settings.language === 'da' ? 'Roligt tempo' : 'Easy pace', at: new Date(addDays(today, -3) + 'T08:00:00').getTime() }];
 
   return {
     routines: routinesOut.slice(0, 3),
