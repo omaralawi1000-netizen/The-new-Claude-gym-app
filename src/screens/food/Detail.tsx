@@ -6,7 +6,7 @@ import { useT, useLang } from '../../lib/i18n';
 import type { Food, FoodSnapshot, Quantity } from '../../lib/types';
 import { allowedUnits, entryFromSnapshot, hasPer100, mergeFood, scale, snapshotOf, toBase, uid, NUTRIENT_KEYS } from '../../lib/nutrition';
 import { fmtNum } from '../../lib/units';
-import { fmtNutrient, NUTRIENT_LABEL, NUTRIENT_UNIT, sourceLabel } from '../../lib/format';
+import { fmtNutrient, foodName, NUTRIENT_LABEL, NUTRIENT_UNIT, sourceLabel } from '../../lib/format';
 import { Icon } from '../../ui/Icon';
 import { Count, NumInput, Seg } from '../../ui/kit';
 import { CloseButton, Sheet, useIsPage, SOFT } from '../../ui/Sheet';
@@ -14,9 +14,11 @@ import { mealName } from '../../lib/derive';
 import { fmtDate, relativeDay } from '../../lib/dates';
 import { useToday } from '../../lib/derive';
 import { pct } from '../../lib/nutrition';
+import { REFERENCE_BY_ID } from '../../data/foods';
 
 function snapToFood(s: FoodSnapshot): Food {
-  return { id: s.foodId ?? uid('snap'), name: s.name, brand: s.brand, source: s.source, sourceId: s.sourceId, basis: s.basis, per100: s.per100, portions: s.portions, density: s.density, state: s.state };
+  // a built-in food keeps its Danish name (snapshots don't carry it)
+  return { id: s.foodId ?? uid('snap'), name: s.name, nameDa: s.foodId ? REFERENCE_BY_ID[s.foodId]?.nameDa : undefined, brand: s.brand, source: s.source, sourceId: s.sourceId, basis: s.basis, per100: s.per100, portions: s.portions, density: s.density, state: s.state };
 }
 
 /** Countable foods (a banana, a slice, a can) default to their portion; bulk foods (skyr, rice, oats) default to 100 g. */
@@ -124,7 +126,7 @@ export function FoodDetail({ props }: { props: { food?: Food; foodId?: string; e
         {asPage && <CloseButton onClick={pop} />}
         <div className="grow">
           <div className="micro">{editing ? t('Edit entry') : t('Food')}</div>
-          <div className="display display-md" style={{ marginTop: 4, lineHeight: 1 }}>{food.name}</div>
+          <div className="display display-md" style={{ marginTop: 4, lineHeight: 1 }}>{foodName(food, lang)}</div>
           <div className="small t2" style={{ marginTop: 6 }}>{food.brand ? `${food.brand} · ` : ''}{fmtNum(100, lang, 0)} {food.basis} · {sourceLabel(food.source, t)}{food.barcode ? ` · ${food.barcode}` : ''}</div>
         </div>
         <button className="icon-btn press" aria-label={fav ? t('Remove favourite') : t('Favourite')} onClick={() => { haptic('select'); if (!s.foods.some((f) => f.id === food.id) && food.source !== 'reference' && food.source !== 'recipe') s.saveFood(food); s.toggleFavourite(food.id); }} style={{ color: fav ? 'var(--ac-text)' : undefined }}>
@@ -238,5 +240,5 @@ export function FoodDetail({ props }: { props: { food?: Food; foodId?: string; e
     </button>
   );
 
-  return <Sheet onClose={pop} tall label={food.name} foot={foot}>{body}</Sheet>;
+  return <Sheet onClose={pop} tall label={foodName(food, lang)} foot={foot}>{body}</Sheet>;
 }
