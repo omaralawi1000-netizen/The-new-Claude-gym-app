@@ -126,24 +126,24 @@ html:root:not([data-theme='light']) .toggle-knob:not(#_) {
   background: linear-gradient(180deg, #ffffff 0%, #ffffff 45%, #f3f0ee 100%);
   box-shadow: inset 0 -1px 0 rgba(40,14,4,.2), 0 1px 1px rgba(36,11,3,.4), 0 3px 6px rgba(40,12,4,.35), 0 6px 10px -4px rgba(40,12,4,.45);
 }
-/* switcher thumb (Plan / Library, Off / RPE / RIR, Last used / List / Focus...): warm see-through glass, not grey or
-   mauve. Its pieces stay opaque (the group's opacity makes them glass, so the joins never show). A lit warm-white top
-   edge and a darker lower edge; no shadow (in a near-black track it can't show, and it drew seams at the joins). */
+/* switcher thumb (Plan / Library, 4 weeks / 12 weeks, Full / Soft / Off...): a raised white bead with dark text, the same
+   as a picked chip and the switch knob, and the same as the light theme. Warm see-through glass read as brown mud and
+   grey glass read dead (Omar, 20 Oct). The labels change colour exactly as the bead covers them (kit.tsx inkFollow), so
+   no label is ever light on white or dark on dark mid-glide. Pieces stay opaque so the joins never show. */
+html:root:not([data-theme='light']) .seg:not(#_) { --seg-ink: var(--tx2); --seg-ink-on: #17120e; }
+html:root:not([data-theme='light']) .seg > button:not(#_) { color: var(--seg-ink); }
+html:root:not([data-theme='light']) .seg > button.on:not(#_) { color: var(--seg-ink-on); }
 html:root:not([data-theme='light']) .seg-lens:not(#_) {
-  opacity: .8 !important;
-  --lens-fill: linear-gradient(180deg, #6a594e, #5e4f46 55%, #54473f);
-  --lens-hl: rgba(255,246,236,.7); --lens-line: rgba(255,240,228,.16); --lens-lo: rgba(20,6,2,.62);
+  opacity: 1 !important;
+  --lens-fill: linear-gradient(180deg, #fbfaf9, #f1efed 55%, #e6e3e0);
+  --lens-hl: #ffffff; --lens-line: rgba(255,255,255,0); --lens-lo: rgba(60,30,14,.16);
 }
 html:root:not([data-theme='light']) .seg-lens > :is(.lens-l, .lens-r):not(#_) {
-  background: linear-gradient(180deg, rgba(255,244,232,.14), rgba(255,244,232,0) 48%), var(--lens-fill);
-  box-shadow: inset 0 1px 0 var(--lens-hl), inset 0 -1px 0 var(--lens-lo), inset 0 0 0 1px var(--lens-line);
+  background: var(--lens-fill);
+  box-shadow: inset 0 1px 0 var(--lens-hl), inset 0 -1px 0 var(--lens-lo);
 }
 html:root:not([data-theme='light']) .seg-lens > .lens-m:not(#_) {
-  background:
-    linear-gradient(to bottom, var(--lens-hl) 0 1px, transparent 1px calc(100% - 1px), var(--lens-lo) calc(100% - 1px)),
-    linear-gradient(to bottom, var(--lens-line) 0 1px, transparent 1px calc(100% - 1px), var(--lens-line) calc(100% - 1px)),
-    linear-gradient(180deg, rgba(255,244,232,.14), rgba(255,244,232,0) 48%),
-    var(--lens-fill);
+  background: linear-gradient(to bottom, var(--lens-hl) 0 1px, transparent 1px calc(100% - 1px), var(--lens-lo) calc(100% - 1px)), var(--lens-fill);
 }
 /* picked chip (2.5 kg): a raised white bead */
 html:root:not([data-theme='light']) .chip.on:not(#_) {
