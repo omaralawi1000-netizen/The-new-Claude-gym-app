@@ -152,7 +152,7 @@ export function FoodDetail({ props }: { props: { food?: Food; foodId?: string; e
               <div key={k}>
                 <div className="micro">{t(label)}</div>
                 <div className="num" style={{ fontSize: 22, fontWeight: 650 }}>{n[k] === undefined ? <span className="t3">—</span> : <Count value={n[k]!} format={(v) => fmtNutrient(k, v, lang)} />}<span className="t3 small"> g</span></div>
-                <div className="bar" style={{ height: 4, marginTop: 6, '--fill': c } as CSSProperties}><motion.i style={{ background: c }} initial={false} animate={{ width: `${pct(n[k] ?? 0, goals[k] ?? 100) * 100}%` }} transition={SOFT} /></div>
+                <div className="bar" data-k={k} style={{ height: 4, marginTop: 6, '--fill': c } as CSSProperties}><motion.i style={{ background: c }} initial={false} animate={{ width: `${pct(n[k] ?? 0, goals[k] ?? 100) * 100}%` }} transition={SOFT} /></div>
               </div>
             ))}
           </div>

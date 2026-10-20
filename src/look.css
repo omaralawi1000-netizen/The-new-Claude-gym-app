@@ -198,5 +198,7 @@ html:root:not([data-surface='now']):not([data-theme='light']) :is(.tc-bar, .rv-b
 html:root:not([data-surface='now']):not([data-theme='light']) .water-bar:not(#_) { background: oklch(from var(--c-water) 0.30 0.06 h); }
 html:root:not([data-surface='now']):not([data-theme='light']) .week-bars i:not(.logged, .on):not(#_) { background: oklch(from var(--of, var(--ac)) 0.30 0.075 calc(h - 4)); }
 html:root:not([data-surface='now']):not([data-theme='light']) .sheet .bar:not(#_):not(#_) { background: oklch(from var(--fill, var(--of, var(--ac))) 0.28 0.06 h); }
+/* dark yellow can't be shown that dim (it clips to mustard): fat's track leans to amber and a touch quieter */
+html:root:not([data-surface='now']):not([data-theme='light']) .sheet .bar[data-k='fat']:not(#_):not(#_) { background: oklch(from var(--fill) 0.28 0.045 calc(h - 10)); }
 html:root:not([data-surface='now']):not([data-theme='light']) .input:not(.coach-field *):not(.wk-set.done .input):not(:focus):not(#_) { background-color: color-mix(in srgb, var(--sf-lean) 15%, transparent); box-shadow: inset 0 1px 2px rgba(0,0,0,.22), inset 0 0 0 1px rgba(255, 255, 255, 0.07); }
 html:root:not([data-surface='now']):not([data-theme='light']) .seg:not(#_) { background-color: color-mix(in srgb, var(--sf-lean) 15%, transparent); box-shadow: inset 0 1px 2px rgba(0,0,0,.22), inset 0 0 0 1px rgba(255, 255, 255, 0.07); }
