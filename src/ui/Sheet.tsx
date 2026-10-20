@@ -245,10 +245,10 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
       const b = Math.abs(goal - k0) > 1 ? (to - from) / (goal - k0) : 0;
       line.current = { a: to - b * goal, b };
       const r = Math.max(0, Math.round(goal - maxLift()));
-      if (r > 0) { if (!el.style.height || el.dataset.held) { el.style.height = `${natural.current || el.offsetHeight}px`; el.dataset.held = '1'; } el.style.setProperty('--kb-room', `${r}px`); return; }
+      if (r > 0) { if (!el.style.height || el.dataset.held) { el.style.height = `${natural.current || el.offsetHeight}px`; el.dataset.held = '1'; } setKbRoom(el, r); return; }
       // going down: a list scrolled into the extra room glides back with the keyboard, then the room goes once it has landed
       el.querySelectorAll<HTMLElement>('.sheet-body:not([data-kb-own])').forEach((b) => { // (a list that follows the keyboard itself, the Coach's, is left to it)
-        const room = parseFloat(el.style.getPropertyValue('--kb-room')) || 0;
+        const room = Number(el.dataset.kbRoom) || 0;
         const max = b.scrollHeight - b.clientHeight - room;
         if (room && b.scrollTop > max) b.scrollTo({ top: Math.max(0, max), behavior: 'smooth' });
       });
@@ -257,8 +257,8 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
     const offKb = kbHere.on('change', (k) => {
       // only once the keyboard has gone down: its first frame on the way UP is still at 0 too, and taking the room away
       // there left a chat with nowhere to go (the sent message landed under the bar, 14 Oct)
-      if (k > 0.5 || keyboardGoal() > 0 || !el.style.getPropertyValue('--kb-room')) return;
-      el.style.removeProperty('--kb-room');
+      if (k > 0.5 || keyboardGoal() > 0 || !el.dataset.kbRoom) return;
+      setKbRoom(el, 0);
       if (el.dataset.held) { el.style.height = ''; delete el.dataset.held; }
     });
     return () => { offGoal(); offKb(); };
@@ -580,6 +580,13 @@ function PageSheet({ children, onClose, tall, label, foot, id }: SheetProps & { 
   );
 }
 
+/** The room the keyboard covers, on the sheet's lists (not on the sheet: inherited from there, each change restyled every
+ *  element in it, 11-17 ms, 19 Oct). `el.dataset.kbRoom` keeps the number for the sheet's own reads. */
+function setKbRoom(el: HTMLElement, r: number) {
+  if (r > 0) el.dataset.kbRoom = String(r); else delete el.dataset.kbRoom;
+  el.querySelectorAll<HTMLElement>('.sheet-body').forEach((b) => { if (r > 0) b.style.setProperty('--kb-room', `${r}px`); else b.style.removeProperty('--kb-room'); });
+}
+
 /**
  * A sheet's bottom buttons (Add, Save, Finish…). They float over the bottom of the content instead of sitting below it, so
  * the list scrolls on underneath them, behind a soft frost (.sheet-foot in styles.css). Their height is handed to the page
@@ -591,10 +598,15 @@ function SheetFoot({ children, rise }: { children: ReactNode; rise: MotionValue<
   useLayoutEffect(() => {
     const el = ref.current, host = el?.parentElement; if (!el || !host) return;
     let last = -1;
-    const set = () => { const h = Math.round(el.offsetHeight); if (h !== last) { last = h; host.style.setProperty('--foot-h', `${h}px`); } };
+    // (on the lists themselves, not on the page: inherited from the page, every change restyled the ~1000 elements under it,
+    // 12-17 ms a frame on a pill growing or the keyboard rising, 19 Oct; registered not inherited in styles.css)
+    const bodies = () => [...host.querySelectorAll<HTMLElement>('.sheet-body')].filter((b) => b.closest('.sheet-pane, .sheet-page') === host);
+    const put = () => bodies().forEach((b) => { if (b.style.getPropertyValue('--foot-h') !== `${last}px`) b.style.setProperty('--foot-h', `${last}px`); });
+    const set = () => { const h = Math.round(el.offsetHeight); if (h !== last) { last = h; put(); } };
     set();
     const ro = new ResizeObserver(set); ro.observe(el);
-    return () => { ro.disconnect(); host.style.removeProperty('--foot-h'); };
+    const mo = new MutationObserver((recs) => { if (recs.some((r) => [...r.addedNodes].some((n) => n instanceof HTMLElement && (n.matches('.sheet-body') || !!n.querySelector('.sheet-body'))))) { put(); const k = host.closest<HTMLElement>('[data-kb-room]'); if (k) setKbRoom(k, Number(k.dataset.kbRoom)); } }); mo.observe(host, { childList: true, subtree: true }); // (a list put in later gets it too, and the keyboard's room if it is up)
+    return () => { ro.disconnect(); mo.disconnect(); bodies().forEach((b) => b.style.removeProperty('--foot-h')); };
   }, []);
   return <motion.div className="sheet-foot" ref={ref} style={{ transform: lift }}>{children}</motion.div>;
 }

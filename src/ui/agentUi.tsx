@@ -153,7 +153,10 @@ const KIND_ICON: Record<string, IconName> = { chart: 'progress', food: 'recipe',
 // Once a word has come in it settles into a plain word (no animation, no layer of its own): a whole conversation of
 // soft words made every frame repaint and re-layer hundreds of them while one answer wrote itself in. `still`: already there.
 const SETTLE = 900; // (the longest coming-in is 760 ms; a little slack so nothing is cut short)
-export const Words = memo(function Words({ text, k, base = 0, on = -1, stagger, still }: { text: string; k: string; base?: number; on?: number; stagger?: number; still?: boolean }) {
+// `hold`: while an answer is still writing itself in, no word settles (the Coach keeps each word's layer until the whole
+// answer is in, then lets them all go in one frame, Coach.tsx CoachReply): a word settling dropped its layer and redrew the
+// conversation's tiles under it, two or three times a frame while the next words came in (14 Oct r11, frame drops)
+export const Words = memo(function Words({ text, k, base = 0, on = -1, stagger, still, hold }: { text: string; k: string; base?: number; on?: number; stagger?: number; still?: boolean; hold?: boolean }) {
   const parts = text.split(/(\s+)/);
   // words that arrive together cascade one after another; a word keeps the delay it was born with
   const born = useRef<Record<number, number>>({});
@@ -164,6 +167,7 @@ export const Words = memo(function Words({ text, k, base = 0, on = -1, stagger, 
   const now = performance.now();
   useEffect(() => {
     seen.current = parts.length;
+    if (hold) return;
     const t = performance.now(); let next = Infinity;
     for (const i in ends.current) if (ends.current[i] > t) next = Math.min(next, ends.current[i]);
     if (next === Infinity) return;
@@ -185,7 +189,7 @@ export const Words = memo(function Words({ text, k, base = 0, on = -1, stagger, 
     if (ends.current[i] === undefined) ends.current[i] = still ? 0 : now + Math.min(520, born.current[i]) + SETTLE;
     const idx = n++;
     const cls = on < 0 ? 'w' : idx === on ? 'w w-on' : idx < on ? 'w w-past' : 'w w-next';
-    if (ends.current[i] <= now) return <span key={`${k}-${i}`} className={cls}><span>{w}</span></span>;
+    if (ends.current[i] <= now && !hold) return <span key={`${k}-${i}`} className={cls}><span>{w}</span></span>;
     return <span key={`${k}-${i}`} className={`${cls} w-in`} style={{ animationDelay: `min(${born.current[i]}ms, var(--word-stagger-cap, 520ms))` }}><span>{w}</span></span>; // (same shape as a settled word: settling only drops the class)
   })}</>;
 });
@@ -193,7 +197,7 @@ export const Words = memo(function Words({ text, k, base = 0, on = -1, stagger, 
  * An answer as it should be on screen right now: its words come in one after another at a steady, calm pace, decoupled
  * from how the network delivers them (a model's stream lands in clumps; shown as it lands, words arrived in bursts and
  * then stalled). The pace follows what is waiting, so it keeps up with the stream without running dry between clumps.
- * `instant`: shown whole at once (a saved answer). `done` once the last word is out and nothing more is coming.
+ * `instant`: shown whole at once (a saved answer, or Stop tapped while it was writing itself in). `done` once the last word is out and nothing more is coming.
  */
 export function useWordReveal(text: string, live: boolean, instant = false): { shown: string; done: boolean } {
   const ends = useMemo(() => wordEnds(text, live), [text, live]);
@@ -215,6 +219,8 @@ export function useWordReveal(text: string, live: boolean, instant = false): { s
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
   }, [ends, live]);
+  // turned on later (Stop tapped while the words were still coming in): the rest comes in at once
+  useEffect(() => { if (instant && st.current.n < ends.length) { st.current.n = ends.length; setN(ends.length); } }, [instant, ends]);
   const n = Math.min(st.current.n, ends.length);
   return { shown: n >= ends.length && !live ? text : revealPrefix(text, ends, n), done: !live && n >= ends.length };
 }
@@ -222,12 +228,12 @@ export function useWordReveal(text: string, live: boolean, instant = false): { s
 export function useSpokenWord(id?: string) {
   return useSyncExternalStore(subscribeSpeech, () => (id && speechState().id === id ? Math.max(0, speechState().word) : -1));
 }
-export function Rich({ text, id, stagger, still }: { text: string; id?: string; stagger?: number; still?: boolean }) {
+export function Rich({ text, id, stagger, still, hold }: { text: string; id?: string; stagger?: number; still?: boolean; hold?: boolean }) {
   const on = useSpokenWord(id);
   let n = 0;
   const run = (segs: ReturnType<typeof richLines>[number]['segs'], k: string) => segs.map((p, i) => {
     const base = n; n += wordsOf(p.text).length;
-    return p.bold ? <b key={i}><Words text={p.text} k={`${k}b${i}`} base={base} on={on} stagger={stagger} still={still} /></b> : <Words key={i} text={p.text} k={`${k}t${i}`} base={base} on={on} stagger={stagger} still={still} />;
+    return p.bold ? <b key={i}><Words text={p.text} k={`${k}b${i}`} base={base} on={on} stagger={stagger} still={still} hold={hold} /></b> : <Words key={i} text={p.text} k={`${k}t${i}`} base={base} on={on} stagger={stagger} still={still} hold={hold} />;
   });
   return <>{richLines(text).map((l, i) => {
     if (l.bullet) return <div key={i} className="rich-li"><span aria-hidden className="w" style={{ color: 'var(--tx3)' }}>•</span><span>{run(l.segs, `l${i}`)}</span></div>;
@@ -259,14 +265,24 @@ export function SpeakButton({ id, text }: { id: string; text: string }) {
   return (
     <button className={`speak-btn press ${st}`} aria-label={st === 'idle' ? t('Read aloud') : t('Stop reading')} aria-pressed={st !== 'idle'}
       onClick={() => { if (st === 'idle') readAloud(id, text, t); else stopSpeaking(); }}>
-      <Icon name={st === 'idle' ? 'play' : 'stop'} size={13} sw={st === 'idle' ? 2 : 0} style={st === 'idle' ? { fill: 'currentColor', marginLeft: 1 } : { fill: 'currentColor' }} />
+      {/* play and stop are both there and cross-fade, as the send button's arrow and X do (the glyph was swapped in one frame) */}
+      <span className={`sp-ico${st === 'idle' ? ' on' : ''}`}><Icon name="play" size={13} sw={2} style={{ fill: 'currentColor', marginLeft: 1 }} /></span>
+      <span className={`sp-ico${st === 'idle' ? '' : ' on'}`}><Icon name="stop" size={13} sw={0} style={{ fill: 'currentColor' }} /></span>
     </button>
   );
 }
 
 /** While the Coach thinks: three soft dots, like someone typing. */
 export function TypingDots() {
-  return <div className="typing" aria-label="…"><i /><i /><i /></div>;
+  return <div className="typing" aria-label="…" ref={dotPhase}><i /><i /><i /></div>;
+}
+
+/** The dots breathe on the page's clock, so a new set of dots (the ones that melt as the first word lands) carries on
+ *  exactly where the waiting ones were, never restarting. Set once as the dots mount (before their first frame). */
+export function dotPhase(el: HTMLElement | null) {
+  if (!el || el.style.getPropertyValue('--ph')) return;
+  const now = Number(document.timeline?.currentTime ?? performance.now());
+  el.style.setProperty('--ph', `${-Math.round(now % 1200)}ms`);
 }
 
 /** Why speech-to-text failed, in words (never a stack trace). */
@@ -338,7 +354,7 @@ export function ActionCard({ r, undone, confirmed, onUndo, onConfirm, replaced =
   const shownSub = useRef({ now: sub, before: '' as string | undefined });
   if (shownSub.current.now !== sub) shownSub.current = { now: sub, before: shownSub.current.now };
   const subRolled = !!shownSub.current.before;
-  const cls = ['plinth', 'action-card', fresh ? 'fresh' : '', waiting ? 'waiting' : '', confirmed ? 'sealed' : '', sealing ? 'sealing' : '', undone ? 'undone' : '', undoing ? 'undoing' : '', miss ? 'miss' : '', replaced && !confirmed ? 'replaced' : ''].filter(Boolean).join(' ');
+  const cls = ['plinth', 'action-card', fresh ? 'fresh' : '', r.was ? 'has-was' : '', waiting ? 'waiting' : '', confirmed ? 'sealed' : '', sealing ? 'sealing' : '', undone ? 'undone' : '', undoing ? 'undoing' : '', miss ? 'miss' : '', replaced && !confirmed ? 'replaced' : ''].filter(Boolean).join(' ');
   return (
     <div className={cls} style={{ padding: '12px 14px 12px 12px', ['--n' as string]: r.lines.length }}>
       {/* a preview waiting for its tap: one slow light passes over the glass, once (it never loops) */}

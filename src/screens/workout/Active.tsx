@@ -178,9 +178,13 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
 
   // the keyboard slides over the page (it no longer resizes it): the list gets that much more room at its end, so the last
   // set's fields can still be scrolled above the keys, and the rest timer rides on top of the keyboard
-  const bodyPad = useTransform(kb, (v) => `calc(var(--sab) + 150px + ${v}px)`);
+  // (only a keyboard that is the workout's own: one opened over it, for the Coach, re-laid out and re-drew this whole list
+  // under the Coach on every frame of its ride, one of the steps it rode up in, 19 Oct. It always follows one going down.)
+  const kbOwn = useMotionValue(kb.get());
+  useEffect(() => kb.on('change', (v) => { if (v < kbOwn.get() || dialogRef.current?.contains(document.activeElement)) kbOwn.set(v); }), []); // eslint-disable-line
+  const bodyPad = useTransform(kbOwn, (v) => `calc(var(--sab) + 150px + ${v}px)`);
   // focus pages end just above the bar (the list keeps extra room to scroll its last card up); the stage takes the rest
-  const focusPad = useTransform(kb, (v) => `calc(var(--sab) + 112px + ${v}px)`);
+  const focusPad = useTransform(kbOwn, (v) => `calc(var(--sab) + 112px + ${v}px)`);
   const exMap = useMemo(() => exerciseMap(exercises), [exercises]);
   const [menu, setMenu] = useState<string | null>(null);
   // another screen on top of the workout (the exercise list, an exercise's page): the window's slow colour stands still under it.
@@ -280,7 +284,9 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   // so a running rest keeps counting in the header instead. Told by the keyboard itself, not by a field having focus: a field
   // keeps its focus when Android's back hides the keyboard, and the header then showed the rest twice.
   const [typing, setTyping] = useState(() => keyboardGoal() > 0);
-  useEffect(() => onKeyboardGoal((px) => setTyping(px > 0)), []);
+  // (only its own keyboard: one opened for the Coach on top re-rendered the whole workout in the frame the keyboard set
+  // off, 19 Oct; a keyboard going down always counts)
+  useEffect(() => onKeyboardGoal((px) => { if (px === 0 || dialogRef.current?.contains(document.activeElement)) setTyping(px > 0); }), []);
   // the field you tapped rides up with the keyboard, on its curve, as far as needed (the list, or Focus's page, scrolls)
   useEffect(() => { const el = dialogRef.current; return el ? rideFocus(el, (f) => f.closest<HTMLElement>('.wk-page, .wk-list')) : undefined; }, []);
   const body = useRef<HTMLDivElement>(null);
