@@ -26,14 +26,15 @@ class SegInk {
     this.w = w;
     for (const el of [this.a, this.b, this.c, this.d]) el.style.width = `${w}px`;
     this.a.style.borderRadius = `${R}px 0 0 ${R}px`; this.c.style.borderRadius = `0 ${R}px ${R}px 0`;
-    const labels = seg.querySelectorAll<HTMLElement>(':scope > button > span'), copies = this.d.children;
-    labels.forEach((l, i) => {
-      const c = copies[i] as HTMLElement | undefined; if (!c) return;
-      const f = getComputedStyle(l);
-      Object.assign(c.style, { fontSize: f.fontSize, fontWeight: f.fontWeight, letterSpacing: f.letterSpacing, fontFamily: f.fontFamily, lineHeight: f.lineHeight });
-      const lr = l.getBoundingClientRect(), cr = c.getBoundingClientRect();
-      c.style.left = `${(parseFloat(c.style.left) || 0) + lr.left - cr.left}px`;
-      c.style.top = `${(parseFloat(c.style.top) || 0) + lr.top - cr.top}px`;
+    const labels = [...seg.querySelectorAll<HTMLElement>(':scope > button > span')], copies = [...this.d.children] as HTMLElement[];
+    const pairs = labels.map((l, i) => [l, copies[i]] as const).filter(([, c]) => c);
+    // reads, then writes: one layout pass, not one per label
+    const fonts = pairs.map(([l]) => { const f = getComputedStyle(l); return { fontSize: f.fontSize, fontWeight: f.fontWeight, letterSpacing: f.letterSpacing, fontFamily: f.fontFamily, lineHeight: f.lineHeight }; });
+    pairs.forEach(([, c], i) => Object.assign(c.style, fonts[i]));
+    const at = pairs.map(([l, c]) => { const lr = l.getBoundingClientRect(), cr = c.getBoundingClientRect(); return [lr.left - cr.left, lr.top - cr.top]; });
+    pairs.forEach(([, c], i) => {
+      c.style.left = `${(parseFloat(c.style.left) || 0) + at[i][0]}px`;
+      c.style.top = `${(parseFloat(c.style.top) || 0) + at[i][1]}px`;
     });
   }
   private frame(b: LensBox) {
@@ -71,7 +72,7 @@ export function Seg<T extends string | number>({ value, onChange, options, style
     const box = { l: b.offsetLeft, r: b.offsetLeft + b.offsetWidth };
     if (!ink.current) ink.current = new SegInk(el, el.querySelector('.seg-ink') as HTMLElement);
     const inkOn = ink.current.on;
-    if (inkOn) ink.current.layout(holder.offsetHeight / 2);
+    if (inkOn && !glide) ink.current.layout(holder.offsetHeight / 2); // a glide keeps the layout the last rest made (keeps the tap frame light)
     if (glide && !reduce) { const run = lens.current.glide(box, SEG_LEAD, SEG_TRAIL); if (inkOn) ink.current.glide(box, run); }
     else { lens.current.place(box); if (inkOn) ink.current.place(box); }
   };
@@ -86,7 +87,8 @@ export function Seg<T extends string | number>({ value, onChange, options, style
     return () => ro.disconnect();
   }, []); // eslint-disable-line
   // labels can change without a resize (language): keep the dark copies on them
-  useLayoutEffect(() => { if (placed.current && !lens.current?.moving && ink.current?.on) place(false); });
+  const labelKey = options.map((o) => `${String(o.value)}:${typeof o.label === 'string' ? o.label : ''}`).join('|');
+  useLayoutEffect(() => { if (placed.current && !lens.current?.moving && ink.current?.on) place(false); }, [labelKey]); // eslint-disable-line
   return (
     <div className="seg" role="tablist" style={style} ref={ref}>
       <span className="lens seg-lens" aria-hidden><i className="lens-l" /><i className="lens-r" /><i className="lens-m" /></span>
