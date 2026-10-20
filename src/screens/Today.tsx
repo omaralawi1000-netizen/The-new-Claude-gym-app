@@ -63,9 +63,19 @@ export function TodayScreen() {
   const dueNudge = settings.remindersEnabled && !!routine && !s.active && doneToday.length === 0 && nowD.getHours() * 60 + nowD.getMinutes() >= rh * 60 + rm;
   useEffect(() => {
     if (!dueNudge || typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
-    const key = `aven.notified.${today}`;
-    try { if (sessionStorage.getItem(key)) return; sessionStorage.setItem(key, '1'); } catch { /* ignore */ }
-    try { new Notification(t('Time to train'), { body: routine?.name, icon: `${import.meta.env.BASE_URL}icon-192.png` }); } catch { /* ignore */ }
+    // once a day, also after the app was closed and opened again (one key holding the day, so nothing piles up)
+    const key = 'aven.notified';
+    try { if (localStorage.getItem(key) === today) return; localStorage.setItem(key, today); } catch { /* ignore */ }
+    const title = t('Time to train');
+    const opts: NotificationOptions = { body: routine?.name, icon: `${import.meta.env.BASE_URL}icon-192.png`, tag: 'aven-train' };
+    // Chrome on Android only shows notifications through the service worker (`new Notification` throws there)
+    void (async () => {
+      try {
+        const reg = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : undefined;
+        if (reg) { await (await navigator.serviceWorker.ready).showNotification(title, opts); return; }
+      } catch { /* try the plain way */ }
+      try { new Notification(title, opts); } catch { /* ignore */ }
+    })();
   }, [dueNudge, today, routine?.name, t]);
 
   const start = (r?: Routine) => {
