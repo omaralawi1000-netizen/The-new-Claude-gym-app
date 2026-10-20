@@ -45,6 +45,31 @@ html:root:is([data-look='a'], [data-look='b'], [data-look='c']):not([data-theme=
 html:root[data-look='a']:not([data-theme='light']) :is(.screen .plinth:not(.plinth .plinth), .screen .pin):not(#_):not(#_):not(#_):not(#_) {
   background: rgba(8, 8, 10, 0.20) !important; box-shadow: 0 1px 1px rgba(0, 0, 0, 0.25), 0 12px 28px -16px rgba(0, 0, 0, 0.6) !important;
 }
+/* C's cards: real live blur (Omar, 20 Oct 11:48: "live blur is what makes an app premium; try to make it cheap"), smoked
+   black glass like its sheets. A card's blur only reaches what is behind it up to the nearest ancestor with a mask, filter
+   or opacity below 1 (a "backdrop root"), and the page (.screen) had a mask for its soft top edge, so the cards blurred
+   nothing and the colour field never got through (why real frost on tab cards "looked identical" on 14 Oct). So in C:
+   - the page has no mask; its soft top edge is a small frosted strip over the top instead (fixed, 54 px, fades in with the
+     first 40 px of scrolling, as the mask did), the rule "never blur on blur" bent there only, where content passes it;
+   - only the page's own cards blur (nothing inside them, no chips or buttons), one plain blur each that never animates
+     (no colour boost: a page fading in can't blur, so a boost would jump in at the end of every tab switch);
+   - no frost copy under them (styles.css hides .frost for C).
+   On trial on Beta for the frame rate. */
+html:root[data-look='c']:not([data-theme='light']) :is(.screen .plinth:not(.plinth .plinth), .screen .pin):not(#_):not(#_):not(#_):not(#_) {
+  -webkit-backdrop-filter: blur(14px) !important; backdrop-filter: blur(14px) !important; /* (14: over the soft field it looks the same as 20 and costs less) */
+  background: rgba(0, 0, 0, 0.30) !important;
+}
+html:root[data-look='c']:not([data-theme='light']) .screen:not(#_):not(#_):not(#_) { -webkit-mask-image: none !important; mask-image: none !important; scroll-timeline: --page block; }
+html:root[data-look='c']:not([data-theme='light']) .tab-pane { timeline-scope: --page; }
+@keyframes c-top-in { to { opacity: 1; } }
+html:root[data-look='c']:not([data-theme='light']) .tab-pane::after {
+  content: ''; position: absolute; left: 0; right: 0; top: 0; height: calc(var(--sat) + 54px); z-index: 2; pointer-events: none;
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.32), rgba(0, 0, 0, 0));
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(var(--sat) + 10px), rgba(0, 0, 0, 0.6) calc(var(--sat) + 30px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(var(--sat) + 10px), rgba(0, 0, 0, 0.6) calc(var(--sat) + 30px), transparent);
+  opacity: 0; animation: c-top-in linear both; animation-timeline: --page; animation-range: 0 40px;
+}
 html:root:is([data-look='a'], [data-look='b'], [data-look='c']):not([data-theme='light']) .screen .plinth:not(.plinth .plinth):not(#_):not(#_):not(#_):not(#_)::after {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.05) 40%, rgba(255, 255, 255, 0.03)) !important; opacity: 1 !important;
 }
@@ -58,14 +83,19 @@ html:root:is([data-look='a'], [data-look='b']):not([data-theme='light']) .sheet:
   background: var(--dither), oklch(from var(--ac) var(--bh-sl, 0.205) var(--bh-sc, 0.034) var(--bh-h, h) / 0.58) !important;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), inset 0 0 0 1px rgba(255, 255, 255, 0.06) !important;
 }
-/* C: no colour of its own: the frost deepens and enriches what is behind */
+/* C: black glass (Omar, 20 Oct 11:48: "AMOLED black, but keep the blur behind it"; the tinted glass suits some colours
+   and not others, brown least). No colour of its own and no boost: about a third of what is behind shows through, so over
+   black it is black and over the sky a deep smoked sky. */
 html:root[data-look='c']:not([data-theme='light']) .sheet:not(#_):not(#_):not(#_):not(#_)::before {
-  -webkit-backdrop-filter: blur(44px) saturate(2) brightness(0.84) !important; backdrop-filter: blur(44px) saturate(2) brightness(0.84) !important;
+  -webkit-backdrop-filter: blur(44px) brightness(0.7) !important; backdrop-filter: blur(44px) brightness(0.7) !important;
 }
 html:root[data-look='c']:not([data-theme='light']) .sheet:not(#_):not(#_):not(#_):not(#_)::after {
-  background: var(--dither), rgba(6, 6, 9, 0.34) !important;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10), inset 0 0 0 1px rgba(255, 255, 255, 0.06) !important;
+  background: var(--dither), rgba(0, 0, 0, 0.55) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), inset 0 0 0 1px rgba(255, 255, 255, 0.06) !important;
 }
+/* on black glass a dark well vanishes (only its outline showed): a faint white film instead, and a lighter placeholder */
+html:root[data-look='c']:not([data-theme='light']) .sheet .input:not(#_):not(#_):not(#_):not(#_):not(#_) { background-color: rgba(255, 255, 255, 0.045) !important; }
+html:root[data-look='c']:not([data-theme='light']) .sheet .input:not(#_):not(#_):not(#_):not(#_)::placeholder { color: rgba(255, 255, 255, 0.5); }
 html:root:is([data-look='a'], [data-look='b'], [data-look='c']):not([data-theme='light']) .sheet :is(.plinth, .plinth-2):not(#_):not(#_):not(#_):not(#_) { background-color: rgba(255, 255, 255, 0.055) !important; }
 
 /* Food's week chart: an empty day a faint white nub (was a navy pill), a logged day a soft peach of the accent */

@@ -7,7 +7,7 @@ export const da: Record<string, string> = {
  "Yes, copy it": "Ja, kopiér",
  "How strong the background is. Off leaves it plain.": "Hvor kraftig baggrunden er. Fra gør den helt rolig.",
  "Surfaces": "Flader",
- "Cards, buttons and pop-ups in the dark theme. A, B and C take their colour from the background behind them; Before is the look as it was.": "Kort, knapper og pop-ups i det mørke tema. A, B og C tager deres farve fra baggrunden bag dem; Før er udseendet, som det var.",
+ "Cards, buttons and pop-ups in the dark theme. A and B take their colour from the background behind them; C is black glass whose cards blur live; Before is the look as it was.": "Kort, knapper og pop-ups i det mørke tema. A og B tager deres farve fra baggrunden bag dem; C er sort glas, hvis kort slører live; Før er udseendet, som det var.",
  "Sheets": "Ark",
  "How much of your colours the pop-ups, fields and bar tracks take in the dark theme.": "Hvor meget af dine farver pop-ups, felter og bjælkespor tager i det mørke tema.",
  "Before": "Før",
