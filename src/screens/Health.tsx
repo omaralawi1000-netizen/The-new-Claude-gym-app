@@ -21,6 +21,8 @@ import { C, Hypnogram, NightHeart, Ribbon, ScoreRing, Spark, StepsDay, Trace, We
 import { Expander } from './health/expand';
 import { ProgressBody } from './Progress';
 import { Roll } from '../ui/Roll';
+import { Icon } from '../ui/Icon';
+import { useUI } from '../state/ui';
 import './health/health.css';
 
 type K = 'ready' | 'sleep' | 'heart' | 'move' | 'week' | 'body' | 'training';
@@ -239,6 +241,7 @@ function RibbonBlock({ v, t, lang }: { v: HealthView; t: TFn; lang: Lang }) {
 /** a section on the home screen: label, number, a line of context and its picture (no box: space and size carry it) */
 function Section({ k, v, t, lang, onTap }: { k: K; v: HealthView; t: TFn; lang: Lang; onTap: (k: K, el: HTMLElement) => void }) {
   const [ref, w] = useWidth<HTMLDivElement>(344);
+  const wu = useScreenStore().settings.units.weight;
   const W = w; // the section itself reaches the screen's edges, so its charts do too
   let body: ReactNode = null;
   if (k === 'ready') {
@@ -273,11 +276,11 @@ function Section({ k, v, t, lang, onTap }: { k: K; v: HealthView; t: TFn; lang: 
       <div data-share="chart"><WeekStrip days={wk.days} today={v.today} letter={(d) => fmtDate(d, lang, { weekday: 'narrow' })} /></div>
     </>;
   } else if (k === 'body') {
-    const b = v.body; const u = 'kg';
+    const b = v.body; const u = wu;
     body = <div className="hx-bodyrow">
       <span className="hx-n hx-n28" data-share="num"><Roll text={fmtNum(kgToDisplay(b.kg!, u), lang, 1)} /><small>{u}</small></span>
       <div style={{ flex: 1, minWidth: 0 }}><Spark values={b.series} w={Math.max(60, w - 250)} /></div>
-      {b.rate !== null && <span className="hx-sub">{fmtSigned(b.rate, lang)} {u}/{t('wk')}</span>}
+      {b.rate !== null && <span className="hx-sub">{fmtSigned(kgToDisplay(b.rate, u), lang)} {u}/{t('wk')}</span>}
     </div>;
   } else if (k === 'training') {
     body = <div className="hx-sub" style={{ marginTop: 2 }}>{t('Your progress charts, records and exercise trends.')}</div>;
@@ -318,6 +321,7 @@ function Parts({ s, t }: { s: Score; t: TFn }) {
 /** the page a section grows into */
 function Page({ k, v, t, lang }: { k: K; v: HealthView; t: TFn; lang: Lang }) {
   const [ref, w] = useWidth<HTMLDivElement>(344);
+  const wu = useScreenStore().settings.units.weight;
   const W = w + 40;
   let out: ReactNode = null;
   if (k === 'ready' && v.ready) {
@@ -416,14 +420,15 @@ function Page({ k, v, t, lang }: { k: K; v: HealthView; t: TFn; lang: Lang }) {
         <div className="hx-sub" style={{ marginTop: 6 }}>{[fmtDate(wk.last.date, lang), wk.last.avgHr ? t('avg {n} bpm', { n: Math.round(wk.last.avgHr) }) : '', wk.last.maxHr ? t('top {n}', { n: Math.round(wk.last.maxHr) }) : '', wk.last.kcal ? `${fmtNum(wk.last.kcal, lang, 0)} kcal` : ''].filter(Boolean).join(' · ')}</div></div>}
     </>;
   } else if (k === 'body' && v.body.kg !== undefined) {
-    const b = v.body, u = 'kg';
-    const lo = Math.min(...b.series), hi = Math.max(...b.series);
+    const b = v.body, u = wu, ser = b.series.map((x) => kgToDisplay(x, u));
+    const lo = Math.min(...ser), hi = Math.max(...ser);
     out = <>
       <div className="hx-lab"><i />{t('Body')}</div>
-      <div className="hx-n hx-n52" data-share="num">{fmtNum(b.kg!, lang, 1)}<small>{u}</small></div>
+      <div className="hx-n hx-n52" data-share="num">{fmtNum(kgToDisplay(b.kg!, u), lang, 1)}<small>{u}</small></div>
       <h3 className="hx-dt hx-rise">{b.rate === null ? t('Your weight') : Math.abs(b.rate) < 0.1 ? t('Steady') : b.rate < 0 ? t('Slowly down') : t('Slowly up')}</h3>
-      {b.rate !== null && <p className="hx-dsub hx-rise">{t('About {n} kg a week.', { n: fmtSigned(b.rate, lang) })}</p>}
-      {b.series.length > 1 && <div className="hx-panel hx-rise"><div className="hx-ptitle">{t('Weight, last 30 days')}</div><Spark values={b.series} w={w} h={100} /><div className="hx-ends"><span className="hx-ax3">{fmtNum(b.series[0], lang, 1)}</span><span className="hx-ax3">{fmtNum(lo, lang, 1)}–{fmtNum(hi, lang, 1)}</span></div></div>}
+      {b.rate !== null && <p className="hx-dsub hx-rise">{t('About {n} {u} a week.', { n: fmtSigned(kgToDisplay(b.rate, u), lang), u })}</p>}
+      <div className="hx-panel hx-rise"><button className="chip sm acc press" onClick={() => useUI.getState().push('weight')}><Icon name="plus" size={14} /> {t('Log your weight')}</button></div>
+      {ser.length > 1 && <div className="hx-panel hx-rise"><div className="hx-ptitle">{t('Weight, last 30 days')}</div><Spark values={ser} w={w} h={100} /><div className="hx-ends"><span className="hx-ax3">{fmtNum(ser[0], lang, 1)}</span><span className="hx-ax3">{fmtNum(lo, lang, 1)}–{fmtNum(hi, lang, 1)}</span></div></div>}
       {(b.fat !== undefined || v.heart.vo2 !== undefined) && <div className="hx-panel hx-rise"><div className="hx-kv">{b.fat !== undefined && <div><span>{t('Body fat')}</span><b>{fmtNum(b.fat, lang, 0)} %</b></div>}{v.heart.vo2 !== undefined && <div><span>VO2 max</span><b>{fmtNum(v.heart.vo2, lang, 0)}</b></div>}</div></div>}
     </>;
   } else if (k === 'training') {

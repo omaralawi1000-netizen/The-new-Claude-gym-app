@@ -1084,7 +1084,7 @@ export const da: Record<string, string> = {
  "A fair night": "En okay nat",
  "A short or broken night": "En kort eller urolig nat",
  "About your usual {u}.": "Omtrent som du plejer, {u}.",
- "About {n} kg a week.": "Omkring {n} kg om ugen.",
+ "About {n} {u} a week.": "Omkring {n} {u} om ugen.",
  "Active kcal": "Aktive kcal",
  "Ahead of your usual day": "Foran din normale dag",
  "Awake": "Vågen",
