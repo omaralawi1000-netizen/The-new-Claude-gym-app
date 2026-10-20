@@ -61,8 +61,8 @@ function sample(g: CanvasRenderingContext2D, w: number, h: number) {
   if (!(Math.abs(sx) + Math.abs(sy) > 1e-6)) return null;
   const hue = (Math.atan2(sy, sx) * 180 / Math.PI + 360) % 360;
   // orange backgrounds: lower and quieter (a full one read umber); blue: a little less colour (it read as painted navy).
-  // Both fade in over 10 degrees, so a hue near the edge (Sunset sits at 16) never jumps
-  const warm = smooth(10, 20, hue) * (1 - smooth(85, 95, hue)), blue = smooth(240, 250, hue) * (1 - smooth(290, 300, hue));
+  // Both fade in over 10 degrees, so a hue near the edge never jumps; pink (Sunset, 5–19) stays below it and keeps its plum
+  const warm = smooth(22, 32, hue) * (1 - smooth(85, 95, hue)), blue = smooth(240, 250, hue) * (1 - smooth(290, 300, hue));
   const base = 0.034 - 0.008 * blue;
   return { h: hue, sl: 0.205 - 0.025 * warm, sc: base - (base - 0.022) * warm };
 }

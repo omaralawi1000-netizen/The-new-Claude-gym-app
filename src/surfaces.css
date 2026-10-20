@@ -29,8 +29,8 @@ html:root:is([data-look='a'], [data-look='b'], [data-look='c']):not([data-theme=
 html:root:is([data-look='a'], [data-look='b'], [data-look='c']):not([data-theme='light']) .plinth :is(.icon-btn:not(.flat, .acc, .acc-soft, .speak-btn), button.chip:not(.on, .acc), .chip.acc:not(span), .icon-btn.acc-soft):not(#_):not(#_):not(#_):not(#_):not([data-pressed]) {
   background: rgba(255, 255, 255, 0.05) !important;
 }
-/* the orange words on them a touch lighter (#ffb073 on Golden hour): 4.5:1 or more on every card */
-html:root:is([data-look='a'], [data-look='b'], [data-look='c']):not([data-theme='light']) :is(.chip.acc, .icon-btn.acc-soft):not(#_):not(#_):not(#_):not(#_) { color: color-mix(in srgb, var(--of, var(--ac)) 68%, #fff) !important; }
+/* the orange words on them a touch lighter (#ffb886 on Golden hour): 4.5:1 or more on every card */
+html:root:is([data-look='a'], [data-look='b'], [data-look='c']):not([data-theme='light']) :is(.chip.acc, .icon-btn.acc-soft):not(#_):not(#_):not(#_):not(#_) { color: color-mix(in srgb, var(--of, var(--ac)) 60%, #fff) !important; }
 /* icon tiles (Train history, Settings rows): the same glass, flat */
 html:root:is([data-look='a'], [data-look='b'], [data-look='c']):not([data-theme='light']) :is(span[style*='width: 40px'][style*='var(--s2)'], span[style*='width: 38px'][style*='var(--s2)'], span[style*='width: 40px'][style*='var(--ac-soft)']):not(#_):not(#_):not(#_):not(#_) {
   background: rgba(255, 255, 255, 0.08) !important; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.09), inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
