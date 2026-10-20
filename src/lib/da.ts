@@ -1081,6 +1081,7 @@ export const da: Record<string, string> = {
  "Over": "Over",
  "kcal": "kcal",
  "kcal left": "kcal tilbage",
+ "Burned": "Forbrændt",
  "Audio goes to Groq, text to Gemini. Aven stores nothing.": "Lyd går til Groq, tekst til Gemini. Aven gemmer intet.",
  "Audio goes to Groq. Aven stores nothing.": "Lyd går til Groq. Aven gemmer intet.",
  "Your browser transcribes this. Aven stores nothing.": "Din browser skriver det ud. Aven gemmer intet.",

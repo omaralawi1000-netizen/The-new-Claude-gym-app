@@ -31,6 +31,8 @@ export function Ledger({ sum, compact, date }: { sum: Sum; compact?: boolean; /*
   const memory = useStore((s) => s.memory);
   const catchUp = useMemo(() => catchUpOn({ catchUps, settings, memory }, day), [catchUps, settings, memory, day]);
   const kcal = sum.totals.kcal ?? 0;
+  // what the watch says was burned that day: shown beside the dial, never added to the target (Omar, 20 Oct)
+  const burned = useStore((s) => (compact ? undefined : s.health?.find((d) => d.date === day)?.activeKcal));
   const remaining = goal ? goal - kcal : undefined;
   const over = remaining !== undefined && remaining < 0;
   const macros = [
@@ -41,7 +43,9 @@ export function Ledger({ sum, compact, date }: { sum: Sum; compact?: boolean; /*
   const totalMacro = Math.max(1, (goals.protein ?? 0) + (goals.carbs ?? 0) + (goals.fat ?? 0) || 300);
   const ring = (k: 'protein' | 'carbs' | 'fat') => { const g = goals[k]; const v = sum.totals[k] ?? 0; return g ? pct(v, g) : Math.min(1, v / totalMacro); };
   return (
-    <div style={{ padding: compact ? '2px 0 0' : '6px 0 0' }}>
+    <div style={{ padding: compact ? '2px 0 0' : '6px 0 0', position: 'relative' }}>
+      {!compact && <Side label={t('Eaten')} value={Math.round(kcal)} lang={lang} side="left" />}
+      {!compact && burned !== undefined && <Side label={t('Burned')} value={burned} lang={lang} side="right" />}
       <div style={{ margin: '0 auto', width: 'fit-content', borderRadius: '50%' }} onClick={!compact && !goal ? () => push('settings', { section: 'targets' }) : undefined}>
         <Dial size={compact ? 252 : 268} stroke={10} gap={6} label={`${fmtNum(Math.round(kcal), lang, 0)} kcal`}
           rings={[{ value: goal ? pct(kcal, goal) : kcal > 0 ? 1 : 0, color: 'var(--c-kcal, var(--ac))', label: 'kcal', over }, { value: ring('protein'), color: 'var(--c-protein)', label: t('Protein') }, { value: ring('carbs'), color: 'var(--c-carbs)', label: t('Carbs') }, { value: ring('fat'), color: 'var(--c-fat)', label: t('Fat') }]}>
@@ -95,6 +99,16 @@ export function Ledger({ sum, compact, date }: { sum: Sum; compact?: boolean; /*
           </AnimatePresence>
         </>
       )}
+    </div>
+  );
+}
+
+/** Eaten (left) and Burned (right) in the empty corners beside the dial; the dial's centre stays "kcal left". */
+function Side({ label, value, lang, side }: { label: string; value: number; lang: ReturnType<typeof useLang>; side: 'left' | 'right' }) {
+  return (
+    <div className="ledger-side" style={{ position: 'absolute', top: 214, [side]: 0, textAlign: side, pointerEvents: 'none' }}>
+      <div className="num" style={{ fontSize: 20, fontWeight: 300, letterSpacing: '-0.03em', lineHeight: 1 }}><Roll text={fmtNum(value, lang, 0)} /></div>
+      <div className="micro" style={{ marginTop: 4 }}>{label}</div>
     </div>
   );
 }
