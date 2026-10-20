@@ -76,10 +76,10 @@ describe('editing sets after a workout', () => {
     useStore.getState().mutateSession('b', (x) => ({ ...x, exercises: x.exercises.map((e) => ({ ...e, sets: e.sets.map((q) => ({ ...q, weightKg: 80 })) })) }));
     const st = useStore.getState().sessions;
     expect(st.find((x) => x.id === 'b')!.records!.some((r) => r.kind === 'weight' && r.value === 80 && r.previous === 60)).toBe(true);
-    expect(st.find((x) => x.id === 'c')!.records!.some((r) => r.kind === 'weight')).toBe(false);
+    expect((st.find((x) => x.id === 'c')!.records ?? []).some((r) => r.kind === 'weight')).toBe(false);
     // deleting the set takes its record away
     useStore.getState().mutateSession('b', (x) => ({ ...x, exercises: [] }));
-    expect(useStore.getState().sessions.find((x) => x.id === 'b')!.records).toEqual([]);
+    expect(useStore.getState().sessions.find((x) => x.id === 'b')!.records ?? []).toEqual([]);
     expect(useStore.getState().sessions.find((x) => x.id === 'c')!.records!.some((r) => r.kind === 'weight' && r.previous === 60)).toBe(true);
   });
 });

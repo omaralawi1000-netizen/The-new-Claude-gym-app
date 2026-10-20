@@ -189,6 +189,7 @@ export function refreshRecords(sessions: WorkoutSession[], edited: WorkoutSessio
     const self = x.id === edited.id;
     if (!self && ((x.endedAt ?? 0) < end || !x.exercises.some((e) => ids.has(e.exerciseId)))) continue;
     const records = detectRecords(x, out.filter((y) => y.status === 'done'), lookup);
+    if (JSON.stringify(records) === JSON.stringify(x.records ?? [])) continue;
     out[i] = { ...x, records };
   }
   return out;
