@@ -25,9 +25,9 @@ html:root:not([data-theme='light']) .icon-btn.acc:not(#_):not(#_) {
   box-shadow:
     inset 0 1px 0 rgba(255,246,228,.85),
     inset 0 -8px 12px -8px var(--of-deep),
-    0 2px 2px rgba(30,9,2,.9),
-    0 4px 5px -1px rgba(30,9,2,.8),
-    0 7px 7px -4px rgba(30,9,2,.6),
+    0 2px 2px rgba(0,0,0,.9),
+    0 4px 5px -1px rgba(0,0,0,.8),
+    0 7px 7px -4px rgba(0,0,0,.6),
     0 14px 34px -10px var(--of-glow) !important;
 }
 
@@ -40,7 +40,7 @@ html:root:not([data-theme='light']) .icon-btn.acc:not(#_):not(#_) {
 html:root:not([data-theme='light']) .btn.primary:not(#_):not(#_) {
   isolation: isolate; font-weight: 650; --k: 1; --ks: clamp(0, (var(--k) - .5) * 1000, 1);
   background: linear-gradient(180deg, rgba(255,244,234,.10), rgba(255,244,234,.025) 55%, rgba(20,8,3,.08)), rgb(255 255 255 / .06) !important;
-  box-shadow: inset 0 1px 0 rgba(255,244,234,.14), inset 0 0 0 1px rgba(255,236,222,.08), 0 1px 1px rgba(30,9,2,.6), 0 3px 5px -1px rgba(30,9,2,.45), 0 8px 16px -6px rgba(40,12,4,.5) !important;
+  box-shadow: inset 0 1px 0 rgba(255,244,234,.14), inset 0 0 0 1px rgba(255,236,222,.08), 0 1px 1px rgba(0,0,0,.6), 0 3px 5px -1px rgba(0,0,0,.45), 0 8px 16px -6px rgba(0,0,0,.5) !important;
   color: rgb(calc(255 - 213 * var(--ks)) calc(240 - 222 * var(--ks)) calc(228 - 222 * var(--ks)) / calc(.46 * clamp(0, 1 - var(--k) / .35, 1) + clamp(0, (var(--k) - .5) / .35, 1))) !important;
   transition: --k 520ms var(--ease-io), transform 520ms var(--ease-spring), opacity 200ms;
 }
@@ -105,12 +105,12 @@ html:root:not([data-theme='light']) .screen .tc-week section > button.press > sp
 
 /* ---------- middle: visibly raised ---------- */
 /* Schedule / New routine, grey pills, 46 px round buttons outside cards: each keeps its body colour; a lit top edge,
-   a 1 px darker lower edge, a short warm-dark shadow (not black) */
+   a 1 px darker lower edge, a short neutral shadow (a warm-dark one read as an orange glow on the dark field) */
 html:root:not([data-theme='light']) .screen button.chip:not(.on, .acc):not(.chips > *):not(.plinth *, [data-wk='hero'] + div *):not(#_):not(#_):not([data-pressed]),
 html:root:not([data-theme='light']) .screen .icon-btn:not(.flat, .acc, .acc-soft, .sm):not(.plinth *, [data-wk='hero'] + div *):not(#_):not(#_):not([data-pressed]),
 html:root:not([data-theme='light']) .btn:not(.primary, .ghost, .danger):not(.plinth *, .sheet-foot *, [data-wk='hero'] + div *):not(#_):not(#_):not([data-pressed]) {
   background-image: linear-gradient(180deg, rgba(255,250,244,.16), rgba(255,250,244,.03) 50%, rgba(20,6,2,.12)), linear-gradient(rgba(255,255,255,.06), rgba(255,255,255,.06)) !important;
-  box-shadow: inset 0 -1px 0 rgba(14,4,1,.7), 0 1px 1px rgba(30,9,2,.55), 0 3px 5px -1px rgba(36,11,3,.5), 0 8px 12px -6px rgba(40,12,4,.6) !important;
+  box-shadow: inset 0 -1px 0 rgba(14,4,1,.7), 0 1px 1px rgba(0,0,0,.55), 0 3px 5px -1px rgba(0,0,0,.5), 0 8px 12px -6px rgba(0,0,0,.6) !important;
 }
 html:root:not([data-theme='light']) :is(.screen button.chip:not(.on, .acc):not(.chips > *), .screen .icon-btn:not(.flat, .acc, .acc-soft, .sm), .btn:not(.primary, .ghost, .danger)):not(.plinth *, .sheet-foot *, [data-wk='hero'] + div *):not(#_):not(#_)::after {
   background: linear-gradient(180deg, rgba(255,250,244,.6), rgba(255,250,244,.16) 26%, rgba(255,255,255,.04) 58%, rgba(255,255,255,.03)) !important;
@@ -124,7 +124,7 @@ html:root:not([data-theme='light']) .screen .icon-btn.acc-soft:not(#_):not(#_)::
 /* switch knob: a raised white bead */
 html:root:not([data-theme='light']) .toggle-knob:not(#_) {
   background: linear-gradient(180deg, #ffffff 0%, #ffffff 45%, #f3f0ee 100%);
-  box-shadow: inset 0 -1px 0 rgba(40,14,4,.2), 0 1px 1px rgba(36,11,3,.4), 0 3px 6px rgba(40,12,4,.35), 0 6px 10px -4px rgba(40,12,4,.45);
+  box-shadow: inset 0 -1px 0 rgba(0,0,0,.2), 0 1px 1px rgba(0,0,0,.4), 0 3px 6px rgba(0,0,0,.35), 0 6px 10px -4px rgba(0,0,0,.45);
 }
 /* switcher thumb (Plan / Library, 4 weeks / 12 weeks, Full / Soft / Off...): a raised white bead with dark text, the same
    as a picked chip and the switch knob, and the same as the light theme. Warm see-through glass read as brown mud and
@@ -149,7 +149,7 @@ html:root:not([data-theme='light']) .seg-ink i:not(#_) { color: #17120e; }
 /* picked chip (2.5 kg): a raised white bead */
 html:root:not([data-theme='light']) .chip.on:not(#_) {
   background: linear-gradient(180deg, #eeedeb, #e5e3e1 55%, #dbd9d6) !important;
-  box-shadow: inset 0 -1px 0 rgba(40,14,4,.22), 0 1px 1px rgba(30,9,2,.45), 0 3px 5px -1px rgba(36,11,3,.45), 0 8px 12px -6px rgba(40,12,4,.55) !important;
+  box-shadow: inset 0 -1px 0 rgba(0,0,0,.22), 0 1px 1px rgba(0,0,0,.45), 0 3px 5px -1px rgba(0,0,0,.45), 0 8px 12px -6px rgba(0,0,0,.55) !important;
 }
 
 /* ---------- grown-up details (Omar picked 2, 3 and 5) ---------- */
@@ -197,7 +197,10 @@ html:root:not([data-surface='now']):not([data-theme='light']) .sheet :is(.plinth
    muscle and week bars, water's for water, each macro's own in Food detail); never a film over the card (taupe) */
 html:root:not([data-surface='now']):not([data-theme='light']) :is(.tc-bar, .rv-bar-track, .bar):not(#_) { background: oklch(from var(--fill, var(--of, var(--ac))) 0.30 0.075 calc(h - 4)); }
 html:root:not([data-surface='now']):not([data-theme='light']) .water-bar:not(#_) { background: oklch(from var(--c-water) 0.30 0.06 h); }
-html:root:not([data-surface='now']):not([data-theme='light']) .week-bars i:not(.logged, .on):not(#_) { background: oklch(from var(--of, var(--ac)) 0.30 0.075 calc(h - 4)); }
+/* Food's week: every surface option. An empty day is a dim nub of the palette's own accent (was a navy --s3 pill), a
+   logged day a quiet version of the accent (was a flat grey slab), the picked day the full orange */
+html:root:not([data-theme='light']) .week-bars i:not(.logged, .on):not(#_) { background: oklch(from var(--of, var(--ac)) 0.29 0.06 calc(h - 4)); }
+html:root:not([data-theme='light']) .week-bars i.logged:not(.on):not(#_) { background: linear-gradient(180deg, oklch(from var(--of, var(--ac)) 0.56 0.11 calc(h - 3)), oklch(from var(--of, var(--ac)) 0.47 0.10 calc(h - 5))); box-shadow: inset 0 1px 0 rgb(255 255 255 / .14); }
 html:root:not([data-surface='now']):not([data-theme='light']) .sheet .bar:not(#_):not(#_) { background: oklch(from var(--fill, var(--of, var(--ac))) 0.28 0.06 h); }
 /* dark yellow can't be shown that dim (it clips to mustard): fat's track leans to amber and a touch quieter */
 html:root:not([data-surface='now']):not([data-theme='light']) .sheet .bar[data-k='fat']:not(#_):not(#_) { background: oklch(from var(--fill) 0.28 0.045 calc(h - 10)); }
