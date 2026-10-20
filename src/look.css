@@ -32,15 +32,16 @@ html:root:not([data-theme='light']) .icon-btn.acc:not(#_):not(#_) {
 }
 
 /* Every main pill (.btn.primary): the button itself is a quiet warm glass pill; its orange is one layer (::before) on
-   top of that glass, faded in by opacity alone. So "not yet" and "ready" are the same pill: the orange fills in, slowly,
-   the moment it can be pressed. The label never passes through a mid-tone that sinks into the orange: --k runs 0 -> 1
-   with the orange; the pale label fades out over its first 40 %, the dark one fades in over its second half. */
+   top of that glass. So "not yet" and "ready" are the same pill: the moment it can be pressed, the orange grows out from
+   the middle as a full-strength capsule (clip-path), never a see-through orange over the dark glass (that read as brown
+   mud). The orange, the glass edge and the label all read one number, --k, so they never drift apart. The pale label
+   fades out before the orange reaches it; the dark label fades in once the orange covers it (the middle half). */
 @property --k { syntax: '<number>'; inherits: true; initial-value: 1; }
 html:root:not([data-theme='light']) .btn.primary:not(#_):not(#_) {
-  isolation: isolate; font-weight: 650; --k: 1; --ks: clamp(0, (var(--k) - .45) * 1000, 1);
+  isolation: isolate; font-weight: 650; --k: 1; --ks: clamp(0, (var(--k) - .5) * 1000, 1);
   background: linear-gradient(180deg, rgba(255,244,234,.10), rgba(255,244,234,.025) 55%, rgba(20,8,3,.08)), rgb(44 30 23 / .5) !important;
-  box-shadow: inset 0 1px 0 rgba(255,244,234,.14), inset 0 0 0 1px rgba(255,236,222,.08) !important;
-  color: rgb(calc(255 - 213 * var(--ks)) calc(240 - 222 * var(--ks)) calc(228 - 222 * var(--ks)) / calc(.46 * clamp(0, 1 - var(--k) / .4, 1) + clamp(0, (var(--k) - .5) * 2, 1))) !important;
+  box-shadow: inset 0 1px 0 rgba(255,244,234,.14), inset 0 0 0 1px rgba(255,236,222,.08), 0 1px 1px rgba(30,9,2,.6), 0 3px 5px -1px rgba(30,9,2,.45), 0 8px 16px -6px rgba(40,12,4,.5) !important;
+  color: rgb(calc(255 - 213 * var(--ks)) calc(240 - 222 * var(--ks)) calc(228 - 222 * var(--ks)) / calc(.46 * clamp(0, 1 - var(--k) / .35, 1) + clamp(0, (var(--k) - .5) / .35, 1))) !important;
   transition: --k 520ms var(--ease-io), transform 520ms var(--ease-spring), opacity 200ms;
 }
 html:root:not([data-theme='light']) .btn.primary:not(#_):not(#_)::before {
@@ -51,25 +52,20 @@ html:root:not([data-theme='light']) .btn.primary:not(#_):not(#_)::before {
   box-shadow:
     inset 0 1px 0 rgba(255,246,228,.85),
     inset 0 -8px 12px -8px var(--of-deep),
-    0 0 0 .5px rgba(20,6,2,.45),
-    0 2px 2px rgba(30,9,2,.85),
-    0 4px 5px -1px rgba(30,9,2,.7),
-    0 8px 16px -6px rgba(40,12,4,.6);
-  opacity: 1; transition: opacity 520ms var(--ease-io);
+    inset 0 0 0 .5px rgba(20,6,2,.45);
+  clip-path: inset(0 calc((1 - var(--k)) * 50%) round 999px); opacity: clamp(0, var(--k) * 6, 1); transition: none;
 }
 html:root:not([data-theme='light']) .btn.primary[disabled]:not(#_):not(#_) { --k: 0; }
-html:root:not([data-theme='light']) .btn.primary[disabled]:not(#_):not(#_)::before { opacity: 0; }
-html:root:not([data-theme='light']) .btn.primary[disabled]:not(#_):not(#_)::after { opacity: 1; }
 /* its glass edge (only seen while it isn't ready): a lit warm-white top line fading down the sides */
 html:root:not([data-theme='light']) .btn.primary:not(#_):not(#_)::after {
   content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; padding: 1px;
   -webkit-mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
   background: linear-gradient(180deg, rgba(255,246,236,.32), rgba(255,246,236,.08) 40%, rgba(255,246,236,.03) 70%, rgba(255,246,236,.05));
-  opacity: 0; transition: opacity 520ms var(--ease-io);
+  opacity: calc(1 - var(--k)); transition: none;
 }
 html:root:not([data-theme='light']) .btn.primary[data-pressed]:not(#_):not(#_) { transition: --k 520ms var(--ease-io), transform 110ms var(--ease-out), opacity 200ms; }
 html:root:not([data-theme='light']) .btn.primary[data-press-off]:not(#_):not(#_) { transition: --k 520ms var(--ease-io), transform 240ms var(--ease-out), opacity 200ms; }
-html:root[data-motion='reduce']:not([data-theme='light']) .btn.primary:not(#_):not(#_), html:root[data-motion='reduce']:not([data-theme='light']) .btn.primary:not(#_):not(#_)::before { transition-duration: 0s; }
+html:root[data-motion='reduce']:not([data-theme='light']) .btn.primary:not(#_):not(#_) { transition-duration: 0s; }
 
 /* At the bottom of a sheet the pills float over the list as it scrolls: they keep their own small frost (live), so what
    passes under them turns soft. The quiet one (Cancel, Details) is warm frost; the main one is the same orange pill as
@@ -83,8 +79,7 @@ html:root:not([data-theme='light']) .sheet .sheet-foot .btn.btn.primary:not(#_):
   background: linear-gradient(180deg, rgba(255,244,234,.12), rgba(255,244,234,.03) 55%, rgba(20,8,3,.10)), rgb(40 27 21 / .58) !important;
   box-shadow: 0 1px 1px rgba(20,6,2,.5), 0 12px 26px -14px rgba(20,6,2,.75) !important;
 }
-html:root:not([data-theme='light']) .sheet .sheet-foot .btn.btn.primary:not(#_):not(#_)::before { opacity: .94; }
-html:root:not([data-theme='light']) .sheet .sheet-foot .btn.btn.primary[disabled]:not(#_):not(#_)::before { opacity: 0; }
+html:root:not([data-theme='light']) .sheet .sheet-foot .btn.btn.primary:not(#_):not(#_)::before { opacity: calc(.94 * clamp(0, var(--k) * 6, 1)); }
 
 /* ---------- the same orange on the other filled marks (flat, no depth) ---------- */
 /* progress bars: Muscles this week (Today) and Your week (sheet). The food macro bars keep their own colours */
@@ -172,49 +167,42 @@ html:root:not([data-theme='light']) .pin-count:not(#_) { background: none; paddi
 /* Food detail's portion card: no dotted pattern behind the numbers */
 html:root:not([data-theme='light']) .sheet .plinth.dots:not(#_) { background-image: none; }
 
-/* ---------- surfaces: Settings > Appearance > Sheets (data-surface; missing = Warm black) ----------
-   Only the sheet glass (its tint, solid stand-in and the dim behind it), bar tracks, fields and switcher tracks, cards
-   inside sheets and the grey text inside sheets. The sheet tint keeps the dither recipe (styles.css "Dither").
-   "now" sets nothing: exactly what was live. */
-/* Warm black: like Apple's dark mode with a warm undertone; glass (18, 11, 8) at 0.68 */
-html:root:not([data-surface]):not([data-theme='light']), html:root[data-surface='black']:not([data-theme='light']) {
-  --sheet-tint: rgba(16.07, 9.82, 7.14, 0.8264); --sheet-tint-short: rgba(14.74, 9.01, 6.55, 0.7747);
-  --sheet-solid: #110c0a; --scrim: rgba(6, 3, 1, 0.6);
-  --sf-sheet-tx2: rgba(245, 237, 230, 0.64); --sf-sheet-tx3: rgba(245, 237, 230, 0.4); --sf-card: rgba(255, 232, 214, 0.05);
-  --sf-track: rgb(70 46 34 / .62); --sf-track-sheet: rgb(70 46 34 / .55);
-  --sf-field: rgb(48 33 25 / .45); --sf-field-edge: inset 0 1px 0 rgba(255, 236, 222, 0.05), inset 0 0 0 1px rgba(255, 230, 212, 0.06);
-}
-/* Espresso: coffee-brown glass at live's see-through level; glass (42, 30, 22) at 0.48 */
-html:root[data-surface='espresso']:not([data-theme='light']) {
-  --sheet-tint: rgba(30.47, 21.77, 15.96, 0.7179); --sheet-tint-short: rgba(27.61, 19.72, 14.46, 0.6814);
-  --sheet-solid: #1d1612; --scrim: rgba(10, 6, 3, 0.5);
-  --sf-sheet-tx2: rgba(246, 238, 230, 0.64); --sf-sheet-tx3: rgba(246, 238, 230, 0.4); --sf-card: rgba(255, 236, 220, 0.06);
-  --sf-track: rgb(30 20 14 / .62); --sf-track-sheet: rgb(30 20 14 / .55);
-  --sf-field: rgb(26 17 11 / .52); --sf-field-edge: inset 0 1px 2px rgba(0,0,0,.28), inset 0 0 0 1px rgba(255, 236, 220, 0.07);
-}
-/* Mulberry: wine plum-brown glass; empty tracks are a dim version of their own bar's colour */
-html:root[data-surface='mulberry']:not([data-theme='light']) {
-  --sheet-tint: rgba(30.47, 15.96, 20.31, 0.7179); --sheet-tint-short: rgba(27.61, 14.46, 18.41, 0.6814);
-  --sheet-solid: #1e1316; --scrim: rgba(10, 4, 6, 0.5);
-  --sf-sheet-tx2: rgba(246, 236, 238, 0.64); --sf-sheet-tx3: rgba(246, 236, 238, 0.4); --sf-card: rgba(255, 228, 236, 0.06);
-  --sf-track: color-mix(in srgb, var(--ac) 18%, rgb(34 16 22 / .72)); --sf-track-sheet: rgb(110 62 76 / .5);
-  --sf-field: rgb(30 13 19 / .5); --sf-field-edge: inset 0 1px 2px rgba(0,0,0,.26), inset 0 0 0 1px rgba(255, 225, 235, 0.07);
-}
-html:root[data-surface='mulberry']:not([data-theme='light']) :is(.app, [data-hue]) { --sf-track: color-mix(in srgb, var(--ac) 18%, rgb(34 16 22 / .72)); }
-html:root[data-surface='mulberry']:not([data-theme='light']) .water-bar:not(#_):not(#_) { background: color-mix(in srgb, var(--c-water) 18%, rgb(34 16 22 / .72)); }
-/* Smoked: a thinner, more see-through warm smoke; glass (17, 12, 8) at 0.62 */
-html:root[data-surface='smoked']:not([data-theme='light']) {
-  --sheet-tint: rgba(16.79, 11.55, 8.40, 0.6202); --sheet-tint-short: rgba(14.99, 10.31, 7.50, 0.5974);
-  --sheet-solid: #18130f; --scrim: rgba(20, 8, 2, 0.42);
-  --sf-sheet-tx2: rgba(248, 240, 232, 0.66); --sf-sheet-tx3: rgba(248, 240, 232, 0.42); --sf-card: rgba(255, 226, 205, 0.055);
-  --sf-track: rgb(255 196 150 / .11); --sf-track-sheet: rgb(255 196 150 / .10);
-  --sf-field: rgb(255 214 180 / .045); --sf-field-edge: inset 0 1px 0 rgba(255, 240, 228, 0.07), inset 0 0 0 1px rgba(255, 228, 205, 0.09);
-}
-/* where the chosen surface lands (nothing when "now": the variables are unset and each rule falls back to live) */
-html:root:not([data-surface='now']):not([data-theme='light']) .sheet { --tx2: var(--sf-sheet-tx2); --tx3: var(--sf-sheet-tx3); }
-html:root:not([data-surface='now']):not([data-theme='light']) .sheet :is(.plinth, .plinth-2):not(#_) { background-color: var(--sf-card); }
-html:root:not([data-surface='now']):not([data-theme='light']) :is(.tc-bar, .rv-bar-track, .water-bar, .bar):not(#_) { background: var(--sf-track); }
-html:root:not([data-surface='now']):not([data-theme='light']) .week-bars i:not(.logged, .on):not(#_) { background: var(--sf-track); }
-html:root:not([data-surface='now']):not([data-theme='light']) .sheet .bar:not(#_):not(#_) { background: var(--sf-track-sheet); }
-html:root:not([data-surface='now']):not([data-theme='light']) .input:not(.coach-field *):not(.wk-set.done .input):not(:focus):not(#_) { background-color: var(--sf-field); box-shadow: var(--sf-field-edge); }
-html:root:not([data-surface='now']):not([data-theme='light']) .seg:not(#_) { background-color: var(--sf-field); box-shadow: var(--sf-field-edge); }
+/* ---------- surfaces: Settings > Appearance > Sheets (data-surface; missing = Clear) ----------
+   Omar (20 Oct): the sheets take each palette's own colour, lightly, closer to clear frost than to a coloured block; the
+   frost behind them carries the colour. Each palette's lean is the average hue of its three glows (OKLab), at a low
+   chroma: Clear (C .014, glass .40), Tinted (C .032, glass .46, about live's strength in the palette's own hue), Deep
+   (C .022, glass .60). Touches the sheet glass (tint, solid stand-in), bar tracks, fields and switcher tracks, cards and
+   grey text inside sheets. Tints follow the dither recipe (styles.css "Dither"); generated, glass colour in each comment.
+   "now" sets nothing: exactly what was live. Light theme untouched. */
+html:root[data-palette='ember'][data-surface='clear']:not([data-theme='light']), html:root[data-palette='ember']:not([data-surface]):not([data-theme='light']) { --sheet-tint: rgba(18.69, 13.24, 13.98, 0.6745); --sheet-tint-short: rgba(17.91, 12.69, 13.40, 0.6615); --sheet-solid: rgb(19 12 13); --sf-lean: rgb(53 43 44); } /* glass rgb(29,21,22) at 0.4 */
+html:root[data-palette='ember'][data-surface='tinted']:not([data-theme='light']) { --sheet-tint: rgba(26.92, 13.41, 15.68, 0.7070); --sheet-tint-short: rgba(25.85, 12.88, 15.06, 0.6921); --sheet-solid: rgb(25 11 13); --sf-lean: rgb(61 38 42); } /* glass rgb(38,19,22) at 0.46 */
+html:root[data-palette='ember'][data-surface='deep']:not([data-theme='light']) { --sheet-tint: rgba(18.79, 8.52, 10.18, 0.7830); --sheet-tint-short: rgba(18.11, 8.22, 9.81, 0.7635); --sheet-solid: rgb(14 5 6); --sf-lean: rgb(57 41 43); } /* glass rgb(23,10,12) at 0.6 */
+html:root[data-palette='aurora'][data-surface='clear']:not([data-theme='light']), html:root[data-palette='aurora']:not([data-surface]):not([data-theme='light']) { --sheet-tint: rgba(13.87, 14.55, 19.05, 0.6745); --sheet-tint-short: rgba(13.30, 13.94, 18.26, 0.6615); --sheet-solid: rgb(13 14 19); --sf-lean: rgb(44 45 54); } /* glass rgb(22,23,30) at 0.4 */
+html:root[data-palette='aurora'][data-surface='tinted']:not([data-theme='light']) { --sheet-tint: rgba(15.55, 16.84, 28.29, 0.7070); --sheet-tint-short: rgba(14.94, 16.17, 27.17, 0.6921); --sheet-solid: rgb(13 15 27); --sf-lean: rgb(42 44 63); } /* glass rgb(22,24,40) at 0.46 */
+html:root[data-palette='aurora'][data-surface='deep']:not([data-theme='light']) { --sheet-tint: rgba(10.06, 11.10, 19.77, 0.7830); --sheet-tint-short: rgba(9.70, 10.70, 19.06, 0.7635); --sheet-solid: rgb(6 7 15); --sf-lean: rgb(43 45 58); } /* glass rgb(12,13,24) at 0.6 */
+html:root[data-palette='mono'][data-surface='clear']:not([data-theme='light']), html:root[data-palette='mono']:not([data-surface]):not([data-theme='light']) { --sheet-tint: rgba(13.56, 14.66, 19.10, 0.6745); --sheet-tint-short: rgba(12.99, 14.05, 18.31, 0.6615); --sheet-solid: rgb(13 14 19); --sf-lean: rgb(43 45 54); } /* glass rgb(21,23,30) at 0.4 */
+html:root[data-palette='mono'][data-surface='tinted']:not([data-theme='light']) { --sheet-tint: rgba(14.71, 17.12, 28.41, 0.7070); --sheet-tint-short: rgba(14.13, 16.44, 27.28, 0.6921); --sheet-solid: rgb(12 15 27); --sf-lean: rgb(40 45 64); } /* glass rgb(21,24,40) at 0.46 */
+html:root[data-palette='mono'][data-surface='deep']:not([data-theme='light']) { --sheet-tint: rgba(9.42, 11.31, 19.85, 0.7830); --sheet-tint-short: rgba(9.09, 10.90, 19.14, 0.7635); --sheet-solid: rgb(6 7 15); --sf-lean: rgb(42 45 58); } /* glass rgb(11,14,24) at 0.6 */
+html:root[data-palette='sunset'][data-surface='clear']:not([data-theme='light']), html:root[data-palette='sunset']:not([data-surface]):not([data-theme='light']) { --sheet-tint: rgba(18.22, 13.26, 15.43, 0.6745); --sheet-tint-short: rgba(17.46, 12.71, 14.79, 0.6615); --sheet-solid: rgb(18 12 15); --sf-lean: rgb(52 43 47); } /* glass rgb(28,21,24) at 0.4 */
+html:root[data-palette='sunset'][data-surface='tinted']:not([data-theme='light']) { --sheet-tint: rgba(25.85, 13.50, 19.35, 0.7070); --sheet-tint-short: rgba(24.83, 12.97, 18.58, 0.6921); --sheet-solid: rgb(24 11 17); --sf-lean: rgb(60 39 48); } /* glass rgb(37,19,27) at 0.46 */
+html:root[data-palette='sunset'][data-surface='deep']:not([data-theme='light']) { --sheet-tint: rgba(17.96, 8.58, 12.96, 0.7830); --sheet-tint-short: rgba(17.32, 8.27, 12.50, 0.7635); --sheet-solid: rgb(13 5 8); --sf-lean: rgb(56 41 47); } /* glass rgb(22,10,16) at 0.6 */
+html:root[data-palette='forest'][data-surface='clear']:not([data-theme='light']), html:root[data-palette='forest']:not([data-surface]):not([data-theme='light']) { --sheet-tint: rgba(12.08, 16.10, 12.70, 0.6745); --sheet-tint-short: rgba(11.58, 15.43, 12.18, 0.6615); --sheet-solid: rgb(11 16 12); --sf-lean: rgb(41 48 42); } /* glass rgb(19,25,20) at 0.4 */
+html:root[data-palette='forest'][data-surface='tinted']:not([data-theme='light']) { --sheet-tint: rgba(10.04, 20.88, 12.22, 0.7070); --sheet-tint-short: rgba(9.64, 20.05, 11.73, 0.6921); --sheet-solid: rgb(8 19 10); --sf-lean: rgb(33 51 36); } /* glass rgb(14,30,17) at 0.46 */
+html:root[data-palette='forest'][data-surface='deep']:not([data-theme='light']) { --sheet-tint: rgba(6.23, 14.14, 7.61, 0.7830); --sheet-tint-short: rgba(6.00, 13.63, 7.33, 0.7635); --sheet-solid: rgb(4 9 5); --sf-lean: rgb(37 49 39); } /* glass rgb(7,17,9) at 0.6 */
+html:root[data-palette='golden'][data-surface='clear']:not([data-theme='light']), html:root[data-palette='golden']:not([data-surface]):not([data-theme='light']) { --sheet-tint: rgba(18.72, 13.48, 12.19, 0.6745); --sheet-tint-short: rgba(17.95, 12.92, 11.69, 0.6615); --sheet-solid: rgb(19 12 11); --sf-lean: rgb(53 43 41); } /* glass rgb(29,21,19) at 0.4 */
+html:root[data-palette='golden'][data-surface='tinted']:not([data-theme='light']) { --sheet-tint: rgba(27.05, 13.99, 10.90, 0.7070); --sheet-tint-short: rgba(25.98, 13.44, 10.47, 0.6921); --sheet-solid: rgb(26 12 8); --sf-lean: rgb(62 39 34); } /* glass rgb(38,20,15) at 0.46 */
+html:root[data-palette='golden'][data-surface='deep']:not([data-theme='light']) { --sheet-tint: rgba(18.88, 8.96, 6.70, 0.7830); --sheet-tint-short: rgba(18.20, 8.64, 6.46, 0.7635); --sheet-solid: rgb(14 6 4); --sf-lean: rgb(57 42 38); } /* glass rgb(23,11,8) at 0.6 */
+html:root[data-palette='midnight'][data-surface='clear']:not([data-theme='light']), html:root[data-palette='midnight']:not([data-surface]):not([data-theme='light']) { --sheet-tint: rgba(13.07, 14.83, 19.13, 0.6745); --sheet-tint-short: rgba(12.52, 14.21, 18.33, 0.6615); --sheet-solid: rgb(12 14 19); --sf-lean: rgb(42 46 54); } /* glass rgb(20,23,30) at 0.4 */
+html:root[data-palette='midnight'][data-surface='tinted']:not([data-theme='light']) { --sheet-tint: rgba(13.35, 17.55, 28.48, 0.7070); --sheet-tint-short: rgba(12.82, 16.85, 27.35, 0.6921); --sheet-solid: rgb(11 15 27); --sf-lean: rgb(38 45 64); } /* glass rgb(19,25,40) at 0.46 */
+html:root[data-palette='midnight'][data-surface='deep']:not([data-theme='light']) { --sheet-tint: rgba(8.41, 11.64, 19.91, 0.7830); --sheet-tint-short: rgba(8.11, 11.22, 19.19, 0.7635); --sheet-solid: rgb(5 7 15); --sf-lean: rgb(40 46 58); } /* glass rgb(10,14,24) at 0.6 */
+html:root[data-palette='champagne'][data-surface='clear']:not([data-theme='light']), html:root[data-palette='champagne']:not([data-surface]):not([data-theme='light']) { --sheet-tint: rgba(17.82, 14.12, 10.59, 0.6745); --sheet-tint-short: rgba(17.08, 13.54, 10.15, 0.6615); --sheet-solid: rgb(18 13 9); --sf-lean: rgb(51 44 38); } /* glass rgb(28,22,16) at 0.4 */
+html:root[data-palette='champagne'][data-surface='tinted']:not([data-theme='light']) { --sheet-tint: rgba(25.08, 15.72, 6.07, 0.7070); --sheet-tint-short: rgba(24.09, 15.10, 5.83, 0.6921); --sheet-solid: rgb(23 13 4); --sf-lean: rgb(58 42 26); } /* glass rgb(36,22,9) at 0.46 */
+html:root[data-palette='champagne'][data-surface='deep']:not([data-theme='light']) { --sheet-tint: rgba(17.35, 10.26, 4.01, 0.7830); --sheet-tint-short: rgba(16.72, 9.89, 3.86, 0.7635); --sheet-solid: rgb(12 6 2); --sf-lean: rgb(54 43 33); } /* glass rgb(21,12,5) at 0.6 */
+html:root:not([data-surface='now']):not([data-theme='light']) .sheet { --tx2: rgba(242, 240, 238, 0.64); --tx3: rgba(242, 240, 238, 0.4); }
+html:root:not([data-surface='now']):not([data-theme='light']) .sheet :is(.plinth, .plinth-2):not(#_) { background-color: rgba(255, 255, 255, 0.055); }
+/* empty tracks: a faint film of the colour of their own tab (or the palette, in sheets) */
+html:root:not([data-surface='now']):not([data-theme='light']) :is(.tc-bar, .rv-bar-track, .water-bar, .bar):not(#_) { background: color-mix(in oklab, var(--ac) 14%, rgb(255 255 255 / .09)); }
+html:root:not([data-surface='now']):not([data-theme='light']) .week-bars i:not(.logged, .on):not(#_) { background: color-mix(in oklab, var(--ac) 14%, rgb(255 255 255 / .09)); }
+html:root:not([data-surface='now']):not([data-theme='light']) .sheet .bar:not(#_):not(#_) { background: color-mix(in oklab, var(--ac) 12%, rgb(255 255 255 / .08)); }
+html:root:not([data-surface='now']):not([data-theme='light']) .input:not(.coach-field *):not(.wk-set.done .input):not(:focus):not(#_) { background-color: color-mix(in srgb, var(--sf-lean) 42%, transparent); box-shadow: inset 0 1px 2px rgba(0,0,0,.22), inset 0 0 0 1px rgba(255, 255, 255, 0.07); }
+html:root:not([data-surface='now']):not([data-theme='light']) .seg:not(#_) { background-color: color-mix(in srgb, var(--sf-lean) 42%, transparent); box-shadow: inset 0 1px 2px rgba(0,0,0,.22), inset 0 0 0 1px rgba(255, 255, 255, 0.07); }
