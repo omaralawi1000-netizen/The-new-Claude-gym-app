@@ -56,7 +56,7 @@ html:root[data-look='a']:not([data-theme='light']) :is(.screen .plinth:not(.plin
    - no frost copy under them (styles.css hides .frost for C).
    On trial on Beta for the frame rate. */
 html:root[data-look='c']:not([data-theme='light']) :is(.screen .plinth:not(.plinth .plinth), .screen .pin):not(#_):not(#_):not(#_):not(#_) {
-  -webkit-backdrop-filter: blur(20px) !important; backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(14px) !important; backdrop-filter: blur(14px) !important; /* (14: over the soft field it looks the same as 20 and costs less) */
   background: rgba(0, 0, 0, 0.30) !important;
 }
 html:root[data-look='c']:not([data-theme='light']) .screen:not(#_):not(#_):not(#_) { -webkit-mask-image: none !important; mask-image: none !important; scroll-timeline: --page block; }
@@ -93,6 +93,9 @@ html:root[data-look='c']:not([data-theme='light']) .sheet:not(#_):not(#_):not(#_
   background: var(--dither), rgba(0, 0, 0, 0.55) !important;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), inset 0 0 0 1px rgba(255, 255, 255, 0.06) !important;
 }
+/* on black glass a dark well vanishes (only its outline showed): a faint white film instead, and a lighter placeholder */
+html:root[data-look='c']:not([data-theme='light']) .sheet .input:not(#_):not(#_):not(#_):not(#_):not(#_) { background-color: rgba(255, 255, 255, 0.045) !important; }
+html:root[data-look='c']:not([data-theme='light']) .sheet .input:not(#_):not(#_):not(#_):not(#_)::placeholder { color: rgba(255, 255, 255, 0.5); }
 html:root:is([data-look='a'], [data-look='b'], [data-look='c']):not([data-theme='light']) .sheet :is(.plinth, .plinth-2):not(#_):not(#_):not(#_):not(#_) { background-color: rgba(255, 255, 255, 0.055) !important; }
 
 /* Food's week chart: an empty day a faint white nub (was a navy pill), a logged day a soft peach of the accent */
