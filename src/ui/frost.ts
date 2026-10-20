@@ -192,9 +192,14 @@ function tame(o: CanvasRenderingContext2D, w: number, h: number) {
     else if (mode === 'c') sink(0.66); // smoked glass
     else if (mode === 'd') sink(0.5 + 0.5 * near); // one glow, the rest sinks
     else if (mode === 'e') { let dh = dom - H; dh = Math.atan2(Math.sin(dh), Math.cos(dh)); H += dh * 0.85 * g; sink(0.88); } // one colour
-    else if (mode === 'g') { // like Champagne on Mesh: dark glass, one soft glow coming through, the loudest colour softened
-      if (C > 0.08) C = C * mix(1, (0.08 + (C - 0.08) * 0.4) / C);
-      sink(Math.min(1, 0.24 / mL) * (0.62 + 0.38 * near));
+    else if (mode === 'g') { // like Champagne on Mesh: dark glass, one soft glow coming through
+      const k = Math.max(0.45, Math.min(1, 0.24 / mL) * (0.62 + 0.38 * near)); // never below 45 %: smoked glass, not a hole
+      L *= mix(1, k); C *= mix(1, Math.sqrt(k)); // the colour kept richer than the light, so dark orange doesn't turn brown
+      if (L > 0.28) L = mix(L, 0.28 + (L - 0.28) * 0.5); // a bright slab (Colour per tab) is toned down too
+      if (C > 0.08) C = mix(C, 0.08 + (C - 0.08) * 0.4);
+      const dark = g * (1 - k) / 0.55, deg = (H * 180) / Math.PI; // what sank leans away from brown and navy
+      if (deg > 35 && deg < 85) H += ((25 - deg) * Math.PI / 180) * 0.45 * dark; // dark orange toward rose
+      if (deg < -80 && deg > -120) H += ((-40 - deg) * Math.PI / 180) * 0.35 * dark; // navy toward plum
     }
     A = C * Math.cos(H); B = C * Math.sin(H);
     const [rr, gg, bb] = rgb(L, A, B); d[i * 4] = rr; d[i * 4 + 1] = gg; d[i * 4 + 2] = bb;
