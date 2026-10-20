@@ -442,7 +442,7 @@ export const da: Record<string, string> = {
  "Next day": "Næste dag",
  "Next month": "Næste måned",
  "Nice work": "Flot arbejde",
- "No cloud sync or accounts. No photo-based food estimation. The Coach only advises and never changes your data. Background reminders need a push server.": "Ingen skysynkronisering eller konti. Ingen fotobaseret madestimering. Coachen rådgiver kun og ændrer aldrig dine data. Baggrundspåmindelser kræver en push-server.",
+ "No accounts or cloud sync (Google Drive is only used for backups). Photo food estimates are AI guesses: check them before you log. The Coach can log and change your data when you ask it to. Background reminders need a push server.": "Ingen konti eller skysynkronisering (Google Drive bruges kun til backup). Fotoestimater af mad er AI-gæt: tjek dem, før du logger. Coachen kan logge og ændre dine data, når du beder om det. Baggrundspåmindelser kræver en push-server.",
  "No entries for this day": "Ingen poster for denne dag",
  "No exercise found": "Ingen øvelse fundet",
  "No exercise matched “{q}”": "Ingen øvelse matchede “{q}”",
