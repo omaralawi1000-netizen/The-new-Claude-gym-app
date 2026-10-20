@@ -63,7 +63,7 @@ export function parseDetail(raw: unknown, now = Date.now()): WatchDetail[] {
   });
 }
 
-const DB = 'aven-watch', STORE = 'days', KEEP_DAYS = 365;
+const DB = 'aven-watch', STORE = 'days', ROUTES = 'routes', KEEP_DAYS = 365;
 const hasIdb = () => typeof indexedDB !== 'undefined';
 /** Without IndexedDB (tests, a locked-down browser): kept for this visit only. */
 const mem = new Map<string, WatchDetail>();
@@ -73,8 +73,11 @@ const changed = () => listeners.forEach((fn) => { try { fn(); } catch { /* its o
 
 function open(): Promise<IDBDatabase> {
   return new Promise((res, rej) => {
-    const r = indexedDB.open(DB, 1);
-    r.onupgradeneeded = () => r.result.createObjectStore(STORE, { keyPath: 'date' });
+    const r = indexedDB.open(DB, 2);
+    r.onupgradeneeded = () => {
+      if (!r.result.objectStoreNames.contains(STORE)) r.result.createObjectStore(STORE, { keyPath: 'date' });
+      if (!r.result.objectStoreNames.contains(ROUTES)) r.result.createObjectStore(ROUTES, { keyPath: 'id' });
+    };
     r.onsuccess = () => res(r.result);
     r.onerror = () => rej(r.error);
   });
@@ -136,8 +139,70 @@ export async function watchDetailCount(): Promise<number> {
 /** Delete all data. */
 export async function clearWatchDetail(): Promise<void> {
   mem.clear();
+  memRoutes.clear();
   if (hasIdb()) {
-    try { const db = await open(); await req(db.transaction(STORE, 'readwrite').objectStore(STORE).clear()); db.close(); } catch { /* fine */ }
+    try {
+      const db = await open();
+      await req(db.transaction(STORE, 'readwrite').objectStore(STORE).clear());
+      await req(db.transaction(ROUTES, 'readwrite').objectStore(ROUTES).clear());
+      db.close();
+    } catch { /* fine */ }
   }
   changed();
+}
+
+/**
+ * GPS routes: a run or walk the watch tracked with GPS, by its Health Connect id (the activity's `hcId`). The Android app
+ * sends the newest few (last 14 days) as Google's encoded polyline, thinned to at most 300 points; kept here for good
+ * (they are small). `routePoints` turns one into [latitude, longitude] pairs.
+ */
+export interface Route { id: string; poly: string; at: number }
+const memRoutes = new Map<string, Route>();
+
+export function parseRoutes(raw: unknown, now = Date.now()): Route[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.slice(0, 20).flatMap((r: any): Route[] => typeof r?.id === 'string' && r.id && r.id.length <= 120 && typeof r.p === 'string' && /^[?-~]{4,20000}$/.test(r.p) && routePoints(r.p).length >= 2 ? [{ id: r.id, poly: r.p, at: now }] : []);
+}
+
+/** An encoded polyline → [latitude, longitude] pairs (nothing if it doesn't decode to places on Earth). */
+export function routePoints(poly: string): [number, number][] {
+  const out: [number, number][] = [];
+  let i = 0, lat = 0, lng = 0;
+  const next = () => {
+    let shift = 0, x = 0, b = 0;
+    do { if (i >= poly.length) return null; b = poly.charCodeAt(i++) - 63; x |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20 && shift < 35);
+    return x & 1 ? ~(x >> 1) : x >> 1;
+  };
+  while (i < poly.length) {
+    const a = next(), o = next();
+    if (a === null || o === null) return [];
+    lat += a; lng += o;
+    if (Math.abs(lat) > 9000000 || Math.abs(lng) > 18000000) return [];
+    out.push([lat / 1e5, lng / 1e5]);
+  }
+  return out;
+}
+
+export async function saveRoutes(list: Route[]): Promise<void> {
+  if (!list.length) return;
+  if (!hasIdb()) { for (const r of list) memRoutes.set(r.id, r); changed(); return; }
+  try {
+    const db = await open();
+    const tx = db.transaction(ROUTES, 'readwrite');
+    for (const r of list) tx.objectStore(ROUTES).put(r);
+    await new Promise<void>((res, rej) => { tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); });
+    db.close();
+    changed();
+  } catch { /* it comes again with the next answer */ }
+}
+
+/** A workout's route (its `hcId`), or null. */
+export async function routeOf(id: string): Promise<Route | null> {
+  if (!hasIdb()) return memRoutes.get(id) ?? null;
+  try {
+    const db = await open();
+    const r = await req(db.transaction(ROUTES, 'readonly').objectStore(ROUTES).get(id) as IDBRequest<Route | undefined>);
+    db.close();
+    return r ?? null;
+  } catch { return null; }
 }

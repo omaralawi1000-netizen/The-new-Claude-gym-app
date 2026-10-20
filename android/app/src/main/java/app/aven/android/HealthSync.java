@@ -14,7 +14,15 @@ import android.health.connect.ReadRecordsRequestUsingFilters;
 import android.health.connect.ReadRecordsResponse;
 import android.health.connect.TimeInstantRangeFilter;
 import android.health.connect.datatypes.ActiveCaloriesBurnedRecord;
+import android.health.connect.datatypes.BasalMetabolicRateRecord;
 import android.health.connect.datatypes.BodyFatRecord;
+import android.health.connect.datatypes.BodyTemperatureRecord;
+import android.health.connect.datatypes.BodyWaterMassRecord;
+import android.health.connect.datatypes.BoneMassRecord;
+import android.health.connect.datatypes.ElevationGainedRecord;
+import android.health.connect.datatypes.ExerciseRoute;
+import android.health.connect.datatypes.LeanBodyMassRecord;
+import android.health.connect.datatypes.SkinTemperatureRecord;
 import android.health.connect.datatypes.FloorsClimbedRecord;
 import android.health.connect.datatypes.HeartRateVariabilityRmssdRecord;
 import android.health.connect.datatypes.OxygenSaturationRecord;
@@ -83,6 +91,9 @@ final class HealthSync {
     /** Reading while Aven is closed (HealthJob): asked for with the rest, Android 15 and up. */
     static final String BACKGROUND = "android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND";
 
+    /** Skin temperature and GPS routes: asked for with the rest, Android 15 and up. */
+    static final String SKIN = "android.permission.health.READ_SKIN_TEMPERATURE", ROUTES = "android.permission.health.READ_EXERCISE_ROUTES";
+
     /** What the watch needs to be "connected" (steps and workouts). */
     static final String[] PERMS = {
         "android.permission.health.READ_STEPS",
@@ -107,6 +118,16 @@ final class HealthSync {
         "android.permission.health.READ_HEALTH_DATA_HISTORY",
         // read every half hour while Aven is closed (Android 15 and up), so it opens with fresh numbers
         BACKGROUND,
+        // body composition (the watch's scans), temperature, climbing in a workout
+        "android.permission.health.READ_LEAN_BODY_MASS",
+        "android.permission.health.READ_BODY_WATER_MASS",
+        "android.permission.health.READ_BONE_MASS",
+        "android.permission.health.READ_BASAL_METABOLIC_RATE",
+        "android.permission.health.READ_BODY_TEMPERATURE",
+        "android.permission.health.READ_ELEVATION_GAINED",
+        // skin temperature at night and the GPS route of a run or walk (Android 15 and up)
+        SKIN,
+        ROUTES,
     };
 
     /** All of them, for Connect watch (Health Connect asks only for the ones not allowed yet). */
@@ -114,7 +135,7 @@ final class HealthSync {
         List<String> out = new ArrayList<>();
         java.util.Collections.addAll(out, PERMS);
         // (history only where Health Connect knows it: an unknown one could make it refuse the whole request)
-        for (String p : MORE) if (Build.VERSION.SDK_INT >= 35 || !(p.endsWith("HISTORY") || p.equals(BACKGROUND))) out.add(p);
+        for (String p : MORE) if (Build.VERSION.SDK_INT >= 35 || !(p.endsWith("HISTORY") || p.equals(BACKGROUND) || p.equals(SKIN) || p.equals(ROUTES))) out.add(p);
         java.util.Collections.addAll(out, HealthWrite.PERMS); // (writing weigh-ins and food: optional too)
         return out.toArray(new String[0]);
     }
@@ -173,8 +194,9 @@ final class HealthSync {
     static boolean askedMore(Context c) { return prefs(c).getInt(ASKED_V, prefs(c).getBoolean(ASKED_MORE, false) ? 1 : 0) >= MORE_V; }
     static void markAskedMore(Context c) { prefs(c).edit().putBoolean(ASKED_MORE, true).putInt(ASKED_V, MORE_V).apply(); }
     private static final String ASKED_MORE = "askedMore", ASKED_V = "askedMoreV";
-    /** 1: sleep, HRV and the rest; 2: reading in the background; 3: writing weigh-ins and food. */
-    private static final int MORE_V = 3;
+    /** 1: sleep, HRV and the rest; 2: reading in the background; 3: writing weigh-ins and food; 4: body composition,
+     *  temperature, GPS routes. */
+    private static final int MORE_V = 4;
 
     private static SharedPreferences prefs(Context c) { return c.getSharedPreferences(PREFS, Context.MODE_PRIVATE); }
 
@@ -309,7 +331,8 @@ final class HealthSync {
         TreeMap<String, JSONObject> days = new TreeMap<>();
         JSONArray ex = new JSONArray();
         JSONObject cache = cacheOf(p);
-        collectRange(hc, zone, recentFrom, today, days, ex, cache, back, 60);
+        JSONArray routes = new JSONArray();
+        collectRange(hc, zone, recentFrom, today, days, ex, cache, back, 60, routes);
 
         // the older stretch is read once and kept until the page has had it (the half-hourly reads stay light)
         TreeMap<String, JSONObject> old = new TreeMap<>();
@@ -321,7 +344,7 @@ final class HealthSync {
             JSONArray x = kept.optJSONArray("ex");
             if (x != null) oldEx = x;
         } else {
-            collectRange(hc, zone, chunkStart, chunkEnd, old, oldEx, cache, back, 60);
+            collectRange(hc, zone, chunkStart, chunkEnd, old, oldEx, cache, back, 60, null);
             JSONObject d = new JSONObject();
             for (Map.Entry<String, JSONObject> e : old.entrySet()) d.put(e.getKey(), e.getValue());
             kept = new JSONObject().put("k", chunkStart.toString()).put("days", d).put("ex", oldEx);
@@ -343,6 +366,7 @@ final class HealthSync {
         o.put("days", steps);
         o.put("hd", hd);
         o.put("ex", ex);
+        if (routes.length() > 0) o.put("rt", routes);
         o.put("back", new JSONObject().put("from", chunkStart.toString()).put("to", chunkEnd.toString()));
 
         // the detail: the last days every time (they still change), and an older few walking back (read once, like above)
@@ -454,6 +478,47 @@ final class HealthSync {
         return out;
     }
 
+    /** Skin temperature at night: how far from the watch's own normal (°C, the night's average), by the morning it ended. */
+    private static void skinTemperature(HealthConnectManager hc, ZoneId zone, Instant ia, Instant iz, ExecutorService back, TreeMap<String, JSONObject> days) {
+        for (SkinTemperatureRecord r : records(hc, SkinTemperatureRecord.class, ia.minusSeconds(12 * 3600), iz, back)) {
+            double sum = 0;
+            int n = 0;
+            for (SkinTemperatureRecord.Delta d : r.getDeltas()) { sum += d.getDelta().getInCelsius(); n++; }
+            if (n == 0) continue;
+            String day = dateOf(r.getEndTime(), zone);
+            put(days, day, "sk", Math.round(sum / n * 100) / 100.0);
+            if (r.getBaseline() != null) put(days, day, "skb", Math.round(r.getBaseline().getInCelsius() * 10) / 10.0);
+        }
+    }
+
+    /** At most this many GPS routes in one answer, each at most ROUTE_POINTS points (evenly picked along the way). */
+    private static final int MAX_ROUTES = 8, ROUTE_POINTS = 300;
+
+    /** A route as Google's encoded polyline (latitude, longitude to 1e-5°, about a metre), thinned to ROUTE_POINTS points. */
+    static String polyline(List<ExerciseRoute.Location> all) {
+        if (all == null || all.size() < 2) return "";
+        List<ExerciseRoute.Location> pts = new ArrayList<>(all);
+        pts.sort((a, b) -> a.getTime().compareTo(b.getTime()));
+        StringBuilder sb = new StringBuilder();
+        long lat0 = 0, lng0 = 0;
+        int n = pts.size(), keep = Math.min(n, ROUTE_POINTS);
+        for (int k = 0; k < keep; k++) {
+            ExerciseRoute.Location p = pts.get(keep == 1 ? 0 : (int) Math.round((double) k * (n - 1) / (keep - 1)));
+            long lat = Math.round(p.getLatitude() * 1e5), lng = Math.round(p.getLongitude() * 1e5);
+            encode(sb, lat - lat0);
+            encode(sb, lng - lng0);
+            lat0 = lat;
+            lng0 = lng;
+        }
+        return sb.toString();
+    }
+
+    private static void encode(StringBuilder sb, long v) {
+        long x = v < 0 ? ~(v << 1) : v << 1;
+        while (x >= 0x20) { sb.append((char) ((0x20 | (x & 0x1f)) + 63)); x >>= 5; }
+        sb.append((char) (x + 63));
+    }
+
     private static int minuteOf(Instant t, ZoneId zone) {
         LocalTime lt = t.atZone(zone).toLocalTime();
         return lt.getHour() * 60 + lt.getMinute();
@@ -520,7 +585,7 @@ final class HealthSync {
 
     /** Everything of the days from..to (inclusive) into `days` (one object per date) and the workouts into `ex`. */
     private static void collectRange(HealthConnectManager hc, ZoneId zone, LocalDate from, LocalDate to, TreeMap<String, JSONObject> days,
-                                     JSONArray ex, JSONObject cache, ExecutorService back, int maxEx) {
+                                     JSONArray ex, JSONObject cache, ExecutorService back, int maxEx, JSONArray routes) {
         LocalDateTime a = from.atStartOfDay(), z = to.plusDays(1).atStartOfDay();
         Instant ia = a.atZone(zone).toInstant(), iz = to.equals(LocalDate.now(zone)) ? Instant.now() : z.atZone(zone).toInstant();
 
@@ -590,6 +655,13 @@ final class HealthSync {
         for (RespiratoryRateRecord r : records(hc, RespiratoryRateRecord.class, ia, iz, back)) { double[] x = rr.computeIfAbsent(dateOf(r.getTime(), zone), k -> new double[2]); x[0] += r.getRate(); x[1]++; }
         for (Map.Entry<String, double[]> x : o2.entrySet()) put(days, x.getKey(), "o2", Math.round(x.getValue()[0] / x.getValue()[1] * 10) / 10.0);
         for (Map.Entry<String, double[]> x : rr.entrySet()) put(days, x.getKey(), "rr", Math.round(x.getValue()[0] / x.getValue()[1] * 10) / 10.0);
+        // body composition (the last scan of the day), basal metabolic rate (kcal a day), body temperature
+        for (LeanBodyMassRecord r : records(hc, LeanBodyMassRecord.class, ia, iz, back)) put(days, dateOf(r.getTime(), zone), "lb", Math.round(r.getMass().getInGrams() / 100.0) / 10.0);
+        for (BodyWaterMassRecord r : records(hc, BodyWaterMassRecord.class, ia, iz, back)) put(days, dateOf(r.getTime(), zone), "bw", Math.round(r.getBodyWaterMass().getInGrams() / 100.0) / 10.0);
+        for (BoneMassRecord r : records(hc, BoneMassRecord.class, ia, iz, back)) put(days, dateOf(r.getTime(), zone), "bm", Math.round(r.getMass().getInGrams() / 100.0) / 10.0);
+        for (BasalMetabolicRateRecord r : records(hc, BasalMetabolicRateRecord.class, ia, iz, back)) put(days, dateOf(r.getTime(), zone), "bmr", Math.round(r.getBasalMetabolicRate().getInWatts() * 86400 / 4184));
+        for (BodyTemperatureRecord r : records(hc, BodyTemperatureRecord.class, ia, iz, back)) put(days, dateOf(r.getTime(), zone), "bt", Math.round(r.getTemperature().getInCelsius() * 10) / 10.0);
+        if (Build.VERSION.SDK_INT >= 35) skinTemperature(hc, zone, ia, iz, back, days);
         for (JSONObject d : days.values()) d.remove("night");
 
         // the workouts: their numbers are worked out once and remembered (two years of them would take too long each time)
@@ -623,8 +695,20 @@ final class HealthSync {
                     known.put("at", System.currentTimeMillis());
                     cache.put(id, known);
                 }
-                for (String k : new String[] {"hr", "hx", "kc", "m"}) if (known.has(k)) w.put(k, known.get(k));
+                // how much it climbed (worked out once too; workouts remembered before this get it now)
+                if (!known.has("v2")) {
+                    TimeInstantRangeFilter in = new TimeInstantRangeFilter.Builder().setStartTime(ws).setEndTime(we).build();
+                    try { Length el = one(hc, in, ElevationGainedRecord.ELEVATION_GAINED_TOTAL, back); if (el != null && el.getInMeters() > 0) known.put("el", Math.round(el.getInMeters())); } catch (Exception ignored) { /* none */ }
+                    known.put("v2", 1);
+                }
+                for (String k : new String[] {"hr", "hx", "kc", "m", "el"}) if (known.has(k)) w.put(k, known.get(k));
                 ex.put(w);
+                // the GPS route of the newest few (the last 14 days only: a route is big)
+                if (routes != null && routes.length() < MAX_ROUTES && s.hasRoute()) {
+                    ExerciseRoute route = s.getRoute();
+                    String line = route == null ? "" : polyline(route.getRouteLocations());
+                    if (!line.isEmpty()) routes.put(new JSONObject().put("id", id).put("p", line));
+                }
                 if (++n >= maxEx) break;
             } catch (Exception ignored) { /* skip that one */ }
         }
