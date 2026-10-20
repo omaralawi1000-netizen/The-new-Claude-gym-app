@@ -3056,8 +3056,10 @@ every sleep stage, steps.
 - **Detail** ("dt"): heart rate a minute at a time (the average of every reading in that minute: every few minutes at rest,
   every second in a workout, all the time with "measure continuously" on the watch), steps a minute at a time (Health
   Connect's own count, phone and watch counted once), every sleep session (naps too) with each stage and its times. The last
-  3 days every time, older days 4 at a time back to 90 days. Minutes are packed two characters each, so a week fits the
-  address (about 110 kB, checked on the emulator).
+  3 days every time, older days 4 at a time back to 90 days. Minutes are packed two characters each and the whole answer is
+  squeezed (raw deflate, "hc=z~…", about 4× smaller), so a week with everything else is about 20,000 characters. The
+  emulator carried 60,000 without trouble (an earlier "too big" was only adb's own command-line limit: the test now reads
+  the address on the phone).
 - **Kept apart** in IndexedDB `aven-watch` (`lib/watchDetail.ts`, the last 365 days), not in the app data (every save would
   carry it) and not in backups (Health Connect has it). `watchDetails(from, to)`, `minutes(packed)` and `onWatchDetail` are
   the way in for anything that draws it. Delete all data clears it; Beta has its own.
