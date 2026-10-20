@@ -3,7 +3,9 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useStore } from '../src/state/store';
 import { defaultData } from '../src/state/defaults';
-import type { Routine } from '../src/lib/types';
+import type { Routine, WorkoutSession } from '../src/lib/types';
+import { workoutName } from '../src/lib/workout';
+import { makeT, loadDanish } from '../src/lib/i18n';
 
 const routine = (id: string, name = id): Routine => ({ id, name, items: [], createdAt: 0, updatedAt: 0 } as unknown as Routine);
 
@@ -40,5 +42,19 @@ describe('deleting a routine and Undo', () => {
     useStore.getState().setSchedule({ weekly: { ...useStore.getState().schedule.weekly, 1: 'B' } });
     useStore.getState().restoreRoutine(removed.routine, removed.slots);
     expect(useStore.getState().schedule.weekly[1]).toBe('B');
+  });
+});
+
+describe('an unnamed workout', () => {
+  it('is saved without an English name and shown in the app language', async () => {
+    await loadDanish();
+    const at = Date.now() - 3600000;
+    useStore.setState({ active: { id: 'w1', name: '', date: '2026-10-20', startedAt: at, pausedMs: 0, status: 'active', exercises: [{ id: 'e', exerciseId: 'bench-press', sets: [{ id: 's', type: 'working', done: true, weightKg: 60, reps: 8, completedAt: at + 1000 }] }] } as WorkoutSession });
+    const done = useStore.getState().finishActive()!;
+    expect(done.name).toBe('');
+    const da = makeT('da') as unknown as (k: string) => string;
+    expect(workoutName(done.name, da)).toBe('Træning');
+    expect(workoutName('Workout', da)).toBe('Træning'); // saved by older versions
+    expect(workoutName('Push day', da)).toBe('Push day');
   });
 });

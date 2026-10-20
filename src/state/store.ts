@@ -321,7 +321,7 @@ export const useStore = create<Store>((set, get) => {
         .filter((e) => e.sets.length > 0);
       const done: WorkoutSession = {
         ...a, exercises, status: 'done', endedAt: now, pausedMs, pausedAt: undefined, rest: null, note: note ?? a.note,
-        name: a.name || 'Workout',
+        name: a.name ?? '', // unnamed stays empty: shown as "Workout" in the app's language (workoutName)
       };
       const exMap = exerciseMap(s.exercises);
       done.records = detectRecords(done, s.sessions, (id) => exMap.get(id));

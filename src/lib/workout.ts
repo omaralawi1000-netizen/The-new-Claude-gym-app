@@ -20,6 +20,14 @@ export function sessionSetCount(ex: SessionExercise[], doneOnly = true): number 
   return n;
 }
 /** Active time = elapsed minus paused time. */
+/** A workout's name to show: an unnamed one (and one saved as the old English "Workout") reads "Workout" in the app's language. */
+export function workoutName(name: string | undefined, t: (k: string) => string): string {
+  const n = (name ?? '').trim();
+  return !n || n === 'Workout' ? t('Workout') : n;
+}
+/** Names compared for "same workout as last time": unnamed and the old saved "Workout" are the same. */
+const nameKey = (name: string | undefined) => (name ?? '').trim().toLowerCase() || 'workout';
+
 export function elapsedMs(s: WorkoutSession, now = Date.now()): number {
   const end = s.endedAt ?? now;
   const paused = s.pausedMs + (s.pausedAt && !s.endedAt ? now - s.pausedAt : 0);
@@ -281,7 +289,7 @@ export function sessionHeadline(ses: WorkoutSession, history: WorkoutSession[], 
   }
   const prior = history.filter((h) => h.id !== ses.id && h.status === 'done' && (h.endedAt ?? 0) < (ses.endedAt ?? Date.now()));
   const vol = sessionVolume(ses.exercises);
-  const same = prior.filter((h) => (ses.routineId ? h.routineId === ses.routineId : h.name.trim().toLowerCase() === ses.name.trim().toLowerCase()))
+  const same = prior.filter((h) => (ses.routineId ? h.routineId === ses.routineId : nameKey(h.name) === nameKey(ses.name)))
     .sort((a, b) => (b.endedAt ?? 0) - (a.endedAt ?? 0));
   if (vol > 0 && same.length) {
     if (same.length >= 2 && same.every((h) => vol > sessionVolume(h.exercises))) return { key: 'Your biggest {name} session yet', vars: { name: ses.name } };

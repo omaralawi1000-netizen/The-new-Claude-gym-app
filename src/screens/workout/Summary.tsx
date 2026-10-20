@@ -6,7 +6,7 @@ import { useT, useLang } from '../../lib/i18n';
 import { Icon } from '../../ui/Icon';
 import { NumInput } from '../../ui/kit';
 import { Sheet, SheetHead, SOFT } from '../../ui/Sheet';
-import { elapsedMs, sessionSetCount, sessionVolume, sessionHeadline, countable } from '../../lib/workout';
+import { elapsedMs, sessionSetCount, sessionVolume, sessionHeadline, countable, workoutName } from '../../lib/workout';
 import { fmtDate, fmtDuration, fmtDurationLong } from '../../lib/dates';
 import { backupAfterWorkout } from '../../lib/drive';
 import { displayToKg, fmtNum, kgToDisplay } from '../../lib/units';
@@ -64,14 +64,14 @@ export function Summary({ props }: { props: { sessionId: string } }) {
   useLayoutEffect(() => { const r = document.documentElement; r.dataset.finish = ''; return () => { delete r.dataset.finish; }; }, []);
   if (!ses) return null;
   const hEx = headline?.exerciseId ? exMap.get(headline.exerciseId) : undefined;
-  const line = headline ? t(headline.key, { ...headline.vars, exercise: hEx ? exName(hEx, lang) : '' }) : '';
+  const line = headline ? t(headline.key, { ...headline.vars, ...('name' in headline.vars ? { name: workoutName(String(headline.vars.name), t) } : {}), exercise: hEx ? exName(hEx, lang) : '' }) : '';
   const saveRoutine = () => {
-    const r = saveWorkoutAsRoutine(ses, { name: ses.name || t('Workout') });
+    const r = saveWorkoutAsRoutine(ses, { name: workoutName(ses.name, t) });
     haptic('saved'); toast(t('Saved as routine'), { tone: 'ok', actionLabel: t('Undo'), onAction: r.undo });
   };
   return (
     <Sheet onClose={closeAll} tall label={t('Workout summary')} z={60} foot={<div className="row-flex" style={{ gap: 10 }}><button className="btn grow press" onClick={() => push('sessionDetail', { id: ses.id })}>{t('Details')}</button><button className="btn primary grow press" onClick={() => { haptic('light'); backupAfterWorkout(); closeAll(); }}>{t('Done')}</button></div>}>
-      <SheetHead title={t('Nice work')} sub={`${ses.name || t('Workout')} · ${fmtDate(ses.date, lang)}`} onClose={closeAll} />
+      <SheetHead title={t('Nice work')} sub={`${workoutName(ses.name, t)} · ${fmtDate(ses.date, lang)}`} onClose={closeAll} />
       <div className="sheet-body melt-foot" ref={body}>
         {/* the medal turns in like a coin as the sheet rises; gold with the count when records fell (finishMoment.ts) */}
         <div className={`sum-medal${recs.length ? ' gold' : ''}`} data-fm="medal" aria-label={recs.length ? t(recs.length === 1 ? '1 new record' : '{n} new records', { n: recs.length }) : undefined}>
@@ -181,7 +181,7 @@ export function SessionDetail({ props }: { props: { id: string } }) {
   const source = ses.routineId ? s.routines.find((r) => r.id === ses.routineId) : undefined;
   const saveAs = (into?: string) => {
     setChoosing(false);
-    const r = saveWorkoutAsRoutine(ses, { name: ses.name || t('Workout'), into });
+    const r = saveWorkoutAsRoutine(ses, { name: workoutName(ses.name, t), into });
     haptic('saved');
     toast(into ? t('Routine updated') : t('Saved as routine'), { tone: 'ok', actionLabel: t('Undo'), onAction: r.undo });
     push('routine', { id: r.id });
@@ -192,8 +192,8 @@ export function SessionDetail({ props }: { props: { id: string } }) {
     if (r) { useUI.getState().closeAll(); setTimeout(() => push('workout', { origin: 'none' }), 50); }
   };
   return (
-    <Sheet onClose={pop} tall label={ses.name} z={100}>
-      <SheetHead title={ses.name || t('Workout')} sub={`${fmtDate(ses.date, lang, { weekday: 'long', day: 'numeric', month: 'long' })} · ${fmtDurationLong(elapsedMs(ses) / 1000, lang)}`} onClose={pop} />
+    <Sheet onClose={pop} tall label={workoutName(ses.name, t)} z={100}>
+      <SheetHead title={workoutName(ses.name, t)} sub={`${fmtDate(ses.date, lang, { weekday: 'long', day: 'numeric', month: 'long' })} · ${fmtDurationLong(elapsedMs(ses) / 1000, lang)}`} onClose={pop} />
       <div className="sheet-body">
         <div className="row-flex" style={{ gap: 8, marginBottom: choosing ? 10 : 16 }}>
           <button className="btn sm press" onClick={repeat}><Icon name="repeat" size={16} /> {t('Repeat')}</button>

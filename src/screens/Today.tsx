@@ -10,7 +10,7 @@ import { Icon } from '../ui/Icon';
 import { Ledger } from './food/Ledger';
 import { weightTrend, trendRate, reviewWeekEnd, weekReview, weekStreak, weeklyTraining } from '../lib/stats';
 import { Count } from '../ui/kit';
-import { elapsedMs, sessionSetCount, sessionVolume } from '../lib/workout';
+import { elapsedMs, sessionSetCount, sessionVolume, workoutName } from '../lib/workout';
 import { fmtNum, fmtPct, fmtSigned, kgToDisplay } from '../lib/units';
 import { entryFromSnapshot, snapshotOf, uid } from '../lib/nutrition';
 import { defaultQty } from './food/Detail';
@@ -150,7 +150,7 @@ export function TodayScreen() {
   const plannedDone = !!routine && doneToday.some((x) => x.routineId === routine.id || x.plannedDate === today);
   const gains = useMemo(() => {
     if (!last) return null;
-    const prev = s.sessions.filter((x) => x.id !== last.id && x.date <= last.date && (last.routineId ? x.routineId === last.routineId : x.name === last.name)).sort((a, b) => b.date.localeCompare(a.date) || b.startedAt - a.startedAt)[0];
+    const prev = s.sessions.filter((x) => x.id !== last.id && x.date <= last.date && (last.routineId ? x.routineId === last.routineId : workoutName(x.name, String) === workoutName(last.name, String))).sort((a, b) => b.date.localeCompare(a.date) || b.startedAt - a.startedAt)[0];
     const v = sessionVolume(last.exercises), pv = prev ? sessionVolume(prev.exercises) : 0;
     return { prs: last.records?.length ?? 0, pct: pv > 0 ? Math.round(((v - pv) / pv) * 100) : null };
   }, [last, s.sessions]);
@@ -217,7 +217,7 @@ export function TodayScreen() {
             <div className="row-flex between" style={{ gap: 14 }}>
               <div style={{ minWidth: 0 }}>
                 <div className="row-flex" style={{ gap: 6, color: 'var(--ok)' }}><Icon name="check" size={16} sw={2.6} /><span className="small">{t('Done for today')}</span></div>
-                <div className="display" style={{ fontSize: 46, fontStyle: 'italic', marginTop: 6 }}>{last.name}</div>
+                <div className="display" style={{ fontSize: 46, fontStyle: 'italic', marginTop: 6 }}>{workoutName(last.name, t)}</div>
                 <div className="small t2 num" style={{ marginTop: 8 }}>{fmtDurationLong(elapsedMs(last) / 1000, lang)} · {fmtNum(Math.round(kgToDisplay(sessionVolume(last.exercises), settings.units.weight)), lang, 0)} {settings.units.weight}</div>
                 {gains && (gains.prs > 0 || (gains.pct !== null && gains.pct !== 0)) && (
                   // what got better than last time
