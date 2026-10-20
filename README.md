@@ -3063,3 +3063,26 @@ every sleep stage, steps.
 - **Kept apart** in IndexedDB `aven-watch` (`lib/watchDetail.ts`, the last 365 days), not in the app data (every save would
   carry it) and not in backups (Health Connect has it). `watchDetails(from, to)`, `minutes(packed)` and `onWatchDetail` are
   the way in for anything that draws it. Delete all data clears it; Beta has its own.
+
+## Weight and food into Health Connect (20 Oct 2026)
+Omar: "weight and nutrition, from Aven". Aven now also *writes* two things into Health Connect, so Samsung Health and other
+apps see them: each weigh-in (the last of a day) and each day's food totals (calories, protein, carbs, fat), as one record
+per day each, named by date (`aven-w-<date>`, `aven-n-<date>`), so a day sent again replaces itself. Deleted here = taken
+out there. A web page can't hand data to the Android app by itself, so they ride along when Sync now or Connect watch is
+tapped (`w=` in the link, `lib/hcWrite.ts` → `HealthWrite.java`), only what changed in the last 90 days. They count as sent
+only once the app answers `&hw=<n>`; "denied" (Write weight / Nutrition not allowed in Health Connect) sends them again
+next time and Settings → Watch says where to allow it. Aven's own weigh-ins are skipped when reading the watch's back.
+Not written: workouts and anything else (they'd come back as "watch workouts").
+
+## More from the watch (20 Oct 2026, v0.1.168)
+Omar: "add all the data, GPS also, skin temperature and body composition, the ones that make sense". Now also read:
+- **Body composition** (the watch's scans): lean mass, body water, bone mass, basal metabolic rate (kcal a day); the day's
+  last value, in `HealthDay` (`leanKg`, `bodyWaterKg`, `boneKg`, `bmr`).
+- **Temperature**: body temperature, and skin temperature at night as the night's average off the watch's own normal
+  (`skinDelta`, `skinBase`; Android 15 and up), an early sign of getting ill or under-recovered.
+- **Climbing** per workout (`elevationM`) and the **GPS route** of the newest workouts (last 14 days, at most 8 per answer,
+  thinned to 300 points, Google's encoded polyline), kept by the workout's Health Connect id in IndexedDB `aven-watch`
+  (`routes`; `routeOf`, `routePoints`). Routes need "Exercise routes" allowed in Health Connect.
+The Coach's watch look-up includes the new numbers. Left out on purpose: water and food logged in other apps (Aven has its
+own), blood pressure and glucose (no device), cycle tracking, speed/power/cadence (pace comes from distance and time).
+Already-connected phones are asked once for the new permissions (round 4).
