@@ -119,3 +119,34 @@ describe('through the address', () => {
     expect(await watchDetail(day)).not.toBeNull();
   });
 });
+
+// body composition, temperature, climbing and GPS routes (20 Oct, v0.1.168)
+import { parseRoutes, routeOf, routePoints, saveRoutes } from '../src/lib/watchDetail';
+import { mergeHc } from '../src/lib/healthSync';
+
+/** HealthSync.polyline's encoding (Google's encoded polyline, 1e-5°). */
+const poly = (pts: [number, number][]) => {
+  let out = '', la0 = 0, lo0 = 0;
+  const enc = (v: number) => { let x = v < 0 ? ~(v << 1) : v << 1; while (x >= 0x20) { out += String.fromCharCode((0x20 | (x & 0x1f)) + 63); x >>= 5; } out += String.fromCharCode(x + 63); };
+  for (const [la, lo] of pts) { const a = Math.round(la * 1e5), o = Math.round(lo * 1e5); enc(a - la0); enc(o - lo0); la0 = a; lo0 = o; }
+  return out;
+};
+
+describe('more from the watch', () => {
+  it('body composition, BMR, body and skin temperature per day; how much a workout climbed', () => {
+    const p = parseHc(`#hc=${enc({ v: 1, avail: true, on: true, granted: true, at: now, days: [], hd: [{ d: day, lb: 64.3, bw: 47.1, bm: 3.2, bmr: 1780, bt: 36.8, sk: 0.42, skb: 33.9 }, { d: day, lb: 900, sk: 12 }],
+      ex: [{ id: 'run1', t: 'run', s: now - 3600000, e: now - 1800000, m: 5200, el: 64 }] })}`)!;
+    expect(p.hd![0]).toMatchObject({ leanKg: 64.3, bodyWaterKg: 47.1, boneKg: 3.2, bmr: 1780, bodyTemp: 36.8, skinDelta: 0.42, skinBase: 33.9 });
+    expect(p.hd![1]).toBeUndefined(); // (nonsense only: dropped)
+    const r = mergeHc(p, { activities: [], steps: [] }, 0);
+    expect(r.activities[0]).toMatchObject({ kind: 'run', distanceM: 5200, elevationM: 64 });
+  });
+  it('a GPS route arrives, decodes to the same places and is kept by the workout id', async () => {
+    const pts: [number, number][] = [[56.15674, 10.21076], [56.15701, 10.21152], [56.1581, 10.2131]];
+    expect(routePoints(poly(pts))).toEqual(pts);
+    const rt = parseRoutes([{ id: 'run1', p: poly(pts) }, { id: 'bad', p: '!!' }, { id: '', p: poly(pts) }], now);
+    expect(rt.map((x) => x.id)).toEqual(['run1']);
+    await saveRoutes(rt);
+    expect(routePoints((await routeOf('run1'))!.poly)).toEqual(pts);
+  });
+});

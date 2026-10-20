@@ -183,7 +183,7 @@ function activities(d: AppData, l: Lookup, env: LookupEnv): string {
   const q = l.query ? fold(l.query) : '';
   const list = d.activities.filter((a) => a.date >= from && a.date <= to && (!q || fold(a.kind).includes(q)));
   if (!list.length) return `No activities ${q ? `like "${l.query}" ` : ''}between ${from} and ${to}.`;
-  return cap([...list].sort((a, b) => (a.date < b.date ? 1 : -1)).map((a) => `${a.date} (${WEEKDAYS[weekdayOf(a.date)]}) ${a.kind} ${Math.round(a.durationSec / 60)} min${a.rounds ? `, ${a.rounds} rounds` : ''}${a.intensity ? `, ${['', 'easy', 'hard', 'max'][a.intensity]}` : ''}${a.source === 'watch' ? `${a.name ? ` (${a.name})` : ''}${a.avgHr ? `, avg ${a.avgHr} bpm` : ''}${a.maxHr ? `, max ${a.maxHr}` : ''}${a.kcal ? `, ${a.kcal} kcal` : ''}${a.distanceM ? `, ${(a.distanceM / 1000).toFixed(1)} km` : ''}, from the watch` : ''}${a.note ? ` — ${a.note}` : ''}`));
+  return cap([...list].sort((a, b) => (a.date < b.date ? 1 : -1)).map((a) => `${a.date} (${WEEKDAYS[weekdayOf(a.date)]}) ${a.kind} ${Math.round(a.durationSec / 60)} min${a.rounds ? `, ${a.rounds} rounds` : ''}${a.intensity ? `, ${['', 'easy', 'hard', 'max'][a.intensity]}` : ''}${a.source === 'watch' ? `${a.name ? ` (${a.name})` : ''}${a.avgHr ? `, avg ${a.avgHr} bpm` : ''}${a.maxHr ? `, max ${a.maxHr}` : ''}${a.kcal ? `, ${a.kcal} kcal` : ''}${a.distanceM ? `, ${(a.distanceM / 1000).toFixed(1)} km` : ''}${a.elevationM ? `, ${a.elevationM} m climbed` : ''}, from the watch` : ''}${a.note ? ` — ${a.note}` : ''}`));
 }
 
 /** Everything the watch measured per day over a range: sleep and its stages, resting HR, HRV, calories, steps, body. */
@@ -204,6 +204,8 @@ function health(d: AppData, l: Lookup, env: LookupEnv): string {
       x?.activeKcal !== undefined && `${x.activeKcal} active kcal`, x?.distanceM !== undefined && `${(x.distanceM / 1000).toFixed(1)} km`, x?.floors !== undefined && `${x.floors} floors`,
       x?.weightKg !== undefined && `${x.weightKg} kg`, x?.bodyFat !== undefined && `body fat ${x.bodyFat}%`, x?.vo2max !== undefined && `VO2 max ${x.vo2max}`,
       x?.spo2 !== undefined && `SpO2 ${x.spo2}%`, x?.respRate !== undefined && `breathing ${x.respRate}/min`,
+      x?.leanKg !== undefined && `lean mass ${x.leanKg} kg`, x?.bodyWaterKg !== undefined && `body water ${x.bodyWaterKg} kg`, x?.boneKg !== undefined && `bone ${x.boneKg} kg`, x?.bmr !== undefined && `BMR ${x.bmr} kcal`,
+      x?.bodyTemp !== undefined && `body temp ${x.bodyTemp} °C`, x?.skinDelta !== undefined && `skin temp at night ${x.skinDelta > 0 ? '+' : ''}${x.skinDelta} °C vs normal`,
     ].filter(Boolean);
     return `${date} (${WEEKDAYS[weekdayOf(date)]}): ${p.join(', ')}`;
   }));
