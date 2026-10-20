@@ -85,10 +85,10 @@ export interface HealthView {
   day?: HealthDay;
   night?: Night;
   ready: ReturnType<typeof readyScore> | null;
-  heart: { rest?: number; usual?: number; trace: number[]; hrv?: number; hrvRange?: [number, number]; spo2?: number; resp?: number; restRange?: [number, number]; spo2Range?: [number, number]; respRange?: [number, number]; overnight: { t: number; bpm: number }[]; top?: number; vo2?: number };
+  heart: { rest?: number; usual?: number; trace: number[]; hrv?: number; hrvRange?: [number, number]; spo2?: number; resp?: number; restRange?: [number, number]; spo2Range?: [number, number]; respRange?: [number, number]; overnight: { t: number; bpm: number }[]; top?: number; vo2?: number; skin?: number; skinRange?: [number, number] };
   steps: { today?: number; usual?: number; curve: number[]; usualCurve: number[]; week: { date: string; count?: number }[]; nowFrac: number };
   week: { days: { date: string; marks: ('gym' | 'wr' | 'run' | 'miss')[] }[]; cardioMin: number; workouts: number; target: number; sports: { label: string; min: number }[]; last?: ActivityLog };
-  body: { kg?: number; date?: string; series: number[]; rate: number | null; fat?: number };
+  body: { kg?: number; date?: string; series: number[]; rate: number | null; fat?: number; lean?: number; water?: number; bone?: number; bmr?: number };
   ribbon: DayRibbon | null;
   hasWatch: boolean;
 }
@@ -138,6 +138,7 @@ export function buildView(a: { data: AppData; det: Map<string, WatchDetail> | nu
     rest: day?.restHr, usual: restUsual, trace: [...r30, ...(day ? [day] : [])].filter((d) => d.restHr).map((d) => d.restHr!),
     hrv: day?.hrv, hrvRange: range(past.filter((d) => d.hrv).map((d) => d.hrv!)), restRange: range(r30.filter((d) => d.restHr).map((d) => d.restHr!)),
     spo2: day?.spo2, spo2Range: range(r30.filter((d) => d.spo2).map((d) => d.spo2!)), resp: day?.respRate, respRange: range(r30.filter((d) => d.respRate).map((d) => d.respRate!)),
+    skin: day?.skinDelta, skinRange: range(r30.filter((d) => d.skinDelta !== undefined).map((d) => d.skinDelta!)),
     overnight: smooth5(overnight), top: todayHr.length ? Math.max(...todayHr) || undefined : undefined, vo2: [...days].reverse().find((d) => d.vo2max)?.vo2max,
   };
 
@@ -181,6 +182,8 @@ export function buildView(a: { data: AppData; det: Map<string, WatchDetail> | nu
   const w = [...data.weights].sort((x, y) => x.date.localeCompare(y.date));
   const lw = w[w.length - 1];
   const body: HealthView['body'] = { kg: lw?.kg, date: lw?.date, series: w.filter((x) => x.date >= addDays(today, -30)).map((x) => x.kg), rate: trendRate(weightTrend(w)), fat: [...days].reverse().find((d) => d.bodyFat)?.bodyFat };
+  const comp = [...days].reverse().find((d) => d.leanKg || d.bmr);
+  if (comp) Object.assign(body, { lean: comp.leanKg, water: comp.bodyWaterKg, bone: comp.boneKg, bmr: comp.bmr });
 
   const hasWatch = !!(days.length || data.steps.length || (det && det.size));
   return { today, day, night, ready, heart, steps, week, body, ribbon: det && det.size ? buildRibbon(D, data, now, a.label) : null, hasWatch };

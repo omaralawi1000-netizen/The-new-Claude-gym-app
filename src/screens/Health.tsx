@@ -17,7 +17,7 @@ import { ACTIVITY_LABEL } from '../lib/activity';
 import type { ActivityLog, Lang } from '../lib/types';
 import type { Score } from '../lib/scores';
 import { useHealthView, type HealthView } from './health/data';
-import { C, Hypnogram, NightHeart, Ribbon, ScoreRing, Spark, StepsDay, Trace, WeekStrip, useWidth } from './health/charts';
+import { C, Hypnogram, NightHeart, Ribbon, RouteLine, ScoreRing, Spark, StepsDay, Trace, WeekStrip, useWidth } from './health/charts';
 import { Expander } from './health/expand';
 import { ProgressBody } from './Progress';
 import { Roll } from '../ui/Roll';
@@ -313,6 +313,7 @@ const READY_WHY: Record<string, string> = {
   load: 'Your last 7 days were harder than your usual weeks.',
   breathing: 'You are breathing faster than usual.',
   oxygen: 'Your blood oxygen was low last night.',
+  temp: 'Your skin was warmer than normal last night. Often the first sign of getting ill.',
 };
 function readyLine(r: Score, t: TFn) { return r.low && READY_WHY[r.low] ? t(READY_WHY[r.low]) : t('Everything is inside your normal range.'); }
 const PART: Record<string, string> = { duration: 'Length', deep: 'Deep sleep', rem: 'REM sleep', rest: 'Restfulness', timing: 'Timing', heart: 'Heart rate', hrv: 'HRV', restHr: 'Resting heart rate', sleep: 'Sleep', load: 'Training load' };
@@ -383,7 +384,7 @@ function Page({ k, v, t, lang }: { k: K; v: HealthView; t: TFn; lang: Lang }) {
     </>;
   } else if (k === 'heart') {
     const h = v.heart;
-    const vit: [string, number | undefined, [number, number] | undefined, string][] = [[t('Resting'), h.rest, h.restRange, ''], [t('HRV'), h.hrv, h.hrvRange, ' ms'], [t('Oxygen'), h.spo2, h.spo2Range, ' %'], [t('Breathing'), h.resp, h.respRange, '']];
+    const vit: [string, number | undefined, [number, number] | undefined, string][] = [[t('Resting'), h.rest, h.restRange, ''], [t('HRV'), h.hrv, h.hrvRange, ' ms'], [t('Oxygen'), h.spo2, h.spo2Range, ' %'], [t('Breathing'), h.resp, h.respRange, ''], [t('Skin temp'), h.skin, h.skinRange, ' °C']];
     const calm = h.rest !== undefined && h.usual !== undefined && h.rest <= h.usual;
     const hrvLow = h.hrv !== undefined && !!h.hrvRange && h.hrv < h.hrvRange[0];
     out = <>
@@ -394,8 +395,8 @@ function Page({ k, v, t, lang }: { k: K; v: HealthView; t: TFn; lang: Lang }) {
       {h.rest !== undefined && h.usual !== undefined && <p className="hx-dsub hx-rise">{t('Resting at {n}, your usual is {u}.', { n: h.rest, u: Math.round(h.usual) })}</p>}
       {h.overnight.length > 4 && <div className="hx-panel hx-rise"><div className="hx-ptitle">{t('Last night, minute by minute')}</div><div className="hx-bleed" style={{ marginTop: -6 }}><NightHeart points={h.overnight} w={W} lowLabel={(b) => t('low {n}', { n: b })} ends={[fmtTime(h.overnight[0].t, lang), fmtTime(h.overnight[h.overnight.length - 1].t, lang)]} /></div></div>}
       <div className="hx-panel hx-rise"><div className="hx-ptitle">{t('Overnight vitals')}</div><div className="hx-vit">{vit.filter((x) => x[1] !== undefined).map(([name, val, rg, unit]) => {
-        const lo = rg ? rg[0] - (rg[1] - rg[0] + 1) : 0, hi = rg ? rg[1] + (rg[1] - rg[0] + 1) : 1, pos = (x: number) => Math.max(0, Math.min(100, ((x - lo) / (hi - lo)) * 100));
-        return <div key={name} className="hx-vrow"><span>{name}</span><div className="hx-rg">{rg && <u style={{ left: `${pos(rg[0])}%`, width: `${pos(rg[1]) - pos(rg[0])}%` }} />}<i style={{ left: `${rg ? pos(val!) : 50}%` }} /></div><b>{fmtNum(val!, lang, 0)}{unit}</b></div>;
+        const temp = unit === ' °C', pad = rg ? rg[1] - rg[0] + (temp ? 0.3 : 1) : 0, lo = rg ? rg[0] - pad : 0, hi = rg ? rg[1] + pad : 1, pos = (x: number) => Math.max(0, Math.min(100, ((x - lo) / (hi - lo)) * 100));
+        return <div key={name} className="hx-vrow"><span>{name}</span><div className="hx-rg">{rg && <u style={{ left: `${pos(rg[0])}%`, width: `${pos(rg[1]) - pos(rg[0])}%` }} />}<i style={{ left: `${rg ? pos(val!) : 50}%` }} /></div><b>{temp ? fmtSigned(val!, lang) : fmtNum(val!, lang, 0)}{unit}</b></div>;
       })}</div></div>
       <div className="hx-panel hx-rise"><div className="hx-kv">{h.top !== undefined && <div><span>{t('Top today')}</span><b>{h.top}</b></div>}{h.vo2 !== undefined && <div><span>VO2 max</span><b>{fmtNum(h.vo2, lang, 0)}</b></div>}</div></div>
     </>;
@@ -431,7 +432,8 @@ function Page({ k, v, t, lang }: { k: K; v: HealthView; t: TFn; lang: Lang }) {
       <div data-share="chart" style={{ marginBottom: 28 }}><WeekStrip days={wk.days} today={v.today} letter={(d) => fmtDate(d, lang, { weekday: 'narrow' })} /></div>
       {wk.sports.length > 0 && <div className="hx-panel hx-rise"><div className="hx-ptitle">{t('Minutes by sport')}</div>{wk.sports.map((x) => <div key={x.label} className="hx-sport"><span className="hx-sub">{x.label}</span><div className="hx-sbar"><span className="hx-sb" style={{ ['--sc' as string]: C.cardio, width: `${Math.round((x.min / mx) * 100)}%` }} /></div><span className="hx-sub" style={{ textAlign: 'right' }}>{x.min}</span></div>)}</div>}
       {wk.last && <div className="hx-panel hx-rise"><div className="hx-ptitle">{t('Last session')}</div><div className="hx-n" style={{ fontSize: 26, fontWeight: 300 }}>{wk.last.name || t(ACTIVITY_LABEL[wk.last.kind])} · {Math.round(wk.last.durationSec / 60)} min</div>
-        <div className="hx-sub" style={{ marginTop: 6 }}>{[fmtDate(wk.last.date, lang), wk.last.avgHr ? t('avg {n} bpm', { n: Math.round(wk.last.avgHr) }) : '', wk.last.maxHr ? t('top {n}', { n: Math.round(wk.last.maxHr) }) : '', wk.last.kcal ? `${fmtNum(wk.last.kcal, lang, 0)} kcal` : ''].filter(Boolean).join(' · ')}</div></div>}
+        <div className="hx-sub" style={{ marginTop: 6 }}>{[fmtDate(wk.last.date, lang), wk.last.avgHr ? t('avg {n} bpm', { n: Math.round(wk.last.avgHr) }) : '', wk.last.maxHr ? t('top {n}', { n: Math.round(wk.last.maxHr) }) : '', wk.last.kcal ? `${fmtNum(wk.last.kcal, lang, 0)} kcal` : '', wk.last.elevationM ? t('Climbed {n} m', { n: wk.last.elevationM }) : ''].filter(Boolean).join(' · ')}</div>
+        {wk.last.hcId && <div style={{ marginTop: 12 }}><RouteLine id={wk.last.hcId} w={w} /></div>}</div>}
     </>;
   } else if (k === 'body' && v.body.kg !== undefined) {
     const b = v.body, u = wu, ser = b.series.map((x) => kgToDisplay(x, u));
@@ -443,7 +445,14 @@ function Page({ k, v, t, lang }: { k: K; v: HealthView; t: TFn; lang: Lang }) {
       {b.rate !== null && <p className="hx-dsub hx-rise">{t('About {n} {u} a week.', { n: fmtSigned(kgToDisplay(b.rate, u), lang), u })}</p>}
       <div className="hx-panel hx-rise"><button className="chip sm acc press" onClick={() => useUI.getState().push('weight')}><Icon name="plus" size={14} /> {t('Log your weight')}</button></div>
       {ser.length > 1 && <div className="hx-panel hx-rise"><div className="hx-ptitle">{t('Weight, last 30 days')}</div><Spark values={ser} w={w} h={100} /><div className="hx-ends"><span className="hx-ax3">{fmtNum(ser[0], lang, 1)}</span><span className="hx-ax3">{fmtNum(lo, lang, 1)}–{fmtNum(hi, lang, 1)}</span></div></div>}
-      {(b.fat !== undefined || v.heart.vo2 !== undefined) && <div className="hx-panel hx-rise"><div className="hx-kv">{b.fat !== undefined && <div><span>{t('Body fat')}</span><b>{fmtNum(b.fat, lang, 0)} %</b></div>}{v.heart.vo2 !== undefined && <div><span>VO2 max</span><b>{fmtNum(v.heart.vo2, lang, 0)}</b></div>}</div></div>}
+      {(b.fat !== undefined || b.lean !== undefined || b.bmr !== undefined || v.heart.vo2 !== undefined) && <div className="hx-panel hx-rise"><div className="hx-ptitle">{t('Body composition')}</div><div className="hx-kv">
+        {b.fat !== undefined && <div><span>{t('Body fat')}</span><b>{fmtNum(b.fat, lang, 1)} %</b></div>}
+        {b.lean !== undefined && <div><span>{t('Lean mass')}</span><b>{fmtNum(kgToDisplay(b.lean, u), lang, 1)} {u}</b></div>}
+        {b.water !== undefined && <div><span>{t('Body water')}</span><b>{fmtNum(kgToDisplay(b.water, u), lang, 1)} {u}</b></div>}
+        {b.bone !== undefined && <div><span>{t('Bone')}</span><b>{fmtNum(kgToDisplay(b.bone, u), lang, 1)} {u}</b></div>}
+        {b.bmr !== undefined && <div><span>{t('Burns at rest')}</span><b>{fmtNum(b.bmr, lang, 0)} kcal</b></div>}
+        {v.heart.vo2 !== undefined && <div><span>VO2 max</span><b>{fmtNum(v.heart.vo2, lang, 0)}</b></div>}
+      </div></div>}
     </>;
   } else if (k === 'training') {
     out = <>

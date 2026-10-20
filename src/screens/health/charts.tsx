@@ -4,8 +4,8 @@
  * weight spark and last night's heart curve. Nothing here animates by itself; Health.tsx moves whole layers (transform and
  * opacity only).
  */
-import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import type { SleepSession } from '../../lib/watchDetail';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { routeOf, routePoints, type SleepSession } from '../../lib/watchDetail';
 import type { DayRibbon } from './data';
 
 export const C = { sleep: '#a8b4ff', heart: '#ff5c7a', move: '#ff7a2f', cardio: '#ffd060', body: '#f3e3d6', train: '#ff9a5c' };
@@ -201,3 +201,25 @@ export function WeekStrip({ days, today, letter }: { days: { date: string; marks
     </div>
   );
 }
+
+/** a workout's GPS route as its shape (no map: the line alone, start to finish), loaded from the phone's store */
+export function RouteLine({ id, w, h = 130 }: { id: string; w: number; h?: number }) {
+  const [pts, setPts] = useState<[number, number][] | null>(null);
+  useEffect(() => { let live = true; void routeOf(id).then((r) => { if (live) setPts(r ? routePoints(r.poly) : null); }); return () => { live = false; }; }, [id]);
+  if (!pts || pts.length < 2) return null;
+  const k = Math.cos((pts[0][0] * Math.PI) / 180);
+  const xs = pts.map((p) => p[1] * k), ys = pts.map((p) => -p[0]);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  const sc = Math.min((w - 16) / Math.max(1e-9, x1 - x0), (h - 16) / Math.max(1e-9, y1 - y0));
+  const ox = (w - (x1 - x0) * sc) / 2, oy = (h - (y1 - y0) * sc) / 2;
+  const P = xs.map((x, i): [number, number] => [ox + (x - x0) * sc, oy + (ys[i] - y0) * sc]);
+  const d = P.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join('');
+  return (
+    <Svg w={w} h={h}>
+      <path d={d} fill="none" stroke={C.cardio} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+      <circle cx={P[0][0]} cy={P[0][1]} r={4} fill="var(--bg)" stroke={C.cardio} strokeWidth={2} />
+      <circle cx={P[P.length - 1][0]} cy={P[P.length - 1][1]} r={4} fill={C.cardio} />
+    </Svg>
+  );
+}
+

@@ -197,11 +197,13 @@ export function readyScore(x: ReadyInput): (Score & { learning?: undefined }) | 
 
   const c = combine(parts);
   let score = c.score;
-  // small checks: breathing faster than usual, low blood oxygen
+  // small checks: breathing faster than usual, low blood oxygen, a warm night (these name the reason when they fire)
   const rr = median(past.filter((d) => d.respRate).map((d) => d.respRate!));
   const checks: string[] = [];
   if (rr !== undefined && today.respRate && today.respRate - rr >= 1.5) { score -= 8; checks.push('breathing'); }
   if (today.spo2 && today.spo2 < 93) { score -= 5; checks.push('oxygen'); }
+  // a night clearly warmer than the watch's own normal for you: often the first sign of getting ill or not recovering
+  if (today.skinDelta !== undefined && today.skinDelta >= 0.5) { score -= today.skinDelta >= 1 ? 12 : 6; checks.unshift('temp'); }
   score = Math.round(Math.max(0, Math.min(100, score)));
-  return { score, band: score >= 80 ? 'Ready' : score >= 60 ? 'Steady' : score >= 40 ? 'Behind' : 'Run down', parts, low: c.low ?? checks[0] };
+  return { score, band: score >= 80 ? 'Ready' : score >= 60 ? 'Steady' : score >= 40 ? 'Behind' : 'Run down', parts, low: checks[0] ?? c.low };
 }

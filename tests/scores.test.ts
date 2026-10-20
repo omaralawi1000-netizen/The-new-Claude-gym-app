@@ -105,6 +105,12 @@ describe('Ready score', () => {
     const sick = readyScore({ days: weeks({ respRate: 16, spo2: 91 }), sleep: 90, loads: steady });
     expect('score' in ok && 'score' in sick && ok.score - sick.score).toBe(13);
   });
+  it('a night warmer than normal takes points off and is named', () => {
+    const ok = readyScore({ days: weeks({}), sleep: 90, loads: steady });
+    const warm = readyScore({ days: weeks({ skinDelta: 1.2 }), sleep: 90, loads: steady });
+    expect('score' in ok && 'score' in warm && ok.score - warm.score).toBe(12);
+    expect('low' in warm && warm.low).toBe('temp');
+  });
 });
 
 describe('Training load', () => {
