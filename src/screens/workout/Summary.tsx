@@ -24,6 +24,24 @@ function Stat({ label, text, unit }: { label: string; text: string; unit?: strin
   return <div className="sum-stat" data-fm="tile"><div className="micro">{label}</div><div className="display display-md num" style={{ marginTop: 4 }}><Odo text={text} /><span className="t3 small" style={{ fontFamily: 'var(--f-ui)', fontStretch: '100%', fontWeight: 600 }}> {unit}</span></div></div>;
 }
 
+/** A session note saved as you type (a moment after you stop), on blur, and when the sheet closes, so Back never loses it. */
+function useNoteSave(id: string) {
+  const pending = useRef<string | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const flush = useCallback(() => {
+    clearTimeout(timer.current);
+    if (pending.current === null) return;
+    const note = pending.current.trim() || undefined;
+    pending.current = null;
+    useStore.getState().mutateSession(id, (x) => (x.note === note ? x : { ...x, note }));
+  }, [id]);
+  useEffect(() => flush, [flush]);
+  return {
+    onChange: (e: { target: { value: string } }) => { pending.current = e.target.value; clearTimeout(timer.current); timer.current = setTimeout(flush, 600); },
+    onBlur: flush,
+  };
+}
+
 const celebrated = new Set<string>(); // a session's moment is felt once, not again when its summary is reopened
 const reduced = () => document.documentElement.dataset.motion === 'reduce' || (document.documentElement.dataset.motion !== 'full' && matchMedia('(prefers-reduced-motion: reduce)').matches);
 
@@ -62,6 +80,7 @@ export function Summary({ props }: { props: { sessionId: string } }) {
   useEffect(() => () => stop.current?.(), []);
   // the orb fades out while the summary is up (styles.css, :root[data-finish])
   useLayoutEffect(() => { const r = document.documentElement; r.dataset.finish = ''; return () => { delete r.dataset.finish; }; }, []);
+  const note = useNoteSave(props.sessionId);
   if (!ses) return null;
   const hEx = headline?.exerciseId ? exMap.get(headline.exerciseId) : undefined;
   const line = headline ? t(headline.key, { ...headline.vars, ...('name' in headline.vars ? { name: workoutName(String(headline.vars.name), t) } : {}), exercise: hEx ? exName(hEx, lang) : '' }) : '';
@@ -144,7 +163,7 @@ export function Summary({ props }: { props: { sessionId: string } }) {
             );
           })}
         </div>
-        <div className="field" style={{ marginTop: 20 }}><label htmlFor="s-note">{t('Session note')}</label><textarea id="s-note" className="input" defaultValue={ses.note ?? ''} placeholder={t('How did it feel?')} onBlur={(e) => s.mutateSession(ses.id, (x) => ({ ...x, note: e.target.value.trim() || undefined }))} /></div>
+        <div className="field" style={{ marginTop: 20 }}><label htmlFor="s-note">{t('Session note')}</label><textarea id="s-note" className="input" defaultValue={ses.note ?? ''} placeholder={t('How did it feel?')} {...note} /></div>
         {!ses.routineId && <button className="btn block press" style={{ marginTop: 14 }} onClick={saveRoutine}><Icon name="copy" size={18} /> {t('Save as routine')}</button>}
         </div>
       </div>
@@ -164,6 +183,7 @@ export function SessionDetail({ props }: { props: { id: string } }) {
   const exMap = exerciseMap(s.exercises);
   const u = s.settings.units;
   const [choosing, setChoosing] = useState(false);
+  const note = useNoteSave(props.id);
   if (!ses) return null;
   const patch = (seId: string, setId: string, p: Partial<WorkoutSession['exercises'][number]['sets'][number]>) =>
     s.mutateSession(ses.id, (x) => ({ ...x, exercises: x.exercises.map((e) => (e.id === seId ? { ...e, sets: e.sets.map((q) => (q.id === setId ? { ...q, ...p } : q)) } : e)) }));
@@ -238,7 +258,7 @@ export function SessionDetail({ props }: { props: { id: string } }) {
             </div>
           );
         })}
-        <div className="field" style={{ marginTop: 10 }}><label htmlFor="sd-note">{t('Session note')}</label><textarea id="sd-note" className="input" defaultValue={ses.note ?? ''} onBlur={(e) => s.mutateSession(ses.id, (x) => ({ ...x, note: e.target.value.trim() || undefined }))} /></div>
+        <div className="field" style={{ marginTop: 10 }}><label htmlFor="sd-note">{t('Session note')}</label><textarea id="sd-note" className="input" defaultValue={ses.note ?? ''} {...note} /></div>
       </div>
     </Sheet>
   );
