@@ -9,24 +9,49 @@ import { useLang } from '../lib/i18n';
 import { haptic } from '../state/ui';
 
 // ── segmented control: a drop of glass flows between options (ui/lens.ts) ─────────
-/** When the drop and the track differ a lot (the dark theme's white drop), each label changes colour exactly as much as
- *  the drop covers it, frame by frame, so no label is ever light on white or dark on dark mid-glide. The colours come from
- *  `--seg-ink` / `--seg-ink-on` on the .seg; without them the labels keep their plain CSS fade. */
-function inkFollow(seg: HTMLElement, run: { boxes: LensBox[]; duration: number } | null): Animation[] {
-  if (!run) return [];
-  const cs = getComputedStyle(seg), off = cs.getPropertyValue('--seg-ink').trim(), on = cs.getPropertyValue('--seg-ink-on').trim();
-  if (!off || !on) return [];
-  const o = seg.getBoundingClientRect().left + seg.clientLeft;
-  const out: Animation[] = [];
-  for (const label of seg.querySelectorAll<HTMLElement>(':scope > button > span')) {
-    const r = label.getBoundingClientRect(), x0 = r.left - o, x1 = r.right - o;
-    if (x1 - x0 < 1) continue;
-    const cover = run.boxes.map((b) => { const f = Math.min(1, Math.max(0, (Math.min(b.r, x1) - Math.max(b.l, x0)) / (x1 - x0))); return f * f * (3 - 2 * f); });
-    if (cover.every((c) => c === cover[0])) continue;
-    const n = cover.length;
-    out.push(label.animate(cover.map((c, i) => ({ offset: i / (n - 1), color: `color-mix(in srgb, ${on} ${(c * 100).toFixed(1)}%, ${off})` })), { duration: run.duration, easing: 'linear' }));
+/** The dark theme's white drop draws its labels dark exactly where it covers them: a dark copy of the labels sits in a
+ *  window the shape of the drop, made of two nested clips (its left end, its right end) that move by transform on the
+ *  drop's own frames. So each letter is dark where it sits on white and light where it sits on the track, mid-glide too,
+ *  and only transforms run. Shown only where CSS gives `.seg-ink` a display (look.css, dark theme). */
+class SegInk {
+  private a: HTMLElement; private b: HTMLElement; private c: HTMLElement; private d: HTMLElement;
+  private w = 0;
+  constructor(private seg: HTMLElement, root: HTMLElement) {
+    this.a = root; this.b = root.firstElementChild as HTMLElement; this.c = this.b.firstElementChild as HTMLElement; this.d = this.c.firstElementChild as HTMLElement;
   }
-  return out;
+  get on() { return getComputedStyle(this.a).display !== 'none'; }
+  /** Size the window and lay each copy exactly over its real label. */
+  layout(R: number) {
+    const seg = this.seg, w = seg.clientWidth;
+    this.w = w;
+    for (const el of [this.a, this.b, this.c, this.d]) el.style.width = `${w}px`;
+    this.a.style.borderRadius = `${R}px 0 0 ${R}px`; this.c.style.borderRadius = `0 ${R}px ${R}px 0`;
+    const labels = seg.querySelectorAll<HTMLElement>(':scope > button > span'), copies = this.d.children;
+    labels.forEach((l, i) => {
+      const c = copies[i] as HTMLElement | undefined; if (!c) return;
+      const f = getComputedStyle(l);
+      Object.assign(c.style, { fontSize: f.fontSize, fontWeight: f.fontWeight, letterSpacing: f.letterSpacing, fontFamily: f.fontFamily, lineHeight: f.lineHeight });
+      const lr = l.getBoundingClientRect(), cr = c.getBoundingClientRect();
+      c.style.left = `${(parseFloat(c.style.left) || 0) + lr.left - cr.left}px`;
+      c.style.top = `${(parseFloat(c.style.top) || 0) + lr.top - cr.top}px`;
+    });
+  }
+  private frame(b: LensBox) {
+    return [`translate3d(${b.l.toFixed(2)}px,0,0)`, `translate3d(${(-b.l).toFixed(2)}px,0,0)`, `translate3d(${(b.r - this.w).toFixed(2)}px,0,0)`, `translate3d(${(this.w - b.r).toFixed(2)}px,0,0)`];
+  }
+  private stop() { for (const el of [this.a, this.b, this.c, this.d]) el.getAnimations().forEach((x) => x.cancel()); }
+  place(box: LensBox) {
+    this.stop();
+    const f = this.frame(box);
+    [this.a, this.b, this.c, this.d].forEach((el, i) => { el.style.transform = f[i]; });
+  }
+  glide(to: LensBox, run: { boxes: LensBox[]; duration: number } | null) {
+    this.place(to); // final state underneath (and cancels whatever was running)
+    if (!run) return;
+    const n = run.boxes.length, kf: Keyframe[][] = [[], [], [], []];
+    run.boxes.forEach((b, i) => { const f = this.frame(b), offset = i / (n - 1); f.forEach((t, k) => kf[k].push({ transform: t, offset })); });
+    [this.a, this.b, this.c, this.d].forEach((el, k) => el.animate(kf[k], { duration: run.duration, easing: 'linear' }));
+  }
 }
 
 const SEG_LEAD = apple(0.36, 0.1);
@@ -44,21 +69,28 @@ export function Seg<T extends string | number>({ value, onChange, options, style
     holder.style.opacity = b ? '' : '0';
     if (!b || b.offsetWidth === 0) return;
     const box = { l: b.offsetLeft, r: b.offsetLeft + b.offsetWidth };
-    ink.current.forEach((a) => a.cancel()); ink.current = [];
-    if (glide && !reduce) ink.current = inkFollow(el, lens.current.glide(box, SEG_LEAD, SEG_TRAIL)); else lens.current.place(box);
+    if (!ink.current) ink.current = new SegInk(el, el.querySelector('.seg-ink') as HTMLElement);
+    const inkOn = ink.current.on;
+    if (inkOn) ink.current.layout(holder.offsetHeight / 2);
+    if (glide && !reduce) { const run = lens.current.glide(box, SEG_LEAD, SEG_TRAIL); if (inkOn) ink.current.glide(box, run); }
+    else { lens.current.place(box); if (inkOn) ink.current.place(box); }
   };
-  const ink = useRef<Animation[]>([]);
+  const ink = useRef<SegInk | null>(null);
   const placed = useRef(false);
   useLayoutEffect(() => { place(placed.current); placed.current = true; }, [idx]); // eslint-disable-line
   useEffect(() => {
     const el = ref.current; if (!el) return;
     const ro = new ResizeObserver(() => { if (!lens.current?.moving) place(false); });
     ro.observe(el);
+    document.fonts?.ready.then(() => { if (ref.current && !lens.current?.moving) place(false); });
     return () => ro.disconnect();
   }, []); // eslint-disable-line
+  // labels can change without a resize (language): keep the dark copies on them
+  useLayoutEffect(() => { if (placed.current && !lens.current?.moving && ink.current?.on) place(false); });
   return (
     <div className="seg" role="tablist" style={style} ref={ref}>
       <span className="lens seg-lens" aria-hidden><i className="lens-l" /><i className="lens-r" /><i className="lens-m" /></span>
+      <span className="seg-ink" aria-hidden><span><span><span>{options.map((o) => <i key={String(o.value)}>{o.label}</i>)}</span></span></span></span>
       {options.map((o) => (
         <button key={String(o.value)} role="tab" aria-selected={o.value === value} className={o.value === value ? 'on' : ''} onClick={() => { if (o.value !== value) haptic('select'); onChange(o.value); }}>
           <span style={{ position: 'relative' }}>{o.label}</span>
