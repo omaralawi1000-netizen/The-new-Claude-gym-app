@@ -78,6 +78,9 @@ import java.util.function.Consumer;
 final class HealthSync {
     private HealthSync() {}
 
+    /** Reading while Aven is closed (HealthJob): asked for with the rest, Android 15 and up. */
+    static final String BACKGROUND = "android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND";
+
     /** What the watch needs to be "connected" (steps and workouts). */
     static final String[] PERMS = {
         "android.permission.health.READ_STEPS",
@@ -103,7 +106,6 @@ final class HealthSync {
         // read every half hour while Aven is closed (Android 15 and up), so it opens with fresh numbers
         BACKGROUND,
     };
-    static final String BACKGROUND = "android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND";
 
     /** All of them, for Connect watch (Health Connect asks only for the ones not allowed yet). */
     static String[] all() {
