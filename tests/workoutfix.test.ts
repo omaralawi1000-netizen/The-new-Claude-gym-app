@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // Fixes from the v0.1.160 workout audit: the plan, records and set counting stay right after edits.
 import { describe, it, expect, beforeEach } from 'vitest';
-import { useStore, missedWorkouts } from '../src/state/store';
+import { useStore, missedWorkouts, rotationAfter, rotationWithout } from '../src/state/store';
 import { addDays, dayKey, weekdayOf } from '../src/lib/dates';
 import { defaultData } from '../src/state/defaults';
 import type { Routine, WorkoutSession } from '../src/lib/types';
@@ -96,5 +96,30 @@ describe('changing the weekly plan mid-week', () => {
     const sch = { ...useStore.getState().schedule }; delete sch.weeklySince;
     useStore.setState({ schedule: sch });
     expect(missedWorkouts(useStore.getState(), today).map((m) => m.routineId).sort()).toEqual(['A', 'B']);
+  });
+});
+
+describe('rotation', () => {
+  const rot = (order: string[], pointer: number) => ({ order, pointer, perWeek: 3 });
+  it('next is whatever follows the routine you just did', () => {
+    expect(rotationAfter(rot(['A', 'B', 'C'], 0), 'B').pointer).toBe(2);
+    expect(rotationAfter(rot(['A', 'B', 'C'], 0), 'C').pointer).toBe(0);
+    expect(rotationAfter(rot(['A', 'B', 'A', 'C'], 2), 'A').pointer).toBe(3); // twice in it: the place from "next" on
+    expect(rotationAfter(rot(['A', 'B'], 1), 'X').pointer).toBe(1); // not in it: unchanged
+  });
+  it('finishing a routine that was not marked next still moves the rotation on', () => {
+    useStore.getState().patch({ routines: [routine('A'), routine('B'), routine('C')] });
+    useStore.getState().setSchedule({ mode: 'rotation', rotation: rot(['A', 'B', 'C'], 0) });
+    const at = Date.now() - 600000;
+    useStore.setState({ active: { id: 'w', name: 'B', routineId: 'B', date: '2026-10-20', startedAt: at, pausedMs: 0, status: 'active', exercises: [{ id: 'e', exerciseId: 'bench-press', sets: [{ id: 's', type: 'working', done: true, weightKg: 60, reps: 8, completedAt: at + 1000 }] }] } as WorkoutSession });
+    useStore.getState().finishActive();
+    expect(useStore.getState().schedule.rotation.pointer).toBe(2);
+  });
+  it('removing a routine keeps the same next routine', () => {
+    expect(rotationWithout(rot(['A', 'B', 'C'], 2), (_, i) => i === 0)).toMatchObject({ order: ['B', 'C'], pointer: 1 }); // C still next
+    expect(rotationWithout(rot(['A', 'B', 'C'], 0), (_, i) => i === 2)).toMatchObject({ order: ['A', 'B'], pointer: 0 });
+    expect(rotationWithout(rot(['A', 'B', 'C'], 1), (_, i) => i === 1)).toMatchObject({ order: ['A', 'C'], pointer: 1 }); // the next one removed: the one after it
+    expect(rotationWithout(rot(['A', 'B', 'C'], 2), (_, i) => i === 2)).toMatchObject({ order: ['A', 'B'], pointer: 0 });
+    expect(rotationWithout(rot(['A'], 0), () => true)).toMatchObject({ order: [], pointer: 0 });
   });
 });

@@ -177,6 +177,24 @@ export function refreshRecords(sessions: WorkoutSession[], edited: WorkoutSessio
   return out;
 }
 
+type Rotation = Schedule['rotation'];
+/** The rotation after a routine in it was done: next is the one after it (its nearest place from "next" on, if it is in twice). */
+export function rotationAfter(rot: Rotation, routineId: string): Rotation {
+  const n = rot.order.length;
+  if (!n) return rot;
+  const p = rot.pointer % n;
+  for (let k = 0; k < n; k++) if (rot.order[(p + k) % n] === routineId) return { ...rot, pointer: (p + k + 1) % n };
+  return rot;
+}
+/** The rotation without the routines at these places, still pointing at the same next routine (or the one after a removed one). */
+export function rotationWithout(rot: Rotation, drop: (id: string, i: number) => boolean): Rotation {
+  const n = rot.order.length;
+  const p = n ? rot.pointer % n : 0;
+  const order = rot.order.filter((id, i) => !drop(id, i));
+  const before = rot.order.slice(0, p).filter((id, i) => drop(id, i)).length;
+  return { ...rot, order, pointer: order.length ? (p - before) % order.length : 0 };
+}
+
 /** Notes the day each weekday's plan changed (switching to weekdays changes them all), so older days are not "missed". */
 export function withWeeklySince(prev: Schedule, next: Schedule, today: string): Schedule {
   if (next.mode !== 'weekly' || next.weeklySince !== prev.weeklySince) return next; // an Undo brings its own back
@@ -201,7 +219,7 @@ export function scheduleWithout(sch: Schedule, id: string): { schedule: Schedule
   for (const k of Object.keys(weekly)) if (weekly[+k] === id) { weekly[+k] = null; weekdays.push(+k); }
   const indexes = sch.rotation.order.flatMap((x, i) => (x === id ? [i] : []));
   return {
-    schedule: { ...sch, weekly, overrides: sch.overrides.filter((o) => o.routineId !== id), rotation: { ...sch.rotation, order: sch.rotation.order.filter((x) => x !== id) } },
+    schedule: { ...sch, weekly, overrides: sch.overrides.filter((o) => o.routineId !== id), rotation: rotationWithout(sch.rotation, (x) => x === id) },
     slots: { weekdays, overrides: sch.overrides.filter((o) => o.routineId === id), rotation: { order: sch.rotation.order, pointer: sch.rotation.pointer, indexes } },
   };
 }
@@ -359,9 +377,8 @@ export const useStore = create<Store>((set, get) => {
       done.records = detectRecords(done, s.sessions, (id) => exMap.get(id));
       const sessions = [...s.sessions, done].sort((x, y) => (x.endedAt ?? 0) - (y.endedAt ?? 0));
       const schedule = { ...s.schedule };
-      if (schedule.mode === 'rotation' && a.routineId && schedule.rotation.order[schedule.rotation.pointer % Math.max(1, schedule.rotation.order.length)] === a.routineId) {
-        schedule.rotation = { ...schedule.rotation, pointer: (schedule.rotation.pointer + 1) % Math.max(1, schedule.rotation.order.length) };
-      }
+      // a rotation goes on from whatever was done: next is the routine after it
+      if (schedule.mode === 'rotation' && a.routineId) schedule.rotation = rotationAfter(schedule.rotation, a.routineId);
       mutate(() => ({ sessions, active: null, schedule }), true);
       return done;
     },

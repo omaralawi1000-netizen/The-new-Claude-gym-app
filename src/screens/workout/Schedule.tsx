@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useStore } from '../../state/store';
+import { useStore, rotationWithout } from '../../state/store';
 import { useUI, haptic } from '../../state/ui';
 import { useT, useLang } from '../../lib/i18n';
 import { Sheet, SheetHead } from '../../ui/Sheet';
@@ -69,7 +69,7 @@ export function Schedule({ props }: { props: { focusDate?: string; routineId?: s
               <div key={id + i} className="row-flex" style={{ gap: 10, padding: '10px 0', borderTop: '1px solid var(--line)' }}>
                 <span className="display display-sm accent num" style={{ width: 22 }}>{i + 1}</span><div className="grow li-title">{r.name}{sch.rotation.pointer % Math.max(1, sch.rotation.order.length) === i && <span className="chip sm acc" style={{ marginLeft: 8, height: 20 }}>{t('next')}</span>}</div>
                 <button className="icon-btn flat sm press" aria-label={t('Move up')} disabled={i === 0} style={{ opacity: i === 0 ? 0.3 : 1 }} onClick={() => { const o = [...sch.rotation.order]; [o[i - 1], o[i]] = [o[i], o[i - 1]]; s.setSchedule({ rotation: { ...sch.rotation, order: o } }); }}><Icon name="arrowUp" size={17} /></button>
-                <button className="icon-btn flat sm press" aria-label={t('Remove')} onClick={() => s.setSchedule({ rotation: { ...sch.rotation, order: sch.rotation.order.filter((_, j) => j !== i), pointer: 0 } })}><Icon name="close" size={17} /></button>
+                <button className="icon-btn flat sm press" aria-label={t('Remove')} onClick={() => s.setSchedule({ rotation: rotationWithout(sch.rotation, (_, j) => j === i) })}><Icon name="close" size={17} /></button>
               </div>); })}
             <div className="chips" style={{ marginTop: 12, margin: '12px 0 0', padding: 0, flexWrap: 'wrap' }}>
               {routines.map((r) => <button key={r.id} className="chip sm press" onClick={() => s.setSchedule({ rotation: { ...sch.rotation, order: [...sch.rotation.order, r.id] } })}><Icon name="plus" size={14} /> {r.name}</button>)}
