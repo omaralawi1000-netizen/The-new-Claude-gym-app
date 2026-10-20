@@ -1460,7 +1460,7 @@ function doLogSavedMeal(a: Extract<AgentAction, { type: 'log_saved_meal' }>, ctx
   const m = st.savedMeals.find((x) => fold(x.name) === w) ?? st.savedMeals.find((x) => fold(x.name).includes(w) || w.includes(fold(x.name)));
   if (!m) return { id: uid('r'), kind: 'miss', title: t('No saved meal with that name'), lines: [{ text: a.name, sub: st.savedMeals.map((x) => x.name).join(' · ').slice(0, 120), warn: true }] };
   const date = resolveDay(a.day, ctx.today) ?? ctx.date ?? ctx.today;
-  const mealId = mealIdOf(a.meal, ctx) ?? ctx.mealId ?? defaultMealId(st.settings.meals);
+  const mealId = mealIdOf(a.meal, ctx) ?? ctx.mealId ?? defaultMealId(st.settings.meals, new Date(), st.settings.dayStartHour);
   const entries = m.items.map((it) => entryFromSavedItem(it, date, mealId, { id: uid('e') })).filter(Boolean) as FoodEntry[];
   const added = st.logEntries(entries);
   const total = added.reduce((n, e) => n + (e.nutrients.kcal ?? 0), 0);
@@ -1703,7 +1703,7 @@ async function doProposeRecipe(a: Extract<AgentAction, { type: 'propose_recipe' 
       const food = recipeToFood(recipe);
       const s2 = useStore.getState();
       if (!food) { useUI.getState().toast(t('This recipe needs a weight before a portion can be logged'), { tone: 'bad' }); return; }
-      const mealId = ctx.mealId && s2.settings.meals.some((m) => m.id === ctx.mealId) ? ctx.mealId : defaultMealId(s2.settings.meals);
+      const mealId = ctx.mealId && s2.settings.meals.some((m) => m.id === ctx.mealId) ? ctx.mealId : defaultMealId(s2.settings.meals, new Date(), s2.settings.dayStartHour);
       const one = entryFromSnapshot(snapshotOf(food), { amount: 1, unit: 'portion', portionId: 'serving' }, ctx.date ?? ctx.today, mealId, { id: uid('e') });
       const [e] = one ? s2.logEntries([one]) : [];
       if (e) useUI.getState().toast(t('Logged 1 serving of {name}', { name: a.name }), { tone: 'ok', actionLabel: t('Undo'), onAction: () => useStore.getState().removeEntry(e.id) });

@@ -91,7 +91,7 @@ export function TodayScreen() {
   const quickLog = (id: string, qty: any) => {
     const food = pool.find((f) => f.id === id);
     if (!food) return;
-    const mealId = defaultMealId(settings.meals);
+    const mealId = defaultMealId(settings.meals, new Date(), settings.dayStartHour); // after midnight, before the new day starts: the late meal
     const e = entryFromSnapshot(snapshotOf(food), defaultQty(food, qty), today, mealId, { id: uid('e') });
     if (!e) return;
     haptic('saved');
@@ -144,7 +144,7 @@ export function TodayScreen() {
   const aDone = active ? sessionSetCount(active.exercises, true) : 0;
   const aTotal = active ? sessionSetCount(active.exercises, false) : 0;
   const addWater = () => { haptic('saved'); const v = settings.waterQuick[1] ?? 250; const id = s.addWater(v, today); toast(`+${v} ml`, { tone: 'ok', actionLabel: t('Undo'), onAction: () => s.removeWater(id), duration: 3500 }); };
-  const mealId = defaultMealId(settings.meals);
+  const mealId = defaultMealId(settings.meals, new Date(), settings.dayStartHour);
   const last = doneToday[doneToday.length - 1];
   // once today's planned workout is done, the card says so (and what got better) instead of offering to start it again
   const plannedDone = !!routine && doneToday.some((x) => x.routineId === routine.id || x.plannedDate === today);

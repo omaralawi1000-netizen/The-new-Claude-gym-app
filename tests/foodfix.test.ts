@@ -2,7 +2,10 @@
 // Food fixes after the v0.1.160 audit: each block is one fix.
 import { describe, it, expect } from 'vitest';
 import { entryEditor, entryFromSavedItem, entryFromSnapshot, isQuickEntry, mergeFood, quickEntry, savedItemNutrients, savedItemOf } from '../src/lib/nutrition';
-import { removeMeal, restoreMeal } from '../src/lib/derive';
+import { defaultMealId, removeMeal, restoreMeal } from '../src/lib/derive';
+import todaySrc from '../src/screens/Today.tsx?raw';
+import appSrc from '../src/App.tsx?raw';
+import agentSrc from '../src/lib/agent.ts?raw';
 
 describe('a logged entry opens in the sheet that can edit it', () => {
   it('quick, photo and Coach totals open the quick-entry editor', () => {
@@ -52,6 +55,21 @@ describe('save as meal keeps quick, photo and Coach entries', () => {
       ['Skyr', 120, '2026-10-02', 'lunch', false],
     ]);
     expect(again[0].id).not.toBe(q.id);
+  });
+});
+
+describe('food logged after midnight, before the new day starts, goes to the late meal', () => {
+  const meals = [{ id: 'breakfast', name: '' }, { id: 'lunch', name: '' }, { id: 'dinner', name: '' }, { id: 'snacks', name: '' }];
+  it('01:30 with the day starting at 04:00 is a late snack, not breakfast', () => {
+    const at = new Date(2026, 9, 2, 1, 30);
+    expect(defaultMealId(meals, at, 4)).toBe('snacks');
+    expect(defaultMealId(meals, at)).toBe('breakfast'); // what Today did before (no day-start hour passed)
+  });
+  it('every caller passes the day-start hour', () => {
+    for (const [f, src] of Object.entries({ 'Today.tsx': todaySrc, 'App.tsx': appSrc, 'agent.ts': agentSrc })) {
+      const calls = src.match(/defaultMealId\([^\n]*/g) ?? [];
+      for (const c of calls) expect(c, `${f}: ${c}`).toMatch(/dayStartHour/);
+    }
   });
 });
 
