@@ -77,7 +77,7 @@ export class Expander {
     [det, fly, ...$$('*', det)].forEach((x) => x.getAnimations().forEach((a) => a.cancel()));
     fly.replaceChildren();
     dsc.scrollTop = 0;
-    det.classList.add('live');
+    det.classList.add('live', 'moving');
     const st: State = { k, src, anims: [], fl: [], dim: [] };
     this.st = st;
     const { duration: D, easing: E } = this.win();
@@ -99,7 +99,8 @@ export class Expander {
     // the page's words settle in once the flying number and chart have passed them (so nothing is drawn over anything)
     const sm = this.sm();
     $$('.hx-dhead,.hx-chips,.hx-lab,.hx-sub,.hx-rise', dsc).filter((x) => !x.closest('[data-share]')).forEach((x, i) => {
-      const delay = D * 0.12 + Math.min(i, 3) * 40;
+      const top = x.classList.contains('hx-dhead') || x.classList.contains('hx-chips') || x.classList.contains('hx-lab');
+      const delay = top ? D * 0.12 + i * 40 : D * 0.36 + Math.min(i, 4) * 30;
       st.anims.push(this.anim(x, [{ opacity: 0 }, { opacity: 1 }], { duration: 280, delay, easing: 'linear' }));
       st.anims.push(this.anim(x, [{ transform: 'translateY(10px)' }, { transform: 'none' }], { duration: sm.duration, delay, easing: sm.easing }));
     });
@@ -107,35 +108,42 @@ export class Expander {
     $$('[data-share]', dsc).filter((b) => !paired.has(b)).forEach((b) => st.anims.push(this.anim(b, [{ opacity: 0 }, { opacity: 1 }], { duration: 280, delay: D * 0.12, easing: 'linear' })));
     st.dim = this.dimOf(src);
     st.dim.forEach((x) => { x.getAnimations().forEach((a) => a.cancel()); x.style.opacity = '0'; x.animate([{ opacity: 1 }, { opacity: 0 }], { duration: reduced() ? 1 : 40, easing: 'linear' }); });
-    this.playPage(Math.round(D * 0.25));
+    this.playPage(Math.round(D * 0.2));
     // landed: the page's own number and chart take over from the copies
     Promise.all(st.anims.slice(0, st.fl.length + 3).map((a) => a.finished)).then(() => {
       if (this.st !== st || st.closing) return;
       st.fl.forEach(({ c, b, tint }) => { b.style.opacity = ''; c.remove(); tint?.remove(); });
       st.fl = [];
     }).catch(() => {});
+    // the window's corners square off once its top edge reaches the screen's own (rounded) corner
+    this.squareAt(st, D * 0.7);
+  }
+
+  private squareAt(st: State, ms: number) {
+    // timed by an empty animation, so it runs on the same clock as the motion
+    this.e.fly.animate([{ opacity: 1 }, { opacity: 1 }], { duration: reduced() ? 1 : ms }).finished.then(() => { if (this.st === st && !st.closing) this.e.det.classList.remove('moving'); }).catch(() => {});
   }
 
   /** the page's own small moves once it is open: score rings fill, bars rise, stage bars slide out */
-  playPage(delay: number) {
+  playPage(delay: number, rings = true) {
     const { dsc } = this.e;
     const sm = this.sm();
-    for (const ring of $$('.hx-ring', dsc)) {
-      const p = Number(ring.dataset.p ?? 0), T = 560;
+    for (const ring of rings ? $$('.hx-ring', dsc) : []) {
+      const p = Number(ring.dataset.p ?? 0), T = 480;
       const rs = ring.querySelector('.hx-rs'), ls = ring.querySelector('.hx-ls');
       if (!rs || !ls || p <= 0) continue;
       const d1 = T * Math.min(1, 0.5 / p), d2 = T - d1;
       this.anim(rs, [{ transform: 'rotate(-180deg)' }, { transform: `rotate(${p >= 0.5 ? 0 : -180 + p * 360}deg)` }], { duration: d1, delay, easing: p > 0.5 ? 'linear' : 'cubic-bezier(.2,.7,.3,1)' });
       if (p > 0.5) this.anim(ls, [{ transform: 'rotate(-180deg)' }, { transform: `rotate(${-180 + (p - 0.5) * 360}deg)` }], { duration: d2, delay: delay + d1, easing: 'cubic-bezier(.2,.7,.3,1)' });
     }
-    $$('.hx-col', dsc).forEach((c, i) => this.anim(c, [{ transform: 'translateY(130px)' }, { transform: 'none' }], { duration: sm.duration + 160, delay: delay + 60 + i * 30, easing: sm.easing }));
-    $$('.hx-sb', dsc).forEach((c, i) => this.anim(c, [{ transform: 'translateX(-101%)' }, { transform: 'none' }], { duration: sm.duration + 200, delay: delay + 80 + i * 60, easing: sm.easing }));
+    $$('.hx-col', dsc).forEach((c, i) => this.anim(c, [{ transform: 'translateY(130px)' }, { transform: 'none' }], { duration: sm.duration, delay: delay + 40 + i * 20, easing: sm.easing }));
+    $$('.hx-sb', dsc).forEach((c, i) => this.anim(c, [{ transform: 'translateX(-101%)' }, { transform: 'none' }], { duration: sm.duration, delay: delay + 40 + i * 25, easing: sm.easing }));
   }
 
   /** shrink back into the section, from wherever everything is drawn; `done` once it has landed */
   close(done: State['done']) {
     const st = this.st; if (!st || st.closing) return;
-    st.closing = true; st.next = null; st.done = done;
+    st.closing = true; st.next = null; st.done = done; this.e.det.classList.add('moving');
     const { L, mat, edge, dsc } = this.e;
     const { duration: D, easing: E } = this.win();
     const fromL = L.map(curT), matO = getComputedStyle(mat).opacity, edgeO = getComputedStyle(edge).opacity, scrO = getComputedStyle(this.e.scr).opacity;
@@ -152,13 +160,13 @@ export class Expander {
     const wf = this.frames(st.src);
     const out: Animation[] = [];
     const dimO = st.dim.map((x) => getComputedStyle(x).opacity);
-    st.dim.forEach((x, i) => { x.getAnimations().forEach((a) => a.cancel()); x.style.opacity = '0'; out.push(x.animate([{ opacity: dimO[i] }, { opacity: dimO[i], offset: 0.35 }, { opacity: 1, offset: 0.85 }, { opacity: 1 }], { duration: reduced() ? 1 : D, easing: 'linear' })); });
+    st.dim.forEach((x, i) => { x.getAnimations().forEach((a) => a.cancel()); x.style.opacity = '0'; out.push(this.anim(x, [{ opacity: dimO[i] }, { opacity: dimO[i], offset: 0.35 }, { opacity: 1, offset: 0.85 }, { opacity: 1 }], { duration: D, delay: 70, easing: 'linear' })); });
     L.forEach((l, i) => out.unshift(this.anim(l, [{ transform: fromL[i] }, { transform: wf[i] }], { duration: D, delay: 70, easing: E })));
     // the material clears between 25 % and 80 %: the section is already back underneath, so close ends on the settled screen
-    out.push(this.anim(mat, [{ opacity: matO }, { opacity: matO, offset: 0.25 }, { opacity: 0, offset: 0.7 }, { opacity: 0 }], { duration: D, easing: 'linear' }));
+    out.push(this.anim(mat, [{ opacity: matO }, { opacity: matO, offset: 0.2 }, { opacity: 0, offset: 0.55 }, { opacity: 0 }], { duration: D, easing: 'linear' }));
     this.e.scr.getAnimations().forEach((a) => a.cancel());
     out.push(this.anim(this.e.scr, [{ opacity: scrO }, { opacity: scrO, offset: 0.2, easing: 'cubic-bezier(.3,0,.25,1)' }, { opacity: 1, offset: 0.6 }, { opacity: 1 }], { duration: D, easing: 'linear' }));
-    out.push(this.anim(edge, [{ opacity: edgeO }, { opacity: 1, offset: 0.25 }, { opacity: 1, offset: 0.8 }, { opacity: 0 }], { duration: D, easing: 'linear' }));
+    out.push(this.anim(edge, [{ opacity: edgeO }, { opacity: 1, offset: 0.2 }, { opacity: 0, offset: 0.55 }, { opacity: 0 }], { duration: D, easing: 'linear' }));
     fl.forEach(({ c, a }) => {
       const ra = this.box(a), rb = { x: parseFloat(c.style.left), y: parseFloat(c.style.top), w: parseFloat(c.style.width), h: parseFloat(c.style.height) };
       const s = this.scale(a, ra, rb);
@@ -189,6 +197,7 @@ export class Expander {
       out.forEach((a) => a.cancel());
       st.dim.forEach((x) => { x.style.opacity = '0'; });
       fl.forEach(({ a }) => { a.style.opacity = '0'; });
+      this.squareAt(st, 300);
       const sm = this.sm();
       L.forEach((l, i) => { const t = lt[i]; if (t !== 'none' && t !== 'matrix(1, 0, 0, 1, 0, 0)') this.anim(l, [{ transform: t }, { transform: 'none' }], { duration: sm.duration, easing: sm.easing }); });
     }).catch(() => {});
@@ -213,7 +222,7 @@ export class Expander {
     const { det, fly, L, mat, dsc, root } = this.e;
     fly.replaceChildren();
     this.st?.dim.forEach((x) => { x.getAnimations().forEach((a) => a.cancel()); x.style.opacity = ''; });
-    det.classList.remove('live');
+    det.classList.remove('live', 'moving');
     [...L, mat, this.e.scr].forEach((x) => x.getAnimations().forEach((a) => a.cancel()));
     $$('[data-share]', root).forEach((x) => { x.style.opacity = ''; });
     $$('*', dsc).forEach((x) => { x.getAnimations().forEach((a) => a.cancel()); x.style.transform = ''; x.style.opacity = ''; });
@@ -251,7 +260,7 @@ export class Expander {
   swapIn(dir: number) {
     const { dsc } = this.e;
     const sm = this.sm();
-    this.playPage(160);
+    this.playPage(160, false);
     const W = dsc.clientWidth + 48;
     $$(':scope > .hx-page > .hx-body > *', dsc).forEach((x) => this.anim(x, [{ transform: `translateX(${dir * W}px)` }, { transform: 'none' }], { duration: sm.duration + 160, easing: sm.easing }));
   }

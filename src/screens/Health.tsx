@@ -113,7 +113,7 @@ export function HealthScreen() {
   const shown = ORDER.filter((k) => has(k, v));
   return (
     <div ref={root} className="hx-root">
-      <div ref={scr} className="screen hx-screen">
+      <div ref={scr} className={`screen hx-screen${v.loaded ? '' : ' hx-wait'}`}>
         <div className="hx-top hx-ln"><h1 className="hx-title">{t('Health')}</h1></div>
         <div className="hx-date hx-ln">{fmtDate(today, lang, { weekday: 'long', day: 'numeric', month: 'long' })}</div>
         <Sentence v={v} t={t} lang={lang} onTap={tap} />
@@ -157,7 +157,7 @@ function useIntro(scr: React.RefObject<HTMLDivElement | null>, v: HealthView) {
   const played = useRef(false), seen = useRef(new Set<string>());
   const hasRibbon = !!v.ribbon;
   useLayoutEffect(() => {
-    const el = scr.current; if (!el || played.current) return;
+    const el = scr.current; if (!el || played.current || !v.loaded) return;
     if (!v.hasWatch && !v.body.kg && hasRibbon === false && v.ready === null) { /* nothing to play beyond the header */ }
     played.current = true;
     if (reduced()) return;
@@ -166,11 +166,11 @@ function useIntro(scr: React.RefObject<HTMLDivElement | null>, v: HealthView) {
     // lines of the sentence: words grouped by the line they sit on (the house rhythm: 60 ms a step, at most 4)
     const words = [...el.querySelectorAll<HTMLElement>('.hx-w, .hx-pill')];
     const lines: HTMLElement[][] = [];
-    const mid = (x: HTMLElement) => { const r = x.getBoundingClientRect(); return r.top + r.height / 2; };
+    const mid = (x: HTMLElement) => x.offsetTop + x.offsetHeight / 2; // layout, not the screen's moving picture
     for (const w of words) { const m = mid(w); const l = lines.find((x) => Math.abs(mid(x[0]) - m) < 16); if (l) l.push(w); else lines.push([w]); }
     const steps = [[...el.querySelectorAll<HTMLElement>('.hx-ln')], ...lines];
     steps.forEach((g, i) => g.forEach((w) => rise(w, 60 + Math.min(i, 5) * 60)));
-  }, [scr, v.hasWatch, hasRibbon, v.body.kg, v.ready]);
+  }, [scr, v.hasWatch, hasRibbon, v.body.kg, v.ready, v.loaded]);
 
   // the ribbon plays the day once, slowly: the night steps down, the heart thread draws, the steps hill rises, now lands
   const ribbonPlayed = useRef(false);
@@ -190,25 +190,31 @@ function useIntro(scr: React.RefObject<HTMLDivElement | null>, v: HealthView) {
     layer('now')?.animate([{ opacity: 0, transform: 'translateY(-6px)', offset: 0 }], { duration: 700, delay: 1700, easing: EO, fill: 'both' });
   });
 
-  // sections rise when they come into view (not all at once below the fold, where nobody sees it)
+  // sections rise when they come into view (not all at once below the fold, where nobody sees it); the first ones wait for
+  // the ribbon's sweep. One observer for the screen's life: a re-render (data arriving) must not cut a rise short.
+  const io = useRef<IntersectionObserver | null>(null), t0 = useRef(0);
   useLayoutEffect(() => {
     const el = scr.current; if (!el) return;
     const fresh = [...el.querySelectorAll<HTMLElement>('.hx-sec')].filter((x) => !seen.current.has(x.dataset.k!));
     if (!fresh.length) return;
-    if (reduced()) { fresh.forEach((x) => seen.current.add(x.dataset.k!)); return; }
-    fresh.forEach((x) => { x.style.opacity = '0'; });
-    const io = new IntersectionObserver((es) => es.forEach((e) => {
-      if (!e.isIntersecting) return;
-      const x = e.target as HTMLElement; io.unobserve(x); seen.current.add(x.dataset.k!);
-      x.style.opacity = '';
-      x.animate([{ opacity: 0, transform: 'translateY(12px)', offset: 0 }], { duration: 520, easing: 'cubic-bezier(.25,1,.5,1)', fill: 'both' });
-      const c = x.querySelector<HTMLElement>('.hx-wipe');
-      const inner = c?.firstElementChild;
-      if (c && inner) { c.animate([{ transform: 'translateX(-100%)', offset: 0 }], { duration: 1000, delay: 120, easing: EO, fill: 'both' }); inner.animate([{ transform: 'translateX(100%)', offset: 0 }], { duration: 1000, delay: 120, easing: EO, fill: 'both' }); }
-    }), { root: el, threshold: 0.35 });
-    const id = setTimeout(() => fresh.forEach((x) => io.observe(x)), played.current && !seen.current.size ? 1100 : 420); // the first ones after the ribbon's sweep
-    return () => { clearTimeout(id); io.disconnect(); fresh.forEach((x) => { if (!seen.current.has(x.dataset.k!)) { x.style.opacity = ''; seen.current.add(x.dataset.k!); } }); };
+    fresh.forEach((x) => seen.current.add(x.dataset.k!));
+    if (reduced()) return;
+    if (!io.current) {
+      t0.current = performance.now();
+      io.current = new IntersectionObserver((es) => es.forEach((e) => {
+        if (!e.isIntersecting) return;
+        const x = e.target as HTMLElement; io.current?.unobserve(x);
+        const late = Math.max(0, 1500 - (performance.now() - t0.current));
+        x.style.opacity = '';
+        x.animate([{ opacity: 0, transform: 'translateY(12px)', offset: 0 }], { duration: 520, delay: late, easing: 'cubic-bezier(.25,1,.5,1)', fill: 'both' });
+        const c = x.querySelector<HTMLElement>('.hx-wipe');
+        const inner = c?.firstElementChild;
+        if (c && inner) { c.animate([{ transform: 'translateX(-100%)', offset: 0 }], { duration: 1000, delay: late + 120, easing: EO, fill: 'both' }); inner.animate([{ transform: 'translateX(100%)', offset: 0 }], { duration: 1000, delay: late + 120, easing: EO, fill: 'both' }); }
+      }), { root: el, threshold: 0.35 });
+    }
+    fresh.forEach((x) => { x.style.opacity = '0'; io.current!.observe(x); });
   });
+  useEffect(() => () => { io.current?.disconnect(); io.current = null; }, []);
 }
 
 function Pill({ k, children, onTap }: { k: K; children: ReactNode; onTap: (k: K, el: HTMLElement) => void }) {
@@ -364,7 +370,7 @@ function Page({ k, v, t, lang }: { k: K; v: HealthView; t: TFn; lang: Lang }) {
       <div className="hx-bleed hx-hyp" data-share="chart"><Hypnogram night={n.session} w={W} /></div>
       <h3 className="hx-dt hx-rise">{head}</h3>
       {diff !== undefined && <p className="hx-dsub hx-rise">{Math.abs(diff) < 15 ? t('About your usual {u}.', { u: hm(n.usual!, lang) }) : t(diff > 0 ? '{d} more than your usual {u}.' : '{d} less than your usual {u}.', { d: hm(Math.abs(diff), lang), u: hm(n.usual!, lang) })}</p>}
-      {sc && <div className="hx-panel hx-rise"><div className="hx-rowc"><div><div className="hx-ptitle" style={{ margin: 0 }}>{t('Sleep score')}</div><div className="hx-n" style={{ fontSize: 40, fontWeight: 300, marginTop: 4 }}>{sc.score}<small>/100 · {t(sc.band)}</small></div>{sc.cap && sc.capMin && <div className="hx-sub" style={{ marginTop: 4, textWrap: 'balance' }}>{t('Under {h} of sleep it stays at most {n}.', { h: hm(sc.capMin, lang), n: sc.cap })}</div>}</div><ScoreRing value={sc.score} color={C.sleep} /></div><div style={{ marginTop: 14 }}><Parts s={sc} t={t} /></div></div>}
+      {sc && <div className="hx-panel hx-rise"><div className="hx-rowc"><div><div className="hx-ptitle" style={{ margin: 0 }}>{t('Sleep score')}</div><div className="hx-n" style={{ fontSize: 40, fontWeight: 300, marginTop: 4 }}>{sc.score}<small>/100 · {t(sc.band)}</small></div>{sc.cap && sc.capMin && <div className="hx-sub" style={{ marginTop: 4, textWrap: 'balance' }}>{t('Under {h} of sleep it stays at most {n}.', { h: hm(sc.capMin, lang), n: sc.cap })}</div>}</div><ScoreRing value={sc.score} color={C.sleep} /></div><div style={{ marginTop: 14 }}><Parts s={sc} t={t} /></div><div className="hx-sub" style={{ marginTop: 10 }}>{t('Length counts for 30 %, each of the others 10 to 15 %.')}</div></div>}
       <div className="hx-panel hx-rise"><div className="hx-stages">{st.map(([name, m, c]) => <div key={name} className="hx-strow"><b style={{ color: c }}>{name}</b><div className="hx-sbar"><span className="hx-sb" style={{ ['--sc' as string]: c, width: `${Math.round((m / mx) * 100)}%` }} /></div><span>{hm(m, lang)}</span></div>)}</div></div>
       <div className="hx-panel hx-rise"><div className="hx-ptitle">{n.usual ? t('The last 14 nights · usual {u}', { u: hm(n.usual, lang) }) : t('The last 14 nights')}</div>
         <svg viewBox={`0 0 ${w} 112`} width={w} height={112} style={{ display: 'block', overflow: 'visible' }} aria-hidden>

@@ -91,6 +91,8 @@ export interface HealthView {
   body: { kg?: number; date?: string; series: number[]; rate: number | null; fat?: number; lean?: number; water?: number; bone?: number; bmr?: number };
   ribbon: DayRibbon | null;
   hasWatch: boolean;
+  /** the watch's detail has been read from the phone (until then the sentence can still change) */
+  loaded: boolean;
 }
 
 export function buildView(a: { data: AppData; det: Map<string, WatchDetail> | null; today: string; now: number; label: (a: ActivityLog) => string }): HealthView {
@@ -186,7 +188,7 @@ export function buildView(a: { data: AppData; det: Map<string, WatchDetail> | nu
   if (comp) Object.assign(body, { lean: comp.leanKg, water: comp.bodyWaterKg, bone: comp.boneKg, bmr: comp.bmr });
 
   const hasWatch = !!(days.length || data.steps.length || (det && det.size));
-  return { today, day, night, ready, heart, steps, week, body, ribbon: det && det.size ? buildRibbon(D, data, now, a.label) : null, hasWatch };
+  return { today, day, night, ready, heart, steps, week, body, ribbon: det && det.size ? buildRibbon(D, data, now, a.label) : null, hasWatch, loaded: det !== null };
 }
 
 /** 5-minute averages, so a night's curve is calm */
