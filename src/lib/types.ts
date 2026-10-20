@@ -92,6 +92,8 @@ export interface Meal {
 export interface SavedMealItem {
   snap: FoodSnapshot;
   qty: Quantity;
+  /** a quick, photo or Coach entry (totals only): logged again with exactly these totals */
+  nutrients?: Nutrients;
 }
 export interface SavedMeal {
   id: string;

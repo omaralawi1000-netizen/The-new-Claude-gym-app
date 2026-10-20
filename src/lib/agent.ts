@@ -17,7 +17,7 @@ import { noteEvent } from './ledger';
 import { defaultMealId, mealName } from './derive';
 import { coversQuery, fold, parseFoodText, pickOnline, resolveRows, rowQuantity, type ParsedFoodRow } from './foodText';
 import { matchExercises, parseWorkoutText } from './workoutText';
-import { calcRecipe, entryFromSnapshot, quickEntry, recipeToFood, scale, snapshotOf, toBase, uid } from './nutrition';
+import { calcRecipe, entryFromSavedItem, entryFromSnapshot, quickEntry, recipeToFood, scale, snapshotOf, toBase, uid } from './nutrition';
 import { searchDanish, searchOnline } from './foodApi';
 import { type Brain } from './gemini';
 import { estimateFood } from './brain';
@@ -1461,7 +1461,7 @@ function doLogSavedMeal(a: Extract<AgentAction, { type: 'log_saved_meal' }>, ctx
   if (!m) return { id: uid('r'), kind: 'miss', title: t('No saved meal with that name'), lines: [{ text: a.name, sub: st.savedMeals.map((x) => x.name).join(' · ').slice(0, 120), warn: true }] };
   const date = resolveDay(a.day, ctx.today) ?? ctx.date ?? ctx.today;
   const mealId = mealIdOf(a.meal, ctx) ?? ctx.mealId ?? defaultMealId(st.settings.meals);
-  const entries = m.items.map((it) => entryFromSnapshot(it.snap, it.qty, date, mealId, { id: uid('e') })).filter(Boolean) as FoodEntry[];
+  const entries = m.items.map((it) => entryFromSavedItem(it, date, mealId, { id: uid('e') })).filter(Boolean) as FoodEntry[];
   const added = st.logEntries(entries);
   const total = added.reduce((n, e) => n + (e.nutrients.kcal ?? 0), 0);
   return {

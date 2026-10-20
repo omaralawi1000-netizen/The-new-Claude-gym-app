@@ -1,5 +1,5 @@
 import type {
-  BasisUnit, Food, FoodEntry, FoodSnapshot, Nutrients, NutrientKey, Portion, Quantity, Recipe,
+  BasisUnit, Food, FoodEntry, FoodSnapshot, Nutrients, NutrientKey, Portion, Quantity, Recipe, SavedMealItem,
 } from './types';
 
 export const NUTRIENT_KEYS: NutrientKey[] = ['kcal', 'protein', 'carbs', 'fat', 'fibre', 'sugar', 'satFat', 'sodium'];
@@ -146,6 +146,24 @@ export function isQuickEntry(e: FoodEntry): boolean {
 /** Which sheet edits a logged entry, and with what props. Every place that opens an entry goes through this. */
 export function entryEditor(e: FoodEntry): { type: 'quickAdd' | 'foodDetail'; props: { entryId: string; date: string; mealId: string } } {
   return { type: isQuickEntry(e) ? 'quickAdd' : 'foodDetail', props: { entryId: e.id, date: e.date, mealId: e.mealId } };
+}
+
+/** A diary entry as a saved-meal item: a food keeps its amount, a quick entry keeps its totals. */
+export function savedItemOf(e: FoodEntry): SavedMealItem {
+  return isQuickEntry(e) ? { snap: e.snap, qty: e.qty, nutrients: { ...e.nutrients } } : { snap: e.snap, qty: e.qty };
+}
+
+/** A saved-meal item logged again (null when its amount no longer converts). */
+export function entryFromSavedItem(it: SavedMealItem, date: string, mealId: string, opts: { id?: string } = {}): FoodEntry | null {
+  if (it.nutrients) { const q = quickEntry(it.snap.name, it.nutrients, date, mealId); return opts.id ? { ...q, id: opts.id } : q; }
+  return entryFromSnapshot(it.snap, it.qty, date, mealId, opts);
+}
+
+/** What a saved-meal item adds up to. */
+export function savedItemNutrients(it: SavedMealItem): Nutrients {
+  if (it.nutrients) return it.nutrients;
+  const b = toBase(it.snap, it.qty);
+  return b.ok ? scale(it.snap.per100, b.base) : {};
 }
 
 // ── Recipes ─────────────────────────────────────────────────

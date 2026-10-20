@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // Food fixes after the v0.1.160 audit: each block is one fix.
 import { describe, it, expect } from 'vitest';
-import { entryEditor, entryFromSnapshot, isQuickEntry, quickEntry } from '../src/lib/nutrition';
+import { entryEditor, entryFromSavedItem, entryFromSnapshot, isQuickEntry, quickEntry, savedItemNutrients, savedItemOf } from '../src/lib/nutrition';
 import { removeMeal, restoreMeal } from '../src/lib/derive';
 
 describe('a logged entry opens in the sheet that can edit it', () => {
@@ -37,5 +37,20 @@ describe('removing a meal in Settings can be undone exactly', () => {
   });
   it('the only meal cannot be removed', () => {
     expect(removeMeal([meals[0]], [], 'breakfast')).toBeNull();
+  });
+});
+
+describe('save as meal keeps quick, photo and Coach entries', () => {
+  it('quick entries are kept and logged again with their totals', () => {
+    const q = quickEntry('Pizza (AI estimate)', { kcal: 800, protein: 30 }, '2026-10-01', 'dinner');
+    const f = entryFromSnapshot({ name: 'Skyr', source: 'reference', basis: 'g', per100: { kcal: 60 }, portions: [] }, { amount: 200, unit: 'g' }, '2026-10-01', 'dinner')!;
+    const items = [q, f].map(savedItemOf);
+    expect(items.map(savedItemNutrients).map((n) => n.kcal)).toEqual([800, 120]);
+    const again = items.map((it) => entryFromSavedItem(it, '2026-10-02', 'lunch')!);
+    expect(again.map((e) => [e.snap.name, e.nutrients.kcal, e.date, e.mealId, !!e.quick])).toEqual([
+      ['Pizza (AI estimate)', 800, '2026-10-02', 'lunch', true],
+      ['Skyr', 120, '2026-10-02', 'lunch', false],
+    ]);
+    expect(again[0].id).not.toBe(q.id);
   });
 });
