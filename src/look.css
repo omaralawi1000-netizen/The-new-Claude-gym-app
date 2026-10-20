@@ -198,9 +198,9 @@ html:root:not([data-surface='now']):not([data-theme='light']) .sheet :is(.plinth
 html:root:not([data-surface='now']):not([data-theme='light']) :is(.tc-bar, .rv-bar-track, .bar):not(#_) { background: oklch(from var(--fill, var(--of, var(--ac))) 0.30 0.075 calc(h - 4)); }
 html:root:not([data-surface='now']):not([data-theme='light']) .water-bar:not(#_) { background: oklch(from var(--c-water) 0.30 0.06 h); }
 /* Food's week: every surface option. An empty day is a dim nub of the palette's own accent (was a navy --s3 pill), a
-   logged day a quiet version of the accent (was a flat grey slab), the picked day the full orange */
+   logged day the accent a little softer (was a flat grey slab; a darker accent read as brown), the picked day the full orange */
 html:root:not([data-theme='light']) .week-bars i:not(.logged, .on):not(#_) { background: oklch(from var(--of, var(--ac)) 0.29 0.06 calc(h - 4)); }
-html:root:not([data-theme='light']) .week-bars i.logged:not(.on):not(#_) { background: linear-gradient(180deg, oklch(from var(--of, var(--ac)) 0.56 0.11 calc(h - 3)), oklch(from var(--of, var(--ac)) 0.47 0.10 calc(h - 5))); box-shadow: inset 0 1px 0 rgb(255 255 255 / .14); }
+html:root:not([data-theme='light']) .week-bars i.logged:not(.on):not(#_) { background: linear-gradient(180deg, oklch(from var(--of, var(--ac)) 0.80 0.11 calc(h + 2)), oklch(from var(--of, var(--ac)) 0.73 0.13 h)); box-shadow: inset 0 1px 0 rgb(255 255 255 / .3); }
 html:root:not([data-surface='now']):not([data-theme='light']) .sheet .bar:not(#_):not(#_) { background: oklch(from var(--fill, var(--of, var(--ac))) 0.28 0.06 h); }
 /* dark yellow can't be shown that dim (it clips to mustard): fat's track leans to amber and a touch quieter */
 html:root:not([data-surface='now']):not([data-theme='light']) .sheet .bar[data-k='fat']:not(#_):not(#_) { background: oklch(from var(--fill) 0.28 0.045 calc(h - 10)); }
