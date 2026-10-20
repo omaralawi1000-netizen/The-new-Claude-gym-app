@@ -1728,6 +1728,8 @@ export const da: Record<string, string> = {
  "Also reads your watch by itself every half hour while Aven is closed, so it opens up to date.": "Læser også dit ur af sig selv hver halve time, mens Aven er lukket, så den åbner opdateret.",
  "To keep it up to date while Aven is closed too: in your phone’s Settings, search for Health Connect, open App permissions › Aven and allow access in the background.": "Så den også holdes opdateret, mens Aven er lukket: Søg efter Health Connect i telefonens Indstillinger, åbn Apptilladelser › Aven, og tillad adgang i baggrunden.",
  "Heart rate and steps minute by minute, and every sleep stage: {n} days on this phone.": "Puls og skridt minut for minut og hver søvnfase: {n} dage på denne telefon.",
+ "To send your weight and food to Samsung Health too: in your phone’s Settings, search for Health Connect, open App permissions › Aven and allow Weight and Nutrition.": "Så din vægt og mad også kommer i Samsung Health: Søg efter Health Connect i telefonens Indstillinger, åbn Apptilladelser › Aven, og tillad Vægt og Ernæring.",
+ "Your weigh-ins and each day’s food totals go to Health Connect each time you tap Sync now, so Samsung Health sees them too.": "Dine vejninger og hver dags madtotaler sendes til Health Connect, hver gang du trykker Synkronisér nu, så Samsung Health også kan se dem.",
  "Last synced {when}": "Sidst synkroniseret {when}",
  "Needs the Aven Android app. Without it, the button offers to download it.": "Kræver Aven-appen til Android. Uden den tilbyder knappen at hente den.",
  "Not connected": "Ikke forbundet",

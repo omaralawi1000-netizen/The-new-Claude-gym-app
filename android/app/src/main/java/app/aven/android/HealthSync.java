@@ -115,6 +115,7 @@ final class HealthSync {
         java.util.Collections.addAll(out, PERMS);
         // (history only where Health Connect knows it: an unknown one could make it refuse the whole request)
         for (String p : MORE) if (Build.VERSION.SDK_INT >= 35 || !(p.endsWith("HISTORY") || p.equals(BACKGROUND))) out.add(p);
+        java.util.Collections.addAll(out, HealthWrite.PERMS); // (writing weigh-ins and food: optional too)
         return out.toArray(new String[0]);
     }
 
@@ -137,6 +138,8 @@ final class HealthSync {
     private static final int DETAIL_RECENT = 3, DETAIL_CHUNK = 4, DETAIL_BACK = 90;
     /** The website's own address: a "return" anywhere else is ignored. */
     static final String SITE = "https://omaralawi1000-netizen.github.io/The-new-Claude-gym-app";
+    /** This app (its own records in Health Connect are left out of what is read). */
+    private static final String ME = "app.aven.android";
 
     static boolean available(Context c) {
         return Build.VERSION.SDK_INT >= 34 && c.getSystemService(HealthConnectManager.class) != null;
@@ -170,8 +173,8 @@ final class HealthSync {
     static boolean askedMore(Context c) { return prefs(c).getInt(ASKED_V, prefs(c).getBoolean(ASKED_MORE, false) ? 1 : 0) >= MORE_V; }
     static void markAskedMore(Context c) { prefs(c).edit().putBoolean(ASKED_MORE, true).putInt(ASKED_V, MORE_V).apply(); }
     private static final String ASKED_MORE = "askedMore", ASKED_V = "askedMoreV";
-    /** 1: sleep, HRV and the rest; 2: reading in the background. */
-    private static final int MORE_V = 2;
+    /** 1: sleep, HRV and the rest; 2: reading in the background; 3: writing weigh-ins and food. */
+    private static final int MORE_V = 3;
 
     private static SharedPreferences prefs(Context c) { return c.getSharedPreferences(PREFS, Context.MODE_PRIVATE); }
 
@@ -578,7 +581,8 @@ final class HealthSync {
         }
 
         // the last value of the day for these
-        for (WeightRecord r : records(hc, WeightRecord.class, ia, iz, back)) put(days, dateOf(r.getTime(), zone), "w", Math.round(r.getWeight().getInGrams() / 100.0) / 10.0);
+        // (not Aven's own weigh-ins, written there on Sync now: they'd come back as the watch's)
+        for (WeightRecord r : records(hc, WeightRecord.class, ia, iz, back)) if (!ME.equals(r.getMetadata().getDataOrigin().getPackageName())) put(days, dateOf(r.getTime(), zone), "w", Math.round(r.getWeight().getInGrams() / 100.0) / 10.0);
         for (BodyFatRecord r : records(hc, BodyFatRecord.class, ia, iz, back)) put(days, dateOf(r.getTime(), zone), "bf", Math.round(r.getPercentage().getValue() * 10) / 10.0);
         for (Vo2MaxRecord r : records(hc, Vo2MaxRecord.class, ia, iz, back)) put(days, dateOf(r.getTime(), zone), "vo", Math.round(r.getVo2MillilitersPerMinuteKilogram() * 10) / 10.0);
         Map<String, double[]> o2 = new TreeMap<>(), rr = new TreeMap<>();

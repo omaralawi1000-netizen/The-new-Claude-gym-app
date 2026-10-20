@@ -3063,3 +3063,13 @@ every sleep stage, steps.
 - **Kept apart** in IndexedDB `aven-watch` (`lib/watchDetail.ts`, the last 365 days), not in the app data (every save would
   carry it) and not in backups (Health Connect has it). `watchDetails(from, to)`, `minutes(packed)` and `onWatchDetail` are
   the way in for anything that draws it. Delete all data clears it; Beta has its own.
+
+## Weight and food into Health Connect (20 Oct 2026)
+Omar: "weight and nutrition, from Aven". Aven now also *writes* two things into Health Connect, so Samsung Health and other
+apps see them: each weigh-in (the last of a day) and each day's food totals (calories, protein, carbs, fat), as one record
+per day each, named by date (`aven-w-<date>`, `aven-n-<date>`), so a day sent again replaces itself. Deleted here = taken
+out there. A web page can't hand data to the Android app by itself, so they ride along when Sync now or Connect watch is
+tapped (`w=` in the link, `lib/hcWrite.ts` → `HealthWrite.java`), only what changed in the last 90 days. They count as sent
+only once the app answers `&hw=<n>`; "denied" (Write weight / Nutrition not allowed in Health Connect) sends them again
+next time and Settings → Watch says where to allow it. Aven's own weigh-ins are skipped when reading the watch's back.
+Not written: workouts and anything else (they'd come back as "watch workouts").
