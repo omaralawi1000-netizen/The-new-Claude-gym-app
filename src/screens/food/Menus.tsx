@@ -151,6 +151,7 @@ export function WaterSheet({ props }: { props: { date: string } }) {
   const lang = useLang();
   const s = useStore();
   const pop = useUI((u) => u.pop);
+  const today = useToday();
   const list = s.water.filter((w) => w.date === props.date).sort((a, b) => b.at - a.at);
   const q = s.settings.waterQuick;
   return (
@@ -163,7 +164,7 @@ export function WaterSheet({ props }: { props: { date: string } }) {
         </div>
         <div className="field" style={{ marginTop: 16 }}><label>{t('Daily goal')}</label><NumInput value={s.settings.goals.waterMl} max={0} unit="ml" onChange={(n) => n && n > 0 && s.updateSettings({ goals: { ...s.settings.goals, waterMl: n } })} /></div>
         <div className="lbl" style={{ margin: '22px 0 6px' }}>{t('Logged')}</div>
-        {list.length === 0 ? <div className="small t2">{t('Nothing yet today.')}</div> : (
+        {list.length === 0 ? <div className="small t2">{props.date === today ? t('Nothing yet today.') : t('Nothing logged')}</div> : (
           <div className="list">{list.map((w) => (
             <div key={w.id} className="li" style={{ minHeight: 48 }}>
               <Icon name="drop" size={18} style={{ color: 'var(--c-water)' }} /><div className="grow num">{fmtNum(w.ml, lang, 0)} ml</div>
