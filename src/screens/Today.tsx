@@ -65,16 +65,17 @@ export function TodayScreen() {
     if (!dueNudge || typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
     // once a day, also after the app was closed and opened again (one key holding the day, so nothing piles up)
     const key = 'aven.notified';
-    try { if (localStorage.getItem(key) === today) return; localStorage.setItem(key, today); } catch { /* ignore */ }
+    try { if (localStorage.getItem(key) === today) return; } catch { /* ignore */ }
+    const shown = () => { try { localStorage.setItem(key, today); } catch { /* ignore */ } }; // only once one was really shown
     const title = t('Time to train');
     const opts: NotificationOptions = { body: routine?.name, icon: `${import.meta.env.BASE_URL}icon-192.png`, tag: 'aven-train' };
     // Chrome on Android only shows notifications through the service worker (`new Notification` throws there)
     void (async () => {
       try {
         const reg = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : undefined;
-        if (reg) { await (await navigator.serviceWorker.ready).showNotification(title, opts); return; }
+        if (reg) { await (await navigator.serviceWorker.ready).showNotification(title, opts); shown(); return; }
       } catch { /* try the plain way */ }
-      try { new Notification(title, opts); } catch { /* ignore */ }
+      try { new Notification(title, opts); shown(); } catch { /* ignore */ }
     })();
   }, [dueNudge, today, routine?.name, t]);
 
