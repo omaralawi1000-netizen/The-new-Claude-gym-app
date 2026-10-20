@@ -1230,6 +1230,7 @@ export const da: Record<string, string> = {
  "Water target": "Vand-mål",
  "Weight unit": "Vægtenhed",
  "Which one?": "Hvilken?",
+ "Did you mean {amount}?": "Mente du {amount}?",
  "Without a Gemini key I can still log simple things, but not chat. Add one in Settings → Voice & AI.": "Uden en Gemini-nøgle kan jeg stadig logge simple ting, men ikke chatte. Tilføj en i Indstillinger → Stemme & AI.",
  "Workout started": "Pas startet",
  "Yesterday": "I går",

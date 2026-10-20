@@ -110,3 +110,20 @@ describe('sleep and recovery from the watch', () => {
     expect(recoveryLines([], today)).toEqual([]);
   });
 });
+
+describe('a misheard amount is asked, never logged as heard (20 Oct)', async () => {
+  const { oddAmount } = await import('../src/lib/agent');
+  const rice = { id: 'rice', name: 'Rice, cooked', basis: 'g', per100: { kcal: 130 }, portions: [] } as any;
+  const had = (amount: number) => ({ entries: [{ id: 'e1', date: '2026-10-18', mealId: 'lunch', at: 0, snap: { foodId: 'rice', name: 'Rice', basis: 'g', per100: { kcal: 130 } }, qty: { amount, unit: 'g' }, base: amount, nutrients: { kcal: amount * 1.3 } }] as any[] });
+  it('"2000 g rice" when they eat 200 g: did you mean 200 g?', () => {
+    expect(oddAmount(had(200), rice, { amount: 2000, unit: 'g' }, 2600)).toEqual({ amount: 200, unit: 'g' });
+  });
+  it('a normal or a big-but-real amount is logged as said', () => {
+    expect(oddAmount(had(200), rice, { amount: 350, unit: 'g' }, 455)).toBeNull();
+    expect(oddAmount({ entries: [] }, rice, { amount: 900, unit: 'g' }, 1170)).toBeNull(); // never logged: under a kilo and 1,500 kcal
+    expect(oddAmount({ entries: [] }, rice, { amount: 2, unit: 'portion' } as any, 600)).toBeNull();
+  });
+  it('a food never logged before: only a kilo or more that is also 1,500+ kcal is asked', () => {
+    expect(oddAmount({ entries: [] }, rice, { amount: 2000, unit: 'g' }, 2600)).toEqual({ amount: 200, unit: 'g' });
+  });
+});
