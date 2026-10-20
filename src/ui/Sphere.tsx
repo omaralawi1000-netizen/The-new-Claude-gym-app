@@ -343,7 +343,7 @@ export function SphereStage() {
       from = colors; to = next; fadeStart = performance.now();
     });
     if (appEl) mo.observe(appEl, { attributes: true, attributeFilter: ['data-hue'] });
-    mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-palette'] });
     const refreshColors = (now: number) => {
       if (fadeStart === Infinity && tintGoAt) fadeStart = tintGoAt;
       if (!fadeStart) return;
@@ -757,7 +757,7 @@ export function SphereStage() {
         && useUI.getState().overlays.length === 0 && useVoice.getState().phase === 'idle' && !voiceOutOn() && !inp.rest && !pressTarget && !inp.tap && !inp.whoosh && !inp.ignite && !inp.beat
         && launchLogo === undefined && turnFrom.size === 0 && now > orbHold.until && !sampledAnimations.some((a) => a.playState === 'running');
       stillN = rests ? stillN + 1 : 0;
-      if (stillN > 20) sleepOrb();
+      if (stillN > 20 && now - restProbe.since > 260) sleepOrb(); // (not before the dock's resting place is saved)
     };
     // An interrupted browser animation/canvas read must never escape into Motion's shared scheduler and freeze every sheet.
     const read = () => { try { measure(); } catch { dirty(); } };
@@ -773,7 +773,7 @@ export function SphereStage() {
       if (asleep || !running) return;
       asleep = true; orbStats.asleep = true; cancelFrame(read); cancelFrame(loop);
       const dock = restSlot(); const at = dock?.getBoundingClientRect();
-      check = setInterval(() => { const r = dock?.isConnected ? dock.getBoundingClientRect() : null; if (!r || !at || Math.abs(r.left - at.left) > 0.25 || Math.abs(r.top - at.top) > 0.25 || Math.abs(r.width - at.width) > 0.25) wakeOrb(); }, 250);
+      check = setInterval(() => { const r = dock?.isConnected ? dock.getBoundingClientRect() : null; if (!r || !at || Math.abs(r.left - at.left) > 0.25 || Math.abs(r.top - at.top) > 0.25 || Math.abs(r.width - at.width) > 0.25) markOrbLayoutDirty(); }, 250); // (dirty, not just awake: measured afresh)
     };
     wakeOrb = () => {
       if (!asleep) return;
@@ -784,7 +784,7 @@ export function SphereStage() {
     const offOut = onVoiceOut(() => wakeOrb());
     const offStore = useStore.subscribe((a, b) => { if (a.active !== b.active) wakeOrb(); });
     const onVis = () => {
-      if (document.hidden) { running = false; asleep = false; clearInterval(check); cancelFrame(read); cancelFrame(loop); pause(); }
+      if (document.hidden) { running = false; asleep = false; orbStats.asleep = false; clearInterval(check); cancelFrame(read); cancelFrame(loop); pause(); }
       else if (!running) { running = true; dirty(); frame.read(read, true); frame.postRender(loop, true); }
     };
     document.addEventListener('visibilitychange', onVis);
