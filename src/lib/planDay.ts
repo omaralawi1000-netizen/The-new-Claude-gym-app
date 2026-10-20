@@ -26,7 +26,7 @@ function targetFor(ex: Exercise, d: Pick<AppData, 'sessions' | 'increments' | 's
   if (ex.logType !== 'weightReps') return undefined;
   const hist = historyOf(ex.id, d.sessions.filter((s) => s.status === 'done'));
   if (!hist.length) return undefined;
-  const sug = suggestProgression(ex, hist, range, incrementFor(ex, d.increments, d.settings.plateStep));
+  const sug = suggestProgression(ex, hist, range, incrementFor(ex, d.increments, d.settings.plateStep, d.settings.units.weight));
   const s1 = sug.sets?.[0];
   return s1?.weightKg !== undefined ? `${Math.round(s1.weightKg * 100) / 100} kg × ${s1.reps}` : undefined;
 }

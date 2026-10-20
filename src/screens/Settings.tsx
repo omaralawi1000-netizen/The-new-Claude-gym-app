@@ -9,7 +9,8 @@ import { useT, useLang } from '../lib/i18n';
 import { Sheet, SheetHead } from '../ui/Sheet';
 import { Icon } from '../ui/Icon';
 import { NumInput, Seg, Stepper, Toggle } from '../ui/kit';
-import { fmtNum, fmtPct } from '../lib/units';
+import { fmtNum, fmtPct, KG_PER_LB } from '../lib/units';
+import { LB_STEPS, lbStepKg } from '../lib/workout';
 import { lastBackup, markBackup, useStorageKept } from '../lib/persist';
 import { buildBackup, parseBackup, snapshotData } from '../lib/backup';
 import { DriveCard } from './DriveBackup';
@@ -282,7 +283,10 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
               <div className="stack gap16">
                 <Field label={t('Default rest between sets')}><div><Stepper compact label={t('Default rest between sets')} value={st.restDefaultSec} min={15} max={600} step={15} fmt={(v) => fmtDuration(v)} onChange={(v) => set({ restDefaultSec: v })} /></div></Field>
                 <Field label={t('Effort tracking')}><Seg value={st.effort} onChange={(v) => set({ effort: v })} options={[{ value: 'off', label: t('Off') }, { value: 'rpe', label: 'RPE' }, { value: 'rir', label: 'RIR' }]} /></Field>
-                <Field label={t('Smallest weight jump')}><div className="chips" style={{ margin: 0, padding: 0 }}>{[1, 1.25, 2.5, 5].map((v) => <button key={v} className={`chip press ${st.plateStep === v ? 'on' : ''}`} onClick={() => set({ plateStep: v })}>{v} kg</button>)}</div></Field>
+                <Field label={t('Smallest weight jump')}><div className="chips" style={{ margin: 0, padding: 0 }}>{st.units.weight === 'lb'
+                  // in pounds: pound steps (kept in kg, as every weight is), so progression lands on real plates
+                  ? LB_STEPS.slice(0, 4).map((v) => <button key={v} className={`chip press ${Math.abs(lbStepKg(st.plateStep) - v * KG_PER_LB) < 1e-6 ? 'on' : ''}`} onClick={() => set({ plateStep: v * KG_PER_LB })}>{v} lb</button>)
+                  : [1, 1.25, 2.5, 5].map((v) => <button key={v} className={`chip press ${st.plateStep === v ? 'on' : ''}`} onClick={() => set({ plateStep: v })}>{v} kg</button>)}</div></Field>
                 <Field label={t('Workout opens in')} hint={t('Focus shows one exercise at a time. Last used remembers how you left it.')}><Seg value={st.workoutView ?? 'last'} onChange={(v) => set({ workoutView: v })} options={[{ value: 'last', label: t('Last used') }, { value: 'list', label: t('List') }, { value: 'focus', label: t('Focus') }]} /></Field>
                 <ToggleRow label={t('Rest-timer sound')} on={st.sound} onChange={(v) => set({ sound: v })} />
                 <RestAlertRow />

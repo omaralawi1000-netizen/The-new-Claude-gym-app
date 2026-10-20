@@ -774,8 +774,8 @@ export const ExerciseBlock = memo(function ExerciseBlock({ se, ex, linkedPrev, l
   const lastWorking = last?.sets.filter(countable) ?? [];
   const increments = useStore((s) => s.increments);
   const hint = useLiftHint(se, ex);
-  const sugg = useMemo(() => (ex && ex.logType === 'weightReps' ? suggestProgression(ex, historyOf(se.exerciseId, sessions), repRange(se.sets), incrementFor(ex, increments, settings.plateStep)) : undefined),
-    [ex, se.exerciseId, sessions, se.sets, increments, settings.plateStep]); // eslint-disable-line react-hooks/exhaustive-deps
+  const sugg = useMemo(() => (ex && ex.logType === 'weightReps' ? suggestProgression(ex, historyOf(se.exerciseId, sessions), repRange(se.sets), incrementFor(ex, increments, settings.plateStep, settings.units.weight)) : undefined),
+    [ex, se.exerciseId, sessions, se.sets, increments, settings.plateStep, settings.units.weight]); // eslint-disable-line react-hooks/exhaustive-deps
   const u = settings.units;
   let workIdx = -1;
   // sets that were there when this block was drawn don't grow in; one added later does

@@ -10,7 +10,7 @@ import { askTag } from '../lib/askAbout';
 import { Icon } from '../ui/Icon';
 import { Empty, Section, Seg } from '../ui/kit';
 import { average, nutritionByDay, trendRate, weekStreak, weeklyTraining, weightTrend } from '../lib/stats';
-import { fmtNum, fmtSigned, kgToDisplay } from '../lib/units';
+import { fmtNum, fmtSigned, kgToDisplay, mToDisplay } from '../lib/units';
 import { bestsFor, countable, epley } from '../lib/workout';
 import type { SetRecord } from '../lib/types';
 import { exName } from './workout/common';
@@ -153,7 +153,7 @@ export function ProgressScreen() {
               <button key={i} className="li press" onClick={() => push('exercise', { id: r.exerciseId })}>
                 <span style={{ width: 34, height: 34, borderRadius: 12, background: 'var(--ac)', color: 'var(--ac-ink)', display: 'grid', placeItems: 'center', flex: 'none' }}><Icon name="bolt" size={17} /></span>
                 <div className="grow" style={{ textAlign: 'left' }}><div className="li-title small">{ex ? exName(ex, lang) : ''}</div><div className="li-sub">{t(({ weight: 'Heaviest set', e1rm: 'Estimated 1RM', volume: 'Best set volume', reps: 'Most reps', duration: 'Longest hold', distance: 'Longest distance' } as any)[r.kind])} · {fmtDate(r.date, lang, { day: 'numeric', month: 'short' })}{r.more > 0 ? ` · ${t('+{n} more', { n: r.more })}` : ''}</div></div>
-                <div className="num" style={{ fontWeight: 700 }}>{r.kind === 'volume' && setOf(r) ? `${fmtNum(kgToDisplay(setOf(r)!.weightKg ?? 0, u.weight), lang, 2)} ${u.weight} × ${setOf(r)!.reps}` : r.kind === 'reps' ? r.value : r.kind === 'duration' ? `${r.value}s` : r.kind === 'distance' ? `${fmtNum(r.value / 1000, lang, 2)} km` : `${fmtNum(kgToDisplay(r.value, u.weight), lang, r.kind === 'e1rm' ? 1 : 2)} ${u.weight}`}</div>
+                <div className="num" style={{ fontWeight: 700 }}>{r.kind === 'volume' && setOf(r) ? `${fmtNum(kgToDisplay(setOf(r)!.weightKg ?? 0, u.weight), lang, 2)} ${u.weight} × ${setOf(r)!.reps}` : r.kind === 'reps' ? r.value : r.kind === 'duration' ? `${r.value}s` : r.kind === 'distance' ? `${fmtNum(mToDisplay(r.value, u.distance), lang, 2)} ${u.distance}` : `${fmtNum(kgToDisplay(r.value, u.weight), lang, r.kind === 'e1rm' ? 1 : 2)} ${u.weight}`}</div>
               </button>); })}
           </div>
         </Section>

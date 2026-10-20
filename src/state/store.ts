@@ -323,7 +323,7 @@ export const useStore = create<Store>((set, get) => {
           if (ex && (ex.logType === 'duration' || ex.logType === 'distance')) {
             sets = sets.filter((x) => x.type === 'working').map((x) => ({ ...x, target: { ...x.target } }));
           }
-          sets = planSets(ex, sets, s.sessions, s.increments, s.settings.plateStep);
+          sets = planSets(ex, sets, s.sessions, s.increments, s.settings.plateStep, s.settings.units.weight);
           return { id: uid('se'), exerciseId: it.exerciseId, restSec: it.restSec, supersetGroup: it.supersetGroup, note: it.note, sets };
         });
       } else if (fromSession) {
@@ -332,7 +332,7 @@ export const useStore = create<Store>((set, get) => {
         exercises = fromSession.exercises.map((e) => {
           const item = routineOf?.items.find((i) => i.exerciseId === e.exerciseId);
           const sets: SetRecord[] = e.sets.map((x) => ({ id: uid('s'), type: x.type, done: false, target: { repMin: item?.repMin ?? 8, repMax: item?.repMax ?? 12, weightKg: x.weightKg } }));
-          return { id: uid('se'), exerciseId: e.exerciseId, restSec: e.restSec, supersetGroup: e.supersetGroup, note: e.note, sets: planSets(exMap.get(e.exerciseId), sets, s.sessions, s.increments, s.settings.plateStep) };
+          return { id: uid('se'), exerciseId: e.exerciseId, restSec: e.restSec, supersetGroup: e.supersetGroup, note: e.note, sets: planSets(exMap.get(e.exerciseId), sets, s.sessions, s.increments, s.settings.plateStep, s.settings.units.weight) };
         });
       }
       const session: WorkoutSession = {

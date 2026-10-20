@@ -1,6 +1,6 @@
 import type { Exercise, PersonalRecord, RecordKind, SetRecord, SessionExercise, WorkoutSession, Routine } from './types';
 import { uid } from './nutrition';
-import { fmtNum, kgToDisplay } from './units';
+import { fmtNum, kgToDisplay, KG_PER_LB } from './units';
 
 export const epley = (w: number, reps: number) => (reps <= 1 ? w : w * (1 + reps / 30));
 export const setVolume = (s: SetRecord) => (s.weightKg ?? 0) * (s.reps ?? 0);
@@ -128,11 +128,24 @@ export interface Suggestion {
   reasonVars: Record<string, string | number>;
 }
 
-/** How much one step of progression adds: the exercise's own setting, else 2 kg for dumbbells, else the default step. */
-export function incrementFor(ex: Pick<Exercise, 'id' | 'equipment'>, overrides: Record<string, number> = {}, step = 2.5): number {
+/** The jumps pound plates come in: a kg step is read as the nearest of these for someone training in lb. */
+export const LB_STEPS = [1, 2.5, 5, 10, 20];
+/** A step in kg as a whole-plate pound step (in kg again): 2.5 kg → 5 lb, 2 kg → 5 lb, 1.25 kg → 2.5 lb. */
+export function lbStepKg(kg: number): number {
+  const lb = kg / KG_PER_LB;
+  const near = LB_STEPS.reduce((b, x) => (Math.abs(x - lb) < Math.abs(b - lb) ? x : b), LB_STEPS[0]);
+  return near * KG_PER_LB;
+}
+
+/**
+ * How much one step of progression adds (in kg): the exercise's own setting, else 2 kg for dumbbells, else the default step.
+ * In pounds the default is a pound step (5 lb, not 2.5 kg = 5.5 lb), so 225 lb goes to 230, not 230.5.
+ */
+export function incrementFor(ex: Pick<Exercise, 'id' | 'equipment'>, overrides: Record<string, number> = {}, step = 2.5, unit: 'kg' | 'lb' = 'kg'): number {
   const own = overrides[ex.id];
   if (own && own > 0) return own;
-  return ex.equipment.includes('dumbbell') ? 2 : step;
+  const kg = ex.equipment.includes('dumbbell') ? 2 : step;
+  return unit === 'lb' ? lbStepKg(kg) : kg;
 }
 
 /** Every past performance of an exercise in finished sessions, newest first. */
@@ -215,9 +228,9 @@ export function repRange(sets: SetRecord[]): { min: number; max: number } {
 }
 
 /** A new workout's sets for one exercise, with this session's progression filled in (weight × reps exercises only). */
-export function planSets(ex: Exercise | undefined, sets: SetRecord[], sessions: WorkoutSession[], increments: Record<string, number>, step: number): SetRecord[] {
+export function planSets(ex: Exercise | undefined, sets: SetRecord[], sessions: WorkoutSession[], increments: Record<string, number>, step: number, unit: 'kg' | 'lb' = 'kg'): SetRecord[] {
   if (!ex || ex.logType !== 'weightReps') return sets;
-  const sug = suggestProgression(ex, historyOf(ex.id, sessions), repRange(sets), incrementFor(ex, increments, step));
+  const sug = suggestProgression(ex, historyOf(ex.id, sessions), repRange(sets), incrementFor(ex, increments, step, unit));
   return fillPlan(sets, sug.sets);
 }
 

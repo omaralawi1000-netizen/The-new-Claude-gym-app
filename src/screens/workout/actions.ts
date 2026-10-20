@@ -21,7 +21,7 @@ export function addExercises(ids: string[], at?: number) {
       const last = lastPerformance(id, st.sessions);
       let sets = newSetsFor(ex, last?.sets);
       if (ex && (ex.logType === 'duration' || ex.logType === 'distance')) sets = sets.slice(0, 1);
-      return { id: uid('se'), exerciseId: id, sets: planSets(ex, sets, st.sessions, st.increments, st.settings.plateStep) };
+      return { id: uid('se'), exerciseId: id, sets: planSets(ex, sets, st.sessions, st.increments, st.settings.plateStep, st.settings.units.weight) };
     });
     const list = [...a.exercises];
     list.splice(at ?? list.length, 0, ...add);
@@ -42,7 +42,7 @@ export function replaceExercise(seId: string, exerciseId: string) {
       const done = e.sets.filter((s) => s.done);
       const open = e.sets.filter((s) => !s.done).map((s) => ({ ...s, weightKg: undefined, reps: undefined, target: { ...s.target, weightKg: last?.sets.find(countable)?.weightKg } }));
       const sets = done.length + open.length ? [...done, ...open] : newSetsFor(ex, last?.sets);
-      return { ...e, exerciseId, sets: planSets(ex, sets, st.sessions, st.increments, st.settings.plateStep) };
+      return { ...e, exerciseId, sets: planSets(ex, sets, st.sessions, st.increments, st.settings.plateStep, st.settings.units.weight) };
     }),
   }));
 }
@@ -90,7 +90,7 @@ export function addSet(seId: string, type: 'warmup' | 'working' = 'working') {
         return { ...e, sets: l };
       }
       // an extra working set gets the plan too (beyond last session's sets: last session's final set + 1 rep)
-      const planned = planSets(map.get(e.exerciseId), [...e.sets, s], st.sessions, st.increments, st.settings.plateStep);
+      const planned = planSets(map.get(e.exerciseId), [...e.sets, s], st.sessions, st.increments, st.settings.plateStep, st.settings.units.weight);
       return { ...e, sets: [...e.sets, planned[planned.length - 1]] };
     }),
   }));

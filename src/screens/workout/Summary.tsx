@@ -9,7 +9,7 @@ import { Sheet, SheetHead, SOFT } from '../../ui/Sheet';
 import { elapsedMs, sessionSetCount, sessionVolume, sessionHeadline, countable, workoutName } from '../../lib/workout';
 import { fmtDate, fmtDuration, fmtDurationLong } from '../../lib/dates';
 import { backupAfterWorkout } from '../../lib/drive';
-import { displayToKg, fmtNum, kgToDisplay } from '../../lib/units';
+import { displayToKg, fmtNum, kgToDisplay, mToDisplay } from '../../lib/units';
 import type { RecordKind, WorkoutSession } from '../../lib/types';
 import { exName, fmtSet } from './common';
 import { plan, play } from './finishMoment';
@@ -116,7 +116,7 @@ export function Summary({ props }: { props: { sessionId: string } }) {
             {recs.map((r, i) => {
               const ex = exMap.get(r.exerciseId);
               const vset = r.kind === 'volume' ? ses.exercises.flatMap((e) => e.sets).find((q) => q.id === r.setId && q.reps) : undefined;
-              const fv = (v: number) => vset && v === r.value ? `${fmtNum(kgToDisplay(vset.weightKg ?? 0, u.weight), lang, 2)} ${u.weight} × ${vset.reps}` : r.kind === 'reps' ? String(v) : r.kind === 'duration' ? `${v}s` : r.kind === 'distance' ? `${fmtNum(v / 1000, lang, 2)} km` : `${fmtNum(kgToDisplay(v, u.weight), lang, r.kind === 'e1rm' ? 1 : 2)} ${u.weight}`;
+              const fv = (v: number) => vset && v === r.value ? `${fmtNum(kgToDisplay(vset.weightKg ?? 0, u.weight), lang, 2)} ${u.weight} × ${vset.reps}` : r.kind === 'reps' ? String(v) : r.kind === 'duration' ? `${v}s` : r.kind === 'distance' ? `${fmtNum(mToDisplay(v, u.distance), lang, 2)} ${u.distance}` : `${fmtNum(kgToDisplay(v, u.weight), lang, r.kind === 'e1rm' ? 1 : 2)} ${u.weight}`;
               return (
                 <div key={i} data-fm="after" className="plinth" style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
                   <span style={{ width: 34, height: 34, borderRadius: 12, background: 'var(--gold)', color: '#3a2a05', display: 'grid', placeItems: 'center' }}><Icon name="bolt" size={18} /></span>

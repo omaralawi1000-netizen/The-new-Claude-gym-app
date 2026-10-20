@@ -50,7 +50,7 @@ export function liftHint(d: Pick<AppData, 'sessions' | 'increments' | 'settings'
   const hist = historyOf(se.exerciseId, done);
   if (!hist.length) return out;
   const range = repRange(se.sets);
-  const inc = incrementFor(ex, d.increments, d.settings.plateStep);
+  const inc = incrementFor(ex, d.increments, d.settings.plateStep, d.settings.units.weight);
   const sug = suggestProgression(ex, hist, range, inc);
   // stalled: drop about 5 % (to the plate step) and aim for the top of the range — a fresh start the next sessions build on
   if (sug.kind === 'stalled' && sug.weightKg) {
@@ -97,7 +97,7 @@ export function nextTime(ses: WorkoutSession, sessions: WorkoutSession[], d: Pic
     // history up to and including this workout (it is the newest)
     const hist = historyOf(e.exerciseId, done.filter((s) => s.id === ses.id || (s.endedAt ?? 0) <= (ses.endedAt ?? Date.now())));
     if (!hist.length) continue;
-    const sug = suggestProgression(ex, hist, repRange(e.sets), incrementFor(ex, d.increments, d.settings.plateStep));
+    const sug = suggestProgression(ex, hist, repRange(e.sets), incrementFor(ex, d.increments, d.settings.plateStep, d.settings.units.weight));
     const s1 = sug.sets?.[0];
     if (!s1) continue;
     const before = lastPerformance(e.exerciseId, done.filter((s) => (s.endedAt ?? 0) < (ses.endedAt ?? Date.now())), ses.id)?.sets.find(countable);

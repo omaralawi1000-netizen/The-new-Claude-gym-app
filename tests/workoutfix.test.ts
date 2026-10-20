@@ -5,7 +5,9 @@ import { useStore, missedWorkouts, rotationAfter, rotationWithout } from '../src
 import { addDays, dayKey, weekdayOf } from '../src/lib/dates';
 import { defaultData } from '../src/state/defaults';
 import type { Routine, WorkoutSession } from '../src/lib/types';
-import { workoutName, sessionSetCount } from '../src/lib/workout';
+import { workoutName, sessionSetCount, incrementFor, suggestProgression } from '../src/lib/workout';
+import { KG_PER_LB } from '../src/lib/units';
+import { allExercises } from '../src/state/store';
 import { setValues, DEFAULT_HOLD_SEC } from '../src/screens/workout/complete';
 import { makeT, loadDanish } from '../src/lib/i18n';
 
@@ -149,5 +151,18 @@ describe('set counts', () => {
     expect(useStore.getState().finishActive()).toBeNull();
     expect(useStore.getState().sessions).toEqual([]);
     expect(useStore.getState().active).not.toBeNull(); // nothing lost: it is still there to discard or carry on
+  });
+});
+
+describe('progression in pounds', () => {
+  it('adds a pound step, so 225 lb goes to 230, not 230.5', () => {
+    const bench = allExercises([]).find((e) => e.id === 'bench-press')!;
+    expect(incrementFor(bench, {}, 2.5, 'kg')).toBe(2.5);
+    expect(incrementFor(bench, {}, 2.5, 'lb') / KG_PER_LB).toBeCloseTo(5, 6);
+    expect(incrementFor({ id: 'db', equipment: ['dumbbell'] }, {}, 2.5, 'lb') / KG_PER_LB).toBeCloseTo(5, 6);
+    expect(incrementFor(bench, { 'bench-press': 1 }, 2.5, 'lb')).toBe(1); // its own setting stays
+    const hist = [{ id: 'h', exerciseId: 'bench-press', sets: [{ id: 'x', type: 'working' as const, done: true, weightKg: 225 * KG_PER_LB, reps: 12 }] }];
+    const sug = suggestProgression(bench, hist, { min: 8, max: 12 }, incrementFor(bench, {}, 2.5, 'lb'));
+    expect(sug.weightKg! / KG_PER_LB).toBeCloseTo(230, 1);
   });
 });

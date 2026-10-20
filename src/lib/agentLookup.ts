@@ -138,7 +138,7 @@ function exerciseHistory(d: AppData, l: Lookup, env: LookupEnv): string {
     const top = Math.max(0, ...work.filter((x) => x.weightKg && x.reps).map((x) => epley(x.weightKg!, x.reps!)));
     lines.push(`${date}: ${work.map(setTxt).join(', ')}${top ? ` (best e1RM ${r1(top)} kg)` : ''}`);
   }
-  const sugg = ex.logType === 'weightReps' ? suggestProgression(ex, hist, repRange(hist[0].sets), incrementFor(ex, d.increments, d.settings.plateStep)) : null;
+  const sugg = ex.logType === 'weightReps' ? suggestProgression(ex, hist, repRange(hist[0].sets), incrementFor(ex, d.increments, d.settings.plateStep, d.settings.units.weight)) : null;
   const head = `${ex.name} (${ex.muscles.join(', ')}; ${ex.equipment.join(', ')}): ${hist.length} sessions.${best ? ` Best set ${r1(best.w)} kg × ${best.r} on ${best.date} (e1RM ${r1(best.e1)} kg).` : ''}${sugg ? ` Next time: ${sugg.kind}${sugg.sets?.length ? ` → ${sugg.sets.map((x) => `${x.weightKg ?? '—'}kg×${x.reps}`).join(', ')}` : ''}.` : ''}`;
   return cap([head, ...lines]);
 }
