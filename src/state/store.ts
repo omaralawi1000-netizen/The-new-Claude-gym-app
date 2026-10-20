@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { StepDay,
+import type { StepDay, Schedule,
   ActivityLog, AppData, Exercise, Food, FoodEntry, Measurement, Meal, MemoryNote, WeekReviewNote, PersonalRecord, Recipe, Routine, SavedMeal,
   SessionExercise, SetRecord, Settings, WeightLog, WorkoutSession, Nutrients,
 } from '../lib/types';
@@ -116,8 +116,10 @@ export interface Store extends AppData {
   restoreSession: (s: WorkoutSession) => void;
   // plans
   upsertRoutine: (r: Routine) => void;
-  deleteRoutine: (id: string) => Routine | undefined;
-  restoreRoutine: (r: Routine) => void;
+  /** also takes it off the plan; what it took off comes back with it, so Undo can put it back where it was */
+  deleteRoutine: (id: string) => RemovedRoutine | undefined;
+  /** puts a routine back, and (with `slots` from deleteRoutine) its weekdays, one-off days and rotation places */
+  restoreRoutine: (r: Routine, slots?: RemovedRoutine['slots']) => void;
   setSchedule: (patch: Partial<AppData['schedule']>) => void;
   rescheduleMissed: (originDate: string, routineId: string, newDate: string) => void;
   skipPlanned: (date: string) => void;
@@ -153,6 +155,41 @@ export interface Store extends AppData {
 }
 
 const dayOf = (s: Settings, t = Date.now()) => dayKey(t, s.dayStartHour);
+
+/** A deleted routine and the places on the plan it was taken off. */
+export interface RemovedRoutine {
+  routine: Routine;
+  slots: { weekdays: number[]; overrides: Schedule['overrides']; rotation: { order: string[]; pointer: number; indexes: number[] } };
+}
+
+/** The plan without a routine, and where it was on it. */
+export function scheduleWithout(sch: Schedule, id: string): { schedule: Schedule; slots: RemovedRoutine['slots'] } {
+  const weekly = { ...sch.weekly };
+  const weekdays: number[] = [];
+  for (const k of Object.keys(weekly)) if (weekly[+k] === id) { weekly[+k] = null; weekdays.push(+k); }
+  const indexes = sch.rotation.order.flatMap((x, i) => (x === id ? [i] : []));
+  return {
+    schedule: { ...sch, weekly, overrides: sch.overrides.filter((o) => o.routineId !== id), rotation: { ...sch.rotation, order: sch.rotation.order.filter((x) => x !== id) } },
+    slots: { weekdays, overrides: sch.overrides.filter((o) => o.routineId === id), rotation: { order: sch.rotation.order, pointer: sch.rotation.pointer, indexes } },
+  };
+}
+
+/** Puts a routine back on the places scheduleWithout took it off (only where nothing else has been put since). */
+export function scheduleWith(sch: Schedule, id: string, slots: RemovedRoutine['slots']): Schedule {
+  const weekly = { ...sch.weekly };
+  for (const wd of slots.weekdays) if (!weekly[wd]) weekly[wd] = id;
+  const overrides = [...sch.overrides, ...slots.overrides.filter((o) => !sch.overrides.some((x) => x.date === o.date))];
+  const { order: before, pointer, indexes } = slots.rotation;
+  const untouched = sch.rotation.order.length === before.length - indexes.length && sch.rotation.order.every((x, i) => x === before.filter((_, j) => !indexes.includes(j))[i]);
+  let rotation = sch.rotation;
+  if (untouched) rotation = { ...sch.rotation, order: before, pointer };
+  else if (indexes.length) {
+    const order = [...sch.rotation.order];
+    for (const i of indexes) order.splice(Math.min(i, order.length), 0, id);
+    rotation = { ...sch.rotation, order };
+  }
+  return { ...sch, weekly, overrides, rotation };
+}
 
 const initial = loadPersisted();
 
@@ -315,17 +352,14 @@ export const useStore = create<Store>((set, get) => {
     deleteRoutine: (id) => {
       const r = get().routines.find((x) => x.id === id);
       if (!r) return undefined;
-      mutate((s) => {
-        const weekly = { ...s.schedule.weekly };
-        for (const k of Object.keys(weekly)) if (weekly[+k] === id) weekly[+k] = null;
-        return {
-          routines: s.routines.filter((x) => x.id !== id),
-          schedule: { ...s.schedule, weekly, overrides: s.schedule.overrides.filter((o) => o.routineId !== id), rotation: { ...s.schedule.rotation, order: s.schedule.rotation.order.filter((x) => x !== id) } },
-        };
-      });
-      return r;
+      const { schedule, slots } = scheduleWithout(get().schedule, id);
+      mutate((s) => ({ routines: s.routines.filter((x) => x.id !== id), schedule }));
+      return { routine: r, slots };
     },
-    restoreRoutine: (r) => mutate((s) => ({ routines: s.routines.some((x) => x.id === r.id) ? s.routines : [...s.routines, r] })),
+    restoreRoutine: (r, slots) => mutate((s) => {
+      if (s.routines.some((x) => x.id === r.id)) return {};
+      return { routines: [...s.routines, r], ...(slots ? { schedule: scheduleWith(s.schedule, r.id, slots) } : {}) };
+    }),
     setSchedule: (patch) => mutate((s) => ({ schedule: { ...s.schedule, ...patch } })),
     rescheduleMissed: (originDate, routineId, newDate) => mutate((s) => {
       const cleared = s.schedule.cleared.includes(originDate) ? s.schedule.cleared : [...s.schedule.cleared, originDate];
