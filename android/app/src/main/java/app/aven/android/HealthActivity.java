@@ -20,12 +20,15 @@ public class HealthActivity extends Activity {
     private static final int ASK = 11;
     private Uri back;
     private boolean done;
+    /** Weigh-ins and food the page sent along to write ("w=" in the link), and how that went (for the page: "&hw="). */
+    private String toWrite, wrote;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         Uri in = getIntent().getData();
         back = HealthSync.safeReturn(in != null ? in.getQueryParameter("return") : null);
+        toWrite = in != null ? in.getQueryParameter("w") : null;
         String what = in != null && in.getPath() != null ? in.getPath().replace("/", "") : "";
         Log.i("AvenHealth", "asked: " + what + ", available " + HealthSync.available(this) + ", allowed " + HealthSync.granted(this) + ", back to " + back);
         if (!HealthSync.available(this)) { open(HealthSync.status(this, "unavailable")); return; }
@@ -63,6 +66,13 @@ public class HealthActivity extends Activity {
 
     private void sync() {
         if (!HealthSync.on(this)) { open(HealthSync.status(this, "denied")); return; }
+        // the page's weigh-ins and food first (a moment, on a thread of its own), then the read
+        if (toWrite != null) {
+            String w = toWrite;
+            toWrite = null;
+            new Thread(() -> { String r = HealthWrite.write(getApplicationContext(), w); runOnUiThread(() -> { wrote = r; sync(); }); }).start();
+            return;
+        }
         HealthJob.schedule(this);
         // read in the background a moment ago: those at once
         String fresh = HealthSync.freshPayload(this, 2 * 60_000L);
@@ -84,7 +94,7 @@ public class HealthActivity extends Activity {
     private void open(String payload) {
         if (done) return;
         done = true;
-        Uri url = payload != null ? back.buildUpon().fragment("hc=" + payload).build() : back;
+        Uri url = payload != null ? back.buildUpon().fragment("hc=" + payload + (wrote != null ? "&hw=" + wrote : "")).build() : back;
         Log.i("AvenHealth", "opening Aven again with " + (payload == null ? 0 : payload.length()) + " chars");
         Intent i = new Intent(this, AvenLauncher.class).setData(url).putExtra(AvenLauncher.FRESH, true)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);

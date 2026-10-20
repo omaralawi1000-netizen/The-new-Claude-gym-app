@@ -20,9 +20,10 @@ import { appOnPhone } from './androidApp';
 import { useStore } from '../state/store';
 import { useUI } from '../state/ui';
 import { tNow } from './i18n';
-import { parseDetail, saveWatchDetail, type WatchDetail } from './watchDetail';
+import { parseDetail, parseRoutes, saveRoutes, saveWatchDetail, type Route, type WatchDetail } from './watchDetail';
+import { settleWrites } from './hcWrite';
 
-export interface HcWorkout { id: string; t: string; n?: string; s: number; e: number; hr?: number; hx?: number; kc?: number; m?: number; src?: string }
+export interface HcWorkout { id: string; t: string; n?: string; s: number; e: number; hr?: number; hx?: number; kc?: number; m?: number; el?: number; src?: string }
 export interface HcPayload {
   v: 1; avail: boolean; on: boolean; granted: boolean; at: number;
   /** why there are no numbers: unavailable (Android older than 14), denied, off, slow, failed */
@@ -33,6 +34,8 @@ export interface HcPayload {
   hd?: HealthDay[];
   /** the detail: heart rate and steps a minute at a time, every sleep stage (lib/watchDetail.ts) */
   dt?: WatchDetail[];
+  /** GPS routes of the newest workouts (lib/watchDetail.ts) */
+  rt?: Route[];
   /** reading in the background is allowed (the app reads every half hour while Aven is closed) */
   bg?: boolean;
   /** how long the read took on the phone (ms) */
@@ -93,7 +96,7 @@ function checkHc(raw: any): HcPayload | null {
     if (typeof w?.id !== 'string' || !w.id || w.id.length > 120 || s === undefined || e === undefined || e <= s || e - s > 12 * 3600000) return [];
     return [{
       id: w.id, t: typeof w.t === 'string' ? w.t.slice(0, 24) : 'other', n: typeof w.n === 'string' ? w.n.slice(0, 40) : undefined, s, e,
-      hr: num(w.hr, 30, 230), hx: num(w.hx, 30, 240), kc: num(w.kc, 1, 5000), m: num(w.m, 1, 300000), src: typeof w.src === 'string' ? w.src.slice(0, 80) : undefined,
+      hr: num(w.hr, 30, 230), hx: num(w.hx, 30, 240), kc: num(w.kc, 1, 5000), m: num(w.m, 1, 300000), el: num(w.el, 1, 10000), src: typeof w.src === 'string' ? w.src.slice(0, 80) : undefined,
     }];
   });
   const r1 = (v: unknown, lo: number, hi: number) => { const x = num(v, lo, hi); return x === undefined ? undefined : Math.round(x * 10) / 10; };
@@ -107,13 +110,16 @@ function checkHc(raw: any): HcPayload | null {
       sleepMin: ri(d.sl, 10, 1440), deepMin: ri(d.dp, 1, 1000), remMin: ri(d.rm, 1, 1000), lightMin: ri(d.lt, 1, 1440), awakeMin: ri(d.aw, 1, 1000),
       ...(sb !== undefined && se !== undefined && se > sb ? { sleepStart: sb, sleepEnd: se } : {}),
       weightKg: r1(d.w, 25, 400), bodyFat: r1(d.bf, 2, 70), vo2max: r1(d.vo, 10, 95), spo2: r1(d.o2, 70, 100), respRate: r1(d.rr, 4, 60),
+      leanKg: r1(d.lb, 15, 200), bodyWaterKg: r1(d.bw, 10, 150), boneKg: r1(d.bm, 0.5, 10), bmr: ri(d.bmr, 600, 5000),
+      bodyTemp: r1(d.bt, 33, 43), skinDelta: (() => { const x = num(d.sk, -5, 5); return x === undefined ? undefined : Math.round(x * 100) / 100; })(), skinBase: r1(d.skb, 25, 40),
     };
     for (const k of Object.keys(day) as (keyof HealthDay)[]) if (day[k] === undefined) delete day[k];
     return Object.keys(day).length > 1 ? [day] : [];
   });
   const dt = parseDetail(raw.dt, now);
+  const rt = parseRoutes(raw.rt, now);
   return { v: 1, avail: !!raw.avail, on: !!raw.on, granted: !!raw.granted, at, note: typeof raw.note === 'string' ? raw.note.slice(0, 20) : undefined, ...(Array.isArray(raw.days) ? { days } : {}), ...(Array.isArray(raw.ex) ? { ex } : {}), ...(hd.length ? { hd } : {}),
-    ...(dt.length ? { dt } : {}), ...(typeof raw.bg === 'boolean' ? { bg: raw.bg } : {}), ...(num(raw.ms, 0, 600000) !== undefined ? { ms: Math.round(raw.ms) } : {}) };
+    ...(dt.length ? { dt } : {}), ...(rt.length ? { rt } : {}), ...(typeof raw.bg === 'boolean' ? { bg: raw.bg } : {}), ...(num(raw.ms, 0, 600000) !== undefined ? { ms: Math.round(raw.ms) } : {}) };
 }
 
 /** Health Connect's workout types in Aven's kinds (lifting is left out: Aven logs the gym itself). */
@@ -156,7 +162,7 @@ export function mergeHc(p: HcPayload, cur: { activities: ActivityLog[]; steps: S
     const durationSec = Math.round((w.e - w.s) / 1000);
     const watch: Partial<ActivityLog> = {
       kind, date, durationSec, source: 'watch', hcId: w.id, startAt: w.s, avgHr: w.hr ? Math.round(w.hr) : undefined, maxHr: w.hx ? Math.round(w.hx) : undefined,
-      kcal: w.kc ? Math.round(w.kc) : undefined, distanceM: w.m ? Math.round(w.m) : undefined, name: w.n || NAME[w.t], intensity: intensityOf(w.hr, highest),
+      kcal: w.kc ? Math.round(w.kc) : undefined, distanceM: w.m ? Math.round(w.m) : undefined, elevationM: w.el ? Math.round(w.el) : undefined, name: w.n || NAME[w.t], intensity: intensityOf(w.hr, highest),
     };
     const same = acts.findIndex((a) => a.hcId === w.id);
     if (same >= 0) { acts[same] = { ...acts[same], ...watch, note: acts[same].note, rounds: acts[same].rounds }; continue; }
@@ -197,6 +203,9 @@ export function applyHcFromAddress(): void {
   let hash = location.hash;
   try { hash = decodeURIComponent(hash); } catch { /* as it is */ }
   if (!/(?:^#|&)hc=/.test(hash)) return;
+  // how writing the weigh-ins and food handed along went (lib/hcWrite.ts)
+  const hw = /(?:^#|&)hw=([a-z0-9]{1,12})/.exec(hash);
+  if (hw) settleWrites(hw[1]);
   // (out of the address either way: a reload or a shared link must not carry it)
   try { history.replaceState(history.state, '', location.pathname + location.search); } catch { /* fine */ }
   // a squeezed answer (the usual one now) is unpacked first: a moment later
@@ -228,6 +237,7 @@ function keepHc(p: HcPayload | null, len: number): void {
     // a new workout from the watch is said once, quietly (not the old ones the walk through the history finds)
     // the minute-by-minute detail goes to its own place on the phone (lib/watchDetail.ts)
     if (p.dt?.length) void saveWatchDetail(p.dt);
+    if (p.rt?.length) void saveRoutes(p.rt);
     if (r.fresh) useUI.getState().toast(r.fresh === 1 ? tNow('1 workout from your watch') : tNow('{n} workouts from your watch', { n: r.fresh }), { tone: 'ok' });
   }
   window.dispatchEvent(new Event('aven-hc'));
@@ -258,8 +268,8 @@ function takeAsk(): 'connect' | 'sync' | 'off' | null {
 
 /** "Connect watch" and friends: the Android app's link (it opens Aven again at this page). Without the app the phone
  *  offers the app's download instead. */
-export function hcLink(what: 'connect' | 'sync' | 'off'): string {
-  const ret = encodeURIComponent(location.origin + location.pathname);
+export function hcLink(what: 'connect' | 'sync' | 'off', writes?: string | null): string {
+  const ret = encodeURIComponent(location.origin + location.pathname) + (writes ? `&w=${writes}` : '');
   const fallback = encodeURIComponent('https://github.com/omaralawi1000-netizen/The-new-Claude-gym-app/releases/download/android-latest/aven.apk');
   return `intent://health/${what}?return=${ret}#Intent;scheme=aven;package=app.aven.android;S.browser_fallback_url=${fallback};end`;
 }

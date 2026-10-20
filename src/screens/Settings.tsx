@@ -22,6 +22,7 @@ import { userHasData } from '../lib/stats';
 import { clearPhotos, loadPhoto, savePhoto } from '../lib/photos';
 import { clearArchive, importArchive } from '../lib/archive';
 import { clearWatchDetail, onWatchDetail, watchDetailCount } from '../lib/watchDetail';
+import { lastWrite, prepareWrites } from '../lib/hcWrite';
 import type { AppData, Lang, Meal, Settings } from '../lib/types';
 import { lookOf, surfaceOf } from '../lib/types';
 import { uid, kcalOf, scaleMacros, suggestMacros } from '../lib/nutrition';
@@ -610,7 +611,8 @@ function WatchSection() {
     setStuck(false);
     if (what !== 'off') setBusy(what);
     noteAsk(what);
-    location.href = hcLink(what);
+    // your weigh-ins and food totals ride along, to be written into Health Connect (lib/hcWrite.ts)
+    location.href = hcLink(what, what === 'off' ? null : prepareWrites(useStore.getState(), today));
   };
   const on = !!(h?.on && h.granted);
   const today = dayKey(Date.now(), s.settings.dayStartHour);
@@ -693,6 +695,9 @@ function WatchSection() {
         <div>{t('Syncs by itself every time you open Aven. Works with a Galaxy Watch, or any watch that saves to Health Connect.')}</div>
         {on && h?.bg === true && <div>{t('Also reads your watch by itself every half hour while Aven is closed, so it opens up to date.')}</div>}
         {on && h?.bg === false && <div>{t('To keep it up to date while Aven is closed too: in your phone’s Settings, search for Health Connect, open App permissions › Aven and allow access in the background.')}</div>}
+        {on && lastWrite()?.state === 'denied'
+          ? <div>{t('To send your weight and food to Samsung Health too: in your phone’s Settings, search for Health Connect, open App permissions › Aven and allow Weight and Nutrition.')}</div>
+          : on && <div>{t('Your weigh-ins and each day’s food totals go to Health Connect each time you tap Sync now, so Samsung Health sees them too.')}</div>}
         {on && detailDays > 0 && <div>{t('Heart rate and steps minute by minute, and every sleep stage: {n} days on this phone.', { n: detailDays })}</div>}
         <div>{t('Read only, and it stays on this phone. Calories a workout burned are shown, but never added to your food target.')}</div>
         {!appOnPhone() && <div>{t('Needs the Aven Android app. Without it, the button offers to download it.')}</div>}
