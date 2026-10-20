@@ -6,7 +6,7 @@ import type { StepDay, Schedule,
 import { SEED_EXERCISES } from '../data/exercises';
 import { REFERENCE_FOODS } from '../data/foods';
 import { dayKey, addDays, weekdayOf } from '../lib/dates';
-import { detectRecords, lastPerformance, planSets, setsFromItem } from '../lib/workout';
+import { countable, detectRecords, lastPerformance, planSets, setsFromItem } from '../lib/workout';
 import { entryFromSnapshot, recipeToFood, requantify, snapshotOf, uid } from '../lib/nutrition';
 import { DATA_VERSION, defaultData, detectLang, normaliseData } from './defaults';
 
@@ -362,7 +362,8 @@ export const useStore = create<Store>((set, get) => {
     finishActive: (note, endAt) => {
       const s = get();
       const a = s.active;
-      if (!a) return null;
+      // only warm-ups ticked is not a workout: nothing is saved (the screens offer Discard instead)
+      if (!a || !a.exercises.some((e) => e.sets.some(countable))) return null;
       const now = endAt !== undefined ? Math.max(a.startedAt, Math.min(Date.now(), endAt)) : Date.now();
       const pausedMs = Math.min(a.pausedMs + (a.pausedAt ? Math.max(0, now - a.pausedAt) : 0), now - a.startedAt);
       // drop sets that were never completed and exercises left empty

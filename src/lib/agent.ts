@@ -1100,7 +1100,7 @@ function doDiscardWorkout(ctx: AgentCtx): AgentResult {
   const { t } = ctx;
   const st = useStore.getState();
   if (!st.active) return { id: uid('r'), kind: 'miss', title: t('No workout is running'), lines: [] };
-  const done = st.active.exercises.reduce((n, e) => n + e.sets.filter((s) => s.done).length, 0);
+  const done = st.active.exercises.reduce((n, e) => n + e.sets.filter((s) => s.done && s.type === 'working').length, 0);
   return {
     id: uid('r'), kind: 'workout', pending: true, title: t('Discard this workout?'), lines: [{ text: st.active.name || t('Workout'), sub: t(done === 1 ? '1 set done' : '{n} sets done', { n: done }) }],
     button: { label: t('Discard'), run: () => { useStore.getState().discardActive(); } },
@@ -1899,7 +1899,8 @@ function doFinishWorkout(ctx: AgentCtx): AgentResult {
   const { t } = ctx;
   const st = useStore.getState();
   if (!st.active) return { id: uid('r'), kind: 'miss', title: t('No workout is running'), lines: [] };
-  const done = st.active.exercises.reduce((n, e) => n + e.sets.filter((s) => s.done).length, 0);
+  const done = st.active.exercises.reduce((n, e) => n + e.sets.filter((s) => s.done && s.type === 'working').length, 0);
+  if (!done) return { id: uid('r'), kind: 'miss', title: t('No sets yet'), lines: [{ text: st.active.name || t('Workout') }] }; // warm-ups alone are not saved
   return {
     id: uid('r'), kind: 'workout', pending: true, title: t('Finish this workout?'), lines: [{ text: st.active.name || t('Workout'), sub: t(done === 1 ? '1 set done' : '{n} sets done', { n: done }) }],
     button: { label: t('Finish and save'), run: () => { const r = useStore.getState().finishActive(); if (r) { useUI.getState().push('summary', { sessionId: r.id }); } } },

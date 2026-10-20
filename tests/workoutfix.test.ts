@@ -5,7 +5,7 @@ import { useStore, missedWorkouts, rotationAfter, rotationWithout } from '../src
 import { addDays, dayKey, weekdayOf } from '../src/lib/dates';
 import { defaultData } from '../src/state/defaults';
 import type { Routine, WorkoutSession } from '../src/lib/types';
-import { workoutName } from '../src/lib/workout';
+import { workoutName, sessionSetCount } from '../src/lib/workout';
 import { setValues, DEFAULT_HOLD_SEC } from '../src/screens/workout/complete';
 import { makeT, loadDanish } from '../src/lib/i18n';
 
@@ -131,5 +131,23 @@ describe('a hold never logged before', () => {
     const r = setValues('e', 's')!;
     expect(r.valid).toBe(true);
     expect(r.values.durationSec).toBe(DEFAULT_HOLD_SEC);
+  });
+});
+
+describe('set counts', () => {
+  const exs = [{ id: 'e', exerciseId: 'bench-press', sets: [
+    { id: 'w', type: 'warmup' as const, done: true, weightKg: 40, reps: 10 },
+    { id: 'a', type: 'working' as const, done: true, weightKg: 60, reps: 8 },
+    { id: 'b', type: 'working' as const, done: false },
+  ] }];
+  it('count working sets only, done and planned', () => {
+    expect(sessionSetCount(exs)).toBe(1);
+    expect(sessionSetCount(exs, false)).toBe(2);
+  });
+  it('a workout with only warm-ups ticked is not saved', () => {
+    useStore.setState({ active: { id: 'w', name: '', date: '2026-10-20', startedAt: Date.now() - 60000, pausedMs: 0, status: 'active', exercises: [{ ...exs[0], sets: [exs[0].sets[0]] }] } as WorkoutSession });
+    expect(useStore.getState().finishActive()).toBeNull();
+    expect(useStore.getState().sessions).toEqual([]);
+    expect(useStore.getState().active).not.toBeNull(); // nothing lost: it is still there to discard or carry on
   });
 });

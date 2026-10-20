@@ -14,9 +14,10 @@ export function sessionVolume(ex: SessionExercise[]): number {
   for (const e of ex) for (const s of e.sets) if (countable(s)) v += setVolume(s);
   return v;
 }
+/** Working sets (done, or all planned): warm-ups never count, as gyms and the weekly charts count sets. */
 export function sessionSetCount(ex: SessionExercise[], doneOnly = true): number {
   let n = 0;
-  for (const e of ex) for (const s of e.sets) if (!doneOnly || s.done) n++;
+  for (const e of ex) for (const s of e.sets) if (isWorking(s) && (!doneOnly || s.done)) n++;
   return n;
 }
 /** Active time = elapsed minus paused time. */
