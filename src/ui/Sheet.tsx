@@ -18,11 +18,14 @@ export const useIsPage = () => !!useContext(OverlayMeta)?.page;
 interface Host { el: HTMLDivElement; y: MotionValue<number>; swipeV: { current: number }; engage: Engage; gone: Set<() => void>; /** run when it is caught on its way out */ back: Set<() => void>; small?: boolean; rise: MotionValue<number> }
 const hosts = new Map<string, Host>();
 /** where and when the last finger or click went down (a sheet closed by it guards that spot, see HostSheet's exit) */
-let lastDown: { x: number; y: number; t: number; moved: boolean } | null = null;
+let lastDown: { x: number; y: number; t: number; moved: boolean; close: boolean } | null = null;
 if (typeof window !== 'undefined') {
-  window.addEventListener('pointerdown', (e) => { lastDown = { x: e.clientX, y: e.clientY, t: performance.now(), moved: false }; }, { capture: true, passive: true });
+  // `close`: it went down on a dim or a round icon button (a ✕, a Back): the taps a double tap repeats on the same spot
+  window.addEventListener('pointerdown', (e) => { const el = e.target instanceof Element ? e.target : null; lastDown = { x: e.clientX, y: e.clientY, t: performance.now(), moved: false, close: !!el?.closest('.scrim, .icon-btn') }; }, { capture: true, passive: true });
   window.addEventListener('pointermove', (e) => { const d = lastDown; if (d && !d.moved && Math.hypot(e.clientX - d.x, e.clientY - d.y) > 10) d.moved = true; }, { capture: true, passive: true });
 }
+/** a tap on the dim this soon after its sheet appeared is the second tap of a double tap on what opened it */
+const DOUBLE_TAP_MS = 450;
 /** This touch presses nothing, wherever it lifts (a finger lifts over whatever a leaving sheet has uncovered by then): its
  * click is eaten. Let go of if the touch ends without one. */
 function eatTap(pointerId: number) {
@@ -199,6 +202,7 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
   const behindRef = useRef(behind); behindRef.current = behind || covered;
   const dist = useRef(viewportH + 40); // how far it travels to be fully off screen
   const opening = useRef<ReturnType<typeof animate> | null>(null); // the opening spring, while it runs
+  const bornAt = useRef(performance.now());
   const p = useMotionValue(0);   // opening progress (a spring)
   const y = useMotionValue(0);   // the finger
   const bs = useMotionValue(0);  // stepped back behind another sheet
@@ -434,9 +438,10 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
     ref.current?.setAttribute('data-leaving', '');
     // closed by a tap (its ✕, the dim): the second tap of a double tap on that same spot must not press what the sheet has
     // just uncovered there (Log food's ✕ sits over Today's Settings button)
-    // (a touch that comes down there within 450 ms, Android's double-tap gap plus a finger's time down; a swipe isn't a tap)
+    // (a touch that comes down there within 450 ms, Android's double-tap gap plus a finger's time down; a swipe isn't a tap).
+    // Only for those two: closed by Save, a menu choice or Delete, the next tap goes where it lands
     const dt = lastDown;
-    if (dt && !dt.moved && performance.now() - dt.t < 600) {
+    if (dt && dt.close && !dt.moved && performance.now() - dt.t < 600) {
       const down = (e: PointerEvent) => { if (Math.hypot(e.clientX - dt.x, e.clientY - dt.y) < 28) eatTap(e.pointerId); };
       window.addEventListener('pointerdown', down, true); setTimeout(() => window.removeEventListener('pointerdown', down, true), 450);
     }
@@ -462,6 +467,8 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
     // eslint-disable-next-line
   }, [present]);
   useEffect(() => () => { if (mine.current) sheetGone(mine.current.id); }, []);
+  // the dim closes the sheet, but not with the second tap of the double tap that opened it (it opened and dropped at once)
+  const dimTap = () => { if (performance.now() - bornAt.current >= DOUBLE_TAP_MS) onClose(); };
   // a leaving sheet swallows taps: they press nothing inside it and nothing behind it
   const swallow = (ev: React.MouseEvent) => { if (leaving.current) { ev.preventDefault(); ev.stopPropagation(); } };
   // and a touch that starts on it presses nothing anywhere and focuses nothing (no keyboard)
@@ -473,7 +480,7 @@ function HostSheet({ children, onClose, size, tall: tallProp, instant, label, fo
   }, [onClose]);
   return (
     <EngageContext.Provider value={engage}>
-      <Veil e={dim} z={z - 1} onClick={onClose} elRef={scrimRef} className={`${behind ? 'veil-behind' : ''} ${small ? 'veil-light' : ''}`} />
+      <Veil e={dim} z={z - 1} onClick={dimTap} elRef={scrimRef} className={`${behind ? 'veil-behind' : ''} ${small ? 'veil-light' : ''}`} />
       <motion.div
         ref={ref}
         className={`sheet sz-${sz} ${tall ? 'tall' : ''} ${behind ? 'behind' : ''} ${behind && deep ? 'deep' : ''} ${cam ? 'sheet-cam' : ''}`}
