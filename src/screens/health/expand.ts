@@ -14,7 +14,7 @@
  * Only DOM work here; React renders the page's content into `dsc` and calls in at the right moments. Nothing React owns is
  * ever moved: flying copies and the swap's leaving page are clones.
  */
-import { springCurve, SMOOTH, SURFACE, snapPx } from '../../ui/motion';
+import { springCurve, SMOOTH, SURFACE } from '../../ui/motion';
 
 export interface Els { root: HTMLElement; scr: HTMLElement; det: HTMLElement; L: [HTMLElement, HTMLElement, HTMLElement]; mat: HTMLElement; dsc: HTMLElement; fly: HTMLElement; edge: HTMLElement }
 interface Flight { c: HTMLElement; a: HTMLElement; b: HTMLElement; from?: string; tint?: HTMLElement }
@@ -27,9 +27,23 @@ const reduced = () => {
 const $$ = (s: string, r: ParentNode) => [...r.querySelectorAll<HTMLElement>(s)];
 const curT = (el: Element) => { const s = getComputedStyle(el).transform; return s === 'none' ? 'none' : s; };
 const SHARE = ['num', 'unit', 'chart'];
-/** a spring over `w` px whose tail moves in whole screen pixels: a slide that crept its last fraction of a pixel and then
- * landed would jump by one at the end */
-const snapEase = (easing: string, w: number) => `linear(${easing.slice(7, -1).split(',').map((v) => +(1 - snapPx(w * (1 - Number(v))) / w).toFixed(5)).join(', ')})`;
+/** a spring whose last bit is eased out to rest: the sampled spring stops a fraction short and then lands, which over a
+ * whole screen width is a visible half-pixel jump at the end. Its remaining distance is faded to 0 over the last 30 %. */
+const softEnd = (easing: string) => { const v = easing.slice(7, -1).split(',').map(Number), n = v.length - 1; return `linear(${v.map((x, i) => +(1 - (1 - x) * Math.min(1, (n - i) / (0.3 * n))).toFixed(5)).join(', ')})`; };
+type Box = { x: number; y: number; w: number; h: number };
+/** the spring's progress at time p (0–1), read off its linear() samples */
+const curve = (easing: string) => { const v = easing.slice(7, -1).split(',').map(Number), n = v.length - 1; return (p: number) => { if (p <= 0) return v[0]; if (p >= 1) return v[n]; const f = p * n, i = Math.floor(f); return v[i] + (v[i + 1] - v[i]) * (f - i); }; };
+const mix = (a: Box, b: Box, e: number): Box => ({ x: a.x + (b.x - a.x) * e, y: a.y + (b.y - a.y) * e, w: a.w + (b.w - a.w) * e, h: a.h + (b.h - a.h) * e });
+const hits = (a: Box, b: Box, m = 4) => a.x < b.x + b.w + m && b.x < a.x + a.w + m && a.y < b.y + b.h + m && b.y < a.y + a.h + m;
+/** when (0–1 of the move) a word is clear for good: no flying copy over it any more, and (on open) the window's edges past it */
+const clearAfter = (r: Box, paths: [Box, Box][], at: (p: number) => number, win?: (e: number) => [number, number]) => {
+  let last = -1;
+  for (let i = 0; i <= 60; i++) {
+    const p = i / 60, e = at(p), w = win?.(e);
+    if (paths.some(([a, b]) => hits(r, mix(a, b, e))) || (w && (r.y < w[0] || r.y + r.h > w[1]))) last = p;
+  }
+  return last < 0 ? 0 : Math.min(1, last + 1 / 60);
+};
 
 export class Expander {
   st: State | null = null;
@@ -84,12 +98,14 @@ export class Expander {
     const st: State = { k, src, anims: [], fl: [], dim: [] };
     this.st = st;
     const { duration: D, easing: E } = this.win();
+    const paths: [Box, Box][] = [];
     for (const [a, b] of this.pairs(src)) {
       const ra = this.box(a), { c, rb } = this.clone(b), s = this.scale(a, ra, rb);
       a.style.opacity = '0'; b.style.opacity = '0';
       const tn = this.tint(src, a, c);
       st.fl.push({ c, a, b, tint: tn });
       const from = `translate(${ra.x - rb.x}px,${ra.y - rb.y}px) scale(${s})`;
+      paths.push([{ x: ra.x, y: ra.y, w: rb.w * s, h: rb.h * s }, rb]);
       st.anims.push(this.anim(c, [{ transform: from }, { transform: 'none' }], { duration: D, easing: E }));
       if (tn) { this.anim(tn, [{ transform: from }, { transform: 'none' }], { duration: D, easing: E }); this.anim(tn, [{ opacity: 1 }, { opacity: 1, offset: 0.1 }, { opacity: 0, offset: 0.6 }, { opacity: 0 }], { duration: D, easing: 'linear' }); }
     }
@@ -101,17 +117,19 @@ export class Expander {
     st.anims.push(this.anim(edge, [{ opacity: 0 }, { opacity: 1, offset: 0.12 }, { opacity: 1, offset: 0.7 }, { opacity: 0 }], { duration: D, easing: 'linear' }));
     // the page's words settle in once the flying number and chart have passed them (so nothing is drawn over anything)
     const sm = this.sm();
-    // the X, chips and label wait until the window's top edge has passed them (never cut in half); the other words come in
-    // as the flying number and chart (and the unit, which flies with its number) reach their places, never under them
-    let n = 0;
-    $$('.hx-dhead,.hx-chips,.hx-lab,.hx-sub,.hx-rise', dsc).filter((x) => !x.closest('[data-share]')).forEach((x, i) => {
-      const top = x.classList.contains('hx-dhead') || x.classList.contains('hx-chips') || x.classList.contains('hx-lab');
-      const delay = top ? D * 0.33 + i * 30 : D * 0.3 + Math.min(n++, 4) * 30;
+    // each word of the page comes in as soon as nothing flies over it any more and the window's edges have passed it
+    // (so nothing is drawn over anything, and nothing is cut by an edge), never later
+    const at = curve(E), sr = this.box(src), h = this.e.root.clientHeight;
+    const wt = Math.max(0, Math.min(h - 1, sr.y)), wb = Math.max(wt + 1, Math.min(h, sr.y + sr.h));
+    const win = (e: number): [number, number] => [wt * (1 - e), h + (wb - h) * (1 - e)];
+    const when = (x: HTMLElement) => D * Math.max(0.1, clearAfter(this.box(x), paths, at, win));
+    $$('.hx-dhead,.hx-chips,.hx-lab,.hx-sub,.hx-rise', dsc).filter((x) => !x.closest('[data-share]')).forEach((x) => {
+      const delay = when(x);
       st.anims.push(this.anim(x, [{ opacity: 0 }, { opacity: 1 }], { duration: 280, delay, easing: 'linear' }));
       st.anims.push(this.anim(x, [{ transform: 'translateY(10px)' }, { transform: 'none' }], { duration: sm.duration, delay, easing: sm.easing }));
     });
     const paired = new Set(st.fl.map((o) => o.b));
-    $$('[data-share]', dsc).filter((b) => !paired.has(b)).forEach((b) => st.anims.push(this.anim(b, [{ opacity: 0 }, { opacity: 1 }], { duration: 280, delay: D * 0.2, easing: 'linear' })));
+    $$('[data-share]', dsc).filter((b) => !paired.has(b)).forEach((b) => st.anims.push(this.anim(b, [{ opacity: 0 }, { opacity: 1 }], { duration: 280, delay: when(b), easing: 'linear' })));
     st.dim = this.dimOf(src);
     st.dim.forEach((x) => { x.getAnimations().forEach((a) => a.cancel()); x.style.opacity = '0'; x.animate([{ opacity: 1 }, { opacity: 0 }], { duration: reduced() ? 1 : 40, easing: 'linear' }); });
     this.playPage(Math.round(D * 0.2));
@@ -165,8 +183,18 @@ export class Expander {
     (st.out ?? []).forEach((a) => a.cancel());
     const wf = this.frames(st.src);
     const out: Animation[] = [];
+    // the section's own words come back as soon as the copies landing on it have left their spot (never under a number)
+    const at = curve(E), paths: [Box, Box][] = fl.map(({ c, a }) => {
+      const rb = { x: parseFloat(c.style.left), y: parseFloat(c.style.top), w: parseFloat(c.style.width), h: parseFloat(c.style.height) };
+      const m = new DOMMatrix(c.style.transform && c.style.transform !== 'none' ? c.style.transform : undefined), ra = this.box(a), s = this.scale(a, ra, rb);
+      return [{ x: rb.x + m.e, y: rb.y + m.f, w: rb.w * m.a, h: rb.h * m.d }, { x: ra.x, y: ra.y, w: rb.w * s, h: rb.h * s }];
+    });
     const dimO = st.dim.map((x) => getComputedStyle(x).opacity);
-    st.dim.forEach((x, i) => { x.getAnimations().forEach((a) => a.cancel()); x.style.opacity = '0'; out.push(this.anim(x, [{ opacity: dimO[i] }, { opacity: dimO[i], offset: 0.2 }, { opacity: 1, offset: 0.55 }, { opacity: 1 }], { duration: D, delay: 70, easing: 'linear' })); });
+    st.dim.forEach((x, i) => {
+      const p = x === st.src ? 0.2 : Math.min(0.75, Math.max(0.15, clearAfter(this.box(x), paths, at))); // a pill: its number lands inside it
+      x.getAnimations().forEach((a) => a.cancel()); x.style.opacity = '0';
+      out.push(this.anim(x, [{ opacity: dimO[i] }, { opacity: dimO[i], offset: p }, { opacity: 1, offset: p + 0.25 }, { opacity: 1 }], { duration: D, delay: 70, easing: 'linear' }));
+    });
     L.forEach((l, i) => out.unshift(this.anim(l, [{ transform: fromL[i] }, { transform: wf[i] }], { duration: D, delay: 70, easing: E })));
     // the material clears between 25 % and 80 %: the section is already back underneath, so close ends on the settled screen
     out.push(this.anim(mat, [{ opacity: matO }, { opacity: matO, offset: 0.2 }, { opacity: 0, offset: 0.55 }, { opacity: 0 }], { duration: D, easing: 'linear' }));
@@ -259,7 +287,7 @@ export class Expander {
     L[2].appendChild(ghost);
     // pages sit side by side in chip order: the old one slides out as the new one slides in, on one spring
     const sm = this.sm(), W = dsc.clientWidth + 48; // a gap between the two pages
-    ghost.animate([{ transform: 'none' }, { transform: `translateX(${-dir * W}px)` }], { duration: reduced() ? 1 : sm.duration + 160, fill: 'both', easing: snapEase(sm.easing, W) }).finished.then(() => ghost.remove()).catch(() => ghost.remove());
+    ghost.animate([{ transform: 'none' }, { transform: `translateX(${-dir * W}px)` }], { duration: reduced() ? 1 : sm.duration + 160, fill: 'both', easing: softEnd(sm.easing) }).finished.then(() => ghost.remove()).catch(() => ghost.remove());
     return dir;
   }
   /** React has rendered the new page: it arrives from the side the chip sits on */
@@ -269,6 +297,6 @@ export class Expander {
     this.playPage(160, false);
     const W = dsc.clientWidth + 48;
     // the body moves as one layer that stays a layer (dropping it at the end would snap the text by a pixel)
-    $$(':scope > .hx-page > .hx-body', dsc).forEach((x) => this.anim(x, [{ transform: `translateX(${dir * W}px)` }, { transform: 'none' }], { duration: sm.duration + 160, easing: snapEase(sm.easing, W) }));
+    $$(':scope > .hx-page > .hx-body', dsc).forEach((x) => this.anim(x, [{ transform: `translateX(${dir * W}px)` }, { transform: 'none' }], { duration: sm.duration + 160, easing: softEnd(sm.easing) }));
   }
 }
