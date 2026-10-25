@@ -667,11 +667,15 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
         <div style={{ padding: '0 0 calc(var(--sab) + 18px)' }}>
           {liveActive && !typing && (() => {
             // talking live, like Gemini: what you said (it stays until you speak again), Tap to interrupt while it speaks
-            const heard = (!liveTurn.current.id && final) || last?.said || '';
+            const next = !liveTurn.current.id && !!final; // a new utterance, before its answer starts
+            const heard = (next && final) || last?.said || '';
+            // (the same key from your first word to the end of its answer: words already there never re-animate)
+            const heardKey = `u${next ? turns.length : turns.length - 1}`;
             return (
               <div className="stack" style={{ gap: 8, marginBottom: 12, alignItems: 'center' }}>
                 {speaking && <button className="chip press" onClick={() => { liveRef.current?.hush(); haptic('light'); }}>{t('Tap to interrupt')}</button>}
-                {heard && <div className="said" style={{ alignSelf: 'stretch', maxWidth: 'none', fontStyle: 'italic' }}>{heard}</div>}
+                {/* what you are saying, word by word as you say it (like Gemini), so you know it heard you */}
+                {heard && <div className="said" aria-live="polite" style={{ alignSelf: 'stretch', maxWidth: 'none', fontStyle: 'italic' }}><Words text={heard} k={heardKey} /></div>}
               </div>
             );
           })()}
