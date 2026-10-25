@@ -15,6 +15,12 @@ import android.os.Looper;
 public class RestActionReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context c, Intent intent) {
+        PendingResult wait = goAsync();
+        handle(c, intent, wait::finish);
+    }
+
+    /** The button, here or from RestDoneActivity (Done ✓); `finished` runs once Chrome has it (or it can't). */
+    static void handle(Context c, Intent intent, Runnable finished) {
         String a = intent.getAction();
         RestNotifications.seen(c);
         RestNotifications.log("button: " + a);
@@ -28,15 +34,14 @@ public class RestActionReceiver extends BroadcastReceiver {
         else if (RestNotifications.ACTION_DONE.equals(a)) RestNotifications.done(c);
         PendingIntent chrome = carried;
         RestNotifications.log("  Chrome's button inside: " + RestNotifications.kind(chrome));
-        if (chrome == null) return;
+        if (chrome == null) { finished.run(); return; }
         // the website keeps its workout in step (and Chrome's copy of the notification). Chrome's button opens a screen of
         // Chrome's for a moment, and newer Android silently drops that when it's sent from the background unless the
         // sender passes on this tap's permission to do so. A plain send() (18 Oct clean-up) made every Done ✓ go nowhere
         // on Omar's phone from the APK he installed on 20 Oct ("not working again", 25 Oct); the emulator let it through.
-        PendingResult wait = goAsync();
         Handler h = new Handler(Looper.getMainLooper());
         boolean[] over = { false };
-        Runnable finish = () -> { if (!over[0]) { over[0] = true; wait.finish(); } };
+        Runnable finish = () -> { if (!over[0]) { over[0] = true; finished.run(); } };
         Bundle opts = null;
         if (Build.VERSION.SDK_INT >= 34) {
             ActivityOptions o = ActivityOptions.makeBasic();

@@ -626,9 +626,15 @@ final class RestNotifications {
      * made is reused as it is.
      */
     private static PendingIntent own(Context c, String action, PendingIntent chrome) {
-        Intent i = new Intent(action).setClass(c, RestActionReceiver.class);
+        // (Done ✓: an invisible screen of ours, so it may press Chrome's button; see RestDoneActivity)
+        boolean screen = ACTION_DONE.equals(action);
+        Intent i = new Intent(action).setClass(c, screen ? RestDoneActivity.class : RestActionReceiver.class);
         int flags = PendingIntent.FLAG_IMMUTABLE;
         if (chrome != null) { i.putExtra(EXTRA_CHROME, chrome); flags |= PendingIntent.FLAG_UPDATE_CURRENT; }
+        if (screen) {
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NO_ANIMATION | Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS);
+            return PendingIntent.getActivity(c, action.hashCode(), i, flags);
+        }
         return PendingIntent.getBroadcast(c, action.hashCode(), i, flags);
     }
 
