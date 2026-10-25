@@ -37,7 +37,7 @@ import { setFpsMeter, useFpsMeterOn } from '../ui/FpsMeter';
 import { BG_KINDS, BgBody, setBgPhoto, useBgPhoto, useSkyClock, type BgKind } from '../ui/Backdrop';
 import { startStutter, stopStutter, stutterReport, stutterState, subscribeStutter } from '../lib/stutter';
 import { coachTrace } from '../lib/coachTrace';
-import { lastDone, lastRestLate } from './workout/rest';
+import { lastDone, lastHeard, lastRestLate } from './workout/rest';
 import { fmtTime } from '../lib/dates';
 import { appOnPhone, inAndroidApp, restCheck, showAppRest } from '../lib/androidApp';
 import { hcLastLine, hcLink, hcStatus, noteAsk } from '../lib/healthSync';
@@ -415,6 +415,10 @@ function RestAlertRow() {
       : `${t('Last Done ✓: tapped {time}', { time: hhmm(done.tap!.at) })} · ${t('Aven hasn’t picked it up')} (${done.tap!.sw}, ${done.tap!.wins})`;
   // (for the rest worker: the last button it got and what it made of it, and taps still waiting for Aven)
   const clickLine = done?.click ? `button ${done.click.action}${done.click.action === 'skip' ? (done.click.done ? '→done' : `→skip (${Math.round((done.click.at - done.click.endsAt) / 1000)} s)`) : ''} ${hhmm(done.click.at)}${done.waiting ? ` · waiting ${done.waiting}` : ''}` : done?.waiting ? `waiting ${done.waiting}` : '';
+  // (the page's side: the last message from the rest worker, what it said and what the page made of it)
+  const heard = android ? lastHeard() : null;
+  const sec = (x: number) => `${x >= 0 ? '+' : ''}${Math.round(x / 100) / 10} s`;
+  const heardLine = heard ? `heard ${heard.action} ${hhmm(heard.at)} (tap ${sec(heard.at - heard.ends)} after the end, ${heard.mine ? 'this rest' : `other rest ${heard.key.split(':')[1] ?? ''}/${heard.start}`}) → ${heard.asDone ? 'done' : 'skip'}` : 'heard nothing';
   const test = async () => {
     let p = Notification.permission;
     if (p === 'default') { p = await Notification.requestPermission().catch(() => 'default' as NotificationPermission); setPerm(p); }
@@ -443,7 +447,7 @@ function RestAlertRow() {
       <div>
         <div>{t('Rest timer on lock screen')}</div>
         <div className="xs t2" style={{ marginTop: 2 }}>{perm === 'denied' ? (app ? t('Notifications are off for the Aven app. Turn them on in your phone’s Settings › Apps › Aven › Notifications, then force stop Chrome (Settings › Apps › Chrome) so it notices, and open Aven again.') : t('Notifications are blocked for Aven in your browser settings.')) : t('Shows when rest is over and buzzes, even in another app or with the screen off.')}</div>
-        {android && doneLine && <div className="xs t3" style={{ marginTop: 4, wordBreak: 'break-word' }}>{doneLine}{clickLine && <> · {clickLine}</>}</div>}
+        {android && doneLine && <div className="xs t3" style={{ marginTop: 4, wordBreak: 'break-word' }}>{doneLine}{clickLine && <> · {clickLine}</>} · {heardLine}</div>}
         {android && (
           <div className="row-flex" style={{ gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
             <button className="btn sm press" onClick={test}>{t('Send a test')}</button>

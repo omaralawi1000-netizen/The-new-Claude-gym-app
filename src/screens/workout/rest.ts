@@ -271,6 +271,21 @@ export function applyDone(at = Date.now(), via = 'message'): boolean {
 // the keys the workers keep a Done ✓ under (public/rest-sw.js, android/site/…-rest/sw.js): whole paths, the same everywhere
 const PENDING_TAP = '/aven-pending/tap-', PENDING_LOG = '/aven-pending/log';
 
+/** What the rest worker's last few messages were and what the page made of them (Settings › Training shows the last one:
+ *  25 Oct, a Done ✓ that reached Aven ended the rest like a Skip). */
+const HEARD_LOG = 'aven.restHeard';
+function noteHeard(d: { action?: string; key?: unknown }, at: number, a: WorkoutSession | null | undefined, asDone: boolean) {
+  try {
+    const r = a?.rest;
+    const one = { action: d.action, at, heard: Date.now(), key: String(d.key ?? ''), ends: r?.endsAt ?? 0, start: r ? r.endsAt - r.total * 1000 : 0, mine: !!r && isThisRest(d.key), asDone };
+    const all = [...(JSON.parse(localStorage.getItem(HEARD_LOG) ?? '[]') as unknown[]), one].slice(-6);
+    localStorage.setItem(HEARD_LOG, JSON.stringify(all));
+  } catch { /* ignore */ }
+}
+export function lastHeard(): { action?: string; at: number; heard: number; key: string; ends: number; start: number; mine: boolean; asDone: boolean } | null {
+  try { const all = JSON.parse(localStorage.getItem(HEARD_LOG) ?? '[]'); return all[all.length - 1] ?? null; } catch { return null; }
+}
+
 /** The last Done ✓ that reached the page and what came of it (Settings › Training shows it: one screenshot says where a
  *  tap stopped, 25 Oct). Returns false, for applyDone's "nothing ticked". */
 const DONE_LOG = 'aven.doneLog';
@@ -395,7 +410,11 @@ export function useRestCue() {
         // time). The kept copy is the one applied; the message is the fallback for a worker that didn't keep it.
         const a = useStore.getState().active;
         const at = typeof e.data.at === 'number' ? e.data.at : Date.now();
-        if (e.data.action === 'done' || (e.data.action === 'skip' && a?.rest && a.rest.endsAt < at - 1500 && isThisRest(e.data.key))) {
+        const asDone = e.data.action === 'done' || (e.data.action === 'skip' && !!a?.rest && a.rest.endsAt < at + 500 && isThisRest(e.data.key));
+        // (a Skip heard for a rest that's over is a Done ✓: the countdown and its Skip go when the rest ends, and only the
+        // alert's Done ✓ comes as a Skip after that. The worker judges by 1.5 s; here the end itself counts, 25 Oct)
+        noteHeard(e.data, at, a, asDone);
+        if (asDone) {
           void (async () => {
             await pendingRun; await applyPendingDone();
             const b = useStore.getState().active;
