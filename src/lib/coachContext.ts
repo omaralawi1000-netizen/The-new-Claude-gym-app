@@ -81,7 +81,7 @@ export function buildCoachContext(d: AppData, today: string, exName: (id: string
       const top = sets.reduce((a, b) => ((b.weightKg ?? 0) > (a.weightKg ?? 0) ? b : a));
       return `${exName(e.exerciseId)} ${sets.length}×${top.reps ?? '?'}${top.weightKg ? ` @${r1(top.weightKg)}kg` : ''}`;
     }).filter(Boolean).slice(0, 6);
-    L.push(`- ${s.date} ${s.name || 'Workout'} (${diffDays(today, s.date)} days ago): ${ex.join('; ') || 'no completed sets'}${s.records?.length ? `; ${s.records.length} PR` : ''}`);
+    L.push(`- ${s.date} ${s.name || 'Workout'} (${diffDays(today, s.date)} days ago): ${ex.join('; ') || 'no completed sets'}${s.records?.length ? `; ${s.records.length} PR (${[...new Set(s.records.map((r) => exName(r.exerciseId)))].join(', ')})` : ''}`);
   }
   // planned sets left undone (a coach notices skipped sets, not only skipped days)
   const WD3 = wd;
