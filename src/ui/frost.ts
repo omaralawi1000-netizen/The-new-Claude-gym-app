@@ -267,9 +267,11 @@ function tame(o: CanvasRenderingContext2D, w: number, h: number) {
         L += (0.7 - L) * 0.13; if (mC >= 0.05) C *= 0.96;
         L = Math.min(L, L0 + (L0 < 0.2 ? 0.04 : 0.025)); // (a little more light over a near-black page: not navy-black)
         const fl = Math.min(0.24, L0); if (L < fl) L = fl - (fl - L) * 0.35;
-        // the darkest glass leans to the page's own colour too (the teal of Colour per tab, not the navy under one card)
+        // the darkest glass leans to the page's own colour too (the teal of Colour per tab, not the navy under one card): only
+        // from a neighbouring colour, as an angle (from far away the turn went through colours a near-black can't show: grey, judge r5)
         let dh = hue - H; dh -= Math.round(dh / (2 * Math.PI)) * 2 * Math.PI;
-        if (L0 < 0.2) H += dh * 0.5 * (1 - L0 / 0.2);
+        const near2 = step(-Math.abs(dh), -Math.PI / 2, -Math.PI * 5 / 18); // all of it within 50°, none past 90°
+        if (L0 < 0.2) H += dh * 0.5 * (1 - L0 / 0.2) * near2;
         // the floor: the card's fill over it takes some colour away, and mauve and pink lose the most (Sunset, judge r4)
         const hd = (H * 180) / Math.PI, fC = 0.05 + 0.012 * step(hd, -55, -45) * step(-hd, 0, 10);
         if (C < fC) { let dt = hue - H; dt -= Math.round(dt / (2 * Math.PI)) * 2 * Math.PI; H += dt * (1 - C / fC); C = Math.min(fC, cMax); }
