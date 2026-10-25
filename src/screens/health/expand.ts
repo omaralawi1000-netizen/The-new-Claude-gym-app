@@ -131,8 +131,9 @@ export class Expander {
     // in reading order, in two chains: the X, chips and label wait for the window's top edge (the X leads); a body line starts
     // once the flight has passed it but never before the line above it; none later than 40 % of the move
     let prev = 0, prevTop = 0;
-    // a word starts its 280 ms fade a little before it is clear, so it is still faint while the flight leaves it
-    const clear = (x: HTMLElement) => Math.max(D * 0.1, Math.min(D * 0.4, D * clearAfter(this.box(x), paths, at, win) - 110));
+    // never before every flying copy has left it (from any side); a word only waiting for the window's edge may start its
+    // fade a little early, as the edge is still passing (an edge cutting a faint word reads as a reveal, a copy over it doesn't)
+    const clear = (x: HTMLElement) => { const r = this.box(x); return Math.max(D * 0.1, D * clearAfter(r, paths, at), Math.min(D * 0.4, D * clearAfter(r, paths, at, win) - 110)); };
     const when = (x: HTMLElement) => (prev = Math.max(prev, clear(x)));
     $$('.hx-dhead,.hx-chips,.hx-lab,.hx-sub,.hx-rise', dsc).filter((x) => !x.closest('[data-share]')).forEach((x) => {
       // a line sitting right against a landing number or chart (its unit line, a chart's date ends) lands with it, outside the chain
@@ -142,7 +143,7 @@ export class Expander {
       st.anims.push(this.anim(x, [{ transform: 'translateY(10px)' }, { transform: 'none' }], { duration: sm.duration, delay, easing: sm.easing }));
     });
     const paired = new Set(st.fl.map((o) => o.b));
-    $$('[data-share]', dsc).filter((b) => !paired.has(b)).forEach((b) => st.anims.push(this.anim(b, [{ opacity: 0 }, { opacity: 1 }], { duration: 280, delay: Math.max(D * 0.1, clear(b) - D * 0.05), easing: 'linear' }))); // a unit starts in its number's last bit of travel
+    $$('[data-share]', dsc).filter((b) => !paired.has(b)).forEach((b) => st.anims.push(this.anim(b, [{ opacity: 0 }, { opacity: 1 }], { duration: 280, delay: clear(b), easing: 'linear' })));
     st.dim = this.dimOf(src);
     st.dim.forEach((x) => { x.getAnimations().forEach((a) => a.cancel()); x.style.opacity = '0'; x.animate([{ opacity: 1 }, { opacity: 0 }], { duration: reduced() ? 1 : 40, easing: 'linear' }); });
     this.playPage(Math.round(D * 0.2));
