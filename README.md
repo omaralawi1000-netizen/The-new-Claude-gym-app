@@ -3123,3 +3123,11 @@ not see-through.
 - **No colour flash**: every tab's copy is thrown away the moment palette, background, glow or theme changes and rebuilt
   ahead from the pre-painted field, so other tabs never show the last theme's colours.
 
+
+## "Part of the answer couldn't be read" on every food log (21 Oct 2026, v0.1.170)
+Omar's food logs on the orb each came with the log card AND "Part of the answer couldn't be read — nothing was changed",
+so he said it again (lunch logged three times). The exam couldn't make it happen (OpenRouter, his real data, 7 tries);
+the one difference is the app's direct OpenAI call with a strict schema, where every action carries every field, which
+can coax out an empty filler action. Such a filler (nothing in it but its type) is no longer "unreadable"; anything real
+that can't be read is still said, and the first one dropped is kept in the trouble log (Settings → About) so the next one
+can be traced. The exam now fails any answer with a dropped action.
