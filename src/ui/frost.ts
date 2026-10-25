@@ -26,8 +26,7 @@ const dark = () => root().dataset.theme !== 'light';
 const look = () => root().dataset.look ?? 'a';
 // the frost each look bakes into the copy (the card's own see-through fill lies over it, surfaces.css): A today's clear
 // glass with a little frost, B and C let more of the colour through
-// (busy-background options on trial, `data-cards` on the root: f = the copy with no colour boost, what a live blur shows)
-const recipe = () => (root().dataset.cards === 'f' && look() === 'a' ? 'blur(4px)' : RECIPE[look()]);
+const recipe = () => RECIPE[look()];
 const RECIPE: Record<string, string> = { a: 'blur(4px) saturate(1.35)', b: 'blur(4px) saturate(1.9) brightness(0.94)', c: 'blur(4px) saturate(1.9) brightness(0.94)' };
 
 function paint(cv: HTMLCanvasElement) {
@@ -164,18 +163,17 @@ function rgb(L: number, A: number, B: number): [number, number, number] {
   return [toSrgb(4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s), toSrgb(-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s), toSrgb(-0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s)];
 }
 function tame(o: CanvasRenderingContext2D, w: number, h: number) {
-  const mode = root().dataset.cards ?? '';
-  if (!mode || !'bcdeg'.includes(mode) || look() !== 'a') return;
+  if (look() !== 'a') return;
   let im: ImageData; try { im = o.getImageData(0, 0, w, h); } catch { return; }
   const d = im.data, n = d.length / 4;
   const px = new Float32Array(n * 3);
-  let sL = 0, sL2 = 0, sC = 0, hx = 0, hy = 0, gx = 0, gy = 0, gw = 0;
+  let sL = 0, sL2 = 0, sC = 0, gx = 0, gy = 0, gw = 0;
   for (let i = 0; i < n; i++) {
     const [L, A, B] = lab(d[i * 4], d[i * 4 + 1], d[i * 4 + 2]); px[i * 3] = L; px[i * 3 + 1] = A; px[i * 3 + 2] = B;
-    const C = Math.hypot(A, B); sL += L; sL2 += L * L; sC += C; hx += A * C; hy += B * C;
+    const C = Math.hypot(A, B); sL += L; sL2 += L * L; sC += C;
     const wt = (L + C) ** 6; gx += (i % w) * wt; gy += Math.floor(i / w) * wt; gw += wt;
   }
-  const mL = sL / n, mC = sC / n, sd = Math.sqrt(Math.max(0, sL2 / n - mL * mL)), dom = Math.atan2(hy, hx);
+  const mL = sL / n, mC = sC / n, sd = Math.sqrt(Math.max(0, sL2 / n - mL * mL));
   // how much this background needs it: 0 for calm ones (Champagne on Mesh, the dots: mean chroma under .03), up to 1 for the
   // loud ones (Mesh on Golden hour or Sunset, Colour per tab, Time of day) and for an even slab of colour (Night sky)
   const clamp = (x: number) => Math.min(1, Math.max(0, x));
@@ -187,17 +185,14 @@ function tame(o: CanvasRenderingContext2D, w: number, h: number) {
     let L = px[i * 3], A = px[i * 3 + 1], B = px[i * 3 + 2];
     let C = Math.hypot(A, B), H = Math.atan2(B, A);
     const r = Math.hypot((i % w) - cx, Math.floor(i / w) - cy) / R, near = Math.exp(-r * r); // 1 at the glow, 0 far from it
-    const sink = (k: number) => { L *= mix(1, k); C *= mix(1, k); }; // darker, the colour kept in step (never greyer)
-    if (mode === 'b') { C = C <= 0.07 ? C : C * mix(1, (0.07 + (C - 0.07) * 0.35) / C); L *= mix(1, 0.92); } // only the loudest colour softened
-    else if (mode === 'c') sink(0.66); // smoked glass
-    else if (mode === 'd') sink(0.5 + 0.5 * near); // one glow, the rest sinks
-    else if (mode === 'e') { let dh = dom - H; dh = Math.atan2(Math.sin(dh), Math.cos(dh)); H += dh * 0.85 * g; sink(0.88); } // one colour
-    else if (mode === 'g') { // like Champagne on Mesh: dark glass, one soft glow coming through
+    { // like Champagne on Mesh: dark glass, one soft glow coming through (Omar's pick 25 Oct, option 5)
       const k = Math.max(0.6, Math.min(1, 0.26 / mL) * (0.62 + 0.38 * near)); // never below 60 %: smoked glass, not a hole
       L *= mix(1, k); C *= mix(1, Math.sqrt(k)); // the colour kept richer than the light, so dark orange doesn't turn brown
-      if (L > 0.24) L = mix(L, 0.24 + (L - 0.24) * 0.45); // a bright slab (Colour per tab) is toned down too
-      if (C > 0.08) C = mix(C, 0.08 + (C - 0.08) * 0.4);
-      const deg = (H * 180) / Math.PI; // dark orange leans to rose (not rust), navy to plum
+      const deg = (H * 180) / Math.PI, cool = deg > -130 && deg < -30; // violet and blue light: a slab, never the glow
+      const kL = cool ? 0.16 : 0.24, kC = cool ? 0.05 : 0.08; // (the violet top card on Colour per tab stayed bright, judge r3)
+      if (L > kL) L = mix(L, kL + (L - kL) * (cool ? 0.3 : 0.45)); // a bright slab is toned down too
+      if (C > kC) C = mix(C, kC + (C - kC) * (cool ? 0.3 : 0.4));
+      // dark orange leans to rose (not rust), navy to plum
       if (deg > 30 && deg < 85 && L < 0.4) H += ((15 - deg) * Math.PI / 180) * 0.6 * g;
       else if (deg < -60 && deg > -130) H += ((-35 - deg) * Math.PI / 180) * 0.6 * g;
     }
