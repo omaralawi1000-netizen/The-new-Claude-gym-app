@@ -130,6 +130,37 @@ export function stalledLifts(sessions: WorkoutSession[], today: string): Stall[]
   return out.sort((a, b) => b.sessions - a.sessions).slice(0, 3);
 }
 
+/** Planned working sets that weren't done, in the workouts of the last `days` days (the Coach names skipped sets, not only
+ *  missed days). Sets: planned when the workout was finished (`plannedSets`) minus the ones done; an exercise of its
+ *  routine that isn't in the workout at all was dropped or swapped (the app can't tell which). Workouts saved before
+ *  `plannedSets` existed aren't judged. */
+export interface Skipped { date: string; name: string; exercises: { exerciseId: string; skipped: number; planned: number; absent?: boolean }[] }
+export function skippedSets(d: Pick<AppData, 'sessions' | 'routines'>, today: string, days = 7): { list: Skipped[]; skipped: number; planned: number; workouts: number } {
+  const list: Skipped[] = [];
+  let skipped = 0, planned = 0, workouts = 0;
+  for (const s of [...d.sessions].filter((x) => x.status === 'done' && diffDays(today, x.date) >= 0 && diffDays(today, x.date) < days).sort((a, b) => a.date.localeCompare(b.date))) {
+    if (!s.exercises.some((e) => e.plannedSets !== undefined)) continue;
+    workouts++;
+    const ex: Skipped['exercises'] = [];
+    for (const e of s.exercises) {
+      const done = e.sets.filter((q) => q.done && q.type === 'working').length;
+      const p = Math.max(e.plannedSets ?? done, done);
+      planned += p;
+      if (p > done) { ex.push({ exerciseId: e.exerciseId, skipped: p - done, planned: p }); skipped += p - done; }
+    }
+    // (a routine exercise missing from the workout is named, never counted: it may have been swapped or left at 0 sets.
+    // Only when the workout has nothing from outside the routine (no swap) and the routine wasn't changed since)
+    const r = s.routineId ? d.routines.find((x) => x.id === s.routineId) : undefined;
+    const fits = r && r.updatedAt <= (s.endedAt ?? s.startedAt) && s.exercises.every((e) => r.items.some((it) => it.exerciseId === e.exerciseId));
+    for (const it of fits ? r.items : []) {
+      if (!it.workingSets || s.exercises.some((e) => e.exerciseId === it.exerciseId)) continue;
+      ex.push({ exerciseId: it.exerciseId, skipped: it.workingSets, planned: it.workingSets, absent: true });
+    }
+    if (ex.length) list.push({ date: s.date, name: s.name, exercises: ex });
+  }
+  return { list, skipped, planned, workouts };
+}
+
 // ── the week in review ──────────────────────────────────────
 export interface WeekReview { from: string; to: string; sessions: number; prevSessions: number; wrestling: number; proteinAvg: number | null; kcalAvg: number | null; loggedDays: number; records: number; weightRate: number | null; stalls: Stall[] }
 /**

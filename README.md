@@ -3140,3 +3140,25 @@ wording: throwing up, laxatives or fasting to make up for food still turns catch
 still suggest a doctor on its own when something is truly serious, the way the ChatGPT app does.
 The Coach thinks at Medium by default, and the setting is now a ceiling: the chooser's "high" tier no longer overrides it,
 so no 30–45 s waits.
+
+## Living coach, step 1: an honest voice (25 Oct 2026)
+The plan for a real, living coach is `docs/living-coach-plan.md` (Omar's decisions, six steps, progress table, next step).
+Omar said go for step 1 only. He wants a coach that criticises honestly, praises real wins and picks its own tone; no fixed
+tone or message counts, no rules per topic, going over the calories said once like any coach, and never "train lighter".
+- **How the Coach talks** (`handbook.ts` `COACH_STYLE`): the tone is its own call for the moment (warm for a real win,
+  plain for a first miss, firmer when the same miss keeps happening but never about a choice made on purpose, calm after a
+  bad night), misses named with their numbers when they matter, and one NEVER list: how their body looks, food shame,
+  "train lighter or do less" (HOW YOU COACH keeps its few exceptions), claims the data can't show. `TASK_STYLE` (Today's
+  notes, the weekly review, the heavy-day verdict) is unchanged on purpose.
+- **Skipped sets** (`stats.ts` `skippedSets`, a DATA line): planned working sets left undone in the last 7 days, from
+  `plannedSets` at the finish. An exercise of the routine missing from the workout is named but never counted (it may be
+  a swap or 0 sets done), and only when the workout has nothing from outside the routine and the routine wasn't changed
+  since. Workouts saved before `plannedSets` existed aren't judged. When nothing was skipped, DATA says
+  that too, so the Coach can praise it exactly.
+- **Stalled lifts:** named plainly; a change is offered only when it would help (no more "a short lighter block").
+- **A little over the calories** (`eating.ts` `overToday`, `overLine` = 200 kcal or 10 % of the target, whichever is
+  bigger; `eatingWatch.ts` `sayOver`): that much over the day's target but not heavy → one plain toast, once that day (`marks.overSaid`), only with heavy-day notices On:
+  "340 kcal over today. Fine now and then." / "…, 2 of the last 7 days." / "…, 3 of the last 7 days. That adds up." A heavy day
+  keeps its own decision. EATING PATTERNS lists those days for the Coach too.
+- Exam: `honest-week`, `honest-repeat`, `honest-clean`, `honest-food`, `honest-night` (`scripts/exam/questions.ts`). Unit
+  tests: `tests/honestVoice.test.ts`.

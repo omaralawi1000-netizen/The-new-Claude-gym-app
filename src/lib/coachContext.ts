@@ -8,7 +8,7 @@ import { eatingLines, kcalTargetFor } from './eating';
 import { currentSetOf } from './currentSet';
 import type { AppData, Exercise, MuscleGroup } from './types';
 import { addDays, diffDays } from './dates';
-import { nutritionByDay, trendRate, weekStreak, weeklyTraining, weightTrend, average, setsPerMuscle, usualDays, stalledLifts, MUSCLES } from './stats';
+import { nutritionByDay, trendRate, weekStreak, weeklyTraining, weightTrend, average, setsPerMuscle, usualDays, stalledLifts, skippedSets, MUSCLES } from './stats';
 import { elapsedMs, historyOf, incrementFor, suggestProgression } from './workout';
 import { plannedFor, missedWorkouts } from '../state/store';
 import { SETTING_SPEC, settingsForPrompt } from './settingSpec';
@@ -74,13 +74,16 @@ export function buildCoachContext(d: AppData, today: string, exName: (id: string
     }).filter(Boolean).slice(0, 6);
     L.push(`- ${s.date} ${s.name || 'Workout'} (${diffDays(today, s.date)} days ago): ${ex.join('; ') || 'no completed sets'}${s.records?.length ? `; ${s.records.length} PR` : ''}`);
   }
+  // planned sets left undone (a coach notices skipped sets, not only skipped days)
+  const sk = skippedSets(d, today);
+  if (sk.workouts) L.push(sk.list.length ? `Planned working sets skipped (last 7 days): ${sk.skipped} of ${sk.planned} in ${sk.workouts} workouts — ${sk.list.map((w) => `${w.date} ${w.name || 'Workout'}: ${w.exercises.map((x) => `${exName(x.exerciseId)} ${x.absent ? 'not in the workout at all (in its routine; not counted above)' : `${x.skipped} of ${x.planned} skipped`}`).join(', ')}`).join('; ')}.` : `Planned working sets skipped (last 7 days): none, all ${sk.planned} done in ${sk.workouts} workouts.`);
   // per muscle, so balance is judged from what was actually trained, not from exercise names
   if (musclesOf && done.length) {
     const fmt = (r: Record<MuscleGroup, number>, div = 1) => MUSCLES.map((m) => `${m} ${r1(r[m] / div)}`).join(', ');
     L.push(`Hard sets per muscle (finished working sets; main muscle 1, others ½) — last 7 days: ${fmt(setsPerMuscle(done, musclesOf, addDays(today, -6), today))}. Weekly average over the last 4 weeks: ${fmt(setsPerMuscle(done, musclesOf, addDays(today, -27), today), 4)}.`);
   }
   const stalls = stalledLifts(d.sessions, today);
-  if (stalls.length) L.push(`Stalled lifts (no new best in their last 3 sessions, over 10+ days): ${stalls.map((x) => `${exName(x.exerciseId)}, best ${r1(x.best.kg)}kg×${x.best.reps} on ${x.since}`).join('; ')}. When it comes up, give one concrete fix (a short lighter block with more reps, a variation, more rest or more food).`);
+  if (stalls.length) L.push(`Stalled lifts (no new best in their last 3 sessions, over 10+ days): ${stalls.map((x) => `${exName(x.exerciseId)}, best ${r1(x.best.kg)}kg×${x.best.reps} on ${x.since}`).join('; ')}. When it comes up, name it plainly; offer one concrete change (a few weeks in a higher rep range, a variation, more rest between sets, more food or sleep) only when it would help.`);
   const wr = d.activities.filter((a) => a.kind === 'wrestling' && diffDays(today, a.date) < 28);
   const wrDays = usualDays(d.activities.filter((a) => a.kind === 'wrestling' && diffDays(today, a.date) < 56).map((a) => a.date));
   if (wr.length) L.push(`Wrestling (last 4 weeks): ${wr.length} sessions, ${Math.round(wr.reduce((n, a) => n + a.durationSec, 0) / 60)} min on the mat${wr.some((a) => a.intensity === 3) ? ', some at max intensity' : ''}${wrDays.length ? `; usually on ${wrDays.map((w) => ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][w]).join(', ')}` : ''}. Wrestling is hard lower-body, hip, grip, neck/upper-back and conditioning work: it covers much of what a leg day would, so never call their legs untrained when they wrestle regularly. Count it as training load.`);

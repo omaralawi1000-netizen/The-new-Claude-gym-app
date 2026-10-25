@@ -1,0 +1,142 @@
+// @vitest-environment jsdom
+// Honest voice (25 Oct): a little over the calorie target is said once that day, plainly, and how often it happened sets
+// how; the Coach sees planned sets that were skipped, not only skipped days; its style has one short NEVER list.
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+
+vi.mock('../src/lib/agentTurn', () => ({ brainFor: () => null }));
+vi.mock('../src/lib/brain', () => ({ thinkJson: async () => null }));
+
+import { useStore } from '../src/state/store';
+import { useUI } from '../src/state/ui';
+import { defaultData } from '../src/state/defaults';
+import { checkEating } from '../src/lib/eatingWatch';
+import { overToday, OVER_LINE } from '../src/lib/eating';
+import { skippedSets } from '../src/lib/stats';
+import { buildCoachContext, AGENT_SYSTEM } from '../src/lib/coachContext';
+import { COACH_STYLE } from '../src/lib/handbook';
+import { addDays } from '../src/lib/dates';
+import { loadDanish } from '../src/lib/i18n';
+import type { AppData, FoodEntry, WorkoutSession } from '../src/lib/types';
+
+const today = '2026-10-25';
+const NOON = new Date(2026, 9, 25, 13, 0).getTime();
+let n = 0;
+const entry = (date: string, kcal: number, id = `e${n++}`): FoodEntry => ({ id, date, mealId: 'lunch', at: NOON, snap: { name: 'food', basis: 'g', per100: { kcal } } as any, qty: { amount: 100, unit: 'g' } as any, base: 100, nutrients: { kcal, protein: 30 } });
+const data = () => useStore.getState() as unknown as AppData;
+const toasts = () => useUI.getState().toasts.map((x) => x.text);
+
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(NOON);
+  localStorage.clear();
+  const d = defaultData(); d.settings.onboarded = true; d.settings.dayStartHour = 0; d.settings.goals.kcal = 2500;
+  d.settings.profile.goal = 'fatloss';
+  d.marks = { heavySeen: '2026-10-01' };
+  useStore.getState().replaceAll(d);
+  useUI.setState({ toasts: [] });
+});
+afterEach(() => { vi.useRealTimers(); });
+
+describe('a little over the target', () => {
+  it('340 over: one plain line, once that day', () => {
+    useStore.setState({ entries: [entry(today, 2840)] });
+    checkEating(NOON);
+    expect(toasts()).toEqual(['340 kcal over today. Fine now and then.']);
+    useStore.setState((s) => ({ entries: [...s.entries, entry(today, 100)] }));
+    checkEating(NOON + 60e3);
+    expect(toasts()).toHaveLength(1);
+    expect(data().marks?.overSaid).toBe(today);
+  });
+  it('under 200 over says nothing; a heavy day is left to its own pop-up', () => {
+    useStore.setState({ entries: [entry(today, 2500 + OVER_LINE - 1)] });
+    checkEating(NOON);
+    expect(toasts()).toEqual([]);
+    expect(overToday(data(), today)).toBeNull();
+    useStore.setState({ entries: [entry(today, 3200)] }); // 700 over: heavy (600 and 25 %)
+    expect(overToday(data(), today)).toBeNull();
+  });
+  it('a pattern is named with how often, firmer from the third day', () => {
+    useStore.setState({ entries: [entry(addDays(today, -2), 2800), entry(today, 2800)] });
+    checkEating(NOON);
+    expect(toasts()).toEqual(['300 kcal over today, 2 of the last 7 days.']);
+    useUI.setState({ toasts: [] });
+    useStore.setState((s) => ({ entries: [...s.entries, entry(addDays(today, -4), 2900)], marks: { ...s.marks, overSaid: '' } }));
+    checkEating(NOON);
+    expect(toasts()).toEqual(['300 kcal over today, 3 of the last 7 days. That adds up.']);
+  });
+  it('Quiet and Off say nothing', () => {
+    useStore.getState().updateSettings({ heavyDays: 'quiet' });
+    useStore.setState({ entries: [entry(today, 2840)] });
+    checkEating(NOON);
+    expect(toasts()).toEqual([]);
+  });
+  it('in Danish', async () => {
+    useStore.getState().updateSettings({ language: 'da' });
+    await loadDanish();
+    useStore.setState({ entries: [entry(today, 2840)] });
+    checkEating(NOON);
+    expect(toasts()).toEqual(['340 kcal over i dag. Helt fint en gang imellem.']);
+  });
+});
+
+const set = (done: boolean, kg = 60, reps = 10) => ({ id: `s${n++}`, type: 'working' as const, weightKg: kg, reps, done });
+const session = (date: string, ex: WorkoutSession['exercises'], routineId?: string): WorkoutSession => ({ id: `w${n++}`, name: 'Push', routineId, date, startedAt: 0, endedAt: 1, pausedMs: 0, status: 'done', exercises: ex });
+
+describe('skipped planned sets', () => {
+  it('counts sets planned at the finish minus the ones done, and routine exercises left out', () => {
+    const d = data();
+    const routines = [{ ...(d.routines[0] ?? {}), id: 'r1', name: 'Push', updatedAt: 0, items: [
+      { id: 'i1', exerciseId: 'bench', warmupSets: 0, workingSets: 4, repMin: 8, repMax: 12, restSec: 120 },
+      { id: 'i2', exerciseId: 'fly', warmupSets: 0, workingSets: 3, repMin: 10, repMax: 15, restSec: 90 },
+    ] }] as any;
+    const sessions = [
+      session(addDays(today, -1), [{ id: 'x1', exerciseId: 'bench', sets: [set(true), set(true)], plannedSets: 4 }], 'r1'),
+      session(addDays(today, -3), [{ id: 'x2', exerciseId: 'bench', sets: [set(true), set(true), set(true), set(true)], plannedSets: 4 }, { id: 'x3', exerciseId: 'fly', sets: [set(true), set(true), set(true)], plannedSets: 3 }], 'r1'),
+      session(addDays(today, -9), [{ id: 'x4', exerciseId: 'bench', sets: [set(true)], plannedSets: 4 }]), // (older than a week)
+      session(addDays(today, -2), [{ id: 'x5', exerciseId: 'bench', sets: [set(true)] }]), // (saved before plannedSets: not judged)
+    ];
+    const r = skippedSets({ sessions, routines }, today);
+    expect(r.workouts).toBe(2);
+    // (the left-out exercise is named, not counted: it may have been swapped)
+    expect(r.skipped).toBe(2);
+    expect(r.planned).toBe(11);
+    expect(r.list).toEqual([{ date: addDays(today, -1), name: 'Push', exercises: [{ exerciseId: 'bench', skipped: 2, planned: 4 }, { exerciseId: 'fly', skipped: 3, planned: 3, absent: true }] }]);
+  });
+  it('a swap (an exercise from outside the routine) or a routine changed since: nothing is called left out', () => {
+    const routines = [{ id: 'r1', name: 'Push', updatedAt: 0, items: [{ id: 'i1', exerciseId: 'bench', warmupSets: 0, workingSets: 4, repMin: 8, repMax: 12, restSec: 120 }, { id: 'i2', exerciseId: 'fly', warmupSets: 0, workingSets: 3, repMin: 10, repMax: 15, restSec: 90 }] }] as any;
+    const swapped = [session(addDays(today, -1), [{ id: 'x1', exerciseId: 'bench', sets: [set(true), set(true), set(true), set(true)], plannedSets: 4 }, { id: 'x2', exerciseId: 'dips', sets: [set(true), set(true), set(true)], plannedSets: 3 }], 'r1')];
+    expect(skippedSets({ sessions: swapped, routines }, today).list).toEqual([]);
+    const later = [session(addDays(today, -1), [{ id: 'x1', exerciseId: 'bench', sets: [set(true), set(true), set(true), set(true)], plannedSets: 4 }], 'r1')];
+    expect(skippedSets({ sessions: later, routines: [{ ...routines[0], updatedAt: 5 }] }, today).list).toEqual([]);
+    expect(skippedSets({ sessions: later, routines }, today).list[0].exercises).toEqual([{ exerciseId: 'fly', skipped: 3, planned: 3, absent: true }]);
+  });
+  it('the Coach is told, with names and numbers; and when nothing was skipped, that too', () => {
+    const sessions = [session(addDays(today, -1), [{ id: 'x1', exerciseId: 'bench', sets: [set(true), set(true)], plannedSets: 4 }])];
+    useStore.setState({ sessions });
+    const c = buildCoachContext(data(), today, (id) => (id === 'bench' ? 'Bench press' : id));
+    expect(c).toContain(`Planned working sets skipped (last 7 days): 2 of 4 in 1 workouts — ${addDays(today, -1)} Push: Bench press 2 of 4 skipped.`);
+    useStore.setState({ sessions: [session(addDays(today, -1), [{ id: 'x1', exerciseId: 'bench', sets: [set(true), set(true)], plannedSets: 2 }])] });
+    expect(buildCoachContext(data(), today, (id) => id)).toContain('Planned working sets skipped (last 7 days): none, all 2 done in 1 workouts.');
+  });
+});
+
+describe('how the Coach talks', () => {
+  it('tone is its call, with one NEVER list, in every Coach message', () => {
+    expect(COACH_STYLE).toContain('The tone is your call and fits the moment');
+    expect(COACH_STYLE).toContain('firmer when the same miss keeps happening');
+    expect(COACH_STYLE).toMatch(/NEVER: comment on how their body looks.*shame, guilt or moralise about food; tell them to train lighter or do less.*claim anything their data can't show/);
+    expect(AGENT_SYSTEM('en')).toContain(COACH_STYLE);
+    // (no doctor lines came back: 25 Oct, v0.1.173)
+    expect(COACH_STYLE).not.toMatch(/doctor|GP|dietitian/i);
+  });
+});
+
+describe('the Coach sees days a little over', () => {
+  it('lists them with the amounts, heavy days left to their own line', async () => {
+    const { eatingLines } = await import('../src/lib/eating');
+    useStore.setState({ entries: [entry(addDays(today, -1), 2800), entry(addDays(today, -3), 3300), entry(addDays(today, -5), 2600)] });
+    const l = eatingLines(data(), today).join('\n');
+    // (2,600 is 100 over: under the line; 3,300 is heavy: its own line)
+    expect(l).toContain(`A little over the target (200+ kcal or 10 % over, not heavy), last 7 days: 1 day — Sat ${addDays(today, -1)} +300 kcal.`);
+  });
+});

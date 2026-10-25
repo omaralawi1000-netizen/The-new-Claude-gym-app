@@ -1863,4 +1863,7 @@ export const da: Record<string, string> = {
  "another workout": "en anden træning",
  "no workout running": "ingen træning i gang",
  "App log": "App-log",
+ "{n} kcal over today. Fine now and then.": "{n} kcal over i dag. Helt fint en gang imellem.",
+ "{n} kcal over today, {k} of the last 7 days.": "{n} kcal over i dag, {k} af de sidste 7 dage.",
+ "{n} kcal over today, {k} of the last 7 days. That adds up.": "{n} kcal over i dag, {k} af de sidste 7 dage. Det løber op.",
 };

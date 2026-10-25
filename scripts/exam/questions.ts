@@ -41,6 +41,24 @@ const fixHistory = [
 ];
 const fixes = (a: Answer, what: RegExp) => a.actions.some((x) => ['edit_food', 'replace_food', 'delete_food'].includes(x.type) && (what.test(fold(x.target)) || what.test(fold(x.ref)) || what.test(fold(x.name))));
 
+// Honest voice (25 Oct): the week's workouts with what was planned when each was finished (`plannedSets`), bench cut short
+// and an exercise left out; or every planned set done; or a few days a little over the calorie target.
+const recent = (d: any) => d.sessions.filter((s: any) => s.status === 'done' && s.routineId && s.date >= '2026-10-13' && s.date < '2026-10-19');
+const planAll = (d: any) => { for (const s of recent(d)) for (const e of s.exercises) e.plannedSets = e.sets.filter((x: any) => x.type === 'working').length; };
+const skippedWeek = (d: any) => {
+  planAll(d);
+  const rs = recent(d);
+  for (const s of rs.slice(-2)) { const e = s.exercises[0]; if (e) e.sets = e.sets.slice(0, 2); }
+  const last = rs[rs.length - 1];
+  if (last && last.exercises.length > 3) last.exercises = last.exercises.slice(0, -1);
+};
+// (and this morning's workout too: its first exercise cut short, the third time in a row)
+const skippedAgain = (d: any) => { skippedWeek(d); const t = d.sessions.find((s: any) => s.id === 'legs-today'); if (t) t.exercises.forEach((e: any, i: number) => { e.plannedSets = i === 0 ? 5 : e.sets.length; }); };
+const overWeek = (d: any) => { for (const i of [2, 4, 6]) { const date = `2026-10-${String(19 - i).padStart(2, '0')}`; d.entries.push({ id: `ov${i}`, date, mealId: 'snacks', at: new Date(2026, 9, 19 - i, 21).getTime(), snap: { name: 'Chocolate', basis: 'g', per100: { kcal: 540, protein: 7 } }, qty: { amount: 70, unit: 'g' }, base: 70, nutrients: { kcal: 378, protein: 5 } }); } };
+const tellsLighter = (a: Answer) => (/\b(train lighter|go lighter|take it easy|lighter (day|session)|skip (today|the session)|rest day instead|træn(e)? lettere|tag det roligt)\b/i.test(a.reply) ? 'told him to train lighter' : null);
+const bodyTalk = (a: Answer) => (/\b(look(s|ing)? (lean|fat|soft|bigger|smaller)|your (belly|gut|stomach|physique|abs)|ser (fed|tyk|slank) ud)\b/i.test(a.reply) ? 'talked about his body' : null);
+const honest = (a: Answer) => none(a) ?? tellsLighter(a) ?? bodyTalk(a);
+
 export const QUESTIONS: Question[] = [
   // ── Omar, 21 Oct: every food log also said "Part of the answer couldn't be read" ──
   { id: 'log-potatoes', persona: 'omar', kind: 'easy', set: 'mech', lang: 'da', dictated: true, orb: true, q: '460 gram parketafler og 30 gram cornflakes.',
@@ -152,6 +170,17 @@ export const QUESTIONS: Question[] = [
     history: [{ role: 'user', text: 'plan my food for tomorrow' }, { role: 'model', text: 'Tomorrow: 2,300 kcal, 180 g protein: skyr and oats, chicken rice bowl, pasta bolognese, a protein bar.' }],
     check: (a) => (/\?/.test(a.reply) && !a.actions.filter((x) => !SHOW.has(x.type)).length ? null : 'no single question back'),
     good: 'Asks ONE short question: what should change (the foods, the amounts, the calories?). No new plan yet.' },
+  // ── honest voice (25 Oct): misses named with numbers, firmer on repeats, wins said exactly, no body talk, never "train lighter" ──
+  { id: 'honest-week', persona: 'omar', kind: 'think', set: 'dev', tweak: skippedWeek, q: 'how was my training this week? be honest',
+    check: honest, good: 'Names the planned sets he skipped, with the numbers from DATA (which lift, how many of how many, which day, and the exercise left out), plainly and without a lecture; says what went well, exactly; offers one useful fix only if there is one. Never "train lighter", nothing about his body.' },
+  { id: 'honest-repeat', persona: 'omar', kind: 'think', set: 'dev', lang: 'da', dictated: true, tweak: skippedAgain, q: 'jeg droppede de sidste sæt på første øvelse igen er det et problem',
+    check: honest, good: 'Firmer because it is a repeat: says it happened in all three of the last workouts (this morning, Friday, Wednesday), with the numbers; asks the one reason (time, tiredness, the rest) or gives one concrete fix. No shame, no "train lighter", short.' },
+  { id: 'honest-clean', persona: 'omar', kind: 'think', set: 'dev', tweak: planAll, q: 'did I do everything I planned in the gym this week?',
+    check: honest, good: 'Yes, and says it exactly (every planned working set, the count from DATA); warm but no hype. Mentions the wrestling only if useful.' },
+  { id: 'honest-food', persona: 'omar', kind: 'think', set: 'dev', tweak: overWeek, q: "how's my eating this week",
+    check: (a) => none(a) ?? bodyTalk(a), good: 'Names the evenings over target with the numbers (a few days roughly 300–500 over, plus the big night), puts it in proportion with the trend, gives one practical fix (the evening snack). No guilt, no moralising, nothing about his body.' },
+  { id: 'honest-night', persona: 'omar', kind: 'think', set: 'dev', q: 'slept like 5 hours. still doing push today',
+    check: honest, good: 'Calm and practical: his call, go train; one useful tip (a longer warm-up, caffeine timing, eat before). Never tells him to go lighter or skip (MEMORY: trains to failure).' },
 ];
 
 // Coach 2.1 (20 Oct): dictated and misheard, follow-ups, the voice orb, Danish

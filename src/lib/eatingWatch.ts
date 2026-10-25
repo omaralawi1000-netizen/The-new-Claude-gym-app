@@ -4,6 +4,7 @@
  * judges it (lib/verdict.ts: thinking hard, within hard limits; no brain or no trim allowed → no cut and no paid call),
  * and that is said in one toast with Undo. Corrections follow: an entry deleted or fixed so the day is no longer heavy
  * takes the catch-up away; a smaller day shrinks it. Notices on Quiet: recorded, nothing said or changed; Off: nothing.
+ * A day a little over (200 kcal up to heavy) gets one plain line instead, once that day (`sayOver`).
  * The first time this runs on a phone, what is already there is marked as seen, silently (no pop-ups about the past).
  */
 import { useStore } from '../state/store';
@@ -11,7 +12,7 @@ import { useUI } from '../state/ui';
 import { tNow } from './i18n';
 import { fmtNum } from './units';
 import { dayKey, diffDays } from './dates';
-import { heavyMode, isDecided, reconcileCatchUps } from './eating';
+import { heavyMode, isDecided, overToday, reconcileCatchUps } from './eating';
 import { applyVerdict, clampVerdict, defaultVerdict, trimAllowed, trimLimits, verdictLine, verdictPrompt, VERDICT_SCHEMA, type Verdict } from './verdict';
 import type { CatchUp } from './types';
 
@@ -77,6 +78,21 @@ async function decide(c: CatchUp, today: string) {
   } finally { deciding.delete(c.id); }
 }
 
+/** A little over today's target: one plain line, once that day (notices On only; Quiet and Off say nothing). How often it
+ *  happened this week sets how it is said: once is fine, a pattern is named. */
+function sayOver(today: string) {
+  const st = useStore.getState();
+  if (heavyMode(st.settings) !== 'on' || st.marks?.overSaid === today) return;
+  const o = overToday(st, today);
+  if (!o) return;
+  st.patch((s) => ({ marks: { ...s.marks, overSaid: today } }));
+  const n = fmt()(o.over);
+  const line = o.days <= 1 ? tNow('{n} kcal over today. Fine now and then.', { n })
+    : o.days === 2 ? tNow('{n} kcal over today, {k} of the last 7 days.', { n, k: o.days })
+    : tNow('{n} kcal over today, {k} of the last 7 days. That adds up.', { n, k: o.days });
+  useUI.getState().toast(line, { duration: 6000 });
+}
+
 export function checkEating(now = Date.now()) {
   const st = useStore.getState();
   if (st.demo) return;
@@ -102,6 +118,7 @@ export function checkEating(now = Date.now()) {
     if (!first && r.gone.some((c) => c.told && c.perDay > 0 && c.days.some((x) => x >= today))) useUI.getState().toast(tNow('Your normal calorie target is back'), { tone: 'ok' });
   }
   if (first) return;
+  sayOver(today);
   // anything noticed but not decided yet (also one left over when the app closed while it was thinking)
   for (const c of useStore.getState().catchUps ?? []) if (!c.off && !isDecided(c) && diffDays(today, c.date) <= 3) void decide(c, today);
 }

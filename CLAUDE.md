@@ -6,6 +6,7 @@ as an installed app and judges everything on the phone. He is not a programmer: 
 ## Where things are
 - To-do list: `docs/polish-plan.md`. When Omar says "do section N", do it and tick it off there.
 - Coach 2.0 (15 Oct): `docs/coach-plan.md`, one phase per session; the polish plan is paused meanwhile.
+- Living coach (25 Oct): `docs/living-coach-plan.md`: the plan, Omar's decisions, a progress table and the next step. One step per "go"; update its progress table after each step.
 - `README.md` is the history of every design decision. Read the relevant section before changing something.
 
 ## Rules that must hold
