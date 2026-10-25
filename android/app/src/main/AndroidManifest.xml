@@ -115,6 +115,18 @@
             </intent-filter>
         </activity-alias>
 
+        <!-- the rest timer's log (Aven's Settings › Training › App log): where a Done ✓ stopped, on a real phone -->
+        <activity
+            android:name=".RestLogActivity"
+            android:exported="true"
+            android:label="Aven rest log">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="aven" android:host="restlog" />
+            </intent-filter>
+        </activity>
         <!-- Connect watch / Sync now / Disconnect from Aven's Settings (aven://health/…): see-through, gone in a moment -->
         <activity
             android:name=".HealthActivity"
