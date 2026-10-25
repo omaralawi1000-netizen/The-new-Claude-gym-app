@@ -50,19 +50,20 @@ html:root:is([data-look='a'], [data-look='b'], [data-look='c']):not([data-theme=
 }
 
 /* ---------- sheets ---------- */
-/* A and B: tinted glass in the colour behind them (the accent's hue until the field has been measured) */
-html:root:is([data-look='a'], [data-look='b']):not([data-theme='light']) .sheet:not(#_):not(#_):not(#_):not(#_)::before {
+/* B: tinted glass in the colour behind it (the accent's hue until the field has been measured) */
+html:root[data-look='b']:not([data-theme='light']) .sheet:not(#_):not(#_):not(#_):not(#_)::before {
   -webkit-backdrop-filter: blur(44px) saturate(1.4) !important; backdrop-filter: blur(44px) saturate(1.4) !important;
 }
-html:root:is([data-look='a'], [data-look='b']):not([data-theme='light']) .sheet:not(#_):not(#_):not(#_):not(#_)::after {
+html:root[data-look='b']:not([data-theme='light']) .sheet:not(#_):not(#_):not(#_):not(#_)::after {
   background: var(--dither), oklch(from var(--ac) var(--bh-sl, 0.205) var(--bh-sc, 0.034) var(--bh-h, h) / 0.58) !important;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), inset 0 0 0 1px rgba(255, 255, 255, 0.06) !important;
 }
-/* C: no colour of its own: the frost deepens and enriches what is behind */
-html:root[data-look='c']:not([data-theme='light']) .sheet:not(#_):not(#_):not(#_):not(#_)::before {
+/* C, and A's sheets too (Omar 25 Oct: "I liked C because it didn't have a tint"): no colour of its own, the frost
+   deepens and enriches what is behind */
+html:root:is([data-look='a'], [data-look='c']):not([data-theme='light']) .sheet:not(#_):not(#_):not(#_):not(#_)::before {
   -webkit-backdrop-filter: blur(44px) saturate(2) brightness(0.84) !important; backdrop-filter: blur(44px) saturate(2) brightness(0.84) !important;
 }
-html:root[data-look='c']:not([data-theme='light']) .sheet:not(#_):not(#_):not(#_):not(#_)::after {
+html:root:is([data-look='a'], [data-look='c']):not([data-theme='light']) .sheet:not(#_):not(#_):not(#_):not(#_)::after {
   background: var(--dither), rgba(6, 6, 9, 0.34) !important;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10), inset 0 0 0 1px rgba(255, 255, 255, 0.06) !important;
 }
