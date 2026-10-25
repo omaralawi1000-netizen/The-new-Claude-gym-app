@@ -234,6 +234,7 @@ function tame(o: CanvasRenderingContext2D, w: number, h: number) {
   if (g <= 0) { for (let i = 0; i < d.length; i++) if ((i & 3) !== 3) d[i] = q(d[i]); o.putImageData(im, 0, 0); return; }
   const mix = (x: number, y: number) => x + (y - x) * g;
   const hue = Math.atan2(hB, hA); // the page's own colour (its most colourful parts win)
+  const rosy = root().dataset.palette === 'sunset';
   const cx = gx / gw, cy = gy / gw, R = Math.hypot(w, h) * 0.32; // the brightest glow, and how far its light reaches
   const out = new Float32Array(n * 3);
   for (let i = 0; i < n; i++) {
@@ -275,9 +276,12 @@ function tame(o: CanvasRenderingContext2D, w: number, h: number) {
         // the floor: the card's fill over it takes some colour away, and mauve and pink lose the most (Sunset, judge r4)
         const hd = (H * 180) / Math.PI, fC = 0.05 + 0.012 * step(hd, -55, -45) * step(-hd, 0, 10);
         if (C < fC) { let dt = hue - H; dt -= Math.round(dt / (2 * Math.PI)) * 2 * Math.PI; H += dt * (1 - C / fC); C = Math.min(fC, cMax); }
-        // dark red-orange glass reads brown (Sunset's Train cards, 25 Oct): it leans on to rose, with a little more colour
-        const hr = (H * 180) / Math.PI, rose = step(hr, 8, 18) * step(-hr, -70, -55) * step(-L, -0.45, -0.38);
-        if (rose > 0) { H += ((-5 - hr) * Math.PI / 180) * 0.6 * rose; C = Math.min(Math.max(C, C + (0.065 - C) * rose), Math.max(C, cMax)); }
+        // on Sunset, dark red, orange and olive glass read brown or wine (its Train cards, 25 Oct): they lean on to berry-rose,
+        // a little lighter and more colourful (only Sunset: Golden hour's dark orange is its own colour)
+        if (rosy) {
+          const hr = (H * 180) / Math.PI, rose = step(hr, -15, -5) * step(-hr, -85, -75) * step(-L, -0.45, -0.38);
+          if (rose > 0) { H += ((-20 - hr) * Math.PI / 180) * 0.8 * rose; C = Math.min(Math.max(C, C + (0.06 - C) * rose), Math.max(C, cMax)); L += 0.02 * rose; }
+        }
       }
     }
     out[i * 3] = L; out[i * 3 + 1] = C; out[i * 3 + 2] = H;
