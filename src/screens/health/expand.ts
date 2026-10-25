@@ -110,7 +110,7 @@ export class Expander {
       const tn = this.tint(src, a, c);
       st.fl.push({ c, a, b, tint: tn });
       const from = `translate(${ra.x - rb.x}px,${ra.y - rb.y}px) scale(${s})`;
-      const full = b.dataset.share === 'chart';
+      const full = true; // a flying number sits in a tight box (line-height 1): all of it is ink, like a chart
       paths.push([{ x: ra.x, y: ra.y, w: rb.w * s, h: rb.h * s, full }, { ...rb, full }]);
       st.anims.push(this.anim(c, [{ transform: from }, { transform: 'none' }], { duration: D, easing: E }));
       if (tn) { this.anim(tn, [{ transform: from }, { transform: 'none' }], { duration: D, easing: E }); this.anim(tn, [{ opacity: 1 }, { opacity: 1, offset: 0.1 }, { opacity: 0, offset: 0.6 }, { opacity: 0 }], { duration: D, easing: 'linear' }); }
@@ -134,7 +134,7 @@ export class Expander {
     // never before every flying copy has left it (from any side); a word only waiting for the window's edge may start its
     // fade a little early, as the edge is still passing (an edge cutting a faint word reads as a reveal, a copy over it doesn't)
     const clear = (x: HTMLElement) => { const r = this.box(x); return Math.max(D * 0.1, D * clearAfter(r, paths, at), Math.min(D * 0.4, D * clearAfter(r, paths, at, win) - 110)); };
-    const when = (x: HTMLElement) => (prev = Math.max(prev, clear(x)));
+    const when = (x: HTMLElement) => { const d = Math.max(clear(x), prev - 30); prev = Math.max(prev, d); return d; }; // a line may lead the one above by a hair (two frames)
     $$('.hx-dhead,.hx-chips,.hx-lab,.hx-sub,.hx-rise', dsc).filter((x) => !x.closest('[data-share]')).forEach((x) => {
       // a line sitting right against a landing number or chart (its unit line, a chart's date ends) lands with it, outside the chain
       const r = this.box(x), attached = paths.some(([, b]) => r.y < b.y + b.h + 12 && b.y < r.y + r.h + 12);
@@ -201,7 +201,7 @@ export class Expander {
     const at = curve(E), paths: [Box, Box][] = fl.map(({ c, a }) => {
       const rb = { x: parseFloat(c.style.left), y: parseFloat(c.style.top), w: parseFloat(c.style.width), h: parseFloat(c.style.height) };
       const m = new DOMMatrix(c.style.transform && c.style.transform !== 'none' ? c.style.transform : undefined), ra = this.box(a), s = this.scale(a, ra, rb);
-      const full = a.dataset.share === 'chart';
+      const full = true;
       return [{ x: rb.x + m.e, y: rb.y + m.f, w: rb.w * m.a, h: rb.h * m.d, full }, { x: ra.x, y: ra.y, w: rb.w * s, h: rb.h * s, full }];
     });
     const dimO = st.dim.map((x) => getComputedStyle(x).opacity);
