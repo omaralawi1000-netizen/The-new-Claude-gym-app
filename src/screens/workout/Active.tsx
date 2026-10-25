@@ -151,6 +151,17 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   const from = useRef<{ l: number; t: number; w: number; b: number; h: number } | null>(null);
   const dims = useRef({ W: 0, hA: 0, RB: 0 }); // the window's width, its box's height (screen + lead), how far the bottom box reaches below the screen
   const leaving = useRef(false);
+  // the frame of the move at which its spring is at pp (set as each move sets off, `setFrames`), for what is timed in frames
+  const tOf = useRef<((pp: number) => number) | null>(null);
+  const sm = (u: number) => { const v = Math.min(1, Math.max(0, u)); return v * v * (3 - 2 * v); };
+  // what a move turned round half way carries over from the one before (each part's value then, less the new move's own
+  // there), eased away over the new move's first CARRY_N frames (`cv`); null: nothing carried
+  const carry = useRef<Record<string, number> | null>(null);
+  const CARRY_N = 24;
+  const cv = (k: string, v: number, pp: number) => {
+    const o = carry.current?.[k], t = tOf.current;
+    return o && t ? v + o * (1 - sm(t(pp) / CARRY_N)) : v;
+  };
   // Opening, the window sets off the moment the card is tapped, as the card itself (a copy of it, words and all, takes its
   // place in that frame), at no speed and easing in; closing, it is the card again by the time it gets there and lands in
   // the card's (or bar's) exact outline at 10 % of the spring, eased in to no speed, where the card takes over in the same
@@ -180,7 +191,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     return 1 - G(Math.max(0, 1 - pp - LAND_AT)) / G(1 - LAND_AT);
   };
   // how far the window has grown (0 = the card, 1 = the screen), eased in from the hold
-  const qAt = (pp: number) => {
+  const qRaw = (pp: number) => {
     const g = from.current;
     // the spring's last stretch is under half a pixel for every edge: it lands there, instead of creeping the last pixels
     // one screen pixel at a time
@@ -188,6 +199,10 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     if (g && Math.abs(1 - pp) * (g.t + LEAD + dims.current.hA) < 0.5) pp = 1;
     return qOf(pp);
   };
+  // (round 7: a move turned round half way (a tap on the window as it opens, or on the card as it closes) sets off from
+  // exactly where everything is: each part's value at that moment is carried into the new move and eases into the new
+  // move's own course over its first frames, `carry`, so nothing jumps; the window keeps its speed too)
+  const qAt = (pp: number) => cv('q', qRaw(pp), pp);
   // B, past the card: the card's outline, a touch smaller about its middle and lower (it gives as it catches the window)
   const gAt = (pp: number) => {
     const g = from.current;
@@ -198,7 +213,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   const dragOff = useRef(0);
   const geo = (pp: number) => {
     const g = gAt(pp), { W, hA, RB } = dims.current;
-    if (!g || !W) return { x: 0, y: sheetTop(pp) - LEAD, s: 1, by: 0 };
+    if (!g || !W) return { x: 0, y: sheetTop(pp) - LEAD, s: 1, by: 0, bot: Infinity };
     const q = qAt(pp);
     // the width is whole a moment before the window lands (at 98.5 %): it then settles at exactly its own size, sharp, and
     // the spring's tail is only a vertical glide off the top of the screen
@@ -208,7 +223,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     const off = dragOff.current * Math.min(1, Math.max(0, q)); // (on q, as the edges are: on pp it let go a frame early, 7 px up)
     const y = g.t + (-LEAD - g.t) * q + off, s = (g.w + (W - g.w) * k) / W, x = g.l * (1 - k);
     const bot = g.b + (hA - LEAD + RB - g.b) * q + off; // the bottom edge on the screen
-    return { x, y, s, by: Math.min(0, (bot - y) / s - (hA + RB)) };
+    return { x, y, s, by: Math.min(0, (bot - y) / s - (hA + RB)), bot };
   };
   const aAt = (pp: number) => { const g = geo(pp); return g.s === 1 ? `translate3d(0, ${snapPx(g.y + LEAD)}px, 0)` : `translate(${g.x.toFixed(2)}px, ${(g.y + LEAD).toFixed(2)}px) scale(${g.s.toFixed(5)})`; };
   const bAt = (pp: number) => `translateY(${geo(pp).by.toFixed(2)}px)`;
@@ -248,13 +263,41 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   // and each part changes when the window has the same share of its size left to lose as it does over the card.
   const fk = useRef(1);
   const ramp = (pp: number, [a, b]: number[]) => clamp01((pp * fk.current - a) / (b - a));
-  const solid = (pp: number) => (from.current ? ramp(pp, F().solid) : 1);
-  const inside = (pp: number) => (from.current ? ramp(pp, F().inside) : 1);
-  const insideV = (pp: number) => (from.current ? ramp(pp, F().views ?? F().inside) : 1);
+  // D, timed in frames of the move (round 6/7): `tOf` is set
+  const timed = () => ls.current === 'D' && !!from.current && !!tOf.current;
+  // the progress at which the window has grown to q, and the frame of the move at which that is
+  const ppForQ = (q: number) => { let lo = 0, hi = 1; for (let k = 0; k < 32; k++) { const m = (lo + hi) / 2; if (qRaw(m) < q) lo = m; else hi = m; } return hi; };
+  const tQ = (q: number) => tOf.current!(ppForQ(q));
+  // closing: the frame the name and the clock set off from the header (FLY_Q), by which the list is gone; and the frame
+  // they are on the window's copy of the card (FLY_AT)
+  const tDep = () => tQ(FLY_Q / fk.current);
+  const tLand = () => tQ(FLY_AT / fk.current);
+  // opening: the frame the card's play button is under 30 % of its size (it shrinks over PART_N.pop frames from the tap):
+  // the header's buttons come in only from then, never under it (r6 pill-resume f11-15: it rode over Finish)
+  // (round 7: the button is let go at a tenth of its size, `popO`, two frames before they start, so it never lies on Finish,
+  // t7b pill-resume f16-18: a speck of it rode Finish's corner as that came in)
+  const POP30 = 14;
+  const solid = (pp: number) => (from.current ? clamp01(cv('solid', ramp(pp, F().solid), pp)) : 1);
+  // The header (its buttons; the name and the clock fly). Round 7, D: in frames. Opening, in over ten frames or more once
+  // the play button is small; closing, out over ten frames, gone a few frames after the name and the clock set off.
+  const insideRaw = (pp: number) => {
+    const r = F().inside;
+    if (!timed()) return ramp(pp, r);
+    const t = tOf.current!, i = t(pp), a0 = t(r[0] / fk.current), b0 = t(r[1] / fk.current);
+    if (!leaving.current) return sm((i - Math.max(a0, POP30)) / Math.max(10, b0 - a0));
+    const e = Math.min(a0, tDep() + 5);
+    return 1 - sm((i - (e - 10)) / 10);
+  };
+  const inside = (pp: number) => (from.current ? clamp01(cv('inside', insideRaw(pp), pp)) : 1);
+  // the list: D (round 7) never fades it (r6: the card's words melted into it, text over text). It is uncovered instead, by
+  // an edge of its own (`wipe`) that runs down from under the header once the card's words are gone, and back up before
+  // the name and the clock set off on the way down; the window's own bottom edge clips it as well.
+  const insideV = (pp: number) => (from.current ? (timed() ? 1 : ramp(pp, F().views ?? F().inside)) : 1);
   // (never quite 0 while it is there: the browser leaves what lies inside a fully clear layer to the page to animate, frame
   // by frame, instead of running it itself)
+  const skinV = (pp: number) => { const v = F().veil; return clamp01(cv('skin', 1 - (v ? clamp01((pp - v[0]) / (v[1] - v[0])) : ramp(pp, F().skin)), pp)); };
   const skinO = (pp: number) => {
-    const v = F().veil, o = 1 - (v ? clamp01((pp - v[0]) / (v[1] - v[0])) : ramp(pp, F().skin));
+    const o = skinV(pp);
     // (D closing: once down, the copy clears off the card, which is back under it: cardAt)
     return Math.max(0.002, o * skinOff(pp));
   };
@@ -262,7 +305,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   const handed = (pp: number) => ls.current === 'D' && leaving.current && !!from.current && pp <= LAND_AT_D + 1e-6;
   const skinOff = (pp: number) => (handed(pp) ? 0 : 1);
   const skinTopO = (pp: number) => Math.max(0.002, skinOff(pp));
-  const metaO = (pp: number) => { const v = F().meta; return from.current && v ? clamp01((pp - v[0]) / (v[1] - v[0])) : 1; };
+  const metaO = (pp: number) => { const v = F().meta; return from.current && v ? clamp01(cv('meta', clamp01((pp - v[0]) / (v[1] - v[0])), pp)) : 1; };
   // Round 6 (D): the card's own parts go and come over the same number of frames each way, counted in frames of the move
   // (`tOf`: the frame at which the window's spring is at pp, set as each move sets off), and old and new overlap, so the
   // window never shows neither (r5: an empty grey card for 20 frames). Opening, the play button and the dot go from the
@@ -271,29 +314,49 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   // comes in, opening; under the list as it went, its cards' ground dimmed the dot to brown, r6 test f31-33);
   // the resume bar's words beside its clock are whole as the bar lands (`tLand`), never after. (0 whole, 1 gone; null:
   // not timed, the old ramps)
-  const tOf = useRef<((pp: number) => number) | null>(null);
+  // (round 7: no two words ever lie over each other. Opening, all of the card's parts go from the tap, and the list is
+  // uncovered only once its words are gone; closing, they come back only once the list has gone (`tDep`), and the resume
+  // bar's words beside its clock only once the clock has landed beside them (`tLand`), so they are on its line from their
+  // first frame, r6 pill-min f54-58)
   const PART_N = { pop: 16, dot: 12, status: 18, words: 12 } as const;
-  const sm = (u: number) => { const v = clamp01(u); return v * v * (3 - 2 * v); };
-  const tWords = () => tOf.current!(F().views![0] / fk.current);
-  const tList = () => tOf.current!(F().views![0] / fk.current);
-  const tLand = () => tOf.current!(FLY_AT / fk.current);
   const partV = (pp: number, kind: keyof typeof PART_N): number | null => {
     const t = tOf.current;
     if (!t || ls.current !== 'D' || !from.current) return null;
     const n = PART_N[kind], i = t(pp);
-    if (!leaving.current) return kind === 'words' ? sm((i - tList()) / n) : sm(i / n);
-    if (kind === 'words') return 1 - sm((i - (tWords() - n)) / n);
-    if (kind === 'status') return 1 - sm((i - (tLand() - n)) / n);
-    return 1 - sm((i - tWords()) / n);
+    const v = !leaving.current ? sm(i / n) : kind === 'status' ? 1 - sm((i - tLand()) / n) : 1 - sm((i - tDep()) / n);
+    return clamp01(cv(`part-${kind}`, v, pp));
   };
+  // the list's own bottom edge: how far down the list is uncovered (0 none, 1 all of it, the window's edge clipping it)
+  const NW = 24;
+  const wipeR = (pp: number) => {
+    const t = tOf.current;
+    if (!t || ls.current !== 'D' || !from.current) return 1;
+    // (opening it sets off at speed the moment the card's words are gone and slows as it reaches the window's edge, so the
+    // window is never an empty slab between them; closing, the same in reverse, gathering speed, gone as they set off)
+    const i = t(pp), v = leaving.current ? 1 - Math.pow(clamp01(i / Math.max(8, tDep())), 3) : 1 - Math.pow(1 - clamp01((i - PART_N.words) / NW), 3);
+    return clamp01(cv('wipe', v, pp));
+  };
+  const vTop = useRef(0), vH = useRef(0); // the list's top in the window (at rest) and its height
+  // (as transforms only: the list's box is moved up by `e` and its contents down by as much, so its bottom edge rises)
+  const wipeE = (pp: number) => {
+    const r = wipeR(pp); if (r >= 1) return 0;
+    const g = geo(pp); if (!Number.isFinite(g.bot)) return 0;
+    const E = r * ((g.bot - g.y) / g.s - (vTop.current + viewsOff(pp, pp)));
+    return Math.max(0, vH.current - Math.max(0, E));
+  };
+  const vclipAt = (pp: number) => { const e = wipeE(pp); return e > 0.01 ? `translateY(${(-e).toFixed(2)}px)` : 'none'; };
+  const vshiftAt = (pp: number) => { const e = wipeE(pp); return e > 0.01 ? `translateY(${e.toFixed(2)}px)` : 'none'; };
   const wordsO = (pp: number) => { const v = partV(pp, 'words'); return Math.max(0.002, v === null ? 1 - ramp(pp, F().words) : 1 - v); };
-  const popO = (pp: number) => { const v = partV(pp, 'pop'); return v === null ? Math.max(0.002, 1 - ramp(pp, F().pop ?? F().words)) : v >= 1 ? 0.002 : 1; };
+  const popO = (pp: number) => { const v = partV(pp, 'pop'); return v === null ? Math.max(0.002, 1 - ramp(pp, F().pop ?? F().words)) : v >= (leaving.current ? 1 : 0.9) ? 0.002 : 1; };
   // D closing: the card's words ride the middle of the window while it is still taller than the card (r1: they sat at its
   // top over an empty lower third as it landed); what flies to them (launchHero) aims there too
-  const wordsDy = (pp: number) => {
+  const wordsDyV = (pp: number) => {
     const g = from.current, { W, hA, RB } = dims.current;
-    if (!g || !W || ls.current !== 'D' || !leaving.current) return 0;
-    const v = (hA + RB + geo(pp).by - (g.b - g.t) / (g.w / W)) / 2;
+    if (!g || !W || ls.current !== 'D') return 0;
+    return cv('wdy', leaving.current ? (hA + RB + geo(pp).by - (g.b - g.t) / (g.w / W)) / 2 : 0, pp);
+  };
+  const wordsDy = (pp: number) => {
+    const v = wordsDyV(pp);
     return v > 0.05 ? v : 0;
   };
   const wordsAt = (pp: number) => { const dy = wordsDy(pp), k = skinParts.current?.k ?? 1; return `${dy ? `translateY(${dy.toFixed(2)}px) ` : ''}scale(${k.toFixed(5)})`; };
@@ -307,11 +370,11 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   const dotO = (pp: number) => (dotS(pp) > 0.25 ? 1 : 0.002);
   const statusO = (pp: number) => { const v = partV(pp, 'status'); return Math.max(0.002, v !== null ? 1 - v : leaving.current ? 1 - clamp01((pp - LAND_AT_D / 2) / (LAND_AT_D / 2)) : 1 - clamp01(pp / 0.07)); };
   const matR = () => F().mat ?? F().skin;
-  const matO = (pp: number) => (F().mat ? Math.max(0.002, 1 - ramp(pp, F().mat!)) : 1);
-  const toneO = (pp: number) => (F().mat ? Math.max(0.002, ramp(pp, F().mat!)) : 0.002);
+  const matO = (pp: number) => (F().mat ? Math.max(0.002, Math.min(1, cv('mat', 1 - ramp(pp, F().mat!), pp))) : 1);
+  const toneO = (pp: number) => (F().mat ? Math.max(0.002, Math.min(1, cv('tone', ramp(pp, F().mat!), pp))) : 0.002);
   // (the resume bar's own glass is frosted and see-through without its blur: the window's ground is under its copy from the
   // tap, so nothing behind the bar shows through it, r1 pill-resume)
-  const backO = (pp: number) => (!exact.current && !leaving.current && from.current ? 1 : ramp(pp, F().back));
+  const backO = (pp: number) => clamp01(cv('back', !exact.current && !leaving.current && from.current ? 1 : ramp(pp, F().back), pp));
   // The page behind steps back while the window grows: it dims and sinks a touch (the sheets' own step back, v0.1.76:
   // contentTransform, to 95 %), the two in step. It starts as the window sets off (eased in, so it is still at rest on the
   // frame the window lands in the card on the way down: the card, and the tab bar on it, stop exactly there); at the top it
@@ -340,7 +403,21 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   // (on absolute progress, not the card-stretched kind: it rides only while the window is near full size. Riding the edge of a
   // small window it ran over the header and the rows (round 2 judge), so it sinks out first on the way down and comes up
   // last on the way up)
-  const barBy = (pp: number) => { const v = F().bar; return from.current && ls.current === 'D' && v ? geo(pp).by + barTuck.current * (1 - clamp01((pp - v[0]) / (v[1] - v[0]))) : 0; };
+  // (round 7: on a path of its own on the screen, not on the window's moving bottom edge, which carried it 25-41 px past
+  // its place and let it sink back for half a second, r6 open f39-89: from below the screen's edge straight up to its
+  // place, slowing to a stop as the window does (on its growth); closing, straight down from the first frame, no lift.
+  // The window's bottom edge still covers it while it is below that edge.)
+  const barTop = useRef(0); // its top in the window at rest
+  const barRise = (pp: number) => { const q = qAt(pp); return clamp01(leaving.current ? (q - 0.55) / 0.45 : (q - 0.3) / 0.7); };
+  const barE = (pp: number) => clamp01(cv('bar', barRise(pp), pp));
+  const barBy = (pp: number) => {
+    if (!from.current || ls.current !== 'D' || !F().bar) return 0;
+    const g = geo(pp), e = barE(pp);
+    // (let go after a swipe it starts where the finger left it, as the window does: geo's dragOff)
+    const Y = -LEAD + barTop.current + dragOff.current * Math.min(1, Math.max(0, qAt(pp))) + barTuck.current * (1 - e);
+    const v = (Y - g.y) / g.s - barTop.current;
+    return Math.abs(v) < 0.01 ? 0 : v;
+  };
   const barRef = useRef<HTMLDivElement>(null);
   const lastBar = useRef({ by: 0 });
   const barT = (by: number) => (by ? `translateY(${by.toFixed(2)}px)` : 'none');
@@ -438,6 +515,8 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   const headRef = useRef<HTMLDivElement>(null);
   const viewsRef = useRef<HTMLDivElement>(null);
   const viewsFade = useRef<HTMLDivElement>(null);
+  const vclipRef = useRef<HTMLDivElement>(null);
+  const vshiftRef = useRef<HTMLDivElement>(null);
   const ticksRef = useRef<HTMLDivElement>(null);
   const topRef = useRef<HTMLElement>(null);
   // (let go after a swipe the window is still below the screen's top, dragOff: the page behind is in view, so it is not
@@ -488,15 +567,41 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     const key = `${home}|${down}|${bgOn}`; if (key === cardKey.current) return; cardKey.current = key;
     // (and the words that flew are at rest on the card's own: they hand over in the same frame, not a second later at the
     // spring's end, when their own layer going re-drew their edges, r5 minimise f134→135)
-    if (down && !home && hero.current.length) dropHero();
-    // (the copy goes in the same frame as the card comes back under it, all of it: it is see-through, so clearing it over
-    // the next frames showed both at once, one over the other: the card lit up and dimmed again, its glows and edges
-    // doubled, r6 tests f95-112. Each part of the copy lies exactly over the card's own there, so it is a swap of like
-    // for like, written here and not left to the browser-run fades, so both happen in the very same frame.)
-    if (down && !home && handed(pp)) for (const el of [skinRef.current, skinTopRef.current]) { if (!el) continue; mirror.current?.of(el)?.cancel(); el.style.opacity = '0.002'; }
+    // (D, round 7: the copy hands over to the card itself as it touches down, `handOver`)
+    if (down && !home && handed(pp)) handOver();
+    else if (down && !home && hero.current.length) dropHero();
     if (fg) fg.style.opacity = down ? '' : '0';
     if (exact.current) bg.classList.toggle('wk-hollow', !down); else bg.style.opacity = bgOn ? '' : '0';
     for (const s of [skinRef.current, skinTopRef.current]) if (s) s.style.visibility = home ? 'hidden' : '';
+  };
+  // The hand-over (round 7). The copy and the card lie on each other to within a device pixel, but a copy on a moving
+  // layer is drawn a hair apart from the card's own (the browser samples a moving layer between pixels), so swapping the
+  // one for the other in one frame stepped every edge by a pixel (0.5 % of the screen, r6 f94→95). Now, as it touches down:
+  // the card's surface is back under the copy's, and the copy's own fill goes in the same frame (the same plain tint, so
+  // that is no change at all); the card's words, name and clock are back under the copy's, which go over the next ten
+  // frames (their edges merge; none of it is see-through, so nothing doubles); the play button and the live dot swap in
+  // the same frame, as before (their glows are see-through and would double).
+  const HAND_MS = (10 * 1000) / 120;
+  const handOver = () => {
+    const k = skinParts.current, sk = skinRef.current, top = skinTopRef.current;
+    if (top) { mirror.current?.of(top)?.cancel(); top.style.opacity = '0.002'; }
+    if (sk) {
+      mirror.current?.of(sk)?.cancel(); sk.style.opacity = String(skinO(LAND_AT_D + 0.002));
+      // (and the ground under the copy goes with it: left on, its last few % of dark lay over the card's own play button,
+      // which dimmed by a tenth for a frame and came back, t7b f95)
+      if (k) { k.mat.style.background = 'transparent'; mirror.current?.of(k.back)?.cancel(); k.back.style.opacity = '0'; }
+      sk.animate([{ opacity: sk.style.opacity }, { opacity: 0.002 }], { duration: HAND_MS, easing: 'linear', fill: 'forwards' });
+      // the rim, a see-through line, would double where the two lie a device pixel apart: the card's own comes up as the copy's goes
+      const bg = src.current[0], rim = bg?.matches('.plinth') ? bg : bg?.querySelector<HTMLElement>('.plinth');
+      rim?.animate([{ opacity: 0 }, { opacity: 1 }], { duration: HAND_MS, easing: 'linear', pseudoElement: '::after' });
+    }
+    const host = heroHost.current, hs = hero.current;
+    if (host && hs.length) {
+      for (const x of hs) { x.watch.disconnect(); for (const el of x.hide) el.style.visibility = ''; }
+      const a = host.animate([{ opacity: 1 }, { opacity: 0 }], { duration: HAND_MS, easing: 'linear', fill: 'forwards' });
+      const done = () => { if (hero.current === hs) dropHero(); a.cancel(); };
+      a.finished.then(done, done);
+    }
   };
   const releaseCard = () => { for (const el of src.current) { el.style.opacity = ''; el.classList.remove('wk-hollow'); } src.current = []; cardKey.current = ''; wasHome.current = false; };
   const caught = useRef(false); // B: the spring has come to rest on the card
@@ -505,7 +610,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   // hidden until it lands there; then that one shows again in the same frame and the copy goes. (D: the workout's name
   // flies the same way, beside it: whatever the card and the window both show travels as one thing, data-wk-fly.)
   const heroHost = useRef<HTMLDivElement>(null);
-  const hero = useRef<{ h: Hero; watch: MutationObserver; hide: HTMLElement[] }[]>([]);
+  const hero = useRef<{ h: Hero; watch: MutationObserver; hide: HTMLElement[]; kind: string; wAt: (pp: number) => number }[]>([]);
   const heroOk = useRef<(() => boolean) | null>(null);
   const dropHero = () => {
     const hs = hero.current; hero.current = []; heroOk.current = null;
@@ -569,7 +674,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   };
   const dropSkin = () => {
     skinParts.current?.watch?.disconnect(); skinParts.current = null;
-    for (const s of [skinRef.current, skinTopRef.current]) { if (!s) continue; s.replaceChildren(); s.style.display = ''; s.style.opacity = ''; s.style.visibility = ''; }
+    for (const s of [skinRef.current, skinTopRef.current]) { if (!s) continue; for (const x of s.getAnimations()) x.cancel(); s.replaceChildren(); s.style.display = ''; s.style.opacity = ''; s.style.visibility = ''; }
   };
   // the page behind (its screen and dock, as a sheet steps it back: App.tsx useStageDepth), written only while it is moved
   const stageEl = () => document.querySelector<HTMLElement>('.stage-content');
@@ -649,6 +754,10 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   const slotRest = useRef<{ left: number; top: number; width: number; height: number } | undefined>(undefined);
   // a copy of an element as it is drawn here (its colours read off it: the window has its own hue, and the page its own
   // surface colours), without the frost (nothing on a moving layer is blurred) and without its own place in the page
+  // (an element's own size as laid out, to the fraction of a px: offsetWidth rounds it, and a copy a fraction narrower put
+  // what is centred or at its right end a device pixel off the card's own, r6 hand-over)
+  const boxW = (el: HTMLElement) => { const v = parseFloat(getComputedStyle(el).width); return Number.isFinite(v) && v > 0 ? v : el.offsetWidth; };
+  const boxH = (el: HTMLElement) => { const v = parseFloat(getComputedStyle(el).height); return Number.isFinite(v) && v > 0 ? v : el.offsetHeight; };
   const copyOf = (el: HTMLElement) => {
     const copy = el.cloneNode(true) as HTMLElement;
     const paint = (a: Element, b: HTMLElement) => {
@@ -662,7 +771,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     // a number mid-roll: the copy shows only its new digits (the outgoing ones are not part of its resting look)
     copy.querySelectorAll('.roll-ghost').forEach((n) => n.remove());
     const cs = getComputedStyle(el.parentElement ?? el);
-    Object.assign(copy.style, { position: 'absolute', left: '0', top: '0', right: 'auto', bottom: 'auto', width: `${el.offsetWidth}px`, height: `${el.offsetHeight}px`, boxSizing: 'border-box', margin: '0', transformOrigin: '0 0', opacity: '1', font: cs.font, letterSpacing: cs.letterSpacing, textAlign: cs.textAlign });
+    Object.assign(copy.style, { position: 'absolute', left: '0', top: '0', right: 'auto', bottom: 'auto', width: `${boxW(el)}px`, height: `${boxH(el)}px`, boxSizing: 'border-box', margin: '0', transformOrigin: '0 0', opacity: '1', font: cs.font, letterSpacing: cs.letterSpacing, textAlign: cs.textAlign });
     for (const v of ['--s1', '--s2', '--s3', '--s4', '--bg-2', '--line', '--hl']) copy.style.setProperty(v, cs.getPropertyValue(v));
     // (the line height as the card's own factor, not the px that `font` resolves it to: with px, every line inside took
     // the parent's 21 px, so the copy's name row was 7 px short and its "1 / 12" sat 7 px high, and jumped at hand-over)
@@ -698,6 +807,10 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     dims.current = { W: box.width, hA: a0.offsetHeight, RB: rb + 2 };
     const bw = barRef.current?.querySelector<HTMLElement>('.wk-bar-wrap');
     if (bw) barTuck.current = bw.offsetHeight + (parseFloat(getComputedStyle(bw).bottom) || 0) + rb + 8;
+    // (where the bar and the list sit in the window at rest, by layout: whatever the window's motion has them at now)
+    const localTop = (el: HTMLElement | null) => { let y = 0, n: HTMLElement | null = el; while (n && n !== a0) { y += n.offsetTop; n = n.offsetParent as HTMLElement | null; } return n === a0 ? y : null; };
+    if (bw) barTop.current = localTop(bw) ?? barTop.current;
+    const vw = viewsRef.current; if (vw) { vTop.current = localTop(vw) ?? vTop.current; vH.current = vw.offsetHeight; }
     const ok = !!g && g.w > 40 && g.b - g.t > 30;
     from.current = ok ? { l: g.l - box.left, t: g.t - box.top, w: g.w, b: g.b - box.top, h: g.h } : null;
     const s0 = ok ? g.w / box.width : 1;
@@ -731,7 +844,9 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
       if (fg) {
         // the card's words at the card's own size wherever the window is (its scale undone), so they land exactly on the card's
         const w = document.createElement('div'); w.className = 'wk-skin-words';
-        Object.assign(w.style, { position: 'absolute', left: `${((fg.offsetLeft - g.bg.offsetLeft) / s0).toFixed(3)}px`, top: `${((fg.offsetTop - g.bg.offsetTop) / s0).toFixed(3)}px`, width: `${fg.offsetWidth}px`, height: `${fg.offsetHeight}px`, transformOrigin: '0 0', transform: `scale(${(1 / s0).toFixed(5)})`, willChange: 'opacity' });
+        // (where the card's words sit on it, to the fraction of a px, whatever the page's own scale now)
+        const fR = fg.getBoundingClientRect(), bR = g.bg.getBoundingClientRect(), pk = bR.width / boxW(g.bg) || 1;
+        Object.assign(w.style, { position: 'absolute', left: `${((fR.left - bR.left) / pk / s0).toFixed(3)}px`, top: `${((fR.top - bR.top) / pk / s0).toFixed(3)}px`, width: `${boxW(fg)}px`, height: `${boxH(fg)}px`, transformOrigin: '0 0', transform: `scale(${(1 / s0).toFixed(5)})`, willChange: 'opacity' });
         s.append(w); words = w;
         // (the clock flies on its own, landing.ts; what arrives after it is not on the copy either)
         const lateNow = leaving.current ? lateKinds() : [];
@@ -824,6 +939,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     set(shadeRef.current, 'opacity', shade(e)); set(fillRef.current, 'opacity', fill(e));
     set(headRef.current, 'transform', yAt(headOff(pp, e))); set(headRef.current, 'opacity', inside(pp));
     set(viewsRef.current, 'transform', yAt(viewsOff(pp, e))); set(viewsFade.current, 'opacity', insideV(pp));
+    set(vclipRef.current, 'transform', vclipAt(pp)); set(vshiftRef.current, 'transform', vshiftAt(pp));
     paintAt(pp);
   };
   const thaw = () => {
@@ -832,18 +948,37 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     mirror.current!.cancel();
   };
   const vanishRef = useRef(vanish); vanishRef.current = vanish;
+  // A move turned round half way (D): what everything is at now, by the move it was in, and the new move's own values there
+  // the difference is carried and eased away (`cv`)
+  const turning = () => ls.current === 'D' && !!from.current && !!tOf.current && p.isAnimating() && p.get() > 0.002 && p.get() < 0.998;
+  const snapNow = (pp: number) => {
+    const o: Record<string, number> = { q: qAt(pp), solid: solid(pp), inside: inside(pp), meta: metaO(pp), back: backO(pp), mat: matO(pp), tone: toneO(pp), skin: skinV(pp), wipe: wipeR(pp), bar: barE(pp), wdy: wordsDyV(pp) };
+    for (const k of ['words', 'pop', 'dot', 'status'] as const) o[`part-${k}`] = partV(pp, k) ?? 0;
+    return o;
+  };
+  const carryOver = (old: Record<string, number> | null, pp: number) => {
+    carry.current = null;
+    if (!old || !from.current || ls.current !== 'D' || !tOf.current) return;
+    const now = snapNow(pp), off: Record<string, number> = {};
+    for (const k of Object.keys(old)) { const d = old[k] - now[k]; if (Math.abs(d) > 1e-4) off[k] = d; }
+    carry.current = Object.keys(off).length ? off : null;
+  };
+  // where each word in flight is along its way (0 leaving, 1 there), for a flight turned round
+  const heroNow = (pp: number) => Object.fromEntries(hero.current.map((x) => [x.kind, x.wAt(pp)]));
+  // this move's frames: at which frame of it the spring is at pp, for what goes and comes by the frame (set before the
+  // move's first frame is drawn)
+  const setFrames = (p0: number, p1: number, sp: { stiffness: number; damping: number; mass?: number }, vel: number) => {
+    const span = p1 - p0, v0 = Math.max(-40, Math.min(40, span ? vel / span : 0)), { xs } = springSamples(sp, v0, true, 120);
+    tOf.current = Math.abs(span) < 0.02 ? null : (pp: number) => {
+      const u = (pp - p0) / span; if (u <= xs[0]) return 0; if (u >= xs[xs.length - 1]) return xs.length - 1;
+      let lo = 0, hi = xs.length - 1; while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (xs[mid] < u) lo = mid; else hi = mid; }
+      return lo + (xs[hi] > xs[lo] ? (u - xs[lo]) / (xs[hi] - xs[lo]) : 0);
+    };
+  };
   const runMirror = (p0: number, p1: number, sp: { stiffness: number; damping: number; mass?: number }, vel: number) => {
     const m = mirror.current!; thaw(); orbM.current!.cancel();
     if (reduce || (p1 === 0 && vanishRef.current)) return;
-    // (this move's frames: at which frame of it the spring is at pp, for the card's parts that go and come by the frame)
-    {
-      const span = p1 - p0, v0 = Math.max(-40, Math.min(40, span ? vel / span : 0)), { xs } = springSamples(sp, v0, true, 120);
-      tOf.current = Math.abs(span) < 0.02 ? null : (pp: number) => {
-        const u = (pp - p0) / span; if (u <= xs[0]) return 0; if (u >= xs[xs.length - 1]) return xs.length - 1;
-        let lo = 0, hi = xs.length - 1; while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (xs[mid] < u) lo = mid; else hi = mid; }
-        return lo + (xs[hi] > xs[lo] ? (u - xs[lo]) / (xs[hi] - xs[lo]) : 0);
-      };
-    }
+    setFrames(p0, p1, sp, vel);
     // (the orb has its own, and is not held)
     orbM.current!.add(mirrorOrb(sheetRef.current, p0, p1, sp, vel, slotShift, slotRest.current));
     const at = barAtOf(), morph = !!from.current, k = skinParts.current;
@@ -878,7 +1013,9 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
       go(headRef.current, (pp) => ({ transform: yAt(headOff(seen(pp), seen(pp))), opacity: String(inside(pp)) }), [], true),
       go(viewsRef.current, (pp) => ({ transform: yAt(viewsOff(seen(pp), seen(pp))) }), [], true),
       go(viewsFade.current, (pp) => ({ opacity: String(insideV(pp)) }), [], true),
-      ...(morph ? ticksUp().map((el) => go(el, (pp) => ({ transform: tickT(pp) }), [], true)) : []),
+      morph ? go(vclipRef.current, (pp) => ({ transform: vclipAt(pp) }), [], true) : null,
+      morph ? go(vshiftRef.current, (pp) => ({ transform: vshiftAt(pp) }), [], true) : null,
+      ...(morph && !timed() ? ticksUp().map((el) => go(el, (pp) => ({ transform: tickT(pp) }), [], true)) : []),
     );
     if (!m.size) return;
     const id = run.current; frozen.current = true;
@@ -889,11 +1026,12 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   // after the next frame has been drawn is the app told the workout is closed — re-rendering the page behind, the tab bar
   // and the resume bar takes a phone a good while, and before, nothing moved until it was done (the pause after a tap).
   const closing = useRef<Promise<void> | null>(null);
+  const moveId = useRef(0); // (each move's own: what a move does once it is over is not done if another has set off since)
   // The clock's flight (landing.ts), built from the window's own spring frame by frame, so its two ends are where the
   // header's clock and the card's are in every frame (the header's moves with the window, the card's holds still). D flies
   // the workout's name the same way, so nothing the card and the header share ever fades out on one and in on the other.
   const heroTry = useRef(0);
-  const launchHero = (opening: boolean, p0: number, p1: number, sp: { stiffness: number; damping: number; mass?: number }, vel: number, t0 = performance.now(), tries = 0) => {
+  const launchHero = (opening: boolean, p0: number, p1: number, sp: { stiffness: number; damping: number; mass?: number }, vel: number, t0 = performance.now(), tries = 0, turn: Record<string, number> = {}) => {
     if (!tries) { cancelAnimationFrame(heroTry.current); dropHero(); }
     const dbg = (m: string) => { ((window as unknown as { __wk?: string[] }).__wk ??= []).push(`${Math.round(performance.now())} ${m}`); };
     const host = heroHost.current, d = dialogRef.current, sh = sheetRef.current, fg = src.current[1], bg = src.current[0], g0 = from.current;
@@ -902,7 +1040,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     // (the card behind may not show the running workout yet: it is drawn again as the window uncovers it; and a workout just
     // started is in the header a frame or two after the tap. The flight then sets off from where the window has got to.)
     const short = pairs.length < want || (bg.dataset.wk === 'hero' && !opening && !pairs.some(([c]) => c.dataset.wkFly === 'clock'));
-    if (short && tries < 24) { heroTry.current = requestAnimationFrame(() => launchHero(opening, p0, p1, sp, vel, t0, tries + 1)); return; }
+    if (short && tries < 24) { heroTry.current = requestAnimationFrame(() => launchHero(opening, p0, p1, sp, vel, t0, tries + 1, turn)); return; }
     if (!pairs.length) { dbg('nothing flies'); return; }
     const box = d.getBoundingClientRect();
     // the card where it rests (the page behind may be stepped back a touch right now: its scale about its middle undone)
@@ -946,20 +1084,29 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
       // in the first tenth of a second, 100 frames ahead); closing, it rides the header (with the window) while the page round
       // it is there and sets off as that goes, a third of the way from home, and lands with the window in the same frame)
       const q0 = qAt(ppAt(skip)), flyQ = FLY_Q / fk.current, flyAt = FLY_AT / fk.current; // (a small place, the resume bar: its fades are stretched by fk, and so is this)
+      // (round 7, a move turned round: the word sets off from where it had got to, `ws` of the way along the new flight)
+      const kind = cardEl.dataset.wkFly ?? '', ws = live && turn[kind] !== undefined ? Math.min(1, Math.max(0, 1 - turn[kind])) : 0;
+      const c01 = (v: number) => Math.min(1, Math.max(0, v));
+      const wp = opening
+        ? (pp: number) => ws + (1 - ws) * (q0 < 1 ? c01((qAt(pp) - q0) / (1 - q0)) : 1)
+        : ws > 0
+          ? (pp: number) => ws + (1 - ws) * (q0 > flyAt ? Math.pow(c01((q0 - qAt(pp)) / (q0 - flyAt)), 1.3) : 1)
+          : (pp: number) => Math.pow(c01((flyQ - qAt(pp)) / (flyQ - flyAt)), 1.3);
       const flight = opening
-        ? { frames, src: (i: number) => (B ? skinAt(ppAt(i)) : cardRest), dst: (i: number) => headerAt(ppAt(i)), w: (i: number) => (live ? (q0 < 1 ? Math.min(1, Math.max(0, (qAt(ppAt(i)) - q0) / (1 - q0))) : 1) : B ? 1 - Math.pow(1 - Math.min(1, qAt(ppAt(i))), 3) : hw(i)) }
-        : { frames, src: (i: number) => headerAt(ppAt(i)), dst: (i: number) => (B || live ? skinAt(ppAt(i)) : cardRest), w: (i: number) => (live ? Math.pow(Math.min(1, Math.max(0, (flyQ - qAt(ppAt(i))) / (flyQ - flyAt))), 1.3) : B ? Math.pow(Math.max(0, 1 - qAt(ppAt(i))), 1.5) : hw(i)) };
+        ? { frames, src: (i: number) => (B ? skinAt(ppAt(i)) : cardRest), dst: (i: number) => headerAt(ppAt(i)), w: (i: number) => (live ? wp(ppAt(i)) : B ? 1 - Math.pow(1 - Math.min(1, qAt(ppAt(i))), 3) : hw(i)) }
+        : { frames, src: (i: number) => headerAt(ppAt(i)), dst: (i: number) => (B || live ? skinAt(ppAt(i)) : cardRest), w: (i: number) => (live ? wp(ppAt(i)) : B ? Math.pow(Math.max(0, 1 - qAt(ppAt(i))), 1.5) : hw(i)) };
       const a0 = opening ? cardA : headNow, a1 = opening ? { x: restHead.x, y: restHead.y, f: restHead.f } : cardA;
       const fromEl = opening ? cardEl : headEl, toEl = opening ? headEl : cardEl;
       // (D: where the two looks cross, each over twelve frames or more: both near the header's end of the flight, where the
       // word is small; the name closing a little later, as its two sizes there are nearly the same)
-      const cross: [number, number] | undefined = !live ? undefined : opening ? [0.55, 0.8] : cardEl.dataset.wkFly === 'title' ? [0.5, 0.72] : [0.05, 0.3];
-      const h = flyHero(host, fromEl, toEl, a0, a1, flight, skip, false, cross, byLeft);
+      // (round 7, D: one copy flies, the look it lands as; the look it leaves hands over to it in three frames as it sets
+      // off, where the two lie exactly on each other: two copies all the way printed a double edge, r6)
+      const h = flyHero(host, fromEl, toEl, a0, a1, flight, skip, false, live ? 'one' : undefined, byLeft);
       // it shows what the one it is flying to shows (a clock starts ticking again as the window sets off)
       const watch = new MutationObserver(() => h.text(toEl.textContent ?? '')); watch.observe(toEl, { subtree: true, childList: true, characterData: true });
       fromEl.style.visibility = 'hidden'; toEl.style.visibility = 'hidden';
       dbg(`hero ${cardEl.dataset.wkFly} ${opening} ${frames} a0=${JSON.stringify(a0)} a1=${JSON.stringify(a1)}`);
-      return [{ h, watch, hide: [fromEl, toEl] }];
+      return [{ h, watch, hide: [fromEl, toEl], kind, wAt: live ? wp : () => 1 }];
     });
     hero.current = made;
     for (const [c] of pairs) flyHide.current.add(c.dataset.wkFly ?? '');
@@ -973,6 +1120,10 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     // discarded, it slides away as before
     const kind = useStore.getState().active && !vanishRef.current ? (useUI.getState().tab === 'today' ? 'hero' : 'pill') : null;
     const d = dragT.get();
+    // (round 7: closed while it is still opening, it turns round from exactly where it is, at its speed)
+    const turn = turning() && d <= 0, was = turn ? snapNow(p.get()) : null, wasHero = turn ? heroNow(p.get()) : {}, v0 = turn ? p.getVelocity() : 0;
+    const id = ++moveId.current;
+    dialogRef.current?.classList.add('wk-going');
     leaving.current = true; dragOff.current = 0; relHead.current = relViews.current = 0;
     measure(wkSourceRect(kind));
     noteMove(`close ${from.current ? kind : 'slide'}${v ? ' swipe' : ''}`);
@@ -986,14 +1137,16 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     dragOff.current = whole ? d : 0; envK.current = whole ? 0 : 1;
     if (whole) { const fl = 1 - Math.max(0, pv.get() - eFingerV.get()); relHead.current = headLag(fl); relViews.current = viewsLag(fl); }
     const e0 = whole ? Math.min(1, Math.max(0, p.get())) : g ? Math.min(1, Math.max(0, p.get() - Math.max(0, d) / reach)) : eFinger.get();
-    p.set(e0); dragY.set(0);
+    if (!turn) p.set(e0);
+    dragY.set(0);
     // (drawn back at rest now, not on Motion's next frame: the clock's flight below measures the window where it rests)
     if (dialogRef.current) dialogRef.current.style.transform = 'none';
-    thaw(); pv.set(e0); flush(); cardAt(e0);
-    const vel = -v / (whole ? Math.max(120, reach - d) : reach);
+    const vel = turn ? v0 : -v / (whole ? Math.max(120, reach - d) : reach);
     const lw = LANDS[ls.current].closeWin;
     const sp = g ? (lw ? { ...lw, restDelta: 0.001 } : WINDOW_CLOSE) : SURFACE_EXIT;
-    launchHero(false, e0, 0, sp, vel);
+    setFrames(e0, 0, sp, vel); carryOver(was, e0);
+    thaw(); pv.set(e0); flush(); cardAt(e0);
+    launchHero(false, e0, 0, sp, vel, performance.now(), 0, wasHero);
     runMirror(e0, 0, sp, vel); syncHero();
     // under the finish sheet: no slide, just a soft crossfade of what still shows above the sheet into the page behind. The
     // page is drawn again first (warmStage; behind a full cover it is not drawn at all, and fading over it showed black,
@@ -1017,11 +1170,21 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     const cc = catching() && mirror.current!.size ? Promise.all([c, mirror.current!.settled()]).then(() => undefined) : c;
     closing.current = new Promise<void>((done) => { cc.then(() => { done(); if (fade) requestAnimationFrame(() => fade?.cancel()); }, () => done()); });
     // landed: the card is itself again (its words already back), and the copy of it goes
-    void closing.current.then(() => { caught.current = true; cardAt(p.get()); warmStage(false); releaseCard(); dropSkin(); if (hero.current.length) dropHero(); });
+    void closing.current.then(() => { if (moveId.current !== id) return; caught.current = true; cardAt(p.get()); warmStage(false); releaseCard(); dropSkin(); if (hero.current.length) dropHero(); });
     return closing.current;
   };
   // a press on Minimise that never became a tap lets the page behind rest again
   const warmUp = () => { warmStage(true); setTimeout(() => { if (!closing.current) warmStage(false); }, 1000); };
+  // (round 7) a tap on Minimise while the window still moves: the button has moved on under the finger by the time it
+  // lifts, so the browser's click goes to the window (or, once that lets taps through, to the page under it: Today's
+  // macros, which opened Food, t7d open-int f47). It closes as the finger lifts, and that click goes nowhere.
+  const closeMoving = () => {
+    if (!p.isAnimating() || closing.current) return;
+    const eat = (ev: Event) => { ev.stopPropagation(); ev.preventDefault(); };
+    window.addEventListener('click', eat, { capture: true, once: true });
+    setTimeout(() => window.removeEventListener('click', eat, { capture: true }), 500);
+    close();
+  };
   const close = (v = 0) => {
     if (closing.current) return;
     startClose(v);
@@ -1106,31 +1269,38 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   const onGoneRef = useRef(onGone); onGoneRef.current = onGone;
   const opening = useRef<{ stop: () => void } | null>(null);
   const startOpen = () => {
+    // (round 7: opened again while it is still closing (a tap on the card it is shrinking into), it turns round from
+    // exactly where it is, at its speed)
+    const turn = turning() && leaving.current, was = turn ? snapNow(p.get()) : null, wasHero = turn ? heroNow(p.get()) : {}, v0 = turn ? p.getVelocity() : 0;
+    ++moveId.current;
     closing.current = null;
     clockStop = null;
     // un-park it now, before the orb's flight measures where its slot will be (React would only do it after this effect)
-    dialogRef.current?.classList.remove('wk-off', 'wk-leaving');
+    dialogRef.current?.classList.remove('wk-off', 'wk-leaving', 'wk-going');
     // out of the card or bar that was tapped (none: it rises from the bottom edge)
     leaving.current = false;
     dragOff.current = 0; relHead.current = relViews.current = 0; envK.current = 1;
     measure(wkSourceRect(takeWorkoutFrom()));
     noteMove(`open ${src.current[0]?.dataset.wk ?? 'slide'}`);
     const p0 = p.get();
-    thaw(); pv.set(p0); flush(); cardAt(p0);
     const lw = LANDS[ls.current].openWin;
     const sp = from.current ? (lw ? { ...lw, restDelta: 0.0005 } : WINDOW_OPEN) : SURFACE;
-    launchHero(true, p0, 1, sp, 0);
+    setFrames(p0, 1, sp, v0); carryOver(was, p0);
+    thaw(); pv.set(p0); flush(); cardAt(p0);
+    launchHero(true, p0, 1, sp, v0, performance.now(), 0, wasHero);
     opening.current?.stop();
-    const o = animate(p, 1, reduce ? { duration: 0.01 } : sp);
+    const o = animate(p, 1, reduce ? { duration: 0.01 } : { ...sp, velocity: v0 });
     opening.current = o;
-    runMirror(p0, 1, sp, 0); syncHero();
+    runMirror(p0, 1, sp, v0); syncHero();
     setMoving(true);
     const m = mirror.current!;
     void Promise.all([o.then(() => undefined), m.settled()]).then(() => { if (opening.current === o && !closing.current) { releaseCard(); dropSkin(); if (dragY.get() <= 0) setMoving(false); } });
     takeTints();
   };
   // waiting minimised: a tap on the resume bar or button starts the slide at once (ui/workoutOpen.ts)
-  useEffect(() => (!open && hidden ? setWorkoutOpener(startOpen) : undefined));
+  // (round 7: and while it is still closing, so a tap on the card it is shrinking into turns it round in that same frame,
+  // not once the app has been told, ten frames later, t7c min-int f35-45)
+  useEffect(() => (!open ? setWorkoutOpener(startOpen) : undefined));
   useLayoutEffect(() => {
     if (open) {
       if (!opening.current) startOpen(); // (already sliding when the tap started it)
@@ -1142,7 +1312,9 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     setMenu(null); setConfirm(null); setRenaming(false);
     const el = document.activeElement as HTMLElement | null;
     if (el && dialogRef.current?.contains(el)) el.blur();
-    (closing.current ?? startClose(swipeV.current || dragY.getVelocity())).then(() => { if (!openRef.current) { setHidden(true); onGoneRef.current?.(); } });
+    const c = closing.current ?? startClose(swipeV.current || dragY.getVelocity()), id = moveId.current;
+    // (not when it was turned round on the way: opened again before the app was told, `setWorkoutOpener`)
+    c.then(() => { if (!openRef.current && moveId.current === id) { setHidden(true); onGoneRef.current?.(); } });
     // eslint-disable-next-line
   }, [open]);
   // the keyboard is up: it slides over the bar (the bar stays put, it no longer drops out of sight before the keyboard rises),
@@ -1292,7 +1464,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
           <motion.div ref={headRef} className="wk-head-wrap" style={{ touchAction: 'none', transform: headT, opacity: insideO }}>
             <div className="wk-head">
               {/* the finger is down: the page behind starts drawing itself again (unseen) so the window can move the moment it lifts */}
-              <button className="icon-btn flat press wk-min" aria-label={t('Minimise workout')} onPointerDown={warmUp} onPointerCancel={() => warmStage(false)} onClick={() => close()}><Icon name="chevD" /></button>
+              <button className="icon-btn flat press wk-min" aria-label={t('Minimise workout')} onPointerDown={warmUp} onPointerUp={closeMoving} onPointerCancel={() => warmStage(false)} onClick={() => close()}><Icon name="chevD" /></button>
               <div className="wk-head-mid">
                 {renaming ? (
                   <input className="input" autoFocus style={{ minHeight: 34, padding: '4px 10px' }} defaultValue={a.name} onBlur={(e) => { useStore.getState().mutateActive((x) => ({ ...x, name: e.target.value.trim() })); setRenaming(false); }} onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} aria-label={t('Workout name')} />
@@ -1324,6 +1496,9 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
 
           {/* body: the list, and Focus over it when chosen (the list stays, faded out, so switching back keeps your place) */}
           <motion.div ref={viewsRef} className="wk-views" style={{ transform: viewsT }}>
+          {/* (D, round 7: the list's own bottom edge, which uncovers it as the window grows and covers it before it shrinks:
+              transforms only, the box up and its contents down by as much) */}
+          <div ref={vclipRef} className="wk-vclip"><div ref={vshiftRef} className="wk-vshift">
           {/* (its fade on a layer of its own, inside: the done boxes' copies (`ticks`) ride the list but not its fade) */}
           <motion.div ref={viewsFade} className="wk-views-fade" style={{ opacity: insideVO }}>
           <motion.div ref={body} style={{ flex: 1, overflowY: 'auto', padding: '4px 16px 0', paddingBottom: bodyPad, overscrollBehavior: 'contain' }} className={`hide-scroll wk-list${a.exercises.length === 0 ? ' is-empty' : ''}${view === 'focus' && a.exercises.length > 0 && (focusIn || shared !== 'in') ? ' wk-away' : ''}${shared === 'back' ? ' back' : ''}`}>
@@ -1363,6 +1538,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
           )}
           </motion.div>
           <div ref={ticksRef} className="wk-ticks" aria-hidden />
+          </div></div>
           </motion.div>
 
           {/* the workout's own dock, where the tab bar sits: what's next, the rest timer, and the orb */}
@@ -1455,11 +1631,8 @@ function WorkoutBar({ engage, exMap, focus, onDone, onJump }: { engage: Engage; 
   const unit = useStore((s) => s.settings.units.weight);
   const live = useContext(WkLive);
   const now = useNow(250, !!a?.rest && !a?.pausedAt && live);
-  // (the first render back from minimised: the rest time caught up while it was out of sight, so it shows the new value
-  // instead of rolling down from the old one, round 2 judge "1:21 rolls to 1:19")
-  const wasLive = useRef(live);
-  const back = live && !wasLive.current;
-  useEffect(() => { wasLive.current = live; }, [live]);
+  // (round 7: the rest's seconds tick in place, as a clock's do, not rolled: a rolled digit sat raised and see-through for a
+  // tenth of a second each second, and read as bigger than the others, r6 pill-resume f28-46 and tick f136)
   const [panel, setPanel] = useState(false);
   useEffect(() => { if (!panel) return; const id = setTimeout(() => setPanel(false), 4000); return () => clearTimeout(id); }, [panel, a?.rest?.endsAt, a?.rest?.total]);
   const resting = !!a?.rest;
@@ -1519,7 +1692,7 @@ function WorkoutBar({ engage, exMap, focus, onDone, onJump }: { engage: Engage; 
             <span className="wk-bar-big num">{state === 'next' || (state === 'go' && nx) ? <><Fit className="wk-bar-name" text={name} />{target && <span className="wk-bar-tgt">{target}</span>}</>
               : state === 'rest' ? (!a.pausedAt && left <= 3
                 // the last three seconds swell on each tick; before that the seconds roll down
-                ? <span key={Math.ceil(left)} className="wk-tick">{big}</span> : <Roll key="r" text={big} still={back} />)
+                ? <span key={Math.ceil(left)} className="wk-tick">{big}</span> : <span key="r">{big}</span>)
               : state === 'done' ? <Roll text={big} /> : big}</span>
           </SwapText>
         </button>
@@ -1604,15 +1777,14 @@ function SwapText({ k, tone, children }: { k: string; tone: string; children: Re
     setGone({ ...was, n: n.current });
   }
   cur.current = { k, tone, node: children };
-  useEffect(() => {
-    if (!gone) return;
-    const id = setTimeout(() => setGone((g) => (g && g.n === gone.n ? null : g)), 420);
-    return () => clearTimeout(id);
-  }, [gone]);
+  // (taken away once its fade has ended, never on a timer: a timer runs on its own clock, and on a busy phone (or a film)
+  // it took the old words away a few frames into their fade, in one frame, r6 tick f4-5. Until then it is see-through.)
+  const drop = (n0: number) => setGone((g) => (g && g.n === n0 ? null : g));
   return (
     <>
-      {gone && gone.k !== k && <span key={`g${gone.n}`} className={`wk-bar-txt t-${gone.tone} out`} aria-hidden>{gone.node}</span>}
-      <span key={k} className={`wk-bar-txt t-${tone}`}>{children}</span>
+      {gone && gone.k !== k && <span key={`g${gone.n}`} className={`wk-bar-txt t-${gone.tone} out`} aria-hidden onAnimationEnd={(e) => { if (e.target === e.currentTarget) drop(gone.n); }}>{gone.node}</span>}
+      {/* (after a swap, the new words wait for the old ones to have gone: `late`, kept for as long as they are there) */}
+      <span key={k} className={`wk-bar-txt t-${tone}${n.current ? ' late' : ''}`}>{children}</span>
     </>
   );
 }
@@ -1857,7 +2029,7 @@ const SetRow = memo(function SetRow({ se, set, ex, label, prev, restDefault }: {
         <button className="press wk-set-n" aria-label={t('Set options')} aria-expanded={open} onClick={() => setOpen((v) => !v)}>{label}</button>
         <button className="num press wk-prev" disabled={!prev} onClick={() => prev && patchSet(se.id, set.id, { weightKg: prev.weightKg, reps: prev.reps, durationSec: prev.durationSec, distanceM: prev.distanceM })} aria-label={prev ? `${t('Use previous')}: ${fmtSet(prev, ex, u, lang, t)}` : undefined}>
           {/* a hold reads in the column's own unit ("66s" over SECONDS, not "1:06" beside a 66), as the records write it */}
-          {prev ? (lt === 'duration' ? (prev.durationSec ? `${prev.durationSec}s` : '—') : fmtSet(prev, ex, u, lang, t).replace(/ (kg|lb)/, '')) : '—'}
+          <span key={best > 0 && best === burst && set.done ? `p${best}` : 'p'} className={`wk-prev-t${best > 0 && best === burst && set.done ? ' away' : ''}`}>{prev ? (lt === 'duration' ? (prev.durationSec ? `${prev.durationSec}s` : '—') : fmtSet(prev, ex, u, lang, t).replace(/ (kg|lb)/, '')) : '—'}</span>
         </button>
         {lt === 'duration' && field(set.durationSec, prev?.durationSec ?? DEFAULT_HOLD_SEC, (v) => patchSet(se.id, set.id, { durationSec: v }), 0, t('Seconds'), complete)}
         {lt === 'distance' && <>

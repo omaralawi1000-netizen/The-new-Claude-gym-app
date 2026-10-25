@@ -140,7 +140,21 @@ export type Hero = { look0: HTMLElement; look1: HTMLElement; anims: Animation[];
  * the two are the same shapes on the same spots, so what changes is at most the colour (the resume bar's grey clock
  * becoming the header's white one). `cross`: where along the flight (in `w`) that happens, over fourteen frames or more.
  */
-export function flyHero(host: HTMLElement, from: HTMLElement, to: HTMLElement, a0: Anchor, a1: Anchor, fl: Flight, skip = 0, cut = false, cross: [number, number] = [0.4, 0.6], left = false): Hero {
+/** A colour as the page computes it: its red, green and blue, and how opaque it is. */
+const rgbaOf = (c: string): [number, number, number, number] | null => {
+  const m = c.match(/rgba?\(([^)]+)\)/); if (!m) return null;
+  const v = m[1].split(/[\s,/]+/).filter(Boolean).map(Number);
+  return v.length >= 3 && v.every((x) => Number.isFinite(x)) ? [v[0], v[1], v[2], v.length > 3 ? v[3] : 1] : null;
+};
+/**
+ * (`cross` 'one', round 7: ONE copy flies, the look it lands as. The look it leaves is the real word pixel for pixel until
+ * the word sets off; then, in three frames, while the two lie exactly on each other and before either has moved, the
+ * landing copy comes up over it and it goes. Two copies flown together never quite met (their sizes differ by a hair, and
+ * a size is drawn at its own weight): a double edge, heavier mid-flight, r6. Where the two looks differ in colour only by
+ * how opaque it is (the resume bar's grey clock, 64 % of the header's white), the flying copy is drawn in the opaquer
+ * one and faded by the difference along the way: only opacity changes.)
+ */
+export function flyHero(host: HTMLElement, from: HTMLElement, to: HTMLElement, a0: Anchor, a1: Anchor, fl: Flight, skip = 0, cut = false, cross: [number, number] | 'one' = [0.4, 0.6], left = false): Hero {
   const k0 = lookOf(from, left), k1 = lookOf(to, left);
   const n = fl.frames;
   const anims: Animation[] = [];
@@ -148,12 +162,28 @@ export function flyHero(host: HTMLElement, from: HTMLElement, to: HTMLElement, a
   if (!k0 || !k1) { const l0 = empty(), l1 = empty(); return { look0: l0, look1: l1, anims, done: Promise.resolve(), text: () => {}, drop: () => { l0.remove(); l1.remove(); } }; }
   const L0 = copyLook(from, k0, host, a0), L1 = copyLook(to, k1, host, a1);
   const look0 = L0.c, look1 = L1.c;
-  // the hand-over in frames: where `cross` puts it along the flight, never fewer than fourteen
-  const at = (t: number) => { let i = 0; while (i < n && Math.min(1, fl.w(i)) < t) i++; return i; };
-  let ia = at(cross[0]), ib = at(cross[1]);
-  if (ib - ia < 14) { const mid = (ia + ib) / 2; ia = Math.round(mid - 7); ib = ia + 14; }
-  if (ib > n) { ia -= ib - n; ib = n; }
-  if (ia < 0) { ib = Math.min(n, ib - ia); ia = 0; }
+  const one = cross === 'one';
+  // (one: the copy's colour at the opaquer of the two alphas, and its opacity carrying the rest, `tint`)
+  const c0 = rgbaOf(getComputedStyle(from).color), c1 = rgbaOf(getComputedStyle(to).color);
+  let tint = (_w: number) => 1;
+  if (one && c0 && c1 && Math.abs(c0[3] - c1[3]) > 0.004) {
+    const A = Math.max(c0[3], c1[3]);
+    look1.style.color = `rgba(${c1[0]}, ${c1[1]}, ${c1[2]}, ${A})`;
+    tint = (w: number) => lerp(c0[3], c1[3], w) / A;
+  }
+  let ia: number, ib: number;
+  if (one) {
+    // (the frame it sets off: the first that moves it)
+    let d = 0; while (d < n && Math.abs(fl.w(d + 1) - fl.w(0)) < 1e-4) d++;
+    ia = Math.min(d, n - 3); ib = ia + 3;
+  } else {
+    // the hand-over in frames: where `cross` puts it along the flight, never fewer than fourteen
+    const at = (t: number) => { let i = 0; while (i < n && Math.min(1, fl.w(i)) < t) i++; return i; };
+    ia = at(cross[0]); ib = at(cross[1]);
+    if (ib - ia < 14) { const mid = (ia + ib) / 2; ia = Math.round(mid - 7); ib = ia + 14; }
+    if (ib > n) { ia -= ib - n; ib = n; }
+    if (ia < 0) { ib = Math.min(n, ib - ia); ia = 0; }
+  }
   // letters in cap heights from the anchor
   const unit = (k: Look, g: Glyph) => ({ cx: (g.cx - k.ax) / k.cap, cy: (g.cy - k.ay) / k.cap, h: g.h / k.cap });
   const pairs = k0.glyphs.length === k1.glyphs.length;
@@ -168,7 +198,7 @@ export function flyHero(host: HTMLElement, from: HTMLElement, to: HTMLElement, a
     const F = Math.exp(lerp(Math.log(s.f * s.s), Math.log(d.f * d.s), wc)); // the drawn cap height (it grows evenly to the eye)
     const o1 = cut ? (i > 0 ? 1 : 0) : smooth((i - ia) / Math.max(1, ib - ia));
     const live0 = gone0 < 0;
-    fr1.push({ transform: `translate(${(x - a1.x).toFixed(3)}px, ${(y - a1.y).toFixed(3)}px) scale(${(F / k1.cap).toFixed(5)})`, opacity: o1.toFixed(4) });
+    fr1.push({ transform: `translate(${(x - a1.x).toFixed(3)}px, ${(y - a1.y).toFixed(3)}px) scale(${(F / k1.cap).toFixed(5)})`, opacity: (o1 * tint(wc)).toFixed(4) });
     if (live0) fr0.push({ transform: `translate(${(x - a0.x).toFixed(3)}px, ${(y - a0.y).toFixed(3)}px) scale(${(F / k0.cap).toFixed(5)})`, opacity: o1 >= 1 ? '0' : '1' });
     if (pairs) {
       k0.glyphs.forEach((_, j) => {
@@ -185,7 +215,7 @@ export function flyHero(host: HTMLElement, from: HTMLElement, to: HTMLElement, a
     if (live0 && o1 >= 1) gone0 = i;
   }
   // (the last frame exactly at rest: the real word takes over from it)
-  if (Math.abs(fl.w(n) - 1) < 1e-6) fr1[n] = { transform: 'translate(0px, 0px) scale(1)', opacity: '1' };
+  if (Math.abs(fl.w(n) - 1) < 1e-6) fr1[n] = { transform: 'translate(0px, 0px) scale(1)', opacity: tint(1).toFixed(4) };
   const late = -(Math.min(skip, n) * 1000) / 120; // (`skip`: frames of the flight already past when it is set off)
   const run = (el: Element, kf: Keyframe[]) => {
     if (kf.length < 2 || kf.every((f) => f.transform === kf[0].transform && f.opacity === kf[0].opacity)) { if (kf.length) Object.assign((el as HTMLElement).style, kf[kf.length - 1]); return; }

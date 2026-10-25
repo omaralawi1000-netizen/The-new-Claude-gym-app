@@ -1215,7 +1215,11 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-bar-top, .wk-bar-big { animation: wkSwap var(--beat) var(--ease-smooth) both; }
 /* the two lines as one unit; the outgoing pair lies over the incoming one and fades up and away (Active.tsx SwapText) */
 .wk-bar-txt { min-width: 0; max-width: 100%; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 1px; }
-.wk-bar-txt.out { position: absolute; inset: 0 8px 0 0; pointer-events: none; animation: wkSwapOut 340ms var(--ease-out) both; }
+.wk-bar-txt.out { position: absolute; inset: 0 8px 0 0; pointer-events: none; animation: wkSwapOut 150ms var(--ease-out) both; }
+/* (round 7: the old words go over 18 frames and the new ones come in once they have: never both at once, and never an
+   old line cut in one frame, r6 tick f4-5) */
+.wk-bar-txt.late .wk-bar-top { animation-delay: 150ms; }
+.wk-bar-txt.late .wk-bar-big { animation-delay: 210ms; }
 .wk-bar-txt.out > * { animation: none; }
 @keyframes wkSwapOut { to { opacity: 0; transform: translateY(-5px); } }
 .wk-bar-big { animation-delay: 60ms; }
@@ -2137,17 +2141,23 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
   background: radial-gradient(closest-side, color-mix(in srgb, var(--ac) 50%, transparent), color-mix(in srgb, var(--ac) 18%, transparent) 62%, transparent);
   opacity: 0; animation: setWave 900ms var(--ease-out) both; }
 @keyframes setWave { 0% { opacity: 1; transform: scale(.05, .3); } 35% { opacity: .9; } 100% { opacity: 0; transform: none; } }
-/* a new best: a gold band of light sweeps the row from the check to the set number, and a small "New best" tag rises in over
-   the "Prev" column (what you beat), holds, and fades (transform and opacity only) */
+/* a new best: a faint band of plain light sweeps the row from the check to the set number, and a small "New best" tag rises in over
+   the "Prev" column (what you beat), holds, and fades (transform and opacity only). (Round 7: white at 5 %, no colour of its
+   own: the gold band over the dark row read bronze, r6 tick f50-92.) */
 .wk-set-sweep { position: absolute; top: 0; bottom: 0; right: 0; width: 90%;
-  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--gold) 18%, transparent) 25%, color-mix(in srgb, var(--gold) 34%, transparent) 50%, color-mix(in srgb, var(--gold) 18%, transparent) 75%, transparent);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .025) 25%, rgba(255, 255, 255, .05) 50%, rgba(255, 255, 255, .025) 75%, transparent);
   transform: translateX(110%); animation: bestSweep 1400ms cubic-bezier(0.45, 0, 0.25, 1) both; }
 @keyframes bestSweep { to { transform: translateX(-130%); } }
 .wk-best { position: absolute; z-index: 3; left: 44px; top: calc(50% - 11px); height: 22px; line-height: 16px; padding: 3px 9px; border-radius: 999px; pointer-events: none; white-space: nowrap;
   font-size: 11.5px; font-weight: 700; letter-spacing: .02em; color: #3a2a05; background: var(--gold);
   box-shadow: 0 4px 14px -4px color-mix(in srgb, var(--gold) 70%, transparent);
   animation: bestTag 2600ms var(--ease-out) both; }
-@keyframes bestTag { 0% { opacity: 0; transform: translate3d(0, 8px, 0) scale(.9); } 14% { opacity: 1; transform: none; } 78% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translate3d(0, -6px, 0); } }
+/* (round 7: the tag grows from its middle at full colour, and shrinks back into it: gold fading over the dark read brown) */
+@keyframes bestTag { 0%, 4% { opacity: 0; transform: scale(.2); } 4.4% { opacity: 1; transform: scale(.22); } 16% { opacity: 1; transform: none; } 78% { opacity: 1; transform: none; } 91.6% { opacity: 1; transform: scale(.22); } 92%, 100% { opacity: 0; transform: scale(.2); } }
+/* (round 7: what the tag lies over, the "Prev" it beat, is gone before the tag comes in, and back only once it has gone: never
+   the two at once, r6 tick f5-14) */
+.wk-prev-t.away { animation: prevAway 2600ms var(--ease-out) both; }
+@keyframes prevAway { 0% { opacity: 1; } 4%, 92% { opacity: 0; } 100% { opacity: 1; } }
 /* an exercise's last set ticked: one slow band of warm light passes over the card, once. Laid over the card (not inside its
    frosted glass) and only the band moves: a full-card glow layer cost frames on the test bench, this one doesn't */
 .wk-card-wrap { position: relative; }
@@ -2180,9 +2190,15 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
      a near-white one (A judge r1: see-through boxes read bronze over the glow, and the current one barely stood apart) */
   background: color-mix(in srgb, var(--tx) 9%, var(--bg)); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--tx) 26%, var(--bg)); transition: background-color 220ms var(--ease-out), box-shadow 220ms var(--ease-out), transform 520ms var(--ease-spring); }
 .wk-set.current .wk-check { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--tx) 90%, var(--bg)); }
-.wk-check.on { background: var(--ac); box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--ac) 75%, transparent), inset 0 1px 0 rgba(255,255,255,.45); }
-/* just ticked: the button gives a small spring and the check draws itself in */
-.wk-check.fresh { animation: chkPop var(--beat) var(--ease-spring) both; }
+.wk-check.on { background: var(--ac); box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--ac) 75%, transparent), inset 0 1px 0 rgba(255,255,255,.45);
+  transition: box-shadow 220ms var(--ease-out), transform 520ms var(--ease-spring); }
+/* just ticked: the button gives a small spring and the check draws itself in. (Round 7: its orange grows from its middle at
+   full colour, a layer of its own sized up over the empty box, which stays under it until it is whole; the box's own colour
+   fading from dark to orange went through brown, r6 tick f8-15.) */
+.wk-check.fresh { animation: chkPop var(--beat) var(--ease-spring) both; isolation: isolate; background: color-mix(in srgb, var(--tx) 9%, var(--bg)); }
+.wk-check.fresh::before { content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; background: var(--ac); pointer-events: none;
+  animation: chkFill 300ms var(--ease-out) both; }
+@keyframes chkFill { from { transform: scale(0.08); } to { transform: none; } }
 .wk-check.fresh .wk-check-mark path { stroke-dasharray: 1; stroke-dashoffset: 1; animation: chkDraw 340ms 70ms cubic-bezier(0.65, 0, 0.35, 1) forwards; }
 @keyframes chkPop { 0% { transform: scale(.86); } 55% { transform: scale(1.06); } } /* no end keyframe: it lands on the press's own transform and holds its layer */
 @keyframes chkDraw { to { stroke-dashoffset: 0; } }
@@ -2190,7 +2206,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-bar-big { display: flex; align-items: baseline; gap: 8px; }
 .wk-bar-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wk-bar-tgt { flex: none; font-size: 14px; font-weight: 600; color: var(--tx2); }
-@media (prefers-reduced-motion: reduce) { .wk-check.fresh, .wk-check.fresh .wk-check-mark path { animation: none; stroke-dashoffset: 0; } .wk-set, .wk-check, .wk-ex-done { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .wk-check.fresh, .wk-check.fresh::before, .wk-check.fresh .wk-check-mark path, .wk-prev-t.away { animation: none; stroke-dashoffset: 0; } .wk-set, .wk-check, .wk-ex-done { transition: none; } }
 
 /* rest controls inside the bar, between the time and the orb */
 .wk-bar-ctl { position: absolute; right: 60px; top: 0; bottom: 0; display: flex; align-items: center; gap: 6px; will-change: transform, opacity; }
@@ -2741,13 +2757,13 @@ html:root[data-glow='off'] .bgx:not([data-k='photo']) { display: none; }
   box-shadow: inset 0 -1px 0 rgba(0, 0, 0, .25), 0 1px 1px rgba(0, 0, 0, .4), 0 14px 40px rgba(0, 0, 0, .6);
 }
 :where(:root:not([data-theme='light']):is([data-bg='sunrise'], [data-bg='time'])) .screen .plinth { background-color: rgba(8, 8, 10, .42); } /* over a bright sun the glass darkens it (neutral, no tint), so grey text stays readable */
-:where(:root:not([data-theme='light'])) .screen .plinth::after { opacity: 1;
+:where(:root:not([data-theme='light'])) :is(.screen, .wk-skin) .plinth::after { opacity: 1;
   background: linear-gradient(180deg, rgba(255, 255, 255, .2), rgba(255, 255, 255, .06) 24%, rgba(255, 255, 255, .025) 60%, rgba(255, 255, 255, .02)); }
 :where(:root[data-theme='light']) .screen .plinth {
   background: rgb(255 255 255 / .6) linear-gradient(180deg, rgba(255, 255, 255, .35), rgba(255, 255, 255, 0) 55%);
   box-shadow: 0 1px 1px rgba(30, 40, 70, .06), 0 14px 36px -12px rgba(30, 40, 70, .22);
 }
-:where(:root[data-theme='light']) .screen .plinth::after { opacity: 1;
+:where(:root[data-theme='light']) :is(.screen, .wk-skin) .plinth::after { opacity: 1;
   background: linear-gradient(180deg, #fff, rgba(255, 255, 255, .6) 24%, rgba(20, 28, 48, .05) 70%, rgba(20, 28, 48, .08)); }
 .screen :is(.plinth, [data-wk='hero'] + div) :is(.chip:not(.on, .acc), .icon-btn:not(.flat, .acc)) { background: rgba(255, 255, 255, .07); box-shadow: none; }
 :root[data-theme='light'] .screen :is(.plinth, [data-wk='hero'] + div) :is(.chip:not(.on, .acc), .icon-btn:not(.flat, .acc)) { background: rgba(20, 28, 48, .055); }
@@ -3132,3 +3148,12 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 :root[data-theme='light'] { --lift-main: 0 1px 2px rgba(60,30,30,.14), 0 6px 14px -8px rgba(60,30,30,.22); }
 /* (after the dark chip rule above, which would make it grey again) */
 :root:not([data-theme='light']) span.chip.hot { color: var(--ac); }
+/* the list's own bottom edge (D, round 7, Active.tsx `wipe`): it uncovers the list as the window grows out of a card and
+   covers it before the window shrinks back, so the card's words and the list's never lie over each other. Transforms only:
+   the box is moved up and its contents down by as much. On layers of their own for good (none is made or dropped as a
+   move ends). */
+.wk-vclip, .wk-vshift { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; will-change: transform; }
+.wk-vclip { overflow: clip; }
+/* closing, the window lets taps through to the page: a tap on the card it is shrinking into opens it again, turned round
+   from where it is (Active.tsx, round 7) */
+.wk-card.wk-going, .wk-card.wk-going * { pointer-events: none !important; }

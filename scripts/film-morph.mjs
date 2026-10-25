@@ -62,4 +62,25 @@ if (process.env.SWIPE) {
   await p.getByLabel('Resume workout').first().tap(); await s.advance(240);
   await film('swipe-min', swipe, 170);
 }
+// a move turned round half way (round 7): a finger taps the window's minimise arrow 30 frames into an opening, and the card
+// 30 frames into a minimise; each must turn round from where it is, at its speed, with no jump
+const fingerTap = async (sel) => {
+  const r = await p.evaluate((q) => { const e = [...document.querySelectorAll(q)].find((x) => x.getBoundingClientRect().width > 0); if (!e) return null; const b = e.getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; }, sel);
+  if (!r) { console.log('no target', sel); return; }
+  // (where the finger lands, and when, in the film's time: TAPLOG=1)
+  if (process.env.TAPLOG) console.log('tap', sel, await p.evaluate(({ x, y }) => { const e = document.elementFromPoint(x, y); return `${Math.round(performance.now())} ${e?.tagName}.${String(e?.className).slice(0, 40)} ${e?.closest('[aria-label]')?.getAttribute('aria-label')}`; }, r));
+  const nextFrame = () => p.evaluate(() => new Promise((ok) => requestAnimationFrame(() => ok())));
+  await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: r.x, y: r.y, id: 2 }] }); await nextFrame();
+  await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+};
+const frames = (n) => p.evaluate((k) => new Promise((ok) => { let i = 0; const f = () => (++i >= k ? ok() : requestAnimationFrame(f)); requestAnimationFrame(f); }), n);
+if (!want.length || want.includes('open-int') || want.includes('min-int')) {
+  await s.advance(200);
+  if (!process.env.SWIPE) { await p.getByRole('button', { name: 'Today', exact: true }).first().tap(); await s.advance(240); }
+  const card = '[aria-label="Resume workout"]', minBtn = '[aria-label="Minimise workout"]';
+  await film('open-int', async () => { await fingerTap(card); await frames(30); await fingerTap(minBtn); }, 190);
+  await s.advance(240);
+  await fingerTap(card); await s.advance(240);
+  await film('min-int', async () => { await fingerTap(minBtn); await frames(30); await fingerTap(card); }, 190);
+}
 await s.close();
