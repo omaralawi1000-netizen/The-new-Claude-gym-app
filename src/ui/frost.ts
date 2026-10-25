@@ -30,12 +30,45 @@ const recipe = () => RECIPE[look()];
 const RECIPE: Record<string, string> = { a: 'blur(4px) saturate(1.35)', b: 'blur(4px) saturate(1.9) brightness(0.94)', c: 'blur(4px) saturate(1.9) brightness(0.94)' };
 
 function paint(cv: HTMLCanvasElement) {
-  const src = RECIPE[look()] ? pics.get(hueOf(cv)) : undefined;
+  const hue = hueOf(cv), made = pics.get(hue), last = made ? undefined : keptFor(hue);
+  const src = RECIPE[look()] ? made ?? last : undefined;
   const g = cv.getContext('2d'); if (!g) return;
   if (!src) { cv.dataset.on = ''; return; } // (fades out over the last picture; the card shows its plain glass)
+  // the picture kept from the last visit, on a fresh start: there at once, no fade from the plain glass (Omar 25 Oct: the
+  // cards opened clear and then faded into his colours)
+  if (last && cv.dataset.on !== '1') { cv.dataset.now = '1'; requestAnimationFrame(() => requestAnimationFrame(() => delete cv.dataset.now)); }
   if (cv.width !== src.width || cv.height !== src.height) { cv.width = src.width; cv.height = src.height; }
   g.clearRect(0, 0, cv.width, cv.height); g.drawImage(src, 0, 0);
   cv.dataset.on = '1';
+}
+
+// ---- each tab's picture kept on the phone (localStorage, small PNGs), so the next start shows the cards' colours from the
+// first frame instead of fading them in once the field is painted. Keyed by everything that shapes it; a stale one is
+// never shown, and the fresh copy replaces it as soon as it is made.
+const KEEP = 'aven.frost';
+const kept = new Map<string, HTMLCanvasElement>();
+const keyOf = (hue: string) => { const { w, h } = size(); return `${stamp()}|${root().dataset.cards ?? ''}|${w}x${h}|${hue}`; };
+const keptFor = (hue: string) => kept.get(keyOf(hue)) ?? kept.get(keyOf('*'));
+function loadKept() {
+  let o: Record<string, string>; try { o = JSON.parse(localStorage.getItem(KEEP) ?? '{}'); } catch { return; }
+  for (const [k, url] of Object.entries(o)) {
+    if (typeof url !== 'string' || !url.startsWith('data:image/png')) continue;
+    const im = new Image();
+    im.onload = () => {
+      const c = document.createElement('canvas'); c.width = im.naturalWidth; c.height = im.naturalHeight;
+      c.getContext('2d')?.drawImage(im, 0, 0); kept.set(k, c);
+      for (const cv of live) if (cv.isConnected && !cv.dataset.on) paint(cv);
+    };
+    im.src = url;
+  }
+}
+let keepAt = 0;
+const toKeep = new Map<string, string>();
+function keep(hue: string, pic: HTMLCanvasElement) {
+  const at = stamp();
+  for (const k of toKeep.keys()) if (!k.startsWith(at + '|')) toKeep.delete(k); // (only the colours now in use)
+  try { toKeep.set(keyOf(hue), pic.toDataURL('image/png')); } catch { return; }
+  clearTimeout(keepAt); keepAt = window.setTimeout(() => { try { localStorage.setItem(KEEP, JSON.stringify(Object.fromEntries(toKeep))); } catch { /* full: next start fades in as before */ } }, 1500);
 }
 
 const imgs = new Map<string, HTMLImageElement>();
@@ -118,7 +151,7 @@ export function frostFromField(field: HTMLElement, everyTab = false) {
   out.width = w; out.height = h;
   const o = out.getContext('2d'); if (!o) return;
   o.filter = rec; o.drawImage(raw, 0, 0); o.filter = 'none'; tame(o, w, h);
-  pics.set(hue, out);
+  pics.set(hue, out); keep(everyTab ? '*' : hue, out);
   repaint(hue);
   // (a background that is the same on every tab: the other tabs get the same picture now, not when they are opened)
   if (everyTab) for (const t of TABS) if (t !== hue) { pics.set(t, out); if (c) hues.set(t, c); repaint(t); }
@@ -144,7 +177,7 @@ export function frostAhead(hue: string, pic: ImageData, at: string) {
   const out = document.createElement('canvas'); out.width = w; out.height = h;
   const o = out.getContext('2d'); if (!o) return;
   o.filter = rec; o.drawImage(raw, 0, 0); o.filter = 'none'; tame(o, w, h);
-  pics.set(hue, out); repaint(hue);
+  pics.set(hue, out); keep(hue, out); repaint(hue);
 }
 export const frostStamp = stamp;
 
@@ -164,7 +197,7 @@ function rgb(L: number, A: number, B: number): [number, number, number] {
 }
 function tame(o: CanvasRenderingContext2D, w: number, h: number) {
   if (look() !== 'a') return;
-  const M = root().dataset.cards ?? 'mix'; // Cards on trial (Settings): blue E, sapphire F, clear G, plum A
+  const M = root().dataset.cards ?? 'between'; // Cards on trial (Settings): blue E, sapphire F, clear G, plum A
   let im: ImageData; try { im = o.getImageData(0, 0, w, h); } catch { return; }
   const d = im.data, n = d.length / 4;
   const px = new Float32Array(n * 3);
@@ -254,6 +287,7 @@ let started = false;
 export function startFrost() {
   if (started || typeof document === 'undefined') return; started = true;
   const r = root();
+  loadKept();
   const sh = () => r.style.setProperty('--frost-sh', `${window.innerHeight}px`);
   sh(); window.addEventListener('resize', () => { sh(); const f = lastField; if (f?.isConnected) frostFromField(f); });
   const scan = (n: ParentNode) => { for (const c of n.querySelectorAll<HTMLElement>('.screen .plinth')) dress(c); };
