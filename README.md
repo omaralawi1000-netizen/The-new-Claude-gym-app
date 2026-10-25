@@ -3123,3 +3123,39 @@ not see-through.
 - **No colour flash**: every tab's copy is thrown away the moment palette, background, glow or theme changes and rebuilt
   ahead from the pre-painted field, so other tabs never show the last theme's colours.
 
+
+## "Part of the answer couldn't be read" on every food log (21 Oct 2026, v0.1.172)
+Omar's food logs on the orb each came with the log card AND "Part of the answer couldn't be read — nothing was changed",
+so he said it again (lunch logged three times). The exam couldn't make it happen (OpenRouter, his real data, 7 tries);
+the one difference is the app's direct OpenAI call with a strict schema, where every action carries every field, which
+can coax out an empty filler action. Such a filler (nothing in it but its type) is no longer "unreadable"; anything real
+that can't be read is still said, and the first one dropped is kept in the trouble log (Settings → About) so the next one
+can be traced. The exam now fails any answer with a dropped action.
+
+## No doctor lines; the Coach on Medium (25 Oct 2026, v0.1.173)
+Omar: "remove that doctor shit. Don't force a rule on it. ChatGPT never told me in the real app that I need a doctor."
+Every line that told the Coach to send them to a doctor, a GP or a dietitian is gone (HOW YOU COACH, the handbook's red
+flags and teen/weight-class/women topics, the "help was suggested" fact). What stays is what protects the numbers, not
+wording: throwing up, laxatives or fasting to make up for food still turns catch-ups off and is remembered. The model may
+still suggest a doctor on its own when something is truly serious, the way the ChatGPT app does.
+The Coach thinks at Medium by default, and the setting is now a ceiling: the chooser's "high" tier no longer overrides it,
+so no 30–45 s waits.
+
+## Talking live with the orb: first test (25 Oct 2026, Beta only)
+Omar wants to talk to the orb like to a person: answer out loud, interrupt it, quick logging, and the most capable live
+model that still starts fast. From official docs and the Artificial Analysis board: Gemini 3.8 Live Extended Thinking
+(thinking "low"): ~1.35 s to first sound, async functions, Google Search in the same session, Danish officially supported,
+straight from the browser with his own key. GPT-Live-1 (no Danish listed, assumes a server) and Grok Voice 3.0 (Danish
+not supported) were the alternatives.
+- `lib/live.ts`: one open connection through `@google/genai` (loaded only when the orb goes live). Microphone at 16 kHz
+  through an AudioWorklet with echo cancellation, sent every ~100 ms; the answer at 24 kHz, queued and cut the moment the
+  server says it was interrupted. Transcripts of both sides come back as text. Done = `turnComplete` with
+  `interactionStatus` IDLE (Extended Thinking can speak more than once per turn).
+- The model gets the Coach's own instructions and DATA (`agentSystem`), the shared conversation so far, and
+  `LIVE_RULES` (speak, don't write JSON; short; their language; food through `log_food`; everything else → the Coach).
+- First test = food only: `log_food` runs Aven's own logging (`runActions`), so it is the usual card with Undo, and the
+  exchange is written into the shared conversation (`appendExchange`). Typing on the orb works as before.
+- Settings → Voice & AI → "Talk live with the orb (test)": on in Aven Beta, off in the real app. If it can't connect, the
+  usual orb answers. Design unchanged (Omar will redesign the orb).
+- `scripts/journey-live.mjs` fakes the Live server at the WebSocket: setup, microphone stream, a `log_food` call, the spoken
+  answer as text, the card, the shared conversation, Stop.

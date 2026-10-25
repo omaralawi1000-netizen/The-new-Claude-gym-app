@@ -18,7 +18,7 @@ function read(): Ev[] {
 /** Notes one moment of trouble (`d`: a few words of detail, never what was said). */
 export function noteTrouble(k: TroubleKind, d?: string, at = Date.now()) {
   const list = read().filter((e) => at - e.at < DAYS * 86_400_000);
-  list.push({ k, at, ...(d ? { d: d.slice(0, 120) } : {}) });
+  list.push({ k, at, ...(d ? { d: d.slice(0, 320) } : {}) });
   try { localStorage.setItem(KEY, JSON.stringify(list.slice(-MAX))); } catch { /* full: it counts a little less */ }
 }
 

@@ -160,19 +160,29 @@ const agentFoods = (v: unknown, n: number): AgentFood[] => (Array.isArray(v) ? v
 export const droppedCard = (t: AgentCtx['t']): AgentResult => ({ id: uid('r'), kind: 'miss', title: t('Part of the answer couldn’t be read'), lines: [{ text: t('Nothing was changed for it. Ask again — or copy the raw answer in Settings → About.') }] });
 
 /** Whatever came back from the model → a safe list of actions (anything odd is dropped, numbers are clamped). */
-export function validateAgent(raw: any): { reply: string; actions: AgentAction[]; /** actions it had to drop (unreadable): said, never silent */ dropped: number } | null {
+export function validateAgent(raw: any): { reply: string; actions: AgentAction[]; /** actions it had to drop (unreadable): said, never silent */ dropped: number; /** the first one dropped, for the trouble log */ droppedRaw?: string } | null {
   if (!raw || typeof raw !== 'object') return null;
   const reply = str(raw.reply, 4000) ?? '';
   const out: AgentAction[] = [];
-  let dropped = 0;
+  let dropped = 0, empty = 0, droppedRaw: string | undefined;
   for (const a of (Array.isArray(raw.actions) ? raw.actions : []).slice(0, 12)) {
-    if (!a || typeof a !== 'object') { dropped++; continue; }
+    // an empty filler that can't be done (every field null: a strict schema can coax one out) is nothing to say sorry
+    // for: every food log said "Part of the answer couldn't be read" beside the log card (Omar, 21 Oct)
+    if (!a || typeof a !== 'object') continue;
     const before = out.length;
     validateOne(a, out);
-    if (out.length === before) dropped++;
+    if (out.length === before && emptyAction(a)) empty++;
+    else if (out.length === before) { dropped++; droppedRaw ??= (() => { try { return JSON.stringify(a).slice(0, 300); } catch { return '?'; } })(); }
   }
-  if (!reply && !out.length && !dropped) return null;
-  return { reply, actions: out, dropped };
+  if (!reply && !out.length && !dropped && !empty) return null;
+  return { reply, actions: out, dropped, ...(droppedRaw ? { droppedRaw } : {}) };
+}
+
+/** An action with nothing in it but its type (or not even that). */
+function emptyAction(a: Record<string, unknown>): boolean {
+  const full = (v: unknown): boolean => v !== null && v !== undefined && v !== '' &&
+    !(Array.isArray(v) && !v.some(full)) && !(typeof v === 'object' && !Array.isArray(v) && !Object.values(v as object).some(full));
+  return !Object.entries(a).some(([k, v]) => k !== 'type' && full(v));
 }
 
 function validateOne(a: any, out: AgentAction[]) {

@@ -145,7 +145,9 @@ async function ask(q: Question, contest: string | undefined, n: number): Promise
     const v = validateAgent(raw);
     if (!v) return { ...base, ok: 'invalid answer', reply: JSON.stringify(raw).slice(0, 500), actions: [], lookups, cost, usage, ms: Math.round(performance.now() - t0), rounds };
     const unprompted = !q.health && UNPROMPTED.test(v.reply) ? (v.reply.match(UNPROMPTED)?.[0] ?? '') : null;
-    return { ...base, ok: q.check?.({ reply: v.reply, actions: v.actions }) ?? null, unprompted, reply: v.reply, actions: v.actions, lookups, cost, usage, ms: Math.round(performance.now() - t0), rounds };
+    // (an action the app couldn't read is a fail: the person sees "Part of the answer couldn't be read")
+    const ok = v.dropped ? `dropped ${v.dropped}: ${JSON.stringify(raw?.actions).slice(0, 600)}` : q.check?.({ reply: v.reply, actions: v.actions }) ?? null;
+    return { ...base, ok, unprompted, reply: v.reply, actions: v.actions, lookups, cost, usage, ms: Math.round(performance.now() - t0), rounds };
   } catch (e: any) {
     return { ...base, ok: 'error', reply: '', actions: [], lookups, cost, usage, ms: Math.round(performance.now() - t0), error: String(e?.message ?? e).slice(0, 300), rounds };
   }

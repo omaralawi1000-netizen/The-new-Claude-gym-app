@@ -68,3 +68,18 @@ describe('fixing what was just logged, wherever it went', () => {
     expect(e.kind).not.toBe('miss');
   });
 });
+
+describe('"Part of the answer couldn\'t be read" only when something real was lost (Omar, 21 Oct)', () => {
+  const log = { type: 'log_food', foods: [{ name: 'power kartofler', amount: 460, unit: 'g' }], meal: 'lunch', day: null };
+  it('an empty filler action is not "unreadable"', () => {
+    const filler = { type: 'navigate', screen: null, foods: [], ref: null, target: '', per100: { kcal: null } };
+    const v = validateAgent({ reply: 'Logget.', actions: [log, filler, {}, { type: 'log_food', foods: [] }] })!;
+    expect(v.actions).toHaveLength(1);
+    expect(v.dropped).toBe(0);
+  });
+  it('a real action it can\'t read is still said, and kept for the trouble log', () => {
+    const v = validateAgent({ reply: '', actions: [log, { type: 'log_weight', kg: 9000 }] })!;
+    expect(v.dropped).toBe(1);
+    expect(v.droppedRaw).toContain('9000');
+  });
+});

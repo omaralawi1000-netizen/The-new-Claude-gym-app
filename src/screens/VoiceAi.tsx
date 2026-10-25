@@ -113,6 +113,9 @@ export function VoiceAiSettings() {
             <Seg value={ai.mic} onChange={(v) => ai.patch({ mic: v })} options={[{ value: 'phone', label: t('Phone') }, { value: 'any', label: t('Earbuds') }]} />
             <div className="xs t2" style={{ marginTop: 6 }}>{t('With earbuds in, the phone’s own mic hears you better and keeps your music playing.')}</div></div>
           <div className="row-flex between"><div><div>{t('Let Gemini understand dictation')}</div></div><Toggle on={ai.brain} onChange={(v) => ai.patch({ brain: v })} label={t('Let Gemini understand dictation')} /></div>
+          {/* talk to the orb live (lib/live.ts): being tried in Aven Beta */}
+          <div><div className="row-flex between"><div><div>{t('Talk live with the orb (test)')}</div></div><Toggle on={ai.liveOrb} onChange={(v) => ai.patch({ liveOrb: v })} label={t('Talk live with the orb (test)')} /></div>
+            <div className="xs t2" style={{ marginTop: 6 }}>{ai.hasGemini ? t('Gemini Live answers out loud and you can interrupt it. For now it can log food; typed messages work as before.') : t('Needs a Gemini key.')}</div></div>
           <div className="field"><label>{t('Voice for read-aloud')}</label><div className="chips" style={{ margin: 0, padding: 0, flexWrap: 'wrap' }}>{VOICES.map((v) => <button key={v} className={`chip sm press ${ai.voice === v ? 'on' : ''}`} onClick={() => pick(v)}>{v}</button>)}</div>
             <div className="xs t2" style={{ marginTop: 6 }}>{VOICE_STYLE[ai.voice] ? `${ai.voice} · ${VOICE_STYLE[ai.voice]}. ` : ''}{ai.hasGemini ? t('Tap a voice to hear it.') : ''} {t('Answers are only read aloud when you tap ▶ next to them.')}</div></div>
         </div>
