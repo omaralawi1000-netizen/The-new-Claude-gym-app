@@ -4,7 +4,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useStore, allExercises } from '../src/state/store';
 import { defaultData } from '../src/state/defaults';
-import { applyDone } from '../src/screens/workout/rest';
+import { applyDone, lastDone } from '../src/screens/workout/rest';
 import type { SetRecord, WorkoutSession } from '../src/lib/types';
 
 const today = new Date().toISOString().slice(0, 10);
@@ -49,5 +49,14 @@ describe('Done ✓ from the watch', () => {
     start([{ id: 'a', exerciseId: idOf('Barbell Bench Press'), sets: [set('a1')] }]);
     expect(applyDone()).toBe(false);
     expect(done()).toHaveLength(0);
+  });
+
+  it('Settings can say where the last Done ✓ stopped (25 Oct: it stopped again on the phone)', async () => {
+    start([{ id: 'a', exerciseId: idOf('Barbell Bench Press'), sets: [set('a1')] }]);
+    applyDone(Date.now(), 'cache');
+    expect((await lastDone()).page).toMatchObject({ via: 'cache', why: 'no rest running' });
+    start([{ id: 'a', exerciseId: idOf('Barbell Bench Press'), sets: [set('a1', { done: true }), set('a2')] }], { endsAt: Date.now() - 5000, total: 90, exerciseId: idOf('Barbell Bench Press') });
+    expect(applyDone()).toBe(true);
+    expect((await lastDone()).page).toMatchObject({ via: 'message', why: '' });
   });
 });
