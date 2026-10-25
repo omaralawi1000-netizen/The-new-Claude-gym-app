@@ -188,13 +188,17 @@ function tame(o: CanvasRenderingContext2D, w: number, h: number) {
     { // like Champagne on Mesh: dark glass, one soft glow coming through (Omar's pick 25 Oct, option 5)
       const k = Math.max(0.6, Math.min(1, 0.26 / mL) * (0.62 + 0.38 * near)); // never below 60 %: smoked glass, not a hole
       L *= mix(1, k); C *= mix(1, Math.sqrt(k)); // the colour kept richer than the light, so dark orange doesn't turn brown
-      const deg = (H * 180) / Math.PI, cool = deg > -130 && deg < -30; // violet and blue light: a slab, never the glow
-      const kL = cool ? 0.16 : 0.24, kC = cool ? 0.05 : 0.08; // (the violet top card on Colour per tab stayed bright, judge r3)
-      if (L > kL) L = mix(L, kL + (L - kL) * (cool ? 0.3 : 0.45)); // a bright slab is toned down too
-      if (C > kC) C = mix(C, kC + (C - kC) * (cool ? 0.3 : 0.4));
-      // dark orange leans to rose (not rust), navy to plum
-      if (deg > 30 && deg < 85 && L < 0.4) H += ((15 - deg) * Math.PI / 180) * 0.6 * g;
-      else if (deg < -60 && deg > -130) H += ((-35 - deg) * Math.PI / 180) * 0.6 * g;
+      // every switch below fades in over a range (a hard step drew a jagged band on Time of day, judge r4)
+      const deg = (H * 180) / Math.PI, step = (x: number, a: number, b: number) => clamp((x - a) / (b - a));
+      const cool = step(deg, -135, -120) * step(-deg, 25, 40); // violet and blue light: a slab, never the glow
+      const kL = 0.24 - 0.08 * cool, kC = 0.08 - 0.03 * cool; // (the violet top card on Colour per tab stayed bright, judge r3)
+      if (L > kL) L = mix(L, kL + (L - kL) * (0.45 - 0.15 * cool)); // a bright slab is toned down too
+      if (C > kC) C = mix(C, kC + (C - kC) * (0.4 - 0.1 * cool));
+      if (L < 0.17) L = mix(L, 0.17 - (0.17 - L) * 0.55); // the darkest glass keeps some of its colour's light, never a hole
+      // dark orange leans to wine (not rust or chocolate), navy to plum
+      const warm = step(deg, 25, 35) * step(-deg, -88, -78) * step(-L, -0.48, -0.4);
+      H += ((12 - deg) * Math.PI / 180) * 0.75 * g * warm;
+      H += ((-35 - deg) * Math.PI / 180) * 0.6 * g * step(deg, -135, -125) * step(-deg, 55, 65);
     }
     A = C * Math.cos(H); B = C * Math.sin(H);
     const [rr, gg, bb] = rgb(L, A, B); d[i * 4] = rr; d[i * 4 + 1] = gg; d[i * 4 + 2] = bb;
