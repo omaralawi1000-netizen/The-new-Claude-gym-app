@@ -204,7 +204,7 @@ function tame(o: CanvasRenderingContext2D, w: number, h: number) {
       if (M === 'sapphire') C = mix(C, Math.min(C * 1.35, 0.11) * cool + C * (1 - cool)); // richer blue
       if (M === 'clear') { C *= mix(1, 0.45); L = mix(L, Math.min(L, 0.22 + (L - 0.22) * 0.5)); } // almost no colour
       // H and I: part of the way back to the clear glass Omar saw on launch (the page straight through, before the copy faded in)
-      const back = M === 'mix' ? 0.5 : M === 'light' ? 0.75 : 0;
+      const back = M === 'mix' ? 0.5 : M === 'between' ? 0.62 : M === 'light' ? 0.75 : 0;
       if (back) { const L0 = px[i * 3], C0 = Math.hypot(px[i * 3 + 1], px[i * 3 + 2]); L += (L0 - L) * back; C += (C0 - C) * back; }
     }
     A = C * Math.cos(H); B = C * Math.sin(H);

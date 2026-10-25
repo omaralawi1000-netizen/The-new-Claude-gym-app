@@ -6,7 +6,7 @@ export const da: Record<string, string> = {
  "This replaces everything in the Beta with a copy of your real Aven (including your API keys), then restarts the Beta. Your real Aven is not touched.": "Det erstatter alt i Beta med en kopi af din rigtige Aven (også dine API-nøgler) og genstarter Beta. Din rigtige Aven bliver ikke rørt.",
  "Yes, copy it": "Ja, kopiér",
  "How strong the background is. Off leaves it plain.": "Hvor kraftig baggrunden er. Fra gør den helt rolig.",
- "Trial: how much colour comes through the cards on busy backgrounds. E blue (my pick), F richer blue, G almost no colour, H halfway to the light glass you see on launch, I most of the way, A the purple from before.": "Test: hvor meget farve der kommer gennem kortene på travle baggrunde. E blå (mit valg), F dybere blå, G næsten ingen farve, H halvvejs mod det lyse glas, du ser ved opstart, I det meste af vejen, A den lilla fra før.",
+ "Trial: how much colour comes through the cards on busy backgrounds. E blue (my pick), F richer blue, G almost no colour, H halfway to the light glass you see on launch, J between H and I, I most of the way, A the purple from before.": "Test: hvor meget farve der kommer gennem kortene på travle baggrunde. E blå (mit valg), F dybere blå, G næsten ingen farve, H halvvejs mod det lyse glas, du ser ved opstart, J mellem H og I, I det meste af vejen, A den lilla fra før.",
  "Surfaces": "Flader",
  "Cards, buttons and pop-ups in the dark theme. A, B and C take their colour from the background behind them; Before is the look as it was.": "Kort, knapper og pop-ups i det mørke tema. A, B og C tager deres farve fra baggrunden bag dem; Før er udseendet, som det var.",
  "Sheets": "Ark",
