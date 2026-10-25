@@ -17,7 +17,7 @@ const TABS: { id: Tab; icon: any; label: string }[] = [
   { id: 'today', icon: 'today', label: 'Today' },
   { id: 'train', icon: 'train', label: 'Train' },
   { id: 'food', icon: 'food', label: 'Food' },
-  { id: 'progress', icon: 'progress', label: 'Progress' },
+  { id: 'progress', icon: 'heart', label: 'Health' },
 ];
 
 // only the text ticks: re-rendering the pill itself would make its layout animation re-measure twice a second
