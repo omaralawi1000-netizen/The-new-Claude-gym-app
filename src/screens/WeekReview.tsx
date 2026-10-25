@@ -109,7 +109,7 @@ export function WeekReviewSheet({ props }: { props: { end?: string } }) {
       ].join('\n');
       const cand = `CANDIDATES (id — what it is):\n${cands.map((c) => `${c.id} — ${t(c.key, c.vars as Record<string, string | number>)}`).join('\n') || '(none: the week went well)'}`;
       const last = prev ? `LAST WEEK'S PRIORITIES: ${prev.priorities.map((p) => { const ok = met(p.id, n, d.settings.goals.protein); return `${p.text} → ${ok === null ? 'unknown' : ok ? 'done' : 'not done'}`; }).join('; ') || 'none'}` : 'LAST WEEK: no review.';
-      const ctx = `${week}\n\n${cand}\n\n${last}\n\n${memoryBlock(d, name)}\n\n${learnedBlock(name, (id) => id)}\n\nDATA:\n${buildCoachContext(d, today, name, musclesOf)}`;
+      const ctx = `${week}\n\n${cand}\n\n${last}\n\n${memoryBlock(d, name)}\n\n${learnedBlock(name, (id) => id)}\n\nDATA:\n${buildCoachContext(d, today, name, musclesOf, { week: { from: n.from, to: n.to } })}`;
       const b0 = brainFor({ big: true, surface: 'coach', signal: ac.signal });
       const r = b0 ? await thinkJson({ ...b0, sol: b0.sol ? { ...b0.sol, effort: 'high' } : undefined }, { system: `${REVIEW_SYSTEM(lang)}\n\n${HOW_TO_TALK}\n\n${HANDBOOK_CORE}`, prompt: ctx, schema: REVIEW_SCHEMA, name: 'week_review' }).then((raw) => readReview(raw, cands.map((c) => c.id))).catch(() => null) : null;
       clearTimeout(limit);

@@ -161,7 +161,12 @@ describe('one week, counted', () => {
     expect(l).toContain(`Day by day (today and the 6 days before, since Mon ${addDays(today, -6)}; kcal / protein; workouts; weigh-ins): Mon 10-19: not logged`);
     expect(l).toContain('Sun 10-25 (today, so far): 500 / 30 g');
     // (30 g a day against 40: none on target; today isn't counted)
-    expect(l).toContain(`Protein at or above the 40 g target: 0 of 2 logged days before today`);
+    expect(l).toContain('Protein at or above the 40 g target: 0 of those 2 days; the other 2 were 10 g under.');
+    expect(l).toContain('"This week" or "my week" in a question means this same window');
+    // (the weekly review has its own Mon–Sun week: DATA's 7 days are never read as it)
+    const r = buildCoachContext(data(), today, (id) => id, undefined, { week: { from: addDays(today, -7), to: addDays(today, -1) } });
+    expect(r).toContain(`"The week" here is WEEK ${addDays(today, -7)}…${addDays(today, -1)} above`);
+    expect(r).not.toContain('answer that one window');
   });
   it('a weekly-review focus on skipped sets or days over can be checked the week after', () => {
     const n = { skipped: 4, plannedSets: 30, skippedWorkouts: 3, overDays: 1, loggedDays: 7 } as unknown as ReviewNumbers;
