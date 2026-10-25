@@ -34,8 +34,10 @@ function PillStatus() {
   // rest over while you're elsewhere in the app: the pill says so, in green, until the next set is ticked
   // (the workout's time on its own: it flies into the window's clock, Active.tsx data-wk-fly)
   const clock = <span data-wk-fly="clock">{fmtDuration(elapsedMs(active) / 1000)}</span>;
-  if (active.rest && !active.pausedAt && rest === 0) return <><span style={{ color: 'var(--ac-text)', fontWeight: 700 }}>{t('Rest over')} · {t('Go')}</span> · {clock}</>;
-  return <>{active.pausedAt ? t('Paused') : rest > 0 ? `${t('Rest')} ${fmtDuration(rest)}` : `${done}/${total}`} · {clock}</>;
+  // (the words before the clock are a part of their own, data-wk-part: the window's flight fades them out before the clock
+  // leaves its place beside them and in only once it has landed there, so it never runs into "Rest 1:19")
+  if (active.rest && !active.pausedAt && rest === 0) return <><span data-wk-part="status"><span style={{ color: 'var(--ac-text)', fontWeight: 700 }}>{t('Rest over')} · {t('Go')}</span> · </span>{clock}</>;
+  return <><span data-wk-part="status">{active.pausedAt ? t('Paused') : rest > 0 ? `${t('Rest')} ${fmtDuration(rest)}` : `${done}/${total}`} · </span>{clock}</>;
 }
 
 const PILL = { hide: { y: 18, scale: 0.95 }, show: { y: 0, scale: 1 } };

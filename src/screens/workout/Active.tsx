@@ -44,7 +44,7 @@ const FADE_IN = { inside: [0.025, 0.08], skin: [0.06, 0.16], words: [0.002, 0.03
 // card's look comes up on it at the end)
 // (`pop`, `popS`: the card's play button on a layer of its own, so it never shows half see-through: it comes up quickly over
 // `pop` while it is still a touch small, and grows the last bit into its place over `popS`; leaving, the reverse)
-type Fades = typeof FADE_OUT & { views?: number[]; mat?: number[]; pop?: number[]; popS?: number[]; /** the play button's size at the far end of popS (0.88) */ popTo?: number; veil?: number[]; meta?: number[]; bar?: number[] };
+type Fades = typeof FADE_OUT & { views?: number[]; mat?: number[]; pop?: number[]; popS?: number[]; /** the play button's size at the far end of popS (0.88) */ popTo?: number; veil?: number[]; meta?: number[]; bar?: number[]; /** the live dot's size (it is never faded: orange fading over the dark read brown) */ dot?: number[]; /** the done checkboxes' orange, over their own grey, while the list is whole */ ac?: number[] };
 const FADES: Record<Land, { out: Fades; in: Fades }> = {
   A: { out: { ...FADE_OUT, inside: [0.86, 0.99], skin: [0.42, 0.8], mat: FADE_OUT.skin }, in: { ...FADE_IN, inside: [0.68, 0.94], views: [0.86, 0.995], skin: [0.32, 0.66], mat: FADE_IN.skin } },
   B: { out: { inside: [0.5, 0.97], skin: [0.38, 0.76], mat: [0.089, 0.178], words: [0, 0.06], back: [0.006, 0.056], solid: [0.078, 0.089], pop: [0.07, 0.1], popS: [0, 0.1] }, in: { ...FADE_IN, words: [0.002, 0.07], pop: [0.002, 0.025], popS: [0.002, 0.05], inside: [0.62, 0.9], views: [0.8, 0.99], skin: [0.6, 0.88], mat: FADE_IN.skin } },
@@ -58,7 +58,14 @@ const FADES: Record<Land, { out: Fades; in: Fades }> = {
   // window is a good part of the screen (r1: the light squeezed into a card or bar read as a flat red-orange slab); it is
   // set on plain progress, as `meta` is: the header's tally and progress bar, which leave in the first frames of a close
   // (the clock flies down through where they are) and come back once it has flown up.
-  D: { out: { inside: [0.1, 0.2], views: [0.12, 0.22], skin: [0.1, 0.2], veil: [0.25, 0.45], meta: [0.88, 0.96], bar: [0.86, 0.97], mat: [0.089, 0.178], words: [0.06, 0.15], back: [0.006, 0.056], solid: [0.078, 0.089], pop: [0.115, 0.12], popS: [0, 0.12], popTo: 0.15 }, in: { ...FADE_IN, words: [0.002, 0.09], pop: [0.08, 0.09], popS: [0, 0.09], popTo: 0.08, inside: [0.07, 0.18], views: [0.09, 0.22], skin: [0.06, 0.2], veil: [0.25, 0.45], meta: [0.25, 0.45], bar: [0.74, 0.97], mat: FADE_IN.skin } },
+  // (round 5: the play button and the live dot shrink to nothing or grow from nothing, over 8-15 frames, and only the last
+  // speck at 3 % comes or goes in a frame; the dot is never faded)
+  // (round 5: the name and the clock fly on the window's own spring the whole way, so what they pass over keeps out of their
+  // way: closing, the list goes over 50-36 % and the header's buttons over 42-28 %, as they set off from the header
+  // (FLY_Q) and before they have grown, and the card's own words come in on the window right after (32-20 %), so it is
+  // never an empty slab; opening, the tally comes in once the clock has nearly reached its size (78-95 %), and the header's
+  // buttons only once the card's play button has gone, never over it)
+  D: { out: { inside: [0.28, 0.42], views: [0.36, 0.5], skin: [0.1, 0.2], veil: [0.25, 0.45], meta: [0.78, 0.94], bar: [0.86, 0.97], mat: [0.089, 0.178], words: [0.2, 0.32], back: [0.006, 0.056], solid: [0.078, 0.089], pop: [0.0995, 0.1], popS: [0, 0.1], popTo: 0.03, dot: [0.18, 0.32], ac: [0.5, 0.6] }, in: { ...FADE_IN, words: [0.002, 0.09], pop: [0.1195, 0.12], popS: [0, 0.12], popTo: 0.03, dot: [0.002, 0.14], inside: [0.12, 0.24], views: [0.14, 0.28], skin: [0.06, 0.2], veil: [0.25, 0.45], meta: [0.78, 0.95], bar: [0.74, 0.97], mat: FADE_IN.skin, ac: [0.28, 0.38] } },
   C: { out: { ...FADE_OUT, inside: [0.88, 0.995], skin: [0.42, 0.8], mat: FADE_OUT.skin }, in: { ...FADE_IN, inside: [0.6, 0.9], views: [0.8, 0.99], skin: [0.32, 0.6], mat: FADE_IN.skin } },
 };
 // B: how much the card gives as it catches the window (per unit of the spring's overshoot past the card): it shrinks a
@@ -66,6 +73,8 @@ const FADES: Record<Land, { out: Fades; in: Fades }> = {
 const CATCH_K = 0.4, CATCH_D = 200;
 // D: no give in size, and a shallower dip (r1: 6 px, still creeping a tenth of a pixel at 0.8 s; now about 3 px)
 const CATCH_KD = 0, CATCH_DD = 110;
+// D closing: how far from home (in the window's growth) the name and the clock set off from the header (launchHero)
+const FLY_Q = 0.5;
 // the card the fades are set for: any place this tall or taller lands on them as they are (`fk`)
 const FK_REF = 150;
 // C: how far the list sinks as it packs away (and rises from as it comes in)
@@ -149,8 +158,16 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   // the spring still to go: it slows to nothing and rests, at about 0.66 s, with no last step.
   const LAND = 0.015, LAND_AT = 0.005;
   const G = (v: number) => (v >= 2 * LAND ? v - LAND : (v * v) / (4 * LAND));
+  // (D: its last 6 % eased, and still with 1 % of the spring to go: the last screen pixel takes nine frames, not forty)
+  const LAND_D = 0.03, LAND_AT_D = 0.01;
+  const GD = (v: number) => (v >= 2 * LAND_D ? v - LAND_D : (v * v) / (4 * LAND_D));
+  // D (round 5) lands this way at both ends: opening at the top, and closing in the card or the resume bar, where it comes
+  // down without a bounce and slows to a stop exactly on the card's outline (r4's catch dipped 3 px and crept back up for
+  // most of a second). B still opens past the top and settles back, and catches the window on the way down.
   const landed = (pp: number) => {
-    if (!from.current || leaving.current || catches(ls.current)) return pp; // (B opens past the top and settles back)
+    if (!from.current) return pp;
+    if (ls.current === 'D') return leaving.current ? GD(Math.max(0, pp - LAND_AT_D)) / GD(1 - LAND_AT_D) : 1 - GD(Math.max(0, 1 - pp - LAND_AT_D)) / GD(1 - LAND_AT_D);
+    if (leaving.current || catches(ls.current)) return pp;
     return 1 - G(Math.max(0, 1 - pp - LAND_AT)) / G(1 - LAND_AT);
   };
   // how far the window has grown (0 = the card, 1 = the screen), eased in from the hold
@@ -241,6 +258,13 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   };
   const wordsAt = (pp: number) => { const dy = wordsDy(pp), k = skinParts.current?.k ?? 1; return `${dy ? `translateY(${dy.toFixed(2)}px) ` : ''}scale(${k.toFixed(5)})`; };
   const popAt = (pp: number) => `${wordsDy(pp) ? `translateY(${wordsDy(pp).toFixed(2)}px) ` : ''}scale(${((skinParts.current?.pop?.k ?? 1) * (1 - (1 - (F().popTo ?? 0.88)) * ramp(pp, F().popS ?? F().words))).toFixed(5)})`;
+  // the live dot: whole, sized about its middle (ramp: 0 at full size); the words before the resume bar's clock (`status`):
+  // opening, gone in the first frames, before the clock moves off beside them; closing, in only once it has landed beside
+  // them (on plain progress: it lands at LAND_AT_D)
+  const dotS = (pp: number) => 1 - ramp(pp, F().dot ?? F().words);
+  const dotAt = (pp: number) => { const dy = wordsDy(pp), k = skinParts.current?.k ?? 1, v = dotS(pp); return `${dy ? `translateY(${dy.toFixed(2)}px) ` : ''}scale(${(k * Math.max(0.03, v)).toFixed(5)})`; };
+  const dotO = (pp: number) => (dotS(pp) > 0.03 ? 1 : 0.002);
+  const statusO = (pp: number) => Math.max(0.002, leaving.current ? 1 - clamp01((pp - LAND_AT_D / 2) / (LAND_AT_D / 2)) : 1 - clamp01(pp / 0.07));
   const matR = () => F().mat ?? F().skin;
   const matO = (pp: number) => (F().mat ? Math.max(0.002, 1 - ramp(pp, F().mat!)) : 1);
   const toneO = (pp: number) => (F().mat ? Math.max(0.002, ramp(pp, F().mat!)) : 0.002);
@@ -253,7 +277,10 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   // lets go only once the window covers the whole screen (98.6 %), unseen, so no edge of the page lightens while in view.
   const ENV = [0.1, 0.6, 0.986, 0.996];
   const easeIn = (u: number) => (u < 0.3 ? (u * u) / 0.6 : u - 0.15) / 0.85;
-  const env = (pp: number) => (from.current ? easeIn(clamp01((pp - ENV[0]) / (ENV[1] - ENV[0]))) * (1 - clamp01((pp - ENV[2]) / (ENV[3] - ENV[2]))) : 0);
+  // (`envK` 0: the page behind holds still at rest for the whole move. Let go after a swipe it is already at rest, uncovered by
+  // the finger, so it stays there: r4 stepped it back and dimmed it in the first frame of the close, a one-frame jump)
+  const envK = useRef(1);
+  const env = (pp: number) => (from.current && envK.current ? easeIn(clamp01((pp - ENV[0]) / (ENV[1] - ENV[0]))) * (1 - clamp01((pp - ENV[2]) / (ENV[3] - ENV[2]))) : 0);
   const dim = (pp: number) => 0.3 * env(pp);
   // where env bends (its eased start in steps of 1.5 %: straight lines between them are within a hair of the curve)
   const ENVB = [...Array.from({ length: 11 }, (_, i) => ENV[0] + i * 0.015), ENV[1], ENV[2], ENV[3]];
@@ -323,7 +350,9 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
       // the page's side of the bar dims with the page while the window grows out of a card (.wk-dim: the same colour and
       // strength), so no bright strip lies across the top of a dimmed page
       const light = document.documentElement.dataset.theme === 'light';
-      const a = dim(v) * (light ? 0.55 : 1), dc = light ? [20, 24, 30] : [0, 0, 0];
+      // (the page's own progress, not the finger's: a finger pulling the window down leaves the page behind at rest, and the
+      // bar over it stays its colour; on the finger's progress the bar dimmed while the page under it did not)
+      const a = dim(p.get()) * (light ? 0.55 : 1), dc = light ? [20, 24, 30] : [0, 0, 0];
       const key = `${k}|${a.toFixed(3)}`;
       if (key === last) return; last = key;
       setBarTint([0, 1, 2].map((i) => t.tab[i] * (1 - a) + dc[i] * a + (t.wk[i] - (t.tab[i] * (1 - a) + dc[i] * a)) * k) as [number, number, number], 0, false);
@@ -339,7 +368,9 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   // the rounded corners' cut-outs fill with the top band's colour in the very frames the bar takes that colour (the same
   // ramp as the bar's turn below): two wedges of the page behind no longer show under a strip that is already the
   // workout's. Opacity only; mid-travel the corners are round over the page.
-  const fill = (pp: number) => { const at = barAtOf(); return Math.min(1, Math.max(0, (pp - (at - 0.015)) / 0.03)); }; // exactly with the bar's turn
+  // (not while the window is let go below the screen's top after a swipe, dragOff: its corners are then in view, round; r5
+  // filled them for the first frame of the close, a flash of square corners)
+  const fill = (pp: number) => { if (from.current && dragOff.current && geo(pp).y + LEAD > 0.25) return 0; const at = barAtOf(); return Math.min(1, Math.max(0, (pp - (at - 0.015)) / 0.03)); }; // exactly with the bar's turn
   const fillO = useTransform(eFingerV, fill);
   const fillRef = useRef<HTMLDivElement>(null);
   // what is on the page floats a little behind the page itself, by layer: the header a touch, the list a little more. It
@@ -467,12 +498,14 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     const hs = hero.current;
     void ref.ready.then(() => { if (hero.current !== hs || ref.startTime === null) return; for (const x of hs) for (const a of x.h.anims) { a.effect?.updateTiming({ delay: 0 }); a.startTime = ref.startTime; } }, () => {});
   };
-  const skinParts = useRef<{ k: number; back: HTMLElement; tone: HTMLElement; mat: HTMLElement; words: HTMLElement | null; pop: { el: HTMLElement; k: number } | null; watch: MutationObserver | null } | null>(null);
+  const skinParts = useRef<{ k: number; back: HTMLElement; tone: HTMLElement; mat: HTMLElement; words: HTMLElement | null; pop: { el: HTMLElement; k: number } | null; dot: HTMLElement | null; status: HTMLElement | null; watch: MutationObserver | null } | null>(null);
   const skinAt = (pp: number) => {
     const s = skinRef.current, k = skinParts.current; if (!s || !k) return;
     s.style.opacity = String(skinO(pp)); k.back.style.opacity = String(backO(pp)); k.mat.style.transform = matAt(pp); k.mat.style.opacity = String(matO(pp)); k.tone.style.opacity = String(toneO(pp));
     if (k.words) { k.words.style.opacity = String(wordsO(pp)); k.words.style.transform = wordsAt(pp); }
     if (k.pop) { k.pop.el.style.opacity = String(popO(pp)); k.pop.el.style.transform = popAt(pp); }
+    if (k.dot) { k.dot.style.opacity = String(dotO(pp)); k.dot.style.transform = dotAt(pp); }
+    if (k.status) { k.status.style.opacity = String(statusO(pp)); k.status.style.transform = wordsAt(pp); }
   };
   const dropSkin = () => {
     const s = skinRef.current; skinParts.current?.watch?.disconnect(); skinParts.current = null;
@@ -517,9 +550,18 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   const metaEls = () => [...(headRef.current?.querySelectorAll<HTMLElement>('.wk-clock, .wk-meta-rest, .wk-paused, .wk-progress') ?? [])];
   const lastMeta = useRef('');
   const metaAt = (pp: number) => { const v = String(metaO(pp)); if (v === lastMeta.current) return; lastMeta.current = v; for (const el of metaEls()) el.style.opacity = v === '1' ? '' : v; };
+  // the done checkboxes' orange (a layer over their own grey of the same lightness): it goes to that grey while the list is
+  // whole and only then does the list fade, so it never darkens through brown; it comes back once the list is in
+  const acO = (pp: number) => (from.current && F().ac ? ramp(pp, F().ac!) : 1);
+  const acEls = (seen = false) => {
+    const all = [...(viewsRef.current?.querySelectorAll<HTMLElement>('.wk-check-ac') ?? [])];
+    return seen ? all.filter((el) => { const r = el.getBoundingClientRect(); return r.bottom > -50 && r.top < H + 50; }) : all;
+  };
+  const lastAc = useRef('');
+  const acAt = (pp: number) => { const v = String(acO(pp)); if (v === lastAc.current) return; lastAc.current = v; for (const el of acEls()) el.style.opacity = v === '1' ? '' : v; };
   const paintAt = (pp: number) => {
     if (!reduce) sink(env(pp));
-    metaAt(pp); barAt(pp);
+    metaAt(pp); acAt(pp); barAt(pp);
     if (dockAt.current !== null) setDock(pp);
     skinAt(pp);
   };
@@ -601,7 +643,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
       Object.assign(mat.style, { width: `${g.w}px`, height: `${g.h}px`, borderRadius: `${g.r}px`, willChange: 'transform, opacity' });
       // the resume bar's glass (unfrosted) is part of the ground that clears over its own frosted glass
       if (exact.current) s.replaceChildren(back, mat); else { back.append(mat); s.replaceChildren(back); }
-      let words: HTMLElement | null = null, pop: { el: HTMLElement; k: number } | null = null, watch: MutationObserver | null = null;
+      let words: HTMLElement | null = null, pop: { el: HTMLElement; k: number } | null = null, watch: MutationObserver | null = null, dot: HTMLElement | null = null, status: HTMLElement | null = null;
       const fg = g.fg;
       if (fg) {
         // the card's words at the card's own size wherever the window is (its scale undone), so they land exactly on the card's
@@ -621,13 +663,39 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
           s.append(el);
         }
         const L0 = parseFloat(w.style.left), T0 = parseFloat(w.style.top);
+        // (D: the live dot and the resume bar's words before its clock, each on a layer of its own in the same way: the dot
+        // grows from nothing or shrinks to it, whole (faded, its orange went brown over the dark), the words keep their own
+        // time so the clock never runs into them)
+        const part = (on: boolean, cls: string) => {
+          if (!on) return null;
+          const el = document.createElement('div'); el.className = cls;
+          Object.assign(el.style, { position: 'absolute', left: w.style.left, top: w.style.top, width: w.style.width, height: w.style.height, transformOrigin: '0 0', transform: `scale(${(1 / s0).toFixed(5)})`, willChange: 'transform, opacity' });
+          s.append(el); return el;
+        };
+        const live = ls.current === 'D';
+        dot = part(live && !!fg.querySelector('.pulse-dot'), 'wk-skin-dot');
+        status = part(live && !!fg.querySelector('[data-wk-part="status"]'), 'wk-skin-status');
+        const only = (sel: string) => { const c2 = copyOf(fg); c2.style.visibility = 'hidden'; c2.querySelectorAll<HTMLElement>(sel).forEach((n) => { n.style.visibility = 'visible'; }); sync(fg, c2); return c2; };
         // (what flies on its own is not on the copy: launchHero)
         const flyK = flyHide.current; flyK.clear(); if (g.bg.dataset.wk === 'hero' && ls.current !== 'D') flyK.add('clock');
         const place = () => {
           const c = copyOf(fg);
           c.querySelectorAll<HTMLElement>('[data-wk-fly]').forEach((n) => { if (flyK.has(n.dataset.wkFly ?? '')) n.style.visibility = 'hidden'; });
           c.querySelectorAll<HTMLElement>('[data-wk-in]').forEach((n) => { if (lateNow.includes(n.dataset.wkIn ?? '') || (pop && n.dataset.wkIn === 'pop')) n.style.visibility = 'hidden'; });
+          if (dot) c.querySelectorAll<HTMLElement>('.pulse-dot').forEach((n) => { n.style.visibility = 'hidden'; });
+          if (status) c.querySelectorAll<HTMLElement>('[data-wk-part="status"]').forEach((n) => { n.style.visibility = 'hidden'; });
           w.replaceChildren(c); sync(fg, c);
+          if (status) status.replaceChildren(only('[data-wk-part="status"]'));
+          if (dot) {
+            dot.replaceChildren(only('.pulse-dot'));
+            const pd = fg.querySelector<HTMLElement>('.pulse-dot');
+            if (pd && !dot.dataset.at) {
+              const fr = fg.getBoundingClientRect(), br = pd.getBoundingClientRect(), q = fr.width / (fg.offsetWidth || 1) || 1;
+              const cx = (br.left - fr.left + br.width / 2) / q, cy = (br.top - fr.top + br.height / 2) / q, k = 1 / s0;
+              Object.assign(dot.style, { transformOrigin: `${cx.toFixed(3)}px ${cy.toFixed(3)}px`, left: `${(L0 + (k - 1) * cx).toFixed(3)}px`, top: `${(T0 + (k - 1) * cy).toFixed(3)}px` });
+              dot.dataset.at = '1';
+            }
+          }
           if (pop) {
             const c2 = copyOf(fg); c2.style.visibility = 'hidden';
             const b2 = c2.querySelector<HTMLElement>('[data-wk-in="pop"]'); if (b2) b2.style.visibility = 'visible';
@@ -648,7 +716,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
         const shown = (m: MutationRecord) => !(m.target instanceof Element ? m.target : m.target.parentElement)?.closest('[data-wk-fly="clock"]');
         watch = new MutationObserver((ms) => { if (!flyK.has('clock') || ms.some(shown)) place(); }); watch.observe(fg, { subtree: true, childList: true, characterData: true });
       }
-      skinParts.current = { k: 1 / s0, back, tone, mat, words, pop, watch };
+      skinParts.current = { k: 1 / s0, back, tone, mat, words, pop, dot, status, watch };
       s.style.display = 'block';
     }
     src.current = [g.bg, ...(g.fg ? [g.fg] : [])];
@@ -701,8 +769,11 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
       morph && k && F().mat ? go(k.tone, (pp) => ({ opacity: String(toneO(pp)) }), F().mat) : null,
       morph && k?.words ? go(k.words, (pp) => ({ opacity: String(wordsO(pp)), transform: wordsAt(pp) }), [], true) : null,
       morph && k?.pop ? go(k.pop.el, (pp) => ({ opacity: String(popO(pp)), transform: popAt(pp) }), [], true) : null,
+      morph && k?.dot ? go(k.dot, (pp) => ({ opacity: String(dotO(pp)), transform: dotAt(pp) }), [], true) : null,
+      morph && k?.status ? go(k.status, (pp) => ({ opacity: String(statusO(pp)), transform: wordsAt(pp) }), [], true) : null,
       morph && ls.current === 'D' ? go(barRef.current, (pp) => ({ transform: barT(barBy(pp)) }), [], true) : null,
       ...(morph && F().meta ? metaEls().map((el) => go(el, (pp) => ({ opacity: String(metaO(pp)) }), [], true)) : []),
+      ...(morph && F().ac ? acEls(true).map((el) => go(el, (pp) => ({ opacity: String(acO(pp)) }), [], true)) : []),
       morph ? go(dimRef.current, (pp) => ({ opacity: String(dim(pp)) }), ENVB) : null,
       morph ? go(stageEl(), (pp) => ({ transform: contentTransform(env(pp)) }), ENVB) : null,
       morph && dockAt.current !== null ? go(navEl(), (pp) => ({ transform: dockT(pp) }), [], true) : null,
@@ -770,16 +841,19 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
       const cardRest = { ...cardA, s: 1 };
       const restHead = headerAt(1);
       // (B opening: the clock is home in its slot a little ahead of the window, before the header's words beside it come in)
+      // (D, round 5: on the window's own spring the whole way, as the App Store card's title rides its frame: opening, how far
+      // the window has grown is how far the word has flown, so it reaches the header as the window lands (r4 had it there
+      // in the first tenth of a second, 100 frames ahead); closing, it rides the header (with the window) while the page round
+      // it is there and sets off as that goes, a third of the way from home, and lands with the window in the same frame)
+      const q0 = qAt(ppAt(skip)), flyQ = FLY_Q / fk.current; // (a small place, the resume bar: its fades are stretched by fk, and so is this)
       const flight = opening
-        ? { frames, src: (i: number) => (B ? skinAt(ppAt(i)) : cardRest), dst: (i: number) => headerAt(ppAt(i)), w: (i: number) => (live ? 1 - Math.pow(1 - Math.min(1, Math.max(0, ppAt(i) - ppAt(skip)) / 0.3), 2) : B ? 1 - Math.pow(1 - Math.min(1, qAt(ppAt(i))), 3) : hw(i)) }
-        : { frames, src: (i: number) => headerAt(ppAt(i)), dst: (i: number) => (B ? skinAt(ppAt(i)) : cardRest), w: (i: number) => (live ? Math.pow(Math.min(1, Math.max(0, (0.2 - ppAt(i)) / 0.2)), 1.5) : B ? Math.pow(Math.max(0, 1 - qAt(ppAt(i))), 1.5) : hw(i)) };
-      // (D, into the resume bar: the clock goes sideways first and drops into its place last, so it never runs along its
-      // line over the words before it, r2)
-      if (live && !opening && bg.dataset.wk === 'pill') { const w0 = flight.w; Object.assign(flight, { wx: (i: number) => Math.min(1, Math.sqrt(Math.max(0, w0(i)))) }); }
+        ? { frames, src: (i: number) => (B ? skinAt(ppAt(i)) : cardRest), dst: (i: number) => headerAt(ppAt(i)), w: (i: number) => (live ? (q0 < 1 ? Math.min(1, Math.max(0, (qAt(ppAt(i)) - q0) / (1 - q0))) : 1) : B ? 1 - Math.pow(1 - Math.min(1, qAt(ppAt(i))), 3) : hw(i)) }
+        : { frames, src: (i: number) => headerAt(ppAt(i)), dst: (i: number) => (B ? skinAt(ppAt(i)) : cardRest), w: (i: number) => (live ? Math.pow(Math.min(1, Math.max(0, (flyQ - qAt(ppAt(i))) / flyQ)), 1.3) : B ? Math.pow(Math.max(0, 1 - qAt(ppAt(i))), 1.5) : hw(i)) };
       const a0 = opening ? cardA : headNow, a1 = opening ? { x: restHead.x, y: restHead.y, f: restHead.f } : cardA;
       const fromEl = opening ? cardEl : headEl, toEl = opening ? headEl : cardEl;
-      // (D: the two looks cross over five or six frames: the name near its small end, the clock as it sets off)
-      const cross: [number, number] | undefined = !live ? undefined : opening ? [0.45, 0.95] : cardEl.dataset.wkFly === 'title' ? [0.55, 0.95] : [0.02, 0.35];
+      // (D: where the two looks cross, each over twelve frames or more: both near the header's end of the flight, where the
+      // word is small; the name closing a little later, as its two sizes there are nearly the same)
+      const cross: [number, number] | undefined = !live ? undefined : opening ? [0.55, 0.8] : cardEl.dataset.wkFly === 'title' ? [0.5, 0.72] : [0.05, 0.3];
       const h = flyHero(host, fromEl, toEl, a0, a1, flight, skip, false, cross, byLeft);
       // it shows what the one it is flying to shows (a clock starts ticking again as the window sets off)
       const watch = new MutationObserver(() => h.text(toEl.textContent ?? '')); watch.observe(toEl, { subtree: true, childList: true, characterData: true });
@@ -809,7 +883,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     // (D: not the offset as progress, which drew the window smaller, narrower and without its tally in the first frame of
     // the close (round 2 judge): it stays whole and carries the offset, geo's dragOff)
     const whole = !!g && ls.current === 'D' && d > 0;
-    dragOff.current = whole ? d : 0;
+    dragOff.current = whole ? d : 0; envK.current = whole ? 0 : 1;
     if (whole) { const fl = 1 - Math.max(0, pv.get() - eFingerV.get()); relHead.current = headLag(fl); relViews.current = viewsLag(fl); }
     const e0 = whole ? Math.min(1, Math.max(0, p.get())) : g ? Math.min(1, Math.max(0, p.get() - Math.max(0, d) / reach)) : eFinger.get();
     p.set(e0); dragY.set(0);
@@ -938,7 +1012,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     dialogRef.current?.classList.remove('wk-off', 'wk-leaving');
     // out of the card or bar that was tapped (none: it rises from the bottom edge)
     leaving.current = false;
-    dragOff.current = 0; relHead.current = relViews.current = 0;
+    dragOff.current = 0; relHead.current = relViews.current = 0; envK.current = 1;
     measure(wkSourceRect(takeWorkoutFrom()));
     noteMove(`open ${src.current[0]?.dataset.wk ?? 'slide'}`);
     const p0 = p.get();
@@ -1690,6 +1764,7 @@ const SetRow = memo(function SetRow({ se, set, ex, label, prev, restDefault }: {
         {/* not logged: an empty outline (no check yet); logged: a filled check that draws itself in */}
         <motion.button key={shake} className={`press wk-check${set.done ? ' on' : ''}${set.done && burst > 0 ? ' fresh' : ''}`} aria-label={set.done ? t('Mark set not done') : t('Complete set')} aria-pressed={set.done} onClick={complete}
           animate={shake ? { x: [0, -5, 5, -3, 3, 0] } : undefined} transition={{ duration: 0.3 }}>
+          {set.done && <i className="wk-check-ac" aria-hidden />}
           {set.done && <svg key={`m${burst}`} className="wk-check-mark" viewBox="0 0 24 24" width="22" height="22" aria-hidden><path d="M5 12.5l4.5 4.5L19 7.5" pathLength={1} fill="none" stroke="currentColor" strokeWidth={2.8} strokeLinecap="round" strokeLinejoin="round" /></svg>}
           {burst > 0 && set.done && <motion.i key={burst} aria-hidden initial={{ scale: 0.9, opacity: 0.85 }} animate={{ scale: 2.2, opacity: 0 }} transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }} style={{ position: 'absolute', inset: 0, borderRadius: 14, boxShadow: '0 0 0 2px var(--ac), 0 0 24px var(--ac)', pointerEvents: 'none' }} />}
           {beat && set.done && <motion.i key={`g${beat.n}`} aria-hidden initial={{ scale: 0.9, opacity: 1 }} animate={{ scale: 3.2, opacity: 0 }} transition={{ duration: 1, ease: [0.22, 1, 0.36, 1] }} style={{ position: 'absolute', inset: 0, borderRadius: 14, boxShadow: '0 0 0 2px var(--gold), 0 0 30px var(--gold)', pointerEvents: 'none' }} />}
