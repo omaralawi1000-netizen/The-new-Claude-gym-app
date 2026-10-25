@@ -357,7 +357,8 @@ export type EquipmentAccess = 'fullGym' | 'homeDumbbells' | 'bodyweight' | 'barb
 /** the sheet surface in Settings; anything unknown (an option tried on Beta and since dropped) reads as Glass */
 export const surfaceOf = (v: unknown): NonNullable<Settings['surface']> => (v === 'now' || v === 'deep' ? v : 'glass');
 /** the surface look on trial (Settings > Appearance > Surfaces, surfaces.css `data-look`); missing = A, the pick */
-export const lookOf = (v: unknown): NonNullable<Settings['look']> => (v === 'before' || v === 'b' || v === 'c' ? v : 'a');
+// (Omar 25 Oct: A for everyone, the picker is gone; an old saved choice is ignored)
+export const lookOf = (_v?: unknown): NonNullable<Settings['look']> => 'a';
 
 export interface Settings {
   name: string;
