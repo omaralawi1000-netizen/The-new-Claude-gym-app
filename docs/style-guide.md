@@ -262,6 +262,17 @@ All of it: **slow, calm, Apple-like, never snappier unless Omar agrees.** The or
   floating frost, never a solid block.
 - **Tab-screen buttons/chips** stay without blur (section 1).
 
+### UX laws checklist [Omar, 25 Oct]
+Guides for threads and judges, never vetoes: they never override a rule above or lower quality. If a law and
+something that looks good disagree, show Omar both and let him decide.
+- **Hick's law:** few choices per screen; the rest goes one tap deeper.
+- **Fitts's law:** big tap targets close to the thumb; sweaty gym hands miss small ones.
+- **Doherty threshold:** every tap answers within 0.4 s (the instant-tap rule).
+- **Peak-end rule:** the set tick and the workout finish are the moments that must feel great.
+- **Proximity:** things that belong together sit together, with clear space between groups.
+- **Similarity:** one look per kind of thing (one row style, one chip style, one button family).
+- **Occam's razor:** calm and minimal; drop anything that doesn't earn its place.
+
 ## 7. How to work: preview, judge, ship
 
 1. **Read first:** `CLAUDE.md`, this guide, the relevant README section, `docs/polish-plan.md`.
