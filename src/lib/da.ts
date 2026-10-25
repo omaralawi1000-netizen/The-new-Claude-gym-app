@@ -1862,4 +1862,5 @@ export const da: Record<string, string> = {
  "a different rest": "en anden pause",
  "another workout": "en anden træning",
  "no workout running": "ingen træning i gang",
+ "App log": "App-log",
 };

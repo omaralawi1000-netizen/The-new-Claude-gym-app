@@ -16,6 +16,7 @@ public class RestActionReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context c, Intent intent) {
         String a = intent.getAction();
+        RestNotifications.seen(c);
         RestNotifications.log("button: " + a);
         PendingIntent carried = Build.VERSION.SDK_INT >= 33
             ? intent.getParcelableExtra(RestNotifications.EXTRA_CHROME, PendingIntent.class)
@@ -26,6 +27,7 @@ public class RestActionReceiver extends BroadcastReceiver {
         else if (RestNotifications.ACTION_GONE.equals(a)) RestNotifications.swiped(c);
         else if (RestNotifications.ACTION_DONE.equals(a)) RestNotifications.done(c);
         PendingIntent chrome = carried;
+        RestNotifications.log("  Chrome's button inside: " + RestNotifications.kind(chrome));
         if (chrome == null) return;
         // the website keeps its workout in step (and Chrome's copy of the notification). Chrome's button opens a screen of
         // Chrome's for a moment, and newer Android silently drops that when it's sent from the background unless the
@@ -45,7 +47,8 @@ public class RestActionReceiver extends BroadcastReceiver {
         }
         try {
             chrome.send(c, 0, null, (pi, in, code, data, extras) -> { RestNotifications.log("  → Chrome got it (" + code + ")"); h.post(finish); }, h, null, opts);
-            h.postDelayed(finish, 4000);
+            RestNotifications.log("  → sent to Chrome");
+            h.postDelayed(() -> { if (!over[0]) RestNotifications.log("  → no answer from Chrome in 4 s"); finish.run(); }, 4000);
         } catch (PendingIntent.CanceledException e) {
             RestNotifications.log("  → Chrome refused it (its notification is gone)");
             finish.run();

@@ -126,6 +126,7 @@ final class RestNotifications {
      * false leaves it to Chrome's own look.
      */
     static boolean fromChrome(Context c, String tag, Notification n) {
+        seen(c);
         if (tag == null) return false;
         long now = System.currentTimeMillis();
         if (tag.contains("aven-rest-over")) {
@@ -147,7 +148,7 @@ final class RestNotifications {
         // +30 s tapped here a moment ago: the website's catching up, don't let a slower update pull the time back
         if (same && now - localChangeAt < 4000 && r.endsAt < old.endsAt) r.endsAt = old.endsAt;
         if (n.contentIntent != null) chromeTap = n.contentIntent;
-        if (n.actions != null && n.actions.length >= 2) { chromeMore = n.actions[0].actionIntent; chromeSkip = n.actions[1].actionIntent; }
+        if (n.actions != null && n.actions.length >= 2) { chromeMore = n.actions[0].actionIntent; chromeSkip = n.actions[1].actionIntent; log("  Chrome's Skip: " + kind(chromeSkip)); }
         if (!same) {
             dismissed = false;
             c.getSystemService(NotificationManager.class).cancel(ID_OVER); // a new rest: the last alert has done its job
@@ -161,6 +162,7 @@ final class RestNotifications {
 
     /** Chrome took one of the website's notifications away: you're back in Aven, or the rest was skipped. */
     static void chromeCancelled(Context c, String tag) {
+        seen(c);
         Rest r = load(c);
         boolean ours = r != null && tag != null && tag.equals(r.chromeTag);
         log("Chrome took its notification away" + (ours ? "" : " (an older one)"));
@@ -360,6 +362,7 @@ final class RestNotifications {
 
     /** The rest is over: the countdown goes, "Time for set 2" rings (once per rest, whoever gets here first). */
     static void ring(Context c) {
+        seen(c);
         Rest r = load(c);
         if (r == null) return;
         SharedPreferences p = prefs(c);
@@ -406,6 +409,7 @@ final class RestNotifications {
     private static long doneAt; // when Done ✓ was last tapped (Chrome then takes its own copy away: that mustn't take "Set 2 ✓")
 
     static void done(Context c) {
+        seen(c);
         doneAt = System.currentTimeMillis();
         Rest r = load(c);
         NotificationManager nm = c.getSystemService(NotificationManager.class);
@@ -532,7 +536,34 @@ final class RestNotifications {
     }
 
     /** What happened, in the phone's log under "AvenRest" (the emulator check prints it). */
-    static void log(String what) { Log.i("AvenRest", what); }
+    static void log(String what) {
+        Log.i("AvenRest", what);
+        // and the phone's own log (Aven's Settings › Training › App log shows the last 120 lines): a real phone does what
+        // the emulator doesn't (25 Oct: Done ✓ ticked here and never reached Aven, on Omar's phone only)
+        Context c = appCtx;
+        if (c == null) return;
+        try {
+            SharedPreferences p = c.getSharedPreferences("aven_restlog", Context.MODE_PRIVATE);
+            String line = new java.text.SimpleDateFormat("dd/MM HH:mm:ss", Locale.ROOT).format(new java.util.Date()) + "  " + what;
+            String all = p.getString("log", "") + line + "\n";
+            String[] lines = all.split("\n");
+            if (lines.length > 120) all = String.join("\n", java.util.Arrays.copyOfRange(lines, lines.length - 120, lines.length)) + "\n";
+            p.edit().putString("log", all).apply();
+        } catch (RuntimeException ignored) { /* the log is never in the way */ }
+    }
+
+    private static Context appCtx;
+    /** Where the log is kept (every way into the rest code passes through here first). */
+    static void seen(Context c) { if (appCtx == null && c != null) appCtx = c.getApplicationContext(); }
+    static String savedLog(Context c) { return c.getSharedPreferences("aven_restlog", Context.MODE_PRIVATE).getString("log", ""); }
+
+    /** What kind of button Chrome handed over, and whose (for the log). */
+    static String kind(PendingIntent p) {
+        if (p == null) return "none";
+        String k = "?";
+        if (Build.VERSION.SDK_INT >= 31) k = p.isActivity() ? "opens a screen" : p.isBroadcast() ? "a message" : p.isForegroundService() ? "a foreground service" : p.isService() ? "a service" : "?";
+        return k + ", from " + p.getCreatorPackage();
+    }
 
     private static void call(Notification.Builder b, String name, Class<?> type, Object value) {
         try {
