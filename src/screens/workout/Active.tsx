@@ -267,13 +267,13 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   // (`tOf`: the frame at which the window's spring is at pp, set as each move sets off), and old and new overlap, so the
   // window never shows neither (r5: an empty grey card for 20 frames). Opening, the play button and the dot go from the
   // tap, the card's words as the list comes in (`tList`); closing, the words are whole by the time the list has gone
-  // (`tWords`), and the button and the dot grow from when it starts to go (`tCome`), on their own layer at full colour;
+  // (`tWords`), and the button and the dot grow from then, on their own layer at full colour (as they go before the list
+  // comes in, opening; under the list as it went, its cards' ground dimmed the dot to brown, r6 test f31-33);
   // the resume bar's words beside its clock are whole as the bar lands (`tLand`), never after. (0 whole, 1 gone; null:
   // not timed, the old ramps)
   const tOf = useRef<((pp: number) => number) | null>(null);
   const PART_N = { pop: 16, dot: 12, status: 18, words: 12 } as const;
   const sm = (u: number) => { const v = clamp01(u); return v * v * (3 - 2 * v); };
-  const tCome = () => tOf.current!(F().views![1] / fk.current);
   const tWords = () => tOf.current!(F().views![0] / fk.current);
   const tList = () => tOf.current!(F().views![0] / fk.current);
   const tLand = () => tOf.current!(FLY_AT / fk.current);
@@ -284,7 +284,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     if (!leaving.current) return kind === 'words' ? sm((i - tList()) / n) : sm(i / n);
     if (kind === 'words') return 1 - sm((i - (tWords() - n)) / n);
     if (kind === 'status') return 1 - sm((i - (tLand() - n)) / n);
-    return 1 - sm((i - tCome()) / n);
+    return 1 - sm((i - tWords()) / n);
   };
   const wordsO = (pp: number) => { const v = partV(pp, 'words'); return Math.max(0.002, v === null ? 1 - ramp(pp, F().words) : 1 - v); };
   const popO = (pp: number) => { const v = partV(pp, 'pop'); return v === null ? Math.max(0.002, 1 - ramp(pp, F().pop ?? F().words)) : v >= 1 ? 0.002 : 1; };
@@ -756,8 +756,12 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
           (onTop ? top : s).append(el); return el;
         };
         const live = ls.current === 'D';
-        dot = part(live && !!fg.querySelector('.pulse-dot'), 'wk-skin-dot', true);
-        status = part(live && !!fg.querySelector('[data-wk-part="status"]'), 'wk-skin-status');
+        // (made whether or not the card shows them yet: going down, the card behind is drawn again only as the window
+        // uncovers it, so it may show the running workout, and its dot, only a few frames in; the dot then rode the copy
+        // of the card's words and came up through its fade, brown, r5 and r6 test minimise f31-34. Its middle is found
+        // when it shows, `place`.)
+        dot = part(live, 'wk-skin-dot', true);
+        status = part(live, 'wk-skin-status');
         const only = (sel: string) => { const c2 = copyOf(fg); c2.style.visibility = 'hidden'; c2.querySelectorAll<HTMLElement>(sel).forEach((n) => { n.style.visibility = 'visible'; }); sync(fg, c2); return c2; };
         // (what flies on its own is not on the copy: launchHero)
         const flyK = flyHide.current; flyK.clear(); if (g.bg.dataset.wk === 'hero' && ls.current !== 'D') flyK.add('clock');
