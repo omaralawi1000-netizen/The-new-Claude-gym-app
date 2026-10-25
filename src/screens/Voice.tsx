@@ -11,8 +11,9 @@ import { speechSupported, startSpeech, type SpeechError, type SpeechHandle } fro
 import { getKey } from '../lib/keys';
 import { transcribe, buildPrompt, STT_MODEL, SttError } from '../lib/groq';
 import { aiErrorText, type Turn } from '../lib/gemini';
-import { decide, brainFor, ORB_BRIEF } from '../lib/agentTurn';
-import { droppedCard, runActions, type AgentResult } from '../lib/agent';
+import { decide, brainFor, ORB_BRIEF, agentSystem } from '../lib/agentTurn';
+import { droppedCard, runActions, validateAgent, type AgentResult } from '../lib/agent';
+import { startLive, LIVE_RULES, type LiveSession } from '../lib/live';
 import { dayKey } from '../lib/dates';
 import { uid } from '../lib/nutrition';
 import { appendExchange, dropFailed, markInThread, readThread, threadSaid, threadTurns } from '../lib/thread';
@@ -188,6 +189,12 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   const [canRetry, setCanRetry] = useState(false);
   const [turns, setTurns] = useState<Turn1[]>([]);
   const turnsRef = useRef<Turn1[]>([]); turnsRef.current = turns;
+  // talking live (lib/live.ts): one open conversation while the screen is up; typed messages still go the usual way
+  const liveWanted = useAi((a) => a.liveOrb && a.hasGemini);
+  const liveRef = useRef<LiveSession | null>(null);
+  const liveFailed = useRef(false);
+  const [liveActive, setLiveActive] = useState(false);
+  const liveTurn = useRef<{ id: string | null; said: string }>({ id: null, said: '' });
   const blobRef = useRef<Blob | null>(null);
   const handle = useRef<SpeechHandle | null>(null);
   const ctl = useRef<AbortController | null>(null);
@@ -206,6 +213,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
 
   const teardown = useCallback(() => {
     run.current++;
+    liveRef.current?.stop(); liveRef.current = null; setLiveActive(false); liveTurn.current = { id: null, said: '' };
     handle.current?.abort(); handle.current = null;
     mic.release('voice');
     useVoice.getState().set({ micLive: false });
@@ -226,6 +234,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
     if (!alive.current || busy.current) return;
     stopSpeaking();
     setErr(null); setFinal(''); setInterim(''); setCanRetry(false); blobRef.current = null; pinned.current = true;
+    if (liveWanted && !liveFailed.current) { setTyping(false); void goLive(); return; }
     if (!supported) { go('idle'); setTyping(true); return; }
     setTyping(false);
     go('requesting');
@@ -260,7 +269,65 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
     handle.current = h;
     await mic.acquire('voice'); // only for the sphere's level; failing here just means "no level"
     // eslint-disable-next-line
-  }, [supported, engine, lang]);
+  }, [supported, engine, lang, liveWanted]);
+
+  /** Talk live: the coach's own instructions, the conversation so far and the live rules; food logs through Aven. */
+  const goLive = async () => {
+    if (liveRef.current) return;
+    go('requesting');
+    const my = ++run.current;
+    const st = useStore.getState();
+    const where = props.mode === 'workout' && st.active ? 'The user is in their running workout.'
+      : props.mealId || props.date ? `The user came from the Food tab${props.date ? ` (day ${props.date})` : ''}${props.mealId ? `, meal ${props.mealId}` : ''}: foods go there unless they say otherwise.`
+      : 'The user opened the orb on the main screen and is talking to it.';
+    const { system } = agentSystem(st, { lang, pool, where });
+    const said = history().map((h) => `${h.role === 'user' ? 'They' : 'You'}: ${h.parts.map((p) => p.text).join('')}`).join('\n').slice(-6000);
+    const lt = liveTurn.current;
+    const s = await startLive({
+      key: getKey('gemini'), voice: useAi.getState().voice,
+      system: `${system}\n\nTHE CONVERSATION SO FAR (oldest first; the Coach chat and the orb share it):\n${said || '(nothing yet)'}\n\n${LIVE_RULES}`,
+      handlers: {
+        onUserText: (text) => { if (!alive.current) return; lt.said = text; if (lt.id) patch(lt.id, { said: text }); else setFinal(text); },
+        onTurnStart: () => { if (!alive.current) return; lt.id = openTurn(lt.said); setFinal(''); go('processing'); },
+        onReplyText: (text) => { if (alive.current && lt.id) patch(lt.id, { reply: text }); },
+        onSpeaking: (on) => { if (alive.current && liveRef.current) go(on ? 'idle' : lt.id ? 'processing' : 'listening'); },
+        onTool: async (name, args) => {
+          if (name !== 'log_food') return 'That can only be done in the Coach chat for now.';
+          const v = validateAgent({ reply: '', actions: [{ type: 'log_food', ...args }] });
+          const today = dayKey(Date.now(), useStore.getState().settings.dayStartHour);
+          const results = v?.actions.length ? await runActions(v.actions, { t, lang, today, brain: brainFor({ big: false, surface: 'orb' }), date: props.date, mealId: props.mealId }) : [];
+          const id = lt.id;
+          if (id && alive.current) setTurns((all) => all.map((x) => (x.id === id ? { ...x, results: [...x.results, ...results] } : x)));
+          if (results.some((r) => r.kind === 'food' && !r.pending)) haptic('success');
+          return results.map((r) => `${r.title}: ${r.lines.map((l) => [l.text, l.sub].filter(Boolean).join(' ')).join(', ')}`).join('; ') || 'Nothing was logged.';
+        },
+        onIdle: () => {
+          if (!alive.current) return;
+          const id = lt.id; lt.id = null; lt.said = '';
+          if (id) {
+            const turn = turnsRef.current.find((x) => x.id === id);
+            const threadId = turn ? appendExchange({ said: turn.said, reply: turn.reply, results: turn.results }) : null;
+            patch(id, { done: true, threadId });
+          }
+          if (liveRef.current) go('listening');
+        },
+        onError: (code) => {
+          if (!alive.current) return;
+          liveRef.current = null; setLiveActive(false);
+          if (code === 'denied') { setErr(t('Microphone permission was denied. You can allow it in your browser settings, or type instead.')); go('unavailable'); setTyping(true); return; }
+          if (code === 'nodevice') { setErr(t('No microphone was found.')); go('error'); setTyping(true); return; }
+          if (code === 'closed') { setErr(t('Live stopped. Tap the sphere to talk again.')); go('idle'); return; }
+          // it couldn't connect: the usual orb takes over for this visit
+          liveFailed.current = true; setErr(t('Live couldn’t connect, so the normal orb answers.')); go('idle'); void listen();
+        },
+      },
+    });
+    if (!s) return;
+    if (!alive.current || my !== run.current) { s.stop(); return; }
+    liveRef.current = s; setLiveActive(true);
+    useVoice.getState().set({ micLive: true });
+    go('listening');
+  };
 
   // opened → listen straight away
   useEffect(() => { if (supported) listen(); /* eslint-disable-next-line */ }, []);
@@ -372,6 +439,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
 
   const finish = async () => {
     if (!alive.current || busy.current) return;
+    if (liveRef.current && !typing) { teardown(); go('idle'); return; }
     const p = useVoice.getState().phase;
     // still starting the microphone (Samsung Browser can take a second): a tap here is not "stop" — stopping a start that
     // hasn't finished used to end in "Didn't catch anything" followed by a false "microphone in use"
@@ -419,16 +487,16 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   const listening = phase === 'listening' || phase === 'requesting';
   const thinking = phase === 'processing';
   const last = turns[turns.length - 1];
-  const showing = !!last && !listening;
+  const showing = !!last && (liveActive || !listening);
   const label = ({
     idle: showing ? '' : t('Tap the sphere and speak'), requesting: t('Starting the microphone…'), // with an answer up, the Say more button says it
-    listening: engine === 'groq' ? t('Listening') : mic.active ? t('Listening') : t('Listening (no level meter)'),
+    listening: liveActive || engine === 'groq' ? t('Listening') : mic.active ? t('Listening') : t('Listening (no level meter)'),
     processing: looking || t('Thinking…'), confirmed: t('Done'), error: t('Couldn’t do that'), unavailable: t('Microphone unavailable'),
     review: t('Done'),
   } as Record<string, string>)[phase] ?? '';
   // tapping while the microphone is still starting cancels that start cleanly (teardown also invalidates the pending start, so
   // it can never come back later as a false "microphone in use")
-  const tapSphere = () => { if (phase === 'requesting') { teardown(); go('idle'); return; } orbTap(0.6); if (listening) finish(); else if (!thinking) { haptic('listen'); listen(); } };
+  const tapSphere = () => { if (phase === 'requesting' || liveRef.current) { teardown(); go('idle'); return; } orbTap(0.6); if (listening) finish(); else if (!thinking) { haptic('listen'); listen(); } };
   const big = !showing && !thinking && !typing; // typing: the orb steps up and the box gets the room
   // the sphere is about to grow or shrink (the .45 s transition below): its canvas holds the big size meanwhile
   const wasBig = useRef(big);
@@ -471,7 +539,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
 
         {/* the sphere: big while it listens, it steps up and out of the way once there is something to read */}
         <div style={{ display: 'grid', placeItems: 'center', marginTop: big ? 26 : 6, transition: 'margin .45s cubic-bezier(.22,1,.36,1)' }}>
-          <button aria-label={listening ? t('Stop and send') : t('Start listening')} onClick={tapSphere} disabled={thinking} className="voice-orb" onPointerDown={() => orbPress(true)} onPointerUp={() => orbPress(false)} onPointerCancel={() => orbPress(false)} onPointerLeave={() => orbPress(false)}
+          <button aria-label={listening ? t('Stop and send') : t('Start listening')} onClick={tapSphere} disabled={thinking && !liveActive} className="voice-orb" onPointerDown={() => orbPress(true)} onPointerUp={() => orbPress(false)} onPointerCancel={() => orbPress(false)} onPointerLeave={() => orbPress(false)}
             style={{ position: 'relative', borderRadius: 999, width: big ? 'min(62vw, 250px)' : 96, height: big ? 'min(62vw, 250px)' : 96, transition: 'width .45s cubic-bezier(.22,1,.36,1), height .45s cubic-bezier(.22,1,.36,1)' }}>
             {/* its light: a close halo and a soft pool just under it, as if it hovers over glass (gradients only: no blur,
                 nothing animated but its fade in) */}
@@ -550,8 +618,8 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
                 {typing ? <><Icon name="mic" size={18} /> {t('Speak instead')}</> : <><Icon name="edit" size={18} /> {t('Type instead')}</>}
               </button>
             )}
-            <button className="btn primary press grow" disabled={thinking || phase === 'requesting' || (typing ? !typed.trim() : false)} onClick={() => (listening || typing ? finish() : (haptic('listen'), listen()))}>
-              {thinking ? t('Working…') : listening ? t('Done speaking') : typing ? t('Send') : showing ? <><Icon name="mic" size={18} /> {t('Say more')}</> : <><Icon name="mic" size={18} /> {t('Speak')}</>}
+            <button className="btn primary press grow" disabled={(thinking && !liveActive) || phase === 'requesting' || (typing ? !typed.trim() : false)} onClick={() => (liveActive || listening || typing ? finish() : (haptic('listen'), listen()))}>
+              {liveActive && !typing ? t('Stop') : thinking ? t('Working…') : listening ? t('Done speaking') : typing ? t('Send') : showing ? <><Icon name="mic" size={18} /> {t('Say more')}</> : <><Icon name="mic" size={18} /> {t('Speak')}</>}
             </button>
           </div>        </div>
       </motion.div>

@@ -3140,3 +3140,22 @@ wording: throwing up, laxatives or fasting to make up for food still turns catch
 still suggest a doctor on its own when something is truly serious, the way the ChatGPT app does.
 The Coach thinks at Medium by default, and the setting is now a ceiling: the chooser's "high" tier no longer overrides it,
 so no 30–45 s waits.
+
+## Talking live with the orb: first test (25 Oct 2026, Beta only)
+Omar wants to talk to the orb like to a person: answer out loud, interrupt it, quick logging, and the most capable live
+model that still starts fast. From official docs and the Artificial Analysis board: Gemini 3.8 Live Extended Thinking
+(thinking "low"): ~1.35 s to first sound, async functions, Google Search in the same session, Danish officially supported,
+straight from the browser with his own key. GPT-Live-1 (no Danish listed, assumes a server) and Grok Voice 3.0 (Danish
+not supported) were the alternatives.
+- `lib/live.ts`: one open connection through `@google/genai` (loaded only when the orb goes live). Microphone at 16 kHz
+  through an AudioWorklet with echo cancellation, sent every ~100 ms; the answer at 24 kHz, queued and cut the moment the
+  server says it was interrupted. Transcripts of both sides come back as text. Done = `turnComplete` with
+  `interactionStatus` IDLE (Extended Thinking can speak more than once per turn).
+- The model gets the Coach's own instructions and DATA (`agentSystem`), the shared conversation so far, and
+  `LIVE_RULES` (speak, don't write JSON; short; their language; food through `log_food`; everything else → the Coach).
+- First test = food only: `log_food` runs Aven's own logging (`runActions`), so it is the usual card with Undo, and the
+  exchange is written into the shared conversation (`appendExchange`). Typing on the orb works as before.
+- Settings → Voice & AI → "Talk live with the orb (test)": on in Aven Beta, off in the real app. If it can't connect, the
+  usual orb answers. Design unchanged (Omar will redesign the orb).
+- `scripts/journey-live.mjs` fakes the Live server at the WebSocket: setup, microphone stream, a `log_food` call, the spoken
+  answer as text, the card, the shared conversation, Stop.

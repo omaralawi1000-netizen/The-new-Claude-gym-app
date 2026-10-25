@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { getKey, onKeysChange } from '../lib/keys';
+import { IS_BETA } from '../lib/beta';
 
 /** AI preferences (not secrets). Stored beside, but separate from, the app data so exports stay clean of anything account-like. */
 const KEY = 'aven.ai';
@@ -18,8 +19,9 @@ export interface AiPrefs {
   models: { fast: string; brain: string; fastAlt: string; brainAlt: string; tts: string; sol: string; solAuto: string; quick: string };
   solChecked: number;                // when the newest OpenAI model was last looked up (once a day at most)
   noQuick: boolean;                  // this OpenAI key can't use the quick model: the main one answers everything (until the key changes)
+  liveOrb: boolean;                  // talk to the orb live (Gemini Live: it answers out loud, interrupt it any time); on in Aven Beta while it is tested
 }
-const DEFAULTS: AiPrefs = { stt: 'accurate', voiceLang: 'auto', mic: 'phone', voice: 'Achird', brain: true, solFirst: true, effortOrb: 'medium', effortCoach: 'medium', solLimitKr: 200, models: { fast: '', brain: '', fastAlt: '', brainAlt: '', tts: '', sol: '', solAuto: '', quick: '' }, solChecked: 0, noQuick: false };
+const DEFAULTS: AiPrefs = { stt: 'accurate', voiceLang: 'auto', mic: 'phone', voice: 'Achird', brain: true, solFirst: true, effortOrb: 'medium', effortCoach: 'medium', solLimitKr: 200, models: { fast: '', brain: '', fastAlt: '', brainAlt: '', tts: '', sol: '', solAuto: '', quick: '' }, solChecked: 0, noQuick: false, liveOrb: IS_BETA };
 
 function load(): AiPrefs {
   try { const v = JSON.parse(localStorage.getItem(KEY) || '{}'); return { ...DEFAULTS, ...v, models: { ...DEFAULTS.models, ...(v.models ?? {}) } }; } catch { return DEFAULTS; }
@@ -34,8 +36,8 @@ export const useAi = create<S>((set, get) => ({
     // (a new quick model name may work where the old one didn't)
     if (p.models && p.models.quick !== get().models.quick && get().noQuick && p.noQuick === undefined) p = { ...p, noQuick: false };
     set(p as Partial<S>);
-    const { stt, voiceLang, mic, voice, brain, solFirst, effortOrb, effortCoach, solLimitKr, models, solChecked, noQuick } = get();
-    try { localStorage.setItem(KEY, JSON.stringify({ stt, voiceLang, mic, voice, brain, solFirst, effortOrb, effortCoach, solLimitKr, models, solChecked, noQuick })); } catch { /* ignore */ }
+    const { stt, voiceLang, mic, voice, brain, solFirst, effortOrb, effortCoach, solLimitKr, models, solChecked, noQuick, liveOrb } = get();
+    try { localStorage.setItem(KEY, JSON.stringify({ stt, voiceLang, mic, voice, brain, solFirst, effortOrb, effortCoach, solLimitKr, models, solChecked, noQuick, liveOrb })); } catch { /* ignore */ }
   },
 }));
 let openaiKey = getKey('openai');
