@@ -247,7 +247,10 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   const skinO = (pp: number) => { const v = F().veil; return Math.max(0.002, 1 - (v ? clamp01((pp - v[0]) / (v[1] - v[0])) : ramp(pp, F().skin))); };
   const metaO = (pp: number) => { const v = F().meta; return from.current && v ? clamp01((pp - v[0]) / (v[1] - v[0])) : 1; };
   const wordsO = (pp: number) => Math.max(0.002, 1 - ramp(pp, F().words));
-  const popO = (pp: number) => Math.max(0.002, 1 - ramp(pp, F().pop ?? F().words));
+  // (D closing: the play button grows on the window's eased landing, so it is whole the moment the window touches down,
+  // not over the spring's last invisible percent, which took another half second)
+  const popP = (pp: number) => (ls.current === 'D' && leaving.current && from.current ? landed(pp) : pp);
+  const popO = (pp: number) => Math.max(0.002, 1 - ramp(popP(pp), F().pop ?? F().words));
   // D closing: the card's words ride the middle of the window while it is still taller than the card (r1: they sat at its
   // top over an empty lower third as it landed); what flies to them (launchHero) aims there too
   const wordsDy = (pp: number) => {
@@ -257,7 +260,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     return v > 0.05 ? v : 0;
   };
   const wordsAt = (pp: number) => { const dy = wordsDy(pp), k = skinParts.current?.k ?? 1; return `${dy ? `translateY(${dy.toFixed(2)}px) ` : ''}scale(${k.toFixed(5)})`; };
-  const popAt = (pp: number) => `${wordsDy(pp) ? `translateY(${wordsDy(pp).toFixed(2)}px) ` : ''}scale(${((skinParts.current?.pop?.k ?? 1) * (1 - (1 - (F().popTo ?? 0.88)) * ramp(pp, F().popS ?? F().words))).toFixed(5)})`;
+  const popAt = (pp: number) => `${wordsDy(pp) ? `translateY(${wordsDy(pp).toFixed(2)}px) ` : ''}scale(${((skinParts.current?.pop?.k ?? 1) * (1 - (1 - (F().popTo ?? 0.88)) * ramp(popP(pp), F().popS ?? F().words))).toFixed(5)})`;
   // the live dot: whole, sized about its middle (ramp: 0 at full size); the words before the resume bar's clock (`status`):
   // opening, gone in the first frames, before the clock moves off beside them; closing, in only once it has landed beside
   // them (on plain progress: it lands at LAND_AT_D)
@@ -589,6 +592,10 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     const cs = getComputedStyle(el.parentElement ?? el);
     Object.assign(copy.style, { position: 'absolute', left: '0', top: '0', right: 'auto', bottom: 'auto', width: `${el.offsetWidth}px`, height: `${el.offsetHeight}px`, boxSizing: 'border-box', margin: '0', transformOrigin: '0 0', opacity: '1', font: cs.font, letterSpacing: cs.letterSpacing, textAlign: cs.textAlign });
     for (const v of ['--s1', '--s2', '--s3', '--s4', '--bg-2', '--line', '--hl']) copy.style.setProperty(v, cs.getPropertyValue(v));
+    // (the line height as the card's own factor, not the px that `font` resolves it to: with px, every line inside took
+    // the parent's 21 px, so the copy's name row was 7 px short and its "1 / 12" sat 7 px high, and jumped at hand-over)
+    const ecs = getComputedStyle(el), lh = parseFloat(ecs.lineHeight), fs = parseFloat(ecs.fontSize);
+    copy.style.lineHeight = lh > 0 && fs > 0 ? String(+(lh / fs).toFixed(4)) : 'normal';
     return copy;
   };
   // the copy's moving parts (CSS animations: the live dot's pulse) at the same point as the card's own, so the hand-over is seamless

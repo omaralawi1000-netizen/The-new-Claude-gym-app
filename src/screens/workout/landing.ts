@@ -31,9 +31,9 @@ export const LANDS: Record<Land, { closeWin: Spring | null; openWin: Spring | nu
   B: { closeWin: apple(0.62, 0.26), openWin: apple(0.56, 0.1), closeHero: null, openHero: null },
   C: { closeWin: apple(0.8), openWin: null, closeHero: apple(0.38, 0.18), openHero: apple(0.34, 0.14) },
   // (D opens without the bounce: its 1-3 px overshoot sat above home for a third of a second, round 2 judge. Round 5: one
-  // calm spring both ways, no bounce, its tail eased to a stop (Active.tsx `landed`): at rest in about 0.77 s, the last
+  // calm spring both ways, no bounce, its tail eased to a stop (Active.tsx `landed`): open at rest in about 0.78 s, the last
   // screen pixel in nine frames (r4: 0.96 s, the last 5 px in forty); closing it no longer dips into the card and creeps back)
-  D: { closeWin: apple(0.72, 0), openWin: apple(0.72, 0), closeHero: null, openHero: null },
+  D: { closeWin: apple(0.72, 0), openWin: apple(0.8, 0), closeHero: null, openHero: null },
 };
 
 type Pt = { x: number; y: number };
