@@ -147,31 +147,36 @@ function SaidMorph({ text, onSettled }: { text: string; onSettled: () => void })
  */
 function LiveAura({ session, mode }: { session: { current: LiveSession | null }; mode: 'off' | 'listen' | 'think' | 'speak' }) {
   const ref = useRef<HTMLDivElement>(null);
-  const modeRef = useRef(mode); modeRef.current = mode;
+  const st = useRef({ o: 0, k: 0.55, raf: 0, last: 0 });
   useEffect(() => {
     const el = ref.current; if (!el) return;
-    const calm = document.documentElement.dataset.motion === 'reduce' || matchMedia('(prefers-reduced-motion: reduce)').matches;
-    let o = 0, k = 0.55, raf = 0, last = performance.now();
+    const s = st.current;
+    // Reduce motion, or the background glow turned down: a still light per state, no voice tracking, no loop
+    const de = document.documentElement;
+    const still = de.dataset.motion === 'reduce' || matchMedia('(prefers-reduced-motion: reduce)').matches || /soft|off/.test(de.dataset.glow ?? '');
+    const write = () => { el.style.opacity = s.o.toFixed(3); el.style.transform = `scaleY(${s.k.toFixed(3)})`; };
+    if (still) { s.o = mode === 'listen' ? 0.35 : mode === 'speak' ? 0.16 : 0; s.k = 0.7; write(); return; }
+    cancelAnimationFrame(s.raf); s.last = performance.now();
     const step = (now: number) => {
-      raf = requestAnimationFrame(step);
-      if (document.hidden) return;
-      const dt = Math.min(0.05, (now - last) / 1000); last = now;
-      const m = modeRef.current;
-      const lv = m === 'listen' ? session.current?.levels().in ?? 0 : 0;
+      const dt = Math.min(0.05, (now - s.last) / 1000); s.last = now;
+      const lv = mode === 'listen' && !document.hidden ? session.current?.levels().in ?? 0 : 0;
       // where it's heading: listening breathes at a low glow and rises with your voice; thinking drains away; speaking rests low
-      const to = m === 'listen' ? 0.28 + lv * 0.72 : m === 'speak' ? 0.16 : 0;
-      const toK = m === 'listen' ? 0.55 + lv * 0.6 : m === 'think' ? 1.25 : 0.5;
-      // up quickly with a word, down slowly after it (like a voice meter that breathes); draining while it thinks is slow too
-      const rate = to > o ? 9 : m === 'think' ? 1.6 : 2.6;
-      o += (to - o) * (calm ? 1 : 1 - Math.exp(-rate * dt));
-      k += (toK - k) * (calm ? 1 : 1 - Math.exp(-(m === 'think' ? 1.8 : 6) * dt));
-      el.style.opacity = o.toFixed(3);
-      el.style.transform = `scaleY(${k.toFixed(3)})`;
+      const to = mode === 'listen' ? 0.28 + lv * 0.72 : mode === 'speak' ? 0.16 : 0;
+      const toK = mode === 'listen' ? 0.55 + lv * 0.6 : mode === 'think' ? 1.25 : 0.5;
+      // up quickly with a word, down slowly after it (a voice meter that breathes); draining while it thinks is slow too
+      const rate = to > s.o ? 9 : mode === 'think' ? 1.6 : 2.6;
+      s.o += (to - s.o) * (1 - Math.exp(-rate * dt));
+      s.k += (toK - s.k) * (1 - Math.exp(-(mode === 'think' ? 1.8 : 6) * dt));
+      write();
+      // settled and nothing to follow: stop asking for frames (listening keeps following your voice)
+      if (mode !== 'listen' && Math.abs(to - s.o) < 0.002 && Math.abs(toK - s.k) < 0.002) { s.o = to; s.k = toK; write(); return; }
+      s.raf = requestAnimationFrame(step);
     };
-    raf = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf);
-  }, [session]);
-  return <div ref={ref} aria-hidden className="live-aura" />;
+    s.raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(s.raf);
+  }, [session, mode]);
+  // (SelfGlow: the grain that keeps a big soft glow from showing rings on the phone's screen)
+  return <div ref={ref} aria-hidden className="live-aura"><SelfGlow /></div>;
 }
 
 function OrbReply({ id, text, live, onGrow, onDone, after }: { id: string; text: string; live: boolean; onGrow: () => void; onDone: () => void; after: ReactNode }) {

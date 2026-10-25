@@ -109,6 +109,7 @@ export async function startLive(o: { key: string; system: string; voice?: string
   outAn.connect(outCtx.destination);
   const inBuf = new Uint8Array(inAn.frequencyBinCount), outBuf = new Uint8Array(outAn.fftSize);
   const bands = new Float32Array(16);
+  let lvAt = 0, lvLast: { in: number; bands: Float32Array; out: number } | null = null;
   let cam: MediaStream | null = null, camTimer: ReturnType<typeof setInterval> | null = null;
   const camOff = () => { if (camTimer) clearInterval(camTimer); camTimer = null; cam?.getTracks().forEach((tr) => tr.stop()); cam = null; };
   const cleanupAudio = () => { camOff(); stream.getTracks().forEach((tr) => tr.stop()); void inCtx.close().catch(() => {}); void outCtx.close().catch(() => {}); };
@@ -276,6 +277,10 @@ export async function startLive(o: { key: string; system: string; voice?: string
     setCamera,
     hush: () => { hushed = true; cut(); },
     levels: () => {
+      // (the orb and the bottom light both ask each frame: measured once per frame)
+      const t = performance.now();
+      if (t - lvAt < 6 && lvLast) return lvLast;
+      lvAt = t;
       // yours: the speech range (≈80 Hz–4 kHz of 8 kHz) in 16 bands, a soft gate under room noise
       inAn.getByteFrequencyData(inBuf);
       let sum = 0;
@@ -288,7 +293,8 @@ export async function startLive(o: { key: string; system: string; voice?: string
       // its own: loudness of what plays
       outAn.getByteTimeDomainData(outBuf);
       let e = 0; for (let k = 0; k < outBuf.length; k++) { const d = (outBuf[k] - 128) / 128; e += d * d; }
-      return { in: Math.min(1, (sum / 16) * 1.8), bands, out: Math.min(1, Math.sqrt(e / outBuf.length) * 4) };
+      lvLast = { in: Math.min(1, (sum / 16) * 1.8), bands, out: Math.min(1, Math.sqrt(e / outBuf.length) * 4) };
+      return lvLast;
     },
     note: (said, reply) => {
       if (!ready || !said.trim()) return;

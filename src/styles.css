@@ -3089,15 +3089,10 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 .voice .heard { align-self: stretch; max-width: none; border-radius: var(--r-md); background: color-mix(in srgb, var(--s2) 72%, transparent); border-color: var(--line); }
 .voice .interrupt { min-height: 44px; transition: opacity .32s var(--ease-out); }
 .voice .interrupt.off { opacity: 0; pointer-events: none; }
-/* talking live: the box to type in, any time (a pill, its send button inside it) */
-.voice .live-type { position: relative; min-width: 0; }
-.voice .live-type .input { display: block; width: 100%; height: 46px; border-radius: 23px; padding: 0 16px; line-height: 46px; white-space: nowrap; text-overflow: ellipsis; transition: background-color 260ms; }
-.voice .live-type.has-text .input { padding-right: 48px; } /* (the focus glow switches on at once: no box-shadow animated over the orb) */
-.voice .live-send { position: absolute; right: 6px; bottom: 6px; width: 34px; height: 34px; border-radius: 999px; display: grid; place-items: center; background: var(--ac); color: var(--ac-ink); }
-.voice .live-send::before { content: ''; position: absolute; inset: -5px; border-radius: inherit; } /* a 44 px tap area round the 34 px disc */
 .voice .exchange-list { display: flex; flex-direction: column; gap: 22px; }
 /* talking live: your voice as a warm light rising from the bottom (opacity and scaleY only, set per frame; no blur) */
-.voice .live-aura { position: absolute; left: -15%; right: -15%; bottom: 0; height: 52%; pointer-events: none; opacity: 0; transform-origin: 50% 100%; will-change: transform, opacity; z-index: 0;
-  background: radial-gradient(ellipse 60% 70% at 50% 100%, color-mix(in srgb, var(--ac) 42%, transparent) 0%, color-mix(in srgb, var(--ac) 16%, transparent) 42%, transparent 72%); }
+.voice .live-aura { position: absolute; left: 0; right: 0; bottom: 0; height: 46%; overflow: hidden; pointer-events: none; opacity: 0; transform-origin: 50% 100%; will-change: transform, opacity; z-index: 0;
+  background: radial-gradient(ellipse 78% 70% at 50% 100%, color-mix(in srgb, var(--ac) 42%, transparent) 0%, color-mix(in srgb, var(--ac) 16%, transparent) 42%, transparent 72%); }
+:root[data-theme='light'] .voice .live-aura { background: radial-gradient(ellipse 78% 70% at 50% 100%, color-mix(in srgb, var(--ac) 26%, transparent) 0%, color-mix(in srgb, var(--ac) 9%, transparent) 42%, transparent 72%); }
 /* an answer you spoke over: it steps back */
 .voice .live-cut { opacity: 0.42; transition: opacity .4s var(--ease-out); }
