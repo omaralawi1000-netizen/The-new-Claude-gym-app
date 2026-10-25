@@ -267,7 +267,9 @@ function tame(o: CanvasRenderingContext2D, w: number, h: number) {
         const L0 = px[i * 3];
         L += (0.7 - L) * 0.13; if (mC >= 0.05) C *= 0.96;
         L = Math.min(L, L0 + (L0 < 0.2 ? 0.04 : 0.025)); // (a little more light over a near-black page: not navy-black)
-        const fl = Math.min(0.24, L0); if (L < fl) L = fl - (fl - L) * 0.35;
+        // the glass always holds a little light, in the page's colour (the floor below): over a near-black page a card read as a
+        // black slab (Colour per tab's Pull and Legs, 25 Oct); a lift with no colour read as grey plastic (judge r3)
+        const fl = Math.max(0.215, Math.min(0.24, L0)); if (L < fl) L = fl - (fl - L) * 0.3;
         // the darkest glass leans to the page's own colour too (the teal of Colour per tab, not the navy under one card): only
         // from a neighbouring colour, as an angle (from far away the turn went through colours a near-black can't show: grey, judge r5)
         let dh = hue - H; dh -= Math.round(dh / (2 * Math.PI)) * 2 * Math.PI;
