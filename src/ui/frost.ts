@@ -218,6 +218,7 @@ function tame(o: CanvasRenderingContext2D, w: number, h: number) {
   if (g <= 0) { for (let i = 0; i < d.length; i++) if ((i & 3) !== 3) d[i] = q(d[i]); o.putImageData(im, 0, 0); return; }
   const mix = (x: number, y: number) => x + (y - x) * g;
   const cx = gx / gw, cy = gy / gw, R = Math.hypot(w, h) * 0.32; // the brightest glow, and how far its light reaches
+  const out = new Float32Array(n * 3); let oL = 0;
   for (let i = 0; i < n; i++) {
     let L = px[i * 3], A = px[i * 3 + 1], B = px[i * 3 + 2];
     let C = Math.hypot(A, B), H = Math.atan2(B, A);
@@ -242,14 +243,20 @@ function tame(o: CanvasRenderingContext2D, w: number, h: number) {
       // H and I: part of the way back to the clear glass Omar saw on launch (the page straight through, before the copy faded in)
       const back = M === 'mix' ? 0.5 : M === 'between' ? 0.62 : M === 'light' ? 0.75 : 0;
       if (back) { const L0 = px[i * 3], C0 = Math.hypot(px[i * 3 + 1], px[i * 3 + 2]); L += (L0 - L) * back; C += (C0 - C) * back; }
-      if (M === 'between') { // J: frosted, not smoked (judge 25 Oct): a faint milky veil of the colour's own light, and no part of a
-        // card near black (the calmed orange of Sunset went brown-black)
-        L += (0.7 - L) * 0.06 * g; C *= 1 - 0.03 * g;
-        if (L < 0.24) L = mix(L, 0.24 - (0.24 - L) * 0.35);
+      if (M === 'between') { // J: frosted, not smoked (judge 25 Oct): a milky veil of the colour's own light on every busy
+        // background, no part of a card near black, and the calmed orange keeps some colour (Sunset's went grey-brown)
+        L += (0.7 - L) * 0.13; C *= 0.96;
+        if (L < 0.24) L = 0.24 - (0.24 - L) * 0.35;
+        const C0 = Math.hypot(px[i * 3 + 1], px[i * 3 + 2]); C = Math.max(C, Math.min(C0 * 0.8, 0.06) * (1 - cool)); // (not blue: a blue slab stays calm)
       }
     }
-    A = C * Math.cos(H); B = C * Math.sin(H);
-    const [rr, gg, bb] = rgb(L, A, B); d[i * 4] = q(rr); d[i * 4 + 1] = q(gg); d[i * 4 + 2] = q(bb);
+    out[i * 3] = L; out[i * 3 + 1] = C; out[i * 3 + 2] = H; oL += L;
+  }
+  // J: one material on a screen, the cards' lightness closer together (judge 25 Oct: two cards read as two kinds of glass)
+  const flat = M === 'between' ? 0.25 : 0; oL /= n;
+  for (let i = 0; i < n; i++) {
+    const L = out[i * 3] + (oL - out[i * 3]) * flat, C = out[i * 3 + 1], H = out[i * 3 + 2];
+    const [rr, gg, bb] = rgb(L, C * Math.cos(H), C * Math.sin(H)); d[i * 4] = q(rr); d[i * 4 + 1] = q(gg); d[i * 4 + 2] = q(bb);
   }
   o.putImageData(im, 0, 0);
 }
