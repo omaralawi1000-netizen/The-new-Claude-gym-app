@@ -58,7 +58,7 @@ export interface AppRest {
 export async function showAppRest(r: AppRest): Promise<boolean> {
   const sw = await androidRest();
   if (!sw) return false;
-  const words = { v: 1, s: r.startedAt, x: r.exercise, l: r.line, o: r.overTitle, b: r.overBody, p: r.more, k: r.skip, q: r.sound ? 1 : 0, ...(r.done ? { d: r.done, y: r.doneNote ?? '', z: r.doneSay ?? '', n: r.next ?? 0, w: r.queue ?? [] } : {}) };
+  const words = { v: 1, i: r.key.split(':')[0], s: r.startedAt, x: r.exercise, l: r.line, o: r.overTitle, b: r.overBody, p: r.more, k: r.skip, q: r.sound ? 1 : 0, ...(r.done ? { d: r.done, y: r.doneNote ?? '', z: r.doneSay ?? '', n: r.next ?? 0, w: r.queue ?? [] } : {}) };
   const tag = `aven-rest|${JSON.stringify(words)}`;
   try {
     for (const n of await sw.getNotifications()) if (n.tag !== tag) n.close(); // an earlier rest's, or its alert
