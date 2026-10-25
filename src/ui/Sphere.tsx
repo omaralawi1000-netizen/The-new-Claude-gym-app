@@ -82,9 +82,23 @@ export const orbStats = { fps: 0, offThread: false, asleep: false };
 let workerBroken = false;
 const transferred = new WeakSet<HTMLCanvasElement>();
 
+/** Talking live (lib/live.ts): the orb hears that conversation instead of the app's own microphone and read-aloud voice —
+ *  your voice in its 16 bands, its voice as it plays. Without this it heard nothing and looked asleep (Omar, 25 Oct). */
+type VoiceSource = () => { in: number; bands: Float32Array; out: number };
+let liveVoice: VoiceSource | null = null;
+export function orbVoiceSource(fn: VoiceSource | null) { liveVoice = fn; wakeOrb(); }
+
 /** The app's state the renderer needs this frame (read once per app frame; the tap is handed over once). */
 function orbInputs(): OrbInputs {
   const v = useVoice.getState();
+  if (liveVoice) {
+    const lv = liveVoice();
+    const tap0 = tapPending; tapPending = 0;
+    const beat0 = performance.now() - beatAt < 400 ? beatPending : 0; beatPending = 0;
+    const wh = whooshPending; whooshPending = 0;
+    const listening = v.phase === 'listening';
+    return { phase: v.phase, phaseAge: (performance.now() - v.since) / 1000, live: listening, raw: listening ? lv.in : 0, bands: listening ? lv.bands : null, press: pressTarget, tap: tap0, whoosh: wh, ignite: 0, voiceOut: lv.out, rest: 0, beat: beat0, logo: launchLogo };
+  }
   const live = v.phase === 'listening' && mic.active;
   const tap = tapPending; tapPending = 0;
   const whoosh = whooshPending; whooshPending = 0;

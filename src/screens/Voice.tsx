@@ -20,7 +20,7 @@ import { runLookups, validateLookups } from '../lib/agentLookup';
 import { dayKey } from '../lib/dates';
 import { uid } from '../lib/nutrition';
 import { appendExchange, dropFailed, markInThread, readThread, threadSaid, threadTurns } from '../lib/thread';
-import { SphereSlot, mirrorOrb, orbPress, orbTap, holdOrbSize } from '../ui/Sphere';
+import { SphereSlot, mirrorOrb, orbPress, orbTap, holdOrbSize, orbVoiceSource, orbBeat } from '../ui/Sphere';
 import { mirrorProgress, useEngage } from '../ui/engage';
 import { kb, watchFocus } from '../ui/keyboard';
 import { Veil, VOICE_VEIL, mirrorVeil } from '../ui/Veil';
@@ -36,7 +36,7 @@ import { apple, springCurve } from '../ui/motion';
 const refreshBarOn = (el: HTMLElement | null) => { if (el) refreshBar(); }; // the top band takes the status bar's current tint
 
 /** One thing you said and what the assistant did about it. `done` once the answer is complete (until then it streams in). */
-interface Turn1 { id: string; said: string; reply: string; results: AgentResult[]; undone: string[]; confirmed: string[]; done: boolean; /** its cards in the shared conversation (lib/thread.ts) */ threadId?: string | null; /** said live (its words never fly in) */ live?: boolean }
+interface Turn1 { id: string; said: string; reply: string; results: AgentResult[]; undone: string[]; confirmed: string[]; done: boolean; /** its cards in the shared conversation (lib/thread.ts) */ threadId?: string | null; /** said live (its words never fly in) */ live?: boolean; /** talking live, you spoke over this answer */ cut?: boolean }
 
 /** How a sent message and the answer's cards settle: calm, a hint of spring, no wobble (iMessage). */
 const SEND = { type: 'spring', stiffness: 170, damping: 26, mass: 1 } as const; // calm: a soft rise, no hurry, no wobble
@@ -139,6 +139,41 @@ function SaidMorph({ text, onSettled }: { text: string; onSettled: () => void })
  * word, and so does the typing field below (`onDone`: written to the end, so nothing under it is pushed down while it
  * writes). `onGrow`: it took a new line (the screen follows it, unless you scrolled up to read).
  */
+/**
+ * Talking live: your voice as light. A soft warm glow at the bottom of the screen rises and brightens with your voice (its
+ * loudness, eased), sinks away while it thinks (drawn up into the orb, which then glows from inside), and rests low while it
+ * speaks. Opacity and a vertical scale only, written straight to the element each frame (no React render, no blur); still
+ * when the screen is hidden, instant under Reduce motion.
+ */
+function LiveAura({ session, mode }: { session: { current: LiveSession | null }; mode: 'off' | 'listen' | 'think' | 'speak' }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const modeRef = useRef(mode); modeRef.current = mode;
+  useEffect(() => {
+    const el = ref.current; if (!el) return;
+    const calm = document.documentElement.dataset.motion === 'reduce' || matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let o = 0, k = 0.55, raf = 0, last = performance.now();
+    const step = (now: number) => {
+      raf = requestAnimationFrame(step);
+      if (document.hidden) return;
+      const dt = Math.min(0.05, (now - last) / 1000); last = now;
+      const m = modeRef.current;
+      const lv = m === 'listen' ? session.current?.levels().in ?? 0 : 0;
+      // where it's heading: listening breathes at a low glow and rises with your voice; thinking drains away; speaking rests low
+      const to = m === 'listen' ? 0.28 + lv * 0.72 : m === 'speak' ? 0.16 : 0;
+      const toK = m === 'listen' ? 0.55 + lv * 0.6 : m === 'think' ? 1.25 : 0.5;
+      // up quickly with a word, down slowly after it (like a voice meter that breathes); draining while it thinks is slow too
+      const rate = to > o ? 9 : m === 'think' ? 1.6 : 2.6;
+      o += (to - o) * (calm ? 1 : 1 - Math.exp(-rate * dt));
+      k += (toK - k) * (calm ? 1 : 1 - Math.exp(-(m === 'think' ? 1.8 : 6) * dt));
+      el.style.opacity = o.toFixed(3);
+      el.style.transform = `scaleY(${k.toFixed(3)})`;
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [session]);
+  return <div ref={ref} aria-hidden className="live-aura" />;
+}
+
 function OrbReply({ id, text, live, onGrow, onDone, after }: { id: string; text: string; live: boolean; onGrow: () => void; onDone: () => void; after: ReactNode }) {
   const { shown, done } = useWordReveal(text, live);
   const ref = useRef<HTMLDivElement>(null);
@@ -221,7 +256,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
 
   const teardown = useCallback(() => {
     run.current++;
-    liveRef.current?.stop(); liveRef.current = null; setLiveActive(false); liveTurn.current = { id: null, said: '' }; setSpeaking(false); setMuted(false); setCamStream(null); setRenewing(false);
+    liveRef.current?.stop(); liveRef.current = null; setLiveActive(false); orbVoiceSource(null); liveTurn.current = { id: null, said: '' }; setSpeaking(false); setMuted(false); setCamStream(null); setRenewing(false);
     handle.current?.abort(); handle.current = null;
     mic.release('voice');
     useVoice.getState().set({ micLive: false });
@@ -280,6 +315,13 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   }, [supported, engine, lang, liveWanted]);
 
   /** Talk live: the coach's own instructions, the conversation so far and the live rules; food logs through Aven. */
+  /** The words it will hear: your lifts and the foods you log most lately (and Aven's own), for the transcription. */
+  const liveWords = () => {
+    const st = useStore.getState();
+    const foods = [...new Set([...st.entries].reverse().map((e) => e.snap?.name).filter((x): x is string => !!x && x.length < 40))].slice(0, 50);
+    const lifts = [...new Set(st.sessions.slice(-20).flatMap((w) => w.exercises.map((e) => pool.find((x) => x.id === e.exerciseId)?.name)).filter((x): x is string => !!x))].slice(0, 40);
+    return ['Aven', 'skyr', ...foods, ...lifts];
+  };
   const liveStarting = useRef(false); // (one connection at a time: opening the screen asked twice, and paid for two)
   const liveAgain = useRef(false);
   const goLive = async () => {
@@ -301,7 +343,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
     const said = history().map((h) => `${h.role === 'user' ? 'They' : 'You'}: ${h.parts.map((p) => p.text).join('')}`).join('\n').slice(-6000);
     const lt = liveTurn.current;
     const s = await startLive({
-      key: getKey('gemini'), voice: useAi.getState().voice, lang,
+      key: getKey('gemini'), voice: useAi.getState().voice, lang, vocabulary: liveWords(),
       system: `${system}\n\nTHE CONVERSATION SO FAR (oldest first; the Coach chat and the orb share it):\n${said || '(nothing yet)'}\n\n${LIVE_RULES}`,
       handlers: {
         // your sentence gets its bubble with its first word and keeps it to the end of the answer (a bubble swapped for
@@ -332,10 +374,11 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
           const results = v?.actions.length ? await runActions(v.actions, { t, lang, today, brain: brainFor({ big: false, surface: 'orb' }), date: props.date, mealId: props.mealId }) : [];
           const id = lt.id;
           if (id && alive.current) setTurns((all) => all.map((x) => (x.id === id ? { ...x, results: [...x.results, ...results] } : x)));
-          if (results.some((r) => r.kind === 'food' && !r.pending)) haptic('success');
+          if (results.some((r) => r.kind !== 'miss' && r.kind !== 'nav' && !r.pending)) { haptic('success'); orbBeat(1); } // (one heartbeat of light: done)
           // (with each item's ref, so "change that" can find it; and what couldn't be read)
           return [results.map((r) => `${r.title}: ${r.lines.map((l) => [l.text, l.sub, l.ref ? `[ref ${l.ref}]` : ''].filter(Boolean).join(' ')).join(', ')}${r.button ? ' (waits for their Apply)' : ''}`).join('; ') || 'Nothing was changed.', v.dropped ? `${v.dropped} action(s) could not be read and were not done.` : ''].filter(Boolean).join(' ');
         },
+        onInterrupted: () => { if (alive.current && lt.id) patch(lt.id, { cut: true }); },
         onIdle: () => {
           if (!alive.current) return;
           const id = lt.id; lt.id = null; lt.said = '';
@@ -348,7 +391,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
         },
         onError: (code) => {
           if (!alive.current) return;
-          liveRef.current = null; setLiveActive(false);
+          liveRef.current = null; setLiveActive(false); orbVoiceSource(null);
           if (code === 'denied') { setErr(t('Microphone permission was denied. You can allow it in your browser settings, or type instead.')); go('unavailable'); setTyping(true); return; }
           if (code === 'nodevice') { setErr(t('No microphone was found.')); go('error'); setTyping(true); return; }
           if (code === 'closed') { setErr(t('Live stopped. Tap the sphere to talk again.')); go('idle'); return; }
@@ -360,6 +403,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
     if (!s) return;
     if (!alive.current || my !== run.current) { s.stop(); return; }
     liveRef.current = s; setLiveActive(true);
+    orbVoiceSource(() => s.levels()); // (the orb hears this conversation: your voice and its own)
     useVoice.getState().set({ micLive: true });
     go('listening');
   };
@@ -497,15 +541,6 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
     } finally { clearTimeout(kill); busy.current = false; setLooking(''); }
   };
 
-  /** a message typed while talking live: the Coach answers it (text), in the same conversation */
-  const sendLiveTyped = () => {
-    const text = typed.trim();
-    if (!text || busy.current) return;
-    haptic('send'); setTyped('');
-    const f = document.activeElement as HTMLElement | null; if (f?.tagName === 'TEXTAREA') f.blur();
-    pinned.current = true;
-    void act(text, openTurn(text));
-  };
   const finish = async () => {
     if (!alive.current || busy.current) return;
     if (liveRef.current && !typing) { teardown(); go('idle'); return; }
@@ -574,7 +609,8 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   const big = liveUi ? !chatting : !showing && !thinking && !typing; // typing: the orb steps up and the box gets the room
   // (Aven's own Reduce motion too, not only the phone's: the glide and the fade are instant then)
   const calm = useReducedMotion() || document.documentElement.dataset.motion === 'reduce';
-  const liveLabel = renewing ? t('Reconnecting…') : muted ? t('Muted') : '';
+  // what it's doing, in a word (the orb says it too, in light): listening, thinking, speaking
+  const liveLabel = renewing ? t('Reconnecting…') : muted ? t('Muted') : !liveActive ? '' : speaking ? t('Speaking') : phase === 'processing' ? t('Thinking…') : phase === 'listening' ? t('Listening') : '';
   // the sphere is about to grow or shrink (the .45 s transition below): its canvas holds the big size meanwhile
   const wasBig = useRef(big);
   useLayoutEffect(() => { if (wasBig.current !== big) { wasBig.current = big; holdOrbSize(Math.min(window.innerWidth * 0.62, 250), 520); } }, [big]);
@@ -608,6 +644,9 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
       <Veil e={veilE} z={0} layers={VOICE_VEIL} className="veil-abs" elRef={veilRef} />
       {/* the top of the screen starts in exactly the status bar's colour and fades into the frost: no edge under the bar */}
       <motion.div aria-hidden className="voice-top" data-bar-shown ref={refreshBarOn} style={{ opacity: veilE }} />
+      {/* your voice flowing in: a warm light rising from the bottom (where the microphone is) with how loud you are; it pulls
+          up into the orb while it thinks and stays low while it speaks (the orb's own light answers then) */}
+      {liveUi && <LiveAura session={liveRef} mode={!liveActive || muted ? 'off' : speaking ? 'speak' : phase === 'processing' ? 'think' : 'listen'} />}
       <motion.div ref={contentRef} style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', padding: 'calc(var(--sat) + 12px) 18px 0', opacity: contentO }}>
         <div className="row-flex between">
           {liveUi ? <span /> : <button className="icon-btn press" aria-label={t('Close')} onClick={() => useUI.getState().pop()}><Icon name="close" /></button>}
@@ -663,7 +702,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
                     {/* (once answered, an older sentence is plain text: a long conversation keeps few word layers over the orb) */}
                     {tu.said && <div className="said"><Words text={tu.said} k={`u${i}`} still={tu.done && !newest} /></div>}
                     {/* (the same component when it stops being the newest: a swap made the answer fade in again) */}
-                    {tu.reply.trim() && <OrbReply id={tu.id} text={tu.reply} live={!tu.done} onGrow={newest ? follow : () => {}} onDone={() => setWritten(tu.id)} after={cards || null} />}
+                    {tu.reply.trim() && <div className={tu.cut ? 'live-cut' : undefined}><OrbReply id={tu.id} text={tu.reply} live={!tu.done} onGrow={newest ? follow : () => {}} onDone={() => setWritten(tu.id)} after={cards || null} /></div>}
                     {!tu.reply.trim() && cards}
                   </div>
                 );
@@ -757,18 +796,8 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
               <button className={`chip press interrupt${speaking ? '' : ' off'}`} aria-hidden={!speaking} tabIndex={speaking ? 0 : -1} onClick={() => { liveRef.current?.hush(); haptic('light'); }}>{t('Tap to interrupt')}</button>
             </div>
           )}
-          <div className="row-flex" style={{ gap: 10, alignItems: 'flex-end' }}>
+          <div className="row-flex" style={{ gap: liveUi ? 28 : 10, alignItems: 'flex-end', justifyContent: liveUi ? 'center' : undefined }}>
             {liveUi && <>
-              {/* type any time (like ChatGPT): it goes to the Coach, the answer comes in the conversation as text, and the voice
-                  is told; the microphone rests while you type */}
-              <div className={`live-type grow${typed.trim() ? ' has-text' : ''}`}>
-                {/* (one line, like ChatGPT's: a wrapped placeholder looked broken on the phone) */}
-                <input className="input" type="text" enterKeyHint="send" value={typed} aria-label={t('Type a message')} placeholder={t('Ask Aven')}
-                  onChange={(e) => setTyped(e.target.value)}
-                  onFocus={() => liveRef.current?.setMuted(true)} onBlur={() => liveRef.current?.setMuted(muted)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); sendLiveTyped(); } }} />
-                {typed.trim() && <button className="live-send press" aria-label={t('Send')} onClick={sendLiveTyped}><Icon name="arrowUp" size={18} sw={2.2} /></button>}
-              </div>
               <button className={`icon-btn press${camStream ? ' on' : ''}`} disabled={!liveActive} aria-label={camStream ? t('Camera off') : t('Camera on')} aria-pressed={!!camStream}
                 onClick={async () => { haptic('light'); const s1 = liveRef.current; if (!s1) return; if (camStream) { await s1.setCamera(false); setCamStream(null); } else { const c = await s1.setCamera(true); if (c) setCamStream(c); else setErr(t('The camera couldn’t be opened.')); } }}>
                 <Icon name="camera" />

@@ -3096,3 +3096,8 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 .voice .live-send { position: absolute; right: 6px; bottom: 6px; width: 34px; height: 34px; border-radius: 999px; display: grid; place-items: center; background: var(--ac); color: var(--ac-ink); }
 .voice .live-send::before { content: ''; position: absolute; inset: -5px; border-radius: inherit; } /* a 44 px tap area round the 34 px disc */
 .voice .exchange-list { display: flex; flex-direction: column; gap: 22px; }
+/* talking live: your voice as a warm light rising from the bottom (opacity and scaleY only, set per frame; no blur) */
+.voice .live-aura { position: absolute; left: -15%; right: -15%; bottom: 0; height: 52%; pointer-events: none; opacity: 0; transform-origin: 50% 100%; will-change: transform, opacity; z-index: 0;
+  background: radial-gradient(ellipse 60% 70% at 50% 100%, color-mix(in srgb, var(--ac) 42%, transparent) 0%, color-mix(in srgb, var(--ac) 16%, transparent) 42%, transparent 72%); }
+/* an answer you spoke over: it steps back */
+.voice .live-cut { opacity: 0.42; transition: opacity .4s var(--ease-out); }

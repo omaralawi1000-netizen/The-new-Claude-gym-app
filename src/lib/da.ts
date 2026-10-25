@@ -1881,4 +1881,5 @@ export const da: Record<string, string> = {
  "Type a message": "Skriv en besked",
  "Ask Aven": "Spørg Aven",
  "End": "Afslut",
+ "Speaking": "Taler",
 };

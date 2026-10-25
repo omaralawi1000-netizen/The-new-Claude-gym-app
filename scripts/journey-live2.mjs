@@ -42,9 +42,9 @@ const real = (errors) => errors.filter((e) => !/Failed to load resource|429|WebS
   await wait(p, 1500);
   await p.screenshot({ path: 'shots/live-5-long-da-light.png' });
   const box = await p.getByText(/^Svar nummer 8/).boundingBox();
-  const input = await p.getByLabel('Skriv en besked').boundingBox();
-  assert(box && input && box.y + box.height <= input.y, 'the newest answer is in view, above the type box');
-  assert(await p.getByPlaceholder('Spørg Aven').isVisible(), 'Danish');
+  const input = await p.getByRole('button', { name: 'Afslut', exact: true }).boundingBox();
+  assert(box && input && box.y + box.height <= input.y, 'the newest answer is in view, above the buttons');
+  assert(await p.getByRole('button', { name: 'Afslut', exact: true }).isVisible(), 'Danish');
   assert.deepEqual(real(errors), [], 'no page errors (long conversation)');
   await b.close();
   console.log('long conversation OK');
@@ -83,7 +83,7 @@ const real = (errors) => errors.filter((e) => !/Failed to load resource|429|WebS
   for (let i = 0; i < 30 && !(await p.getByText('Live couldn’t connect, so the normal orb answers.').isVisible()); i++) await wait(p, 500);
   await p.screenshot({ path: 'shots/live-7-noconnect.png' });
   assert(await p.getByText('Live couldn’t connect, so the normal orb answers.').isVisible(), 'falls back to the normal orb, and says so');
-  assert(!(await p.getByLabel('Type a message').isVisible()), 'no live controls');
+  assert(!(await p.getByRole('button', { name: 'End', exact: true }).isVisible()), 'no live controls');
   await b.close();
   console.log('no connection OK');
 }
@@ -119,7 +119,7 @@ const real = (errors) => errors.filter((e) => !/Failed to load resource|429|WebS
   assert(audio - a0 > 5, 'back within 30 s: it carries on');
   await hide(true); await wait(p, 31500);
   await hide(false); await wait(p, 1200);
-  assert(!(await p.getByLabel('Type a message').isVisible()), 'away 30 s: the conversation has ended and the orb closed');
+  assert(!(await p.getByRole('button', { name: 'End', exact: true }).isVisible()), 'away 30 s: the conversation has ended and the orb closed');
   assert.deepEqual(real(errors), [], 'no page errors (leaving)');
   await b.close();
   console.log('leaving OK');

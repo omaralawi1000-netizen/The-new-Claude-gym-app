@@ -16,13 +16,19 @@ export const LIVE_MODEL = 'gemini-3.8-live-extended-thinking';
 
 /** Said to the model after the coach's usual instructions: speak, don't write JSON; how it acts in Aven. */
 export const LIVE_RULES = `LIVE VOICE (this overrides anything above about answering in JSON, a reply field, look-ups or an actions list):
-You are talking out loud with them right now, in real time; they can interrupt you. Just speak — short and natural, like a coach standing next to them: one to three sentences unless they ask for more. LANGUAGE: only Danish or English, never any other. Answer in the language of their latest sentence; a sentence that mixes both ("log 200 g skyr", "bænkpres 80 kilo") is in the language most of its words are in; a food or exercise name in the other language doesn't change it. If a sentence sounded like another language (German, Norwegian, Swedish, Dutch…), it was Danish.
+You are their coach, talking with them out loud right now; they can interrupt you. Everything above about how to coach still holds — only the format changes.
+BE THEIR COACH, NOT A CHATBOT (Omar, 25 Oct: generic lines like "Everything is going great today" or "That's a solid move" are wrong):
+- Answer what they actually said, with their own numbers from DATA (today's kcal and protein left, the last session, the plan, tomorrow's training). Never a line that would fit anyone.
+- When they mention food or drink they're having or had ("I'm eating skyr", "jeg har lige spist en banan"), that's a log: log it with aven (best estimate of the amount if they didn't say; a usual portion), then say what it does for today in a few words ("Logged 250 g skyr — 52 g protein left today"). If the amount really matters and can't be guessed, ask once.
+- The same for sets, weight, water and activities they mention: do it, then say so.
+- Small talk ("what's up?"): one warm sentence, then something useful and specific from DATA (what's left today, what's next).
+- Never narrate what you're doing ("Let me look that up", "I'm reviewing your data"): just do it and answer. Never filler. Never repeat their words back.
+- As long as the answer needs: a log is a few words; a real question gets a real answer (often 2–4 sentences); a plan or a long explanation: the core out loud, then say the full version is in the Coach chat.
+LANGUAGE: only Danish or English, never any other. Answer in the language of their latest sentence; a sentence that mixes both ("log 200 g skyr", "bænkpres 80 kilo") is in the language most of its words are in; a food or exercise name in the other language doesn't change it. If a sentence sounded like another language (German, Norwegian, Swedish, Dutch…), it was Danish. Words that sound like a name may be a food ("Skyler" is skyr).
 To change anything in Aven (log food, water, weight, sets or an activity, start or finish a workout, change a setting, a routine, the plan — everything listed under actions above), call the function aven with the actions, exactly as you would have put them in the actions list, then say in a few words what you did. Never say something is done without calling it. A change that needs their Apply shows a card: tell them to tap Apply.
 To see data that isn't in DATA (older days, a lift's history, the whole plan, settings, what they said before), call look_up first and answer from what comes back.
 For facts from outside Aven (a product's nutrition, opening hours, news, prices) use Google Search.
-If the camera is on, you see what they point it at (a plate, a label, a machine): use it ("log this" means what you see, with your best estimate of the amounts).
-Messages they TYPED appear in the conversation as text with the Coach's typed answer: they're part of the conversation; don't answer them again.
-A question that needs a long answer or a plan: give the short answer out loud and say the full answer is in the Coach chat.`;
+If the camera is on, you see what they point it at (a plate, a label, a machine): use it ("log this" means what you see, with your best estimate of the amounts).`;
 
 export interface LiveHandlers {
   /** what they are saying, so far (the whole utterance) */
@@ -37,6 +43,8 @@ export interface LiveHandlers {
   onSpeaking: (on: boolean) => void;
   /** the turn is finished and nothing more is coming */
   onIdle: () => void;
+  /** you spoke over it: this answer was cut off (onIdle follows) */
+  onInterrupted?: () => void;
   /** the token counts for a finished turn (for the monthly spend) */
   onUsage?: (usage: unknown) => void;
   /** renewing the connection (true) / back (false) */
@@ -54,6 +62,8 @@ export interface LiveSession {
   hush: () => void;
   /** a typed message and its answer (from the Coach), so it knows about them when you speak again */
   note: (said: string, reply: string) => void;
+  /** how loud you are (0..1) and your voice in 16 bands, and how loud its voice is (0..1), right now: for the orb */
+  levels: () => { in: number; bands: Float32Array; out: number };
 }
 
 const withTimeout = <T,>(p: Promise<T>, ms: number) => new Promise<T>((ok, no) => { const t = setTimeout(() => no(new Error('timeout')), ms); p.then((v) => { clearTimeout(t); ok(v); }, (e) => { clearTimeout(t); no(e); }); });
@@ -80,7 +90,7 @@ const TOOLS = (Behavior: any) => [
   { googleSearch: {} },
 ];
 
-export async function startLive(o: { key: string; system: string; voice?: string; lang?: 'en' | 'da'; handlers: LiveHandlers }): Promise<LiveSession | null> {
+export async function startLive(o: { key: string; system: string; voice?: string; lang?: 'en' | 'da'; vocabulary?: string[]; handlers: LiveHandlers }): Promise<LiveSession | null> {
   const h = o.handlers;
   let stopped = false;
   // ── the microphone first (asked before anything is paid for) ──
@@ -93,6 +103,12 @@ export async function startLive(o: { key: string; system: string; voice?: string
   }
   const inCtx = new AudioContext({ sampleRate: 16000 });
   const outCtx = new AudioContext({ sampleRate: 24000 });
+  // the orb reads both voices: yours (16 bands, from the microphone) and its own (what plays)
+  const inAn = inCtx.createAnalyser(); inAn.fftSize = 256; inAn.smoothingTimeConstant = 0.6;
+  const outAn = outCtx.createAnalyser(); outAn.fftSize = 256; outAn.smoothingTimeConstant = 0.7;
+  outAn.connect(outCtx.destination);
+  const inBuf = new Uint8Array(inAn.frequencyBinCount), outBuf = new Uint8Array(outAn.fftSize);
+  const bands = new Float32Array(16);
   let cam: MediaStream | null = null, camTimer: ReturnType<typeof setInterval> | null = null;
   const camOff = () => { if (camTimer) clearInterval(camTimer); camTimer = null; cam?.getTracks().forEach((tr) => tr.stop()); cam = null; };
   const cleanupAudio = () => { camOff(); stream.getTracks().forEach((tr) => tr.stop()); void inCtx.close().catch(() => {}); void outCtx.close().catch(() => {}); };
@@ -109,7 +125,7 @@ export async function startLive(o: { key: string; system: string; voice?: string
     const dv = new DataView(pcm.buffer, pcm.byteOffset, pcm.byteLength);
     for (let i = 0; i < n; i++) ch[i] = dv.getInt16(i * 2, true) / 32768;
     const src = outCtx.createBufferSource();
-    src.buffer = buf; src.connect(outCtx.destination);
+    src.buffer = buf; src.connect(outAn);
     const at = Math.max(outCtx.currentTime + 0.02, playAt);
     src.start(at); playAt = at + buf.duration;
     if (!playing.size) h.onSpeaking(true);
@@ -140,7 +156,8 @@ export async function startLive(o: { key: string; system: string; voice?: string
           systemInstruction: o.system,
           // only Danish or English: left to guess, it once wrote Danish down as German ("Hi, wer denn gerade?", 25 Oct)
           // (the app's language first: the one it leans to when a word could be either)
-          inputAudioTranscription: { languageCodes: o.lang === 'en' ? ['en-US', 'da-DK'] : ['da-DK', 'en-US'] },
+          // (and the words it will hear from you: your foods and lifts — it wrote "skyr" as "Skyler", 25 Oct)
+          inputAudioTranscription: { languageCodes: o.lang === 'en' ? ['en-US', 'da-DK'] : ['da-DK', 'en-US'], ...(o.vocabulary?.length ? { customVocabulary: o.vocabulary.slice(0, 100) } : {}) },
           outputAudioTranscription: {},
           sessionResumption: handle ? { handle } : {},
           contextWindowCompression: { slidingWindow: {} },
@@ -166,7 +183,7 @@ export async function startLive(o: { key: string; system: string; voice?: string
             }
             if (sc?.outputTranscription?.text) { startAnswer(); reply += sc.outputTranscription.text; h.onReplyText(reply.trim()); }
             // interrupted: that answer ends here (what you say now is a new sentence, in its own bubble)
-            if (sc?.interrupted) { cut(); hushed = false; if (answering || reply) h.onIdle(); answering = false; user = ''; reply = ''; }
+            if (sc?.interrupted) { cut(); hushed = false; if (answering || reply) { h.onInterrupted?.(); h.onIdle(); } answering = false; user = ''; reply = ''; }
             if (sc?.turnComplete && (!sc.interactionStatus || sc.interactionStatus === 'IDLE')) {
               if (answering || reply) h.onIdle();
               if (usage) { h.onUsage?.(usage); usage = null; }
@@ -214,7 +231,7 @@ export async function startLive(o: { key: string; system: string; voice?: string
   try {
     await inCtx.audioWorklet.addModule(URL.createObjectURL(new Blob([WORKLET], { type: 'text/javascript' })));
     const node = new AudioWorkletNode(inCtx, 'aven-pcm');
-    inCtx.createMediaStreamSource(stream).connect(node);
+    const micSrc = inCtx.createMediaStreamSource(stream); micSrc.connect(node); micSrc.connect(inAn);
     let pending: Float32Array[] = [], count = 0;
     node.port.onmessage = (e) => {
       if (stopped) return;
@@ -258,6 +275,21 @@ export async function startLive(o: { key: string; system: string; voice?: string
     },
     setCamera,
     hush: () => { hushed = true; cut(); },
+    levels: () => {
+      // yours: the speech range (≈80 Hz–4 kHz of 8 kHz) in 16 bands, a soft gate under room noise
+      inAn.getByteFrequencyData(inBuf);
+      let sum = 0;
+      for (let i = 0; i < 16; i++) {
+        const a = 1 + i * 3, b = a + 3; let x = 0;
+        for (let k = a; k < b; k++) x += inBuf[k];
+        const v = Math.max(0, x / (3 * 255) - 0.12) / 0.88;
+        bands[i] = muted || stopped ? 0 : v; sum += bands[i];
+      }
+      // its own: loudness of what plays
+      outAn.getByteTimeDomainData(outBuf);
+      let e = 0; for (let k = 0; k < outBuf.length; k++) { const d = (outBuf[k] - 128) / 128; e += d * d; }
+      return { in: Math.min(1, (sum / 16) * 1.8), bands, out: Math.min(1, Math.sqrt(e / outBuf.length) * 4) };
+    },
     note: (said, reply) => {
       if (!ready || !said.trim()) return;
       try { session.sendClientContent({ turns: [{ role: 'user', parts: [{ text: `(typed) ${said}` }] }, ...(reply.trim() ? [{ role: 'model', parts: [{ text: reply }] }] : [])], turnComplete: false }); } catch { /* renewing */ }

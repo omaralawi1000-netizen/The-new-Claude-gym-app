@@ -101,28 +101,21 @@ assert(await p.getByText('Logget: 200 g skyr.').isVisible(), 'the whole conversa
 assert(await p.getByText('hvor meget protein mangler jeg').isVisible() && await p.getByText('log 200 g skyr').isVisible(), 'both of your sentences');
 assert(await p.getByRole('button', { name: 'Mute' }).isVisible() && await p.getByRole('button', { name: 'Camera on' }).isVisible(), 'mute and camera');
 await p.screenshot({ path: 'shots/live-2-talking.png' });
-// typed in between: the Coach answers in the same conversation, and the voice is told
-await p.getByLabel('Type a message').fill('hvad har jeg spist i dag'); await wait(p, 200);
-await p.screenshot({ path: 'shots/live-3-typing.png' });
-await p.keyboard.press('Enter');
-for (let i = 0; i < 20 && !(await p.getByText('Du har spist 1.240 kcal i dag.').isVisible()); i++) await wait(p, 300);
-assert(await p.getByText('Du har spist 1.240 kcal i dag.').isVisible(), 'the typed message gets the Coach’s answer, in the conversation');
-await wait(p, 600);
-assert.match(JSON.stringify(sent.typed ?? ''), /\(typed\) hvad har jeg spist i dag/, 'the voice is told what was typed');
-assert(await p.getByText('Logget: 200 g skyr.').isVisible(), 'and the rest of the conversation is still there');
-await p.screenshot({ path: 'shots/live-4-typed.png' });
+// no typing box any more (typing is the Coach's job), and the orb and the bottom light hear the conversation
+assert(!(await p.getByLabel('Type a message').isVisible()), 'no type box while talking live');
+assert(await p.locator('.live-aura').count() === 1, 'the light of your voice is there');
 await p.getByRole('button', { name: 'Mute' }).click(); await wait(p, 300);
 assert(await p.getByText('Muted').isVisible(), 'muted says so');
 // the keyboard lifts the box you type in (it overlays the page; the screen rides above it)
 await p.evaluate(async () => { const m = await import('/src/ui/keyboard.ts'); m.setKeyboard(320, true); }); await wait(p, 500);
-const tb = await p.getByLabel('Type a message').boundingBox();
-assert(tb && tb.y + tb.height <= 844 - 320, `the type box sits above the keyboard (${tb && Math.round(tb.y + tb.height)})`);
+const tb = await p.getByRole('button', { name: 'End', exact: true }).boundingBox();
+assert(tb && tb.y + tb.height <= 844, 'the buttons stay on screen');
 await p.screenshot({ path: 'shots/live-8-keyboard.png' });
 await p.evaluate(async () => { const m = await import('/src/ui/keyboard.ts'); m.setKeyboard(0, true); }); await wait(p, 400);
 // ✕ ends it and closes, like ChatGPT (the old buttons never show in between)
 assert(!(await p.getByText('Type instead').isVisible()) && !(await p.getByText('Speak', { exact: true }).isVisible()), 'no old buttons while live');
 await p.getByRole('button', { name: 'End', exact: true }).click(); await wait(p, 1200);
-assert(!(await p.getByLabel('Type a message').isVisible()), '✕ ends the live conversation and closes');
+assert(!(await p.getByRole('button', { name: 'End', exact: true }).isVisible()), '✕ ends the live conversation and closes');
 const real = errors.filter((e) => !/Failed to load resource|429|WebSocket/.test(e));
 assert.deepEqual(real, [], 'no page errors');
 console.log('LIVE OK', JSON.stringify({ audio: sent.audio, connections: setups.length, usd: spent }));

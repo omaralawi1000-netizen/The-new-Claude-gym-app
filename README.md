@@ -3159,3 +3159,29 @@ not supported) were the alternatives.
   usual orb answers. Design unchanged (Omar will redesign the orb).
 - `scripts/journey-live.mjs` fakes the Live server at the WebSocket: setup, microphone stream, a `log_food` call, the spoken
   answer as text, the card, the shared conversation, Stop.
+
+## The live orb: alive, a coach, voice only (25 Oct 2026, Beta)
+
+**What Omar wants (his words, 25 Oct):** the orb screen must *feel alive* — like the best apps, motion and animation that would
+wow an app animation designer; **unique and creative, something genuinely different**, not a copy. There must always be a clear
+sign that it is listening, thinking or speaking. And it must answer like a real coach, not with generic lines.
+
+**Where it stands (after his ChatGPT recording, then his own two recordings):**
+- One screen like ChatGPT's voice mode: the big orb in the middle, the conversation as a chat once it starts (the orb glides up),
+  at the bottom only camera, mute and ✕ (ends and closes). **No typing here**: to type, the Coach chat is the smarter place.
+- **Your voice flows into the orb** (Aven's own idea, not Siri's edge glow): while you talk a warm light rises from the bottom of
+  the screen, where the microphone is, with your loudness; the orb's dots light with your voice in 16 bands (low at the bottom,
+  high at the top). While it thinks the bottom light drains up into the orb, which turns and glows from inside. While it speaks
+  the orb's light pulses with its voice. A log done is one heartbeat of light and a ring. Speaking over it dims its cut-off answer.
+  Under the orb one word says the state: Listening, Thinking…, Speaking (or Muted, Reconnecting…).
+- The orb hears the live conversation itself (`orbVoiceSource`, lib/live.ts `levels()`): before, it was wired only to the old
+  orb's microphone and read-aloud voice, so in a live conversation it looked asleep.
+- Rules of motion still hold: the orb never changes shape (only light moves), transform and opacity only, no blur on the moving
+  light, Reduce motion respected, 120 fps on the phone.
+- **A coach, not a chatbot:** the live rules now say: answer with their own numbers from DATA; food or drink they mention is a
+  log (then what it means for today); no narrating ("Let me look that up"), no filler, no repeating them; as long as the answer
+  needs. The transcription gets a word list (their foods and lifts, "skyr": it heard "Skyler").
+- Leaving Aven turns the microphone and camera off at once; back within 30 s it carries on, after that it has ended.
+
+**Next ideas for "alive" (to try with Omar):** cards that condense out of the orb's light and settle into the chat; the answer's
+words lighting up as they are spoken; a soft haptic on the first word of an answer.
