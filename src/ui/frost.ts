@@ -275,6 +275,9 @@ function tame(o: CanvasRenderingContext2D, w: number, h: number) {
         // the floor: the card's fill over it takes some colour away, and mauve and pink lose the most (Sunset, judge r4)
         const hd = (H * 180) / Math.PI, fC = 0.05 + 0.012 * step(hd, -55, -45) * step(-hd, 0, 10);
         if (C < fC) { let dt = hue - H; dt -= Math.round(dt / (2 * Math.PI)) * 2 * Math.PI; H += dt * (1 - C / fC); C = Math.min(fC, cMax); }
+        // dark red-orange glass reads brown (Sunset's Train cards, 25 Oct): it leans on to rose, with a little more colour
+        const hr = (H * 180) / Math.PI, rose = step(hr, 8, 18) * step(-hr, -70, -55) * step(-L, -0.45, -0.38);
+        if (rose > 0) { H += ((-5 - hr) * Math.PI / 180) * 0.6 * rose; C = Math.min(Math.max(C, C + (0.065 - C) * rose), Math.max(C, cMax)); }
       }
     }
     out[i * 3] = L; out[i * 3 + 1] = C; out[i * 3 + 2] = H;
