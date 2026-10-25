@@ -185,7 +185,10 @@ export const frostStamp = stamp;
 // ---- busy and solid backgrounds (options on trial, `data-cards`): the copy tamed where it is too much, left alone where it
 // is calm (Champagne on Mesh, the dark backgrounds), in OKLab
 const toLin = (v: number) => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
-const toSrgb = (v: number) => Math.round(255 * Math.min(1, Math.max(0, v <= 0.0031308 ? v * 12.92 : 1.055 * v ** (1 / 2.4) - 0.055)));
+const toSrgb = (v: number) => 255 * Math.min(1, Math.max(0, v <= 0.0031308 ? v * 12.92 : 1.055 * v ** (1 / 2.4) - 0.055));
+// to whole levels with a level of triangular noise: the picture is small and scaled up 6 times, so a plain rounding drew
+// its soft gradients as wide flat steps (staircase bands, judge 25 Oct). Done once per picture, nothing per frame.
+const q = (v: number) => Math.min(255, Math.max(0, Math.round(v + Math.random() - Math.random())));
 function lab(r: number, g: number, b: number): [number, number, number] {
   const R = toLin(r), G = toLin(g), B = toLin(b);
   const l = Math.cbrt(0.4122214708 * R + 0.5363325363 * G + 0.0514459929 * B), m = Math.cbrt(0.2119034982 * R + 0.6806995451 * G + 0.1073969566 * B), s = Math.cbrt(0.0883024619 * R + 0.2817188376 * G + 0.6299787005 * B);
@@ -212,7 +215,7 @@ function tame(o: CanvasRenderingContext2D, w: number, h: number) {
   // loud ones (Mesh on Golden hour or Sunset, Colour per tab, Time of day) and for an even slab of colour (Night sky)
   const clamp = (x: number) => Math.min(1, Math.max(0, x));
   const g = Math.max(clamp((mC - 0.03) / 0.03), clamp((0.055 - sd) / 0.02) * clamp((mC - 0.025) / 0.01));
-  if (g <= 0) return;
+  if (g <= 0) { for (let i = 0; i < d.length; i++) if ((i & 3) !== 3) d[i] = q(d[i]); o.putImageData(im, 0, 0); return; }
   const mix = (x: number, y: number) => x + (y - x) * g;
   const cx = gx / gw, cy = gy / gw, R = Math.hypot(w, h) * 0.32; // the brightest glow, and how far its light reaches
   for (let i = 0; i < n; i++) {
@@ -239,9 +242,14 @@ function tame(o: CanvasRenderingContext2D, w: number, h: number) {
       // H and I: part of the way back to the clear glass Omar saw on launch (the page straight through, before the copy faded in)
       const back = M === 'mix' ? 0.5 : M === 'between' ? 0.62 : M === 'light' ? 0.75 : 0;
       if (back) { const L0 = px[i * 3], C0 = Math.hypot(px[i * 3 + 1], px[i * 3 + 2]); L += (L0 - L) * back; C += (C0 - C) * back; }
+      if (M === 'between') { // J: frosted, not smoked (judge 25 Oct): a faint milky veil of the colour's own light, and no part of a
+        // card near black (the calmed orange of Sunset went brown-black)
+        L += (0.7 - L) * 0.06 * g; C *= 1 - 0.03 * g;
+        if (L < 0.24) L = mix(L, 0.24 - (0.24 - L) * 0.35);
+      }
     }
     A = C * Math.cos(H); B = C * Math.sin(H);
-    const [rr, gg, bb] = rgb(L, A, B); d[i * 4] = rr; d[i * 4 + 1] = gg; d[i * 4 + 2] = bb;
+    const [rr, gg, bb] = rgb(L, A, B); d[i * 4] = q(rr); d[i * 4 + 1] = q(gg); d[i * 4 + 2] = q(bb);
   }
   o.putImageData(im, 0, 0);
 }

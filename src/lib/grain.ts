@@ -55,6 +55,15 @@ export function installDither() {
     l.toBlob((b) => {
       if (b) document.documentElement.style.setProperty('--dither-light', `url(${URL.createObjectURL(b)}) 0 0 / ${n / dpr}px ${n / dpr}px`);
     });
+    // the cards' grain (styles.css .frost::after): white dots, one per screen pixel, at an even spread of alpha with no long
+    // bright tail, so it dithers the card's colour steps without reading as sand on near-black (judge 25 Oct)
+    const f = document.createElement('canvas'); f.width = f.height = n;
+    const z = f.getContext('2d'); if (z) {
+      const k = z.createImageData(n, n);
+      for (let i = 0; i < k.data.length; i += 4) { k.data[i] = k.data[i + 1] = k.data[i + 2] = 255; k.data[i + 3] = Math.round(Math.random() * 255); }
+      z.putImageData(k, 0, 0);
+      f.toBlob((b) => { if (b) document.documentElement.style.setProperty('--frost-dots', `url(${URL.createObjectURL(b)}) 0 0 / ${n / dpr}px ${n / dpr}px`); });
+    }
     veilTint(n, dpr);
   } catch { /* the glass stays plain */ }
 }
