@@ -3103,3 +3103,23 @@ real coach.
   for the rest, say what changed; no repeating back, no asking for a brand.
 - Exam: `fix-pieces` and `fix-kcal` replay his thread (orb, Danish, dictated) with the items in the log: 4/4 fixed both
   items, none asked about the brand ($0.01).
+
+## Calm cards on busy backgrounds, untinted pop-ups (25 Oct 2026, v0.1.170)
+
+Omar (20 and 25 Oct): on some themes the cards were "all over the place" (Sunset + Mesh) or a solid colour slab that
+didn't read as blur (Golden hour + Night sky); after changing theme and switching pages the cards first showed the old
+colours; he liked Champagne + Mesh ("dark glass with one soft glow coming through"); for pop-ups he picked C: no tint,
+not see-through.
+- **One look, no picker** (`src/surfaces.css`, `lib/types.ts` `lookOf` always A; Settings → Appearance → Surfaces and
+  Sheets rows removed). One control glass for secondary buttons, chips and icon tiles; grain at half.
+- **Pop-ups** take C's glass in dark: blur 44 px, saturate 2, brightness .84, black .34, no colour of its own.
+- **Cards**: a still, soft copy of the field behind each tab (`ui/frost.ts`), held in place while the card scrolls (a
+  scroll-driven transform, nothing blurs per frame). On loud or slab backgrounds the copy is tamed in OKLab toward the
+  Champagne + Mesh look (`tame`): darker glass with the brightest glow kept, the loudest colour softened, dark orange
+  leaning wine and navy leaning plum, a floor so no card reads as a hole, and every switch fading over a range. Calm
+  backgrounds (mean chroma under .03, not a slab) are left exactly as they were. Seven options were judged (calmer colour,
+  smoked, one glow, one colour, Champagne glass, no boost, real live blur); Champagne glass won (judge 8–8.5 on the busy
+  themes). Real live blur looked the same and halved the frame rate.
+- **No colour flash**: every tab's copy is thrown away the moment palette, background, glow or theme changes and rebuilt
+  ahead from the pre-painted field, so other tabs never show the last theme's colours.
+

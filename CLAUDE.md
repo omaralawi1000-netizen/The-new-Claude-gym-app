@@ -20,6 +20,10 @@ as an installed app and judges everything on the phone. He is not a programmer: 
 - Small steps. Save a backup branch before anything risky. If Omar says "worse", go straight back to the last version he
   approved with no other changes, then fix separately.
 
+## Automatic helpers (use them without being asked)
+- **Playwright** (`.mcp.json`): whenever you need to see, tap or check the app, open it with Playwright at phone width and look at the screenshot. Use it for any visual or layout change before saying it is done.
+- **style-reviewer** (`.claude/agents/style-reviewer.md`): after any UI, CSS or animation change, run it before showing Omar and fix what it finds. It only reads; it says "needs Beta" when only his phone can judge.
+
 ## Shipping
 - The live app deploys (GitHub Pages) from `ccr-d1172cc7-1e03wh` (also the default branch).
 - When work is done and checked: bump the version in `package.json`, run `npm run verify` (typecheck, tests, build),
