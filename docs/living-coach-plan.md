@@ -7,7 +7,7 @@ exact step; a "yes, but…" is not a go. Omar's doc for it: https://claude.ai/ar
 
 | Step | State | Where |
 | --- | --- | --- |
-| 1 · Honest voice | **built and judged (3 fresh judges, every must-fix done), waiting on Omar's yes** on the before/after page https://claude.ai/artifact/GjDMaqc9pEpChSCGqHzvPZ (go 25 Oct 21:09) | branch `claude/project-thread-fomqy0` (not merged, no version bump yet), README "Living coach, step 1" |
+| 1 · Honest voice | **built; round 2 ("it all works together") done; fresh judges 7 → 7.5 → 7 → 7 → 8, every must-fix done, last judge: ship. Waiting on Omar's clear yes** on https://claude.ai/artifact/GjDMaqc9pEpChSCGqHzvPZ | branch `claude/project-thread-fomqy0` (not merged, no version bump yet), README "Living coach, step 1" |
 | 2 · Goals you tell it | not started, needs its own go | — |
 | 3 · Phone test (APK) | not started | — |
 | 4 · Morning looks | not started | — |
