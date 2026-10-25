@@ -40,6 +40,22 @@ function paint(cv: HTMLCanvasElement) {
   if (cv.width !== src.width || cv.height !== src.height) { cv.width = src.width; cv.height = src.height; }
   g.clearRect(0, 0, cv.width, cv.height); g.drawImage(src, 0, 0);
   cv.dataset.on = '1';
+  cv.closest<HTMLElement>('.frost')?.style.setProperty('--frost-grain', grainFor(src));
+}
+
+/** the glass's grain, even on every card: white dots at one strength show more on dark glass (a near-black card read sandy,
+ *  judge 25 Oct), so a dark picture gets fewer of them */
+const grains = new WeakMap<HTMLCanvasElement, string>();
+function grainFor(src: HTMLCanvasElement) {
+  let v = grains.get(src); if (v) return v;
+  let s = 0, k = 0;
+  try {
+    const d = src.getContext('2d')!.getImageData(0, 0, src.width, src.height).data;
+    for (let i = 0; i < d.length; i += 16) { s += lab(d[i], d[i + 1], d[i + 2])[0]; k++; }
+  } catch { /* (no pixels to read: the usual strength) */ }
+  const L = k ? s / k : 0.3;
+  v = (0.03 * Math.max(0.55, 1 - 0.6 * Math.max(0, 1 - L / 0.3))).toFixed(4); grains.set(src, v);
+  return v;
 }
 
 // ---- each tab's picture kept on the phone (localStorage, small PNGs), so the next start shows the cards' colours from the
@@ -249,9 +265,14 @@ function tame(o: CanvasRenderingContext2D, w: number, h: number) {
         // isn't, and never colourless: a grey part leans to the page's own colour (teal on Colour per tab, rose on Sunset)
         const L0 = px[i * 3];
         L += (0.7 - L) * 0.13; if (mC >= 0.05) C *= 0.96;
-        L = Math.min(L, L0 + 0.025);
+        L = Math.min(L, L0 + (L0 < 0.2 ? 0.04 : 0.025)); // (a little more light over a near-black page: not navy-black)
         const fl = Math.min(0.24, L0); if (L < fl) L = fl - (fl - L) * 0.35;
-        if (C < 0.045) { const t = 1 - C / 0.045; let dh = hue - H; dh -= Math.round(dh / (2 * Math.PI)) * 2 * Math.PI; H += dh * t; C = Math.min(0.045, cMax); }
+        // the darkest glass leans to the page's own colour too (the teal of Colour per tab, not the navy under one card)
+        let dh = hue - H; dh -= Math.round(dh / (2 * Math.PI)) * 2 * Math.PI;
+        if (L0 < 0.2) H += dh * 0.5 * (1 - L0 / 0.2);
+        // the floor: the card's fill over it takes some colour away, and mauve and pink lose the most (Sunset, judge r4)
+        const hd = (H * 180) / Math.PI, fC = 0.05 + 0.012 * step(hd, -55, -45) * step(-hd, 0, 10);
+        if (C < fC) { let dt = hue - H; dt -= Math.round(dt / (2 * Math.PI)) * 2 * Math.PI; H += dt * (1 - C / fC); C = Math.min(fC, cMax); }
       }
     }
     out[i * 3] = L; out[i * 3 + 1] = C; out[i * 3 + 2] = H;
