@@ -397,7 +397,10 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   const headRef = useRef<HTMLDivElement>(null);
   const viewsRef = useRef<HTMLDivElement>(null);
   const topRef = useRef<HTMLElement>(null);
-  useEffect(() => trackCover(depthId, eFinger), [depthId, eFinger]); // and stops being drawn while the window covers it
+  // (let go after a swipe the window is still below the screen's top, dragOff: the page behind is in view, so it is not
+  // covered, though the progress says the window is all the way up; r5 hid the page for that one frame, a dark flash)
+  const coverE = useTransform([p, dragY], ([pp, d]: number[]) => { const e = Math.min(1, Math.max(0, pp - Math.max(0, d) / H)); return dragOff.current ? Math.min(e, 0.97) : e; });
+  useEffect(() => trackCover(depthId, coverE), [depthId, coverE]); // and stops being drawn while the window covers it
   const sheetRef = useRef<HTMLDivElement>(null);
   const bclipRef = useRef<HTMLDivElement>(null);
   const bshiftRef = useRef<HTMLDivElement>(null);
