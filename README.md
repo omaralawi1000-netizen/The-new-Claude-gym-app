@@ -3148,8 +3148,10 @@ tone or message counts, no rules per topic, going over the calories said once li
 - **How the Coach talks** (`handbook.ts` `COACH_STYLE`): the tone is its own call for the moment (warm for a real win,
   plain for a first miss, firmer when the same miss keeps happening but never about a choice made on purpose, calm after a
   bad night), misses named with their numbers when they matter, and one NEVER list: how their body looks, food shame,
-  "train lighter or do less" (HOW YOU COACH keeps its few exceptions), claims the data can't show. `TASK_STYLE` (Today's
-  notes, the weekly review, the heavy-day verdict) is unchanged on purpose.
+  "train lighter or do less" (HOW YOU COACH keeps its few exceptions), claims the data can't show. Round 3 (Omar: "I want
+  this to be very good"): a real question gets the verdict first, then only the facts that carry it and one next step;
+  every bit of praise is counted exactly ("PRs on two of three days", never "every day"); when what they say doesn't fit
+  DATA it says so in a few words and still answers. No line counts in the prompt (Omar removed them on 20 Oct).
 - **Skipped sets** (`stats.ts` `skippedSets`, a DATA line): planned working sets left undone in the last 7 days, from
   `plannedSets` at the finish. An exercise of the routine missing from the workout is named but never counted (it may be
   a swap or 0 sets done), and only when the workout has nothing from outside the routine and the routine wasn't changed
@@ -3168,5 +3170,9 @@ tone or message counts, no rules per topic, going over the calories said once li
   questions share one (`honestWeek`) so their answers can be checked against each other.
 - Exam: `honest-week`, `honest-plan`, `honest-count`, `honest-repeat`, `honest-squat`, `honest-food`, `honest-focus`,
   `honest-night` (one shared week) and `honest-clean` (`scripts/exam/questions.ts`). Unit tests: `tests/honestVoice.test.ts`.
-- Left for later: the weekly review's own candidate list doesn't know skipped sets or days over yet (step 6, Sunday
-  review); the deload nudge and the handbook's plateau tip still mention a lighter week.
+- **Weekly review** (`weekReview.ts`): two new candidates for its one focus, `skipped` (3+ planned sets skipped) and
+  `over` (3+ of 7 days over the calorie target), from the same `skippedSets` / `overDays` as the Coach.
+- **No "lighter week" left:** the 8-weeks-on-plan nudge praises the streak and asks how the lifts are doing; the
+  handbook's plateau tip offers a lighter week only when they ask for one.
+- Exam round 3 adds `honest-praise` (praise must be counted exactly). Before/after: live main in a git worktree vs the
+  branch, on Gemini through `scripts/exam/_ba.test.ts` (a local scratch file, never committed; see the plan doc).

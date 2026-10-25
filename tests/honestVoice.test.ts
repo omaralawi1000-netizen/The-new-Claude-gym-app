@@ -15,6 +15,7 @@ import { skippedSets } from '../src/lib/stats';
 import { buildCoachContext, AGENT_SYSTEM } from '../src/lib/coachContext';
 import { COACH_STYLE, COACH_NEVER, TASK_STYLE } from '../src/lib/handbook';
 import { addDays } from '../src/lib/dates';
+import { met, candidates, type ReviewNumbers } from '../src/lib/weekReview';
 import { loadDanish } from '../src/lib/i18n';
 import type { AppData, FoodEntry, WorkoutSession } from '../src/lib/types';
 
@@ -105,7 +106,7 @@ describe('skipped planned sets', () => {
     // (the left-out exercise is named, not counted: it may have been swapped)
     expect(r.skipped).toBe(2);
     expect(r.planned).toBe(11);
-    expect(r.list).toEqual([{ date: addDays(today, -1), name: 'Push', exercises: [{ exerciseId: 'bench', skipped: 2, planned: 4 }, { exerciseId: 'fly', skipped: 3, planned: 3, absent: true }] }]);
+    expect(r.list).toEqual([{ date: addDays(today, -1), name: 'Push', exercises: [{ exerciseId: 'bench', skipped: 2, planned: 4, pos: 1 }, { exerciseId: 'fly', skipped: 3, planned: 3, absent: true }] }]);
   });
   it('a swap (an exercise from outside the routine) or a routine changed since: nothing is called left out', () => {
     const routines = [{ id: 'r1', name: 'Push', updatedAt: 0, items: [{ id: 'i1', exerciseId: 'bench', warmupSets: 0, workingSets: 4, repMin: 8, repMax: 12, restSec: 120 }, { id: 'i2', exerciseId: 'fly', warmupSets: 0, workingSets: 3, repMin: 10, repMax: 15, restSec: 90 }] }] as any;
@@ -119,7 +120,7 @@ describe('skipped planned sets', () => {
     const sessions = [session(addDays(today, -1), [{ id: 'x1', exerciseId: 'bench', sets: [set(true), set(true)], plannedSets: 4 }])];
     useStore.setState({ sessions });
     const c = buildCoachContext(data(), today, (id) => (id === 'bench' ? 'Bench press' : id));
-    expect(c).toContain(`Planned working sets skipped (today and the 6 days before, since Mon ${addDays(today, -6)}): 2 of 4 in 1 workouts (Sat ${addDays(today, -1)} Push) — ${addDays(today, -1)} Push: Bench press 2 of 4 skipped. The plan stays as it is: help them finish it (rest, order, food, sleep, time) or ask why; never offer fewer planned sets.`);
+    expect(c).toContain(`Planned working sets skipped (today and the 6 days before, since Mon ${addDays(today, -6)}): 2 of 4 in 1 workouts (Sat ${addDays(today, -1)} Push) — ${addDays(today, -1)} Push: Bench press (1st exercise) 2 of 4 skipped. The plan stays as it is: help them finish it (rest, order, food, sleep, time) or ask why; never offer fewer planned sets.`);
     useStore.setState({ sessions: [session(addDays(today, -1), [{ id: 'x1', exerciseId: 'bench', sets: [set(true), set(true)], plannedSets: 2 }])] });
     expect(buildCoachContext(data(), today, (id) => id)).toContain(`Planned working sets skipped (today and the 6 days before, since Mon ${addDays(today, -6)}): none, all 2 done in 1 workouts (Sat ${addDays(today, -1)} Push).`);
   });
@@ -129,7 +130,7 @@ describe('how the Coach talks', () => {
   it('tone is its call, with one NEVER list, in every Coach message', () => {
     expect(COACH_STYLE).toContain('The tone is your call and fits the moment');
     expect(COACH_STYLE).toContain('firmer when the same miss keeps happening');
-    expect(COACH_STYLE).toMatch(/NEVER: comment on how their body looks.*shame, guilt or moralise about food; tell them to train lighter or do less.*claim anything their data can't show/);
+    expect(COACH_STYLE).toMatch(/NEVER: comment on how their body looks.*shame, guilt or moralise about food.*tell them to train lighter or do less.*claim anything their data can't show/);
     expect(AGENT_SYSTEM('en')).toContain(COACH_STYLE);
     // (no doctor lines came back: 25 Oct, v0.1.173)
     expect(COACH_STYLE).not.toMatch(/doctor|GP|dietitian/i);
@@ -149,5 +150,25 @@ describe('the Coach sees days a little over', () => {
     expect(TASK_STYLE).toContain(COACH_NEVER);
     expect(COACH_STYLE).toContain(COACH_NEVER);
     expect(COACH_NEVER).toContain('fewer sets');
+  });
+});
+
+describe('one week, counted', () => {
+  it('the day-by-day week is the same 7 days as skipped sets and days over, and protein days are counted', () => {
+    useStore.setState({ entries: [entry(addDays(today, -1), 2400), entry(addDays(today, -2), 2400), entry(today, 500)] });
+    useStore.getState().updateSettings({ goals: { ...data().settings.goals, protein: 40 } });
+    const l = buildCoachContext(data(), today, (id) => id);
+    expect(l).toContain(`Day by day (today and the 6 days before, since Mon ${addDays(today, -6)}; kcal / protein; workouts; weigh-ins): Mon 10-19: not logged`);
+    expect(l).toContain('Sun 10-25 (today, so far): 500 / 30 g');
+    // (30 g a day against 40: none on target; today isn't counted)
+    expect(l).toContain(`Protein at or above the 40 g target: 0 of 2 logged days before today`);
+  });
+  it('a weekly-review focus on skipped sets or days over can be checked the week after', () => {
+    const n = { skipped: 4, plannedSets: 30, overDays: 1 } as unknown as ReviewNumbers;
+    expect(met('skipped', n, undefined)).toBe(false);
+    expect(met('over', n, undefined)).toBe(true);
+    expect(met('skipped', { ...n, skipped: 0 }, undefined)).toBe(true);
+    const c = candidates(data(), { ...n, planned: 0, missed: 0, stalls: [], muscles: [], loggedDays: 7, proteinAvg: null, weightPct: null, sessions: 3 } as unknown as ReviewNumbers, String, String);
+    expect(c.map((x) => x.id)).toContain('skipped');
   });
 });

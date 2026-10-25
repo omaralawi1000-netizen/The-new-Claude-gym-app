@@ -6,9 +6,8 @@
  */
 import type { AppData, MuscleGroup, WeekReviewNote } from './types';
 import { addDays } from './dates';
-import { MUSCLES, setsPerMuscle, weekReview, weekStreak, weeklyTraining, type WeekReview } from './stats';
+import { MUSCLES, setsPerMuscle, skippedSets, weekReview, weekStreak, weeklyTraining, type WeekReview } from './stats';
 import { plannedFor } from '../state/store';
-import { skippedSets } from './stats';
 import { overDays } from './eating';
 
 export interface MuscleWeek { m: MuscleGroup; sets: number; /** a week, on average, over the 4 weeks before */ avg: number }
@@ -24,6 +23,11 @@ export interface ReviewNumbers extends WeekReview {
   streak: number;
   /** weight change per week as % of body weight (negative = losing), when known */
   weightPct: number | null;
+  /** planned working sets left undone, and of how many (the same count the Coach sees) */
+  skipped: number;
+  plannedSets: number;
+  /** days over the calorie target (a little or heavy; 0 when heavy-day notices are off) */
+  overDays: number;
 }
 
 const r1 = (n: number) => Math.round(n * 10) / 10;
@@ -44,12 +48,14 @@ export function reviewNumbers(d: AppData, to: string, musclesOf: (exerciseId: st
   const before = setsPerMuscle(d.sessions, musclesOf, addDays(from, -28), addDays(from, -1));
   const muscles = MUSCLES.map((m) => ({ m, sets: r1(now[m]), avg: r1(before[m] / 4) })).filter((x) => x.sets > 0 || x.avg >= 1).sort((a, b) => b.sets - a.sets || b.avg - a.avg);
   const weeks = weeklyTraining(d.sessions.filter((s) => s.status === 'done'), to, 12, d.settings.weekStart);
+  const sk = skippedSets(d, to);
   const lastKg = [...d.weights].filter((w) => w.date <= to).sort((a, b) => a.date.localeCompare(b.date)).at(-1)?.kg;
   return {
     ...base, planned, missed,
     sets: done.reduce((n, s) => n + s.exercises.reduce((k, e) => k + e.sets.filter((x) => x.done && x.type === 'working').length, 0), 0),
     muscles, streak: weekStreak(weeks, 2),
     weightPct: base.weightRate !== null && lastKg ? r1((base.weightRate / lastKg) * 100) : null,
+    skipped: sk.skipped, plannedSets: sk.planned, overDays: overDays(d, to).length,
   };
 }
 
@@ -72,10 +78,8 @@ export function candidates(d: AppData, n: ReviewNumbers, name: (id: string) => s
   if (n.planned >= 2 && n.missed >= 1) out.push({ id: 'missed', key: '{done} of {planned} planned workouts done', vars: { done: n.planned - n.missed, planned: n.planned }, ask: 'My plan did not fit my week. Help me set a week I can keep.', score: 60 + n.missed * 10 });
   if (n.weightPct !== null && n.weightPct <= -1) out.push({ id: 'weight', key: 'Weight is dropping {pct}% a week, faster than is healthy', vars: { pct: Math.abs(n.weightPct) }, ask: 'My weight is dropping fast. What should I change in what I eat?', score: 85 });
   // (the same skipped sets and days over the Coach and Today's notes see, for this week)
-  const sk = skippedSets(d, n.to);
-  if (sk.skipped >= 3) out.push({ id: 'skipped', key: '{skipped} of {planned} planned sets skipped', vars: { skipped: sk.skipped, planned: sk.planned }, ask: 'I skipped planned sets this week. Help me get them all done next week.', score: 55 + Math.min(20, sk.skipped * 2) });
-  const over = overDays(d, n.to);
-  if (d.settings.goals.kcal && over.length >= 3) out.push({ id: 'over', key: '{n} of 7 days over the calorie target', vars: { n: over.length }, ask: 'I went over my calories on several days this week. Help me stay closer to my target.', score: 50 + over.length * 4 });
+  if (n.skipped >= 3) out.push({ id: 'skipped', key: '{skipped} of {planned} planned sets skipped', vars: { skipped: n.skipped, planned: n.plannedSets }, ask: 'I skipped planned sets this week. Help me get them all done next week.', score: 55 + Math.min(20, n.skipped * 2) });
+  if (d.settings.goals.kcal && n.overDays >= 3) out.push({ id: 'over', key: '{n} of 7 days over the calorie target', vars: { n: n.overDays }, ask: 'I went over my calories on several days this week. Help me stay closer to my target.', score: 50 + n.overDays * 4 });
   for (const s of n.stalls.slice(0, 1)) out.push({ id: `stall:${s.exerciseId}`, key: '{exercise} has not moved since {date}', vars: { exercise: name(s.exerciseId), date: s.since }, ask: `My ${name(s.exerciseId)} has stalled. What should I change?`, score: 70 });
   if (goal && n.loggedDays >= 3 && n.proteinAvg !== null && n.proteinAvg < goal * 0.9) out.push({ id: 'protein', key: 'Protein: {avg} g a day, target {goal} g', vars: { avg: Math.round(n.proteinAvg), goal }, ask: 'Give me three easy ways to get more protein: from what I usually eat, or simple new ideas.', score: 55 + Math.round((1 - n.proteinAvg / goal) * 40) });
   const dropped = n.muscles.filter((x) => x.avg >= 3 && x.sets < x.avg * 0.5).sort((a, b) => (b.avg - b.sets) - (a.avg - a.sets))[0];
@@ -91,6 +95,8 @@ export function met(id: string, n: ReviewNumbers, goalProtein: number | undefine
   if (id === 'weight') return n.weightPct === null ? null : n.weightPct > -1;
   if (id === 'protein') return n.proteinAvg === null || !goalProtein ? null : n.proteinAvg >= goalProtein * 0.9;
   if (id === 'log') return n.loggedDays >= 5;
+  if (id === 'skipped') return n.skipped < 3;
+  if (id === 'over') return n.overDays < 3;
   if (id.startsWith('stall:')) { const x = id.slice(6); return !n.stalls.some((s) => s.exerciseId === x); }
   if (id.startsWith('muscle:')) { const m = n.muscles.find((x) => x.m === id.slice(7)); return m ? m.sets >= m.avg * 0.8 && m.sets > 0 : false; }
   return null;

@@ -134,7 +134,7 @@ export function stalledLifts(sessions: WorkoutSession[], today: string): Stall[]
  *  missed days). Sets: planned when the workout was finished (`plannedSets`) minus the ones done; an exercise of its
  *  routine that isn't in the workout at all was dropped or swapped (the app can't tell which). Workouts saved before
  *  `plannedSets` existed aren't judged. */
-export interface Skipped { date: string; name: string; exercises: { exerciseId: string; skipped: number; planned: number; absent?: boolean }[] }
+export interface Skipped { date: string; name: string; exercises: { exerciseId: string; skipped: number; planned: number; absent?: boolean; /** its place in the workout (1 = first) */ pos?: number }[] }
 export function skippedSets(d: Pick<AppData, 'sessions' | 'routines'>, today: string, days = 7): { list: Skipped[]; skipped: number; planned: number; workouts: number; done: { date: string; name: string }[] } {
   const list: Skipped[] = [];
   let skipped = 0, planned = 0, workouts = 0;
@@ -144,12 +144,12 @@ export function skippedSets(d: Pick<AppData, 'sessions' | 'routines'>, today: st
     workouts++;
     judged.push({ date: s.date, name: s.name });
     const ex: Skipped['exercises'] = [];
-    for (const e of s.exercises) {
+    s.exercises.forEach((e, i) => {
       const done = e.sets.filter((q) => q.done && q.type === 'working').length;
       const p = Math.max(e.plannedSets ?? done, done);
       planned += p;
-      if (p > done) { ex.push({ exerciseId: e.exerciseId, skipped: p - done, planned: p }); skipped += p - done; }
-    }
+      if (p > done) { ex.push({ exerciseId: e.exerciseId, skipped: p - done, planned: p, pos: i + 1 }); skipped += p - done; }
+    });
     // (a routine exercise missing from the workout is named, never counted: it may have been swapped or left at 0 sets.
     // Only when the workout has nothing from outside the routine (no swap) and the routine wasn't changed since)
     const r = s.routineId ? d.routines.find((x) => x.id === s.routineId) : undefined;
