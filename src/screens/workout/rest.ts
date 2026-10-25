@@ -252,12 +252,15 @@ export function applyDone(at = Date.now(), via = 'message'): boolean {
   if (!a?.rest) return noteDone(at, via, 'no rest running');
   const once = `${a.id}:${a.rest.endsAt}`;
   if (doneFor === once) return false; // (the other copy of a tap already applied: nothing to note)
+  // the same tap heard twice (the Android app keeps every Done ✓ too, and hands it over when Aven opens): once only
+  if (appliedNear(at)) return noteDone(at, via, 'already ticked');
   const nx = nextSetOf(a);
   if (!nx) return noteDone(at, via, 'no set left');
   doneFor = once;
   const ok = !!completeSet(nx.se.id, nx.set.id);
   if (!ok) return noteDone(at, via, 'the set has no reps to log');
   noteDone(at, via, '');
+  markApplied(at);
   const late = Date.now() - at;
   if (late > 2000) {
     // heard late: the set was done at the tap, and the next rest started then (it may be over already: "Go")
@@ -317,6 +320,36 @@ const isThisRest = (key: unknown) => {
 const workoutOf = (key: unknown) => (typeof key === 'string' ? key.split(':')[0] : '');
 const tapSeen = new Set<number>();
 
+// The Done ✓ taps already applied (their tap times): a tap heard both from Chrome and from the Android app's own copy
+// (the times differ by a moment; two real taps are seconds apart at least) ticks one set, not two. Kept across reloads.
+const APPLIED = 'aven.doneApplied';
+const appliedTimes = (): number[] => { try { return JSON.parse(localStorage.getItem(APPLIED) ?? '[]'); } catch { return []; } };
+const appliedNear = (at: number) => appliedTimes().some((x) => Math.abs(x - at) < 2500);
+function markApplied(at: number) { try { localStorage.setItem(APPLIED, JSON.stringify([...appliedTimes(), at].slice(-40))); } catch { /* ignore */ } }
+
+/**
+ * The Done ✓ taps the Android app kept itself, handed over in the address when Aven opens through it ("#dn=<workout>:<tap
+ * time>,…"). Chrome passed a Done ✓ on only some of the time on Omar's phone (25 Oct), so this is the way that always
+ * works once Aven opens; they wait here and are applied like the workers' kept taps.
+ */
+const NATIVE = 'aven.nativeTaps';
+type Kept = { key: string; at: number };
+const nativeTaps = (): Kept[] => { try { return JSON.parse(localStorage.getItem(NATIVE) ?? '[]'); } catch { return []; } };
+const saveNative = (l: Kept[]) => { try { if (l.length) localStorage.setItem(NATIVE, JSON.stringify(l)); else localStorage.removeItem(NATIVE); } catch { /* ignore */ } };
+export function applyDoneFromAddress(): void {
+  let hash = location.hash;
+  try { hash = decodeURIComponent(hash); } catch { /* as it is */ }
+  const m = /(?:^#|&)dn=([A-Za-z0-9_:,-]{3,4000})/.exec(hash);
+  if (!m) return;
+  const got = m[1].split(',').map((x) => { const i = x.lastIndexOf(':'); return { key: `${x.slice(0, i)}:0`, at: Number(x.slice(i + 1)) }; })
+    .filter((x) => x.key.length > 2 && Number.isFinite(x.at) && x.at > 0 && x.at <= Date.now() + 60_000);
+  saveNative([...nativeTaps(), ...got].slice(-40));
+  // (out of the address, keeping the watch's numbers there for lib/healthSync.ts)
+  const rest = hash.replace(m[0], m[0].startsWith('#') ? '#' : '').replace(/^#&/, '#');
+  try { history.replaceState(history.state, '', location.pathname + location.search + (rest.length > 1 ? rest : '')); } catch { /* fine */ }
+  void (async () => { await pendingRun; await applyPendingDone(); })();
+}
+
 /**
  * Every Done ✓ tap is kept in the workers' cache, one entry each (a whole workout can be done from the wrist while this
  * page sleeps). Applied oldest first when Aven opens or wakes, each ticking the set that was next at that moment, from the
@@ -326,24 +359,31 @@ let pendingRun: Promise<void> | null = null;
 export function applyPendingDone(): Promise<void> {
   pendingRun ??= (async () => {
     try {
-      if (typeof caches === 'undefined') return;
-      const c = await caches.open('aven-pending');
-      const taps: { req: Request; key?: string; at: number }[] = [];
-      for (const req of await c.keys()) {
+      const c = typeof caches === 'undefined' ? null : await caches.open('aven-pending').catch(() => null);
+      const taps: { req: Request | null; key?: string; at: number; via: string }[] = [];
+      if (c) for (const req of await c.keys()) {
         if (!new URL(req.url).pathname.startsWith(PENDING_TAP)) continue;
-        try { const p = await (await c.match(req))!.json(); taps.push({ req, key: p.key, at: Number(p.at) || 0 }); } catch { await c.delete(req); }
+        try { const p = await (await c.match(req))!.json(); taps.push({ req, key: p.key, at: Number(p.at) || 0, via: 'cache' }); } catch { await c.delete(req); }
       }
+      // (and the ones the Android app kept itself)
+      const kept = nativeTaps();
+      for (const k of kept) taps.push({ req: null, key: k.key, at: k.at, via: 'app' });
+      const drop = async (tp: (typeof taps)[number]) => {
+        if (tp.req) await c!.delete(tp.req);
+        else { const i = kept.findIndex((k) => k.at === tp.at && k.key === tp.key); if (i >= 0) kept.splice(i, 1); }
+      };
       taps.sort((x, y) => x.at - y.at);
       for (const tp of taps) {
         const a = useStore.getState().active;
         const old = Date.now() - tp.at;
-        if (old > 6 * 3600_000) { await c.delete(tp.req); continue; }
-        if (!a || workoutOf(tp.key) !== a.id) { if (old > 30 * 60_000) await c.delete(tp.req); if (old < 30 * 60_000) noteDone(tp.at, 'cache', a ? 'another workout' : 'no workout running'); continue; }
-        await c.delete(tp.req);
+        if (old > 6 * 3600_000) { await drop(tp); continue; }
+        if (!a || workoutOf(tp.key) !== a.id) { if (old > 30 * 60_000) await drop(tp); if (old < 30 * 60_000) noteDone(tp.at, tp.via, a ? 'another workout' : 'no workout running'); continue; }
+        await drop(tp);
         tapSeen.add(tp.at);
-        if (a.rest && a.rest.endsAt - a.rest.total * 1000 <= tp.at + 2000) applyDone(tp.at, 'cache');
-        else noteDone(tp.at, 'cache', a.rest ? 'a different rest' : 'no rest running');
+        if (a.rest && a.rest.endsAt - a.rest.total * 1000 <= tp.at + 2000) applyDone(tp.at, tp.via);
+        else if (!appliedNear(tp.at)) noteDone(tp.at, tp.via, a.rest ? 'a different rest' : 'no rest running');
       }
+      saveNative(kept);
     } catch { /* no cache storage: nothing waits */ }
   })().finally(() => { pendingRun = null; });
   return pendingRun;

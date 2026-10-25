@@ -80,6 +80,7 @@ final class RestNotifications {
         String queue = "[]"; // the sets after it, each with its own words and rest (the website's plan, a few ahead)
         boolean chained; // started here by a Done ✓ (the website was asleep): its buttons stay here, never sent on
         boolean sound = true; // Settings › Sound in the app
+        String workout = ""; // the website's workout id (a Done ✓ is kept under it until Aven opens)
     }
 
     private static Rest current; // this process's copy of what's in the prefs
@@ -196,6 +197,7 @@ final class RestNotifications {
             JSONArray q = j.optJSONArray("w");
             r.queue = q != null ? q.toString() : "[]";
             r.sound = j.optInt("q", 1) == 1;
+            r.workout = j.optString("i");
             return r.endsAt > r.startedAt ? r : null;
         } catch (JSONException e) {
             return null;
@@ -415,6 +417,7 @@ final class RestNotifications {
         NotificationManager nm = c.getSystemService(NotificationManager.class);
         nm.cancel(ID_OVER);
         if (r == null) return;
+        keepDone(c, r.workout, doneAt);
         Rest nx = nextOf(r, doneAt);
         log("done: " + (nx == null ? "the last set" : "next rest " + (nx.endsAt - doneAt) / 1000 + " s, then " + nx.overTitle));
         if (nx != null) {
@@ -441,6 +444,39 @@ final class RestNotifications {
         nm.notify(ID_OVER, b.build());
     }
 
+    // ── Done ✓ kept here until Aven opens ─────────────────────
+    // Chrome passes a Done ✓ on to the website only some of the time on Omar's phone (25 Oct: it said it got every one, and
+    // the website heard one in six). So every Done ✓ is also kept here, and the next time Aven opens through this app
+    // (its icon, or a tap on the rest notification) they go along in the address ("#dn=<workout>:<tap time>,…"). The
+    // website ticks each one once, from the time it was tapped, whichever way it heard of it first.
+    private static final String DONE_PREFS = "aven_done";
+
+    static void keepDone(Context c, String workout, long at) {
+        if (workout == null || workout.isEmpty() || !workout.matches("[A-Za-z0-9_-]{1,64}")) { log("  (no workout id: not kept for Aven)"); return; }
+        SharedPreferences p = c.getSharedPreferences(DONE_PREFS, Context.MODE_PRIVATE);
+        StringBuilder all = new StringBuilder();
+        for (String one : p.getString("dn", "").split(",")) {
+            int i = one.lastIndexOf(':');
+            if (i <= 0) continue;
+            try { if (at - Long.parseLong(one.substring(i + 1)) < 6 * 3600_000L) all.append(one).append(','); } catch (NumberFormatException ignored) { /* dropped */ }
+        }
+        all.append(workout).append(':').append(at);
+        p.edit().putString("dn", all.toString()).apply();
+        log("  kept for Aven (" + all.toString().split(",").length + " waiting)");
+    }
+
+    /** The Done ✓ taps waiting for Aven ("workout:time,…", or null), taken: they go into the address now. */
+    static String takeDone(Context c) {
+        SharedPreferences p = c.getSharedPreferences(DONE_PREFS, Context.MODE_PRIVATE);
+        String dn = p.getString("dn", "");
+        if (dn.isEmpty()) return null;
+        p.edit().remove("dn").apply();
+        log("Aven opened: " + dn.split(",").length + " Done ✓ handed over");
+        return dn;
+    }
+
+    static boolean doneWaiting(Context c) { return !c.getSharedPreferences(DONE_PREFS, Context.MODE_PRIVATE).getString("dn", "").isEmpty(); }
+
     /** The rest after the set just done, from the website's plan: its words for the set after it, timed from now. */
     static Rest nextOf(Rest r, long now) {
         try {
@@ -448,7 +484,7 @@ final class RestNotifications {
             if (q.length() == 0) return null;
             JSONObject s = q.getJSONObject(0);
             Rest nx = new Rest();
-            nx.chromeTag = r.chromeTag; nx.sound = r.sound; nx.more = r.more; nx.skip = r.skip;
+            nx.chromeTag = r.chromeTag; nx.workout = r.workout; nx.sound = r.sound; nx.more = r.more; nx.skip = r.skip;
             nx.startedAt = now;
             nx.endsAt = now + r.next * 1000;
             nx.exercise = s.optString("x"); nx.line = s.optString("l");
@@ -573,6 +609,11 @@ final class RestNotifications {
     }
 
     private static PendingIntent tap(Context c) {
+        // Done ✓ taps waiting: open Aven through this app, so they go along (Chrome's own tap would open it without them)
+        if (doneWaiting(c)) {
+            Intent open = c.getPackageManager().getLaunchIntentForPackage(c.getPackageName());
+            if (open != null) return PendingIntent.getActivity(c, 1, open, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+        }
         if (chromeTap != null) return chromeTap;
         Intent open = c.getPackageManager().getLaunchIntentForPackage(c.getPackageName());
         if (open == null) open = new Intent();
@@ -684,6 +725,7 @@ final class RestNotifications {
         r.queue = p.getString("queue", "[]");
         r.chained = p.getBoolean("chained", false);
         r.sound = p.getBoolean("sound", true);
+        r.workout = p.getString("workout", "");
         current = r;
         return r;
     }
@@ -697,7 +739,7 @@ final class RestNotifications {
             .putString("more", r.more).putString("skip", r.skip).putBoolean("sound", r.sound)
             // (all of it: after Android had stopped the app mid-rest, the alert came back without its Done ✓ words)
             .putString("done", r.done).putString("doneNote", r.doneNote).putString("doneSay", r.doneSay)
-            .putLong("next", r.next).putString("queue", r.queue).putBoolean("chained", r.chained)
+            .putLong("next", r.next).putString("queue", r.queue).putBoolean("chained", r.chained).putString("workout", r.workout)
             .apply();
     }
 
