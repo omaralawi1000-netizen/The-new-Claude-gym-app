@@ -187,7 +187,7 @@ export function overToday(d: Data, today: string): { over: number; days: number;
 export function overDaysLine(d: Data, today: string): string | null {
   if (heavyMode(d.settings) === 'off') return null;
   const over = [6, 5, 4, 3, 2, 1, 0].flatMap((i) => { const date = addDays(today, -i); const t = targetOn(d, date); const o = overOn(d, date); return t && o && (o.heavy || o.over >= overLine(t)) ? [{ i, date, ...o }] : []; });
-  return over.length ? `Over the target, today and the 6 days before (since ${WD[new Date(`${addDays(today, -6)}T12:00:00`).getDay()]} ${addDays(today, -6)}; at least ${OVER_LINE} kcal and 10 % over): ${over.length} of 7 days, +${over.reduce((n, x) => n + x.over, 0)} kcal in all — ${over.map((x) => `${x.i === 0 ? 'today so far' : `${WD[new Date(`${x.date}T12:00:00`).getDay()]} ${x.date}`} +${x.over}${x.heavy ? ' (heavy)' : ''}`).join(', ')}.` : null;
+  return over.length ? `Over the target, today and the 6 days before (since ${WD[new Date(`${addDays(today, -6)}T12:00:00`).getDay()]} ${addDays(today, -6)}; at least ${OVER_LINE} kcal and 10 % over): ${over.length} of 7 days, +${over.reduce((n, x) => n + x.over, 0)} kcal in all — ${over.map((x) => `${x.i === 0 ? 'today so far' : `${WD[new Date(`${x.date}T12:00:00`).getDay()]} ${x.date}`} +${x.over}${x.heavy ? ' (heavy)' : ''}`).join(', ')}. Only the days marked (heavy) are heavy; the others are a little over.` : null;
 }
 
 /** The heavy days to catch up now: today once it is evening (live), and the last 3 days when they end clearly over. */

@@ -3159,5 +3159,14 @@ tone or message counts, no rules per topic, going over the calories said once li
 - **A little over the calories** (`eating.ts` `overToday`, `overLine` = at least 200 kcal and 10 % of the target; `eatingWatch.ts` `sayOver`): that much over the day's target but not heavy → one plain toast, once that day (`marks.overSaid`), only with heavy-day notices On:
   "340 kcal over today. Fine now and then." / "…, 2 of the last 7 days." (a heavy day this week counts) / "…, 3 of the last 7 days. That adds up." A heavy day
   keeps its own decision. EATING PATTERNS gives the Coach every day over in the last 7 (a little or heavy) and the total.
-- Exam: `honest-week`, `honest-repeat`, `honest-clean`, `honest-food`, `honest-night` (`scripts/exam/questions.ts`). Unit
-  tests: `tests/honestVoice.test.ts`.
+- **It all works together** (Omar, 25 Oct: "I want it all to work together"): the skipped-sets and days-over lines sit in
+  `buildCoachContext`, the one summary the Coach chat, Today's notes and the weekly review read (the heavy-day verdict
+  gets `overDaysLine` too), so they count the same sets and days. `COACH_NEVER` is one list in both `COACH_STYLE` and
+  `TASK_STYLE`. A stalled lift gets the app's own reset everywhere (the workout screen's ~5 % for a fresh run at the top
+  of the rep range). The wrestling nudge, planned-day warnings and the workout briefing no longer say "lighter legs".
+  The earlier "answers disagree" was the exam, not the app: each question had built its own fake week; now the honest
+  questions share one (`honestWeek`) so their answers can be checked against each other.
+- Exam: `honest-week`, `honest-plan`, `honest-count`, `honest-repeat`, `honest-squat`, `honest-food`, `honest-focus`,
+  `honest-night` (one shared week) and `honest-clean` (`scripts/exam/questions.ts`). Unit tests: `tests/honestVoice.test.ts`.
+- Left for later: the weekly review's own candidate list doesn't know skipped sets or days over yet (step 6, Sunday
+  review); the deload nudge and the handbook's plateau tip still mention a lighter week.

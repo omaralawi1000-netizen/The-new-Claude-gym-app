@@ -141,7 +141,7 @@ describe('the Coach sees days a little over', () => {
     useStore.setState({ entries: [entry(addDays(today, -1), 2800), entry(addDays(today, -3), 3300), entry(addDays(today, -5), 2600)] });
     const l = buildCoachContext(data(), today, (id) => id);
     // (2,600 is 100 over: under the line; 3,300 is heavy, and counted)
-    expect(l).toContain(`Over the target, today and the 6 days before (since Mon ${addDays(today, -6)}; at least 200 kcal and 10 % over): 2 of 7 days, +1100 kcal in all — Thu ${addDays(today, -3)} +800 (heavy), Sat ${addDays(today, -1)} +300.`);
+    expect(l).toContain(`Over the target, today and the 6 days before (since Mon ${addDays(today, -6)}; at least 200 kcal and 10 % over): 2 of 7 days, +1100 kcal in all — Thu ${addDays(today, -3)} +800 (heavy), Sat ${addDays(today, -1)} +300. Only the days marked (heavy) are heavy; the others are a little over.`);
     useStore.getState().updateSettings({ heavyDays: 'off' });
     expect(buildCoachContext(data(), today, (id) => id)).not.toContain('Over the target');
   });
