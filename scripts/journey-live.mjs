@@ -11,6 +11,21 @@ const sent = { audio: 0, toolResponses: [] };
 const silence = Buffer.alloc(4800).toString('base64'); // 0.1 s at 24 kHz
 const usage = { promptTokenCount: 20000, responseTokenCount: 400, promptTokensDetails: [{ modality: 'TEXT', tokenCount: 18000 }, { modality: 'AUDIO', tokenCount: 2000 }], responseTokensDetails: [{ modality: 'AUDIO', tokenCount: 400 }] };
 let step = 0;
+// the Coach's own answer to a typed message (Gemini's text API, stubbed)
+const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' };
+const json = (o) => ({ status: 200, headers: { ...cors, 'content-type': 'application/json' }, body: JSON.stringify(o) });
+await p.route('https://generativelanguage.googleapis.com/**', async (r) => {
+  const req = r.request(); const url = req.url();
+  if (req.method() === 'OPTIONS') return r.fulfill({ status: 204, headers: cors });
+  if (url.includes('/models?')) return r.fulfill(json({ models: [{ name: 'models/gemini-2.5-flash', supportedGenerationMethods: ['generateContent'] }] }));
+  const body = JSON.parse(req.postData() || '{}');
+  if (body.generationConfig?.responseModalities?.includes('AUDIO')) return r.fulfill(json({ candidates: [] }));
+  const system = body.systemInstruction?.parts?.[0]?.text ?? '';
+  if (/insight/i.test(system)) return r.fulfill(json({ candidates: [{ content: { parts: [{ text: '{"insights":[]}' }] } }] }));
+  const txt = JSON.stringify({ reply: 'Du har spist 1.240 kcal i dag.', actions: [] });
+  if (url.includes('streamGenerateContent')) return r.fulfill({ status: 200, headers: { ...cors, 'content-type': 'text/event-stream' }, body: `data: ${JSON.stringify({ candidates: [{ content: { parts: [{ text: txt }] } }] })}\n\n` }).catch(() => {});
+  return r.fulfill(json({ candidates: [{ content: { parts: [{ text: txt }] } }] })).catch(() => {});
+});
 await p.routeWebSocket(/BidiGenerateContent/, (ws) => {
   let idx = -1, mine = 0; // this connection's place, and its microphone chunks
   const say = (o) => ws.send(JSON.stringify(o));
@@ -21,6 +36,7 @@ await p.routeWebSocket(/BidiGenerateContent/, (ws) => {
   ws.onMessage((raw) => {
     const m = JSON.parse(typeof raw === 'string' ? raw : Buffer.from(raw).toString());
     if (m.setup) { idx = setups.length; setups.push(m.setup); say({ setupComplete: {} }); say({ sessionResumptionUpdate: { resumable: true, newHandle: `h${setups.length}` } }); return; }
+    if (m.clientContent) { sent.typed = m.clientContent; return; }
     if (m.toolResponse) {
       sent.toolResponses.push(m.toolResponse);
       if (step === 1) answer('Logget: 200 g skyr.');
@@ -58,7 +74,7 @@ assert(sys.includes('LIVE VOICE') && sys.includes('DATA (computed'), 'the coachâ
 const tools = JSON.stringify(s0.tools ?? '');
 assert(tools.includes('"aven"') && tools.includes('log_sets') && tools.includes('set_setting'), 'everything the Coach does, as one function');
 assert(tools.includes('look_up') && tools.includes('googleSearch'), 'look-ups and Google Search');
-assert.deepEqual(s0.inputAudioTranscription?.languageCodes, ['da-DK', 'en-US'], 'Danish and English only');
+assert.deepEqual(s0.inputAudioTranscription?.languageCodes, ['en-US', 'da-DK'], 'Danish and English only (the app in English: English first)');
 assert(s0.contextWindowCompression && s0.sessionResumption, 'no time limit; renewable');
 assert(sent.audio >= 3, `the microphone streams (${sent.audio} chunks)`);
 assert.match(JSON.stringify(sent.toolResponses[0] ?? ''), /Logged|skyr/i, 'it was told what was logged');
@@ -81,16 +97,24 @@ assert.equal(renewed.length, 1, 'reconnected once');
 assert.equal(renewed[0].sessionResumption.handle, `h${setups.indexOf(renewed[0])}`, 'the conversation carried over');
 assert.match(JSON.stringify(sent.toolResponses[1] ?? ''), /protein|kcal|Food/i, 'the look-up answered from the data');
 assert(await p.getByText('Du mangler omkring 60 gram.').isVisible(), 'the second answer shows');
-assert(!(await p.getByText('Logget: 200 g skyr.').isVisible()), 'talking: only the answer now (calm, like Gemini)');
-assert(await p.getByText('hvor meget protein mangler jeg').isVisible(), 'your latest words stay below');
+assert(await p.getByText('Logget: 200 g skyr.').isVisible(), 'the whole conversation stays (like ChatGPT)');
+assert(await p.getByText('hvor meget protein mangler jeg').isVisible() && await p.getByText('log 200 g skyr').isVisible(), 'both of your sentences');
 assert(await p.getByRole('button', { name: 'Mute' }).isVisible() && await p.getByRole('button', { name: 'Camera on' }).isVisible(), 'mute and camera');
 await p.screenshot({ path: 'shots/live-2-talking.png' });
+// typed in between: the Coach answers in the same conversation, and the voice is told
+await p.getByLabel('Type a message').fill('hvad har jeg spist i dag'); await wait(p, 200);
+await p.screenshot({ path: 'shots/live-3-typing.png' });
+await p.keyboard.press('Enter');
+for (let i = 0; i < 20 && !(await p.getByText('Du har spist 1.240 kcal i dag.').isVisible()); i++) await wait(p, 300);
+assert(await p.getByText('Du har spist 1.240 kcal i dag.').isVisible(), 'the typed message gets the Coachâ€™s answer, in the conversation');
+await wait(p, 600);
+assert.match(JSON.stringify(sent.typed ?? ''), /\(typed\) hvad har jeg spist i dag/, 'the voice is told what was typed');
+assert(await p.getByText('Logget: 200 g skyr.').isVisible(), 'and the rest of the conversation is still there');
+await p.screenshot({ path: 'shots/live-4-typed.png' });
 await p.getByRole('button', { name: 'Mute' }).click(); await wait(p, 300);
 assert(await p.getByText('Muted').isVisible(), 'muted says so');
-// typing: the whole conversation
-await p.getByRole('button', { name: 'Type instead' }).click(); await wait(p, 1200);
-await p.screenshot({ path: 'shots/live-3-typing.png' });
-assert(await p.getByText('Logget: 200 g skyr.').isVisible() && await p.getByText('Du mangler omkring 60 gram.').isVisible(), 'typing: the whole conversation');
+await p.getByRole('button', { name: 'Stop', exact: true }).click(); await wait(p, 800);
+assert(!(await p.getByLabel('Type a message').isVisible()), 'Stop ends the live conversation');
 const real = errors.filter((e) => !/Failed to load resource|429|WebSocket/.test(e));
 assert.deepEqual(real, [], 'no page errors');
 console.log('LIVE OK', JSON.stringify({ audio: sent.audio, connections: setups.length, usd: spent }));

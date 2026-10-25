@@ -301,11 +301,18 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
     const said = history().map((h) => `${h.role === 'user' ? 'They' : 'You'}: ${h.parts.map((p) => p.text).join('')}`).join('\n').slice(-6000);
     const lt = liveTurn.current;
     const s = await startLive({
-      key: getKey('gemini'), voice: useAi.getState().voice,
+      key: getKey('gemini'), voice: useAi.getState().voice, lang,
       system: `${system}\n\nTHE CONVERSATION SO FAR (oldest first; the Coach chat and the orb share it):\n${said || '(nothing yet)'}\n\n${LIVE_RULES}`,
       handlers: {
-        onUserText: (text) => { if (!alive.current) return; lt.said = text; if (lt.id) patch(lt.id, { said: text }); else setFinal(text); },
-        onTurnStart: () => { if (!alive.current) return; const id = openTurn(lt.said); lt.id = id; patch(id, { live: true }); setFinal(''); go('processing'); },
+        // your sentence gets its bubble with its first word and keeps it to the end of the answer (a bubble swapped for
+        // another when the answer started made it jump and its words fade in again, 25 Oct film)
+        onUserText: (text) => {
+          if (!alive.current) return;
+          lt.said = text;
+          if (lt.id) patch(lt.id, { said: text });
+          else { const id = openTurn(text); lt.id = id; patch(id, { live: true }); }
+        },
+        onTurnStart: () => { if (!alive.current) return; if (!lt.id) { const id = openTurn(lt.said); lt.id = id; patch(id, { live: true }); } go('processing'); },
         onReplyText: (text) => { if (alive.current && lt.id) patch(lt.id, { reply: text }); },
         onSpeaking: (on) => { if (!alive.current) return; setSpeaking(on); if (liveRef.current) go(on ? 'idle' : lt.id ? 'processing' : 'listening'); },
         onUsage: (u) => recordFee(liveCost(u)),
@@ -346,7 +353,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
           if (code === 'nodevice') { setErr(t('No microphone was found.')); go('error'); setTyping(true); return; }
           if (code === 'closed') { setErr(t('Live stopped. Tap the sphere to talk again.')); go('idle'); return; }
           // it couldn't connect: the usual orb takes over for this visit
-          liveFailed.current = true; setErr(t('Live couldn’t connect, so the normal orb answers.')); go('idle'); void listen();
+          liveFailed.current = true; go('idle'); void listen(); setErr(t('Live couldn’t connect, so the normal orb answers.')); // (after: listen clears messages as it starts)
         },
       },
     });
@@ -434,10 +441,12 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
       // green "Done" only when something was actually logged or changed; a plain answer just settles
       const acted = d.wantsUndo || results.some((r) => r.kind !== 'miss' && r.kind !== 'nav');
       if (acted) { haptic('success'); go('confirmed'); } else go('idle');
+      // talking live: the voice hears what was typed and answered, and the orb listens again
+      if (liveRef.current) { liveRef.current.note(turnsRef.current.find((x) => x.id === id)?.said ?? text, said); setTimeout(() => { if (alive.current && liveRef.current) go('listening'); }, 900); }
       if (said.trim()) prefetchAloud(said); // read aloud only when you tap play
       // a quick log and nothing to read: show it for a moment, then step aside with an Undo toast
       const quick = results.length > 0 && results.every((r) => ['food', 'sets', 'water', 'weight', 'activity'].includes(r.kind) && !r.pending);
-      if (quick && !reply.trim()) {
+      if (quick && !reply.trim() && !liveRef.current) { // (talking live, the orb stays: you're mid-conversation)
         setTimeout(() => {
           if (!alive.current) return;
           const undoable = results.filter((r) => r.undo);
@@ -465,6 +474,15 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
     } finally { clearTimeout(kill); busy.current = false; setLooking(''); }
   };
 
+  /** a message typed while talking live: the Coach answers it (text), in the same conversation */
+  const sendLiveTyped = () => {
+    const text = typed.trim();
+    if (!text || busy.current) return;
+    haptic('send'); setTyped('');
+    const f = document.activeElement as HTMLElement | null; if (f?.tagName === 'TEXTAREA') f.blur();
+    pinned.current = true;
+    void act(text, openTurn(text));
+  };
   const finish = async () => {
     if (!alive.current || busy.current) return;
     if (liveRef.current && !typing) { teardown(); go('idle'); return; }
@@ -586,6 +604,35 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
 
         {/* (room round its content, so the typing box's focus glow is not clipped into hard edges by the scrolling) */}
         <div ref={talkRef} style={{ position: 'relative', flex: 1, minHeight: 0, overflowY: 'auto', margin: '14px -12px 0', padding: '0 12px 26px' }} className="hide-scroll fade-top fade-bottom">
+          {/* talking live: one conversation like ChatGPT (Omar, 25 Oct). Your words come in word by word in your bubble as you
+              say them; its answer writes in under it; everything of this visit stays, newest at the bottom. */}
+          {liveActive && (
+            <div className="exchange-list">
+              {turns.map((tu, i) => {
+                const newest = i === turns.length - 1;
+                const cards = tu.results.length > 0 && (
+                  <div className="stack gap12">
+                    {tu.results.map((r, k) => (
+                      <motion.div key={r.id} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ ...SEND, delay: 0.06 + k * 0.07 }}>
+                        <ActionCard r={r} undone={tu.undone.includes(r.id)} confirmed={tu.confirmed.includes(r.id)}
+                          onUndo={() => { r.undo?.(); haptic('light'); markInThread(tu.threadId, r.id, 'undone'); setTurns((all) => all.map((x) => (x.id === tu.id ? { ...x, undone: [...x.undone, r.id] } : x))); }}
+                          onConfirm={() => { r.button?.run(); haptic('confirm'); markInThread(tu.threadId, r.id, 'confirmed'); setTurns((all) => all.map((x) => (x.id === tu.id ? { ...x, confirmed: [...x.confirmed, r.id] } : x))); }} />
+                      </motion.div>
+                    ))}
+                  </div>
+                );
+                return (
+                  <div key={tu.id} className="exchange">
+                    {tu.said && <div className="said"><Words text={tu.said} k={`u${i}`} /></div>}
+                    {/* (the same component when it stops being the newest: a swap made the answer fade in again) */}
+                    {tu.reply.trim() && <OrbReply id={tu.id} text={tu.reply} live={!tu.done} onGrow={newest ? follow : () => {}} onDone={() => setWritten(tu.id)} after={cards || null} />}
+                    {!tu.reply.trim() && cards}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {!liveActive && (<>
           <AnimatePresence initial={false} mode="popLayout">
             {!typing && !showing && (
               // what you are saying, as you say it: each new word settles in; when you stop, it rises away into the conversation
@@ -649,6 +696,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
             )}
           </AnimatePresence>
           {/* talking live: what you're saying now, under the conversation, before it answers */}
+          </>)}
           {err && <div className="plinth-2 small" role="alert" style={{ padding: '12px 14px', marginTop: 16 }}>{err}{(canRetry || ask) && <div style={{ marginTop: 10 }}>{canRetry ? <button className="btn sm press" onClick={retryHear}>{t('Retry transcription')}</button> : <button className="btn sm press" onClick={() => { if (!ask || busy.current) return; haptic('light'); dropFailed(ask.text); act(ask.text, ask.id, ask.spoken); }}><Icon name="repeat" size={14} /> {t('Try again')}</button>}</div>}</div>}
           <AnimatePresence initial={false} mode="popLayout">
           {typing && !thinking && !(showing && last.reply && written !== last.id) && (
@@ -665,23 +713,23 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
         </div>
 
         <div style={{ padding: '0 0 calc(var(--sab) + 18px)' }}>
-          {liveActive && !typing && (() => {
-            // talking live, like Gemini: what you said (it stays until you speak again), Tap to interrupt while it speaks
-            const next = !liveTurn.current.id && !!final; // a new utterance, before its answer starts
-            const heard = (next && final) || last?.said || '';
-            // (the same key from your first word to the end of its answer: words already there never re-animate)
-            const heardKey = `u${next ? turns.length : turns.length - 1}`;
-            return (
-              <div className="stack" style={{ gap: 8, marginBottom: 12, alignItems: 'center' }}>
-                {/* (always there, only faded: the box under it never jumps when the voice starts or stops) */}
-                <button className={`chip press interrupt${speaking ? '' : ' off'}`} aria-hidden={!speaking} tabIndex={speaking ? 0 : -1} onClick={() => { liveRef.current?.hush(); haptic('light'); }}>{t('Tap to interrupt')}</button>
-                {/* what you are saying, word by word as you say it (like Gemini), so you know it heard you */}
-                {heard && <div className="said heard" aria-live="polite"><Words text={heard} k={heardKey} /></div>}
-              </div>
-            );
-          })()}
-          <div className="row-flex" style={{ gap: 10 }}>
+          {/* Tap to interrupt while it speaks (always there, only faded: nothing under it jumps when the voice starts or stops) */}
+          {liveActive && !typing && (
+            <div style={{ display: 'grid', placeItems: 'center', marginBottom: 10 }}>
+              <button className={`chip press interrupt${speaking ? '' : ' off'}`} aria-hidden={!speaking} tabIndex={speaking ? 0 : -1} onClick={() => { liveRef.current?.hush(); haptic('light'); }}>{t('Tap to interrupt')}</button>
+            </div>
+          )}
+          <div className="row-flex" style={{ gap: 10, alignItems: 'flex-end' }}>
             {liveActive && !typing && <>
+              {/* type any time (like ChatGPT): it goes to the Coach, the answer comes in the conversation as text, and the voice
+                  is told; the microphone rests while you type */}
+              <div className="live-type grow">
+                <textarea className="input" rows={1} value={typed} aria-label={t('Type a message')} placeholder={t('Type a message')}
+                  onChange={(e) => setTyped(e.target.value)}
+                  onFocus={() => liveRef.current?.setMuted(true)} onBlur={() => liveRef.current?.setMuted(muted)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendLiveTyped(); } }} />
+                {typed.trim() && <button className="live-send press" aria-label={t('Send')} onClick={sendLiveTyped}><Icon name="arrowUp" size={18} sw={2.2} /></button>}
+              </div>
               <button className={`icon-btn press${camStream ? ' on' : ''}`} aria-label={camStream ? t('Camera off') : t('Camera on')} aria-pressed={!!camStream}
                 onClick={async () => { haptic('light'); const s1 = liveRef.current; if (!s1) return; if (camStream) { await s1.setCamera(false); setCamStream(null); } else { const c = await s1.setCamera(true); if (c) setCamStream(c); else setErr(t('The camera couldn’t be opened.')); } }}>
                 <Icon name="camera" />
@@ -692,16 +740,15 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
               </button>
             </>}
             {liveActive && !typing ? (
-              // (talking live the row has four: typing is a round button, so no label is cut off on a narrow phone)
-              <button className="icon-btn press" aria-label={t('Type instead')} onClick={() => { teardown(); go('idle'); setTyping(true); }}><Icon name="edit" /></button>
+              <button className="icon-btn press" aria-label={t('Stop')} onClick={() => { haptic('light'); teardown(); go('idle'); }}><Icon name="stop" /></button>
             ) : supported && (
               <button className="btn press grow" disabled={thinking} onClick={() => { if (typing) listen(); else { teardown(); go('idle'); setTyping(true); } }}>
                 {typing ? <><Icon name="mic" size={18} /> {t('Speak instead')}</> : <><Icon name="edit" size={18} /> {t('Type instead')}</>}
               </button>
             )}
-            <button className="btn primary press grow" disabled={(thinking && !liveActive) || phase === 'requesting' || (typing ? !typed.trim() : false)} onClick={() => (liveActive || listening || typing ? finish() : (haptic('listen'), listen()))}>
+            {!(liveActive && !typing) && <button className="btn primary press grow" disabled={(thinking && !liveActive) || phase === 'requesting' || (typing ? !typed.trim() : false)} onClick={() => (liveActive || listening || typing ? finish() : (haptic('listen'), listen()))}>
               {liveActive && !typing ? t('Stop') : thinking ? t('Working…') : listening ? t('Done speaking') : typing ? t('Send') : showing ? <><Icon name="mic" size={18} /> {t('Say more')}</> : <><Icon name="mic" size={18} /> {t('Speak')}</>}
-            </button>
+            </button>}
           </div>        </div>
       </motion.div>
     </motion.div>

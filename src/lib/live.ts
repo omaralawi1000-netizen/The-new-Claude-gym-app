@@ -16,11 +16,12 @@ export const LIVE_MODEL = 'gemini-3.8-live-extended-thinking';
 
 /** Said to the model after the coach's usual instructions: speak, don't write JSON; how it acts in Aven. */
 export const LIVE_RULES = `LIVE VOICE (this overrides anything above about answering in JSON, a reply field, look-ups or an actions list):
-You are talking out loud with them right now, in real time; they can interrupt you. Just speak — short and natural, like a coach standing next to them: one to three sentences unless they ask for more. Speak the language they speak: Danish or English, never any other (if it sounded like another language, it was Danish).
+You are talking out loud with them right now, in real time; they can interrupt you. Just speak — short and natural, like a coach standing next to them: one to three sentences unless they ask for more. LANGUAGE: only Danish or English, never any other. Answer in the language of their latest sentence; a sentence that mixes both ("log 200 g skyr", "bænkpres 80 kilo") is in the language most of its words are in; a food or exercise name in the other language doesn't change it. If a sentence sounded like another language (German, Norwegian, Swedish, Dutch…), it was Danish.
 To change anything in Aven (log food, water, weight, sets or an activity, start or finish a workout, change a setting, a routine, the plan — everything listed under actions above), call the function aven with the actions, exactly as you would have put them in the actions list, then say in a few words what you did. Never say something is done without calling it. A change that needs their Apply shows a card: tell them to tap Apply.
 To see data that isn't in DATA (older days, a lift's history, the whole plan, settings, what they said before), call look_up first and answer from what comes back.
 For facts from outside Aven (a product's nutrition, opening hours, news, prices) use Google Search.
 If the camera is on, you see what they point it at (a plate, a label, a machine): use it ("log this" means what you see, with your best estimate of the amounts).
+Messages they TYPED appear in the conversation as text with the Coach's typed answer: they're part of the conversation; don't answer them again.
 A question that needs a long answer or a plan: give the short answer out loud and say the full answer is in the Coach chat.`;
 
 export interface LiveHandlers {
@@ -51,8 +52,11 @@ export interface LiveSession {
   setCamera: (on: boolean) => Promise<MediaStream | null>;
   /** stop its voice now (it was tapped): the rest of this answer isn't played */
   hush: () => void;
+  /** a typed message and its answer (from the Coach), so it knows about them when you speak again */
+  note: (said: string, reply: string) => void;
 }
 
+const withTimeout = <T,>(p: Promise<T>, ms: number) => new Promise<T>((ok, no) => { const t = setTimeout(() => no(new Error('timeout')), ms); p.then((v) => { clearTimeout(t); ok(v); }, (e) => { clearTimeout(t); no(e); }); });
 const b64 = (bytes: Uint8Array) => { let s = ''; for (let i = 0; i < bytes.length; i += 8192) s += String.fromCharCode(...bytes.subarray(i, i + 8192)); return btoa(s); };
 const unb64 = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 
@@ -76,7 +80,7 @@ const TOOLS = (Behavior: any) => [
   { googleSearch: {} },
 ];
 
-export async function startLive(o: { key: string; system: string; voice?: string; handlers: LiveHandlers }): Promise<LiveSession | null> {
+export async function startLive(o: { key: string; system: string; voice?: string; lang?: 'en' | 'da'; handlers: LiveHandlers }): Promise<LiveSession | null> {
   const h = o.handlers;
   let stopped = false;
   // ── the microphone first (asked before anything is paid for) ──
@@ -122,18 +126,21 @@ export async function startLive(o: { key: string; system: string; voice?: string
   let handle: string | undefined; // for carrying the conversation over to a new connection
   let user = '', reply = '', answering = false, usage: unknown = null;
   let tries = 0;
+  let heard = false; // anything ever came back on a connection
   let gen = 0; // which connection is the current one (an old one's late close must not start another)
   const connect = async (): Promise<boolean> => {
     const mine = ++gen;
     try {
-      session = await ai.live.connect({
+      // (a connection that never answers counts as none after 8 s: the normal orb takes over instead of a silent wait)
+      session = await withTimeout(ai.live.connect({
         model: LIVE_MODEL,
         config: {
           responseModalities: [Modality.AUDIO],
           thinkingConfig: { thinkingLevel: 'low' as any },
           systemInstruction: o.system,
           // only Danish or English: left to guess, it once wrote Danish down as German ("Hi, wer denn gerade?", 25 Oct)
-          inputAudioTranscription: { languageCodes: ['da-DK', 'en-US'] },
+          // (the app's language first: the one it leans to when a word could be either)
+          inputAudioTranscription: { languageCodes: o.lang === 'en' ? ['en-US', 'da-DK'] : ['da-DK', 'en-US'] },
           outputAudioTranscription: {},
           sessionResumption: handle ? { handle } : {},
           contextWindowCompression: { slidingWindow: {} },
@@ -143,6 +150,7 @@ export async function startLive(o: { key: string; system: string; voice?: string
         callbacks: {
           onmessage: (m: any) => {
             if (stopped || mine !== gen) return;
+            heard = true;
             if (m.sessionResumptionUpdate?.resumable && m.sessionResumptionUpdate.newHandle) handle = m.sessionResumptionUpdate.newHandle;
             if (m.goAway) void renew();
             if (m.usageMetadata) usage = m.usageMetadata;
@@ -157,7 +165,8 @@ export async function startLive(o: { key: string; system: string; voice?: string
               if (p.inlineData?.data && /audio/.test(p.inlineData.mimeType ?? 'audio')) { startAnswer(); play(unb64(p.inlineData.data)); }
             }
             if (sc?.outputTranscription?.text) { startAnswer(); reply += sc.outputTranscription.text; h.onReplyText(reply.trim()); }
-            if (sc?.interrupted) { cut(); hushed = false; }
+            // interrupted: that answer ends here (what you say now is a new sentence, in its own bubble)
+            if (sc?.interrupted) { cut(); hushed = false; if (answering || reply) h.onIdle(); answering = false; user = ''; reply = ''; }
             if (sc?.turnComplete && (!sc.interactionStatus || sc.interactionStatus === 'IDLE')) {
               if (answering || reply) h.onIdle();
               if (usage) { h.onUsage?.(usage); usage = null; }
@@ -173,7 +182,7 @@ export async function startLive(o: { key: string; system: string; voice?: string
           onerror: () => { /* onclose follows */ },
           onclose: () => { if (mine !== gen) return; ready = false; if (!stopped) void renew(); },
         },
-      });
+      }), 8000);
       ready = true; tries = 0;
       return true;
     } catch {
@@ -195,7 +204,8 @@ export async function startLive(o: { key: string; system: string; voice?: string
       if (await connect()) { renewing = false; h.onReconnecting?.(false); return; }
     }
     renewing = false;
-    if (!stopped) { stopped = true; cut(); cleanupAudio(); h.onError('closed'); }
+    // (never heard a word from it: as good as never connected, so the normal orb takes over)
+    if (!stopped) { stopped = true; cut(); cleanupAudio(); h.onError(heard ? 'closed' : 'connect'); }
   };
   if (!(await connect())) { cleanupAudio(); if (!stopped) h.onError('connect'); return null; }
 
@@ -248,6 +258,10 @@ export async function startLive(o: { key: string; system: string; voice?: string
     },
     setCamera,
     hush: () => { hushed = true; cut(); },
+    note: (said, reply) => {
+      if (!ready || !said.trim()) return;
+      try { session.sendClientContent({ turns: [{ role: 'user', parts: [{ text: `(typed) ${said}` }] }, ...(reply.trim() ? [{ role: 'model', parts: [{ text: reply }] }] : [])], turnComplete: false }); } catch { /* renewing */ }
+    },
   };
 }
 
