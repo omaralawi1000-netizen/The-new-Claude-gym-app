@@ -7,7 +7,8 @@ import { Icon } from './Icon';
 import { SphereSlot, orbGlide, orbPress, orbTap } from './Sphere';
 import { useT } from '../lib/i18n';
 import { SOFT } from './Sheet';
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { OrbHand, rubber } from './orbHand';
 import { apple } from './motion';
 import { Lens, currentShift, slideFrom } from './lens';
 import { elapsedMs } from '../lib/workout';
@@ -96,7 +97,14 @@ export function TabBar() {
   const t = useT();
   const nav = useRef<HTMLElement>(null);
   useDock(nav, tab);
-  const pull = useRef<number | null>(null);
+  const handEl = useRef<HTMLDivElement>(null);
+  const dragged = useRef(false);
+  const hand = useMemo(() => new OrbHand(() => handEl.current, {
+    calm: () => document.documentElement.dataset.motion === 'reduce' || matchMedia('(prefers-reduced-motion: reduce)').matches,
+    follow: (dx, dy) => [rubber(dx, 18), dy < 0 ? rubber(dy, 80) : rubber(dy, 10)],
+    release: (_x, y, vy) => { if (y < -34 || (vy < -0.45 && y < -14)) openOrb(); return false; }, // (it springs home under the screen)
+  }), []); // eslint-disable-line
+  useEffect(() => () => hand.stop(), [hand]);
   const openOrb = () => { if (useUI.getState().overlays.some((o) => o.type === 'voice')) return; orbTap(1); push('voice', { mode: tab === 'train' ? 'workout' : 'food' }); };
   const go = (id: Tab) => { if (useUI.getState().tab === id) scrollActiveTabToTop(); else setTab(id); };
   return (
@@ -108,14 +116,15 @@ export function TabBar() {
         <nav className="tabbar glass" aria-label="Main" ref={nav}>
           <span className="lens tab-lens" aria-hidden><i className="lens-l" /><i className="lens-r" /><i className="lens-m" /></span>
           {TABS.slice(0, 2).map((x) => <TabBtn key={x.id} {...x} on={tab === x.id} onClick={() => go(x.id)} label={t(x.label)} />)}
-          <div className="sphere-slot" style={{ position: 'relative' }}>
+          <div className="sphere-slot orb-hand" ref={handEl} style={{ position: 'relative' }}>
             <SphereSlot id="tab" priority={0} style={{ position: 'absolute', inset: -6 }} />
+            {/* pull it up out of the dock: it comes with your finger (a rubber band), and let go high enough it opens; not
+                far enough, it drops back into the dock with a soft bounce. A tap still opens it. */}
             <button className="press" aria-label={t('Dictate')} style={{ position: 'absolute', inset: -4, borderRadius: 999, touchAction: 'none' }}
-              onPointerDown={(e) => { orbPress(true); pull.current = e.clientY; try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* ignore */ } }}
-              // pulling it up out of the dock opens it too (a tap still does)
-              onPointerMove={(e) => { if (pull.current !== null && pull.current - e.clientY > 26) { pull.current = null; orbPress(false); openOrb(); } }}
-              onPointerUp={() => { orbPress(false); pull.current = null; }} onPointerCancel={() => { orbPress(false); pull.current = null; }} onPointerLeave={() => orbPress(false)}
-              onClick={openOrb} />
+              onPointerDown={(e) => { orbPress(true); dragged.current = false; hand.down(e); }}
+              onPointerMove={(e) => { if (hand.move(e)) dragged.current = true; }}
+              onPointerUp={() => { orbPress(false); hand.up(); }} onPointerCancel={() => { orbPress(false); hand.up(); }}
+              onClick={() => { if (dragged.current) { dragged.current = false; return; } openOrb(); }} />
           </div>
           {TABS.slice(2).map((x) => <TabBtn key={x.id} {...x} on={tab === x.id} onClick={() => go(x.id)} label={t(x.label)} />)}
         </nav>

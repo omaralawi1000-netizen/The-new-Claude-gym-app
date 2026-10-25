@@ -3185,3 +3185,19 @@ sign that it is listening, thinking or speaking. And it must answer like a real 
 
 **Next ideas for "alive" (to try with Omar):** cards that condense out of the orb's light and settle into the chat; the answer's
 words lighting up as they are spoken; a soft haptic on the first word of an answer.
+
+**26 Oct: shorter answers, the orb in your hand, the horizon.** Omar: "the answers are too long. Can they be dynamic like the
+Gemini app… if I need a longer answer it just does it"; "I can touch the orb and it feels alive… swipe the orb down… bring it
+up with a swipe and it reacts to my swipe, not just an animation, and maybe a bounce"; and four orb options he had made
+(A comet, B comet + stars, C horizon, D duet), "don't pick one just because it says my pick".
+- Length like the Gemini app (lib/live.ts LIVE_RULES "LENGTH"): the answer first, most answers one sentence, two or three only
+  when a why/how or a choice needs it, longer only when asked ("explain", "forklar", "uddyb") or it needs steps (then the
+  full version goes to the Coach chat). No tips, encouragement or summary they didn't ask for.
+- The orb in your hand (ui/orbHand.ts): your finger moves it (a rubber band where it shouldn't go), let go and it springs home
+  with one soft bounce, carrying your flick. On its screen a swipe down puts it away from where you let go; in the dock a pull
+  up comes with your finger and opens it past ~45 px (a short one drops back with the bounce); a tap still works. Only a
+  wrapper's transform moves (`.orb-hand`, followed by the orb stage cheaply); Reduce motion: follows, no bounce.
+- Picked **C, the horizon**, on merit: the comet's flying and trail and the stars were busy and need redrawing every frame
+  (a 120 fps risk), the duet's second orb breaks "one orb". Talking live, the orb floats over a thin line of light; right under
+  it the line swells with each syllable and the orb lifts a little with your voice (scaleY and translate only). Still while it
+  thinks or speaks; nothing moves under Reduce motion. Checks: `scripts/journey-orbhand.mjs`, film `scripts/film-orbhand.mjs`.

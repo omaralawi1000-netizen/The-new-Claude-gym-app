@@ -35,6 +35,8 @@ let tapPending = 0;
 let whooshPending = 0;
 let ignitePending = 0;
 export function orbPress(down: boolean) { pressTarget = down ? 1 : 0; wakeOrb(); }
+/** Its slot was moved by hand (a finger dragging it, the comet's loop): keep the stage following, it may have gone to sleep. */
+export function orbMoved() { wakeOrb(); }
 let beatPending = 0, beatAt = 0;
 /** A set was ticked: the orb answers with one soft heartbeat of light (it never changes shape). */
 export function orbBeat(strength = 1) { beatPending = Math.max(beatPending, strength); beatAt = performance.now(); wakeOrb(); }
@@ -410,7 +412,7 @@ export function SphereStage() {
     // behind a pop-up, was missing: every frame of opening and closing the workout measured the whole orb path afresh.)
     // (.sheet-foot: a pop-up's bottom bar rides the keyboard by its transform alone; re-measuring the page on every frame of
     // that ride was most of the work in each frame of it, 19 Oct)
-    const MOVING = '.sheet, .sheet-pane, .sheet-page, .sheet-foot, .scrim, .scrim > i, .stage, .stage-content, .wk-card, .wk-sheet, .fields, .aurora, .sphere-stage, .lens, .lens > i';
+    const MOVING = '.orb-hand, .sheet, .sheet-pane, .sheet-page, .sheet-foot, .scrim, .scrim > i, .stage, .stage-content, .wk-card, .wk-sheet, .fields, .aurora, .sphere-stage, .lens, .lens > i';
     // Inside the live workout's window nothing but the bar's own box can move its slot (the bar is pinned to the window's
     // foot): the list, Focus, the header and the bar's words changing used to force a fresh measure of the whole page on
     // every frame they changed (a set ticked, a page turned, the clock rolling), the biggest part of a tick's cost.
