@@ -47,6 +47,7 @@ const recent = (d: any) => d.sessions.filter((s: any) => s.status === 'done' && 
 const planAll = (d: any) => { for (const s of recent(d)) for (const e of s.exercises) e.plannedSets = e.sets.filter((x: any) => x.type === 'working').length; };
 const skippedWeek = (d: any) => {
   planAll(d);
+  for (const r of d.routines) r.updatedAt = 0; // (the starter routines are dated now: as if made before the workouts)
   const rs = recent(d);
   for (const s of rs.slice(-2)) { const e = s.exercises[0]; if (e) e.sets = e.sets.slice(0, 2); }
   const last = rs[rs.length - 1];
@@ -55,7 +56,7 @@ const skippedWeek = (d: any) => {
 // (and this morning's workout too: its first exercise cut short, the third time in a row)
 const skippedAgain = (d: any) => { skippedWeek(d); const t = d.sessions.find((s: any) => s.id === 'legs-today'); if (t) t.exercises.forEach((e: any, i: number) => { e.plannedSets = i === 0 ? 5 : e.sets.length; }); };
 const overWeek = (d: any) => { for (const i of [2, 4, 6]) { const date = `2026-10-${String(19 - i).padStart(2, '0')}`; d.entries.push({ id: `ov${i}`, date, mealId: 'snacks', at: new Date(2026, 9, 19 - i, 21).getTime(), snap: { name: 'Chocolate', basis: 'g', per100: { kcal: 540, protein: 7 } }, qty: { amount: 70, unit: 'g' }, base: 70, nutrients: { kcal: 378, protein: 5 } }); } };
-const tellsLighter = (a: Answer) => (/\b(train lighter|go lighter|take it easy|lighter (day|session)|skip (today|the session)|rest day instead|træn(e)? lettere|tag det roligt)\b/i.test(a.reply) ? 'told him to train lighter' : null);
+const tellsLighter = (a: Answer) => (/\b(train lighter|go lighter|take it easy|lighter (day|session)|skip (today|the session)|rest day instead|træn(e)? lettere|tag det roligt|(do|try|stick to|aim for|go for) fewer sets|(tag|lav|kør) færre sæt|drop(ping)? to \d sets|\d sets instead|(cut|reduce|lower)\w* (it )?to \d sets|sænk\w* til \d sæt|skru\w* .{0,30}ned|justere? rutinen til \d|\d (faste )?(arbejds)?sæt i stedet)\b/i.test(a.reply) ? 'told him to train lighter or do less' : null);
 const bodyTalk = (a: Answer) => (/\b(look(s|ing)? (lean|fat|soft|bigger|smaller)|your (belly|gut|stomach|physique|abs)|ser (fed|tyk|slank) ud)\b/i.test(a.reply) ? 'talked about his body' : null);
 const honest = (a: Answer) => none(a) ?? tellsLighter(a) ?? bodyTalk(a);
 
@@ -178,7 +179,7 @@ export const QUESTIONS: Question[] = [
   { id: 'honest-clean', persona: 'omar', kind: 'think', set: 'dev', tweak: planAll, q: 'did I do everything I planned in the gym this week?',
     check: honest, good: 'Yes, and says it exactly (every planned working set, the count from DATA); warm but no hype. Mentions the wrestling only if useful.' },
   { id: 'honest-food', persona: 'omar', kind: 'think', set: 'dev', tweak: overWeek, q: "how's my eating this week",
-    check: (a) => none(a) ?? bodyTalk(a), good: 'Names the evenings over target with the numbers (a few days roughly 300–500 over, plus the big night), puts it in proportion with the trend, gives one practical fix (the evening snack). No guilt, no moralising, nothing about his body.' },
+    check: (a) => none(a) ?? bodyTalk(a) ?? (/\b[34]\d\d\b|\b[34] (of the last 7 )?days\b/.test(a.reply.replace(/,(?=\d{3})/g, '')) ? null : 'did not name the days over'), good: 'Names the evenings over target with the numbers (a few days roughly 300–500 over, plus the big night), puts it in proportion with the trend, gives one practical fix (the evening snack). No guilt, no moralising, nothing about his body.' },
   { id: 'honest-night', persona: 'omar', kind: 'think', set: 'dev', q: 'slept like 5 hours. still doing push today',
     check: honest, good: 'Calm and practical: his call, go train; one useful tip (a longer warm-up, caffeine timing, eat before). Never tells him to go lighter or skip (MEMORY: trains to failure).' },
 ];

@@ -4,7 +4,7 @@
  * judges it (lib/verdict.ts: thinking hard, within hard limits; no brain or no trim allowed → no cut and no paid call),
  * and that is said in one toast with Undo. Corrections follow: an entry deleted or fixed so the day is no longer heavy
  * takes the catch-up away; a smaller day shrinks it. Notices on Quiet: recorded, nothing said or changed; Off: nothing.
- * A day a little over (200 kcal up to heavy) gets one plain line instead, once that day (`sayOver`).
+ * A day a little over (200 kcal and 10 %, up to heavy) gets one plain line instead, once that day (`sayOver`).
  * The first time this runs on a phone, what is already there is marked as seen, silently (no pop-ups about the past).
  */
 import { useStore } from '../state/store';
@@ -87,9 +87,11 @@ function sayOver(today: string) {
   if (!o) return;
   st.patch((s) => ({ marks: { ...s.marks, overSaid: today } }));
   const n = fmt()(o.over);
-  const line = o.days <= 1 ? tNow('{n} kcal over today. Fine now and then.', { n })
-    : o.days === 2 ? tNow('{n} kcal over today, {k} of the last 7 days.', { n, k: o.days })
-    : tNow('{n} kcal over today, {k} of the last 7 days. That adds up.', { n, k: o.days });
+  // (a heavy day this week counts too: "fine now and then" the day after a big one would not be true)
+  const k = o.days + o.heavy;
+  const line = k <= 1 ? tNow('{n} kcal over today. Fine now and then.', { n })
+    : k === 2 ? tNow('{n} kcal over today, {k} of the last 7 days.', { n, k })
+    : tNow('{n} kcal over today, {k} of the last 7 days. That adds up.', { n, k });
   useUI.getState().toast(line, { duration: 6000 });
 }
 

@@ -163,7 +163,7 @@ export function overOn(d: Data, date: string): { over: number; heavy: boolean } 
 /** A little over (25 Oct, "honest voice"): this much over the day's target is worth one plain line, the way a coach says
  *  it, while a heavy day (`heavyLine`) keeps its own decision. */
 export const OVER_LINE = 200;
-/** The line for a target: 200 kcal, or 10 % of a big target (normal logging error is about that). */
+/** The line for a target: at least 200 kcal and 10 % over (normal logging error is about 10 %). */
 export const overLine = (target: number) => Math.max(OVER_LINE, Math.round(target * 0.1));
 /** How far a day went over its target when that is a little (at least `overLine`, not heavy); else null. */
 function aLittleOver(d: Data, date: string): number | null {
@@ -171,14 +171,15 @@ function aLittleOver(d: Data, date: string): number | null {
   const o = overOn(d, date);
   return t && o && !o.heavy && o.over >= overLine(t) ? o.over : null;
 }
-/** Today over its target by at least `overLine` but not heavy, and on how many of the last 7 days (today included) that
- *  happened; null when there is nothing to say (no target, under it, or heavy: that has its own pop-up). */
-export function overToday(d: Data, today: string): { over: number; days: number } | null {
+/** Today over its target by at least `overLine` but not heavy, and how many of the last 7 days (today included) were a
+ *  little over, and how many of the 6 before today were heavy; null when there is nothing to say (no target, under it, or
+ *  heavy: that has its own pop-up). */
+export function overToday(d: Data, today: string): { over: number; days: number; heavy: number } | null {
   const a = aLittleOver(d, today);
   if (!a) return null;
-  let days = 1;
-  for (let i = 1; i < 7; i++) if (aLittleOver(d, addDays(today, -i))) days++;
-  return { over: a, days };
+  let days = 1, heavy = 0;
+  for (let i = 1; i < 7; i++) { const date = addDays(today, -i); if (aLittleOver(d, date)) days++; else if (overOn(d, date)?.heavy) heavy++; }
+  return { over: a, days, heavy };
 }
 
 /** The heavy days to catch up now: today once it is evening (live), and the last 3 days when they end clearly over. */
@@ -265,9 +266,9 @@ export function eatingLines(d: Data, today: string, goal?: string): string[] {
   const mode = heavyMode(d.settings);
   const heavy = mode === 'off' ? [] : heavyDays(d, today);
   if (heavy.length) L.push(`Heavy days, last 4 weeks (clearly over that day's target): ${heavy.map((h) => `${WD[new Date(`${h.date}T12:00:00`).getDay()]} ${h.date} +${h.over} kcal${h.late ? ', logged the day after' : ''}${h.evening ? `, ${h.evening} kcal of it in the evening` : ''}`).join('; ')}. ${heavy.length} in 4 weeks.`);
-  // (a little over, not heavy: a coach notices that too, and how often)
-  const over = mode === 'off' ? [] : [6, 5, 4, 3, 2, 1, 0].flatMap((i) => { const date = addDays(today, -i); const o = aLittleOver(d, date); return o ? [`${i === 0 ? 'today so far' : `${WD[new Date(`${date}T12:00:00`).getDay()]} ${date}`} +${o}`] : []; });
-  if (over.length) L.push(`A little over the target (${OVER_LINE}+ kcal or 10 % over, not heavy), last 7 days: ${over.length} day${over.length === 1 ? '' : 's'} — ${over.join(', ')} kcal.`);
+  // (every day over, a little or heavy: a coach notices how often, and how much in all)
+  const over = mode === 'off' ? [] : [6, 5, 4, 3, 2, 1, 0].flatMap((i) => { const date = addDays(today, -i); const t = targetOn(d, date); const o = overOn(d, date); return t && o && (o.heavy || o.over >= overLine(t)) ? [{ i, date, ...o }] : []; });
+  if (over.length) L.push(`Over the target, last 7 days (at least ${OVER_LINE} kcal and 10 % over): ${over.length} of 7 days, +${over.reduce((n, x) => n + x.over, 0)} kcal in all — ${over.map((x) => `${x.i === 0 ? 'today so far' : `${WD[new Date(`${x.date}T12:00:00`).getDay()]} ${x.date}`} +${x.over}${x.heavy ? ' (heavy)' : ''}`).join(', ')}.`);
   if (mode === 'off') L.push('Heavy-day notices are OFF: they chose not to hear about heavy days or catch-ups unless they bring them up.');
   const [w1, w2] = mode === 'off' ? [0, 0] : heavyWeeks(d, today);
   if (w1 >= 3 && w2 >= 3) {

@@ -3156,9 +3156,8 @@ tone or message counts, no rules per topic, going over the calories said once li
   since. Workouts saved before `plannedSets` existed aren't judged. When nothing was skipped, DATA says
   that too, so the Coach can praise it exactly.
 - **Stalled lifts:** named plainly; a change is offered only when it would help (no more "a short lighter block").
-- **A little over the calories** (`eating.ts` `overToday`, `overLine` = 200 kcal or 10 % of the target, whichever is
-  bigger; `eatingWatch.ts` `sayOver`): that much over the day's target but not heavy → one plain toast, once that day (`marks.overSaid`), only with heavy-day notices On:
-  "340 kcal over today. Fine now and then." / "…, 2 of the last 7 days." / "…, 3 of the last 7 days. That adds up." A heavy day
-  keeps its own decision. EATING PATTERNS lists those days for the Coach too.
+- **A little over the calories** (`eating.ts` `overToday`, `overLine` = at least 200 kcal and 10 % of the target; `eatingWatch.ts` `sayOver`): that much over the day's target but not heavy → one plain toast, once that day (`marks.overSaid`), only with heavy-day notices On:
+  "340 kcal over today. Fine now and then." / "…, 2 of the last 7 days." (a heavy day this week counts) / "…, 3 of the last 7 days. That adds up." A heavy day
+  keeps its own decision. EATING PATTERNS gives the Coach every day over in the last 7 (a little or heavy) and the total.
 - Exam: `honest-week`, `honest-repeat`, `honest-clean`, `honest-food`, `honest-night` (`scripts/exam/questions.ts`). Unit
   tests: `tests/honestVoice.test.ts`.

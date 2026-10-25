@@ -64,6 +64,11 @@ describe('a little over the target', () => {
     checkEating(NOON);
     expect(toasts()).toEqual(['300 kcal over today, 3 of the last 7 days. That adds up.']);
   });
+  it('the day after a heavy one is never "fine now and then"', () => {
+    useStore.setState({ entries: [entry(addDays(today, -1), 4400), entry(today, 2800)] });
+    checkEating(NOON);
+    expect(toasts().filter((x) => x.startsWith('300'))).toEqual(['300 kcal over today, 2 of the last 7 days.']);
+  });
   it('Quiet and Off say nothing', () => {
     useStore.getState().updateSettings({ heavyDays: 'quiet' });
     useStore.setState({ entries: [entry(today, 2840)] });
@@ -114,9 +119,9 @@ describe('skipped planned sets', () => {
     const sessions = [session(addDays(today, -1), [{ id: 'x1', exerciseId: 'bench', sets: [set(true), set(true)], plannedSets: 4 }])];
     useStore.setState({ sessions });
     const c = buildCoachContext(data(), today, (id) => (id === 'bench' ? 'Bench press' : id));
-    expect(c).toContain(`Planned working sets skipped (last 7 days): 2 of 4 in 1 workouts — ${addDays(today, -1)} Push: Bench press 2 of 4 skipped.`);
+    expect(c).toContain(`Planned working sets skipped (last 7 days, since Mon ${addDays(today, -6)}): 2 of 4 in 1 workouts — ${addDays(today, -1)} Push: Bench press 2 of 4 skipped.`);
     useStore.setState({ sessions: [session(addDays(today, -1), [{ id: 'x1', exerciseId: 'bench', sets: [set(true), set(true)], plannedSets: 2 }])] });
-    expect(buildCoachContext(data(), today, (id) => id)).toContain('Planned working sets skipped (last 7 days): none, all 2 done in 1 workouts.');
+    expect(buildCoachContext(data(), today, (id) => id)).toContain(`Planned working sets skipped (last 7 days, since Mon ${addDays(today, -6)}): none, all 2 done in 1 workouts (Sat ${addDays(today, -1)} Push).`);
   });
 });
 
@@ -136,7 +141,7 @@ describe('the Coach sees days a little over', () => {
     const { eatingLines } = await import('../src/lib/eating');
     useStore.setState({ entries: [entry(addDays(today, -1), 2800), entry(addDays(today, -3), 3300), entry(addDays(today, -5), 2600)] });
     const l = eatingLines(data(), today).join('\n');
-    // (2,600 is 100 over: under the line; 3,300 is heavy: its own line)
-    expect(l).toContain(`A little over the target (200+ kcal or 10 % over, not heavy), last 7 days: 1 day — Sat ${addDays(today, -1)} +300 kcal.`);
+    // (2,600 is 100 over: under the line; 3,300 is heavy, and counted)
+    expect(l).toContain(`Over the target, last 7 days (at least 200 kcal and 10 % over): 2 of 7 days, +1100 kcal in all — Thu ${addDays(today, -3)} +800 (heavy), Sat ${addDays(today, -1)} +300.`);
   });
 });

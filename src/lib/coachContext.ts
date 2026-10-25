@@ -75,8 +75,10 @@ export function buildCoachContext(d: AppData, today: string, exName: (id: string
     L.push(`- ${s.date} ${s.name || 'Workout'} (${diffDays(today, s.date)} days ago): ${ex.join('; ') || 'no completed sets'}${s.records?.length ? `; ${s.records.length} PR` : ''}`);
   }
   // planned sets left undone (a coach notices skipped sets, not only skipped days)
+  const WD3 = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const sk = skippedSets(d, today);
-  if (sk.workouts) L.push(sk.list.length ? `Planned working sets skipped (last 7 days): ${sk.skipped} of ${sk.planned} in ${sk.workouts} workouts — ${sk.list.map((w) => `${w.date} ${w.name || 'Workout'}: ${w.exercises.map((x) => `${exName(x.exerciseId)} ${x.absent ? 'not in the workout at all (in its routine; not counted above)' : `${x.skipped} of ${x.planned} skipped`}`).join(', ')}`).join('; ')}.` : `Planned working sets skipped (last 7 days): none, all ${sk.planned} done in ${sk.workouts} workouts.`);
+  const since = `last 7 days, since ${WD3[new Date(`${addDays(today, -6)}T12:00:00`).getDay()]} ${addDays(today, -6)}`;
+  if (sk.workouts) L.push(sk.list.length ? `Planned working sets skipped (${since}): ${sk.skipped} of ${sk.planned} in ${sk.workouts} workouts — ${sk.list.map((w) => `${w.date} ${w.name || 'Workout'}: ${w.exercises.map((x) => `${exName(x.exerciseId)} ${x.absent ? 'not in the workout at all (in its routine; not counted above)' : `${x.skipped} of ${x.planned} skipped`}`).join(', ')}`).join('; ')}.` : `Planned working sets skipped (${since}): none, all ${sk.planned} done in ${sk.workouts} workouts (${sk.done.map((w) => `${WD3[new Date(`${w.date}T12:00:00`).getDay()]} ${w.date} ${w.name || 'Workout'}`).join(', ')}).`);
   // per muscle, so balance is judged from what was actually trained, not from exercise names
   if (musclesOf && done.length) {
     const fmt = (r: Record<MuscleGroup, number>, div = 1) => MUSCLES.map((m) => `${m} ${r1(r[m] / div)}`).join(', ');
