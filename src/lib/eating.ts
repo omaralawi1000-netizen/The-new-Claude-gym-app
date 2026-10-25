@@ -251,7 +251,7 @@ export function eatingLines(d: Data, today: string, goal?: string): string[] {
     let run = 2; // (this week and the one before, as counted above)
     const inWeek = (k: number) => heavy.filter((h) => { const a = diffDays(today, h.date); return a >= 7 * k && a < 7 * k + 7; }).length;
     while (run < 4 && inWeek(run) >= 3) run++;
-    L.push(`Frequent heavy days: ${w1} in the last 7 days and ${w2} in the 7 before; ${run} weeks running.${d.marks?.helpSaid ? ` Getting help with it (a GP or dietitian) was suggested to them on ${d.marks.helpSaid}.` : ''}`);
+    L.push(`Frequent heavy days: ${w1} in the last 7 days and ${w2} in the 7 before; ${run} weeks running.`);
   }
   const on = catchUpOn(d, today);
   if (on) L.push(`CATCH-UP running: ${on.from.date} was +${on.from.over} over, so the target is ${on.perDay} lower for ${on.left} more day${on.left === 1 ? '' : 's'} including today (today's target ${kcalTargetFor(d, today)} kcal instead of ${d.settings.goals.kcal}; protein unchanged).`);

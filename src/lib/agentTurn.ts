@@ -247,7 +247,9 @@ export async function decide(text: string, o: { lang: Lang; t: (k: string, v?: R
     ask: quick ? (system, prompt, signal) => solJson({ key: brain0.sol!.key, effort: 'low', model: quick, signal }, { system, prompt, schema: ROUTER_SCHEMA, name: 'route' }) : undefined,
   }) : null;
   if (o.signal.aborted) throw new AiError('aborted', 0, { provider: 'openai' });
-  const brain = brain0?.sol && way ? { ...brain0, sol: { ...brain0.sol, effort: way.effort, model: way.main ? undefined : quickFor() } } : brain0;
+  // (the setting is the ceiling: on Medium even a hard question thinks at medium, no 30–45 s waits, Omar 25 Oct)
+  const effort = way && way.effort === 'high' && brain0?.sol?.effort !== 'high' ? brain0!.sol!.effort : way?.effort;
+  const brain = brain0?.sol && way ? { ...brain0, sol: { ...brain0.sol, effort: effort!, model: way.main ? undefined : quickFor() } } : brain0;
   const capped = solOn(g) && overLimit(g.solLimitKr);
   if (capped && brain) note = t('This month’s GPT-6.1 Sol limit is reached, so Gemini answered.');
   if (capped && !brain) reply = t('This month’s GPT-6.1 Sol limit is reached. Raise it in Settings → Voice & AI, or add a free Gemini key.');
