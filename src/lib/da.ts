@@ -1870,4 +1870,12 @@ export const da: Record<string, string> = {
  "another workout": "en anden træning",
  "no workout running": "ingen træning i gang",
  "App log": "App-log",
+ "Camera off": "Kamera fra",
+ "Camera on": "Kamera til",
+ "Mute": "Slå lyden fra",
+ "Muted": "Lyd fra",
+ "Reconnecting…": "Forbinder igen…",
+ "Tap to interrupt": "Tryk for at afbryde",
+ "The camera couldn’t be opened.": "Kameraet kunne ikke åbnes.",
+ "Unmute": "Slå lyden til",
 };

@@ -13,7 +13,10 @@ import { transcribe, buildPrompt, STT_MODEL, SttError } from '../lib/groq';
 import { aiErrorText, type Turn } from '../lib/gemini';
 import { decide, brainFor, ORB_BRIEF, agentSystem } from '../lib/agentTurn';
 import { droppedCard, runActions, validateAgent, type AgentResult } from '../lib/agent';
-import { startLive, LIVE_RULES, type LiveSession } from '../lib/live';
+import { startLive, LIVE_RULES, liveCost, type LiveSession } from '../lib/live';
+import { recordFee, overLimit } from '../lib/spend';
+import { mealName } from '../lib/derive';
+import { runLookups, validateLookups } from '../lib/agentLookup';
 import { dayKey } from '../lib/dates';
 import { uid } from '../lib/nutrition';
 import { appendExchange, dropFailed, markInThread, readThread, threadSaid, threadTurns } from '../lib/thread';
@@ -33,7 +36,7 @@ import { apple, springCurve } from '../ui/motion';
 const refreshBarOn = (el: HTMLElement | null) => { if (el) refreshBar(); }; // the top band takes the status bar's current tint
 
 /** One thing you said and what the assistant did about it. `done` once the answer is complete (until then it streams in). */
-interface Turn1 { id: string; said: string; reply: string; results: AgentResult[]; undone: string[]; confirmed: string[]; done: boolean; /** its cards in the shared conversation (lib/thread.ts) */ threadId?: string | null }
+interface Turn1 { id: string; said: string; reply: string; results: AgentResult[]; undone: string[]; confirmed: string[]; done: boolean; /** its cards in the shared conversation (lib/thread.ts) */ threadId?: string | null; /** said live (its words never fly in) */ live?: boolean }
 
 /** How a sent message and the answer's cards settle: calm, a hint of spring, no wobble (iMessage). */
 const SEND = { type: 'spring', stiffness: 170, damping: 26, mass: 1 } as const; // calm: a soft rise, no hurry, no wobble
@@ -190,10 +193,15 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   const [turns, setTurns] = useState<Turn1[]>([]);
   const turnsRef = useRef<Turn1[]>([]); turnsRef.current = turns;
   // talking live (lib/live.ts): one open conversation while the screen is up; typed messages still go the usual way
-  const liveWanted = useAi((a) => a.liveOrb && a.hasGemini);
+  // (not past this month's AI limit: Live counts in the same 200 kr as the Coach)
+  const liveWanted = useAi((a) => a.liveOrb && a.hasGemini && !overLimit(a.solLimitKr));
   const liveRef = useRef<LiveSession | null>(null);
   const liveFailed = useRef(false);
   const [liveActive, setLiveActive] = useState(false);
+  const [speaking, setSpeaking] = useState(false); // its voice is playing (Tap to interrupt)
+  const [muted, setMuted] = useState(false);
+  const [camStream, setCamStream] = useState<MediaStream | null>(null);
+  const [renewing, setRenewing] = useState(false);
   const liveTurn = useRef<{ id: string | null; said: string }>({ id: null, said: '' });
   const blobRef = useRef<Blob | null>(null);
   const handle = useRef<SpeechHandle | null>(null);
@@ -213,7 +221,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
 
   const teardown = useCallback(() => {
     run.current++;
-    liveRef.current?.stop(); liveRef.current = null; setLiveActive(false); liveTurn.current = { id: null, said: '' };
+    liveRef.current?.stop(); liveRef.current = null; setLiveActive(false); liveTurn.current = { id: null, said: '' }; setSpeaking(false); setMuted(false); setCamStream(null); setRenewing(false);
     handle.current?.abort(); handle.current = null;
     mic.release('voice');
     useVoice.getState().set({ micLive: false });
@@ -272,8 +280,17 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   }, [supported, engine, lang, liveWanted]);
 
   /** Talk live: the coach's own instructions, the conversation so far and the live rules; food logs through Aven. */
+  const liveStarting = useRef(false); // (one connection at a time: opening the screen asked twice, and paid for two)
+  const liveAgain = useRef(false);
   const goLive = async () => {
     if (liveRef.current) return;
+    if (liveStarting.current) { liveAgain.current = true; return; } // (after the one starting now, if it was called off)
+    liveStarting.current = true;
+    try {
+      do { liveAgain.current = false; await openLive(); } while (liveAgain.current && !liveRef.current && alive.current);
+    } finally { liveStarting.current = false; liveAgain.current = false; }
+  };
+  const openLive = async () => {
     go('requesting');
     const my = ++run.current;
     const st = useStore.getState();
@@ -288,18 +305,29 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
       system: `${system}\n\nTHE CONVERSATION SO FAR (oldest first; the Coach chat and the orb share it):\n${said || '(nothing yet)'}\n\n${LIVE_RULES}`,
       handlers: {
         onUserText: (text) => { if (!alive.current) return; lt.said = text; if (lt.id) patch(lt.id, { said: text }); else setFinal(text); },
-        onTurnStart: () => { if (!alive.current) return; lt.id = openTurn(lt.said); setFinal(''); go('processing'); },
+        onTurnStart: () => { if (!alive.current) return; const id = openTurn(lt.said); lt.id = id; patch(id, { live: true }); setFinal(''); go('processing'); },
         onReplyText: (text) => { if (alive.current && lt.id) patch(lt.id, { reply: text }); },
-        onSpeaking: (on) => { if (alive.current && liveRef.current) go(on ? 'idle' : lt.id ? 'processing' : 'listening'); },
+        onSpeaking: (on) => { if (!alive.current) return; setSpeaking(on); if (liveRef.current) go(on ? 'idle' : lt.id ? 'processing' : 'listening'); },
+        onUsage: (u) => recordFee(liveCost(u)),
+        onReconnecting: (on) => { if (alive.current) setRenewing(on); },
         onTool: async (name, args) => {
-          if (name !== 'log_food') return 'That can only be done in the Coach chat for now.';
-          const v = validateAgent({ reply: '', actions: [{ type: 'log_food', ...args }] });
+          if (name === 'look_up') {
+            const list = validateLookups(args.lookups);
+            if (!list.length) return 'Nothing to look up.';
+            const d = useStore.getState();
+            const mealLabel = (x: string) => { const m = d.settings.meals.find((y) => y.id === x); return m ? mealName(m, lang) : x; };
+            return runLookups(d, list, { today: dayKey(Date.now(), d.settings.dayStartHour), lang, pool, mealLabel, said: threadSaid(readThread()) });
+          }
+          if (name !== 'aven') return 'Unknown function.';
+          const v = validateAgent({ reply: '', actions: Array.isArray(args.actions) ? args.actions : [] });
+          if (!v?.actions.length) return 'Those actions could not be read; nothing was changed.';
           const today = dayKey(Date.now(), useStore.getState().settings.dayStartHour);
           const results = v?.actions.length ? await runActions(v.actions, { t, lang, today, brain: brainFor({ big: false, surface: 'orb' }), date: props.date, mealId: props.mealId }) : [];
           const id = lt.id;
           if (id && alive.current) setTurns((all) => all.map((x) => (x.id === id ? { ...x, results: [...x.results, ...results] } : x)));
           if (results.some((r) => r.kind === 'food' && !r.pending)) haptic('success');
-          return results.map((r) => `${r.title}: ${r.lines.map((l) => [l.text, l.sub].filter(Boolean).join(' ')).join(', ')}`).join('; ') || 'Nothing was logged.';
+          // (with each item's ref, so "change that" can find it; and what couldn't be read)
+          return [results.map((r) => `${r.title}: ${r.lines.map((l) => [l.text, l.sub, l.ref ? `[ref ${l.ref}]` : ''].filter(Boolean).join(' ')).join(', ')}${r.button ? ' (waits for their Apply)' : ''}`).join('; ') || 'Nothing was changed.', v.dropped ? `${v.dropped} action(s) could not be read and were not done.` : ''].filter(Boolean).join(' ');
         },
         onIdle: () => {
           if (!alive.current) return;
@@ -490,7 +518,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   const showing = !!last && (liveActive || !listening);
   const label = ({
     idle: showing ? '' : t('Tap the sphere and speak'), requesting: t('Starting the microphone…'), // with an answer up, the Say more button says it
-    listening: liveActive || engine === 'groq' ? t('Listening') : mic.active ? t('Listening') : t('Listening (no level meter)'),
+    listening: renewing ? t('Reconnecting…') : muted ? t('Muted') : liveActive || engine === 'groq' ? t('Listening') : mic.active ? t('Listening') : t('Listening (no level meter)'),
     processing: looking || t('Thinking…'), confirmed: t('Done'), error: t('Couldn’t do that'), unavailable: t('Microphone unavailable'),
     review: t('Done'),
   } as Record<string, string>)[phase] ?? '';
@@ -550,6 +578,11 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
         <div style={{ textAlign: 'center', marginTop: big ? 14 : 8 }}>
           <div className="micro" aria-live="polite" style={{ color: phase === 'listening' ? 'var(--ac-text)' : undefined }}>{label}</div>
         </div>
+        {/* what the camera sees (it sends a picture a second while this shows) */}
+        {camStream && liveActive && (
+          <video aria-label={t('Camera')} autoPlay muted playsInline ref={(v) => { if (v && v.srcObject !== camStream) v.srcObject = camStream; }}
+            style={{ alignSelf: 'center', marginTop: 10, width: 'min(58vw, 220px)', aspectRatio: '3 / 4', objectFit: 'cover', borderRadius: 20 }} />
+        )}
 
         {/* (room round its content, so the typing box's focus glow is not clipped into hard edges by the scrolling) */}
         <div ref={talkRef} style={{ position: 'relative', flex: 1, minHeight: 0, overflowY: 'auto', margin: '14px -12px 0', padding: '0 12px 26px' }} className="hide-scroll fade-top fade-bottom">
@@ -561,8 +594,9 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
                   : !listening && <span className="voice-hint"><RotatingHint /></span>}
               </motion.div>
             )}
-            {/* talking live: the whole conversation stays, oldest first (Omar, 25 Oct: each answer used to replace the last) */}
-            {liveActive && turns.slice(0, -1).map((tu) => (
+            {/* typing: the whole conversation of this visit stays, oldest first, like a chat (Omar, 25 Oct). Talking live shows
+                only the answer now, like Gemini: the screen stays calm (the rest is in the Coach chat). */}
+            {typing && turns.slice(0, -1).map((tu) => (
               <div key={`h:${tu.id}`} className="exchange">
                 {tu.said && <div className="said">{tu.said}</div>}
                 {tu.reply.trim() && <div className="reply calm"><Rich text={tu.reply} id={tu.id} /></div>}
@@ -581,7 +615,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
               <motion.div key={last.id} className="exchange" exit={liveActive ? undefined : { opacity: 0, y: -12, transition: { duration: 0.24, ease: [0.4, 0, 1, 1] } }}>
                 {/* (live: your words keep arriving while it answers, so they sit still in their bubble instead of morphing in
                     again with every word) */}
-                {last.said && (liveActive ? <div className="said">{last.said}</div> : <SaidMorph key={`${last.id}:${last.said}`} text={last.said} onSettled={() => setSettledId(last.id)} />)}
+                {last.said && !liveActive && (last.live ? <div className="said">{last.said}</div> : <SaidMorph key={`${last.id}:${last.said}`} text={last.said} onSettled={() => setSettledId(last.id)} />)}
                 {(() => {
                   const cards = last.done && last.results.length > 0 && (
                   <div className="stack gap12">
@@ -597,7 +631,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
                   </div>
                   );
                   // the answer waits until your words have settled into their bubble, then writes in below
-                  if (!last.reply || (last.said && settledId !== last.id && !liveActive)) return last.reply ? null : cards;
+                  if (!last.reply || (last.said && settledId !== last.id && !liveActive && !last.live)) return last.reply ? null : cards;
                   return <OrbReply key={last.id} id={last.id} text={last.reply} live={!last.done} onGrow={follow} onDone={() => setWritten(last.id)} after={<>
                     {last.done && last.reply.trim() && (
                       // read it aloud (each word lights up as it is said), or take the question on in the Coach
@@ -615,7 +649,6 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
             )}
           </AnimatePresence>
           {/* talking live: what you're saying now, under the conversation, before it answers */}
-          {liveActive && showing && final && !liveTurn.current.id && <div className="exchange"><div className="said" style={{ opacity: 0.72 }}>{final}</div></div>}
           {err && <div className="plinth-2 small" role="alert" style={{ padding: '12px 14px', marginTop: 16 }}>{err}{(canRetry || ask) && <div style={{ marginTop: 10 }}>{canRetry ? <button className="btn sm press" onClick={retryHear}>{t('Retry transcription')}</button> : <button className="btn sm press" onClick={() => { if (!ask || busy.current) return; haptic('light'); dropFailed(ask.text); act(ask.text, ask.id, ask.spoken); }}><Icon name="repeat" size={14} /> {t('Try again')}</button>}</div>}</div>}
           <AnimatePresence initial={false} mode="popLayout">
           {typing && !thinking && !(showing && last.reply && written !== last.id) && (
@@ -632,7 +665,27 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
         </div>
 
         <div style={{ padding: '0 0 calc(var(--sab) + 18px)' }}>
+          {liveActive && !typing && (() => {
+            // talking live, like Gemini: what you said (it stays until you speak again), Tap to interrupt while it speaks
+            const heard = (!liveTurn.current.id && final) || last?.said || '';
+            return (
+              <div className="stack" style={{ gap: 8, marginBottom: 12, alignItems: 'center' }}>
+                {speaking && <button className="chip press" onClick={() => { liveRef.current?.hush(); haptic('light'); }}>{t('Tap to interrupt')}</button>}
+                {heard && <div className="said" style={{ alignSelf: 'stretch', maxWidth: 'none', fontStyle: 'italic' }}>{heard}</div>}
+              </div>
+            );
+          })()}
           <div className="row-flex" style={{ gap: 10 }}>
+            {liveActive && !typing && <>
+              <button className={`icon-btn press${camStream ? ' on' : ''}`} aria-label={camStream ? t('Camera off') : t('Camera on')} aria-pressed={!!camStream}
+                onClick={async () => { haptic('light'); const s1 = liveRef.current; if (!s1) return; if (camStream) { await s1.setCamera(false); setCamStream(null); } else { const c = await s1.setCamera(true); if (c) setCamStream(c); else setErr(t('The camera couldn’t be opened.')); } }}>
+                <Icon name="camera" />
+              </button>
+              <button className={`icon-btn press${muted ? ' on' : ''}`} aria-label={muted ? t('Unmute') : t('Mute')} aria-pressed={muted}
+                onClick={() => { haptic('light'); const m = !muted; liveRef.current?.setMuted(m); setMuted(m); }}>
+                <Icon name={muted ? 'micOff' : 'mic'} />
+              </button>
+            </>}
             {supported && (
               <button className="btn press grow" disabled={thinking} onClick={() => { if (typing) listen(); else { teardown(); go('idle'); setTyping(true); } }}>
                 {typing ? <><Icon name="mic" size={18} /> {t('Speak instead')}</> : <><Icon name="edit" size={18} /> {t('Type instead')}</>}

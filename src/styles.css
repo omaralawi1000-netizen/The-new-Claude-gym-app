@@ -3080,3 +3080,6 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 .frost > i { position: absolute; inset: 0; will-change: transform; animation: frost-hold linear both; animation-timeline: --frost; }
 .frost canvas { position: absolute; top: 0; left: var(--frost-x, 0px); width: 100vw; height: var(--frost-sh, 100vh); opacity: 0; transition: opacity 900ms var(--ease-smooth, ease); }
 .frost canvas[data-on='1'] { opacity: 1; }
+
+/* a toggled round button (the live orb's camera and mute): the accent, so on and off read at a glance */
+.icon-btn[aria-pressed="true"] { color: var(--ac-text); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ac) 55%, transparent); }

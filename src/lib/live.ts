@@ -1,22 +1,27 @@
 /**
  * Talking with the orb live: Gemini 3.8 Live Extended Thinking (thinking "low") over one open connection, straight from
  * the phone with the Gemini key from Settings. It hears you while it speaks (interrupt it any time), answers out loud, and
- * logs food through Aven's own logging (the function `log_food`, run by the orb screen, with its usual card and Undo).
- * What both of you said comes back as text (transcripts) for the screen and the shared conversation.
+ * does what the Coach does through Aven's own actions (the function `aven`, run by the orb screen, with the usual cards and
+ * Undo), looks things up in your history (`look_up`) and searches the web (Google Search). What both of you said comes
+ * back as text (transcripts), Danish or English only.
  *
- * First test (Omar, 25 Oct): food only; sets, settings and web search come after his verdict on the Danish and the speed.
  * Audio: the microphone at 16 kHz, 16-bit PCM, sent every ~100 ms; the answer at 24 kHz, played as it arrives and cut
  * the moment the server says it was interrupted. Echo cancellation keeps its own voice out of the microphone.
+ * Camera (optional): one picture a second, 640 px JPEG. The connection is renewed quietly when the server asks (goAway)
+ * or drops, carrying the conversation over (session resumption); the context slides, so a visit has no time limit.
  */
-import { AGENT_FOOD } from './gemini';
+import { AGENT_SCHEMA } from './gemini';
 
 export const LIVE_MODEL = 'gemini-3.8-live-extended-thinking';
 
-/** Said to the model after the coach's usual instructions: speak, don't write JSON; what it can do in this test. */
+/** Said to the model after the coach's usual instructions: speak, don't write JSON; how it acts in Aven. */
 export const LIVE_RULES = `LIVE VOICE (this overrides anything above about answering in JSON, a reply field, look-ups or an actions list):
 You are talking out loud with them right now, in real time; they can interrupt you. Just speak — short and natural, like a coach standing next to them: one to three sentences unless they ask for more. Speak the language they speak: Danish or English, never any other (if it sounded like another language, it was Danish).
-To log food or drink they had, call log_food (one call per meal, every food with its amount exactly as said), then say in a few words that it is logged. Never say something is logged without calling it. Changing or removing food that is already logged isn't possible here yet: say so, and that the Coach chat can do it.
-In this test you can only log food. For anything else they want changed (sets, settings, workouts), say you can't do that here yet and that the Coach chat can. A question that needs a long answer or a plan: give the short answer out loud and say the full answer is in the Coach.`;
+To change anything in Aven (log food, water, weight, sets or an activity, start or finish a workout, change a setting, a routine, the plan — everything listed under actions above), call the function aven with the actions, exactly as you would have put them in the actions list, then say in a few words what you did. Never say something is done without calling it. A change that needs their Apply shows a card: tell them to tap Apply.
+To see data that isn't in DATA (older days, a lift's history, the whole plan, settings, what they said before), call look_up first and answer from what comes back.
+For facts from outside Aven (a product's nutrition, opening hours, news, prices) use Google Search.
+If the camera is on, you see what they point it at (a plate, a label, a machine): use it ("log this" means what you see, with your best estimate of the amounts).
+A question that needs a long answer or a plan: give the short answer out loud and say the full answer is in the Coach chat.`;
 
 export interface LiveHandlers {
   /** what they are saying, so far (the whole utterance) */
@@ -31,16 +36,45 @@ export interface LiveHandlers {
   onSpeaking: (on: boolean) => void;
   /** the turn is finished and nothing more is coming */
   onIdle: () => void;
+  /** the token counts for a finished turn (for the monthly spend) */
+  onUsage?: (usage: unknown) => void;
+  /** renewing the connection (true) / back (false) */
+  onReconnecting?: (on: boolean) => void;
   onError: (code: 'denied' | 'nodevice' | 'connect' | 'closed') => void;
 }
 
-export interface LiveSession { stop: () => void }
+export interface LiveSession {
+  stop: () => void;
+  /** stop sending the microphone (true) or start again */
+  setMuted: (on: boolean) => void;
+  /** the camera on (resolves to its stream, for the preview) or off; null when it can't be had */
+  setCamera: (on: boolean) => Promise<MediaStream | null>;
+  /** stop its voice now (it was tapped): the rest of this answer isn't played */
+  hush: () => void;
+}
 
 const b64 = (bytes: Uint8Array) => { let s = ''; for (let i = 0; i < bytes.length; i += 8192) s += String.fromCharCode(...bytes.subarray(i, i + 8192)); return btoa(s); };
 const unb64 = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 
 /** The microphone's samples, as they come (an AudioWorklet: off the main thread). */
 const WORKLET = `class P extends AudioWorkletProcessor { process(i) { const c = i[0] && i[0][0]; if (c) this.port.postMessage(c.slice(0)); return true; } } registerProcessor('aven-pcm', P);`;
+
+/** The functions it may call: everything the Coach does (its own actions schema), and its look-ups. */
+const TOOLS = (Behavior: any) => [
+  { functionDeclarations: [
+    {
+      name: 'aven', behavior: Behavior.NON_BLOCKING,
+      description: 'Do things in Aven: the same actions the Coach uses (log_food, log_sets, log_current_set, set_setting, start_workout, …). One call can carry several actions.',
+      parameters: { type: 'OBJECT', properties: { actions: (AGENT_SCHEMA.properties as any).actions }, required: ['actions'] },
+    },
+    {
+      name: 'look_up',
+      description: 'Look up data that is not in DATA: older days, a lift\'s history, the plan, settings, what they said before.',
+      parameters: { type: 'OBJECT', properties: { lookups: { ...(AGENT_SCHEMA.properties as any).lookups, nullable: false } }, required: ['lookups'] },
+    },
+  ] },
+  { googleSearch: {} },
+];
 
 export async function startLive(o: { key: string; system: string; voice?: string; handlers: LiveHandlers }): Promise<LiveSession | null> {
   const h = o.handlers;
@@ -55,15 +89,17 @@ export async function startLive(o: { key: string; system: string; voice?: string
   }
   const inCtx = new AudioContext({ sampleRate: 16000 });
   const outCtx = new AudioContext({ sampleRate: 24000 });
-  const cleanupAudio = () => { stream.getTracks().forEach((tr) => tr.stop()); void inCtx.close().catch(() => {}); void outCtx.close().catch(() => {}); };
+  let cam: MediaStream | null = null, camTimer: ReturnType<typeof setInterval> | null = null;
+  const camOff = () => { if (camTimer) clearInterval(camTimer); camTimer = null; cam?.getTracks().forEach((tr) => tr.stop()); cam = null; };
+  const cleanupAudio = () => { camOff(); stream.getTracks().forEach((tr) => tr.stop()); void inCtx.close().catch(() => {}); void outCtx.close().catch(() => {}); };
 
   // ── the answer's voice: chunks queued back to back, all cut at once on an interruption ──
   let playAt = 0;
   const playing = new Set<AudioBufferSourceNode>();
-  const speaking = (on: boolean) => h.onSpeaking(on);
+  let hushed = false; // tapped quiet: the rest of this answer isn't played
   const play = (pcm: Uint8Array) => {
     const n = pcm.length >> 1;
-    if (!n) return;
+    if (!n || hushed) return;
     const buf = outCtx.createBuffer(1, n, 24000);
     const ch = buf.getChannelData(0);
     const dv = new DataView(pcm.buffer, pcm.byteOffset, pcm.byteLength);
@@ -72,71 +108,99 @@ export async function startLive(o: { key: string; system: string; voice?: string
     src.buffer = buf; src.connect(outCtx.destination);
     const at = Math.max(outCtx.currentTime + 0.02, playAt);
     src.start(at); playAt = at + buf.duration;
-    if (!playing.size) speaking(true);
+    if (!playing.size) h.onSpeaking(true);
     playing.add(src);
-    src.onended = () => { playing.delete(src); if (!playing.size) speaking(false); };
+    src.onended = () => { playing.delete(src); if (!playing.size) h.onSpeaking(false); };
   };
-  const cut = () => { for (const s of playing) { try { s.stop(); } catch { /* done already */ } } playing.clear(); playAt = 0; speaking(false); };
+  const cut = () => { for (const s of playing) { try { s.stop(); } catch { /* done already */ } } playing.clear(); playAt = 0; h.onSpeaking(false); };
 
-  // ── the connection ──
+  // ── the connection (renewed quietly, carrying the conversation over) ──
+  const { GoogleGenAI, Modality, Behavior } = await import('@google/genai');
+  const ai = new GoogleGenAI({ apiKey: o.key });
   let session: any = null;
-  let user = '', reply = '', answering = false;
-  try {
-    const { GoogleGenAI, Modality, Behavior } = await import('@google/genai');
-    const ai = new GoogleGenAI({ apiKey: o.key });
-    session = await ai.live.connect({
-      model: LIVE_MODEL,
-      config: {
-        responseModalities: [Modality.AUDIO],
-        thinkingConfig: { thinkingLevel: 'low' as any },
-        systemInstruction: o.system,
-        // only Danish or English: left to guess, it once wrote Danish down as German ("Hi, wer denn gerade?", 25 Oct)
-        inputAudioTranscription: { languageCodes: ['da-DK', 'en-US'] },
-        outputAudioTranscription: {},
-        ...(o.voice ? { speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: o.voice } } } } : {}),
-        tools: [{ functionDeclarations: [{
-          name: 'log_food', behavior: Behavior.NON_BLOCKING,
-          description: 'Log food or drink they had: one call per meal, every food with the amount exactly as said.',
-          parameters: { type: 'OBJECT', properties: { foods: { type: 'ARRAY', items: AGENT_FOOD }, meal: { type: 'STRING', nullable: true, description: 'breakfast, lunch, dinner or snacks, only if they said one' }, day: { type: 'STRING', nullable: true, description: 'yesterday / today / YYYY-MM-DD, only if they said one' } }, required: ['foods'] } as any,
-        }] }],
-      },
-      callbacks: {
-        onmessage: (m: any) => {
-          if (stopped) return;
-          const sc = m.serverContent;
-          if (sc?.inputTranscription?.text) {
-            // a new utterance after a finished answer starts fresh
-            if (!answering && !user) reply = '';
-            user += sc.inputTranscription.text; h.onUserText(user.trim());
-          }
-          const startAnswer = () => { if (!answering) { answering = true; h.onTurnStart(); } };
-          for (const p of sc?.modelTurn?.parts ?? []) {
-            if (p.inlineData?.data && /audio/.test(p.inlineData.mimeType ?? 'audio')) { startAnswer(); play(unb64(p.inlineData.data)); }
-          }
-          if (sc?.outputTranscription?.text) { startAnswer(); reply += sc.outputTranscription.text; h.onReplyText(reply.trim()); }
-          if (sc?.interrupted) cut();
-          if (sc?.turnComplete && (!sc.interactionStatus || sc.interactionStatus === 'IDLE')) {
-            if (answering || reply) h.onIdle();
-            answering = false; user = ''; reply = '';
-          }
-          for (const fc of m.toolCall?.functionCalls ?? []) {
-            startAnswer();
-            void h.onTool(fc.name, fc.args ?? {}).then((out) => {
-              if (!stopped) session?.sendToolResponse({ functionResponses: [{ id: fc.id, name: fc.name, response: { output: out } }] });
-            });
-          }
+  let ready = false; // a connection is open to send to
+  let handle: string | undefined; // for carrying the conversation over to a new connection
+  let user = '', reply = '', answering = false, usage: unknown = null;
+  let tries = 0;
+  let gen = 0; // which connection is the current one (an old one's late close must not start another)
+  const connect = async (): Promise<boolean> => {
+    const mine = ++gen;
+    try {
+      session = await ai.live.connect({
+        model: LIVE_MODEL,
+        config: {
+          responseModalities: [Modality.AUDIO],
+          thinkingConfig: { thinkingLevel: 'low' as any },
+          systemInstruction: o.system,
+          // only Danish or English: left to guess, it once wrote Danish down as German ("Hi, wer denn gerade?", 25 Oct)
+          inputAudioTranscription: { languageCodes: ['da-DK', 'en-US'] },
+          outputAudioTranscription: {},
+          sessionResumption: handle ? { handle } : {},
+          contextWindowCompression: { slidingWindow: {} },
+          ...(o.voice ? { speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: o.voice } } } } : {}),
+          tools: TOOLS(Behavior) as any,
         },
-        onerror: () => { if (!stopped) h.onError('connect'); },
-        onclose: () => { if (!stopped) { stopped = true; cut(); cleanupAudio(); h.onError('closed'); } },
-      },
-    });
-  } catch {
-    cleanupAudio();
-    if (!stopped) h.onError('connect');
-    return null;
-  }
+        callbacks: {
+          onmessage: (m: any) => {
+            if (stopped || mine !== gen) return;
+            if (m.sessionResumptionUpdate?.resumable && m.sessionResumptionUpdate.newHandle) handle = m.sessionResumptionUpdate.newHandle;
+            if (m.goAway) void renew();
+            if (m.usageMetadata) usage = m.usageMetadata;
+            const sc = m.serverContent;
+            if (sc?.inputTranscription?.text) {
+              // a new utterance after a finished answer starts fresh
+              if (!answering && !user) reply = '';
+              user += sc.inputTranscription.text; h.onUserText(user.trim());
+            }
+            const startAnswer = () => { if (!answering) { answering = true; h.onTurnStart(); } };
+            for (const p of sc?.modelTurn?.parts ?? []) {
+              if (p.inlineData?.data && /audio/.test(p.inlineData.mimeType ?? 'audio')) { startAnswer(); play(unb64(p.inlineData.data)); }
+            }
+            if (sc?.outputTranscription?.text) { startAnswer(); reply += sc.outputTranscription.text; h.onReplyText(reply.trim()); }
+            if (sc?.interrupted) { cut(); hushed = false; }
+            if (sc?.turnComplete && (!sc.interactionStatus || sc.interactionStatus === 'IDLE')) {
+              if (answering || reply) h.onIdle();
+              if (usage) { h.onUsage?.(usage); usage = null; }
+              answering = false; user = ''; reply = ''; hushed = false;
+            }
+            for (const fc of m.toolCall?.functionCalls ?? []) {
+              startAnswer();
+              void h.onTool(fc.name, fc.args ?? {}).then((out) => {
+                if (!stopped && ready) session?.sendToolResponse({ functionResponses: [{ id: fc.id, name: fc.name, response: { output: out } }] });
+              });
+            }
+          },
+          onerror: () => { /* onclose follows */ },
+          onclose: () => { if (mine !== gen) return; ready = false; if (!stopped) void renew(); },
+        },
+      });
+      ready = true; tries = 0;
+      return true;
+    } catch {
+      ready = false;
+      return false;
+    }
+  };
+  let renewing = false;
+  /** a new connection, quietly (the conversation carries over); three tries, then it says so */
+  const renew = async () => {
+    if (renewing || stopped) return;
+    renewing = true; ready = false; h.onReconnecting?.(true);
+    const old = session; gen++; // (its close is now an old one's)
+    try { old?.close(); } catch { /* gone */ }
+    while (!stopped && tries < 3) {
+      tries++;
+      await new Promise((r) => setTimeout(r, 400 * tries));
+      if (stopped) break;
+      if (await connect()) { renewing = false; h.onReconnecting?.(false); return; }
+    }
+    renewing = false;
+    if (!stopped) { stopped = true; cut(); cleanupAudio(); h.onError('closed'); }
+  };
+  if (!(await connect())) { cleanupAudio(); if (!stopped) h.onError('connect'); return null; }
 
   // ── the microphone into the connection: ~100 ms at a time ──
+  let muted = false;
   try {
     await inCtx.audioWorklet.addModule(URL.createObjectURL(new Blob([WORKLET], { type: 'text/javascript' })));
     const node = new AudioWorkletNode(inCtx, 'aven-pcm');
@@ -144,17 +208,68 @@ export async function startLive(o: { key: string; system: string; voice?: string
     let pending: Float32Array[] = [], count = 0;
     node.port.onmessage = (e) => {
       if (stopped) return;
+      if (muted || !ready) { pending = []; count = 0; return; }
       pending.push(e.data as Float32Array); count += (e.data as Float32Array).length;
       if (count < 1600) return;
       const out = new Int16Array(count); let k = 0;
       for (const c of pending) for (let i = 0; i < c.length; i++) out[k++] = Math.max(-32768, Math.min(32767, Math.round(c[i] * 32767)));
       pending = []; count = 0;
-      session.sendRealtimeInput({ audio: { data: b64(new Uint8Array(out.buffer)), mimeType: 'audio/pcm;rate=16000' } });
+      try { session.sendRealtimeInput({ audio: { data: b64(new Uint8Array(out.buffer)), mimeType: 'audio/pcm;rate=16000' } }); } catch { /* renewing */ }
     };
   } catch {
     stopped = true; try { session.close(); } catch { /* gone */ } cleanupAudio(); h.onError('connect');
     return null;
   }
 
-  return { stop: () => { if (stopped) return; stopped = true; cut(); try { session.close(); } catch { /* gone */ } cleanupAudio(); } };
+  // ── the camera: one picture a second while it's on ──
+  const canvas = document.createElement('canvas');
+  const setCamera = async (on: boolean): Promise<MediaStream | null> => {
+    if (!on || stopped) { camOff(); return null; }
+    if (cam) return cam;
+    try { cam = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } } }); } catch { return null; }
+    const v = document.createElement('video');
+    v.muted = true; v.playsInline = true; v.srcObject = cam; void v.play().catch(() => {});
+    camTimer = setInterval(() => {
+      if (stopped || !ready || !v.videoWidth) return;
+      const w = 640, hgt = Math.round((v.videoHeight / v.videoWidth) * w);
+      canvas.width = w; canvas.height = hgt;
+      canvas.getContext('2d')?.drawImage(v, 0, 0, w, hgt);
+      const data = canvas.toDataURL('image/jpeg', 0.7).split(',')[1];
+      try { session.sendRealtimeInput({ video: { data, mimeType: 'image/jpeg' } }); } catch { /* renewing */ }
+    }, 1000);
+    return cam;
+  };
+
+  return {
+    stop: () => { if (stopped) return; stopped = true; cut(); try { session.close(); } catch { /* gone */ } cleanupAudio(); },
+    setMuted: (on) => {
+      muted = on;
+      if (on && ready) { try { session.sendRealtimeInput({ audioStreamEnd: true }); } catch { /* renewing */ } }
+    },
+    setCamera,
+    hush: () => { hushed = true; cut(); },
+  };
+}
+
+/** Gemini 3.8 Live Extended Thinking, USD per million tokens (third-party price lists, Oct 2026; Google's own page
+ *  wasn't reachable to check): text in 0.75 / out 4.50 (thinking included), audio in 3 / out 12, pictures in 1. */
+export const LIVE_PRICE = { textIn: 0.75, textOut: 4.5, audioIn: 3, audioOut: 12, imageIn: 1 };
+
+/** The cost of one live turn from its usageMetadata, in USD (by kind where it says, else all priced as audio: never under). */
+export function liveCost(u: any): number {
+  if (!u || typeof u !== 'object') return 0;
+  const by = (list: any[] | undefined, prices: Record<string, number>, fallback: number, total: number) => {
+    if (!Array.isArray(list) || !list.length) return total * fallback;
+    let usd = 0, seen = 0;
+    for (const d of list) {
+      const n = Number(d?.tokenCount) || 0; seen += n;
+      usd += n * (prices[String(d?.modality ?? '').toUpperCase()] ?? fallback);
+    }
+    return usd + Math.max(0, total - seen) * fallback;
+  };
+  const inTotal = Number(u.promptTokenCount) || 0;
+  const outTotal = (Number(u.responseTokenCount) || 0) + (Number(u.thoughtsTokenCount) || 0);
+  const inUsd = by(u.promptTokensDetails, { TEXT: LIVE_PRICE.textIn, AUDIO: LIVE_PRICE.audioIn, IMAGE: LIVE_PRICE.imageIn, VIDEO: LIVE_PRICE.imageIn }, LIVE_PRICE.audioIn, inTotal);
+  const outUsd = by(u.responseTokensDetails, { TEXT: LIVE_PRICE.textOut, AUDIO: LIVE_PRICE.audioOut }, LIVE_PRICE.audioOut, outTotal);
+  return (inUsd + outUsd) / 1e6;
 }
