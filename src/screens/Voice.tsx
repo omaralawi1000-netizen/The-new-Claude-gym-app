@@ -581,7 +581,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
         {/* what the camera sees (it sends a picture a second while this shows) */}
         {camStream && liveActive && (
           <video aria-label={t('Camera')} autoPlay muted playsInline ref={(v) => { if (v && v.srcObject !== camStream) v.srcObject = camStream; }}
-            style={{ alignSelf: 'center', marginTop: 10, width: 'min(58vw, 220px)', aspectRatio: '3 / 4', objectFit: 'cover', borderRadius: 20 }} />
+            style={{ alignSelf: 'center', marginTop: 10, width: 'min(58vw, 220px)', aspectRatio: '3 / 4', objectFit: 'cover', borderRadius: 'var(--r-md)' }} />
         )}
 
         {/* (room round its content, so the typing box's focus glow is not clipped into hard edges by the scrolling) */}
@@ -612,7 +612,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
               </div>
             ))}
             {showing && (
-              <motion.div key={last.id} className="exchange" exit={liveActive ? undefined : { opacity: 0, y: -12, transition: { duration: 0.24, ease: [0.4, 0, 1, 1] } }}>
+              <motion.div key={last.id} className="exchange" exit={liveActive || typing ? undefined : { opacity: 0, y: -12, transition: { duration: 0.24, ease: [0.4, 0, 1, 1] } }}>
                 {/* (live: your words keep arriving while it answers, so they sit still in their bubble instead of morphing in
                     again with every word) */}
                 {last.said && !liveActive && (last.live ? <div className="said">{last.said}</div> : <SaidMorph key={`${last.id}:${last.said}`} text={last.said} onSettled={() => setSettledId(last.id)} />)}
@@ -673,9 +673,10 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
             const heardKey = `u${next ? turns.length : turns.length - 1}`;
             return (
               <div className="stack" style={{ gap: 8, marginBottom: 12, alignItems: 'center' }}>
-                {speaking && <button className="chip press" onClick={() => { liveRef.current?.hush(); haptic('light'); }}>{t('Tap to interrupt')}</button>}
+                {/* (always there, only faded: the box under it never jumps when the voice starts or stops) */}
+                <button className={`chip press interrupt${speaking ? '' : ' off'}`} aria-hidden={!speaking} tabIndex={speaking ? 0 : -1} onClick={() => { liveRef.current?.hush(); haptic('light'); }}>{t('Tap to interrupt')}</button>
                 {/* what you are saying, word by word as you say it (like Gemini), so you know it heard you */}
-                {heard && <div className="said" aria-live="polite" style={{ alignSelf: 'stretch', maxWidth: 'none', fontStyle: 'italic' }}><Words text={heard} k={heardKey} /></div>}
+                {heard && <div className="said heard" aria-live="polite"><Words text={heard} k={heardKey} /></div>}
               </div>
             );
           })()}
@@ -690,7 +691,10 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
                 <Icon name={muted ? 'micOff' : 'mic'} />
               </button>
             </>}
-            {supported && (
+            {liveActive && !typing ? (
+              // (talking live the row has four: typing is a round button, so no label is cut off on a narrow phone)
+              <button className="icon-btn press" aria-label={t('Type instead')} onClick={() => { teardown(); go('idle'); setTyping(true); }}><Icon name="edit" /></button>
+            ) : supported && (
               <button className="btn press grow" disabled={thinking} onClick={() => { if (typing) listen(); else { teardown(); go('idle'); setTyping(true); } }}>
                 {typing ? <><Icon name="mic" size={18} /> {t('Speak instead')}</> : <><Icon name="edit" size={18} /> {t('Type instead')}</>}
               </button>

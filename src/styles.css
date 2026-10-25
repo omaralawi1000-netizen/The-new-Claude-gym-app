@@ -3082,4 +3082,10 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 .frost canvas[data-on='1'] { opacity: 1; }
 
 /* a toggled round button (the live orb's camera and mute): the accent, so on and off read at a glance */
-.icon-btn[aria-pressed="true"] { color: var(--ac-text); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ac) 55%, transparent); }
+.icon-btn[aria-pressed="true"] { color: var(--ac-text); }
+/* the orb screen's round buttons sit on its full-screen frost already: no second blur under them (never blur on blur) */
+.voice .icon-btn { -webkit-backdrop-filter: none; backdrop-filter: none; }
+/* talking live: your words, as they come, in a calm neutral box (no orange on a surface you can't tap) */
+.voice .heard { align-self: stretch; max-width: none; border-radius: var(--r-md); background: color-mix(in srgb, var(--s2) 72%, transparent); border-color: var(--line); }
+.voice .interrupt { min-height: 44px; transition: opacity .32s var(--ease-out); }
+.voice .interrupt.off { opacity: 0; pointer-events: none; }
