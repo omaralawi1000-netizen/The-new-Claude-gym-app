@@ -142,7 +142,7 @@ describe('the Coach sees days a little over', () => {
     useStore.setState({ entries: [entry(addDays(today, -1), 2800), entry(addDays(today, -3), 3300), entry(addDays(today, -5), 2600)] });
     const l = buildCoachContext(data(), today, (id) => id);
     // (2,600 is 100 over: under the line; 3,300 is heavy, and counted)
-    expect(l).toContain(`Over the target, today and the 6 days before (since Mon ${addDays(today, -6)}; at least 200 kcal and 10 % over): 2 of 7 days, +1100 kcal in all — Thu ${addDays(today, -3)} +800 (heavy), Sat ${addDays(today, -1)} +300. Only the days marked (heavy) are heavy; the others are a little over.`);
+    expect(l).toContain(`Over the target, today and the 6 days before (since Mon ${addDays(today, -6)}; at least 200 kcal and 10 % over): 2 of 7 days, +1100 kcal in all — Thu ${addDays(today, -3)} +800 (heavy), 3300 kcal of it logged after 20:00; Sat ${addDays(today, -1)} +300, 2800 kcal of it logged after 20:00. Only the days marked (heavy) are heavy; the others are a little over.`);
     useStore.getState().updateSettings({ heavyDays: 'off' });
     expect(buildCoachContext(data(), today, (id) => id)).not.toContain('Over the target');
   });
@@ -161,12 +161,14 @@ describe('one week, counted', () => {
     expect(l).toContain(`Day by day (today and the 6 days before, since Mon ${addDays(today, -6)}; kcal / protein; workouts; weigh-ins): Mon 10-19: not logged`);
     expect(l).toContain('Sun 10-25 (today, so far): 500 / 30 g');
     // (30 g a day against 40: none on target; today isn't counted)
-    expect(l).toContain('Protein at or above the 40 g target: 0 of those 2 days; the other 2 were 10 g under.');
+    expect(l).toContain('Protein at or above the 40 g target: 0 of those 2 days; under on Fri −10, Sat −10 g.');
     expect(l).toContain('"This week" or "my week" in a question means this same window');
     // (the weekly review has its own Mon–Sun week: DATA's 7 days are never read as it)
     const r = buildCoachContext(data(), today, (id) => id, undefined, { week: { from: addDays(today, -7), to: addDays(today, -1) } });
     expect(r).toContain(`"The week" here is WEEK ${addDays(today, -7)}…${addDays(today, -1)} above`);
     expect(r).not.toContain('answer that one window');
+    expect(r).not.toContain('Average of the');
+    expect(r).not.toContain('Protein at or above');
   });
   it('a weekly-review focus on skipped sets or days over can be checked the week after', () => {
     const n = { skipped: 4, plannedSets: 30, skippedWorkouts: 3, overDays: 1, loggedDays: 7 } as unknown as ReviewNumbers;
@@ -192,5 +194,18 @@ describe('a stalled lift in DATA gets the workout screen\'s own numbers', () => 
     useStore.setState({ sessions, routines, exercises });
     const l = buildCoachContext(data(), today, (id) => id);
     expect(l).toMatch(/Stalled lifts[^\n]*calf[^\n]*the workout screen offers a reset to 1\dkg×15/);
+  });
+});
+
+describe('round 7: exact protein days, evening overs', () => {
+  it('179.6 g shows as 180 and counts as on target; the evening part of a day over is said', () => {
+    // (what was logged that same day by 20:00 doesn't count; the 21:00 snack does)
+    const at = (h: number) => new Date(2026, 9, 24, h, 0).getTime();
+    const late = { ...entry(addDays(today, -1), 600), at: at(21) };
+    useStore.setState({ entries: [{ ...entry(addDays(today, -2), 2600), at: new Date(2026, 9, 23, 13).getTime() }, { ...entry(addDays(today, -1), 2300), nutrients: { kcal: 2300, protein: 179.6 }, at: at(13) }, late] });
+    useStore.getState().updateSettings({ goals: { ...data().settings.goals, protein: 180 } });
+    const l = buildCoachContext(data(), today, (id) => id);
+    expect(l).toContain('Protein at or above the 180 g target: 1 of those 2 days; under on Fri −150 g.');
+    expect(l).toContain(`Sat ${addDays(today, -1)} +400, 600 kcal of it logged after 20:00.`);
   });
 });

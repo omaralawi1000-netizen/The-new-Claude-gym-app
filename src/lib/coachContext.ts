@@ -60,13 +60,14 @@ export function buildCoachContext(d: AppData, today: string, exName: (id: string
   // (counted, so praise for protein is exact: "on target 3 of 6 days", not "every day")
   const full = week.filter((x) => x.logged && x.date !== today && !unfinished.has(x.date));
   const tm = trueMaintenance(d, today);
-  if (full.length) L.push(`Average of the ${full.length} finished, logged days in that window (today isn't finished): ${r0(average(full.map((x) => x.kcal)) ?? 0)} kcal, ${r0(average(full.map((x) => x.protein)) ?? 0)} g protein${tm ? ` (true maintenance about ${tm.kcal} kcal)` : ''}.`);
-  if (g.protein && full.length) {
-    const under = full.filter((x) => x.protein < g.protein!).map((x) => r0(g.protein! - x.protein));
-    L.push(`Protein at or above the ${g.protein} g target: ${full.length - under.length} of those ${full.length} days${under.length ? `; the other ${under.length} were ${Math.min(...under) === Math.max(...under) ? Math.min(...under) : `${Math.min(...under)}–${Math.max(...under)}`} g under` : ''}.`);
+  if (full.length && !opts?.week) L.push(`Average of the ${full.length} finished, logged days in that window (today isn't finished): ${r0(average(full.map((x) => x.kcal)) ?? 0)} kcal, ${r0(average(full.map((x) => x.protein)) ?? 0)} g protein${tm ? ` (true maintenance about ${tm.kcal} kcal)` : ''}.`);
+  if (g.protein && full.length && !opts?.week) {
+    // (compared on the number the day-by-day shows, and the days under named, so "even on the lower days" can be checked)
+    const under = full.filter((x) => r0(x.protein) < g.protein!).map((x) => `${wd[new Date(`${x.date}T12:00:00`).getDay()]} −${g.protein! - r0(x.protein)}`);
+    L.push(`Protein at or above the ${g.protein} g target: ${full.length - under.length} of those ${full.length} days${under.length ? `; under on ${under.join(', ')} g` : ''}.`);
   }
   L.push(opts?.week
-    ? `"The week" here is WEEK ${opts.week.from}…${opts.week.to} above; the day-by-day, skipped-sets and days-over lines below are ${since}: quote them only for days inside WEEK, and take the week's counts from WEEK and CANDIDATES.`
+    ? `"The week" here is WEEK ${opts.week.from}…${opts.week.to} above. The day-by-day line above and the skipped-sets and days-over lines below cover ${since} instead: quote them only for days inside WEEK; the week's counts and averages come from WEEK and CANDIDATES.`
     : `"This week" or "my week" in a question means this same window (${since}) unless they say "since Monday" or give a date: answer that one window, never two versions; anything older (last Monday, say) is named with its day.`);
   const t0 = days[days.length - 1];
   const overDays = overDaysLine(d, today);
@@ -120,7 +121,7 @@ export function buildCoachContext(d: AppData, today: string, exName: (id: string
     const s1 = sug.sets?.[0];
     return s1?.weightKg ? `; the workout screen's next target: ${r1(s1.weightKg)}kg×${s1.reps} (${sug.kind === 'add-weight' ? 'add weight' : sug.kind === 'hold' ? 'hold the weight' : 'one more rep'})` : '';
   };
-  if (stalls.length) L.push(`Stalled lifts (no new best in their last 3 sessions, over 10+ days): ${stalls.map((x) => `${exName(x.exerciseId)}, best ${r1(x.best.kg)}kg×${x.best.reps} on ${x.since} (${x.sessions} sessions of it in 8 weeks, ${historyOf(x.exerciseId, done).filter((e) => (done.find((q) => q.exercises.includes(e))?.date ?? '') > x.since).length} since then without beating it${next(x.exerciseId)})`).join('; ')}. When it comes up, name it plainly. When a change would help, offer what the workout screen will offer, with those numbers, so the app speaks with one voice (its reset, when it offers one, is about 5 % less weight for a fresh run at the top of the rep range); a variation, more rest between sets, food or sleep are fine as a second idea.`);
+  if (stalls.length) L.push(`Stalled lifts (no new best in their last 3 sessions, over 10+ days): ${stalls.map((x) => `${exName(x.exerciseId)}, best ${r1(x.best.kg)}kg×${x.best.reps} on ${x.since} (${x.sessions} sessions of it in 8 weeks, ${historyOf(x.exerciseId, done).filter((e) => (done.find((q) => q.exercises.includes(e))?.date ?? '') > x.since).length} since then without beating it${next(x.exerciseId)})`).join('; ')}. When it comes up, name it plainly; why it stalled is a guess: say it as one. When a change would help, offer what the workout screen will offer, with those numbers, so the app speaks with one voice (its reset, when it offers one, is about 5 % less weight for a fresh run at the top of the rep range); a variation, more rest between sets, food or sleep are fine as a second idea.`);
   const wr = d.activities.filter((a) => a.kind === 'wrestling' && diffDays(today, a.date) < 28);
   const wrDays = usualDays(d.activities.filter((a) => a.kind === 'wrestling' && diffDays(today, a.date) < 56).map((a) => a.date));
   if (wr.length) L.push(`Wrestling (last 4 weeks): ${wr.length} sessions, ${Math.round(wr.reduce((n, a) => n + a.durationSec, 0) / 60)} min on the mat${wr.some((a) => a.intensity === 3) ? ', some at max intensity' : ''}${wrDays.length ? `; usually on ${wrDays.map((w) => ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][w]).join(', ')}` : ''}. Wrestling is hard lower-body, hip, grip, neck/upper-back and conditioning work: it covers much of what a leg day would, so never call their legs untrained when they wrestle regularly. Count it as training load.`);
@@ -132,9 +133,9 @@ export function buildCoachContext(d: AppData, today: string, exName: (id: string
   if (acts.length) L.push(`Planned besides the gym: ${acts.join(', ')}.`);
   // (whole lines only, so a busy week never cuts a fact in half)
   let out = '';
-  let left = 0;
-  for (const l of L) { if (left || out.length + l.length + 1 > 6500) { left++; continue; } out += (out ? '\n' : '') + l; }
-  if (left) out += `\n(${left} more lines left out for length: not known here, not "none")`;
+  const dropped: string[] = [];
+  for (const l of L) { if (out.length + l.length + 1 > 6500) { dropped.push(l.replace(/^- /, 'workout ').split(/[:(]/)[0].trim()); continue; } out += (out ? '\n' : '') + l; }
+  if (dropped.length) out += `\n(Left out for length: ${dropped.join('; ')}. Not known here, not "none".)`;
   return out;
 }
 

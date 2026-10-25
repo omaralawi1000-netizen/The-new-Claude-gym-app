@@ -6,7 +6,7 @@ import { useUI, haptic } from '../state/ui';
 import { useAi, solOn } from '../state/ai';
 import { useT, useLang } from '../lib/i18n';
 import { addDays, dayKey, fmtDate, startOfWeek } from '../lib/dates';
-import { reviewWeekEnd } from '../lib/stats';
+import { nutritionByDay, reviewWeekEnd } from '../lib/stats';
 import { candidates, localVerdict, met, reviewNumbers, storedReview, type Candidate, type ReviewNumbers } from '../lib/weekReview';
 import { fmtNum, fmtSigned, kgToDisplay } from '../lib/units';
 import { Sheet, SheetHead } from '../ui/Sheet';
@@ -96,7 +96,7 @@ export function WeekReviewSheet({ props }: { props: { end?: string } }) {
       const week = [
         `WEEK ${n.from}…${n.to}: ${n.sessions} workouts (week before ${n.prevSessions}), ${n.planned} planned, ${n.missed} planned missed, ${n.wrestling} wrestling, ${n.sets} working sets, ${n.records} records, streak ${n.streak} weeks with 2+ workouts.`,
         `Sets per muscle (usual week in brackets): ${muscles || 'none'}.`,
-        `Food: logged on ${n.loggedDays} of 7 days${n.proteinAvg !== null ? `; on logged days ${Math.round(n.kcalAvg ?? 0)} kcal and ${Math.round(n.proteinAvg)} g protein a day (targets ${d.settings.goals.kcal} kcal, ${d.settings.goals.protein} g)` : ''}. Days not logged are unknown, not zero.`,
+        `Food: logged on ${n.loggedDays} of 7 days${n.proteinAvg !== null ? `; on logged days ${Math.round(n.kcalAvg ?? 0)} kcal and ${Math.round(n.proteinAvg)} g protein a day (targets ${d.settings.goals.kcal} kcal, ${d.settings.goals.protein} g)` : ''}${d.settings.goals.protein ? `; protein at or above target on ${nutritionByDay(d.entries, n.from, n.to).filter((x) => x.logged && Math.round(x.protein) >= d.settings.goals.protein!).length} of ${n.loggedDays} logged days` : ''}. Days not logged are unknown, not zero.`,
         `Weight: ${n.weightPct === null ? 'not enough weigh-ins' : `${n.weightPct > 0 ? '+' : ''}${n.weightPct}% a week (trend)`}.`,
         // heavy days this week against the 3 before, and true maintenance (lib/eating.ts, lib/maintenance.ts)
         (() => {
