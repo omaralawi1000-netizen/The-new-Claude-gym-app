@@ -13,6 +13,7 @@ public class RestAlarmReceiver extends BroadcastReceiver {
 
     @Override
     public void onReceive(Context c, Intent intent) {
+        RestNotifications.seen(c);
         if (ACTION_TICK.equals(intent.getAction())) { RestTimerService.start(c); return; }
         // the end: kept awake a moment longer, so Android doesn't freeze the app while the clicks play
         PendingResult later = goAsync();

@@ -37,7 +37,8 @@ import { setFpsMeter, useFpsMeterOn } from '../ui/FpsMeter';
 import { BG_KINDS, BgBody, setBgPhoto, useBgPhoto, useSkyClock, type BgKind } from '../ui/Backdrop';
 import { startStutter, stopStutter, stutterReport, stutterState, subscribeStutter } from '../lib/stutter';
 import { coachTrace } from '../lib/coachTrace';
-import { lastRestLate } from './workout/rest';
+import { lastDone, lastHeard, lastRestLate } from './workout/rest';
+import { fmtTime } from '../lib/dates';
 import { appOnPhone, inAndroidApp, restCheck, showAppRest } from '../lib/androidApp';
 import { hcLastLine, hcLink, hcStatus, noteAsk } from '../lib/healthSync';
 import { ACTIVITY_LABEL, INTENSITY_LABEL, activityIcon } from '../lib/activity';
@@ -396,12 +397,28 @@ function RestAlertRow() {
     if (v && supported && Notification.permission === 'default') { const r = await Notification.requestPermission().catch(() => 'default' as NotificationPermission); setPerm(r); }
     s.updateSettings({ restNotify: v });
   };
+  const lang = useLang();
+  const [done, setDone] = useState<Awaited<ReturnType<typeof lastDone>> | null>(null);
+  useEffect(() => { if (/Android/i.test(navigator.userAgent)) lastDone().then(setDone).catch(() => {}); }, []);
   if (!supported) return null;
   const late = on ? lastRestLate() : null;
   const app = inAndroidApp();
   // on Android: a test that goes the same way a real rest does (the line saying which link of the chain works lives in
   // About Aven, next to Copy details: it is for whoever is fixing the app, not for this row)
   const android = /Android/i.test(navigator.userAgent);
+  // the last Done ✓ from the alert or the watch: where it got to (the worker got the tap → Aven heard it → ticked or why not)
+  // (with the day when it wasn't today: "tapped 20:17" from an earlier day read as today, 25 Oct)
+  const hhmm = (x: number) => (new Date(x).toDateString() === new Date().toDateString() ? '' : `${new Date(x).toLocaleDateString(lang === 'da' ? 'da-DK' : 'en-GB', { day: 'numeric', month: 'short' })} `) + fmtTime(x, lang);
+  const doneLine = !done ? '' : !done.tap && !done.page ? t('Last Done ✓: none has reached Aven yet')
+    : done.page && (!done.tap || done.page.at >= done.tap.at - 1000)
+      ? `${t('Last Done ✓: tapped {time}', { time: hhmm(done.page.at) })} · ${done.page.why ? t('not ticked ({why})', { why: t(done.page.why) }) : t('ticked at {time}', { time: hhmm(done.page.heard) })}`
+      : `${t('Last Done ✓: tapped {time}', { time: hhmm(done.tap!.at) })} · ${t('Aven hasn’t picked it up')} (${done.tap!.sw}, ${done.tap!.wins})`;
+  // (for the rest worker: the last button it got and what it made of it, and taps still waiting for Aven)
+  const clickLine = done?.click ? `button ${done.click.action}${done.click.action === 'skip' ? (done.click.done ? '→done' : `→skip (${Math.round((done.click.at - done.click.endsAt) / 1000)} s)`) : ''} ${hhmm(done.click.at)}${done.waiting ? ` · waiting ${done.waiting}` : ''}` : done?.waiting ? `waiting ${done.waiting}` : '';
+  // (the page's side: the last message from the rest worker, what it said and what the page made of it)
+  const heard = android ? lastHeard() : null;
+  const sec = (x: number) => `${x >= 0 ? '+' : ''}${Math.round(x / 100) / 10} s`;
+  const heardLine = heard ? `heard ${heard.action} ${hhmm(heard.at)} (tap ${sec(heard.at - heard.ends)} after the end, ${heard.mine ? 'this rest' : `other rest ${heard.key.split(':')[1] ?? ''}/${heard.start}`}) → ${heard.asDone ? 'done' : 'skip'}` : 'heard nothing';
   const test = async () => {
     let p = Notification.permission;
     if (p === 'default') { p = await Notification.requestPermission().catch(() => 'default' as NotificationPermission); setPerm(p); }
@@ -430,7 +447,14 @@ function RestAlertRow() {
       <div>
         <div>{t('Rest timer on lock screen')}</div>
         <div className="xs t2" style={{ marginTop: 2 }}>{perm === 'denied' ? (app ? t('Notifications are off for the Aven app. Turn them on in your phone’s Settings › Apps › Aven › Notifications, then force stop Chrome (Settings › Apps › Chrome) so it notices, and open Aven again.') : t('Notifications are blocked for Aven in your browser settings.')) : t('Shows when rest is over and buzzes, even in another app or with the screen off.')}</div>
-        {android && <button className="btn sm press" style={{ marginTop: 8 }} onClick={test}>{t('Send a test')}</button>}
+        {android && doneLine && <div className="xs t3" style={{ marginTop: 4, wordBreak: 'break-word' }}>{doneLine}{clickLine && <> · {clickLine}</>} · {heardLine}</div>}
+        {android && (
+          <div className="row-flex" style={{ gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+            <button className="btn sm press" onClick={test}>{t('Send a test')}</button>
+            {/* the Android app's own log of the rest timer (what it got from Chrome, what it rang, whether a Done ✓ reached Chrome) */}
+            {appOnPhone() && <a className="btn sm ghost press" href="intent://restlog#Intent;scheme=aven;package=app.aven.android;end">{t('App log')}</a>}
+          </div>
+        )}
         {late && <div className="xs t3" style={{ marginTop: 2 }}>{late.ms < 2000 ? t('Last alert came on time.') : t('Last alert came {n} s late.', { n: Math.round(late.ms / 1000) })}</div>}
       </div>
       <Toggle on={on} onChange={toggle} label={t('Rest timer on lock screen')} />

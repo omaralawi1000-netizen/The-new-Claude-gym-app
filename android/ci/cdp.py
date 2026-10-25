@@ -53,7 +53,7 @@ REST = """Promise.race([new Promise((ok) => setTimeout(() => ok('timed out at: '
   if (!reg.active) return 'no active rest worker';
   window.__step = 'show (permission ' + Notification.permission + ')';
   const now = Date.now(), endsAt = now + %d * 1000, s = now - %d * 1000;
-  const words = { v: 1, s, x: 'Incline Smith Machine Press', l: 'Set 2 of 3 · 60 kg × 8', o: 'Time for set 2',
+  const words = { v: 1, i: 'ci', s, x: 'Incline Smith Machine Press', l: 'Set 2 of 3 · 60 kg × 8', o: 'Time for set 2',
     b: 'Incline Smith Machine Press · 60 kg × 8', p: '+30 s', k: 'Skip', d: 'Done ✓ 60 kg × 8', y: 'Set 2 ✓ · 60 kg × 8', z: 'Rest 0:15', n: 15,
     w: [{ x: 'Incline Smith Machine Press', l: 'Set 3 of 3 · 60 kg × 8', o: 'Time for set 3', b: 'Incline Smith Machine Press · 60 kg × 8', d: 'Done ✓ 60 kg × 8', y: 'Set 3 ✓ · 60 kg × 8', z: 'Last set done · open Aven to finish', n: 0 }] };
   for (const n of await reg.getNotifications()) n.close();

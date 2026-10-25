@@ -247,16 +247,20 @@ export function offerRestAlerts(toast: (text: string, o: { actionLabel: string; 
  * rest still count from the tap. Each rest's Done counts once (the message, the cache, a page that was asleep).
  */
 let doneFor = '';
-export function applyDone(at = Date.now()): boolean {
+export function applyDone(at = Date.now(), via = 'message'): boolean {
   const a = useStore.getState().active;
-  if (!a?.rest) return false;
+  if (!a?.rest) return noteDone(at, via, 'no rest running');
   const once = `${a.id}:${a.rest.endsAt}`;
   if (doneFor === once) return false; // (the other copy of a tap already applied: nothing to note)
+  // the same tap heard twice (the Android app keeps every Done ✓ too, and hands it over when Aven opens): once only
+  if (appliedNear(at)) return noteDone(at, via, 'already ticked');
   const nx = nextSetOf(a);
-  if (!nx) return false;
+  if (!nx) return noteDone(at, via, 'no set left');
   doneFor = once;
   const ok = !!completeSet(nx.se.id, nx.set.id);
-  if (!ok) return false;
+  if (!ok) return noteDone(at, via, 'the set has no reps to log');
+  noteDone(at, via, '');
+  markApplied(at);
   const late = Date.now() - at;
   if (late > 2000) {
     // heard late: the set was done at the tap, and the next rest started then (it may be over already: "Go")
@@ -268,7 +272,43 @@ export function applyDone(at = Date.now()): boolean {
 }
 
 // the keys the workers keep a Done ✓ under (public/rest-sw.js, android/site/…-rest/sw.js): whole paths, the same everywhere
-const PENDING_TAP = '/aven-pending/tap-';
+const PENDING_TAP = '/aven-pending/tap-', PENDING_LOG = '/aven-pending/log';
+
+/** What the rest worker's last few messages were and what the page made of them (Settings › Training shows the last one:
+ *  25 Oct, a Done ✓ that reached Aven ended the rest like a Skip). */
+const HEARD_LOG = 'aven.restHeard';
+function noteHeard(d: { action?: string; key?: unknown }, at: number, a: WorkoutSession | null | undefined, asDone: boolean) {
+  try {
+    const r = a?.rest;
+    const one = { action: d.action, at, heard: Date.now(), key: String(d.key ?? ''), ends: r?.endsAt ?? 0, start: r ? r.endsAt - r.total * 1000 : 0, mine: !!r && isThisRest(d.key), asDone };
+    const all = [...(JSON.parse(localStorage.getItem(HEARD_LOG) ?? '[]') as unknown[]), one].slice(-6);
+    localStorage.setItem(HEARD_LOG, JSON.stringify(all));
+  } catch { /* ignore */ }
+}
+export function lastHeard(): { action?: string; at: number; heard: number; key: string; ends: number; start: number; mine: boolean; asDone: boolean } | null {
+  try { const all = JSON.parse(localStorage.getItem(HEARD_LOG) ?? '[]'); return all[all.length - 1] ?? null; } catch { return null; }
+}
+
+/** The last Done ✓ that reached the page and what came of it (Settings › Training shows it: one screenshot says where a
+ *  tap stopped, 25 Oct). Returns false, for applyDone's "nothing ticked". */
+const DONE_LOG = 'aven.doneLog';
+function noteDone(at: number, via: string, why: string): false {
+  try { localStorage.setItem(DONE_LOG, JSON.stringify({ at, heard: Date.now(), via, why })); } catch { /* ignore */ }
+  return false;
+}
+export async function lastDone(): Promise<{ tap?: { at: number; sw: string; wins: number }; page?: { at: number; heard: number; via: string; why: string }; click?: { at: number; action: string; done: boolean; endsAt: number }; waiting: number }> {
+  let tap, page, click, waiting = 0;
+  try { page = JSON.parse(localStorage.getItem(DONE_LOG) ?? 'null') ?? undefined; } catch { /* ignore */ }
+  try {
+    if (typeof caches !== 'undefined') {
+      const c = await caches.open('aven-pending');
+      const r = await c.match(PENDING_LOG); tap = r ? await r.json() : undefined;
+      const k = await c.match('/aven-pending/click'); click = k ? await k.json() : undefined;
+      waiting = (await c.keys()).filter((q) => new URL(q.url).pathname.startsWith(PENDING_TAP)).length;
+    }
+  } catch { /* ignore */ }
+  return { tap, page, click, waiting };
+}
 
 /** Is this the rest a Done ✓ was tapped for (the website's key, or the Android app's)? */
 const isThisRest = (key: unknown) => {
@@ -280,6 +320,36 @@ const isThisRest = (key: unknown) => {
 const workoutOf = (key: unknown) => (typeof key === 'string' ? key.split(':')[0] : '');
 const tapSeen = new Set<number>();
 
+// The Done ✓ taps already applied (their tap times): a tap heard both from Chrome and from the Android app's own copy
+// (the times differ by a moment; two real taps are seconds apart at least) ticks one set, not two. Kept across reloads.
+const APPLIED = 'aven.doneApplied';
+const appliedTimes = (): number[] => { try { return JSON.parse(localStorage.getItem(APPLIED) ?? '[]'); } catch { return []; } };
+const appliedNear = (at: number) => appliedTimes().some((x) => Math.abs(x - at) < 2500);
+function markApplied(at: number) { try { localStorage.setItem(APPLIED, JSON.stringify([...appliedTimes(), at].slice(-40))); } catch { /* ignore */ } }
+
+/**
+ * The Done ✓ taps the Android app kept itself, handed over in the address when Aven opens through it ("#dn=<workout>:<tap
+ * time>,…"). Chrome passed a Done ✓ on only some of the time on Omar's phone (25 Oct), so this is the way that always
+ * works once Aven opens; they wait here and are applied like the workers' kept taps.
+ */
+const NATIVE = 'aven.nativeTaps';
+type Kept = { key: string; at: number };
+const nativeTaps = (): Kept[] => { try { return JSON.parse(localStorage.getItem(NATIVE) ?? '[]'); } catch { return []; } };
+const saveNative = (l: Kept[]) => { try { if (l.length) localStorage.setItem(NATIVE, JSON.stringify(l)); else localStorage.removeItem(NATIVE); } catch { /* ignore */ } };
+export function applyDoneFromAddress(): void {
+  let hash = location.hash;
+  try { hash = decodeURIComponent(hash); } catch { /* as it is */ }
+  const m = /(?:^#|&)dn=([A-Za-z0-9_:,-]{3,4000})/.exec(hash);
+  if (!m) return;
+  const got = m[1].split(',').map((x) => { const i = x.lastIndexOf(':'); return { key: `${x.slice(0, i)}:0`, at: Number(x.slice(i + 1)) }; })
+    .filter((x) => x.key.length > 2 && Number.isFinite(x.at) && x.at > 0 && x.at <= Date.now() + 60_000);
+  saveNative([...nativeTaps(), ...got].slice(-40));
+  // (out of the address, keeping the watch's numbers there for lib/healthSync.ts)
+  const rest = hash.replace(m[0], m[0].startsWith('#') ? '#' : '').replace(/^#&/, '#');
+  try { history.replaceState(history.state, '', location.pathname + location.search + (rest.length > 1 ? rest : '')); } catch { /* fine */ }
+  void (async () => { await pendingRun; await applyPendingDone(); })();
+}
+
 /**
  * Every Done ✓ tap is kept in the workers' cache, one entry each (a whole workout can be done from the wrist while this
  * page sleeps). Applied oldest first when Aven opens or wakes, each ticking the set that was next at that moment, from the
@@ -289,23 +359,31 @@ let pendingRun: Promise<void> | null = null;
 export function applyPendingDone(): Promise<void> {
   pendingRun ??= (async () => {
     try {
-      if (typeof caches === 'undefined') return;
-      const c = await caches.open('aven-pending');
-      const taps: { req: Request; key?: string; at: number }[] = [];
-      for (const req of await c.keys()) {
+      const c = typeof caches === 'undefined' ? null : await caches.open('aven-pending').catch(() => null);
+      const taps: { req: Request | null; key?: string; at: number; via: string }[] = [];
+      if (c) for (const req of await c.keys()) {
         if (!new URL(req.url).pathname.startsWith(PENDING_TAP)) continue;
-        try { const p = await (await c.match(req))!.json(); taps.push({ req, key: p.key, at: Number(p.at) || 0 }); } catch { await c.delete(req); }
+        try { const p = await (await c.match(req))!.json(); taps.push({ req, key: p.key, at: Number(p.at) || 0, via: 'cache' }); } catch { await c.delete(req); }
       }
+      // (and the ones the Android app kept itself)
+      const kept = nativeTaps();
+      for (const k of kept) taps.push({ req: null, key: k.key, at: k.at, via: 'app' });
+      const drop = async (tp: (typeof taps)[number]) => {
+        if (tp.req) await c!.delete(tp.req);
+        else { const i = kept.findIndex((k) => k.at === tp.at && k.key === tp.key); if (i >= 0) kept.splice(i, 1); }
+      };
       taps.sort((x, y) => x.at - y.at);
       for (const tp of taps) {
         const a = useStore.getState().active;
         const old = Date.now() - tp.at;
-        if (old > 6 * 3600_000) { await c.delete(tp.req); continue; }
-        if (!a || workoutOf(tp.key) !== a.id) { if (old > 30 * 60_000) await c.delete(tp.req); continue; }
-        await c.delete(tp.req);
+        if (old > 6 * 3600_000) { await drop(tp); continue; }
+        if (!a || workoutOf(tp.key) !== a.id) { if (old > 30 * 60_000) await drop(tp); if (old < 30 * 60_000) noteDone(tp.at, tp.via, a ? 'another workout' : 'no workout running'); continue; }
+        await drop(tp);
         tapSeen.add(tp.at);
-        if (a.rest && a.rest.endsAt - a.rest.total * 1000 <= tp.at + 2000) applyDone(tp.at);
+        if (a.rest && a.rest.endsAt - a.rest.total * 1000 <= tp.at + 2000) applyDone(tp.at, tp.via);
+        else if (!appliedNear(tp.at)) noteDone(tp.at, tp.via, a.rest ? 'a different rest' : 'no rest running');
       }
+      saveNative(kept);
     } catch { /* no cache storage: nothing waits */ }
   })().finally(() => { pendingRun = null; });
   return pendingRun;
@@ -372,11 +450,15 @@ export function useRestCue() {
         // time). The kept copy is the one applied; the message is the fallback for a worker that didn't keep it.
         const a = useStore.getState().active;
         const at = typeof e.data.at === 'number' ? e.data.at : Date.now();
-        if (e.data.action === 'done' || (e.data.action === 'skip' && a?.rest && a.rest.endsAt < at - 1500 && isThisRest(e.data.key))) {
+        const asDone = e.data.action === 'done' || (e.data.action === 'skip' && !!a?.rest && a.rest.endsAt < at + 500 && isThisRest(e.data.key));
+        // (a Skip heard for a rest that's over is a Done ✓: the countdown and its Skip go when the rest ends, and only the
+        // alert's Done ✓ comes as a Skip after that. The worker judges by 1.5 s; here the end itself counts, 25 Oct)
+        noteHeard(e.data, at, a, asDone);
+        if (asDone) {
           void (async () => {
             await pendingRun; await applyPendingDone();
             const b = useStore.getState().active;
-            if (!tapSeen.has(at) && b?.rest && workoutOf(e.data.key) === b.id) applyDone(at);
+            if (!tapSeen.has(at) && b?.rest && workoutOf(e.data.key) === b.id) applyDone(at, 'message');
           })();
           return;
         }
