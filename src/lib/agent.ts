@@ -1532,8 +1532,8 @@ function doPlanDay(a: Extract<AgentAction, { type: 'plan_day' }>, ctx: AgentCtx)
   const was = (() => { const ov = st.schedule.overrides.find((o) => o.date === date); const id = ov?.routineId ?? (st.schedule.mode === 'weekly' && !st.schedule.cleared.includes(date) ? st.schedule.weekly[weekdayOf(date)] : null); return id ? st.routines.find((r) => r.id === id) : undefined; })();
   const lines: AgentResult['lines'] = plan.picks.map((p) => ({ text: exLabel(p.ex, lang), sub: `${p.sets} × ${p.repMin === p.repMax ? p.repMin : `${p.repMin}–${p.repMax}`}${p.target ? ` · ${p.target}` : ''}`, warn: !!p.flagged }));
   plan.picks.filter((p) => p.flagged).forEach((p) => lines.push({ text: exLabel(p.ex, lang), sub: `${t('You told me')}: ${p.flagged}`, warn: true }));
-  if (plan.warnings.includes('wrestling-next-day')) lines.push({ text: t('Wrestling the next day'), sub: t('A lot of leg work the day before — keep it lighter?'), warn: true });
-  if (plan.warnings.includes('wrestled-day-before')) lines.push({ text: t('Wrestling the day before'), sub: t('Your legs may still be tired from the mat — keep the leg work lighter?'), warn: true });
+  if (plan.warnings.includes('wrestling-next-day')) lines.push({ text: t('Wrestling the next day'), sub: t('A lot of leg work the day before the mat'), warn: true });
+  if (plan.warnings.includes('wrestled-day-before')) lines.push({ text: t('Wrestling the day before'), sub: t('Your legs may still be tired from the mat'), warn: true });
   missing.forEach((n) => lines.push({ text: n, sub: t('Not in your exercise library'), warn: true }));
   const result: AgentResult = {
     id: uid('r'), kind: 'routine', pending: true, offer: true, key: `plan:${date}`,

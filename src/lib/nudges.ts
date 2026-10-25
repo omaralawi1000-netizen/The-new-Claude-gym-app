@@ -87,8 +87,8 @@ export function findNudges(d: AppData, today: string, hour: number, t: T, lang: 
     const legSets = r ? r.items.reduce((n, it) => n + (LEGS.includes(map.get(it.exerciseId)?.muscles?.[0] as MuscleGroup) ? it.workingSets : 0), 0) : 0;
     if (r && legSets >= 6) add({ id: `legs-after-mat:${today}:${r.id}`, kind: 'suggestion', icon: 'wrestle', priority: 70,
       title: t('{routine} after hard wrestling', { routine: r.name }),
-      body: t('{n} leg sets the day after the mat. Lighter legs today, or swap the day?', { n: legSets }),
-      action: { label: t('Ask the Coach'), run: { type: 'coach', prompt: t('I wrestled hard yesterday and today is {routine} with {n} leg sets. Make the legs lighter today, or move it.', { routine: r.name, n: legSets }) } } });
+      body: t('{n} leg sets the day after the mat. Swap the day?', { n: legSets }),
+      action: { label: t('Ask the Coach'), run: { type: 'coach', prompt: t('I wrestled hard yesterday and today is {routine} with {n} leg sets. Should I move it?', { routine: r.name, n: legSets }) } } });
   }
 
   // a lift that has stopped improving
