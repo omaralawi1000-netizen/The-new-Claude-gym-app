@@ -359,6 +359,8 @@ export const surfaceOf = (v: unknown): NonNullable<Settings['surface']> => (v ==
 /** the surface look on trial (Settings > Appearance > Surfaces, surfaces.css `data-look`); missing = A, the pick */
 // (Omar 25 Oct: A for everyone, the picker is gone; an old saved choice is ignored)
 export const lookOf = (_v?: unknown): NonNullable<Settings['look']> => 'a';
+/** the card colour on busy backgrounds, on trial on Beta (Settings > Appearance > Cards, frost.ts `data-cards`); missing = blue (E) */
+export const cardsOf = (v: unknown): NonNullable<Settings['cards']> => (v === 'sapphire' || v === 'clear' || v === 'plum' ? v : 'blue');
 
 export interface Settings {
   name: string;
@@ -372,6 +374,8 @@ export interface Settings {
   surface?: 'now' | 'glass' | 'deep';
   /** cards, buttons and sheets on dark (surfaces.css `data-look`): Before = as shipped, A/B/C the three options; missing = A */
   look?: 'before' | 'a' | 'b' | 'c';
+  /** the card colour on busy backgrounds (frost.ts `data-cards`): E blue, F sapphire, G clear, A plum (v0.1.170); missing = blue */
+  cards?: 'blue' | 'sapphire' | 'clear' | 'plum';
   /** what is drawn behind the app (ui/Backdrop.tsx, styles.css `.bgx`); missing = classic (the drifting colour field) */
   background?: 'classic' | 'orb' | 'tabs' | 'sunrise' | 'mesh' | 'dots' | 'time' | 'night' | 'photo';
   /** which view a workout opens in; missing or 'last' = the one last used on this phone */
