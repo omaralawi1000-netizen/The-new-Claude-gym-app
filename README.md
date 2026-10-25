@@ -3131,3 +3131,12 @@ the one difference is the app's direct OpenAI call with a strict schema, where e
 can coax out an empty filler action. Such a filler (nothing in it but its type) is no longer "unreadable"; anything real
 that can't be read is still said, and the first one dropped is kept in the trouble log (Settings → About) so the next one
 can be traced. The exam now fails any answer with a dropped action.
+
+## No doctor lines; the Coach on Medium (25 Oct 2026, v0.1.173)
+Omar: "remove that doctor shit. Don't force a rule on it. ChatGPT never told me in the real app that I need a doctor."
+Every line that told the Coach to send them to a doctor, a GP or a dietitian is gone (HOW YOU COACH, the handbook's red
+flags and teen/weight-class/women topics, the "help was suggested" fact). What stays is what protects the numbers, not
+wording: throwing up, laxatives or fasting to make up for food still turns catch-ups off and is remembered. The model may
+still suggest a doctor on its own when something is truly serious, the way the ChatGPT app does.
+The Coach thinks at Medium by default, and the setting is now a ceiling: the chooser's "high" tier no longer overrides it,
+so no 30–45 s waits.
