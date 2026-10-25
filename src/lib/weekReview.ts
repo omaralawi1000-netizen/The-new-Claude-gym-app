@@ -8,7 +8,7 @@ import type { AppData, MuscleGroup, WeekReviewNote } from './types';
 import { addDays } from './dates';
 import { MUSCLES, setsPerMuscle, skippedSets, weekReview, weekStreak, weeklyTraining, type WeekReview } from './stats';
 import { plannedFor } from '../state/store';
-import { overDays } from './eating';
+import { heavyMode, overDays } from './eating';
 
 export interface MuscleWeek { m: MuscleGroup; sets: number; /** a week, on average, over the 4 weeks before */ avg: number }
 export interface ReviewNumbers extends WeekReview {
@@ -26,8 +26,10 @@ export interface ReviewNumbers extends WeekReview {
   /** planned working sets left undone, and of how many (the same count the Coach sees) */
   skipped: number;
   plannedSets: number;
-  /** days over the calorie target (a little or heavy; 0 when heavy-day notices are off) */
-  overDays: number;
+  /** workouts that could be judged for skipped sets (0 = nothing to judge) */
+  skippedWorkouts: number;
+  /** days over the calorie target (a little or heavy); null when there is no target or heavy-day notices are off */
+  overDays: number | null;
 }
 
 const r1 = (n: number) => Math.round(n * 10) / 10;
@@ -55,7 +57,8 @@ export function reviewNumbers(d: AppData, to: string, musclesOf: (exerciseId: st
     sets: done.reduce((n, s) => n + s.exercises.reduce((k, e) => k + e.sets.filter((x) => x.done && x.type === 'working').length, 0), 0),
     muscles, streak: weekStreak(weeks, 2),
     weightPct: base.weightRate !== null && lastKg ? r1((base.weightRate / lastKg) * 100) : null,
-    skipped: sk.skipped, plannedSets: sk.planned, overDays: overDays(d, to).length,
+    skipped: sk.skipped, plannedSets: sk.planned, skippedWorkouts: sk.workouts,
+    overDays: !d.settings.goals.kcal || heavyMode(d.settings) === 'off' ? null : overDays(d, to).length,
   };
 }
 
@@ -79,7 +82,7 @@ export function candidates(d: AppData, n: ReviewNumbers, name: (id: string) => s
   if (n.weightPct !== null && n.weightPct <= -1) out.push({ id: 'weight', key: 'Weight is dropping {pct}% a week, faster than is healthy', vars: { pct: Math.abs(n.weightPct) }, ask: 'My weight is dropping fast. What should I change in what I eat?', score: 85 });
   // (the same skipped sets and days over the Coach and Today's notes see, for this week)
   if (n.skipped >= 3) out.push({ id: 'skipped', key: '{skipped} of {planned} planned sets skipped', vars: { skipped: n.skipped, planned: n.plannedSets }, ask: 'I skipped planned sets this week. Help me get them all done next week.', score: 55 + Math.min(20, n.skipped * 2) });
-  if (d.settings.goals.kcal && n.overDays >= 3) out.push({ id: 'over', key: '{n} of 7 days over the calorie target', vars: { n: n.overDays }, ask: 'I went over my calories on several days this week. Help me stay closer to my target.', score: 50 + n.overDays * 4 });
+  if (n.overDays !== null && n.overDays >= 3) out.push({ id: 'over', key: '{n} of 7 days over the calorie target', vars: { n: n.overDays }, ask: 'I went over my calories on several days this week. Help me stay closer to my target.', score: 50 + n.overDays * 4 });
   for (const s of n.stalls.slice(0, 1)) out.push({ id: `stall:${s.exerciseId}`, key: '{exercise} has not moved since {date}', vars: { exercise: name(s.exerciseId), date: s.since }, ask: `My ${name(s.exerciseId)} has stalled. What should I change?`, score: 70 });
   if (goal && n.loggedDays >= 3 && n.proteinAvg !== null && n.proteinAvg < goal * 0.9) out.push({ id: 'protein', key: 'Protein: {avg} g a day, target {goal} g', vars: { avg: Math.round(n.proteinAvg), goal }, ask: 'Give me three easy ways to get more protein: from what I usually eat, or simple new ideas.', score: 55 + Math.round((1 - n.proteinAvg / goal) * 40) });
   const dropped = n.muscles.filter((x) => x.avg >= 3 && x.sets < x.avg * 0.5).sort((a, b) => (b.avg - b.sets) - (a.avg - a.sets))[0];
@@ -95,8 +98,9 @@ export function met(id: string, n: ReviewNumbers, goalProtein: number | undefine
   if (id === 'weight') return n.weightPct === null ? null : n.weightPct > -1;
   if (id === 'protein') return n.proteinAvg === null || !goalProtein ? null : n.proteinAvg >= goalProtein * 0.9;
   if (id === 'log') return n.loggedDays >= 5;
-  if (id === 'skipped') return n.skipped < 3;
-  if (id === 'over') return n.overDays < 3;
+  // (no workouts, or too little food logged, the week after: the data can't tell)
+  if (id === 'skipped') return n.skippedWorkouts ? n.skipped < 3 : null;
+  if (id === 'over') return n.overDays === null || n.loggedDays < 5 ? null : n.overDays < 3;
   if (id.startsWith('stall:')) { const x = id.slice(6); return !n.stalls.some((s) => s.exerciseId === x); }
   if (id.startsWith('muscle:')) { const m = n.muscles.find((x) => x.m === id.slice(7)); return m ? m.sets >= m.avg * 0.8 && m.sets > 0 : false; }
   return null;

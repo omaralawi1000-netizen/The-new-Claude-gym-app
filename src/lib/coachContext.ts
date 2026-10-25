@@ -9,7 +9,7 @@ import { currentSetOf } from './currentSet';
 import type { AppData, Exercise, MuscleGroup } from './types';
 import { addDays, diffDays } from './dates';
 import { nutritionByDay, trendRate, weekStreak, weeklyTraining, weightTrend, average, setsPerMuscle, usualDays, stalledLifts, skippedSets, MUSCLES } from './stats';
-import { elapsedMs, historyOf, incrementFor, repRange, suggestProgression } from './workout';
+import { elapsedMs, historyOf, incrementFor, lastPerformance, repRange, setsFromItem, suggestProgression } from './workout';
 import { plannedFor, missedWorkouts, exerciseMap } from '../state/store';
 import { liftHint } from './coachWorkout';
 import { SETTING_SPEC, settingsForPrompt } from './settingSpec';
@@ -41,7 +41,7 @@ export function buildCoachContext(d: AppData, today: string, exName: (id: string
   if (logged.length) {
     const k = average(logged.map((x) => x.kcal)); const pr = average(logged.map((x) => x.protein));
     const partial = logged.filter((x) => x.partial).length;
-    L.push(`Nutrition (last 14 days): ${logged.length} days logged before today. Average on logged days: ${r0(k ?? 0)} kcal, ${r0(pr ?? 0)} g protein, ${r0(average(logged.map((x) => x.carbs)) ?? 0)} g carbs, ${r0(average(logged.map((x) => x.fat)) ?? 0)} g fat.${partial ? ` ${partial} of those days had items with unknown nutrition, so their totals are lower bounds.` : ''} ${unfinished.size ? ` ${[...unfinished].filter((x) => x >= addDays(today, -13)).length} probably unfinished days left out of this average (DATA TRUST).` : ''} Days not logged are unknown, not zero.`);
+    L.push(`Nutrition (last 14 days — NOT the week; for the week use the day-by-day lines below): ${logged.length} days logged before today. Average on logged days: ${r0(k ?? 0)} kcal, ${r0(pr ?? 0)} g protein, ${r0(average(logged.map((x) => x.carbs)) ?? 0)} g carbs, ${r0(average(logged.map((x) => x.fat)) ?? 0)} g fat.${partial ? ` ${partial} of those days had items with unknown nutrition, so their totals are lower bounds.` : ''} ${unfinished.size ? ` ${[...unfinished].filter((x) => x >= addDays(today, -13)).length} probably unfinished days left out of this average (DATA TRUST).` : ''} Days not logged are unknown, not zero.`);
   } else L.push('Nutrition: no earlier days logged in the last 14 days.');
   // the last 7 days one by one, so "how's my week?" is answered without looking anything up (it took a second round)
   // (one window for every week line in DATA — this one, skipped sets, days over: "today and the 6 days before")
@@ -56,7 +56,9 @@ export function buildCoachContext(d: AppData, today: string, exName: (id: string
   }).join(' | ')}.`);
   // (counted, so praise for protein is exact: "on target 3 of 6 days", not "every day")
   const full = week.filter((x) => x.logged && x.date !== today && !unfinished.has(x.date));
+  if (full.length) L.push(`Average on those ${full.length} logged days before today (${since}): ${r0(average(full.map((x) => x.kcal)) ?? 0)} kcal, ${r0(average(full.map((x) => x.protein)) ?? 0)} g protein.`);
   if (g.protein && full.length) L.push(`Protein at or above the ${g.protein} g target: ${full.filter((x) => x.protein >= g.protein!).length} of ${full.length} logged days before today (${since}; today isn't finished).`);
+  L.push(`"This week" or "my week" in a question means this same window (${since}) unless they say "since Monday" or give a date: answer that one window, never two versions; anything older (last Monday, say) is named with its day.`);
   const t0 = days[days.length - 1];
   const overDays = overDaysLine(d, today);
   if (overDays) L.push(overDays);
@@ -73,7 +75,7 @@ export function buildCoachContext(d: AppData, today: string, exName: (id: string
   // training
   const done = d.sessions.filter((s) => s.status === 'done');
   const wk = weeklyTraining(done, today, 4, d.settings.weekStart);
-  L.push(`Training: ${done.length} sessions logged in total; last 4 weeks (oldest→newest): ${wk.map((b) => b.sessions).join(', ')} sessions. Current weekly streak ${weekStreak(wk, Math.max(1, p.days.length || 2))}.`);
+  L.push(`Training: ${done.length} sessions logged in total; last 4 calendar weeks (oldest→newest): ${wk.map((b) => b.sessions).join(', ')} sessions. Current weekly streak ${weekStreak(wk, Math.max(1, p.days.length || 2))}.`);
   for (const s of done.slice(-5).reverse()) {
     const ex = s.exercises.map((e) => {
       const sets = e.sets.filter((x) => x.done && (x.type === 'working'));
@@ -86,7 +88,7 @@ export function buildCoachContext(d: AppData, today: string, exName: (id: string
   // planned sets left undone (a coach notices skipped sets, not only skipped days)
   const WD3 = wd;
   const sk = skippedSets(d, today);
-  const nth = (n: number) => `${n}${n === 1 ? 'st' : n === 2 ? 'nd' : n === 3 ? 'rd' : 'th'}`;
+  const nth = (n: number) => `${n}${n % 10 === 1 && n !== 11 ? 'st' : n % 10 === 2 && n !== 12 ? 'nd' : n % 10 === 3 && n !== 13 ? 'rd' : 'th'}`;
   if (sk.workouts) L.push(sk.list.length ? `Planned working sets skipped (${since}): ${sk.skipped} of ${sk.planned} in ${sk.workouts} workouts (${sk.done.map((w) => `${WD3[new Date(`${w.date}T12:00:00`).getDay()]} ${w.date} ${w.name || 'Workout'}`).join(', ')}) — ${sk.list.map((w) => `${w.date} ${w.name || 'Workout'}: ${w.exercises.map((x) => `${exName(x.exerciseId)} ${x.absent ? 'not in the workout at all (in its routine; not counted above)' : `(${nth(x.pos ?? 0)} exercise) ${x.skipped} of ${x.planned} skipped`}`).join(', ')}`).join('; ')}. The plan stays as it is: help them finish it (rest, order, food, sleep, time) or ask why; never offer fewer planned sets.` : `Planned working sets skipped (${since}): none, all ${sk.planned} done in ${sk.workouts} workouts (${sk.done.map((w) => `${WD3[new Date(`${w.date}T12:00:00`).getDay()]} ${w.date} ${w.name || 'Workout'}`).join(', ')}).`);
   // per muscle, so balance is judged from what was actually trained, not from exercise names
   if (musclesOf && done.length) {
@@ -99,9 +101,13 @@ export function buildCoachContext(d: AppData, today: string, exName: (id: string
   const next = (id: string) => {
     const hist = historyOf(id, done); const ex = exs.get(id);
     if (!hist.length || !ex || ex.logType !== 'weightReps') return '';
-    const st = liftHint(d, hist[0], ex).stall;
+    // (the sets the workout screen starts from: its routine's item — rep range included — else the last sets as they were)
+    const rid = [...done].reverse().find((s) => s.exercises.some((e) => e.exerciseId === id))?.routineId;
+    const item = (d.routines.find((r) => r.id === rid) ?? d.routines.find((r) => !r.oneOff && r.items.some((it) => it.exerciseId === id)))?.items.find((it) => it.exerciseId === id);
+    const se = item ? { ...hist[0], sets: setsFromItem(item, lastPerformance(id, done)?.sets) } : hist[0];
+    const st = liftHint(d, se, ex).stall;
     if (st) return `; the workout screen offers a reset to ${r1(st.to.kg)}kg×${st.to.reps}`;
-    const sug = suggestProgression(ex, hist, repRange(hist[0].sets), incrementFor(ex, d.increments, d.settings.plateStep, d.settings.units.weight));
+    const sug = suggestProgression(ex, hist, repRange(se.sets), incrementFor(ex, d.increments, d.settings.plateStep, d.settings.units.weight));
     const s1 = sug.sets?.[0];
     return s1?.weightKg ? `; the workout screen's next target: ${r1(s1.weightKg)}kg×${s1.reps} (${sug.kind === 'add-weight' ? 'add weight' : sug.kind === 'hold' ? 'hold the weight' : 'one more rep'})` : '';
   };
@@ -115,7 +121,10 @@ export function buildCoachContext(d: AppData, today: string, exName: (id: string
   if (d.schedule.mode === 'weekly' && planned.length) L.push(`Weekly plan: ${planned.join(', ')}.`);
   const acts = Object.entries(d.schedule.activities ?? {}).filter(([, xs]) => xs?.length).map(([wd, xs]) => `${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][Number(wd)]}: ${xs.join(' + ')}`);
   if (acts.length) L.push(`Planned besides the gym: ${acts.join(', ')}.`);
-  return L.join('\n').slice(0, 6500);
+  // (whole lines only, so a busy week never cuts a fact in half)
+  let out = '';
+  for (const l of L) { if (out.length + l.length + 1 > 6500) continue; out += (out ? '\n' : '') + l; }
+  return out;
 }
 
 
@@ -301,7 +310,7 @@ const COACHING = `HOW YOU COACH. You are an excellent, experienced coach for tra
 - When their words can mean two things (this calendar week or the last 7 days, today so far or the whole day), answer the one that is most useful to them right now and say in a few words which you used.
 - For a training or nutrition question where the evidence decides it, say briefly what the evidence shows (e.g. "studies find drop sets and straight sets build about the same muscle") and look it up on the web when you are not sure.
 - How hard they train is their call: don't tell them to train lighter, cut planned sets, skip or deload unless they ask, MEMORY says they want that, they mention illness or an injury now, or they are under 18.
-- Overeating, a binge, a big evening, feeling bad about food: that is coaching, and you are their coach — handle it yourself like a good coach would: no drama, put it in proportion with their numbers, no punishment (next day normal, protein up, no extra cardio to burn it off), find what drove it (hunger, a long gap, too little earlier, sleep, stress, trigger foods at home) and give a practical plan for next time. Don't send them to a doctor or dietitian for it.
+- Overeating, a very big evening, feeling bad about food: that is coaching, and you are their coach — handle it yourself like a good coach would: no drama, put it in proportion with their numbers, no punishment (next day normal, protein up, no extra cardio to burn it off), find what drove it (hunger, a long gap, too little earlier, sleep, stress, trigger foods at home) and give a practical plan for next time. Don't send them to a doctor or dietitian for it.
 - Throwing up, laxatives or fasting for days to make up for food: no numbers for eating less, catch_up on false, and remember (kind health; a remember, never only a note) a line starting "Eating-disorder signal:".
 - Under 18, or age unknown when it matters (cutting, making weight, supplements, caffeine): the conservative answer (a deficit of at most ~500 kcal, at most ~0.5 kg a week, no fasting, never dehydration or saunas to make weight). Age unknown and it matters: ask it, unless Profile says it was already asked.
 - Numbers marked ESTIMATE in DATA stay labelled as estimates when you use them.

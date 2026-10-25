@@ -164,11 +164,28 @@ describe('one week, counted', () => {
     expect(l).toContain(`Protein at or above the 40 g target: 0 of 2 logged days before today`);
   });
   it('a weekly-review focus on skipped sets or days over can be checked the week after', () => {
-    const n = { skipped: 4, plannedSets: 30, overDays: 1 } as unknown as ReviewNumbers;
+    const n = { skipped: 4, plannedSets: 30, skippedWorkouts: 3, overDays: 1, loggedDays: 7 } as unknown as ReviewNumbers;
     expect(met('skipped', n, undefined)).toBe(false);
     expect(met('over', n, undefined)).toBe(true);
     expect(met('skipped', { ...n, skipped: 0 }, undefined)).toBe(true);
+    // (no workouts, too little logged, or no target: unknown, never "done")
+    expect(met('skipped', { ...n, skipped: 0, skippedWorkouts: 0 }, undefined)).toBeNull();
+    expect(met('over', { ...n, loggedDays: 2 }, undefined)).toBeNull();
+    expect(met('over', { ...n, overDays: null }, undefined)).toBeNull();
     const c = candidates(data(), { ...n, planned: 0, missed: 0, stalls: [], muscles: [], loggedDays: 7, proteinAvg: null, weightPct: null, sessions: 3 } as unknown as ReviewNumbers, String, String);
     expect(c.map((x) => x.id)).toContain('skipped');
+  });
+});
+
+describe('a stalled lift in DATA gets the workout screen\'s own numbers', () => {
+  it('from the routine\'s rep range, even when old sets carry no target', () => {
+    const routines = [{ id: 'r1', name: 'Legs', updatedAt: 0, items: [{ id: 'i1', exerciseId: 'calf', warmupSets: 0, workingSets: 2, repMin: 10, repMax: 15, restSec: 60 }] }] as any;
+    const exercises = [{ id: 'calf', name: 'Calf', logType: 'weightReps', equipment: ['machine'], muscles: ['calves'] }] as any;
+    // (16.5 × 15 on the oldest, then 16.5 × 14 three times: stalled; 15 reps only fit the 10–15 range)
+    const reps = [15, 14, 14, 14];
+    const sessions = reps.map((r, i) => session(addDays(today, -40 + i * 11), [{ id: `c${i}`, exerciseId: 'calf', sets: [set(true, 16.5, r), set(true, 16.5, r - 1)] }], 'r1'));
+    useStore.setState({ sessions, routines, exercises });
+    const l = buildCoachContext(data(), today, (id) => id);
+    expect(l).toMatch(/Stalled lifts[^\n]*calf[^\n]*the workout screen offers a reset to 1\dkg×15/);
   });
 });
