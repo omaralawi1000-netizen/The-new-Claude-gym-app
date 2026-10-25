@@ -99,31 +99,20 @@ export function anchorOf(el: Element, left = false): Anchor | null {
 }
 
 /** A copy of a word, drawn exactly as it is at rest (its own font, colour and size, each letter where the page puts it),
- * placed so that untransformed its anchor is at `a`. Its letters sit inside a clip (`side`: what of the word it shows, the
- * part left of an edge or right of it), which the crossing sweeps through the word (flyHero). */
-const BIG = 4000;
-function copyLook(el: HTMLElement, k: Look, host: HTMLElement, a: Anchor, side: 'left' | 'right', soft: number) {
+ * placed so that untransformed its anchor is at `a`; each letter on a span of its own, sized about its ink. */
+function copyLook(el: HTMLElement, k: Look, host: HTMLElement, a: Anchor) {
   const cs = getComputedStyle(el), h = host.getBoundingClientRect();
   const c = document.createElement('div');
   const props = ['font-family', 'font-size', 'font-weight', 'font-style', 'font-stretch', 'font-variation-settings', 'font-optical-sizing', 'font-feature-settings', 'font-variant-numeric', 'font-kerning', 'color', 'text-rendering', '-webkit-font-smoothing'];
   for (const p of props) c.style.setProperty(p, cs.getPropertyValue(p));
   Object.assign(c.style, { position: 'absolute', left: `${a.x - k.ax - h.left}px`, top: `${a.y - k.ay - h.top}px`, width: `${k.w0}px`, height: `${k.h0}px`, margin: '0', padding: '0', whiteSpace: 'pre', letterSpacing: '0px', transformOrigin: `${k.ax}px ${k.ay}px`, pointerEvents: 'none' });
-  // the clip: BIG px wide, ending at the edge (left side) or starting at it (right side), its edge soft over `soft` px; moved
-  // by transform, its letters moved back by the same, so they hold still while the edge passes through them
-  const clip = document.createElement('div'), inner = document.createElement('div');
-  const fade = side === 'left' ? `linear-gradient(to right, #000 calc(100% - ${soft.toFixed(2)}px), transparent)` : `linear-gradient(to right, transparent, #000 ${soft.toFixed(2)}px)`;
-  // (the two edges are each other's complement: what one lets through over the soft band the other holds back, so the word
-  // is never fainter there, and the band is a quarter of a letter's height)
-  Object.assign(clip.style, { position: 'absolute', left: side === 'left' ? `${-BIG}px` : `${-soft}px`, top: `${-k.h0}px`, width: `${BIG}px`, height: `${3 * k.h0}px`, overflow: 'hidden', maskImage: fade, webkitMaskImage: fade });
-  Object.assign(inner.style, { position: 'absolute', left: side === 'left' ? `${BIG}px` : `${soft}px`, top: `${k.h0}px`, width: `${k.w0}px`, height: `${k.h0}px` });
-  clip.appendChild(inner); c.appendChild(clip);
   for (const g of k.glyphs) {
     const s = document.createElement('span'); s.textContent = g.ch;
     Object.assign(s.style, { position: 'absolute', left: `${g.x}px`, top: `${g.top}px`, height: `${g.lh}px`, lineHeight: `${g.lh}px`, whiteSpace: 'pre', transformOrigin: `${g.cx - g.x}px ${g.cy - g.top}px` });
-    inner.appendChild(s);
+    c.appendChild(s);
   }
   host.appendChild(c);
-  return { c, clip, inner, spans: [...inner.children] as HTMLElement[] };
+  return { c, spans: [...c.children] as HTMLElement[] };
 }
 const smooth = (u: number) => { const v = Math.min(1, Math.max(0, u)); return v * v * (3 - 2 * v); };
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -142,16 +131,14 @@ export type Flight = {
 export type Hero = { look0: HTMLElement; look1: HTMLElement; anims: Animation[]; done: Promise<void>; text: (s: string) => void; drop: () => void };
 
 /**
- * One word in flight, in the look it leaves (look0) and the look it lands in (look1), on one path: the same baseline, the same
- * cap height, at every frame. Each letter is its own box, and while one look is out of sight its letters lie exactly on the
- * other's: each letter's ink box (its middle and its height) on its twin's. The two looks cross by a soft edge sweeping
- * through the word from left to right over fourteen frames or more: left of it the new look, right of it the old, each
- * letter changing as the edge passes it, its two boxes gliding onto each other as it does. No pixel ever shows the two
- * looks on top of each other (r4's crossing, and a letter-by-letter fade, showed each letter twice over, an italic P inside
- * an upright one): it is one word whose letters turn into their other style. Nothing leans, nothing stretches: a letter is
- * only moved and scaled evenly. Each look is drawn at its own resting size, so the one that lands is at scale 1 and is the
- * real word pixel for pixel; the real one takes over in that frame.
- * `cross`: where along the flight (in `w`) the edge sweeps through.
+ * One word in flight (round 6: ONE face from end to end). The word is set in the same face in every place it lives (the
+ * name in the italic serif, the clock in one weight of the sans), so it only moves and changes size: it never changes
+ * style on the way. Two copies of it travel together, each drawn at its own resting size and colour (so the one it leaves
+ * is the real word pixel for pixel at the start, and the one it lands as is at the end), with every letter of both on
+ * the same box at every frame (the letters' spacing glides from one place's to the other's). The landing copy comes up
+ * over the leaving one, which stays whole under it until it is fully there (so the word never thins), and only then goes:
+ * the two are the same shapes on the same spots, so what changes is at most the colour (the resume bar's grey clock
+ * becoming the header's white one). `cross`: where along the flight (in `w`) that happens, over fourteen frames or more.
  */
 export function flyHero(host: HTMLElement, from: HTMLElement, to: HTMLElement, a0: Anchor, a1: Anchor, fl: Flight, skip = 0, cut = false, cross: [number, number] = [0.4, 0.6], left = false): Hero {
   const k0 = lookOf(from, left), k1 = lookOf(to, left);
@@ -159,26 +146,19 @@ export function flyHero(host: HTMLElement, from: HTMLElement, to: HTMLElement, a
   const anims: Animation[] = [];
   const empty = () => { const d = document.createElement('div'); host.appendChild(d); return d; };
   if (!k0 || !k1) { const l0 = empty(), l1 = empty(); return { look0: l0, look1: l1, anims, done: Promise.resolve(), text: () => {}, drop: () => { l0.remove(); l1.remove(); } }; }
-  const SOFT = 0.25; // the edge's softness, in cap heights
-  const L0 = copyLook(from, k0, host, a0, 'right', SOFT * k0.cap), L1 = copyLook(to, k1, host, a1, 'left', SOFT * k1.cap);
+  const L0 = copyLook(from, k0, host, a0), L1 = copyLook(to, k1, host, a1);
   const look0 = L0.c, look1 = L1.c;
-  // the crossing in frames: where `cross` puts it along the flight, never fewer than fourteen
+  // the hand-over in frames: where `cross` puts it along the flight, never fewer than fourteen
   const at = (t: number) => { let i = 0; while (i < n && Math.min(1, fl.w(i)) < t) i++; return i; };
   let ia = at(cross[0]), ib = at(cross[1]);
   if (ib - ia < 14) { const mid = (ia + ib) / 2; ia = Math.round(mid - 7); ib = ia + 14; }
   if (ib > n) { ia -= ib - n; ib = n; }
   if (ia < 0) { ib = Math.min(n, ib - ia); ia = 0; }
-  // letters in cap heights from the anchor; the edge in the same units
-  const unit = (k: Look, g: Glyph) => ({ cx: (g.cx - k.ax) / k.cap, cy: (g.cy - k.ay) / k.cap, h: g.h / k.cap, l: (g.x - k.ax) / k.cap });
+  // letters in cap heights from the anchor
+  const unit = (k: Look, g: Glyph) => ({ cx: (g.cx - k.ax) / k.cap, cy: (g.cy - k.ay) / k.cap, h: g.h / k.cap });
   const pairs = k0.glyphs.length === k1.glyphs.length;
   const U0 = k0.glyphs.map((g) => unit(k0, g)), U1 = k1.glyphs.map((g) => unit(k1, g));
-  const ink = (U: typeof U0, k: Look) => U.map((u, j) => { const w = k.glyphs[j].h > 0 ? Math.max(0.2, Math.abs(u.cx - u.l) * 2) : 0; return [u.cx - w / 2, u.cx + w / 2]; });
-  const I0 = ink(U0, k0), I1 = ink(U1, k1);
-  const lo = Math.min(...I0.map((v) => v[0]), ...I1.map((v) => v[0])) - SOFT - 0.05, hi = Math.max(...I0.map((v) => v[1]), ...I1.map((v) => v[1])) + SOFT + 0.05;
-  const edge = (i: number) => (cut ? (i > 0 ? hi : lo) : lerp(lo, hi, smooth((i - ia) / Math.max(1, ib - ia))));
-  // each letter turns while the edge is on it: its common box glides from its old look's to its new one's meanwhile
-  const turn = (E: number, j: number) => { const a = Math.min(I0[j][0], I1[j][0]) - SOFT, b = Math.max(I0[j][1], I1[j][1]) + SOFT * 0.2; return smooth((E - a) / Math.max(0.01, b - a)); };
-  const fr0: Keyframe[] = [], fr1: Keyframe[] = [], c0: Keyframe[] = [], c1: Keyframe[] = [], n0: Keyframe[] = [], n1: Keyframe[] = [];
+  const fr0: Keyframe[] = [], fr1: Keyframe[] = [];
   const gk0: Keyframe[][] = k0.glyphs.map(() => []), gk1: Keyframe[][] = k1.glyphs.map(() => []);
   let gone0 = -1;
   for (let i = 0; i <= n; i++) {
@@ -186,18 +166,14 @@ export function flyHero(host: HTMLElement, from: HTMLElement, to: HTMLElement, a
     const s = fl.src(i), d = fl.dst(i);
     const x = lerp(s.x, d.x, w), y = lerp(s.y, d.y, w);
     const F = Math.exp(lerp(Math.log(s.f * s.s), Math.log(d.f * d.s), wc)); // the drawn cap height (it grows evenly to the eye)
-    const E = edge(i), done0 = E >= hi - 1e-6;
+    const o1 = cut ? (i > 0 ? 1 : 0) : smooth((i - ia) / Math.max(1, ib - ia));
     const live0 = gone0 < 0;
-    fr1.push({ transform: `translate(${(x - a1.x).toFixed(3)}px, ${(y - a1.y).toFixed(3)}px) scale(${(F / k1.cap).toFixed(5)})`, opacity: '1' });
-    if (live0) fr0.push({ transform: `translate(${(x - a0.x).toFixed(3)}px, ${(y - a0.y).toFixed(3)}px) scale(${(F / k0.cap).toFixed(5)})`, opacity: done0 ? '0' : '1' });
-    // the edge in each look's own px (its clip moved to it, its letters back by as much)
-    const e1 = k1.ax + E * k1.cap, e0 = k0.ax + E * k0.cap;
-    c1.push({ transform: `translateX(${e1.toFixed(3)}px)` }); n1.push({ transform: `translateX(${(-e1).toFixed(3)}px)` });
-    if (live0) { c0.push({ transform: `translateX(${e0.toFixed(3)}px)` }); n0.push({ transform: `translateX(${(-e0).toFixed(3)}px)` }); }
+    fr1.push({ transform: `translate(${(x - a1.x).toFixed(3)}px, ${(y - a1.y).toFixed(3)}px) scale(${(F / k1.cap).toFixed(5)})`, opacity: o1.toFixed(4) });
+    if (live0) fr0.push({ transform: `translate(${(x - a0.x).toFixed(3)}px, ${(y - a0.y).toFixed(3)}px) scale(${(F / k0.cap).toFixed(5)})`, opacity: o1 >= 1 ? '0' : '1' });
     if (pairs) {
       k0.glyphs.forEach((_, j) => {
-        const u0 = U0[j], u1 = U1[j], m = turn(E, j);
-        const B = { cx: lerp(u0.cx, u1.cx, m), cy: lerp(u0.cy, u1.cy, m), h: lerp(u0.h, u1.h, m) };
+        const u0 = U0[j], u1 = U1[j];
+        const B = { cx: lerp(u0.cx, u1.cx, wc), cy: lerp(u0.cy, u1.cy, wc), h: lerp(u0.h, u1.h, wc) };
         const put = (k: Look, u: typeof u0) => {
           const sg = u.h > 0 && B.h > 0 ? B.h / u.h : 1, tx = (B.cx - u.cx) * k.cap, ty = (B.cy - u.cy) * k.cap;
           return { transform: Math.abs(tx) < 0.001 && Math.abs(ty) < 0.001 && Math.abs(sg - 1) < 1e-5 ? 'none' : `translate(${tx.toFixed(3)}px, ${ty.toFixed(3)}px) scale(${sg.toFixed(5)})` };
@@ -206,7 +182,7 @@ export function flyHero(host: HTMLElement, from: HTMLElement, to: HTMLElement, a
         gk1[j].push(put(k1, u1));
       });
     }
-    if (live0 && done0 && i >= ib) gone0 = i;
+    if (live0 && o1 >= 1) gone0 = i;
   }
   // (the last frame exactly at rest: the real word takes over from it)
   if (Math.abs(fl.w(n) - 1) < 1e-6) fr1[n] = { transform: 'translate(0px, 0px) scale(1)', opacity: '1' };
@@ -216,7 +192,6 @@ export function flyHero(host: HTMLElement, from: HTMLElement, to: HTMLElement, a
     anims.push(el.animate(kf, { duration: Math.max(1, ((kf.length - 1) * 1000) / 120), easing: 'linear', fill: 'both', delay: late }));
   };
   run(look1, fr1); run(look0, fr0);
-  run(L1.clip, c1); run(L1.inner, n1); run(L0.clip, c0); run(L0.inner, n0);
   if (pairs) { L0.spans.forEach((g, j) => run(g, gk0[j])); L1.spans.forEach((g, j) => run(g, gk1[j])); }
   const done = anims[0] ? anims[0].finished.then(() => undefined, () => undefined) : Promise.resolve();
   // (a tick mid-flight: letter by letter, so each keeps its box)

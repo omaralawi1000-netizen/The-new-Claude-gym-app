@@ -33,11 +33,11 @@ function PillStatus() {
   const done = active.exercises.reduce((n, e) => n + e.sets.filter((s) => s.done).length, 0);
   // rest over while you're elsewhere in the app: the pill says so, in green, until the next set is ticked
   // (the workout's time on its own: it flies into the window's clock, Active.tsx data-wk-fly)
-  const clock = <span data-wk-fly="clock">{fmtDuration(elapsedMs(active) / 1000)}</span>;
-  // (the words before the clock are a part of their own, data-wk-part: the window's flight fades them out before the clock
-  // leaves its place beside them and in only once it has landed there, so it never runs into "Rest 1:19")
-  if (active.rest && !active.pausedAt && rest === 0) return <><span data-wk-part="status"><span style={{ color: 'var(--ac-text)', fontWeight: 700 }}>{t('Rest over')} · {t('Go')}</span> · </span>{clock}</>;
-  return <><span data-wk-part="status">{active.pausedAt ? t('Paused') : rest > 0 ? `${t('Rest')} ${fmtDuration(rest)}` : `${done}/${total}`} · </span>{clock}</>;
+  const clock = <span className="wk-clock-face" data-wk-fly="clock">{fmtDuration(elapsedMs(active) / 1000)}</span>;
+  // (the clock comes first, like the window's header, so it flies straight up into place; the words after it are a part of
+  // their own, data-wk-part, that fade beside it, counted in frames to match the window's own, Active.tsx partV)
+  if (active.rest && !active.pausedAt && rest === 0) return <>{clock}<span data-wk-part="status"> · <span style={{ color: 'var(--ac-text)', fontWeight: 700 }}>{t('Rest over')} · {t('Go')}</span></span></>;
+  return <>{clock}<span data-wk-part="status"> · {active.pausedAt ? t('Paused') : rest > 0 ? `${t('Rest')} ${fmtDuration(rest)}` : `${done}/${total}`}</span></>;
 }
 
 const PILL = { hide: { y: 18, scale: 0.95 }, show: { y: 0, scale: 1 } };
@@ -70,7 +70,7 @@ function LivePill() {
       <motion.span variants={FADE} transition={SOFT} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
         <span className={paused ? 'pulse-dot still' : 'pulse-dot'} />
         <span className="grow" style={{ textAlign: 'left', minWidth: 0, position: 'relative' }}>
-          <span className="trunc" data-wk-fly="title" style={{ display: 'block', fontWeight: 650, fontSize: 14 }}>{name || t('Workout')}</span>
+          <span className="trunc wk-name" data-wk-fly="title" style={{ display: 'block', fontSize: 17, lineHeight: 1.15 }}>{name || t('Workout')}</span>
           <span className="small t2 num" style={{ display: 'block' }}><PillStatus /></span>
         </span>
         <span className="icon-btn acc" data-wk-in="pop" style={{ width: 40, height: 40, position: 'relative' }}><Icon name="play" size={18} /></span>

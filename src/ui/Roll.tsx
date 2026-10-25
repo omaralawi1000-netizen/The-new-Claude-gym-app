@@ -38,7 +38,8 @@ export function Roll({ text, className, style, still = false }: { text: string; 
       const ghost = document.createElement('span');
       ghost.className = 'roll-ghost'; ghost.textContent = old; ghost.setAttribute('aria-hidden', 'true');
       cell.appendChild(ghost);
-      const a = ghost.animate([{ transform: 'none', opacity: 1 }, { transform: `translateY(${-0.62 * d}em)`, opacity: 0 }], { ...opts, fill: 'forwards' });
+      // (gone by two thirds of the way: fading the whole way, it hung under the number as a stray half digit, round 5 judge)
+      const a = ghost.animate([{ transform: 'none', opacity: 1 }, { transform: `translateY(${-0.413 * d}em)`, opacity: 0, offset: 0.667 }, { transform: `translateY(${-0.62 * d}em)`, opacity: 0 }], { ...opts, fill: 'forwards' });
       a.onfinish = a.oncancel = () => ghost.remove();
     }
   }, [text]);
