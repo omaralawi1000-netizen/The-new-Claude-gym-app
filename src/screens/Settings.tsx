@@ -407,7 +407,8 @@ function RestAlertRow() {
   // About Aven, next to Copy details: it is for whoever is fixing the app, not for this row)
   const android = /Android/i.test(navigator.userAgent);
   // the last Done ✓ from the alert or the watch: where it got to (the worker got the tap → Aven heard it → ticked or why not)
-  const hhmm = (x: number) => fmtTime(x, lang);
+  // (with the day when it wasn't today: "tapped 20:17" from an earlier day read as today, 25 Oct)
+  const hhmm = (x: number) => (new Date(x).toDateString() === new Date().toDateString() ? '' : `${new Date(x).toLocaleDateString(lang === 'da' ? 'da-DK' : 'en-GB', { day: 'numeric', month: 'short' })} `) + fmtTime(x, lang);
   const doneLine = !done ? '' : !done.tap && !done.page ? t('Last Done ✓: none has reached Aven yet')
     : done.page && (!done.tap || done.page.at >= done.tap.at - 1000)
       ? `${t('Last Done ✓: tapped {time}', { time: hhmm(done.page.at) })} · ${done.page.why ? t('not ticked ({why})', { why: t(done.page.why) }) : t('ticked at {time}', { time: hhmm(done.page.heard) })}`
@@ -447,7 +448,7 @@ function RestAlertRow() {
           <div className="row-flex" style={{ gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
             <button className="btn sm press" onClick={test}>{t('Send a test')}</button>
             {/* the Android app's own log of the rest timer (what it got from Chrome, what it rang, whether a Done ✓ reached Chrome) */}
-            {app && <a className="btn sm ghost press" href="intent://restlog#Intent;scheme=aven;package=app.aven.android;end">{t('App log')}</a>}
+            {appOnPhone() && <a className="btn sm ghost press" href="intent://restlog#Intent;scheme=aven;package=app.aven.android;end">{t('App log')}</a>}
           </div>
         )}
         {late && <div className="xs t3" style={{ marginTop: 2 }}>{late.ms < 2000 ? t('Last alert came on time.') : t('Last alert came {n} s late.', { n: Math.round(late.ms / 1000) })}</div>}
