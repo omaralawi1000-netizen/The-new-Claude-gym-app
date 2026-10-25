@@ -1,5 +1,6 @@
 import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
-import { AnimatePresence, MotionConfig, motion } from 'motion/react';
+import { openFoodPhoto } from './lib/photoOpen';
+import { AnimatePresence, MotionConfig, motion, useIsPresent, type TargetAndTransition } from 'motion/react';
 import { useStore } from './state/store';
 import { useUI } from './state/ui';
 import { TabBar } from './ui/TabBar';
@@ -24,7 +25,9 @@ import { readRGB, setBarCover, setBarDepth, setBarTint } from './ui/statusBar';
 import { setKeyboard } from './ui/keyboard';
 import { FpsMeter } from './ui/FpsMeter';
 import { useLaunch } from './ui/launch';
-import { BgBody, PER_TAB, useSkyClock, type BgKind } from './ui/Backdrop';
+import { BgBody, PER_TAB, barColor, useSkyClock, type BgKind } from './ui/Backdrop';
+import { FieldGlow } from './ui/Glows';
+import { surfaceOf } from './lib/types';
 
 /** Where the last tap landed — the theme switch spreads out from there. */
 const lastTap = { x: typeof window !== 'undefined' ? window.innerWidth / 2 : 0, y: 0 };
@@ -90,6 +93,8 @@ function useTheme() {
   useLayoutEffect(() => { document.documentElement.dataset.palette = palette; }, [palette]);
   const glow = useStore((x) => x.settings.glow ?? 'full');
   useLayoutEffect(() => { document.documentElement.dataset.glow = glow; }, [glow]);
+  const surface = useStore((x) => surfaceOf(x.settings.surface));
+  useLayoutEffect(() => { document.documentElement.dataset.surface = surface; }, [surface]);
   const bg = useStore((x) => x.settings.background ?? 'classic');
   useLayoutEffect(() => { document.documentElement.dataset.bg = bg; }, [bg]);
   useEffect(() => { document.documentElement.lang = lang; }, [lang]);
@@ -102,13 +107,12 @@ function useTheme() {
  */
 /**
  * Switching tabs. Two things happen together:
- *  - the glow changes: the area's colour field cross-fades into the next area's colours (Field) — the new layer fades in
- *    while the old one fades out (a little later, so the light never dips), and the browser just blends them instead of
- *    repainting the field on every frame. Both layers are partly see-through, so the old one must fade out too: left at
- *    full strength underneath, it tinted the new colours until it was removed, and then they snapped;
+ *  - the glow changes: the area's colour field cross-fades into the next area's colours (Field). Every field is opaque, so
+ *    the new layer fades in over the old one, which stays whole until it is covered: the light never dips, and the
+ *    browser just blends two finished layers instead of repainting anything;
  *  - the screens swap (TabPane, below).
  */
-const GLOW = 0.8; // seconds the colours take to change over
+const GLOW = 1; // seconds the colours take to change over (eased in and out: calm, no rush at the start)
 let fieldSeq = 0;
 // how long a change of field takes: a tab switch GLOW; picking another background a little longer, so it settles in
 // under the Settings sheet; the sky moving on (Time of day, Night sky) slower still, so it never reads as a jump
@@ -117,23 +121,32 @@ const PICK = 1.2, SKY_SHIFT = 2.6;
 type FieldChange = { d: number; over: boolean };
 const FIELD = {
   hidden: { opacity: 0 },
-  shown: (c: FieldChange) => ({ opacity: 1, transition: { duration: c.d, ease: [0.4, 0, 0.2, 1] as const, delay: 0.05 } }),
+  shown: (c: FieldChange) => ({ opacity: 1, transition: { duration: c.d, ease: [0.42, 0, 0.58, 1] as const, delay: 0.05 } }),
   // Between two of the picked backgrounds (each painted opaque, see .bgx) the new one is laid over the old one, which stays
   // whole until it is covered: a true blend from one to the other. Fading both at once let the room show through mid-way
-  // (a dip in the picker) and two half-skies came out brighter than either. Classic's drifting field is see-through, so
-  // to and from it both still fade.
-  gone: (c: FieldChange) => (c.over
-    ? { opacity: 0.99, transition: { duration: c.d, ease: 'linear' as const, delay: 0.1 } }
+  // (a dip in the picker) and two half-skies came out brighter than either. (Classic is opaque too now.)
+  gone: (c: FieldChange): TargetAndTransition => (c.over
+    // held whole until it is covered, then removed. (Exactly whole: at 0.99 it stopped being an opaque layer and the screen
+    // dimmed by a level for the whole change. The exit still needs something that takes that long, so it counts a variable
+    // nothing reads: no drawing, no layout.)
+    ? { '--gone': [0, 1], transition: { duration: c.d, ease: 'linear' as const, delay: 0.1 } }
     : { opacity: 0, transition: { duration: c.d, ease: [0.55, 0, 0.75, 1] as const, delay: 0.05 } }),
 };
 function Field({ hue, kind, sky, change }: { hue: string; kind: BgKind; sky: { hour: number; night: boolean }; change: FieldChange }) {
-  // every field drifts on the same clock, so the new one lines up with the old one and only its colours change
-  const drift = useRef(`-${Math.round(performance.now())}ms`);
+  // the new field takes up the sway (Classic's slow drift, styles.css) exactly where the field on screen is, so the lights
+  // carry on through a switch and only their colours change (the sway pauses under pop-ups, so a plain clock would not match)
+  const drift = useRef('');
+  if (!drift.current) {
+    const on = document.querySelector<HTMLElement>('.fields > .aurora')?.getAnimations().find((a) => (a as CSSAnimation).animationName === 'sway');
+    const t = on?.effect?.getComputedTiming(); // how far into the sway it is: its time since it started, plus the head start it was given
+    drift.current = `-${Math.round(t && t.localTime != null ? Number(t.localTime) - (t.delay ?? 0) : performance.now())}ms`;
+  }
   const z = useRef(++fieldSeq);
   return (
     <motion.div className={kind === 'classic' ? 'aurora' : 'bgx'} data-k={kind} data-hue={hue} aria-hidden style={{ zIndex: z.current, ['--drift-t' as string]: drift.current }}
       custom={change} variants={FIELD} initial="hidden" animate="shown" exit="gone">
       <BgBody kind={kind} sky={sky} />
+      <FieldGlow kind={kind} />
     </motion.div>
   );
 }
@@ -151,34 +164,30 @@ const PAGE = {
   // Both start 50 ms after the tap: building the new screen takes a frame or two on a phone, and an animation that started
   // during that work showed up already part-way through — the old and new pages jumped (the flicker at the top).
   center: { opacity: 1, transform: 'translateX(0px)', transitionEnd: { transform: 'none' }, transition: { duration: 0.38, ease: EASE, delay: 0.05 } },
-  // no blur on the way out: filtering a whole screen every frame of a page switch cost more than anything else in it
+  // Tapped back before it had gone: the screen is already built, so it turns round where it is on the very next frame. A wait
+  // there froze it mid-slide for a beat
+  back: { opacity: 1, transform: 'translateX(0px)', transitionEnd: { transform: 'none' }, transition: { duration: 0.38, ease: EASE } },
+  // no blur on the way out: filtering a whole screen every frame of a page switch cost more than anything else in it. A screen
+  // that is still on its way in when another tab is tapped leaves at once, from where it is, for the same reason
   exit: (d: number) => ({ opacity: 0, transform: `translateX(${-d * 36}px)`, transition: { duration: 0.34, ease: EASE, delay: 0.05 } }),
+  exitNow: (d: number) => ({ opacity: 0, transform: `translateX(${-d * 36}px)`, transition: { duration: 0.34, ease: EASE } }),
 };
 // `custom` is the direction; AnimatePresence hands the leaving screen the NEW direction too (it was removed with the old one)
 function TabPane({ hue, dir, children }: { hue: string; dir: number; children: React.ReactNode }) {
+  const present = useIsPresent();
+  const left = useRef(false), back = useRef(false), moved = useRef(0);
+  if (!moved.current) moved.current = performance.now();
+  // turned round, or still arriving when another tab is tapped: it moves from where it is at once (see `back`, `exitNow`)
+  const busy = performance.now() - moved.current < 450;
+  if (!present) left.current = true;
+  else if (left.current) { left.current = false; back.current = true; moved.current = performance.now(); }
   return (
-    <motion.div className="tab-pane" data-active data-hue={hue} custom={dir} variants={PAGE} initial="enter" animate="center" exit="exit" style={{ position: 'absolute', inset: 0 }}>
+    <motion.div className="tab-pane" data-active data-hue={hue} custom={dir} variants={PAGE} initial="enter" animate={back.current ? 'back' : 'center'} exit={busy ? 'exitNow' : 'exit'} style={{ position: 'absolute', inset: 0 }}>
       {children}
     </motion.div>
   );
 }
 
-/** The status bar takes the colour of the top of the page: a deep tint of what the background shows up there (ui/statusBar.ts).
- * Each background has its own top: Classic and Mesh the area's light, Colour per tab its own first colour, Dot field the
- * accent's wash, Time of day the sky; Orb light, Sunrise, Night sky and Your photo are dark at the top, so the bar is
- * the page colour with only a breath of the area's light. It used to be the area's light on every background: a coloured
- * band fading into a night sky or a dark Orb light page. */
-const BAR_SRC: Record<BgKind, { src: 'h1' | 'ac' | 't1' | 'sky'; dark: string; light: string }> = {
-  classic: { src: 'h1', dark: 'var(--bar-mix)', light: 'var(--bar-mix)' },
-  mesh: { src: 'h1', dark: 'var(--bar-mix)', light: 'var(--bar-mix)' },
-  tabs: { src: 't1', dark: '15%', light: '9%' },
-  dots: { src: 'ac', dark: '8%', light: '6%' },
-  time: { src: 'sky', dark: '58%', light: '22%' },
-  orb: { src: 'h1', dark: '4%', light: '4%' },
-  sunrise: { src: 'h1', dark: '4%', light: '4%' },
-  night: { src: 'h1', dark: '0%', light: '4%' },
-  photo: { src: 'h1', dark: '0%', light: '0%' },
-};
 function useBarTint(app: React.RefObject<HTMLDivElement | null>, tab: string, bg: BgKind, fieldKey: string) {
   const palette = useStore((x) => x.settings.palette);
   const theme = useStore((x) => x.settings.theme);
@@ -189,18 +198,10 @@ function useBarTint(app: React.RefObject<HTMLDivElement | null>, tab: string, bg
     probe.style.cssText = 'position:absolute;width:0;height:0;pointer-events:none';
     el.appendChild(probe);
     const read = (ms: number) => {
-      const how = BAR_SRC[bg] ?? BAR_SRC.classic;
-      const pct = document.documentElement.dataset.theme === 'light' ? how.light : how.dark;
-      let src = `var(--${how.src})`;
-      if (how.src === 't1' || how.src === 'sky') {
-        // these colours live on the background's own layer (the newest one: the one fading in)
-        const layers = [...document.querySelectorAll<HTMLElement>('.fields > [data-k]')];
-        const top = layers.sort((a, b) => Number(b.style.zIndex) - Number(a.style.zIndex))[0];
-        const host = how.src === 'sky' ? top?.querySelector<HTMLElement>('.bg-sky') : top;
-        const v = host ? getComputedStyle(host).getPropertyValue(how.src === 'sky' ? '--sk1' : '--t1').trim() : '';
-        src = v || 'var(--h1)';
-      }
-      probe.style.color = `color-mix(in srgb, ${src} ${pct}, var(--bg))`;
+      // some colours live on the background's own layer (the newest one: the one fading in)
+      const layers = [...document.querySelectorAll<HTMLElement>('.fields > [data-k]')];
+      const top = layers.sort((a, b) => Number(b.style.zIndex) - Number(a.style.zIndex))[0];
+      probe.style.color = barColor(top ?? null, bg);
       const c = readRGB(getComputedStyle(probe).color); if (c) setBarTint(c, ms);
     };
     // after this frame's styles (the new area's colours, the new background's layer) are in place
@@ -333,7 +334,7 @@ export function App() {
   const change = useRef<{ key: string; bg: BgKind; dur: number; over?: boolean }>({ key: fieldKey, bg, dur: GLOW });
   if (change.current.key !== fieldKey) {
     const was = change.current.bg;
-    change.current = { key: fieldKey, bg, dur: was !== bg ? PICK : PER_TAB[bg] ? GLOW : SKY_SHIFT, over: bg !== 'classic' && was !== 'classic' };
+    change.current = { key: fieldKey, bg, dur: was !== bg ? PICK : PER_TAB[bg] ? GLOW : SKY_SHIFT, over: true };
   }
   const fieldChange = useMemo<FieldChange>(() => ({ d: change.current.dur, over: !!change.current.over }), [change.current.dur, change.current.over]); // eslint-disable-line
   const push = useUI((s) => s.push);
@@ -349,11 +350,11 @@ export function App() {
     try { history.replaceState(history.state, '', location.pathname); } catch { /* ignore */ }
     const st = useStore.getState();
     const today = dayKey(Date.now(), st.settings.dayStartHour);
-    const mealId = defaultMealId(st.settings.meals);
+    const mealId = defaultMealId(st.settings.meals, new Date(), st.settings.dayStartHour);
     setTimeout(() => {
       if (doIt === 'food') push('foodSearch', { date: today, mealId });
       else if (doIt === 'voice') push('voice', { mode: 'food', date: today, mealId });
-      else if (doIt === 'photo') push('photoFood', { date: today, mealId });
+      else if (doIt === 'photo') openFoodPhoto(today, mealId);
       else if (doIt === 'wrestling') push('activity', { kind: 'wrestling' });
       else if (doIt === 'workout') openWorkout();
     }, 350);

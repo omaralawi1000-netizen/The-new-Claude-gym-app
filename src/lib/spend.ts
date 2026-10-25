@@ -6,6 +6,9 @@
 const KEY = 'aven.solSpend';
 /** USD per million tokens: fresh input, cached input, output (reasoning included). GPT-6.1 Sol list price, Oct 2026. */
 export const SOL_PRICE = { input: 2, cached: 0.1, output: 10 };
+/** GPT-6 Luna, the quick model (list price, Oct 2026). Unknown models are priced as Sol (never under-counted). */
+export const LUNA_PRICE = { input: 0.1, cached: 0.01, output: 0.5 };
+const priceOf = (model = '') => (/luna/i.test(model) ? LUNA_PRICE : SOL_PRICE);
 /** Kroner per US dollar (approximate, Oct 2026). */
 export const USD_TO_DKK = 6.5;
 
@@ -19,13 +22,14 @@ const subs = new Set<() => void>();
 export const subscribeSpend = (f: () => void) => { subs.add(f); return () => { subs.delete(f); }; };
 
 /** The cost of one answer from OpenAI's `usage` block, in USD. */
-export function usageCost(u: any): number {
+export function usageCost(u: any, model?: string): number {
   if (!u || typeof u !== 'object') return 0;
   const input = Number(u.input_tokens) || 0, cached = Math.min(input, Number(u.input_tokens_details?.cached_tokens) || 0), output = Number(u.output_tokens) || 0;
-  return ((input - cached) * SOL_PRICE.input + cached * SOL_PRICE.cached + output * SOL_PRICE.output) / 1e6;
+  const p = priceOf(model);
+  return ((input - cached) * p.input + cached * p.cached + output * p.output) / 1e6;
 }
-export function recordUsage(u: any) {
-  const cost = usageCost(u);
+export function recordUsage(u: any, model?: string) {
+  const cost = usageCost(u, model);
   if (!cost) return;
   const m = read();
   const next = { month: m.month, usd: m.usd + cost, calls: m.calls + 1 };

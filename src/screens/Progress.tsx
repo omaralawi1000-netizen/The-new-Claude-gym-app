@@ -10,8 +10,9 @@ import { askTag } from '../lib/askAbout';
 import { Icon } from '../ui/Icon';
 import { Empty, Section, Seg } from '../ui/kit';
 import { average, nutritionByDay, trendRate, weekStreak, weeklyTraining, weightTrend } from '../lib/stats';
-import { fmtNum, fmtSigned, kgToDisplay } from '../lib/units';
+import { fmtNum, fmtSigned, kgToDisplay, mToDisplay } from '../lib/units';
 import { bestsFor, countable, epley } from '../lib/workout';
+import type { SetRecord } from '../lib/types';
 import { exName } from './workout/common';
 import { Roll } from '../ui/Roll';
 
@@ -50,7 +51,12 @@ export function ProgressScreen() {
     return [...ids].map((id) => {
       const ex = exMap.get(id)!;
       const hist = s.sessions.filter((x) => x.exercises.some((e) => e.exerciseId === id));
-      const series = hist.map((h) => h.exercises.filter((e) => e.exerciseId === id).flatMap((e) => e.sets).filter(countable).reduce((m, x) => Math.max(m, x.weightKg && x.reps && x.reps <= 12 ? epley(x.weightKg, x.reps) : x.reps ?? 0), 0));
+      // one measure per line (an estimated 1RM in kg and a count of reps never share one): an estimated 1RM for weights, else reps, seconds or metres
+      const sets = hist.map((h) => h.exercises.filter((e) => e.exerciseId === id).flatMap((e) => e.sets).filter(countable));
+      const top = (f: (x: SetRecord) => number | undefined) => sets.map((xs) => xs.reduce((m, x) => Math.max(m, f(x) ?? 0), 0)).filter((v) => v > 0);
+      const lt = ex?.logType;
+      const e1rm = lt !== 'weightReps' ? [] : top((x) => (x.weightKg && x.reps && x.reps <= 12 ? epley(x.weightKg, x.reps) : 0));
+      const series = lt === 'duration' ? top((x) => x.durationSec) : lt === 'distance' ? top((x) => x.distanceM) : e1rm.length ? e1rm : top((x) => x.reps);
       return { id, ex, best: bestsFor(id, s.sessions), series, n: hist.length };
     }).filter((r) => r.ex).sort((a, b) => b.n - a.n).slice(0, 8);
   }, [s.sessions, exMap]);
@@ -147,7 +153,7 @@ export function ProgressScreen() {
               <button key={i} className="li press" onClick={() => push('exercise', { id: r.exerciseId })}>
                 <span style={{ width: 34, height: 34, borderRadius: 12, background: 'var(--ac)', color: 'var(--ac-ink)', display: 'grid', placeItems: 'center', flex: 'none' }}><Icon name="bolt" size={17} /></span>
                 <div className="grow" style={{ textAlign: 'left' }}><div className="li-title small">{ex ? exName(ex, lang) : ''}</div><div className="li-sub">{t(({ weight: 'Heaviest set', e1rm: 'Estimated 1RM', volume: 'Best set volume', reps: 'Most reps', duration: 'Longest hold', distance: 'Longest distance' } as any)[r.kind])} · {fmtDate(r.date, lang, { day: 'numeric', month: 'short' })}{r.more > 0 ? ` · ${t('+{n} more', { n: r.more })}` : ''}</div></div>
-                <div className="num" style={{ fontWeight: 700 }}>{r.kind === 'volume' && setOf(r) ? `${fmtNum(kgToDisplay(setOf(r)!.weightKg ?? 0, u.weight), lang, 2)} ${u.weight} × ${setOf(r)!.reps}` : r.kind === 'reps' ? r.value : r.kind === 'duration' ? `${r.value}s` : r.kind === 'distance' ? `${fmtNum(r.value / 1000, lang, 2)} km` : `${fmtNum(kgToDisplay(r.value, u.weight), lang, r.kind === 'e1rm' ? 1 : 2)} ${u.weight}`}</div>
+                <div className="num" style={{ fontWeight: 700 }}>{r.kind === 'volume' && setOf(r) ? `${fmtNum(kgToDisplay(setOf(r)!.weightKg ?? 0, u.weight), lang, 2)} ${u.weight} × ${setOf(r)!.reps}` : r.kind === 'reps' ? r.value : r.kind === 'duration' ? `${r.value}s` : r.kind === 'distance' ? `${fmtNum(mToDisplay(r.value, u.distance), lang, 2)} ${u.distance}` : `${fmtNum(kgToDisplay(r.value, u.weight), lang, r.kind === 'e1rm' ? 1 : 2)} ${u.weight}`}</div>
               </button>); })}
           </div>
         </Section>

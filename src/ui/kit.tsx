@@ -1,7 +1,7 @@
 import { Roll } from './Roll';
 import { usePresence, useReducedMotion } from 'motion/react';
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { Lens } from './lens';
+import { Lens, type LensBox } from './lens';
 import { apple } from './motion';
 import { Icon, type IconName } from './Icon';
 import { parseNum, fmtNum } from '../lib/units';
@@ -9,6 +9,52 @@ import { useLang } from '../lib/i18n';
 import { haptic } from '../state/ui';
 
 // ── segmented control: a drop of glass flows between options (ui/lens.ts) ─────────
+/** The dark theme's white drop draws its labels dark exactly where it covers them: a dark copy of the labels sits in a
+ *  window the shape of the drop, made of two nested clips (its left end, its right end) that move by transform on the
+ *  drop's own frames. So each letter is dark where it sits on white and light where it sits on the track, mid-glide too,
+ *  and only transforms run. Shown only where CSS gives `.seg-ink` a display (look.css, dark theme). */
+class SegInk {
+  private a: HTMLElement; private b: HTMLElement; private c: HTMLElement; private d: HTMLElement;
+  private w = 0;
+  constructor(private seg: HTMLElement, root: HTMLElement) {
+    this.a = root; this.b = root.firstElementChild as HTMLElement; this.c = this.b.firstElementChild as HTMLElement; this.d = this.c.firstElementChild as HTMLElement;
+  }
+  get on() { return getComputedStyle(this.a).display !== 'none'; }
+  /** Size the window and lay each copy exactly over its real label. */
+  layout(R: number) {
+    const seg = this.seg, w = seg.clientWidth;
+    this.w = w;
+    for (const el of [this.a, this.b, this.c, this.d]) el.style.width = `${w}px`;
+    this.a.style.borderRadius = `${R}px 0 0 ${R}px`; this.c.style.borderRadius = `0 ${R}px ${R}px 0`;
+    const labels = [...seg.querySelectorAll<HTMLElement>(':scope > button > span')], copies = [...this.d.children] as HTMLElement[];
+    const pairs = labels.map((l, i) => [l, copies[i]] as const).filter(([, c]) => c);
+    // reads, then writes: one layout pass, not one per label
+    const fonts = pairs.map(([l]) => { const f = getComputedStyle(l); return { fontSize: f.fontSize, fontWeight: f.fontWeight, letterSpacing: f.letterSpacing, fontFamily: f.fontFamily, lineHeight: f.lineHeight }; });
+    pairs.forEach(([, c], i) => Object.assign(c.style, fonts[i]));
+    const at = pairs.map(([l, c]) => { const lr = l.getBoundingClientRect(), cr = c.getBoundingClientRect(); return [lr.left - cr.left, lr.top - cr.top]; });
+    pairs.forEach(([, c], i) => {
+      c.style.left = `${(parseFloat(c.style.left) || 0) + at[i][0]}px`;
+      c.style.top = `${(parseFloat(c.style.top) || 0) + at[i][1]}px`;
+    });
+  }
+  private frame(b: LensBox) {
+    return [`translate3d(${b.l.toFixed(2)}px,0,0)`, `translate3d(${(-b.l).toFixed(2)}px,0,0)`, `translate3d(${(b.r - this.w).toFixed(2)}px,0,0)`, `translate3d(${(this.w - b.r).toFixed(2)}px,0,0)`];
+  }
+  private stop() { for (const el of [this.a, this.b, this.c, this.d]) el.getAnimations().forEach((x) => x.cancel()); }
+  place(box: LensBox) {
+    this.stop();
+    const f = this.frame(box);
+    [this.a, this.b, this.c, this.d].forEach((el, i) => { el.style.transform = f[i]; });
+  }
+  glide(to: LensBox, run: { boxes: LensBox[]; duration: number } | null) {
+    this.place(to); // final state underneath (and cancels whatever was running)
+    if (!run) return;
+    const n = run.boxes.length, kf: Keyframe[][] = [[], [], [], []];
+    run.boxes.forEach((b, i) => { const f = this.frame(b), offset = i / (n - 1); f.forEach((t, k) => kf[k].push({ transform: t, offset })); });
+    [this.a, this.b, this.c, this.d].forEach((el, k) => el.animate(kf[k], { duration: run.duration, easing: 'linear' }));
+  }
+}
+
 const SEG_LEAD = apple(0.36, 0.1);
 const SEG_TRAIL = apple(0.52);
 export function Seg<T extends string | number>({ value, onChange, options, style }: { value: T; onChange: (v: T) => void; options: { value: T; label: ReactNode }[]; style?: CSSProperties }) {
@@ -24,19 +70,29 @@ export function Seg<T extends string | number>({ value, onChange, options, style
     holder.style.opacity = b ? '' : '0';
     if (!b || b.offsetWidth === 0) return;
     const box = { l: b.offsetLeft, r: b.offsetLeft + b.offsetWidth };
-    if (glide && !reduce) lens.current.glide(box, SEG_LEAD, SEG_TRAIL); else lens.current.place(box);
+    if (!ink.current) ink.current = new SegInk(el, el.querySelector('.seg-ink') as HTMLElement);
+    const inkOn = ink.current.on;
+    if (inkOn && !glide) ink.current.layout(holder.offsetHeight / 2); // a glide keeps the layout the last rest made (keeps the tap frame light)
+    if (glide && !reduce) { const run = lens.current.glide(box, SEG_LEAD, SEG_TRAIL); if (inkOn) ink.current.glide(box, run); }
+    else { lens.current.place(box); if (inkOn) ink.current.place(box); }
   };
+  const ink = useRef<SegInk | null>(null);
   const placed = useRef(false);
   useLayoutEffect(() => { place(placed.current); placed.current = true; }, [idx]); // eslint-disable-line
   useEffect(() => {
     const el = ref.current; if (!el) return;
     const ro = new ResizeObserver(() => { if (!lens.current?.moving) place(false); });
     ro.observe(el);
+    document.fonts?.ready.then(() => { if (ref.current && !lens.current?.moving) place(false); });
     return () => ro.disconnect();
   }, []); // eslint-disable-line
+  // labels can change without a resize (language): keep the dark copies on them
+  const labelKey = options.map((o) => `${String(o.value)}:${typeof o.label === 'string' ? o.label : ''}`).join('|');
+  useLayoutEffect(() => { if (placed.current && !lens.current?.moving && ink.current?.on) place(false); }, [labelKey]); // eslint-disable-line
   return (
     <div className="seg" role="tablist" style={style} ref={ref}>
       <span className="lens seg-lens" aria-hidden><i className="lens-l" /><i className="lens-r" /><i className="lens-m" /></span>
+      <span className="seg-ink" aria-hidden><span><span><span>{options.map((o) => <i key={String(o.value)}>{o.label}</i>)}</span></span></span></span>
       {options.map((o) => (
         <button key={String(o.value)} role="tab" aria-selected={o.value === value} className={o.value === value ? 'on' : ''} onClick={() => { if (o.value !== value) haptic('select'); onChange(o.value); }}>
           <span style={{ position: 'relative' }}>{o.label}</span>
@@ -104,14 +160,29 @@ export function Stepper({ value, onChange, step = 1, min = 0, max = 9999, unit, 
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const val = useRef(value);
   val.current = value;
-  const bump = (dir: 1 | -1) => { const n = Math.round((val.current + dir * step) * 1000) / 1000; onChange(Math.min(max, Math.max(min, n))); };
+  /** one step; false once the limit is reached (a disabled button never hears the finger lift, so the repeat stops itself) */
+  const bump = (dir: 1 | -1) => {
+    const n = Math.min(max, Math.max(min, Math.round((val.current + dir * step) * 1000) / 1000));
+    if (n !== val.current) onChange(n);
+    val.current = n;
+    return dir > 0 ? n < max : n > min;
+  };
   const start = (dir: 1 | -1) => {
-    bump(dir);
+    stop();
+    if (!bump(dir)) return;
+    // the finger lifting anywhere ends it too (the button may have turned disabled under it)
+    window.addEventListener('pointerup', stop, { once: true });
+    window.addEventListener('pointercancel', stop, { once: true });
     let delay = 380;
-    const loop = () => { timer.current = setTimeout(() => { bump(dir); delay = Math.max(60, delay * 0.8); loop(); }, delay); };
+    const loop = () => { timer.current = setTimeout(() => { if (!bump(dir)) { stop(); return; } delay = Math.max(60, delay * 0.8); loop(); }, delay); };
     loop();
   };
-  const stop = () => clearTimeout(timer.current);
+  function stop() {
+    clearTimeout(timer.current);
+    timer.current = undefined;
+    window.removeEventListener('pointerup', stop);
+    window.removeEventListener('pointercancel', stop);
+  }
   useEffect(() => stop, []);
   // the number rolls the way it moved (up on +, down on −); nothing moves on the first draw
   const prev = useRef(value);

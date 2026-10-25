@@ -3,7 +3,7 @@ import { useStore, foodPool } from '../../state/store';
 import { useUI, haptic } from '../../state/ui';
 import { useT, useLang } from '../../lib/i18n';
 import type { FoodEntry, Recipe, RecipeIngredient, Food, Quantity } from '../../lib/types';
-import { allowedUnits, calcRecipe, entryFromSnapshot, recipeToFood, scale, snapshotOf, sumNutrients, toBase, uid } from '../../lib/nutrition';
+import { allowedUnits, calcRecipe, entryFromSavedItem, recipeToFood, savedItemNutrients, scale, snapshotOf, sumNutrients, toBase, uid } from '../../lib/nutrition';
 import { searchFoods } from '../../lib/foodText';
 import { fmtNum } from '../../lib/units';
 import { fmtNutrient } from '../../lib/format';
@@ -23,7 +23,7 @@ export function SavedMeals({ props }: { props: { date: string; mealId: string } 
   const meal = s.settings.meals.find((m) => m.id === props.mealId);
   const log = (id: string) => {
     const m = s.savedMeals.find((x) => x.id === id)!;
-    const entries = m.items.map((it) => entryFromSnapshot(it.snap, it.qty, props.date, props.mealId)).filter(Boolean) as FoodEntry[];
+    const entries = m.items.map((it) => entryFromSavedItem(it, props.date, props.mealId)).filter(Boolean) as FoodEntry[];
     const added = s.logEntries(entries);
     haptic('saved');
     closeAll();
@@ -37,7 +37,7 @@ export function SavedMeals({ props }: { props: { date: string; mealId: string } 
         {s.savedMeals.length === 0 ? <Empty icon="copy" title={t('No saved meals yet')} body={t('Open a meal in your diary, tap ⋯ and choose “Save as meal”.')} /> : (
           <div className="list">
             {s.savedMeals.map((m) => {
-              const sum = sumNutrients(m.items.map((it) => { const b = toBase(it.snap, it.qty); return b.ok ? scale(it.snap.per100, b.base) : {}; }));
+              const sum = sumNutrients(m.items.map(savedItemNutrients));
               return (
                 <div key={m.id} className="li">
                   <button className="grow press" style={{ textAlign: 'left' }} onClick={() => log(m.id)}>
@@ -132,7 +132,7 @@ export function RecipeEditor({ props }: { props: { id?: string; date: string; me
         <div className="field"><label htmlFor="r-name">{t('Name')}</label><input id="r-name" className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('e.g. Overnight oats')} /></div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 14 }}>
           <div className="field"><label>{t('Servings')}</label><NumInput value={servings} onChange={setServings} max={2} min={0.25} unit="×" label={t('Servings')} /></div>
-          <div className="field"><label>{t('Prepared weight')}</label><NumInput value={weight} onChange={setWeight} max={0} unit="g" placeholder={c.weightIsSum && c.weightG ? String(Math.round(c.weightG)) : t('optional')} label={t('Prepared weight')} /></div>
+          <div className="field"><label>{t('Prepared weight')}</label><NumInput value={weight} onChange={setWeight} max={0} unit="g" placeholder={c.weightIsSum && c.weightG ? String(Math.round(c.weightG)) : t('Optional')} label={t('Prepared weight')} /></div>
         </div>
 
         <div className="lbl" style={{ margin: '20px 0 6px' }}>{t('Ingredients')}</div>

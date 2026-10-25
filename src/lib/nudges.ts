@@ -8,6 +8,7 @@
  *    its own (see useInsights in ui/CoachPin.tsx).
  * Each nudge says why in one line, and offers one thing to do about it. "Not now" hides it until tomorrow; ✕ for good.
  */
+import { weighIns } from './maintenance';
 import { exerciseMap, missedWorkouts, plannedFor } from '../state/store';
 import { addDays, diffDays, weekdayOf } from './dates';
 import { setsPerMuscle, stalledLifts, nutritionByDay, average, weightTrend, trendRate, weeklyTraining, MUSCLES } from './stats';
@@ -110,8 +111,12 @@ export function findNudges(d: AppData, today: string, hour: number, t: T, lang: 
     if (weak && strong >= 3) {
       add({ id: `weak:${weak}:${today.slice(0, 7)}`, kind: 'suggestion', icon: 'body', priority: 50,
         title: t('{m} get little work', { m: t(LABEL[weak]) }),
-        body: t('About {n} sets a week over the last month, while most muscles get 8 or more.', { n: fmtNum(weekly(weak), lang, 1) }),
-        action: { label: t('Ask the Coach'), run: { type: 'coach', prompt: t('My {m} only get about {n} sets a week. Add an exercise for them to one of my routines.', { m: t(LABEL[weak]).toLowerCase(), n: fmtNum(weekly(weak), lang, 1) }) } } });
+        // what is LOGGED, said as such (never "about 0 sets": Omar trains them and just hadn't logged them, 18 Oct); the
+        // question asks before changing a routine
+        body: weekly(weak) < 0.25
+          ? t('No {m} sets logged in the last 4 weeks, while most muscles get 8 or more.', { m: t(LABEL[weak]).toLowerCase() })
+          : t('About {n} sets a week logged over the last month, while most muscles get 8 or more.', { n: fmtNum(weekly(weak), lang, 1) }),
+        action: { label: t('Ask the Coach'), run: { type: 'coach', prompt: t('Aven shows few {m} sets logged lately. Ask me first whether I train them without logging; if not, add an exercise for them to one of my routines.', { m: t(LABEL[weak]).toLowerCase() }) } } });
     }
   }
 
@@ -145,7 +150,8 @@ export function findNudges(d: AppData, today: string, hour: number, t: T, lang: 
   }
 
   // ── body ───────────────────────────────────────────────────
-  const ws = d.weights.slice().sort((a, b) => a.date.localeCompare(b.date));
+  // (Aven's weigh-ins and the watch's scale)
+  const ws = weighIns(d);
   const lastW = ws[ws.length - 1];
   if (lastW) {
     const rate = trendRate(weightTrend(ws));
@@ -156,6 +162,11 @@ export function findNudges(d: AppData, today: string, hour: number, t: T, lang: 
     const gap = diffDays(today, lastW.date);
     if (gap >= 7 && gap < 60) add({ id: `weigh:${lastW.date}`, kind: 'reminder', icon: 'scale', priority: 30,
       title: t('{n} days since you weighed in', { n: gap }), body: t('One weigh-in a week keeps the trend honest.'),
+      action: { label: t('Log weight'), run: { type: 'open', overlay: 'weight' } } });
+    // true maintenance needs the scale a few times a week (lib/maintenance.ts): a quiet reminder in the morning after 3 days
+    // without a weigh-in (the watch's scale counts too); from 7 days the card above takes over
+    if (gap >= 3 && gap < 7 && hour < 12) add({ id: `weigh:soon:${lastW.date}`, kind: 'suggestion', icon: 'scale', priority: 25,
+      title: t('Step on the scale?'), body: t('A few weigh-ins a week keep your true maintenance calories accurate.'),
       action: { label: t('Log weight'), run: { type: 'open', overlay: 'weight' } } });
     // weighs often, but the weight card is off on Today
     if (!d.settings.widgets.weight && ws.filter((w) => w.date >= addDays(today, -14)).length >= 4) add({ id: 'app:weight-card', kind: 'app', icon: 'today', priority: 20,

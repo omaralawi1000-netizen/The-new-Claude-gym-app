@@ -10,9 +10,10 @@ import { Icon } from '../ui/Icon';
 import { Ledger } from './food/Ledger';
 import { weightTrend, trendRate, reviewWeekEnd, weekReview, weekStreak, weeklyTraining } from '../lib/stats';
 import { Count } from '../ui/kit';
-import { elapsedMs, sessionSetCount, sessionVolume } from '../lib/workout';
+import { elapsedMs, sessionSetCount, sessionVolume, workoutName } from '../lib/workout';
 import { fmtNum, fmtPct, fmtSigned, kgToDisplay } from '../lib/units';
 import { entryFromSnapshot, snapshotOf, uid } from '../lib/nutrition';
+import { watchWalk } from '../lib/activity';
 import { defaultQty } from './food/Detail';
 import { useCovered, useNow, useScreenStore } from '../lib/hooks';
 import type { AppData, Routine } from '../lib/types';
@@ -20,6 +21,7 @@ import { exName } from './workout/common';
 import { MuscleTags } from './MuscleTags';
 import { cardOrder, NextTargets, MusclesWeek, RecentRecords } from './TodayCards';
 import { Roll } from '../ui/Roll';
+import { openFoodPhoto } from '../lib/photoOpen';
 import { CoachPin } from '../ui/CoachPin';
 import { useEdgeFade } from '../ui/edgeFade';
 
@@ -62,9 +64,23 @@ export function TodayScreen() {
   const dueNudge = settings.remindersEnabled && !!routine && !s.active && doneToday.length === 0 && nowD.getHours() * 60 + nowD.getMinutes() >= rh * 60 + rm;
   useEffect(() => {
     if (!dueNudge || typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
-    const key = `aven.notified.${today}`;
-    try { if (sessionStorage.getItem(key)) return; sessionStorage.setItem(key, '1'); } catch { /* ignore */ }
-    try { new Notification(t('Time to train'), { body: routine?.name, icon: `${import.meta.env.BASE_URL}icon-192.png` }); } catch { /* ignore */ }
+    // once a day, also after the app was closed and opened again (one key holding the day, so nothing piles up)
+    const key = 'aven.notified';
+    try { if (localStorage.getItem(key) === today) return; } catch { /* ignore */ }
+    const shown = () => { try { localStorage.setItem(key, today); } catch { /* ignore */ } }; // only once one was really shown
+    const title = t('Time to train');
+    const opts: NotificationOptions = { body: routine?.name, icon: `${import.meta.env.BASE_URL}icon-192.png`, tag: 'aven-train' };
+    // Chrome on Android only shows notifications through the service worker (`new Notification` throws there)
+    let live = true; // no longer due (a workout started, reminders off) before the worker was ready: nothing is shown
+    void (async () => {
+      try {
+        const reg = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : undefined;
+        if (reg) { const ready = await navigator.serviceWorker.ready; if (!live) return; await ready.showNotification(title, opts); shown(); return; }
+      } catch { /* try the plain way */ }
+      if (!live) return;
+      try { new Notification(title, opts); shown(); } catch { /* ignore */ }
+    })();
+    return () => { live = false; };
   }, [dueNudge, today, routine?.name, t]);
 
   const start = (r?: Routine) => {
@@ -90,7 +106,7 @@ export function TodayScreen() {
   const quickLog = (id: string, qty: any) => {
     const food = pool.find((f) => f.id === id);
     if (!food) return;
-    const mealId = defaultMealId(settings.meals);
+    const mealId = defaultMealId(settings.meals, new Date(), settings.dayStartHour); // after midnight, before the new day starts: the late meal
     const e = entryFromSnapshot(snapshotOf(food), defaultQty(food, qty), today, mealId, { id: uid('e') });
     if (!e) return;
     haptic('saved');
@@ -115,7 +131,7 @@ export function TodayScreen() {
     const wrN = s.activities.filter((x) => x.kind === 'wrestling' && x.date >= weekStart && x.date <= addDays(weekStart, 6)).length;
     // from the watch: the week's cardio and the steps a day (only once it is connected)
     const inWeek = (d: string) => d >= weekStart && d <= addDays(weekStart, 6);
-    const cardioN = s.activities.filter((x) => x.source === 'watch' && x.kind !== 'wrestling' && inWeek(x.date)).length;
+    const cardioN = s.activities.filter((x) => x.source === 'watch' && x.kind !== 'wrestling' && !watchWalk(x) && inWeek(x.date)).length;
     const stepDays = (s.steps ?? []).filter((x) => inWeek(x.date) && x.date <= today);
     const stepsAvg = stepDays.length ? Math.round(stepDays.reduce((n, x) => n + x.count, 0) / stepDays.length / 100) * 100 : 0;
     const streak = target ? weekStreak(weeklyTraining(s.sessions, today, 26, settings.weekStart), target) : 0;
@@ -143,13 +159,13 @@ export function TodayScreen() {
   const aDone = active ? sessionSetCount(active.exercises, true) : 0;
   const aTotal = active ? sessionSetCount(active.exercises, false) : 0;
   const addWater = () => { haptic('saved'); const v = settings.waterQuick[1] ?? 250; const id = s.addWater(v, today); toast(`+${v} ml`, { tone: 'ok', actionLabel: t('Undo'), onAction: () => s.removeWater(id), duration: 3500 }); };
-  const mealId = defaultMealId(settings.meals);
+  const mealId = defaultMealId(settings.meals, new Date(), settings.dayStartHour);
   const last = doneToday[doneToday.length - 1];
   // once today's planned workout is done, the card says so (and what got better) instead of offering to start it again
   const plannedDone = !!routine && doneToday.some((x) => x.routineId === routine.id || x.plannedDate === today);
   const gains = useMemo(() => {
     if (!last) return null;
-    const prev = s.sessions.filter((x) => x.id !== last.id && x.date <= last.date && (last.routineId ? x.routineId === last.routineId : x.name === last.name)).sort((a, b) => b.date.localeCompare(a.date) || b.startedAt - a.startedAt)[0];
+    const prev = s.sessions.filter((x) => x.id !== last.id && x.date <= last.date && (last.routineId ? x.routineId === last.routineId : workoutName(x.name, String) === workoutName(last.name, String))).sort((a, b) => b.date.localeCompare(a.date) || b.startedAt - a.startedAt)[0];
     const v = sessionVolume(last.exercises), pv = prev ? sessionVolume(prev.exercises) : 0;
     return { prs: last.records?.length ?? 0, pct: pv > 0 ? Math.round(((v - pv) / pv) * 100) : null };
   }, [last, s.sessions]);
@@ -159,8 +175,8 @@ export function TodayScreen() {
       <header className="row-flex between">
         <div className="small t2">{fmtDate(today, lang, { weekday: 'long', day: 'numeric', month: 'short' })}{settings.name ? <span className="t3"> · {settings.name}</span> : null}</div>
         <div className="row-flex" style={{ gap: 8 }}>
-          <button className="icon-btn press" aria-label={t('Coach')} onClick={() => push('coach')}><Icon name="sparkle" /></button>
-          <button className="icon-btn press" aria-label={t('Settings')} onClick={() => push('settings')}><Icon name="settings" /></button>
+          <button className="icon-btn press hd-keep" aria-label={t('Coach')} onClick={() => push('coach')}><Icon name="sparkle" /></button>
+          <button className="icon-btn press hd-keep" aria-label={t('Settings')} onClick={() => push('settings')}><Icon name="settings" /></button>
         </div>
       </header>
 
@@ -174,7 +190,7 @@ export function TodayScreen() {
           {wd.quick && <>
           <button className="icon-btn press" aria-label={t('Log food')} onClick={() => push('foodSearch', { date: today, mealId })}><Icon name="plus" /></button>
           <button className="icon-btn press" aria-label={t('Scan')} onClick={() => push('scanner', { date: today, mealId })}><Icon name="barcode" /></button>
-          <button className="icon-btn press" aria-label={t('Photo')} onClick={() => push('photoFood', { date: today, mealId })}><Icon name="camera" /></button>
+          <button className="icon-btn press" aria-label={t('Photo')} onClick={() => openFoodPhoto(today, mealId)}><Icon name="camera" /></button>
           </>}
           {wd.water && <button className="icon-btn press" aria-label={`+${settings.waterQuick[1] ?? 250} ml`} onClick={addWater} style={{ width: 'auto', padding: '0 16px', gap: 6, display: 'inline-flex', alignItems: 'center' }}>
             {/* the pill keeps one width (room for "2,500") so the row never jumps; the drop and number glide to stay centred in it */}
@@ -203,7 +219,7 @@ export function TodayScreen() {
           ) : routine && !(plannedDone && last) ? (
             <div className="row-flex between" style={{ gap: 14, alignItems: 'stretch' }}>
               <div style={{ minWidth: 0 }}>
-                <div className="display wk-name" data-wk-fly="title" style={{ fontSize: 56, lineHeight: 0.95 }}>{routine.name}</div>
+                <div className="display wk-name" data-wk-fly="title" style={{ fontSize: 56, lineHeight: 0.95, textWrap: 'balance' }}>{routine.name}</div>
                 <div className="small t2 num" style={{ marginTop: 8 }}>{t(routine.items.length === 1 ? '1 exercise' : '{n} exercises', { n: routine.items.length })} · ~{estMinutes(routine)} min{plan?.source === 'override' && plan.originDate ? ` · ${t('Rescheduled')}` : ''}</div>
                 <MuscleTags routine={routine} style={{ marginTop: 14 }} />
               </div>
@@ -216,7 +232,7 @@ export function TodayScreen() {
             <div className="row-flex between" style={{ gap: 14 }}>
               <div style={{ minWidth: 0 }}>
                 <div className="row-flex" style={{ gap: 6, color: 'var(--ok)' }}><Icon name="check" size={16} sw={2.6} /><span className="small">{t('Done for today')}</span></div>
-                <div className="display" style={{ fontSize: 46, fontStyle: 'italic', marginTop: 6 }}>{last.name}</div>
+                <div className="display" style={{ fontSize: 46, fontStyle: 'italic', marginTop: 6 }}>{workoutName(last.name, t)}</div>
                 <div className="small t2 num" style={{ marginTop: 8 }}>{fmtDurationLong(elapsedMs(last) / 1000, lang)} · {fmtNum(Math.round(kgToDisplay(sessionVolume(last.exercises), settings.units.weight)), lang, 0)} {settings.units.weight}</div>
                 {gains && (gains.prs > 0 || (gains.pct !== null && gains.pct !== 0)) && (
                   // what got better than last time

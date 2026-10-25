@@ -46,7 +46,7 @@ const ask = async (text, motion = false) => {
       const fly = document.querySelector('.coach-fly');
       // (a typed message keeps the lines it wrapped into in the field, one span per line: compare without the spaces)
       const bubble = [...document.querySelectorAll('.coach-thread .said')].find((el) => el.textContent.replace(/\s+/g, '') === text.replace(/\s+/g, ''));
-      if (Number.isFinite(start) && (fly || bubble)) window.__coachSent.push({ fly: fly ? getComputedStyle(fly).transform : null, shown: bubble ? getComputedStyle(bubble).visibility === 'visible' : false });
+      if (Number.isFinite(start) && (fly || bubble)) window.__coachSent.push({ fly: fly ? getComputedStyle(fly).transform : null, shown: bubble ? getComputedStyle(bubble).visibility === 'visible' && getComputedStyle(bubble).opacity !== '0' : false });
       if (performance.now() - start < 2600) requestAnimationFrame(frame); // the calmer flight (Coach r10) lands at ~1.7 s here
     }; requestAnimationFrame(frame);
   }, text);
@@ -74,7 +74,7 @@ await ask('I don’t do leg day, wrestling covers my legs', true);
 assert(await p.locator('.action-card').getByText('Remembered').isVisible(), 'a Remembered card');
 await ask('what do you think of my routine?');
 assert(/MEMORY \(what the user has told you before[^]*1\. \[preference\] Doesn’t do a separate leg day/.test(seen.at(-1).system), 'the memory is in the next request');
-assert(/ASK, DON'T ASSUME/.test(seen.at(-1).system), 'and the rule to ask instead of assume');
+assert(/ask the one question that would change it/.test(seen.at(-1).system), 'and the rule to ask instead of assume');
 await p.screenshot({ path: 'shots/coach-2-memory.png' });
 
 // ── the chat stays when the Coach is closed; after a break the suggestions come back under it ──

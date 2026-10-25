@@ -32,6 +32,7 @@ export function useSwipeDown(ref: React.RefObject<HTMLElement | null>, y: Motion
       base = 0;
       // a handle with its own drag (a routine card's grip) never moves the sheet
       if ((target as HTMLElement)?.closest?.('[data-no-swipe]')) { decided = true; return false; }
+      if (el.hasAttribute('data-leaving')) { decided = true; return false; } // on its way out: not dragged (Sheet.tsx)
       return true;
     };
     const move = (x: number, yy: number, ev: Event) => {

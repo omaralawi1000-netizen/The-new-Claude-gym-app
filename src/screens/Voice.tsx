@@ -11,7 +11,7 @@ import { speechSupported, startSpeech, type SpeechError, type SpeechHandle } fro
 import { getKey } from '../lib/keys';
 import { transcribe, buildPrompt, STT_MODEL, SttError } from '../lib/groq';
 import { aiErrorText, type Turn } from '../lib/gemini';
-import { decide, brainFor } from '../lib/agentTurn';
+import { decide, brainFor, ORB_BRIEF } from '../lib/agentTurn';
 import { droppedCard, runActions, type AgentResult } from '../lib/agent';
 import { dayKey } from '../lib/dates';
 import { uid } from '../lib/nutrition';
@@ -20,6 +20,7 @@ import { SphereSlot, mirrorOrb, orbPress, orbTap, holdOrbSize } from '../ui/Sphe
 import { mirrorProgress, useEngage } from '../ui/engage';
 import { kb, watchFocus } from '../ui/keyboard';
 import { Veil, VOICE_VEIL, mirrorVeil } from '../ui/Veil';
+import { SelfGlow } from '../ui/Glows';
 import { refreshBar, setBarFrost } from '../ui/statusBar';
 import { Icon } from '../ui/Icon';
 import { useOverlayZ } from '../ui/Sheet';
@@ -183,7 +184,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   const [interim, setInterim] = useState('');
   const [err, setErr] = useState<string | null>(null);
   /** the question that got no answer (slow line, an error): Try again asks it once more, in the same bubble */
-  const [ask, setAsk] = useState<{ text: string; id: string } | null>(null);
+  const [ask, setAsk] = useState<{ text: string; id: string; spoken?: boolean } | null>(null);
   const [canRetry, setCanRetry] = useState(false);
   const [turns, setTurns] = useState<Turn1[]>([]);
   const turnsRef = useRef<Turn1[]>([]); turnsRef.current = turns;
@@ -303,7 +304,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   const history = (): Turn[] => threadTurns(readThread(), useStore.getState().settings.dayStartHour, 12);
 
   /** Understand what was said, do it, show it. */
-  const act = async (text: string, id: string) => {
+  const act = async (text: string, id: string, spoken = false) => {
     busy.current = true;
     setErr(null); setAsk(null); go('processing');
     patch(id, { done: false });
@@ -311,15 +312,14 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
     const signal = ctl.current.signal;
     // a slow line is not a Cancel: after 45 s (a look-up in the data adds a round) it says so, with Try again
     let late = false;
-    const kill = setTimeout(() => { late = true; ctl.current?.abort(); }, 45_000);
+    const kill = setTimeout(() => { late = true; ctl.current?.abort(); }, 60_000);
     try {
       const where = props.mode === 'workout' && useStore.getState().active ? 'The user is in their running workout: sets go into it.'
         : props.mealId || props.date ? `The user came from the Food tab${props.date ? ` (day ${props.date})` : ''}${props.mealId ? `, meal ${props.mealId}` : ''}: foods go there unless they say otherwise.`
         : 'The user tapped the orb on the main screen and spoke to it.';
-      // the orb screen is spoken to, often mid-workout: one or two short sentences, not an article (the Coach chat keeps longer answers)
-      const brief = ' They are speaking to the orb screen, probably mid-workout: answer in 1–2 short sentences (about 35 words), plain text, no bullet lists or headings — this overrides the usual reply length. If the question really needs more (a plan, a breakdown), give just the short answer: a “Continue in Coach” button sits under it, so never tell them to open the Coach.';
+      const brief = ORB_BRIEF;
       // the answer streams in word by word as the model writes it (Gemini), under what you said
-      const d = await decide(text, { lang, t, pool, history: history(), where: where + brief, signal, surface: 'orb', said: threadSaid(readThread()), onStatus: (x) => { if (alive.current) setLooking(x); }, onReply: (r) => { if (alive.current) patch(id, { reply: r }); } });
+      const d = await decide(text, { lang, t, pool, history: history(), where: where + brief, signal, surface: 'orb', dictated: spoken, said: threadSaid(readThread()), onStatus: (x) => { if (alive.current) setLooking(x); }, onReply: (r) => { if (alive.current) patch(id, { reply: r }); } });
       let reply = d.reply;
       if (d.wantsUndo) {
         const ok = (t1: Turn1, r: AgentResult) => !!r.undo && !t1.undone.includes(r.id) && (!r.pending || t1.confirmed.includes(r.id));
@@ -363,7 +363,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
       patch(id, { done: true, reply: '' });
       if (e?.code !== 'aborted' || late) {
         setErr(late ? t('Slow connection. Try again, or find your question in the Coach.') : aiErrorText(e, t)); go('error');
-        setAsk({ text, id });
+        setAsk({ text, id, spoken });
         // the question is kept in the conversation (marked unanswered), so it is not lost when the orb closes
         appendExchange({ said: text, reply: '', results: [], failed: late ? t('Slow connection.') : aiErrorText(e, t) });
       } else go('idle');
@@ -395,7 +395,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
       busy.current = false;
       const heard = await hear(blob);
       if (!alive.current) return;
-      if (heard) { patch(id, { said: heard }); act(heard, id); } else drop(id);
+      if (heard) { patch(id, { said: heard }); act(heard, id, true); } else drop(id);
       return;
     }
     const text = [latest.current.final, latest.current.interim].filter(Boolean).join(' ').trim();
@@ -404,7 +404,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
     if (!text) { go('idle'); setErr(t('Didn’t catch anything. Tap the sphere to try again, or type it.')); return; }
     haptic('send');
     setInterim(''); setFinal('');
-    act(text, openTurn(text));
+    act(text, openTurn(text), true);
   };
   finishRef.current = finish;
 
@@ -413,7 +413,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
     setErr(null); setCanRetry(false); go('processing');
     const id = openTurn('');
     const text = await hear(b);
-    if (text) { patch(id, { said: text }); act(text, id); } else drop(id);
+    if (text) { patch(id, { said: text }); act(text, id, true); } else drop(id);
   };
 
   const listening = phase === 'listening' || phase === 'requesting';
@@ -475,7 +475,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
             style={{ position: 'relative', borderRadius: 999, width: big ? 'min(62vw, 250px)' : 96, height: big ? 'min(62vw, 250px)' : 96, transition: 'width .45s cubic-bezier(.22,1,.36,1), height .45s cubic-bezier(.22,1,.36,1)' }}>
             {/* its light: a close halo and a soft pool just under it, as if it hovers over glass (gradients only: no blur,
                 nothing animated but its fade in) */}
-            <span className="voice-glow" aria-hidden />
+            <span className="voice-glow" aria-hidden><SelfGlow /></span>
             <SphereSlot id="voice" priority={10} engage={engage} style={{ position: 'absolute', inset: 0 }} />
           </button>
         </div>
@@ -528,7 +528,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
               </motion.div>
             )}
           </AnimatePresence>
-          {err && <div className="plinth-2 small" role="alert" style={{ padding: '12px 14px', marginTop: 16 }}>{err}{(canRetry || ask) && <div style={{ marginTop: 10 }}>{canRetry ? <button className="btn sm press" onClick={retryHear}>{t('Retry transcription')}</button> : <button className="btn sm press" onClick={() => { if (!ask || busy.current) return; haptic('light'); dropFailed(ask.text); act(ask.text, ask.id); }}><Icon name="repeat" size={14} /> {t('Try again')}</button>}</div>}</div>}
+          {err && <div className="plinth-2 small" role="alert" style={{ padding: '12px 14px', marginTop: 16 }}>{err}{(canRetry || ask) && <div style={{ marginTop: 10 }}>{canRetry ? <button className="btn sm press" onClick={retryHear}>{t('Retry transcription')}</button> : <button className="btn sm press" onClick={() => { if (!ask || busy.current) return; haptic('light'); dropFailed(ask.text); act(ask.text, ask.id, ask.spoken); }}><Icon name="repeat" size={14} /> {t('Try again')}</button>}</div>}</div>}
           <AnimatePresence initial={false} mode="popLayout">
           {typing && !thinking && !(showing && last.reply && written !== last.id) && (
             // (it fades in and out instead of appearing and vanishing in one frame; leaving, it stays where it was)

@@ -92,6 +92,8 @@ export interface Meal {
 export interface SavedMealItem {
   snap: FoodSnapshot;
   qty: Quantity;
+  /** a quick, photo or Coach entry (totals only): logged again with exactly these totals */
+  nutrients?: Nutrients;
 }
 export interface SavedMeal {
   id: string;
@@ -191,7 +193,8 @@ export interface WorkoutSession {
   status: 'active' | 'done';
   exercises: SessionExercise[];
   note?: string;
-  rest?: { endsAt: number; total: number; exerciseId: string } | null;
+  /** setId: the set whose tick started it (unticking that set stops it); '' = started by hand; absent = saved by an older version */
+  rest?: { endsAt: number; total: number; exerciseId: string; setId?: string } | null;
   records?: PersonalRecord[];
   /** how it felt, from the one-tap check-in after it (each optional): energy 1 low · 2 ok · 3 great; soreness 1 none ·
    *  2 some · 3 a lot; sleep (the night before) 1 poor · 2 ok · 3 good */
@@ -249,11 +252,44 @@ export interface Schedule {
   cleared: string[];
   /** activities planned on a weekday besides the gym (0 = Sunday … 6 = Saturday), e.g. wrestling on Tuesdays */
   activities?: Record<number, ActivityKind[]>;
+  /** the day (YYYY-MM-DD) each weekday's plan last changed (0 = Sunday … 6 = Saturday): days before it are never "missed" */
+  weeklySince?: Record<number, string>;
 }
 
 // ── Body & activity ─────────────────────────────────────────
 
 export interface WeightLog { id: string; date: string; kg: number; at: number }
+
+/**
+ * A heavy day caught up over the next few (lib/eating.ts): what it was over by, and the lower targets that make up for it.
+ * Omar asked for it (19 Oct): an evening that got out of hand (often logged the morning after) is paid back over 3–4 days,
+ * never in one brutal day, protein kept, never under a safe floor.
+ */
+/** The calorie target changed on `from` (to `kcal`, from `prev`; either undefined = no target). One record a day. */
+export interface TargetChange { from: string; kcal?: number; prev?: number }
+export interface CatchUp {
+  id: string;
+  /** the heavy day, and how far over its target it went */
+  date: string; over: number;
+  /** the days with a lower target, and how much lower each */
+  days: string[]; perDay: number;
+  /** noticed the same evening (live) or from a log made afterwards (late) */
+  trigger: 'live' | 'late';
+  at: number;
+  /** the lowest a day's target may go because of it */
+  floor: number;
+  /** said to them already: the toast, and the Coach's first line */
+  told?: boolean; coachTold?: boolean;
+  /** taken back (Undo, or "don't cut my calories"): kept so the same day is never caught up again */
+  off?: boolean;
+  /** the plan as decided after a look at everything (lib/verdict.ts): the pop-up's line and the reasoning behind it */
+  line?: string; why?: string;
+  /** decided once (an older record with a `line` counts as decided); set by hand through the Coach (never re-planned) */
+  decided?: boolean; byHand?: boolean;
+  /** its day stopped being heavy after it was decided (an entry deleted or fixed): kept with no cut, so a re-log of the
+   *  same evening is never decided or said again */
+  gone?: boolean;
+}
 export type MeasureKind = 'waist' | 'chest' | 'hips' | 'arm' | 'thigh' | 'neck';
 export interface Measurement { id: string; date: string; kind: MeasureKind; cm: number }
 export interface ProgressPhoto { id: string; date: string; note?: string }
@@ -265,6 +301,8 @@ export interface ActivityLog {
   kind: ActivityKind;
   durationSec: number;
   distanceM?: number;
+  /** metres climbed (the watch) */
+  elevationM?: number;
   /** wrestling: rounds/goes on the mat, and how hard it felt (1 easy · 2 hard · 3 max) */
   rounds?: number;
   intensity?: 1 | 2 | 3;
@@ -285,11 +323,39 @@ export interface ActivityLog {
 /** Steps of one day, from the watch and phone (Health Connect counts each step once). */
 export interface StepDay { date: string; count: number }
 
+/**
+ * Everything else the watch measured on one day (Health Connect, read only): calories, distance, floors, resting heart
+ * rate, HRV, the night's sleep (counted on the morning it ended) with its stages, and body numbers. Missing = not measured
+ * or not allowed.
+ */
+export interface HealthDay {
+  date: string;
+  /** active and total calories burned (shown, never added to the food target) */
+  activeKcal?: number; totalKcal?: number;
+  distanceM?: number; floors?: number;
+  /** resting heart rate (bpm) and heart rate variability (RMSSD, ms) */
+  restHr?: number; hrv?: number;
+  /** sleep in minutes, and its stages */
+  sleepMin?: number; deepMin?: number; remMin?: number; lightMin?: number; awakeMin?: number;
+  /** when the night's sleep started and ended (ms) */
+  sleepStart?: number; sleepEnd?: number;
+  weightKg?: number; bodyFat?: number; vo2max?: number;
+  /** blood oxygen (%) and breathing rate (per minute), the day's average */
+  spo2?: number; respRate?: number;
+  /** body composition (the watch's last scan that day, kg) and basal metabolic rate (kcal a day) */
+  leanKg?: number; bodyWaterKg?: number; boneKg?: number; bmr?: number;
+  /** body temperature (°C); skin temperature at night: the night's average off the watch's own normal (°C), and that normal */
+  bodyTemp?: number; skinDelta?: number; skinBase?: number;
+}
+
 // ── Settings ────────────────────────────────────────────────
 
 export type Goal = 'strength' | 'muscle' | 'fatloss' | 'endurance' | 'general';
 export type Experience = 'new' | 'some' | 'experienced';
 export type EquipmentAccess = 'fullGym' | 'homeDumbbells' | 'bodyweight' | 'barbellHome';
+
+/** the sheet surface in Settings; anything unknown (an option tried on Beta and since dropped) reads as Glass */
+export const surfaceOf = (v: unknown): NonNullable<Settings['surface']> => (v === 'now' || v === 'deep' ? v : 'glass');
 
 export interface Settings {
   name: string;
@@ -299,6 +365,8 @@ export interface Settings {
   palette: 'ember' | 'aurora' | 'mono' | 'sunset' | 'forest' | 'golden' | 'midnight' | 'champagne';
   /** how strong the colour light behind the app is (styles.css `data-glow`); missing = full */
   glow?: 'full' | 'soft' | 'off';
+  /** the colour of the sheets, fields and bar tracks on dark (look.css `data-surface`); missing = glass */
+  surface?: 'now' | 'glass' | 'deep';
   /** what is drawn behind the app (ui/Backdrop.tsx, styles.css `.bgx`); missing = classic (the drifting colour field) */
   background?: 'classic' | 'orb' | 'tabs' | 'sunrise' | 'mesh' | 'dots' | 'time' | 'night' | 'photo';
   /** which view a workout opens in; missing or 'last' = the one last used on this phone */
@@ -328,6 +396,11 @@ export interface Settings {
   profile: { goal: Goal; experience: Experience; equipment: EquipmentAccess; days: number[] };
   plateStep: number;
   foodLookup: boolean;
+  /** heavy-day notices (lib/eating.ts `heavyMode`): on = noticed, decided, maybe a small trim; quiet = noticed only, the
+   *  Coach knows; off = not noticed. Missing = by goal (fat loss on, other goals quiet) */
+  heavyDays?: 'on' | 'quiet' | 'off';
+  /** the day notices last turned on: days before it are never judged (no pop-ups about the past) */
+  heavyOnSince?: string;
 }
 
 export interface DailyNote { date: string; training?: string; nutrition?: string }
@@ -380,7 +453,18 @@ export interface AppData {
   memory: MemoryNote[];
   /** the weekly reviews (the newest 26): the Coach's verdict and the priorities it set, so the next review can check them */
   reviews?: WeekReviewNote[];
-  /** steps per day from the watch (Health Connect), the newest 120 days */
+  /** steps per day from the watch (Health Connect), the newest ~2 years */
   steps: StepDay[];
+  /** the rest of what the watch measured, per day (newest ~2 years) */
+  health?: HealthDay[];
+  /** heavy days being caught up (lib/eating.ts), the newest 30 */
+  catchUps?: CatchUp[];
+  /** when the calorie target changed (lib/eating.ts `targetOn`), so a day is judged against the target it had */
+  targets?: TargetChange[];
+  /** things done or said once, with the day (heavySeen: heavy days already there were marked seen; invisibleSaid,
+   *  helpSaid, ageAsked: the Coach brought it up) */
+  marks?: Record<string, string>;
+  /** watch workouts deleted by hand (their Health Connect ids, the newest 500): never brought back by a sync */
+  hcGone?: string[];
   demo: boolean;
 }

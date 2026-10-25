@@ -1867,6 +1867,82 @@ a coloured fringe ("chromatic aberration / colour banding, looks cheap"). Reprod
 - Tools: `scripts/banding-shots.mjs` (Settings, Today, Coach, Scan at phone size, field held still) and
   `scripts/banding-probe.mjs` (CSS variants on one open sheet).
 
+## No banding anywhere: tab fields, backgrounds, orb screen, dock (14 Oct 2026)
+
+Omar (14 Oct, on the orb screen in Forest): "There's still banding here. Remove banding on all of the app." Same cause as
+the workout window: the phone draws CSS gradients and blur output in whole 8-bit steps with no dither.
+- Every tab field (Classic's three lights and all nine `.bgx` backgrounds) is painted dithered by `FieldGlow`
+  (`src/ui/Glows.tsx`): the gradients, pictures (stars, dots, photo), the grain and the status-bar tint that hold still go
+  into ONE picture read straight from the computed CSS (`src/ui/glowCss.ts`: radial/linear, sRGB and Oklab mixing,
+  transforms, opacity). Matches the CSS within about a third of a step. Other tabs' fields are painted ahead while idle.
+- Moving glows (orb screen halo, Orb light's beam and halo, Sunrise's sun, workout top) use `SelfGlow` inside themselves
+  (Orb light at quarter res).
+- Orb screen veil, dock and dock edge fade: dither tile in the tint, with the tint corrected for its darkening.
+- The workout grain is folded into the workout field picture (was its own full-screen layer).
+- Rules kept from v0.1.123: no layer added or dropped at tab switches or animation ends; each field one standing layer.
+- The exercise stage pools (workout Focus view, exercise page) use `ImgGlow` (Today's card corner glow was removed in v0.1.129): the dithered
+  picture becomes the element's own background image, no extra layer. Onboarding's aurora stays CSS (6 more layers for a
+  screen seen once).
+- Light theme too: dock, orb screen veil and dock edge fade carry a white dither with corrected tints.
+- Round 2 after the judge (same day):
+  - Theme or palette switch: every glow canvas gets the new picture in the same task as the switch (the kept dithered
+    picture, or a quick undithered one drawn at once and replaced when idle; within about one step of it), so the circle
+    reveal never shows the old field. Lab: 85 ms with a kept picture, about 230 ms the first time per theme (software
+    GPU; the phone is faster).
+  - GPU reset: the CSS shows while the chip is gone and the picture comes back after (tested with a forced GPU crash).
+  - Canvases get their size and picture at mount; the top tint strip stays (painted clear) instead of hiding.
+  - Faint glows (Coach-open beam, fades) get a stronger dither for their opacity.
+  - Darks: the darkest fifth now matches the old look within 0.25 of a step (was 0.6-0.8 lighter); the grain in the
+    pictures matches the CSS grain's size and strength.
+  - Pictures are written with `putImageData`: drawing kept bitmaps into GPU canvases made the chip keep a copy of each
+    (round 3: even one drawn once and closed straight after does).
+- Classic's field (Glow round 2: opaque, swaying) is painted opaque too; its top tint stays the CSS strip, since the
+  field moves under it.
+- Cost against Glow round 2 (software GPU, his screen; `chip` = all graphics memory counted once): equal or less
+  everywhere, e.g. Today 50.8 → 47.3 MB, workout 54.4 → 48.1 MB, Train 57.0 → 45.2 MB, sheet open 69.8 → 62.6 MB.
+  Page memory is about 30 MB higher (the kept pictures, capped at 64 MB since round 3).
+- Round 3 after the judge (same day):
+  - No quick picture any more: one painter (`src/ui/glowPaint.ts`), in the worker only (painting a whole field on the
+    page, and making the background-image glows' and the dock shadow's PNG files there, froze the page for 0.5-1.3 s in
+    the first seconds after launch: files are now made in the worker too, `encodePng`). The other tabs' fields are
+    painted ahead 0.6 s after launch; a tab tapped before that shows its CSS field until its picture is ready (painted
+    before anything else the worker has queued), and the picture then fades in over it (1.2 s, eased in and out). The
+    canvas is there, see-through, from the field's first frame, so no layer is added later, and the CSS goes only once
+    that fade has finished. Every field carries the status bar's colour at its top itself, so every switch and every
+    fade-in is a plain cross-fade: a still field in its picture (and in `.field-tint` under the canvas until the picture
+    is in, or for good when it can't be made), Classic in a `.field-tint` that moves exactly back by its sway, Orb light
+    and Sunrise over their moving parts and their grain. (One strip over all fields, faded against a picture with the tint in it, lifted
+    the top-left edge 11-13 levels in Golden hour for half a second, judge rounds 5 and 6, on a fade-in and between
+    Classic and a painted still field; the strip is now only for glow off, and glow on/off swaps strip and field tint
+    in one frame: a 1.2 s fade of the strip left the top blue-black for most of a second, judge round 7.) The grain stays, under the canvas, while a field waits. (Showing the plain
+    colour while waiting, tried first, made the field go dark and then light up; ending the fade on a timer hid the CSS
+    early on a busy page.) After a palette,
+    glow or motion change the picture before fades out (0.6 s) instead of going at once. The mid-switch frame shows the
+    final dithered picture.
+  - Theme switch: the other theme's pictures are painted ahead while idle, read from a hidden twin frame (the page's own
+    styles with the other theme on its root), so a switch only looks each glow's plan up by state and draws it. Reading
+    styles during the switch (the old way) made the browser redo the whole page's styles for each glow; so is anything
+    else read there (the field's sway is read once, at idle). The theme just left is written ahead into one spare canvas
+    per glow, so a switch back only copies it across on the chip. Our code in a switch: 1-8 ms at 4x slower CPU.
+  - Tab switch: each tab brings a new field; its plan (painted ahead with the other tabs) is looked up without reading the
+    page, and its kept picture written in. Lab at 4x: about 40 → 10-20 ms of glow work per tap (most of it the write).
+    Bitmaps made ready ahead were quicker (3 ms) but left copies on the graphics chip (+20 MB after six switches), so
+    they are not used. The switch's animations end at the same time as on base.
+  - Glows that move by themselves (`SelfGlow`: Orb light, orb screen halo, Sunrise sun, workout top) are background
+    images now, like `ImgGlow`: no canvas, no layer (Orb light 64-66 layers on base → 63 on every run).
+  - Field elements keep their CSS background colour (no layer change at the end of a theme switch).
+  - Grain in the pictures: fine and grey; on average as strong as the CSS grain (per palette -12% to +20% against the
+    lab's CSS render, which itself varies by palette). Flat areas get no dither.
+  - Dark orb screen veil: its tint is a dithered tile, so its colour lands within 0.15 of a step of the old look.
+  - Light dock: its big outer shadow is a dithered picture (`src/ui/dockShadow.ts`) instead of a `box-shadow` blur.
+  - Kept pictures: 64 MB cap (oldest first; the other tabs' fields painted ahead go first). In the background only the
+    pictures in a canvas and the other tabs' fields stay (about 14 MB more page memory there), so a tab tapped after
+    unlocking finds its picture; the rest is let go and painted ahead again on return.
+  - Tools: `scripts/theme-switch-cost.mjs`, `scripts/tab-switch-trace.mjs`, `scripts/glow-midswitch.mjs`,
+    `scripts/glow-gpu-reset.mjs`.
+- Tools: `scripts/banding-fields.mjs`, `scripts/perf-gpu.mjs`, `scripts/glow-layers.mjs`, `scripts/glow-theme-sync.mjs`.
+  Way back: branch backup/pre-allbanding-8cb066f.
+
 ## Smooth glows in the live workout window: no more rings (14 Oct 2026, v0.1.121)
 
 Omar saw stepped, slightly coloured rings in the workout window's glow (the gold light behind the exercise card and the
@@ -2618,3 +2694,412 @@ The last part of Coach 2.0, phase 5 (docs/coach-plan.md).
 - **v0.1.150: after Connect watch, back on the Watch screen with the answer.** Omar's video: "Opening Health Connect…", then Aven reloaded on Today, so nothing said whether it worked. The Android app reopens Aven at its start; the page now remembers the tap (`aven.hc.ask`, 3 min) and opens Settings → Watch again: "Watch connected", or on the screen itself what to do (for a refusal: search Health Connect in the phone's Settings → App permissions → Aven → allow all). The remembered tap also makes the answer count when Chrome's "opened by the app" mark is missing.
 - **v0.1.151: a readout while it isn't connected.** Under the Watch screen, one small line says what the Android app last sent back ("answer 21:05: HC yes · allowed · on · 14 days · 3 workouts", "unreadable (n chars)", or "tapped connect 21:04, no answer yet"). Omar's report: with access off, the "not allowed" message came; with access on, the pop-up closed and nothing showed. The line says which step drops it. Remove it once the watch connects.
 - **v0.1.152: the real cause.** Run on the CI emulator end to end (Connect watch tapped in the page in the app, access already given): the Android app answered at once, but its address reads `#hc%3D…` because Android's `Uri.Builder.fragment()` codes the "=". The page looked for `hc=` only, so every answer, from Connect watch and from every launch, was ignored. The page now decodes the address first. `journey-health` uses the coded form; it fails without the fix.
+
+## The Coach as a person who knows you (19 Oct 2026, PR, no version bump)
+Omar: the Coach should feel like talking to a person who knows him and all his data. His screenshots showed what didn't:
+- "I did calves, put it in" made a second "Logged workout" beside today's Legs & shoulders.
+- Asking to move it logged the sets again.
+- A question was sent twice.
+- Protein ideas came only from his own foods.
+- "Calves: about 0 sets a week" when he trains them (he just hadn't logged them).
+
+### Natural logging
+- **Sets told afterwards go into that day's workout.** `log_sets` joins any finished workout of that day, not only the ones the Coach made. A second "Logged workout" is made only when the day has none.
+  - `workout` (last / a date / its name) picks another one.
+  - `after` puts a new exercise right after the one named ("I also did hip abduction, put it after leg press").
+  - The card names the workout, and Undo takes it all back.
+- **No silent workouts.** `add_exercise` with nothing running says so, and starts one only with `start: true`. That silent start is what made the screenshot's mix-up.
+- **Skip by voice.** "Skip this set" means `log_current_set` with `skip`. It takes the planned set out, and Undo puts it back.
+- **New rules for the Coach:**
+  - past tense is never a live workout;
+  - a wrong log is fixed with undo + log again (never twice);
+  - kg/reps not said means last time's;
+  - talk like a person: "I forgot the pizza last night" → yesterday's dinner, "same breakfast as Monday" → copy, "half of that" → edit.
+  - Food ideas: at most one or two from his usual foods, the rest useful new ones (Danish supermarket staples, simple dishes). An open request ("700 kcal, something") gets one short question first ("Sweet or savoury?").
+
+### All the watch data, two years back
+- **The Android app reads** (`HealthSync.java`) per day:
+  - steps, active and total calories, distance, floors;
+  - resting heart rate, HRV (RMSSD);
+  - sleep, counted on the morning it ended: total, deep, REM, light, awake, bed and wake times;
+  - weight, body fat, VO2 max, blood oxygen, breathing rate;
+  - and the workouts.
+- **Permissions:** each extra kind is optional (`MORE`). Only steps and workouts are needed for "connected". Connect watch asks for all of them, and history access only on Android 15+.
+- **History:** the last 14 days every time, plus one older 30-day stretch, walking back about two years over the next openings, then from the top. A stretch that never reached the page comes again. A workout's heart rate, calories and distance are worked out once and remembered.
+- **The page** (`healthSync.ts`) keeps it per day in `health` (additive; backups carry it). A day read again replaces that day.
+- **The Coach** gets BODY & RECOVERY in DATA (`src/lib/recovery.ts`):
+  - the last 7 nights with stages;
+  - resting HR and HRV against his usual (30-day median);
+  - the last 2 weeks against the 2 before;
+  - weight, body fat, VO2 max.
+  - A `health` lookup covers any range ("how did I sleep in September?"). Watch workouts in lookups carry bpm, kcal and km.
+- **Recovery is mentioned only when clearly off** (Omar's choice): under 5 h of sleep, resting HR 7+ over usual, or HRV 25 %+ under. One short line where it fits, and never "train lighter" unless he asks.
+
+### Fixes
+- **No double send.** The Coach asks an opening question once per opening, and the same words within 2 s are asked once.
+- **The little-work card says what is logged:** "No calf sets logged in the last 4 weeks", never "about 0 sets". Its Ask the Coach question asks first whether he trains them without logging.
+
+### Review fixes (19 Oct, two reviewers, every finding reproduced in `tests/review173.test.ts`)
+- **Undo on a Coach card takes back only what that card added.** It used to put back a copy of the whole workout, so a set
+  changed by hand afterwards, or a second card's exercise, was lost with it.
+- **Which workout:** the running one when it is the one named (it carries its routine's name); else an exact name, else the
+  closest; the newest by date, whatever the list's order. A name that matches nothing says so instead of guessing.
+- A finished workout keeps its own length when the Coach adds to it later (it used to stretch to "now"). "After leg press"
+  when there is no leg press says it went at the end.
+- **The same words twice** are dropped only while the first is still being answered; typed words never.
+- **Watch:** a later sync adds to a day field by field (a read that failed on the phone no longer wipes sleep or weight);
+  workouts are kept in date order; one deleted by hand never comes back (`hcGone`); only workouts from the last two days
+  are announced. On the phone, the new kinds (sleep, HRV…) are asked for once on a sync when the watch was connected
+  before they existed; sleep stages are added up in seconds (whole minutes per stage lost up to ~25 min a night) and a
+  night written by two apps is counted once.
+- **Recovery:** "usual" needs 3 days; a sleep time can no longer show as "6h60".
+- **The watch's own walks** (auto-detected, no note) are kept and counted in the steps, but not listed in Train → History or
+  counted as cardio on Today: with two years of history they buried the workouts (Omar, 19 Oct). A walk logged by hand,
+  or with a note, is still listed.
+- Not changed (reasoned in the PR): the 160k cap (real payloads are ~45k), two same-kind sessions on one day merging into
+  the watch's, storage growth (~0.5 MB for two years), the history pointer moving on before the page has the data.
+
+### Checks
+- `tests/coach8.test.ts` (8) and `tests/health.test.ts` (+3).
+- `scripts/journey-coach7.mjs`: calves after leg press in today's workout, the pizza in yesterday's dinner, a question back, BODY & RECOVERY with what is off.
+- `journey-health`, `journey-workout6`, `journey-coach6`, `journey-sol`, `journey-ai`.
+- The CI emulator grants the new permissions in its Connect watch run.
+- **The new data needs the new Android app** (an APK publish after review). The web part works with the old app: it just gets steps and workouts, as before.
+
+## Heavy days and catching up, true maintenance (19 Oct 2026, PR, no version bump)
+(Superseded in parts by "Review round 1 fixes" below: the −500 × 4 formula, the 15 %/400 cap and the gentle default are gone.)
+Omar: he overeats mostly in the evening and often logs it the morning after, as one big addition to yesterday. He asked his
+coach to decide the tone. Chosen: direct, not soft and not harsh. The number is said straight, then the plan. Step 1 of 3
+(step 2: learning why and stepping in early; step 3: experiments).
+
+### Noticing a heavy day (`src/lib/eating.ts`)
+- **Clearly over** = at least 600 kcal and 25 % over the target. Forgetting dinner and logging it the next morning is not a heavy day.
+- **Two ways:**
+  - **the same evening:** after 20:00, today goes clearly over;
+  - **the morning after:** a log for yesterday (or up to 3 days back) made later, and that day ends clearly over ("logged the day after").
+- `src/lib/eatingWatch.ts` checks 1.5 s after any food change and shows one toast: "Yesterday: +2,000 kcal over. Next 4 days: −500 kcal a day." with Undo.
+
+### Catching up
+- The overage is spread over the next days, the same amount each day: 2 days up to 900 kcal, 3 up to 1,500, else 4 (up to 6 when the floor is close). Never one brutal day: that sets up the next evening.
+- A late log starts today; an evening one starts tomorrow.
+- **Floor:** never under 80 % of true maintenance (or of the target while maintenance is unsure), and never under 1,800 kcal. Protein targets stay.
+- Stored in `catchUps` (additive; backups carry it). Today's ring, the day fill and the Coach's "kcal left" all use the lowered target (`kcalTargetFor`). Under "kcal left": "−500 catch-up · 3 days left".
+- More logged for the same day raises the plan (by 200+ kcal). Taken back (Undo, or "don't cut my calories" to the Coach) it is never set again for that day.
+- The Coach can set one too ("I ate about 1,500 extra yesterday"): action `catch_up`.
+
+### True maintenance (`src/lib/maintenance.ts`)
+- From the last 4 weeks: average logged intake minus what the weight trend says (7,700 kcal a kilo, least squares so one odd weigh-in doesn't swing it). Weigh-ins come from Aven and from the scale through the watch.
+- Needs about 10 logged days and 4 weigh-ins two weeks apart; until then the Coach says "not enough yet". Confidence low/medium/high from the days and weigh-ins; low is called an estimate.
+- Relative to what he logs, so a target built on it works even if some evenings go unlogged. The Coach offers a target for his goal (fat loss −500, muscle +250) and never changes it unasked.
+- **Invisible calories:** when the watch's total burn is 300+ kcal above it, roughly that much a day is probably not logged. Said once, without blame.
+- **Weigh-in nudge:** in the morning, when the last weigh-in was 3–6 days ago, a quiet "Step on the scale?" card.
+
+### The Coach
+- DATA gets EATING PATTERNS: true maintenance, invisible calories, heavy days in the last 4 weeks (late or evening), the catch-up running, and JUST NOTICED (said once in its next reply, then marked told).
+- 3+ heavy days a week for 2 weeks: it mentions once, gently, that a doctor or dietitian can help.
+- The week review counts heavy days this week against the 3 before, and gives true maintenance.
+
+### Checks
+- `tests/eating.test.ts` (10): the 2,000 kcal morning-after log, forgotten dinner not flagged, growing and taking back, the evening case, the floor, maintenance for a known deficit, invisible calories, not enough data, told once, the `catch_up` action with Undo.
+- `scripts/journey-eating.mjs`: the morning-after toast, the "−500 catch-up · 4 days left" line on Food, Undo. (It caught a render loop in the Food screen that the unit tests could not.)
+
+## The Coach's brain, and the model contest (19 Oct 2026, PR, no version bump)
+(The verdict's limits, the no-key default and the routing were changed by "Review round 1 fixes" below.)
+Omar: "as good as it can get with the thinking and the communication… and if my friends try the app with their own data."
+He can't judge AI quality himself, so quality is measured: a Coach exam on fake people, run on real models.
+
+### What the review of the old Coach found
+- Its instructions were almost all about actions; next to no coaching knowledge or reasoning discipline.
+- Two facts about Omar were hard-coded for every user ("they overeat in the evening", "they train hard whatever the day").
+- DATA was cut at a fixed length from the end, and the end was BODY & RECOVERY and EATING PATTERNS.
+- Half-logged days counted as real: in the exam every model told "Ali" (dinner unlogged every other day) his maintenance
+  was 1,470 kcal "with high confidence".
+- A heavy day with a target of 1,800 or less was never noticed (detection needed room to trim).
+- The weekly review and Today's notes ran on the cheapest Gemini only.
+
+### What changed
+- **Handbook** (`src/lib/handbook.ts`): the core of good coaching in every message (trend over weigh-ins, what one
+  heavy day really is, no punishment after overeating, rates, protein, sleep, plateaus, teens, making weight, red flags),
+  topics in depth by a `handbook` look-up. **HOW TO THINK** (numbers → trust → context → one choice, then a self-check)
+  and **HOW TO TALK** (answer first, one recommendation with its reason and trade-off, numbers and how sure, short, no
+  lecture or guilt, one question at most; MEMORY on tone wins).
+- **WHO THEY ARE** (`src/lib/person.ts`): each person's own patterns with counts: evening share, heavier weekdays, heavy
+  days after short nights or sport, what they log, weigh-ins, training rhythm. Replaces the hard-coded lines.
+- **DATA TRUST** (`src/lib/dataQuality.ts`): unfinished days (a meal logged on half their days or more is missing and the
+  day is under 75 % of a complete one) are left out of averages and true maintenance; slips (one item over 1,500 kcal,
+  5× the usual amount, the same item twice in 2 min) and weigh-ins 2.5 kg off their neighbours are flagged for one
+  question when it matters.
+- DATA is built by priority: the important blocks always go in; history fills the rest up to 20,000 characters.
+- **Thinking**: decisions (maintenance, targets, cut or bulk, not losing) and "think about it properly" / "tænk dig
+  grundigt om" get high effort.
+- **Heavy-day verdict** (`src/lib/verdict.ts`): detection stays rule-based; the main brain, thinking hard, decides none
+  or a small trim from the goal, true maintenance, how often heavy days happen, sleep, the next days and age. Code limits
+  whatever it says: at most 15 % of the target (and 400 kcal) a day, 7 days, never under the floor, protein untouched,
+  Undo. Without a brain, a gentle default (no cut on a bulk; else at most half back, ≤250 a day, ≤4 days). The toast
+  shows its line; the Coach is told the reasoning (asked "why?", it explains). A catch-up set by the Coach is capped the
+  same way.
+- The weekly review and Today's notes run on the main brain (review on high), with the handbook.
+- **Two models** (Settings → Voice & AI → Quick model): everyday messages go to GPT-6 Luna, decisions, photos and
+  "think about it properly" to GPT-6.1 Sol; a key without Luna falls back to Sol. Spending is priced per model.
+
+### The model contest (`scripts/exam`)
+Five fake people (someone like Omar; a woman cutting with a noisy scale; a 16-year-old bulking in a weight class; one
+who logs only half his dinners; a brand-new user) × 20 questions (logging and editing with exact checks; thinking
+questions read by hand), the real Coach prompt and look-ups, through OpenRouter.
+- Round 1 (old Coach, 12 models): Sol 11/11 on the exact checks; Luna, Argon, Gemini 3.8 Flash 10/11; DeepSeek V4 Pro
+  9/11 but slow; the cheap DeepSeek Flash, GLM and Qwen Flash failed logging (out); Claude models ignored the app's
+  answer format through OpenRouter (out without extra work).
+- Round 2 (new Coach): Sol 0 fails, Luna 1 (asked instead of acting: rule added; final run 0), DeepSeek V4 Pro 3.
+  Reading the answers, Luna on the new Coach is close to Sol day to day; Sol is richer on the hard questions.
+- Cost for the same 20 questions: Sol $0.90, Luna $0.055 (about 16× cheaper).
+- Heavy-day verdicts (Omar-like, a one-off for a consistent cutter, a 16-year-old bulking): every model chose no cut,
+  with the right reasons.
+- Run it: `EXAM_MODELS=openai/gpt-6-luna npx vitest run --config scripts/exam/vitest.config.ts` (an OpenRouter key from the
+  environment; costs money; `EXAM_VERDICT=1` adds the verdicts). Results go to `/tmp/claude-0/exam`.
+
+### Checks
+- `tests/brain.test.ts` (9): unfinished days and Ali's maintenance (~2,050, not 1,470), slips and odd weigh-ins, who they
+  are, the verdict's limits and default, low-target detection, the rules every message carries, DATA by priority.
+- `tests/eating.test.ts` and `tests/openai.test.ts` updated (verdict line, the trim cap, effort for decisions).
+
+## Review round 1 fixes (19 Oct 2026, PRs #173 + #174 + #177, ship together, no version bump)
+Two reviewers went over the last three PRs and I re-ran their findings on the real code: changing the calorie target made
+fake heavy days, a typo fix left the cut in place, one bad weigh-in broke true maintenance (6,910 kcal "high"), risky
+messages went to the cheap model, and the heavy-day system leaned toward eating less. A third reviewer went over the fix
+plan itself and found 20 more holes. Omar's answers shaped it: losing fat now (maybe something else later), frequent
+heavy days decided by the AI case by case inside hard limits, a Beta trial with a copy of his real data, and "talking to
+the Coach steers it, like a real coach". The plan and its ticks: `docs/coach-brain-plan.md`.
+
+### PR #173 (natural logging, watch history), reviewed for the first time
+- Undo on a Coach card takes back only what that card added (it put back a copy of the whole workout, losing a set
+  changed by hand afterwards or another card's exercise).
+- Which workout: the running one when named; else an exact name, else the closest; newest by date whatever the list's
+  order; a name that matches nothing says so. A finished workout keeps its own length. "After X" not found is said.
+- The same words twice are dropped only while the first is still being answered; typed words never.
+- Watch: a later sync adds to a day field by field; workouts in date order; one deleted never comes back (`hcGone`); only
+  workouts from the last two days are announced. The phone asks once for the new kinds (sleep, HRV…) on a sync; sleep
+  stages added up in seconds; a night written by two apps counted once. Recovery's "usual" needs 3 days; no "6h60".
+- Every finding has its test: `tests/review173.test.ts`. Android build and emulator green.
+
+### Heavy days, fair and safe
+- **The target each day had** (`targets`, `targetOn`): changing the target never makes past days heavy; the day it changes
+  is judged against the higher of the two.
+- **Heavy-day notices** in Settings → Targets: On / Quiet / Off. Unset follows the goal (fat loss On, others Quiet).
+  Quiet: noticed, nothing said or changed, the Coach knows. Off: nothing recorded. Turning On never judges the days
+  before (`heavyOnSince`). "No catch-ups ever" to the Coach turns it Off.
+- **Decided once**: a heavy day is recorded, then the main model decides once (more food that day updates the amount but
+  never asks or pops up again; deleted and logged again, or undone, it is never asked again either). A day changed while
+  it was thinking gets a plan fitted to the day as it is.
+- **Hard limits in code, whatever the AI or anyone says**: a trim only for an adult (age known) on a fat-loss goal with
+  notices On, never with an eating-disorder note in memory; at most 250 kcal a day for all catch-ups together, at most 4
+  days, at most half of the real surplus (over true maintenance when it is known well), never under the floor, never
+  above their own target, protein untouched, Undo. No AI key, or a trim not allowed: no cut and no paid call, just
+  "+2,000 kcal over. Mostly water on the scale — back to normal today, no cut." A plan the limits cut down gets a pop-up
+  line that says what really happens.
+- **Corrections**: the big entry deleted or fixed → the catch-up is gone ("Your normal calorie target is back"); a
+  smaller day shrinks it, quietly.
+- **The first launch** marks what is already there as seen: no pop-ups about the past.
+- The evening runs until the new day starts (01:00 with a 04:00 day start counts). The Coach is marked as having said
+  JUST NOTICED only when it was told it, and not by a reply that only logged something.
+
+### True maintenance that one bad number can't break
+Weigh-ins far off their neighbours (Aven's and the watch's) are left out, and so are the two mornings after a big day
+while 6 or more remain; the trend is the median of slopes between weigh-ins a week or more apart (Theil–Sen), clamped to
+1.5 kg a week, the result to 1,200–6,000, and anything clamped or steep is low confidence. Invisible calories only at
+500+ kcal and 20 %+, worded "the watch may overestimate, or some food isn't logged", brought up once.
+
+### Which model answers what (`route` in `src/lib/agentTurn.ts`)
+- Main model, thinking hard: decisions (targets, maintenance, cut or bulk, a new plan, "not losing", "what now"), "think
+  about it properly", and anything where a wrong answer could hurt: overeating and purging, fast weight cuts, making
+  weight, dehydration, warning signs, and supplements, sauna or pain when asked about. Photos: main, at the setting.
+- Quick model: logging, small talk, quick food facts ("how many calories in a banana"), planning at the setting.
+- English and Danish, both ways: `tests/route.test.ts` (e.g. "jeg kastede op", "tabe 4 kg på 10 dage" → main; "5 g
+  kreatin", "faste måltider", "plank" → quick).
+- The time limit (Coach 45 s, orb 20 s) is only for starting to answer; once words flow they are never cut; without a
+  Gemini key there is nothing to hand over to, so it waits. A key without the quick model is remembered until the key
+  changes. Food estimates on the quick model.
+
+### The Coach's rules
+- **Talking steers it**: plans ahead remembered with their date; a goal change offers to switch the goal; the age kept as
+  "Age: N (as of date)"; "that cut was too much / max 150" → fixed now and remembered as a preference that later
+  decisions follow (a preference can only shrink a trim); vague unhappiness → one short question.
+- Frequent heavy days or eating-disorder signals → help mentioned once, gently; no numbers for eating less; a health note
+  so no catch-up is ever set. Training lighter only for illness or injury mentioned now, or under 18.
+- Number first, conservative when the age is unknown; the age asked once.
+- Handbook before the web; science fixes (cycle 0.5–1.5 kg, teens sleep 8–10 h and caffeine ≤ 2.5 mg/kg, making weight
+  at normal hydration, surplus over true maintenance, protein per kg goal weight with high body fat, activity from ×1.2).
+- Nothing about one person written in for everyone (no "most likely evenings", no "wrestling tracker").
+- Weekly review: keeps thinking when the sheet closes, never saves an empty answer, retries once a day; heavy days only
+  with notices On. Coach notes: one try a day, never bring up heavy days.
+
+### The exam, run the way the app works (`scripts/exam`, 19 Oct)
+Each question goes to the model the app would pick. 8 fake people (new: a teen whose age isn't known, someone with
+frequent heavy evenings, a Danish user) × 31 questions (new: Danish, follow-ups like "why?", purging, a teen asking about
+the sauna, and steering: "max 150", a tournament date, "bulking from January", a vague "not happy").
+- GPT-6.1 Sol + GPT-6 Luna as routed: 0 of 22 automatic checks failed, $0.88 for all 31. Reading the answers found 4
+  things (a dietitian mentioned after only 3 heavy evenings; "that cut was too much" set a new catch-up instead of taking
+  it off; "my metabolism is broken" went to the quick model; a test setup), fixed and re-run: all pass.
+- Heavy-day verdicts on Sol (5 cases): no cut in all, with reasons from the numbers (surplus over maintenance, how often,
+  structure over cutting); a MEMORY "max 150" was followed. Teen, health note and unknown age: blocked in code, no call.
+- The safety questions forced onto Luna at low, 3 times each (the path a missed phrase would take): all safe; after one
+  more rule fix the purging case saves its health note 3/3.
+- Gemini 3.8 Flash only (a friend with just a free Gemini key): 0 of 11 checks failed, good answers, $0.37; on the
+  verdicts it chose one small trim (−200 × 4, inside the limits) for a stalled adult with a +2,500 day, none otherwise.
+- Danish food estimates, Luna at low vs Sol: median 5 % off for both (Luna 14/15 within 20 %, Sol 13/15), Luna ~37× cheaper.
+
+### Final reviews (round 2, 19 Oct)
+Two fresh reviewers (code and behaviour) went over the whole stack after the fixes. Every finding was reproduced with a
+test first (`tests/behaviour2.test.ts`, `tests/review2.test.ts`, new rows in `tests/route.test.ts`), then fixed:
+- The hard limits are checked where the target is worked out, not only when a cut is decided: a cut stops at once when
+  a health note or a younger age is learned, the goal changes, or notices go Off.
+- "Don't cut my calories" while a heavy day is still being decided: no cut lands afterwards. Undo of "catch-up off"
+  brings back only what it took off. Two heavy days decided together: the pop-ups add up to what really applies (≤250).
+- Dictated risky lines went to the quick model ("jeg har spist alt for meget i aften", "I want to drop to 74 for the
+  tournament", "I'm going to skip dinner because I ate too much", "I feel dizzy after cutting water", "is it ok to
+  train with a sore shoulder") → main model now; "log my weigh in 84.5", "I binge watched netflix", "pre-workout meal" →
+  quick. Danish letters at word edges (JavaScript's `\b` misses "ædt", "øm").
+- The age is only taken from a note about the person ("his dad, who is 45" is not his age). A health note always fits in
+  memory, even when it is full (the oldest ordinary note makes room).
+- A typo weigh-in that is the newest one is caught against all weigh-ins; "high" maintenance needs 3 weeks of weigh-ins;
+  a maintenance that is only a guess never suggests a new target.
+- A quick-model name fixed in Settings is tried again; the weekly review never runs twice at once.
+- Exam rerun of the 14 questions these touch, plus the verdicts ($0.76): all good on reading. Purging → help, a doctor
+  today, no fasting, health note, catch-up off; teens → no sauna or water cut, parent and coach involved, age asked once;
+  "no catch-ups ever" → off, Settings Off, remembered; "max 150" → off and remembered. Verdicts: no cut in 4 of 5, one
+  −150 × 3 for a stalled adult (inside the limits); teen and health note blocked in code.
+
+### Checks
+- New tests: `tests/heavy.test.ts`, `tests/heavyWatch.test.ts` (with a stand-in brain, incl. 25 random sequences of
+  adding, deleting and changing the target), `tests/maintenance.test.ts`, `tests/route.test.ts`, `tests/coachRules.test.ts`,
+  `tests/review173.test.ts`, `tests/behaviour2.test.ts`, `tests/review2.test.ts`. `npm run verify` green (481 tests);
+  Danish 0 missing.
+- Journeys: `journey-eating` (rewritten: no key → no cut; a brain that asks for −600 × 6 → −250 × 4 and the pop-up says
+  so; deleting the entry takes it away; logged again, not asked again; Undo; Off records nothing), coach, coach7, food, health, sol, ai, today.
+- Speed: the Coach's whole context with 2 years of watch data and a year of food builds in ~60 ms (desktop); the target
+  shown on screen takes ~0.004 ms.
+- Known limits: on the day the target changes a real heavy day isn't judged; maintenance numbers shift a little with the
+  steadier method; phrase lists can miss dictated wordings (the tables cover the known ones); the AI's trim judgement can
+  vary between runs (the limits cap it); the age is only known once told to the Coach until setup asks for it; no AI key
+  means no cuts at all. The in-app spending counter is an estimate: the real guard is the budget set at OpenAI.
+
+
+## Coach 2.1: a coach, not a script (20 Oct 2026, branch claude/coach-quality, on top of #177)
+Omar on Beta: a dictated "Hvorfor taber jeg mig ikke?" (heard as "Hvorfor tager I mig jer mig ikke?") went to the quick model
+and came back hedged, with "a doctor or dietitian can help" from nowhere. His point: the model is capable; the rules and the
+model choice wasted it, and he wants "a dynamic coach, like a real coach".
+- **Principles instead of scripts** (`AGENT_SYSTEM`, `COACH_STYLE`): answer what they asked from their own numbers; a clear
+  recommendation; uncertainty only when it changes the advice; a conversation, not a report; misheard words worked out
+  ("I hear it as…"); an ambiguous "my week" answered the useful way; evidence named when it decides a question. Overeating
+  and binges are coached (proportion, the trigger, a practical plan), never sent to a doctor; real warning signs (throwing
+  up, laxatives, fasting for days, fainting, chest pain) still are. Line counts, "say how sure you are", templates and six
+  doctor lines removed. The app's mechanics (logging, actions, previews, look-ups) kept; foods for two meals are now one
+  log per meal (a lunch-and-dinner message logged dinner twice).
+- **DATA is facts, never orders**: frequent heavy days, just noticed, age, "clearly off", learned habits; a heavy day counts
+  as talked about only when the reply mentions it; "User is 18 years old" is read as an age.
+- **The right model per message** (`chooseModel`): logging, commands and quick facts → quick model at once; risky and
+  decision phrases → main model thinking hard; any other question → one tiny quick-model call that sees the conversation
+  before and whether it was dictated (31/31 on labelled messages; ~2 s; falls back to the phrase lists).
+- **Longer when needed**: replies up to 4,000 characters; Gemini may write 6k tokens and think 1k; spoken orb answers short.
+- **The test bench** (`scripts/exam`): old vs new from two checkouts, Omar's real backup as a persona (kept out of the repo),
+  blind pairs for the chat (`pairs.mjs`), a judge model both ways round (`judge.mjs`), a $10 project ledger.
+  Results: Omar's 10 blind pairs on his own questions — new 4, old 0, the rest equal or both weak (his feedback fixed and
+  re-checked); the judge model 13–1 for new (it favours longer answers, so Omar's picks count). Logging 0/10 failures old
+  and new; safety 5/5 (purging → a doctor, teens → no sauna or fast cut). Spent ≈ $4.1 of $10.
+- **Review round (two reviewers, 20 Oct), fixed with tests:** Stop during the model choice now stops the turn (it answered
+  anyway); the voice flag reaches the Coach chat (it never did) and survives the orb's Try again; short statements about not
+  eating, fasting, water only, sauna, pills, pain, pregnancy or being under 18 always reach the chooser (they went straight to
+  the quick model at low), and the chooser treats them as health questions (38/38 labelled); no quick model → no choosing call
+  (never the main model just to choose), a slow choice is cancelled; "talked about" reads whole numbers (2,300 ≠ 300) and
+  real words. Restored as knowledge: plan around wrestling, judge balance from set counts, conservative numbers when the age
+  is unknown (asked once), ESTIMATE labels, pregnancy/medication/injury → a doctor okays changes. Added: concussion,
+  rhabdomyolysis and heat red flags; no preference unlocks water cuts, saunas, fasting days, purging or training through sharp
+  pain. Omar's calls: a long binge pattern (3+ weeks, "couldn't stop"/"feel awful") → the coach keeps coaching and once
+  mentions a GP who knows binge eating; trims after frequent heavy days stay the verdict's judgement; the coach may delete
+  memory notes when asked; the default monthly AI limit is 200 kr (a realistic month is ~85–145 kr).
+- **Before shipping (v0.1.163, 20 Oct):** an amount that doesn't fit them ("2000 g rice" when they eat 200 g, or a never-logged
+  food at a kilo and 1,500+ kcal) is asked — "Did you mean 200 g?" — never logged as heard; the last 7 days day by day are in
+  DATA, so "how's my week?" is answered in one round (~16 s, was 19–29 s with a look-up round).
+- Shipped to the real app with #173, #174 and #177 as v0.1.163 (Omar, 20 Oct: "I can only really test it on main").
+  Next: the coach's notebook (what it advised, when to check), follow-ups and a weekly check-in.
+
+## Coach deep dive and smoothness (v0.1.165, 20 Oct)
+From Omar's 19 Oct recordings ("flickers, unpolished animations, stutters, icons disappearing"); strict judges 6/10 (live) → 9/10.
+Tried on Beta first; Omar's yes 20 Oct. Judge files in /mnt/project-files/coach-polish/r13-deep/.
+- Stutter: style writes that restyled the whole sheet are gone. No `[style*=]` test left of a combinator, no app-wide `:has()`,
+  and --kb-room / --foot-h / --grow-pad are registered `inherits: false` and written on `.sheet-body` (10-17 ms → 0.2-1 ms).
+- Flicker: an answer's word layers are kept until it scrolls off screen; the flying bubble hides by opacity (its layer is made
+  at flight start); Today's Coach/Settings buttons keep their press layers (3 drops when the Coach opened → 0).
+- Orb: closing with the keyboard up, it rides its button, then settles onto the dock line on a critically damped spring from
+  the button's own speed (it leapt 175 px). Reopened mid-close, it coasts on and turns round from where it is (slot is a new
+  element: keyed by id). It fades with the Coach when Settings opens over it.
+- Older messages: loaded in idle batches of 6, never while answering, flying or with the keyboard moving; a sub-pixel shim
+  on the thread makes each batch add whole pixels, so the view holds exactly still (scrollTop is whole CSS px).
+- Stop X stays until the last word; typing dots keep their phase; waiting send button dims as a whole; photo chip folds away.
+- Dock orb at rest: the script loop sleeps while the worker turns it; everything that can move or light it wakes it, plus a
+  250 ms check of the dock's rect (idle main thread 130 → 40 ms/s at 4x CPU). Unchanged state is no longer posted each frame.
+- Left as is: the typing bar's frost clip (no cheaper look-identical way: the blur is redone anyway as its parts move), a
+  ~0.3 s send-button fade during the voice lift, and Chrome's grey band under the keyboard as it opens (platform).
+
+## The watch in the background, and in detail (20 Oct 2026)
+Omar wanted the watch synced more often, also when Aven is closed, and "the most detailed possible": continuous heart rate,
+every sleep stage, steps.
+- **In the background.** With "access in the background" allowed in Health Connect (Android 15 and up), `HealthJob` reads every
+  half hour (Android picks the moment; not on low battery; again after a restart). Whatever opens Aven then finds numbers at
+  most half an hour old and opens with them at once (read in the last 5 min: no wait at all; Sync now: under 2 min old, at
+  once). The page itself can only receive them when Aven opens or Sync now is tapped: a web page can't be handed data while
+  it sits open. Settings → Watch says whether background reading is on, and where to allow it if not. Already connected
+  phones are asked for it once on the next sync.
+- **The walk through the history moves only when the page has had a stretch** (`delivered`). Half-hourly reads would
+  otherwise walk past two years in a day without the page ever seeing it. The older stretches are read once and kept until
+  delivered, so the background reads stay light (Health Connect limits background reads harder; its exact quotas aren't
+  published).
+- **Detail** ("dt"): heart rate a minute at a time (the average of every reading in that minute: every few minutes at rest,
+  every second in a workout, all the time with "measure continuously" on the watch), steps a minute at a time (Health
+  Connect's own count, phone and watch counted once), every sleep session (naps too) with each stage and its times. The last
+  3 days every time, older days 4 at a time back to 90 days. Minutes are packed two characters each and the whole answer is
+  squeezed (raw deflate, "hc=z~…", about 4× smaller), so a week with everything else is about 20,000 characters. The
+  emulator carried 60,000 without trouble (an earlier "too big" was only adb's own command-line limit: the test now reads
+  the address on the phone).
+- **Kept apart** in IndexedDB `aven-watch` (`lib/watchDetail.ts`, the last 365 days), not in the app data (every save would
+  carry it) and not in backups (Health Connect has it). `watchDetails(from, to)`, `minutes(packed)` and `onWatchDetail` are
+  the way in for anything that draws it. Delete all data clears it; Beta has its own.
+
+## Weight and food into Health Connect (20 Oct 2026)
+Omar: "weight and nutrition, from Aven". Aven now also *writes* two things into Health Connect, so Samsung Health and other
+apps see them: each weigh-in (the last of a day) and each day's food totals (calories, protein, carbs, fat), as one record
+per day each, named by date (`aven-w-<date>`, `aven-n-<date>`), so a day sent again replaces itself. Deleted here = taken
+out there. A web page can't hand data to the Android app by itself, so they ride along when Sync now or Connect watch is
+tapped (`w=` in the link, `lib/hcWrite.ts` → `HealthWrite.java`), only what changed in the last 90 days. They count as sent
+only once the app answers `&hw=<n>`; "denied" (Write weight / Nutrition not allowed in Health Connect) sends them again
+next time and Settings → Watch says where to allow it. Aven's own weigh-ins are skipped when reading the watch's back.
+Not written: workouts and anything else (they'd come back as "watch workouts").
+
+## More from the watch (20 Oct 2026, v0.1.168)
+Omar: "add all the data, GPS also, skin temperature and body composition, the ones that make sense". Now also read:
+- **Body composition** (the watch's scans): lean mass, body water, bone mass, basal metabolic rate (kcal a day); the day's
+  last value, in `HealthDay` (`leanKg`, `bodyWaterKg`, `boneKg`, `bmr`).
+- **Temperature**: body temperature, and skin temperature at night as the night's average off the watch's own normal
+  (`skinDelta`, `skinBase`; Android 15 and up), an early sign of getting ill or under-recovered.
+- **Climbing** per workout (`elevationM`) and the **GPS route** of the newest workouts (last 14 days, at most 8 per answer,
+  thinned to 300 points, Google's encoded polyline), kept by the workout's Health Connect id in IndexedDB `aven-watch`
+  (`routes`; `routeOf`, `routePoints`). Routes need "Exercise routes" allowed in Health Connect.
+The Coach's watch look-up includes the new numbers. Left out on purpose: water and food logged in other apps (Aven has its
+own), blood pressure and glucose (no device), cycle tracking, speed/power/cadence (pace comes from distance and time).
+Already-connected phones are asked once for the new permissions (round 4).
+
+## Corrections, done on the spot (20 Oct 2026, v0.1.169)
+Omar's lunch, in four messages: "10 corn cakes" became 10 × a database's "serving (100 g)" = 4,200 kcal (to dinner, at
+15:27); "majskiks, move it to lunch" → the same mistake again (paprika ones, 4,170 kcal); "the plain ones, 8 of them" →
+only repeated back, plus a question about the brand; "about 75 kcal per 100 g" → "Couldn't find that in the log" twice for
+food it had just logged. His words: the first one is understandable, but when I explain, it should understand me like a
+real coach.
+- **Counted things are pieces** (`foodText.placeholderPortion`): a database's stand-in portion ("serving (100 g)",
+  "1 portion (100 g)", "100 g") is never taken as one of a counted thing unless they named it; how heavy one is gets
+  estimated instead. The Coach is told the same ("10 corn cakes" = 10 pieces of about 8 g).
+- **A fix finds the food wherever it went** (`pickEntry`): a meal that no longer holds it (the AI remembered dinner after
+  it was moved to lunch) falls back to any meal that day; a ref copied with its brackets or cut short ("e_mvgpz3edi7…")
+  is still read (it used to drop the whole fix without a word). A day asked for stays strict.
+- **HOW YOU COACH**: a correction is an instruction: change it in the same answer with their numbers and a best estimate
+  for the rest, say what changed; no repeating back, no asking for a brand.
+- Exam: `fix-pieces` and `fix-kcal` replay his thread (orb, Danish, dictated) with the items in the log: 4/4 fixed both
+  items, none asked about the brand ($0.01).

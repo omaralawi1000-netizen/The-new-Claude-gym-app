@@ -1,12 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { motion } from 'motion/react';
 import { useStore, foodPool } from '../../state/store';
 import { useUI, haptic } from '../../state/ui';
 import { useT, useLang } from '../../lib/i18n';
 import type { Food, FoodSnapshot, Quantity } from '../../lib/types';
-import { allowedUnits, entryFromSnapshot, scale, snapshotOf, toBase, uid, NUTRIENT_KEYS } from '../../lib/nutrition';
+import { allowedUnits, entryFromSnapshot, hasPer100, mergeFood, scale, snapshotOf, toBase, uid, NUTRIENT_KEYS } from '../../lib/nutrition';
 import { fmtNum } from '../../lib/units';
-import { fmtNutrient, NUTRIENT_LABEL, NUTRIENT_UNIT, sourceLabel } from '../../lib/format';
+import { fmtNutrient, foodName, NUTRIENT_LABEL, NUTRIENT_UNIT, sourceLabel } from '../../lib/format';
 import { Icon } from '../../ui/Icon';
 import { Count, NumInput, Seg } from '../../ui/kit';
 import { CloseButton, Sheet, useIsPage, SOFT } from '../../ui/Sheet';
@@ -14,9 +14,11 @@ import { mealName } from '../../lib/derive';
 import { fmtDate, relativeDay } from '../../lib/dates';
 import { useToday } from '../../lib/derive';
 import { pct } from '../../lib/nutrition';
+import { REFERENCE_BY_ID } from '../../data/foods';
 
 function snapToFood(s: FoodSnapshot): Food {
-  return { id: s.foodId ?? uid('snap'), name: s.name, brand: s.brand, source: s.source, sourceId: s.sourceId, basis: s.basis, per100: s.per100, portions: s.portions, density: s.density, state: s.state };
+  // a built-in food keeps its Danish name (snapshots don't carry it)
+  return { id: s.foodId ?? uid('snap'), name: s.name, nameDa: s.foodId ? REFERENCE_BY_ID[s.foodId]?.nameDa : undefined, brand: s.brand, source: s.source, sourceId: s.sourceId, basis: s.basis, per100: s.per100, portions: s.portions, density: s.density, state: s.state };
 }
 
 /** Countable foods (a banana, a slice, a can) default to their portion; bulk foods (skyr, rice, oats) default to 100 g. */
@@ -52,8 +54,8 @@ export function FoodDetail({ props }: { props: { food?: Food; foodId?: string; e
   if (live) kept.current = live;
   const entry = live ?? kept.current;
   const initialFood = useMemo<Food | undefined>(() => {
+    if (props.food) return props.food; // a corrected copy of a logged entry's food arrives with the entry
     if (entry) return snapToFood(entry.snap);
-    if (props.food) return props.food;
     return pool.find((f) => f.id === props.foodId);
     // eslint-disable-next-line
   }, []);
@@ -64,7 +66,7 @@ export function FoodDetail({ props }: { props: { food?: Food; foodId?: string; e
     return prev?.qty;
     // eslint-disable-next-line
   }, []);
-  const [qty, setQty] = useState<Quantity>(() => (entry ? entry.qty : initialFood ? defaultQty(initialFood, last) : { amount: 100, unit: 'g' }));
+  const [qty, setQty] = useState<Quantity>(() => (entry && !props.food ? entry.qty : initialFood ? defaultQty(initialFood, last) : { amount: 100, unit: 'g' }));
   const [mealId, setMealId] = useState(props.mealId);
   const [date, setDate] = useState(props.date);
   const [note, setNote] = useState(entry?.note ?? '');
@@ -82,6 +84,8 @@ export function FoodDetail({ props }: { props: { food?: Food; foodId?: string; e
   const fav = s.favourites.includes(food.id);
   const editing = !!entry;
   const meal = s.settings.meals.find((m) => m.id === mealId);
+  // a food with no per-100 values would save an entry with no nutrients at all (quick entries are edited in their own sheet)
+  const usable = hasPer100(food);
 
   const setUnit = (unit: 'g' | 'ml' | 'portion', portionId?: string) => {
     if (unit === 'portion') setQty({ amount: 1, unit, portionId });
@@ -89,14 +93,14 @@ export function FoodDetail({ props }: { props: { food?: Food; foodId?: string; e
   };
 
   const save = () => {
-    if (saving.current || !base.ok || qty.amount <= 0) return;
+    if (saving.current || !usable || !base.ok || qty.amount <= 0) return;
     saving.current = true;
     haptic('saved');
     const snap = snapshotOf(food);
     const make = (date: string) => entryFromSnapshot(snap, qty, date, mealId, { id: entryId.current, note: note.trim() || undefined, at: entry?.at });
     const e = make(date);
     if (!e) { saving.current = false; return; }
-    if (food.source === 'off' || food.source === 'usda') s.saveFood(food); // keep looked-up foods available offline
+    if (food.source === 'off' || food.source === 'usda') s.saveFood(mergeFood(s.foods.find((f) => f.id === food.id), food)); // keep looked-up foods available offline
     if (editing) {
       const before = entry!;
       s.updateEntry(entry!.id, { ...e, at: before.at });
@@ -122,7 +126,7 @@ export function FoodDetail({ props }: { props: { food?: Food; foodId?: string; e
         {asPage && <CloseButton onClick={pop} />}
         <div className="grow">
           <div className="micro">{editing ? t('Edit entry') : t('Food')}</div>
-          <div className="display display-md" style={{ marginTop: 4, lineHeight: 1 }}>{food.name}</div>
+          <div className="display display-md" style={{ marginTop: 4, lineHeight: 1 }}>{foodName(food, lang)}</div>
           <div className="small t2" style={{ marginTop: 6 }}>{food.brand ? `${food.brand} · ` : ''}{fmtNum(100, lang, 0)} {food.basis} · {sourceLabel(food.source, t)}{food.barcode ? ` · ${food.barcode}` : ''}</div>
         </div>
         <button className="icon-btn press" aria-label={fav ? t('Remove favourite') : t('Favourite')} onClick={() => { haptic('select'); if (!s.foods.some((f) => f.id === food.id) && food.source !== 'reference' && food.source !== 'recipe') s.saveFood(food); s.toggleFavourite(food.id); }} style={{ color: fav ? 'var(--ac-text)' : undefined }}>
@@ -152,7 +156,7 @@ export function FoodDetail({ props }: { props: { food?: Food; foodId?: string; e
               <div key={k}>
                 <div className="micro">{t(label)}</div>
                 <div className="num" style={{ fontSize: 22, fontWeight: 650 }}>{n[k] === undefined ? <span className="t3">—</span> : <Count value={n[k]!} format={(v) => fmtNutrient(k, v, lang)} />}<span className="t3 small"> g</span></div>
-                <div className="bar" style={{ height: 4, marginTop: 6 }}><motion.i style={{ background: c }} initial={false} animate={{ width: `${pct(n[k] ?? 0, goals[k] ?? 100) * 100}%` }} transition={SOFT} /></div>
+                <div className="bar" data-k={k} style={{ height: 4, marginTop: 6, '--fill': c } as CSSProperties}><motion.i style={{ background: c }} initial={false} animate={{ width: `${pct(n[k] ?? 0, goals[k] ?? 100) * 100}%` }} transition={SOFT} /></div>
               </div>
             ))}
           </div>
@@ -222,7 +226,7 @@ export function FoodDetail({ props }: { props: { food?: Food; foodId?: string; e
         )}
 
         <div className="row-flex" style={{ marginTop: 22, gap: 8, flexWrap: 'wrap' }}>
-          <button className="btn sm press" onClick={() => push('customFood', { from: food, afterSave: 'replaceDetail', date, mealId })}><Icon name="edit" size={16} /> {food.source === 'custom' ? t('Edit food') : t('Correct → my copy')}</button>
+          <button className="btn sm press" onClick={() => push('customFood', { from: food, afterSave: 'replaceDetail', date, mealId, entryId: entry?.id })}><Icon name="edit" size={16} /> {food.source === 'custom' ? t('Edit food') : t('Correct → my copy')}</button>
           {editing && <button className="btn sm danger press" onClick={remove}><Icon name="trash" size={16} /> {t('Delete entry')}</button>}
         </div>
       </div>
@@ -230,11 +234,11 @@ export function FoodDetail({ props }: { props: { food?: Food; foodId?: string; e
   );
 
   const foot = (
-    <button className="btn primary block press" onClick={save} disabled={!base.ok || qty.amount <= 0}>
+    <button className="btn primary block press" onClick={save} disabled={!usable || !base.ok || qty.amount <= 0}>
       {editing ? t('Save changes') : t('Add to {meal}', { meal: meal ? mealName(meal, lang) : '' })}
       {n.kcal !== undefined && <span className="num" style={{ opacity: 0.7 }}> · {fmtNum(Math.round(n.kcal), lang, 0)} kcal</span>}
     </button>
   );
 
-  return <Sheet onClose={pop} tall label={food.name} foot={foot}>{body}</Sheet>;
+  return <Sheet onClose={pop} tall label={foodName(food, lang)} foot={foot}>{body}</Sheet>;
 }

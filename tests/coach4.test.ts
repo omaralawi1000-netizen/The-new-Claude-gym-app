@@ -134,7 +134,7 @@ describe('it learns from what is kept, undone and corrected', () => {
     expect(learnedRules()).toEqual([]);
     const back = noteEvent({ k: 'move', food: 'skyr', meal: 'breakfast' });
     expect(learnedRules()[0]).toMatchObject({ kind: 'move', b: 'breakfast', count: 2 });
-    expect(learnedBlock((x) => x, (m) => m)).toMatch(/put it in breakfast/);
+    expect(learnedBlock((x) => x, (m) => m)).toMatch(/it belongs in breakfast/);
     back(); // that move was undone
     expect(learnedRules()).toEqual([]);
     noteEvent({ k: 'move', food: 'skyr', meal: 'breakfast' });
