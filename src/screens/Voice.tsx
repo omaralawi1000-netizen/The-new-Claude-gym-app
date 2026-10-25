@@ -623,7 +623,8 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
                 );
                 return (
                   <div key={tu.id} className="exchange">
-                    {tu.said && <div className="said"><Words text={tu.said} k={`u${i}`} /></div>}
+                    {/* (once answered, an older sentence is plain text: a long conversation keeps few word layers over the orb) */}
+                    {tu.said && <div className="said"><Words text={tu.said} k={`u${i}`} still={tu.done && !newest} /></div>}
                     {/* (the same component when it stops being the newest: a swap made the answer fade in again) */}
                     {tu.reply.trim() && <OrbReply id={tu.id} text={tu.reply} live={!tu.done} onGrow={newest ? follow : () => {}} onDone={() => setWritten(tu.id)} after={cards || null} />}
                     {!tu.reply.trim() && cards}
