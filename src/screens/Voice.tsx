@@ -364,6 +364,29 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
     go('listening');
   };
 
+  // leaving Aven (another app, the screen locked) while talking live: the microphone and camera go off at once; back
+  // within 30 s it carries on as it was, later it has ended and the orb has closed (Omar, 25 Oct: no listening — or
+  // paying — in a pocket)
+  const mutedRef = useRef(muted); mutedRef.current = muted;
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const on = () => {
+      const s1 = liveRef.current;
+      if (document.hidden) {
+        if (!s1) return;
+        s1.setMuted(true);
+        void s1.setCamera(false); setCamStream(null);
+        clearTimeout(timer);
+        timer = setTimeout(() => { if (document.hidden && liveRef.current) { teardown(); useUI.getState().pop(); } }, 30_000);
+      } else {
+        clearTimeout(timer);
+        if (s1) s1.setMuted(mutedRef.current);
+      }
+    };
+    document.addEventListener('visibilitychange', on);
+    return () => { clearTimeout(timer); document.removeEventListener('visibilitychange', on); };
+  }, [teardown]);
+
   // opened → listen straight away
   useEffect(() => { if (supported) listen(); /* eslint-disable-next-line */ }, []);
 
@@ -549,6 +572,8 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   const liveUi = liveWanted && !liveFailed.current && !typing;
   const chatting = liveUi && turns.length > 0;
   const big = liveUi ? !chatting : !showing && !thinking && !typing; // typing: the orb steps up and the box gets the room
+  // (Aven's own Reduce motion too, not only the phone's: the glide and the fade are instant then)
+  const calm = useReducedMotion() || document.documentElement.dataset.motion === 'reduce';
   const liveLabel = renewing ? t('Reconnecting…') : muted ? t('Muted') : '';
   // the sphere is about to grow or shrink (the .45 s transition below): its canvas holds the big size meanwhile
   const wasBig = useRef(big);
@@ -591,9 +616,9 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
 
         {/* the sphere: big while it listens, it steps up and out of the way once there is something to read */}
         <div
-          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', marginTop: big ? 26 : 6, transition: 'margin .45s cubic-bezier(.22,1,.36,1)', ...(liveUi && !chatting ? { flex: 1, marginTop: 0, paddingBottom: 24 } : {}) }}>
+          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', marginTop: big ? 26 : 6, transition: 'margin .45s cubic-bezier(.22,1,.36,1)', ...(liveUi && !chatting ? { flex: 1, marginTop: 6, paddingBottom: 24 } : {}) }}>
           {/* (it glides from the middle to the top when the conversation starts: position by transform, the size as before) */}
-          <motion.button layout="position" transition={{ layout: { duration: 0.45, ease: [0.22, 1, 0.36, 1] } }} aria-label={listening ? t('Stop and send') : t('Start listening')} onClick={tapSphere} disabled={thinking && !liveActive} className="voice-orb" onPointerDown={() => orbPress(true)} onPointerUp={() => orbPress(false)} onPointerCancel={() => orbPress(false)} onPointerLeave={() => orbPress(false)}
+          <motion.button layout={calm ? false : 'position'} layoutDependency={chatting} transition={{ layout: { duration: 0.45, ease: [0.22, 1, 0.36, 1] } }} aria-label={listening ? t('Stop and send') : t('Start listening')} onClick={tapSphere} disabled={thinking && !liveActive} className="voice-orb" onPointerDown={() => orbPress(true)} onPointerUp={() => orbPress(false)} onPointerCancel={() => orbPress(false)} onPointerLeave={() => orbPress(false)}
             style={{ position: 'relative', borderRadius: 999, width: big ? 'min(62vw, 250px)' : 96, height: big ? 'min(62vw, 250px)' : 96, transition: 'width .45s cubic-bezier(.22,1,.36,1), height .45s cubic-bezier(.22,1,.36,1)' }}>
             {/* its light: a close halo and a soft pool just under it, as if it hovers over glass (gradients only: no blur,
                 nothing animated but its fade in) */}
@@ -619,7 +644,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
           {liveUi && (
             // (the conversation fades in once the orb has glided up and shrunk: a first bubble shown while it was still big
             // sat low and then slid up with it)
-            <motion.div className="exchange-list" initial={{ opacity: 0 }} animate={{ opacity: chatting ? 1 : 0 }} transition={{ duration: 0.3, delay: chatting ? 0.4 : 0, ease: [0.2, 0.7, 0.2, 1] }}>
+            <motion.div className="exchange-list" initial={{ opacity: 0 }} animate={{ opacity: chatting ? 1 : 0 }} transition={calm ? { duration: 0 } : { duration: 0.3, delay: chatting ? 0.4 : 0, ease: [0.2, 0.7, 0.2, 1] }}>
               {turns.map((tu, i) => {
                 const newest = i === turns.length - 1;
                 const cards = tu.results.length > 0 && (

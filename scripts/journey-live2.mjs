@@ -99,4 +99,29 @@ const real = (errors) => errors.filter((e) => !/Failed to load resource|429|WebS
   await b.close();
   console.log('limit OK');
 }
+// 5. leaving Aven while talking live: the microphone goes off at once; back soon, it carries on; away 30 s, it has ended
+{
+  let audio = 0, ended = 0;
+  const { b, p, errors } = await open({ ws: (ws) => {
+    ws.onMessage((raw) => {
+      const m = JSON.parse(typeof raw === 'string' ? raw : Buffer.from(raw).toString());
+      if (m.setup) { ws.send(JSON.stringify({ setupComplete: {} })); return; }
+      if (m.realtimeInput?.audio) audio++;
+      if (m.realtimeInput?.audioStreamEnd) ended++;
+    });
+  } });
+  await wait(p, 3000);
+  const hide = (h) => p.evaluate((h) => { Object.defineProperty(document, 'hidden', { configurable: true, get: () => h }); Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => (h ? 'hidden' : 'visible') }); document.dispatchEvent(new Event('visibilitychange')); }, h);
+  await hide(true); await wait(p, 600);
+  const a0 = audio; await wait(p, 1500);
+  assert(ended >= 1 && audio - a0 <= 1, `leaving: the microphone goes off at once (${audio - a0} chunks after)`);
+  await hide(false); await wait(p, 1500);
+  assert(audio - a0 > 5, 'back within 30 s: it carries on');
+  await hide(true); await wait(p, 31500);
+  await hide(false); await wait(p, 1200);
+  assert(!(await p.getByLabel('Type a message').isVisible()), 'away 30 s: the conversation has ended and the orb closed');
+  assert.deepEqual(real(errors), [], 'no page errors (leaving)');
+  await b.close();
+  console.log('leaving OK');
+}
 console.log('LIVE2 OK');
