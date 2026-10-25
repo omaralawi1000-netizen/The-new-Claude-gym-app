@@ -303,7 +303,8 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   // them (on plain progress: it lands at LAND_AT_D)
   const dotS = (pp: number) => 1 - (partV(pp, 'dot') ?? ramp(pp, F().dot ?? F().words));
   const dotAt = (pp: number) => { const dy = wordsDy(pp), k = skinParts.current?.k ?? 1, v = dotS(pp); return `${dy ? `translateY(${dy.toFixed(2)}px) ` : ''}scale(${(k * Math.max(0.03, v)).toFixed(5)})`; };
-  const dotO = (pp: number) => (dotS(pp) > 0.03 ? 1 : 0.002);
+  // (shown from a quarter of its size: smaller, a speck under a pixel drew as a brown smudge for a frame, r6 test)
+  const dotO = (pp: number) => (dotS(pp) > 0.25 ? 1 : 0.002);
   const statusO = (pp: number) => { const v = partV(pp, 'status'); return Math.max(0.002, v !== null ? 1 - v : leaving.current ? 1 - clamp01((pp - LAND_AT_D / 2) / (LAND_AT_D / 2)) : 1 - clamp01(pp / 0.07)); };
   const matR = () => F().mat ?? F().skin;
   const matO = (pp: number) => (F().mat ? Math.max(0.002, 1 - ramp(pp, F().mat!)) : 1);
