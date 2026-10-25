@@ -559,10 +559,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   // the done checkboxes' orange (a layer over their own grey of the same lightness): it goes to that grey while the list is
   // whole and only then does the list fade, so it never darkens through brown; it comes back once the list is in
   const acO = (pp: number) => (from.current && F().ac ? ramp(pp, F().ac!) : 1);
-  const acEls = (seen = false) => {
-    const all = [...(viewsRef.current?.querySelectorAll<HTMLElement>('.wk-check-ac') ?? [])];
-    return seen ? all.filter((el) => { const r = el.getBoundingClientRect(); return r.bottom > -50 && r.top < H + 50; }) : all;
-  };
+  const acEls = () => [...(viewsRef.current?.querySelectorAll<HTMLElement>('.wk-check-ac') ?? [])];
   const lastAc = useRef('');
   const acAt = (pp: number) => { const v = String(acO(pp)); if (v === lastAc.current) return; lastAc.current = v; for (const el of acEls()) el.style.opacity = v === '1' ? '' : v; };
   const paintAt = (pp: number) => {
@@ -783,7 +780,9 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
       morph && k?.status ? go(k.status, (pp) => ({ opacity: String(statusO(pp)), transform: wordsAt(pp) }), [], true) : null,
       morph && ls.current === 'D' ? go(barRef.current, (pp) => ({ transform: barT(barBy(pp)) }), [], true) : null,
       ...(morph && F().meta ? metaEls().map((el) => go(el, (pp) => ({ opacity: String(metaO(pp)) }), [], true)) : []),
-      ...(morph && F().ac ? acEls(true).map((el) => go(el, (pp) => ({ opacity: String(acO(pp)) }), [], true)) : []),
+      // (every done box, not only those on screen now: opening from the resume bar the list starts below the screen, and a
+      // box left out kept the painted 0 (grey) until the whole move settled, then turned orange in one frame)
+      ...(morph && F().ac ? acEls().map((el) => go(el, (pp) => ({ opacity: String(acO(pp)) }), [], true)) : []),
       morph ? go(dimRef.current, (pp) => ({ opacity: String(dim(pp)) }), ENVB) : null,
       morph ? go(stageEl(), (pp) => ({ transform: contentTransform(env(pp)) }), ENVB) : null,
       morph && dockAt.current !== null ? go(navEl(), (pp) => ({ transform: dockT(pp) }), [], true) : null,
