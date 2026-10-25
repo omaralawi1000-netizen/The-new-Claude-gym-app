@@ -204,10 +204,10 @@ function tame(o: CanvasRenderingContext2D, w: number, h: number) {
   let im: ImageData; try { im = o.getImageData(0, 0, w, h); } catch { return; }
   const d = im.data, n = d.length / 4;
   const px = new Float32Array(n * 3);
-  let sL = 0, sL2 = 0, sC = 0, gx = 0, gy = 0, gw = 0;
+  let sL = 0, sL2 = 0, sC = 0, gx = 0, gy = 0, gw = 0, hA = 0, hB = 0, cMax = 0;
   for (let i = 0; i < n; i++) {
     const [L, A, B] = lab(d[i * 4], d[i * 4 + 1], d[i * 4 + 2]); px[i * 3] = L; px[i * 3 + 1] = A; px[i * 3 + 2] = B;
-    const C = Math.hypot(A, B); sL += L; sL2 += L * L; sC += C;
+    const C = Math.hypot(A, B); sL += L; sL2 += L * L; sC += C; hA += A * C; hB += B * C; if (C > cMax) cMax = C;
     const wt = (L + C) ** 6; gx += (i % w) * wt; gy += Math.floor(i / w) * wt; gw += wt;
   }
   const mL = sL / n, mC = sC / n, sd = Math.sqrt(Math.max(0, sL2 / n - mL * mL));
@@ -217,8 +217,9 @@ function tame(o: CanvasRenderingContext2D, w: number, h: number) {
   const g = Math.max(clamp((mC - 0.03) / 0.03), clamp((0.055 - sd) / 0.02) * clamp((mC - 0.025) / 0.01));
   if (g <= 0) { for (let i = 0; i < d.length; i++) if ((i & 3) !== 3) d[i] = q(d[i]); o.putImageData(im, 0, 0); return; }
   const mix = (x: number, y: number) => x + (y - x) * g;
+  const hue = Math.atan2(hB, hA); // the page's own colour (its most colourful parts win)
   const cx = gx / gw, cy = gy / gw, R = Math.hypot(w, h) * 0.32; // the brightest glow, and how far its light reaches
-  const out = new Float32Array(n * 3); let oL = 0;
+  const out = new Float32Array(n * 3);
   for (let i = 0; i < n; i++) {
     let L = px[i * 3], A = px[i * 3 + 1], B = px[i * 3 + 2];
     let C = Math.hypot(A, B), H = Math.atan2(B, A);
@@ -243,19 +244,20 @@ function tame(o: CanvasRenderingContext2D, w: number, h: number) {
       // H and I: part of the way back to the clear glass Omar saw on launch (the page straight through, before the copy faded in)
       const back = M === 'mix' ? 0.5 : M === 'between' ? 0.62 : M === 'light' ? 0.75 : 0;
       if (back) { const L0 = px[i * 3], C0 = Math.hypot(px[i * 3 + 1], px[i * 3 + 2]); L += (L0 - L) * back; C += (C0 - C) * back; }
-      if (M === 'between') { // J: frosted, not smoked (judge 25 Oct): a milky veil of the colour's own light on every busy
-        // background, no part of a card near black, and the calmed orange keeps some colour (Sunset's went grey-brown)
-        L += (0.7 - L) * 0.13; C *= 0.96;
-        if (L < 0.24) L = 0.24 - (0.24 - L) * 0.35;
-        const C0 = Math.hypot(px[i * 3 + 1], px[i * 3 + 2]); C = Math.max(C, Math.min(C0 * 0.8, 0.06) * (1 - cool)); // (not blue: a blue slab stays calm)
+      if (M === 'between') { // J: frosted, not smoked or grey (judge 25 Oct): a veil of the colour's own light that never lifts the
+        // glass above the page under it (a lifted card on a dark page read as grey plastic), no near black where the page
+        // isn't, and never colourless: a grey part leans to the page's own colour (teal on Colour per tab, rose on Sunset)
+        const L0 = px[i * 3];
+        L += (0.7 - L) * 0.13; if (mC >= 0.05) C *= 0.96;
+        L = Math.min(L, L0 + 0.025);
+        const fl = Math.min(0.24, L0); if (L < fl) L = fl - (fl - L) * 0.35;
+        if (C < 0.045) { const t = 1 - C / 0.045; let dh = hue - H; dh -= Math.round(dh / (2 * Math.PI)) * 2 * Math.PI; H += dh * t; C = Math.min(0.045, cMax); }
       }
     }
-    out[i * 3] = L; out[i * 3 + 1] = C; out[i * 3 + 2] = H; oL += L;
+    out[i * 3] = L; out[i * 3 + 1] = C; out[i * 3 + 2] = H;
   }
-  // J: one material on a screen, the cards' lightness closer together (judge 25 Oct: two cards read as two kinds of glass)
-  const flat = M === 'between' ? 0.25 : 0; oL /= n;
   for (let i = 0; i < n; i++) {
-    const L = out[i * 3] + (oL - out[i * 3]) * flat, C = out[i * 3 + 1], H = out[i * 3 + 2];
+    const L = out[i * 3], C = out[i * 3 + 1], H = out[i * 3 + 2];
     const [rr, gg, bb] = rgb(L, C * Math.cos(H), C * Math.sin(H)); d[i * 4] = q(rr); d[i * 4 + 1] = q(gg); d[i * 4 + 2] = q(bb);
   }
   o.putImageData(im, 0, 0);
