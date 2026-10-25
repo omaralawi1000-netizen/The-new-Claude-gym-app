@@ -164,6 +164,7 @@ function rgb(L: number, A: number, B: number): [number, number, number] {
 }
 function tame(o: CanvasRenderingContext2D, w: number, h: number) {
   if (look() !== 'a') return;
+  const M = root().dataset.cards ?? 'blue'; // Cards on trial (Settings): blue E, sapphire F, clear G, plum A
   let im: ImageData; try { im = o.getImageData(0, 0, w, h); } catch { return; }
   const d = im.data, n = d.length / 4;
   const px = new Float32Array(n * 3);
@@ -198,7 +199,10 @@ function tame(o: CanvasRenderingContext2D, w: number, h: number) {
       // dark orange leans to wine (not rust or chocolate), navy to plum
       const warm = step(deg, 25, 35) * step(-deg, -88, -78) * step(-L, -0.48, -0.4);
       H += ((12 - deg) * Math.PI / 180) * 0.75 * g * warm;
-      H += ((-35 - deg) * Math.PI / 180) * 0.6 * g * step(deg, -135, -125) * step(-deg, 55, 65);
+      // navy leaned to plum in A; E, F and G keep the page's own blue
+      if (M === 'plum') H += ((-35 - deg) * Math.PI / 180) * 0.6 * g * step(deg, -135, -125) * step(-deg, 55, 65);
+      if (M === 'sapphire') C = mix(C, Math.min(C * 1.35, 0.11) * cool + C * (1 - cool)); // richer blue
+      if (M === 'clear') { C *= mix(1, 0.45); L = mix(L, Math.min(L, 0.22 + (L - 0.22) * 0.5)); } // almost no colour
     }
     A = C * Math.cos(H); B = C * Math.sin(H);
     const [rr, gg, bb] = rgb(L, A, B); d[i * 4] = rr; d[i * 4 + 1] = gg; d[i * 4 + 2] = bb;
@@ -262,7 +266,7 @@ export function startFrost() {
   new MutationObserver(showHue).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['data-active'] });
   // a new look: copy each field again with its frost (their pictures are painted again too, for the grain, and copied once more)
   new MutationObserver(() => { for (const f of fields.values()) if (f.isConnected) frostFromField(f); })
-    .observe(r, { attributes: true, attributeFilter: ['data-look'] });
+    .observe(r, { attributes: true, attributeFilter: ['data-look', 'data-cards'] });
   // a new palette, background, glow or theme: every tab's picture is of the old colours, so they all go now (the cards fade
   // to their plain glass with the old background) and come back, faded in, from the new field as it comes in (the tab on
   // show) or is painted ahead (the others). Opening a tab then never shows the last colours first.
