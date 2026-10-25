@@ -20,7 +20,7 @@ import { runLookups, validateLookups } from '../lib/agentLookup';
 import { dayKey } from '../lib/dates';
 import { uid } from '../lib/nutrition';
 import { appendExchange, dropFailed, markInThread, readThread, threadSaid, threadTurns } from '../lib/thread';
-import { SphereSlot, mirrorOrb, orbPress, orbTap, holdOrbSize, orbVoiceSource, orbBeat } from '../ui/Sphere';
+import { SphereSlot, mirrorOrb, orbPress, orbTap, holdOrbSize, orbVoiceSource, orbBeat, orbOrbit } from '../ui/Sphere';
 import { mirrorProgress, useEngage } from '../ui/engage';
 import { kb, watchFocus } from '../ui/keyboard';
 import { Veil, VOICE_VEIL, mirrorVeil } from '../ui/Veil';
@@ -616,39 +616,21 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   // (Aven's own Reduce motion too, not only the phone's: the glide and the fade are instant then)
   const calm = useReducedMotion() || document.documentElement.dataset.motion === 'reduce';
   // the orb in your hand (Omar, 26 Oct): it follows your finger; swiped down far enough (or flicked down) it goes away,
-  // otherwise it springs back with one soft bounce. Talking live it floats over a horizon (option C of the four he had made,
-  // picked over the comet: calmer, and cheap to draw): a thin line of light under it that swells right under the orb with
-  // every syllable you say, and the orb lifts a little with your voice, like something floating on water. Still while it
-  // thinks or speaks (its own light answers then), and nothing moves under Reduce motion. Only transforms and opacity
-  // change; the orb never changes shape.
+  // otherwise it springs back with one soft bounce. Talking live it wears Orbit, a ring of its own beads (sphereRender.ts),
+  // which trails your finger's move like a gyroscope. Only a wrapper's transform moves; the orb never changes shape.
   const handEl = useRef<HTMLSpanElement>(null);
-  const swellEl = useRef<HTMLElement>(null);
-  const swellOn = liveUi && liveActive && !muted && !speaking && phase === 'listening' && !calm;
-  const swell = useRef({ on: false, big: true, calm: false, a: 0, t: 0 });
-  Object.assign(swell.current, { on: swellOn, big, calm });
+  const calmRef = useRef(calm); calmRef.current = calm;
   const hand = useMemo(() => new OrbHand(() => handEl.current, {
-    calm: () => swell.current.calm,
+    calm: () => calmRef.current,
     follow: (dx, dy) => [rubber(dx, 34), dy > 0 ? dy * 0.85 : rubber(dy, 40)],
     release: (_x, y, vy) => {
       if (y < 120 && !(vy > 0.5 && y > 40)) return false;
       haptic('light'); useUI.getState().pop(); return true; // (it leaves from where your finger let it go)
     },
-    drift: (dt) => {
-      const c = swell.current;
-      const lv = c.on && !document.hidden ? Math.min(1, (liveRef.current?.levels().in ?? 0) * 1.4) : 0;
-      // up with a syllable at once, down slowly after it (a swell on water, not a meter)
-      c.a += (lv - c.a) * (1 - Math.exp(-(lv > c.a ? 10 : c.on ? 2.6 : 3.2) * dt));
-      c.t += dt;
-      const el = swellEl.current;
-      if (el) el.style.transform = `scaleY(${(0.06 + c.a * 0.94).toFixed(3)})`;
-      if (!c.on && c.a < 0.01) { c.a = 0; if (el) el.style.transform = ''; return null; }
-      // a slow float while you're quiet (1.5 px), and the lift with your voice
-      const r = c.big ? 12 : 5;
-      return [0, -(r * c.a) + (c.on ? Math.sin(c.t * 1.3) * 1.5 : 0)];
-    },
   }), []); // eslint-disable-line
-  useEffect(() => { if (swellOn) hand.wake(); }, [swellOn, hand]);
   useEffect(() => () => hand.stop(), [hand]);
+  // Orbit: while you talk live on this screen (it drifts away as the orb leaves)
+  useEffect(() => { orbOrbit(liveUi && present); return () => orbOrbit(false); }, [liveUi, present]);
   const dragged = useRef(false);
   // what it's doing, in a word (the orb says it too, in light): listening, thinking, speaking
   const liveLabel = renewing ? t('Reconnecting…') : muted ? t('Muted') : !liveActive ? '' : speaking ? t('Speaking') : phase === 'processing' ? t('Thinking…') : phase === 'listening' ? t('Listening') : '';
@@ -704,8 +686,6 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
             style={{ position: 'relative', borderRadius: 999, touchAction: 'none', width: big ? 'min(62vw, 250px)' : 96, height: big ? 'min(62vw, 250px)' : 96, transition: 'width .45s cubic-bezier(.22,1,.36,1), height .45s cubic-bezier(.22,1,.36,1)' }}>
             {/* its light: a close halo and a soft pool just under it, as if it hovers over glass (gradients only: no blur,
                 nothing animated but its fade in) */}
-            {/* the horizon it floats over (talking live): a line of light, and its swell right under the orb */}
-            {liveUi && <span className={`live-horizon${swellOn ? ' on' : ''}`} aria-hidden><i /><b ref={swellEl} /></span>}
             <span ref={handEl} className="orb-hand" style={{ position: 'absolute', inset: 0 }}>
               <span className="voice-glow" aria-hidden><SelfGlow /></span>
               <SphereSlot id="voice" priority={10} engage={engage} style={{ position: 'absolute', inset: 0 }} />

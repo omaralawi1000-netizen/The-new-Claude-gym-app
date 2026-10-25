@@ -1,4 +1,7 @@
 import { orbMoved } from './Sphere';
+import { BOUNCY, apple } from './motion';
+
+const HOME = apple(0.5); // (Reduce motion: home without the bounce)
 
 /**
  * The orb in your hand (Omar, 26 Oct: "it reacts to my swipe, not just an animation, and maybe a bounce"). While your finger
@@ -66,15 +69,17 @@ export class OrbHand {
     this.last = performance.now();
     this.raf = requestAnimationFrame(this.step);
   }
-  stop() { cancelAnimationFrame(this.raf); this.raf = 0; }
+  stop() { cancelAnimationFrame(this.raf); this.raf = 0; document.removeEventListener('visibilitychange', this.back); }
+  /** back on screen: carry on where it was (a spring mid-way home, the float) */
+  private back = () => { if (document.hidden) document.addEventListener('visibilitychange', this.back, { once: true }); else this.wake(); };
 
   private step = (now: number) => {
     this.raf = 0;
-    if (document.hidden) return; // (off screen: nothing moves; it carries on when something wakes it again)
+    if (document.hidden) { document.addEventListener('visibilitychange', this.back, { once: true }); return; } // (off screen: nothing moves)
     const dt = Math.min(0.034, (now - this.last) / 1000); this.last = now;
     if (!this.held && !this.kept) {
-      // a calm spring home: one soft overshoot (ζ ≈ 0.5), or none under Reduce motion
-      const k = 150, c = this.o.calm?.() ? 2 * Math.sqrt(k) : 12.5;
+      // home on the shared BOUNCY spring (one soft overshoot), or without it under Reduce motion
+      const sp = this.o.calm?.() ? HOME : BOUNCY, k = sp.stiffness, c = sp.damping;
       this.vx += (-k * this.x - c * this.vx) * dt; this.vy += (-k * this.y - c * this.vy) * dt;
       this.x += this.vx * dt; this.y += this.vy * dt;
     }
@@ -88,6 +93,6 @@ export class OrbHand {
     const el = this.el(); if (!el) return;
     const x = this.x + (d?.[0] ?? 0), y = this.y + (d?.[1] ?? 0);
     el.style.transform = x || y ? `translate3d(${x.toFixed(2)}px, ${y.toFixed(2)}px, 0)` : '';
-    orbMoved();
+    orbMoved(x, y);
   }
 }

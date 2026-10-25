@@ -38,6 +38,19 @@ function lattice(): { pts: V3; order: Uint16Array; jit: Float32Array } {
   return { pts, order, jit };
 }
 const LAT = lattice();
+/** Orbit's beads: three rows of the orb's own beads round it (inner row fewest), each with its place, a small spread off
+ *  the row (dust, not a drawn line), its own size and its own slow twinkle. Fixed, so nothing ever jumps. */
+const ORBIT = (() => {
+  const rows = [64, 84, 104], n = rows.reduce((a, b) => a + b, 0);
+  const row = new Uint8Array(n), ang = new Float32Array(n), jr = new Float32Array(n), js = new Float32Array(n), tw = new Float32Array(n);
+  let seed = 11, k = 0;
+  const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+  rows.forEach((m, r) => { for (let i = 0; i < m; i++, k++) { row[k] = r; ang[k] = ((i + rnd() * 0.6) / m) * Math.PI * 2; jr[k] = rnd() * 2 - 1; js[k] = 0.7 + rnd() * 0.6; tw[k] = rnd() * Math.PI * 2; } });
+  return { n, row, ang, jr, js, tw };
+})();
+const ORBIT_R = [1.27, 1.37, 1.47]; // each row's radius (× the sphere's); the canvas ends at 1.515
+const ECHO_N = 72;
+
 const ALL = (() => { const a = new Uint16Array(N); for (let i = 0; i < N; i++) a[i] = i; return a; })();
 
 /**
@@ -112,6 +125,11 @@ export interface OrbInputs {
    *  each bead in one step: never a blend of the two (ember and teal blended are grey) */
   colorsTo?: SphereColors;
   colorMix?: number;
+  /** Orbit (Omar, 26 Oct, the orb screen talking live): a ring of the orb's own beads circling it like a planet's ring,
+   *  passing behind it and in front of it. 1 = there; it gathers in as this rises and drifts away as it falls. */
+  orbit?: number;
+  /** how far a finger has moved the orb from its place (css px): the ring trails behind the move with some inertia */
+  lean?: [number, number];
 }
 
 type Ctx2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
@@ -150,6 +168,17 @@ export class SphereRenderer {
   /** each bead's logo dot (-1: on the far side, it isn't in the logo), its share of that dot's light, and the logo dots no
    *  near bead is closest to (drawn by their nearest bead's twin, fading as the sphere forms). Fixed when the logo is
    *  first drawn, so no bead ever changes dot. */
+  // ── Orbit: the ring (see OrbInputs.orbit) ──
+  private oK = 0;                           // how much of the ring is there (0 … 1, eased)
+  private oSpin = 0;                        // its turn round the orb
+  private oRad = 1; private oRadV = 0;      // its radius (× its resting radius), on a spring: gathers in to think, swells to speak
+  private oGather = 0;                      // thinking: the three rows draw into one fast-turning band
+  private oLx = 0; private oLy = 0; private oVx = 0; private oVy = 0; // a spring following the finger's move (css px)
+  private oIn = new Float32Array(16);       // your voice per band, laid round the ring
+  private oOut = 0;                         // its voice
+  private oPrevOut = 0; private oOutAt = -1;
+  private echoes: { age: number; amp: number; ok?: boolean }[] = []; // a syllable it says: a wave of light out across the ring
+  private oOk = -1;                         // done: the success colour sweeping round it (seconds in; -1 none)
   private lmap: { dot: Int16Array; w: Float32Array; extra: { j: number; n: number }[] } | null = null;
   /** how loudly you are speaking right now, 0..1 (time-smoothed) — for things around the orb that should breathe with it */
   get voice() { return Math.min(1, this.body * 0.75 + this.env * 0.45); }
@@ -180,6 +209,7 @@ export class SphereRenderer {
       if (this.lastPhase && !reduced) this.kickV += (v.phase === 'error' || v.phase === 'unavailable' ? -1.4 : 3.2) * soft;
       // done: a pulse of the success colour leaves it, as the wave of green climbs through it
       if (v.phase === 'confirmed' && !reduced && this.rings.length < 4) this.rings.push({ age: 0, amp: 0.9, ok: true }, { age: -0.18, amp: 0.6, ok: true });
+      if (v.phase === 'confirmed' && !reduced) this.oOk = 0;
       this.lastPhase = v.phase;
     }
     // the bloom is a damped spring, so the light swells, overshoots a touch and settles
@@ -207,13 +237,15 @@ export class SphereRenderer {
     // a set ticked: one heartbeat — the light swells once and a single ring of the success colour leaves it. No spin and no
     // flash through the dots (that is a tap's): this is a calm acknowledgement, not a reaction.
     if (inp.beat && inp.beat > 0) {
-      if (!reduced) { this.kickV += 2.6 * inp.beat * soft; if (this.rings.length < 4) this.rings.push({ age: 0, amp: 0.75 * inp.beat, ok: true }); }
+      if (!reduced) { this.kickV += 2.6 * inp.beat * soft; if (this.rings.length < 4) this.rings.push({ age: 0, amp: 0.75 * inp.beat, ok: true }); this.oOk = 0; }
       inp.beat = 0;
     }
     this.restK += ((inp.rest ? 1 : 0) - this.restK) * (1 - Math.exp(-dt * 0.9));
     if (inp.tap > 0) {
       if (!reduced) {
         this.spin += 6 * inp.tap * soft; this.flash = Math.min(1, this.flash + inp.tap * soft);
+        this.oRadV += 1.4 * inp.tap * soft; // (the ring: thrown out a little, it bounces back)
+        if (this.echoes.length < 4) this.echoes.push({ age: 0, amp: 0.8 * inp.tap });
         if (soft === 1 && this.rings.length < 4) this.rings.push({ age: 0, amp: 1 }, { age: -0.16, amp: 0.7 });
       }
       inp.tap = 0;
@@ -318,6 +350,10 @@ export class SphereRenderer {
       if (xk < 1) halo(hi, alt, 1 - xk);
       if (xk > 0) halo(B.hi, B.alt, xk);
     }
+
+    // Orbit: its back half goes behind the sphere (drawn first, hidden where the sphere covers it)
+    const orbit = this.orbitFrame(dt, reduced, v.phase, inp, W, css, c, R);
+    if (orbit) this.drawOrbit(orbit, false, colors, dark, c, R);
 
     const nf = N, count = N;
     const tilt = 0.42 + Math.sin(this.t * 0.37) * (reduced ? 0 : 0.06);
@@ -536,6 +572,7 @@ export class SphereRenderer {
     ctx.fillStyle = gloss; ctx.fillRect(c - Rs, c - Rs, Rs * 2, Rs * 2);
     ctx.restore();
     ctx.globalCompositeOperation = 'source-over';
+    if (orbit) this.drawOrbit(orbit, true, colors, dark, c, R);
     // a tap: two rings of light leave the sphere and fade (a soft glow under a fine line)
     if (this.rings.length) {
       for (const r of this.rings) {
@@ -550,6 +587,153 @@ export class SphereRenderer {
         ctx.beginPath(); ctx.arc(c, c, rad, 0, TAU); ctx.stroke();
       }
     }
+  }
+
+  /**
+   * Orbit (Omar, 26 Oct: "much more beautiful, unique, wow"): a ring of the orb's own beads round it, tilted like a planet's
+   * ring and seen a little from above, in three rows that turn at slightly different speeds (so it shimmers with depth).
+   *  - listening: your voice runs round the ring as a travelling wave that lifts the beads out of its plane, low voice in
+   *    front, highs round the back, so it is your voice drawn in light, in 3D, round the coach;
+   *  - thinking: the rows draw in into one band that turns fast with a bright head of light, as if it gathers itself;
+   *  - speaking: the ring swells with its voice, and each syllable sends a wave of light out across the rows;
+   *  - a tap throws the ring out a little and it bounces back; done sweeps the success colour once round it;
+   *  - moved by a finger the ring trails the move on a soft spring and leans with it, like a gyroscope.
+   * The sphere stays a perfect sphere; nothing here touches it. Under Reduce motion the ring stands still (light only).
+   */
+  private orbitFrame(dt: number, reduced: boolean, phase: string, inp: OrbInputs, W: number, css: number, c: number, R: number) {
+    const to = inp.orbit ?? 0;
+    this.oK += (to - this.oK) * (1 - Math.exp(-dt * (to > this.oK ? 1.6 : 3.2)));
+    if (to === 0 && this.oK < 0.004) { this.oK = 0; this.echoes = []; this.oOk = -1; return null; }
+    const att = (cur: number, t: number, up: number, down: number) => cur + (t - cur) * (1 - Math.exp(-dt * (t > cur ? up : down)));
+    for (let i = 0; i < 16; i++) this.oIn[i] = att(this.oIn[i], (this.lat[Math.max(0, i - 1)] + this.lat[i] * 2 + this.lat[Math.min(15, i + 1)]) / 4, 9, 2.4); // (a calmer copy of the sphere's)
+    const outRaw = Math.min(1, inp.voiceOut ?? 0);
+    this.oOut = att(this.oOut, outRaw, 20, 4);
+    if (!reduced && outRaw - this.oPrevOut > 0.09 && outRaw > 0.16 && this.t - this.oOutAt > 0.16) {
+      this.oOutAt = this.t; if (this.echoes.length >= 4) this.echoes.shift(); this.echoes.push({ age: 0, amp: Math.min(1, 0.4 + outRaw) });
+    }
+    this.oPrevOut = outRaw;
+    for (const e of this.echoes) e.age += dt;
+    this.echoes = this.echoes.filter((e) => e.age < 0.9);
+    if (this.oOk >= 0) { this.oOk += dt; if (this.oOk > 1.6) this.oOk = -1; }
+    const thinking = phase === 'processing';
+    this.oGather = att(this.oGather, thinking ? 1 : 0, 2.2, 1.6);
+    const radTo = (1 - 0.06 * this.press) * (1 + 0.07 * this.oOut);
+    for (let rem = dt; rem > 1e-6; rem -= 1 / 240) { const h = Math.min(rem, 1 / 240); this.oRadV += (-110 * (this.oRad - radTo) - 12 * this.oRadV) * h; this.oRad += this.oRadV * h; }
+    const env = this.env;
+    if (!reduced) this.oSpin += dt * (0.22 + env * 0.7 + this.oGather * 1.9 + this.oOut * 0.3 + Math.max(0, this.spin) * 0.15);
+    // the finger's move, followed on a soft spring (css px): the ring is drawn where the spring is, so it trails behind
+    const lx = inp.lean?.[0] ?? 0, ly = inp.lean?.[1] ?? 0;
+    for (let rem = dt; rem > 1e-6; rem -= 1 / 240) { const h = Math.min(rem, 1 / 240);
+      this.oVx += (-70 * (this.oLx - lx) - 11 * this.oVx) * h; this.oLx += this.oVx * h;
+      this.oVy += (-70 * (this.oLy - ly) - 11 * this.oVy) * h; this.oLy += this.oVy * h; }
+    if (reduced) { this.oLx = lx; this.oLy = ly; this.oVx = this.oVy = 0; }
+    const px = W / Math.max(1, css), lim = c * 0.16;
+    const ox = Math.max(-lim, Math.min(lim, (this.oLx - lx) * px)), oy = Math.max(-lim, Math.min(lim, (this.oLy - ly) * px));
+    const roll = -0.16 + Math.max(-0.35, Math.min(0.35, this.oVx * 0.0011));
+    const elev = Math.max(0.16, Math.min(0.62, 0.36 - this.oVy * 0.0008));
+    // gathering in when it appears: from a wider, turned ring, fading in (and back out the same way)
+    const ek = this.oK * this.oK * (3 - 2 * this.oK);
+    const T = reduced ? 0 : this.t;
+    const O = ORBIT, n = O.n;
+    const xs = new Float32Array(n), ys = new Float32Array(n), rs = new Float32Array(n), lum = new Float32Array(n), zs = new Float32Array(n), hue = new Float32Array(n), tone = new Uint8Array(n);
+    const ce = Math.cos(elev), se = Math.sin(elev), cr = Math.cos(roll), sr = Math.sin(roll);
+    const headA = T * 3.4, okHead = this.oOk >= 0 ? Math.PI / 2 + this.oOk * TAU * 0.85 : 0;
+    for (let k = 0; k < n; k++) {
+      const row = O.row[k];
+      const th = O.ang[k] + this.oSpin * (1 + row * 0.09) + (1 - ek) * 1.4;
+      const ct = Math.cos(th), st2 = Math.sin(th);
+      // where it is from the front (0) round to the back (1): the voice's band
+      let fa = Math.abs(((th - Math.PI / 2) % TAU + TAU) % TAU); if (fa > Math.PI) fa = TAU - fa;
+      const fb = (fa / Math.PI) * 15, b0 = Math.min(14, Math.floor(fb)), fr = fb - b0;
+      const e = this.oIn[b0] * (1 - fr) + this.oIn[b0 + 1] * fr;
+      let rr = ORBIT_R[row] + (1.3 - ORBIT_R[row]) * this.oGather * 0.82;
+      rr = rr * this.oRad * (1 + (1 - ek) * 0.22) + O.jr[k] * 0.018;
+      let glow = 0;
+      for (const ec of this.echoes) { const f = 1.12 + ec.age * 0.62, d = rr - f; glow += ec.amp * (1 - ec.age / 0.9) * Math.exp(-(d * d) / 0.0035); }
+      rr += glow * 0.035;
+      const wave = reduced ? 0 : Math.sin(th * 3 - T * 2.6 + row * 0.7);
+      const hgt = (Math.min(1, e * 1.4) * 0.1 * wave + 0.012 * Math.sin(th * 3 + T * 0.9 + row)) * (1 - this.oGather);
+      // in the ring's plane, then seen from a little above, then the roll
+      const X = rr * ct, Y = hgt, Z = rr * st2;
+      const y1 = Y * ce + Z * se, z1 = -Y * se + Z * ce;
+      const sx = X * cr - y1 * sr, sy = X * sr + y1 * cr;
+      xs[k] = c + ox + sx * R; ys[k] = c + oy + sy * R; zs[k] = z1;
+      const depth = Math.max(0, Math.min(1, (z1 / rr + 1) / 2)); // 0 back … 1 front
+      glow += Math.min(0.5, e * 0.7) * (0.55 + 0.45 * Math.abs(wave)) + this.oOut * 0.28 + this.press * 0.22;
+      if (this.oGather > 0.02) { let d = ((headA - th) % TAU + TAU) % TAU; glow += this.oGather * Math.exp(-d * 1.6) * 1.3; }
+      let ok = false;
+      if (this.oOk >= 0) { const d = ((okHead - th) % TAU + TAU) % TAU; const w = Math.exp(-d * 1.1) * Math.max(0, 1 - this.oOk / 1.6); if (w > 0.25) ok = true; glow += w * 0.9; }
+      const twk = reduced ? 0 : 0.1 * Math.sin(T * (0.6 + O.js[k] * 0.5) + O.tw[k]);
+      const L = Math.max(0, Math.min(1, 0.16 + 0.42 * depth + glow + twk));
+      lum[k] = L; hue[k] = 0.5 + 0.5 * Math.sin(th + T * 0.3);
+      rs[k] = R * 0.026 * O.js[k] * (0.5 + 0.75 * depth) * (1 + 0.45 * Math.min(1, glow)) * (0.6 + 0.4 * ek);
+      tone[k] = ok ? 2 : L > 0.97 && depth > 0.6 ? 1 : 0;
+    }
+    // the syllables' own waves of light: a dotted ring spreading out across the ring's plane, fading as it goes
+    const echo: { x: number; y: number; r: number; z: number; a: number }[] = [];
+    for (const ec of this.echoes) {
+      const f = (1.12 + ec.age * 0.62) * this.oRad, a = ec.amp * Math.pow(1 - ec.age / 0.9, 1.5) * Math.max(0, Math.min(1, (1.5 - f) / 0.12));
+      if (a < 0.02) continue;
+      for (let j = 0; j < ECHO_N; j++) {
+        const th = (j / ECHO_N) * TAU + this.oSpin * 0.5;
+        const X = f * Math.cos(th), Z = f * Math.sin(th);
+        const y1 = Z * se, z1 = Z * ce;
+        echo.push({ x: c + ox + (X * cr - y1 * sr) * R, y: c + oy + (X * sr + y1 * cr) * R, r: R * 0.016, z: z1, a: a * (0.35 + 0.65 * (z1 / f + 1) / 2) });
+      }
+    }
+    return { xs, ys, rs, lum, zs, hue, tone, echo, ek, cx: c + ox, cy: c + oy };
+  }
+
+  /** One half of Orbit: the back half (hidden where the sphere is in front of it, a faint trace through its glass) or the front. */
+  private drawOrbit(o: NonNullable<ReturnType<SphereRenderer['orbitFrame']>>, front: boolean, colors: SphereColors, dark: boolean, c: number, R: number) {
+    const ctx = this.ctx, { hi, lo, alt, ok } = colors, n = ORBIT.n;
+    const op = ctx.globalCompositeOperation;
+    ctx.globalCompositeOperation = dark ? 'lighter' : 'source-over';
+    const LV = 6, base = (dark ? 0.9 : 0.8) * o.ek;
+    // (the sphere covers the back half where it is in front of it; through its glass a faint trace stays)
+    const seen = (x: number, y: number, z: number) => { if (front ? z < 0 : z >= 0) return 0; if (front) return 1; const d = Math.hypot(x - c, y - c) / R; return d >= 1.06 ? 1 : d <= 0.94 ? 0.12 : 0.12 + 0.88 * (d - 0.94) / 0.12; };
+    const col = (L: number, h: number, t: number): RGB => {
+      if (t === 2) return ok;
+      const top: RGB = [hi[0] + (alt[0] - hi[0]) * h * 0.55, hi[1] + (alt[1] - hi[1]) * h * 0.55, hi[2] + (alt[2] - hi[2]) * h * 0.55];
+      const m = Math.min(1, L * 1.1);
+      const c3: RGB = [lo[0] + (top[0] - lo[0]) * m, lo[1] + (top[1] - lo[1]) * m, lo[2] + (top[2] - lo[2]) * m];
+      return t === 1 ? [c3[0] + (255 - c3[0]) * 0.45, c3[1] + (255 - c3[1]) * 0.45, c3[2] + (255 - c3[2]) * 0.45] : c3;
+    };
+    // batched: one shape per (light level, hue half, tone), like the sphere's beads
+    const groups = new Map<number, number[]>();
+    const vis = new Float32Array(n);
+    for (let k = 0; k < n; k++) {
+      const s = seen(o.xs[k], o.ys[k], o.zs[k]); if (s <= 0) continue; vis[k] = s;
+      const key = (Math.min(LV - 1, Math.floor(o.lum[k] * s * LV)) * 2 + (o.hue[k] > 0.5 ? 1 : 0)) * 3 + o.tone[k];
+      let g = groups.get(key); if (!g) groups.set(key, (g = [])); g.push(k);
+    }
+    const fill = (list: number[], scale: number, rgb: RGB, a: number) => {
+      if (a < 0.004) return;
+      ctx.fillStyle = `rgba(${rgb[0] | 0},${rgb[1] | 0},${rgb[2] | 0},${a.toFixed(3)})`; ctx.beginPath();
+      for (const k of list) { const r = o.rs[k] * scale; if (r < 0.05) continue; ctx.moveTo(o.xs[k] + r, o.ys[k]); ctx.arc(o.xs[k], o.ys[k], r, 0, TAU); }
+      ctx.fill();
+    };
+    for (const [key, list] of groups) {
+      const t = key % 3, h = Math.floor(key / 3) % 2, lv = Math.floor(key / 6), L = (lv + 0.5) / LV;
+      const rgb = col(L, h ? 0.85 : 0.25, t);
+      const a = (0.12 + 0.88 * L) * base;
+      if (dark && lv >= 3) fill(list, 2.3, rgb, a * 0.1); // its soft light into the dark round it
+      fill(list, 1, rgb, a);
+      if (dark && t === 1) fill(list, 0.4, [255, 255, 255], a * 0.5);
+    }
+    // the syllables' waves
+    if (o.echo.length) {
+      const rgb = col(0.9, 0.4, 0);
+      for (let lv = 1; lv <= 4; lv++) {
+        ctx.fillStyle = `rgba(${rgb[0] | 0},${rgb[1] | 0},${rgb[2] | 0},${(lv / 4 * 0.75 * base).toFixed(3)})`; ctx.beginPath(); let any = false;
+        for (const e of o.echo) {
+          const s = seen(e.x, e.y, e.z); const q = e.a * s; if (q < (lv - 0.5) / 4 || q >= (lv + 0.5) / 4) continue;
+          ctx.moveTo(e.x + e.r, e.y); ctx.arc(e.x, e.y, e.r, 0, TAU); any = true;
+        }
+        if (any) ctx.fill();
+      }
+    }
+    ctx.globalCompositeOperation = op;
   }
 
   /** The launch coil's light: each lit bead again, in the new colour's light, added over it (four steps of strength, a set

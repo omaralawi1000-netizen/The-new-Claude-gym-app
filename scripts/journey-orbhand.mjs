@@ -1,6 +1,6 @@
 // The orb in your hand (Omar, 26 Oct): pulled up out of the dock it comes with your finger and springs back with a bounce,
 // or opens when pulled high enough; on its own screen it follows your finger, a short drag springs back, a swipe down puts
-// it away; a tap still works; talking live it floats over a horizon that swells with your voice. The orb drawn on the stage
+// it away; a tap still works; talking live it wears Orbit (its ring, drawn by the orb itself). The orb drawn on the stage
 // follows its moved slot. Gemini Live is faked at the WebSocket (see journey-live.mjs).
 import { launch, wait, skipOnboarding, loadDemo } from './lib.mjs';
 import assert from 'node:assert/strict';
@@ -69,19 +69,15 @@ const stageY = () => p.locator('.sphere-stage').evaluate((el) => new DOMMatrixRe
   await p.mouse.up(); await wait(p, 1500);
   assert(!(await voiceOpen()), 'a swipe down puts it away');
 }
-// 4. talking live: it floats over a horizon that swells with your voice; muted, all of it comes to rest
+// 4. talking live: the ring is the orb's own drawing (sphereRender.ts Orbit); the screen adds no layer of its own for it, and
+// the orb stays where it is until a finger moves it
 {
   await p.evaluate(() => { localStorage.setItem('aven.keys', JSON.stringify({ gemini: 'AIzaTESTKEY' })); localStorage.setItem('aven.ai', JSON.stringify({ liveOrb: true })); });
   await p.reload(); await wait(p, 1500);
   await dock.click(); await wait(p, 2500);
-  assert(await p.locator('.live-horizon.on').count() === 1, 'the horizon is lit while you talk');
-  const lift = await hand('.voice .orb-hand'); const sw = await p.locator('.live-horizon > b').evaluate((el) => el.style.transform);
-  assert(/translate3d\(0px, -/.test(lift), `it lifts with your voice (${lift})`);
-  assert(/scaleY\(0\.[1-9]|scaleY\(1/.test(sw), `the swell rises (${sw})`);
-  await p.screenshot({ path: 'shots/orbhand-2-horizon.png' });
-  await p.getByRole('button', { name: 'Mute' }).click(); await wait(p, 3500);
-  assert.equal(await hand('.voice .orb-hand'), '', 'muted: it comes to rest');
-  assert.equal(await p.locator('.live-horizon > b').evaluate((el) => el.style.transform), '', 'and the swell lies flat');
+  assert.equal(await p.locator('.live-horizon').count(), 0, 'no extra layer for it');
+  assert.equal(await hand('.voice .orb-hand'), '', 'the orb rests in its place');
+  await p.screenshot({ path: 'shots/orbhand-2-orbit.png' });
 }
 const real = errors.filter((e) => !/Failed to load resource|429|WebSocket/.test(e));
 assert.deepEqual(real, [], 'no page errors');

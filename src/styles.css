@@ -3097,12 +3097,5 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 /* an answer you spoke over: it steps back */
 .voice .live-cut { opacity: 0.42; transition: opacity .4s var(--ease-out); }
 
-/* the horizon the live orb floats over (Omar's option C, 26 Oct): a thin line of light just under it, and the swell right
-   under the orb that rises with each syllable (scaleY, from Voice.tsx); gradients only, no blur. Dim unless you're talking. */
-.voice .live-horizon { position: absolute; left: -38%; right: -38%; top: calc(100% - 2px); height: 22px; pointer-events: none; opacity: .35; transition: opacity .6s cubic-bezier(.22,1,.36,1); }
-.voice .live-horizon.on { opacity: 1; }
-.voice .live-horizon > i { position: absolute; left: 0; right: 0; top: 0; height: 1px; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--ac) 22%, transparent) 26%, color-mix(in srgb, var(--ac) 70%, transparent) 50%, color-mix(in srgb, var(--ac) 22%, transparent) 74%, transparent); }
-.voice .live-horizon > b { position: absolute; left: 34%; right: 34%; bottom: calc(100% - 1px); height: 30px; transform-origin: 50% 100%; transform: scaleY(.06); will-change: transform;
-  background: radial-gradient(50% 100% at 50% 100%, color-mix(in srgb, var(--ac) 46%, transparent) 0%, color-mix(in srgb, var(--ac) 14%, transparent) 55%, transparent 100%); }
-:root[data-theme='light'] .voice .live-horizon > i { opacity: .7; }
-:root[data-theme='light'] .voice .live-horizon > b { opacity: .6; }
+/* (the orb's hand-moved wrapper keeps its layer: none added or dropped as a drag or the float starts and stops) */
+.voice .orb-hand { will-change: transform; }

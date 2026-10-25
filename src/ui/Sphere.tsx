@@ -35,8 +35,13 @@ let tapPending = 0;
 let whooshPending = 0;
 let ignitePending = 0;
 export function orbPress(down: boolean) { pressTarget = down ? 1 : 0; wakeOrb(); }
-/** Its slot was moved by hand (a finger dragging it, the comet's loop): keep the stage following, it may have gone to sleep. */
-export function orbMoved() { wakeOrb(); }
+/** Its slot was moved by hand (ui/orbHand.ts: a finger, the spring home), by (x, y) css px: the stage keeps following (it may
+ *  have gone to sleep), and Orbit's ring trails the move. */
+let lean: [number, number] = [0, 0];
+export function orbMoved(x = 0, y = 0) { lean = [Math.round(x * 4) / 4, Math.round(y * 4) / 4]; wakeOrb(); }
+let orbitOn = 0;
+/** Orbit (sphereRender.ts): the ring of beads round the orb, on the orb screen while talking live. */
+export function orbOrbit(on: boolean) { orbitOn = on ? 1 : 0; wakeOrb(); }
 let beatPending = 0, beatAt = 0;
 /** A set was ticked: the orb answers with one soft heartbeat of light (it never changes shape). */
 export function orbBeat(strength = 1) { beatPending = Math.max(beatPending, strength); beatAt = performance.now(); wakeOrb(); }
@@ -99,7 +104,7 @@ function orbInputs(): OrbInputs {
     const beat0 = performance.now() - beatAt < 400 ? beatPending : 0; beatPending = 0;
     const wh = whooshPending; whooshPending = 0;
     const listening = v.phase === 'listening';
-    return { phase: v.phase, phaseAge: (performance.now() - v.since) / 1000, live: listening, raw: listening ? lv.in : 0, bands: listening ? lv.bands : null, press: pressTarget, tap: tap0, whoosh: wh, ignite: 0, voiceOut: lv.out, rest: 0, beat: beat0, logo: launchLogo };
+    return { phase: v.phase, phaseAge: (performance.now() - v.since) / 1000, live: listening, raw: listening ? lv.in : 0, bands: listening ? lv.bands : null, press: pressTarget, tap: tap0, whoosh: wh, ignite: 0, voiceOut: lv.out, rest: 0, beat: beat0, logo: launchLogo, orbit: orbitOn, lean };
   }
   const live = v.phase === 'listening' && mic.active;
   const tap = tapPending; tapPending = 0;
@@ -110,7 +115,7 @@ function orbInputs(): OrbInputs {
   // resting between sets (counting, not paused, not yet over): the orb's light breathes with you
   const a = useStore.getState().active;
   const rest = a?.rest && !a.pausedAt && a.rest.endsAt > Date.now() ? 1 : 0;
-  return { phase: v.phase, phaseAge: (performance.now() - v.since) / 1000, live, raw: live ? mic.voice() : 0, bands: live ? mic.bands() : null, press: pressTarget, tap, whoosh, ignite, voiceOut: speakingLevel(), rest, beat, logo: launchLogo };
+  return { phase: v.phase, phaseAge: (performance.now() - v.since) / 1000, live, raw: live ? mic.voice() : 0, bands: live ? mic.bands() : null, press: pressTarget, tap, whoosh, ignite, voiceOut: speakingLevel(), rest, beat, logo: launchLogo, orbit: orbitOn, lean };
 }
 
 // ── stage ───────────────────────────────────────────────────
