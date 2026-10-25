@@ -6,6 +6,8 @@ export const da: Record<string, string> = {
  "This replaces everything in the Beta with a copy of your real Aven (including your API keys), then restarts the Beta. Your real Aven is not touched.": "Det erstatter alt i Beta med en kopi af din rigtige Aven (også dine API-nøgler) og genstarter Beta. Din rigtige Aven bliver ikke rørt.",
  "Yes, copy it": "Ja, kopiér",
  "How strong the background is. Off leaves it plain.": "Hvor kraftig baggrunden er. Fra gør den helt rolig.",
+ "Surfaces": "Flader",
+ "Cards, buttons and pop-ups in the dark theme. A, B and C take their colour from the background behind them; Before is the look as it was.": "Kort, knapper og pop-ups i det mørke tema. A, B og C tager deres farve fra baggrunden bag dem; Før er udseendet, som det var.",
  "Sheets": "Ark",
  "How much of your colours the pop-ups, fields and bar tracks take in the dark theme.": "Hvor meget af dine farver pop-ups, felter og bjælkespor tager i det mørke tema.",
  "Before": "Før",

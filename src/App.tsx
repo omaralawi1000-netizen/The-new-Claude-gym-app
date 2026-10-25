@@ -27,7 +27,7 @@ import { FpsMeter } from './ui/FpsMeter';
 import { useLaunch } from './ui/launch';
 import { BgBody, PER_TAB, barColor, useSkyClock, type BgKind } from './ui/Backdrop';
 import { FieldGlow } from './ui/Glows';
-import { surfaceOf } from './lib/types';
+import { lookOf, surfaceOf } from './lib/types';
 
 /** Where the last tap landed — the theme switch spreads out from there. */
 const lastTap = { x: typeof window !== 'undefined' ? window.innerWidth / 2 : 0, y: 0 };
@@ -95,6 +95,8 @@ function useTheme() {
   useLayoutEffect(() => { document.documentElement.dataset.glow = glow; }, [glow]);
   const surface = useStore((x) => surfaceOf(x.settings.surface));
   useLayoutEffect(() => { document.documentElement.dataset.surface = surface; }, [surface]);
+  const look = useStore((x) => lookOf(x.settings.look));
+  useLayoutEffect(() => { document.documentElement.dataset.look = look; }, [look]);
   const bg = useStore((x) => x.settings.background ?? 'classic');
   useLayoutEffect(() => { document.documentElement.dataset.bg = bg; }, [bg]);
   useEffect(() => { document.documentElement.lang = lang; }, [lang]);
