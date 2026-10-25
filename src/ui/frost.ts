@@ -164,7 +164,7 @@ function rgb(L: number, A: number, B: number): [number, number, number] {
 }
 function tame(o: CanvasRenderingContext2D, w: number, h: number) {
   if (look() !== 'a') return;
-  const M = root().dataset.cards ?? 'blue'; // Cards on trial (Settings): blue E, sapphire F, clear G, plum A
+  const M = root().dataset.cards ?? 'mix'; // Cards on trial (Settings): blue E, sapphire F, clear G, plum A
   let im: ImageData; try { im = o.getImageData(0, 0, w, h); } catch { return; }
   const d = im.data, n = d.length / 4;
   const px = new Float32Array(n * 3);

@@ -359,8 +359,8 @@ export const surfaceOf = (v: unknown): NonNullable<Settings['surface']> => (v ==
 /** the surface look on trial (Settings > Appearance > Surfaces, surfaces.css `data-look`); missing = A, the pick */
 // (Omar 25 Oct: A for everyone, the picker is gone; an old saved choice is ignored)
 export const lookOf = (_v?: unknown): NonNullable<Settings['look']> => 'a';
-/** the card colour on busy backgrounds, on trial on Beta (Settings > Appearance > Cards, frost.ts `data-cards`); missing = blue (E) */
-export const cardsOf = (v: unknown): NonNullable<Settings['cards']> => (v === 'sapphire' || v === 'clear' || v === 'plum' || v === 'mix' || v === 'light' ? v : 'blue');
+/** the card colour on busy backgrounds, on trial on Beta (Settings > Appearance > Cards, frost.ts `data-cards`); missing = mix (H) */
+export const cardsOf = (v: unknown): NonNullable<Settings['cards']> => (v === 'blue' || v === 'sapphire' || v === 'clear' || v === 'plum' || v === 'light' ? v : 'mix');
 
 export interface Settings {
   name: string;
