@@ -44,7 +44,7 @@ const real = (errors) => errors.filter((e) => !/Failed to load resource|429|WebS
   const box = await p.getByText(/^Svar nummer 8/).boundingBox();
   const input = await p.getByLabel('Skriv en besked').boundingBox();
   assert(box && input && box.y + box.height <= input.y, 'the newest answer is in view, above the type box');
-  assert(await p.getByText('Lytter').isVisible() || await p.getByText(/LYTTER/i).isVisible(), 'Danish labels');
+  assert(await p.getByPlaceholder('Spørg Aven').isVisible(), 'Danish');
   assert.deepEqual(real(errors), [], 'no page errors (long conversation)');
   await b.close();
   console.log('long conversation OK');

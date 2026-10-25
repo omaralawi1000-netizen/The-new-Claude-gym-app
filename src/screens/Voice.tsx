@@ -542,8 +542,14 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   } as Record<string, string>)[phase] ?? '';
   // tapping while the microphone is still starting cancels that start cleanly (teardown also invalidates the pending start, so
   // it can never come back later as a false "microphone in use")
-  const tapSphere = () => { if (phase === 'requesting' || liveRef.current) { teardown(); go('idle'); return; } orbTap(0.6); if (listening) finish(); else if (!thinking) { haptic('listen'); listen(); } };
-  const big = !showing && !thinking && !typing; // typing: the orb steps up and the box gets the room
+  const tapSphere = () => {
+    if (liveUi) { if (speaking) { liveRef.current?.hush(); haptic('light'); } else if (!liveRef.current) void goLive(); return; } // (talking live, it's never a stop)
+    if (phase === 'requesting' || liveRef.current) { teardown(); go('idle'); return; } orbTap(0.6); if (listening) finish(); else if (!thinking) { haptic('listen'); listen(); } };
+  // talking live, from the first frame (also while it connects): the ChatGPT-like screen, never the old buttons in between
+  const liveUi = liveWanted && !liveFailed.current && !typing;
+  const chatting = liveUi && turns.length > 0;
+  const big = liveUi ? !chatting : !showing && !thinking && !typing; // typing: the orb steps up and the box gets the room
+  const liveLabel = renewing ? t('Reconnecting…') : muted ? t('Muted') : '';
   // the sphere is about to grow or shrink (the .45 s transition below): its canvas holds the big size meanwhile
   const wasBig = useRef(big);
   useLayoutEffect(() => { if (wasBig.current !== big) { wasBig.current = big; holdOrbSize(Math.min(window.innerWidth * 0.62, 250), 520); } }, [big]);
@@ -579,23 +585,27 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
       <motion.div aria-hidden className="voice-top" data-bar-shown ref={refreshBarOn} style={{ opacity: veilE }} />
       <motion.div ref={contentRef} style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', padding: 'calc(var(--sat) + 12px) 18px 0', opacity: contentO }}>
         <div className="row-flex between">
-          <button className="icon-btn press" aria-label={t('Close')} onClick={() => useUI.getState().pop()}><Icon name="close" /></button>
+          {liveUi ? <span /> : <button className="icon-btn press" aria-label={t('Close')} onClick={() => useUI.getState().pop()}><Icon name="close" /></button>}
           <button className="chip press" onClick={() => { toCoach.current = true; useUI.getState().swap(1, 'coach'); }}><Icon name="sparkle" size={15} /> {t('Coach')}</button>
         </div>
 
         {/* the sphere: big while it listens, it steps up and out of the way once there is something to read */}
-        <div style={{ display: 'grid', placeItems: 'center', marginTop: big ? 26 : 6, transition: 'margin .45s cubic-bezier(.22,1,.36,1)' }}>
-          <button aria-label={listening ? t('Stop and send') : t('Start listening')} onClick={tapSphere} disabled={thinking && !liveActive} className="voice-orb" onPointerDown={() => orbPress(true)} onPointerUp={() => orbPress(false)} onPointerCancel={() => orbPress(false)} onPointerLeave={() => orbPress(false)}
+        <div
+          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', marginTop: big ? 26 : 6, transition: 'margin .45s cubic-bezier(.22,1,.36,1)', ...(liveUi && !chatting ? { flex: 1, marginTop: 0, paddingBottom: 24 } : {}) }}>
+          {/* (it glides from the middle to the top when the conversation starts: position by transform, the size as before) */}
+          <motion.button layout="position" transition={{ layout: { duration: 0.45, ease: [0.22, 1, 0.36, 1] } }} aria-label={listening ? t('Stop and send') : t('Start listening')} onClick={tapSphere} disabled={thinking && !liveActive} className="voice-orb" onPointerDown={() => orbPress(true)} onPointerUp={() => orbPress(false)} onPointerCancel={() => orbPress(false)} onPointerLeave={() => orbPress(false)}
             style={{ position: 'relative', borderRadius: 999, width: big ? 'min(62vw, 250px)' : 96, height: big ? 'min(62vw, 250px)' : 96, transition: 'width .45s cubic-bezier(.22,1,.36,1), height .45s cubic-bezier(.22,1,.36,1)' }}>
             {/* its light: a close halo and a soft pool just under it, as if it hovers over glass (gradients only: no blur,
                 nothing animated but its fade in) */}
             <span className="voice-glow" aria-hidden><SelfGlow /></span>
             <SphereSlot id="voice" priority={10} engage={engage} style={{ position: 'absolute', inset: 0 }} />
-          </button>
+          </motion.button>
+          {/* talking live only says something when it matters (muted, reconnecting); its room is kept, so nothing jumps */}
+          {liveUi && <div className="micro" aria-live="polite" style={{ marginTop: 10, minHeight: 14, color: 'var(--ac-text)' }}>{liveLabel}</div>}
         </div>
-        <div style={{ textAlign: 'center', marginTop: big ? 14 : 8 }}>
+        {!liveUi && <div style={{ textAlign: 'center', marginTop: big ? 14 : 8 }}>
           <div className="micro" aria-live="polite" style={{ color: phase === 'listening' ? 'var(--ac-text)' : undefined }}>{label}</div>
-        </div>
+        </div>}
         {/* what the camera sees (it sends a picture a second while this shows) */}
         {camStream && liveActive && (
           <video aria-label={t('Camera')} autoPlay muted playsInline ref={(v) => { if (v && v.srcObject !== camStream) v.srcObject = camStream; }}
@@ -603,11 +613,13 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
         )}
 
         {/* (room round its content, so the typing box's focus glow is not clipped into hard edges by the scrolling) */}
-        <div ref={talkRef} style={{ position: 'relative', flex: 1, minHeight: 0, overflowY: 'auto', margin: '14px -12px 0', padding: '0 12px 26px' }} className="hide-scroll fade-top fade-bottom">
+        <div ref={talkRef} style={{ position: 'relative', flex: liveUi && !chatting ? '0 0 0' : 1, minHeight: 0, overflowY: 'auto', margin: '14px -12px 0', padding: '0 12px 26px' }} className="hide-scroll fade-top fade-bottom">
           {/* talking live: one conversation like ChatGPT (Omar, 25 Oct). Your words come in word by word in your bubble as you
               say them; its answer writes in under it; everything of this visit stays, newest at the bottom. */}
-          {liveActive && (
-            <div className="exchange-list">
+          {liveUi && (
+            // (the conversation fades in once the orb has glided up and shrunk: a first bubble shown while it was still big
+            // sat low and then slid up with it)
+            <motion.div className="exchange-list" initial={{ opacity: 0 }} animate={{ opacity: chatting ? 1 : 0 }} transition={{ duration: 0.3, delay: chatting ? 0.4 : 0, ease: [0.2, 0.7, 0.2, 1] }}>
               {turns.map((tu, i) => {
                 const newest = i === turns.length - 1;
                 const cards = tu.results.length > 0 && (
@@ -631,9 +643,9 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
                   </div>
                 );
               })}
-            </div>
+            </motion.div>
           )}
-          {!liveActive && (<>
+          {!liveUi && (<>
           <AnimatePresence initial={false} mode="popLayout">
             {!typing && !showing && (
               // what you are saying, as you say it: each new word settles in; when you stop, it rises away into the conversation
@@ -715,39 +727,41 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
 
         <div style={{ padding: '0 0 calc(var(--sab) + 18px)' }}>
           {/* Tap to interrupt while it speaks (always there, only faded: nothing under it jumps when the voice starts or stops) */}
-          {liveActive && !typing && (
+          {liveUi && (
             <div style={{ display: 'grid', placeItems: 'center', marginBottom: 10 }}>
               <button className={`chip press interrupt${speaking ? '' : ' off'}`} aria-hidden={!speaking} tabIndex={speaking ? 0 : -1} onClick={() => { liveRef.current?.hush(); haptic('light'); }}>{t('Tap to interrupt')}</button>
             </div>
           )}
           <div className="row-flex" style={{ gap: 10, alignItems: 'flex-end' }}>
-            {liveActive && !typing && <>
+            {liveUi && <>
               {/* type any time (like ChatGPT): it goes to the Coach, the answer comes in the conversation as text, and the voice
                   is told; the microphone rests while you type */}
-              <div className="live-type grow">
-                <textarea className="input" rows={1} value={typed} aria-label={t('Type a message')} placeholder={t('Type a message')}
+              <div className={`live-type grow${typed.trim() ? ' has-text' : ''}`}>
+                {/* (one line, like ChatGPT's: a wrapped placeholder looked broken on the phone) */}
+                <input className="input" type="text" enterKeyHint="send" value={typed} aria-label={t('Type a message')} placeholder={t('Ask Aven')}
                   onChange={(e) => setTyped(e.target.value)}
                   onFocus={() => liveRef.current?.setMuted(true)} onBlur={() => liveRef.current?.setMuted(muted)}
-                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendLiveTyped(); } }} />
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); sendLiveTyped(); } }} />
                 {typed.trim() && <button className="live-send press" aria-label={t('Send')} onClick={sendLiveTyped}><Icon name="arrowUp" size={18} sw={2.2} /></button>}
               </div>
-              <button className={`icon-btn press${camStream ? ' on' : ''}`} aria-label={camStream ? t('Camera off') : t('Camera on')} aria-pressed={!!camStream}
+              <button className={`icon-btn press${camStream ? ' on' : ''}`} disabled={!liveActive} aria-label={camStream ? t('Camera off') : t('Camera on')} aria-pressed={!!camStream}
                 onClick={async () => { haptic('light'); const s1 = liveRef.current; if (!s1) return; if (camStream) { await s1.setCamera(false); setCamStream(null); } else { const c = await s1.setCamera(true); if (c) setCamStream(c); else setErr(t('The camera couldn’t be opened.')); } }}>
                 <Icon name="camera" />
               </button>
-              <button className={`icon-btn press${muted ? ' on' : ''}`} aria-label={muted ? t('Unmute') : t('Mute')} aria-pressed={muted}
+              <button className={`icon-btn press${muted ? ' on' : ''}`} disabled={!liveActive} aria-label={muted ? t('Unmute') : t('Mute')} aria-pressed={muted}
                 onClick={() => { haptic('light'); const m = !muted; liveRef.current?.setMuted(m); setMuted(m); }}>
                 <Icon name={muted ? 'micOff' : 'mic'} />
               </button>
             </>}
-            {liveActive && !typing ? (
-              <button className="icon-btn press" aria-label={t('Stop')} onClick={() => { haptic('light'); teardown(); go('idle'); }}><Icon name="stop" /></button>
+            {liveUi ? (
+              // ends the conversation and closes, like ChatGPT's ✕ (the old buttons never show in between)
+              <button className="icon-btn press" aria-label={t('End')} onClick={() => { haptic('light'); useUI.getState().pop(); }}><Icon name="close" /></button>
             ) : supported && (
               <button className="btn press grow" disabled={thinking} onClick={() => { if (typing) listen(); else { teardown(); go('idle'); setTyping(true); } }}>
                 {typing ? <><Icon name="mic" size={18} /> {t('Speak instead')}</> : <><Icon name="edit" size={18} /> {t('Type instead')}</>}
               </button>
             )}
-            {!(liveActive && !typing) && <button className="btn primary press grow" disabled={(thinking && !liveActive) || phase === 'requesting' || (typing ? !typed.trim() : false)} onClick={() => (liveActive || listening || typing ? finish() : (haptic('listen'), listen()))}>
+            {!liveUi && <button className="btn primary press grow" disabled={(thinking && !liveActive) || phase === 'requesting' || (typing ? !typed.trim() : false)} onClick={() => (liveActive || listening || typing ? finish() : (haptic('listen'), listen()))}>
               {liveActive && !typing ? t('Stop') : thinking ? t('Working…') : listening ? t('Done speaking') : typing ? t('Send') : showing ? <><Icon name="mic" size={18} /> {t('Say more')}</> : <><Icon name="mic" size={18} /> {t('Speak')}</>}
             </button>}
           </div>        </div>

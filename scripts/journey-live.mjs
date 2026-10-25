@@ -113,8 +113,16 @@ assert(await p.getByText('Logget: 200 g skyr.').isVisible(), 'and the rest of th
 await p.screenshot({ path: 'shots/live-4-typed.png' });
 await p.getByRole('button', { name: 'Mute' }).click(); await wait(p, 300);
 assert(await p.getByText('Muted').isVisible(), 'muted says so');
-await p.getByRole('button', { name: 'Stop', exact: true }).click(); await wait(p, 800);
-assert(!(await p.getByLabel('Type a message').isVisible()), 'Stop ends the live conversation');
+// the keyboard lifts the box you type in (it overlays the page; the screen rides above it)
+await p.evaluate(async () => { const m = await import('/src/ui/keyboard.ts'); m.setKeyboard(320, true); }); await wait(p, 500);
+const tb = await p.getByLabel('Type a message').boundingBox();
+assert(tb && tb.y + tb.height <= 844 - 320, `the type box sits above the keyboard (${tb && Math.round(tb.y + tb.height)})`);
+await p.screenshot({ path: 'shots/live-8-keyboard.png' });
+await p.evaluate(async () => { const m = await import('/src/ui/keyboard.ts'); m.setKeyboard(0, true); }); await wait(p, 400);
+// ✕ ends it and closes, like ChatGPT (the old buttons never show in between)
+assert(!(await p.getByText('Type instead').isVisible()) && !(await p.getByText('Speak', { exact: true }).isVisible()), 'no old buttons while live');
+await p.getByRole('button', { name: 'End', exact: true }).click(); await wait(p, 1200);
+assert(!(await p.getByLabel('Type a message').isVisible()), '✕ ends the live conversation and closes');
 const real = errors.filter((e) => !/Failed to load resource|429|WebSocket/.test(e));
 assert.deepEqual(real, [], 'no page errors');
 console.log('LIVE OK', JSON.stringify({ audio: sent.audio, connections: setups.length, usd: spent }));

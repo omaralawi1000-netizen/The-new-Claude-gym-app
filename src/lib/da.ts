@@ -1879,4 +1879,6 @@ export const da: Record<string, string> = {
  "The camera couldn’t be opened.": "Kameraet kunne ikke åbnes.",
  "Unmute": "Slå lyden til",
  "Type a message": "Skriv en besked",
+ "Ask Aven": "Spørg Aven",
+ "End": "Afslut",
 };
