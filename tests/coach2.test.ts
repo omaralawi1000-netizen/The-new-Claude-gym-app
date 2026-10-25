@@ -151,7 +151,7 @@ describe('"it" is the exact item: log a banana → move it to lunch → make it 
   });
   it('junk refs are dropped', () => {
     const v = validateAgent({ reply: '', actions: [{ type: 'delete_food', ref: 'x; DROP TABLE' }] });
-    expect(v).toEqual({ reply: '', actions: [], dropped: 1 }); // dropped, and counted: the Coach says so in a card
+    expect(v).toMatchObject({ reply: '', actions: [], dropped: 1 }); // dropped, and counted: the Coach says so in a card
   });
 });
 

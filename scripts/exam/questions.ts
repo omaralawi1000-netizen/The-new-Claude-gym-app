@@ -42,6 +42,13 @@ const fixHistory = [
 const fixes = (a: Answer, what: RegExp) => a.actions.some((x) => ['edit_food', 'replace_food', 'delete_food'].includes(x.type) && (what.test(fold(x.target)) || what.test(fold(x.ref)) || what.test(fold(x.name))));
 
 export const QUESTIONS: Question[] = [
+  // ── Omar, 21 Oct: every food log also said "Part of the answer couldn't be read" ──
+  { id: 'log-potatoes', persona: 'omar', kind: 'easy', set: 'mech', lang: 'da', dictated: true, orb: true, q: '460 gram parketafler og 30 gram cornflakes.',
+    check: (a) => (has(a, 'log_food').length ? null : 'no log_food'), good: 'Logs both (power potatoes, cornflakes), says almost nothing.' },
+  { id: 'log-potatoes-me', persona: 'me', kind: 'easy', set: 'mech', lang: 'da', dictated: true, orb: true, q: '460 gram parketafler og 30 gram cornflakes.',
+    check: (a) => (has(a, 'log_food').length ? null : 'no log_food'), good: 'Logs both on his real data.' },
+  { id: 'log-potatoes-en', persona: 'omar', kind: 'easy', set: 'mech', dictated: true, orb: true, q: '450 grams of power potatoes and 30 grams of corn flakes.',
+    check: (a) => (has(a, 'log_food').length ? null : 'no log_food'), good: 'Logs both, says almost nothing.' },
   // ── corrections: done on the spot, never just repeated back (Omar, 20 Oct) ──
   { id: 'fix-pieces', persona: 'omar', kind: 'easy', set: 'mech', lang: 'da', dictated: true, orb: true, tweak: lunchLogged, history: fixHistory,
     q: 'Almindelige majskiks, 8 majskiks og hytteost 450 gram med 1,5 fedt.',

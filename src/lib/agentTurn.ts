@@ -297,7 +297,7 @@ export async function decide(text: string, o: { lang: Lang; t: (k: string, v?: R
       const v = validateAgent(raw);
       if (!v) { noteTrouble('invalid', lastRaw.by); throw new AiError('invalid'); }
       reply = v.reply; actions = v.actions; dropped = v.dropped; fromAi = true;
-      if (dropped) noteTrouble('dropped', `${dropped} action${dropped > 1 ? 's' : ''} · ${lastRaw.by}`);
+      if (dropped) noteTrouble('dropped', `${dropped} action${dropped > 1 ? 's' : ''} · ${lastRaw.by}${v.droppedRaw ? ` · ${v.droppedRaw}` : ''}`);
     } catch (e: any) {
       if (e?.code === 'aborted') throw e;
       if (e?.code !== 'invalid') noteTrouble('failed', String(e?.code ?? e?.message ?? 'error'));
