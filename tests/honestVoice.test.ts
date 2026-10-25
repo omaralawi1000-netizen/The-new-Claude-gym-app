@@ -119,7 +119,7 @@ describe('skipped planned sets', () => {
     const sessions = [session(addDays(today, -1), [{ id: 'x1', exerciseId: 'bench', sets: [set(true), set(true)], plannedSets: 4 }])];
     useStore.setState({ sessions });
     const c = buildCoachContext(data(), today, (id) => (id === 'bench' ? 'Bench press' : id));
-    expect(c).toContain(`Planned working sets skipped (today and the 6 days before, since Mon ${addDays(today, -6)}): 2 of 4 in 1 workouts (Sat ${addDays(today, -1)} Push) — ${addDays(today, -1)} Push: Bench press 2 of 4 skipped.`);
+    expect(c).toContain(`Planned working sets skipped (today and the 6 days before, since Mon ${addDays(today, -6)}): 2 of 4 in 1 workouts (Sat ${addDays(today, -1)} Push) — ${addDays(today, -1)} Push: Bench press 2 of 4 skipped. The plan stays as it is: help them finish it (rest, order, food, sleep, time) or ask why; never offer fewer planned sets.`);
     useStore.setState({ sessions: [session(addDays(today, -1), [{ id: 'x1', exerciseId: 'bench', sets: [set(true), set(true)], plannedSets: 2 }])] });
     expect(buildCoachContext(data(), today, (id) => id)).toContain(`Planned working sets skipped (today and the 6 days before, since Mon ${addDays(today, -6)}): none, all 2 done in 1 workouts (Sat ${addDays(today, -1)} Push).`);
   });
