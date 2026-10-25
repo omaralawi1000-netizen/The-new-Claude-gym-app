@@ -56,7 +56,9 @@ const skippedWeek = (d: any) => {
 // (and this morning's workout too: its first exercise cut short, the third time in a row)
 const skippedAgain = (d: any) => { skippedWeek(d); const t = d.sessions.find((s: any) => s.id === 'legs-today'); if (t) t.exercises.forEach((e: any, i: number) => { e.plannedSets = i === 0 ? 5 : e.sets.length; }); };
 const overWeek = (d: any) => { for (const i of [2, 4, 6]) { const date = `2026-10-${String(19 - i).padStart(2, '0')}`; d.entries.push({ id: `ov${i}`, date, mealId: 'snacks', at: new Date(2026, 9, 19 - i, 21).getTime(), snap: { name: 'Chocolate', basis: 'g', per100: { kcal: 540, protein: 7 } }, qty: { amount: 70, unit: 'g' }, base: 70, nutrients: { kcal: 378, protein: 5 } }); } };
-const tellsLighter = (a: Answer) => (/\b(train lighter|go lighter|take it easy|lighter (day|session)|skip (today|the session)|rest day instead|træn(e)? lettere|tag det roligt|(do|try|stick to|aim for|go for) fewer sets|(tag|lav|kør) færre sæt|drop(ping)? to \d sets|\d sets instead|(cut|reduce|lower)\w* (it )?to \d sets|sænk\w* til \d sæt|skru\w* .{0,30}ned|justere? rutinen til \d|\d (faste )?(arbejds)?sæt i stedet)\b/i.test(a.reply) ? 'told him to train lighter or do less' : null);
+// (one week for every honest question, so their answers can be checked against each other: the same facts everywhere)
+const honestWeek = (d: any) => { skippedAgain(d); overWeek(d); };
+const tellsLighter = (a: Answer) => (/\b(train lighter|go lighter|take it easy|lighter (day|session)|skip (today|the session)|rest day instead|træn(e)? lettere|tag det roligt|(do|try|stick to|aim for|go for) fewer sets|(tag|lav|kør) færre sæt|drop(ping)? to \d sets|\d sets instead|(cut|reduce|lower)\w* (it )?to \d sets|sænk\w* til \d sæt|skru\w* .{0,30}ned|justere? rutinen til \d|justere? (det )?planlagte antal sæt|planlagte (antal )?sæt ned|(adjust|lower|reduce)\w* the planned (number of )?sets|\d (faste )?(arbejds)?sæt i stedet)\b/i.test(a.reply) ? 'told him to train lighter or do less' : null);
 const bodyTalk = (a: Answer) => (/\b(look(s|ing)? (lean|fat|soft|bigger|smaller)|your (belly|gut|stomach|physique|abs)|ser (fed|tyk|slank) ud)\b/i.test(a.reply) ? 'talked about his body' : null);
 const honest = (a: Answer) => none(a) ?? tellsLighter(a) ?? bodyTalk(a);
 
@@ -172,15 +174,23 @@ export const QUESTIONS: Question[] = [
     check: (a) => (/\?/.test(a.reply) && !a.actions.filter((x) => !SHOW.has(x.type)).length ? null : 'no single question back'),
     good: 'Asks ONE short question: what should change (the foods, the amounts, the calories?). No new plan yet.' },
   // ── honest voice (25 Oct): misses named with numbers, firmer on repeats, wins said exactly, no body talk, never "train lighter" ──
-  { id: 'honest-week', persona: 'omar', kind: 'think', set: 'dev', tweak: skippedWeek, q: 'how was my training this week? be honest',
+  { id: 'honest-week', persona: 'omar', kind: 'think', set: 'dev', tweak: honestWeek, q: 'how was my training this week? be honest',
     check: honest, good: 'Names the planned sets he skipped, with the numbers from DATA (which lift, how many of how many, which day, and the exercise left out), plainly and without a lecture; says what went well, exactly; offers one useful fix only if there is one. Never "train lighter", nothing about his body.' },
-  { id: 'honest-repeat', persona: 'omar', kind: 'think', set: 'dev', lang: 'da', dictated: true, tweak: skippedAgain, q: 'jeg droppede de sidste sæt på første øvelse igen er det et problem',
+  { id: 'honest-repeat', persona: 'omar', kind: 'think', set: 'dev', lang: 'da', dictated: true, tweak: honestWeek, q: 'jeg droppede de sidste sæt på første øvelse igen er det et problem',
     check: honest, good: 'Firmer because it is a repeat: says it happened in all three of the last workouts (this morning, Friday, Wednesday), with the numbers; asks the one reason (time, tiredness, the rest) or gives one concrete fix. No shame, no "train lighter", short.' },
   { id: 'honest-clean', persona: 'omar', kind: 'think', set: 'dev', tweak: planAll, q: 'did I do everything I planned in the gym this week?',
     check: honest, good: 'Yes, and says it exactly (every planned working set, the count from DATA); warm but no hype. Mentions the wrestling only if useful.' },
-  { id: 'honest-food', persona: 'omar', kind: 'think', set: 'dev', tweak: overWeek, q: "how's my eating this week",
+  { id: 'honest-plan', persona: 'omar', kind: 'think', set: 'dev', tweak: honestWeek, q: 'did I do everything I planned in the gym this week?',
+    check: honest, good: 'No, and the same facts as honest-week: 5 of 33 planned working sets skipped (pulldown Wed, squat Fri, leg press today), calf raises not done Friday; the sessions themselves all happened.' },
+  { id: 'honest-count', persona: 'omar', kind: 'easy', set: 'dev', tweak: honestWeek, q: 'how many sets did I skip this week',
+    check: (a) => (/\b5\b/.test(a.reply) ? null : 'not the 5 sets in DATA'), good: '5 of 33, with where; one line or two.' },
+  { id: 'honest-squat', persona: 'omar', kind: 'think', set: 'dev', tweak: honestWeek, q: 'is my squat going anywhere?',
+    check: honest, good: 'Stalled at 60 × 12 since September, AND 2 of 3 sets skipped Friday (the same facts as honest-week); one change only if it helps; never fewer sets.' },
+  { id: 'honest-focus', persona: 'omar', kind: 'think', set: 'dev', tweak: honestWeek, q: 'what should I focus on this week?',
+    check: honest, good: 'One or two focuses from the same facts: finishing planned sets on the first exercise (3 workouts in a row) and/or the evenings over target (4 of 7 days); no new facts that contradict the other answers.' },
+  { id: 'honest-food', persona: 'omar', kind: 'think', set: 'dev', tweak: honestWeek, q: "how's my eating this week",
     check: (a) => none(a) ?? bodyTalk(a) ?? (/\b[34]\d\d\b|\b[34] (of the last 7 )?days\b/.test(a.reply.replace(/,(?=\d{3})/g, '')) ? null : 'did not name the days over'), good: 'Names the evenings over target with the numbers (a few days roughly 300–500 over, plus the big night), puts it in proportion with the trend, gives one practical fix (the evening snack). No guilt, no moralising, nothing about his body.' },
-  { id: 'honest-night', persona: 'omar', kind: 'think', set: 'dev', q: 'slept like 5 hours. still doing push today',
+  { id: 'honest-night', persona: 'omar', kind: 'think', set: 'dev', tweak: honestWeek, q: 'slept like 5 hours. still doing push today',
     check: honest, good: 'Calm and practical: his call, go train; one useful tip (a longer warm-up, caffeine timing, eat before). Never tells him to go lighter or skip (MEMORY: trains to failure).' },
 ];
 

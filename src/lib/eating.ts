@@ -182,6 +182,14 @@ export function overToday(d: Data, today: string): { over: number; days: number;
   return { over: a, days, heavy };
 }
 
+/** Every day over its target in the last 7 (a little or heavy), with the total: one line in the summary that every AI job
+ *  reads (the Coach, Today's notes, the weekly review), so they all count the same days. Notices Off: nothing. */
+export function overDaysLine(d: Data, today: string): string | null {
+  if (heavyMode(d.settings) === 'off') return null;
+  const over = [6, 5, 4, 3, 2, 1, 0].flatMap((i) => { const date = addDays(today, -i); const t = targetOn(d, date); const o = overOn(d, date); return t && o && (o.heavy || o.over >= overLine(t)) ? [{ i, date, ...o }] : []; });
+  return over.length ? `Over the target, last 7 days (at least ${OVER_LINE} kcal and 10 % over): ${over.length} of 7 days, +${over.reduce((n, x) => n + x.over, 0)} kcal in all — ${over.map((x) => `${x.i === 0 ? 'today so far' : `${WD[new Date(`${x.date}T12:00:00`).getDay()]} ${x.date}`} +${x.over}${x.heavy ? ' (heavy)' : ''}`).join(', ')}.` : null;
+}
+
 /** The heavy days to catch up now: today once it is evening (live), and the last 3 days when they end clearly over. */
 export function heavyNow(d: Data, now = Date.now()): { date: string; over: number; trigger: 'live' | 'late' }[] {
   if (!d.settings.goals.kcal) return [];
@@ -266,9 +274,6 @@ export function eatingLines(d: Data, today: string, goal?: string): string[] {
   const mode = heavyMode(d.settings);
   const heavy = mode === 'off' ? [] : heavyDays(d, today);
   if (heavy.length) L.push(`Heavy days, last 4 weeks (clearly over that day's target): ${heavy.map((h) => `${WD[new Date(`${h.date}T12:00:00`).getDay()]} ${h.date} +${h.over} kcal${h.late ? ', logged the day after' : ''}${h.evening ? `, ${h.evening} kcal of it in the evening` : ''}`).join('; ')}. ${heavy.length} in 4 weeks.`);
-  // (every day over, a little or heavy: a coach notices how often, and how much in all)
-  const over = mode === 'off' ? [] : [6, 5, 4, 3, 2, 1, 0].flatMap((i) => { const date = addDays(today, -i); const t = targetOn(d, date); const o = overOn(d, date); return t && o && (o.heavy || o.over >= overLine(t)) ? [{ i, date, ...o }] : []; });
-  if (over.length) L.push(`Over the target, last 7 days (at least ${OVER_LINE} kcal and 10 % over): ${over.length} of 7 days, +${over.reduce((n, x) => n + x.over, 0)} kcal in all — ${over.map((x) => `${x.i === 0 ? 'today so far' : `${WD[new Date(`${x.date}T12:00:00`).getDay()]} ${x.date}`} +${x.over}${x.heavy ? ' (heavy)' : ''}`).join(', ')}.`);
   if (mode === 'off') L.push('Heavy-day notices are OFF: they chose not to hear about heavy days or catch-ups unless they bring them up.');
   const [w1, w2] = mode === 'off' ? [0, 0] : heavyWeeks(d, today);
   if (w1 >= 3 && w2 >= 3) {

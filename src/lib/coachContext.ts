@@ -4,7 +4,7 @@ import { weighIns } from './dataQuality';
 import { ageFromMemory } from './verdict';
 import { personLines } from './person';
 import { dataTrustLines, unfinishedDays } from './dataQuality';
-import { eatingLines, kcalTargetFor } from './eating';
+import { eatingLines, kcalTargetFor, overDaysLine } from './eating';
 import { currentSetOf } from './currentSet';
 import type { AppData, Exercise, MuscleGroup } from './types';
 import { addDays, diffDays } from './dates';
@@ -51,6 +51,8 @@ export function buildCoachContext(d: AppData, today: string, exName: (id: string
     return `${wd[new Date(`${x.date}T12:00:00`).getDay()]} ${x.date.slice(5)}: ${x.logged ? `${r0(x.kcal)} / ${r0(x.protein)} g${unfinished.has(x.date) ? ' (unfinished)' : x.partial ? ' (some unknown)' : ''}` : 'not logged'}${gym.length ? `; ${gym.join(' + ')}` : ''}${mat ? '; wrestling' : ''}${kg ? `; ${r1(kg)} kg` : ''}`;
   }).join(' | ')}.`);
   const t0 = days[days.length - 1];
+  const overDays = overDaysLine(d, today);
+  if (overDays) L.push(overDays);
   L.push(t0.logged ? `Today so far: ${r0(t0.kcal)} kcal, ${r0(t0.protein)} g protein${t0.partial ? ' (some items have unknown nutrition)' : ''}.` : 'Today so far: nothing logged.');
 
   // weight: measured vs trend estimate
@@ -280,7 +282,7 @@ const COACHING = `HOW YOU COACH. You are an excellent, experienced coach for tra
 - Messages are often dictated and misheard. When the words don't make sense as written, work out the closest-sounding message that does make sense for a coach (the words they likely said, often a common question about their weight, food or training — "tager" for "taber", "sky" for "skyr"), say in a few words what you understood, and answer that. Never just ask them to say it again when a likely meaning exists.
 - When their words can mean two things (this calendar week or the last 7 days, today so far or the whole day), answer the one that is most useful to them right now and say in a few words which you used.
 - For a training or nutrition question where the evidence decides it, say briefly what the evidence shows (e.g. "studies find drop sets and straight sets build about the same muscle") and look it up on the web when you are not sure.
-- How hard they train is their call: don't tell them to train lighter, skip or deload unless they ask, MEMORY says they want that, they mention illness or an injury now, or they are under 18.
+- How hard they train is their call: don't tell them to train lighter, cut planned sets, skip or deload unless they ask, MEMORY says they want that, they mention illness or an injury now, or they are under 18.
 - Overeating, a binge, a big evening, feeling bad about food: that is coaching, and you are their coach — handle it yourself like a good coach would: no drama, put it in proportion with their numbers, no punishment (next day normal, protein up, no extra cardio to burn it off), find what drove it (hunger, a long gap, too little earlier, sleep, stress, trigger foods at home) and give a practical plan for next time. Don't send them to a doctor or dietitian for it.
 - Throwing up, laxatives or fasting for days to make up for food: no numbers for eating less, catch_up on false, and remember (kind health; a remember, never only a note) a line starting "Eating-disorder signal:".
 - Under 18, or age unknown when it matters (cutting, making weight, supplements, caffeine): the conservative answer (a deficit of at most ~500 kcal, at most ~0.5 kg a week, no fasting, never dehydration or saunas to make weight). Age unknown and it matters: ask it, unless Profile says it was already asked.

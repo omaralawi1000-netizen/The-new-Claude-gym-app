@@ -13,7 +13,7 @@ import { checkEating } from '../src/lib/eatingWatch';
 import { overToday, OVER_LINE } from '../src/lib/eating';
 import { skippedSets } from '../src/lib/stats';
 import { buildCoachContext, AGENT_SYSTEM } from '../src/lib/coachContext';
-import { COACH_STYLE } from '../src/lib/handbook';
+import { COACH_STYLE, COACH_NEVER, TASK_STYLE } from '../src/lib/handbook';
 import { addDays } from '../src/lib/dates';
 import { loadDanish } from '../src/lib/i18n';
 import type { AppData, FoodEntry, WorkoutSession } from '../src/lib/types';
@@ -137,11 +137,17 @@ describe('how the Coach talks', () => {
 });
 
 describe('the Coach sees days a little over', () => {
-  it('lists them with the amounts, heavy days left to their own line', async () => {
-    const { eatingLines } = await import('../src/lib/eating');
+  it('every day over, with the total, in the summary every AI job reads', async () => {
     useStore.setState({ entries: [entry(addDays(today, -1), 2800), entry(addDays(today, -3), 3300), entry(addDays(today, -5), 2600)] });
-    const l = eatingLines(data(), today).join('\n');
+    const l = buildCoachContext(data(), today, (id) => id);
     // (2,600 is 100 over: under the line; 3,300 is heavy, and counted)
     expect(l).toContain(`Over the target, last 7 days (at least 200 kcal and 10 % over): 2 of 7 days, +1100 kcal in all — Thu ${addDays(today, -3)} +800 (heavy), Sat ${addDays(today, -1)} +300.`);
+    useStore.getState().updateSettings({ heavyDays: 'off' });
+    expect(buildCoachContext(data(), today, (id) => id)).not.toContain('Over the target');
+  });
+  it('Today\'s notes and the weekly review get the same NEVER list as the Coach', () => {
+    expect(TASK_STYLE).toContain(COACH_NEVER);
+    expect(COACH_STYLE).toContain(COACH_NEVER);
+    expect(COACH_NEVER).toContain('fewer sets');
   });
 });
