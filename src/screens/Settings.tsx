@@ -24,7 +24,6 @@ import { clearArchive, importArchive } from '../lib/archive';
 import { clearWatchDetail, onWatchDetail, watchDetailCount } from '../lib/watchDetail';
 import { lastWrite, prepareWrites } from '../lib/hcWrite';
 import type { AppData, Lang, Meal, Settings } from '../lib/types';
-import { surfaceOf } from '../lib/types';
 import { uid, kcalOf, scaleMacros, suggestMacros } from '../lib/nutrition';
 import { mealName, removeMeal, restoreMeal } from '../lib/derive';
 import { addDays, dayKey, diffDays, fmtDate, fmtDuration } from '../lib/dates';
@@ -345,7 +344,6 @@ export function SettingsSheet({ props }: { props: { section?: Section } }) {
                 </Field>
                 <Field label={t('Background')} hint={t('Only Classic keeps drifting. The others hold still while you scroll.')}><BackgroundPicker /></Field>
                 <Field label={t('Background glow')} hint={t('How strong the background is. Off leaves it plain.')}><Seg value={st.glow ?? 'full'} onChange={(v) => set({ glow: v })} options={[{ value: 'full', label: t('Full') }, { value: 'soft', label: t('Soft') }, { value: 'off', label: t('Off') }]} /></Field>
-                <Field label={t('Sheets')} hint={t('How much of your colours the pop-ups, fields and bar tracks take in the dark theme.')}><Seg value={surfaceOf(st.surface)} onChange={(v) => set({ surface: v })} options={[{ value: 'now', label: t('Before') }, { value: 'glass', label: t('Glass') }, { value: 'deep', label: t('Deep') }]} /></Field>
                 <Field label={t('Theme')}><Seg value={st.theme} onChange={(v) => set({ theme: v })} options={[{ value: 'system', label: t('System') }, { value: 'light', label: t('Light') }, { value: 'dark', label: t('Dark') }]} /></Field>
                 <Field label={t('Motion')}><Seg value={st.motion} onChange={(v) => set({ motion: v })} options={[{ value: 'system', label: t('System') }, { value: 'full', label: t('Full') }, { value: 'reduce', label: t('Reduced') }]} /></Field>
                 <HrrField />

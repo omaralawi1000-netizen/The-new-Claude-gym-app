@@ -488,7 +488,7 @@ export function useGlowCanvases(host: () => HTMLElement | null, refs: RefObject<
     const ro = new ResizeObserver(() => { const s2 = `${el.clientWidth}x${el.clientHeight}`; if (s2 !== size) { size = s2; now(false); scheduleTwins(); } }); ro.observe(el);
     // (a microtask after the change, before the next frame: a theme switch's snapshot already holds the new picture)
     const mo = new MutationObserver((recs) => { softly = recs.every((r) => r.attributeName !== 'data-theme'); now(true); softly = false; scheduleTwins(); });
-    mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-palette', 'data-glow', 'data-motion'] });
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-palette', 'data-glow', 'data-motion', 'data-look'] });
     const untwin = addTwin({ el: host, whole, warm: (copy, rk) => {
       const p = plan(copy); if (!p) return;
       plans.set(state(rk), p);
