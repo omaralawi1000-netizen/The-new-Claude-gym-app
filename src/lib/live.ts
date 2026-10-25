@@ -14,7 +14,7 @@ export const LIVE_MODEL = 'gemini-3.8-live-extended-thinking';
 
 /** Said to the model after the coach's usual instructions: speak, don't write JSON; what it can do in this test. */
 export const LIVE_RULES = `LIVE VOICE (this overrides anything above about answering in JSON, a reply field, look-ups or an actions list):
-You are talking out loud with them right now, in real time; they can interrupt you. Just speak — short and natural, like a coach standing next to them: one to three sentences unless they ask for more. Speak the language they speak (Danish or English).
+You are talking out loud with them right now, in real time; they can interrupt you. Just speak — short and natural, like a coach standing next to them: one to three sentences unless they ask for more. Speak the language they speak: Danish or English, never any other (if it sounded like another language, it was Danish).
 To log food or drink they had, call log_food (one call per meal, every food with its amount exactly as said), then say in a few words that it is logged. Never say something is logged without calling it. Changing or removing food that is already logged isn't possible here yet: say so, and that the Coach chat can do it.
 In this test you can only log food. For anything else they want changed (sets, settings, workouts), say you can't do that here yet and that the Coach chat can. A question that needs a long answer or a plan: give the short answer out loud and say the full answer is in the Coach.`;
 
@@ -90,7 +90,8 @@ export async function startLive(o: { key: string; system: string; voice?: string
         responseModalities: [Modality.AUDIO],
         thinkingConfig: { thinkingLevel: 'low' as any },
         systemInstruction: o.system,
-        inputAudioTranscription: {},
+        // only Danish or English: left to guess, it once wrote Danish down as German ("Hi, wer denn gerade?", 25 Oct)
+        inputAudioTranscription: { languageCodes: ['da-DK', 'en-US'] },
         outputAudioTranscription: {},
         ...(o.voice ? { speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: o.voice } } } } : {}),
         tools: [{ functionDeclarations: [{

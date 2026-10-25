@@ -522,7 +522,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
     const el = talkRef.current;
     if (el && pinned.current && el.scrollHeight > el.clientHeight) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
   };
-  useLayoutEffect(follow, [last?.done, last?.results.length]); // eslint-disable-line
+  useLayoutEffect(follow, [last?.done, last?.results.length, turns.length, final]); // eslint-disable-line
 
   return (
     <motion.div ref={rootRef} className="voice" style={{ position: 'fixed', inset: 0, zIndex: z, display: 'flex', flexDirection: 'column', paddingBottom: kbPad }} role="dialog" aria-modal="true" aria-label={t('Dictation')}>
@@ -561,9 +561,27 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
                   : !listening && <span className="voice-hint"><RotatingHint /></span>}
               </motion.div>
             )}
+            {/* talking live: the whole conversation stays, oldest first (Omar, 25 Oct: each answer used to replace the last) */}
+            {liveActive && turns.slice(0, -1).map((tu) => (
+              <div key={`h:${tu.id}`} className="exchange">
+                {tu.said && <div className="said">{tu.said}</div>}
+                {tu.reply.trim() && <div className="reply calm"><Rich text={tu.reply} id={tu.id} /></div>}
+                {tu.results.length > 0 && (
+                  <div className="stack gap12">
+                    {tu.results.map((r) => (
+                      <ActionCard key={r.id} r={r} undone={tu.undone.includes(r.id)} confirmed={tu.confirmed.includes(r.id)}
+                        onUndo={() => { r.undo?.(); haptic('light'); markInThread(tu.threadId, r.id, 'undone'); setTurns((all) => all.map((x) => (x.id === tu.id ? { ...x, undone: [...x.undone, r.id] } : x))); }}
+                        onConfirm={() => { r.button?.run(); haptic('confirm'); markInThread(tu.threadId, r.id, 'confirmed'); setTurns((all) => all.map((x) => (x.id === tu.id ? { ...x, confirmed: [...x.confirmed, r.id] } : x))); }} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
             {showing && (
-              <motion.div key={last.id} className="exchange" exit={{ opacity: 0, y: -12, transition: { duration: 0.24, ease: [0.4, 0, 1, 1] } }}>
-                {last.said && <SaidMorph key={`${last.id}:${last.said}`} text={last.said} onSettled={() => setSettledId(last.id)} />}
+              <motion.div key={last.id} className="exchange" exit={liveActive ? undefined : { opacity: 0, y: -12, transition: { duration: 0.24, ease: [0.4, 0, 1, 1] } }}>
+                {/* (live: your words keep arriving while it answers, so they sit still in their bubble instead of morphing in
+                    again with every word) */}
+                {last.said && (liveActive ? <div className="said">{last.said}</div> : <SaidMorph key={`${last.id}:${last.said}`} text={last.said} onSettled={() => setSettledId(last.id)} />)}
                 {(() => {
                   const cards = last.done && last.results.length > 0 && (
                   <div className="stack gap12">
@@ -579,7 +597,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
                   </div>
                   );
                   // the answer waits until your words have settled into their bubble, then writes in below
-                  if (!last.reply || (last.said && settledId !== last.id)) return last.reply ? null : cards;
+                  if (!last.reply || (last.said && settledId !== last.id && !liveActive)) return last.reply ? null : cards;
                   return <OrbReply key={last.id} id={last.id} text={last.reply} live={!last.done} onGrow={follow} onDone={() => setWritten(last.id)} after={<>
                     {last.done && last.reply.trim() && (
                       // read it aloud (each word lights up as it is said), or take the question on in the Coach
@@ -596,6 +614,8 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
               </motion.div>
             )}
           </AnimatePresence>
+          {/* talking live: what you're saying now, under the conversation, before it answers */}
+          {liveActive && showing && final && !liveTurn.current.id && <div className="exchange"><div className="said" style={{ opacity: 0.72 }}>{final}</div></div>}
           {err && <div className="plinth-2 small" role="alert" style={{ padding: '12px 14px', marginTop: 16 }}>{err}{(canRetry || ask) && <div style={{ marginTop: 10 }}>{canRetry ? <button className="btn sm press" onClick={retryHear}>{t('Retry transcription')}</button> : <button className="btn sm press" onClick={() => { if (!ask || busy.current) return; haptic('light'); dropFailed(ask.text); act(ask.text, ask.id, ask.spoken); }}><Icon name="repeat" size={14} /> {t('Try again')}</button>}</div>}</div>}
           <AnimatePresence initial={false} mode="popLayout">
           {typing && !thinking && !(showing && last.reply && written !== last.id) && (

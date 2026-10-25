@@ -13,6 +13,12 @@ await p.routeWebSocket(/BidiGenerateContent/, (ws) => {
     if (m.setup) { sent.setup = m.setup; ws.send(JSON.stringify({ setupComplete: {} })); return; }
     if (m.realtimeInput?.audio) {
       sent.audio++;
+      // a second question after the first answer: the first exchange must stay on screen
+      if (sent.second && sent.audio === sent.second) {
+        ws.send(JSON.stringify({ serverContent: { inputTranscription: { text: 'hvor meget protein mangler jeg' } } }));
+        ws.send(JSON.stringify({ serverContent: { modelTurn: { parts: [{ inlineData: { mimeType: 'audio/pcm;rate=24000', data: silence } }] }, outputTranscription: { text: 'Du mangler omkring 60 gram.' } } }));
+        setTimeout(() => ws.send(JSON.stringify({ serverContent: { turnComplete: true, interactionStatus: 'IDLE' } })), 300);
+      }
       if (sent.audio === 3 && !asked) {
         asked = true;
         ws.send(JSON.stringify({ serverContent: { inputTranscription: { text: 'log 200 g skyr' } } }));
@@ -24,6 +30,7 @@ await p.routeWebSocket(/BidiGenerateContent/, (ws) => {
       sent.toolResponse = m.toolResponse;
       ws.send(JSON.stringify({ serverContent: { modelTurn: { parts: [{ inlineData: { mimeType: 'audio/pcm;rate=24000', data: silence } }] }, outputTranscription: { text: 'Logget: 200 g skyr.' } } }));
       setTimeout(() => ws.send(JSON.stringify({ serverContent: { turnComplete: true, interactionStatus: 'IDLE' } })), 300);
+      sent.second = sent.audio + 12;
     }
   });
 });
@@ -49,6 +56,14 @@ assert.equal(after, before + 1, 'one food entry was logged');
 // the exchange is in the shared conversation
 const thread = await p.evaluate(() => localStorage.getItem('aven.coach') || '');
 assert(thread.includes('log 200 g skyr') && thread.includes('Logget: 200 g skyr.'), 'the Coach sees what was said live');
+// only Danish and English are listened for (it once wrote Danish down as German)
+assert.deepEqual(sent.setup.inputAudioTranscription?.languageCodes, ['da-DK', 'en-US'], 'Danish and English only');
+// a second question: the first exchange stays above it (the conversation carries on, 25 Oct)
+await wait(p, 3500);
+assert(await p.getByText('Du mangler omkring 60 gram.').isVisible(), 'the second answer shows');
+assert(await p.getByText('Logget: 200 g skyr.').isVisible(), 'the first answer is still there');
+assert(await p.getByText('log 200 g skyr').isVisible(), 'what was said first is still there');
+await p.screenshot({ path: 'shots/live-3-conversation.png' });
 // Stop ends the conversation
 await wait(p, 1500); await p.screenshot({ path: 'shots/live-2-settled.png' });
 await p.getByRole('button', { name: 'Stop', exact: true }).click(); await wait(p, 800);
