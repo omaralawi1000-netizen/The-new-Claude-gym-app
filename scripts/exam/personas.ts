@@ -60,7 +60,7 @@ function omar(): AppData {
   d.entries.push(food(addDays(TODAY, -1), 'snacks', 'Pizza and ice cream', 700, 286, 10, at(TODAY, 8, 50)));
   d.entries.push(food(TODAY, 'breakfast', 'Skyr with oats', 350, 110, 9, at(TODAY, 8, 30)));
   // the watch: 4 weeks of nights around 7 h, last night short
-  d.health = Array.from({ length: 28 }, (_, i) => health(i, { sleepMin: i === 0 ? 290 : 410 + ((i * 13) % 50), restHr: i === 0 ? 58 : 51, hrv: i === 0 ? 44 : 62, totalKcal: 3300, activeKcal: 900 }));
+  d.health = Array.from({ length: 28 }, (_, i) => health(i, { sleepMin: i === 0 ? 290 : 410 + ((i * 13) % 50), restHr: i === 0 ? 58 : 51, hrv: i === 0 ? 44 : 62, totalKcal: 3300, activeKcal: 900 })).reverse(); // (oldest first, as the app stores it)
   d.memory = [mem('Age: 20 (as of 2026-09-01)'), mem('Trains to failure whatever the day; does not want to be told to train lighter unless he asks.', 'preference'), mem('Wrestling on Tuesdays and Thursdays is his main leg and conditioning work.', 'schedule')];
   // last night noticed this morning and decided as the app would (lib/eatingWatch.ts): a small trim, the pop-up shown
   d.marks = { heavySeen: '2026-09-01' };

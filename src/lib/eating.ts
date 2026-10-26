@@ -160,6 +160,44 @@ export function overOn(d: Data, date: string): { over: number; heavy: boolean } 
   return { over, heavy: over >= heavyLine(target) };
 }
 
+/** A little over (25 Oct, "honest voice"): this much over the day's target is worth one plain line, the way a coach says
+ *  it, while a heavy day (`heavyLine`) keeps its own decision. */
+export const OVER_LINE = 200;
+/** The line for a target: at least 200 kcal and 10 % over (normal logging error is about 10 %). */
+export const overLine = (target: number) => Math.max(OVER_LINE, Math.round(target * 0.1));
+/** How far a day went over its target when that is a little (at least `overLine`, not heavy); else null. */
+function aLittleOver(d: Data, date: string): number | null {
+  const t = targetOn(d, date);
+  const o = overOn(d, date);
+  return t && o && !o.heavy && o.over >= overLine(t) ? o.over : null;
+}
+/** Today over its target by at least `overLine` but not heavy, and how many of the last 7 days (today included) were a
+ *  little over, and how many of the 6 before today were heavy; null when there is nothing to say (no target, under it, or
+ *  heavy: that has its own pop-up). */
+export function overToday(d: Data, today: string): { over: number; days: number; heavy: number } | null {
+  const a = aLittleOver(d, today);
+  if (!a) return null;
+  let days = 1, heavy = 0;
+  for (let i = 1; i < 7; i++) { const date = addDays(today, -i); if (aLittleOver(d, date)) days++; else if (overOn(d, date)?.heavy) heavy++; }
+  return { over: a, days, heavy };
+}
+
+/** Every day over its target in the last 7 (a little or heavy), with the total: one line in the summary that every AI job
+ *  reads (the Coach, Today's notes, the weekly review), so they all count the same days. Notices Off: nothing. */
+export function overDays(d: Data, today: string): { i: number; date: string; over: number; heavy: boolean }[] {
+  if (heavyMode(d.settings) === 'off') return [];
+  return [6, 5, 4, 3, 2, 1, 0].flatMap((i) => { const date = addDays(today, -i); const t = targetOn(d, date); const o = overOn(d, date); return t && o && (o.heavy || o.over >= overLine(t)) ? [{ i, date, ...o }] : []; });
+}
+/** kcal logged for a day in its own evening (from 20:00 until the day ends; kcal, rounded). A log the day after is
+ *  `lateKcal`: when that was eaten isn't known, so it is never called evening. */
+export function eveningKcal(d: Pick<Data, 'entries' | 'settings'>, date: string): number {
+  return Math.round(d.entries.reduce((n, e) => n + (e.date === date && dayKey(e.at, d.settings.dayStartHour) === date && isEvening(e.at, d.settings.dayStartHour) ? e.nutrients.kcal ?? 0 : 0), 0));
+}
+export function overDaysLine(d: Data, today: string): string | null {
+  const over = overDays(d, today);
+  return over.length ? `Over the target, today and the 6 days before (since ${WD[new Date(`${addDays(today, -6)}T12:00:00`).getDay()]} ${addDays(today, -6)}; at least ${OVER_LINE} kcal and 10 % over): ${over.length} of 7 days, +${over.reduce((n, x) => n + x.over, 0)} kcal in all — ${over.map((x) => `${x.i === 0 ? 'today so far' : `${WD[new Date(`${x.date}T12:00:00`).getDay()]} ${x.date}`} +${x.over}${x.heavy ? ' (heavy)' : ''}${x.i === 0 ? '' : [eveningKcal(d, x.date), Math.round(lateKcal(d, x.date))].map((k, j) => (k ? `, ${k} kcal of it logged ${j ? 'the day after (when it was eaten isn\'t known)' : 'after 20:00'}` : '')).join('')}`).join('; ')}. Only the days marked (heavy) are heavy; the others are a little over.` : null;
+}
+
 /** The heavy days to catch up now: today once it is evening (live), and the last 3 days when they end clearly over. */
 export function heavyNow(d: Data, now = Date.now()): { date: string; over: number; trigger: 'live' | 'late' }[] {
   if (!d.settings.goals.kcal) return [];
@@ -219,8 +257,8 @@ export function heavyDays(d: Data, today: string, days = 28): { date: string; ov
     const date = addDays(today, -i);
     const o = overOn(d, date);
     if (!o?.heavy) continue;
-    // what was eaten (or logged) in the evening, that day or late
-    const evening = d.entries.reduce((n, e) => n + (e.date === date && (dayKey(e.at, d.settings.dayStartHour) > date || isEvening(e.at, d.settings.dayStartHour)) ? e.nutrients.kcal ?? 0 : 0), 0);
+    // what was logged in its own evening (a log the day after is `late`)
+    const evening = eveningKcal(d, date);
     out.push({ date, over: o.over, late: lateKcal(d, date) >= 600, evening: Math.round(evening) });
   }
   return out;
@@ -243,7 +281,7 @@ export function eatingLines(d: Data, today: string, goal?: string): string[] {
   } else L.push('True maintenance: not enough yet (needs about 10 logged days and 4 weigh-ins two weeks apart in the last 4 weeks).');
   const mode = heavyMode(d.settings);
   const heavy = mode === 'off' ? [] : heavyDays(d, today);
-  if (heavy.length) L.push(`Heavy days, last 4 weeks (clearly over that day's target): ${heavy.map((h) => `${WD[new Date(`${h.date}T12:00:00`).getDay()]} ${h.date} +${h.over} kcal${h.late ? ', logged the day after' : ''}${h.evening ? `, ${h.evening} kcal of it in the evening` : ''}`).join('; ')}. ${heavy.length} in 4 weeks.`);
+  if (heavy.length) L.push(`Heavy days, last 4 weeks (clearly over that day's target): ${heavy.map((h) => `${WD[new Date(`${h.date}T12:00:00`).getDay()]} ${h.date} +${h.over} kcal${h.late ? ', logged the day after' : ''}${h.evening ? `, ${h.evening} kcal of it logged after 20:00` : ''}`).join('; ')}. ${heavy.length} in 4 weeks.`);
   if (mode === 'off') L.push('Heavy-day notices are OFF: they chose not to hear about heavy days or catch-ups unless they bring them up.');
   const [w1, w2] = mode === 'off' ? [0, 0] : heavyWeeks(d, today);
   if (w1 >= 3 && w2 >= 3) {

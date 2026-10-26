@@ -21,14 +21,14 @@ export function personLines(d: Data, today: string, mealLabel: (id: string) => s
   const dates = [...new Set(entries.map((e) => e.date))];
 
   if (dates.length >= 7) {
-    // when they eat: what was eaten from 20:00 on, or logged after the day was over (a late log is evening eating)
-    let total = 0, evening = 0;
+    // when they eat: what was logged from 20:00 on that day; a log the day after is said apart (when it was eaten isn't known)
+    let total = 0, evening = 0, late = 0;
     for (const e of entries) {
       const k = e.nutrients.kcal ?? 0; total += k;
-      if (dayKey(e.at, d.settings.dayStartHour) > e.date || isEvening(e.at, d.settings.dayStartHour)) evening += k;
+      if (dayKey(e.at, d.settings.dayStartHour) > e.date) late += k;
+      else if (isEvening(e.at, d.settings.dayStartHour)) evening += k;
     }
-    const share = pct(evening, total);
-    L.push(`Eating rhythm: ${share}% of their logged calories are eaten after 20:00 or logged the morning after.`);
+    L.push(`Eating rhythm: ${pct(evening, total)}% of their logged calories were logged after 20:00 on the day${late ? `; ${pct(late, total)}% were logged the day after (when they were eaten isn't known)` : ''}.`);
     // heavier weekdays, against their own average
     const byDay = new Map<string, number>();
     for (const e of entries) byDay.set(e.date, (byDay.get(e.date) ?? 0) + (e.nutrients.kcal ?? 0));
