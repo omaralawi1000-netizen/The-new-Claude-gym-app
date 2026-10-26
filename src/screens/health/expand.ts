@@ -29,12 +29,21 @@ const slide = () => document.documentElement.dataset.hxMotion === 'slide';
 const $$ = (s: string, r: ParentNode) => [...r.querySelectorAll<HTMLElement>(s)];
 const curT = (el: Element) => { const s = getComputedStyle(el).transform; return s === 'none' ? 'none' : s; };
 const SHARE = ['num', 'unit', 'chart'];
-/** a spring whose last bit is eased out to rest: the sampled spring stops a fraction short and then lands, which over a
- * whole screen width is a visible half-pixel jump at the end. Its remaining distance is faded to 0 over the last 30 %. */
-const softEnd = (easing: string) => { const v = easing.slice(7, -1).split(',').map(Number), n = v.length - 1; return `linear(${v.map((x, i) => +(1 - (1 - x) * Math.min(1, (n - i) / (0.3 * n))).toFixed(5)).join(', ')})`; };
-/** the slide's curve: Apple's sheet curve, calm start and a short tail (a spring's long tail crept the last 10 px a step
- * every other frame) */
-const SLIDE = { duration: 620, easing: 'cubic-bezier(0.32, 0.72, 0, 1)' };
+/** the slide's curve (open, close and chips): as calm at the start as the spring it replaces, with a short tail (the
+ * spring crept its last 10 px a step every other frame) */
+const bez = (x1: number, y1: number, x2: number, y2: number) => (x: number) => {
+  const f = (a: number, b: number, t: number) => 3 * a * t * (1 - t) ** 2 + 3 * b * t * t * (1 - t) + t ** 3;
+  let lo = 0, hi = 1; for (let i = 0; i < 30; i++) { const m = (lo + hi) / 2; if (f(x1, x2, m) < x) lo = m; else hi = m; }
+  return f(y1, y2, (lo + hi) / 2);
+};
+const SLIDE_E = bez(0.3, 0.3, 0.1, 1);
+/** the same curve as samples on whole screen pixels of a `w` px trip, so its last fraction of a pixel never holds a frame
+ * and then lands with a redraw */
+const slideCurve = (w: number) => {
+  const d = window.devicePixelRatio || 1, n = 64;
+  const xs = Array.from({ length: n + 1 }, (_, i) => +(Math.round(SLIDE_E(i / n) * w * d) / (w * d)).toFixed(5));
+  return { duration: 620, easing: `linear(${xs.join(', ')})` };
+};
 type Box = { x: number; y: number; w: number; h: number; full?: boolean };
 /** the spring's progress at time p (0–1), read off its linear() samples */
 const curve = (easing: string) => { const v = easing.slice(7, -1).split(',').map(Number), n = v.length - 1; return (p: number) => { if (p <= 0) return v[0]; if (p >= 1) return v[n]; const f = p * n, i = Math.floor(f); return v[i] + (v[i + 1] - v[i]) * (f - i); }; };
@@ -349,7 +358,7 @@ export class Expander {
     st.anims.push(this.anim(mat, [{ opacity: 1 }, { opacity: 1 }], { duration: 1 }));
     // the page's own number and chart stay where they are (nothing flies)
     $$('[data-share]', this.e.dsc).forEach((x) => { x.style.opacity = ''; });
-    const o = SLIDE;
+    const o = slideCurve(W);
     st.anims.push(this.anim(L[0], [{ transform: `translateX(${W}px)` }, { transform: 'none' }], o));
     st.anims.push(this.anim(scr, [{ transform: 'none' }, { transform: `translateX(${-W}px)` }], o));
     this.playPage(Math.round(o.duration * 0.25));
@@ -358,7 +367,7 @@ export class Expander {
   private slideClose(st: State) {
     this.e.det.classList.remove('moving');
     const { L, scr } = this.e, W = this.e.root.clientWidth + 48;
-    const o = SLIDE;
+    const o = slideCurve(W);
     const from = [curT(L[0]), curT(scr)];
     L[0].getAnimations().forEach((a) => a.cancel()); scr.getAnimations().forEach((a) => a.cancel());
     const out = [this.anim(L[0], [{ transform: from[0] }, { transform: `translateX(${W}px)` }], o), this.anim(scr, [{ transform: from[1] }, { transform: 'none' }], o)];
@@ -411,17 +420,16 @@ export class Expander {
     old.forEach((x) => { const c = x.cloneNode(true) as HTMLElement; c.style.opacity = getComputedStyle(x).opacity; c.style.transform = ''; ghost.appendChild(c); });
     L[2].appendChild(ghost);
     // pages sit side by side in chip order: the old one slides out as the new one slides in, on one spring
-    const sm = this.sm(), W = dsc.clientWidth + 48; // a gap between the two pages
-    ghost.animate([{ transform: 'none' }, { transform: `translateX(${-dir * W}px)` }], { duration: reduced() ? 1 : sm.duration + 160, fill: 'both', easing: softEnd(sm.easing) }).finished.then(() => ghost.remove()).catch(() => ghost.remove());
+    const W = dsc.clientWidth + 48, sc = slideCurve(W); // a gap between the two pages; the open/close slide's curve
+    ghost.animate([{ transform: 'none' }, { transform: `translateX(${-dir * W}px)` }], { duration: reduced() ? 1 : sc.duration, fill: 'both', easing: sc.easing }).finished.then(() => ghost.remove()).catch(() => ghost.remove());
     return dir;
   }
   /** React has rendered the new page: it arrives from the side the chip sits on */
   swapIn(dir: number) {
     const { dsc } = this.e;
-    const sm = this.sm();
     this.playPage(160, false);
     const W = dsc.clientWidth + 48;
     // the body moves as one layer that stays a layer (dropping it at the end would snap the text by a pixel)
-    $$(':scope > .hx-page > .hx-body', dsc).forEach((x) => this.anim(x, [{ transform: `translateX(${dir * W}px)` }, { transform: 'none' }], { duration: sm.duration + 160, easing: softEnd(sm.easing) }));
+    $$(':scope > .hx-page > .hx-body', dsc).forEach((x) => this.anim(x, [{ transform: `translateX(${dir * W}px)` }, { transform: 'none' }], slideCurve(W)));
   }
 }
