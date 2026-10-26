@@ -447,3 +447,26 @@ describe('weigh-ins, judge round 4 second pass', () => {
     expect(findNudges(data(), today, 9, t, 'en', name).find((x) => x.id.startsWith('goal:'))).toBeUndefined();
   });
 });
+
+describe('judge round 5 (26 Oct)', () => {
+  it('the habit that breaks a plan, the check-in and a logging promise are worked out by the app', () => {
+    // 4 weeks: Fridays at 3,400, other days 2,500
+    const entries = Array.from({ length: 28 }, (_, i) => { const date = addDays(today, -28 + i); return entry(date, new Date(`${date}T12:00:00`).getDay() === 5 ? 3400 : 2500); });
+    useStore.setState({ weights: weighIns(28, 82, 0), entries });
+    expect(goalLines(data(), today, name).join('\n')).toMatch(/What most likely breaks a plan \(last 4 weeks, 28 finished logged days\): Fridays average 3,400 kcal, against 2,500 on the other days; protein at or above 180 g on 0 of 28 days/);
+    useStore.setState({ memory: [{ id: 'g', kind: 'goal', text: 'Goal: 82 → 80 kg', at: 0, goal: { metric: 'weight', target: 80, by: addDays(today, 40), startDate: addDays(today, -3), start: 82 } }] });
+    expect(goalLines(data(), today, name).join('\n')).toMatch(/Check-in 2026-11-05 \(every 2 weeks\): the scale's pace under half of what the date needs then → 150 kcal less/);
+    useStore.setState({ memory: [{ id: 'p', kind: 'goal', text: 'Log every meal this week', at: 0, goal: { metric: 'other', by: addDays(today, 2), startDate: addDays(today, -3) } }], entries: entries.filter((e) => e.date !== addDays(today, -2)) });
+    expect(goalLines(data(), today, name).join('\n')).toMatch(/Logging since it was set \(3 finished days, today not counted\): fully logged 2 of 3; nothing logged: \w{3} 2026-10-23; today has nothing yet/);
+  });
+  it('behind on a cut while sleep is off: the app recommends the later date, not fewer calories', () => {
+    const pre = weighIns(38, 82, 0).filter((w) => w.date <= addDays(today, -10));
+    const entries = [...Array.from({ length: 28 }, (_, i) => entry(addDays(today, -38 + i), 2900)), ...Array.from({ length: 10 }, (_, i) => entry(addDays(today, -10 + i), 2800))];
+    const health = Array.from({ length: 37 }, (_, i) => ({ date: addDays(today, -36 + i), sleepMin: i >= 30 ? 360 : 440, hrv: 60 }));
+    useStore.setState({ weights: [...pre, ...weighIns(9, 82, 0)], entries, health: health as any, memory: [{ id: 'g', kind: 'goal', text: 'Goal: 82 → 80 kg', at: 0, goal: { metric: 'weight', target: 80, by: addDays(today, 18), startDate: addDays(today, -10), start: 82 } }] });
+    const g = goalLines(data(), today, name).join('\n');
+    expect(g).toMatch(/STATUS: BEHIND/);
+    expect(g).toMatch(/RECOMMEND \(recovery is off: sleep \d+ min under usual\): keep the current target/);
+    expect(g).not.toMatch(/the date's [\d.]+ kg\/week = about/);
+  });
+});
