@@ -709,3 +709,15 @@ describe('a lift goal\'s reps are its own (Argon, 26 Oct)', () => {
     expect(goalFromText('Goal: bench press 100 kg for 5 by summer', undefined, undefined, 'en')).toMatchObject({ metric: 'lift', target: 100, reps: 5 });
   });
 });
+
+describe('a goal lift\'s new plan sent only to the routine is saved on the goal too (Argon, 26 Oct)', () => {
+  it('takes the goal note GOALS names and the plan sentence of the reply', async () => {
+    const { savePlanFromGoals } = await import('../src/lib/agent');
+    const sys = 'GOALS … When you change its plan (one change), make it in this answer, not as a question: send {"type":"remember","memory":4,"text":"Goal: Barbell Bench Press 100 kg by 2027-06-01","goalPlan":"<the new plan>"} and …';
+    const edit = { type: 'edit_routine', routine: 'Push', change: [{ exercise: 'Barbell Bench Press', sets: 5, repMin: 3, repMax: 5 }] } as any;
+    const reply = 'We agreed on 6 reps, and it has been 5, 5, 5, 5, so I have updated Push to 5 sets of 3–5 reps: push 80 kg × 3–5 for the next 4 weeks, then 82.5 kg.';
+    expect(savePlanFromGoals(sys, reply, [edit])).toEqual([edit, { type: 'remember', text: 'Goal: Barbell Bench Press 100 kg by 2027-06-01', kind: 'goal', exercise: null, replaces: 4, until: null, plan: '5 sets of 3–5 reps: push 80 kg × 3–5 for the next 4 weeks, then 82.5 kg.' }]);
+    expect(savePlanFromGoals('GOALS: none told yet.', reply, [edit])).toEqual([edit]);
+    expect(savePlanFromGoals(sys, reply, [])).toEqual([]);
+  });
+});

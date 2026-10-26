@@ -1214,11 +1214,28 @@ export function fillFromReply(reply: string, actions: AgentAction[], lang: 'en' 
   // a goal note rewritten with no plan while the reply says the plan changed: the plan is the reply's sentence that
   // names it in sets and reps (GOALS reads it back as "Plan agreed" at the next follow-up)
   if (!PLAN_SAID.test(reply)) return out;
+  const plan = planSentence(reply);
+  if (!plan) return out;
+  return out.map((a) => (a.type === 'remember' && (a.kind === 'goal' || a.replaces) && !a.plan && !a.goal?.plan ? { ...a, plan } : a));
+}
+/** The reply's sentence that gives the new plan in sets and reps, without "Instead of …, I've updated your plan to". */
+export function planSentence(reply: string): string | undefined {
   const sent = reply.split(/(?<=[.!?])\s+|\n+/).map((x) => x.trim()).find((x) => /\d\s*(?:[×x]|sets? of|sæt af)\s*\d/i.test(x) && /\b(?:plan|change|instead|next \d+ weeks?|add|move|push|ændr\w*|i stedet|næste \d+ uger)\b/i.test(x));
-  if (!sent) return out;
-  // (the plan itself, without "Instead of …, I've updated your plan and Push routine to")
-  const plan = sent.replace(/^.*?\b(?:I['’]?ve|I have)\s+(?:updated|changed|saved)\s+(?:your |the )?plan(?:\s+and [^,]*?routine)?\s*(?:to\s+|:\s*)/i, '').replace(/,?\s+and (?:queued|put|added|saved|made) (?:that|this|the) change\b[^.]*/i, '') || sent;
-  return out.map((a) => (a.type === 'remember' && (a.kind === 'goal' || a.replaces) && !a.plan && !a.goal?.plan ? { ...a, plan: plan.length > 220 ? `${plan.slice(0, 217)}…` : plan } : a));
+  if (!sent) return undefined;
+  const plan = sent.replace(/^.*?\b(?:I['’]?ve|I have)\s+(?:updated|changed|saved|moved|set)\s+(?:your |the )?(?:plan(?:\s+and [^,:]*?routine)?|[\p{L}\d ]{1,30}?(?:\s+routine)?)\s*(?:to\s+|:\s*)/iu, '').replace(/,?\s+and (?:queued|put|added|saved|made) (?:that|this|the) change\b[^.]*/i, '') || sent;
+  return plan.length > 220 ? `${plan.slice(0, 217)}…` : plan;
+}
+
+/** A goal lift's new plan, put in the routine but not on the goal: the goal note GOALS names gets it (its follow-up reads
+ *  "Plan agreed"; Argon sent only the edit, 26 Oct). */
+export function savePlanFromGoals(system: string, reply: string, actions: AgentAction[]): AgentAction[] {
+  if (!actions.some((a) => a.type === 'edit_routine' && a.change?.length) || actions.some((a) => a.type === 'remember' && (!!a.plan || !!a.goal?.plan))) return actions;
+  const m = system.match(/When you change its plan[^]*?\{"type":"remember","memory":(\d+),"text":"((?:[^"\\]|\\.)*)"/);
+  const plan = m ? planSentence(reply) : undefined;
+  if (!m || !plan) return actions;
+  let text: string; try { text = JSON.parse(`"${m[2]}"`); } catch { return actions; }
+  const n = Number(m[1]);
+  return [...actions.filter((a) => !(a.type === 'remember' && a.replaces === n)), { type: 'remember', text, kind: 'goal', exercise: null, replaces: n, until: null, plan }];
 }
 const PLAN_SAID = /\b(?:updated|saved|changed|new) (?:your |the |this )?(?:goal )?plan\b|\bfor the next \d+ weeks?, let['’]?s\b|\bthe plan is\b|\bplan (?:is|was) (?:now )?(?:updated|saved|changed)\b|\b(?:opdateret|gemt|ændret) (?:din |planen|plan)/i;
 
