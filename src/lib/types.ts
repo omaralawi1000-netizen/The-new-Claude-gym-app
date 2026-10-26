@@ -448,6 +448,8 @@ export interface GoalPlan {
   /** reached or dropped, and the day */
   status?: 'done' | 'dropped';
   endedOn?: string;
+  /** the plan agreed for it, in a few words ("77.5 × 6, 7, 8 then 80 × 5"; "2,200 kcal, 180 g protein") */
+  plan?: string;
 }
 
 /** One weekly review as kept: the week's last day, the Coach's verdict and up to two priorities (ids from lib/weekReview). */

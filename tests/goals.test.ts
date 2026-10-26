@@ -152,7 +152,7 @@ describe('where a weight goal stands', () => {
     expect(c.indexOf('GOALS')).toBeLessThan(c.indexOf('Nutrition'));
     const nd = findNudges(data(), today, 9, t, 'en', name).find((x) => x.id.startsWith('goal:'))!;
     expect(nd.title).toBe('Behind pace: 78 kg by 15 Nov');
-    expect(nd.body).toMatch(/now, 78 kg by/);
+    expect(nd.body).toMatch(/now, 4\.1 kg to go, 21 days left/);
     expect(nd.body).toMatch(/The date needs/);
     // (the general "losing weight fast" card stays away while a weight goal speaks for itself)
     expect(findNudges(data(), today, 9, t, 'en', name).some((x) => x.id.startsWith('fastloss'))).toBe(false);
@@ -295,7 +295,35 @@ describe('a lift goal on a plateau', () => {
     const st = goalState(data(), data().memory[0], today)!;
     expect(st.pace).toBe('stalled');
     expect(st.plateau).toMatchObject({ kg: 77.5, reps: 5, workouts: 6 });
-    expect(goalLines(data(), today, name).join('\n')).toMatch(/Plateau: best set 77\.5 kg × 5, not beaten for 6 workouts since/);
+    expect(goalLines(data(), today, name).join('\n')).toMatch(/Plateau: best set 77\.5 kg × 5, matched but not beaten in 6 workouts since/);
+  });
+});
+
+describe('judge round 2 (26 Oct)', () => {
+  it('the plan is saved and shown, "lose 2 kg" is worked out from where the app tracks them, the same goal again makes no card', async () => {
+    useStore.setState({ weights: weighIns(20, 82.5, -0.3) });
+    const r = await act({ type: 'remember', kind: 'goal', text: 'Goal: lose 2 kg by 2026-11-30', goal: { metric: 'weight', delta: -2, by: '2026-11-30', plan: '2,400 kcal, 180 g protein' } });
+    const m = data().memory[0];
+    expect(m.goal!.target).toBeCloseTo(m.goal!.start! - 2, 1);
+    expect(m.goal!.plan).toBe('2,400 kcal, 180 g protein');
+    expect(r.title).toBe('Goal set');
+    expect(goalLines(data(), today, name).join('\n')).toMatch(/Plan agreed: 2,400 kcal, 180 g protein\./);
+    const again = (await runActions(validateAgent({ reply: '', actions: [{ type: 'remember', kind: 'goal', replaces: 1, text: 'Goal: lose 2 kg by 2026-11-30', goal: { metric: 'weight', target: m.goal!.target, by: '2026-11-30' } }] })!.actions, ctx()));
+    expect(again).toHaveLength(0);
+  });
+  it('a day with its dinner unlogged is not a low day for the pace', () => {
+    const entries: FoodEntry[] = [];
+    for (let i = 1; i <= 34; i++) { const day = addDays(today, -i); for (const meal of ['breakfast', 'lunch', 'dinner']) if (!(i <= 4 && i % 2 === 0 && meal === 'dinner')) entries.push({ ...entry(day, 900), mealId: meal, at: new Date(`${day}T${meal === 'dinner' ? '19' : meal === 'lunch' ? '12' : '08'}:00:00`).getTime() }); }
+    useStore.setState({ weights: weighIns(34, 82, 0), entries, memory: [{ id: 'g', kind: 'goal', text: 'Goal', at: 0, goal: { metric: 'weight', target: 80, by: addDays(today, 40), startDate: addDays(today, -5) } }] });
+    const st = goalState(data(), data().memory[0], today)!;
+    expect(st.eating!.days).toBe(3);
+    expect(st.eating!.kcal).toBe(2700);
+  });
+  it('older goal notes without numbers are listed apart, not as running goals', () => {
+    useStore.setState({ memory: [{ id: 'o', kind: 'goal', text: 'Wants to be stronger', at: 0 }] });
+    const L = goalLines(data(), today, name).join('\n');
+    expect(L).toMatch(/None running\./);
+    expect(L).toMatch(/Older goal notes .*"Wants to be stronger"/);
   });
 });
 

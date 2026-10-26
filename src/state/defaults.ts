@@ -12,7 +12,8 @@ export function cleanGoal(g: any): GoalPlan | undefined {
   if (!g || typeof g !== 'object' || !['weight', 'lift', 'other'].includes(g.metric) || !isDay(g.startDate)) return undefined;
   return { metric: g.metric, startDate: g.startDate, ...(isNum(g.target, 1, 1000) ? { target: g.target } : {}), ...(isNum(g.reps, 1, 50) ? { reps: Math.round(g.reps) } : {}),
     ...(isDay(g.by) ? { by: g.by } : {}), ...(isNum(g.start, 1, 1000) ? { start: g.start } : {}),
-    ...(g.status === 'done' || g.status === 'dropped' ? { status: g.status } : {}), ...(isDay(g.endedOn) ? { endedOn: g.endedOn } : {}) };
+    ...(g.status === 'done' || g.status === 'dropped' ? { status: g.status } : {}), ...(isDay(g.endedOn) ? { endedOn: g.endedOn } : {}),
+    ...(typeof g.plan === 'string' && g.plan.trim() ? { plan: g.plan.trim().slice(0, 160) } : {}) };
 }
 export const MEMORY_KINDS: MemoryKind[] = ['goal', 'preference', 'health', 'schedule', 'gear', 'food', 'other'];
 

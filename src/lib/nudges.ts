@@ -166,7 +166,8 @@ export function findNudges(d: AppData, today: string, hour: number, t: T, lang: 
     const body: string[] = [];
     if (st.now !== undefined && st.target !== undefined) body.push(lift
       ? t('Estimated max {now}, target {target}.', { now: kg(st.now), target: kg(st.target) })
-      : by ? t('{now} now, {target} by {date}.', { now: kg(st.now), target: kg(st.target), date: by }) : t('{now} now, target {target}.', { now: kg(st.now), target: kg(st.target) }));
+      // (the title says the target and the date already)
+      : st.daysLeft !== undefined && st.daysLeft >= 0 ? t('{now} now, {left} to go, {n} days left.', { now: kg(st.now), left: kg(Math.abs(st.target - st.now)), n: st.daysLeft }) : t('{now} now, {left} to go.', { now: kg(st.now), left: kg(Math.abs(st.target - st.now)) }));
     const kg2 = (x: number) => `${x > 0 ? '+' : x < 0 ? '−' : ''}${fmtNum(kgToDisplay(Math.abs(x), u), lang, 2)} ${u}`;
     const losing = (st.target ?? 0) < (st.start ?? st.now ?? 0);
     if (st.pace === 'too fast') body.push(losing ? t('About {rate} a week. Faster than about 1% a week costs muscle and strength.', { rate: kg(Math.abs(st.rate!)) }) : t('About {rate} a week. Faster than about 0.5% a week is mostly fat.', { rate: kg(Math.abs(st.rate!)) }));
@@ -175,7 +176,7 @@ export function findNudges(d: AppData, today: string, hour: number, t: T, lang: 
     else if (st.rate !== undefined && st.pace !== 'reached' && st.pace !== 'too early') body.push(t('Going {rate} a week.', { rate: kg2(st.rate) }));
     if (st.need !== undefined && (st.pace === 'behind' || st.pace === 'wrong way' || st.dateUnsafe)) body.push(st.dateUnsafe ? t('The date needs {need} a week, faster than is safe.', { need: kg(Math.abs(st.need)) }) : t('The date needs {need} a week.', { need: kg(Math.abs(st.need)) }));
     if (st.pace === 'too early' && st.why?.includes('weigh-in') && !st.eating) body.push(t('Weigh in most mornings so the pace can be judged.'));
-    const TITLE: Record<Pace, string> = { reached: 'Goal reached: {goal}', 'on pace': 'On pace: {goal}', ahead: 'Ahead of pace: {goal}', behind: 'Behind pace: {goal}', 'too fast': 'Faster than safe: {goal}', 'wrong way': 'Going the wrong way: {goal}', slow: 'Slow: {goal}', stalled: 'Stalled: {goal}', 'date passed': 'Date passed: {goal}', 'too early': 'Too early to tell: {goal}' };
+    const TITLE: Record<Pace, string> = { reached: 'Goal reached: {goal}', 'on pace': 'On pace: {goal}', ahead: 'Ahead of pace: {goal}', behind: 'Behind pace: {goal}', 'too fast': losing ? 'Faster than safe: {goal}' : 'Faster than planned: {goal}', 'wrong way': 'Going the wrong way: {goal}', slow: 'Slow: {goal}', stalled: 'Stalled: {goal}', 'date passed': 'Date passed: {goal}', 'too early': 'Too early to tell: {goal}' };
     const off = st.pace === 'behind' || st.pace === 'stalled' || st.pace === 'too fast' || st.pace === 'wrong way' || st.pace === 'date passed';
     add({ id: `goal:${m.id}:${st.pace}`, kind: off ? 'warning' : 'insight', icon: lift ? 'bolt' : 'scale', priority: off ? 75 : st.pace === 'reached' ? 80 : 32,
       title: t(TITLE[st.pace], { goal: short }), body: body.join(' ') || undefined,

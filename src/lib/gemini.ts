@@ -318,7 +318,9 @@ export const AGENT_SCHEMA = {
       until: { type: 'STRING', nullable: true, description: 'remember: for a temporary thing (sick, travelling, sore this week), the last day it applies, YYYY-MM-DD (a goal\'s date goes in goal.by instead)' },
       goal: { type: 'OBJECT', nullable: true, description: 'remember (kind goal): the number the app follows. weight = bodyweight target; lift = a weight on the bar for one exercise (put the exercise in exercise); other = no number. status done / dropped when they reached it or gave it up (memory = its line)', properties: {
         metric: { type: 'STRING', enum: ['weight', 'lift', 'other'] },
-        target: { type: 'NUMBER', nullable: true, description: 'weight: target bodyweight in kg (82 kg now and "lose 2 kg" → 80); lift: kg on the bar' },
+        target: { type: 'NUMBER', nullable: true, description: 'weight: target bodyweight in kg; lift: kg on the bar' },
+        delta: { type: 'NUMBER', nullable: true, description: 'weight, instead of target: the change they asked for in kg ("lose 2 kg" → -2, "gain 2 kg" → 2); the app works out the target from where it tracks them from' },
+        plan: { type: 'STRING', nullable: true, description: 'the plan agreed, in a few words with its numbers ("77.5 × 6, 7, 8 then 80 × 5"; "2,200 kcal, 180 g protein")' },
         reps: { type: 'INTEGER', nullable: true, description: 'lift: reps at that weight (1 if they said none)' },
         by: { type: 'STRING', nullable: true, description: 'the date they want it by, YYYY-MM-DD ("in 2 weeks" → today + 14 days)' },
         status: { type: 'STRING', nullable: true, enum: ['active', 'done', 'dropped'] },
