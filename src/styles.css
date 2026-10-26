@@ -3081,6 +3081,8 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 .frost canvas { position: absolute; top: 0; left: var(--frost-x, 0px); width: 100vw; height: var(--frost-sh, 100vh); opacity: 0; transition: opacity 900ms var(--ease-smooth, ease); }
 .frost canvas[data-on='1'] { opacity: 1; }
 .frost canvas[data-now] { transition: none; } /* (the picture kept from the last visit, on a fresh start: no fade, frost.ts) */
+.frost canvas[data-swap] { opacity: 0; transition: none; } /* (a new picture: it fades in over the last one, kept under it) */
+.frost canvas.prev { opacity: 1; transition: none; }
 /* the glass's own grain, which moves with the card: it reads as frost, and it breaks up the copy's colour steps (the copy is
    blurred, so the page's grain under it is gone and its soft gradients banded, Omar 25 Oct). Finer than the page's grain. */
 .frost::after { content: ''; position: absolute; inset: 0; pointer-events: none; opacity: var(--frost-grain, 0.03);

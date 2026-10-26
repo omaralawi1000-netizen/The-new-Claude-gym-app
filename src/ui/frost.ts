@@ -42,20 +42,33 @@ function paint(cv: HTMLCanvasElement) {
   const hue = hueOf(cv), made = pics.get(hue), last = made ? undefined : keptFor(hue);
   const src = RECIPE[look()] ? made ?? last : undefined;
   const g = cv.getContext('2d'); if (!g) return;
-  if (!src) { cv.dataset.on = ''; return; } // (fades out over the last picture; the card shows its plain glass)
+  const prev = cv.previousElementSibling instanceof HTMLCanvasElement ? cv.previousElementSibling : null;
+  if (!src) { prev?.getContext('2d')?.clearRect(0, 0, prev.width, prev.height); cv.dataset.on = ''; return; } // (fades out over the last picture; the card shows its plain glass)
+  // a new picture over one on show (the sun moved when food was logged, a copy once more): the old one stays under it and
+  // the new one fades in over it, never a jump (judge 26 Oct)
+  if (prev && cv.dataset.on === '1' && !cv.dataset.now) {
+    if (prev.width !== cv.width || prev.height !== cv.height) { prev.width = cv.width; prev.height = cv.height; }
+    const pg = prev.getContext('2d');
+    if (pg) {
+      pg.clearRect(0, 0, prev.width, prev.height); pg.drawImage(cv, 0, 0);
+      cv.dataset.swap = '1'; requestAnimationFrame(() => requestAnimationFrame(() => delete cv.dataset.swap));
+    }
+  }
   // the picture kept from the last visit, on a fresh start: there at once, no fade from the plain glass (Omar 25 Oct: the
   // cards opened clear and then faded into his colours)
   if (last && cv.dataset.on !== '1') { cv.dataset.now = '1'; requestAnimationFrame(() => requestAnimationFrame(() => delete cv.dataset.now)); }
   if (cv.width !== src.width || cv.height !== src.height) { cv.width = src.width; cv.height = src.height; }
   g.clearRect(0, 0, cv.width, cv.height); g.drawImage(src, 0, 0);
   cv.dataset.on = '1';
-  cv.closest<HTMLElement>('.frost')?.style.setProperty('--frost-grain', grainFor(src));
+  const wrap = cv.closest<HTMLElement>('.frost'), [grain, sheen] = grainFor(src);
+  wrap?.style.setProperty('--frost-grain', grain); wrap?.parentElement?.style.setProperty('--frost-sheen', sheen);
 }
 
 /** the glass's grain, even on every card: white dots at one strength show more on dark glass (a near-black card read sandy,
  *  judge 25 Oct), so a dark picture gets fewer of them */
-const grains = new WeakMap<HTMLCanvasElement, string>();
-function grainFor(src: HTMLCanvasElement) {
+const grains = new WeakMap<HTMLCanvasElement, [string, string]>();
+/** and the card's sheen (surfaces.css): less of it over a near-black picture, where it lifted the glass into a slate panel */
+function grainFor(src: HTMLCanvasElement): [string, string] {
   let v = grains.get(src); if (v) return v;
   let s = 0, k = 0;
   try {
@@ -63,7 +76,8 @@ function grainFor(src: HTMLCanvasElement) {
     for (let i = 0; i < d.length; i += 16) { s += lab(d[i], d[i + 1], d[i + 2])[0]; k++; }
   } catch { /* (no pixels to read: the usual strength) */ }
   const L = k ? s / k : 0.3;
-  v = (0.03 * Math.max(0.55, 1 - 0.6 * Math.max(0, 1 - L / 0.3))).toFixed(4); grains.set(src, v);
+  v = [(0.03 * Math.max(0.55, 1 - 0.6 * Math.max(0, 1 - L / 0.3))).toFixed(4), (0.035 * (0.6 + 0.4 * smooth(0.12, 0.25, L))).toFixed(4)];
+  grains.set(src, v);
   return v;
 }
 
@@ -351,7 +365,9 @@ function dress(card: HTMLElement) {
   const wrap = document.createElement('span'); wrap.className = 'frost'; wrap.setAttribute('aria-hidden', 'true');
   const hold = document.createElement('i');
   const cv = document.createElement('canvas'); const { w, h } = size(); cv.width = w; cv.height = h;
-  hold.appendChild(cv); wrap.appendChild(hold); card.appendChild(wrap);
+  // (and one under it, holding the last picture while a new one fades in over it: made with the card, never added later)
+  const prev = document.createElement('canvas'); prev.className = 'prev'; prev.width = w; prev.height = h;
+  hold.appendChild(prev); hold.appendChild(cv); wrap.appendChild(hold); card.appendChild(wrap);
   place(card, wrap); watch(card);
   live.add(cv); paint(cv);
 }
