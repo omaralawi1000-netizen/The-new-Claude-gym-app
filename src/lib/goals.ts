@@ -368,6 +368,8 @@ export function goalLines(d: Data, today: string, exName: (id: string) => string
       if (st.plateau) parts.push(`Plateau: best set ${r1(st.plateau.kg)} kg × ${st.plateau.reps}, matched but not beaten in ${st.plateau.workouts} workouts since ${st.plateau.since}.`);
       const sinceSet = liftTops(d, m.exerciseIds![0], g.startDate, today).filter((x) => x.date > g.startDate || st.daysIn === 0).slice(-6);
       if (st.daysIn > 0) parts.push(sinceSet.length ? `Top sets since the goal was set: ${sinceSet.map((x) => `${r1(x.kg)} × ${x.reps}`).join(', ')}.` : 'Not trained since the goal was set.');
+      // (the agreed plan, followed and not working: a fact the Coach must not answer with the same plan again)
+      if (g.plan && sinceSet.length >= 3 && st.start !== undefined && Math.max(...sinceSet.map((x) => x.e)) <= st.start + 0.05) parts.push(`No progress in the ${sinceSet.length} workouts since the plan was agreed: the plan as it is hasn't moved it.`);
       const mt = trueMaintenance(d, today);
       const ate = foodDays(d, addDays(today, -14), today);
       const k = ate.length >= 5 ? avg(ate.map((x) => x.kcal))! : undefined;
@@ -382,6 +384,7 @@ export function goalLines(d: Data, today: string, exName: (id: string) => string
     if (st.atTarget && st.pace !== 'reached') parts.push(`Eating the current target (${fmtK(st.atTarget.kcal)} kcal) from today: ${fmtPace(st.atTarget.kgPerWeek)}${st.atTarget.eta ? `, landing around ${st.atTarget.eta}` : ', not toward the target'}.`);
     if (st.safeEta && (st.dateUnsafe || st.pace === 'too fast' || st.pace === 'date passed')) parts.push(`At the safe ${st.safe!.max} kg/week it lands around ${st.safeEta}.`);
     parts.push(`STATUS: ${STATUS[st.pace]}${st.why ? ` (${st.why})` : ''}.`);
+    if (st.metric === 'weight' && st.daysLeft !== undefined && st.daysLeft <= 7 && st.now !== undefined && Math.abs(tg - st.now) <= st.now * 0.025 && st.pace !== 'reached') parts.push(`(${st.daysLeft} days to its date and ${r1(Math.abs(tg - st.now))} kg (${Math.round((Math.abs(tg - st.now) / st.now) * 1000) / 10} %) to go: what can still change this week is mostly food in the gut and water, not fat.)`);
     if (g.plan) parts.push(`Plan agreed: ${g.plan}.`);
     if (st.metric === 'weight' && st.daysIn < 14 && st.pace !== 'reached') parts.push('(Under 2 weeks in: day-to-day weigh-ins swing 1–2 kg with water, salt and food; judge the trend, not one morning.)');
     const cal = goalCalories(d, st, today);

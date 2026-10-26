@@ -1487,7 +1487,10 @@ function doRemember(a: Extract<AgentAction, { type: 'remember' }>, ctx: AgentCtx
   const seen = a.replaces ? (ctx.memAtStart ?? st.memory)[a.replaces - 1] : undefined;
   const old = (seen && st.memory.find((m) => m.id === seen.id)) || st.memory.find((m) => sameNote(m.text, a.text));
   // a goal note without its numbers (a model that left goal out): read from its words — "Goal: 82 → 80 kg by 2026-11-16"
-  const g0 = a.goal ?? (a.kind === 'goal' ? goalFromText(a.text, a.until ?? undefined, old, lang) : undefined);
+  const g00 = a.goal ?? (a.kind === 'goal' ? goalFromText(a.text, a.until ?? undefined, old, lang) : undefined);
+  // (a running goal's line rewritten to say it was reached ends it, whatever the goal field says: "…reached at 80.8 kg")
+  const saysDone = !!old?.goal && !old.goal.status && /\b(reached|achieved|nået)\b/i.test(a.text) && !/\b(halfway|half|almost|nearly|not|næsten|halvvejs|ikke)\b/i.test(a.text);
+  const g0 = g00 && saysDone && !g00.status ? { ...g00, metric: old!.goal!.metric, status: 'done' as const } : g00;
   const ex = a.exercise ? findExercise(a.exercise, lang) : g0?.exercise;
   // a goal keeps its date in goal.by (it is followed up after the date too, never just dropped like a temporary note)
   const tillRaw = g0 && !g0.by && a.until ? a.until : undefined;

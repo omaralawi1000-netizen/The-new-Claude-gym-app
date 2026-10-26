@@ -327,3 +327,12 @@ describe('judge round 2 (26 Oct)', () => {
   });
 });
 
+describe('judge round 2, second pass', () => {
+  it('a running goal rewritten as reached ends it, even with a goal field', async () => {
+    useStore.setState({ weights: weighIns(20, 82.5, -0.3), memory: [{ id: 'g', kind: 'goal', text: 'Goal: 82 → 81 kg', at: 0, goal: { metric: 'weight', target: 81, by: addDays(today, 7), startDate: addDays(today, -20), start: 82 } }] });
+    const r = await act({ type: 'remember', kind: 'goal', replaces: 1, text: 'Goal: 82 → 81 kg reached at 80.8 kg trend on 25 Oct', goal: { metric: 'weight', target: 81, by: today } });
+    expect(r.title).toBe('Goal reached');
+    expect(data().memory[0].goal!.status).toBe('done');
+  });
+});
+

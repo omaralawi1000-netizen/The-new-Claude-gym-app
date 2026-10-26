@@ -164,7 +164,7 @@ export function findNudges(d: AppData, today: string, hour: number, t: T, lang: 
     const what = lift ? `${m.exerciseIds?.[0] ? `${exName(m.exerciseIds[0])} ` : ''}${kg(m.goal.target!)}${(m.goal.reps ?? 1) > 1 ? ` × ${m.goal.reps}` : ''}` : kg(m.goal.target!);
     const short = by ? t('{what} by {date}', { what, date: by }) : what;
     const body: string[] = [];
-    if (st.now !== undefined && st.target !== undefined) body.push(lift
+    if (st.now !== undefined && st.target !== undefined && st.pace !== 'reached') body.push(lift
       ? t('Estimated max {now}, target {target}.', { now: kg(st.now), target: kg(st.target) })
       // (the title says the target and the date already)
       : st.daysLeft !== undefined && st.daysLeft >= 0 ? t('{now} now, {left} to go, {n} days left.', { now: kg(st.now), left: kg(Math.abs(st.target - st.now)), n: st.daysLeft }) : t('{now} now, {left} to go.', { now: kg(st.now), left: kg(Math.abs(st.target - st.now)) }));
@@ -174,7 +174,9 @@ export function findNudges(d: AppData, today: string, hour: number, t: T, lang: 
     else if ((st.pace === 'too early' && st.eating) || (st.rate !== undefined && st.rateBasis?.startsWith('what they eat') && st.pace !== 'reached')) body.push(t('What you eat points to {rate} a week.', { rate: kg2(st.eating!.kgPerWeek) }));
     else if (st.pace === 'stalled' && st.plateau) body.push(t('Best set {set} for {n} workouts.', { set: `${fmtNum(kgToDisplay(st.plateau.kg, u), lang, 1)} ${u} × ${st.plateau.reps}`, n: st.plateau.workouts }));
     else if (st.rate !== undefined && st.pace !== 'reached' && st.pace !== 'too early') body.push(t('Going {rate} a week.', { rate: kg2(st.rate) }));
-    if (st.need !== undefined && (st.pace === 'behind' || st.pace === 'wrong way' || st.dateUnsafe)) body.push(st.dateUnsafe ? t('The date needs {need} a week, faster than is safe.', { need: kg(Math.abs(st.need)) }) : t('The date needs {need} a week.', { need: kg(Math.abs(st.need)) }));
+    // (a weigh-in days away and only a little over: what is left is gut content and water, not fat at a safe pace)
+    const closeCall = !lift && st.daysLeft !== undefined && st.daysLeft <= 7 && st.now !== undefined && Math.abs(st.target! - st.now) <= st.now * 0.025;
+    if (closeCall) { /* the body's days left says it */ } else if (st.need !== undefined && (st.pace === 'behind' || st.pace === 'wrong way' || st.dateUnsafe)) body.push(st.dateUnsafe ? t('The date needs {need} a week, faster than is safe.', { need: kg(Math.abs(st.need)) }) : t('The date needs {need} a week.', { need: kg(Math.abs(st.need)) }));
     if (st.pace === 'too early' && st.why?.includes('weigh-in') && !st.eating) body.push(t('Weigh in most mornings so the pace can be judged.'));
     const TITLE: Record<Pace, string> = { reached: 'Goal reached: {goal}', 'on pace': 'On pace: {goal}', ahead: 'Ahead of pace: {goal}', behind: 'Behind pace: {goal}', 'too fast': losing ? 'Faster than safe: {goal}' : 'Faster than planned: {goal}', 'wrong way': 'Going the wrong way: {goal}', slow: 'Slow: {goal}', stalled: 'Stalled: {goal}', 'date passed': 'Date passed: {goal}', 'too early': 'Too early to tell: {goal}' };
     const off = st.pace === 'behind' || st.pace === 'stalled' || st.pace === 'too fast' || st.pace === 'wrong way' || st.pace === 'date passed';
