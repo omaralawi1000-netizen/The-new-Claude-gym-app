@@ -1,6 +1,6 @@
 import { useContext, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { cancelFrame, frame } from 'motion/react';
-import { OverlayMeta, mirrorProgress, useEngageContext, type Engage } from './engage';
+import { OverlayMeta, mirrorKeys, mirrorProgress, useEngageContext, type Engage } from './engage';
 import { mic } from '../lib/mic';
 import { useVoice } from '../state/voice';
 import { speakingLevel, onVoiceOut, voiceOutOn } from '../lib/voiceOut';
@@ -19,6 +19,7 @@ import { highRefresh, onHighRefresh, springCurve } from './motion';
 import { SphereRenderer, type OrbInputs, type SphereColors } from './sphereRender';
 
 type RGB = [number, number, number];
+type Frame = { offset: number; css: string; m?: DOMMatrixReadOnly };
 
 /**
  * Touching the orb. While a finger is on it the whole sphere sinks in a touch and its light gathers; on release it springs
@@ -224,7 +225,9 @@ function claim(el: HTMLElement) {
  * the moment anything interrupts it, e.g. a finger). `container` is the popup; `shiftAt(p)` how far its slot is displaced
  * at progress p (0 for a popup that doesn't slide).
  */
-export function mirrorOrb(container: Element | null, p0: number, p1: number, sp: { stiffness: number; damping: number; mass?: number }, vel: number, shiftAt: (p: number) => number = () => 0): Animation | null {
+/** `rest`: where the slot is at rest, in client px, when the container is scaled as well as moved (the workout window growing
+ * out of a card): its rectangle now is then not its rectangle at rest shifted by shiftAt. */
+export function mirrorOrb(container: Element | null, p0: number, p1: number, sp: { stiffness: number; damping: number; mass?: number }, vel: number, shiftAt: (p: number) => number = () => 0, rest?: { left: number; top: number; width: number; height: number }): Animation | null {
   const el = orbEl;
   const slotEl = container?.querySelector<HTMLElement>('[data-orb-slot]');
   if (!el || !slotEl || !slotEl.isConnected) return null;
@@ -247,10 +250,10 @@ export function mirrorOrb(container: Element | null, p0: number, p1: number, sp:
   }
   const app = el.closest('.app') ?? el.parentElement;
   const b = app?.getBoundingClientRect() ?? { left: 0, top: 0 };
-  const r = slotEl.getBoundingClientRect();
+  const r = rest ?? slotEl.getBoundingClientRect();
   const z = Math.min(r.width, r.height);
   if (z < 2) return null;
-  const R = { X: r.left - b.left + (r.width - z) / 2, Y: r.top - b.top + (r.height - z) / 2 - shiftAt(p0), S: z };
+  const R = { X: r.left - b.left + (r.width - z) / 2, Y: r.top - b.top + (r.height - z) / 2 - (rest ? 0 : shiftAt(p0)), S: z };
   const slides = Math.abs(shiftAt(0) - shiftAt(1)) > 1;
   const bucket = Math.ceil(Math.max(O.S, R.S, 8) / 24) * 24;
   whooshPending = Math.max(whooshPending, 1); wakeOrb();
@@ -404,7 +407,9 @@ export function SphereStage() {
     orbEl = el;
     const rects = new WeakMap<HTMLElement, DOMRect>();
     const parents = new WeakMap<HTMLElement, HTMLElement[]>();
-    const transforms = new Map<HTMLElement, { matrix: DOMMatrixReadOnly; css: DOMMatrixReadOnly; x: number; y: number; sx: number; sy: number; height: number; animations: { animation: Animation; sampled: boolean; frames: { offset: number; matrix: DOMMatrixReadOnly }[] }[] }>();
+    const transforms = new Map<HTMLElement, { matrix: DOMMatrixReadOnly; css: DOMMatrixReadOnly; x: number; y: number; sx: number; sy: number; height: number; animations: { animation: Animation; sampled: boolean; frames: Frame[] }[] }>();
+    // an animation's transform keyframes, read once (a mirror's from what it was given) and each parsed only when the orb is on it
+    const keyCache = new WeakMap<Animation, { h: number; sampled: boolean; moving: boolean; frames: Frame[] }>();
     let measuredRevision = -1;
     let sampledAnimations: Animation[] = [];
     const sampledStates = new WeakMap<Animation, AnimationPlayState>();
@@ -425,10 +430,11 @@ export function SphereStage() {
     const dirty = () => markOrbLayoutDirty();
     // A popup's own motion (its transform, the dim and blur fading, the page stepping back) rewrites a style attribute every
     // frame. Its transform is applied below; decorative layers don't change layout. (.stage-content, the page sinking back
-    // behind a pop-up, was missing: every frame of opening and closing the workout measured the whole orb path afresh.)
+    // behind a pop-up, was missing: every frame of opening and closing the workout measured the whole orb path afresh; so
+    // was the tab bar, which the workout window carries down and back up.)
     // (.sheet-foot: a pop-up's bottom bar rides the keyboard by its transform alone; re-measuring the page on every frame of
     // that ride was most of the work in each frame of it, 19 Oct)
-    const MOVING = '.orb-hand, .sheet, .sheet-pane, .sheet-page, .sheet-foot, .scrim, .scrim > i, .stage, .stage-content, .wk-card, .wk-sheet, .fields, .aurora, .sphere-stage, .lens, .lens > i';
+    const MOVING = '.orb-hand, .sheet, .sheet-pane, .sheet-page, .sheet-foot, .scrim, .scrim > i, .stage, .stage-content, .tabbar, .wk-card, .wk-sheet, .wk-bclip, .wk-bshift, .wk-follow, .wk-dim, .wk-solid, [data-wk], [data-wk] + *, .fields, .aurora, .sphere-stage, .lens, .lens > i';
     // Inside the live workout's window nothing but the bar's own box can move its slot (the bar is pinned to the window's
     // foot): the list, Focus, the header and the bar's words changing used to force a fresh measure of the whole page on
     // every frame they changed (a set ticked, a page turned, the clock rolling), the biggest part of a tick's cost.
@@ -497,15 +503,20 @@ export function SphereStage() {
           const r = n.getBoundingClientRect(), w = n.offsetWidth || 1, h = n.offsetHeight || 1;
           const origin = cs.transformOrigin.split(' ').map(Number.parseFloat);
           const animations = n.getAnimations().map(animation => {
-            const keys = (animation.effect as KeyframeEffect).getKeyframes().filter(k => k.transform !== undefined);
-            let sampled = animation instanceof CSSAnimation || animation instanceof CSSTransition || keys.some(k => k.easing !== 'linear');
-            let frames: { offset: number; matrix: DOMMatrixReadOnly }[] = [];
-            if (!sampled) {
-              try { frames = keys.map(k => ({ offset: k.computedOffset!, matrix: matrixOf(String(k.transform), h) })); }
-              catch { sampled = true; } // valid relative transforms need the browser's resolved matrix, not DOMMatrix's parser
+            let k = keyCache.get(animation);
+            if (!k || k.h !== h) {
+              const own = mirrorKeys.get(animation);
+              const keys = (own ?? (animation.effect as KeyframeEffect).getKeyframes()).filter(k => k.transform !== undefined);
+              let sampled = !own && (animation instanceof CSSAnimation || animation instanceof CSSTransition || keys.some(k => k.easing !== 'linear'));
+              let frames: Frame[] = sampled ? [] : keys.map(k => ({ offset: Number(own ? k.offset : (k as ComputedKeyframe).computedOffset), css: String(k.transform) }));
+              // (the browser's own keyframes are parsed now: valid relative transforms need the browser's resolved matrix,
+              // not DOMMatrix's parser; a mirror's are plain pixels, parsed only when the orb is on them)
+              if (!sampled && !own) try { for (const f of frames) f.m = matrixOf(f.css, h); } catch { sampled = true; frames = []; }
+              k = { h, sampled, moving: keys.length > 1, frames };
+              keyCache.set(animation, k);
             }
-            if (sampled) sampledStates.set(animation, animation.playState);
-            return { animation, sampled, frames, moving: keys.length > 1 };
+            if (k.sampled) sampledStates.set(animation, animation.playState);
+            return { animation, sampled: k.sampled, frames: k.frames, moving: k.moving };
           }).filter(a => a.moving);
           sampledAnimations.push(...animations.filter(a => a.sampled).map(a => a.animation));
           transforms.set(n, { matrix, css: n.style.transform ? new DOMMatrixReadOnly() : matrix, x: r.left + r.width * origin[0] / w, y: r.top + r.height * origin[1] / h,
@@ -532,8 +543,8 @@ export function SphereStage() {
             const next = a.frames.findIndex(k => k.offset >= p);
             const i = Math.max(0, Math.min(a.frames.length - 2, (next < 0 ? a.frames.length - 1 : next) - 1));
             const from = a.frames[i], to = a.frames[i + 1], f = (p - from.offset) / (to.offset - from.offset);
-            m = new DOMMatrixReadOnly([from.matrix.a + (to.matrix.a - from.matrix.a) * f, 0, 0, from.matrix.d + (to.matrix.d - from.matrix.d) * f,
-              from.matrix.e + (to.matrix.e - from.matrix.e) * f, from.matrix.f + (to.matrix.f - from.matrix.f) * f]);
+            const A = (from.m ??= matrixOf(from.css, t.height)), B = (to.m ??= matrixOf(to.css, t.height));
+            m = new DOMMatrixReadOnly([A.a + (B.a - A.a) * f, 0, 0, A.d + (B.d - A.d) * f, A.e + (B.e - A.e) * f, A.f + (B.f - A.f) * f]);
           }
           currentTransforms.set(n, m);
         }

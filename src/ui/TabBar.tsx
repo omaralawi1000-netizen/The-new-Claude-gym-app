@@ -33,8 +33,12 @@ function PillStatus() {
   const total = active.exercises.reduce((n, e) => n + e.sets.length, 0);
   const done = active.exercises.reduce((n, e) => n + e.sets.filter((s) => s.done).length, 0);
   // rest over while you're elsewhere in the app: the pill says so, in green, until the next set is ticked
-  if (active.rest && !active.pausedAt && rest === 0) return <><span style={{ color: 'var(--ac-text)', fontWeight: 700 }}>{t('Rest over')} · {t('Go')}</span> · {fmtDuration(elapsedMs(active) / 1000)}</>;
-  return <>{active.pausedAt ? t('Paused') : rest > 0 ? `${t('Rest')} ${fmtDuration(rest)}` : `${done}/${total}`} · {fmtDuration(elapsedMs(active) / 1000)}</>;
+  // (the workout's time on its own: it flies into the window's clock, Active.tsx data-wk-fly)
+  const clock = <span className="wk-clock-face" data-wk-fly="clock">{fmtDuration(elapsedMs(active) / 1000)}</span>;
+  // (the clock comes first, like the window's header, so it flies straight up into place; the words after it are a part of
+  // their own, data-wk-part, that fade beside it, counted in frames to match the window's own, Active.tsx partV)
+  if (active.rest && !active.pausedAt && rest === 0) return <>{clock}<span data-wk-part="status"> · <span style={{ color: 'var(--ac-text)', fontWeight: 700 }}>{t('Rest over')} · {t('Go')}</span></span></>;
+  return <>{clock}<span data-wk-part="status"> · {active.pausedAt ? t('Paused') : rest > 0 ? `${t('Rest')} ${fmtDuration(rest)}` : `${done}/${total}`}</span></>;
 }
 
 const PILL = { hide: { y: 18, scale: 0.95 }, show: { y: 0, scale: 1 } };
@@ -54,21 +58,23 @@ function LivePill() {
     <motion.button
       key="pill" className="press"
       style={{ position: 'relative', borderRadius: 999, height: 56, width: '100%', maxWidth: 420, display: 'flex', alignItems: 'center', gap: 12, padding: '0 8px 0 18px', marginBottom: 10, pointerEvents: workoutOpen ? 'none' : 'auto' }}
-      initial="hide" animate={workoutOpen ? 'hide' : 'show'} exit="hide" variants={PILL} transition={SOFT}
-      onClick={() => resumeWorkout(() => push('workout', { origin: 'pill' }))}
+      initial="hide" animate="show" exit="hide" variants={PILL} transition={SOFT}
+      onClick={() => resumeWorkout(() => push('workout', { origin: 'pill' }), 'pill')}
       aria-label={t('Resume workout')}
     >
-      {/* The pill's surface is a separate layer; the workout window opens from its rectangle (data-wk). It fades on its OWN
+      {/* It stays where it is while the workout is up (in the dock, out of sight): the window grows out of it and lands back in
+          it, and hides and hands back its surface and words itself (Active.tsx), so the bar never slides or fades on its own.
+          The pill's surface is a separate layer; the workout window opens from its rectangle (data-wk). It fades on its OWN
           layers: fading the button (their parent) switches the frosted blur off until the fade ends — the "clear bar that
           suddenly frosts" flicker. */}
       <motion.span data-wk="pill" className="glass" variants={FADE} transition={SOFT} style={{ position: 'absolute', inset: 0, borderRadius: 28 }} />
       <motion.span variants={FADE} transition={SOFT} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
         <span className={paused ? 'pulse-dot still' : 'pulse-dot'} />
         <span className="grow" style={{ textAlign: 'left', minWidth: 0, position: 'relative' }}>
-          <span className="trunc" style={{ display: 'block', fontWeight: 650, fontSize: 14 }}>{name || t('Workout')}</span>
+          <span className="trunc wk-name" data-wk-fly="title" style={{ display: 'block', fontSize: 17, lineHeight: 1.15 }}>{name || t('Workout')}</span>
           <span className="small t2 num" style={{ display: 'block' }}><PillStatus /></span>
         </span>
-        <span className="icon-btn acc" style={{ width: 40, height: 40, position: 'relative' }}><Icon name="play" size={18} /></span>
+        <span className="icon-btn acc" data-wk-in="pop" style={{ width: 40, height: 40, position: 'relative' }}><Icon name="play" size={18} /></span>
       </motion.span>
     </motion.button>
   );
@@ -93,7 +99,13 @@ export function TabBar() {
   const setTab = useUI((s) => s.setTab);
   const push = useUI((s) => s.push);
   // derived booleans, not the overlay list: opening a sheet must not re-render (and re-measure) the tab bar
-  const hidden = useUI((s) => s.overlays.some((o) => o.type === 'workout' || o.type === 'voice' || o.type === 'onboarding'));
+  const covered = useUI((s) => s.overlays.some((o) => o.type === 'voice' || o.type === 'onboarding'));
+  // the live workout: the bar steps aside as the window sets off, so the window's bottom edge, growing down, never crosses
+  // it (waiting a beat, the bar stood still while that edge ran across it, and looked laid over the window). Out of Today's
+  // card or the resume bar it doesn't slide on its own: the window's bottom edge carries it down, and back up behind it
+  // (Active.tsx `dock`), and the resume bar stays where it is, under the window, for it to land in again.
+  const wk = useUI((s) => s.overlays.some((o) => o.type === 'workout' && o.props?.origin !== 'hero' && o.props?.origin !== 'pill'));
+  const hidden = covered || wk;
   const t = useT();
   const nav = useRef<HTMLElement>(null);
   useDock(nav, tab);
