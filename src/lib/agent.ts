@@ -1114,9 +1114,18 @@ function itemsFrom(list: RoutineBit[], lang: 'en' | 'da') {
   return { items, skipped };
 }
 
+/** A full-body day when the model named one but sent no exercises (judge round 10: the reply said "tap Apply" on a card
+ *  that couldn't be built): squat or hinge, a push, a pull, core. Still a preview they apply. */
+function fullBodyTemplate(name: string): RoutineBit[] {
+  if (!/full[\s-]?body|helkrop/i.test(name)) return [];
+  const b = /\b(b|2)\s*$/i.test(name.trim());
+  const ex = b ? ['Romanian Deadlift', 'Overhead Press', 'Lat Pulldown', 'Leg Press'] : ['Squat', 'Bench Press', 'Barbell Row', 'Plank'];
+  return ex.map((exercise) => ({ exercise, sets: 3, repMin: 6, repMax: 10 }));
+}
+
 function doCreateRoutine(a: Extract<AgentAction, { type: 'create_routine' }>, ctx: AgentCtx): AgentResult {
   const { t } = ctx;
-  const { items, skipped } = itemsFrom(a.items, ctx.lang);
+  const { items, skipped } = itemsFrom(a.items.length ? a.items : fullBodyTemplate(a.name), ctx.lang);
   if (!items.length) return { id: uid('r'), kind: 'miss', title: t('Couldn’t build that routine'), lines: skipped.map((n) => ({ text: n, sub: t('Not in your exercise library'), warn: true })) };
   const pool = allExercises(useStore.getState().exercises);
   // a preview first (from a photo of a program, or said): nothing is saved until Apply, and a newer version replaces it

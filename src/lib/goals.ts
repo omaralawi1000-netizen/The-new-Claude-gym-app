@@ -383,9 +383,9 @@ function paceTable(d: Data, today: string, exName: (id: string) => string): stri
   const lands = (wk: number) => `${fmtPace(wk)}: ${[4, 8, 12].map((n) => `${r1(kg + wk * n)} kg by ${addDays(today, n * 7)}`).join(', ')}`;
   const lifts = mainLifts(d, today).map((id) => ({ id, b: best(liftTops(d, id, addDays(today, -55), today)) })).filter((x) => x.b);
   const cap = (wk: number) => fmtK(Math.max(floor, m.kcal + (wk * KCAL_PER_KG) / 7) + 300);
-  const habit = habitLine(d, today, [...loss.map((x) => `${cap(-x)} with a ${x} kg/week loss`), `${cap(0.25)} with a 0.25 kg/week gain`, ...(d.settings.goals.kcal ? [`${fmtK(d.settings.goals.kcal + 300)} at the current ${fmtK(d.settings.goals.kcal)} target`] : [])].join(', '));
+  const habit = habitLine(d, today, [...loss.map((x) => `${cap(-x)} with a ${x} kg/week loss`), ...(d.settings.goals.kcal ? [`${fmtK(d.settings.goals.kcal + 300)} at the current ${fmtK(d.settings.goals.kcal)} target`] : [])].join(', '), m.kcal + (0.25 * KCAL_PER_KG) / 7);
   const liftL = lifts.length ? ` Main lifts, best set in the last 8 weeks (estimated max): ${lifts.map((x) => `${exName(x.id)} ${r1(x.b!.kg)} × ${x.b!.reps} (${r1(x.b!.e)} kg)`).join(', ')}.` : '';
-  return `For planning a new goal or changing one (calories a day for each pace, from TRUE MAINTENANCE ${fmtK(m.kcal)} at ${r1(kg)} kg): ${[...loss.map((x) => row(-x)), row(0.25), row(0.4)].join(', ')}. Safe: losing up to ${r2(kg * 0.01)} kg/week (1 % of bodyweight), gaining up to ${r2(kg * 0.005)} kg/week; never under ${fmtK(floor)} kcal. Each kilo lost takes about ${Math.ceil(7 / Math.min(max, (m.kcal - floor) * 7 / KCAL_PER_KG))} days at the fastest safe pace (${fmtK(Math.max(floor, m.kcal - (max * KCAL_PER_KG) / 7))} kcal) and 14 at 0.5 kg/week: an ask that is too fast gets both, the fastest safe and the comfortable one, with the one you recommend as the default (no question about which). A goal with a date: its pace is the kilos to go ÷ the weeks to the date; set the calories of the row at or just under that pace, and state that row's pace (every 0.05 kg/week, then kcal a day: ${fineL}). Where a pace lands: ${[lands(-0.25), lands(-0.5), lands(0.25)].join('; ')}. A new weight goal is tracked from ${r1(kg)} kg (the scale's line today, not one morning): its note starts from that number. Protein: on a cut 1.8–2.2 g/kg = ${Math.round(kg * 1.8)}–${Math.round(kg * 2.2)} g, on a gain 1.6–2.0 g/kg = ${Math.round(kg * 1.6)}–${Math.round(kg * 2)} g${d.settings.goals.protein && d.settings.goals.protein < Math.round(kg * 1.8) - 2 ? `; their ${d.settings.goals.protein} g target is under the cut range: a cut plan says at least ${Math.round(kg * 1.8)} g and offers to set it (set_setting proteinGoal)` : ''}.${liftL}${habit ? ` ${habit}` : ''}`;
+  return `For planning a new goal or changing one (calories a day for each pace, from TRUE MAINTENANCE ${fmtK(m.kcal)} at ${r1(kg)} kg): ${[...loss.map((x) => row(-x)), row(0.25), row(0.4)].join(', ')}. Safe: losing up to ${r2(kg * 0.01)} kg/week (1 % of bodyweight), gaining up to ${r2(kg * 0.005)} kg/week; never under ${fmtK(floor)} kcal. Each kilo lost takes about ${Math.ceil(7 / Math.min(max, (m.kcal - floor) * 7 / KCAL_PER_KG))} days at the fastest safe pace (${fmtK(Math.max(floor, m.kcal - (max * KCAL_PER_KG) / 7))} kcal) and 14 at 0.5 kg/week: an ask that is too fast gets both, the fastest safe and the comfortable one, with the comfortable one as the recommended default (no question about which): the fastest safe pace leaves no room for a bad week, and on a cut it costs the most strength. A goal with a date: its pace is the kilos to go ÷ the weeks to the date; set the calories of the row at or just over that pace (so it reaches the date; never past the safe pace), and state that row's pace (every 0.05 kg/week, then kcal a day: ${fineL}). Where a pace lands: ${[lands(-0.25), lands(-0.5), lands(0.25)].join('; ')}. A new weight goal is tracked from ${r1(kg)} kg (the scale's line today, not one morning): its note starts from that number. Protein: on a cut 1.8–2.2 g/kg = ${Math.round(kg * 1.8)}–${Math.round(kg * 2.2)} g, on a gain 1.6–2.0 g/kg = ${Math.round(kg * 1.6)}–${Math.round(kg * 2)} g${d.settings.goals.protein && d.settings.goals.protein < Math.round(kg * 1.8) - 2 ? `; their ${d.settings.goals.protein} g target is under the cut range: a cut plan says at least ${Math.round(kg * 1.8)} g and offers to set it (set_setting proteinGoal)` : ''}.${liftL}${habit ? ` ${habit}` : ''}`;
 }
 
 const fmtPace = (x: number) => `${x > 0 ? '+' : ''}${r2(x)} kg/week`;
@@ -479,6 +479,16 @@ export function goalLines(d: Data, today: string, exName: (id: string) => string
         if (st.pace === 'behind') bigBehind = true;
       }
     }
+    // (gaining too fast: where the extra food comes from, against the 4 weeks before the goal; judge round 10)
+    if (st.metric === 'weight' && st.pace === 'too fast' && tg > (st.start ?? st.now ?? tg)) {
+      const src = surplusSource(d, g.startDate, today);
+      const now = st.now ?? st.start ?? 0;
+      const ate = foodDays(d, g.startDate, today);
+      const p = avg(ate.map((x) => x.protein));
+      const pTop = Math.round(now * 2);
+      const parts2 = [src ? `the most extra comes from ${src.label}: ${fmtK(src.now)} kcal a day since the goal started vs ${fmtK(src.before)} before it${src.foods.length ? ` (biggest: ${src.foods.join(', ')})` : ''}` : '', p !== undefined && p > pTop + 25 ? `protein ${Math.round(p)} g a day, ${Math.round(p - pTop)} g over the top of its range (${pTop} g): an easy place to trim, about ${fmtK((p - pTop) * 4)} kcal` : ''].filter(Boolean);
+      if (parts2.length) parts.push(`MUST SAY THIS TURN: ${parts2.join('; ')}. Give one tactic with a number for it (what to eat less of, and where), not only "back to the target".`);
+    }
     // (the check-in, worked out here so every plan has the same rule: every 2 weeks from its start)
     let hold = false;
     if (st.metric === 'weight' && st.pace !== 'reached' && !st.short && st.now !== undefined) {
@@ -526,7 +536,7 @@ const wdOf = (date: string) => new Date(`${date}T12:00:00`).getDay();
 
 /** What most likely breaks a plan, from the last 4 weeks of food: the days of the week far over the rest, and protein
  *  days. Worked out here, so a plan names their real habit (judge round 5: the model borrowed the prompt's example). */
-function habitLine(d: Data, today: string, caps?: string): string | undefined {
+function habitLine(d: Data, today: string, caps?: string, gainKcal?: number): string | undefined {
   const days = foodDays(d, addDays(today, -28), today);
   if (days.length < 10) return undefined;
   const all = avg(days.map((x) => x.kcal))!;
@@ -543,7 +553,12 @@ function habitLine(d: Data, today: string, caps?: string): string | undefined {
   // (every day of the week that qualifies: a habit on 4 nights is not "the weekend"; judge round 8)
   const named = high.length >= 3 ? `${high.length} days a week (${high.map((h) => WEEKDAY[h.w].slice(0, 3)).join(', ')}) average ${fmtK(avg(high.map((h) => h.k))!)} kcal` : high.map((h) => `${WEEKDAY[h.w]}s average ${fmtK(h.k)} kcal`).join(' and ');
   const pat = high.length && rest !== undefined ? `${named}, against ${fmtK(rest)} on the other days${what ? `, mostly ${what.label}: ${fmtK(what.hi)} kcal on those days vs ${fmtK(what.lo)} on the others${what.foods.length ? ` (biggest: ${what.foods.join(', ')})` : ''}` : ''}${caps ? `; a cap for those days that still holds a plan: its daily target + 300 (${caps})` : g.kcal ? `; a cap for those days that still holds a plan: its daily target + 300 (now ${fmtK(g.kcal + 300)})` : ''}${what ? `; HOW to hold that cap (say it next to the cap): ${habitTactic(what)}` : ''}` : `no day of the week clearly over the others (all within 300 kcal of the ${fmtK(all)} average)`;
-  return `What most likely breaks a plan (last 4 weeks, ${days.length} finished logged days): ${pat}${hit !== undefined ? `; protein at or above ${g.protein} g on ${hit} of ${days.length} days` : ''}. A plan names this habit with these numbers, never another.`;
+  // (a gain: the big days aren't the risk, the ordinary days under the new target are; judge round 10 saw a weekend cap
+  // above what the weekends already ate)
+  const base = rest ?? all;
+  const gap = gainKcal ? rk(gainKcal - base) : 0;
+  const gainL = gap >= 150 ? ` On a GAIN plan this cap doesn't apply (the big days aren't the risk): ${high.length ? 'the other days' : 'their days'} average ${fmtK(base)}, about ${fmtK(gap)} under a +0.25 kg/week gain's ${fmtK(gainKcal!)}; the how for those days: one planned shake or snack of about ${fmtK(Math.min(600, gap))} kcal${gap > 650 ? `, plus about ${fmtK(gap - 600)} more at one meal` : ''}.` : '';
+  return `What most likely breaks a plan (last 4 weeks, ${days.length} finished logged days): ${pat}${hit !== undefined ? `; protein at or above ${g.protein} g on ${hit} of ${days.length} days` : ''}. A plan names this habit with these numbers, never another.${gainL}`;
 }
 
 /** On the big days against the others: the food after 20:00, or the one meal, that makes most of the difference. */
@@ -562,6 +577,20 @@ function habitSlot(d: Pick<AppData, 'entries'>, hi: string[], lo: string[]) {
   for (const e of d.entries) if (set.has(e.date) && top.f(e)) by.set(e.snap.name, (by.get(e.snap.name) ?? 0) + (e.nutrients.kcal ?? 0));
   const foods = [...by].sort((a, b) => b[1] - a[1]).slice(0, 3).filter(([, k]) => k / hi.length >= 100).map(([n, k]) => `${n} (about ${fmtK(k / hi.length)} kcal a day)`);
   return { label: top.label, hi: top.hi, lo: top.lo, foods };
+}
+
+/** Since a goal started against the 4 weeks before it: the meal that grew the most, and its biggest foods now. */
+function surplusSource(d: Data, start: string, today: string) {
+  const now = foodDays(d, start, today).map((x) => x.date), before = foodDays(d, addDays(start, -28), start).filter((x) => x.date < start).map((x) => x.date);
+  if (now.length < 3 || before.length < 5) return undefined;
+  const per = (dates: string[], meal: string) => { const set = new Set(dates); let k = 0; for (const e of d.entries) if (set.has(e.date) && e.mealId === meal) k += e.nutrients.kcal ?? 0; return k / dates.length; };
+  const meals = [...new Set(d.entries.filter((e) => now.includes(e.date)).map((e) => e.mealId))];
+  const top = meals.map((m) => ({ m, now: per(now, m), before: per(before, m) })).sort((a, b) => (b.now - b.before) - (a.now - a.before))[0];
+  if (!top || top.now - top.before < 150) return undefined;
+  const set = new Set(now); const by = new Map<string, number>();
+  for (const e of d.entries) if (set.has(e.date) && e.mealId === top.m) by.set(e.snap.name, (by.get(e.snap.name) ?? 0) + (e.nutrients.kcal ?? 0));
+  const foods = [...by].sort((a, b) => b[1] - a[1]).slice(0, 3).filter(([, k]) => k / now.length >= 100).map(([n, k]) => `${n} (about ${fmtK(k / now.length)} kcal a day)`);
+  return { label: `the ${top.m} meal`, now: top.now, before: top.before, foods };
 }
 
 /** A plan-time "how" next to the cap for the habit: a concrete change to that food, from its numbers. */

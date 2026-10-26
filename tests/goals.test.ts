@@ -529,10 +529,32 @@ describe('judge round 9 (26 Oct)', () => {
     const g = goalLines(data(), today, name).join('\n');
     expect(g).toMatch(/every 0\.05 kg\/week, then kcal a day: [^)]*\+0\.3 2,960, \+0\.35 3,020/);
     expect(g).toMatch(/HOW to hold that cap \(say it next to the cap\): that lunch meal plated once at about 2,700 kcal/);
-    expect(g).toMatch(/with the one you recommend as the default \(no question about which\)/);
+    expect(g).toMatch(/with the comfortable one as the recommended default \(no question about which\)/);
     useStore.setState({ memory: [{ id: 'p', kind: 'goal', text: 'Promise: log every meal this week', at: 0, goal: { metric: 'other', by: addDays(today, 6), startDate: today } }] });
     const nd = findNudges(data(), today, 9, t, 'en', name).find((x) => x.id.startsWith('promise:'))!;
     expect(nd.title).toBe('Logging promise: starts today');
     expect(nd.body).toBe('7 days including today. Log each meal when you eat it.');
+  });
+});
+
+describe('judge round 10 (26 Oct)', () => {
+  it('a gain plan is told the ordinary days are its risk, and a full-body routine sent without exercises still builds', async () => {
+    const entries = Array.from({ length: 28 }, (_, i) => { const date = addDays(today, -28 + i); return entry(date, new Date(`${date}T12:00:00`).getDay() === 5 ? 3400 : 2500); });
+    useStore.setState({ weights: weighIns(28, 82, 0), entries });
+    expect(goalLines(data(), today, name).join('\n')).toMatch(/On a GAIN plan this cap doesn't apply \(the big days aren't the risk\): the other days average 2,500, about \d{3} under a \+0\.25 kg\/week gain's [\d,]+; the how for those days: one planned shake or snack of about \d{3} kcal/);
+    const r = await act({ type: 'create_routine', name: 'Full Body B' });
+    expect(r.kind).toBe('routine');
+    expect(r.lines.length).toBeGreaterThanOrEqual(3);
+  });
+  it('gaining too fast: the meal the extra comes from and protein far over its range must be said', () => {
+    // 4 weeks before at 2,600 (lunch 2,000 + dinner 600); since the goal: dinner up to 1,600 and protein 260 g
+    const mk = (date: string, meal: string, kcal: number, protein: number): FoodEntry => ({ ...entry(date, kcal, protein), mealId: meal, snap: { name: meal === 'dinner' ? 'Pizza' : 'food', basis: 'g', per100: { kcal } } as any });
+    const entries = [...Array.from({ length: 28 }, (_, i) => addDays(today, -35 + i)).flatMap((dt) => [mk(dt, 'lunch', 2000, 90), mk(dt, 'dinner', 600, 60)]),
+      ...Array.from({ length: 7 }, (_, i) => addDays(today, -7 + i)).flatMap((dt) => [mk(dt, 'lunch', 2000, 140), mk(dt, 'dinner', 1600, 120)])];
+    useStore.setState({ weights: [...weighIns(35, 80, 0).filter((w) => w.date <= addDays(today, -7)), ...weighIns(7, 80, 0.9)], entries, settings: { ...data().settings, goals: { ...data().settings.goals, kcal: 2900 } },
+      memory: [{ id: 'g', kind: 'goal', text: 'Goal: 80 → 82 kg', at: 0, goal: { metric: 'weight', target: 82, by: addDays(today, 50), startDate: addDays(today, -7), start: 80 } }] });
+    const g = goalLines(data(), today, name).join('\n');
+    expect(g).toMatch(/MUST SAY THIS TURN: the most extra comes from the dinner meal: 1,600 kcal a day since the goal started vs 600 before it \(biggest: Pizza/);
+    expect(g).toMatch(/protein 260 g a day, \d+ g over the top of its range/);
   });
 });
