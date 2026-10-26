@@ -225,7 +225,7 @@ function useIntro(scr: React.RefObject<HTMLDivElement | null>, v: HealthView) {
         const late = since < 400 ? Math.max(0, Math.min(first + order.current++ * 45, 520) - since) : 0;
         x.style.opacity = '';
         if (x.closest('.hx-root')?.querySelector('.hx-detail.live')) return; // home is under a page: it stays covered
-        x.animate([{ opacity: 0, transform: 'translateY(12px)', offset: 0 }], { duration: 560, delay: late, easing: 'cubic-bezier(.25,1,.5,1)', fill: 'both' });
+        x.animate([{ opacity: 0, transform: 'translateY(12px)', offset: 0 }], { duration: 480, delay: late, easing: 'cubic-bezier(.25,1,.5,1)', fill: 'both' });
       }), { root: el, threshold: 0.2 });
     }
     fresh.forEach((x) => { x.style.opacity = '0'; io.current!.observe(x); });
@@ -601,7 +601,7 @@ function Page({ k, v, t, lang }: { k: K; v: HealthView; t: TFn; lang: Lang }) {
     const lo = Math.min(...ser), hi = Math.max(...ser);
     out = <>
       <div className="hx-lab"><i />{t('Weight')}</div>
-      <div className="hx-n hx-n52" data-share="num">{fmtNum(kgToDisplay(b.kg!, u), lang, 1)}<small>{u}</small></div>
+      <div className="hx-rnum"><span className="hx-n hx-n52" data-share="num">{fmtNum(kgToDisplay(b.kg!, u), lang, 1)}</span><span className="hx-sub hx-unit" data-share="unit">{u}</span></div>
       <h3 className="hx-dt hx-rise">{b.rate === null ? t('Your weight') : Math.abs(b.rate) < 0.1 ? t('Steady') : b.rate < 0 ? t('Slowly down') : t('Slowly up')}</h3>
       {b.rate !== null && <p className="hx-dsub hx-rise">{t('About {n} {u} a week.', { n: fmtSigned(kgToDisplay(b.rate, u), lang), u })}</p>}
       <div className="hx-panel hx-rise"><button className="chip sm acc press" onClick={() => useUI.getState().push('weight')}><Icon name="plus" size={14} /> {t('Log your weight')}</button></div>
