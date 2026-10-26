@@ -16,6 +16,7 @@ import { useNow } from '../../lib/hooks';
 import { setWorkoutOpener } from '../../ui/workoutOpen';
 import { nextSetOf, prepareRestAudio } from './rest';
 import { completeSet, onSetDone, DEFAULT_HOLD_SEC } from './complete';
+import { mountSetRing } from './setRing';
 import { Briefing, LiftHints, useLiftHint } from './Briefing';
 import { addSet, deleteSet, moveExercise, patchExercise, patchSet, removeExercise, adjustRest, skipRest, toggleSuperset } from './actions';
 import { exName, fmtSet, MUSCLE_LABEL } from './common';
@@ -290,6 +291,8 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   // the field you tapped rides up with the keyboard, on its curve, as far as needed (the list, or Focus's page, scrolls)
   useEffect(() => { const el = dialogRef.current; return el ? rideFocus(el, (f) => f.closest<HTMLElement>('.wk-page, .wk-list')) : undefined; }, []);
   const body = useRef<HTMLDivElement>(null);
+  const ringHost = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => { const l = body.current, h = ringHost.current; return l && h ? mountSetRing(l, h) : undefined; }, [!a]); // eslint-disable-line react-hooks/exhaustive-deps
   // the list never moves sideways: CSS stops a finger, this stops scrollIntoView and friends (a "set done" ring scaling past
   // the right edge used to make room to slide into)
   useEffect(() => {
@@ -452,6 +455,8 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
           {/* body: the list, and Focus over it when chosen (the list stays, faded out, so switching back keeps your place) */}
           <div className="wk-views">
           <motion.div ref={body} style={{ flex: 1, overflowY: 'auto', padding: '4px 16px 0', paddingBottom: bodyPad, overscrollBehavior: 'contain' }} className={`hide-scroll wk-list${a.exercises.length === 0 ? ' is-empty' : ''}${view === 'focus' && a.exercises.length > 0 && (focusIn || shared !== 'in') ? ' wk-away' : ''}${shared === 'back' ? ' back' : ''}`}>
+            {/* the current set's outline: it glides from row to row (setRing.ts); first, so the empty state's last child stays its own */}
+            <div ref={ringHost} className="wk-rings" aria-hidden><i className="wk-ring" /><i className="wk-ring" /></div>
             {a.exercises.length === 0 && (
               // nothing yet: one calm, centred moment (a soft mark, the line, then the button) instead of a top-heavy
               // block over an empty half screen
